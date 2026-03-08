@@ -69,14 +69,21 @@ flowchart TD
 
     subgraph physics_loop ["Fixed Timestep Loop (64 Hz, 15.625ms)"]
         ts["TimeStep::UpdateRealtime()<br/>-> iFullUpdates"]:::physics
+        extrap_check{"IsExtrapolating?"}:::physics
+        extrap_prep["PrepareExtrapolationTick()<br/>BuildExtrapolationFrameRef()<br/>(redirect ActiveFrameRef<br/>to snapshot stack)"]:::physics
         dispatch["Dispatch per-Frame:<br/>RunFrameTick()<br/>(all 5 phases per Frame<br/>in parallel)"]:::physics
-        frame_swap["std::swap(current, next)"]:::physics
-        ts --> dispatch --> frame_swap
+        extrap_record["RecordExtrapolationSnapshot()<br/>(CRC + inputCrc per coord)"]:::physics
+        frame_swap["std::swap(current, next)<br/>+ EnsureNextFrames()"]:::physics
+        ts --> extrap_check
+        extrap_check -->|"Yes"| extrap_prep --> dispatch --> extrap_record
+        extrap_check -->|"No"| dispatch --> frame_swap
     end
 
     net_poll["PollNetworkClient()"]:::network
     kick["TryKickReconcile()<br/>(gated by mbReconcileHasNewData)"]:::network
     send["NetworkClient::SendAck()<br/>NetworkClient::Flush()"]:::network
+
+    borrow["BorrowSnapshotFramesForRender()<br/>(move latest snapshot into<br/>mCurrentFrames for render)"]:::render
 
     subgraph render_phase ["Render (variable rate)"]
         r_interp["FrameInterpolate::<br/>AllocateAndCopy + Update<br/>(render interpolation)"]:::render
@@ -88,9 +95,11 @@ flowchart TD
 
     audio["AudioManager::Update()"]:::render
 
+    restore["RestoreSnapshotFramesAfterRender()<br/>(return snapshot to stack)"]:::render
+
     start --> msgs --> input --> preupdate --> reconcile --> physics_loop
-    physics_loop --> net_poll --> kick --> send --> render_phase --> audio
-    audio -->|next frame| start
+    physics_loop --> net_poll --> kick --> send --> borrow --> render_phase --> audio --> restore
+    restore -->|next frame| start
 ```
 
 ## Server Main Loop
@@ -148,9 +157,14 @@ flowchart LR
         frame --> fpr
     end
 
-    subgraph buffers ["Double Buffer"]
+    subgraph buffers ["Double Buffer (non-extrapolating)"]
         current["mCurrentFrames<br/>map&lt;GridCoord, Frame&gt;<br/>(read during physics)"]:::current
         next_buf["mNextFrames<br/>map&lt;GridCoord, Frame&gt;<br/>(write target)"]:::next
+    end
+
+    subgraph snapshot_buf ["Snapshot Stack (extrapolating)"]
+        snap_stack["CoordReconcileState::snapshots<br/>vector&lt;FrameSnapshot&gt;<br/>(pre-allocated Frames,<br/>CRC + inputCrc per entry)"]:::next
+        snap_note["Physics writes into stack:<br/>snapshot[N] reads from snapshot[N-1]<br/>(or mCurrentFrames if N==0)<br/>std::swap skipped"]
     end
 
     subgraph render_buf ["Render Buffer (client)"]
@@ -159,7 +173,9 @@ flowchart LR
 
     current -->|"AllocateAndCopy<br/>(previous frame)"| next_buf
     next_buf -->|"std::swap after<br/>all sub-phases"| current
-    current -->|"AllocateAndCopy +<br/>Update(remainderNs)"| render_interp
+    current -->|"BorrowSnapshotFrames<br/>(latest snapshot moved in)"| render_interp
+    snap_stack -->|"BorrowSnapshotFrames<br/>(temporary move)"| current
+    current -->|"RestoreSnapshotFrames<br/>(returned to stack)"| snap_stack
 ```
 
 ## Collection Phase Participation

@@ -24,13 +24,19 @@ void Game::KickReconcile()
 		work.coord = rCoord;
 		work.uiGeneration = rState.uiGeneration;
 		work.iConfirmedFrame = rState.iConfirmedFrame;
-		work.confirmedSerializedFrame = rState.confirmedSerializedFrame;
+		work.pConfirmedFrame = std::move(rState.pConfirmedFrame);
 		work.serverUpdates = std::move(rState.serverUpdates);
-		work.extrapolatedSnapshots = std::move(rState.extrapolatedSnapshots);
 		work.pendingFullState = std::move(rState.pendingFullState);
 
+		// Move snapshot stack entries to worker
+		work.snapshots.reserve(static_cast<size_t>(rState.iSnapshotCount));
+		for (int64_t i = 0; i < rState.iSnapshotCount; ++i)
+		{
+			work.snapshots.push_back(std::move(rState.snapshots[i]));
+		}
+		rState.iSnapshotCount = 0;
+
 		rState.serverUpdates.clear();
-		rState.extrapolatedSnapshots.clear();
 		rState.pendingFullState.reset();
 
 		rReconcileContext.coordWork.push_back(std::move(work));
@@ -53,6 +59,19 @@ void Game::KickReconcile()
 
 std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcileContext)
 {
+	// Helper to find a snapshot by frame number (entries are in order)
+	auto findSnapshot = [](std::vector<FrameSnapshot>& rSnapshots, int64_t iFrame) -> FrameSnapshot*
+	{
+		for (auto& rSnapshot : rSnapshots)
+		{
+			if (rSnapshot.iFrame == iFrame)
+			{
+				return &rSnapshot;
+			}
+		}
+		return nullptr;
+	};
+
 	bool bAllHandled = true;
 	int64_t iMinConfirmedFrame = std::numeric_limits<int64_t>::max();
 	int64_t iNewMinConfirmed = std::numeric_limits<int64_t>::max();
@@ -96,34 +115,27 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 		bool bMatch = true;
 		int64_t iLastMatched = -1;
 		auto it = rWork.serverUpdates.begin();
-		bool bPreviousFrameHadStatusChanges = false;
 
 		while (it != rWork.serverUpdates.end() && it->first == iExpected && iExpected <= rReconcileContext.iTargetFrame)
 		{
-			auto snapIt = rWork.extrapolatedSnapshots.find(iExpected);
-			if (snapIt == rWork.extrapolatedSnapshots.end())
+			FrameSnapshot* pSnapshot = findSnapshot(rWork.snapshots, iExpected);
+			if (pSnapshot == nullptr)
 			{
 				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: snapshot missing", rWork.coord.x, rWork.coord.y, iExpected);
 				bMatch = false;
 				break;
 			}
-			if (snapIt->second.crc != it->second.serverCrc)
+			if (pSnapshot->crc != it->second.serverCrc)
 			{
-				ASSERT(!it->second.statusChanges.empty() || bPreviousFrameHadStatusChanges);
-				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: crc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, snapIt->second.crc, it->second.serverCrc);
+				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: crc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, pSnapshot->crc, it->second.serverCrc);
 				bMatch = false;
 				break;
 			}
-			if (snapIt->second.inputCrc != it->second.inputCrc)
+			if (pSnapshot->inputCrc != it->second.inputCrc)
 			{
-				ASSERT(!it->second.statusChanges.empty() || bPreviousFrameHadStatusChanges);
-				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: inputCrc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, snapIt->second.inputCrc, it->second.inputCrc);
+				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: inputCrc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, pSnapshot->inputCrc, it->second.inputCrc);
 				bMatch = false;
 				break;
-			}
-			if (!it->second.statusChanges.empty())
-			{
-				bPreviousFrameHadStatusChanges = true;
 			}
 			iLastMatched = iExpected;
 			++iExpected;
@@ -152,21 +164,20 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 			rWork.bCrcFastPath = true;
 			rWork.iNewConfirmedFrame = iLastMatched;
 			rReconcileContext.iCrcValidatedFrameTicks += iLastMatched - rWork.iConfirmedFrame;
-			rWork.newConfirmedSerializedFrame = std::move(rWork.extrapolatedSnapshots.at(iLastMatched).serializedFrame);
+
+			// Move matched snapshot's Frame as new confirmed frame
+			FrameSnapshot* pMatchedSnapshot = findSnapshot(rWork.snapshots, iLastMatched);
+			rWork.pNewConfirmedFrame = std::move(pMatchedSnapshot->pFrame);
 
 			// Keep snapshots beyond matched frame
-			for (auto snapIt = rWork.extrapolatedSnapshots.begin(); snapIt != rWork.extrapolatedSnapshots.end(); )
+			rWork.newSnapshots.clear();
+			for (auto& rSnapshot : rWork.snapshots)
 			{
-				if (snapIt->first <= iLastMatched)
+				if (rSnapshot.iFrame > iLastMatched && rSnapshot.pFrame != nullptr)
 				{
-					snapIt = rWork.extrapolatedSnapshots.erase(snapIt);
-				}
-				else
-				{
-					++snapIt;
+					rWork.newSnapshots.push_back(std::move(rSnapshot));
 				}
 			}
-			rWork.newExtrapolatedSnapshots = std::move(rWork.extrapolatedSnapshots);
 
 			if (rWork.iConfirmedFrame < iMinConfirmedFrame)
 			{
@@ -287,6 +298,8 @@ void Game::ApplyReconcileResult()
 			}
 			CoordReconcileState& rState = stateIt->second;
 
+			rState.pConfirmedFrame = std::move(rWork.pConfirmedFrame);
+
 			for (auto& [iFrame, rUpdate] : rWork.serverUpdates)
 			{
 				if (iFrame > rState.iConfirmedFrame)
@@ -294,9 +307,19 @@ void Game::ApplyReconcileResult()
 					rState.serverUpdates[iFrame] = std::move(rUpdate);
 				}
 			}
-			for (auto& [iFrame, rSnapshot] : rWork.extrapolatedSnapshots)
+
+			// Restore snapshots
+			rState.iSnapshotCount = 0;
+			for (auto& rSnapshot : rWork.snapshots)
 			{
-				rState.extrapolatedSnapshots[iFrame] = std::move(rSnapshot);
+				if (rSnapshot.pFrame != nullptr && rState.iSnapshotCount < CoordReconcileState::kiMaxSnapshots)
+				{
+					if (rState.iSnapshotCount >= static_cast<int64_t>(rState.snapshots.size()))
+					{
+						rState.snapshots.resize(static_cast<size_t>(rState.iSnapshotCount + 1));
+					}
+					rState.snapshots[rState.iSnapshotCount++] = std::move(rSnapshot);
+				}
 			}
 		}
 
@@ -318,18 +341,38 @@ void Game::ApplyReconcileResult()
 		if (rWork.iNewConfirmedFrame >= 0)
 		{
 			rState.iConfirmedFrame = rWork.iNewConfirmedFrame;
-			rState.confirmedSerializedFrame = std::move(rWork.newConfirmedSerializedFrame);
+			rState.pConfirmedFrame = std::move(rWork.pNewConfirmedFrame);
+		}
+		else
+		{
+			// Restore original confirmed frame (moved to work item at kick time)
+			rState.pConfirmedFrame = std::move(rWork.pConfirmedFrame);
 		}
 
-		// Prune stale extrapolated snapshots
-		std::erase_if(rState.extrapolatedSnapshots, [&](const auto& rPair) { return rPair.first <= rState.iConfirmedFrame; });
-
-		// Merge new extrapolated snapshots from catch-up
-		for (auto& [iFrame, rSnapshot] : rWork.newExtrapolatedSnapshots)
+		// Recycle worker's remaining snapshots back to state's stack for reuse
+		rState.iSnapshotCount = 0;
+		for (auto& rSnapshot : rWork.snapshots)
 		{
-			if (iFrame > rState.iConfirmedFrame)
+			if (rSnapshot.iFrame > rState.iConfirmedFrame && rSnapshot.pFrame != nullptr && rState.iSnapshotCount < CoordReconcileState::kiMaxSnapshots)
 			{
-				rState.extrapolatedSnapshots[iFrame] = std::move(rSnapshot);
+				if (rState.iSnapshotCount >= static_cast<int64_t>(rState.snapshots.size()))
+				{
+					rState.snapshots.resize(static_cast<size_t>(rState.iSnapshotCount + 1));
+				}
+				rState.snapshots[rState.iSnapshotCount++] = std::move(rSnapshot);
+			}
+		}
+
+		// Merge catch-up snapshots
+		for (auto& rSnapshot : rWork.newSnapshots)
+		{
+			if (rSnapshot.iFrame > rState.iConfirmedFrame && rState.iSnapshotCount < CoordReconcileState::kiMaxSnapshots)
+			{
+				if (rState.iSnapshotCount >= static_cast<int64_t>(rState.snapshots.size()))
+				{
+					rState.snapshots.resize(static_cast<size_t>(rState.iSnapshotCount + 1));
+				}
+				rState.snapshots[rState.iSnapshotCount++] = std::move(rSnapshot);
 			}
 		}
 

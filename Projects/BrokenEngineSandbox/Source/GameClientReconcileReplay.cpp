@@ -178,10 +178,7 @@ void Game::ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, [[maybe
 
 void Game::ReconcileInjectPendingFullState(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork)
 {
-	rReconcileContext.currentFrames[rWork.coord] = std::make_unique<Frame>();
-	std::istringstream inputStream(rWork.pendingFullState->second);
-	inputStream >> *rReconcileContext.currentFrames[rWork.coord];
-
+	rReconcileContext.currentFrames[rWork.coord] = std::move(rWork.pendingFullState->pFrame);
 	rWork.pendingFullState.reset();
 }
 
@@ -205,8 +202,13 @@ void Game::ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinCo
 	{
 		if (rWork.iConfirmedFrame <= iMinConfirmedFrame)
 		{
+			ASSERT(rWork.pConfirmedFrame != nullptr);
+			// Copy via serialize/deserialize (cold path) — pConfirmedFrame must survive
+			// for future reconciles (gap coords won't get pNewConfirmedFrame in replay)
+			std::ostringstream outputStream;
+			outputStream << *rWork.pConfirmedFrame;
 			rReconcileContext.currentFrames[rWork.coord] = std::make_unique<Frame>();
-			std::istringstream inputStream(rWork.confirmedSerializedFrame);
+			std::istringstream inputStream(outputStream.str());
 			inputStream >> *rReconcileContext.currentFrames[rWork.coord];
 		}
 	}
@@ -231,7 +233,7 @@ void Game::ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinCo
 	// Inject pending full states at or before rollback frame
 	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
 	{
-		if (rWork.pendingFullState.has_value() && rWork.pendingFullState->first <= iMinConfirmedFrame)
+		if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iFrame <= iMinConfirmedFrame)
 		{
 			ReconcileInjectPendingFullState(rReconcileContext, rWork);
 		}
@@ -342,7 +344,7 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 		// Inject pending full states at the matching transfer frame
 		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
 		{
-			if (rWork.pendingFullState.has_value() && rWork.pendingFullState->first == iFrame)
+			if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iFrame == iFrame)
 			{
 				ReconcileInjectPendingFullState(rReconcileContext, rWork);
 			}
@@ -353,9 +355,13 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 		{
 			if (rWork.iConfirmedFrame == iFrame && rWork.iConfirmedFrame > iMinConfirmedFrame)
 			{
+				ASSERT(rWork.pConfirmedFrame != nullptr);
+				// Copy via serialize/deserialize (cold path) — pConfirmedFrame must survive
+				std::ostringstream lateOutputStream;
+				lateOutputStream << *rWork.pConfirmedFrame;
 				rReconcileContext.currentFrames[rWork.coord] = std::make_unique<Frame>();
-				std::istringstream inputStream(rWork.confirmedSerializedFrame);
-				inputStream >> *rReconcileContext.currentFrames[rWork.coord];
+				std::istringstream lateInputStream(lateOutputStream.str());
+				lateInputStream >> *rReconcileContext.currentFrames[rWork.coord];
 
 				Frame& rInjected = *rReconcileContext.currentFrames[rWork.coord];
 				rInjected.interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
@@ -435,9 +441,12 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 				if (!rWork.bCrcFastPath)
 				{
 					rWork.iNewConfirmedFrame = iFrame;
+					// Copy frame via serialize/deserialize for confirmed state
 					std::ostringstream outputStream;
 					outputStream << *rReconcileContext.currentFrames.at(rCoord);
-					rWork.newConfirmedSerializedFrame = outputStream.str();
+					rWork.pNewConfirmedFrame = std::make_unique<Frame>();
+					std::istringstream inputStream(outputStream.str());
+					inputStream >> *rWork.pNewConfirmedFrame;
 				}
 			}
 		}
@@ -476,13 +485,15 @@ void Game::ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinCon
 		{
 			if (rWork.iConfirmedFrame == rReconcileContext.iFrameCounter && rWork.iConfirmedFrame > iMinConfirmedFrame)
 			{
-				rReconcileContext.currentFrames[rWork.coord] = std::make_unique<Frame>();
-				std::istringstream inputStream(rWork.confirmedSerializedFrame);
-				inputStream >> *rReconcileContext.currentFrames[rWork.coord];
+				if (rWork.pConfirmedFrame != nullptr)
+				{
+					rReconcileContext.currentFrames[rWork.coord] = std::move(rWork.pConfirmedFrame);
+				}
 			}
 		}
 
 		// Store per-coord catch-up snapshots for CRC fast-path
+		// Uses serialize/deserialize to copy frames (cold path, only runs when fast-path fails)
 		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
 		{
 			auto frameIt = rReconcileContext.currentFrames.find(rWork.coord);
@@ -492,17 +503,24 @@ void Game::ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinCon
 			}
 
 			frameIt->second->interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
-			CoordExtrapolatedSnapshot& rSnapshot = rWork.newExtrapolatedSnapshots[rReconcileContext.iFrameCounter];
-			rSnapshot.crc = frameIt->second->ServerCrc();
+
+			FrameSnapshot snapshot;
+			snapshot.iFrame = rReconcileContext.iFrameCounter;
+			snapshot.crc = frameIt->second->ServerCrc();
 			auto inputIt = rReconcileContext.frameInputs.find(rWork.coord);
 			if (inputIt != rReconcileContext.frameInputs.end())
 			{
-				rSnapshot.inputCrc = inputIt->second.ServerInputCrc();
+				snapshot.inputCrc = inputIt->second.ServerInputCrc();
 			}
 
+			// Copy frame via serialize/deserialize for snapshot
 			std::ostringstream outputStream;
 			outputStream << *frameIt->second;
-			rSnapshot.serializedFrame = outputStream.str();
+			snapshot.pFrame = std::make_unique<Frame>();
+			std::istringstream inputStream(outputStream.str());
+			inputStream >> *snapshot.pFrame;
+
+			rWork.newSnapshots.push_back(std::move(snapshot));
 		}
 	}
 }

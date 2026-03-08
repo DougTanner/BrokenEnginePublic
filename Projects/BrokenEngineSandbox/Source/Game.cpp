@@ -430,8 +430,9 @@ void Game::ChangeFrame(GameFlags_t gameFlags)
 	DisconnectFromServer();
 #endif
 
-	if ((gameFlags & GameFlags::kMainMenu && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kMainMenu) ||
-	    (gameFlags & GameFlags::kGame && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kGame))
+	if (mCurrentFrames.contains(mHumanGridCoord) &&
+	    ((gameFlags & GameFlags::kMainMenu && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kMainMenu) ||
+	     (gameFlags & GameFlags::kGame && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kGame)))
 	{
 		DEBUG_BREAK();
 		return;

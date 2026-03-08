@@ -92,8 +92,13 @@ public:
 	void PollNetworkClient();
 	void WaitForReconcile();
 	void TryKickReconcile();
-	void StoreExtrapolatedSnapshot(int64_t iFrame);
 	void UpdateSubscriptions();
+	bool IsExtrapolating() const { return IsNetworkMode() && !mCoordReconcileStates.empty(); }
+	void PrepareExtrapolationTick(const std::vector<engine::GridCoord>& rActiveCoords);
+	void BuildExtrapolationFrameRef(const engine::GridCoord& rCoord, game::Frame*& rpNext, game::Frame*& rpCurrent);
+	void RecordExtrapolationSnapshot(const std::vector<engine::GridCoord>& rActiveCoords, int64_t iFrame);
+	void BorrowSnapshotFrames(std::unordered_map<engine::GridCoord, std::unique_ptr<Frame>>& rCurrentFrames);
+	void RestoreSnapshotFrames(std::unordered_map<engine::GridCoord, std::unique_ptr<Frame>>& rCurrentFrames);
 	void TrySubscribeNext();
 
 	// LAN discovery
@@ -193,19 +198,20 @@ private:
 #endif
 
 #ifdef BT_CLIENT
-	// Per-coord extrapolated snapshot for CRC fast-path
-	struct CoordExtrapolatedSnapshot
+	// Per-frame snapshot stored in the snapshot stack (replaces serialized CoordExtrapolatedSnapshot)
+	struct FrameSnapshot
 	{
+		std::unique_ptr<Frame> pFrame;
+		int64_t iFrame = -1;
 		common::crc_t crc = 0;
 		common::crc_t inputCrc = 0;
-		std::string serializedFrame;
 	};
 
 	// Per-coord reconciliation state (replaces unified ConfirmedState + mServerUpdateBuffer + mExtrapolatedSnapshots)
 	struct CoordReconcileState
 	{
 		int64_t iConfirmedFrame = -1;
-		std::string confirmedSerializedFrame;
+		std::unique_ptr<Frame> pConfirmedFrame;
 
 		struct CoordServerUpdate
 		{
@@ -215,10 +221,18 @@ private:
 		};
 		std::map<int64_t, CoordServerUpdate> serverUpdates;
 
-		std::map<int64_t, CoordExtrapolatedSnapshot> extrapolatedSnapshots;
+		// Snapshot stack: pre-allocated Frames, reused across extrapolation cycles
+		static constexpr int64_t kiMaxSnapshots = 32;
+		std::vector<FrameSnapshot> snapshots;
+		int64_t iSnapshotCount = 0;
 
 		// Pending full state from subscription
-		std::optional<std::pair<int64_t, std::string>> pendingFullState;
+		struct PendingFullState
+		{
+			int64_t iFrame = -1;
+			std::unique_ptr<Frame> pFrame;
+		};
+		std::optional<PendingFullState> pendingFullState;
 
 		uint64_t uiGeneration = 0;
 	};
@@ -262,15 +276,15 @@ private:
 
 		// Input
 		int64_t iConfirmedFrame = -1;
-		std::string confirmedSerializedFrame;
+		std::unique_ptr<Frame> pConfirmedFrame;
 		std::map<int64_t, CoordReconcileState::CoordServerUpdate> serverUpdates;
-		std::map<int64_t, CoordExtrapolatedSnapshot> extrapolatedSnapshots;
-		std::optional<std::pair<int64_t, std::string>> pendingFullState;
+		std::vector<FrameSnapshot> snapshots;
+		std::optional<CoordReconcileState::PendingFullState> pendingFullState;
 
 		// Output
 		int64_t iNewConfirmedFrame = -1;
-		std::string newConfirmedSerializedFrame;
-		std::map<int64_t, CoordExtrapolatedSnapshot> newExtrapolatedSnapshots;
+		std::unique_ptr<Frame> pNewConfirmedFrame;
+		std::vector<FrameSnapshot> newSnapshots;
 		bool bCrcFastPath = false;
 
 		// Desync (if any)

@@ -53,6 +53,8 @@ public:
 	void UpdateFrames(const game::MenuInput& rMenuInput, bool bUpdateFrames);
 #ifdef BT_CLIENT
 	void UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bUpdateFrames);
+	void BorrowSnapshotFramesForRender();
+	void RestoreSnapshotFramesAfterRender();
 	void Render(bool bUpdateFrames);
 #endif
 

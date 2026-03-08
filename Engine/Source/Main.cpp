@@ -330,7 +330,9 @@ void MainThread(HINSTANCE hinstance)
 			{
 				gpNetworkClient->Flush();
 			}
+			pGame->BorrowSnapshotFramesForRender();
 			pGame->Render(false);
+			pGame->RestoreSnapshotFramesAfterRender();
 			continue;
 		}
 
@@ -372,6 +374,7 @@ void MainThread(HINSTANCE hinstance)
 		}
 		gpProfileManager->CpuStop(kCpuTimerNetworkSend, true);
 
+		pGame->BorrowSnapshotFramesForRender();
 		try
 		{
 			pGame->Render(bUpdateFrames);
@@ -390,6 +393,7 @@ void MainThread(HINSTANCE hinstance)
 		gpProfileManager->CpuStop(kCpuTimerAudio, false);
 
 		sbUseCrosshair = pGame->ShouldUseCrosshair();
+		pGame->RestoreSnapshotFramesAfterRender();
 #else
 		// Server: poll network and process inputs before frame update
 		{

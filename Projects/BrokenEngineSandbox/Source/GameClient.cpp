@@ -12,6 +12,104 @@ namespace game
 
 #ifdef BT_CLIENT
 
+void Game::PrepareExtrapolationTick(const std::vector<engine::GridCoord>& rActiveCoords)
+{
+	ScopedSuppressAllocationTracking ssat;
+	for (const engine::GridCoord& rCoord : rActiveCoords)
+	{
+		auto stateIt = mCoordReconcileStates.find(rCoord);
+		if (stateIt == mCoordReconcileStates.end())
+		{
+			continue;
+		}
+		auto& rState = stateIt->second;
+		int64_t N = rState.iSnapshotCount;
+		if (N >= CoordReconcileState::kiMaxSnapshots)
+		{
+			continue;
+		}
+		if (N >= static_cast<int64_t>(rState.snapshots.size()))
+		{
+			rState.snapshots.resize(static_cast<size_t>(N + 1));
+		}
+		if (rState.snapshots[N].pFrame == nullptr)
+		{
+			rState.snapshots[N].pFrame = std::make_unique<Frame>();
+		}
+	}
+}
+
+void Game::BuildExtrapolationFrameRef(const engine::GridCoord& rCoord, Frame*& rpNext, Frame*& rpCurrent)
+{
+	auto stateIt = mCoordReconcileStates.find(rCoord);
+	if (stateIt == mCoordReconcileStates.end())
+	{
+		return;
+	}
+	auto& rState = stateIt->second;
+	int64_t N = rState.iSnapshotCount;
+	if (N >= CoordReconcileState::kiMaxSnapshots)
+	{
+		return;
+	}
+	rpNext = rState.snapshots[N].pFrame.get();
+	rpCurrent = (N == 0) ? &CurrentFrame(rCoord) : rState.snapshots[N - 1].pFrame.get();
+}
+
+void Game::RecordExtrapolationSnapshot(const std::vector<engine::GridCoord>& rActiveCoords, int64_t iFrame)
+{
+	for (const engine::GridCoord& rCoord : rActiveCoords)
+	{
+		auto stateIt = mCoordReconcileStates.find(rCoord);
+		if (stateIt == mCoordReconcileStates.end())
+		{
+			continue;
+		}
+		auto& rState = stateIt->second;
+		if (rState.iSnapshotCount >= CoordReconcileState::kiMaxSnapshots)
+		{
+			continue;
+		}
+		auto& rSnapshot = rState.snapshots[rState.iSnapshotCount];
+		rSnapshot.iFrame = iFrame;
+		rSnapshot.crc = rSnapshot.pFrame->ServerCrc();
+		auto inputIt = mFrameInputs.find(rCoord);
+		if (inputIt != mFrameInputs.end())
+		{
+			rSnapshot.inputCrc = inputIt->second.ServerInputCrc();
+		}
+		rState.iSnapshotCount++;
+	}
+}
+
+void Game::BorrowSnapshotFrames(std::unordered_map<engine::GridCoord, std::unique_ptr<Frame>>& rCurrentFrames)
+{
+	for (const engine::GridCoord& rCoord : mActiveCoords)
+	{
+		auto stateIt = mCoordReconcileStates.find(rCoord);
+		if (stateIt == mCoordReconcileStates.end() || stateIt->second.iSnapshotCount <= 0)
+		{
+			continue;
+		}
+		auto& rState = stateIt->second;
+		std::swap(rCurrentFrames[rCoord], rState.snapshots[rState.iSnapshotCount - 1].pFrame);
+	}
+}
+
+void Game::RestoreSnapshotFrames(std::unordered_map<engine::GridCoord, std::unique_ptr<Frame>>& rCurrentFrames)
+{
+	for (const engine::GridCoord& rCoord : mActiveCoords)
+	{
+		auto stateIt = mCoordReconcileStates.find(rCoord);
+		if (stateIt == mCoordReconcileStates.end() || stateIt->second.iSnapshotCount <= 0)
+		{
+			continue;
+		}
+		auto& rState = stateIt->second;
+		std::swap(rCurrentFrames[rCoord], rState.snapshots[rState.iSnapshotCount - 1].pFrame);
+	}
+}
+
 void Game::ConnectToServer(const char* pServerAddress)
 {
 	FILE_LOG(0, "ConnectToServer: connecting to {}", pServerAddress);
@@ -27,30 +125,6 @@ void Game::StartServerDiscovery()
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	mpDiscoveryScanner = std::make_unique<engine::NetworkDiscoveryScanner>();
 	mpDiscoveryScanner->StartScan();
-}
-
-void Game::StoreExtrapolatedSnapshot(int64_t iFrame)
-{
-	// Store per-coord extrapolated snapshots for CRC fast-path
-	for (const auto& [rCoord, pFrame] : mCurrentFrames)
-	{
-		auto stateIt = mCoordReconcileStates.find(rCoord);
-		if (stateIt == mCoordReconcileStates.end())
-		{
-			continue;
-		}
-
-		CoordExtrapolatedSnapshot& rSnapshot = stateIt->second.extrapolatedSnapshots[iFrame];
-		rSnapshot.crc = pFrame->ServerCrc();
-		auto inputIt = mFrameInputs.find(rCoord);
-		if (inputIt != mFrameInputs.end())
-		{
-			rSnapshot.inputCrc = inputIt->second.ServerInputCrc();
-		}
-		std::ostringstream outputStream;
-		outputStream << *pFrame;
-		rSnapshot.serializedFrame = outputStream.str();
-	}
 }
 
 std::chrono::nanoseconds Game::ComputeClockCorrectionNs(int64_t iPreReconcileFrame)
@@ -164,7 +238,7 @@ void Game::PollNetworkClient()
 	}
 
 	// Connection accepted - transition to game mode (runs once)
-	if (CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kMainMenu)
+	if (mCurrentFrames.contains(mHumanGridCoord) && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kMainMenu)
 	{
 		miGameMusicIndex = 0;
 		engine::gpAudioManager->PlayMusic(mGameMusicPlaylist.at(0));
@@ -226,7 +300,10 @@ void Game::PollNetworkClient()
 			mHumanGridCoord = rState.coord;
 			break;
 		case engine::PlayerStateType::kDied:
-			CurrentFrame(mHumanGridCoord).interpolate.gameFlags.Set(GameFlags::kDeathScreen);
+			if (mCurrentFrames.contains(mHumanGridCoord))
+			{
+				CurrentFrame(mHumanGridCoord).interpolate.gameFlags.Set(GameFlags::kDeathScreen);
+			}
 			mHumanPlayerId = {};
 			mfPreviousHumanArmor = 0.0f;
 			break;
@@ -270,18 +347,32 @@ void Game::ApplyReceivedFullStates()
 		if (rState.iConfirmedFrame < 0)
 		{
 			// First full state for this coord: inject directly into mCurrentFrames
-			mCurrentFrames[coord] = std::move(rFullState.pFrame);
+			mCurrentFrames[coord] = std::make_unique<Frame>();
+
+			// Copy received frame into confirmed frame via serialize/deserialize (one-time)
+			std::ostringstream outputStream;
+			outputStream << *rFullState.pFrame;
+			std::string serialized = outputStream.str();
+			std::istringstream inputStream(serialized);
+			inputStream >> *mCurrentFrames[coord];
 
 			if (!mNextFrames.contains(coord))
 			{
 				mNextFrames[coord] = std::make_unique<Frame>();
 			}
 
-			// Establish confirmed state for this coord
+			// Establish confirmed state with a copy of the frame
 			rState.iConfirmedFrame = iFrame;
-			std::ostringstream outputStream;
-			outputStream << *mCurrentFrames[coord];
-			rState.confirmedSerializedFrame = outputStream.str();
+			rState.pConfirmedFrame = std::make_unique<Frame>();
+			std::istringstream confirmStream(serialized);
+			confirmStream >> *rState.pConfirmedFrame;
+
+			// Initialize snapshot stack with the received frame as stack[0]
+			rState.snapshots.resize(CoordReconcileState::kiMaxSnapshots);
+			rState.snapshots[0].pFrame = std::move(rFullState.pFrame);
+			rState.snapshots[0].iFrame = iFrame;
+			rState.snapshots[0].crc = rState.snapshots[0].pFrame->ServerCrc();
+			rState.iSnapshotCount = 1;
 
 			// Set frame counter from first received full state
 			if (miFrameCounter < iFrame)
@@ -307,9 +398,10 @@ void Game::ApplyReceivedFullStates()
 		else
 		{
 			// Coord already has confirmed state: store as pending for reconcile injection
-			std::ostringstream outputStream;
-			outputStream << rFrame;
-			rState.pendingFullState = {iFrame, outputStream.str()};
+			rState.pendingFullState = CoordReconcileState::PendingFullState {
+				.iFrame = iFrame,
+				.pFrame = std::move(rFullState.pFrame),
+			};
 
 			mbReconcileHasNewData = true;
 			FILE_LOG(0, "[ApplyReceivedFullStates] Deferred coord=({},{}) frame={}", coord.x, coord.y, iFrame);

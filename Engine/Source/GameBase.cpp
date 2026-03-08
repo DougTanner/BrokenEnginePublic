@@ -118,11 +118,36 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bUpdateFrame
 
 		const int64_t iActiveCount = static_cast<int64_t>(rActiveCoords.size());
 
+#ifdef BT_CLIENT
+		bool bExtrapolating = game::gpGame->IsExtrapolating();
+		if (bExtrapolating)
+		{
+			game::gpGame->PrepareExtrapolationTick(rActiveCoords);
+		}
+#endif
+
 		// Pre-resolve frame references to avoid repeated map lookups across all phases
 		common::gpThreadLocal->mWorkbuffer.Push();
 		for (int64_t j = 0; j < iActiveCount; ++j)
 		{
 			const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
+#ifdef BT_CLIENT
+			if (bExtrapolating)
+			{
+				game::Frame* pNext = nullptr;
+				game::Frame* pCurrent = nullptr;
+				game::gpGame->BuildExtrapolationFrameRef(rCoord, pNext, pCurrent);
+				if (pNext != nullptr)
+				{
+					common::gpThreadLocal->mWorkbuffer.PushBack<game::ActiveFrameRef>({
+						.pNext = pNext,
+						.pCurrent = pCurrent,
+						.pFrameInput = &game::gpGame->mFrameInputs.at(rCoord),
+					});
+					continue;
+				}
+			}
+#endif
 			common::gpThreadLocal->mWorkbuffer.PushBack<game::ActiveFrameRef>({
 				.pNext = &NextFrame(rCoord),
 				.pCurrent = &CurrentFrame(rCoord),
@@ -163,30 +188,29 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bUpdateFrame
 		}
 #endif
 
-		std::swap(mCurrentFrames, mNextFrames);
-
-		// After swap, mNextFrames holds old current frames (stale data, reusable memory).
-		// Ensure active entries exist for next iteration's AllocateAndCopy.
-		if (mpDifferenceStreamReader == nullptr)
-		{
-			game::gpGame->EnsureNextFrames();
-		}
-		else if (!mNextFrames.contains(game::gpGame->mHumanGridCoord))
-		{
-			// Heap: make_unique<Frame> for replay target coordinate
-			ScopedSuppressAllocationTracking ssat;
-			mNextFrames[game::gpGame->mHumanGridCoord] = std::make_unique<game::Frame>();
-		}
-
-		// Store extrapolated snapshot for reconciliation CRC fast-path
 #ifdef BT_CLIENT
-		if (game::gpGame->IsNetworkMode())
+		if (bExtrapolating)
 		{
-			// Heap: snapshot serialization for CRC fast-path
-			ScopedSuppressAllocationTracking ssat;
-			game::gpGame->StoreExtrapolatedSnapshot(miFrameCounter);
+			game::gpGame->RecordExtrapolationSnapshot(rActiveCoords, miFrameCounter);
 		}
+		else
 #endif
+		{
+			std::swap(mCurrentFrames, mNextFrames);
+
+			// After swap, mNextFrames holds old current frames (stale data, reusable memory).
+			// Ensure active entries exist for next iteration's AllocateAndCopy.
+			if (mpDifferenceStreamReader == nullptr)
+			{
+				game::gpGame->EnsureNextFrames();
+			}
+			else if (!mNextFrames.contains(game::gpGame->mHumanGridCoord))
+			{
+				// Heap: make_unique<Frame> for replay target coordinate
+				ScopedSuppressAllocationTracking ssat;
+				mNextFrames[game::gpGame->mHumanGridCoord] = std::make_unique<game::Frame>();
+			}
+		}
 
 #ifdef BT_SERVER
 		{
@@ -220,7 +244,29 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bUpdateFrame
 void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bUpdateFrames)
 {
 	UpdateFrames(rMenuInput, bUpdateFrames);
+	BorrowSnapshotFramesForRender();
 	Render(bUpdateFrames);
+	RestoreSnapshotFramesAfterRender();
+}
+
+void GameBase::BorrowSnapshotFramesForRender()
+{
+	if (!game::gpGame->IsExtrapolating())
+	{
+		return;
+	}
+
+	game::gpGame->BorrowSnapshotFrames(mCurrentFrames);
+}
+
+void GameBase::RestoreSnapshotFramesAfterRender()
+{
+	if (!game::gpGame->IsExtrapolating())
+	{
+		return;
+	}
+
+	game::gpGame->RestoreSnapshotFrames(mCurrentFrames);
 }
 
 void GameBase::Render(bool bUpdateFrames)
