@@ -47,9 +47,9 @@ void Game::StoreExtrapolatedSnapshot(int64_t iFrame)
 		{
 			rSnapshot.inputCrc = inputIt->second.ServerInputCrc();
 		}
-		std::ostringstream oss;
-		oss << *pFrame;
-		rSnapshot.serializedFrame = oss.str();
+		std::ostringstream outputStream;
+		outputStream << *pFrame;
+		rSnapshot.serializedFrame = outputStream.str();
 	}
 }
 
@@ -97,13 +97,13 @@ void Game::DisconnectFromServer()
 		mpReconcileContext.reset();
 	}
 
+	mbReconcileHasNewData = false;
 	miLatestServerFrame = -1;
 	mpNetworkClient.reset();
 	mCoordReconcileStates.clear();
 	mConfirmedHumanState = {};
 	mDesyncDebugState = {};
 	mSubscriptionQueue.clear();
-	miSkipSnapshotSteps = 0;
 	miClockError = 0;
 }
 
@@ -254,11 +254,11 @@ void Game::ApplyReceivedFullStates()
 		engine::GridCoord coord = rFullState.coord;
 		int64_t iFrame = rFullState.iFrame;
 
-		// Hydrate client-only objects
+		// Initialize client-only objects
 		Frame& rFrame = *rFullState.pFrame;
-		BlastersInterpolate::HydrateClientObjects(rFrame);
-		MissilesInterpolate::HydrateClientObjects(rFrame);
-		SpaceshipsInterpolate::HydrateClientObjects(rFrame);
+		BlastersInterpolate::ClientInitAll(rFrame);
+		MissilesInterpolate::ClientInitAll(rFrame);
+		SpaceshipsInterpolate::ClientInitAll(rFrame);
 
 		bool bNewEntry = !mCoordReconcileStates.contains(coord);
 		CoordReconcileState& rState = mCoordReconcileStates[coord];
@@ -279,9 +279,9 @@ void Game::ApplyReceivedFullStates()
 
 			// Establish confirmed state for this coord
 			rState.iConfirmedFrame = iFrame;
-			std::ostringstream oss;
-			oss << *mCurrentFrames[coord];
-			rState.confirmedSerializedFrame = oss.str();
+			std::ostringstream outputStream;
+			outputStream << *mCurrentFrames[coord];
+			rState.confirmedSerializedFrame = outputStream.str();
 
 			// Set frame counter from first received full state
 			if (miFrameCounter < iFrame)
@@ -301,15 +301,17 @@ void Game::ApplyReceivedFullStates()
 				mConfirmedHumanState.fCurrentTime = mCurrentFrames[coord]->interpolate.fCurrentTime;
 			}
 
+			mbReconcileHasNewData = true;
 			FILE_LOG(0, "[ApplyReceivedFullStates] Initial coord=({},{}) frame={}", coord.x, coord.y, iFrame);
 		}
 		else
 		{
 			// Coord already has confirmed state: store as pending for reconcile injection
-			std::ostringstream oss;
-			oss << rFrame;
-			rState.pendingFullState = {iFrame, oss.str()};
+			std::ostringstream outputStream;
+			outputStream << rFrame;
+			rState.pendingFullState = {iFrame, outputStream.str()};
 
+			mbReconcileHasNewData = true;
 			FILE_LOG(0, "[ApplyReceivedFullStates] Deferred coord=({},{}) frame={}", coord.x, coord.y, iFrame);
 		}
 	}
@@ -366,6 +368,7 @@ void Game::ApplyReceivedUpdates()
 					.inputCrc = rUpdate.inputCrc,
 					.statusChanges = std::move(rUpdate.statusChanges),
 				};
+				mbReconcileHasNewData = true;
 			}
 		}
 
@@ -538,7 +541,18 @@ void Game::WaitForReconcile()
 		{
 			return;
 		}
+
+		common::Timer timer;
 		mpReconcileWorker->Wait();
+
+		std::chrono::nanoseconds waitNs = timer.GetDeltaNs();
+		std::chrono::nanoseconds maxWait = std::chrono::nanoseconds(1s) / 2; // DT: TEMP engine::gpGraphics->miMonitorRefreshRate;
+		if (waitNs > maxWait)
+		{
+			FILE_LOG(0, "[WaitForReconcile] Wait exceeded threshold: waitNs={} maxNs={}", waitNs.count(), maxWait.count());
+			DEBUG_BREAK();
+		}
+
 		ApplyReconcileResult();
 		mbReconcileInFlight = false;
 	}
@@ -556,8 +570,14 @@ void Game::TryKickReconcile()
 		return;
 	}
 
+	if (!mbReconcileHasNewData)
+	{
+		return;
+	}
+
 	KickReconcile();
 	mbReconcileInFlight = true;
+	mbReconcileHasNewData = false;
 }
 
 void Game::CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, [[maybe_unused]] int64_t iFrame, [[maybe_unused]] engine::GridCoord coord)

@@ -437,13 +437,25 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 }
 
 #ifdef BT_CLIENT
-void SpaceshipsInterpolate::AllocateClientObjects(Frame& rFrame, int64_t iIndex)
+void SpaceshipsInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 {
-	rFrame.interpolate.pSpaceships->puiWindTrails[iIndex] = {};
-	engine::WindTrailsPostRender::Add(rFrame, rFrame.interpolate.pSpaceships->puiWindTrails[iIndex]);
+	SpaceshipsInterpolate& rSpaceships = *rFrame.interpolate.pSpaceships;
+
+	// Add client-only owned objects
+	rSpaceships.puiWindTrails[iIndex] = {};
+	engine::WindTrailsPostRender::Add(rFrame, rSpaceships.puiWindTrails[iIndex]);
+
+	// Sync wind trail
+	engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rSpaceships.puiWindTrails[iIndex],
+	{
+		.vecPosition = rSpaceships.pVecPositions[iIndex],
+		.fIntensity = engine::gWindDepositSpaceshipsIntensity.Get(),
+		.fWidth = engine::gWindDepositSpaceshipsWidth.Get(),
+		.fLengthMultiplier = engine::gWindDepositSpaceshipsLengthMultiplier.Get(),
+	});
 }
 
-void SpaceshipsInterpolate::HydrateClientObjects(Frame& rFrame)
+void SpaceshipsInterpolate::ClientInitAll(Frame& rFrame)
 {
 	SpaceshipsInterpolate& rSpaceships = *rFrame.interpolate.pSpaceships;
 	for (int64_t i = 0; i < rSpaceships.iCount; ++i)
@@ -452,7 +464,7 @@ void SpaceshipsInterpolate::HydrateClientObjects(Frame& rFrame)
 		{
 			continue;
 		}
-		AllocateClientObjects(rFrame, i);
+		ClientInit(rFrame, i);
 	}
 }
 #endif
@@ -481,14 +493,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 
 	// Create owned wind deposit
 #ifdef BT_CLIENT
-	SpaceshipsInterpolate::AllocateClientObjects(rFrame, iIndex);
-	engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindTrails[iIndex],
-	{
-		.vecPosition = rInfo.vecPosition,
-		.fIntensity = engine::gWindDepositSpaceshipsIntensity.Get(),
-		.fWidth = engine::gWindDepositSpaceshipsWidth.Get(),
-		.fLengthMultiplier = engine::gWindDepositSpaceshipsLengthMultiplier.Get(),
-	});
+	SpaceshipsInterpolate::ClientInit(rFrame, iIndex);
 #endif
 
 	// Create owned target for missile tracking (also creates its billboard)

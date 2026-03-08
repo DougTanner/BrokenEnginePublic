@@ -46,8 +46,8 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
 #ifdef BT_CLIENT
-	static void AllocateClientObjects(Frame& rFrame, int64_t iIndex);
-	static void HydrateClientObjects(Frame& rFrame);
+	static void ClientInit(Frame& rFrame, int64_t iIndex);
+	static void ClientInitAll(Frame& rFrame);
 #endif
 
 	XMVECTOR* __restrict pVecPositions = nullptr;

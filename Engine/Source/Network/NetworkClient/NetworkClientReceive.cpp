@@ -296,7 +296,7 @@ void NetworkClient::HandleServerUnsubscribeAck(const uint8_t* pData)
 	FILE_LOG(0, "[NetworkClient] UnsubscribeAck: slot={} coord=({},{})", uiSlotIndex, rSlot.coord.x, rSlot.coord.y);
 	common::Log("NetworkClient: Unsubscribe ack slot {} coord ({},{})", uiSlotIndex, rSlot.coord.x, rSlot.coord.y);
 
-	if constexpr (kbEnableNetworkSimulation)
+	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
 		uint8_t uiSlot = uiSlotIndex;
 		std::erase_if(mDelayedPackets, [uiSlot](const DelayedPacket& rPacket)

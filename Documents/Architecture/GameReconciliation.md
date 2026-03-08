@@ -4,7 +4,7 @@
 
 ## Reconciliation State Machine
 
-CRC fast-path decision through unified rollback, full replay (capped at half available frames), predictive catch-up, and snapshot storage. The entire pipeline runs on a dedicated `PersistentWorker` thread.
+CRC fast-path decision (with gap-skip for coords missing intermediate frames) through unified rollback, full replay (capped at half available frames), predictive catch-up, and snapshot storage. The entire pipeline runs on a dedicated `PersistentWorker` thread.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -18,6 +18,8 @@ flowchart TD
 
     CRC{"CRC Fast-Path<br/>(skipped if pendingFullStates non-empty)<br/>All consecutive updates<br/>match ExtrapolatedSnapshot CRCs?<br/>(serverCrc AND inputCrc per-coord)"}:::fastpath
     CRC -->|"Yes (all matched)"| FASTDONE["Use last matched snapshot<br/>as confirmed state<br/>bCrcFastPathHandledAll = true"]:::fastpath
+    CRC -->|"Gapped coord<br/>(first update beyond confirmed+1)"| GAPSKIP["Skip coord, keep updates<br/>for future resend fill<br/>(does not force full reconcile)"]:::fastpath
+    GAPSKIP --> CRC
     CRC -->|"No / partial match"| ROLLBACK
 
     ROLLBACK["Unified Rollback<br/>Restore only coords confirmed<br/>at iMinConfirmedFrame<br/>(late-confirmed coords injected<br/>during replay/catch-up)<br/>Read fCurrentTime from frame<br/>at iMinConfirmedFrame<br/>Inject pending full states<br/>(at or before rollback frame)<br/>Ensure next frames"]:::replay --> FINDRANGE
@@ -90,7 +92,7 @@ flowchart TD
 
     PHYSICS --> POLL["PollNetworkClient()<br/>Process player state notifications<br/>(spawn/frame change/death),<br/>apply full states,<br/>buffer delta updates"]:::network
 
-    POLL --> KICK["TryKickReconcile()<br/>Move consecutive updates to worker,<br/>dispatch async reconcile"]:::reconcile
+    POLL --> KICK["TryKickReconcile()<br/>Gate: mbReconcileHasNewData<br/>(skip if no new server data)<br/>Move consecutive updates to worker,<br/>dispatch async reconcile"]:::reconcile
 
     KICK --> SEND["NetworkClient::SendAck()<br/>NetworkClient::Flush()"]:::network
 
@@ -115,7 +117,6 @@ correction    = -clamp(iError, -4, +4) * kUpdateStepNs / 64
                  Proportional, max ±4 steps, 1/64 frame per error unit
 
 Applied: mUpdateRemainderNs += frameDeficit * kUpdateStepNs + correction
-         miSkipSnapshotSteps = frameDeficit  (suppress snapshot storage during compensation)
 ```
 
 ## Desync Debug Mode
@@ -170,7 +171,7 @@ Data flows between main thread and worker via `ReconcileContext`, which contains
 | Function | Thread | Purpose |
 |----------|--------|---------|
 | `WaitForReconcile()` | Main | Block until async worker done, call `ApplyReconcileResult()` |
-| `TryKickReconcile()` | Main | Build per-coord `CoordReconcileWork` items, dispatch `KickReconcile()` |
+| `TryKickReconcile()` | Main | Gate on `mbReconcileHasNewData` (skip if no new server data), build per-coord `CoordReconcileWork` items, dispatch `KickReconcile()` |
 | `KickReconcile()` | Main | Build `ReconcileContext` with per-coord work, dispatch worker via `PersistentWorker` |
 | `Reconcile()` | Worker | Static — runs per-coord CRC fast-path, unified rollback, full replay (capped), catch-up |
 | `ApplyReconcileResult()` | Main | Apply per-coord worker results (guarded by `uiGeneration` to skip stale coords, only advance confirmed state when `iNewConfirmedFrame >= 0`), handle desync, restore unconsumed updates |

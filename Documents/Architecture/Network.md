@@ -191,13 +191,13 @@ flowchart TD
 
     subgraph main ["Main Thread"]
         poll["PollNetworkClient()<br/>Buffer per-slot received updates<br/>into CoordReconcileStates"]:::mainThread
-        kick["TryKickReconcile()<br/>Build CoordReconcileWork per coord<br/>+ kick worker"]:::mainThread
+        kick["TryKickReconcile()<br/>Gate: mbReconcileHasNewData<br/>Build CoordReconcileWork per coord<br/>+ kick worker"]:::mainThread
         wait["WaitForReconcile()<br/>Block until worker done"]:::mainThread
         apply["ApplyReconcileResult()<br/>Merge per-coord results<br/>into mCurrentFrames"]:::mainThread
     end
 
     subgraph worker_thread ["Reconcile Worker (PersistentWorker)"]
-        check_crc{"CRC fast-path:<br/>All coords' extrapolated CRCs<br/>(serverCrc + inputCrc)<br/>match server updates?"}:::decision
+        check_crc{"CRC fast-path:<br/>All coords' extrapolated CRCs<br/>(serverCrc + inputCrc)<br/>match server updates?<br/>(gapped coords skipped)"}:::decision
 
         fast["Use last matched snapshot<br/>as confirmed state per coord<br/>(no replay needed)"]:::worker
 

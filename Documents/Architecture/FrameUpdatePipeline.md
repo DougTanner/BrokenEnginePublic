@@ -63,9 +63,9 @@ flowchart TD
     msgs["ProcessMessages()"]:::input
     input["RawInputManager::Update()"]:::input
 
-    reconcile["WaitForReconcile()<br/>ApplyReconcileResult()"]:::network
-
     preupdate["PreUpdate(menuInput)"]:::physics
+
+    reconcile["WaitForReconcile()<br/>ApplyReconcileResult()"]:::network
 
     subgraph physics_loop ["Fixed Timestep Loop (64 Hz, 15.625ms)"]
         ts["TimeStep::UpdateRealtime()<br/>-> iFullUpdates"]:::physics
@@ -75,7 +75,7 @@ flowchart TD
     end
 
     net_poll["PollNetworkClient()"]:::network
-    kick["TryKickReconcile()"]:::network
+    kick["TryKickReconcile()<br/>(gated by mbReconcileHasNewData)"]:::network
     send["NetworkClient::SendAck()<br/>NetworkClient::Flush()"]:::network
 
     subgraph render_phase ["Render (variable rate)"]
@@ -88,7 +88,7 @@ flowchart TD
 
     audio["AudioManager::Update()"]:::render
 
-    start --> msgs --> input --> reconcile --> preupdate --> physics_loop
+    start --> msgs --> input --> preupdate --> reconcile --> physics_loop
     physics_loop --> net_poll --> kick --> send --> render_phase --> audio
     audio -->|next frame| start
 ```

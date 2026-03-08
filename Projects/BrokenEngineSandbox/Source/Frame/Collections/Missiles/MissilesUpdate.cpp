@@ -32,7 +32,7 @@ constexpr float kfDeltaRotationTowardsTarget = 10.0f;
 constexpr float kfDeltaRotationTowardsStored = 3.0f;
 
 #ifdef BT_CLIENT
-// Forward declaration of SyncMissile (defined in Missiles.cpp)
+// Forward declaration of SyncMissile (defined in Missiles.cpp, also used by ClientInit)
 void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::smoke_trails_t uiSmokeTrail,
 	engine::sound_t uiSound,
 	FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength);

@@ -15,7 +15,7 @@ public:
 
 	// Add real delta time and return number of steps needed
 	// Returns 0 if not enough time accumulated for a step
-	int64_t UpdateRealtime(bool bLostFocus);
+	int64_t UpdateRealtime();
 
 	// Consume one step from the accumulator
 	void ConsumeStep();

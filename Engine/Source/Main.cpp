@@ -35,6 +35,7 @@ void MainThread(HINSTANCE hinstance)
 
 #ifdef BT_CLIENT
 	FILE_LOG_INIT(0, "../../../../DiagnosticLogs/ClientLog.txt");
+	FILE_LOG_INIT(2, "../../../../DiagnosticLogs/AreaLightLog.txt");
 #else
 	FILE_LOG_INIT(0, "../../../../DiagnosticLogs/ServerLog.txt");
 #endif
@@ -346,13 +347,12 @@ void MainThread(HINSTANCE hinstance)
 			if (iFrameDeficit > 0)
 			{
 				game::gpGame->mTimeStep.mUpdateRemainderNs += iFrameDeficit * game::kUpdateStepNs;
-				game::gpGame->miSkipSnapshotSteps = iFrameDeficit;
 			}
 			game::gpGame->mTimeStep.mUpdateRemainderNs += clockCorrectionNs;
 		}
 		gpProfileManager->CpuStop(kCpuTimerNetworkPollReconcile, true);
 
-		pGame->UpdateFrames(menuInput, bLostFocus, bUpdateFrames);
+		pGame->UpdateFrames(menuInput, bUpdateFrames);
 
 		// Post-tick: poll network and kick reconcile worker before render to maximize worker runtime
 		{
@@ -385,7 +385,6 @@ void MainThread(HINSTANCE hinstance)
 			// Prevent time jumps after device recreation
 			ResetRealTime();
 		}
-
 		// Audio update
 		gpProfileManager->CpuStart(kCpuTimerAudio);
 		gpAudioManager->Update(pGame->CurrentFrame(game::gpGame->mHumanGridCoord));
@@ -404,7 +403,7 @@ void MainThread(HINSTANCE hinstance)
 			game::gpGame->ProcessSpawnRequestsServer();
 		}
 
-		pGame->UpdateFrames(menuInput, bLostFocus, bUpdateFrames);
+		pGame->UpdateFrames(menuInput, bUpdateFrames);
 
 		UpdateServerDisplayStats();
 

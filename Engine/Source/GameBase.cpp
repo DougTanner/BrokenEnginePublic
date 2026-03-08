@@ -51,7 +51,7 @@ bool GameBase::PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus)
 	return bUpdateFrame;
 }
 
-void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames)
+void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bUpdateFrames)
 {
 	if (Quickload(rMenuInput)) [[unlikely]]
 	{
@@ -62,7 +62,7 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 	SaveLoadReplay(rMenuInput);
 
 	// Perform full updates at fixed timestep
-	int64_t iFullUpdates = mTimeStep.UpdateRealtime(bLostFocus);
+	int64_t iFullUpdates = mTimeStep.UpdateRealtime();
 	if (!bUpdateFrames)
 	{
 		iFullUpdates = 0;
@@ -180,16 +180,9 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 #ifdef BT_CLIENT
 		if (game::gpGame->IsNetworkMode())
 		{
-			if (miSkipSnapshotSteps > 0)
-			{
-				--miSkipSnapshotSteps;
-			}
-			else
-			{
-				// Heap: snapshot serialization for CRC fast-path
-				ScopedSuppressAllocationTracking ssat;
-				game::gpGame->StoreExtrapolatedSnapshot(miFrameCounter);
-			}
+			// Heap: snapshot serialization for CRC fast-path
+			ScopedSuppressAllocationTracking ssat;
+			game::gpGame->StoreExtrapolatedSnapshot(miFrameCounter);
 		}
 #endif
 
@@ -222,9 +215,9 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 }
 
 #ifdef BT_CLIENT
-void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames)
+void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bUpdateFrames)
 {
-	UpdateFrames(rMenuInput, bLostFocus, bUpdateFrames);
+	UpdateFrames(rMenuInput, bUpdateFrames);
 	Render(bUpdateFrames);
 }
 

@@ -62,7 +62,7 @@ constexpr float kfArmorHitSoundVolumeScale = 0.5f;
 
 // AI behavior
 constexpr float kfBurstDuration = 0.5f;
-constexpr float kfBurstCooldown = 2.0f;
+constexpr float kfBurstCooldown = 0.5f;
 constexpr float kfMissileBurstDuration = 0.4f;
 constexpr float kfMissileBurstCooldown = 3.6f;
 constexpr float kfTargetRange = 80.0f;

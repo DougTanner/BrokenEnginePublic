@@ -317,6 +317,7 @@ private:
 	std::unique_ptr<common::PersistentWorker> mpReconcileWorker;
 	std::unique_ptr<ReconcileContext> mpReconcileContext;
 	bool mbReconcileInFlight = false;
+	bool mbReconcileHasNewData = false;
 
 	void KickReconcile();
 	static void Reconcile(ReconcileContext& rReconcileContext, const engine::Alignments& rAlignments);

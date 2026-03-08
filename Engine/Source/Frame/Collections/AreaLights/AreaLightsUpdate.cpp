@@ -20,6 +20,11 @@ void AreaLightsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t
 	rAreaLights.pVecVisiblePositions[2][iIndex] = rData.vecVisiblePositions[2];
 	rAreaLights.pVecVisiblePositions[3][iIndex] = rData.vecVisiblePositions[3];
 	rAreaLights.pfIntensityMultipliers[iIndex] = rData.fIntensityMultiplier;
+
+	if (rData.uiTypeIndex == 0)
+	FILE_LOG(2, "[AreaLightSync] id={} index={} type={} intensity={:.4f} pos0=({:.2f},{:.2f},{:.2f})",
+		id.uuid.iValue, iIndex, rData.uiTypeIndex, rData.fIntensityMultiplier,
+		XMVectorGetX(rData.vecVisiblePositions[0]), XMVectorGetY(rData.vecVisiblePositions[0]), XMVectorGetZ(rData.vecVisiblePositions[0]));
 }
 
 void AreaLightsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
@@ -54,6 +59,9 @@ void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rI
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
 	rInterpolate.pfIntensityMultipliers[uiSpawnIndex] = 1.0f;
+
+	if (uiTypeIndex == 0)
+	FILE_LOG(2, "[AreaLightAdd] id={} index={} type={} count={}", rId.uuid.iValue, uiSpawnIndex, uiTypeIndex, rPostRender.iCount);
 }
 
 void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t& rId)
@@ -62,6 +70,10 @@ void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t&
 
 	AreaLightsInterpolate& rInterpolate = rFrame.interpolate.areaLights;
 	AreaLightsPostRender& rPostRender = rFrame.postRender.areaLights;
+
+	int64_t iRemoveIndex = rInterpolate.IdToIndex(rId);
+	if (rInterpolate.puiTypeIndices[iRemoveIndex] == 0)
+	FILE_LOG(2, "[AreaLightRemove] id={} count={}", rId.uuid.iValue, rPostRender.iCount);
 
 	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 

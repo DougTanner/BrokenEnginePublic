@@ -81,6 +81,15 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		// Calculate lighting quad vertices from center expansion
 		XMFLOAT4A f4Center {};
 		XMStoreFloat4A(&f4Center, vecCenter);
+
+		if (rCurrent.puiTypeIndices[i] == 0)
+		FILE_LOG(2, "[AreaLightRender] i={}/{} intensityMul={:.4f} visPos=({:.2f},{:.2f},{:.2f})({:.2f},{:.2f},{:.2f})({:.2f},{:.2f},{:.2f})({:.2f},{:.2f},{:.2f}) center=({:.2f},{:.2f},{:.2f})",
+			i, rCurrent.iCount, fIntensityMultiplier,
+			XMVectorGetX(vecVisiblePos0), XMVectorGetY(vecVisiblePos0), XMVectorGetZ(vecVisiblePos0),
+			XMVectorGetX(vecVisiblePos1), XMVectorGetY(vecVisiblePos1), XMVectorGetZ(vecVisiblePos1),
+			XMVectorGetX(vecVisiblePos2), XMVectorGetY(vecVisiblePos2), XMVectorGetZ(vecVisiblePos2),
+			XMVectorGetX(vecVisiblePos3), XMVectorGetY(vecVisiblePos3), XMVectorGetZ(vecVisiblePos3),
+			f4Center.x, f4Center.y, f4Center.z);
 		XMVECTOR vecLightingPos0 = XMVectorSet(f4Center.x - fLightingSize, f4Center.y + fLightingSize, f4Center.z, 1.0f);
 		XMVECTOR vecLightingPos1 = XMVectorSet(f4Center.x + fLightingSize, f4Center.y + fLightingSize, f4Center.z, 1.0f);
 		XMVECTOR vecLightingPos2 = XMVectorSet(f4Center.x - fLightingSize, f4Center.y - fLightingSize, f4Center.z, 1.0f);
@@ -90,6 +99,8 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		auto [vecMin, vecMax] = common::ComputeAabb(vecVisiblePos0, vecVisiblePos1, vecVisiblePos2, vecVisiblePos3, vecLightingPos0, vecLightingPos1, vecLightingPos2, vecLightingPos3);
 		if (!game::gpCamera->AabbIntersectsVisibleArea(game::gpCamera->f4RenderVisibleArea, vecMin, vecMax))
 		{
+			if (rCurrent.puiTypeIndices[i] == 0)
+			FILE_LOG(2, "[AreaLightRender] CULLED i={}", i);
 			continue;
 		}
 
@@ -123,6 +134,17 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		XMVECTOR vecBaseLighting2 = ProjectToBaseHeight(vecLightingPos2);
 		XMVECTOR vecBaseLighting3 = ProjectToBaseHeight(vecLightingPos3);
 
+		if (rCurrent.puiTypeIndices[i] == 0)
+		{
+			XMVECTOR vecBaseCenter = (vecBaseLighting0 + vecBaseLighting1 + vecBaseLighting2 + vecBaseLighting3) * 0.25f;
+			FILE_LOG(2, "[AreaLightPositions] i={} visCenter=({:.2f},{:.2f},{:.2f}) lightCenter=({:.2f},{:.2f}) camArea=({:.2f},{:.2f},{:.2f},{:.2f})",
+				i,
+				f4Center.x, f4Center.y, f4Center.z,
+				XMVectorGetX(vecBaseCenter), XMVectorGetY(vecBaseCenter),
+				game::gpCamera->f4RenderVisibleArea.x, game::gpCamera->f4RenderVisibleArea.y,
+				game::gpCamera->f4RenderVisibleArea.z, game::gpCamera->f4RenderVisibleArea.w);
+		}
+
 		XMFLOAT4A f4Base {};
 		XMStoreFloat4A(&f4Base, vecBaseLighting0);
 		rAreaLayout.pf4VerticesTexcoords[0] = {f4Base.x, f4Base.y, rType.pf2Texcoords[0].x, rType.pf2Texcoords[0].y};
@@ -141,6 +163,20 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		rAreaLayout.pf4Params[2] = f4Params;
 		rAreaLayout.pf4Params[3] = f4Params;
 		rAreaLayout.uiColor = rType.puiColors[0];
+
+		if (rCurrent.puiTypeIndices[i] == 0)
+		FILE_LOG(2, "[AreaLightGPU] slot={} visVerts=({:.2f},{:.2f},{:.2f})({:.2f},{:.2f},{:.2f})({:.2f},{:.2f},{:.2f})({:.2f},{:.2f},{:.2f}) visIntensity={:.4f} texIdx={} lightVerts=({:.2f},{:.2f})({:.2f},{:.2f})({:.2f},{:.2f})({:.2f},{:.2f}) lightIntensity={:.4f}",
+			siRendered,
+			rVisibleLayout.pf4Vertices[0].x, rVisibleLayout.pf4Vertices[0].y, rVisibleLayout.pf4Vertices[0].z,
+			rVisibleLayout.pf4Vertices[1].x, rVisibleLayout.pf4Vertices[1].y, rVisibleLayout.pf4Vertices[1].z,
+			rVisibleLayout.pf4Vertices[2].x, rVisibleLayout.pf4Vertices[2].y, rVisibleLayout.pf4Vertices[2].z,
+			rVisibleLayout.pf4Vertices[3].x, rVisibleLayout.pf4Vertices[3].y, rVisibleLayout.pf4Vertices[3].z,
+			rVisibleLayout.fIntensity, rVisibleLayout.uiTextureIndex,
+			rAreaLayout.pf4VerticesTexcoords[0].x, rAreaLayout.pf4VerticesTexcoords[0].y,
+			rAreaLayout.pf4VerticesTexcoords[1].x, rAreaLayout.pf4VerticesTexcoords[1].y,
+			rAreaLayout.pf4VerticesTexcoords[2].x, rAreaLayout.pf4VerticesTexcoords[2].y,
+			rAreaLayout.pf4VerticesTexcoords[3].x, rAreaLayout.pf4VerticesTexcoords[3].y,
+			rAreaLayout.pf4Params[0].y);
 
 		++siRendered;
 	}

@@ -295,18 +295,64 @@ void Game::HarvestTransfers()
 
 	if (IsNetworkMode())
 	{
-		// Network mode: no cross-coord spawning. Entities at boundaries disappear;
-		// reconciliation with server data corrects this. Track human migration only.
+		// Network mode: collect transfers grouped by destination, sort by type
+		// (matching HarvestTransfersServer), and spawn into destination NextFrames
+		// so CRC matches the server after swap.
+		bool bHumanTransferred = false;
+		float fHumanTransferHealth = 0.0f;
+		std::unordered_map<engine::GridCoord, std::vector<StatusChange>> destTransfers;
 		for (const engine::GridCoord& rCoord : mActiveCoords)
 		{
 			const Frame& rNextFrame = NextFrame(rCoord);
 			for (const TransferRequest& rRequest : rNextFrame.postRender.transferRequests)
 			{
+				engine::GridCoord dest {rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY};
+				auto it = mNextFrames.find(dest);
+				if (it == mNextFrames.end() || it->second == nullptr)
+				{
+					continue;
+				}
+
+				destTransfers[dest].push_back({.eType = rRequest.eType, .data = rRequest.data});
+
+				// Track human migration
 				if (rRequest.eType == StatusChangeType::kTransferPlayer &&
 					mHumanPlayerId.IsValid() && rRequest.iEntityId == mHumanPlayerId.ToUuid().Value())
 				{
-					mHumanGridCoord = {rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY};
+					mHumanGridCoord = dest;
+					bHumanTransferred = true;
+					fHumanTransferHealth = rRequest.data.fHealth;
 				}
+			}
+		}
+
+		// Sort each destination's transfers by type (matching server ordering)
+		for (auto& [rCoord, rTransfers] : destTransfers)
+		{
+			std::ranges::sort(rTransfers, [](const StatusChange& rLeft, const StatusChange& rRight)
+			{
+				return rLeft.eType < rRight.eType;
+			});
+		}
+
+		// Spawn in sorted order
+		for (auto& [rCoord, rTransfers] : destTransfers)
+		{
+			Frame& rDestFrame = *mNextFrames.at(rCoord);
+			for (const StatusChange& rTransfer : rTransfers)
+			{
+				SpawnTransfer(rDestFrame, rTransfer.eType, rTransfer.data, mPlayerAlignment);
+			}
+		}
+
+		// Update human player ID to the newly spawned entity in the destination frame
+		if (bHumanTransferred)
+		{
+			Frame& rDestFrame = *mNextFrames.at(mHumanGridCoord);
+			if (rDestFrame.postRender.pPlayers->iCount > 0)
+			{
+				mHumanPlayerId = rDestFrame.postRender.pPlayers->puiIds[rDestFrame.postRender.pPlayers->iCount - 1];
+				mfPreviousHumanArmor = fHumanTransferHealth;
 			}
 		}
 	}
@@ -388,7 +434,6 @@ void Game::Reset()
 
 	miFrameCounter = 0;
 	mfCurrentTime = 0.0f;
-	miSkipSnapshotSteps = 0;
 
 	mpDifferenceStreamWriter.reset();
 	mpDifferenceStreamReader.reset();

@@ -368,6 +368,7 @@ void Game::FinalizeNewClientsServer([[maybe_unused]] int64_t iFrame)
 	// Find newly spawned player IDs (present now but not in pre-spawn snapshot)
 	const PlayersPostRender& rPlayers = *CurrentFrame(engine::kOriginCoord).postRender.pPlayers;
 	std::vector<player_t> newPlayerIds;
+	newPlayerIds.reserve(static_cast<size_t>(rPlayers.iCount));
 	for (int64_t i = 0; i < rPlayers.iCount; ++i)
 	{
 		if (!std::ranges::contains(mPreSpawnPlayerIds, rPlayers.puiIds[i]))
@@ -405,6 +406,12 @@ void Game::DetectPlayerDeathsServer()
 		}
 
 		if (mDeadClientIds.contains(rClient.iClientId))
+		{
+			continue;
+		}
+
+		// Skip clients mid-transfer (subscription update pending from HarvestTransfersServer)
+		if (std::ranges::contains(mPendingSubscriptionUpdates, rClient.iClientId, &SubscriptionUpdate::iClientId))
 		{
 			continue;
 		}

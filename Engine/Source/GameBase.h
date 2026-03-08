@@ -50,9 +50,9 @@ public:
 	virtual void ProcessMenuInput(const game::MenuInput& rMenuInput) = 0;
 
 	bool PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus);
-	void UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames);
+	void UpdateFrames(const game::MenuInput& rMenuInput, bool bUpdateFrames);
 #ifdef BT_CLIENT
-	void UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames);
+	void UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bUpdateFrames);
 	void Render(bool bUpdateFrames);
 #endif
 
@@ -79,7 +79,6 @@ public:
 	GameFlags_t mGameFlags;
 
 	TimeStep mTimeStep;
-	int64_t miSkipSnapshotSteps = 0;
 	std::unique_ptr<DifferenceStreamWriter<game::Frame, game::FrameInput>> mpDifferenceStreamWriter;
 	std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInput>> mpDifferenceStreamReader;
 

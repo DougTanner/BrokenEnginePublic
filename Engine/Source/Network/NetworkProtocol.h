@@ -53,10 +53,37 @@ inline constexpr uint16_t kuiDiscoveryPort = kuiDefaultPort + 1;
 inline constexpr uint32_t kuiDiscoveryMagic = 0x42524B4E; // "BRKN"
 inline constexpr int64_t kiDiscoveryScanMs = 1500;
 
-// Network simulation constants (applied per-direction, so half-ping delay on each side)
-inline constexpr float kfSimulatedPacketLossPercent = 2.5f;
-inline constexpr int64_t kiSimulatedPingMinMs = 300;
-inline constexpr int64_t kiSimulatedPingMaxMs = 500;
+// Network simulation levels for testing different real-world latency scenarios (East Coast server)
+enum class NetworkSimulationLevel : uint8_t
+{
+	kDisabled,
+	kEastCoast,    // East Coast to East Coast
+	kWestCoast,    // West Coast to East Coast
+	kEurope,       // Europe to East Coast
+	kSouthAmerica, // South America to East Coast
+	kChina,        // China (behind firewall) to East Coast
+};
+
+struct NetworkSimulationConfig
+{
+	float fPacketLossPercent;
+	int64_t iPingMinMs;
+	int64_t iPingMaxMs;
+};
+
+// Applied per-direction, so half-ping delay on each side
+inline constexpr NetworkSimulationConfig GetNetworkSimulationConfig(NetworkSimulationLevel eLevel)
+{
+	switch (eLevel)
+	{
+		case NetworkSimulationLevel::kEastCoast:    return {0.5f,  20,  40};
+		case NetworkSimulationLevel::kWestCoast:    return {1.0f,  60,  90};
+		case NetworkSimulationLevel::kEurope:       return {1.5f,  80, 130};
+		case NetworkSimulationLevel::kSouthAmerica: return {2.0f, 120, 200};
+		case NetworkSimulationLevel::kChina:        return {2.5f, 300, 500};
+		default:                                    return {0.0f,   0,   0};
+	}
+}
 
 struct DelayedPacket
 {
@@ -76,15 +103,15 @@ inline float Random01()
 	return static_cast<float>(suiState >> 16) / 65536.0f;
 }
 
-inline std::chrono::steady_clock::duration RandomOneWayDelay()
+inline std::chrono::steady_clock::duration RandomOneWayDelay(const NetworkSimulationConfig& rConfig)
 {
-	int64_t iHalfMin = kiSimulatedPingMinMs / 2;
-	int64_t iHalfMax = kiSimulatedPingMaxMs / 2;
+	int64_t iHalfMin = rConfig.iPingMinMs / 2;
+	int64_t iHalfMax = rConfig.iPingMaxMs / 2;
 	int64_t iDelayMs = iHalfMin + static_cast<int64_t>(Random01() * static_cast<float>(iHalfMax - iHalfMin));
 	return std::chrono::milliseconds(iDelayMs);
 }
 
-inline bool ShouldDrop()
+inline bool ShouldDrop(const NetworkSimulationConfig& rConfig)
 {
 	static int64_t siConsecutiveDrops = 0;
 	static constexpr int64_t kiMaxConsecutiveDrops = kiMaxMissingFrames / 2;
@@ -96,7 +123,7 @@ inline bool ShouldDrop()
 	}
 	else
 	{
-		bDrop = Random01() * 100.0f < kfSimulatedPacketLossPercent;
+		bDrop = Random01() * 100.0f < rConfig.fPacketLossPercent;
 	}
 
 	siConsecutiveDrops = bDrop ? siConsecutiveDrops + 1 : 0;

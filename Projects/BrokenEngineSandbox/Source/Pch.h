@@ -8,7 +8,6 @@ inline constexpr bool kbEnableReconcileThread = true;
 inline constexpr bool kbAlsoLogToPrintf = false;
 inline constexpr bool kbEnableFramebufferClearColor = false;
 inline constexpr bool kbEnableGpuAssistedValidation = false;
-inline constexpr bool kbEnableNetworkSimulation = false;
 inline constexpr bool kbEnableRecording = false;
 inline constexpr bool kbEnableScreenshots = false;
 inline constexpr bool kbEnableWireframe = false;
@@ -64,3 +63,5 @@ inline constexpr bool kbShowProfileTextByDefault = false;
 #include "Ui/Wrapper.h"
 #include "Frame/Frame.h"
 #include "Engine.h"
+
+inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kDisabled;

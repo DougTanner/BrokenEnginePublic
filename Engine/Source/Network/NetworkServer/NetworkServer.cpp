@@ -66,12 +66,13 @@ void NetworkServer::Poll()
 				HandleDisconnect(event);
 				break;
 			case ENET_EVENT_TYPE_RECEIVE:
-				if constexpr (kbEnableNetworkSimulation)
+				if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 				{
+					constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
 					bool bUnreliable = NetworkManager::IsUnreliableChannel(event.channelID);
 					if (bUnreliable)
 					{
-						if (NetworkSimulation::ShouldDrop())
+						if (NetworkSimulation::ShouldDrop(kSimConfig))
 						{
 							enet_packet_destroy(event.packet);
 							break;
@@ -79,7 +80,7 @@ void NetworkServer::Poll()
 						ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 						// Heap: delay queue copies packet data for deferred processing
 						DelayedPacket delayed {};
-						delayed.releaseTime = std::chrono::steady_clock::now() + NetworkSimulation::RandomOneWayDelay();
+						delayed.releaseTime = std::chrono::steady_clock::now() + NetworkSimulation::RandomOneWayDelay(kSimConfig);
 						delayed.data.assign(event.packet->data, event.packet->data + event.packet->dataLength);
 						delayed.pPeer = event.peer;
 						delayed.uiChannelId = event.channelID;
@@ -106,7 +107,7 @@ void NetworkServer::Poll()
 	}
 
 	// Process delayed packets whose release time has passed
-	if constexpr (kbEnableNetworkSimulation)
+	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
 		std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 		while (!mDelayedPackets.empty() && mDelayedPackets.front().releaseTime <= now)
@@ -151,7 +152,7 @@ void NetworkServer::HandleDisconnect(ENetEvent& rEvent)
 	}
 	RemoveClient(iClientId);
 
-	if constexpr (kbEnableNetworkSimulation)
+	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
 		std::erase_if(mDelayedPackets, [&rEvent](const DelayedPacket& rPacket) { return rPacket.pPeer == rEvent.peer; });
 	}

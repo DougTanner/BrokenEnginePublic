@@ -37,8 +37,8 @@ Each collection lives in its own subdirectory with a dedicated CLAUDE.md contain
 
 Collections with client-only owned objects (area lights, wind trails, sounds, smoke trails) provide two static methods for managing those objects separately from server state:
 
-- **`AllocateClientObjects(Frame&, int64_t)`** - Creates client-only owned objects for a single entity at a given index. Called during Spawn and transfer-based spawning. Extracted from the spawn path for reuse by `HydrateClientObjects`.
-- **`HydrateClientObjects(Frame&)`** - Iterates all entities and calls `AllocateClientObjects` for each one. Called after receiving full state from the server (via `ApplyReceivedFullStates`), since server-format streams exclude client-only fields and the client must create visual/audio objects locally.
+- **`ClientInit(Frame&, int64_t)`** - Allocates client-only owned objects (Add) and synchronizes their state (Sync) for a single entity at a given index. Called during Spawn and transfer-based spawning. Extracted from the spawn path for reuse by `ClientInitAll`.
+- **`ClientInitAll(Frame&)`** - Iterates all entities and calls `ClientInit` for each one. Called after receiving full state from the server (via `ApplyReceivedFullStates`), since server-format streams exclude client-only fields and the client must create visual/audio objects locally.
 
 Blasters, Missiles, and Spaceships implement this pattern. Missiles additionally pass the smoke trail reuse ID for transfer continuity.
 

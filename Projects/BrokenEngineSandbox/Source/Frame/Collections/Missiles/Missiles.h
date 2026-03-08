@@ -53,8 +53,8 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
 #ifdef BT_CLIENT
-	static void AllocateClientObjects(Frame& rFrame, int64_t iIndex, engine::smoke_trails_t smokeTrailReuseId = {});
-	static void HydrateClientObjects(Frame& rFrame);
+	static void ClientInit(Frame& rFrame, int64_t iIndex, engine::smoke_trails_t smokeTrailReuseId = {});
+	static void ClientInitAll(Frame& rFrame);
 #endif
 
 	XMVECTOR* __restrict pVecPositions = nullptr;

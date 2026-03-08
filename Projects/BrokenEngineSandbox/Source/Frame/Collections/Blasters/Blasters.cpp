@@ -66,11 +66,12 @@ void BlastersPostRender::AllocateAndCopy(BlastersPostRender& rCurrent, const Bla
 }
 
 #ifdef BT_CLIENT
-void BlastersInterpolate::AllocateClientObjects(Frame& rFrame, int64_t iIndex)
+void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 {
 	BlastersInterpolate& rBlasters = *rFrame.interpolate.pBlasters;
 	BlastersPostRender& rPostRender = *rFrame.postRender.pBlasters;
 
+	// Add client-only owned objects
 	const BlastersType& rType = GetType(rBlasters.puiTypeIndices[iIndex]);
 	rBlasters.puiAreaLights[iIndex] = {};
 	rFrame.postRender.areaLights.Add(rFrame, rBlasters.puiAreaLights[iIndex], rType.uiAreaLightTypeIndex);
@@ -83,13 +84,54 @@ void BlastersInterpolate::AllocateClientObjects(Frame& rFrame, int64_t iIndex)
 
 	rPostRender.puiSounds[iIndex] = {};
 	engine::SoundsPostRender::Add(rFrame, rPostRender.puiSounds[iIndex]);
+
+	if (rType.uiAreaLightTypeIndex == 0)
+	FILE_LOG(2, "[BlasterSpawn] index={} areaLight={} count={}", iIndex, rBlasters.puiAreaLights[iIndex].uuid.iValue, rBlasters.iCount);
+
+	// Sync wind trail
+	if (rBlasters.pfWindTrailIntensities[iIndex] > 0.0f)
+	{
+		engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rBlasters.puiWindTrails[iIndex],
+		{
+			.vecPosition = rBlasters.pVecPositions[iIndex],
+			.fIntensity = rBlasters.pfWindTrailIntensities[iIndex],
+			.fWidth = rBlasters.pfWindTrailWidths[iIndex],
+			.fLengthMultiplier = rBlasters.pfWindTrailLengthMultipliers[iIndex],
+		});
+	}
+
+	// Sync area light
+	{
+		float fWidth = rType.f2Size.x;
+		float fLength = rType.f2Size.y;
+
+		XMVECTOR vecDirection = rBlasters.pVecDirections[iIndex];
+		auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(rBlasters.pVecPositions[iIndex], vecDirection, fLength, fLength, fWidth);
+
+		engine::AreaLightsInterpolate::Sync(rFrame.interpolate, rBlasters.puiAreaLights[iIndex],
+		{
+			.uiTypeIndex = rType.uiAreaLightTypeIndex,
+			.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
+		});
+	}
+
+	// Sync sound
+	engine::SoundsInterpolate::Sync(rFrame.interpolate, rPostRender.puiSounds[iIndex],
+	{
+		.vecPosition = rBlasters.pVecPositions[iIndex],
+		.vecVelocity = rPostRender.pVecVelocities[iIndex],
+		.uiCrc = data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc,
+		.fVolume = kfBlasterVolume,
+		.fPitch = rPostRender.pfPitches[iIndex],
+		.fFadeOutTime = kfBlasterFadeOutTime,
+	});
 }
 
-void BlastersInterpolate::HydrateClientObjects(Frame& rFrame)
+void BlastersInterpolate::ClientInitAll(Frame& rFrame)
 {
 	for (int64_t i = 0; i < rFrame.interpolate.pBlasters->iCount; ++i)
 	{
-		AllocateClientObjects(rFrame, i);
+		ClientInit(rFrame, i);
 	}
 }
 #endif
@@ -126,45 +168,7 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
 
 #ifdef BT_CLIENT
-	BlastersInterpolate::AllocateClientObjects(rFrame, iIndex);
-
-	if (rCurrentInterpolate.pfWindTrailIntensities[iIndex] > 0.0f)
-	{
-		engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindTrails[iIndex],
-		{
-			.vecPosition = rInfo.vecPosition,
-			.fIntensity = rCurrentInterpolate.pfWindTrailIntensities[iIndex],
-			.fWidth = rCurrentInterpolate.pfWindTrailWidths[iIndex],
-			.fLengthMultiplier = rCurrentInterpolate.pfWindTrailLengthMultipliers[iIndex],
-		});
-	}
-
-	// Sync owned objects after Add()
-	{
-		const BlastersType& rType = BlastersInterpolate::GetType(rInfo.uiTypeIndex);
-
-		float fWidth = rType.f2Size.x;
-		float fLength = rType.f2Size.y;
-
-		XMVECTOR vecDirection = XMVector3Normalize(rInfo.vecVelocity);
-		auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(rInfo.vecPosition, vecDirection, fLength, fLength, fWidth);
-
-		engine::AreaLightsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex],
-		{
-			.uiTypeIndex = rType.uiAreaLightTypeIndex,
-			.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
-		});
-
-		engine::SoundsInterpolate::Sync(rFrame.interpolate, rCurrentPostRender.puiSounds[iIndex],
-		{
-			.vecPosition = rInfo.vecPosition,
-			.vecVelocity = rInfo.vecVelocity,
-			.uiCrc = data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc,
-			.fVolume = kfBlasterVolume,
-			.fPitch = fPitch,
-			.fFadeOutTime = kfBlasterFadeOutTime,
-		});
-	}
+	BlastersInterpolate::ClientInit(rFrame, iIndex);
 #endif
 }
 
@@ -211,6 +215,8 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 
 		// Remove owned objects
 #ifdef BT_CLIENT
+		if (BlastersInterpolate::GetType(rCurrentInterpolate.puiTypeIndices[i]).uiAreaLightTypeIndex == 0)
+		FILE_LOG(2, "[BlasterTransfer] index={} areaLight={}", i, rCurrentInterpolate.puiAreaLights[i].uuid.iValue);
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
@@ -236,6 +242,8 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		}
 
 #ifdef BT_CLIENT
+		if (BlastersInterpolate::GetType(rCurrentInterpolate.puiTypeIndices[i]).uiAreaLightTypeIndex == 0)
+		FILE_LOG(2, "[BlasterDestroy] index={} areaLight={}", i, rCurrentInterpolate.puiAreaLights[i].uuid.iValue);
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{

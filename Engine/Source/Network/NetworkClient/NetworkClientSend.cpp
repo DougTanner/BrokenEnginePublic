@@ -163,7 +163,7 @@ void NetworkClient::SendSubscribe(GridCoord coord)
 		if (mCoordSlots[i].eState == CoordSubscriptionState::kUnsubscribed || mCoordSlots[i].eState == CoordSubscriptionState::kUnsubscribing)
 		{
 			// Purge delayed packets for the old slot's channels before reuse
-			if constexpr (kbEnableNetworkSimulation)
+			if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 			{
 				if (mCoordSlots[i].eState == CoordSubscriptionState::kUnsubscribing)
 				{

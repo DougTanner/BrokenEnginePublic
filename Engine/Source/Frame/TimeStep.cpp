@@ -20,7 +20,7 @@ void TimeStep::Reset()
 	mAverageDelta.miCount = 0;
 }
 
-int64_t TimeStep::UpdateRealtime(bool bLostFocus)
+int64_t TimeStep::UpdateRealtime()
 {
 	std::chrono::nanoseconds realDeltaNs = mRealTime.GetDeltaNs(true);
 
@@ -45,7 +45,7 @@ int64_t TimeStep::UpdateRealtime(bool bLostFocus)
 	// Accumulate time with scaling
 	if constexpr (kbEnableDebugInput)
 	{
-		if (mbSingleStep || bLostFocus) [[unlikely]]
+		if (mbSingleStep) [[unlikely]]
 		{
 			mbSingleStep = false;
 			mUpdateRemainderNs = game::kUpdateStepNs;
@@ -72,14 +72,7 @@ int64_t TimeStep::UpdateRealtime(bool bLostFocus)
 	}
 	else
 	{
-		if (bLostFocus) [[unlikely]]
-		{
-			mUpdateRemainderNs = game::kUpdateStepNs;
-		}
-		else [[likely]]
-		{
-			mUpdateRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
-		}
+		mUpdateRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
 	}
 
 	// Calculate number updates needed
@@ -95,8 +88,6 @@ int64_t TimeStep::UpdateRealtime(bool bLostFocus)
 
 void TimeStep::ConsumeStep()
 {
-	// Step is consumed by AddDelta, nothing to do here
-	// This method exists for future extensions or manual control
 }
 
 float TimeStep::GetInterpolationAlpha() const
