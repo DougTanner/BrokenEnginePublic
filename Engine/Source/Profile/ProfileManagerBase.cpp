@@ -771,6 +771,18 @@ void ProfileManagerBase::UpdateProfileText()
 				rWorkbuffer.Append(mSmoothedClockTarget.Get());
 				rWorkbuffer.Append("  Error: ");
 				rWorkbuffer.Append(mSmoothedClockError.Get());
+				rWorkbuffer.Append("\nTicks: ");
+				rWorkbuffer.Append(mCrcValidatedTicksPerSecond.Get());
+				rWorkbuffer.Append(" crc  ");
+				rWorkbuffer.Append(mAssumedTicksPerSecond.Get());
+				rWorkbuffer.Append(" assumed");
+				rWorkbuffer.Append("\nReconcile: ");
+				rWorkbuffer.Append(mCrcFastPathEventsPerSecond.Get());
+				rWorkbuffer.Append(" fast  ");
+				rWorkbuffer.Append(mStatusChangeReplayTicksPerSecond.Get());
+				rWorkbuffer.Append(" status  ");
+				rWorkbuffer.Append(mKnockOnReplayTicksPerSecond.Get());
+				rWorkbuffer.Append(" knock-on");
 			}
 
 			gpTextManager->UpdateTextArea(kTextProfileFps, rWorkbuffer.View());

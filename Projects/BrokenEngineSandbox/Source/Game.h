@@ -306,6 +306,13 @@ private:
 		ConfirmedHumanState newConfirmedHumanState;
 		bool bCrcFastPathHandledAll = false;
 
+		// Profiling counters
+		int64_t iCrcValidatedFrameTicks = 0;
+		int64_t iAssumedFrameTicks = 0;
+		int64_t iCrcFastPathEvents = 0;
+		int64_t iStatusChangeReplayTicks = 0;
+		int64_t iKnockOnReplayTicks = 0;
+
 		// Deferred desync info (from any coord)
 		int64_t iDesyncFrame = -1;
 		engine::GridCoord desyncCoord {};

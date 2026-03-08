@@ -1,5 +1,7 @@
 #include "Game.h"
 
+#include "Profile/ProfileManager.h"
+
 namespace game
 {
 
@@ -142,6 +144,7 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 		{
 			rWork.bCrcFastPath = true;
 			rWork.iNewConfirmedFrame = iLastMatched;
+			rReconcileContext.iCrcValidatedFrameTicks += iLastMatched - rWork.iConfirmedFrame;
 			rWork.newConfirmedSerializedFrame = std::move(rWork.extrapolatedSnapshots.at(iLastMatched).serializedFrame);
 
 			// Keep snapshots beyond matched frame
@@ -180,6 +183,7 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 	if (bAllHandled)
 	{
 		rReconcileContext.bCrcFastPathHandledAll = true;
+		rReconcileContext.iCrcFastPathEvents = 1;
 		rReconcileContext.newConfirmedHumanState = rReconcileContext.confirmedHumanState;
 		rReconcileContext.humanGridCoord = rReconcileContext.confirmedHumanState.humanGridCoord;
 		rReconcileContext.humanPlayerId = rReconcileContext.confirmedHumanState.humanPlayerId;
@@ -335,6 +339,14 @@ void Game::ApplyReconcileResult()
 	// Update human tracking from reconciled state
 	mConfirmedHumanState = rReconcileContext.newConfirmedHumanState;
 	mfPreviousHumanArmor = rReconcileContext.fPreviousHumanArmor;
+
+	// Feed reconciliation counters to profile manager
+	gpProfileManager->SetReconcileCounters(
+		rReconcileContext.iCrcValidatedFrameTicks,
+		rReconcileContext.iAssumedFrameTicks,
+		rReconcileContext.iCrcFastPathEvents,
+		rReconcileContext.iStatusChangeReplayTicks,
+		rReconcileContext.iKnockOnReplayTicks);
 
 	// Advance frame ID counter past worker's usage
 	muiNextFrameId = std::max(muiNextFrameId, rReconcileContext.uiNextFrameId);

@@ -221,6 +221,15 @@ public:
 		mSmoothedClockTarget.Update();
 		mSmoothedClockError.Update();
 	}
+
+	void SetReconcileCounters(int64_t iCrcValidated, int64_t iAssumed, int64_t iCrcFastPath, int64_t iStatusChangeReplay, int64_t iKnockOnReplay)
+	{
+		if (iCrcValidated > 0) mCrcValidatedTicksPerSecond.Set(iCrcValidated);
+		if (iAssumed > 0) mAssumedTicksPerSecond.Set(iAssumed);
+		if (iCrcFastPath > 0) mCrcFastPathEventsPerSecond.Set(iCrcFastPath);
+		if (iStatusChangeReplay > 0) mStatusChangeReplayTicksPerSecond.Set(iStatusChangeReplay);
+		if (iKnockOnReplay > 0) mKnockOnReplayTicksPerSecond.Set(iKnockOnReplay);
+	}
 #endif
 
 protected:
@@ -335,6 +344,12 @@ protected:
 	common::Smoothed<int64_t> mSmoothedRollback;
 	common::Smoothed<int64_t> mSmoothedBuffer;
 	common::Smoothed<int64_t> mSmoothedRecv;
+
+	common::InTheLastSecond mCrcValidatedTicksPerSecond;
+	common::InTheLastSecond mAssumedTicksPerSecond;
+	common::InTheLastSecond mCrcFastPathEventsPerSecond;
+	common::InTheLastSecond mStatusChangeReplayTicksPerSecond;
+	common::InTheLastSecond mKnockOnReplayTicksPerSecond;
 
 	VkQueryPool mVkQueryPool = VK_NULL_HANDLE;
 #endif

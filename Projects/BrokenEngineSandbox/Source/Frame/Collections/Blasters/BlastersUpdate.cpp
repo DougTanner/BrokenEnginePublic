@@ -141,13 +141,6 @@ static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine:
 		.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
 	});
 
-	if (rType.uiAreaLightTypeIndex == 0)
-	FILE_LOG(2, "[BlasterSync] areaLight={} pos0=({:.2f},{:.2f},{:.2f}) pos1=({:.2f},{:.2f},{:.2f}) pos2=({:.2f},{:.2f},{:.2f}) pos3=({:.2f},{:.2f},{:.2f})",
-		uiAreaLight.uuid.iValue,
-		XMVectorGetX(vecTopLeft), XMVectorGetY(vecTopLeft), XMVectorGetZ(vecTopLeft),
-		XMVectorGetX(vecTopRight), XMVectorGetY(vecTopRight), XMVectorGetZ(vecTopRight),
-		XMVectorGetX(vecBottomLeft), XMVectorGetY(vecBottomLeft), XMVectorGetZ(vecBottomLeft),
-		XMVectorGetX(vecBottomRight), XMVectorGetY(vecBottomRight), XMVectorGetZ(vecBottomRight));
 
 	// Sync sound
 	engine::SoundsInterpolate::Sync(rFrameInterpolate, uiSound,

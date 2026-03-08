@@ -85,13 +85,6 @@ inline TextArea gpTextAreas[]
 static_assert(std::size(gpTextAreas) == kTextAreasCount);
 
 inline constexpr float kfEfigsSize = 2048.0f;
-inline constexpr float kfChineseSize = 8192.0f;
-
-template<typename T>
-constexpr bool IsEfigs(std::basic_string_view<T> text)
-{
-	return text.size() == 0 ? true : text[0] < 0x4E00;
-}
 
 class TextManager
 {
@@ -100,7 +93,7 @@ public:
 	TextManager();
 	~TextManager();
 
-	std::tuple<common::Character*, bool> GetCharacter(uint32_t uiChar);
+	common::Character* GetCharacter(uint32_t uiChar);
 
 	void UpdateTextArea(TextAreas eTextArea, std::string_view characters);
 	void RenderMain(int64_t iCommandBuffer);
@@ -108,7 +101,7 @@ public:
 	template<typename T>
 	[[nodiscard]] std::vector<float> MeasureQuads(float fSize, std::basic_string_view<T> text)
 	{
-		float fInverseLineHeight = 1.0f / (IsEfigs(text) ? mfLineHeightEfigs : mfLineHeightChinese);
+		float fInverseLineHeight = 1.0f / mfLineHeightEfigs;
 		float fInverseAspectRatio = 1.0f / gpSwapchainManager->mfAspectRatio;
 
 		std::vector<float> widths;
@@ -122,7 +115,7 @@ public:
 				continue;
 			}
 
-			auto [pCharacter, bEfigs] = GetCharacter(text[iInPos]);
+			common::Character* pCharacter = GetCharacter(text[iInPos]);
 			float fAdvance = fInverseAspectRatio * fSize * fInverseLineHeight * static_cast<float>(pCharacter->iXAdvance);
 
 			fCurrentX += fAdvance;
@@ -136,6 +129,7 @@ public:
 	void WriteQuads(std::span<const float> xOffsets, float fY, float fSize, std::basic_string_view<T> text, uint32_t uiColor, float fXScreenOffset, float fYScreenOffset, U* pQuads, int64_t& riPos, int64_t iMaxPos)
 	{
 		float fInverseAspectRatio = 1.0f / gpSwapchainManager->mfAspectRatio;
+		float fInverseLineHeight = 1.0f / mfLineHeightEfigs;
 
 		int64_t iCurrentX = 0;
 		float fCurrentX = xOffsets[iCurrentX++];
@@ -155,42 +149,18 @@ public:
 				continue;
 			}
 
-			auto [pCharacter, bEfigs] = GetCharacter(text[iInPos]);
-			float fLineHeight = bEfigs ? mfLineHeightEfigs : mfLineHeightChinese;
+			common::Character* pCharacter = GetCharacter(text[iInPos]);
 
-			// Manual adjustments to match Efigs
-			if (!bEfigs)
-			{
-				fLineHeight *= 1.4f;
-			}
-
-			float fInverseLineHeight = 1.0f / fLineHeight;
 			float fWidth = fInverseAspectRatio * fSize * fInverseLineHeight * static_cast<float>(pCharacter->uiWidth);
 			float fHeight = fSize * fInverseLineHeight * static_cast<float>(pCharacter->uiHeight);
 			float fXOffset = fInverseAspectRatio * fSize * fInverseLineHeight * static_cast<float>(pCharacter->iXOffset);
 			float fYOffset = fSize * fInverseLineHeight * static_cast<float>(pCharacter->iYOffset);
 			float fAdvance = fInverseAspectRatio * fSize * fInverseLineHeight * static_cast<float>(pCharacter->iXAdvance);
 
-			// Manual adjustments to match Efigs
-			if (!bEfigs)
-			{
-				fWidth *= 1.4f;
-				fHeight *= 1.4f;
-				fAdvance *= 1.6f;
-			}
-
 			pQuads[riPos].f4VertexRect = {-1.0f + 2.0f * (fCurrentX + fXOffset + fXScreenOffset), 1.0f - 2.0f * (fCurrentY + fYOffset + fYScreenOffset), 2.0f * fWidth, -2.0f * fHeight};
 			fCurrentX += fAdvance;
 
-			float fTextureHeight = bEfigs ? kfEfigsSize : kfChineseSize;
-			float fTextureWidth = bEfigs ? kfEfigsSize : kfChineseSize;
-			pQuads[riPos].f4TextureRect = XMFLOAT4
-			(
-				static_cast<float>(pCharacter->uiX) / fTextureWidth,
-				static_cast<float>(pCharacter->uiY) / fTextureHeight,
-				static_cast<float>(pCharacter->uiX + pCharacter->uiWidth) / fTextureWidth,
-				static_cast<float>(pCharacter->uiY + pCharacter->uiHeight) / fTextureHeight
-			);
+			pQuads[riPos].f4TextureRect = XMFLOAT4(static_cast<float>(pCharacter->uiX) / kfEfigsSize, static_cast<float>(pCharacter->uiY) / kfEfigsSize, static_cast<float>(pCharacter->uiX + pCharacter->uiWidth) / kfEfigsSize, static_cast<float>(pCharacter->uiY + pCharacter->uiHeight) / kfEfigsSize);
 			pQuads[riPos].uiColor = uiColor;
 
 			++riPos;
@@ -198,12 +168,10 @@ public:
 	}
 
 	float mfLineHeightEfigs = 0.0f;
-	float mfLineHeightChinese = 0.0f;
 
 private:
 
-	std::unordered_map<uint32_t, common::Character*> mCharacterMapEfigs;
-	std::unordered_map<uint32_t, common::Character*> mCharacterMapChinese;
+	common::Character* mpCharactersEfigs[128] {};
 };
 
 inline TextManager* gpTextManager = nullptr;

@@ -164,6 +164,7 @@ Data flows between main thread and worker via `ReconcileContext`, which contains
 | **Worker internal** | `currentFrames`, `nextFrames`, `frameInputs`, `activeCoords`, `humanGridCoord`, `iFrameCounter`, `fCurrentTime` |
 | **Worker → Main (per-coord)** | `CoordReconcileWork::newConfirmedFrame`, `newConfirmedSerializedFrame`, `newExtrapolatedSnapshots`, `bCrcFastPath` |
 | **Worker → Main (global)** | `newConfirmedHumanState`, `bCrcFastPathHandledAll` |
+| **Worker → Main (profiling)** | `iCrcValidatedFrameTicks`, `iAssumedFrameTicks`, `iCrcFastPathEvents`, `iStatusChangeReplayTicks`, `iKnockOnReplayTicks` → fed to `ProfileManagerBase::SetReconcileCounters()` |
 | **Desync (deferred)** | `iDesyncFrame`, `desyncCoord`, `desyncServerCrc`, `desyncClientCrc`, `pDesyncClientFrame` |
 
 ## Key Functions

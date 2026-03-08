@@ -45,16 +45,9 @@ bool PushersInterpolate::operator==(const PushersInterpolate& rOther) const
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
 
-	if (iCount != rOther.iCount)
-		FILE_LOG(0, "[ServerCompare] PushersInterpolate count: client={} server={}", iCount, rOther.iCount);
-
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		{
-			bool bPos = common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-			if (!bPos) FILE_LOG(0, "[ServerCompare] PushersInterpolate pos: i={}/{} client=({:.6f},{:.6f},{:.6f}) server=({:.6f},{:.6f},{:.6f})", i, iCount, XMVectorGetX(pVecPositions[i]), XMVectorGetY(pVecPositions[i]), XMVectorGetZ(pVecPositions[i]), XMVectorGetX(rOther.pVecPositions[i]), XMVectorGetY(rOther.pVecPositions[i]), XMVectorGetZ(rOther.pVecPositions[i]));
-			bEqual &= bPos;
-		}
+		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pfRadii[i], rOther.pfRadii[i]);
 		bEqual &= common::BreakOnNotEqual(pfIntensities[i], rOther.pfIntensities[i]);
 		bEqual &= common::BreakOnNotEqual(pfPowers[i], rOther.pfPowers[i]);

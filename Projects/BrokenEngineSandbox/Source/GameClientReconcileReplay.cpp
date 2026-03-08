@@ -320,6 +320,25 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 
 		ReconcileRunTick(rReconcileContext);
 
+		// Classify replay tick for profiling
+		bool bHadStatusChanges = false;
+		for (const auto& [rCoord, rUpdate] : frameCoordUpdates)
+		{
+			if (!rUpdate.statusChanges.empty())
+			{
+				bHadStatusChanges = true;
+				break;
+			}
+		}
+		if (bHadStatusChanges)
+		{
+			++rReconcileContext.iStatusChangeReplayTicks;
+		}
+		else
+		{
+			++rReconcileContext.iKnockOnReplayTicks;
+		}
+
 		// Inject pending full states at the matching transfer frame
 		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
 		{
@@ -450,6 +469,7 @@ void Game::ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinCon
 		}
 
 		ReconcileRunTick(rReconcileContext);
+		++rReconcileContext.iAssumedFrameTicks;
 
 		// Inject late-confirmed coords at their confirmed frame
 		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)

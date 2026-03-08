@@ -826,10 +826,6 @@ struct OptionaldToIndex<T, FLAGS>
 	inline bool operator==(const OptionaldToIndex& rOther) const
 	{
 		bool bEqual = true;
-		if (idToIndexMap.size() != rOther.idToIndexMap.size())
-		{
-			FILE_LOG(0, "[IdToIndex] Size mismatch: lhs={} rhs={}", idToIndexMap.size(), rOther.idToIndexMap.size());
-		}
 		bEqual &= common::BreakOnNotEqual(idToIndexMap.size(), rOther.idToIndexMap.size());
 
 		for (const auto& [key, value] : idToIndexMap)
@@ -837,7 +833,6 @@ struct OptionaldToIndex<T, FLAGS>
 			auto it = rOther.idToIndexMap.find(key);
 			if (it == rOther.idToIndexMap.end())
 			{
-				FILE_LOG(0, "[IdToIndex] Key in lhs missing from rhs: uuid={}", key.ToUuid().Value());
 				bEqual = false;
 				DEBUG_BREAK();
 			}
@@ -851,7 +846,8 @@ struct OptionaldToIndex<T, FLAGS>
 		{
 			if (!idToIndexMap.contains(key))
 			{
-				FILE_LOG(0, "[IdToIndex] Key in rhs missing from lhs: uuid={}", key.ToUuid().Value());
+				bEqual = false;
+				DEBUG_BREAK();
 			}
 		}
 

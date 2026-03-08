@@ -35,7 +35,6 @@ void MainThread(HINSTANCE hinstance)
 
 #ifdef BT_CLIENT
 	FILE_LOG_INIT(0, "../../../../DiagnosticLogs/ClientLog.txt");
-	FILE_LOG_INIT(2, "../../../../DiagnosticLogs/AreaLightLog.txt");
 #else
 	FILE_LOG_INIT(0, "../../../../DiagnosticLogs/ServerLog.txt");
 #endif

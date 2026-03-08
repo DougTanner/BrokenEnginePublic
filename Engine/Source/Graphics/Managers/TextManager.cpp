@@ -50,23 +50,10 @@ TextManager::TextManager()
 
 		for (int64_t i = 0; i < iCharacters; ++i)
 		{
-			auto [it, bInserted] = mCharacterMapEfigs.try_emplace(pCharacterIds[i], &pCharacters[i]);
-			ASSERT(bInserted);
-		}
-	}
-
-	{
-		const EagerChunk& rChunk = rChunkMap.at(data::kFontsNotoSansSCNotoSansSCLightfntCrc);
-		int64_t iCharacters = rChunk.pHeader->fontHeader.iCharacters;
-		auto pCharacterIds = reinterpret_cast<uint32_t*>(rChunk.pData);
-		auto pCharacters = reinterpret_cast<common::Character*>(rChunk.pData + common::RoundUp<int64_t, common::kiAlignmentBytes>(iCharacters * static_cast<int64_t>(sizeof(pCharacterIds[0]))));
-		Log("Loading font {:#018x} with {} characters", data::kFontsNotoSansSCNotoSansSCLightfntCrc, iCharacters);
-		mfLineHeightChinese = static_cast<float>(rChunk.pHeader->fontHeader.iLineHeight);
-
-		for (int64_t i = 0; i < iCharacters; ++i)
-		{
-			auto [it, bInserted] = mCharacterMapChinese.try_emplace(pCharacterIds[i], &pCharacters[i]);
-			ASSERT(bInserted);
+			if (pCharacterIds[i] < 128)
+			{
+				mpCharactersEfigs[pCharacterIds[i]] = &pCharacters[i];
+			}
 		}
 	}
 
@@ -78,21 +65,9 @@ TextManager::~TextManager()
 	gpTextManager = nullptr;
 }
 
-std::tuple<common::Character*, bool> TextManager::GetCharacter(uint32_t uiChar)
+common::Character* TextManager::GetCharacter(uint32_t uiChar)
 {
-	if (mCharacterMapEfigs.find(uiChar) != mCharacterMapEfigs.end())
-	{
-		return std::make_tuple(mCharacterMapEfigs.at(uiChar), true);
-	}
-	else if (mCharacterMapChinese.find(uiChar) != mCharacterMapChinese.end())
-	{
-		return std::make_tuple(mCharacterMapChinese.at(uiChar), false);
-	}
-	else
-	{
-		DEBUG_BREAK();
-		return std::make_tuple(mCharacterMapEfigs.begin()->second, true);
-	}
+	return mpCharactersEfigs[uiChar];
 }
 
 void TextManager::UpdateTextArea(TextAreas eTextArea, std::string_view characters)
@@ -117,11 +92,26 @@ void TextManager::RenderMain(int64_t iCommandBuffer)
 		common::gpThreadLocal->mWorkbuffer.Push();
 		common::gpThreadLocal->mWorkbuffer.PushBack(rTextArea.fX);
 
-		// Shadow pass (black, offset down-right)
-		WriteQuads(common::gpThreadLocal->mWorkbuffer.Span<float>(), rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFF000000, kfShadowOffsetX, kfShadowOffsetY, pQuads, iPos, kiMaxTextQuads);
+		int64_t iStartPos = iPos;
 
-		// Main pass (white, no offset)
+		// Compute quads once (main pass: white, no offset)
 		WriteQuads(common::gpThreadLocal->mWorkbuffer.Span<float>(), rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFFFFFFFF, 0.0f, 0.0f, pQuads, iPos, kiMaxTextQuads);
+
+		int64_t iCount = iPos - iStartPos;
+
+		// Make room: move main quads forward by iCount
+		memmove(&pQuads[iStartPos + iCount], &pQuads[iStartPos], iCount * sizeof(pQuads[0]));
+		iPos += iCount;
+
+		// Fill shadow quads at [iStartPos, iStartPos + iCount) as copies with shadow color + offset
+		memcpy(&pQuads[iStartPos], &pQuads[iStartPos + iCount], iCount * sizeof(pQuads[0]));
+		for (int64_t i = 0; i < iCount; ++i)
+		{
+			pQuads[iStartPos + i].f4VertexRect.x += 2.0f * kfShadowOffsetX;
+			pQuads[iStartPos + i].f4VertexRect.y -= 2.0f * kfShadowOffsetY;
+			pQuads[iStartPos + i].uiColor = 0xFF000000;
+		}
+
 		common::gpThreadLocal->mWorkbuffer.Pop();
 	}
 

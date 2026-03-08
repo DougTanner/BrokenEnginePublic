@@ -85,8 +85,6 @@ void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 	rPostRender.puiSounds[iIndex] = {};
 	engine::SoundsPostRender::Add(rFrame, rPostRender.puiSounds[iIndex]);
 
-	if (rType.uiAreaLightTypeIndex == 0)
-	FILE_LOG(2, "[BlasterSpawn] index={} areaLight={} count={}", iIndex, rBlasters.puiAreaLights[iIndex].uuid.iValue, rBlasters.iCount);
 
 	// Sync wind trail
 	if (rBlasters.pfWindTrailIntensities[iIndex] > 0.0f)
@@ -215,8 +213,6 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 
 		// Remove owned objects
 #ifdef BT_CLIENT
-		if (BlastersInterpolate::GetType(rCurrentInterpolate.puiTypeIndices[i]).uiAreaLightTypeIndex == 0)
-		FILE_LOG(2, "[BlasterTransfer] index={} areaLight={}", i, rCurrentInterpolate.puiAreaLights[i].uuid.iValue);
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
@@ -242,8 +238,6 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		}
 
 #ifdef BT_CLIENT
-		if (BlastersInterpolate::GetType(rCurrentInterpolate.puiTypeIndices[i]).uiAreaLightTypeIndex == 0)
-		FILE_LOG(2, "[BlasterDestroy] index={} areaLight={}", i, rCurrentInterpolate.puiAreaLights[i].uuid.iValue);
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
@@ -302,22 +296,11 @@ bool BlastersInterpolate::ServerCompare(const BlastersInterpolate& rOther) const
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
 
-	if (iCount != rOther.iCount)
-		FILE_LOG(0, "[ServerCompare] BlastersInterpolate count: client={} server={}", iCount, rOther.iCount);
-
 	for (int64_t i = 0; i < iCount; ++i)
 	{
 		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
-		{
-			bool bPos = common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-			if (!bPos) FILE_LOG(0, "[ServerCompare] BlastersInterpolate pos: i={}/{} client=({:.6f},{:.6f},{:.6f}) server=({:.6f},{:.6f},{:.6f})", i, iCount, XMVectorGetX(pVecPositions[i]), XMVectorGetY(pVecPositions[i]), XMVectorGetZ(pVecPositions[i]), XMVectorGetX(rOther.pVecPositions[i]), XMVectorGetY(rOther.pVecPositions[i]), XMVectorGetZ(rOther.pVecPositions[i]));
-			bEqual &= bPos;
-		}
-		{
-			bool bDir = common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-			if (!bDir) FILE_LOG(0, "[ServerCompare] BlastersInterpolate dir: i={}/{} client=({:.6f},{:.6f},{:.6f}) server=({:.6f},{:.6f},{:.6f})", i, iCount, XMVectorGetX(pVecDirections[i]), XMVectorGetY(pVecDirections[i]), XMVectorGetZ(pVecDirections[i]), XMVectorGetX(rOther.pVecDirections[i]), XMVectorGetY(rOther.pVecDirections[i]), XMVectorGetZ(rOther.pVecDirections[i]));
-			bEqual &= bDir;
-		}
+		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
 	}
 
 	return bEqual;
