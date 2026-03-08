@@ -120,7 +120,8 @@ flowchart TD
         deaths["DetectPlayerDeathsServer()"]:::network
         broadcast["BroadcastStatusChangesServer()<br/>BufferFrame + SendUpdate +<br/>SendResends + Flush"]:::network
         subscriptions["HandleSubscriptionUpdatesServer()"]:::network
-        ts --> dispatch_s --> frame_swap
+        harvest["HarvestTransfers()<br/>(cross-coord entity moves)"]:::physics
+        ts --> dispatch_s --> harvest --> frame_swap
         frame_swap --> finalize --> deaths --> broadcast --> subscriptions
     end
 

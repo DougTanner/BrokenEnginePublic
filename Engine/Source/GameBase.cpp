@@ -155,11 +155,13 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bUpdateFrame
 
 		common::gpThreadLocal->mWorkbuffer.Pop();
 
+#ifdef BT_SERVER
 		// Transfer entities that crossed frame boundaries into destination frames
 		if (mpDifferenceStreamReader == nullptr)
 		{
 			game::gpGame->HarvestTransfers();
 		}
+#endif
 
 		std::swap(mCurrentFrames, mNextFrames);
 

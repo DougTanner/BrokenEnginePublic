@@ -94,8 +94,9 @@ void TextManager::RenderMain(int64_t iCommandBuffer)
 
 		int64_t iStartPos = iPos;
 
-		// Compute quads once (main pass: white, no offset)
-		WriteQuads(common::gpThreadLocal->mWorkbuffer.Span<float>(), rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFFFFFFFF, 0.0f, 0.0f, pQuads, iPos, kiMaxTextQuads);
+		// Compute quads once (main pass: white, no offset), limit to half remaining capacity for shadow duplication
+		int64_t iHalfMax = iStartPos + (kiMaxTextQuads - iStartPos) / 2;
+		WriteQuads(common::gpThreadLocal->mWorkbuffer.Span<float>(), rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFFFFFFFF, 0.0f, 0.0f, pQuads, iPos, iHalfMax);
 
 		int64_t iCount = iPos - iStartPos;
 

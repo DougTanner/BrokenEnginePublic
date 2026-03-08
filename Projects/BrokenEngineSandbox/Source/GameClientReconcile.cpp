@@ -96,6 +96,7 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 		bool bMatch = true;
 		int64_t iLastMatched = -1;
 		auto it = rWork.serverUpdates.begin();
+		bool bPreviousFrameHadStatusChanges = false;
 
 		while (it != rWork.serverUpdates.end() && it->first == iExpected && iExpected <= rReconcileContext.iTargetFrame)
 		{
@@ -108,15 +109,21 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 			}
 			if (snapIt->second.crc != it->second.serverCrc)
 			{
+				ASSERT(!it->second.statusChanges.empty() || bPreviousFrameHadStatusChanges);
 				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: crc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, snapIt->second.crc, it->second.serverCrc);
 				bMatch = false;
 				break;
 			}
 			if (snapIt->second.inputCrc != it->second.inputCrc)
 			{
+				ASSERT(!it->second.statusChanges.empty() || bPreviousFrameHadStatusChanges);
 				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: inputCrc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, snapIt->second.inputCrc, it->second.inputCrc);
 				bMatch = false;
 				break;
+			}
+			if (!it->second.statusChanges.empty())
+			{
+				bPreviousFrameHadStatusChanges = true;
 			}
 			iLastMatched = iExpected;
 			++iExpected;

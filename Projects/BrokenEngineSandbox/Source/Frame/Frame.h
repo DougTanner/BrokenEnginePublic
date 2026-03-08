@@ -32,7 +32,7 @@ enum class GameFlags : uint64_t
 using GameFlags_t = common::Flags<GameFlags>;
 
 // Set simulation timestep to 32/64/128 fps (kfDeltaTime: 0.03125f/0.015625f/0.0078125f)
-inline constexpr std::chrono::nanoseconds kUpdateStepNs = 1'000'000'000ns / 64;
+inline constexpr std::chrono::nanoseconds kUpdateStepNs = 1'000'000'000ns / 32;
 inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kUpdateStepNs);
 
 struct FrameInterpolate : public engine::FrameInterpolateBase
