@@ -245,7 +245,8 @@ private:
 
 		// Input
 		int64_t iConfirmedTick = -1;
-		int64_t iConfirmedSnapshotIndex = -1;
+		int64_t iConfirmedOffset = -1;
+		int64_t iSnapshotHead = 0;
 		std::map<int64_t, engine::CoordFrames::CoordServerUpdate> serverUpdates;
 		std::array<std::unique_ptr<Frame>, engine::kiTickRate> snapshots {};
 		int64_t iSnapshotCount = 0;
@@ -262,7 +263,7 @@ private:
 
 		// Output
 		int64_t iNewConfirmedTick = -1;
-		int64_t iNewConfirmedSnapshotIndex = -1; // index into snapshots (fast-path)
+		int64_t iNewConfirmedOffset = -1; // logical offset into snapshots ring (fast-path)
 		int64_t iNewConfirmedNewSnapshotIndex = -1; // index into newSnapshots (replay)
 		std::vector<std::unique_ptr<Frame>> newSnapshots;
 		bool bCrcFastPath = false;

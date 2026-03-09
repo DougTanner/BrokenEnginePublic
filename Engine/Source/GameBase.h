@@ -40,11 +40,12 @@ struct CoordFrames
 
 #if defined(BT_CLIENT)
 	std::array<std::unique_ptr<game::Frame>, kiTickRate> snapshots {};
-	int64_t iSnapshotCount = 0;
+	int64_t iSnapshotHead = 0;       // physical index of oldest entry
+	int64_t iSnapshotCount = 0;      // number of valid entries in ring
 
-	// Confirmed tick = index into snapshots (no separate unique_ptr)
+	// Confirmed tick = logical offset from head (-1 = none)
 	int64_t iConfirmedTick = -1;
-	int64_t iConfirmedSnapshotIndex = -1;
+	int64_t iConfirmedOffset = -1;
 
 	struct CoordServerUpdate
 	{

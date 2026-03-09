@@ -12,6 +12,11 @@ namespace game
 
 #if defined(BT_CLIENT)
 
+inline int64_t SnapshotIndex(int64_t iHead, int64_t iLogical)
+{
+	return (iHead + iLogical) % engine::kiTickRate;
+}
+
 void Game::PrepareExtrapolationTick(const std::vector<engine::GridCoord>& rActiveCoords)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -23,14 +28,24 @@ void Game::PrepareExtrapolationTick(const std::vector<engine::GridCoord>& rActiv
 			continue;
 		}
 		engine::CoordFrames& rSub = subIt->second;
-		int64_t iSnapshot = rSub.iSnapshotCount;
-		if (iSnapshot >= engine::kiTickRate)
+		if (rSub.iSnapshotCount >= engine::kiTickRate)
 		{
-			continue;
+			// Ring full: try to reclaim oldest pre-confirmed slot
+			if (rSub.iConfirmedOffset > 0)
+			{
+				rSub.iSnapshotHead = SnapshotIndex(rSub.iSnapshotHead, 1);
+				--rSub.iSnapshotCount;
+				--rSub.iConfirmedOffset;
+			}
+			else
+			{
+				continue;
+			}
 		}
-		if (rSub.snapshots[iSnapshot] == nullptr)
+		int64_t iPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount);
+		if (rSub.snapshots[iPhysical] == nullptr)
 		{
-			rSub.snapshots[iSnapshot] = std::make_unique<Frame>();
+			rSub.snapshots[iPhysical] = std::make_unique<Frame>();
 		}
 	}
 }
@@ -43,13 +58,21 @@ void Game::BuildExtrapolationFrameRef(const engine::GridCoord& rCoord, Frame*& r
 		return;
 	}
 	engine::CoordFrames& rSub = subIt->second;
-	int64_t iSnapshot = rSub.iSnapshotCount;
-	if (iSnapshot >= engine::kiTickRate)
+	if (rSub.iSnapshotCount >= engine::kiTickRate)
 	{
 		return;
 	}
-	rpNext = rSub.snapshots[iSnapshot].get();
-	rpCurrent = (iSnapshot == 0) ? &CurrentFrame(rCoord) : rSub.snapshots[iSnapshot - 1].get();
+	int64_t iNextPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount);
+	rpNext = rSub.snapshots[iNextPhysical].get();
+	if (rSub.iSnapshotCount == 0)
+	{
+		rpCurrent = &CurrentFrame(rCoord);
+	}
+	else
+	{
+		int64_t iCurrentPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount - 1);
+		rpCurrent = rSub.snapshots[iCurrentPhysical].get();
+	}
 }
 
 void Game::RecordExtrapolationSnapshot(const std::vector<engine::GridCoord>& rActiveCoords, [[maybe_unused]] int64_t iTick)
@@ -77,7 +100,9 @@ Frame* Game::GetSnapshotFrame(engine::GridCoord coord) const
 	{
 		return nullptr;
 	}
-	return subIt->second.snapshots[subIt->second.iSnapshotCount - 1].get();
+	const engine::CoordFrames& rSub = subIt->second;
+	int64_t iPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount - 1);
+	return rSub.snapshots[iPhysical].get();
 }
 
 void Game::ConnectToServer(const char* pServerAddress)
@@ -148,7 +173,8 @@ void Game::DisconnectFromServer()
 	for (auto& [rCoord, rSub] : mCoordFrames)
 	{
 		rSub.iConfirmedTick = -1;
-		rSub.iConfirmedSnapshotIndex = -1;
+		rSub.iConfirmedOffset = -1;
+		rSub.iSnapshotHead = 0;
 		rSub.iSnapshotCount = 0;
 		rSub.serverUpdates.clear();
 		rSub.pendingFullState.reset();
@@ -337,12 +363,13 @@ void Game::ApplyReceivedFullStates()
 			}
 
 			// Original received frame -> snapshot[0], which IS the confirmed frame
+			rSub.iSnapshotHead = 0;
 			rSub.snapshots[0] = std::move(rFullState.pFrame);
 			rSub.snapshots[0]->postRender.serverCrc = rSub.snapshots[0]->ServerCrc();
 			rSub.snapshots[0]->postRender.crc = rSub.snapshots[0]->Crc();
 			rSub.iSnapshotCount = 1;
 			rSub.iConfirmedTick = iTick;
-			rSub.iConfirmedSnapshotIndex = 0;
+			rSub.iConfirmedOffset = 0;
 
 			// Set frame counter from first received full state
 			if (miTickCounter < iTick)
@@ -552,7 +579,8 @@ void Game::UpdateSubscriptions()
 			{
 				engine::CoordFrames& rUnSub = unsubIt->second;
 				rUnSub.iConfirmedTick = -1;
-				rUnSub.iConfirmedSnapshotIndex = -1;
+				rUnSub.iConfirmedOffset = -1;
+				rUnSub.iSnapshotHead = 0;
 				rUnSub.iSnapshotCount = 0;
 				rUnSub.serverUpdates.clear();
 				rUnSub.pendingFullState.reset();

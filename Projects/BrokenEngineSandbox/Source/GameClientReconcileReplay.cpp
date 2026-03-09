@@ -9,6 +9,11 @@ namespace game
 
 #if defined(BT_CLIENT)
 
+inline int64_t SnapshotIndex(int64_t iHead, int64_t iLogical)
+{
+	return (iHead + iLogical) % engine::kiTickRate;
+}
+
 void Game::ReconcileRunTick(ReconcileContext& rReconcileContext)
 {
 	const int64_t iActiveCount = static_cast<int64_t>(rReconcileContext.activeCoords.size());
@@ -263,10 +268,11 @@ void Game::ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinCo
 	{
 		if (rWork.iConfirmedTick <= iMinConfirmedTick)
 		{
-			ASSERT(rWork.iConfirmedSnapshotIndex >= 0);
+			ASSERT(rWork.iConfirmedOffset >= 0);
+			int64_t iConfirmedPhysical = SnapshotIndex(rWork.iSnapshotHead, rWork.iConfirmedOffset);
 			// Raw pointer from confirmed snapshot (no ownership transfer)
 			rWork.replayStack.clear();
-			rWork.replayStack.push_back(rWork.snapshots[rWork.iConfirmedSnapshotIndex].get());
+			rWork.replayStack.push_back(rWork.snapshots[iConfirmedPhysical].get());
 			rWork.iReplayStackCount = 1;
 			rWork.iReplayWorkspaceUsed = 0;
 		}
@@ -404,10 +410,11 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 		{
 			if (rWork.iConfirmedTick == iTick && rWork.iConfirmedTick > iMinConfirmedTick)
 			{
-				ASSERT(rWork.iConfirmedSnapshotIndex >= 0);
+				ASSERT(rWork.iConfirmedOffset >= 0);
+				int64_t iConfirmedPhysical = SnapshotIndex(rWork.iSnapshotHead, rWork.iConfirmedOffset);
 				// Raw pointer from confirmed snapshot, reset workspace counter
 				rWork.replayStack.clear();
-				rWork.replayStack.push_back(rWork.snapshots[rWork.iConfirmedSnapshotIndex].get());
+				rWork.replayStack.push_back(rWork.snapshots[iConfirmedPhysical].get());
 				rWork.iReplayStackCount = 1;
 				rWork.iReplayWorkspaceUsed = 0;
 			}
@@ -509,7 +516,7 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 		if (rWork.iLastValidatedIndex == 0)
 		{
 			// Validated the confirmed snapshot itself (raw pointer from snapshots array)
-			rWork.iNewConfirmedSnapshotIndex = rWork.iConfirmedSnapshotIndex;
+			rWork.iNewConfirmedOffset = rWork.iConfirmedOffset;
 		}
 		else
 		{
@@ -570,10 +577,11 @@ void Game::ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinCon
 			CoordReconcileWork& rWork = rReconcileContext.coordWork.at(iWorkIndex);
 			if (rWork.iConfirmedTick == rReconcileContext.iTickCounter && rWork.iConfirmedTick > iMinConfirmedTick)
 			{
-				ASSERT(rWork.iConfirmedSnapshotIndex >= 0);
+				ASSERT(rWork.iConfirmedOffset >= 0);
+				int64_t iConfirmedPhysical = SnapshotIndex(rWork.iSnapshotHead, rWork.iConfirmedOffset);
 				// Raw pointer from confirmed snapshot, reset workspace counter
 				rWork.replayStack.clear();
-				rWork.replayStack.push_back(rWork.snapshots[rWork.iConfirmedSnapshotIndex].get());
+				rWork.replayStack.push_back(rWork.snapshots[iConfirmedPhysical].get());
 				rWork.iReplayStackCount = 1;
 				rWork.iReplayWorkspaceUsed = 0;
 				// Reset tracking since this coord's stack was reset

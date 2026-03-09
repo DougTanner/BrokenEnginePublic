@@ -7,6 +7,11 @@ namespace game
 
 #if defined(BT_CLIENT)
 
+inline int64_t SnapshotIndex(int64_t iHead, int64_t iLogical)
+{
+	return (iHead + iLogical) % engine::kiTickRate;
+}
+
 void Game::KickReconcile()
 {
 	mpReconcileContext = std::make_unique<ReconcileContext>();
@@ -24,15 +29,17 @@ void Game::KickReconcile()
 		work.coord = rCoord;
 		work.uiGeneration = rSub.uiGeneration;
 		work.iConfirmedTick = rSub.iConfirmedTick;
-		work.iConfirmedSnapshotIndex = rSub.iConfirmedSnapshotIndex;
+		work.iConfirmedOffset = rSub.iConfirmedOffset;
+		work.iSnapshotHead = rSub.iSnapshotHead;
 		work.serverUpdates = std::move(rSub.serverUpdates);
 		work.pendingFullState = std::move(rSub.pendingFullState);
 
 		// Swap snapshot array to worker
 		work.snapshots.swap(rSub.snapshots);
 		work.iSnapshotCount = rSub.iSnapshotCount;
+		rSub.iSnapshotHead = 0;
 		rSub.iSnapshotCount = 0;
-		rSub.iConfirmedSnapshotIndex = -1;
+		rSub.iConfirmedOffset = -1;
 		rSub.serverUpdates.clear();
 		rSub.pendingFullState.reset();
 
@@ -54,12 +61,13 @@ void Game::KickReconcile()
 
 std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcileContext)
 {
-	// Helper to find a snapshot index by frame number (entries are in order)
-	auto findSnapshotIndex = [](std::array<std::unique_ptr<Frame>, engine::kiTickRate>& rSnapshots, int64_t iCount, int64_t iTick) -> int64_t
+	// Helper to find a snapshot logical index by frame number (ring buffer)
+	auto findSnapshotIndex = [](std::array<std::unique_ptr<Frame>, engine::kiTickRate>& rSnapshots, int64_t iHead, int64_t iCount, int64_t iTick) -> int64_t
 	{
 		for (int64_t i = 0; i < iCount; ++i)
 		{
-			if (rSnapshots[i] != nullptr && rSnapshots[i]->interpolate.iTick == iTick)
+			int64_t iPhysical = SnapshotIndex(iHead, i);
+			if (rSnapshots[iPhysical] != nullptr && rSnapshots[iPhysical]->interpolate.iTick == iTick)
 			{
 				return i;
 			}
@@ -114,21 +122,22 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 
 		while (it != rWork.serverUpdates.end() && it->first == iExpected && iExpected <= rReconcileContext.iTargetTick)
 		{
-			int64_t iIndex = findSnapshotIndex(rWork.snapshots, rWork.iSnapshotCount, iExpected);
+			int64_t iIndex = findSnapshotIndex(rWork.snapshots, rWork.iSnapshotHead, rWork.iSnapshotCount, iExpected);
 			if (iIndex < 0)
 			{
 				FILE_LOG(0, "[CrcFastPath] BREAK coord=({},{}) frame={}: snapshot missing", rWork.coord.x, rWork.coord.y, iExpected);
 				break;
 			}
-			if (rWork.snapshots[iIndex]->postRender.serverCrc != it->second.serverCrc)
+			int64_t iPhysical = SnapshotIndex(rWork.iSnapshotHead, iIndex);
+			if (rWork.snapshots[iPhysical]->postRender.serverCrc != it->second.serverCrc)
 			{
-				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: crc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, rWork.snapshots[iIndex]->postRender.serverCrc, it->second.serverCrc);
+				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: crc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, rWork.snapshots[iPhysical]->postRender.serverCrc, it->second.serverCrc);
 				bMatch = false;
 				break;
 			}
-			if (rWork.snapshots[iIndex]->postRender.previousInputCrc != it->second.inputCrc)
+			if (rWork.snapshots[iPhysical]->postRender.previousInputCrc != it->second.inputCrc)
 			{
-				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: inputCrc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, rWork.snapshots[iIndex]->postRender.previousInputCrc, it->second.inputCrc);
+				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: inputCrc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, rWork.snapshots[iPhysical]->postRender.previousInputCrc, it->second.inputCrc);
 				bMatch = false;
 				break;
 			}
@@ -177,16 +186,17 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 			rWork.iNewConfirmedTick = iLastMatched;
 			rReconcileContext.iCrcValidatedFrameTicks += iLastMatched - rWork.iConfirmedTick;
 
-			// Record matched snapshot index instead of moving Frame
-			rWork.iNewConfirmedSnapshotIndex = iLastMatchedIndex;
+			// Record matched snapshot logical offset instead of moving Frame
+			rWork.iNewConfirmedOffset = iLastMatchedIndex;
 
 			// Keep snapshots beyond matched frame
 			rWork.newSnapshots.clear();
 			for (int64_t i = 0; i < rWork.iSnapshotCount; ++i)
 			{
-				if (rWork.snapshots[i] != nullptr && rWork.snapshots[i]->interpolate.iTick > iLastMatched)
+				int64_t iPhys = SnapshotIndex(rWork.iSnapshotHead, i);
+				if (rWork.snapshots[iPhys] != nullptr && rWork.snapshots[iPhys]->interpolate.iTick > iLastMatched)
 				{
-					rWork.newSnapshots.push_back(std::move(rWork.snapshots[i]));
+					rWork.newSnapshots.push_back(std::move(rWork.snapshots[iPhys]));
 				}
 			}
 
@@ -341,7 +351,8 @@ void Game::ApplyReconcileResult()
 			}
 			engine::CoordFrames& rSub = subscriptionIt->second;
 
-			rSub.iConfirmedSnapshotIndex = rWork.iConfirmedSnapshotIndex;
+			rSub.iConfirmedOffset = rWork.iConfirmedOffset;
+			rSub.iSnapshotHead = rWork.iSnapshotHead;
 
 			for (auto& [iTick, rUpdate] : rWork.serverUpdates)
 			{
@@ -377,50 +388,33 @@ void Game::ApplyReconcileResult()
 
 			if (rWork.bCrcFastPath)
 			{
-				// Fast-path: confirmed is in the worker's input snapshots
-				rSub.iConfirmedSnapshotIndex = rWork.iNewConfirmedSnapshotIndex;
-				// Swap arrays back from worker
+				// Fast-path: swap arrays back from worker, advance head to confirmed
 				rSub.snapshots.swap(rWork.snapshots);
-				// Compact: keep confirmed + entries after confirmed frame
-				int64_t iWriteIndex = 0;
-				for (int64_t i = 0; i < rWork.iSnapshotCount; ++i)
-				{
-					if (rSub.snapshots[i] != nullptr && rSub.snapshots[i]->interpolate.iTick >= rSub.iConfirmedTick)
-					{
-						if (rSub.snapshots[i]->interpolate.iTick == rSub.iConfirmedTick)
-						{
-							rSub.iConfirmedSnapshotIndex = iWriteIndex;
-						}
-						if (iWriteIndex != i)
-						{
-							rSub.snapshots[iWriteIndex] = std::move(rSub.snapshots[i]);
-						}
-						++iWriteIndex;
-					}
-				}
-				rSub.iSnapshotCount = iWriteIndex;
+				rSub.iSnapshotHead = SnapshotIndex(rWork.iSnapshotHead, rWork.iNewConfirmedOffset);
+				rSub.iSnapshotCount = rWork.iSnapshotCount - rWork.iNewConfirmedOffset;
+				rSub.iConfirmedOffset = 0;
 
 				// Merge catch-up snapshots (from non-fast-path coords that were replayed)
 				for (std::unique_ptr<Frame>& rSnapshot : rWork.newSnapshots)
 				{
 					if (rSnapshot != nullptr && rSnapshot->interpolate.iTick > rSub.iConfirmedTick && rSub.iSnapshotCount < engine::kiTickRate)
 					{
-						rSub.snapshots[rSub.iSnapshotCount++] = std::move(rSnapshot);
+						int64_t iPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount);
+						rSub.snapshots[iPhysical] = std::move(rSnapshot);
+						++rSub.iSnapshotCount;
 					}
 				}
-
-				// Append main thread's extrapolation entries created since kick
-				// (main thread's snapshot array was zeroed at kick, so nothing to merge)
 			}
 			else
 			{
 				// Non-fast-path: worker built newSnapshots with confirmed + catch-up
+				rSub.iSnapshotHead = 0;
 				rSub.iSnapshotCount = 0;
 
 				if (rWork.iNewConfirmedNewSnapshotIndex >= 0)
 				{
 					// Confirmed from newSnapshots (replay result)
-					rSub.iConfirmedSnapshotIndex = 0;
+					rSub.iConfirmedOffset = 0;
 					rSub.snapshots[0] = std::move(rWork.newSnapshots[rWork.iNewConfirmedNewSnapshotIndex]);
 					rSub.iSnapshotCount = 1;
 
@@ -433,11 +427,12 @@ void Game::ApplyReconcileResult()
 						}
 					}
 				}
-				else if (rWork.iNewConfirmedSnapshotIndex >= 0)
+				else if (rWork.iNewConfirmedOffset >= 0)
 				{
 					// Confirmed from input snapshots (replay validated existing snapshot)
-					rSub.iConfirmedSnapshotIndex = 0;
-					rSub.snapshots[0] = std::move(rWork.snapshots[rWork.iNewConfirmedSnapshotIndex]);
+					int64_t iConfirmedPhysical = SnapshotIndex(rWork.iSnapshotHead, rWork.iNewConfirmedOffset);
+					rSub.iConfirmedOffset = 0;
+					rSub.snapshots[0] = std::move(rWork.snapshots[iConfirmedPhysical]);
 					rSub.iSnapshotCount = 1;
 
 					// Add catch-up snapshots
@@ -453,10 +448,11 @@ void Game::ApplyReconcileResult()
 		}
 		else
 		{
-			// No advancement — swap snapshots back
+			// No advancement — swap snapshots back and restore all ring fields
 			rSub.snapshots.swap(rWork.snapshots);
 			rSub.iSnapshotCount = rWork.iSnapshotCount;
-			rSub.iConfirmedSnapshotIndex = rWork.iConfirmedSnapshotIndex;
+			rSub.iSnapshotHead = rWork.iSnapshotHead;
+			rSub.iConfirmedOffset = rWork.iConfirmedOffset;
 		}
 
 		// Restore unconsumed server updates that were moved to context
