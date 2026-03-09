@@ -22,7 +22,7 @@ Central orchestrator that owns all graphics managers and coordinates the render 
 
 **Resource Recreation**: `DestroyType` is an ordered cascade (`kNone < kCommandBuffers < kSamplers < kPipelines < kSwapchain < kSurface`), each level including all lower levels. `DestroyFlags` bitflags control which resources are rebuilt to minimize GPU synchronization. Swapchain-level recreation keeps TextureManager and BufferManager alive with loaded data intact (partial teardown/rebuild). Surface-level recreation (device lost) fully destroys and reconstructs everything. Sampler-level recreation surgically updates descriptor sets without rebuilding pipelines.
 
-**Device Lost Recovery**: `DeviceLostException` propagates to `Main.cpp`, which destroys and reconstructs the entire Graphics instance. Time clocks are reset to prevent time jumps.
+**Device Lost Recovery**: `DeviceLostException` propagates to `Main.cpp`, which destroys and reconstructs the entire Graphics instance.
 
 ### CameraBase
 Abstract base camera providing view/projection matrix calculation and visible area culling. Game implementations inherit from CameraBase. Global `gpCamera` pointer points to game-specific camera instance.
@@ -84,7 +84,7 @@ Frame rendering orchestration populating GPU uniform buffers, moved here from `/
 - **SmokeUniforms.cpp** - Smoke compute simulation running every render frame with ping-pong texture patterns and shared visible-area coordinate space
 - **WindUniforms.cpp** - Wind compute simulation uniforms
 
-Provides smoothly interpolated elapsed time that respects time scaling and pausing. Implements the three-phase render pipeline across all active frames, with the camera frame rendering first for index-0 stability.
+Provides smoothly interpolated elapsed time that respects time scaling. Implements the three-phase render pipeline across all active frames, with the camera frame rendering first for index-0 stability.
 
 ## See Also
 - [Managers/CLAUDE.md](Managers/CLAUDE.md) - Individual manager details and Vulkan patterns

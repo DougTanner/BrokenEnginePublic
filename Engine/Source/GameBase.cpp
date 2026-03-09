@@ -10,48 +10,22 @@
 namespace engine
 {
 
-using enum MenuFlags;
-
-void ResetRealTime()
-{
-#ifdef BT_CLIENT
-	gpAudioManager->mRealTime.Reset();
-	gpGraphics->mRenderFrameTimer.Reset();
-#endif
-	game::gpGame->mTimeStep.Reset();
-}
+SubscribedFrame::SubscribedFrame() = default;
+SubscribedFrame::~SubscribedFrame() = default;
+SubscribedFrame::SubscribedFrame(SubscribedFrame&&) noexcept = default;
+SubscribedFrame& SubscribedFrame::operator=(SubscribedFrame&&) noexcept = default;
 
 GameBase::GameBase()
 {
 	game::FrameInterpolate::Register();
 }
 
-bool GameBase::PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus)
+void GameBase::PreUpdate(const game::MenuInput& rMenuInput)
 {
 	ProcessMenuInput(rMenuInput);
-
-	// Reset timers when update state changes (pause/unpause transitions or focus loss)
-	bool bUpdateFrame = ShouldUpdateFrame();
-	if (bLostFocus || !bUpdateFrame || bUpdateFrame != static_cast<bool>(mGameFlags & GameFlags::kPreviousFrameUpdated)) [[unlikely]]
-	{
-#ifdef BT_CLIENT
-		gpRawInputManager->SetVibration(0, 0.0f, 0.0f);
-#endif
-		ResetRealTime();
-	}
-	if (bUpdateFrame)
-	{
-		mGameFlags.Set(GameFlags::kPreviousFrameUpdated);
-	}
-	else
-	{
-		mGameFlags.Clear(GameFlags::kPreviousFrameUpdated);
-	}
-
-	return bUpdateFrame;
 }
 
-void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bUpdateFrames)
+void GameBase::UpdateFrames(const game::MenuInput& rMenuInput)
 {
 	if (Quickload(rMenuInput)) [[unlikely]]
 	{
@@ -63,10 +37,6 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bUpdateFrame
 
 	// Perform full updates at fixed timestep
 	int64_t iFullUpdates = mTimeStep.UpdateRealtime();
-	if (!bUpdateFrames)
-	{
-		iFullUpdates = 0;
-	}
 
 	// Prepare active grid coordinates and per-coordinate frame inputs
 	if (mpDifferenceStreamReader != nullptr)
@@ -76,9 +46,9 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bUpdateFrame
 		ScopedSuppressAllocationTracking ssat;
 		game::gpGame->mActiveCoords.clear();
 		game::gpGame->mActiveCoords.push_back(game::gpGame->mHumanGridCoord);
-		if (!mNextFrames.contains(game::gpGame->mHumanGridCoord))
+		if (mSubscribedFrames[game::gpGame->mHumanGridCoord].next == nullptr)
 		{
-			mNextFrames[game::gpGame->mHumanGridCoord] = std::make_unique<game::Frame>();
+			mSubscribedFrames[game::gpGame->mHumanGridCoord].next = std::make_unique<game::Frame>();
 		}
 		game::gpGame->BuildFrameInputs();
 	}
@@ -196,19 +166,22 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bUpdateFrame
 		else
 #endif
 		{
-			std::swap(mCurrentFrames, mNextFrames);
+			for (auto& [rCoord, rFrames] : mSubscribedFrames)
+			{
+				std::swap(rFrames.current, rFrames.next);
+			}
 
-			// After swap, mNextFrames holds old current frames (stale data, reusable memory).
+			// After swap, .next holds old current frames (stale data, reusable memory).
 			// Ensure active entries exist for next iteration's AllocateAndCopy.
 			if (mpDifferenceStreamReader == nullptr)
 			{
 				game::gpGame->EnsureNextFrames();
 			}
-			else if (!mNextFrames.contains(game::gpGame->mHumanGridCoord))
+			else if (mSubscribedFrames[game::gpGame->mHumanGridCoord].next == nullptr)
 			{
 				// Heap: make_unique<Frame> for replay target coordinate
 				ScopedSuppressAllocationTracking ssat;
-				mNextFrames[game::gpGame->mHumanGridCoord] = std::make_unique<game::Frame>();
+				mSubscribedFrames[game::gpGame->mHumanGridCoord].next = std::make_unique<game::Frame>();
 			}
 		}
 
@@ -241,50 +214,41 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bUpdateFrame
 }
 
 #ifdef BT_CLIENT
-void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bUpdateFrames)
+void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput)
 {
-	UpdateFrames(rMenuInput, bUpdateFrames);
-	BorrowSnapshotFramesForRender();
-	Render(bUpdateFrames);
-	RestoreSnapshotFramesAfterRender();
+	UpdateFrames(rMenuInput);
+	Render();
 }
 
-void GameBase::BorrowSnapshotFramesForRender()
+game::Frame& GameBase::RenderFrame(GridCoord coord) const
 {
-	if (!game::gpGame->IsExtrapolating())
+	if (game::gpGame->IsExtrapolating())
 	{
-		return;
+		game::Frame* pFrame = game::gpGame->GetSnapshotFrame(coord);
+		if (pFrame != nullptr)
+		{
+			return *pFrame;
+		}
 	}
-
-	game::gpGame->BorrowSnapshotFrames(mCurrentFrames);
+	return *mSubscribedFrames.at(coord).current;
 }
 
-void GameBase::RestoreSnapshotFramesAfterRender()
-{
-	if (!game::gpGame->IsExtrapolating())
-	{
-		return;
-	}
-
-	game::gpGame->RestoreSnapshotFrames(mCurrentFrames);
-}
-
-void GameBase::Render(bool bUpdateFrames)
+void GameBase::Render()
 {
 	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
 
 	// Use camera coord for rendering (human player's grid cell)
-	ASSERT(mCurrentFrames.contains(game::gpGame->mHumanGridCoord));
+	ASSERT(mSubscribedFrames.contains(game::gpGame->mHumanGridCoord));
 	const GridCoord cameraCoord = game::gpGame->mHumanGridCoord;
 
 	// Interpolate elapsed time with the sub-step remainder for smooth rendering
-	float fCurrentTime = mfCurrentTime + (bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f);
-	gpGraphics->RenderGlobal(CurrentFrame(cameraCoord), fCurrentTime);
+	float fCurrentTime = mfCurrentTime + common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs);
+	gpGraphics->RenderGlobal(RenderFrame(cameraCoord), fCurrentTime);
 
 	// Per-frame render interpolates
 	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
 	gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
-	float fDeltaTime = bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f;
+	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs);
 	{
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
@@ -298,8 +262,9 @@ void GameBase::Render(bool bUpdateFrames)
 		// AllocateAndCopy + Update each active frame's render interpolate (camera frame first)
 		auto interpolateFrame = [&](const GridCoord& rCoord)
 		{
-			game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates[rCoord], CurrentFrame(rCoord).interpolate);
-			game::FrameInterpolate::Update(gpGraphics->mRenderInterpolates[rCoord], CurrentFrame(rCoord), fDeltaTime);
+			const game::Frame& rFrame = RenderFrame(rCoord);
+			game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates[rCoord], rFrame.interpolate);
+			game::FrameInterpolate::Update(gpGraphics->mRenderInterpolates[rCoord], rFrame, fDeltaTime);
 		};
 		interpolateFrame(cameraCoord);
 		for (const GridCoord& rCoord : rActiveCoords)
@@ -326,7 +291,7 @@ void GameBase::Render(bool bUpdateFrames)
 	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
 	gpTextManager->RenderMain(iCommandBuffer);
 
-	gpGraphics->RenderMainPresentAcquire(iCommandBuffer, gpGraphics->mRenderInterpolates, rActiveCoords, cameraCoord, mCurrentFrames);
+	gpGraphics->RenderMainPresentAcquire(iCommandBuffer, gpGraphics->mRenderInterpolates, rActiveCoords, cameraCoord);
 }
 #endif
 
@@ -379,7 +344,7 @@ bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 			if (bQuickloaded)
 			{
 				game::gpGame->mHumanGridCoord = loadedHumanGridCoord;
-				ASSERT(mCurrentFrames.contains(game::gpGame->mHumanGridCoord));
+				ASSERT(mSubscribedFrames.contains(game::gpGame->mHumanGridCoord));
 			}
 
 			return true;
@@ -425,10 +390,10 @@ void GameBase::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuInput
 			Reset();
 
 			// Clear all frames and create fresh at recorded coordinate
-			mCurrentFrames.clear();
-			mNextFrames.clear();
-			mCurrentFrames[meta.humanGridCoord] = std::make_unique<game::Frame>();
-			mNextFrames[meta.humanGridCoord] = std::make_unique<game::Frame>();
+			mSubscribedFrames.clear();
+			auto& rSub = mSubscribedFrames[meta.humanGridCoord];
+			rSub.current = std::make_unique<game::Frame>();
+			rSub.next = std::make_unique<game::Frame>();
 
 			game::gpGame->mHumanGridCoord = meta.humanGridCoord;
 
@@ -511,14 +476,14 @@ void GameBase::WriteGrid(const FileFlags_t& rFlags, const std::filesystem::path&
 	int64_t iSize = 0;
 	common::Write(fileStream, iSize);
 
-	int64_t iFrameCount = static_cast<int64_t>(mCurrentFrames.size());
+	int64_t iFrameCount = static_cast<int64_t>(mSubscribedFrames.size());
 	common::Write(fileStream, iFrameCount);
 	humanGridCoord.Write(fileStream);
 
 	// Sort by coord key for deterministic output
 	std::vector<uint64_t> keys;
-	keys.reserve(mCurrentFrames.size());
-	for (const auto& [rCoord, pFrame] : mCurrentFrames)
+	keys.reserve(mSubscribedFrames.size());
+	for (const auto& [rCoord, rFrames] : mSubscribedFrames)
 	{
 		keys.push_back(rCoord.ToKey());
 	}
@@ -528,7 +493,7 @@ void GameBase::WriteGrid(const FileFlags_t& rFlags, const std::filesystem::path&
 	{
 		GridCoord coord = GridCoord::FromKey(uiKey);
 		coord.Write(fileStream);
-		fileStream << *mCurrentFrames.at(coord);
+		fileStream << *mSubscribedFrames.at(coord).current;
 	}
 
 	Log("WriteGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
@@ -553,8 +518,7 @@ bool GameBase::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& 
 	common::Read(fileStream, iFrameCount);
 	rHumanGridCoord.Read(fileStream);
 
-	mCurrentFrames.clear();
-	mNextFrames.clear();
+	mSubscribedFrames.clear();
 
 	for (int64_t i = 0; i < iFrameCount; ++i)
 	{
@@ -562,19 +526,15 @@ bool GameBase::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& 
 		coord.Read(fileStream);
 		auto pFrame = std::make_unique<game::Frame>();
 		fileStream >> *pFrame;
-		mCurrentFrames[coord] = std::move(pFrame);
+		auto& rSub = mSubscribedFrames[coord];
+		rSub.current = std::move(pFrame);
+		rSub.next = std::make_unique<game::Frame>();
 	}
 
-	// Create empty next frames for all loaded coords
-	for (const auto& [rCoord, pFrame] : mCurrentFrames)
+	if (!mSubscribedFrames.empty())
 	{
-		mNextFrames[rCoord] = std::make_unique<game::Frame>();
-	}
-
-	if (!mCurrentFrames.empty())
-	{
-		miFrameCounter = mCurrentFrames.begin()->second->interpolate.iFrame;
-		mfCurrentTime = mCurrentFrames.begin()->second->interpolate.fCurrentTime;
+		miFrameCounter = mSubscribedFrames.begin()->second.current->interpolate.iFrame;
+		mfCurrentTime = mSubscribedFrames.begin()->second.current->interpolate.fCurrentTime;
 	}
 
 	Log("ReadGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);

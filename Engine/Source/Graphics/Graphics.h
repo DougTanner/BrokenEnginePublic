@@ -65,7 +65,7 @@ public:
 	Graphics() = delete;
 
 	void RenderGlobal(const game::Frame& __restrict rFrame, float fCurrentTime);
-	void RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord, const std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>& rCurrentFrames);
+	void RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord);
 	void Create();
 	void Refresh();
 	bool Destroy();

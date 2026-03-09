@@ -145,11 +145,11 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame, float fCurrent
 	gpCommandBufferManager->SubmitGlobalCommandBuffer(iCommandBuffer);
 }
 
-void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord, const std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>& rCurrentFrames)
+void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord)
 {
 	{
 		gpProfileManager->CpuStart(kCpuTimerRenderMain);
-		RenderFrameMain(iCommandBuffer, rRenderInterpolates, rActiveCoords, cameraCoord, rCurrentFrames);
+		RenderFrameMain(iCommandBuffer, rRenderInterpolates, rActiveCoords, cameraCoord);
 		gpProfileManager->CpuStop(kCpuTimerRenderMain, false);
 
 		gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer, false);
@@ -187,7 +187,7 @@ void Graphics::Create()
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	Refresh();
-	bool bDestroyed = Destroy();
+	Destroy();
 
 	if (mpInstanceManager == nullptr) { mpInstanceManager = std::make_unique<InstanceManager>(mHinstance, mHwnd); }
 	if (mpDeviceManager == nullptr)
@@ -230,10 +230,6 @@ void Graphics::Create()
 		gpCommandBufferManager->RecordCommandBuffers();
 	}
 
-	if (bDestroyed && game::gpGame != nullptr)
-	{
-		ResetRealTime();
-	}
 }
 
 void Graphics::Refresh()

@@ -13,31 +13,29 @@ void Game::KickReconcile()
 	ReconcileContext& rReconcileContext = *mpReconcileContext;
 
 	// Populate per-coord work items
-	for (auto& [rCoord, rState] : mCoordReconcileStates)
+	for (auto& [rCoord, rSub] : mSubscribedFrames)
 	{
-		if (rState.iConfirmedFrame < 0)
+		if (rSub.iConfirmedFrame < 0)
 		{
 			continue;
 		}
 
 		CoordReconcileWork work;
 		work.coord = rCoord;
-		work.uiGeneration = rState.uiGeneration;
-		work.iConfirmedFrame = rState.iConfirmedFrame;
-		work.pConfirmedFrame = std::move(rState.pConfirmedFrame);
-		work.serverUpdates = std::move(rState.serverUpdates);
-		work.pendingFullState = std::move(rState.pendingFullState);
+		work.uiGeneration = rSub.uiGeneration;
+		work.iConfirmedFrame = rSub.iConfirmedFrame;
+		work.iConfirmedSnapshotIndex = rSub.iConfirmedSnapshotIndex;
+		work.serverUpdates = std::move(rSub.serverUpdates);
+		work.pendingFullState = std::move(rSub.pendingFullState);
 
-		// Move snapshot stack entries to worker
-		work.snapshots.reserve(static_cast<size_t>(rState.iSnapshotCount));
-		for (int64_t i = 0; i < rState.iSnapshotCount; ++i)
-		{
-			work.snapshots.push_back(std::move(rState.snapshots[i]));
-		}
-		rState.iSnapshotCount = 0;
+		// Swap snapshot array to worker
+		work.snapshots.swap(rSub.snapshots);
+		work.iSnapshotCount = rSub.iSnapshotCount;
+		rSub.iSnapshotCount = 0;
+		rSub.iConfirmedSnapshotIndex = -1;
 
-		rState.serverUpdates.clear();
-		rState.pendingFullState.reset();
+		rSub.serverUpdates.clear();
+		rSub.pendingFullState.reset();
 
 		rReconcileContext.coordWork.push_back(std::move(work));
 	}
@@ -59,17 +57,19 @@ void Game::KickReconcile()
 
 std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcileContext)
 {
-	// Helper to find a snapshot by frame number (entries are in order)
-	auto findSnapshot = [](std::vector<FrameSnapshot>& rSnapshots, int64_t iFrame) -> FrameSnapshot*
+	using SnapshotEntry = engine::SubscribedFrame::SnapshotEntry;
+
+	// Helper to find a snapshot index by frame number (entries are in order)
+	auto findSnapshotIndex = [](std::array<SnapshotEntry, engine::SubscribedFrame::kiMaxSnapshots>& rSnapshots, int64_t iCount, int64_t iFrame) -> int64_t
 	{
-		for (auto& rSnapshot : rSnapshots)
+		for (int64_t i = 0; i < iCount; ++i)
 		{
-			if (rSnapshot.iFrame == iFrame)
+			if (rSnapshots[i].iFrame == iFrame)
 			{
-				return &rSnapshot;
+				return i;
 			}
 		}
-		return nullptr;
+		return -1;
 	};
 
 	bool bAllHandled = true;
@@ -114,30 +114,32 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 		int64_t iExpected = rWork.iConfirmedFrame + 1;
 		bool bMatch = true;
 		int64_t iLastMatched = -1;
+		int64_t iLastMatchedIndex = -1;
 		auto it = rWork.serverUpdates.begin();
 
 		while (it != rWork.serverUpdates.end() && it->first == iExpected && iExpected <= rReconcileContext.iTargetFrame)
 		{
-			FrameSnapshot* pSnapshot = findSnapshot(rWork.snapshots, iExpected);
-			if (pSnapshot == nullptr)
+			int64_t iIndex = findSnapshotIndex(rWork.snapshots, rWork.iSnapshotCount, iExpected);
+			if (iIndex < 0)
 			{
 				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: snapshot missing", rWork.coord.x, rWork.coord.y, iExpected);
 				bMatch = false;
 				break;
 			}
-			if (pSnapshot->crc != it->second.serverCrc)
+			if (rWork.snapshots[iIndex].crc != it->second.serverCrc)
 			{
-				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: crc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, pSnapshot->crc, it->second.serverCrc);
+				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: crc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, rWork.snapshots[iIndex].crc, it->second.serverCrc);
 				bMatch = false;
 				break;
 			}
-			if (pSnapshot->inputCrc != it->second.inputCrc)
+			if (rWork.snapshots[iIndex].inputCrc != it->second.inputCrc)
 			{
-				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: inputCrc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, pSnapshot->inputCrc, it->second.inputCrc);
+				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: inputCrc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, rWork.snapshots[iIndex].inputCrc, it->second.inputCrc);
 				bMatch = false;
 				break;
 			}
 			iLastMatched = iExpected;
+			iLastMatchedIndex = iIndex;
 			++iExpected;
 			++it;
 		}
@@ -165,17 +167,16 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 			rWork.iNewConfirmedFrame = iLastMatched;
 			rReconcileContext.iCrcValidatedFrameTicks += iLastMatched - rWork.iConfirmedFrame;
 
-			// Move matched snapshot's Frame as new confirmed frame
-			FrameSnapshot* pMatchedSnapshot = findSnapshot(rWork.snapshots, iLastMatched);
-			rWork.pNewConfirmedFrame = std::move(pMatchedSnapshot->pFrame);
+			// Record matched snapshot index instead of moving Frame
+			rWork.iNewConfirmedSnapshotIndex = iLastMatchedIndex;
 
 			// Keep snapshots beyond matched frame
 			rWork.newSnapshots.clear();
-			for (auto& rSnapshot : rWork.snapshots)
+			for (int64_t i = 0; i < rWork.iSnapshotCount; ++i)
 			{
-				if (rSnapshot.iFrame > iLastMatched && rSnapshot.pFrame != nullptr)
+				if (rWork.snapshots[i].iFrame > iLastMatched && rWork.snapshots[i].pFrame != nullptr)
 				{
-					rWork.newSnapshots.push_back(std::move(rSnapshot));
+					rWork.newSnapshots.push_back(std::move(rWork.snapshots[i]));
 				}
 			}
 
@@ -231,10 +232,10 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	}
 
 	// Build coord-to-index map for O(1) lookups
-	std::unordered_map<engine::GridCoord, size_t> coordWorkIndex;
+	rReconcileContext.coordWorkIndex.clear();
 	for (size_t i = 0; i < rReconcileContext.coordWork.size(); ++i)
 	{
-		coordWorkIndex[rReconcileContext.coordWork.at(i).coord] = i;
+		rReconcileContext.coordWorkIndex[rReconcileContext.coordWork.at(i).coord] = i;
 	}
 
 	ReconcileRollback(rReconcileContext, iMinConfirmedFrame);
@@ -243,7 +244,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 
 	FILE_LOG(0, "[Reconcile] Rollback: minConfirmed={} replayRange=[{},{}] coords={} targetFrame={}", iMinConfirmedFrame, iMinConfirmedFrame + 1, iMaxConsecutive, rReconcileContext.coordWork.size(), rReconcileContext.iTargetFrame);
 
-	ReconcileReplay(rReconcileContext, iMinConfirmedFrame, iMaxConsecutive, coordWorkIndex);
+	ReconcileReplay(rReconcileContext, iMinConfirmedFrame, iMaxConsecutive);
 
 	FILE_LOG(0, "[Reconcile] Replay complete: frameCounter={} desync={}", rReconcileContext.iFrameCounter, rReconcileContext.iDesyncFrame >= 0);
 
@@ -291,36 +292,26 @@ void Game::ApplyReconcileResult()
 		// Restore per-coord state (moved to context at kick time)
 		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
 		{
-			auto stateIt = mCoordReconcileStates.find(rWork.coord);
-			if (stateIt == mCoordReconcileStates.end() || stateIt->second.uiGeneration != rWork.uiGeneration)
+			auto subIt = mSubscribedFrames.find(rWork.coord);
+			if (subIt == mSubscribedFrames.end() || subIt->second.uiGeneration != rWork.uiGeneration)
 			{
 				continue;
 			}
-			CoordReconcileState& rState = stateIt->second;
+			engine::SubscribedFrame& rSub = subIt->second;
 
-			rState.pConfirmedFrame = std::move(rWork.pConfirmedFrame);
+			rSub.iConfirmedSnapshotIndex = rWork.iConfirmedSnapshotIndex;
 
 			for (auto& [iFrame, rUpdate] : rWork.serverUpdates)
 			{
-				if (iFrame > rState.iConfirmedFrame)
+				if (iFrame > rSub.iConfirmedFrame)
 				{
-					rState.serverUpdates[iFrame] = std::move(rUpdate);
+					rSub.serverUpdates[iFrame] = std::move(rUpdate);
 				}
 			}
 
-			// Restore snapshots
-			rState.iSnapshotCount = 0;
-			for (auto& rSnapshot : rWork.snapshots)
-			{
-				if (rSnapshot.pFrame != nullptr && rState.iSnapshotCount < CoordReconcileState::kiMaxSnapshots)
-				{
-					if (rState.iSnapshotCount >= static_cast<int64_t>(rState.snapshots.size()))
-					{
-						rState.snapshots.resize(static_cast<size_t>(rState.iSnapshotCount + 1));
-					}
-					rState.snapshots[rState.iSnapshotCount++] = std::move(rSnapshot);
-				}
-			}
+			// Restore snapshots via swap back
+			rSub.snapshots.swap(rWork.snapshots);
+			rSub.iSnapshotCount = rWork.iSnapshotCount;
 		}
 
 		mpReconcileContext.reset();
@@ -330,58 +321,108 @@ void Game::ApplyReconcileResult()
 	// Write back per-coord results
 	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
 	{
-		auto stateIt = mCoordReconcileStates.find(rWork.coord);
-		if (stateIt == mCoordReconcileStates.end() || stateIt->second.uiGeneration != rWork.uiGeneration)
+		auto subIt = mSubscribedFrames.find(rWork.coord);
+		if (subIt == mSubscribedFrames.end() || subIt->second.uiGeneration != rWork.uiGeneration)
 		{
 			continue;
 		}
-		CoordReconcileState& rState = stateIt->second;
+		engine::SubscribedFrame& rSub = subIt->second;
 
 		// Advance confirmed state
 		if (rWork.iNewConfirmedFrame >= 0)
 		{
-			rState.iConfirmedFrame = rWork.iNewConfirmedFrame;
-			rState.pConfirmedFrame = std::move(rWork.pNewConfirmedFrame);
+			rSub.iConfirmedFrame = rWork.iNewConfirmedFrame;
+
+			if (rWork.bCrcFastPath)
+			{
+				// Fast-path: confirmed is in the worker's input snapshots
+				rSub.iConfirmedSnapshotIndex = rWork.iNewConfirmedSnapshotIndex;
+				// Swap arrays back from worker
+				rSub.snapshots.swap(rWork.snapshots);
+				// Compact: keep confirmed + entries after confirmed frame
+				int64_t iWriteIndex = 0;
+				for (int64_t i = 0; i < rWork.iSnapshotCount; ++i)
+				{
+					if (rSub.snapshots[i].pFrame != nullptr && rSub.snapshots[i].iFrame >= rSub.iConfirmedFrame)
+					{
+						if (rSub.snapshots[i].iFrame == rSub.iConfirmedFrame)
+						{
+							rSub.iConfirmedSnapshotIndex = iWriteIndex;
+						}
+						if (iWriteIndex != i)
+						{
+							rSub.snapshots[iWriteIndex] = std::move(rSub.snapshots[i]);
+						}
+						++iWriteIndex;
+					}
+				}
+				rSub.iSnapshotCount = iWriteIndex;
+
+				// Merge catch-up snapshots (from non-fast-path coords that were replayed)
+				for (auto& rSnapshot : rWork.newSnapshots)
+				{
+					if (rSnapshot.iFrame > rSub.iConfirmedFrame && rSub.iSnapshotCount < engine::SubscribedFrame::kiMaxSnapshots)
+					{
+						rSub.snapshots[rSub.iSnapshotCount++] = std::move(rSnapshot);
+					}
+				}
+
+				// Append main thread's extrapolation entries created since kick
+				// (main thread's snapshot array was zeroed at kick, so nothing to merge)
+			}
+			else
+			{
+				// Non-fast-path: worker built newSnapshots with confirmed + catch-up
+				rSub.iSnapshotCount = 0;
+
+				if (rWork.iNewConfirmedNewSnapshotIndex >= 0)
+				{
+					// Confirmed from newSnapshots (replay result)
+					rSub.iConfirmedSnapshotIndex = 0;
+					rSub.snapshots[0] = std::move(rWork.newSnapshots[rWork.iNewConfirmedNewSnapshotIndex]);
+					rSub.iSnapshotCount = 1;
+
+					// Add remaining catch-up snapshots
+					for (auto& rSnapshot : rWork.newSnapshots)
+					{
+						if (rSnapshot.pFrame != nullptr && rSnapshot.iFrame > rSub.iConfirmedFrame && rSub.iSnapshotCount < engine::SubscribedFrame::kiMaxSnapshots)
+						{
+							rSub.snapshots[rSub.iSnapshotCount++] = std::move(rSnapshot);
+						}
+					}
+				}
+				else if (rWork.iNewConfirmedSnapshotIndex >= 0)
+				{
+					// Confirmed from input snapshots (replay validated existing snapshot)
+					rSub.iConfirmedSnapshotIndex = 0;
+					rSub.snapshots[0] = std::move(rWork.snapshots[rWork.iNewConfirmedSnapshotIndex]);
+					rSub.iSnapshotCount = 1;
+
+					// Add catch-up snapshots
+					for (auto& rSnapshot : rWork.newSnapshots)
+					{
+						if (rSnapshot.pFrame != nullptr && rSnapshot.iFrame > rSub.iConfirmedFrame && rSub.iSnapshotCount < engine::SubscribedFrame::kiMaxSnapshots)
+						{
+							rSub.snapshots[rSub.iSnapshotCount++] = std::move(rSnapshot);
+						}
+					}
+				}
+			}
 		}
 		else
 		{
-			// Restore original confirmed frame (moved to work item at kick time)
-			rState.pConfirmedFrame = std::move(rWork.pConfirmedFrame);
-		}
-
-		// Recycle worker's remaining snapshots back to state's stack for reuse
-		rState.iSnapshotCount = 0;
-		for (auto& rSnapshot : rWork.snapshots)
-		{
-			if (rSnapshot.iFrame > rState.iConfirmedFrame && rSnapshot.pFrame != nullptr && rState.iSnapshotCount < CoordReconcileState::kiMaxSnapshots)
-			{
-				if (rState.iSnapshotCount >= static_cast<int64_t>(rState.snapshots.size()))
-				{
-					rState.snapshots.resize(static_cast<size_t>(rState.iSnapshotCount + 1));
-				}
-				rState.snapshots[rState.iSnapshotCount++] = std::move(rSnapshot);
-			}
-		}
-
-		// Merge catch-up snapshots
-		for (auto& rSnapshot : rWork.newSnapshots)
-		{
-			if (rSnapshot.iFrame > rState.iConfirmedFrame && rState.iSnapshotCount < CoordReconcileState::kiMaxSnapshots)
-			{
-				if (rState.iSnapshotCount >= static_cast<int64_t>(rState.snapshots.size()))
-				{
-					rState.snapshots.resize(static_cast<size_t>(rState.iSnapshotCount + 1));
-				}
-				rState.snapshots[rState.iSnapshotCount++] = std::move(rSnapshot);
-			}
+			// No advancement — swap snapshots back
+			rSub.snapshots.swap(rWork.snapshots);
+			rSub.iSnapshotCount = rWork.iSnapshotCount;
+			rSub.iConfirmedSnapshotIndex = rWork.iConfirmedSnapshotIndex;
 		}
 
 		// Restore unconsumed server updates that were moved to context
 		for (auto& [iFrame, rUpdate] : rWork.serverUpdates)
 		{
-			if (iFrame > rState.iConfirmedFrame)
+			if (iFrame > rSub.iConfirmedFrame)
 			{
-				rState.serverUpdates[iFrame] = std::move(rUpdate);
+				rSub.serverUpdates[iFrame] = std::move(rUpdate);
 			}
 		}
 	}
@@ -403,8 +444,16 @@ void Game::ApplyReconcileResult()
 
 	if (!rReconcileContext.bCrcFastPathHandledAll)
 	{
-		// Use caught-up frames directly for rendering (confirmed state is for rollback only)
-		mCurrentFrames = std::move(rReconcileContext.currentFrames);
+		// Move latest workspace frame into mSubscribedFrames for rendering.
+		// Workspace entry may be null if ReconcileReplay or ReconcileCatchUp moved it to newSnapshots;
+		// in that case, keep existing current (rendering uses GetSnapshotFrame during extrapolation).
+		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
+		{
+			if (rWork.iReplayWorkspaceUsed > 0 && rWork.replayWorkspace[rWork.iReplayWorkspaceUsed - 1] != nullptr)
+			{
+				std::swap(mSubscribedFrames[rWork.coord].current, rWork.replayWorkspace[rWork.iReplayWorkspaceUsed - 1]);
+			}
+		}
 
 		// Restore counters from caught-up state
 		miFrameCounter = rReconcileContext.iFrameCounter;

@@ -14,7 +14,7 @@ Game-specific input processing that converts raw hardware input into game and me
 
 ### Input Class
 
-Manages state tracking for button press/release detection with a previous-state buffer for menu input. Menu input runs every frame for responsive UI (even when paused).
+Manages state tracking for button press/release detection with a previous-state buffer for menu input. Menu input runs every frame for responsive UI.
 
 ### MenuInput
 

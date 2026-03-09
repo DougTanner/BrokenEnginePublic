@@ -1,7 +1,5 @@
 #include "Screenshot.h"
 
-#include "Game.h"
-
 #include "../../../ThirdParty/stb/stb_image_write.h"
 
 namespace engine
@@ -28,7 +26,6 @@ void SaveScreenshot(int64_t iFramebufferIndex)
 	if (sSaveScreenshot.valid())
 	{
 		sSaveScreenshot.get();
-		ResetRealTime();
 	}
 	sSaveScreenshot = std::async(std::launch::async, [data = std::move(data), vkExtent3D, iScreenshot]() mutable
 	{

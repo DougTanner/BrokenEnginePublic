@@ -14,12 +14,6 @@ TimeStep::TimeStep()
 {
 }
 
-void TimeStep::Reset()
-{
-	mRealTime.Reset();
-	mAverageDelta.miCount = 0;
-}
-
 int64_t TimeStep::UpdateRealtime()
 {
 	std::chrono::nanoseconds realDeltaNs = mRealTime.GetDeltaNs(true);
@@ -45,15 +39,7 @@ int64_t TimeStep::UpdateRealtime()
 	// Accumulate time with scaling
 	if constexpr (kbEnableDebugInput)
 	{
-		if (mbSingleStep) [[unlikely]]
-		{
-			mbSingleStep = false;
-			mUpdateRemainderNs = game::kUpdateStepNs;
-		}
-		else [[likely]]
-		{
-			mUpdateRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
-		}
+		mUpdateRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
 
 		// Death spiral prevention: detect excessive updates and auto-reduce time scale
 		int64_t iEstimatedUpdates = mUpdateRemainderNs / game::kUpdateStepNs;

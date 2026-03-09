@@ -9,7 +9,7 @@
 namespace engine
 {
 
-void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord, const std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>& rCurrentFrames)
+void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord)
 {
 	const game::FrameInterpolate& rCameraInterpolate = rRenderInterpolates.at(cameraCoord);
 
@@ -26,7 +26,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 		auto it = rRenderInterpolates.find(rCoord);
 		if (it == rRenderInterpolates.end()) return;
 		const game::FrameInterpolate& rInterp = it->second;
-		uint16_t uiFrameId = rCurrentFrames.at(rCoord)->postRender.uiFrameId;
+		uint16_t uiFrameId = game::gpGame->RenderFrame(rCoord).postRender.uiFrameId;
 		// Main collections via Render (no uiFrameId needed)
 		game::FrameInterpolate::Render(rInterp, iCommandBuffer);
 		// SmokeTrails/WindTrails called separately with uiFrameId

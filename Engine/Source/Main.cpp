@@ -212,9 +212,8 @@ void MainThread(HINSTANCE hinstance)
 	std::vector<GridCoord> bootActiveCoords = {kOriginCoord};
 	for (int64_t i = 0; i < static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size()); ++i)
 	{
-		ResetRealTime();
 		gpGraphics->RenderGlobal(pGame->CurrentFrame(pGame->mHumanGridCoord), pGame->CurrentFrame(pGame->mHumanGridCoord).interpolate.fCurrentTime);
-		gpGraphics->RenderMainPresentAcquire(gpSwapchainManager->miFramebufferIndex, gpGraphics->mRenderInterpolates, bootActiveCoords, kOriginCoord, pGame->CurrentFrames());
+		gpGraphics->RenderMainPresentAcquire(gpSwapchainManager->miFramebufferIndex, gpGraphics->mRenderInterpolates, bootActiveCoords, kOriginCoord);
 	}
 	gpProfileManager->BootStop(kBootTimerRenderPresent);
 
@@ -253,7 +252,6 @@ void MainThread(HINSTANCE hinstance)
 	ScopedLogIndent scopedLogIndent;
 	Log("\nEnter main loop");
 	EnableAllocationTracking(true);
-	ResetRealTime();
 
 	while (true)
 	{
@@ -274,8 +272,6 @@ void MainThread(HINSTANCE hinstance)
 		// Process Windows messages
 #ifdef BT_CLIENT
 		bool bLostFocus = ProcessMessages(true);
-#else
-		bool bLostFocus = false;
 #endif
 		if (sbQuit) [[unlikely]]
 		{
@@ -312,7 +308,7 @@ void MainThread(HINSTANCE hinstance)
 		}
 #endif
 
-		bool bUpdateFrames = pGame->PreUpdate(menuInput, bLostFocus);
+		pGame->PreUpdate(menuInput);
 		if (pGame->mGameFlags & engine::GameFlags::kQuit) [[unlikely]]
 		{
 			break;
@@ -330,9 +326,7 @@ void MainThread(HINSTANCE hinstance)
 			{
 				gpNetworkClient->Flush();
 			}
-			pGame->BorrowSnapshotFramesForRender();
-			pGame->Render(false);
-			pGame->RestoreSnapshotFramesAfterRender();
+			pGame->Render();
 			continue;
 		}
 
@@ -353,14 +347,13 @@ void MainThread(HINSTANCE hinstance)
 		}
 		gpProfileManager->CpuStop(kCpuTimerNetworkPollReconcile, true);
 
-		pGame->UpdateFrames(menuInput, bUpdateFrames);
+		pGame->UpdateFrames(menuInput);
 
-		// Post-tick: poll network and kick reconcile worker before render to maximize worker runtime
+		// Post-tick: poll network before render so reconciliation gets the freshest data
 		{
-			// Heap: ENet polling and reconciliation snapshot
+			// Heap: ENet polling
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 			game::gpGame->PollNetworkClient();
-			game::gpGame->TryKickReconcile();
 		}
 
 		gpProfileManager->CpuStart(kCpuTimerNetworkSend);
@@ -374,26 +367,28 @@ void MainThread(HINSTANCE hinstance)
 		}
 		gpProfileManager->CpuStop(kCpuTimerNetworkSend, true);
 
-		pGame->BorrowSnapshotFramesForRender();
 		try
 		{
-			pGame->Render(bUpdateFrames);
+			pGame->Render();
 		}
 		catch (DeviceLostException& rDeviceLostException)
 		{
 			Log("Caught rDeviceLostException: {}", rDeviceLostException.what());
 			pGraphics.reset();
 			pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
-			// Prevent time jumps after device recreation
-			ResetRealTime();
 		}
 		// Audio update
 		gpProfileManager->CpuStart(kCpuTimerAudio);
-		gpAudioManager->Update(pGame->CurrentFrame(game::gpGame->mHumanGridCoord));
+		gpAudioManager->Update(pGame->RenderFrame(game::gpGame->mHumanGridCoord));
 		gpProfileManager->CpuStop(kCpuTimerAudio, false);
 
+		// Kick reconcile after render so snapshots remain valid for GetSnapshotFrame during rendering
+		{
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			game::gpGame->TryKickReconcile();
+		}
+
 		sbUseCrosshair = pGame->ShouldUseCrosshair();
-		pGame->RestoreSnapshotFramesAfterRender();
 #else
 		// Server: poll network and process inputs before frame update
 		{
@@ -406,7 +401,7 @@ void MainThread(HINSTANCE hinstance)
 			game::gpGame->ProcessSpawnRequestsServer();
 		}
 
-		pGame->UpdateFrames(menuInput, bUpdateFrames);
+		pGame->UpdateFrames(menuInput);
 
 		UpdateServerDisplayStats();
 

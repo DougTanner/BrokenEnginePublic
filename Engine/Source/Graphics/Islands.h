@@ -13,6 +13,7 @@ namespace engine
 {
 
 class Texture;
+struct SubscribedFrame;
 struct GridCoord;
 
 inline constexpr int64_t kiDefaultIslandCapacity = 16;
@@ -24,7 +25,7 @@ public:
 	Islands();
 	~Islands();
 
-	void UpdateActiveIslands(const std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>& rFrames, const std::vector<GridCoord>& rActiveCoords);
+	void UpdateActiveIslands(const std::unordered_map<GridCoord, SubscribedFrame>& rFrames, const std::vector<GridCoord>& rActiveCoords);
 
 	struct Island
 	{

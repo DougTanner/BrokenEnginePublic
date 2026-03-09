@@ -51,8 +51,6 @@ Game::Game()
 	});
 #endif
 
-	// Prepare for first frame
-	engine::ResetRealTime();
 }
 
 std::optional<int64_t> Game::HumanPlayerIndex(const PlayersInterpolate& rPlayers) const
@@ -79,7 +77,7 @@ void Game::ComputeActiveSet()
 
 	mActiveCoords.clear();
 
-	if (!mCurrentFrames.contains(mHumanGridCoord))
+	if (!mSubscribedFrames.contains(mHumanGridCoord))
 	{
 		return;
 	}
@@ -91,7 +89,7 @@ void Game::ComputeActiveSet()
 		for (const engine::GridCoord& rOffset : engine::kNeighborOffsets)
 		{
 			engine::GridCoord neighbor {mHumanGridCoord.x + rOffset.x, mHumanGridCoord.y + rOffset.y};
-			if (!mCurrentFrames.contains(neighbor))
+			if (!mSubscribedFrames.contains(neighbor))
 			{
 				CreateFrameAtCoord(neighbor);
 			}
@@ -101,7 +99,7 @@ void Game::ComputeActiveSet()
 		// Origin is always active
 		if (!std::ranges::contains(mActiveCoords, engine::kOriginCoord))
 		{
-			if (!mCurrentFrames.contains(engine::kOriginCoord))
+			if (!mSubscribedFrames.contains(engine::kOriginCoord))
 			{
 				CreateFrameAtCoord(engine::kOriginCoord);
 			}
@@ -110,13 +108,13 @@ void Game::ComputeActiveSet()
 	}
 
 	// Delete frames outside the active set
-	std::erase_if(mCurrentFrames, [this](const auto& rPair)
+	std::erase_if(mSubscribedFrames, [this](const auto& rPair)
 	{
 		return !std::ranges::contains(mActiveCoords, rPair.first);
 	});
 
 	// Update island rendering to match active frames
-	engine::gpIslands->UpdateActiveIslands(mCurrentFrames, mActiveCoords);
+	engine::gpIslands->UpdateActiveIslands(mSubscribedFrames, mActiveCoords);
 #endif
 }
 
@@ -127,9 +125,9 @@ void Game::EnsureNextFrames()
 
 	for (const engine::GridCoord& rCoord : mActiveCoords)
 	{
-		if (!mNextFrames.contains(rCoord))
+		if (mSubscribedFrames[rCoord].next == nullptr)
 		{
-			mNextFrames[rCoord] = std::make_unique<Frame>();
+			mSubscribedFrames[rCoord].next = std::make_unique<Frame>();
 		}
 	}
 }
@@ -146,7 +144,7 @@ void Game::BuildFrameInputs()
 
 	for (const engine::GridCoord& rCoord : mActiveCoords)
 	{
-		if (!mCurrentFrames.contains(rCoord))
+		if (!mSubscribedFrames.contains(rCoord))
 		{
 			continue;
 		}
@@ -155,7 +153,7 @@ void Game::BuildFrameInputs()
 	}
 
 	// Camera shake
-	if (mHumanPlayerId.IsValid() && mCurrentFrames.contains(mHumanGridCoord))
+	if (mHumanPlayerId.IsValid() && mSubscribedFrames.contains(mHumanGridCoord))
 	{
 		const Frame& rCurrentFrame = CurrentFrame(mHumanGridCoord);
 		const PlayersInterpolate& rPlayers = *rCurrentFrame.interpolate.pPlayers;
@@ -183,7 +181,7 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	// Heap: unordered_map insertion + make_unique<Frame>. Frame persists in mCurrentFrames across game lifetime
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	std::unique_ptr<Frame>& pFrame = mCurrentFrames[coord];
+	std::unique_ptr<Frame>& pFrame = mSubscribedFrames[coord].current;
 	pFrame = std::make_unique<Frame>();
 	pFrame->interpolate.iFrame = miFrameCounter;
 	pFrame->interpolate.fCurrentTime = mfCurrentTime;
@@ -352,7 +350,6 @@ void Game::Reset()
 	engine::SmokeTrailsInterpolate::ResetRenderState();
 	engine::WindTrailsInterpolate::ResetRenderState();
 #endif
-	engine::ResetRealTime();
 
 	mHumanPlayerId = {};
 	mfPreviousHumanArmor = 0.0f;
@@ -367,9 +364,8 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	// across the entire game state lifetime, so workbuffer (lost on Pop) can't hold it.
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	mCurrentFrames.clear();
-	mNextFrames.clear();
-	std::unique_ptr<Frame>& pFrame = mCurrentFrames[engine::kOriginCoord];
+	mSubscribedFrames.clear();
+	std::unique_ptr<Frame>& pFrame = mSubscribedFrames[engine::kOriginCoord].current;
 	pFrame = std::make_unique<Frame>();
 	pFrame->interpolate.gameFlags.Set(gameFlags.meFlags);
 	pFrame->postRender.uiFrameId = GenerateFrameId();
@@ -379,48 +375,21 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	pFrame->postRender.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	pFrame->postRender.eIslandsFlip = engine::kFlipNone;
 
-	mNextFrames[engine::kOriginCoord] = std::make_unique<Frame>();
+	mSubscribedFrames[engine::kOriginCoord].next = std::make_unique<Frame>();
 }
 
 bool Game::ShouldTrapCursor()
 {
-	return !InMainMenu() && ShouldUpdateFrame();
+	return !InMainMenu();
 }
 
 bool Game::ShouldUseCrosshair()
 {
-	if (!mCurrentFrames.contains(mHumanGridCoord))
+	if (!mSubscribedFrames.contains(mHumanGridCoord))
 	{
 		return false;
 	}
 	return CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kGame && meUiState == kNone;
-}
-
-bool Game::ShouldUpdateFrame()
-{
-	if (InMainMenu())
-	{
-		return true;
-	}
-
-	if (!(mMenuFlags & engine::MenuFlags::kUpdateFrame))
-	{
-		return false;
-	}
-
-	if constexpr (kbEnableDebugInput)
-	{
-		if (mTimeStep.mbSingleStep)
-		{
-			return true;
-		}
-
-		return meUiState == kNone || mbShowImGui;
-	}
-	else
-	{
-		return meUiState == kNone;
-	}
 }
 
 void Game::ChangeFrame(GameFlags_t gameFlags)
@@ -430,7 +399,7 @@ void Game::ChangeFrame(GameFlags_t gameFlags)
 	DisconnectFromServer();
 #endif
 
-	if (mCurrentFrames.contains(mHumanGridCoord) &&
+	if (mSubscribedFrames.contains(mHumanGridCoord) &&
 	    ((gameFlags & GameFlags::kMainMenu && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kMainMenu) ||
 	     (gameFlags & GameFlags::kGame && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kGame)))
 	{
@@ -517,11 +486,6 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 #ifdef BT_CLIENT
 			engine::gSunAngleOverride.Set(game::gpCamera->SunAngle(true));
 #endif
-		}
-
-		if (rMenuInput.flags & MenuInputFlags::kTogglePauseFrame)
-		{
-			mMenuFlags.Toggle(engine::MenuFlags::kUpdateFrame);
 		}
 
 		if (rMenuInput.flags & MenuInputFlags::kSlowTime)

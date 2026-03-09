@@ -10,9 +10,6 @@ public:
 
 	TimeStep();
 
-	// Reset timers on focus loss or initialization
-	void Reset();
-
 	// Add real delta time and return number of steps needed
 	// Returns 0 if not enough time accumulated for a step
 	int64_t UpdateRealtime();
@@ -52,8 +49,6 @@ public:
 	int64_t miTimeDivide = 1;
 	std::chrono::nanoseconds mUpdateRemainderNs = 0ns;
 	common::Smoothed<float, 256> mAverageDelta;
-
-	bool mbSingleStep = false;
 };
 
 } // namespace engine

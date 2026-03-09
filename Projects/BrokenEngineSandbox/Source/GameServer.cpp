@@ -71,14 +71,14 @@ void Game::ComputeActiveSetServer()
 	// Create frames at missing coordinates
 	for (const engine::GridCoord& rCoord : mActiveCoords)
 	{
-		if (!mCurrentFrames.contains(rCoord))
+		if (!mSubscribedFrames.contains(rCoord))
 		{
 			CreateFrameAtCoord(rCoord);
 		}
 	}
 
 	// Delete frames outside the active set
-	std::erase_if(mCurrentFrames, [this](const auto& rPair)
+	std::erase_if(mSubscribedFrames, [this](const auto& rPair)
 	{
 		return !std::ranges::contains(mActiveCoords, rPair.first);
 	});
@@ -132,7 +132,7 @@ void Game::BuildFrameInputsServer()
 	}
 
 	// Take snapshot of player IDs at spawn coordinates for FinalizeNewClientsServer
-	if (!mClientsWaitingForSpawn.empty() && mCurrentFrames.contains(engine::kOriginCoord))
+	if (!mClientsWaitingForSpawn.empty() && mSubscribedFrames.contains(engine::kOriginCoord))
 	{
 		RefreshPreSpawnSnapshot();
 	}
@@ -192,8 +192,8 @@ void Game::HarvestTransfersServer()
 		{
 			engine::GridCoord dest {rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY};
 
-			auto it = mNextFrames.find(dest);
-			if (it == mNextFrames.end() || it->second == nullptr)
+			auto it = mSubscribedFrames.find(dest);
+			if (it == mSubscribedFrames.end() || it->second.next == nullptr)
 			{
 				continue;
 			}
@@ -219,7 +219,7 @@ void Game::HarvestTransfersServer()
 	// Phase 3: Spawn in sorted order
 	for (auto& [rCoord, rTransfers] : mBroadcastTransfers)
 	{
-		Frame& rDestFrame = *mNextFrames.at(rCoord);
+		Frame& rDestFrame = *mSubscribedFrames.at(rCoord).next;
 		for (const StatusChange& rTransfer : rTransfers)
 		{
 			TransferData data = rTransfer.data;
@@ -231,7 +231,7 @@ void Game::HarvestTransfersServer()
 	for (const HumanTransferInfo& rHumanTransfer : humanTransfers)
 	{
 		player_t transferredPlayerId {engine::uuid_t {rHumanTransfer.iEntityId}};
-		Frame& rDestFrame = *mNextFrames.at(rHumanTransfer.dest);
+		Frame& rDestFrame = *mSubscribedFrames.at(rHumanTransfer.dest).next;
 		player_t newPlayerId = rDestFrame.postRender.pPlayers->puiIds[rDestFrame.postRender.pPlayers->iCount - 1];
 
 		const std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
@@ -416,7 +416,7 @@ void Game::DetectPlayerDeathsServer()
 			continue;
 		}
 
-		if (!mCurrentFrames.contains(rClient.humanGridCoord))
+		if (!mSubscribedFrames.contains(rClient.humanGridCoord))
 		{
 			continue;
 		}
@@ -451,10 +451,10 @@ void Game::HandleSubscriptionUpdatesServer([[maybe_unused]] int64_t iFrame)
 			continue;
 		}
 
-		auto frameIt = mCurrentFrames.find(rSub.coord);
-		if (frameIt != mCurrentFrames.end())
+		auto frameIt = mSubscribedFrames.find(rSub.coord);
+		if (frameIt != mSubscribedFrames.end())
 		{
-			engine::gpNetworkServer->SendCoordFullState(rSub.iClientId, rSub.iSlot, miFrameCounter, rSub.coord, frameIt->second.get());
+			engine::gpNetworkServer->SendCoordFullState(rSub.iClientId, rSub.iSlot, miFrameCounter, rSub.coord, frameIt->second.current.get());
 		}
 	}
 

@@ -41,19 +41,18 @@ class Game : public engine::GameBase
 public:
 
 	Game();
-	virtual ~Game();
+	~Game() override;
 
-	virtual void Reset() override;
-	virtual bool ShouldUpdateFrame() override;
-	virtual bool ShouldTrapCursor() override;
-	virtual bool ShouldUseCrosshair() override;
+	void Reset() override;
+	bool ShouldTrapCursor() override;
+	bool ShouldUseCrosshair() override;
 
 	void ChangeFrame(GameFlags_t gameFlags);
 	void CreateNewFrame(GameFlags_t gameFlags);
 
 	bool InMainMenu()
 	{
-		if (!mCurrentFrames.contains(mHumanGridCoord))
+		if (!mSubscribedFrames.contains(mHumanGridCoord))
 		{
 			return false;
 		}
@@ -93,12 +92,19 @@ public:
 	void WaitForReconcile();
 	void TryKickReconcile();
 	void UpdateSubscriptions();
-	bool IsExtrapolating() const { return IsNetworkMode() && !mCoordReconcileStates.empty(); }
+	bool IsExtrapolating() const
+	{
+		if (!IsNetworkMode()) return false;
+		for (const auto& [rCoord, rFrame] : mSubscribedFrames)
+		{
+			if (rFrame.iConfirmedFrame >= 0) return true;
+		}
+		return false;
+	}
 	void PrepareExtrapolationTick(const std::vector<engine::GridCoord>& rActiveCoords);
 	void BuildExtrapolationFrameRef(const engine::GridCoord& rCoord, game::Frame*& rpNext, game::Frame*& rpCurrent);
 	void RecordExtrapolationSnapshot(const std::vector<engine::GridCoord>& rActiveCoords, int64_t iFrame);
-	void BorrowSnapshotFrames(std::unordered_map<engine::GridCoord, std::unique_ptr<Frame>>& rCurrentFrames);
-	void RestoreSnapshotFrames(std::unordered_map<engine::GridCoord, std::unique_ptr<Frame>>& rCurrentFrames);
+	Frame* GetSnapshotFrame(engine::GridCoord coord) const;
 	void TrySubscribeNext();
 
 	// LAN discovery
@@ -144,12 +150,12 @@ public:
 
 private:
 
-	virtual std::filesystem::path QuicksaveFile() override
+	std::filesystem::path QuicksaveFile() override
 	{
 		return std::filesystem::path("Quicksave.save");
 	}
 
-	virtual std::filesystem::path ReplayFile() override
+	std::filesystem::path ReplayFile() override
 	{
 		return std::filesystem::path("F7.replay");
 	}
@@ -198,45 +204,6 @@ private:
 #endif
 
 #ifdef BT_CLIENT
-	// Per-frame snapshot stored in the snapshot stack (replaces serialized CoordExtrapolatedSnapshot)
-	struct FrameSnapshot
-	{
-		std::unique_ptr<Frame> pFrame;
-		int64_t iFrame = -1;
-		common::crc_t crc = 0;
-		common::crc_t inputCrc = 0;
-	};
-
-	// Per-coord reconciliation state (replaces unified ConfirmedState + mServerUpdateBuffer + mExtrapolatedSnapshots)
-	struct CoordReconcileState
-	{
-		int64_t iConfirmedFrame = -1;
-		std::unique_ptr<Frame> pConfirmedFrame;
-
-		struct CoordServerUpdate
-		{
-			common::crc_t serverCrc = 0;
-			common::crc_t inputCrc = 0;
-			std::vector<StatusChange> statusChanges;
-		};
-		std::map<int64_t, CoordServerUpdate> serverUpdates;
-
-		// Snapshot stack: pre-allocated Frames, reused across extrapolation cycles
-		static constexpr int64_t kiMaxSnapshots = 32;
-		std::vector<FrameSnapshot> snapshots;
-		int64_t iSnapshotCount = 0;
-
-		// Pending full state from subscription
-		struct PendingFullState
-		{
-			int64_t iFrame = -1;
-			std::unique_ptr<Frame> pFrame;
-		};
-		std::optional<PendingFullState> pendingFullState;
-
-		uint64_t uiGeneration = 0;
-	};
-
 	// Confirmed human tracking state (global, not per-coord)
 	struct ConfirmedHumanState
 	{
@@ -260,7 +227,6 @@ private:
 	void CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, int64_t iFrame, engine::GridCoord coord);
 
 	std::unique_ptr<engine::NetworkClient> mpNetworkClient;
-	std::unordered_map<engine::GridCoord, CoordReconcileState> mCoordReconcileStates;
 	uint64_t muiNextReconcileGeneration = 1;
 	ConfirmedHumanState mConfirmedHumanState;
 	int64_t miLatestServerFrame = -1;
@@ -276,15 +242,26 @@ private:
 
 		// Input
 		int64_t iConfirmedFrame = -1;
-		std::unique_ptr<Frame> pConfirmedFrame;
-		std::map<int64_t, CoordReconcileState::CoordServerUpdate> serverUpdates;
-		std::vector<FrameSnapshot> snapshots;
-		std::optional<CoordReconcileState::PendingFullState> pendingFullState;
+		int64_t iConfirmedSnapshotIndex = -1;
+		std::map<int64_t, engine::SubscribedFrame::CoordServerUpdate> serverUpdates;
+		std::array<engine::SubscribedFrame::SnapshotEntry, engine::SubscribedFrame::kiMaxSnapshots> snapshots {};
+		int64_t iSnapshotCount = 0;
+		std::optional<engine::SubscribedFrame::PendingFullState> pendingFullState;
+
+		// Replay stack: raw pointers (non-owning), referencing snapshots or workspace
+		std::vector<Frame*> replayStack;
+		int64_t iReplayStackCount = 0;
+		std::vector<std::unique_ptr<Frame>> replayWorkspace; // owns scratch Frames
+		int64_t iReplayWorkspaceUsed = 0;
+
+		// Index of last CRC-validated replay stack entry (-1 if none)
+		int64_t iLastValidatedIndex = -1;
 
 		// Output
 		int64_t iNewConfirmedFrame = -1;
-		std::unique_ptr<Frame> pNewConfirmedFrame;
-		std::vector<FrameSnapshot> newSnapshots;
+		int64_t iNewConfirmedSnapshotIndex = -1; // index into snapshots (fast-path)
+		int64_t iNewConfirmedNewSnapshotIndex = -1; // index into newSnapshots (replay)
+		std::vector<engine::SubscribedFrame::SnapshotEntry> newSnapshots;
 		bool bCrcFastPath = false;
 
 		// Desync (if any)
@@ -306,8 +283,7 @@ private:
 		engine::alignment_t playerAlignment {};
 
 		// Working data (owned by worker during execution)
-		std::unordered_map<engine::GridCoord, std::unique_ptr<Frame>> currentFrames;
-		std::unordered_map<engine::GridCoord, std::unique_ptr<Frame>> nextFrames;
+		std::unordered_map<engine::GridCoord, size_t> coordWorkIndex;
 		std::unordered_map<engine::GridCoord, FrameInput> frameInputs;
 		std::vector<engine::GridCoord> activeCoords;
 		engine::GridCoord humanGridCoord {};
@@ -346,10 +322,9 @@ private:
 	static std::pair<bool, int64_t> ReconcileCrcFastPath(ReconcileContext& rReconcileContext);
 	static void ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame);
 	static int64_t ReconcileFindReplayRange(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame);
-	static void ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame, int64_t iMaxConsecutive, const std::unordered_map<engine::GridCoord, size_t>& rCoordWorkIndex);
+	static void ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame, int64_t iMaxConsecutive);
 	static void ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame);
-	static void ReconcileEnsureNextFrames(ReconcileContext& rReconcileContext);
-	static void ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, int64_t iServerFrame, const std::unordered_map<engine::GridCoord, CoordReconcileState::CoordServerUpdate>& rCoordUpdates);
+	static void ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, int64_t iServerFrame, const std::unordered_map<engine::GridCoord, engine::SubscribedFrame::CoordServerUpdate>& rCoordUpdates);
 	static void ReconcileRunTick(ReconcileContext& rReconcileContext);
 	static void ReconcileComputeActiveCoords(ReconcileContext& rReconcileContext);
 	static void ReconcileInjectPendingFullState(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork);

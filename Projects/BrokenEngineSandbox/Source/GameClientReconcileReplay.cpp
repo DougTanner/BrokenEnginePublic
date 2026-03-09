@@ -12,34 +12,65 @@ namespace game
 void Game::ReconcileRunTick(ReconcileContext& rReconcileContext)
 {
 	const int64_t iActiveCount = static_cast<int64_t>(rReconcileContext.activeCoords.size());
+	const std::unordered_map<engine::GridCoord, size_t>& rCoordWorkIndex = rReconcileContext.coordWorkIndex;
+
+	// Ensure workspace frames exist for each active coord
+	for (int64_t j = 0; j < iActiveCount; ++j)
+	{
+		const engine::GridCoord& rCoord = rReconcileContext.activeCoords.at(static_cast<size_t>(j));
+		auto indexIt = rReconcileContext.coordWorkIndex.find(rCoord);
+		if (indexIt == rCoordWorkIndex.end())
+		{
+			continue;
+		}
+		CoordReconcileWork& rWork = rReconcileContext.coordWork.at(indexIt->second);
+		int64_t iNextWorkspace = rWork.iReplayWorkspaceUsed;
+		if (iNextWorkspace >= static_cast<int64_t>(rWork.replayWorkspace.size()))
+		{
+			rWork.replayWorkspace.resize(static_cast<size_t>(iNextWorkspace + 1));
+		}
+		if (rWork.replayWorkspace[iNextWorkspace] == nullptr)
+		{
+			rWork.replayWorkspace[iNextWorkspace] = std::make_unique<Frame>();
+		}
+	}
 
 	common::gpThreadLocal->mWorkbuffer.Push();
 	for (int64_t j = 0; j < iActiveCount; ++j)
 	{
 		const engine::GridCoord& rCoord = rReconcileContext.activeCoords.at(static_cast<size_t>(j));
+		auto indexIt = rReconcileContext.coordWorkIndex.find(rCoord);
+		if (indexIt == rCoordWorkIndex.end())
+		{
+			continue;
+		}
+		CoordReconcileWork& rWork = rReconcileContext.coordWork.at(indexIt->second);
+		Frame* pCurrent = rWork.replayStack[rWork.iReplayStackCount - 1];
+		Frame* pNext = rWork.replayWorkspace[rWork.iReplayWorkspaceUsed].get();
 		common::gpThreadLocal->mWorkbuffer.PushBack<ActiveFrameRef>({
-			.pNext = rReconcileContext.nextFrames.at(rCoord).get(),
-			.pCurrent = rReconcileContext.currentFrames.at(rCoord).get(),
+			.pNext = pNext,
+			.pCurrent = pCurrent,
 			.pFrameInput = &rReconcileContext.frameInputs.at(rCoord),
 		});
 	}
 	std::span<const ActiveFrameRef> activeFrameRefs = common::gpThreadLocal->mWorkbuffer.Span<ActiveFrameRef>();
+	const int64_t iRefCount = static_cast<int64_t>(activeFrameRefs.size());
 
 	// Set kRecalculated before running tick so non-deterministic side effects are suppressed
-	for (int64_t j = 0; j < iActiveCount; ++j)
+	for (int64_t j = 0; j < iRefCount; ++j)
 	{
 		activeFrameRefs[j].pNext->interpolate.frameFlags.Set(engine::FrameFlags::kRecalculated);
 	}
 
 	// Run tick sequentially (reconcile runs on single kThreadReconcile worker)
-	for (int64_t j = 0; j < iActiveCount; ++j)
+	for (int64_t j = 0; j < iRefCount; ++j)
 	{
 		RunFrameTick(activeFrameRefs[j], rReconcileContext.iFrameCounter, rReconcileContext.fCurrentTime);
 	}
 
 	// Apply server-provided transfer StatusChanges per-coord (no cross-coord coupling)
 	// Runs after Destroy/Spawn to match server ordering (HarvestTransfers runs after Destroy/Spawn)
-	for (int64_t j = 0; j < iActiveCount; ++j)
+	for (int64_t j = 0; j < iRefCount; ++j)
 	{
 		Frame& rNext = *activeFrameRefs[j].pNext;
 		FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
@@ -63,7 +94,13 @@ void Game::ReconcileRunTick(ReconcileContext& rReconcileContext)
 	for (int64_t j = 0; j < iActiveCount; ++j)
 	{
 		const engine::GridCoord& rCoord = rReconcileContext.activeCoords.at(static_cast<size_t>(j));
-		const Frame& rNext = *rReconcileContext.nextFrames.at(rCoord);
+		auto indexIt = rReconcileContext.coordWorkIndex.find(rCoord);
+		if (indexIt == rCoordWorkIndex.end())
+		{
+			continue;
+		}
+		CoordReconcileWork& rWork = rReconcileContext.coordWork.at(indexIt->second);
+		const Frame& rNext = *rWork.replayWorkspace[rWork.iReplayWorkspaceUsed];
 		for (const TransferRequest& rRequest : rNext.postRender.transferRequests)
 		{
 			if (rRequest.eType == StatusChangeType::kTransferPlayer &&
@@ -74,23 +111,27 @@ void Game::ReconcileRunTick(ReconcileContext& rReconcileContext)
 				rReconcileContext.humanGridCoord = destination;
 
 				// Find human's new ID by position-matching in destination frame (server already spawned there)
-				auto destinationIt = rReconcileContext.nextFrames.find(destination);
-				if (destinationIt != rReconcileContext.nextFrames.end() && destinationIt->second != nullptr)
+				auto destIndexIt = rCoordWorkIndex.find(destination);
+				if (destIndexIt != rCoordWorkIndex.end())
 				{
-					const Frame& rDestinationFrame = *destinationIt->second;
-					bool bFound = false;
-					for (int64_t i = 0; i < rDestinationFrame.postRender.pPlayers->iCount; ++i)
+					CoordReconcileWork& rDestWork = rReconcileContext.coordWork.at(destIndexIt->second);
+					if (rDestWork.iReplayStackCount > 0)
 					{
-						if (XMVector4Equal(rDestinationFrame.interpolate.pPlayers->pVecPositions[i], rRequest.data.vecPosition))
+						const Frame& rDestinationFrame = *rDestWork.replayWorkspace[rDestWork.iReplayWorkspaceUsed];
+						bool bFound = false;
+						for (int64_t i = 0; i < rDestinationFrame.postRender.pPlayers->iCount; ++i)
 						{
-							rReconcileContext.humanPlayerId = rDestinationFrame.postRender.pPlayers->puiIds[i];
-							bFound = true;
-							break;
+							if (XMVector4Equal(rDestinationFrame.interpolate.pPlayers->pVecPositions[i], rRequest.data.vecPosition))
+							{
+								rReconcileContext.humanPlayerId = rDestinationFrame.postRender.pPlayers->puiIds[i];
+								bFound = true;
+								break;
+							}
 						}
-					}
-					if (!bFound && rDestinationFrame.postRender.pPlayers->iCount > 0)
-					{
-						rReconcileContext.humanPlayerId = rDestinationFrame.postRender.pPlayers->puiIds[rDestinationFrame.postRender.pPlayers->iCount - 1];
+						if (!bFound && rDestinationFrame.postRender.pPlayers->iCount > 0)
+						{
+							rReconcileContext.humanPlayerId = rDestinationFrame.postRender.pPlayers->puiIds[rDestinationFrame.postRender.pPlayers->iCount - 1];
+						}
 					}
 				}
 				rReconcileContext.fPreviousHumanArmor = rRequest.data.fHealth;
@@ -98,8 +139,20 @@ void Game::ReconcileRunTick(ReconcileContext& rReconcileContext)
 		}
 	}
 
-	std::swap(rReconcileContext.currentFrames, rReconcileContext.nextFrames);
-	ReconcileEnsureNextFrames(rReconcileContext);
+	// Push workspace frame onto replay stack and advance counts
+	for (int64_t j = 0; j < iActiveCount; ++j)
+	{
+		const engine::GridCoord& rCoord = rReconcileContext.activeCoords.at(static_cast<size_t>(j));
+		auto indexIt = rReconcileContext.coordWorkIndex.find(rCoord);
+		if (indexIt == rCoordWorkIndex.end())
+		{
+			continue;
+		}
+		CoordReconcileWork& rWork = rReconcileContext.coordWork.at(indexIt->second);
+		rWork.replayStack.push_back(rWork.replayWorkspace[rWork.iReplayWorkspaceUsed].get());
+		rWork.iReplayStackCount++;
+		rWork.iReplayWorkspaceUsed++;
+	}
 
 	for (auto& [rCoord, rFrameInput] : rReconcileContext.frameInputs)
 	{
@@ -109,9 +162,21 @@ void Game::ReconcileRunTick(ReconcileContext& rReconcileContext)
 
 void Game::ReconcileComputeActiveCoords(ReconcileContext& rReconcileContext)
 {
+	const std::unordered_map<engine::GridCoord, size_t>& rCoordWorkIndex = rReconcileContext.coordWorkIndex;
+
+	auto hasReplayStack = [&](engine::GridCoord coord) -> bool
+	{
+		auto it = rCoordWorkIndex.find(coord);
+		if (it == rCoordWorkIndex.end())
+		{
+			return false;
+		}
+		return rReconcileContext.coordWork.at(it->second).iReplayStackCount > 0;
+	};
+
 	// Human's cell plus existing neighbors
 	rReconcileContext.activeCoords.clear();
-	if (rReconcileContext.currentFrames.contains(rReconcileContext.humanGridCoord))
+	if (hasReplayStack(rReconcileContext.humanGridCoord))
 	{
 		rReconcileContext.activeCoords.push_back(rReconcileContext.humanGridCoord);
 	}
@@ -119,39 +184,32 @@ void Game::ReconcileComputeActiveCoords(ReconcileContext& rReconcileContext)
 	for (const engine::GridCoord& rOffset : engine::kNeighborOffsets)
 	{
 		engine::GridCoord neighbor {rReconcileContext.humanGridCoord.x + rOffset.x, rReconcileContext.humanGridCoord.y + rOffset.y};
-		if (rReconcileContext.currentFrames.contains(neighbor))
+		if (hasReplayStack(neighbor))
 		{
 			rReconcileContext.activeCoords.push_back(neighbor);
 		}
 	}
 
 	// Origin is always active
-	if (!std::ranges::contains(rReconcileContext.activeCoords, engine::kOriginCoord) && rReconcileContext.currentFrames.contains(engine::kOriginCoord))
+	if (!std::ranges::contains(rReconcileContext.activeCoords, engine::kOriginCoord) && hasReplayStack(engine::kOriginCoord))
 	{
 		rReconcileContext.activeCoords.push_back(engine::kOriginCoord);
 	}
 }
 
-void Game::ReconcileEnsureNextFrames(ReconcileContext& rReconcileContext)
-{
-	for (const engine::GridCoord& rCoord : rReconcileContext.activeCoords)
-	{
-		if (!rReconcileContext.nextFrames.contains(rCoord))
-		{
-			rReconcileContext.nextFrames[rCoord] = std::make_unique<Frame>();
-		}
-	}
-}
-
-void Game::ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, [[maybe_unused]] int64_t iServerFrame, const std::unordered_map<engine::GridCoord, CoordReconcileState::CoordServerUpdate>& rCoordUpdates)
+void Game::ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, [[maybe_unused]] int64_t iServerFrame, const std::unordered_map<engine::GridCoord, engine::SubscribedFrame::CoordServerUpdate>& rCoordUpdates)
 {
 	rReconcileContext.frameInputs.clear();
 
-	// Initialize frame inputs for all active coords
+	// Initialize frame inputs for all active coords that have replay stacks
 	for (const engine::GridCoord& rCoord : rReconcileContext.activeCoords)
 	{
-		auto frameIt = rReconcileContext.currentFrames.find(rCoord);
-		if (frameIt == rReconcileContext.currentFrames.end())
+		auto indexIt = rReconcileContext.coordWorkIndex.find(rCoord);
+		if (indexIt == rReconcileContext.coordWorkIndex.end())
+		{
+			continue;
+		}
+		if (rReconcileContext.coordWork.at(indexIt->second).iReplayStackCount <= 0)
 		{
 			continue;
 		}
@@ -176,20 +234,30 @@ void Game::ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, [[maybe
 	}
 }
 
-void Game::ReconcileInjectPendingFullState(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork)
+void Game::ReconcileInjectPendingFullState([[maybe_unused]] ReconcileContext& rReconcileContext, CoordReconcileWork& rWork)
 {
-	rReconcileContext.currentFrames[rWork.coord] = std::move(rWork.pendingFullState->pFrame);
+	// Move pending full state's Frame into workspace (workspace owns it, replay borrows pointer)
+	rWork.replayWorkspace.push_back(std::move(rWork.pendingFullState->pFrame));
+	rWork.replayStack.clear();
+	rWork.replayStack.push_back(rWork.replayWorkspace.back().get());
+	rWork.iReplayStackCount = 1;
+	rWork.iReplayWorkspaceUsed = static_cast<int64_t>(rWork.replayWorkspace.size());
 	rWork.pendingFullState.reset();
 }
 
 void Game::ReconcilePruneInactiveFrames(ReconcileContext& rReconcileContext)
 {
 	ReconcileComputeActiveCoords(rReconcileContext);
-	std::erase_if(rReconcileContext.currentFrames, [&rReconcileContext](const auto& rEntry)
+	// Clear replay stacks for coords not in the active set
+	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
 	{
-		const auto& [rCoord, pFrame] = rEntry;
-		return !std::ranges::contains(rReconcileContext.activeCoords, rCoord);
-	});
+		if (!std::ranges::contains(rReconcileContext.activeCoords, rWork.coord))
+		{
+			rWork.replayStack.clear();
+			rWork.iReplayStackCount = 0;
+			rWork.iReplayWorkspaceUsed = 0;
+		}
+	}
 }
 
 void Game::ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame)
@@ -197,19 +265,16 @@ void Game::ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinCo
 	// Only restore coords confirmed at iMinConfirmedFrame; coords confirmed
 	// at later frames are injected during replay/catch-up at their confirmed frame
 	// to avoid running tick on states that already include those frames
-	rReconcileContext.currentFrames.clear();
 	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
 	{
 		if (rWork.iConfirmedFrame <= iMinConfirmedFrame)
 		{
-			ASSERT(rWork.pConfirmedFrame != nullptr);
-			// Copy via serialize/deserialize (cold path) — pConfirmedFrame must survive
-			// for future reconciles (gap coords won't get pNewConfirmedFrame in replay)
-			std::ostringstream outputStream;
-			outputStream << *rWork.pConfirmedFrame;
-			rReconcileContext.currentFrames[rWork.coord] = std::make_unique<Frame>();
-			std::istringstream inputStream(outputStream.str());
-			inputStream >> *rReconcileContext.currentFrames[rWork.coord];
+			ASSERT(rWork.iConfirmedSnapshotIndex >= 0);
+			// Raw pointer from confirmed snapshot (no ownership transfer)
+			rWork.replayStack.clear();
+			rWork.replayStack.push_back(rWork.snapshots[rWork.iConfirmedSnapshotIndex].pFrame.get());
+			rWork.iReplayStackCount = 1;
+			rWork.iReplayWorkspaceUsed = 0;
 		}
 	}
 
@@ -218,14 +283,14 @@ void Game::ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinCo
 	rReconcileContext.fPreviousHumanArmor = rReconcileContext.confirmedHumanState.fPreviousHumanArmor;
 	rReconcileContext.iFrameCounter = iMinConfirmedFrame;
 
-	// Read fCurrentTime from the deserialized frame at iMinConfirmedFrame
+	// Read fCurrentTime from the replay stack frame at iMinConfirmedFrame
 	// (confirmedHumanState.fCurrentTime may not match iMinConfirmedFrame
 	//  when coords were confirmed at different frame numbers)
 	for (const CoordReconcileWork& rWork : rReconcileContext.coordWork)
 	{
-		if (rWork.iConfirmedFrame == iMinConfirmedFrame)
+		if (rWork.iConfirmedFrame == iMinConfirmedFrame && rWork.iReplayStackCount > 0)
 		{
-			rReconcileContext.fCurrentTime = rReconcileContext.currentFrames[rWork.coord]->interpolate.fCurrentTime;
+			rReconcileContext.fCurrentTime = rWork.replayStack[0]->interpolate.fCurrentTime;
 			break;
 		}
 	}
@@ -236,15 +301,6 @@ void Game::ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinCo
 		if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iFrame <= iMinConfirmedFrame)
 		{
 			ReconcileInjectPendingFullState(rReconcileContext, rWork);
-		}
-	}
-
-	// Ensure next frames exist
-	for (const auto& [rCoord, pFrame] : rReconcileContext.currentFrames)
-	{
-		if (!rReconcileContext.nextFrames.contains(rCoord))
-		{
-			rReconcileContext.nextFrames[rCoord] = std::make_unique<Frame>();
 		}
 	}
 }
@@ -273,7 +329,7 @@ int64_t Game::ReconcileFindReplayRange(ReconcileContext& rReconcileContext, int6
 	return iMaxConsecutive;
 }
 
-void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame, int64_t iMaxConsecutive, const std::unordered_map<engine::GridCoord, size_t>& rCoordWorkIndex)
+void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame, int64_t iMaxConsecutive)
 {
 	const int64_t iReplayStart = iMinConfirmedFrame + 1;
 	const int64_t iMaxReplay = (iMaxConsecutive - iMinConfirmedFrame + 1) / 2;
@@ -288,13 +344,12 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 		}
 
 		ReconcileComputeActiveCoords(rReconcileContext);
-		ReconcileEnsureNextFrames(rReconcileContext);
 
 		++rReconcileContext.iFrameCounter;
 		rReconcileContext.fCurrentTime += kfDeltaTime;
 
 		// Gather per-coord server updates for this frame
-		std::unordered_map<engine::GridCoord, CoordReconcileState::CoordServerUpdate> frameCoordUpdates;
+		std::unordered_map<engine::GridCoord, engine::SubscribedFrame::CoordServerUpdate> frameCoordUpdates;
 		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
 		{
 			auto updateIt = rWork.serverUpdates.find(iFrame);
@@ -312,7 +367,7 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 			{
 				continue;
 			}
-			if (iFrame > rWork.iConfirmedFrame && rReconcileContext.currentFrames.contains(rWork.coord) && !frameCoordUpdates.contains(rWork.coord))
+			if (iFrame > rWork.iConfirmedFrame && rWork.iReplayStackCount > 0 && !frameCoordUpdates.contains(rWork.coord))
 			{
 				gapCoords.insert(rWork.coord);
 			}
@@ -355,23 +410,26 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 		{
 			if (rWork.iConfirmedFrame == iFrame && rWork.iConfirmedFrame > iMinConfirmedFrame)
 			{
-				ASSERT(rWork.pConfirmedFrame != nullptr);
-				// Copy via serialize/deserialize (cold path) — pConfirmedFrame must survive
-				std::ostringstream lateOutputStream;
-				lateOutputStream << *rWork.pConfirmedFrame;
-				rReconcileContext.currentFrames[rWork.coord] = std::make_unique<Frame>();
-				std::istringstream lateInputStream(lateOutputStream.str());
-				lateInputStream >> *rReconcileContext.currentFrames[rWork.coord];
-
-				Frame& rInjected = *rReconcileContext.currentFrames[rWork.coord];
-				rInjected.interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
+				ASSERT(rWork.iConfirmedSnapshotIndex >= 0);
+				// Raw pointer from confirmed snapshot, reset workspace counter
+				rWork.replayStack.clear();
+				rWork.replayStack.push_back(rWork.snapshots[rWork.iConfirmedSnapshotIndex].pFrame.get());
+				rWork.iReplayStackCount = 1;
+				rWork.iReplayWorkspaceUsed = 0;
 			}
 		}
 
 		// CRC validation per coord that had server data
 		for (const auto& [rCoord, rUpdate] : frameCoordUpdates)
 		{
-			if (!rReconcileContext.currentFrames.contains(rCoord))
+			auto indexIt = rReconcileContext.coordWorkIndex.find(rCoord);
+			if (indexIt == rReconcileContext.coordWorkIndex.end())
+			{
+				continue;
+			}
+
+			CoordReconcileWork& rWork = rReconcileContext.coordWork.at(indexIt->second);
+			if (rWork.iReplayStackCount <= 0)
 			{
 				continue;
 			}
@@ -381,8 +439,10 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 				continue;
 			}
 
-			rReconcileContext.currentFrames.at(rCoord)->interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
-			common::crc_t clientCrc = rReconcileContext.currentFrames.at(rCoord)->ServerCrc();
+			// The latest result is at replayStack[iReplayStackCount - 1]
+			Frame& rCurrentFrame = *rWork.replayStack[rWork.iReplayStackCount - 1];
+			rCurrentFrame.interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
+			common::crc_t clientCrc = rCurrentFrame.ServerCrc();
 			if (clientCrc != rUpdate.serverCrc)
 			{
 				common::Log("Reconcile desync at ({},{}): server={} client={} frame={}", rCoord.x, rCoord.y, rUpdate.serverCrc, clientCrc, iFrame);
@@ -402,7 +462,7 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 				rReconcileContext.desyncClientCrc = clientCrc;
 
 				std::ostringstream outputStream(std::ios::binary);
-				outputStream << *rReconcileContext.currentFrames.at(rCoord);
+				outputStream << rCurrentFrame;
 				std::istringstream inputStream(outputStream.str(), std::ios::binary);
 				rReconcileContext.pDesyncClientFrame = std::make_unique<Frame>();
 				inputStream >> *rReconcileContext.pDesyncClientFrame;
@@ -425,7 +485,7 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 					rReconcileContext.desyncClientCrc = clientInputCrc;
 
 					std::ostringstream outputStream(std::ios::binary);
-					outputStream << *rReconcileContext.currentFrames.at(rCoord);
+					outputStream << rCurrentFrame;
 					std::istringstream inputStream(outputStream.str(), std::ios::binary);
 					rReconcileContext.pDesyncClientFrame = std::make_unique<Frame>();
 					inputStream >> *rReconcileContext.pDesyncClientFrame;
@@ -433,34 +493,68 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 				}
 			}
 
-			// Save confirmed state per-coord at the CRC-validated frame
-			auto indexIt = rCoordWorkIndex.find(rCoord);
-			if (indexIt != rCoordWorkIndex.end())
+			// Record CRC-validated index (deferred MOVE — stack entries are never overwritten)
+			if (!rWork.bCrcFastPath)
 			{
-				CoordReconcileWork& rWork = rReconcileContext.coordWork.at(indexIt->second);
-				if (!rWork.bCrcFastPath)
-				{
-					rWork.iNewConfirmedFrame = iFrame;
-					// Copy frame via serialize/deserialize for confirmed state
-					std::ostringstream outputStream;
-					outputStream << *rReconcileContext.currentFrames.at(rCoord);
-					rWork.pNewConfirmedFrame = std::make_unique<Frame>();
-					std::istringstream inputStream(outputStream.str());
-					inputStream >> *rWork.pNewConfirmedFrame;
-				}
+				rWork.iLastValidatedIndex = rWork.iReplayStackCount - 1;
+				rWork.iNewConfirmedFrame = iFrame;
 			}
 		}
 
 		++iReplayCount;
 	}
+
+	using SnapshotEntry = engine::SubscribedFrame::SnapshotEntry;
+
+	// After replay loop: extract validated frames into newSnapshots or record index
+	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
+	{
+		if (rWork.iLastValidatedIndex < 0 || rWork.bCrcFastPath)
+		{
+			continue;
+		}
+
+		if (rWork.iLastValidatedIndex == 0)
+		{
+			// Validated the confirmed snapshot itself (raw pointer from snapshots array)
+			rWork.iNewConfirmedSnapshotIndex = rWork.iConfirmedSnapshotIndex;
+		}
+		else
+		{
+			// Validated a workspace entry — move to newSnapshots
+			int64_t iWorkspaceIndex = rWork.iLastValidatedIndex - 1;
+			SnapshotEntry confirmed;
+			confirmed.pFrame = std::move(rWork.replayWorkspace[iWorkspaceIndex]);
+			confirmed.iFrame = rWork.iNewConfirmedFrame;
+			confirmed.crc = confirmed.pFrame->ServerCrc();
+			rWork.newSnapshots.insert(rWork.newSnapshots.begin(), std::move(confirmed));
+			rWork.iNewConfirmedNewSnapshotIndex = 0;
+		}
+	}
 }
 
 void Game::ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame)
 {
+	using SnapshotEntry = engine::SubscribedFrame::SnapshotEntry;
+
+	// Per-coord catch-up tracking: start workspace index and base frame for snapshot conversion
+	struct CatchUpInfo
+	{
+		int64_t iStartWorkspaceIndex = 0;
+		int64_t iBaseFrame = 0;
+	};
+
+	// Heap: cold path, only runs when CRC fast-path fails
+	std::vector<CatchUpInfo> catchUpInfos;
+	catchUpInfos.reserve(rReconcileContext.coordWork.size());
+	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
+	{
+		catchUpInfos.push_back({rWork.iReplayWorkspaceUsed, rReconcileContext.iFrameCounter});
+	}
+
 	while (rReconcileContext.iFrameCounter < rReconcileContext.iTargetFrame)
 	{
 		ReconcileComputeActiveCoords(rReconcileContext);
-		ReconcileEnsureNextFrames(rReconcileContext);
 
 		++rReconcileContext.iFrameCounter;
 		rReconcileContext.fCurrentTime += kfDeltaTime;
@@ -469,8 +563,12 @@ void Game::ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinCon
 		rReconcileContext.frameInputs.clear();
 		for (const engine::GridCoord& rCoord : rReconcileContext.activeCoords)
 		{
-			auto frameIt = rReconcileContext.currentFrames.find(rCoord);
-			if (frameIt == rReconcileContext.currentFrames.end())
+			auto indexIt = rReconcileContext.coordWorkIndex.find(rCoord);
+			if (indexIt == rReconcileContext.coordWorkIndex.end())
+			{
+				continue;
+			}
+			if (rReconcileContext.coordWork.at(indexIt->second).iReplayStackCount <= 0)
 			{
 				continue;
 			}
@@ -481,48 +579,46 @@ void Game::ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinCon
 		++rReconcileContext.iAssumedFrameTicks;
 
 		// Inject late-confirmed coords at their confirmed frame
-		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
+		for (size_t iWorkIndex = 0; iWorkIndex < rReconcileContext.coordWork.size(); ++iWorkIndex)
 		{
+			CoordReconcileWork& rWork = rReconcileContext.coordWork.at(iWorkIndex);
 			if (rWork.iConfirmedFrame == rReconcileContext.iFrameCounter && rWork.iConfirmedFrame > iMinConfirmedFrame)
 			{
-				if (rWork.pConfirmedFrame != nullptr)
-				{
-					rReconcileContext.currentFrames[rWork.coord] = std::move(rWork.pConfirmedFrame);
-				}
+				ASSERT(rWork.iConfirmedSnapshotIndex >= 0);
+				// Raw pointer from confirmed snapshot, reset workspace counter
+				rWork.replayStack.clear();
+				rWork.replayStack.push_back(rWork.snapshots[rWork.iConfirmedSnapshotIndex].pFrame.get());
+				rWork.iReplayStackCount = 1;
+				rWork.iReplayWorkspaceUsed = 0;
+				// Reset tracking since this coord's stack was reset
+				catchUpInfos[iWorkIndex] = {0, rReconcileContext.iFrameCounter};
 			}
 		}
+	}
 
-		// Store per-coord catch-up snapshots for CRC fast-path
-		// Uses serialize/deserialize to copy frames (cold path, only runs when fast-path fails)
-		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
+	// Convert accumulated workspace entries to snapshots for CRC fast-path
+	for (size_t iWorkIndex = 0; iWorkIndex < rReconcileContext.coordWork.size(); ++iWorkIndex)
+	{
+		CoordReconcileWork& rWork = rReconcileContext.coordWork.at(iWorkIndex);
+		const CatchUpInfo& rInfo = catchUpInfos[iWorkIndex];
+
+		for (int64_t i = rInfo.iStartWorkspaceIndex; i < rWork.iReplayWorkspaceUsed; ++i)
 		{
-			auto frameIt = rReconcileContext.currentFrames.find(rWork.coord);
-			if (frameIt == rReconcileContext.currentFrames.end())
+			if (rWork.replayWorkspace[i] == nullptr)
 			{
 				continue;
 			}
 
-			frameIt->second->interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
+			rWork.replayWorkspace[i]->interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
 
-			FrameSnapshot snapshot;
-			snapshot.iFrame = rReconcileContext.iFrameCounter;
-			snapshot.crc = frameIt->second->ServerCrc();
-			auto inputIt = rReconcileContext.frameInputs.find(rWork.coord);
-			if (inputIt != rReconcileContext.frameInputs.end())
-			{
-				snapshot.inputCrc = inputIt->second.ServerInputCrc();
-			}
-
-			// Copy frame via serialize/deserialize for snapshot
-			std::ostringstream outputStream;
-			outputStream << *frameIt->second;
-			snapshot.pFrame = std::make_unique<Frame>();
-			std::istringstream inputStream(outputStream.str());
-			inputStream >> *snapshot.pFrame;
-
+			SnapshotEntry snapshot;
+			snapshot.iFrame = rInfo.iBaseFrame + (i - rInfo.iStartWorkspaceIndex) + 1;
+			snapshot.crc = rWork.replayWorkspace[i]->ServerCrc();
+			snapshot.pFrame = std::move(rWork.replayWorkspace[i]);
 			rWork.newSnapshots.push_back(std::move(snapshot));
 		}
 	}
+
 }
 
 #endif // BT_CLIENT
