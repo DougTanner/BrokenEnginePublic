@@ -3,7 +3,7 @@
 namespace engine
 {
 
-#ifdef BT_SERVER
+#if defined(BT_SERVER)
 class NetworkDiscoveryResponder
 {
 public:
@@ -19,7 +19,7 @@ private:
 };
 #endif
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 class NetworkDiscoveryScanner
 {
 public:

@@ -1,6 +1,6 @@
 #include "WindTrails.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 namespace engine
 {
@@ -10,7 +10,7 @@ void WindTrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t
 	WindTrailsInterpolate& rWindTrails = rFrameInterpolate.windTrails;
 	int64_t iIndex = rWindTrails.IdToIndex(id);
 
-	rWindTrails.pVecPositions[iIndex] = rData.vecPosition;
+	rWindTrails.pVecPositions[iIndex] = XMVectorSetW(rData.vecPosition, 1.0f);
 	rWindTrails.pfIntensities[iIndex] = rData.fIntensity;
 	rWindTrails.pfWidths[iIndex] = rData.fWidth;
 	rWindTrails.pfLengthMultipliers[iIndex] = rData.fLengthMultiplier;

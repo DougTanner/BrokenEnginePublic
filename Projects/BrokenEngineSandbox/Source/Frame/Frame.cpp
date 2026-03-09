@@ -53,7 +53,7 @@ void FrameInterpolate::Register()
 	engine::ForEachRegister(GameInterpolateTypes{});
 }
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 void FrameInterpolate::GraphicsResources()
 {
 	// Parent
@@ -356,7 +356,7 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	return uiTarget;
 }
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 void FrameInterpolate::BeginRender(int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords)
 {
 	// Parent

@@ -1,6 +1,6 @@
 #include "Billboards.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 namespace engine
 {
@@ -16,7 +16,7 @@ void BillboardsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t
 	BillboardsInterpolate& rBillboards = rFrameInterpolate.billboards;
 	int64_t iIndex = rBillboards.IdToIndex(id);
 
-	rBillboards.pVecPositions[iIndex] = rData.vecPosition;
+	rBillboards.pVecPositions[iIndex] = XMVectorSetW(rData.vecPosition, 1.0f);
 	rBillboards.puiTypeIndices[iIndex] = rData.uiTypeIndex;
 	rBillboards.puiFlags[iIndex] = rData.uiFlags;
 	rBillboards.pfRotations[iIndex] = rData.fRotation;

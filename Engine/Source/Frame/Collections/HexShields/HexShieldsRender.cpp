@@ -1,6 +1,6 @@
 #include "HexShields.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 #include "Profile/ProfileManager.h"
 

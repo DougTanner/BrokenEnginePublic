@@ -3,7 +3,7 @@
 #include "Frame/Alignments.h"
 #include "Frame/GridCoord.h"
 #include "Frame/Collections/Collection.h"
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/HexShields/HexShields.h"
 #include "Frame/Collections/WindTrails/WindTrails.h"
 #endif
@@ -17,7 +17,7 @@ namespace game
 inline constexpr float kfDestroyTime = 0.7f;
 inline constexpr float kfDestroyExplosionInterval = 0.005f;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 struct HexShieldDirections
 {
 	XMFLOAT4 data[shaders::kiHexShieldDirections] {};
@@ -62,7 +62,7 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 	float* __restrict pfAnimationTimes = nullptr;
 	float* __restrict pfRotationAccelerationXs = nullptr;
 	float* __restrict pfRotationAccelerationYs = nullptr;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	engine::wind_trail_t* __restrict pWindTrails = nullptr;
 	engine::hex_shields_t* __restrict pHexShields = nullptr;
 	float* __restrict pfShieldRotations = nullptr;
@@ -78,7 +78,7 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 			rSelf.pfDestroyedTimes, rSelf.pfAnimationTimes,
 			rSelf.pfRotationAccelerationXs, rSelf.pfRotationAccelerationYs);
 	}
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	auto ClientMembers(this auto&& rSelf)
 	{
 		return std::tie(rSelf.pWindTrails,
@@ -88,7 +88,7 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 #endif
 	auto Members(this auto&& rSelf)
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
 #else
 		return rSelf.SharedMembers();
@@ -96,7 +96,7 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 	}
 
 	// CRC-only subset: excludes fields that are only meaningfully updated on client
-	// (pfAnimationTimes, pfRotationAccelerationXs/Ys are updated inside #ifdef BT_CLIENT)
+	// (pfAnimationTimes, pfRotationAccelerationXs/Ys are updated inside #if defined(BT_CLIENT))
 	auto ServerCrcMembers(this auto&& rSelf)
 	{
 		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections,
@@ -126,7 +126,7 @@ using PlayerFlags_t = common::Flags<PlayerFlags>;
 
 struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 {
-	static constexpr int64_t kiVersion = 8;
+	static constexpr int64_t kiVersion = 9;
 
 	// Collision layer (set each frame in PreCollision)
 	// thread_local: parallel per-Frame tick via Dispatch
@@ -161,6 +161,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	float* __restrict pfAiMissileTimers = nullptr;
 	float* __restrict pfAiEdgeCrossCooldowns = nullptr;
 	int8_t* __restrict piAiEdgeCrossTargets = nullptr;
+	float* __restrict pfTransferLockTimers = nullptr;
 
 	auto Members(this auto&& rSelf)
 	{
@@ -170,7 +171,8 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 			rSelf.pfArmors, rSelf.pfShields, rSelf.pfShieldCooldowns,
 			rSelf.pfDestroyedExplosionTimes, rSelf.pfShieldDownSoundCooldowns,
 			rSelf.pVecAiDirections, rSelf.pfAiFireTimers, rSelf.pfAiMissileTimers,
-			rSelf.pfAiEdgeCrossCooldowns, rSelf.piAiEdgeCrossTargets);
+			rSelf.pfAiEdgeCrossCooldowns, rSelf.piAiEdgeCrossTargets,
+			rSelf.pfTransferLockTimers);
 	}
 
 	// Utility
@@ -194,6 +196,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 		float fShieldRotation = 0.0f;
 		float fShieldShrink = 1.0f;
 		PlayerFlags_t flags = {PlayerFlags::kBlasterSpawnLeft};
+		float fTransferLockTimer = 0.0f;
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

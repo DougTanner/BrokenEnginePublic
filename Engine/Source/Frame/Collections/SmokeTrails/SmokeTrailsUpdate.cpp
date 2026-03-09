@@ -1,6 +1,6 @@
 #include "SmokeTrails.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 namespace engine
 {
@@ -15,7 +15,7 @@ void SmokeTrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_
 	SmokeTrailsInterpolate& rSmokeTrails = rFrameInterpolate.smokeTrails;
 	int64_t iIndex = rSmokeTrails.IdToIndex(id);
 
-	rSmokeTrails.pVecPositions[iIndex] = rData.vecPosition;
+	rSmokeTrails.pVecPositions[iIndex] = XMVectorSetW(rData.vecPosition, 1.0f);
 	rSmokeTrails.pfIntensities[iIndex] = rData.fIntensity;
 }
 

@@ -3,7 +3,7 @@
 namespace engine
 {
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 // Forward declaration for shared helper (defined in Explosions.cpp)
 void XM_CALLCONV SyncExplosionTrail(game::FrameInterpolate& rFrameInterpolate, smoke_trails_t trailId, FXMVECTOR vecPosition, float fIntensity);
@@ -26,11 +26,11 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
 		XMVECTOR vecDirection = rPrevious.pVecDirections[i];
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		float fLightPercent = rPrevious.pfLightPercents[i];
 #endif
 		float fSizePercent = rPrevious.pfSizePercents[i];
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		float fSmokePercent = rPrevious.pfSmokePercents[i];
 #endif
 		float fTimePercent = rPrevious.pfTimePercents[i];
@@ -44,11 +44,11 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.pVecDirections[i] = vecDirection;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		rCurrent.pfLightPercents[i] = fLightPercent;
 #endif
 		rCurrent.pfSizePercents[i] = fSizePercent;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		rCurrent.pfSmokePercents[i] = fSmokePercent;
 #endif
 		rCurrent.pfTimePercents[i] = fTimePercent;
@@ -61,7 +61,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 			if (j < iTrailCount)
 			{
 				rCurrent.pfTrailTimes[j][i] = rPrevious.pfTrailTimes[j][i];
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 				rCurrent.pfTrailIntensities[j][i] = rPrevious.pfTrailIntensities[j][i];
 				rCurrent.pVecTrailStartPositions[j][i] = rPrevious.pVecTrailStartPositions[j][i];
 				rCurrent.pVecTrailEndPositions[j][i] = rPrevious.pVecTrailEndPositions[j][i];
@@ -70,7 +70,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 			else
 			{
 				rCurrent.pfTrailTimes[j][i] = 0.0f;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 				rCurrent.pfTrailIntensities[j][i] = 0.0f;
 				rCurrent.pVecTrailStartPositions[j][i] = XMVectorZero();
 				rCurrent.pVecTrailEndPositions[j][i] = XMVectorZero();
@@ -78,7 +78,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 			}
 		}
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		// Sync trail positions with gravity
 		const ExplosionType& rType = sTypes.at(uiTypeIndex);
 		float fExplosionTime = fCurrentTime - fStartTime;

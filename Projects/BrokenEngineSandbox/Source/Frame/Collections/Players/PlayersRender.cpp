@@ -1,4 +1,4 @@
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 #include "Players.h"
 
@@ -115,6 +115,7 @@ void PlayersInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpo
 
 		shaders::ModelLayout& rPlayerLayout = pPlayerLayouts[siRendered];
 		XMStoreFloat4(&rPlayerLayout.f4Position, rCurrent.pVecPositions[i]);
+
 		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
 		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
 		rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};

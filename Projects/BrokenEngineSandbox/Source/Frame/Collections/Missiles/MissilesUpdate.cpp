@@ -31,7 +31,7 @@ constexpr float kfDeltaRotationDecay = 8.0f;
 constexpr float kfDeltaRotationTowardsTarget = 10.0f;
 constexpr float kfDeltaRotationTowardsStored = 3.0f;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 // Forward declaration of SyncMissile (defined in Missiles.cpp, also used by ClientInit)
 void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::smoke_trails_t uiSmokeTrail,
 	engine::sound_t uiSound,
@@ -74,7 +74,7 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
 
 		// Sync owned objects (IDs copied in AllocateAndCopy)
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		SyncMissile(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rCurrent.puiPushers[i], rCurrent.puiSmokeTrails[i],
 			rPreviousPostRender.puiSounds[i],
 			vecPosition, vecDirection, rPreviousPostRender.pVecVelocities[i], vecPreviousPosition, flags, rPreviousPostRender.pfPitches[i], rPreviousPostRender.pfDeltaRotations[i], rPreviousPostRender.pfExhaustLengths[i]);

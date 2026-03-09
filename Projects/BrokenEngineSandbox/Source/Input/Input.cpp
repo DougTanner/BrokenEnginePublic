@@ -121,7 +121,7 @@ common::crc_t FrameInput::ServerInputCrc() const
 	common::crc_t checksum = 0;
 	for (const StatusChange& rStatusChange : statusChanges)
 	{
-		// CRC shared fields only (TransferData has #ifdef BT_CLIENT smokeTrailId at the end)
+		// CRC shared fields only (TransferData has #if defined(BT_CLIENT) smokeTrailId at the end)
 		checksum ^= common::Crc(rStatusChange.eType);
 		checksum ^= common::Crc(rStatusChange.data.vecPosition);
 		checksum ^= common::Crc(rStatusChange.data.vecDirection);

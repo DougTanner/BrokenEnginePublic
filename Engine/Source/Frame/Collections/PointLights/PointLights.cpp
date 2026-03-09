@@ -1,6 +1,6 @@
 #include "PointLights.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 namespace engine
 {

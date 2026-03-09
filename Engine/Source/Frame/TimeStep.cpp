@@ -3,7 +3,7 @@
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Graphics/Managers/TextManager.h"
 #endif
 
@@ -14,7 +14,7 @@ TimeStep::TimeStep()
 {
 }
 
-int64_t TimeStep::UpdateRealtime()
+int64_t TimeStep::TickRealtime()
 {
 	std::chrono::nanoseconds realDeltaNs = mRealTime.GetDeltaNs(true);
 
@@ -39,51 +39,51 @@ int64_t TimeStep::UpdateRealtime()
 	// Accumulate time with scaling
 	if constexpr (kbEnableDebugInput)
 	{
-		mUpdateRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
+		mTickRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
 
 		// Death spiral prevention: detect excessive updates and auto-reduce time scale
-		int64_t iEstimatedUpdates = mUpdateRemainderNs / game::kUpdateStepNs;
-		if (iEstimatedUpdates > kiMaxUpdatesPerFrame && miTimeMultiply > 1) [[unlikely]]
+		int64_t iEstimatedTicks = mTickRemainderNs / game::kTickNs;
+		if (iEstimatedTicks > kiMaxTicksPerFrame && miTimeMultiply > 1) [[unlikely]]
 		{
-			Log("Death spiral detected: {} updates at {}x speed", iEstimatedUpdates, miTimeMultiply);
+			Log("Death spiral detected: {} ticks at {}x speed", iEstimatedTicks, miTimeMultiply);
 			DecreaseTimeScale(false);
 
 			// Clamp accumulator to prevent backlog cascade
-			std::chrono::nanoseconds maxAccumulator = game::kUpdateStepNs * kiMaxAccumulatorSteps;
-			if (mUpdateRemainderNs > maxAccumulator)
+			std::chrono::nanoseconds maxAccumulator = game::kTickNs * kiMaxAccumulatorTicks;
+			if (mTickRemainderNs > maxAccumulator)
 			{
-				mUpdateRemainderNs = maxAccumulator;
+				mTickRemainderNs = maxAccumulator;
 			}
 		}
 	}
 	else
 	{
-		mUpdateRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
+		mTickRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
 	}
 
-	// Calculate number updates needed
-	int64_t iUpdates = 0;
-	while (mUpdateRemainderNs >= game::kUpdateStepNs)
+	// Calculate number of ticks needed
+	int64_t iTicks = 0;
+	while (mTickRemainderNs >= game::kTickNs)
 	{
-		mUpdateRemainderNs -= game::kUpdateStepNs;
-		++iUpdates;
+		mTickRemainderNs -= game::kTickNs;
+		++iTicks;
 	}
 
-	return iUpdates;
+	return iTicks;
 }
 
-void TimeStep::ConsumeStep()
+void TimeStep::ConsumeTick()
 {
 }
 
 float TimeStep::GetInterpolationAlpha() const
 {
-	return common::NanosecondsToFloatSeconds<float>(mUpdateRemainderNs) / common::NanosecondsToFloatSeconds<float>(game::kUpdateStepNs);
+	return common::NanosecondsToFloatSeconds<float>(mTickRemainderNs) / common::NanosecondsToFloatSeconds<float>(game::kTickNs);
 }
 
 void TimeStep::ClearAccumulator()
 {
-	mUpdateRemainderNs = 0ns;
+	mTickRemainderNs = 0ns;
 }
 
 void TimeStep::SetTimeScale(int64_t iMultiply, int64_t iDivide)
@@ -100,7 +100,7 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 		Log("Time ratio: {}x", miTimeMultiply);
 		if (miTimeMultiply == 1 && miTimeDivide == 1)
 		{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			gpTextManager->UpdateTextArea(kTextDebug, "");
 #endif
 		}
@@ -110,7 +110,7 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 			common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
 			common::gpThreadLocal->mWorkbuffer.Append(miTimeMultiply);
 			common::gpThreadLocal->mWorkbuffer.Append("x");
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
 #endif
 			common::gpThreadLocal->mWorkbuffer.Pop();
@@ -125,7 +125,7 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 		common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
 		common::gpThreadLocal->mWorkbuffer.Append(miTimeDivide);
 		common::gpThreadLocal->mWorkbuffer.Append("x");
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
 #endif
 		common::gpThreadLocal->mWorkbuffer.Pop();
@@ -142,7 +142,7 @@ void TimeStep::IncreaseTimeScale()
 		Log("Time ratio: 1/{}x", miTimeDivide);
 		if (miTimeDivide == 1 && miTimeMultiply == 1)
 		{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			gpTextManager->UpdateTextArea(kTextDebug, "");
 #endif
 		}
@@ -152,7 +152,7 @@ void TimeStep::IncreaseTimeScale()
 			common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
 			common::gpThreadLocal->mWorkbuffer.Append(miTimeDivide);
 			common::gpThreadLocal->mWorkbuffer.Append("x");
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
 #endif
 			common::gpThreadLocal->mWorkbuffer.Pop();
@@ -166,7 +166,7 @@ void TimeStep::IncreaseTimeScale()
 		common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
 		common::gpThreadLocal->mWorkbuffer.Append(miTimeMultiply);
 		common::gpThreadLocal->mWorkbuffer.Append("x");
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
 #endif
 		common::gpThreadLocal->mWorkbuffer.Pop();

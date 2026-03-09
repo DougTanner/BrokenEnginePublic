@@ -7,11 +7,14 @@
 namespace engine
 {
 
-NetworkClient::NetworkClient(const char* pServerAddress, uint16_t uiPort)
+NetworkClient::NetworkClient(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots)
 {
 	gpNetworkClient = this;
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+	mReceivedCoordUpdates.resize(iCoordSlots);
+	mCoordSlots.resize(iCoordSlots);
 	// Heap: ENet allocates host data internally
 	mpHost = enet_host_create(nullptr, 1, NetworkManager::kuiChannelCount, 0, 0);
 	// 1MB send/receive buffers to handle bursty packet traffic
@@ -212,7 +215,7 @@ void NetworkClient::HandleReceive(const uint8_t* pData, size_t iSize)
 	}
 }
 
-void NetworkClient::TrackReceivedFrame(int64_t iSlot, int64_t iFrame)
+void NetworkClient::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 {
 	if (mbDesyncDebugMode)
 	{
@@ -224,21 +227,21 @@ void NetworkClient::TrackReceivedFrame(int64_t iSlot, int64_t iFrame)
 	// First frame received, initialize the ACK floor
 	if (rSlot.iAckFloor < 0)
 	{
-		rSlot.iAckFloor = iFrame;
+		rSlot.iAckFloor = iTick;
 		return;
 	}
 
 	// Already acknowledged
-	if (iFrame <= rSlot.iAckFloor)
+	if (iTick <= rSlot.iAckFloor)
 	{
 		return;
 	}
 
-	int64_t iBitIndex = iFrame - rSlot.iAckFloor - 1;
-	if (iBitIndex >= kiMaxMissingFrames)
+	int64_t iBitIndex = iTick - rSlot.iAckFloor - 1;
+	if (iBitIndex >= kiTickRate)
 	{
 		common::Log("NetworkClient: Too many missing frames on slot {} (gap={}), disconnecting", iSlot, iBitIndex + 1);
-		FILE_LOG(0, "[NetworkClient] WARNING: Too many missing frames: slot={} gap={} ackFloor={} receivedFrame={}", iSlot, iBitIndex + 1, rSlot.iAckFloor, iFrame);
+		FILE_LOG(0, "[NetworkClient] WARNING: Too many missing frames: slot={} gap={} ackFloor={} receivedFrame={}", iSlot, iBitIndex + 1, rSlot.iAckFloor, iTick);
 		DEBUG_BREAK();
 		mbDisconnectedEvent = true;
 		return;
@@ -251,7 +254,7 @@ void NetworkClient::TrackReceivedFrame(int64_t iSlot, int64_t iFrame)
 	}
 	else
 	{
-		FILE_LOG(0, "[NetworkClient] BeyondBitfield: slot={} frame={} ackFloor={} bitIndex={} bitfield={:#x}", iSlot, iFrame, rSlot.iAckFloor, iBitIndex, rSlot.uiReceivedBitfield);
+		FILE_LOG(0, "[NetworkClient] BeyondBitfield: slot={} frame={} ackFloor={} bitIndex={} bitfield={:#x}", iSlot, iTick, rSlot.iAckFloor, iBitIndex, rSlot.uiReceivedBitfield);
 	}
 
 	while (rSlot.uiReceivedBitfield & 1ULL)

@@ -1,6 +1,6 @@
 #include "Sounds.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 namespace engine
 {
@@ -14,7 +14,7 @@ void SoundsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id,
 	SoundsInterpolate& rSounds = rFrameInterpolate.sounds;
 	int64_t iIndex = rSounds.IdToIndex(id);
 
-	rSounds.pVecPositions[iIndex] = rData.vecPosition;
+	rSounds.pVecPositions[iIndex] = XMVectorSetW(rData.vecPosition, 1.0f);
 	rSounds.pVecVelocities[iIndex] = rData.vecVelocity;
 	rSounds.puiCrcs[iIndex] = rData.uiCrc;
 	rSounds.pfVolumes[iIndex] = rData.fVolume;

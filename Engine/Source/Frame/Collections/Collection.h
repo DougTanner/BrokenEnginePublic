@@ -42,7 +42,7 @@ struct uuid_t
 
 	// Generate next unique ID (counter stored in FramePostRenderBase)
 	static uuid_t Generate(FramePostRenderBase& rFramePostRender);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	static uuid_t GenerateVisual(FramePostRenderBase& rFramePostRender);
 #endif
 
@@ -87,7 +87,7 @@ struct id_t
 		return id_t {uuid_t::Generate(rFramePostRender)};
 	}
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	static id_t GenerateVisual(FramePostRenderBase& rFramePostRender)
 	{
 		return id_t {uuid_t::GenerateVisual(rFramePostRender)};
@@ -465,7 +465,7 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolat
 
 // Increments counts, generates visual unique ID, and updates idToIndexMap for visual-only collections.
 // Uses GenerateVisualUuid() so visual object creation does not perturb the main UUID sequence.
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 template <typename TInterpolate, typename TPostRender>
 std::tuple<int64_t, typename TInterpolate::id_t> AddVisualIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, FramePostRenderBase& rFramePostRender)
 {

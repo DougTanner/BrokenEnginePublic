@@ -146,4 +146,5 @@ void main()
 	vkDrawIndexedIndirectCommandLighting.firstIndex = 0;
 	vkDrawIndexedIndirectCommandLighting.vertexOffset = 0;
 	vkDrawIndexedIndirectCommandLighting.firstInstance = 0;
+
 }

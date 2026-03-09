@@ -26,7 +26,7 @@ Game::Game()
 	mAlignments.AddAlignment(mPlayerAlignment, mEnemyAlignment, engine::AlignmentFlags::kEnemies);
 
 	// Allocate frames
-#ifdef BT_SERVER
+#if defined(BT_SERVER)
 	CreateNewFrame(GameFlags::kGame);
 	meUiState = kNone;
 #else
@@ -34,7 +34,7 @@ Game::Game()
 #endif
 
 	// Start reconcile worker
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	if constexpr (kbEnableReconcileThread)
 	{
 		mpReconcileWorker = std::make_unique<common::PersistentWorker>(common::kThreadReconcile, 10 * 1'024 * 1'024);
@@ -42,7 +42,7 @@ Game::Game()
 #endif
 
 	// Start music
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist.at(0));
 	engine::gpAudioManager->Set3dSettings(10.0f, 0.0f, 150.0f, 0.05f);
 	engine::gpAudioManager->SetNextMusicTrackCallback([this]()
@@ -67,54 +67,78 @@ std::optional<int64_t> Game::HumanPlayerIndex(const PlayersInterpolate& rPlayers
 	return std::nullopt;
 }
 
+XMVECTOR Game::GetHumanPlayerPosition() const
+{
+	const Frame& rFrame = CurrentFrame(mHumanGridCoord);
+	auto it = rFrame.interpolate.pPlayers->idToIndexMap.find(mHumanPlayerId);
+	if (it != rFrame.interpolate.pPlayers->idToIndexMap.end())
+	{
+		return rFrame.interpolate.pPlayers->pVecPositions[it->second];
+	}
+	XMVECTOR vecArea = rFrame.postRender.vecArea;
+	return XMVectorSet((XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f, (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f, 0.0f, 0.0f);
+}
+
 void Game::ComputeActiveSet()
 {
-#ifdef BT_SERVER
+#if defined(BT_SERVER)
 	ComputeActiveSetServer();
 #else
 	// Heap: mActiveCoords vector clear/push_back may allocate. Persists as Game member across frame updates
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-	mActiveCoords.clear();
-
-	if (!mSubscribedFrames.contains(mHumanGridCoord))
+	if (!mCoordFrames.contains(mHumanGridCoord))
 	{
+		mActiveCoords.clear();
 		return;
 	}
 
-	mActiveCoords.push_back(mHumanGridCoord);
-
 	if (!InMainMenu())
 	{
-		for (const engine::GridCoord& rOffset : engine::kNeighborOffsets)
+		const Frame& rFrame = CurrentFrame(mHumanGridCoord);
+		auto it = rFrame.interpolate.pPlayers->idToIndexMap.find(mHumanPlayerId);
+
+		// Player not found in assigned cell (mid-transfer): preserve current active set
+		if (it == rFrame.interpolate.pPlayers->idToIndexMap.end())
+		{
+			return;
+		}
+
+		mActiveCoords.clear();
+		mActiveCoords.push_back(mHumanGridCoord);
+
+		XMVECTOR vecPos = rFrame.interpolate.pPlayers->pVecPositions[it->second];
+		XMVECTOR vecArea = rFrame.postRender.vecArea;
+		float fCenterX = (XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f;
+		float fCenterY = (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f;
+
+		engine::GridCoord quadrantOffsets[3];
+		engine::ComputeQuadrantOffsets(XMVectorGetX(vecPos), XMVectorGetY(vecPos), fCenterX, fCenterY, quadrantOffsets);
+
+		for (const engine::GridCoord& rOffset : quadrantOffsets)
 		{
 			engine::GridCoord neighbor {mHumanGridCoord.x + rOffset.x, mHumanGridCoord.y + rOffset.y};
-			if (!mSubscribedFrames.contains(neighbor))
+			if (!mCoordFrames.contains(neighbor))
 			{
 				CreateFrameAtCoord(neighbor);
 			}
 			mActiveCoords.push_back(neighbor);
 		}
-
-		// Origin is always active
-		if (!std::ranges::contains(mActiveCoords, engine::kOriginCoord))
-		{
-			if (!mSubscribedFrames.contains(engine::kOriginCoord))
-			{
-				CreateFrameAtCoord(engine::kOriginCoord);
-			}
-			mActiveCoords.push_back(engine::kOriginCoord);
-		}
+	}
+	else
+	{
+		mActiveCoords.clear();
+		mActiveCoords.push_back(mHumanGridCoord);
 	}
 
-	// Delete frames outside the active set
-	std::erase_if(mSubscribedFrames, [this](const auto& rPair)
+	// Delete local-only frames outside the active set, preserve network-subscribed frames
+	std::erase_if(mCoordFrames, [this](const auto& rPair)
 	{
-		return !std::ranges::contains(mActiveCoords, rPair.first);
+		return !std::ranges::contains(mActiveCoords, rPair.first) && rPair.second.iConfirmedTick < 0;
 	});
 
 	// Update island rendering to match active frames
-	engine::gpIslands->UpdateActiveIslands(mSubscribedFrames, mActiveCoords);
+	engine::gpIslands->UpdateActiveIslands(mCoordFrames, mActiveCoords);
 #endif
 }
 
@@ -125,16 +149,16 @@ void Game::EnsureNextFrames()
 
 	for (const engine::GridCoord& rCoord : mActiveCoords)
 	{
-		if (mSubscribedFrames[rCoord].next == nullptr)
+		if (mCoordFrames[rCoord].pNext == nullptr)
 		{
-			mSubscribedFrames[rCoord].next = std::make_unique<Frame>();
+			mCoordFrames[rCoord].pNext = std::make_unique<Frame>();
 		}
 	}
 }
 
 void Game::BuildFrameInputs()
 {
-#ifdef BT_SERVER
+#if defined(BT_SERVER)
 	BuildFrameInputsServer();
 #else
 	// Heap: unordered_map clear/insert for per-coordinate FrameInputs. Map persists as Game member
@@ -144,7 +168,7 @@ void Game::BuildFrameInputs()
 
 	for (const engine::GridCoord& rCoord : mActiveCoords)
 	{
-		if (!mSubscribedFrames.contains(rCoord))
+		if (!mCoordFrames.contains(rCoord))
 		{
 			continue;
 		}
@@ -153,7 +177,7 @@ void Game::BuildFrameInputs()
 	}
 
 	// Camera shake
-	if (mHumanPlayerId.IsValid() && mSubscribedFrames.contains(mHumanGridCoord))
+	if (mHumanPlayerId.IsValid() && mCoordFrames.contains(mHumanGridCoord))
 	{
 		const Frame& rCurrentFrame = CurrentFrame(mHumanGridCoord);
 		const PlayersInterpolate& rPlayers = *rCurrentFrame.interpolate.pPlayers;
@@ -181,9 +205,9 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	// Heap: unordered_map insertion + make_unique<Frame>. Frame persists in mCurrentFrames across game lifetime
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	std::unique_ptr<Frame>& pFrame = mSubscribedFrames[coord].current;
+	std::unique_ptr<Frame>& pFrame = mCoordFrames[coord].pCurrent;
 	pFrame = std::make_unique<Frame>();
-	pFrame->interpolate.iFrame = miFrameCounter;
+	pFrame->interpolate.iTick = miTickCounter;
 	pFrame->interpolate.fCurrentTime = mfCurrentTime;
 	pFrame->interpolate.gameFlags.Set(GameFlags::kGame);
 	pFrame->postRender.uiFrameId = GenerateFrameId();
@@ -252,7 +276,7 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& da
 				.fTime = data.fTime,
 				.fExhaustDelay = data.fExhaustDelay,
 				.fNextJitter = data.fNextJitter,
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 				.smokeTrailId = data.smokeTrailId,
 #endif
 			});
@@ -276,6 +300,7 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& da
 				.fShieldRotation = data.fShieldRotation,
 				.fShieldShrink = data.fShieldShrink,
 				.flags = PlayerFlags_t {static_cast<PlayerFlags>(data.uiPlayerFlags)},
+			.fTransferLockTimer = 1.0f,
 			});
 			break;
 
@@ -286,7 +311,7 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& da
 
 void Game::HarvestTransfers()
 {
-#ifdef BT_SERVER
+#if defined(BT_SERVER)
 	HarvestTransfersServer();
 #endif
 }
@@ -313,7 +338,7 @@ void Game::ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput)
 
 Game::~Game()
 {
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	if constexpr (kbEnableReconcileThread)
 	{
 		if (mbReconcileInFlight)
@@ -337,13 +362,16 @@ void Game::Reset()
 {
 	Log("Game::Reset()");
 
-	miFrameCounter = 0;
+	miTickCounter = 0;
 	mfCurrentTime = 0.0f;
 
 	mpDifferenceStreamWriter.reset();
 	mpDifferenceStreamReader.reset();
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	game::gpCamera->ResetSunAngle();
+	game::gpCamera->mVecLastKnownPlayerPosition = {};
+	game::gpCamera->mVecLastKnownPlayerVelocity = {};
+	game::gpCamera->miLastKnownPlayerTick = 0;
 	engine::gSunAngleOverride.Reset(game::gpCamera->SunAngle(true));
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
@@ -364,8 +392,8 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	// across the entire game state lifetime, so workbuffer (lost on Pop) can't hold it.
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	mSubscribedFrames.clear();
-	std::unique_ptr<Frame>& pFrame = mSubscribedFrames[engine::kOriginCoord].current;
+	mCoordFrames.clear();
+	std::unique_ptr<Frame>& pFrame = mCoordFrames[engine::kOriginCoord].pCurrent;
 	pFrame = std::make_unique<Frame>();
 	pFrame->interpolate.gameFlags.Set(gameFlags.meFlags);
 	pFrame->postRender.uiFrameId = GenerateFrameId();
@@ -375,7 +403,7 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	pFrame->postRender.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	pFrame->postRender.eIslandsFlip = engine::kFlipNone;
 
-	mSubscribedFrames[engine::kOriginCoord].next = std::make_unique<Frame>();
+	mCoordFrames[engine::kOriginCoord].pNext = std::make_unique<Frame>();
 }
 
 bool Game::ShouldTrapCursor()
@@ -385,7 +413,7 @@ bool Game::ShouldTrapCursor()
 
 bool Game::ShouldUseCrosshair()
 {
-	if (!mSubscribedFrames.contains(mHumanGridCoord))
+	if (!mCoordFrames.contains(mHumanGridCoord))
 	{
 		return false;
 	}
@@ -394,12 +422,12 @@ bool Game::ShouldUseCrosshair()
 
 void Game::ChangeFrame(GameFlags_t gameFlags)
 {
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	mpDiscoveryScanner.reset();
 	DisconnectFromServer();
 #endif
 
-	if (mSubscribedFrames.contains(mHumanGridCoord) &&
+	if (mCoordFrames.contains(mHumanGridCoord) &&
 	    ((gameFlags & GameFlags::kMainMenu && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kMainMenu) ||
 	     (gameFlags & GameFlags::kGame && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kGame)))
 	{
@@ -408,7 +436,7 @@ void Game::ChangeFrame(GameFlags_t gameFlags)
 	}
 
 	// Start appropriate music playlist for menu or game mode
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	if (gameFlags & GameFlags::kMainMenu)
 	{
 		miMenuMusicIndex = 0;
@@ -483,7 +511,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		if (rMenuInput.flags & MenuInputFlags::kMenuGraphics)
 		{
 			meUiState = meUiState == kGraphics ? kNone : kGraphics;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			engine::gSunAngleOverride.Set(game::gpCamera->SunAngle(true));
 #endif
 		}
@@ -498,7 +526,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		}
 	}
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	if constexpr (kbEnableScreenshots)
 	{
 		if (rMenuInput.flags & MenuInputFlags::kToggleScreenshots)
@@ -557,7 +585,7 @@ void Game::ResetSoundSettings()
 	SaveSoundSettings();
 }
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 common::crc_t Game::GetNextMusicTrack()
 {
 	if (InMainMenu())

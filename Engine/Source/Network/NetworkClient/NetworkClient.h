@@ -17,7 +17,7 @@ namespace engine
 // Per-coord received update (single coord, not multi-coord)
 struct ReceivedCoordUpdate
 {
-	int64_t iFrame = 0;
+	int64_t iTick = 0;
 	common::crc_t serverCrc = 0;
 	common::crc_t inputCrc = 0;
 	// Heap: ENet packet data, variable per frame
@@ -27,7 +27,7 @@ struct ReceivedCoordUpdate
 // Per-coord received full state
 struct ReceivedCoordFullState
 {
-	int64_t iFrame = 0;
+	int64_t iTick = 0;
 	GridCoord coord {};
 	int64_t iSlot = -1;
 	std::unique_ptr<game::Frame> pFrame;
@@ -68,7 +68,7 @@ struct ReceivedPlayerState
 
 struct ReceivedDebugFrame
 {
-	int64_t iFrame = 0;
+	int64_t iTick = 0;
 	GridCoord coord {};
 	std::unique_ptr<game::Frame> pFrame;
 };
@@ -77,22 +77,22 @@ class NetworkClient
 {
 public:
 
-	NetworkClient(const char* pServerAddress, uint16_t uiPort);
+	NetworkClient(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots);
 	~NetworkClient();
 
 	void Poll();
 
 	void SendAck();
 	void SendSpawnRequest(ClientRequestFlags_t flags);
-	void SendDesyncReport(int64_t iFrame, GridCoord coord, common::crc_t expected, common::crc_t actual);
-	void SendDebugFrameRequest(int64_t iFrame, GridCoord coord);
+	void SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expected, common::crc_t actual);
+	void SendDebugFrameRequest(int64_t iTick, GridCoord coord);
 	void SendSubscribe(GridCoord coord);
 	void SendUnsubscribe(int64_t iSlot);
 	void Flush();
 	void Disconnect();
 	void SetDesyncDebugMode(bool bEnabled) { mbDesyncDebugMode = bEnabled; }
 
-	std::array<std::vector<ReceivedCoordUpdate>, NetworkManager::kiMaxCoordSlots>& DrainReceivedCoordUpdates() { return mReceivedCoordUpdates; }
+	std::vector<std::vector<ReceivedCoordUpdate>>& DrainReceivedCoordUpdates() { return mReceivedCoordUpdates; }
 	std::vector<ReceivedCoordFullState>& DrainReceivedFullStates() { return mReceivedFullStates; }
 	std::unique_ptr<ReceivedDebugFrame> DrainReceivedDebugFrame() { return std::move(mpReceivedDebugFrame); }
 
@@ -103,8 +103,8 @@ public:
 	std::vector<ReceivedAssignment>& DrainReceivedAssignments() { return mReceivedAssignments; }
 	std::vector<ReceivedPlayerState>& DrainReceivedPlayerStates() { return mReceivedPlayerStates; }
 
-	const std::array<ClientCoordSlot, NetworkManager::kiMaxCoordSlots>& GetCoordSlots() const { return mCoordSlots; }
-	std::array<ClientCoordSlot, NetworkManager::kiMaxCoordSlots>& GetCoordSlots() { return mCoordSlots; }
+	const std::vector<ClientCoordSlot>& GetCoordSlots() const { return mCoordSlots; }
+	std::vector<ClientCoordSlot>& GetCoordSlots() { return mCoordSlots; }
 	ENetPeer* GetServerPeer() const { return mpServerPeer; }
 	int64_t GetBytesInPerSecond() { return mBytesInPerSecond.Get(); }
 	int64_t GetBytesOutPerSecond() { return mBytesOutPerSecond.Get(); }
@@ -125,7 +125,7 @@ private:
 	void SendHello();
 
 	void ClearSubscribingPlaceholder(GridCoord coord);
-	void TrackReceivedFrame(int64_t iSlot, int64_t iFrame);
+	void TrackReceivedTick(int64_t iSlot, int64_t iTick);
 
 	ENetHost* mpHost = nullptr;
 	ENetPeer* mpServerPeer = nullptr;
@@ -138,13 +138,13 @@ private:
 	std::vector<ReceivedPlayerState> mReceivedPlayerStates;
 
 	// Per-slot receive buffers
-	std::array<std::vector<ReceivedCoordUpdate>, NetworkManager::kiMaxCoordSlots> mReceivedCoordUpdates {};
+	std::vector<std::vector<ReceivedCoordUpdate>> mReceivedCoordUpdates;
 	std::vector<ReceivedCoordFullState> mReceivedFullStates;
 
 	std::unique_ptr<ReceivedDebugFrame> mpReceivedDebugFrame;
 
 	// Per-slot subscription state (replaces single ACK floor/bitfield)
-	std::array<ClientCoordSlot, NetworkManager::kiMaxCoordSlots> mCoordSlots {};
+	std::vector<ClientCoordSlot> mCoordSlots;
 
 	// Pipeline RTT (timestamp echo)
 	common::Smoothed<int64_t> mSmoothedPipelineRttUs;

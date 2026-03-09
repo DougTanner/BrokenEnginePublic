@@ -12,7 +12,7 @@ void TargetsInterpolate::Sync(FrameInterpolate& rFrameInterpolate, id_t id, cons
 	TargetsInterpolate& rTargets = *rFrameInterpolate.pTargets;
 	int64_t iIndex = rTargets.IdToIndex(id);
 
-	rTargets.pVecPositions[iIndex] = rData.vecPosition;
+	rTargets.pVecPositions[iIndex] = XMVectorSetW(rData.vecPosition, 1.0f);
 	rTargets.puiTypeIndices[iIndex] = rData.uiTypeIndex;
 }
 
@@ -49,7 +49,7 @@ void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiT
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
-	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
+	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorSetW(XMVectorZero(), 1.0f);
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTargetTypeIndex;
 	rPostRender.pFlags[uiSpawnIndex] = {};
 	rPostRender.puiSubscribers[uiSpawnIndex] = 0;

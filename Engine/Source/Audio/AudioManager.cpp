@@ -1,6 +1,6 @@
 #include "AudioManager.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 #include "Memory/MemoryManager.h"
 

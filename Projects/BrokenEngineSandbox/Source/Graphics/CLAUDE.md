@@ -18,6 +18,8 @@ This directory contains the game's custom camera, which extends the engine's Cam
 
 **Game/Frame Boundary**: Camera shake intensity is set by Game (which detects armor damage on the human player), not by Frame code. During gameplay, the camera resolves the human player's position through `gpGame->HumanPlayerIndex()`, which maps the stable player ID to the current array index.
 
+**Velocity Extrapolation**: When the human player is not found in the current frame (e.g., during cross-cell grid transfers), the camera extrapolates from the last known position using a derived velocity, clamped to prevent runaway drift. Velocity is computed from position deltas between ticks when the player is visible.
+
 **Async Rendering**: Two Update overloads support both standard Frame-based updates and direct FrameInterpolate updates for the async rendering pipeline.
 
 ## See Also

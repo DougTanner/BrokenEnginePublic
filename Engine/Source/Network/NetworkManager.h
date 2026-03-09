@@ -16,8 +16,8 @@ public:
 	static constexpr uint8_t kuiChannelReliable = 0;
 	static constexpr uint8_t kuiChannelUnreliable = 1;
 
-	static constexpr int64_t kiMaxCoordSlots = 11; // 10 active + 1 spare for overlap during grid transitions
-	static constexpr uint8_t kuiChannelCount = 2 + static_cast<uint8_t>(kiMaxCoordSlots) * 2; // 24
+	static constexpr int64_t kiMaxEnetCoordSlots = 64;
+	static constexpr uint8_t kuiChannelCount = 2 + static_cast<uint8_t>(kiMaxEnetCoordSlots) * 2; // 130
 
 	static constexpr uint8_t CoordSlotReliable(int64_t iSlot) { return static_cast<uint8_t>(2 + iSlot * 2); }
 	static constexpr uint8_t CoordSlotUnreliable(int64_t iSlot) { return static_cast<uint8_t>(2 + iSlot * 2 + 1); }

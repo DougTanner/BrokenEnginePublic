@@ -1,10 +1,11 @@
 #include "Pch.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 #include "Camera.h"
 
 #include "Game.h"
+#include "Frame/Frame.h"
 #include "Frame/Collections/Players/Players.h"
 
 namespace game
@@ -38,7 +39,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	// Decay camera shake using real-time
 	mfShake = std::max(mfShake - fDeltaTime * 2.0f, 0.0f);
 
-	miFrame = rFrameInterpolate.iFrame;
+	miFrame = rFrameInterpolate.iTick;
 
 	// Update sun angle with varying speeds (only during gameplay)
 	if (!(rFrameInterpolate.gameFlags & GameFlags::kMainMenu))
@@ -74,13 +75,27 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	}
 	else if (gpGame->HumanPlayerId().IsValid())
 	{
-		if (auto oIdx = gpGame->HumanPlayerIndex(*rFrameInterpolate.pPlayers))
+		if (std::optional<int64_t> oIdx = gpGame->HumanPlayerIndex(*rFrameInterpolate.pPlayers))
 		{
-			vecTargetPosition = rFrameInterpolate.pPlayers->pVecPositions[*oIdx];
+			XMVECTOR vecPlayerPos = rFrameInterpolate.pPlayers->pVecPositions[*oIdx];
+
+			// Compute velocity from position delta when tick changes
+			if (miLastKnownPlayerTick > 0 && miFrame != miLastKnownPlayerTick)
+			{
+				float fElapsedTicks = static_cast<float>(miFrame - miLastKnownPlayerTick);
+				mVecLastKnownPlayerVelocity = XMVectorScale(XMVectorSubtract(vecPlayerPos, mVecLastKnownPlayerPosition), 1.0f / (fElapsedTicks * game::kfDeltaTime));
+			}
+
+			mVecLastKnownPlayerPosition = vecPlayerPos;
+			miLastKnownPlayerTick = miFrame;
+			vecTargetPosition = vecPlayerPos;
 		}
 		else
 		{
-			vecTargetPosition = mVecPosition;
+			// Player not found — extrapolate from last known position and velocity
+			float fElapsedTime = static_cast<float>(miFrame - miLastKnownPlayerTick) * game::kfDeltaTime;
+			fElapsedTime = std::min(fElapsedTime, 2.0f);
+			vecTargetPosition = XMVectorMultiplyAdd(XMVectorReplicate(fElapsedTime), mVecLastKnownPlayerVelocity, mVecLastKnownPlayerPosition);
 		}
 	}
 	else

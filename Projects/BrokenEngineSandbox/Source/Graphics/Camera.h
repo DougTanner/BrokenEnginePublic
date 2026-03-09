@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 namespace game
 {
@@ -37,6 +37,10 @@ public:
 	float mfShake = 0.0f;
 
 	int64_t miFrame = 0;
+
+	XMVECTOR mVecLastKnownPlayerPosition {};
+	XMVECTOR mVecLastKnownPlayerVelocity {};
+	int64_t miLastKnownPlayerTick = 0;
 
 private:
 

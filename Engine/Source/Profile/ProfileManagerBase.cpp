@@ -19,7 +19,7 @@ void ProfileManagerBase::Create()
 {
 	if constexpr (kbEnableProfiling)
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		if (mVkQueryPool != VK_NULL_HANDLE)
 		{
 			return;
@@ -60,7 +60,7 @@ void ProfileManagerBase::Destroy()
 {
 	if constexpr (kbEnableProfiling)
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		if (gpDeviceManager != nullptr && mVkQueryPool != VK_NULL_HANDLE)
 		{
 			vkDestroyQueryPool(gpDeviceManager->mVkDevice, mVkQueryPool, nullptr);
@@ -77,7 +77,7 @@ void ProfileManagerBase::ToggleProfileText()
 	{
 		meProfileScreen = static_cast<ProfileScreen>((static_cast<uint8_t>(meProfileScreen) + 1) % static_cast<uint8_t>(ProfileScreen::kCount));
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		for (int64_t i = kTextGraphics; i < kTextAreasCount; ++i)
 		{
 			gpTextManager->UpdateTextArea(static_cast<TextAreas>(i), "");
@@ -172,7 +172,7 @@ void ProfileManagerBase::SetCount(int64_t iCounter, int64_t iCount)
 	if constexpr (kbEnableProfiling) { GetCpuCounter(iCounter).iCount = iCount; }
 }
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 void ProfileManagerBase::ResetGlobalQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer)
 {
 	if constexpr (kbEnableProfiling)
@@ -219,7 +219,7 @@ void ProfileManagerBase::ResetUiQueryPool(int64_t iCommandBuffer, VkCommandBuffe
 }
 #endif
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 void ProfileManagerBase::GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer)
 {
 	if constexpr (kbEnableProfiling)
@@ -349,7 +349,7 @@ void ProfileManagerBase::LogTimers()
 
 		Log("");
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
 		for (int64_t i = 0; i < iCommandBufferCount; ++i)
 		{
@@ -371,7 +371,7 @@ void ProfileManagerBase::UpdateProfileText()
 {
 	if constexpr (kbEnableProfiling)
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		ScopedCpuProfile scopedCpuProfile(kCpuTimerUpdateProfileText);
 
 		int64_t iCpuTimerCount = GetCpuTimerCount();
@@ -665,8 +665,8 @@ void ProfileManagerBase::UpdateProfileText()
 				rWorkbuffer.Append("\n");
 			}
 
-			rWorkbuffer.Append("Frame: ");
-			rWorkbuffer.Append(game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iFrame);
+			rWorkbuffer.Append("Tick: ");
+			rWorkbuffer.Append(game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iTick);
 			rWorkbuffer.Append("  Time: ");
 			rWorkbuffer.AppendFloat(game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.fCurrentTime, 1);
 			rWorkbuffer.Append("s");
@@ -738,7 +738,7 @@ void ProfileManagerBase::UpdateProfileText()
 					}
 					rWorkbuffer.Append(iMinAckFloor);
 					rWorkbuffer.Append("  Confirmed: ");
-					rWorkbuffer.Append(game::gpGame->GetConfirmedFrame());
+					rWorkbuffer.Append(game::gpGame->GetConfirmedTick());
 					mSmoothedRecv = iTotalRecv;
 				}
 				mSmoothedRecv.Update();
@@ -746,7 +746,7 @@ void ProfileManagerBase::UpdateProfileText()
 				rWorkbuffer.Append(mSmoothedRecv.Get());
 				rWorkbuffer.Append("/64");
 
-				mSmoothedRollback = game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iFrame - game::gpGame->GetConfirmedFrame();
+				mSmoothedRollback = game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iTick - game::gpGame->GetConfirmedTick();
 				mSmoothedRollback.Update();
 				mSmoothedBuffer = game::gpGame->GetServerUpdateBufferSize();
 				mSmoothedBuffer.Update();
@@ -755,10 +755,10 @@ void ProfileManagerBase::UpdateProfileText()
 				rWorkbuffer.Append("  Buffer: ");
 				rWorkbuffer.Append(mSmoothedBuffer.Get());
 				rWorkbuffer.Append("  Desync: ");
-				if (game::gpGame->GetDesyncFrame() >= 0)
+				if (game::gpGame->GetDesyncTick() >= 0)
 				{
 					rWorkbuffer.Append("Yes (");
-					rWorkbuffer.Append(game::gpGame->GetDesyncFrame());
+					rWorkbuffer.Append(game::gpGame->GetDesyncTick());
 					rWorkbuffer.Append(")");
 				}
 				else

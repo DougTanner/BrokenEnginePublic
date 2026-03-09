@@ -10,7 +10,7 @@
 #include "Frame/Collections/Targets/Targets.h"
 #include "Frame/Collections/Players/Players.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Data/Scene.h"
 #endif
@@ -32,7 +32,7 @@ static thread_local std::vector<float> sCollisionDamages;
 // Shared type indices (defined in Spaceships.cpp, set during Register())
 extern uint8_t gSpaceshipExplosionTypeIndex;
 extern uint8_t gSpaceshipTargetTypeIndex;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 extern uint8_t gSpaceshipHitFlashControllerTypeIndex;
 #endif
 
@@ -65,7 +65,7 @@ constexpr float kfHealthRegenDistance = 60.0f;
 constexpr float kfIgnoreAvoidTerrainPlayerAngle = 0.4f;
 constexpr float kfIgnoreAvoidTerrainPlayerDistance = 40.0f;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 // Spaceship model (defined in SpaceshipsRender.cpp)
 extern const common::crc_t kSpaceshipModel;
 #endif
@@ -92,7 +92,7 @@ static void XM_CALLCONV BeginExplosion(Frame& rFrame, int64_t i, FXMVECTOR vecDa
 	rCurrentInterpolate.puiTargets[i] = {};
 
 	// Play explosion audio
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], kfSpaceshipDeathExplosionVolume, kfSpaceshipDeathPitchMin, kfSpaceshipDeathPitchRandom);
 #endif
 
@@ -110,7 +110,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 	float fDeltaTime = rCurrentFrameInterpolate.fDeltaTime;
 
 	// Hoist animation duration lookup outside the loop
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	float fAnimationDuration = 0.0f;
 	if (engine::gAnimationDataMap.contains(kSpaceshipModel))
 	{
@@ -126,7 +126,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		float fDestroyedTime = rPrevious.pfDestroyedTimes[i];
 		float fDeltaRotation = rPrevious.pfDeltaRotations[i];
 		float fFreezeTime = rPrevious.pfFreezeTimes[i];
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		float fAnimationTime = rPrevious.pfAnimationTimes[i];
 #endif
 
@@ -146,7 +146,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		}
 
 		// Advance animation time
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		if (fAnimationDuration > 0.0f)
 		{
 			fAnimationTime += fDeltaTime;
@@ -163,7 +163,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
 		rCurrent.pfDeltaRotations[i] = fDeltaRotation;
 		rCurrent.pfFreezeTimes[i] = fFreezeTime;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		rCurrent.pfAnimationTimes[i] = fAnimationTime;
 #endif
 
@@ -171,7 +171,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		SyncSpaceship(rCurrentFrameInterpolate, rCurrent.puiPushers[i], rCurrent.puiTargets[i], vecPosition);
 
 		// Sync wind deposit
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		if (rCurrent.puiWindTrails[i].IsValid())
 		{
 			engine::WindTrailsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindTrails[i],
@@ -397,12 +397,12 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 					rCurrentPostRender.pfHealths[i] -= rResult.fDamageReceived;
 
 					// Play hit sound
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 					engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster793907__cvltiv8r__snaresbycvltiv8r301wavCrc, rCurrentInterpolate.pVecPositions[i], kfSpaceshipHitSoundVolume);
 #endif
 
 					// Spawn hit flash effect at collision point
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 					engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, gSpaceshipHitFlashControllerTypeIndex, rResult.vecContactPoint, 0.0f);
 #endif
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 #define LOG_STATIC_VOICES(a, ...) ((void)0)
 #define LOG_STREAMING_VOICES(a, ...) ((void)0)

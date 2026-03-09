@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 #include "Frame/Collections/Collection.h"
 #include "Frame/GridCoord.h"

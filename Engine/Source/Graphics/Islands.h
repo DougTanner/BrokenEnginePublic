@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 namespace game
 {
@@ -13,7 +13,7 @@ namespace engine
 {
 
 class Texture;
-struct SubscribedFrame;
+struct CoordFrames;
 struct GridCoord;
 
 inline constexpr int64_t kiDefaultIslandCapacity = 16;
@@ -25,7 +25,7 @@ public:
 	Islands();
 	~Islands();
 
-	void UpdateActiveIslands(const std::unordered_map<GridCoord, SubscribedFrame>& rFrames, const std::vector<GridCoord>& rActiveCoords);
+	void UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrames>& rFrames, const std::vector<GridCoord>& rActiveCoords);
 
 	struct Island
 	{

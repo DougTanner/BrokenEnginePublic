@@ -13,7 +13,7 @@
 
 #include "Data/Texture.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
 #include "Data/Scene.h"
@@ -47,7 +47,7 @@ constexpr float kfExplosionParticleIntensityDecay = 2.4f;
 constexpr float kfBlasterSizeX = 0.5f;
 constexpr float kfBlasterSizeY = 1.5f;
 constexpr float kfBlasterFireInterval = 0.05f;
-constexpr float kfBlastersSpeed = 37.5f;
+constexpr float kfBlastersSpeed = 150.0f;
 constexpr float kfBlastersSpawnBarrelOffset = 0.7f;
 constexpr float kfBlastersSpawnPreMove = 0.75f;
 constexpr float kfBlasterAngleJitter = 0.03f;
@@ -70,7 +70,7 @@ constexpr uint32_t kuiExplosionBaseParticleCount = 16;
 constexpr float kfExplosionParticleVelocityMin = 5.0f;
 constexpr float kfExplosionParticleVelocityRandom = 15.0f;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 // Impact point light
 constexpr float kfImpactPointLightDuration = 0.4f;
 constexpr float kfImpactPointLightStartVisibleArea = 0.75f;
@@ -93,7 +93,7 @@ constexpr uint32_t kuiDeathTrailCount = 2;
 
 void PlayersInterpolate::Register()
 {
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	engine::AreaLightsInterpolate::RegisterType(suiAreaLightTypeIndex,
 	{
 		.crc = data::kTexturesBlasterBC74pngCrc,
@@ -114,7 +114,7 @@ void PlayersInterpolate::Register()
 	// Register player explosion type
 	engine::ExplosionsInterpolate::RegisterType(suiExplosionTypeIndex,
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		.uiPrimaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryLightControllerTypeIndex(),
 		.uiSecondaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryLightControllerTypeIndex(),
 		.uiPrimaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryPuffControllerTypeIndex(),
@@ -131,7 +131,7 @@ void PlayersInterpolate::Register()
 		.fParticleIntensityDecay = kfExplosionParticleIntensityDecay,
 	});
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	// Register impact point light type and controller (flash effect when hit)
 	uint8_t uiImpactPointLightTypeIndex = 0xFF;
 	engine::PointLightsInterpolate::RegisterType(uiImpactPointLightTypeIndex,
@@ -193,7 +193,7 @@ void PlayersInterpolate::AllocateAndCopy(PlayersInterpolate& rCurrent, const Pla
 	// Static fields - memcpy (never modified in Update)
 	if (rCurrent.iCount > 0)
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		std::memcpy(rCurrent.pWindTrails, rPrevious.pWindTrails, rCurrent.iCount * sizeof(rCurrent.pWindTrails[0]));
 		std::memcpy(rCurrent.pHexShields, rPrevious.pHexShields, rCurrent.iCount * sizeof(rCurrent.pHexShields[0]));
 #endif
@@ -245,7 +245,7 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 				.fShieldCooldown = rCurrentPostRender.pfShieldCooldowns[i],
 				.fShieldDownSoundCooldown = rCurrentPostRender.pfShieldDownSoundCooldowns[i],
 				.fAnimationTime = rCurrentInterpolate.pfAnimationTimes[i],
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 				.fShieldRotation = rCurrentInterpolate.pfShieldRotations[i],
 				.fShieldShrink = rCurrentInterpolate.pfShieldShrinks[i],
 #endif
@@ -262,7 +262,7 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 		rFrame.postRender.transferRequests.push_back(request);
 
 		// Remove owned objects
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		if (rCurrentInterpolate.pWindTrails[i].IsValid())
 		{
 			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.pWindTrails[i]);
@@ -284,7 +284,7 @@ void PlayersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		// Remove wind trail when exploding
 		if ((rCurrentPostRender.pFlags[i] & kExploding) && rCurrentInterpolate.pWindTrails[i].IsValid())
 		{
@@ -329,7 +329,7 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 			if (idIt != rCurrentInterpolate.idToIndexMap.end())
 			{
 				// Remove owned visual objects before removing the player
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 				int64_t iIndex = idIt->second;
 				if (rCurrentInterpolate.pWindTrails[iIndex].IsValid())
 				{
@@ -537,7 +537,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 {
 	ProcessSpawnStatusChanges(rFrame, rFrameInput);
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
 	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
 
@@ -578,13 +578,13 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	auto [iIndex, newId] = engine::AddIndexableElement(rCurrentInterpolate, rCurrentPostRender, rFrame.postRender);
 
 	// Initialize interpolate state
-	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
+	rCurrentInterpolate.pVecPositions[iIndex] = XMVectorSetW(rInfo.vecPosition, 1.0f);
 	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = 0.0f;
 	rCurrentInterpolate.pfAnimationTimes[iIndex] = rInfo.fAnimationTime;
 	rCurrentInterpolate.pfRotationAccelerationXs[iIndex] = 0.0f;
 	rCurrentInterpolate.pfRotationAccelerationYs[iIndex] = 0.0f;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	rCurrentInterpolate.pWindTrails[iIndex] = {};
 	rCurrentInterpolate.pHexShields[iIndex] = {};
 	rCurrentInterpolate.pfShieldRotations[iIndex] = rInfo.fShieldRotation;
@@ -612,6 +612,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	rCurrentPostRender.pfAiMissileTimers[iIndex] = 0.0f;
 	rCurrentPostRender.pfAiEdgeCrossCooldowns[iIndex] = kfAiEdgeCrossCooldown;
 	rCurrentPostRender.piAiEdgeCrossTargets[iIndex] = -1;
+	rCurrentPostRender.pfTransferLockTimers[iIndex] = rInfo.fTransferLockTimer;
 }
 
 bool PlayersInterpolate::operator==(const PlayersInterpolate& rOther) const
@@ -627,7 +628,7 @@ bool PlayersInterpolate::operator==(const PlayersInterpolate& rOther) const
 		bEqual &= common::BreakOnNotEqual(pfAnimationTimes[i], rOther.pfAnimationTimes[i]);
 		bEqual &= common::BreakOnNotEqual(pfRotationAccelerationXs[i], rOther.pfRotationAccelerationXs[i]);
 		bEqual &= common::BreakOnNotEqual(pfRotationAccelerationYs[i], rOther.pfRotationAccelerationYs[i]);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		bEqual &= common::BreakOnNotEqual(pWindTrails[i].ToUuid().Value(), rOther.pWindTrails[i].ToUuid().Value());
 		bEqual &= common::BreakOnNotEqual(pHexShields[i].ToUuid().Value(), rOther.pHexShields[i].ToUuid().Value());
 		bEqual &= common::BreakOnNotEqual(pfShieldRotations[i], rOther.pfShieldRotations[i]);
@@ -665,6 +666,7 @@ bool PlayersPostRender::operator==(const PlayersPostRender& rOther) const
 		bEqual &= common::BreakOnNotEqual(pfAiMissileTimers[i], rOther.pfAiMissileTimers[i]);
 		bEqual &= common::BreakOnNotEqual(pfAiEdgeCrossCooldowns[i], rOther.pfAiEdgeCrossCooldowns[i]);
 		bEqual &= common::BreakOnNotEqual(piAiEdgeCrossTargets[i], rOther.piAiEdgeCrossTargets[i]);
+		bEqual &= common::BreakOnNotEqual(pfTransferLockTimers[i], rOther.pfTransferLockTimers[i]);
 	}
 
 	return bEqual;

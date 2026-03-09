@@ -13,7 +13,7 @@ graph TD
     classDef protocol fill:#fef3c7,stroke:#d97706
 
     subgraph engine_network ["engine:: Network Subsystem"]
-        gpNetworkManager["gpNetworkManager<br/>NetworkManager<br/>(ENet lifecycle)<br/>kiMaxCoordSlots=11<br/>kuiChannelCount=24<br/>(2 control + 11 slot pairs)<br/>IsUnreliableChannel()"]:::shared
+        gpNetworkManager["gpNetworkManager<br/>NetworkManager<br/>(ENet lifecycle)<br/>kiMaxEnetCoordSlots=64<br/>kuiChannelCount=130<br/>(2 control + 64 slot pairs)<br/>IsUnreliableChannel()"]:::shared
 
         gpNetworkClient["gpNetworkClient<br/>NetworkClient<br/>(mpHost, mpServerPeer)"]:::clientOnly
         gpNetworkServer["gpNetworkServer<br/>NetworkServer<br/>(mpHost, mClients[])"]:::serverOnly
@@ -26,14 +26,14 @@ graph TD
     end
 
     subgraph server_data ["Server-Side Data"]
-        client_conn["ClientConnection<br/>pPeer, iClientId, humanPlayerId,<br/>humanGridCoord,<br/>coordSubscriptions[11],<br/>coordAckStates[11] (floor+bitfield+epoch),<br/>iClientTimestampNs"]:::serverOnly
+        client_conn["ClientConnection<br/>pPeer, iClientId, humanPlayerId,<br/>humanGridCoord,<br/>coordSubscriptions (vector),<br/>coordAckStates (vector) (floor+bitfield+epoch),<br/>iClientTimestampNs"]:::serverOnly
         buffered["mPerCoordBufferedFrames<br/>(per-coord ring buffers, 256 max)<br/>PerCoordBufferedFrame: serverCrc + inputCrc<br/>+ compressed data<br/>mBufferedFullFrames<br/>(debug frame ring buffer)"]:::serverOnly
         pending["mPendingSpawnRequests<br/>mPendingDisconnects<br/>mPendingNewSubscriptions"]:::serverOnly
     end
 
     subgraph client_data ["Client-Side Data"]
-        received["mReceivedCoordUpdates[11]<br/>(per-slot update buffers)<br/>ReceivedCoordUpdate: serverCrc + inputCrc<br/>+ statusChanges<br/>mReceivedFullStates<br/>mReceivedAssignments<br/>mReceivedPlayerStates"]:::clientOnly
-        ack_state["Per-Slot ACK State<br/>ClientCoordSlot[11]<br/>(coord, state, ackFloor, bitfield, epoch)"]:::clientOnly
+        received["mReceivedCoordUpdates (vector)<br/>(per-slot update buffers)<br/>ReceivedCoordUpdate: serverCrc + inputCrc<br/>+ statusChanges<br/>mReceivedFullStates<br/>mReceivedAssignments<br/>mReceivedPlayerStates"]:::clientOnly
+        ack_state["Per-Slot ACK State<br/>ClientCoordSlot (vector)<br/>(coord, state, ackFloor, bitfield, epoch)"]:::clientOnly
         delayed["mDelayedPackets<br/>(network simulation)"]:::clientOnly
     end
 
@@ -197,7 +197,7 @@ flowchart TD
     end
 
     subgraph worker_thread ["Reconcile Worker (PersistentWorker)"]
-        check_crc{"CRC fast-path:<br/>All coords' extrapolated CRCs<br/>(serverCrc + inputCrc)<br/>match server updates?<br/>(gapped coords skipped)"}:::decision
+        check_crc{"CRC fast-path:<br/>All coords' Frame CRCs<br/>(postRender.serverCrc +<br/>postRender.previousInputCrc)<br/>match server updates?<br/>(gapped coords skipped)"}:::decision
 
         fast["Use last matched snapshot<br/>as confirmed state per coord<br/>(no replay needed)"]:::worker
 
@@ -206,7 +206,7 @@ flowchart TD
         validate{"Input CRC + state CRC<br/>match per coord per frame?"}:::decision
         save_confirmed["Save new confirmed state<br/>per coord"]:::worker
         catchup["Predictive catch-up<br/>Simulate to iTargetFrame<br/>with extrapolated inputs"]:::worker
-        snapshot["Store per-coord<br/>ExtrapolatedSnapshots<br/>(for next CRC fast-path)"]:::worker
+        snapshot["Store per-coord<br/>SnapshotEntries<br/>(Frames with cached CRCs<br/>for next CRC fast-path)"]:::worker
 
         desync["Desync detected!<br/>Store desync info<br/>(frame, coord, CRCs)<br/>Return early"]:::desync
     end

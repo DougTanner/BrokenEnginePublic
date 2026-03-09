@@ -47,7 +47,7 @@ struct RawInput
 	XMFLOAT2 f2Triggers {};
 };
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 class RawInputManager
 {
 public:

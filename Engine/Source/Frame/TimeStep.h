@@ -3,6 +3,8 @@
 namespace engine
 {
 
+inline constexpr int64_t kiTickRate = 32;
+
 // Manages fixed timestep accumulator and time scaling for Frame updates
 class TimeStep
 {
@@ -10,12 +12,12 @@ public:
 
 	TimeStep();
 
-	// Add real delta time and return number of steps needed
-	// Returns 0 if not enough time accumulated for a step
-	int64_t UpdateRealtime();
+	// Add real delta time and return number of ticks needed
+	// Returns 0 if not enough time accumulated for a tick
+	int64_t TickRealtime();
 
-	// Consume one step from the accumulator
-	void ConsumeStep();
+	// Consume one tick from the accumulator
+	void ConsumeTick();
 
 	// Get interpolation alpha for smooth rendering between steps
 	// Returns value in [0, 1] representing how far between last and next step
@@ -34,8 +36,8 @@ public:
 	float GetAverageDelta() const { return mAverageDelta.Average(); }
 
 	// Death spiral prevention constants
-	static constexpr int64_t kiMaxUpdatesPerFrame = 12;  // Threshold for auto-reduction
-	static constexpr int64_t kiMaxAccumulatorSteps = 4;  // Max backlog (in update steps)
+	static constexpr int64_t kiMaxTicksPerFrame = 12;  // Threshold for auto-reduction
+	static constexpr int64_t kiMaxAccumulatorTicks = 4;  // Max backlog (in ticks)
 
 	// Decrease time scale (halve multiplier if > 1, else double divider if bAllowSlowMo)
 	// Returns true if time scale was changed, updates debug text
@@ -47,7 +49,7 @@ public:
 	common::Timer mRealTime;
 	int64_t miTimeMultiply = 1;
 	int64_t miTimeDivide = 1;
-	std::chrono::nanoseconds mUpdateRemainderNs = 0ns;
+	std::chrono::nanoseconds mTickRemainderNs = 0ns;
 	common::Smoothed<float, 256> mAverageDelta;
 };
 

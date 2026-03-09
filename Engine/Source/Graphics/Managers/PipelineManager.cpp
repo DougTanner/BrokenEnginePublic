@@ -1,4 +1,4 @@
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 #include "Graphics/Managers/PipelineManager.h"
 

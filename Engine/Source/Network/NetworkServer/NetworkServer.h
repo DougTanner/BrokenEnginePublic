@@ -35,8 +35,8 @@ struct ClientConnection
 	GridCoord humanGridCoord {};
 
 	// Slot-based subscriptions (replaces activeCoords + pendingFullStateCoords)
-	ClientCoordSubscription coordSubscriptions[NetworkManager::kiMaxCoordSlots] {};
-	PerCoordAckState coordAckStates[NetworkManager::kiMaxCoordSlots] {};
+	std::vector<ClientCoordSubscription> coordSubscriptions;
+	std::vector<PerCoordAckState> coordAckStates;
 
 	// Pipeline RTT: echoed back to client in update packets
 	int64_t iClientTimestampNs = 0;
@@ -44,7 +44,7 @@ struct ClientConnection
 	// Helpers
 	int64_t FindSlotForCoord(GridCoord coord) const
 	{
-		for (int64_t i = 0; i < NetworkManager::kiMaxCoordSlots; ++i)
+		for (int64_t i = 0; i < std::ssize(coordSubscriptions); ++i)
 		{
 			if (coordSubscriptions[i].bActive && coordSubscriptions[i].coord == coord)
 			{
@@ -56,7 +56,7 @@ struct ClientConnection
 
 	int64_t AllocateSlot()
 	{
-		for (int64_t i = 0; i < NetworkManager::kiMaxCoordSlots; ++i)
+		for (int64_t i = 0; i < std::ssize(coordSubscriptions); ++i)
 		{
 			if (!coordSubscriptions[i].bActive)
 			{
@@ -110,7 +110,7 @@ struct GridUpdateData
 // Per-coord ring buffer entry for re-send support
 struct PerCoordBufferedFrame
 {
-	int64_t iFrame = 0;
+	int64_t iTick = 0;
 	common::crc_t serverCrc = 0;
 	common::crc_t inputCrc = 0;
 	// Heap: variable-size compressed status change data per frame
@@ -119,7 +119,7 @@ struct PerCoordBufferedFrame
 
 struct BufferedFullFrame
 {
-	int64_t iFrame = 0;
+	int64_t iTick = 0;
 	// Heap: serialized frame data per grid coordinate for debug frame requests
 	std::unordered_map<GridCoord, std::string> serializedFrames;
 };
@@ -135,11 +135,11 @@ public:
 
 	void SendAssignPlayer(int64_t iClientId, game::player_t playerId, GridCoord coord);
 	void SendPlayerState(int64_t iClientId, PlayerStateType eStateType, game::player_t playerId, GridCoord coord);
-	void SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iFrame, GridCoord coord, const game::Frame* pFrame);
-	void BufferFrame(int64_t iFrame, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);
-	void BufferFullFrame(int64_t iFrame, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames);
-	void SendUpdate(ClientConnection& rClient, int64_t iFrame);
-	void SendResends(ClientConnection& rClient, int64_t iFrame);
+	void SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick, GridCoord coord, const game::Frame* pFrame);
+	void BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);
+	void BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames);
+	void SendUpdate(ClientConnection& rClient, int64_t iTick);
+	void SendResends(ClientConnection& rClient, int64_t iTick);
 	void Flush();
 	std::vector<PendingSpawnRequest>& DrainPendingSpawnRequests() { return mPendingSpawnRequests; }
 	std::vector<PendingDisconnect>& DrainPendingDisconnects() { return mPendingDisconnects; }
@@ -168,7 +168,7 @@ private:
 	void SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot);
 
 	void WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, PacketType eType, int64_t iSlot, uint16_t uiEpoch, const PerCoordBufferedFrame& rBuffered, int64_t iTimestampNs);
-	const PerCoordBufferedFrame* FindBufferedFrame(GridCoord coord, int64_t iFrame) const;
+	const PerCoordBufferedFrame* FindBufferedFrame(GridCoord coord, int64_t iTick) const;
 	int CompressToBuffer(const char* pData, int iSize);
 	void RemoveClient(int64_t iClientId);
 

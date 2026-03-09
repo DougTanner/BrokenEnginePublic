@@ -5,12 +5,12 @@
 
 #include "Frame/HealthDamage.h"
 #include "Profile/ProfileManager.h"
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/Puffs/Puffs.h"
 #endif
 
 #include "Data/Audio.h"
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Data/Texture.h"
 #endif
 
@@ -37,7 +37,7 @@ constexpr float kfTerrainImpactVolume = 0.3f;
 constexpr int64_t kiTerrainSearchSteps = 32;
 constexpr float kfTerrainSearchStepPercent = 1.0f / static_cast<float>(kiTerrainSearchSteps);
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 // Terrain effect registrations
 static uint8_t suiTerrainCraterTypeIndex = 0xFF;
 static uint8_t suiTerrainCraterControllerIndex = 0xFF;
@@ -178,7 +178,7 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.pVecDirections[i] = vecDirection;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		// Sync owned objects
 		SyncBlaster(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i],
 			rPreviousPostRender.puiSounds[i],
@@ -308,13 +308,13 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 
 			// Spawn terrain effects
 			float fRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiTerrainCraterControllerIndex, vecCollisionPosition, fRotation);
 			engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiTerrainPuffControllerIndex, vecCollisionPosition);
 #endif
 
 			// Play terrain impact sound
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, kfTerrainImpactVolume);
 #endif
 		}

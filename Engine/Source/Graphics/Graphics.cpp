@@ -1,4 +1,4 @@
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 #include "Graphics.h"
 
@@ -138,7 +138,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame, float fCurrent
 	}
 
 	gpProfileManager->CpuStart(kCpuTimerRenderGlobal);
-	RenderFrameGlobal(iCommandBuffer, fCurrentTime, rFrame.interpolate.iFrame);
+	RenderFrameGlobal(iCommandBuffer, fCurrentTime, rFrame.interpolate.iTick);
 	gpParticleManager->RenderGlobal(iCommandBuffer, rFrame.interpolate);
 	gpProfileManager->CpuStop(kCpuTimerRenderGlobal, false);
 

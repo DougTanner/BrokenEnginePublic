@@ -13,7 +13,7 @@
 
 #include "Data/Texture.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/PointLights/PointLights.h"
 #endif
 
@@ -37,7 +37,7 @@ static void RegisterSpaceshipTargetType();
 // Shared type indices (accessible from SpaceshipsUpdate.cpp via extern)
 uint8_t gSpaceshipExplosionTypeIndex = 0xFF;
 uint8_t gSpaceshipTargetTypeIndex = 0xFF;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 static uint8_t suiSpaceshipHitFlashTypeIndex = 255;
 uint8_t gSpaceshipHitFlashControllerTypeIndex = 255;
 
@@ -70,7 +70,7 @@ constexpr float kfEnemyBlasterLightingIntensity = 800.0f;
 constexpr float kfTargetSize = 0.06f;
 constexpr float kfTargetAlpha = 1.5f;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 // Hit flash effect
 constexpr float kfHitFlashDuration = 0.3f;
 constexpr float kfHitFlashVisibleArea = 0.5f;
@@ -110,7 +110,7 @@ void SpaceshipsInterpolate::Register()
 	// Spaceship explosion type
 	engine::ExplosionsInterpolate::RegisterType(gSpaceshipExplosionTypeIndex,
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		.uiPrimaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryLightControllerTypeIndex(),
 		.uiSecondaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryLightControllerTypeIndex(),
 		.uiPrimaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryPuffControllerTypeIndex(),
@@ -133,7 +133,7 @@ void SpaceshipsInterpolate::Register()
 
 	RegisterSpaceshipTargetType();
 	RegisterEnemyBlasterType();
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	RegisterSpaceshipHitFlashEffect();
 #endif
 }
@@ -149,7 +149,7 @@ static void RegisterEnemyBlasterType()
 		return;
 	}
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	// Register area light type for enemy blasters
 	engine::AreaLightsInterpolate::RegisterType(suiEnemyBlasterAreaLightTypeIndex,
 	{
@@ -209,7 +209,7 @@ static void RegisterSpaceshipTargetType()
 	});
 }
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 static void RegisterSpaceshipHitFlashEffect()
 {
 	if (suiSpaceshipHitFlashTypeIndex == 255)
@@ -271,7 +271,7 @@ void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, con
 	{
 		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, rCurrent.iCount * sizeof(rCurrent.puiPushers[0]));
 		std::memcpy(rCurrent.puiTargets, rPrevious.puiTargets, rCurrent.iCount * sizeof(rCurrent.puiTargets[0]));
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		std::memcpy(rCurrent.puiWindTrails, rPrevious.puiWindTrails, rCurrent.iCount * sizeof(rCurrent.puiWindTrails[0]));
 #endif
 	}
@@ -332,7 +332,7 @@ void SpaceshipsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 			TargetsPostRender::Remove(rFrame, rCurrentInterpolate.puiTargets[i], {TargetFlags::kDestination});
 		}
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
 			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
@@ -357,7 +357,7 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 
 		// Cleanup owned objects
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
 			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
@@ -436,7 +436,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 	}
 }
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 void SpaceshipsInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 {
 	SpaceshipsInterpolate& rSpaceships = *rFrame.interpolate.pSpaceships;
@@ -478,12 +478,12 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
 
 	// Initialize interpolate state
-	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
+	rCurrentInterpolate.pVecPositions[iIndex] = XMVectorSetW(rInfo.vecPosition, 1.0f);
 	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 	rCurrentInterpolate.pfDeltaRotations[iIndex] = 0.0f;
 	rCurrentInterpolate.pfFreezeTimes[iIndex] = 0.0f;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	rCurrentInterpolate.pfAnimationTimes[iIndex] = 0.0f;
 #endif
 
@@ -492,7 +492,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
 
 	// Create owned wind deposit
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	SpaceshipsInterpolate::ClientInit(rFrame, iIndex);
 #endif
 
@@ -529,12 +529,12 @@ bool SpaceshipsInterpolate::operator==(const SpaceshipsInterpolate& rOther) cons
 		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
 		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
 		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		bEqual &= common::BreakOnNotEqual(puiWindTrails[i], rOther.puiWindTrails[i]);
 #endif
 		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
 		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		bEqual &= common::BreakOnNotEqual(pfAnimationTimes[i], rOther.pfAnimationTimes[i]);
 #endif
 	}

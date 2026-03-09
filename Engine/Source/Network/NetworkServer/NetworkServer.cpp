@@ -125,6 +125,8 @@ void NetworkServer::HandleConnect(ENetEvent& rEvent)
 	ClientConnection connection {};
 	connection.pPeer = rEvent.peer;
 	connection.iClientId = miNextClientId++;
+	connection.coordSubscriptions.resize(NetworkManager::kiMaxEnetCoordSlots);
+	connection.coordAckStates.resize(NetworkManager::kiMaxEnetCoordSlots);
 
 	rEvent.peer->data = reinterpret_cast<void*>(connection.iClientId);
 
@@ -207,7 +209,7 @@ void NetworkServer::HandleReceive(const uint8_t* pData, size_t iSize, ENetPeer* 
 	}
 }
 
-void NetworkServer::BufferFrame(int64_t iFrame, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates)
+void NetworkServer::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
@@ -215,7 +217,7 @@ void NetworkServer::BufferFrame(int64_t iFrame, const std::vector<std::pair<Grid
 	{
 		// Heap: per-coord ring buffer grows until steady state
 		PerCoordBufferedFrame buffered {};
-		buffered.iFrame = iFrame;
+		buffered.iTick = iTick;
 		buffered.serverCrc = updateData.serverCrc;
 		buffered.inputCrc = updateData.inputCrc;
 
@@ -247,13 +249,13 @@ void NetworkServer::BufferFrame(int64_t iFrame, const std::vector<std::pair<Grid
 	});
 }
 
-void NetworkServer::BufferFullFrame(int64_t iFrame, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames)
+void NetworkServer::BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	// Heap: ring buffer grows until steady state
 	BufferedFullFrame buffered {};
-	buffered.iFrame = iFrame;
+	buffered.iTick = iTick;
 
 	for (const auto& [coord, pFrame] : rFrames)
 	{
@@ -270,7 +272,7 @@ void NetworkServer::BufferFullFrame(int64_t iFrame, const std::vector<std::pair<
 	}
 }
 
-const PerCoordBufferedFrame* NetworkServer::FindBufferedFrame(GridCoord coord, int64_t iFrame) const
+const PerCoordBufferedFrame* NetworkServer::FindBufferedFrame(GridCoord coord, int64_t iTick) const
 {
 	auto coordBufferIt = mPerCoordBufferedFrames.find(coord);
 	if (coordBufferIt == mPerCoordBufferedFrames.end())
@@ -282,7 +284,7 @@ const PerCoordBufferedFrame* NetworkServer::FindBufferedFrame(GridCoord coord, i
 	{
 		return nullptr;
 	}
-	int64_t iIndex = iFrame - rCoordBuffer.front().iFrame;
+	int64_t iIndex = iTick - rCoordBuffer.front().iTick;
 	if (iIndex < 0 || iIndex >= static_cast<int64_t>(rCoordBuffer.size()))
 	{
 		return nullptr;

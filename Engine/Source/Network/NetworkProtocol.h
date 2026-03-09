@@ -46,7 +46,6 @@ inline constexpr int64_t kiMaxResendFrames = 8;
 inline constexpr int64_t kiMaxBufferedFrames = 256;
 inline constexpr int64_t kiMaxPacketSize = 64 * 1024;
 inline constexpr int64_t kiMaxStatusChangesPerCell = 1024;
-inline constexpr int64_t kiMaxMissingFrames = 64;
 
 // LAN discovery constants
 inline constexpr uint16_t kuiDiscoveryPort = kuiDefaultPort + 1;
@@ -114,7 +113,7 @@ inline std::chrono::steady_clock::duration RandomOneWayDelay(const NetworkSimula
 inline bool ShouldDrop(const NetworkSimulationConfig& rConfig)
 {
 	static int64_t siConsecutiveDrops = 0;
-	static constexpr int64_t kiMaxConsecutiveDrops = kiMaxMissingFrames / 2;
+	static constexpr int64_t kiMaxConsecutiveDrops = kiTickRate / 2;
 
 	bool bDrop = false;
 	if (siConsecutiveDrops > 0)

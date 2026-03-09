@@ -30,7 +30,7 @@ static std::unique_ptr<game::Frame> DecompressAndReadFrame(const uint8_t*& pCurs
 
 void NetworkClient::ClearSubscribingPlaceholder(GridCoord coord)
 {
-	for (int64_t i = 0; i < NetworkManager::kiMaxCoordSlots; ++i)
+	for (int64_t i = 0; i < std::ssize(mCoordSlots); ++i)
 	{
 		if (mCoordSlots[i].eState == CoordSubscriptionState::kSubscribing && mCoordSlots[i].coord == coord)
 		{
@@ -75,22 +75,22 @@ void NetworkClient::HandleServerCoordFullState(const uint8_t* pData)
 
 	uint8_t uiSlotIndex = ReadUint8(pCursor);
 	uint16_t uiEpoch = ReadUint16(pCursor);
-	int64_t iFrame = ReadInt64(pCursor);
+	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
 
-	common::Log("NetworkClient: Received coord full state frame {} slot {} coord ({},{})", iFrame, uiSlotIndex, coord.x, coord.y);
+	common::Log("NetworkClient: Received coord full state frame {} slot {} coord ({},{})", iTick, uiSlotIndex, coord.x, coord.y);
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor);
 	if (pFrame == nullptr)
 	{
-		common::Log("NetworkClient: LZ4 decompression failed for full state coord ({},{}) frame {}", coord.x, coord.y, iFrame);
+		common::Log("NetworkClient: LZ4 decompression failed for full state coord ({},{}) frame {}", coord.x, coord.y, iTick);
 		return;
 	}
 
 	// Validate slot before pushing full state
-	if (uiSlotIndex >= NetworkManager::kiMaxCoordSlots)
+	if (uiSlotIndex >= std::ssize(mCoordSlots))
 	{
 		return;
 	}
@@ -118,7 +118,7 @@ void NetworkClient::HandleServerCoordFullState(const uint8_t* pData)
 	}
 
 	ReceivedCoordFullState fullState {};
-	fullState.iFrame = iFrame;
+	fullState.iTick = iTick;
 	fullState.coord = coord;
 	fullState.iSlot = uiSlotIndex;
 	fullState.pFrame = std::move(pFrame);
@@ -126,11 +126,11 @@ void NetworkClient::HandleServerCoordFullState(const uint8_t* pData)
 	// Heap: received full states vector grows on new cell data
 	mReceivedFullStates.push_back(std::move(fullState));
 
-	rSlot.iAckFloor = iFrame;
+	rSlot.iAckFloor = iTick;
 	rSlot.uiReceivedBitfield = 0;
 	rSlot.uiEpoch = uiEpoch;
 	rSlot.eState = CoordSubscriptionState::kActive;
-	FILE_LOG(0, "[NetworkClient] Slot {} now Active: coord=({},{}) ackFloor={}", uiSlotIndex, coord.x, coord.y, iFrame);
+	FILE_LOG(0, "[NetworkClient] Slot {} now Active: coord=({},{}) ackFloor={}", uiSlotIndex, coord.x, coord.y, iTick);
 }
 
 void NetworkClient::HandleServerCoordUpdateOrResend(const uint8_t* pData, bool bProcessRtt)
@@ -139,7 +139,7 @@ void NetworkClient::HandleServerCoordUpdateOrResend(const uint8_t* pData, bool b
 
 	uint8_t uiSlotIndex = ReadUint8(pCursor);
 	uint16_t uiEpoch = ReadUint16(pCursor);
-	int64_t iFrame = ReadInt64(pCursor);
+	int64_t iTick = ReadInt64(pCursor);
 
 	// Pipeline RTT: read echoed client timestamp (monotonic guard prevents duplicate processing during multi-frame ticks)
 	int64_t iEchoedTimestampNs = ReadInt64(pCursor);
@@ -152,7 +152,7 @@ void NetworkClient::HandleServerCoordUpdateOrResend(const uint8_t* pData, bool b
 		mSmoothedPipelineRttUs.Update();
 	}
 
-	if (uiSlotIndex >= NetworkManager::kiMaxCoordSlots)
+	if (uiSlotIndex >= std::ssize(mCoordSlots))
 	{
 		return;
 	}
@@ -170,7 +170,7 @@ void NetworkClient::HandleServerCoordUpdateOrResend(const uint8_t* pData, bool b
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	ReceivedCoordUpdate update {};
-	update.iFrame = iFrame;
+	update.iTick = iTick;
 	update.serverCrc = serverCrc;
 	update.inputCrc = inputCrc;
 
@@ -187,7 +187,7 @@ void NetworkClient::HandleServerCoordUpdateOrResend(const uint8_t* pData, bool b
 	mReceivedCoordUpdates[uiSlotIndex].push_back(std::move(update));
 	if (!bWaitingFullState)
 	{
-		TrackReceivedFrame(uiSlotIndex, iFrame);
+		TrackReceivedTick(uiSlotIndex, iTick);
 	}
 
 }
@@ -196,21 +196,21 @@ void NetworkClient::HandleServerDebugFrame(const uint8_t* pData)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
-	int64_t iFrame = ReadInt64(pCursor);
+	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
-	common::Log("NetworkClient: Received debug frame {} grid ({},{})", iFrame, coord.x, coord.y);
+	common::Log("NetworkClient: Received debug frame {} grid ({},{})", iTick, coord.x, coord.y);
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor);
 	if (pFrame == nullptr)
 	{
-		common::Log("NetworkClient: LZ4 decompression failed for debug frame {}", iFrame);
+		common::Log("NetworkClient: LZ4 decompression failed for debug frame {}", iTick);
 		return;
 	}
 
 	mpReceivedDebugFrame = std::make_unique<ReceivedDebugFrame>();
-	mpReceivedDebugFrame->iFrame = iFrame;
+	mpReceivedDebugFrame->iTick = iTick;
 	mpReceivedDebugFrame->coord = coord;
 	mpReceivedDebugFrame->pFrame = std::move(pFrame);
 }
@@ -243,7 +243,7 @@ void NetworkClient::HandleServerSubscribeAccept(const uint8_t* pData)
 	uint16_t uiEpoch = ReadUint16(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
 
-	if (uiSlotIndex >= NetworkManager::kiMaxCoordSlots)
+	if (uiSlotIndex >= std::ssize(mCoordSlots))
 	{
 		// Server rejected subscription (no free slot) — clear the kSubscribing placeholder
 		ClearSubscribingPlaceholder(coord);
@@ -282,7 +282,7 @@ void NetworkClient::HandleServerUnsubscribeAck(const uint8_t* pData)
 
 	uint8_t uiSlotIndex = ReadUint8(pCursor);
 
-	if (uiSlotIndex >= NetworkManager::kiMaxCoordSlots)
+	if (uiSlotIndex >= std::ssize(mCoordSlots))
 	{
 		return;
 	}

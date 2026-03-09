@@ -1,11 +1,11 @@
 #pragma once
 
 #include "Frame/Alignments.h"
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/AreaLights/AreaLights.h"
 #endif
 #include "Frame/Collections/Collection.h"
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/Sounds/Sounds.h"
 #include "Frame/Collections/WindTrails/WindTrails.h"
 #endif
@@ -41,13 +41,13 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	static void ClientInit(Frame& rFrame, int64_t iIndex);
 	static void ClientInitAll(Frame& rFrame);
 #endif
 
 	// Render
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	static void BeginRender(int64_t, const std::unordered_map<engine::GridCoord, FrameInterpolate>&, const std::vector<engine::GridCoord>&) {}
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 	static void EndRender(int64_t) {}
@@ -56,7 +56,7 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
 	engine::wind_trail_t* __restrict puiWindTrails = nullptr;
 	float* __restrict pfWindTrailIntensities = nullptr;
@@ -64,12 +64,12 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 	float* __restrict pfWindTrailLengthMultipliers = nullptr;
 #endif
 	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pVecDirections); }
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiAreaLights, rSelf.puiWindTrails, rSelf.pfWindTrailIntensities, rSelf.pfWindTrailWidths, rSelf.pfWindTrailLengthMultipliers); }
 #endif
 	auto Members(this auto&& rSelf)
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
 #else
 		return rSelf.SharedMembers();
@@ -104,18 +104,18 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 
 	BlasterFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	engine::sound_t* __restrict puiSounds = nullptr;
 #endif
 	float* __restrict pfPitches = nullptr;
 	engine::alignment_t* __restrict pAlignments = nullptr;
 	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pfPitches, rSelf.pAlignments); }
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiSounds); }
 #endif
 	auto Members(this auto&& rSelf)
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
 #else
 		return rSelf.SharedMembers();

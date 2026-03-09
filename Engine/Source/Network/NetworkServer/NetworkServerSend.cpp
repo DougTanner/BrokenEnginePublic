@@ -72,7 +72,7 @@ void NetworkServer::SendPlayerState(int64_t iClientId, PlayerStateType eStateTyp
 	rWorkbuffer.Pop();
 }
 
-void NetworkServer::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iFrame, GridCoord coord, const game::Frame* pFrame)
+void NetworkServer::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick, GridCoord coord, const game::Frame* pFrame)
 {
 	ClientConnection* pClient = FindClient(iClientId);
 	if (pClient == nullptr)
@@ -80,8 +80,8 @@ void NetworkServer::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t
 		return;
 	}
 
-	common::Log("NetworkServer: Sending coord full state to client {} (frame {}, slot {}, coord ({},{}))", iClientId, iFrame, iSlot, coord.x, coord.y);
-	FILE_LOG(0, "[SendCoordFullState] client={} frame={} slot={} coord=({},{})", iClientId, iFrame, iSlot, coord.x, coord.y);
+	common::Log("NetworkServer: Sending coord full state to client {} (frame {}, slot {}, coord ({},{}))", iClientId, iTick, iSlot, coord.x, coord.y);
+	FILE_LOG(0, "[SendCoordFullState] client={} frame={} slot={} coord=({},{})", iClientId, iTick, iSlot, coord.x, coord.y);
 
 	// Serialize frame to a temporary stringstream
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -100,7 +100,7 @@ void NetworkServer::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerCoordFullState));
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
 	rWorkbuffer.PushBack<uint16_t>(pClient->coordAckStates[iSlot].uiEpoch);
-	rWorkbuffer.PushBack<int64_t>(iFrame);
+	rWorkbuffer.PushBack<int64_t>(iTick);
 	rWorkbuffer.PushBack<int32_t>(coord.x);
 	rWorkbuffer.PushBack<int32_t>(coord.y);
 	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(frameData.size()));
@@ -145,7 +145,7 @@ void NetworkServer::SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot
 	// [1B type][1B slotIndex][2B epoch][4B coord.x][4B coord.y]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerSubscribeAccept));
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
-	uint16_t uiEpoch = (iSlot < NetworkManager::kiMaxCoordSlots) ? rClient.coordAckStates[iSlot].uiEpoch : 0;
+	uint16_t uiEpoch = (iSlot < std::ssize(rClient.coordSubscriptions)) ? rClient.coordAckStates[iSlot].uiEpoch : 0;
 	rWorkbuffer.PushBack<uint16_t>(uiEpoch);
 	rWorkbuffer.PushBack<int32_t>(coord.x);
 	rWorkbuffer.PushBack<int32_t>(coord.y);
@@ -184,7 +184,7 @@ void NetworkServer::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, Pa
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(eType));
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
 	rWorkbuffer.PushBack<uint16_t>(uiEpoch);
-	rWorkbuffer.PushBack<int64_t>(rBuffered.iFrame);
+	rWorkbuffer.PushBack<int64_t>(rBuffered.iTick);
 	rWorkbuffer.PushBack<int64_t>(iTimestampNs);
 	rWorkbuffer.PushBack<uint64_t>(rBuffered.serverCrc);
 	rWorkbuffer.PushBack<uint64_t>(rBuffered.inputCrc);
@@ -197,12 +197,12 @@ void NetworkServer::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, Pa
 	}
 }
 
-void NetworkServer::SendUpdate(ClientConnection& rClient, int64_t iFrame)
+void NetworkServer::SendUpdate(ClientConnection& rClient, int64_t iTick)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	// Send one packet per active subscription slot
-	for (int64_t iSlot = 0; iSlot < NetworkManager::kiMaxCoordSlots; ++iSlot)
+	for (int64_t iSlot = 0; iSlot < std::ssize(rClient.coordSubscriptions); ++iSlot)
 	{
 		if (!rClient.coordSubscriptions[iSlot].bActive)
 		{
@@ -211,7 +211,7 @@ void NetworkServer::SendUpdate(ClientConnection& rClient, int64_t iFrame)
 
 		GridCoord coord = rClient.coordSubscriptions[iSlot].coord;
 
-		const PerCoordBufferedFrame* pBuffered = FindBufferedFrame(coord, iFrame);
+		const PerCoordBufferedFrame* pBuffered = FindBufferedFrame(coord, iTick);
 		if (pBuffered == nullptr)
 		{
 			continue;
@@ -232,12 +232,12 @@ void NetworkServer::SendUpdate(ClientConnection& rClient, int64_t iFrame)
 	}
 }
 
-void NetworkServer::SendResends(ClientConnection& rClient, int64_t iFrame)
+void NetworkServer::SendResends(ClientConnection& rClient, int64_t iTick)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	// Iterate per-slot: each active subscription has its own ACK state and coord ring buffer
-	for (int64_t iSlot = 0; iSlot < NetworkManager::kiMaxCoordSlots; ++iSlot)
+	for (int64_t iSlot = 0; iSlot < std::ssize(rClient.coordSubscriptions); ++iSlot)
 	{
 		if (!rClient.coordSubscriptions[iSlot].bActive)
 		{
@@ -267,7 +267,7 @@ void NetworkServer::SendResends(ClientConnection& rClient, int64_t iFrame)
 			}
 
 			int64_t iMissingFrame = rAck.iAckFloor + 1 + iBit;
-			if (iMissingFrame >= iFrame)
+			if (iMissingFrame >= iTick)
 			{
 				break;
 			}

@@ -5,7 +5,7 @@
 #include "Profile/ProfileManager.h"
 #include "Frame/Collections/Spaceships/Spaceships.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
 #include "Data/Scene.h"
@@ -22,7 +22,7 @@ using enum PlayerFlags;
 
 // Interpolate update
 constexpr float kfRotateTowardsSpeed = 10.0f;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 constexpr float kfShieldShrinkSpeed = 1.5f;
 constexpr float kfShieldRotationSpeed = 4.0f;
 constexpr float kfHexShieldIntensityDecay = 1.25f;
@@ -130,7 +130,7 @@ void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rF
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
 		rCurrent.pfAnimationTimes[i] = fAnimationTime;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		// Rotation tilt from velocity
 		float fRotationAccelerationX = std::clamp(kfRotationTiltFactor * XMVectorGetX(rPreviousPostRender.pVecVelocities[i]), -kfRotationTiltMax, kfRotationTiltMax);
 		float fRotationAccelerationY = std::clamp(-kfRotationTiltFactor * XMVectorGetY(rPreviousPostRender.pVecVelocities[i]), -kfRotationTiltMax, kfRotationTiltMax);
@@ -269,97 +269,106 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		float fAiMissileTimer = rPrevious.pfAiMissileTimers[i];
 		float fAiEdgeCrossCooldown = rPrevious.pfAiEdgeCrossCooldowns[i];
 		int8_t iAiEdgeCrossTarget = rPrevious.piAiEdgeCrossTargets[i];
+		float fTransferLockTimer = rPrevious.pfTransferLockTimers[i];
 		XMVECTOR vecPosition = rPreviousInterpolate.pVecPositions[i];
 
-		// --- AI computation ---
-
-		// Initialize direction if zero (first spawn or after reset)
-		if (XMVectorGetX(XMVector3LengthSq(vecAiDirection)) < 0.001f)
+		// Transfer lock: maintain constant velocity, skip AI and weapon logic
+		if (fTransferLockTimer > 0.0f)
 		{
-			float fAngle = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
-			vecAiDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
+			fTransferLockTimer -= fDeltaTime;
 		}
-
-		auto [vecNewAiDirection, fNewEdgeCrossCooldown, iNewEdgeCrossTarget] = ComputeAiSteering(vecPosition, vecAiDirection, vecArea, vecFrameCenter, fDeltaTime, fAiEdgeCrossCooldown, iAiEdgeCrossTarget, i % 2 == 0);
-		vecAiDirection = vecNewAiDirection;
-		fAiEdgeCrossCooldown = fNewEdgeCrossCooldown;
-		iAiEdgeCrossTarget = iNewEdgeCrossTarget;
-
-		// Find nearest alive spaceship
-		float fClosestDistance = kfTargetRange;
-		XMVECTOR vecClosestPosition = XMVectorZero();
-		bool bTargetFound = false;
-
-		for (int64_t j = 0; j < iSpaceshipCount; ++j)
+		else
 		{
-			if (rSpaceshipsInterpolate.pfDestroyedTimes[j] != -1.0f)
+			// --- AI computation ---
+
+			// Initialize direction if zero (first spawn or after reset)
+			if (XMVectorGetX(XMVector3LengthSq(vecAiDirection)) < 0.001f)
 			{
-				continue;
+				float fAngle = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
+				vecAiDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
 			}
 
-			if (!FrameInterpolate::IsVisible(vecPosition, rSpaceshipsInterpolate.pVecPositions[j]))
-			{
-				continue;
-			}
+			auto [vecNewAiDirection, fNewEdgeCrossCooldown, iNewEdgeCrossTarget] = ComputeAiSteering(vecPosition, vecAiDirection, vecArea, vecFrameCenter, fDeltaTime, fAiEdgeCrossCooldown, iAiEdgeCrossTarget, i % 2 == 0);
+			vecAiDirection = vecNewAiDirection;
+			fAiEdgeCrossCooldown = fNewEdgeCrossCooldown;
+			iAiEdgeCrossTarget = iNewEdgeCrossTarget;
 
-			float fDistance = common::Distance(vecPosition, rSpaceshipsInterpolate.pVecPositions[j]);
-			if (fDistance < fClosestDistance)
+			// Find nearest alive spaceship
+			float fClosestDistance = kfTargetRange;
+			XMVECTOR vecClosestPosition = XMVectorZero();
+			bool bTargetFound = false;
+
+			for (int64_t j = 0; j < iSpaceshipCount; ++j)
 			{
-				if (!HasLineOfSight(vecPosition, rSpaceshipsInterpolate.pVecPositions[j]))
+				if (rSpaceshipsInterpolate.pfDestroyedTimes[j] != -1.0f)
 				{
 					continue;
 				}
 
-				fClosestDistance = fDistance;
-				vecClosestPosition = rSpaceshipsInterpolate.pVecPositions[j];
-				bTargetFound = true;
+				if (!FrameInterpolate::IsVisible(vecPosition, rSpaceshipsInterpolate.pVecPositions[j]))
+				{
+					continue;
+				}
+
+				float fDistance = common::Distance(vecPosition, rSpaceshipsInterpolate.pVecPositions[j]);
+				if (fDistance < fClosestDistance)
+				{
+					if (!HasLineOfSight(vecPosition, rSpaceshipsInterpolate.pVecPositions[j]))
+					{
+						continue;
+					}
+
+					fClosestDistance = fDistance;
+					vecClosestPosition = rSpaceshipsInterpolate.pVecPositions[j];
+					bTargetFound = true;
+				}
 			}
+
+			// Manage burst timer
+			fAiFireTimer -= fDeltaTime;
+			if (fAiFireTimer <= 0.0f && bTargetFound)
+			{
+				fAiFireTimer = kfBurstDuration + kfBurstCooldown;
+			}
+
+			bool bFiring = fAiFireTimer > kfBurstCooldown && bTargetFound;
+
+			// Manage missile timer
+			fAiMissileTimer -= fDeltaTime;
+			if (fAiMissileTimer <= 0.0f && bTargetFound)
+			{
+				fAiMissileTimer = kfMissileBurstDuration + kfMissileBurstCooldown;
+			}
+
+			bool bFiringMissiles = fAiMissileTimer > kfMissileBurstCooldown && bTargetFound;
+
+			// --- Apply AI results ---
+
+			// Fire flags
+			if (bFiring)
+			{
+				flags.Set(kFireBlaster);
+			}
+			else
+			{
+				fNextBlasterFireTime = 0.0f;
+			}
+
+			if (bFiringMissiles)
+			{
+				flags.Set(kFireMissile);
+			}
+
+			// Apply movement: decay existing velocity and add acceleration from AI direction
+			XMVECTOR vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), vecAiDirection);
+			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(common::ExponentialDecay(kfAccelerationDecay, fDeltaTime)), vecVelocity, vecAcceleration);
+
+			// Direction: aim at target if firing, else follow AI direction
+			bool bAiming = bFiring || bFiringMissiles;
+			vecWantedDirection = bAiming
+				? XMVector3Normalize(XMVectorSubtract(vecClosestPosition, vecPosition))
+				: vecAiDirection;
 		}
-
-		// Manage burst timer
-		fAiFireTimer -= fDeltaTime;
-		if (fAiFireTimer <= 0.0f && bTargetFound)
-		{
-			fAiFireTimer = kfBurstDuration + kfBurstCooldown;
-		}
-
-		bool bFiring = fAiFireTimer > kfBurstCooldown && bTargetFound;
-
-		// Manage missile timer
-		fAiMissileTimer -= fDeltaTime;
-		if (fAiMissileTimer <= 0.0f && bTargetFound)
-		{
-			fAiMissileTimer = kfMissileBurstDuration + kfMissileBurstCooldown;
-		}
-
-		bool bFiringMissiles = fAiMissileTimer > kfMissileBurstCooldown && bTargetFound;
-
-		// --- Apply AI results ---
-
-		// Fire flags
-		if (bFiring)
-		{
-			flags.Set(kFireBlaster);
-		}
-		else
-		{
-			fNextBlasterFireTime = 0.0f;
-		}
-
-		if (bFiringMissiles)
-		{
-			flags.Set(kFireMissile);
-		}
-
-		// Apply movement: decay existing velocity and add acceleration from AI direction
-		XMVECTOR vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), vecAiDirection);
-		vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(common::ExponentialDecay(kfAccelerationDecay, fDeltaTime)), vecVelocity, vecAcceleration);
-
-		// Direction: aim at target if firing, else follow AI direction
-		bool bAiming = bFiring || bFiringMissiles;
-		vecWantedDirection = bAiming
-			? XMVector3Normalize(XMVectorSubtract(vecClosestPosition, vecPosition))
-			: vecAiDirection;
 
 		// Shield regeneration
 		if (fShieldCooldown <= 0.0f)
@@ -400,6 +409,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		rCurrent.pfAiMissileTimers[i] = fAiMissileTimer;
 		rCurrent.pfAiEdgeCrossCooldowns[i] = fAiEdgeCrossCooldown;
 		rCurrent.piAiEdgeCrossTargets[i] = iAiEdgeCrossTarget;
+		rCurrent.pfTransferLockTimers[i] = fTransferLockTimer;
 	}
 }
 
@@ -459,12 +469,12 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayersInterpolate& rPl
 	if (rPlayer.pfShields[i] > 0.0f)
 	{
 		// Play shield hit sound with pitch based on remaining shield
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor465540__steaq__scifishieldhitwavwavCrc, vecDamagePosition, kfShieldHitSoundVolumeBase + kfShieldHitSoundVolumeScale * (1.0f - rPlayer.pfShields[i] / kfPlayerShield));
 #endif
 
 		// Update hex shield direction intensity
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		// Find lowest intensity direction slot
 		int64_t iLowestIntensityIndex = 0;
 		for (int64_t k = 1; k < shaders::kiHexShieldDirections; ++k)
@@ -493,7 +503,7 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayersInterpolate& rPl
 			if (rPlayer.pfShieldDownSoundCooldowns[i] <= 0.0f)
 			{
 				rPlayer.pfShieldDownSoundCooldowns[i] = kfShieldDownSoundCooldown;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 				engine::gpAudioManager->PlayOneShot(rFrame, data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, kfShieldDownSoundVolume);
 #endif
 			}
@@ -504,7 +514,7 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayersInterpolate& rPl
 	if (fDamage > 0.0f)
 	{
 		// Play armor hit sound with pitch based on remaining armor (only for significant damage)
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		if (fDamage > kfArmorHitSoundDamageThreshold)
 		{
 			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecDamagePosition, kfArmorHitSoundVolumeBase + kfArmorHitSoundVolumeScale * (1.0f - rPlayer.pfArmors[i] / kfPlayerArmor));
@@ -554,7 +564,7 @@ void PlayersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame,
 					ApplyDamage(rFrame, rCurrentInterpolate, rCurrentPostRender, i, rResult.fDamageReceived, rResult.vecContactPoint);
 
 					// Spawn impact VFX at contact point
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 					engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, PlayersInterpolate::suiImpactPuffControllerTypeIndex, rResult.vecContactPoint);
 					engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, PlayersInterpolate::suiImpactPointLightControllerTypeIndex, rResult.vecContactPoint, 0.0f);
 #endif

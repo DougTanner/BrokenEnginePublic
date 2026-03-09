@@ -24,16 +24,16 @@ public:
 		mDifferences.reserve(1024);
 
 		// Initialize starting state and frame
-		miStartFrame = rSavedStart.interpolate.iFrame;
+		miStartTick = rSavedStart.interpolate.iTick;
 		TransferViaStream(rSavedStart, mSavedStart);
 		mInitialDifference = rInitialDifference;
 		mCurrentDifference = rInitialDifference;
-		Log("DifferenceStreamWriter at frame {}: Saved start: {} Initial difference: {}", miStartFrame, mSavedStart.Crc(), mInitialDifference.Crc());
+		Log("DifferenceStreamWriter at frame {}: Saved start: {} Initial difference: {}", miStartTick, mSavedStart.Crc(), mInitialDifference.Crc());
 
 		// Record initial checksum
 		mChecksums.reserve(1024);
 		mChecksums.push_back(mSavedStart.Crc());
-		Log("Checksum DifferenceStreamWriter {}: {}", miStartFrame, *std::prev(mChecksums.end()));
+		Log("Checksum DifferenceStreamWriter {}: {}", miStartTick, *std::prev(mChecksums.end()));
 
 		if constexpr (kbEnableReplayFullFrames)
 		{
@@ -41,11 +41,11 @@ public:
 		}
 	}
 
-	void Update(int64_t iFrame, const DIFFERENCE_TYPE& rDifference, const SAVED_TYPE& rSavedCurrent)
+	void Update(int64_t iTick, const DIFFERENCE_TYPE& rDifference, const SAVED_TYPE& rSavedCurrent)
 	{
 		// Record checksum for this frame
 		mChecksums.push_back(rSavedCurrent.Crc());
-		Log("Checksum DifferenceStreamWriter Update {}: {}", rSavedCurrent.interpolate.iFrame, *std::prev(mChecksums.end()));
+		Log("Checksum DifferenceStreamWriter Update {}: {}", rSavedCurrent.interpolate.iTick, *std::prev(mChecksums.end()));
 
 		if constexpr (kbEnableReplayFullFrames)
 		{
@@ -59,7 +59,7 @@ public:
 		}
 
 		// Save the changed difference
-		mDifferences.emplace_back(iFrame, rDifference);
+		mDifferences.emplace_back(iTick, rDifference);
 		mCurrentDifference = rDifference;
 	}
 
@@ -83,7 +83,7 @@ public:
 			headerStream << mInitialDifference;
 		common::Write(headerStream, iDifferenceCount);
 		headerStream << rSavedEnd;
-		Log("DifferenceStreamWriter save at frame {}: Count {} Checksum {}", rSavedEnd.interpolate.iFrame, iDifferenceCount, rSavedEnd.Crc());
+		Log("DifferenceStreamWriter save at frame {}: Count {} Checksum {}", rSavedEnd.interpolate.iTick, iDifferenceCount, rSavedEnd.Crc());
 
 		// Write difference records
 		std::fstream fileStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".frames"));
@@ -95,9 +95,9 @@ public:
 			}
 			else
 			{
-				for (const auto& [iFrame, difference] : mDifferences)
+				for (const auto& [iTick, difference] : mDifferences)
 				{
-					common::Write(fileStream, iFrame);
+					common::Write(fileStream, iTick);
 					fileStream << difference;
 				}
 			}
@@ -105,7 +105,7 @@ public:
 
 		// Write checksums for validation
 		mChecksums.push_back(rSavedEnd.Crc());
-		Log("Checksum DifferenceStreamWriter Save {}: {}", rSavedEnd.interpolate.iFrame, *std::prev(mChecksums.end()));
+		Log("Checksum DifferenceStreamWriter Save {}: {}", rSavedEnd.interpolate.iTick, *std::prev(mChecksums.end()));
 		std::fstream checksumStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".checksums"));
 		if (!mChecksums.empty())
 		{
@@ -130,7 +130,7 @@ private:
 	DIFFERENCE_TYPE mCurrentDifference {};
 
 	std::vector<common::crc_t> mChecksums;
-	int64_t miStartFrame = 0;
+	int64_t miStartTick = 0;
 
 	[[no_unique_address]] std::conditional_t<kbEnableReplayFullFrames, std::stringstream, common::Empty> mFullFramesStream;
 };
@@ -184,8 +184,8 @@ public:
 		common::Read(headerStream, mDifferenceCount);
 		headerStream >> mSavedEnd;
 
-		miStartFrame = rSavedStart.interpolate.iFrame;
-		Log("DifferenceStreamReader at frame {}: Saved start: {} Initial difference: {}", miStartFrame, rSavedStart.Crc(), rInitialDifference.Crc());
+		miStartTick = rSavedStart.interpolate.iTick;
+		Log("DifferenceStreamReader at frame {}: Saved start: {} Initial difference: {}", miStartTick, rSavedStart.Crc(), rInitialDifference.Crc());
 
 		// Load difference records
 		if (mDifferenceCount > 0)
@@ -207,11 +207,11 @@ public:
 				mDifferences.reserve(mDifferenceCount);
 				for (int64_t i = 0; i < mDifferenceCount; ++i)
 				{
-					int64_t iFrame = 0;
-					common::Read(fileStream, iFrame);
+					int64_t iTick = 0;
+					common::Read(fileStream, iTick);
 					DIFFERENCE_TYPE difference {};
 					fileStream >> difference;
-					mDifferences.emplace_back(iFrame, std::move(difference));
+					mDifferences.emplace_back(iTick, std::move(difference));
 				}
 			}
 
@@ -219,7 +219,7 @@ public:
 		}
 
 		// Load checksums for validation
-		int64_t iChecksumCount = mSavedEnd.interpolate.iFrame - rSavedStart.interpolate.iFrame + 1;
+		int64_t iChecksumCount = mSavedEnd.interpolate.iTick - rSavedStart.interpolate.iTick + 1;
 		if (iChecksumCount > 0)
 		{
 			std::fstream checksumStream = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".checksums"));
@@ -261,20 +261,20 @@ public:
 		return mSavedEnd;
 	}
 
-	void ValidateChecksum(int64_t iFrame, const SAVED_TYPE& rSavedCurrent)
+	void ValidateChecksum(int64_t iTick, const SAVED_TYPE& rSavedCurrent)
 	{
 		if (mChecksums.empty())
 		{
 			return;
 		}
 
-		int64_t iChecksumIndex = iFrame - miStartFrame - 1;
+		int64_t iChecksumIndex = iTick - miStartTick - 1;
 		if (iChecksumIndex < 0 || iChecksumIndex >= static_cast<int64_t>(mChecksums.size()))
 		{
 			return;
 		}
 
-		Log("Checksum DifferenceStreamReader {}: {}", rSavedCurrent.interpolate.iFrame, rSavedCurrent.Crc());
+		Log("Checksum DifferenceStreamReader {}: {}", rSavedCurrent.interpolate.iTick, rSavedCurrent.Crc());
 
 		[[maybe_unused]] SAVED_TYPE savedFrame {};
 		[[maybe_unused]] bool bSavedFrameValid = false;
@@ -306,22 +306,22 @@ public:
 		}
 	}
 
-	bool LoadDifference(int64_t iFrame, DIFFERENCE_TYPE& rDifference)
+	bool LoadDifference(int64_t iTick, DIFFERENCE_TYPE& rDifference)
 	{
 		// Check if reached end of recording
-		if (mSavedEnd.interpolate.iFrame + 1 == iFrame)
+		if (mSavedEnd.interpolate.iTick + 1 == iTick)
 		{
 			return false;
 		}
 
 		// Load difference if available for this frame, otherwise use current
-		if (mDifferencesIterator != mDifferences.end() && iFrame == std::get<0>(*mDifferencesIterator))
+		if (mDifferencesIterator != mDifferences.end() && iTick == std::get<0>(*mDifferencesIterator))
 		{
 			rDifference = std::get<1>(*mDifferencesIterator);
 			++mDifferencesIterator;
 			mCurrentDifference = rDifference;
 
-			Log("Loaded difference {}: {}", iFrame, mCurrentDifference.Crc());
+			Log("Loaded difference {}: {}", iTick, mCurrentDifference.Crc());
 		}
 		else
 		{
@@ -331,11 +331,11 @@ public:
 		return true;
 	}
 
-	bool Update(int64_t iFrame, DIFFERENCE_TYPE& rDifference, const SAVED_TYPE& rSavedCurrent)
+	bool Update(int64_t iTick, DIFFERENCE_TYPE& rDifference, const SAVED_TYPE& rSavedCurrent)
 	{
-		ValidateChecksum(iFrame, rSavedCurrent);
+		ValidateChecksum(iTick, rSavedCurrent);
 
-		return LoadDifference(iFrame, rDifference);
+		return LoadDifference(iTick, rDifference);
 	}
 
 	bool Loaded()
@@ -355,7 +355,7 @@ private:
 	DIFFERENCE_TYPE mCurrentDifference {};
 
 	std::vector<common::crc_t> mChecksums;
-	int64_t miStartFrame = 0;
+	int64_t miStartTick = 0;
 
 	[[no_unique_address]] std::conditional_t<kbEnableReplayFullFrames, std::stringstream, common::Empty> mFullFramesStream;
 	[[no_unique_address]] std::conditional_t<kbEnableReplayFullFrames, int64_t, common::Empty> miFullFramesIndex = {};

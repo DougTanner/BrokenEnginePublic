@@ -1,6 +1,6 @@
 #include "Puffs.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 namespace engine
 {
@@ -60,7 +60,7 @@ void XM_CALLCONV PuffsPostRender::AddControlled(game::Frame& __restrict rFrame, 
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
 
 	// Set position and base type from controller
-	rInterpolate.pVecPositions[iSpawnIndex] = vecPosition;
+	rInterpolate.pVecPositions[iSpawnIndex] = XMVectorSetW(vecPosition, 1.0f);
 	rInterpolate.puiTypeIndices[iSpawnIndex] = rController.uiBaseTypeIndex;
 
 	// Initialize per-instance values from first keyframe

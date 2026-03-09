@@ -17,6 +17,8 @@ Shared constants used across multiple `.cpp` files are declared in `Players.h`.
 
 **Spawn, Respawn, and Destroy**: Driven by `StatusChange` events in `FrameInput`. `kDestroyPlayer` removes the player entity by ID (packed into the position vector), cleaning up owned client-only objects before removal. Spawn position is offset by frame center for grid-cell correctness. Has a `SpawnInfo` overload for transfer-based spawning that preserves full gameplay state. Transfer generates a `TransferRequest` with entity ID for human player identity tracking.
 
+**Transfer Lock**: After spawning into a new cell via transfer, players have a brief lock timer during which AI steering and weapon logic are skipped, maintaining constant velocity for smooth cross-cell transitions.
+
 **Lifecycle**: Uses `AddIndexableElement`/`RemoveIndexableElement` for ID-tracked creation and O(1) swap-and-pop removal.
 
 **Weapon Systems**: Blasters fire from alternating barrels with angle jitter and interpolated spawn positions. Missiles spawn from alternating sides at angled directions. Both pass wind trail properties to spawned projectiles.

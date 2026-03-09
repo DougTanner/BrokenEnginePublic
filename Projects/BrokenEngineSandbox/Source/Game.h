@@ -15,6 +15,7 @@ namespace game
 #include "Version.h"
 
 inline constexpr std::string_view kGameName = "Broken Engine Sandbox";
+inline constexpr int64_t kiDesiredCoordSlots = 5; // 4 subscriptions + 1 spare for grid transitions
 
 enum class UiState
 {
@@ -52,7 +53,7 @@ public:
 
 	bool InMainMenu()
 	{
-		if (!mSubscribedFrames.contains(mHumanGridCoord))
+		if (!mCoordFrames.contains(mHumanGridCoord))
 		{
 			return false;
 		}
@@ -68,22 +69,22 @@ public:
 	void CreateFrameAtCoord(engine::GridCoord coord);
 	void HarvestTransfers();
 
-#ifdef BT_SERVER
+#if defined(BT_SERVER)
 	// Server-mode methods
 	void ComputeActiveSetServer();
 	void BuildFrameInputsServer();
 	void ProcessSpawnRequestsServer();
 	void HarvestTransfersServer();
-	void BroadcastStatusChangesServer(int64_t iFrame);
+	void BroadcastStatusChangesServer(int64_t iTick);
 	void HandleDisconnectsServer();
 	void HandleNewClientsServer();
-	void FinalizeNewClientsServer(int64_t iFrame);
+	void FinalizeNewClientsServer(int64_t iTick);
 	void DetectPlayerDeathsServer();
-	void HandleSubscriptionUpdatesServer(int64_t iFrame);
+	void HandleSubscriptionUpdatesServer(int64_t iTick);
 	void RefreshPreSpawnSnapshot();
 #endif
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	// Network client methods
 	bool IsNetworkMode() const { return mpNetworkClient != nullptr; }
 	void ConnectToServer(const char* pServerAddress);
@@ -95,15 +96,15 @@ public:
 	bool IsExtrapolating() const
 	{
 		if (!IsNetworkMode()) return false;
-		for (const auto& [rCoord, rFrame] : mSubscribedFrames)
+		for (const auto& [rCoord, rFrame] : mCoordFrames)
 		{
-			if (rFrame.iConfirmedFrame >= 0) return true;
+			if (rFrame.iConfirmedTick >= 0) return true;
 		}
 		return false;
 	}
 	void PrepareExtrapolationTick(const std::vector<engine::GridCoord>& rActiveCoords);
 	void BuildExtrapolationFrameRef(const engine::GridCoord& rCoord, game::Frame*& rpNext, game::Frame*& rpCurrent);
-	void RecordExtrapolationSnapshot(const std::vector<engine::GridCoord>& rActiveCoords, int64_t iFrame);
+	void RecordExtrapolationSnapshot(const std::vector<engine::GridCoord>& rActiveCoords, int64_t iTick);
 	Frame* GetSnapshotFrame(engine::GridCoord coord) const;
 	void TrySubscribeNext();
 
@@ -111,11 +112,11 @@ public:
 	void StartServerDiscovery();
 	std::unique_ptr<engine::NetworkDiscoveryScanner> mpDiscoveryScanner;
 
-	int64_t GetConfirmedFrame() const;
+	int64_t GetConfirmedTick() const;
 	int64_t GetServerUpdateBufferSize() const;
-	int64_t GetDesyncFrame() const { return mDesyncDebugState.iFrame; }
+	int64_t GetDesyncTick() const { return mDesyncDebugState.iTick; }
 
-	std::chrono::nanoseconds ComputeClockCorrectionNs(int64_t iPreReconcileFrame);
+	std::chrono::nanoseconds ComputeClockCorrectionNs(int64_t iPreReconcileTick);
 	int64_t miClockError = 0;
 #endif
 
@@ -127,15 +128,17 @@ public:
 	std::optional<int64_t> HumanPlayerIndex(const PlayersInterpolate& rPlayers) const;
 	void ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput);
 
+	XMVECTOR GetHumanPlayerPosition() const;
+
 	static void SaveSoundSettings();
 	static void LoadSoundSettings();
 	static void ResetSoundSettings();
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	common::crc_t GetNextMusicTrack();
 #endif
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	Camera mCamera {};
 #endif
 
@@ -160,7 +163,7 @@ private:
 		return std::filesystem::path("F7.replay");
 	}
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	std::vector<common::crc_t> mMenuMusicPlaylist {data::kAudioMusicdoodlewavCrc, data::kAudioMusicMandatoryOvertimewavCrc, data::kAudioMusicsong18wavCrc, data::kAudioMusicTyhosibzzzzwavCrc};
 	std::vector<common::crc_t> mGameMusicPlaylist {data::kAudioMusicS31UnexpectedTroublewavCrc, data::kAudioMusicS31HighAlertwavCrc, data::kAudioMusicS31OnPatrolwavCrc, data::kAudioMusicS31TheGearsofProgresswavCrc};
 
@@ -174,7 +177,7 @@ private:
 	engine::alignment_t mEnemyAlignment {};
 	engine::Alignments mAlignments {};
 
-#ifdef BT_SERVER
+#if defined(BT_SERVER)
 	struct ClientSpawnInfo
 	{
 		int64_t iClientId = 0;
@@ -203,7 +206,7 @@ private:
 	std::vector<SubscriptionUpdate> mPendingSubscriptionUpdates;
 #endif
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	// Confirmed human tracking state (global, not per-coord)
 	struct ConfirmedHumanState
 	{
@@ -218,18 +221,18 @@ private:
 
 	struct DesyncDebugState
 	{
-		int64_t iFrame = -1;
+		int64_t iTick = -1;
 		engine::GridCoord coord {};
 		std::unique_ptr<Frame> pClientFrame;
 	};
 	DesyncDebugState mDesyncDebugState;
 
-	void CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, int64_t iFrame, engine::GridCoord coord);
+	void CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, int64_t iTick, engine::GridCoord coord);
 
 	std::unique_ptr<engine::NetworkClient> mpNetworkClient;
 	uint64_t muiNextReconcileGeneration = 1;
 	ConfirmedHumanState mConfirmedHumanState;
-	int64_t miLatestServerFrame = -1;
+	int64_t miLatestServerTick = -1;
 
 	// Subscription management
 	std::vector<engine::GridCoord> mSubscriptionQueue;
@@ -241,12 +244,12 @@ private:
 		uint64_t uiGeneration = 0;
 
 		// Input
-		int64_t iConfirmedFrame = -1;
+		int64_t iConfirmedTick = -1;
 		int64_t iConfirmedSnapshotIndex = -1;
-		std::map<int64_t, engine::SubscribedFrame::CoordServerUpdate> serverUpdates;
-		std::array<engine::SubscribedFrame::SnapshotEntry, engine::SubscribedFrame::kiMaxSnapshots> snapshots {};
+		std::map<int64_t, engine::CoordFrames::CoordServerUpdate> serverUpdates;
+		std::array<std::unique_ptr<Frame>, engine::kiTickRate> snapshots {};
 		int64_t iSnapshotCount = 0;
-		std::optional<engine::SubscribedFrame::PendingFullState> pendingFullState;
+		std::optional<engine::CoordFrames::PendingFullState> pendingFullState;
 
 		// Replay stack: raw pointers (non-owning), referencing snapshots or workspace
 		std::vector<Frame*> replayStack;
@@ -258,14 +261,14 @@ private:
 		int64_t iLastValidatedIndex = -1;
 
 		// Output
-		int64_t iNewConfirmedFrame = -1;
+		int64_t iNewConfirmedTick = -1;
 		int64_t iNewConfirmedSnapshotIndex = -1; // index into snapshots (fast-path)
 		int64_t iNewConfirmedNewSnapshotIndex = -1; // index into newSnapshots (replay)
-		std::vector<engine::SubscribedFrame::SnapshotEntry> newSnapshots;
+		std::vector<std::unique_ptr<Frame>> newSnapshots;
 		bool bCrcFastPath = false;
 
 		// Desync (if any)
-		int64_t iDesyncFrame = -1;
+		int64_t iDesyncTick = -1;
 		common::crc_t desyncServerCrc = 0;
 		common::crc_t desyncClientCrc = 0;
 		std::unique_ptr<Frame> pDesyncClientFrame;
@@ -279,7 +282,7 @@ private:
 		// Global input
 		ConfirmedHumanState confirmedHumanState;
 		uint16_t uiNextFrameId = 0;
-		int64_t iTargetFrame = 0;
+		int64_t iTargetTick = 0;
 		engine::alignment_t playerAlignment {};
 
 		// Working data (owned by worker during execution)
@@ -289,7 +292,7 @@ private:
 		engine::GridCoord humanGridCoord {};
 		player_t humanPlayerId {};
 		float fPreviousHumanArmor = 0.0f;
-		int64_t iFrameCounter = 0;
+		int64_t iTickCounter = 0;
 		float fCurrentTime = 0.0f;
 
 		// Output
@@ -304,7 +307,7 @@ private:
 		int64_t iKnockOnReplayTicks = 0;
 
 		// Deferred desync info (from any coord)
-		int64_t iDesyncFrame = -1;
+		int64_t iDesyncTick = -1;
 		engine::GridCoord desyncCoord {};
 		common::crc_t desyncServerCrc = 0;
 		common::crc_t desyncClientCrc = 0;
@@ -320,11 +323,11 @@ private:
 	static void Reconcile(ReconcileContext& rReconcileContext, const engine::Alignments& rAlignments);
 	void ApplyReconcileResult();
 	static std::pair<bool, int64_t> ReconcileCrcFastPath(ReconcileContext& rReconcileContext);
-	static void ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame);
-	static int64_t ReconcileFindReplayRange(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame);
-	static void ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame, int64_t iMaxConsecutive);
-	static void ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame);
-	static void ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, int64_t iServerFrame, const std::unordered_map<engine::GridCoord, engine::SubscribedFrame::CoordServerUpdate>& rCoordUpdates);
+	static void ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick);
+	static int64_t ReconcileFindReplayRange(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick);
+	static void ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick, int64_t iMaxConsecutive);
+	static void ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick);
+	static void ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, int64_t iServerTick, const std::unordered_map<engine::GridCoord, engine::CoordFrames::CoordServerUpdate>& rCoordUpdates);
 	static void ReconcileRunTick(ReconcileContext& rReconcileContext);
 	static void ReconcileComputeActiveCoords(ReconcileContext& rReconcileContext);
 	static void ReconcileInjectPendingFullState(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork);

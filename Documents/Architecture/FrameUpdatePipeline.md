@@ -4,7 +4,7 @@
 
 ## RunFrameTick Pipeline
 
-All physics phases are unified into a single `RunFrameTick()` function (defined in `FrameTick.cpp`). Both `GameBase::UpdateFrames()` and `ReconcileRunTick()` call the same function. Each Frame runs all five phases sequentially; multiple Frames are dispatched in parallel via `Dispatch()`.
+All physics phases are unified into a single `RunFrameTick()` function (defined in `FrameTick.cpp`). Both `GameBase::TickFrames()` and `ReconcileRunTick()` call the same function. Each Frame runs all five phases sequentially; multiple Frames are dispatched in parallel via `Dispatch()`.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -72,7 +72,7 @@ flowchart TD
         extrap_check{"IsExtrapolating?"}:::physics
         extrap_prep["PrepareExtrapolationTick()<br/>BuildExtrapolationFrameRef()<br/>(redirect ActiveFrameRef<br/>to snapshot stack)"]:::physics
         dispatch["Dispatch per-Frame:<br/>RunFrameTick()<br/>(all 5 phases per Frame<br/>in parallel)"]:::physics
-        extrap_record["RecordExtrapolationSnapshot()<br/>(CRC + inputCrc per coord)"]:::physics
+        extrap_record["RecordExtrapolationSnapshot()<br/>(advance snapshot count;<br/>CRCs already in Frame<br/>from RunFrameTick)"]:::physics
         frame_swap["std::swap(current, next)<br/>+ EnsureNextFrames()"]:::physics
         ts --> extrap_check
         extrap_check -->|"Yes"| extrap_prep --> dispatch --> extrap_record
@@ -152,7 +152,7 @@ flowchart LR
     subgraph frame_struct ["Frame Structure"]
         frame["game::Frame"]
         fi["FrameInterpolate<br/>(visual state: positions,<br/>velocities, effects)"]
-        fpr["FramePostRender<br/>(logic state: health,<br/>flags, RNG, UUIDs)"]
+        fpr["FramePostRender<br/>(logic state: health,<br/>flags, RNG, UUIDs,<br/>cached CRCs)"]
         frame --> fi
         frame --> fpr
     end
@@ -163,7 +163,7 @@ flowchart LR
     end
 
     subgraph snapshot_buf ["Snapshot Stack (extrapolating)"]
-        snap_stack["CoordReconcileState::snapshots<br/>vector&lt;FrameSnapshot&gt;<br/>(pre-allocated Frames,<br/>CRC + inputCrc per entry)"]:::next
+        snap_stack["CoordFrames::snapshots<br/>array&lt;SnapshotEntry&gt;<br/>(pre-allocated Frames,<br/>CRCs stored in Frame's<br/>postRender fields)"]:::next
         snap_note["Physics writes into stack:<br/>snapshot[N] reads from snapshot[N-1]<br/>(or mCurrentFrames if N==0)<br/>std::swap skipped"]
     end
 

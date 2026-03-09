@@ -49,7 +49,7 @@ void DeathMenuScreen::Render()
 	ImGui::SetCursorPosX((fWindowWidth - fButtonWidth) / 2.0f);
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRespawn)), ImVec2(fButtonWidth, rIo.DisplaySize.y * 0.045f)))
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		engine::gpNetworkClient->SendSpawnRequest(engine::ClientRequestFlags::kRespawnRequested);
 #endif
 	}

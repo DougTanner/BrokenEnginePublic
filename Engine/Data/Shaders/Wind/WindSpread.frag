@@ -2,10 +2,6 @@
 
 #include "ShaderLayouts.h"
 
-// Vorticity confinement mode (uncomment exactly one):
-// #define VORTICITY_NONE
-#define VORTICITY_SIMPLE
-
 // Uniforms
 layout (set = 0, binding = 0) uniform globalUniform
 {
@@ -77,7 +73,6 @@ void main()
 	vec2 f2Perpendicular = vec2(-f2AdvectedWind.y, f2AdvectedWind.x);
 	f2AdvectedWind += fSwirlAmount * fSpread * fTimeScale * (fSwirlNoise - 0.5f) * f2Perpendicular;
 
-#ifdef VORTICITY_SIMPLE
 	// Vorticity confinement (simple: perpendicular to wind direction)
 	float fVorticityConfinement = mix(globalLayout.fWindVorticityConfinementLow, globalLayout.fWindVorticityConfinementHigh, fMagFactor);
 	if (fVorticityConfinement > 0.0f)
@@ -92,7 +87,6 @@ void main()
 			f2AdvectedWind += fVorticityConfinement * fOmega * fTimeScale * f2PerpConfinement;
 		}
 	}
-#endif
 
 	// Diffusion: average with 4 neighbors for lateral spread
 	float fDiffusion = mix(globalLayout.fWindDiffusionLow, globalLayout.fWindDiffusionHigh, fMagFactor);

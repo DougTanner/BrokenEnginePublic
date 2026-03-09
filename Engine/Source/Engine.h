@@ -23,7 +23,7 @@
 // Ui
 #include "Ui/Screens/TweaksScreen/TweaksScreen.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 // Graphics objects
 #include "Graphics/Objects/Buffer.h"
@@ -76,7 +76,7 @@
 // Terrain collision data (both client and server)
 #include "Frame/IslandTerrain.h"
 
-#ifdef BT_SERVER
+#if defined(BT_SERVER)
 #include "Network/NetworkServer/NetworkServer.h"
 #include "Server/ServerDisplay.h"
 #endif

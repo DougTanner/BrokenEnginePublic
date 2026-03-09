@@ -5,7 +5,7 @@
 namespace game
 {
 
-void RunFrameTick(const ActiveFrameRef& rRef, int64_t iFrameCounter, float fCurrentTime)
+void RunFrameTick(const ActiveFrameRef& rRef, int64_t iTickCounter, float fCurrentTime)
 {
 	Frame& rNext = *rRef.pNext;
 	const Frame& rCurrent = *rRef.pCurrent;
@@ -13,7 +13,7 @@ void RunFrameTick(const ActiveFrameRef& rRef, int64_t iFrameCounter, float fCurr
 	// Phase 1: Interpolate
 	FrameInterpolate::AllocateAndCopy(rNext.interpolate, rCurrent.interpolate);
 	FrameInterpolate::Update(rNext.interpolate, rCurrent, kfDeltaTime);
-	rNext.interpolate.iFrame = iFrameCounter;
+	rNext.interpolate.iTick = iTickCounter;
 	rNext.interpolate.fCurrentTime = fCurrentTime;
 
 	// Phase 2: PostRender
@@ -32,6 +32,12 @@ void RunFrameTick(const ActiveFrameRef& rRef, int64_t iFrameCounter, float fCurr
 	// Phase 5: Destroy/Spawn
 	FramePostRender::Destroy(rNext);
 	FramePostRender::Spawn(rNext, *rRef.pFrameInput);
+
+	// Compute CRCs after all phases complete
+	rNext.postRender.previousCrc = rCurrent.postRender.crc;
+	rNext.postRender.previousInputCrc = rRef.pFrameInput->ServerInputCrc();
+	rNext.postRender.crc = rNext.Crc();
+	rNext.postRender.serverCrc = rNext.ServerCrc();
 }
 
 } // namespace game

@@ -1,6 +1,6 @@
 #include "MainMenuScreen.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 #include "Game.h"
 #include "MenuUtils.h"

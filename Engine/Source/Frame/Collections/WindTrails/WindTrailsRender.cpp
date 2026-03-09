@@ -1,6 +1,6 @@
 #include "WindTrails.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 #include "Ui/WrapperBase.h"
 

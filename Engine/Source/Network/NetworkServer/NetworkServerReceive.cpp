@@ -18,14 +18,14 @@ void NetworkServer::HandleClientAckStream(const uint8_t* pData, int64_t iClientI
 	uint8_t uiAckSlotCount = ReadUint8(pCursor);
 	if (pClient != nullptr)
 	{
-		for (uint8_t a = 0; a < uiAckSlotCount; ++a)
+		for (uint8_t i = 0; i < uiAckSlotCount; ++i)
 		{
 			uint8_t uiSlotIndex = ReadUint8(pCursor);
 			uint16_t uiSlotEpoch = ReadUint16(pCursor);
 			int64_t iSlotAckFloor = ReadInt64(pCursor);
 			uint64_t uiSlotBitfield = ReadUint64(pCursor);
 
-			if (uiSlotIndex < NetworkManager::kiMaxCoordSlots
+			if (uiSlotIndex < std::ssize(pClient->coordSubscriptions)
 			&& pClient->coordSubscriptions[uiSlotIndex].bActive
 			&& uiSlotEpoch == pClient->coordAckStates[uiSlotIndex].uiEpoch
 			&& iSlotAckFloor >= pClient->coordAckStates[uiSlotIndex].iAckFloor)
@@ -45,7 +45,7 @@ void NetworkServer::HandleClientAckStream(const uint8_t* pData, int64_t iClientI
 	else
 	{
 		// Skip ACK data if client not found
-		for (uint8_t a = 0; a < uiAckSlotCount; ++a)
+		for (uint8_t i = 0; i < uiAckSlotCount; ++i)
 		{
 			pCursor += 1 + 2 + 8 + 8; // slotIndex + epoch + ackFloor + bitfield
 		}
@@ -78,30 +78,30 @@ void NetworkServer::HandleClientDesyncReport(const uint8_t* pData)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
-	int64_t iFrame = ReadInt64(pCursor);
+	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
 	uint64_t uiExpectedCrc = ReadUint64(pCursor);
 	uint64_t uiActualCrc = ReadUint64(pCursor);
 
 	char pcExpected[20] {};
 	char pcActual[20] {};
-	common::Log("NetworkServer: Desync report frame {} grid ({},{}) expected={} actual={}", iFrame, coord.x, coord.y, common::ToHex(std::span(pcExpected), uiExpectedCrc), common::ToHex(std::span(pcActual), uiActualCrc));
+	common::Log("NetworkServer: Desync report frame {} grid ({},{}) expected={} actual={}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), uiExpectedCrc), common::ToHex(std::span(pcActual), uiActualCrc));
 }
 
 void NetworkServer::HandleClientDebugFrameRequest(const uint8_t* pData, ENetPeer* pPeer)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
-	int64_t iFrame = ReadInt64(pCursor);
+	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
 
-	common::Log("NetworkServer: Debug frame request frame {} grid ({},{})", iFrame, coord.x, coord.y);
+	common::Log("NetworkServer: Debug frame request frame {} grid ({},{})", iTick, coord.x, coord.y);
 
 	// Find the frame in the ring buffer
 	const BufferedFullFrame* pBuffered = nullptr;
 	for (const BufferedFullFrame& rBuffered : mBufferedFullFrames)
 	{
-		if (rBuffered.iFrame == iFrame)
+		if (rBuffered.iTick == iTick)
 		{
 			pBuffered = &rBuffered;
 			break;
@@ -110,14 +110,14 @@ void NetworkServer::HandleClientDebugFrameRequest(const uint8_t* pData, ENetPeer
 
 	if (pBuffered == nullptr)
 	{
-		common::Log("NetworkServer: Debug frame {} not found in buffer", iFrame);
+		common::Log("NetworkServer: Debug frame {} not found in buffer", iTick);
 		return;
 	}
 
 	auto it = pBuffered->serializedFrames.find(coord);
 	if (it == pBuffered->serializedFrames.end())
 	{
-		common::Log("NetworkServer: Debug frame {} coord ({},{}) not found", iFrame, coord.x, coord.y);
+		common::Log("NetworkServer: Debug frame {} coord ({},{}) not found", iTick, coord.x, coord.y);
 		return;
 	}
 
@@ -133,7 +133,7 @@ void NetworkServer::HandleClientDebugFrameRequest(const uint8_t* pData, ENetPeer
 
 	// [1B type][8B frame][4B gridX][4B gridY][4B uncompressedSize][4B compressedSize][...LZ4 data]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerDebugFrame));
-	rWorkbuffer.PushBack<int64_t>(iFrame);
+	rWorkbuffer.PushBack<int64_t>(iTick);
 	rWorkbuffer.PushBack<int32_t>(coord.x);
 	rWorkbuffer.PushBack<int32_t>(coord.y);
 	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(rFrameData.size()));
@@ -226,7 +226,7 @@ void NetworkServer::HandleClientUnsubscribe(const uint8_t* pData, int64_t iClien
 		return;
 	}
 
-	if (uiSlotIndex >= NetworkManager::kiMaxCoordSlots || !pClient->coordSubscriptions[uiSlotIndex].bActive)
+	if (uiSlotIndex >= std::ssize(pClient->coordSubscriptions) || !pClient->coordSubscriptions[uiSlotIndex].bActive)
 	{
 		return;
 	}

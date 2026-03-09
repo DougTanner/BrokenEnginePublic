@@ -1,18 +1,18 @@
 #pragma once
 
 #include "Frame/Alignments.h"
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/AreaLights/AreaLights.h"
 #include "Frame/Collections/Billboards/Billboards.h"
 #endif
 #include "Frame/Collections/Explosions/Explosions.h"
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/HexShields/HexShields.h"
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
 #endif
 #include "Frame/Collections/Pushers/Pushers.h"
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/Sounds/Sounds.h"
 #include "Frame/Collections/SmokeTrails/SmokeTrails.h"
 #include "Frame/Collections/WindRadials/WindRadials.h"
@@ -51,7 +51,7 @@ struct FrameInterpolateBase
 	// Called on Game creation
 	static void Register();
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	// Called during Graphics creation
 	static void GraphicsResources();
 #endif
@@ -60,7 +60,7 @@ struct FrameInterpolateBase
 	static void AllocateAndCopy(game::FrameInterpolate& __restrict rCurrent, const game::FrameInterpolate& __restrict rPrevious);
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	// Render
 	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords);
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
@@ -68,22 +68,22 @@ struct FrameInterpolateBase
 #endif
 
 	FrameFlags_t frameFlags {FrameFlags::kPostRender};
-	int64_t iFrame = 0;
+	int64_t iTick = 0;
 	float fCurrentTime = 0.0f;
 	float fDeltaTime = 0.0f;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	AreaLightsInterpolate areaLights {};
 	BillboardsInterpolate billboards {};
 #endif
 	ExplosionsInterpolate explosions {};
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	HexShieldsInterpolate hexShields {};
 	PointLightsInterpolate pointLights {};
 	PuffsInterpolate puffs {};
 #endif
 	PushersInterpolate pushers {};
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	SoundsInterpolate sounds {};
 	SmokeTrailsInterpolate smokeTrails {};
 	WindRadialsInterpolate windRadials {};
@@ -93,21 +93,21 @@ struct FrameInterpolateBase
 	auto Collections(this auto&& rSelf)
 	{
 		return std::tie(
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			rSelf.areaLights, rSelf.billboards,
 #endif
 			rSelf.explosions,
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			rSelf.hexShields, rSelf.pointLights, rSelf.puffs,
 #endif
 			rSelf.pushers
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			, rSelf.sounds, rSelf.smokeTrails, rSelf.windRadials, rSelf.windTrails
 #endif
 		);
 	}
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	static constexpr size_t kCollectionCount = 11;
 #else
 	static constexpr size_t kCollectionCount = 2;
@@ -162,12 +162,17 @@ struct FramePostRenderBase
 	common::RandomEngine randomEngine {};
 	XMVECTOR vecArea {};
 	uint64_t uiNextUuid = 1;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	uint64_t uiNextSoundUuid = 1;
 	uint64_t uiNextVisualUuid = 1;
 #endif
 	uint16_t uiFrameId = 0;
 	IslandsFlip eIslandsFlip = kFlipNone;
+
+	common::crc_t previousCrc = 0;      // Crc() of the previous frame (chain link)
+	common::crc_t previousInputCrc = 0;  // ServerInputCrc() of input used to produce this frame
+	common::crc_t crc = 0;              // Full Crc() of this frame
+	common::crc_t serverCrc = 0;        // ServerCrc() of this frame (for server comparison)
 
 	Alignments alignments {};
 
@@ -177,7 +182,7 @@ struct FramePostRenderBase
 		return (static_cast<int64_t>(uiFrameId) << 48) | (iCounter & 0x0000FFFFFFFFFFFF);
 	}
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	int64_t GenerateSoundUuid()
 	{
 		int64_t iCounter = uiNextSoundUuid++;
@@ -191,18 +196,18 @@ struct FramePostRenderBase
 	}
 #endif
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	AreaLightsPostRender areaLights {};
 	BillboardsPostRender billboards {};
 #endif
 	ExplosionsPostRender explosions {};
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	HexShieldsPostRender hexShields {};
 	PointLightsPostRender pointLights {};
 	PuffsPostRender puffs {};
 #endif
 	PushersPostRender pushers {};
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	SoundsPostRender sounds {};
 	SmokeTrailsPostRender smokeTrails {};
 	WindRadialsPostRender windRadials {};
@@ -212,21 +217,21 @@ struct FramePostRenderBase
 	auto Collections(this auto&& rSelf)
 	{
 		return std::tie(
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			rSelf.areaLights, rSelf.billboards,
 #endif
 			rSelf.explosions,
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			rSelf.hexShields, rSelf.pointLights, rSelf.puffs,
 #endif
 			rSelf.pushers
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			, rSelf.sounds, rSelf.smokeTrails, rSelf.windRadials, rSelf.windTrails
 #endif
 		);
 	}
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	static constexpr size_t kCollectionCount = 11;
 #else
 	static constexpr size_t kCollectionCount = 2;
@@ -258,7 +263,7 @@ static_assert(std::tuple_size_v<decltype(std::declval<FrameInterpolateBase>().Co
 using InterpolateTypes = TupleToTypeList_t<decltype(std::declval<FrameInterpolateBase>().Collections())>;
 using PostRenderBaseTypes = TupleToTypeList_t<decltype(std::declval<FramePostRenderBase>().Collections())>;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 // SmokeTrails and WindTrails are excluded from ForEachInterpolateRender because their Render() takes uiFrameId.
 // They are called separately in RenderFrameMain() with the per-frame ID.
 using InterpolateRenderTypes = TypeList<AreaLightsInterpolate, BillboardsInterpolate, ExplosionsInterpolate,
@@ -271,7 +276,7 @@ inline uuid_t uuid_t::Generate(FramePostRenderBase& rFramePostRender)
 	return uuid_t {rFramePostRender.GenerateUuid()};
 }
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 inline uuid_t uuid_t::GenerateVisual(FramePostRenderBase& rFramePostRender)
 {
 	return uuid_t {rFramePostRender.GenerateVisualUuid()};

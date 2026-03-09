@@ -4,7 +4,7 @@
 
 ## Reconciliation State Machine
 
-CRC fast-path decision (with gap-skip for coords missing intermediate frames) through unified rollback, full replay (capped at half available frames), predictive catch-up, and snapshot storage. The entire pipeline runs on a dedicated `PersistentWorker` thread.
+CRC fast-path decision (with partial advance on mid-sequence failures, gap-skip for coords missing intermediate frames, deferred-skip for coords confirmed at or past the target tick, mismatch at confirmed+1 forcing full reconcile, stale-nosnapshot for lost snapshots forcing full reconcile, and deferred-nosnapshot for transient missing snapshots) through unified rollback, full replay (capped at half available frames), predictive catch-up, and snapshot storage. Full reconcile triggers for pending full states, CRC mismatches at confirmed+1, or stale missing snapshots. The entire pipeline runs on a dedicated `PersistentWorker` thread.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -16,11 +16,21 @@ flowchart TD
 
     START["Reconcile(ctx)"] --> CRC
 
-    CRC{"CRC Fast-Path<br/>(skipped if pendingFullStates non-empty)<br/>All consecutive updates<br/>match SnapshotEntry CRCs<br/>in snapshot stack?<br/>(serverCrc AND inputCrc per-coord)"}:::fastpath
-    CRC -->|"Yes (all matched)"| FASTDONE["Record matched snapshot index<br/>as new confirmed state<br/>(iNewConfirmedSnapshotIndex)<br/>Keep snapshots beyond match<br/>bCrcFastPathHandledAll = true"]:::fastpath
+    CRC{"CRC Fast-Path<br/>(per-coord independent)<br/>Check consecutive updates<br/>against Frame CRCs<br/>(postRender.serverCrc,<br/>postRender.previousInputCrc)<br/>in snapshot stack"}:::fastpath
+    CRC -->|"All matched"| FASTDONE["Record matched snapshot index<br/>as new confirmed state<br/>(iNewConfirmedSnapshotIndex)<br/>Keep snapshots beyond match<br/>bCrcFastPathHandledAll = true"]:::fastpath
+    CRC -->|"Partial match<br/>(snapshot missing or CRC mismatch<br/>after N successful frames)"| PARTIAL["Advance confirmed by N frames<br/>(partial CRC advance)<br/>Keep unvalidated updates<br/>for next reconciliation"]:::fastpath
+    PARTIAL --> CRC
     CRC -->|"Gapped coord<br/>(first update beyond confirmed+1)"| GAPSKIP["Skip coord, keep updates<br/>for future resend fill<br/>(does not force full reconcile)"]:::fastpath
     GAPSKIP --> CRC
-    CRC -->|"No / partial match"| ROLLBACK
+    CRC -->|"Deferred coord<br/>(confirmed >= targetTick,<br/>no snapshots to validate yet)"| DEFERRED["Skip coord, keep updates<br/>for next reconciliation<br/>(does not force full reconcile)"]:::fastpath
+    DEFERRED --> CRC
+    CRC -->|"CRC mismatch at confirmed+1<br/>(permanent — StatusChanges<br/>client didn't have)"| MISMATCH["Force full reconcile<br/>for this coord<br/>(bAllHandled = false)"]:::error
+    MISMATCH --> ROLLBACK
+    CRC -->|"Snapshot missing at confirmed+1<br/>AND confirmed+1 < targetTick<br/>(snapshot lost during swap-back)"| STALENOSNAPSHOT["STALE-NOSNAPSHOT: force full<br/>reconcile to regenerate snapshots<br/>(bAllHandled = false)"]:::error
+    STALENOSNAPSHOT --> ROLLBACK
+    CRC -->|"Snapshot missing at confirmed+1<br/>AND confirmed+1 >= targetTick<br/>(physics hasn't reached tick yet)"| DEFNOSNAPSHOT["DEFERRED-NOSNAPSHOT: skip coord<br/>keep updates for next reconcile<br/>(does not force full reconcile)"]:::fastpath
+    DEFNOSNAPSHOT --> CRC
+    CRC -->|"Pending full state"| ROLLBACK
 
     ROLLBACK["Unified Rollback<br/>Retrieve confirmed Frame* from<br/>snapshot at iConfirmedSnapshotIndex<br/>into replay stack (raw pointers)<br/>Only coords confirmed at iMinConfirmedFrame<br/>(late-confirmed coords injected<br/>during replay/catch-up)<br/>Read fCurrentTime from frame<br/>at iMinConfirmedFrame<br/>Inject pending full states<br/>(at or before rollback frame)<br/>into replay stack"]:::replay --> FINDRANGE
 
@@ -41,21 +51,21 @@ flowchart TD
 
     SAVE["Save Human Confirmed State<br/>(humanGridCoord, humanPlayerId,<br/>fPreviousHumanArmor, fCurrentTime)"]:::state --> CATCHUP
 
-    CATCHUP["Predictive Catch-Up<br/>Simulate with empty inputs<br/>from confirmed frame to iTargetFrame<br/>using per-coord replay stacks<br/>Inject late-confirmed coords at their frame<br/>Convert replay stack entries to<br/>SnapshotEntry per frame<br/>into newSnapshots<br/>(recycled to snapshot stack<br/>for next tick's CRC fast-path)"]:::replay
+    CATCHUP["Predictive Catch-Up<br/>Simulate with empty inputs<br/>from confirmed frame to iTargetFrame<br/>using per-coord replay stacks<br/>Inject late-confirmed coords at their frame<br/>Move replay stack frames into<br/>SnapshotEntry per frame<br/>into newSnapshots<br/>(CRCs already in Frame's postRender;<br/>recycled to snapshot stack<br/>for next tick's CRC fast-path)"]:::replay
 
     CATCHUP --> DONE["Return to main thread<br/>via ApplyReconcileResult()"]
 ```
 
 ## Pending Full State Injection
 
-Full states arrive during subscription changes (client subscribes to a new coord). Stored per-coord in `SubscribedFrame::pendingFullState` (an optional pair of frame number and unique_ptr Frame) and injected at two points:
+Full states arrive during subscription changes (client subscribes to a new coord). Stored per-coord in `CoordFrames::pendingFullState` (an optional pair of frame number and unique_ptr Frame) and injected at two points:
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart LR
     classDef injection fill:#dcfce7,stroke:#16a34a
 
-    PFS["SubscribedFrame::pendingFullState<br/>optional (iFrame, unique_ptr Frame)<br/>per coord"]
+    PFS["CoordFrames::pendingFullState<br/>optional (iFrame, unique_ptr Frame)<br/>per coord"]
 
     PRE["Unified Rollback<br/>If pending iFrame<br/>at or before rollback frame"]:::injection
     MAIN["Full Replay<br/>At matching<br/>transfer frame"]:::injection
@@ -80,15 +90,15 @@ flowchart TD
 
     MSG["ProcessMessages()<br/>RawInput Update"] --> DESYNC_CHECK
 
-    DESYNC_CHECK{"GetDesyncFrame() >= 0?"}
+    DESYNC_CHECK{"GetDesyncTick() >= 0?"}
     DESYNC_CHECK -->|"Yes"| DEBUG_PATH["PollNetworkClient (check debug frame)<br/>Flush, Render<br/>(skip physics/reconcile/audio)"]:::network
     DEBUG_PATH --> MSG
 
     DESYNC_CHECK -->|"No"| WAIT["WaitForReconcile()<br/>Block until async worker done<br/>ApplyReconcileResult()"]:::reconcile
 
-    WAIT --> CLOCK["ComputeClockCorrectionNs()<br/>Frame deficit compensation<br/>Add to mUpdateRemainderNs"]:::reconcile
+    WAIT --> CLOCK["ComputeClockCorrectionNs()<br/>Frame deficit compensation<br/>Add to mTickRemainderNs"]:::reconcile
 
-    CLOCK --> PHYSICS["UpdateFrames()<br/>(multiple fixed-rate physics ticks)"]:::physics
+    CLOCK --> PHYSICS["TickFrames()<br/>(multiple fixed-rate physics ticks)"]:::physics
 
     PHYSICS --> POLL["PollNetworkClient()<br/>Process player state notifications<br/>(spawn/frame change/death),<br/>apply full states,<br/>buffer delta updates"]:::network
 
@@ -96,7 +106,7 @@ flowchart TD
 
     KICK --> SEND["NetworkClient::SendAck()<br/>NetworkClient::Flush()"]:::network
 
-    SEND --> BORROW["BorrowSnapshotFramesForRender()<br/>(move latest snapshot into<br/>mSubscribedFrames if extrapolating)"]:::reconcile
+    SEND --> BORROW["BorrowSnapshotFramesForRender()<br/>(move latest snapshot into<br/>mCoordFrames if extrapolating)"]:::reconcile
 
     BORROW --> RENDER["Render()"]:::render
 
@@ -116,11 +126,11 @@ iTargetBehind = ceil(RTT/2 / frameTime) + 1
 iOffset       = preReconcileFrame - latestServerFrame
 iError        = iOffset + iTargetBehind
 
-correction    = -clamp(iError, -4, +4) * kUpdateStepNs / 64
+correction    = -clamp(iError, -4, +4) * kTickNs / 64
                  ─────────────────────
                  Proportional, max ±4 steps, 1/64 frame per error unit
 
-Applied: mUpdateRemainderNs += frameDeficit * kUpdateStepNs + correction
+Applied: mTickRemainderNs += frameDeficit * kTickNs + correction
 ```
 
 ## Desync Debug Mode
@@ -163,9 +173,9 @@ Data flows between main thread and worker via `ReconcileContext`, which contains
 
 | Direction | Fields |
 |-----------|--------|
-| **Main → Worker (per-coord)** | `CoordReconcileWork::iConfirmedFrame`, `iConfirmedSnapshotIndex`, `serverUpdates`, `snapshots` (SnapshotEntry stack), `pendingFullState`, `uiGeneration` |
+| **Main → Worker (per-coord)** | `CoordReconcileWork::iConfirmedFrame`, `iConfirmedSnapshotIndex`, `serverUpdates`, `snapshots` (SnapshotEntry stack; CRCs read from Frame's `postRender` fields), `pendingFullState`, `uiGeneration` |
 | **Main → Worker (global)** | `confirmedHumanState`, `uiNextFrameId`, `iTargetFrame`, `playerAlignment` |
-| **Worker internal** | per-coord `replayStack` (raw `Frame*` pointers)/`iReplayStackCount`, `replayWorkspace` (owns scratch Frames)/`iReplayWorkspaceUsed`, `iLastValidatedIndex` (in `CoordReconcileWork`), `frameInputs`, `activeCoords`, `humanGridCoord`, `iFrameCounter`, `fCurrentTime` |
+| **Worker internal** | per-coord `replayStack` (raw `Frame*` pointers)/`iReplayStackCount`, `replayWorkspace` (owns scratch Frames)/`iReplayWorkspaceUsed`, `iLastValidatedIndex` (in `CoordReconcileWork`), `frameInputs`, `activeCoords`, `humanGridCoord`, `iTickCounter`, `fCurrentTime` |
 | **Worker → Main (per-coord)** | `CoordReconcileWork::iNewConfirmedFrame`, `iNewConfirmedSnapshotIndex`/`iNewConfirmedNewSnapshotIndex`, `newSnapshots` (SnapshotEntry from catch-up), `bCrcFastPath` |
 | **Worker → Main (global)** | `newConfirmedHumanState`, `bCrcFastPathHandledAll` |
 | **Worker → Main (profiling)** | `iCrcValidatedFrameTicks`, `iAssumedFrameTicks`, `iCrcFastPathEvents`, `iStatusChangeReplayTicks`, `iKnockOnReplayTicks` → fed to `ProfileManagerBase::SetReconcileCounters()` |
@@ -177,13 +187,13 @@ Data flows between main thread and worker via `ReconcileContext`, which contains
 |----------|--------|---------|
 | `WaitForReconcile()` | Main | Block until async worker done, call `ApplyReconcileResult()` |
 | `TryKickReconcile()` | Main | Gate on `mbReconcileHasNewData` (skip if no new server data), build per-coord `CoordReconcileWork` items, dispatch `KickReconcile()` |
-| `KickReconcile()` | Main | Build `ReconcileContext` with per-coord work (move snapshots from `SubscribedFrame` to work), dispatch worker via `PersistentWorker` |
+| `KickReconcile()` | Main | Build `ReconcileContext` with per-coord work (move snapshots from `CoordFrames` to work), dispatch worker via `PersistentWorker` |
 | `Reconcile()` | Worker | Static — runs per-coord CRC fast-path, unified rollback, full replay (capped), catch-up |
-| `ApplyReconcileResult()` | Main | Apply per-coord worker results (guarded by `uiGeneration` to skip stale coords, only advance confirmed state when `iNewConfirmedFrame >= 0`), move latest replay stack entries into `mSubscribedFrames[coord].current` for rendering, recycle snapshots back to `SubscribedFrame`'s stack, merge catch-up newSnapshots, handle desync, restore unconsumed updates |
-| `PollNetworkClient()` | Main | Process `ReceivedPlayerState` notifications (spawn/frame change/death via `kServerPlayerState`), apply full states to `SubscribedFrame`s, buffer per-slot deltas, check debug frame |
-| `ApplyReceivedFullStates()` | Main | Route full states to `SubscribedFrame::pendingFullState` or `mSubscribedFrames[coord].current`; on initial connection, sets `confirmedHumanState.fCurrentTime` from first coord only |
-| `ApplyReceivedUpdates()` | Main | Buffer per-slot updates into `SubscribedFrame::serverUpdates` |
-| `UpdateSubscriptions()` | Main | Compute desired coords based on player state (alive: human + neighbors + origin, dead: death coord + origin, not-yet-assigned: origin), unsubscribe stale coords, build `mSubscriptionQueue` |
+| `ApplyReconcileResult()` | Main | Apply per-coord worker results (guarded by `uiGeneration` to skip stale coords, only advance confirmed state when `iNewConfirmedFrame >= 0`), move latest replay stack entries into `mCoordFrames[coord].current` for rendering, recycle snapshots back to `CoordFrames`'s stack, merge catch-up newSnapshots, handle desync, restore unconsumed updates |
+| `PollNetworkClient()` | Main | Process `ReceivedPlayerState` notifications (spawn/frame change/death via `kServerPlayerState`), apply full states to `CoordFrames`s, buffer per-slot deltas, check debug frame |
+| `ApplyReceivedFullStates()` | Main | Route full states to `CoordFrames::pendingFullState` or `mCoordFrames[coord].current`; on initial connection, sets `confirmedHumanState.fCurrentTime` from first coord only |
+| `ApplyReceivedUpdates()` | Main | Buffer per-slot updates into `CoordFrames::serverUpdates` |
+| `UpdateSubscriptions()` | Main | Compute desired coords based on player state (alive: human + 3 quadrant neighbors via `ComputeQuadrantOffsets()`, dead: death coord + origin, not-yet-assigned: origin), unsubscribe stale coords, build `mSubscriptionQueue` |
 | `TrySubscribeNext()` | Main | Pop next coord from `mSubscriptionQueue` and `SendSubscribe`; gates on no slot being in `kSubscribing`, `kWaitingFullState`, or `kUnsubscribing` state |
 | `ComputeClockCorrectionNs()` | Main | Proportional clock correction from frame offset and RTT |
 | `DetectPlayerDeathsServer()` | Main (server) | Detect player deaths server-side and send `kServerPlayerState(kDied)` to clients |

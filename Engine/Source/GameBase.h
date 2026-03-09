@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Graphics/Camera.h"
 #endif
 
@@ -33,31 +33,17 @@ enum class GameFlags : uint64_t
 };
 using GameFlags_t = common::Flags<GameFlags>;
 
-struct SubscribedFrame
+struct CoordFrames
 {
-	SubscribedFrame();
-	~SubscribedFrame();
-	SubscribedFrame(SubscribedFrame&&) noexcept;
-	SubscribedFrame& operator=(SubscribedFrame&&) noexcept;
+	std::unique_ptr<game::Frame> pCurrent;
+	std::unique_ptr<game::Frame> pNext;
 
-	std::unique_ptr<game::Frame> current;
-	std::unique_ptr<game::Frame> next;
-
-#ifdef BT_CLIENT
-	struct SnapshotEntry
-	{
-		std::unique_ptr<game::Frame> pFrame;
-		int64_t iFrame = -1;
-		common::crc_t crc = 0;
-		common::crc_t inputCrc = 0;
-	};
-
-	static constexpr int64_t kiMaxSnapshots = 32;
-	std::array<SnapshotEntry, kiMaxSnapshots> snapshots {};
+#if defined(BT_CLIENT)
+	std::array<std::unique_ptr<game::Frame>, kiTickRate> snapshots {};
 	int64_t iSnapshotCount = 0;
 
-	// Confirmed frame = index into snapshots (no separate unique_ptr)
-	int64_t iConfirmedFrame = -1;
+	// Confirmed tick = index into snapshots (no separate unique_ptr)
+	int64_t iConfirmedTick = -1;
 	int64_t iConfirmedSnapshotIndex = -1;
 
 	struct CoordServerUpdate
@@ -70,7 +56,7 @@ struct SubscribedFrame
 
 	struct PendingFullState
 	{
-		int64_t iFrame = -1;
+		int64_t iTick = -1;
 		std::unique_ptr<game::Frame> pFrame;
 	};
 	std::optional<PendingFullState> pendingFullState;
@@ -94,9 +80,9 @@ public:
 	virtual void ProcessMenuInput(const game::MenuInput& rMenuInput) = 0;
 
 	void PreUpdate(const game::MenuInput& rMenuInput);
-	void UpdateFrames(const game::MenuInput& rMenuInput);
-#ifdef BT_CLIENT
-	void UpdateFramesAndRender(const game::MenuInput& rMenuInput);
+	void TickFrames(const game::MenuInput& rMenuInput);
+#if defined(BT_CLIENT)
+	void TickFramesAndRender(const game::MenuInput& rMenuInput);
 	void Render();
 	game::Frame& RenderFrame(GridCoord coord) const;
 #endif
@@ -107,16 +93,16 @@ public:
 	void SyncReplay(game::Frame& rFrame, game::FrameInput& rFrameInput);
 
 	uint16_t GenerateFrameId() { return muiNextFrameId++; }
-	int64_t FrameCounter() const { return miFrameCounter; }
+	int64_t TickCounter() const { return miTickCounter; }
 
 	game::Frame& CurrentFrame(GridCoord coord) const
 	{
-		return *mSubscribedFrames.at(coord).current;
+		return *mCoordFrames.at(coord).pCurrent;
 	}
 
 	game::Frame& NextFrame(GridCoord coord)
 	{
-		return *mSubscribedFrames.at(coord).next;
+		return *mCoordFrames.at(coord).pNext;
 	}
 
 	GameFlags_t mGameFlags;
@@ -125,14 +111,14 @@ public:
 	std::unique_ptr<DifferenceStreamWriter<game::Frame, game::FrameInput>> mpDifferenceStreamWriter;
 	std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInput>> mpDifferenceStreamReader;
 
-	std::unordered_map<GridCoord, SubscribedFrame> mSubscribedFrames;
+	std::unordered_map<GridCoord, CoordFrames> mCoordFrames;
 
 protected:
 
 	void WriteGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord humanGridCoord);
 	bool ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord& rHumanGridCoord);
 
-	int64_t miFrameCounter = 0;
+	int64_t miTickCounter = 0;
 	float mfCurrentTime = 0.0f;
 
 	uint16_t muiNextFrameId = 0;

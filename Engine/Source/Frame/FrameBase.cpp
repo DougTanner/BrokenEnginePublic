@@ -19,7 +19,7 @@ bool FrameInterpolateBase::operator==(const FrameInterpolateBase& rOther) const
 	bool bEqual = true;
 
 	bEqual &= common::BreakOnNotEqual(frameFlags, rOther.frameFlags);
-	bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
+	bEqual &= common::BreakOnNotEqual(iTick, rOther.iTick);
 	bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
 	bEqual &= common::BreakOnNotEqual(fDeltaTime, rOther.fDeltaTime);
 
@@ -33,7 +33,7 @@ common::crc_t FrameInterpolateBase::Crc() const
 	common::crc_t checksum = 0;
 
 	checksum ^= common::Crc(frameFlags);
-	checksum ^= common::Crc(iFrame);
+	checksum ^= common::Crc(iTick);
 	checksum ^= common::Crc(fCurrentTime);
 	checksum ^= common::Crc(fDeltaTime);
 
@@ -50,7 +50,7 @@ common::crc_t FrameInterpolateBase::ServerCrc() const
 	common::crc_t checksum = 0;
 
 	checksum ^= common::Crc(frameFlags);
-	checksum ^= common::Crc(iFrame);
+	checksum ^= common::Crc(iTick);
 	checksum ^= common::Crc(fCurrentTime);
 	checksum ^= common::Crc(fDeltaTime);
 
@@ -66,7 +66,7 @@ bool FrameInterpolateBase::ServerCompare(const FrameInterpolateBase& rOther) con
 {
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual(frameFlags, rOther.frameFlags);
-	bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
+	bEqual &= common::BreakOnNotEqual(iTick, rOther.iTick);
 	bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
 	bEqual &= common::BreakOnNotEqual(fDeltaTime, rOther.fDeltaTime);
 	bEqual &= explosions.ServerCompare(rOther.explosions);
@@ -77,7 +77,7 @@ bool FrameInterpolateBase::ServerCompare(const FrameInterpolateBase& rOther) con
 void FrameInterpolateBase::Write(std::ostream& rStream) const
 {
 	common::Write(rStream, frameFlags);
-	common::Write(rStream, iFrame);
+	common::Write(rStream, iTick);
 	common::Write(rStream, fCurrentTime);
 	common::Write(rStream, fDeltaTime);
 
@@ -90,7 +90,7 @@ void FrameInterpolateBase::Write(std::ostream& rStream) const
 void FrameInterpolateBase::Read(std::istream& rStream)
 {
 	common::Read(rStream, frameFlags);
-	common::Read(rStream, iFrame);
+	common::Read(rStream, iTick);
 	common::Read(rStream, fCurrentTime);
 	common::Read(rStream, fDeltaTime);
 
@@ -103,7 +103,7 @@ void FrameInterpolateBase::Read(std::istream& rStream)
 void FrameInterpolateBase::ServerRead(std::istream& rStream)
 {
 	common::Read(rStream, frameFlags);
-	common::Read(rStream, iFrame);
+	common::Read(rStream, iTick);
 	common::Read(rStream, fCurrentTime);
 	common::Read(rStream, fDeltaTime);
 
@@ -120,7 +120,7 @@ bool FramePostRenderBase::operator==(const FramePostRenderBase& rOther) const
 	bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
 	bEqual &= common::BreakOnNotEqual(vecArea, rOther.vecArea);
 	bEqual &= common::BreakOnNotEqual(uiNextUuid, rOther.uiNextUuid);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	bEqual &= common::BreakOnNotEqual(uiNextSoundUuid, rOther.uiNextSoundUuid);
 	bEqual &= common::BreakOnNotEqual(uiNextVisualUuid, rOther.uiNextVisualUuid);
 #endif
@@ -140,7 +140,7 @@ common::crc_t FramePostRenderBase::Crc() const
 	checksum ^= randomEngine.Crc();
 	checksum ^= common::Crc(vecArea);
 	checksum ^= common::Crc(uiNextUuid);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	checksum ^= common::Crc(uiNextSoundUuid);
 	checksum ^= common::Crc(uiNextVisualUuid);
 #endif
@@ -195,7 +195,7 @@ void FramePostRenderBase::Write(std::ostream& rStream) const
 	common::Write(rStream, randomEngine);
 	common::Write(rStream, vecArea);
 	common::Write(rStream, uiNextUuid);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	common::Write(rStream, uiNextSoundUuid);
 	common::Write(rStream, uiNextVisualUuid);
 #endif
@@ -214,7 +214,7 @@ void FramePostRenderBase::Read(std::istream& rStream)
 	common::Read(rStream, randomEngine);
 	common::Read(rStream, vecArea);
 	common::Read(rStream, uiNextUuid);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	common::Read(rStream, uiNextSoundUuid);
 	common::Read(rStream, uiNextVisualUuid);
 #endif
@@ -249,7 +249,7 @@ void FrameInterpolateBase::Register()
 	ForEachRegister(InterpolateTypes{});
 }
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 void FrameInterpolateBase::GraphicsResources()
 {
 	ForEachGraphicsResources(InterpolateTypes{});
@@ -302,7 +302,7 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	common::RandomEngine randomEngine = rPrevious.randomEngine;
 	XMVECTOR vecArea = rPrevious.vecArea;
 	uint64_t uiNextUuid = rPrevious.uiNextUuid;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	uint64_t uiNextSoundUuid = rPrevious.uiNextSoundUuid;
 	uint64_t uiNextVisualUuid = rPrevious.uiNextVisualUuid;
 #endif
@@ -313,7 +313,7 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	rCurrent.randomEngine = randomEngine;
 	rCurrent.vecArea = vecArea;
 	rCurrent.uiNextUuid = uiNextUuid;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	rCurrent.uiNextSoundUuid = uiNextSoundUuid;
 	rCurrent.uiNextVisualUuid = uiNextVisualUuid;
 #endif
@@ -357,7 +357,7 @@ void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 	ForEachPostRenderSpawn(PostRenderBaseTypes{}, rFrame);
 }
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 float DayPercent()
 {
 	float fSunAngle = game::gpCamera->SunAngle();

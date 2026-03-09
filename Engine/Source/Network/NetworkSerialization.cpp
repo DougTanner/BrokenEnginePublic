@@ -41,7 +41,7 @@ static void SerializeMissileTransfer(uint8_t*& pCursor, const game::TransferData
 	WriteFloat(pCursor, rData.fTime);
 	WriteFloat(pCursor, rData.fExhaustDelay);
 	WriteFloat(pCursor, rData.fNextJitter);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	int64_t iSmokeTrailId = rData.smokeTrailId.ToUuid().Value();
 #else
 	int64_t iSmokeTrailId = 0;
@@ -101,7 +101,7 @@ static void DeserializeMissileTransfer(const uint8_t*& pCursor, game::TransferDa
 	rData.fExhaustDelay = ReadFloat(pCursor);
 	rData.fNextJitter = ReadFloat(pCursor);
 	[[maybe_unused]] int64_t iSmokeTrailId = ReadInt64(pCursor);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	rData.smokeTrailId = smoke_trails_t(engine::uuid_t(iSmokeTrailId));
 #endif
 }

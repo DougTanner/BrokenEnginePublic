@@ -1,6 +1,6 @@
 #include "Explosions.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Ui/WrapperBase.h"
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
@@ -19,7 +19,7 @@ template struct Collection<ExplosionsPostRender>;
 
 using enum ExplosionFlags;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 // Wind
 constexpr float kfWindDepositDuration = 0.3f;
@@ -83,7 +83,7 @@ void ExplosionsInterpolate::AllocateAndCopy(ExplosionsInterpolate& rCurrent, con
 {
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	// Copy child IDs
 	if (rCurrent.iCount > 0)
 	{
@@ -102,7 +102,7 @@ void ExplosionsPostRender::AllocateAndCopy(ExplosionsPostRender& rCurrent, const
 
 void ExplosionsInterpolate::Register()
 {
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	// Guard against double registration
 	if (suiExplosionPointLightTypeIndex != kuiInvalidControllerType)
 	{
@@ -210,7 +210,7 @@ void ExplosionsInterpolate::Register()
 #endif
 }
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 uint8_t ExplosionsInterpolate::GetPrimaryLightControllerTypeIndex()
 {
@@ -258,14 +258,14 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	rInterpolate.puiTypeIndices[iSpawnIndex] = rInfo.uiTypeIndex;
 	rInterpolate.pFlags[iSpawnIndex] = rInfo.flags;
 	rInterpolate.pfStartTimes[iSpawnIndex] = fCurrentTime;
-	rInterpolate.pVecPositions[iSpawnIndex] = rInfo.vecPosition;
+	rInterpolate.pVecPositions[iSpawnIndex] = XMVectorSetW(rInfo.vecPosition, 1.0f);
 	rInterpolate.pVecDirections[iSpawnIndex] = rInfo.vecDirection;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	rInterpolate.pfLightPercents[iSpawnIndex] = rInfo.fLightPercent;
 #endif
 	rInterpolate.pfSizePercents[iSpawnIndex] = rInfo.fSizePercent;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	rInterpolate.pfSmokePercents[iSpawnIndex] = rInfo.fSmokePercent;
 #endif
 	rInterpolate.pfTimePercents[iSpawnIndex] = rInfo.fTimePercent;
@@ -276,7 +276,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	for (int64_t j = 0; j < kiMaxExplosionTrails; ++j)
 	{
 		rInterpolate.pfTrailTimes[j][iSpawnIndex] = 0.0f;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		rInterpolate.pTrails[j][iSpawnIndex] = smoke_trails_t {};
 		rInterpolate.pfTrailIntensities[j][iSpawnIndex] = 0.0f;
 		rInterpolate.pVecTrailStartPositions[j][iSpawnIndex] = XMVectorZero();
@@ -288,7 +288,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	float fPrimaryRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
 
 	// Fire-and-forget effects: Primary light
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	if (rType.uiPrimaryLightControllerTypeIndex != kuiInvalidControllerType)
 	{
 		PointLightsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiPrimaryLightControllerTypeIndex, rInfo.vecPosition, fPrimaryRotation);
@@ -298,7 +298,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	// Fire-and-forget effects: Primary puff
 	if (rType.uiPrimaryPuffControllerTypeIndex != kuiInvalidControllerType)
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		PuffsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiPrimaryPuffControllerTypeIndex, rInfo.vecPosition);
 #endif
 	}
@@ -318,7 +318,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 		float fSecondaryRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
 
 		// Secondary light
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		if (rType.uiSecondaryLightControllerTypeIndex != kuiInvalidControllerType)
 		{
 			PointLightsPostRender::AddControlled(rFrame, fCurrentTime + fDelay, rType.uiSecondaryLightControllerTypeIndex, vecSecondaryPosition, fSecondaryRotation);
@@ -328,7 +328,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 		// Secondary puff
 		if (rType.uiSecondaryPuffControllerTypeIndex != kuiInvalidControllerType)
 		{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			PuffsPostRender::AddControlled(rFrame, fCurrentTime + fDelay, rType.uiSecondaryPuffControllerTypeIndex, vecSecondaryPosition);
 #endif
 		}
@@ -337,7 +337,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	// Fire-and-forget wind deposit (radial, auto-expires)
 	if (rType.uiWindRadialControllerTypeIndex != kuiInvalidControllerType)
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		WindRadialsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiWindRadialControllerTypeIndex, rInfo.vecPosition, gWindDepositExplosionsIntensity.Get() * rInfo.fSizePercent, gWindDepositExplosionsWidth.Get() * rInfo.fSizePercent);
 #endif
 	}
@@ -363,7 +363,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 
 		rInterpolate.pfTrailTimes[j][iSpawnIndex] = fTrailTime;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		// Create trail in SmokeTrails collection (start at full intensity, will fade over time in Sync)
 		smoke_trails_t trailId;
 		SmokeTrailsPostRender::Add(rFrame, trailId, suiExplosionTrailTypeIndex);
@@ -406,7 +406,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 
 		float fParticleIntensity = rType.fParticleIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleIntensityRandom;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		if (!(rFrame.interpolate.frameFlags & FrameFlags::kRecalculated))
 		{
 			ParticleManager::Spawn(gpParticleManager->mLongParticlesSpawnLayout,
@@ -447,7 +447,7 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame)
 
 		int32_t iTrailCount = rInterpolate.piTrailCounts[i];
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		// Remove expired trails (cleanup happens every frame, not just at explosion expiration)
 		for (int32_t j = 0; j < iTrailCount; ++j)
 		{
@@ -513,11 +513,11 @@ bool ExplosionsInterpolate::operator==(const ExplosionsInterpolate& rOther) cons
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		bEqual &= common::BreakOnNotEqual(pfLightPercents[i], rOther.pfLightPercents[i]);
 #endif
 		bEqual &= common::BreakOnNotEqual(pfSizePercents[i], rOther.pfSizePercents[i]);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		bEqual &= common::BreakOnNotEqual(pfSmokePercents[i], rOther.pfSmokePercents[i]);
 #endif
 		bEqual &= common::BreakOnNotEqual(pfTimePercents[i], rOther.pfTimePercents[i]);
@@ -527,7 +527,7 @@ bool ExplosionsInterpolate::operator==(const ExplosionsInterpolate& rOther) cons
 		for (int64_t j = 0; j < piTrailCounts[i]; ++j)
 		{
 			bEqual &= common::BreakOnNotEqual(pfTrailTimes[j][i], rOther.pfTrailTimes[j][i]);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			bEqual &= common::BreakOnNotEqual(pTrails[j][i], rOther.pTrails[j][i]);
 			bEqual &= common::BreakOnNotEqual(pfTrailIntensities[j][i], rOther.pfTrailIntensities[j][i]);
 			bEqual &= common::BreakOnNotEqual(pVecTrailStartPositions[j][i], rOther.pVecTrailStartPositions[j][i]);
@@ -573,7 +573,7 @@ bool ExplosionsPostRender::operator==(const ExplosionsPostRender& rOther) const
 
 bool ExplosionsPostRender::ServerCompare(const ExplosionsPostRender& rOther) const { return *this == rOther; }
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 static int64_t siTotalCount = 0;
 

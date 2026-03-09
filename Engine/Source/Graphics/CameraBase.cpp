@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 #include "Graphics/Camera.h"
 

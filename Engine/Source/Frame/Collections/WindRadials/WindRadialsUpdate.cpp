@@ -1,6 +1,6 @@
 #include "WindRadials.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 #include "Ui/WrapperBase.h"
 
@@ -55,7 +55,7 @@ void XM_CALLCONV WindRadialsPostRender::AddControlled(game::Frame& __restrict rF
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
 
 	// Set position
-	rInterpolate.pVecPositions[iSpawnIndex] = vecPosition;
+	rInterpolate.pVecPositions[iSpawnIndex] = XMVectorSetW(vecPosition, 1.0f);
 
 	// Initialize from base values * first keyframe
 	rInterpolate.pfIntensities[iSpawnIndex] = fBaseIntensity * rController.keyframes[0].fIntensity;

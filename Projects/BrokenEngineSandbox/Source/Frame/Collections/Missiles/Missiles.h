@@ -3,11 +3,11 @@
 #include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/GridCoord.h"
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/AreaLights/AreaLights.h"
 #endif
 #include "Frame/Collections/Pushers/Pushers.h"
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/SmokeTrails/SmokeTrails.h"
 #include "Frame/Collections/Sounds/Sounds.h"
 #endif
@@ -52,7 +52,7 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	static void ClientInit(Frame& rFrame, int64_t iIndex, engine::smoke_trails_t smokeTrailReuseId = {});
 	static void ClientInitAll(Frame& rFrame);
 #endif
@@ -61,17 +61,17 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 	XMVECTOR* __restrict pVecDirections = nullptr;
 	engine::pusher_t* __restrict puiPushers = nullptr;
 	float* __restrict pfDestroyedTimes = nullptr;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
 	engine::smoke_trails_t* __restrict puiSmokeTrails = nullptr;
 #endif
 	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiPushers, rSelf.pfDestroyedTimes); }
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiAreaLights, rSelf.puiSmokeTrails); }
 #endif
 	auto Members(this auto&& rSelf)
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
 #else
 		return rSelf.SharedMembers();
@@ -82,7 +82,7 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 	bool operator==(const MissilesInterpolate& rOther) const;
 	bool ServerCompare(const MissilesInterpolate& rOther) const;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	// Graphics resources
 	static void GraphicsResources();
 
@@ -125,17 +125,17 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	float* __restrict pfAccelerations = nullptr;
 	float* __restrict pfPitches = nullptr;
 	float* __restrict pfExhaustLengths = nullptr;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	engine::sound_t* __restrict puiSounds = nullptr;
 #endif
 	engine::alignment_t* __restrict pAlignments = nullptr;
 	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.pVecStoredDirections, rSelf.puiTargets, rSelf.pfExplosionRadii, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.pfExhaustLengths, rSelf.pAlignments); }
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiSounds); }
 #endif
 	auto Members(this auto&& rSelf)
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
 #else
 		return rSelf.SharedMembers();
@@ -163,7 +163,7 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 		float fTime = 0.0f;
 		float fExhaustDelay = 0.0f;
 		float fNextJitter = 0.0f;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		engine::smoke_trails_t smokeTrailId {};
 #endif
 	};

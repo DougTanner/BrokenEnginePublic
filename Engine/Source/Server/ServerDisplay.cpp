@@ -1,4 +1,4 @@
-#ifdef BT_SERVER
+#if defined(BT_SERVER)
 
 #include "Server/ServerDisplay.h"
 
@@ -88,7 +88,7 @@ void PaintServerDisplay(HWND hWnd)
 
 	// Read frame data from origin coord
 	const game::Frame& rOriginFrame = game::gpGame->CurrentFrame(kOriginCoord);
-	int64_t iFrame = rOriginFrame.interpolate.iFrame;
+	int64_t iTick = rOriginFrame.interpolate.iTick;
 	float fCurrentTime = rOriginFrame.interpolate.fCurrentTime;
 
 	// Gather connected client info
@@ -105,7 +105,7 @@ void PaintServerDisplay(HWND hWnd)
 
 	SetTextColor(hdcBuffer, RGB(200, 200, 200));
 
-	snprintf(pcLine, sizeof(pcLine), "Frame: %lld", iFrame);
+	snprintf(pcLine, sizeof(pcLine), "Tick: %lld", iTick);
 	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
 	iTextY += iLineHeight;
 
@@ -214,7 +214,7 @@ void PaintServerDisplay(HWND hWnd)
 				for (int32_t gx = iMinX; gx <= iMaxX; ++gx)
 				{
 					int iCellLeft = iMapLeft + iOffsetX + (gx - iMinX) * iCellSize;
-					int iCellTop = iMapTop + iOffsetY + (gy - iMinY) * iCellSize;
+					int iCellTop = iMapTop + iOffsetY + (iMaxY - gy) * iCellSize;
 					RECT cellRect {iCellLeft, iCellTop, iCellLeft + iCellSize, iCellTop + iCellSize};
 
 					GridCoord coord {gx, gy};

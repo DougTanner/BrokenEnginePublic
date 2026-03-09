@@ -46,7 +46,7 @@ void XM_CALLCONV PushersInterpolate::Sync(game::FrameInterpolate& rFrameInterpol
 	PushersInterpolate& rPushers = rFrameInterpolate.pushers;
 	int64_t iIndex = rPushers.IdToIndex(id);
 
-	rPushers.pVecPositions[iIndex] = rData.vecPosition;
+	rPushers.pVecPositions[iIndex] = XMVectorSetW(rData.vecPosition, 1.0f);
 	rPushers.pfRadii[iIndex] = rData.fRadius;
 	rPushers.pfIntensities[iIndex] = rData.fIntensity;
 	rPushers.pfPowers[iIndex] = rData.fPower;

@@ -177,7 +177,7 @@ public:
 
 	void SetCount(int64_t iCounter, int64_t iCount);
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	void ResetGlobalQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 	void ResetMainQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 	void ResetUiQueryPool(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
@@ -211,7 +211,7 @@ public:
 	int64_t miMimallocPeakHeapUsedMib = 0;
 #endif
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	void SetClockCorrection(int64_t iOffset, int64_t iTargetBehind, int64_t iError)
 	{
 		mSmoothedClockOffset = iOffset;
@@ -337,7 +337,7 @@ protected:
 
 	common::Smoothed<int64_t> mSmoothedAllocations;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	common::Smoothed<int64_t> mSmoothedClockOffset;
 	common::Smoothed<int64_t> mSmoothedClockTarget;
 	common::Smoothed<int64_t> mSmoothedClockError;

@@ -20,14 +20,14 @@ using enum BlasterFlags;
 constexpr float kfPitchMin = 0.75f;
 constexpr float kfPitchRandom = 0.5f;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 // Defined in BlastersUpdate.cpp
 void RegisterBlasterTerrainEffects();
 #endif
 
 void BlastersInterpolate::Register()
 {
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	RegisterBlasterTerrainEffects();
 #endif
 }
@@ -39,7 +39,7 @@ void BlastersInterpolate::AllocateAndCopy(BlastersInterpolate& rCurrent, const B
 	if (rCurrent.iCount > 0)
 	{
 		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
 		std::memcpy(rCurrent.puiWindTrails, rPrevious.puiWindTrails, rCurrent.iCount * sizeof(rCurrent.puiWindTrails[0]));
 		std::memcpy(rCurrent.pfWindTrailIntensities, rPrevious.pfWindTrailIntensities, rCurrent.iCount * sizeof(rCurrent.pfWindTrailIntensities[0]));
@@ -57,7 +57,7 @@ void BlastersPostRender::AllocateAndCopy(BlastersPostRender& rCurrent, const Bla
 	{
 		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, rCurrent.iCount * sizeof(rCurrent.pFlags[0]));
 		std::memcpy(rCurrent.pVecVelocities, rPrevious.pVecVelocities, rCurrent.iCount * sizeof(rCurrent.pVecVelocities[0]));
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		std::memcpy(rCurrent.puiSounds, rPrevious.puiSounds, rCurrent.iCount * sizeof(rCurrent.puiSounds[0]));
 #endif
 		std::memcpy(rCurrent.pfPitches, rPrevious.pfPitches, rCurrent.iCount * sizeof(rCurrent.pfPitches[0]));
@@ -65,7 +65,7 @@ void BlastersPostRender::AllocateAndCopy(BlastersPostRender& rCurrent, const Bla
 	}
 }
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 {
 	BlastersInterpolate& rBlasters = *rFrame.interpolate.pBlasters;
@@ -147,10 +147,10 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
 
 	// Initialize interpolate state
-	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
+	rCurrentInterpolate.pVecPositions[iIndex] = XMVectorSetW(rInfo.vecPosition, 1.0f);
 	rCurrentInterpolate.pVecDirections[iIndex] = XMVector3Normalize(rInfo.vecVelocity);
 	rCurrentInterpolate.puiTypeIndices[iIndex] = rInfo.uiTypeIndex;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	rCurrentInterpolate.pfWindTrailIntensities[iIndex] = rInfo.fWindTrailIntensity;
 	rCurrentInterpolate.pfWindTrailWidths[iIndex] = rInfo.fWindTrailWidth;
 	rCurrentInterpolate.pfWindTrailLengthMultipliers[iIndex] = rInfo.fWindTrailLengthMultiplier;
@@ -165,7 +165,7 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	BlastersInterpolate::ClientInit(rFrame, iIndex);
 #endif
 }
@@ -196,7 +196,7 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 				.vecVelocity = rCurrentPostRender.pVecVelocities[i],
 				.alignment = rCurrentPostRender.pAlignments[i],
 				.uiTypeIndex = rCurrentInterpolate.puiTypeIndices[i],
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 				.fWindTrailIntensity = rCurrentInterpolate.pfWindTrailIntensities[i],
 				.fWindTrailWidth = rCurrentInterpolate.pfWindTrailWidths[i],
 				.fWindTrailLengthMultiplier = rCurrentInterpolate.pfWindTrailLengthMultipliers[i],
@@ -212,7 +212,7 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 		rFrame.postRender.transferRequests.push_back(request);
 
 		// Remove owned objects
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
@@ -237,7 +237,7 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 			continue;
 		}
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
@@ -259,7 +259,7 @@ bool BlastersInterpolate::operator==(const BlastersInterpolate& rOther) const
 	{
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
 		bEqual &= common::BreakOnNotEqual(puiWindTrails[i], rOther.puiWindTrails[i]);
 		bEqual &= common::BreakOnNotEqual(pfWindTrailIntensities[i], rOther.pfWindTrailIntensities[i]);
@@ -281,7 +281,7 @@ bool BlastersPostRender::operator==(const BlastersPostRender& rOther) const
 	{
 		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
 		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		bEqual &= common::BreakOnNotEqual(puiSounds[i], rOther.puiSounds[i]);
 #endif
 		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);

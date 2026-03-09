@@ -5,7 +5,7 @@
 namespace engine
 {
 
-#ifdef BT_SERVER
+#if defined(BT_SERVER)
 NetworkDiscoveryResponder::NetworkDiscoveryResponder()
 {
 	mSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -40,7 +40,7 @@ void NetworkDiscoveryResponder::Poll()
 }
 #endif
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 NetworkDiscoveryScanner::NetworkDiscoveryScanner()
 {
 	mSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);

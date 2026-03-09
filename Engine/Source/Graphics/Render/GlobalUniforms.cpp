@@ -1,4 +1,4 @@
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 #include "Render.h"
 
@@ -10,7 +10,7 @@
 namespace engine
 {
 
-void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iFrame)
+void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick)
 {
 	RenderLightingGlobal(iCommandBuffer);
 	RenderSmokeGlobal(iCommandBuffer);
@@ -23,7 +23,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iFram
 
 	rGlobalLayout.iCommandBuffer = static_cast<int>(iCommandBuffer);
 	rGlobalLayout.iCameraFrame = static_cast<int>(game::gpCamera->miFrame);
-	rGlobalLayout.iFrameCounter = static_cast<int>(iFrame);
+	rGlobalLayout.iTickCounter = static_cast<int>(iTick);
 	rGlobalLayout.iCommandBufferPad = static_cast<int>(iCommandBuffer);
 
 	rGlobalLayout.fElapsedTime = fCurrentTime;
@@ -32,7 +32,6 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iFram
 	rGlobalLayout.fDetailTextureAspectRatio = TextureManager::DetailTextureAspectRatio();
 
 	rGlobalLayout.f4VisibleArea = game::gpCamera->f4RenderVisibleArea;
-
 	// Sun
 	XMVECTOR vecSunNormal = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
 	XMMATRIX matSunRotation = XMMatrixRotationY(-fSunAngle);

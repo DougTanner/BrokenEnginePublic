@@ -1,6 +1,6 @@
 #include "PointLights.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 namespace engine
 {
@@ -62,7 +62,7 @@ void PointLightsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_
 	PointLightsInterpolate& rPointLights = rFrameInterpolate.pointLights;
 	int64_t iIndex = rPointLights.IdToIndex(id);
 
-	rPointLights.pVecPositions[iIndex] = rData.vecPosition;
+	rPointLights.pVecPositions[iIndex] = XMVectorSetW(rData.vecPosition, 1.0f);
 	rPointLights.pfVisibleAreas[iIndex] = rData.fVisibleArea;
 	rPointLights.pfVisibleIntensities[iIndex] = rData.fVisibleIntensity;
 	rPointLights.pfLightingAreas[iIndex] = rData.fLightingArea;
@@ -91,7 +91,7 @@ void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& 
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
 	// Zero-init all members
-	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
+	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorSetW(XMVectorZero(), 1.0f);
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
 	rInterpolate.pfRotations[uiSpawnIndex] = 0.0f;
 	rInterpolate.pfVisibleAreas[uiSpawnIndex] = 0.0f;
@@ -130,7 +130,7 @@ void XM_CALLCONV PointLightsPostRender::AddControlled(game::Frame& __restrict rF
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
 	// Set position and base type from controller
-	rInterpolate.pVecPositions[uiSpawnIndex] = vecPosition;
+	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorSetW(vecPosition, 1.0f);
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = rController.uiBaseTypeIndex;
 
 	// Initialize per-instance values from first keyframe

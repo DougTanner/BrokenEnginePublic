@@ -1,10 +1,10 @@
 #include "ExportShader.h"
 
-#ifdef _CRTDBG_MAP_ALLOC
+#if defined(_CRTDBG_MAP_ALLOC)
 	#undef free
 #endif
 #include "SPIRV-Cross/spirv_cross.hpp"
-#ifdef _CRTDBG_MAP_ALLOC
+#if defined(_CRTDBG_MAP_ALLOC)
 	#define free(p) _free_dbg(p, _NORMAL_BLOCK)
 #endif
 

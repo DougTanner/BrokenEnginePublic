@@ -22,7 +22,7 @@ void NetworkClient::SendAck()
 
 	// Per-slot ACK state for proactive re-sends
 	uint8_t uiAckSlotCount = 0;
-	for (int64_t i = 0; i < NetworkManager::kiMaxCoordSlots; ++i)
+	for (int64_t i = 0; i < std::ssize(mCoordSlots); ++i)
 	{
 		if (mCoordSlots[i].eState == CoordSubscriptionState::kActive)
 		{
@@ -30,7 +30,7 @@ void NetworkClient::SendAck()
 		}
 	}
 	rWorkbuffer.PushBack<uint8_t>(uiAckSlotCount);
-	for (int64_t i = 0; i < NetworkManager::kiMaxCoordSlots; ++i)
+	for (int64_t i = 0; i < std::ssize(mCoordSlots); ++i)
 	{
 		if (mCoordSlots[i].eState == CoordSubscriptionState::kActive)
 		{
@@ -86,7 +86,7 @@ void NetworkClient::SendSpawnRequest(ClientRequestFlags_t flags)
 	rWorkbuffer.Pop();
 }
 
-void NetworkClient::SendDesyncReport(int64_t iFrame, GridCoord coord, common::crc_t expected, common::crc_t actual)
+void NetworkClient::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expected, common::crc_t actual)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -97,7 +97,7 @@ void NetworkClient::SendDesyncReport(int64_t iFrame, GridCoord coord, common::cr
 	rWorkbuffer.Push();
 
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientDesyncReport));
-	rWorkbuffer.PushBack<int64_t>(iFrame);
+	rWorkbuffer.PushBack<int64_t>(iTick);
 	rWorkbuffer.PushBack<int32_t>(coord.x);
 	rWorkbuffer.PushBack<int32_t>(coord.y);
 	rWorkbuffer.PushBack<uint64_t>(expected);
@@ -105,7 +105,7 @@ void NetworkClient::SendDesyncReport(int64_t iFrame, GridCoord coord, common::cr
 
 	char pcExpected[20] {};
 	char pcActual[20] {};
-	common::Log("NetworkClient: Sending desync report frame {} grid ({},{}) expected={} actual={}", iFrame, coord.x, coord.y, common::ToHex(std::span(pcExpected), expected), common::ToHex(std::span(pcActual), actual));
+	common::Log("NetworkClient: Sending desync report frame {} grid ({},{}) expected={} actual={}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), expected), common::ToHex(std::span(pcActual), actual));
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
@@ -119,7 +119,7 @@ void NetworkClient::SendDesyncReport(int64_t iFrame, GridCoord coord, common::cr
 	rWorkbuffer.Pop();
 }
 
-void NetworkClient::SendDebugFrameRequest(int64_t iFrame, GridCoord coord)
+void NetworkClient::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -131,11 +131,11 @@ void NetworkClient::SendDebugFrameRequest(int64_t iFrame, GridCoord coord)
 
 	// [1B type][8B frame][4B gridX][4B gridY]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientDebugFrameRequest));
-	rWorkbuffer.PushBack<int64_t>(iFrame);
+	rWorkbuffer.PushBack<int64_t>(iTick);
 	rWorkbuffer.PushBack<int32_t>(coord.x);
 	rWorkbuffer.PushBack<int32_t>(coord.y);
 
-	common::Log("NetworkClient: Sending debug frame request frame {} grid ({},{})", iFrame, coord.x, coord.y);
+	common::Log("NetworkClient: Sending debug frame request frame {} grid ({},{})", iTick, coord.x, coord.y);
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
@@ -158,7 +158,7 @@ void NetworkClient::SendSubscribe(GridCoord coord)
 
 	// Mark a local slot as kSubscribing so TrySubscribeNext gates until accept arrives
 	bool bFoundSlot = false;
-	for (int64_t i = 0; i < NetworkManager::kiMaxCoordSlots; ++i)
+	for (int64_t i = 0; i < std::ssize(mCoordSlots); ++i)
 	{
 		if (mCoordSlots[i].eState == CoordSubscriptionState::kUnsubscribed || mCoordSlots[i].eState == CoordSubscriptionState::kUnsubscribing)
 		{

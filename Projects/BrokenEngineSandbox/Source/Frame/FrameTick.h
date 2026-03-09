@@ -14,6 +14,6 @@ struct ActiveFrameRef
 };
 
 // Runs all tick phases for a single Frame (Interpolate, PostRender, Collision, Transfer, Destroy/Spawn)
-void RunFrameTick(const ActiveFrameRef& rRef, int64_t iFrameCounter, float fCurrentTime);
+void RunFrameTick(const ActiveFrameRef& rRef, int64_t iTickCounter, float fCurrentTime);
 
 } // namespace game

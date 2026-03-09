@@ -5,7 +5,7 @@
 #include "Frame/GridCoord.h"
 #include "Frame/Collections/Pushers/Pushers.h"
 #include "Frame/Collections/Targets/Targets.h"
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/WindTrails/WindTrails.h"
 #endif
 
@@ -45,7 +45,7 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	static void ClientInit(Frame& rFrame, int64_t iIndex);
 	static void ClientInitAll(Frame& rFrame);
 #endif
@@ -55,12 +55,12 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 	float* __restrict pfDestroyedTimes = nullptr;
 	engine::pusher_t* __restrict puiPushers = nullptr;
 	target_t* __restrict puiTargets = nullptr;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	engine::wind_trail_t* __restrict puiWindTrails = nullptr;
 #endif
 	float* __restrict pfDeltaRotations = nullptr;
 	float* __restrict pfFreezeTimes = nullptr;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	float* __restrict pfAnimationTimes = nullptr;
 #endif
 	auto SharedMembers(this auto&& rSelf)
@@ -68,7 +68,7 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes, rSelf.puiPushers, rSelf.puiTargets,
 			rSelf.pfDeltaRotations, rSelf.pfFreezeTimes);
 	}
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	auto ClientMembers(this auto&& rSelf)
 	{
 		return std::tie(rSelf.pfAnimationTimes, rSelf.puiWindTrails);
@@ -76,7 +76,7 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 #endif
 	auto Members(this auto&& rSelf)
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
 #else
 		return rSelf.SharedMembers();

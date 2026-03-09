@@ -1,6 +1,6 @@
 #include "Islands.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 namespace engine
 {
@@ -68,7 +68,7 @@ Islands::~Islands()
 	gpIslands = nullptr;
 }
 
-void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, SubscribedFrame>& rFrames, const std::vector<GridCoord>& rActiveCoords)
+void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrames>& rFrames, const std::vector<GridCoord>& rActiveCoords)
 {
 	int64_t iActiveCount = static_cast<int64_t>(rActiveCoords.size());
 
@@ -112,12 +112,12 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, Subscribed
 	{
 		const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(i)];
 		auto it = rFrames.find(rCoord);
-		if (it == rFrames.end() || it->second.current == nullptr)
+		if (it == rFrames.end() || it->second.pCurrent == nullptr)
 		{
 			continue;
 		}
 
-		const game::Frame& rFrame = *it->second.current;
+		const game::Frame& rFrame = *it->second.pCurrent;
 		IslandsFlip eFlip = rFrame.postRender.eIslandsFlip;
 
 		Island& rIsland = mIslands[static_cast<size_t>(i)];

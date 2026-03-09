@@ -1,6 +1,6 @@
 #include "HexShields.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 
 namespace engine
 {
@@ -33,7 +33,7 @@ void HexShieldsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t
 	int64_t iIndex = rHexShields.IdToIndex(id);
 
 	// Write all owner-provided fields
-	rHexShields.pVecPositions[iIndex] = rData.vecPosition;
+	rHexShields.pVecPositions[iIndex] = XMVectorSetW(rData.vecPosition, 1.0f);
 	rHexShields.pf4Transforms[0][iIndex] = rData.pf4Transforms[0];
 	rHexShields.pf4Transforms[1][iIndex] = rData.pf4Transforms[1];
 	rHexShields.pf4Transforms[2][iIndex] = rData.pf4Transforms[2];
@@ -72,7 +72,7 @@ void HexShieldsPostRender::Add(game::Frame& __restrict rFrame, hex_shields_t& rI
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
 	// Zero-init all members
-	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
+	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorSetW(XMVectorZero(), 1.0f);
 	rInterpolate.pf4Transforms[0][uiSpawnIndex] = {};
 	rInterpolate.pf4Transforms[1][uiSpawnIndex] = {};
 	rInterpolate.pf4Transforms[2][uiSpawnIndex] = {};

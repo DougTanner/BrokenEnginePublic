@@ -116,7 +116,7 @@ struct TransferData
 			fTime == rOther.fTime &&
 			fExhaustDelay == rOther.fExhaustDelay &&
 			fNextJitter == rOther.fNextJitter
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 			&& smokeTrailId == rOther.smokeTrailId
 #endif
 			;
@@ -156,7 +156,7 @@ struct TransferData
 	float fNextJitter = 0.0f;
 
 	// Smoke trail ID reuse (missiles only)
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	engine::smoke_trails_t smokeTrailId {};
 #endif
 };

@@ -140,7 +140,7 @@ struct GlobalLayout
 {
 	int32_t iCommandBuffer INIT;
 	int32_t iCameraFrame INIT;
-	int32_t iFrameCounter INIT;
+	int32_t iTickCounter INIT;
 	int32_t iCommandBufferPad INIT;
 
 	float fElapsedTime INIT;

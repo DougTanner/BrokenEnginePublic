@@ -38,5 +38,7 @@ void main()
 	f2OutTexcoord = pQuads[gl_InstanceIndex].pf4Texcoords[iIndex].xy;
 	f4OutColor = unpackUnorm4x8(pQuads[gl_InstanceIndex].puiColors[iIndex]).abgr;
 
-	gl_Position = Transform(pQuads[gl_InstanceIndex].pf4Vertices[iIndex], mainLayout.f4x4ViewProjection);
+	vec4 f4Position = pQuads[gl_InstanceIndex].pf4Vertices[iIndex];
+	f4Position.w = 1.0f;
+	gl_Position = Transform(f4Position, mainLayout.f4x4ViewProjection);
 }

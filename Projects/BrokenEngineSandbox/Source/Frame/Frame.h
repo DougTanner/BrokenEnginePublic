@@ -2,6 +2,7 @@
 
 #include "Frame/FrameBase.h"
 #include "Frame/GridCoord.h"
+#include "Frame/TimeStep.h"
 
 #include "Input/Input.h"
 
@@ -31,16 +32,16 @@ enum class GameFlags : uint64_t
 };
 using GameFlags_t = common::Flags<GameFlags>;
 
-// Set simulation timestep to 32/64/128 fps (kfDeltaTime: 0.03125f/0.015625f/0.0078125f)
-inline constexpr std::chrono::nanoseconds kUpdateStepNs = 1'000'000'000ns / 32;
-inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kUpdateStepNs);
+// Set tick rate to 32/64/128 tps (kfDeltaTime: 0.03125f/0.015625f/0.0078125f)
+inline constexpr std::chrono::nanoseconds kTickNs = 1'000'000'000ns / engine::kiTickRate;
+inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kTickNs);
 
 struct FrameInterpolate : public engine::FrameInterpolateBase
 {
 	// Called on Game creation
 	static void Register();
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	// Called during Graphics creation
 	static void GraphicsResources();
 #endif
@@ -49,7 +50,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 	static void AllocateAndCopy(FrameInterpolate& __restrict rCurrent, const FrameInterpolate& __restrict rPrevious);
 	static void Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	// Render
 	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords);
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);

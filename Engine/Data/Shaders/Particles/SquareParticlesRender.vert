@@ -57,6 +57,7 @@ void main()
 	f4Position.xyz += fSize * f3UpNormal + f2InQuadVertex.y * 2.0f * fSize * -f3UpNormal;
 
 	// Transform world position into projection space
+	f4Position.w = 1.0f;
 	gl_Position = Transform(f4Position, mainLayout.f4x4ViewProjection);
 	f3OutWorldPosition = f4Position.xyz;
 

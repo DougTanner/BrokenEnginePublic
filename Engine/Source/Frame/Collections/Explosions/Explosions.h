@@ -2,7 +2,7 @@
 
 #include "Frame/Collections/Collection.h"
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 #include "Frame/Collections/SmokeTrails/SmokeTrails.h"
 #endif
 
@@ -95,7 +95,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	// Allocate and copy
 	static void AllocateAndCopy(ExplosionsInterpolate& rCurrent, const ExplosionsInterpolate& rPrevious);
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	// Get registered controller type indices
 	static uint8_t GetPrimaryLightControllerTypeIndex();
 	static uint8_t GetSecondaryLightControllerTypeIndex();
@@ -108,7 +108,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	// Interpolate
 	static void Update(game::FrameInterpolate& __restrict rCurrentFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
 
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	// Render
 	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords);
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
@@ -123,22 +123,22 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	XMVECTOR* __restrict pVecDirections = nullptr;
 
 	// Per-instance scaling percentages
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	float* __restrict pfLightPercents = nullptr;
 #endif
 	float* __restrict pfSizePercents = nullptr;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	float* __restrict pfSmokePercents = nullptr;
 #endif
 	float* __restrict pfTimePercents = nullptr;
 
 	// Trail state (8 separate arrays - pTrails[j] is array of all explosions' j-th trail)
 	int32_t* __restrict piTrailCounts = nullptr;
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	smoke_trails_t* __restrict pTrails[kiMaxExplosionTrails] = {};
 #endif
 	float* __restrict pfTrailTimes[kiMaxExplosionTrails] = {};
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	float* __restrict pfTrailIntensities[kiMaxExplosionTrails] = {};
 	XMVECTOR* __restrict pVecTrailStartPositions[kiMaxExplosionTrails] = {};
 	XMVECTOR* __restrict pVecTrailEndPositions[kiMaxExplosionTrails] = {};
@@ -152,7 +152,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 		    rSelf.pfSizePercents, rSelf.pfTimePercents,
 		    rSelf.piTrailCounts, rSelf.pfTrailTimes);
 	}
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 	auto ClientMembers(this auto&& rSelf)
 	{
 		return std::tie(
@@ -164,7 +164,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 #endif
 	auto Members(this auto&& rSelf)
 	{
-#ifdef BT_CLIENT
+#if defined(BT_CLIENT)
 		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
 #else
 		return rSelf.SharedMembers();
