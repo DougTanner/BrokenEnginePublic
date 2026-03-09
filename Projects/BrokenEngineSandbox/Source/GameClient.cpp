@@ -522,6 +522,7 @@ void Game::UpdateSubscriptions()
 	{
 		desiredCoords.push_back(mHumanGridCoord);
 
+#if 0 // DT: TEMP
 		XMVECTOR vecArea = CurrentFrame(mHumanGridCoord).postRender.vecArea;
 		XMVECTOR vecPos = GetHumanPlayerPosition();
 		float fCenterX = (XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f;
@@ -535,6 +536,7 @@ void Game::UpdateSubscriptions()
 			engine::GridCoord neighbor {mHumanGridCoord.x + rOffset.x, mHumanGridCoord.y + rOffset.y};
 			desiredCoords.push_back(neighbor);
 		}
+#endif
 	}
 	else if (bDead)
 	{

@@ -53,6 +53,32 @@ void Game::ComputeActiveSetServer()
 		}
 	}
 
+	// Add 8 neighbours around each player's Frame so transfers have a destination
+	for (const engine::ClientConnection& rClient : rClients)
+	{
+		if (!rClient.humanPlayerId.IsValid())
+		{
+			continue;
+		}
+
+		for (int64_t i = -1; i <= 1; ++i)
+		{
+			for (int64_t j = -1; j <= 1; ++j)
+			{
+				if (j == 0 && i == 0)
+				{
+					continue;
+				}
+
+				engine::GridCoord neighbor {rClient.humanGridCoord.x + static_cast<int32_t>(j), rClient.humanGridCoord.y + static_cast<int32_t>(i)};
+				if (!std::ranges::contains(mActiveCoords, neighbor))
+				{
+					mActiveCoords.push_back(neighbor);
+				}
+			}
+		}
+	}
+
 	// Origin is always active
 	if (!std::ranges::contains(mActiveCoords, engine::kOriginCoord))
 	{

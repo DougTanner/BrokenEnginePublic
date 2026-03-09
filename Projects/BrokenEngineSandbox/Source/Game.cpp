@@ -107,6 +107,7 @@ void Game::ComputeActiveSet()
 		mActiveCoords.clear();
 		mActiveCoords.push_back(mHumanGridCoord);
 
+#if 0 // DT: TEMP
 		XMVECTOR vecPos = rFrame.interpolate.pPlayers->pVecPositions[it->second];
 		XMVECTOR vecArea = rFrame.postRender.vecArea;
 		float fCenterX = (XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f;
@@ -124,6 +125,7 @@ void Game::ComputeActiveSet()
 			}
 			mActiveCoords.push_back(neighbor);
 		}
+#endif
 	}
 	else
 	{
