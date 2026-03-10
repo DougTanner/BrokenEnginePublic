@@ -16,6 +16,7 @@ void NetworkServer::HandleClientAckStream(const uint8_t* pData, int64_t iClientI
 
 	// Read per-slot ACK state
 	uint8_t uiAckSlotCount = ReadUint8(pCursor);
+	common::Log("NetworkServer: AckStream client {} slots={}", iClientId, uiAckSlotCount); // DT: TEMP
 	if (pClient != nullptr)
 	{
 		for (uint8_t i = 0; i < uiAckSlotCount; ++i)

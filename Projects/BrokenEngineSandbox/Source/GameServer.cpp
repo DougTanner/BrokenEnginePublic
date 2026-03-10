@@ -7,6 +7,17 @@ namespace game
 
 #if defined(BT_SERVER)
 
+void Game::PreTickNetworkServer()
+{
+	// Heap: ENet polling and game server methods allocate vectors for inputs, spawns, and status changes
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	engine::gpNetworkServer->Poll();
+	mpDiscoveryResponder->Poll();
+	HandleDisconnectsServer();
+	HandleNewClientsServer();
+	ProcessSpawnRequestsServer();
+}
+
 void Game::HandleDisconnectsServer()
 {
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
@@ -319,6 +330,7 @@ void Game::BroadcastStatusChangesServer(int64_t iTick)
 		allGridUpdates.push_back({rCoord, updateData});
 	}
 	engine::gpNetworkServer->BufferFrame(iTick, allGridUpdates);
+	common::Log("GameServer: BroadcastStatusChanges tick={} coords={} clients={}", iTick, mActiveCoords.size(), engine::gpNetworkServer->GetClients().size()); // DT: TEMP
 
 	// Buffer full frame snapshots for debug frame requests
 	{
@@ -409,6 +421,7 @@ void Game::FinalizeNewClientsServer([[maybe_unused]] int64_t iTick)
 
 		engine::gpNetworkServer->SendAssignPlayer(iClientId, playerId, engine::kOriginCoord);
 		engine::gpNetworkServer->SendPlayerState(iClientId, engine::PlayerStateType::kSpawned, playerId, engine::kOriginCoord);
+		common::Log("GameServer: AssignPlayer client={} player={} coord ({},{})", iClientId, playerId.ToUuid().Value(), engine::kOriginCoord.x, engine::kOriginCoord.y); // DT: TEMP
 	}
 
 	mClientsWaitingForSpawn.erase(mClientsWaitingForSpawn.begin(), mClientsWaitingForSpawn.begin() + static_cast<int64_t>(iAssignCount));
@@ -453,6 +466,7 @@ void Game::DetectPlayerDeathsServer()
 		ScopedSuppressAllocationTracking suppressAllocationTracking;
 		mDeadClientIds.insert(rClient.iClientId);
 		engine::gpNetworkServer->SendPlayerState(rClient.iClientId, engine::PlayerStateType::kDied, rClient.humanPlayerId, rClient.humanGridCoord);
+		common::Log("GameServer: PlayerDeath client={} player={} coord ({},{})", rClient.iClientId, rClient.humanPlayerId.ToUuid().Value(), rClient.humanGridCoord.x, rClient.humanGridCoord.y); // DT: TEMP
 		rClient.humanPlayerId = {};
 	}
 }
@@ -476,6 +490,7 @@ void Game::HandleSubscriptionUpdatesServer([[maybe_unused]] int64_t iTick)
 		auto frameIt = mCoordFrames.find(rSub.coord);
 		if (frameIt != mCoordFrames.end())
 		{
+			common::Log("GameServer: SendFullState client={} slot={} coord ({},{}) tick={}", rSub.iClientId, rSub.iSlot, rSub.coord.x, rSub.coord.y, miTickCounter); // DT: TEMP
 			engine::gpNetworkServer->SendCoordFullState(rSub.iClientId, rSub.iSlot, miTickCounter, rSub.coord, frameIt->second.pCurrent.get());
 		}
 	}

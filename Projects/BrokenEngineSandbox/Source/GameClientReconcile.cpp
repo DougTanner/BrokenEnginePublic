@@ -43,6 +43,7 @@ void Game::KickReconcile()
 		rSub.serverUpdates.clear();
 		rSub.pendingFullState.reset();
 
+		common::Log("GameClient: KickReconcile coord ({},{}) confirmed={} snapshots={} serverUpdates={} pendingFull={}", work.coord.x, work.coord.y, work.iConfirmedTick, work.iSnapshotCount, work.serverUpdates.size(), work.pendingFullState.has_value()); // DT: TEMP
 		rReconcileContext.coordWork.push_back(std::move(work));
 	}
 
@@ -51,6 +52,8 @@ void Game::KickReconcile()
 	rReconcileContext.uiNextFrameId = muiNextFrameId;
 	rReconcileContext.iTargetTick = miTickCounter;
 	rReconcileContext.playerAlignment = mPlayerAlignment;
+
+	common::Log("GameClient: KickReconcile coords={} targetTick={} nextFrameId={}", rReconcileContext.coordWork.size(), rReconcileContext.iTargetTick, rReconcileContext.uiNextFrameId); // DT: TEMP
 
 	// Dispatch to worker
 	mpReconcileWorker->Wake([this]()
@@ -132,14 +135,21 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 			if (rWork.snapshots[iPhysical]->postRender.serverCrc != it->second.serverCrc)
 			{
 				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: crc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, rWork.snapshots[iPhysical]->postRender.serverCrc, it->second.serverCrc);
+				common::Log("GameClient: CrcFastPath FAIL coord ({},{}) frame={} crc mismatch", rWork.coord.x, rWork.coord.y, iExpected); // DT: TEMP
 				bMatch = false;
 				break;
 			}
 			if (rWork.snapshots[iPhysical]->postRender.previousInputCrc != it->second.inputCrc)
 			{
 				FILE_LOG(0, "[CrcFastPath] FAIL coord=({},{}) frame={}: inputCrc mismatch client={} server={}", rWork.coord.x, rWork.coord.y, iExpected, rWork.snapshots[iPhysical]->postRender.previousInputCrc, it->second.inputCrc);
+				common::Log("GameClient: CrcFastPath FAIL coord ({},{}) frame={} inputCrc mismatch", rWork.coord.x, rWork.coord.y, iExpected); // DT: TEMP
 				bMatch = false;
 				break;
+			}
+			if (iExpected >= rReconcileContext.iTargetTick - 2)
+			{
+				FILE_LOG(0, "[CrcFastPath] MATCH coord=({},{}) frame={} pushers={}", rWork.coord.x, rWork.coord.y, iExpected,
+					rWork.snapshots[iPhysical]->interpolate.pushers.iCount);
 			}
 			iLastMatched = iExpected;
 			iLastMatchedIndex = iIndex;
@@ -153,6 +163,7 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 		if (iLastMatched == -1 && !rWork.serverUpdates.empty() && rWork.serverUpdates.begin()->first != rWork.iConfirmedTick + 1)
 		{
 			FILE_LOG(0, "[CrcFastPath] GAP coord=({},{}) confirmed={} firstUpdate={}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, rWork.serverUpdates.begin()->first);
+			common::Log("GameClient: CrcFastPath GAP coord ({},{}) confirmed={} firstUpdate={}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, rWork.serverUpdates.begin()->first); // DT: TEMP
 			if (rWork.iConfirmedTick >= 0 && rWork.iConfirmedTick < iMinConfirmedTick)
 			{
 				iMinConfirmedTick = rWork.iConfirmedTick;
@@ -208,12 +219,20 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 			{
 				iNewMinConfirmed = iLastMatched;
 			}
+
+			if (!bMatch)
+			{
+				FILE_LOG(0, "[CrcFastPath] PARTIAL coord=({},{}) confirmed={} advanced={} failedAt={}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, iLastMatched, iExpected);
+				common::Log("GameClient: CrcFastPath PARTIAL coord ({},{}) confirmed={} advanced={} failedAt={}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, iLastMatched, iExpected); // DT: TEMP
+				bAllHandled = false;
+			}
 		}
 		else if (!bMatch)
 		{
 			// CRC mismatch at confirmed+1: permanent (StatusChanges the client didn't have).
 			// Must reconcile to replay with server data.
 			FILE_LOG(0, "[CrcFastPath] MISMATCH coord=({},{}) confirmed={}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick);
+			common::Log("GameClient: CrcFastPath MISMATCH coord ({},{}) confirmed={}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick); // DT: TEMP
 			bAllHandled = false;
 			if (rWork.iConfirmedTick >= 0 && rWork.iConfirmedTick < iMinConfirmedTick)
 			{
@@ -230,6 +249,7 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 			if (rWork.iConfirmedTick + 1 < rReconcileContext.iTargetTick)
 			{
 				FILE_LOG(0, "[CrcFastPath] STALE-NOSNAPSHOT coord=({},{}) confirmed={} targetTick={}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, rReconcileContext.iTargetTick);
+				common::Log("GameClient: CrcFastPath STALE-NOSNAPSHOT coord ({},{}) confirmed={}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick); // DT: TEMP
 				bAllHandled = false;
 				if (rWork.iConfirmedTick >= 0 && rWork.iConfirmedTick < iMinConfirmedTick)
 				{
@@ -269,6 +289,7 @@ std::pair<bool, int64_t> Game::ReconcileCrcFastPath(ReconcileContext& rReconcile
 		}
 	}
 
+	common::Log("GameClient: CrcFastPath allHandled={} minConfirmed={}", bAllHandled, iMinConfirmedTick == std::numeric_limits<int64_t>::max() ? -1 : iMinConfirmedTick); // DT: TEMP
 	return {bAllHandled, iMinConfirmedTick};
 }
 
@@ -280,6 +301,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	auto [bAllHandled, iMinConfirmedTick] = ReconcileCrcFastPath(rReconcileContext);
 	if (bAllHandled)
 	{
+		common::Log("GameClient: Reconcile fast-path complete"); // DT: TEMP
 		return;
 	}
 
@@ -291,6 +313,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	}
 
 	ReconcileRollback(rReconcileContext, iMinConfirmedTick);
+	common::Log("GameClient: Reconcile rollback minConfirmed={} coords={}", iMinConfirmedTick, rReconcileContext.coordWork.size()); // DT: TEMP
 
 	int64_t iMaxConsecutive = ReconcileFindReplayRange(rReconcileContext, iMinConfirmedTick);
 
@@ -299,6 +322,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	ReconcileReplay(rReconcileContext, iMinConfirmedTick, iMaxConsecutive);
 
 	FILE_LOG(0, "[Reconcile] Replay complete: frameCounter={} desync={}", rReconcileContext.iTickCounter, rReconcileContext.iDesyncTick >= 0);
+	common::Log("GameClient: Reconcile replay complete desync={}", rReconcileContext.iDesyncTick >= 0); // DT: TEMP
 
 	if (rReconcileContext.iDesyncTick >= 0)
 	{
@@ -321,6 +345,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	ReconcilePruneInactiveFrames(rReconcileContext);
 
 	FILE_LOG(0, "[Reconcile] Total: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(reconcileTimer.GetDeltaNs()).count());
+	common::Log("GameClient: Reconcile total {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(reconcileTimer.GetDeltaNs()).count()); // DT: TEMP
 }
 
 void Game::ApplyReconcileResult()
@@ -336,6 +361,7 @@ void Game::ApplyReconcileResult()
 		mpNetworkClient->SendDesyncReport(rReconcileContext.iDesyncTick, rReconcileContext.desyncCoord, rReconcileContext.desyncServerCrc, rReconcileContext.desyncClientCrc);
 		mpNetworkClient->SendDebugFrameRequest(rReconcileContext.iDesyncTick, rReconcileContext.desyncCoord);
 		mpNetworkClient->SetDesyncDebugMode(true);
+		common::Log("GameClient: ApplyReconcileResult DESYNC tick={} coord ({},{}) serverCrc={} clientCrc={}", rReconcileContext.iDesyncTick, rReconcileContext.desyncCoord.x, rReconcileContext.desyncCoord.y, rReconcileContext.desyncServerCrc, rReconcileContext.desyncClientCrc); // DT: TEMP
 
 		mDesyncDebugState.iTick = rReconcileContext.iDesyncTick;
 		mDesyncDebugState.coord = rReconcileContext.desyncCoord;
@@ -385,6 +411,7 @@ void Game::ApplyReconcileResult()
 		if (rWork.iNewConfirmedTick >= 0)
 		{
 			rSub.iConfirmedTick = rWork.iNewConfirmedTick;
+			common::Log("GameClient: ApplyReconcileResult coord ({},{}) newConfirmed={} fastPath={}", rWork.coord.x, rWork.coord.y, rWork.iNewConfirmedTick, rWork.bCrcFastPath); // DT: TEMP
 
 			if (rWork.bCrcFastPath)
 			{
@@ -496,6 +523,7 @@ void Game::ApplyReconcileResult()
 		EnsureNextFrames();
 	}
 
+	common::Log("GameClient: ApplyReconcileResult complete crcFastPathAll={} tickCounter={}", rReconcileContext.bCrcFastPathHandledAll, miTickCounter); // DT: TEMP
 	mpReconcileContext.reset();
 }
 

@@ -16,6 +16,8 @@ NetworkServer::NetworkServer(uint16_t uiPort)
 	address.host = ENET_HOST_ANY;
 	address.port = uiPort;
 
+	common::Log("NetworkServer: Starting on port {}", uiPort); // DT: TEMP
+
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	// Heap: ENet allocates host data internally
 	mpHost = enet_host_create(&address, 64, NetworkManager::kuiChannelCount, 0, 0);
@@ -211,6 +213,7 @@ void NetworkServer::HandleReceive(const uint8_t* pData, size_t iSize, ENetPeer* 
 
 void NetworkServer::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates)
 {
+	common::Log("NetworkServer: BufferFrame tick {} coords={}", iTick, rGridUpdates.size()); // DT: TEMP
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	for (const auto& [coord, updateData] : rGridUpdates)

@@ -148,11 +148,13 @@ std::chrono::nanoseconds Game::ComputeClockCorrectionNs(int64_t iPreReconcileTic
 
 	gpProfileManager->SetClockCorrection(iOffset, iTargetBehind, iError);
 
+	common::Log("GameClient: ClockCorrection offset={} target={} error={} correction={}", iOffset, iTargetBehind, iError, iCorrectionSteps); // DT: TEMP
 	return correction;
 }
 
 void Game::DisconnectFromServer()
 {
+	common::Log("GameClient: DisconnectFromServer"); // DT: TEMP
 	// Heap: NetworkClient destructor triggers ENet disconnect and cleanup
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
@@ -243,13 +245,15 @@ void Game::PollNetworkClient()
 	}
 
 	// Connection accepted - transition to game mode (runs once)
-	if (mCoordFrames.contains(mHumanGridCoord) && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kMainMenu)
+	if (InMainMenu())
 	{
 		miGameMusicIndex = 0;
 		engine::gpAudioManager->PlayMusic(mGameMusicPlaylist.at(0));
 		CreateNewFrame(GameFlags::kGame);
+		mGameFlags.Clear(engine::GameFlags::kMainMenu);
 		Reset();
 		meUiState = UiState::kNone;
+		common::Log("GameClient: Connection accepted, entering game"); // DT: TEMP
 	}
 
 	// Check for debug frame response
@@ -303,6 +307,7 @@ void Game::PollNetworkClient()
 		case engine::PlayerStateType::kSpawned:
 		case engine::PlayerStateType::kChangedFrame:
 			mHumanGridCoord = rState.coord;
+			common::Log("GameClient: PlayerState type={} coord ({},{})", static_cast<int>(rState.eType), rState.coord.x, rState.coord.y); // DT: TEMP
 			break;
 		case engine::PlayerStateType::kDied:
 			if (mCoordFrames.contains(mHumanGridCoord))
@@ -311,6 +316,7 @@ void Game::PollNetworkClient()
 			}
 			mHumanPlayerId = {};
 			mfPreviousHumanArmor = 0.0f;
+			common::Log("GameClient: Player died"); // DT: TEMP
 			break;
 		}
 	}
@@ -391,6 +397,7 @@ void Game::ApplyReceivedFullStates()
 
 			mbReconcileHasNewData = true;
 			FILE_LOG(0, "[ApplyReceivedFullStates] Initial coord=({},{}) tick={}", coord.x, coord.y, iTick);
+			common::Log("GameClient: FullState initial coord ({},{}) tick={} tickCounter={}", coord.x, coord.y, iTick, miTickCounter); // DT: TEMP
 		}
 		else
 		{
@@ -402,6 +409,7 @@ void Game::ApplyReceivedFullStates()
 
 			mbReconcileHasNewData = true;
 			FILE_LOG(0, "[ApplyReceivedFullStates] Deferred coord=({},{}) tick={}", coord.x, coord.y, iTick);
+			common::Log("GameClient: FullState deferred coord ({},{}) tick={} confirmedTick={}", coord.x, coord.y, iTick, rSub.iConfirmedTick); // DT: TEMP
 		}
 	}
 
@@ -419,13 +427,13 @@ void Game::ApplyReceivedUpdates()
 
 	for (int64_t iSlot = 0; iSlot < std::ssize(rCoordSlots); ++iSlot)
 	{
-		std::vector<engine::ReceivedCoordUpdate>& rSlotUpdates = rAllUpdates[iSlot];
+		std::vector<engine::ReceivedCoordUpdate>& rSlotUpdates = rAllUpdates.at(iSlot);
 		if (rSlotUpdates.empty())
 		{
 			continue;
 		}
 
-		const engine::ClientCoordSlot& rSlot = rCoordSlots[iSlot];
+		const engine::ClientCoordSlot& rSlot = rCoordSlots.at(iSlot);
 		if (rSlot.eState != engine::CoordSubscriptionState::kActive)
 		{
 			rSlotUpdates.clear();
@@ -440,6 +448,7 @@ void Game::ApplyReceivedUpdates()
 			// Skip frames at or before confirmed frame for this coord
 			if (rUpdate.iTick <= rSub.iConfirmedTick)
 			{
+				common::Log("GameClient: ServerUpdate skip confirmed coord ({},{}) tick={} confirmedTick={}", coord.x, coord.y, rUpdate.iTick, rSub.iConfirmedTick); // DT: TEMP
 				continue;
 			}
 
@@ -458,11 +467,13 @@ void Game::ApplyReceivedUpdates()
 					.statusChanges = std::move(rUpdate.statusChanges),
 				};
 				mbReconcileHasNewData = true;
+				common::Log("GameClient: ServerUpdate coord ({},{}) tick={} serverCrc={} inputCrc={} changes={}", coord.x, coord.y, rUpdate.iTick, rUpdate.serverCrc, rUpdate.inputCrc, rSub.serverUpdates[rUpdate.iTick].statusChanges.size()); // DT: TEMP
 			}
 		}
 
 		rSlotUpdates.clear();
 	}
+	common::Log("GameClient: ApplyReceivedUpdates latestServerTick={}", miLatestServerTick); // DT: TEMP
 }
 
 int64_t Game::GetConfirmedTick() const
@@ -558,18 +569,18 @@ void Game::UpdateSubscriptions()
 	// Unsubscribe from coords no longer desired
 	for (int64_t i = 0; i < std::ssize(rSlots); ++i)
 	{
-		if (rSlots[i].eState == engine::CoordSubscriptionState::kUnsubscribed ||
-		    rSlots[i].eState == engine::CoordSubscriptionState::kUnsubscribing)
+		if (rSlots.at(i).eState == engine::CoordSubscriptionState::kUnsubscribed ||
+		    rSlots.at(i).eState == engine::CoordSubscriptionState::kUnsubscribing)
 		{
 			continue;
 		}
 
-		if (!std::ranges::contains(desiredCoords, rSlots[i].coord))
+		if (!std::ranges::contains(desiredCoords, rSlots.at(i).coord))
 		{
-			engine::GridCoord unsubCoord = rSlots[i].coord;
-			if (rSlots[i].eState == engine::CoordSubscriptionState::kSubscribing)
+			engine::GridCoord unsubCoord = rSlots.at(i).coord;
+			if (rSlots.at(i).eState == engine::CoordSubscriptionState::kSubscribing)
 			{
-				rSlots[i] = {};
+				rSlots.at(i) = {};
 			}
 			else
 			{
@@ -589,6 +600,7 @@ void Game::UpdateSubscriptions()
 				rUnSub.uiGeneration = 0;
 			}
 			FILE_LOG(0, "[UpdateSubscriptions] Unsubscribe slot={} coord=({},{})", i, unsubCoord.x, unsubCoord.y);
+			common::Log("GameClient: Unsubscribe slot {} coord ({},{})", i, unsubCoord.x, unsubCoord.y); // DT: TEMP
 		}
 	}
 
@@ -599,9 +611,9 @@ void Game::UpdateSubscriptions()
 		bool bAlreadySubscribed = false;
 		for (int64_t i = 0; i < std::ssize(rSlots); ++i)
 		{
-			if (rSlots[i].coord == rCoord &&
-			    rSlots[i].eState != engine::CoordSubscriptionState::kUnsubscribed &&
-			    rSlots[i].eState != engine::CoordSubscriptionState::kUnsubscribing)
+			if (rSlots.at(i).coord == rCoord &&
+			    rSlots.at(i).eState != engine::CoordSubscriptionState::kUnsubscribed &&
+			    rSlots.at(i).eState != engine::CoordSubscriptionState::kUnsubscribing)
 			{
 				bAlreadySubscribed = true;
 				break;
@@ -613,6 +625,8 @@ void Game::UpdateSubscriptions()
 			mSubscriptionQueue.push_back(rCoord);
 		}
 	}
+
+	common::Log("GameClient: UpdateSubscriptions desired={} queue={}", desiredCoords.size(), mSubscriptionQueue.size()); // DT: TEMP
 
 	// Start subscribing
 	TrySubscribeNext();
@@ -629,9 +643,9 @@ void Game::TrySubscribeNext()
 	const std::vector<engine::ClientCoordSlot>& rSlots = mpNetworkClient->GetCoordSlots();
 	for (int64_t i = 0; i < std::ssize(rSlots); ++i)
 	{
-		if (rSlots[i].eState == engine::CoordSubscriptionState::kSubscribing ||
-		    rSlots[i].eState == engine::CoordSubscriptionState::kWaitingFullState ||
-		    rSlots[i].eState == engine::CoordSubscriptionState::kUnsubscribing)
+		if (rSlots.at(i).eState == engine::CoordSubscriptionState::kSubscribing ||
+		    rSlots.at(i).eState == engine::CoordSubscriptionState::kWaitingFullState ||
+		    rSlots.at(i).eState == engine::CoordSubscriptionState::kUnsubscribing)
 		{
 			return; // Wait for current subscription or unsubscription to complete
 		}
@@ -659,6 +673,7 @@ void Game::WaitForReconcile()
 			return;
 		}
 
+		common::Log("GameClient: WaitForReconcile waiting..."); // DT: TEMP
 		common::Timer timer;
 		mpReconcileWorker->Wait();
 		std::chrono::nanoseconds semaphoreWaitNs = timer.GetDeltaNs(true);
@@ -671,6 +686,7 @@ void Game::WaitForReconcile()
 		}
 
 		ApplyReconcileResult();
+		common::Log("GameClient: WaitForReconcile complete"); // DT: TEMP
 		mbReconcileInFlight = false;
 	}
 }
@@ -692,6 +708,7 @@ void Game::TryKickReconcile()
 		return;
 	}
 
+	common::Log("GameClient: TryKickReconcile confirmedTick={} tickCounter={} latestServer={}", GetConfirmedTick(), miTickCounter, miLatestServerTick); // DT: TEMP
 	KickReconcile();
 	mbReconcileInFlight = true;
 	mbReconcileHasNewData = false;
@@ -699,10 +716,78 @@ void Game::TryKickReconcile()
 
 void Game::CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, [[maybe_unused]] int64_t iTick, [[maybe_unused]] engine::GridCoord coord)
 {
+	FILE_LOG(0, "[CompareWithServerFrame] tick={} coord=({},{})", iTick, coord.x, coord.y);
+	FILE_LOG(0, "[CompareWithServerFrame] client pushers: count={} mapSize={}", rClientFrame.interpolate.pushers.iCount, rClientFrame.interpolate.pushers.idToIndexMap.size());
+	FILE_LOG(0, "[CompareWithServerFrame] server pushers: count={} mapSize={}", rServerFrame.interpolate.pushers.iCount, rServerFrame.interpolate.pushers.idToIndexMap.size());
+
 	// Suppress DEBUG_BREAK so the full comparison chain runs
 	common::gbSuppressVerifyFrameBreak = true;
 	rClientFrame.ServerCompare(rServerFrame);
 	common::gbSuppressVerifyFrameBreak = false;
+}
+
+void Game::PollAndReconcileClient()
+{
+	// Desync debug mode: only poll network for debug frame response, keep window responsive
+	if (GetDesyncTick() >= 0)
+	{
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		PollNetworkClient();
+		if (engine::gpNetworkClient != nullptr)
+		{
+			engine::gpNetworkClient->Flush();
+		}
+		return;
+	}
+
+	gpProfileManager->CpuStart(engine::kCpuTimerNetworkPollReconcile);
+	{
+		// Heap: reconciliation deserialization and map operations
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		int64_t iPreReconcileTick = TickCounter();
+		WaitForReconcile();
+		// Compensate time step for ticks rolled back during reconciliation
+		int64_t iTickDeficit = iPreReconcileTick - TickCounter();
+		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iPreReconcileTick);
+		if (iTickDeficit > 0)
+		{
+			mTimeStep.mTickRemainderNs += iTickDeficit * kTickNs;
+		}
+		mTimeStep.mTickRemainderNs += clockCorrectionNs;
+	}
+	gpProfileManager->CpuStop(engine::kCpuTimerNetworkPollReconcile, true);
+}
+
+void Game::PostTickNetworkClient()
+{
+	if (GetDesyncTick() >= 0) return;
+
+	// Post-tick: poll network before render so reconciliation gets the freshest data
+	{
+		// Heap: ENet polling
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		PollNetworkClient();
+	}
+
+	gpProfileManager->CpuStart(engine::kCpuTimerNetworkSend);
+	{
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		if (engine::gpNetworkClient != nullptr)
+		{
+			engine::gpNetworkClient->SendAck();
+			engine::gpNetworkClient->Flush();
+		}
+	}
+	gpProfileManager->CpuStop(engine::kCpuTimerNetworkSend, true);
+}
+
+void Game::PostRenderNetworkClient()
+{
+	if (GetDesyncTick() >= 0) return;
+
+	// Kick reconcile after render so snapshots remain valid for GetSnapshotFrame during rendering
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	TryKickReconcile();
 }
 
 #endif // BT_CLIENT

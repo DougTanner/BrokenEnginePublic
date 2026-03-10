@@ -45,6 +45,8 @@ void NetworkClient::SendAck()
 	int64_t iTimestampNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 	rWorkbuffer.PushBack<int64_t>(iTimestampNs);
 
+	common::Log("NetworkClient: SendAck slots={}", uiAckSlotCount); // DT: TEMP
+
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
 	{
@@ -190,6 +192,7 @@ void NetworkClient::SendSubscribe(GridCoord coord)
 	}
 
 	FILE_LOG(0, "[NetworkClient] SendSubscribe: coord=({},{})", coord.x, coord.y);
+	common::Log("NetworkClient: SendSubscribe coord ({},{})", coord.x, coord.y); // DT: TEMP
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
@@ -226,6 +229,7 @@ void NetworkClient::SendUnsubscribe(int64_t iSlot)
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
 
 	FILE_LOG(0, "[NetworkClient] SendUnsubscribe: slot={}", iSlot);
+	common::Log("NetworkClient: SendUnsubscribe slot {}", iSlot); // DT: TEMP
 
 	mCoordSlots[iSlot].eState = CoordSubscriptionState::kUnsubscribing;
 
@@ -243,6 +247,7 @@ void NetworkClient::SendUnsubscribe(int64_t iSlot)
 
 void NetworkClient::SendHello()
 {
+	common::Log("NetworkClient: SendHello config={}", kpcBuildConfigName); // DT: TEMP
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 

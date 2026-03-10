@@ -189,16 +189,13 @@ class Input
 {
 public:
 
-	bool UpdateMenuInput(const engine::RawInput& rRawInput);
+	void UpdateMenuInput(bool bLostFocus, MenuInput& rMenuInput);
 
-	const MenuInput& GetMenuInput() const { return mMenuInput; }
 	bool GetGamepadMode() const { return mbGamepadMode; }
 
 private:
 
 	engine::RawInput mPreviousRawInputMenu {};
-
-	MenuInput mMenuInput {};
 
 	bool mbGamepadMode = false;
 

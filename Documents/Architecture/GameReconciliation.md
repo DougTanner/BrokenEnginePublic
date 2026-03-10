@@ -78,7 +78,7 @@ flowchart LR
 
 ## Main Loop Integration
 
-Where reconciliation entry points sit relative to physics and render in the client main loop.
+Where reconciliation entry points sit relative to physics and render in the client main loop. Network orchestration is encapsulated within `GameBase::TickFrames()` and `GameBase::Render()` — Main.cpp's loop simply calls `TickFrames()`, `Render()`, and audio update.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -88,33 +88,34 @@ flowchart TD
     classDef render fill:#dcfce7,stroke:#16a34a
     classDef reconcile fill:#fce7f3,stroke:#db2777
 
-    MSG["ProcessMessages()<br/>RawInput Update"] --> DESYNC_CHECK
+    MSG["ProcessMessages()<br/>RawInput Update"] --> TICK_FRAMES
 
-    DESYNC_CHECK{"GetDesyncTick() >= 0?"}
-    DESYNC_CHECK -->|"Yes"| DEBUG_PATH["PollNetworkClient (check debug frame)<br/>Flush, Render<br/>(skip physics/reconcile/audio)"]:::network
-    DEBUG_PATH --> MSG
+    subgraph TICK_FRAMES ["GameBase::TickFrames()"]
+        POLL_RECONCILE["Game::PollAndReconcileClient()<br/>(desync: poll+flush only,<br/>normal: WaitForReconcile,<br/>ApplyReconcileResult,<br/>clock correction)"]:::reconcile
 
-    DESYNC_CHECK -->|"No"| WAIT["WaitForReconcile()<br/>Block until async worker done<br/>ApplyReconcileResult()"]:::reconcile
+        PHYSICS["Fixed-rate physics ticks<br/>(desync: early-return)"]:::physics
 
-    WAIT --> CLOCK["ComputeClockCorrectionNs()<br/>Frame deficit compensation<br/>Add to mTickRemainderNs"]:::reconcile
+        POST_TICK["Game::PostTickNetworkClient()<br/>(desync: early-return)"]:::network
 
-    CLOCK --> PHYSICS["TickFrames()<br/>(multiple fixed-rate physics ticks)"]:::physics
+        subgraph post_tick_detail ["PostTickNetworkClient()"]
+            POLL["PollNetworkClient()<br/>Process player state notifications<br/>(spawn/frame change/death),<br/>apply full states,<br/>buffer delta updates"]:::network
+            SEND["NetworkClient::SendAck()<br/>NetworkClient::Flush()"]:::network
+            POLL --> SEND
+        end
 
-    PHYSICS --> POLL["PollNetworkClient()<br/>Process player state notifications<br/>(spawn/frame change/death),<br/>apply full states,<br/>buffer delta updates"]:::network
+        POLL_RECONCILE --> PHYSICS --> POST_TICK --> post_tick_detail
+    end
 
-    POLL --> KICK["TryKickReconcile()<br/>Gate: mbReconcileHasNewData<br/>(skip if no new server data)<br/>Move consecutive updates to worker,<br/>dispatch async reconcile"]:::reconcile
+    subgraph RENDER_METHOD ["GameBase::Render()"]
+        RENDER["Render interpolation +<br/>GPU rendering"]:::render
+        POST_RENDER["Game::PostRenderNetworkClient()<br/>(desync: early-return,<br/>normal: TryKickReconcile<br/>gated by mbReconcileHasNewData)"]:::reconcile
+        RENDER --> POST_RENDER
+    end
 
-    KICK --> SEND["NetworkClient::SendAck()<br/>NetworkClient::Flush()"]:::network
+    AUDIO["AudioManager::Update()"]
 
-    SEND --> BORROW["BorrowSnapshotFramesForRender()<br/>(move latest snapshot into<br/>mCoordFrames if extrapolating)"]:::reconcile
-
-    BORROW --> RENDER["Render()"]:::render
-
-    RENDER --> AUDIO["AudioManager::Update()"]
-
-    AUDIO --> RESTORE["RestoreSnapshotFramesAfterRender()<br/>(return snapshot to ring<br/>if extrapolating)"]:::reconcile
-
-    RESTORE --> MSG
+    TICK_FRAMES --> RENDER_METHOD --> AUDIO
+    AUDIO --> MSG
 ```
 
 ## Soft Clock Correction
@@ -155,7 +156,7 @@ sequenceDiagram
     Main->>Net: SetDesyncDebugMode(true)
     Net->>Server: Desync report + debug frame request
 
-    Note over Main: Main loop enters debug path:<br/>Only poll/flush/render, skip physics
+    Note over Main: Each Game method early-returns<br/>when desync active (TickFrames,<br/>PostTickNetworkClient,<br/>PostRenderNetworkClient).<br/>Render and audio still run.
 
     Server->>Net: Debug frame response (serialized Frame)
     Main->>Main: PollNetworkClient() drains debug frame

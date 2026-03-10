@@ -92,6 +92,7 @@ void NetworkClient::HandleServerCoordFullState(const uint8_t* pData)
 	// Validate slot before pushing full state
 	if (uiSlotIndex >= std::ssize(mCoordSlots))
 	{
+		common::Log("NetworkClient: FullState rejected - slot {} out of range", uiSlotIndex); // DT: TEMP
 		return;
 	}
 
@@ -109,11 +110,13 @@ void NetworkClient::HandleServerCoordFullState(const uint8_t* pData)
 		// Validate coord matches to prevent stale full state from a previous subscription
 		if (rSlot.coord != coord)
 		{
+			common::Log("NetworkClient: FullState rejected - coord mismatch slot {} expected ({},{}) got ({},{})", uiSlotIndex, rSlot.coord.x, rSlot.coord.y, coord.x, coord.y); // DT: TEMP
 			return;
 		}
 	}
 	else
 	{
+		common::Log("NetworkClient: FullState rejected - slot {} in state {}", uiSlotIndex, static_cast<int>(rSlot.eState)); // DT: TEMP
 		return;
 	}
 
@@ -190,6 +193,7 @@ void NetworkClient::HandleServerCoordUpdateOrResend(const uint8_t* pData, bool b
 		TrackReceivedTick(uiSlotIndex, iTick);
 	}
 
+	common::Log("NetworkClient: Received coord ({},{}) slot {} frame {} (resend={})", rSlot.coord.x, rSlot.coord.y, uiSlotIndex, iTick, !bProcessRtt); // DT: TEMP
 }
 
 void NetworkClient::HandleServerDebugFrame(const uint8_t* pData)

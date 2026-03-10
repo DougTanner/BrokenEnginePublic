@@ -337,6 +337,7 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 
 void AudioManager::Update(const game::Frame& rFrame)
 {
+	ScopedCpuProfile scopedCpuProfile(kCpuTimerAudio);
 	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
 
 	// Heap: Voice map emplace/erase, make_unique<StreamingVoice> for track transitions, and

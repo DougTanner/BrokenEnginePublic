@@ -405,6 +405,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\GameBase.h">
       <Filter>Engine</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\GameSaveLoad.h">
+      <Filter>Engine</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Collection.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
@@ -714,6 +717,9 @@
       <Filter>Engine\Memory</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp">
+      <Filter>Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\GameSaveLoad.cpp">
       <Filter>Engine</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameBase.cpp">

@@ -6,7 +6,7 @@ Game-specific input processing that converts raw hardware input into game and me
 
 ## Architecture Overview
 
-**Two-Tier System**: Raw hardware state from engine's RawInputManager -> Input class for toggle detection -> Game-specific MenuInput structure. FrameInput is a minimal struct containing only status changes (spawn, respawn, transfer, destroy events); player input for gameplay is handled separately via the network protocol.
+**Two-Tier System**: `UpdateMenuInput(bool bLostFocus, MenuInput&)` internally calls `gpRawInputManager->Update(bLostFocus)` then processes raw hardware state into game-specific MenuInput with toggle detection. The entire method body is `#if defined(BT_CLIENT)`. Called by `GameBase::ProcessInput()`. FrameInput is a minimal struct containing only status changes (spawn, respawn, transfer, destroy events); player input for gameplay is handled separately via the network protocol.
 
 **Automatic Mode Switching**: System monitors all input devices each frame and automatically switches between keyboard/mouse and gamepad modes. Mode affects cursor visibility and aim mechanics.
 
@@ -14,7 +14,7 @@ Game-specific input processing that converts raw hardware input into game and me
 
 ### Input Class
 
-Manages state tracking for button press/release detection with a previous-state buffer for menu input. Menu input runs every frame for responsive UI.
+Manages state tracking for button press/release detection with a previous-state buffer for menu input. `UpdateMenuInput()` calls `gpRawInputManager->Update()` internally, then processes raw input into MenuInput. Menu input runs every frame for responsive UI.
 
 ### MenuInput
 
@@ -33,10 +33,13 @@ Struct retained for the network protocol -- carries per-player held flags (movem
 ## Input Flow
 
 ```
-RawInputManager (Engine) - Polls hardware state
+Main.cpp calls GameBase::ProcessInput(bLostFocus, menuInput)
     |
-Input::UpdateMenuInput() - Every frame
-    |-> Produces MenuInput, updates gamepad mode
+    |-> Input::UpdateMenuInput(bLostFocus, menuInput)
+    |       |-> RawInputManager::Update(bLostFocus) - Polls hardware state
+    |       |-> Produces MenuInput, updates gamepad mode
+    |
+    |-> GameBase::ProcessMenuInput(menuInput)
     |
 Game::BuildFrameInputs() - Per grid coordinate during physics
     |-> Applies server-confirmed player inputs via extrapolation
@@ -47,5 +50,5 @@ Frame update loop processes status changes per coordinate
 
 ## See Also
 - Engine raw input: [../../../../Engine/Source/Input/CLAUDE.md](../../../../Engine/Source/Input/CLAUDE.md)
-- Game class: [../Game.h](../Game.h) - PreUpdate() processes MenuInput
+- Game class: [../Game.h](../Game.h) - ProcessInput() orchestrates input update and menu processing
 - Frame state: [../Frame/Frame.h](../Frame/Frame.h) - Consumes FrameInput during updates

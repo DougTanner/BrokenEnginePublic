@@ -99,6 +99,8 @@ using namespace std::chrono_literals;
 #include <mmdeviceapi.h>
 #endif
 #include <mmreg.h>
+#include <timeapi.h>
+#pragma comment(lib, "Winmm.lib")
 #include <ntverp.h>
 #include <roapi.h>
 #pragma comment(lib, "RuntimeObject.lib")

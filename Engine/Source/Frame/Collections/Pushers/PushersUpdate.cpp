@@ -203,11 +203,18 @@ void PushersPostRender::Add(game::Frame& __restrict rFrame, pusher_t& rId)
 	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
+	FILE_LOG(0, "[PusherAdd] id={} index={} count={} tick={} area=({:.0f},{:.0f})", newId.uuid.iValue, uiSpawnIndex, rInterpolate.iCount, rFrame.interpolate.iTick,
+		(rFrame.postRender.vecArea.m128_f32[0] + rFrame.postRender.vecArea.m128_f32[2]) * 0.5f,
+		(rFrame.postRender.vecArea.m128_f32[1] + rFrame.postRender.vecArea.m128_f32[3]) * 0.5f);
 }
 
 void PushersPostRender::Remove(game::Frame& __restrict rFrame, pusher_t& rId)
 {
 	ASSERT(rId.IsValid());
+
+	FILE_LOG(0, "[PusherRemove] id={} count={} tick={} area=({:.0f},{:.0f})", rId.uuid.iValue, rFrame.interpolate.pushers.iCount, rFrame.interpolate.iTick,
+		(rFrame.postRender.vecArea.m128_f32[0] + rFrame.postRender.vecArea.m128_f32[2]) * 0.5f,
+		(rFrame.postRender.vecArea.m128_f32[1] + rFrame.postRender.vecArea.m128_f32[3]) * 0.5f);
 
 	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
 	PushersPostRender& rPostRender = rFrame.postRender.pushers;

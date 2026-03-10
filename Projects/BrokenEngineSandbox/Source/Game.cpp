@@ -28,9 +28,11 @@ Game::Game()
 	// Allocate frames
 #if defined(BT_SERVER)
 	CreateNewFrame(GameFlags::kGame);
+	mpDiscoveryResponder = std::make_unique<engine::NetworkDiscoveryResponder>();
 	meUiState = kNone;
 #else
 	CreateNewFrame(GameFlags::kMainMenu);
+	mGameFlags.Set(engine::GameFlags::kMainMenu);
 #endif
 
 	// Start reconcile worker
@@ -302,7 +304,7 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& da
 				.fShieldRotation = data.fShieldRotation,
 				.fShieldShrink = data.fShieldShrink,
 				.flags = PlayerFlags_t {static_cast<PlayerFlags>(data.uiPlayerFlags)},
-			.fTransferLockTimer = 1.0f,
+				.fTransferLockTimer = 1.0f,
 			});
 			break;
 
@@ -367,8 +369,7 @@ void Game::Reset()
 	miTickCounter = 0;
 	mfCurrentTime = 0.0f;
 
-	mpDifferenceStreamWriter.reset();
-	mpDifferenceStreamReader.reset();
+	mGameSaveLoad.ResetStreams();
 #if defined(BT_CLIENT)
 	game::gpCamera->ResetSunAngle();
 	game::gpCamera->mVecLastKnownPlayerPosition = {};
@@ -429,9 +430,8 @@ void Game::ChangeFrame(GameFlags_t gameFlags)
 	DisconnectFromServer();
 #endif
 
-	if (mCoordFrames.contains(mHumanGridCoord) &&
-	    ((gameFlags & GameFlags::kMainMenu && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kMainMenu) ||
-	     (gameFlags & GameFlags::kGame && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kGame)))
+	if ((gameFlags & GameFlags::kMainMenu && InMainMenu()) ||
+	    (gameFlags & GameFlags::kGame && !InMainMenu()))
 	{
 		DEBUG_BREAK();
 		return;
@@ -451,6 +451,7 @@ void Game::ChangeFrame(GameFlags_t gameFlags)
 	}
 #endif
 
+	mGameFlags.Set(engine::GameFlags::kMainMenu, gameFlags & GameFlags::kMainMenu);
 	CreateNewFrame(gameFlags);
 	Reset();
 }

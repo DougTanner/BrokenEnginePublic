@@ -12,7 +12,6 @@ static bool sbQuit = false;
 #if defined(BT_CLIENT)
 static HCURSOR sHcursorArrow = nullptr;
 static HCURSOR sHcursorCrosshair = nullptr;
-static bool sbUseCrosshair = false;
 #endif
 
 static HWND sHwnd = nullptr;
@@ -21,61 +20,29 @@ static MONITORINFO sMonitorInfo {};
 
 static bool sbHasFocus = false;
 
+#if defined(BT_CLIENT)
+static LONG sWindowStyle = 0;
+static RECT sWindowRect {};
+#endif
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 #if defined(BT_CLIENT)
 void FindMonitor(bool bUseCurrentRect);
 VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect);
 #endif
-bool ProcessMessages(bool bIgnoreFocus = false);
+bool ProcessMessages();
 
 void MainThread(HINSTANCE hinstance)
 {
 	common::ThreadLocal threadLocal(10 * 1024 * 1024);
 
+	// DT: TEMP
 #if defined(BT_CLIENT)
 	FILE_LOG_INIT(0, "../../../../DiagnosticLogs/ClientLog.txt");
-	FILE_LOG_INIT(1, "../../../../DiagnosticLogs/ClientPositionLog.txt");
 #else
 	FILE_LOG_INIT(0, "../../../../DiagnosticLogs/ServerLog.txt");
 #endif
-
-	auto pProfileManager = std::make_unique<game::ProfileManager>();
-
-	// Save one core for the main thread, and one core for the graphics thread
-	giBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1 - 1);
-	auto pMultithreading = std::make_unique<common::Multithreading>(giBackgroundThreadCount);
-
-	if (!XMVerifyCPUSupport()) [[unlikely]]
-	{
-		throw std::runtime_error("Your CPU does not support SSE4.1 instructions");
-	}
-
-	if (SetProcessDPIAware() == 0) [[unlikely]]
-	{
-		throw std::runtime_error("SetProcessDPIAware failed");
-	}
-
-	// Disable CRT FMA3 auto-detection for deterministic math across CPUs
-	_set_FMA3_enable(0);
-
-	// DxDiag
-	std::future<void> readDxDiag;
-	if constexpr (kbEnableDxDiag)
-	{
-		if (!IsDebuggerPresent()) [[likely]]
-		{
-			readDxDiag = std::async(std::launch::async, ReadDxDiag);
-		}
-	}
-
-	// Audio
-#if defined(BT_CLIENT)
-	auto pAudioManager = std::make_unique<AudioManager>();
-#endif
-
-	// Network
-	auto pNetworkManager = std::make_unique<NetworkManager>();
 
 	Log("\nGame name: {}", game::kGameName);
 	Log("Game version: {}", game::kiGameVersion);
@@ -84,6 +51,22 @@ void MainThread(HINSTANCE hinstance)
 	Log("Compiled with Vulkan SDK version: {}\n", VK_HEADER_VERSION);
 	static_assert(VK_HEADER_VERSION >= 304, "Update the Vulkan SDK");
 #endif
+
+	if (!XMVerifyCPUSupport()) [[unlikely]]
+	{
+		throw std::runtime_error("Your CPU does not support SSE4.1 instructions");
+	}
+
+	// Disable CRT FMA3 auto-detection for deterministic math across CPUs
+	if (_set_FMA3_enable(0) != 0) [[unlikely]]
+	{
+		throw std::runtime_error("Unable to disable FMA3");
+	}
+
+	if (SetProcessDPIAware() == 0) [[unlikely]]
+	{
+		throw std::runtime_error("SetProcessDPIAware failed");
+	}
 
 #if defined(BT_CLIENT)
 	// Cursor
@@ -95,6 +78,39 @@ void MainThread(HINSTANCE hinstance)
 		DestroyCursor(sHcursorCrosshair);
 	});
 #endif
+
+#if defined(BT_CLIENT)
+	// Save one core for the main thread, and one core for the render thread
+	giBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1 - 1);
+#else
+	// Server has no render thread
+	giBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1);
+#endif
+	auto pMultithreading = std::make_unique<common::Multithreading>(giBackgroundThreadCount);
+
+	// Profile
+	auto pProfileManager = std::make_unique<game::ProfileManager>();
+
+	// Start DxDiag reading in the background
+	std::future<void> readDxDiag;
+	if constexpr (kbEnableDxDiag)
+	{
+		if (!IsDebuggerPresent()) [[likely]]
+		{
+			readDxDiag = std::async(std::launch::async, ReadDxDiag);
+		}
+	}
+
+#if defined(BT_CLIENT)
+	// Input
+	auto pRawInputManager = std::make_unique<RawInputManager>();
+
+	// Audio
+	auto pAudioManager = std::make_unique<AudioManager>();
+#endif
+
+	// Network
+	auto pNetworkManager = std::make_unique<NetworkManager>();
 
 	// Register class
 	WNDCLASSEX wndClassEx
@@ -123,31 +139,26 @@ void MainThread(HINSTANCE hinstance)
 		UnregisterClass(game::kGameName.data(), hinstance);
 	});
 
-#if defined(BT_CLIENT)
 	// Setup window rect & matrices
-	LONG iWindowStyle = 0;
-	RECT windowRect {};
-	gWantedFramebufferExtent2D = SetupWindow(gFullscreen.Get<bool>(), iWindowStyle, windowRect);
+#if defined(BT_CLIENT)
+	gWantedFramebufferExtent2D = SetupWindow(gFullscreen.Get<bool>(), sWindowStyle, sWindowRect);
 
 	if (gWantedFramebufferExtent2D.height < 2160)
 	{
 		gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_4_BIT);
 	}
 #else
-	LONG iWindowStyle = WS_OVERLAPPEDWINDOW;
-	RECT windowRect {0, 0, 600, 400};
+	LONG iWindowStyle = WS_POPUP;
+	RECT windowRect {};
+	SystemParametersInfo(SPI_GETWORKAREA, 0, &windowRect, 0);
 #endif
 
 	// Create window
 #if defined(BT_CLIENT)
-	auto pRawInputManager = std::make_unique<RawInputManager>();
-#endif
-#if defined(BT_SERVER)
-	const char* pcWindowTitle = "Broken Engine Server";
+	sHwnd = CreateWindow(game::kGameName.data(), game::kGameName.data(), sWindowStyle, sWindowRect.left, sWindowRect.top, sWindowRect.right - sWindowRect.left, sWindowRect.bottom - sWindowRect.top, nullptr, nullptr, hinstance, nullptr);
 #else
-	const char* pcWindowTitle = game::kGameName.data();
+	sHwnd = CreateWindow(game::kGameName.data(), game::kGameName.data(), iWindowStyle, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top, nullptr, nullptr, hinstance, nullptr);
 #endif
-	sHwnd = CreateWindow(game::kGameName.data(), pcWindowTitle, iWindowStyle, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top, nullptr, nullptr, hinstance, nullptr);
 #if defined(BT_CLIENT)
 	pRawInputManager->mHwnd = sHwnd;
 #endif
@@ -157,7 +168,7 @@ void MainThread(HINSTANCE hinstance)
 	}
 	common::ScopedLambda destroyWindow([]()
 	{
-		ProcessMessages(true);
+		ProcessMessages();
 
 		if (sHwnd != nullptr)
 		{
@@ -167,12 +178,10 @@ void MainThread(HINSTANCE hinstance)
 		}
 	});
 
+#if defined(BT_CLIENT)
 	// Load settings
-#if defined(BT_CLIENT)
 	game::Game::LoadSoundSettings();
-#endif
 
-#if defined(BT_CLIENT)
 	// Create terrain collision data (before Graphics, which creates Islands that reads beach elevation)
 	auto pIslandTerrain = std::make_unique<IslandTerrain>();
 
@@ -219,14 +228,6 @@ void MainThread(HINSTANCE hinstance)
 	gpProfileManager->BootStop(kBootTimerRenderPresent);
 
 	ShowWindow(sHwnd, SW_SHOWDEFAULT);
-	common::ScopedLambda hideWindow([]()
-	{
-		Log("Hide window");
-		ShowWindow(sHwnd, SW_HIDE);
-	});
-	BringWindowToTop(sHwnd);
-	SetFocus(sHwnd);
-	ProcessMessages(true);
 #else
 	// Server: create terrain collision data (no Graphics)
 	auto pIslandTerrain = std::make_unique<IslandTerrain>();
@@ -235,139 +236,51 @@ void MainThread(HINSTANCE hinstance)
 	auto pGame = std::make_unique<game::Game>();
 
 	auto pNetworkServer = std::make_unique<NetworkServer>(kuiDefaultPort);
-	auto pDiscoveryResponder = std::make_unique<NetworkDiscoveryResponder>();
-
-	HANDLE hTimer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
-	common::ScopedLambda closeTimer([hTimer]()
-	{
-		CloseHandle(hTimer);
-	});
 
 	ShowWindow(sHwnd, SW_SHOWMAXIMIZED);
-	SetFocus(sHwnd);
-	ProcessMessages(true);
 #endif
+	common::ScopedLambda hideWindow([]()
+	{
+		Log("Hide window");
+		ShowWindow(sHwnd, SW_HIDE);
+	});
+	BringWindowToTop(sHwnd);
+	SetFocus(sHwnd);
+	ProcessMessages();
 
 	gpProfileManager->BootLog();
 
-	ScopedLogIndent scopedLogIndent;
 	Log("\nEnter main loop");
+	ScopedLogIndent scopedLogIndent;
 	EnableAllocationTracking(true);
+	pGame->mTimeStep.mRealTime.Reset();
 
 	while (true)
 	{
 		gpProfileManager->CpuStart(kCpuTimerMessagesAndInput);
 
-#if defined(BT_CLIENT)
-		// Handle fullscreen toggle
-		bool bWantedFullscreen = gFullscreen.Get<bool>();
-		bool bIsFullscreen = (iWindowStyle & WS_POPUP) != 0;
-		if (bIsFullscreen != bWantedFullscreen)
-		{
-			SetupWindow(bWantedFullscreen, iWindowStyle, windowRect);
-			SetWindowLongPtr(sHwnd, GWL_STYLE, iWindowStyle);
-			SetWindowPos(sHwnd, nullptr, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top, 0);
-		}
-#endif
-
 		// Process Windows messages
-#if defined(BT_CLIENT)
-		bool bLostFocus = ProcessMessages(true);
-#endif
+		[[maybe_unused]] bool bLostFocus = ProcessMessages();
 		if (sbQuit) [[unlikely]]
 		{
 			break;
 		}
 
 		// Input
+		game::MenuInput menuInput {};
 #if defined(BT_CLIENT)
-		pRawInputManager->Update(bLostFocus);
-		if (pInput->UpdateMenuInput(pRawInputManager->mRawInput)) [[unlikely]]
-		{
-			break;
-		}
-#endif
-
-		game::MenuInput menuInput =
-#if defined(BT_CLIENT)
-			pInput->GetMenuInput();
-#else
-			{};
-#endif
-
-#if defined(BT_SERVER)
-		// Sleep until next tick
-		{
-			std::chrono::nanoseconds remainingNs = (game::kTickNs - pGame->mTimeStep.mTickRemainderNs) * pGame->mTimeStep.miTimeDivide / pGame->mTimeStep.miTimeMultiply;
-			if (remainingNs > 0ns)
-			{
-				LARGE_INTEGER dueTime {};
-				dueTime.QuadPart = -(remainingNs.count() / 100); // Negative = relative, 100ns units
-				SetWaitableTimerEx(hTimer, &dueTime, 0, nullptr, nullptr, nullptr, 0);
-				MsgWaitForMultipleObjects(1, &hTimer, FALSE, INFINITE, QS_ALLINPUT);
-			}
-		}
-#endif
-
-		pGame->PreUpdate(menuInput);
+		pGame->ProcessInput(bLostFocus, menuInput);
 		if (pGame->mGameFlags & engine::GameFlags::kQuit) [[unlikely]]
 		{
 			break;
 		}
+#endif
 
 		gpProfileManager->CpuStop(kCpuTimerMessagesAndInput, false);
 
-#if defined(BT_CLIENT)
-		// Desync debug mode: only poll network for debug frame response, keep window responsive
-		if (game::gpGame->GetDesyncTick() >= 0)
-		{
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			game::gpGame->PollNetworkClient();
-			if (gpNetworkClient != nullptr)
-			{
-				gpNetworkClient->Flush();
-			}
-			pGame->Render();
-			continue;
-		}
-
-		gpProfileManager->CpuStart(kCpuTimerNetworkPollReconcile);
-		{
-			// Heap: reconciliation deserialization and map operations
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			int64_t iPreReconcileTick = game::gpGame->TickCounter();
-			game::gpGame->WaitForReconcile();
-			// Compensate time step for ticks rolled back during reconciliation
-			int64_t iTickDeficit = iPreReconcileTick - game::gpGame->TickCounter();
-			std::chrono::nanoseconds clockCorrectionNs = game::gpGame->ComputeClockCorrectionNs(iPreReconcileTick);
-			if (iTickDeficit > 0)
-			{
-				game::gpGame->mTimeStep.mTickRemainderNs += iTickDeficit * game::kTickNs;
-			}
-			game::gpGame->mTimeStep.mTickRemainderNs += clockCorrectionNs;
-		}
-		gpProfileManager->CpuStop(kCpuTimerNetworkPollReconcile, true);
-
 		pGame->TickFrames(menuInput);
 
-		// Post-tick: poll network before render so reconciliation gets the freshest data
-		{
-			// Heap: ENet polling
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			game::gpGame->PollNetworkClient();
-		}
-
-		gpProfileManager->CpuStart(kCpuTimerNetworkSend);
-		{
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			if (gpNetworkClient != nullptr)
-			{
-				gpNetworkClient->SendAck();
-				gpNetworkClient->Flush();
-			}
-		}
-		gpProfileManager->CpuStop(kCpuTimerNetworkSend, true);
-
+#if defined(BT_CLIENT)
 		try
 		{
 			pGame->Render();
@@ -378,41 +291,16 @@ void MainThread(HINSTANCE hinstance)
 			pGraphics.reset();
 			pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
 		}
+
 		// Audio update
-		gpProfileManager->CpuStart(kCpuTimerAudio);
-		gpAudioManager->Update(pGame->RenderFrame(game::gpGame->mHumanGridCoord));
-		gpProfileManager->CpuStop(kCpuTimerAudio, false);
-
-		// Kick reconcile after render so snapshots remain valid for GetSnapshotFrame during rendering
-		{
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			game::gpGame->TryKickReconcile();
-		}
-		sbUseCrosshair = pGame->ShouldUseCrosshair();
+		pAudioManager->Update(pGame->RenderFrame(game::gpGame->mHumanGridCoord));
 #else
-		// Server: poll network and process inputs before frame update
-		{
-			// Heap: ENet polling and game server methods allocate vectors for inputs, spawns, and status changes
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			gpNetworkServer->Poll();
-			pDiscoveryResponder->Poll();
-			game::gpGame->HandleDisconnectsServer();
-			game::gpGame->HandleNewClientsServer();
-			game::gpGame->ProcessSpawnRequestsServer();
-		}
-
-		pGame->TickFrames(menuInput);
-
-		UpdateServerDisplayStats();
-
-		// Repaint server display every tick
 		{
 			// Heap: Win32 InvalidateRect may trigger internal GDI allocations
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			UpdateServerDisplayStats();
 			InvalidateRect(sHwnd, nullptr, FALSE);
 		}
-
-		ProcessMessages(true);
 #endif
 	}
 	Log("Exit main loop\n\n");
@@ -425,13 +313,12 @@ void MainThread(HINSTANCE hinstance)
 #endif
 
 	PostQuitMessage(0);
-	ProcessMessages(true);
+	ProcessMessages();
 }
 
 #if defined(BT_CLIENT)
 static int64_t siMonitorCount = 0;
 static bool sbUseCurrentRect = false;
-static RECT sWindowRect {};
 
 void FindMonitor(bool bUseCurrentRect)
 {
@@ -512,8 +399,20 @@ VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect)
 }
 #endif // BT_CLIENT
 
-bool ProcessMessages(bool bIgnoreFocus)
+bool ProcessMessages()
 {
+#if defined(BT_CLIENT)
+	// Handle fullscreen toggle
+	bool bWantedFullscreen = gFullscreen.Get<bool>();
+	bool bIsFullscreen = (sWindowStyle & WS_POPUP) != 0;
+	if (bIsFullscreen != bWantedFullscreen)
+	{
+		SetupWindow(bWantedFullscreen, sWindowStyle, sWindowRect);
+		SetWindowLongPtr(sHwnd, GWL_STYLE, sWindowStyle);
+		SetWindowPos(sHwnd, nullptr, sWindowRect.left, sWindowRect.top, sWindowRect.right - sWindowRect.left, sWindowRect.bottom - sWindowRect.top, 0);
+	}
+#endif
+
 	// Process messages with PeekMessage() which doesn't block
 	MSG msg {};
 	bool bHasMessage = PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE) == TRUE;
@@ -524,21 +423,7 @@ bool ProcessMessages(bool bIgnoreFocus)
 		bHasMessage = PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE) == TRUE;
 	}
 
-	if (bIgnoreFocus)
-	{
-		return !sbHasFocus;
-	}
-
-	// While we don't have focus, process messages with GetMessage() which blocks until a message is available
-	bool bLostFocus = !sbHasFocus;
-	while (!sbHasFocus && !sbQuit)
-	{
-		GetMessage(&msg, nullptr, 0, 0);
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
-	}
-
-	return bLostFocus;
+	return !sbHasFocus;
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -547,7 +432,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	// Game handles cursor when ImGui doesn't want the mouse
 	if (message == WM_SETCURSOR && LOWORD(lParam) == HTCLIENT && !ImGui::GetIO().WantCaptureMouse)
 	{
-		SetCursor(sbUseCrosshair ? sHcursorCrosshair : sHcursorArrow);
+		SetCursor(game::gpGame->ShouldUseCrosshair() ? sHcursorCrosshair : sHcursorArrow);
 		return TRUE;
 	}
 
@@ -592,7 +477,37 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			PaintServerDisplay(hWnd);
 			return 0;
 		}
+
+		case WM_KEYDOWN:
+		{
+			if constexpr (kbEnableDebugInput)
+			{
+				if (wParam == VK_F4)
+				{
+					sbQuit = true;
+				}
+			}
+			return 0;
+		}
 #endif
+
+		case WM_SYSCOMMAND:
+		{
+			// Suppress system commands that enter modal loops and block the main thread
+			WORD wSysCommand = wParam & 0xFFF0;
+			if (wSysCommand == SC_KEYMENU
+#if defined(BT_SERVER)
+				|| wSysCommand == SC_MOVE
+				|| wSysCommand == SC_SIZE
+				|| wSysCommand == SC_MAXIMIZE
+				|| wSysCommand == SC_RESTORE
+#endif
+				)
+			{
+				return 0;
+			}
+			break;
+		}
 
 		case WM_SETFOCUS:
 		{
@@ -603,7 +518,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				sbHasFocus = true;
 
 #if defined(BT_CLIENT)
-				SetCursor(sbUseCrosshair ? sHcursorCrosshair : sHcursorArrow);
+				SetCursor(game::gpGame->ShouldUseCrosshair() ? sHcursorCrosshair : sHcursorArrow);
 
 				if (gpAudioManager->mpAudioEngine != nullptr)
 				{

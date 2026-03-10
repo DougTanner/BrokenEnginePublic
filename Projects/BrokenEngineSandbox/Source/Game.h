@@ -14,7 +14,11 @@ namespace game
 
 #include "Version.h"
 
+#if defined(BT_CLIENT)
 inline constexpr std::string_view kGameName = "Broken Engine Sandbox";
+#else
+inline constexpr std::string_view kGameName = "Broken Engine Sandbox Server";
+#endif
 inline constexpr int64_t kiDesiredCoordSlots = 5; // 4 subscriptions + 1 spare for grid transitions
 
 enum class UiState
@@ -53,11 +57,7 @@ public:
 
 	bool InMainMenu()
 	{
-		if (!mCoordFrames.contains(mHumanGridCoord))
-		{
-			return false;
-		}
-		return CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kMainMenu;
+		return mGameFlags & engine::GameFlags::kMainMenu;
 	}
 
 	void ProcessMenuInput(const MenuInput& rMenuInput) override;
@@ -71,6 +71,7 @@ public:
 
 #if defined(BT_SERVER)
 	// Server-mode methods
+	void PreTickNetworkServer();
 	void ComputeActiveSetServer();
 	void BuildFrameInputsServer();
 	void ProcessSpawnRequestsServer();
@@ -82,6 +83,8 @@ public:
 	void DetectPlayerDeathsServer();
 	void HandleSubscriptionUpdatesServer(int64_t iTick);
 	void RefreshPreSpawnSnapshot();
+
+	std::unique_ptr<engine::NetworkDiscoveryResponder> mpDiscoveryResponder;
 #endif
 
 #if defined(BT_CLIENT)
@@ -90,6 +93,9 @@ public:
 	void ConnectToServer(const char* pServerAddress);
 	void DisconnectFromServer();
 	void PollNetworkClient();
+	void PollAndReconcileClient();
+	void PostTickNetworkClient();
+	void PostRenderNetworkClient();
 	void WaitForReconcile();
 	void TryKickReconcile();
 	void UpdateSubscriptions();

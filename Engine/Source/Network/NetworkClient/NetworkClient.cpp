@@ -33,10 +33,12 @@ NetworkClient::NetworkClient(const char* pServerAddress, uint16_t uiPort, int64_
 	char pcServerAddress[64] {};
 	enet_address_get_host_ip(&address, pcServerAddress, sizeof(pcServerAddress));
 	FILE_LOG(0, "[NetworkClient] Connecting: server={}:{} localPort={}", pcServerAddress, address.port, localAddress.port);
+	common::Log("NetworkClient: Connecting to server"); // DT: TEMP
 }
 
 NetworkClient::~NetworkClient()
 {
+	common::Log("NetworkClient: Destroying"); // DT: TEMP
 	if (mpServerPeer != nullptr && mbConnected)
 	{
 		enet_peer_disconnect(mpServerPeer, 0);
@@ -64,6 +66,7 @@ NetworkClient::~NetworkClient()
 	}
 
 	gpNetworkClient = nullptr;
+	common::Log("NetworkClient: Destroyed"); // DT: TEMP
 }
 
 void NetworkClient::Poll()
@@ -263,6 +266,7 @@ void NetworkClient::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 		rSlot.uiReceivedBitfield >>= 1;
 	}
 
+	common::Log("NetworkClient: TrackReceivedTick slot {} tick {} ackFloor={} bitfield={:#x}", iSlot, iTick, rSlot.iAckFloor, rSlot.uiReceivedBitfield); // DT: TEMP
 }
 
 void NetworkClient::Flush()
@@ -272,6 +276,7 @@ void NetworkClient::Flush()
 
 void NetworkClient::Disconnect()
 {
+	common::Log("NetworkClient: Graceful disconnect"); // DT: TEMP
 	if (mpServerPeer != nullptr && mbConnected)
 	{
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;

@@ -364,8 +364,8 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		}
 #endif
 
-		FILE_LOG(0, "[SpaceshipDestroy] i={} count={} lastPos=({:.2f},{:.2f})",
-			i, rCurrentInterpolate.iCount,
+		FILE_LOG(0, "[SpaceshipDestroy] i={} count={} tick={} lastPos=({:.2f},{:.2f})",
+			i, rCurrentInterpolate.iCount, rFrame.interpolate.iTick,
 			rCurrentInterpolate.pVecPositions[i].m128_f32[0], rCurrentInterpolate.pVecPositions[i].m128_f32[1]);
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}

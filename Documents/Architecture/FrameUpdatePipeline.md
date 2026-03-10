@@ -50,6 +50,8 @@ flowchart LR
 
 ## Client Main Loop
 
+Main.cpp calls three GameBase methods in sequence: `TickFrames()`, `Render()`, and audio update. Network orchestration is encapsulated within `TickFrames()` (pre-tick polling/reconciliation and post-tick network send) and `Render()` (post-render reconcile kick).
+
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart TD
@@ -61,48 +63,50 @@ flowchart TD
     start(["Main Loop Start"])
 
     msgs["ProcessMessages()"]:::input
-    input["RawInputManager::Update()"]:::input
 
-    preupdate["PreUpdate(menuInput)"]:::physics
+    preupdate["ProcessInput(bLostFocus, menuInput)<br/>-> UpdateMenuInput()<br/>-> RawInputManager::Update()"]:::input
 
-    reconcile["WaitForReconcile()<br/>ApplyReconcileResult()"]:::network
+    subgraph tick_frames ["GameBase::TickFrames()"]
+        poll_reconcile["Game::PollAndReconcileClient()<br/>Desync: poll+flush only,<br/>Normal: WaitForReconcile(),<br/>ApplyReconcileResult(),<br/>clock correction"]:::network
 
-    subgraph physics_loop ["Fixed Timestep Loop (64 Hz, 15.625ms)"]
-        ts["TimeStep::UpdateRealtime()<br/>-> iFullUpdates"]:::physics
-        extrap_check{"IsExtrapolating?"}:::physics
-        extrap_prep["PrepareExtrapolationTick()<br/>BuildExtrapolationFrameRef()<br/>(redirect ActiveFrameRef<br/>to snapshot stack)"]:::physics
-        dispatch["Dispatch per-Frame:<br/>RunFrameTick()<br/>(all 5 phases per Frame<br/>in parallel)"]:::physics
-        extrap_record["RecordExtrapolationSnapshot()<br/>(advance snapshot count;<br/>CRCs already in Frame<br/>from RunFrameTick)"]:::physics
-        frame_swap["std::swap(current, next)<br/>+ EnsureNextFrames()"]:::physics
-        ts --> extrap_check
-        extrap_check -->|"Yes"| extrap_prep --> dispatch --> extrap_record
-        extrap_check -->|"No"| dispatch --> frame_swap
+        subgraph physics_loop ["Fixed Timestep Loop (64 Hz, 15.625ms)"]
+            ts["TimeStep::UpdateRealtime()<br/>-> iFullUpdates"]:::physics
+            extrap_check{"IsExtrapolating?"}:::physics
+            extrap_prep["PrepareExtrapolationTick()<br/>BuildExtrapolationFrameRef()<br/>(redirect ActiveFrameRef<br/>to snapshot stack)"]:::physics
+            dispatch["Dispatch per-Frame:<br/>RunFrameTick()<br/>(all 5 phases per Frame<br/>in parallel)"]:::physics
+            extrap_record["RecordExtrapolationSnapshot()<br/>(advance snapshot count;<br/>CRCs already in Frame<br/>from RunFrameTick)"]:::physics
+            frame_swap["std::swap(current, next)<br/>+ EnsureNextFrames()"]:::physics
+            ts --> extrap_check
+            extrap_check -->|"Yes"| extrap_prep --> dispatch --> extrap_record
+            extrap_check -->|"No"| dispatch --> frame_swap
+        end
+
+        post_tick["Game::PostTickNetworkClient()<br/>(desync: early-return)<br/>PollNetworkClient(),<br/>NetworkClient::SendAck(),<br/>NetworkClient::Flush()"]:::network
+
+        poll_reconcile --> physics_loop --> post_tick
     end
 
-    net_poll["PollNetworkClient()"]:::network
-    kick["TryKickReconcile()<br/>(gated by mbReconcileHasNewData)"]:::network
-    send["NetworkClient::SendAck()<br/>NetworkClient::Flush()"]:::network
-
-    borrow["BorrowSnapshotFramesForRender()<br/>(move latest snapshot into<br/>mCurrentFrames for render)"]:::render
-
-    subgraph render_phase ["Render (variable rate)"]
+    subgraph render_method ["GameBase::Render()"]
         r_interp["FrameInterpolate::<br/>AllocateAndCopy + Update<br/>(render interpolation)"]:::render
         r_begin["BeginRender()"]:::render
         r_main["Render()<br/>(lights, collections,<br/>smoke, wind)"]:::render
         r_end["EndRender()"]:::render
-        r_interp --> r_begin --> r_main --> r_end
+
+        post_render["Game::PostRenderNetworkClient()<br/>(desync: early-return)<br/>TryKickReconcile()<br/>(gated by mbReconcileHasNewData)"]:::network
+
+        r_interp --> r_begin --> r_main --> r_end --> post_render
     end
 
     audio["AudioManager::Update()"]:::render
 
-    restore["RestoreSnapshotFramesAfterRender()<br/>(return snapshot to stack)"]:::render
-
-    start --> msgs --> input --> preupdate --> reconcile --> physics_loop
-    physics_loop --> net_poll --> kick --> send --> borrow --> render_phase --> audio --> restore
-    restore -->|next frame| start
+    start --> msgs --> preupdate --> tick_frames
+    tick_frames --> render_method --> audio
+    audio -->|next frame| start
 ```
 
 ## Server Main Loop
+
+Main.cpp calls `TickFrames()` then `UpdateServerDisplayStats()`. All network orchestration (pre-tick polling and per-frame broadcasts) is encapsulated within `GameBase::TickFrames()`.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -114,29 +118,31 @@ flowchart TD
     start(["Server Loop Start"])
 
     msgs["ProcessMessages()"]:::server
-    sleep["Sleep (waitable timer)<br/>until next tick"]:::server
 
-    net_recv["NetworkServer::Poll()<br/>DiscoveryResponder::Poll()"]:::network
-    disconnects["HandleDisconnectsServer()"]:::network
-    new_clients["HandleNewClientsServer()"]:::network
-    spawns["ProcessSpawnRequestsServer()"]:::network
+    subgraph tick_frames ["GameBase::TickFrames()"]
+        pre_tick["Game::PreTickNetworkServer()<br/>NetworkServer::Poll(),<br/>DiscoveryResponder::Poll(),<br/>HandleDisconnects,<br/>HandleNewClients,<br/>ProcessSpawnRequests"]:::network
 
-    subgraph physics_loop ["Fixed Timestep Loop (64 Hz)"]
-        ts["TimeStep::UpdateRealtime()"]:::physics
-        dispatch_s["Dispatch per-Frame:<br/>RunFrameTick()<br/>(all 5 phases per Frame<br/>in parallel)"]:::physics
-        frame_swap["std::swap(current, next)"]:::physics
-        finalize["FinalizeNewClientsServer()"]:::network
-        deaths["DetectPlayerDeathsServer()"]:::network
-        broadcast["BroadcastStatusChangesServer()<br/>BufferFrame + SendUpdate +<br/>SendResends + Flush"]:::network
-        subscriptions["HandleSubscriptionUpdatesServer()"]:::network
-        harvest["HarvestTransfers()<br/>(cross-coord entity moves)"]:::physics
-        ts --> dispatch_s --> harvest --> frame_swap
-        frame_swap --> finalize --> deaths --> broadcast --> subscriptions
+        sleep["Sleep (waitable timer)<br/>until next tick"]:::server
+
+        subgraph physics_loop ["Fixed Timestep Loop (64 Hz)"]
+            ts["TimeStep::UpdateRealtime()"]:::physics
+            dispatch_s["Dispatch per-Frame:<br/>RunFrameTick()<br/>(all 5 phases per Frame<br/>in parallel)"]:::physics
+            frame_swap["std::swap(current, next)"]:::physics
+            finalize["FinalizeNewClientsServer()"]:::network
+            deaths["DetectPlayerDeathsServer()"]:::network
+            broadcast["BroadcastStatusChangesServer()<br/>BufferFrame + SendUpdate +<br/>SendResends + Flush"]:::network
+            subscriptions["HandleSubscriptionUpdatesServer()"]:::network
+            harvest["HarvestTransfers()<br/>(cross-coord entity moves)"]:::physics
+            ts --> dispatch_s --> harvest --> frame_swap
+            frame_swap --> finalize --> deaths --> broadcast --> subscriptions
+        end
+
+        pre_tick --> sleep --> physics_loop
     end
 
     display["UpdateServerDisplayStats()<br/>InvalidateRect (GDI)"]:::server
 
-    start --> msgs --> sleep --> net_recv --> disconnects --> new_clients --> spawns --> physics_loop --> display
+    start --> msgs --> tick_frames --> display
     display -->|next frame| start
 ```
 

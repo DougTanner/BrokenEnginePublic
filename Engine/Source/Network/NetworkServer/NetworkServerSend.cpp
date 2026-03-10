@@ -118,6 +118,7 @@ void NetworkServer::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t
 
 void NetworkServer::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage)
 {
+	common::Log("NetworkServer: SendConnectionResponse accepted={}", bAccepted); // DT: TEMP
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
@@ -139,6 +140,7 @@ void NetworkServer::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, cons
 
 void NetworkServer::SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord)
 {
+	common::Log("NetworkServer: SendSubscribeAccept slot {} coord ({},{})", iSlot, coord.x, coord.y); // DT: TEMP
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
@@ -162,6 +164,7 @@ void NetworkServer::SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot
 
 void NetworkServer::SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot)
 {
+	common::Log("NetworkServer: SendUnsubscribeAck slot {}", iSlot); // DT: TEMP
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
@@ -224,6 +227,8 @@ void NetworkServer::SendUpdate(ClientConnection& rClient, int64_t iTick)
 
 		std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
+		common::Log("NetworkServer: SendUpdate client tick {} slot {} coord ({},{})", iTick, iSlot, coord.x, coord.y); // DT: TEMP
+
 		// Heap: ENet allocates packet data internally
 		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), 0);
 		enet_peer_send(rClient.pPeer, NetworkManager::CoordSlotUnreliable(iSlot), pPacket);
@@ -284,6 +289,8 @@ void NetworkServer::SendResends(ClientConnection& rClient, int64_t iTick)
 			WriteBufferedFramePacket(rWorkbuffer, PacketType::kServerCoordResend, iSlot, rClient.coordAckStates[iSlot].uiEpoch, *pBuffered, rClient.iClientTimestampNs);
 
 			std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
+
+			common::Log("NetworkServer: Resend client slot {} frame {} coord ({},{})", iSlot, iMissingFrame, coord.x, coord.y); // DT: TEMP
 
 			// Heap: ENet allocates packet data internally
 			ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), 0);

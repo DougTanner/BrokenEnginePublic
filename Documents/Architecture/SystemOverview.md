@@ -100,8 +100,7 @@ sequenceDiagram
     Note over Main: Server Build
     Main->>Engine: NetworkManager
     Main->>Engine: IslandTerrain
-    Main->>Game: Game (gpGame)
+    Main->>Game: Game (gpGame, creates NetworkDiscoveryResponder)
     Main->>Engine: NetworkServer (port 27015)
-    Main->>Engine: NetworkDiscoveryResponder
     Note over Main: Main Loop (headless)
 ```

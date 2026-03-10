@@ -235,6 +235,7 @@ void Game::ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, [[maybe
 
 void Game::ReconcileInjectPendingFullState([[maybe_unused]] ReconcileContext& rReconcileContext, CoordReconcileWork& rWork)
 {
+	common::Log("GameClient: InjectPendingFullState coord ({},{}) tick={}", rWork.coord.x, rWork.coord.y, rWork.pendingFullState->iTick); // DT: TEMP
 	// Move pending full state's Frame into workspace (workspace owns it, replay borrows pointer)
 	rWork.replayWorkspace.push_back(std::move(rWork.pendingFullState->pFrame));
 	rWork.replayStack.clear();
@@ -294,6 +295,8 @@ void Game::ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinCo
 			break;
 		}
 	}
+
+	common::Log("GameClient: Rollback minConfirmed={} humanCoord ({},{}) fCurrentTime={}", iMinConfirmedTick, rReconcileContext.humanGridCoord.x, rReconcileContext.humanGridCoord.y, rReconcileContext.fCurrentTime); // DT: TEMP
 
 	// Inject pending full states at or before rollback frame
 	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
@@ -370,6 +373,7 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 			if (iTick > rWork.iConfirmedTick && rWork.iReplayStackCount > 0 && !frameCoordUpdates.contains(rWork.coord))
 			{
 				gapCoords.insert(rWork.coord);
+				common::Log("GameClient: Replay gap coord ({},{}) tick={}", rWork.coord.x, rWork.coord.y, iTick); // DT: TEMP
 			}
 		}
 
@@ -505,6 +509,8 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 		++iReplayCount;
 	}
 
+	common::Log("GameClient: Replay complete replayCount={} gapCoords={}", iReplayCount, gapCoords.size()); // DT: TEMP
+
 	// After replay loop: extract validated frames into newSnapshots or record index
 	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
 	{
@@ -589,6 +595,8 @@ void Game::ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinCon
 			}
 		}
 	}
+
+	common::Log("GameClient: CatchUp from={} to={} ticks={}", iMinConfirmedTick, rReconcileContext.iTargetTick, rReconcileContext.iAssumedFrameTicks); // DT: TEMP
 
 	// Convert accumulated workspace entries to snapshots for CRC fast-path
 	for (size_t iWorkIndex = 0; iWorkIndex < rReconcileContext.coordWork.size(); ++iWorkIndex)

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "GameSaveLoad.h"
+
 #if defined(BT_CLIENT)
 #include "Graphics/Camera.h"
 #endif
@@ -30,6 +32,7 @@ enum class GameFlags : uint64_t
 	kQuit                 = 0x01,
 	kSaveReplay           = 0x02,
 	kLoadReplay           = 0x04,
+	kMainMenu             = 0x08,
 };
 using GameFlags_t = common::Flags<GameFlags>;
 
@@ -68,10 +71,12 @@ struct CoordFrames
 
 class GameBase
 {
+	friend class GameSaveLoad;
+
 public:
 
 	GameBase();
-	virtual ~GameBase() = default;
+	virtual ~GameBase();
 
 	virtual void Reset() = 0;
 	virtual bool ShouldTrapCursor() = 0;
@@ -80,18 +85,13 @@ public:
 	virtual std::filesystem::path ReplayFile() = 0;
 	virtual void ProcessMenuInput(const game::MenuInput& rMenuInput) = 0;
 
-	void PreUpdate(const game::MenuInput& rMenuInput);
+	void ProcessInput(bool bLostFocus, game::MenuInput& rMenuInput);
 	void TickFrames(const game::MenuInput& rMenuInput);
 #if defined(BT_CLIENT)
 	void TickFramesAndRender(const game::MenuInput& rMenuInput);
 	void Render();
 	game::Frame& RenderFrame(GridCoord coord) const;
 #endif
-
-	void Quicksave(const game::MenuInput& rMenuInput);
-	bool Quickload(const game::MenuInput& rMenuInput);
-	void SaveLoadReplay(const game::MenuInput& rMenuInput);
-	void SyncReplay(game::Frame& rFrame, game::FrameInput& rFrameInput);
 
 	uint16_t GenerateFrameId() { return muiNextFrameId++; }
 	int64_t TickCounter() const { return miTickCounter; }
@@ -109,15 +109,21 @@ public:
 	GameFlags_t mGameFlags;
 
 	TimeStep mTimeStep;
-	std::unique_ptr<DifferenceStreamWriter<game::Frame, game::FrameInput>> mpDifferenceStreamWriter;
-	std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInput>> mpDifferenceStreamReader;
+	GameSaveLoad mGameSaveLoad;
 
 	std::unordered_map<GridCoord, CoordFrames> mCoordFrames;
 
 protected:
 
-	void WriteGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord humanGridCoord);
-	bool ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord& rHumanGridCoord);
+	void PrepareActiveSet();
+	void SwapFrames();
+#if defined(BT_SERVER)
+	void WaitForServerTick();
+	void PrepareServerTick();
+	void BroadcastServerTick();
+#endif
+	void BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveCoords, bool bExtrapolating);
+	void FinalizeFrameTick(const std::vector<GridCoord>& rActiveCoords, bool bExtrapolating);
 
 	int64_t miTickCounter = 0;
 	float mfCurrentTime = 0.0f;
@@ -125,6 +131,10 @@ protected:
 	uint16_t muiNextFrameId = 0;
 
 	MenuFlags_t mMenuFlags {MenuFlags::kMouseVisible};
+
+#if defined(BT_SERVER)
+	HANDLE mTimerHandle = nullptr;
+#endif
 };
 
 } // namespace engine
