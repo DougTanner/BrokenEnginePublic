@@ -77,7 +77,7 @@ void MainThread(HINSTANCE hinstance)
 		DestroyCursor(sHcursorArrow);
 		DestroyCursor(sHcursorCrosshair);
 	});
-#endif
+#endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
 	// Save one core for the main thread, and one core for the render thread
@@ -151,7 +151,7 @@ void MainThread(HINSTANCE hinstance)
 	LONG iWindowStyle = WS_POPUP;
 	RECT windowRect {};
 	SystemParametersInfo(SPI_GETWORKAREA, 0, &windowRect, 0);
-#endif
+#endif // BT_CLIENT
 
 	// Create window
 #if defined(BT_CLIENT)
@@ -238,7 +238,7 @@ void MainThread(HINSTANCE hinstance)
 	auto pNetworkServer = std::make_unique<NetworkServer>(kuiDefaultPort);
 
 	ShowWindow(sHwnd, SW_SHOWMAXIMIZED);
-#endif
+#endif // BT_CLIENT
 	common::ScopedLambda hideWindow([]()
 	{
 		Log("Hide window");
@@ -278,7 +278,11 @@ void MainThread(HINSTANCE hinstance)
 
 		gpProfileManager->CpuStop(kCpuTimerMessagesAndInput, false);
 
-		pGame->TickFrames(menuInput);
+#if defined(BT_CLIENT)
+		pGame->UpdateClient();
+#else
+		pGame->UpdateServer(menuInput);
+#endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
 		try
@@ -301,7 +305,7 @@ void MainThread(HINSTANCE hinstance)
 			UpdateServerDisplayStats();
 			InvalidateRect(sHwnd, nullptr, FALSE);
 		}
-#endif
+#endif // BT_CLIENT
 	}
 	Log("Exit main loop\n\n");
 
@@ -411,7 +415,7 @@ bool ProcessMessages()
 		SetWindowLongPtr(sHwnd, GWL_STYLE, sWindowStyle);
 		SetWindowPos(sHwnd, nullptr, sWindowRect.left, sWindowRect.top, sWindowRect.right - sWindowRect.left, sWindowRect.bottom - sWindowRect.top, 0);
 	}
-#endif
+#endif // BT_CLIENT
 
 	// Process messages with PeekMessage() which doesn't block
 	MSG msg {};
@@ -462,7 +466,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		default:
 			break;
 	}
-#endif
+#endif // BT_CLIENT
 
 	switch (message)
 	{
@@ -489,7 +493,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			return 0;
 		}
-#endif
+#endif // BT_SERVER
 
 		case WM_SYSCOMMAND:
 		{
@@ -526,7 +530,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}
 
 				gpRawInputManager->UpdateFocus(true, sHwnd);
-#endif
+#endif // BT_CLIENT
 			}
 
 			break;
@@ -547,7 +551,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}
 
 				gpRawInputManager->UpdateFocus(false, sHwnd);
-#endif
+#endif // BT_CLIENT
 			}
 
 			break;

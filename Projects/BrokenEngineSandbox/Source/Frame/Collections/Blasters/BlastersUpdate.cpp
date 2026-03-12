@@ -153,7 +153,7 @@ static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine:
 		.fFadeOutTime = kfBlasterFadeOutTime,
 	});
 }
-#endif
+#endif // BT_CLIENT
 
 void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
@@ -195,7 +195,7 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 				.fLengthMultiplier = rCurrent.pfWindTrailLengthMultipliers[i],
 			});
 		}
-#endif
+#endif // BT_CLIENT
 	}
 
 	gpProfileManager->SetCount(game::kCpuCounterBlasters, rCurrent.iCount);

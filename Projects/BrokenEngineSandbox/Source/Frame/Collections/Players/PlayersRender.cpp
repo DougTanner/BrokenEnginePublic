@@ -160,4 +160,4 @@ void PlayersInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 
 } // namespace game
 
-#endif
+#endif // BT_CLIENT

@@ -67,6 +67,7 @@
 
 // Network client
 #include "Network/NetworkClient/NetworkClient.h"
+#include "Network/NetworkClient/ClientSessionBase.h"
 
 // Graphics (Islands is client-only GPU rendering)
 #include "Graphics/Islands.h"
@@ -78,6 +79,7 @@
 
 #if defined(BT_SERVER)
 #include "Network/NetworkServer/NetworkServer.h"
+#include "Network/NetworkServer/ServerSessionBase.h"
 #include "Server/ServerDisplay.h"
 #endif
 

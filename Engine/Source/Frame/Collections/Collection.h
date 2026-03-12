@@ -480,7 +480,7 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddVisualIndexableElement(TInte
 
 	return {iSpawnIndex, newId};
 }
-#endif
+#endif // BT_CLIENT
 
 // Increments counts, reuses an existing ID, and updates idToIndexMap for indexable collections.
 // Returns tuple of (spawnIndex, existingId).

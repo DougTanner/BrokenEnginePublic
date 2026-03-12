@@ -115,7 +115,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 			// Sync trail
 			SyncExplosionTrail(rCurrentFrameInterpolate, trailId, vecTrailPosition, fTrailIntensity);
 		}
-#endif
+#endif // BT_CLIENT
 	}
 }
 

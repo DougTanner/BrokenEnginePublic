@@ -3,6 +3,7 @@
 #if defined(BT_CLIENT)
 
 #include "Game.h"
+#include "Network/ClientSession.h"
 #include "MenuUtils.h"
 #include "Ui/Localization.h"
 
@@ -44,13 +45,13 @@ void MainMenuScreen::Render()
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
 	// Local Server button (discovers localhost + LAN)
-	if (gpGame->mpDiscoveryScanner != nullptr)
+	if (gpClientSession->mpDiscoveryScanner != nullptr)
 	{
 		ImGui::BeginDisabled();
 		ImGui::Button("SCANNING...", ImVec2(fButtonWidth, fButtonHeight));
 		ImGui::EndDisabled();
 	}
-	else if (gpGame->IsNetworkMode())
+	else if (gpClientSession->IsNetworkMode())
 	{
 		ImGui::BeginDisabled();
 		ImGui::Button("CONNECTING...", ImVec2(fButtonWidth, fButtonHeight));
@@ -58,7 +59,7 @@ void MainMenuScreen::Render()
 	}
 	else if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, fButtonHeight)))
 	{
-		gpGame->StartServerDiscovery();
+		gpClientSession->StartServerDiscovery();
 	}
 
 	// Remote Server button (placeholder for future Internet servers)

@@ -103,7 +103,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	static uint8_t GetSecondaryPuffControllerTypeIndex();
 	static uint8_t GetTrailTypeIndex();
 	static uint8_t GetWindRadialControllerTypeIndex();
-#endif
+#endif // BT_CLIENT
 
 	// Interpolate
 	static void Update(game::FrameInterpolate& __restrict rCurrentFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
@@ -161,7 +161,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 		    rSelf.pfTrailIntensities, rSelf.pVecTrailStartPositions,
 		    rSelf.pVecTrailEndPositions);
 	}
-#endif
+#endif // BT_CLIENT
 	auto Members(this auto&& rSelf)
 	{
 #if defined(BT_CLIENT)

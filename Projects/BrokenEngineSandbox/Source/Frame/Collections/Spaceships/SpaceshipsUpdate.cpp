@@ -155,7 +155,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 				fAnimationTime = std::fmod(fAnimationTime, fAnimationDuration);
 			}
 		}
-#endif
+#endif // BT_CLIENT
 
 		// Save
 		rCurrent.pVecPositions[i] = vecPosition;
@@ -182,7 +182,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 				.fLengthMultiplier = engine::gWindDepositSpaceshipsLengthMultiplier.Get(),
 			});
 		}
-#endif
+#endif // BT_CLIENT
 	}
 }
 

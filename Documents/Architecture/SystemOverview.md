@@ -47,6 +47,8 @@ graph TD
 
     subgraph game_ns ["game::"]
         gpGame["gpGame<br/>Game"]:::shared
+        gpClientSession["gpClientSession<br/>ClientSession"]:::clientOnly
+        gpServerSession["gpServerSession<br/>ServerSession"]:::serverOnly
     end
 
     gpGraphics -->|owns| gpInstanceManager
@@ -63,8 +65,10 @@ graph TD
     gpGraphics -->|owns| gpIslands
     gpIslands -->|reads| gpIslandTerrain
     gpGame -->|uses| gpGraphics
-    gpGame -->|uses| gpNetworkClient
-    gpGame -->|uses| gpNetworkServer
+    gpGame -->|owns| gpClientSession
+    gpGame -->|owns| gpServerSession
+    gpClientSession -->|uses| gpNetworkClient
+    gpServerSession -->|uses| gpNetworkServer
     gpGame -->|uses| gpFileManager
 ```
 
@@ -92,7 +96,7 @@ sequenceDiagram
     Main->>Engine: Graphics (creates 12 sub-managers)
     Main->>Engine: WaitForElevationMaps()
     Main->>Game: Camera
-    Main->>Game: Game (gpGame)
+    Main->>Game: Game (gpGame, creates ClientSession)
     Main->>Game: Input
     Main->>Engine: WaitForTextures (priority)
     Note over Main: ShowWindow -> Main Loop
@@ -100,7 +104,7 @@ sequenceDiagram
     Note over Main: Server Build
     Main->>Engine: NetworkManager
     Main->>Engine: IslandTerrain
-    Main->>Game: Game (gpGame, creates NetworkDiscoveryResponder)
+    Main->>Game: Game (gpGame, creates ServerSession)
     Main->>Engine: NetworkServer (port 27015)
     Note over Main: Main Loop (headless)
 ```

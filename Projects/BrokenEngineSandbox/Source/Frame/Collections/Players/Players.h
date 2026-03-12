@@ -29,7 +29,7 @@ struct HexShieldIntensities
 	float data[shaders::kiHexShieldDirections] {};
 	bool operator==(const HexShieldIntensities& rOther) const { return std::memcmp(data, rOther.data, sizeof(data)) == 0; }
 };
-#endif
+#endif // BT_CLIENT
 
 struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine::CollectionFlags::kIdToIndex>
 {
@@ -70,7 +70,7 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 	HexShieldDirections* __restrict pHexShieldDirections = nullptr;
 	HexShieldIntensities* __restrict pHexShieldVertIntensities = nullptr;
 	HexShieldIntensities* __restrict pHexShieldFragIntensities = nullptr;
-#endif
+#endif // BT_CLIENT
 
 	auto SharedMembers(this auto&& rSelf)
 	{
@@ -85,7 +85,7 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 			rSelf.pHexShields, rSelf.pfShieldRotations, rSelf.pfShieldShrinks,
 			rSelf.pHexShieldDirections, rSelf.pHexShieldVertIntensities, rSelf.pHexShieldFragIntensities);
 	}
-#endif
+#endif // BT_CLIENT
 	auto Members(this auto&& rSelf)
 	{
 #if defined(BT_CLIENT)

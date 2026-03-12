@@ -194,7 +194,7 @@ struct FramePostRenderBase
 		int64_t iCounter = uiNextVisualUuid++;
 		return (static_cast<int64_t>(uiFrameId) << 48) | (iCounter & 0x0000FFFFFFFFFFFF);
 	}
-#endif
+#endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
 	AreaLightsPostRender areaLights {};

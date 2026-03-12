@@ -37,7 +37,7 @@ constexpr float kfExhaustOffset = -0.45f;
 constexpr float kfExhaustVisibleIntensity = 1.0f;
 constexpr float kfExhaustLightingArea = 11.0f;
 constexpr float kfExhaustLightingIntensity = 12.0f;
-#endif
+#endif // BT_CLIENT
 
 
 #if defined(BT_CLIENT)
@@ -81,7 +81,7 @@ static uint8_t suiEnemyExhaustAreaLightTypeIndex = 0xFF;
 
 // Trail type registration for smoke trail
 static uint8_t suiSmokeTrailTypeIndex = 0xFF;
-#endif
+#endif // BT_CLIENT
 
 // Explosion type registration
 static uint8_t suiMissileExplosionTypeIndex = 0xFF;
@@ -155,7 +155,7 @@ void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_l
 		});
 	}
 }
-#endif
+#endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
 void MissilesInterpolate::ClientInit(Frame& rFrame, int64_t iIndex, engine::smoke_trails_t smokeTrailReuseId)
@@ -194,7 +194,7 @@ void MissilesInterpolate::ClientInitAll(Frame& rFrame)
 		ClientInit(rFrame, i);
 	}
 }
-#endif
+#endif // BT_CLIENT
 
 void MissilesInterpolate::AllocateAndCopy(MissilesInterpolate& rCurrent, const MissilesInterpolate& rPrevious)
 {
@@ -245,7 +245,7 @@ void MissilesInterpolate::Register()
 		.uiColor = 0xFFFFFFFF,
 		.fWidth = kfTrailWidth,
 	});
-#endif
+#endif // BT_CLIENT
 
 	// Missile explosion type
 	engine::ExplosionsInterpolate::RegisterType(suiMissileExplosionTypeIndex,
@@ -257,7 +257,7 @@ void MissilesInterpolate::Register()
 		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
 		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
 		.uiWindRadialControllerTypeIndex = engine::ExplosionsInterpolate::GetWindRadialControllerTypeIndex(),
-#endif
+#endif // BT_CLIENT
 		.uiBaseParticleCount = kuiMissileExplosionBaseParticleCount,
 		.uiParticleColor = kuiMissileExplosionParticleColor,
 		.fParticleVelocityMin = kfMissileExplosionParticleVelocityMin,
@@ -382,7 +382,7 @@ void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 		{
 			engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
 		}
-#endif
+#endif // BT_CLIENT
 
 		// Remove target subscription (if target still exists)
 		if (rCurrentPostRender.puiTargets[i].IsValid())
@@ -431,7 +431,7 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		{
 			engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
 		}
-#endif
+#endif // BT_CLIENT
 
 		// Remove target subscription (if target still exists)
 		if (rCurrentPostRender.puiTargets[i].IsValid())
@@ -516,7 +516,7 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 		.fPower = kfMissilePusherPower,
 		.flags = {engine::PusherFlags::kTypeDefault},
 	});
-#endif
+#endif // BT_CLIENT
 }
 
 void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] int64_t i, [[maybe_unused]] bool bDirectional)

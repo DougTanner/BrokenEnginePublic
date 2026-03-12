@@ -23,6 +23,8 @@ graph TD
         cursor["NetworkCursor<br/>Inline binary read/write helpers<br/>(ReadUint8..ReadVec4, ReadGridCoord,<br/>WriteUint8..WriteVec4)"]:::shared
         discovery_scanner["NetworkDiscoveryScanner<br/>(UDP broadcast probe)"]:::clientOnly
         discovery_responder["NetworkDiscoveryResponder<br/>(UDP listen on port 27016)"]:::serverOnly
+        client_session_base["ClientSessionBase<br/>(owns NetworkClient +<br/>DiscoveryScanner)"]:::clientOnly
+        session_base["ServerSessionBase<br/>(owns DiscoveryResponder)"]:::serverOnly
     end
 
     subgraph server_data ["Server-Side Data"]
@@ -51,6 +53,9 @@ graph TD
     gpNetworkServer -->|queues| pending
     gpNetworkClient -->|buffers| received
     gpNetworkClient -->|tracks| ack_state
+    client_session_base -->|owns| gpNetworkClient
+    client_session_base -->|owns| discovery_scanner
+    session_base -->|owns| discovery_responder
     discovery_scanner -->|probes| discovery_responder
 ```
 
@@ -108,7 +113,7 @@ sequenceDiagram
     loop Every Server Tick
         S->>S: RunFrameTick per-Frame<br/>(5 phases via Dispatch)<br/>BufferFrame(N) to per-coord ring buffers
 
-        S->>S: DetectPlayerDeathsServer()<br/>HandleSubscriptionUpdatesServer()<br/>(check deaths, frame changes)
+        S->>S: DetectPlayerDeaths()<br/>HandleSubscriptionUpdates()<br/>(check deaths, frame changes)
         opt Player state changed
             S->>C: kServerPlayerState (reliable)<br/>[PlayerStateType, player_t, GridCoord]
         end
@@ -189,8 +194,8 @@ flowchart TD
     classDef decision fill:#f3e8ff,stroke:#9333ea
     classDef desync fill:#fee2e2,stroke:#ef4444
 
-    subgraph main ["Main Thread"]
-        poll["PollNetworkClient()<br/>Buffer per-slot received updates<br/>into CoordReconcileStates"]:::mainThread
+    subgraph main ["Main Thread (ClientSession)"]
+        poll["PollNetwork()<br/>Buffer per-slot received updates<br/>into CoordReconcileStates"]:::mainThread
         kick["TryKickReconcile()<br/>Gate: mbReconcileHasNewData<br/>Build CoordReconcileWork per coord<br/>+ kick worker"]:::mainThread
         wait["WaitForReconcile()<br/>Block until worker done"]:::mainThread
         apply["ApplyReconcileResult()<br/>Merge per-coord results<br/>into mCurrentFrames"]:::mainThread

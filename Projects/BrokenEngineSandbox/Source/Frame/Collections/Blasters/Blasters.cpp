@@ -132,7 +132,7 @@ void BlastersInterpolate::ClientInitAll(Frame& rFrame)
 		ClientInit(rFrame, i);
 	}
 }
-#endif
+#endif // BT_CLIENT
 
 void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
@@ -219,7 +219,7 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
 		}
 		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
-#endif
+#endif // BT_CLIENT
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
@@ -244,7 +244,7 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
 		}
 		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
-#endif
+#endif // BT_CLIENT
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}

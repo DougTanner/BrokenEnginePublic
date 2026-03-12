@@ -1,6 +1,12 @@
 #include "GameBase.h"
 
 #include "Game.h"
+#if defined(BT_CLIENT)
+#include "Network/ClientSession.h"
+#endif
+#if defined(BT_SERVER)
+#include "Network/ServerSession.h"
+#endif
 #include "Frame/FrameTick.h"
 #include "Frame/HealthDamage.h"
 #include "Frame/Collections/Players/Players.h"
@@ -11,7 +17,9 @@ namespace engine
 {
 
 GameBase::GameBase()
-	: mGameSaveLoad(*this)
+#if defined(BT_SERVER)
+: mGameSaveLoad(*this)
+#endif // BT_SERVER
 {
 	game::FrameInterpolate::Register();
 
@@ -37,39 +45,21 @@ void GameBase::ProcessInput([[maybe_unused]] bool bLostFocus, game::MenuInput& r
 	ProcessMenuInput(rMenuInput);
 }
 
-void GameBase::TickFrames(const game::MenuInput& rMenuInput)
-{
 #if defined(BT_CLIENT)
-	game::gpGame->PollAndReconcileClient();
+void GameBase::UpdateClient()
+{
+	game::gpClientSession->PollAndReconcile();
 
-	if (game::gpGame->GetDesyncTick() >= 0)
-		return;
-#endif
-
-#if defined(BT_SERVER)
-	game::gpGame->PreTickNetworkServer();
-#endif
-
-	if (mGameSaveLoad.Quickload(rMenuInput)) [[unlikely]]
+	if (game::gpClientSession->GetDesyncTick() >= 0)
 	{
-		game::gpGame->ComputeActiveSet();
 		return;
 	}
-
-	mGameSaveLoad.SaveLoadReplay(rMenuInput);
-
-#if defined(BT_SERVER)
-	WaitForServerTick();
-#endif
 
 	int64_t iFullTicks = mTimeStep.TickRealtime();
-#if defined(BT_SERVER)
-	if (iFullTicks != 1) [[unlikely]]
+	if (iFullTicks > 0)
 	{
-		Log("iFullTicks: {} != 1", iFullTicks);
+		common::Log("GameBase: TickFrames ticks={} tickCounter={}", iFullTicks, miTickCounter); // DT: TEMP
 	}
-#endif
-	if (iFullTicks > 0) common::Log("GameBase: TickFrames ticks={} tickCounter={}", iFullTicks, miTickCounter); // DT: TEMP
 	PrepareActiveSet();
 
 	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
@@ -80,17 +70,12 @@ void GameBase::TickFrames(const game::MenuInput& rMenuInput)
 		++miTickCounter;
 		mfCurrentTime += game::kfDeltaTime;
 
-#if defined(BT_SERVER)
-		PrepareServerTick();
-#endif
-
-		bool bExtrapolating = false;
-#if defined(BT_CLIENT)
-		bExtrapolating = game::gpGame->IsExtrapolating();
+		bool bExtrapolating = game::gpClientSession->IsExtrapolating();
 		if (bExtrapolating)
-			game::gpGame->PrepareExtrapolationTick(rActiveCoords);
+		{
+			game::gpClientSession->PrepareExtrapolationTick(rActiveCoords);
+		}
 		common::Log("GameBase: Tick {} extrapolating={} activeCoords={}", miTickCounter, bExtrapolating, static_cast<int64_t>(rActiveCoords.size())); // DT: TEMP
-#endif
 
 		BuildAndDispatchFrameTicks(rActiveCoords, bExtrapolating);
 		FinalizeFrameTick(rActiveCoords, bExtrapolating);
@@ -98,22 +83,71 @@ void GameBase::TickFrames(const game::MenuInput& rMenuInput)
 	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
 
 	if constexpr (kbEnableProfiling)
+	{
 		gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullTicks);
+	}
+
+	game::gpClientSession->PostTick();
+}
+#endif // BT_CLIENT
+
+#if defined(BT_SERVER)
+void GameBase::UpdateServer(const game::MenuInput& rMenuInput)
+{
+	game::gpServerSession->PreTickNetwork();
+
+	if (mGameSaveLoad.Quickload(rMenuInput)) [[unlikely]]
+	{
+		game::gpGame->ComputeActiveSet();
+		return;
+	}
+
+	mGameSaveLoad.SaveLoadReplay(rMenuInput);
+
+	WaitForServerTick();
+
+	int64_t iFullTicks = mTimeStep.TickRealtime();
+	if (iFullTicks != 1) [[unlikely]]
+	{
+		Log("iFullTicks: {} != 1", iFullTicks);
+	}
+	if (iFullTicks > 0)
+	{
+		common::Log("GameBase: TickFrames ticks={} tickCounter={}", iFullTicks, miTickCounter); // DT: TEMP
+	}
+	PrepareActiveSet();
+
+	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
+
+	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
+	for (int64_t i = 0; i < iFullTicks; ++i)
+	{
+		++miTickCounter;
+		mfCurrentTime += game::kfDeltaTime;
+
+		PrepareServerTick();
+
+		BuildAndDispatchFrameTicks(rActiveCoords, false);
+		FinalizeFrameTick(rActiveCoords, false);
+	}
+	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
+
+	if constexpr (kbEnableProfiling)
+	{
+		gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullTicks);
+	}
 
 	mGameSaveLoad.Quicksave(rMenuInput);
-
-#if defined(BT_CLIENT)
-	game::gpGame->PostTickNetworkClient();
-#endif
 }
+#endif // BT_SERVER
 
 #if defined(BT_SERVER)
 void GameBase::PrepareServerTick()
 {
 	// Recompute active set each tick so new client subscriptions
-	// (set by FinalizeNewClientsServer on the previous frame) are picked up immediately
-	ScopedSuppressAllocationTracking ssat;
-	game::gpGame->ComputeActiveSetServer();
+	// (set by FinalizeNewClients on the previous frame) are picked up immediately
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	game::gpServerSession->ComputeActiveSet();
 	game::gpGame->EnsureNextFrames();
 
 	// Add empty frame inputs for any newly active coords
@@ -125,7 +159,7 @@ void GameBase::PrepareServerTick()
 		}
 	}
 }
-#endif
+#endif // BT_SERVER
 
 void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveCoords, [[maybe_unused]] bool bExtrapolating)
 {
@@ -141,7 +175,7 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 		{
 			game::Frame* pNext = nullptr;
 			game::Frame* pCurrent = nullptr;
-			game::gpGame->BuildExtrapolationFrameRef(rCoord, pNext, pCurrent);
+			game::gpClientSession->BuildExtrapolationFrameRef(rCoord, pNext, pCurrent);
 			if (pNext != nullptr)
 			{
 				common::gpThreadLocal->mWorkbuffer.PushBack<game::ActiveFrameRef>({
@@ -152,7 +186,7 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 				continue;
 			}
 		}
-#endif
+#endif // BT_CLIENT
 		common::gpThreadLocal->mWorkbuffer.PushBack<game::ActiveFrameRef>({
 			.pNext = &NextFrame(rCoord),
 			.pCurrent = &CurrentFrame(rCoord),
@@ -199,7 +233,7 @@ void GameBase::FinalizeFrameTick([[maybe_unused]] const std::vector<GridCoord>& 
 #if defined(BT_CLIENT)
 	if (bExtrapolating)
 	{
-		game::gpGame->RecordExtrapolationSnapshot(rActiveCoords, miTickCounter);
+		game::gpClientSession->RecordExtrapolationSnapshot(rActiveCoords, miTickCounter);
 	}
 	else
 #endif
@@ -218,17 +252,17 @@ void GameBase::FinalizeFrameTick([[maybe_unused]] const std::vector<GridCoord>& 
 }
 
 #if defined(BT_CLIENT)
-void GameBase::TickFramesAndRender(const game::MenuInput& rMenuInput)
+void GameBase::TickFramesAndRender()
 {
-	TickFrames(rMenuInput);
+	UpdateClient();
 	Render();
 }
 
 game::Frame& GameBase::RenderFrame(GridCoord coord) const
 {
-	if (game::gpGame->IsExtrapolating())
+	if (game::gpClientSession->IsExtrapolating())
 	{
-		game::Frame* pFrame = game::gpGame->GetSnapshotFrame(coord);
+		game::Frame* pFrame = game::gpClientSession->GetSnapshotFrame(coord);
 		if (pFrame != nullptr)
 		{
 			return *pFrame;
@@ -297,9 +331,9 @@ void GameBase::Render()
 
 	gpGraphics->RenderMainPresentAcquire(iCommandBuffer, gpGraphics->mRenderInterpolates, rActiveCoords, cameraCoord);
 
-	game::gpGame->PostRenderNetworkClient();
+	game::gpClientSession->PostRender();
 }
-#endif
+#endif // BT_CLIENT
 
 #if defined(BT_SERVER)
 void GameBase::WaitForServerTick()
@@ -336,22 +370,23 @@ void GameBase::WaitForServerTick()
 void GameBase::BroadcastServerTick()
 {
 	// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
-	ScopedSuppressAllocationTracking ssat;
-	game::gpGame->FinalizeNewClientsServer(miTickCounter);
-	game::gpGame->DetectPlayerDeathsServer();
-	game::gpGame->BroadcastStatusChangesServer(miTickCounter);
-	game::gpGame->HandleSubscriptionUpdatesServer(miTickCounter);
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	game::gpServerSession->FinalizeNewClients(miTickCounter);
+	game::gpServerSession->DetectPlayerDeaths();
+	game::gpServerSession->BroadcastStatusChanges(miTickCounter);
+	game::gpServerSession->HandleSubscriptionUpdates(miTickCounter);
 	engine::gpNetworkServer->Flush();
 }
-#endif
+#endif // BT_SERVER
 
 void GameBase::PrepareActiveSet()
 {
+#if defined(BT_SERVER)
 	if (mGameSaveLoad.IsReplaying())
 	{
 		// During replay, only the human's frame is active
 		// Heap: vector clear/push_back, unordered_map insertion + make_unique<Frame>
-		ScopedSuppressAllocationTracking ssat;
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 		game::gpGame->mActiveCoords.clear();
 		game::gpGame->mActiveCoords.push_back(game::gpGame->mHumanGridCoord);
 		if (mCoordFrames[game::gpGame->mHumanGridCoord].pNext == nullptr)
@@ -361,6 +396,7 @@ void GameBase::PrepareActiveSet()
 		game::gpGame->BuildFrameInputs();
 	}
 	else
+#endif // BT_SERVER
 	{
 		game::gpGame->ComputeActiveSet();
 		game::gpGame->EnsureNextFrames();
@@ -377,14 +413,17 @@ void GameBase::SwapFrames()
 
 	// After swap, .next holds old current frames (stale data, reusable memory).
 	// Ensure active entries exist for next iteration's AllocateAndCopy.
+#if defined(BT_SERVER)
 	if (!mGameSaveLoad.IsReplaying())
 	{
 		game::gpGame->EnsureNextFrames();
 	}
-	else if (mCoordFrames[game::gpGame->mHumanGridCoord].pNext == nullptr)
+	else
+#endif // BT_SERVER
+	if (mCoordFrames[game::gpGame->mHumanGridCoord].pNext == nullptr)
 	{
 		// Heap: make_unique<Frame> for replay target coordinate
-		ScopedSuppressAllocationTracking ssat;
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 		mCoordFrames[game::gpGame->mHumanGridCoord].pNext = std::make_unique<game::Frame>();
 	}
 }

@@ -1,5 +1,6 @@
 #include "Game.h"
 
+#include "Network/ClientSession.h"
 #include "Frame/Collections/Players/Players.h"
 #include "Frame/Collections/Blasters/Blasters.h"
 #include "Frame/Collections/Missiles/Missiles.h"
@@ -12,18 +13,53 @@ namespace game
 
 #if defined(BT_CLIENT)
 
-inline int64_t SnapshotIndex(int64_t iHead, int64_t iLogical)
+ClientSession::ClientSession()
 {
-	return (iHead + iLogical) % engine::kiTickRate;
+	gpClientSession = this;
+
+	if constexpr (kbEnableReconcileThread)
+	{
+		mpReconcileWorker = std::make_unique<common::PersistentWorker>(common::kThreadReconcile, 10 * 1'024 * 1'024);
+	}
 }
 
-void Game::PrepareExtrapolationTick(const std::vector<engine::GridCoord>& rActiveCoords)
+ClientSession::~ClientSession()
+{
+	if constexpr (kbEnableReconcileThread)
+	{
+		if (mbReconcileInFlight)
+		{
+			mpReconcileWorker->Wait();
+			mbReconcileInFlight = false;
+		}
+	}
+
+	gpClientSession = nullptr;
+}
+
+bool ClientSession::IsExtrapolating() const
+{
+	if (!IsNetworkMode())
+	{
+		return false;
+	}
+	for (const auto& [rCoord, rFrame] : gpGame->mCoordFrames)
+	{
+		if (rFrame.iConfirmedTick >= 0)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void ClientSession::PrepareExtrapolationTick(const std::vector<engine::GridCoord>& rActiveCoords)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	for (const engine::GridCoord& rCoord : rActiveCoords)
 	{
-		auto subIt = mCoordFrames.find(rCoord);
-		if (subIt == mCoordFrames.end() || subIt->second.iConfirmedTick < 0)
+		auto subIt = gpGame->mCoordFrames.find(rCoord);
+		if (subIt == gpGame->mCoordFrames.end() || subIt->second.iConfirmedTick < 0)
 		{
 			continue;
 		}
@@ -50,10 +86,10 @@ void Game::PrepareExtrapolationTick(const std::vector<engine::GridCoord>& rActiv
 	}
 }
 
-void Game::BuildExtrapolationFrameRef(const engine::GridCoord& rCoord, Frame*& rpNext, Frame*& rpCurrent)
+void ClientSession::BuildExtrapolationFrameRef(const engine::GridCoord& rCoord, Frame*& rpNext, Frame*& rpCurrent)
 {
-	auto subIt = mCoordFrames.find(rCoord);
-	if (subIt == mCoordFrames.end() || subIt->second.iConfirmedTick < 0)
+	auto subIt = gpGame->mCoordFrames.find(rCoord);
+	if (subIt == gpGame->mCoordFrames.end() || subIt->second.iConfirmedTick < 0)
 	{
 		return;
 	}
@@ -66,7 +102,7 @@ void Game::BuildExtrapolationFrameRef(const engine::GridCoord& rCoord, Frame*& r
 	rpNext = rSub.snapshots[iNextPhysical].get();
 	if (rSub.iSnapshotCount == 0)
 	{
-		rpCurrent = &CurrentFrame(rCoord);
+		rpCurrent = &gpGame->CurrentFrame(rCoord);
 	}
 	else
 	{
@@ -75,12 +111,12 @@ void Game::BuildExtrapolationFrameRef(const engine::GridCoord& rCoord, Frame*& r
 	}
 }
 
-void Game::RecordExtrapolationSnapshot(const std::vector<engine::GridCoord>& rActiveCoords, [[maybe_unused]] int64_t iTick)
+void ClientSession::RecordExtrapolationSnapshot(const std::vector<engine::GridCoord>& rActiveCoords, [[maybe_unused]] int64_t iTick)
 {
 	for (const engine::GridCoord& rCoord : rActiveCoords)
 	{
-		auto subIt = mCoordFrames.find(rCoord);
-		if (subIt == mCoordFrames.end() || subIt->second.iConfirmedTick < 0)
+		auto subIt = gpGame->mCoordFrames.find(rCoord);
+		if (subIt == gpGame->mCoordFrames.end() || subIt->second.iConfirmedTick < 0)
 		{
 			continue;
 		}
@@ -93,10 +129,10 @@ void Game::RecordExtrapolationSnapshot(const std::vector<engine::GridCoord>& rAc
 	}
 }
 
-Frame* Game::GetSnapshotFrame(engine::GridCoord coord) const
+Frame* ClientSession::GetSnapshotFrame(engine::GridCoord coord) const
 {
-	auto subIt = mCoordFrames.find(coord);
-	if (subIt == mCoordFrames.end() || subIt->second.iConfirmedTick < 0 || subIt->second.iSnapshotCount <= 0)
+	auto subIt = gpGame->mCoordFrames.find(coord);
+	if (subIt == gpGame->mCoordFrames.end() || subIt->second.iConfirmedTick < 0 || subIt->second.iSnapshotCount <= 0)
 	{
 		return nullptr;
 	}
@@ -105,16 +141,16 @@ Frame* Game::GetSnapshotFrame(engine::GridCoord coord) const
 	return rSub.snapshots[iPhysical].get();
 }
 
-void Game::ConnectToServer(const char* pServerAddress)
+void ClientSession::ConnectToServer(const char* pServerAddress)
 {
 	FILE_LOG(0, "ConnectToServer: connecting to {}", pServerAddress);
-	mModalMessage[0] = '\0';
+	gpGame->mModalMessage[0] = '\0';
 	// Heap: NetworkClient allocates ENet host and peer
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	mpNetworkClient = std::make_unique<engine::NetworkClient>(pServerAddress, engine::kuiDefaultPort, kiDesiredCoordSlots);
 }
 
-void Game::StartServerDiscovery()
+void ClientSession::StartServerDiscovery()
 {
 	// Heap: NetworkDiscoveryScanner creates a UDP socket
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
@@ -122,7 +158,7 @@ void Game::StartServerDiscovery()
 	mpDiscoveryScanner->StartScan();
 }
 
-std::chrono::nanoseconds Game::ComputeClockCorrectionNs(int64_t iPreReconcileTick)
+std::chrono::nanoseconds ClientSession::ComputeClockCorrectionNs(int64_t iPreReconcileTick)
 {
 	if (miLatestServerTick < 0)
 	{
@@ -152,7 +188,7 @@ std::chrono::nanoseconds Game::ComputeClockCorrectionNs(int64_t iPreReconcileTic
 	return correction;
 }
 
-void Game::DisconnectFromServer()
+void ClientSession::DisconnectFromServer()
 {
 	common::Log("GameClient: DisconnectFromServer"); // DT: TEMP
 	// Heap: NetworkClient destructor triggers ENet disconnect and cleanup
@@ -172,7 +208,7 @@ void Game::DisconnectFromServer()
 	miLatestServerTick = -1;
 	mpNetworkClient.reset();
 	// Reset client fields on all subscribed frames
-	for (auto& [rCoord, rSub] : mCoordFrames)
+	for (auto& [rCoord, rSub] : gpGame->mCoordFrames)
 	{
 		rSub.iConfirmedTick = -1;
 		rSub.iConfirmedOffset = -1;
@@ -188,7 +224,7 @@ void Game::DisconnectFromServer()
 	miClockError = 0;
 }
 
-void Game::PollNetworkClient()
+void ClientSession::PollNetwork()
 {
 	// Poll LAN discovery scanner
 	if (mpDiscoveryScanner != nullptr)
@@ -227,17 +263,17 @@ void Game::PollNetworkClient()
 		const char* pRejection = mpNetworkClient->GetRejectionReason();
 		if (pRejection != nullptr)
 		{
-			snprintf(mModalMessage, sizeof(mModalMessage), "%s", pRejection);
+			snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "%s", pRejection);
 			DisconnectFromServer();
-			meUiState = UiState::kModal;
+			gpGame->meUiState = UiState::kModal;
 			return;
 		}
 
 		if (mpNetworkClient->WasDisconnected())
 		{
-			snprintf(mModalMessage, sizeof(mModalMessage), "Connection failed");
+			snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Connection failed");
 			DisconnectFromServer();
-			meUiState = UiState::kModal;
+			gpGame->meUiState = UiState::kModal;
 			return;
 		}
 
@@ -245,14 +281,13 @@ void Game::PollNetworkClient()
 	}
 
 	// Connection accepted - transition to game mode (runs once)
-	if (InMainMenu())
+	if (gpGame->InMainMenu())
 	{
-		miGameMusicIndex = 0;
-		engine::gpAudioManager->PlayMusic(mGameMusicPlaylist.at(0));
-		CreateNewFrame(GameFlags::kGame);
-		mGameFlags.Clear(engine::GameFlags::kMainMenu);
-		Reset();
-		meUiState = UiState::kNone;
+		gpGame->StartGameMusic();
+		gpGame->CreateNewFrame(GameFlags::kGame);
+		gpGame->mGameFlags.Clear(engine::GameFlags::kMainMenu);
+		gpGame->Reset();
+		gpGame->meUiState = UiState::kNone;
 		common::Log("GameClient: Connection accepted, entering game"); // DT: TEMP
 	}
 
@@ -260,20 +295,20 @@ void Game::PollNetworkClient()
 	std::unique_ptr<engine::ReceivedDebugFrame> pDebugFrame = mpNetworkClient->DrainReceivedDebugFrame();
 	if (pDebugFrame != nullptr && mDesyncDebugState.pClientFrame != nullptr)
 	{
-		FILE_LOG(0, "[PollNetworkClient] Debug frame received for frame={} coord=({},{}), running CompareWithServerFrame", mDesyncDebugState.iTick, mDesyncDebugState.coord.x, mDesyncDebugState.coord.y);
+		FILE_LOG(0, "[PollNetwork] Debug frame received for frame={} coord=({},{}), running CompareWithServerFrame", mDesyncDebugState.iTick, mDesyncDebugState.coord.x, mDesyncDebugState.coord.y);
 		CompareWithServerFrame(*mDesyncDebugState.pClientFrame, *pDebugFrame->pFrame, mDesyncDebugState.iTick, mDesyncDebugState.coord);
 		mDesyncDebugState = {};
 		DEBUG_BREAK();
-		snprintf(mModalMessage, sizeof(mModalMessage), "Desynced from server");
+		snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
 		mpNetworkClient->Disconnect();
 		return;
 	}
 
 	if (mpNetworkClient->WasDisconnected())
 	{
-		FILE_LOG(0, "[PollNetworkClient] Disconnected while waiting for debug frame: desyncFrame={}", mDesyncDebugState.iTick);
-		ChangeFrame(GameFlags::kMainMenu);
-		meUiState = mModalMessage[0] != '\0' ? UiState::kModal : UiState::kPause;
+		FILE_LOG(0, "[PollNetwork] Disconnected while waiting for debug frame: desyncFrame={}", mDesyncDebugState.iTick);
+		gpGame->ChangeFrame(GameFlags::kMainMenu);
+		gpGame->meUiState = gpGame->mModalMessage[0] != '\0' ? UiState::kModal : UiState::kPause;
 		return;
 	}
 
@@ -286,13 +321,13 @@ void Game::PollNetworkClient()
 	// Check for player assignments
 	for (const engine::ReceivedAssignment& rAssignment : mpNetworkClient->DrainReceivedAssignments())
 	{
-		if (rAssignment.playerId != mHumanPlayerId)
+		if (rAssignment.playerId != gpGame->HumanPlayerId())
 		{
-			player_t oldHumanPlayerId = mHumanPlayerId;
-			mHumanPlayerId = rAssignment.playerId;
-			mHumanGridCoord = rAssignment.coord;
+			player_t oldHumanPlayerId = gpGame->HumanPlayerId();
+			gpGame->SetHumanPlayerId(rAssignment.playerId);
+			gpGame->mHumanGridCoord = rAssignment.coord;
 
-			FILE_LOG(0, "[PollNetworkClient] Assignment: old={} new={} grid=({},{}) frame={}", oldHumanPlayerId.ToUuid().Value(), mHumanPlayerId.ToUuid().Value(), mHumanGridCoord.x, mHumanGridCoord.y, miTickCounter);
+			FILE_LOG(0, "[PollNetwork] Assignment: old={} new={} grid=({},{}) frame={}", oldHumanPlayerId.ToUuid().Value(), gpGame->HumanPlayerId().ToUuid().Value(), gpGame->mHumanGridCoord.x, gpGame->mHumanGridCoord.y, gpGame->TickCounter());
 
 			// Trigger subscription updates for the new grid position
 			UpdateSubscriptions();
@@ -306,16 +341,16 @@ void Game::PollNetworkClient()
 		{
 		case engine::PlayerStateType::kSpawned:
 		case engine::PlayerStateType::kChangedFrame:
-			mHumanGridCoord = rState.coord;
+			gpGame->mHumanGridCoord = rState.coord;
 			common::Log("GameClient: PlayerState type={} coord ({},{})", static_cast<int>(rState.eType), rState.coord.x, rState.coord.y); // DT: TEMP
 			break;
 		case engine::PlayerStateType::kDied:
-			if (mCoordFrames.contains(mHumanGridCoord))
+			if (gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord))
 			{
-				CurrentFrame(mHumanGridCoord).interpolate.gameFlags.Set(GameFlags::kDeathScreen);
+				gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.gameFlags.Set(GameFlags::kDeathScreen);
 			}
-			mHumanPlayerId = {};
-			mfPreviousHumanArmor = 0.0f;
+			gpGame->SetHumanPlayerId({});
+			gpGame->SetPreviousHumanArmor(0.0f);
 			common::Log("GameClient: Player died"); // DT: TEMP
 			break;
 		}
@@ -326,7 +361,7 @@ void Game::PollNetworkClient()
 	ApplyReceivedUpdates();
 }
 
-void Game::ApplyReceivedFullStates()
+void ClientSession::ApplyReceivedFullStates()
 {
 	// Heap: Moving unique_ptr<Frame> into mCurrentFrames, stringstream serialization
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
@@ -348,7 +383,7 @@ void Game::ApplyReceivedFullStates()
 		MissilesInterpolate::ClientInitAll(rFrame);
 		SpaceshipsInterpolate::ClientInitAll(rFrame);
 
-		engine::CoordFrames& rSub = mCoordFrames[coord];
+		engine::CoordFrames& rSub = gpGame->mCoordFrames[coord];
 		if (rSub.uiGeneration == 0)
 		{
 			rSub.uiGeneration = muiNextReconcileGeneration++;
@@ -378,15 +413,15 @@ void Game::ApplyReceivedFullStates()
 			rSub.iConfirmedOffset = 0;
 
 			// Set frame counter from first received full state
-			if (miTickCounter < iTick)
+			if (gpGame->TickCounter() < iTick)
 			{
-				miTickCounter = iTick;
-				mfCurrentTime = rSub.pCurrent->interpolate.fCurrentTime;
+				gpGame->SetTickCounter(iTick);
+				gpGame->SetCurrentTime(rSub.pCurrent->interpolate.fCurrentTime);
 			}
 
-			mConfirmedHumanState.humanGridCoord = mHumanGridCoord;
-			mConfirmedHumanState.humanPlayerId = mHumanPlayerId;
-			mConfirmedHumanState.fPreviousHumanArmor = mfPreviousHumanArmor;
+			mConfirmedHumanState.humanGridCoord = gpGame->mHumanGridCoord;
+			mConfirmedHumanState.humanPlayerId = gpGame->HumanPlayerId();
+			mConfirmedHumanState.fPreviousHumanArmor = gpGame->PreviousHumanArmor();
 			// Only set confirmed time from the first coord's full state;
 			// later coords arrive at higher frame numbers and would desync the
 			// confirmed time vs. iMinConfirmedFrame during reconciliation rollback
@@ -397,7 +432,7 @@ void Game::ApplyReceivedFullStates()
 
 			mbReconcileHasNewData = true;
 			FILE_LOG(0, "[ApplyReceivedFullStates] Initial coord=({},{}) tick={}", coord.x, coord.y, iTick);
-			common::Log("GameClient: FullState initial coord ({},{}) tick={} tickCounter={}", coord.x, coord.y, iTick, miTickCounter); // DT: TEMP
+			common::Log("GameClient: FullState initial coord ({},{}) tick={} tickCounter={}", coord.x, coord.y, iTick, gpGame->TickCounter()); // DT: TEMP
 		}
 		else
 		{
@@ -417,7 +452,7 @@ void Game::ApplyReceivedFullStates()
 	TrySubscribeNext();
 }
 
-void Game::ApplyReceivedUpdates()
+void ClientSession::ApplyReceivedUpdates()
 {
 	// Heap: map insertion for per-frame server updates
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
@@ -441,7 +476,7 @@ void Game::ApplyReceivedUpdates()
 		}
 
 		engine::GridCoord coord = rSlot.coord;
-		engine::CoordFrames& rSub = mCoordFrames[coord];
+		engine::CoordFrames& rSub = gpGame->mCoordFrames[coord];
 
 		for (engine::ReceivedCoordUpdate& rUpdate : rSlotUpdates)
 		{
@@ -476,10 +511,10 @@ void Game::ApplyReceivedUpdates()
 	common::Log("GameClient: ApplyReceivedUpdates latestServerTick={}", miLatestServerTick); // DT: TEMP
 }
 
-int64_t Game::GetConfirmedTick() const
+int64_t ClientSession::GetConfirmedTick() const
 {
 	int64_t iMin = -1;
-	for (const auto& [rCoord, rSub] : mCoordFrames)
+	for (const auto& [rCoord, rSub] : gpGame->mCoordFrames)
 	{
 		if (rSub.iConfirmedTick >= 0 && (iMin < 0 || rSub.iConfirmedTick < iMin))
 		{
@@ -489,10 +524,10 @@ int64_t Game::GetConfirmedTick() const
 	return iMin;
 }
 
-int64_t Game::GetServerUpdateBufferSize() const
+int64_t ClientSession::GetServerUpdateBufferSize() const
 {
 	int64_t iTotal = 0;
-	for (const auto& [rCoord, rSub] : mCoordFrames)
+	for (const auto& [rCoord, rSub] : gpGame->mCoordFrames)
 	{
 		if (rSub.iConfirmedTick >= 0)
 		{
@@ -502,7 +537,7 @@ int64_t Game::GetServerUpdateBufferSize() const
 	return iTotal;
 }
 
-void Game::UpdateSubscriptions()
+void ClientSession::UpdateSubscriptions()
 {
 	if (mpNetworkClient == nullptr)
 	{
@@ -511,9 +546,9 @@ void Game::UpdateSubscriptions()
 
 	// Player alive but not yet in assigned cell (mid-transfer): maintain current subscriptions
 	// Only guard when coord has confirmed server data — initial spawn must subscribe first
-	if (mHumanPlayerId.IsValid() && mCoordFrames.contains(mHumanGridCoord)
-		&& mCoordFrames[mHumanGridCoord].iConfirmedTick >= 0
-		&& !CurrentFrame(mHumanGridCoord).interpolate.pPlayers->idToIndexMap.contains(mHumanPlayerId))
+	if (gpGame->HumanPlayerId().IsValid() && gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord)
+		&& gpGame->mCoordFrames[gpGame->mHumanGridCoord].iConfirmedTick >= 0
+		&& !gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers->idToIndexMap.contains(gpGame->HumanPlayerId()))
 	{
 		return;
 	}
@@ -525,17 +560,17 @@ void Game::UpdateSubscriptions()
 	std::vector<engine::GridCoord> desiredCoords;
 	desiredCoords.reserve(5);
 
-	bool bDead = !mHumanPlayerId.IsValid()
-		&& mCoordFrames.contains(mHumanGridCoord)
-		&& (CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kDeathScreen);
+	bool bDead = !gpGame->HumanPlayerId().IsValid()
+		&& gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord)
+		&& (gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.gameFlags & GameFlags::kDeathScreen);
 
-	if (mHumanPlayerId.IsValid())
+	if (gpGame->HumanPlayerId().IsValid())
 	{
-		desiredCoords.push_back(mHumanGridCoord);
+		desiredCoords.push_back(gpGame->mHumanGridCoord);
 
 #if 0 // DT: TEMP
-		XMVECTOR vecArea = CurrentFrame(mHumanGridCoord).postRender.vecArea;
-		XMVECTOR vecPos = GetHumanPlayerPosition();
+		XMVECTOR vecArea = gpGame->CurrentFrame(gpGame->mHumanGridCoord).postRender.vecArea;
+		XMVECTOR vecPos = gpGame->GetHumanPlayerPosition();
 		float fCenterX = (XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f;
 		float fCenterY = (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f;
 
@@ -544,7 +579,7 @@ void Game::UpdateSubscriptions()
 
 		for (const engine::GridCoord& rOffset : quadrantOffsets)
 		{
-			engine::GridCoord neighbor {mHumanGridCoord.x + rOffset.x, mHumanGridCoord.y + rOffset.y};
+			engine::GridCoord neighbor {gpGame->mHumanGridCoord.x + rOffset.x, gpGame->mHumanGridCoord.y + rOffset.y};
 			desiredCoords.push_back(neighbor);
 		}
 #endif
@@ -552,8 +587,8 @@ void Game::UpdateSubscriptions()
 	else if (bDead)
 	{
 		// Dead: keep death coord + pre-emptive origin for respawn
-		desiredCoords.push_back(mHumanGridCoord);
-		if (mHumanGridCoord != engine::kOriginCoord)
+		desiredCoords.push_back(gpGame->mHumanGridCoord);
+		if (gpGame->mHumanGridCoord != engine::kOriginCoord)
 		{
 			desiredCoords.push_back(engine::kOriginCoord);
 		}
@@ -587,8 +622,8 @@ void Game::UpdateSubscriptions()
 				mpNetworkClient->SendUnsubscribe(i);
 			}
 			// Reset client fields on unsubscribed coord
-			auto unsubIt = mCoordFrames.find(unsubCoord);
-			if (unsubIt != mCoordFrames.end())
+			auto unsubIt = gpGame->mCoordFrames.find(unsubCoord);
+			if (unsubIt != gpGame->mCoordFrames.end())
 			{
 				engine::CoordFrames& rUnSub = unsubIt->second;
 				rUnSub.iConfirmedTick = -1;
@@ -632,7 +667,7 @@ void Game::UpdateSubscriptions()
 	TrySubscribeNext();
 }
 
-void Game::TrySubscribeNext()
+void ClientSession::TrySubscribeNext()
 {
 	if (mpNetworkClient == nullptr || mSubscriptionQueue.empty())
 	{
@@ -658,7 +693,7 @@ void Game::TrySubscribeNext()
 	FILE_LOG(0, "[TrySubscribeNext] Subscribe coord=({},{}) remaining={}", coord.x, coord.y, mSubscriptionQueue.size());
 }
 
-void Game::WaitForReconcile()
+void ClientSession::WaitForReconcile()
 {
 	if (mpNetworkClient == nullptr)
 	{
@@ -691,7 +726,7 @@ void Game::WaitForReconcile()
 	}
 }
 
-void Game::TryKickReconcile()
+void ClientSession::TryKickReconcile()
 {
 	if (mpNetworkClient == nullptr || GetConfirmedTick() < 0)
 	{
@@ -708,13 +743,13 @@ void Game::TryKickReconcile()
 		return;
 	}
 
-	common::Log("GameClient: TryKickReconcile confirmedTick={} tickCounter={} latestServer={}", GetConfirmedTick(), miTickCounter, miLatestServerTick); // DT: TEMP
+	common::Log("GameClient: TryKickReconcile confirmedTick={} tickCounter={} latestServer={}", GetConfirmedTick(), gpGame->TickCounter(), miLatestServerTick); // DT: TEMP
 	KickReconcile();
 	mbReconcileInFlight = true;
 	mbReconcileHasNewData = false;
 }
 
-void Game::CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, [[maybe_unused]] int64_t iTick, [[maybe_unused]] engine::GridCoord coord)
+void ClientSession::CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, [[maybe_unused]] int64_t iTick, [[maybe_unused]] engine::GridCoord coord)
 {
 	FILE_LOG(0, "[CompareWithServerFrame] tick={} coord=({},{})", iTick, coord.x, coord.y);
 	FILE_LOG(0, "[CompareWithServerFrame] client pushers: count={} mapSize={}", rClientFrame.interpolate.pushers.iCount, rClientFrame.interpolate.pushers.idToIndexMap.size());
@@ -726,13 +761,13 @@ void Game::CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServe
 	common::gbSuppressVerifyFrameBreak = false;
 }
 
-void Game::PollAndReconcileClient()
+void ClientSession::PollAndReconcile()
 {
 	// Desync debug mode: only poll network for debug frame response, keep window responsive
 	if (GetDesyncTick() >= 0)
 	{
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		PollNetworkClient();
+		PollNetwork();
 		if (engine::gpNetworkClient != nullptr)
 		{
 			engine::gpNetworkClient->Flush();
@@ -744,21 +779,21 @@ void Game::PollAndReconcileClient()
 	{
 		// Heap: reconciliation deserialization and map operations
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		int64_t iPreReconcileTick = TickCounter();
+		int64_t iPreReconcileTick = gpGame->TickCounter();
 		WaitForReconcile();
 		// Compensate time step for ticks rolled back during reconciliation
-		int64_t iTickDeficit = iPreReconcileTick - TickCounter();
+		int64_t iTickDeficit = iPreReconcileTick - gpGame->TickCounter();
 		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iPreReconcileTick);
 		if (iTickDeficit > 0)
 		{
-			mTimeStep.mTickRemainderNs += iTickDeficit * kTickNs;
+			gpGame->mTimeStep.mTickRemainderNs += iTickDeficit * kTickNs;
 		}
-		mTimeStep.mTickRemainderNs += clockCorrectionNs;
+		gpGame->mTimeStep.mTickRemainderNs += clockCorrectionNs;
 	}
 	gpProfileManager->CpuStop(engine::kCpuTimerNetworkPollReconcile, true);
 }
 
-void Game::PostTickNetworkClient()
+void ClientSession::PostTick()
 {
 	if (GetDesyncTick() >= 0) return;
 
@@ -766,7 +801,7 @@ void Game::PostTickNetworkClient()
 	{
 		// Heap: ENet polling
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		PollNetworkClient();
+		PollNetwork();
 	}
 
 	gpProfileManager->CpuStart(engine::kCpuTimerNetworkSend);
@@ -781,7 +816,7 @@ void Game::PostTickNetworkClient()
 	gpProfileManager->CpuStop(engine::kCpuTimerNetworkSend, true);
 }
 
-void Game::PostRenderNetworkClient()
+void ClientSession::PostRender()
 {
 	if (GetDesyncTick() >= 0) return;
 

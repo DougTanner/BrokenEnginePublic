@@ -1,6 +1,9 @@
 #include "ProfileManagerBase.h"
 
 #include "Game.h"
+#if defined(BT_CLIENT)
+#include "Network/ClientSession.h"
+#endif
 #include "Memory/MemoryManager.h"
 #include "Profile/ProfileManager.h"
 
@@ -52,7 +55,7 @@ void ProfileManagerBase::Create()
 		OneShotCommandBuffer oneShotCommandBuffer;
 		vkCmdResetQueryPool(oneShotCommandBuffer.mVkCommandBuffer, mVkQueryPool, 0, static_cast<uint32_t>(iQueryCount));
 		oneShotCommandBuffer.Execute(true);
-#endif
+#endif // BT_CLIENT
 	}
 }
 
@@ -67,7 +70,7 @@ void ProfileManagerBase::Destroy()
 		}
 
 		mVkQueryPool = VK_NULL_HANDLE;
-#endif
+#endif // BT_CLIENT
 	}
 }
 
@@ -217,7 +220,7 @@ void ProfileManagerBase::ResetUiQueryPool(int64_t iCommandBuffer, VkCommandBuffe
 		vkCmdResetQueryPool(vkCommandBuffer, mVkQueryPool, uiIndex, uiCount);
 	}
 }
-#endif
+#endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
 void ProfileManagerBase::GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer)
@@ -293,7 +296,7 @@ void ProfileManagerBase::GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTi
 		}
 	}
 }
-#endif
+#endif // BT_CLIENT
 
 void ProfileManagerBase::BootStart(BootTimers eBootTimer)
 {
@@ -363,7 +366,7 @@ void ProfileManagerBase::LogTimers()
 		}
 
 		Log("");
-#endif
+#endif // BT_CLIENT
 	}
 }
 
@@ -738,7 +741,7 @@ void ProfileManagerBase::UpdateProfileText()
 					}
 					rWorkbuffer.Append(iMinAckFloor);
 					rWorkbuffer.Append("  Confirmed: ");
-					rWorkbuffer.Append(game::gpGame->GetConfirmedTick());
+					rWorkbuffer.Append(game::gpClientSession->GetConfirmedTick());
 					mSmoothedRecv = iTotalRecv;
 				}
 				mSmoothedRecv.Update();
@@ -746,19 +749,19 @@ void ProfileManagerBase::UpdateProfileText()
 				rWorkbuffer.Append(mSmoothedRecv.Get());
 				rWorkbuffer.Append("/64");
 
-				mSmoothedRollback = game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iTick - game::gpGame->GetConfirmedTick();
+				mSmoothedRollback = game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iTick - game::gpClientSession->GetConfirmedTick();
 				mSmoothedRollback.Update();
-				mSmoothedBuffer = game::gpGame->GetServerUpdateBufferSize();
+				mSmoothedBuffer = game::gpClientSession->GetServerUpdateBufferSize();
 				mSmoothedBuffer.Update();
 				rWorkbuffer.Append("\nRollback: ");
 				rWorkbuffer.Append(mSmoothedRollback.Get());
 				rWorkbuffer.Append("  Buffer: ");
 				rWorkbuffer.Append(mSmoothedBuffer.Get());
 				rWorkbuffer.Append("  Desync: ");
-				if (game::gpGame->GetDesyncTick() >= 0)
+				if (game::gpClientSession->GetDesyncTick() >= 0)
 				{
 					rWorkbuffer.Append("Yes (");
-					rWorkbuffer.Append(game::gpGame->GetDesyncTick());
+					rWorkbuffer.Append(game::gpClientSession->GetDesyncTick());
 					rWorkbuffer.Append(")");
 				}
 				else
@@ -788,7 +791,7 @@ void ProfileManagerBase::UpdateProfileText()
 			gpTextManager->UpdateTextArea(kTextProfileFps, rWorkbuffer.View());
 			rWorkbuffer.Pop();
 		}
-#endif
+#endif // BT_CLIENT
 	}
 }
 

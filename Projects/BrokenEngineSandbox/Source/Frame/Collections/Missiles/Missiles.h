@@ -90,7 +90,7 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords);
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 	static void EndRender(int64_t iCommandBuffer);
-#endif
+#endif // BT_CLIENT
 };
 
 struct MissilesPostRender : public engine::Collection<MissilesPostRender>

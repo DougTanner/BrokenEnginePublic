@@ -10,4 +10,4 @@ void PaintServerDisplay(HWND hWnd);
 
 } // namespace engine
 
-#endif
+#endif // BT_SERVER

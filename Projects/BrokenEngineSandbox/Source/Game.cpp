@@ -28,19 +28,15 @@ Game::Game()
 	// Allocate frames
 #if defined(BT_SERVER)
 	CreateNewFrame(GameFlags::kGame);
-	mpDiscoveryResponder = std::make_unique<engine::NetworkDiscoveryResponder>();
+	mpServerSession = std::make_unique<ServerSession>();
 	meUiState = kNone;
 #else
 	CreateNewFrame(GameFlags::kMainMenu);
 	mGameFlags.Set(engine::GameFlags::kMainMenu);
-#endif
+#endif // BT_SERVER
 
-	// Start reconcile worker
 #if defined(BT_CLIENT)
-	if constexpr (kbEnableReconcileThread)
-	{
-		mpReconcileWorker = std::make_unique<common::PersistentWorker>(common::kThreadReconcile, 10 * 1'024 * 1'024);
-	}
+	mpClientSession = std::make_unique<ClientSession>();
 #endif
 
 	// Start music
@@ -51,7 +47,7 @@ Game::Game()
 	{
 		return GetNextMusicTrack();
 	});
-#endif
+#endif // BT_CLIENT
 
 }
 
@@ -84,7 +80,7 @@ XMVECTOR Game::GetHumanPlayerPosition() const
 void Game::ComputeActiveSet()
 {
 #if defined(BT_SERVER)
-	ComputeActiveSetServer();
+	gpServerSession->ComputeActiveSet();
 #else
 	// Heap: mActiveCoords vector clear/push_back may allocate. Persists as Game member across frame updates
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -143,7 +139,7 @@ void Game::ComputeActiveSet()
 
 	// Update island rendering to match active frames
 	engine::gpIslands->UpdateActiveIslands(mCoordFrames, mActiveCoords);
-#endif
+#endif // BT_SERVER
 }
 
 void Game::EnsureNextFrames()
@@ -163,7 +159,7 @@ void Game::EnsureNextFrames()
 void Game::BuildFrameInputs()
 {
 #if defined(BT_SERVER)
-	BuildFrameInputsServer();
+	gpServerSession->BuildFrameInputs();
 #else
 	// Heap: unordered_map clear/insert for per-coordinate FrameInputs. Map persists as Game member
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
@@ -201,7 +197,7 @@ void Game::BuildFrameInputs()
 			mfPreviousHumanArmor = fCurrentArmor;
 		}
 	}
-#endif
+#endif // BT_SERVER
 }
 
 void Game::CreateFrameAtCoord(engine::GridCoord coord)
@@ -316,7 +312,7 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& da
 void Game::HarvestTransfers()
 {
 #if defined(BT_SERVER)
-	HarvestTransfersServer();
+	gpServerSession->HarvestTransfers();
 #endif
 }
 
@@ -343,15 +339,12 @@ void Game::ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput)
 Game::~Game()
 {
 #if defined(BT_CLIENT)
-	if constexpr (kbEnableReconcileThread)
-	{
-		if (mbReconcileInFlight)
-		{
-			mpReconcileWorker->Wait();
-			mbReconcileInFlight = false;
-		}
-	}
+	mpClientSession.reset();
 	engine::gpAudioManager->SetNextMusicTrackCallback(nullptr);
+#endif // BT_CLIENT
+
+#if defined(BT_SERVER)
+	mpServerSession.reset();
 #endif
 
 	if (!(mMenuFlags & engine::MenuFlags::kMouseVisible))
@@ -369,7 +362,10 @@ void Game::Reset()
 	miTickCounter = 0;
 	mfCurrentTime = 0.0f;
 
+#if defined(BT_SERVER)
 	mGameSaveLoad.ResetStreams();
+#endif // BT_SERVER
+
 #if defined(BT_CLIENT)
 	game::gpCamera->ResetSunAngle();
 	game::gpCamera->mVecLastKnownPlayerPosition = {};
@@ -380,7 +376,7 @@ void Game::Reset()
 	engine::gpParticleManager->mbReset = true;
 	engine::SmokeTrailsInterpolate::ResetRenderState();
 	engine::WindTrailsInterpolate::ResetRenderState();
-#endif
+#endif // BT_CLIENT
 
 	mHumanPlayerId = {};
 	mfPreviousHumanArmor = 0.0f;
@@ -426,8 +422,8 @@ bool Game::ShouldUseCrosshair()
 void Game::ChangeFrame(GameFlags_t gameFlags)
 {
 #if defined(BT_CLIENT)
-	mpDiscoveryScanner.reset();
-	DisconnectFromServer();
+	gpClientSession->mpDiscoveryScanner.reset();
+	gpClientSession->DisconnectFromServer();
 #endif
 
 	if ((gameFlags & GameFlags::kMainMenu && InMainMenu()) ||
@@ -449,7 +445,7 @@ void Game::ChangeFrame(GameFlags_t gameFlags)
 		miGameMusicIndex = 0;
 		engine::gpAudioManager->PlayMusic(mGameMusicPlaylist.at(0));
 	}
-#endif
+#endif // BT_CLIENT
 
 	mGameFlags.Set(engine::GameFlags::kMainMenu, gameFlags & GameFlags::kMainMenu);
 	CreateNewFrame(gameFlags);
@@ -537,7 +533,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 			engine::gpCommandBufferManager->mbSaveScreenshot = !engine::gpCommandBufferManager->mbSaveScreenshot;
 		}
 	}
-#endif
+#endif // BT_CLIENT
 }
 
 struct SoundSettings
@@ -602,7 +598,7 @@ common::crc_t Game::GetNextMusicTrack()
 		return mGameMusicPlaylist.at(miGameMusicIndex);
 	}
 }
-#endif
+#endif // BT_CLIENT
 
 void Game::RestoreReplayMeta(const ReplayMeta& rMeta)
 {

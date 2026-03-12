@@ -9,7 +9,7 @@
 #include "Graphics/Managers/ParticleManager.h"
 #include "Profile/ProfileManager.h"
 #include "Data/Texture.h"
-#endif
+#endif // BT_CLIENT
 
 namespace engine
 {
@@ -92,7 +92,7 @@ void ExplosionsInterpolate::AllocateAndCopy(ExplosionsInterpolate& rCurrent, con
 			std::memcpy(rCurrent.pTrails[j], rPrevious.pTrails[j], rCurrent.iCount * sizeof(rCurrent.pTrails[j][0]));
 		}
 	}
-#endif
+#endif // BT_CLIENT
 }
 
 void ExplosionsPostRender::AllocateAndCopy(ExplosionsPostRender& rCurrent, const ExplosionsPostRender& rPrevious)
@@ -207,7 +207,7 @@ void ExplosionsInterpolate::Register()
 		.pfTimes = {0.0f, kfWindDepositDuration, 0.0f, 0.0f},
 		.keyframes = {{.fIntensity = 1.0f, .fSize = 1.0f}, {.fIntensity = 0.0f, .fSize = 1.0f}, {}, {}},
 	});
-#endif
+#endif // BT_CLIENT
 }
 
 #if defined(BT_CLIENT)
@@ -375,7 +375,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 
 		// Sync trail after Add()
 		SyncExplosionTrail(rFrame.interpolate, trailId, vecTrailStart, fTrailIntensity);
-#endif
+#endif // BT_CLIENT
 	}
 
 	// Spawn GPU particles
@@ -425,7 +425,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 				.f4Velocity = f4Velocity,
 			}, rType.particleCrc);
 		}
-#endif
+#endif // BT_CLIENT
 	}
 }
 
@@ -463,7 +463,7 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame)
 				SmokeTrailsPostRender::Remove(rFrame, trailId);
 			}
 		}
-#endif
+#endif // BT_CLIENT
 
 		ExplosionFlags_t flags = rInterpolate.pFlags[i];
 

@@ -65,7 +65,7 @@ void FrameInterpolate::GraphicsResources()
 	// Collections
 	engine::ForEachGraphicsResources(GameInterpolateTypes{});
 }
-#endif
+#endif // BT_CLIENT
 
 void FrameInterpolate::AllocateAndCopy(FrameInterpolate& __restrict rCurrent, const FrameInterpolate& __restrict rPrevious)
 {
@@ -397,7 +397,7 @@ void FrameInterpolate::EndRender(int64_t iCommandBuffer)
 	// Collections
 	engine::ForEachEndRender(GameInterpolateTypes{}, iCommandBuffer);
 }
-#endif
+#endif // BT_CLIENT
 
 bool FrameInterpolate::operator==(const FrameInterpolate& rOther) const
 {

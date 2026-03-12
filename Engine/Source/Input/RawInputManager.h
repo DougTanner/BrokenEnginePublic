@@ -77,6 +77,6 @@ private:
 };
 
 inline RawInputManager* gpRawInputManager = nullptr;
-#endif
+#endif // BT_CLIENT
 
 } // namespace engine

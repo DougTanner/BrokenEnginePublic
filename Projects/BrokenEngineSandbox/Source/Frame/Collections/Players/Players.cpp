@@ -85,7 +85,7 @@ constexpr float kfImpactPuffDuration = 0.1f;
 constexpr float kfImpactPuffStartArea = 0.15f;
 constexpr float kfImpactPuffStartIntensity = 4.0f;
 constexpr float kfImpactPuffEndArea = 0.5f;
-#endif
+#endif // BT_CLIENT
 
 // Death explosion spawn
 constexpr float kfDeathRadialPower = 0.3f;
@@ -103,7 +103,7 @@ void PlayersInterpolate::Register()
 		.fLightingSize = kfAreaLightLightingSize,
 		.fLightingIntensity = kfAreaLightLightingIntensity,
 	});
-#endif
+#endif // BT_CLIENT
 
 	BlastersInterpolate::RegisterType(suiBlasterTypeIndex,
 	{
@@ -121,7 +121,7 @@ void PlayersInterpolate::Register()
 		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
 		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
 		.uiWindRadialControllerTypeIndex = engine::ExplosionsInterpolate::GetWindRadialControllerTypeIndex(),
-#endif
+#endif // BT_CLIENT
 		.uiBaseParticleCount = kuiExplosionBaseParticleCount,
 		.uiParticleColor = 0xFF0000FF,
 		.fParticleVelocityMin = kfExplosionParticleVelocityMin,
@@ -183,7 +183,7 @@ void PlayersInterpolate::Register()
 		.uiLightingColor = 0x40FFFF00, // Cyan (RGBA)
 		.fMinimumIntensity = 0.0f,    // Shield invisible when idle
 	});
-#endif
+#endif // BT_CLIENT
 }
 
 void PlayersInterpolate::AllocateAndCopy(PlayersInterpolate& rCurrent, const PlayersInterpolate& rPrevious)
@@ -271,7 +271,7 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 		{
 			engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.pHexShields[i]);
 		}
-#endif
+#endif // BT_CLIENT
 
 		engine::RemoveIndexableElement(rCurrentInterpolate, rCurrentPostRender, rCurrentPostRender.puiIds[i], rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
@@ -296,7 +296,7 @@ void PlayersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		{
 			engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.pHexShields[i]);
 		}
-#endif
+#endif // BT_CLIENT
 	}
 
 	// Remove dead players (reverse iteration for swap-and-pop safety)
@@ -339,7 +339,7 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 				{
 					engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.pHexShields[iIndex]);
 				}
-#endif
+#endif // BT_CLIENT
 
 				engine::RemoveIndexableElement(rCurrentInterpolate, rCurrentPostRender, destroyId, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 			}
@@ -562,7 +562,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 			engine::HexShieldsPostRender::Add(rFrame, rCurrentInterpolate.pHexShields[i], PlayersInterpolate::suiHexShieldTypeIndex);
 		}
 	}
-#endif
+#endif // BT_CLIENT
 
 	SpawnBlasters(rFrame);
 	SpawnMissiles(rFrame);
@@ -592,7 +592,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	rCurrentInterpolate.pHexShieldDirections[iIndex] = {};
 	rCurrentInterpolate.pHexShieldVertIntensities[iIndex] = {};
 	rCurrentInterpolate.pHexShieldFragIntensities[iIndex] = {};
-#endif
+#endif // BT_CLIENT
 
 	// Initialize post render state
 	rCurrentPostRender.puiIds[iIndex] = newId;
@@ -636,7 +636,7 @@ bool PlayersInterpolate::operator==(const PlayersInterpolate& rOther) const
 		bEqual &= common::BreakOnNotEqual(pHexShieldDirections[i], rOther.pHexShieldDirections[i]);
 		bEqual &= common::BreakOnNotEqual(pHexShieldVertIntensities[i], rOther.pHexShieldVertIntensities[i]);
 		bEqual &= common::BreakOnNotEqual(pHexShieldFragIntensities[i], rOther.pHexShieldFragIntensities[i]);
-#endif
+#endif // BT_CLIENT
 	}
 
 	return bEqual;

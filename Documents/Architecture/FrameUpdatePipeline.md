@@ -4,7 +4,7 @@
 
 ## RunFrameTick Pipeline
 
-All physics phases are unified into a single `RunFrameTick()` function (defined in `FrameTick.cpp`). Both `GameBase::TickFrames()` and `ReconcileRunTick()` call the same function. Each Frame runs all five phases sequentially; multiple Frames are dispatched in parallel via `Dispatch()`.
+All physics phases are unified into a single `RunFrameTick()` function (defined in `FrameTick.cpp`). Both `GameBase::UpdateClient()`/`UpdateServer()` and `ReconcileRunTick()` call the same function. Each Frame runs all five phases sequentially; multiple Frames are dispatched in parallel via `Dispatch()`.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -50,7 +50,7 @@ flowchart LR
 
 ## Client Main Loop
 
-Main.cpp calls three GameBase methods in sequence: `TickFrames()`, `Render()`, and audio update. Network orchestration is encapsulated within `TickFrames()` (pre-tick polling/reconciliation and post-tick network send) and `Render()` (post-render reconcile kick).
+Main.cpp calls three GameBase methods in sequence: `UpdateClient()`, `Render()`, and audio update. Network orchestration is encapsulated within `UpdateClient()` (pre-tick polling/reconciliation and post-tick network send) and `Render()` (post-render reconcile kick).
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -66,7 +66,7 @@ flowchart TD
 
     preupdate["ProcessInput(bLostFocus, menuInput)<br/>-> UpdateMenuInput()<br/>-> RawInputManager::Update()"]:::input
 
-    subgraph tick_frames ["GameBase::TickFrames()"]
+    subgraph tick_frames ["GameBase::UpdateClient()"]
         poll_reconcile["Game::PollAndReconcileClient()<br/>Desync: poll+flush only,<br/>Normal: WaitForReconcile(),<br/>ApplyReconcileResult(),<br/>clock correction"]:::network
 
         subgraph physics_loop ["Fixed Timestep Loop (64 Hz, 15.625ms)"]
@@ -106,7 +106,7 @@ flowchart TD
 
 ## Server Main Loop
 
-Main.cpp calls `TickFrames()` then `UpdateServerDisplayStats()`. All network orchestration (pre-tick polling and per-frame broadcasts) is encapsulated within `GameBase::TickFrames()`.
+Main.cpp calls `UpdateServer()` then `UpdateServerDisplayStats()`. All network orchestration (pre-tick polling and per-frame broadcasts) is encapsulated within `GameBase::UpdateServer()`. Server session methods are on `game::ServerSession` (accessed via `gpServerSession`).
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -119,8 +119,8 @@ flowchart TD
 
     msgs["ProcessMessages()"]:::server
 
-    subgraph tick_frames ["GameBase::TickFrames()"]
-        pre_tick["Game::PreTickNetworkServer()<br/>NetworkServer::Poll(),<br/>DiscoveryResponder::Poll(),<br/>HandleDisconnects,<br/>HandleNewClients,<br/>ProcessSpawnRequests"]:::network
+    subgraph tick_frames ["GameBase::UpdateServer()"]
+        pre_tick["ServerSession::PreTickNetwork()<br/>NetworkServer::Poll(),<br/>DiscoveryResponder::Poll(),<br/>HandleDisconnects,<br/>HandleNewClients,<br/>ProcessSpawnRequests"]:::network
 
         sleep["Sleep (waitable timer)<br/>until next tick"]:::server
 
@@ -128,10 +128,10 @@ flowchart TD
             ts["TimeStep::UpdateRealtime()"]:::physics
             dispatch_s["Dispatch per-Frame:<br/>RunFrameTick()<br/>(all 5 phases per Frame<br/>in parallel)"]:::physics
             frame_swap["std::swap(current, next)"]:::physics
-            finalize["FinalizeNewClientsServer()"]:::network
-            deaths["DetectPlayerDeathsServer()"]:::network
-            broadcast["BroadcastStatusChangesServer()<br/>BufferFrame + SendUpdate +<br/>SendResends + Flush"]:::network
-            subscriptions["HandleSubscriptionUpdatesServer()"]:::network
+            finalize["ServerSession::<br/>FinalizeNewClients()"]:::network
+            deaths["ServerSession::<br/>DetectPlayerDeaths()"]:::network
+            broadcast["ServerSession::<br/>BroadcastStatusChanges()<br/>BufferFrame + SendUpdate +<br/>SendResends + Flush"]:::network
+            subscriptions["ServerSession::<br/>HandleSubscriptionUpdates()"]:::network
             harvest["HarvestTransfers()<br/>(cross-coord entity moves)"]:::physics
             ts --> dispatch_s --> harvest --> frame_swap
             frame_swap --> finalize --> deaths --> broadcast --> subscriptions

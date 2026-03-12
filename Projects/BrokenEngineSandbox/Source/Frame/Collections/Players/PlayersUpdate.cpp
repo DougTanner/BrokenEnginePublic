@@ -38,7 +38,7 @@ extern const common::crc_t kPlayerModel;
 // Rotation tilt
 constexpr float kfRotationTiltFactor = 0.015f;
 constexpr float kfRotationTiltMax = 0.4f;
-#endif
+#endif // BT_CLIENT
 
 // Player movement
 constexpr float kfAccelerationDecay = 3.0f;
@@ -227,7 +227,7 @@ void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rF
 
 			engine::HexShieldsInterpolate::Sync(rFrameInterpolate, rCurrent.pHexShields[i], syncData);
 		}
-#endif
+#endif // BT_CLIENT
 	}
 }
 
@@ -489,7 +489,7 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayersInterpolate& rPl
 		XMStoreFloat4(&rPlayerInterpolate.pHexShieldDirections[i].data[iLowestIntensityIndex], vecDamageDirection);
 		rPlayerInterpolate.pHexShieldVertIntensities[i].data[iLowestIntensityIndex] = fHexShieldIntensity;
 		rPlayerInterpolate.pHexShieldFragIntensities[i].data[iLowestIntensityIndex] = fHexShieldIntensity;
-#endif
+#endif // BT_CLIENT
 
 		float fShieldDamage = std::min(rPlayer.pfShields[i], fDamage);
 		rPlayer.pfShields[i] -= fShieldDamage;

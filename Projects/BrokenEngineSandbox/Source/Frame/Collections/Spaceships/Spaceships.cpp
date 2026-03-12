@@ -77,7 +77,7 @@ constexpr float kfHitFlashVisibleArea = 0.5f;
 constexpr float kfHitFlashVisibleIntensity = 1.0f;
 constexpr float kfHitFlashLightingArea = 1.0f;
 constexpr float kfHitFlashLightingIntensity = 30.0f;
-#endif
+#endif // BT_CLIENT
 
 
 // Find the nearest alive (non-exploding) player position. Returns false if no alive players exist.
@@ -117,7 +117,7 @@ void SpaceshipsInterpolate::Register()
 		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
 		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
 		.uiWindRadialControllerTypeIndex = engine::ExplosionsInterpolate::GetWindRadialControllerTypeIndex(),
-#endif
+#endif // BT_CLIENT
 		.uiBaseParticleCount = kuiSpaceshipExplosionBaseParticleCount,
 		.uiParticleColor = kuiSpaceshipExplosionParticleColor,
 		.fParticleVelocityMin = kfSpaceshipExplosionParticleVelocityMin,
@@ -160,7 +160,7 @@ static void RegisterEnemyBlasterType()
 		.fLightingSize = kfEnemyBlasterLightingSize,
 		.fLightingIntensity = kfEnemyBlasterLightingIntensity,
 	});
-#endif
+#endif // BT_CLIENT
 
 	// Register blaster type with area light
 	BlastersInterpolate::RegisterType(suiEnemyBlasterTypeIndex,
@@ -236,7 +236,7 @@ static void RegisterSpaceshipHitFlashEffect()
 		});
 	}
 }
-#endif
+#endif // BT_CLIENT
 
 void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPosition, XMVECTOR vecDirection, float fPercent)
 {
@@ -467,7 +467,7 @@ void SpaceshipsInterpolate::ClientInitAll(Frame& rFrame)
 		ClientInit(rFrame, i);
 	}
 }
-#endif
+#endif // BT_CLIENT
 
 void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
 {

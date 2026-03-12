@@ -17,7 +17,7 @@ private:
 
 	SOCKET mSocket = INVALID_SOCKET;
 };
-#endif
+#endif // BT_SERVER
 
 #if defined(BT_CLIENT)
 class NetworkDiscoveryScanner
@@ -42,6 +42,6 @@ private:
 	bool mbFound = false;
 	char mpcFoundAddress[16] {};
 };
-#endif
+#endif // BT_CLIENT
 
 } // namespace engine

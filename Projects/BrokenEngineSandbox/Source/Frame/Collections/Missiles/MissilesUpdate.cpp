@@ -87,7 +87,7 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 			.fPower = kfMissilePusherPower,
 			.flags = {engine::PusherFlags::kTypeDefault},
 		});
-#endif
+#endif // BT_CLIENT
 	}
 }
 

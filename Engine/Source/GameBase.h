@@ -66,7 +66,7 @@ struct CoordFrames
 	std::optional<PendingFullState> pendingFullState;
 
 	uint64_t uiGeneration = 0;
-#endif
+#endif // BT_CLIENT
 };
 
 class GameBase
@@ -86,15 +86,23 @@ public:
 	virtual void ProcessMenuInput(const game::MenuInput& rMenuInput) = 0;
 
 	void ProcessInput(bool bLostFocus, game::MenuInput& rMenuInput);
-	void TickFrames(const game::MenuInput& rMenuInput);
 #if defined(BT_CLIENT)
-	void TickFramesAndRender(const game::MenuInput& rMenuInput);
+	void UpdateClient();
+	void TickFramesAndRender();
 	void Render();
 	game::Frame& RenderFrame(GridCoord coord) const;
-#endif
+#endif // BT_CLIENT
+#if defined(BT_SERVER)
+	void UpdateServer(const game::MenuInput& rMenuInput);
+#endif // BT_SERVER
 
 	uint16_t GenerateFrameId() { return muiNextFrameId++; }
 	int64_t TickCounter() const { return miTickCounter; }
+	float CurrentTime() const { return mfCurrentTime; }
+	void SetTickCounter(int64_t i) { miTickCounter = i; }
+	void SetCurrentTime(float f) { mfCurrentTime = f; }
+	uint16_t NextFrameId() const { return muiNextFrameId; }
+	void SetNextFrameId(uint16_t id) { muiNextFrameId = id; }
 
 	game::Frame& CurrentFrame(GridCoord coord) const
 	{
@@ -109,7 +117,9 @@ public:
 	GameFlags_t mGameFlags;
 
 	TimeStep mTimeStep;
+#if defined(BT_SERVER)
 	GameSaveLoad mGameSaveLoad;
+#endif // BT_SERVER
 
 	std::unordered_map<GridCoord, CoordFrames> mCoordFrames;
 

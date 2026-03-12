@@ -38,7 +38,7 @@ void NetworkDiscoveryResponder::Poll()
 		sendto(mSocket, reinterpret_cast<const char*>(&uiResponse), sizeof(uiResponse), 0, reinterpret_cast<sockaddr*>(&senderAddr), iSenderLen);
 	}
 }
-#endif
+#endif // BT_SERVER
 
 #if defined(BT_CLIENT)
 NetworkDiscoveryScanner::NetworkDiscoveryScanner()
@@ -103,6 +103,6 @@ bool NetworkDiscoveryScanner::IsScanning()
 
 	return mTimer.GetDeltaNs() < std::chrono::milliseconds(kiDiscoveryScanMs);
 }
-#endif
+#endif // BT_CLIENT
 
 } // namespace engine

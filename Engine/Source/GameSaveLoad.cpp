@@ -1,5 +1,7 @@
 #include "GameSaveLoad.h"
 
+#if defined(BT_SERVER)
+
 #include "GameBase.h"
 #include "Game.h"
 #include "Profile/ProfileManager.h"
@@ -265,3 +267,5 @@ bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::pa
 }
 
 } // namespace engine
+
+#endif // BT_SERVER

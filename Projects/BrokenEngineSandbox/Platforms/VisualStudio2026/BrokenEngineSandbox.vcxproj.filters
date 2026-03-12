@@ -40,6 +40,9 @@
     <Filter Include="Game">
       <UniqueIdentifier>{a470bb84-b6ed-4e31-b3ff-6414dfd76133}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Game\Network">
+      <UniqueIdentifier>{c5d6e7f8-a9b0-1234-5678-9abcdef01234}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Common">
       <UniqueIdentifier>{e1fb165c-2138-41cf-ad28-2ff6586ba2c4}</UniqueIdentifier>
     </Filter>
@@ -218,6 +221,18 @@
     </ClInclude>
     <ClInclude Include="..\..\Source\Game.h">
       <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Network\ClientSession.h">
+      <Filter>Game\Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Network\ServerSession.h">
+      <Filter>Game\Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkClient\ClientSessionBase.h">
+      <Filter>Engine\Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkServer\ServerSessionBase.h">
+      <Filter>Engine\Network</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h">
       <Filter>Engine\Input</Filter>
@@ -602,17 +617,17 @@
     <ClCompile Include="..\..\Source\Game.cpp">
       <Filter>Game</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\GameClient.cpp">
-      <Filter>Game</Filter>
+    <ClCompile Include="..\..\Source\Network\ClientSession.cpp">
+      <Filter>Game\Network</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\GameClientReconcile.cpp">
-      <Filter>Game</Filter>
+    <ClCompile Include="..\..\Source\Network\ClientSessionReconcile.cpp">
+      <Filter>Game\Network</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\GameClientReconcileReplay.cpp">
-      <Filter>Game</Filter>
+    <ClCompile Include="..\..\Source\Network\ClientSessionReconcileReplay.cpp">
+      <Filter>Game\Network</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\GameServer.cpp">
-      <Filter>Game</Filter>
+    <ClCompile Include="..\..\Source\Network\ServerSession.cpp">
+      <Filter>Game\Network</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Pch.cpp">
       <Filter>Engine</Filter>

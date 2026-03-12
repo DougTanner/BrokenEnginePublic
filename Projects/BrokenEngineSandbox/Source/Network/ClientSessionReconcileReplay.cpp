@@ -1,5 +1,6 @@
 #include "Game.h"
 
+#include "Network/ClientSession.h"
 #include "Frame/FrameTick.h"
 #include "Frame/Collections/Players/Players.h"
 #include "Frame/Collections/Spaceships/Spaceships.h"
@@ -9,12 +10,7 @@ namespace game
 
 #if defined(BT_CLIENT)
 
-inline int64_t SnapshotIndex(int64_t iHead, int64_t iLogical)
-{
-	return (iHead + iLogical) % engine::kiTickRate;
-}
-
-void Game::ReconcileRunTick(ReconcileContext& rReconcileContext)
+void ClientSession::ReconcileRunTick(ReconcileContext& rReconcileContext)
 {
 	const int64_t iActiveCount = static_cast<int64_t>(rReconcileContext.activeCoords.size());
 	const std::unordered_map<engine::GridCoord, size_t>& rCoordWorkIndex = rReconcileContext.coordWorkIndex;
@@ -165,7 +161,7 @@ void Game::ReconcileRunTick(ReconcileContext& rReconcileContext)
 	}
 }
 
-void Game::ReconcileComputeActiveCoords(ReconcileContext& rReconcileContext)
+void ClientSession::ReconcileComputeActiveCoords(ReconcileContext& rReconcileContext)
 {
 	const std::unordered_map<engine::GridCoord, size_t>& rCoordWorkIndex = rReconcileContext.coordWorkIndex;
 
@@ -196,7 +192,7 @@ void Game::ReconcileComputeActiveCoords(ReconcileContext& rReconcileContext)
 	}
 }
 
-void Game::ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, [[maybe_unused]] int64_t iServerTick, const std::unordered_map<engine::GridCoord, engine::CoordFrames::CoordServerUpdate>& rCoordUpdates)
+void ClientSession::ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, [[maybe_unused]] int64_t iServerTick, const std::unordered_map<engine::GridCoord, engine::CoordFrames::CoordServerUpdate>& rCoordUpdates)
 {
 	rReconcileContext.frameInputs.clear();
 
@@ -233,7 +229,7 @@ void Game::ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, [[maybe
 	}
 }
 
-void Game::ReconcileInjectPendingFullState([[maybe_unused]] ReconcileContext& rReconcileContext, CoordReconcileWork& rWork)
+void ClientSession::ReconcileInjectPendingFullState([[maybe_unused]] ReconcileContext& rReconcileContext, CoordReconcileWork& rWork)
 {
 	common::Log("GameClient: InjectPendingFullState coord ({},{}) tick={}", rWork.coord.x, rWork.coord.y, rWork.pendingFullState->iTick); // DT: TEMP
 	// Move pending full state's Frame into workspace (workspace owns it, replay borrows pointer)
@@ -245,7 +241,7 @@ void Game::ReconcileInjectPendingFullState([[maybe_unused]] ReconcileContext& rR
 	rWork.pendingFullState.reset();
 }
 
-void Game::ReconcilePruneInactiveFrames(ReconcileContext& rReconcileContext)
+void ClientSession::ReconcilePruneInactiveFrames(ReconcileContext& rReconcileContext)
 {
 	ReconcileComputeActiveCoords(rReconcileContext);
 	// Clear replay stacks for coords not in the active set
@@ -260,7 +256,7 @@ void Game::ReconcilePruneInactiveFrames(ReconcileContext& rReconcileContext)
 	}
 }
 
-void Game::ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick)
+void ClientSession::ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick)
 {
 	// Only restore coords confirmed at iMinConfirmedTick; coords confirmed
 	// at later frames are injected during replay/catch-up at their confirmed frame
@@ -308,7 +304,7 @@ void Game::ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinCo
 	}
 }
 
-int64_t Game::ReconcileFindReplayRange(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick)
+int64_t ClientSession::ReconcileFindReplayRange(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick)
 {
 	int64_t iReplayStart = iMinConfirmedTick + 1;
 	int64_t iMaxConsecutive = iReplayStart - 1;
@@ -332,7 +328,7 @@ int64_t Game::ReconcileFindReplayRange(ReconcileContext& rReconcileContext, int6
 	return iMaxConsecutive;
 }
 
-void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick, int64_t iMaxConsecutive)
+void ClientSession::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick, int64_t iMaxConsecutive)
 {
 	const int64_t iReplayStart = iMinConfirmedTick + 1;
 	const int64_t iMaxReplay = (iMaxConsecutive - iMinConfirmedTick + 1) / 2;
@@ -534,7 +530,7 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 	}
 }
 
-void Game::ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick)
+void ClientSession::ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick)
 {
 	// Per-coord catch-up tracking: start workspace index and base frame for snapshot conversion
 	struct CatchUpInfo

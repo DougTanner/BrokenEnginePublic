@@ -78,7 +78,7 @@ flowchart LR
 
 ## Main Loop Integration
 
-Where reconciliation entry points sit relative to physics and render in the client main loop. Network orchestration is encapsulated within `GameBase::TickFrames()` and `GameBase::Render()` — Main.cpp's loop simply calls `TickFrames()`, `Render()`, and audio update.
+Where reconciliation entry points sit relative to physics and render in the client main loop. Network orchestration is encapsulated within `GameBase::UpdateClient()` and `GameBase::Render()`, which delegate to `ClientSession` methods — Main.cpp's loop simply calls `UpdateClient()`, `Render()`, and audio update.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -90,15 +90,15 @@ flowchart TD
 
     MSG["ProcessMessages()<br/>RawInput Update"] --> TICK_FRAMES
 
-    subgraph TICK_FRAMES ["GameBase::TickFrames()"]
-        POLL_RECONCILE["Game::PollAndReconcileClient()<br/>(desync: poll+flush only,<br/>normal: WaitForReconcile,<br/>ApplyReconcileResult,<br/>clock correction)"]:::reconcile
+    subgraph TICK_FRAMES ["GameBase::UpdateClient()"]
+        POLL_RECONCILE["ClientSession::PollAndReconcile()<br/>(desync: poll+flush only,<br/>normal: WaitForReconcile,<br/>ApplyReconcileResult,<br/>clock correction)"]:::reconcile
 
         PHYSICS["Fixed-rate physics ticks<br/>(desync: early-return)"]:::physics
 
-        POST_TICK["Game::PostTickNetworkClient()<br/>(desync: early-return)"]:::network
+        POST_TICK["ClientSession::PostTick()<br/>(desync: early-return)"]:::network
 
-        subgraph post_tick_detail ["PostTickNetworkClient()"]
-            POLL["PollNetworkClient()<br/>Process player state notifications<br/>(spawn/frame change/death),<br/>apply full states,<br/>buffer delta updates"]:::network
+        subgraph post_tick_detail ["PostTick()"]
+            POLL["PollNetwork()<br/>Process player state notifications<br/>(spawn/frame change/death),<br/>apply full states,<br/>buffer delta updates"]:::network
             SEND["NetworkClient::SendAck()<br/>NetworkClient::Flush()"]:::network
             POLL --> SEND
         end
@@ -108,7 +108,7 @@ flowchart TD
 
     subgraph RENDER_METHOD ["GameBase::Render()"]
         RENDER["Render interpolation +<br/>GPU rendering"]:::render
-        POST_RENDER["Game::PostRenderNetworkClient()<br/>(desync: early-return,<br/>normal: TryKickReconcile<br/>gated by mbReconcileHasNewData)"]:::reconcile
+        POST_RENDER["ClientSession::PostRender()<br/>(desync: early-return,<br/>normal: TryKickReconcile<br/>gated by mbReconcileHasNewData)"]:::reconcile
         RENDER --> POST_RENDER
     end
 
@@ -156,10 +156,10 @@ sequenceDiagram
     Main->>Net: SetDesyncDebugMode(true)
     Net->>Server: Desync report + debug frame request
 
-    Note over Main: Each Game method early-returns<br/>when desync active (TickFrames,<br/>PostTickNetworkClient,<br/>PostRenderNetworkClient).<br/>Render and audio still run.
+    Note over Main: Each ClientSession method early-returns<br/>when desync active (PollAndReconcile,<br/>PostTick, PostRender).<br/>Render and audio still run.
 
     Server->>Net: Debug frame response (serialized Frame)
-    Main->>Main: PollNetworkClient() drains debug frame
+    Main->>Main: PollNetwork() drains debug frame
     Main->>Main: CompareWithServerFrame()
     Main->>Main: rClientFrame.ServerCompare(rServerFrame)
     Note over Main: BreakOnNotEqual per shared field<br/>DEBUG_BREAK() on first mismatch
@@ -184,18 +184,18 @@ Data flows between main thread and worker via `ReconcileContext`, which contains
 
 ## Key Functions
 
-| Function | Thread | Purpose |
-|----------|--------|---------|
-| `WaitForReconcile()` | Main | Block until async worker done, call `ApplyReconcileResult()` |
-| `TryKickReconcile()` | Main | Gate on `mbReconcileHasNewData` (skip if no new server data), build per-coord `CoordReconcileWork` items, dispatch `KickReconcile()` |
-| `KickReconcile()` | Main | Build `ReconcileContext` with per-coord work (move snapshots from `CoordFrames` ring buffer to work), dispatch worker via `PersistentWorker` |
-| `Reconcile()` | Worker | Static — runs per-coord CRC fast-path, unified rollback, full replay (capped), catch-up |
-| `ApplyReconcileResult()` | Main | Apply per-coord worker results (guarded by `uiGeneration` to skip stale coords, only advance confirmed state when `iNewConfirmedTick >= 0`), move latest replay stack entries into `mCoordFrames[coord].current` for rendering, recycle snapshots back to `CoordFrames`'s ring buffer, merge catch-up newSnapshots, handle desync, restore unconsumed updates |
-| `PollNetworkClient()` | Main | Process `ReceivedPlayerState` notifications (spawn/frame change/death via `kServerPlayerState`), apply full states to `CoordFrames`s, buffer per-slot deltas, check debug frame |
-| `ApplyReceivedFullStates()` | Main | Route full states to `CoordFrames::pendingFullState` or `mCoordFrames[coord].current`; on initial connection, sets `confirmedHumanState.fCurrentTime` from first coord only |
-| `ApplyReceivedUpdates()` | Main | Buffer per-slot updates into `CoordFrames::serverUpdates` |
-| `UpdateSubscriptions()` | Main | Compute desired coords based on player state (alive: human + 3 quadrant neighbors via `ComputeQuadrantOffsets()`, dead: death coord + origin, not-yet-assigned: origin), unsubscribe stale coords, build `mSubscriptionQueue` |
-| `TrySubscribeNext()` | Main | Pop next coord from `mSubscriptionQueue` and `SendSubscribe`; gates on no slot being in `kSubscribing`, `kWaitingFullState`, or `kUnsubscribing` state |
-| `ComputeClockCorrectionNs()` | Main | Proportional clock correction from frame offset and RTT |
-| `DetectPlayerDeathsServer()` | Main (server) | Detect player deaths server-side and send `kServerPlayerState(kDied)` to clients |
-| `CompareWithServerFrame()` | Main | Per-field `ServerCompare()` with `BreakOnNotEqual` |
+| Function | Owner | Thread | Purpose |
+|----------|-------|--------|---------|
+| `WaitForReconcile()` | ClientSession | Main | Block until async worker done, call `ApplyReconcileResult()` |
+| `TryKickReconcile()` | ClientSession | Main | Gate on `mbReconcileHasNewData` (skip if no new server data), build per-coord `CoordReconcileWork` items, dispatch `KickReconcile()` |
+| `KickReconcile()` | ClientSession | Main | Build `ReconcileContext` with per-coord work (move snapshots from `CoordFrames` ring buffer to work), dispatch worker via `PersistentWorker` |
+| `Reconcile()` | ClientSession | Worker | Static — runs per-coord CRC fast-path, unified rollback, full replay (capped), catch-up |
+| `ApplyReconcileResult()` | ClientSession | Main | Apply per-coord worker results (guarded by `uiGeneration` to skip stale coords, only advance confirmed state when `iNewConfirmedTick >= 0`), move latest replay stack entries into `mCoordFrames[coord].current` for rendering, recycle snapshots back to `CoordFrames`'s ring buffer, merge catch-up newSnapshots, handle desync, restore unconsumed updates |
+| `PollNetwork()` | ClientSession | Main | Process `ReceivedPlayerState` notifications (spawn/frame change/death via `kServerPlayerState`), apply full states to `CoordFrames`s, buffer per-slot deltas, check debug frame |
+| `ApplyReceivedFullStates()` | ClientSession | Main | Route full states to `CoordFrames::pendingFullState` or `mCoordFrames[coord].current`; on initial connection, sets `confirmedHumanState.fCurrentTime` from first coord only |
+| `ApplyReceivedUpdates()` | ClientSession | Main | Buffer per-slot updates into `CoordFrames::serverUpdates` |
+| `UpdateSubscriptions()` | ClientSession | Main | Compute desired coords based on player state (alive: human + 3 quadrant neighbors via `ComputeQuadrantOffsets()`, dead: death coord + origin, not-yet-assigned: origin), unsubscribe stale coords, build `mSubscriptionQueue` |
+| `TrySubscribeNext()` | ClientSession | Main | Pop next coord from `mSubscriptionQueue` and `SendSubscribe`; gates on no slot being in `kSubscribing`, `kWaitingFullState`, or `kUnsubscribing` state |
+| `ComputeClockCorrectionNs()` | ClientSession | Main | Proportional clock correction from frame offset and RTT |
+| `ServerSession::DetectPlayerDeaths()` | ServerSession | Main (server) | Detect player deaths server-side and send `kServerPlayerState(kDied)` to clients |
+| `CompareWithServerFrame()` | ClientSession | Main | Per-field `ServerCompare()` with `BreakOnNotEqual` |

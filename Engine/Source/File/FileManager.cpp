@@ -476,7 +476,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 		gpTextureUploadManager->RequestUpload(rRequest.crc, rRequest.priority);
 	}
 	else
-#endif
+#endif // BT_CLIENT
 	{
 		// Non-texture chunks are ready immediately after disk load
 		rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);

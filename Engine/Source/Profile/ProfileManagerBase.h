@@ -185,7 +185,7 @@ public:
 	void GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer);
 	void GpuStop(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer);
 	void GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTimers eEnd);
-#endif
+#endif // BT_CLIENT
 
 	void BootStart(BootTimers eBootTimer);
 	void BootStop(BootTimers eBootTimer);
@@ -230,7 +230,7 @@ public:
 		if (iStatusChangeReplay > 0) mStatusChangeReplayTicksPerSecond.Set(iStatusChangeReplay);
 		if (iKnockOnReplay > 0) mKnockOnReplayTicksPerSecond.Set(iKnockOnReplay);
 	}
-#endif
+#endif // BT_CLIENT
 
 protected:
 
@@ -352,7 +352,7 @@ protected:
 	common::InTheLastSecond mKnockOnReplayTicksPerSecond;
 
 	VkQueryPool mVkQueryPool = VK_NULL_HANDLE;
-#endif
+#endif // BT_CLIENT
 };
 
 class ScopedBootTimer
