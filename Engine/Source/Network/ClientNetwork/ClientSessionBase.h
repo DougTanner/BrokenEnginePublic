@@ -3,7 +3,7 @@
 #if defined(BT_CLIENT)
 
 #include "Network/NetworkDiscovery.h"
-#include "Network/NetworkClient/NetworkClient.h"
+#include "Network/ClientNetwork/ClientNetwork.h"
 
 namespace engine
 {
@@ -15,7 +15,7 @@ public:
 	ClientSessionBase() = default;
 	virtual ~ClientSessionBase() = default;
 
-	std::unique_ptr<NetworkClient> mpNetworkClient;
+	std::unique_ptr<ClientNetwork> mpClientNetwork;
 	std::unique_ptr<NetworkDiscoveryScanner> mpDiscoveryScanner;
 };
 

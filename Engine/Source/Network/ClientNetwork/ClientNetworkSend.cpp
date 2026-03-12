@@ -1,13 +1,13 @@
 #include "Pch.h"
 
-#include "Network/NetworkClient/NetworkClient.h"
+#include "Network/ClientNetwork/ClientNetwork.h"
 
 #include "Network/NetworkCursor.h"
 
 namespace engine
 {
 
-void NetworkClient::SendAck()
+void ClientNetwork::SendAck()
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -59,7 +59,7 @@ void NetworkClient::SendAck()
 	rWorkbuffer.Pop();
 }
 
-void NetworkClient::SendSpawnRequest(ClientRequestFlags_t flags)
+void ClientNetwork::SendSpawnRequest(ClientRequestFlags_t flags)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -88,7 +88,7 @@ void NetworkClient::SendSpawnRequest(ClientRequestFlags_t flags)
 	rWorkbuffer.Pop();
 }
 
-void NetworkClient::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expected, common::crc_t actual)
+void ClientNetwork::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expected, common::crc_t actual)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -121,7 +121,7 @@ void NetworkClient::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc
 	rWorkbuffer.Pop();
 }
 
-void NetworkClient::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
+void ClientNetwork::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -151,7 +151,7 @@ void NetworkClient::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 	rWorkbuffer.Pop();
 }
 
-void NetworkClient::SendSubscribe(GridCoord coord)
+void ClientNetwork::SendSubscribe(GridCoord coord)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -214,7 +214,7 @@ void NetworkClient::SendSubscribe(GridCoord coord)
 	rWorkbuffer.Pop();
 }
 
-void NetworkClient::SendUnsubscribe(int64_t iSlot)
+void ClientNetwork::SendUnsubscribe(int64_t iSlot)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -245,7 +245,7 @@ void NetworkClient::SendUnsubscribe(int64_t iSlot)
 	rWorkbuffer.Pop();
 }
 
-void NetworkClient::SendHello()
+void ClientNetwork::SendHello()
 {
 	common::Log("NetworkClient: SendHello config={}", kpcBuildConfigName); // DT: TEMP
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;

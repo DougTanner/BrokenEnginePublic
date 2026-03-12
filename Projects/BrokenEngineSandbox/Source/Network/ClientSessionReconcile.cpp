@@ -348,9 +348,9 @@ void ClientSession::ApplyReconcileResult()
 	// Handle desync (network ops must happen on main thread)
 	if (rReconcileContext.iDesyncTick >= 0)
 	{
-		mpNetworkClient->SendDesyncReport(rReconcileContext.iDesyncTick, rReconcileContext.desyncCoord, rReconcileContext.desyncServerCrc, rReconcileContext.desyncClientCrc);
-		mpNetworkClient->SendDebugFrameRequest(rReconcileContext.iDesyncTick, rReconcileContext.desyncCoord);
-		mpNetworkClient->SetDesyncDebugMode(true);
+		mpClientNetwork->SendDesyncReport(rReconcileContext.iDesyncTick, rReconcileContext.desyncCoord, rReconcileContext.desyncServerCrc, rReconcileContext.desyncClientCrc);
+		mpClientNetwork->SendDebugFrameRequest(rReconcileContext.iDesyncTick, rReconcileContext.desyncCoord);
+		mpClientNetwork->SetDesyncDebugMode(true);
 		common::Log("GameClient: ApplyReconcileResult DESYNC tick={} coord ({},{}) serverCrc={} clientCrc={}", rReconcileContext.iDesyncTick, rReconcileContext.desyncCoord.x, rReconcileContext.desyncCoord.y, rReconcileContext.desyncServerCrc, rReconcileContext.desyncClientCrc); // DT: TEMP
 
 		mDesyncDebugState.iTick = rReconcileContext.iDesyncTick;

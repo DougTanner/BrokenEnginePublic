@@ -12,8 +12,8 @@ The wind system alternates which texture is the write target each frame (0/1). O
 
 ## Shaders
 
-- **WindDeposit.frag** - Writes wind velocity into the wind texture from per-object quads. Supports two deposit modes: **radial** for explosions (outward direction computed from quad center) and **directional** for motion trails (CPU-computed wind direction). Both modes apply a falloff texture and magnitude scaling.
-- **WindSpread.frag** - Full-screen simulation pass shared by both ping-pong pipelines. All operations are time-scaled for framerate independence. Early-outs when center and 4 cardinal neighbors are all zero (most of the texture). Uses magnitude-dependent behavior where all propagation parameters blend between Low/High pairs based on wind strength, so weak wind behaves differently from strong wind. Key simulation stages: semi-Lagrangian advection (trace-back along wind direction), noise-driven swirl perturbation, optional vorticity confinement (preprocessor-selected, currently simple mode), 4-neighbor diffusion, exponential decay with tanh soft clamping, and constant decay to converge near-zero values cleanly to zero. Momentum controls the balance between directional advection and lateral spread/swirl/diffusion.
+- **WindDeposit.frag** - Writes wind velocity into the wind texture from per-object quads. Supports radial (explosions) and directional (motion trails) deposit modes with falloff and magnitude scaling.
+- **WindSpread.frag** - Full-screen simulation pass shared by both ping-pong pipelines. Combines advection, swirl perturbation, vorticity confinement, diffusion, and decay. All operations are time-scaled for framerate independence. Uses magnitude-dependent blending between Low/High parameter pairs so weak wind behaves differently from strong wind.
 
 ## See Also
 

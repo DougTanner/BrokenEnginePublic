@@ -145,9 +145,9 @@ void ClientSession::ConnectToServer(const char* pServerAddress)
 {
 	FILE_LOG(0, "ConnectToServer: connecting to {}", pServerAddress);
 	gpGame->mModalMessage[0] = '\0';
-	// Heap: NetworkClient allocates ENet host and peer
+	// Heap: ClientNetwork allocates ENet host and peer
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
-	mpNetworkClient = std::make_unique<engine::NetworkClient>(pServerAddress, engine::kuiDefaultPort, kiDesiredCoordSlots);
+	mpClientNetwork = std::make_unique<engine::ClientNetwork>(pServerAddress, engine::kuiDefaultPort, kiDesiredCoordSlots);
 }
 
 void ClientSession::StartServerDiscovery()
@@ -165,7 +165,7 @@ std::chrono::nanoseconds ClientSession::ComputeClockCorrectionNs(int64_t iPreRec
 		return 0ns;
 	}
 
-	int64_t iRttUs = mpNetworkClient->GetPipelineRttUs();
+	int64_t iRttUs = mpClientNetwork->GetPipelineRttUs();
 
 	// Target: client should be ceil(RTT/2 / frameTime) + 1 frames behind server
 	static constexpr int64_t kiTickTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(kTickNs).count();
@@ -191,7 +191,7 @@ std::chrono::nanoseconds ClientSession::ComputeClockCorrectionNs(int64_t iPreRec
 void ClientSession::DisconnectFromServer()
 {
 	common::Log("GameClient: DisconnectFromServer"); // DT: TEMP
-	// Heap: NetworkClient destructor triggers ENet disconnect and cleanup
+	// Heap: ClientNetwork destructor triggers ENet disconnect and cleanup
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	if constexpr (kbEnableReconcileThread)
@@ -206,7 +206,7 @@ void ClientSession::DisconnectFromServer()
 
 	mbReconcileHasNewData = false;
 	miLatestServerTick = -1;
-	mpNetworkClient.reset();
+	mpClientNetwork.reset();
 	// Reset client fields on all subscribed frames
 	for (auto& [rCoord, rSub] : gpGame->mCoordFrames)
 	{
@@ -247,7 +247,7 @@ void ClientSession::PollNetwork()
 		}
 	}
 
-	if (mpNetworkClient == nullptr)
+	if (mpClientNetwork == nullptr)
 	{
 		return;
 	}
@@ -255,12 +255,12 @@ void ClientSession::PollNetwork()
 	// Heap: ENet polling allocates packets, DrainReceived* moves vectors, stringstream serialization
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	mpNetworkClient->Poll();
+	mpClientNetwork->Poll();
 
 	// Wait for server connection response before entering game
-	if (!mpNetworkClient->IsConnectionAccepted())
+	if (!mpClientNetwork->IsConnectionAccepted())
 	{
-		const char* pRejection = mpNetworkClient->GetRejectionReason();
+		const char* pRejection = mpClientNetwork->GetRejectionReason();
 		if (pRejection != nullptr)
 		{
 			snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "%s", pRejection);
@@ -269,7 +269,7 @@ void ClientSession::PollNetwork()
 			return;
 		}
 
-		if (mpNetworkClient->WasDisconnected())
+		if (mpClientNetwork->WasDisconnected())
 		{
 			snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Connection failed");
 			DisconnectFromServer();
@@ -292,7 +292,7 @@ void ClientSession::PollNetwork()
 	}
 
 	// Check for debug frame response
-	std::unique_ptr<engine::ReceivedDebugFrame> pDebugFrame = mpNetworkClient->DrainReceivedDebugFrame();
+	std::unique_ptr<engine::ReceivedDebugFrame> pDebugFrame = mpClientNetwork->DrainReceivedDebugFrame();
 	if (pDebugFrame != nullptr && mDesyncDebugState.pClientFrame != nullptr)
 	{
 		FILE_LOG(0, "[PollNetwork] Debug frame received for frame={} coord=({},{}), running CompareWithServerFrame", mDesyncDebugState.iTick, mDesyncDebugState.coord.x, mDesyncDebugState.coord.y);
@@ -300,11 +300,11 @@ void ClientSession::PollNetwork()
 		mDesyncDebugState = {};
 		DEBUG_BREAK();
 		snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
-		mpNetworkClient->Disconnect();
+		mpClientNetwork->Disconnect();
 		return;
 	}
 
-	if (mpNetworkClient->WasDisconnected())
+	if (mpClientNetwork->WasDisconnected())
 	{
 		FILE_LOG(0, "[PollNetwork] Disconnected while waiting for debug frame: desyncFrame={}", mDesyncDebugState.iTick);
 		gpGame->ChangeFrame(GameFlags::kMainMenu);
@@ -319,7 +319,7 @@ void ClientSession::PollNetwork()
 	}
 
 	// Check for player assignments
-	for (const engine::ReceivedAssignment& rAssignment : mpNetworkClient->DrainReceivedAssignments())
+	for (const engine::ReceivedAssignment& rAssignment : mpClientNetwork->DrainReceivedAssignments())
 	{
 		if (rAssignment.playerId != gpGame->HumanPlayerId())
 		{
@@ -335,7 +335,7 @@ void ClientSession::PollNetwork()
 	}
 
 	// Process server-authoritative player state notifications
-	for (const engine::ReceivedPlayerState& rState : mpNetworkClient->DrainReceivedPlayerStates())
+	for (const engine::ReceivedPlayerState& rState : mpClientNetwork->DrainReceivedPlayerStates())
 	{
 		switch (rState.eType)
 		{
@@ -366,7 +366,7 @@ void ClientSession::ApplyReceivedFullStates()
 	// Heap: Moving unique_ptr<Frame> into mCurrentFrames, stringstream serialization
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	std::vector<engine::ReceivedCoordFullState>& rFullStates = mpNetworkClient->DrainReceivedFullStates();
+	std::vector<engine::ReceivedCoordFullState>& rFullStates = mpClientNetwork->DrainReceivedFullStates();
 	if (rFullStates.empty())
 	{
 		return;
@@ -457,8 +457,8 @@ void ClientSession::ApplyReceivedUpdates()
 	// Heap: map insertion for per-frame server updates
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	const std::vector<engine::ClientCoordSlot>& rCoordSlots = mpNetworkClient->GetCoordSlots();
-	std::vector<std::vector<engine::ReceivedCoordUpdate>>& rAllUpdates = mpNetworkClient->DrainReceivedCoordUpdates();
+	const std::vector<engine::ClientCoordSlot>& rCoordSlots = mpClientNetwork->GetCoordSlots();
+	std::vector<std::vector<engine::ReceivedCoordUpdate>>& rAllUpdates = mpClientNetwork->DrainReceivedCoordUpdates();
 
 	for (int64_t iSlot = 0; iSlot < std::ssize(rCoordSlots); ++iSlot)
 	{
@@ -539,7 +539,7 @@ int64_t ClientSession::GetServerUpdateBufferSize() const
 
 void ClientSession::UpdateSubscriptions()
 {
-	if (mpNetworkClient == nullptr)
+	if (mpClientNetwork == nullptr)
 	{
 		return;
 	}
@@ -599,7 +599,7 @@ void ClientSession::UpdateSubscriptions()
 		desiredCoords.push_back(engine::kOriginCoord);
 	}
 
-	std::vector<engine::ClientCoordSlot>& rSlots = mpNetworkClient->GetCoordSlots();
+	std::vector<engine::ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
 
 	// Unsubscribe from coords no longer desired
 	for (int64_t i = 0; i < std::ssize(rSlots); ++i)
@@ -619,7 +619,7 @@ void ClientSession::UpdateSubscriptions()
 			}
 			else
 			{
-				mpNetworkClient->SendUnsubscribe(i);
+				mpClientNetwork->SendUnsubscribe(i);
 			}
 			// Reset client fields on unsubscribed coord
 			auto unsubIt = gpGame->mCoordFrames.find(unsubCoord);
@@ -669,13 +669,13 @@ void ClientSession::UpdateSubscriptions()
 
 void ClientSession::TrySubscribeNext()
 {
-	if (mpNetworkClient == nullptr || mSubscriptionQueue.empty())
+	if (mpClientNetwork == nullptr || mSubscriptionQueue.empty())
 	{
 		return;
 	}
 
 	// Check if any slot is currently subscribing or waiting for full state
-	const std::vector<engine::ClientCoordSlot>& rSlots = mpNetworkClient->GetCoordSlots();
+	const std::vector<engine::ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
 	for (int64_t i = 0; i < std::ssize(rSlots); ++i)
 	{
 		if (rSlots.at(i).eState == engine::CoordSubscriptionState::kSubscribing ||
@@ -689,13 +689,13 @@ void ClientSession::TrySubscribeNext()
 	engine::GridCoord coord = mSubscriptionQueue.front();
 	mSubscriptionQueue.erase(mSubscriptionQueue.begin());
 
-	mpNetworkClient->SendSubscribe(coord);
+	mpClientNetwork->SendSubscribe(coord);
 	FILE_LOG(0, "[TrySubscribeNext] Subscribe coord=({},{}) remaining={}", coord.x, coord.y, mSubscriptionQueue.size());
 }
 
 void ClientSession::WaitForReconcile()
 {
-	if (mpNetworkClient == nullptr)
+	if (mpClientNetwork == nullptr)
 	{
 		return;
 	}
@@ -728,7 +728,7 @@ void ClientSession::WaitForReconcile()
 
 void ClientSession::TryKickReconcile()
 {
-	if (mpNetworkClient == nullptr || GetConfirmedTick() < 0)
+	if (mpClientNetwork == nullptr || GetConfirmedTick() < 0)
 	{
 		return;
 	}
@@ -768,9 +768,9 @@ void ClientSession::PollAndReconcile()
 	{
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 		PollNetwork();
-		if (engine::gpNetworkClient != nullptr)
+		if (engine::gpClientNetwork != nullptr)
 		{
-			engine::gpNetworkClient->Flush();
+			engine::gpClientNetwork->Flush();
 		}
 		return;
 	}
@@ -807,10 +807,10 @@ void ClientSession::PostTick()
 	gpProfileManager->CpuStart(engine::kCpuTimerNetworkSend);
 	{
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		if (engine::gpNetworkClient != nullptr)
+		if (engine::gpClientNetwork != nullptr)
 		{
-			engine::gpNetworkClient->SendAck();
-			engine::gpNetworkClient->Flush();
+			engine::gpClientNetwork->SendAck();
+			engine::gpClientNetwork->Flush();
 		}
 	}
 	gpProfileManager->CpuStop(engine::kCpuTimerNetworkSend, true);

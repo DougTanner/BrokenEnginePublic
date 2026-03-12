@@ -18,11 +18,71 @@ ServerSession::~ServerSession()
 	gpServerSession = nullptr;
 }
 
+void ServerSession::PrepareTick()
+{
+	// Recompute active set each tick so new client subscriptions
+	// (set by FinalizeNewClients on the previous frame) are picked up immediately
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	ComputeActiveSet();
+	gpGame->EnsureNextFrames();
+
+	// Add empty frame inputs for any newly active coords
+	for (const engine::GridCoord& rCoord : gpGame->mActiveCoords)
+	{
+		if (!gpGame->mFrameInputs.contains(rCoord))
+		{
+			gpGame->mFrameInputs[rCoord];
+		}
+	}
+}
+
+void ServerSession::BroadcastTick(int64_t iTick)
+{
+	// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	FinalizeNewClients(iTick);
+	DetectPlayerDeaths();
+	BroadcastStatusChanges(iTick);
+	HandleSubscriptionUpdates(iTick);
+	engine::gpServerNetwork->Flush();
+}
+
+void ServerSession::WaitForTick(engine::TimeStep& rTimeStep)
+{
+	// Server sleeps until next tick (there is no VSync wait), hybrid approach: waitable timer for the bulk, then spin-wait for precision
+	constexpr std::chrono::nanoseconds kSpinMarginNs = 2000000ns;
+	std::chrono::nanoseconds remainingNs = game::kTickNs - rTimeStep.mTickRemainderNs - rTimeStep.mRealTime.GetDeltaNs();
+	std::chrono::nanoseconds sleepNs = remainingNs - kSpinMarginNs;
+	if (sleepNs > 0ns)
+	{
+		LARGE_INTEGER dueTime {.QuadPart = -(sleepNs.count() / 100)}; // Negative = relative, 100ns units
+		SetWaitableTimerEx(mTimerHandle, &dueTime, 0, nullptr, nullptr, nullptr, 0);
+		WaitForSingleObject(mTimerHandle, INFINITE);
+	}
+
+	// Spin-wait
+	while (rTimeStep.mRealTime.GetDeltaNs() + rTimeStep.mTickRemainderNs < game::kTickNs)
+	{
+	}
+
+	// Verify precision
+	constexpr std::chrono::nanoseconds kTickMarginNs = game::kTickNs / 64;
+	std::chrono::nanoseconds remainderNs = rTimeStep.mRealTime.GetDeltaNs() + rTimeStep.mTickRemainderNs - game::kTickNs;
+	static int64_t siTotalTicks = 0;
+	static int64_t siOvershootTicks = 0;
+	++siTotalTicks;
+	if ((remainderNs < 0ns || remainderNs > kTickMarginNs)) [[unlikely]]
+	{
+		++siOvershootTicks;
+		common::Log("Sleep/busy wait precision: remainderNs={} ({}/{}={}%)", remainderNs.count(), siOvershootTicks, siTotalTicks, siOvershootTicks * 100 / siTotalTicks);
+	}
+}
+
 void ServerSession::PreTickNetwork()
 {
 	// Heap: ENet polling and game server methods allocate vectors for inputs, spawns, and status changes
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	engine::gpNetworkServer->Poll();
+	engine::gpServerNetwork->Poll();
 	mpDiscoveryResponder->Poll();
 	HandleDisconnects();
 	HandleNewClients();
@@ -33,7 +93,7 @@ void ServerSession::HandleDisconnects()
 {
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	for (const engine::PendingDisconnect& rDisconnect : engine::gpNetworkServer->DrainPendingDisconnects())
+	for (const engine::PendingDisconnect& rDisconnect : engine::gpServerNetwork->DrainPendingDisconnects())
 	{
 		// Queue player destruction for the next tick
 		if (rDisconnect.playerId.IsValid())
@@ -59,7 +119,7 @@ void ServerSession::ComputeActiveSet()
 	gpGame->mActiveCoords.clear();
 
 	// Union all clients' subscribed coords
-	const std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
+	const std::vector<engine::ClientConnection>& rClients = engine::gpServerNetwork->GetClients();
 	for (const engine::ClientConnection& rClient : rClients)
 	{
 		for (int64_t i = 0; i < std::ssize(rClient.coordSubscriptions); ++i)
@@ -195,9 +255,9 @@ void ServerSession::ProcessSpawnRequests()
 	// Heap: vector push_back for spawn StatusChanges
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	for (const engine::PendingSpawnRequest& rRequest : engine::gpNetworkServer->DrainPendingSpawnRequests())
+	for (const engine::PendingSpawnRequest& rRequest : engine::gpServerNetwork->DrainPendingSpawnRequests())
 	{
-		const engine::ClientConnection* pClient = engine::gpNetworkServer->FindClient(rRequest.iClientId);
+		const engine::ClientConnection* pClient = engine::gpServerNetwork->FindClient(rRequest.iClientId);
 		if (pClient == nullptr)
 		{
 			continue;
@@ -282,7 +342,7 @@ void ServerSession::HarvestTransfers()
 		Frame& rDestFrame = *gpGame->mCoordFrames.at(rHumanTransfer.dest).pNext;
 		player_t newPlayerId = rDestFrame.postRender.pPlayers->puiIds[rDestFrame.postRender.pPlayers->iCount - 1];
 
-		const std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
+		const std::vector<engine::ClientConnection>& rClients = engine::gpServerNetwork->GetClients();
 		for (const engine::ClientConnection& rClient : rClients)
 		{
 			if (rClient.humanPlayerId.IsValid() && transferredPlayerId == rClient.humanPlayerId)
@@ -340,8 +400,8 @@ void ServerSession::BroadcastStatusChanges(int64_t iTick)
 
 		allGridUpdates.push_back({rCoord, updateData});
 	}
-	engine::gpNetworkServer->BufferFrame(iTick, allGridUpdates);
-	common::Log("GameServer: BroadcastStatusChanges tick={} coords={} clients={}", iTick, gpGame->mActiveCoords.size(), engine::gpNetworkServer->GetClients().size()); // DT: TEMP
+	engine::gpServerNetwork->BufferFrame(iTick, allGridUpdates);
+	common::Log("GameServer: BroadcastStatusChanges tick={} coords={} clients={}", iTick, gpGame->mActiveCoords.size(), engine::gpServerNetwork->GetClients().size()); // DT: TEMP
 
 	// Buffer full frame snapshots for debug frame requests
 	{
@@ -351,15 +411,15 @@ void ServerSession::BroadcastStatusChanges(int64_t iTick)
 		{
 			fullFrames.push_back({rCoord, &gpGame->CurrentFrame(rCoord)});
 		}
-		engine::gpNetworkServer->BufferFullFrame(iTick, fullFrames);
+		engine::gpServerNetwork->BufferFullFrame(iTick, fullFrames);
 	}
 
 	// Send per-client updates (server iterates each client's subscribed slots internally)
-	std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
+	std::vector<engine::ClientConnection>& rClients = engine::gpServerNetwork->GetClients();
 	for (engine::ClientConnection& rClient : rClients)
 	{
-		engine::gpNetworkServer->SendUpdate(rClient, iTick);
-		engine::gpNetworkServer->SendResends(rClient, iTick);
+		engine::gpServerNetwork->SendUpdate(rClient, iTick);
+		engine::gpServerNetwork->SendResends(rClient, iTick);
 	}
 }
 
@@ -368,7 +428,7 @@ void ServerSession::HandleNewClients()
 	// Heap: vector push_back for waiting clients
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	const std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
+	const std::vector<engine::ClientConnection>& rClients = engine::gpServerNetwork->GetClients();
 	for (const engine::ClientConnection& rClient : rClients)
 	{
 		if (rClient.humanPlayerId.IsValid())
@@ -430,8 +490,8 @@ void ServerSession::FinalizeNewClients([[maybe_unused]] int64_t iTick)
 		int64_t iClientId = mClientsWaitingForSpawn.at(i).iClientId;
 		player_t playerId = newPlayerIds.at(i);
 
-		engine::gpNetworkServer->SendAssignPlayer(iClientId, playerId, engine::kOriginCoord);
-		engine::gpNetworkServer->SendPlayerState(iClientId, engine::PlayerStateType::kSpawned, playerId, engine::kOriginCoord);
+		engine::gpServerNetwork->SendAssignPlayer(iClientId, playerId, engine::kOriginCoord);
+		engine::gpServerNetwork->SendPlayerState(iClientId, engine::PlayerStateType::kSpawned, playerId, engine::kOriginCoord);
 		common::Log("GameServer: AssignPlayer client={} player={} coord ({},{})", iClientId, playerId.ToUuid().Value(), engine::kOriginCoord.x, engine::kOriginCoord.y); // DT: TEMP
 	}
 
@@ -443,7 +503,7 @@ void ServerSession::FinalizeNewClients([[maybe_unused]] int64_t iTick)
 
 void ServerSession::DetectPlayerDeaths()
 {
-	std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
+	std::vector<engine::ClientConnection>& rClients = engine::gpServerNetwork->GetClients();
 	for (engine::ClientConnection& rClient : rClients)
 	{
 		if (!rClient.humanPlayerId.IsValid())
@@ -476,7 +536,7 @@ void ServerSession::DetectPlayerDeaths()
 		// Player not found in frame — they died
 		ScopedSuppressAllocationTracking suppressAllocationTracking;
 		mDeadClientIds.insert(rClient.iClientId);
-		engine::gpNetworkServer->SendPlayerState(rClient.iClientId, engine::PlayerStateType::kDied, rClient.humanPlayerId, rClient.humanGridCoord);
+		engine::gpServerNetwork->SendPlayerState(rClient.iClientId, engine::PlayerStateType::kDied, rClient.humanPlayerId, rClient.humanGridCoord);
 		common::Log("GameServer: PlayerDeath client={} player={} coord ({},{})", rClient.iClientId, rClient.humanPlayerId.ToUuid().Value(), rClient.humanGridCoord.x, rClient.humanGridCoord.y); // DT: TEMP
 		rClient.humanPlayerId = {};
 	}
@@ -485,10 +545,10 @@ void ServerSession::DetectPlayerDeaths()
 void ServerSession::HandleSubscriptionUpdates([[maybe_unused]] int64_t iTick)
 {
 	// Send full state for newly subscribed coords (validate slot is still active)
-	std::vector<engine::PendingNewSubscription>& rNewSubs = engine::gpNetworkServer->DrainPendingNewSubscriptions();
+	std::vector<engine::PendingNewSubscription>& rNewSubs = engine::gpServerNetwork->DrainPendingNewSubscriptions();
 	for (const engine::PendingNewSubscription& rSub : rNewSubs)
 	{
-		const engine::ClientConnection* pClient = engine::gpNetworkServer->FindClient(rSub.iClientId);
+		const engine::ClientConnection* pClient = engine::gpServerNetwork->FindClient(rSub.iClientId);
 		bool bSlotStillValid = (pClient != nullptr
 			&& rSub.iSlot < std::ssize(pClient->coordSubscriptions)
 			&& pClient->coordSubscriptions[rSub.iSlot].bActive
@@ -502,7 +562,7 @@ void ServerSession::HandleSubscriptionUpdates([[maybe_unused]] int64_t iTick)
 		if (frameIt != gpGame->mCoordFrames.end())
 		{
 			common::Log("GameServer: SendFullState client={} slot={} coord ({},{}) tick={}", rSub.iClientId, rSub.iSlot, rSub.coord.x, rSub.coord.y, gpGame->TickCounter()); // DT: TEMP
-			engine::gpNetworkServer->SendCoordFullState(rSub.iClientId, rSub.iSlot, gpGame->TickCounter(), rSub.coord, frameIt->second.pCurrent.get());
+			engine::gpServerNetwork->SendCoordFullState(rSub.iClientId, rSub.iSlot, gpGame->TickCounter(), rSub.coord, frameIt->second.pCurrent.get());
 		}
 	}
 
@@ -514,8 +574,8 @@ void ServerSession::HandleSubscriptionUpdates([[maybe_unused]] int64_t iTick)
 	// Client handles subscriptions — server just sends player assignment
 	for (const SubscriptionUpdate& rUpdate : mPendingSubscriptionUpdates)
 	{
-		engine::gpNetworkServer->SendAssignPlayer(rUpdate.iClientId, rUpdate.newPlayerId, rUpdate.newCoord);
-		engine::gpNetworkServer->SendPlayerState(rUpdate.iClientId, engine::PlayerStateType::kChangedFrame, rUpdate.newPlayerId, rUpdate.newCoord);
+		engine::gpServerNetwork->SendAssignPlayer(rUpdate.iClientId, rUpdate.newPlayerId, rUpdate.newCoord);
+		engine::gpServerNetwork->SendPlayerState(rUpdate.iClientId, engine::PlayerStateType::kChangedFrame, rUpdate.newPlayerId, rUpdate.newCoord);
 
 		FILE_LOG(0, "[HandleSubscriptionUpdates] client={} newId={} newCoord=({},{})", rUpdate.iClientId, rUpdate.newPlayerId.ToUuid().Value(), rUpdate.newCoord.x, rUpdate.newCoord.y);
 	}

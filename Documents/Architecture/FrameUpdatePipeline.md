@@ -81,7 +81,7 @@ flowchart TD
             extrap_check -->|"No"| dispatch --> frame_swap
         end
 
-        post_tick["Game::PostTickNetworkClient()<br/>(desync: early-return)<br/>PollNetworkClient(),<br/>NetworkClient::SendAck(),<br/>NetworkClient::Flush()"]:::network
+        post_tick["Game::PostTickClientNetwork()<br/>(desync: early-return)<br/>PollClientNetwork(),<br/>ClientNetwork::SendAck(),<br/>ClientNetwork::Flush()"]:::network
 
         poll_reconcile --> physics_loop --> post_tick
     end
@@ -92,7 +92,7 @@ flowchart TD
         r_main["Render()<br/>(lights, collections,<br/>smoke, wind)"]:::render
         r_end["EndRender()"]:::render
 
-        post_render["Game::PostRenderNetworkClient()<br/>(desync: early-return)<br/>TryKickReconcile()<br/>(gated by mbReconcileHasNewData)"]:::network
+        post_render["Game::PostRenderClientNetwork()<br/>(desync: early-return)<br/>TryKickReconcile()<br/>(gated by mbReconcileHasNewData)"]:::network
 
         r_interp --> r_begin --> r_main --> r_end --> post_render
     end
@@ -106,7 +106,7 @@ flowchart TD
 
 ## Server Main Loop
 
-Main.cpp calls `UpdateServer()` then `UpdateServerDisplayStats()`. All network orchestration (pre-tick polling and per-frame broadcasts) is encapsulated within `GameBase::UpdateServer()`. Server session methods are on `game::ServerSession` (accessed via `gpServerSession`).
+Main.cpp calls `UpdateServer()` then `UpdateServerDisplayStats()`. All network orchestration (pre-tick polling, tick timing, and per-frame broadcasts) is encapsulated within `GameBase::UpdateServer()`, which delegates to `ServerSession` methods (accessed via `gpServerSession`). `ServerSession::WaitForTick()` handles the server tick timer (waitable timer + spin-wait, using `mTimerHandle` inherited from `ServerSessionBase`). `ServerSession::PrepareTick()` recomputes the active set and ensures next frames exist. `ServerSession::BroadcastTick()` wraps FinalizeNewClients, DetectPlayerDeaths, BroadcastStatusChanges, HandleSubscriptionUpdates, and ServerNetwork::Flush().
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -120,24 +120,22 @@ flowchart TD
     msgs["ProcessMessages()"]:::server
 
     subgraph tick_frames ["GameBase::UpdateServer()"]
-        pre_tick["ServerSession::PreTickNetwork()<br/>NetworkServer::Poll(),<br/>DiscoveryResponder::Poll(),<br/>HandleDisconnects,<br/>HandleNewClients,<br/>ProcessSpawnRequests"]:::network
+        pre_tick["ServerSession::PreTickNetwork()<br/>ServerNetwork::Poll(),<br/>DiscoveryResponder::Poll(),<br/>HandleDisconnects,<br/>HandleNewClients,<br/>ProcessSpawnRequests"]:::network
 
-        sleep["Sleep (waitable timer)<br/>until next tick"]:::server
+        wait_tick["ServerSession::WaitForTick()<br/>(waitable timer + spin-wait<br/>until next tick)"]:::server
 
         subgraph physics_loop ["Fixed Timestep Loop (64 Hz)"]
             ts["TimeStep::UpdateRealtime()"]:::physics
+            prepare_tick["ServerSession::PrepareTick()<br/>ComputeActiveSet(),<br/>EnsureNextFrames(),<br/>init empty FrameInputs"]:::network
             dispatch_s["Dispatch per-Frame:<br/>RunFrameTick()<br/>(all 5 phases per Frame<br/>in parallel)"]:::physics
             frame_swap["std::swap(current, next)"]:::physics
-            finalize["ServerSession::<br/>FinalizeNewClients()"]:::network
-            deaths["ServerSession::<br/>DetectPlayerDeaths()"]:::network
-            broadcast["ServerSession::<br/>BroadcastStatusChanges()<br/>BufferFrame + SendUpdate +<br/>SendResends + Flush"]:::network
-            subscriptions["ServerSession::<br/>HandleSubscriptionUpdates()"]:::network
+            broadcast_tick["ServerSession::BroadcastTick()<br/>FinalizeNewClients,<br/>DetectPlayerDeaths,<br/>BroadcastStatusChanges<br/>(BufferFrame + SendUpdate +<br/>SendResends),<br/>HandleSubscriptionUpdates,<br/>Flush"]:::network
             harvest["HarvestTransfers()<br/>(cross-coord entity moves)"]:::physics
-            ts --> dispatch_s --> harvest --> frame_swap
-            frame_swap --> finalize --> deaths --> broadcast --> subscriptions
+            ts --> prepare_tick --> dispatch_s --> harvest --> frame_swap
+            frame_swap --> broadcast_tick
         end
 
-        pre_tick --> sleep --> physics_loop
+        pre_tick --> wait_tick --> physics_loop
     end
 
     display["UpdateServerDisplayStats()<br/>InvalidateRect (GDI)"]:::server

@@ -235,7 +235,7 @@ void MainThread(HINSTANCE hinstance)
 
 	auto pGame = std::make_unique<game::Game>();
 
-	auto pNetworkServer = std::make_unique<NetworkServer>(kuiDefaultPort);
+	auto pServerNetwork = std::make_unique<ServerNetwork>(kuiDefaultPort);
 
 	ShowWindow(sHwnd, SW_SHOWMAXIMIZED);
 #endif // BT_CLIENT

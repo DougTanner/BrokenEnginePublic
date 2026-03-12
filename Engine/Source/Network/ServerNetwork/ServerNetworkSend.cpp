@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Network/NetworkServer/NetworkServer.h"
+#include "Network/ServerNetwork/ServerNetwork.h"
 
 #include "Memory/MemoryManager.h"
 #include "Network/NetworkCursor.h"
@@ -8,7 +8,7 @@
 namespace engine
 {
 
-void NetworkServer::SendAssignPlayer(int64_t iClientId, game::player_t playerId, GridCoord coord)
+void ServerNetwork::SendAssignPlayer(int64_t iClientId, game::player_t playerId, GridCoord coord)
 {
 	ClientConnection* pClient = FindClient(iClientId);
 	if (pClient == nullptr)
@@ -41,7 +41,7 @@ void NetworkServer::SendAssignPlayer(int64_t iClientId, game::player_t playerId,
 	rWorkbuffer.Pop();
 }
 
-void NetworkServer::SendPlayerState(int64_t iClientId, PlayerStateType eStateType, game::player_t playerId, GridCoord coord)
+void ServerNetwork::SendPlayerState(int64_t iClientId, PlayerStateType eStateType, game::player_t playerId, GridCoord coord)
 {
 	ClientConnection* pClient = FindClient(iClientId);
 	if (pClient == nullptr)
@@ -72,7 +72,7 @@ void NetworkServer::SendPlayerState(int64_t iClientId, PlayerStateType eStateTyp
 	rWorkbuffer.Pop();
 }
 
-void NetworkServer::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick, GridCoord coord, const game::Frame* pFrame)
+void ServerNetwork::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick, GridCoord coord, const game::Frame* pFrame)
 {
 	ClientConnection* pClient = FindClient(iClientId);
 	if (pClient == nullptr)
@@ -116,7 +116,7 @@ void NetworkServer::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t
 	rWorkbuffer.Pop();
 }
 
-void NetworkServer::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage)
+void ServerNetwork::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage)
 {
 	common::Log("NetworkServer: SendConnectionResponse accepted={}", bAccepted); // DT: TEMP
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
@@ -138,7 +138,7 @@ void NetworkServer::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, cons
 	rWorkbuffer.Pop();
 }
 
-void NetworkServer::SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord)
+void ServerNetwork::SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord)
 {
 	common::Log("NetworkServer: SendSubscribeAccept slot {} coord ({},{})", iSlot, coord.x, coord.y); // DT: TEMP
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
@@ -162,7 +162,7 @@ void NetworkServer::SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot
 	rWorkbuffer.Pop();
 }
 
-void NetworkServer::SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot)
+void ServerNetwork::SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot)
 {
 	common::Log("NetworkServer: SendUnsubscribeAck slot {}", iSlot); // DT: TEMP
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
@@ -182,7 +182,7 @@ void NetworkServer::SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot)
 	rWorkbuffer.Pop();
 }
 
-void NetworkServer::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, PacketType eType, int64_t iSlot, uint16_t uiEpoch, const PerCoordBufferedFrame& rBuffered, int64_t iTimestampNs)
+void ServerNetwork::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, PacketType eType, int64_t iSlot, uint16_t uiEpoch, const PerCoordBufferedFrame& rBuffered, int64_t iTimestampNs)
 {
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(eType));
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
@@ -200,7 +200,7 @@ void NetworkServer::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, Pa
 	}
 }
 
-void NetworkServer::SendUpdate(ClientConnection& rClient, int64_t iTick)
+void ServerNetwork::SendUpdate(ClientConnection& rClient, int64_t iTick)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
@@ -237,7 +237,7 @@ void NetworkServer::SendUpdate(ClientConnection& rClient, int64_t iTick)
 	}
 }
 
-void NetworkServer::SendResends(ClientConnection& rClient, int64_t iTick)
+void ServerNetwork::SendResends(ClientConnection& rClient, int64_t iTick)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 

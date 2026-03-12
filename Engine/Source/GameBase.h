@@ -127,11 +127,6 @@ protected:
 
 	void PrepareActiveSet();
 	void SwapFrames();
-#if defined(BT_SERVER)
-	void WaitForServerTick();
-	void PrepareServerTick();
-	void BroadcastServerTick();
-#endif
 	void BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveCoords, bool bExtrapolating);
 	void FinalizeFrameTick(const std::vector<GridCoord>& rActiveCoords, bool bExtrapolating);
 
@@ -141,10 +136,6 @@ protected:
 	uint16_t muiNextFrameId = 0;
 
 	MenuFlags_t mMenuFlags {MenuFlags::kMouseVisible};
-
-#if defined(BT_SERVER)
-	HANDLE mTimerHandle = nullptr;
-#endif
 };
 
 } // namespace engine

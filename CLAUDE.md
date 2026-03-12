@@ -25,14 +25,11 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 - DO NOT add error handling or validation - assume parameters to functions are valid
 - DO NOT add unit tests
 - Follow KISS, YAGNI, DRY at all times
-	- Don't repeat yourself
-	- Keep it simple, stupid
-	- You aren't gonna need it
-- **File size limits**: Code files (.h/.cpp) should aim to be under 500–1000 lines
+- **File size limits**: Code files (.h/.cpp) should aim to be under 500-1000 lines
 	- **Over 500 lines**: Look for opportunities to refactor logic into utility headers or helper files
 	- **Over 1000 lines**: The file should be split into multiple .h/.cpp files (a human user must verify the split plan before implementation)
 	- **Struct splitting**: Structs with static methods (e.g., SOA collections) can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). See `/reduce-file` skill
-- **Function size**: Aim for 50–100 lines max per function. This is a soft guideline, not a hard limit — some functions are legitimately large and should not be artificially split just to hit a line count
+- **Function size**: Aim for 50-100 lines max per function. Soft guideline - some functions are legitimately large
 
 ## Directory Structure
 - `/Common/` - Shared utilities (`common::` namespace); `Common.h` is the single aggregation header (included by `Pch.h`) - [CLAUDE.md](Common/CLAUDE.md)
@@ -50,6 +47,7 @@ Linker errors (LNK errors) can be ignored — the client or server executable ma
 ## Client/Server Builds
 
 The codebase produces two executables from the same source: a **client** (full game with graphics, audio, input) and a **server** (headless physics simulation). The vcxproj defines either `BT_CLIENT` or `BT_SERVER`; use `#ifdef BT_CLIENT` / `#endif` to gate client-only code at the narrowest practical scope. Collections with client-only fields use a three-method pattern: `SharedMembers()` (fields for both builds), `ClientMembers()` (client-only fields, `#ifdef BT_CLIENT`), and `Members()` which uses `std::tuple_cat` to combine them (client) or returns just `SharedMembers()` (server). See child CLAUDE.md files for subsystem-specific details.
+
 ## Key Patterns
 - **Managers**: Singletons via `gp*` globals (`gpGraphics`, `gpAudioManager`)
 - **Memory**: RAII everywhere, no manual memory management
@@ -62,29 +60,15 @@ The codebase produces two executables from the same source: a **client** (full g
 - **Flags over booleans**: Use `common::Flags<EnumType>` instead of multiple `bool` variables. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/CLAUDE.md](Common/CLAUDE.md)
 
-## Code Analysis Skills (user-initiated only)
-
-These are on-demand investigative tools the user invokes directly — they are NOT part of the C++ Code Change Process and should never be run automatically by the agent:
-
-1. **`/external-tech-debt <path>`** — Start here: broad scan that identifies and prioritizes debt across 8 categories. Reveals which areas need attention.
-2. **`/external-architecture-review <path>`** — Drill into problem areas: launches 3 parallel subagents to analyze dependencies, pattern compliance, and coupling. Explains *why* the debt exists.
-3. **`/external-refactor-clean <path>`** — Targeted cleanup: produces actionable refactoring recommendations for specific files/folders identified by the above.
-4. **`/generate-architecture-diagram <path>`** — Generates Mermaid architecture diagrams for a subsystem. Produces dependency, data flow, sequence, and component diagrams in `Documents/Architecture/`.
+## Code Analysis Skills (user-initiated only, never run automatically)
+- **`/external-tech-debt <path>`** — Broad scan, prioritizes debt across 8 categories
+- **`/external-architecture-review <path>`** — Analyzes dependencies, pattern compliance, and coupling
+- **`/external-refactor-clean <path>`** — Actionable refactoring recommendations for specific files/folders
+- **`/generate-architecture-diagram <path>`** — Generates Mermaid diagrams in `Documents/Architecture/`
 
 ## Diagnostic Logging
-`FILE_LOG(index, format, args...)` writes thread-safe formatted lines to a log file. Supports up to 4 simultaneous log files via an integer index (0-3). Use it to temporarily instrument code when debugging runtime issues.
-
-- **Choose filename**: `FILE_LOG_INIT(0, "../../../../DiagnosticLogs/ClientLog.txt")`
-- **Add logs**: Insert `FILE_LOG(0, "myTag: x={}", x)` at suspected problem areas
-- **Read the output**: `ClientLog.txt` / `ServerLog.txt` in `DiagnosticLogs/`
+`FILE_LOG(index, format, args...)` writes thread-safe formatted lines to a log file (up to 4 files via index 0-3).
+- **Init**: `FILE_LOG_INIT(0, "../../../../DiagnosticLogs/ClientLog.txt")`
+- **Log**: `FILE_LOG(0, "myTag: x={}", x)`
+- **Output**: `DiagnosticLogs/` directory
 - **IMPORTANT**: Only remove FILE_LOG()s if specifically instructed to by the user, do not add any instructions to plans to clean these up
-
-## Shell Commands
-The shell environment is bash, not PowerShell. Use Unix-style commands with forward slashes in paths:
-- **Copy files**: `cp "source" "destination"`
-- **Move files**: `mv "source" "destination"`
-- **Delete files**: `rm "path"` or `rm "file1" "file2" "file3"`
-- **List files**: `ls "path"`
-- **Create directory**: `mkdir -p "path"`
-
-Use forward slashes (`C:/Users/...`) or properly escaped backslashes in paths.

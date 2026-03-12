@@ -682,26 +682,26 @@ void ProfileManagerBase::UpdateProfileText()
 			rWorkbuffer.Push();
 			rWorkbuffer.Append("Network\n");
 
-			if (gpNetworkClient == nullptr)
+			if (gpClientNetwork == nullptr)
 			{
 				rWorkbuffer.Append("(Offline)");
 			}
 			else
 			{
-				ENetPeer* pPeer = gpNetworkClient->GetServerPeer();
+				ENetPeer* pPeer = gpClientNetwork->GetServerPeer();
 				if (pPeer != nullptr)
 				{
 					rWorkbuffer.Append("RTT: ");
 					rWorkbuffer.Append(static_cast<int64_t>(pPeer->roundTripTime));
 					rWorkbuffer.Append(" ms\nPipeline: ");
-					rWorkbuffer.AppendFloat(gpNetworkClient->GetPipelineRttUs() / 1000.0f, 1);
+					rWorkbuffer.AppendFloat(gpClientNetwork->GetPipelineRttUs() / 1000.0f, 1);
 					rWorkbuffer.Append(" ms\nLoss: ");
 					rWorkbuffer.AppendFloat(pPeer->packetLoss * 100.0f / 65536.0f, 1);
 					rWorkbuffer.Append("%\n");
 				}
 
 				rWorkbuffer.Append("In: ");
-				int64_t iBytesIn = gpNetworkClient->GetBytesInPerSecond();
+				int64_t iBytesIn = gpClientNetwork->GetBytesInPerSecond();
 				if (iBytesIn >= 1024 * 1024)
 				{
 					rWorkbuffer.AppendFloat(static_cast<float>(iBytesIn) / (1024.0f * 1024.0f), 1);
@@ -713,7 +713,7 @@ void ProfileManagerBase::UpdateProfileText()
 					rWorkbuffer.Append(" KB/s");
 				}
 				rWorkbuffer.Append("  Out: ");
-				int64_t iBytesOut = gpNetworkClient->GetBytesOutPerSecond();
+				int64_t iBytesOut = gpClientNetwork->GetBytesOutPerSecond();
 				if (iBytesOut >= 1024 * 1024)
 				{
 					rWorkbuffer.AppendFloat(static_cast<float>(iBytesOut) / (1024.0f * 1024.0f), 1);
@@ -728,7 +728,7 @@ void ProfileManagerBase::UpdateProfileText()
 				{
 					int64_t iMinAckFloor = -1;
 					int64_t iTotalRecv = 0;
-					for (const auto& rSlot : gpNetworkClient->GetCoordSlots())
+					for (const auto& rSlot : gpClientNetwork->GetCoordSlots())
 					{
 						if (rSlot.eState == CoordSubscriptionState::kActive)
 						{

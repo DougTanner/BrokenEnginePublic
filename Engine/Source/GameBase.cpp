@@ -22,19 +22,10 @@ GameBase::GameBase()
 #endif // BT_SERVER
 {
 	game::FrameInterpolate::Register();
-
-#if defined(BT_SERVER)
-	timeBeginPeriod(1);
-	mTimerHandle = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
-#endif
 }
 
 GameBase::~GameBase()
 {
-#if defined(BT_SERVER)
-	CloseHandle(mTimerHandle);
-	timeEndPeriod(1);
-#endif
 }
 
 void GameBase::ProcessInput([[maybe_unused]] bool bLostFocus, game::MenuInput& rMenuInput)
@@ -104,7 +95,7 @@ void GameBase::UpdateServer(const game::MenuInput& rMenuInput)
 
 	mGameSaveLoad.SaveLoadReplay(rMenuInput);
 
-	WaitForServerTick();
+	game::gpServerSession->WaitForTick(mTimeStep);
 
 	int64_t iFullTicks = mTimeStep.TickRealtime();
 	if (iFullTicks != 1) [[unlikely]]
@@ -125,7 +116,7 @@ void GameBase::UpdateServer(const game::MenuInput& rMenuInput)
 		++miTickCounter;
 		mfCurrentTime += game::kfDeltaTime;
 
-		PrepareServerTick();
+		game::gpServerSession->PrepareTick();
 
 		BuildAndDispatchFrameTicks(rActiveCoords, false);
 		FinalizeFrameTick(rActiveCoords, false);
@@ -138,26 +129,6 @@ void GameBase::UpdateServer(const game::MenuInput& rMenuInput)
 	}
 
 	mGameSaveLoad.Quicksave(rMenuInput);
-}
-#endif // BT_SERVER
-
-#if defined(BT_SERVER)
-void GameBase::PrepareServerTick()
-{
-	// Recompute active set each tick so new client subscriptions
-	// (set by FinalizeNewClients on the previous frame) are picked up immediately
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	game::gpServerSession->ComputeActiveSet();
-	game::gpGame->EnsureNextFrames();
-
-	// Add empty frame inputs for any newly active coords
-	for (const GridCoord& rCoord : game::gpGame->mActiveCoords)
-	{
-		if (!game::gpGame->mFrameInputs.contains(rCoord))
-		{
-			game::gpGame->mFrameInputs[rCoord];
-		}
-	}
 }
 #endif // BT_SERVER
 
@@ -242,7 +213,7 @@ void GameBase::FinalizeFrameTick([[maybe_unused]] const std::vector<GridCoord>& 
 	}
 
 #if defined(BT_SERVER)
-	BroadcastServerTick();
+	game::gpServerSession->BroadcastTick(miTickCounter);
 #endif
 
 	for (auto& [rCoord, rFrameInput] : game::gpGame->mFrameInputs)
@@ -334,50 +305,6 @@ void GameBase::Render()
 	game::gpClientSession->PostRender();
 }
 #endif // BT_CLIENT
-
-#if defined(BT_SERVER)
-void GameBase::WaitForServerTick()
-{
-	// Server sleeps until next tick (there is no VSync wait), hybrid approach: waitable timer for the bulk, then spin-wait for precision
-	constexpr std::chrono::nanoseconds kSpinMarginNs = 2000000ns;
-	std::chrono::nanoseconds remainingNs = game::kTickNs - mTimeStep.mTickRemainderNs - mTimeStep.mRealTime.GetDeltaNs();
-	std::chrono::nanoseconds sleepNs = remainingNs - kSpinMarginNs;
-	if (sleepNs > 0ns)
-	{
-		LARGE_INTEGER dueTime {.QuadPart = -(sleepNs.count() / 100)}; // Negative = relative, 100ns units
-		SetWaitableTimerEx(mTimerHandle, &dueTime, 0, nullptr, nullptr, nullptr, 0);
-		WaitForSingleObject(mTimerHandle, INFINITE);
-	}
-
-	// Spin-wait
-	while (mTimeStep.mRealTime.GetDeltaNs() + mTimeStep.mTickRemainderNs < game::kTickNs)
-	{
-	}
-
-	// Verify precision
-	constexpr std::chrono::nanoseconds kTickMarginNs = game::kTickNs / 64;
-	std::chrono::nanoseconds remainderNs = mTimeStep.mRealTime.GetDeltaNs() + mTimeStep.mTickRemainderNs - game::kTickNs;
-	static int64_t siTotalTicks = 0;
-	static int64_t siOvershootTicks = 0;
-	++siTotalTicks;
-	if ((remainderNs < 0ns || remainderNs > kTickMarginNs)) [[unlikely]]
-	{
-		++siOvershootTicks;
-		Log("Sleep/busy wait precision: remainderNs={} ({}/{}={}%)", remainderNs.count(), siOvershootTicks, siTotalTicks, siOvershootTicks * 100 / siTotalTicks);
-	}
-}
-
-void GameBase::BroadcastServerTick()
-{
-	// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	game::gpServerSession->FinalizeNewClients(miTickCounter);
-	game::gpServerSession->DetectPlayerDeaths();
-	game::gpServerSession->BroadcastStatusChanges(miTickCounter);
-	game::gpServerSession->HandleSubscriptionUpdates(miTickCounter);
-	engine::gpNetworkServer->Flush();
-}
-#endif // BT_SERVER
 
 void GameBase::PrepareActiveSet()
 {

@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Network/NetworkClient/NetworkClient.h"
+#include "Network/ClientNetwork/ClientNetwork.h"
 
 #include "Memory/MemoryManager.h"
 #include "Network/NetworkCursor.h"
@@ -28,7 +28,7 @@ static std::unique_ptr<game::Frame> DecompressAndReadFrame(const uint8_t*& pCurs
 	return pFrame;
 }
 
-void NetworkClient::ClearSubscribingPlaceholder(GridCoord coord)
+void ClientNetwork::ClearSubscribingPlaceholder(GridCoord coord)
 {
 	for (int64_t i = 0; i < std::ssize(mCoordSlots); ++i)
 	{
@@ -40,7 +40,7 @@ void NetworkClient::ClearSubscribingPlaceholder(GridCoord coord)
 	}
 }
 
-void NetworkClient::HandleServerAssignPlayer(const uint8_t* pData)
+void ClientNetwork::HandleServerAssignPlayer(const uint8_t* pData)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -54,7 +54,7 @@ void NetworkClient::HandleServerAssignPlayer(const uint8_t* pData)
 	common::Log("NetworkClient: Assigned player ID {} at grid ({},{})", iPlayerIdValue, coord.x, coord.y);
 }
 
-void NetworkClient::HandleServerPlayerState(const uint8_t* pData)
+void ClientNetwork::HandleServerPlayerState(const uint8_t* pData)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -69,7 +69,7 @@ void NetworkClient::HandleServerPlayerState(const uint8_t* pData)
 	common::Log("NetworkClient: Player {} state {} at grid ({},{})", iPlayerIdValue, static_cast<int>(eStateType), coord.x, coord.y);
 }
 
-void NetworkClient::HandleServerCoordFullState(const uint8_t* pData)
+void ClientNetwork::HandleServerCoordFullState(const uint8_t* pData)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -136,7 +136,7 @@ void NetworkClient::HandleServerCoordFullState(const uint8_t* pData)
 	FILE_LOG(0, "[NetworkClient] Slot {} now Active: coord=({},{}) ackFloor={}", uiSlotIndex, coord.x, coord.y, iTick);
 }
 
-void NetworkClient::HandleServerCoordUpdateOrResend(const uint8_t* pData, bool bProcessRtt)
+void ClientNetwork::HandleServerCoordUpdateOrResend(const uint8_t* pData, bool bProcessRtt)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -196,7 +196,7 @@ void NetworkClient::HandleServerCoordUpdateOrResend(const uint8_t* pData, bool b
 	common::Log("NetworkClient: Received coord ({},{}) slot {} frame {} (resend={})", rSlot.coord.x, rSlot.coord.y, uiSlotIndex, iTick, !bProcessRtt); // DT: TEMP
 }
 
-void NetworkClient::HandleServerDebugFrame(const uint8_t* pData)
+void ClientNetwork::HandleServerDebugFrame(const uint8_t* pData)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -219,7 +219,7 @@ void NetworkClient::HandleServerDebugFrame(const uint8_t* pData)
 	mpReceivedDebugFrame->pFrame = std::move(pFrame);
 }
 
-void NetworkClient::HandleServerConnectionResponse(const uint8_t* pData, size_t iSize)
+void ClientNetwork::HandleServerConnectionResponse(const uint8_t* pData, size_t iSize)
 {
 	const uint8_t* pCursor = pData + 1;
 	bool bAccepted = (ReadUint8(pCursor) != 0);
@@ -239,7 +239,7 @@ void NetworkClient::HandleServerConnectionResponse(const uint8_t* pData, size_t 
 	}
 }
 
-void NetworkClient::HandleServerSubscribeAccept(const uint8_t* pData)
+void ClientNetwork::HandleServerSubscribeAccept(const uint8_t* pData)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -280,7 +280,7 @@ void NetworkClient::HandleServerSubscribeAccept(const uint8_t* pData)
 	common::Log("NetworkClient: Subscribe accepted slot {} coord ({},{})", uiSlotIndex, coord.x, coord.y);
 }
 
-void NetworkClient::HandleServerUnsubscribeAck(const uint8_t* pData)
+void ClientNetwork::HandleServerUnsubscribeAck(const uint8_t* pData)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 

@@ -1,26 +1,18 @@
 # `/Engine/Source/Input/`
 
-Engine-level hardware input polling for keyboard, mouse, and gamepad. Client-only instantiation (`#ifdef BT_CLIENT` in Main.cpp); the class compiles in both builds but `gpRawInputManager` is null in server builds. Code that accesses the global pointer (e.g., WndProc, GameBase) null-checks before use.
+Engine-level hardware input polling for keyboard, mouse, and gamepad. Client-only (`#ifdef BT_CLIENT`); compiles in both builds but `gpRawInputManager` is null on the server.
 
-**Global**: `gpRawInputManager` (client-only, null in server builds)
+## Architecture
 
-## RawInputManager
+**RawInputManager** polls all input devices each frame and populates a `RawInput` struct with current-frame state. Keyboard capture uses Win32 Raw Input API (event-driven via `HandleRawInput`); mouse and gamepad use DirectXTK (polled). Mouse position is normalized against framebuffer dimensions.
 
-Central input system that polls all devices each frame and populates a `RawInput` struct with current state. Keyboard uses Win32 Raw Input API for event-driven capture; mouse and gamepad use DirectXTK for polled state queries. Mouse position normalization uses Graphics framebuffer dimensions (client-only via `#ifdef BT_CLIENT`). Also provides gamepad vibration control and cursor trapping.
+**RawInput** is a flat struct aggregating keyboard, mouse, and gamepad state for a single frame. Consumed by game-level input processing which compares consecutive frames to detect press/release transitions.
 
-**RawInput Struct**: Flat struct aggregating current-frame state across all supported input devices. Populated by RawInputManager each frame and consumed by game-level input processing.
+## Key Behaviors
 
-## Design Patterns
-
-**State-Only Tracking**: Tracks current button state only, not transitions. Game-specific input classes compare frames to detect press/release events.
-
-**Focus-Aware**: Registers/unregisters raw input devices on window focus changes. Clears keyboard state on focus gain to prevent stuck keys. Suspends gamepad polling when unfocused.
-
-**Cursor Trapping**: Constrains cursor to window bounds during active gameplay, driven by `game::gpGame->ShouldTrapCursor()`.
-
-**Workbuffer Usage**: `HandleRawInput()` uses the thread-local workbuffer (`PushBuffer`/`Pop`) for temporary allocation when parsing Win32 raw input messages.
-
-**Single Gamepad**: Only gamepad index 0 is supported.
+- **State-only tracking**: Records current button state, not transitions. Game-layer input classes diff frames to detect press/release
+- **Focus-aware**: Registers/unregisters raw input devices on window focus changes; clears keyboard state on focus gain to prevent stuck keys; suspends gamepad polling when unfocused
+- **Cursor trapping**: Constrains cursor to window bounds during gameplay, driven by `game::gpGame->ShouldTrapCursor()`
 
 ## See Also
-- Game-level input processing: [../../../Projects/BrokenEngineSandbox/Source/Input/CLAUDE.md](../../../Projects/BrokenEngineSandbox/Source/Input/CLAUDE.md) - Converts RawInput into game-specific MenuInput and FrameInput
+- Game-level input: [Projects/BrokenEngineSandbox/Source/Input/CLAUDE.md](../../../Projects/BrokenEngineSandbox/Source/Input/CLAUDE.md)

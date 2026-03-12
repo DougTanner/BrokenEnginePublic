@@ -22,8 +22,8 @@ graph TD
         gpFileManager["gpFileManager<br/>FileManager"]:::shared
         gpNetworkManager["gpNetworkManager<br/>NetworkManager"]:::shared
         gpIslandTerrain["gpIslandTerrain<br/>IslandTerrain"]:::shared
-        gpNetworkClient["gpNetworkClient<br/>NetworkClient"]:::clientOnly
-        gpNetworkServer["gpNetworkServer<br/>NetworkServer"]:::serverOnly
+        gpClientNetwork["gpClientNetwork<br/>ClientNetwork"]:::clientOnly
+        gpServerNetwork["gpServerNetwork<br/>ServerNetwork"]:::serverOnly
 
         subgraph gfx ["Graphics (client-only)"]
             gpGraphics["gpGraphics<br/>Graphics"]:::clientOnly
@@ -67,8 +67,8 @@ graph TD
     gpGame -->|uses| gpGraphics
     gpGame -->|owns| gpClientSession
     gpGame -->|owns| gpServerSession
-    gpClientSession -->|uses| gpNetworkClient
-    gpServerSession -->|uses| gpNetworkServer
+    gpClientSession -->|uses| gpClientNetwork
+    gpServerSession -->|uses| gpServerNetwork
     gpGame -->|uses| gpFileManager
 ```
 
@@ -105,6 +105,6 @@ sequenceDiagram
     Main->>Engine: NetworkManager
     Main->>Engine: IslandTerrain
     Main->>Game: Game (gpGame, creates ServerSession)
-    Main->>Engine: NetworkServer (port 27015)
+    Main->>Engine: ServerNetwork (port 27015)
     Note over Main: Main Loop (headless)
 ```

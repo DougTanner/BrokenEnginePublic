@@ -20,6 +20,7 @@ Updates CLAUDE.md files in directories where code has been modified during this 
 2. **Create or update CLAUDE.md**:
    - If no CLAUDE.md exists in an affected directory, create one
    - If one exists, update only the sections affected by the code changes
+   - If the existing file exceeds the 20-50 line target, trim bloated sections (even unrelated ones) to bring it closer to target
    - The CLAUDE.md file should ONLY reflect what is CURRENTLY in the code
    - DO NOT mention changes, fixes, or reference what was previously there
 
@@ -61,14 +62,18 @@ Updates CLAUDE.md files in directories where code has been modified during this 
 - Don't list individual variables, members, constants, or parameters
 - Don't enumerate every struct member, enum value, or flag
 - Don't provide member-by-member breakdowns
+- Don't narrate method internals or call chains (e.g., "UpdateClient() calls PollAndReconcile() which calls X then Y then Z") — that's what the code is for
+- Don't duplicate content from `Documents/Architecture/` — link to it instead
 
 **Bad examples:**
 - "`bGamepad` - True if gamepad mode active"
 - "`kfGamepadThreshold = 0.1f` - Thumbstick deadzone"
 - "Position tracking: `pVecPositions[]`, `pVecVelocities[]`"
+- "`UpdateServer()` calls `PreTickNetwork()` before physics, handles quickload/replay, calls `WaitForTick()` for the server tick timer, then runs physics..."
 
 **Good alternative:**
 - "Contains gamepad state, mouse position, and menu action flags"
+- "Orchestrates the server main loop (network polling, physics ticks, broadcast). See [Architecture doc](link) for detailed flow."
 
 ### Keep it High-Level
 - Readers should understand system architecture and responsibilities
@@ -78,7 +83,7 @@ Updates CLAUDE.md files in directories where code has been modified during this 
 ## Important Notes
 
 - **Context window awareness**: These files will be added to an LLM's finite context window. Balance clarity against conciseness.
-- **No duplication**: DO NOT repeat details from CLAUDE.md files in parent directories
+- **No duplication**: DO NOT repeat details from CLAUDE.md files in parent directories or from `Documents/Architecture/` docs
 - **Cross-references**: DO reference child directory CLAUDE.md files with links when relevant
 - **Consistency**: Maintain consistency with existing CLAUDE.md style in the codebase
 - **Purpose**: Help Claude quickly understand the codebase, not serve as an API reference

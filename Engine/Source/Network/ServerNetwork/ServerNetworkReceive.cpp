@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Network/NetworkServer/NetworkServer.h"
+#include "Network/ServerNetwork/ServerNetwork.h"
 
 #include "Memory/MemoryManager.h"
 #include "Network/NetworkCursor.h"
@@ -8,7 +8,7 @@
 namespace engine
 {
 
-void NetworkServer::HandleClientAckStream(const uint8_t* pData, int64_t iClientId)
+void ServerNetwork::HandleClientAckStream(const uint8_t* pData, int64_t iClientId)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -60,7 +60,7 @@ void NetworkServer::HandleClientAckStream(const uint8_t* pData, int64_t iClientI
 	}
 }
 
-void NetworkServer::HandleClientSpawnRequest(const uint8_t* pData, int64_t iClientId)
+void ServerNetwork::HandleClientSpawnRequest(const uint8_t* pData, int64_t iClientId)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 	uint8_t uiFlags = ReadUint8(pCursor);
@@ -75,7 +75,7 @@ void NetworkServer::HandleClientSpawnRequest(const uint8_t* pData, int64_t iClie
 	mPendingSpawnRequests.push_back({iClientId, flags});
 }
 
-void NetworkServer::HandleClientDesyncReport(const uint8_t* pData)
+void ServerNetwork::HandleClientDesyncReport(const uint8_t* pData)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -89,7 +89,7 @@ void NetworkServer::HandleClientDesyncReport(const uint8_t* pData)
 	common::Log("NetworkServer: Desync report frame {} grid ({},{}) expected={} actual={}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), uiExpectedCrc), common::ToHex(std::span(pcActual), uiActualCrc));
 }
 
-void NetworkServer::HandleClientDebugFrameRequest(const uint8_t* pData, ENetPeer* pPeer)
+void ServerNetwork::HandleClientDebugFrameRequest(const uint8_t* pData, ENetPeer* pPeer)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -150,7 +150,7 @@ void NetworkServer::HandleClientDebugFrameRequest(const uint8_t* pData, ENetPeer
 	rWorkbuffer.Pop();
 }
 
-void NetworkServer::HandleClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
+void ServerNetwork::HandleClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
 {
 	char pcClientConfig[64] = {};
 	size_t iLength = std::min(iSize - 1, sizeof(pcClientConfig) - 1);
@@ -175,7 +175,7 @@ void NetworkServer::HandleClientHello(const uint8_t* pData, size_t iSize, ENetPe
 	SendConnectionResponse(pPeer, true, nullptr);
 }
 
-void NetworkServer::HandleClientSubscribe(const uint8_t* pData, int64_t iClientId)
+void ServerNetwork::HandleClientSubscribe(const uint8_t* pData, int64_t iClientId)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -215,7 +215,7 @@ void NetworkServer::HandleClientSubscribe(const uint8_t* pData, int64_t iClientI
 	mPendingNewSubscriptions.push_back({iClientId, iSlot, coord});
 }
 
-void NetworkServer::HandleClientUnsubscribe(const uint8_t* pData, int64_t iClientId)
+void ServerNetwork::HandleClientUnsubscribe(const uint8_t* pData, int64_t iClientId)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 

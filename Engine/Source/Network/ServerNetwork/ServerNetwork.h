@@ -124,12 +124,12 @@ struct BufferedFullFrame
 	std::unordered_map<GridCoord, std::string> serializedFrames;
 };
 
-class NetworkServer
+class ServerNetwork
 {
 public:
 
-	NetworkServer(uint16_t uiPort);
-	~NetworkServer();
+	ServerNetwork(uint16_t uiPort);
+	~ServerNetwork();
 
 	void Poll();
 
@@ -192,6 +192,6 @@ private:
 	std::deque<DelayedPacket> mDelayedPackets;
 };
 
-inline NetworkServer* gpNetworkServer = nullptr;
+inline ServerNetwork* gpServerNetwork = nullptr;
 
 } // namespace engine

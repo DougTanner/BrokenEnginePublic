@@ -66,8 +66,8 @@
 #include "Input/RawInputManager.h"
 
 // Network client
-#include "Network/NetworkClient/NetworkClient.h"
-#include "Network/NetworkClient/ClientSessionBase.h"
+#include "Network/ClientNetwork/ClientNetwork.h"
+#include "Network/ClientNetwork/ClientSessionBase.h"
 
 // Graphics (Islands is client-only GPU rendering)
 #include "Graphics/Islands.h"
@@ -78,8 +78,8 @@
 #include "Frame/IslandTerrain.h"
 
 #if defined(BT_SERVER)
-#include "Network/NetworkServer/NetworkServer.h"
-#include "Network/NetworkServer/ServerSessionBase.h"
+#include "Network/ServerNetwork/ServerNetwork.h"
+#include "Network/ServerNetwork/ServerSessionBase.h"
 #include "Server/ServerDisplay.h"
 #endif
 

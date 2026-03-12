@@ -1,61 +1,33 @@
-# `/Engine/Source/Graphics/Managers/`
+# Managers - Vulkan Renderer Manager Singletons
+
+## Overview
+
+Singleton manager classes for the Vulkan renderer, each accessed via a global pointer (e.g., `gpTextureManager`). All managers are created in strict dependency order during Graphics construction and destroyed in reverse order via RAII. They support resource recreation for window resize and device-lost recovery.
 
 See also: [Graphics Pipeline](../../../../Documents/Architecture/GraphicsPipeline.md)
 
-Manager classes for the Vulkan renderer. All managers are singletons with global pointers initialized during Graphics construction in strict dependency order.
+## Key Classes
 
-## Architecture Patterns
+- **InstanceManager** (`gpInstanceManager`) - Vulkan instance creation and physical device selection
+- **DeviceManager** (`gpDeviceManager`) - Logical device, queues, descriptor pool, VmaAllocator
+- **SwapchainManager** (`gpSwapchainManager`) - Swapchain, framebuffers, depth textures, synchronization
+- **CommandBufferManager** (`gpCommandBufferManager`) - Command pool and buffer management (Global/Main types)
+- **BufferManager** (`gpBufferManager`) - GPU buffer creation (vertex, index, uniform, storage)
+- **TextureManager** (`gpTextureManager`) - Texture lifecycle, samplers, and delegates to sub-objects: TextureDescriptors (bindless descriptor Set 0), TextureCache (GPU readback, file caching, BRDF LUT), RenderTargetTextures (shadows, lighting, smoke, wind)
+- **TextureUploadManager** (`gpTextureUploadManager`) - Background GPU texture uploads on a dedicated transfer queue
+- **TextManager** (`gpTextManager`) - Font rendering and text layout
+- **PipelineManager** (`gpPipelineManager`) - SPIR-V shader loading, graphics/compute pipeline creation; delegates dynamic per-collection pipelines to DynamicPipelines sub-object
+- **ParticleManager** (`gpParticleManager`) - GPU particle system with compute shaders
+- **ImGuiManager** (`gpImGuiManager`) - Dear ImGui UI rendering (menus, dialogs, HUD)
 
-**Manager Lifecycle**:
-- Created in strict dependency order during Graphics construction
-- Never individually destroyed - only during Graphics destruction
-- Support resource recreation for window resize and device changes
-- Global pointer access (e.g., `gpTextureManager`) for cross-system communication
+## Architecture Notes
 
-**Vulkan Resource Management**:
-- Managers own and manage Vulkan objects with proper cleanup
-- Resource updates only after fence synchronization
-- Descriptor set management for dynamic resource binding
-- Pipeline state object caching and reuse
-- VMA (Vulkan Memory Allocator) handles all GPU memory allocation
-
-## Manager Initialization Order
-
-1. InstanceManager -> 2. DeviceManager -> 3. SwapchainManager -> 4. CommandBufferManager -> 5. BufferManager -> 6. TextureManager -> 7. TextManager -> 8. Islands (GPU terrain quads) -> 9. PipelineManager (loads shaders + creates pipelines) -> 10. ParticleManager -> 11. ImGuiManager
-
-## Managers
-
-| Manager | Global | Purpose | Docs |
-|---------|--------|---------|------|
-| BufferManager | `gpBufferManager` | GPU buffers (vertex, uniform, storage) | [BufferManager.CLAUDE.md](BufferManager.CLAUDE.md) |
-| CommandBufferManager | `gpCommandBufferManager` | Command recording/submission | [CommandBufferManager.CLAUDE.md](CommandBufferManager.CLAUDE.md) |
-| DeviceManager | `gpDeviceManager` | Logical device, queues, VMA | [DeviceManager.CLAUDE.md](DeviceManager.CLAUDE.md) |
-| ImGuiManager | `gpImGuiManager` | Dear ImGui UI rendering (menus, modal dialogs, HUD) | [ImGuiManager.CLAUDE.md](ImGuiManager.CLAUDE.md) |
-| InstanceManager | `gpInstanceManager` | Vulkan instance, GPU selection | [InstanceManager.CLAUDE.md](InstanceManager.CLAUDE.md) |
-| ParticleManager | `gpParticleManager` | GPU particle system | [ParticleManager.CLAUDE.md](ParticleManager.CLAUDE.md) |
-| PipelineManager | `gpPipelineManager` | Shader loading, graphics/compute pipelines, delegates dynamic pipelines to DynamicPipelines sub-object | [PipelineManager.CLAUDE.md](PipelineManager.CLAUDE.md) |
-| DynamicPipelines | (owned by PipelineManager) | Dynamic per-collection pipeline creation and CRC-keyed lookup maps for model and non-model pipelines | |
-| SwapchainManager | `gpSwapchainManager` | Swapchain, framebuffers, sync | [SwapchainManager.CLAUDE.md](SwapchainManager.CLAUDE.md) |
-| TextManager | `gpTextManager` | Font rendering, text layout | [TextManager.CLAUDE.md](TextManager.CLAUDE.md) |
-| TextureManager | `gpTextureManager` | Textures, samplers, delegates to sub-objects | [TextureManager.CLAUDE.md](TextureManager.CLAUDE.md) |
-| TextureDescriptors | (owned by TextureManager) | Global descriptor Set 0, bindless texture array, per-pipeline binding tracking | |
-| TextureCache | (owned by TextureManager) | GPU-to-CPU image readback, file-based texture caching, PBR BRDF LUT | |
-| RenderTargetTextures | (owned by TextureManager) | Render targets: lighting, shadows, smoke, wind, object shadows, terrain | |
-| TextureUploadManager | `gpTextureUploadManager` | Background GPU texture uploads | [TextureUploadManager.CLAUDE.md](TextureUploadManager.CLAUDE.md) |
-
-## Vulkan-Specific Patterns
-
-### Resource Synchronization
-- Fence wait required before all GPU resource updates
-- Semaphore chain: Image acquisition -> Global -> Main -> ImGui -> Presentation
+- Initialization order is strict: Instance, Device, Swapchain, CommandBuffer, Buffer, Texture, Text, Islands, Pipeline, Particle, ImGui. Violating this crashes or causes validation errors
+- Fence wait required before all GPU resource updates to avoid modifying in-use resources
+- Single descriptor pool in DeviceManager serves all pipelines; global Set 0 owned by TextureDescriptors, per-pipeline Sets 1 and 2
 - Per-framebuffer resource duplication enables parallel frame processing
+- Semaphore chain: Image acquisition, Global, Main, ImGui, Presentation
 
-### Descriptor Management
-- Single descriptor pool in DeviceManager serves all pipelines
-- Global Set 0 owned by TextureManager's `mTextureDescriptors` sub-object, shared by all non-compute graphics pipelines
-- Each pipeline manages its own Sets 1 and 2
+## See Also
 
-### Pipeline State
-- Pipelines are immutable after creation
-- Dynamic state for viewport and scissor
-- Pipeline creation crashes if required shader not found
+- Individual manager docs: [BufferManager](BufferManager.CLAUDE.md) | [CommandBufferManager](CommandBufferManager.CLAUDE.md) | [DeviceManager](DeviceManager.CLAUDE.md) | [ImGuiManager](ImGuiManager.CLAUDE.md) | [InstanceManager](InstanceManager.CLAUDE.md) | [ParticleManager](ParticleManager.CLAUDE.md) | [PipelineManager](PipelineManager.CLAUDE.md) | [SwapchainManager](SwapchainManager.CLAUDE.md) | [TextManager](TextManager.CLAUDE.md) | [TextureManager](TextureManager.CLAUDE.md) | [TextureUploadManager](TextureUploadManager.CLAUDE.md)

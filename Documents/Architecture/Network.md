@@ -15,16 +15,16 @@ graph TD
     subgraph engine_network ["engine:: Network Subsystem"]
         gpNetworkManager["gpNetworkManager<br/>NetworkManager<br/>(ENet lifecycle)<br/>kiMaxEnetCoordSlots=64<br/>kuiChannelCount=130<br/>(2 control + 64 slot pairs)<br/>IsUnreliableChannel()"]:::shared
 
-        gpNetworkClient["gpNetworkClient<br/>NetworkClient<br/>(mpHost, mpServerPeer)"]:::clientOnly
-        gpNetworkServer["gpNetworkServer<br/>NetworkServer<br/>(mpHost, mClients[])"]:::serverOnly
+        gpClientNetwork["gpClientNetwork<br/>ClientNetwork<br/>(mpHost, mpServerPeer)"]:::clientOnly
+        gpServerNetwork["gpServerNetwork<br/>ServerNetwork<br/>(mpHost, mClients[])"]:::serverOnly
 
         protocol["NetworkProtocol.h<br/>PacketType enum (16 types)<br/>PlayerStateType enum<br/>(kSpawned, kChangedFrame, kDied)<br/>Per-slot channel helpers"]:::protocol
         serialization["NetworkSerialization<br/>StatusChange compress/decompress<br/>(LZ4)"]:::shared
         cursor["NetworkCursor<br/>Inline binary read/write helpers<br/>(ReadUint8..ReadVec4, ReadGridCoord,<br/>WriteUint8..WriteVec4)"]:::shared
         discovery_scanner["NetworkDiscoveryScanner<br/>(UDP broadcast probe)"]:::clientOnly
         discovery_responder["NetworkDiscoveryResponder<br/>(UDP listen on port 27016)"]:::serverOnly
-        client_session_base["ClientSessionBase<br/>(owns NetworkClient +<br/>DiscoveryScanner)"]:::clientOnly
-        session_base["ServerSessionBase<br/>(owns DiscoveryResponder)"]:::serverOnly
+        client_session_base["ClientSessionBase<br/>(owns ClientNetwork +<br/>DiscoveryScanner)"]:::clientOnly
+        session_base["ServerSessionBase<br/>(owns DiscoveryResponder,<br/>mTimerHandle for tick sleep)"]:::serverOnly
     end
 
     subgraph server_data ["Server-Side Data"]
@@ -39,21 +39,21 @@ graph TD
         delayed["mDelayedPackets<br/>(network simulation)"]:::clientOnly
     end
 
-    gpNetworkManager -->|initializes| gpNetworkClient
-    gpNetworkManager -->|initializes| gpNetworkServer
-    gpNetworkClient -->|uses| protocol
-    gpNetworkServer -->|uses| protocol
-    gpNetworkClient -->|uses| serialization
-    gpNetworkServer -->|uses| serialization
-    gpNetworkClient -->|uses| cursor
-    gpNetworkServer -->|uses| cursor
+    gpNetworkManager -->|initializes| gpClientNetwork
+    gpNetworkManager -->|initializes| gpServerNetwork
+    gpClientNetwork -->|uses| protocol
+    gpServerNetwork -->|uses| protocol
+    gpClientNetwork -->|uses| serialization
+    gpServerNetwork -->|uses| serialization
+    gpClientNetwork -->|uses| cursor
+    gpServerNetwork -->|uses| cursor
     serialization -->|uses| cursor
-    gpNetworkServer -->|manages| client_conn
-    gpNetworkServer -->|stores| buffered
-    gpNetworkServer -->|queues| pending
-    gpNetworkClient -->|buffers| received
-    gpNetworkClient -->|tracks| ack_state
-    client_session_base -->|owns| gpNetworkClient
+    gpServerNetwork -->|manages| client_conn
+    gpServerNetwork -->|stores| buffered
+    gpServerNetwork -->|queues| pending
+    gpClientNetwork -->|buffers| received
+    gpClientNetwork -->|tracks| ack_state
+    client_session_base -->|owns| gpClientNetwork
     client_session_base -->|owns| discovery_scanner
     session_base -->|owns| discovery_responder
     discovery_scanner -->|probes| discovery_responder
@@ -64,9 +64,9 @@ graph TD
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 sequenceDiagram
-    participant C as NetworkClient
+    participant C as ClientNetwork
     participant E as ENet
-    participant S as NetworkServer
+    participant S as ServerNetwork
 
     C->>E: enet_host_connect()
     E->>S: CONNECT event

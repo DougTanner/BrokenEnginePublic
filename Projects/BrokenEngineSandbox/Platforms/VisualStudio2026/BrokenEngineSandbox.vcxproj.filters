@@ -228,16 +228,16 @@
     <ClInclude Include="..\..\Source\Network\ServerSession.h">
       <Filter>Game\Network</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkClient\ClientSessionBase.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\ClientNetwork\ClientSessionBase.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkServer\ServerSessionBase.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\ServerNetwork\ServerSessionBase.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h">
       <Filter>Engine\Input</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkClient\NetworkClient.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\ClientNetwork\ClientNetwork.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkCursor.h">
@@ -255,7 +255,7 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSerialization.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkServer\NetworkServer.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\ServerNetwork\ServerNetwork.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.h">
@@ -635,13 +635,13 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Input\RawInputManager.cpp">
       <Filter>Engine\Input</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkClient\NetworkClient.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\ClientNetwork\ClientNetwork.cpp">
       <Filter>Engine\Network</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkClient\NetworkClientReceive.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\ClientNetwork\ClientNetworkReceive.cpp">
       <Filter>Engine\Network</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkClient\NetworkClientSend.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\ClientNetwork\ClientNetworkSend.cpp">
       <Filter>Engine\Network</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkDiscovery.cpp">
@@ -653,13 +653,13 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkSerialization.cpp">
       <Filter>Engine\Network</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkServer\NetworkServer.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\ServerNetwork\ServerNetwork.cpp">
       <Filter>Engine\Network</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkServer\NetworkServerReceive.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\ServerNetwork\ServerNetworkReceive.cpp">
       <Filter>Engine\Network</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkServer\NetworkServerSend.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\ServerNetwork\ServerNetworkSend.cpp">
       <Filter>Engine\Network</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\CrashReport.cpp">

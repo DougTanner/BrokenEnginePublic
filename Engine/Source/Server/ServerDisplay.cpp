@@ -2,7 +2,7 @@
 
 #include "Server/ServerDisplay.h"
 
-#include "Network/NetworkServer/NetworkServer.h"
+#include "Network/ServerNetwork/ServerNetwork.h"
 
 #include "Game.h"
 #include "Frame/Collections/Players/Players.h"
@@ -92,7 +92,7 @@ void PaintServerDisplay(HWND hWnd)
 	float fCurrentTime = rOriginFrame.interpolate.fCurrentTime;
 
 	// Gather connected client info
-	const std::vector<ClientConnection>& rClients = gpNetworkServer->GetClients();
+	const std::vector<ClientConnection>& rClients = gpServerNetwork->GetClients();
 	int64_t iClientCount = static_cast<int64_t>(rClients.size());
 
 	int64_t iActiveCells = static_cast<int64_t>(game::gpGame->mActiveCoords.size());

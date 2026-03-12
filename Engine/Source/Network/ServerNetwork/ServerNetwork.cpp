@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Network/NetworkServer/NetworkServer.h"
+#include "Network/ServerNetwork/ServerNetwork.h"
 
 #include "Memory/MemoryManager.h"
 #include "Network/NetworkCursor.h"
@@ -8,9 +8,9 @@
 namespace engine
 {
 
-NetworkServer::NetworkServer(uint16_t uiPort)
+ServerNetwork::ServerNetwork(uint16_t uiPort)
 {
-	gpNetworkServer = this;
+	gpServerNetwork = this;
 
 	ENetAddress address {};
 	address.host = ENET_HOST_ANY;
@@ -29,7 +29,7 @@ NetworkServer::NetworkServer(uint16_t uiPort)
 	mCompressionBuffer.resize(kiMaxPacketSize);
 }
 
-NetworkServer::~NetworkServer()
+ServerNetwork::~ServerNetwork()
 {
 	if (mpHost != nullptr)
 	{
@@ -37,15 +37,15 @@ NetworkServer::~NetworkServer()
 		enet_host_destroy(mpHost);
 	}
 
-	gpNetworkServer = nullptr;
+	gpServerNetwork = nullptr;
 }
 
-void NetworkServer::Flush()
+void ServerNetwork::Flush()
 {
 	enet_host_flush(mpHost);
 }
 
-void NetworkServer::Poll()
+void ServerNetwork::Poll()
 {
 	if (mpHost == nullptr)
 	{
@@ -120,7 +120,7 @@ void NetworkServer::Poll()
 	}
 }
 
-void NetworkServer::HandleConnect(ENetEvent& rEvent)
+void ServerNetwork::HandleConnect(ENetEvent& rEvent)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
@@ -145,7 +145,7 @@ void NetworkServer::HandleConnect(ENetEvent& rEvent)
 	FILE_LOG(0, "[NetworkServer] Connect: clientId={} ip={} port={}", mClients.back().iClientId, pcAddress, rEvent.peer->address.port);
 }
 
-void NetworkServer::HandleDisconnect(ENetEvent& rEvent)
+void ServerNetwork::HandleDisconnect(ENetEvent& rEvent)
 {
 	int64_t iClientId = reinterpret_cast<int64_t>(rEvent.peer->data);
 
@@ -168,12 +168,12 @@ void NetworkServer::HandleDisconnect(ENetEvent& rEvent)
 	FILE_LOG(0, "[NetworkServer] Disconnect: clientId={} ip={} port={}", iClientId, pcAddress, rEvent.peer->address.port);
 }
 
-void NetworkServer::HandleReceive(ENetEvent& rEvent)
+void ServerNetwork::HandleReceive(ENetEvent& rEvent)
 {
 	HandleReceive(rEvent.packet->data, rEvent.packet->dataLength, rEvent.peer);
 }
 
-void NetworkServer::HandleReceive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
+void ServerNetwork::HandleReceive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 {
 	if (iSize < 1)
 	{
@@ -211,7 +211,7 @@ void NetworkServer::HandleReceive(const uint8_t* pData, size_t iSize, ENetPeer* 
 	}
 }
 
-void NetworkServer::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates)
+void ServerNetwork::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates)
 {
 	common::Log("NetworkServer: BufferFrame tick {} coords={}", iTick, rGridUpdates.size()); // DT: TEMP
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -252,7 +252,7 @@ void NetworkServer::BufferFrame(int64_t iTick, const std::vector<std::pair<GridC
 	});
 }
 
-void NetworkServer::BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames)
+void ServerNetwork::BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
@@ -275,7 +275,7 @@ void NetworkServer::BufferFullFrame(int64_t iTick, const std::vector<std::pair<G
 	}
 }
 
-const PerCoordBufferedFrame* NetworkServer::FindBufferedFrame(GridCoord coord, int64_t iTick) const
+const PerCoordBufferedFrame* ServerNetwork::FindBufferedFrame(GridCoord coord, int64_t iTick) const
 {
 	auto coordBufferIt = mPerCoordBufferedFrames.find(coord);
 	if (coordBufferIt == mPerCoordBufferedFrames.end())
@@ -295,7 +295,7 @@ const PerCoordBufferedFrame* NetworkServer::FindBufferedFrame(GridCoord coord, i
 	return &rCoordBuffer[static_cast<size_t>(iIndex)];
 }
 
-int NetworkServer::CompressToBuffer(const char* pData, int iSize)
+int ServerNetwork::CompressToBuffer(const char* pData, int iSize)
 {
 	int iMaxCompressed = LZ4_compressBound(iSize);
 	if (static_cast<int>(mCompressionBuffer.size()) < iMaxCompressed)
@@ -305,7 +305,7 @@ int NetworkServer::CompressToBuffer(const char* pData, int iSize)
 	return LZ4_compress_default(pData, reinterpret_cast<char*>(mCompressionBuffer.data()), iSize, iMaxCompressed);
 }
 
-void NetworkServer::RemoveClient(int64_t iClientId)
+void ServerNetwork::RemoveClient(int64_t iClientId)
 {
 	for (size_t i = 0; i < mClients.size(); ++i)
 	{
@@ -321,7 +321,7 @@ void NetworkServer::RemoveClient(int64_t iClientId)
 	}
 }
 
-ClientConnection* NetworkServer::FindClient(int64_t iClientId)
+ClientConnection* ServerNetwork::FindClient(int64_t iClientId)
 {
 	for (ClientConnection& rClient : mClients)
 	{
@@ -333,7 +333,7 @@ ClientConnection* NetworkServer::FindClient(int64_t iClientId)
 	return nullptr;
 }
 
-const ClientConnection* NetworkServer::FindClient(int64_t iClientId) const
+const ClientConnection* ServerNetwork::FindClient(int64_t iClientId) const
 {
 	for (const ClientConnection& rClient : mClients)
 	{

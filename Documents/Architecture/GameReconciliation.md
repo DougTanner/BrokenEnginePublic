@@ -99,7 +99,7 @@ flowchart TD
 
         subgraph post_tick_detail ["PostTick()"]
             POLL["PollNetwork()<br/>Process player state notifications<br/>(spawn/frame change/death),<br/>apply full states,<br/>buffer delta updates"]:::network
-            SEND["NetworkClient::SendAck()<br/>NetworkClient::Flush()"]:::network
+            SEND["ClientNetwork::SendAck()<br/>ClientNetwork::Flush()"]:::network
             POLL --> SEND
         end
 
@@ -143,7 +143,7 @@ CRC mismatch triggers a request for the server's full frame, then per-field comp
 sequenceDiagram
     participant Worker as Reconcile Worker
     participant Main as Main Thread
-    participant Net as NetworkClient
+    participant Net as ClientNetwork
     participant Server
 
     Worker->>Worker: CRC mismatch detected

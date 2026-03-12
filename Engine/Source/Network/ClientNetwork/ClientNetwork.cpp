@@ -1,15 +1,15 @@
 #include "Pch.h"
 
-#include "Network/NetworkClient/NetworkClient.h"
+#include "Network/ClientNetwork/ClientNetwork.h"
 
 #include "Network/NetworkCursor.h"
 
 namespace engine
 {
 
-NetworkClient::NetworkClient(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots)
+ClientNetwork::ClientNetwork(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots)
 {
-	gpNetworkClient = this;
+	gpClientNetwork = this;
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
@@ -36,7 +36,7 @@ NetworkClient::NetworkClient(const char* pServerAddress, uint16_t uiPort, int64_
 	common::Log("NetworkClient: Connecting to server"); // DT: TEMP
 }
 
-NetworkClient::~NetworkClient()
+ClientNetwork::~ClientNetwork()
 {
 	common::Log("NetworkClient: Destroying"); // DT: TEMP
 	if (mpServerPeer != nullptr && mbConnected)
@@ -65,11 +65,11 @@ NetworkClient::~NetworkClient()
 		enet_host_destroy(mpHost);
 	}
 
-	gpNetworkClient = nullptr;
+	gpClientNetwork = nullptr;
 	common::Log("NetworkClient: Destroyed"); // DT: TEMP
 }
 
-void NetworkClient::Poll()
+void ClientNetwork::Poll()
 {
 	if (mpHost == nullptr)
 	{
@@ -170,12 +170,12 @@ void NetworkClient::Poll()
 	muiPrevSentData = uiSentData;
 }
 
-void NetworkClient::HandleReceive(ENetEvent& rEvent)
+void ClientNetwork::HandleReceive(ENetEvent& rEvent)
 {
 	HandleReceive(rEvent.packet->data, rEvent.packet->dataLength);
 }
 
-void NetworkClient::HandleReceive(const uint8_t* pData, size_t iSize)
+void ClientNetwork::HandleReceive(const uint8_t* pData, size_t iSize)
 {
 	if (iSize < 1)
 	{
@@ -218,7 +218,7 @@ void NetworkClient::HandleReceive(const uint8_t* pData, size_t iSize)
 	}
 }
 
-void NetworkClient::TrackReceivedTick(int64_t iSlot, int64_t iTick)
+void ClientNetwork::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 {
 	if (mbDesyncDebugMode)
 	{
@@ -269,12 +269,12 @@ void NetworkClient::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 	common::Log("NetworkClient: TrackReceivedTick slot {} tick {} ackFloor={} bitfield={:#x}", iSlot, iTick, rSlot.iAckFloor, rSlot.uiReceivedBitfield); // DT: TEMP
 }
 
-void NetworkClient::Flush()
+void ClientNetwork::Flush()
 {
 	enet_host_flush(mpHost);
 }
 
-void NetworkClient::Disconnect()
+void ClientNetwork::Disconnect()
 {
 	common::Log("NetworkClient: Graceful disconnect"); // DT: TEMP
 	if (mpServerPeer != nullptr && mbConnected)

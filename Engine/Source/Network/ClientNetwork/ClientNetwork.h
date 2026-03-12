@@ -73,12 +73,12 @@ struct ReceivedDebugFrame
 	std::unique_ptr<game::Frame> pFrame;
 };
 
-class NetworkClient
+class ClientNetwork
 {
 public:
 
-	NetworkClient(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots);
-	~NetworkClient();
+	ClientNetwork(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots);
+	~ClientNetwork();
 
 	void Poll();
 
@@ -162,6 +162,6 @@ private:
 	std::deque<DelayedPacket> mDelayedPackets;
 };
 
-inline NetworkClient* gpNetworkClient = nullptr;
+inline ClientNetwork* gpClientNetwork = nullptr;
 
 } // namespace engine

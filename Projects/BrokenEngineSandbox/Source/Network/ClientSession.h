@@ -2,7 +2,7 @@
 
 #if defined(BT_CLIENT)
 
-#include "Network/NetworkClient/ClientSessionBase.h"
+#include "Network/ClientNetwork/ClientSessionBase.h"
 
 namespace game
 {
@@ -22,7 +22,7 @@ public:
 	~ClientSession() override;
 
 	// Connection
-	bool IsNetworkMode() const { return mpNetworkClient != nullptr; }
+	bool IsNetworkMode() const { return mpClientNetwork != nullptr; }
 	void ConnectToServer(const char* pServerAddress);
 	void DisconnectFromServer();
 	void StartServerDiscovery();
