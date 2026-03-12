@@ -22,7 +22,7 @@ private:
 
 	void UploadThread();
 
-	static constexpr int64_t kiByteBudgetPerFrame = 4 * 1024 * 1024; // 2 MB
+	static constexpr int64_t kiByteBudgetPerFrame = 4 * 1024 * 1024;
 
 	// In-progress upload state (persists across frames for one texture at a time)
 	common::crc_t mCurrentCrc = 0;

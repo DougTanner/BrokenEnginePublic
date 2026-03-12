@@ -32,13 +32,10 @@ ClientNetwork::ClientNetwork(const char* pServerAddress, uint16_t uiPort, int64_
 	enet_socket_get_address(mpHost->socket, &localAddress);
 	char pcServerAddress[64] {};
 	enet_address_get_host_ip(&address, pcServerAddress, sizeof(pcServerAddress));
-	FILE_LOG(0, "[NetworkClient] Connecting: server={}:{} localPort={}", pcServerAddress, address.port, localAddress.port);
-	common::Log("NetworkClient: Connecting to server"); // DT: TEMP
 }
 
 ClientNetwork::~ClientNetwork()
 {
-	common::Log("NetworkClient: Destroying"); // DT: TEMP
 	if (mpServerPeer != nullptr && mbConnected)
 	{
 		enet_peer_disconnect(mpServerPeer, 0);
@@ -66,7 +63,6 @@ ClientNetwork::~ClientNetwork()
 	}
 
 	gpClientNetwork = nullptr;
-	common::Log("NetworkClient: Destroyed"); // DT: TEMP
 }
 
 void ClientNetwork::Poll()
@@ -95,49 +91,25 @@ void ClientNetwork::Poll()
 			// Disable ENet peer throttle to prevent unreliable packet drops during reconciliation stalls
 			enet_peer_throttle_configure(mpServerPeer, UINT32_MAX, 0, 0);
 			SendHello();
-			common::Log("NetworkClient: Connected to server");
+			Log(kLogNetwork, "NetworkClient: Connected to server");
 			char pcServerAddress[64] {};
 			enet_address_get_host_ip(&mpServerPeer->address, pcServerAddress, sizeof(pcServerAddress));
 			ENetAddress localAddress {};
 			enet_socket_get_address(mpHost->socket, &localAddress);
-			FILE_LOG(0, "[NetworkClient] Connected: server={}:{} localPort={}", pcServerAddress, mpServerPeer->address.port, localAddress.port);
-			break;
+				break;
 		}
 		case ENET_EVENT_TYPE_DISCONNECT:
 			mbConnected = false;
 			mbDisconnectedEvent = true;
 			mpServerPeer = nullptr;
-			common::Log("NetworkClient: Disconnected from server");
-			FILE_LOG(0, "[NetworkClient] Disconnected from server");
+			Log(kLogNetwork, "NetworkClient: Disconnected from server");
 			break;
 		case ENET_EVENT_TYPE_RECEIVE:
 			if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 			{
 				constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
-				bool bUnreliable = NetworkManager::IsUnreliableChannel(event.channelID);
-				if (bUnreliable)
-				{
-					if (NetworkSimulation::ShouldDrop(kSimConfig))
-					{
-						enet_packet_destroy(event.packet);
-						break;
-					}
-					ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-					// Heap: delay queue copies packet data for deferred processing
-					DelayedPacket delayed {};
-					delayed.releaseTime = std::chrono::steady_clock::now() + NetworkSimulation::RandomOneWayDelay(kSimConfig);
-					delayed.data.assign(event.packet->data, event.packet->data + event.packet->dataLength);
-					delayed.uiChannelId = event.channelID;
-					auto insertPos = std::lower_bound(mDelayedPackets.begin(), mDelayedPackets.end(), delayed,
-					[](const DelayedPacket& rA, const DelayedPacket& rB) { return rA.releaseTime < rB.releaseTime; });
-					mDelayedPackets.insert(insertPos, std::move(delayed));
-					enet_packet_destroy(event.packet);
-				}
-				else
-				{
-					HandleReceive(event);
-					enet_packet_destroy(event.packet);
-				}
+				NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, event,
+					[this](ENetEvent& rEvent) { HandleReceive(rEvent); });
 			}
 			else
 			{
@@ -153,12 +125,10 @@ void ClientNetwork::Poll()
 	// Process delayed packets whose release time has passed
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
-		std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-		while (!mDelayedPackets.empty() && mDelayedPackets.front().releaseTime <= now)
+		NetworkSimulation::ProcessDelayed(mDelayedPackets, [this](const DelayedPacket& rPacket)
 		{
-			HandleReceive(mDelayedPackets.front().data.data(), mDelayedPackets.front().data.size());
-			mDelayedPackets.pop_front();
-		}
+			HandleReceive(rPacket.data.data(), rPacket.data.size());
+		});
 	}
 
 	// Track bandwidth deltas from host-level cumulative counters
@@ -225,48 +195,39 @@ void ClientNetwork::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 		return;
 	}
 
-	ClientCoordSlot& rSlot = mCoordSlots[iSlot];
+	AckState& rAck = mCoordSlots.at(iSlot).ackState;
 
 	// First frame received, initialize the ACK floor
-	if (rSlot.iAckFloor < 0)
+	if (rAck.iAckFloor < 0)
 	{
-		rSlot.iAckFloor = iTick;
+		rAck.iAckFloor = iTick;
 		return;
 	}
 
 	// Already acknowledged
-	if (iTick <= rSlot.iAckFloor)
+	if (iTick <= rAck.iAckFloor)
 	{
 		return;
 	}
 
-	int64_t iBitIndex = iTick - rSlot.iAckFloor - 1;
+	int64_t iBitIndex = iTick - rAck.iAckFloor - 1;
 	if (iBitIndex >= kiTickRate)
 	{
-		common::Log("NetworkClient: Too many missing frames on slot {} (gap={}), disconnecting", iSlot, iBitIndex + 1);
-		FILE_LOG(0, "[NetworkClient] WARNING: Too many missing frames: slot={} gap={} ackFloor={} receivedFrame={}", iSlot, iBitIndex + 1, rSlot.iAckFloor, iTick);
+		Log(kLogNetwork, "NetworkClient: Too many missing frames on slot {} (gap={}), disconnecting", iSlot, iBitIndex + 1);
 		DEBUG_BREAK();
 		mbDisconnectedEvent = true;
 		return;
 	}
 
-	// Mark this frame as received (only within the 64-bit bitfield range) and advance the floor past any contiguous run
-	if (iBitIndex < 64)
+	// Mark this frame as received and advance the floor past any contiguous run
+	rAck.uiReceivedBitfield |= (1ULL << iBitIndex);
+
+	while (rAck.uiReceivedBitfield & 1ULL)
 	{
-		rSlot.uiReceivedBitfield |= (1ULL << iBitIndex);
-	}
-	else
-	{
-		FILE_LOG(0, "[NetworkClient] BeyondBitfield: slot={} frame={} ackFloor={} bitIndex={} bitfield={:#x}", iSlot, iTick, rSlot.iAckFloor, iBitIndex, rSlot.uiReceivedBitfield);
+		++rAck.iAckFloor;
+		rAck.uiReceivedBitfield >>= 1;
 	}
 
-	while (rSlot.uiReceivedBitfield & 1ULL)
-	{
-		++rSlot.iAckFloor;
-		rSlot.uiReceivedBitfield >>= 1;
-	}
-
-	common::Log("NetworkClient: TrackReceivedTick slot {} tick {} ackFloor={} bitfield={:#x}", iSlot, iTick, rSlot.iAckFloor, rSlot.uiReceivedBitfield); // DT: TEMP
 }
 
 void ClientNetwork::Flush()
@@ -276,7 +237,6 @@ void ClientNetwork::Flush()
 
 void ClientNetwork::Disconnect()
 {
-	common::Log("NetworkClient: Graceful disconnect"); // DT: TEMP
 	if (mpServerPeer != nullptr && mbConnected)
 	{
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;

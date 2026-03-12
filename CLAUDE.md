@@ -61,9 +61,10 @@ The codebase produces two executables from the same source: a **client** (full g
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/CLAUDE.md](Common/CLAUDE.md)
 
 ## Code Analysis Skills (user-initiated only, never run automatically)
-- **`/external-tech-debt <path>`** — Broad scan, prioritizes debt across 8 categories
-- **`/external-architecture-review <path>`** — Analyzes dependencies, pattern compliance, and coupling
-- **`/external-refactor-clean <path>`** — Actionable refactoring recommendations for specific files/folders
+Run in order from broad to specific (survey → diagnose → prescribe). Use results to decide what path to pass to the next skill.
+1. **`/external-tech-debt <path>`** — Broad scan, prioritizes debt across 8 categories
+2. **`/external-architecture-review <path>`** — Analyzes dependencies, pattern compliance, and coupling
+3. **`/external-refactor-clean <path>`** — Actionable refactoring recommendations for specific files/folders
 - **`/generate-architecture-diagram <path>`** — Generates Mermaid diagrams in `Documents/Architecture/`
 
 ## Diagnostic Logging

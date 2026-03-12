@@ -45,7 +45,7 @@ TextManager::TextManager()
 		int64_t iCharacters = rChunk.pHeader->fontHeader.iCharacters;
 		auto pCharacterIds = reinterpret_cast<uint32_t*>(rChunk.pData);
 		auto pCharacters = reinterpret_cast<common::Character*>(rChunk.pData + common::RoundUp<int64_t, common::kiAlignmentBytes>(iCharacters * static_cast<int64_t>(sizeof(pCharacterIds[0]))));
-		Log("Loading font {:#018x} with {} characters", data::kFontsNotoSansNotoSansRegularfntCrc, iCharacters);
+		Log(kLogLoading, "Loading font {:#018x} with {} characters", data::kFontsNotoSansNotoSansRegularfntCrc, iCharacters);
 		mfLineHeightEfigs = static_cast<float>(rChunk.pHeader->fontHeader.iLineHeight);
 
 		for (int64_t i = 0; i < iCharacters; ++i)
@@ -67,7 +67,7 @@ TextManager::~TextManager()
 
 common::Character* TextManager::GetCharacter(uint32_t uiChar)
 {
-	return mpCharactersEfigs[uiChar];
+	return mpCharactersEfigs[uiChar % 128];
 }
 
 void TextManager::UpdateTextArea(TextAreas eTextArea, std::string_view characters)

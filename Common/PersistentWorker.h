@@ -1,8 +1,5 @@
 #pragma once
 
-#include <semaphore>
-#include <thread>
-
 #include "ThreadLocal.h"
 
 namespace common

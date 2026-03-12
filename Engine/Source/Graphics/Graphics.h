@@ -74,7 +74,7 @@ public:
 	HINSTANCE mHinstance = nullptr;
 	HWND mHwnd = nullptr;
 	int64_t miMonitorRefreshRate = 60;
-	uint64_t miFrameCounter = 0;
+	uint64_t muiFrameCounter = 0;
 	VkExtent2D mFramebufferExtent2D = gWantedFramebufferExtent2D;
 
 	DestroyType meDestroyType = DestroyType::kNone;

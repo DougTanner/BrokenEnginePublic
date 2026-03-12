@@ -62,18 +62,18 @@ void Buffer::CreateBuffer([[maybe_unused]] std::string_view name, VkDeviceSize v
 	}
 }
 
-void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const BarrierInfo> barriers)
+void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, const BarrierInfo* pBarriers, int64_t iBarrierCount)
 {
 	// Build barrier array and accumulate stage masks
 	common::gpThreadLocal->mWorkbuffer.Push();
 	VkPipelineStageFlags combinedSrcStage = 0;
 	VkPipelineStageFlags combinedDstStage = 0;
 
-	for (const BarrierInfo& rBarrier : barriers)
+	for (int64_t i = 0; i < iBarrierCount; ++i)
 	{
 		VkAccessFlags srcAccessMask = VK_ACCESS_NONE_KHR;
 		VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		switch (rBarrier.eSource)
+		switch (pBarriers[i].eSource)
 		{
 			case BufferBarrier::kComputeReadWrite:
 				srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
@@ -86,7 +86,7 @@ void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const Bar
 
 		VkAccessFlags dstAccessMask = VK_ACCESS_NONE_KHR;
 		VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		switch (rBarrier.eDestination)
+		switch (pBarriers[i].eDestination)
 		{
 			case BufferBarrier::kComputeRead:
 				dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
@@ -123,7 +123,7 @@ void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const Bar
 			.dstAccessMask = dstAccessMask,
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.buffer = rBarrier.vkBuffer,
+			.buffer = pBarriers[i].vkBuffer,
 			.offset = 0,
 			.size = VK_WHOLE_SIZE,
 		});
@@ -222,7 +222,7 @@ void Buffer::Create(const BufferInfo& rInfo, std::function<void(void*)> dataFunc
 			mpMappedMemory = static_cast<char*>(vmaAllocationInfo.pMappedData);
 
 			// Initialize host-visible buffer if dataFunction provided
-			if (dataFunction && mpMappedMemory)
+			if (dataFunction != nullptr && mpMappedMemory != nullptr)
 			{
 				dataFunction(mpMappedMemory);
 			}

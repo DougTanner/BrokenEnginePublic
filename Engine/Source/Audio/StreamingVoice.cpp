@@ -25,14 +25,14 @@ StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLa
 	// Fill and submit the first buffer
 	bool bLastBuffer = false;
 	int64_t iBytesRead = 0;
-	if (FillBuffer(mBuffers[miActiveBuffer], iBytesRead, bLastBuffer))
+	if (FillBuffer(mBuffers.at(miActiveBuffer), iBytesRead, bLastBuffer))
 	{
 		// Submit the first buffer
 		XAUDIO2_BUFFER xaudio2Buffer
 		{
 			.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
 			.AudioBytes = static_cast<UINT32>(iBytesRead),
-			.pAudioData = mBuffers[miActiveBuffer].data(),
+			.pAudioData = mBuffers.at(miActiveBuffer).data(),
 			.PlayBegin = 0,
 			.PlayLength = 0,
 			.LoopBegin = 0,
@@ -82,9 +82,15 @@ StreamingVoice& StreamingVoice::operator=(StreamingVoice&& rToMove) noexcept
 		mBuffers = std::move(rToMove.mBuffers);
 		mfCurrentVolume = rToMove.mfCurrentVolume;
 
-		if (gpAudioManager->mpAudioEngine != nullptr)
+		if (mpVoice != nullptr)
 		{
-			gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+			mpVoice->Stop(0, XAUDIO2_COMMIT_NOW);
+			mpVoice->FlushSourceBuffers();
+
+			if (gpAudioManager->mpAudioEngine != nullptr)
+			{
+				gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+			}
 		}
 		mpVoice = rToMove.mpVoice;
 		rToMove.mpVoice = nullptr;
@@ -104,7 +110,7 @@ float StreamingVoice::GetRemainingTime() const
 	return static_cast<float>(iRemainingBytes) / static_cast<float>(mpLazyChunk->header.audioHeader.waveFormat.nAvgBytesPerSec);
 }
 
-bool StreamingVoice::FillBuffer(std::vector<uint8_t>& buffer, int64_t& riBytesRead, bool& rbLastBuffer)
+bool StreamingVoice::FillBuffer(std::vector<uint8_t>& rBuffer, int64_t& riBytesRead, bool& rbLastBuffer)
 {
 	rbLastBuffer = false;
 	riBytesRead = 0;
@@ -119,10 +125,10 @@ bool StreamingVoice::FillBuffer(std::vector<uint8_t>& buffer, int64_t& riBytesRe
 	}
 
 	// Calculate how much to read, ensuring we don't exceed buffer size or remaining data
-	int64_t iBytesToRead = std::min(iRemainingData, static_cast<int64_t>(buffer.size()));
+	int64_t iBytesToRead = std::min(iRemainingData, static_cast<int64_t>(rBuffer.size()));
 
 	// Read the data from the chunk at the current position
-	bool bSuccess = gpFileManager->ReadChunkData(mpLazyChunk->location.crc, miCurrentPosition, std::span<std::byte>(reinterpret_cast<std::byte*>(buffer.data()), iBytesToRead));
+	bool bSuccess = gpFileManager->ReadChunkData(mpLazyChunk->location.crc, miCurrentPosition, std::span<std::byte>(reinterpret_cast<std::byte*>(rBuffer.data()), iBytesToRead));
 
 	if (!bSuccess)
 	{
@@ -178,17 +184,17 @@ void StreamingVoice::OnBufferEnd()
 		return;
 	}
 
-	int iNextBuffer = (miActiveBuffer + 1) % static_cast<int>(mBuffers.size());
+	int64_t iNextBuffer = (miActiveBuffer + 1) % static_cast<int64_t>(mBuffers.size());
 
 	bool bLastBuffer = false;
 	int64_t iBytesRead = 0;
-	if (FillBuffer(mBuffers[iNextBuffer], iBytesRead, bLastBuffer))
+	if (FillBuffer(mBuffers.at(iNextBuffer), iBytesRead, bLastBuffer))
 	{
 		XAUDIO2_BUFFER xaudio2Buffer
 		{
 			.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
 			.AudioBytes = static_cast<UINT32>(iBytesRead),
-			.pAudioData = mBuffers[iNextBuffer].data(),
+			.pAudioData = mBuffers.at(iNextBuffer).data(),
 			.PlayBegin = 0,
 			.PlayLength = 0,
 			.LoopBegin = 0,

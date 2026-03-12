@@ -4,7 +4,7 @@ namespace engine
 {
 
 // Helper to transfer data between objects using stream operators (for non-copyable types)
-template<typename T>
+template <typename T>
 inline void TransferViaStream(const T& rFrom, T& rTo)
 {
 	std::stringstream buffer;
@@ -12,7 +12,7 @@ inline void TransferViaStream(const T& rFrom, T& rTo)
 	buffer >> rTo;
 }
 
-template<typename SAVED_TYPE, typename DIFFERENCE_TYPE>
+template <typename SAVED_TYPE, typename DIFFERENCE_TYPE>
 class DifferenceStreamWriter
 {
 public:
@@ -135,7 +135,7 @@ private:
 	[[no_unique_address]] std::conditional_t<kbEnableReplayFullFrames, std::stringstream, common::Empty> mFullFramesStream;
 };
 
-template<typename SAVED_TYPE, typename DIFFERENCE_TYPE>
+template <typename SAVED_TYPE, typename DIFFERENCE_TYPE>
 class DifferenceStreamReader
 {
 public:

@@ -47,7 +47,7 @@ void Texture::RecordEndRenderPass(VkCommandBuffer vkCommandBuffer, [[maybe_unuse
 	vkCmdEndRenderPass(vkCommandBuffer);
 }
 
-Texture::Texture(const TextureInfo& rInfo, std::function<void(void*,int64_t,int64_t)> dataFunction)
+Texture::Texture(const TextureInfo& rInfo, std::function<void(void*, int64_t, int64_t)> dataFunction)
 {
 	Create(rInfo, dataFunction);
 }
@@ -199,8 +199,8 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 		for (uint32_t i = 0; i < mInfo.mipLevels; i++)
 		{
 			vkDeviceSize += mInfo.arrayLayers * mInfo.extent.depth * common::SizeInBytes(mInfo.format, uiWidth, uiHeight);
-			uiWidth /= 2;
-			uiHeight /= 2;
+			uiWidth = std::max(1u, uiWidth / 2);
+			uiHeight = std::max(1u, uiHeight / 2);
 		}
 
 		// Create staging buffer and fill with data before recording commands
@@ -238,8 +238,8 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 				vkBufferImageCopy.bufferOffset = uiOffset;
 
 				uiOffset += common::SizeInBytes(mInfo.format, uiWidth, uiHeight);
-				uiWidth /= 2;
-				uiHeight /= 2;
+				uiWidth = std::max(1u, uiWidth / 2);
+				uiHeight = std::max(1u, uiHeight / 2);
 
 				vkCmdCopyBufferToImage(oneShotCommandBuffer.mVkCommandBuffer, stagingVkBuffer, mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkBufferImageCopy);
 			}
@@ -399,8 +399,8 @@ void Texture::UpdateData(std::function<void(void*, int64_t, int64_t)> dataFuncti
 	for (uint32_t i = 0; i < mInfo.mipLevels; i++)
 	{
 		vkDeviceSize += mInfo.arrayLayers * mInfo.extent.depth * common::SizeInBytes(mInfo.format, uiWidth, uiHeight);
-		uiWidth /= 2;
-		uiHeight /= 2;
+		uiWidth = std::max(1u, uiWidth / 2);
+		uiHeight = std::max(1u, uiHeight / 2);
 	}
 
 	// Create staging buffer and copy data
@@ -438,8 +438,8 @@ void Texture::UpdateData(std::function<void(void*, int64_t, int64_t)> dataFuncti
 			vkBufferImageCopy.bufferOffset = uiOffset;
 
 			uiOffset += common::SizeInBytes(mInfo.format, uiWidth, uiHeight);
-			uiWidth /= 2;
-			uiHeight /= 2;
+			uiWidth = std::max(1u, uiWidth / 2);
+			uiHeight = std::max(1u, uiHeight / 2);
 
 			vkCmdCopyBufferToImage(oneShotCommandBuffer.mVkCommandBuffer, stagingVkBuffer, mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkBufferImageCopy);
 		}

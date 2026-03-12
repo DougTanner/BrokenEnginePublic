@@ -1,14 +1,14 @@
 #include "Explosions.h"
 
 #if defined(BT_CLIENT)
+#include "Data/Texture.h"
+#include "Profile/ProfileManager.h"
 #include "Ui/WrapperBase.h"
+#include "Graphics/Managers/ParticleManager.h"
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
 #include "Frame/Collections/SmokeTrails/SmokeTrails.h"
 #include "Frame/Collections/WindRadials/WindRadials.h"
-#include "Graphics/Managers/ParticleManager.h"
-#include "Profile/ProfileManager.h"
-#include "Data/Texture.h"
 #endif // BT_CLIENT
 
 namespace engine

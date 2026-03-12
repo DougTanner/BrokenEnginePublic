@@ -34,7 +34,7 @@ SkeletonData BuildNodeSkeleton(const tinygltf::Model& rModel, std::unordered_map
 		skeletonData.skinJointToNode.resize(rSkin.joints.size());
 		for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
 		{
-			skeletonData.skinJointToNode[i] = static_cast<uint16_t>(rSkin.joints[i]);
+			skeletonData.skinJointToNode.at(i) = static_cast<uint16_t>(rSkin.joints[i]);
 		}
 
 		// Load inverse bind matrices from accessor
@@ -53,11 +53,11 @@ SkeletonData BuildNodeSkeleton(const tinygltf::Model& rModel, std::unordered_map
 			{
 				const float* pMatrix = &pfInverseBindMatrices[i * 16];
 				XMMATRIX matInverseBind = XMMATRIX(pMatrix);
-				XMStoreFloat4x4(&skeletonData.inverseBindMatrices[i], matInverseBind);
+				XMStoreFloat4x4(&skeletonData.inverseBindMatrices.at(i), matInverseBind);
 			}
 			else
 			{
-				XMStoreFloat4x4(&skeletonData.inverseBindMatrices[i], XMMatrixIdentity());
+				XMStoreFloat4x4(&skeletonData.inverseBindMatrices.at(i), XMMatrixIdentity());
 			}
 		}
 
@@ -81,7 +81,7 @@ SkeletonData BuildNodeSkeleton(const tinygltf::Model& rModel, std::unordered_map
 	skeletonData.nodes.resize(rModel.nodes.size());
 	for (int64_t i = 0; i < static_cast<int64_t>(rModel.nodes.size()); ++i)
 	{
-		common::ModelNode& rNode = skeletonData.nodes[i];
+		common::ModelNode& rNode = skeletonData.nodes.at(i);
 		const tinygltf::Node& rGltfNode = rModel.nodes[i];
 
 		// Set parent index directly (node index)
@@ -156,7 +156,7 @@ SkeletonData LoadSkeleton(const tinygltf::Model& rModel, int32_t iSkinIndex)
 	skeletonData.skinJointToNode.resize(rSkin.joints.size());
 	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
 	{
-		skeletonData.skinJointToNode[i] = static_cast<uint16_t>(rSkin.joints[i]);
+		skeletonData.skinJointToNode.at(i) = static_cast<uint16_t>(rSkin.joints[i]);
 	}
 
 	// Build parent map for ALL nodes
@@ -189,11 +189,11 @@ SkeletonData LoadSkeleton(const tinygltf::Model& rModel, int32_t iSkinIndex)
 			// which is correct for DirectXMath row-vectors (translation at ._41, ._42, ._43)
 			const float* pMatrix = &pfInverseBindMatrices[i * 16];
 			XMMATRIX matInverseBind = XMMATRIX(pMatrix);
-			XMStoreFloat4x4(&skeletonData.inverseBindMatrices[i], matInverseBind);
+			XMStoreFloat4x4(&skeletonData.inverseBindMatrices.at(i), matInverseBind);
 		}
 		else
 		{
-			XMStoreFloat4x4(&skeletonData.inverseBindMatrices[i], XMMatrixIdentity());
+			XMStoreFloat4x4(&skeletonData.inverseBindMatrices.at(i), XMMatrixIdentity());
 		}
 	}
 
@@ -201,7 +201,7 @@ SkeletonData LoadSkeleton(const tinygltf::Model& rModel, int32_t iSkinIndex)
 	skeletonData.nodes.resize(rModel.nodes.size());
 	for (int64_t i = 0; i < static_cast<int64_t>(rModel.nodes.size()); ++i)
 	{
-		common::ModelNode& rNode = skeletonData.nodes[i];
+		common::ModelNode& rNode = skeletonData.nodes.at(i);
 		const tinygltf::Node& rGltfNode = rModel.nodes[i];
 
 		// Set parent index directly (node index, not joint index)

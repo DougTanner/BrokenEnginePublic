@@ -41,7 +41,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	// Sunlight
 	float fAmbientNight = std::max(kfDefaultMinimumAmbient, gMinimumAmbient.Get());
 	float fAmbientMorning = std::max(0.075f, gMinimumAmbient.Get());
-	XMVECTOR vecSunMorning = 0.5f * XMVectorSet(1.0f, 219.0f / 255.0f, 0.f, 1.0f);
+	XMVECTOR vecSunMorning = 0.5f * XMVectorSet(1.0f, 219.0f / 255.0f, 0.0f, 1.0f);
 	XMVECTOR vecAmbientMorning = XMVectorSet(fAmbientMorning, fAmbientMorning, fAmbientMorning, 1.0f);
 	XMVECTOR vecSunNoon = XMVectorSet(0.8f, 0.8f, 0.8f, 1.0f);
 	XMVECTOR vecAmbientNoon = XMVectorSet(0.2f, 0.2f, 0.2f, 1.0f);
@@ -152,7 +152,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	static constexpr float kfSunsetStretchEnd = XM_PI + XM_PIDIV4;
 	static constexpr float kfSunsetStretchTotal = kfSunsetStretchEnd - kfSunsetStretchBegin;
 	float fSunsetStretch = 0.0f;
-	if (fSunAngle >= kfSunriseStretchBegin && fSunAngle < 0.0f)
+	if (fSunAngle >= kfSunriseStretchBegin || fSunAngle < 0.0f)
 	{
 		fSunriseStretch = 1.0f - (fSunAngle - kfSunriseStretchBegin) / (kfSunriseStretchTotal);
 	}

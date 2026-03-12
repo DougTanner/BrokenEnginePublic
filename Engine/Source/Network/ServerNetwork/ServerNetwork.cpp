@@ -16,8 +16,6 @@ ServerNetwork::ServerNetwork(uint16_t uiPort)
 	address.host = ENET_HOST_ANY;
 	address.port = uiPort;
 
-	common::Log("NetworkServer: Starting on port {}", uiPort); // DT: TEMP
-
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	// Heap: ENet allocates host data internally
 	mpHost = enet_host_create(&address, 64, NetworkManager::kuiChannelCount, 0, 0);
@@ -71,31 +69,8 @@ void ServerNetwork::Poll()
 				if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 				{
 					constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
-					bool bUnreliable = NetworkManager::IsUnreliableChannel(event.channelID);
-					if (bUnreliable)
-					{
-						if (NetworkSimulation::ShouldDrop(kSimConfig))
-						{
-							enet_packet_destroy(event.packet);
-							break;
-						}
-						ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-						// Heap: delay queue copies packet data for deferred processing
-						DelayedPacket delayed {};
-						delayed.releaseTime = std::chrono::steady_clock::now() + NetworkSimulation::RandomOneWayDelay(kSimConfig);
-						delayed.data.assign(event.packet->data, event.packet->data + event.packet->dataLength);
-						delayed.pPeer = event.peer;
-						delayed.uiChannelId = event.channelID;
-						auto insertPos = std::lower_bound(mDelayedPackets.begin(), mDelayedPackets.end(), delayed,
-						[](const DelayedPacket& rA, const DelayedPacket& rB) { return rA.releaseTime < rB.releaseTime; });
-						mDelayedPackets.insert(insertPos, std::move(delayed));
-						enet_packet_destroy(event.packet);
-					}
-					else
-					{
-						HandleReceive(event);
-						enet_packet_destroy(event.packet);
-					}
+					NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, event,
+						[this](ENetEvent& rEvent) { HandleReceive(rEvent); });
 				}
 				else
 				{
@@ -111,12 +86,10 @@ void ServerNetwork::Poll()
 	// Process delayed packets whose release time has passed
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
-		std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-		while (!mDelayedPackets.empty() && mDelayedPackets.front().releaseTime <= now)
+		NetworkSimulation::ProcessDelayed(mDelayedPackets, [this](const DelayedPacket& rPacket)
 		{
-			HandleReceive(mDelayedPackets.front().data.data(), mDelayedPackets.front().data.size(), mDelayedPackets.front().pPeer);
-			mDelayedPackets.pop_front();
-		}
+			HandleReceive(rPacket.data.data(), rPacket.data.size(), rPacket.pPeer);
+		});
 	}
 }
 
@@ -138,11 +111,10 @@ void ServerNetwork::HandleConnect(ENetEvent& rEvent)
 	// Disable ENet peer throttle to prevent unreliable packet drops during client reconciliation stalls
 	enet_peer_throttle_configure(rEvent.peer, UINT32_MAX, 0, 0);
 
-	common::Log("NetworkServer: Client {} connected", mClients.back().iClientId);
+	Log(kLogNetwork, "NetworkServer: Client {} connected", mClients.back().iClientId);
 
 	char pcAddress[64] {};
 	enet_address_get_host_ip(&rEvent.peer->address, pcAddress, sizeof(pcAddress));
-	FILE_LOG(0, "[NetworkServer] Connect: clientId={} ip={} port={}", mClients.back().iClientId, pcAddress, rEvent.peer->address.port);
 }
 
 void ServerNetwork::HandleDisconnect(ENetEvent& rEvent)
@@ -161,11 +133,10 @@ void ServerNetwork::HandleDisconnect(ENetEvent& rEvent)
 		std::erase_if(mDelayedPackets, [&rEvent](const DelayedPacket& rPacket) { return rPacket.pPeer == rEvent.peer; });
 	}
 
-	common::Log("NetworkServer: Client {} disconnected", iClientId);
+	Log(kLogNetwork, "NetworkServer: Client {} disconnected", iClientId);
 
 	char pcAddress[64] {};
 	enet_address_get_host_ip(&rEvent.peer->address, pcAddress, sizeof(pcAddress));
-	FILE_LOG(0, "[NetworkServer] Disconnect: clientId={} ip={} port={}", iClientId, pcAddress, rEvent.peer->address.port);
 }
 
 void ServerNetwork::HandleReceive(ENetEvent& rEvent)
@@ -213,7 +184,7 @@ void ServerNetwork::HandleReceive(const uint8_t* pData, size_t iSize, ENetPeer* 
 
 void ServerNetwork::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates)
 {
-	common::Log("NetworkServer: BufferFrame tick {} coords={}", iTick, rGridUpdates.size()); // DT: TEMP
+	miLatestBufferedTick = iTick;
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	for (const auto& [coord, updateData] : rGridUpdates)
@@ -292,7 +263,7 @@ const PerCoordBufferedFrame* ServerNetwork::FindBufferedFrame(GridCoord coord, i
 	{
 		return nullptr;
 	}
-	return &rCoordBuffer[static_cast<size_t>(iIndex)];
+	return &rCoordBuffer.at(static_cast<size_t>(iIndex));
 }
 
 int ServerNetwork::CompressToBuffer(const char* pData, int iSize)

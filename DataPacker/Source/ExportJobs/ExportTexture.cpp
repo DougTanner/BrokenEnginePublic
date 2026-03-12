@@ -76,7 +76,7 @@ void GenerateIrradianceCubemaps()
 			// Create CMFT source image and populate with float data
 			cmft::Image srcImage;
 			cmft::imageCreate(srcImage, uiFaceSize, uiFaceSize, 0x000000ff, 1, 6, cmft::TextureFormat::RGBA32F);
-			memcpy(srcImage.m_data, floatData.data(), uiTotalPixels * 4 * sizeof(float));
+			std::memcpy(srcImage.m_data, floatData.data(), uiTotalPixels * 4 * sizeof(float));
 
 			// Generate 128x128 irradiance cubemap using spherical harmonics
 			static constexpr uint32_t kuiIrradianceFaceSize = 128;
@@ -225,7 +225,7 @@ void GeneratePreFilteredCubemaps()
 
 			cmft::Image srcImage;
 			cmft::imageCreate(srcImage, uiFaceSize, uiFaceSize, 0x000000ff, 1, 6, cmft::TextureFormat::RGBA32F);
-			memcpy(srcImage.m_data, floatData.data(), uiTotalPixels * 4 * sizeof(float));
+			std::memcpy(srcImage.m_data, floatData.data(), uiTotalPixels * 4 * sizeof(float));
 
 			cmft::Image dstImage;
 			cmft::imageRadianceFilter(dstImage, kuiFaceSize, cmft::LightingModel::BlinnBrdf, false, kuiMipCount, 14, 4, srcImage, cmft::EdgeFixup::None, kuiCpuThreads, pClContext);
@@ -367,7 +367,7 @@ void ExportTexture::Export()
 		pHeader->textureHeader.iMipLevels = textureCube.levels();
 		ASSERT(textureCube.format() == gli::FORMAT_RGBA16_SFLOAT_PACK16);
 		pHeader->textureHeader.vkFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-		memcpy(dataSpan.data(), textureCube.data(), dataSpan.size());
+		std::memcpy(dataSpan.data(), textureCube.data(), dataSpan.size());
 
 	}
 	else if (bRawTexture)
@@ -390,7 +390,7 @@ void ExportTexture::Export()
 		pHeader->textureHeader.iMipLevels = iMipMaps;
 		pHeader->textureHeader.vkFormat = vkFormat;
 
-		memcpy(dataSpan.data(), data.data(), data.size());
+		std::memcpy(dataSpan.data(), data.data(), data.size());
 	}
 	else if (mChunkFlags & kCubemap)
 	{
@@ -414,7 +414,7 @@ void ExportTexture::Export()
 		pHeader->textureHeader.iTextureHeight = iHeight;
 		pHeader->textureHeader.iMipLevels = 1;
 		pHeader->textureHeader.vkFormat = vkFormat;
-		memcpy(dataSpan.data(), data.data(), dataSpan.size());
+		std::memcpy(dataSpan.data(), data.data(), dataSpan.size());
 	}
 	else
 	{
@@ -427,6 +427,6 @@ void ExportTexture::Export()
 		pHeader->textureHeader.iTextureHeight = texture.miHeight;
 		pHeader->textureHeader.iMipLevels = texture.mData.size();
 		pHeader->textureHeader.vkFormat = vkFormat;
-		memcpy(dataSpan.data(), data.data(), dataSpan.size());
+		std::memcpy(dataSpan.data(), data.data(), dataSpan.size());
 	}
 }

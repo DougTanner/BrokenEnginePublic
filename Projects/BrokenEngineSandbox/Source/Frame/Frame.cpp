@@ -213,9 +213,6 @@ static void SpawnSingleSpaceship(Frame& __restrict rFrame)
 	}
 
 	XMVECTOR vecDirectionToPlayer = XMVector3Normalize(XMVectorSubtract(vecPlayerPosition, vecSpawnPosition));
-	FILE_LOG(0, "[SpawnSpaceship] tick={} spaceshipCount={} area=({:.0f},{:.0f})", rFrame.interpolate.iTick, rFrame.interpolate.pSpaceships->iCount,
-		(rFrame.postRender.vecArea.m128_f32[0] + rFrame.postRender.vecArea.m128_f32[2]) * 0.5f,
-		(rFrame.postRender.vecArea.m128_f32[1] + rFrame.postRender.vecArea.m128_f32[3]) * 0.5f);
 	SpaceshipsPostRender::Spawn(rFrame,
 	{
 		.vecPosition = vecSpawnPosition,

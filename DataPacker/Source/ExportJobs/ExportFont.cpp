@@ -55,7 +55,7 @@ void ExportFont::Export()
 	std::vector<std::byte> fntData(iFntBytes);
 	std::fstream fileStream(mInputPath, std::ios::in | std::ios::binary);
 	fileStream.read(reinterpret_cast<char*>(fntData.data()), fntData.size());
-	ASSERT(fntData[0] == std::byte{'B'} && fntData[1] == std::byte{'M'} && fntData[2] == std::byte{'F'} && fntData[3] == std::byte{3});
+	ASSERT(fntData.at(0) == std::byte{'B'} && fntData.at(1) == std::byte{'M'} && fntData.at(2) == std::byte{'F'} && fntData.at(3) == std::byte{3});
 
 	common::FontHeader fontHeader {};
 	std::vector<uint32_t> ids;
@@ -64,7 +64,7 @@ void ExportFont::Export()
 	int64_t iPos = 4;
 	while (iPos < iFntBytes)
 	{
-		int64_t iBlockType = std::to_integer<int64_t>(fntData[iPos++]);
+		int64_t iBlockType = std::to_integer<int64_t>(fntData.at(iPos++));
 		int64_t iBlockSize = *reinterpret_cast<int*>(&fntData.at(iPos));
 		iPos += 4;
 		Log("Block {} {}", iBlockType, iBlockSize);
@@ -78,7 +78,7 @@ void ExportFont::Export()
 			}
 			case 2:
 			{
-				CommonBlock& rCommonBlock = *reinterpret_cast<CommonBlock*>(&fntData[iPos]);
+				CommonBlock& rCommonBlock = *reinterpret_cast<CommonBlock*>(&fntData.at(iPos));
 				Log("  CommonBlock {} {} {} {} {} {}", rCommonBlock.lineHeight, rCommonBlock.base, rCommonBlock.scaleW, rCommonBlock.scaleH, rCommonBlock.pages, rCommonBlock.packed);
 				fontHeader.iLineHeight = rCommonBlock.lineHeight;
 				fontHeader.iBase = rCommonBlock.base;
@@ -93,7 +93,7 @@ void ExportFont::Export()
 			}
 			case 4:
 			{
-				std::span<CharInfo> pCharInfos(reinterpret_cast<CharInfo*>(&fntData[iPos]), iBlockSize / sizeof(CharInfo));
+				std::span<CharInfo> pCharInfos(reinterpret_cast<CharInfo*>(&fntData.at(iPos)), iBlockSize / sizeof(CharInfo));
 				for (const CharInfo& rCharInfo : pCharInfos)
 				{
 					// Log("  CharInfo {} {} {} {} {} {} {} {}", rCharInfo.id, rCharInfo.x, rCharInfo.y, rCharInfo.width, rCharInfo.height, rCharInfo.xoffset, rCharInfo.yoffset, rCharInfo.xadvance);
@@ -104,7 +104,7 @@ void ExportFont::Export()
 			}
 			case 5:
 			{
-				std::span<KerningPair> pKerningPairs(reinterpret_cast<KerningPair*>(&fntData[iPos]), iBlockSize / sizeof(KerningPair));
+				std::span<KerningPair> pKerningPairs(reinterpret_cast<KerningPair*>(&fntData.at(iPos)), iBlockSize / sizeof(KerningPair));
 				for ([[maybe_unused]] const KerningPair& rKerningPair : pKerningPairs)
 				{
 					// Log("  KerningPair {} {} {}", rKerningPair.first, rKerningPair.second, rKerningPair.amount);
@@ -118,9 +118,9 @@ void ExportFont::Export()
 		iPos += iBlockSize;
 	}
 
-	int64_t iIdsBytes = ids.size() * sizeof(ids[0]);
+	int64_t iIdsBytes = ids.size() * sizeof(ids.at(0));
 	int64_t iDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(iIdsBytes);
-	int64_t iCharactersBytes = characters.size() * sizeof(characters[0]);
+	int64_t iCharactersBytes = characters.size() * sizeof(characters.at(0));
 	iDataSize += iCharactersBytes;
 	auto [pHeader, dataSpan] = AllocateHeaderAndData(iDataSize);
 
@@ -128,6 +128,6 @@ void ExportFont::Export()
 	fontHeader.iKerningPairs = 0;
 	pHeader->fontHeader = fontHeader;
 
-	memcpy(dataSpan.data(), ids.data(), iIdsBytes);
-	memcpy(&dataSpan[common::RoundUp<int64_t, common::kiAlignmentBytes>(iIdsBytes)], characters.data(), iCharactersBytes);
+	std::memcpy(dataSpan.data(), ids.data(), iIdsBytes);
+	std::memcpy(&dataSpan[common::RoundUp<int64_t, common::kiAlignmentBytes>(iIdsBytes)], characters.data(), iCharactersBytes);
 }

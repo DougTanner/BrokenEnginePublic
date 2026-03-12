@@ -407,7 +407,7 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
 	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;
 
-	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	for (int64_t i = rCurrentInterpolate.iCount - 1; i >= 0; --i)
 	{
 		if (!(rCurrentPostRender.pFlags[i] & kExploding) || rCurrentInterpolate.pfDestroyedTimes[i] > 0.0f) [[likely]]
 		{

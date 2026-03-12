@@ -144,7 +144,7 @@ public:
 
 			if (text[iInPos] == '\n')
 			{
-				fCurrentX = xOffsets.size() == 1 ? xOffsets[0] : xOffsets[iCurrentX++];
+				fCurrentX = xOffsets.size() == 1 ? xOffsets[0] : xOffsets[std::min(iCurrentX++, static_cast<int64_t>(xOffsets.size() - 1))];
 				fCurrentY += fSize;
 				continue;
 			}

@@ -7,7 +7,7 @@ class EnumToString
 {
 public:
 
-	template<typename T>
+	template <typename T>
 	const char* Convert(T eVkEnum)
 	{
 		if constexpr (kbEnableLogging)
@@ -383,7 +383,7 @@ private:
 		{VK_ERROR_INCOMPATIBLE_DRIVER, "VK_ERROR_INCOMPATIBLE_DRIVER"},
 		{VK_ERROR_TOO_MANY_OBJECTS, "VK_ERROR_TOO_MANY_OBJECTS"},
 		{VK_ERROR_FORMAT_NOT_SUPPORTED, "VK_ERROR_FORMAT_NOT_SUPPORTED"},
-		{VK_ERROR_FRAGMENTED_POOL, "VK_ERROR_FRAGMENTED_POO"},
+		{VK_ERROR_FRAGMENTED_POOL, "VK_ERROR_FRAGMENTED_POOL"},
 		{VK_ERROR_OUT_OF_POOL_MEMORY, "VK_ERROR_OUT_OF_POOL_MEMORY"},
 		{VK_ERROR_INVALID_EXTERNAL_HANDLE, "VK_ERROR_INVALID_EXTERNAL_HANDLE"},
 		{VK_ERROR_SURFACE_LOST_KHR, "VK_ERROR_SURFACE_LOST_KHR"},
@@ -402,10 +402,10 @@ inline EnumToString gEnumToString;
 
 } // namespace engine
 
-template<>
+template <>
 struct std::formatter<VkResult> : std::formatter<std::string_view>
 {
-	template<typename CONTEXT>
+	template <typename CONTEXT>
 	auto format(const VkResult vkResult, CONTEXT& rContext) const
 	{
 		const char* pcVkResult = engine::gEnumToString.Convert(vkResult);

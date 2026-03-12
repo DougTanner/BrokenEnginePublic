@@ -227,13 +227,13 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 	}
 
 	// Compare last modified time
-	int64_t lastModifiedTime = inputFileLastModifiedTime.time_since_epoch().count();
-	int64_t loadedLastModifiedTime = 0;
+	int64_t iLastModifiedTime = inputFileLastModifiedTime.time_since_epoch().count();
+	int64_t iLoadedLastModifiedTime = 0;
 	std::fstream lastModifiedTimeFileStream(mLastModifiedTimeFile, std::ios::in | std::ios::binary);
-	lastModifiedTimeFileStream.read(reinterpret_cast<char*>(&loadedLastModifiedTime), sizeof(loadedLastModifiedTime));
-	if (lastModifiedTime != loadedLastModifiedTime)
+	lastModifiedTimeFileStream.read(reinterpret_cast<char*>(&iLoadedLastModifiedTime), sizeof(iLoadedLastModifiedTime));
+	if (iLastModifiedTime != iLoadedLastModifiedTime)
 	{
-		Log("Last modified time does not match {} != {}", lastModifiedTime, loadedLastModifiedTime);
+		Log("Last modified time does not match {} != {}", iLastModifiedTime, iLoadedLastModifiedTime);
 		mbDirty = true;
 		return mbDirty;
 	}
@@ -314,7 +314,7 @@ std::vector<std::byte>& ExportJob::RunExport()
 	pChunkHeader->flags = mChunkFlags;
 	std::string relativeFileString = common::ToString(relativeFile.native());
 	ASSERT(relativeFileString.length() < MAX_PATH);
-	memcpy(pChunkHeader->pcPath, relativeFileString.c_str(), sizeof(*relativeFileString.c_str()) * relativeFileString.length());
+	std::memcpy(pChunkHeader->pcPath, relativeFileString.c_str(), sizeof(*relativeFileString.c_str()) * relativeFileString.length());
 
 	// Write chunk file with magic and version
 	std::fstream fileStream(mChunkFile, std::ios::out | std::ios::binary);
@@ -322,9 +322,9 @@ std::vector<std::byte>& ExportJob::RunExport()
 	fileStream.write(reinterpret_cast<char*>(piMagicAndVersion), sizeof(piMagicAndVersion));
 	fileStream.write(reinterpret_cast<char*>(mHeaderAndData.data()), mHeaderAndData.size());
 
-	int64_t lastModifiedTime = std::filesystem::last_write_time(mInputPath).time_since_epoch().count();
+	int64_t iLastModifiedTime = std::filesystem::last_write_time(mInputPath).time_since_epoch().count();
 	std::fstream lastModifiedTimeFileStream(mLastModifiedTimeFile, std::ios::out | std::ios::binary);
-	lastModifiedTimeFileStream.write(reinterpret_cast<char*>(&lastModifiedTime), sizeof(lastModifiedTime));
+	lastModifiedTimeFileStream.write(reinterpret_cast<char*>(&iLastModifiedTime), sizeof(iLastModifiedTime));
 
 	return mHeaderAndData;
 }

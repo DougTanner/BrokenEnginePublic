@@ -35,7 +35,7 @@ public:
 	StreamingVoice& operator=(StreamingVoice&& rToMove) noexcept;
 
 	float GetRemainingTime() const;
-	bool FillBuffer(std::vector<uint8_t>& buffer, int64_t& riBytesRead, bool& rbLastBuffer);
+	bool FillBuffer(std::vector<uint8_t>& rBuffer, int64_t& riBytesRead, bool& rbLastBuffer);
 	bool UpdateVolume(float fDeltaTime);
 
 	// IVoiceNotify
@@ -45,7 +45,7 @@ public:
 	virtual void OnUpdate() {}
 	virtual void OnDestroyEngine() noexcept {}
 	virtual void OnTrim() {}
-	virtual void GatherStatistics([[maybe_unused]] AudioStatistics& stats) const {}
+	virtual void GatherStatistics([[maybe_unused]] AudioStatistics& rStats) const {}
 	virtual void OnDestroyParent() noexcept {}
 
 	StreamingVoiceFlags_t mFlags = StreamingVoiceFlags::kFadingIn;

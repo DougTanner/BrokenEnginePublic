@@ -19,8 +19,7 @@ void ServerNetwork::SendAssignPlayer(int64_t iClientId, game::player_t playerId,
 	pClient->humanPlayerId = playerId;
 	pClient->humanGridCoord = coord;
 
-	common::Log("NetworkServer: Sending assign player to client {} (player={}, grid ({},{}))", iClientId, playerId.ToUuid().Value(), coord.x, coord.y);
-	FILE_LOG(0, "[SendAssignPlayer] client={} player={} grid=({},{})", iClientId, playerId.ToUuid().Value(), coord.x, coord.y);
+	Log(kLogNetwork, "NetworkServer: Sending assign player to client {} (player={}, grid ({},{}))", iClientId, playerId.ToUuid().Value(), coord.x, coord.y);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
@@ -49,8 +48,7 @@ void ServerNetwork::SendPlayerState(int64_t iClientId, PlayerStateType eStateTyp
 		return;
 	}
 
-	common::Log("NetworkServer: Sending player state {} to client {} (player={}, grid ({},{}))", static_cast<int>(eStateType), iClientId, playerId.ToUuid().Value(), coord.x, coord.y);
-	FILE_LOG(0, "[SendPlayerState] state={} client={} player={} grid=({},{})", static_cast<int>(eStateType), iClientId, playerId.ToUuid().Value(), coord.x, coord.y);
+	Log(kLogNetwork, "NetworkServer: Sending player state {} to client {} (player={}, grid ({},{}))", static_cast<int>(eStateType), iClientId, playerId.ToUuid().Value(), coord.x, coord.y);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
@@ -80,8 +78,7 @@ void ServerNetwork::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t
 		return;
 	}
 
-	common::Log("NetworkServer: Sending coord full state to client {} (frame {}, slot {}, coord ({},{}))", iClientId, iTick, iSlot, coord.x, coord.y);
-	FILE_LOG(0, "[SendCoordFullState] client={} frame={} slot={} coord=({},{})", iClientId, iTick, iSlot, coord.x, coord.y);
+	Log(kLogNetwork, "NetworkServer: Sending coord full state to client {} (frame {}, slot {}, coord ({},{}))", iClientId, iTick, iSlot, coord.x, coord.y);
 
 	// Serialize frame to a temporary stringstream
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -99,7 +96,7 @@ void ServerNetwork::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t
 	// [1B type][1B slotIndex][2B epoch][8B frame][4B coord.x][4B coord.y][4B uncompressedSize][4B compressedSize][...LZ4 data]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerCoordFullState));
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
-	rWorkbuffer.PushBack<uint16_t>(pClient->coordAckStates[iSlot].uiEpoch);
+	rWorkbuffer.PushBack<uint16_t>(pClient->coordAckStates.at(iSlot).uiEpoch);
 	rWorkbuffer.PushBack<int64_t>(iTick);
 	rWorkbuffer.PushBack<int32_t>(coord.x);
 	rWorkbuffer.PushBack<int32_t>(coord.y);
@@ -118,7 +115,6 @@ void ServerNetwork::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t
 
 void ServerNetwork::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage)
 {
-	common::Log("NetworkServer: SendConnectionResponse accepted={}", bAccepted); // DT: TEMP
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
@@ -140,14 +136,13 @@ void ServerNetwork::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, cons
 
 void ServerNetwork::SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord)
 {
-	common::Log("NetworkServer: SendSubscribeAccept slot {} coord ({},{})", iSlot, coord.x, coord.y); // DT: TEMP
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
 	// [1B type][1B slotIndex][2B epoch][4B coord.x][4B coord.y]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerSubscribeAccept));
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
-	uint16_t uiEpoch = (iSlot < std::ssize(rClient.coordSubscriptions)) ? rClient.coordAckStates[iSlot].uiEpoch : 0;
+	uint16_t uiEpoch = (iSlot < std::ssize(rClient.coordSubscriptions)) ? rClient.coordAckStates.at(iSlot).uiEpoch : 0;
 	rWorkbuffer.PushBack<uint16_t>(uiEpoch);
 	rWorkbuffer.PushBack<int32_t>(coord.x);
 	rWorkbuffer.PushBack<int32_t>(coord.y);
@@ -164,7 +159,6 @@ void ServerNetwork::SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot
 
 void ServerNetwork::SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot)
 {
-	common::Log("NetworkServer: SendUnsubscribeAck slot {}", iSlot); // DT: TEMP
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
@@ -207,12 +201,12 @@ void ServerNetwork::SendUpdate(ClientConnection& rClient, int64_t iTick)
 	// Send one packet per active subscription slot
 	for (int64_t iSlot = 0; iSlot < std::ssize(rClient.coordSubscriptions); ++iSlot)
 	{
-		if (!rClient.coordSubscriptions[iSlot].bActive)
+		if (!rClient.coordSubscriptions.at(iSlot).bActive)
 		{
 			continue;
 		}
 
-		GridCoord coord = rClient.coordSubscriptions[iSlot].coord;
+		GridCoord coord = rClient.coordSubscriptions.at(iSlot).coord;
 
 		const PerCoordBufferedFrame* pBuffered = FindBufferedFrame(coord, iTick);
 		if (pBuffered == nullptr)
@@ -223,11 +217,9 @@ void ServerNetwork::SendUpdate(ClientConnection& rClient, int64_t iTick)
 		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 		rWorkbuffer.Push();
 
-		WriteBufferedFramePacket(rWorkbuffer, PacketType::kServerCoordUpdate, iSlot, rClient.coordAckStates[iSlot].uiEpoch, *pBuffered, rClient.iClientTimestampNs);
+		WriteBufferedFramePacket(rWorkbuffer, PacketType::kServerCoordUpdate, iSlot, rClient.coordAckStates.at(iSlot).uiEpoch, *pBuffered, rClient.iClientTimestampNs);
 
 		std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-		common::Log("NetworkServer: SendUpdate client tick {} slot {} coord ({},{})", iTick, iSlot, coord.x, coord.y); // DT: TEMP
 
 		// Heap: ENet allocates packet data internally
 		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), 0);
@@ -244,18 +236,18 @@ void ServerNetwork::SendResends(ClientConnection& rClient, int64_t iTick)
 	// Iterate per-slot: each active subscription has its own ACK state and coord ring buffer
 	for (int64_t iSlot = 0; iSlot < std::ssize(rClient.coordSubscriptions); ++iSlot)
 	{
-		if (!rClient.coordSubscriptions[iSlot].bActive)
+		if (!rClient.coordSubscriptions.at(iSlot).bActive)
 		{
 			continue;
 		}
 
-		const PerCoordAckState& rAck = rClient.coordAckStates[iSlot];
+		const AckState& rAck = rClient.coordAckStates.at(iSlot);
 		if (rAck.iAckFloor < 0)
 		{
 			continue;
 		}
 
-		GridCoord coord = rClient.coordSubscriptions[iSlot].coord;
+		GridCoord coord = rClient.coordSubscriptions.at(iSlot).coord;
 
 		if (rAck.uiReceivedBitfield == 0)
 		{
@@ -286,11 +278,9 @@ void ServerNetwork::SendResends(ClientConnection& rClient, int64_t iTick)
 			common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 			rWorkbuffer.Push();
 
-			WriteBufferedFramePacket(rWorkbuffer, PacketType::kServerCoordResend, iSlot, rClient.coordAckStates[iSlot].uiEpoch, *pBuffered, rClient.iClientTimestampNs);
+			WriteBufferedFramePacket(rWorkbuffer, PacketType::kServerCoordResend, iSlot, rClient.coordAckStates.at(iSlot).uiEpoch, *pBuffered, rClient.iClientTimestampNs);
 
 			std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-			common::Log("NetworkServer: Resend client slot {} frame {} coord ({},{})", iSlot, iMissingFrame, coord.x, coord.y); // DT: TEMP
 
 			// Heap: ENet allocates packet data internally
 			ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), 0);

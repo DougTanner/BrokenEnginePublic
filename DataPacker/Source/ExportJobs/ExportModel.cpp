@@ -48,11 +48,11 @@ void ExportModel::Export()
 	pHeader->modelHeader.iStride = iStride;
 	if (indices16.size() > 0)
 	{
-		memcpy(dataSpan.data(), indices16.data(), common::VectorByteSize(indices16));
+		std::memcpy(dataSpan.data(), indices16.data(), common::VectorByteSize(indices16));
 	}
 	else
 	{
-		memcpy(dataSpan.data(), indices32.data(), common::VectorByteSize(indices32));
+		std::memcpy(dataSpan.data(), indices32.data(), common::VectorByteSize(indices32));
 	}
-	memcpy(dataSpan.data() + iIndicesSize, vertices.data(), common::VectorByteSize(vertices));
+	std::memcpy(dataSpan.data() + iIndicesSize, vertices.data(), common::VectorByteSize(vertices));
 }

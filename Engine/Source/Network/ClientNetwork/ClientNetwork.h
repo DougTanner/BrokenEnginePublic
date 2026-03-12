@@ -46,11 +46,7 @@ struct ClientCoordSlot
 {
 	GridCoord coord {};
 	CoordSubscriptionState eState = CoordSubscriptionState::kUnsubscribed;
-
-	// Per-slot ACK state
-	int64_t iAckFloor = -1;
-	uint64_t uiReceivedBitfield = 0;
-	uint16_t uiEpoch = 0;
+	AckState ackState;
 };
 
 struct ReceivedAssignment

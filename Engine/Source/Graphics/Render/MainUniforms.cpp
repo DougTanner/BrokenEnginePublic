@@ -47,7 +47,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	const game::FrameInterpolate& rFrameInterpolate = rCameraInterpolate;
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
-	static int siRenderCount = 0;
+	static int32_t siRenderCount = 0;
 	rMainLayout.iFrameNumber = static_cast<int>(game::gpCamera->miFrame);
 	rMainLayout.iRenderNumber = ++siRenderCount;
 

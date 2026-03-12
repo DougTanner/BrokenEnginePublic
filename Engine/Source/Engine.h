@@ -19,6 +19,7 @@
 #include "Network/NetworkManager.h"
 #include "Network/NetworkProtocol.h"
 #include "Network/NetworkSerialization.h"
+#include "Network/NetworkSimulation.h"
 
 // Ui
 #include "Ui/Screens/TweaksScreen/TweaksScreen.h"

@@ -451,7 +451,7 @@ void SwapchainManager::AcquireNextImage()
 	}
 }
 
-void SwapchainManager::PresentImpl(int64_t iFramebufferIndex)
+void SwapchainManager::PresentToQueue(int64_t iFramebufferIndex)
 {
 	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
@@ -489,12 +489,12 @@ void SwapchainManager::Present(int64_t iFramebufferIndex)
 		mPresent.Wake([this, iFramebufferIndex]()
 		{
 			gpCommandBufferManager->mSubmitMain.Wait();
-			PresentImpl(iFramebufferIndex);
+			PresentToQueue(iFramebufferIndex);
 		});
 	}
 	else
 	{
-		PresentImpl(iFramebufferIndex);
+		PresentToQueue(iFramebufferIndex);
 	}
 }
 

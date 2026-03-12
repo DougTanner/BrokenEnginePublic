@@ -87,7 +87,7 @@ void HudScreen::RenderShieldBar(ImDrawList* pDrawList, const ImVec2& rDisplaySiz
 {
 	float fAspectRatio = engine::gpSwapchainManager->mfAspectRatio;
 
-	auto oIdx = gpGame->HumanPlayerIndex(*gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers);
+	std::optional<int64_t> oIdx = gpGame->HumanPlayerIndex(*gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers);
 	if (!oIdx)
 	{
 		return;
@@ -138,7 +138,7 @@ void HudScreen::RenderArmorBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize
 {
 	float fAspectRatio = engine::gpSwapchainManager->mfAspectRatio;
 
-	auto oIdx = gpGame->HumanPlayerIndex(*gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers);
+	std::optional<int64_t> oIdx = gpGame->HumanPlayerIndex(*gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers);
 	if (!oIdx)
 	{
 		return;

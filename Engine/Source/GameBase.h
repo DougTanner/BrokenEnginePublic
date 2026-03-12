@@ -42,7 +42,7 @@ struct CoordFrames
 	std::unique_ptr<game::Frame> pNext;
 
 #if defined(BT_CLIENT)
-	std::array<std::unique_ptr<game::Frame>, kiTickRate> snapshots {};
+	std::unique_ptr<game::Frame> snapshots[kiTickRate] {};
 	int64_t iSnapshotHead = 0;       // physical index of oldest entry
 	int64_t iSnapshotCount = 0;      // number of valid entries in ring
 
@@ -66,8 +66,26 @@ struct CoordFrames
 	std::optional<PendingFullState> pendingFullState;
 
 	uint64_t uiGeneration = 0;
+
+	void ResetClientState()
+	{
+		iConfirmedTick = -1;
+		iConfirmedOffset = -1;
+		iSnapshotHead = 0;
+		iSnapshotCount = 0;
+		serverUpdates.clear();
+		pendingFullState.reset();
+		uiGeneration = 0;
+	}
 #endif // BT_CLIENT
 };
+
+#if defined(BT_CLIENT)
+inline int64_t SnapshotIndex(int64_t iHead, int64_t iLogical)
+{
+	return (iHead + iLogical) % kiTickRate;
+}
+#endif // BT_CLIENT
 
 class GameBase
 {

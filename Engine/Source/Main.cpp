@@ -37,13 +37,6 @@ void MainThread(HINSTANCE hinstance)
 {
 	common::ThreadLocal threadLocal(10 * 1024 * 1024);
 
-	// DT: TEMP
-#if defined(BT_CLIENT)
-	FILE_LOG_INIT(0, "../../../../DiagnosticLogs/ClientLog.txt");
-#else
-	FILE_LOG_INIT(0, "../../../../DiagnosticLogs/ServerLog.txt");
-#endif
-
 	Log("\nGame name: {}", game::kGameName);
 	Log("Game version: {}", game::kiGameVersion);
 	Log("Compiled with Windows 10 SDK version: {}.{}", VER_PRODUCTBUILD, VER_PRODUCTBUILD_QFE);
@@ -250,11 +243,11 @@ void MainThread(HINSTANCE hinstance)
 
 	gpProfileManager->BootLog();
 
-	Log("\nEnter main loop");
-	ScopedLogIndent scopedLogIndent;
 	EnableAllocationTracking(true);
 	pGame->mTimeStep.mRealTime.Reset();
 
+	Log("\nEnter main loop");
+	LogIndent(1);
 	while (true)
 	{
 		gpProfileManager->CpuStart(kCpuTimerMessagesAndInput);
@@ -307,6 +300,7 @@ void MainThread(HINSTANCE hinstance)
 		}
 #endif // BT_CLIENT
 	}
+	LogIndent(-1);
 	Log("Exit main loop\n\n");
 
 	EnableAllocationTracking(false);

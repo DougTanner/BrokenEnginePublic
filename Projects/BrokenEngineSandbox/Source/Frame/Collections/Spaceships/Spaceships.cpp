@@ -348,7 +348,7 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 	SpaceshipsInterpolate& rCurrentInterpolate = *rFrame.interpolate.pSpaceships;
 	SpaceshipsPostRender& rCurrentPostRender = *rFrame.postRender.pSpaceships;
 
-	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	for (int64_t i = rCurrentInterpolate.iCount - 1; i >= 0; --i)
 	{
 		if (!(rCurrentPostRender.pFlags[i] & kExploding) || rCurrentInterpolate.pfDestroyedTimes[i] > 0.0f) [[likely]]
 		{
@@ -364,9 +364,6 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		}
 #endif
 
-		FILE_LOG(0, "[SpaceshipDestroy] i={} count={} tick={} lastPos=({:.2f},{:.2f})",
-			i, rCurrentInterpolate.iCount, rFrame.interpolate.iTick,
-			rCurrentInterpolate.pVecPositions[i].m128_f32[0], rCurrentInterpolate.pVecPositions[i].m128_f32[1]);
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
 }

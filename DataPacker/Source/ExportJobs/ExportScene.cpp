@@ -1,8 +1,8 @@
 #include "ExportScene.h"
 
-#include "ExportSceneVertices.h"
-#include "ExportSceneSkeleton.h"
 #include "ExportSceneAnimation.h"
+#include "ExportSceneSkeleton.h"
+#include "ExportSceneVertices.h"
 #include "Texture.h"
 
 using enum common::ChunkFlags;
@@ -264,13 +264,13 @@ void ExportScene::PreExport(tinygltf::Model& rGltfModel)
 	uint8_t uiSkinJointCount = 0;
 	if (!rGltfModel.skins.empty())
 	{
-		size_t jointCount = rGltfModel.skins[0].joints.size();
-		if (jointCount > common::kiMaxJointsPerMesh)
+		size_t uiJointCount = rGltfModel.skins[0].joints.size();
+		if (uiJointCount > common::kiMaxJointsPerMesh)
 		{
 			Log("WARNING: Model has {} joints, exceeding shader limit of {}. Skinning will use first {} joints only.",
-				jointCount, common::kiMaxJointsPerMesh, common::kiMaxJointsPerMesh);
+				uiJointCount, common::kiMaxJointsPerMesh, common::kiMaxJointsPerMesh);
 		}
-		uiSkinJointCount = static_cast<uint8_t>(jointCount);
+		uiSkinJointCount = static_cast<uint8_t>(uiJointCount);
 	}
 
 	for (int64_t i = 0; i < static_cast<int64_t>(materialNodeInfos.size()); ++i)

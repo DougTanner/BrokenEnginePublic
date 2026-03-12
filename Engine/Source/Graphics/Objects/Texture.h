@@ -67,9 +67,19 @@ public:
 	static void RecordEndRenderPass(VkCommandBuffer vkCommandBuffer, VkRenderPass vkRenderPass);
 
 	Texture() = default;
-	Texture(const Texture&) = default;
-	Texture(Texture&&) noexcept = default;
-	Texture(const TextureInfo& rInfo, std::function<void(void*,int64_t,int64_t)> dataFunction = nullptr);
+	Texture(const Texture&) = delete;
+	Texture& operator=(const Texture&) = delete;
+	Texture(Texture&& rOther) noexcept
+		: mInfo(std::move(rOther.mInfo))
+		, mVkDeviceMemory(std::exchange(rOther.mVkDeviceMemory, VK_NULL_HANDLE))
+		, mVmaAllocation(std::exchange(rOther.mVmaAllocation, VK_NULL_HANDLE))
+		, mVkImage(std::exchange(rOther.mVkImage, VK_NULL_HANDLE))
+		, mVkImageView(std::exchange(rOther.mVkImageView, VK_NULL_HANDLE))
+		, mpDepthTexture(std::move(rOther.mpDepthTexture))
+		, mVkRenderPass(std::exchange(rOther.mVkRenderPass, VK_NULL_HANDLE))
+		, mVkFramebuffer(std::exchange(rOther.mVkFramebuffer, VK_NULL_HANDLE))
+	{}
+	Texture(const TextureInfo& rInfo, std::function<void(void*, int64_t, int64_t)> dataFunction = nullptr);
 	~Texture();
 
 	void Create(const TextureInfo& rInfo, std::function<void(void*, int64_t, int64_t)> dataFunction = nullptr);

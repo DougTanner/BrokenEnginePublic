@@ -230,7 +230,7 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;
 	BlastersPostRender& rCurrentPostRender = *rFrame.postRender.pBlasters;
 
-	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	for (int64_t i = rCurrentInterpolate.iCount - 1; i >= 0; --i)
 	{
 		if (!(rCurrentPostRender.pFlags[i] & kDestroy)) [[likely]]
 		{

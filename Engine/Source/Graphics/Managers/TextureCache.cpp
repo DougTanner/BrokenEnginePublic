@@ -239,7 +239,7 @@ bool TextureCache::TryLoadCachedTexture(const std::filesystem::path& rCachePath,
 		memcpy(pData, data.data(), iSize);
 	});
 
-	Log("Loaded cached texture from {}", rCachePath.string());
+	Log(kLogLoading, "Loaded cached texture from {}", rCachePath.string());
 	return true;
 }
 

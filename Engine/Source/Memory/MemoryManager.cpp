@@ -81,7 +81,7 @@ void operator delete[](void* p, std::align_val_t al, const std::nothrow_t&) noex
 
 #endif
 
-constexpr long kiMimallocArenaReserveMb = 3 * 1024;
+constexpr int64_t kiMimallocArenaReserveMb = 3 * 1024;
 
 struct MemoryInitializer
 {
@@ -96,7 +96,7 @@ struct MemoryInitializer
 		mi_option_set(mi_option_arena_eager_commit, 1);
 
 		// Pre-reserve a large arena at startup (eliminates OS memory calls during gameplay)
-		mi_option_set(mi_option_reserve_os_memory, kiMimallocArenaReserveMb * 1024L);
+		mi_option_set(mi_option_reserve_os_memory, kiMimallocArenaReserveMb * 1024);
 
 #if defined(DEBUG) || defined(_DEBUG)
 		// Route mimalloc output to VS Output window
@@ -119,7 +119,7 @@ struct MemoryInitializer
 		int64_t iPeakCommittedMb = stats.committed.peak / (1024 * 1024);
 
 		char pcBuffer[256];
-		snprintf(pcBuffer, sizeof(pcBuffer), "[mimalloc] Peak heap usage: %lld MiB, peak committed: %lld MiB (arena reserve: %ld MiB)\n", iPeakUsageMb, iPeakCommittedMb, kiMimallocArenaReserveMb);
+		snprintf(pcBuffer, sizeof(pcBuffer), "[mimalloc] Peak heap usage: %lld MiB, peak committed: %lld MiB (arena reserve: %lld MiB)\n", iPeakUsageMb, iPeakCommittedMb, kiMimallocArenaReserveMb);
 		OutputDebugStringA(pcBuffer);
 
 		if (iPeakCommittedMb > kiMimallocArenaReserveMb)

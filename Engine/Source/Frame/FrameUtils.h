@@ -128,5 +128,4 @@ bool CompareCollections(const TTuple1& t1, const TTuple2& t2, std::index_sequenc
 	return bEqual;
 }
 
-
 } // namespace engine

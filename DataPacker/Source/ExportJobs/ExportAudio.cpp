@@ -28,21 +28,21 @@ void ExportAudio::Export()
 	if (pWaveformatex->wFormatTag == WAVE_FORMAT_PCM && pWaveformatex->wBitsPerSample == 16)
 	{
 		// 16-bit PCM - direct copy
-		size_t sampleCount = uiAudioBytes / sizeof(int16_t);
-		pcmSamples.resize(sampleCount);
+		size_t uiSampleCount = uiAudioBytes / sizeof(int16_t);
+		pcmSamples.resize(uiSampleCount);
 		std::memcpy(pcmSamples.data(), pAudioData, uiAudioBytes);
 	}
 	else if (pWaveformatex->wFormatTag == WAVE_FORMAT_IEEE_FLOAT && pWaveformatex->wBitsPerSample == 32)
 	{
 		// 32-bit IEEE float - convert to int16
-		size_t sampleCount = uiAudioBytes / sizeof(float);
-		pcmSamples.resize(sampleCount);
-		const float* floatSamples = reinterpret_cast<const float*>(pAudioData);
+		size_t uiSampleCount = uiAudioBytes / sizeof(float);
+		pcmSamples.resize(uiSampleCount);
+		const float* pfSamples = reinterpret_cast<const float*>(pAudioData);
 
-		for (size_t i = 0; i < sampleCount; ++i)
+		for (size_t i = 0; i < uiSampleCount; ++i)
 		{
-			float sample = std::clamp(floatSamples[i], -1.0f, 1.0f);
-			pcmSamples[i] = static_cast<int16_t>(sample * 32767.0f);
+			float fSample = std::clamp(pfSamples[i], -1.0f, 1.0f);
+			pcmSamples.at(i) = static_cast<int16_t>(fSample * 32767.0f);
 		}
 	}
 	else

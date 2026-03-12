@@ -19,7 +19,7 @@ public:
 		ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 		char pcBuffer[2048] {};
-		auto result = std::format_to_n(pcBuffer, sizeof(pcBuffer) - 2, format, parameters...);
+		std::format_to_n_result<char*> result = std::format_to_n(pcBuffer, sizeof(pcBuffer) - 2, format, parameters...);
 		*result.out = '\n';
 
 		std::lock_guard lockGuard(mMutex);

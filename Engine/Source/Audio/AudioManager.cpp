@@ -185,7 +185,7 @@ void AudioManager::SetNextMusicTrackCallback(std::function<common::crc_t()> call
 
 void AudioManager::ClearVoices()
 {
-	for (auto& [id, rStaticVoice] : mStaticVoices)
+	for (auto& [rId, rStaticVoice] : mStaticVoices)
 	{
 		rStaticVoice.mpVoice = nullptr;
 	}
@@ -194,7 +194,7 @@ void AudioManager::ClearVoices()
 	{
 		std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
 
-		if (mpCurrentMusicStream)
+		if (mpCurrentMusicStream != nullptr)
 		{
 			mpCurrentMusicStream->mpVoice = nullptr;
 		}
@@ -202,7 +202,7 @@ void AudioManager::ClearVoices()
 
 		for (std::unique_ptr<StreamingVoice>& pPreviousStream : mPreviousStreams)
 		{
-			if (pPreviousStream)
+			if (pPreviousStream != nullptr)
 			{
 				pPreviousStream->mpVoice = nullptr;
 			}
@@ -505,7 +505,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 	mX3dAudioListener.Position = f3Position;
 	mX3dAudioListener.Velocity = f3Velocity;
 
-	for (const auto& [id, rVoice] : mStaticVoices)
+	for (const auto& [rId, rVoice] : mStaticVoices)
 	{
 		Apply3dVolume(rVoice.mpVoice, rVoice.mVecPosition, rVoice.mVecVelocity, rVoice.mfFadeOutVolume * rVoice.mfVolume, rVoice.mfPitch);
 	}

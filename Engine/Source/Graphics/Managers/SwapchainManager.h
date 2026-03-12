@@ -71,7 +71,7 @@ private:
 		return vkFence;
 	}
 
-	void PresentImpl(int64_t iFramebufferIndex);
+	void PresentToQueue(int64_t iFramebufferIndex);
 
 	VkFence mCurrentImageAvailableVkFence = VK_NULL_HANDLE;
 };

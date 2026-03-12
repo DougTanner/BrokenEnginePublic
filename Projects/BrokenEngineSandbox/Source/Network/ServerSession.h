@@ -51,12 +51,28 @@ public:
 
 private:
 
+	// ComputeActiveSet helpers
+	void AddSubscribedCoords();
+	void AddNeighborCoords();
+	void EnsureSpecialCoords();
+	void SyncActiveFrames();
+
+	// HarvestTransfers helpers
+	void CollectTransfers(std::vector<struct HumanTransferInfo>& rHumanTransfers);
+	void SortTransfersByType();
+	void SpawnTransfers();
+	void TrackHumanTransfers(const std::vector<struct HumanTransferInfo>& rHumanTransfers);
+
 	std::vector<PendingPlayerDestroy> mPendingPlayerDestroys;
 	std::vector<ClientSpawnInfo> mClientsWaitingForSpawn;
 	std::unordered_set<int64_t> mDeadClientIds;
 	std::vector<player_t> mPreSpawnPlayerIds;
-	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mBroadcastSpawns;
-	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mBroadcastTransfers;
+	struct TickBroadcastData
+	{
+		std::unordered_map<engine::GridCoord, std::vector<StatusChange>> spawns;
+		std::unordered_map<engine::GridCoord, std::vector<StatusChange>> transfers;
+	};
+	TickBroadcastData mTickBroadcast;
 	std::vector<SubscriptionUpdate> mPendingSubscriptionUpdates;
 };
 

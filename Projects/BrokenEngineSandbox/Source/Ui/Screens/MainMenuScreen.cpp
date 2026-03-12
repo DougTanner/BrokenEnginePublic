@@ -105,7 +105,7 @@ void MainMenuScreen::Render()
 	float fTotalLangWidth = fLangButtonWidth * 6.0f + fLangButtonSpacing * 5.0f;
 	ImGui::SetCursorPosX((rIo.DisplaySize.x - fTotalLangWidth) / 2.0f);
 
-	const char* kpcLanguageNames[] = {"ENGLISH", "中文", "ESPANOL", "PORTUGUES", "FRANCAIS", "DEUTSCH"};
+	static constexpr const char* kpcLanguageNames[] = {"ENGLISH", "中文", "ESPANOL", "PORTUGUES", "FRANCAIS", "DEUTSCH"};
 	for (int i = 0; i < kLanguageCount; ++i)
 	{
 		if (i > 0)

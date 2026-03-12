@@ -24,7 +24,7 @@ void ClientNetwork::SendAck()
 	uint8_t uiAckSlotCount = 0;
 	for (int64_t i = 0; i < std::ssize(mCoordSlots); ++i)
 	{
-		if (mCoordSlots[i].eState == CoordSubscriptionState::kActive)
+		if (mCoordSlots.at(i).eState == CoordSubscriptionState::kActive)
 		{
 			++uiAckSlotCount;
 		}
@@ -32,20 +32,18 @@ void ClientNetwork::SendAck()
 	rWorkbuffer.PushBack<uint8_t>(uiAckSlotCount);
 	for (int64_t i = 0; i < std::ssize(mCoordSlots); ++i)
 	{
-		if (mCoordSlots[i].eState == CoordSubscriptionState::kActive)
+		if (mCoordSlots.at(i).eState == CoordSubscriptionState::kActive)
 		{
 			rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(i));
-			rWorkbuffer.PushBack<uint16_t>(mCoordSlots[i].uiEpoch);
-			rWorkbuffer.PushBack<int64_t>(mCoordSlots[i].iAckFloor);
-			rWorkbuffer.PushBack<uint64_t>(mCoordSlots[i].uiReceivedBitfield);
+			rWorkbuffer.PushBack<uint16_t>(mCoordSlots.at(i).ackState.uiEpoch);
+			rWorkbuffer.PushBack<int64_t>(mCoordSlots.at(i).ackState.iAckFloor);
+			rWorkbuffer.PushBack<uint64_t>(mCoordSlots.at(i).ackState.uiReceivedBitfield);
 		}
 	}
 
 	// Pipeline RTT: embed client timestamp for server to echo back
 	int64_t iTimestampNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 	rWorkbuffer.PushBack<int64_t>(iTimestampNs);
-
-	common::Log("NetworkClient: SendAck slots={}", uiAckSlotCount); // DT: TEMP
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
@@ -74,7 +72,7 @@ void ClientNetwork::SendSpawnRequest(ClientRequestFlags_t flags)
 	std::memcpy(&uiFlags, &flags, sizeof(uint8_t));
 	rWorkbuffer.PushBack<uint8_t>(uiFlags);
 
-	common::Log("NetworkClient: Sending spawn request (spawn={}, respawn={})", static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
+	Log(kLogNetwork, "NetworkClient: Sending spawn request (spawn={}, respawn={})", static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
@@ -107,7 +105,7 @@ void ClientNetwork::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc
 
 	char pcExpected[20] {};
 	char pcActual[20] {};
-	common::Log("NetworkClient: Sending desync report frame {} grid ({},{}) expected={} actual={}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), expected), common::ToHex(std::span(pcActual), actual));
+	Log(kLogNetwork, "NetworkClient: Sending desync report frame {} grid ({},{}) expected={} actual={}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), expected), common::ToHex(std::span(pcActual), actual));
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
@@ -137,7 +135,7 @@ void ClientNetwork::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 	rWorkbuffer.PushBack<int32_t>(coord.x);
 	rWorkbuffer.PushBack<int32_t>(coord.y);
 
-	common::Log("NetworkClient: Sending debug frame request frame {} grid ({},{})", iTick, coord.x, coord.y);
+	Log(kLogNetwork, "NetworkClient: Sending debug frame request frame {} grid ({},{})", iTick, coord.x, coord.y);
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
@@ -162,12 +160,12 @@ void ClientNetwork::SendSubscribe(GridCoord coord)
 	bool bFoundSlot = false;
 	for (int64_t i = 0; i < std::ssize(mCoordSlots); ++i)
 	{
-		if (mCoordSlots[i].eState == CoordSubscriptionState::kUnsubscribed || mCoordSlots[i].eState == CoordSubscriptionState::kUnsubscribing)
+		if (mCoordSlots.at(i).eState == CoordSubscriptionState::kUnsubscribed || mCoordSlots.at(i).eState == CoordSubscriptionState::kUnsubscribing)
 		{
 			// Purge delayed packets for the old slot's channels before reuse
 			if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 			{
-				if (mCoordSlots[i].eState == CoordSubscriptionState::kUnsubscribing)
+				if (mCoordSlots.at(i).eState == CoordSubscriptionState::kUnsubscribing)
 				{
 					uint8_t uiReliable = NetworkManager::CoordSlotReliable(i);
 					uint8_t uiUnreliable = NetworkManager::CoordSlotUnreliable(i);
@@ -178,10 +176,10 @@ void ClientNetwork::SendSubscribe(GridCoord coord)
 				}
 			}
 
-			mCoordSlots[i].coord = coord;
-			mCoordSlots[i].eState = CoordSubscriptionState::kSubscribing;
-			mCoordSlots[i].iAckFloor = -1;
-			mCoordSlots[i].uiReceivedBitfield = 0;
+			mCoordSlots.at(i).coord = coord;
+			mCoordSlots.at(i).eState = CoordSubscriptionState::kSubscribing;
+			mCoordSlots.at(i).ackState.iAckFloor = -1;
+			mCoordSlots.at(i).ackState.uiReceivedBitfield = 0;
 			bFoundSlot = true;
 			break;
 		}
@@ -190,9 +188,6 @@ void ClientNetwork::SendSubscribe(GridCoord coord)
 	{
 		return;
 	}
-
-	FILE_LOG(0, "[NetworkClient] SendSubscribe: coord=({},{})", coord.x, coord.y);
-	common::Log("NetworkClient: SendSubscribe coord ({},{})", coord.x, coord.y); // DT: TEMP
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
@@ -228,10 +223,7 @@ void ClientNetwork::SendUnsubscribe(int64_t iSlot)
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientUnsubscribe));
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
 
-	FILE_LOG(0, "[NetworkClient] SendUnsubscribe: slot={}", iSlot);
-	common::Log("NetworkClient: SendUnsubscribe slot {}", iSlot); // DT: TEMP
-
-	mCoordSlots[iSlot].eState = CoordSubscriptionState::kUnsubscribing;
+	mCoordSlots.at(iSlot).eState = CoordSubscriptionState::kUnsubscribing;
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
@@ -247,11 +239,11 @@ void ClientNetwork::SendUnsubscribe(int64_t iSlot)
 
 void ClientNetwork::SendHello()
 {
-	common::Log("NetworkClient: SendHello config={}", kpcBuildConfigName); // DT: TEMP
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientHello));
+	rWorkbuffer.PushBack<uint32_t>(kuiProtocolVersion);
 	rWorkbuffer.Append(std::string_view(kpcBuildConfigName));
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();

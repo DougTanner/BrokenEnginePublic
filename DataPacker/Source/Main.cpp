@@ -16,7 +16,7 @@ constexpr int64_t kiDataPackerVersion = 1;
 
 static bool sbSingleThread = false;
 
-void Quit(std::string_view message, std::string_view title);
+void Quit(const char* message, const char* title);
 
 template <typename T>
 bool RunExportJobs()
@@ -132,7 +132,7 @@ bool RunExportJobs()
 		{
 			Log("Exception thrown from future: \"{}\"", rException.what());
 			std::string message = std::format("Asset: {}\n\n{}", rpExportJob->mInputPath.string(), rException.what());
-			Quit(message, "Data Packer - Export Failed");
+			Quit(message.c_str(), "Data Packer - Export Failed");
 			bFailed = true;
 		}
 	}
@@ -290,10 +290,10 @@ bool MainThread(int argc, char* argv[])
 	return bSuccess;
 }
 
-void Quit(std::string_view message, std::string_view title)
+void Quit(const char* message, const char* title)
 {
 	fflush(stdout);
-	MessageBox(nullptr, message.data(), title.data(), MB_OK | MB_SYSTEMMODAL);
+	MessageBox(nullptr, message, title, MB_OK | MB_SYSTEMMODAL);
 }
 
 int main(int argc, char* argv[])

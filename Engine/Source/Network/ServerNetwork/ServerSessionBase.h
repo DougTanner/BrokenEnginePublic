@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Network/NetworkDiscovery.h"
-
 namespace engine
 {
+
+class NetworkDiscoveryResponder;
 
 #if defined(BT_SERVER)
 class ServerSessionBase
@@ -22,6 +22,15 @@ public:
 		CloseHandle(mTimerHandle);
 		timeEndPeriod(1);
 	}
+
+	// Tick timing
+	void WaitForTick(TimeStep& rTimeStep, std::chrono::nanoseconds tickNs);
+
+	// Network polling
+	void PollNetworkBase();
+
+	// Subscription management
+	void SendNewSubscriptionFullStates(int64_t iTick);
 
 	std::unique_ptr<NetworkDiscoveryResponder> mpDiscoveryResponder;
 	HANDLE mTimerHandle = nullptr;

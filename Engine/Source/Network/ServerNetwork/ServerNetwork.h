@@ -1,10 +1,9 @@
 #pragma once
 
+#include "Network/ServerNetwork/ServerNetworkTypes.h"
+
 namespace game
 {
-
-struct PlayersInterpolate;
-using player_t = engine::id_t<PlayersInterpolate>;
 
 struct Frame;
 struct StatusChange;
@@ -13,19 +12,6 @@ struct StatusChange;
 
 namespace engine
 {
-
-struct ClientCoordSubscription
-{
-	GridCoord coord {};
-	bool bActive = false;
-};
-
-struct PerCoordAckState
-{
-	int64_t iAckFloor = -1;
-	uint64_t uiReceivedBitfield = 0;
-	uint16_t uiEpoch = 0;
-};
 
 struct ClientConnection
 {
@@ -36,7 +22,7 @@ struct ClientConnection
 
 	// Slot-based subscriptions (replaces activeCoords + pendingFullStateCoords)
 	std::vector<ClientCoordSubscription> coordSubscriptions;
-	std::vector<PerCoordAckState> coordAckStates;
+	std::vector<AckState> coordAckStates;
 
 	// Pipeline RTT: echoed back to client in update packets
 	int64_t iClientTimestampNs = 0;
@@ -46,7 +32,7 @@ struct ClientConnection
 	{
 		for (int64_t i = 0; i < std::ssize(coordSubscriptions); ++i)
 		{
-			if (coordSubscriptions[i].bActive && coordSubscriptions[i].coord == coord)
+			if (coordSubscriptions.at(i).bActive && coordSubscriptions.at(i).coord == coord)
 			{
 				return i;
 			}
@@ -58,7 +44,7 @@ struct ClientConnection
 	{
 		for (int64_t i = 0; i < std::ssize(coordSubscriptions); ++i)
 		{
-			if (!coordSubscriptions[i].bActive)
+			if (!coordSubscriptions.at(i).bActive)
 			{
 				return i;
 			}
@@ -68,43 +54,17 @@ struct ClientConnection
 
 	void FreeSlot(int64_t iSlot)
 	{
-		coordSubscriptions[iSlot] = {};
+		coordSubscriptions.at(iSlot) = {};
 		// Reset ACK state but preserve epoch (incremented on next allocation)
-		coordAckStates[iSlot].iAckFloor = -1;
-		coordAckStates[iSlot].uiReceivedBitfield = 0;
+		uint16_t uiEpoch = coordAckStates.at(iSlot).uiEpoch;
+		coordAckStates.at(iSlot) = {};
+		coordAckStates.at(iSlot).uiEpoch = uiEpoch;
 	}
 
 	bool IsCoordSubscribed(GridCoord coord) const
 	{
 		return FindSlotForCoord(coord) >= 0;
 	}
-};
-
-struct PendingSpawnRequest
-{
-	int64_t iClientId = 0;
-	ClientRequestFlags_t flags {};
-};
-
-struct PendingDisconnect
-{
-	int64_t iClientId = 0;
-	game::player_t playerId {};
-	GridCoord coord {};
-};
-
-struct PendingNewSubscription
-{
-	int64_t iClientId = 0;
-	int64_t iSlot = 0;
-	GridCoord coord {};
-};
-
-struct GridUpdateData
-{
-	common::crc_t serverCrc = 0;
-	common::crc_t inputCrc = 0;
-	std::span<const game::StatusChange> statusChanges;
 };
 
 // Per-coord ring buffer entry for re-send support
@@ -181,6 +141,7 @@ private:
 
 	// Per-coord ring buffers for re-sends
 	std::unordered_map<GridCoord, std::deque<PerCoordBufferedFrame>> mPerCoordBufferedFrames;
+	int64_t miLatestBufferedTick = -1;
 
 	// Ring buffer for debug frame requests
 	std::deque<BufferedFullFrame> mBufferedFullFrames;

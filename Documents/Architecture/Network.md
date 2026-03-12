@@ -18,31 +18,37 @@ graph TD
         gpClientNetwork["gpClientNetwork<br/>ClientNetwork<br/>(mpHost, mpServerPeer)"]:::clientOnly
         gpServerNetwork["gpServerNetwork<br/>ServerNetwork<br/>(mpHost, mClients[])"]:::serverOnly
 
-        protocol["NetworkProtocol.h<br/>PacketType enum (16 types)<br/>PlayerStateType enum<br/>(kSpawned, kChangedFrame, kDied)<br/>Per-slot channel helpers"]:::protocol
+        server_types["ServerNetworkTypes.h<br/>ClientCoordSubscription<br/>PendingSpawnRequest<br/>PendingDisconnect<br/>PendingNewSubscription<br/>GridUpdateData"]:::serverOnly
+        protocol["NetworkProtocol.h<br/>PacketType enum (15 types)<br/>PlayerStateType enum<br/>(kSpawned, kChangedFrame, kDied)<br/>AckState struct<br/>kuiProtocolVersion"]:::protocol
+        simulation["NetworkSimulation.h<br/>NetworkSimulationLevel enum<br/>NetworkSimulationConfig<br/>DelayedPacket<br/>EnqueueOrDrop / ProcessDelayed<br/>(latency + loss injection)"]:::shared
         serialization["NetworkSerialization<br/>StatusChange compress/decompress<br/>(LZ4)"]:::shared
         cursor["NetworkCursor<br/>Inline binary read/write helpers<br/>(ReadUint8..ReadVec4, ReadGridCoord,<br/>WriteUint8..WriteVec4)"]:::shared
         discovery_scanner["NetworkDiscoveryScanner<br/>(UDP broadcast probe)"]:::clientOnly
         discovery_responder["NetworkDiscoveryResponder<br/>(UDP listen on port 27016)"]:::serverOnly
-        client_session_base["ClientSessionBase<br/>(owns ClientNetwork +<br/>DiscoveryScanner)"]:::clientOnly
-        session_base["ServerSessionBase<br/>(owns DiscoveryResponder,<br/>mTimerHandle for tick sleep)"]:::serverOnly
+        client_session_base["ClientSessionBase<br/>(owns ClientNetwork +<br/>DiscoveryScanner)<br/>ConnectToServer, DisconnectFromServerBase,<br/>StartServerDiscovery, PollLANDiscovery,<br/>TrySubscribeNext, UnsubscribeStaleCoords,<br/>BuildSubscriptionQueue,<br/>ApplyReceivedUpdatesBase,<br/>ComputeClockCorrectionNs,<br/>IsExtrapolating, PrepareExtrapolationTick,<br/>BuildExtrapolationFrameRef,<br/>RecordExtrapolationSnapshot, GetSnapshotFrame,<br/>GetConfirmedTick, GetServerUpdateBufferSize"]:::clientOnly
+        session_base["ServerSessionBase<br/>(owns DiscoveryResponder,<br/>mTimerHandle for tick sleep)<br/>WaitForTick, PollNetworkBase,<br/>SendNewSubscriptionFullStates"]:::serverOnly
     end
 
     subgraph server_data ["Server-Side Data"]
         client_conn["ClientConnection<br/>pPeer, iClientId, humanPlayerId,<br/>humanGridCoord,<br/>coordSubscriptions (vector),<br/>coordAckStates (vector) (floor+bitfield+epoch),<br/>iClientTimestampNs"]:::serverOnly
         buffered["mPerCoordBufferedFrames<br/>(per-coord ring buffers, 256 max)<br/>PerCoordBufferedFrame: serverCrc + inputCrc<br/>+ compressed data<br/>mBufferedFullFrames<br/>(debug frame ring buffer)"]:::serverOnly
         pending["mPendingSpawnRequests<br/>mPendingDisconnects<br/>mPendingNewSubscriptions"]:::serverOnly
+        delayed_server["mDelayedPackets<br/>(network simulation delay queue)"]:::serverOnly
     end
 
     subgraph client_data ["Client-Side Data"]
         received["mReceivedCoordUpdates (vector)<br/>(per-slot update buffers)<br/>ReceivedCoordUpdate: serverCrc + inputCrc<br/>+ statusChanges<br/>mReceivedFullStates<br/>mReceivedAssignments<br/>mReceivedPlayerStates"]:::clientOnly
         ack_state["Per-Slot ACK State<br/>ClientCoordSlot (vector)<br/>(coord, state, ackFloor, bitfield, epoch)"]:::clientOnly
-        delayed["mDelayedPackets<br/>(network simulation)"]:::clientOnly
+        delayed["mDelayedPackets<br/>(network simulation delay queue)"]:::clientOnly
     end
 
+    gpServerNetwork -->|includes| server_types
     gpNetworkManager -->|initializes| gpClientNetwork
     gpNetworkManager -->|initializes| gpServerNetwork
     gpClientNetwork -->|uses| protocol
     gpServerNetwork -->|uses| protocol
+    gpClientNetwork -->|uses| simulation
+    gpServerNetwork -->|uses| simulation
     gpClientNetwork -->|uses| serialization
     gpServerNetwork -->|uses| serialization
     gpClientNetwork -->|uses| cursor
@@ -51,6 +57,7 @@ graph TD
     gpServerNetwork -->|manages| client_conn
     gpServerNetwork -->|stores| buffered
     gpServerNetwork -->|queues| pending
+    gpServerNetwork -->|delays| delayed_server
     gpClientNetwork -->|buffers| received
     gpClientNetwork -->|tracks| ack_state
     client_session_base -->|owns| gpClientNetwork
@@ -75,9 +82,13 @@ sequenceDiagram
     E->>C: CONNECT event
     C->>C: mbConnected = true<br/>Disable ENet throttle
 
-    C->>S: kClientHello (reliable)<br/>[kpcBuildConfigName]
+    C->>S: kClientHello (reliable)<br/>[kuiProtocolVersion, kpcBuildConfigName]
 
-    alt Build config matches
+    alt Protocol version mismatch
+        S->>C: kServerConnectionResponse (reliable)<br/>[accepted = false, reason]
+        C->>C: mpcRejectionReason = reason
+        S->>E: enet_peer_disconnect_later()
+    else Protocol matches, build config matches
         S->>C: kServerConnectionResponse (reliable)<br/>[accepted = true]
         C->>C: mbConnectionAccepted = true
         Note over C,S: Game layer proceeds to spawn
@@ -194,15 +205,15 @@ flowchart TD
     classDef decision fill:#f3e8ff,stroke:#9333ea
     classDef desync fill:#fee2e2,stroke:#ef4444
 
-    subgraph main ["Main Thread (ClientSession)"]
-        poll["PollNetwork()<br/>Buffer per-slot received updates<br/>into CoordReconcileStates"]:::mainThread
-        kick["TryKickReconcile()<br/>Gate: mbReconcileHasNewData<br/>Build CoordReconcileWork per coord<br/>+ kick worker"]:::mainThread
-        wait["WaitForReconcile()<br/>Block until worker done"]:::mainThread
-        apply["ApplyReconcileResult()<br/>Merge per-coord results<br/>into mCurrentFrames"]:::mainThread
+    subgraph main ["Main Thread (ClientSession + ClientReconciler)"]
+        poll["ClientSession::PollNetwork()<br/>Buffer per-slot received updates<br/>into CoordReconcileStates"]:::mainThread
+        kick["ClientReconciler::TryKick()<br/>Gate: mbHasNewData<br/>Build CoordReconcileWork per coord<br/>+ kick worker"]:::mainThread
+        wait["ClientReconciler::Wait()<br/>Block until worker done"]:::mainThread
+        apply["ClientReconciler::ApplyResult()<br/>Merge per-coord results<br/>into mCurrentFrames"]:::mainThread
     end
 
-    subgraph worker_thread ["Reconcile Worker (PersistentWorker)"]
-        check_crc{"CRC fast-path:<br/>All coords' Frame CRCs<br/>(postRender.serverCrc +<br/>postRender.previousInputCrc)<br/>match server updates?<br/>(gapped coords skipped)"}:::decision
+    subgraph worker_thread ["Reconcile Worker (PersistentWorker in ClientReconciler)"]
+        check_crc{"ReconcileCrcFastPath():<br/>All coords' Frame CRCs<br/>(postRender.serverCrc +<br/>postRender.previousInputCrc)<br/>match server updates?<br/>(gapped coords skipped)"}:::decision
 
         fast["Use last matched snapshot<br/>as confirmed state per coord<br/>(no replay needed)"]:::worker
 

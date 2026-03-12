@@ -131,7 +131,8 @@ void ExportIsland::Export()
 	fileStreamU16.read(reinterpret_cast<char*>(dataU16.data()), dataU16.size());
 	fileStreamU16.close();
 
-	uint16_t* puiPixels = reinterpret_cast<uint16_t*>(dataU16.data());
+	constexpr int64_t kiHeaderSize = 3 * sizeof(int64_t);
+	uint16_t* puiPixels = reinterpret_cast<uint16_t*>(dataU16.data() + kiHeaderSize);
 	std::unordered_map<uint16_t, int64_t> map;
 	int64_t iElevationSize = kiIslandSize / kiElevationDivisor;
 	for (int64_t i = 0; i < iElevationSize * iElevationSize; ++i)
@@ -179,5 +180,5 @@ void ExportIsland::Export()
 	pHeader->islandHeader.iHeightmapHeight = iHeightmapHeight;
 
 	// Write CPU heightmap data
-	memcpy(dataSpan.data(), cpuHeightmapData.data(), iHeightmapDataSize);
+	std::memcpy(dataSpan.data(), cpuHeightmapData.data(), iHeightmapDataSize);
 }

@@ -98,9 +98,15 @@ StaticVoice& StaticVoice::operator=(StaticVoice&& rToMove) noexcept
 		mVecPosition = rToMove.mVecPosition;
 		mVecVelocity = rToMove.mVecVelocity;
 
-		if (gpAudioManager->mpAudioEngine != nullptr)
+		if (mpVoice != nullptr)
 		{
-			gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+			mpVoice->Stop(0, XAUDIO2_COMMIT_NOW);
+			mpVoice->FlushSourceBuffers();
+
+			if (gpAudioManager->mpAudioEngine != nullptr)
+			{
+				gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+			}
 		}
 		mpVoice = rToMove.mpVoice;
 		rToMove.mpVoice = nullptr;

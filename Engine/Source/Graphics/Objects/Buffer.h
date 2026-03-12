@@ -51,7 +51,7 @@ class Buffer
 public:
 
 	static void CreateBuffer(std::string_view name, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkBuffer& rVkBuffer, VkDeviceMemory& rVkDeviceMemory, VmaAllocation& rVmaAllocation, VmaAllocationInfo* pVmaAllocationInfo = nullptr);
-	static void RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const BarrierInfo> barriers);
+	static void RecordBarriers(VkCommandBuffer vkCommandBuffer, const BarrierInfo* pBarriers, int64_t iBarrierCount);
 
 	Buffer() = default;
 	Buffer(const Buffer&) = delete;

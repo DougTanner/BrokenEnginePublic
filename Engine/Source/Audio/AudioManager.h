@@ -48,7 +48,7 @@ public:
 	virtual void OnUpdate() {};
 	virtual void OnDestroyEngine() noexcept;
 	virtual void OnTrim();
-	virtual void GatherStatistics([[maybe_unused]] AudioStatistics& stats) const {}
+	virtual void GatherStatistics([[maybe_unused]] AudioStatistics& rStats) const {}
 	virtual void OnDestroyParent() noexcept;
 
 	common::Timer mRealTime;

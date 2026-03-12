@@ -6,14 +6,16 @@ Game-level networking sessions that inherit from engine base classes and encapsu
 
 ## Key Classes
 
-- **ClientSession** (`game::gpClientSession`, `#ifdef BT_CLIENT`) - Inherits `engine::ClientSessionBase`. Manages server connection, client-driven coord subscriptions (human cell + quadrant neighbors), extrapolation snapshot ring buffer, clock correction, and rollback-and-replay reconciliation on a dedicated `PersistentWorker` thread. Split across three `.cpp` files by responsibility: core session, reconciliation orchestration, and replay pipeline helpers.
-
-- **ServerSession** (`game::gpServerSession`, `#ifdef BT_SERVER`) - Inherits `engine::ServerSessionBase`. Manages active set computation, fixed-rate tick broadcasting, client spawn/disconnect lifecycle, player death detection, cross-cell transfer harvesting, and subscription updates.
+- **ClientSession** (`game::gpClientSession`, `#ifdef BT_CLIENT`) - Inherits `engine::ClientSessionBase`. Game-specific connection entry/exit, reconciliation orchestration, subscription coord selection, full-state application, and desync debug comparison. Split across companion `.cpp` files by responsibility (core, subscriptions). Delegates reconciliation to `ClientReconciler`. Engine-generic logic (connection lifecycle, subscription mechanics, extrapolation, clock correction) lives in the base class
+- **ClientReconciler** - Rollback-and-replay reconciliation on a dedicated `PersistentWorker` thread. Encapsulates reconciliation state with controlled access from `ClientSession`. `ReconcileReplay` provides the replay pipeline helpers
+- **ServerSession** (`game::gpServerSession`, `#ifdef BT_SERVER`) - Inherits `engine::ServerSessionBase`. Game-specific active set computation, tick broadcasting, client spawn/disconnect lifecycle, player death detection, cross-cell transfer harvesting, and subscription updates. Engine-generic logic (tick timing, network polling, full-state sending) lives in the base class
+- **NetworkSerialization** (`NetworkSerialization.cpp`) - Game-layer implementation of `engine::NetworkSerialization.h`. Binary serialization of `StatusChange` batches with type-grouped encoding and LZ4 compress/decompress variants
 
 ## Architecture Notes
 
-- **Client main-loop integration**: `PollAndReconcile()` (before physics), `PostTick()` (after physics), `PostRender()` (after render). Reconciliation runs asynchronously and results are applied on the next frame.
-- **Server main-loop integration**: `PreTickNetwork()` (pre-physics polling and client handling), `PrepareTick()` (per-tick active set), `BroadcastTick()` (per-tick state broadcast), `WaitForTick()` (fixed-rate timer).
+- **ClientSession companion files**: `ClientSession.cpp` (core/reconcile integration), `ClientSessionSubscriptions.cpp` (coord subscription management, full-state application)
+- **Client main-loop integration**: `PollAndReconcile()` (before physics), `PostTick()` (after physics), `PostRender()` (after render). Reconciliation runs asynchronously and results are applied on the next frame
+- **Server main-loop integration**: `PreTickNetwork()` (pre-physics polling and client handling), `PrepareTick()` (per-tick active set), `BroadcastTick()` (per-tick state broadcast), `WaitForTick()` (delegates to base class fixed-rate timer)
 
 ## See Also
 - Engine client base: [ClientSessionBase.h](../../../../Engine/Source/Network/ClientNetwork/ClientSessionBase.h)

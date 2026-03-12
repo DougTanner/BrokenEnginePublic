@@ -24,14 +24,14 @@ FileManager::FileManager()
 	std::filesystem::create_directory(mAppDataDirectory);
 	mLogFileStream.open(LogFile(), std::ofstream::out);
 	common::gpLogFileStream = &mLogFileStream;
-	Log("AppData directory: \"{}\"", mAppDataDirectory.string());
+	Log(kLogLoading, "AppData directory: \"{}\"", mAppDataDirectory.string());
 
 	// Get Windows temp directory and append game name
 	char pcDirectory[MAX_PATH] {};
 	GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
 	mTempDirectory = pcDirectory;
 	mTempDirectory.append(game::kGameName);
-	Log("Temp directory: \"{}\"", mTempDirectory.string());
+	Log(kLogLoading, "Temp directory: \"{}\"", mTempDirectory.string());
 	std::filesystem::create_directory(mTempDirectory);
 
 	// Get the file path of the executable, the /Data/ folder will be beside it
@@ -39,7 +39,7 @@ FileManager::FileManager()
 	mDataDirectory = pcDirectory;
 	mDataDirectory.remove_filename();
 	mDataDirectory /= "Data";
-	Log("Data directory: \"{}\"", mDataDirectory.string());
+	Log(kLogLoading, "Data directory: \"{}\"", mDataDirectory.string());
 
 	LoadPackFiles();
 }
@@ -120,14 +120,14 @@ std::fstream FileManager::OpenFile(const FileFlags_t& rFlags, const std::filesys
 	}
 
 	std::fstream fileStream(file, (rFlags & kRead ? std::ios::in : std::ios::out) | std::ios::binary);
-	Log("{} \"{}\" at \"{}\"", fileStream.is_open() ? (rFlags & kRead ? "Reading" : "Writing") : "Failed to open", rFilename.string(), file.string());
+	Log(kLogLoading, "{} \"{}\" at \"{}\"", fileStream.is_open() ? (rFlags & kRead ? "Reading" : "Writing") : "Failed to open", rFilename.string(), file.string());
 	return fileStream;
 }
 
 void FileManager::RemoveFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename)
 {
 	std::filesystem::path file = GetFilePath(rFlags, rFilename);
-	Log("Remove \"{}\" at \"{}\"", rFilename.string(), file.string());
+	Log(kLogLoading, "Remove \"{}\" at \"{}\"", rFilename.string(), file.string());
 	std::filesystem::remove(file);
 }
 
@@ -192,7 +192,7 @@ void FileManager::LoadPackFiles()
 			auto [it, bInserted] = mLazyChunkMap.try_emplace(rChunkLocation.crc, LazyChunk {.location = rChunkLocation, .header = chunkHeader, .iDataSize = iDataSize});
 			if (!bInserted)
 			{
-				Log("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
+				Log(kLogLoading, "Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
 				DEBUG_BREAK();
 			}
 		}
@@ -265,16 +265,16 @@ void FileManager::LoadPackFiles()
 				auto [it, bInserted] = mEagerChunkMap.try_emplace(rChunkLocation.crc, EagerChunk { .pHeader = pChunkHeader, .pData = &rPackBytes[uiDataOffset], });
 				if (!bInserted)
 				{
-					Log("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
+					Log(kLogLoading, "Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
 					DEBUG_BREAK();
 				}
 
-				Log("Eager chunk {} \"{}\" size {}", rChunkLocation.crc, std::string_view(pChunkHeader->pcPath), rChunkLocation.uiSize);
+				Log(kLogLoading, "Eager chunk {} \"{}\" size {}", rChunkLocation.crc, std::string_view(pChunkHeader->pcPath), rChunkLocation.uiSize);
 
 				// Log GLTF chunk info for debugging animation loading
 				if (pChunkHeader->flags & common::ChunkFlags::kScene)
 				{
-					Log("GLTF chunk CRC {:#018x}: bHasAnimation={}, uiMaterialCount={}, sizeof(MaterialShaderData)={}", rChunkLocation.crc, pChunkHeader->sceneHeader.bHasAnimation, pChunkHeader->sceneHeader.uiMaterialCount, sizeof(common::MaterialShaderData));
+					Log(kLogLoading, "GLTF chunk CRC {:#018x}: bHasAnimation={}, uiMaterialCount={}, sizeof(MaterialShaderData)={}", rChunkLocation.crc, pChunkHeader->sceneHeader.bHasAnimation, pChunkHeader->sceneHeader.uiMaterialCount, sizeof(common::MaterialShaderData));
 				}
 
 				// Load animation data for GLTF chunks that have it
@@ -286,12 +286,12 @@ void FileManager::LoadPackFiles()
 					                         + common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
 					int64_t iMaterialDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(common::MaterialShaderData)));
 					const std::byte* pAnimationData = &rPackBytes[uiDataOffset + iSceneArraysSize + iMaterialDataSize];
-					Log("  Animation data offset: uiDataOffset={} + iSceneArraysSize={} + iMaterialDataSize={} = {}", uiDataOffset, iSceneArraysSize, iMaterialDataSize, uiDataOffset + iSceneArraysSize + iMaterialDataSize);
+					Log(kLogLoading, "  Animation data offset: uiDataOffset={} + iSceneArraysSize={} + iMaterialDataSize={} = {}", uiDataOffset, iSceneArraysSize, iMaterialDataSize, uiDataOffset + iSceneArraysSize + iMaterialDataSize);
 
 	#if defined(BT_CLIENT)
 				AnimationData& rAnimData = gAnimationDataMap[rChunkLocation.crc];
 					rAnimData.Load(pAnimationData, rChunkLocation.crc);
-					Log("Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations", rChunkLocation.crc, rAnimData.mHeader.skeleton.uiNodeCount, rAnimData.mHeader.skeleton.uiSkinJointCount, rAnimData.mHeader.uiAnimationCount);
+					Log(kLogLoading, "Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations", rChunkLocation.crc, rAnimData.mHeader.skeleton.uiNodeCount, rAnimData.mHeader.skeleton.uiSkinJointCount, rAnimData.mHeader.uiAnimationCount);
 #endif
 				}
 			}
@@ -329,7 +329,7 @@ bool FileManager::IsChunkReady(common::crc_t crc) const
 	return it != mLazyChunkMap.end() ? it->second.eState.load(std::memory_order_acquire) >= ChunkState::kReady : false;
 }
 
-void FileManager::RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPriority priority)
+void FileManager::RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPriority ePriority)
 {
 	bool bAddedAny = false;
 
@@ -350,7 +350,7 @@ void FileManager::RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPrio
 				//   so a workbuffer (frame-scoped) can't own them, and the queue grows/shrinks unpredictably
 				ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-				mRequestQueue.push({crc, priority});
+				mRequestQueue.push({crc, ePriority});
 				rLazyChunk.eState.store(ChunkState::kLoadRequested, std::memory_order_release);
 				bAddedAny = true;
 			}
@@ -466,14 +466,14 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 		iFilePos += uiBytesRead;
 	}
 
-	Log("Lazy chunk {} \"{}\" size {}", rRequest.crc, std::string_view(rLazyChunk.header.pcPath), rLazyChunk.location.uiSize);
+	Log(kLogLoading, "Lazy chunk {} \"{}\" size {}", rRequest.crc, std::string_view(rLazyChunk.header.pcPath), rLazyChunk.location.uiSize);
 
 #if defined(BT_CLIENT)
 	if (rLazyChunk.header.flags & common::ChunkFlags::kTexture)
 	{
 		// Request GPU upload on the dedicated upload thread (texture only)
 		rLazyChunk.eState.store(ChunkState::kUploading, std::memory_order_release);
-		gpTextureUploadManager->RequestUpload(rRequest.crc, rRequest.priority);
+		gpTextureUploadManager->RequestUpload(rRequest.crc, rRequest.ePriority);
 	}
 	else
 #endif // BT_CLIENT
@@ -530,7 +530,7 @@ void FileManager::ResetTextureChunkStates()
 	}
 }
 
-bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<std::byte> buffer)
+bool FileManager::ReadChunkData(common::crc_t crc, uint64_t uiOffset, std::span<std::byte> buffer)
 {
 	// Check eager chunks first (no locking needed as they're read-only after initialization)
 	auto eagerIt = mEagerChunkMap.find(crc);
@@ -540,13 +540,13 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<st
 		int64_t iDataSize = rEagerChunk.pHeader->iSize - common::kiChunkDataOffset;
 
 		// Validate read bounds
-		if (offset + buffer.size() > static_cast<uint64_t>(iDataSize))
+		if (uiOffset + buffer.size() > static_cast<uint64_t>(iDataSize))
 		{
 			return false;
 		}
 
 		// Copy data from eager chunk
-		memcpy(buffer.data(), rEagerChunk.pData + offset, buffer.size());
+		memcpy(buffer.data(), rEagerChunk.pData + uiOffset, buffer.size());
 		return true;
 	}
 	
@@ -562,13 +562,13 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<st
 			if (rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kDiskLoaded)
 			{
 				// Validate read bounds
-				if (offset + buffer.size() > static_cast<uint64_t>(rLazyChunk.iDataSize))
+				if (uiOffset + buffer.size() > static_cast<uint64_t>(rLazyChunk.iDataSize))
 				{
 					return false;
 				}
 
 				// Copy data from lazy chunk
-				memcpy(buffer.data(), rLazyChunk.pData + offset, buffer.size());
+				memcpy(buffer.data(), rLazyChunk.pData + uiOffset, buffer.size());
 				return true;
 			}
 		}
@@ -587,14 +587,14 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<st
 		int64_t iDataSize = rLazyChunk.location.uiSize - common::kiChunkDataOffset;
 		
 		// Validate read bounds
-		if (offset + buffer.size() > static_cast<uint64_t>(iDataSize))
+		if (uiOffset + buffer.size() > static_cast<uint64_t>(iDataSize))
 		{
 			packStream.close();
 			return false;
 		}
 
 		// Seek and read requested data
-		packStream.seekg(iDataOffset + offset);
+		packStream.seekg(iDataOffset + uiOffset);
 		packStream.read(reinterpret_cast<char*>(buffer.data()), buffer.size());
 		bool bSuccess = packStream.good();
 		packStream.close();

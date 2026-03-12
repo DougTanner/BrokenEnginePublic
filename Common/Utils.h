@@ -319,13 +319,13 @@ std::wstring GetStringValueFromHKLM(const std::wstring& rRegSubKey, const std::w
 // Converts string to lowercase using std::tolower
 // Parameters: rIn - String to convert
 // Returns: Lowercase version of the input string
-std::string ToLower(const std::string& rIn);
+std::string ToLower(std::string_view in);
 
 // Sanitizes file paths to be valid C++ variable names by removing special characters
 // Removes: backslash, dot, space, brackets, hyphen, comma
 // Parameters: rIn - Path string to sanitize
 // Returns: Sanitized string suitable for use as a C++ variable name
-std::string PathToCppVariable(const std::string& rIn);
+std::string PathToCppVariable(std::string_view in);
 
 // Helper function to get content from either a file path or string
 template<typename T>

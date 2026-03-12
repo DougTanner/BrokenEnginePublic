@@ -4,7 +4,7 @@ namespace engine
 {
 
 CommandBuffers::CommandBuffers(int64_t iFramebuffer)
-: miFramebuffer(iFramebuffer)
+	: miFramebuffer(iFramebuffer)
 {
 	VkCommandPoolCreateInfo vkCommandPoolCreateInfo
 	{

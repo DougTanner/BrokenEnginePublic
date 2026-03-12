@@ -284,7 +284,6 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& da
 		}
 
 		case StatusChangeType::kTransferPlayer:
-			FILE_LOG(0, "[SpawnTransfer] kTransferPlayer: fNextSecondarySpawnTime={:.6f}", data.fNextSecondarySpawnTime);
 			PlayersPostRender::Spawn(rFrame, {
 				.vecPosition = data.vecPosition,
 				.vecDirection = data.vecDirection,

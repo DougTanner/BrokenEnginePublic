@@ -41,7 +41,7 @@ void SaveScreenshot(int64_t iFramebufferIndex)
 			for (uint32_t x = 0; x < vkExtent3D.width; ++x)
 			{
 				uint32_t argb = puiArgb[y * vkExtent3D.width + x];
-				puiAbgr[y * vkExtent3D.width + x] = ((argb & 0x00FF0000) >> 16) | ((argb & 0x0000FF00) >> 0) | ((argb & 0x000000FF) << 16);
+				puiAbgr[y * vkExtent3D.width + x] = ((argb & 0x00FF0000) >> 16) | ((argb & 0x0000FF00) >> 0) | ((argb & 0x000000FF) << 16) | 0xFF000000;
 			}
 		}
 

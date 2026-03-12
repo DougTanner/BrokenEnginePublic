@@ -35,8 +35,8 @@ public:
 
 private:
 
-	void SubmitGlobalCommandBufferImpl(int64_t iFramebufferIndex);
-	void SubmitMainCommandBufferImpl(int64_t iFramebufferIndex, bool bSignalFence);
+	void SubmitGlobalToQueue(int64_t iFramebufferIndex);
+	void SubmitMainToQueue(int64_t iFramebufferIndex, bool bSignalFence);
 };
 
 inline CommandBufferManager* gpCommandBufferManager = nullptr;

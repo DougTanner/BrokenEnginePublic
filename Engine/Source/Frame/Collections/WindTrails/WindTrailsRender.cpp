@@ -153,7 +153,7 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 			pQuadLayouts[siRendered].pf4VerticesTexcoords[3] = {f4Vertex.x, f4Vertex.y, 1.0f, 0.0f};
 
 			// Per-vertex params: {magnitude, windDirX, windDirY, 0}
-			XMFLOAT4 f4Params = {fIntensity, fWindDirX, fWindDirY, 0.0f};
+			XMFLOAT4A f4Params = {fIntensity, fWindDirX, fWindDirY, 0.0f};
 			pQuadLayouts[siRendered].pf4Params[0] = f4Params;
 			pQuadLayouts[siRendered].pf4Params[1] = f4Params;
 			pQuadLayouts[siRendered].pf4Params[2] = f4Params;

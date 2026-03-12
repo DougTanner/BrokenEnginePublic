@@ -161,7 +161,7 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.RecordEndRenderPass(vkCommandBuffer);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeSpread);
 
-	Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
+	BarrierInfo pBarriers[] =
 	{
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kComputeRead, gpBufferManager->mLongParticlesStorageBuffer.mDeviceLocalVkBuffer},
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineLongParticlesUpdate].mIndirectVkBuffer},
@@ -171,22 +171,25 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesUpdate].mIndirectVkBuffer},
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesRender].mIndirectVkBuffer},
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesLighting].mIndirectVkBuffer},
-	}));
+	};
+	Buffer::RecordBarriers(vkCommandBuffer, pBarriers, std::size(pBarriers));
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesUpdate);
 	pPipelines[kPipelineLongParticlesUpdate].RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
-	Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
+	BarrierInfo pLongParticleBarrier[] =
 	{
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kStorageBufferRead, gpBufferManager->mLongParticlesStorageBuffer.mDeviceLocalVkBuffer},
-	}));
+	};
+	Buffer::RecordBarriers(vkCommandBuffer, pLongParticleBarrier, std::size(pLongParticleBarrier));
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesUpdate);
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesUpdate);
 	pPipelines[kPipelineSquareParticlesUpdate].RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
-	Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
+	BarrierInfo pSquareParticleBarrier[] =
 	{
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kStorageBufferRead, gpBufferManager->mSquareParticlesStorageBuffer.mDeviceLocalVkBuffer},
-	}));
+	};
+	Buffer::RecordBarriers(vkCommandBuffer, pSquareParticleBarrier, std::size(pSquareParticleBarrier));
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesUpdate);
 
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerGlobal);
@@ -450,7 +453,7 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	CHECK_VK(vkEndCommandBuffer(vkCommandBuffer));
 }
 
-void CommandBufferManager::SubmitGlobalCommandBufferImpl(int64_t iFramebufferIndex)
+void CommandBufferManager::SubmitGlobalToQueue(int64_t iFramebufferIndex)
 {
 	CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
@@ -501,16 +504,16 @@ void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 	{
 		mSubmitGlobal.Wake([this, iFramebufferIndex]()
 		{
-			SubmitGlobalCommandBufferImpl(iFramebufferIndex);
+			SubmitGlobalToQueue(iFramebufferIndex);
 		});
 	}
 	else
 	{
-		SubmitGlobalCommandBufferImpl(iFramebufferIndex);
+		SubmitGlobalToQueue(iFramebufferIndex);
 	}
 }
 
-void CommandBufferManager::SubmitMainCommandBufferImpl(int64_t iFramebufferIndex, bool bSignalFence)
+void CommandBufferManager::SubmitMainToQueue(int64_t iFramebufferIndex, bool bSignalFence)
 {
 	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
@@ -567,12 +570,12 @@ void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bo
 		mSubmitMain.Wake([this, iFramebufferIndex, bSignalFence]()
 		{
 			mSubmitGlobal.Wait();
-			SubmitMainCommandBufferImpl(iFramebufferIndex, bSignalFence);
+			SubmitMainToQueue(iFramebufferIndex, bSignalFence);
 		});
 	}
 	else
 	{
-		SubmitMainCommandBufferImpl(iFramebufferIndex, bSignalFence);
+		SubmitMainToQueue(iFramebufferIndex, bSignalFence);
 	}
 }
 

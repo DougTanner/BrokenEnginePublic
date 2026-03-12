@@ -16,7 +16,6 @@ void ServerNetwork::HandleClientAckStream(const uint8_t* pData, int64_t iClientI
 
 	// Read per-slot ACK state
 	uint8_t uiAckSlotCount = ReadUint8(pCursor);
-	common::Log("NetworkServer: AckStream client {} slots={}", iClientId, uiAckSlotCount); // DT: TEMP
 	if (pClient != nullptr)
 	{
 		for (uint8_t i = 0; i < uiAckSlotCount; ++i)
@@ -27,18 +26,21 @@ void ServerNetwork::HandleClientAckStream(const uint8_t* pData, int64_t iClientI
 			uint64_t uiSlotBitfield = ReadUint64(pCursor);
 
 			if (uiSlotIndex < std::ssize(pClient->coordSubscriptions)
-			&& pClient->coordSubscriptions[uiSlotIndex].bActive
-			&& uiSlotEpoch == pClient->coordAckStates[uiSlotIndex].uiEpoch
-			&& iSlotAckFloor >= pClient->coordAckStates[uiSlotIndex].iAckFloor)
+			&& pClient->coordSubscriptions.at(uiSlotIndex).bActive
+			&& uiSlotEpoch == pClient->coordAckStates.at(uiSlotIndex).uiEpoch
+			&& iSlotAckFloor >= pClient->coordAckStates.at(uiSlotIndex).iAckFloor)
 			{
-				if (iSlotAckFloor == pClient->coordAckStates[uiSlotIndex].iAckFloor)
+				// Clamp to server's latest sent tick to prevent future ACK floors
+				iSlotAckFloor = std::min(iSlotAckFloor, miLatestBufferedTick);
+				AckState& rAck = pClient->coordAckStates.at(uiSlotIndex);
+				if (iSlotAckFloor == rAck.iAckFloor)
 				{
-					pClient->coordAckStates[uiSlotIndex].uiReceivedBitfield |= uiSlotBitfield;
+					rAck.uiReceivedBitfield |= uiSlotBitfield;
 				}
 				else
 				{
-					pClient->coordAckStates[uiSlotIndex].iAckFloor = iSlotAckFloor;
-					pClient->coordAckStates[uiSlotIndex].uiReceivedBitfield = uiSlotBitfield;
+					rAck.iAckFloor = iSlotAckFloor;
+					rAck.uiReceivedBitfield = uiSlotBitfield;
 				}
 			}
 		}
@@ -68,7 +70,7 @@ void ServerNetwork::HandleClientSpawnRequest(const uint8_t* pData, int64_t iClie
 	ClientRequestFlags_t flags;
 	std::memcpy(&flags, &uiFlags, sizeof(uint8_t));
 
-	common::Log("NetworkServer: Client {} spawn request (spawn={}, respawn={})", iClientId, static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
+	Log(kLogNetwork, "NetworkServer: Client {} spawn request (spawn={}, respawn={})", iClientId, static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	// Heap: spawn request vector grows on request
@@ -86,7 +88,7 @@ void ServerNetwork::HandleClientDesyncReport(const uint8_t* pData)
 
 	char pcExpected[20] {};
 	char pcActual[20] {};
-	common::Log("NetworkServer: Desync report frame {} grid ({},{}) expected={} actual={}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), uiExpectedCrc), common::ToHex(std::span(pcActual), uiActualCrc));
+	Log(kLogNetwork, "NetworkServer: Desync report frame {} grid ({},{}) expected={} actual={}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), uiExpectedCrc), common::ToHex(std::span(pcActual), uiActualCrc));
 }
 
 void ServerNetwork::HandleClientDebugFrameRequest(const uint8_t* pData, ENetPeer* pPeer)
@@ -96,7 +98,7 @@ void ServerNetwork::HandleClientDebugFrameRequest(const uint8_t* pData, ENetPeer
 	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
 
-	common::Log("NetworkServer: Debug frame request frame {} grid ({},{})", iTick, coord.x, coord.y);
+	Log(kLogNetwork, "NetworkServer: Debug frame request frame {} grid ({},{})", iTick, coord.x, coord.y);
 
 	// Find the frame in the ring buffer
 	const BufferedFullFrame* pBuffered = nullptr;
@@ -111,14 +113,14 @@ void ServerNetwork::HandleClientDebugFrameRequest(const uint8_t* pData, ENetPeer
 
 	if (pBuffered == nullptr)
 	{
-		common::Log("NetworkServer: Debug frame {} not found in buffer", iTick);
+		Log(kLogNetwork, "NetworkServer: Debug frame {} not found in buffer", iTick);
 		return;
 	}
 
 	auto it = pBuffered->serializedFrames.find(coord);
 	if (it == pBuffered->serializedFrames.end())
 	{
-		common::Log("NetworkServer: Debug frame {} coord ({},{}) not found", iTick, coord.x, coord.y);
+		Log(kLogNetwork, "NetworkServer: Debug frame {} coord ({},{}) not found", iTick, coord.x, coord.y);
 		return;
 	}
 
@@ -152,15 +154,31 @@ void ServerNetwork::HandleClientDebugFrameRequest(const uint8_t* pData, ENetPeer
 
 void ServerNetwork::HandleClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
 {
+	const uint8_t* pCursor = pData + 1; // Skip packet type
+
+	uint32_t uiClientProtocolVersion = ReadUint32(pCursor);
+	if (uiClientProtocolVersion != kuiProtocolVersion)
+	{
+		char pcMessage[256] {};
+		snprintf(pcMessage, sizeof(pcMessage), "Protocol version mismatch: server is %u, client is %u", kuiProtocolVersion, uiClientProtocolVersion);
+		Log(kLogNetwork, "NetworkServer: Rejecting client {} ({})", iClientId, pcMessage);
+
+		SendConnectionResponse(pPeer, false, pcMessage);
+		RemoveClient(iClientId);
+		enet_peer_disconnect_later(pPeer, 0);
+		return;
+	}
+
 	char pcClientConfig[64] = {};
-	size_t iLength = std::min(iSize - 1, sizeof(pcClientConfig) - 1);
-	std::memcpy(pcClientConfig, pData + 1, iLength);
+	size_t iConfigOffset = static_cast<size_t>(pCursor - pData);
+	size_t iLength = std::min(iSize - iConfigOffset, sizeof(pcClientConfig) - 1);
+	std::memcpy(pcClientConfig, pCursor, iLength);
 
 	if (strcmp(pcClientConfig, kpcBuildConfigName) != 0)
 	{
 		char pcMessage[256] {};
 		snprintf(pcMessage, sizeof(pcMessage), "Build mismatch: server is %s, client is %s", kpcBuildConfigName, pcClientConfig);
-		common::Log("NetworkServer: Rejecting client {} ({})", iClientId, pcMessage);
+		Log(kLogNetwork, "NetworkServer: Rejecting client {} ({})", iClientId, pcMessage);
 
 		SendConnectionResponse(pPeer, false, pcMessage);
 
@@ -171,7 +189,7 @@ void ServerNetwork::HandleClientHello(const uint8_t* pData, size_t iSize, ENetPe
 		return;
 	}
 
-	common::Log("NetworkServer: Client {} hello accepted (config: {})", iClientId, pcClientConfig);
+	Log(kLogNetwork, "NetworkServer: Client {} hello accepted (config: {})", iClientId, pcClientConfig);
 	SendConnectionResponse(pPeer, true, nullptr);
 }
 
@@ -196,17 +214,16 @@ void ServerNetwork::HandleClientSubscribe(const uint8_t* pData, int64_t iClientI
 	int64_t iSlot = pClient->AllocateSlot();
 	if (iSlot < 0)
 	{
-		common::Log("NetworkServer: No free coord slot for client {} subscribing to ({},{})", iClientId, coord.x, coord.y);
+		Log(kLogNetwork, "NetworkServer: No free coord slot for client {} subscribing to ({},{})", iClientId, coord.x, coord.y);
 		SendSubscribeAccept(*pClient, 0xFF, coord);
 		return;
 	}
 
-	pClient->coordSubscriptions[iSlot].coord = coord;
-	pClient->coordSubscriptions[iSlot].bActive = true;
-	++pClient->coordAckStates[iSlot].uiEpoch;
+	pClient->coordSubscriptions.at(iSlot).coord = coord;
+	pClient->coordSubscriptions.at(iSlot).bActive = true;
+	++pClient->coordAckStates.at(iSlot).uiEpoch;
 
-	common::Log("NetworkServer: Client {} subscribed to ({},{}) slot {}", iClientId, coord.x, coord.y, iSlot);
-	FILE_LOG(0, "[HandleClientSubscribe] client={} coord=({},{}) slot={}", iClientId, coord.x, coord.y, iSlot);
+	Log(kLogNetwork, "NetworkServer: Client {} subscribed to ({},{}) slot {}", iClientId, coord.x, coord.y, iSlot);
 
 	SendSubscribeAccept(*pClient, iSlot, coord);
 
@@ -227,16 +244,15 @@ void ServerNetwork::HandleClientUnsubscribe(const uint8_t* pData, int64_t iClien
 		return;
 	}
 
-	if (uiSlotIndex >= std::ssize(pClient->coordSubscriptions) || !pClient->coordSubscriptions[uiSlotIndex].bActive)
+	if (uiSlotIndex >= std::ssize(pClient->coordSubscriptions) || !pClient->coordSubscriptions.at(uiSlotIndex).bActive)
 	{
 		return;
 	}
 
-	GridCoord coord = pClient->coordSubscriptions[uiSlotIndex].coord;
+	GridCoord coord = pClient->coordSubscriptions.at(uiSlotIndex).coord;
 	pClient->FreeSlot(uiSlotIndex);
 
-	common::Log("NetworkServer: Client {} unsubscribed slot {} coord ({},{})", iClientId, uiSlotIndex, coord.x, coord.y);
-	FILE_LOG(0, "[HandleClientUnsubscribe] client={} slot={} coord=({},{})", iClientId, uiSlotIndex, coord.x, coord.y);
+	Log(kLogNetwork, "NetworkServer: Client {} unsubscribed slot {} coord ({},{})", iClientId, uiSlotIndex, coord.x, coord.y);
 
 	SendUnsubscribeAck(*pClient, uiSlotIndex);
 }

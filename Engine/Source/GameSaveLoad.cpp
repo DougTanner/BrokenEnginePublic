@@ -108,7 +108,7 @@ void GameSaveLoad::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuI
 			game::ReplayMeta meta {};
 			if (!ReadVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay.meta"), meta))
 			{
-				common::Log("Failed to read replay metadata");
+				Log("Failed to read replay metadata");
 				return;
 			}
 
@@ -179,7 +179,7 @@ void GameSaveLoad::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unus
 		{
 			if (!mpDifferenceStreamReader->LoadDifference(mrGameBase.miTickCounter, rFrameInput))
 			{
-				common::Log("End replay {}, looping", mrGameBase.miTickCounter);
+				Log("End replay {}, looping", mrGameBase.miTickCounter);
 				common::BreakOnNotEqual(rFrame, mpDifferenceStreamReader->GetSavedEnd());
 				mpDifferenceStreamReader.reset();
 				mrGameBase.mGameFlags.Set(GameFlags::kLoadReplay);
@@ -221,7 +221,7 @@ void GameSaveLoad::WriteGrid(const FileFlags_t& rFlags, const std::filesystem::p
 		fileStream << *mrGameBase.mCoordFrames.at(coord).pCurrent;
 	}
 
-	common::Log("WriteGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
+	Log("WriteGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
 }
 
 bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord& rHumanGridCoord)
@@ -235,7 +235,7 @@ bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::pa
 
 	if (iVersion != game::Frame::kiVersion)
 	{
-		common::Log("ReadGrid {} failed: version {} != {}", rFilename, iVersion, game::Frame::kiVersion);
+		Log("ReadGrid {} failed: version {} != {}", rFilename, iVersion, game::Frame::kiVersion);
 		return false;
 	}
 
@@ -262,7 +262,7 @@ bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::pa
 		mrGameBase.mfCurrentTime = mrGameBase.mCoordFrames.begin()->second.pCurrent->interpolate.fCurrentTime;
 	}
 
-	common::Log("ReadGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
+	Log("ReadGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
 	return fileStream.good();
 }
 

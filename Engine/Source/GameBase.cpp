@@ -47,10 +47,6 @@ void GameBase::UpdateClient()
 	}
 
 	int64_t iFullTicks = mTimeStep.TickRealtime();
-	if (iFullTicks > 0)
-	{
-		common::Log("GameBase: TickFrames ticks={} tickCounter={}", iFullTicks, miTickCounter); // DT: TEMP
-	}
 	PrepareActiveSet();
 
 	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
@@ -66,7 +62,6 @@ void GameBase::UpdateClient()
 		{
 			game::gpClientSession->PrepareExtrapolationTick(rActiveCoords);
 		}
-		common::Log("GameBase: Tick {} extrapolating={} activeCoords={}", miTickCounter, bExtrapolating, static_cast<int64_t>(rActiveCoords.size())); // DT: TEMP
 
 		BuildAndDispatchFrameTicks(rActiveCoords, bExtrapolating);
 		FinalizeFrameTick(rActiveCoords, bExtrapolating);
@@ -101,10 +96,6 @@ void GameBase::UpdateServer(const game::MenuInput& rMenuInput)
 	if (iFullTicks != 1) [[unlikely]]
 	{
 		Log("iFullTicks: {} != 1", iFullTicks);
-	}
-	if (iFullTicks > 0)
-	{
-		common::Log("GameBase: TickFrames ticks={} tickCounter={}", iFullTicks, miTickCounter); // DT: TEMP
 	}
 	PrepareActiveSet();
 

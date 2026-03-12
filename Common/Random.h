@@ -22,7 +22,7 @@ uint32_t Random(uint32_t uiMax, RandomEngine& rRandomEngine);
 template<float MAX = 1.0f>
 inline float Random(RandomEngine& rRandomEngine)
 {
-	static const float kfDivisor = MAX / static_cast<float>(std::numeric_limits<uint64_t>::max());
+	static constexpr float kfDivisor = MAX / static_cast<float>(std::numeric_limits<uint64_t>::max());
 	uint64_t x = rRandomEngine.uiState;
 	x ^= x << 13;
 	x ^= x >> 7;

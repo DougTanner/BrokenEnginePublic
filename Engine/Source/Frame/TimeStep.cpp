@@ -1,11 +1,11 @@
 #include "TimeStep.h"
 
 #include "Profile/ProfileManager.h"
-
-#include "Game.h"
 #if defined(BT_CLIENT)
 #include "Graphics/Managers/TextManager.h"
 #endif
+
+#include "Game.h"
 
 namespace engine
 {
@@ -18,13 +18,13 @@ int64_t TimeStep::TickRealtime()
 {
 	std::chrono::nanoseconds realDeltaNs = mRealTime.GetDeltaNs(true);
 
-	// Track delta for performance monitoring
-	float fDelta = common::NanosecondsToFloatSeconds<float>(realDeltaNs);
-	if (mAverageDelta.miCount > 200 && fDelta > 1.9f * mAverageDelta.Average())
+	if constexpr (kbEnableProfilingFrameSpike)
 	{
-		Log("\n\n\n  deltaNs spike {} > {}", fDelta, mAverageDelta.Average());
-		if constexpr (kbEnableProfiling)
+		// Track delta for performance monitoring
+		float fDelta = common::NanosecondsToFloatSeconds<float>(realDeltaNs);
+		if (mAverageDelta.miCount > 200 && fDelta > 1.9f * mAverageDelta.Average())
 		{
+			Log("\n\n\n  deltaNs spike {} > {}", fDelta, mAverageDelta.Average());
 			static bool sbOnce = false;
 			if (!sbOnce)
 			{
@@ -33,8 +33,9 @@ int64_t TimeStep::TickRealtime()
 			}
 		}
 		Log("\n\n");
+
+		mAverageDelta = fDelta;
 	}
-	mAverageDelta = fDelta;
 
 	// Accumulate time with scaling
 	if constexpr (kbEnableDebugInput)

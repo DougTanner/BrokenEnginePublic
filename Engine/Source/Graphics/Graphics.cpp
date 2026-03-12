@@ -129,7 +129,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame, float fCurrent
 	// Update VMA frame index for memory budget tracking
 	if (gpDeviceManager->mbMemoryBudgetAvailable)
 	{
-		vmaSetCurrentFrameIndex(gpDeviceManager->mpAllocator, static_cast<uint32_t>(miFrameCounter++));
+		vmaSetCurrentFrameIndex(gpDeviceManager->mpAllocator, static_cast<uint32_t>(muiFrameCounter++));
 	}
 
 	if (rCommandBuffers.mFlags & CommandBufferFlags::kExecuted)
@@ -394,7 +394,7 @@ void Graphics::Refresh()
 		if (bSmokeTrailPowerChanged || bSmokeTrailAlphaChanged || bSmokeSimulationPixelsChanged || bSmokeSimulationAreaChanged) [[unlikely]]
 		{
 			Log("SmokeSimulationPixels: {} -> {} ({} -> {})", fPreviousSmokeSimulationPixels, fSmokeSimulationPixels, gSmokeSimulationPixels.Get(), SmokeSimulationPixels());
-			Log("SmokeSimulationArea: {} -> {}", fPreviousSmokeSimulationArea, fSmokeSimulationArea, gSmokeSimulationArea.Get());
+			Log("SmokeSimulationArea: {} -> {}", fPreviousSmokeSimulationArea, fSmokeSimulationArea);
 
 			mDestroyFlags.Set(DestroyFlags::kSmokeTextures);
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);

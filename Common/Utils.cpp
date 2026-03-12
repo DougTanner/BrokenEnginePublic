@@ -162,19 +162,20 @@ void WaitAll(std::vector<std::future<void>>& futures)
 
 std::string FromFloat(float fValue, int64_t iDecimals)
 {
-	return std::to_string(fValue).substr(0, std::to_string(fValue).find(".") + iDecimals + 1);
+	std::string str = std::to_string(fValue);
+	return str.substr(0, str.find(".") + iDecimals + 1);
 }
 
-std::string ToLower(const std::string& rIn)
+std::string ToLower(std::string_view in)
 {
-	std::string out(rIn);
+	std::string out(in);
 	std::transform(out.begin(), out.end(), out.begin(), [](unsigned char uc)	{ return static_cast<char>(std::tolower(uc)); });
 	return out;
 }
 
-std::string PathToCppVariable(const std::string& rIn)
+std::string PathToCppVariable(std::string_view in)
 {
-	std::string out(rIn);
+	std::string out(in);
 	out.erase(std::remove(out.begin(), out.end(), '\\'), out.end());
 	out.erase(std::remove(out.begin(), out.end(), '.'), out.end());
 	out.erase(std::remove(out.begin(), out.end(), ' '), out.end());

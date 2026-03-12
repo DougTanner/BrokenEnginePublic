@@ -732,11 +732,11 @@ void ProfileManagerBase::UpdateProfileText()
 					{
 						if (rSlot.eState == CoordSubscriptionState::kActive)
 						{
-							if (iMinAckFloor < 0 || rSlot.iAckFloor < iMinAckFloor)
+							if (iMinAckFloor < 0 || rSlot.ackState.iAckFloor < iMinAckFloor)
 							{
-								iMinAckFloor = rSlot.iAckFloor;
+								iMinAckFloor = rSlot.ackState.iAckFloor;
 							}
-							iTotalRecv += std::popcount(rSlot.uiReceivedBitfield);
+							iTotalRecv += std::popcount(rSlot.ackState.uiReceivedBitfield);
 						}
 					}
 					rWorkbuffer.Append(iMinAckFloor);

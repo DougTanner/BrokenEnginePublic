@@ -826,15 +826,6 @@ struct OptionaldToIndex<T, FLAGS>
 	inline bool operator==(const OptionaldToIndex& rOther) const
 	{
 		bool bEqual = true;
-		FILE_LOG(0, "[IdToIndexCompare] size: this={} other={}", idToIndexMap.size(), rOther.idToIndexMap.size());
-		for (const auto& [key, value] : idToIndexMap)
-		{
-			FILE_LOG(0, "[IdToIndexCompare]   this: id={} index={}", key.uuid.iValue, value);
-		}
-		for (const auto& [key, value] : rOther.idToIndexMap)
-		{
-			FILE_LOG(0, "[IdToIndexCompare]   other: id={} index={}", key.uuid.iValue, value);
-		}
 		bEqual &= common::BreakOnNotEqual(idToIndexMap.size(), rOther.idToIndexMap.size());
 
 		for (const auto& [key, value] : idToIndexMap)
@@ -890,11 +881,11 @@ struct OptionaldToIndex<T, FLAGS>
 		idToIndexMap.reserve(iSize);
 		for (int64_t i = 0; i < iSize; ++i)
 		{
-			id_t key{};
-			int64_t value{};
+			id_t key {};
+			int64_t iValue = 0;
 			key.Read(rStream);
-			common::Read(rStream, value);
-			idToIndexMap[key] = value;
+			common::Read(rStream, iValue);
+			idToIndexMap[key] = iValue;
 		}
 	}
 

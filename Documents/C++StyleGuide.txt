@@ -218,3 +218,13 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 
 	#if defined(BT_CLIENT)
 	#if defined(BT_CLIENT) && defined(BT_DEBUG)
+
+59. Indent "case" statements one level from their "switch":
+
+	switch (eState)
+	{
+		case State::kIdle:
+			break;
+		case State::kRunning:
+			break;
+	}

@@ -156,14 +156,14 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 				if (bFromGamma)
 				{
 					pfDest[0] = 255.0f * common::FromGamma(pfSrcR[0]);
-					pfDest[1] = 255.0f * common::FromGamma(pfSrcG[1]);
-					pfDest[2] = 255.0f * common::FromGamma(pfSrcB[2]);
+					pfDest[1] = 255.0f * common::FromGamma(pfSrcG[0]);
+					pfDest[2] = 255.0f * common::FromGamma(pfSrcB[0]);
 				}
 				else
 				{
 					pfDest[0] = 255.0f * pfSrcR[0];
-					pfDest[1] = 255.0f * pfSrcG[1];
-					pfDest[2] = 255.0f * pfSrcB[2];
+					pfDest[1] = 255.0f * pfSrcG[0];
+					pfDest[2] = 255.0f * pfSrcB[0];
 				}
 				pfDest[3] = 255.0f;
 

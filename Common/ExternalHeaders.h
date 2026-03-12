@@ -6,17 +6,17 @@
 // Debug defines
 #if defined(BT_DEBUG)
 	#undef DEBUG
-	#define DEBUG = 1
+	#define DEBUG 1
 	#undef NDEBUG
 	#undef _DEBUG
-	#define _DEBUG = 1
+	#define _DEBUG 1
 	#undef _NDEBUG
 #else
 	#undef NDEBUG
-	#define NDEBUG = 1
+	#define NDEBUG 1
 	#undef DEBUG
 	#undef _NDEBUG
-	#define _NDEBUG = 1
+	#define _NDEBUG 1
 	#undef _DEBUG
 #endif
 
@@ -136,8 +136,8 @@ using namespace DirectX;
 
 inline constexpr float kfEpsilon = 1.192092896e-7f; // g_XMEpsilon
 
-#define XMISNAN(x)  ((*(const uint32_t*)&(x) & 0x7F800000) == 0x7F800000 && (*(const uint32_t*)&(x) & 0x7FFFFF) != 0)
-#define XMISINF(x)  ((*(const uint32_t*)&(x) & 0x7FFFFFFF) == 0x7F800000)
+#define XMISNAN(x)  ((*reinterpret_cast<const uint32_t*>(&(x)) & 0x7F800000) == 0x7F800000 && (*reinterpret_cast<const uint32_t*>(&(x)) & 0x7FFFFF) != 0)
+#define XMISINF(x)  ((*reinterpret_cast<const uint32_t*>(&(x)) & 0x7FFFFFFF) == 0x7F800000)
 
 inline bool XM_CALLCONV operator==(FXMVECTOR rOne, FXMVECTOR rTwo)
 {

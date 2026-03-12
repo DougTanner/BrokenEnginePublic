@@ -1,6 +1,7 @@
+#include "CrashReport.h"
+
 #include "Memory/MemoryManager.h"
 
-#include "CrashReport.h"
 #include "Game.h"
 
 namespace engine
@@ -85,7 +86,7 @@ void ReadDxDiag()
 		CHECK_HRESULT(CoInitialize(nullptr));
 
 		Microsoft::WRL::ComPtr<IDxDiagProvider> pIdxDiagProvider;
-		CHECK_HRESULT(CoCreateInstance(CLSID_DxDiagProvider, nullptr, CLSCTX_INPROC_SERVER, IID_IDxDiagProvider, (LPVOID*)&pIdxDiagProvider));
+		CHECK_HRESULT(CoCreateInstance(CLSID_DxDiagProvider, nullptr, CLSCTX_INPROC_SERVER, IID_IDxDiagProvider, reinterpret_cast<void**>(pIdxDiagProvider.GetAddressOf())));
 
 		DXDIAG_INIT_PARAMS dxdiagInitParams {.dwSize = sizeof(DXDIAG_INIT_PARAMS), .dwDxDiagHeaderVersion = DXDIAG_DX9_SDK_VERSION, .bAllowWHQLChecks = false, .pReserved = nullptr,};
 		CHECK_HRESULT(pIdxDiagProvider->Initialize(&dxdiagInitParams));
@@ -123,6 +124,7 @@ void ReadDxDiag()
 					sDxDiag += common::ToString(variant.bstrVal);
 					sDxDiag += "\n";
 				}
+				VariantClear(&variant);
 			}
 		}
 	}

@@ -229,7 +229,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	};
 
 	HMODULE renderDocHmodule = GetModuleHandle("renderdoc.dll");
-	if (renderDocHmodule != 0)
+	if (renderDocHmodule != nullptr)
 	{
 		Log("renderDocHmodule: {}", reinterpret_cast<uint64_t>(renderDocHmodule));
 

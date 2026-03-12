@@ -1,0 +1,130 @@
+#pragma once
+
+namespace engine
+{
+
+// Network simulation levels for testing different real-world latency scenarios (East Coast server)
+enum class NetworkSimulationLevel : uint8_t
+{
+	kDisabled,
+	kEastCoast,    // East Coast to East Coast
+	kWestCoast,    // West Coast to East Coast
+	kEurope,       // Europe to East Coast
+	kSouthAmerica, // South America to East Coast
+	kChina,        // China (behind firewall) to East Coast
+};
+
+struct NetworkSimulationConfig
+{
+	float fPacketLossPercent;
+	int64_t iPingMinMs;
+	int64_t iPingMaxMs;
+};
+
+// Applied per-direction, so half-ping delay on each side
+inline constexpr NetworkSimulationConfig GetNetworkSimulationConfig(NetworkSimulationLevel eLevel)
+{
+	switch (eLevel)
+	{
+		case NetworkSimulationLevel::kEastCoast:    return {0.5f,  20,  40};
+		case NetworkSimulationLevel::kWestCoast:    return {1.0f,  60,  90};
+		case NetworkSimulationLevel::kEurope:       return {1.5f,  80, 130};
+		case NetworkSimulationLevel::kSouthAmerica: return {2.0f, 120, 200};
+		case NetworkSimulationLevel::kChina:        return {2.5f, 300, 500};
+		default:                                    return {0.0f,   0,   0};
+	}
+}
+
+struct DelayedPacket
+{
+	std::chrono::steady_clock::time_point releaseTime;
+	std::vector<uint8_t> data;
+	ENetPeer* pPeer = nullptr;
+	uint8_t uiChannelId = 0;
+};
+
+namespace NetworkSimulation
+{
+
+inline float Random01()
+{
+	static uint32_t suiState = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
+	suiState = suiState * 1103515245 + 12345;
+	return static_cast<float>(suiState >> 16) / 65536.0f;
+}
+
+inline std::chrono::steady_clock::duration RandomOneWayDelay(const NetworkSimulationConfig& rConfig)
+{
+	int64_t iHalfMin = rConfig.iPingMinMs / 2;
+	int64_t iHalfMax = rConfig.iPingMaxMs / 2;
+	int64_t iDelayMs = iHalfMin + static_cast<int64_t>(Random01() * static_cast<float>(iHalfMax - iHalfMin));
+	return std::chrono::milliseconds(iDelayMs);
+}
+
+inline bool ShouldDrop(const NetworkSimulationConfig& rConfig)
+{
+	static int64_t siConsecutiveDrops = 0;
+	static constexpr int64_t kiMaxConsecutiveDrops = kiTickRate / 2;
+
+	bool bDrop = false;
+	if (siConsecutiveDrops > 0)
+	{
+		bDrop = siConsecutiveDrops < kiMaxConsecutiveDrops && Random01() < 0.5f;
+	}
+	else
+	{
+		bDrop = Random01() * 100.0f < rConfig.fPacketLossPercent;
+	}
+
+	siConsecutiveDrops = bDrop ? siConsecutiveDrops + 1 : 0;
+	return bDrop;
+}
+
+// Enqueue a received unreliable packet into the delay queue, or drop it.
+// Reliable packets are passed through immediately via HandleReliable.
+template <typename FnHandleReliable>
+inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const NetworkSimulationConfig& rSimConfig,
+	ENetEvent& rEvent, FnHandleReliable HandleReliable)
+{
+	bool bUnreliable = NetworkManager::IsUnreliableChannel(rEvent.channelID);
+	if (bUnreliable)
+	{
+		if (ShouldDrop(rSimConfig))
+		{
+			enet_packet_destroy(rEvent.packet);
+			return;
+		}
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		// Heap: delay queue copies packet data for deferred processing
+		DelayedPacket delayed {};
+		delayed.releaseTime = std::chrono::steady_clock::now() + RandomOneWayDelay(rSimConfig);
+		delayed.data.assign(rEvent.packet->data, rEvent.packet->data + rEvent.packet->dataLength);
+		delayed.pPeer = rEvent.peer;
+		delayed.uiChannelId = rEvent.channelID;
+		auto insertPos = std::lower_bound(rDelayedPackets.begin(), rDelayedPackets.end(), delayed,
+		[](const DelayedPacket& rA, const DelayedPacket& rB) { return rA.releaseTime < rB.releaseTime; });
+		rDelayedPackets.insert(insertPos, std::move(delayed));
+		enet_packet_destroy(rEvent.packet);
+	}
+	else
+	{
+		HandleReliable(rEvent);
+		enet_packet_destroy(rEvent.packet);
+	}
+}
+
+// Process delayed packets whose release time has passed.
+template <typename FnHandlePacket>
+inline void ProcessDelayed(std::deque<DelayedPacket>& rDelayedPackets, FnHandlePacket HandlePacket)
+{
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	while (!rDelayedPackets.empty() && rDelayedPackets.front().releaseTime <= now)
+	{
+		HandlePacket(rDelayedPackets.front());
+		rDelayedPackets.pop_front();
+	}
+}
+
+} // namespace NetworkSimulation
+
+} // namespace engine

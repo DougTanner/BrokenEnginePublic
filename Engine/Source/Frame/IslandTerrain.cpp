@@ -7,7 +7,7 @@ XMVECTOR XM_CALLCONV TerrainCollision(FXMVECTOR vecStart, FXMVECTOR vecEnd, floa
 {
 	auto vecToEnd = XMVectorSubtract(vecEnd, vecStart);
 	float fDistance = XMVectorGetX(XMVector3Length(vecToEnd));
-	int64_t iSteps = static_cast<int64_t>(fDistance / fStepInterval);
+	int64_t iSteps = std::max(1LL, static_cast<int64_t>(fDistance / fStepInterval));
 	auto vecStep = vecToEnd / static_cast<float>(iSteps);
 	float fElevation = XMVectorGetZ(vecStart);
 
@@ -62,7 +62,7 @@ void IslandTerrain::WaitForElevationMaps()
 	const std::unordered_map<common::crc_t, LazyChunk>& rChunkMap = gpFileManager->GetLazyChunkMap();
 	for (size_t i = 0; i < smPriorityIslands.size(); ++i)
 	{
-		const LazyChunk& rChunk = rChunkMap.at(smPriorityIslands[i]);
+		const LazyChunk& rChunk = rChunkMap.at(smPriorityIslands.at(i));
 
 		mpfHeightmapData = reinterpret_cast<const float*>(rChunk.pData);
 		miHeightmapWidth = rChunk.header.islandHeader.iHeightmapWidth;
@@ -112,9 +112,13 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 	float fNormalizedElevation = mpfHeightmapData[iY * miHeightmapWidth + iX];
 	float fRelativeElevation = fNormalizedElevation - mfBeachElevation;
 	if (fRelativeElevation >= 0.0f)
+	{
 		return gIslandHeight.Get() * fRelativeElevation;
+	}
 	else
+	{
 		return gWaterDepth.Get() * fRelativeElevation;
+	}
 }
 
 XMVECTOR XM_CALLCONV IslandTerrain::GlobalNormal(FXMVECTOR vecPosition) const

@@ -85,12 +85,12 @@ enum class LoadPriority : uint32_t
 struct LoadRequest
 {
 	common::crc_t crc;
-	LoadPriority priority;
+	LoadPriority ePriority;
 
 	// Priority queue needs comparison operator
-	bool operator<(const LoadRequest& other) const
+	bool operator<(const LoadRequest& rOther) const
 	{
-		return priority < other.priority;
+		return ePriority < rOther.ePriority;
 	}
 };
 
@@ -132,11 +132,11 @@ public:
 	
 	// Lazy loading APIs
 	bool IsChunkReady(common::crc_t crc) const;
-	void RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPriority priority = LoadPriority::kNormal);
+	void RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPriority ePriority = LoadPriority::kNormal);
 	void WaitForChunks(std::span<const common::crc_t> crcs);
 	
 	// Streaming API for reading data at specific offset within a chunk
-	bool ReadChunkData(common::crc_t crc, uint64_t offset, std::span<std::byte> buffer);
+	bool ReadChunkData(common::crc_t crc, uint64_t uiOffset, std::span<std::byte> buffer);
 
 	// Notification for chunk completion (wakes WaitForChunks waiters)
 	void NotifyChunkCompletion();
@@ -207,10 +207,10 @@ inline FileManager* gpFileManager = nullptr;
 
 // Type trait to detect if a type has both operator<< and operator>> for binary stream serialization
 // Excludes built-in arithmetic types, pointers, and std::string to avoid false positives from text formatters
-template<typename T, typename = void>
+template <typename T, typename = void>
 struct has_binary_stream_operators : std::false_type {};
 
-template<typename T>
+template <typename T>
 struct has_binary_stream_operators
 <T,
 	std::enable_if_t
@@ -227,7 +227,7 @@ struct has_binary_stream_operators
 	>
 > : std::true_type {};
 
-template<typename T>
+template <typename T>
 inline constexpr bool has_binary_stream_operators_v = has_binary_stream_operators<T>::value;
 
 template <typename STRUCT_TYPE>
@@ -262,7 +262,7 @@ void WriteVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& 
 	common::Write(fileStream, iVersion);
 	int64_t iSize = std::is_trivially_copyable_v<STRUCT_TYPE> ? sizeof(STRUCT_TYPE) : 0;
 	common::Write(fileStream, iSize);
-	Log("WriteVersionedFile {} iVersion: {} iSize: {}", rFilename, iVersion, iSize);
+	Log(kLogLoading, "WriteVersionedFile {} iVersion: {} iSize: {}", rFilename, iVersion, iSize);
 
 	if constexpr (has_binary_stream_operators_v<STRUCT_TYPE>)
 	{
@@ -279,12 +279,12 @@ bool ReadVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& r
 {
 	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
 
-	Log("ReadVersionedFile {} iVersion: {} iSize: {}", rFilename, STRUCT_TYPE::kiVersion, sizeof(STRUCT_TYPE));
+	Log(kLogLoading, "ReadVersionedFile {} iVersion: {} iSize: {}", rFilename, STRUCT_TYPE::kiVersion, sizeof(STRUCT_TYPE));
 	int64_t iVersion = 0;
 	common::Read(fileStream, iVersion);
 	int64_t iSize = 0;
 	common::Read(fileStream, iSize);
-	Log("    iVersion: {} == {} iSize: {} == {}", iVersion, STRUCT_TYPE::kiVersion, iSize, sizeof(STRUCT_TYPE));
+	Log(kLogLoading, "    iVersion: {} == {} iSize: {} == {}", iVersion, STRUCT_TYPE::kiVersion, iSize, sizeof(STRUCT_TYPE));
 	bool bSizeValid = std::is_trivially_copyable_v<STRUCT_TYPE> ? (iSize == sizeof(STRUCT_TYPE)) : true;
 	if (iVersion == STRUCT_TYPE::kiVersion && bSizeValid)
 	{
@@ -302,7 +302,7 @@ bool ReadVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& r
 		}
 	}
 
-	Log("    Failed to load versioned file");
+	Log(kLogLoading, "    Failed to load versioned file");
 
 	if constexpr (std::is_trivially_copyable_v<STRUCT_TYPE>)
 	{

@@ -147,7 +147,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 
 		ASSERT(rPrimitive.material >= 0);
 		int iOriginalMaterial = rPrimitive.material;
-		uint32_t vertexStart = static_cast<uint32_t>(rVertices.size());
+		uint32_t uiVertexStart = static_cast<uint32_t>(rVertices.size());
 		bool bHasSkinning = rPrimitive.attributes.find("JOINTS_0") != rPrimitive.attributes.end();
 
 		// Determine effective material index for this (originalMaterial, nodeIndex) combination
@@ -304,7 +304,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			common::ModelVertex vertex;
 
 			auto vecPosition = XMVectorSet(pfPositions[j * iPositionStride + 0], pfPositions[j * iPositionStride + 1], pfPositions[j * iPositionStride + 2], 1.0f);
-			auto vecNormal = pfNormals ? XMVectorSet(pfNormals[j * iNormalStride], pfNormals[j * iNormalStride + 1], pfNormals[j * iNormalStride + 2], 0.0f) : XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+			auto vecNormal = pfNormals != nullptr ? XMVectorSet(pfNormals[j * iNormalStride], pfNormals[j * iNormalStride + 1], pfNormals[j * iNormalStride + 2], 0.0f) : XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
 
 			bool bHasSkeletonData = !rNodeToJointMap.empty();
 			if (!bHasSkinning && !bHasSkeletonData)
@@ -360,7 +360,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			indexRemap.at(j) = jt->second;
 		}
 
-		uint32_t uiNewVertexCount = static_cast<uint32_t>(rVertices.size()) - vertexStart;
+		uint32_t uiNewVertexCount = static_cast<uint32_t>(rVertices.size()) - uiVertexStart;
 		Log("  Vertices: {} -> {} (deduplicated {})", rPositionAccessor.count, uiNewVertexCount, rPositionAccessor.count - uiNewVertexCount);
 
 		if (rPrimitive.indices > -1)
