@@ -91,19 +91,11 @@ flowchart TD
     MSG["ProcessMessages()<br/>RawInput Update"] --> TICK_FRAMES
 
     subgraph TICK_FRAMES ["GameBase::UpdateClient()"]
-        POLL_RECONCILE["ClientSession::PollAndReconcile()<br/>(desync: poll+flush only,<br/>normal: WaitForReconcile<br/>-> ClientReconciler::Wait(),<br/>clock correction)"]:::reconcile
+        POLL_RECONCILE["ClientSession::PollAndReconcile()<br/>(desync: poll+flush only,<br/>normal: PollNetwork,<br/>SendAck, Flush,<br/>WaitForReconcile<br/>-> ClientReconciler::Wait(),<br/>clock correction)"]:::reconcile
 
         PHYSICS["Fixed-rate physics ticks<br/>(desync: early-return)"]:::physics
 
-        POST_TICK["ClientSession::PostTick()<br/>(desync: early-return)"]:::network
-
-        subgraph post_tick_detail ["PostTick()"]
-            POLL["PollNetwork()<br/>Process player state notifications<br/>(spawn/frame change/death),<br/>apply full states,<br/>buffer delta updates"]:::network
-            SEND["ClientNetwork::SendAck()<br/>ClientNetwork::Flush()"]:::network
-            POLL --> SEND
-        end
-
-        POLL_RECONCILE --> PHYSICS --> POST_TICK --> post_tick_detail
+        POLL_RECONCILE --> PHYSICS
     end
 
     subgraph RENDER_METHOD ["GameBase::Render()"]
@@ -156,7 +148,7 @@ sequenceDiagram
     Main->>Net: SetDesyncDebugMode(true)
     Net->>Server: Desync report + debug frame request
 
-    Note over Main: Each ClientSession method early-returns<br/>when desync active (PollAndReconcile,<br/>PostTick, PostRender).<br/>Render and audio still run.
+    Note over Main: Each ClientSession method early-returns<br/>when desync active (PollAndReconcile,<br/>PostRender).<br/>Render and audio still run.
 
     Server->>Net: Debug frame response (serialized Frame)
     Main->>Main: PollNetwork() drains debug frame

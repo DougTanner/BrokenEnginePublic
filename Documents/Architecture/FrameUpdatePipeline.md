@@ -50,7 +50,7 @@ flowchart LR
 
 ## Client Main Loop
 
-Main.cpp calls three GameBase methods in sequence: `UpdateClient()`, `Render()`, and audio update. Network orchestration is encapsulated within `UpdateClient()` (pre-tick polling/reconciliation and post-tick network send) and `Render()` (post-render reconcile kick).
+Main.cpp calls three GameBase methods in sequence: `UpdateClient()`, `Render()`, and audio update. Network orchestration is encapsulated within `UpdateClient()` (pre-tick polling, network send, and reconciliation) and `Render()` (post-render reconcile kick).
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -67,7 +67,7 @@ flowchart TD
     preupdate["ProcessInput(bLostFocus, menuInput)<br/>-> UpdateMenuInput()<br/>-> RawInputManager::Update()"]:::input
 
     subgraph tick_frames ["GameBase::UpdateClient()"]
-        poll_reconcile["Game::PollAndReconcileClient()<br/>Desync: poll+flush only,<br/>Normal: WaitForReconcile(),<br/>ApplyReconcileResult(),<br/>clock correction<br/>(ComputeClockCorrectionNs<br/>via ClientSessionBase)"]:::network
+        poll_reconcile["Game::PollAndReconcileClient()<br/>Desync: poll+flush only,<br/>Normal: PollNetwork(),<br/>SendAck(), Flush(),<br/>WaitForReconcile(),<br/>ApplyReconcileResult(),<br/>clock correction<br/>(ComputeClockCorrectionNs<br/>via ClientSessionBase)"]:::network
 
         subgraph physics_loop ["Fixed Timestep Loop (64 Hz, 15.625ms)"]
             ts["TimeStep::UpdateRealtime()<br/>-> iFullUpdates"]:::physics
@@ -81,9 +81,7 @@ flowchart TD
             extrap_check -->|"No"| dispatch --> frame_swap
         end
 
-        post_tick["Game::PostTickClientNetwork()<br/>(desync: early-return)<br/>PollClientNetwork()<br/>(calls ApplyReceivedUpdatesBase<br/>via ClientSessionBase),<br/>ClientNetwork::SendAck(),<br/>ClientNetwork::Flush()"]:::network
-
-        poll_reconcile --> physics_loop --> post_tick
+        poll_reconcile --> physics_loop
     end
 
     subgraph render_method ["GameBase::Render()"]

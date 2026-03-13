@@ -25,7 +25,6 @@ public:
 	// Main-loop integration
 	void PollNetwork();
 	void PollAndReconcile();
-	void PostTick();
 	void PostRender();
 
 	// Reconciliation

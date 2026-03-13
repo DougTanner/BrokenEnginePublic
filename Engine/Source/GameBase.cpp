@@ -72,8 +72,6 @@ void GameBase::UpdateClient()
 	{
 		gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullTicks);
 	}
-
-	game::gpClientSession->PostTick();
 }
 #endif // BT_CLIENT
 

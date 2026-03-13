@@ -72,7 +72,7 @@ void ClientNetwork::SendSpawnRequest(ClientRequestFlags_t flags)
 	std::memcpy(&uiFlags, &flags, sizeof(uint8_t));
 	rWorkbuffer.PushBack<uint8_t>(uiFlags);
 
-	Log(kLogNetwork, "NetworkClient: Sending spawn request (spawn={}, respawn={})", static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
+	Log(kLogNetwork, "ClientNetwork: Sending spawn request (spawn={}, respawn={})", static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
@@ -105,7 +105,7 @@ void ClientNetwork::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc
 
 	char pcExpected[20] {};
 	char pcActual[20] {};
-	Log(kLogNetwork, "NetworkClient: Sending desync report frame {} grid ({},{}) expected={} actual={}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), expected), common::ToHex(std::span(pcActual), actual));
+	Log(kLogNetwork, "ClientNetwork: Sending desync report frame {} grid ({},{}) expected={} actual={}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), expected), common::ToHex(std::span(pcActual), actual));
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
@@ -135,7 +135,7 @@ void ClientNetwork::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 	rWorkbuffer.PushBack<int32_t>(coord.x);
 	rWorkbuffer.PushBack<int32_t>(coord.y);
 
-	Log(kLogNetwork, "NetworkClient: Sending debug frame request frame {} grid ({},{})", iTick, coord.x, coord.y);
+	Log(kLogNetwork, "ClientNetwork: Sending debug frame request frame {} grid ({},{})", iTick, coord.x, coord.y);
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 

@@ -91,18 +91,18 @@ void ClientNetwork::Poll()
 			// Disable ENet peer throttle to prevent unreliable packet drops during reconciliation stalls
 			enet_peer_throttle_configure(mpServerPeer, UINT32_MAX, 0, 0);
 			SendHello();
-			Log(kLogNetwork, "NetworkClient: Connected to server");
+			Log(kLogNetwork, "ClientNetwork: ENET_EVENT_TYPE_CONNECT");
 			char pcServerAddress[64] {};
 			enet_address_get_host_ip(&mpServerPeer->address, pcServerAddress, sizeof(pcServerAddress));
 			ENetAddress localAddress {};
 			enet_socket_get_address(mpHost->socket, &localAddress);
-				break;
+			break;
 		}
 		case ENET_EVENT_TYPE_DISCONNECT:
 			mbConnected = false;
 			mbDisconnectedEvent = true;
 			mpServerPeer = nullptr;
-			Log(kLogNetwork, "NetworkClient: Disconnected from server");
+			Log(kLogNetwork, "ClientNetwork: ENET_EVENT_TYPE_DISCONNECT");
 			break;
 		case ENET_EVENT_TYPE_RECEIVE:
 			if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
@@ -213,7 +213,7 @@ void ClientNetwork::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 	int64_t iBitIndex = iTick - rAck.iAckFloor - 1;
 	if (iBitIndex >= kiTickRate)
 	{
-		Log(kLogNetwork, "NetworkClient: Too many missing frames on slot {} (gap={}), disconnecting", iSlot, iBitIndex + 1);
+		Log(kLogNetwork, "ClientNetwork: Too many missing frames on slot {} (gap={}), disconnecting", iSlot, iBitIndex + 1);
 		DEBUG_BREAK();
 		mbDisconnectedEvent = true;
 		return;

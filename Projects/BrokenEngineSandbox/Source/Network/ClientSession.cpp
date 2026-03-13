@@ -61,18 +61,18 @@ void ClientSession::PollNetwork()
 	{
 		switch (rState.eType)
 		{
-		case engine::PlayerStateType::kSpawned:
-		case engine::PlayerStateType::kChangedFrame:
-			gpGame->mHumanGridCoord = rState.coord;
-			break;
-		case engine::PlayerStateType::kDied:
-			if (gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord))
-			{
-				gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.gameFlags.Set(GameFlags::kDeathScreen);
-			}
-			gpGame->SetHumanPlayerId({});
-			gpGame->SetPreviousHumanArmor(0.0f);
-			break;
+			case engine::PlayerStateType::kSpawned:
+			case engine::PlayerStateType::kChangedFrame:
+				gpGame->mHumanGridCoord = rState.coord;
+				break;
+			case engine::PlayerStateType::kDied:
+				if (gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord))
+				{
+					gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.gameFlags.Set(GameFlags::kDeathScreen);
+				}
+				gpGame->SetHumanPlayerId({});
+				gpGame->SetPreviousHumanArmor(0.0f);
+				break;
 		}
 	}
 
@@ -133,32 +133,7 @@ void ClientSession::PollAndReconcile()
 		return;
 	}
 
-	gpProfileManager->CpuStart(engine::kCpuTimerNetworkPollReconcile);
-	{
-		// Heap: reconciliation deserialization and map operations
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		int64_t iPreReconcileTick = gpGame->TickCounter();
-		WaitForReconcile();
-		// Compensate time step for ticks rolled back during reconciliation
-		int64_t iTickDeficit = iPreReconcileTick - gpGame->TickCounter();
-		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iPreReconcileTick);
-		if (iTickDeficit > 0)
-		{
-			gpGame->mTimeStep.mTickRemainderNs += iTickDeficit * kTickNs;
-		}
-		gpGame->mTimeStep.mTickRemainderNs += clockCorrectionNs;
-	}
-	gpProfileManager->CpuStop(engine::kCpuTimerNetworkPollReconcile, true);
-}
-
-void ClientSession::PostTick()
-{
-	if (GetDesyncTick() >= 0)
-	{
-		return;
-	}
-
-	// Post-tick: poll network before render so reconciliation gets the freshest data
+	// Poll network and send ACK before reconciliation so server gets acknowledgement ASAP
 	{
 		// Heap: ENet polling
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -175,6 +150,23 @@ void ClientSession::PostTick()
 		}
 	}
 	gpProfileManager->CpuStop(engine::kCpuTimerNetworkSend, true);
+
+	gpProfileManager->CpuStart(engine::kCpuTimerNetworkPollReconcile);
+	{
+		// Heap: reconciliation deserialization and map operations
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		int64_t iPreReconcileTick = gpGame->TickCounter();
+		WaitForReconcile();
+		// Compensate time step for ticks rolled back during reconciliation
+		int64_t iTickDeficit = iPreReconcileTick - gpGame->TickCounter();
+		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iPreReconcileTick);
+		if (iTickDeficit > 0)
+		{
+			gpGame->mTimeStep.mTickRemainderNs += iTickDeficit * kTickNs;
+		}
+		gpGame->mTimeStep.mTickRemainderNs += clockCorrectionNs;
+	}
+	gpProfileManager->CpuStop(engine::kCpuTimerNetworkPollReconcile, true);
 }
 
 void ClientSession::PostRender()

@@ -51,7 +51,7 @@ void ClientNetwork::HandleServerAssignPlayer(const uint8_t* pData)
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	mReceivedAssignments.push_back({game::player_t(uuid_t(iPlayerIdValue)), coord});
 
-	Log(kLogNetwork, "NetworkClient: Assigned player ID {} at grid ({},{})", iPlayerIdValue, coord.x, coord.y);
+	Log(kLogNetwork, "ClientNetwork: Assigned player ID {} at grid ({},{})", iPlayerIdValue, coord.x, coord.y);
 }
 
 void ClientNetwork::HandleServerPlayerState(const uint8_t* pData)
@@ -66,7 +66,7 @@ void ClientNetwork::HandleServerPlayerState(const uint8_t* pData)
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	mReceivedPlayerStates.push_back({eStateType, game::player_t(uuid_t(iPlayerIdValue)), coord});
 
-	Log(kLogNetwork, "NetworkClient: Player {} state {} at grid ({},{})", iPlayerIdValue, static_cast<int>(eStateType), coord.x, coord.y);
+	Log(kLogNetwork, "ClientNetwork: Player {} state {} at grid ({},{})", iPlayerIdValue, static_cast<int>(eStateType), coord.x, coord.y);
 }
 
 void ClientNetwork::HandleServerCoordFullState(const uint8_t* pData)
@@ -78,14 +78,14 @@ void ClientNetwork::HandleServerCoordFullState(const uint8_t* pData)
 	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
 
-	Log(kLogNetwork, "NetworkClient: Received coord full state frame {} slot {} coord ({},{})", iTick, uiSlotIndex, coord.x, coord.y);
+	Log(kLogNetwork, "ClientNetwork: Received coord full state frame {} slot {} coord ({},{})", iTick, uiSlotIndex, coord.x, coord.y);
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor);
 	if (pFrame == nullptr)
 	{
-		Log(kLogNetwork, "NetworkClient: LZ4 decompression failed for full state coord ({},{}) frame {}", coord.x, coord.y, iTick);
+		Log(kLogNetwork, "ClientNetwork: LZ4 decompression failed for full state coord ({},{}) frame {}", coord.x, coord.y, iTick);
 		return;
 	}
 
@@ -200,14 +200,14 @@ void ClientNetwork::HandleServerDebugFrame(const uint8_t* pData)
 
 	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
-	Log(kLogNetwork, "NetworkClient: Received debug frame {} grid ({},{})", iTick, coord.x, coord.y);
+	Log(kLogNetwork, "ClientNetwork: Received debug frame {} grid ({},{})", iTick, coord.x, coord.y);
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor);
 	if (pFrame == nullptr)
 	{
-		Log(kLogNetwork, "NetworkClient: LZ4 decompression failed for debug frame {}", iTick);
+		Log(kLogNetwork, "ClientNetwork: LZ4 decompression failed for debug frame {}", iTick);
 		return;
 	}
 
@@ -225,7 +225,7 @@ void ClientNetwork::HandleServerConnectionResponse(const uint8_t* pData, size_t 
 	if (bAccepted)
 	{
 		mbConnectionAccepted = true;
-		Log(kLogNetwork, "NetworkClient: Connection accepted");
+		Log(kLogNetwork, "ClientNetwork: Connection accepted");
 	}
 	else
 	{
@@ -233,7 +233,7 @@ void ClientNetwork::HandleServerConnectionResponse(const uint8_t* pData, size_t 
 		size_t iCopyLength = std::min(iMessageLength, sizeof(mpcRejectionReason) - 1);
 		std::memcpy(mpcRejectionReason, pCursor, iCopyLength);
 		mpcRejectionReason[iCopyLength] = '\0';
-		Log(kLogNetwork, "NetworkClient: Connection rejected: {}", mpcRejectionReason);
+		Log(kLogNetwork, "ClientNetwork: Connection rejected: {}", mpcRejectionReason);
 	}
 }
 
@@ -249,7 +249,7 @@ void ClientNetwork::HandleServerSubscribeAccept(const uint8_t* pData)
 	{
 		// Server rejected subscription (no free slot) — clear the kSubscribing placeholder
 		ClearSubscribingPlaceholder(coord);
-		Log(kLogNetwork, "NetworkClient: Subscribe rejected for coord ({},{})", coord.x, coord.y);
+		Log(kLogNetwork, "ClientNetwork: Subscribe rejected for coord ({},{})", coord.x, coord.y);
 		return;
 	}
 
@@ -258,7 +258,7 @@ void ClientNetwork::HandleServerSubscribeAccept(const uint8_t* pData)
 	bool bTargetIsPlaceholder = (rSlot.eState == CoordSubscriptionState::kSubscribing && rSlot.coord == coord);
 	if (rSlot.eState != CoordSubscriptionState::kUnsubscribed && !bTargetIsPlaceholder)
 	{
-		Log(kLogNetwork, "NetworkClient: Subscribe accept for slot {} but slot is in state {}, ignoring", uiSlotIndex, static_cast<int>(rSlot.eState));
+		Log(kLogNetwork, "ClientNetwork: Subscribe accept for slot {} but slot is in state {}, ignoring", uiSlotIndex, static_cast<int>(rSlot.eState));
 		return;
 	}
 
@@ -274,7 +274,7 @@ void ClientNetwork::HandleServerSubscribeAccept(const uint8_t* pData)
 	rSlot.ackState.uiReceivedBitfield = 0;
 	rSlot.ackState.uiEpoch = uiEpoch;
 
-	Log(kLogNetwork, "NetworkClient: Subscribe accepted slot {} coord ({},{})", uiSlotIndex, coord.x, coord.y);
+	Log(kLogNetwork, "ClientNetwork: Subscribe accepted slot {} coord ({},{})", uiSlotIndex, coord.x, coord.y);
 }
 
 void ClientNetwork::HandleServerUnsubscribeAck(const uint8_t* pData)
@@ -294,7 +294,7 @@ void ClientNetwork::HandleServerUnsubscribeAck(const uint8_t* pData)
 		return;
 	}
 
-	Log(kLogNetwork, "NetworkClient: Unsubscribe ack slot {} coord ({},{})", uiSlotIndex, rSlot.coord.x, rSlot.coord.y);
+	Log(kLogNetwork, "ClientNetwork: Unsubscribe ack slot {} coord ({},{})", uiSlotIndex, rSlot.coord.x, rSlot.coord.y);
 
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{

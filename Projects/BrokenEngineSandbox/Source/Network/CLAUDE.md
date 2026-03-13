@@ -14,7 +14,7 @@ Game-level networking sessions that inherit from engine base classes and encapsu
 ## Architecture Notes
 
 - **ClientSession companion files**: `ClientSession.cpp` (core/reconcile integration), `ClientSessionSubscriptions.cpp` (coord subscription management, full-state application)
-- **Client main-loop integration**: `PollAndReconcile()` (before physics), `PostTick()` (after physics), `PostRender()` (after render). Reconciliation runs asynchronously and results are applied on the next frame
+- **Client main-loop integration**: `PollAndReconcile()` (before physics: polls network, sends ACK, then waits for reconciliation), `PostRender()` (after render). Reconciliation runs asynchronously and results are applied on the next frame
 - **Server main-loop integration**: `PreTickNetwork()` (pre-physics polling and client handling), `PrepareTick()` (per-tick active set), `BroadcastTick()` (per-tick state broadcast), `WaitForTick()` (delegates to base class fixed-rate timer)
 
 ## See Also

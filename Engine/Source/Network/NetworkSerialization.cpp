@@ -140,28 +140,28 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 
 		switch (eType)
 		{
-		case game::StatusChangeType::kSpawnPlayer:
-		case game::StatusChangeType::kRespawnPlayer:
-			break;
-		case game::StatusChangeType::kTransferBlaster:
-			SerializeBlasterTransfer(pCursor, rData);
-			break;
-		case game::StatusChangeType::kTransferSpaceship:
-			SerializeSpaceshipTransfer(pCursor, rData);
-			break;
-		case game::StatusChangeType::kTransferMissile:
-			SerializeMissileTransfer(pCursor, rData);
-			break;
-		case game::StatusChangeType::kTransferPlayer:
-			SerializePlayerTransfer(pCursor, rData);
-			break;
-		case game::StatusChangeType::kDestroyPlayer:
-		{
-			XMFLOAT4A f4 {};
-			XMStoreFloat4A(&f4, rData.vecPosition);
-			WriteBytes(pCursor, &f4, sizeof(int64_t));
-			break;
-		}
+			case game::StatusChangeType::kSpawnPlayer:
+			case game::StatusChangeType::kRespawnPlayer:
+				break;
+			case game::StatusChangeType::kTransferBlaster:
+				SerializeBlasterTransfer(pCursor, rData);
+				break;
+			case game::StatusChangeType::kTransferSpaceship:
+				SerializeSpaceshipTransfer(pCursor, rData);
+				break;
+			case game::StatusChangeType::kTransferMissile:
+				SerializeMissileTransfer(pCursor, rData);
+				break;
+			case game::StatusChangeType::kTransferPlayer:
+				SerializePlayerTransfer(pCursor, rData);
+				break;
+			case game::StatusChangeType::kDestroyPlayer:
+			{
+				XMFLOAT4A f4 {};
+				XMStoreFloat4A(&f4, rData.vecPosition);
+				WriteBytes(pCursor, &f4, sizeof(int64_t));
+				break;
+			}
 		}
 	}
 }
@@ -245,28 +245,28 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 
 			switch (eType)
 			{
-			case game::StatusChangeType::kSpawnPlayer:
-			case game::StatusChangeType::kRespawnPlayer:
-				break;
-			case game::StatusChangeType::kTransferBlaster:
-				DeserializeBlasterTransfer(pCursor, rChange.data);
-				break;
-			case game::StatusChangeType::kTransferSpaceship:
-				DeserializeSpaceshipTransfer(pCursor, rChange.data);
-				break;
-			case game::StatusChangeType::kTransferMissile:
-				DeserializeMissileTransfer(pCursor, rChange.data);
-				break;
-			case game::StatusChangeType::kTransferPlayer:
-				DeserializePlayerTransfer(pCursor, rChange.data);
-				break;
-			case game::StatusChangeType::kDestroyPlayer:
-			{
-				XMFLOAT4A f4 {};
-				ReadBytes(pCursor, &f4, sizeof(int64_t));
-				rChange.data.vecPosition = XMLoadFloat4A(&f4);
-				break;
-			}
+				case game::StatusChangeType::kSpawnPlayer:
+				case game::StatusChangeType::kRespawnPlayer:
+					break;
+				case game::StatusChangeType::kTransferBlaster:
+					DeserializeBlasterTransfer(pCursor, rChange.data);
+					break;
+				case game::StatusChangeType::kTransferSpaceship:
+					DeserializeSpaceshipTransfer(pCursor, rChange.data);
+					break;
+				case game::StatusChangeType::kTransferMissile:
+					DeserializeMissileTransfer(pCursor, rChange.data);
+					break;
+				case game::StatusChangeType::kTransferPlayer:
+					DeserializePlayerTransfer(pCursor, rChange.data);
+					break;
+				case game::StatusChangeType::kDestroyPlayer:
+				{
+					XMFLOAT4A f4 {};
+					ReadBytes(pCursor, &f4, sizeof(int64_t));
+					rChange.data.vecPosition = XMLoadFloat4A(&f4);
+					break;
+				}
 			}
 		}
 
