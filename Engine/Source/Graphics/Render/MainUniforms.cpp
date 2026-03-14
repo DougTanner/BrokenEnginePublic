@@ -11,6 +11,11 @@ namespace engine
 
 void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord)
 {
+	if (rActiveCoords.empty())
+	{
+		return;
+	}
+
 	const game::FrameInterpolate& rCameraInterpolate = rRenderInterpolates.at(cameraCoord);
 
 	// One-time setup (preserved from original RenderFrameMain)

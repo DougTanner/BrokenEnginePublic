@@ -118,11 +118,7 @@ void ClientSessionBase::UnsubscribeStaleCoords(const std::vector<GridCoord>& rDe
 			{
 				mpClientNetwork->SendUnsubscribe(i);
 			}
-			auto unsubIt = game::gpGame->mCoordFrames.find(unsubCoord);
-			if (unsubIt != game::gpGame->mCoordFrames.end())
-			{
-				unsubIt->second.ResetClientState();
-			}
+			game::gpGame->mCoordFrames.erase(unsubCoord);
 		}
 	}
 }

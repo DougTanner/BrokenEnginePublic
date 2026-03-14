@@ -62,7 +62,6 @@ ReconcileDesyncInfo ClientReconciler::Wait()
 		std::chrono::nanoseconds maxWait = std::chrono::nanoseconds(100ms);
 		if (semaphoreWaitNs > maxWait)
 		{
-	
 			DEBUG_BREAK();
 		}
 
@@ -167,7 +166,6 @@ void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext, [[maybe_un
 
 	ReconcileReplay(rReconcileContext, iMinConfirmedTick, iMaxConsecutive);
 
-
 	if (rReconcileContext.iDesyncTick >= 0)
 	{
 		return;
@@ -180,7 +178,6 @@ void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext, [[maybe_un
 	rReconcileContext.newConfirmedHumanState.humanPlayerId = rReconcileContext.humanPlayerId;
 	rReconcileContext.newConfirmedHumanState.fPreviousHumanArmor = rReconcileContext.fPreviousHumanArmor;
 	rReconcileContext.newConfirmedHumanState.fCurrentTime = rReconcileContext.fCurrentTime;
-
 
 	ReconcileCatchUp(rReconcileContext, iMinConfirmedTick);
 
@@ -347,7 +344,11 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 		{
 			if (rWork.iReplayWorkspaceUsed > 0 && rWork.replayWorkspace[rWork.iReplayWorkspaceUsed - 1] != nullptr)
 			{
-				std::swap(gpGame->mCoordFrames.at(rWork.coord).pCurrent, rWork.replayWorkspace[rWork.iReplayWorkspaceUsed - 1]);
+				auto it = gpGame->mCoordFrames.find(rWork.coord);
+				if (it != gpGame->mCoordFrames.end())
+				{
+					std::swap(it->second.pCurrent, rWork.replayWorkspace[rWork.iReplayWorkspaceUsed - 1]);
+				}
 			}
 		}
 
