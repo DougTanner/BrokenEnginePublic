@@ -698,7 +698,7 @@ void ExportScene::MainExport(tinygltf::Model& rGltfModel)
 
 		int64_t iCurrentSize = static_cast<int64_t>(mHeaderAndData.size());
 		int64_t iExpectedOffset = common::kiChunkDataOffset + iSceneArraysSize + static_cast<int64_t>(uiMaterialCount) * sizeof(common::MaterialShaderData);
-		Log("  Animation data: writing at offset {} (buffer size {}), expected runtime offset {} (diff={})",
+		Log("  Animation data: writing at offset {} (buffer size {}), expected runtime offset {} (diff {})",
 			iCurrentSize, mHeaderAndData.size(), iExpectedOffset, iCurrentSize - iExpectedOffset);
 		mHeaderAndData.resize(iCurrentSize + iAnimDataSize);
 		std::byte* pAnimData = mHeaderAndData.data() + iCurrentSize;

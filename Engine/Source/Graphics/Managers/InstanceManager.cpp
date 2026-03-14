@@ -490,7 +490,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	}
 
 	ASSERT(miGraphicsQueueFamilyIndex != UINT32_MAX && miPresentQueueFamilyIndex != UINT32_MAX);
-	Log("Selected queue families: graphics={}, present={}, transfer={}", miGraphicsQueueFamilyIndex, miPresentQueueFamilyIndex, miTransferQueueFamilyIndex);
+	Log("Selected queue families: graphics {}, present {}, transfer {}", miGraphicsQueueFamilyIndex, miPresentQueueFamilyIndex, miTransferQueueFamilyIndex);
 
 	// Get the list of surface formats that are supported
 	uint32_t uiFormatCount = 0;

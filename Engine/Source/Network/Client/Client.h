@@ -49,19 +49,6 @@ struct ClientCoordSlot
 	AckState ackState;
 };
 
-struct ReceivedAssignment
-{
-	game::player_t playerId {};
-	GridCoord coord {};
-};
-
-struct ReceivedPlayerState
-{
-	PlayerStateType eType {};
-	game::player_t playerId {};
-	GridCoord coord {};
-};
-
 struct ReceivedDebugFrame
 {
 	int64_t iTick = 0;
@@ -69,12 +56,12 @@ struct ReceivedDebugFrame
 	std::unique_ptr<game::Frame> pFrame;
 };
 
-class ClientNetwork
+class Client
 {
 public:
 
-	ClientNetwork(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots);
-	~ClientNetwork();
+	Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots);
+	~Client();
 
 	void Poll();
 
@@ -96,8 +83,8 @@ public:
 	bool IsConnectionAccepted() const { return mbConnectionAccepted; }
 	const char* GetRejectionReason() const { return mpcRejectionReason[0] != '\0' ? mpcRejectionReason : nullptr; }
 	bool WasDisconnected() const { return mbDisconnectedEvent; }
-	std::vector<ReceivedAssignment>& DrainReceivedAssignments() { return mReceivedAssignments; }
-	std::vector<ReceivedPlayerState>& DrainReceivedPlayerStates() { return mReceivedPlayerStates; }
+	// Heap: raw game packet buffer grows on assign/player-state packets
+	std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& DrainReceivedGamePackets() { return mReceivedGamePackets; }
 
 	const std::vector<ClientCoordSlot>& GetCoordSlots() const { return mCoordSlots; }
 	std::vector<ClientCoordSlot>& GetCoordSlots() { return mCoordSlots; }
@@ -108,16 +95,14 @@ public:
 
 private:
 
-	void HandleReceive(ENetEvent& rEvent);
-	void HandleReceive(const uint8_t* pData, size_t iSize);
-	void HandleServerAssignPlayer(const uint8_t* pData);
-	void HandleServerCoordFullState(const uint8_t* pData);
-	void HandleServerCoordUpdateOrResend(const uint8_t* pData, bool bProcessRtt);
-	void HandleServerDebugFrame(const uint8_t* pData);
-	void HandleServerConnectionResponse(const uint8_t* pData, size_t iSize);
-	void HandleServerPlayerState(const uint8_t* pData);
-	void HandleServerSubscribeAccept(const uint8_t* pData);
-	void HandleServerUnsubscribeAck(const uint8_t* pData);
+	void Receive(ENetEvent& rEvent);
+	void Receive(const uint8_t* pData, size_t iSize);
+	void ServerCoordFullState(const uint8_t* pData);
+	void ServerCoordUpdateOrResend(const uint8_t* pData, bool bProcessRtt);
+	void ServerDebugFrame(const uint8_t* pData);
+	void ServerConnectionResponse(const uint8_t* pData, size_t iSize);
+	void ServerSubscribeAccept(const uint8_t* pData);
+	void ServerUnsubscribeAck(const uint8_t* pData);
 	void SendHello();
 
 	void ClearSubscribingPlaceholder(GridCoord coord);
@@ -130,8 +115,8 @@ private:
 	bool mbDisconnectedEvent = false;
 	char mpcRejectionReason[256] = {};
 
-	std::vector<ReceivedAssignment> mReceivedAssignments;
-	std::vector<ReceivedPlayerState> mReceivedPlayerStates;
+	// Heap: raw game packets (type byte + payload) for game-layer parsing
+	std::vector<std::pair<uint8_t, std::vector<uint8_t>>> mReceivedGamePackets;
 
 	// Per-slot receive buffers
 	std::vector<std::vector<ReceivedCoordUpdate>> mReceivedCoordUpdates;
@@ -158,6 +143,6 @@ private:
 	std::deque<DelayedPacket> mDelayedPackets;
 };
 
-inline ClientNetwork* gpClientNetwork = nullptr;
+inline Client* gpClient = nullptr;
 
 } // namespace engine

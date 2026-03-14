@@ -19,6 +19,21 @@ inline bool IsTransferType(StatusChangeType eType)
 	return eType >= StatusChangeType::kTransferPlayer && eType <= StatusChangeType::kTransferMissile;
 }
 
+inline const char* StatusChangeTypeName(StatusChangeType eType)
+{
+	switch (eType)
+	{
+		case StatusChangeType::kSpawnPlayer:       return "SpawnPlayer";
+		case StatusChangeType::kRespawnPlayer:     return "RespawnPlayer";
+		case StatusChangeType::kTransferPlayer:    return "TransferPlayer";
+		case StatusChangeType::kTransferSpaceship: return "TransferSpaceship";
+		case StatusChangeType::kTransferBlaster:   return "TransferBlaster";
+		case StatusChangeType::kTransferMissile:   return "TransferMissile";
+		case StatusChangeType::kDestroyPlayer:     return "DestroyPlayer";
+	}
+	return "Unknown";
+}
+
 struct TransferData
 {
 	bool operator==(const TransferData& rOther) const

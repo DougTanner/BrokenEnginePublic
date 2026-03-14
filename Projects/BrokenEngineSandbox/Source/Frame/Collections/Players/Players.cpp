@@ -386,7 +386,7 @@ static void SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
 		rCurrentPostRender.pFlags[i].Clear(kFireBlaster);
 
 		// Calculate base blaster direction and barrel offset normal
-		XMVECTOR vecBaseDirection = rCurrentPostRender.pVecWantedDirections[i];
+		XMVECTOR vecBaseDirection = rCurrentInterpolate.pVecDirections[i];
 		XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(vecBaseDirection, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
 
 		// Decrement timer and spawn multiple blasters if needed
@@ -457,8 +457,8 @@ static void SpawnMissiles([[maybe_unused]] Frame& __restrict rFrame)
 		rCurrentPostRender.pFlags[i].Toggle(kMissileSpawnLeft);
 		bool bLeftSide = rCurrentPostRender.pFlags[i] & kMissileSpawnLeft;
 
-		// Base direction is player's wanted direction
-		XMVECTOR vecBaseDirection = rCurrentPostRender.pVecWantedDirections[i];
+		// Base direction is player's smoothed visual direction
+		XMVECTOR vecBaseDirection = rCurrentInterpolate.pVecDirections[i];
 
 		// Calculate barrel offset normal (perpendicular to facing direction)
 		XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(vecBaseDirection, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
@@ -615,78 +615,51 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	rCurrentPostRender.pfTransferLockTimers[iIndex] = rInfo.fTransferLockTimer;
 }
 
-bool PlayersInterpolate::operator==(const PlayersInterpolate& rOther) const
+bool PlayersInterpolate::LogDifferences(const PlayersInterpolate& rOther) const
 {
+	common::ScopedLogDifferenceContext context("PlayersInterpolate");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+	bEqual &= Collection::LogDifferences(rOther);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pfAnimationTimes[i], rOther.pfAnimationTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pfRotationAccelerationXs[i], rOther.pfRotationAccelerationXs[i]);
-		bEqual &= common::BreakOnNotEqual(pfRotationAccelerationYs[i], rOther.pfRotationAccelerationYs[i]);
-#if defined(BT_CLIENT)
-		bEqual &= common::BreakOnNotEqual(pWindTrails[i].ToUuid().Value(), rOther.pWindTrails[i].ToUuid().Value());
-		bEqual &= common::BreakOnNotEqual(pHexShields[i].ToUuid().Value(), rOther.pHexShields[i].ToUuid().Value());
-		bEqual &= common::BreakOnNotEqual(pfShieldRotations[i], rOther.pfShieldRotations[i]);
-		bEqual &= common::BreakOnNotEqual(pfShieldShrinks[i], rOther.pfShieldShrinks[i]);
-		bEqual &= common::BreakOnNotEqual(pHexShieldDirections[i], rOther.pHexShieldDirections[i]);
-		bEqual &= common::BreakOnNotEqual(pHexShieldVertIntensities[i], rOther.pHexShieldVertIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(pHexShieldFragIntensities[i], rOther.pHexShieldFragIntensities[i]);
-#endif // BT_CLIENT
+		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::LogDifference_Vec("pVecDirections", i, pVecDirections[i], rOther.pVecDirections[i]);
+		bEqual &= common::LogDifference<"pfDestroyedTimes">(i, pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
 	}
 
 	return bEqual;
 }
 
-bool PlayersPostRender::operator==(const PlayersPostRender& rOther) const
+bool PlayersPostRender::LogDifferences(const PlayersPostRender& rOther) const
 {
+	common::ScopedLogDifferenceContext context("PlayersPostRender");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+	bEqual &= Collection::LogDifferences(rOther);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= common::BreakOnNotEqual(puiIds[i].ToUuid().Value(), rOther.puiIds[i].ToUuid().Value());
-		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
-		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
-		bEqual &= common::BreakOnNotEqual(pfNextBlasterFireTimes[i], rOther.pfNextBlasterFireTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pfNextSecondarySpawnTimes[i], rOther.pfNextSecondarySpawnTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
-		bEqual &= common::BreakOnNotEqual(pVecWantedDirections[i], rOther.pVecWantedDirections[i]);
-		bEqual &= common::BreakOnNotEqual(pfArmors[i], rOther.pfArmors[i]);
-		bEqual &= common::BreakOnNotEqual(pfShields[i], rOther.pfShields[i]);
-		bEqual &= common::BreakOnNotEqual(pfShieldCooldowns[i], rOther.pfShieldCooldowns[i]);
-		bEqual &= common::BreakOnNotEqual(pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pfShieldDownSoundCooldowns[i], rOther.pfShieldDownSoundCooldowns[i]);
-		bEqual &= common::BreakOnNotEqual(pVecAiDirections[i], rOther.pVecAiDirections[i]);
-		bEqual &= common::BreakOnNotEqual(pfAiFireTimers[i], rOther.pfAiFireTimers[i]);
-		bEqual &= common::BreakOnNotEqual(pfAiMissileTimers[i], rOther.pfAiMissileTimers[i]);
-		bEqual &= common::BreakOnNotEqual(pfAiEdgeCrossCooldowns[i], rOther.pfAiEdgeCrossCooldowns[i]);
-		bEqual &= common::BreakOnNotEqual(piAiEdgeCrossTargets[i], rOther.piAiEdgeCrossTargets[i]);
-		bEqual &= common::BreakOnNotEqual(pfTransferLockTimers[i], rOther.pfTransferLockTimers[i]);
+		bEqual &= common::LogDifference<"puiIds">(i, puiIds[i].ToUuid().Value(), rOther.puiIds[i].ToUuid().Value());
+		bEqual &= common::LogDifference<"pFlags">(i, pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::LogDifference<"pAlignments">(i, pAlignments[i], rOther.pAlignments[i]);
+		bEqual &= common::LogDifference<"pfNextBlasterFireTimes">(i, pfNextBlasterFireTimes[i], rOther.pfNextBlasterFireTimes[i]);
+		bEqual &= common::LogDifference<"pfNextSecondarySpawnTimes">(i, pfNextSecondarySpawnTimes[i], rOther.pfNextSecondarySpawnTimes[i]);
+		bEqual &= common::LogDifference_Vec("pVecVelocities", i, pVecVelocities[i], rOther.pVecVelocities[i]);
+		bEqual &= common::LogDifference_Vec("pVecWantedDirections", i, pVecWantedDirections[i], rOther.pVecWantedDirections[i]);
+		bEqual &= common::LogDifference<"pfArmors">(i, pfArmors[i], rOther.pfArmors[i]);
+		bEqual &= common::LogDifference<"pfShields">(i, pfShields[i], rOther.pfShields[i]);
+		bEqual &= common::LogDifference<"pfShieldCooldowns">(i, pfShieldCooldowns[i], rOther.pfShieldCooldowns[i]);
+		bEqual &= common::LogDifference<"pfDestroyedExplosionTimes">(i, pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
+		bEqual &= common::LogDifference<"pfShieldDownSoundCooldowns">(i, pfShieldDownSoundCooldowns[i], rOther.pfShieldDownSoundCooldowns[i]);
+		bEqual &= common::LogDifference_Vec("pVecAiDirections", i, pVecAiDirections[i], rOther.pVecAiDirections[i]);
+		bEqual &= common::LogDifference<"pfAiFireTimers">(i, pfAiFireTimers[i], rOther.pfAiFireTimers[i]);
+		bEqual &= common::LogDifference<"pfAiMissileTimers">(i, pfAiMissileTimers[i], rOther.pfAiMissileTimers[i]);
+		bEqual &= common::LogDifference<"pfAiEdgeCrossCooldowns">(i, pfAiEdgeCrossCooldowns[i], rOther.pfAiEdgeCrossCooldowns[i]);
+		bEqual &= common::LogDifference<"piAiEdgeCrossTargets">(i, piAiEdgeCrossTargets[i], rOther.piAiEdgeCrossTargets[i]);
+		bEqual &= common::LogDifference<"pfTransferLockTimers">(i, pfTransferLockTimers[i], rOther.pfTransferLockTimers[i]);
 	}
 
 	return bEqual;
 }
-
-bool PlayersInterpolate::ServerCompare(const PlayersInterpolate& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
-	}
-
-	return bEqual;
-}
-
-bool PlayersPostRender::ServerCompare(const PlayersPostRender& rOther) const { return *this == rOther; }
 
 } // namespace game

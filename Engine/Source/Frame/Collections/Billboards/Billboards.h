@@ -58,9 +58,6 @@ struct BillboardsInterpolate : public Collection<BillboardsInterpolate, Collecti
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.puiFlags, rSelf.pfRotations, rSelf.pfExtra, rSelf.pVecPositions); }
 
-	// Utility
-	bool operator==(const BillboardsInterpolate& rOther) const;
-
 	// Graphics resources
 	static void GraphicsResources();
 
@@ -91,8 +88,6 @@ struct BillboardsPostRender : public Collection<BillboardsPostRender>
 	billboard_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }
 
-	// Utility
-	bool operator==(const BillboardsPostRender& rOther) const;
 };
 
 extern template struct Collection<BillboardsInterpolate, CollectionFlags::kIdToIndex>;

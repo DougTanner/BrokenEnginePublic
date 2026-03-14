@@ -33,6 +33,7 @@ enum class GameFlags : uint64_t
 	kSaveReplay           = 0x02,
 	kLoadReplay           = 0x04,
 	kMainMenu             = 0x08,
+	kDeathScreen          = 0x10,
 };
 using GameFlags_t = common::Flags<GameFlags>;
 
@@ -105,13 +106,13 @@ public:
 
 	void ProcessInput(bool bLostFocus, game::MenuInput& rMenuInput);
 #if defined(BT_CLIENT)
-	void UpdateClient();
+	void ClientUpdate();
 	void TickFramesAndRender();
 	void Render();
 	game::Frame& RenderFrame(GridCoord coord) const;
 #endif // BT_CLIENT
 #if defined(BT_SERVER)
-	void UpdateServer(const game::MenuInput& rMenuInput);
+	void ServerUpdate(const game::MenuInput& rMenuInput);
 #endif // BT_SERVER
 
 	uint16_t GenerateFrameId() { return muiNextFrameId++; }

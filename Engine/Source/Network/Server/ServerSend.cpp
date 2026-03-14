@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Network/ServerNetwork/ServerNetwork.h"
+#include "Network/Server/Server.h"
 
 #include "Memory/MemoryManager.h"
 #include "Network/NetworkCursor.h"
@@ -8,7 +8,7 @@
 namespace engine
 {
 
-void ServerNetwork::SendAssignPlayer(int64_t iClientId, game::player_t playerId, GridCoord coord)
+void Server::SendAssignPlayer(int64_t iClientId, int64_t iPlayerId, GridCoord coord)
 {
 	ClientConnection* pClient = FindClient(iClientId);
 	if (pClient == nullptr)
@@ -16,17 +16,17 @@ void ServerNetwork::SendAssignPlayer(int64_t iClientId, game::player_t playerId,
 		return;
 	}
 
-	pClient->humanPlayerId = playerId;
+	pClient->humanPlayerId = game::player_t(uuid_t(iPlayerId));
 	pClient->humanGridCoord = coord;
 
-	Log(kLogNetwork, "NetworkServer: Sending assign player to client {} (player={}, grid ({},{}))", iClientId, playerId.ToUuid().Value(), coord.x, coord.y);
+	Log(kLogNetwork, "Server::SendAssignPlayer Client: {} Player: {} Grid: ({},{})", iClientId, iPlayerId, coord.x, coord.y);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
 	// [1B type][8B player_t ID][GridCoord]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerAssignPlayer));
-	rWorkbuffer.PushBack<int64_t>(playerId.ToUuid().Value());
+	rWorkbuffer.PushBack<int64_t>(iPlayerId);
 	rWorkbuffer.PushBack<int32_t>(coord.x);
 	rWorkbuffer.PushBack<int32_t>(coord.y);
 
@@ -40,7 +40,7 @@ void ServerNetwork::SendAssignPlayer(int64_t iClientId, game::player_t playerId,
 	rWorkbuffer.Pop();
 }
 
-void ServerNetwork::SendPlayerState(int64_t iClientId, PlayerStateType eStateType, game::player_t playerId, GridCoord coord)
+void Server::SendPlayerState(int64_t iClientId, uint8_t uiStateType, int64_t iPlayerId, GridCoord coord)
 {
 	ClientConnection* pClient = FindClient(iClientId);
 	if (pClient == nullptr)
@@ -48,15 +48,15 @@ void ServerNetwork::SendPlayerState(int64_t iClientId, PlayerStateType eStateTyp
 		return;
 	}
 
-	Log(kLogNetwork, "NetworkServer: Sending player state {} to client {} (player={}, grid ({},{}))", static_cast<int>(eStateType), iClientId, playerId.ToUuid().Value(), coord.x, coord.y);
+	Log(kLogNetwork, "Server::SendPlayerState State: {} Client: {} Player: {} Grid: ({},{})", static_cast<int>(uiStateType), iClientId, iPlayerId, coord.x, coord.y);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
 	// [1B type][1B state][8B player_t ID][4B coord.x][4B coord.y]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerPlayerState));
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(eStateType));
-	rWorkbuffer.PushBack<int64_t>(playerId.ToUuid().Value());
+	rWorkbuffer.PushBack<uint8_t>(uiStateType);
+	rWorkbuffer.PushBack<int64_t>(iPlayerId);
 	rWorkbuffer.PushBack<int32_t>(coord.x);
 	rWorkbuffer.PushBack<int32_t>(coord.y);
 
@@ -70,7 +70,7 @@ void ServerNetwork::SendPlayerState(int64_t iClientId, PlayerStateType eStateTyp
 	rWorkbuffer.Pop();
 }
 
-void ServerNetwork::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick, GridCoord coord, const game::Frame* pFrame)
+void Server::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick, GridCoord coord, const game::Frame* pFrame)
 {
 	ClientConnection* pClient = FindClient(iClientId);
 	if (pClient == nullptr)
@@ -78,7 +78,7 @@ void ServerNetwork::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t
 		return;
 	}
 
-	Log(kLogNetwork, "NetworkServer: Sending coord full state to client {} (frame {}, slot {}, coord ({},{}))", iClientId, iTick, iSlot, coord.x, coord.y);
+	Log(kLogNetwork, "Server::SendCoordFullState Client: {} Frame: {} Slot: {} Coord: ({},{})", iClientId, iTick, iSlot, coord.x, coord.y);
 
 	// Serialize frame to a temporary stringstream
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -113,7 +113,7 @@ void ServerNetwork::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t
 	rWorkbuffer.Pop();
 }
 
-void ServerNetwork::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage)
+void Server::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage)
 {
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
@@ -134,7 +134,7 @@ void ServerNetwork::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, cons
 	rWorkbuffer.Pop();
 }
 
-void ServerNetwork::SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord)
+void Server::SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord)
 {
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
@@ -157,7 +157,7 @@ void ServerNetwork::SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot
 	rWorkbuffer.Pop();
 }
 
-void ServerNetwork::SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot)
+void Server::SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot)
 {
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
@@ -176,7 +176,7 @@ void ServerNetwork::SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot)
 	rWorkbuffer.Pop();
 }
 
-void ServerNetwork::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, PacketType eType, int64_t iSlot, uint16_t uiEpoch, const PerCoordBufferedFrame& rBuffered, int64_t iTimestampNs)
+void Server::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, PacketType eType, int64_t iSlot, uint16_t uiEpoch, const PerCoordBufferedFrame& rBuffered, int64_t iTimestampNs)
 {
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(eType));
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
@@ -194,7 +194,7 @@ void ServerNetwork::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, Pa
 	}
 }
 
-void ServerNetwork::SendUpdate(ClientConnection& rClient, int64_t iTick)
+void Server::SendUpdate(ClientConnection& rClient, int64_t iTick)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
@@ -229,7 +229,7 @@ void ServerNetwork::SendUpdate(ClientConnection& rClient, int64_t iTick)
 	}
 }
 
-void ServerNetwork::SendResends(ClientConnection& rClient, int64_t iTick)
+void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
@@ -289,6 +289,11 @@ void ServerNetwork::SendResends(ClientConnection& rClient, int64_t iTick)
 			rWorkbuffer.Pop();
 
 			++iSlotResendCount;
+		}
+
+		if (iSlotResendCount > 0)
+		{
+			Log(kLogNetwork, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {}", rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount);
 		}
 	}
 }

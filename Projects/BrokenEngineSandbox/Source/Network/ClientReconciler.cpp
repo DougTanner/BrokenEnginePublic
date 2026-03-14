@@ -54,6 +54,11 @@ ReconcileDesyncInfo ClientReconciler::Wait()
 		mpWorker->Wait();
 		std::chrono::nanoseconds semaphoreWaitNs = timer.GetDeltaNs(true);
 
+		if (semaphoreWaitNs > std::chrono::nanoseconds(16ms))
+		{
+			Log(kLogNetwork, "ClientReconciler::Wait Reconcile stall WaitMs: {}", std::chrono::duration_cast<std::chrono::milliseconds>(semaphoreWaitNs).count());
+		}
+
 		std::chrono::nanoseconds maxWait = std::chrono::nanoseconds(100ms);
 		if (semaphoreWaitNs > maxWait)
 		{
@@ -145,6 +150,8 @@ void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext, [[maybe_un
 		return;
 	}
 
+	Log(kLogNetwork, "ClientReconciler::Reconcile CRC fast-path miss MinConfirmed: {} TargetTick: {} Coords: {}", iMinConfirmedTick, rReconcileContext.iTargetTick, rReconcileContext.coordWork.size());
+
 	// Build coord-to-index map for O(1) lookups
 	rReconcileContext.coordWorkIndex.clear();
 	for (size_t i = 0; i < rReconcileContext.coordWork.size(); ++i)
@@ -156,6 +163,7 @@ void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext, [[maybe_un
 
 	int64_t iMaxConsecutive = ReconcileFindReplayRange(rReconcileContext, iMinConfirmedTick);
 
+	Log(kLogNetwork, "ClientReconciler::Reconcile ReplayRange MaxConsecutive: {} Size: {}", iMaxConsecutive, iMaxConsecutive - iMinConfirmedTick);
 
 	ReconcileReplay(rReconcileContext, iMinConfirmedTick, iMaxConsecutive);
 
@@ -179,7 +187,7 @@ void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext, [[maybe_un
 	// Final prune
 	ReconcilePruneInactiveFrames(rReconcileContext);
 
-
+	Log(kLogNetwork, "ClientReconciler::Reconcile Summary StatusChangeReplay: {} KnockOnReplay: {} Assumed: {} CrcValidated: {}", rReconcileContext.profiling.iStatusChangeReplayTicks, rReconcileContext.profiling.iKnockOnReplayTicks, rReconcileContext.profiling.iAssumedFrameTicks, rReconcileContext.profiling.iCrcValidatedFrameTicks);
 }
 
 static void MergeNewSnapshots(engine::CoordFrames& rSub, CoordReconcileWork& rWork, int64_t iStartIndex)
@@ -339,7 +347,7 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 		{
 			if (rWork.iReplayWorkspaceUsed > 0 && rWork.replayWorkspace[rWork.iReplayWorkspaceUsed - 1] != nullptr)
 			{
-				std::swap(gpGame->mCoordFrames[rWork.coord].pCurrent, rWork.replayWorkspace[rWork.iReplayWorkspaceUsed - 1]);
+				std::swap(gpGame->mCoordFrames.at(rWork.coord).pCurrent, rWork.replayWorkspace[rWork.iReplayWorkspaceUsed - 1]);
 			}
 		}
 

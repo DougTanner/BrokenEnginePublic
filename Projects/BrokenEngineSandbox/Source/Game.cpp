@@ -85,43 +85,42 @@ void Game::ComputeActiveSet()
 	// Heap: mActiveCoords vector clear/push_back may allocate. Persists as Game member across frame updates
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-	if (!mCoordFrames.contains(mHumanGridCoord))
-	{
-		mActiveCoords.clear();
-		return;
-	}
-
 	if (!InMainMenu())
 	{
-		const Frame& rFrame = CurrentFrame(mHumanGridCoord);
-		auto it = rFrame.interpolate.pPlayers->idToIndexMap.find(mHumanPlayerId);
-
-		// Player not found in assigned cell (mid-transfer): preserve current active set
-		if (it == rFrame.interpolate.pPlayers->idToIndexMap.end())
+		mActiveCoords.clear();
+		for (const auto& [coord, frames] : mCoordFrames)
 		{
-			return;
+			if (frames.pCurrent != nullptr)
+			{
+				mActiveCoords.push_back(coord);
+			}
 		}
 
-		mActiveCoords.clear();
-		mActiveCoords.push_back(mHumanGridCoord);
-
-#if 0 // DT: TEMP
-		XMVECTOR vecPos = rFrame.interpolate.pPlayers->pVecPositions[it->second];
-		XMVECTOR vecArea = rFrame.postRender.vecArea;
-		float fCenterX = (XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f;
-		float fCenterY = (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f;
-
-		engine::GridCoord quadrantOffsets[3];
-		engine::ComputeQuadrantOffsets(XMVectorGetX(vecPos), XMVectorGetY(vecPos), fCenterX, fCenterY, quadrantOffsets);
-
-		for (const engine::GridCoord& rOffset : quadrantOffsets)
+#if 0 // DT: TEMP — Re-enable for quadrant neighbor subscriptions
+		if (mCoordFrames.contains(mHumanGridCoord))
 		{
-			engine::GridCoord neighbor {mHumanGridCoord.x + rOffset.x, mHumanGridCoord.y + rOffset.y};
-			if (!mCoordFrames.contains(neighbor))
+			const Frame& rFrame = CurrentFrame(mHumanGridCoord);
+			auto it = rFrame.interpolate.pPlayers->idToIndexMap.find(mHumanPlayerId);
+			if (it != rFrame.interpolate.pPlayers->idToIndexMap.end())
 			{
-				CreateFrameAtCoord(neighbor);
+				XMVECTOR vecPos = rFrame.interpolate.pPlayers->pVecPositions[it->second];
+				XMVECTOR vecArea = rFrame.postRender.vecArea;
+				float fCenterX = (XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f;
+				float fCenterY = (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f;
+
+				engine::GridCoord quadrantOffsets[3];
+				engine::ComputeQuadrantOffsets(XMVectorGetX(vecPos), XMVectorGetY(vecPos), fCenterX, fCenterY, quadrantOffsets);
+
+				for (const engine::GridCoord& rOffset : quadrantOffsets)
+				{
+					engine::GridCoord neighbor {mHumanGridCoord.x + rOffset.x, mHumanGridCoord.y + rOffset.y};
+					if (!mCoordFrames.contains(neighbor))
+					{
+						CreateFrameAtCoord(neighbor);
+					}
+					mActiveCoords.push_back(neighbor);
+				}
 			}
-			mActiveCoords.push_back(neighbor);
 		}
 #endif
 	}
@@ -377,6 +376,7 @@ void Game::Reset()
 	engine::WindTrailsInterpolate::ResetRenderState();
 #endif // BT_CLIENT
 
+	mGameFlags.Clear(engine::GameFlags::kDeathScreen);
 	mHumanPlayerId = {};
 	mfPreviousHumanArmor = 0.0f;
 	mHumanGridCoord = engine::kOriginCoord;

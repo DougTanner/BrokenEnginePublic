@@ -81,7 +81,7 @@ void Alignments::CopyFrom(const Alignments& rOther)
 
 bool Alignments::operator==(const Alignments& rOther) const
 {
-	return common::BreakOnNotEqual(alignmentPairs, rOther.alignmentPairs);
+	return alignmentPairs == rOther.alignmentPairs;
 }
 
 common::crc_t Alignments::Crc() const

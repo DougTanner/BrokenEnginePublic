@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Network/ServerNetwork/ServerNetwork.h"
+#include "Network/Server/Server.h"
 
 #include "Memory/MemoryManager.h"
 #include "Network/NetworkCursor.h"
@@ -8,7 +8,7 @@
 namespace engine
 {
 
-void ServerNetwork::HandleClientAckStream(const uint8_t* pData, int64_t iClientId)
+void Server::ClientAckStream(const uint8_t* pData, int64_t iClientId)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -62,7 +62,7 @@ void ServerNetwork::HandleClientAckStream(const uint8_t* pData, int64_t iClientI
 	}
 }
 
-void ServerNetwork::HandleClientSpawnRequest(const uint8_t* pData, int64_t iClientId)
+void Server::ClientSpawnRequest(const uint8_t* pData, int64_t iClientId)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 	uint8_t uiFlags = ReadUint8(pCursor);
@@ -70,14 +70,14 @@ void ServerNetwork::HandleClientSpawnRequest(const uint8_t* pData, int64_t iClie
 	ClientRequestFlags_t flags;
 	std::memcpy(&flags, &uiFlags, sizeof(uint8_t));
 
-	Log(kLogNetwork, "NetworkServer: Client {} spawn request (spawn={}, respawn={})", iClientId, static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
+	Log(kLogNetwork, "Server::ClientSpawnRequest Client: {} Spawn: {} Respawn: {}", iClientId, static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	// Heap: spawn request vector grows on request
 	mPendingSpawnRequests.push_back({iClientId, flags});
 }
 
-void ServerNetwork::HandleClientDesyncReport(const uint8_t* pData)
+void Server::ClientDesyncReport(const uint8_t* pData)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -88,17 +88,18 @@ void ServerNetwork::HandleClientDesyncReport(const uint8_t* pData)
 
 	char pcExpected[20] {};
 	char pcActual[20] {};
-	Log(kLogNetwork, "NetworkServer: Desync report frame {} grid ({},{}) expected={} actual={}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), uiExpectedCrc), common::ToHex(std::span(pcActual), uiActualCrc));
+	Log(kLogNetwork, "Server::ClientDesyncReport Frame: {} Grid: ({},{}) Expected: {} Actual: {}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), uiExpectedCrc), common::ToHex(std::span(pcActual), uiActualCrc));
 }
 
-void ServerNetwork::HandleClientDebugFrameRequest(const uint8_t* pData, ENetPeer* pPeer)
+void Server::ClientDebugFrameRequest(const uint8_t* pData, ENetPeer* pPeer)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
 
-	Log(kLogNetwork, "NetworkServer: Debug frame request frame {} grid ({},{})", iTick, coord.x, coord.y);
+	Log(kLogNetwork, "Server::ClientDebugFrameRequest Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
+	ScopedLogIndent scopedLogIndent;
 
 	// Find the frame in the ring buffer
 	const BufferedFullFrame* pBuffered = nullptr;
@@ -113,14 +114,14 @@ void ServerNetwork::HandleClientDebugFrameRequest(const uint8_t* pData, ENetPeer
 
 	if (pBuffered == nullptr)
 	{
-		Log(kLogNetwork, "NetworkServer: Debug frame {} not found in buffer", iTick);
+		Log(kLogNetwork, "Server::ClientDebugFrameRequest Frame {} not found in buffer", iTick);
 		return;
 	}
 
 	auto it = pBuffered->serializedFrames.find(coord);
 	if (it == pBuffered->serializedFrames.end())
 	{
-		Log(kLogNetwork, "NetworkServer: Debug frame {} coord ({},{}) not found", iTick, coord.x, coord.y);
+		Log(kLogNetwork, "Server::ClientDebugFrameRequest Frame: {} Coord: ({},{}) not found", iTick, coord.x, coord.y);
 		return;
 	}
 
@@ -152,7 +153,7 @@ void ServerNetwork::HandleClientDebugFrameRequest(const uint8_t* pData, ENetPeer
 	rWorkbuffer.Pop();
 }
 
-void ServerNetwork::HandleClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
+void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -161,7 +162,7 @@ void ServerNetwork::HandleClientHello(const uint8_t* pData, size_t iSize, ENetPe
 	{
 		char pcMessage[256] {};
 		snprintf(pcMessage, sizeof(pcMessage), "Protocol version mismatch: server is %u, client is %u", kuiProtocolVersion, uiClientProtocolVersion);
-		Log(kLogNetwork, "NetworkServer: Rejecting client {} ({})", iClientId, pcMessage);
+		Log(kLogNetwork, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
 
 		SendConnectionResponse(pPeer, false, pcMessage);
 		RemoveClient(iClientId);
@@ -178,22 +179,22 @@ void ServerNetwork::HandleClientHello(const uint8_t* pData, size_t iSize, ENetPe
 	{
 		char pcMessage[256] {};
 		snprintf(pcMessage, sizeof(pcMessage), "Build mismatch: server is %s, client is %s", kpcBuildConfigName, pcClientConfig);
-		Log(kLogNetwork, "NetworkServer: Rejecting client {} ({})", iClientId, pcMessage);
+		Log(kLogNetwork, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
 
 		SendConnectionResponse(pPeer, false, pcMessage);
 
-		// Remove from mClients (added during HandleConnect before hello arrived)
+		// Remove from mClients (added during Connect before hello arrived)
 		RemoveClient(iClientId);
 
 		enet_peer_disconnect_later(pPeer, 0);
 		return;
 	}
 
-	Log(kLogNetwork, "NetworkServer: Client {} hello accepted (config: {})", iClientId, pcClientConfig);
+	Log(kLogNetwork, "Server::ClientHello Accepted Client: {} Config: {}", iClientId, pcClientConfig);
 	SendConnectionResponse(pPeer, true, nullptr);
 }
 
-void ServerNetwork::HandleClientSubscribe(const uint8_t* pData, int64_t iClientId)
+void Server::ClientSubscribe(const uint8_t* pData, int64_t iClientId)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -214,7 +215,7 @@ void ServerNetwork::HandleClientSubscribe(const uint8_t* pData, int64_t iClientI
 	int64_t iSlot = pClient->AllocateSlot();
 	if (iSlot < 0)
 	{
-		Log(kLogNetwork, "NetworkServer: No free coord slot for client {} subscribing to ({},{})", iClientId, coord.x, coord.y);
+		Log(kLogNetwork, "Server::ClientSubscribe No free slot Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
 		SendSubscribeAccept(*pClient, 0xFF, coord);
 		return;
 	}
@@ -223,7 +224,7 @@ void ServerNetwork::HandleClientSubscribe(const uint8_t* pData, int64_t iClientI
 	pClient->coordSubscriptions.at(iSlot).bActive = true;
 	++pClient->coordAckStates.at(iSlot).uiEpoch;
 
-	Log(kLogNetwork, "NetworkServer: Client {} subscribed to ({},{}) slot {}", iClientId, coord.x, coord.y, iSlot);
+	Log(kLogNetwork, "Server::ClientSubscribe Client: {} Coord: ({},{}) Slot: {}", iClientId, coord.x, coord.y, iSlot);
 
 	SendSubscribeAccept(*pClient, iSlot, coord);
 
@@ -232,7 +233,7 @@ void ServerNetwork::HandleClientSubscribe(const uint8_t* pData, int64_t iClientI
 	mPendingNewSubscriptions.push_back({iClientId, iSlot, coord});
 }
 
-void ServerNetwork::HandleClientUnsubscribe(const uint8_t* pData, int64_t iClientId)
+void Server::ClientUnsubscribe(const uint8_t* pData, int64_t iClientId)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -252,7 +253,7 @@ void ServerNetwork::HandleClientUnsubscribe(const uint8_t* pData, int64_t iClien
 	GridCoord coord = pClient->coordSubscriptions.at(uiSlotIndex).coord;
 	pClient->FreeSlot(uiSlotIndex);
 
-	Log(kLogNetwork, "NetworkServer: Client {} unsubscribed slot {} coord ({},{})", iClientId, uiSlotIndex, coord.x, coord.y);
+	Log(kLogNetwork, "Server::ClientUnsubscribe Client: {} Slot: {} Coord: ({},{})", iClientId, uiSlotIndex, coord.x, coord.y);
 
 	SendUnsubscribeAck(*pClient, uiSlotIndex);
 }

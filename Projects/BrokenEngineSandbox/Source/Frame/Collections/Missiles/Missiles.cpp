@@ -564,98 +564,47 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	});
 }
 
-bool MissilesInterpolate::operator==(const MissilesInterpolate& rOther) const
+bool MissilesInterpolate::LogDifferences(const MissilesInterpolate& rOther) const
 {
+	common::ScopedLogDifferenceContext context("MissilesInterpolate");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+	bEqual &= Collection::LogDifferences(rOther);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-#if defined(BT_CLIENT)
-		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
-#endif
-		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
-#if defined(BT_CLIENT)
-		bEqual &= common::BreakOnNotEqual(puiSmokeTrails[i], rOther.puiSmokeTrails[i]);
-#endif
-		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
+		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::LogDifference_Vec("pVecDirections", i, pVecDirections[i], rOther.pVecDirections[i]);
+		bEqual &= common::LogDifference<"puiPushers">(i, puiPushers[i], rOther.puiPushers[i]);
+		bEqual &= common::LogDifference<"pfDestroyedTimes">(i, pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
 	}
 
 	return bEqual;
 }
 
-bool MissilesPostRender::operator==(const MissilesPostRender& rOther) const
+bool MissilesPostRender::LogDifferences(const MissilesPostRender& rOther) const
 {
+	common::ScopedLogDifferenceContext context("MissilesPostRender");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+	bEqual &= Collection::LogDifferences(rOther);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
-		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
-		bEqual &= common::BreakOnNotEqual(pVecExplosionDirections[i], rOther.pVecExplosionDirections[i]);
-		bEqual &= common::BreakOnNotEqual(pVecStoredDirections[i], rOther.pVecStoredDirections[i]);
-		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
-		bEqual &= common::BreakOnNotEqual(pfExplosionRadii[i], rOther.pfExplosionRadii[i]);
-		bEqual &= common::BreakOnNotEqual(pfTimes[i], rOther.pfTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pfDeltaRotationDelays[i], rOther.pfDeltaRotationDelays[i]);
-		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
-		bEqual &= common::BreakOnNotEqual(pfExaustDelays[i], rOther.pfExaustDelays[i]);
-		bEqual &= common::BreakOnNotEqual(pfExhaustLengths[i], rOther.pfExhaustLengths[i]);
-		bEqual &= common::BreakOnNotEqual(pfNextJitter[i], rOther.pfNextJitter[i]);
-		bEqual &= common::BreakOnNotEqual(pfDeltaRotationMax[i], rOther.pfDeltaRotationMax[i]);
-		bEqual &= common::BreakOnNotEqual(pfAccelerations[i], rOther.pfAccelerations[i]);
-		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
-#if defined(BT_CLIENT)
-		bEqual &= common::BreakOnNotEqual(puiSounds[i], rOther.puiSounds[i]);
-#endif
-		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
-	}
-
-	return bEqual;
-}
-
-bool MissilesInterpolate::ServerCompare(const MissilesInterpolate& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
-		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
-	}
-
-	return bEqual;
-}
-
-bool MissilesPostRender::ServerCompare(const MissilesPostRender& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
-		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
-		bEqual &= common::BreakOnNotEqual(pVecExplosionDirections[i], rOther.pVecExplosionDirections[i]);
-		bEqual &= common::BreakOnNotEqual(pVecStoredDirections[i], rOther.pVecStoredDirections[i]);
-		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
-		bEqual &= common::BreakOnNotEqual(pfExplosionRadii[i], rOther.pfExplosionRadii[i]);
-		bEqual &= common::BreakOnNotEqual(pfTimes[i], rOther.pfTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pfDeltaRotationDelays[i], rOther.pfDeltaRotationDelays[i]);
-		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
-		bEqual &= common::BreakOnNotEqual(pfExaustDelays[i], rOther.pfExaustDelays[i]);
-		bEqual &= common::BreakOnNotEqual(pfNextJitter[i], rOther.pfNextJitter[i]);
-		bEqual &= common::BreakOnNotEqual(pfDeltaRotationMax[i], rOther.pfDeltaRotationMax[i]);
-		bEqual &= common::BreakOnNotEqual(pfAccelerations[i], rOther.pfAccelerations[i]);
-		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
-		bEqual &= common::BreakOnNotEqual(pfExhaustLengths[i], rOther.pfExhaustLengths[i]);
-		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
+		bEqual &= common::LogDifference<"pFlags">(i, pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::LogDifference_Vec("pVecVelocities", i, pVecVelocities[i], rOther.pVecVelocities[i]);
+		bEqual &= common::LogDifference_Vec("pVecExplosionDirections", i, pVecExplosionDirections[i], rOther.pVecExplosionDirections[i]);
+		bEqual &= common::LogDifference_Vec("pVecStoredDirections", i, pVecStoredDirections[i], rOther.pVecStoredDirections[i]);
+		bEqual &= common::LogDifference<"puiTargets">(i, puiTargets[i], rOther.puiTargets[i]);
+		bEqual &= common::LogDifference<"pfExplosionRadii">(i, pfExplosionRadii[i], rOther.pfExplosionRadii[i]);
+		bEqual &= common::LogDifference<"pfTimes">(i, pfTimes[i], rOther.pfTimes[i]);
+		bEqual &= common::LogDifference<"pfDeltaRotationDelays">(i, pfDeltaRotationDelays[i], rOther.pfDeltaRotationDelays[i]);
+		bEqual &= common::LogDifference<"pfDeltaRotations">(i, pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
+		bEqual &= common::LogDifference<"pfExaustDelays">(i, pfExaustDelays[i], rOther.pfExaustDelays[i]);
+		bEqual &= common::LogDifference<"pfNextJitter">(i, pfNextJitter[i], rOther.pfNextJitter[i]);
+		bEqual &= common::LogDifference<"pfDeltaRotationMax">(i, pfDeltaRotationMax[i], rOther.pfDeltaRotationMax[i]);
+		bEqual &= common::LogDifference<"pfAccelerations">(i, pfAccelerations[i], rOther.pfAccelerations[i]);
+		bEqual &= common::LogDifference<"pfPitches">(i, pfPitches[i], rOther.pfPitches[i]);
+		bEqual &= common::LogDifference<"pfExhaustLengths">(i, pfExhaustLengths[i], rOther.pfExhaustLengths[i]);
+		bEqual &= common::LogDifference<"pAlignments">(i, pAlignments[i], rOther.pAlignments[i]);
 	}
 
 	return bEqual;

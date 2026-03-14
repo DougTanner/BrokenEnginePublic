@@ -109,8 +109,7 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 	static void EndRender(int64_t iCommandBuffer);
 
 	// Utility
-	bool operator==(const PlayersInterpolate& rOther) const;
-	bool ServerCompare(const PlayersInterpolate& rOther) const;
+	bool LogDifferences(const PlayersInterpolate& rOther) const;
 };
 
 enum class PlayerFlags : uint8_t
@@ -176,8 +175,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	}
 
 	// Utility
-	bool operator==(const PlayersPostRender& rOther) const;
-	bool ServerCompare(const PlayersPostRender& rOther) const;
+	bool LogDifferences(const PlayersPostRender& rOther) const;
 
 	// SpawnInfo for spawn parameters
 	struct SpawnInfo

@@ -107,9 +107,6 @@ struct PuffsInterpolate : public Collection<PuffsInterpolate>,
 		return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pfIntensities, rSelf.pfAreas, rSelf.pfRotations, rSelf.puiControllerTypeIndices, rSelf.pfStartTimes);
 	}
 
-	// Utility
-	bool operator==(const PuffsInterpolate& rOther) const;
-
 	// Graphics resources
 	static void GraphicsResources();
 
@@ -140,8 +137,6 @@ struct PuffsPostRender : public Collection<PuffsPostRender>
 
 	auto Members([[maybe_unused]] this auto&& rSelf) { return std::tie(); }
 
-	// Utility
-	bool operator==(const PuffsPostRender& rOther) const;
 };
 
 extern template struct Collection<PuffsInterpolate>;

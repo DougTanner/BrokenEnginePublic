@@ -13,7 +13,7 @@ Shared constants used across multiple `.cpp` files are declared in `Players.h`.
 
 ## Architecture
 
-**Multi-Player AI**: `PostRender::Update()` computes AI behavior inline from frame state (terrain, spaceship positions) for all players uniformly. No external input is consumed during Update; the frame is self-contained. AI uses `ComputeAiSteering()` from `TerrainUtils.h` for terrain following and targets the nearest alive spaceship with line-of-sight checks.
+**Multi-Player AI**: `PostRender::Update()` computes AI behavior inline from frame state (terrain, spaceship positions) for all players uniformly. No external input is consumed during Update; the frame is self-contained. AI uses `ComputeAiSteering()` from `TerrainUtils.h` for terrain following and targets the nearest alive spaceship with line-of-sight checks. The wanted direction is smoothly interpolated toward the target (or travel/AI direction as fallback), and weapons fire from the smoothed interpolated direction rather than the raw wanted direction.
 
 **Spawn and Destroy**: Driven by `StatusChange` events in `FrameInput`. Spawn position is offset by frame center for grid-cell correctness. A `SpawnInfo` overload supports transfer-based spawning that preserves full gameplay state.
 

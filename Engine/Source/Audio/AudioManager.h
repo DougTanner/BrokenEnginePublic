@@ -29,7 +29,7 @@ public:
 	AudioManager();
 	virtual ~AudioManager();
 
-	void Update(const game::Frame& rFrame);
+	void Update(const game::Frame* pFrame);
 
 	IXAudio2SourceVoice* PlayOneShot(const game::Frame& rFrame, common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f);
 	void XM_CALLCONV PlayOneShot3d(const game::Frame& rFrame, common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f);

@@ -5,7 +5,7 @@
 namespace engine
 {
 
-void UpdateServerDisplayStats();
+void ServerUpdateDisplayStats();
 void PaintServerDisplay(HWND hWnd);
 
 } // namespace engine

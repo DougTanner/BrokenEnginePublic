@@ -22,6 +22,7 @@ using enum PlayerFlags;
 
 // Interpolate update
 constexpr float kfRotateTowardsSpeed = 10.0f;
+constexpr float kfWantedDirectionSpeed = 15.0f;
 #if defined(BT_CLIENT)
 constexpr float kfShieldShrinkSpeed = 1.5f;
 constexpr float kfShieldRotationSpeed = 4.0f;
@@ -363,11 +364,11 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 			XMVECTOR vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), vecAiDirection);
 			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(common::ExponentialDecay(kfAccelerationDecay, fDeltaTime)), vecVelocity, vecAcceleration);
 
-			// Direction: aim at target if firing, else follow AI direction
-			bool bAiming = bFiring || bFiringMissiles;
-			vecWantedDirection = bAiming
+			// Direction: face target if one exists, else face travel direction
+			XMVECTOR vecTargetDirection = bTargetFound
 				? XMVector3Normalize(XMVectorSubtract(vecClosestPosition, vecPosition))
-				: vecAiDirection;
+				: (XMVectorGetX(XMVector3LengthSq(vecVelocity)) > 0.001f ? XMVector3Normalize(vecVelocity) : vecAiDirection);
+			vecWantedDirection = common::RotateTowardsPercent(vecWantedDirection, vecTargetDirection, common::ExponentialInterpolant(kfWantedDirectionSpeed, fDeltaTime));
 		}
 
 		// Shield regeneration
@@ -463,7 +464,7 @@ void PlayersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, 
 	});
 }
 
-static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayersInterpolate& rPlayerInterpolate, PlayersPostRender& rPlayer, int64_t i, float fDamage, FXMVECTOR vecDamagePosition, float fHexShieldIntensity = 1.0f)
+static void XM_CALLCONV ApplyDamage([[maybe_unused]] const Frame& rFrame, [[maybe_unused]] PlayersInterpolate& rPlayerInterpolate, PlayersPostRender& rPlayer, int64_t i, float fDamage, [[maybe_unused]] FXMVECTOR vecDamagePosition, [[maybe_unused]] float fHexShieldIntensity = 1.0f)
 {
 	// Shield absorbs damage first
 	if (rPlayer.pfShields[i] > 0.0f)

@@ -3,7 +3,6 @@
 namespace game
 {
 
-struct Frame;
 struct FrameInterpolate;
 
 }
@@ -64,7 +63,7 @@ public:
 
 	Graphics() = delete;
 
-	void RenderGlobal(const game::Frame& __restrict rFrame, float fCurrentTime);
+	void RenderGlobal(float fCurrentTime);
 	void RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord);
 	void Create();
 	void Refresh();

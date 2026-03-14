@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Network/ServerNetwork/ServerNetwork.h"
+#include "Network/Server/Server.h"
 
 #include "Memory/MemoryManager.h"
 #include "Network/NetworkCursor.h"
@@ -8,9 +8,9 @@
 namespace engine
 {
 
-ServerNetwork::ServerNetwork(uint16_t uiPort)
+Server::Server(uint16_t uiPort)
 {
-	gpServerNetwork = this;
+	gpServer = this;
 
 	ENetAddress address {};
 	address.host = ENET_HOST_ANY;
@@ -27,7 +27,7 @@ ServerNetwork::ServerNetwork(uint16_t uiPort)
 	mCompressionBuffer.resize(kiMaxPacketSize);
 }
 
-ServerNetwork::~ServerNetwork()
+Server::~Server()
 {
 	if (mpHost != nullptr)
 	{
@@ -35,15 +35,15 @@ ServerNetwork::~ServerNetwork()
 		enet_host_destroy(mpHost);
 	}
 
-	gpServerNetwork = nullptr;
+	gpServer = nullptr;
 }
 
-void ServerNetwork::Flush()
+void Server::Flush()
 {
 	enet_host_flush(mpHost);
 }
 
-void ServerNetwork::Poll()
+void Server::Poll()
 {
 	if (mpHost == nullptr)
 	{
@@ -60,21 +60,21 @@ void ServerNetwork::Poll()
 		switch (event.type)
 		{
 			case ENET_EVENT_TYPE_CONNECT:
-				HandleConnect(event);
+				Connect(event);
 				break;
 			case ENET_EVENT_TYPE_DISCONNECT:
-				HandleDisconnect(event);
+				Disconnect(event);
 				break;
 			case ENET_EVENT_TYPE_RECEIVE:
 				if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 				{
 					constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
 					NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, event,
-						[this](ENetEvent& rEvent) { HandleReceive(rEvent); });
+						[this](ENetEvent& rEvent) { Receive(rEvent); });
 				}
 				else
 				{
-					HandleReceive(event);
+					Receive(event);
 					enet_packet_destroy(event.packet);
 				}
 				break;
@@ -88,12 +88,12 @@ void ServerNetwork::Poll()
 	{
 		NetworkSimulation::ProcessDelayed(mDelayedPackets, [this](const DelayedPacket& rPacket)
 		{
-			HandleReceive(rPacket.data.data(), rPacket.data.size(), rPacket.pPeer);
+			Receive(rPacket.data.data(), rPacket.data.size(), rPacket.pPeer);
 		});
 	}
 }
 
-void ServerNetwork::HandleConnect(ENetEvent& rEvent)
+void Server::Connect(ENetEvent& rEvent)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
@@ -111,13 +111,13 @@ void ServerNetwork::HandleConnect(ENetEvent& rEvent)
 	// Disable ENet peer throttle to prevent unreliable packet drops during client reconciliation stalls
 	enet_peer_throttle_configure(rEvent.peer, UINT32_MAX, 0, 0);
 
-	Log(kLogNetwork, "NetworkServer: Client {} connected", mClients.back().iClientId);
+	Log(kLogNetwork, "Server::Connect Client: {}", mClients.back().iClientId);
 
 	char pcAddress[64] {};
 	enet_address_get_host_ip(&rEvent.peer->address, pcAddress, sizeof(pcAddress));
 }
 
-void ServerNetwork::HandleDisconnect(ENetEvent& rEvent)
+void Server::Disconnect(ENetEvent& rEvent)
 {
 	int64_t iClientId = reinterpret_cast<int64_t>(rEvent.peer->data);
 
@@ -133,18 +133,18 @@ void ServerNetwork::HandleDisconnect(ENetEvent& rEvent)
 		std::erase_if(mDelayedPackets, [&rEvent](const DelayedPacket& rPacket) { return rPacket.pPeer == rEvent.peer; });
 	}
 
-	Log(kLogNetwork, "NetworkServer: Client {} disconnected", iClientId);
+	Log(kLogNetwork, "Server::Disconnect Client: {}", iClientId);
 
 	char pcAddress[64] {};
 	enet_address_get_host_ip(&rEvent.peer->address, pcAddress, sizeof(pcAddress));
 }
 
-void ServerNetwork::HandleReceive(ENetEvent& rEvent)
+void Server::Receive(ENetEvent& rEvent)
 {
-	HandleReceive(rEvent.packet->data, rEvent.packet->dataLength, rEvent.peer);
+	Receive(rEvent.packet->data, rEvent.packet->dataLength, rEvent.peer);
 }
 
-void ServerNetwork::HandleReceive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
+void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 {
 	if (iSize < 1)
 	{
@@ -157,32 +157,32 @@ void ServerNetwork::HandleReceive(const uint8_t* pData, size_t iSize, ENetPeer* 
 	switch (eType)
 	{
 		case PacketType::kClientAckStream:
-			HandleClientAckStream(pData, iClientId);
+			ClientAckStream(pData, iClientId);
 			break;
 		case PacketType::kClientSpawnRequest:
-			HandleClientSpawnRequest(pData, iClientId);
+			ClientSpawnRequest(pData, iClientId);
 			break;
 		case PacketType::kClientDesyncReport:
-			HandleClientDesyncReport(pData);
+			ClientDesyncReport(pData);
 			break;
 		case PacketType::kClientDebugFrameRequest:
-			HandleClientDebugFrameRequest(pData, pPeer);
+			ClientDebugFrameRequest(pData, pPeer);
 			break;
 		case PacketType::kClientHello:
-			HandleClientHello(pData, iSize, pPeer, iClientId);
+			ClientHello(pData, iSize, pPeer, iClientId);
 			break;
 		case PacketType::kClientSubscribe:
-			HandleClientSubscribe(pData, iClientId);
+			ClientSubscribe(pData, iClientId);
 			break;
 		case PacketType::kClientUnsubscribe:
-			HandleClientUnsubscribe(pData, iClientId);
+			ClientUnsubscribe(pData, iClientId);
 			break;
 		default:
 			break;
 	}
 }
 
-void ServerNetwork::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates)
+void Server::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates)
 {
 	miLatestBufferedTick = iTick;
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -223,7 +223,7 @@ void ServerNetwork::BufferFrame(int64_t iTick, const std::vector<std::pair<GridC
 	});
 }
 
-void ServerNetwork::BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames)
+void Server::BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
@@ -246,7 +246,7 @@ void ServerNetwork::BufferFullFrame(int64_t iTick, const std::vector<std::pair<G
 	}
 }
 
-const PerCoordBufferedFrame* ServerNetwork::FindBufferedFrame(GridCoord coord, int64_t iTick) const
+const PerCoordBufferedFrame* Server::FindBufferedFrame(GridCoord coord, int64_t iTick) const
 {
 	auto coordBufferIt = mPerCoordBufferedFrames.find(coord);
 	if (coordBufferIt == mPerCoordBufferedFrames.end())
@@ -266,7 +266,7 @@ const PerCoordBufferedFrame* ServerNetwork::FindBufferedFrame(GridCoord coord, i
 	return &rCoordBuffer.at(static_cast<size_t>(iIndex));
 }
 
-int ServerNetwork::CompressToBuffer(const char* pData, int iSize)
+int Server::CompressToBuffer(const char* pData, int iSize)
 {
 	int iMaxCompressed = LZ4_compressBound(iSize);
 	if (static_cast<int>(mCompressionBuffer.size()) < iMaxCompressed)
@@ -276,7 +276,7 @@ int ServerNetwork::CompressToBuffer(const char* pData, int iSize)
 	return LZ4_compress_default(pData, reinterpret_cast<char*>(mCompressionBuffer.data()), iSize, iMaxCompressed);
 }
 
-void ServerNetwork::RemoveClient(int64_t iClientId)
+void Server::RemoveClient(int64_t iClientId)
 {
 	for (size_t i = 0; i < mClients.size(); ++i)
 	{
@@ -292,7 +292,7 @@ void ServerNetwork::RemoveClient(int64_t iClientId)
 	}
 }
 
-ClientConnection* ServerNetwork::FindClient(int64_t iClientId)
+ClientConnection* Server::FindClient(int64_t iClientId)
 {
 	for (ClientConnection& rClient : mClients)
 	{
@@ -304,7 +304,7 @@ ClientConnection* ServerNetwork::FindClient(int64_t iClientId)
 	return nullptr;
 }
 
-const ClientConnection* ServerNetwork::FindClient(int64_t iClientId) const
+const ClientConnection* Server::FindClient(int64_t iClientId) const
 {
 	for (const ClientConnection& rClient : mClients)
 	{

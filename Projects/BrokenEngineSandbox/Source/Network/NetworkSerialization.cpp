@@ -277,7 +277,7 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 
 		if (pCursor > pEnd)
 		{
-			Log(kLogNetwork, "DeserializeStatusChangeBatch: Data truncated mid-group (type={}, deserialized={})", static_cast<int>(eType), iOutputCount);
+			Log(kLogNetwork, "DeserializeStatusChangeBatch: data truncated mid-group (type {}, deserialized {})", static_cast<int>(eType), iOutputCount);
 			break;
 		}
 	}
@@ -351,7 +351,7 @@ int64_t DecompressStatusChangeBatch(const void* pSource, int64_t iSourceSize, ga
 
 	if (iResult <= 0)
 	{
-		Log(kLogNetwork, "DecompressStatusChangeBatch: LZ4 decompression failed (error={})", iResult);
+		Log(kLogNetwork, "DecompressStatusChangeBatch: LZ4 decompression failed (error {})", iResult);
 		rWorkbuffer.Pop();
 		return 0;
 	}

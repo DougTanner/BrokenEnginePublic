@@ -45,9 +45,6 @@ struct WindTrailsInterpolate : public Collection<WindTrailsInterpolate, Collecti
 		return std::tie(rSelf.pVecPositions, rSelf.pfIntensities, rSelf.pfWidths, rSelf.pfLengthMultipliers);
 	}
 
-	// Utility
-	bool operator==(const WindTrailsInterpolate& rOther) const;
-
 	// Graphics resources
 	static void GraphicsResources();
 
@@ -84,8 +81,6 @@ struct WindTrailsPostRender : public Collection<WindTrailsPostRender>
 	wind_trail_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }
 
-	// Utility
-	bool operator==(const WindTrailsPostRender& rOther) const;
 };
 
 extern template struct Collection<WindTrailsInterpolate, CollectionFlags::kIdToIndex>;

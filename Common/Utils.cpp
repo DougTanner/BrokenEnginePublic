@@ -3,28 +3,29 @@
 namespace common
 {
 
-void VerifyFrameBreak()
-{
-	if (!gbSuppressVerifyFrameBreak)
-	{
-		DEBUG_BREAK();
-	}
-}
-
-bool XM_CALLCONV BreakOnNotEqual(FXMVECTOR rOne, FXMVECTOR rTwo)
+bool XM_CALLCONV LogDifference_Vec(const char* pcName, FXMVECTOR rOne, FXMVECTOR rTwo)
 {
 	XMFLOAT4 f4One, f4Two;
 	XMStoreFloat4(&f4One, rOne);
 	XMStoreFloat4(&f4Two, rTwo);
 	bool bEqual = std::memcmp(&f4One, &f4Two, sizeof(XMFLOAT4)) == 0;
 
-	if constexpr (kbVerifyFrame)
-	{
-		if (!bEqual) [[unlikely]]
-		{
-			VerifyFrameBreak();
-		}
-	}
+	if (!bEqual) [[unlikely]]
+		Log(kLogNetwork, "LogDifferences {} {} Client: {} Server: {}", gpLogDifferenceContext, pcName, f4One, f4Two);
+
+	return bEqual;
+}
+
+bool XM_CALLCONV LogDifference_Vec(const char* pcName, int64_t iIndex, FXMVECTOR rOne, FXMVECTOR rTwo)
+{
+	XMFLOAT4 f4One, f4Two;
+	XMStoreFloat4(&f4One, rOne);
+	XMStoreFloat4(&f4Two, rTwo);
+	bool bEqual = std::memcmp(&f4One, &f4Two, sizeof(XMFLOAT4)) == 0;
+
+	if (!bEqual) [[unlikely]]
+		Log(kLogNetwork, "LogDifferences {} {}[{}] Client: {} Server: {}", gpLogDifferenceContext, pcName, iIndex, f4One, f4Two);
+
 	return bEqual;
 }
 

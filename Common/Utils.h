@@ -27,44 +27,6 @@ struct FixedString
 };
 
 
-// Debug verification helper that compares two values for equality and triggers a debug breakpoint if they differ (when kbVerifyFrame is enabled)
-// Used for frame-to-frame state validation to detect inconsistencies
-// Parameters: one, two - Values to compare for equality
-// Returns: true if values are equal, false otherwise
-// IMPORTANT: Uses byte-level comparison for floating-point types to match Crc() behavior
-// (floating-point == treats -0.0f == +0.0f, but their byte representations differ)
-inline constexpr bool kbVerifyFrame = true;
-inline bool gbSuppressVerifyFrameBreak = false;
-
-void VerifyFrameBreak();
-
-template<typename T>
-inline bool BreakOnNotEqual(const T& rOne, const T& rTwo)
-{
-	bool bEqual = false;
-	if constexpr (std::is_same_v<T, XMFLOAT2> || std::is_same_v<T, XMFLOAT3> || std::is_same_v<T, XMFLOAT4> || std::is_same_v<T, XMFLOAT4A>)
-	{
-		// Byte-level comparison to match Crc() behavior (floating-point == treats -0.0f == +0.0f)
-		bEqual = std::memcmp(&rOne, &rTwo, sizeof(T)) == 0;
-	}
-	else
-	{
-		bEqual = rOne == rTwo;
-	}
-
-	if constexpr (kbVerifyFrame)
-	{
-		if (!bEqual) [[unlikely]]
-		{
-			VerifyFrameBreak();
-		}
-	}
-	return bEqual;
-}
-
-// XMVECTOR overload - stores to XMFLOAT4 for byte-level comparison to match Crc() behavior
-bool XM_CALLCONV BreakOnNotEqual(FXMVECTOR rOne, FXMVECTOR rTwo);
-
 // Returns the minimum absolute value while preserving the sign of the first parameter
 // Used for clamping velocity changes while maintaining direction
 // Parameters: fA - Value whose sign is preserved, fB - Maximum absolute value

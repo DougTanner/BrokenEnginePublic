@@ -70,9 +70,6 @@ struct PointLightsInterpolate : public Collection<PointLightsInterpolate, Collec
 		                rSelf.puiControllerTypeIndices, rSelf.pfStartTimes, rSelf.pfBaseRotations);
 	}
 
-	// Utility
-	bool operator==(const PointLightsInterpolate& rOther) const;
-
 	// Graphics resources
 	static void GraphicsResources();
 
@@ -110,8 +107,6 @@ struct PointLightsPostRender : public Collection<PointLightsPostRender>
 	point_lights_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }
 
-	// Utility
-	bool operator==(const PointLightsPostRender& rOther) const;
 };
 
 extern template struct Collection<PointLightsInterpolate, CollectionFlags::kIdToIndex>;

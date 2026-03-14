@@ -10,7 +10,7 @@ struct Frame;
 namespace engine
 {
 
-class ClientNetwork;
+class Client;
 class NetworkDiscoveryScanner;
 
 class ClientSessionBase
@@ -48,7 +48,7 @@ public:
 	int64_t GetConfirmedTick() const;
 	int64_t GetServerUpdateBufferSize() const;
 
-	std::unique_ptr<ClientNetwork> mpClientNetwork;
+	std::unique_ptr<Client> mpClientNetwork;
 	std::unique_ptr<NetworkDiscoveryScanner> mpDiscoveryScanner;
 
 	int64_t miLatestServerTick = -1;

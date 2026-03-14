@@ -215,7 +215,7 @@ void MainThread(HINSTANCE hinstance)
 	std::vector<GridCoord> bootActiveCoords = {kOriginCoord};
 	for (int64_t i = 0; i < static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size()); ++i)
 	{
-		gpGraphics->RenderGlobal(pGame->CurrentFrame(pGame->mHumanGridCoord), pGame->CurrentFrame(pGame->mHumanGridCoord).interpolate.fCurrentTime);
+		gpGraphics->RenderGlobal(pGame->CurrentFrame(pGame->mHumanGridCoord).interpolate.fCurrentTime);
 		gpGraphics->RenderMainPresentAcquire(gpSwapchainManager->miFramebufferIndex, gpGraphics->mRenderInterpolates, bootActiveCoords, kOriginCoord);
 	}
 	gpProfileManager->BootStop(kBootTimerRenderPresent);
@@ -228,7 +228,7 @@ void MainThread(HINSTANCE hinstance)
 
 	auto pGame = std::make_unique<game::Game>();
 
-	auto pServerNetwork = std::make_unique<ServerNetwork>(kuiDefaultPort);
+	auto pServerNetwork = std::make_unique<Server>(kuiDefaultPort);
 
 	ShowWindow(sHwnd, SW_SHOWMAXIMIZED);
 #endif // BT_CLIENT
@@ -272,9 +272,9 @@ void MainThread(HINSTANCE hinstance)
 		gpProfileManager->CpuStop(kCpuTimerMessagesAndInput, false);
 
 #if defined(BT_CLIENT)
-		pGame->UpdateClient();
+		pGame->ClientUpdate();
 #else
-		pGame->UpdateServer(menuInput);
+		pGame->ServerUpdate(menuInput);
 #endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
@@ -290,12 +290,12 @@ void MainThread(HINSTANCE hinstance)
 		}
 
 		// Audio update
-		pAudioManager->Update(pGame->RenderFrame(game::gpGame->mHumanGridCoord));
+		pAudioManager->Update(pGame->mCoordFrames.contains(game::gpGame->mHumanGridCoord) ? &pGame->RenderFrame(game::gpGame->mHumanGridCoord) : nullptr);
 #else
 		{
 			// Heap: Win32 InvalidateRect may trigger internal GDI allocations
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			UpdateServerDisplayStats();
+			ServerUpdateDisplayStats();
 			InvalidateRect(sHwnd, nullptr, FALSE);
 		}
 #endif // BT_CLIENT

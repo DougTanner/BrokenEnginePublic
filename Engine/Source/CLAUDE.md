@@ -9,7 +9,7 @@ See also: [System Overview](../../Documents/Architecture/SystemOverview.md) | [F
 ## Key Classes
 
 - **Main.cpp** - Entry point: initialization, main loop, shutdown. Client loop runs input/physics/render/audio; server loop runs physics with network broadcasts and GDI stats display
-- **GameBase** - Abstract base orchestrating fixed-rate physics over a sparse grid of dual-buffered frames (`CoordFrames` in `mCoordFrames`). Client adds snapshot ring buffers for extrapolation/reconciliation. Game code accesses this via the derived `game::gpGame` pointer
+- **GameBase** - Abstract base orchestrating fixed-rate physics over a sparse grid of dual-buffered frames (`CoordFrames` in `mCoordFrames`). Client adds snapshot ring buffers for extrapolation/reconciliation. Owns `GameFlags` bitmask (`mGameFlags`) for game-wide state transitions (quit, main menu, death screen, save/load replay). Game code accesses this via the derived `game::gpGame` pointer
 - **GameSaveLoad** - Save/load/replay responsibility extracted from GameBase. Delta-compressed deterministic recording/playback with CRC validation
 - **CrashReport** - Crash report generation with callstack (StackWalker) and DxDiag output
 - **Engine.h** - Single aggregation header with `#ifdef` guards for client/server-conditional includes

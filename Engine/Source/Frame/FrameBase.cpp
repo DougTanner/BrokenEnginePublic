@@ -14,20 +14,6 @@ FramePostRenderBase::FramePostRenderBase()
 {
 }
 
-bool FrameInterpolateBase::operator==(const FrameInterpolateBase& rOther) const
-{
-	bool bEqual = true;
-
-	bEqual &= common::BreakOnNotEqual(frameFlags, rOther.frameFlags);
-	bEqual &= common::BreakOnNotEqual(iTick, rOther.iTick);
-	bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
-	bEqual &= common::BreakOnNotEqual(fDeltaTime, rOther.fDeltaTime);
-
-	bEqual &= CompareCollections(Collections(), rOther.Collections(), std::make_index_sequence<std::tuple_size_v<decltype(Collections())>>{});
-
-	return bEqual;
-}
-
 common::crc_t FrameInterpolateBase::Crc() const
 {
 	common::crc_t checksum = 0;
@@ -62,15 +48,16 @@ common::crc_t FrameInterpolateBase::ServerCrc() const
 	return checksum;
 }
 
-bool FrameInterpolateBase::ServerCompare(const FrameInterpolateBase& rOther) const
+bool FrameInterpolateBase::LogDifferences(const FrameInterpolateBase& rOther) const
 {
+	common::ScopedLogDifferenceContext context("FrameInterpolate");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual(frameFlags, rOther.frameFlags);
-	bEqual &= common::BreakOnNotEqual(iTick, rOther.iTick);
-	bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
-	bEqual &= common::BreakOnNotEqual(fDeltaTime, rOther.fDeltaTime);
-	bEqual &= explosions.ServerCompare(rOther.explosions);
-	bEqual &= pushers.ServerCompare(rOther.pushers);
+	bEqual &= common::LogDifference<"frameFlags">(frameFlags, rOther.frameFlags);
+	bEqual &= common::LogDifference<"iTick">(iTick, rOther.iTick);
+	bEqual &= common::LogDifference<"fCurrentTime">(fCurrentTime, rOther.fCurrentTime);
+	bEqual &= common::LogDifference<"fDeltaTime">(fDeltaTime, rOther.fDeltaTime);
+	bEqual &= explosions.LogDifferences(rOther.explosions);
+	bEqual &= pushers.LogDifferences(rOther.pushers);
 	return bEqual;
 }
 
@@ -111,26 +98,6 @@ void FrameInterpolateBase::ServerRead(std::istream& rStream)
 	{
 		(ServerCollectionRead(rStream, cols), ...);
 	}, ServerCollections());
-}
-
-bool FramePostRenderBase::operator==(const FramePostRenderBase& rOther) const
-{
-	bool bEqual = true;
-
-	bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
-	bEqual &= common::BreakOnNotEqual(vecArea, rOther.vecArea);
-	bEqual &= common::BreakOnNotEqual(uiNextUuid, rOther.uiNextUuid);
-#if defined(BT_CLIENT)
-	bEqual &= common::BreakOnNotEqual(uiNextSoundUuid, rOther.uiNextSoundUuid);
-	bEqual &= common::BreakOnNotEqual(uiNextVisualUuid, rOther.uiNextVisualUuid);
-#endif
-	bEqual &= common::BreakOnNotEqual(uiFrameId, rOther.uiFrameId);
-	bEqual &= common::BreakOnNotEqual(eIslandsFlip, rOther.eIslandsFlip);
-	bEqual &= common::BreakOnNotEqual(alignments, rOther.alignments);
-
-	bEqual &= CompareCollections(Collections(), rOther.Collections(), std::make_index_sequence<std::tuple_size_v<decltype(Collections())>>{});
-
-	return bEqual;
 }
 
 common::crc_t FramePostRenderBase::Crc() const
@@ -175,18 +142,23 @@ common::crc_t FramePostRenderBase::ServerCrc() const
 	return checksum;
 }
 
-bool FramePostRenderBase::ServerCompare(const FramePostRenderBase& rOther) const
+bool FramePostRenderBase::LogDifferences(const FramePostRenderBase& rOther) const
 {
+	common::ScopedLogDifferenceContext context("FramePostRender");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
-	bEqual &= common::BreakOnNotEqual(vecArea, rOther.vecArea);
-	bEqual &= common::BreakOnNotEqual(uiNextUuid, rOther.uiNextUuid);
+	bEqual &= common::LogDifference<"randomEngine">(randomEngine, rOther.randomEngine);
+	bEqual &= common::LogDifference_Vec("vecArea", vecArea, rOther.vecArea);
+	bEqual &= common::LogDifference<"uiNextUuid">(uiNextUuid, rOther.uiNextUuid);
 	// Skip uiNextSoundUuid and uiNextVisualUuid (client-only)
-	bEqual &= common::BreakOnNotEqual(uiFrameId, rOther.uiFrameId);
-	bEqual &= common::BreakOnNotEqual(eIslandsFlip, rOther.eIslandsFlip);
-	bEqual &= common::BreakOnNotEqual(alignments, rOther.alignments);
-	bEqual &= explosions.ServerCompare(rOther.explosions);
-	bEqual &= pushers.ServerCompare(rOther.pushers);
+	bEqual &= common::LogDifference<"uiFrameId">(uiFrameId, rOther.uiFrameId);
+	bEqual &= common::LogDifference<"eIslandsFlip">(static_cast<int>(eIslandsFlip), static_cast<int>(rOther.eIslandsFlip));
+	if (!(alignments == rOther.alignments))
+	{
+		bEqual = false;
+		Log(kLogNetwork, "LogDifferences {} alignments differ", common::gpLogDifferenceContext);
+	}
+	bEqual &= explosions.LogDifferences(rOther.explosions);
+	bEqual &= pushers.LogDifferences(rOther.pushers);
 	return bEqual;
 }
 

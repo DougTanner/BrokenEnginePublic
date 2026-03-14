@@ -13,7 +13,7 @@ void ClientSessionBase::ConnectToServer(std::string_view serverAddress, uint16_t
 	// Heap: ClientNetwork allocates ENet host and peer
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	miCoordSlots = iCoordSlots;
-	mpClientNetwork = std::make_unique<ClientNetwork>(serverAddress.data(), uiPort, iCoordSlots);
+	mpClientNetwork = std::make_unique<Client>(serverAddress.data(), uiPort, iCoordSlots);
 }
 
 void ClientSessionBase::DisconnectFromServerBase()
@@ -178,7 +178,7 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 		}
 
 		GridCoord coord = rSlot.coord;
-		CoordFrames& rSub = game::gpGame->mCoordFrames[coord];
+		CoordFrames& rSub = game::gpGame->mCoordFrames.at(coord);
 
 		for (ReceivedCoordUpdate& rUpdate : rSlotUpdates)
 		{
@@ -189,6 +189,7 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 
 			if (static_cast<int64_t>(rSub.serverUpdates.size()) >= kiMaxBufferedFrames)
 			{
+				Log(kLogNetwork, "ClientSessionBase::ApplyReceivedUpdatesBase Buffer full Coord: ({},{}) Size: {} Tick: {}", coord.x, coord.y, rSub.serverUpdates.size(), rUpdate.iTick);
 				continue;
 			}
 
@@ -229,6 +230,11 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	miClockError = iError;
 	miClockOffset = iOffset;
 	miClockTargetBehind = iTargetBehind;
+
+	if (std::abs(iError) >= 4)
+	{
+		Log(kLogNetwork, "ClientSessionBase::ComputeClockCorrectionNs Extreme clock error Error: {} Offset: {} TargetBehind: {} RttUs: {}", iError, iOffset, iTargetBehind, iRttUs);
+	}
 
 	int64_t iCorrectionSteps = std::clamp(iError, -4LL, 4LL);
 	std::chrono::nanoseconds correction(-iCorrectionSteps * tickNs.count() / 64);

@@ -31,5 +31,4 @@ Template-based delta compression for deterministic state recording and replay. R
 
 ### Requirements
 - Both template types need stream operators for serialization
-- `DIFFERENCE_TYPE` needs equality operator for change detection
-- `SAVED_TYPE` must provide `Crc()` method returning `common::crc_t`
+- Both template types must provide `Crc()` method returning `common::crc_t` (used for change detection and validation)

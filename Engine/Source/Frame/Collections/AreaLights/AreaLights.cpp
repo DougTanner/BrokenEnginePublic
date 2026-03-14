@@ -45,37 +45,6 @@ void AreaLightsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame
 {
 }
 
-bool AreaLightsInterpolate::operator==(const AreaLightsInterpolate& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		for (size_t j = 0; j < 4; ++j)
-		{
-			bEqual &= common::BreakOnNotEqual(pVecVisiblePositions[j][i], rOther.pVecVisiblePositions[j][i]);
-		}
-		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
-		bEqual &= common::BreakOnNotEqual(pfIntensityMultipliers[i], rOther.pfIntensityMultipliers[i]);
-	}
-
-	return bEqual;
-}
-
-bool AreaLightsPostRender::operator==(const AreaLightsPostRender& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(puiIds[i], rOther.puiIds[i]);
-	}
-
-	return bEqual;
-}
-
 } // namespace engine
 
 #endif // BT_CLIENT

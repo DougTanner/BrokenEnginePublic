@@ -79,8 +79,7 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 	}
 
 	// Utility
-	bool operator==(const MissilesInterpolate& rOther) const;
-	bool ServerCompare(const MissilesInterpolate& rOther) const;
+	bool LogDifferences(const MissilesInterpolate& rOther) const;
 
 #if defined(BT_CLIENT)
 	// Graphics resources
@@ -145,8 +144,7 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	// Note: MissilesPostRender doesn't own visual IDs directly - only sounds (already gated) and alignment
 
 	// Utility
-	bool operator==(const MissilesPostRender& rOther) const;
-	bool ServerCompare(const MissilesPostRender& rOther) const;
+	bool LogDifferences(const MissilesPostRender& rOther) const;
 
 	// SpawnInfo for spawn parameters
 	struct SpawnInfo

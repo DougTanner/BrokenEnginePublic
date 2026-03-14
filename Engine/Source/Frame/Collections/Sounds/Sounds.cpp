@@ -50,37 +50,6 @@ void SoundsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 
-bool SoundsInterpolate::operator==(const SoundsInterpolate& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(puiCrcs[i], rOther.puiCrcs[i]);
-		bEqual &= common::BreakOnNotEqual(pfVolumes[i], rOther.pfVolumes[i]);
-		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
-		bEqual &= common::BreakOnNotEqual(pfFadeOutTimes[i], rOther.pfFadeOutTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
-	}
-
-	return bEqual;
-}
-
-bool SoundsPostRender::operator==(const SoundsPostRender& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(puiIds[i], rOther.puiIds[i]);
-	}
-
-	return bEqual;
-}
-
 void SoundsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 }

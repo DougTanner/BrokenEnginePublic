@@ -6,7 +6,7 @@ Template-based Structure-of-Arrays (SOA) collection system providing memory mana
 
 ## Key Systems
 
-- **Collection\<T\>** (`Collection.h`) - CRTP base class managing count, capacity, and contiguous SOA buffers. Optional `CollectionFlags::kIdToIndex` enables stable external references via strongly-typed `id_t<T>` wrappers. Also provides `TypeRegistry` (static type config sharing), `ControllerTypeRegistry` (keyframe animation), deterministic serialization with CRC validation, and `ServerCompare()` for field-level desync diagnosis
+- **Collection\<T\>** (`Collection.h`) - CRTP base class managing count, capacity, and contiguous SOA buffers. Optional `CollectionFlags::kIdToIndex` enables stable external references via strongly-typed `id_t<T>` wrappers. Also provides `TypeRegistry` (static type config sharing), `ControllerTypeRegistry` (keyframe animation), deterministic serialization with CRC validation, and `LogDifferences()` for field-level desync diagnosis via `common::LogDifference`
 - **Server Collections** (always compiled) - [Explosions](Explosions/CLAUDE.md) (composite effects), [Pushers](Pushers/CLAUDE.md) (physics force fields with zone-based acceleration)
 - **Client Collections** (`#ifdef BT_CLIENT`) - [AreaLights](AreaLights/CLAUDE.md), [Billboards](Billboards/CLAUDE.md), [PointLights](PointLights/CLAUDE.md), [Puffs](Puffs/CLAUDE.md), [SmokeTrails](SmokeTrails/CLAUDE.md), [HexShields](HexShields/CLAUDE.md), [WindTrails](WindTrails/CLAUDE.md), [WindRadials](WindRadials/CLAUDE.md), [Sounds](Sounds/CLAUDE.md)
 

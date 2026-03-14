@@ -74,32 +74,6 @@ void PuffsPostRender::Destroy(game::Frame& __restrict rFrame)
 	}
 }
 
-bool PuffsInterpolate::operator==(const PuffsInterpolate& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pfIntensities[i], rOther.pfIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(pfAreas[i], rOther.pfAreas[i]);
-		bEqual &= common::BreakOnNotEqual(pfRotations[i], rOther.pfRotations[i]);
-		bEqual &= common::BreakOnNotEqual(puiControllerTypeIndices[i], rOther.puiControllerTypeIndices[i]);
-		bEqual &= common::BreakOnNotEqual(pfStartTimes[i], rOther.pfStartTimes[i]);
-	}
-
-	return bEqual;
-}
-
-bool PuffsPostRender::operator==(const PuffsPostRender& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-	return bEqual;
-}
-
 } // namespace engine
 
 #endif // BT_CLIENT

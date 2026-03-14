@@ -76,9 +76,49 @@ flowchart LR
     NOTE["Injects into replay stack[0]<br/>(next frames created inline<br/>by ReconcileRunTick)"]
 ```
 
+## Extrapolation Mode
+
+Pre-reconciliation client simulation that runs physics forward from confirmed server state before the reconciler has kicked in. The client receives initial full states, then extrapolates forward using empty inputs, building up a snapshot ring buffer. When reconciliation starts, these snapshots become the initial ring for the reconciler.
+
+```mermaid
+%%{init: {'theme': 'default'}}%%
+flowchart TD
+    classDef check fill:#f3e8ff,stroke:#9333ea
+    classDef extrapolate fill:#fef3c7,stroke:#d97706
+    classDef normal fill:#dbeafe,stroke:#3b82f6
+    classDef snapshot fill:#dcfce7,stroke:#16a34a
+
+    START["GameBase::ClientUpdate()<br/>Physics tick loop"]
+
+    IS_EXTRAP{"IsExtrapolating()?<br/>(connected AND any coord<br/>has iConfirmedTick >= 0)"}:::check
+
+    PREPARE["PrepareExtrapolationTick(activeCoords)<br/>Per coord with confirmed data:<br/>1. If snapshot ring full (>= kiTickRate):<br/>   advance head, drop oldest,<br/>   decrement iConfirmedOffset<br/>2. Allocate Frame at next ring slot<br/>   if nullptr"]:::extrapolate
+
+    BUILD_REF["BuildExtrapolationFrameRef(coord)<br/>Redirect ActiveFrameRef:<br/>• pNext → snapshot at ring tail<br/>• pCurrent → previous snapshot<br/>  (or CurrentFrame if first tick)"]:::extrapolate
+
+    RUN_TICK["BuildAndDispatchFrameTicks()<br/>RunFrameTick per-Frame<br/>(normal physics with empty inputs,<br/>same code path as live simulation)<br/>CRCs computed in postRender"]:::extrapolate
+
+    RECORD["RecordExtrapolationSnapshot(activeCoords)<br/>Per coord: increment iSnapshotCount<br/>(Frame already written by RunFrameTick,<br/>CRCs already in postRender)"]:::snapshot
+
+    FINALIZE["FinalizeFrameTick(activeCoords, bExtrapolating=true)"]:::extrapolate
+
+    EXIT_CHECK{"Reconciler has new data?<br/>(full state arrived,<br/>mbHasNewData set by<br/>ApplyReceivedFullStates)"}:::check
+
+    TRANSITION["TryKickReconcile() → ClientReconciler::TryKick()<br/>Extrapolation snapshots become initial<br/>snapshot ring for reconciler<br/>(iSnapshotHead, iSnapshotCount, iConfirmedOffset<br/>carried into CoordReconcileWork)"]:::normal
+
+    NORMAL["Normal reconciliation takes over<br/>IsExtrapolating() no longer checked<br/>once reconciler is active"]:::normal
+
+    START --> IS_EXTRAP
+    IS_EXTRAP -->|"Yes"| PREPARE --> BUILD_REF --> RUN_TICK --> RECORD --> FINALIZE
+    IS_EXTRAP -->|"No"| NORMAL_TICK["Normal physics tick<br/>(non-networked or<br/>reconciliation active)"]:::normal
+    FINALIZE --> EXIT_CHECK
+    EXIT_CHECK -->|"Not yet"| START
+    EXIT_CHECK -->|"Yes"| TRANSITION --> NORMAL
+```
+
 ## Main Loop Integration
 
-Where reconciliation entry points sit relative to physics and render in the client main loop. Network orchestration is encapsulated within `GameBase::UpdateClient()` and `GameBase::Render()`, which delegate to `ClientSession` methods (game-specific logic) and `ClientSessionBase` methods (engine-generic logic) — Main.cpp's loop simply calls `UpdateClient()`, `Render()`, and audio update.
+Where reconciliation entry points sit relative to physics and render in the client main loop. Network orchestration is encapsulated within `GameBase::UpdateClient()` and `GameBase::Render()`, which delegate to `ClientSession` methods (game-specific logic) and `ClientSessionBase` methods (engine-generic logic) — Main.cpp's loop simply calls `UpdateClient()`, `Render()`, and audio update. `UpdateClient()` calls `Poll()`, then `Reconcile()` (which self-gates via `IsStalled()`), then checks `IsStalled()` to gate physics ticks.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -91,20 +131,27 @@ flowchart TD
     MSG["ProcessMessages()<br/>RawInput Update"] --> TICK_FRAMES
 
     subgraph TICK_FRAMES ["GameBase::UpdateClient()"]
-        POLL_RECONCILE["ClientSession::PollAndReconcile()<br/>(desync: poll+flush only,<br/>normal: PollNetwork,<br/>SendAck, Flush,<br/>WaitForReconcile<br/>-> ClientReconciler::Wait(),<br/>clock correction)"]:::reconcile
+        POLL["ClientSession::Poll()<br/>(PollNetwork, SendAck, Flush)"]:::reconcile
 
-        PHYSICS["Fixed-rate physics ticks<br/>(desync: early-return)"]:::physics
+        RECONCILE_STEP["ClientSession::Reconcile()<br/>(self-gates on IsStalled)<br/>(WaitForReconcile<br/>-> ClientReconciler::Wait(),<br/>tick deficit, clock correction)"]:::reconcile
+        POLL --> RECONCILE_STEP
 
-        POLL_RECONCILE --> PHYSICS
+        STALL_CHECK{"IsStalled()?"}
+        RECONCILE_STEP --> STALL_CHECK
+        STALL_CHECK -->|"Yes"| EARLY_RETURN["early-return<br/>(skip physics)"]
+
+        PHYSICS["Fixed-rate physics ticks"]:::physics
+
+        STALL_CHECK -->|"No"| PHYSICS
     end
 
     subgraph RENDER_METHOD ["GameBase::Render()"]
         RENDER["Render interpolation +<br/>GPU rendering"]:::render
-        POST_RENDER["ClientSession::PostRender()<br/>(desync: early-return,<br/>normal: TryKickReconcile<br/>-> ClientReconciler::TryKick()<br/>gated by mbHasNewData)"]:::reconcile
+        POST_RENDER["ClientSession::PostRender()<br/>(IsStalled: early-return,<br/>normal: TryKickReconcile<br/>-> ClientReconciler::TryKick()<br/>gated by mbHasNewData)"]:::reconcile
         RENDER --> POST_RENDER
     end
 
-    AUDIO["AudioManager::Update()"]
+    AUDIO["AudioManager::Update(pFrame)<br/>(nullable Frame*)"]
 
     TICK_FRAMES --> RENDER_METHOD --> AUDIO
     AUDIO --> MSG
@@ -135,7 +182,7 @@ CRC mismatch triggers a request for the server's full frame, then per-field comp
 sequenceDiagram
     participant Worker as Reconcile Worker
     participant Main as Main Thread
-    participant Net as ClientNetwork
+    participant Net as Client
     participant Server
 
     Worker->>Worker: CRC mismatch detected
@@ -148,16 +195,52 @@ sequenceDiagram
     Main->>Net: SetDesyncDebugMode(true)
     Net->>Server: Desync report + debug frame request
 
-    Note over Main: Each ClientSession method early-returns<br/>when desync active (PollAndReconcile,<br/>PostRender).<br/>Render and audio still run.
+    Note over Main: Reconcile() self-gates via IsStalled().<br/>IsStalled() check after Reconcile() causes<br/>early-return from UpdateClient() (skips physics).<br/>PostRender() also early-returns.<br/>Render and audio still run.
 
     Server->>Net: Debug frame response (serialized Frame)
     Main->>Main: PollNetwork() drains debug frame
     Main->>Main: CompareWithServerFrame()
-    Main->>Main: rClientFrame.ServerCompare(rServerFrame)
-    Note over Main: BreakOnNotEqual per shared field<br/>DEBUG_BREAK() on first mismatch
+    Main->>Main: rClientFrame.LogDifferences(rServerFrame)
+    Note over Main: LogDifference per shared field<br/>logs mismatches via Log(kLogNetwork)<br/>then DEBUG_BREAK()
 
     Main->>Main: Show modal "Desynced from server"
     Main->>Net: Disconnect()
+```
+
+## Player Event Parsing
+
+Raw game packets received from the engine's `Client::DrainReceivedGamePackets()` are parsed into typed `ReceivedPlayerEvent` structs by `ParsePlayerEvents()`. The `kServerAssignPlayer` packet type produces `kAssigned` events directly (no wire type), while `kServerPlayerState` packets carry a `PlayerStateWireType` byte that maps to `kSpawned`, `kChangedFrame`, or `kDied`.
+
+```mermaid
+%%{init: {'theme': 'default'}}%%
+flowchart LR
+    classDef wire fill:#fef3c7,stroke:#d97706
+    classDef event fill:#dcfce7,stroke:#16a34a
+    classDef func fill:#dbeafe,stroke:#3b82f6
+
+    RAW["Raw Game Packets<br/>(from Client::<br/>DrainReceivedGamePackets)"]
+    PARSE["ParsePlayerEvents()<br/>PlayerEvents.cpp"]:::func
+
+    RAW --> PARSE
+
+    subgraph wire_types ["PlayerStateWireType (uint8_t)"]
+        W0["kSpawned (0)"]:::wire
+        W1["kChangedFrame (1)"]:::wire
+        W2["kDied (2)"]:::wire
+    end
+
+    subgraph event_types ["ReceivedPlayerEvent"]
+        E0["kAssigned<br/>(from kServerAssignPlayer)"]:::event
+        E1["kSpawned"]:::event
+        E2["kChangedFrame"]:::event
+        E3["kDied"]:::event
+    end
+
+    PARSE --> E0
+    PARSE --> wire_types
+    W0 --> E1
+    W1 --> E2
+    W2 --> E3
 ```
 
 ## Reconcile Context (Async Data Shuttle)
@@ -172,7 +255,7 @@ Data flows between main thread and worker via `ReconcileContext`, which contains
 | **Worker → Main (per-coord)** | `CoordReconcileWork::iNewConfirmedTick`, `iNewConfirmedOffset`/`iNewConfirmedNewSnapshotIndex`, `newSnapshots` (from catch-up), `bCrcFastPath` |
 | **Worker → Main (global)** | `newConfirmedHumanState`, `bCrcFastPathHandledAll` |
 | **Worker → Main (profiling)** | `iCrcValidatedFrameTicks`, `iAssumedFrameTicks`, `iCrcFastPathEvents`, `iStatusChangeReplayTicks`, `iKnockOnReplayTicks` → fed to `ProfileManagerBase::SetReconcileCounters()` |
-| **Desync (deferred)** | `iDesyncTick`, `desyncCoord`, `desyncServerCrc`, `desyncClientCrc`, `pDesyncClientFrame` |
+| **Desync (deferred, global)** | `iDesyncTick`, `desyncCoord`, `desyncServerCrc`, `desyncClientCrc`, `pDesyncClientFrame` (fields at `ReconcileContext` level, not per-coord) |
 
 ## Key Functions
 
@@ -191,6 +274,11 @@ Data flows between main thread and worker via `ReconcileContext`, which contains
 | `ReconcileFindReplayRange()` | ReconcileReplay | Worker | Scan for max consecutive server frames from minConfirmedTick + 1 |
 | `ReconcileReplay()` | ReconcileReplay | Worker | Full replay loop: BuildFrameInput, RunTick, inject full states/late coords, validate CRCs |
 | `ReconcileRunTick()` | ReconcileReplay | Worker | Per-tick physics execution during replay/catch-up (calls RunFrameTick per-Frame) |
+| `ReconcileTrackHumanMigration()` | ReconcileReplay | Worker | Track human player position changes during coord transfer |
+| `ReconcileEnsureWorkspaceFrames()` | ReconcileReplay | Worker | Ensure workspace has enough allocated Frames for replay |
+| `ReconcileBuildActiveFrameRefs()` | ReconcileReplay | Worker | Build span of ActiveFrameRef for current tick |
+| `ReconcileExecuteTick()` | ReconcileReplay | Worker | Run physics per-Frame during a single tick, then apply transfer StatusChanges and recompute CRCs for frames that had transfers |
+| `ReconcileAdvanceStack()` | ReconcileReplay | Worker | Advance replay stack pointers after tick completes |
 | `ReconcileComputeActiveCoords()` | ReconcileReplay | Worker | Compute active coords for current reconcile tick |
 | `ReconcileBuildFrameInput()` | ReconcileReplay | Worker | Build per-coord frame inputs from server status changes |
 | `ReconcileInjectPendingFullState()` | ReconcileReplay | Worker | Inject pending full state into coord replay stack |
@@ -198,13 +286,14 @@ Data flows between main thread and worker via `ReconcileContext`, which contains
 | `ReconcileValidateCrcs()` | ReconcileReplay | Worker | Validate input and state CRCs per coord per frame |
 | `ReconcileCatchUp()` | ReconcileReplay | Worker | Predictive catch-up from confirmed frame to target tick with empty inputs |
 | `ReconcilePruneInactiveFrames()` | ReconcileReplay | Worker | Clear replay stacks for non-active coords |
-| `PollNetwork()` | ClientSession | Main | Process `ReceivedPlayerState` notifications (spawn/frame change/death via `kServerPlayerState`), apply full states to `CoordFrames`s, buffer per-slot deltas, check debug frame |
+| `PollNetwork()` | ClientSession | Main | Parse raw game packets via `ParsePlayerEvents()` into `ReceivedPlayerEvent` structs (assigned/spawned/frame change/death), apply full states to `CoordFrames`s, buffer per-slot deltas, check debug frame |
+| `ParsePlayerEvents()` | PlayerEvents | Main | Parse raw game packets into typed `ReceivedPlayerEvent` structs |
 | `ApplyReceivedFullStates()` | ClientSession | Main | Route full states to `CoordFrames::pendingFullState` or `mCoordFrames[coord].current`; on initial connection, sets `confirmedHumanState.fCurrentTime` from first coord only |
 | `ApplyReceivedUpdates()` | ClientSession | Main | Call `ApplyReceivedUpdatesBase()` (engine) to buffer per-slot updates into `CoordFrames::serverUpdates` |
 | `UpdateSubscriptions()` | ClientSession | Main | Compute desired coords based on player state (alive: human + 3 quadrant neighbors via `ComputeQuadrantOffsets()`, dead: death coord + origin, not-yet-assigned: origin), delegate to `UnsubscribeStaleCoords()` and `BuildSubscriptionQueue()` (engine base) |
 | `TrySubscribeNext()` | ClientSessionBase | Main | Pop next coord from `mSubscriptionQueue` and `SendSubscribe`; gates on no slot being in `kSubscribing`, `kWaitingFullState`, or `kUnsubscribing` state |
 | `ComputeClockCorrectionNs()` | ClientSessionBase | Main | Proportional clock correction from frame offset and RTT |
-| `ServerSession::DetectPlayerDeaths()` | ServerSession | Main (server) | Detect player deaths server-side and send `kServerPlayerState(kDied)` to clients |
+| `ServerSession::DetectPlayerDeaths()` | ServerSession | Main (server) | Detect player deaths server-side and send `kServerPlayerState` with primitive types (uint8_t stateType, int64_t playerId, GridCoord) to clients |
 | `UnsubscribeStaleCoords()` | ClientSessionBase | Main | Unsubscribe coords no longer in the desired set |
 | `BuildSubscriptionQueue()` | ClientSessionBase | Main | Build `mSubscriptionQueue` from desired coords not yet subscribed |
 | `IsExtrapolating()` | ClientSessionBase | Main | Returns whether the client is in extrapolation mode (no confirmed server data yet) |
@@ -213,10 +302,10 @@ Data flows between main thread and worker via `ReconcileContext`, which contains
 | `RecordExtrapolationSnapshot()` | ClientSessionBase | Main | Advance snapshot count after extrapolation tick (CRCs already in Frame from RunFrameTick) |
 | `GetSnapshotFrame()` | ClientSessionBase | Main | Get latest snapshot Frame for a coord |
 | `GetConfirmedTick()` | ClientSessionBase | Main | Return the latest confirmed server tick |
-| `ConnectToServer()` | ClientSessionBase | Main | Create ClientNetwork and connect to server via ENet |
-| `DisconnectFromServerBase()` | ClientSessionBase | Main | Tear down ClientNetwork and reset connection state |
+| `ConnectToServer()` | ClientSessionBase | Main | Create Client and connect to server via ENet |
+| `DisconnectFromServerBase()` | ClientSessionBase | Main | Tear down Client and reset connection state |
 | `ApplyReceivedUpdatesBase()` | ClientSessionBase | Main | Buffer per-slot updates into `CoordFrames::serverUpdates` |
 | `WaitForTick()` | ServerSessionBase | Main (server) | Waitable timer + spin-wait until next server tick |
 | `PollNetworkBase()` | ServerSessionBase | Main (server) | Poll ENet events and DiscoveryResponder |
 | `SendNewSubscriptionFullStates()` | ServerSessionBase | Main (server) | Send full state for newly subscribed coords |
-| `CompareWithServerFrame()` | ClientSession | Main | Per-field `ServerCompare()` with `BreakOnNotEqual` |
+| `CompareWithServerFrame()` | ClientSession | Main | Per-field `LogDifferences()` comparison with diagnostic logging |

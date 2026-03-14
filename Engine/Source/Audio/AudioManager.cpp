@@ -335,10 +335,9 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 	CHECK_HRESULT(pVoice->SetFrequencyRatio(x3dAudioDspSettings.DopplerFactor * fPitch));
 }
 
-void AudioManager::Update(const game::Frame& rFrame)
+void AudioManager::Update(const game::Frame* pFrame)
 {
 	ScopedCpuProfile scopedCpuProfile(kCpuTimerAudio);
-	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
 
 	// Heap: Voice map emplace/erase, make_unique<StreamingVoice> for track transitions, and
 	// XAudio2 internal allocations (AllocateVoice, Update). Not controllable or pre-allocatable.
@@ -358,7 +357,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 	{
 		return;
 	}
-		
+
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mRealTime.GetDeltaNs(true));
 
 	{
@@ -395,116 +394,121 @@ void AudioManager::Update(const game::Frame& rFrame)
 
 	UpdateMusicStreams(fDeltaTime);
 
-	const SoundsInterpolate& rSoundsInterpolate = rFrame.interpolate.sounds;
-	const SoundsPostRender& rSoundsPostRender = rFrame.postRender.sounds;
-
-	// Fade out and stop invalid static voices
-	for (auto it = mStaticVoices.begin(); it != mStaticVoices.end();)
+	if (pFrame != nullptr)
 	{
-		StaticVoice& rVoice = it->second;
+		const game::Frame& rFrame = *pFrame;
+		const SoundsInterpolate& rSoundsInterpolate = rFrame.interpolate.sounds;
+		const SoundsPostRender& rSoundsPostRender = rFrame.postRender.sounds;
 
-		bool bValid = false;
-		for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
+		// Fade out and stop invalid static voices
+		for (auto it = mStaticVoices.begin(); it != mStaticVoices.end();)
 		{
-			bValid |= rSoundsPostRender.puiIds[i] == rVoice.mId;
-		}
-		if (bValid)
-		{
-			++it;
-			continue;
-		}
+			StaticVoice& rVoice = it->second;
 
-		bool bDestroy = false;
-		if (rVoice.mfVolume <= 0.0f)
-		{
-			bDestroy = true;
-		}
-		if (rVoice.mFlags & StaticVoiceFlags::kFadingOut)
-		{
-			rVoice.mfFadeOutVolume -= fDeltaTime / rVoice.mfFadeOutTime;
-			if (rVoice.mfFadeOutVolume <= 0.0f)
+			bool bValid = false;
+			for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
+			{
+				bValid |= rSoundsPostRender.puiIds[i] == rVoice.mId;
+			}
+			if (bValid)
+			{
+				++it;
+				continue;
+			}
+
+			bool bDestroy = false;
+			if (rVoice.mfVolume <= 0.0f)
 			{
 				bDestroy = true;
 			}
-		}
-		else
-		{
-			rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
-			rVoice.mfFadeOutVolume = 1.0f;
+			if (rVoice.mFlags & StaticVoiceFlags::kFadingOut)
+			{
+				rVoice.mfFadeOutVolume -= fDeltaTime / rVoice.mfFadeOutTime;
+				if (rVoice.mfFadeOutVolume <= 0.0f)
+				{
+					bDestroy = true;
+				}
+			}
+			else
+			{
+				rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
+				rVoice.mfFadeOutVolume = 1.0f;
+			}
+
+			if (bDestroy)
+			{
+				it = mStaticVoices.erase(it);
+			}
+			else
+			{
+				++it;
+			}
 		}
 
-		if (bDestroy)
+		// Add new voices
+		for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
 		{
-			it = mStaticVoices.erase(it);
+			sound_t id = rSoundsPostRender.puiIds[i];
+			int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
+
+			float fVolume = rSoundsInterpolate.pfVolumes[iIndex];
+			if (fVolume <= 0.0f)
+			{
+				continue;
+			}
+
+			if (mStaticVoices.contains(id))
+			{
+				continue;
+			}
+
+			common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[iIndex];
+			IXAudio2SourceVoice* pVoice = nullptr;
+			if (StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine.get(), pVoice, uiCrc, false, true))
+			{
+				// StaticVoice takes ownership of pVoice
+				float fPitch = rSoundsInterpolate.pfPitches[iIndex];
+				float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
+				XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[iIndex];
+				XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
+				mStaticVoices.emplace(id, StaticVoice(pVoice, id, uiCrc, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity));
+			}
 		}
-		else
+
+		// Sync volume/positions
+		for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
 		{
-			++it;
+			sound_t id = rSoundsPostRender.puiIds[i];
+			int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
+
+			auto itVoice = mStaticVoices.find(id);
+			if (itVoice == mStaticVoices.end())
+			{
+				continue;
+			}
+			StaticVoice* pVoice = &itVoice->second;
+
+			pVoice->mfVolume = rSoundsInterpolate.pfVolumes[iIndex];
+			pVoice->mfPitch = rSoundsInterpolate.pfPitches[iIndex];
+			pVoice->mVecPosition = rSoundsInterpolate.pVecPositions[iIndex];
+			pVoice->mVecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
 		}
+
+		// Update listener position from frame data
+		XMVECTOR vecListenerPos = rFrame.interpolate.pPlayers->iCount > 0 ? rFrame.interpolate.pPlayers->pVecPositions[0] : XMVectorZero();
+		XMVECTOR vecListenerVel = rFrame.postRender.pPlayers->iCount > 0 ? rFrame.postRender.pPlayers->pVecVelocities[0] : XMVectorZero();
+		mVecListenerPosition = vecListenerPos;
+		XMFLOAT3A f3Position {};
+		XMStoreFloat3A(&f3Position, vecListenerPos);
+		XMFLOAT3A f3Velocity {};
+		XMStoreFloat3A(&f3Velocity, vecListenerVel);
+		mX3dAudioListener.OrientFront = {0.0f, 0.0f, -1.0f};
+		mX3dAudioListener.OrientTop = {0.0f, -1.0f, 0.0f};
+		mX3dAudioListener.Position = f3Position;
+		mX3dAudioListener.Velocity = f3Velocity;
 	}
 
-	// Add new voices
-	for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
-	{
-		sound_t id = rSoundsPostRender.puiIds[i];
-		int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
-
-		float fVolume = rSoundsInterpolate.pfVolumes[iIndex];
-		if (fVolume <= 0.0f)
-		{
-			continue;
-		}
-
-		if (mStaticVoices.contains(id))
-		{
-			continue;
-		}
-
-		common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[iIndex];
-		IXAudio2SourceVoice* pVoice = nullptr;
-		if (StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine.get(), pVoice, uiCrc, false, true))
-		{
-			// StaticVoice takes ownership of pVoice
-			float fPitch = rSoundsInterpolate.pfPitches[iIndex];
-			float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
-			XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[iIndex];
-			XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
-			mStaticVoices.emplace(id, StaticVoice(pVoice, id, uiCrc, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity));
-		}
-	}
-
-	// Sync volume/positions
-	for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
-	{
-		sound_t id = rSoundsPostRender.puiIds[i];
-		int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
-
-		auto itVoice = mStaticVoices.find(id);
-		if (itVoice == mStaticVoices.end())
-		{
-			continue;
-		}
-		StaticVoice* pVoice = &itVoice->second;
-
-		pVoice->mfVolume = rSoundsInterpolate.pfVolumes[iIndex];
-		pVoice->mfPitch = rSoundsInterpolate.pfPitches[iIndex];
-		pVoice->mVecPosition = rSoundsInterpolate.pVecPositions[iIndex];
-		pVoice->mVecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
-	}
-
-	// Calculate 3D volumes
-	XMVECTOR vecListenerPos = rFrame.interpolate.pPlayers->iCount > 0 ? rFrame.interpolate.pPlayers->pVecPositions[0] : XMVectorZero();
-	XMVECTOR vecListenerVel = rFrame.postRender.pPlayers->iCount > 0 ? rFrame.postRender.pPlayers->pVecVelocities[0] : XMVectorZero();
-	mVecListenerPosition = vecListenerPos;
-	XMFLOAT3A f3Position {};
-	XMStoreFloat3A(&f3Position, vecListenerPos);
-	XMFLOAT3A f3Velocity {};
-	XMStoreFloat3A(&f3Velocity, vecListenerVel);
-	mX3dAudioListener.OrientFront = {0.0f, 0.0f, -1.0f};
-	mX3dAudioListener.OrientTop = {0.0f, -1.0f, 0.0f};
-	mX3dAudioListener.Position = f3Position;
-	mX3dAudioListener.Velocity = f3Velocity;
-
+	// 3D volume calculation uses cached mVecListenerPosition — runs always
 	for (const auto& [rId, rVoice] : mStaticVoices)
 	{
 		Apply3dVolume(rVoice.mpVoice, rVoice.mVecPosition, rVoice.mVecVelocity, rVoice.mfFadeOutVolume * rVoice.mfVolume, rVoice.mfPitch);

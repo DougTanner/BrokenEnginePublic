@@ -132,3 +132,53 @@ struct std::formatter<std::chrono::seconds> : std::formatter<std::string_view>
 		return std::format_to(rContext.out(), "{}s", s.count());
 	}
 };
+
+template<>
+struct std::formatter<int8_t> : std::formatter<int>
+{
+	template<typename CONTEXT>
+	auto format(const int8_t value, CONTEXT& rContext) const
+	{
+		return std::formatter<int>::format(static_cast<int>(value), rContext);
+	}
+};
+
+template<>
+struct std::formatter<uint8_t> : std::formatter<unsigned int>
+{
+	template<typename CONTEXT>
+	auto format(const uint8_t value, CONTEXT& rContext) const
+	{
+		return std::formatter<unsigned int>::format(static_cast<unsigned int>(value), rContext);
+	}
+};
+
+template<>
+struct std::formatter<XMFLOAT2> : std::formatter<std::string_view>
+{
+	template<typename CONTEXT>
+	auto format(const XMFLOAT2 f2, CONTEXT& rContext) const
+	{
+		return std::format_to(rContext.out(), "{{{}, {}}}", f2.x, f2.y);
+	}
+};
+
+template<typename ENUM_TYPE>
+struct std::formatter<common::Flags<ENUM_TYPE>> : std::formatter<std::string_view>
+{
+	template<typename CONTEXT>
+	auto format(const common::Flags<ENUM_TYPE> flags, CONTEXT& rContext) const
+	{
+		return std::format_to(rContext.out(), "{}", std::to_underlying(flags.meFlags));
+	}
+};
+
+template<>
+struct std::formatter<common::RandomEngine> : std::formatter<std::string_view>
+{
+	template<typename CONTEXT>
+	auto format(const common::RandomEngine& rEngine, CONTEXT& rContext) const
+	{
+		return std::format_to(rContext.out(), "{}", rEngine.uiState);
+	}
+};

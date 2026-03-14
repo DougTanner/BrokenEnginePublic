@@ -48,35 +48,6 @@ void SmokeTrailsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFr
 {
 }
 
-bool SmokeTrailsInterpolate::operator==(const SmokeTrailsInterpolate& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pfIntensities[i], rOther.pfIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(pfStartTimes[i], rOther.pfStartTimes[i]);
-	}
-
-	return bEqual;
-}
-
-bool SmokeTrailsPostRender::operator==(const SmokeTrailsPostRender& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(puiIds[i], rOther.puiIds[i]);
-	}
-
-	return bEqual;
-}
-
 } // namespace engine
 
 #endif // BT_CLIENT

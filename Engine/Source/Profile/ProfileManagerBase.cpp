@@ -1,10 +1,13 @@
+#include "Pch.h"
+
 #include "ProfileManagerBase.h"
+
+#include "Memory/MemoryManager.h"
 
 #include "Game.h"
 #if defined(BT_CLIENT)
 #include "Network/ClientSession.h"
 #endif
-#include "Memory/MemoryManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -668,11 +671,14 @@ void ProfileManagerBase::UpdateProfileText()
 				rWorkbuffer.Append("\n");
 			}
 
-			rWorkbuffer.Append("Tick: ");
-			rWorkbuffer.Append(game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iTick);
-			rWorkbuffer.Append("  Time: ");
-			rWorkbuffer.AppendFloat(game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.fCurrentTime, 1);
-			rWorkbuffer.Append("s");
+			if (game::gpGame->mCoordFrames.contains(game::gpGame->mHumanGridCoord))
+			{
+				rWorkbuffer.Append("Tick: ");
+				rWorkbuffer.Append(game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iTick);
+				rWorkbuffer.Append("  Time: ");
+				rWorkbuffer.AppendFloat(game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.fCurrentTime, 1);
+				rWorkbuffer.Append("s");
+			}
 			gpTextManager->UpdateTextArea(kTextProfileFrameStats, rWorkbuffer.View());
 			rWorkbuffer.Pop();
 		}
@@ -682,26 +688,26 @@ void ProfileManagerBase::UpdateProfileText()
 			rWorkbuffer.Push();
 			rWorkbuffer.Append("Network\n");
 
-			if (gpClientNetwork == nullptr)
+			if (gpClient == nullptr)
 			{
 				rWorkbuffer.Append("(Offline)");
 			}
 			else
 			{
-				ENetPeer* pPeer = gpClientNetwork->GetServerPeer();
+				ENetPeer* pPeer = gpClient->GetServerPeer();
 				if (pPeer != nullptr)
 				{
 					rWorkbuffer.Append("RTT: ");
 					rWorkbuffer.Append(static_cast<int64_t>(pPeer->roundTripTime));
 					rWorkbuffer.Append(" ms\nPipeline: ");
-					rWorkbuffer.AppendFloat(gpClientNetwork->GetPipelineRttUs() / 1000.0f, 1);
+					rWorkbuffer.AppendFloat(gpClient->GetPipelineRttUs() / 1000.0f, 1);
 					rWorkbuffer.Append(" ms\nLoss: ");
 					rWorkbuffer.AppendFloat(pPeer->packetLoss * 100.0f / 65536.0f, 1);
 					rWorkbuffer.Append("%\n");
 				}
 
 				rWorkbuffer.Append("In: ");
-				int64_t iBytesIn = gpClientNetwork->GetBytesInPerSecond();
+				int64_t iBytesIn = gpClient->GetBytesInPerSecond();
 				if (iBytesIn >= 1024 * 1024)
 				{
 					rWorkbuffer.AppendFloat(static_cast<float>(iBytesIn) / (1024.0f * 1024.0f), 1);
@@ -713,7 +719,7 @@ void ProfileManagerBase::UpdateProfileText()
 					rWorkbuffer.Append(" KB/s");
 				}
 				rWorkbuffer.Append("  Out: ");
-				int64_t iBytesOut = gpClientNetwork->GetBytesOutPerSecond();
+				int64_t iBytesOut = gpClient->GetBytesOutPerSecond();
 				if (iBytesOut >= 1024 * 1024)
 				{
 					rWorkbuffer.AppendFloat(static_cast<float>(iBytesOut) / (1024.0f * 1024.0f), 1);
@@ -728,7 +734,7 @@ void ProfileManagerBase::UpdateProfileText()
 				{
 					int64_t iMinAckFloor = -1;
 					int64_t iTotalRecv = 0;
-					for (const auto& rSlot : gpClientNetwork->GetCoordSlots())
+					for (const auto& rSlot : gpClient->GetCoordSlots())
 					{
 						if (rSlot.eState == CoordSubscriptionState::kActive)
 						{
@@ -749,7 +755,10 @@ void ProfileManagerBase::UpdateProfileText()
 				rWorkbuffer.Append(mSmoothedRecv.Get());
 				rWorkbuffer.Append("/64");
 
+				if (game::gpGame->mCoordFrames.contains(game::gpGame->mHumanGridCoord))
+			{
 				mSmoothedRollback = game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iTick - game::gpClientSession->GetConfirmedTick();
+			}
 				mSmoothedRollback.Update();
 				mSmoothedBuffer = game::gpClientSession->GetServerUpdateBufferSize();
 				mSmoothedBuffer.Update();

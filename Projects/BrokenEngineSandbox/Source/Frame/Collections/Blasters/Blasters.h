@@ -77,8 +77,7 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 	}
 
 	// Utility
-	bool operator==(const BlastersInterpolate& rOther) const;
-	bool ServerCompare(const BlastersInterpolate& rOther) const;
+	bool LogDifferences(const BlastersInterpolate& rOther) const;
 };
 
 enum class BlasterFlags : uint8_t
@@ -123,8 +122,7 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 	}
 
 	// Utility
-	bool operator==(const BlastersPostRender& rOther) const;
-	bool ServerCompare(const BlastersPostRender& rOther) const;
+	bool LogDifferences(const BlastersPostRender& rOther) const;
 
 	// SpawnInfo for spawn parameters
 	struct SpawnInfo

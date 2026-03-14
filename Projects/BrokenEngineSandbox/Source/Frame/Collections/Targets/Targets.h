@@ -62,8 +62,7 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.puiTypeIndices); }
 
 	// Utility
-	bool operator==(const TargetsInterpolate& rOther) const;
-	bool ServerCompare(const TargetsInterpolate& rOther) const;
+	bool LogDifferences(const TargetsInterpolate& rOther) const;
 };
 
 struct TargetsPostRender : public engine::Collection<TargetsPostRender>
@@ -95,8 +94,7 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds, rSelf.pFlags, rSelf.puiSubscribers, rSelf.pAlignments); }
 
 	// Utility
-	bool operator==(const TargetsPostRender& rOther) const;
-	bool ServerCompare(const TargetsPostRender& rOther) const;
+	bool LogDifferences(const TargetsPostRender& rOther) const;
 };
 
 } // namespace game

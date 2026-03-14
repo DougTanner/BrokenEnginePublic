@@ -109,7 +109,7 @@ Graphics::~Graphics()
 	gpGraphics = nullptr;
 }
 
-void Graphics::RenderGlobal(const game::Frame& __restrict rFrame, float fCurrentTime)
+void Graphics::RenderGlobal(float fCurrentTime)
 {
 	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
 
@@ -138,8 +138,8 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame, float fCurrent
 	}
 
 	gpProfileManager->CpuStart(kCpuTimerRenderGlobal);
-	RenderFrameGlobal(iCommandBuffer, fCurrentTime, rFrame.interpolate.iTick);
-	gpParticleManager->RenderGlobal(iCommandBuffer, rFrame.interpolate);
+	RenderFrameGlobal(iCommandBuffer, fCurrentTime, game::gpGame->TickCounter());
+	gpParticleManager->RenderGlobal(iCommandBuffer);
 	gpProfileManager->CpuStop(kCpuTimerRenderGlobal, false);
 
 	gpCommandBufferManager->SubmitGlobalCommandBuffer(iCommandBuffer);

@@ -514,83 +514,41 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	SyncSpaceship(rFrame.interpolate, rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTargets[iIndex], rInfo.vecPosition);
 }
 
-bool SpaceshipsInterpolate::operator==(const SpaceshipsInterpolate& rOther) const
+bool SpaceshipsInterpolate::LogDifferences(const SpaceshipsInterpolate& rOther) const
 {
+	common::ScopedLogDifferenceContext context("SpaceshipsInterpolate");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+	bEqual &= Collection::LogDifferences(rOther);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
-		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
-		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
-#if defined(BT_CLIENT)
-		bEqual &= common::BreakOnNotEqual(puiWindTrails[i], rOther.puiWindTrails[i]);
-#endif
-		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
-		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
-#if defined(BT_CLIENT)
-		bEqual &= common::BreakOnNotEqual(pfAnimationTimes[i], rOther.pfAnimationTimes[i]);
-#endif
+		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::LogDifference_Vec("pVecDirections", i, pVecDirections[i], rOther.pVecDirections[i]);
+		bEqual &= common::LogDifference<"pfDestroyedTimes">(i, pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
+		bEqual &= common::LogDifference<"puiPushers">(i, puiPushers[i], rOther.puiPushers[i]);
+		bEqual &= common::LogDifference<"puiTargets">(i, puiTargets[i], rOther.puiTargets[i]);
+		bEqual &= common::LogDifference<"pfDeltaRotations">(i, pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
+		bEqual &= common::LogDifference<"pfFreezeTimes">(i, pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
 	}
 
 	return bEqual;
 }
 
-bool SpaceshipsPostRender::operator==(const SpaceshipsPostRender& rOther) const
+bool SpaceshipsPostRender::LogDifferences(const SpaceshipsPostRender& rOther) const
 {
+	common::ScopedLogDifferenceContext context("SpaceshipsPostRender");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+	bEqual &= Collection::LogDifferences(rOther);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
-		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDamageDirections[i], rOther.pVecDamageDirections[i]);
-		bEqual &= common::BreakOnNotEqual(pfHealths[i], rOther.pfHealths[i]);
-		bEqual &= common::BreakOnNotEqual(pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pfNextBlasterSpawnTimes[i], rOther.pfNextBlasterSpawnTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
-	}
-
-	return bEqual;
-}
-
-bool SpaceshipsInterpolate::ServerCompare(const SpaceshipsInterpolate& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
-		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
-		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
-		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
-		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
-	}
-
-	return bEqual;
-}
-
-bool SpaceshipsPostRender::ServerCompare(const SpaceshipsPostRender& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
-		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDamageDirections[i], rOther.pVecDamageDirections[i]);
-		bEqual &= common::BreakOnNotEqual(pfHealths[i], rOther.pfHealths[i]);
-		bEqual &= common::BreakOnNotEqual(pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pfNextBlasterSpawnTimes[i], rOther.pfNextBlasterSpawnTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
+		bEqual &= common::LogDifference<"pFlags">(i, pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::LogDifference_Vec("pVecVelocities", i, pVecVelocities[i], rOther.pVecVelocities[i]);
+		bEqual &= common::LogDifference_Vec("pVecDamageDirections", i, pVecDamageDirections[i], rOther.pVecDamageDirections[i]);
+		bEqual &= common::LogDifference<"pfHealths">(i, pfHealths[i], rOther.pfHealths[i]);
+		bEqual &= common::LogDifference<"pfDestroyedExplosionTimes">(i, pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
+		bEqual &= common::LogDifference<"pfNextBlasterSpawnTimes">(i, pfNextBlasterSpawnTimes[i], rOther.pfNextBlasterSpawnTimes[i]);
+		bEqual &= common::LogDifference<"pAlignments">(i, pAlignments[i], rOther.pAlignments[i]);
 	}
 
 	return bEqual;

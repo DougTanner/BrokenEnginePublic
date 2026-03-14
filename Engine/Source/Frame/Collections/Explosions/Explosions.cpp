@@ -285,7 +285,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	}
 
 	// Consume random unconditionally to keep random engine in sync across client/server
-	float fPrimaryRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
+	[[maybe_unused]] float fPrimaryRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
 
 	// Fire-and-forget effects: Primary light
 #if defined(BT_CLIENT)
@@ -315,7 +315,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 		XMVECTOR vecSecondaryPosition = XMVectorAdd(vecSecondaryOffset, rInfo.vecPosition);
 
 		// Consume random unconditionally to keep random engine in sync across client/server
-		float fSecondaryRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
+		[[maybe_unused]] float fSecondaryRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
 
 		// Secondary light
 #if defined(BT_CLIENT)
@@ -349,7 +349,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	for (int32_t j = 0; j < iTrailCount; ++j)
 	{
 		float fTrailTime = rInfo.fTimePercent * (rType.fTrailTimeMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fTrailTimeRandom);
-		float fTrailIntensity = rInfo.fSmokePercent * (rType.fTrailIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fTrailIntensityRandom);
+		[[maybe_unused]] float fTrailIntensity = rInfo.fSmokePercent * (rType.fTrailIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fTrailIntensityRandom);
 
 		XMVECTOR vecTrailDirection = vecDirection2dNormal;
 		if (j != 0)
@@ -404,7 +404,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 			uiParticleColor |= ((50 + common::Random(25u, rFrame.postRender.randomEngine)) << 16) | ((common::Random(25u, rFrame.postRender.randomEngine)) << 8);
 		}
 
-		float fParticleIntensity = rType.fParticleIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleIntensityRandom;
+		[[maybe_unused]] float fParticleIntensity = rType.fParticleIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleIntensityRandom;
 
 #if defined(BT_CLIENT)
 		if (!(rFrame.interpolate.frameFlags & FrameFlags::kRecalculated))
@@ -500,78 +500,37 @@ void ExplosionsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame
 {
 }
 
-bool ExplosionsInterpolate::operator==(const ExplosionsInterpolate& rOther) const
+bool ExplosionsInterpolate::LogDifferences(const ExplosionsInterpolate& rOther) const
 {
+	common::ScopedLogDifferenceContext context("ExplosionsInterpolate");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+	bEqual &= Collection::LogDifferences(rOther);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
-		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
-		bEqual &= common::BreakOnNotEqual(pfStartTimes[i], rOther.pfStartTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-
-#if defined(BT_CLIENT)
-		bEqual &= common::BreakOnNotEqual(pfLightPercents[i], rOther.pfLightPercents[i]);
-#endif
-		bEqual &= common::BreakOnNotEqual(pfSizePercents[i], rOther.pfSizePercents[i]);
-#if defined(BT_CLIENT)
-		bEqual &= common::BreakOnNotEqual(pfSmokePercents[i], rOther.pfSmokePercents[i]);
-#endif
-		bEqual &= common::BreakOnNotEqual(pfTimePercents[i], rOther.pfTimePercents[i]);
-
-		bEqual &= common::BreakOnNotEqual(piTrailCounts[i], rOther.piTrailCounts[i]);
+		bEqual &= common::LogDifference<"puiTypeIndices">(i, puiTypeIndices[i], rOther.puiTypeIndices[i]);
+		bEqual &= common::LogDifference<"pFlags">(i, pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::LogDifference<"pfStartTimes">(i, pfStartTimes[i], rOther.pfStartTimes[i]);
+		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::LogDifference_Vec("pVecDirections", i, pVecDirections[i], rOther.pVecDirections[i]);
+		bEqual &= common::LogDifference<"pfSizePercents">(i, pfSizePercents[i], rOther.pfSizePercents[i]);
+		bEqual &= common::LogDifference<"pfTimePercents">(i, pfTimePercents[i], rOther.pfTimePercents[i]);
+		bEqual &= common::LogDifference<"piTrailCounts">(i, piTrailCounts[i], rOther.piTrailCounts[i]);
 
 		for (int64_t j = 0; j < piTrailCounts[i]; ++j)
 		{
-			bEqual &= common::BreakOnNotEqual(pfTrailTimes[j][i], rOther.pfTrailTimes[j][i]);
-#if defined(BT_CLIENT)
-			bEqual &= common::BreakOnNotEqual(pTrails[j][i], rOther.pTrails[j][i]);
-			bEqual &= common::BreakOnNotEqual(pfTrailIntensities[j][i], rOther.pfTrailIntensities[j][i]);
-			bEqual &= common::BreakOnNotEqual(pVecTrailStartPositions[j][i], rOther.pVecTrailStartPositions[j][i]);
-			bEqual &= common::BreakOnNotEqual(pVecTrailEndPositions[j][i], rOther.pVecTrailEndPositions[j][i]);
-#endif
+			bEqual &= common::LogDifference<"pfTrailTimes">(i, pfTrailTimes[j][i], rOther.pfTrailTimes[j][i]);
 		}
 	}
 
 	return bEqual;
 }
 
-bool ExplosionsInterpolate::ServerCompare(const ExplosionsInterpolate& rOther) const
+bool ExplosionsPostRender::LogDifferences(const ExplosionsPostRender& rOther) const
 {
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
-		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
-		bEqual &= common::BreakOnNotEqual(pfStartTimes[i], rOther.pfStartTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-		bEqual &= common::BreakOnNotEqual(pfSizePercents[i], rOther.pfSizePercents[i]);
-		bEqual &= common::BreakOnNotEqual(pfTimePercents[i], rOther.pfTimePercents[i]);
-		bEqual &= common::BreakOnNotEqual(piTrailCounts[i], rOther.piTrailCounts[i]);
-
-		for (int64_t j = 0; j < piTrailCounts[i]; ++j)
-		{
-			bEqual &= common::BreakOnNotEqual(pfTrailTimes[j][i], rOther.pfTrailTimes[j][i]);
-		}
-	}
-
-	return bEqual;
+	common::ScopedLogDifferenceContext context("ExplosionsPostRender");
+	return Collection::LogDifferences(rOther);
 }
-
-bool ExplosionsPostRender::operator==(const ExplosionsPostRender& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-	return bEqual;
-}
-
-bool ExplosionsPostRender::ServerCompare(const ExplosionsPostRender& rOther) const { return *this == rOther; }
 
 #if defined(BT_CLIENT)
 

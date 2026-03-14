@@ -1,8 +1,10 @@
+#include "Pch.h"
+
 #if defined(BT_SERVER)
 
 #include "Server/ServerDisplay.h"
 
-#include "Network/ServerNetwork/ServerNetwork.h"
+#include "Network/Server/Server.h"
 
 #include "Game.h"
 #include "Frame/Collections/Players/Players.h"
@@ -15,7 +17,7 @@
 namespace engine
 {
 
-void UpdateServerDisplayStats()
+void ServerUpdateDisplayStats()
 {
 	if constexpr (!kbEnableProfiling)
 	{
@@ -92,7 +94,7 @@ void PaintServerDisplay(HWND hWnd)
 	float fCurrentTime = rOriginFrame.interpolate.fCurrentTime;
 
 	// Gather connected client info
-	const std::vector<ClientConnection>& rClients = gpServerNetwork->GetClients();
+	const std::vector<ClientConnection>& rClients = gpServer->GetClients();
 	int64_t iClientCount = static_cast<int64_t>(rClients.size());
 
 	int64_t iActiveCells = static_cast<int64_t>(game::gpGame->mActiveCoords.size());

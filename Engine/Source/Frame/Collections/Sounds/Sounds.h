@@ -63,8 +63,6 @@ struct SoundsInterpolate : public Collection<SoundsInterpolate, CollectionFlags:
 		                rSelf.pfFadeOutTimes, rSelf.pVecPositions, rSelf.pVecVelocities);
 	}
 
-	// Utility
-	bool operator==(const SoundsInterpolate& rOther) const;
 };
 using sound_t = SoundsInterpolate::id_t;
 
@@ -91,8 +89,6 @@ struct SoundsPostRender : public Collection<SoundsPostRender>
 	sound_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }
 
-	// Utility
-	bool operator==(const SoundsPostRender& rOther) const;
 };
 
 extern template struct Collection<SoundsInterpolate, CollectionFlags::kIdToIndex>;

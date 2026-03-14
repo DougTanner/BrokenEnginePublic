@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Network/ClientNetwork/ClientNetwork.h"
+#include "Network/Client/Client.h"
 
 #include "Memory/MemoryManager.h"
 #include "Network/NetworkCursor.h"
@@ -28,7 +28,7 @@ static std::unique_ptr<game::Frame> DecompressAndReadFrame(const uint8_t*& pCurs
 	return pFrame;
 }
 
-void ClientNetwork::ClearSubscribingPlaceholder(GridCoord coord)
+void Client::ClearSubscribingPlaceholder(GridCoord coord)
 {
 	for (int64_t i = 0; i < std::ssize(mCoordSlots); ++i)
 	{
@@ -40,36 +40,7 @@ void ClientNetwork::ClearSubscribingPlaceholder(GridCoord coord)
 	}
 }
 
-void ClientNetwork::HandleServerAssignPlayer(const uint8_t* pData)
-{
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
-	int64_t iPlayerIdValue = ReadInt64(pCursor);
-	GridCoord coord = ReadGridCoord(pCursor);
-
-	// Heap: received assignments vector grows on new assignment packets
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	mReceivedAssignments.push_back({game::player_t(uuid_t(iPlayerIdValue)), coord});
-
-	Log(kLogNetwork, "ClientNetwork: Assigned player ID {} at grid ({},{})", iPlayerIdValue, coord.x, coord.y);
-}
-
-void ClientNetwork::HandleServerPlayerState(const uint8_t* pData)
-{
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
-	PlayerStateType eStateType = static_cast<PlayerStateType>(ReadUint8(pCursor));
-	int64_t iPlayerIdValue = ReadInt64(pCursor);
-	GridCoord coord = ReadGridCoord(pCursor);
-
-	// Heap: received player states vector grows on state packets
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	mReceivedPlayerStates.push_back({eStateType, game::player_t(uuid_t(iPlayerIdValue)), coord});
-
-	Log(kLogNetwork, "ClientNetwork: Player {} state {} at grid ({},{})", iPlayerIdValue, static_cast<int>(eStateType), coord.x, coord.y);
-}
-
-void ClientNetwork::HandleServerCoordFullState(const uint8_t* pData)
+void Client::ServerCoordFullState(const uint8_t* pData)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -78,14 +49,15 @@ void ClientNetwork::HandleServerCoordFullState(const uint8_t* pData)
 	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
 
-	Log(kLogNetwork, "ClientNetwork: Received coord full state frame {} slot {} coord ({},{})", iTick, uiSlotIndex, coord.x, coord.y);
+	Log(kLogNetwork, "Client::ServerCoordFullState Frame: {} Slot: {} Coord: ({},{})", iTick, uiSlotIndex, coord.x, coord.y);
+	ScopedLogIndent scopedLogIndent;
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor);
 	if (pFrame == nullptr)
 	{
-		Log(kLogNetwork, "ClientNetwork: LZ4 decompression failed for full state coord ({},{}) frame {}", coord.x, coord.y, iTick);
+		Log(kLogNetwork, "Client::ServerCoordFullState LZ4 decompression failed Coord: ({},{}) Frame: {}", coord.x, coord.y, iTick);
 		return;
 	}
 
@@ -132,7 +104,7 @@ void ClientNetwork::HandleServerCoordFullState(const uint8_t* pData)
 	rSlot.eState = CoordSubscriptionState::kActive;
 }
 
-void ClientNetwork::HandleServerCoordUpdateOrResend(const uint8_t* pData, bool bProcessRtt)
+void Client::ServerCoordUpdateOrResend(const uint8_t* pData, bool bProcessRtt)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -194,20 +166,21 @@ void ClientNetwork::HandleServerCoordUpdateOrResend(const uint8_t* pData, bool b
 
 }
 
-void ClientNetwork::HandleServerDebugFrame(const uint8_t* pData)
+void Client::ServerDebugFrame(const uint8_t* pData)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
-	Log(kLogNetwork, "ClientNetwork: Received debug frame {} grid ({},{})", iTick, coord.x, coord.y);
+	Log(kLogNetwork, "Client::ServerDebugFrame Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
+	ScopedLogIndent scopedLogIndent;
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor);
 	if (pFrame == nullptr)
 	{
-		Log(kLogNetwork, "ClientNetwork: LZ4 decompression failed for debug frame {}", iTick);
+		Log(kLogNetwork, "Client::ServerDebugFrame LZ4 decompression failed Frame: {}", iTick);
 		return;
 	}
 
@@ -217,7 +190,7 @@ void ClientNetwork::HandleServerDebugFrame(const uint8_t* pData)
 	mpReceivedDebugFrame->pFrame = std::move(pFrame);
 }
 
-void ClientNetwork::HandleServerConnectionResponse(const uint8_t* pData, size_t iSize)
+void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 {
 	const uint8_t* pCursor = pData + 1;
 	bool bAccepted = (ReadUint8(pCursor) != 0);
@@ -225,7 +198,6 @@ void ClientNetwork::HandleServerConnectionResponse(const uint8_t* pData, size_t 
 	if (bAccepted)
 	{
 		mbConnectionAccepted = true;
-		Log(kLogNetwork, "ClientNetwork: Connection accepted");
 	}
 	else
 	{
@@ -233,11 +205,11 @@ void ClientNetwork::HandleServerConnectionResponse(const uint8_t* pData, size_t 
 		size_t iCopyLength = std::min(iMessageLength, sizeof(mpcRejectionReason) - 1);
 		std::memcpy(mpcRejectionReason, pCursor, iCopyLength);
 		mpcRejectionReason[iCopyLength] = '\0';
-		Log(kLogNetwork, "ClientNetwork: Connection rejected: {}", mpcRejectionReason);
+		Log(kLogNetwork, "Client::ServerConnectionResponse Rejected: {}", mpcRejectionReason);
 	}
 }
 
-void ClientNetwork::HandleServerSubscribeAccept(const uint8_t* pData)
+void Client::ServerSubscribeAccept(const uint8_t* pData)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -249,7 +221,7 @@ void ClientNetwork::HandleServerSubscribeAccept(const uint8_t* pData)
 	{
 		// Server rejected subscription (no free slot) — clear the kSubscribing placeholder
 		ClearSubscribingPlaceholder(coord);
-		Log(kLogNetwork, "ClientNetwork: Subscribe rejected for coord ({},{})", coord.x, coord.y);
+		Log(kLogNetwork, "Client::ServerSubscribeAccept Rejected Coord: ({},{})", coord.x, coord.y);
 		return;
 	}
 
@@ -258,7 +230,7 @@ void ClientNetwork::HandleServerSubscribeAccept(const uint8_t* pData)
 	bool bTargetIsPlaceholder = (rSlot.eState == CoordSubscriptionState::kSubscribing && rSlot.coord == coord);
 	if (rSlot.eState != CoordSubscriptionState::kUnsubscribed && !bTargetIsPlaceholder)
 	{
-		Log(kLogNetwork, "ClientNetwork: Subscribe accept for slot {} but slot is in state {}, ignoring", uiSlotIndex, static_cast<int>(rSlot.eState));
+		Log(kLogNetwork, "Client::ServerSubscribeAccept Ignoring Slot: {} State: {}", uiSlotIndex, static_cast<int>(rSlot.eState));
 		return;
 	}
 
@@ -274,10 +246,10 @@ void ClientNetwork::HandleServerSubscribeAccept(const uint8_t* pData)
 	rSlot.ackState.uiReceivedBitfield = 0;
 	rSlot.ackState.uiEpoch = uiEpoch;
 
-	Log(kLogNetwork, "ClientNetwork: Subscribe accepted slot {} coord ({},{})", uiSlotIndex, coord.x, coord.y);
+	Log(kLogNetwork, "Client::ServerSubscribeAccept Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 }
 
-void ClientNetwork::HandleServerUnsubscribeAck(const uint8_t* pData)
+void Client::ServerUnsubscribeAck(const uint8_t* pData)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
@@ -294,7 +266,7 @@ void ClientNetwork::HandleServerUnsubscribeAck(const uint8_t* pData)
 		return;
 	}
 
-	Log(kLogNetwork, "ClientNetwork: Unsubscribe ack slot {} coord ({},{})", uiSlotIndex, rSlot.coord.x, rSlot.coord.y);
+	Log(kLogNetwork, "Client::ServerUnsubscribeAck Slot: {} Coord: ({},{})", uiSlotIndex, rSlot.coord.x, rSlot.coord.y);
 
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{

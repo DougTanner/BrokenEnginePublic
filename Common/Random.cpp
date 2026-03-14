@@ -23,7 +23,7 @@ void RandomEngine::TimeSeed()
 
 bool RandomEngine::operator==(const RandomEngine& rOther) const
 {
-	return common::BreakOnNotEqual(uiState, rOther.uiState);
+	return uiState == rOther.uiState;
 }
 
 crc_t RandomEngine::Crc() const

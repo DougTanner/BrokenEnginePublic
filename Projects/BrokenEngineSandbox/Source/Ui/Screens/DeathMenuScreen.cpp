@@ -1,3 +1,5 @@
+#include "Pch.h"
+
 #include "DeathMenuScreen.h"
 
 #include "Game.h"
@@ -14,7 +16,7 @@ void DeathMenuScreen::Render()
 		return;
 	}
 
-	if (!(gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.gameFlags & GameFlags::kDeathScreen))
+	if (!(gpGame->mGameFlags & engine::GameFlags::kDeathScreen))
 	{
 		return;
 	}
@@ -50,7 +52,7 @@ void DeathMenuScreen::Render()
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRespawn)), ImVec2(fButtonWidth, rIo.DisplaySize.y * 0.045f)))
 	{
 #if defined(BT_CLIENT)
-		engine::gpClientNetwork->SendSpawnRequest(engine::ClientRequestFlags::kRespawnRequested);
+		engine::gpClient->SendSpawnRequest(engine::ClientRequestFlags::kRespawnRequested);
 #endif
 	}
 

@@ -68,32 +68,6 @@ void WindRadialsPostRender::Destroy(game::Frame& __restrict rFrame)
 	}
 }
 
-bool WindRadialsInterpolate::operator==(const WindRadialsInterpolate& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pfIntensities[i], rOther.pfIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(pfSizes[i], rOther.pfSizes[i]);
-		bEqual &= common::BreakOnNotEqual(puiControllerTypeIndices[i], rOther.puiControllerTypeIndices[i]);
-		bEqual &= common::BreakOnNotEqual(pfStartTimes[i], rOther.pfStartTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pfBaseIntensities[i], rOther.pfBaseIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(pfBaseSizes[i], rOther.pfBaseSizes[i]);
-	}
-
-	return bEqual;
-}
-
-bool WindRadialsPostRender::operator==(const WindRadialsPostRender& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-	return bEqual;
-}
-
 } // namespace engine
 
 #endif // BT_CLIENT

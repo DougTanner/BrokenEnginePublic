@@ -2,7 +2,7 @@
 
 #if defined(BT_SERVER)
 
-#include "Network/ServerNetwork/ServerSessionBase.h"
+#include "Network/Server/ServerSessionBase.h"
 
 namespace game
 {
@@ -42,11 +42,11 @@ public:
 	void ProcessSpawnRequests();
 	void HarvestTransfers();
 	void BroadcastStatusChanges(int64_t iTick);
-	void HandleDisconnects();
-	void HandleNewClients();
+	void Disconnects();
+	void NewClients();
 	void FinalizeNewClients(int64_t iTick);
 	void DetectPlayerDeaths();
-	void HandleSubscriptionUpdates(int64_t iTick);
+	void SubscriptionUpdates(int64_t iTick);
 	void RefreshPreSpawnSnapshot();
 
 private:

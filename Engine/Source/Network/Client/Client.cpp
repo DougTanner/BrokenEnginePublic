@@ -1,15 +1,15 @@
 #include "Pch.h"
 
-#include "Network/ClientNetwork/ClientNetwork.h"
+#include "Network/Client/Client.h"
 
 #include "Network/NetworkCursor.h"
 
 namespace engine
 {
 
-ClientNetwork::ClientNetwork(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots)
+Client::Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots)
 {
-	gpClientNetwork = this;
+	gpClient = this;
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
@@ -34,7 +34,7 @@ ClientNetwork::ClientNetwork(const char* pServerAddress, uint16_t uiPort, int64_
 	enet_address_get_host_ip(&address, pcServerAddress, sizeof(pcServerAddress));
 }
 
-ClientNetwork::~ClientNetwork()
+Client::~Client()
 {
 	if (mpServerPeer != nullptr && mbConnected)
 	{
@@ -62,10 +62,10 @@ ClientNetwork::~ClientNetwork()
 		enet_host_destroy(mpHost);
 	}
 
-	gpClientNetwork = nullptr;
+	gpClient = nullptr;
 }
 
-void ClientNetwork::Poll()
+void Client::Poll()
 {
 	if (mpHost == nullptr)
 	{
@@ -77,48 +77,48 @@ void ClientNetwork::Poll()
 		rSlotUpdates.clear();
 	}
 	mReceivedFullStates.clear();
-	mReceivedAssignments.clear();
-	mReceivedPlayerStates.clear();
+	mReceivedGamePackets.clear();
 
 	ENetEvent event {};
 	while (enet_host_service(mpHost, &event, 0) > 0)
 	{
 		switch (event.type)
 		{
-		case ENET_EVENT_TYPE_CONNECT:
-		{
-			mbConnected = true;
-			// Disable ENet peer throttle to prevent unreliable packet drops during reconciliation stalls
-			enet_peer_throttle_configure(mpServerPeer, UINT32_MAX, 0, 0);
-			SendHello();
-			Log(kLogNetwork, "ClientNetwork: ENET_EVENT_TYPE_CONNECT");
-			char pcServerAddress[64] {};
-			enet_address_get_host_ip(&mpServerPeer->address, pcServerAddress, sizeof(pcServerAddress));
-			ENetAddress localAddress {};
-			enet_socket_get_address(mpHost->socket, &localAddress);
-			break;
-		}
-		case ENET_EVENT_TYPE_DISCONNECT:
-			mbConnected = false;
-			mbDisconnectedEvent = true;
-			mpServerPeer = nullptr;
-			Log(kLogNetwork, "ClientNetwork: ENET_EVENT_TYPE_DISCONNECT");
-			break;
-		case ENET_EVENT_TYPE_RECEIVE:
-			if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
+			case ENET_EVENT_TYPE_CONNECT:
 			{
-				constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
-				NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, event,
-					[this](ENetEvent& rEvent) { HandleReceive(rEvent); });
+				mbConnected = true;
+				// Disable ENet peer throttle to prevent unreliable packet drops during reconciliation stalls
+				enet_peer_throttle_configure(mpServerPeer, UINT32_MAX, 0, 0);
+				SendHello();
+				Log(kLogNetwork, "Client::Poll ENET_EVENT_TYPE_CONNECT");
+				ScopedLogIndent scopedLogIndent;
+				char pcServerAddress[64] {};
+				enet_address_get_host_ip(&mpServerPeer->address, pcServerAddress, sizeof(pcServerAddress));
+				ENetAddress localAddress {};
+				enet_socket_get_address(mpHost->socket, &localAddress);
+				break;
 			}
-			else
-			{
-				HandleReceive(event);
-				enet_packet_destroy(event.packet);
-			}
-			break;
-		case ENET_EVENT_TYPE_NONE:
-			break;
+			case ENET_EVENT_TYPE_DISCONNECT:
+				mbConnected = false;
+				mbDisconnectedEvent = true;
+				mpServerPeer = nullptr;
+				Log(kLogNetwork, "ENET_EVENT_TYPE_DISCONNECT");
+				break;
+			case ENET_EVENT_TYPE_RECEIVE:
+				if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
+				{
+					constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
+					NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, event,
+						[this](ENetEvent& rEvent) { Receive(rEvent); });
+				}
+				else
+				{
+					Receive(event);
+					enet_packet_destroy(event.packet);
+				}
+				break;
+			case ENET_EVENT_TYPE_NONE:
+				break;
 		}
 	}
 
@@ -127,7 +127,7 @@ void ClientNetwork::Poll()
 	{
 		NetworkSimulation::ProcessDelayed(mDelayedPackets, [this](const DelayedPacket& rPacket)
 		{
-			HandleReceive(rPacket.data.data(), rPacket.data.size());
+			Receive(rPacket.data.data(), rPacket.data.size());
 		});
 	}
 
@@ -140,12 +140,12 @@ void ClientNetwork::Poll()
 	muiPrevSentData = uiSentData;
 }
 
-void ClientNetwork::HandleReceive(ENetEvent& rEvent)
+void Client::Receive(ENetEvent& rEvent)
 {
-	HandleReceive(rEvent.packet->data, rEvent.packet->dataLength);
+	Receive(rEvent.packet->data, rEvent.packet->dataLength);
 }
 
-void ClientNetwork::HandleReceive(const uint8_t* pData, size_t iSize)
+void Client::Receive(const uint8_t* pData, size_t iSize)
 {
 	if (iSize < 1)
 	{
@@ -156,39 +156,41 @@ void ClientNetwork::HandleReceive(const uint8_t* pData, size_t iSize)
 
 	switch (eType)
 	{
-	case PacketType::kServerAssignPlayer:
-		HandleServerAssignPlayer(pData);
-		break;
-	case PacketType::kServerCoordFullState:
-		HandleServerCoordFullState(pData);
-		break;
-	case PacketType::kServerCoordUpdate:
-		HandleServerCoordUpdateOrResend(pData, true);
-		break;
-	case PacketType::kServerCoordResend:
-		HandleServerCoordUpdateOrResend(pData, false);
-		break;
-	case PacketType::kServerDebugFrame:
-		HandleServerDebugFrame(pData);
-		break;
-	case PacketType::kServerConnectionResponse:
-		HandleServerConnectionResponse(pData, iSize);
-		break;
-	case PacketType::kServerPlayerState:
-		HandleServerPlayerState(pData);
-		break;
-	case PacketType::kServerSubscribeAccept:
-		HandleServerSubscribeAccept(pData);
-		break;
-	case PacketType::kServerUnsubscribeAck:
-		HandleServerUnsubscribeAck(pData);
-		break;
-	default:
-		break;
+		case PacketType::kServerAssignPlayer:
+		case PacketType::kServerPlayerState:
+		{
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			// Heap: raw game packet buffer grows on game-specific packets
+			mReceivedGamePackets.emplace_back(pData[0], std::vector<uint8_t>(pData + 1, pData + iSize));
+			break;
+		}
+		case PacketType::kServerCoordFullState:
+			ServerCoordFullState(pData);
+			break;
+		case PacketType::kServerCoordUpdate:
+			ServerCoordUpdateOrResend(pData, true);
+			break;
+		case PacketType::kServerCoordResend:
+			ServerCoordUpdateOrResend(pData, false);
+			break;
+		case PacketType::kServerDebugFrame:
+			ServerDebugFrame(pData);
+			break;
+		case PacketType::kServerConnectionResponse:
+			ServerConnectionResponse(pData, iSize);
+			break;
+		case PacketType::kServerSubscribeAccept:
+			ServerSubscribeAccept(pData);
+			break;
+		case PacketType::kServerUnsubscribeAck:
+			ServerUnsubscribeAck(pData);
+			break;
+		default:
+			break;
 	}
 }
 
-void ClientNetwork::TrackReceivedTick(int64_t iSlot, int64_t iTick)
+void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 {
 	if (mbDesyncDebugMode)
 	{
@@ -213,7 +215,7 @@ void ClientNetwork::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 	int64_t iBitIndex = iTick - rAck.iAckFloor - 1;
 	if (iBitIndex >= kiTickRate)
 	{
-		Log(kLogNetwork, "ClientNetwork: Too many missing frames on slot {} (gap={}), disconnecting", iSlot, iBitIndex + 1);
+		Log(kLogNetwork, "Client::TrackReceivedTick Too many missing frames, disconnecting Slot: {} Gap: {}", iSlot, iBitIndex + 1);
 		DEBUG_BREAK();
 		mbDisconnectedEvent = true;
 		return;
@@ -230,12 +232,12 @@ void ClientNetwork::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 
 }
 
-void ClientNetwork::Flush()
+void Client::Flush()
 {
 	enet_host_flush(mpHost);
 }
 
-void ClientNetwork::Disconnect()
+void Client::Disconnect()
 {
 	if (mpServerPeer != nullptr && mbConnected)
 	{

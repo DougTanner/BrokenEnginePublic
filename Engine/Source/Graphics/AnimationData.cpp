@@ -11,7 +11,7 @@ void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
 	std::memcpy(&mHeader, pAnimationData, sizeof(mHeader));
 	pAnimationData += sizeof(mHeader);
 
-	Log(kLogLoading, "AnimationData::Load: uiAnimationCount={}, uiChannelCount={}, uiKeyframeCount={}, uiCubicKeyframeCount={}, nodeCount={}, skinJointCount={}", mHeader.uiAnimationCount, mHeader.uiChannelCount, mHeader.uiKeyframeCount, mHeader.uiCubicKeyframeCount, mHeader.skeleton.uiNodeCount, mHeader.skeleton.uiSkinJointCount);
+	Log(kLogLoading, "AnimationData::Load: animations {}, channels {}, keyframes {}, cubicKeyframes {}, nodes {}, skinJoints {}", mHeader.uiAnimationCount, mHeader.uiChannelCount, mHeader.uiKeyframeCount, mHeader.uiCubicKeyframeCount, mHeader.skeleton.uiNodeCount, mHeader.skeleton.uiSkinJointCount);
 
 	// Point into pack memory - no copying
 	mpNodes = reinterpret_cast<const common::ModelNode*>(pAnimationData);

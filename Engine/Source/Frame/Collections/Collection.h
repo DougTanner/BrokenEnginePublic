@@ -823,37 +823,6 @@ struct OptionaldToIndex<T, FLAGS>
 		return idToIndexMap.at(id);
 	}
 
-	inline bool operator==(const OptionaldToIndex& rOther) const
-	{
-		bool bEqual = true;
-		bEqual &= common::BreakOnNotEqual(idToIndexMap.size(), rOther.idToIndexMap.size());
-
-		for (const auto& [key, value] : idToIndexMap)
-		{
-			auto it = rOther.idToIndexMap.find(key);
-			if (it == rOther.idToIndexMap.end())
-			{
-				bEqual = false;
-				DEBUG_BREAK();
-			}
-			else
-			{
-				bEqual &= common::BreakOnNotEqual(value, it->second);
-			}
-		}
-
-		for (const auto& [key, value] : rOther.idToIndexMap)
-		{
-			if (!idToIndexMap.contains(key))
-			{
-				bEqual = false;
-				DEBUG_BREAK();
-			}
-		}
-
-		return bEqual;
-	}
-
 	inline void Write(std::ostream& rStream) const
 	{
 		// Heap: GetSortedKeys() builds a temporary vector of all map keys for deterministic write ordering.
@@ -925,15 +894,17 @@ private:
 template <typename T, common::Flags<CollectionFlags> FLAGS = {}>
 struct Collection : public OptionaldToIndex<T, FLAGS>
 {
-	inline bool operator==(const Collection& rOther) const
+	inline bool LogDifferences(const Collection& rOther) const
 	{
 		bool bEqual = true;
 		if constexpr (FLAGS & CollectionFlags::kIdToIndex)
 		{
-			bEqual &= common::BreakOnNotEqual(static_cast<const OptionaldToIndex<T, FLAGS>&>(*this), static_cast<const OptionaldToIndex<T, FLAGS>&>(rOther));
+			bEqual &= common::LogDifference<"idToIndexMap.size">(
+				static_cast<int64_t>(this->idToIndexMap.size()),
+				static_cast<int64_t>(rOther.idToIndexMap.size()));
 		}
-		bEqual &= common::BreakOnNotEqual(iCount, rOther.iCount);
-		bEqual &= common::BreakOnNotEqual(iCapacity, rOther.iCapacity);
+		bEqual &= common::LogDifference<"iCount">(iCount, rOther.iCount);
+		bEqual &= common::LogDifference<"iCapacity">(iCapacity, rOther.iCapacity);
 		return bEqual;
 	}
 

@@ -24,14 +24,6 @@ enum class PacketType : uint8_t
 	kServerPlayerState,         // Server notifies client of player state change (spawn, frame change, death)
 };
 
-// Player state transitions sent via kServerPlayerState
-enum class PlayerStateType : uint8_t
-{
-	kSpawned,
-	kChangedFrame,
-	kDied,
-};
-
 // Client request flags for spawn/respawn
 enum class ClientRequestFlags : uint8_t
 {

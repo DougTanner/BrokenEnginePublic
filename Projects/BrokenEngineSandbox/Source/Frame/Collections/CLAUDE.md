@@ -20,7 +20,7 @@ SOA collections managing dynamic game entities (projectiles, enemies, players) u
 
 **Cross-Cell Transfer**: All collections use a two-phase approach: PostCollision flags out-of-bounds entities with `kTransfer`, then a dedicated Transfer phase generates `TransferRequest`s and destroys the entity. This separation ensures AreaDamage can skip transferring entities.
 
-**Server Compare**: All collections provide `ServerCompare()` for desync diagnosis, comparing only shared (non-client-only) fields.
+**LogDifferences**: All collections provide `LogDifferences()` for desync diagnosis, logging each mismatched shared (non-client-only) field via `common::LogDifference`.
 
 **File Splitting**: When a collection's `.cpp` exceeds size guidelines, it splits into `{Name}.cpp` (lifecycle), `{Name}Update.cpp` (simulation), and `{Name}Render.cpp` (rendering, `#ifdef BT_CLIENT`), sharing a single `.h`. See Players and Spaceships for examples.
 

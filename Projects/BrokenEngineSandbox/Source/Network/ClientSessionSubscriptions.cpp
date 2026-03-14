@@ -13,9 +13,7 @@ std::vector<engine::GridCoord> ClientSession::ComputeDesiredCoords() const
 	std::vector<engine::GridCoord> desiredCoords;
 	desiredCoords.reserve(5);
 
-	bool bDead = !gpGame->HumanPlayerId().IsValid()
-		&& gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord)
-		&& (gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.gameFlags & GameFlags::kDeathScreen);
+	bool bDead = gpGame->mGameFlags & engine::GameFlags::kDeathScreen;
 
 	if (gpGame->HumanPlayerId().IsValid())
 	{
@@ -49,7 +47,7 @@ void ClientSession::UpdateSubscriptions()
 	// Player alive but not yet in assigned cell (mid-transfer): maintain current subscriptions
 	// Only guard when coord has confirmed server data — initial spawn must subscribe first
 	if (gpGame->HumanPlayerId().IsValid() && gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord)
-		&& gpGame->mCoordFrames[gpGame->mHumanGridCoord].iConfirmedTick >= 0
+		&& gpGame->mCoordFrames.at(gpGame->mHumanGridCoord).iConfirmedTick >= 0
 		&& !gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers->idToIndexMap.contains(gpGame->HumanPlayerId()))
 	{
 		return;

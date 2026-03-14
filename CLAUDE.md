@@ -70,6 +70,6 @@ Run in order from broad to specific (survey → diagnose → prescribe). Use res
 ## Diagnostic Logging
 `FILE_LOG(index, format, args...)` writes thread-safe formatted lines to a log file (up to 4 files via index 0-3).
 - **Init**: `FILE_LOG_INIT(0, "../../../../DiagnosticLogs/ClientLog.txt")`
-- **Log**: `FILE_LOG(0, "myTag: x={}", x)`
+- **Log**: `FILE_LOG(0, "myTag: value {}", x)`
 - **Output**: `DiagnosticLogs/` directory
 - **IMPORTANT**: Only remove FILE_LOG()s if specifically instructed to by the user, do not add any instructions to plans to clean these up

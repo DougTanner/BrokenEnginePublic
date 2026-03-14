@@ -56,39 +56,37 @@ void TargetsPostRender::RegisterType(uint8_t& ruiIndex, const TargetsType& rType
 	TargetsInterpolate::sTypes.push_back(rType);
 }
 
-bool TargetsInterpolate::operator==(const TargetsInterpolate& rOther) const
+bool TargetsInterpolate::LogDifferences(const TargetsInterpolate& rOther) const
 {
+	common::ScopedLogDifferenceContext context("TargetsInterpolate");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+	bEqual &= Collection::LogDifferences(rOther);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
+		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::LogDifference<"puiTypeIndices">(i, puiTypeIndices[i], rOther.puiTypeIndices[i]);
 	}
 
 	return bEqual;
 }
 
-bool TargetsPostRender::operator==(const TargetsPostRender& rOther) const
+bool TargetsPostRender::LogDifferences(const TargetsPostRender& rOther) const
 {
+	common::ScopedLogDifferenceContext context("TargetsPostRender");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+	bEqual &= Collection::LogDifferences(rOther);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= common::BreakOnNotEqual(puiIds[i], rOther.puiIds[i]);
-		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
-		bEqual &= common::BreakOnNotEqual(puiSubscribers[i], rOther.puiSubscribers[i]);
-		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
+		bEqual &= common::LogDifference<"puiIds">(i, puiIds[i], rOther.puiIds[i]);
+		bEqual &= common::LogDifference<"pFlags">(i, pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::LogDifference<"puiSubscribers">(i, puiSubscribers[i], rOther.puiSubscribers[i]);
+		bEqual &= common::LogDifference<"pAlignments">(i, pAlignments[i], rOther.pAlignments[i]);
 	}
 
 	return bEqual;
 }
-
-bool TargetsInterpolate::ServerCompare(const TargetsInterpolate& rOther) const { return *this == rOther; }
-
-bool TargetsPostRender::ServerCompare(const TargetsPostRender& rOther) const { return *this == rOther; }
 
 void TargetsInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {

@@ -84,41 +84,6 @@ void PointLightsPostRender::Destroy(game::Frame& __restrict rFrame)
 	}
 }
 
-bool PointLightsInterpolate::operator==(const PointLightsInterpolate& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
-		bEqual &= common::BreakOnNotEqual(pfRotations[i], rOther.pfRotations[i]);
-		bEqual &= common::BreakOnNotEqual(pfVisibleAreas[i], rOther.pfVisibleAreas[i]);
-		bEqual &= common::BreakOnNotEqual(pfVisibleIntensities[i], rOther.pfVisibleIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(pfLightingAreas[i], rOther.pfLightingAreas[i]);
-		bEqual &= common::BreakOnNotEqual(pfLightingIntensities[i], rOther.pfLightingIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(puiControllerTypeIndices[i], rOther.puiControllerTypeIndices[i]);
-		bEqual &= common::BreakOnNotEqual(pfStartTimes[i], rOther.pfStartTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pfBaseRotations[i], rOther.pfBaseRotations[i]);
-	}
-
-	return bEqual;
-}
-
-bool PointLightsPostRender::operator==(const PointLightsPostRender& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(puiIds[i], rOther.puiIds[i]);
-	}
-
-	return bEqual;
-}
-
 } // namespace engine
 
 #endif // BT_CLIENT

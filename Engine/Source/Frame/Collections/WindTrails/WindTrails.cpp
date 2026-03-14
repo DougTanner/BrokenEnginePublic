@@ -48,35 +48,6 @@ void WindTrailsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFra
 {
 }
 
-bool WindTrailsInterpolate::operator==(const WindTrailsInterpolate& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pfIntensities[i], rOther.pfIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(pfWidths[i], rOther.pfWidths[i]);
-		bEqual &= common::BreakOnNotEqual(pfLengthMultipliers[i], rOther.pfLengthMultipliers[i]);
-	}
-
-	return bEqual;
-}
-
-bool WindTrailsPostRender::operator==(const WindTrailsPostRender& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(puiIds[i], rOther.puiIds[i]);
-	}
-
-	return bEqual;
-}
-
 } // namespace engine
 
 #endif // BT_CLIENT

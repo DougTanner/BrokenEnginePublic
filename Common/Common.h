@@ -8,6 +8,7 @@
 #include "Flags.h"
 #include "Log.h"
 #include "LogFormatters.h"
+#include "LogDifference.h"
 #include "MathUtils.h"
 #include "Multithreading.h"
 #include "PersistentWorker.h"

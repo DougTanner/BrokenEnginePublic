@@ -49,9 +49,6 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
 	float* __restrict pfIntensityMultipliers = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecVisiblePositions, rSelf.pfIntensityMultipliers); }
 
-	// Utility
-	bool operator==(const AreaLightsInterpolate& rOther) const;
-
 	// Graphics resources
 	static void GraphicsResources();
 
@@ -82,8 +79,6 @@ struct AreaLightsPostRender : public Collection<AreaLightsPostRender>
 	area_lights_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }
 
-	// Utility
-	bool operator==(const AreaLightsPostRender& rOther) const;
 };
 
 extern template struct Collection<AreaLightsInterpolate, CollectionFlags::kIdToIndex>;

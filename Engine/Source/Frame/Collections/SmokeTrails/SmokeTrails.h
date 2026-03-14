@@ -51,9 +51,6 @@ struct SmokeTrailsInterpolate : public Collection<SmokeTrailsInterpolate, Collec
 		return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pfIntensities, rSelf.pfStartTimes);
 	}
 
-	// Utility
-	bool operator==(const SmokeTrailsInterpolate& rOther) const;
-
 	// Graphics resources
 	static void GraphicsResources();
 
@@ -90,8 +87,6 @@ struct SmokeTrailsPostRender : public Collection<SmokeTrailsPostRender>
 	smoke_trails_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }
 
-	// Utility
-	bool operator==(const SmokeTrailsPostRender& rOther) const;
 };
 
 extern template struct Collection<SmokeTrailsInterpolate, CollectionFlags::kIdToIndex>;

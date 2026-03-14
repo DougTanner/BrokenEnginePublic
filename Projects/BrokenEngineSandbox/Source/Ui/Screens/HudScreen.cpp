@@ -54,7 +54,12 @@ void HudScreen::Render()
 		return;
 	}
 
-	if (gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.gameFlags & GameFlags::kDeathScreen)
+	if (gpGame->mGameFlags & engine::GameFlags::kDeathScreen)
+	{
+		return;
+	}
+
+	if (!gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord))
 	{
 		return;
 	}

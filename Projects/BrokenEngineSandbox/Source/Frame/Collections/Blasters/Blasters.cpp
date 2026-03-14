@@ -250,73 +250,34 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 	}
 }
 
-bool BlastersInterpolate::operator==(const BlastersInterpolate& rOther) const
+bool BlastersInterpolate::LogDifferences(const BlastersInterpolate& rOther) const
 {
+	common::ScopedLogDifferenceContext context("BlastersInterpolate");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+	bEqual &= Collection::LogDifferences(rOther);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-#if defined(BT_CLIENT)
-		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
-		bEqual &= common::BreakOnNotEqual(puiWindTrails[i], rOther.puiWindTrails[i]);
-		bEqual &= common::BreakOnNotEqual(pfWindTrailIntensities[i], rOther.pfWindTrailIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(pfWindTrailWidths[i], rOther.pfWindTrailWidths[i]);
-		bEqual &= common::BreakOnNotEqual(pfWindTrailLengthMultipliers[i], rOther.pfWindTrailLengthMultipliers[i]);
-#endif
-		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
+		bEqual &= common::LogDifference<"puiTypeIndices">(i, puiTypeIndices[i], rOther.puiTypeIndices[i]);
+		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::LogDifference_Vec("pVecDirections", i, pVecDirections[i], rOther.pVecDirections[i]);
 	}
 
 	return bEqual;
 }
 
-bool BlastersPostRender::operator==(const BlastersPostRender& rOther) const
+bool BlastersPostRender::LogDifferences(const BlastersPostRender& rOther) const
 {
+	common::ScopedLogDifferenceContext context("BlastersPostRender");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+	bEqual &= Collection::LogDifferences(rOther);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
-		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
-#if defined(BT_CLIENT)
-		bEqual &= common::BreakOnNotEqual(puiSounds[i], rOther.puiSounds[i]);
-#endif
-		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
-		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
-	}
-
-	return bEqual;
-}
-
-bool BlastersInterpolate::ServerCompare(const BlastersInterpolate& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-	}
-
-	return bEqual;
-}
-
-bool BlastersPostRender::ServerCompare(const BlastersPostRender& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
-		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
-		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
-		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
+		bEqual &= common::LogDifference<"pFlags">(i, pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::LogDifference_Vec("pVecVelocities", i, pVecVelocities[i], rOther.pVecVelocities[i]);
+		bEqual &= common::LogDifference<"pfPitches">(i, pfPitches[i], rOther.pfPitches[i]);
+		bEqual &= common::LogDifference<"pAlignments">(i, pAlignments[i], rOther.pAlignments[i]);
 	}
 
 	return bEqual;

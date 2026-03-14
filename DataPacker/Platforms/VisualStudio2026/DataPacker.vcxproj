@@ -48,6 +48,7 @@
     <ClInclude Include="..\..\..\Common\ExternalHeaders.h" />
     <ClInclude Include="..\..\..\Common\Flags.h" />
     <ClInclude Include="..\..\..\Common\Log.h" />
+    <ClInclude Include="..\..\..\Common\LogDifference.h" />
     <ClInclude Include="..\..\..\Common\LogFormatters.h" />
     <ClInclude Include="..\..\..\Common\MathUtils.h" />
     <ClInclude Include="..\..\..\Common\RandomManager.h" />

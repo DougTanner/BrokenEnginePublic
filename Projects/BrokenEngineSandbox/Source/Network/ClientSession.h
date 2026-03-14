@@ -2,7 +2,7 @@
 
 #if defined(BT_CLIENT)
 
-#include "Network/ClientNetwork/ClientSessionBase.h"
+#include "Network/Client/ClientSessionBase.h"
 #include "Network/ClientReconciler.h"
 
 namespace game
@@ -24,7 +24,8 @@ public:
 
 	// Main-loop integration
 	void PollNetwork();
-	void PollAndReconcile();
+	void Poll();
+	void Reconcile();
 	void PostRender();
 
 	// Reconciliation
@@ -36,6 +37,7 @@ public:
 
 	// Queries
 	int64_t GetDesyncTick() const { return mDesyncDebugState.iTick; }
+	bool IsStalled() const { return mDesyncDebugState.iTick >= 0; }
 
 	// Clock correction
 	std::chrono::nanoseconds ComputeClockCorrectionNs(int64_t iPreReconcileTick);

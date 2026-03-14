@@ -176,6 +176,9 @@
     <ClInclude Include="..\..\Source\ExportJobs\ExportSceneAnimation.h">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\Common\LogDifference.h">
+      <Filter>Common</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\Common\LogFormatters.h">
       <Filter>Common</Filter>
     </ClInclude>

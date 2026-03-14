@@ -53,7 +53,7 @@ public:
 		}
 
 		// Skip if no state change occurred
-		if (rDifference == mCurrentDifference)
+		if (rDifference.Crc() == mCurrentDifference.Crc())
 		{
 			return;
 		}
@@ -243,7 +243,7 @@ public:
 				mFullFramesStream << fullFramesFile.rdbuf();
 				SAVED_TYPE firstFrame;
 				mFullFramesStream >> firstFrame;
-				ASSERT(firstFrame == rSavedStart);
+				ASSERT(firstFrame.Crc() == rSavedStart.Crc());
 				++miFullFramesIndex;
 			}
 		}
@@ -299,10 +299,10 @@ public:
 			{
 				if (bSavedFrameValid)
 				{
-					common::BreakOnNotEqual(savedFrame, rSavedCurrent);
+					savedFrame.LogDifferences(rSavedCurrent);
 				}
 			}
-			common::BreakOnNotEqual(currentChecksum, savedChecksum);
+			Log(kLogNetwork, "LogDifferences CRC Client: {} Server: {}", currentChecksum, savedChecksum);
 		}
 	}
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Network/ServerNetwork/ServerNetworkTypes.h"
+#include "Network/Server/ServerTypes.h"
 
 namespace game
 {
@@ -84,17 +84,17 @@ struct BufferedFullFrame
 	std::unordered_map<GridCoord, std::string> serializedFrames;
 };
 
-class ServerNetwork
+class Server
 {
 public:
 
-	ServerNetwork(uint16_t uiPort);
-	~ServerNetwork();
+	Server(uint16_t uiPort);
+	~Server();
 
 	void Poll();
 
-	void SendAssignPlayer(int64_t iClientId, game::player_t playerId, GridCoord coord);
-	void SendPlayerState(int64_t iClientId, PlayerStateType eStateType, game::player_t playerId, GridCoord coord);
+	void SendAssignPlayer(int64_t iClientId, int64_t iPlayerId, GridCoord coord);
+	void SendPlayerState(int64_t iClientId, uint8_t uiStateType, int64_t iPlayerId, GridCoord coord);
 	void SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick, GridCoord coord, const game::Frame* pFrame);
 	void BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);
 	void BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames);
@@ -111,18 +111,18 @@ public:
 
 private:
 
-	void HandleConnect(ENetEvent& rEvent);
-	void HandleDisconnect(ENetEvent& rEvent);
-	void HandleReceive(ENetEvent& rEvent);
-	void HandleReceive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer);
+	void Connect(ENetEvent& rEvent);
+	void Disconnect(ENetEvent& rEvent);
+	void Receive(ENetEvent& rEvent);
+	void Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer);
 
-	void HandleClientAckStream(const uint8_t* pData, int64_t iClientId);
-	void HandleClientSpawnRequest(const uint8_t* pData, int64_t iClientId);
-	void HandleClientDesyncReport(const uint8_t* pData);
-	void HandleClientDebugFrameRequest(const uint8_t* pData, ENetPeer* pPeer);
-	void HandleClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId);
-	void HandleClientSubscribe(const uint8_t* pData, int64_t iClientId);
-	void HandleClientUnsubscribe(const uint8_t* pData, int64_t iClientId);
+	void ClientAckStream(const uint8_t* pData, int64_t iClientId);
+	void ClientSpawnRequest(const uint8_t* pData, int64_t iClientId);
+	void ClientDesyncReport(const uint8_t* pData);
+	void ClientDebugFrameRequest(const uint8_t* pData, ENetPeer* pPeer);
+	void ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId);
+	void ClientSubscribe(const uint8_t* pData, int64_t iClientId);
+	void ClientUnsubscribe(const uint8_t* pData, int64_t iClientId);
 	void SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage);
 	void SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord);
 	void SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot);
@@ -153,6 +153,6 @@ private:
 	std::deque<DelayedPacket> mDelayedPackets;
 };
 
-inline ServerNetwork* gpServerNetwork = nullptr;
+inline Server* gpServer = nullptr;
 
 } // namespace engine

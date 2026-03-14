@@ -84,8 +84,7 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 	}
 
 	// Utility
-	bool operator==(const SpaceshipsInterpolate& rOther) const;
-	bool ServerCompare(const SpaceshipsInterpolate& rOther) const;
+	bool LogDifferences(const SpaceshipsInterpolate& rOther) const;
 
 	// Graphics resources
 	static void GraphicsResources();
@@ -131,8 +130,7 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecDamageDirections, rSelf.pfHealths, rSelf.pfDestroyedExplosionTimes, rSelf.pfNextBlasterSpawnTimes, rSelf.pAlignments); }
 
 	// Utility
-	bool operator==(const SpaceshipsPostRender& rOther) const;
-	bool ServerCompare(const SpaceshipsPostRender& rOther) const;
+	bool LogDifferences(const SpaceshipsPostRender& rOther) const;
 	static void AvoidTerrain(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, int64_t iStart, int64_t iEnd);
 
 	// SpawnInfo for spawn parameters

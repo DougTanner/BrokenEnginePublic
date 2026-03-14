@@ -1,13 +1,13 @@
 #include "Pch.h"
 
-#include "Network/ClientNetwork/ClientNetwork.h"
+#include "Network/Client/Client.h"
 
 #include "Network/NetworkCursor.h"
 
 namespace engine
 {
 
-void ClientNetwork::SendAck()
+void Client::SendAck()
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -57,7 +57,7 @@ void ClientNetwork::SendAck()
 	rWorkbuffer.Pop();
 }
 
-void ClientNetwork::SendSpawnRequest(ClientRequestFlags_t flags)
+void Client::SendSpawnRequest(ClientRequestFlags_t flags)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -72,7 +72,7 @@ void ClientNetwork::SendSpawnRequest(ClientRequestFlags_t flags)
 	std::memcpy(&uiFlags, &flags, sizeof(uint8_t));
 	rWorkbuffer.PushBack<uint8_t>(uiFlags);
 
-	Log(kLogNetwork, "ClientNetwork: Sending spawn request (spawn={}, respawn={})", static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
+	Log(kLogNetwork, "Client::SendSpawnRequest Spawn: {} Respawn: {}", static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
@@ -86,7 +86,7 @@ void ClientNetwork::SendSpawnRequest(ClientRequestFlags_t flags)
 	rWorkbuffer.Pop();
 }
 
-void ClientNetwork::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expected, common::crc_t actual)
+void Client::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expected, common::crc_t actual)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -105,7 +105,7 @@ void ClientNetwork::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc
 
 	char pcExpected[20] {};
 	char pcActual[20] {};
-	Log(kLogNetwork, "ClientNetwork: Sending desync report frame {} grid ({},{}) expected={} actual={}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), expected), common::ToHex(std::span(pcActual), actual));
+	Log(kLogNetwork, "Client::SendDesyncReport Frame: {} Grid: ({},{}) Expected: {} Actual: {}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), expected), common::ToHex(std::span(pcActual), actual));
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
@@ -119,7 +119,7 @@ void ClientNetwork::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc
 	rWorkbuffer.Pop();
 }
 
-void ClientNetwork::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
+void Client::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -135,7 +135,7 @@ void ClientNetwork::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 	rWorkbuffer.PushBack<int32_t>(coord.x);
 	rWorkbuffer.PushBack<int32_t>(coord.y);
 
-	Log(kLogNetwork, "ClientNetwork: Sending debug frame request frame {} grid ({},{})", iTick, coord.x, coord.y);
+	Log(kLogNetwork, "Client::SendDebugFrameRequest Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
@@ -149,7 +149,7 @@ void ClientNetwork::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 	rWorkbuffer.Pop();
 }
 
-void ClientNetwork::SendSubscribe(GridCoord coord)
+void Client::SendSubscribe(GridCoord coord)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -209,7 +209,7 @@ void ClientNetwork::SendSubscribe(GridCoord coord)
 	rWorkbuffer.Pop();
 }
 
-void ClientNetwork::SendUnsubscribe(int64_t iSlot)
+void Client::SendUnsubscribe(int64_t iSlot)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -237,7 +237,7 @@ void ClientNetwork::SendUnsubscribe(int64_t iSlot)
 	rWorkbuffer.Pop();
 }
 
-void ClientNetwork::SendHello()
+void Client::SendHello()
 {
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();

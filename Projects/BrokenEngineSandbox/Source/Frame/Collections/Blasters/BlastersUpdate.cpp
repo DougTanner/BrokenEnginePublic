@@ -165,7 +165,7 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load (type index copied in AllocateAndCopy)
-		uint8_t uiTypeIndex = rCurrent.puiTypeIndices[i];
+		[[maybe_unused]] uint8_t uiTypeIndex = rCurrent.puiTypeIndices[i];
 
 		// Update position based on velocity and delta time
 		XMVECTOR vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], rPrevious.pVecPositions[i]);
@@ -307,7 +307,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 			vecCollisionPosition = common::RandomPositionJitter<kfTerrainImpactJitter>(vecCollisionPosition, rFrame.postRender.randomEngine);
 
 			// Spawn terrain effects
-			float fRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
+			[[maybe_unused]] float fRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
 #if defined(BT_CLIENT)
 			engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiTerrainCraterControllerIndex, vecCollisionPosition, fRotation);
 			engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiTerrainPuffControllerIndex, vecCollisionPosition);

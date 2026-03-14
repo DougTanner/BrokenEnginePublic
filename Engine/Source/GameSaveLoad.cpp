@@ -180,7 +180,7 @@ void GameSaveLoad::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unus
 			if (!mpDifferenceStreamReader->LoadDifference(mrGameBase.miTickCounter, rFrameInput))
 			{
 				Log("End replay {}, looping", mrGameBase.miTickCounter);
-				common::BreakOnNotEqual(rFrame, mpDifferenceStreamReader->GetSavedEnd());
+				rFrame.LogDifferences(mpDifferenceStreamReader->GetSavedEnd());
 				mpDifferenceStreamReader.reset();
 				mrGameBase.mGameFlags.Set(GameFlags::kLoadReplay);
 			}

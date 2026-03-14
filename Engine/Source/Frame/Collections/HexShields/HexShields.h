@@ -67,9 +67,6 @@ struct HexShieldsInterpolate : public Collection<HexShieldsInterpolate, Collecti
 		                rSelf.pfLightingIntensities, rSelf.pfSizes, rSelf.pfColorMixes);
 	}
 
-	// Utility
-	bool operator==(const HexShieldsInterpolate& rOther) const;
-
 	// Graphics resources
 	static void GraphicsResources();
 
@@ -101,8 +98,6 @@ struct HexShieldsPostRender : public Collection<HexShieldsPostRender>
 	hex_shields_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }
 
-	// Utility
-	bool operator==(const HexShieldsPostRender& rOther) const;
 };
 
 extern template struct Collection<HexShieldsInterpolate, CollectionFlags::kIdToIndex>;

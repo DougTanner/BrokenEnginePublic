@@ -274,7 +274,7 @@ void FileManager::LoadPackFiles()
 				// Log GLTF chunk info for debugging animation loading
 				if (pChunkHeader->flags & common::ChunkFlags::kScene)
 				{
-					Log(kLogLoading, "GLTF chunk CRC {:#018x}: bHasAnimation={}, uiMaterialCount={}, sizeof(MaterialShaderData)={}", rChunkLocation.crc, pChunkHeader->sceneHeader.bHasAnimation, pChunkHeader->sceneHeader.uiMaterialCount, sizeof(common::MaterialShaderData));
+					Log(kLogLoading, "GLTF chunk CRC {:#018x}: hasAnimation {}, materialCount {}, sizeof(MaterialShaderData) {}", rChunkLocation.crc, pChunkHeader->sceneHeader.bHasAnimation, pChunkHeader->sceneHeader.uiMaterialCount, sizeof(common::MaterialShaderData));
 				}
 
 				// Load animation data for GLTF chunks that have it
@@ -285,8 +285,8 @@ void FileManager::LoadPackFiles()
 					int64_t iSceneArraysSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiTextureCount * static_cast<int64_t>(sizeof(common::crc_t)))
 					                         + common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
 					int64_t iMaterialDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(common::MaterialShaderData)));
-					const std::byte* pAnimationData = &rPackBytes[uiDataOffset + iSceneArraysSize + iMaterialDataSize];
-					Log(kLogLoading, "  Animation data offset: uiDataOffset={} + iSceneArraysSize={} + iMaterialDataSize={} = {}", uiDataOffset, iSceneArraysSize, iMaterialDataSize, uiDataOffset + iSceneArraysSize + iMaterialDataSize);
+					[[maybe_unused]] const std::byte* pAnimationData = &rPackBytes[uiDataOffset + iSceneArraysSize + iMaterialDataSize];
+					Log(kLogLoading, "  Animation data offset: dataOffset {} + sceneArraysSize {} + materialDataSize {} = {}", uiDataOffset, iSceneArraysSize, iMaterialDataSize, uiDataOffset + iSceneArraysSize + iMaterialDataSize);
 
 	#if defined(BT_CLIENT)
 				AnimationData& rAnimData = gAnimationDataMap[rChunkLocation.crc];

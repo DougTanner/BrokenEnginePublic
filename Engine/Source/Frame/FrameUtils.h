@@ -119,13 +119,4 @@ void AllocateAndCopyCollections(TTupleCurrent&& current, TTuplePrevious&& previo
 		std::get<Is>(current), std::get<Is>(previous)), ...);
 }
 
-// Collection comparison helper using index sequence
-template<typename TTuple1, typename TTuple2, size_t... Is>
-bool CompareCollections(const TTuple1& t1, const TTuple2& t2, std::index_sequence<Is...>)
-{
-	bool bEqual = true;
-	((bEqual &= common::BreakOnNotEqual(std::get<Is>(t1), std::get<Is>(t2))), ...);
-	return bEqual;
-}
-
 } // namespace engine

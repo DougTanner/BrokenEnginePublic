@@ -172,8 +172,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	}
 
 	// Utility
-	bool operator==(const ExplosionsInterpolate& rOther) const;
-	bool ServerCompare(const ExplosionsInterpolate& rOther) const;
+	bool LogDifferences(const ExplosionsInterpolate& rOther) const;
 };
 
 struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
@@ -195,8 +194,7 @@ struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
 	auto Members([[maybe_unused]] this auto&& rSelf) { return std::tie(); }
 
 	// Utility
-	bool operator==(const ExplosionsPostRender& rOther) const;
-	bool ServerCompare(const ExplosionsPostRender& rOther) const;
+	bool LogDifferences(const ExplosionsPostRender& rOther) const;
 
 	// SpawnInfo for spawn parameters
 	struct SpawnInfo

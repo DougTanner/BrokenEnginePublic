@@ -67,8 +67,8 @@
 #include "Input/RawInputManager.h"
 
 // Network client
-#include "Network/ClientNetwork/ClientNetwork.h"
-#include "Network/ClientNetwork/ClientSessionBase.h"
+#include "Network/Client/Client.h"
+#include "Network/Client/ClientSessionBase.h"
 
 // Graphics (Islands is client-only GPU rendering)
 #include "Graphics/Islands.h"
@@ -79,10 +79,51 @@
 #include "Frame/IslandTerrain.h"
 
 #if defined(BT_SERVER)
-#include "Network/ServerNetwork/ServerNetwork.h"
-#include "Network/ServerNetwork/ServerSessionBase.h"
+#include "Network/Server/Server.h"
+#include "Network/Server/ServerSessionBase.h"
 #include "Server/ServerDisplay.h"
 #endif
 
 // Engine base
 #include "GameBase.h"
+
+// Formatters for engine types used by LogDifference
+template<>
+struct std::formatter<engine::alignment_t> : std::formatter<std::string_view>
+{
+	template<typename CONTEXT>
+	auto format(const engine::alignment_t alignment, CONTEXT& rContext) const
+	{
+		return std::format_to(rContext.out(), "{}", alignment.Value());
+	}
+};
+
+template<>
+struct std::formatter<engine::Alignments> : std::formatter<std::string_view>
+{
+	template<typename CONTEXT>
+	auto format(const engine::Alignments& rAlignments, CONTEXT& rContext) const
+	{
+		return std::format_to(rContext.out(), "Alignments({})", rAlignments.alignmentPairs.size());
+	}
+};
+
+template<>
+struct std::formatter<engine::uuid_t> : std::formatter<std::string_view>
+{
+	template<typename CONTEXT>
+	auto format(const engine::uuid_t id, CONTEXT& rContext) const
+	{
+		return std::format_to(rContext.out(), "{}", id.Value());
+	}
+};
+
+template<typename T>
+struct std::formatter<engine::id_t<T>> : std::formatter<std::string_view>
+{
+	template<typename CONTEXT>
+	auto format(const engine::id_t<T> id, CONTEXT& rContext) const
+	{
+		return std::format_to(rContext.out(), "{}", id.ToUuid().Value());
+	}
+};

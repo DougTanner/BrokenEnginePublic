@@ -11,6 +11,34 @@ namespace game
 
 #if defined(BT_CLIENT)
 
+static void LogStatusChangeDetail(const StatusChange& rStatusChange)
+{
+	Log(kLogNetwork, "Type: {}", StatusChangeTypeName(rStatusChange.eType));
+	ScopedLogIndent scopedDetail;
+	const TransferData& rData = rStatusChange.data;
+	Log(kLogNetwork, "Position: {} Direction: {} Velocity: {}", rData.vecPosition, rData.vecDirection, rData.vecVelocity);
+	char acAlignment[20] {};
+	common::ToHex(std::span<char, 20>(acAlignment), rData.alignment.uiValue);
+	Log(kLogNetwork, "Alignment: {} Health: {} Shield: {} TypeIndex: {}", acAlignment, rData.fHealth, rData.fShield, rData.uiTypeIndex);
+	Log(kLogNetwork, "WindTrailIntensity: {} WindTrailWidth: {} WindTrailLengthMultiplier: {} Acceleration: {}", rData.fWindTrailIntensity, rData.fWindTrailWidth, rData.fWindTrailLengthMultiplier, rData.fAcceleration);
+	Log(kLogNetwork, "NextBlasterFireTime: {} NextSecondarySpawnTime: {} ShieldCooldown: {} ShieldDownSoundCooldown: {}", rData.fNextBlasterFireTime, rData.fNextSecondarySpawnTime, rData.fShieldCooldown, rData.fShieldDownSoundCooldown);
+	Log(kLogNetwork, "AnimationTime: {} ShieldRotation: {} ShieldShrink: {} PlayerFlags: {}", rData.fAnimationTime, rData.fShieldRotation, rData.fShieldShrink, rData.uiPlayerFlags);
+	Log(kLogNetwork, "NextBlasterSpawnTime: {}", rData.fNextBlasterSpawnTime);
+	Log(kLogNetwork, "DeltaRotationDelay: {} Time: {} ExhaustDelay: {} NextJitter: {}", rData.fDeltaRotationDelay, rData.fTime, rData.fExhaustDelay, rData.fNextJitter);
+}
+
+static void LogStatusChangeList(std::string_view label, std::span<const StatusChange> statusChanges)
+{
+	Log(kLogNetwork, "{} Count: {}", label, statusChanges.size());
+	ScopedLogIndent scopedList;
+	for (size_t i = 0; i < statusChanges.size(); ++i)
+	{
+		Log(kLogNetwork, "[{}]", i);
+		ScopedLogIndent scopedEntry;
+		LogStatusChangeDetail(statusChanges[i]);
+	}
+}
+
 static void ReconcileTrackHumanMigration(ReconcileContext& rReconcileContext)
 {
 	const int64_t iActiveCount = static_cast<int64_t>(rReconcileContext.activeCoords.size());
@@ -122,17 +150,27 @@ static void ReconcileExecuteTick(ReconcileContext& rReconcileContext, std::span<
 		Frame& rNext = *activeFrameRefs[j].pNext;
 		FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
 
+		bool bHadTransfers = false;
 		for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
 		{
 			if (IsTransferType(rStatusChange.eType))
 			{
 				SpawnTransfer(rNext, rStatusChange.eType, rStatusChange.data, rNext.postRender.playerAlignment);
+				bHadTransfers = true;
 			}
 		}
 		std::erase_if(rFrameInput.statusChanges, [](const StatusChange& rStatusChange)
 		{
 			return IsTransferType(rStatusChange.eType);
 		});
+
+		// Recompute CRCs after transfers modified the frame
+		// (RunFrameTick computed CRCs before transfers were applied)
+		if (bHadTransfers)
+		{
+			rNext.postRender.serverCrc = rNext.ServerCrc();
+			rNext.postRender.crc = rNext.Crc();
+		}
 	}
 }
 
@@ -204,11 +242,32 @@ static CrcValidateResult CrcValidateLoop(CoordReconcileWork& rWork, int64_t iTar
 		int64_t iPhysical = SnapshotIndex(rWork.iSnapshotHead, iIndex);
 		if (rWork.snapshots[iPhysical]->postRender.serverCrc != it->second.serverCrc)
 		{
+			char acServerCrc[20] {}, acClientCrc[20] {}, acPrevCrc[20] {};
+			common::ToHex(std::span<char, 20>(acServerCrc), it->second.serverCrc);
+			common::ToHex(std::span<char, 20>(acClientCrc), rWork.snapshots[iPhysical]->postRender.serverCrc);
+			common::ToHex(std::span<char, 20>(acPrevCrc), rWork.snapshots[iPhysical]->postRender.previousCrc);
+			Log(kLogNetwork, "CrcValidateLoop Server CRC mismatch Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} PrevCrc: {}", rWork.coord.x, rWork.coord.y, iExpected, acServerCrc, acClientCrc, acPrevCrc);
+			{
+				ScopedLogIndent scopedCrcIndent;
+				char acServerInputCrc[20] {}, acClientInputCrc[20] {};
+				common::ToHex(std::span<char, 20>(acServerInputCrc), it->second.inputCrc);
+				common::ToHex(std::span<char, 20>(acClientInputCrc), rWork.snapshots[iPhysical]->postRender.previousInputCrc);
+				Log(kLogNetwork, "ServerInputCrc: {} ClientInputCrc: {}", acServerInputCrc, acClientInputCrc);
+				LogStatusChangeList("Server StatusChanges", it->second.statusChanges);
+			}
 			result.bMatch = false;
 			break;
 		}
 		if (rWork.snapshots[iPhysical]->postRender.previousInputCrc != it->second.inputCrc)
 		{
+			char acServerInputCrc[20] {}, acClientInputCrc[20] {};
+			common::ToHex(std::span<char, 20>(acServerInputCrc), it->second.inputCrc);
+			common::ToHex(std::span<char, 20>(acClientInputCrc), rWork.snapshots[iPhysical]->postRender.previousInputCrc);
+			Log(kLogNetwork, "CrcValidateLoop Input CRC mismatch Coord: ({},{}) Tick: {} ServerInputCrc: {} ClientInputCrc: {}", rWork.coord.x, rWork.coord.y, iExpected, acServerInputCrc, acClientInputCrc);
+			{
+				ScopedLogIndent scopedInputIndent;
+				LogStatusChangeList("Server StatusChanges", it->second.statusChanges);
+			}
 			result.bMatch = false;
 			break;
 		}
@@ -263,6 +322,7 @@ static CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork,
 	if (rWork.pendingFullState.has_value())
 	{
 		result.bHandled = false;
+		Log(kLogNetwork, "CrcFastPathProcessCoord Pending full state forces reconcile Coord: ({},{})", rWork.coord.x, rWork.coord.y);
 		result.iMinConfirmedContrib = rWork.iConfirmedTick;
 		return result;
 	}
@@ -295,11 +355,13 @@ static CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork,
 		if (!validateResult.bMatch)
 		{
 			result.bHandled = false;
+			Log(kLogNetwork, "CrcFastPathProcessCoord CRC mismatch after partial match Coord: ({},{}) LastMatched: {}", rWork.coord.x, rWork.coord.y, validateResult.iLastMatched);
 		}
 	}
 	else if (!validateResult.bMatch)
 	{
 		result.bHandled = false;
+		Log(kLogNetwork, "CrcFastPathProcessCoord CRC mismatch no matches Coord: ({},{})", rWork.coord.x, rWork.coord.y);
 		result.iMinConfirmedContrib = rWork.iConfirmedTick;
 	}
 	else
@@ -307,6 +369,7 @@ static CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork,
 		if (rWork.iConfirmedTick + 1 < iTargetTick)
 		{
 			result.bHandled = false;
+			Log(kLogNetwork, "CrcFastPathProcessCoord Snapshot missing Coord: ({},{}) Confirmed: {} Target: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, iTargetTick);
 			result.iMinConfirmedContrib = rWork.iConfirmedTick;
 		}
 		else
@@ -498,6 +561,7 @@ void ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinConfirme
 		if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick <= iMinConfirmedTick)
 		{
 			ReconcileInjectPendingFullState(rReconcileContext, rWork);
+			Log(kLogNetwork, "ReconcileRollback Injected pending full state Coord: ({},{}) AtTick: {}", rWork.coord.x, rWork.coord.y, iMinConfirmedTick);
 		}
 	}
 }
@@ -576,7 +640,25 @@ bool ReconcileValidateCrcs(ReconcileContext& rReconcileContext, int64_t iTick, c
 		common::crc_t clientCrc = rCurrentFrame.postRender.serverCrc;
 		if (clientCrc != rUpdate.serverCrc)
 		{
-			Log(kLogNetwork, "Reconcile desync at ({},{}): server={} client={} frame={}", rCoord.x, rCoord.y, rUpdate.serverCrc, clientCrc, iTick);
+			char acServerCrc[20] {}, acClientCrc[20] {}, acPrevCrc[20] {};
+			common::ToHex(std::span<char, 20>(acServerCrc), rUpdate.serverCrc);
+			common::ToHex(std::span<char, 20>(acClientCrc), clientCrc);
+			common::ToHex(std::span<char, 20>(acPrevCrc), rCurrentFrame.postRender.previousCrc);
+			Log(kLogNetwork, "ReconcileValidateCrcs Desync Coord: ({},{}) Frame: {} ServerCrc: {} ClientCrc: {} PrevCrc: {}", rCoord.x, rCoord.y, iTick, acServerCrc, acClientCrc, acPrevCrc);
+			{
+				ScopedLogIndent scopedCrcIndent;
+				char acServerInputCrc[20] {}, acClientInputCrc[20] {};
+				common::ToHex(std::span<char, 20>(acServerInputCrc), rUpdate.inputCrc);
+				auto frameInputIt = rReconcileContext.frameInputs.find(rCoord);
+				common::crc_t clientInputCrcValue = (frameInputIt != rReconcileContext.frameInputs.end()) ? frameInputIt->second.ServerInputCrc() : 0;
+				common::ToHex(std::span<char, 20>(acClientInputCrc), clientInputCrcValue);
+				Log(kLogNetwork, "ServerInputCrc: {} ClientInputCrc: {}", acServerInputCrc, acClientInputCrc);
+				LogStatusChangeList("Server StatusChanges", rUpdate.statusChanges);
+				if (frameInputIt != rReconcileContext.frameInputs.end())
+				{
+					LogStatusChangeList("Client StatusChanges", frameInputIt->second.statusChanges);
+				}
+			}
 
 			rReconcileContext.iDesyncTick = iTick;
 			rReconcileContext.desyncCoord = rCoord;
@@ -593,7 +675,15 @@ bool ReconcileValidateCrcs(ReconcileContext& rReconcileContext, int64_t iTick, c
 			common::crc_t clientInputCrc = inputIt->second.ServerInputCrc();
 			if (clientInputCrc != rUpdate.inputCrc)
 			{
-				Log(kLogNetwork, "Reconcile input desync at ({},{}): server={} client={} frame={}", rCoord.x, rCoord.y, rUpdate.inputCrc, clientInputCrc, iTick);
+				char acServerInputCrc[20] {}, acClientInputCrc[20] {};
+				common::ToHex(std::span<char, 20>(acServerInputCrc), rUpdate.inputCrc);
+				common::ToHex(std::span<char, 20>(acClientInputCrc), clientInputCrc);
+				Log(kLogNetwork, "ReconcileValidateCrcs Input desync Coord: ({},{}) Frame: {} ServerInputCrc: {} ClientInputCrc: {}", rCoord.x, rCoord.y, iTick, acServerInputCrc, acClientInputCrc);
+				{
+					ScopedLogIndent scopedInputIndent;
+					LogStatusChangeList("Server StatusChanges", rUpdate.statusChanges);
+					LogStatusChangeList("Client StatusChanges", inputIt->second.statusChanges);
+				}
 
 				rReconcileContext.iDesyncTick = iTick;
 				rReconcileContext.desyncCoord = rCoord;
@@ -656,6 +746,7 @@ void ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConfirmedT
 			if (iTick > rWork.iConfirmedTick && rWork.iReplayStackCount > 0 && !frameCoordUpdates.contains(rWork.coord))
 			{
 				gapCoords.insert(rWork.coord);
+				Log(kLogNetwork, "ReconcileReplay Coord gap Coord: ({},{}) Tick: {} Confirmed: {}", rWork.coord.x, rWork.coord.y, iTick, rWork.iConfirmedTick);
 			}
 		}
 
@@ -688,6 +779,7 @@ void ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConfirmedT
 			if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick == iTick)
 			{
 				ReconcileInjectPendingFullState(rReconcileContext, rWork);
+				Log(kLogNetwork, "ReconcileReplay Injected pending full state Coord: ({},{}) Tick: {}", rWork.coord.x, rWork.coord.y, iTick);
 			}
 		}
 

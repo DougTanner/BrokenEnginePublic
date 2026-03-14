@@ -1,6 +1,7 @@
 #include "Game.h"
 
 #include "Network/ClientSession.h"
+#include "Network/PlayerEvents.h"
 #include "Profile/ProfileManager.h"
 #include "Frame/Collections/Blasters/Blasters.h"
 #include "Frame/Collections/Missiles/Missiles.h"
@@ -41,31 +42,28 @@ void ClientSession::PollNetwork()
 		return;
 	}
 
-	// Check for player assignments
-	for (const engine::ReceivedAssignment& rAssignment : mpClientNetwork->DrainReceivedAssignments())
+	// Parse and process player events from raw game packets
+	std::vector<ReceivedPlayerEvent> playerEvents;
+	ParsePlayerEvents(mpClientNetwork->DrainReceivedGamePackets(), playerEvents);
+	for (const ReceivedPlayerEvent& rEvent : playerEvents)
 	{
-		if (rAssignment.playerId != gpGame->HumanPlayerId())
+		switch (rEvent.eType)
 		{
-			player_t oldHumanPlayerId = gpGame->HumanPlayerId();
-			gpGame->SetHumanPlayerId(rAssignment.playerId);
-			gpGame->mHumanGridCoord = rAssignment.coord;
-
-
-			// Trigger subscription updates for the new grid position
-			UpdateSubscriptions();
-		}
-	}
-
-	// Process server-authoritative player state notifications
-	for (const engine::ReceivedPlayerState& rState : mpClientNetwork->DrainReceivedPlayerStates())
-	{
-		switch (rState.eType)
-		{
-			case engine::PlayerStateType::kSpawned:
-			case engine::PlayerStateType::kChangedFrame:
-				gpGame->mHumanGridCoord = rState.coord;
+			case PlayerEventType::kAssigned:
+				if (rEvent.playerId != gpGame->HumanPlayerId())
+				{
+					gpGame->SetHumanPlayerId(rEvent.playerId);
+					gpGame->mHumanGridCoord = rEvent.coord;
+					gpGame->mGameFlags.Clear(engine::GameFlags::kDeathScreen);
+					UpdateSubscriptions();
+				}
 				break;
-			case engine::PlayerStateType::kDied:
+			case PlayerEventType::kSpawned:
+			case PlayerEventType::kChangedFrame:
+				gpGame->mHumanGridCoord = rEvent.coord;
+				break;
+			case PlayerEventType::kDied:
+				gpGame->mGameFlags.Set(engine::GameFlags::kDeathScreen);
 				if (gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord))
 				{
 					gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.gameFlags.Set(GameFlags::kDeathScreen);
@@ -111,7 +109,7 @@ void ClientSession::TryKickReconcile()
 		return;
 	}
 
-	if (mDesyncDebugState.iTick >= 0)
+	if (IsStalled())
 	{
 		return;
 	}
@@ -119,20 +117,8 @@ void ClientSession::TryKickReconcile()
 	mpReconciler->TryKick();
 }
 
-void ClientSession::PollAndReconcile()
+void ClientSession::Poll()
 {
-	// Desync debug mode: only poll network for debug frame response, keep window responsive
-	if (GetDesyncTick() >= 0)
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		PollNetwork();
-		if (mpClientNetwork != nullptr)
-		{
-			mpClientNetwork->Flush();
-		}
-		return;
-	}
-
 	// Poll network and send ACK before reconciliation so server gets acknowledgement ASAP
 	{
 		// Heap: ENet polling
@@ -150,6 +136,14 @@ void ClientSession::PollAndReconcile()
 		}
 	}
 	gpProfileManager->CpuStop(engine::kCpuTimerNetworkSend, true);
+}
+
+void ClientSession::Reconcile()
+{
+	if (IsStalled())
+	{
+		return;
+	}
 
 	gpProfileManager->CpuStart(engine::kCpuTimerNetworkPollReconcile);
 	{
@@ -171,7 +165,7 @@ void ClientSession::PollAndReconcile()
 
 void ClientSession::PostRender()
 {
-	if (GetDesyncTick() >= 0)
+	if (IsStalled())
 	{
 		return;
 	}
@@ -361,7 +355,7 @@ bool ClientSession::PollConnection()
 	// Timeout desync debug mode if server never responds
 	if (mDesyncDebugState.iTick >= 0 && std::chrono::steady_clock::now() - mDesyncDebugState.entryTime > kDesyncDebugTimeout)
 	{
-		Log(kLogNetwork, "GameClient: Desync debug mode timed out, disconnecting");
+		Log(kLogNetwork, "ClientSession::PollConnection Desync debug mode timed out, disconnecting");
 		mDesyncDebugState = {};
 		snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server (debug frame timeout)");
 		mpClientNetwork->Disconnect();
@@ -385,10 +379,7 @@ bool ClientSession::PollConnection()
 
 void ClientSession::CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, [[maybe_unused]] int64_t iTick, [[maybe_unused]] engine::GridCoord coord)
 {
-	// Suppress DEBUG_BREAK so the full comparison chain runs
-	common::gbSuppressVerifyFrameBreak = true;
-	rClientFrame.ServerCompare(rServerFrame);
-	common::gbSuppressVerifyFrameBreak = false;
+	rClientFrame.LogDifferences(rServerFrame);
 }
 
 #endif // BT_CLIENT

@@ -50,7 +50,7 @@ flowchart LR
 
 ## Client Main Loop
 
-Main.cpp calls three GameBase methods in sequence: `UpdateClient()`, `Render()`, and audio update. Network orchestration is encapsulated within `UpdateClient()` (pre-tick polling, network send, and reconciliation) and `Render()` (post-render reconcile kick).
+Main.cpp calls three GameBase methods in sequence: `UpdateClient()`, `Render()`, and audio update. Network orchestration is encapsulated within `UpdateClient()` (pre-tick polling, network send, reconciliation, and `IsStalled()` gating of physics) and `Render()` (post-render reconcile kick). `RenderGlobal()` takes only `fCurrentTime` (no Frame dependency). `Render()` has camera coord fallback: if the human coord has no frame, it uses the first active coord (or presents empty and returns if no active coords). `AudioManager::Update()` accepts a nullable `Frame*` (null when the human coord has no frame).
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -67,7 +67,11 @@ flowchart TD
     preupdate["ProcessInput(bLostFocus, menuInput)<br/>-> UpdateMenuInput()<br/>-> RawInputManager::Update()"]:::input
 
     subgraph tick_frames ["GameBase::UpdateClient()"]
-        poll_reconcile["Game::PollAndReconcileClient()<br/>Desync: poll+flush only,<br/>Normal: PollNetwork(),<br/>SendAck(), Flush(),<br/>WaitForReconcile(),<br/>ApplyReconcileResult(),<br/>clock correction<br/>(ComputeClockCorrectionNs<br/>via ClientSessionBase)"]:::network
+        poll["ClientSession::Poll()<br/>PollNetwork(),<br/>SendAck(), Flush()"]:::network
+        reconcile["ClientSession::Reconcile()<br/>(self-gates on IsStalled)<br/>WaitForReconcile(),<br/>tick deficit compensation,<br/>clock correction<br/>(ComputeClockCorrectionNs<br/>via ClientSessionBase)"]:::network
+        stall_check{"IsStalled()?<br/>early-return"}:::network
+        poll --> reconcile
+        reconcile --> stall_check
 
         subgraph physics_loop ["Fixed Timestep Loop (64 Hz, 15.625ms)"]
             ts["TimeStep::UpdateRealtime()<br/>-> iFullUpdates"]:::physics
@@ -81,21 +85,27 @@ flowchart TD
             extrap_check -->|"No"| dispatch --> frame_swap
         end
 
-        poll_reconcile --> physics_loop
+        stall_check -->|No| physics_loop
     end
 
     subgraph render_method ["GameBase::Render()"]
+        r_global["RenderGlobal(fCurrentTime)<br/>(no Frame dependency)"]:::render
+        r_cam_check{"Camera coord<br/>in mCoordFrames?"}:::render
+        r_fallback["Fallback: first active coord<br/>(or empty present if none)"]:::render
         r_interp["FrameInterpolate::<br/>AllocateAndCopy + Update<br/>(render interpolation)"]:::render
         r_begin["BeginRender()"]:::render
         r_main["Render()<br/>(lights, collections,<br/>smoke, wind)"]:::render
         r_end["EndRender()"]:::render
 
-        post_render["Game::PostRenderClientNetwork()<br/>(desync: early-return)<br/>ClientReconciler::TryKick()<br/>(gated by mbHasNewData)"]:::network
+        post_render["ClientSession::PostRender()<br/>(IsStalled: early-return)<br/>ClientReconciler::TryKick()<br/>(gated by mbHasNewData)"]:::network
 
+        r_global --> r_cam_check
+        r_cam_check -->|"No"| r_fallback --> r_interp
+        r_cam_check -->|"Yes"| r_interp
         r_interp --> r_begin --> r_main --> r_end --> post_render
     end
 
-    audio["AudioManager::Update()"]:::render
+    audio["AudioManager::Update(pFrame)<br/>(nullable Frame*)"]:::render
 
     start --> msgs --> preupdate --> tick_frames
     tick_frames --> render_method --> audio
@@ -104,7 +114,7 @@ flowchart TD
 
 ## Server Main Loop
 
-Main.cpp calls `UpdateServer()` then `UpdateServerDisplayStats()`. All network orchestration (pre-tick polling, tick timing, and per-frame broadcasts) is encapsulated within `GameBase::UpdateServer()`, which delegates to `ServerSession` methods (game-specific, accessed via `gpServerSession`) and `ServerSessionBase` methods (engine-generic). `ServerSessionBase::WaitForTick()` handles the server tick timer (waitable timer + spin-wait, using `mTimerHandle`). `ServerSessionBase::PollNetworkBase()` polls ENet and the discovery responder. `ServerSession::PrepareTick()` recomputes the active set and ensures next frames exist. `ServerSession::BroadcastTick()` wraps FinalizeNewClients, DetectPlayerDeaths, BroadcastStatusChanges, HandleSubscriptionUpdates, `ServerSessionBase::SendNewSubscriptionFullStates()`, and ServerNetwork::Flush().
+Main.cpp calls `UpdateServer()` then `UpdateServerDisplayStats()`. All network orchestration (pre-tick polling, tick timing, and per-frame broadcasts) is encapsulated within `GameBase::UpdateServer()`, which delegates to `ServerSession` methods (game-specific, accessed via `gpServerSession`) and `ServerSessionBase` methods (engine-generic). `ServerSessionBase::WaitForTick()` handles the server tick timer (waitable timer + spin-wait, using `mTimerHandle`). `ServerSessionBase::PollNetworkBase()` polls ENet and the discovery responder. `ServerSession::PrepareTick()` recomputes the active set and ensures next frames exist. `ServerSession::BroadcastTick()` wraps FinalizeNewClients, DetectPlayerDeaths, BroadcastStatusChanges, SubscriptionUpdates, `ServerSessionBase::SendNewSubscriptionFullStates()`, and Server::Flush().
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -118,7 +128,7 @@ flowchart TD
     msgs["ProcessMessages()"]:::server
 
     subgraph tick_frames ["GameBase::UpdateServer()"]
-        pre_tick["ServerSession::PreTickNetwork()<br/>ServerSessionBase::PollNetworkBase()<br/>(ServerNetwork::Poll(),<br/>DiscoveryResponder::Poll()),<br/>HandleDisconnects,<br/>HandleNewClients,<br/>ProcessSpawnRequests"]:::network
+        pre_tick["ServerSession::PreTickNetwork()<br/>ServerSessionBase::PollNetworkBase()<br/>(Server::Poll(),<br/>DiscoveryResponder::Poll()),<br/>Disconnects,<br/>NewClients,<br/>ProcessSpawnRequests"]:::network
 
         wait_tick["ServerSessionBase::WaitForTick()<br/>(waitable timer + spin-wait<br/>until next tick)"]:::server
 
@@ -127,7 +137,7 @@ flowchart TD
             prepare_tick["ServerSession::PrepareTick()<br/>ComputeActiveSet(),<br/>EnsureNextFrames(),<br/>init empty FrameInputs"]:::network
             dispatch_s["Dispatch per-Frame:<br/>RunFrameTick()<br/>(all 5 phases per Frame<br/>in parallel)"]:::physics
             frame_swap["std::swap(current, next)"]:::physics
-            broadcast_tick["ServerSession::BroadcastTick()<br/>FinalizeNewClients,<br/>DetectPlayerDeaths,<br/>BroadcastStatusChanges<br/>(BufferFrame + SendUpdate +<br/>SendResends),<br/>HandleSubscriptionUpdates,<br/>SendNewSubscriptionFullStates<br/>(ServerSessionBase),<br/>Flush"]:::network
+            broadcast_tick["ServerSession::BroadcastTick()<br/>FinalizeNewClients,<br/>DetectPlayerDeaths,<br/>BroadcastStatusChanges<br/>(BufferFrame + SendUpdate +<br/>SendResends),<br/>SubscriptionUpdates,<br/>SendNewSubscriptionFullStates<br/>(ServerSessionBase),<br/>Flush"]:::network
             harvest["HarvestTransfers()<br/>(cross-coord entity moves)"]:::physics
             ts --> prepare_tick --> dispatch_s --> harvest --> frame_swap
             frame_swap --> broadcast_tick

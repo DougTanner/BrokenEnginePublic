@@ -1,12 +1,5 @@
 #pragma once
 
-namespace game
-{
-
-struct FrameInterpolate;
-
-}
-
 namespace engine
 {
 
@@ -19,7 +12,7 @@ public:
 	ParticleManager();
 	~ParticleManager();
 
-	void RenderGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& __restrict rFrameInterpolate);
+	void RenderGlobal(int64_t iCommandBuffer);
 
 	int32_t GetOrAssignTextureIndex(common::crc_t textureCrc);
 

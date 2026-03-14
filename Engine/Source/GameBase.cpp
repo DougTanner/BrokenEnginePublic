@@ -37,11 +37,12 @@ void GameBase::ProcessInput([[maybe_unused]] bool bLostFocus, game::MenuInput& r
 }
 
 #if defined(BT_CLIENT)
-void GameBase::UpdateClient()
+void GameBase::ClientUpdate()
 {
-	game::gpClientSession->PollAndReconcile();
+	game::gpClientSession->Poll();
+	game::gpClientSession->Reconcile();
 
-	if (game::gpClientSession->GetDesyncTick() >= 0)
+	if (game::gpClientSession->IsStalled())
 	{
 		return;
 	}
@@ -76,7 +77,7 @@ void GameBase::UpdateClient()
 #endif // BT_CLIENT
 
 #if defined(BT_SERVER)
-void GameBase::UpdateServer(const game::MenuInput& rMenuInput)
+void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 {
 	game::gpServerSession->PreTickNetwork();
 
@@ -214,7 +215,7 @@ void GameBase::FinalizeFrameTick([[maybe_unused]] const std::vector<GridCoord>& 
 #if defined(BT_CLIENT)
 void GameBase::TickFramesAndRender()
 {
-	UpdateClient();
+	ClientUpdate();
 	Render();
 }
 
@@ -235,54 +236,60 @@ void GameBase::Render()
 {
 	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
 
-	// Use camera coord for rendering (human player's grid cell)
-	ASSERT(mCoordFrames.contains(game::gpGame->mHumanGridCoord));
-	const GridCoord cameraCoord = game::gpGame->mHumanGridCoord;
-
 	// Interpolate elapsed time with the sub-step remainder for smooth rendering
 	float fCurrentTime = mfCurrentTime + std::max(0.0f, common::NanosecondsToFloatSeconds<float>(mTimeStep.mTickRemainderNs));
-	gpGraphics->RenderGlobal(RenderFrame(cameraCoord), fCurrentTime);
+	gpGraphics->RenderGlobal(fCurrentTime);
 
-	// Per-frame render interpolates
-	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
-	gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
-	float fDeltaTime = std::max(0.0f, common::NanosecondsToFloatSeconds<float>(mTimeStep.mTickRemainderNs));
+	// Camera coord fallback: use human coord if available, else first active coord
+	GridCoord cameraCoord = game::gpGame->mHumanGridCoord;
+	if (!mCoordFrames.contains(cameraCoord) && !rActiveCoords.empty())
 	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		cameraCoord = rActiveCoords.front();
+	}
 
-		// Heap: std::erase_if may rehash, operator[] may insert — suppressed like the old MergeFramesForRender
-		// Remove render interpolates for deactivated coords
-		std::erase_if(gpGraphics->mRenderInterpolates, [&](const std::pair<const GridCoord, game::FrameInterpolate>& rPair)
+	// Per-frame render interpolates (skip when no active frames)
+	if (!rActiveCoords.empty())
+	{
+		gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
+		gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
+		float fDeltaTime = std::max(0.0f, common::NanosecondsToFloatSeconds<float>(mTimeStep.mTickRemainderNs));
 		{
-			return !std::ranges::contains(rActiveCoords, rPair.first);
-		});
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-		// AllocateAndCopy + Update each active frame's render interpolate (camera frame first)
-		auto interpolateFrame = [&](const GridCoord& rCoord)
-		{
-			const game::Frame& rFrame = RenderFrame(rCoord);
-			game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates[rCoord], rFrame.interpolate);
-			game::FrameInterpolate::Update(gpGraphics->mRenderInterpolates[rCoord], rFrame, fDeltaTime);
-		};
-		interpolateFrame(cameraCoord);
-		for (const GridCoord& rCoord : rActiveCoords)
-		{
-			if (rCoord != cameraCoord)
+			// Heap: std::erase_if may rehash, operator[] may insert — suppressed like the old MergeFramesForRender
+			// Remove render interpolates for deactivated coords
+			std::erase_if(gpGraphics->mRenderInterpolates, [&](const std::pair<const GridCoord, game::FrameInterpolate>& rPair)
 			{
-				interpolateFrame(rCoord);
+				return !std::ranges::contains(rActiveCoords, rPair.first);
+			});
+
+			// AllocateAndCopy + Update each active frame's render interpolate (camera frame first)
+			auto interpolateFrame = [&](const GridCoord& rCoord)
+			{
+				const game::Frame& rFrame = RenderFrame(rCoord);
+				game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates[rCoord], rFrame.interpolate);
+				game::FrameInterpolate::Update(gpGraphics->mRenderInterpolates[rCoord], rFrame, fDeltaTime);
+			};
+			interpolateFrame(cameraCoord);
+			for (const GridCoord& rCoord : rActiveCoords)
+			{
+				if (rCoord != cameraCoord)
+				{
+					interpolateFrame(rCoord);
+				}
 			}
 		}
-	}
-	gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
-	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
+		gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
+		gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
 
-	if constexpr (kbEnableProfiling)
-	{
-		gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
-	}
+		if constexpr (kbEnableProfiling)
+		{
+			gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
+		}
 
-	// Update camera before async launch
-	game::gpCamera->Update(gpGraphics->mRenderInterpolates.at(cameraCoord));
+		// Update camera before async launch
+		game::gpCamera->Update(gpGraphics->mRenderInterpolates.at(cameraCoord));
+	}
 
 	// Write UI buffers on main thread (safe - Update() already complete)
 	// Capture command buffer index before async launch to avoid re-reading in async thread
@@ -305,9 +312,9 @@ void GameBase::PrepareActiveSet()
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 		game::gpGame->mActiveCoords.clear();
 		game::gpGame->mActiveCoords.push_back(game::gpGame->mHumanGridCoord);
-		if (mCoordFrames[game::gpGame->mHumanGridCoord].pNext == nullptr)
+		if (mCoordFrames.at(game::gpGame->mHumanGridCoord).pNext == nullptr)
 		{
-			mCoordFrames[game::gpGame->mHumanGridCoord].pNext = std::make_unique<game::Frame>();
+			mCoordFrames.at(game::gpGame->mHumanGridCoord).pNext = std::make_unique<game::Frame>();
 		}
 		game::gpGame->BuildFrameInputs();
 	}
@@ -336,11 +343,12 @@ void GameBase::SwapFrames()
 	}
 	else
 #endif // BT_SERVER
-	if (mCoordFrames[game::gpGame->mHumanGridCoord].pNext == nullptr)
+	if (mCoordFrames.contains(game::gpGame->mHumanGridCoord)
+		&& mCoordFrames.at(game::gpGame->mHumanGridCoord).pNext == nullptr)
 	{
 		// Heap: make_unique<Frame> for replay target coordinate
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		mCoordFrames[game::gpGame->mHumanGridCoord].pNext = std::make_unique<game::Frame>();
+		mCoordFrames.at(game::gpGame->mHumanGridCoord).pNext = std::make_unique<game::Frame>();
 	}
 }
 

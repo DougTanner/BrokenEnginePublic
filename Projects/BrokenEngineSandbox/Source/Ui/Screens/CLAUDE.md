@@ -10,7 +10,7 @@ ImGui-based UI screens for the game, rendered by engine's ImGuiManager. Most scr
 - **PauseMenuScreen** - In-game pause overlay with resume, settings, main menu, and quit options
 - **GraphicsMenuScreen** - Rendering settings panel exposing engine Wrapper variables. Time of day slider appears only in main menu
 - **SoundMenuScreen** - Volume sliders for master, music, and sound with a defaults reset option
-- **DeathMenuScreen** - Game over screen with respawn button. Sends respawn request via `ClientNetwork` on client builds
+- **DeathMenuScreen** - Game over screen with respawn button, gated on `GameFlags::kDeathScreen`. Sends respawn request via `Client` on client builds
 
 ## MenuUtils
 

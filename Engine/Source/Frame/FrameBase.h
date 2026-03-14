@@ -129,10 +129,9 @@ struct FrameInterpolateBase
 		return fDeltaX <= kfVisibleEastWest && fDeltaY <= kfVisibleNorthSouth;
 	}
 
-	bool operator==(const FrameInterpolateBase& rOther) const;
 	common::crc_t Crc() const;
 	common::crc_t ServerCrc() const;
-	bool ServerCompare(const FrameInterpolateBase& rOther) const;
+	bool LogDifferences(const FrameInterpolateBase& rOther) const;
 	void Write(std::ostream& rStream) const;
 	void Read(std::istream& rStream);
 	void ServerRead(std::istream& rStream);
@@ -242,10 +241,9 @@ struct FramePostRenderBase
 		return std::tie(rSelf.explosions, rSelf.pushers);
 	}
 
-	bool operator==(const FramePostRenderBase& rOther) const;
 	common::crc_t Crc() const;
 	common::crc_t ServerCrc() const;
-	bool ServerCompare(const FramePostRenderBase& rOther) const;
+	bool LogDifferences(const FramePostRenderBase& rOther) const;
 	void Write(std::ostream& rStream) const;
 	void Read(std::istream& rStream);
 	void ServerRead(std::istream& rStream);

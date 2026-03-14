@@ -40,39 +40,37 @@ void PushersPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 
-bool PushersInterpolate::operator==(const PushersInterpolate& rOther) const
+bool PushersInterpolate::LogDifferences(const PushersInterpolate& rOther) const
 {
+	common::ScopedLogDifferenceContext context("PushersInterpolate");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+	bEqual &= Collection::LogDifferences(rOther);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pfRadii[i], rOther.pfRadii[i]);
-		bEqual &= common::BreakOnNotEqual(pfIntensities[i], rOther.pfIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(pfPowers[i], rOther.pfPowers[i]);
-		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::LogDifference<"pfRadii">(i, pfRadii[i], rOther.pfRadii[i]);
+		bEqual &= common::LogDifference<"pfIntensities">(i, pfIntensities[i], rOther.pfIntensities[i]);
+		bEqual &= common::LogDifference<"pfPowers">(i, pfPowers[i], rOther.pfPowers[i]);
+		bEqual &= common::LogDifference<"pFlags">(i, pFlags[i], rOther.pFlags[i]);
 	}
 
 	return bEqual;
 }
 
-bool PushersPostRender::operator==(const PushersPostRender& rOther) const
+bool PushersPostRender::LogDifferences(const PushersPostRender& rOther) const
 {
+	common::ScopedLogDifferenceContext context("PushersPostRender");
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+	bEqual &= Collection::LogDifferences(rOther);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= common::BreakOnNotEqual(puiIds[i], rOther.puiIds[i]);
+		bEqual &= common::LogDifference<"puiIds">(i, puiIds[i], rOther.puiIds[i]);
 	}
 
 	return bEqual;
 }
-
-bool PushersInterpolate::ServerCompare(const PushersInterpolate& rOther) const { return *this == rOther; }
-
-bool PushersPostRender::ServerCompare(const PushersPostRender& rOther) const { return *this == rOther; }
 
 static int64_t siTotalCount = 0;
 

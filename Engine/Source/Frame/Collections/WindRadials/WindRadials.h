@@ -93,9 +93,6 @@ struct WindRadialsInterpolate : public Collection<WindRadialsInterpolate>,
 		                rSelf.puiControllerTypeIndices, rSelf.pfStartTimes, rSelf.pfBaseIntensities, rSelf.pfBaseSizes);
 	}
 
-	// Utility
-	bool operator==(const WindRadialsInterpolate& rOther) const;
-
 	// Graphics resources
 	static void GraphicsResources();
 
@@ -124,8 +121,6 @@ struct WindRadialsPostRender : public Collection<WindRadialsPostRender>
 
 	auto Members([[maybe_unused]] this auto&& rSelf) { return std::tie(); }
 
-	// Utility
-	bool operator==(const WindRadialsPostRender& rOther) const;
 };
 
 extern template struct Collection<WindRadialsInterpolate>;

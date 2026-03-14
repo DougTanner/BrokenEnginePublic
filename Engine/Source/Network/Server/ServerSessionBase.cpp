@@ -33,26 +33,26 @@ void ServerSessionBase::WaitForTick(TimeStep& rTimeStep, std::chrono::nanosecond
 	if ((remainderNs < 0ns || remainderNs > tickMarginNs)) [[unlikely]]
 	{
 		++siOvershootTicks;
-		Log(kLogNetwork, "Sleep/busy wait precision: remainderNs={} ({}/{}={}%)", remainderNs.count(), siOvershootTicks, siTotalTicks, siOvershootTicks * 100 / siTotalTicks);
+		Log(kLogNetwork, "ServerSessionBase::WaitForTick Remainder: {}ns Overshoot: {}/{} = {}%", remainderNs.count(), siOvershootTicks, siTotalTicks, siOvershootTicks * 100 / siTotalTicks);
 	}
 }
 
 void ServerSessionBase::PollNetworkBase()
 {
-	gpServerNetwork->Poll();
+	gpServer->Poll();
 	mpDiscoveryResponder->Poll();
 }
 
 void ServerSessionBase::SendNewSubscriptionFullStates([[maybe_unused]] int64_t iTick)
 {
-	std::vector<PendingNewSubscription>& rNewSubs = gpServerNetwork->DrainPendingNewSubscriptions();
+	std::vector<PendingNewSubscription>& rNewSubs = gpServer->DrainPendingNewSubscriptions();
 	for (const PendingNewSubscription& rSub : rNewSubs)
 	{
-		const ClientConnection* pClient = gpServerNetwork->FindClient(rSub.iClientId);
+		const ClientConnection* pClient = gpServer->FindClient(rSub.iClientId);
 		bool bSlotStillValid = (pClient != nullptr
 			&& rSub.iSlot < std::ssize(pClient->coordSubscriptions)
-			&& pClient->coordSubscriptions[rSub.iSlot].bActive
-			&& pClient->coordSubscriptions[rSub.iSlot].coord == rSub.coord);
+			&& pClient->coordSubscriptions.at(rSub.iSlot).bActive
+			&& pClient->coordSubscriptions.at(rSub.iSlot).coord == rSub.coord);
 		if (!bSlotStillValid)
 		{
 			continue;
@@ -61,7 +61,7 @@ void ServerSessionBase::SendNewSubscriptionFullStates([[maybe_unused]] int64_t i
 		auto frameIt = game::gpGame->mCoordFrames.find(rSub.coord);
 		if (frameIt != game::gpGame->mCoordFrames.end())
 		{
-			gpServerNetwork->SendCoordFullState(rSub.iClientId, rSub.iSlot, game::gpGame->TickCounter(), rSub.coord, frameIt->second.pCurrent.get());
+			gpServer->SendCoordFullState(rSub.iClientId, rSub.iSlot, game::gpGame->TickCounter(), rSub.coord, frameIt->second.pCurrent.get());
 		}
 	}
 }

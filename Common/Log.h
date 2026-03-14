@@ -12,7 +12,7 @@ inline constexpr uint64_t kLogLoading = 1ULL << 1;
 inline constexpr uint64_t kLogNetwork = 1ULL << 2;
 
 // Enabled categories mask (set directly to change filtering)
-inline uint64_t gLogEnabledCategories = kLogDefault | kLogNetwork; // DT: TEMP
+inline uint64_t gLogEnabledCategories = kLogNetwork; // DT: TEMP kLogDefault;
 
 inline std::atomic<int64_t> giMyOutputDebugString = 0;
 inline std::ofstream* gpLogFileStream = nullptr;

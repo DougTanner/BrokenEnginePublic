@@ -78,8 +78,7 @@ struct PushersInterpolate : public Collection<PushersInterpolate, CollectionFlag
 		                rSelf.pfPowers, rSelf.pFlags);
 	}
 
-	bool operator==(const PushersInterpolate& rOther) const;
-	bool ServerCompare(const PushersInterpolate& rOther) const;
+	bool LogDifferences(const PushersInterpolate& rOther) const;
 };
 using pusher_t = PushersInterpolate::id_t;
 
@@ -106,8 +105,7 @@ struct PushersPostRender : public Collection<PushersPostRender>
 	pusher_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }
 
-	bool operator==(const PushersPostRender& rOther) const;
-	bool ServerCompare(const PushersPostRender& rOther) const;
+	bool LogDifferences(const PushersPostRender& rOther) const;
 };
 
 extern template struct Collection<PushersInterpolate, CollectionFlags::kIdToIndex>;

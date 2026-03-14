@@ -396,23 +396,6 @@ void FrameInterpolate::EndRender(int64_t iCommandBuffer)
 }
 #endif // BT_CLIENT
 
-bool FrameInterpolate::operator==(const FrameInterpolate& rOther) const
-{
-	bool bEqual = true;
-
-	bEqual &= common::BreakOnNotEqual(static_cast<const engine::FrameInterpolateBase&>(*this), static_cast<const engine::FrameInterpolateBase&>(rOther));
-
-	bEqual &= common::BreakOnNotEqual(fSpawnTimer, rOther.fSpawnTimer);
-	bEqual &= common::BreakOnNotEqual(gameFlags, rOther.gameFlags);
-
-	bEqual &= common::BreakOnNotEqual(*pPlayers, *rOther.pPlayers);
-	bEqual &= engine::CompareCollections(std::tie(*pPlayers), std::tie(*rOther.pPlayers), std::make_index_sequence<1>{});
-
-	bEqual &= engine::CompareCollections(GameInterpolateCollections(*this), GameInterpolateCollections(rOther), std::make_index_sequence<std::tuple_size_v<decltype(GameInterpolateCollections(*this))>>{});
-
-	return bEqual;
-}
-
 common::crc_t FrameInterpolate::Crc(const FrameInterpolate& rCurrent)
 {
 	common::crc_t checksum = 0;
@@ -451,18 +434,19 @@ common::crc_t FrameInterpolate::ServerCrc(const FrameInterpolate& rCurrent)
 	return checksum;
 }
 
-bool FrameInterpolate::ServerCompare(const FrameInterpolate& rOther) const
+bool FrameInterpolate::LogDifferences(const FrameInterpolate& rOther) const
 {
+	common::ScopedLogDifferenceContext context("FrameInterpolate");
 	bool bEqual = true;
-	bEqual &= static_cast<const engine::FrameInterpolateBase&>(*this).ServerCompare(
+	bEqual &= static_cast<const engine::FrameInterpolateBase&>(*this).LogDifferences(
 		static_cast<const engine::FrameInterpolateBase&>(rOther));
-	bEqual &= common::BreakOnNotEqual(fSpawnTimer, rOther.fSpawnTimer);
-	bEqual &= common::BreakOnNotEqual(gameFlags, rOther.gameFlags);
-	bEqual &= pPlayers->ServerCompare(*rOther.pPlayers);
-	bEqual &= pBlasters->ServerCompare(*rOther.pBlasters);
-	bEqual &= pMissiles->ServerCompare(*rOther.pMissiles);
-	bEqual &= pSpaceships->ServerCompare(*rOther.pSpaceships);
-	bEqual &= pTargets->ServerCompare(*rOther.pTargets);
+	bEqual &= common::LogDifference<"fSpawnTimer">(fSpawnTimer, rOther.fSpawnTimer);
+	bEqual &= common::LogDifference<"gameFlags">(gameFlags, rOther.gameFlags);
+	bEqual &= pPlayers->LogDifferences(*rOther.pPlayers);
+	bEqual &= pBlasters->LogDifferences(*rOther.pBlasters);
+	bEqual &= pMissiles->LogDifferences(*rOther.pMissiles);
+	bEqual &= pSpaceships->LogDifferences(*rOther.pSpaceships);
+	bEqual &= pTargets->LogDifferences(*rOther.pTargets);
 	return bEqual;
 }
 
@@ -511,23 +495,6 @@ void FrameInterpolate::ServerRead(std::istream& rStream)
 	}, GameInterpolateCollections(*this));
 }
 
-bool FramePostRender::operator==(const FramePostRender& rOther) const
-{
-	bool bEqual = true;
-
-	bEqual &= common::BreakOnNotEqual<FramePostRenderBase>(*this, rOther);
-
-	bEqual &= common::BreakOnNotEqual(enemyAlignment, rOther.enemyAlignment);
-	bEqual &= common::BreakOnNotEqual(playerAlignment, rOther.playerAlignment);
-
-	bEqual &= common::BreakOnNotEqual(*pPlayers, *rOther.pPlayers);
-	bEqual &= engine::CompareCollections(std::tie(*pPlayers), std::tie(*rOther.pPlayers), std::make_index_sequence<1>{});
-
-	bEqual &= engine::CompareCollections(GamePostRenderCollections(*this), GamePostRenderCollections(rOther), std::make_index_sequence<std::tuple_size_v<decltype(GamePostRenderCollections(*this))>>{});
-
-	return bEqual;
-}
-
 common::crc_t FramePostRender::Crc(const FramePostRender& rCurrent)
 {
 	common::crc_t checksum = 0;
@@ -566,18 +533,19 @@ common::crc_t FramePostRender::ServerCrc(const FramePostRender& rCurrent)
 	return checksum;
 }
 
-bool FramePostRender::ServerCompare(const FramePostRender& rOther) const
+bool FramePostRender::LogDifferences(const FramePostRender& rOther) const
 {
+	common::ScopedLogDifferenceContext context("FramePostRender");
 	bool bEqual = true;
-	bEqual &= static_cast<const engine::FramePostRenderBase&>(*this).ServerCompare(
+	bEqual &= static_cast<const engine::FramePostRenderBase&>(*this).LogDifferences(
 		static_cast<const engine::FramePostRenderBase&>(rOther));
-	bEqual &= common::BreakOnNotEqual(enemyAlignment, rOther.enemyAlignment);
-	bEqual &= common::BreakOnNotEqual(playerAlignment, rOther.playerAlignment);
-	bEqual &= pPlayers->ServerCompare(*rOther.pPlayers);
-	bEqual &= pBlasters->ServerCompare(*rOther.pBlasters);
-	bEqual &= pMissiles->ServerCompare(*rOther.pMissiles);
-	bEqual &= pSpaceships->ServerCompare(*rOther.pSpaceships);
-	bEqual &= pTargets->ServerCompare(*rOther.pTargets);
+	bEqual &= common::LogDifference<"enemyAlignment">(enemyAlignment, rOther.enemyAlignment);
+	bEqual &= common::LogDifference<"playerAlignment">(playerAlignment, rOther.playerAlignment);
+	bEqual &= pPlayers->LogDifferences(*rOther.pPlayers);
+	bEqual &= pBlasters->LogDifferences(*rOther.pBlasters);
+	bEqual &= pMissiles->LogDifferences(*rOther.pMissiles);
+	bEqual &= pSpaceships->LogDifferences(*rOther.pSpaceships);
+	bEqual &= pTargets->LogDifferences(*rOther.pTargets);
 	return bEqual;
 }
 
@@ -626,14 +594,6 @@ void FramePostRender::ServerRead(std::istream& rStream)
 	}, GamePostRenderCollections(*this));
 }
 
-bool Frame::operator==(const Frame& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual(interpolate, rOther.interpolate);
-	bEqual &= common::BreakOnNotEqual(postRender, rOther.postRender);
-	return bEqual;
-}
-
 common::crc_t Frame::Crc() const
 {
 	common::crc_t checksum = 0;
@@ -650,11 +610,11 @@ common::crc_t Frame::ServerCrc() const
 	return checksum;
 }
 
-bool Frame::ServerCompare(const Frame& rOther) const
+bool Frame::LogDifferences(const Frame& rOther) const
 {
 	bool bEqual = true;
-	bEqual &= interpolate.ServerCompare(rOther.interpolate);
-	bEqual &= postRender.ServerCompare(rOther.postRender);
+	bEqual &= interpolate.LogDifferences(rOther.interpolate);
+	bEqual &= postRender.LogDifferences(rOther.postRender);
 	return bEqual;
 }
 
