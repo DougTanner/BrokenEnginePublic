@@ -267,8 +267,8 @@ void GameBase::Render()
 			auto interpolateFrame = [&](const GridCoord& rCoord)
 			{
 				const game::Frame& rFrame = RenderFrame(rCoord);
-				game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates[rCoord], rFrame.interpolate);
-				game::FrameInterpolate::Update(gpGraphics->mRenderInterpolates[rCoord], rFrame, fDeltaTime);
+				game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates.try_emplace(rCoord).first->second, rFrame.interpolate);
+				game::FrameInterpolate::Update(gpGraphics->mRenderInterpolates.at(rCoord), rFrame, fDeltaTime);
 			};
 			interpolateFrame(cameraCoord);
 			for (const GridCoord& rCoord : rActiveCoords)

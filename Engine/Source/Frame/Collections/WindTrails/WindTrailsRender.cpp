@@ -168,7 +168,7 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		// Snapshot current positions as previous for next render
 		for (const auto& [id, iIndex] : rCurrent.idToIndexMap)
 		{
-			rRenderState.previousPositions[id] = rCurrent.pVecPositions[iIndex];
+			rRenderState.previousPositions.insert_or_assign(id, rCurrent.pVecPositions[iIndex]);
 		}
 	}
 }

@@ -469,7 +469,7 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 					float fDamageB = rLayerB.pfDamages[j];
 
 					uint64_t uiKeyA = (static_cast<uint64_t>(uiLayerA) << 32) | (static_cast<uint64_t>(i) & 0xFFFFFFFF);
-					sResults[uiKeyA].push_back(
+					sResults.try_emplace(uiKeyA).first->second.push_back(
 					{
 						.iOtherIndex = j,
 						.uiOtherLayerIndex = uiLayerB,
@@ -489,7 +489,7 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 					float fDamageA = rLayerA.pfDamages[i];
 
 					uint64_t uiKeyB = (static_cast<uint64_t>(uiLayerB) << 32) | (static_cast<uint64_t>(j) & 0xFFFFFFFF);
-					sResults[uiKeyB].push_back(
+					sResults.try_emplace(uiKeyB).first->second.push_back(
 					{
 						.iOtherIndex = i,
 						.uiOtherLayerIndex = uiLayerA,

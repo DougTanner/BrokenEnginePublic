@@ -42,7 +42,7 @@ void SoundsPostRender::Add(game::Frame& __restrict rFrame, sound_t& rId)
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
 	sound_t newId {uuid_t{rFrame.postRender.GenerateSoundUuid()}};
-	rInterpolate.idToIndexMap[newId] = iSpawnIndex;
+	rInterpolate.idToIndexMap.insert_or_assign(newId, iSpawnIndex);
 	rId = newId;
 	rPostRender.puiIds[iSpawnIndex] = newId;
 }

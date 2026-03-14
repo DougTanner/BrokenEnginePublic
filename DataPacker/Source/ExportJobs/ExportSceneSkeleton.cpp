@@ -7,7 +7,7 @@ std::unordered_map<int, int> BuildNodeParentMap(const tinygltf::Model& rModel)
 	{
 		for (int iChildIndex : rModel.nodes[i].children)
 		{
-			parentMap[iChildIndex] = static_cast<int>(i);
+			parentMap.insert_or_assign(iChildIndex, static_cast<int>(i));
 		}
 	}
 	return parentMap;
@@ -72,7 +72,7 @@ SkeletonData BuildNodeSkeleton(const tinygltf::Model& rModel, std::unordered_map
 	rNodeToJointMap.clear();
 	for (int64_t i = 0; i < static_cast<int64_t>(rModel.nodes.size()); ++i)
 	{
-		rNodeToJointMap[static_cast<int>(i)] = static_cast<int>(i);
+		rNodeToJointMap.insert_or_assign(static_cast<int>(i), static_cast<int>(i));
 	}
 
 	Log("  Total nodes: {}", skeletonData.skeleton.uiNodeCount);
@@ -165,7 +165,7 @@ SkeletonData LoadSkeleton(const tinygltf::Model& rModel, int32_t iSkinIndex)
 	{
 		for (int64_t iChildIdx : rModel.nodes[j].children)
 		{
-			parentMap[iChildIdx] = j;
+			parentMap.insert_or_assign(iChildIdx, j);
 		}
 	}
 

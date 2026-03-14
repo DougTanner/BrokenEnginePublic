@@ -197,7 +197,7 @@ void ClientSession::ApplyReceivedFullStates()
 		MissilesInterpolate::ClientInitAll(rFrame);
 		SpaceshipsInterpolate::ClientInitAll(rFrame);
 
-		engine::CoordFrames& rSub = gpGame->mCoordFrames[coord];
+		engine::CoordFrames& rSub = gpGame->mCoordFrames.try_emplace(coord).first->second;
 		if (rSub.uiGeneration == 0)
 		{
 			rSub.uiGeneration = mpReconciler->NextGeneration();

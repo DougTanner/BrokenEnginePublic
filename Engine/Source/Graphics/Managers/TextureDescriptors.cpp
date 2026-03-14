@@ -170,7 +170,7 @@ void TextureDescriptors::RegisterTextureBinding(common::crc_t crc, Pipeline* pPi
 	{
 		textures.assign(ppTextures, ppTextures + iCount);
 	}
-	mTextureBindings[crc].push_back({pPipeline, iBinding, samplerFlags, pTexture, std::move(textures)});
+	mTextureBindings.try_emplace(crc).first->second.push_back({pPipeline, iBinding, samplerFlags, pTexture, std::move(textures)});
 }
 
 void TextureDescriptors::RegisterStandaloneSamplerBinding(Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags)

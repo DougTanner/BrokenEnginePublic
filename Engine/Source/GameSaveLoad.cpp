@@ -116,7 +116,7 @@ void GameSaveLoad::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuI
 
 			// Clear all frames and create fresh at recorded coordinate
 			mrGameBase.mCoordFrames.clear();
-			CoordFrames& rSub = mrGameBase.mCoordFrames[meta.humanGridCoord];
+			CoordFrames& rSub = mrGameBase.mCoordFrames.try_emplace(meta.humanGridCoord).first->second;
 			rSub.pCurrent = std::make_unique<game::Frame>();
 			rSub.pNext = std::make_unique<game::Frame>();
 
@@ -251,7 +251,7 @@ bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::pa
 		coord.Read(fileStream);
 		auto pFrame = std::make_unique<game::Frame>();
 		fileStream >> *pFrame;
-		CoordFrames& rSub = mrGameBase.mCoordFrames[coord];
+		CoordFrames& rSub = mrGameBase.mCoordFrames.try_emplace(coord).first->second;
 		rSub.pCurrent = std::move(pFrame);
 		rSub.pNext = std::make_unique<game::Frame>();
 	}

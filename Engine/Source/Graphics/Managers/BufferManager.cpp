@@ -399,7 +399,7 @@ Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, DynamicBufferType 
 		return rMap.at(crc).data();
 	}
 
-	std::vector<Buffer>& rBuffers = rMap[crc];
+	std::vector<Buffer>& rBuffers = rMap.try_emplace(crc).first->second;
 
 	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
 	rBuffers.resize(iCommandBufferCount);

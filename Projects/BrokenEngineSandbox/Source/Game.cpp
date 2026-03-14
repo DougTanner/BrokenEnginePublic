@@ -148,9 +148,9 @@ void Game::EnsureNextFrames()
 
 	for (const engine::GridCoord& rCoord : mActiveCoords)
 	{
-		if (mCoordFrames[rCoord].pNext == nullptr)
+		if (mCoordFrames.try_emplace(rCoord).first->second.pNext == nullptr)
 		{
-			mCoordFrames[rCoord].pNext = std::make_unique<Frame>();
+			mCoordFrames.at(rCoord).pNext = std::make_unique<Frame>();
 		}
 	}
 }
@@ -172,7 +172,7 @@ void Game::BuildFrameInputs()
 			continue;
 		}
 
-		mFrameInputs[rCoord];
+		mFrameInputs.try_emplace(rCoord);
 	}
 
 	// Camera shake
@@ -204,7 +204,7 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	// Heap: unordered_map insertion + make_unique<Frame>. Frame persists in mCurrentFrames across game lifetime
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	std::unique_ptr<Frame>& pFrame = mCoordFrames[coord].pCurrent;
+	std::unique_ptr<Frame>& pFrame = mCoordFrames.try_emplace(coord).first->second.pCurrent;
 	pFrame = std::make_unique<Frame>();
 	pFrame->interpolate.iTick = miTickCounter;
 	pFrame->interpolate.fCurrentTime = mfCurrentTime;

@@ -156,7 +156,7 @@ void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext, [[maybe_un
 	rReconcileContext.coordWorkIndex.clear();
 	for (size_t i = 0; i < rReconcileContext.coordWork.size(); ++i)
 	{
-		rReconcileContext.coordWorkIndex[rReconcileContext.coordWork.at(i).coord] = i;
+		rReconcileContext.coordWorkIndex.insert_or_assign(rReconcileContext.coordWork.at(i).coord, i);
 	}
 
 	ReconcileRollback(rReconcileContext, iMinConfirmedTick);

@@ -227,7 +227,7 @@ void ExportScene::PreExport(tinygltf::Model& rGltfModel)
 		// Identity mapping - all nodes stored
 		for (int64_t i = 0; i < static_cast<int64_t>(rGltfModel.nodes.size()); ++i)
 		{
-			nodeToJointMap[static_cast<int>(i)] = static_cast<int>(i);
+			nodeToJointMap.insert_or_assign(static_cast<int>(i), static_cast<int>(i));
 		}
 		Log("  Skeletal animation detected: {} skin joints, {} total nodes", rGltfModel.skins[0].joints.size(), rGltfModel.nodes.size());
 	}
@@ -359,7 +359,7 @@ void ExportScene::PreExport(tinygltf::Model& rGltfModel)
 		f3Max.y = std::max(f3Max.y, rVertex.f3Pos.y);
 		f3Max.z = std::max(f3Max.z, rVertex.f3Pos.z);
 
-		++jointsMap[rVertex.fJoint];
+		++jointsMap.try_emplace(rVertex.fJoint, 0).first->second;
 	}
 	Log("f3Min: {} f3Max: {}", f3Min, f3Max);
 
@@ -607,7 +607,7 @@ void ExportScene::MainExport(tinygltf::Model& rGltfModel)
 			// Build nodeToNodeIndexMap - identity mapping since we store all nodes
 			for (int64_t i = 0; i < static_cast<int64_t>(rGltfModel.nodes.size()); ++i)
 			{
-				nodeToJointMap[static_cast<int>(i)] = static_cast<int>(i);
+				nodeToJointMap.insert_or_assign(static_cast<int>(i), static_cast<int>(i));
 			}
 		}
 		else

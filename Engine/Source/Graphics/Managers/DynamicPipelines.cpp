@@ -64,7 +64,7 @@ void DynamicPipelines::CreateModelPipeline(common::crc_t crc, std::string_view n
 		.bIsPipelineShadow = false,
 	});
 
-	mModelPipelineMaps[kDynamicModelPipelineModel][crc] = pPipeline;
+	mModelPipelineMaps[kDynamicModelPipelineModel].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreateModelPipelineShadow(common::crc_t crc, std::string_view name, common::crc_t sceneCrc, Buffer* pStorageBuffers)
@@ -84,7 +84,7 @@ void DynamicPipelines::CreateModelPipelineShadow(common::crc_t crc, std::string_
 	common::crc_t vertexShaderCrc = bHasAnimation ? data::kShadersModelModelSkinnedvertCrc : data::kShadersModelModelStaticvertCrc;
 
 	// Create shadow variant of pipeline name (stored in map to outlive this function)
-	std::string& rShadowName = mShadowPipelineNames[crc] = std::string(name) + "Shadow";
+	std::string& rShadowName = mShadowPipelineNames.insert_or_assign(crc, std::string(name) + "Shadow").first->second;
 
 	// Create shadow pipeline with minimal descriptor sets
 	ModelPipeline* pPipelineShadow = CreateModelPipeline(
@@ -110,7 +110,7 @@ void DynamicPipelines::CreateModelPipelineShadow(common::crc_t crc, std::string_
 		.bIsPipelineShadow = true,
 	});
 
-	mModelPipelineMaps[kDynamicModelPipelineModelShadow][crc] = pPipelineShadow;
+	mModelPipelineMaps[kDynamicModelPipelineModelShadow].insert_or_assign(crc, pPipelineShadow);
 }
 
 void DynamicPipelines::CreatePipelineLighting(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -146,7 +146,7 @@ void DynamicPipelines::CreatePipelineLighting(common::crc_t crc, std::string_vie
 
 	// Register pipeline in lighting map for iteration during rendering
 	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineLighting][crc] = pPipeline;
+	mPipelineMaps[kDynamicPipelineLighting].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineVisibleLights(common::crc_t crc, std::string_view name, Buffer* pStorageBuffers)
@@ -179,7 +179,7 @@ void DynamicPipelines::CreatePipelineVisibleLights(common::crc_t crc, std::strin
 
 	// Register pipeline in visible lights map for iteration during rendering
 	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineVisibleLights][crc] = pPipeline;
+	mPipelineMaps[kDynamicPipelineVisibleLights].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineAxisAlignedLighting(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -215,7 +215,7 @@ void DynamicPipelines::CreatePipelineAxisAlignedLighting(common::crc_t crc, std:
 
 	// Register pipeline in axis-aligned lighting map for iteration during rendering
 	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineAxisAlignedLighting][crc] = pPipeline;
+	mPipelineMaps[kDynamicPipelineAxisAlignedLighting].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineBillboards(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -250,7 +250,7 @@ void DynamicPipelines::CreatePipelineBillboards(common::crc_t crc, std::string_v
 
 	// Register pipeline in billboards map for iteration during rendering
 	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineBillboards][crc] = pPipeline;
+	mPipelineMaps[kDynamicPipelineBillboards].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineSmokeAxisAligned(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -285,7 +285,7 @@ void DynamicPipelines::CreatePipelineSmokeAxisAligned(common::crc_t crc, std::st
 
 	// Register pipeline in smoke axis-aligned map for iteration during rendering
 	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineSmokeAxisAligned][crc] = pPipeline;
+	mPipelineMaps[kDynamicPipelineSmokeAxisAligned].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineSmoke(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -320,7 +320,7 @@ void DynamicPipelines::CreatePipelineSmoke(common::crc_t crc, std::string_view n
 
 	// Register pipeline in smoke map for iteration during rendering
 	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineSmoke][crc] = pPipeline;
+	mPipelineMaps[kDynamicPipelineSmoke].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineWindDepositA(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -354,7 +354,7 @@ void DynamicPipelines::CreatePipelineWindDepositA(common::crc_t crc, std::string
 	});
 
 	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineWindDepositA][crc] = pPipeline;
+	mPipelineMaps[kDynamicPipelineWindDepositA].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineWindDepositB(common::crc_t crc, std::string_view name)
@@ -385,7 +385,7 @@ void DynamicPipelines::CreatePipelineWindDepositB(common::crc_t crc, std::string
 	});
 
 	Pipeline* pPipelineTwo = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineWindDepositB][crc] = pPipelineTwo;
+	mPipelineMaps[kDynamicPipelineWindDepositB].insert_or_assign(crc, pPipelineTwo);
 }
 
 void DynamicPipelines::CreatePipelineWindDepositAxisAlignedA(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -420,7 +420,7 @@ void DynamicPipelines::CreatePipelineWindDepositAxisAlignedA(common::crc_t crc, 
 
 	// Register pipeline in axis-aligned wind deposit A map
 	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineWindDepositAxisAlignedA][crc] = pPipeline;
+	mPipelineMaps[kDynamicPipelineWindDepositAxisAlignedA].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineWindDepositAxisAlignedB(common::crc_t crc, std::string_view name)
@@ -452,7 +452,7 @@ void DynamicPipelines::CreatePipelineWindDepositAxisAlignedB(common::crc_t crc, 
 
 	// Register pipeline in axis-aligned wind deposit B map
 	Pipeline* pPipelineAxisAlignedTwo = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineWindDepositAxisAlignedB][crc] = pPipelineAxisAlignedTwo;
+	mPipelineMaps[kDynamicPipelineWindDepositAxisAlignedB].insert_or_assign(crc, pPipelineAxisAlignedTwo);
 }
 
 void DynamicPipelines::CreatePipelineHexShields(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -486,7 +486,7 @@ void DynamicPipelines::CreatePipelineHexShields(common::crc_t crc, std::string_v
 
 	// Register pipeline in HexShields map for iteration during rendering
 	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineHexShields][crc] = pPipeline;
+	mPipelineMaps[kDynamicPipelineHexShields].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineHexShieldsLighting(common::crc_t crc, std::string_view name)
@@ -518,7 +518,7 @@ void DynamicPipelines::CreatePipelineHexShieldsLighting(common::crc_t crc, std::
 
 	// Register pipeline in HexShields lighting map for iteration during rendering
 	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineHexShieldsLighting][crc] = pPipeline;
+	mPipelineMaps[kDynamicPipelineHexShieldsLighting].insert_or_assign(crc, pPipeline);
 }
 
 } // namespace engine

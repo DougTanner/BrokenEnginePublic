@@ -289,7 +289,7 @@ void FileManager::LoadPackFiles()
 					Log(kLogLoading, "  Animation data offset: dataOffset {} + sceneArraysSize {} + materialDataSize {} = {}", uiDataOffset, iSceneArraysSize, iMaterialDataSize, uiDataOffset + iSceneArraysSize + iMaterialDataSize);
 
 	#if defined(BT_CLIENT)
-				AnimationData& rAnimData = gAnimationDataMap[rChunkLocation.crc];
+				AnimationData& rAnimData = gAnimationDataMap.try_emplace(rChunkLocation.crc).first->second;
 					rAnimData.Load(pAnimationData, rChunkLocation.crc);
 					Log(kLogLoading, "Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations", rChunkLocation.crc, rAnimData.mHeader.skeleton.uiNodeCount, rAnimData.mHeader.skeleton.uiSkinJointCount, rAnimData.mHeader.uiAnimationCount);
 #endif

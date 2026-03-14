@@ -103,7 +103,7 @@ void ProfileManagerBase::CpuStart(int64_t iCpuTimer, int64_t iThreads)
 
 		ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-		std::vector<CpuTimerThreadState>& rThreadStates = mPerThreadTimerStates[std::this_thread::get_id()];
+		std::vector<CpuTimerThreadState>& rThreadStates = mPerThreadTimerStates.try_emplace(std::this_thread::get_id()).first->second;
 		if (rThreadStates.size() < static_cast<size_t>(GetCpuTimerCount()))
 		{
 			rThreadStates.resize(static_cast<size_t>(GetCpuTimerCount()));
@@ -144,7 +144,7 @@ void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCross
 		else
 		{
 			// Same-thread start/stop: use current thread's state directly
-			std::vector<CpuTimerThreadState>& rThreadStates = mPerThreadTimerStates[std::this_thread::get_id()];
+			std::vector<CpuTimerThreadState>& rThreadStates = mPerThreadTimerStates.try_emplace(std::this_thread::get_id()).first->second;
 			if (rThreadStates.size() < static_cast<size_t>(GetCpuTimerCount()))
 			{
 				ScopedSuppressAllocationTracking suppress;

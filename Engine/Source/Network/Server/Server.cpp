@@ -201,7 +201,7 @@ void Server::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, G
 			buffered.compressedData.assign(mCompressionBuffer.begin(), mCompressionBuffer.begin() + iCompressedSize);
 		}
 
-		std::deque<PerCoordBufferedFrame>& rCoordBuffer = mPerCoordBufferedFrames[coord];
+		std::deque<PerCoordBufferedFrame>& rCoordBuffer = mPerCoordBufferedFrames.try_emplace(coord).first->second;
 		rCoordBuffer.push_back(std::move(buffered));
 		while (static_cast<int64_t>(rCoordBuffer.size()) > kiMaxBufferedFrames)
 		{
@@ -236,7 +236,7 @@ void Server::BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoor
 		// Heap: stringstream allocates for frame serialization
 		std::ostringstream frameStream(std::ios::binary);
 		frameStream << *pFrame;
-		buffered.serializedFrames[coord] = frameStream.str();
+		buffered.serializedFrames.insert_or_assign(coord, frameStream.str());
 	}
 
 	mBufferedFullFrames.push_back(std::move(buffered));

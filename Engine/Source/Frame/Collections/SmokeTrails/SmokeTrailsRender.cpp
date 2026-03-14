@@ -111,7 +111,7 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 			}
 			else
 			{
-				rRenderState.smoothedPositions[id] = vecPosition;
+				rRenderState.smoothedPositions.insert_or_assign(id, vecPosition);
 			}
 		}
 

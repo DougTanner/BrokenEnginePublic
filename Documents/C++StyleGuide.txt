@@ -85,7 +85,14 @@ Use the following rules for C++ code
 
 IMPORTANT do not use auto in range-based for loops
 
-16. Access std::vectors and std::maps with .at(): mIslands.at(0).quad
+16. Never use operator[] on std::unordered_map/std::map — it silently inserts a default-constructed value when the key doesn't exist, which can mask bugs. Use these safe alternatives:
+
+	Read: map.at(key)
+	Write/assign: map.insert_or_assign(key, value)
+	Create-then-use: map.try_emplace(key).first->second
+	Ensure existence: map.try_emplace(key);
+
+	Access std::vectors with .at(): mIslands.at(0).quad
 
 17. Use size_t for std::vector sizes and indices: for (size_t i = 0; i < vec.size(); ++i)
 

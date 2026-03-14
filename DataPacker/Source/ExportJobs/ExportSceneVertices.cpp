@@ -166,7 +166,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 		{
 			// Original material not yet used - use it directly
 			iEffectiveMaterial = iOriginalMaterial;
-			rMaterialNodeMap[key] = iEffectiveMaterial;
+			rMaterialNodeMap.insert_or_assign(key, iEffectiveMaterial);
 			rMaterialNodeInfos.at(iOriginalMaterial).iNodeIndex = iCurrentNodeIndex;
 			rMaterialNodeInfos.at(iOriginalMaterial).matMeshWorld = matNode * matLocal;
 			rMaterialNodeInfos.at(iOriginalMaterial).iOriginalMaterialIndex = iOriginalMaterial;
@@ -175,13 +175,13 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 		{
 			// Original material already used by this same node - use it
 			iEffectiveMaterial = iOriginalMaterial;
-			rMaterialNodeMap[key] = iEffectiveMaterial;
+			rMaterialNodeMap.insert_or_assign(key, iEffectiveMaterial);
 		}
 		else
 		{
 			// Original material used by a different node - create a new split material
 			iEffectiveMaterial = static_cast<int>(rMaterials.size());
-			rMaterialNodeMap[key] = iEffectiveMaterial;
+			rMaterialNodeMap.insert_or_assign(key, iEffectiveMaterial);
 			rMaterials.emplace_back();
 			MaterialNodeInfo newInfo;
 			newInfo.bHasSkinning = bHasSkinning;

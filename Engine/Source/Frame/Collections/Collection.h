@@ -458,7 +458,7 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolat
 
 	using id_t = typename TInterpolate::id_t;
 	id_t newId = id_t::Generate(rFramePostRender);
-	rInterpolate.idToIndexMap[newId] = iSpawnIndex;
+	rInterpolate.idToIndexMap.insert_or_assign(newId, iSpawnIndex);
 
 	return {iSpawnIndex, newId};
 }
@@ -476,7 +476,7 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddVisualIndexableElement(TInte
 
 	using id_t = typename TInterpolate::id_t;
 	id_t newId = id_t::GenerateVisual(rFramePostRender);
-	rInterpolate.idToIndexMap[newId] = iSpawnIndex;
+	rInterpolate.idToIndexMap.insert_or_assign(newId, iSpawnIndex);
 
 	return {iSpawnIndex, newId};
 }
@@ -492,7 +492,7 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElementWithId(TInte
 	// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
-	rInterpolate.idToIndexMap[existingId] = iSpawnIndex;
+	rInterpolate.idToIndexMap.insert_or_assign(existingId, iSpawnIndex);
 	return {iSpawnIndex, existingId};
 }
 
@@ -513,7 +513,7 @@ void RemoveIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender
 		SwapElement(rInterpolate, iIndex, std::forward<TInterpolateTuple>(interpolateTuple));
 		SwapElement(rPostRender, iIndex, std::forward<TPostRenderTuple>(postRenderTuple));
 
-		rInterpolate.idToIndexMap[lastId] = iIndex;
+		rInterpolate.idToIndexMap.insert_or_assign(lastId, iIndex);
 	}
 
 	--rInterpolate.iCount;
@@ -854,7 +854,7 @@ struct OptionaldToIndex<T, FLAGS>
 			int64_t iValue = 0;
 			key.Read(rStream);
 			common::Read(rStream, iValue);
-			idToIndexMap[key] = iValue;
+			idToIndexMap.insert_or_assign(key, iValue);
 		}
 	}
 

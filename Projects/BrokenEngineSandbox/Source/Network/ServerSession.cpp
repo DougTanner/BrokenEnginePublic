@@ -34,7 +34,7 @@ void ServerSession::PrepareTick()
 	{
 		if (!gpGame->mFrameInputs.contains(rCoord))
 		{
-			gpGame->mFrameInputs[rCoord];
+			gpGame->mFrameInputs.try_emplace(rCoord);
 		}
 	}
 }
@@ -172,13 +172,13 @@ void ServerSession::BuildFrameInputs()
 	// Initialize FrameInputs for all active coordinates
 	for (const engine::GridCoord& rCoord : gpGame->mActiveCoords)
 	{
-		gpGame->mFrameInputs[rCoord];
+		gpGame->mFrameInputs.try_emplace(rCoord);
 	}
 
 	// Add spawn StatusChanges for clients waiting for initial spawn
 	for (const ClientSpawnInfo& rInfo : mClientsWaitingForSpawn)
 	{
-		gpGame->mFrameInputs[rInfo.spawnCoord].statusChanges.push_back({.eType = StatusChangeType::kSpawnPlayer,});
+		gpGame->mFrameInputs.try_emplace(rInfo.spawnCoord).first->second.statusChanges.push_back({.eType = StatusChangeType::kSpawnPlayer,});
 	}
 
 	// Add destroy StatusChanges for disconnected players
@@ -204,7 +204,7 @@ void ServerSession::BuildFrameInputs()
 	{
 		if (!rFrameInput.statusChanges.empty())
 		{
-			mTickBroadcast.spawns[rCoord] = rFrameInput.statusChanges;
+			mTickBroadcast.spawns.insert_or_assign(rCoord, rFrameInput.statusChanges);
 		}
 	}
 
@@ -231,7 +231,7 @@ void ServerSession::BroadcastStatusChanges(int64_t iTick)
 		auto spawnIt = mTickBroadcast.spawns.find(rCoord);
 		if (spawnIt != mTickBroadcast.spawns.end())
 		{
-			allChanges[rCoord] = spawnIt->second;
+			allChanges.insert_or_assign(rCoord, spawnIt->second);
 		}
 
 		auto transferIt = mTickBroadcast.transfers.find(rCoord);
@@ -239,7 +239,7 @@ void ServerSession::BroadcastStatusChanges(int64_t iTick)
 		{
 			for (const StatusChange& rTransfer : transferIt->second)
 			{
-				allChanges[rCoord].push_back(rTransfer);
+				allChanges.try_emplace(rCoord).first->second.push_back(rTransfer);
 			}
 		}
 	}
@@ -323,7 +323,9 @@ void ServerSession::CollectTransfers(std::vector<HumanTransferInfo>& rHumanTrans
 				continue;
 			}
 
-			mTickBroadcast.transfers[dest].push_back({.eType = rRequest.eType, .data = rRequest.data,});
+			mTickBroadcast.transfers.try_emplace(dest).first->second.push_back({.eType = rRequest.eType, .data = rRequest.data,});
+
+			Log(kLogNetwork, "  CollectTransfers Player: {} Src: ({},{}) Dest: ({},{})", rRequest.iEntityId, rCoord.x, rCoord.y, dest.x, dest.y);
 
 			if (rRequest.eType == StatusChangeType::kTransferPlayer && rRequest.iEntityId != 0)
 			{
@@ -353,6 +355,11 @@ void ServerSession::SpawnTransfers()
 		{
 			TransferData data = rTransfer.data;
 			SpawnTransfer(rDestFrame, rTransfer.eType, data, gpGame->PlayerAlignment());
+
+			if (rTransfer.eType == StatusChangeType::kTransferPlayer)
+			{
+				Log(kLogNetwork, "  SpawnTransfer Player Dest: ({},{})", rCoord.x, rCoord.y);
+			}
 		}
 	}
 }
@@ -371,6 +378,7 @@ void ServerSession::TrackHumanTransfers(const std::vector<HumanTransferInfo>& rH
 			if (rClient.humanPlayerId.IsValid() && transferredPlayerId == rClient.humanPlayerId)
 			{
 				mPendingSubscriptionUpdates.push_back({.iClientId = rClient.iClientId, .newCoord = rHumanTransfer.dest, .newPlayerId = newPlayerId,});
+				Log(kLogNetwork, "  TrackHumanTransfer Client: {} OldPlayer: {} NewPlayer: {} Dest: ({},{})", rClient.iClientId, transferredPlayerId.ToUuid().Value(), newPlayerId.ToUuid().Value(), rHumanTransfer.dest.x, rHumanTransfer.dest.y);
 
 				break;
 			}
@@ -555,6 +563,8 @@ void ServerSession::DetectPlayerDeaths()
 		{
 			continue;
 		}
+
+		Log(kLogNetwork, "  DetectPlayerDeaths Frame state Coord: ({},{}) InterpolateCount: {} PostRenderCount: {}", rClient.humanGridCoord.x, rClient.humanGridCoord.y, rPlayers.iCount, gpGame->CurrentFrame(rClient.humanGridCoord).postRender.pPlayers->iCount);
 
 		// Player not found in frame — they died
 		ScopedSuppressAllocationTracking suppressAllocationTracking;

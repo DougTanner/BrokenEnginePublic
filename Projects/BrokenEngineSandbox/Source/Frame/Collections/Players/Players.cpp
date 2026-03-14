@@ -260,6 +260,7 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 			DEBUG_BREAK();
 		}
 		rFrame.postRender.transferRequests.push_back(request);
+		Log(kLogNetwork, "  Transfer Player: {} Delta: ({},{})", request.iEntityId, request.iDeltaX, request.iDeltaY);
 
 		// Remove owned objects
 #if defined(BT_CLIENT)

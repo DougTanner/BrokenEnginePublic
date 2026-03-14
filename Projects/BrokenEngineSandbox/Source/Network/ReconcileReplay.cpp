@@ -472,7 +472,7 @@ void ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, [[maybe_unuse
 		{
 			continue;
 		}
-		rReconcileContext.frameInputs[rCoord];
+		rReconcileContext.frameInputs.try_emplace(rCoord);
 	}
 
 	// Copy status changes per coord
@@ -854,7 +854,7 @@ void ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinConfirmed
 			{
 				continue;
 			}
-			rReconcileContext.frameInputs[rCoord];
+			rReconcileContext.frameInputs.try_emplace(rCoord);
 		}
 
 		ReconcileRunTick(rReconcileContext);

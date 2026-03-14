@@ -206,7 +206,7 @@ void MainThread(HINSTANCE hinstance)
 	{
 		// Heap: operator[] may insert default element
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates[kOriginCoord], pGame->CurrentFrame(pGame->mHumanGridCoord).interpolate);
+		game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates.try_emplace(kOriginCoord).first->second, pGame->CurrentFrame(pGame->mHumanGridCoord).interpolate);
 	}
 	game::gpCamera->Update(gpGraphics->mRenderInterpolates.at(kOriginCoord));
 
