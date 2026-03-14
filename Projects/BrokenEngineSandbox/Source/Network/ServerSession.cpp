@@ -26,6 +26,7 @@ void ServerSession::PrepareTick()
 	// Recompute active set each tick so new client subscriptions
 	// (set by FinalizeNewClients on the previous frame) are picked up immediately
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
 	ComputeActiveSet();
 	gpGame->EnsureNextFrames();
 
@@ -43,6 +44,7 @@ void ServerSession::BroadcastTick(int64_t iTick)
 {
 	// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
 	FinalizeNewClients(iTick);
 	DetectPlayerDeaths();
 	BroadcastStatusChanges(iTick);
@@ -98,11 +100,6 @@ void ServerSession::AddNeighborCoords()
 		{
 			for (int64_t j = -1; j <= 1; ++j)
 			{
-				if (j == 0 && i == 0)
-				{
-					continue;
-				}
-
 				engine::GridCoord neighbor {rClient.humanGridCoord.x + static_cast<int32_t>(j), rClient.humanGridCoord.y + static_cast<int32_t>(i)};
 				if (!std::ranges::contains(gpGame->mActiveCoords, neighbor))
 				{
@@ -325,8 +322,6 @@ void ServerSession::CollectTransfers(std::vector<HumanTransferInfo>& rHumanTrans
 
 			mTickBroadcast.transfers.try_emplace(dest).first->second.push_back({.eType = rRequest.eType, .data = rRequest.data,});
 
-			Log(kLogNetwork, "  CollectTransfers Player: {} Src: ({},{}) Dest: ({},{})", rRequest.iEntityId, rCoord.x, rCoord.y, dest.x, dest.y);
-
 			if (rRequest.eType == StatusChangeType::kTransferPlayer && rRequest.iEntityId != 0)
 			{
 				rHumanTransfers.push_back({.iEntityId = rRequest.iEntityId, .dest = dest,});
@@ -355,11 +350,6 @@ void ServerSession::SpawnTransfers()
 		{
 			TransferData data = rTransfer.data;
 			SpawnTransfer(rDestFrame, rTransfer.eType, data, gpGame->PlayerAlignment());
-
-			if (rTransfer.eType == StatusChangeType::kTransferPlayer)
-			{
-				Log(kLogNetwork, "  SpawnTransfer Player Dest: ({},{})", rCoord.x, rCoord.y);
-			}
 		}
 	}
 }
@@ -378,8 +368,6 @@ void ServerSession::TrackHumanTransfers(const std::vector<HumanTransferInfo>& rH
 			if (rClient.humanPlayerId.IsValid() && transferredPlayerId == rClient.humanPlayerId)
 			{
 				mPendingSubscriptionUpdates.push_back({.iClientId = rClient.iClientId, .newCoord = rHumanTransfer.dest, .newPlayerId = newPlayerId,});
-				Log(kLogNetwork, "  TrackHumanTransfer Client: {} OldPlayer: {} NewPlayer: {} Dest: ({},{})", rClient.iClientId, transferredPlayerId.ToUuid().Value(), newPlayerId.ToUuid().Value(), rHumanTransfer.dest.x, rHumanTransfer.dest.y);
-
 				break;
 			}
 		}
@@ -563,8 +551,6 @@ void ServerSession::DetectPlayerDeaths()
 		{
 			continue;
 		}
-
-		Log(kLogNetwork, "  DetectPlayerDeaths Frame state Coord: ({},{}) InterpolateCount: {} PostRenderCount: {}", rClient.humanGridCoord.x, rClient.humanGridCoord.y, rPlayers.iCount, gpGame->CurrentFrame(rClient.humanGridCoord).postRender.pPlayers->iCount);
 
 		// Player not found in frame — they died
 		ScopedSuppressAllocationTracking suppressAllocationTracking;
