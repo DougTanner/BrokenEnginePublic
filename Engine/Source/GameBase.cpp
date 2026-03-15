@@ -50,7 +50,7 @@ void GameBase::ClientUpdate()
 	int64_t iFullTicks = mTimeStep.TickRealtime();
 	if (iFullTicks == 0)
 	{
-		Log(kLogNetwork, "DT: TEMP zeroTicks remainderNs: {}", mTimeStep.mTickRemainderNs.count());
+		Log(kLogNetwork, "zeroTicks remainderNs: {}", mTimeStep.mTickRemainderNs.count()); // DT: TEMP
 	}
 	PrepareActiveSet();
 
@@ -230,10 +230,10 @@ game::Frame& GameBase::RenderFrame(GridCoord coord) const
 		game::Frame* pFrame = game::gpClientSession->GetSnapshotFrame(coord);
 		if (pFrame != nullptr)
 		{
-			Log(kLogNetwork, "DT: TEMP renderSnapshotTick coord: ({},{}) tick: {}", coord.x, coord.y, pFrame->interpolate.iTick);
+			Log(kLogNetwork, "renderSnapshotTick coord: ({},{}) tick: {}", coord.x, coord.y, pFrame->interpolate.iTick); // DT: TEMP
 			return *pFrame;
 		}
-		Log(kLogNetwork, "DT: TEMP pCurrentFallback coord: ({},{}) tick: {}", coord.x, coord.y, mCoordFrames.at(coord).pCurrent->interpolate.iTick);
+		Log(kLogNetwork, "pCurrentFallback coord: ({},{}) tick: {}", coord.x, coord.y, mCoordFrames.at(coord).pCurrent->interpolate.iTick); // DT: TEMP
 	}
 	return *mCoordFrames.at(coord).pCurrent;
 }

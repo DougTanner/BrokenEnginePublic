@@ -46,6 +46,7 @@ public:
 
 	// Queries
 	int64_t GetConfirmedTick() const;
+	int64_t GetHumanConfirmedTick() const;
 	int64_t GetServerUpdateBufferSize() const;
 
 	std::unique_ptr<Client> mpClientNetwork;

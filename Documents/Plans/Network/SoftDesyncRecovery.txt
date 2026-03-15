@@ -1,0 +1,344 @@
+# Soft Desync Recovery
+
+## Context
+
+When a Frame CRC desync is detected during reconciliation, the client currently:
+1. ReconcileValidateCrcCoord() (ReconcileReplay.cpp line 299) detects CRC mismatch -> sets ReconcileContext.iDesyncTick
+2. ClientReconciler::ApplyResult() (ClientReconciler.cpp line 233) returns ReconcileDesyncInfo with bDesync=true
+3. ClientSession::WaitForReconcile() (ClientSession.cpp line 89) sends desync report + debug frame request, enters DesyncDebugState
+4. ClientSession::PollDebugFrameResponse() (ClientSession.cpp line 331) receives debug frame -> CompareWithServerFrame() -> DEBUG_BREAK() -> disconnect
+
+This forces the player back to the main menu. Instead, the client should recover by requesting a full state re-download from the server, allowing gameplay to continue. Disconnect is reserved for persistent/large-scale desyncs.
+
+## New Flow
+
+1. ReconcileValidateCrcCoord() -> ClientReconciler::ApplyResult() -> WaitForReconcile(): unchanged (desync report + debug frame request + DesyncDebugState)
+2. PollDebugFrameResponse(): receives debug frame -> CompareWithServerFrame() -> if constexpr (kbEnableDebugBreak) DEBUG_BREAK() -> **increment desync counter** -> **if under threshold: send resync request + reset coord state** -> **if over threshold: disconnect**
+3. Server receives kClientResyncRequest -> sends kServerCoordFullState for all client's active coord subscriptions
+4. Client receives full states -> ApplyReceivedFullStates() takes initial-connection path (iConfirmedTick == -1) -> establishes new confirmed state -> game resumes
+
+## Compile-time Toggle
+
+Pch.h already has `kbEnableDebugBreak` which is true in Debug, false in Release/Shipping.
+- Debug: DEBUG_BREAK() fires on desync, then recovers (dev can inspect before continuing)
+- Release/Shipping: silent recovery, no break
+
+## Desync Frequency Tracking
+
+Track recent desyncs with a simple counter + timestamp window. If desyncs exceed a threshold within a time window, escalate to disconnect.
+- `int64_t miDesyncCount` on ClientSession (incremented per desync recovery)
+- `std::chrono::steady_clock::time_point mFirstDesyncTime` (set on first desync, reset when window expires)
+- Threshold: 3 desyncs within 10 seconds -> disconnect
+- On successful recovery (no desync for 10s), reset counter
+
+## Changes
+
+### 1. Engine/Source/Network/NetworkProtocol.h (line 22)
+
+Add `kClientResyncRequest` to the PacketType enum after `kClientSubscribe`:
+
+After line 22 (`kClientSubscribe`), add:
+```
+kClientResyncRequest,       // Client requests full state re-download after desync recovery
+```
+
+### 2. Engine/Source/Network/Client/Client.h (line 73)
+
+Add send method declaration after `SendUnsubscribe`:
+
+```
+void SendResyncRequest();
+```
+
+### 3. Engine/Source/Network/Client/ClientSend.cpp (after SendUnsubscribe, line 238)
+
+Add `Client::SendResyncRequest()`. Simple reliable packet with just the type byte (no payload -- server already knows the client's active coord subscriptions). Pattern matches SendDesyncReport() structure:
+
+```
+void Client::SendResyncRequest()
+{
+    if (!mbConnected || mpServerPeer == nullptr)
+    {
+        return;
+    }
+
+    common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+    rWorkbuffer.Push();
+
+    rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientResyncRequest));
+
+    Log(kLogNetwork, "Client::SendResyncRequest");
+
+    std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
+
+    {
+        ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+        ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
+        enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
+    }
+
+    rWorkbuffer.Pop();
+}
+```
+
+### 4. Engine/Source/Network/Server/Server.h
+
+Add to private section (after line 125, after ClientUnsubscribe):
+```
+void ClientResyncRequest(const uint8_t* pData, int64_t iClientId);
+```
+
+Add to private members (after line 139, after mPendingNewSubscriptions):
+```
+std::vector<int64_t> mPendingResyncClientIds;
+```
+
+Add to public section (after DrainPendingNewSubscriptions, line 106):
+```
+std::vector<int64_t>& DrainPendingResyncClientIds() { return mPendingResyncClientIds; }
+```
+
+### 5. Engine/Source/Network/Server/Server.cpp
+
+In `Poll()` (line 53), add alongside existing clears:
+```
+mPendingResyncClientIds.clear();
+```
+
+In `Receive()` switch (line 157), add before `default`:
+```
+case PacketType::kClientResyncRequest:
+    ClientResyncRequest(pData, iClientId);
+    break;
+```
+
+### 6. Engine/Source/Network/Server/ServerReceive.cpp (after ClientUnsubscribe, line 259)
+
+Add handler:
+```
+void Server::ClientResyncRequest(const uint8_t* pData, int64_t iClientId)
+{
+    Log(kLogNetwork, "Server::ClientResyncRequest Client: {}", iClientId);
+
+    ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+    mPendingResyncClientIds.push_back(iClientId);
+}
+```
+
+### 7. Projects/BrokenEngineSandbox/Source/Network/ServerSession.h
+
+Add public method declaration (after SubscriptionUpdates, line 49):
+```
+void HandleResyncRequests(int64_t iTick);
+```
+
+### 8. Projects/BrokenEngineSandbox/Source/Network/ServerSession.cpp
+
+**8a.** In `BroadcastTick()` (line 43), add call before `FinalizeNewClients(iTick)` (line 48):
+```
+HandleResyncRequests(iTick);
+```
+
+This ensures the resync full state is sent before any other full states for the same frame.
+
+**8b.** Add new method (at end of #ifdef BT_SERVER section, before line 583):
+```
+void ServerSession::HandleResyncRequests([[maybe_unused]] int64_t iTick)
+{
+    std::vector<int64_t>& rResyncClientIds = engine::gpServer->DrainPendingResyncClientIds();
+    if (rResyncClientIds.empty())
+    {
+        return;
+    }
+
+    ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+    for (int64_t iClientId : rResyncClientIds)
+    {
+        engine::ClientConnection* pClient = engine::gpServer->FindClient(iClientId);
+        if (pClient == nullptr)
+        {
+            continue;
+        }
+
+        Log(kLogNetwork, "ServerSession::HandleResyncRequests Client: {}", iClientId);
+
+        for (int64_t iSlot = 0; iSlot < std::ssize(pClient->coordSubscriptions); ++iSlot)
+        {
+            if (!pClient->coordSubscriptions.at(iSlot).bActive)
+            {
+                continue;
+            }
+
+            engine::GridCoord coord = pClient->coordSubscriptions.at(iSlot).coord;
+            auto frameIt = gpGame->mCoordFrames.find(coord);
+            if (frameIt == gpGame->mCoordFrames.end())
+            {
+                continue;
+            }
+
+            engine::gpServer->SendCoordFullState(iClientId, iSlot, gpGame->TickCounter(), coord, frameIt->second.pCurrent.get());
+        }
+    }
+}
+```
+
+Pattern matches `SendNewSubscriptionFullStates()` (ServerSessionBase.cpp line 46) which iterates slots and sends `SendCoordFullState()` per active subscription.
+
+### 9. Projects/BrokenEngineSandbox/Source/Network/ClientSession.h
+
+Add desync tracking members to private section (after line 68, after kDesyncDebugTimeout):
+```
+// Desync frequency tracking for escalation
+int64_t miDesyncCount = 0;
+std::chrono::steady_clock::time_point mFirstDesyncTime {};
+static constexpr int64_t kiMaxDesyncsBeforeDisconnect = 3;
+static constexpr std::chrono::seconds kDesyncWindowDuration {10};
+```
+
+Add private helper method declaration (after CompareWithServerFrame, line 70):
+```
+void RecoverFromDesync();
+void ResetCoordStatesForResync();
+```
+
+### 10. Projects/BrokenEngineSandbox/Source/Network/ClientSession.cpp
+
+**10a.** Replace `PollDebugFrameResponse()` (lines 331-342) with:
+
+```
+void ClientSession::PollDebugFrameResponse()
+{
+    std::unique_ptr<engine::ReceivedDebugFrame> pDebugFrame = mpClientNetwork->DrainReceivedDebugFrame();
+    if (pDebugFrame != nullptr && mDesyncDebugState.pClientFrame != nullptr)
+    {
+        CompareWithServerFrame(*mDesyncDebugState.pClientFrame, *pDebugFrame->pFrame, mDesyncDebugState.iTick, mDesyncDebugState.coord);
+        mDesyncDebugState = {};
+
+        if constexpr (kbEnableDebugBreak)
+        {
+            DEBUG_BREAK();
+        }
+
+        RecoverFromDesync();
+    }
+}
+```
+
+**10b.** Add `RecoverFromDesync()` method:
+
+```
+void ClientSession::RecoverFromDesync()
+{
+    auto now = std::chrono::steady_clock::now();
+
+    // Reset window if expired
+    if (miDesyncCount > 0 && now - mFirstDesyncTime > kDesyncWindowDuration)
+    {
+        miDesyncCount = 0;
+    }
+
+    // Track this desync
+    if (miDesyncCount == 0)
+    {
+        mFirstDesyncTime = now;
+    }
+    ++miDesyncCount;
+
+    Log(kLogNetwork, "ClientSession::RecoverFromDesync DesyncCount: {} / {}", miDesyncCount, kiMaxDesyncsBeforeDisconnect);
+
+    // Escalate to disconnect if too many desyncs in window
+    if (miDesyncCount >= kiMaxDesyncsBeforeDisconnect)
+    {
+        Log(kLogNetwork, "ClientSession::RecoverFromDesync Escalating to disconnect");
+        snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
+        mpClientNetwork->Disconnect();
+        return;
+    }
+
+    // Send resync request and reset client state
+    mpClientNetwork->SendResyncRequest();
+    mpClientNetwork->SetDesyncDebugMode(false);
+    ResetCoordStatesForResync();
+}
+```
+
+**10c.** Add `ResetCoordStatesForResync()` method:
+
+```
+void ClientSession::ResetCoordStatesForResync()
+{
+    // Reset all coord confirmed states to trigger initial-connection path in ApplyReceivedFullStates()
+    // When iConfirmedTick == -1, ApplyReceivedFullStates() (line 215) takes the
+    // initial-connection path: sets up snapshots, confirmed tick, and current frame from the full state.
+    for (auto& [rCoord, rSub] : gpGame->mCoordFrames)
+    {
+        rSub.ResetClientState();
+    }
+
+    // Reset reconciler state (cancels in-flight work, clears confirmed human state)
+    mpReconciler->Reset();
+}
+```
+
+Key insight: `CoordFrames::ResetClientState()` (GameBase.h line 71) already exists and sets `iConfirmedTick = -1`, clears snapshots, serverUpdates, pendingFullState, and generation. This causes:
+- `ApplyReceivedFullStates()` (ClientSession.cpp line 215) to take the initial-connection path when full state arrives
+- `ClientReconciler::Kick()` (ClientReconciler.cpp line 99) to skip coords with `iConfirmedTick < 0`
+- Extrapolation to skip coords with `iConfirmedTick < 0`
+
+Human tracking (gpGame->HumanPlayerId(), gpGame->mHumanGridCoord) is NOT reset -- the player assignment hasn't changed.
+
+**10d.** In `DisconnectFromServer()` (line 283), reset desync tracking:
+
+After `mDesyncDebugState = {};` (line 290), add:
+```
+miDesyncCount = 0;
+```
+
+**10e.** Also update the desync debug timeout block in `PollConnection()` (lines 365-371).
+
+Replace:
+```
+if (mDesyncDebugState.iTick >= 0 && std::chrono::steady_clock::now() - mDesyncDebugState.entryTime > kDesyncDebugTimeout)
+{
+    Log(kLogNetwork, "ClientSession::PollConnection Desync debug mode timed out, disconnecting");
+    mDesyncDebugState = {};
+    snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server (debug frame timeout)");
+    mpClientNetwork->Disconnect();
+}
+```
+
+With:
+```
+if (mDesyncDebugState.iTick >= 0 && std::chrono::steady_clock::now() - mDesyncDebugState.entryTime > kDesyncDebugTimeout)
+{
+    Log(kLogNetwork, "ClientSession::PollConnection Desync debug mode timed out, recovering without debug frame");
+    mDesyncDebugState = {};
+    RecoverFromDesync();
+}
+```
+
+This way, even if the debug frame response never arrives, recovery is attempted instead of immediate disconnect.
+
+## Why This Works
+
+- `ResetClientState()` sets `iConfirmedTick = -1`, which causes `ApplyReceivedFullStates()` to take the initial-connection path (same as first connect)
+- Server's `HandleResyncRequests()` sends `SendCoordFullState()` per active subscription slot, using the same path as `SendNewSubscriptionFullStates()`
+- The ACK floor is advanced past the full state frame by `HandleServerFullState()` (ClientReceive.cpp), so the server won't re-send stale delta updates
+- Between reset and full state arrival, the client continues rendering existing current frames while reconciliation harmlessly skips (no coords with iConfirmedTick >= 0)
+- The resync request is sent reliably (ENet guarantees delivery)
+- Desync frequency tracking escalates to disconnect after 3 desyncs in 10 seconds, preventing infinite recovery loops
+- `if constexpr (kbEnableDebugBreak)` gives dev builds a breakpoint while release builds silently recover
+
+## Files Modified
+
+1. `Engine/Source/Network/NetworkProtocol.h` - Add kClientResyncRequest packet type
+2. `Engine/Source/Network/Client/Client.h` - Add SendResyncRequest() declaration
+3. `Engine/Source/Network/Client/ClientSend.cpp` - Implement SendResyncRequest()
+4. `Engine/Source/Network/Server/Server.h` - Add ClientResyncRequest handler, mPendingResyncClientIds, DrainPendingResyncClientIds()
+5. `Engine/Source/Network/Server/Server.cpp` - Clear mPendingResyncClientIds in Poll(), add switch case
+6. `Engine/Source/Network/Server/ServerReceive.cpp` - Implement ClientResyncRequest()
+7. `Projects/BrokenEngineSandbox/Source/Network/ServerSession.h` - Add HandleResyncRequests() declaration
+8. `Projects/BrokenEngineSandbox/Source/Network/ServerSession.cpp` - Call HandleResyncRequests() in BroadcastTick(), implement it
+9. `Projects/BrokenEngineSandbox/Source/Network/ClientSession.h` - Add desync tracking members, RecoverFromDesync(), ResetCoordStatesForResync()
+10. `Projects/BrokenEngineSandbox/Source/Network/ClientSession.cpp` - Replace PollDebugFrameResponse() disconnect with recovery, add RecoverFromDesync(), ResetCoordStatesForResync(), update timeout handler, reset counter on disconnect

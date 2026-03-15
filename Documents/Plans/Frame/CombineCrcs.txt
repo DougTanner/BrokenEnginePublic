@@ -1,0 +1,301 @@
+# Combine Crc() and ServerCrc() into single Crcs() method
+
+## Context
+
+`Crc()` and `ServerCrc()` exist as separate methods at every frame level, duplicating scalar field
+checksumming. Refactor into a single `Crcs()` method that computes both simultaneously, supported by
+a three-parameter `common::Crc()` helper that XORs a value's CRC into two checksums at once.
+
+`Frame::Crc()` and `Frame::ServerCrc()` are retained as thin wrappers around `Crcs()` because
+`DifferenceStream.h` is a template requiring a `.Crc()` interface on its `SAVED_TYPE`.
+
+## 1. Add three-parameter `common::Crc()` overload
+
+**File**: `Common/Utils.h` (after line 141, after XMVECTOR Crc overload)
+
+Add:
+```cpp
+template <typename T>
+void Crc(const T& rValue, crc_t& rCrc, crc_t& rServerCrc)
+{
+	crc_t c = Crc(rValue);
+	rCrc ^= c;
+	rServerCrc ^= c;
+}
+```
+
+For pre-computed `crc_t` values (e.g. `randomEngine.Crc()`, `alignments.Crc()`), use manual XOR at each call site:
+```cpp
+crc_t c = randomEngine.Crc();
+crc ^= c;
+serverCrc ^= c;
+```
+
+## 2. Engine base: replace Crc()/ServerCrc() with Crcs()
+
+**Files**: `Engine/Source/Frame/FrameBase.h`, `Engine/Source/Frame/FrameBase.cpp`
+
+### FrameBase.h
+
+**FrameInterpolateBase** (lines 132-133): Replace:
+```cpp
+	common::crc_t Crc() const;
+	common::crc_t ServerCrc() const;
+```
+With:
+```cpp
+	std::pair<common::crc_t, common::crc_t> Crcs() const;
+```
+
+**FramePostRenderBase** (lines 244-245): Replace:
+```cpp
+	common::crc_t Crc() const;
+	common::crc_t ServerCrc() const;
+```
+With:
+```cpp
+	std::pair<common::crc_t, common::crc_t> Crcs() const;
+```
+
+### FrameBase.cpp
+
+**FrameInterpolateBase::Crcs()** — replace lines 17-49 (both `Crc()` and `ServerCrc()`) with:
+```cpp
+std::pair<common::crc_t, common::crc_t> FrameInterpolateBase::Crcs() const
+{
+	common::crc_t crc = 0;
+	common::crc_t serverCrc = 0;
+
+	common::Crc(frameFlags, crc, serverCrc);
+	common::Crc(iTick, crc, serverCrc);
+	common::Crc(fCurrentTime, crc, serverCrc);
+	common::Crc(fDeltaTime, crc, serverCrc);
+
+	std::apply([&](const auto&... cols)
+	{
+		((crc ^= CollectionCrc(cols, cols.Members())), ...);
+	}, Collections());
+
+	std::apply([&](const auto&... cols)
+	{
+		((serverCrc ^= ServerCollectionCrc(cols)), ...);
+	}, ServerCollections());
+
+	return {crc, serverCrc};
+}
+```
+
+**FramePostRenderBase::Crcs()** — replace lines 103-143 (both `Crc()` and `ServerCrc()`) with:
+```cpp
+std::pair<common::crc_t, common::crc_t> FramePostRenderBase::Crcs() const
+{
+	common::crc_t crc = 0;
+	common::crc_t serverCrc = 0;
+
+	common::crc_t c = randomEngine.Crc();
+	crc ^= c;
+	serverCrc ^= c;
+
+	common::Crc(vecArea, crc, serverCrc);
+	common::Crc(uiNextUuid, crc, serverCrc);
+#ifdef BT_CLIENT
+	crc ^= common::Crc(uiNextSoundUuid);
+	crc ^= common::Crc(uiNextVisualUuid);
+#endif
+	common::Crc(uiFrameId, crc, serverCrc);
+	common::Crc(eIslandsFlip, crc, serverCrc);
+
+	c = alignments.Crc();
+	crc ^= c;
+	serverCrc ^= c;
+
+	std::apply([&](const auto&... cols)
+	{
+		((crc ^= CollectionCrc(cols, cols.Members())), ...);
+	}, Collections());
+
+	std::apply([&](const auto&... cols)
+	{
+		((serverCrc ^= ServerCollectionCrc(cols)), ...);
+	}, ServerCollections());
+
+	return {crc, serverCrc};
+}
+```
+
+## 3. Game frame: replace Crc()/ServerCrc() with Crcs()
+
+**Files**: `Projects/BrokenEngineSandbox/Source/Frame/Frame.h`, `Projects/BrokenEngineSandbox/Source/Frame/Frame.cpp`
+
+### Frame.h
+
+**FrameInterpolate** (lines 75-76): Replace:
+```cpp
+	static common::crc_t Crc(const FrameInterpolate& rCurrent);
+	static common::crc_t ServerCrc(const FrameInterpolate& rCurrent);
+```
+With:
+```cpp
+	static std::pair<common::crc_t, common::crc_t> Crcs(const FrameInterpolate& rCurrent);
+```
+
+**FramePostRender** (lines 169-170): Replace:
+```cpp
+	static common::crc_t Crc(const FramePostRender& rCurrent);
+	static common::crc_t ServerCrc(const FramePostRender& rCurrent);
+```
+With:
+```cpp
+	static std::pair<common::crc_t, common::crc_t> Crcs(const FramePostRender& rCurrent);
+```
+
+**Frame** (lines 199-200): Replace:
+```cpp
+	common::crc_t Crc() const;
+	common::crc_t ServerCrc() const;
+```
+With:
+```cpp
+	std::pair<common::crc_t, common::crc_t> Crcs() const;
+	common::crc_t Crc() const;
+```
+Note: `Crc()` is retained as a thin wrapper because `DifferenceStream.h` requires `.Crc()` on its
+`SAVED_TYPE` template parameter (instantiated with `game::Frame`).
+
+### Frame.cpp
+
+**FrameInterpolate::Crcs()** — replace lines 399-435 (both `Crc()` and `ServerCrc()`) with:
+```cpp
+std::pair<common::crc_t, common::crc_t> FrameInterpolate::Crcs(const FrameInterpolate& rCurrent)
+{
+	auto [crc, serverCrc] = static_cast<const engine::FrameInterpolateBase&>(rCurrent).Crcs();
+
+	common::Crc(rCurrent.gameFlags, crc, serverCrc);
+	common::Crc(rCurrent.fSpawnTimer, crc, serverCrc);
+
+	crc ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->Members());
+	serverCrc ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->ServerCrcMembers());
+
+	std::apply([&](const auto&... cols)
+	{
+		(([&] {
+			crc ^= engine::CollectionCrc(cols, cols.Members());
+			serverCrc ^= engine::ServerCollectionCrc(cols);
+		}()), ...);
+	}, GameInterpolateCollections(rCurrent));
+
+	return {crc, serverCrc};
+}
+```
+
+**FramePostRender::Crcs()** — replace lines 498-534 (both `Crc()` and `ServerCrc()`) with:
+```cpp
+std::pair<common::crc_t, common::crc_t> FramePostRender::Crcs(const FramePostRender& rCurrent)
+{
+	auto [crc, serverCrc] = static_cast<const engine::FramePostRenderBase&>(rCurrent).Crcs();
+
+	common::Crc(rCurrent.enemyAlignment, crc, serverCrc);
+	common::Crc(rCurrent.playerAlignment, crc, serverCrc);
+
+	common::crc_t playersCrc = engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->Members());
+	crc ^= playersCrc;
+	serverCrc ^= playersCrc;
+
+	std::apply([&](const auto&... cols)
+	{
+		(([&] {
+			crc ^= engine::CollectionCrc(cols, cols.Members());
+			serverCrc ^= engine::ServerCollectionCrc(cols);
+		}()), ...);
+	}, GamePostRenderCollections(rCurrent));
+
+	return {crc, serverCrc};
+}
+```
+
+**Frame::Crcs() and Frame::Crc()** — replace lines 597-611 (both `Crc()` and `ServerCrc()`) with:
+```cpp
+std::pair<common::crc_t, common::crc_t> Frame::Crcs() const
+{
+	auto [interpCrc, interpServerCrc] = FrameInterpolate::Crcs(interpolate);
+	auto [postCrc, postServerCrc] = FramePostRender::Crcs(postRender);
+	return {interpCrc ^ postCrc, interpServerCrc ^ postServerCrc};
+}
+
+common::crc_t Frame::Crc() const
+{
+	return Crcs().first;
+}
+```
+
+## 4. Update callers
+
+### FrameTick.cpp (lines 39-40)
+
+**File**: `Projects/BrokenEngineSandbox/Source/Frame/FrameTick.cpp`
+
+Replace:
+```cpp
+	rNext.postRender.crc = rNext.Crc();
+	rNext.postRender.serverCrc = rNext.ServerCrc();
+```
+With:
+```cpp
+	auto [crc, serverCrc] = rNext.Crcs();
+	rNext.postRender.crc = crc;
+	rNext.postRender.serverCrc = serverCrc;
+```
+
+### ServerSession.cpp (lines 394-395)
+
+**File**: `Projects/BrokenEngineSandbox/Source/Network/ServerSession.cpp`
+
+Replace:
+```cpp
+		rDestFrame.postRender.serverCrc = rDestFrame.ServerCrc();
+		rDestFrame.postRender.crc = rDestFrame.Crc();
+```
+With:
+```cpp
+		auto [crc, serverCrc] = rDestFrame.Crcs();
+		rDestFrame.postRender.crc = crc;
+		rDestFrame.postRender.serverCrc = serverCrc;
+```
+
+### ClientSession.cpp (lines 231-232)
+
+**File**: `Projects/BrokenEngineSandbox/Source/Network/ClientSession.cpp`
+
+Replace:
+```cpp
+			rSub.snapshots[0]->postRender.serverCrc = rSub.snapshots[0]->ServerCrc();
+			rSub.snapshots[0]->postRender.crc = rSub.snapshots[0]->Crc();
+```
+With:
+```cpp
+			auto [crc, serverCrc] = rSub.snapshots[0]->Crcs();
+			rSub.snapshots[0]->postRender.crc = crc;
+			rSub.snapshots[0]->postRender.serverCrc = serverCrc;
+```
+
+### ReconcileReplay.cpp (lines 289-290)
+
+**File**: `Projects/BrokenEngineSandbox/Source/Network/ReconcileReplay.cpp`
+
+Replace:
+```cpp
+		pNext->postRender.serverCrc = pNext->ServerCrc();
+		pNext->postRender.crc = pNext->Crc();
+```
+With:
+```cpp
+		auto [crc, serverCrc] = pNext->Crcs();
+		pNext->postRender.crc = crc;
+		pNext->postRender.serverCrc = serverCrc;
+```
+
+## 5. Update CLAUDE.md docs
+
+- `Engine/Source/Frame/CLAUDE.md` line 11: Change `ServerCrc()` to `Crcs()` in FrameInterpolateBase description
+- `Engine/Source/Frame/CLAUDE.md` line 22: Update "Dual CRC system" note to reference `Crcs()` returning `std::pair`
+- `Projects/BrokenEngineSandbox/Source/Frame/CLAUDE.md` line 13: Update `ServerCrc()` reference to `Crcs()`

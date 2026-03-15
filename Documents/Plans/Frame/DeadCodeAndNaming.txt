@@ -1,0 +1,261 @@
+Dead Code Removal and Naming Fixes — Frame Subsystem
+=====================================================
+All items validated by codebase search. Zero callers confirmed for dead code.
+Naming typos confirmed with all reference sites listed.
+
+================================================================================
+C1. Remove dead DayPercent()/NightPercent()
+================================================================================
+Defined in FrameBase.cpp:333-365, declared in Render.h:22-23.
+GlobalUniforms.cpp computes its own local fDayPercent inline — does NOT call these functions.
+
+File: Engine/Source/Frame/FrameBase.cpp
+  Remove lines 332-365 (the two functions and the blank line before them):
+
+  OLD (lines 332-365):
+  |
+  |#if defined(BT_CLIENT)
+  |float DayPercent()
+  |{
+  |	float fSunAngle = game::gpCamera->SunAngle();
+  |	...
+  |}
+  |
+  |float NightPercent()
+  |{
+  |	float fSunAngle = game::gpCamera->SunAngle();
+  |	...
+  |}
+  |
+  NEW: (delete entirely; keep the #if defined(BT_CLIENT) that now guards BeginRender)
+
+  Resulting code at that location:
+  |
+  |#if defined(BT_CLIENT)
+  |void FrameInterpolateBase::BeginRender(...
+
+File: Engine/Source/Graphics/Render/Render.h
+  Remove lines 22-23:
+
+  OLD:
+  |float DayPercent();
+  |float NightPercent();
+
+  NEW: (delete both lines)
+
+================================================================================
+C2. Remove dead TimeStep::ConsumeTick()
+================================================================================
+Empty function body, zero callers outside its own definition.
+
+File: Engine/Source/Frame/TimeStep.h
+  Remove lines 19-20:
+
+  OLD:
+  |	// Consume one tick from the accumulator
+  |	void ConsumeTick();
+
+  NEW: (delete both lines)
+
+File: Engine/Source/Frame/TimeStep.cpp
+  Remove lines 76-78:
+
+  OLD:
+  |void TimeStep::ConsumeTick()
+  |{
+  |}
+
+  NEW: (delete all three lines)
+
+================================================================================
+C3. Remove dead TerrainCollision()
+================================================================================
+Free function in IslandTerrain.h:32 / IslandTerrain.cpp:6-25. Zero callers.
+(The constants kfTerrainCollision* in SpaceshipsUpdate.cpp are unrelated local names.)
+
+File: Engine/Source/Frame/IslandTerrain.h
+  Remove line 32:
+
+  OLD:
+  |XMVECTOR XM_CALLCONV TerrainCollision(FXMVECTOR vecStart, FXMVECTOR vecEnd, float fStepInterval);
+
+  NEW: (delete line)
+
+File: Engine/Source/Frame/IslandTerrain.cpp
+  Remove lines 6-25 (function body):
+
+  OLD:
+  |XMVECTOR XM_CALLCONV TerrainCollision(FXMVECTOR vecStart, FXMVECTOR vecEnd, float fStepInterval)
+  |{
+  |	...
+  |	return vecEnd;
+  |}
+
+  NEW: (delete entire function)
+
+================================================================================
+C4. Remove stale IdToIndex call in AreaLightsPostRender::Remove
+================================================================================
+Line 68 calls IdToIndex() and discards the return value. RemoveIndexableElement on
+line 70 does its own idToIndexMap.at(id) lookup internally.
+
+File: Engine/Source/Frame/Collections/AreaLights/AreaLightsUpdate.cpp
+  Remove line 68:
+
+  OLD:
+  |	rInterpolate.IdToIndex(rId);
+  |
+  |	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+
+  NEW:
+  |	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+
+================================================================================
+C5. Move giBackgroundThreadCount from FrameBase.h to Main.cpp
+================================================================================
+Only set and used in Main.cpp (lines 77, 80, 82). Not Frame-related.
+
+File: Engine/Source/Frame/FrameBase.h
+  Remove line 42:
+
+  OLD:
+  |inline int64_t giBackgroundThreadCount = 0;
+
+  NEW: (delete line)
+
+File: Engine/Source/Main.cpp
+  Add a file-scope static variable before the existing statics (after line 10):
+
+  OLD:
+  |static bool sbQuit = false;
+
+  NEW:
+  |static bool sbQuit = false;
+  |static int64_t siBackgroundThreadCount = 0;
+
+  Then rename all three uses in Main.cpp:
+    Line 77: giBackgroundThreadCount -> siBackgroundThreadCount
+    Line 80: giBackgroundThreadCount -> siBackgroundThreadCount
+    Line 82: giBackgroundThreadCount -> siBackgroundThreadCount
+
+================================================================================
+C6. Rename OptionaldToIndex -> OptionalIdToIndex
+================================================================================
+Typo: missing capital 'I'. All references are in Collection.h.
+
+File: Engine/Source/Frame/Collections/Collection.h
+  Rename all 7 occurrences of OptionaldToIndex to OptionalIdToIndex:
+    Line 808: struct OptionaldToIndex
+    Line 815: struct OptionaldToIndex<T, FLAGS>
+    Line 895: struct Collection : public OptionaldToIndex<T, FLAGS>
+    Line 917: static_cast<const OptionaldToIndex<T, FLAGS>&>(*this).Write(rStream);
+    Line 927: static_cast<OptionaldToIndex<T, FLAGS>&>(*this).Read(rStream);
+    Line 936: checksum ^= static_cast<const OptionaldToIndex<T, FLAGS>&>(*this).Crc();
+
+  In each case:
+    OLD: OptionaldToIndex
+    NEW: OptionalIdToIndex
+
+================================================================================
+C7. Rename CollisidesWith -> CollidesWith
+================================================================================
+Typo: extra 'i'. Namespace and all references.
+
+File: Projects/BrokenEngineSandbox/Source/Frame/HealthDamage.h
+  Line 51:
+    OLD: namespace CollisidesWith
+    NEW: namespace CollidesWith
+
+File: Projects/BrokenEngineSandbox/Source/Frame/Collections/Blasters/BlastersUpdate.cpp
+  Line 244:
+    OLD: .uiCollidesWith = CollisidesWith::kBlaster,
+    NEW: .uiCollidesWith = CollidesWith::kBlaster,
+
+File: Projects/BrokenEngineSandbox/Source/Frame/Collections/Missiles/MissilesUpdate.cpp
+  Line 268:
+    OLD: .uiCollidesWith = CollisidesWith::kMissile,
+    NEW: .uiCollidesWith = CollidesWith::kMissile,
+
+File: Projects/BrokenEngineSandbox/Source/Frame/Collections/Spaceships/SpaceshipsUpdate.cpp
+  Line 355:
+    OLD: .uiCollidesWith = CollisidesWith::kSpaceship,
+    NEW: .uiCollidesWith = CollidesWith::kSpaceship,
+
+File: Projects/BrokenEngineSandbox/Source/Frame/Collections/Players/PlayersUpdate.cpp
+  Line 462:
+    OLD: .uiCollidesWith = CollisidesWith::kPlayer,
+    NEW: .uiCollidesWith = CollidesWith::kPlayer,
+
+================================================================================
+C8. Empty constructors -> = default
+================================================================================
+Only FrameInterpolateBase qualifies. TimeStep also qualifies.
+FramePostRenderBase does NOT qualify (has member initializer list for vecArea).
+
+File: Engine/Source/Frame/FrameBase.h
+  Line 46:
+    OLD: FrameInterpolateBase();
+    NEW: FrameInterpolateBase() = default;
+
+File: Engine/Source/Frame/FrameBase.cpp
+  Remove lines 8-10:
+    OLD:
+    |FrameInterpolateBase::FrameInterpolateBase()
+    |{
+    |}
+    NEW: (delete all three lines)
+
+File: Engine/Source/Frame/TimeStep.h
+  Line 12:
+    OLD: TimeStep();
+    NEW: TimeStep() = default;
+
+File: Engine/Source/Frame/TimeStep.cpp
+  Remove lines 13-15:
+    OLD:
+    |TimeStep::TimeStep()
+    |{
+    |}
+    NEW: (delete all three lines)
+
+================================================================================
+C9. Replace redundant Load/Save with direct assignment in FramePostRenderBase::Update
+================================================================================
+Lines 273-293: fields are loaded into locals then immediately saved unchanged.
+Replace with direct member-to-member copies.
+
+File: Engine/Source/Frame/FrameBase.cpp
+
+  OLD (lines 273-293):
+  |	// Load
+  |	common::RandomEngine randomEngine = rPrevious.randomEngine;
+  |	XMVECTOR vecArea = rPrevious.vecArea;
+  |	uint64_t uiNextUuid = rPrevious.uiNextUuid;
+  |#if defined(BT_CLIENT)
+  |	uint64_t uiNextSoundUuid = rPrevious.uiNextSoundUuid;
+  |	uint64_t uiNextVisualUuid = rPrevious.uiNextVisualUuid;
+  |#endif
+  |	uint16_t uiFrameId = rPrevious.uiFrameId;
+  |	IslandsFlip eIslandsFlip = rPrevious.eIslandsFlip;
+  |
+  |	// Save
+  |	rCurrent.randomEngine = randomEngine;
+  |	rCurrent.vecArea = vecArea;
+  |	rCurrent.uiNextUuid = uiNextUuid;
+  |#if defined(BT_CLIENT)
+  |	rCurrent.uiNextSoundUuid = uiNextSoundUuid;
+  |	rCurrent.uiNextVisualUuid = uiNextVisualUuid;
+  |#endif
+  |	rCurrent.uiFrameId = uiFrameId;
+  |	rCurrent.eIslandsFlip = eIslandsFlip;
+
+  NEW:
+  |	rCurrent.randomEngine = rPrevious.randomEngine;
+  |	rCurrent.vecArea = rPrevious.vecArea;
+  |	rCurrent.uiNextUuid = rPrevious.uiNextUuid;
+  |#if defined(BT_CLIENT)
+  |	rCurrent.uiNextSoundUuid = rPrevious.uiNextSoundUuid;
+  |	rCurrent.uiNextVisualUuid = rPrevious.uiNextVisualUuid;
+  |#endif
+  |	rCurrent.uiFrameId = rPrevious.uiFrameId;
+  |	rCurrent.eIslandsFlip = rPrevious.eIslandsFlip;

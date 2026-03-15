@@ -1,0 +1,147 @@
+3D Audio and PlayOneShot Fixes
+==============================
+Fix listener position for multiplayer, correct DopplerScaler, and fix
+PlayOneShot3d playing at full volume before 3D attenuation is applied.
+
+Findings Validation
+-------------------
+
+[H2] Listener position always uses player index 0 - CONFIRMED
+  AudioManager.cpp:498-499 hardcodes index 0:
+    rFrame.interpolate.pPlayers->pVecPositions[0]
+    rFrame.postRender.pPlayers->pVecVelocities[0]
+  In multiplayer, the human player may not be at index 0. The listener
+  would track the wrong player, making all 3D spatial audio wrong.
+
+  Fix: Use game::gpGame->HumanPlayerIndex() to look up the correct
+  index. This function already exists (Game.h:91) and returns
+  std::optional<int64_t>. AudioManager::Update already has access to
+  the frame and can access game::gpGame (it is engine code, not frame
+  code, so the Frame Purity Constraint does not apply). Fall back to
+  XMVectorZero() if no human player is found.
+
+  Note: The position comes from interpolate.pPlayers (which has
+  idToIndexMap via kIdToIndex), but the velocity comes from
+  postRender.pPlayers (which does NOT have idToIndexMap). The
+  postRender players DO have puiIds, so we need to find the matching
+  index by scanning puiIds for the human player ID. Alternatively,
+  since both collections maintain the same entity ordering, use the
+  same index for both. Actually, interpolate and postRender may have
+  different counts/ordering since they are separate collections.
+  The safe approach: use HumanPlayerIndex for interpolate position,
+  and scan postRender.puiIds for the matching ID for velocity.
+
+[M1] DopplerScaler uses wrong value (mfCurveDistanceScaler) - CONFIRMED
+  AudioManager.cpp:298 sets DopplerScaler = mfCurveDistanceScaler.
+  CurveDistanceScaler controls distance attenuation curve scaling.
+  DopplerScaler controls the intensity of the Doppler pitch shift.
+  These are unrelated concepts and should not share a value.
+
+  Fix: Use 1.0f (the X3DAudio default) for DopplerScaler. No need
+  for a new member variable since the default is always appropriate.
+
+[M3] PlayOneShot3d briefly plays at full volume before 3D attenuation - CONFIRMED
+  The call sequence in PlayOneShot3d:
+    1. LoadXAudio2SourceVoice sets volume to 0.0f (StaticVoice.cpp:34)
+    2. PlayOneShot sets volume to full value (AudioManager.cpp:552)
+    3. PlayOneShot calls Start() (AudioManager.cpp:554)
+    4. PlayOneShot3d calls Apply3dVolume (AudioManager.cpp:575)
+  Between steps 3 and 4, the voice plays at full un-attenuated volume.
+
+  Fix: In PlayOneShot, when b3d is true, skip setting the volume
+  (leave it at 0.0f from LoadXAudio2SourceVoice). The voice starts
+  at 0 volume, and Apply3dVolume in PlayOneShot3d sets the correct
+  distance-attenuated volume immediately after.
+
+[M4] Division by zero in Apply3dVolume - REJECTED
+  When mfManualFadeEnd == mfManualFadeStart, line 330 divides by zero.
+  Per project rules: "DO NOT add error handling or validation - assume
+  parameters to functions are valid." Set3dSettings callers are
+  responsible for providing valid values (fManualFadeEnd > fManualFadeStart).
+
+[L1] PlayOneShot3d consumes random engine during reconciliation - REJECTED
+  mRandomEngine is AudioManager's own time-seeded random engine, NOT
+  the Frame's deterministic random engine. The Audio CLAUDE.md
+  explicitly states: "Owns a time-seeded RandomEngine for pitch
+  randomization, keeping audio variance out of the Frame's
+  deterministic random engine." Consuming this random during
+  reconciliation has no effect on determinism. The kRecalculated
+  early-return in PlayOneShot correctly prevents the voice from
+  actually playing; the wasted random draw is harmless.
+
+[L5] X3DAUDIO_DSP_SETTINGS stack arrays allocated per voice per frame - REJECTED
+  XAUDIO2_MAX_AUDIO_CHANNELS is 64. Each array is 64 * 4 = 256 bytes.
+  Two arrays = 512 bytes on the stack per Apply3dVolume call. This is
+  trivial. Moving to member variables adds persistent state for no
+  meaningful benefit. YAGNI.
+
+[L7] No distance culling before X3DAudio calculations - REJECTED
+  Static voices are looping sounds (engines, ambient). The count is
+  small (tracked via kCpuCounterSounds). Apply3dVolume already handles
+  distance-based volume fade, so far voices are effectively silent.
+  Adding a distance cull check is premature optimization. YAGNI.
+
+Order of Operations
+-------------------
+1. Fix DopplerScaler in Apply3dVolume (M1) - single line change
+2. Fix PlayOneShot volume for 3D path (M3) - small change in PlayOneShot
+3. Fix listener position for multiplayer (H2) - requires HumanPlayerIndex lookup
+
+Changes
+-------
+
+### Step 1: Fix DopplerScaler (M1)
+File: Engine/Source/Audio/AudioManager.cpp
+Line 298: Change `.DopplerScaler = mfCurveDistanceScaler,` to `.DopplerScaler = 1.0f,`
+
+### Step 2: Fix PlayOneShot 3D volume (M3)
+File: Engine/Source/Audio/AudioManager.cpp
+Line 552: Wrap the SetVolume call so it only runs when NOT in 3D mode.
+Change:
+    CHECK_HRESULT(pIXAudio2SourceVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fVolume)));
+To:
+    if (!b3d)
+    {
+        CHECK_HRESULT(pIXAudio2SourceVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fVolume)));
+    }
+
+The voice was already initialized to volume 0.0f by LoadXAudio2SourceVoice.
+For b3d=true, Apply3dVolume (called by PlayOneShot3d) sets the correct volume.
+For b3d=false (non-3D one-shots), behavior is unchanged.
+
+### Step 3: Fix listener position (H2)
+File: Engine/Source/Audio/AudioManager.cpp
+Lines 497-508: Replace the hardcoded index-0 lookup with HumanPlayerIndex.
+
+Add #include "Game.h" if not already present. (Already included at line 7.)
+
+Change lines 497-508 from:
+    // Update listener position from frame data
+    XMVECTOR vecListenerPos = rFrame.interpolate.pPlayers->iCount > 0 ? rFrame.interpolate.pPlayers->pVecPositions[0] : XMVectorZero();
+    XMVECTOR vecListenerVel = rFrame.postRender.pPlayers->iCount > 0 ? rFrame.postRender.pPlayers->pVecVelocities[0] : XMVectorZero();
+    ... (listener assignment)
+
+To:
+    // Update listener position from human player
+    XMVECTOR vecListenerPos = XMVectorZero();
+    XMVECTOR vecListenerVel = XMVectorZero();
+    std::optional<int64_t> oHumanIndex = game::gpGame->HumanPlayerIndex(*rFrame.interpolate.pPlayers);
+    if (oHumanIndex.has_value())
+    {
+        int64_t iHumanIndex = oHumanIndex.value();
+        vecListenerPos = rFrame.interpolate.pPlayers->pVecPositions[iHumanIndex];
+
+        // Find matching index in postRender for velocity
+        player_t humanId = game::gpGame->HumanPlayerId();
+        const auto& rPostRenderPlayers = *rFrame.postRender.pPlayers;
+        for (int64_t i = 0; i < rPostRenderPlayers.iCount; ++i)
+        {
+            if (rPostRenderPlayers.puiIds[i] == humanId)
+            {
+                vecListenerVel = rPostRenderPlayers.pVecVelocities[i];
+                break;
+            }
+        }
+    }
+    mVecListenerPosition = vecListenerPos;
+    ... (rest of listener assignment unchanged)

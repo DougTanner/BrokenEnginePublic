@@ -2,13 +2,14 @@
 *.user
 *.local.json
 tmpclaude*
+Log.txt
 
 # Local-only directories
 .vs/
 Build/
 DiagnosticLogs/
 Output/
-Plans/
+Plans/Temp
 
 # Games
 Projects/KineticStorm/

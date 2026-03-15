@@ -66,25 +66,13 @@ struct ReconcileContext
 	int64_t iTargetTick = 0;
 	engine::alignment_t playerAlignment {};
 
-	CoordReconcileWork* FindCoordWork(const engine::GridCoord& coord)
-	{
-		auto it = coordWorkIndex.find(coord);
-		return it != coordWorkIndex.end() ? &coordWork.at(it->second) : nullptr;
-	}
-
-	// Working data (owned by worker during execution)
-	std::unordered_map<engine::GridCoord, size_t> coordWorkIndex;
-	std::unordered_map<engine::GridCoord, FrameInput> frameInputs;
-	std::vector<engine::GridCoord> activeCoords;
-	engine::GridCoord humanGridCoord {};
-	player_t humanPlayerId {};
-	float fPreviousHumanArmor = 0.0f;
+	// Working data (set during per-coord processing)
 	int64_t iTickCounter = 0;
 	float fCurrentTime = 0.0f;
 
 	// Output
 	ConfirmedHumanState newConfirmedHumanState;
-	bool bCrcFastPathHandledAll = false;
+	bool bAnyFullReplay = false;
 
 	// Profiling counters
 	struct Profiling

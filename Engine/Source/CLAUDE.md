@@ -4,7 +4,7 @@
 
 Manager-based game engine runtime producing two executables (client and server) from the same source via `BT_CLIENT`/`BT_SERVER` defines. All major systems are singletons accessed via global pointers (e.g., `gpGraphics`, `gpAudioManager`). Managers are created in strict dependency order at startup and destroyed in reverse order via RAII.
 
-See also: [System Overview](../../Documents/Architecture/SystemOverview.md) | [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeline.md)
+See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeline.md) — update this diagram if main loop or RunFrameTick phase ordering changes
 
 ## Key Classes
 

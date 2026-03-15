@@ -1,0 +1,75 @@
+Server Protocol Hardening
+=========================
+
+Validated findings from network audit. Two confirmed issues, one discarded.
+
+
+DISCARDED: [T2-7] Resend for Overwritten Ring Buffer Frames
+-------------------------------------------------------------
+Original claim: When FindBufferedFrame returns null (frame overwritten in ring buffer),
+the server silently skips the resend and the client keeps requesting the same frame forever.
+
+NOT AN ISSUE. The client's ACK bitfield is only 64 bits wide, but the server ring buffer
+holds 256 frames (kiMaxBufferedFrames). A frame can only be requested via the bitfield if
+it is within 64 ticks of the client's ACK floor. For a frame to have been evicted from the
+256-frame ring buffer, it would need to be >256 ticks old, which is far beyond the 64-bit
+bitfield window. The client cannot request a frame that has been evicted.
+
+Additionally, even if a resend is skipped (FindBufferedFrame returns null at ServerSend.cpp:273),
+the client's ACK floor advances naturally when it receives newer frames (Client.cpp:227-231).
+If a gap persists beyond kiTickRate frames, the client disconnects itself (Client.cpp:216-221).
+
+
+DISCARDED: [T5-2] Negative ACK Floor Causes Resend of Frame 0
+----------------------------------------------------------------
+Original claim: Initial iAckFloor = -1 causes resend of frame 0 via iAckFloor + 1 + 0 = 0.
+
+NOT AN ISSUE. SendResends (ServerSend.cpp:245-248) explicitly guards against this:
+    if (rAck.iAckFloor < 0)
+    {
+        continue;
+    }
+The entire slot is skipped when iAckFloor is -1. No resend loop is entered.
+
+
+CONFIRMED: [T2-8] No Handshake Gate on Subscribe/Spawn Requests
+-----------------------------------------------------------------
+File: Engine/Source/Network/Server/ServerReceive.cpp (Receive dispatch at line 147-183)
+      Engine/Source/Network/Server/Server.h (ClientConnection struct)
+      Engine/Source/Network/Server/Server.cpp (Connect at line 96-118)
+
+Issue: Server::Connect() adds the client to mClients immediately on ENet connect, before
+any hello packet is received. The Receive() dispatch switch (Server.cpp:157-182) routes
+kClientSubscribe, kClientSpawnRequest, and kClientAckStream without checking whether the
+client has completed the handshake. FindClient() succeeds for these pre-hello clients
+because they are already in mClients.
+
+In normal operation the legitimate client code waits for kServerConnectionResponse before
+sending subscribe/spawn, so this is not triggered. But the server should be defensive:
+a buggy or malicious client could subscribe to coords and request spawns before the server
+validates protocol version and build config. This could cause the game layer to process
+spawn requests for incompatible clients.
+
+Impact: Low probability in practice (requires non-standard client), but the fix is trivial.
+
+Fix:
+1. Add a bool bHandshakeComplete = false field to ClientConnection (Server.h:17 area)
+2. Set bHandshakeComplete = true in ClientHello() after successful validation
+   (ServerReceive.cpp:193, after SendConnectionResponse with bAccepted=true)
+3. In Receive() (Server.cpp:157-182), add an early return for kClientSubscribe,
+   kClientSpawnRequest, and kClientAckStream when the client has not completed handshake:
+
+   In the switch cases for kClientSubscribe, kClientSpawnRequest, and kClientAckStream:
+   - Look up the client via FindClient(iClientId)
+   - If null or !bHandshakeComplete, skip the handler
+
+   Minimal approach: add the gate inside each handler rather than in the dispatch, since
+   ClientSubscribe and ClientAckStream already call FindClient. Add the bHandshakeComplete
+   check after the existing null check.
+
+   For ClientSpawnRequest, which does not currently call FindClient, add a FindClient +
+   bHandshakeComplete check at the top before pushing to mPendingSpawnRequests.
+
+Files to modify:
+- Engine/Source/Network/Server/Server.h - Add bHandshakeComplete field to ClientConnection
+- Engine/Source/Network/Server/ServerReceive.cpp - Set flag in ClientHello, gate in handlers

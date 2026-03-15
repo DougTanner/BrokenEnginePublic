@@ -348,7 +348,11 @@ game::Frame* ClientSessionBase::GetSnapshotFrame(GridCoord coord) const
 	}
 	const CoordFrames& rSub = subIt->second;
 	int64_t iPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount - 1);
-	Log(kLogNetwork, "DT: TEMP renderTick: {} snapshotCount: {} confirmed: {}", rSub.snapshots[iPhysical]->interpolate.iTick, rSub.iSnapshotCount, rSub.iConfirmedTick);
+	if (rSub.snapshots[iPhysical] == nullptr)
+	{
+		return nullptr;
+	}
+	Log(kLogNetwork, "renderTick: {} snapshotCount: {} confirmed: {}", rSub.snapshots[iPhysical]->interpolate.iTick, rSub.iSnapshotCount, rSub.iConfirmedTick); // DT: TEMP
 	return rSub.snapshots[iPhysical].get();
 }
 
@@ -365,6 +369,16 @@ int64_t ClientSessionBase::GetConfirmedTick() const
 		}
 	}
 	return iMin;
+}
+
+int64_t ClientSessionBase::GetHumanConfirmedTick() const
+{
+	auto it = game::gpGame->mCoordFrames.find(game::gpGame->mHumanGridCoord);
+	if (it == game::gpGame->mCoordFrames.end() || it->second.iConfirmedTick < 0)
+	{
+		return -1;
+	}
+	return it->second.iConfirmedTick;
 }
 
 int64_t ClientSessionBase::GetServerUpdateBufferSize() const

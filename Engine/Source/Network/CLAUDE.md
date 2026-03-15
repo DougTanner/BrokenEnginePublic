@@ -1,6 +1,6 @@
 # `/Engine/Source/Network/` - Networking
 
-See also: [Network Architecture](../../../Documents/Architecture/Network.md)
+See also: [Game Reconciliation](../../../Documents/Architecture/Network/GameReconciliation.md) — update this diagram if reconciliation state machine changes
 
 ## Overview
 

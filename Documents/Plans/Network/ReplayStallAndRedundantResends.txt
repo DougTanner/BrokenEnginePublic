@@ -1,0 +1,79 @@
+Replay Stall and Redundant Resends - Bug Fix Plan
+===================================================
+
+Two independent network bug fixes bundled together.
+
+
+B2: iMaxReplay=0 Stall
+-----------------------
+
+Problem:
+  In ReconcileReplay.cpp line 362, the expression:
+    const int64_t iMaxReplay = (iMaxConsecutive - rWork.iConfirmedTick + 1) / 2;
+  evaluates to 0 when exactly one server frame is available (iMaxConsecutive == rWork.iConfirmedTick),
+  because (iConfirmedTick - iConfirmedTick + 1) / 2 = 1/2 = 0 via integer division.
+  This causes the replay loop (line 365-395) to never execute, stalling reconciliation.
+
+Fix:
+  File: Projects/BrokenEngineSandbox/Source/Network/ReconcileReplay.cpp
+  Line 362, change:
+    const int64_t iMaxReplay = (iMaxConsecutive - rWork.iConfirmedTick + 1) / 2;
+  To:
+    const int64_t iMaxReplay = std::max(1LL, (iMaxConsecutive - rWork.iConfirmedTick + 1) / 2);
+
+
+T1: Redundant Resends During Multi-Frame Ticks
+-----------------------------------------------
+
+Problem:
+  SendResends() is called per-tick inside BroadcastStatusChanges() (ServerSession.cpp line 293),
+  which is called from BroadcastTick() (line 50), which is called from FinalizeFrameTick()
+  (GameBase.cpp line 210), which runs inside the server tick loop (GameBase.cpp lines 108-117).
+
+  ACK state only updates once per outer frame via PreTickNetwork() -> PollNetworkBase().
+  When iFullTicks > 1, SendResends fires multiple times with identical ACK state, producing
+  redundant resend packets.
+
+Fix:
+  Move SendResends out of BroadcastStatusChanges and call it once after the tick loop.
+
+  Step 1 - Remove SendResends from BroadcastStatusChanges
+    File: Projects/BrokenEngineSandbox/Source/Network/ServerSession.cpp
+    Lines 288-294, change:
+      // Send per-client updates (server iterates each client's subscribed slots internally)
+      std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
+      for (engine::ClientConnection& rClient : rClients)
+      {
+          engine::gpServer->SendUpdate(rClient, iTick);
+          engine::gpServer->SendResends(rClient, iTick);
+      }
+    To:
+      // Send per-client updates (server iterates each client's subscribed slots internally)
+      std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
+      for (engine::ClientConnection& rClient : rClients)
+      {
+          engine::gpServer->SendUpdate(rClient, iTick);
+      }
+
+  Step 2 - Add a new SendResends method to ServerSession
+    File: Projects/BrokenEngineSandbox/Source/Network/ServerSession.h
+    After line 38 (BroadcastTick declaration), add:
+      void SendResends(int64_t iTick);
+
+    File: Projects/BrokenEngineSandbox/Source/Network/ServerSession.cpp
+    After BroadcastTick (after line 53), add:
+      void ServerSession::SendResends(int64_t iTick)
+      {
+          ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+          std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
+          for (engine::ClientConnection& rClient : rClients)
+          {
+              engine::gpServer->SendResends(rClient, iTick);
+          }
+      }
+
+  Step 3 - Call SendResends once after the server tick loop
+    File: Engine/Source/GameBase.cpp
+    After line 117 (end of tick loop brace) and before line 118 (CpuStop), add:
+      game::gpServerSession->SendResends(miTickCounter);
+    This ensures resends fire exactly once per frame with up-to-date ACK state.

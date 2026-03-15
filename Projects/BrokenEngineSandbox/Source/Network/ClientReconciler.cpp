@@ -53,7 +53,7 @@ ReconcileDesyncInfo ClientReconciler::Wait()
 		common::Timer timer;
 		mpWorker->Wait();
 		std::chrono::nanoseconds semaphoreWaitNs = timer.GetDeltaNs(true);
-		Log(kLogNetwork, "DT: TEMP reconcileWaitMs: {}", std::chrono::duration_cast<std::chrono::milliseconds>(semaphoreWaitNs).count());
+		Log(kLogNetwork, "reconcileWaitMs: {}", std::chrono::duration_cast<std::chrono::milliseconds>(semaphoreWaitNs).count()); // DT: TEMP
 
 		std::chrono::nanoseconds maxWait = std::chrono::nanoseconds(100ms);
 		if (semaphoreWaitNs > maxWait)
@@ -137,50 +137,17 @@ void ClientReconciler::Kick()
 void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const engine::Alignments& rAlignments)
 {
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
-	common::Timer reconcileTimer;
 
-	auto [bAllHandled, iMinConfirmedTick] = ReconcileCrcFastPath(rReconcileContext);
-	if (bAllHandled)
+	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
 	{
-		return;
+		ReconcileCoord(rReconcileContext, rWork);
+		if (rReconcileContext.iDesyncTick >= 0)
+		{
+			return;
+		}
 	}
 
-	Log(kLogNetwork, "ClientReconciler::Reconcile CRC fast-path miss MinConfirmed: {} TargetTick: {} Coords: {}", iMinConfirmedTick, rReconcileContext.iTargetTick, rReconcileContext.coordWork.size());
-
-	// Build coord-to-index map for O(1) lookups
-	rReconcileContext.coordWorkIndex.clear();
-	for (size_t i = 0; i < rReconcileContext.coordWork.size(); ++i)
-	{
-		rReconcileContext.coordWorkIndex.insert_or_assign(rReconcileContext.coordWork.at(i).coord, i);
-	}
-
-	ReconcileRollback(rReconcileContext, iMinConfirmedTick);
-
-	int64_t iMaxConsecutive = ReconcileFindReplayRange(rReconcileContext, iMinConfirmedTick);
-
-	Log(kLogNetwork, "ClientReconciler::Reconcile ReplayRange MaxConsecutive: {} Size: {}", iMaxConsecutive, iMaxConsecutive - iMinConfirmedTick);
-
-	ReconcileReplay(rReconcileContext, iMinConfirmedTick, iMaxConsecutive);
-
-	if (rReconcileContext.iDesyncTick >= 0)
-	{
-		return;
-	}
-
-	ReconcilePruneInactiveFrames(rReconcileContext);
-
-	// Save confirmed state
-	rReconcileContext.newConfirmedHumanState.humanGridCoord = rReconcileContext.humanGridCoord;
-	rReconcileContext.newConfirmedHumanState.humanPlayerId = rReconcileContext.humanPlayerId;
-	rReconcileContext.newConfirmedHumanState.fPreviousHumanArmor = rReconcileContext.fPreviousHumanArmor;
-	rReconcileContext.newConfirmedHumanState.fCurrentTime = rReconcileContext.fCurrentTime;
-
-	ReconcileCatchUp(rReconcileContext, iMinConfirmedTick);
-
-	// Final prune
-	ReconcilePruneInactiveFrames(rReconcileContext);
-
-	Log(kLogNetwork, "ClientReconciler::Reconcile Summary StatusChangeReplay: {} KnockOnReplay: {} Assumed: {} CrcValidated: {}", rReconcileContext.profiling.iStatusChangeReplayTicks, rReconcileContext.profiling.iKnockOnReplayTicks, rReconcileContext.profiling.iAssumedFrameTicks, rReconcileContext.profiling.iCrcValidatedFrameTicks);
+	ReconcileUpdateHumanState(rReconcileContext);
 }
 
 static void MergeNewSnapshots(engine::CoordFrames& rSub, CoordReconcileWork& rWork, int64_t iStartIndex)
@@ -205,6 +172,9 @@ void ClientReconciler::ApplyCoordWriteback(CoordReconcileWork& rWork, engine::Co
 
 		if (rWork.bCrcFastPath)
 		{
+			// Save main-thread extrapolation count before swap replaces it
+			int64_t iMainSnapshotCount = rSub.iSnapshotCount;
+
 			// Fast-path: swap arrays back from worker, advance head to confirmed
 			std::swap(rSub.snapshots, rWork.snapshots);
 			rSub.iSnapshotHead = SnapshotIndex(rWork.iSnapshotHead, rWork.iNewConfirmedOffset);
@@ -213,6 +183,18 @@ void ClientReconciler::ApplyCoordWriteback(CoordReconcileWork& rWork, engine::Co
 
 			// Merge catch-up snapshots (from non-fast-path coords that were replayed)
 			MergeNewSnapshots(rSub, rWork, rSub.iSnapshotHead);
+
+			// Preserve main-thread extrapolation snapshots built during reconciliation
+			// (now in rWork.snapshots after swap, head=0 from kick reset)
+			for (int64_t i = 0; i < iMainSnapshotCount && rSub.iSnapshotCount < engine::kiTickRate; ++i)
+			{
+				if (rWork.snapshots[i] != nullptr && rWork.snapshots[i]->interpolate.iTick > rSub.iConfirmedTick)
+				{
+					int64_t iPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount);
+					rSub.snapshots[iPhysical] = std::move(rWork.snapshots[i]);
+					++rSub.iSnapshotCount;
+				}
+			}
 		}
 		else
 		{
@@ -245,11 +227,25 @@ void ClientReconciler::ApplyCoordWriteback(CoordReconcileWork& rWork, engine::Co
 	}
 	else
 	{
+		// Save main-thread extrapolation count before swap replaces it
+		int64_t iMainSnapshotCount = rSub.iSnapshotCount;
+
 		// No advancement — swap snapshots back and restore all ring fields
 		std::swap(rSub.snapshots, rWork.snapshots);
 		rSub.iSnapshotCount = rWork.iSnapshotCount;
 		rSub.iSnapshotHead = rWork.iSnapshotHead;
 		rSub.iConfirmedOffset = rWork.iConfirmedOffset;
+
+		// Preserve main-thread extrapolation snapshots built during reconciliation
+		for (int64_t i = 0; i < iMainSnapshotCount && rSub.iSnapshotCount < engine::kiTickRate; ++i)
+		{
+			if (rWork.snapshots[i] != nullptr && rWork.snapshots[i]->interpolate.iTick > rSub.iConfirmedTick)
+			{
+				int64_t iPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount);
+				rSub.snapshots[iPhysical] = std::move(rWork.snapshots[i]);
+				++rSub.iSnapshotCount;
+			}
+		}
 	}
 
 	// Restore unconsumed server updates that were moved to context
@@ -257,7 +253,7 @@ void ClientReconciler::ApplyCoordWriteback(CoordReconcileWork& rWork, engine::Co
 	{
 		if (iTick > rSub.iConfirmedTick)
 		{
-			rSub.serverUpdates[iTick] = std::move(rUpdate);
+			rSub.serverUpdates.insert_or_assign(iTick, std::move(rUpdate));
 		}
 	}
 }
@@ -297,7 +293,7 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 			{
 				if (iTick > rSub.iConfirmedTick)
 				{
-					rSub.serverUpdates[iTick] = std::move(rUpdate);
+					rSub.serverUpdates.insert_or_assign(iTick, std::move(rUpdate));
 				}
 			}
 
@@ -323,7 +319,7 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 
 	// Update human tracking from reconciled state
 	mConfirmedHumanState = rReconcileContext.newConfirmedHumanState;
-	gpGame->SetPreviousHumanArmor(rReconcileContext.fPreviousHumanArmor);
+	gpGame->SetPreviousHumanArmor(rReconcileContext.newConfirmedHumanState.fPreviousHumanArmor);
 
 	// Feed reconciliation counters to profile manager
 	gpProfileManager->SetReconcileCounters(rReconcileContext.profiling.iCrcValidatedFrameTicks, rReconcileContext.profiling.iAssumedFrameTicks, rReconcileContext.profiling.iCrcFastPathEvents, rReconcileContext.profiling.iStatusChangeReplayTicks, rReconcileContext.profiling.iKnockOnReplayTicks);
@@ -331,10 +327,10 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 	// Advance frame ID counter past worker's usage
 	gpGame->SetNextFrameId(std::max(gpGame->NextFrameId(), rReconcileContext.uiNextFrameId));
 
-	if (!rReconcileContext.bCrcFastPathHandledAll)
+	if (rReconcileContext.bAnyFullReplay)
 	{
 		// Move latest workspace frame into mCoordFrames for rendering.
-		// Workspace entry may be null if ReconcileReplay or ReconcileCatchUp moved it to newSnapshots;
+		// Workspace entry may be null if replay or catch-up moved it to newSnapshots;
 		// in that case, keep existing current (rendering uses GetSnapshotFrame during extrapolation).
 		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
 		{
@@ -349,9 +345,9 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 		}
 
 		// Restore counters from caught-up state
-		Log(kLogNetwork, "DT: TEMP setTickCounter old: {} new: {}", gpGame->TickCounter(), rReconcileContext.iTickCounter);
+		Log(kLogNetwork, "setTickCounter old: {} new: {}", gpGame->TickCounter(), rReconcileContext.iTickCounter); // DT: TEMP
 		gpGame->SetTickCounter(rReconcileContext.iTickCounter);
-		gpGame->SetCurrentTime(rReconcileContext.fCurrentTime);
+		gpGame->SetCurrentTime(rReconcileContext.newConfirmedHumanState.fCurrentTime);
 
 		// Ensure next frames exist
 		gpGame->EnsureNextFrames();

@@ -39,173 +39,6 @@ static void LogStatusChangeList(std::string_view label, std::span<const StatusCh
 	}
 }
 
-static void ReconcileTrackHumanMigration(ReconcileContext& rReconcileContext)
-{
-	const int64_t iActiveCount = static_cast<int64_t>(rReconcileContext.activeCoords.size());
-
-	for (int64_t j = 0; j < iActiveCount; ++j)
-	{
-		const engine::GridCoord& rCoord = rReconcileContext.activeCoords.at(static_cast<size_t>(j));
-		CoordReconcileWork* pWork = rReconcileContext.FindCoordWork(rCoord);
-		if (pWork == nullptr) { continue; }
-		const Frame& rNext = *pWork->replayWorkspace[pWork->iReplayWorkspaceUsed];
-		for (const TransferRequest& rRequest : rNext.postRender.transferRequests)
-		{
-			if (rRequest.eType == StatusChangeType::kTransferPlayer &&
-				rReconcileContext.humanPlayerId.IsValid() &&
-				rRequest.iEntityId == rReconcileContext.humanPlayerId.ToUuid().Value())
-			{
-				engine::GridCoord destination {rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY};
-				rReconcileContext.humanGridCoord = destination;
-
-				// Find human's new ID by position-matching in destination frame (server already spawned there)
-				CoordReconcileWork* pDestWork = rReconcileContext.FindCoordWork(destination);
-				if (pDestWork != nullptr)
-				{
-					CoordReconcileWork& rDestWork = *pDestWork;
-					if (rDestWork.iReplayStackCount > 0)
-					{
-						const Frame& rDestinationFrame = *rDestWork.replayWorkspace[rDestWork.iReplayWorkspaceUsed];
-						bool bFound = false;
-						for (int64_t i = 0; i < rDestinationFrame.postRender.pPlayers->iCount; ++i)
-						{
-							if (XMVector4Equal(rDestinationFrame.interpolate.pPlayers->pVecPositions[i], rRequest.data.vecPosition))
-							{
-								rReconcileContext.humanPlayerId = rDestinationFrame.postRender.pPlayers->puiIds[i];
-								bFound = true;
-								break;
-							}
-						}
-						if (!bFound && rDestinationFrame.postRender.pPlayers->iCount > 0)
-						{
-							rReconcileContext.humanPlayerId = rDestinationFrame.postRender.pPlayers->puiIds[rDestinationFrame.postRender.pPlayers->iCount - 1];
-						}
-					}
-				}
-				rReconcileContext.fPreviousHumanArmor = rRequest.data.fHealth;
-			}
-		}
-	}
-}
-
-static void ReconcileEnsureWorkspaceFrames(ReconcileContext& rReconcileContext)
-{
-	const int64_t iActiveCount = static_cast<int64_t>(rReconcileContext.activeCoords.size());
-	for (int64_t j = 0; j < iActiveCount; ++j)
-	{
-		const engine::GridCoord& rCoord = rReconcileContext.activeCoords.at(static_cast<size_t>(j));
-		CoordReconcileWork* pWork = rReconcileContext.FindCoordWork(rCoord);
-		if (pWork == nullptr) { continue; }
-		int64_t iNextWorkspace = pWork->iReplayWorkspaceUsed;
-		if (iNextWorkspace >= static_cast<int64_t>(pWork->replayWorkspace.size()))
-		{
-			pWork->replayWorkspace.resize(static_cast<size_t>(iNextWorkspace + 1));
-		}
-		if (pWork->replayWorkspace[iNextWorkspace] == nullptr)
-		{
-			pWork->replayWorkspace[iNextWorkspace] = std::make_unique<Frame>();
-		}
-	}
-}
-
-static std::span<const ActiveFrameRef> ReconcileBuildActiveFrameRefs(ReconcileContext& rReconcileContext)
-{
-	const int64_t iActiveCount = static_cast<int64_t>(rReconcileContext.activeCoords.size());
-	for (int64_t j = 0; j < iActiveCount; ++j)
-	{
-		const engine::GridCoord& rCoord = rReconcileContext.activeCoords.at(static_cast<size_t>(j));
-		CoordReconcileWork* pWork = rReconcileContext.FindCoordWork(rCoord);
-		if (pWork == nullptr) { continue; }
-		Frame* pCurrent = pWork->replayStack[pWork->iReplayStackCount - 1];
-		Frame* pNext = pWork->replayWorkspace[pWork->iReplayWorkspaceUsed].get();
-		common::gpThreadLocal->mWorkbuffer.PushBack<ActiveFrameRef>({
-			.pNext = pNext,
-			.pCurrent = pCurrent,
-			.pFrameInput = &rReconcileContext.frameInputs.at(rCoord),
-		});
-	}
-	return common::gpThreadLocal->mWorkbuffer.Span<ActiveFrameRef>();
-}
-
-static void ReconcileExecuteTick(ReconcileContext& rReconcileContext, std::span<const ActiveFrameRef> activeFrameRefs)
-{
-	const int64_t iRefCount = static_cast<int64_t>(activeFrameRefs.size());
-
-	// Set kRecalculated before running tick so non-deterministic side effects are suppressed
-	for (int64_t j = 0; j < iRefCount; ++j)
-	{
-		activeFrameRefs[j].pNext->interpolate.frameFlags.Set(engine::FrameFlags::kRecalculated);
-	}
-
-	// Run tick sequentially (reconcile runs on single kThreadReconcile worker)
-	for (int64_t j = 0; j < iRefCount; ++j)
-	{
-		RunFrameTick(activeFrameRefs[j], rReconcileContext.iTickCounter, rReconcileContext.fCurrentTime);
-	}
-
-	// Apply server-provided transfer StatusChanges per-coord (no cross-coord coupling)
-	// Runs after Destroy/Spawn to match server ordering (HarvestTransfers runs after Destroy/Spawn)
-	for (int64_t j = 0; j < iRefCount; ++j)
-	{
-		Frame& rNext = *activeFrameRefs[j].pNext;
-		FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
-
-		bool bHadTransfers = false;
-		for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
-		{
-			if (IsTransferType(rStatusChange.eType))
-			{
-				SpawnTransfer(rNext, rStatusChange.eType, rStatusChange.data, rNext.postRender.playerAlignment);
-				bHadTransfers = true;
-			}
-		}
-		std::erase_if(rFrameInput.statusChanges, [](const StatusChange& rStatusChange)
-		{
-			return IsTransferType(rStatusChange.eType);
-		});
-
-		// Recompute CRCs after transfers modified the frame
-		// (RunFrameTick computed CRCs before transfers were applied)
-		if (bHadTransfers)
-		{
-			rNext.postRender.serverCrc = rNext.ServerCrc();
-			rNext.postRender.crc = rNext.Crc();
-		}
-	}
-}
-
-static void ReconcileAdvanceStack(ReconcileContext& rReconcileContext)
-{
-	const int64_t iActiveCount = static_cast<int64_t>(rReconcileContext.activeCoords.size());
-	for (int64_t j = 0; j < iActiveCount; ++j)
-	{
-		const engine::GridCoord& rCoord = rReconcileContext.activeCoords.at(static_cast<size_t>(j));
-		CoordReconcileWork* pWork = rReconcileContext.FindCoordWork(rCoord);
-		if (pWork == nullptr) { continue; }
-		pWork->replayStack.push_back(pWork->replayWorkspace[pWork->iReplayWorkspaceUsed].get());
-		pWork->iReplayStackCount++;
-		pWork->iReplayWorkspaceUsed++;
-	}
-
-	for (auto& [rCoord, rFrameInput] : rReconcileContext.frameInputs)
-	{
-		rFrameInput.statusChanges.clear();
-	}
-}
-
-void ReconcileRunTick(ReconcileContext& rReconcileContext)
-{
-	ReconcileEnsureWorkspaceFrames(rReconcileContext);
-
-	common::gpThreadLocal->mWorkbuffer.Push();
-	std::span<const ActiveFrameRef> activeFrameRefs = ReconcileBuildActiveFrameRefs(rReconcileContext);
-	ReconcileExecuteTick(rReconcileContext, activeFrameRefs);
-	common::gpThreadLocal->mWorkbuffer.Pop();
-
-	ReconcileTrackHumanMigration(rReconcileContext);
-	ReconcileAdvanceStack(rReconcileContext);
-}
-
 static int64_t FindSnapshotIndex(std::unique_ptr<Frame> (&rSnapshots)[engine::kiTickRate], int64_t iHead, int64_t iCount, int64_t iTick)
 {
 	for (int64_t i = 0; i < iCount; ++i)
@@ -304,8 +137,6 @@ static void CrcApplyMatchResult(CoordReconcileWork& rWork, int64_t iLastMatched,
 struct CrcFastPathCoordResult
 {
 	bool bHandled = true;
-	int64_t iMinConfirmedContrib = -1;
-	int64_t iNewMinConfirmedContrib = -1;
 };
 
 static CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork, int64_t iTargetTick, ReconcileContext::Profiling& rProfiling)
@@ -314,8 +145,6 @@ static CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork,
 
 	if (rWork.serverUpdates.empty() && !rWork.pendingFullState.has_value())
 	{
-		result.iMinConfirmedContrib = rWork.iConfirmedTick;
-		result.iNewMinConfirmedContrib = rWork.iConfirmedTick;
 		return result;
 	}
 
@@ -323,7 +152,6 @@ static CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork,
 	{
 		result.bHandled = false;
 		Log(kLogNetwork, "CrcFastPathProcessCoord Pending full state forces reconcile Coord: ({},{})", rWork.coord.x, rWork.coord.y);
-		result.iMinConfirmedContrib = rWork.iConfirmedTick;
 		return result;
 	}
 
@@ -332,25 +160,18 @@ static CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork,
 	// Gap at confirmed+1 for this coord: first server update is non-consecutive.
 	if (validateResult.iLastMatched == -1 && !rWork.serverUpdates.empty() && rWork.serverUpdates.begin()->first != rWork.iConfirmedTick + 1)
 	{
-		result.iMinConfirmedContrib = rWork.iConfirmedTick;
-		result.iNewMinConfirmedContrib = rWork.iConfirmedTick;
 		return result;
 	}
 
 	// No snapshots to validate: confirmed tick is at or past target tick.
 	if (validateResult.iLastMatched == -1 && validateResult.bMatch && rWork.iConfirmedTick >= iTargetTick)
 	{
-		result.iMinConfirmedContrib = rWork.iConfirmedTick;
-		result.iNewMinConfirmedContrib = rWork.iConfirmedTick;
 		return result;
 	}
 
 	if (validateResult.iLastMatched >= 0)
 	{
 		CrcApplyMatchResult(rWork, validateResult.iLastMatched, validateResult.iLastMatchedIndex, rProfiling);
-
-		result.iMinConfirmedContrib = rWork.iConfirmedTick;
-		result.iNewMinConfirmedContrib = validateResult.iLastMatched;
 
 		if (!validateResult.bMatch)
 		{
@@ -362,7 +183,6 @@ static CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork,
 	{
 		result.bHandled = false;
 		Log(kLogNetwork, "CrcFastPathProcessCoord CRC mismatch no matches Coord: ({},{})", rWork.coord.x, rWork.coord.y);
-		result.iMinConfirmedContrib = rWork.iConfirmedTick;
 	}
 	else
 	{
@@ -370,127 +190,20 @@ static CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork,
 		{
 			result.bHandled = false;
 			Log(kLogNetwork, "CrcFastPathProcessCoord Snapshot missing Coord: ({},{}) Confirmed: {} Target: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, iTargetTick);
-			result.iMinConfirmedContrib = rWork.iConfirmedTick;
-		}
-		else
-		{
-			result.iMinConfirmedContrib = rWork.iConfirmedTick;
-			result.iNewMinConfirmedContrib = rWork.iConfirmedTick;
 		}
 	}
 
 	return result;
 }
 
-std::pair<bool, int64_t> ReconcileCrcFastPath(ReconcileContext& rReconcileContext)
+static std::unique_ptr<Frame> CloneFrameViaSerialization(const Frame& rFrame)
 {
-	bool bAllHandled = true;
-	int64_t iMinConfirmedTick = std::numeric_limits<int64_t>::max();
-	int64_t iNewMinConfirmed = std::numeric_limits<int64_t>::max();
-
-	int64_t iOldMinConfirmed = std::numeric_limits<int64_t>::max();
-	for (const CoordReconcileWork& rWork : rReconcileContext.coordWork)
-	{
-		if (rWork.iConfirmedTick >= 0 && rWork.iConfirmedTick < iOldMinConfirmed)
-		{
-			iOldMinConfirmed = rWork.iConfirmedTick;
-		}
-	}
-
-	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
-	{
-		CrcFastPathCoordResult coordResult = CrcFastPathProcessCoord(rWork, rReconcileContext.iTargetTick, rReconcileContext.profiling);
-
-		if (!coordResult.bHandled)
-		{
-			bAllHandled = false;
-		}
-		if (coordResult.iMinConfirmedContrib >= 0 && coordResult.iMinConfirmedContrib < iMinConfirmedTick)
-		{
-			iMinConfirmedTick = coordResult.iMinConfirmedContrib;
-		}
-		if (coordResult.iNewMinConfirmedContrib >= 0 && coordResult.iNewMinConfirmedContrib < iNewMinConfirmed)
-		{
-			iNewMinConfirmed = coordResult.iNewMinConfirmedContrib;
-		}
-	}
-
-	if (bAllHandled)
-	{
-		rReconcileContext.bCrcFastPathHandledAll = true;
-		rReconcileContext.profiling.iCrcFastPathEvents = 1;
-		rReconcileContext.newConfirmedHumanState = rReconcileContext.confirmedHumanState;
-		rReconcileContext.humanGridCoord = rReconcileContext.confirmedHumanState.humanGridCoord;
-		rReconcileContext.humanPlayerId = rReconcileContext.confirmedHumanState.humanPlayerId;
-		rReconcileContext.fPreviousHumanArmor = rReconcileContext.confirmedHumanState.fPreviousHumanArmor;
-		if (iOldMinConfirmed != std::numeric_limits<int64_t>::max() && iNewMinConfirmed > iOldMinConfirmed)
-		{
-			for (int64_t i = 0; i < iNewMinConfirmed - iOldMinConfirmed; ++i)
-			{
-				rReconcileContext.newConfirmedHumanState.fCurrentTime += kfDeltaTime;
-			}
-		}
-	}
-
-	return {bAllHandled, iMinConfirmedTick};
-}
-
-void ReconcileComputeActiveCoords(ReconcileContext& rReconcileContext)
-{
-	auto hasReplayStack = [&](engine::GridCoord coord) -> bool
-	{
-		CoordReconcileWork* pWork = rReconcileContext.FindCoordWork(coord);
-		return pWork != nullptr && pWork->iReplayStackCount > 0;
-	};
-
-	// Human's cell plus existing neighbors
-	rReconcileContext.activeCoords.clear();
-	if (hasReplayStack(rReconcileContext.humanGridCoord))
-	{
-		rReconcileContext.activeCoords.push_back(rReconcileContext.humanGridCoord);
-	}
-
-	for (const engine::GridCoord& rOffset : engine::kNeighborOffsets)
-	{
-		engine::GridCoord neighbor {rReconcileContext.humanGridCoord.x + rOffset.x, rReconcileContext.humanGridCoord.y + rOffset.y};
-		if (hasReplayStack(neighbor))
-		{
-			rReconcileContext.activeCoords.push_back(neighbor);
-		}
-	}
-}
-
-void ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, [[maybe_unused]] int64_t iServerTick, const std::unordered_map<engine::GridCoord, engine::CoordFrames::CoordServerUpdate>& rCoordUpdates)
-{
-	rReconcileContext.frameInputs.clear();
-
-	// Initialize frame inputs for all active coords that have replay stacks
-	for (const engine::GridCoord& rCoord : rReconcileContext.activeCoords)
-	{
-		CoordReconcileWork* pWork = rReconcileContext.FindCoordWork(rCoord);
-		if (pWork == nullptr || pWork->iReplayStackCount <= 0)
-		{
-			continue;
-		}
-		rReconcileContext.frameInputs.try_emplace(rCoord);
-	}
-
-	// Copy status changes per coord
-	for (const auto& [rCoord, rUpdate] : rCoordUpdates)
-	{
-		auto frameInputIt = rReconcileContext.frameInputs.find(rCoord);
-		if (frameInputIt == rReconcileContext.frameInputs.end())
-		{
-			continue;
-		}
-
-		FrameInput& rFrameInput = frameInputIt->second;
-
-		for (const StatusChange& rChange : rUpdate.statusChanges)
-		{
-			rFrameInput.statusChanges.push_back(rChange);
-		}
-	}
+	std::ostringstream outputStream(std::ios::binary);
+	outputStream << rFrame;
+	std::istringstream inputStream(outputStream.str(), std::ios::binary);
+	auto pClone = std::make_unique<Frame>();
+	inputStream >> *pClone;
+	return pClone;
 }
 
 void ReconcileInjectPendingFullState([[maybe_unused]] ReconcileContext& rReconcileContext, CoordReconcileWork& rWork)
@@ -504,84 +217,25 @@ void ReconcileInjectPendingFullState([[maybe_unused]] ReconcileContext& rReconci
 	rWork.pendingFullState.reset();
 }
 
-void ReconcilePruneInactiveFrames(ReconcileContext& rReconcileContext)
+// --- Per-coord reconciliation functions ---
+
+static void ReconcileRollbackCoord(CoordReconcileWork& rWork)
 {
-	ReconcileComputeActiveCoords(rReconcileContext);
-	// Clear replay stacks for coords not in the active set
-	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
-	{
-		if (!std::ranges::contains(rReconcileContext.activeCoords, rWork.coord))
-		{
-			rWork.replayStack.clear();
-			rWork.iReplayStackCount = 0;
-			rWork.iReplayWorkspaceUsed = 0;
-		}
-	}
+	ASSERT(rWork.iConfirmedOffset >= 0);
+	int64_t iConfirmedPhysical = SnapshotIndex(rWork.iSnapshotHead, rWork.iConfirmedOffset);
+	rWork.replayStack.clear();
+	rWork.replayStack.push_back(rWork.snapshots[iConfirmedPhysical].get());
+	rWork.iReplayStackCount = 1;
+	rWork.iReplayWorkspaceUsed = 0;
 }
 
-void ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick)
+static int64_t ReconcileFindReplayRangeCoord(CoordReconcileWork& rWork)
 {
-	// Only restore coords confirmed at iMinConfirmedTick; coords confirmed
-	// at later frames are injected during replay/catch-up at their confirmed frame
-	// to avoid running tick on states that already include those frames
-	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
-	{
-		if (rWork.iConfirmedTick <= iMinConfirmedTick)
-		{
-			ASSERT(rWork.iConfirmedOffset >= 0);
-			int64_t iConfirmedPhysical = SnapshotIndex(rWork.iSnapshotHead, rWork.iConfirmedOffset);
-			// Raw pointer from confirmed snapshot (no ownership transfer)
-			rWork.replayStack.clear();
-			rWork.replayStack.push_back(rWork.snapshots[iConfirmedPhysical].get());
-			rWork.iReplayStackCount = 1;
-			rWork.iReplayWorkspaceUsed = 0;
-		}
-	}
-
-	rReconcileContext.humanGridCoord = rReconcileContext.confirmedHumanState.humanGridCoord;
-	rReconcileContext.humanPlayerId = rReconcileContext.confirmedHumanState.humanPlayerId;
-	rReconcileContext.fPreviousHumanArmor = rReconcileContext.confirmedHumanState.fPreviousHumanArmor;
-	rReconcileContext.iTickCounter = iMinConfirmedTick;
-
-	// Read fCurrentTime from the replay stack frame at iMinConfirmedTick
-	// (confirmedHumanState.fCurrentTime may not match iMinConfirmedTick
-	//  when coords were confirmed at different frame numbers)
-	for (const CoordReconcileWork& rWork : rReconcileContext.coordWork)
-	{
-		if (rWork.iConfirmedTick == iMinConfirmedTick && rWork.iReplayStackCount > 0)
-		{
-			rReconcileContext.fCurrentTime = rWork.replayStack[0]->interpolate.fCurrentTime;
-			break;
-		}
-	}
-
-	// Inject pending full states at or before rollback frame
-	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
-	{
-		if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick <= iMinConfirmedTick)
-		{
-			ReconcileInjectPendingFullState(rReconcileContext, rWork);
-			Log(kLogNetwork, "ReconcileRollback Injected pending full state Coord: ({},{}) AtTick: {}", rWork.coord.x, rWork.coord.y, iMinConfirmedTick);
-		}
-	}
-}
-
-int64_t ReconcileFindReplayRange(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick)
-{
-	int64_t iReplayStart = iMinConfirmedTick + 1;
+	int64_t iReplayStart = rWork.iConfirmedTick + 1;
 	int64_t iMaxConsecutive = iReplayStart - 1;
 	for (int64_t iTick = iReplayStart; ; ++iTick)
 	{
-		bool bAnyCoordHasData = false;
-		for (const CoordReconcileWork& rWork : rReconcileContext.coordWork)
-		{
-			if (rWork.serverUpdates.contains(iTick))
-			{
-				bAnyCoordHasData = true;
-				break;
-			}
-		}
-		if (!bAnyCoordHasData)
+		if (!rWork.serverUpdates.contains(iTick))
 		{
 			break;
 		}
@@ -590,180 +244,167 @@ int64_t ReconcileFindReplayRange(ReconcileContext& rReconcileContext, int64_t iM
 	return iMaxConsecutive;
 }
 
-bool ReconcileInjectLateConfirmedCoord(CoordReconcileWork& rWork, int64_t iTick, int64_t iMinConfirmedTick)
+static void ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, float fTime, FrameInput& rFrameInput)
 {
-	if (rWork.iConfirmedTick != iTick || rWork.iConfirmedTick <= iMinConfirmedTick)
+	// Ensure workspace frame exists
+	int64_t iNextWorkspace = rWork.iReplayWorkspaceUsed;
+	if (iNextWorkspace >= static_cast<int64_t>(rWork.replayWorkspace.size()))
 	{
+		rWork.replayWorkspace.resize(static_cast<size_t>(iNextWorkspace + 1));
+	}
+	if (rWork.replayWorkspace[iNextWorkspace] == nullptr)
+	{
+		rWork.replayWorkspace[iNextWorkspace] = std::make_unique<Frame>();
+	}
+
+	Frame* pCurrent = rWork.replayStack[rWork.iReplayStackCount - 1];
+	Frame* pNext = rWork.replayWorkspace[iNextWorkspace].get();
+
+	pNext->interpolate.frameFlags.Set(engine::FrameFlags::kRecalculated);
+
+	ActiveFrameRef ref {
+		.pNext = pNext,
+		.pCurrent = pCurrent,
+		.pFrameInput = &rFrameInput,
+	};
+	RunFrameTick(ref, iTick, fTime);
+
+	// Apply transfer StatusChanges (runs after Destroy/Spawn to match server ordering)
+	bool bHadTransfers = false;
+	for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
+	{
+		if (IsTransferType(rStatusChange.eType))
+		{
+			SpawnTransfer(*pNext, rStatusChange.eType, rStatusChange.data, pNext->postRender.playerAlignment);
+			bHadTransfers = true;
+		}
+	}
+	std::erase_if(rFrameInput.statusChanges, [](const StatusChange& rStatusChange)
+	{
+		return IsTransferType(rStatusChange.eType);
+	});
+
+	if (bHadTransfers)
+	{
+		pNext->postRender.serverCrc = pNext->ServerCrc();
+		pNext->postRender.crc = pNext->Crc();
+	}
+
+	// Advance replay stack
+	rWork.replayStack.push_back(pNext);
+	rWork.iReplayStackCount++;
+	rWork.iReplayWorkspaceUsed++;
+}
+
+static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork, int64_t iTick, const engine::CoordFrames::CoordServerUpdate& rUpdate, const FrameInput& rFrameInput)
+{
+	Frame& rCurrentFrame = *rWork.replayStack[rWork.iReplayStackCount - 1];
+	rCurrentFrame.interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
+	common::crc_t clientCrc = rCurrentFrame.postRender.serverCrc;
+
+	if (clientCrc != rUpdate.serverCrc)
+	{
+		char acServerCrc[20] {}, acClientCrc[20] {}, acPrevCrc[20] {};
+		common::ToHex(std::span<char, 20>(acServerCrc), rUpdate.serverCrc);
+		common::ToHex(std::span<char, 20>(acClientCrc), clientCrc);
+		common::ToHex(std::span<char, 20>(acPrevCrc), rCurrentFrame.postRender.previousCrc);
+		Log(kLogNetwork, "ReconcileValidateCrcCoord Desync Coord: ({},{}) Frame: {} ServerCrc: {} ClientCrc: {} PrevCrc: {}", rWork.coord.x, rWork.coord.y, iTick, acServerCrc, acClientCrc, acPrevCrc);
+		{
+			ScopedLogIndent scopedCrcIndent;
+			char acServerInputCrc[20] {}, acClientInputCrc[20] {};
+			common::ToHex(std::span<char, 20>(acServerInputCrc), rUpdate.inputCrc);
+			common::ToHex(std::span<char, 20>(acClientInputCrc), rFrameInput.ServerInputCrc());
+			Log(kLogNetwork, "ServerInputCrc: {} ClientInputCrc: {}", acServerInputCrc, acClientInputCrc);
+			LogStatusChangeList("Server StatusChanges", rUpdate.statusChanges);
+			LogStatusChangeList("Client StatusChanges", rFrameInput.statusChanges);
+		}
+
+		rReconcileContext.iDesyncTick = iTick;
+		rReconcileContext.desyncCoord = rWork.coord;
+		rReconcileContext.desyncServerCrc = rUpdate.serverCrc;
+		rReconcileContext.desyncClientCrc = clientCrc;
+		rReconcileContext.pDesyncClientFrame = CloneFrameViaSerialization(rCurrentFrame);
 		return false;
 	}
 
-	ASSERT(rWork.iConfirmedOffset >= 0);
-	int64_t iConfirmedPhysical = SnapshotIndex(rWork.iSnapshotHead, rWork.iConfirmedOffset);
-	// Raw pointer from confirmed snapshot, reset workspace counter
-	rWork.replayStack.clear();
-	rWork.replayStack.push_back(rWork.snapshots[iConfirmedPhysical].get());
-	rWork.iReplayStackCount = 1;
-	rWork.iReplayWorkspaceUsed = 0;
-	return true;
-}
-
-static std::unique_ptr<Frame> CloneFrameViaSerialization(const Frame& rFrame)
-{
-	std::ostringstream outputStream(std::ios::binary);
-	outputStream << rFrame;
-	std::istringstream inputStream(outputStream.str(), std::ios::binary);
-	auto pClone = std::make_unique<Frame>();
-	inputStream >> *pClone;
-	return pClone;
-}
-
-bool ReconcileValidateCrcs(ReconcileContext& rReconcileContext, int64_t iTick, const std::unordered_map<engine::GridCoord, engine::CoordFrames::CoordServerUpdate>& rFrameCoordUpdates, const std::unordered_set<engine::GridCoord>& rGapCoords)
-{
-	for (const auto& [rCoord, rUpdate] : rFrameCoordUpdates)
+	// Validate input CRC
+	common::crc_t clientInputCrc = rFrameInput.ServerInputCrc();
+	if (clientInputCrc != rUpdate.inputCrc)
 	{
-		CoordReconcileWork* pWork = rReconcileContext.FindCoordWork(rCoord);
-		if (pWork == nullptr) { continue; }
-		CoordReconcileWork& rWork = *pWork;
-		if (rWork.iReplayStackCount <= 0)
+		char acServerInputCrc[20] {}, acClientInputCrc[20] {};
+		common::ToHex(std::span<char, 20>(acServerInputCrc), rUpdate.inputCrc);
+		common::ToHex(std::span<char, 20>(acClientInputCrc), clientInputCrc);
+		Log(kLogNetwork, "ReconcileValidateCrcCoord Input desync Coord: ({},{}) Frame: {} ServerInputCrc: {} ClientInputCrc: {}", rWork.coord.x, rWork.coord.y, iTick, acServerInputCrc, acClientInputCrc);
 		{
-			continue;
+			ScopedLogIndent scopedInputIndent;
+			LogStatusChangeList("Server StatusChanges", rUpdate.statusChanges);
+			LogStatusChangeList("Client StatusChanges", rFrameInput.statusChanges);
 		}
 
-		if (rGapCoords.contains(rCoord))
-		{
-			continue;
-		}
-
-		// The latest result is at replayStack[iReplayStackCount - 1]
-		Frame& rCurrentFrame = *rWork.replayStack[rWork.iReplayStackCount - 1];
-		rCurrentFrame.interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
-		common::crc_t clientCrc = rCurrentFrame.postRender.serverCrc;
-		if (clientCrc != rUpdate.serverCrc)
-		{
-			char acServerCrc[20] {}, acClientCrc[20] {}, acPrevCrc[20] {};
-			common::ToHex(std::span<char, 20>(acServerCrc), rUpdate.serverCrc);
-			common::ToHex(std::span<char, 20>(acClientCrc), clientCrc);
-			common::ToHex(std::span<char, 20>(acPrevCrc), rCurrentFrame.postRender.previousCrc);
-			Log(kLogNetwork, "ReconcileValidateCrcs Desync Coord: ({},{}) Frame: {} ServerCrc: {} ClientCrc: {} PrevCrc: {}", rCoord.x, rCoord.y, iTick, acServerCrc, acClientCrc, acPrevCrc);
-			{
-				ScopedLogIndent scopedCrcIndent;
-				char acServerInputCrc[20] {}, acClientInputCrc[20] {};
-				common::ToHex(std::span<char, 20>(acServerInputCrc), rUpdate.inputCrc);
-				auto frameInputIt = rReconcileContext.frameInputs.find(rCoord);
-				common::crc_t clientInputCrcValue = (frameInputIt != rReconcileContext.frameInputs.end()) ? frameInputIt->second.ServerInputCrc() : 0;
-				common::ToHex(std::span<char, 20>(acClientInputCrc), clientInputCrcValue);
-				Log(kLogNetwork, "ServerInputCrc: {} ClientInputCrc: {}", acServerInputCrc, acClientInputCrc);
-				LogStatusChangeList("Server StatusChanges", rUpdate.statusChanges);
-				if (frameInputIt != rReconcileContext.frameInputs.end())
-				{
-					LogStatusChangeList("Client StatusChanges", frameInputIt->second.statusChanges);
-				}
-			}
-
-			rReconcileContext.iDesyncTick = iTick;
-			rReconcileContext.desyncCoord = rCoord;
-			rReconcileContext.desyncServerCrc = rUpdate.serverCrc;
-			rReconcileContext.desyncClientCrc = clientCrc;
-			rReconcileContext.pDesyncClientFrame = CloneFrameViaSerialization(rCurrentFrame);
-			return false;
-		}
-
-		// Validate input CRC
-		auto inputIt = rReconcileContext.frameInputs.find(rCoord);
-		if (inputIt != rReconcileContext.frameInputs.end())
-		{
-			common::crc_t clientInputCrc = inputIt->second.ServerInputCrc();
-			if (clientInputCrc != rUpdate.inputCrc)
-			{
-				char acServerInputCrc[20] {}, acClientInputCrc[20] {};
-				common::ToHex(std::span<char, 20>(acServerInputCrc), rUpdate.inputCrc);
-				common::ToHex(std::span<char, 20>(acClientInputCrc), clientInputCrc);
-				Log(kLogNetwork, "ReconcileValidateCrcs Input desync Coord: ({},{}) Frame: {} ServerInputCrc: {} ClientInputCrc: {}", rCoord.x, rCoord.y, iTick, acServerInputCrc, acClientInputCrc);
-				{
-					ScopedLogIndent scopedInputIndent;
-					LogStatusChangeList("Server StatusChanges", rUpdate.statusChanges);
-					LogStatusChangeList("Client StatusChanges", inputIt->second.statusChanges);
-				}
-
-				rReconcileContext.iDesyncTick = iTick;
-				rReconcileContext.desyncCoord = rCoord;
-				rReconcileContext.desyncServerCrc = rUpdate.inputCrc;
-				rReconcileContext.desyncClientCrc = clientInputCrc;
-				rReconcileContext.pDesyncClientFrame = CloneFrameViaSerialization(rCurrentFrame);
-				return false;
-			}
-		}
-
-		// Record CRC-validated index (deferred MOVE — stack entries are never overwritten)
-		if (!rWork.bCrcFastPath)
-		{
-			rWork.iLastValidatedIndex = rWork.iReplayStackCount - 1;
-			rWork.iNewConfirmedTick = iTick;
-		}
+		rReconcileContext.iDesyncTick = iTick;
+		rReconcileContext.desyncCoord = rWork.coord;
+		rReconcileContext.desyncServerCrc = rUpdate.inputCrc;
+		rReconcileContext.desyncClientCrc = clientInputCrc;
+		rReconcileContext.pDesyncClientFrame = CloneFrameViaSerialization(rCurrentFrame);
+		return false;
 	}
 
+	// Record CRC-validated index
+	rWork.iLastValidatedIndex = rWork.iReplayStackCount - 1;
+	rWork.iNewConfirmedTick = iTick;
+
 	return true;
 }
 
-void ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick, int64_t iMaxConsecutive)
+static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork, int64_t iMaxConsecutive, float& rfTime)
 {
-	const int64_t iReplayStart = iMinConfirmedTick + 1;
-	const int64_t iMaxReplay = (iMaxConsecutive - iMinConfirmedTick + 1) / 2;
+	int64_t iReplayStart = rWork.iConfirmedTick + 1;
+	const int64_t iMaxReplay = (iMaxConsecutive - rWork.iConfirmedTick + 1) / 2;
 	int64_t iReplayCount = 0;
-	std::unordered_set<engine::GridCoord> gapCoords;
 
 	for (int64_t iTick = iReplayStart; iTick <= iMaxConsecutive; ++iTick)
 	{
-		if (iReplayCount >= iMaxReplay || rReconcileContext.iTickCounter >= rReconcileContext.iTargetTick)
+		if (iReplayCount >= iMaxReplay)
 		{
 			break;
 		}
 
-		ReconcileComputeActiveCoords(rReconcileContext);
-
-		++rReconcileContext.iTickCounter;
-		rReconcileContext.fCurrentTime += kfDeltaTime;
-
-		// Gather per-coord server updates for this frame
-		std::unordered_map<engine::GridCoord, engine::CoordFrames::CoordServerUpdate> frameCoordUpdates;
-		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
+		auto updateIt = rWork.serverUpdates.find(iTick);
+		if (updateIt == rWork.serverUpdates.end())
 		{
-			auto updateIt = rWork.serverUpdates.find(iTick);
-			if (updateIt != rWork.serverUpdates.end())
-			{
-				frameCoordUpdates[rWork.coord] = std::move(updateIt->second);
-				rWork.serverUpdates.erase(updateIt);
-			}
+			break;
 		}
 
-		// Detect per-coord server data gaps (coords replayed past confirmed frame without server data)
-		for (const CoordReconcileWork& rWork : rReconcileContext.coordWork)
+		rfTime += kfDeltaTime;
+
+		// Build FrameInput from server StatusChanges
+		FrameInput frameInput;
+		for (const StatusChange& rChange : updateIt->second.statusChanges)
 		{
-			if (gapCoords.contains(rWork.coord))
-			{
-				continue;
-			}
-			if (iTick > rWork.iConfirmedTick && rWork.iReplayStackCount > 0 && !frameCoordUpdates.contains(rWork.coord))
-			{
-				gapCoords.insert(rWork.coord);
-				Log(kLogNetwork, "ReconcileReplay Coord gap Coord: ({},{}) Tick: {} Confirmed: {}", rWork.coord.x, rWork.coord.y, iTick, rWork.iConfirmedTick);
-			}
+			frameInput.statusChanges.push_back(rChange);
 		}
 
-		ReconcileBuildFrameInput(rReconcileContext, iTick, frameCoordUpdates);
+		ReconcileRunTickCoord(rWork, iTick, rfTime, frameInput);
 
-		ReconcileRunTick(rReconcileContext);
-
-		// Classify replay tick for profiling
-		bool bHadStatusChanges = false;
-		for (const auto& [rCoord, rUpdate] : frameCoordUpdates)
+		// Inject pending full state at matching tick
+		if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick == iTick)
 		{
-			if (!rUpdate.statusChanges.empty())
-			{
-				bHadStatusChanges = true;
-				break;
-			}
+			ReconcileInjectPendingFullState(rReconcileContext, rWork);
+			Log(kLogNetwork, "ReconcileReplayCoord Injected pending full state Coord: ({},{}) Tick: {}", rWork.coord.x, rWork.coord.y, iTick);
 		}
+
+		// CRC validation
+		if (!ReconcileValidateCrcCoord(rReconcileContext, rWork, iTick, updateIt->second, frameInput))
+		{
+			return;
+		}
+
+		// Profiling
+		bool bHadStatusChanges = !updateIt->second.statusChanges.empty();
+
+		// Consume server update
+		rWork.serverUpdates.erase(updateIt);
+
 		if (bHadStatusChanges)
 		{
 			++rReconcileContext.profiling.iStatusChangeReplayTicks;
@@ -773,42 +414,15 @@ void ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConfirmedT
 			++rReconcileContext.profiling.iKnockOnReplayTicks;
 		}
 
-		// Inject pending full states at the matching transfer frame
-		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
-		{
-			if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick == iTick)
-			{
-				ReconcileInjectPendingFullState(rReconcileContext, rWork);
-				Log(kLogNetwork, "ReconcileReplay Injected pending full state Coord: ({},{}) Tick: {}", rWork.coord.x, rWork.coord.y, iTick);
-			}
-		}
-
-		// Inject late-confirmed coords at their confirmed frame
-		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
-		{
-			ReconcileInjectLateConfirmedCoord(rWork, iTick, iMinConfirmedTick);
-		}
-
-		// CRC validation per coord that had server data
-		if (!ReconcileValidateCrcs(rReconcileContext, iTick, frameCoordUpdates, gapCoords))
-		{
-			return;
-		}
-
 		++iReplayCount;
 	}
 
-	// After replay loop: extract validated frames into newSnapshots or record index
-	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
+	// Extract validated frames into newSnapshots
+	if (rWork.iLastValidatedIndex >= 0)
 	{
-		if (rWork.iLastValidatedIndex < 0 || rWork.bCrcFastPath)
-		{
-			continue;
-		}
-
 		if (rWork.iLastValidatedIndex == 0)
 		{
-			// Validated the confirmed snapshot itself (raw pointer from snapshots array)
+			// Validated the confirmed snapshot itself
 			rWork.iNewConfirmedOffset = rWork.iConfirmedOffset;
 		}
 		else
@@ -821,74 +435,182 @@ void ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConfirmedT
 	}
 }
 
-void ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinConfirmedTick)
+static void ReconcileCatchUpCoord(CoordReconcileWork& rWork, int64_t iTargetTick, float& rfTime, ReconcileContext::Profiling& rProfiling)
 {
-	// Per-coord catch-up tracking: start workspace index and base frame for snapshot conversion
-	struct CatchUpInfo
-	{
-		int64_t iStartWorkspaceIndex = 0;
-		int64_t iBaseTick = 0;
-	};
+	int64_t iStartWorkspaceIndex = rWork.iReplayWorkspaceUsed;
 
-	// Heap: cold path, only runs when CRC fast-path fails
-	std::vector<CatchUpInfo> catchUpInfos;
-	catchUpInfos.reserve(rReconcileContext.coordWork.size());
-	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
+	// Determine current tick from the replay stack tip
+	int64_t iCurrentTick = rWork.replayStack[rWork.iReplayStackCount - 1]->interpolate.iTick;
+
+	while (iCurrentTick < iTargetTick)
 	{
-		catchUpInfos.push_back({rWork.iReplayWorkspaceUsed, rReconcileContext.iTickCounter});
+		++iCurrentTick;
+		rfTime += kfDeltaTime;
+
+		FrameInput emptyInput;
+		ReconcileRunTickCoord(rWork, iCurrentTick, rfTime, emptyInput);
+		++rProfiling.iAssumedFrameTicks;
 	}
 
-	while (rReconcileContext.iTickCounter < rReconcileContext.iTargetTick)
+	// Convert accumulated workspace entries to snapshots
+	for (int64_t i = iStartWorkspaceIndex; i < rWork.iReplayWorkspaceUsed; ++i)
 	{
-		ReconcileComputeActiveCoords(rReconcileContext);
-
-		++rReconcileContext.iTickCounter;
-		rReconcileContext.fCurrentTime += kfDeltaTime;
-
-		// Build empty inputs for catch-up
-		rReconcileContext.frameInputs.clear();
-		for (const engine::GridCoord& rCoord : rReconcileContext.activeCoords)
+		if (rWork.replayWorkspace[i] == nullptr)
 		{
-			CoordReconcileWork* pWork = rReconcileContext.FindCoordWork(rCoord);
-			if (pWork == nullptr || pWork->iReplayStackCount <= 0)
+			continue;
+		}
+
+		rWork.replayWorkspace[i]->interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
+		rWork.newSnapshots.push_back(std::move(rWork.replayWorkspace[i]));
+	}
+}
+
+void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork)
+{
+	// Try CRC fast path first
+	CrcFastPathCoordResult fastPathResult = CrcFastPathProcessCoord(rWork, rReconcileContext.iTargetTick, rReconcileContext.profiling);
+	if (fastPathResult.bHandled)
+	{
+		++rReconcileContext.profiling.iCrcFastPathEvents;
+		return;
+	}
+
+	// Partial CRC match may have set fast-path output fields — reset them for full replay
+	rWork.bCrcFastPath = false;
+	rWork.iNewConfirmedTick = -1;
+	rWork.iNewConfirmedOffset = -1;
+	rWork.newSnapshots.clear();
+
+	rReconcileContext.bAnyFullReplay = true;
+
+	Log(kLogNetwork, "ReconcileCoord Full replay Coord: ({},{}) Confirmed: {} Target: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, rReconcileContext.iTargetTick);
+
+	ReconcileRollbackCoord(rWork);
+	float fTime = rWork.replayStack[0]->interpolate.fCurrentTime;
+
+	// Inject pending full state at or before confirmed frame
+	if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick <= rWork.iConfirmedTick)
+	{
+		ReconcileInjectPendingFullState(rReconcileContext, rWork);
+		fTime = rWork.replayStack[0]->interpolate.fCurrentTime;
+		Log(kLogNetwork, "ReconcileCoord Injected pending full state Coord: ({},{}) AtTick: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick);
+	}
+
+	int64_t iMaxConsecutive = ReconcileFindReplayRangeCoord(rWork);
+
+	Log(kLogNetwork, "ReconcileCoord ReplayRange Coord: ({},{}) MaxConsecutive: {} Size: {}", rWork.coord.x, rWork.coord.y, iMaxConsecutive, iMaxConsecutive - rWork.iConfirmedTick);
+
+	ReconcileReplayCoord(rReconcileContext, rWork, iMaxConsecutive, fTime);
+	if (rReconcileContext.iDesyncTick >= 0)
+	{
+		return;
+	}
+
+	ReconcileCatchUpCoord(rWork, rReconcileContext.iTargetTick, fTime, rReconcileContext.profiling);
+
+	// Set context counters from this coord's final state
+	rReconcileContext.iTickCounter = rReconcileContext.iTargetTick;
+	if (rWork.coord == rReconcileContext.confirmedHumanState.humanGridCoord)
+	{
+		rReconcileContext.fCurrentTime = fTime;
+	}
+}
+
+void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)
+{
+	ConfirmedHumanState humanState = rReconcileContext.confirmedHumanState;
+
+	// Advance fCurrentTime based on human coord's reconciliation result
+	for (const CoordReconcileWork& rWork : rReconcileContext.coordWork)
+	{
+		if (rWork.coord != humanState.humanGridCoord)
+		{
+			continue;
+		}
+
+		if (!rWork.bCrcFastPath && rWork.iReplayStackCount > 0)
+		{
+			// Human coord did full replay: use replay tip's fCurrentTime
+			humanState.fCurrentTime = rWork.replayStack[rWork.iReplayStackCount - 1]->interpolate.fCurrentTime;
+		}
+		else
+		{
+			// Human coord fast-pathed: advance by confirmed tick delta
+			int64_t iNewTick = (rWork.iNewConfirmedTick >= 0) ? rWork.iNewConfirmedTick : rWork.iConfirmedTick;
+			int64_t iAdvancement = iNewTick - rWork.iConfirmedTick;
+			for (int64_t i = 0; i < iAdvancement; ++i)
+			{
+				humanState.fCurrentTime += kfDeltaTime;
+			}
+		}
+		break;
+	}
+
+	if (rReconcileContext.bAnyFullReplay)
+	{
+
+		// Scan full-replay coords for human migration via transfer requests
+		for (const CoordReconcileWork& rWork : rReconcileContext.coordWork)
+		{
+			if (rWork.bCrcFastPath)
 			{
 				continue;
 			}
-			rReconcileContext.frameInputs.try_emplace(rCoord);
-		}
 
-		ReconcileRunTick(rReconcileContext);
-		++rReconcileContext.profiling.iAssumedFrameTicks;
-
-		// Inject late-confirmed coords at their confirmed frame
-		for (size_t iWorkIndex = 0; iWorkIndex < rReconcileContext.coordWork.size(); ++iWorkIndex)
-		{
-			CoordReconcileWork& rWork = rReconcileContext.coordWork.at(iWorkIndex);
-			if (ReconcileInjectLateConfirmedCoord(rWork, rReconcileContext.iTickCounter, iMinConfirmedTick))
+			// replayStack[0] is the confirmed frame; scan from index 1 onwards
+			for (int64_t i = 1; i < rWork.iReplayStackCount; ++i)
 			{
-				catchUpInfos[iWorkIndex] = {0, rReconcileContext.iTickCounter};
+				const Frame& rFrame = *rWork.replayStack[i];
+				for (const TransferRequest& rRequest : rFrame.postRender.transferRequests)
+				{
+					if (rRequest.eType != StatusChangeType::kTransferPlayer)
+					{
+						continue;
+					}
+					if (!humanState.humanPlayerId.IsValid())
+					{
+						continue;
+					}
+					if (rRequest.iEntityId != humanState.humanPlayerId.ToUuid().Value())
+					{
+						continue;
+					}
+
+					engine::GridCoord destination {rWork.coord.x + rRequest.iDeltaX, rWork.coord.y + rRequest.iDeltaY};
+					humanState.humanGridCoord = destination;
+					humanState.fPreviousHumanArmor = rRequest.data.fHealth;
+
+					// Find human's new player ID by position matching in destination coord
+					for (const CoordReconcileWork& rDestWork : rReconcileContext.coordWork)
+					{
+						if (rDestWork.coord != destination || rDestWork.iReplayStackCount <= 0)
+						{
+							continue;
+						}
+
+						const Frame& rDestFrame = *rDestWork.replayStack[rDestWork.iReplayStackCount - 1];
+						bool bFound = false;
+						for (int64_t j = 0; j < rDestFrame.postRender.pPlayers->iCount; ++j)
+						{
+							if (XMVector4Equal(rDestFrame.interpolate.pPlayers->pVecPositions[j], rRequest.data.vecPosition))
+							{
+								humanState.humanPlayerId = rDestFrame.postRender.pPlayers->puiIds[j];
+								bFound = true;
+								break;
+							}
+						}
+						if (!bFound && rDestFrame.postRender.pPlayers->iCount > 0)
+						{
+							humanState.humanPlayerId = rDestFrame.postRender.pPlayers->puiIds[rDestFrame.postRender.pPlayers->iCount - 1];
+						}
+						break;
+					}
+				}
 			}
 		}
 	}
 
-	// Convert accumulated workspace entries to snapshots for CRC fast-path
-	for (size_t iWorkIndex = 0; iWorkIndex < rReconcileContext.coordWork.size(); ++iWorkIndex)
-	{
-		CoordReconcileWork& rWork = rReconcileContext.coordWork.at(iWorkIndex);
-		const CatchUpInfo& rInfo = catchUpInfos[iWorkIndex];
-
-		for (int64_t i = rInfo.iStartWorkspaceIndex; i < rWork.iReplayWorkspaceUsed; ++i)
-		{
-			if (rWork.replayWorkspace[i] == nullptr)
-			{
-				continue;
-			}
-
-			rWork.replayWorkspace[i]->interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
-
-			rWork.newSnapshots.push_back(std::move(rWork.replayWorkspace[i]));
-		}
-	}
+	rReconcileContext.newConfirmedHumanState = humanState;
 }
 
 #endif // BT_CLIENT

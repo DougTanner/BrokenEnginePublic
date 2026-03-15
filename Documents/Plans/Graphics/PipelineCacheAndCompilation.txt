@@ -1,0 +1,176 @@
+Pipeline Cache and Compilation Plan
+=====================================
+
+VALIDATION
+----------
+
+Finding 6.1 [CRITICAL] -- No VkPipelineCache used
+  Status: CONFIRMED
+  Location: PipelineCreator.cpp:511, 567
+  Both vkCreateGraphicsPipelines (line 511) and vkCreateComputePipelines (line 567) pass
+  VK_NULL_HANDLE as the pipeline cache parameter. There is no VkPipelineCache anywhere in the
+  codebase. Pipelines are fully recompiled from SPIR-V every launch. This is a legitimate
+  performance issue -- pipeline caches can reduce startup time significantly on subsequent
+  launches, especially with ~60+ static pipelines plus dynamic per-collection pipelines.
+
+Finding 6.3 [Medium] -- All pipeline creation happens on a single thread at startup
+  Status: CONFIRMED
+  Location: Graphics.cpp:220-223 (PipelineManager construction), PipelineManager.cpp:17-107
+  PipelineManager is constructed on the main thread in Graphics::Create(). Its constructor
+  calls CreateLightingPipelines(), CreatePipelineShadows(), CreateLightingShadowDependantPipelines(),
+  CreateTerrainDataPipelines(), CreateSmokeWindPipelines(), and CreateParticlePipelines()
+  sequentially. Each pipeline calls Pipeline::Create() which calls PipelineCreator and
+  PipelineDescriptorWriter synchronously.
+  NOTE: Parallelization is blocked by Finding 2.1 (file-static mutable state) and by the
+  fact that several pipelines have ordering dependencies (e.g. particle spawn pipelines
+  reference indirect buffers from particle update/render pipelines created just before them).
+  Additionally, descriptor set allocation from the single VkDescriptorPool is not thread-safe
+  without external synchronization. Multithreading pipeline creation requires resolving all of
+  these issues, making this a larger effort than the cache alone.
+
+Finding 2.1 [Design Debt] -- File-static mutable Vulkan structs in PipelineCreator.cpp
+  Status: CONFIRMED
+  Location: PipelineCreator.cpp:11-196
+  There are 12 file-static mutable Vulkan structs that are modified in-place before each
+  pipeline creation call. This is a data race hazard if pipeline creation is ever parallelized.
+  Currently safe because all pipeline creation is single-threaded. The statics serve as a
+  template pattern -- avoiding repeated boilerplate initialization of large Vulkan structs.
+
+SCOPE DECISION
+--------------
+
+This plan covers Finding 6.1 (pipeline cache) and Finding 2.1 (removing file-static mutable
+state). Finding 6.3 (multithreaded compilation) is deferred -- it requires solving descriptor
+pool thread safety, pipeline ordering dependencies, and would add significant complexity for
+a startup-only operation. The pipeline cache alone will provide the largest real-world
+improvement (cached pipelines skip driver shader compilation entirely on subsequent launches).
+
+Removing the file-static mutable state is included because it is a prerequisite for any
+future parallelization work and is a straightforward refactor with no behavioral change.
+
+
+IMPLEMENTATION PLAN
+===================
+
+Step 1: Add VkPipelineCache to DeviceManager
+---------------------------------------------
+File: Engine/Source/Graphics/Managers/DeviceManager.h
+
+Add a VkPipelineCache member:
+  - After line 23 (mVkDescriptorPool): add `VkPipelineCache mVkPipelineCache = VK_NULL_HANDLE;`
+
+File: Engine/Source/Graphics/Managers/DeviceManager.cpp
+
+In DeviceManager constructor (after device creation, before returning):
+  a. Build the cache file path: gpFileManager->GetFilePath({FileFlags::kAppDataDirectory}, "pipeline.cache")
+  b. Attempt to read the file into a std::vector<uint8_t> using std::ifstream with std::ios::binary
+  c. If the file exists and has content, validate the cache header:
+     - The first 4 bytes are the header length (uint32_t)
+     - Bytes 4-7 are the cache header version (uint32_t), must equal VK_PIPELINE_CACHE_HEADER_VERSION_ONE
+     - Bytes 8-11 are the vendor ID, must match gpInstanceManager->mVkPhysicalDeviceProperties.vendorID
+     - Bytes 12-15 are the device ID, must match gpInstanceManager->mVkPhysicalDeviceProperties.deviceID
+     - Bytes 16-31 are the pipeline cache UUID, must match
+       gpInstanceManager->mVkPhysicalDeviceProperties.pipelineCacheUUID (16 bytes)
+     - If any check fails, discard the data (create empty cache)
+  d. Create VkPipelineCacheCreateInfo with:
+     - initialDataSize = validated data size (or 0 if no valid cache)
+     - pInitialData = validated data pointer (or nullptr)
+  e. Call vkCreatePipelineCache(mVkDevice, &createInfo, nullptr, &mVkPipelineCache)
+
+In DeviceManager destructor (before vkDestroyDevice):
+  a. Call vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &dataSize, nullptr) to get size
+  b. Allocate buffer, call vkGetPipelineCacheData again with buffer
+  c. Write to the same file path using std::ofstream with std::ios::binary
+  d. Call vkDestroyPipelineCache(mVkDevice, mVkPipelineCache, nullptr)
+
+NOTE: The constructor/destructor both do heap allocation (std::vector for cache data,
+std::ifstream/std::ofstream). These run during startup and shutdown, outside the main loop,
+so no ScopedSuppressAllocationTracking is needed.
+
+NOTE: FileManager (gpFileManager) is constructed before DeviceManager in the engine boot
+sequence (FileManager is created in Main.cpp before Graphics), so gpFileManager is available.
+
+Step 2: Pass pipeline cache to pipeline creation calls
+------------------------------------------------------
+File: Engine/Source/Graphics/Objects/PipelineCreator.cpp
+
+Line 511: Change
+  vkCreateGraphicsPipelines(gpDeviceManager->mVkDevice, VK_NULL_HANDLE, 1, ...)
+to
+  vkCreateGraphicsPipelines(gpDeviceManager->mVkDevice, gpDeviceManager->mVkPipelineCache, 1, ...)
+
+Line 567: Change
+  vkCreateComputePipelines(gpDeviceManager->mVkDevice, VK_NULL_HANDLE, 1, ...)
+to
+  vkCreateComputePipelines(gpDeviceManager->mVkDevice, gpDeviceManager->mVkPipelineCache, 1, ...)
+
+No other call sites exist -- these are the only two places pipelines are created.
+
+Step 3: Convert file-static mutable structs to function-local structs
+---------------------------------------------------------------------
+File: Engine/Source/Graphics/Objects/PipelineCreator.cpp
+
+Remove all 12 file-static mutable structs (lines 11-196):
+  - sUniformTextureVkDescriptorSetLayoutCreateInfo
+  - sVkPipelineLayoutCreateInfo
+  - spVkPipelineShaderStageCreateInfos
+  - sVkVertexInputBindingDescription
+  - sVkPipelineVertexInputStateCreateInfo
+  - sVkPipelineInputAssemblyStateCreateInfo
+  - sVkViewport
+  - sScissorVkRect2D
+  - sVkPipelineViewportStateCreateInfo
+  - sVkPipelineRasterizationStateCreateInfo
+  - sVkPipelineMultisampleStateCreateInfo
+  - sVkPipelineDepthStencilStateCreateInfo
+  - sVkPipelineColorBlendAttachmentState
+  - sVkPipelineColorBlendStateCreateInfo
+  - sVkGraphicsPipelineCreateInfo
+
+Move them as local variables into CreateGraphicsPipeline() and CreateComputePipeline()
+respectively, keeping only the structs each function actually uses.
+
+CreateGraphicsPipeline uses all 15 structs.
+CreateComputePipeline uses only:
+  - sUniformTextureVkDescriptorSetLayoutCreateInfo
+  - sVkPipelineLayoutCreateInfo
+
+Also update ConfigureUpdateAfterBind():
+  - It currently modifies sUniformTextureVkDescriptorSetLayoutCreateInfo directly (line 220-227)
+  - Change its signature to accept VkDescriptorSetLayoutCreateInfo& as a parameter instead
+    of referencing the file-static
+  - All three call sites (lines 351, 363, 394 in CreateGraphicsPipeline; line 546 in
+    CreateComputePipeline) pass the local struct
+
+Detailed changes for CreateGraphicsPipeline:
+  - Declare all structs as local variables at the top of the function, initialized with
+    the same values they currently have as file-statics
+  - The sVkGraphicsPipelineCreateInfo local must point to the local sub-structs
+    (sVkPipelineVertexInputStateCreateInfo, etc.) instead of the file-statics. Since they
+    are all in the same function scope, the pointer initialization in the designated
+    initializer works the same way
+  - Remove the "reset static for next pipeline creation" comment and code at line 384
+    (sVkPipelineLayoutCreateInfo.setLayoutCount = 1) -- no longer needed when local
+
+Detailed changes for CreateComputePipeline:
+  - Declare VkDescriptorSetLayoutCreateInfo and VkPipelineLayoutCreateInfo as local variables
+  - The existing local VkComputePipelineCreateInfo (line 561) stays as-is
+
+Detailed changes for ConfigureUpdateAfterBind:
+  - Change signature from:
+    static void ConfigureUpdateAfterBind(const VkDescriptorSetLayoutBinding* pBindings,
+      int64_t iDescriptorCount, VkDescriptorBindingFlags* pBindingFlags,
+      VkDescriptorSetLayoutBindingFlagsCreateInfo& rBindingFlagsCreateInfo, bool bUpdateAfterBind)
+  - To:
+    static void ConfigureUpdateAfterBind(VkDescriptorSetLayoutCreateInfo& rLayoutCreateInfo,
+      const VkDescriptorSetLayoutBinding* pBindings, int64_t iDescriptorCount,
+      VkDescriptorBindingFlags* pBindingFlags,
+      VkDescriptorSetLayoutBindingFlagsCreateInfo& rBindingFlagsCreateInfo, bool bUpdateAfterBind)
+  - Replace references to sUniformTextureVkDescriptorSetLayoutCreateInfo with rLayoutCreateInfo
+
+Step 4: Add <fstream> to ExternalHeaders.h if not already present
+-----------------------------------------------------------------
+File: Common/ExternalHeaders.h
+
+Check if <fstream> is already included (likely yes, since CrashReport.cpp uses std::ofstream).
+If not, add it. Similarly check <filesystem> (likely already included).

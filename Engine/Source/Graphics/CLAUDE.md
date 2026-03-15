@@ -4,8 +4,6 @@
 
 Multi-pass deferred Vulkan renderer with lighting, shadows, GPU particles, and post-processing. Entirely client-only (`#ifdef BT_CLIENT`). Managers are initialized in strict dependency order and accessed via global pointers (e.g., `gpGraphics`, `gpTextureManager`).
 
-See also: [Graphics Pipeline](../../../Documents/Architecture/GraphicsPipeline.md)
-
 ## Key Classes
 
 - **Graphics** (`gpGraphics`) - Central orchestrator owning all managers and coordinating the three-submission render loop (Global, Main, ImGui). Handles swapchain recreation and device-lost recovery via ordered resource cascade
@@ -22,6 +20,7 @@ See also: [Graphics Pipeline](../../../Documents/Architecture/GraphicsPipeline.m
 - Three GPU submissions per frame synchronized via semaphores, with the fence signaled by the final submission
 - Record-once command buffers resubmitted every frame; re-recorded only on resize or settings change
 - Per-framebuffer descriptor sets prevent GPU conflicts across frames in flight
+- Resource recreation uses cascading `DestroyType` levels (each includes all lower levels): `kCommandBuffers` (settings change) → `kSamplers` (anisotropy/mip bias) → `kPipelines` (wireframe/sample shading) → `kSwapchain` (window resize) → `kSurface` (device lost)
 - All GPU memory allocated through VMA (VmaAllocator in DeviceManager)
 - Lazy texture loading: white placeholder at startup, background disk load, transfer queue upload, deferred descriptor update
 - `Render/` subdirectory contains GPU uniform buffer population split by subsystem (global, main, lighting, smoke, wind)

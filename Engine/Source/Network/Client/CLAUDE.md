@@ -7,7 +7,7 @@ Client-side ENet networking split into the low-level `Client` class (connection,
 ## Key Classes
 
 - **Client** - ENet peer managing server connection, coord slot subscriptions with state machine (kUnsubscribed -> kSubscribing -> kWaitingFullState -> kActive -> kUnsubscribing), per-slot ACK tracking, and pipeline RTT measurement. Game-specific packets are stored as raw bytes for game-layer parsing. Split across three `.cpp` files: core (`Client.cpp`), receive (`ClientReceive.cpp`), send (`ClientSend.cpp`)
-- **ClientSessionBase** - Base class for game-level client sessions. Owns `Client` and `NetworkDiscoveryScanner`. Provides connection lifecycle, coord subscription mechanics (queue-based one-at-a-time subscribe, stale unsubscribe), update buffering into `CoordFrames`, extrapolation snapshot ring buffer management, clock correction with disconnect threshold, and confirmed-tick queries. Game layer inherits and adds reconciliation, full-state application, and desync handling
+- **ClientSessionBase** - Base class for game-level client sessions. Owns `Client` and `NetworkDiscoveryScanner`. Provides connection lifecycle, coord subscription mechanics (queue-based one-at-a-time subscribe, stale unsubscribe), update buffering into `CoordFrames`, extrapolation snapshot ring buffer management, clock correction with disconnect threshold, and confirmed-tick queries (`GetConfirmedTick()` for global minimum across all subscribed coords, `GetHumanConfirmedTick()` for just the human player's coord). Game layer inherits and adds reconciliation, full-state application, and desync handling
 
 ## Architecture Notes
 

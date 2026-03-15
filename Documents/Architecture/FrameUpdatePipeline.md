@@ -4,7 +4,7 @@
 
 ## RunFrameTick Pipeline
 
-All physics phases are unified into a single `RunFrameTick()` function (defined in `FrameTick.cpp`). Both `GameBase::UpdateClient()`/`UpdateServer()` and `ReconcileRunTick()` call the same function. Each Frame runs all five phases sequentially; multiple Frames are dispatched in parallel via `Dispatch()`.
+All physics phases are unified into a single `RunFrameTick()` function (defined in `FrameTick.cpp`). Both `GameBase::ClientUpdate()` and reconciliation replay call the same function. Each Frame runs all five phases sequentially; multiple Frames are dispatched in parallel via `Dispatch()`.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -17,40 +17,39 @@ flowchart LR
     subgraph RunFrameTick ["RunFrameTick (per-Frame)"]
         subgraph Phase1 ["Phase 1: Interpolate"]
             i_alloc["AllocateAndCopy"]:::interpolate
-            i_update["Update<br/>(smooth positions)"]:::interpolate
+            i_update["Update"]:::interpolate
         end
 
         subgraph Phase2 ["Phase 2: PostRender"]
             pr_alloc["AllocateAndCopy"]:::postrender
-            pr_update["Update<br/>(input, state)"]:::postrender
+            pr_update["Update"]:::postrender
         end
 
         subgraph Phase3 ["Phase 3: Collision"]
-            pr_precol["PreCollision<br/>(register layers)"]:::collision
-            pr_postcol["PostCollision<br/>(query results)"]:::collision
-            pr_area["AreaDamage<br/>(explosion falloff)"]:::collision
+            pr_precol["PreCollision"]:::collision
+            collide["Collision::Collide"]:::collision
+            pr_postcol["PostCollision"]:::collision
+            pr_area["AreaDamage"]:::collision
         end
 
         subgraph Phase4 ["Phase 4: Transfer"]
-            pr_transfer["Transfer<br/>(cross-cell moves)"]:::lifecycle
+            pr_transfer["Transfer"]:::lifecycle
         end
 
         subgraph Phase5 ["Phase 5: Destroy/Spawn"]
-            pr_destroy["Destroy<br/>(remove expired)"]:::lifecycle
-            pr_spawn["Spawn<br/>(create entities)"]:::lifecycle
+            pr_destroy["Destroy"]:::lifecycle
+            pr_spawn["Spawn"]:::lifecycle
         end
     end
 
-    swap["std::swap<br/>(mCurrentFrames,<br/>mNextFrames)"]
-
     i_alloc --> i_update
     i_update --> pr_alloc
-    pr_alloc --> pr_update --> pr_precol --> pr_postcol --> pr_area --> pr_transfer --> pr_destroy --> pr_spawn --> swap
+    pr_alloc --> pr_update --> pr_precol --> collide --> pr_postcol --> pr_area --> pr_transfer --> pr_destroy --> pr_spawn
 ```
 
 ## Client Main Loop
 
-Main.cpp calls three GameBase methods in sequence: `UpdateClient()`, `Render()`, and audio update. Network orchestration is encapsulated within `UpdateClient()` (pre-tick polling, network send, reconciliation, and `IsStalled()` gating of physics) and `Render()` (post-render reconcile kick). `RenderGlobal()` takes only `fCurrentTime` (no Frame dependency). `Render()` has camera coord fallback: if the human coord has no frame, it uses the first active coord (or presents empty and returns if no active coords). `AudioManager::Update()` accepts a nullable `Frame*` (null when the human coord has no frame).
+Main.cpp calls `ProcessInput()`, `ClientUpdate()`, `Render()`, and `AudioManager::Update()` in sequence. Network orchestration is encapsulated within `ClientUpdate()` and `Render()`.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -64,22 +63,22 @@ flowchart TD
 
     msgs["ProcessMessages()"]:::input
 
-    preupdate["ProcessInput(bLostFocus, menuInput)<br/>-> UpdateMenuInput()<br/>-> RawInputManager::Update()"]:::input
+    preupdate["ProcessInput()"]:::input
 
-    subgraph tick_frames ["GameBase::UpdateClient()"]
-        poll["ClientSession::Poll()<br/>PollNetwork(),<br/>SendAck(), Flush()"]:::network
-        reconcile["ClientSession::Reconcile()<br/>(self-gates on IsStalled)<br/>WaitForReconcile(),<br/>tick deficit compensation,<br/>clock correction<br/>(ComputeClockCorrectionNs<br/>via ClientSessionBase)"]:::network
-        stall_check{"IsStalled()?<br/>early-return"}:::network
+    subgraph tick_frames ["GameBase::ClientUpdate()"]
+        poll["ClientSession::Poll()"]:::network
+        reconcile["ClientSession::Reconcile()"]:::network
+        stall_check{"IsStalled?"}:::network
         poll --> reconcile
         reconcile --> stall_check
 
-        subgraph physics_loop ["Fixed Timestep Loop (64 Hz, 15.625ms)"]
-            ts["TimeStep::UpdateRealtime()<br/>-> iFullUpdates"]:::physics
-            extrap_check{"IsExtrapolating?<br/>(ClientSessionBase)"}:::physics
-            extrap_prep["PrepareExtrapolationTick()<br/>BuildExtrapolationFrameRef()<br/>(ClientSessionBase methods;<br/>redirect ActiveFrameRef<br/>to snapshot stack)"]:::physics
-            dispatch["Dispatch per-Frame:<br/>RunFrameTick()<br/>(all 5 phases per Frame<br/>in parallel)"]:::physics
-            extrap_record["RecordExtrapolationSnapshot()<br/>(ClientSessionBase;<br/>advance snapshot count;<br/>CRCs already in Frame<br/>from RunFrameTick)"]:::physics
-            frame_swap["std::swap(current, next)<br/>+ EnsureNextFrames()"]:::physics
+        subgraph physics_loop ["Fixed Timestep Loop (64 Hz)"]
+            ts["TimeStep::TickRealtime()"]:::physics
+            extrap_check{"IsExtrapolating?"}:::physics
+            extrap_prep["PrepareExtrapolationTick()"]:::physics
+            dispatch["Dispatch RunFrameTick()"]:::physics
+            extrap_record["RecordExtrapolationSnapshot()"]:::physics
+            frame_swap["SwapFrames()"]:::physics
             ts --> extrap_check
             extrap_check -->|"Yes"| extrap_prep --> dispatch --> extrap_record
             extrap_check -->|"No"| dispatch --> frame_swap
@@ -89,32 +88,25 @@ flowchart TD
     end
 
     subgraph render_method ["GameBase::Render()"]
-        r_global["RenderGlobal(fCurrentTime)<br/>(no Frame dependency)"]:::render
-        r_cam_check{"Camera coord<br/>in mCoordFrames?"}:::render
-        r_fallback["Fallback: first active coord<br/>(or empty present if none)"]:::render
-        r_interp["FrameInterpolate::<br/>AllocateAndCopy + Update<br/>(render interpolation)"]:::render
-        r_begin["BeginRender()"]:::render
-        r_main["Render()<br/>(lights, collections,<br/>smoke, wind)"]:::render
-        r_end["EndRender()"]:::render
+        r_global["RenderGlobal()"]:::render
+        r_interp["FrameInterpolate::<br/>AllocateAndCopy + Update"]:::render
+        r_render["BeginRender / Render / EndRender"]:::render
 
-        post_render["ClientSession::PostRender()<br/>(IsStalled: early-return)<br/>ClientReconciler::TryKick()<br/>(gated by mbHasNewData)"]:::network
+        post_render["ClientSession::PostRender()"]:::network
 
-        r_global --> r_cam_check
-        r_cam_check -->|"No"| r_fallback --> r_interp
-        r_cam_check -->|"Yes"| r_interp
-        r_interp --> r_begin --> r_main --> r_end --> post_render
+        r_global --> r_interp --> r_render --> post_render
     end
 
-    audio["AudioManager::Update(pFrame)<br/>(nullable Frame*)"]:::render
+    audio["AudioManager::Update()"]:::render
 
     start --> msgs --> preupdate --> tick_frames
     tick_frames --> render_method --> audio
-    audio -->|next frame| start
+    audio -->|next iteration| start
 ```
 
 ## Server Main Loop
 
-Main.cpp calls `UpdateServer()` then `UpdateServerDisplayStats()`. All network orchestration (pre-tick polling, tick timing, and per-frame broadcasts) is encapsulated within `GameBase::UpdateServer()`, which delegates to `ServerSession` methods (game-specific, accessed via `gpServerSession`) and `ServerSessionBase` methods (engine-generic). `ServerSessionBase::WaitForTick()` handles the server tick timer (waitable timer + spin-wait, using `mTimerHandle`). `ServerSessionBase::PollNetworkBase()` polls ENet and the discovery responder. `ServerSession::PrepareTick()` recomputes the active set and ensures next frames exist. `ServerSession::BroadcastTick()` wraps FinalizeNewClients, DetectPlayerDeaths, BroadcastStatusChanges, SubscriptionUpdates, `ServerSessionBase::SendNewSubscriptionFullStates()`, and Server::Flush().
+Main.cpp calls `ServerUpdate()` then `ServerUpdateDisplayStats()`. Network orchestration is encapsulated within `GameBase::ServerUpdate()`, which delegates to `ServerSession` and `ServerSessionBase` methods.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -127,18 +119,18 @@ flowchart TD
 
     msgs["ProcessMessages()"]:::server
 
-    subgraph tick_frames ["GameBase::UpdateServer()"]
-        pre_tick["ServerSession::PreTickNetwork()<br/>ServerSessionBase::PollNetworkBase()<br/>(Server::Poll(),<br/>DiscoveryResponder::Poll()),<br/>Disconnects,<br/>NewClients,<br/>ProcessSpawnRequests"]:::network
+    subgraph tick_frames ["GameBase::ServerUpdate()"]
+        pre_tick["ServerSession::PreTickNetwork()"]:::network
 
-        wait_tick["ServerSessionBase::WaitForTick()<br/>(waitable timer + spin-wait<br/>until next tick)"]:::server
+        wait_tick["ServerSessionBase::WaitForTick()"]:::server
 
         subgraph physics_loop ["Fixed Timestep Loop (64 Hz)"]
-            ts["TimeStep::UpdateRealtime()"]:::physics
-            prepare_tick["ServerSession::PrepareTick()<br/>ComputeActiveSet(),<br/>EnsureNextFrames(),<br/>init empty FrameInputs"]:::network
-            dispatch_s["Dispatch per-Frame:<br/>RunFrameTick()<br/>(all 5 phases per Frame<br/>in parallel)"]:::physics
-            frame_swap["std::swap(current, next)"]:::physics
-            broadcast_tick["ServerSession::BroadcastTick()<br/>FinalizeNewClients,<br/>DetectPlayerDeaths,<br/>BroadcastStatusChanges<br/>(BufferFrame + SendUpdate +<br/>SendResends),<br/>SubscriptionUpdates,<br/>SendNewSubscriptionFullStates<br/>(ServerSessionBase),<br/>Flush"]:::network
-            harvest["HarvestTransfers()<br/>(cross-coord entity moves)"]:::physics
+            ts["TimeStep::TickRealtime()"]:::physics
+            prepare_tick["ServerSession::PrepareTick()"]:::network
+            dispatch_s["Dispatch RunFrameTick()"]:::physics
+            harvest["HarvestTransfers()"]:::physics
+            frame_swap["SwapFrames()"]:::physics
+            broadcast_tick["ServerSession::BroadcastTick()"]:::network
             ts --> prepare_tick --> dispatch_s --> harvest --> frame_swap
             frame_swap --> broadcast_tick
         end
@@ -146,10 +138,10 @@ flowchart TD
         pre_tick --> wait_tick --> physics_loop
     end
 
-    display["UpdateServerDisplayStats()<br/>InvalidateRect (GDI)"]:::server
+    display["ServerUpdateDisplayStats()"]:::server
 
     start --> msgs --> tick_frames --> display
-    display -->|next frame| start
+    display -->|next iteration| start
 ```
 
 ## Dual-Buffered Frame Lifecycle
@@ -163,31 +155,29 @@ flowchart LR
 
     subgraph frame_struct ["Frame Structure"]
         frame["game::Frame"]
-        fi["FrameInterpolate<br/>(visual state: positions,<br/>velocities, effects)"]
-        fpr["FramePostRender<br/>(logic state: health,<br/>flags, RNG, UUIDs,<br/>cached CRCs)"]
-        frame --> fi
-        frame --> fpr
+        fi["FrameInterpolate"]
+        fpr["FramePostRender"]
+        frame -->|owns| fi
+        frame -->|owns| fpr
     end
 
-    subgraph buffers ["Double Buffer (non-extrapolating)"]
-        current["mCurrentFrames<br/>map&lt;GridCoord, Frame&gt;<br/>(read during physics)"]:::current
-        next_buf["mNextFrames<br/>map&lt;GridCoord, Frame&gt;<br/>(write target)"]:::next
+    subgraph buffers ["CoordFrames Double Buffer"]
+        current["pCurrent"]:::current
+        next_buf["pNext"]:::next
     end
 
-    subgraph snapshot_buf ["Snapshot Stack (extrapolating)"]
-        snap_stack["CoordFrames::snapshots<br/>array&lt;SnapshotEntry&gt;<br/>(pre-allocated Frames,<br/>CRCs stored in Frame's<br/>postRender fields)"]:::next
-        snap_note["Physics writes into stack:<br/>snapshot[N] reads from snapshot[N-1]<br/>(or mCurrentFrames if N==0)<br/>std::swap skipped"]
+    subgraph snapshot_buf ["Snapshot Ring (client, extrapolating)"]
+        snap_stack["CoordFrames::snapshots"]:::next
     end
 
     subgraph render_buf ["Render Buffer (client)"]
-        render_interp["gpGraphics->mRenderInterpolates<br/>map&lt;GridCoord, FrameInterpolate&gt;<br/>(interpolated for display)"]:::render
+        render_interp["mRenderInterpolates"]:::render
     end
 
-    current -->|"AllocateAndCopy<br/>(previous frame)"| next_buf
-    next_buf -->|"std::swap after<br/>all sub-phases"| current
-    current -->|"BorrowSnapshotFrames<br/>(latest snapshot moved in)"| render_interp
-    snap_stack -->|"BorrowSnapshotFrames<br/>(temporary move)"| current
-    current -->|"RestoreSnapshotFrames<br/>(returned to stack)"| snap_stack
+    current -->|"AllocateAndCopy"| next_buf
+    next_buf -->|"std::swap"| current
+    current -->|"AllocateAndCopy + Update"| render_interp
+    snap_stack -->|"GetSnapshotFrame"| current
 ```
 
 ## Collection Phase Participation
@@ -197,24 +187,25 @@ flowchart LR
 graph TD
     classDef clientOnly fill:#dbeafe,stroke:#3b82f6
     classDef shared fill:#f3f4f6,stroke:#6b7280
+    classDef game fill:#d1fae5,stroke:#059669
     classDef phase fill:#fef3c7,stroke:#d97706
 
-    subgraph interpolate_phase ["Interpolate Collections"]
+    subgraph interpolate_phase ["Interpolate Phase"]
         direction LR
-        i_shared["Explosions, Pushers"]:::shared
+        i_engine["Explosions, Pushers"]:::shared
         i_client["AreaLights, Billboards,<br/>HexShields, PointLights,<br/>Puffs, Sounds, SmokeTrails,<br/>WindRadials, WindTrails"]:::clientOnly
+        i_game["Players, Blasters,<br/>Missiles, Spaceships,<br/>Targets"]:::game
     end
 
-    subgraph postrender_phase ["PostRender Collections"]
+    subgraph postrender_phase ["PostRender Phase"]
         direction LR
         pr_engine["Explosions, Pushers"]:::shared
-        pr_game["Players, Blasters,<br/>Missiles, Spaceships,<br/>Targets"]:::shared
+        pr_client["AreaLights, Billboards,<br/>HexShields, PointLights,<br/>Puffs, Sounds, SmokeTrails,<br/>WindRadials, WindTrails"]:::clientOnly
+        pr_game["Players, Blasters,<br/>Missiles, Spaceships,<br/>Targets"]:::game
     end
 
-    fold_i["ForEachInterpolateUpdate<br/>(fold expression)"]:::phase
-    fold_pr["ForEachPostRenderUpdate / PreCollision /<br/>PostCollision / AreaDamage /<br/>Transfer / Destroy / Spawn<br/>(fold expressions)"]:::phase
-
-    note_threading["All phases run inside RunFrameTick()<br/>per-Frame, dispatched in parallel.<br/>Pusher zones and Collision data<br/>are thread_local for safe parallelism."]:::phase
+    fold_i["ForEachInterpolateUpdate"]:::phase
+    fold_pr["ForEachPostRender phases"]:::phase
 
     fold_i --> interpolate_phase
     fold_pr --> postrender_phase

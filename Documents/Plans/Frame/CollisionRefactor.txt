@@ -1,0 +1,1202 @@
+Collision System Refactoring Plan
+==================================
+
+5 changes: D1+D2 (deduplicate zone logic), F4 (generation counter), S4 (extract AreaDamage), R5 (flat results).
+
+Files modified:
+  Engine/Source/Frame/Collision.h
+  Engine/Source/Frame/Collision.cpp
+  Engine/Source/Engine.h
+
+Files created:
+  Engine/Source/Frame/AreaDamage.h
+  Engine/Source/Frame/AreaDamage.cpp
+
+vcxproj files updated (both client and server):
+  Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.vcxproj
+  Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.vcxproj.filters
+  Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandboxServer.vcxproj
+  Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandboxServer.vcxproj.filters
+
+================================================================================
+CHANGE 1: D1+D2 — Extract InsertIntoZone helper and CalculateZoneRange helper
+================================================================================
+
+Goal: The inner loop body of InsertIntoZones (lines 72-94) and InsertIntoZonesSwept (lines 161-183)
+are identical. The zone range calculation (4 std::clamp lines) appears 3 times: lines 62-65, 152-155,
+373-376. Extract both into helpers.
+
+--- Collision.h ---
+
+Replace (lines 128-131):
+	static void SetupZones(FXMVECTOR vecArea);
+	static void InsertIntoZones(LayerPairZones& rPairZones, int64_t iIndex, FXMVECTOR vecPosition, float fRadius, bool bIsLayerA);
+	static void InsertIntoZonesSwept(LayerPairZones& rPairZones, int64_t iIndex, FXMVECTOR vecMin, FXMVECTOR vecMax, float fRadius, bool bIsLayerA);
+	static void CollideLayerPair(const Alignments& rAlignments, LayerPairZones& rPairZones);
+
+With:
+	static void SetupZones(FXMVECTOR vecArea);
+	static void InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex, float fMinX, float fMaxX, float fMinY, float fMaxY, float fRadius, bool bIsLayerA);
+	static void CollideLayerPair(const Alignments& rAlignments, LayerPairZones& rPairZones);
+
+--- Collision.cpp ---
+
+Add new struct before Collision::AddLayer (before line 33), after "using enum CollisionFlags;":
+
+struct ZoneRange
+{
+	int32_t iStartX;
+	int32_t iEndX;
+	int32_t iStartY;
+	int32_t iEndY;
+};
+
+static ZoneRange CalculateZoneRange(float fMinX, float fMaxX, float fMinY, float fMaxY, float fRadius)
+{
+	return {
+		.iStartX = std::clamp(static_cast<int32_t>((fMinX - fRadius - Collision::sfAreaMinX) / Collision::sfZoneWidth), 0, kiCollisionZonesX - 1),
+		.iEndX = std::clamp(static_cast<int32_t>((fMaxX + fRadius - Collision::sfAreaMinX) / Collision::sfZoneWidth), 0, kiCollisionZonesX - 1),
+		.iStartY = std::clamp(static_cast<int32_t>((fMinY - fRadius - Collision::sfAreaMinY) / Collision::sfZoneHeight), 0, kiCollisionZonesY - 1),
+		.iEndY = std::clamp(static_cast<int32_t>((fMaxY + fRadius - Collision::sfAreaMinY) / Collision::sfZoneHeight), 0, kiCollisionZonesY - 1),
+	};
+}
+
+NOTE: CalculateZoneRange needs access to sfAreaMinX etc. Since those are private statics, either:
+  (a) Make CalculateZoneRange a private static method of Collision, or
+  (b) Make it a free function and add "friend" — but that's ugly.
+  Best approach: Make it a private static method of Collision. Add to Collision.h private section:
+
+	static ZoneRange CalculateZoneRange(float fMinX, float fMaxX, float fMinY, float fMaxY, float fRadius);
+
+And define ZoneRange struct in Collision.h (before Collision class):
+
+struct ZoneRange
+{
+	int32_t iStartX;
+	int32_t iEndX;
+	int32_t iStartY;
+	int32_t iEndY;
+};
+
+Then in Collision.cpp, define:
+
+ZoneRange Collision::CalculateZoneRange(float fMinX, float fMaxX, float fMinY, float fMaxY, float fRadius)
+{
+	return {
+		.iStartX = std::clamp(static_cast<int32_t>((fMinX - fRadius - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1),
+		.iEndX = std::clamp(static_cast<int32_t>((fMaxX + fRadius - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1),
+		.iStartY = std::clamp(static_cast<int32_t>((fMinY - fRadius - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1),
+		.iEndY = std::clamp(static_cast<int32_t>((fMaxY + fRadius - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1),
+	};
+}
+
+Replace InsertIntoZones (lines 56-97) and InsertIntoZonesSwept (lines 145-186) with single method:
+
+void Collision::InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex, float fMinX, float fMaxX, float fMinY, float fMaxY, float fRadius, bool bIsLayerA)
+{
+	ZoneRange range = CalculateZoneRange(fMinX, fMaxX, fMinY, fMaxY, fRadius);
+
+	for (int32_t y = range.iStartY; y <= range.iEndY; ++y)
+	{
+		for (int32_t x = range.iStartX; x <= range.iEndX; ++x)
+		{
+			ZonePair& rZonePair = rPairZones.zones[y][x];
+			if (bIsLayerA)
+			{
+				if (rZonePair.iCountA >= static_cast<int64_t>(rZonePair.indicesA.size()))
+				{
+					Log("Collision: ZonePair.indicesA overflow (count: {}, capacity: {}). Increase kiCollisionZonePreallocate in Collision.h", rZonePair.iCountA, rZonePair.indicesA.size());
+					DEBUG_BREAK();
+					rZonePair.indicesA.resize(rZonePair.iCountA * 2);
+				}
+				rZonePair.indicesA.at(static_cast<size_t>(rZonePair.iCountA)) = iIndex;
+				++rZonePair.iCountA;
+			}
+			else
+			{
+				if (rZonePair.iCountB >= static_cast<int64_t>(rZonePair.indicesB.size()))
+				{
+					Log("Collision: ZonePair.indicesB overflow (count: {}, capacity: {}). Increase kiCollisionZonePreallocate in Collision.h", rZonePair.iCountB, rZonePair.indicesB.size());
+					DEBUG_BREAK();
+					rZonePair.indicesB.resize(rZonePair.iCountB * 2);
+				}
+				rZonePair.indicesB.at(static_cast<size_t>(rZonePair.iCountB)) = iIndex;
+				++rZonePair.iCountB;
+			}
+		}
+	}
+}
+
+Update callers in SetupZones (lines 257-295). Replace the insertion loops:
+
+Old (lines 257-275, insert layer A):
+			// Insert layer A objects
+			for (int64_t i = 0; i < rLayerA.iCount; ++i)
+			{
+				if (rLayerA.pFlags[i] & kAlreadyCollided)
+				{
+					continue;
+				}
+
+				if (rLayerA.bSweptTest && rLayerA.pVecVelocities != nullptr)
+				{
+					XMVECTOR vecPos = rLayerA.pVecPositions[i];
+					XMVECTOR vecEndPos = XMVectorAdd(vecPos, XMVectorScale(rLayerA.pVecVelocities[i], game::kfDeltaTime));
+					InsertIntoZonesSwept(rPairZones, i, XMVectorMin(vecPos, vecEndPos), XMVectorMax(vecPos, vecEndPos), rLayerA.pfRadii[i], true);
+				}
+				else
+				{
+					InsertIntoZones(rPairZones, i, rLayerA.pVecPositions[i], rLayerA.pfRadii[i], true);
+				}
+			}
+
+New:
+			// Insert layer A objects
+			for (int64_t i = 0; i < rLayerA.iCount; ++i)
+			{
+				if (rLayerA.pFlags[i] & kAlreadyCollided)
+				{
+					continue;
+				}
+
+				XMFLOAT4A f4Position {};
+				float fMinX, fMaxX, fMinY, fMaxY;
+				if (rLayerA.bSweptTest && rLayerA.pVecVelocities != nullptr)
+				{
+					XMVECTOR vecPos = rLayerA.pVecPositions[i];
+					XMVECTOR vecEndPos = XMVectorAdd(vecPos, XMVectorScale(rLayerA.pVecVelocities[i], game::kfDeltaTime));
+					XMFLOAT4A f4Min {};
+					XMFLOAT4A f4Max {};
+					XMStoreFloat4A(&f4Min, XMVectorMin(vecPos, vecEndPos));
+					XMStoreFloat4A(&f4Max, XMVectorMax(vecPos, vecEndPos));
+					fMinX = f4Min.x; fMaxX = f4Max.x; fMinY = f4Min.y; fMaxY = f4Max.y;
+				}
+				else
+				{
+					XMStoreFloat4A(&f4Position, rLayerA.pVecPositions[i]);
+					fMinX = f4Position.x; fMaxX = f4Position.x; fMinY = f4Position.y; fMaxY = f4Position.y;
+				}
+				InsertObjectIntoZones(rPairZones, i, fMinX, fMaxX, fMinY, fMaxY, rLayerA.pfRadii[i], true);
+			}
+
+Old (lines 277-295, insert layer B):
+			// Insert layer B objects
+			for (int64_t i = 0; i < rLayerB.iCount; ++i)
+			{
+				if (rLayerB.pFlags[i] & kAlreadyCollided)
+				{
+					continue;
+				}
+
+				if (rLayerB.bSweptTest && rLayerB.pVecVelocities != nullptr)
+				{
+					XMVECTOR vecPos = rLayerB.pVecPositions[i];
+					XMVECTOR vecEndPos = XMVectorAdd(vecPos, XMVectorScale(rLayerB.pVecVelocities[i], game::kfDeltaTime));
+					InsertIntoZonesSwept(rPairZones, i, XMVectorMin(vecPos, vecEndPos), XMVectorMax(vecPos, vecEndPos), rLayerB.pfRadii[i], false);
+				}
+				else
+				{
+					InsertIntoZones(rPairZones, i, rLayerB.pVecPositions[i], rLayerB.pfRadii[i], false);
+				}
+			}
+
+New:
+			// Insert layer B objects
+			for (int64_t i = 0; i < rLayerB.iCount; ++i)
+			{
+				if (rLayerB.pFlags[i] & kAlreadyCollided)
+				{
+					continue;
+				}
+
+				XMFLOAT4A f4Position {};
+				float fMinX, fMaxX, fMinY, fMaxY;
+				if (rLayerB.bSweptTest && rLayerB.pVecVelocities != nullptr)
+				{
+					XMVECTOR vecPos = rLayerB.pVecPositions[i];
+					XMVECTOR vecEndPos = XMVectorAdd(vecPos, XMVectorScale(rLayerB.pVecVelocities[i], game::kfDeltaTime));
+					XMFLOAT4A f4Min {};
+					XMFLOAT4A f4Max {};
+					XMStoreFloat4A(&f4Min, XMVectorMin(vecPos, vecEndPos));
+					XMStoreFloat4A(&f4Max, XMVectorMax(vecPos, vecEndPos));
+					fMinX = f4Min.x; fMaxX = f4Max.x; fMinY = f4Min.y; fMaxY = f4Max.y;
+				}
+				else
+				{
+					XMStoreFloat4A(&f4Position, rLayerB.pVecPositions[i]);
+					fMinX = f4Position.x; fMaxX = f4Position.x; fMinY = f4Position.y; fMaxY = f4Position.y;
+				}
+				InsertObjectIntoZones(rPairZones, i, fMinX, fMaxX, fMinY, fMaxY, rLayerB.pfRadii[i], false);
+			}
+
+Update CollideLayerPair zone range calculation (lines 348-376). Replace:
+
+		// Calculate A's zone range with clamping (expand to swept AABB if swept)
+		float fMinX, fMaxX, fMinY, fMaxY;
+		if (rLayerA.bSweptTest && rLayerA.pVecVelocities != nullptr)
+		{
+			XMVECTOR vecEndPos = XMVectorAdd(vecPositionA, XMVectorScale(rLayerA.pVecVelocities[i], game::kfDeltaTime));
+			XMVECTOR vecMin = XMVectorMin(vecPositionA, vecEndPos);
+			XMVECTOR vecMax = XMVectorMax(vecPositionA, vecEndPos);
+			XMFLOAT4A f4Min {};
+			XMFLOAT4A f4Max {};
+			XMStoreFloat4A(&f4Min, vecMin);
+			XMStoreFloat4A(&f4Max, vecMax);
+			fMinX = f4Min.x;
+			fMaxX = f4Max.x;
+			fMinY = f4Min.y;
+			fMaxY = f4Max.y;
+		}
+		else
+		{
+			XMFLOAT4A f4PositionA {};
+			XMStoreFloat4A(&f4PositionA, vecPositionA);
+			fMinX = f4PositionA.x;
+			fMaxX = f4PositionA.x;
+			fMinY = f4PositionA.y;
+			fMaxY = f4PositionA.y;
+		}
+
+		int32_t iZoneStartX = std::clamp(static_cast<int32_t>((fMinX - fRadiusA - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1);
+		int32_t iZoneEndX = std::clamp(static_cast<int32_t>((fMaxX + fRadiusA - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1);
+		int32_t iZoneStartY = std::clamp(static_cast<int32_t>((fMinY - fRadiusA - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1);
+		int32_t iZoneEndY = std::clamp(static_cast<int32_t>((fMaxY + fRadiusA - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1);
+
+With:
+
+		// Calculate A's zone range with clamping (expand to swept AABB if swept)
+		float fMinX, fMaxX, fMinY, fMaxY;
+		if (rLayerA.bSweptTest && rLayerA.pVecVelocities != nullptr)
+		{
+			XMVECTOR vecEndPos = XMVectorAdd(vecPositionA, XMVectorScale(rLayerA.pVecVelocities[i], game::kfDeltaTime));
+			XMVECTOR vecMin = XMVectorMin(vecPositionA, vecEndPos);
+			XMVECTOR vecMax = XMVectorMax(vecPositionA, vecEndPos);
+			XMFLOAT4A f4Min {};
+			XMFLOAT4A f4Max {};
+			XMStoreFloat4A(&f4Min, vecMin);
+			XMStoreFloat4A(&f4Max, vecMax);
+			fMinX = f4Min.x;
+			fMaxX = f4Max.x;
+			fMinY = f4Min.y;
+			fMaxY = f4Max.y;
+		}
+		else
+		{
+			XMFLOAT4A f4PositionA {};
+			XMStoreFloat4A(&f4PositionA, vecPositionA);
+			fMinX = f4PositionA.x;
+			fMaxX = f4PositionA.x;
+			fMinY = f4PositionA.y;
+			fMaxY = f4PositionA.y;
+		}
+
+		ZoneRange range = CalculateZoneRange(fMinX, fMaxX, fMinY, fMaxY, fRadiusA);
+
+Then update the loop variables below from iZoneStartX/etc to range.iStartX/etc:
+  - for (int32_t y = iZoneStartY; y <= iZoneEndY; ++y)
+  + for (int32_t y = range.iStartY; y <= range.iEndY; ++y)
+  - for (int32_t x = iZoneStartX; x <= iZoneEndX; ++x)
+  + for (int32_t x = range.iStartX; x <= range.iEndX; ++x)
+
+
+================================================================================
+CHANGE 2: F4 — Generation counter instead of memset for pTestedB
+================================================================================
+
+Goal: Replace the O(N_A * N_B) memset(pTestedB, 0, ...) on line 379 with a generation counter.
+The pTestedB array is currently bool[N_B]. Change to uint32_t[N_B] and compare against a
+generation counter that increments per A object.
+
+In CollideLayerPair, replace (lines 330-333):
+
+	// Track tested B objects to avoid duplicates from multi-zone presence
+	int64_t iTestedBSize = rLayerB.iCount * static_cast<int64_t>(sizeof(bool));
+	bool* pTestedB = common::gpThreadLocal->mWorkbuffer.PushBuffer<bool*>(iTestedBSize);
+	memset(pTestedB, 0, static_cast<size_t>(iTestedBSize));
+
+With:
+
+	// Track tested B objects to avoid duplicates from multi-zone presence (generation counter)
+	int64_t iTestedBSize = rLayerB.iCount * static_cast<int64_t>(sizeof(uint32_t));
+	uint32_t* pTestedBGeneration = common::gpThreadLocal->mWorkbuffer.PushBuffer<uint32_t*>(iTestedBSize);
+	memset(pTestedBGeneration, 0, static_cast<size_t>(iTestedBSize));
+	uint32_t uiCurrentGeneration = 0;
+
+Replace line 379 (memset per A object):
+
+		// Clear tested flags for this A object
+		memset(pTestedB, 0, static_cast<size_t>(iTestedBSize));
+
+With:
+
+		// Advance generation (no memset needed)
+		++uiCurrentGeneration;
+
+Replace lines 397-401 (tested check and set):
+
+				if (pTestedB[j])
+				{
+					continue;
+				}
+				pTestedB[j] = true;
+
+With:
+
+				if (pTestedBGeneration[j] == uiCurrentGeneration)
+				{
+					continue;
+				}
+				pTestedBGeneration[j] = uiCurrentGeneration;
+
+Note: The initial memset to 0 happens once when the workbuffer is first used. With uint32_t
+generation starting at 0 and incrementing to 1 on first use, no stale value (0) will match.
+Generation wrapping at UINT32_MAX is not a concern since N_A is far smaller than 4 billion.
+
+
+================================================================================
+CHANGE 3: R5 — Replace sResults unordered_map with pre-allocated flat structure
+================================================================================
+
+Goal: sResults is std::unordered_map<uint64_t, std::vector<CollisionResult>> causing per-frame
+heap allocations. Replace with a flat pre-allocated structure.
+
+Access pattern analysis:
+  - Collide() calls sResults.clear() once per frame
+  - CollideLayerPair() calls sResults.try_emplace(key).first->second.push_back(result) to record
+  - HasCollision() calls sResults.contains(key) — just existence check
+  - GetCollisions() calls sResults.find(key) — returns pointer to vector
+
+Design: Two parallel arrays:
+  1. A flat array of CollisionResult entries (all results contiguous)
+  2. A per-key index: for each (layer, objectIndex) pair, store offset+count into the flat array
+
+Since keys are (layerIndex << 32 | objectIndex), and we know max layers (kiCollisionLayerPreallocate=16)
+and can bound max objects per layer, we can use a direct-mapped array.
+
+However, the object count per layer varies and can be large. A simpler approach: use a hash map
+that doesn't heap-allocate. But we want zero heap allocations.
+
+Best approach: Two flat vectors with counts, similar to how the rest of the codebase works.
+
+  - sResultEntries: flat vector of CollisionResult, pre-allocated
+  - sResultKeys: flat vector of {uint64_t key, int64_t offset, int64_t count}, pre-allocated
+  - Record: append to sResultEntries; on first collision for a key, add to sResultKeys.
+    On subsequent collisions for same key, just increment count (entries are contiguous per key
+    IF we process all collisions for one A object before moving to the next).
+
+Wait — the current code records for both A and B in the same inner loop iteration. So key A's results
+are contiguous within one zone iteration, but key B results are interleaved. This breaks contiguity.
+
+Alternative: Record A-side and B-side results separately, then for queries, scan the key index.
+But that changes too much.
+
+Simpler approach that preserves the current recording pattern:
+  - sResultEntries: flat array of CollisionResult
+  - sResultOffsets: parallel array indexed by a key lookup, storing {offset, count} into sResultEntries
+  - For key lookup without hashing: since each collision is recorded for BOTH sides, and keys are
+    (layerIndex, objectIndex), we can use a two-level array: per-layer offset + per-object slot.
+
+Actually, the simplest correct approach: Keep the same logical structure but use pre-allocated
+flat storage with manual management instead of std::unordered_map.
+
+Design:
+  - CollisionResultSpan { int64_t iOffset; int64_t iCount; } — offset+count into flat results array
+  - sResultEntries: thread_local std::vector<CollisionResult> — flat, pre-allocated
+  - siResultEntryCount: thread_local int64_t — current count
+  - For key lookup: thread_local std::vector<CollisionResultSpan> per layer, indexed by object index.
+    But layer count and object count vary per frame.
+
+Simplest viable design using the existing data:
+  Each layer has a known iCount at registration time. We can allocate a per-layer array of
+  CollisionResultSpan after all layers are registered. But layers are registered incrementally
+  and results are queried after Collide().
+
+Final design — two-level flat map:
+  - After SetupZones (when all layers are known), allocate a flat array of CollisionResultSpan
+    sized to sum(layer.iCount for all layers), with a per-layer offset table.
+  - sLayerOffsets[layerIndex] = starting offset in the spans array for that layer
+  - sResultSpans[sLayerOffsets[layerIndex] + objectIndex] = {offset, count} into sResultEntries
+
+This gives O(1) lookup by (layerIndex, objectIndex) with zero hashing.
+
+--- Collision.h ---
+
+Add struct (before Collision class):
+
+struct CollisionResultSpan
+{
+	int64_t iOffset = -1;  // -1 means no collision
+	int64_t iCount = 0;
+};
+
+Replace sResults member (line 149):
+
+	static thread_local std::unordered_map<uint64_t, std::vector<CollisionResult>> sResults;
+
+With:
+
+	// Flat collision results storage
+	static thread_local std::vector<CollisionResult> sResultEntries;
+	static thread_local int64_t siResultEntryCount;
+
+	// Per-object lookup: sResultSpans[sLayerBaseOffsets[layerIndex] + objectIndex]
+	static thread_local std::vector<CollisionResultSpan> sResultSpans;
+	static thread_local int64_t siResultSpanCount;
+	static thread_local std::array<int64_t, kiCollisionLayerPreallocate> sLayerBaseOffsets;
+
+	static void AllocateResultStorage();
+
+Add pre-allocation constants (near the top of Collision.h with the other constants):
+
+inline constexpr int64_t kiCollisionResultPreallocate = 512;
+inline constexpr int64_t kiCollisionResultSpanPreallocate = 1024;
+
+--- Collision.cpp ---
+
+Replace thread_local definition (line 29):
+
+thread_local std::unordered_map<uint64_t, std::vector<CollisionResult>> Collision::sResults;
+
+With:
+
+thread_local std::vector<CollisionResult> Collision::sResultEntries;
+thread_local int64_t Collision::siResultEntryCount = 0;
+thread_local std::vector<CollisionResultSpan> Collision::sResultSpans;
+thread_local int64_t Collision::siResultSpanCount = 0;
+thread_local std::array<int64_t, kiCollisionLayerPreallocate> Collision::sLayerBaseOffsets {};
+
+Add AllocateResultStorage method (after SetupZones):
+
+void Collision::AllocateResultStorage()
+{
+	// Calculate total object count across all layers for span allocation
+	int64_t iTotalObjects = 0;
+	for (int64_t i = 0; i < siLayerCount; ++i)
+	{
+		sLayerBaseOffsets[static_cast<size_t>(i)] = iTotalObjects;
+		iTotalObjects += sLayers.at(static_cast<size_t>(i)).iCount;
+	}
+
+	// Lazy pre-allocation for result entries
+	if (sResultEntries.empty())
+	{
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		sResultEntries.resize(static_cast<size_t>(kiCollisionResultPreallocate));
+	}
+	siResultEntryCount = 0;
+
+	// Allocate/grow spans array
+	if (sResultSpans.empty())
+	{
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		sResultSpans.resize(static_cast<size_t>(kiCollisionResultSpanPreallocate));
+	}
+	if (iTotalObjects > static_cast<int64_t>(sResultSpans.size()))
+	{
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		sResultSpans.resize(static_cast<size_t>(iTotalObjects));
+	}
+
+	// Reset spans
+	for (int64_t i = 0; i < iTotalObjects; ++i)
+	{
+		sResultSpans.at(static_cast<size_t>(i)) = {-1, 0};
+	}
+	siResultSpanCount = iTotalObjects;
+}
+
+In Collide() (line 303-318), replace:
+
+	// Clear previous frame results
+	sResults.clear();
+
+	// Build zone acceleration structure (includes layer pair filtering and same-layer collision assert)
+	SetupZones(vecArea);
+
+With:
+
+	// Build zone acceleration structure (includes layer pair filtering and same-layer collision assert)
+	SetupZones(vecArea);
+
+	// Allocate flat result storage (must be after SetupZones so layer counts are known)
+	AllocateResultStorage();
+
+In CollideLayerPair, replace the collision recording block (lines 462-506).
+Old (recording A collision):
+
+				// Heap: unordered_map insert + vector push_back into sResults, which persists until PostCollision reads it.
+				//   Can't use workbuffer (data outlives the call) or pre-allocate (collision count varies per frame)
+				ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+				// Record collision for A (always bidirectional per assert in SetupZones)
+				float fDamageB = rLayerB.pfDamages[j];
+
+				uint64_t uiKeyA = (static_cast<uint64_t>(uiLayerA) << 32) | (static_cast<uint64_t>(i) & 0xFFFFFFFF);
+				sResults.try_emplace(uiKeyA).first->second.push_back(
+				{
+					.iOtherIndex = j,
+					.uiOtherLayerIndex = uiLayerB,
+					.uiOtherCategory = rLayerB.uiCategory,
+					.fDamageReceived = fDamageB,
+					.vecContactPoint = vecContactPoint,
+					.vecOtherVelocity = rLayerB.pVecVelocities != nullptr ? rLayerB.pVecVelocities[j] : XMVectorZero(),
+				});
+
+				// Mark A as already collided if it's destroy-on-collide
+				if (rLayerA.pFlags[i] & kDestroyOnCollide)
+				{
+					rLayerA.pFlags[i].Set(kAlreadyCollided);
+				}
+
+				// Record collision for B (always bidirectional per assert in SetupZones)
+				float fDamageA = rLayerA.pfDamages[i];
+
+				uint64_t uiKeyB = (static_cast<uint64_t>(uiLayerB) << 32) | (static_cast<uint64_t>(j) & 0xFFFFFFFF);
+				sResults.try_emplace(uiKeyB).first->second.push_back(
+				{
+					.iOtherIndex = i,
+					.uiOtherLayerIndex = uiLayerA,
+					.uiOtherCategory = rLayerA.uiCategory,
+					.fDamageReceived = fDamageA,
+					.vecContactPoint = vecContactPoint,
+					.vecOtherVelocity = rLayerA.pVecVelocities != nullptr ? rLayerA.pVecVelocities[i] : XMVectorZero(),
+				});
+
+				// Mark B as already collided if it's destroy-on-collide
+				if (rLayerB.pFlags[j] & kDestroyOnCollide)
+				{
+					rLayerB.pFlags[j].Set(kAlreadyCollided);
+				}
+
+New:
+
+				// Record collision for A
+				float fDamageB = rLayerB.pfDamages[j];
+				int64_t iSpanIndexA = sLayerBaseOffsets[uiLayerA] + i;
+				CollisionResultSpan& rSpanA = sResultSpans.at(static_cast<size_t>(iSpanIndexA));
+				if (rSpanA.iOffset == -1)
+				{
+					rSpanA.iOffset = siResultEntryCount;
+				}
+				if (siResultEntryCount >= static_cast<int64_t>(sResultEntries.size()))
+				{
+					ScopedSuppressAllocationTracking suppressAllocationTracking;
+					Log("Collision: sResultEntries overflow (count: {}, capacity: {}). Increase kiCollisionResultPreallocate in Collision.h", siResultEntryCount, sResultEntries.size());
+					DEBUG_BREAK();
+					sResultEntries.resize(static_cast<size_t>(siResultEntryCount) * 2);
+				}
+				sResultEntries.at(static_cast<size_t>(siResultEntryCount)) = CollisionResult
+				{
+					.iOtherIndex = j,
+					.uiOtherLayerIndex = uiLayerB,
+					.uiOtherCategory = rLayerB.uiCategory,
+					.fDamageReceived = fDamageB,
+					.vecContactPoint = vecContactPoint,
+					.vecOtherVelocity = rLayerB.pVecVelocities != nullptr ? rLayerB.pVecVelocities[j] : XMVectorZero(),
+				};
+				++siResultEntryCount;
+				++rSpanA.iCount;
+
+				// Mark A as already collided if it's destroy-on-collide
+				if (rLayerA.pFlags[i] & kDestroyOnCollide)
+				{
+					rLayerA.pFlags[i].Set(kAlreadyCollided);
+				}
+
+				// Record collision for B
+				float fDamageA = rLayerA.pfDamages[i];
+				int64_t iSpanIndexB = sLayerBaseOffsets[uiLayerB] + j;
+				CollisionResultSpan& rSpanB = sResultSpans.at(static_cast<size_t>(iSpanIndexB));
+				if (rSpanB.iOffset == -1)
+				{
+					rSpanB.iOffset = siResultEntryCount;
+				}
+				if (siResultEntryCount >= static_cast<int64_t>(sResultEntries.size()))
+				{
+					ScopedSuppressAllocationTracking suppressAllocationTracking;
+					Log("Collision: sResultEntries overflow (count: {}, capacity: {}). Increase kiCollisionResultPreallocate in Collision.h", siResultEntryCount, sResultEntries.size());
+					DEBUG_BREAK();
+					sResultEntries.resize(static_cast<size_t>(siResultEntryCount) * 2);
+				}
+				sResultEntries.at(static_cast<size_t>(siResultEntryCount)) = CollisionResult
+				{
+					.iOtherIndex = i,
+					.uiOtherLayerIndex = uiLayerA,
+					.uiOtherCategory = rLayerA.uiCategory,
+					.fDamageReceived = fDamageA,
+					.vecContactPoint = vecContactPoint,
+					.vecOtherVelocity = rLayerA.pVecVelocities != nullptr ? rLayerA.pVecVelocities[i] : XMVectorZero(),
+				};
+				++siResultEntryCount;
+				++rSpanB.iCount;
+
+				// Mark B as already collided if it's destroy-on-collide
+				if (rLayerB.pFlags[j] & kDestroyOnCollide)
+				{
+					rLayerB.pFlags[j].Set(kAlreadyCollided);
+				}
+
+IMPORTANT: This design assumes results for a given key are CONTIGUOUS in sResultEntries.
+This holds because: for a given A object, all B collisions are recorded sequentially within
+the inner loop, so rSpanA entries are contiguous. For B objects, each B gets its result
+appended as it's encountered; if B collides with multiple A objects across different zones,
+its results ARE still contiguous because pTestedBGeneration prevents re-testing. Each B-A
+pair is recorded exactly once, and for a given B across multiple A objects, the B-side
+records are NOT contiguous (they're interleaved with A-side records for different A objects).
+
+This breaks the contiguity assumption for B-side results. We need a different approach.
+
+REVISED DESIGN: Use workbuffer-based temporary storage during CollideLayerPair, then copy
+results into per-object spans after all pairs are processed. But results outlive the call.
+
+REVISED DESIGN 2: Keep the flat results array but change the query API. Instead of returning
+a contiguous span, collect results during query by scanning.
+
+Actually, re-examining the issue: B-side results for a single B object ARE contiguous IF that
+B object only collides with A objects that are processed in sequence within the same zone
+iteration. But B can appear in multiple zones and collide with different A objects in each.
+However, pTestedBGeneration ensures each A-B pair is tested exactly once. The issue is that
+when A=0 collides with B=5, we write entries [A0,B5] then [B5,A0]. Then when A=1 collides
+with B=5, we write [A1,B5] then [B5,A1]. B5's span starts at the first [B5,A0] entry, but
+[B5,A1] is not adjacent — [A1,B5] is in between.
+
+Fix: Record all results in a single flat array, but use a SEPARATE results array for A-side
+and B-side? No, that changes the query API.
+
+SIMPLEST CORRECT FIX: Use per-object vectors that are pre-allocated but not heap-allocating.
+OR: Accept that results for a given key may not be contiguous by using an indirect index.
+
+ACTUAL SIMPLEST FIX: Two-pass approach.
+  Pass 1: CollideLayerPair records collisions into a flat "pending" array on the workbuffer.
+  Pass 2: After all CollideLayerPair calls, sort/bucket pending results by key into sResultEntries.
+
+This is clean but adds a sort step. However, the collision count is typically small.
+
+ALTERNATIVE: Just pre-allocate the vectors inside the map to avoid per-frame heap allocation.
+Use a custom allocator or pool. But that's complex.
+
+PRAGMATIC SOLUTION: Replace std::unordered_map with a flat hash map that uses pre-allocated
+storage. But this still has the non-determinism concern.
+
+FINAL DECISION: Two-pass approach using workbuffer for pending results.
+
+--- Revised R5 Design ---
+
+Collision.h changes:
+
+Add struct:
+struct PendingCollisionResult
+{
+	int64_t iLayerIndex;
+	int64_t iObjectIndex;
+	CollisionResult result;
+};
+
+Replace sResults member with:
+
+	// Flat collision results (contiguous per key after bucketing)
+	static thread_local std::vector<CollisionResult> sResultEntries;
+	static thread_local int64_t siResultEntryCount;
+
+	// Per-object lookup: sResultSpans[sLayerBaseOffsets[layerIndex] + objectIndex]
+	static thread_local std::vector<CollisionResultSpan> sResultSpans;
+	static thread_local int64_t siResultSpanCount;
+	static thread_local std::array<int64_t, kiCollisionLayerPreallocate> sLayerBaseOffsets;
+
+	static void AllocateResultStorage();
+	static void BucketPendingResults();
+
+Collision.cpp Collide() becomes:
+
+void Collision::Collide(const Alignments& rAlignments, FXMVECTOR vecArea)
+{
+	ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderCollide);
+
+	// Build zone acceleration structure
+	SetupZones(vecArea);
+
+	// Push workbuffer for pending collision results
+	// Reserve space: estimate max collisions as sum of all layer counts (generous upper bound)
+	int64_t iMaxPending = 0;
+	for (int64_t i = 0; i < siLayerCount; ++i)
+	{
+		iMaxPending += sLayers.at(static_cast<size_t>(i)).iCount;
+	}
+	iMaxPending *= 2;  // Each collision records 2 entries (A-side and B-side)
+	PendingCollisionResult* pPending = common::gpThreadLocal->mWorkbuffer.PushBuffer<PendingCollisionResult*>(
+		iMaxPending * static_cast<int64_t>(sizeof(PendingCollisionResult)));
+	int64_t iPendingCount = 0;
+
+	// Process all layer pair zones
+	for (int64_t i = 0; i < siLayerPairCount; ++i)
+	{
+		CollideLayerPair(rAlignments, sLayerPairZones.at(static_cast<size_t>(i)), pPending, iPendingCount);
+	}
+
+	// Bucket pending results into flat contiguous storage
+	AllocateResultStorage();
+
+	// Count results per key
+	for (int64_t i = 0; i < iPendingCount; ++i)
+	{
+		const PendingCollisionResult& rPending = pPending[i];
+		int64_t iSpanIndex = sLayerBaseOffsets[static_cast<size_t>(rPending.iLayerIndex)] + rPending.iObjectIndex;
+		++sResultSpans.at(static_cast<size_t>(iSpanIndex)).iCount;
+	}
+
+	// Assign offsets (prefix sum)
+	int64_t iOffset = 0;
+	for (int64_t i = 0; i < siResultSpanCount; ++i)
+	{
+		CollisionResultSpan& rSpan = sResultSpans.at(static_cast<size_t>(i));
+		if (rSpan.iCount > 0)
+		{
+			rSpan.iOffset = iOffset;
+			iOffset += rSpan.iCount;
+			rSpan.iCount = 0;  // Reset for fill pass
+		}
+	}
+
+	// Grow result entries if needed
+	if (iOffset > static_cast<int64_t>(sResultEntries.size()))
+	{
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		sResultEntries.resize(static_cast<size_t>(iOffset));
+	}
+	siResultEntryCount = iOffset;
+
+	// Fill results
+	for (int64_t i = 0; i < iPendingCount; ++i)
+	{
+		const PendingCollisionResult& rPending = pPending[i];
+		int64_t iSpanIndex = sLayerBaseOffsets[static_cast<size_t>(rPending.iLayerIndex)] + rPending.iObjectIndex;
+		CollisionResultSpan& rSpan = sResultSpans.at(static_cast<size_t>(iSpanIndex));
+		sResultEntries.at(static_cast<size_t>(rSpan.iOffset + rSpan.iCount)) = rPending.result;
+		++rSpan.iCount;
+	}
+
+	common::gpThreadLocal->mWorkbuffer.Pop();  // Release pending results
+}
+
+AllocateResultStorage becomes simpler (just resets spans, no entries allocation here):
+
+void Collision::AllocateResultStorage()
+{
+	// Calculate total object count across all layers
+	int64_t iTotalObjects = 0;
+	for (int64_t i = 0; i < siLayerCount; ++i)
+	{
+		sLayerBaseOffsets[static_cast<size_t>(i)] = iTotalObjects;
+		iTotalObjects += sLayers.at(static_cast<size_t>(i)).iCount;
+	}
+
+	// Allocate/grow spans array
+	if (sResultSpans.empty())
+	{
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		sResultSpans.resize(static_cast<size_t>(kiCollisionResultSpanPreallocate));
+	}
+	if (iTotalObjects > static_cast<int64_t>(sResultSpans.size()))
+	{
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		sResultSpans.resize(static_cast<size_t>(iTotalObjects));
+	}
+
+	// Reset spans
+	for (int64_t i = 0; i < iTotalObjects; ++i)
+	{
+		sResultSpans.at(static_cast<size_t>(i)) = {-1, 0};
+	}
+	siResultSpanCount = iTotalObjects;
+}
+
+CollideLayerPair signature changes to accept pending buffer:
+
+Old:
+	static void CollideLayerPair(const Alignments& rAlignments, LayerPairZones& rPairZones);
+
+New (in Collision.h):
+	static void CollideLayerPair(const Alignments& rAlignments, LayerPairZones& rPairZones, PendingCollisionResult* pPending, int64_t& riPendingCount);
+
+In CollideLayerPair, replace the collision recording block (lines 462-506) with:
+
+				// Record collision for A
+				float fDamageB = rLayerB.pfDamages[j];
+				pPending[riPendingCount++] = PendingCollisionResult
+				{
+					.iLayerIndex = static_cast<int64_t>(uiLayerA),
+					.iObjectIndex = i,
+					.result = CollisionResult
+					{
+						.iOtherIndex = j,
+						.uiOtherLayerIndex = uiLayerB,
+						.uiOtherCategory = rLayerB.uiCategory,
+						.fDamageReceived = fDamageB,
+						.vecContactPoint = vecContactPoint,
+						.vecOtherVelocity = rLayerB.pVecVelocities != nullptr ? rLayerB.pVecVelocities[j] : XMVectorZero(),
+					},
+				};
+
+				// Mark A as already collided if it's destroy-on-collide
+				if (rLayerA.pFlags[i] & kDestroyOnCollide)
+				{
+					rLayerA.pFlags[i].Set(kAlreadyCollided);
+				}
+
+				// Record collision for B
+				float fDamageA = rLayerA.pfDamages[i];
+				pPending[riPendingCount++] = PendingCollisionResult
+				{
+					.iLayerIndex = static_cast<int64_t>(uiLayerB),
+					.iObjectIndex = j,
+					.result = CollisionResult
+					{
+						.iOtherIndex = i,
+						.uiOtherLayerIndex = uiLayerA,
+						.uiOtherCategory = rLayerA.uiCategory,
+						.fDamageReceived = fDamageA,
+						.vecContactPoint = vecContactPoint,
+						.vecOtherVelocity = rLayerA.pVecVelocities != nullptr ? rLayerA.pVecVelocities[i] : XMVectorZero(),
+					},
+				};
+
+				// Mark B as already collided if it's destroy-on-collide
+				if (rLayerB.pFlags[j] & kDestroyOnCollide)
+				{
+					rLayerB.pFlags[j].Set(kAlreadyCollided);
+				}
+
+Also remove the "record_collision:" label and change the goto to a block:
+
+Replace "goto record_collision;" with a bool flag approach:
+
+Before the swept test block (around line 419), add:
+				bool bCollided = false;
+
+Replace "goto record_collision;" (line 438) with:
+				bCollided = true;
+
+Replace the discrete check block — wrap the existing "continue" path:
+
+Change the structure from goto-based to:
+
+				XMVECTOR vecContactPoint = vecPositionA;
+				bool bCollided = false;
+
+				// Swept sphere test (for fast-moving projectiles)
+				if (bSweptPair)
+				{
+					XMVECTOR vecVelA = rLayerA.pVecVelocities != nullptr ? rLayerA.pVecVelocities[i] : XMVectorZero();
+					XMVECTOR vecVelB = rLayerB.pVecVelocities != nullptr ? rLayerB.pVecVelocities[j] : XMVectorZero();
+					float fContactTime = 0.0f;
+					if (SweptSphereTest(vecPositionA, vecVelA, fRadiusA, vecPositionB, vecVelB, fRadiusB, fContactTime))
+					{
+						XMVECTOR vecImpactA = XMVectorAdd(vecPositionA, XMVectorScale(vecVelA, fContactTime));
+						XMVECTOR vecImpactB = XMVectorAdd(vecPositionB, XMVectorScale(vecVelB, fContactTime));
+						XMVECTOR vecDiff = XMVectorSubtract(vecImpactA, vecImpactB);
+						float fDistance = XMVectorGetX(XMVector3Length(vecDiff));
+						vecContactPoint = vecImpactA;
+						if (fDistance > 0.0f)
+						{
+							vecContactPoint = XMVectorSubtract(vecImpactA, XMVectorScale(vecDiff, fRadiusA / fDistance));
+						}
+						bCollided = true;
+					}
+					// Fall through to discrete check (handles already-overlapping case)
+				}
+
+				// Discrete distance check
+				if (!bCollided)
+				{
+					XMVECTOR vecDiff = XMVectorSubtract(vecPositionA, vecPositionB);
+					float fDistanceSquared = XMVectorGetX(XMVector3LengthSq(vecDiff));
+					float fCombinedRadius = fRadiusA + fRadiusB;
+
+					if (fDistanceSquared > fCombinedRadius * fCombinedRadius)
+					{
+						continue;
+					}
+
+					float fDistance = std::sqrt(fDistanceSquared);
+					if (fDistance > 0.0f)
+					{
+						XMVECTOR vecDirection = XMVectorScale(vecDiff, 1.0f / fDistance);
+						vecContactPoint = XMVectorSubtract(vecPositionA, XMVectorScale(vecDirection, fRadiusA));
+					}
+				}
+
+				// Record collision for A ...
+				(pending recording code as above)
+
+Update HasCollision:
+
+bool Collision::HasCollision(size_t uiLayerIndex, int64_t iIndex)
+{
+	int64_t iSpanIndex = sLayerBaseOffsets[uiLayerIndex] + iIndex;
+	const CollisionResultSpan& rSpan = sResultSpans.at(static_cast<size_t>(iSpanIndex));
+	return rSpan.iCount > 0;
+}
+
+Update GetCollisions — returns pointer to contiguous results + count. But the current API
+returns const std::vector<CollisionResult>*, which callers iterate. We need to change the API
+to return a span-like pair.
+
+Change return type. Current callers do:
+  const std::vector<CollisionResult>* pCollisions = Collision::GetCollisions(layerIndex, i);
+  for (const CollisionResult& rResult : *pCollisions)
+
+New API using std::span:
+
+Old declaration:
+	static const std::vector<CollisionResult>* GetCollisions(size_t uiLayerIndex, int64_t iIndex);
+
+New declaration:
+	static std::span<const CollisionResult> GetCollisions(size_t uiLayerIndex, int64_t iIndex);
+
+New definition:
+std::span<const CollisionResult> Collision::GetCollisions(size_t uiLayerIndex, int64_t iIndex)
+{
+	int64_t iSpanIndex = sLayerBaseOffsets[uiLayerIndex] + iIndex;
+	const CollisionResultSpan& rSpan = sResultSpans.at(static_cast<size_t>(iSpanIndex));
+	if (rSpan.iCount > 0)
+	{
+		return {&sResultEntries.at(static_cast<size_t>(rSpan.iOffset)), static_cast<size_t>(rSpan.iCount)};
+	}
+	return {};
+}
+
+Update callers — all callers in the game project that use GetCollisions:
+
+File: Projects/BrokenEngineSandbox/Source/Frame/Collections/Spaceships/SpaceshipsUpdate.cpp
+Line 392: Change:
+  const std::vector<engine::CollisionResult>* pCollisions = engine::Collision::GetCollisions(suiCollisionLayerIndex, i);
+To:
+  std::span<const engine::CollisionResult> collisions = engine::Collision::GetCollisions(suiCollisionLayerIndex, i);
+
+And update the for loop (next line) from:
+  for (const engine::CollisionResult& rResult : *pCollisions)
+To:
+  for (const engine::CollisionResult& rResult : collisions)
+
+File: Projects/BrokenEngineSandbox/Source/Frame/Collections/Players/PlayersUpdate.cpp
+Line 556: Same pattern change:
+  const std::vector<engine::CollisionResult>* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, i);
+To:
+  std::span<const engine::CollisionResult> collisions = engine::Collision::GetCollisions(siCollisionLayerIndex, i);
+
+And update the for loop from *pCollisions to collisions.
+
+Note: <span> is already available in C++23. Verify it's included in ExternalHeaders.h or Pch.h.
+If not, add #include <span> to Common/ExternalHeaders.h.
+
+Remove Clear()'s implicit sResults.clear() — it's no longer needed since AllocateResultStorage
+resets spans each frame. Clear() just resets siLayerCount as before.
+
+
+================================================================================
+CHANGE 4: S4 — Extract AreaDamage into separate files
+================================================================================
+
+Move AreaDamageSource struct + AddAreaDamage/GetAreaDamage/ClearAreaDamage into AreaDamage.h/.cpp.
+These are completely independent of the collision detection system.
+
+--- New file: Engine/Source/Frame/AreaDamage.h ---
+
+#pragma once
+
+namespace engine
+{
+
+inline constexpr int64_t kiAreaDamageSourcePreallocate = 16;
+
+struct AreaDamageSource
+{
+	XMVECTOR vecPosition {};
+	float fRadius = 0.0f;
+	float fDamage = 0.0f;
+	uint16_t uiCategory = 0;
+};
+
+class AreaDamage
+{
+public:
+
+	// Area damage registration (called in PostCollision when objects explode)
+	static void Add(const AreaDamageSource& rSource);
+
+	// Query area damage at a position (called in AreaDamage phase)
+	// Returns total damage with linear falloff applied, filtered by category mask
+	// Outputs the closest damage source position via rvecClosestSource
+	static float Get(FXMVECTOR vecPosition, uint16_t uiCategoryMask, XMVECTOR& rvecClosestSource);
+
+	// Clear area damage sources (called at end of AreaDamage phase)
+	static void Clear();
+
+private:
+
+	static thread_local std::vector<AreaDamageSource> sSources;
+	static thread_local int64_t siSourceCount;
+};
+
+} // namespace engine
+
+
+--- New file: Engine/Source/Frame/AreaDamage.cpp ---
+
+#include "Pch.h"
+
+#include "AreaDamage.h"
+#include "Memory/MemoryManager.h"
+
+namespace engine
+{
+
+thread_local std::vector<AreaDamageSource> AreaDamage::sSources;
+thread_local int64_t AreaDamage::siSourceCount = 0;
+
+void AreaDamage::Add(const AreaDamageSource& rSource)
+{
+	int64_t iIndex = siSourceCount;
+	if (sSources.empty())
+	{
+		// Heap: one-time per-thread pre-allocation (thread_local vectors start empty to avoid allocating during mi_process_init)
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		sSources.resize(kiAreaDamageSourcePreallocate);
+	}
+
+	if (siSourceCount >= static_cast<int64_t>(sSources.size()))
+	{
+		Log("AreaDamage: sSources overflow (count: {}, capacity: {}). Increase kiAreaDamageSourcePreallocate in AreaDamage.h", siSourceCount, sSources.size());
+		DEBUG_BREAK();
+		sSources.resize(siSourceCount * 2);
+	}
+	sSources.at(static_cast<size_t>(iIndex)) = rSource;
+	++siSourceCount;
+}
+
+float AreaDamage::Get(FXMVECTOR vecPosition, uint16_t uiCategoryMask, XMVECTOR& rvecClosestSource)
+{
+	float fTotalDamage = 0.0f;
+	float fClosestDistance = std::numeric_limits<float>::max();
+	rvecClosestSource = vecPosition;
+
+	for (int64_t i = 0; i < siSourceCount; ++i)
+	{
+		const AreaDamageSource& rSource = sSources.at(static_cast<size_t>(i));
+		// Filter by category
+		if ((rSource.uiCategory & uiCategoryMask) == 0)
+		{
+			continue;
+		}
+
+		// Calculate distance
+		XMVECTOR vecDiff = XMVectorSubtract(vecPosition, rSource.vecPosition);
+		float fDistance = XMVectorGetX(XMVector3Length(vecDiff));
+
+		// Skip if outside radius
+		if (fDistance >= rSource.fRadius)
+		{
+			continue;
+		}
+
+		// Track closest source
+		if (fDistance < fClosestDistance)
+		{
+			fClosestDistance = fDistance;
+			rvecClosestSource = rSource.vecPosition;
+		}
+
+		// Linear falloff: full damage at center, zero at edge
+		float fFalloff = 1.0f - (fDistance / rSource.fRadius);
+		fTotalDamage += rSource.fDamage * fFalloff;
+	}
+
+	return fTotalDamage;
+}
+
+void AreaDamage::Clear()
+{
+	siSourceCount = 0;
+}
+
+} // namespace engine
+
+
+--- Collision.h changes for S4 ---
+
+Remove from Collision.h:
+  - kiAreaDamageSourcePreallocate constant (line 19)
+  - AreaDamageSource struct (lines 61-67)
+  - AddAreaDamage, GetAreaDamage, ClearAreaDamage declarations (lines 117-125)
+  - sAreaDamageSources and siAreaDamageSourceCount members (lines 143-144)
+
+--- Collision.cpp changes for S4 ---
+
+Remove from Collision.cpp:
+  - sAreaDamageSources and siAreaDamageSourceCount thread_local definitions (lines 23-24)
+  - AddAreaDamage function (lines 537-555)
+  - GetAreaDamage function (lines 557-595)
+  - ClearAreaDamage function (lines 597-600)
+
+--- Engine.h ---
+
+Add after the existing #include "Frame/Collision.h" line:
+#include "Frame/AreaDamage.h"
+
+--- Update callers ---
+
+File: Projects/BrokenEngineSandbox/Source/Frame/Frame.cpp
+Line 280: Change engine::Collision::Clear() — this stays as-is (it's collision clear, not area damage)
+Line 296: Change engine::Collision::ClearAreaDamage() to engine::AreaDamage::Clear()
+
+File: Projects/BrokenEngineSandbox/Source/Frame/Collections/Missiles/Missiles.cpp
+Line 558: Change engine::Collision::AddAreaDamage(...) to engine::AreaDamage::Add(...)
+
+File: Projects/BrokenEngineSandbox/Source/Frame/Collections/Spaceships/SpaceshipsUpdate.cpp
+Line 436: Change engine::Collision::GetAreaDamage(...) to engine::AreaDamage::Get(...)
+
+
+================================================================================
+CHANGE 5: vcxproj and filter updates for AreaDamage.h/.cpp
+================================================================================
+
+--- BrokenEngineSandbox.vcxproj ---
+
+After line 345 (Collision.h include), add:
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\AreaDamage.h" />
+
+After line 491 (Collision.cpp compile), add:
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\AreaDamage.cpp" />
+
+--- BrokenEngineSandbox.vcxproj.filters ---
+
+After the Collision.h filter entry (line 525-527), add:
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\AreaDamage.h">
+      <Filter>Engine\Frame</Filter>
+    </ClInclude>
+
+After the Collision.cpp filter entry (line 905-907), add:
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\AreaDamage.cpp">
+      <Filter>Engine\Frame</Filter>
+    </ClCompile>
+
+--- BrokenEngineSandboxServer.vcxproj ---
+
+Same additions as client vcxproj (after Collision.h and Collision.cpp entries respectively).
+
+--- BrokenEngineSandboxServer.vcxproj.filters ---
+
+Same additions as client filters (after Collision.h and Collision.cpp entries respectively).
+
+
+================================================================================
+IMPLEMENTATION ORDER
+================================================================================
+
+1. S4 first — extract AreaDamage (reduces Collision.cpp size, independent change)
+2. D1+D2 — deduplicate zone insertion and zone range calculation
+3. F4 — generation counter (small, localized change)
+4. R5 — flat results (largest change, touches Collision + callers)
+5. Update vcxproj files for AreaDamage
+
+Check <span> availability in ExternalHeaders.h before R5 implementation.

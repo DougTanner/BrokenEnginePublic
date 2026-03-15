@@ -1,0 +1,230 @@
+VMA and GPU Memory Optimization Plan
+=====================================
+
+=====================================
+VALIDATION
+=====================================
+
+Finding 1.1 -- VMA budget tracked but never queried [VALID]
+  Graphics.cpp:129-133 calls vmaSetCurrentFrameIndex() every frame when
+  mbMemoryBudgetAvailable is true. DeviceManager.cpp:247 creates the allocator
+  with VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT. Confirmed: no call to
+  vmaGetHeapBudgets() anywhere in the codebase. The budget data is being
+  maintained by VMA internally but never surfaced.
+
+Finding 1.2 -- No VMA defragmentation [VALID but LOW PRIORITY]
+  Confirmed: no calls to vmaBeginDefragmentation or any defragmentation API.
+  However, the engine's allocation pattern is mostly allocate-at-startup with
+  rare runtime resizes (dynamic storage buffers, joint matrix grow). The
+  fragmentation risk is low in practice because most buffers are long-lived.
+
+Finding 2.1 -- Per-frame uniform buffers create 12 VMA allocations [VALID]
+  BufferManager.cpp:75-87 creates GlobalLayout and MainLayout uniform buffers
+  per framebuffer with kCopyToDeviceLocalEveryFrame. Buffer.cpp:206-234 shows
+  this flag creates BOTH a host-visible buffer (staging) AND a device-local
+  buffer = 2 VMA allocations per buffer. With 3 framebuffers (typical):
+  2 buffer types * 3 framebuffers * 2 VMA allocs = 12 VMA allocations.
+  These are small uniform buffers (GlobalLayout ~few KB, MainLayout larger
+  with wave data). Merging would save VMA allocation overhead but requires
+  careful alignment handling and descriptor set changes.
+
+Finding 2.2 -- Dynamic storage buffer resize creates transient allocations [VALID]
+  BufferManager.cpp:420-437: ResizeDynamicBuffer() creates a new buffer and
+  moves the old one to mPreviousBuffer (keeping it alive for one frame).
+  This is correct behavior for GPU safety. The old buffer is destroyed on
+  the next resize call (line 422: mPreviousBuffer.reset()). The transient
+  allocation is inherent to the resize pattern and cannot be eliminated
+  without a ring-buffer approach, which adds complexity.
+
+Finding 2.3 -- Individual model buffer allocations [VALID but ACCEPTABLE]
+  BufferManager.cpp:38-60 iterates eager chunks and creates one device-local
+  index/vertex buffer per model via mModelMap. Each is a separate VMA
+  allocation. However, these are allocated once at startup and never freed
+  during gameplay. VMA's internal sub-allocation within memory blocks already
+  handles this reasonably. A single large buffer with offsets would reduce
+  VMA allocation count but would require reworking all vertex/index binding
+  calls and tracking sub-buffer offsets.
+
+Finding 2.4 -- Very small per-framebuffer storage buffers [VALID]
+  BufferManager.cpp:96-108: SmokeSpread and WindSpread each allocate
+  sizeof(AxisAlignedQuadLayout) per framebuffer = ~52 bytes per buffer.
+  With 3 framebuffers, that is 6 tiny VMA allocations (~52 bytes each,
+  rounded up to nonCoherentAtomSize). These are genuinely wasteful as
+  standalone allocations. VMA may place them in the same memory block
+  internally, but the per-allocation VMA metadata overhead is
+  disproportionate to the data size.
+
+Finding 5.1 -- No VMA statistics exposed [VALID]
+  Confirmed: no calls to vmaCalculateStatistics, vmaBuildStatsString, or
+  vmaGetHeapBudgets for any debug/diagnostic purpose. No ImGui panel for
+  GPU memory.
+
+=====================================
+PRIORITIZATION
+=====================================
+
+Priority 1 (Low risk, useful diagnostics):
+  - 5.1: Add VMA statistics to ImGui debug panel
+  - 1.1: Query and display budget data
+
+Priority 2 (Low risk, small wins):
+  - 2.4: Merge SmokeSpread + WindSpread into existing larger buffers
+
+Priority 3 (Medium risk, moderate benefit):
+  - 2.1: Merge per-frame uniform buffers into single buffer with offsets
+
+Priority 4 (High risk, defer):
+  - 2.3: Model buffer consolidation (large refactor, startup-only cost)
+  - 1.2: VMA defragmentation (low fragmentation risk currently)
+  - 2.2: Dynamic buffer resize (current pattern is correct for GPU safety)
+
+=====================================
+IMPLEMENTATION PLAN
+=====================================
+
+----------------------------------------------------------------------
+Step 1: VMA Budget Query and Statistics (Findings 1.1, 5.1)
+----------------------------------------------------------------------
+
+Goal: Surface VMA memory data in the existing ImGui debug UI.
+
+1a. Add VMA statistics helper to DeviceManager
+    File: Engine/Source/Graphics/Managers/DeviceManager.h
+    - Add method: VmaBudget GetVmaBudget() or similar
+    - Add struct or use VmaBudget directly for budget per heap
+
+    File: Engine/Source/Graphics/Managers/DeviceManager.cpp
+    - Implement: call vmaGetHeapBudgets(mpAllocator, ...) using
+      VkPhysicalDeviceMemoryProperties.memoryHeapCount heaps
+    - Call vmaCalculateStatistics() for total allocation count and bytes
+
+1b. Add GPU Memory section to ImGui debug panel
+    File: Engine/Source/Graphics/Managers/ImGuiManager.cpp (or wherever
+          the debug stats ImGui window lives)
+    - Add a collapsing header "GPU Memory"
+    - Display per-heap: budget, usage, allocation count
+    - Display totals: total allocations, total bytes, total unused bytes
+    - Only query when the panel is open (avoid per-frame overhead when hidden)
+
+    Note: ImGui text rendering uses heap allocations internally, so this
+    code will already be inside a ScopedSuppressAllocationTracking context
+    (ImGui rendering path).
+
+----------------------------------------------------------------------
+Step 2: Merge Small Storage Buffers (Finding 2.4)
+----------------------------------------------------------------------
+
+Goal: Eliminate the 6 tiny SmokeSpread/WindSpread VMA allocations by
+writing their data into an existing per-framebuffer storage buffer.
+
+Analysis: SmokeSpread and WindSpread each hold a single
+AxisAlignedQuadLayout (~52 bytes). They are written by CPU and read by
+GPU shaders.
+
+Approach: Add SmokeSpread and WindSpread fields directly into the
+existing per-framebuffer TextStorageBuffer (which already holds
+AxisAlignedQuadLayout data and is host-visible). Alternatively, create
+a small "MiscQuads" storage buffer per framebuffer that holds both.
+
+2a. Extend an existing buffer or create a combined small buffer
+    File: Engine/Source/Graphics/Managers/BufferManager.h
+    - Remove: mSmokeSpreadStorageBuffers, mWindSpreadStorageBuffers
+    - Add: mMiscQuadStorageBuffers (or append to text buffer with offset)
+    - The combined buffer holds 2 * sizeof(AxisAlignedQuadLayout)
+
+    File: Engine/Source/Graphics/Managers/BufferManager.cpp
+    - Remove the individual SmokeSpread/WindSpread buffer creation
+      at lines 96-108 and 300-312
+    - Create mMiscQuadStorageBuffers with combined size
+    - Update DestroySwapchainDependentBuffers() and
+      CreateSwapchainDependentBuffers() accordingly
+
+2b. Update all write sites
+    - Search for all places that write to mSmokeSpreadStorageBuffers
+      and mWindSpreadStorageBuffers
+    - Update to write into the combined buffer at the correct offset
+      (SmokeSpread at offset 0, WindSpread at offset sizeof(AxisAlignedQuadLayout))
+
+2c. Update descriptor bindings
+    - Find the pipeline descriptor writes that bind SmokeSpread/WindSpread
+    - Update to bind the combined buffer with appropriate offsets
+    - This may require using dynamic offsets in the descriptor set, or
+      simply binding the whole buffer and using an index in the shader
+
+    RISK: Descriptor binding changes require matching shader expectations.
+    If shaders reference separate bindings for smoke vs wind, the shader
+    side needs updating too. Evaluate whether the descriptor complexity
+    is worth saving 6 small allocations.
+
+    ALTERNATIVE (simpler): Keep separate buffers but note this as
+    acceptable overhead. VMA likely sub-allocates these from the same
+    memory block anyway. Skip this step if descriptor changes cascade
+    into shader changes.
+
+----------------------------------------------------------------------
+Step 3: Merge Per-Frame Uniform Buffers (Finding 2.1)
+----------------------------------------------------------------------
+
+Goal: Replace 2 separate uniform buffer pairs (GlobalLayout, MainLayout)
+per framebuffer with a single combined uniform buffer per framebuffer.
+
+RISK ASSESSMENT: Medium. Uniform buffer offsets must satisfy
+minUniformBufferOffsetAlignment. Descriptor set writes must use correct
+offsets and ranges. Getting alignment wrong causes GPU corruption or
+validation errors. The kCopyToDeviceLocalEveryFrame path in Buffer.cpp
+copies the entire buffer, so combining them means copying both layouts
+in a single transfer.
+
+3a. Create combined uniform buffer
+    File: Engine/Source/Graphics/Managers/BufferManager.h
+    - Replace mGlobalLayoutUniformBuffers and mMainLayoutUniformBuffers
+      with mUniformBuffers (single vector)
+    - Add offset constants: kiGlobalLayoutOffset = 0,
+      kiMainLayoutOffset = RoundUp(sizeof(GlobalLayout), minUniformBufferOffsetAlignment)
+
+    File: Engine/Source/Graphics/Managers/BufferManager.cpp
+    - Create one buffer per framebuffer with size =
+      kiMainLayoutOffset + sizeof(MainLayout)
+    - Use kCopyToDeviceLocalEveryFrame as before
+
+3b. Update uniform buffer writes
+    - Search for all writes to mGlobalLayoutUniformBuffers[i].mpMappedMemory
+    - Update to write at mUniformBuffers[i].mpMappedMemory + kiGlobalLayoutOffset
+    - Search for all writes to mMainLayoutUniformBuffers[i].mpMappedMemory
+    - Update to write at mUniformBuffers[i].mpMappedMemory + kiMainLayoutOffset
+
+3c. Update descriptor set bindings
+    - All descriptor writes that reference GlobalLayout/MainLayout buffers
+      must use the combined buffer with correct offset and range
+    - VkDescriptorBufferInfo.offset = kiGlobalLayoutOffset or kiMainLayoutOffset
+    - VkDescriptorBufferInfo.range = sizeof(GlobalLayout) or sizeof(MainLayout)
+
+    Savings: 12 VMA allocations -> 6 VMA allocations (1 host-visible +
+    1 device-local per framebuffer instead of 2+2).
+
+    DEFER if: The descriptor binding changes are too widespread or if
+    MainLayout is very large (wave data arrays) making the combined copy
+    no more efficient than separate copies.
+
+----------------------------------------------------------------------
+DEFERRED (not recommended now)
+----------------------------------------------------------------------
+
+Finding 2.3 -- Model buffer consolidation
+  Would require a large VkBuffer holding all model vertex/index data with
+  per-model offset tracking. Every vkCmdBindVertexBuffers/vkCmdBindIndexBuffer
+  call would need sub-buffer offsets. High refactor cost for startup-only
+  allocation savings. Defer until model count becomes a problem.
+
+Finding 1.2 -- VMA defragmentation
+  The engine's allocation pattern (mostly startup, rare runtime resizes)
+  does not currently cause significant fragmentation. The GrowMeshDataBuffer
+  and GrowJointMatrixBuffer patterns (BufferManager.cpp:481-534) do create
+  fragmentation potential over long sessions, but the doubling strategy
+  means resizes become increasingly rare. Revisit if VMA statistics (Step 1)
+  show high fragmentation in practice.
+
+Finding 2.2 -- Dynamic buffer resize
+  The current pattern (allocate new, keep old alive for one frame) is the
+  correct approach for GPU-safe buffer replacement. A ring buffer approach
+  would add complexity for minimal benefit given resizes are rare.

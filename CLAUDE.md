@@ -18,7 +18,6 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 5. Use a subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure)
 6. Use a subagent (task tool) to invoke the code-style-review skill
 7. Use a subagent (task tool) to invoke the update-claude-docs skill
-8. Use a subagent (task tool) to invoke the update-architecture-diagrams skill
 
 ## IMPORTANT Directives
 - DO NOT run any Git commands
@@ -38,7 +37,6 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 - `/Projects/` - Game implementations (`game::` namespace) - [CLAUDE.md](Projects/BrokenEngineSandbox/Source/CLAUDE.md)
 - `/ThirdParty/` - External libraries (DO NOT modify)
 - `/Documents/` - Style guide (`C++StyleGuide.txt`) and architecture overview (`Overview.txt`)
-- `/Documents/Architecture/` - Mermaid architecture diagrams (viewable in VS Code or GitHub)
 
 ## Build
 Use the `/build` skill for build commands and details. Always use `timeout: 600000` (10 minutes) on all build invocations.

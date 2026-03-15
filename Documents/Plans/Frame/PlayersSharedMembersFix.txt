@@ -1,0 +1,136 @@
+PlayersInterpolate: Move pfRotationAccelerationXs/Ys from SharedMembers() to ClientMembers()
+=========================================================================================
+
+AUDIT CORRECTION: The audit proposed moving pfAnimationTimes as well, but validation
+shows pfAnimationTimes CANNOT be moved. It is read and written outside #if defined(BT_CLIENT)
+in Update (copy-forward at line 132), Transfer (line 247), and Spawn (line 585). The server
+uses it to preserve animation time across cross-cell transfers. It must remain in SharedMembers().
+
+Only pfRotationAccelerationXs and pfRotationAccelerationYs can be moved. They are:
+- Written only inside #if defined(BT_CLIENT) in Update (lines 138-139)
+- Read only in PlayersRender.cpp (lines 112-113), which is entirely #ifdef BT_CLIENT
+- Initialized to 0.0f in Spawn (lines 586-587), which must be gated with #ifdef BT_CLIENT
+- Already excluded from ServerCrcMembers()
+- Zero-initialized by ServerCollectionRead via memset, so client receives correct defaults
+
+Impact: Server no longer allocates or serializes these two float arrays per player.
+No behavioral change on either client or server.
+
+Files changed:
+  1. Players.h  (move field declarations, update SharedMembers/ClientMembers)
+  2. Players.cpp (gate Spawn initialization with #ifdef BT_CLIENT)
+
+No other files need changes. PlayersUpdate.cpp and PlayersRender.cpp already have
+all reads/writes inside #if defined(BT_CLIENT).
+
+--------------------------------------------------------------------------------
+FILE 1: Players.h
+Path: Projects/BrokenEngineSandbox/Source/Frame/Collections/Players/Players.h
+--------------------------------------------------------------------------------
+
+Change A: Move field declarations inside #if defined(BT_CLIENT) block (lines 59-73)
+
+OLD (lines 59-73):
+	XMVECTOR* __restrict pVecPositions = nullptr;
+	XMVECTOR* __restrict pVecDirections = nullptr;
+	float* __restrict pfDestroyedTimes = nullptr;
+	float* __restrict pfAnimationTimes = nullptr;
+	float* __restrict pfRotationAccelerationXs = nullptr;
+	float* __restrict pfRotationAccelerationYs = nullptr;
+#if defined(BT_CLIENT)
+	engine::wind_trail_t* __restrict pWindTrails = nullptr;
+	engine::hex_shields_t* __restrict pHexShields = nullptr;
+	float* __restrict pfShieldRotations = nullptr;
+	float* __restrict pfShieldShrinks = nullptr;
+	HexShieldDirections* __restrict pHexShieldDirections = nullptr;
+	HexShieldIntensities* __restrict pHexShieldVertIntensities = nullptr;
+	HexShieldIntensities* __restrict pHexShieldFragIntensities = nullptr;
+#endif // BT_CLIENT
+
+NEW:
+	XMVECTOR* __restrict pVecPositions = nullptr;
+	XMVECTOR* __restrict pVecDirections = nullptr;
+	float* __restrict pfDestroyedTimes = nullptr;
+	float* __restrict pfAnimationTimes = nullptr;
+#if defined(BT_CLIENT)
+	float* __restrict pfRotationAccelerationXs = nullptr;
+	float* __restrict pfRotationAccelerationYs = nullptr;
+	engine::wind_trail_t* __restrict pWindTrails = nullptr;
+	engine::hex_shields_t* __restrict pHexShields = nullptr;
+	float* __restrict pfShieldRotations = nullptr;
+	float* __restrict pfShieldShrinks = nullptr;
+	HexShieldDirections* __restrict pHexShieldDirections = nullptr;
+	HexShieldIntensities* __restrict pHexShieldVertIntensities = nullptr;
+	HexShieldIntensities* __restrict pHexShieldFragIntensities = nullptr;
+#endif // BT_CLIENT
+
+
+Change B: Update SharedMembers() to remove the two fields (lines 75-80)
+
+OLD (lines 75-80):
+	auto SharedMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections,
+			rSelf.pfDestroyedTimes, rSelf.pfAnimationTimes,
+			rSelf.pfRotationAccelerationXs, rSelf.pfRotationAccelerationYs);
+	}
+
+NEW:
+	auto SharedMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections,
+			rSelf.pfDestroyedTimes, rSelf.pfAnimationTimes);
+	}
+
+
+Change C: Update ClientMembers() to include the two fields (lines 82-87)
+
+OLD (lines 82-87):
+	auto ClientMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pWindTrails,
+			rSelf.pHexShields, rSelf.pfShieldRotations, rSelf.pfShieldShrinks,
+			rSelf.pHexShieldDirections, rSelf.pHexShieldVertIntensities, rSelf.pHexShieldFragIntensities);
+	}
+
+NEW:
+	auto ClientMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pfRotationAccelerationXs, rSelf.pfRotationAccelerationYs,
+			rSelf.pWindTrails,
+			rSelf.pHexShields, rSelf.pfShieldRotations, rSelf.pfShieldShrinks,
+			rSelf.pHexShieldDirections, rSelf.pHexShieldVertIntensities, rSelf.pHexShieldFragIntensities);
+	}
+
+
+Change D: Update ServerCrcMembers() comment (lines 98-99)
+
+OLD (lines 98-99):
+	// CRC-only subset: excludes fields that are only meaningfully updated on client
+	// (pfAnimationTimes, pfRotationAccelerationXs/Ys are updated inside #if defined(BT_CLIENT))
+
+NEW:
+	// CRC-only subset: excludes pfAnimationTimes which is only meaningfully updated on client
+	// (pfRotationAccelerationXs/Ys are now in ClientMembers)
+
+
+--------------------------------------------------------------------------------
+FILE 2: Players.cpp
+Path: Projects/BrokenEngineSandbox/Source/Frame/Collections/Players/Players.cpp
+--------------------------------------------------------------------------------
+
+Change A: Gate rotation acceleration initialization in Spawn with #ifdef BT_CLIENT (lines 584-587)
+
+OLD (lines 584-587):
+	rCurrentInterpolate.pfDestroyedTimes[iIndex] = 0.0f;
+	rCurrentInterpolate.pfAnimationTimes[iIndex] = rInfo.fAnimationTime;
+	rCurrentInterpolate.pfRotationAccelerationXs[iIndex] = 0.0f;
+	rCurrentInterpolate.pfRotationAccelerationYs[iIndex] = 0.0f;
+#if defined(BT_CLIENT)
+
+NEW:
+	rCurrentInterpolate.pfDestroyedTimes[iIndex] = 0.0f;
+	rCurrentInterpolate.pfAnimationTimes[iIndex] = rInfo.fAnimationTime;
+#if defined(BT_CLIENT)
+	rCurrentInterpolate.pfRotationAccelerationXs[iIndex] = 0.0f;
+	rCurrentInterpolate.pfRotationAccelerationYs[iIndex] = 0.0f;

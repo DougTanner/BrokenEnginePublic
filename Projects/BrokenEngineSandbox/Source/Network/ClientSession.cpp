@@ -111,7 +111,7 @@ void ClientSession::WaitForReconcile()
 
 void ClientSession::TryKickReconcile()
 {
-	if (mpClientNetwork == nullptr || GetConfirmedTick() < 0)
+	if (mpClientNetwork == nullptr)
 	{
 		return;
 	}
@@ -161,7 +161,7 @@ void ClientSession::Reconcile()
 		// Compensate time step for ticks rolled back during reconciliation
 		int64_t iTickDeficit = iPreReconcileTick - gpGame->TickCounter();
 		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iPreReconcileTick);
-		Log(kLogNetwork, "DT: TEMP reconcileDeficit: {} clockCorrectionNs: {} remainderNs: {}", iTickDeficit, clockCorrectionNs.count(), gpGame->mTimeStep.mTickRemainderNs.count());
+		Log(kLogNetwork, "reconcileDeficit: {} clockCorrectionNs: {} remainderNs: {}", iTickDeficit, clockCorrectionNs.count(), gpGame->mTimeStep.mTickRemainderNs.count()); // DT: TEMP
 		if (iTickDeficit > 0)
 		{
 			gpGame->mTimeStep.mTickRemainderNs += iTickDeficit * kTickNs;

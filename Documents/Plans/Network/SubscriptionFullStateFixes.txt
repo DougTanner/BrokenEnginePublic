@@ -1,0 +1,113 @@
+Add Epoch Validation to ServerCoordFullState
+=============================================
+
+Background
+----------
+Investigated three audit findings related to full-state handling in the client
+subscription state machine. Two were non-issues after tracing the actual code
+paths. One is a genuine (though unlikely) race condition worth fixing.
+
+Discarded Findings
+------------------
+
+T2-1: Double Full-State During kWaitingFullState
+  Verdict: Non-issue.
+  The server sends exactly one full-state per subscription via the
+  mPendingNewSubscriptions queue. The full-state is sent on a reliable ENet
+  channel, so the network layer cannot duplicate it. There is no code path
+  that queues two full-states for the same slot. If a second full-state did
+  arrive (impossible in current code), the existing handler would process it
+  normally (not drop it) -- the early return only fires on coord mismatch.
+
+T2-2: Pending Full-State Lost on Coord Unsubscribe
+  Verdict: Non-issue.
+  When UnsubscribeStaleCoords erases a coord from mCoordFrames, any
+  pendingFullState stored there is destroyed. This is correct: the client no
+  longer wants data for that coord. The pending full-state was destined for
+  reconciliation of a coord the client is actively abandoning. Preserving it
+  would be wasteful and could cause stale data injection.
+
+Confirmed Finding
+-----------------
+
+T2-6: No Epoch Validation for Stale Full-State
+  Verdict: Real bug, low probability but cheap to fix.
+
+  The scenario:
+  1. Client subscribes to coord A on slot 2, epoch becomes 3
+  2. Server sends SubscribeAccept (control reliable channel) and
+     full-state (slot 2 reliable channel) -- these are on DIFFERENT ENet
+     channels, so delivery order is not guaranteed
+  3. Client unsubscribes from slot 2 (coord A no longer desired)
+  4. Server receives unsubscribe, frees slot 2 (epoch preserved at 3),
+     sends UnsubscribeAck (control reliable channel)
+  5. Client receives UnsubscribeAck, slot 2 becomes kUnsubscribed
+  6. Client resubscribes to the SAME coord A -- slot 2 is reused,
+     epoch becomes 4 on server
+  7. Server sends new SubscribeAccept (epoch 4) and new full-state (epoch 4)
+  8. The OLD full-state from step 2 (epoch 3) finally arrives on the
+     slot 2 reliable channel -- it passes the coord check (same coord A)
+     and the state check (kWaitingFullState or kUnsubscribed)
+  9. The stale full-state's epoch (3) is written to rSlot.ackState.uiEpoch,
+     overwriting the correct epoch (4). All subsequent updates from the
+     server carry epoch 4 and are rejected by ServerCoordUpdateOrResend's
+     epoch check (line 135), causing a silent stall.
+
+  The one-at-a-time subscription queue (TrySubscribeNext) and ENet's fast
+  reliable retry make this very unlikely in practice. But the fix is a
+  single comparison and early return, so it's worth adding as a safety net.
+
+  Current code (ClientReceive.cpp lines 79-90):
+      else if (rSlot.eState == CoordSubscriptionState::kWaitingFullState
+            || rSlot.eState == CoordSubscriptionState::kSubscribing)
+      {
+          if (rSlot.coord != coord)
+          {
+              return;
+          }
+      }
+
+  The kWaitingFullState path already has a known-good epoch from the
+  SubscribeAccept (set at line 247). The kSubscribing path does not have
+  an epoch yet (it's set to 0 by default), so we can only validate for
+  kWaitingFullState.
+
+Fix
+---
+
+Files Modified
+--------------
+1. Engine/Source/Network/Client/ClientReceive.cpp
+
+================================================================================
+Change 1: ClientReceive.cpp - Add epoch check for kWaitingFullState
+================================================================================
+
+File: Engine/Source/Network/Client/ClientReceive.cpp
+Lines 79-86, add epoch validation when the slot is kWaitingFullState:
+
+BEFORE:
+	else if (rSlot.eState == CoordSubscriptionState::kWaitingFullState || rSlot.eState == CoordSubscriptionState::kSubscribing)
+	{
+		// Validate coord matches to prevent stale full state from a previous subscription
+		if (rSlot.coord != coord)
+		{
+			return;
+		}
+	}
+
+AFTER:
+	else if (rSlot.eState == CoordSubscriptionState::kWaitingFullState || rSlot.eState == CoordSubscriptionState::kSubscribing)
+	{
+		// Validate coord matches to prevent stale full state from a previous subscription
+		if (rSlot.coord != coord)
+		{
+			return;
+		}
+		// Validate epoch for kWaitingFullState (epoch is set by SubscribeAccept)
+		// Guards against stale full-state from a previous subscription to the same coord/slot
+		if (rSlot.eState == CoordSubscriptionState::kWaitingFullState && uiEpoch != rSlot.ackState.uiEpoch)
+		{
+			return;
+		}
+	}

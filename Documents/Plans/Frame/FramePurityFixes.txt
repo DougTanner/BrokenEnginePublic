@@ -1,0 +1,676 @@
+Frame Purity Fixes Plan
+=======================
+
+Remove global singleton access from Frame update/lifecycle code (P1-P4 from audit).
+
+
+================================================================================
+P1. Remove gpAudioManager from Frame update code (7 call sites)
+================================================================================
+
+Currently, 7 call sites in Frame PostCollision/Explode code call
+gpAudioManager->PlayOneShot3d / PlayOneShot directly. These are all
+#ifdef BT_CLIENT and all occur during PostCollision or Explode, which runs
+during reconciliation replays. The AudioManager already checks kRecalculated
+internally and returns early, but accessing the global at all violates Frame
+purity.
+
+APPROACH: Add a deferred audio event buffer to FramePostRenderBase. Frame code
+writes events into this buffer. After the tick completes (outside Frame code),
+the caller drains the buffer and plays the sounds. The buffer is only drained
+when not recalculating, preserving the existing behavior.
+
+--- Step 1: Add DeferredAudioEvent struct and buffer to FramePostRenderBase ---
+
+File: Engine/Source/Frame/FrameBase.h
+
+Add before the FramePostRenderBase class definition:
+
+  #if defined(BT_CLIENT)
+  struct DeferredAudioEvent
+  {
+      common::crc_t audioCrc;
+      XMVECTOR vecPosition;
+      float fVolume;
+      float fPitch;
+      float fPitchRange;
+      bool b3d;
+  };
+
+  inline constexpr int64_t kiMaxDeferredAudioEvents = 64;
+  #endif // BT_CLIENT
+
+Add to FramePostRenderBase as a public member:
+
+  #if defined(BT_CLIENT)
+  int64_t iDeferredAudioEventCount = 0;
+  DeferredAudioEvent deferredAudioEvents[kiMaxDeferredAudioEvents] {};
+  #endif // BT_CLIENT
+
+--- Step 2: Add helper to write deferred audio events ---
+
+File: Engine/Source/Frame/FrameBase.h
+
+Add two free functions (or static methods) next to the struct:
+
+  #if defined(BT_CLIENT)
+  inline void DeferPlayOneShot3d(FramePostRenderBase& rPostRender, common::crc_t audioCrc, XMVECTOR vecPosition, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f)
+  {
+      if (rPostRender.iDeferredAudioEventCount >= kiMaxDeferredAudioEvents) [[unlikely]]
+      {
+          return;
+      }
+      rPostRender.deferredAudioEvents[rPostRender.iDeferredAudioEventCount++] = {audioCrc, vecPosition, fVolume, fPitch, fPitchRange, true};
+  }
+
+  inline void DeferPlayOneShot(FramePostRenderBase& rPostRender, common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f)
+  {
+      if (rPostRender.iDeferredAudioEventCount >= kiMaxDeferredAudioEvents) [[unlikely]]
+      {
+          return;
+      }
+      rPostRender.deferredAudioEvents[rPostRender.iDeferredAudioEventCount++] = {audioCrc, XMVectorZero(), fVolume, fPitch, fPitchRange, b3d};
+  }
+  #endif // BT_CLIENT
+
+--- Step 3: Add drain function ---
+
+File: Engine/Source/Frame/FrameBase.h (or FrameBase.cpp if preferred)
+
+  #if defined(BT_CLIENT)
+  inline void DrainDeferredAudioEvents(FramePostRenderBase& rPostRender, const FrameInterpolateBase& rInterpolate)
+  {
+      if (rInterpolate.frameFlags & FrameFlags::kRecalculated)
+      {
+          rPostRender.iDeferredAudioEventCount = 0;
+          return;
+      }
+
+      for (int64_t i = 0; i < rPostRender.iDeferredAudioEventCount; ++i)
+      {
+          const DeferredAudioEvent& rEvent = rPostRender.deferredAudioEvents[i];
+          if (rEvent.b3d)
+          {
+              gpAudioManager->PlayOneShot3d(/* need Frame ref - see note */)
+          }
+          else
+          {
+              gpAudioManager->PlayOneShot(...)
+          }
+      }
+      rPostRender.iDeferredAudioEventCount = 0;
+  }
+  #endif // BT_CLIENT
+
+NOTE: PlayOneShot/PlayOneShot3d currently take `const game::Frame&` for the
+kPostRender/kRecalculated asserts. Since we've already checked kRecalculated
+before draining, we need either:
+  (a) Add new AudioManager methods that don't take Frame (PlayOneShotDirect), or
+  (b) Pass the Frame to DrainDeferredAudioEvents and forward it.
+
+Option (b) is simpler. The drain function lives in GameBase.cpp or Game.cpp
+(outside Frame code), not in FrameBase.h. This keeps the AudioManager include
+out of Frame headers.
+
+REVISED: Put DrainDeferredAudioEvents in GameBase.cpp (or Game.cpp):
+
+File: Engine/Source/GameBase.cpp (add after RunFrameTick or wherever post-tick
+processing happens)
+
+  #if defined(BT_CLIENT)
+  static void DrainDeferredAudioEvents(game::Frame& rFrame)
+  {
+      auto& rPostRender = rFrame.postRender;
+      if (rFrame.interpolate.frameFlags & FrameFlags::kRecalculated)
+      {
+          rPostRender.iDeferredAudioEventCount = 0;
+          return;
+      }
+      for (int64_t i = 0; i < rPostRender.iDeferredAudioEventCount; ++i)
+      {
+          const DeferredAudioEvent& rEvent = rPostRender.deferredAudioEvents[i];
+          if (rEvent.b3d)
+          {
+              gpAudioManager->PlayOneShot3d(rFrame, rEvent.audioCrc, rEvent.vecPosition, rEvent.fVolume, rEvent.fPitch, rEvent.fPitchRange);
+          }
+          else
+          {
+              gpAudioManager->PlayOneShot(rFrame, rEvent.audioCrc, rEvent.b3d, rEvent.fVolume, rEvent.fPitch, rEvent.fPitchRange);
+          }
+      }
+      rPostRender.iDeferredAudioEventCount = 0;
+  }
+  #endif // BT_CLIENT
+
+Call this after RunFrameTick returns, for each frame that was ticked.
+
+--- Step 4: Replace all 7 call sites ---
+
+4a. BlastersUpdate.cpp:318
+OLD:
+  #if defined(BT_CLIENT)
+  			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, kfTerrainImpactVolume);
+  #endif
+NEW:
+  #if defined(BT_CLIENT)
+  			engine::DeferPlayOneShot3d(rFrame.postRender, data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, kfTerrainImpactVolume);
+  #endif
+
+4b. PlayersUpdate.cpp:474
+OLD:
+  		engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor465540__steaq__scifishieldhitwavwavCrc, vecDamagePosition, kfShieldHitSoundVolumeBase + kfShieldHitSoundVolumeScale * (1.0f - rPlayer.pfShields[i] / kfPlayerShield));
+NEW:
+  		engine::DeferPlayOneShot3d(rFrame.postRender, data::kAudioShieldArmor465540__steaq__scifishieldhitwavwavCrc, vecDamagePosition, kfShieldHitSoundVolumeBase + kfShieldHitSoundVolumeScale * (1.0f - rPlayer.pfShields[i] / kfPlayerShield));
+
+4c. PlayersUpdate.cpp:508
+OLD:
+  				engine::gpAudioManager->PlayOneShot(rFrame, data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, kfShieldDownSoundVolume);
+NEW:
+  				engine::DeferPlayOneShot(rFrame.postRender, data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, kfShieldDownSoundVolume);
+
+4d. PlayersUpdate.cpp:521
+OLD:
+  			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecDamagePosition, kfArmorHitSoundVolumeBase + kfArmorHitSoundVolumeScale * (1.0f - rPlayer.pfArmors[i] / kfPlayerArmor));
+NEW:
+  			engine::DeferPlayOneShot3d(rFrame.postRender, data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecDamagePosition, kfArmorHitSoundVolumeBase + kfArmorHitSoundVolumeScale * (1.0f - rPlayer.pfArmors[i] / kfPlayerArmor));
+
+4e. SpaceshipsUpdate.cpp:96 (BeginExplosion)
+OLD:
+  	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], kfSpaceshipDeathExplosionVolume, kfSpaceshipDeathPitchMin, kfSpaceshipDeathPitchRandom);
+NEW:
+  	engine::DeferPlayOneShot3d(rFrame.postRender, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], kfSpaceshipDeathExplosionVolume, kfSpaceshipDeathPitchMin, kfSpaceshipDeathPitchRandom);
+
+4f. SpaceshipsUpdate.cpp:401 (PostCollision)
+OLD:
+  					engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster793907__cvltiv8r__snaresbycvltiv8r301wavCrc, rCurrentInterpolate.pVecPositions[i], kfSpaceshipHitSoundVolume);
+NEW:
+  					engine::DeferPlayOneShot3d(rFrame.postRender, data::kAudioBlaster793907__cvltiv8r__snaresbycvltiv8r301wavCrc, rCurrentInterpolate.pVecPositions[i], kfSpaceshipHitSoundVolume);
+
+4g. Missiles.cpp:533 (Explode)
+OLD:
+  	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], kfExplosionSoundVolume);
+NEW:
+  	engine::DeferPlayOneShot3d(rFrame.postRender, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], kfExplosionSoundVolume);
+
+--- Step 5: Remove AudioManager includes from Frame files ---
+
+Remove `#include "Audio/AudioManager.h"` (or equivalent gpAudioManager usage)
+from BlastersUpdate.cpp, PlayersUpdate.cpp, SpaceshipsUpdate.cpp, Missiles.cpp.
+These files should no longer reference gpAudioManager.
+
+
+================================================================================
+P2. Remove gpParticleManager from Explosions update code (1 call site)
+================================================================================
+
+Explosions.cpp:410-427 calls ParticleManager::Spawn inside the Spawn function.
+Already guarded by kRecalculated check. Same deferred buffer approach.
+
+APPROACH: Add a deferred particle event buffer to FramePostRenderBase. Frame
+code writes events. After tick, caller drains them.
+
+--- Step 1: Add DeferredParticleEvent struct and buffer ---
+
+File: Engine/Source/Frame/FrameBase.h
+
+  #if defined(BT_CLIENT)
+  struct DeferredParticleEvent
+  {
+      shaders::ParticleLayout layout;
+      common::crc_t textureCrc;
+  };
+
+  inline constexpr int64_t kiMaxDeferredParticleEvents = 256;
+  #endif // BT_CLIENT
+
+Add to FramePostRenderBase:
+
+  #if defined(BT_CLIENT)
+  int64_t iDeferredParticleEventCount = 0;
+  DeferredParticleEvent deferredParticleEvents[kiMaxDeferredParticleEvents] {};
+  #endif // BT_CLIENT
+
+NOTE: FrameBase.h cannot include shaders:: types. Two options:
+  (a) Forward-declare the layout, or
+  (b) Use a separate header for deferred events that gets included only where
+      needed.
+
+Option (b): Create Engine/Source/Frame/DeferredEvents.h that includes the
+shader layout and defines both DeferredAudioEvent and DeferredParticleEvent.
+FramePostRenderBase forward-declares or includes this header.
+
+REVISED APPROACH: Since shaders::ParticleLayout and shaders::ParticlesSpawnLayout
+are large structs with many fields, and the particle spawn is already guarded by
+kRecalculated, a simpler fix is to pass a reference to the spawn layout buffer
+into the Frame code instead of accessing gpParticleManager directly.
+
+SIMPLEST FIX: Pass shaders::ParticlesSpawnLayout& as a parameter through
+Explosions::Spawn, stored on FramePostRenderBase or FrameInterpolateBase.
+
+REVISED SIMPLEST FIX: Add a pointer to the particle spawn layout on
+FrameInterpolateBase (client-only). Set it before the tick. Frame code writes
+to it instead of accessing gpParticleManager.
+
+--- Step 1: Add particle spawn layout pointer to FrameInterpolateBase ---
+
+File: Engine/Source/Frame/FrameBase.h
+
+Add to FrameInterpolateBase:
+
+  #if defined(BT_CLIENT)
+  shaders::ParticlesSpawnLayout* pParticlesSpawnLayout = nullptr;
+  #endif
+
+This requires forward-declaring shaders::ParticlesSpawnLayout in FrameBase.h.
+
+--- Step 2: Set the pointer before each tick ---
+
+File: Engine/Source/GameBase.cpp (or wherever frames are prepared before tick)
+
+Before calling RunFrameTick:
+
+  #if defined(BT_CLIENT)
+  rFrame.interpolate.pParticlesSpawnLayout = &gpParticleManager->mLongParticlesSpawnLayout;
+  #endif
+
+--- Step 3: Replace the call site ---
+
+File: Engine/Source/Frame/Collections/Explosions/Explosions.cpp:410-427
+
+OLD:
+  #if defined(BT_CLIENT)
+  		if (!(rFrame.interpolate.frameFlags & FrameFlags::kRecalculated))
+  		{
+  			ParticleManager::Spawn(gpParticleManager->mLongParticlesSpawnLayout,
+  			{
+  				...
+  			}, rType.particleCrc);
+  		}
+  #endif // BT_CLIENT
+
+NEW:
+  #if defined(BT_CLIENT)
+  		if (!(rFrame.interpolate.frameFlags & FrameFlags::kRecalculated) && rFrame.interpolate.pParticlesSpawnLayout != nullptr)
+  		{
+  			ParticleManager::Spawn(*rFrame.interpolate.pParticlesSpawnLayout,
+  			{
+  				...
+  			}, rType.particleCrc);
+  		}
+  #endif // BT_CLIENT
+
+--- Step 4: Remove gpParticleManager include ---
+
+File: Engine/Source/Frame/Collections/Explosions/Explosions.cpp
+
+Change:
+  #include "Graphics/Managers/ParticleManager.h"
+to only include the shader layout header (for ParticleManager::Spawn which is
+a static method, we still need the declaration). Actually, Spawn is a static
+method so we still need ParticleManager.h for the function declaration.
+
+Keep the include but remove the gpParticleManager global access. The remaining
+reference is the static method ParticleManager::Spawn() which doesn't access
+any global - it just writes to the passed-in layout buffer. This is acceptable.
+
+
+================================================================================
+P3. Remove gpTextManager from TimeStep (6 call sites)
+================================================================================
+
+TimeStep::DecreaseTimeScale and IncreaseTimeScale directly call
+gpTextManager->UpdateTextArea. TimeStep is Frame infrastructure and should not
+access Graphics managers.
+
+APPROACH: Add a callback to TimeStep that gets invoked when the time scale text
+changes. The caller (Game.cpp) sets the callback to update the text display.
+
+SIMPLER APPROACH: TimeStep already exposes miTimeMultiply and miTimeDivide as
+public members. The callers (Game.cpp:519/523 and TimeStep::TickRealtime
+internally) can check if the time scale changed and update the text display
+themselves.
+
+SIMPLEST APPROACH: Remove gpTextManager calls from TimeStep entirely. Add a
+TimeStep method that returns the display string, and have the caller update the
+text after calling DecreaseTimeScale/IncreaseTimeScale.
+
+REVISED: Store the display text in a small buffer on TimeStep itself. The
+caller reads it.
+
+CLEANEST: Just remove the text updates from TimeStep. The two external callers
+(Game.cpp) can update text after calling Decrease/IncreaseTimeScale. The
+internal call (death spiral in TickRealtime) can set a flag.
+
+--- Step 1: Add flag and text helper to TimeStep ---
+
+File: Engine/Source/Frame/TimeStep.h
+
+Add public members:
+
+  bool mbTimeScaleChanged = false;
+
+Add public method:
+
+  // Returns display text for current time scale. Writes to workbuffer.
+  // Caller is responsible for passing text to TextManager.
+  std::string_view GetTimeScaleText() const;
+
+--- Step 2: Implement GetTimeScaleText ---
+
+File: Engine/Source/Frame/TimeStep.cpp
+
+  std::string_view TimeStep::GetTimeScaleText() const
+  {
+      if (miTimeMultiply == 1 && miTimeDivide == 1)
+      {
+          return "";
+      }
+
+      common::gpThreadLocal->mWorkbuffer.Push();
+      if (miTimeMultiply > 1)
+      {
+          common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
+          common::gpThreadLocal->mWorkbuffer.Append(miTimeMultiply);
+          common::gpThreadLocal->mWorkbuffer.Append("x");
+      }
+      else
+      {
+          common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
+          common::gpThreadLocal->mWorkbuffer.Append(miTimeDivide);
+          common::gpThreadLocal->mWorkbuffer.Append("x");
+      }
+      std::string_view result = common::gpThreadLocal->mWorkbuffer.View();
+      // Note: caller must use result before any other workbuffer operation
+      // (The pop happens in the caller after using the text)
+      return result;
+  }
+
+Wait - this is awkward with workbuffer lifetime. Simpler approach:
+
+--- REVISED Step 1: Remove all gpTextManager calls from TimeStep ---
+
+File: Engine/Source/Frame/TimeStep.cpp
+
+Remove the #include for TextManager.h.
+
+In DecreaseTimeScale: Remove all 3 blocks of:
+  #if defined(BT_CLIENT)
+  			gpTextManager->UpdateTextArea(kTextDebug, ...);
+  #endif
+and the surrounding workbuffer Push/Pop/Append logic that exists solely for
+the text update. Keep the Log() calls and the return values. Set
+mbTimeScaleChanged = true.
+
+In IncreaseTimeScale: Same removal. Set mbTimeScaleChanged = true.
+
+OLD DecreaseTimeScale (simplified):
+  bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
+  {
+      if (miTimeMultiply > 1)
+      {
+          miTimeMultiply /= 2;
+          Log("Time ratio: {}x", miTimeMultiply);
+          if (miTimeMultiply == 1 && miTimeDivide == 1)
+          {
+  #if defined(BT_CLIENT)
+              gpTextManager->UpdateTextArea(kTextDebug, "");
+  #endif
+          }
+          else
+          {
+              common::gpThreadLocal->mWorkbuffer.Push();
+              common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
+              common::gpThreadLocal->mWorkbuffer.Append(miTimeMultiply);
+              common::gpThreadLocal->mWorkbuffer.Append("x");
+  #if defined(BT_CLIENT)
+              gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
+  #endif
+              common::gpThreadLocal->mWorkbuffer.Pop();
+          }
+          return true;
+      }
+      else if (bAllowSlowMo)
+      {
+          miTimeDivide *= 2;
+          Log("Time ratio: 1/{}x", miTimeDivide);
+          common::gpThreadLocal->mWorkbuffer.Push();
+          common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
+          common::gpThreadLocal->mWorkbuffer.Append(miTimeDivide);
+          common::gpThreadLocal->mWorkbuffer.Append("x");
+  #if defined(BT_CLIENT)
+          gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
+  #endif
+          common::gpThreadLocal->mWorkbuffer.Pop();
+          return true;
+      }
+      return false;
+  }
+
+NEW DecreaseTimeScale:
+  bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
+  {
+      if (miTimeMultiply > 1)
+      {
+          miTimeMultiply /= 2;
+          Log("Time ratio: {}x", miTimeMultiply);
+          mbTimeScaleChanged = true;
+          return true;
+      }
+      else if (bAllowSlowMo)
+      {
+          miTimeDivide *= 2;
+          Log("Time ratio: 1/{}x", miTimeDivide);
+          mbTimeScaleChanged = true;
+          return true;
+      }
+      return false;
+  }
+
+NEW IncreaseTimeScale:
+  void TimeStep::IncreaseTimeScale()
+  {
+      if (miTimeDivide > 1)
+      {
+          miTimeDivide /= 2;
+          Log("Time ratio: 1/{}x", miTimeDivide);
+      }
+      else
+      {
+          miTimeMultiply *= 2;
+          Log("Time ratio: {}x", miTimeMultiply);
+      }
+      mbTimeScaleChanged = true;
+  }
+
+--- Step 2: Update callers to update text display ---
+
+File: Projects/BrokenEngineSandbox/Source/Game.cpp
+
+After the existing calls to DecreaseTimeScale/IncreaseTimeScale (~line 519/523),
+add text update:
+
+  #if defined(BT_CLIENT)
+  if (mTimeStep.mbTimeScaleChanged)
+  {
+      mTimeStep.mbTimeScaleChanged = false;
+      if (mTimeStep.miTimeMultiply == 1 && mTimeStep.miTimeDivide == 1)
+      {
+          engine::gpTextManager->UpdateTextArea(engine::kTextDebug, "");
+      }
+      else
+      {
+          common::gpThreadLocal->mWorkbuffer.Push();
+          if (mTimeStep.miTimeMultiply > 1)
+          {
+              common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
+              common::gpThreadLocal->mWorkbuffer.Append(mTimeStep.miTimeMultiply);
+              common::gpThreadLocal->mWorkbuffer.Append("x");
+          }
+          else
+          {
+              common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
+              common::gpThreadLocal->mWorkbuffer.Append(mTimeStep.miTimeDivide);
+              common::gpThreadLocal->mWorkbuffer.Append("x");
+          }
+          engine::gpTextManager->UpdateTextArea(engine::kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
+          common::gpThreadLocal->mWorkbuffer.Pop();
+      }
+  }
+  #endif
+
+--- Step 3: Remove TextManager include from TimeStep.cpp ---
+
+File: Engine/Source/Frame/TimeStep.cpp
+
+Remove:
+  #if defined(BT_CLIENT)
+  #include "Graphics/Managers/TextManager.h"
+  #endif
+
+
+================================================================================
+P4. Remove gpProfileManager from Frame update code (2 call sites in update path)
+================================================================================
+
+The audit lists 4 sites. Analysis:
+- BlastersUpdate.cpp:201 — in BlastersInterpolate::Update() — Frame update code
+- TargetsUpdate.cpp:23 — in TargetsInterpolate::Update() — Frame update code
+- Explosions.cpp:551 — in ExplosionsInterpolate::EndRender() — ALREADY in render
+  path (#if defined(BT_CLIENT)), not a purity violation
+- Pushers.cpp:89 — in PushersInterpolate::EndRender() — ALREADY in render path,
+  not a purity violation
+
+So only 2 sites need fixing: BlastersUpdate.cpp and TargetsUpdate.cpp.
+
+Additionally, SpaceshipsRender.cpp:67 has SetCount in the Render path which is
+fine, and BlastersRender.cpp:17 has SetCount in Render which is also fine.
+
+The server build also sets these counters in ServerDisplay.cpp which is outside
+Frame code, so that's fine.
+
+APPROACH: Remove the SetCount calls from the Interpolate::Update functions.
+The counts are already set in the Render path (client) and ServerDisplay (server).
+
+For BlastersUpdate.cpp, the count is set in BlastersRender.cpp:17 during
+Render() using kCpuCounterBlastersRendered. But the counter name is different:
+kCpuCounterBlasters (in Update) vs kCpuCounterBlastersRendered (in Render).
+The server sets kCpuCounterBlasters in ServerDisplay.cpp.
+
+For TargetsUpdate.cpp, the count (kCpuCounterTargets) is set in
+ServerDisplay.cpp for server, but there's no client Render path that sets it.
+
+FIX: Move both SetCount calls to the Render path (EndRender).
+
+--- Step 1: BlastersUpdate.cpp ---
+
+File: Projects/BrokenEngineSandbox/Source/Frame/Collections/Blasters/BlastersUpdate.cpp
+
+Remove line 201:
+  gpProfileManager->SetCount(game::kCpuCounterBlasters, rCurrent.iCount);
+
+The Blasters collection doesn't have a BeginRender/EndRender with accumulation.
+BlastersRender.cpp only has a per-frame Render() that sets
+kCpuCounterBlastersRendered. We need to add kCpuCounterBlasters to the render
+path.
+
+File: Projects/BrokenEngineSandbox/Source/Frame/Collections/Blasters/BlastersRender.cpp
+
+OLD:
+  void BlastersInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+  {
+      const BlastersInterpolate& rCurrent = *rFrameInterpolate.pBlasters;
+      gpProfileManager->SetCount(game::kCpuCounterBlastersRendered, rCurrent.iCount);
+  }
+
+NEW:
+  void BlastersInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+  {
+      const BlastersInterpolate& rCurrent = *rFrameInterpolate.pBlasters;
+      gpProfileManager->SetCount(game::kCpuCounterBlasters, rCurrent.iCount);
+      gpProfileManager->SetCount(game::kCpuCounterBlastersRendered, rCurrent.iCount);
+  }
+
+Also remove the ProfileManager include from BlastersUpdate.cpp if no other
+profile calls remain there.
+
+--- Step 2: TargetsUpdate.cpp ---
+
+File: Projects/BrokenEngineSandbox/Source/Frame/Collections/Targets/TargetsUpdate.cpp
+
+Remove line 23:
+  gpProfileManager->SetCount(game::kCpuCounterTargets, rCurrent.iCount);
+
+Remove the Profile/ProfileManager.h include.
+
+Targets has no client Render path (it's not a visible collection). The server
+already sets this counter in ServerDisplay.cpp. For the client, add it to a
+nearby collection's render path, or accept that this counter is server-only
+for now.
+
+SIMPLEST: The count is only useful for profiling display. The server sets it in
+ServerDisplay. For the client, it can be set in the profile overlay update
+itself if needed, or we can leave it unset on client (it's a minor diagnostic).
+
+DECISION: Just remove from TargetsUpdate.cpp. The server already has coverage
+via ServerDisplay.cpp. The client doesn't display Targets count in the profile
+overlay (it's a non-visual collection). If client coverage is needed later, add
+to a nearby render path.
+
+
+================================================================================
+DRAIN POINT FOR P1 DEFERRED AUDIO
+================================================================================
+
+The drain function must be called after RunFrameTick completes for each frame.
+This happens in GameBase where frames are ticked. The exact location depends on
+how ticks are dispatched (parallel Dispatch or single-threaded).
+
+File: Engine/Source/GameBase.cpp
+
+After each call to RunFrameTick (for the frame that was just ticked), add:
+
+  #if defined(BT_CLIENT)
+  DrainDeferredAudioEvents(rFrame);
+  #endif
+
+The drain must also be called after reconciliation replay ticks in
+ReconcileReplay.cpp. For reconciliation, kRecalculated is set, so the drain
+will just clear the buffer (no sounds played).
+
+File: Projects/BrokenEngineSandbox/Source/Network/ReconcileReplay.cpp
+
+After each RunFrameTick in the replay loop:
+
+  #if defined(BT_CLIENT)
+  rFrame.postRender.iDeferredAudioEventCount = 0;
+  #endif
+
+(Simply clear the buffer rather than calling drain, since we know it's
+recalculated.)
+
+
+================================================================================
+SUMMARY OF FILES MODIFIED
+================================================================================
+
+New/Modified Headers:
+- Engine/Source/Frame/FrameBase.h — DeferredAudioEvent struct, buffer on
+  FramePostRenderBase, DeferPlayOneShot3d/DeferPlayOneShot helpers,
+  pParticlesSpawnLayout pointer, TimeStep mbTimeScaleChanged flag
+
+Modified Source:
+- Engine/Source/Frame/TimeStep.cpp — Remove gpTextManager calls
+- Engine/Source/Frame/TimeStep.h — Add mbTimeScaleChanged
+- Engine/Source/Frame/Collections/Explosions/Explosions.cpp — Use
+  pParticlesSpawnLayout instead of gpParticleManager
+- Engine/Source/GameBase.cpp — DrainDeferredAudioEvents, set
+  pParticlesSpawnLayout before tick
+- Projects/.../BlastersUpdate.cpp — DeferPlayOneShot3d, remove SetCount
+- Projects/.../BlastersRender.cpp — Add SetCount for kCpuCounterBlasters
+- Projects/.../PlayersUpdate.cpp — DeferPlayOneShot3d, DeferPlayOneShot
+- Projects/.../SpaceshipsUpdate.cpp — DeferPlayOneShot3d
+- Projects/.../Missiles.cpp — DeferPlayOneShot3d
+- Projects/.../TargetsUpdate.cpp — Remove SetCount
+- Projects/.../Game.cpp — Time scale text update after Decrease/IncreaseTimeScale
+- Projects/.../ReconcileReplay.cpp — Clear deferred audio buffer after replay
+  ticks

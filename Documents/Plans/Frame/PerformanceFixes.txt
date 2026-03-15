@@ -1,0 +1,105 @@
+Frame Subsystem Performance Fixes
+===================================
+
+F1. Replace heap-allocating GetSortedKeys with workbuffer in Crc()
+------------------------------------------------------------------
+
+File: Engine/Source/Frame/Collections/Collection.h
+
+The IdToIndex::Crc() method (line 861) calls GetSortedKeys() which heap-allocates
+a std::vector every call. This runs every tick per indexable collection via
+CollectionCrc -> rCurrent.Crc(). Use gpThreadLocal->mWorkbuffer with PushBuffer
+to get a mutable buffer, copy keys, sort in-place, and iterate.
+
+The Write() method (line 826) also calls GetSortedKeys() but is infrequent
+(save/replay only), so leave it using std::vector.
+
+OLD (lines 861-877):
+	inline common::crc_t Crc() const
+	{
+		// Heap: GetSortedKeys() builds a temporary vector of all map keys for deterministic CRC ordering.
+		// Could use workbuffer, but replay validation is infrequent so the simplicity of std::vector wins here.
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		common::crc_t checksum = 0;
+		checksum ^= common::Crc(static_cast<int64_t>(idToIndexMap.size()));
+
+		std::vector<id_t> vecKeys = GetSortedKeys();
+		for (const id_t& key : vecKeys)
+		{
+			checksum ^= common::Crc(key.ToUuid().Value());
+			checksum ^= common::Crc(idToIndexMap.at(key));
+		}
+
+		return checksum;
+	}
+
+NEW:
+	inline common::crc_t Crc() const
+	{
+		common::crc_t checksum = 0;
+		checksum ^= common::Crc(static_cast<int64_t>(idToIndexMap.size()));
+
+		int64_t iKeyCount = static_cast<int64_t>(idToIndexMap.size());
+		id_t* pKeys = common::gpThreadLocal->mWorkbuffer.PushBuffer<id_t*>(iKeyCount * sizeof(id_t));
+		int64_t i = 0;
+		for (const auto& [key, value] : idToIndexMap)
+		{
+			pKeys[i++] = key;
+		}
+		std::sort(pKeys, pKeys + iKeyCount);
+
+		for (int64_t j = 0; j < iKeyCount; ++j)
+		{
+			checksum ^= common::Crc(pKeys[j].ToUuid().Value());
+			checksum ^= common::Crc(idToIndexMap.at(pKeys[j]));
+		}
+		common::gpThreadLocal->mWorkbuffer.Pop();
+
+		return checksum;
+	}
+
+
+F5. Replace while-loop tick counting with integer division
+----------------------------------------------------------
+
+File: Engine/Source/Frame/TimeStep.cpp
+
+The while loop (lines 66-71) subtracts kTickNs repeatedly to count ticks.
+std::chrono::nanoseconds supports operator/ (returning int64_t count ratio) and
+operator%= natively. The integer division produces identical results.
+
+OLD (lines 65-71):
+	// Calculate number of ticks needed
+	int64_t iTicks = 0;
+	while (mTickRemainderNs >= game::kTickNs)
+	{
+		mTickRemainderNs -= game::kTickNs;
+		++iTicks;
+	}
+
+NEW:
+	// Calculate number of ticks needed
+	int64_t iTicks = mTickRemainderNs / game::kTickNs;
+	mTickRemainderNs %= game::kTickNs;
+
+
+F6. Remove redundant unit conversions in GetInterpolationAlpha
+--------------------------------------------------------------
+
+File: Engine/Source/Frame/TimeStep.cpp
+
+GetInterpolationAlpha (line 82) calls NanosecondsToFloatSeconds on both numerator
+and denominator. Both convert ns -> seconds by dividing by 1e9, which cancels out
+in the ratio. Use raw counts directly.
+
+OLD (lines 80-83):
+float TimeStep::GetInterpolationAlpha() const
+{
+	return common::NanosecondsToFloatSeconds<float>(mTickRemainderNs) / common::NanosecondsToFloatSeconds<float>(game::kTickNs);
+}
+
+NEW:
+float TimeStep::GetInterpolationAlpha() const
+{
+	return static_cast<float>(mTickRemainderNs.count()) / static_cast<float>(game::kTickNs.count());
+}

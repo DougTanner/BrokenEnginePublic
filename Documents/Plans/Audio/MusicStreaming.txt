@@ -1,0 +1,183 @@
+Music Streaming Audio Fixes
+===========================
+Targeted fixes for the music streaming subsystem in AudioManager and StreamingVoice.
+
+===================================================================================
+[H1] REJECTED - Missing chunk-ready check before streaming music playback
+===================================================================================
+Location: AudioManager.cpp:236-243, 382-389
+
+The finding claims PlayMusic() and auto-transition access LazyChunk header data without
+calling IsChunkReady(), risking uninitialized data. This is INCORRECT.
+
+The LazyChunk header (including audioHeader.waveFormat and iSize) is populated during
+FileManager initialization at manifest-read time (FileManager.cpp:192), NOT during lazy
+loading. The header is always valid for any entry in the LazyChunkMap. The IsChunkReady()
+check in StaticVoice exists because StaticVoice needs pData (the actual audio bytes
+loaded into memory). StreamingVoice uses ReadChunkData() which reads directly from disk
+when the chunk is not in memory (FileManager.cpp:576-593), so it does not need pData.
+
+No changes needed.
+
+===================================================================================
+[M5] REJECTED - Re-entrant PlayMusic from mGetNextMusicTrack callback
+===================================================================================
+Location: AudioManager.cpp:372-389
+
+The finding claims the callback could call PlayMusic() causing re-entrancy. The mutex is
+a std::recursive_mutex (AudioManager.h:56), so re-entrant locking would succeed. However,
+examining the code: PlayMusic() moves mpCurrentMusicStream to mPreviousStreams (line 222-228),
+then creates a new stream. If the callback at line 374 called PlayMusic(), PlayMusic() would
+move the current stream (which is about to be moved at line 379 anyway), and create a new one.
+Then control returns to Update(), which would move nullptr (the already-moved current stream)
+and overwrite with yet another new stream.
+
+While technically possible, this is a usage contract issue, not a code bug. The callback is
+set by game code via SetNextMusicTrackCallback and is expected to simply return a CRC. Adding
+restructuring complexity for a hypothetical misuse violates KISS/YAGNI.
+
+No changes needed.
+
+===================================================================================
+[L3] CONFIRMED - StreamingVoice triple buffer uses heap-allocated vectors
+===================================================================================
+Location: StreamingVoice.h:56, StreamingVoice.cpp:17-21
+
+mBuffers is vector<vector<uint8_t>> with compile-time constant sizes (kiBufferCount=3,
+kiBufferSize=16384). This creates 4 heap allocations per stream (1 outer + 3 inner vectors).
+Replace with std::array<std::array<uint8_t, kiBufferSize>, kiBufferCount>.
+
+Changes:
+
+1. StreamingVoice.h:56
+   OLD: std::vector<std::vector<uint8_t>> mBuffers;
+   NEW: std::array<std::array<uint8_t, kiBufferSize>, kiBufferCount> mBuffers {};
+
+2. StreamingVoice.cpp:17-21 - Remove the resize block entirely:
+   DELETE:
+     mBuffers.resize(kiBufferCount);
+     for (std::vector<uint8_t>& rBuffer : mBuffers)
+     {
+         rBuffer.resize(kiBufferSize);
+     }
+
+3. StreamingVoice.h:38 - Update FillBuffer signature:
+   OLD: bool FillBuffer(std::vector<uint8_t>& rBuffer, int64_t& riBytesRead, bool& rbLastBuffer);
+   NEW: bool FillBuffer(std::array<uint8_t, kiBufferSize>& rBuffer, int64_t& riBytesRead, bool& rbLastBuffer);
+
+4. StreamingVoice.cpp:113 - Update FillBuffer definition:
+   OLD: bool StreamingVoice::FillBuffer(std::vector<uint8_t>& rBuffer, int64_t& riBytesRead, bool& rbLastBuffer)
+   NEW: bool StreamingVoice::FillBuffer(std::array<uint8_t, kiBufferSize>& rBuffer, int64_t& riBytesRead, bool& rbLastBuffer)
+
+5. StreamingVoice.cpp:128 - Update size reference:
+   OLD: int64_t iBytesToRead = std::min(iRemainingData, static_cast<int64_t>(rBuffer.size()));
+   (No change needed - std::array also has .size())
+
+6. StreamingVoice.cpp:187 - Update buffer index:
+   OLD: int64_t iNextBuffer = (miActiveBuffer + 1) % static_cast<int64_t>(mBuffers.size());
+   NEW: int64_t iNextBuffer = (miActiveBuffer + 1) % kiBufferCount;
+
+7. StreamingVoice.cpp:28,35 - .at() calls become operator[] (std::array supports both, no change strictly needed)
+
+===================================================================================
+[L4] CONFIRMED - Duplicated "move current to previous" logic
+===================================================================================
+Location: AudioManager.cpp:222-228, 376-379
+
+The transition pattern (clear FadingIn, set FadingOut, push to mPreviousStreams) is
+duplicated in PlayMusic() and the auto-transition in Update().
+
+Changes:
+
+1. AudioManager.h - Add private helper declaration (after line 78):
+   void TransitionCurrentToPrevious();
+
+2. AudioManager.cpp - Add helper implementation:
+   void AudioManager::TransitionCurrentToPrevious()
+   {
+       mpCurrentMusicStream->mFlags.Clear(StreamingVoiceFlags::kFadingIn);
+       mpCurrentMusicStream->mFlags.Set(StreamingVoiceFlags::kFadingOut);
+       mPreviousStreams.push_back(std::move(mpCurrentMusicStream));
+   }
+
+3. AudioManager.cpp:222-228 (PlayMusic) - Replace duplicate block:
+   OLD:
+       if (mpCurrentMusicStream != nullptr)
+       {
+           mpCurrentMusicStream->mFlags.Clear(StreamingVoiceFlags::kFadingIn);
+           mpCurrentMusicStream->mFlags.Set(StreamingVoiceFlags::kFadingOut);
+           mPreviousStreams.push_back(std::move(mpCurrentMusicStream));
+       }
+   NEW:
+       if (mpCurrentMusicStream != nullptr)
+       {
+           TransitionCurrentToPrevious();
+       }
+
+4. AudioManager.cpp:376-379 (Update auto-transition) - Replace duplicate block:
+   OLD:
+           mpCurrentMusicStream->mFlags.Clear(StreamingVoiceFlags::kFadingIn);
+           mpCurrentMusicStream->mFlags.Set(StreamingVoiceFlags::kFadingOut);
+           mPreviousStreams.push_back(std::move(mpCurrentMusicStream));
+   NEW:
+           TransitionCurrentToPrevious();
+
+===================================================================================
+[L6] CONFIRMED - Move operators on StreamingVoice are dead code
+===================================================================================
+Location: StreamingVoice.h:34-35, StreamingVoice.cpp:69-100
+
+StreamingVoice is only used via unique_ptr (AudioManager.h:85-86). The move
+constructor/assignment are never called. Delete them.
+
+Changes:
+
+1. StreamingVoice.h:34-35 - Replace move declarations:
+   OLD:
+       StreamingVoice(StreamingVoice&& rToMove) noexcept;
+       StreamingVoice& operator=(StreamingVoice&& rToMove) noexcept;
+   NEW:
+       StreamingVoice(StreamingVoice&&) = delete;
+       StreamingVoice& operator=(StreamingVoice&&) = delete;
+
+2. StreamingVoice.cpp:69-100 - Delete the two move implementations entirely.
+
+===================================================================================
+[L9] CONFIRMED - Per-frame vector allocation in UpdateMusicStreams
+===================================================================================
+Location: AudioManager.cpp:253
+
+Local vector<unique_ptr<StreamingVoice>> streamsToDestroy is created every frame.
+This is needed for deferred destruction outside the mutex, but the vector itself
+allocates on the heap. Use a member-level container instead.
+
+Changes:
+
+1. AudioManager.h - Add member (after line 86):
+   std::vector<std::unique_ptr<StreamingVoice>> mStreamsToDestroy;
+
+2. AudioManager.cpp:253 (UpdateMusicStreams) - Replace local with member:
+   OLD: std::vector<std::unique_ptr<StreamingVoice>> streamsToDestroy;
+   NEW: (remove the local declaration)
+
+3. AudioManager.cpp:270 - Update reference:
+   OLD: streamsToDestroy.push_back(std::move(*it));
+   NEW: mStreamsToDestroy.push_back(std::move(*it));
+
+4. AudioManager.cpp - After the lock scope closes (after line 278), clear the member:
+   ADD: mStreamsToDestroy.clear();
+
+   The clear() call destroys the StreamingVoices outside the lock (same safety as before)
+   but keeps the vector's allocated memory for reuse next frame.
+
+5. AudioManager.cpp:250 - The ScopedSuppressAllocationTracking can be removed since the
+   member vector reuses its allocation after the first frame. However, the first frame
+   still allocates, so keep it for safety.
+
+===================================================================================
+Order of Operations
+===================================================================================
+1. [L6] Delete StreamingVoice move operators (simplest, no dependencies)
+2. [L3] Replace vector buffers with std::array in StreamingVoice
+3. [L4] Extract TransitionCurrentToPrevious helper in AudioManager
+4. [L9] Replace local streamsToDestroy with member in AudioManager

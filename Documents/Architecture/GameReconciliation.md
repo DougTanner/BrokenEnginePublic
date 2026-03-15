@@ -4,7 +4,7 @@
 
 ## Reconciliation State Machine
 
-CRC fast-path decision (with partial advance on mid-sequence failures, gap-skip for coords missing intermediate frames, deferred-skip for coords confirmed at or past the target tick, mismatch at confirmed+1 forcing full reconcile, stale-nosnapshot for lost snapshots forcing full reconcile, and deferred-nosnapshot for transient missing snapshots) through unified rollback, full replay (capped at half available frames), predictive catch-up, and snapshot ring buffer storage. Full reconcile triggers for pending full states, CRC mismatches at confirmed+1, or stale missing snapshots. The entire pipeline runs on a dedicated `PersistentWorker` thread. Snapshots are stored in a fixed-size ring buffer per coord (`iSnapshotHead`/`iSnapshotCount`), with confirmed state tracked as a logical offset (`iConfirmedOffset`) from the ring head.
+Each coord is reconciled independently through CRC fast-path, per-coord rollback, replay, catch-up, and snapshot ring buffer storage. The pipeline runs on a dedicated `PersistentWorker` thread.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -14,71 +14,72 @@ flowchart TD
     classDef error fill:#fee2e2,stroke:#ef4444
     classDef state fill:#fef3c7,stroke:#d97706
 
-    START["Reconcile(ctx)"] --> CRC
+    START["Reconcile()<br/>per CoordReconcileWork"] --> COORD["ReconcileCoord()<br/>per-coord orchestrator"]
 
-    CRC{"ReconcileCrcFastPath()<br/>(per-coord independent)<br/>Check consecutive updates<br/>against Frame CRCs<br/>(postRender.serverCrc,<br/>postRender.previousInputCrc)<br/>in snapshots ring buffer"}:::fastpath
-    CRC -->|"All matched"| FASTDONE["Record matched ring offset<br/>as new confirmed state<br/>(iNewConfirmedTick,<br/>iNewConfirmedOffset)<br/>Keep snapshots beyond match<br/>bCrcFastPathHandledAll = true"]:::fastpath
-    CRC -->|"Partial match<br/>(snapshot missing or CRC mismatch<br/>after N successful frames)"| PARTIAL["Advance confirmed by N frames<br/>(partial CRC advance)<br/>Keep unvalidated updates<br/>for next reconciliation"]:::fastpath
+    COORD --> CRC
+
+    CRC{"CrcFastPathProcessCoord()<br/>validate snapshots against<br/>server CRCs"}:::fastpath
+    CRC -->|"All matched"| FASTDONE["Advance confirmed state"]:::fastpath
+    CRC -->|"Partial match"| PARTIAL["Advance confirmed by<br/>matched frames"]:::fastpath
     PARTIAL --> CRC
-    CRC -->|"Gapped coord<br/>(first update beyond confirmed+1)"| GAPSKIP["Skip coord, keep updates<br/>for future resend fill<br/>(does not force full reconcile)"]:::fastpath
+    CRC -->|"Gapped coord"| GAPSKIP["Skip, keep updates"]:::fastpath
     GAPSKIP --> CRC
-    CRC -->|"Deferred coord<br/>(confirmed >= targetTick,<br/>no snapshots to validate yet)"| DEFERRED["Skip coord, keep updates<br/>for next reconciliation<br/>(does not force full reconcile)"]:::fastpath
+    CRC -->|"Deferred coord"| DEFERRED["Skip, keep updates"]:::fastpath
     DEFERRED --> CRC
-    CRC -->|"CRC mismatch at confirmed+1<br/>(permanent — StatusChanges<br/>client didn't have)"| MISMATCH["Force full reconcile<br/>for this coord<br/>(bAllHandled = false)"]:::error
+    CRC -->|"CRC mismatch"| MISMATCH["Force full reconcile"]:::error
     MISMATCH --> ROLLBACK
-    CRC -->|"Snapshot missing at confirmed+1<br/>AND confirmed+1 < targetTick<br/>(snapshot lost during swap-back)"| STALENOSNAPSHOT["STALE-NOSNAPSHOT: force full<br/>reconcile to regenerate snapshots<br/>(bAllHandled = false)"]:::error
+    CRC -->|"Stale missing snapshot"| STALENOSNAPSHOT["Force full reconcile"]:::error
     STALENOSNAPSHOT --> ROLLBACK
-    CRC -->|"Snapshot missing at confirmed+1<br/>AND confirmed+1 >= targetTick<br/>(physics hasn't reached tick yet)"| DEFNOSNAPSHOT["DEFERRED-NOSNAPSHOT: skip coord<br/>keep updates for next reconcile<br/>(does not force full reconcile)"]:::fastpath
+    CRC -->|"Deferred missing snapshot"| DEFNOSNAPSHOT["Skip, keep updates"]:::fastpath
     DEFNOSNAPSHOT --> CRC
     CRC -->|"Pending full state"| ROLLBACK
 
-    ROLLBACK["Unified Rollback<br/>Retrieve confirmed Frame* from<br/>snapshots ring at iConfirmedOffset<br/>into replay stack (raw pointers)<br/>Only coords confirmed at iMinConfirmedTick<br/>(late-confirmed coords injected<br/>during replay/catch-up)<br/>Read fCurrentTime from frame<br/>at iMinConfirmedTick<br/>Inject pending full states<br/>(at or before rollback frame)<br/>into replay stack"]:::replay --> FINDRANGE
+    ROLLBACK["ReconcileRollbackCoord()<br/>restore confirmed frame<br/>into replay stack"]:::replay --> FINDRANGE
 
-    FINDRANGE["Find Replay Range<br/>Scan for max consecutive<br/>server frames from<br/>iMinConfirmedTick + 1"]:::state --> REPLAY
+    FINDRANGE["ReconcileFindReplayRangeCoord()<br/>find consecutive server frames"]:::state --> REPLAY
 
-    REPLAY["ReconcileReplay()<br/>(capped at half available frames)<br/>For each consecutive server frame:<br/>1. ReconcileComputeActiveCoords()<br/>2. ReconcileBuildFrameInput() (status changes from server)<br/>3. ReconcileRunTick()<br/>(uses per-coord replay stacks<br/>of raw Frame* pointers,<br/>workspace owns scratch Frames,<br/>calls RunFrameTick per-Frame,<br/>same code path as GameBase)<br/>4. ReconcileInjectPendingFullState() (if matching)<br/>5. ReconcileInjectLateConfirmedCoord() at their frame<br/>6. ReconcileValidateCrcs() per coord<br/>(input CRC desync on mismatch,<br/>state CRC skip gap coords)<br/>7. Record iLastValidatedIndex on CRC match"]:::replay
+    REPLAY["ReconcileReplayCoord()<br/>replay capped at half<br/>available frames"]:::replay
 
-    REPLAY --> INPUTCRC{"Input CRC match?<br/>(per coord with<br/>server data)"}
+    REPLAY --> INPUTCRC{"Input CRC match?"}
     INPUTCRC -->|"No"| DESYNC
-    INPUTCRC -->|"Yes"| CRCCHECK{"State CRC match?<br/>(per coord with<br/>server data,<br/>skip gap coords)"}
-    CRCCHECK -->|"Yes — per-coord confirmed state<br/>saved inline at CRC-validated frame<br/>(iNewConfirmedTick,<br/>iLastValidatedIndex in replay stack)"| NEXTSRV{"More consecutive<br/>server frames<br/>within cap?"}
-    CRCCHECK -->|"No"| DESYNC["Store desync info<br/>(frame, coord, CRCs,<br/>deep-copy client Frame)<br/>Return early"]:::error
+    INPUTCRC -->|"Yes"| CRCCHECK{"State CRC match?"}
+    CRCCHECK -->|"Yes"| NEXTSRV{"More server frames<br/>within cap?"}
+    CRCCHECK -->|"No"| DESYNC["Store desync info,<br/>return early"]:::error
 
     NEXTSRV -->|"Yes"| REPLAY
-    NEXTSRV -->|"No"| PRUNE
+    NEXTSRV -->|"No"| CATCHUP
 
-    PRUNE["Prune Stale Coords<br/>ReconcileComputeActiveCoords<br/>Clear replay stacks for non-active coords"]:::state --> SAVE
+    CATCHUP["ReconcileCatchUpCoord()<br/>simulate with empty inputs<br/>to target tick"]:::replay
 
-    SAVE["Save Human Confirmed State<br/>(humanGridCoord, humanPlayerId,<br/>fPreviousHumanArmor, fCurrentTime)"]:::state --> CATCHUP
+    CATCHUP --> NEXTCOORD{"More coords?"}
+    NEXTCOORD -->|"Yes"| COORD
+    NEXTCOORD -->|"No"| HUMAN["ReconcileUpdateHumanState()<br/>update time and track<br/>human migration"]:::state
 
-    CATCHUP["Predictive Catch-Up<br/>Simulate with empty inputs<br/>from confirmed frame to iTargetTick<br/>using per-coord replay stacks<br/>Inject late-confirmed coords at their frame<br/>Move replay stack frames<br/>into newSnapshots per frame<br/>(CRCs already in Frame's postRender;<br/>recycled to snapshots ring<br/>for next tick's CRC fast-path)"]:::replay
-
-    CATCHUP --> DONE["Return to main thread<br/>via ClientReconciler::ApplyResult()"]
+    HUMAN --> DONE["Return to main thread<br/>via ApplyResult()"]
+    FASTDONE --> NEXTCOORD
 ```
 
 ## Pending Full State Injection
 
-Full states arrive during subscription changes (client subscribes to a new coord). Stored per-coord in `CoordFrames::pendingFullState` (an optional pair of frame number and unique_ptr Frame) and injected at two points:
+Full states arrive during subscription changes and are injected at two points during reconciliation:
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart LR
     classDef injection fill:#dcfce7,stroke:#16a34a
 
-    PFS["CoordFrames::pendingFullState<br/>optional (iFrame, unique_ptr Frame)<br/>per coord"]
+    PFS["CoordFrames::pendingFullState"]
 
-    PRE["Unified Rollback<br/>If pending iFrame<br/>at or before rollback frame"]:::injection
-    MAIN["Full Replay<br/>At matching<br/>transfer frame"]:::injection
+    PRE["ReconcileRollbackCoord()<br/>at or before confirmed frame"]:::injection
+    MAIN["ReconcileReplayCoord()<br/>at matching transfer frame"]:::injection
 
-    PFS --> PRE
-    PFS --> MAIN
-
-    NOTE["Injects into replay stack[0]<br/>(next frames created inline<br/>by ReconcileRunTick)"]
+    PFS -->|"injects into"| PRE
+    PFS -->|"injects into"| MAIN
 ```
 
 ## Extrapolation Mode
 
-Pre-reconciliation client simulation that runs physics forward from confirmed server state before the reconciler has kicked in. The client receives initial full states, then extrapolates forward using empty inputs, building up a snapshot ring buffer. When reconciliation starts, these snapshots become the initial ring for the reconciler.
+Pre-reconciliation client simulation that runs physics forward from confirmed server state before the reconciler has kicked in.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -88,29 +89,29 @@ flowchart TD
     classDef normal fill:#dbeafe,stroke:#3b82f6
     classDef snapshot fill:#dcfce7,stroke:#16a34a
 
-    START["GameBase::ClientUpdate()<br/>Physics tick loop"]
+    START["GameBase::ClientUpdate()"]
 
-    IS_EXTRAP{"IsExtrapolating()?<br/>(connected AND any coord<br/>has iConfirmedTick >= 0)"}:::check
+    IS_EXTRAP{"IsExtrapolating()?"}:::check
 
-    PREPARE["PrepareExtrapolationTick(activeCoords)<br/>Per coord with confirmed data:<br/>1. If snapshot ring full (>= kiTickRate):<br/>   advance head, drop oldest,<br/>   decrement iConfirmedOffset<br/>2. Allocate Frame at next ring slot<br/>   if nullptr"]:::extrapolate
+    PREPARE["PrepareExtrapolationTick()<br/>manage snapshot ring buffer"]:::extrapolate
 
-    BUILD_REF["BuildExtrapolationFrameRef(coord)<br/>Redirect ActiveFrameRef:<br/>• pNext → snapshot at ring tail<br/>• pCurrent → previous snapshot<br/>  (or CurrentFrame if first tick)"]:::extrapolate
+    BUILD_REF["BuildExtrapolationFrameRef()<br/>redirect ActiveFrameRef<br/>to snapshot stack"]:::extrapolate
 
-    RUN_TICK["BuildAndDispatchFrameTicks()<br/>RunFrameTick per-Frame<br/>(normal physics with empty inputs,<br/>same code path as live simulation)<br/>CRCs computed in postRender"]:::extrapolate
+    RUN_TICK["BuildAndDispatchFrameTicks()<br/>normal physics with<br/>empty inputs"]:::extrapolate
 
-    RECORD["RecordExtrapolationSnapshot(activeCoords)<br/>Per coord: increment iSnapshotCount<br/>(Frame already written by RunFrameTick,<br/>CRCs already in postRender)"]:::snapshot
+    RECORD["RecordExtrapolationSnapshot()"]:::snapshot
 
-    FINALIZE["FinalizeFrameTick(activeCoords, bExtrapolating=true)"]:::extrapolate
+    FINALIZE["FinalizeFrameTick()"]:::extrapolate
 
-    EXIT_CHECK{"Reconciler has new data?<br/>(full state arrived,<br/>mbHasNewData set by<br/>ApplyReceivedFullStates)"}:::check
+    EXIT_CHECK{"Reconciler has new data?"}:::check
 
-    TRANSITION["TryKickReconcile() → ClientReconciler::TryKick()<br/>Extrapolation snapshots become initial<br/>snapshot ring for reconciler<br/>(iSnapshotHead, iSnapshotCount, iConfirmedOffset<br/>carried into CoordReconcileWork)"]:::normal
+    TRANSITION["TryKickReconcile()<br/>extrapolation snapshots become<br/>initial reconciler ring"]:::normal
 
-    NORMAL["Normal reconciliation takes over<br/>IsExtrapolating() no longer checked<br/>once reconciler is active"]:::normal
+    NORMAL["Normal reconciliation"]:::normal
 
     START --> IS_EXTRAP
     IS_EXTRAP -->|"Yes"| PREPARE --> BUILD_REF --> RUN_TICK --> RECORD --> FINALIZE
-    IS_EXTRAP -->|"No"| NORMAL_TICK["Normal physics tick<br/>(non-networked or<br/>reconciliation active)"]:::normal
+    IS_EXTRAP -->|"No"| NORMAL_TICK["Normal physics tick"]:::normal
     FINALIZE --> EXIT_CHECK
     EXIT_CHECK -->|"Not yet"| START
     EXIT_CHECK -->|"Yes"| TRANSITION --> NORMAL
@@ -118,7 +119,7 @@ flowchart TD
 
 ## Main Loop Integration
 
-Where reconciliation entry points sit relative to physics and render in the client main loop. Network orchestration is encapsulated within `GameBase::UpdateClient()` and `GameBase::Render()`, which delegate to `ClientSession` methods (game-specific logic) and `ClientSessionBase` methods (engine-generic logic) — Main.cpp's loop simply calls `UpdateClient()`, `Render()`, and audio update. `UpdateClient()` calls `Poll()`, then `Reconcile()` (which self-gates via `IsStalled()`), then checks `IsStalled()` to gate physics ticks.
+Where reconciliation entry points sit relative to physics and render in the client main loop.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -131,14 +132,14 @@ flowchart TD
     MSG["ProcessMessages()<br/>RawInput Update"] --> TICK_FRAMES
 
     subgraph TICK_FRAMES ["GameBase::UpdateClient()"]
-        POLL["ClientSession::Poll()<br/>(PollNetwork, SendAck, Flush)"]:::reconcile
+        POLL["ClientSession::Poll()<br/>network poll, ACK, flush"]:::reconcile
 
-        RECONCILE_STEP["ClientSession::Reconcile()<br/>(self-gates on IsStalled)<br/>(WaitForReconcile<br/>-> ClientReconciler::Wait(),<br/>tick deficit, clock correction)"]:::reconcile
+        RECONCILE_STEP["ClientSession::Reconcile()<br/>gates on IsStalled()"]:::reconcile
         POLL --> RECONCILE_STEP
 
         STALL_CHECK{"IsStalled()?"}
         RECONCILE_STEP --> STALL_CHECK
-        STALL_CHECK -->|"Yes"| EARLY_RETURN["early-return<br/>(skip physics)"]
+        STALL_CHECK -->|"Yes"| EARLY_RETURN["skip physics"]
 
         PHYSICS["Fixed-rate physics ticks"]:::physics
 
@@ -147,30 +148,14 @@ flowchart TD
 
     subgraph RENDER_METHOD ["GameBase::Render()"]
         RENDER["Render interpolation +<br/>GPU rendering"]:::render
-        POST_RENDER["ClientSession::PostRender()<br/>(IsStalled: early-return,<br/>normal: TryKickReconcile<br/>-> ClientReconciler::TryKick()<br/>gated by mbHasNewData)"]:::reconcile
+        POST_RENDER["ClientSession::PostRender()<br/>TryKickReconcile"]:::reconcile
         RENDER --> POST_RENDER
     end
 
-    AUDIO["AudioManager::Update(pFrame)<br/>(nullable Frame*)"]
+    AUDIO["AudioManager::Update()"]
 
     TICK_FRAMES --> RENDER_METHOD --> AUDIO
     AUDIO --> MSG
-```
-
-## Soft Clock Correction
-
-Keeps client ~RTT/2 + 1 frames behind the server so updates arrive before the client simulates those frames, enabling routine CRC fast-path success.
-
-```
-iTargetBehind = ceil(RTT/2 / frameTime) + 1
-iOffset       = preReconcileFrame - latestServerFrame
-iError        = iOffset - iTargetBehind
-
-correction    = -clamp(iError, -4, +4) * kTickNs / 64
-                 ─────────────────────
-                 Proportional, max ±4 steps, 1/64 frame per error unit
-
-Applied: mTickRemainderNs += frameDeficit * kTickNs + correction
 ```
 
 ## Desync Debug Mode
@@ -187,29 +172,27 @@ sequenceDiagram
 
     Worker->>Worker: CRC mismatch detected
     Worker->>Worker: Deep-copy client Frame
-    Worker->>Main: Return desync info in ReconcileContext
+    Worker->>Main: Return desync info
 
-    Main->>Main: ClientReconciler::Wait() returns ReconcileDesyncInfo
-    Main->>Net: SendDesyncReport(frame, coord, serverCrc, clientCrc)
-    Main->>Net: SendDebugFrameRequest(frame, coord)
+    Main->>Main: ClientReconciler::Wait()
+    Main->>Net: SendDesyncReport()
+    Main->>Net: SendDebugFrameRequest()
     Main->>Net: SetDesyncDebugMode(true)
     Net->>Server: Desync report + debug frame request
 
-    Note over Main: Reconcile() self-gates via IsStalled().<br/>IsStalled() check after Reconcile() causes<br/>early-return from UpdateClient() (skips physics).<br/>PostRender() also early-returns.<br/>Render and audio still run.
+    Note over Main: IsStalled() gates physics<br/>and reconciliation.<br/>Render and audio still run.
 
-    Server->>Net: Debug frame response (serialized Frame)
+    Server->>Net: Debug frame response
     Main->>Main: PollNetwork() drains debug frame
     Main->>Main: CompareWithServerFrame()
-    Main->>Main: rClientFrame.LogDifferences(rServerFrame)
-    Note over Main: LogDifference per shared field<br/>logs mismatches via Log(kLogNetwork)<br/>then DEBUG_BREAK()
+    Main->>Main: LogDifferences() then DEBUG_BREAK()
 
-    Main->>Main: Show modal "Desynced from server"
-    Main->>Net: Disconnect()
+    Main->>Main: Show modal, disconnect
 ```
 
 ## Player Event Parsing
 
-Raw game packets received from the engine's `Client::DrainReceivedGamePackets()` are parsed into typed `ReceivedPlayerEvent` structs by `ParsePlayerEvents()`. The `kServerAssignPlayer` packet type produces `kAssigned` events directly (no wire type), while `kServerPlayerState` packets carry a `PlayerStateWireType` byte that maps to `kSpawned`, `kChangedFrame`, or `kDied`.
+Raw game packets are parsed into typed events. `kServerAssignPlayer` maps directly to `kAssigned`; `kServerPlayerState` packets carry a `PlayerStateWireType` that maps to the remaining event types.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -218,94 +201,27 @@ flowchart LR
     classDef event fill:#dcfce7,stroke:#16a34a
     classDef func fill:#dbeafe,stroke:#3b82f6
 
-    RAW["Raw Game Packets<br/>(from Client::<br/>DrainReceivedGamePackets)"]
-    PARSE["ParsePlayerEvents()<br/>PlayerEvents.cpp"]:::func
+    RAW["Raw Game Packets<br/>from Client"]
+    PARSE["ParsePlayerEvents()"]:::func
 
     RAW --> PARSE
 
-    subgraph wire_types ["PlayerStateWireType (uint8_t)"]
-        W0["kSpawned (0)"]:::wire
-        W1["kChangedFrame (1)"]:::wire
-        W2["kDied (2)"]:::wire
+    subgraph wire_types ["PlayerStateWireType"]
+        W0["kSpawned"]:::wire
+        W1["kChangedFrame"]:::wire
+        W2["kDied"]:::wire
     end
 
     subgraph event_types ["ReceivedPlayerEvent"]
-        E0["kAssigned<br/>(from kServerAssignPlayer)"]:::event
+        E0["kAssigned"]:::event
         E1["kSpawned"]:::event
         E2["kChangedFrame"]:::event
         E3["kDied"]:::event
     end
 
-    PARSE --> E0
-    PARSE --> wire_types
+    PARSE -->|"kServerAssignPlayer"| E0
+    PARSE -->|"kServerPlayerState"| wire_types
     W0 --> E1
     W1 --> E2
     W2 --> E3
 ```
-
-## Reconcile Context (Async Data Shuttle)
-
-Data flows between main thread and worker via `ReconcileContext`, which contains per-coord `CoordReconcileWork` items:
-
-| Direction | Fields |
-|-----------|--------|
-| **Main → Worker (per-coord)** | `CoordReconcileWork::iConfirmedTick`, `iConfirmedOffset`, `iSnapshotHead`, `iSnapshotCount`, `serverUpdates`, `snapshots` (ring buffer; CRCs read from Frame's `postRender` fields), `pendingFullState`, `uiGeneration` |
-| **Main → Worker (global)** | `confirmedHumanState`, `uiNextFrameId`, `iTargetTick`, `playerAlignment` |
-| **Worker internal** | per-coord `replayStack` (raw `Frame*` pointers)/`iReplayStackCount`, `replayWorkspace` (owns scratch Frames)/`iReplayWorkspaceUsed`, `iLastValidatedIndex` (in `CoordReconcileWork`), `frameInputs`, `activeCoords`, `humanGridCoord`, `iTickCounter`, `fCurrentTime` |
-| **Worker → Main (per-coord)** | `CoordReconcileWork::iNewConfirmedTick`, `iNewConfirmedOffset`/`iNewConfirmedNewSnapshotIndex`, `newSnapshots` (from catch-up), `bCrcFastPath` |
-| **Worker → Main (global)** | `newConfirmedHumanState`, `bCrcFastPathHandledAll` |
-| **Worker → Main (profiling)** | `iCrcValidatedFrameTicks`, `iAssumedFrameTicks`, `iCrcFastPathEvents`, `iStatusChangeReplayTicks`, `iKnockOnReplayTicks` → fed to `ProfileManagerBase::SetReconcileCounters()` |
-| **Desync (deferred, global)** | `iDesyncTick`, `desyncCoord`, `desyncServerCrc`, `desyncClientCrc`, `pDesyncClientFrame` (fields at `ReconcileContext` level, not per-coord) |
-
-## Key Functions
-
-| Function | Owner | Thread | Purpose |
-|----------|-------|--------|---------|
-| `WaitForReconcile()` | ClientSession | Main | Delegates to `ClientReconciler::Wait()`, handles desync result |
-| `TryKickReconcile()` | ClientSession | Main | Delegates to `ClientReconciler::TryKick()` |
-| `TryKick()` | ClientReconciler | Main | Gate on `mbHasNewData` (skip if no new server data), build per-coord `CoordReconcileWork` items, dispatch `Kick()` |
-| `Kick()` | ClientReconciler | Main | Build `ReconcileContext` with per-coord work (move snapshots from `CoordFrames` ring buffer to work), dispatch worker via `PersistentWorker` |
-| `Wait()` | ClientReconciler | Main | Block until async worker done, call `ApplyResult()`, return `ReconcileDesyncInfo` |
-| `Reconcile()` | ClientReconciler | Worker | Static — orchestrates CRC fast-path, unified rollback, full replay (capped), catch-up |
-| `ReconcileCrcFastPath()` | ReconcileReplay | Worker | Per-coord CRC fast-path check; returns (allHandled, minConfirmedTick) |
-| `ApplyResult()` | ClientReconciler | Main | Apply per-coord worker results (guarded by `uiGeneration` to skip stale coords, only advance confirmed state when `iNewConfirmedTick >= 0`), move latest replay stack entries into `mCoordFrames[coord].current` for rendering, recycle snapshots back to `CoordFrames`'s ring buffer, merge catch-up newSnapshots, handle desync, restore unconsumed updates |
-| `ApplyCoordWriteback()` | ClientReconciler | Main | Static — write back per-coord results (confirmed tick/offset, snapshots) from `CoordReconcileWork` to `CoordFrames` |
-| `ReconcileRollback()` | ReconcileReplay | Worker | Retrieve confirmed frames from snapshots ring into replay stacks, inject pending full states |
-| `ReconcileFindReplayRange()` | ReconcileReplay | Worker | Scan for max consecutive server frames from minConfirmedTick + 1 |
-| `ReconcileReplay()` | ReconcileReplay | Worker | Full replay loop: BuildFrameInput, RunTick, inject full states/late coords, validate CRCs |
-| `ReconcileRunTick()` | ReconcileReplay | Worker | Per-tick physics execution during replay/catch-up (calls RunFrameTick per-Frame) |
-| `ReconcileTrackHumanMigration()` | ReconcileReplay | Worker | Track human player position changes during coord transfer |
-| `ReconcileEnsureWorkspaceFrames()` | ReconcileReplay | Worker | Ensure workspace has enough allocated Frames for replay |
-| `ReconcileBuildActiveFrameRefs()` | ReconcileReplay | Worker | Build span of ActiveFrameRef for current tick |
-| `ReconcileExecuteTick()` | ReconcileReplay | Worker | Run physics per-Frame during a single tick, then apply transfer StatusChanges and recompute CRCs for frames that had transfers |
-| `ReconcileAdvanceStack()` | ReconcileReplay | Worker | Advance replay stack pointers after tick completes |
-| `ReconcileComputeActiveCoords()` | ReconcileReplay | Worker | Compute active coords for current reconcile tick |
-| `ReconcileBuildFrameInput()` | ReconcileReplay | Worker | Build per-coord frame inputs from server status changes |
-| `ReconcileInjectPendingFullState()` | ReconcileReplay | Worker | Inject pending full state into coord replay stack |
-| `ReconcileInjectLateConfirmedCoord()` | ReconcileReplay | Worker | Inject late-confirmed coord at its confirmed frame |
-| `ReconcileValidateCrcs()` | ReconcileReplay | Worker | Validate input and state CRCs per coord per frame |
-| `ReconcileCatchUp()` | ReconcileReplay | Worker | Predictive catch-up from confirmed frame to target tick with empty inputs |
-| `ReconcilePruneInactiveFrames()` | ReconcileReplay | Worker | Clear replay stacks for non-active coords |
-| `PollNetwork()` | ClientSession | Main | Parse raw game packets via `ParsePlayerEvents()` into `ReceivedPlayerEvent` structs (assigned/spawned/frame change/death), apply full states to `CoordFrames`s, buffer per-slot deltas, check debug frame |
-| `ParsePlayerEvents()` | PlayerEvents | Main | Parse raw game packets into typed `ReceivedPlayerEvent` structs |
-| `ApplyReceivedFullStates()` | ClientSession | Main | Route full states to `CoordFrames::pendingFullState` or `mCoordFrames[coord].current`; on initial connection, sets `confirmedHumanState.fCurrentTime` from first coord only |
-| `ApplyReceivedUpdates()` | ClientSession | Main | Call `ApplyReceivedUpdatesBase()` (engine) to buffer per-slot updates into `CoordFrames::serverUpdates` |
-| `UpdateSubscriptions()` | ClientSession | Main | Compute desired coords based on player state (alive: human + 3 quadrant neighbors via `ComputeQuadrantOffsets()`, dead: death coord + origin, not-yet-assigned: origin), delegate to `UnsubscribeStaleCoords()` and `BuildSubscriptionQueue()` (engine base) |
-| `TrySubscribeNext()` | ClientSessionBase | Main | Pop next coord from `mSubscriptionQueue` and `SendSubscribe`; gates on no slot being in `kSubscribing`, `kWaitingFullState`, or `kUnsubscribing` state |
-| `ComputeClockCorrectionNs()` | ClientSessionBase | Main | Proportional clock correction from frame offset and RTT |
-| `ServerSession::DetectPlayerDeaths()` | ServerSession | Main (server) | Detect player deaths server-side and send `kServerPlayerState` with primitive types (uint8_t stateType, int64_t playerId, GridCoord) to clients |
-| `UnsubscribeStaleCoords()` | ClientSessionBase | Main | Unsubscribe coords no longer in the desired set |
-| `BuildSubscriptionQueue()` | ClientSessionBase | Main | Build `mSubscriptionQueue` from desired coords not yet subscribed |
-| `IsExtrapolating()` | ClientSessionBase | Main | Returns whether the client is in extrapolation mode (no confirmed server data yet) |
-| `PrepareExtrapolationTick()` | ClientSessionBase | Main | Set up snapshot ring buffer for next extrapolation tick |
-| `BuildExtrapolationFrameRef()` | ClientSessionBase | Main | Redirect ActiveFrameRef to snapshot stack for extrapolation |
-| `RecordExtrapolationSnapshot()` | ClientSessionBase | Main | Advance snapshot count after extrapolation tick (CRCs already in Frame from RunFrameTick) |
-| `GetSnapshotFrame()` | ClientSessionBase | Main | Get latest snapshot Frame for a coord |
-| `GetConfirmedTick()` | ClientSessionBase | Main | Return the latest confirmed server tick |
-| `ConnectToServer()` | ClientSessionBase | Main | Create Client and connect to server via ENet |
-| `DisconnectFromServerBase()` | ClientSessionBase | Main | Tear down Client and reset connection state |
-| `ApplyReceivedUpdatesBase()` | ClientSessionBase | Main | Buffer per-slot updates into `CoordFrames::serverUpdates` |
-| `WaitForTick()` | ServerSessionBase | Main (server) | Waitable timer + spin-wait until next server tick |
-| `PollNetworkBase()` | ServerSessionBase | Main (server) | Poll ENet events and DiscoveryResponder |
-| `SendNewSubscriptionFullStates()` | ServerSessionBase | Main (server) | Send full state for newly subscribed coords |
-| `CompareWithServerFrame()` | ClientSession | Main | Per-field `LogDifferences()` comparison with diagnostic logging |

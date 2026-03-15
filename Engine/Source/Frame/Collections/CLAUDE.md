@@ -25,4 +25,4 @@ Template-based Structure-of-Arrays (SOA) collection system providing memory mana
 
 - [Frame/CLAUDE.md](../CLAUDE.md) - Frame update pipeline and dual-buffer architecture
 - [Game collections](../../../../Projects/BrokenEngineSandbox/Source/Frame/Collections/CLAUDE.md) - Game-specific collection implementations
-- [FrameUpdatePipeline](../../../../Documents/Architecture/FrameUpdatePipeline.md) - Architecture diagrams
+- [FrameUpdatePipeline](../../../../Documents/Architecture/FrameUpdatePipeline.md) - Main loop and RunFrameTick phase ordering — update this diagram if collection phases change

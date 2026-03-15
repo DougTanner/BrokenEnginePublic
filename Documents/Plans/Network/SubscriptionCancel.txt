@@ -1,0 +1,191 @@
+Track Cancelled Subscriptions
+=============================
+
+Bug
+---
+In UnsubscribeStaleCoords (ClientSessionBase.cpp:114-116), when a kSubscribing
+slot's coord is no longer desired, the slot is silently reset:
+
+    if (rSlots.at(i).eState == CoordSubscriptionState::kSubscribing)
+    {
+        rSlots.at(i) = {};
+    }
+
+The server never learns the subscription was cancelled. It completes the
+handshake (ServerSubscribeAccept + full state ~KB compressed), the client
+processes it into kActive, then the next UnsubscribeStaleCoords call triggers a
+full unsubscribe round-trip. Wasted bandwidth and latency.
+
+Fix Overview
+------------
+Store cancelled coords in a small vector on Client. When ServerSubscribeAccept
+or ServerCoordFullState arrives for a cancelled coord, immediately SendUnsubscribe
+for the server-assigned slot (or reject the full state), avoiding the full state
+transfer entirely.
+
+Files Modified
+--------------
+1. Engine/Source/Network/Client/Client.h
+2. Engine/Source/Network/Client/ClientReceive.cpp
+3. Engine/Source/Network/Client/ClientSessionBase.cpp
+
+================================================================================
+Change 1: Client.h - Add cancelled coords storage and accessor
+================================================================================
+
+File: Engine/Source/Network/Client/Client.h
+
+After line 90 (the non-const GetCoordSlots):
+
+    std::vector<ClientCoordSlot>& GetCoordSlots() { return mCoordSlots; }
++   std::vector<GridCoord>& GetCancelledSubscriptions() { return mCancelledSubscriptions; }
+
+After line 143 (mDelayedPackets member):
+
+    std::deque<DelayedPacket> mDelayedPackets;
++
++   // Coords whose kSubscribing slot was cancelled before the server responded
++   std::vector<GridCoord> mCancelledSubscriptions;
+
+================================================================================
+Change 2: ClientSessionBase.cpp - Record cancelled coord in UnsubscribeStaleCoords
+================================================================================
+
+File: Engine/Source/Network/Client/ClientSessionBase.cpp
+Lines 114-116, replace the silent reset:
+
+BEFORE:
+        if (rSlots.at(i).eState == CoordSubscriptionState::kSubscribing)
+        {
+            rSlots.at(i) = {};
+        }
+
+AFTER:
+        if (rSlots.at(i).eState == CoordSubscriptionState::kSubscribing)
+        {
+            rSlots.at(i) = {};
+            mpClientNetwork->GetCancelledSubscriptions().push_back(unsubCoord);
+        }
+
+================================================================================
+Change 3: ClientReceive.cpp - Intercept ServerSubscribeAccept for cancelled coords
+================================================================================
+
+File: Engine/Source/Network/Client/ClientReceive.cpp
+Lines 243-249, after the slot is set up for kWaitingFullState and before the log:
+
+BEFORE (line 243-249):
+    rSlot.coord = coord;
+    rSlot.eState = CoordSubscriptionState::kWaitingFullState;
+    rSlot.ackState.iAckFloor = -1;
+    rSlot.ackState.uiReceivedBitfield = 0;
+    rSlot.ackState.uiEpoch = uiEpoch;
+
+    Log(kLogNetwork, "Client::ServerSubscribeAccept Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+
+AFTER:
+    rSlot.coord = coord;
+    rSlot.eState = CoordSubscriptionState::kWaitingFullState;
+    rSlot.ackState.iAckFloor = -1;
+    rSlot.ackState.uiReceivedBitfield = 0;
+    rSlot.ackState.uiEpoch = uiEpoch;
+
+    // If this coord was cancelled while kSubscribing, immediately unsubscribe
+    auto& rCancelled = mCancelledSubscriptions;
+    auto cancelIt = std::ranges::find(rCancelled, coord);
+    if (cancelIt != rCancelled.end())
+    {
+        rCancelled.erase(cancelIt);
+        Log(kLogNetwork, "Client::ServerSubscribeAccept Cancelled Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+        SendUnsubscribe(uiSlotIndex);
+        return;
+    }
+
+    Log(kLogNetwork, "Client::ServerSubscribeAccept Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+
+================================================================================
+Change 4: ClientReceive.cpp - Intercept ServerCoordFullState for cancelled coords
+================================================================================
+
+File: Engine/Source/Network/Client/ClientReceive.cpp
+Lines 70-90, the slot validation block. Add cancel check after the existing
+validation but before pushing the full state. Insert after line 90 (the final
+else return):
+
+BEFORE (line 92):
+    ReceivedCoordFullState fullState {};
+
+AFTER:
+    // If this coord was cancelled while kSubscribing, reject the full state
+    auto& rCancelled = mCancelledSubscriptions;
+    auto cancelIt = std::ranges::find(rCancelled, coord);
+    if (cancelIt != rCancelled.end())
+    {
+        rCancelled.erase(cancelIt);
+        Log(kLogNetwork, "Client::ServerCoordFullState Cancelled Coord: ({},{}) Slot: {}", coord.x, coord.y, uiSlotIndex);
+        rSlot = {};
+        return;
+    }
+
+    ReceivedCoordFullState fullState {};
+
+Note: In the full-state-before-accept race case, the slot was just set up by
+lines 74-78 (kUnsubscribed path). Resetting it here is correct -- the accept
+will arrive later and find kUnsubscribed, at which point the accept intercept
+(Change 3) handles it. However, if the cancel entry was already consumed by
+this path, the accept path needs no cancel entry. The coord appears in
+mCancelledSubscriptions once per cancellation, and either ServerSubscribeAccept
+or ServerCoordFullState consumes it (whichever arrives first). The second
+arrival finds a kUnsubscribing or kUnsubscribed slot and returns early via
+existing validation.
+
+================================================================================
+Change 5: ClientSessionBase.cpp - Clear cancelled list on disconnect
+================================================================================
+
+File: Engine/Source/Network/Client/ClientSessionBase.cpp
+Line 30, in DisconnectFromServerBase, after mSubscriptionQueue.clear():
+
+BEFORE:
+    mSubscriptionQueue.clear();
+    miClockError = 0;
+
+AFTER:
+    mSubscriptionQueue.clear();
+    mpClientNetwork->GetCancelledSubscriptions().clear();
+    miClockError = 0;
+
+Wait -- mpClientNetwork is about to be reset on line 25. The clear happens
+before reset, but actually mpClientNetwork is already null after line 25.
+Move the clear before the reset.
+
+Corrected: Insert before line 25 (mpClientNetwork.reset()):
+
+BEFORE (lines 24-25):
+    miLatestServerTick = -1;
+    mpClientNetwork.reset();
+
+AFTER:
+    miLatestServerTick = -1;
+    mpClientNetwork->GetCancelledSubscriptions().clear();
+    mpClientNetwork.reset();
+
+Actually, mpClientNetwork is destroyed by reset() which destroys the vector
+anyway. No explicit clear needed. Skip Change 5 entirely.
+
+================================================================================
+Summary of Changes
+================================================================================
+
+Client.h:
+  - Add mCancelledSubscriptions vector member
+  - Add GetCancelledSubscriptions() accessor
+
+ClientSessionBase.cpp (UnsubscribeStaleCoords):
+  - After resetting a kSubscribing slot, push coord to cancelled list
+
+ClientReceive.cpp (ServerSubscribeAccept):
+  - After slot setup, check cancelled list; if found, erase + SendUnsubscribe + return
+
+ClientReceive.cpp (ServerCoordFullState):
+  - Before pushing full state, check cancelled list; if found, erase + reset slot + return

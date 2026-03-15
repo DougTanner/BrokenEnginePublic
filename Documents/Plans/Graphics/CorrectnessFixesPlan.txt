@@ -1,0 +1,125 @@
+================================================================================
+Vulkan Renderer Correctness Fixes Plan
+================================================================================
+
+================================================================================
+VALIDATION
+================================================================================
+
+Finding 1.1 [Latent Bug] -- No zero-size swapchain check
+  Status: VALID
+  Location: SwapchainManager.cpp constructor
+  Analysis:
+    WM_SIZE in Main.cpp (line 562) sets gWantedFramebufferExtent2D directly from
+    lParam with no filtering. When a window is minimized, Windows sends WM_SIZE
+    with width=0 and height=0. This flows into Graphics::Refresh() which triggers
+    DestroyType::kSwapchain, and the SwapchainManager constructor receives
+    currentExtent {0, 0} from vkGetPhysicalDeviceSurfaceCapabilitiesKHR.
+    vkCreateSwapchainKHR with a zero-dimension extent is invalid per the Vulkan
+    spec (VUID-VkSwapchainCreateInfoKHR-imageExtent-01689). Additionally, line
+    207 performs a division by height for mfAspectRatio, which would divide by
+    zero.
+  Fix approach: Skip swapchain recreation when extent is zero. The simplest and
+    most correct place is in Graphics::Refresh() -- if the wanted extent is zero,
+    do not trigger a swapchain recreation. The next WM_SIZE with a non-zero
+    extent (on restore) will trigger recreation normally.
+
+Finding 2.1 [Latent Bug] -- vkGetFenceStatus error not fully checked
+  Status: VALID
+  Location: Graphics.cpp:117
+  Analysis:
+    vkGetFenceStatus returns VK_SUCCESS, VK_NOT_READY, or VK_ERROR_DEVICE_LOST.
+    The current code at line 117-122 checks only for VK_NOT_READY, meaning
+    VK_ERROR_DEVICE_LOST falls through to the render path as if the fence were
+    signaled. The code already has device-lost handling via CHECK_VK (which
+    throws DeviceLostException), so routing VK_ERROR_DEVICE_LOST through CHECK_VK
+    is the correct behavior.
+  Fix approach: Route the result through CHECK_VK when it is not VK_SUCCESS and
+    not VK_NOT_READY. This catches VK_ERROR_DEVICE_LOST (and any future error
+    codes) and triggers the existing DeviceLostException path.
+
+Finding 3.1 [Latent Bug] -- Bindless texture array size unchecked against limits
+  Status: INVALID
+  Analysis:
+    The descriptor array size in TextureDescriptors::Create() at line 28 uses
+    mImageInfos.size(), which is set in TextureManager.cpp:127 to
+    mTextureMap.size() -- the count of textures loaded from the pack file. This
+    is a fixed, known quantity determined at build time by the data packer, not
+    a dynamic/unbounded value. It represents all textures the game ships with.
+    The Vulkan 1.2 minimum guarantee for maxDescriptorSetSampledImages is
+    1,048,576 on conformant hardware, and maxPerStageDescriptorSampledImages is
+    at least 1,048,576 with descriptorIndexing features. A game shipping a
+    million textures is not a realistic scenario. Furthermore, if this limit were
+    ever exceeded, the Vulkan validation layers would catch it immediately during
+    development. Adding a runtime check for this would be YAGNI -- it validates a
+    build-time invariant at runtime. The codebase has no references to
+    maxDescriptorSetSampledImages anywhere, consistent with a deliberate decision
+    not to validate against limits that are guaranteed to be large enough.
+
+================================================================================
+IMPLEMENTATION PLAN
+================================================================================
+
+--------------------------------------------------------------------------------
+Step 1: Skip swapchain recreation on zero-size extent
+  File: Engine/Source/Graphics/Graphics.cpp
+  Location: Graphics::Refresh(), around line 263
+--------------------------------------------------------------------------------
+
+Current code (line 263-268):
+    if (gWantedFramebufferExtent2D.width != mFramebufferExtent2D.width || gWantedFramebufferExtent2D.height != mFramebufferExtent2D.height) [[unlikely]]
+    {
+        Log("{} x {} -> {} x {}", mFramebufferExtent2D.width, mFramebufferExtent2D.height, gWantedFramebufferExtent2D.width, gWantedFramebufferExtent2D.height);
+        mFramebufferExtent2D = gWantedFramebufferExtent2D;
+        meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
+    }
+
+Change to:
+    if (gWantedFramebufferExtent2D.width != mFramebufferExtent2D.width || gWantedFramebufferExtent2D.height != mFramebufferExtent2D.height) [[unlikely]]
+    {
+        Log("{} x {} -> {} x {}", mFramebufferExtent2D.width, mFramebufferExtent2D.height, gWantedFramebufferExtent2D.width, gWantedFramebufferExtent2D.height);
+        if (gWantedFramebufferExtent2D.width == 0 || gWantedFramebufferExtent2D.height == 0)
+        {
+            return;
+        }
+        mFramebufferExtent2D = gWantedFramebufferExtent2D;
+        meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
+    }
+
+Rationale: Early return prevents all subsequent Refresh() checks from running
+when the window is minimized, which is correct -- no graphics settings changes
+should trigger recreation while minimized. On restore, WM_SIZE fires again with
+a valid extent, Refresh() detects the mismatch, and swapchain recreation proceeds
+normally.
+
+--------------------------------------------------------------------------------
+Step 2: Handle vkGetFenceStatus error result
+  File: Engine/Source/Graphics/Graphics.cpp
+  Location: Graphics::RenderGlobal(), line 117-122
+--------------------------------------------------------------------------------
+
+Current code (line 117-122):
+    VkResult vkResult = vkGetFenceStatus(gpDeviceManager->mVkDevice, rCommandBuffers.mVkFence);
+    if (vkResult == VK_NOT_READY)
+    {
+        ScopedCpuProfile scopedCpuProfile(kCpuTimerWaitFence);
+        CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNs.count()));
+    }
+
+Change to:
+    VkResult vkResult = vkGetFenceStatus(gpDeviceManager->mVkDevice, rCommandBuffers.mVkFence);
+    if (vkResult == VK_NOT_READY)
+    {
+        ScopedCpuProfile scopedCpuProfile(kCpuTimerWaitFence);
+        CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNs.count()));
+    }
+    else if (vkResult != VK_SUCCESS)
+    {
+        CHECK_VK(vkResult);
+    }
+
+Rationale: Routes VK_ERROR_DEVICE_LOST (the only other possible return value per
+the Vulkan spec) through CHECK_VK, which triggers DeviceLostException via the
+existing CheckVkFailed handler. This prevents the code from proceeding with an
+invalid device state. The normal VK_SUCCESS path (fence already signaled) still
+skips the wait as before.

@@ -1,0 +1,325 @@
+Voice Storage and Update Loop Improvements
+============================================
+Optimize AudioManager voice storage, reduce per-frame overhead in Apply3dVolume,
+eliminate O(N*M) validity checks, and clean up StaticVoice class.
+
+
+Finding [H3]: Voice count cap for static voices
+Status: MODIFIED
+The static voice map (mStaticVoices) can grow without bound. PlayOneShot one-shot
+voices are managed by XAudio2 internally, so those are fine. Add a cap only for
+the static voice map. Per CLAUDE.md, no error handling/logging -- just skip
+allocation when at capacity.
+
+  File: Engine/Source/Audio/AudioManager.h
+    - Add a constant above the class: constexpr int64_t kiMaxStaticVoices = 128;
+
+  File: Engine/Source/Audio/AudioManager.cpp
+    - Line 448-476 (add new voices loop): After the volume <= 0 check and the
+      contains() check, add an early continue if mStaticVoices.size() >= kiMaxStaticVoices.
+      Place it before LoadXAudio2SourceVoice to avoid allocating a voice we'd discard.
+
+      After line 462 (if mStaticVoices.contains(id)), add:
+        if (static_cast<int64_t>(mStaticVoices.size()) >= kiMaxStaticVoices)
+        {
+            continue;
+        }
+
+
+Finding [M6]: Replace unordered_map with flat storage for mStaticVoices
+Status: MODIFIED
+Replace std::unordered_map<sound_t, StaticVoice> with a fixed-capacity flat array.
+Use a simple linear scan for lookups (voice counts are small, bounded by kiMaxStaticVoices).
+StaticVoice is move-only, so use a std::array + count pattern.
+
+  File: Engine/Source/Audio/AudioManager.h
+    - Line 67: Replace:
+        std::unordered_map<sound_t, StaticVoice> mStaticVoices;
+      With:
+        int64_t miStaticVoiceCount = 0;
+        std::array<StaticVoice*, kiMaxStaticVoices> mStaticVoices {};
+
+      NOTE: StaticVoice is move-only with a deleted default constructor and contains
+      an XMVECTOR (16-byte alignment). Using raw pointers to heap-allocated StaticVoice
+      objects avoids alignment issues with std::array<StaticVoice, N> and the deleted
+      default constructor problem. Alternatively, we could add a default constructor
+      and use std::optional<StaticVoice> but that adds complexity.
+
+      REVISED APPROACH: Add a default constructor to StaticVoice, use a flat array of
+      StaticVoice with a validity flag (mId being valid), and a count.
+
+      SIMPLEST APPROACH: Keep std::vector<StaticVoice> but reserve kiMaxStaticVoices
+      capacity up front. This gives flat storage (contiguous memory, good cache locality)
+      without needing default constructors. The vector won't reallocate since we cap at
+      kiMaxStaticVoices.
+
+  FINAL DECISION -- use std::vector<StaticVoice> with reserved capacity:
+
+  File: Engine/Source/Audio/AudioManager.h
+    - Line 67: Replace:
+        std::unordered_map<sound_t, StaticVoice> mStaticVoices;
+      With:
+        std::vector<StaticVoice> mStaticVoices;
+
+  File: Engine/Source/Audio/AudioManager.cpp
+    - In AudioManager constructor (after mRandomEngine.TimeSeed()):
+        mStaticVoices.reserve(kiMaxStaticVoices);
+
+    - Update all mStaticVoices usage to use linear scans instead of map operations:
+
+      Line 188-192 (ClearVoices): Change from map iteration to vector iteration.
+        Already iterates all elements, just change range-based for syntax:
+          for (auto& rStaticVoice : mStaticVoices)
+          {
+              rStaticVoice.mpVoice = nullptr;
+          }
+          mStaticVoices.clear();
+
+      Lines 404-446 (fade invalid voices): Currently iterates map with erase.
+        Change to iterate vector. For erase, swap with last element and pop_back:
+          for (int64_t i = 0; i < static_cast<int64_t>(mStaticVoices.size());)
+          {
+              StaticVoice& rVoice = mStaticVoices[i];
+              // ... validity check against rSoundsPostRender.puiIds ...
+              if (bDestroy)
+              {
+                  // Swap with last and pop (move assignment handles voice cleanup)
+                  if (i < static_cast<int64_t>(mStaticVoices.size()) - 1)
+                  {
+                      mStaticVoices[i] = std::move(mStaticVoices.back());
+                  }
+                  mStaticVoices.pop_back();
+              }
+              else
+              {
+                  ++i;
+              }
+          }
+
+      Lines 448-476 (add new voices): Change mStaticVoices.contains(id) to a
+        linear scan helper. Change mStaticVoices.emplace to push_back:
+          // Check if voice already exists
+          bool bExists = false;
+          for (const StaticVoice& rExisting : mStaticVoices)
+          {
+              if (rExisting.mId == id)
+              {
+                  bExists = true;
+                  break;
+              }
+          }
+          if (bExists)
+          {
+              continue;
+          }
+
+          // Cap check
+          if (static_cast<int64_t>(mStaticVoices.size()) >= kiMaxStaticVoices)
+          {
+              continue;
+          }
+
+          // ... LoadXAudio2SourceVoice ...
+          mStaticVoices.push_back(StaticVoice(pVoice, id, uiCrc, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity));
+
+      Lines 479-495 (sync volume/positions): Change map find to linear scan:
+          StaticVoice* pVoice = nullptr;
+          for (StaticVoice& rExisting : mStaticVoices)
+          {
+              if (rExisting.mId == id)
+              {
+                  pVoice = &rExisting;
+                  break;
+              }
+          }
+          if (pVoice == nullptr)
+          {
+              continue;
+          }
+
+      Lines 512-515 (Apply3dVolume loop): Already iterates all, just update syntax:
+          for (const StaticVoice& rVoice : mStaticVoices)
+          {
+              Apply3dVolume(rVoice.mpVoice, ...);
+          }
+
+      Line 517: Change mStaticVoices.size() -- already works with vector.
+
+      Line 145 (destructor): mStaticVoices.clear() -- already works with vector.
+
+
+Finding [M7]: Cache mastering voice details
+Status: CONFIRMED
+GetVoiceDetails() and GetOutputFormat() are called per-voice per-frame in Apply3dVolume.
+These values only change on device reset. Cache them as member variables.
+
+  File: Engine/Source/Audio/AudioManager.h
+    - Add member variables after mfManualFadeVolume (line 83):
+        int64_t miMasteringVoiceChannels = 0;
+
+  File: Engine/Source/Audio/AudioManager.cpp
+    - Extract the channel calculation from Apply3dVolume into a helper, cache on init.
+
+    - In the constructor, after mpAudioEngine is created and validated (line 106-123),
+      add after the existing voice details logging:
+        miMasteringVoiceChannels = std::min(
+            static_cast<int64_t>(voiceDetails.InputChannels),
+            static_cast<int64_t>(waveFormatExtensible.Format.nChannels));
+
+      Wait -- the constructor already queries voiceDetails and waveFormatExtensible
+      (lines 115-123). Reuse those values:
+        WAVEFORMATEXTENSIBLE waveFormatExtensible = mpAudioEngine->GetOutputFormat();
+        miMasteringVoiceChannels = std::min(
+            static_cast<int64_t>(voiceDetails.InputChannels),
+            static_cast<int64_t>(waveFormatExtensible.Format.nChannels));
+
+      NOTE: The constructor already has local variables voiceDetails and
+      waveFormatExtensible at lines 115-122. Just add the cache assignment after line 123.
+
+    - In OnReset() (line 586), after ClearVoices(), re-cache:
+        if (mpAudioEngine != nullptr && mpAudioEngine->IsAudioDevicePresent())
+        {
+            IXAudio2MasteringVoice* pMasterVoice = mpAudioEngine->GetMasterVoice();
+            XAUDIO2_VOICE_DETAILS voiceDetails {};
+            pMasterVoice->GetVoiceDetails(&voiceDetails);
+            WAVEFORMATEXTENSIBLE waveFormat = mpAudioEngine->GetOutputFormat();
+            miMasteringVoiceChannels = std::min(
+                static_cast<int64_t>(voiceDetails.InputChannels),
+                static_cast<int64_t>(waveFormat.Format.nChannels));
+        }
+
+      Actually, OnReset calls ClearVoices then returns. The re-cache should happen
+      in Update() after mpAudioEngine->Reset() at line 350. But Reset() is followed
+      by ClearVoices and then IsAudioDevicePresent check. The channel count will be
+      re-queried after reset succeeds. Add re-cache after line 350:
+        mpAudioEngine->Reset();
+        ClearVoices();
+        // Re-cache mastering voice channels after device reset
+        {
+            IXAudio2MasteringVoice* pMasterVoice = mpAudioEngine->GetMasterVoice();
+            XAUDIO2_VOICE_DETAILS voiceDetails {};
+            pMasterVoice->GetVoiceDetails(&voiceDetails);
+            WAVEFORMATEXTENSIBLE waveFormat = mpAudioEngine->GetOutputFormat();
+            miMasteringVoiceChannels = std::min(
+                static_cast<int64_t>(voiceDetails.InputChannels),
+                static_cast<int64_t>(waveFormat.Format.nChannels));
+        }
+
+    - In Apply3dVolume (lines 301-305), replace:
+        IXAudio2MasteringVoice* pIXAudio2MasteringVoice = mpAudioEngine->GetMasterVoice();
+        XAUDIO2_VOICE_DETAILS voiceDetails {};
+        pIXAudio2MasteringVoice->GetVoiceDetails(&voiceDetails);
+        WAVEFORMATEXTENSIBLE waveFormatExtensible = mpAudioEngine->GetOutputFormat();
+        int64_t iMasteringVoiceChannels = std::min(static_cast<int64_t>(voiceDetails.InputChannels), static_cast<int64_t>(waveFormatExtensible.Format.nChannels));
+      With:
+        int64_t iMasteringVoiceChannels = miMasteringVoiceChannels;
+
+      Keep the SetOutputMatrix call using mpAudioEngine->GetMasterVoice() on line 319
+      (that's a cheap pointer return, not a query).
+
+
+Finding [M8]: O(1) validity check using idToIndexMap
+Status: CONFIRMED
+Lines 409-412 do O(N) scan of rSoundsPostRender.puiIds for each static voice.
+SoundsInterpolate has idToIndexMap (unordered_map<sound_t, int64_t>) which supports
+.contains() in O(1). Since paired collections share the same IDs, checking
+idToIndexMap is equivalent.
+
+  File: Engine/Source/Audio/AudioManager.cpp
+    - Lines 408-412: Replace the inner loop:
+        bool bValid = false;
+        for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
+        {
+            bValid |= rSoundsPostRender.puiIds[i] == rVoice.mId;
+        }
+      With:
+        bool bValid = rSoundsInterpolate.idToIndexMap.contains(rVoice.mId);
+
+
+Finding [L2]: Remove virtual destructor from StaticVoice
+Status: CONFIRMED
+StaticVoice (line 23) has virtual ~StaticVoice() but is never inherited from.
+AudioManager also has virtual destructor (line 30) because it inherits IVoiceNotify,
+so that one is correct. Only StaticVoice's is unnecessary.
+
+  File: Engine/Source/Audio/StaticVoice.h
+    - Line 23: Change:
+        virtual ~StaticVoice();
+      To:
+        ~StaticVoice();
+
+
+Finding [L8]: Merge three loops into single pass
+Status: REJECTED
+The three loops iterate different collections:
+  1. Lines 404-446: Iterates mStaticVoices (engine-side voice map)
+  2. Lines 449-476: Iterates rSoundsPostRender (frame sound array) to add new voices
+  3. Lines 479-495: Iterates rSoundsPostRender (frame sound array) to sync properties
+Loops 2 and 3 both iterate rSoundsPostRender and could be merged, but loop 1
+iterates a different collection entirely. Merging loops 2+3 is trivial but the
+proposed "single pass" across all three is not possible without making the code
+more complex. However, merging loops 2 and 3 is worth doing since they share
+the same iteration range.
+
+  File: Engine/Source/Audio/AudioManager.cpp
+    - Merge the "add new voices" loop (449-476) and "sync volume/positions" loop
+      (479-495) into a single loop over rSoundsPostRender:
+
+      for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
+      {
+          sound_t id = rSoundsPostRender.puiIds[i];
+          int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
+          float fVolume = rSoundsInterpolate.pfVolumes[iIndex];
+
+          // Find existing voice
+          StaticVoice* pExistingVoice = nullptr;
+          for (StaticVoice& rExisting : mStaticVoices)
+          {
+              if (rExisting.mId == id)
+              {
+                  pExistingVoice = &rExisting;
+                  break;
+              }
+          }
+
+          if (pExistingVoice != nullptr)
+          {
+              // Sync existing voice
+              pExistingVoice->mfVolume = fVolume;
+              pExistingVoice->mfPitch = rSoundsInterpolate.pfPitches[iIndex];
+              pExistingVoice->mVecPosition = rSoundsInterpolate.pVecPositions[iIndex];
+              pExistingVoice->mVecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
+              continue;
+          }
+
+          // Add new voice
+          if (fVolume <= 0.0f)
+          {
+              continue;
+          }
+          if (static_cast<int64_t>(mStaticVoices.size()) >= kiMaxStaticVoices)
+          {
+              continue;
+          }
+
+          common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[iIndex];
+          IXAudio2SourceVoice* pVoice = nullptr;
+          if (StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine.get(), pVoice, uiCrc, false, true))
+          {
+              float fPitch = rSoundsInterpolate.pfPitches[iIndex];
+              float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
+              XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[iIndex];
+              XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
+              mStaticVoices.push_back(StaticVoice(pVoice, id, uiCrc, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity));
+          }
+      }
+
+
+Order of Operations
+===================
+1. [L2] Remove virtual from StaticVoice destructor (standalone, no dependencies)
+2. [H3 + M6] Add kiMaxStaticVoices constant, replace unordered_map with vector
+   (these are coupled -- the cap needs the flat storage, the flat storage enables the cap)
+3. [M8] Replace O(N*M) validity check with idToIndexMap.contains()
+4. [L8 partial] Merge add-new and sync loops into single pass over rSoundsPostRender
+5. [M7] Cache mastering voice channel count

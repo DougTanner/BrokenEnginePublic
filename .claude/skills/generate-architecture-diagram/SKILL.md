@@ -1,69 +1,67 @@
 ---
 name: generate-architecture-diagram
-description: Generates Mermaid architecture diagrams for a subsystem. Produces dependency, data flow, sequence, and component diagrams in Documents/Architecture/.
+description: Generates Mermaid architecture diagrams for cross-system relationships. Only creates diagrams that show information spanning 3+ files. Output linked from subsystem CLAUDE.md files.
 allowed-tools: [Read, Grep, Glob, Task]
 ---
 
 # Generate Architecture Diagram
 
-Generates Mermaid-based architecture diagrams for a specified codebase area using Explore subagents. Designed for a C++23 data-oriented Vulkan game engine with Common -> Engine -> Projects layering.
+Generates Mermaid-based architecture diagrams for cross-system relationships in a C++23 data-oriented Vulkan game engine.
 
 ## Arguments
 
-The user provides a target path (file or directory). If no path is given, ask for one. Optionally, the user may request specific diagram type(s).
+The user provides a target path (file or directory). If no path is given, ask for one.
+
+## Gate: Should This Diagram Exist?
+
+Before doing any work, answer these questions. If the answer to ANY is "no", **tell the user why and stop** — do not create the diagram:
+
+1. Does the target involve **3+ source files** with non-obvious relationships between them?
+2. Would an AI agent need **more than 2 grep/read operations** to understand the relationships?
+3. Is this information **not already captured** in the nearest CLAUDE.md file?
+4. Does the diagram show a **complex state machine, synchronization chain, or multi-phase pipeline** — not just "A owns B, B owns C"?
+5. Is this a **cross-system** relationship (spanning multiple directories/namespaces), not single-subsystem internals?
+
+If the relationships can be described in 2-3 sentences of prose, **add them to the subsystem's CLAUDE.md instead**. Prefer enriching CLAUDE.md over creating a new diagram — CLAUDE.md files are always read by agents, diagrams are not.
+
+**The bar is high.** The entire codebase currently has only 5 diagrams. A new diagram must be as valuable as the existing ones (GPU semaphore chains, reconciliation state machines, frame phase ordering). Most subsystems do NOT need a diagram.
+
+## What Makes a Useful Diagram
+
+Useful diagrams show things that are **hard to derive from reading code**:
+- **Initialization/destruction order** spanning many files (e.g., 11 Vulkan managers in strict sequence)
+- **Synchronization chains** (semaphores, fences, mutexes across threads/submissions)
+- **Temporal phase ordering** across multiple systems (frame update phases, pipeline stages)
+- **Protocol state machines** spanning client/server boundaries
+- **Data flow across system boundaries** (not within a single class)
+
+## What Does NOT Belong in a Diagram
+
+- **Single-subsystem internals** — if it's all in one directory, it doesn't need a diagram. Put it in the CLAUDE.md
+- **Anything the subsystem's CLAUDE.md already describes** — read the nearest CLAUDE.md FIRST and check for redundancy
+- **Simple ownership/dependency trees** — "A owns B, B uses C" is prose, not a diagram. Diagrams are for relationships too complex for prose
+- **Field listings, enum values, struct members, parameter lists** — these restate code
+- **Code-restating flowcharts** — walking through a function's implementation line-by-line
+- **Caller/callee lists** without data flow context
+- **`classDiagram` type** — encourages field/method listings
+- **Manager init order lists** — unless the ordering involves complex dependencies with conditional branches (a simple linear sequence is better as a bullet list in CLAUDE.md)
 
 ## Diagram Types
 
-Select the appropriate subset based on the target:
+| Type | Syntax | When to Use |
+|------|--------|-------------|
+| Dependency graph | `graph TD` | Cross-system ownership and dependency |
+| Data flow | `flowchart LR` | Pipeline-style data movement across boundaries |
+| Sequence diagram | `sequenceDiagram` | Temporal flows with synchronization (GPU submission, network protocol) |
 
-| Type | Mermaid Syntax | When to Use |
-|------|---------------|-------------|
-| Dependency graph | `graph TD` | Always generated |
-| Data flow | `flowchart LR` | Pipeline-style subsystems (Frame, Network, rendering) |
-| Class/struct relationships | `classDiagram` | Inheritance/composition areas |
-| Sequence diagram | `sequenceDiagram` | Temporal flows (client/server communication, main loop) |
-| Component diagram | `graph TD` with subgraphs | Top-level or cross-subsystem targets only |
+## Content Rules
 
-## Instructions
-
-### 1. Launch Explore Subagents
-
-Use the Task tool to launch 1-2 subagents in parallel depending on which diagram types are needed.
-
-#### Agent A: Structure Analysis (subagent_type: Explore) — Always launched
-
-Prompt the agent to analyze the target path and report:
-- `#include` dependencies for all `.h` and `.cpp` files in the target area
-- Class/struct ownership and inheritance chains
-- `gp*` global pointer relationships (which managers depend on which)
-- Namespace boundaries (`common::`, `engine::`, `game::`)
-- `#ifdef BT_CLIENT` / `BT_SERVER` boundaries — which code is client-only, server-only, or shared
-- Collection structs and their `SharedMembers()` / `ClientMembers()` / `Members()` patterns
-
-#### Agent B: Flow Analysis (subagent_type: Explore) — Conditional
-
-Launch only when data flow or sequence diagrams are needed (pipeline subsystems, network, main loop).
-
-Prompt the agent to trace:
-- Call chains through the target area (who calls what, in what order)
-- Data transformations (what data enters, how it's modified, what exits)
-- Temporal ordering (initialization order, per-frame update order, phase ordering)
-- Message/packet flow for network-related targets
-
-### 2. Generate Mermaid Diagrams
-
-After agents complete, synthesize their findings into Mermaid diagrams.
-
-#### Mermaid Guidelines
-
-- **Use actual code names**: real class names, function names, variable names, enum values
-- **Show `#ifdef` boundaries**: use `style` or `:::` class annotations to distinguish client-only (blue), server-only (red), and shared (default) nodes
-- **Keep diagrams under ~40 nodes**: split into multiple diagrams if the area is large
-- **Subgraph by namespace/directory**: group related nodes with `subgraph` blocks
-- **Label edges**: include relationship type (includes, creates, calls, sends, owns)
-- **Use consistent node IDs**: lowercase with underscores, matching the code entity
-
-#### Styling Convention
+- **Nodes** = systems, managers, classes — not fields, enums, or variables
+- **Edge labels** = 1-3 words (owns, signals, reads, waits) — not function signatures
+- **Max ~30 nodes per diagram**, max ~4 diagrams per file
+- **1-2 sentences of prose per diagram** — not a paragraph
+- Every node must have at least one edge
+- Use `classDef` for client/server coloring: blue = client-only, red = server-only, gray = shared
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -73,37 +71,52 @@ graph TD
     classDef shared fill:#f3f4f6,stroke:#6b7280
 ```
 
-### 3. Write Output File
+## Instructions
 
-Write one file per invocation to `Documents/Architecture/<AreaName>.md` using this format:
+### 1. Explore the Target
+
+Use the Task tool to launch an Explore subagent analyzing the target path. Prompt it to report:
+- Cross-system dependencies (what external managers/globals does this area use?)
+- `gp*` global pointer relationships
+- `#ifdef BT_CLIENT`/`BT_SERVER` boundaries
+- Synchronization primitives (semaphores, fences, mutexes, worker dispatches)
+- Temporal ordering (init order, per-frame phase order)
+- Data flow across system boundaries
+
+### 2. Generate Diagrams
+
+Synthesize findings into diagrams. **Before adding any node, ask: does this show a cross-system relationship, or does it restate what one source file says?** If it restates code, do not include it.
+
+### 3. Self-Review
+
+Before writing, check each diagram:
+1. Does every diagram show relationships spanning **3+ source files**?
+2. Are there any field listings, enum catalogs, or parameter lists? **Remove them.**
+3. Could any two diagrams be merged? **Merge them.**
+4. Would 2-3 sentences in a CLAUDE.md replace this diagram? **Don't create it.**
+
+### 4. Write Output and Link
+
+Write to `Documents/Architecture/<Area>/<Name>.md`:
 
 ```markdown
 # Architecture: [Name]
 
 > Auto-generated by `/generate-architecture-diagram` from `[target path]`
 
-## [Diagram Section Title]
-
-[1-2 sentence explanation of what this diagram shows]
-
-```mermaid
-[diagram content]
-```
-
-## [Next Diagram Section Title]
+## [Section Title]
 
 [1-2 sentence explanation]
 
 ```mermaid
-[diagram content]
+[diagram]
 ```
 ```
 
-Choose `<AreaName>` from the target path (e.g., `Network`, `Frame`, `Graphics`, `SystemOverview`).
+Then add a "See also" link to the diagram from the **nearest CLAUDE.md** to the source code (not the root CLAUDE.md). This is critical for discoverability — an AI agent will find the diagram by reading the subsystem's CLAUDE.md, not by browsing `Documents/Architecture/`.
 
-### 4. Report to User
+### 5. Report
 
-After writing the file, report:
-- Which diagrams were generated and why
+- Which diagrams were generated and why they meet the 3+ file cross-system threshold
 - The output file path
-- Any areas that were too complex and could benefit from a separate focused diagram
+- Which CLAUDE.md was updated with the link

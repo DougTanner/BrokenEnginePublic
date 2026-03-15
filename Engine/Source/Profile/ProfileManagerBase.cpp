@@ -757,7 +757,7 @@ void ProfileManagerBase::UpdateProfileText()
 
 				if (game::gpGame->mCoordFrames.contains(game::gpGame->mHumanGridCoord))
 			{
-				mSmoothedRollback = game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iTick - game::gpClientSession->GetConfirmedTick();
+				mSmoothedRollback = game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iTick - game::gpClientSession->GetHumanConfirmedTick();
 			}
 				mSmoothedRollback.Update();
 				mSmoothedBuffer = game::gpClientSession->GetServerUpdateBufferSize();

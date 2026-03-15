@@ -1,0 +1,173 @@
+Reconciliation Correctness Fixes
+=================================
+
+Validated findings from reconciliation audit. Each finding was traced through the
+actual code paths to confirm it is a real issue worth fixing.
+
+
+T2-3: Human Migration Tracking Misses Fast-Path Destinations
+------------------------------------------------------------
+
+Status: CONFIRMED
+
+Problem:
+  ReconcileUpdateHumanState (ReconcileReplay.cpp:519-614) scans full-replay coords
+  for transfer requests to track human player migration across grid cells. When it
+  finds a transfer matching the human player, it updates humanGridCoord (line 580)
+  and then searches the destination coord's replayStack for the new player ID
+  (lines 584-606).
+
+  If the destination coord took the CRC fast path, its replayStack is empty
+  (iReplayStackCount == 0). The search at line 587 skips it. Result: humanGridCoord
+  is updated to the destination, but humanPlayerId remains the old ID from the
+  source coord (which no longer contains that player).
+
+  This can occur when the source coord has a CRC mismatch unrelated to the transfer
+  itself (e.g., a different entity's state diverged), forcing full replay of the
+  source. Meanwhile the destination coord predicted everything correctly and
+  fast-pathed. The bAnyFullReplay flag (line 549) is true because of the source's
+  mismatch, so the transfer scan runs.
+
+Impact:
+  Stale humanPlayerId causes incorrect human player tracking in subsequent
+  reconciliations. The ConfirmedHumanState.humanPlayerId no longer refers to a
+  valid player in the human's grid coord, which can cause the camera to lose
+  tracking and armor display to show wrong values.
+
+Fix:
+  When the destination coord fast-pathed, fall back to searching its snapshots
+  array instead of the replay stack.
+
+  File: Projects/BrokenEngineSandbox/Source/Network/ReconcileReplay.cpp
+
+  In ReconcileUpdateHumanState, replace the destination coord search block
+  (lines 584-606) with logic that handles both cases:
+
+  For rDestWork where rDestWork.coord == destination:
+    - If rDestWork.iReplayStackCount > 0: search replayStack tip (existing logic)
+    - Else if rDestWork.bCrcFastPath: search the most recent snapshot in
+      rDestWork.snapshots (find the snapshot with the highest iTick). The snapshot
+      array was swapped into the work item at Kick() time, so it contains the
+      latest client state.
+
+  Specifically, after line 587's continue check, add an else branch:
+
+    if (rDestWork.iReplayStackCount <= 0)
+    {
+        // Fast-path destination: search latest snapshot for human player
+        int64_t iBestTick = -1;
+        int64_t iBestPhysical = -1;
+        for (int64_t k = 0; k < rDestWork.iSnapshotCount; ++k)
+        {
+            int64_t iPhys = SnapshotIndex(rDestWork.iSnapshotHead, k);
+            if (rDestWork.snapshots[iPhys] != nullptr && rDestWork.snapshots[iPhys]->interpolate.iTick > iBestTick)
+            {
+                iBestTick = rDestWork.snapshots[iPhys]->interpolate.iTick;
+                iBestPhysical = iPhys;
+            }
+        }
+        if (iBestPhysical >= 0)
+        {
+            const Frame& rDestFrame = *rDestWork.snapshots[iBestPhysical];
+            // [same position-match + fallback logic as existing lines 593-605]
+        }
+        break;
+    }
+
+  Then the existing iReplayStackCount > 0 path follows as-is.
+
+
+T2-5: Fast-Path vs Full-Replay fCurrentTime Divergence
+-------------------------------------------------------
+
+Status: CONFIRMED (low priority)
+
+Problem:
+  ReconcileUpdateHumanState (ReconcileReplay.cpp:531-545) computes fCurrentTime
+  differently for fast-path vs full-replay coords:
+
+  - Full replay (line 534): takes fCurrentTime from replay stack tip, which was
+    accumulated starting from the confirmed frame's fCurrentTime via rfTime +=
+    kfDeltaTime in the replay loop.
+  - Fast path (lines 539-544): starts from humanState.fCurrentTime (previous
+    reconciliation's output) and adds kfDeltaTime per advancement tick.
+
+  Over many reconciliation cycles, the fast-path accumulates float rounding error
+  relative to what a full replay would compute, because the base value
+  (humanState.fCurrentTime) carries accumulated error from prior cycles.
+
+Impact:
+  fCurrentTime is used for interpolation/cosmetic timing, not CRC validation.
+  Drift is on the order of float epsilon per reconciliation cycle. In practice
+  this is negligible and self-corrects whenever a full replay occurs (which
+  resets to the replay-computed time).
+
+Fix:
+  In the fast-path branch, instead of incrementally adding kfDeltaTime, compute
+  the time from the confirmed snapshot's fCurrentTime plus the advancement delta.
+  This anchors to a concrete frame value rather than accumulating on a carried-
+  forward float.
+
+  File: Projects/BrokenEngineSandbox/Source/Network/ReconcileReplay.cpp
+
+  Replace lines 538-544:
+    // Human coord fast-pathed: advance by confirmed tick delta
+    int64_t iNewTick = (rWork.iNewConfirmedTick >= 0) ? rWork.iNewConfirmedTick : rWork.iConfirmedTick;
+    int64_t iAdvancement = iNewTick - rWork.iConfirmedTick;
+    for (int64_t i = 0; i < iAdvancement; ++i)
+    {
+        humanState.fCurrentTime += kfDeltaTime;
+    }
+
+  With:
+    // Human coord fast-pathed: compute time from confirmed snapshot
+    int64_t iNewTick = (rWork.iNewConfirmedTick >= 0) ? rWork.iNewConfirmedTick : rWork.iConfirmedTick;
+    int64_t iNewOffset = (rWork.iNewConfirmedOffset >= 0) ? rWork.iNewConfirmedOffset : rWork.iConfirmedOffset;
+    if (iNewOffset >= 0)
+    {
+        int64_t iPhysical = SnapshotIndex(rWork.iSnapshotHead, iNewOffset);
+        if (rWork.snapshots[iPhysical] != nullptr)
+        {
+            humanState.fCurrentTime = rWork.snapshots[iPhysical]->interpolate.fCurrentTime;
+        }
+    }
+
+  This eliminates accumulated float error by reading the time directly from the
+  snapshot that was validated by the fast path.
+
+
+DISCARDED FINDINGS
+==================
+
+T2-4: Pending Full-State Injection Without CRC Recomputation
+  NOT AN ISSUE. The pending full state frame is used only as a starting point for
+  replay (injected into replayStack as index 0). Its CRC fields are never read for
+  validation. All replayed frames get fresh CRCs computed by RunFrameTick
+  (FrameTick.cpp:39-40). The CRC fast path (CrcFastPathProcessCoord) forces full
+  replay when a pending full state exists (line 151-153), so the fast path's
+  snapshot CRC comparison never touches the injected frame.
+
+T2-10: Thread Race: serverUpdates Insertion During Reconciliation Flight
+  NOT AN ISSUE. Kick() (ClientReconciler.cpp:109) moves rSub.serverUpdates into
+  work.serverUpdates, then clears rSub.serverUpdates (line 118). The worker thread
+  reads from work.serverUpdates (the moved copy inside ReconcileContext). The main
+  thread's next frame adds new updates to rSub.serverUpdates (a separate, now-empty
+  container). These are different objects - no shared access occurs. The main thread
+  calls Wait() before reading results, establishing proper synchronization.
+
+T5-6: Catch-Up Frames Have Misleading CRC Values
+  NOT AN ISSUE. Catch-up frames (ReconcileReplay.cpp:438-465) are speculative
+  frames produced with empty FrameInput to advance the client to the target tick.
+  Their CRCs are structurally correct (computed by RunFrameTick) but may differ
+  from server values if the server had StatusChanges for those ticks. This is by
+  design - catch-up frames are beyond the validated range and exist to keep the
+  client at the correct tick count. They will be replaced by proper validated
+  frames in subsequent reconciliation cycles when server updates arrive.
+
+T5-8: Late Reconciliation Kick (After PostRender)
+  NOT AN ISSUE. TryKickReconcile is called from PostRender() (ClientSession.cpp:183)
+  which runs at the end of GameBase::Render() (GameBase.cpp:307). This is
+  intentional: the comment at ClientSession.cpp:181 explains "Kick reconcile after
+  render so snapshots remain valid for GetSnapshotFrame during rendering." Results
+  are consumed on the next frame's Reconcile() call. This one-frame latency is an
+  acceptable tradeoff for avoiding snapshot invalidation during rendering.

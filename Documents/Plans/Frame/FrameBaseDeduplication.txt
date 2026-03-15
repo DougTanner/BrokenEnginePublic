@@ -1,0 +1,133 @@
+FrameBase Deduplication Plan
+============================
+
+Target files:
+  Engine/Source/Frame/FrameBase.h  (285 lines)
+  Engine/Source/Frame/FrameBase.cpp (384 lines)
+
+=============================================================================
+PART 1: UUID Generation (B3) - LOW RISK, CLEAR WIN
+=============================================================================
+
+Problem:
+  Lines 178-195 of FrameBase.h: GenerateUuid(), GenerateSoundUuid(), and
+  GenerateVisualUuid() have identical bodies differing only in which counter
+  they increment (uiNextUuid, uiNextSoundUuid, uiNextVisualUuid).
+
+Solution:
+  Extract a single private helper and have each method delegate to it.
+
+Before (lines 178-195):
+
+    int64_t GenerateUuid()
+    {
+        int64_t iCounter = uiNextUuid++;
+        return (static_cast<int64_t>(uiFrameId) << 48) | (iCounter & 0x0000FFFFFFFFFFFF);
+    }
+
+    #if defined(BT_CLIENT)
+    int64_t GenerateSoundUuid()
+    {
+        int64_t iCounter = uiNextSoundUuid++;
+        return (static_cast<int64_t>(uiFrameId) << 48) | (iCounter & 0x0000FFFFFFFFFFFF);
+    }
+
+    int64_t GenerateVisualUuid()
+    {
+        int64_t iCounter = uiNextVisualUuid++;
+        return (static_cast<int64_t>(uiFrameId) << 48) | (iCounter & 0x0000FFFFFFFFFFFF);
+    }
+    #endif // BT_CLIENT
+
+After:
+
+    int64_t MakeUuid(uint64_t& ruiCounter)
+    {
+        int64_t iCounter = ruiCounter++;
+        return (static_cast<int64_t>(uiFrameId) << 48) | (iCounter & 0x0000FFFFFFFFFFFF);
+    }
+
+    int64_t GenerateUuid()          { return MakeUuid(uiNextUuid); }
+    #if defined(BT_CLIENT)
+    int64_t GenerateSoundUuid()     { return MakeUuid(uiNextSoundUuid); }
+    int64_t GenerateVisualUuid()    { return MakeUuid(uiNextVisualUuid); }
+    #endif // BT_CLIENT
+
+Impact: No callers change. All three public methods remain. Only the
+duplicated bit-shift logic is consolidated into one place.
+
+
+=============================================================================
+PART 2: Collection Member / Collections() / ServerCollections() / kCollectionCount
+duplication between FrameInterpolateBase and FramePostRenderBase (B2)
+=============================================================================
+
+Problem:
+  The two structs declare the same 11 collection member variables (with the
+  same #ifdef BT_CLIENT guards), the same Collections() method body, the same
+  ServerCollections() method body, and the same kCollectionCount constant.
+  Adding a new collection requires updating all four locations across both
+  structs (8 edit sites total).
+
+Assessment - NOT WORTH DOING:
+  After careful analysis, the cost of deduplication exceeds the benefit. Here
+  is the reasoning:
+
+  1. The collection member variables have DIFFERENT TYPES in each struct.
+     FrameInterpolateBase has AreaLightsInterpolate, BillboardsInterpolate, etc.
+     FramePostRenderBase has AreaLightsPostRender, BillboardsPostRender, etc.
+     They share the same field NAMES but not the same field TYPES. This means
+     a shared base class or CRTP mixin would need to be templated on every
+     collection type pair, which is more complex than the duplication.
+
+  2. X-macro approach: An X-macro like:
+       #define FRAME_COLLECTIONS(X) \
+         X_CLIENT(areaLights, AreaLights) \
+         X_CLIENT(billboards, Billboards) \
+         X(explosions, Explosions) \
+         ...
+     could generate the member declarations, Collections(), ServerCollections(),
+     and kCollectionCount. However:
+     - Each struct needs a DIFFERENT suffix (Interpolate vs PostRender) appended
+       to the type name, so the macro would need a suffix parameter per use site
+     - The Collections() method has awkward comma placement with #ifdef guards
+       that is difficult to express cleanly in X-macros
+     - X-macros make IntelliSense, debugging, and code navigation significantly
+       worse for all developers
+     - The static_assert at line 252-258 already catches mismatches between the
+       two structs at compile time, which is the main risk of the duplication
+
+  3. Tuple-of-types approach: Defining a type list and generating members from
+     it via std::tuple storage would require replacing named member access
+     (rSelf.explosions) with std::get<N>() or a tagged-type accessor, making
+     all collection usage sites harder to read.
+
+  4. Frequency of change: New collections are added rarely (the current set of
+     11 has been stable). The existing static_assert catches any mismatch
+     immediately at compile time.
+
+  5. The two structs have substantially different non-collection members and
+     methods (FrameInterpolateBase has render pipeline methods; FramePostRenderBase
+     has 7 simulation phases, UUID generation, CRC chain tracking, etc.), so
+     they cannot be meaningfully unified.
+
+Conclusion for Part 2: YAGNI. The duplication is real but mechanical, the
+compile-time static_assert prevents errors, collections change rarely, and
+every deduplication approach (X-macro, CRTP, tuple storage) trades readability
+and debuggability for DRY compliance. The existing code is straightforward to
+maintain as-is.
+
+
+=============================================================================
+EXECUTION SUMMARY
+=============================================================================
+
+Only Part 1 (UUID consolidation) should be implemented.
+
+Files to modify:
+  Engine/Source/Frame/FrameBase.h - lines 178-196: Replace three UUID methods
+    with one MakeUuid helper + three one-liner delegators.
+
+No .cpp changes needed (UUID methods are inline in the header).
+No callers change (public API is identical).
+No vcxproj changes needed (no new files).

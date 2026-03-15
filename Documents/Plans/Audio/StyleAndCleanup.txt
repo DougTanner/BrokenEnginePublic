@@ -1,0 +1,87 @@
+Audio Style and Cleanup
+=======================
+Minor style violations and cleanup items across the Audio subsystem and ExportAudio.
+
+Findings Validation
+-------------------
+
+[S1] Missing override on IVoiceNotify virtual methods - CONFIRMED
+  AudioManager.h lines 45-52 and StreamingVoice.h lines 42-49 use "virtual" instead of "override".
+  The base class IVoiceNotify (ThirdParty/DirectXTK/Inc/Audio.h:124-147) declares these as pure virtual.
+  Style guide rule 29: "Use override keyword on child class virtual functions."
+  Also remove "virtual" from the destructor in AudioManager.h line 30 (base class has virtual destructor).
+
+  AudioManager.h (lines 45-52):
+    void OnBufferEnd() override {}
+    void OnCriticalError() override;
+    void OnReset() override;
+    void OnUpdate() override {}
+    void OnDestroyEngine() noexcept override;
+    void OnTrim() override;
+    void GatherStatistics([[maybe_unused]] AudioStatistics& rStats) const override {}
+    void OnDestroyParent() noexcept override;
+
+  AudioManager.h (line 30):
+    ~AudioManager() override;
+
+  StreamingVoice.h (lines 42-49):
+    void OnBufferEnd() override;
+    void OnCriticalError() override {}
+    void OnReset() override {}
+    void OnUpdate() override {}
+    void OnDestroyEngine() noexcept override {}
+    void OnTrim() override {}
+    void GatherStatistics([[maybe_unused]] AudioStatistics& rStats) const override {}
+    void OnDestroyParent() noexcept override {}
+
+  ExportAudio.h (lines 18-20):
+    ~ExportAudio() override = default;
+    int64_t GetVersion() const override { return 28 + sizeof(common::ChunkHeader); }
+    void Export() override;
+
+[S2] AudioManager::Update() is ~183 lines - CONFIRMED, DEFERRED
+  Update() spans lines 338-521 (183 lines). This exceeds the 50-100 line soft guideline.
+  However, this will naturally be addressed as a side effect of other plans that modify
+  AudioManager.cpp significantly. No action in this plan.
+
+[S3] AudioManager.cpp is 609 lines (over 500-line soft limit) - CONFIRMED, DEFERRED
+  The file is 609 lines, above the 500-line soft limit. Same as S2, this will naturally
+  be addressed when other plans modify AudioManager.cpp significantly. No action in this plan.
+
+[S4] Trailing semicolon after inline function body - CONFIRMED
+  AudioManager.h line 48: `virtual void OnUpdate() {};`
+  The semicolon after `}` is unnecessary. Only this one line has the issue.
+
+  Fix: Remove the trailing semicolon (addressed as part of S1 override change).
+
+[S5] Extra blank line in ExportAudio.cpp includes - CONFIRMED
+  ExportAudio.cpp lines 5-7: two consecutive blank lines between includes and `using enum`.
+  Should be one blank line.
+
+  Fix: Remove one blank line at line 7.
+
+[S6] CLAUDE.md says #ifdef but code uses #if defined() - CONFIRMED
+  Engine/Source/Audio/CLAUDE.md line 3 says: "Entirely client-only (`#ifdef BT_CLIENT`)."
+  All actual code correctly uses `#if defined(BT_CLIENT)` per style guide rule 58.
+  The documentation text is wrong.
+
+  Fix: Change `#ifdef BT_CLIENT` to `#if defined(BT_CLIENT)` in the CLAUDE.md text.
+
+[S7] Parameter named "callback" lacks descriptive naming - REJECTED
+  AudioManager.h line 38: `void SetNextMusicTrackCallback(std::function<common::crc_t()> callback);`
+  The function name itself is already descriptive ("SetNextMusicTrackCallback"), and the
+  parameter type makes the intent clear. Renaming the parameter adds no meaningful clarity
+  and the style guide has no rule requiring parameter names to mirror member variable names.
+
+[L10] ExportAudio does not handle 24-bit or 8-bit WAV files - REJECTED
+  The ASSERT(false) on line 50 is the intended behavior: the data packer is a controlled
+  tool where unsupported formats should fail loudly. CLAUDE.md says "DO NOT add error
+  handling or validation." Adding a conversion or descriptive message is unnecessary
+  complexity for a format the engine does not use.
+
+Order of Operations
+-------------------
+1. S1 - Add override, remove virtual (AudioManager.h, StreamingVoice.h, ExportAudio.h)
+2. S4 - Remove trailing semicolon (handled as part of S1)
+3. S5 - Remove extra blank line (ExportAudio.cpp)
+4. S6 - Fix CLAUDE.md documentation text (Engine/Source/Audio/CLAUDE.md)

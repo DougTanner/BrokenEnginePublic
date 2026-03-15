@@ -1,0 +1,281 @@
+Lighting Blur and Barriers Optimization Plan
+=============================================
+
+VALIDATION
+----------
+
+Finding 1.1 [Low] -- Overly broad subpass dependency dstStageMask (Texture.cpp:344)
+  STATUS: VALID, but narrow the fix carefully.
+  The subpass dependency dstStageMask is VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | FRAGMENT_SHADER_BIT | COMPUTE_SHADER_BIT | TRANSFER_BIT.
+  This is the render pass's VK_SUBPASS_EXTERNAL exit dependency, applied uniformly to all render targets.
+  Most render targets are only sampled in FRAGMENT_SHADER (lighting blur, terrain, shadows, smoke, wind, object shadows).
+  However, the shadow textures (mShadowTexture, mShadowBlurTexture) are consumed by compute shaders in the global
+  command buffer. The wind/smoke textures are also transitioned to kColorAttachment after their render pass ends.
+  FIX: Add a TextureInfo field to specify the dstStageMask per render target rather than hardcoding. Default
+  to FRAGMENT_SHADER_BIT for simplicity; the few compute-consuming textures override. This avoids
+  over-synchronization for the majority of render targets while remaining correct for compute consumers.
+  RISK: Low. The dstStageMask only narrows the dependency; if we miss a consumer the validation layer will catch it.
+
+Finding 1.2 [Low] -- TransitionImageLayout kShaderReadOnly uses overly broad stage masks (Texture.cpp:511-515, 562-565)
+  STATUS: VALID, but requires a careful approach.
+  kShaderReadOnly src/dst stage masks include VERTEX_SHADER | FRAGMENT_SHADER | COMPUTE_SHADER. This is the
+  "generic" transition used by many callers. Most callers only need FRAGMENT_SHADER (lighting blur, terrain,
+  wind, smoke). However some callers legitimately need COMPUTE_SHADER (shadow blur textures use
+  kComputeReadOnly/kComputeReadWrite which are separate enum values, so kShaderReadOnly is not used for those).
+  Looking at actual callers of TransitionImageLayout with kShaderReadOnly:
+    - Lighting blur textures: transition from kShaderReadOnly -> kColorAttachment. src needs FRAGMENT_SHADER only.
+    - Wind textures: same pattern. FRAGMENT_SHADER only.
+    - Smoke textures: same pattern. FRAGMENT_SHADER only.
+    - Shadow blur: uses kComputeReadWrite/kComputeReadOnly, NOT kShaderReadOnly. Correct already.
+    - Lighting combine: kShaderReadOnly -> kColorAttachment. FRAGMENT_SHADER only.
+  HOWEVER: kShaderReadOnly is also used as a dst layout in TransitionImageLayout for initial texture creation
+  (Texture.cpp:251, 384, 449) where the texture may later be read by any shader stage. Making kShaderReadOnly
+  narrow (fragment-only) would break those callers if a texture is later read by vertex/compute.
+  FIX: Add a new TextureLayout enum value kFragmentShaderReadOnly that maps to FRAGMENT_SHADER_BIT only.
+  Use kFragmentShaderReadOnly in the lighting blur, wind, and smoke transitions where we know the consumer
+  is a fragment shader. Leave kShaderReadOnly unchanged as the safe generic option.
+  RISK: Low. New enum value, no existing behavior changes.
+
+Finding 1.3 [Medium] -- Lighting blur textures undergo per-texture layout transitions (CommandBufferManager.cpp:269-307)
+  STATUS: VALID.
+  Each blur level calls TransitionImageLayout individually, resulting in one vkCmdPipelineBarrier per texture.
+  With miLightingBlurCount levels * 3 channels = 3*N individual barriers. These could be batched.
+  HOWEVER: Each blur level's render pass READS the previous level's output. The transition for level i must
+  complete before level i's render pass begins, but level i+1's transition can't happen until level i's render
+  pass completes (because the render pass auto-transitions the output to SHADER_READ_ONLY_OPTIMAL via
+  renderPassFinalVkImageLayout). So within a single channel (R, G, or B), transitions CANNOT be batched --
+  they are sequential dependencies.
+  WHAT CAN BE BATCHED: The transitions at the START of each of the 3 channel loops (R[0], G[0], B[0]) could
+  theoretically be batched if the loops were interleaved. But the current structure processes all R, then all G,
+  then all B sequentially, with each level depending on the previous.
+  REVISED STATUS: PARTIALLY VALID. Only the first transition of each channel (level 0) can be batched across
+  R/G/B. The subsequent per-level transitions are inherently sequential within each channel.
+  FIX: Interleave the R/G/B loops so that at each blur level, all 3 channels are transitioned in one batched
+  barrier call, then all 3 render passes are recorded. This batches 3 barriers into 1 per level.
+  RISK: Medium. The interleaving changes the order of operations. Must verify that R/G/B channels at the same
+  level are independent (they are -- each reads its own previous level, not the other channels).
+
+Finding 5.3 [Medium] -- Lighting blur creates 3*N draw calls for N blur levels (CommandBufferManager.cpp:259-307)
+  STATUS: VALID finding, but REJECT the compute shader proposal.
+  Converting to a compute shader would require significant changes (new pipeline type, new shaders, different
+  descriptor set layout, image storage instead of sampled). This violates KISS/YAGNI -- the current approach
+  works and the blur is not a performance bottleneck (it renders fullscreen quads at progressively smaller
+  resolutions). The interleaving from Finding 1.3 already reduces barrier overhead. A compute approach would
+  also lose the render pass auto-transitions and require manual layout management.
+  FIX: No action for compute conversion. The DRY violation (Finding 7.1) and barrier batching (Finding 1.3)
+  address the real issues here.
+
+Finding 3.1 [Low] -- RESET_COMMAND_BUFFER_BIT set but buffers rarely reset (CommandBuffers.cpp:13)
+  STATUS: VALID.
+  VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT is set on the main command pool but the Global and Main
+  command buffers are never individually reset -- they use vkBeginCommandBuffer which implicitly resets.
+  The ImGui command buffer DOES use vkResetCommandBuffer (ImGuiManager.cpp:218), but it shares this pool.
+  Actually, vkBeginCommandBuffer on a buffer from a RESET_COMMAND_BUFFER_BIT pool implicitly resets it,
+  which is the intended behavior. Removing the flag would require using vkResetCommandPool instead, which
+  resets ALL buffers in the pool -- problematic if they're at different lifecycle stages.
+  REVISED STATUS: VALID but LOW PRIORITY. The flag enables per-buffer reset which IS used by ImGui. The slight
+  overhead of tracking per-buffer state is negligible. The flag is correct for this use case.
+  FIX: No action. The flag is appropriate given that ImGui shares the pool and does explicit reset.
+
+Finding 4.1 [Low] -- Per-buffer barriers instead of batched barriers for uniform copies (Buffer.cpp:305-345)
+  STATUS: INVALID.
+  Buffer::RecordCopy is called once per uniform buffer (GlobalLayout, MainLayout). Each call issues its own
+  pre-copy and post-copy barriers. Looking at the call sites:
+    - CommandBufferManager.cpp:89 - mGlobalLayoutUniformBuffers (one buffer per framebuffer)
+    - CommandBufferManager.cpp:226 - mMainLayoutUniformBuffers (one buffer per framebuffer)
+  Each call processes exactly ONE buffer. There is no scenario where multiple uniform buffers are copied in
+  sequence that could be batched -- they are in different command buffers (global vs main). The barriers
+  are already minimal (one buffer each). Batching would require restructuring the entire copy flow for
+  negligible benefit.
+  FIX: No action.
+
+Finding 7.1 [Design Debt] -- Three identical lighting blur loops (CommandBufferManager.cpp:259-307)
+  STATUS: VALID.
+  The R/G/B blur loops are identical except for the texture array and pipeline array. This is a clear DRY
+  violation. Extracting a helper function is straightforward.
+  FIX: Extract a helper function and call it 3 times with different texture/pipeline arrays.
+
+
+IMPLEMENTATION PLAN
+-------------------
+
+Step 1: Add kFragmentShaderReadOnly to TextureLayout enum
+  File: Engine/Source/Graphics/Objects/Texture.h:18-29
+
+  Add kFragmentShaderReadOnly after kComputeReadWrite in the TextureLayout enum:
+    kFragmentShaderReadOnly,
+
+  This new layout maps to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL (same Vulkan layout as kShaderReadOnly)
+  but uses VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT only.
+
+Step 2: Handle kFragmentShaderReadOnly in TransitionImageLayout
+  File: Engine/Source/Graphics/Objects/Texture.cpp:483-606
+
+  In the switch for eOldLayout (src side), add a case for kFragmentShaderReadOnly:
+    case kFragmentShaderReadOnly:
+        oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        break;
+
+  In the switch for eNewLayout (dst side), add a case for kFragmentShaderReadOnly:
+    case kFragmentShaderReadOnly:
+        newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        break;
+
+Step 3: Add dstStageMask field to TextureInfo for per-render-target subpass dependency
+  File: Engine/Source/Graphics/Objects/Texture.h (TextureInfo struct)
+
+  Add a new field to TextureInfo:
+    VkPipelineStageFlags renderPassDstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    VkAccessFlags renderPassDstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+  This replaces the hardcoded dstStageMask/dstAccessMask in the subpass dependency.
+  Default is FRAGMENT_SHADER_BIT which is correct for most render targets.
+
+Step 4: Use TextureInfo::renderPassDstStageMask in subpass dependency creation
+  File: Engine/Source/Graphics/Objects/Texture.cpp:339-348
+
+  Replace the hardcoded dstStageMask and dstAccessMask:
+    .dstStageMask = mInfo.renderPassDstStageMask,
+    .dstAccessMask = mInfo.renderPassDstAccessMask,
+
+Step 5: Update render targets that need broader stage masks
+  File: Engine/Source/Graphics/Managers/RenderTargetTextures.cpp
+
+  Wind textures (mWindTextureOne, mWindTextureTwo): These are sampled in fragment shaders AND
+  transitioned to kColorAttachment. The subpass dependency's dstStageMask just needs to cover
+  the next consumer after the render pass. Since wind textures transition via
+  TransitionImageLayout(kShaderReadOnly -> kColorAttachment), the default FRAGMENT_SHADER_BIT
+  is sufficient because the transition's srcStageMask handles waiting.
+  -> No change needed, default is correct.
+
+  Smoke textures: Same pattern as wind. Default FRAGMENT_SHADER_BIT is correct.
+
+  Shadow elevation texture (mShadowElevationTexture): Consumed by compute shader (kPipelineShadow).
+  -> Set renderPassDstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+  -> Set renderPassDstAccessMask = VK_ACCESS_SHADER_READ_BIT
+
+  All lighting blur textures: Sampled in fragment shaders only. Default is correct.
+
+  Terrain textures (elevation, color, normal, AO): Sampled in fragment shaders. Default is correct.
+
+  Object shadows texture: Sampled in fragment shader. Default is correct.
+
+Step 6: Use kFragmentShaderReadOnly for lighting blur transitions
+  File: Engine/Source/Graphics/Managers/CommandBufferManager.cpp:266-307
+
+  In the lighting blur loops, change all TransitionImageLayout calls from:
+    TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment)
+  to:
+    TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment)
+
+  These textures are only ever sampled in fragment shaders before being transitioned to color attachment.
+
+Step 7: Use kFragmentShaderReadOnly for lighting combine transitions
+  File: Engine/Source/Graphics/Managers/CommandBufferManager.cpp:313-324
+
+  Change the 3 TransitionImageLayout calls for lighting combine from kShaderReadOnly to
+  kFragmentShaderReadOnly.
+
+Step 8: Use kFragmentShaderReadOnly for wind texture transitions
+  File: Engine/Source/Graphics/Managers/CommandBufferManager.cpp:136,143,329,344,357
+
+  Change wind texture TransitionImageLayout calls from kShaderReadOnly to kFragmentShaderReadOnly
+  where they transition from shader-read to color-attachment.
+
+Step 9: Use kFragmentShaderReadOnly for smoke texture transitions
+  File: Engine/Source/Graphics/Managers/CommandBufferManager.cpp:157,329
+
+  Change smoke texture TransitionImageLayout calls from kShaderReadOnly to kFragmentShaderReadOnly.
+
+Step 10: Extract lighting blur helper function and interleave R/G/B
+  File: Engine/Source/Graphics/Managers/CommandBufferManager.cpp
+
+  Add a new private method to CommandBufferManager:
+    void RecordLightingBlurLevel(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer,
+        int64_t iLevel, float fBlurDivisor, Texture& rTexture, Pipeline& rPipeline, VkExtent3D previousExtent);
+
+  The function body:
+    rTexture.TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
+    rTexture.RecordBeginRenderPass(vkCommandBuffer);
+    rPipeline.RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0,
+    {
+        static_cast<float>(previousExtent.width),
+        static_cast<float>(previousExtent.height),
+        fBlurDivisor,
+        0.0f,
+    });
+    rTexture.RecordEndRenderPass(vkCommandBuffer);
+
+Step 11: Replace 3 blur loops with interleaved loop calling helper
+  File: Engine/Source/Graphics/Managers/CommandBufferManager.cpp:258-307
+
+  Replace the 3 separate R/G/B loops with a single interleaved loop:
+
+    gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingBlur);
+    float fBlurFirstDivisor = gLightingBlurFirstDivisor.Get();
+    if (gpGraphics->mFramebufferExtent2D.height <= 1080)
+    {
+        fBlurFirstDivisor *= 0.5f;
+    }
+    float fBlurDivisor = gLightingBlurDivisor.Get();
+    for (int64_t i = 0; i < gpTextureManager->mRenderTargetTextures.miLightingBlurCount; ++i)
+    {
+        float fDivisor = i == 0 ? fBlurFirstDivisor : fBlurDivisor;
+
+        VkExtent3D redPreviousExtent = i == 0 ? gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent : gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[i - 1].mInfo.extent;
+        VkExtent3D greenPreviousExtent = i == 0 ? gpTextureManager->mRenderTargetTextures.mpLightingTextures[1].mInfo.extent : gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures[i - 1].mInfo.extent;
+        VkExtent3D bluePreviousExtent = i == 0 ? gpTextureManager->mRenderTargetTextures.mpLightingTextures[2].mInfo.extent : gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures[i - 1].mInfo.extent;
+
+        RecordLightingBlurLevel(vkCommandBuffer, iCommandBuffer, i, fDivisor,
+            gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[i], gpPipelineManager->mpRedLightingBlurPipelines[i], redPreviousExtent);
+        RecordLightingBlurLevel(vkCommandBuffer, iCommandBuffer, i, fDivisor,
+            gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures[i], gpPipelineManager->mpGreenLightingBlurPipelines[i], greenPreviousExtent);
+        RecordLightingBlurLevel(vkCommandBuffer, iCommandBuffer, i, fDivisor,
+            gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures[i], gpPipelineManager->mpBlueLightingBlurPipelines[i], bluePreviousExtent);
+    }
+    gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingBlur);
+
+  Note: This interleaving does NOT enable batching of the TransitionImageLayout calls because
+  each blur level's render pass must complete before the next level can transition. However, it
+  eliminates the DRY violation and keeps the R/G/B processing at each level adjacent, which is
+  better for GPU cache locality (same resolution textures processed together).
+
+Step 12: Update CommandBufferManager.h with new helper method declaration
+  File: Engine/Source/Graphics/Managers/CommandBufferManager.h
+
+  Add to the private section:
+    void RecordLightingBlurLevel(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer,
+        int64_t iLevel, float fBlurDivisor, Texture& rTexture, Pipeline& rPipeline, VkExtent3D previousExtent);
+
+Step 13: Update lighting blur texture eTextureLayout to kFragmentShaderReadOnly
+  File: Engine/Source/Graphics/Managers/RenderTargetTextures.cpp:203
+
+  Change the initial texture layout from kShaderReadOnly to kFragmentShaderReadOnly:
+    .eTextureLayout = kFragmentShaderReadOnly,
+
+  This ensures the initial transition at creation time uses the narrow stage mask.
+  The render pass renderPassFinalVkImageLayout remains VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+  (this is a Vulkan image layout, not our enum -- it stays the same).
+
+
+SUMMARY OF CHANGES
+-------------------
+Files modified:
+  - Engine/Source/Graphics/Objects/Texture.h (add enum value, add TextureInfo fields)
+  - Engine/Source/Graphics/Objects/Texture.cpp (handle new enum, use new TextureInfo fields)
+  - Engine/Source/Graphics/Managers/CommandBufferManager.h (add helper declaration)
+  - Engine/Source/Graphics/Managers/CommandBufferManager.cpp (extract helper, interleave loops, narrow transitions)
+  - Engine/Source/Graphics/Managers/RenderTargetTextures.cpp (set dstStageMask for shadow elevation, narrow blur texture layout)
+
+Findings addressed:
+  1.1 -- Per-render-target dstStageMask via TextureInfo field (Steps 3-5)
+  1.2 -- kFragmentShaderReadOnly enum for narrow transitions (Steps 1-2, 6-9, 13)
+  1.3 -- Interleaved R/G/B loop for better locality (Steps 10-11); full batching not possible due to sequential dependencies
+  5.3 -- Rejected (compute shader conversion violates KISS/YAGNI)
+  3.1 -- No action (flag is correct for ImGui shared pool)
+  4.1 -- Invalid (only one buffer per call site, no batching opportunity)
+  7.1 -- Helper function eliminates DRY violation (Steps 10-12)
