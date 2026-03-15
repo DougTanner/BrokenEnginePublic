@@ -8,6 +8,7 @@ inline constexpr bool kbEnableReconcileThread = true;
 inline constexpr bool kbAlsoLogToPrintf = false;
 inline constexpr bool kbEnableFramebufferClearColor = false;
 inline constexpr bool kbEnableGpuAssistedValidation = false;
+inline constexpr bool kbEnableDesyncRecovery = false;
 inline constexpr bool kbEnableRecording = false;
 inline constexpr bool kbEnableScreenshots = false;
 inline constexpr bool kbEnableWireframe = false;

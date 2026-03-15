@@ -29,6 +29,7 @@ void ClientSessionBase::DisconnectFromServerBase()
 	}
 	mSubscriptionQueue.clear();
 	miClockError = 0;
+	miCurrentTargetBehind = 0;
 	mbClockErrorDisconnect = false;
 }
 
@@ -114,6 +115,7 @@ void ClientSessionBase::UnsubscribeStaleCoords(const std::vector<GridCoord>& rDe
 			if (rSlots.at(i).eState == CoordSubscriptionState::kSubscribing)
 			{
 				rSlots.at(i) = {};
+				mpClientNetwork->GetCancelledSubscriptions().push_back(unsubCoord);
 			}
 			else
 			{
@@ -222,13 +224,18 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	int64_t iRttUs = mpClientNetwork->GetPipelineRttUs();
 
 	int64_t iTickTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(tickNs).count();
-	int64_t iTargetBehind = (iRttUs > 0) ? ((iRttUs / 2 + iTickTimeUs - 1) / iTickTimeUs + 1) : 1;
+	// Hysteresis: only update target-behind when the computed value differs by 2+ ticks to avoid oscillation
+	int64_t iComputedTargetBehind = (iRttUs > 0) ? ((iRttUs / 2 + iTickTimeUs - 1) / iTickTimeUs + 1) : 1;
+	if (miCurrentTargetBehind == 0 || std::abs(iComputedTargetBehind - miCurrentTargetBehind) >= 2)
+	{
+		miCurrentTargetBehind = iComputedTargetBehind;
+	}
 
 	int64_t iOffset = iPreReconcileTick - miLatestServerTick;
-	int64_t iError = iOffset - iTargetBehind;
+	int64_t iError = iOffset - miCurrentTargetBehind;
 	miClockError = iError;
 	miClockOffset = iOffset;
-	miClockTargetBehind = iTargetBehind;
+	miClockTargetBehind = miCurrentTargetBehind;
 
 	if (std::abs(iError) >= kiClockErrorDisconnectThreshold)
 	{
@@ -237,7 +244,7 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 
 	if (std::abs(iError) >= 4)
 	{
-		Log(kLogNetwork, "ClientSessionBase::ComputeClockCorrectionNs Extreme clock error Error: {} Offset: {} TargetBehind: {} RttUs: {}", iError, iOffset, iTargetBehind, iRttUs);
+		Log(kLogNetwork, "ClientSessionBase::ComputeClockCorrectionNs Extreme clock error Error: {} Offset: {} TargetBehind: {} RttUs: {}", iError, iOffset, miCurrentTargetBehind, iRttUs);
 	}
 
 	int64_t iCorrectionSteps = std::clamp(iError, -4LL, 4LL);

@@ -50,17 +50,7 @@ ReconcileDesyncInfo ClientReconciler::Wait()
 			return {};
 		}
 
-		common::Timer timer;
 		mpWorker->Wait();
-		std::chrono::nanoseconds semaphoreWaitNs = timer.GetDeltaNs(true);
-		Log(kLogNetwork, "reconcileWaitMs: {}", std::chrono::duration_cast<std::chrono::milliseconds>(semaphoreWaitNs).count()); // DT: TEMP
-
-		std::chrono::nanoseconds maxWait = std::chrono::nanoseconds(100ms);
-		if (semaphoreWaitNs > maxWait)
-		{
-			DEBUG_BREAK();
-		}
-
 		ReconcileDesyncInfo desyncInfo = ApplyResult();
 		mbInFlight = false;
 		return desyncInfo;
@@ -195,6 +185,7 @@ void ClientReconciler::ApplyCoordWriteback(CoordReconcileWork& rWork, engine::Co
 					++rSub.iSnapshotCount;
 				}
 			}
+
 		}
 		else
 		{
@@ -246,6 +237,7 @@ void ClientReconciler::ApplyCoordWriteback(CoordReconcileWork& rWork, engine::Co
 				++rSub.iSnapshotCount;
 			}
 		}
+
 	}
 
 	// Restore unconsumed server updates that were moved to context
@@ -345,7 +337,6 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 		}
 
 		// Restore counters from caught-up state
-		Log(kLogNetwork, "setTickCounter old: {} new: {}", gpGame->TickCounter(), rReconcileContext.iTickCounter); // DT: TEMP
 		gpGame->SetTickCounter(rReconcileContext.iTickCounter);
 		gpGame->SetCurrentTime(rReconcileContext.newConfirmedHumanState.fCurrentTime);
 

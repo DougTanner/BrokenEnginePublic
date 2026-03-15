@@ -258,4 +258,12 @@ void Server::ClientUnsubscribe(const uint8_t* pData, int64_t iClientId)
 	SendUnsubscribeAck(*pClient, uiSlotIndex);
 }
 
+void Server::ClientResyncRequest([[maybe_unused]] const uint8_t* pData, int64_t iClientId)
+{
+	Log(kLogNetwork, "Server::ClientResyncRequest Client: {}", iClientId);
+
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	mPendingResyncClientIds.push_back(iClientId);
+}
+
 } // namespace engine

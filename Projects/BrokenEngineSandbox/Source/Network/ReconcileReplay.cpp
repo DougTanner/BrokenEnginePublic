@@ -122,16 +122,9 @@ static void CrcApplyMatchResult(CoordReconcileWork& rWork, int64_t iLastMatched,
 	// Record matched snapshot logical offset instead of moving Frame
 	rWork.iNewConfirmedOffset = iLastMatchedIndex;
 
-	// Keep snapshots beyond matched frame
+	// Fast path: snapshots remain in-place in the ring buffer — no extraction needed.
+	// ApplyCoordWriteback swaps the array back and advances head past confirmed.
 	rWork.newSnapshots.clear();
-	for (int64_t i = 0; i < rWork.iSnapshotCount; ++i)
-	{
-		int64_t iPhys = SnapshotIndex(rWork.iSnapshotHead, i);
-		if (rWork.snapshots[iPhys] != nullptr && rWork.snapshots[iPhys]->interpolate.iTick > iLastMatched)
-		{
-			rWork.newSnapshots.push_back(std::move(rWork.snapshots[iPhys]));
-		}
-	}
 }
 
 struct CrcFastPathCoordResult
@@ -359,7 +352,7 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork, int64_t iMaxConsecutive, float& rfTime)
 {
 	int64_t iReplayStart = rWork.iConfirmedTick + 1;
-	const int64_t iMaxReplay = (iMaxConsecutive - rWork.iConfirmedTick + 1) / 2;
+	const int64_t iMaxReplay = std::max(1LL, (iMaxConsecutive - rWork.iConfirmedTick + 1) / 2);
 	int64_t iReplayCount = 0;
 
 	for (int64_t iTick = iReplayStart; iTick <= iMaxConsecutive; ++iTick)
@@ -535,12 +528,15 @@ void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)
 		}
 		else
 		{
-			// Human coord fast-pathed: advance by confirmed tick delta
-			int64_t iNewTick = (rWork.iNewConfirmedTick >= 0) ? rWork.iNewConfirmedTick : rWork.iConfirmedTick;
-			int64_t iAdvancement = iNewTick - rWork.iConfirmedTick;
-			for (int64_t i = 0; i < iAdvancement; ++i)
+			// Human coord fast-pathed: read time from confirmed snapshot
+			int64_t iNewOffset = (rWork.iNewConfirmedOffset >= 0) ? rWork.iNewConfirmedOffset : rWork.iConfirmedOffset;
+			if (iNewOffset >= 0)
 			{
-				humanState.fCurrentTime += kfDeltaTime;
+				int64_t iPhysical = SnapshotIndex(rWork.iSnapshotHead, iNewOffset);
+				if (rWork.snapshots[iPhysical] != nullptr)
+				{
+					humanState.fCurrentTime = rWork.snapshots[iPhysical]->interpolate.fCurrentTime;
+				}
 			}
 		}
 		break;
@@ -548,7 +544,6 @@ void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)
 
 	if (rReconcileContext.bAnyFullReplay)
 	{
-
 		// Scan full-replay coords for human migration via transfer requests
 		for (const CoordReconcileWork& rWork : rReconcileContext.coordWork)
 		{
@@ -583,12 +578,26 @@ void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)
 					// Find human's new player ID by position matching in destination coord
 					for (const CoordReconcileWork& rDestWork : rReconcileContext.coordWork)
 					{
-						if (rDestWork.coord != destination || rDestWork.iReplayStackCount <= 0)
+						if (rDestWork.coord != destination)
 						{
 							continue;
 						}
 
-						const Frame& rDestFrame = *rDestWork.replayStack[rDestWork.iReplayStackCount - 1];
+						const Frame* pDestFrame = nullptr;
+						if (rDestWork.iReplayStackCount > 0)
+						{
+							pDestFrame = rDestWork.replayStack[rDestWork.iReplayStackCount - 1];
+						}
+						else if (rDestWork.bCrcFastPath && rDestWork.iNewConfirmedOffset >= 0)
+						{
+							int64_t iPhysical = SnapshotIndex(rDestWork.iSnapshotHead, rDestWork.iNewConfirmedOffset);
+							pDestFrame = rDestWork.snapshots[iPhysical].get();
+						}
+						if (pDestFrame == nullptr)
+						{
+							continue;
+						}
+						const Frame& rDestFrame = *pDestFrame;
 						bool bFound = false;
 						for (int64_t j = 0; j < rDestFrame.postRender.pPlayers->iCount; ++j)
 						{

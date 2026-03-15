@@ -71,6 +71,7 @@ public:
 	void SendDebugFrameRequest(int64_t iTick, GridCoord coord);
 	void SendSubscribe(GridCoord coord);
 	void SendUnsubscribe(int64_t iSlot);
+	void SendResyncRequest();
 	void Flush();
 	void Disconnect();
 	void SetDesyncDebugMode(bool bEnabled) { mbDesyncDebugMode = bEnabled; }
@@ -88,6 +89,7 @@ public:
 
 	const std::vector<ClientCoordSlot>& GetCoordSlots() const { return mCoordSlots; }
 	std::vector<ClientCoordSlot>& GetCoordSlots() { return mCoordSlots; }
+	std::vector<GridCoord>& GetCancelledSubscriptions() { return mCancelledSubscriptions; }
 	ENetPeer* GetServerPeer() const { return mpServerPeer; }
 	int64_t GetBytesInPerSecond() { return mBytesInPerSecond.Get(); }
 	int64_t GetBytesOutPerSecond() { return mBytesOutPerSecond.Get(); }
@@ -141,6 +143,9 @@ private:
 
 	// Network simulation delay queue
 	std::deque<DelayedPacket> mDelayedPackets;
+
+	// Coords whose kSubscribing slot was cancelled before the server responded
+	std::vector<GridCoord> mCancelledSubscriptions;
 };
 
 inline Client* gpClient = nullptr;

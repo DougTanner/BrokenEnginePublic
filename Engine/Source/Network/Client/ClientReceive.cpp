@@ -83,9 +83,26 @@ void Client::ServerCoordFullState(const uint8_t* pData)
 		{
 			return;
 		}
+		// Validate epoch for kWaitingFullState (epoch is set by SubscribeAccept)
+		// Guards against stale full-state from a previous subscription to the same coord/slot
+		if (rSlot.eState == CoordSubscriptionState::kWaitingFullState && uiEpoch != rSlot.ackState.uiEpoch)
+		{
+			return;
+		}
 	}
 	else
 	{
+		return;
+	}
+
+	// If this coord was cancelled while kSubscribing, reject the full state
+	std::vector<GridCoord>& rCancelled = mCancelledSubscriptions;
+	auto cancelIt = std::ranges::find(rCancelled, coord);
+	if (cancelIt != rCancelled.end())
+	{
+		rCancelled.erase(cancelIt);
+		Log(kLogNetwork, "Client::ServerCoordFullState Cancelled Coord: ({},{}) Slot: {}", coord.x, coord.y, uiSlotIndex);
+		rSlot = {};
 		return;
 	}
 
@@ -245,6 +262,17 @@ void Client::ServerSubscribeAccept(const uint8_t* pData)
 	rSlot.ackState.iAckFloor = -1;
 	rSlot.ackState.uiReceivedBitfield = 0;
 	rSlot.ackState.uiEpoch = uiEpoch;
+
+	// If this coord was cancelled while kSubscribing, immediately unsubscribe
+	std::vector<GridCoord>& rCancelled = mCancelledSubscriptions;
+	auto cancelIt = std::ranges::find(rCancelled, coord);
+	if (cancelIt != rCancelled.end())
+	{
+		rCancelled.erase(cancelIt);
+		Log(kLogNetwork, "Client::ServerSubscribeAccept Cancelled Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+		SendUnsubscribe(uiSlotIndex);
+		return;
+	}
 
 	Log(kLogNetwork, "Client::ServerSubscribeAccept Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 }

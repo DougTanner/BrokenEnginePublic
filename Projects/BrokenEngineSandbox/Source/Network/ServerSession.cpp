@@ -45,11 +45,22 @@ void ServerSession::BroadcastTick(int64_t iTick)
 	// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
+	HandleResyncRequests(iTick);
 	FinalizeNewClients(iTick);
 	DetectPlayerDeaths();
 	BroadcastStatusChanges(iTick);
 	SubscriptionUpdates(iTick);
 	engine::gpServer->Flush();
+}
+
+void ServerSession::SendResends(int64_t iTick)
+{
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
+	for (engine::ClientConnection& rClient : rClients)
+	{
+		engine::gpServer->SendResends(rClient, iTick);
+	}
 }
 
 void ServerSession::WaitForTick(engine::TimeStep& rTimeStep)
@@ -290,14 +301,13 @@ void ServerSession::BroadcastStatusChanges(int64_t iTick)
 	for (engine::ClientConnection& rClient : rClients)
 	{
 		engine::gpServer->SendUpdate(rClient, iTick);
-		engine::gpServer->SendResends(rClient, iTick);
 	}
 }
 
 struct HumanTransferInfo
 {
 	int64_t iEntityId = 0;
-	engine::GridCoord dest {};
+	engine::GridCoord destination {};
 };
 
 void ServerSession::CollectTransfers(std::vector<HumanTransferInfo>& rHumanTransfers)
@@ -312,19 +322,19 @@ void ServerSession::CollectTransfers(std::vector<HumanTransferInfo>& rHumanTrans
 
 		for (const TransferRequest& rRequest : rNextFrame.postRender.transferRequests)
 		{
-			engine::GridCoord dest {rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY};
+			engine::GridCoord destination {rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY};
 
-			auto it = gpGame->mCoordFrames.find(dest);
+			auto it = gpGame->mCoordFrames.find(destination);
 			if (it == gpGame->mCoordFrames.end() || it->second.pNext == nullptr)
 			{
 				continue;
 			}
 
-			mTickBroadcast.transfers.try_emplace(dest).first->second.push_back({.eType = rRequest.eType, .data = rRequest.data,});
+			mTickBroadcast.transfers.try_emplace(destination).first->second.push_back({.eType = rRequest.eType, .data = rRequest.data,});
 
 			if (rRequest.eType == StatusChangeType::kTransferPlayer && rRequest.iEntityId != 0)
 			{
-				rHumanTransfers.push_back({.iEntityId = rRequest.iEntityId, .dest = dest,});
+				rHumanTransfers.push_back({.iEntityId = rRequest.iEntityId, .destination = destination,});
 			}
 		}
 	}
@@ -359,7 +369,7 @@ void ServerSession::TrackHumanTransfers(const std::vector<HumanTransferInfo>& rH
 	for (const HumanTransferInfo& rHumanTransfer : rHumanTransfers)
 	{
 		player_t transferredPlayerId {engine::uuid_t {rHumanTransfer.iEntityId}};
-		Frame& rDestFrame = *gpGame->mCoordFrames.at(rHumanTransfer.dest).pNext;
+		Frame& rDestFrame = *gpGame->mCoordFrames.at(rHumanTransfer.destination).pNext;
 		player_t newPlayerId = rDestFrame.postRender.pPlayers->puiIds[rDestFrame.postRender.pPlayers->iCount - 1];
 
 		const std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
@@ -367,7 +377,7 @@ void ServerSession::TrackHumanTransfers(const std::vector<HumanTransferInfo>& rH
 		{
 			if (rClient.humanPlayerId.IsValid() && transferredPlayerId == rClient.humanPlayerId)
 			{
-				mPendingSubscriptionUpdates.push_back({.iClientId = rClient.iClientId, .newCoord = rHumanTransfer.dest, .newPlayerId = newPlayerId,});
+				mPendingSubscriptionUpdates.push_back({.iClientId = rClient.iClientId, .newCoord = rHumanTransfer.destination, .newPlayerId = newPlayerId,});
 				break;
 			}
 		}
@@ -578,6 +588,45 @@ void ServerSession::SubscriptionUpdates([[maybe_unused]] int64_t iTick)
 	}
 
 	mPendingSubscriptionUpdates.clear();
+}
+
+void ServerSession::HandleResyncRequests([[maybe_unused]] int64_t iTick)
+{
+	std::vector<int64_t>& rResyncClientIds = engine::gpServer->DrainPendingResyncClientIds();
+	if (rResyncClientIds.empty())
+	{
+		return;
+	}
+
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	for (int64_t iClientId : rResyncClientIds)
+	{
+		engine::ClientConnection* pClient = engine::gpServer->FindClient(iClientId);
+		if (pClient == nullptr)
+		{
+			continue;
+		}
+
+		Log(kLogNetwork, "ServerSession::HandleResyncRequests Client: {}", iClientId);
+
+		for (int64_t iSlot = 0; iSlot < std::ssize(pClient->coordSubscriptions); ++iSlot)
+		{
+			if (!pClient->coordSubscriptions.at(iSlot).bActive)
+			{
+				continue;
+			}
+
+			engine::GridCoord coord = pClient->coordSubscriptions.at(iSlot).coord;
+			auto frameIt = gpGame->mCoordFrames.find(coord);
+			if (frameIt == gpGame->mCoordFrames.end())
+			{
+				continue;
+			}
+
+			engine::gpServer->SendCoordFullState(iClientId, iSlot, gpGame->TickCounter(), coord, frameIt->second.pCurrent.get());
+		}
+	}
 }
 
 #endif // BT_SERVER

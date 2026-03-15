@@ -287,6 +287,7 @@ void ClientSession::DisconnectFromServer()
 	mpReconciler->Reset();
 	DisconnectFromServerBase();
 	mDesyncDebugState = {};
+	miDesyncCount = 0;
 }
 
 bool ClientSession::PollConnectionStatus()
@@ -334,9 +335,22 @@ void ClientSession::PollDebugFrameResponse()
 	{
 		CompareWithServerFrame(*mDesyncDebugState.pClientFrame, *pDebugFrame->pFrame, mDesyncDebugState.iTick, mDesyncDebugState.coord);
 		mDesyncDebugState = {};
-		DEBUG_BREAK();
-		snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
-		mpClientNetwork->Disconnect();
+
+		if constexpr (kbEnableDesyncRecovery)
+		{
+			if constexpr (kbEnableDebugBreak)
+			{
+				DEBUG_BREAK();
+			}
+
+			RecoverFromDesync();
+		}
+		else
+		{
+			ASSERT(false);
+			snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
+			mpClientNetwork->Disconnect();
+		}
 	}
 }
 
@@ -363,10 +377,19 @@ bool ClientSession::PollConnection()
 	// Timeout desync debug mode if server never responds
 	if (mDesyncDebugState.iTick >= 0 && std::chrono::steady_clock::now() - mDesyncDebugState.entryTime > kDesyncDebugTimeout)
 	{
-		Log(kLogNetwork, "ClientSession::PollConnection Desync debug mode timed out, disconnecting");
 		mDesyncDebugState = {};
-		snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server (debug frame timeout)");
-		mpClientNetwork->Disconnect();
+		if constexpr (kbEnableDesyncRecovery)
+		{
+			Log(kLogNetwork, "ClientSession::PollConnection Desync debug mode timed out, recovering without debug frame");
+			RecoverFromDesync();
+		}
+		else
+		{
+			Log(kLogNetwork, "ClientSession::PollConnection Desync debug mode timed out, disconnecting");
+			ASSERT(false);
+			snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server (debug frame timeout)");
+			mpClientNetwork->Disconnect();
+		}
 	}
 
 	if (mpClientNetwork->WasDisconnected())
@@ -383,6 +406,46 @@ bool ClientSession::PollConnection()
 	}
 
 	return true;
+}
+
+void ClientSession::RecoverFromDesync()
+{
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+
+	if (miDesyncCount > 0 && now - mFirstDesyncTime > kDesyncWindowDuration)
+	{
+		miDesyncCount = 0;
+	}
+
+	if (miDesyncCount == 0)
+	{
+		mFirstDesyncTime = now;
+	}
+	++miDesyncCount;
+
+	Log(kLogNetwork, "ClientSession::RecoverFromDesync DesyncCount: {} / {}", miDesyncCount, kiMaxDesyncsBeforeDisconnect);
+
+	if (miDesyncCount >= kiMaxDesyncsBeforeDisconnect)
+	{
+		Log(kLogNetwork, "ClientSession::RecoverFromDesync Escalating to disconnect");
+		snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
+		mpClientNetwork->Disconnect();
+		return;
+	}
+
+	mpClientNetwork->SendResyncRequest();
+	mpClientNetwork->SetDesyncDebugMode(false);
+	ResetCoordStatesForResync();
+}
+
+void ClientSession::ResetCoordStatesForResync()
+{
+	for (auto& [rCoord, rSub] : gpGame->mCoordFrames)
+	{
+		rSub.ResetClientState();
+	}
+
+	mpReconciler->Reset();
 }
 
 void ClientSession::CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, [[maybe_unused]] int64_t iTick, [[maybe_unused]] engine::GridCoord coord)

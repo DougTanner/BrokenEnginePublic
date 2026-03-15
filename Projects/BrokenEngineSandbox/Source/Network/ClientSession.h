@@ -67,7 +67,15 @@ private:
 
 	static constexpr std::chrono::seconds kDesyncDebugTimeout {5};
 
+	// Desync frequency tracking for escalation
+	int64_t miDesyncCount = 0;
+	std::chrono::steady_clock::time_point mFirstDesyncTime {};
+	static constexpr int64_t kiMaxDesyncsBeforeDisconnect = 3;
+	static constexpr std::chrono::seconds kDesyncWindowDuration {10};
+
 	void CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, int64_t iTick, engine::GridCoord coord);
+	void RecoverFromDesync();
+	void ResetCoordStatesForResync();
 
 	// Reconciliation
 	std::unique_ptr<ClientReconciler> mpReconciler;

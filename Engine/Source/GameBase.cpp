@@ -115,6 +115,7 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 		BuildAndDispatchFrameTicks(rActiveCoords, false);
 		FinalizeFrameTick(rActiveCoords, false);
 	}
+	game::gpServerSession->SendResends(miTickCounter);
 	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
 
 	if constexpr (kbEnableProfiling)

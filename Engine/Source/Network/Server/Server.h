@@ -104,6 +104,7 @@ public:
 	std::vector<PendingSpawnRequest>& DrainPendingSpawnRequests() { return mPendingSpawnRequests; }
 	std::vector<PendingDisconnect>& DrainPendingDisconnects() { return mPendingDisconnects; }
 	std::vector<PendingNewSubscription>& DrainPendingNewSubscriptions() { return mPendingNewSubscriptions; }
+	std::vector<int64_t>& DrainPendingResyncClientIds() { return mPendingResyncClientIds; }
 	const std::vector<ClientConnection>& GetClients() const { return mClients; }
 	std::vector<ClientConnection>& GetClients() { return mClients; }
 	ClientConnection* FindClient(int64_t iClientId);
@@ -123,6 +124,7 @@ private:
 	void ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId);
 	void ClientSubscribe(const uint8_t* pData, int64_t iClientId);
 	void ClientUnsubscribe(const uint8_t* pData, int64_t iClientId);
+	void ClientResyncRequest(const uint8_t* pData, int64_t iClientId);
 	void SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage);
 	void SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord);
 	void SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot);
@@ -137,6 +139,7 @@ private:
 	std::vector<PendingSpawnRequest> mPendingSpawnRequests;
 	std::vector<PendingDisconnect> mPendingDisconnects;
 	std::vector<PendingNewSubscription> mPendingNewSubscriptions;
+	std::vector<int64_t> mPendingResyncClientIds;
 	int64_t miNextClientId = 1;
 
 	// Per-coord ring buffers for re-sends

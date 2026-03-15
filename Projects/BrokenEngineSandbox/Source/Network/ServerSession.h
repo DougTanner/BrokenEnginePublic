@@ -36,6 +36,7 @@ public:
 	void PreTickNetwork();
 	void PrepareTick();
 	void BroadcastTick(int64_t iTick);
+	void SendResends(int64_t iTick);
 	void WaitForTick(engine::TimeStep& rTimeStep);
 	void ComputeActiveSet();
 	void BuildFrameInputs();
@@ -47,6 +48,7 @@ public:
 	void FinalizeNewClients(int64_t iTick);
 	void DetectPlayerDeaths();
 	void SubscriptionUpdates(int64_t iTick);
+	void HandleResyncRequests(int64_t iTick);
 	void RefreshPreSpawnSnapshot();
 
 private:

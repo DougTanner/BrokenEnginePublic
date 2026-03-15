@@ -53,6 +53,7 @@ void Server::Poll()
 	mPendingSpawnRequests.clear();
 	mPendingDisconnects.clear();
 	mPendingNewSubscriptions.clear();
+	mPendingResyncClientIds.clear();
 
 	ENetEvent event {};
 	while (enet_host_service(mpHost, &event, 0) > 0)
@@ -176,6 +177,9 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 			break;
 		case PacketType::kClientUnsubscribe:
 			ClientUnsubscribe(pData, iClientId);
+			break;
+		case PacketType::kClientResyncRequest:
+			ClientResyncRequest(pData, iClientId);
 			break;
 		default:
 			break;

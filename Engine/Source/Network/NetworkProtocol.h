@@ -19,6 +19,7 @@ enum class PacketType : uint8_t
 	kServerConnectionResponse,
 	kClientSubscribe,           // Client requests subscription to a GridCoord
 	kClientUnsubscribe,         // Client releases a coord slot
+	kClientResyncRequest,       // Client requests full state re-download after desync recovery
 	kServerSubscribeAccept,     // Server confirms subscription with assigned slot
 	kServerUnsubscribeAck,      // Server confirms unsubscription
 	kServerPlayerState,         // Server notifies client of player state change (spawn, frame change, death)
