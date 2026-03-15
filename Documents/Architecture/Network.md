@@ -19,13 +19,13 @@ graph TD
         gpServer["gpServer<br/>Server<br/>(mpHost, mClients[])"]:::serverOnly
 
         server_types["ServerTypes.h<br/>ClientCoordSubscription<br/>PendingSpawnRequest<br/>PendingDisconnect<br/>PendingNewSubscription<br/>GridUpdateData"]:::serverOnly
-        protocol["NetworkProtocol.h<br/>PacketType enum (15 types)<br/>AckState struct<br/>kuiProtocolVersion"]:::protocol
+        protocol["NetworkProtocol.h<br/>PacketType enum (15 types)<br/>AckState struct<br/>kuiProtocolVersion<br/>kiClockErrorDisconnectThreshold"]:::protocol
         simulation["NetworkSimulation.h<br/>NetworkSimulationLevel enum<br/>NetworkSimulationConfig<br/>DelayedPacket<br/>EnqueueOrDrop / ProcessDelayed<br/>(latency + loss injection)"]:::shared
         serialization["NetworkSerialization<br/>StatusChange compress/decompress<br/>(LZ4)"]:::shared
         cursor["NetworkCursor<br/>Inline binary read/write helpers<br/>(ReadUint8..ReadVec4, ReadGridCoord,<br/>WriteUint8..WriteVec4)"]:::shared
         discovery_scanner["NetworkDiscoveryScanner<br/>(UDP broadcast probe)"]:::clientOnly
         discovery_responder["NetworkDiscoveryResponder<br/>(UDP listen on port 27016)"]:::serverOnly
-        client_session_base["ClientSessionBase<br/>(owns Client +<br/>DiscoveryScanner)<br/>ConnectToServer, DisconnectFromServerBase,<br/>StartServerDiscovery, PollLANDiscovery,<br/>TrySubscribeNext, UnsubscribeStaleCoords,<br/>BuildSubscriptionQueue,<br/>ApplyReceivedUpdatesBase,<br/>ComputeClockCorrectionNs,<br/>IsExtrapolating, PrepareExtrapolationTick,<br/>BuildExtrapolationFrameRef,<br/>RecordExtrapolationSnapshot, GetSnapshotFrame,<br/>GetConfirmedTick, GetServerUpdateBufferSize"]:::clientOnly
+        client_session_base["ClientSessionBase<br/>(owns Client +<br/>DiscoveryScanner)<br/>ConnectToServer, DisconnectFromServerBase,<br/>StartServerDiscovery, PollLANDiscovery,<br/>TrySubscribeNext, UnsubscribeStaleCoords,<br/>BuildSubscriptionQueue,<br/>ApplyReceivedUpdatesBase,<br/>ComputeClockCorrectionNs,<br/>(mbClockErrorDisconnect on extreme drift),<br/>IsExtrapolating, PrepareExtrapolationTick,<br/>BuildExtrapolationFrameRef,<br/>RecordExtrapolationSnapshot, GetSnapshotFrame,<br/>GetConfirmedTick, GetServerUpdateBufferSize"]:::clientOnly
         session_base["ServerSessionBase<br/>(owns DiscoveryResponder,<br/>mTimerHandle for tick sleep)<br/>WaitForTick, PollNetworkBase,<br/>SendNewSubscriptionFullStates"]:::serverOnly
     end
 

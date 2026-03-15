@@ -27,3 +27,7 @@ Client/server networking infrastructure using the ENet reliable UDP library. Pro
 - **Resend system**: Client ACK stream packets carry per-slot (slot, epoch, floor, bitfield) tuples. Server scans unset bits to find missing frames and resends them as separate unreliable packets
 - **Connection handshake**: Client sends `kClientHello` with protocol version and build config name; server validates both and accepts/rejects
 - **Network simulation**: When enabled via compile-time enum, both sides inject packet loss and variable latency on received unreliable packets. Implementation in `NetworkSimulation.h`. Zero overhead when disabled via `if constexpr`
+
+## See Also
+
+- [Client/CLAUDE.md](Client/CLAUDE.md) - Client-side ENet peer and ClientSessionBase

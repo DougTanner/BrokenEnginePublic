@@ -29,6 +29,13 @@ std::chrono::nanoseconds ClientSession::ComputeClockCorrectionNs(int64_t iPreRec
 {
 	std::chrono::nanoseconds correction = ClientSessionBase::ComputeClockCorrectionNs(iPreReconcileTick, kTickNs);
 	gpProfileManager->SetClockCorrection(miClockOffset, miClockTargetBehind, miClockError);
+
+	if (mbClockErrorDisconnect)
+	{
+		snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Disconnected: clock error");
+		mpClientNetwork->Disconnect();
+	}
+
 	return correction;
 }
 
@@ -154,6 +161,7 @@ void ClientSession::Reconcile()
 		// Compensate time step for ticks rolled back during reconciliation
 		int64_t iTickDeficit = iPreReconcileTick - gpGame->TickCounter();
 		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iPreReconcileTick);
+		Log(kLogNetwork, "DT: TEMP reconcileDeficit: {} clockCorrectionNs: {} remainderNs: {}", iTickDeficit, clockCorrectionNs.count(), gpGame->mTimeStep.mTickRemainderNs.count());
 		if (iTickDeficit > 0)
 		{
 			gpGame->mTimeStep.mTickRemainderNs += iTickDeficit * kTickNs;

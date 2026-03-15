@@ -37,6 +37,7 @@ inline constexpr uint32_t kuiProtocolVersion = 1;
 inline constexpr uint16_t kuiDefaultPort = 27015;
 inline constexpr int64_t kiMaxResendFrames = 8;
 inline constexpr int64_t kiMaxBufferedFrames = 256;
+inline constexpr int64_t kiClockErrorDisconnectThreshold = 64;
 inline constexpr int64_t kiMaxPacketSize = 64 * 1024;
 inline constexpr int64_t kiMaxStatusChangesPerCell = 1024;
 

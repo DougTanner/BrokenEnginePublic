@@ -29,6 +29,7 @@ void ClientSessionBase::DisconnectFromServerBase()
 	}
 	mSubscriptionQueue.clear();
 	miClockError = 0;
+	mbClockErrorDisconnect = false;
 }
 
 void ClientSessionBase::StartServerDiscovery()
@@ -183,21 +184,23 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 				continue;
 			}
 
+			miLatestServerTick = std::max(miLatestServerTick, rUpdate.iTick);
+
 			if (static_cast<int64_t>(rSub.serverUpdates.size()) >= kiMaxBufferedFrames)
 			{
 				Log(kLogNetwork, "ClientSessionBase::ApplyReceivedUpdatesBase Buffer full Coord: ({},{}) Size: {} Tick: {}", coord.x, coord.y, rSub.serverUpdates.size(), rUpdate.iTick);
+				ASSERT(false);
+				bHasNewData = true;
 				continue;
 			}
 
-			miLatestServerTick = std::max(miLatestServerTick, rUpdate.iTick);
-
 			if (!rSub.serverUpdates.contains(rUpdate.iTick))
 			{
-				rSub.serverUpdates[rUpdate.iTick] = {
+				rSub.serverUpdates.insert_or_assign(rUpdate.iTick, CoordFrames::CoordServerUpdate {
 					.serverCrc = rUpdate.serverCrc,
 					.inputCrc = rUpdate.inputCrc,
 					.statusChanges = std::move(rUpdate.statusChanges),
-				};
+				});
 				bHasNewData = true;
 			}
 		}
@@ -222,10 +225,15 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	int64_t iTargetBehind = (iRttUs > 0) ? ((iRttUs / 2 + iTickTimeUs - 1) / iTickTimeUs + 1) : 1;
 
 	int64_t iOffset = iPreReconcileTick - miLatestServerTick;
-	int64_t iError = iOffset + iTargetBehind;
+	int64_t iError = iOffset - iTargetBehind;
 	miClockError = iError;
 	miClockOffset = iOffset;
 	miClockTargetBehind = iTargetBehind;
+
+	if (std::abs(iError) >= kiClockErrorDisconnectThreshold)
+	{
+		mbClockErrorDisconnect = true;
+	}
 
 	if (std::abs(iError) >= 4)
 	{
@@ -340,6 +348,7 @@ game::Frame* ClientSessionBase::GetSnapshotFrame(GridCoord coord) const
 	}
 	const CoordFrames& rSub = subIt->second;
 	int64_t iPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount - 1);
+	Log(kLogNetwork, "DT: TEMP renderTick: {} snapshotCount: {} confirmed: {}", rSub.snapshots[iPhysical]->interpolate.iTick, rSub.iSnapshotCount, rSub.iConfirmedTick);
 	return rSub.snapshots[iPhysical].get();
 }
 

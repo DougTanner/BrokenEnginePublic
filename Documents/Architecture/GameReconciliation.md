@@ -164,7 +164,7 @@ Keeps client ~RTT/2 + 1 frames behind the server so updates arrive before the cl
 ```
 iTargetBehind = ceil(RTT/2 / frameTime) + 1
 iOffset       = preReconcileFrame - latestServerFrame
-iError        = iOffset + iTargetBehind
+iError        = iOffset - iTargetBehind
 
 correction    = -clamp(iError, -4, +4) * kTickNs / 64
                  ─────────────────────

@@ -1,7 +1,7 @@
 #pragma once
 
 inline constexpr bool kbEnableLogging = true;
-inline constexpr bool kbEnableFrameDispatch = false; // DT: TEMP true;
+inline constexpr bool kbEnableFrameDispatch = true;
 inline constexpr bool kbEnableRenderThread = true;
 inline constexpr bool kbEnableReconcileThread = true;
 
@@ -67,4 +67,4 @@ inline constexpr bool kbShowProfileTextByDefault = false;
 #include "Frame/Frame.h"
 #include "Engine.h"
 
-inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kDisabled;
+inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kWestCoast;

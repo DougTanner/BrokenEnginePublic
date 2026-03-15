@@ -53,11 +53,7 @@ ReconcileDesyncInfo ClientReconciler::Wait()
 		common::Timer timer;
 		mpWorker->Wait();
 		std::chrono::nanoseconds semaphoreWaitNs = timer.GetDeltaNs(true);
-
-		if (semaphoreWaitNs > std::chrono::nanoseconds(16ms))
-		{
-			Log(kLogNetwork, "ClientReconciler::Wait Reconcile stall WaitMs: {}", std::chrono::duration_cast<std::chrono::milliseconds>(semaphoreWaitNs).count());
-		}
+		Log(kLogNetwork, "DT: TEMP reconcileWaitMs: {}", std::chrono::duration_cast<std::chrono::milliseconds>(semaphoreWaitNs).count());
 
 		std::chrono::nanoseconds maxWait = std::chrono::nanoseconds(100ms);
 		if (semaphoreWaitNs > maxWait)
@@ -353,6 +349,7 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 		}
 
 		// Restore counters from caught-up state
+		Log(kLogNetwork, "DT: TEMP setTickCounter old: {} new: {}", gpGame->TickCounter(), rReconcileContext.iTickCounter);
 		gpGame->SetTickCounter(rReconcileContext.iTickCounter);
 		gpGame->SetCurrentTime(rReconcileContext.fCurrentTime);
 
