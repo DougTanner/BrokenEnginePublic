@@ -60,6 +60,13 @@ int64_t TimeStep::TickRealtime()
 	else
 	{
 		mTickRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
+
+		// Death spiral prevention: clamp accumulator to prevent backlog cascade
+		std::chrono::nanoseconds maxAccumulator = game::kTickNs * kiMaxAccumulatorTicks;
+		if (mTickRemainderNs > maxAccumulator)
+		{
+			mTickRemainderNs = maxAccumulator;
+		}
 	}
 
 	// Calculate number of ticks needed

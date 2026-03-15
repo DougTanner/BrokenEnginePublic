@@ -8,16 +8,27 @@
 namespace engine
 {
 
-static std::unique_ptr<game::Frame> DecompressAndReadFrame(const uint8_t*& pCursor)
+static std::unique_ptr<game::Frame> DecompressAndReadFrame(const uint8_t*& pCursor, size_t iRemaining)
 {
+	if (iRemaining < 8) // 4B uncompressed + 4B compressed
+	{
+		return nullptr;
+	}
+
 	int32_t iUncompressedSize = ReadInt32(pCursor);
 	int32_t iCompressedSize = ReadInt32(pCursor);
+
+	if (iUncompressedSize <= 0 || iCompressedSize <= 0
+		|| static_cast<size_t>(iCompressedSize) > iRemaining - 8)
+	{
+		return nullptr;
+	}
 
 	std::string decompressed(iUncompressedSize, '\0');
 	int iDecompressResult = LZ4_decompress_safe(reinterpret_cast<const char*>(pCursor), decompressed.data(), iCompressedSize, iUncompressedSize);
 	pCursor += iCompressedSize;
 
-	if (iDecompressResult < 0)
+	if (iDecompressResult != iUncompressedSize)
 	{
 		return nullptr;
 	}
@@ -40,8 +51,14 @@ void Client::ClearSubscribingPlaceholder(GridCoord coord)
 	}
 }
 
-void Client::ServerCoordFullState(const uint8_t* pData)
+void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 {
+	// 1B type + 1B slot + 2B epoch + 8B tick + 4B gridX + 4B gridY = 20 fixed bytes
+	if (iSize < 20)
+	{
+		return;
+	}
+
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	uint8_t uiSlotIndex = ReadUint8(pCursor);
@@ -54,7 +71,7 @@ void Client::ServerCoordFullState(const uint8_t* pData)
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor);
+	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor, iSize - 20);
 	if (pFrame == nullptr)
 	{
 		Log(kLogNetwork, "Client::ServerCoordFullState LZ4 decompression failed Coord: ({},{}) Frame: {}", coord.x, coord.y, iTick);
@@ -116,13 +133,20 @@ void Client::ServerCoordFullState(const uint8_t* pData)
 	mReceivedFullStates.push_back(std::move(fullState));
 
 	rSlot.ackState.iAckFloor = iTick;
-	rSlot.ackState.uiReceivedBitfield = 0;
+	rSlot.ackState.uiReceivedBitfieldLow = 0;
+	rSlot.ackState.uiReceivedBitfieldHigh = 0;
 	rSlot.ackState.uiEpoch = uiEpoch;
 	rSlot.eState = CoordSubscriptionState::kActive;
 }
 
-void Client::ServerCoordUpdateOrResend(const uint8_t* pData, bool bProcessRtt)
+void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool bProcessRtt)
 {
+	// 1B type + 1B slot + 2B epoch + 8B tick + 8B echoTs + 8B serverCrc + 8B inputCrc + 4B compressedSize = 40 fixed bytes
+	if (iSize < 40)
+	{
+		return;
+	}
+
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	uint8_t uiSlotIndex = ReadUint8(pCursor);
@@ -158,6 +182,11 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, bool bProcessRtt)
 	common::crc_t inputCrc = static_cast<common::crc_t>(ReadUint64(pCursor));
 	int32_t iCompressedSize = ReadInt32(pCursor);
 
+	if (iCompressedSize < 0 || static_cast<size_t>(iCompressedSize) > iSize - 40)
+	{
+		return;
+	}
+
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	ReceivedCoordUpdate update {};
@@ -183,8 +212,14 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, bool bProcessRtt)
 
 }
 
-void Client::ServerDebugFrame(const uint8_t* pData)
+void Client::ServerDebugFrame(const uint8_t* pData, size_t iSize)
 {
+	// 1B type + 8B tick + 4B gridX + 4B gridY = 17 fixed bytes
+	if (iSize < 17)
+	{
+		return;
+	}
+
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	int64_t iTick = ReadInt64(pCursor);
@@ -194,7 +229,7 @@ void Client::ServerDebugFrame(const uint8_t* pData)
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor);
+	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor, iSize - 17);
 	if (pFrame == nullptr)
 	{
 		Log(kLogNetwork, "Client::ServerDebugFrame LZ4 decompression failed Frame: {}", iTick);
@@ -209,6 +244,12 @@ void Client::ServerDebugFrame(const uint8_t* pData)
 
 void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 {
+	// 1B type + 1B accepted = 2 minimum bytes
+	if (iSize < 2)
+	{
+		return;
+	}
+
 	const uint8_t* pCursor = pData + 1;
 	bool bAccepted = (ReadUint8(pCursor) != 0);
 
@@ -226,8 +267,14 @@ void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 	}
 }
 
-void Client::ServerSubscribeAccept(const uint8_t* pData)
+void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 {
+	// 1B type + 1B slot + 2B epoch + 4B gridX + 4B gridY = 12 fixed bytes
+	if (iSize < 12)
+	{
+		return;
+	}
+
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	uint8_t uiSlotIndex = ReadUint8(pCursor);
@@ -260,7 +307,8 @@ void Client::ServerSubscribeAccept(const uint8_t* pData)
 	rSlot.coord = coord;
 	rSlot.eState = CoordSubscriptionState::kWaitingFullState;
 	rSlot.ackState.iAckFloor = -1;
-	rSlot.ackState.uiReceivedBitfield = 0;
+	rSlot.ackState.uiReceivedBitfieldLow = 0;
+	rSlot.ackState.uiReceivedBitfieldHigh = 0;
 	rSlot.ackState.uiEpoch = uiEpoch;
 
 	// If this coord was cancelled while kSubscribing, immediately unsubscribe
@@ -277,8 +325,14 @@ void Client::ServerSubscribeAccept(const uint8_t* pData)
 	Log(kLogNetwork, "Client::ServerSubscribeAccept Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 }
 
-void Client::ServerUnsubscribeAck(const uint8_t* pData)
+void Client::ServerUnsubscribeAck(const uint8_t* pData, size_t iSize)
 {
+	// 1B type + 1B slot = 2 fixed bytes
+	if (iSize < 2)
+	{
+		return;
+	}
+
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	uint8_t uiSlotIndex = ReadUint8(pCursor);

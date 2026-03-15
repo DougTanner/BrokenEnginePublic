@@ -120,6 +120,10 @@ void Graphics::RenderGlobal(float fCurrentTime)
 		ScopedCpuProfile scopedCpuProfile(kCpuTimerWaitFence);
 		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNs.count()));
 	}
+	else if (vkResult != VK_SUCCESS)
+	{
+		CHECK_VK(vkResult);
+	}
 
 	miRenderFrameDeltaNs = mRenderFrameTimer.GetDeltaNs(true).count();
 
@@ -263,6 +267,10 @@ void Graphics::Refresh()
 	if (gWantedFramebufferExtent2D.width != mFramebufferExtent2D.width || gWantedFramebufferExtent2D.height != mFramebufferExtent2D.height) [[unlikely]]
 	{
 		Log("{} x {} -> {} x {}", mFramebufferExtent2D.width, mFramebufferExtent2D.height, gWantedFramebufferExtent2D.width, gWantedFramebufferExtent2D.height);
+		if (gWantedFramebufferExtent2D.width == 0 || gWantedFramebufferExtent2D.height == 0)
+		{
+			return;
+		}
 		mFramebufferExtent2D = gWantedFramebufferExtent2D;
 		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
 	}

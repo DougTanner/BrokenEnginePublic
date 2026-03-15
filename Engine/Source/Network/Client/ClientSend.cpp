@@ -37,7 +37,8 @@ void Client::SendAck()
 			rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(i));
 			rWorkbuffer.PushBack<uint16_t>(mCoordSlots.at(i).ackState.uiEpoch);
 			rWorkbuffer.PushBack<int64_t>(mCoordSlots.at(i).ackState.iAckFloor);
-			rWorkbuffer.PushBack<uint64_t>(mCoordSlots.at(i).ackState.uiReceivedBitfield);
+			rWorkbuffer.PushBack<uint64_t>(mCoordSlots.at(i).ackState.uiReceivedBitfieldLow);
+			rWorkbuffer.PushBack<uint64_t>(mCoordSlots.at(i).ackState.uiReceivedBitfieldHigh);
 		}
 	}
 
@@ -179,7 +180,8 @@ void Client::SendSubscribe(GridCoord coord)
 			mCoordSlots.at(i).coord = coord;
 			mCoordSlots.at(i).eState = CoordSubscriptionState::kSubscribing;
 			mCoordSlots.at(i).ackState.iAckFloor = -1;
-			mCoordSlots.at(i).ackState.uiReceivedBitfield = 0;
+			mCoordSlots.at(i).ackState.uiReceivedBitfieldLow = 0;
+			mCoordSlots.at(i).ackState.uiReceivedBitfieldHigh = 0;
 			bFoundSlot = true;
 			break;
 		}

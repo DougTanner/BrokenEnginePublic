@@ -15,6 +15,8 @@ struct Frame;
 namespace engine
 {
 
+constexpr int64_t kiMaxStaticVoices = 128;
+
 constexpr float VolumeToPower(float fMasterVolume, float fSoundVolume, float fLocalVolume = 1.0f)
 {
 	// More natural-feeling volume controls
@@ -45,7 +47,7 @@ public:
 	virtual void OnBufferEnd() {}
 	virtual void OnCriticalError();
 	virtual void OnReset();
-	virtual void OnUpdate() {};
+	virtual void OnUpdate() {}
 	virtual void OnDestroyEngine() noexcept;
 	virtual void OnTrim();
 	virtual void GatherStatistics([[maybe_unused]] AudioStatistics& rStats) const {}
@@ -64,7 +66,8 @@ private:
 	common::RandomEngine mRandomEngine;
 
 	int64_t miNextId = 1;
-	std::unordered_map<sound_t, StaticVoice> mStaticVoices;
+	std::atomic<bool> mbClearVoicesRequested = false;
+	std::vector<StaticVoice> mStaticVoices;
 
 	XMVECTOR mVecListenerPosition {};
 	X3DAUDIO_LISTENER mX3dAudioListener
@@ -76,11 +79,13 @@ private:
 	};
 
 	void UpdateMusicStreams(float fDeltaTime);
+	void ClearStreamingVoices();
 
 	float mfCurveDistanceScaler = 10.0f;
 	float mfManualFadeStart = 0.0f;
 	float mfManualFadeEnd = 150.0f;
 	float mfManualFadeVolume = 0.05f;
+	int64_t miMasteringVoiceChannels = 0;
 
 	std::unique_ptr<StreamingVoice> mpCurrentMusicStream;
 	std::vector<std::unique_ptr<StreamingVoice>> mPreviousStreams;

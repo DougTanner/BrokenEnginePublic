@@ -43,7 +43,7 @@ struct CoordFrames
 	std::unique_ptr<game::Frame> pNext;
 
 #if defined(BT_CLIENT)
-	std::unique_ptr<game::Frame> snapshots[kiTickRate] {};
+	std::unique_ptr<game::Frame> snapshots[kiNetworkBufferSize] {};
 	int64_t iSnapshotHead = 0;       // physical index of oldest entry
 	int64_t iSnapshotCount = 0;      // number of valid entries in ring
 
@@ -84,7 +84,7 @@ struct CoordFrames
 #if defined(BT_CLIENT)
 inline int64_t SnapshotIndex(int64_t iHead, int64_t iLogical)
 {
-	return (iHead + iLogical) % kiTickRate;
+	return (iHead + iLogical) % kiNetworkBufferSize;
 }
 #endif // BT_CLIENT
 

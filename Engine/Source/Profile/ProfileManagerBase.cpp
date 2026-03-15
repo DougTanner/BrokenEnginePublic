@@ -742,7 +742,7 @@ void ProfileManagerBase::UpdateProfileText()
 							{
 								iMinAckFloor = rSlot.ackState.iAckFloor;
 							}
-							iTotalRecv += std::popcount(rSlot.ackState.uiReceivedBitfield);
+							iTotalRecv += std::popcount(rSlot.ackState.uiReceivedBitfieldLow) + std::popcount(rSlot.ackState.uiReceivedBitfieldHigh);
 						}
 					}
 					rWorkbuffer.Append(iMinAckFloor);
@@ -753,7 +753,7 @@ void ProfileManagerBase::UpdateProfileText()
 				mSmoothedRecv.Update();
 				rWorkbuffer.Append("  Recv: ");
 				rWorkbuffer.Append(mSmoothedRecv.Get());
-				rWorkbuffer.Append("/64");
+				rWorkbuffer.Append("/128");
 
 				if (game::gpGame->mCoordFrames.contains(game::gpGame->mHumanGridCoord))
 			{

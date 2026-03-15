@@ -249,16 +249,19 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 
 		GridCoord coord = rClient.coordSubscriptions.at(iSlot).coord;
 
-		if (rAck.uiReceivedBitfield == 0)
+		if (rAck.uiReceivedBitfieldLow == 0 && rAck.uiReceivedBitfieldHigh == 0)
 		{
 			continue;
 		}
-		int64_t iScanLimit = static_cast<int64_t>(std::bit_width(rAck.uiReceivedBitfield));
+		int64_t iScanLimit = (rAck.uiReceivedBitfieldHigh != 0)
+			? std::max(static_cast<int64_t>(std::bit_width(rAck.uiReceivedBitfieldLow)), 64 + static_cast<int64_t>(std::bit_width(rAck.uiReceivedBitfieldHigh)))
+			: static_cast<int64_t>(std::bit_width(rAck.uiReceivedBitfieldLow));
 
 		int64_t iSlotResendCount = 0;
 		for (int64_t iBit = 0; iBit < iScanLimit && iSlotResendCount < kiMaxResendFrames; ++iBit)
 		{
-			if (rAck.uiReceivedBitfield & (1ULL << iBit))
+			bool bReceived = (iBit < 64) ? (rAck.uiReceivedBitfieldLow & (1ULL << iBit)) != 0 : (rAck.uiReceivedBitfieldHigh & (1ULL << (iBit - 64))) != 0;
+			if (bReceived)
 			{
 				continue;
 			}

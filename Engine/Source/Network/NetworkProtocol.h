@@ -47,11 +47,15 @@ inline constexpr uint16_t kuiDiscoveryPort = kuiDefaultPort + 1;
 inline constexpr uint32_t kuiDiscoveryMagic = 0x42524B4E; // "BRKN"
 inline constexpr int64_t kiDiscoveryScanMs = 1500;
 
+// Network buffer size for ACK bitfield and snapshot ring buffers (decoupled from physics tick rate)
+inline constexpr int64_t kiNetworkBufferSize = 128;
+
 // Per-slot ACK tracking state (shared by client and server)
 struct AckState
 {
 	int64_t iAckFloor = -1;
-	uint64_t uiReceivedBitfield = 0;
+	uint64_t uiReceivedBitfieldLow = 0;   // bits 0-63
+	uint64_t uiReceivedBitfieldHigh = 0;  // bits 64-127
 	uint16_t uiEpoch = 0;
 };
 

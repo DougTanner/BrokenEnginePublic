@@ -27,6 +27,7 @@ XMVECTOR XM_CALLCONV TerrainCollision(FXMVECTOR vecStart, FXMVECTOR vecEnd, floa
 IslandTerrain::IslandTerrain()
 {
 	gpIslandTerrain = this;
+	smPriorityIslands.clear();
 
 	// Collect island CRCs and setup beach elevation
 	const std::unordered_map<common::crc_t, LazyChunk>& rChunkMap = gpFileManager->GetLazyChunkMap();

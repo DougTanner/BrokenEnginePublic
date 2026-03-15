@@ -5,7 +5,7 @@ Client-only screen-space UI indicators with offscreen arrow handling, using the 
 ## File Structure
 
 The implementation is split across three `.cpp` files:
-- **Billboards.cpp** - Registration, lifecycle, equality
+- **Billboards.cpp** - Registration, lifecycle (allocate/copy, spawn, transfer, destroy)
 - **BillboardsUpdate.cpp** - Update, sync, add/remove, collision phases
 - **BillboardsRender.cpp** - GPU resources and draw submission (`#ifdef BT_CLIENT` only)
 

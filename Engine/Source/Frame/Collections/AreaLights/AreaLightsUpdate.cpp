@@ -25,17 +25,6 @@ void AreaLightsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t
 
 void AreaLightsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
-	AreaLightsPostRender& __restrict rCurrent = rFrame.postRender.areaLights;
-	const AreaLightsPostRender& __restrict rPrevious = rPreviousFrame.postRender.areaLights;
-
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		// Load
-		area_lights_t id = rPrevious.puiIds[i];
-
-		// Save
-		rCurrent.puiIds[i] = id;
-	}
 }
 
 void AreaLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)

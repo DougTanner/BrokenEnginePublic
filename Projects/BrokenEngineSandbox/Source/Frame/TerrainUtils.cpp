@@ -161,6 +161,7 @@ float XM_CALLCONV ComputeTerrainAvoidance(FXMVECTOR vecPosition, FXMVECTOR vecDi
 	if (fLeftElevation > kfAvoidTerrainMin || fRightElevation > kfAvoidTerrainMin)
 	{
 		float fPercent = fLeftElevation > fRightElevation ? (fLeftElevation - kfAvoidTerrainMin) / kfAvoidTerrainMax : (fRightElevation - kfAvoidTerrainMin) / kfAvoidTerrainMax;
+		fPercent = std::clamp(fPercent, 0.0f, 1.0f);
 
 		float fAvoidDeltaAngle = (1.0f - fPercent) * kfAvoidTerrainDeltaAngleMin + fPercent * kfAvoidTerrainDeltaAngleMax;
 		float fWantedDeltaRotation = fLeftElevation > fRightElevation ? -fAvoidDeltaAngle : fAvoidDeltaAngle;

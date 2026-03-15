@@ -17,14 +17,18 @@ Server::Server(uint16_t uiPort)
 	address.port = uiPort;
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	// Heap: one-time compression scratch buffer
+	mCompressionBuffer.resize(kiMaxPacketSize);
 	// Heap: ENet allocates host data internally
 	mpHost = enet_host_create(&address, 64, NetworkManager::kuiChannelCount, 0, 0);
+	if (mpHost == nullptr)
+	{
+		Log(kLogNetwork, "Server::Server enet_host_create failed");
+		return;
+	}
 	// 1MB send/receive buffers to handle bursty packet dispatches
 	enet_socket_set_option(mpHost->socket, ENET_SOCKOPT_SNDBUF, 1024 * 1024);
 	enet_socket_set_option(mpHost->socket, ENET_SOCKOPT_RCVBUF, 1024 * 1024);
-
-	// Heap: one-time compression scratch buffer
-	mCompressionBuffer.resize(kiMaxPacketSize);
 }
 
 Server::~Server()
@@ -40,6 +44,10 @@ Server::~Server()
 
 void Server::Flush()
 {
+	if (mpHost == nullptr)
+	{
+		return;
+	}
 	enet_host_flush(mpHost);
 }
 
@@ -158,30 +166,31 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 	switch (eType)
 	{
 		case PacketType::kClientAckStream:
-			ClientAckStream(pData, iClientId);
+			ClientAckStream(pData, iSize, iClientId);
 			break;
 		case PacketType::kClientSpawnRequest:
-			ClientSpawnRequest(pData, iClientId);
+			ClientSpawnRequest(pData, iSize, iClientId);
 			break;
 		case PacketType::kClientDesyncReport:
-			ClientDesyncReport(pData);
+			ClientDesyncReport(pData, iSize);
 			break;
 		case PacketType::kClientDebugFrameRequest:
-			ClientDebugFrameRequest(pData, pPeer);
+			ClientDebugFrameRequest(pData, iSize, pPeer);
 			break;
 		case PacketType::kClientHello:
 			ClientHello(pData, iSize, pPeer, iClientId);
 			break;
 		case PacketType::kClientSubscribe:
-			ClientSubscribe(pData, iClientId);
+			ClientSubscribe(pData, iSize, iClientId);
 			break;
 		case PacketType::kClientUnsubscribe:
-			ClientUnsubscribe(pData, iClientId);
+			ClientUnsubscribe(pData, iSize, iClientId);
 			break;
 		case PacketType::kClientResyncRequest:
 			ClientResyncRequest(pData, iClientId);
 			break;
 		default:
+			Log(kLogNetwork, "Server::Receive unknown packet type {} Client: {}", static_cast<uint8_t>(eType), iClientId);
 			break;
 	}
 }

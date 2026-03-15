@@ -28,24 +28,23 @@ struct CoordReconcileWork
 	int64_t iConfirmedOffset = -1;
 	int64_t iSnapshotHead = 0;
 	std::map<int64_t, engine::CoordFrames::CoordServerUpdate> serverUpdates;
-	std::unique_ptr<Frame> snapshots[engine::kiTickRate] {};
+	std::unique_ptr<Frame> snapshots[engine::kiNetworkBufferSize] {};
 	int64_t iSnapshotCount = 0;
 	std::optional<engine::CoordFrames::PendingFullState> pendingFullState;
 
-	// Replay stack: raw pointers (non-owning), referencing snapshots or workspace
+	// Replay stack: raw pointers (non-owning), referencing snapshots in ring
 	std::vector<Frame*> replayStack;
 	int64_t iReplayStackCount = 0;
-	std::vector<std::unique_ptr<Frame>> replayWorkspace; // owns scratch Frames
-	int64_t iReplayWorkspaceUsed = 0;
+	int64_t iReplayWriteHead = 0; // first ring slot written during replay
+	int64_t iReplayWriteCount = 0; // number of ring slots written
 
 	// Index of last CRC-validated replay stack entry (-1 if none)
 	int64_t iLastValidatedIndex = -1;
 
 	// Output
 	int64_t iNewConfirmedTick = -1;
-	int64_t iNewConfirmedOffset = -1; // logical offset into snapshots ring (fast-path)
-	int64_t iNewConfirmedNewSnapshotIndex = -1; // index into newSnapshots (replay)
-	std::vector<std::unique_ptr<Frame>> newSnapshots;
+	int64_t iNewConfirmedOffset = -1; // physical ring index of new confirmed frame
+	int64_t iOutputCount = 0; // total snapshot count for writeback (confirmed + catch-up)
 	bool bCrcFastPath = false;
 
 	// Desync (if any)

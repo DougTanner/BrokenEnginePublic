@@ -140,107 +140,41 @@ void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext, [[maybe_un
 	ReconcileUpdateHumanState(rReconcileContext);
 }
 
-static void MergeNewSnapshots(engine::CoordFrames& rSub, CoordReconcileWork& rWork, int64_t iStartIndex)
-{
-	for (std::unique_ptr<Frame>& rSnapshot : rWork.newSnapshots)
-	{
-		if (rSnapshot != nullptr && rSnapshot->interpolate.iTick > rSub.iConfirmedTick && rSub.iSnapshotCount < engine::kiTickRate)
-		{
-			int64_t iPhysical = SnapshotIndex(iStartIndex, rSub.iSnapshotCount);
-			rSub.snapshots[iPhysical] = std::move(rSnapshot);
-			++rSub.iSnapshotCount;
-		}
-	}
-}
-
 void ClientReconciler::ApplyCoordWriteback(CoordReconcileWork& rWork, engine::CoordFrames& rSub)
 {
-	// Advance confirmed state
 	if (rWork.iNewConfirmedTick >= 0)
 	{
 		rSub.iConfirmedTick = rWork.iNewConfirmedTick;
+	}
 
-		if (rWork.bCrcFastPath)
-		{
-			// Save main-thread extrapolation count before swap replaces it
-			int64_t iMainSnapshotCount = rSub.iSnapshotCount;
+	int64_t iMainSnapshotCount = rSub.iSnapshotCount;
+	std::swap(rSub.snapshots, rWork.snapshots);
 
-			// Fast-path: swap arrays back from worker, advance head to confirmed
-			std::swap(rSub.snapshots, rWork.snapshots);
-			rSub.iSnapshotHead = SnapshotIndex(rWork.iSnapshotHead, rWork.iNewConfirmedOffset);
-			rSub.iSnapshotCount = rWork.iSnapshotCount - rWork.iNewConfirmedOffset;
-			rSub.iConfirmedOffset = 0;
-
-			// Merge catch-up snapshots (from non-fast-path coords that were replayed)
-			MergeNewSnapshots(rSub, rWork, rSub.iSnapshotHead);
-
-			// Preserve main-thread extrapolation snapshots built during reconciliation
-			// (now in rWork.snapshots after swap, head=0 from kick reset)
-			for (int64_t i = 0; i < iMainSnapshotCount && rSub.iSnapshotCount < engine::kiTickRate; ++i)
-			{
-				if (rWork.snapshots[i] != nullptr && rWork.snapshots[i]->interpolate.iTick > rSub.iConfirmedTick)
-				{
-					int64_t iPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount);
-					rSub.snapshots[iPhysical] = std::move(rWork.snapshots[i]);
-					++rSub.iSnapshotCount;
-				}
-			}
-
-		}
-		else
-		{
-			// Non-fast-path: worker built newSnapshots with confirmed + catch-up
-			rSub.iSnapshotHead = 0;
-			rSub.iSnapshotCount = 0;
-
-			if (rWork.iNewConfirmedNewSnapshotIndex >= 0)
-			{
-				// Confirmed from newSnapshots (replay result)
-				rSub.iConfirmedOffset = 0;
-				rSub.snapshots[0] = std::move(rWork.newSnapshots[rWork.iNewConfirmedNewSnapshotIndex]);
-				rSub.iSnapshotCount = 1;
-
-				// Add remaining catch-up snapshots
-				MergeNewSnapshots(rSub, rWork, 0);
-			}
-			else if (rWork.iNewConfirmedOffset >= 0)
-			{
-				// Confirmed from input snapshots (replay validated existing snapshot)
-				int64_t iConfirmedPhysical = SnapshotIndex(rWork.iSnapshotHead, rWork.iNewConfirmedOffset);
-				rSub.iConfirmedOffset = 0;
-				rSub.snapshots[0] = std::move(rWork.snapshots[iConfirmedPhysical]);
-				rSub.iSnapshotCount = 1;
-
-				// Add catch-up snapshots
-				MergeNewSnapshots(rSub, rWork, 0);
-			}
-		}
+	if (rWork.iNewConfirmedTick >= 0)
+	{
+		rSub.iSnapshotHead = rWork.iNewConfirmedOffset;
+		rSub.iConfirmedOffset = 0;
+		rSub.iSnapshotCount = rWork.iOutputCount;
 	}
 	else
 	{
-		// Save main-thread extrapolation count before swap replaces it
-		int64_t iMainSnapshotCount = rSub.iSnapshotCount;
-
-		// No advancement — swap snapshots back and restore all ring fields
-		std::swap(rSub.snapshots, rWork.snapshots);
-		rSub.iSnapshotCount = rWork.iSnapshotCount;
 		rSub.iSnapshotHead = rWork.iSnapshotHead;
+		rSub.iSnapshotCount = rWork.iSnapshotCount;
 		rSub.iConfirmedOffset = rWork.iConfirmedOffset;
-
-		// Preserve main-thread extrapolation snapshots built during reconciliation
-		for (int64_t i = 0; i < iMainSnapshotCount && rSub.iSnapshotCount < engine::kiTickRate; ++i)
-		{
-			if (rWork.snapshots[i] != nullptr && rWork.snapshots[i]->interpolate.iTick > rSub.iConfirmedTick)
-			{
-				int64_t iPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount);
-				rSub.snapshots[iPhysical] = std::move(rWork.snapshots[i]);
-				++rSub.iSnapshotCount;
-			}
-		}
-
 	}
 
-	// Restore unconsumed server updates that were moved to context
+	// Merge main-thread extrapolation snapshots
+	for (int64_t i = 0; i < iMainSnapshotCount && rSub.iSnapshotCount < engine::kiNetworkBufferSize; ++i)
+	{
+		if (rWork.snapshots[i] != nullptr && rWork.snapshots[i]->interpolate.iTick > rSub.iConfirmedTick)
+		{
+			int64_t iPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount);
+			rSub.snapshots[iPhysical] = std::move(rWork.snapshots[i]);
+			++rSub.iSnapshotCount;
+		}
+	}
+
+	// Restore unconsumed server updates
 	for (auto& [iTick, rUpdate] : rWork.serverUpdates)
 	{
 		if (iTick > rSub.iConfirmedTick)
@@ -321,21 +255,6 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 
 	if (rReconcileContext.bAnyFullReplay)
 	{
-		// Move latest workspace frame into mCoordFrames for rendering.
-		// Workspace entry may be null if replay or catch-up moved it to newSnapshots;
-		// in that case, keep existing current (rendering uses GetSnapshotFrame during extrapolation).
-		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
-		{
-			if (rWork.iReplayWorkspaceUsed > 0 && rWork.replayWorkspace[rWork.iReplayWorkspaceUsed - 1] != nullptr)
-			{
-				auto it = gpGame->mCoordFrames.find(rWork.coord);
-				if (it != gpGame->mCoordFrames.end())
-				{
-					std::swap(it->second.pCurrent, rWork.replayWorkspace[rWork.iReplayWorkspaceUsed - 1]);
-				}
-			}
-		}
-
 		// Restore counters from caught-up state
 		gpGame->SetTickCounter(rReconcileContext.iTickCounter);
 		gpGame->SetCurrentTime(rReconcileContext.newConfirmedHumanState.fCurrentTime);

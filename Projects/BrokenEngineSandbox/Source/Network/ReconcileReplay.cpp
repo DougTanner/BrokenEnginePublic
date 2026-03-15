@@ -39,7 +39,7 @@ static void LogStatusChangeList(std::string_view label, std::span<const StatusCh
 	}
 }
 
-static int64_t FindSnapshotIndex(std::unique_ptr<Frame> (&rSnapshots)[engine::kiTickRate], int64_t iHead, int64_t iCount, int64_t iTick)
+static int64_t FindSnapshotIndex(std::unique_ptr<Frame> (&rSnapshots)[engine::kiNetworkBufferSize], int64_t iHead, int64_t iCount, int64_t iTick)
 {
 	for (int64_t i = 0; i < iCount; ++i)
 	{
@@ -119,12 +119,8 @@ static void CrcApplyMatchResult(CoordReconcileWork& rWork, int64_t iLastMatched,
 	rWork.iNewConfirmedTick = iLastMatched;
 	rProfiling.iCrcValidatedFrameTicks += iLastMatched - rWork.iConfirmedTick;
 
-	// Record matched snapshot logical offset instead of moving Frame
-	rWork.iNewConfirmedOffset = iLastMatchedIndex;
-
-	// Fast path: snapshots remain in-place in the ring buffer — no extraction needed.
-	// ApplyCoordWriteback swaps the array back and advances head past confirmed.
-	rWork.newSnapshots.clear();
+	rWork.iNewConfirmedOffset = SnapshotIndex(rWork.iSnapshotHead, iLastMatchedIndex);
+	rWork.iOutputCount = rWork.iSnapshotCount - iLastMatchedIndex;
 }
 
 struct CrcFastPathCoordResult
@@ -201,12 +197,13 @@ static std::unique_ptr<Frame> CloneFrameViaSerialization(const Frame& rFrame)
 
 void ReconcileInjectPendingFullState([[maybe_unused]] ReconcileContext& rReconcileContext, CoordReconcileWork& rWork)
 {
-	// Move pending full state's Frame into workspace (workspace owns it, replay borrows pointer)
-	rWork.replayWorkspace.push_back(std::move(rWork.pendingFullState->pFrame));
+	int64_t iSlot = SnapshotIndex(rWork.iReplayWriteHead, rWork.iReplayWriteCount);
+	rWork.snapshots[iSlot] = std::move(rWork.pendingFullState->pFrame);
 	rWork.replayStack.clear();
-	rWork.replayStack.push_back(rWork.replayWorkspace.back().get());
+	rWork.replayStack.push_back(rWork.snapshots[iSlot].get());
 	rWork.iReplayStackCount = 1;
-	rWork.iReplayWorkspaceUsed = static_cast<int64_t>(rWork.replayWorkspace.size());
+	rWork.iReplayWriteHead = SnapshotIndex(iSlot, 1);
+	rWork.iReplayWriteCount = 0;
 	rWork.pendingFullState.reset();
 }
 
@@ -219,7 +216,8 @@ static void ReconcileRollbackCoord(CoordReconcileWork& rWork)
 	rWork.replayStack.clear();
 	rWork.replayStack.push_back(rWork.snapshots[iConfirmedPhysical].get());
 	rWork.iReplayStackCount = 1;
-	rWork.iReplayWorkspaceUsed = 0;
+	rWork.iReplayWriteHead = SnapshotIndex(rWork.iSnapshotHead, rWork.iConfirmedOffset + 1);
+	rWork.iReplayWriteCount = 0;
 }
 
 static int64_t ReconcileFindReplayRangeCoord(CoordReconcileWork& rWork)
@@ -239,19 +237,14 @@ static int64_t ReconcileFindReplayRangeCoord(CoordReconcileWork& rWork)
 
 static void ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, float fTime, FrameInput& rFrameInput)
 {
-	// Ensure workspace frame exists
-	int64_t iNextWorkspace = rWork.iReplayWorkspaceUsed;
-	if (iNextWorkspace >= static_cast<int64_t>(rWork.replayWorkspace.size()))
+	int64_t iNextSlot = SnapshotIndex(rWork.iReplayWriteHead, rWork.iReplayWriteCount);
+	if (rWork.snapshots[iNextSlot] == nullptr)
 	{
-		rWork.replayWorkspace.resize(static_cast<size_t>(iNextWorkspace + 1));
-	}
-	if (rWork.replayWorkspace[iNextWorkspace] == nullptr)
-	{
-		rWork.replayWorkspace[iNextWorkspace] = std::make_unique<Frame>();
+		rWork.snapshots[iNextSlot] = std::make_unique<Frame>();
 	}
 
 	Frame* pCurrent = rWork.replayStack[rWork.iReplayStackCount - 1];
-	Frame* pNext = rWork.replayWorkspace[iNextWorkspace].get();
+	Frame* pNext = rWork.snapshots[iNextSlot].get();
 
 	pNext->interpolate.frameFlags.Set(engine::FrameFlags::kRecalculated);
 
@@ -286,7 +279,7 @@ static void ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, floa
 	// Advance replay stack
 	rWork.replayStack.push_back(pNext);
 	rWork.iReplayStackCount++;
-	rWork.iReplayWorkspaceUsed++;
+	rWork.iReplayWriteCount++;
 }
 
 static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork, int64_t iTick, const engine::CoordFrames::CoordServerUpdate& rUpdate, const FrameInput& rFrameInput)
@@ -370,12 +363,8 @@ static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordRecon
 
 		rfTime += kfDeltaTime;
 
-		// Build FrameInput from server StatusChanges
 		FrameInput frameInput;
-		for (const StatusChange& rChange : updateIt->second.statusChanges)
-		{
-			frameInput.statusChanges.push_back(rChange);
-		}
+		frameInput.statusChanges = updateIt->second.statusChanges;
 
 		ReconcileRunTickCoord(rWork, iTick, rfTime, frameInput);
 
@@ -410,29 +399,23 @@ static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordRecon
 		++iReplayCount;
 	}
 
-	// Extract validated frames into newSnapshots
+	// Record physical ring index of new confirmed frame
 	if (rWork.iLastValidatedIndex >= 0)
 	{
 		if (rWork.iLastValidatedIndex == 0)
 		{
-			// Validated the confirmed snapshot itself
-			rWork.iNewConfirmedOffset = rWork.iConfirmedOffset;
+			rWork.iNewConfirmedOffset = SnapshotIndex(rWork.iSnapshotHead, rWork.iConfirmedOffset);
 		}
 		else
 		{
-			// Validated a workspace entry — move to newSnapshots
-			int64_t iWorkspaceIndex = rWork.iLastValidatedIndex - 1;
-			rWork.newSnapshots.insert(rWork.newSnapshots.begin(), std::move(rWork.replayWorkspace[iWorkspaceIndex]));
-			rWork.iNewConfirmedNewSnapshotIndex = 0;
+			rWork.iNewConfirmedOffset = SnapshotIndex(rWork.iReplayWriteHead, rWork.iLastValidatedIndex - 1);
 		}
 	}
 }
 
 static void ReconcileCatchUpCoord(CoordReconcileWork& rWork, int64_t iTargetTick, float& rfTime, ReconcileContext::Profiling& rProfiling)
 {
-	int64_t iStartWorkspaceIndex = rWork.iReplayWorkspaceUsed;
-
-	// Determine current tick from the replay stack tip
+	int64_t iStartWriteCount = rWork.iReplayWriteCount;
 	int64_t iCurrentTick = rWork.replayStack[rWork.iReplayStackCount - 1]->interpolate.iTick;
 
 	while (iCurrentTick < iTargetTick)
@@ -445,16 +428,11 @@ static void ReconcileCatchUpCoord(CoordReconcileWork& rWork, int64_t iTargetTick
 		++rProfiling.iAssumedFrameTicks;
 	}
 
-	// Convert accumulated workspace entries to snapshots
-	for (int64_t i = iStartWorkspaceIndex; i < rWork.iReplayWorkspaceUsed; ++i)
+	// Clear recalculated flag on catch-up frames (replay frames keep it for rendering)
+	for (int64_t i = iStartWriteCount; i < rWork.iReplayWriteCount; ++i)
 	{
-		if (rWork.replayWorkspace[i] == nullptr)
-		{
-			continue;
-		}
-
-		rWork.replayWorkspace[i]->interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
-		rWork.newSnapshots.push_back(std::move(rWork.replayWorkspace[i]));
+		int64_t iSlot = SnapshotIndex(rWork.iReplayWriteHead, i);
+		rWork.snapshots[iSlot]->interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
 	}
 }
 
@@ -472,7 +450,7 @@ void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWo
 	rWork.bCrcFastPath = false;
 	rWork.iNewConfirmedTick = -1;
 	rWork.iNewConfirmedOffset = -1;
-	rWork.newSnapshots.clear();
+	rWork.iOutputCount = 0;
 
 	rReconcileContext.bAnyFullReplay = true;
 
@@ -500,6 +478,16 @@ void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWo
 	}
 
 	ReconcileCatchUpCoord(rWork, rReconcileContext.iTargetTick, fTime, rReconcileContext.profiling);
+
+	// Compute output layout: confirmed frame + remaining replay/catch-up frames
+	if (rWork.iLastValidatedIndex > 0)
+	{
+		rWork.iOutputCount = rWork.iReplayWriteCount - (rWork.iLastValidatedIndex - 1);
+	}
+	else if (rWork.iLastValidatedIndex == 0)
+	{
+		rWork.iOutputCount = rWork.iReplayWriteCount + 1;
+	}
 
 	// Set context counters from this coord's final state
 	rReconcileContext.iTickCounter = rReconcileContext.iTargetTick;
@@ -529,14 +517,12 @@ void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)
 		else
 		{
 			// Human coord fast-pathed: read time from confirmed snapshot
-			int64_t iNewOffset = (rWork.iNewConfirmedOffset >= 0) ? rWork.iNewConfirmedOffset : rWork.iConfirmedOffset;
-			if (iNewOffset >= 0)
+			int64_t iPhysical = (rWork.iNewConfirmedOffset >= 0)
+				? rWork.iNewConfirmedOffset
+				: SnapshotIndex(rWork.iSnapshotHead, rWork.iConfirmedOffset);
+			if (rWork.snapshots[iPhysical] != nullptr)
 			{
-				int64_t iPhysical = SnapshotIndex(rWork.iSnapshotHead, iNewOffset);
-				if (rWork.snapshots[iPhysical] != nullptr)
-				{
-					humanState.fCurrentTime = rWork.snapshots[iPhysical]->interpolate.fCurrentTime;
-				}
+				humanState.fCurrentTime = rWork.snapshots[iPhysical]->interpolate.fCurrentTime;
 			}
 		}
 		break;
@@ -590,8 +576,7 @@ void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)
 						}
 						else if (rDestWork.bCrcFastPath && rDestWork.iNewConfirmedOffset >= 0)
 						{
-							int64_t iPhysical = SnapshotIndex(rDestWork.iSnapshotHead, rDestWork.iNewConfirmedOffset);
-							pDestFrame = rDestWork.snapshots[iPhysical].get();
+							pDestFrame = rDestWork.snapshots[rDestWork.iNewConfirmedOffset].get();
 						}
 						if (pDestFrame == nullptr)
 						{

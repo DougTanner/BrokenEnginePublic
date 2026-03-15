@@ -305,7 +305,6 @@ void GameBase::Render()
 
 	gpGraphics->RenderMainPresentAcquire(iCommandBuffer, gpGraphics->mRenderInterpolates, rActiveCoords, cameraCoord);
 
-	game::gpClientSession->PostRender();
 }
 #endif // BT_CLIENT
 

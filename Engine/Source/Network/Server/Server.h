@@ -17,10 +17,11 @@ struct ClientConnection
 {
 	ENetPeer* pPeer = nullptr;
 	int64_t iClientId = 0;
+	bool bHandshakeComplete = false;
 	game::player_t humanPlayerId {};
 	GridCoord humanGridCoord {};
 
-	// Slot-based subscriptions (replaces activeCoords + pendingFullStateCoords)
+	// Slot-based coord subscriptions with independent ACK tracking
 	std::vector<ClientCoordSubscription> coordSubscriptions;
 	std::vector<AckState> coordAckStates;
 
@@ -117,13 +118,13 @@ private:
 	void Receive(ENetEvent& rEvent);
 	void Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer);
 
-	void ClientAckStream(const uint8_t* pData, int64_t iClientId);
-	void ClientSpawnRequest(const uint8_t* pData, int64_t iClientId);
-	void ClientDesyncReport(const uint8_t* pData);
-	void ClientDebugFrameRequest(const uint8_t* pData, ENetPeer* pPeer);
+	void ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClientId);
+	void ClientSpawnRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
+	void ClientDesyncReport(const uint8_t* pData, size_t iSize);
+	void ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPeer* pPeer);
 	void ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId);
-	void ClientSubscribe(const uint8_t* pData, int64_t iClientId);
-	void ClientUnsubscribe(const uint8_t* pData, int64_t iClientId);
+	void ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId);
+	void ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void ClientResyncRequest(const uint8_t* pData, int64_t iClientId);
 	void SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage);
 	void SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord);

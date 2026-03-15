@@ -248,7 +248,8 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	}
 
 	int64_t iCorrectionSteps = std::clamp(iError, -4LL, 4LL);
-	std::chrono::nanoseconds correction(-iCorrectionSteps * tickNs.count() / 64);
+	int64_t iDivisor = (std::abs(iError) >= 4) ? 16 : 64;
+	std::chrono::nanoseconds correction(-iCorrectionSteps * tickNs.count() / iDivisor);
 
 	return correction;
 }
@@ -282,7 +283,7 @@ void ClientSessionBase::PrepareExtrapolationTick(const std::vector<GridCoord>& r
 			continue;
 		}
 		CoordFrames& rSub = subIt->second;
-		if (rSub.iSnapshotCount >= kiTickRate)
+		if (rSub.iSnapshotCount >= kiNetworkBufferSize)
 		{
 			if (rSub.iConfirmedOffset > 0)
 			{
@@ -311,7 +312,7 @@ void ClientSessionBase::BuildExtrapolationFrameRef(const GridCoord& rCoord, game
 		return;
 	}
 	CoordFrames& rSub = subIt->second;
-	if (rSub.iSnapshotCount >= kiTickRate)
+	if (rSub.iSnapshotCount >= kiNetworkBufferSize)
 	{
 		return;
 	}
@@ -338,7 +339,7 @@ void ClientSessionBase::RecordExtrapolationSnapshot(const std::vector<GridCoord>
 			continue;
 		}
 		CoordFrames& rSub = subIt->second;
-		if (rSub.iSnapshotCount >= kiTickRate)
+		if (rSub.iSnapshotCount >= kiNetworkBufferSize)
 		{
 			continue;
 		}

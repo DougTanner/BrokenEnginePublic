@@ -12,8 +12,8 @@ Client-side ENet networking split into the low-level `Client` class (connection,
 ## Architecture Notes
 
 - Subscription queue processes one coord at a time, waiting for in-flight operations to complete before subscribing the next. If a kSubscribing slot is cancelled before the server responds, the coord is tracked in `mCancelledSubscriptions` so that `ServerSubscribeAccept` and `ServerCoordFullState` can intercept and reject them
-- Clock correction computes tick error from RTT and nudges the client timestep by up to 4/64ths of a tick per frame. Target-behind uses hysteresis (threshold of 2 ticks) to prevent jitter on variable-latency connections
-- Extrapolation snapshots use a ring buffer sized to one second of ticks, managed with head/count/offset indices
+- Clock correction computes tick error from RTT and nudges the client timestep by up to 4 steps per frame, with a variable divisor: 1/16th of a tick when |error| >= 4 (aggressive catchup) or 1/64th otherwise (gentle). Target-behind uses hysteresis (threshold of 2 ticks) to prevent jitter on variable-latency connections
+- Extrapolation snapshots use a ring buffer sized to `kiNetworkBufferSize` (128 entries, decoupled from tick rate), managed with head/count/offset indices
 
 ## See Also
 

@@ -64,7 +64,7 @@ inline std::chrono::steady_clock::duration RandomOneWayDelay(const NetworkSimula
 inline bool ShouldDrop(const NetworkSimulationConfig& rConfig)
 {
 	static int64_t siConsecutiveDrops = 0;
-	static constexpr int64_t kiMaxConsecutiveDrops = kiTickRate / 2;
+	static constexpr int64_t kiMaxConsecutiveDrops = kiNetworkBufferSize / 2;
 
 	bool bDrop = false;
 	if (siConsecutiveDrops > 0)

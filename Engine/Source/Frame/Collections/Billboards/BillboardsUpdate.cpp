@@ -25,17 +25,6 @@ void BillboardsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t
 
 void BillboardsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
-	BillboardsPostRender& __restrict rCurrent = rFrame.postRender.billboards;
-	const BillboardsPostRender& __restrict rPrevious = rPreviousFrame.postRender.billboards;
-
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		// Load
-		billboard_t id = rPrevious.puiIds[i];
-
-		// Save
-		rCurrent.puiIds[i] = id;
-	}
 }
 
 void BillboardsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)

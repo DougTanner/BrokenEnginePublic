@@ -232,9 +232,13 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 	const uint8_t* pEnd = pCursor + iSourceSize;
 	int64_t iOutputCount = 0;
 
-	while (pCursor < pEnd && iOutputCount < iMaxCount)
+	while (pCursor + 3 <= pEnd && iOutputCount < iMaxCount)
 	{
 		game::StatusChangeType eType = static_cast<game::StatusChangeType>(ReadUint8(pCursor));
+		if (static_cast<uint8_t>(eType) > static_cast<uint8_t>(game::StatusChangeType::kDestroyPlayer))
+		{
+			break; // Unknown type — stop deserializing (remaining data is uninterpretable)
+		}
 		uint16_t uiGroupCount = ReadUint16(pCursor);
 
 		for (uint16_t i = 0; i < uiGroupCount && iOutputCount < iMaxCount && pCursor < pEnd; ++i)
@@ -329,6 +333,11 @@ int64_t DecompressStatusChangeBatch(const void* pSource, int64_t iSourceSize, ga
 	const uint8_t* pInput = static_cast<const uint8_t*>(pSource);
 	int32_t iUncompressedSize = 0;
 	std::memcpy(&iUncompressedSize, pInput, sizeof(int32_t));
+
+	if (iUncompressedSize <= 0 || iUncompressedSize > 1024 * 1024) // 1MB sanity cap
+	{
+		return 0;
+	}
 
 	// Decompress into workbuffer
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;

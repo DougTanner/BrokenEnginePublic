@@ -291,6 +291,7 @@ void MainThread(HINSTANCE hinstance)
 
 		// Audio update
 		pAudioManager->Update(pGame->mCoordFrames.contains(game::gpGame->mHumanGridCoord) ? &pGame->RenderFrame(game::gpGame->mHumanGridCoord) : nullptr);
+		game::gpClientSession->PostRender(); // Kick reconcile after all rendering (including audio) is complete
 #else
 		{
 			// Heap: Win32 InvalidateRect may trigger internal GDI allocations

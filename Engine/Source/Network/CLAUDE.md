@@ -22,12 +22,13 @@ Client/server networking infrastructure using the ENet reliable UDP library. Pro
 
 ## Architecture Notes
 
-- **Slot-based subscriptions**: Each client subscribes to grid coords via numbered slots. Each slot maps to one coord with independent ACK tracking (floor + 64-bit bitfield + epoch). Full state uses the slot's reliable channel; updates and resends use the slot's unreliable channel
+- **Slot-based subscriptions**: Each client subscribes to grid coords via numbered slots. Each slot maps to one coord with independent ACK tracking (floor + 128-bit bitfield + epoch). Full state uses the slot's reliable channel; updates and resends use the slot's unreliable channel
 - **Data flow**: Server buffers compressed StatusChange deltas per-coord each tick, then sends one unreliable packet per active client subscription slot. AI inputs are deterministic and not sent over the wire
-- **Resend system**: Client ACK stream packets carry per-slot (slot, epoch, floor, bitfield) tuples. Server scans unset bits to find missing frames and resends them as separate unreliable packets
+- **Resend system**: Client ACK stream packets carry per-slot (slot, epoch, floor, bitfield low, bitfield high) tuples. Server scans unset bits to find missing frames and resends them as separate unreliable packets
 - **Connection handshake**: Client sends `kClientHello` with protocol version and build config name; server validates both and accepts/rejects
 - **Network simulation**: When enabled via compile-time enum, both sides inject packet loss and variable latency on received unreliable packets. Implementation in `NetworkSimulation.h`. Zero overhead when disabled via `if constexpr`
 
 ## See Also
 
 - [Client/CLAUDE.md](Client/CLAUDE.md) - Client-side ENet peer and ClientSessionBase
+- [Server/CLAUDE.md](Server/CLAUDE.md) - Server-side ENet host, ServerSessionBase, and ServerTypes

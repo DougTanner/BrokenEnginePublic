@@ -7,23 +7,23 @@
 ## Key Classes
 
 - **AudioManager** - Orchestrates playback: listener positioning, music crossfading, voice lifecycle, and XAudio2 device reset handling. Owns a time-seeded `RandomEngine` for pitch randomization, keeping audio variance out of the Frame's deterministic random engine.
-- **StaticVoice** - Short-lived sound effects with optional 3D positioning. Integrates with FileManager's lazy loading and supports fade-out for smooth removal.
+- **StaticVoice** - Frame-driven 3D sound effects managed by AudioManager. Each voice is tracked by ID, synced with frame sound data (volume, pitch, position, velocity) each update, and faded out when no longer present in the frame. Also provides `LoadXAudio2SourceVoice` for fire-and-forget one-shot playback.
 - **StreamingVoice** - Music playback via triple-buffered streaming from lazy-loaded chunks. Handles continuous buffer submission through XAudio2 callbacks.
 
 ## Architecture
 
-### Phase Enforcement
-Audio playback asserts `FrameFlags::kPostRender` to prevent duplicate sounds during frame interpolation. One-shot audio also checks `FrameFlags::kRecalculated` and returns early to avoid replaying sounds during reconciliation.
+### Voice Lifecycle
+Two playback modes: **one-shot** (fire-and-forget via `PlayOneShot`/`PlayOneShot3d`, asserts `kPostRender`, skips reconciliation frames) and **managed** (persistent voices in a flat vector, capped at `kiMaxStaticVoices`, synced from `SoundsInterpolate`/`SoundsPostRender` frame data each tick with swap-and-pop removal after fade-out).
 
 ### Music System
 Callback-based playlist decoupling: game logic owns track selection, AudioManager handles playback. Crossfade transitions overlap streams with volume fading, triggered when remaining time reaches a threshold.
 
 ### 3D Spatial Audio
-X3DAudio integration provides distance attenuation, Doppler effect, and multi-channel speaker panning. Listener position updated from player frame data each tick.
+X3DAudio integration provides distance attenuation, Doppler effect, and multi-channel speaker panning. Listener position updated from player frame data each tick. Custom manual fade applies additional distance-based volume attenuation.
 
 ### Threading
-- **Main thread** - Voice creation, 3D position updates, playlist logic
+- **Main thread** - Voice creation, 3D position updates, playlist logic, static voice cleanup
 - **XAudio2 thread** - `OnBufferEnd()` callbacks trigger next buffer submission
 - **Background thread** - Lazy loading of audio chunks via FileManager
 
-StreamingVoice destruction moves streams to local storage while holding the mutex, then destroys after releasing, preventing XAudio2 deadlocks from `DestroyVoice()` waiting on `OnBufferEnd()` callbacks.
+Voice cleanup uses thread-safe handoff: XAudio2 callbacks clear streaming voices (mutex-protected) and set an atomic flag; `Update()` on the main thread checks the flag and clears static voices, avoiding data races. StreamingVoice destruction moves streams to local storage while holding the mutex, then destroys after releasing, preventing XAudio2 deadlocks from `DestroyVoice()` waiting on `OnBufferEnd()` callbacks.

@@ -60,9 +60,9 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 	XMVECTOR* __restrict pVecDirections = nullptr;
 	float* __restrict pfDestroyedTimes = nullptr;
 	float* __restrict pfAnimationTimes = nullptr;
+#if defined(BT_CLIENT)
 	float* __restrict pfRotationAccelerationXs = nullptr;
 	float* __restrict pfRotationAccelerationYs = nullptr;
-#if defined(BT_CLIENT)
 	engine::wind_trail_t* __restrict pWindTrails = nullptr;
 	engine::hex_shields_t* __restrict pHexShields = nullptr;
 	float* __restrict pfShieldRotations = nullptr;
@@ -75,13 +75,13 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 	auto SharedMembers(this auto&& rSelf)
 	{
 		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections,
-			rSelf.pfDestroyedTimes, rSelf.pfAnimationTimes,
-			rSelf.pfRotationAccelerationXs, rSelf.pfRotationAccelerationYs);
+			rSelf.pfDestroyedTimes, rSelf.pfAnimationTimes);
 	}
 #if defined(BT_CLIENT)
 	auto ClientMembers(this auto&& rSelf)
 	{
-		return std::tie(rSelf.pWindTrails,
+		return std::tie(rSelf.pfRotationAccelerationXs, rSelf.pfRotationAccelerationYs,
+			rSelf.pWindTrails,
 			rSelf.pHexShields, rSelf.pfShieldRotations, rSelf.pfShieldShrinks,
 			rSelf.pHexShieldDirections, rSelf.pHexShieldVertIntensities, rSelf.pHexShieldFragIntensities);
 	}
@@ -95,8 +95,8 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 #endif
 	}
 
-	// CRC-only subset: excludes fields that are only meaningfully updated on client
-	// (pfAnimationTimes, pfRotationAccelerationXs/Ys are updated inside #if defined(BT_CLIENT))
+	// CRC-only subset: excludes pfAnimationTimes which is only meaningfully updated on client
+	// (pfRotationAccelerationXs/Ys are now in ClientMembers)
 	auto ServerCrcMembers(this auto&& rSelf)
 	{
 		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections,

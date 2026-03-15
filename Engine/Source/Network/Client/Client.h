@@ -99,12 +99,12 @@ private:
 
 	void Receive(ENetEvent& rEvent);
 	void Receive(const uint8_t* pData, size_t iSize);
-	void ServerCoordFullState(const uint8_t* pData);
-	void ServerCoordUpdateOrResend(const uint8_t* pData, bool bProcessRtt);
-	void ServerDebugFrame(const uint8_t* pData);
+	void ServerCoordFullState(const uint8_t* pData, size_t iSize);
+	void ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool bProcessRtt);
+	void ServerDebugFrame(const uint8_t* pData, size_t iSize);
 	void ServerConnectionResponse(const uint8_t* pData, size_t iSize);
-	void ServerSubscribeAccept(const uint8_t* pData);
-	void ServerUnsubscribeAck(const uint8_t* pData);
+	void ServerSubscribeAccept(const uint8_t* pData, size_t iSize);
+	void ServerUnsubscribeAck(const uint8_t* pData, size_t iSize);
 	void SendHello();
 
 	void ClearSubscribingPlaceholder(GridCoord coord);

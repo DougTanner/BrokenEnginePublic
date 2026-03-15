@@ -583,9 +583,9 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = 0.0f;
 	rCurrentInterpolate.pfAnimationTimes[iIndex] = rInfo.fAnimationTime;
+#if defined(BT_CLIENT)
 	rCurrentInterpolate.pfRotationAccelerationXs[iIndex] = 0.0f;
 	rCurrentInterpolate.pfRotationAccelerationYs[iIndex] = 0.0f;
-#if defined(BT_CLIENT)
 	rCurrentInterpolate.pWindTrails[iIndex] = {};
 	rCurrentInterpolate.pHexShields[iIndex] = {};
 	rCurrentInterpolate.pfShieldRotations[iIndex] = rInfo.fShieldRotation;

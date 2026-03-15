@@ -20,7 +20,7 @@ public:
 	StaticVoice() = delete;
 	StaticVoice(IXAudio2SourceVoice* pVoice, sound_t id, common::crc_t uiCrc, float fVolume, float fPitch, float fFadeOutTime, FXMVECTOR vecPosition, FXMVECTOR vecVelocity);
 
-	virtual ~StaticVoice();
+	~StaticVoice();
 
 	StaticVoice(const StaticVoice&) = delete;
 	StaticVoice& operator=(const StaticVoice&) = delete;

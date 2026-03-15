@@ -8,62 +8,77 @@
 namespace engine
 {
 
-void Server::ClientAckStream(const uint8_t* pData, int64_t iClientId)
+void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClientId)
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	{
+		return;
+	}
 
 	// Read per-slot ACK state
 	uint8_t uiAckSlotCount = ReadUint8(pCursor);
-	if (pClient != nullptr)
-	{
-		for (uint8_t i = 0; i < uiAckSlotCount; ++i)
-		{
-			uint8_t uiSlotIndex = ReadUint8(pCursor);
-			uint16_t uiSlotEpoch = ReadUint16(pCursor);
-			int64_t iSlotAckFloor = ReadInt64(pCursor);
-			uint64_t uiSlotBitfield = ReadUint64(pCursor);
 
-			if (uiSlotIndex < std::ssize(pClient->coordSubscriptions)
-			&& pClient->coordSubscriptions.at(uiSlotIndex).bActive
-			&& uiSlotEpoch == pClient->coordAckStates.at(uiSlotIndex).uiEpoch
-			&& iSlotAckFloor >= pClient->coordAckStates.at(uiSlotIndex).iAckFloor)
-			{
-				// Clamp to server's latest sent tick to prevent future ACK floors
-				iSlotAckFloor = std::min(iSlotAckFloor, miLatestBufferedTick);
-				AckState& rAck = pClient->coordAckStates.at(uiSlotIndex);
-				if (iSlotAckFloor == rAck.iAckFloor)
-				{
-					rAck.uiReceivedBitfield |= uiSlotBitfield;
-				}
-				else
-				{
-					rAck.iAckFloor = iSlotAckFloor;
-					rAck.uiReceivedBitfield = uiSlotBitfield;
-				}
-			}
-		}
-	}
-	else
+	// 1B type + 1B count + (27B per slot: 1B slot + 2B epoch + 8B floor + 8B bitfieldLow + 8B bitfieldHigh) + 8B timestamp
+	size_t iExpectedSize = 2 + static_cast<size_t>(uiAckSlotCount) * 27 + 8;
+	if (iSize < iExpectedSize)
 	{
-		// Skip ACK data if client not found
-		for (uint8_t i = 0; i < uiAckSlotCount; ++i)
+		return;
+	}
+	for (uint8_t i = 0; i < uiAckSlotCount; ++i)
+	{
+		uint8_t uiSlotIndex = ReadUint8(pCursor);
+		uint16_t uiSlotEpoch = ReadUint16(pCursor);
+		int64_t iSlotAckFloor = ReadInt64(pCursor);
+		uint64_t uiSlotBitfieldLow = ReadUint64(pCursor);
+		uint64_t uiSlotBitfieldHigh = ReadUint64(pCursor);
+
+		if (uiSlotIndex < std::ssize(pClient->coordSubscriptions)
+		&& pClient->coordSubscriptions.at(uiSlotIndex).bActive
+		&& uiSlotEpoch == pClient->coordAckStates.at(uiSlotIndex).uiEpoch
+		&& iSlotAckFloor >= pClient->coordAckStates.at(uiSlotIndex).iAckFloor)
 		{
-			pCursor += 1 + 2 + 8 + 8; // slotIndex + epoch + ackFloor + bitfield
+			// Clamp to server's latest sent tick to prevent future ACK floors
+			iSlotAckFloor = std::min(iSlotAckFloor, miLatestBufferedTick);
+			AckState& rAck = pClient->coordAckStates.at(uiSlotIndex);
+			if (iSlotAckFloor == rAck.iAckFloor)
+			{
+				rAck.uiReceivedBitfieldLow |= uiSlotBitfieldLow;
+				rAck.uiReceivedBitfieldHigh |= uiSlotBitfieldHigh;
+			}
+			else
+			{
+				rAck.iAckFloor = iSlotAckFloor;
+				rAck.uiReceivedBitfieldLow = uiSlotBitfieldLow;
+				rAck.uiReceivedBitfieldHigh = uiSlotBitfieldHigh;
+			}
 		}
 	}
 
 	// Pipeline RTT: store client timestamp for echo in SendUpdate (monotonically increasing to guard against out-of-order packets)
 	int64_t iClientTimestampNs = ReadInt64(pCursor);
-	if (pClient != nullptr && iClientTimestampNs > pClient->iClientTimestampNs)
+	if (iClientTimestampNs > pClient->iClientTimestampNs)
 	{
 		pClient->iClientTimestampNs = iClientTimestampNs;
 	}
 }
 
-void Server::ClientSpawnRequest(const uint8_t* pData, int64_t iClientId)
+void Server::ClientSpawnRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
 {
+	// 1B type + 1B flags = 2 fixed bytes
+	if (iSize < 2)
+	{
+		return;
+	}
+
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	{
+		return;
+	}
+
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 	uint8_t uiFlags = ReadUint8(pCursor);
 
@@ -77,8 +92,14 @@ void Server::ClientSpawnRequest(const uint8_t* pData, int64_t iClientId)
 	mPendingSpawnRequests.push_back({iClientId, flags});
 }
 
-void Server::ClientDesyncReport(const uint8_t* pData)
+void Server::ClientDesyncReport(const uint8_t* pData, size_t iSize)
 {
+	// 1B type + 8B tick + 4B gridX + 4B gridY + 8B expectedCrc + 8B actualCrc = 33 fixed bytes
+	if (iSize < 33)
+	{
+		return;
+	}
+
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	int64_t iTick = ReadInt64(pCursor);
@@ -91,8 +112,14 @@ void Server::ClientDesyncReport(const uint8_t* pData)
 	Log(kLogNetwork, "Server::ClientDesyncReport Frame: {} Grid: ({},{}) Expected: {} Actual: {}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), uiExpectedCrc), common::ToHex(std::span(pcActual), uiActualCrc));
 }
 
-void Server::ClientDebugFrameRequest(const uint8_t* pData, ENetPeer* pPeer)
+void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 {
+	// 1B type + 8B tick + 4B gridX + 4B gridY = 17 fixed bytes
+	if (iSize < 17)
+	{
+		return;
+	}
+
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	int64_t iTick = ReadInt64(pCursor);
@@ -155,6 +182,12 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, ENetPeer* pPeer)
 
 void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
 {
+	// 1B type + 4B protocolVersion = 5 minimum bytes
+	if (iSize < 5)
+	{
+		return;
+	}
+
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	uint32_t uiClientProtocolVersion = ReadUint32(pCursor);
@@ -190,18 +223,30 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 		return;
 	}
 
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient != nullptr)
+	{
+		pClient->bHandshakeComplete = true;
+	}
+
 	Log(kLogNetwork, "Server::ClientHello Accepted Client: {} Config: {}", iClientId, pcClientConfig);
 	SendConnectionResponse(pPeer, true, nullptr);
 }
 
-void Server::ClientSubscribe(const uint8_t* pData, int64_t iClientId)
+void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId)
 {
+	// 1B type + 4B gridX + 4B gridY = 9 fixed bytes
+	if (iSize < 9)
+	{
+		return;
+	}
+
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	GridCoord coord = ReadGridCoord(pCursor);
 
 	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr)
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
 	{
 		return;
 	}
@@ -233,8 +278,14 @@ void Server::ClientSubscribe(const uint8_t* pData, int64_t iClientId)
 	mPendingNewSubscriptions.push_back({iClientId, iSlot, coord});
 }
 
-void Server::ClientUnsubscribe(const uint8_t* pData, int64_t iClientId)
+void Server::ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId)
 {
+	// 1B type + 1B slot = 2 fixed bytes
+	if (iSize < 2)
+	{
+		return;
+	}
+
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	uint8_t uiSlotIndex = ReadUint8(pCursor);
@@ -260,6 +311,12 @@ void Server::ClientUnsubscribe(const uint8_t* pData, int64_t iClientId)
 
 void Server::ClientResyncRequest([[maybe_unused]] const uint8_t* pData, int64_t iClientId)
 {
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	{
+		return;
+	}
+
 	Log(kLogNetwork, "Server::ClientResyncRequest Client: {}", iClientId);
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;

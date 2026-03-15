@@ -17,6 +17,11 @@ Client::Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots)
 	mCoordSlots.resize(iCoordSlots);
 	// Heap: ENet allocates host data internally
 	mpHost = enet_host_create(nullptr, 1, NetworkManager::kuiChannelCount, 0, 0);
+	if (mpHost == nullptr)
+	{
+		Log(kLogNetwork, "Client::Client enet_host_create failed");
+		return;
+	}
 	// 1MB send/receive buffers to handle bursty packet traffic
 	enet_socket_set_option(mpHost->socket, ENET_SOCKOPT_SNDBUF, 1024 * 1024);
 	enet_socket_set_option(mpHost->socket, ENET_SOCKOPT_RCVBUF, 1024 * 1024);
@@ -165,27 +170,28 @@ void Client::Receive(const uint8_t* pData, size_t iSize)
 			break;
 		}
 		case PacketType::kServerCoordFullState:
-			ServerCoordFullState(pData);
+			ServerCoordFullState(pData, iSize);
 			break;
 		case PacketType::kServerCoordUpdate:
-			ServerCoordUpdateOrResend(pData, true);
+			ServerCoordUpdateOrResend(pData, iSize, true);
 			break;
 		case PacketType::kServerCoordResend:
-			ServerCoordUpdateOrResend(pData, false);
+			ServerCoordUpdateOrResend(pData, iSize, false);
 			break;
 		case PacketType::kServerDebugFrame:
-			ServerDebugFrame(pData);
+			ServerDebugFrame(pData, iSize);
 			break;
 		case PacketType::kServerConnectionResponse:
 			ServerConnectionResponse(pData, iSize);
 			break;
 		case PacketType::kServerSubscribeAccept:
-			ServerSubscribeAccept(pData);
+			ServerSubscribeAccept(pData, iSize);
 			break;
 		case PacketType::kServerUnsubscribeAck:
-			ServerUnsubscribeAck(pData);
+			ServerUnsubscribeAck(pData, iSize);
 			break;
 		default:
+			Log(kLogNetwork, "Client::Receive unknown packet type {}", static_cast<uint8_t>(eType));
 			break;
 	}
 }
@@ -213,7 +219,7 @@ void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 	}
 
 	int64_t iBitIndex = iTick - rAck.iAckFloor - 1;
-	if (iBitIndex >= kiTickRate)
+	if (iBitIndex >= kiNetworkBufferSize)
 	{
 		Log(kLogNetwork, "Client::TrackReceivedTick Too many missing frames, disconnecting Slot: {} Gap: {}", iSlot, iBitIndex + 1);
 		DEBUG_BREAK();
@@ -222,18 +228,28 @@ void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 	}
 
 	// Mark this frame as received and advance the floor past any contiguous run
-	rAck.uiReceivedBitfield |= (1ULL << iBitIndex);
+	if (iBitIndex < 64)
+		rAck.uiReceivedBitfieldLow |= (1ULL << iBitIndex);
+	else
+		rAck.uiReceivedBitfieldHigh |= (1ULL << (iBitIndex - 64));
 
-	while (rAck.uiReceivedBitfield & 1ULL)
+	while (rAck.uiReceivedBitfieldLow & 1ULL)
 	{
 		++rAck.iAckFloor;
-		rAck.uiReceivedBitfield >>= 1;
+		rAck.uiReceivedBitfieldLow >>= 1;
+		if (rAck.uiReceivedBitfieldHigh & 1ULL)
+			rAck.uiReceivedBitfieldLow |= (1ULL << 63);
+		rAck.uiReceivedBitfieldHigh >>= 1;
 	}
 
 }
 
 void Client::Flush()
 {
+	if (mpHost == nullptr)
+	{
+		return;
+	}
 	enet_host_flush(mpHost);
 }
 
