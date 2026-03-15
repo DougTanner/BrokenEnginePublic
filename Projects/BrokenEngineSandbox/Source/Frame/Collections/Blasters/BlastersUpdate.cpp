@@ -241,7 +241,7 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 		.iCount = rCurrentInterpolate.iCount,
 		.bSweptTest = true,
 		.uiCategory = CollisionCategory::kBlaster,
-		.uiCollidesWith = CollisidesWith::kBlaster,
+		.uiCollidesWith = CollidesWith::kBlaster,
 		.pAlignments = rCurrentPostRender.pAlignments,
 	});
 }

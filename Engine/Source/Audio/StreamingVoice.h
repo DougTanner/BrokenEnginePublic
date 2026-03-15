@@ -39,14 +39,14 @@ public:
 	bool UpdateVolume(float fDeltaTime);
 
 	// IVoiceNotify
-	virtual void OnBufferEnd();
-	virtual void OnCriticalError() {}
-	virtual void OnReset() {}
-	virtual void OnUpdate() {}
-	virtual void OnDestroyEngine() noexcept {}
-	virtual void OnTrim() {}
-	virtual void GatherStatistics([[maybe_unused]] AudioStatistics& rStats) const {}
-	virtual void OnDestroyParent() noexcept {}
+	void OnBufferEnd() override;
+	void OnCriticalError() override {}
+	void OnReset() override {}
+	void OnUpdate() override {}
+	void OnDestroyEngine() noexcept override {}
+	void OnTrim() override {}
+	void GatherStatistics([[maybe_unused]] AudioStatistics& rStats) const override {}
+	void OnDestroyParent() noexcept override {}
 
 	StreamingVoiceFlags_t mFlags = StreamingVoiceFlags::kFadingIn;
 	const LazyChunk* mpLazyChunk = nullptr;

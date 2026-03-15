@@ -48,7 +48,7 @@ namespace CollisionCategory
 }
 
 // What types can I collide with?
-namespace CollisidesWith
+namespace CollidesWith
 {
 	inline constexpr uint16_t kNone = CollisionCategory::kNone;
 

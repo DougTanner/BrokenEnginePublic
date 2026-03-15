@@ -31,7 +31,7 @@ ClientReconciler::~ClientReconciler()
 
 void ClientReconciler::TryKick()
 {
-	if (!mbHasNewData)
+	if (!mbHasNewData || mbInFlight)
 	{
 		return;
 	}
@@ -111,16 +111,22 @@ void ClientReconciler::Kick()
 		rReconcileContext.coordWork.push_back(std::move(work));
 	}
 
+	// Re-sync human identity from main thread (updated by PollNetwork before Kick)
+	mConfirmedHumanState.humanGridCoord = gpGame->mHumanGridCoord;
+	mConfirmedHumanState.humanPlayerId = gpGame->HumanPlayerId();
+	mConfirmedHumanState.fPreviousHumanArmor = gpGame->PreviousHumanArmor();
+
 	// Global input
 	rReconcileContext.confirmedHumanState = mConfirmedHumanState;
 	rReconcileContext.uiNextFrameId = gpGame->NextFrameId();
 	rReconcileContext.iTargetTick = gpGame->TickCounter();
 	rReconcileContext.playerAlignment = gpGame->PlayerAlignment();
+	rReconcileContext.alignments = gpGame->Alignments();
 
 	// Dispatch to worker
 	mpWorker->Wake([this]()
 	{
-		Reconcile(*mpContext, gpGame->Alignments());
+		Reconcile(*mpContext, mpContext->alignments);
 	});
 }
 

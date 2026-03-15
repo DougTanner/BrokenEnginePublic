@@ -35,6 +35,42 @@ inline constexpr NetworkSimulationConfig GetNetworkSimulationConfig(NetworkSimul
 	}
 }
 
+inline constexpr std::string_view GetNetworkSimulationName(NetworkSimulationLevel eLevel)
+{
+	switch (eLevel)
+	{
+		case NetworkSimulationLevel::kEastCoast:    return "EastCoast";
+		case NetworkSimulationLevel::kWestCoast:    return "WestCoast";
+		case NetworkSimulationLevel::kEurope:       return "Europe";
+		case NetworkSimulationLevel::kSouthAmerica: return "SouthAmerica";
+		case NetworkSimulationLevel::kChina:        return "China";
+		default:                                    return "Off";
+	}
+}
+
+struct NetworkSimulationBounds
+{
+	int64_t iCrcMin;
+	int64_t iAssumedMax;
+	int64_t iFastReplayMax;
+	int64_t iStatusReplayMax;
+	int64_t iKnockOnReplayMax;
+};
+
+inline constexpr NetworkSimulationBounds GetNetworkSimulationBounds(NetworkSimulationLevel eLevel)
+{
+	switch (eLevel)
+	{
+		case NetworkSimulationLevel::kDisabled:     return {62,  2,  2,  2,  2};
+		case NetworkSimulationLevel::kEastCoast:    return {50,  8,  6, 10, 10};
+		case NetworkSimulationLevel::kWestCoast:    return {40, 20, 20, 20, 24};
+		case NetworkSimulationLevel::kEurope:       return {32, 32, 32, 30, 36};
+		case NetworkSimulationLevel::kSouthAmerica: return {24, 50, 50, 44, 50};
+		case NetworkSimulationLevel::kChina:        return {12, 90, 80, 70, 80};
+		default:                                    return {62,  2,  2,  2,  2};
+	}
+}
+
 struct DelayedPacket
 {
 	std::chrono::steady_clock::time_point releaseTime;
@@ -91,6 +127,7 @@ inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const Netw
 	{
 		if (ShouldDrop(rSimConfig))
 		{
+			Log(kLogNetwork, "NetworkSimulation dropped unreliable packet channel: {} size: {}", rEvent.channelID, rEvent.packet->dataLength); // DT: TEMP
 			enet_packet_destroy(rEvent.packet);
 			return;
 		}
@@ -118,10 +155,16 @@ template <typename FnHandlePacket>
 inline void ProcessDelayed(std::deque<DelayedPacket>& rDelayedPackets, FnHandlePacket HandlePacket)
 {
 	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	int64_t iProcessed = 0; // DT: TEMP
 	while (!rDelayedPackets.empty() && rDelayedPackets.front().releaseTime <= now)
 	{
 		HandlePacket(rDelayedPackets.front());
 		rDelayedPackets.pop_front();
+		++iProcessed; // DT: TEMP
+	}
+	if (iProcessed > 0 || !rDelayedPackets.empty()) // DT: TEMP
+	{
+		Log(kLogNetwork, "NetworkSimulation processed: {} queued: {}", iProcessed, rDelayedPackets.size()); // DT: TEMP
 	}
 }
 

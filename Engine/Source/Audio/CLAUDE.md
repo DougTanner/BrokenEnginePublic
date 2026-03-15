@@ -1,6 +1,6 @@
 # `/Engine/Source/Audio/`
 
-3D spatial audio system using DirectXTK AudioEngine (XAudio2 wrapper). Entirely client-only (`#ifdef BT_CLIENT`).
+3D spatial audio system using DirectXTK AudioEngine (XAudio2 wrapper). Entirely client-only (`#if defined(BT_CLIENT)`).
 
 **Global**: `gpAudioManager`
 

@@ -11,6 +11,7 @@ inline constexpr bool kbEnableGpuAssistedValidation = false;
 inline constexpr bool kbEnableDesyncRecovery = false;
 inline constexpr bool kbEnableRecording = false;
 inline constexpr bool kbEnableScreenshots = false;
+inline constexpr bool kbEnableQuadrantNeighborSubscriptions = false;
 inline constexpr bool kbEnableWireframe = false;
 
 #if defined(BT_SERVER)
@@ -68,4 +69,4 @@ inline constexpr bool kbShowProfileTextByDefault = false;
 #include "Frame/Frame.h"
 #include "Engine.h"
 
-inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kChina;
+inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kDisabled;

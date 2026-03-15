@@ -23,7 +23,7 @@ CPU profiling is thread-safe via per-thread timer state stored in a mutex-protec
 - **`ScopedCpuProfile`**: RAII scope-based CPU timing; also tracks per-timer heap allocation counts
 - **`ScopedBootTimer`**: RAII one-time initialization measurement
 - **Direct API**: `CpuStart()`/`CpuStop()`, `GpuStart()`/`GpuStop()`, `SetCount()`
-- **Overlay**: Cycles through `ProfileScreen` modes (Off, Cpu, Gpu, Frames, Network) via `ToggleProfileText()`. CPU screen shows timers, counters, memory stats, and allocations. GPU screen shows graphics info and GPU timers. Frames screen shows active grid visualization. Network screen shows transport stats, reconciliation state, clock correction, and tick classification counters. All overlay text is built using the workbuffer to avoid per-frame heap allocations.
+- **Overlay**: Cycles through `ProfileScreen` modes (Off, Cpu, Gpu, Frames, Network) via `ToggleProfileText()`. CPU screen shows timers, counters, memory stats, and allocations. GPU screen shows graphics info and GPU timers. Frames screen shows active grid visualization. Network screen is organized into sections (Transport, Sync, Prediction, Clock, Reconciliation) and displays the active simulation level. When simulation is enabled, stats exceeding their `NetworkSimulationBounds` thresholds are flagged with `!`. All overlay text is built using the workbuffer to avoid per-frame heap allocations.
 
 ## Extension
 

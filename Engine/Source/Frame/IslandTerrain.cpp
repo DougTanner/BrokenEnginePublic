@@ -3,27 +3,6 @@
 namespace engine
 {
 
-XMVECTOR XM_CALLCONV TerrainCollision(FXMVECTOR vecStart, FXMVECTOR vecEnd, float fStepInterval)
-{
-	auto vecToEnd = XMVectorSubtract(vecEnd, vecStart);
-	float fDistance = XMVectorGetX(XMVector3Length(vecToEnd));
-	int64_t iSteps = std::max(1LL, static_cast<int64_t>(fDistance / fStepInterval));
-	auto vecStep = vecToEnd / static_cast<float>(iSteps);
-	float fElevation = XMVectorGetZ(vecStart);
-
-	auto vecCurrent = vecStart;
-	for (int64_t k = 0; k < iSteps; ++k, vecCurrent += vecStep)
-	{
-		float fTerrainElevation = gpIslandTerrain->GlobalElevation(vecCurrent);
-		if (fTerrainElevation >= fElevation)
-		{
-			return vecCurrent;
-		}
-	}
-
-	return vecEnd;
-}
-
 IslandTerrain::IslandTerrain()
 {
 	gpIslandTerrain = this;

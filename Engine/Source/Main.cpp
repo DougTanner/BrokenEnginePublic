@@ -8,6 +8,7 @@ namespace engine
 {
 
 static bool sbQuit = false;
+static int64_t siBackgroundThreadCount = 0;
 
 #if defined(BT_CLIENT)
 static HCURSOR sHcursorArrow = nullptr;
@@ -74,12 +75,12 @@ void MainThread(HINSTANCE hinstance)
 
 #if defined(BT_CLIENT)
 	// Save one core for the main thread, and one core for the render thread
-	giBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1 - 1);
+	siBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1 - 1);
 #else
 	// Server has no render thread
-	giBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1);
+	siBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1);
 #endif
-	auto pMultithreading = std::make_unique<common::Multithreading>(giBackgroundThreadCount);
+	auto pMultithreading = std::make_unique<common::Multithreading>(siBackgroundThreadCount);
 
 	// Profile
 	auto pProfileManager = std::make_unique<game::ProfileManager>();

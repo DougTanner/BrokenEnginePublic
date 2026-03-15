@@ -235,8 +235,14 @@ static int64_t ReconcileFindReplayRangeCoord(CoordReconcileWork& rWork)
 	return iMaxConsecutive;
 }
 
-static void ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, float fTime, FrameInput& rFrameInput)
+static bool ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, float fTime, FrameInput& rFrameInput)
 {
+	if (rWork.iReplayWriteCount >= engine::kiNetworkBufferSize)
+	{
+		Log(kLogNetwork, "ReconcileRunTickCoord Ring buffer full WriteCount: {} Tick: {}", rWork.iReplayWriteCount, iTick);
+		return false;
+	}
+
 	int64_t iNextSlot = SnapshotIndex(rWork.iReplayWriteHead, rWork.iReplayWriteCount);
 	if (rWork.snapshots[iNextSlot] == nullptr)
 	{
@@ -280,6 +286,8 @@ static void ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, floa
 	rWork.replayStack.push_back(pNext);
 	rWork.iReplayStackCount++;
 	rWork.iReplayWriteCount++;
+
+	return true;
 }
 
 static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork, int64_t iTick, const engine::CoordFrames::CoordServerUpdate& rUpdate, const FrameInput& rFrameInput)
@@ -366,7 +374,10 @@ static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordRecon
 		FrameInput frameInput;
 		frameInput.statusChanges = updateIt->second.statusChanges;
 
-		ReconcileRunTickCoord(rWork, iTick, rfTime, frameInput);
+		if (!ReconcileRunTickCoord(rWork, iTick, rfTime, frameInput))
+		{
+			break;
+		}
 
 		// Inject pending full state at matching tick
 		if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick == iTick)
@@ -424,7 +435,10 @@ static void ReconcileCatchUpCoord(CoordReconcileWork& rWork, int64_t iTargetTick
 		rfTime += kfDeltaTime;
 
 		FrameInput emptyInput;
-		ReconcileRunTickCoord(rWork, iCurrentTick, rfTime, emptyInput);
+		if (!ReconcileRunTickCoord(rWork, iCurrentTick, rfTime, emptyInput))
+		{
+			break;
+		}
 		++rProfiling.iAssumedFrameTicks;
 	}
 
@@ -523,6 +537,12 @@ void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)
 			if (rWork.snapshots[iPhysical] != nullptr)
 			{
 				humanState.fCurrentTime = rWork.snapshots[iPhysical]->interpolate.fCurrentTime;
+				// Advance to target tick so fCurrentTime matches iTickCounter when SetCurrentTime is called
+				int64_t iConfirmedTick = (rWork.iNewConfirmedTick >= 0) ? rWork.iNewConfirmedTick : rWork.iConfirmedTick;
+				for (int64_t i = iConfirmedTick; i < rReconcileContext.iTargetTick; ++i)
+				{
+					humanState.fCurrentTime += kfDeltaTime;
+				}
 			}
 		}
 		break;
@@ -593,9 +613,9 @@ void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)
 								break;
 							}
 						}
-						if (!bFound && rDestFrame.postRender.pPlayers->iCount > 0)
+						if (!bFound)
 						{
-							humanState.humanPlayerId = rDestFrame.postRender.pPlayers->puiIds[rDestFrame.postRender.pPlayers->iCount - 1];
+							Log(kLogNetwork, "ReconcileUpdateHumanState Transfer position match failed Coord: ({},{}) PlayerCount: {}", destination.x, destination.y, rDestFrame.postRender.pPlayers->iCount);
 						}
 						break;
 					}

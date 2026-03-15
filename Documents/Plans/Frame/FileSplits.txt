@@ -37,7 +37,7 @@ Stays in Collection.h:
   - Controller types: ControllerKeyframe, ControllerType, InterpolateKeyframes, ControllerTypeRegistry (lines 687-772)
   - RequestTextureChunkLoad declaration (line 775)
   - TypeRegistry template (lines 778-804)
-  - OptionaldToIndex (both specializations, lines 807-892)
+  - OptionalIdToIndex (both specializations, lines 807-892)
   - Collection<T> template (lines 894-946)
   - Collection-level pattern helpers: CollectionCrc, MultiElementCrc, HasSharedMembers, ServerCollectionCrc, ServerCollectionElementCrc, ServerCollectionRead, CollectionWrite, CollectionRead (lines 953-1061)
 

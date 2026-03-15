@@ -10,14 +10,11 @@ class TimeStep
 {
 public:
 
-	TimeStep();
+	TimeStep() = default;
 
 	// Add real delta time and return number of ticks needed
 	// Returns 0 if not enough time accumulated for a tick
 	int64_t TickRealtime();
-
-	// Consume one tick from the accumulator
-	void ConsumeTick();
 
 	// Get interpolation alpha for smooth rendering between steps
 	// Returns value in [0, 1] representing how far between last and next step

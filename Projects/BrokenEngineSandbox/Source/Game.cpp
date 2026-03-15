@@ -88,41 +88,60 @@ void Game::ComputeActiveSet()
 	if (!InMainMenu())
 	{
 		mActiveCoords.clear();
-		for (const auto& [coord, frames] : mCoordFrames)
+		for (const auto& [rCoord, rFrames] : mCoordFrames)
 		{
-			if (frames.pCurrent != nullptr)
+			if (rFrames.pCurrent != nullptr)
 			{
-				mActiveCoords.push_back(coord);
+				mActiveCoords.push_back(rCoord);
 			}
 		}
 
-#if 0 // DT: TEMP — Re-enable for quadrant neighbor subscriptions
-		if (mCoordFrames.contains(mHumanGridCoord))
+		if constexpr (kbEnableQuadrantNeighborSubscriptions)
 		{
-			const Frame& rFrame = CurrentFrame(mHumanGridCoord);
-			auto it = rFrame.interpolate.pPlayers->idToIndexMap.find(mHumanPlayerId);
-			if (it != rFrame.interpolate.pPlayers->idToIndexMap.end())
+			if (mCoordFrames.contains(mHumanGridCoord))
 			{
-				XMVECTOR vecPos = rFrame.interpolate.pPlayers->pVecPositions[it->second];
-				XMVECTOR vecArea = rFrame.postRender.vecArea;
-				float fCenterX = (XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f;
-				float fCenterY = (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f;
-
-				engine::GridCoord quadrantOffsets[3];
-				engine::ComputeQuadrantOffsets(XMVectorGetX(vecPos), XMVectorGetY(vecPos), fCenterX, fCenterY, quadrantOffsets);
-
-				for (const engine::GridCoord& rOffset : quadrantOffsets)
+				const Frame& rFrame = CurrentFrame(mHumanGridCoord);
+				auto it = rFrame.interpolate.pPlayers->idToIndexMap.find(mHumanPlayerId);
+				if (it != rFrame.interpolate.pPlayers->idToIndexMap.end())
 				{
-					engine::GridCoord neighbor {mHumanGridCoord.x + rOffset.x, mHumanGridCoord.y + rOffset.y};
-					if (!mCoordFrames.contains(neighbor))
+					XMVECTOR vecPos = rFrame.interpolate.pPlayers->pVecPositions[it->second];
+					XMVECTOR vecArea = rFrame.postRender.vecArea;
+					float fCenterX = (XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f;
+					float fCenterY = (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f;
+
+					constexpr float kfHysteresis = 2.0f;
+					float fDeltaX = XMVectorGetX(vecPos) - fCenterX;
+					float fDeltaY = XMVectorGetY(vecPos) - fCenterY;
+
+					if (fDeltaX * static_cast<float>(miQuadrantDirX) < -kfHysteresis)
 					{
-						CreateFrameAtCoord(neighbor);
+						miQuadrantDirX = -miQuadrantDirX;
 					}
-					mActiveCoords.push_back(neighbor);
+					if (fDeltaY * static_cast<float>(miQuadrantDirY) < -kfHysteresis)
+					{
+						miQuadrantDirY = -miQuadrantDirY;
+					}
+
+					engine::GridCoord quadrantOffsets[3];
+					quadrantOffsets[0] = {.x = miQuadrantDirX, .y = 0};
+					quadrantOffsets[1] = {.x = 0, .y = miQuadrantDirY};
+					quadrantOffsets[2] = {.x = miQuadrantDirX, .y = miQuadrantDirY};
+
+					for (const engine::GridCoord& rOffset : quadrantOffsets)
+					{
+						engine::GridCoord neighbor {.x = mHumanGridCoord.x + rOffset.x, .y = mHumanGridCoord.y + rOffset.y};
+						if (!mCoordFrames.contains(neighbor))
+						{
+							CreateFrameAtCoord(neighbor);
+						}
+						if (!std::ranges::contains(mActiveCoords, neighbor))
+						{
+							mActiveCoords.push_back(neighbor);
+						}
+					}
 				}
 			}
 		}
-#endif
 	}
 	else
 	{
@@ -380,6 +399,8 @@ void Game::Reset()
 	mHumanPlayerId = {};
 	mfPreviousHumanArmor = 0.0f;
 	mHumanGridCoord = engine::kOriginCoord;
+	miQuadrantDirX = 1;
+	miQuadrantDirY = 1;
 	mActiveCoords.clear();
 	mActiveCoords.push_back(mHumanGridCoord);
 }
@@ -391,7 +412,7 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	mCoordFrames.clear();
-	std::unique_ptr<Frame>& pFrame = mCoordFrames[engine::kOriginCoord].pCurrent;
+	std::unique_ptr<Frame>& pFrame = mCoordFrames.try_emplace(engine::kOriginCoord).first->second.pCurrent;
 	pFrame = std::make_unique<Frame>();
 	pFrame->interpolate.gameFlags.Set(gameFlags.meFlags);
 	pFrame->postRender.uiFrameId = GenerateFrameId();
@@ -401,7 +422,7 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	pFrame->postRender.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	pFrame->postRender.eIslandsFlip = engine::kFlipNone;
 
-	mCoordFrames[engine::kOriginCoord].pNext = std::make_unique<Frame>();
+	mCoordFrames.at(engine::kOriginCoord).pNext = std::make_unique<Frame>();
 }
 
 bool Game::ShouldTrapCursor()

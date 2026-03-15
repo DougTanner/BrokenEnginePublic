@@ -39,11 +39,9 @@ enum class FrameFlags : uint64_t
 };
 using FrameFlags_t = common::Flags<FrameFlags>;
 
-inline int64_t giBackgroundThreadCount = 0;
-
 struct FrameInterpolateBase
 {
-	FrameInterpolateBase();
+	FrameInterpolateBase() = default;
 	~FrameInterpolateBase() = default;
 	FrameInterpolateBase(FrameInterpolateBase&&) noexcept = default;
 	FrameInterpolateBase& operator=(FrameInterpolateBase&&) noexcept = default;
@@ -119,8 +117,8 @@ struct FrameInterpolateBase
 	}
 
 	// Visibility bounds (X = East/West, Y = North/South)
-	static inline constexpr float kfVisibleEastWest = 65.0f;
-	static inline constexpr float kfVisibleNorthSouth = 45.0f;
+	static constexpr float kfVisibleEastWest = 65.0f;
+	static constexpr float kfVisibleNorthSouth = 45.0f;
 
 	[[nodiscard]] static bool XM_CALLCONV IsVisible(FXMVECTOR vecSource, FXMVECTOR vecTarget)
 	{
@@ -137,9 +135,7 @@ struct FrameInterpolateBase
 	void ServerRead(std::istream& rStream);
 };
 
-static_assert(std::tuple_size_v<decltype(std::declval<FrameInterpolateBase>().Collections())> == FrameInterpolateBase::kCollectionCount,
-	"FrameInterpolateBase: Collections() tuple size does not match kCollectionCount. "
-	"Did you add a new collection member without updating Collections()?");
+static_assert(std::tuple_size_v<decltype(std::declval<FrameInterpolateBase>().Collections())> == FrameInterpolateBase::kCollectionCount, "FrameInterpolateBase: Collections() tuple size does not match kCollectionCount. Did you add a new collection member without updating Collections()?");
 
 struct FramePostRenderBase
 {
@@ -175,24 +171,16 @@ struct FramePostRenderBase
 
 	Alignments alignments {};
 
-	int64_t GenerateUuid()
+	int64_t MakeUuid(uint64_t& ruiCounter)
 	{
-		int64_t iCounter = uiNextUuid++;
+		int64_t iCounter = ruiCounter++;
 		return (static_cast<int64_t>(uiFrameId) << 48) | (iCounter & 0x0000FFFFFFFFFFFF);
 	}
 
+	int64_t GenerateUuid()          { return MakeUuid(uiNextUuid); }
 #if defined(BT_CLIENT)
-	int64_t GenerateSoundUuid()
-	{
-		int64_t iCounter = uiNextSoundUuid++;
-		return (static_cast<int64_t>(uiFrameId) << 48) | (iCounter & 0x0000FFFFFFFFFFFF);
-	}
-
-	int64_t GenerateVisualUuid()
-	{
-		int64_t iCounter = uiNextVisualUuid++;
-		return (static_cast<int64_t>(uiFrameId) << 48) | (iCounter & 0x0000FFFFFFFFFFFF);
-	}
+	int64_t GenerateSoundUuid()     { return MakeUuid(uiNextSoundUuid); }
+	int64_t GenerateVisualUuid()    { return MakeUuid(uiNextVisualUuid); }
 #endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
@@ -249,13 +237,9 @@ struct FramePostRenderBase
 	void ServerRead(std::istream& rStream);
 };
 
-static_assert(std::tuple_size_v<decltype(std::declval<FramePostRenderBase>().Collections())> == FramePostRenderBase::kCollectionCount,
-	"FramePostRenderBase: Collections() tuple size does not match kCollectionCount. "
-	"Did you add a new collection member without updating Collections()?");
+static_assert(std::tuple_size_v<decltype(std::declval<FramePostRenderBase>().Collections())> == FramePostRenderBase::kCollectionCount, "FramePostRenderBase: Collections() tuple size does not match kCollectionCount. Did you add a new collection member without updating Collections()?");
 
-static_assert(std::tuple_size_v<decltype(std::declval<FrameInterpolateBase>().Collections())> ==
-              std::tuple_size_v<decltype(std::declval<FramePostRenderBase>().Collections())>,
-	"FrameInterpolateBase and FramePostRenderBase must have the same number of collections");
+static_assert(std::tuple_size_v<decltype(std::declval<FrameInterpolateBase>().Collections())> == std::tuple_size_v<decltype(std::declval<FramePostRenderBase>().Collections())>, "FrameInterpolateBase and FramePostRenderBase must have the same number of collections");
 
 // Type aliases derived from Collections() - must be after class definitions are complete
 using InterpolateTypes = TupleToTypeList_t<decltype(std::declval<FrameInterpolateBase>().Collections())>;

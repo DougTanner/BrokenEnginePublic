@@ -111,6 +111,8 @@ public:
 	bool mbShowImGui = false;
 
 	engine::GridCoord mHumanGridCoord {};
+	int32_t miQuadrantDirX = 1;
+	int32_t miQuadrantDirY = 1;
 	std::vector<engine::GridCoord> mActiveCoords;
 	std::unordered_map<engine::GridCoord, FrameInput> mFrameInputs;
 

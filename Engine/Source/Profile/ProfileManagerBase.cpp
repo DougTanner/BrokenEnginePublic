@@ -32,8 +32,8 @@ void ProfileManagerBase::Create()
 		}
 
 		// Validate that graphics queue family supports timestamp queries
-		uint32_t timestampValidBits = gpInstanceManager->mVkQueueFamilyProperties[gpInstanceManager->miGraphicsQueueFamilyIndex].timestampValidBits;
-		if (timestampValidBits == 0)
+		uint32_t uiTimestampValidBits = gpInstanceManager->mVkQueueFamilyProperties[gpInstanceManager->miGraphicsQueueFamilyIndex].timestampValidBits;
+		if (uiTimestampValidBits == 0)
 		{
 			Log("Warning: Graphics queue family does not support timestamp queries. GPU profiling disabled.");
 			return;
@@ -101,7 +101,7 @@ void ProfileManagerBase::CpuStart(int64_t iCpuTimer, int64_t iThreads)
 
 		std::lock_guard lock(mCpuTimerMutex);
 
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 		std::vector<CpuTimerThreadState>& rThreadStates = mPerThreadTimerStates.try_emplace(std::this_thread::get_id()).first->second;
 		if (rThreadStates.size() < static_cast<size_t>(GetCpuTimerCount()))
@@ -147,7 +147,7 @@ void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCross
 			std::vector<CpuTimerThreadState>& rThreadStates = mPerThreadTimerStates.try_emplace(std::this_thread::get_id()).first->second;
 			if (rThreadStates.size() < static_cast<size_t>(GetCpuTimerCount()))
 			{
-				ScopedSuppressAllocationTracking suppress;
+				ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 				rThreadStates.resize(static_cast<size_t>(GetCpuTimerCount()));
 			}
 			pState = &rThreadStates[static_cast<size_t>(iCpuTimer)];
@@ -686,24 +686,68 @@ void ProfileManagerBase::UpdateProfileText()
 		if (meProfileScreen == ProfileScreen::kNetwork)
 		{
 			rWorkbuffer.Push();
-			rWorkbuffer.Append("Network\n");
 
-			if (gpClient == nullptr)
+			// Header with simulation level info
+			if constexpr (keNetworkSimulation != NetworkSimulationLevel::kDisabled)
 			{
-				rWorkbuffer.Append("(Offline)");
+				constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
+				rWorkbuffer.Append("Network (Sim: ");
+				rWorkbuffer.Append(GetNetworkSimulationName(keNetworkSimulation));
+				rWorkbuffer.Append(" ");
+				rWorkbuffer.Append(kSimConfig.iPingMinMs);
+				rWorkbuffer.Append("-");
+				rWorkbuffer.Append(kSimConfig.iPingMaxMs);
+				rWorkbuffer.Append("ms)");
 			}
 			else
 			{
+				rWorkbuffer.Append("Network (Sim: Off)");
+			}
+
+			if (gpClient == nullptr)
+			{
+				rWorkbuffer.Append("\n(Offline)");
+			}
+			else
+			{
+				// -- Transport --
+				rWorkbuffer.Append("\n-- Transport --\n");
 				ENetPeer* pPeer = gpClient->GetServerPeer();
 				if (pPeer != nullptr)
 				{
+					int64_t iRtt = static_cast<int64_t>(pPeer->roundTripTime);
 					rWorkbuffer.Append("RTT: ");
-					rWorkbuffer.Append(static_cast<int64_t>(pPeer->roundTripTime));
-					rWorkbuffer.Append(" ms\nPipeline: ");
+					rWorkbuffer.Append(iRtt);
+					rWorkbuffer.Append(" ms");
+					if constexpr (keNetworkSimulation != NetworkSimulationLevel::kDisabled)
+					{
+						constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
+						if (iRtt > kSimConfig.iPingMaxMs * 3 / 2)
+						{
+							rWorkbuffer.Append("!");
+						}
+					}
+
+					rWorkbuffer.Append("  Pipe: ");
 					rWorkbuffer.AppendFloat(gpClient->GetPipelineRttUs() / 1000.0f, 1);
-					rWorkbuffer.Append(" ms\nLoss: ");
-					rWorkbuffer.AppendFloat(pPeer->packetLoss * 100.0f / 65536.0f, 1);
-					rWorkbuffer.Append("%\n");
+					rWorkbuffer.Append(" ms\n");
+
+					float fLoss = pPeer->packetLoss * 100.0f / 65536.0f;
+					rWorkbuffer.Append("Loss: ");
+					rWorkbuffer.AppendFloat(fLoss, 1);
+					rWorkbuffer.Append("%");
+					if constexpr (keNetworkSimulation != NetworkSimulationLevel::kDisabled)
+					{
+						constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
+						if (fLoss > kSimConfig.fPacketLossPercent * 2.0f)
+						{
+							rWorkbuffer.Append("!");
+						}
+						rWorkbuffer.Append(" (sim: ");
+						rWorkbuffer.AppendFloat(kSimConfig.fPacketLossPercent, 1);
+						rWorkbuffer.Append("%)");
+					}
+					rWorkbuffer.Append("\n");
 				}
 
 				rWorkbuffer.Append("In: ");
@@ -730,7 +774,9 @@ void ProfileManagerBase::UpdateProfileText()
 					rWorkbuffer.AppendFloat(static_cast<float>(iBytesOut) / 1024.0f, 1);
 					rWorkbuffer.Append(" KB/s");
 				}
-				rWorkbuffer.Append("\nAck: ");
+
+				// -- Sync --
+				rWorkbuffer.Append("\n-- Sync --\n");
 				{
 					int64_t iMinAckFloor = -1;
 					int64_t iTotalRecv = 0;
@@ -745,56 +791,102 @@ void ProfileManagerBase::UpdateProfileText()
 							iTotalRecv += std::popcount(rSlot.ackState.uiReceivedBitfieldLow) + std::popcount(rSlot.ackState.uiReceivedBitfieldHigh);
 						}
 					}
+					rWorkbuffer.Append("Ack: ");
 					rWorkbuffer.Append(iMinAckFloor);
-					rWorkbuffer.Append("  Confirmed: ");
+					rWorkbuffer.Append("  Conf: ");
 					rWorkbuffer.Append(game::gpClientSession->GetConfirmedTick());
 					mSmoothedRecv = iTotalRecv;
 				}
 				mSmoothedRecv.Update();
-				rWorkbuffer.Append("  Recv: ");
+				rWorkbuffer.Append("\nRecv: ");
 				rWorkbuffer.Append(mSmoothedRecv.Get());
 				rWorkbuffer.Append("/128");
 
+				// -- Prediction --
+				rWorkbuffer.Append("\n-- Prediction --\n");
 				if (game::gpGame->mCoordFrames.contains(game::gpGame->mHumanGridCoord))
-			{
-				mSmoothedRollback = game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iTick - game::gpClientSession->GetHumanConfirmedTick();
-			}
+				{
+					mSmoothedRollback = game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iTick - game::gpClientSession->GetHumanConfirmedTick();
+				}
 				mSmoothedRollback.Update();
 				mSmoothedBuffer = game::gpClientSession->GetServerUpdateBufferSize();
 				mSmoothedBuffer.Update();
-				rWorkbuffer.Append("\nRollback: ");
-				rWorkbuffer.Append(mSmoothedRollback.Get());
+				int64_t iRollbackValue = mSmoothedRollback.Get();
+				rWorkbuffer.Append("Rollback: ");
+				rWorkbuffer.Append(iRollbackValue);
+				if constexpr (keNetworkSimulation != NetworkSimulationLevel::kDisabled)
+				{
+					if (iRollbackValue > 8)
+					{
+						rWorkbuffer.Append("!");
+					}
+				}
 				rWorkbuffer.Append("  Buffer: ");
 				rWorkbuffer.Append(mSmoothedBuffer.Get());
-				rWorkbuffer.Append("  Desync: ");
-				if (game::gpClientSession->GetDesyncTick() >= 0)
+				rWorkbuffer.Append("\nDesync: ");
+				bool bDesync = game::gpClientSession->GetDesyncTick() >= 0;
+				if (bDesync)
 				{
 					rWorkbuffer.Append("Yes (");
 					rWorkbuffer.Append(game::gpClientSession->GetDesyncTick());
 					rWorkbuffer.Append(")");
+					if constexpr (keNetworkSimulation != NetworkSimulationLevel::kDisabled)
+					{
+						rWorkbuffer.Append("!");
+					}
 				}
 				else
 				{
 					rWorkbuffer.Append("No");
 				}
-				rWorkbuffer.Append("\nClock: ");
+
+				// -- Clock --
+				rWorkbuffer.Append("\n-- Clock --\n");
+				rWorkbuffer.Append("Offset: ");
 				rWorkbuffer.Append(mSmoothedClockOffset.Get());
 				rWorkbuffer.Append("  Target: -");
 				rWorkbuffer.Append(mSmoothedClockTarget.Get());
-				rWorkbuffer.Append("  Error: ");
+				rWorkbuffer.Append("  Err: ");
 				rWorkbuffer.Append(mSmoothedClockError.Get());
-				rWorkbuffer.Append("\nTicks: ");
-				rWorkbuffer.Append(mCrcValidatedTicksPerSecond.Get());
-				rWorkbuffer.Append(" crc  ");
-				rWorkbuffer.Append(mAssumedTicksPerSecond.Get());
-				rWorkbuffer.Append(" assumed");
-				rWorkbuffer.Append("\nReconcile: ");
-				rWorkbuffer.Append(mCrcFastPathEventsPerSecond.Get());
-				rWorkbuffer.Append(" fast  ");
-				rWorkbuffer.Append(mStatusChangeReplayTicksPerSecond.Get());
-				rWorkbuffer.Append(" status  ");
-				rWorkbuffer.Append(mKnockOnReplayTicksPerSecond.Get());
-				rWorkbuffer.Append(" knock-on");
+
+				// -- Reconciliation --
+				rWorkbuffer.Append("\n-- Reconciliation --\n");
+				int64_t iCrc = mCrcValidatedTicksPerSecond.Get();
+				int64_t iAssumed = mAssumedTicksPerSecond.Get();
+				int64_t iFast = mCrcFastPathEventsPerSecond.Get();
+				int64_t iStatus = mStatusChangeReplayTicksPerSecond.Get();
+				int64_t iKnockOn = mKnockOnReplayTicksPerSecond.Get();
+
+				bool bCrcFlag = false;
+				bool bAssumedFlag = false;
+				bool bFastFlag = false;
+				bool bStatusFlag = false;
+				bool bKnockOnFlag = false;
+				if constexpr (keNetworkSimulation != NetworkSimulationLevel::kDisabled)
+				{
+					constexpr NetworkSimulationBounds kBounds = GetNetworkSimulationBounds(keNetworkSimulation);
+					bCrcFlag = iCrc < kBounds.iCrcMin;
+					bAssumedFlag = iAssumed > kBounds.iAssumedMax;
+					bFastFlag = iFast > kBounds.iFastReplayMax;
+					bStatusFlag = iStatus > kBounds.iStatusReplayMax;
+					bKnockOnFlag = iKnockOn > kBounds.iKnockOnReplayMax;
+				}
+
+				rWorkbuffer.Append("CRC: ");
+				rWorkbuffer.Append(iCrc);
+				rWorkbuffer.Append(bCrcFlag ? "/s!" : "/s");
+				rWorkbuffer.Append("  Assumed: ");
+				rWorkbuffer.Append(iAssumed);
+				rWorkbuffer.Append(bAssumedFlag ? "/s!" : "/s");
+				rWorkbuffer.Append("\nReplay: ");
+				rWorkbuffer.Append(iFast);
+				rWorkbuffer.Append(bFastFlag ? " fast!" : " fast");
+				rWorkbuffer.Append("  ");
+				rWorkbuffer.Append(iStatus);
+				rWorkbuffer.Append(bStatusFlag ? " status!" : " status");
+				rWorkbuffer.Append("  ");
+				rWorkbuffer.Append(iKnockOn);
+				rWorkbuffer.Append(bKnockOnFlag ? " knock-on!" : " knock-on");
 			}
 
 			gpTextManager->UpdateTextArea(kTextProfileFps, rWorkbuffer.View());

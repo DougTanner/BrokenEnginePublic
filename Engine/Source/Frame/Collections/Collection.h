@@ -805,14 +805,14 @@ struct TypeRegistry
 
 // Non-indexable version (zero overhead)
 template <typename T, common::Flags<CollectionFlags> FLAGS>
-struct OptionaldToIndex
+struct OptionalIdToIndex
 {
 };
 
 // Indexable version with strong-typed id_t and ID-to-index mapping using CRTP pattern.
 template <typename T, common::Flags<CollectionFlags> FLAGS>
 	requires (FLAGS & CollectionFlags::kIdToIndex)
-struct OptionaldToIndex<T, FLAGS>
+struct OptionalIdToIndex<T, FLAGS>
 {
 	using id_t = engine::id_t<T>;
 
@@ -860,18 +860,24 @@ struct OptionaldToIndex<T, FLAGS>
 
 	inline common::crc_t Crc() const
 	{
-		// Heap: GetSortedKeys() builds a temporary vector of all map keys for deterministic CRC ordering.
-		// Could use workbuffer, but replay validation is infrequent so the simplicity of std::vector wins here.
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
 		common::crc_t checksum = 0;
 		checksum ^= common::Crc(static_cast<int64_t>(idToIndexMap.size()));
 
-		std::vector<id_t> vecKeys = GetSortedKeys();
-		for (const id_t& key : vecKeys)
+		int64_t iKeyCount = static_cast<int64_t>(idToIndexMap.size());
+		id_t* pKeys = common::gpThreadLocal->mWorkbuffer.PushBuffer<id_t*>(iKeyCount * sizeof(id_t));
+		int64_t i = 0;
+		for (const auto& [key, value] : idToIndexMap)
 		{
-			checksum ^= common::Crc(key.ToUuid().Value());
-			checksum ^= common::Crc(idToIndexMap.at(key));
+			pKeys[i++] = key;
 		}
+		std::sort(pKeys, pKeys + iKeyCount);
+
+		for (int64_t j = 0; j < iKeyCount; ++j)
+		{
+			checksum ^= common::Crc(pKeys[j].ToUuid().Value());
+			checksum ^= common::Crc(idToIndexMap.at(pKeys[j]));
+		}
+		common::gpThreadLocal->mWorkbuffer.Pop();
 
 		return checksum;
 	}
@@ -892,7 +898,7 @@ private:
 };
 
 template <typename T, common::Flags<CollectionFlags> FLAGS = {}>
-struct Collection : public OptionaldToIndex<T, FLAGS>
+struct Collection : public OptionalIdToIndex<T, FLAGS>
 {
 	inline bool LogDifferences(const Collection& rOther) const
 	{
@@ -914,7 +920,7 @@ struct Collection : public OptionaldToIndex<T, FLAGS>
 		common::Write(rStream, iCapacity);
 		if constexpr (FLAGS & CollectionFlags::kIdToIndex)
 		{
-			static_cast<const OptionaldToIndex<T, FLAGS>&>(*this).Write(rStream);
+			static_cast<const OptionalIdToIndex<T, FLAGS>&>(*this).Write(rStream);
 		}
 	}
 
@@ -924,7 +930,7 @@ struct Collection : public OptionaldToIndex<T, FLAGS>
 		common::Read(rStream, iCapacity);
 		if constexpr (FLAGS & CollectionFlags::kIdToIndex)
 		{
-			static_cast<OptionaldToIndex<T, FLAGS>&>(*this).Read(rStream);
+			static_cast<OptionalIdToIndex<T, FLAGS>&>(*this).Read(rStream);
 		}
 	}
 
@@ -933,7 +939,7 @@ struct Collection : public OptionaldToIndex<T, FLAGS>
 		common::crc_t checksum = 0;
 		if constexpr (FLAGS & CollectionFlags::kIdToIndex)
 		{
-			checksum ^= static_cast<const OptionaldToIndex<T, FLAGS>&>(*this).Crc();
+			checksum ^= static_cast<const OptionalIdToIndex<T, FLAGS>&>(*this).Crc();
 		}
 		checksum ^= common::Crc(iCount);
 		checksum ^= common::Crc(iCapacity);

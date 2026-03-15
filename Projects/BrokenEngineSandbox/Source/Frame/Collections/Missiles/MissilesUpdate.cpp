@@ -265,7 +265,7 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 		.iCount = rCurrentInterpolate.iCount,
 		.bSweptTest = true,
 		.uiCategory = CollisionCategory::kMissile,
-		.uiCollidesWith = CollisidesWith::kMissile,
+		.uiCollidesWith = CollidesWith::kMissile,
 		.pAlignments = rCurrentPostRender.pAlignments,
 	});
 }

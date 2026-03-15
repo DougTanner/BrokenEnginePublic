@@ -1,0 +1,133 @@
+Network Hardening: Audit Low-Priority Fixes (F14, F10, E11, F4)
+================================================================
+
+Four independent small fixes from the reconciliation system audit
+(AuditReconcileFindings.txt). All LOW priority.
+
+=== Change 1: F14 -- Replace hardcoded kiMaxBytesPerItem (NetworkSerialization.cpp) ===
+
+Problem: kiMaxBytesPerItem = 96 is a hardcoded estimate of the max serialized
+bytes per StatusChange. Currently safe (actual max is 81 bytes for
+kTransferPlayer), but if a new type is added with a larger serialized form,
+the workbuffer allocation would silently be too small.
+
+Actual serialized sizes per type:
+  kSpawnPlayer:       0 bytes
+  kRespawnPlayer:     0 bytes
+  kTransferBlaster:  49 bytes (2 Vec4 + uint8 + uint32 + 3 float)
+  kTransferSpaceship: 60 bytes (3 Vec4 + uint32 + 2 float)
+  kTransferMissile:  76 bytes (3 Vec4 + uint32 + 4 float + int64)
+  kTransferPlayer:   81 bytes (3 Vec4 + uint32 + 7 float + uint8)
+  kDestroyPlayer:     8 bytes (int64)
+
+Fix: Add a static_assert that kiMaxBytesPerItem >= the computed max, so any
+future type addition that exceeds the budget produces a compile error.
+
+File: Engine/Source/Network/NetworkSerialization.cpp
+
+  BEFORE (line 295-297):
+    constexpr int64_t kiMaxBytesPerItem = 96;
+    constexpr int64_t kiMaxGroupHeaders = 7 * 3;
+    int64_t iMaxSerializedSize = kiMaxGroupHeaders + iCount * kiMaxBytesPerItem;
+
+  AFTER:
+    // Largest type is kTransferPlayer: 3 Vec4(16) + uint32(4) + 7 float(4) + uint8(1) = 81 bytes
+    // Budget includes safety margin. Update if new types are added.
+    constexpr int64_t kiMaxBytesPerItem = 96;
+    static_assert(kiMaxBytesPerItem >= 81, "kiMaxBytesPerItem must cover the largest StatusChange serialization (currently kTransferPlayer at 81 bytes)");
+    constexpr int64_t kiMaxGroupHeaders = 7 * 3;
+    int64_t iMaxSerializedSize = kiMaxGroupHeaders + iCount * kiMaxBytesPerItem;
+
+=== Change 2: F10 -- Rename desync CRC fields (ClientReconciler.h, ReconcileReplay.cpp, ClientReconciler.cpp, ClientSession.cpp) ===
+
+Problem: desyncServerCrc / desyncClientCrc fields on CoordReconcileWork,
+ReconcileContext, and ReconcileDesyncInfo carry either state CRC or input CRC
+depending on which mismatch was detected. The names suggest they always carry
+server vs client state CRCs, which is misleading.
+
+Fix: Rename to desyncExpectedCrc / desyncActualCrc across all three structs
+and all usage sites.
+
+File: Projects/BrokenEngineSandbox/Source/Network/ClientReconciler.h
+
+  Rename in CoordReconcileWork (lines 52-53):
+    desyncServerCrc -> desyncExpectedCrc
+    desyncClientCrc -> desyncActualCrc
+
+  Rename in ReconcileContext (lines 90-91):
+    desyncServerCrc -> desyncExpectedCrc
+    desyncClientCrc -> desyncActualCrc
+
+  Rename in ReconcileDesyncInfo (lines 100-101):
+    desyncServerCrc -> desyncExpectedCrc
+    desyncClientCrc -> desyncActualCrc
+
+File: Projects/BrokenEngineSandbox/Source/Network/ReconcileReplay.cpp
+
+  Line 310: rReconcileContext.desyncServerCrc -> rReconcileContext.desyncExpectedCrc
+  Line 311: rReconcileContext.desyncClientCrc -> rReconcileContext.desyncActualCrc
+  Line 332: rReconcileContext.desyncServerCrc -> rReconcileContext.desyncExpectedCrc
+  Line 333: rReconcileContext.desyncClientCrc -> rReconcileContext.desyncActualCrc
+
+File: Projects/BrokenEngineSandbox/Source/Network/ClientReconciler.cpp
+
+  Line 201: desyncInfo.desyncServerCrc -> desyncInfo.desyncExpectedCrc
+            rReconcileContext.desyncServerCrc -> rReconcileContext.desyncExpectedCrc
+  Line 202: desyncInfo.desyncClientCrc -> desyncInfo.desyncActualCrc
+            rReconcileContext.desyncClientCrc -> rReconcileContext.desyncActualCrc
+
+File: Projects/BrokenEngineSandbox/Source/Network/ClientSession.cpp
+
+  Line 101: desyncInfo.desyncServerCrc -> desyncInfo.desyncExpectedCrc
+            desyncInfo.desyncClientCrc -> desyncInfo.desyncActualCrc
+
+=== Change 3: E11 -- Remove DEBUG_BREAK from TrackReceivedTick (Client.cpp) ===
+
+Problem: When the client detects a 128-tick gap in TrackReceivedTick, it calls
+DEBUG_BREAK() before setting mbDisconnectedEvent. In a production build,
+DEBUG_BREAK() is a dev-only trap that should not be part of the disconnect
+flow. The disconnect itself (mbDisconnectedEvent = true) is the correct
+production behavior.
+
+Fix: Remove the DEBUG_BREAK() call. The log message and mbDisconnectedEvent
+assignment are sufficient.
+
+File: Engine/Source/Network/Client/Client.cpp
+
+  BEFORE (lines 224-227):
+    Log(kLogNetwork, "Client::TrackReceivedTick Too many missing frames, disconnecting Slot: {} Gap: {}", iSlot, iBitIndex + 1);
+    DEBUG_BREAK();
+    mbDisconnectedEvent = true;
+    return;
+
+  AFTER:
+    Log(kLogNetwork, "Client::TrackReceivedTick Too many missing frames, disconnecting Slot: {} Gap: {}", iSlot, iBitIndex + 1);
+    mbDisconnectedEvent = true;
+    return;
+
+=== Change 4: F4 -- Replace FindSnapshotIndex linear scan with direct index calculation (ReconcileReplay.cpp) ===
+
+DISCARDED. The optimization is valid in theory -- since snapshots in the ring
+are stored with consecutive ticks, you could compute the logical index as
+(iTick - headTick) if you know the head snapshot's tick. However:
+
+1. The ring is not guaranteed to have a valid snapshot at iHead (it could be
+   nullptr after reset or injection).
+2. FindSnapshotIndex already null-checks each slot, which would still be
+   needed with direct indexing.
+3. The scan is bounded at 128 iterations (kiNetworkBufferSize), and is only
+   called during CRC validation which is not performance-critical.
+4. The linear scan is simpler and more defensive against edge cases (gaps in
+   the ring, injection resets, etc.).
+
+The complexity cost of direct indexing outweighs the marginal performance
+gain. Keeping the linear scan is the right call.
+
+=== Files Modified ===
+
+Engine/Source/Network/NetworkSerialization.cpp      (Change 1: static_assert)
+Projects/.../Network/ClientReconciler.h             (Change 2: field renames)
+Projects/.../Network/ReconcileReplay.cpp            (Change 2: usage renames)
+Projects/.../Network/ClientReconciler.cpp           (Change 2: usage renames)
+Projects/.../Network/ClientSession.cpp              (Change 2: usage renames)
+Engine/Source/Network/Client/Client.cpp             (Change 3: remove DEBUG_BREAK)

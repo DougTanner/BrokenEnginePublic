@@ -261,8 +261,6 @@ void ClientSession::ApplyReceivedFullStates()
 		}
 	}
 
-	// Try subscribing to the next coord in the queue
-	TrySubscribeNext();
 }
 
 void ClientSession::ApplyReceivedUpdates()

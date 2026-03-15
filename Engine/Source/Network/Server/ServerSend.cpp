@@ -198,6 +198,8 @@ void Server::SendUpdate(ClientConnection& rClient, int64_t iTick)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
+	int64_t iSent = 0; // DT: TEMP
+
 	// Send one packet per active subscription slot
 	for (int64_t iSlot = 0; iSlot < std::ssize(rClient.coordSubscriptions); ++iSlot)
 	{
@@ -226,7 +228,10 @@ void Server::SendUpdate(ClientConnection& rClient, int64_t iTick)
 		enet_peer_send(rClient.pPeer, NetworkManager::CoordSlotUnreliable(iSlot), pPacket);
 
 		rWorkbuffer.Pop();
+		++iSent; // DT: TEMP
 	}
+
+	Log(kLogNetwork, "Server::SendUpdate client: {} tick: {} sent: {}", rClient.iClientId, iTick, iSent); // DT: TEMP
 }
 
 void Server::SendResends(ClientConnection& rClient, int64_t iTick)

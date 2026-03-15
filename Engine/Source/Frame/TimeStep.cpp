@@ -10,10 +10,6 @@
 namespace engine
 {
 
-TimeStep::TimeStep()
-{
-}
-
 int64_t TimeStep::TickRealtime()
 {
 	std::chrono::nanoseconds realDeltaNs = mRealTime.GetDeltaNs(true);
@@ -70,23 +66,15 @@ int64_t TimeStep::TickRealtime()
 	}
 
 	// Calculate number of ticks needed
-	int64_t iTicks = 0;
-	while (mTickRemainderNs >= game::kTickNs)
-	{
-		mTickRemainderNs -= game::kTickNs;
-		++iTicks;
-	}
+	int64_t iTicks = mTickRemainderNs / game::kTickNs;
+	mTickRemainderNs %= game::kTickNs;
 
 	return iTicks;
 }
 
-void TimeStep::ConsumeTick()
-{
-}
-
 float TimeStep::GetInterpolationAlpha() const
 {
-	return common::NanosecondsToFloatSeconds<float>(mTickRemainderNs) / common::NanosecondsToFloatSeconds<float>(game::kTickNs);
+	return static_cast<float>(mTickRemainderNs.count()) / static_cast<float>(game::kTickNs.count());
 }
 
 void TimeStep::ClearAccumulator()

@@ -459,7 +459,7 @@ void PlayersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, 
 		.pFlags = sCollisionFlags.data(),
 		.iCount = rCurrentInterpolate.iCount,
 		.uiCategory = CollisionCategory::kPlayer,
-		.uiCollidesWith = CollisidesWith::kPlayer,
+		.uiCollidesWith = CollidesWith::kPlayer,
 		.pAlignments = rCurrentPostRender.pAlignments,
 	});
 }

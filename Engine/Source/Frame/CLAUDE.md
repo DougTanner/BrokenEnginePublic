@@ -15,7 +15,7 @@ See also: [Frame Update Pipeline](../../../Documents/Architecture/FrameUpdatePip
 - **TimeStep** - Fixed timestep accumulator converting variable render time into discrete physics ticks at `kiTickRate`. Includes time scaling and death spiral prevention
 - **Collision** - Layer-based spatial partitioning with discrete and swept sphere tests. Uses `thread_local` statics for parallel per-frame execution. Also provides area damage queries for explosions
 - **Alignments** - Sparse collision filtering via sorted flat vector with binary search
-- **IslandTerrain** - Stateless CPU terrain collision queries (heightmap elevation, normals, ray-marching) shared by client and server
+- **IslandTerrain** - Stateless CPU terrain collision queries (heightmap elevation, normals) shared by client and server
 
 ## Architecture Notes
 

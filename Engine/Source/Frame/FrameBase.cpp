@@ -5,10 +5,6 @@
 namespace engine
 {
 
-FrameInterpolateBase::FrameInterpolateBase()
-{
-}
-
 FramePostRenderBase::FramePostRenderBase()
 : vecArea(XMVectorSet(game::Frame::kfBaseAreaMinX, game::Frame::kfBaseAreaMaxY, game::Frame::kfBaseAreaMaxX, game::Frame::kfBaseAreaMinY))
 {
@@ -270,27 +266,16 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	rFrame.interpolate.frameFlags.Clear({FrameFlags::kInterpolate, FrameFlags::kPostRender});
 	rFrame.interpolate.frameFlags.Set(FrameFlags::kPostRender);
 
-	// Load
-	common::RandomEngine randomEngine = rPrevious.randomEngine;
-	XMVECTOR vecArea = rPrevious.vecArea;
-	uint64_t uiNextUuid = rPrevious.uiNextUuid;
+	// Carry persistent state forward from the previous frame
+	rCurrent.randomEngine = rPrevious.randomEngine;
+	rCurrent.vecArea = rPrevious.vecArea;
+	rCurrent.uiNextUuid = rPrevious.uiNextUuid;
 #if defined(BT_CLIENT)
-	uint64_t uiNextSoundUuid = rPrevious.uiNextSoundUuid;
-	uint64_t uiNextVisualUuid = rPrevious.uiNextVisualUuid;
+	rCurrent.uiNextSoundUuid = rPrevious.uiNextSoundUuid;
+	rCurrent.uiNextVisualUuid = rPrevious.uiNextVisualUuid;
 #endif
-	uint16_t uiFrameId = rPrevious.uiFrameId;
-	IslandsFlip eIslandsFlip = rPrevious.eIslandsFlip;
-
-	// Save
-	rCurrent.randomEngine = randomEngine;
-	rCurrent.vecArea = vecArea;
-	rCurrent.uiNextUuid = uiNextUuid;
-#if defined(BT_CLIENT)
-	rCurrent.uiNextSoundUuid = uiNextSoundUuid;
-	rCurrent.uiNextVisualUuid = uiNextVisualUuid;
-#endif
-	rCurrent.uiFrameId = uiFrameId;
-	rCurrent.eIslandsFlip = eIslandsFlip;
+	rCurrent.uiFrameId = rPrevious.uiFrameId;
+	rCurrent.eIslandsFlip = rPrevious.eIslandsFlip;
 	rCurrent.alignments.CopyFrom(rPrevious.alignments);
 
 	ForEachPostRenderUpdate(PostRenderBaseTypes{}, rFrame, rPreviousFrame);
@@ -330,40 +315,6 @@ void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 }
 
 #if defined(BT_CLIENT)
-float DayPercent()
-{
-	float fSunAngle = game::gpCamera->SunAngle();
-	if (fSunAngle >= 0.0f && fSunAngle <= XM_PIDIV2)
-	{
-		return fSunAngle / XM_PIDIV2;
-	}
-	else if (fSunAngle >= XM_PIDIV2 && fSunAngle <= XM_PI)
-	{
-		return 1.0f - (fSunAngle - XM_PIDIV2) / XM_PIDIV2;
-	}
-	else
-	{
-		return 0.0f;
-	}
-}
-
-float NightPercent()
-{
-	float fSunAngle = game::gpCamera->SunAngle();
-	if (fSunAngle >= XM_PI && fSunAngle < XM_PI + XM_PIDIV2)
-	{
-		return (fSunAngle - XM_PI) / XM_PIDIV2;
-	}
-	if (fSunAngle >= XM_PI + XM_PIDIV2)
-	{
-		return 1.0f - (fSunAngle - (XM_PI + XM_PIDIV2)) / XM_PIDIV2;
-	}
-	else
-	{
-		return 0.0f;
-	}
-}
-
 void FrameInterpolateBase::BeginRender([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, [[maybe_unused]] const std::vector<GridCoord>& rActiveCoords)
 {
 	ForEachBeginRender(InterpolateTypes{}, iCommandBuffer, rRenderInterpolates, rActiveCoords);

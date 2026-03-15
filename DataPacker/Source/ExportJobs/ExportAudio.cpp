@@ -4,7 +4,6 @@
 
 #include "FileManager.h"
 
-
 using enum common::ChunkFlags;
 
 std::optional<common::ChunkFlags_t> ExportAudio::Handles(const std::filesystem::directory_entry& rDirectoryEntry)

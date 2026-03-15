@@ -205,6 +205,7 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 
 	// Heap: received updates vector grows each tick
 	mReceivedCoordUpdates.at(uiSlotIndex).push_back(std::move(update));
+	Log(kLogNetwork, "ClientReceive coord update slot: {} tick: {}", uiSlotIndex, iTick); // DT: TEMP
 	if (!bWaitingFullState)
 	{
 		TrackReceivedTick(uiSlotIndex, iTick);

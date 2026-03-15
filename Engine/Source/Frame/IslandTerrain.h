@@ -29,6 +29,4 @@ public:
 
 inline IslandTerrain* gpIslandTerrain = nullptr;
 
-XMVECTOR XM_CALLCONV TerrainCollision(FXMVECTOR vecStart, FXMVECTOR vecEnd, float fStepInterval);
-
 } // namespace engine

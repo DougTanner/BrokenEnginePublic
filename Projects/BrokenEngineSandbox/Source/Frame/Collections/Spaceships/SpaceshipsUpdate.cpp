@@ -352,7 +352,7 @@ void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFram
 		.pFlags = sCollisionFlags.data(),
 		.iCount = rCurrentInterpolate.iCount,
 		.uiCategory = CollisionCategory::kSpaceship,
-		.uiCollidesWith = CollisidesWith::kSpaceship,
+		.uiCollidesWith = CollidesWith::kSpaceship,
 		.pAlignments = rCurrentPostRender.pAlignments,
 	});
 }

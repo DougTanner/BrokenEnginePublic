@@ -64,6 +64,7 @@ struct ReconcileContext
 	uint16_t uiNextFrameId = 0;
 	int64_t iTargetTick = 0;
 	engine::alignment_t playerAlignment {};
+	engine::Alignments alignments;
 
 	// Working data (set during per-coord processing)
 	int64_t iTickCounter = 0;
@@ -117,9 +118,6 @@ public:
 	void SetHasNewData() { mbHasNewData = true; }
 	void InitConfirmedHumanState(const ConfirmedHumanState& rState)
 	{
-		mConfirmedHumanState.humanGridCoord = rState.humanGridCoord;
-		mConfirmedHumanState.humanPlayerId = rState.humanPlayerId;
-		mConfirmedHumanState.fPreviousHumanArmor = rState.fPreviousHumanArmor;
 		if (mConfirmedHumanState.fCurrentTime == 0.0f)
 		{
 			mConfirmedHumanState.fCurrentTime = rState.fCurrentTime;

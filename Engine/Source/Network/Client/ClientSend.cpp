@@ -150,14 +150,14 @@ void Client::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 	rWorkbuffer.Pop();
 }
 
-void Client::SendSubscribe(GridCoord coord)
+bool Client::SendSubscribe(GridCoord coord)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
-		return;
+		return false;
 	}
 
-	// Mark a local slot as kSubscribing so TrySubscribeNext gates until accept arrives
+	// Mark a local slot as kSubscribing
 	bool bFoundSlot = false;
 	for (int64_t i = 0; i < std::ssize(mCoordSlots); ++i)
 	{
@@ -188,7 +188,7 @@ void Client::SendSubscribe(GridCoord coord)
 	}
 	if (!bFoundSlot)
 	{
-		return;
+		return false;
 	}
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
@@ -209,6 +209,7 @@ void Client::SendSubscribe(GridCoord coord)
 	}
 
 	rWorkbuffer.Pop();
+	return true;
 }
 
 void Client::SendUnsubscribe(int64_t iSlot)

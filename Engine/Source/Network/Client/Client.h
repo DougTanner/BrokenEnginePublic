@@ -69,7 +69,7 @@ public:
 	void SendSpawnRequest(ClientRequestFlags_t flags);
 	void SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expected, common::crc_t actual);
 	void SendDebugFrameRequest(int64_t iTick, GridCoord coord);
-	void SendSubscribe(GridCoord coord);
+	bool SendSubscribe(GridCoord coord);
 	void SendUnsubscribe(int64_t iSlot);
 	void SendResyncRequest();
 	void Flush();

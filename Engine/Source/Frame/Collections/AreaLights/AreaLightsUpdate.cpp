@@ -54,8 +54,6 @@ void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t&
 	AreaLightsInterpolate& rInterpolate = rFrame.interpolate.areaLights;
 	AreaLightsPostRender& rPostRender = rFrame.postRender.areaLights;
 
-	rInterpolate.IdToIndex(rId);
-
 	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};

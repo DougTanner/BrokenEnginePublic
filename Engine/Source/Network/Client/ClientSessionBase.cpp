@@ -76,26 +76,19 @@ static bool IsSlotActive(const ClientCoordSlot& rSlot)
 
 void ClientSessionBase::TrySubscribeNext()
 {
-	if (mpClientNetwork == nullptr || mSubscriptionQueue.empty())
+	if (mpClientNetwork == nullptr)
 	{
 		return;
 	}
 
-	const std::vector<ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
-	for (int64_t i = 0; i < std::ssize(rSlots); ++i)
+	while (!mSubscriptionQueue.empty())
 	{
-		if (rSlots.at(i).eState == CoordSubscriptionState::kSubscribing ||
-		    rSlots.at(i).eState == CoordSubscriptionState::kWaitingFullState ||
-		    rSlots.at(i).eState == CoordSubscriptionState::kUnsubscribing)
+		if (!mpClientNetwork->SendSubscribe(mSubscriptionQueue.front()))
 		{
-			return;
+			break;
 		}
+		mSubscriptionQueue.erase(mSubscriptionQueue.begin());
 	}
-
-	GridCoord coord = mSubscriptionQueue.front();
-	mSubscriptionQueue.erase(mSubscriptionQueue.begin());
-
-	mpClientNetwork->SendSubscribe(coord);
 }
 
 void ClientSessionBase::UnsubscribeStaleCoords(const std::vector<GridCoord>& rDesiredCoords)
@@ -131,19 +124,27 @@ void ClientSessionBase::BuildSubscriptionQueue(const std::vector<GridCoord>& rDe
 	const std::vector<ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
 
 	mSubscriptionQueue.clear();
+	GridCoord activeCoords[16];
+	int64_t iActiveCount = 0;
+	for (const ClientCoordSlot& rSlot : rSlots)
+	{
+		if (IsSlotActive(rSlot))
+		{
+			activeCoords[iActiveCount++] = rSlot.coord;
+		}
+	}
 	for (const GridCoord& rCoord : rDesiredCoords)
 	{
-		bool bAlreadySubscribed = false;
-		for (int64_t i = 0; i < std::ssize(rSlots); ++i)
+		bool bAlreadyActive = false;
+		for (int64_t i = 0; i < iActiveCount; ++i)
 		{
-			if (rSlots.at(i).coord == rCoord && IsSlotActive(rSlots.at(i)))
+			if (activeCoords[i] == rCoord)
 			{
-				bAlreadySubscribed = true;
+				bAlreadyActive = true;
 				break;
 			}
 		}
-
-		if (!bAlreadySubscribed)
+		if (!bAlreadyActive)
 		{
 			mSubscriptionQueue.push_back(rCoord);
 		}
@@ -161,9 +162,13 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 	const std::vector<ClientCoordSlot>& rCoordSlots = mpClientNetwork->GetCoordSlots();
 	std::vector<std::vector<ReceivedCoordUpdate>>& rAllUpdates = mpClientNetwork->DrainReceivedCoordUpdates();
 
+	int64_t iTotalDrained = 0; // DT: TEMP
+	int64_t iTotalApplied = 0; // DT: TEMP
+
 	for (int64_t iSlot = 0; iSlot < std::ssize(rCoordSlots); ++iSlot)
 	{
 		std::vector<ReceivedCoordUpdate>& rSlotUpdates = rAllUpdates.at(iSlot);
+		iTotalDrained += std::ssize(rSlotUpdates); // DT: TEMP
 		if (rSlotUpdates.empty())
 		{
 			continue;
@@ -172,6 +177,7 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 		const ClientCoordSlot& rSlot = rCoordSlots.at(iSlot);
 		if (rSlot.eState != CoordSubscriptionState::kActive)
 		{
+			Log(kLogNetwork, "ApplyReceivedUpdatesBase skipping slot {} state: {} updates: {}", iSlot, static_cast<int>(rSlot.eState), rSlotUpdates.size()); // DT: TEMP
 			rSlotUpdates.clear();
 			continue;
 		}
@@ -196,19 +202,23 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 				continue;
 			}
 
-			if (!rSub.serverUpdates.contains(rUpdate.iTick))
+			auto [it, bInserted] = rSub.serverUpdates.try_emplace(rUpdate.iTick, CoordFrames::CoordServerUpdate {
+				.serverCrc = rUpdate.serverCrc,
+				.inputCrc = rUpdate.inputCrc,
+				.statusChanges = std::move(rUpdate.statusChanges),
+			});
+			if (bInserted)
 			{
-				rSub.serverUpdates.insert_or_assign(rUpdate.iTick, CoordFrames::CoordServerUpdate {
-					.serverCrc = rUpdate.serverCrc,
-					.inputCrc = rUpdate.inputCrc,
-					.statusChanges = std::move(rUpdate.statusChanges),
-				});
 				bHasNewData = true;
+				++iTotalApplied; // DT: TEMP
 			}
 		}
 
 		rSlotUpdates.clear();
 	}
+
+	Log(kLogNetwork, "ApplyReceivedUpdatesBase drained: {} applied: {} latestServerTick: {}", iTotalDrained, iTotalApplied, miLatestServerTick); // DT: TEMP
+
 	return bHasNewData;
 }
 
@@ -218,6 +228,22 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 {
 	if (miLatestServerTick < 0)
 	{
+		return 0ns;
+	}
+
+	// No active subscriptions means no data can arrive - reset clock state
+	bool bHasActiveSlot = false;
+	for (const ClientCoordSlot& rSlot : mpClientNetwork->GetCoordSlots())
+	{
+		if (rSlot.eState == CoordSubscriptionState::kActive)
+		{
+			bHasActiveSlot = true;
+			break;
+		}
+	}
+	if (!bHasActiveSlot)
+	{
+		miLatestServerTick = -1;
 		return 0ns;
 	}
 
@@ -244,7 +270,7 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 
 	if (std::abs(iError) >= 4)
 	{
-		Log(kLogNetwork, "ClientSessionBase::ComputeClockCorrectionNs Extreme clock error Error: {} Offset: {} TargetBehind: {} RttUs: {}", iError, iOffset, miCurrentTargetBehind, iRttUs);
+		Log(kLogNetwork, "ClientSessionBase::ComputeClockCorrectionNs Extreme clock error Error: {} Offset: {} TargetBehind: {} RttUs: {} LatestServerTick: {} PreReconcileTick: {}", iError, iOffset, miCurrentTargetBehind, iRttUs, miLatestServerTick, iPreReconcileTick); // DT: TEMP
 	}
 
 	int64_t iCorrectionSteps = std::clamp(iError, -4LL, 4LL);
