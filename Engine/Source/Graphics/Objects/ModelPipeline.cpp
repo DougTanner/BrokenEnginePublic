@@ -32,8 +32,8 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 	int64_t iTextureArraySize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rSceneHeader.uiTextureCount * static_cast<int64_t>(sizeof(common::crc_t)));
 	int64_t iIndexStartsSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rSceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
 	int64_t iSceneArraysSize = iTextureArraySize + iIndexStartsSize;
-	const uint32_t* puiIndexStarts = reinterpret_cast<const uint32_t*>(chunk.pData + iTextureArraySize);
-	const common::MaterialShaderData* pMaterials = reinterpret_cast<const common::MaterialShaderData*>(chunk.pData + iSceneArraysSize);
+	const uint32_t* puiIndexStarts = reinterpret_cast<const uint32_t*>(rChunk.pData + iTextureArraySize);
+	const common::MaterialShaderData* pMaterials = reinterpret_cast<const common::MaterialShaderData*>(rChunk.pData + iSceneArraysSize);
 	PipelineFlags_t originalFlags = pipelineInfo.flags;
 
 	bool bMultiSet = pipelineInfo.flags & PipelineFlags::kMultiSet;

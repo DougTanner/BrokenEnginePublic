@@ -457,47 +457,32 @@ void Graphics::RecreateResources()
 		}
 	}
 
-	if (mDestroyFlags & DestroyFlags::kTerrainElevation)
+	if (gpTextureManager != nullptr)
 	{
-		if (gpTextureManager != nullptr)
+		struct TerrainTextureRecreateDesc
 		{
-			auto [iX, iY] = gpTextureManager->DetailTextureSize(gTerrainElevationTextureMultiplier.Get());
-			gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
-			gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
-			gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture.ReCreate();
-		}
-	}
+			DestroyFlags eFlag;
+			Wrapper& rMultiplierCvar;
+			Texture& rTexture;
+		};
 
-	if (mDestroyFlags & DestroyFlags::kTerrainColor)
-	{
-		if (gpTextureManager != nullptr)
+		TerrainTextureRecreateDesc pTerrainDescs[]
 		{
-			auto [iX, iY] = gpTextureManager->DetailTextureSize(gTerrainColorTextureMultiplier.Get());
-			gpTextureManager->mRenderTargetTextures.mTerrainColorTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
-			gpTextureManager->mRenderTargetTextures.mTerrainColorTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
-			gpTextureManager->mRenderTargetTextures.mTerrainColorTexture.ReCreate();
-		}
-	}
+			{DestroyFlags::kTerrainElevation, gTerrainElevationTextureMultiplier, gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
+			{DestroyFlags::kTerrainColor, gTerrainColorTextureMultiplier, gpTextureManager->mRenderTargetTextures.mTerrainColorTexture},
+			{DestroyFlags::kTerrainNormal, gTerrainNormalTextureMultiplier, gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture},
+			{DestroyFlags::kTerrainAO, gTerrainAmbientOcclusionTextureMultiplier, gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture},
+		};
 
-	if (mDestroyFlags & DestroyFlags::kTerrainNormal)
-	{
-		if (gpTextureManager != nullptr)
+		for (const TerrainTextureRecreateDesc& rDesc : pTerrainDescs)
 		{
-			auto [iX, iY] = gpTextureManager->DetailTextureSize(gTerrainNormalTextureMultiplier.Get());
-			gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
-			gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
-			gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture.ReCreate();
-		}
-	}
-
-	if (mDestroyFlags & DestroyFlags::kTerrainAO)
-	{
-		if (gpTextureManager != nullptr)
-		{
-			auto [iX, iY] = gpTextureManager->DetailTextureSize(gTerrainAmbientOcclusionTextureMultiplier.Get());
-			gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
-			gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
-			gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture.ReCreate();
+			if (mDestroyFlags & rDesc.eFlag)
+			{
+				auto [iX, iY] = gpTextureManager->DetailTextureSize(rDesc.rMultiplierCvar.Get());
+				rDesc.rTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
+				rDesc.rTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
+				rDesc.rTexture.ReCreate();
+			}
 		}
 	}
 

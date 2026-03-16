@@ -323,69 +323,41 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 
 void PipelineManager::CreateTerrainDataPipelines()
 {
-	mpPipelines[kPipelineTerrainElevation].Create(
+	struct TerrainDataPipelineDesc
 	{
-		.name = "TerrainElevation",
-		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
-		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(data::kShadersTerrainTerrainElevationfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mElevationTextures.data()},
-		},
-	});
+		Pipelines ePipeline;
+		const char* pcName;
+		common::crc_t fragmentShaderCrc;
+		Texture& rTargetTexture;
+		Texture** ppSourceTextures;
+	};
 
-	mpPipelines[kPipelineTerrainColor].Create(
+	TerrainDataPipelineDesc pDescs[]
 	{
-		.name = "TerrainColor",
-		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
-		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(data::kShadersTerrainTerrainColorfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mTerrainColorTexture.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mTerrainColorTexture.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mColorTextures.data()},
-		},
-	});
+		{kPipelineTerrainElevation, "TerrainElevation", data::kShadersTerrainTerrainElevationfragCrc, gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture, gpTextureManager->mRenderTargetTextures.mElevationTextures.data()},
+		{kPipelineTerrainColor, "TerrainColor", data::kShadersTerrainTerrainColorfragCrc, gpTextureManager->mRenderTargetTextures.mTerrainColorTexture, gpTextureManager->mRenderTargetTextures.mColorTextures.data()},
+		{kPipelineTerrainNormal, "TerrainNormal", data::kShadersTerrainTerrainNormalfragCrc, gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture, gpTextureManager->mRenderTargetTextures.mNormalsTextures.data()},
+		{kPipelineTerrainAmbientOcclusion, "TerrainAmbientOcclusion", data::kShadersTerrainTerrainAmbientOcclusionfragCrc, gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture, gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.data()},
+	};
 
-	mpPipelines[kPipelineTerrainNormal].Create(
+	for (const TerrainDataPipelineDesc& rDesc : pDescs)
 	{
-		.name = "TerrainNormal",
-		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
-		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(data::kShadersTerrainTerrainNormalfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture.mInfo.extent,
-		.pDescriptorInfos =
+		mpPipelines[rDesc.ePipeline].Create(
 		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mNormalsTextures.data()},
-		},
-	});
-
-	mpPipelines[kPipelineTerrainAmbientOcclusion].Create(
-	{
-		.name = "TerrainAmbientOcclusion",
-		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
-		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(data::kShadersTerrainTerrainAmbientOcclusionfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.data()},
-		},
-	});
+			.name = rDesc.pcName,
+			.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
+			.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(rDesc.fragmentShaderCrc)},
+			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+			.vkRenderPass = rDesc.rTargetTexture.mVkRenderPass,
+			.vkExtent3D = rDesc.rTargetTexture.mInfo.extent,
+			.pDescriptorInfos =
+			{
+				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+				{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
+				{.flags = kCombinedSamplers, .iCount = shaders::kiMaxIslands, .ppTextures = rDesc.ppSourceTextures},
+			},
+		});
+	}
 }
 
 void PipelineManager::CreateSmokeWindPipelines()
