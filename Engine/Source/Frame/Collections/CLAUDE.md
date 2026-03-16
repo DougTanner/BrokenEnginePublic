@@ -13,7 +13,7 @@ Template-based Structure-of-Arrays (SOA) collection system providing memory mana
 ## Architecture Notes
 
 - **Sync pattern**: Collections with external ownership use `SyncData` structs and `Sync()` methods. Owners MUST call `Sync()` every frame for each owned element until removal
-- **Controller pattern**: Fire-and-forget elements spawned via `AddControlled()` with keyframe animation that auto-destroys on expiry (used by PointLights, Puffs, WindRadials)
+- **Controller pattern**: Fire-and-forget elements spawned via `AddControlled()` with keyframe animation that auto-destroys on expiry (used by PointLights, Puffs, WindRadials). The shared `InterpolateKeyframes<TControllerType>()` template in `Collection.h` works with any controller type that has `uiKeyframeCount`, `pfTimes[]`, `keyframes[]`, and a static `Lerp()` on the keyframe type
 - **Render-only state pattern**: SmokeTrails and WindTrails use file-scope statics keyed by UUID for previous-position tracking, keeping render state out of dual-buffered frame data
 - **GPU pipeline**: Each renderable collection owns its pipeline and buffers. The three-phase render pipeline (BeginRender/Render/EndRender) accumulates capacity across active frames
 - **Dual CRC system**: `ServerCollectionCrc()` uses `SharedMembers()` (when available) to exclude client-only fields from cross-build validation. `ServerCollectionRead()` deserializes server-format streams into zero-initialized full buffers

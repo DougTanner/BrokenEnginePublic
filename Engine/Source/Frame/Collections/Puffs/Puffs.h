@@ -46,33 +46,6 @@ struct PuffControllerType
 	bool operator==(const PuffControllerType& rOther) const = default;
 };
 
-// Interpolates between puff keyframes based on elapsed time
-inline PuffKeyframe InterpolatePuffKeyframes(const PuffControllerType& rController, float fElapsedTime)
-{
-	int64_t iKeyframeCount = rController.uiKeyframeCount;
-
-	if (fElapsedTime <= rController.pfTimes[0])
-	{
-		return rController.keyframes[0];
-	}
-	if (fElapsedTime >= rController.pfTimes[iKeyframeCount - 1])
-	{
-		return rController.keyframes[iKeyframeCount - 1];
-	}
-
-	for (int64_t j = 1; j < iKeyframeCount; ++j)
-	{
-		if (fElapsedTime < rController.pfTimes[j])
-		{
-			float fPreviousTime = rController.pfTimes[j - 1];
-			float fPercent = (fElapsedTime - fPreviousTime) / (rController.pfTimes[j] - fPreviousTime);
-			return PuffKeyframe::Lerp(rController.keyframes[j - 1], rController.keyframes[j], fPercent);
-		}
-	}
-
-	return rController.keyframes[iKeyframeCount - 1];
-}
-
 struct PuffsInterpolate : public Collection<PuffsInterpolate>,
                           public TypeRegistry<PuffsType>,
                           public ControllerTypeRegistry<PuffsInterpolate, PuffControllerType>

@@ -28,7 +28,7 @@ void PuffsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restric
 		{
 			float fElapsedTime = fCurrentTime - fStartTime;
 			const PuffControllerType& rController = PuffsInterpolate::GetControllerType(uiControllerTypeIndex);
-			PuffKeyframe interpolated = InterpolatePuffKeyframes(rController, fElapsedTime);
+			PuffKeyframe interpolated = InterpolateKeyframes(rController, fElapsedTime);
 
 			// Map PuffKeyframe fields to puff properties
 			fArea = interpolated.fArea;

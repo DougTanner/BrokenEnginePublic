@@ -30,7 +30,7 @@ void WindRadialsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __r
 		float fStartTime = rCurrent.pfStartTimes[i];
 		float fElapsedTime = fCurrentTime - fStartTime;
 		const WindRadialControllerType& rController = WindRadialsInterpolate::GetControllerType(uiControllerTypeIndex);
-		WindRadialKeyframe interpolated = InterpolateWindRadialKeyframes(rController, fElapsedTime);
+		WindRadialKeyframe interpolated = InterpolateKeyframes(rController, fElapsedTime);
 
 		// Save
 		rCurrent.pVecPositions[i] = vecPosition;

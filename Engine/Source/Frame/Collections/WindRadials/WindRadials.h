@@ -35,32 +35,6 @@ struct WindRadialControllerType
 	bool operator==(const WindRadialControllerType& rOther) const = default;
 };
 
-inline WindRadialKeyframe InterpolateWindRadialKeyframes(const WindRadialControllerType& rController, float fElapsedTime)
-{
-	int64_t iKeyframeCount = rController.uiKeyframeCount;
-
-	if (fElapsedTime <= rController.pfTimes[0])
-	{
-		return rController.keyframes[0];
-	}
-	if (fElapsedTime >= rController.pfTimes[iKeyframeCount - 1])
-	{
-		return rController.keyframes[iKeyframeCount - 1];
-	}
-
-	for (int64_t j = 1; j < iKeyframeCount; ++j)
-	{
-		if (fElapsedTime < rController.pfTimes[j])
-		{
-			float fPreviousTime = rController.pfTimes[j - 1];
-			float fPercent = (fElapsedTime - fPreviousTime) / (rController.pfTimes[j] - fPreviousTime);
-			return WindRadialKeyframe::Lerp(rController.keyframes[j - 1], rController.keyframes[j], fPercent);
-		}
-	}
-
-	return rController.keyframes[iKeyframeCount - 1];
-}
-
 struct WindRadialsInterpolate : public Collection<WindRadialsInterpolate>,
                                 public ControllerTypeRegistry<WindRadialsInterpolate, WindRadialControllerType>
 {
@@ -89,8 +63,7 @@ struct WindRadialsInterpolate : public Collection<WindRadialsInterpolate>,
 
 	auto Members(this auto&& rSelf)
 	{
-		return std::tie(rSelf.pVecPositions, rSelf.pfIntensities, rSelf.pfSizes,
-		                rSelf.puiControllerTypeIndices, rSelf.pfStartTimes, rSelf.pfBaseIntensities, rSelf.pfBaseSizes);
+		return std::tie(rSelf.pVecPositions, rSelf.pfIntensities, rSelf.pfSizes, rSelf.puiControllerTypeIndices, rSelf.pfStartTimes, rSelf.pfBaseIntensities, rSelf.pfBaseSizes);
 	}
 
 	// Graphics resources

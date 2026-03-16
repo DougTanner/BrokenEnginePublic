@@ -43,6 +43,8 @@ public:
 	// Increase time scale (halve divider if > 1, else double multiplier), updates debug text
 	void IncreaseTimeScale();
 
+	void UpdateTimeScaleText();
+
 	common::Timer mRealTime;
 	int64_t miTimeMultiply = 1;
 	int64_t miTimeDivide = 1;

@@ -724,8 +724,11 @@ struct ControllerType
 };
 
 // Interpolates between keyframes based on elapsed time
-inline ControllerKeyframe InterpolateKeyframes(const ControllerType& rController, float fElapsedTime)
+template <typename TControllerType>
+inline auto InterpolateKeyframes(const TControllerType& rController, float fElapsedTime)
+	-> std::remove_extent_t<decltype(TControllerType::keyframes)>
 {
+	using KeyframeType = std::remove_extent_t<decltype(TControllerType::keyframes)>;
 	int64_t iKeyframeCount = rController.uiKeyframeCount;
 
 	if (fElapsedTime <= rController.pfTimes[0])
@@ -743,7 +746,7 @@ inline ControllerKeyframe InterpolateKeyframes(const ControllerType& rController
 		{
 			float fPreviousTime = rController.pfTimes[j - 1];
 			float fPercent = (fElapsedTime - fPreviousTime) / (rController.pfTimes[j] - fPreviousTime);
-			return ControllerKeyframe::Lerp(rController.keyframes[j - 1], rController.keyframes[j], fPercent);
+			return KeyframeType::Lerp(rController.keyframes[j - 1], rController.keyframes[j], fPercent);
 		}
 	}
 
