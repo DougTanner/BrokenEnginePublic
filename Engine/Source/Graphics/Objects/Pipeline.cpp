@@ -219,14 +219,14 @@ void Pipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkComm
 		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 0, 1, &mVkDescriptorSets[iCommandBuffer], 0, nullptr);
 	}
 	mInfo.pVertexBuffer->RecordBindVertexBuffer(vkCommandBuffer);
-	VkDeviceSize indirectOffset = mInfo.flags & kIndirectDeviceLocal ? 0 : iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
+	VkDeviceSize vkIndirectOffset = mInfo.flags & kIndirectDeviceLocal ? 0 : iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
 
 	// Verify buffer is large enough for this command buffer index
 	VmaAllocationInfo vmaAllocationInfo {};
 	vmaGetAllocationInfo(gpDeviceManager->mpAllocator, mIndirectVmaAllocation, &vmaAllocationInfo);
-	ASSERT(indirectOffset + sizeof(VkDrawIndexedIndirectCommand) <= vmaAllocationInfo.size);
+	ASSERT(vkIndirectOffset + sizeof(VkDrawIndexedIndirectCommand) <= vmaAllocationInfo.size);
 
-	vkCmdDrawIndexedIndirect(vkCommandBuffer, mIndirectVkBuffer, indirectOffset, 1, sizeof(VkDrawIndexedIndirectCommand));
+	vkCmdDrawIndexedIndirect(vkCommandBuffer, mIndirectVkBuffer, vkIndirectOffset, 1, sizeof(VkDrawIndexedIndirectCommand));
 }
 
 void Pipeline::RecordDrawIndirectSet2(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants)
@@ -242,12 +242,11 @@ void Pipeline::RecordDrawIndirectSet2(int64_t iCommandBuffer, VkCommandBuffer vk
 		vkCmdPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstantsLayout), &pushConstantsLayout);
 	}
 
-	// Bind pipeline and Set 2 only (Set 0 + Set 1 already bound by ModelPipeline)
+	// Bind pipeline and Set 2 only (Set 0, Set 1, and vertex buffer already bound by ModelPipeline)
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipeline);
 	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 2, 1, &mVkDescriptorSetsSet2[iCommandBuffer], 0, nullptr);
-	mInfo.pVertexBuffer->RecordBindVertexBuffer(vkCommandBuffer);
-	VkDeviceSize indirectOffset = mInfo.flags & kIndirectDeviceLocal ? 0 : iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
-	vkCmdDrawIndexedIndirect(vkCommandBuffer, mIndirectVkBuffer, indirectOffset, 1, sizeof(VkDrawIndexedIndirectCommand));
+	VkDeviceSize vkIndirectOffset = mInfo.flags & kIndirectDeviceLocal ? 0 : iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
+	vkCmdDrawIndexedIndirect(vkCommandBuffer, mIndirectVkBuffer, vkIndirectOffset, 1, sizeof(VkDrawIndexedIndirectCommand));
 }
 
 void Pipeline::RecordCompute(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, int64_t iGroupCountX, int64_t iGroupCountY, int64_t iGroupCountZ, const XMFLOAT4& f4PushConstants)
@@ -283,14 +282,14 @@ void Pipeline::RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkC
 	int64_t iDescriptorSetIndex = mbPerCommandBuffer ? iCommandBuffer : 0;
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mVkPipeline);
 	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mVkPipelineLayout, 0, 1, &mVkDescriptorSets[iDescriptorSetIndex], 0, 0);
-	VkDeviceSize dispatchOffset = mInfo.flags & kIndirectHostVisible ? iCommandBuffer * sizeof(VkDispatchIndirectCommand) : 0;
+	VkDeviceSize vkDispatchOffset = mInfo.flags & kIndirectHostVisible ? iCommandBuffer * sizeof(VkDispatchIndirectCommand) : 0;
 
 	// Verify buffer is large enough for this command buffer index
 	VmaAllocationInfo vmaAllocationInfo {};
 	vmaGetAllocationInfo(gpDeviceManager->mpAllocator, mIndirectVmaAllocation, &vmaAllocationInfo);
-	ASSERT(dispatchOffset + sizeof(VkDispatchIndirectCommand) <= vmaAllocationInfo.size);
+	ASSERT(vkDispatchOffset + sizeof(VkDispatchIndirectCommand) <= vmaAllocationInfo.size);
 
-	vkCmdDispatchIndirect(vkCommandBuffer, mIndirectVkBuffer, dispatchOffset);
+	vkCmdDispatchIndirect(vkCommandBuffer, mIndirectVkBuffer, vkDispatchOffset);
 }
 
 void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCount, int64_t iIndexCount, int64_t iFirstIndex)

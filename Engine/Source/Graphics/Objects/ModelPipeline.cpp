@@ -24,8 +24,8 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 
 	mSceneCrc = sceneCrc;
 
-	const EagerChunk& chunk = gpFileManager->GetEagerChunkMap().at(sceneCrc);
-	const common::SceneHeader& rSceneHeader = chunk.pHeader->sceneHeader;
+	const EagerChunk& rChunk = gpFileManager->GetEagerChunkMap().at(sceneCrc);
+	const common::SceneHeader& rSceneHeader = rChunk.pHeader->sceneHeader;
 	miMaterialCount = rSceneHeader.uiMaterialCount;
 
 	// Scene chunk data layout: [textureCrcs ALIGN16] [indexStarts ALIGN16] [MaterialShaderData]
@@ -90,6 +90,7 @@ void ModelPipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer v
 	{
 		VkDescriptorSet sets[2] = {gpTextureManager->mTextureDescriptors.mGlobalDescriptorSets[iCommandBuffer], mpPipelines[0].mVkDescriptorSets[iCommandBuffer]};
 		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mpPipelines[0].mVkPipelineLayout, 0, 2, sets, 0, nullptr);
+		mpPipelines[0].mInfo.pVertexBuffer->RecordBindVertexBuffer(vkCommandBuffer);
 	}
 
 	for (int64_t i = 0; i < miMaterialCount; ++i)

@@ -19,7 +19,7 @@ Low-level Vulkan resource wrappers providing RAII semantics for GPU resources. A
 ## Architecture Notes
 
 - Per-framebuffer descriptor sets prevent GPU conflicts across frames in flight
-- Three-set descriptor layout for model pipelines: Set 0 (global/TextureManager), Set 1 (shared), Set 2 (per-material)
+- Three-set descriptor layout for model pipelines: Set 0 (global/TextureManager), Set 1 (shared), Set 2 (per-material). In the `kMultiSet` path, `ModelPipeline::RecordDrawIndirect` binds Set 0, Set 1, and the vertex buffer once before the material loop; each `Pipeline::RecordDrawIndirectSet2` call then only rebinds the pipeline and Set 2
 - Lazy texture loading uses placeholder images until background upload completes, then atomically adopts GPU resources
 - Pipelines support update-after-bind for runtime descriptor updates without command buffer re-recording
 - Indirect rendering supports both host-visible (CPU-written) and device-local (GPU compute-written) buffer types
