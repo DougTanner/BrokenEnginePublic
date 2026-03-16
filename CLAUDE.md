@@ -14,10 +14,10 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 1. Make the code changes using the planning document
 2. Any new files created should be added to the appropriate filter in any relevant .vcproj files
 3. Build the affected projects and verify there are no errors (see Build section above)
-4. Use a subagent (task tool) to search the codebase and update all locations in the code affected by this modified code
-5. Use a subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure)
-6. Use a subagent (task tool) to invoke the code-style-review skill
-7. Use a subagent (task tool) to invoke the update-claude-docs skill
+4. Use a Sonet subagent (task tool) to search the codebase and update all locations in the code affected by this modified code
+5. Use a Sonet subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure)
+6. Use a Sonet subagent (task tool) to invoke the code-style-review skill
+7. Use a Sonet subagent (task tool) to invoke the update-claude-docs skill
 
 ## IMPORTANT Directives
 - DO NOT run any Git commands

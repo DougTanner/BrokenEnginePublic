@@ -77,6 +77,9 @@ private:
 	void RecoverFromDesync();
 	void ResetCoordStatesForResync();
 
+	// Subscription tracking
+	std::vector<engine::GridCoord> mPreviousDesiredCoords;
+
 	// Reconciliation
 	std::unique_ptr<ClientReconciler> mpReconciler;
 };

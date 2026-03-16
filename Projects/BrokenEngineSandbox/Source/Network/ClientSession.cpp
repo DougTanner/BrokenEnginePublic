@@ -52,23 +52,43 @@ void ClientSession::PollNetwork()
 	// Parse and process player events from raw game packets
 	std::vector<ReceivedPlayerEvent> playerEvents;
 	ParsePlayerEvents(mpClientNetwork->DrainReceivedGamePackets(), playerEvents);
+	engine::GridCoord preEventHumanCoord = gpGame->mHumanGridCoord;
 	for (const ReceivedPlayerEvent& rEvent : playerEvents)
 	{
 		switch (rEvent.eType)
 		{
 			case PlayerEventType::kAssigned:
+				// DT TEMP
+				Log(kLogNetwork, "PlayerEvent kAssigned NewPlayerId: {} NewCoord: ({},{}) OldPlayerId: {} OldCoord: ({},{})",
+					rEvent.playerId.ToUuid().Value(), rEvent.coord.x, rEvent.coord.y,
+					gpGame->HumanPlayerId().ToUuid().Value(), gpGame->mHumanGridCoord.x, gpGame->mHumanGridCoord.y);
 				if (rEvent.playerId != gpGame->HumanPlayerId())
 				{
 					gpGame->SetHumanPlayerId(rEvent.playerId);
 					gpGame->mHumanGridCoord = rEvent.coord;
 					gpGame->mGameFlags.Clear(engine::GameFlags::kDeathScreen);
-					UpdateSubscriptions();
 				}
 				break;
 			case PlayerEventType::kSpawned:
-			case PlayerEventType::kChangedFrame:
 				gpGame->mHumanGridCoord = rEvent.coord;
 				break;
+			case PlayerEventType::kChangedFrame:
+			{
+				gpGame->mHumanGridCoord = rEvent.coord;
+				int32_t iDeltaX = rEvent.coord.x - preEventHumanCoord.x;
+				int32_t iDeltaY = rEvent.coord.y - preEventHumanCoord.y;
+				if (iDeltaX != 0) gpGame->miQuadrantDirX = -iDeltaX;
+				if (iDeltaY != 0) gpGame->miQuadrantDirY = -iDeltaY;
+				{ // DT TEMP
+					Log(kLogNetwork, "kChangedFrame NewCoord: ({},{}) QuadrantDir: ({},{})", rEvent.coord.x, rEvent.coord.y, gpGame->miQuadrantDirX, gpGame->miQuadrantDirY);
+					const auto& rSlots = mpClientNetwork->GetCoordSlots();
+					for (int64_t s = 0; s < std::ssize(rSlots); ++s)
+					{
+						Log(kLogNetwork, "  Slot {} State: {} Coord: ({},{})", s, static_cast<int>(rSlots[s].eState), rSlots[s].coord.x, rSlots[s].coord.y);
+					}
+				}
+				break;
+			}
 			case PlayerEventType::kDied:
 				gpGame->mGameFlags.Set(engine::GameFlags::kDeathScreen);
 				if (gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord))
@@ -161,7 +181,6 @@ void ClientSession::Reconcile()
 		// Compensate time step for ticks rolled back during reconciliation
 		int64_t iTickDeficit = iPreReconcileTick - gpGame->TickCounter();
 		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iPreReconcileTick);
-		Log(kLogNetwork, "reconcileDeficit: {} clockCorrectionNs: {} remainderNs: {}", iTickDeficit, clockCorrectionNs.count(), gpGame->mTimeStep.mTickRemainderNs.count()); // DT: TEMP
 		if (iTickDeficit > 0)
 		{
 			gpGame->mTimeStep.mTickRemainderNs += iTickDeficit * kTickNs;
@@ -169,6 +188,8 @@ void ClientSession::Reconcile()
 		gpGame->mTimeStep.mTickRemainderNs += clockCorrectionNs;
 	}
 	gpProfileManager->CpuStop(engine::kCpuTimerNetworkPollReconcile, true);
+
+	UpdateSubscriptions();
 }
 
 void ClientSession::PostRender()
@@ -213,6 +234,9 @@ void ClientSession::ApplyReceivedFullStates()
 
 		if (rSub.iConfirmedTick < 0)
 		{
+			// Only advance tick counter during initial setup (no other coords have confirmed data yet)
+			bool bInitialSetup = (GetConfirmedTick() < 0);
+
 			// Single serialization copy: received -> current
 			rSub.pCurrent = std::make_unique<Frame>();
 			std::ostringstream outputStream;
@@ -234,8 +258,8 @@ void ClientSession::ApplyReceivedFullStates()
 			rSub.iConfirmedTick = iTick;
 			rSub.iConfirmedOffset = 0;
 
-			// Set frame counter from first received full state
-			if (gpGame->TickCounter() < iTick)
+			// Set frame counter from first received full state only (not from subsequent neighbor subscriptions)
+			if (bInitialSetup && gpGame->TickCounter() < iTick)
 			{
 				gpGame->SetTickCounter(iTick);
 				gpGame->SetCurrentTime(rSub.pCurrent->interpolate.fCurrentTime);
@@ -286,6 +310,7 @@ void ClientSession::DisconnectFromServer()
 	DisconnectFromServerBase();
 	mDesyncDebugState = {};
 	miDesyncCount = 0;
+	mPreviousDesiredCoords.clear();
 }
 
 bool ClientSession::PollConnectionStatus()

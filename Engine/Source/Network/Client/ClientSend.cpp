@@ -183,6 +183,7 @@ bool Client::SendSubscribe(GridCoord coord)
 			mCoordSlots.at(i).ackState.uiReceivedBitfieldLow = 0;
 			mCoordSlots.at(i).ackState.uiReceivedBitfieldHigh = 0;
 			bFoundSlot = true;
+			Log(kLogNetwork, "Client::SendSubscribe Coord: ({},{}) Slot: {}", coord.x, coord.y, i); // DT TEMP
 			break;
 		}
 	}

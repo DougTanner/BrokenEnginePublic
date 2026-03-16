@@ -2,6 +2,7 @@
 
 #include "Network/ClientReconciler.h"
 #include "Network/ReconcileReplay.h"
+#include "Frame/Collections/Players/Players.h"
 #include "Profile/ProfileManager.h"
 
 namespace game
@@ -87,6 +88,8 @@ void ClientReconciler::Kick()
 	{
 		if (rSub.iConfirmedTick < 0)
 		{
+			// DT TEMP
+			Log(kLogNetwork, "Reconciler::Kick Skipping unconfirmed coord ({},{})", rCoord.x, rCoord.y);
 			continue;
 		}
 
@@ -169,14 +172,17 @@ void ClientReconciler::ApplyCoordWriteback(CoordReconcileWork& rWork, engine::Co
 		rSub.iConfirmedOffset = rWork.iConfirmedOffset;
 	}
 
-	// Merge main-thread extrapolation snapshots
-	for (int64_t i = 0; i < iMainSnapshotCount && rSub.iSnapshotCount < engine::kiNetworkBufferSize; ++i)
+	// Merge main-thread extrapolation snapshots (only when CRC fast path matched — full replay invalidates them)
+	if (rWork.iNewConfirmedTick < 0)
 	{
-		if (rWork.snapshots[i] != nullptr && rWork.snapshots[i]->interpolate.iTick > rSub.iConfirmedTick)
+		for (int64_t i = 0; i < iMainSnapshotCount && rSub.iSnapshotCount < engine::kiNetworkBufferSize; ++i)
 		{
-			int64_t iPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount);
-			rSub.snapshots[iPhysical] = std::move(rWork.snapshots[i]);
-			++rSub.iSnapshotCount;
+			if (rWork.snapshots[i] != nullptr && rWork.snapshots[i]->interpolate.iTick > rSub.iConfirmedTick)
+			{
+				int64_t iPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount);
+				rSub.snapshots[iPhysical] = std::move(rWork.snapshots[i]);
+				++rSub.iSnapshotCount;
+			}
 		}
 	}
 
@@ -247,6 +253,15 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 			continue;
 		}
 		ApplyCoordWriteback(rWork, subscriptionIt->second);
+
+		// DT TEMP
+		if (rWork.coord == rReconcileContext.confirmedHumanState.humanGridCoord)
+		{
+			int64_t iTip = engine::SnapshotIndex(subscriptionIt->second.iSnapshotHead, subscriptionIt->second.iSnapshotCount - 1);
+			int64_t iPlayerCount = (subscriptionIt->second.iSnapshotCount > 0 && subscriptionIt->second.snapshots[iTip] != nullptr)
+				? subscriptionIt->second.snapshots[iTip]->postRender.pPlayers->iCount : -1;
+			Log(kLogNetwork, "ApplyResult HumanCoord: ({},{}) SnapshotCount: {} TipPlayerCount: {} ConfirmedTick: {}", rWork.coord.x, rWork.coord.y, subscriptionIt->second.iSnapshotCount, iPlayerCount, subscriptionIt->second.iConfirmedTick);
+		}
 	}
 
 	// Update human tracking from reconciled state

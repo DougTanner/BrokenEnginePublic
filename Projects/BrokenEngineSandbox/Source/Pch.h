@@ -2,6 +2,7 @@
 
 inline constexpr bool kbEnableLogging = true;
 inline constexpr bool kbEnableFrameDispatch = true;
+inline constexpr bool kbEnableQuadrantNeighborSubscriptions = true;
 inline constexpr bool kbEnableRenderThread = true;
 inline constexpr bool kbEnableReconcileThread = true;
 
@@ -11,7 +12,6 @@ inline constexpr bool kbEnableGpuAssistedValidation = false;
 inline constexpr bool kbEnableDesyncRecovery = false;
 inline constexpr bool kbEnableRecording = false;
 inline constexpr bool kbEnableScreenshots = false;
-inline constexpr bool kbEnableQuadrantNeighborSubscriptions = false;
 inline constexpr bool kbEnableWireframe = false;
 
 #if defined(BT_SERVER)

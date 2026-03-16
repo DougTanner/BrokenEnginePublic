@@ -85,6 +85,7 @@ void ClientSessionBase::TrySubscribeNext()
 	{
 		if (!mpClientNetwork->SendSubscribe(mSubscriptionQueue.front()))
 		{
+			Log(kLogNetwork, "TrySubscribeNext NoFreeSlot Coord: ({},{})", mSubscriptionQueue.front().x, mSubscriptionQueue.front().y); // DT TEMP
 			break;
 		}
 		mSubscriptionQueue.erase(mSubscriptionQueue.begin());
@@ -109,6 +110,7 @@ void ClientSessionBase::UnsubscribeStaleCoords(const std::vector<GridCoord>& rDe
 			{
 				rSlots.at(i) = {};
 				mpClientNetwork->GetCancelledSubscriptions().push_back(unsubCoord);
+				Log(kLogNetwork, "UnsubscribeStaleCoords Cancel kSubscribing Slot: {} Coord: ({},{}) CancelledCount: {}", i, unsubCoord.x, unsubCoord.y, mpClientNetwork->GetCancelledSubscriptions().size()); // DT TEMP
 			}
 			else
 			{
@@ -147,6 +149,7 @@ void ClientSessionBase::BuildSubscriptionQueue(const std::vector<GridCoord>& rDe
 		if (!bAlreadyActive)
 		{
 			mSubscriptionQueue.push_back(rCoord);
+			Log(kLogNetwork, "BuildSubscriptionQueue Queued Coord: ({},{})", rCoord.x, rCoord.y); // DT TEMP
 		}
 	}
 }
@@ -162,13 +165,9 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 	const std::vector<ClientCoordSlot>& rCoordSlots = mpClientNetwork->GetCoordSlots();
 	std::vector<std::vector<ReceivedCoordUpdate>>& rAllUpdates = mpClientNetwork->DrainReceivedCoordUpdates();
 
-	int64_t iTotalDrained = 0; // DT: TEMP
-	int64_t iTotalApplied = 0; // DT: TEMP
-
 	for (int64_t iSlot = 0; iSlot < std::ssize(rCoordSlots); ++iSlot)
 	{
 		std::vector<ReceivedCoordUpdate>& rSlotUpdates = rAllUpdates.at(iSlot);
-		iTotalDrained += std::ssize(rSlotUpdates); // DT: TEMP
 		if (rSlotUpdates.empty())
 		{
 			continue;
@@ -210,14 +209,11 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 			if (bInserted)
 			{
 				bHasNewData = true;
-				++iTotalApplied; // DT: TEMP
 			}
 		}
 
 		rSlotUpdates.clear();
 	}
-
-	Log(kLogNetwork, "ApplyReceivedUpdatesBase drained: {} applied: {} latestServerTick: {}", iTotalDrained, iTotalApplied, miLatestServerTick); // DT: TEMP
 
 	return bHasNewData;
 }
@@ -386,7 +382,6 @@ game::Frame* ClientSessionBase::GetSnapshotFrame(GridCoord coord) const
 	{
 		return nullptr;
 	}
-	Log(kLogNetwork, "renderTick: {} snapshotCount: {} confirmed: {}", rSub.snapshots[iPhysical]->interpolate.iTick, rSub.iSnapshotCount, rSub.iConfirmedTick); // DT: TEMP
 	return rSub.snapshots[iPhysical].get();
 }
 

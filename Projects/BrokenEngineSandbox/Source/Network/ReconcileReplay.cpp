@@ -269,6 +269,12 @@ static bool ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, floa
 		{
 			SpawnTransfer(*pNext, rStatusChange.eType, rStatusChange.data, pNext->postRender.playerAlignment);
 			bHadTransfers = true;
+
+			if (rStatusChange.eType == StatusChangeType::kTransferPlayer)
+			{
+				// DT TEMP
+				Log(kLogNetwork, "ReconcileRunTickCoord SpawnTransfer TransferPlayer Coord: ({},{}) Tick: {} PlayerCount: {}", rWork.coord.x, rWork.coord.y, iTick, pNext->postRender.pPlayers->iCount);
+			}
 		}
 	}
 	std::erase_if(rFrameInput.statusChanges, [](const StatusChange& rStatusChange)
@@ -313,6 +319,17 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 			LogStatusChangeList("Client StatusChanges", rFrameInput.statusChanges);
 		}
 
+		// DT TEMP
+		Log(kLogNetwork, "ReconcileValidateCrcCoord HumanCoord: ({},{}) IsNeighbor: {}", rReconcileContext.confirmedHumanState.humanGridCoord.x, rReconcileContext.confirmedHumanState.humanGridCoord.y, rWork.coord != rReconcileContext.confirmedHumanState.humanGridCoord);
+
+		if (rWork.coord != rReconcileContext.confirmedHumanState.humanGridCoord)
+		{
+			Log(kLogNetwork, "ReconcileValidateCrcCoord Neighbor CRC mismatch (non-fatal) Coord: ({},{}) Frame: {}", rWork.coord.x, rWork.coord.y, iTick);
+			rWork.iLastValidatedIndex = rWork.iReplayStackCount - 1;
+			rWork.iNewConfirmedTick = iTick;
+			return true;
+		}
+
 		rReconcileContext.iDesyncTick = iTick;
 		rReconcileContext.desyncCoord = rWork.coord;
 		rReconcileContext.desyncServerCrc = rUpdate.serverCrc;
@@ -333,6 +350,14 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 			ScopedLogIndent scopedInputIndent;
 			LogStatusChangeList("Server StatusChanges", rUpdate.statusChanges);
 			LogStatusChangeList("Client StatusChanges", rFrameInput.statusChanges);
+		}
+
+		if (rWork.coord != rReconcileContext.confirmedHumanState.humanGridCoord)
+		{
+			Log(kLogNetwork, "ReconcileValidateCrcCoord Neighbor input CRC mismatch (non-fatal) Coord: ({},{}) Frame: {}", rWork.coord.x, rWork.coord.y, iTick);
+			rWork.iLastValidatedIndex = rWork.iReplayStackCount - 1;
+			rWork.iNewConfirmedTick = iTick;
+			return true;
 		}
 
 		rReconcileContext.iDesyncTick = iTick;
@@ -466,7 +491,10 @@ void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWo
 	rWork.iNewConfirmedOffset = -1;
 	rWork.iOutputCount = 0;
 
-	rReconcileContext.bAnyFullReplay = true;
+	if (rWork.coord == rReconcileContext.confirmedHumanState.humanGridCoord)
+	{
+		rReconcileContext.bAnyFullReplay = true;
+	}
 
 	Log(kLogNetwork, "ReconcileCoord Full replay Coord: ({},{}) Confirmed: {} Target: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, rReconcileContext.iTargetTick);
 
@@ -578,6 +606,8 @@ void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)
 					}
 
 					engine::GridCoord destination {rWork.coord.x + rRequest.iDeltaX, rWork.coord.y + rRequest.iDeltaY};
+					// DT TEMP
+					Log(kLogNetwork, "ReconcileUpdateHumanState TransferPlayer PlayerId: {} Source: ({},{}) Dest: ({},{})", humanState.humanPlayerId.ToUuid().Value(), rWork.coord.x, rWork.coord.y, destination.x, destination.y);
 					humanState.humanGridCoord = destination;
 					humanState.fPreviousHumanArmor = rRequest.data.fHealth;
 
@@ -609,6 +639,8 @@ void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)
 							if (XMVector4Equal(rDestFrame.interpolate.pPlayers->pVecPositions[j], rRequest.data.vecPosition))
 							{
 								humanState.humanPlayerId = rDestFrame.postRender.pPlayers->puiIds[j];
+								// DT TEMP
+								Log(kLogNetwork, "ReconcileUpdateHumanState Transfer matched NewPlayerId: {} Coord: ({},{})", humanState.humanPlayerId.ToUuid().Value(), destination.x, destination.y);
 								bFound = true;
 								break;
 							}

@@ -254,6 +254,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	// Already subscribed?
 	if (pClient->IsCoordSubscribed(coord))
 	{
+		Log(kLogNetwork, "Server::ClientSubscribe AlreadySubscribed Client: {} Coord: ({},{})", iClientId, coord.x, coord.y); // DT TEMP
 		return;
 	}
 

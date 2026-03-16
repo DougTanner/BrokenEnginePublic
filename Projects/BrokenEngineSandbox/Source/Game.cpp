@@ -100,7 +100,7 @@ void Game::ComputeActiveSet()
 		{
 			if (mCoordFrames.contains(mHumanGridCoord))
 			{
-				const Frame& rFrame = CurrentFrame(mHumanGridCoord);
+				const Frame& rFrame = RenderFrame(mHumanGridCoord);
 				auto it = rFrame.interpolate.pPlayers->idToIndexMap.find(mHumanPlayerId);
 				if (it != rFrame.interpolate.pPlayers->idToIndexMap.end())
 				{
