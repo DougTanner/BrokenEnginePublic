@@ -13,7 +13,7 @@
 ## Architecture
 
 ### Voice Lifecycle
-Two playback modes: **one-shot** (fire-and-forget via `PlayOneShot`/`PlayOneShot3d`, asserts `kPostRender`, skips reconciliation frames) and **managed** (persistent voices in a flat vector, capped at `kiMaxStaticVoices`, synced from `SoundsInterpolate`/`SoundsPostRender` frame data each tick with swap-and-pop removal after fade-out).
+Two playback modes: **one-shot** (fire-and-forget via `PlayOneShot`/`PlayOneShot3d`, asserts `kPostRender`, skips reconciliation frames, thread-safe via `mOneShotRecursiveMutex`) and **managed** (persistent voices in a flat vector, capped at `kiMaxStaticVoices`, synced from `SoundsInterpolate`/`SoundsPostRender` frame data each tick with swap-and-pop removal after fade-out). `LoadXAudio2SourceVoice` creates XAudio2 source voices; the caller is responsible for any required thread synchronization.
 
 ### Music System
 Callback-based playlist decoupling: game logic owns track selection, AudioManager handles playback. Crossfade transitions overlap streams with volume fading, triggered when remaining time reaches a threshold.
@@ -22,7 +22,8 @@ Callback-based playlist decoupling: game logic owns track selection, AudioManage
 X3DAudio integration provides distance attenuation, Doppler effect, and multi-channel speaker panning. Listener position updated from player frame data each tick. Custom manual fade applies additional distance-based volume attenuation.
 
 ### Threading
-- **Main thread** - Voice creation, 3D position updates, playlist logic, static voice cleanup
+- **Main thread** - 3D position updates, playlist logic, static voice cleanup
+- **Worker threads** - One-shot playback (`PlayOneShot`/`PlayOneShot3d`) serialized via `mOneShotRecursiveMutex`
 - **XAudio2 thread** - `OnBufferEnd()` callbacks trigger next buffer submission
 - **Background thread** - Lazy loading of audio chunks via FileManager
 

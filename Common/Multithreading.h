@@ -13,9 +13,11 @@ class Multithreading
 public:
 
 	explicit Multithreading(int64_t iWorkerCount);
+	Multithreading(Threads eThread, int64_t iWorkerCount, int64_t iWorkbufferSize);
 	~Multithreading();
 
 	int64_t WorkerCount() const { return static_cast<int64_t>(mWorkers.size()); }
+	bool IsMainThread() const { return std::this_thread::get_id() == mMainThreadId; }
 
 	template <typename FUNC>
 	void Dispatch(int64_t iCount, FUNC& processRange)
@@ -62,6 +64,7 @@ public:
 
 private:
 
+	std::thread::id mMainThreadId;
 	std::vector<std::unique_ptr<PersistentWorker>> mWorkers;
 };
 

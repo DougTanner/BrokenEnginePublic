@@ -40,7 +40,7 @@ public:
 
 	XMVECTOR mVecLastKnownPlayerPosition {};
 	XMVECTOR mVecLastKnownPlayerVelocity {};
-	int64_t miLastKnownPlayerTick = 0;
+	float mfLastKnownPlayerTime = 0.0f;
 
 private:
 

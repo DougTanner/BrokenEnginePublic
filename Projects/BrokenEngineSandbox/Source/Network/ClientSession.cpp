@@ -68,9 +68,11 @@ void ClientSession::PollNetwork()
 					gpGame->mHumanGridCoord = rEvent.coord;
 					gpGame->mGameFlags.Clear(engine::GameFlags::kDeathScreen);
 				}
+				UpdateDesiredCoords("kAssigned");
 				break;
 			case PlayerEventType::kSpawned:
 				gpGame->mHumanGridCoord = rEvent.coord;
+				UpdateDesiredCoords("kSpawned");
 				break;
 			case PlayerEventType::kChangedFrame:
 			{
@@ -87,6 +89,7 @@ void ClientSession::PollNetwork()
 						Log(kLogNetwork, "  Slot {} State: {} Coord: ({},{})", s, static_cast<int>(rSlots[s].eState), rSlots[s].coord.x, rSlots[s].coord.y);
 					}
 				}
+				UpdateDesiredCoords("kChangedFrame");
 				break;
 			}
 			case PlayerEventType::kDied:
@@ -97,6 +100,7 @@ void ClientSession::PollNetwork()
 				}
 				gpGame->SetHumanPlayerId({});
 				gpGame->SetPreviousHumanArmor(0.0f);
+				UpdateDesiredCoords("kDied");
 				break;
 		}
 	}
@@ -310,7 +314,7 @@ void ClientSession::DisconnectFromServer()
 	DisconnectFromServerBase();
 	mDesyncDebugState = {};
 	miDesyncCount = 0;
-	mPreviousDesiredCoords.clear();
+	mDesiredCoords.clear();
 }
 
 bool ClientSession::PollConnectionStatus()

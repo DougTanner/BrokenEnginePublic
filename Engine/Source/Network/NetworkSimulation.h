@@ -155,16 +155,10 @@ template <typename FnHandlePacket>
 inline void ProcessDelayed(std::deque<DelayedPacket>& rDelayedPackets, FnHandlePacket HandlePacket)
 {
 	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-	int64_t iProcessed = 0; // DT: TEMP
 	while (!rDelayedPackets.empty() && rDelayedPackets.front().releaseTime <= now)
 	{
 		HandlePacket(rDelayedPackets.front());
 		rDelayedPackets.pop_front();
-		++iProcessed; // DT: TEMP
-	}
-	if (iProcessed > 0 || !rDelayedPackets.empty()) // DT: TEMP
-	{
-		Log(kLogNetwork, "NetworkSimulation processed: {} queued: {}", iProcessed, rDelayedPackets.size()); // DT: TEMP
 	}
 }
 

@@ -28,6 +28,8 @@ int32_t ParticleManager::GetOrAssignTextureIndex(common::crc_t textureCrc)
 
 void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout, shaders::ParticleLayout layout, common::crc_t textureCrc)
 {
+	std::lock_guard<std::mutex> lock(gpParticleManager->mSpawnMutex);
+
 	if (rParticlesSpawnLayout.iCount == shaders::kiMaxParticlesSpawn)
 	{
 		// Too many particles spawn on the same frame, decrease spawn count or increase kiMaxParticlesSpawn

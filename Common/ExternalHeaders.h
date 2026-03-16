@@ -55,6 +55,7 @@
 using namespace std::chrono_literals;
 #include <codecvt>
 #include <concepts>
+#include <csignal>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -126,10 +127,10 @@ static_assert(VER_PRODUCTBUILD >= 10011 && VER_PRODUCTBUILD_QFE >= 16384, "Updat
 namespace DirectX
 {
 
-constexpr float XM_PIDIV8  = XM_PI / 8.0f;
-constexpr float XM_PIDIV16 = XM_PI / 16.0f;
-constexpr float XM_PIDIV32 = XM_PI / 32.0f;
-constexpr float XM_PIDIV64 = XM_PI / 64.0f;
+inline constexpr float XM_PIDIV8  = XM_PI / 8.0f;
+inline constexpr float XM_PIDIV16 = XM_PI / 16.0f;
+inline constexpr float XM_PIDIV32 = XM_PI / 32.0f;
+inline constexpr float XM_PIDIV64 = XM_PI / 64.0f;
 
 }
 using namespace DirectX;

@@ -11,6 +11,8 @@ static std::string sDxDiag;
 
 void HandleException(std::optional<const std::exception*> pException)
 {
+	DEBUG_BREAK();
+
 	int iResult = MessageBox(nullptr, "Save crash report to desktop?", game::kGameName.data(), MB_YESNO | MB_SYSTEMMODAL);
 
 	std::wstring gameName = common::ToWstring(game::kGameName);

@@ -14,4 +14,4 @@ Replaces the default C++ allocator with mimalloc (or optionally the CRT debug he
 
 ## Architecture Notes
 
-A static initializer constructed before `main()` configures the allocator for the entire process lifetime. At shutdown, peak heap usage stats are reported to the VS Output window (mimalloc mode only). Allocation tracking only activates on threads with initialized `ThreadLocal`, so background threads without thread-local storage are naturally excluded.
+A static initializer constructed before `main()` configures the allocator for the entire process lifetime. In debug builds (mimalloc mode), mimalloc output is routed to the VS Output window and a `SIGABRT` handler calls `engine::HandleException()` to write a crash report with callstack on mimalloc assertions and other CRT aborts. At shutdown, peak heap usage stats are reported to the VS Output window (mimalloc mode only). Allocation tracking only activates on threads with initialized `ThreadLocal`, so background threads without thread-local storage are naturally excluded.

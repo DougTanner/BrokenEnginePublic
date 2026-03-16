@@ -176,8 +176,7 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 		const ClientCoordSlot& rSlot = rCoordSlots.at(iSlot);
 		if (rSlot.eState != CoordSubscriptionState::kActive)
 		{
-			Log(kLogNetwork, "ApplyReceivedUpdatesBase skipping slot {} state: {} updates: {}", iSlot, static_cast<int>(rSlot.eState), rSlotUpdates.size()); // DT: TEMP
-			rSlotUpdates.clear();
+		rSlotUpdates.clear();
 			continue;
 		}
 

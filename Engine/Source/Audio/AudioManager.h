@@ -56,6 +56,7 @@ public:
 	common::Timer mRealTime;
 
 	mutable std::recursive_mutex mMusicStreamRecursiveMutex;
+	std::recursive_mutex mOneShotRecursiveMutex;
 
 	std::unique_ptr<AudioEngine> mpAudioEngine;
 

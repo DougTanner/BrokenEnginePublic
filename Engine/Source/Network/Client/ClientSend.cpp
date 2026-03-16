@@ -241,6 +241,32 @@ void Client::SendUnsubscribe(int64_t iSlot)
 	rWorkbuffer.Pop();
 }
 
+void Client::SendUnsubscribeOnly(int64_t iSlot)
+{
+	if (!mbConnected || mpServerPeer == nullptr)
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	// [1B type][1B slotIndex]
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientUnsubscribe));
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
+
+	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
+
+	{
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		// Heap: ENet allocates packet data internally
+		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
+		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
+	}
+
+	rWorkbuffer.Pop();
+}
+
 void Client::SendResyncRequest()
 {
 	if (!mbConnected || mpServerPeer == nullptr)

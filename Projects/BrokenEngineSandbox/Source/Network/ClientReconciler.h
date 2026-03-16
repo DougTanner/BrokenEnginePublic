@@ -18,6 +18,15 @@ struct ConfirmedHumanState
 	float fCurrentTime = 0.0f;
 };
 
+struct ReconcileProfiling
+{
+	int64_t iCrcValidatedFrameTicks = 0;
+	int64_t iAssumedFrameTicks = 0;
+	int64_t iCrcFastPathEvents = 0;
+	int64_t iStatusChangeReplayTicks = 0;
+	int64_t iKnockOnReplayTicks = 0;
+};
+
 struct CoordReconcileWork
 {
 	engine::GridCoord coord {};
@@ -46,6 +55,12 @@ struct CoordReconcileWork
 	int64_t iNewConfirmedOffset = -1; // physical ring index of new confirmed frame
 	int64_t iOutputCount = 0; // total snapshot count for writeback (confirmed + catch-up)
 	bool bCrcFastPath = false;
+	bool bFullReplay = false;
+	int64_t iTickCounter = 0;
+	float fCurrentTime = 0.0f;
+
+	// Per-coord profiling counters
+	ReconcileProfiling profiling;
 
 	// Desync (if any)
 	int64_t iDesyncTick = -1;
@@ -66,7 +81,7 @@ struct ReconcileContext
 	engine::alignment_t playerAlignment {};
 	engine::Alignments alignments;
 
-	// Working data (set during per-coord processing)
+	// Working data (set during post-dispatch merge)
 	int64_t iTickCounter = 0;
 	float fCurrentTime = 0.0f;
 
@@ -75,14 +90,7 @@ struct ReconcileContext
 	bool bAnyFullReplay = false;
 
 	// Profiling counters
-	struct Profiling
-	{
-		int64_t iCrcValidatedFrameTicks = 0;
-		int64_t iAssumedFrameTicks = 0;
-		int64_t iCrcFastPathEvents = 0;
-		int64_t iStatusChangeReplayTicks = 0;
-		int64_t iKnockOnReplayTicks = 0;
-	};
+	using Profiling = ReconcileProfiling;
 	Profiling profiling;
 
 	// Deferred desync info (from any coord)
@@ -132,9 +140,10 @@ private:
 	void Kick();
 	ReconcileDesyncInfo ApplyResult();
 	static void ApplyCoordWriteback(CoordReconcileWork& rWork, engine::CoordFrames& rSub);
-	static void Reconcile(ReconcileContext& rReconcileContext, const engine::Alignments& rAlignments);
+	void Reconcile(ReconcileContext& rReconcileContext, const engine::Alignments& rAlignments);
 
 	std::unique_ptr<common::PersistentWorker> mpWorker;
+	std::unique_ptr<common::Multithreading> mpDispatch; // Per-coord parallel reconciliation
 	std::unique_ptr<ReconcileContext> mpContext;
 	bool mbInFlight = false;
 	uint64_t muiNextGeneration = 1;

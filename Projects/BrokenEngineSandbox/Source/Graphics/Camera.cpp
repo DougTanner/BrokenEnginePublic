@@ -79,38 +79,21 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		{
 			XMVECTOR vecPlayerPos = rFrameInterpolate.pPlayers->pVecPositions[*oIdx];
 
-			// Compute velocity from position delta when tick changes
-			if (miLastKnownPlayerTick > 0 && miFrame != miLastKnownPlayerTick)
+			// Compute velocity from position delta using real time
+			if (mfLastKnownPlayerTime > 0.0f && mfTime > mfLastKnownPlayerTime)
 			{
-				float fElapsedTicks = static_cast<float>(miFrame - miLastKnownPlayerTick);
-				mVecLastKnownPlayerVelocity = XMVectorScale(XMVectorSubtract(vecPlayerPos, mVecLastKnownPlayerPosition), 1.0f / (fElapsedTicks * game::kfDeltaTime));
+				float fElapsedTime = mfTime - mfLastKnownPlayerTime;
+				mVecLastKnownPlayerVelocity = XMVectorScale(XMVectorSubtract(vecPlayerPos, mVecLastKnownPlayerPosition), 1.0f / fElapsedTime);
 			}
 
 			mVecLastKnownPlayerPosition = vecPlayerPos;
-			miLastKnownPlayerTick = miFrame;
+			mfLastKnownPlayerTime = mfTime;
 			vecTargetPosition = vecPlayerPos;
 		}
 		else
 		{
-			// DT TEMP
-			if (miFrame % 64 == 0)
-			{
-				Log(kLogNetwork, "Camera player not found HumanPlayerId: {} HumanCoord: ({},{}) CoordExists: {} PlayerCount: {}", gpGame->HumanPlayerId().ToUuid().Value(), gpGame->mHumanGridCoord.x, gpGame->mHumanGridCoord.y, gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord), gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord) ? rFrameInterpolate.pPlayers->iCount : -1);
-
-				// DT TEMP
-				game::Frame* pSnapshot = gpClientSession->GetSnapshotFrame(gpGame->mHumanGridCoord);
-				auto subIt = gpGame->mCoordFrames.find(gpGame->mHumanGridCoord);
-				int64_t iSnapshotCount = (subIt != gpGame->mCoordFrames.end()) ? subIt->second.iSnapshotCount : -1;
-				Log(kLogNetwork, "  SnapshotFrame: {} SnapshotCount: {} IsExtrapolating: {}", pSnapshot != nullptr, iSnapshotCount, gpClientSession->IsExtrapolating());
-				if (pSnapshot != nullptr)
-				{
-					Log(kLogNetwork, "  SnapshotPlayerCount: {}", pSnapshot->postRender.pPlayers->iCount);
-				}
-			}
-
 			// Player not found — extrapolate from last known position and velocity
-			float fElapsedTime = static_cast<float>(miFrame - miLastKnownPlayerTick) * game::kfDeltaTime;
-			fElapsedTime = std::min(fElapsedTime, 2.0f);
+			float fElapsedTime = std::clamp(mfTime - mfLastKnownPlayerTime, 0.0f, 2.0f);
 			vecTargetPosition = XMVectorMultiplyAdd(XMVectorReplicate(fElapsedTime), mVecLastKnownPlayerVelocity, mVecLastKnownPlayerPosition);
 		}
 	}

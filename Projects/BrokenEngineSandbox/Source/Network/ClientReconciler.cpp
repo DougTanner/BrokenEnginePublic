@@ -84,12 +84,11 @@ void ClientReconciler::Kick()
 	ReconcileContext& rReconcileContext = *mpContext;
 
 	// Populate per-coord work items
+	rReconcileContext.coordWork.reserve(gpGame->mCoordFrames.size());
 	for (auto& [rCoord, rSub] : gpGame->mCoordFrames)
 	{
 		if (rSub.iConfirmedTick < 0)
 		{
-			// DT TEMP
-			Log(kLogNetwork, "Reconciler::Kick Skipping unconfirmed coord ({},{})", rCoord.x, rCoord.y);
 			continue;
 		}
 
@@ -123,8 +122,21 @@ void ClientReconciler::Kick()
 	rReconcileContext.confirmedHumanState = mConfirmedHumanState;
 	rReconcileContext.uiNextFrameId = gpGame->NextFrameId();
 	rReconcileContext.iTargetTick = gpGame->TickCounter();
+	ASSERT(rReconcileContext.iTargetTick >= 0);
 	rReconcileContext.playerAlignment = gpGame->PlayerAlignment();
 	rReconcileContext.alignments = gpGame->Alignments();
+
+	// Create/resize per-coord dispatch pool
+	if constexpr (kbEnableReconcileDispatch)
+	{
+		int64_t iDesiredWorkers = static_cast<int64_t>(rReconcileContext.coordWork.size()) - 1;
+		if (iDesiredWorkers > 0 && (!mpDispatch || mpDispatch->WorkerCount() < iDesiredWorkers))
+		{
+			// Heap: Dispatch pool creation (rare, only when coord count grows)
+			ScopedSuppressAllocationTracking suppress;
+			mpDispatch = std::make_unique<common::Multithreading>(common::kThreadReconcileDispatch, iDesiredWorkers, 10 * 1'024 * 1'024);
+		}
+	}
 
 	// Dispatch to worker
 	mpWorker->Wake([this]()
@@ -133,17 +145,70 @@ void ClientReconciler::Kick()
 	});
 }
 
+static void ReconcileMergeResults(ReconcileContext& rReconcileContext)
+{
+	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
+	{
+		// Aggregate profiling
+		rReconcileContext.profiling.iCrcValidatedFrameTicks += rWork.profiling.iCrcValidatedFrameTicks;
+		rReconcileContext.profiling.iAssumedFrameTicks += rWork.profiling.iAssumedFrameTicks;
+		rReconcileContext.profiling.iCrcFastPathEvents += rWork.profiling.iCrcFastPathEvents;
+		rReconcileContext.profiling.iStatusChangeReplayTicks += rWork.profiling.iStatusChangeReplayTicks;
+		rReconcileContext.profiling.iKnockOnReplayTicks += rWork.profiling.iKnockOnReplayTicks;
+
+		// Check for desync (first one wins)
+		if (rWork.iDesyncTick >= 0 && rReconcileContext.iDesyncTick < 0)
+		{
+			rReconcileContext.iDesyncTick = rWork.iDesyncTick;
+			rReconcileContext.desyncCoord = rWork.coord;
+			rReconcileContext.desyncServerCrc = rWork.desyncServerCrc;
+			rReconcileContext.desyncClientCrc = rWork.desyncClientCrc;
+			rReconcileContext.pDesyncClientFrame = std::move(rWork.pDesyncClientFrame);
+		}
+
+		// Track full replay (only human coord triggers bAnyFullReplay — it gates SetTickCounter/SetCurrentTime in ApplyResult)
+		if (rWork.bFullReplay && rWork.coord == rReconcileContext.confirmedHumanState.humanGridCoord)
+		{
+			rReconcileContext.bAnyFullReplay = true;
+			rReconcileContext.iTickCounter = rWork.iTickCounter;
+		}
+	}
+}
+
 void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const engine::Alignments& rAlignments)
 {
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
+	if constexpr (kbEnableReconcileDispatch)
 	{
-		ReconcileCoord(rReconcileContext, rWork);
-		if (rReconcileContext.iDesyncTick >= 0)
+		// Parallel per-coord reconciliation
+		auto processRange = [&](int64_t iStart, int64_t iEnd)
 		{
-			return;
+			ScopedSuppressAllocationTracking suppress;
+			for (int64_t i = iStart; i < iEnd; ++i)
+			{
+				ReconcileCoord(rReconcileContext, rReconcileContext.coordWork[i]);
+			}
+		};
+		mpDispatch->Dispatch(static_cast<int64_t>(rReconcileContext.coordWork.size()), processRange);
+	}
+	else
+	{
+		// Sequential (existing behavior)
+		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
+		{
+			ReconcileCoord(rReconcileContext, rWork);
+			if (rWork.iDesyncTick >= 0)
+			{
+				break;
+			}
 		}
+	}
+
+	ReconcileMergeResults(rReconcileContext);
+	if (rReconcileContext.iDesyncTick >= 0)
+	{
+		return;
 	}
 
 	ReconcileUpdateHumanState(rReconcileContext);
@@ -164,6 +229,7 @@ void ClientReconciler::ApplyCoordWriteback(CoordReconcileWork& rWork, engine::Co
 		rSub.iSnapshotHead = rWork.iNewConfirmedOffset;
 		rSub.iConfirmedOffset = 0;
 		rSub.iSnapshotCount = rWork.iOutputCount;
+		ASSERT(rSub.iSnapshotCount >= 0 && rSub.iSnapshotCount <= engine::kiNetworkBufferSize);
 	}
 	else
 	{
@@ -184,6 +250,7 @@ void ClientReconciler::ApplyCoordWriteback(CoordReconcileWork& rWork, engine::Co
 				++rSub.iSnapshotCount;
 			}
 		}
+		ASSERT(rSub.iSnapshotCount <= engine::kiNetworkBufferSize);
 	}
 
 	// Restore unconsumed server updates
@@ -253,15 +320,6 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 			continue;
 		}
 		ApplyCoordWriteback(rWork, subscriptionIt->second);
-
-		// DT TEMP
-		if (rWork.coord == rReconcileContext.confirmedHumanState.humanGridCoord)
-		{
-			int64_t iTip = engine::SnapshotIndex(subscriptionIt->second.iSnapshotHead, subscriptionIt->second.iSnapshotCount - 1);
-			int64_t iPlayerCount = (subscriptionIt->second.iSnapshotCount > 0 && subscriptionIt->second.snapshots[iTip] != nullptr)
-				? subscriptionIt->second.snapshots[iTip]->postRender.pPlayers->iCount : -1;
-			Log(kLogNetwork, "ApplyResult HumanCoord: ({},{}) SnapshotCount: {} TipPlayerCount: {} ConfirmedTick: {}", rWork.coord.x, rWork.coord.y, subscriptionIt->second.iSnapshotCount, iPlayerCount, subscriptionIt->second.iConfirmedTick);
-		}
 	}
 
 	// Update human tracking from reconciled state

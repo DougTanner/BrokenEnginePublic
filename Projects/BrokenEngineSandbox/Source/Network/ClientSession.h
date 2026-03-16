@@ -51,7 +51,7 @@ private:
 	void PollDebugFrameResponse();
 
 	// Subscription helpers
-	std::vector<engine::GridCoord> ComputeDesiredCoords() const;
+	void UpdateDesiredCoords(const char* pcReason);
 
 	void ApplyReceivedFullStates();
 	void ApplyReceivedUpdates();
@@ -78,7 +78,7 @@ private:
 	void ResetCoordStatesForResync();
 
 	// Subscription tracking
-	std::vector<engine::GridCoord> mPreviousDesiredCoords;
+	std::vector<engine::GridCoord> mDesiredCoords;
 
 	// Reconciliation
 	std::unique_ptr<ClientReconciler> mpReconciler;

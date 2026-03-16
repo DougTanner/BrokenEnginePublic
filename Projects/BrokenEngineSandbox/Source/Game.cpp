@@ -90,55 +90,60 @@ void Game::ComputeActiveSet()
 		mActiveCoords.clear();
 		for (const auto& [rCoord, rFrames] : mCoordFrames)
 		{
-			if (rFrames.pCurrent != nullptr)
+			if (rFrames.pCurrent != nullptr && (rFrames.iConfirmedTick >= 0 || rCoord == mHumanGridCoord))
 			{
 				mActiveCoords.push_back(rCoord);
 			}
 		}
 
+		if (!mCoordFrames.contains(mHumanGridCoord))
+		{
+			CreateFrameAtCoord(mHumanGridCoord);
+			mActiveCoords.push_back(mHumanGridCoord);
+		}
+
 		if constexpr (kbEnableQuadrantNeighborSubscriptions)
 		{
-			if (mCoordFrames.contains(mHumanGridCoord))
+			// Update quadrant direction from player position when available
+			const Frame& rFrame = RenderFrame(mHumanGridCoord);
+			auto it = rFrame.interpolate.pPlayers->idToIndexMap.find(mHumanPlayerId);
+			if (it != rFrame.interpolate.pPlayers->idToIndexMap.end())
 			{
-				const Frame& rFrame = RenderFrame(mHumanGridCoord);
-				auto it = rFrame.interpolate.pPlayers->idToIndexMap.find(mHumanPlayerId);
-				if (it != rFrame.interpolate.pPlayers->idToIndexMap.end())
+				XMVECTOR vecPos = rFrame.interpolate.pPlayers->pVecPositions[it->second];
+				XMVECTOR vecArea = rFrame.postRender.vecArea;
+				float fCenterX = (XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f;
+				float fCenterY = (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f;
+
+				constexpr float kfHysteresis = 2.0f;
+				float fDeltaX = XMVectorGetX(vecPos) - fCenterX;
+				float fDeltaY = XMVectorGetY(vecPos) - fCenterY;
+
+				if (fDeltaX * static_cast<float>(miQuadrantDirX) < -kfHysteresis)
 				{
-					XMVECTOR vecPos = rFrame.interpolate.pPlayers->pVecPositions[it->second];
-					XMVECTOR vecArea = rFrame.postRender.vecArea;
-					float fCenterX = (XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f;
-					float fCenterY = (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f;
+					miQuadrantDirX = -miQuadrantDirX;
+				}
+				if (fDeltaY * static_cast<float>(miQuadrantDirY) < -kfHysteresis)
+				{
+					miQuadrantDirY = -miQuadrantDirY;
+				}
+			}
 
-					constexpr float kfHysteresis = 2.0f;
-					float fDeltaX = XMVectorGetX(vecPos) - fCenterX;
-					float fDeltaY = XMVectorGetY(vecPos) - fCenterY;
+			// Always add neighbors using stored quadrant direction
+			engine::GridCoord quadrantOffsets[3];
+			quadrantOffsets[0] = {.x = miQuadrantDirX, .y = 0};
+			quadrantOffsets[1] = {.x = 0, .y = miQuadrantDirY};
+			quadrantOffsets[2] = {.x = miQuadrantDirX, .y = miQuadrantDirY};
 
-					if (fDeltaX * static_cast<float>(miQuadrantDirX) < -kfHysteresis)
-					{
-						miQuadrantDirX = -miQuadrantDirX;
-					}
-					if (fDeltaY * static_cast<float>(miQuadrantDirY) < -kfHysteresis)
-					{
-						miQuadrantDirY = -miQuadrantDirY;
-					}
-
-					engine::GridCoord quadrantOffsets[3];
-					quadrantOffsets[0] = {.x = miQuadrantDirX, .y = 0};
-					quadrantOffsets[1] = {.x = 0, .y = miQuadrantDirY};
-					quadrantOffsets[2] = {.x = miQuadrantDirX, .y = miQuadrantDirY};
-
-					for (const engine::GridCoord& rOffset : quadrantOffsets)
-					{
-						engine::GridCoord neighbor {.x = mHumanGridCoord.x + rOffset.x, .y = mHumanGridCoord.y + rOffset.y};
-						if (!mCoordFrames.contains(neighbor))
-						{
-							CreateFrameAtCoord(neighbor);
-						}
-						if (!std::ranges::contains(mActiveCoords, neighbor))
-						{
-							mActiveCoords.push_back(neighbor);
-						}
-					}
+			for (const engine::GridCoord& rOffset : quadrantOffsets)
+			{
+				engine::GridCoord neighbor {.x = mHumanGridCoord.x + rOffset.x, .y = mHumanGridCoord.y + rOffset.y};
+				if (!mCoordFrames.contains(neighbor))
+				{
+					CreateFrameAtCoord(neighbor);
+				}
+				if (!std::ranges::contains(mActiveCoords, neighbor))
+				{
+					mActiveCoords.push_back(neighbor);
 				}
 			}
 		}
@@ -154,6 +159,8 @@ void Game::ComputeActiveSet()
 	{
 		return !std::ranges::contains(mActiveCoords, rPair.first) && rPair.second.iConfirmedTick < 0;
 	});
+
+	ASSERT(std::ranges::count_if(mCoordFrames, [](const auto& rPair) { return rPair.second.iConfirmedTick < 0; }) <= 4);
 
 	// Update island rendering to match active frames
 	engine::gpIslands->UpdateActiveIslands(mCoordFrames, mActiveCoords);
@@ -229,6 +236,7 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	pFrame->interpolate.fCurrentTime = mfCurrentTime;
 	pFrame->interpolate.gameFlags.Set(GameFlags::kGame);
 	pFrame->postRender.uiFrameId = GenerateFrameId();
+	pFrame->postRender.randomEngine.TimeSeed();
 	pFrame->postRender.playerAlignment = mPlayerAlignment;
 	pFrame->postRender.enemyAlignment = mEnemyAlignment;
 	pFrame->postRender.alignments = mAlignments;
@@ -387,7 +395,7 @@ void Game::Reset()
 	game::gpCamera->ResetSunAngle();
 	game::gpCamera->mVecLastKnownPlayerPosition = {};
 	game::gpCamera->mVecLastKnownPlayerVelocity = {};
-	game::gpCamera->miLastKnownPlayerTick = 0;
+	game::gpCamera->mfLastKnownPlayerTime = 0.0f;
 	engine::gSunAngleOverride.Reset(game::gpCamera->SunAngle(true));
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
@@ -416,6 +424,7 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	pFrame = std::make_unique<Frame>();
 	pFrame->interpolate.gameFlags.Set(gameFlags.meFlags);
 	pFrame->postRender.uiFrameId = GenerateFrameId();
+	pFrame->postRender.randomEngine.TimeSeed();
 	pFrame->postRender.playerAlignment = mPlayerAlignment;
 	pFrame->postRender.enemyAlignment = mEnemyAlignment;
 	pFrame->postRender.alignments = mAlignments;

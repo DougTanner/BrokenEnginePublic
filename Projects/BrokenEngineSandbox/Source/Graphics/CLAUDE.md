@@ -14,7 +14,7 @@ Extends `engine::CameraBase` with game-specific behavior: smooth player tracking
 
 **Game/Frame Boundary**: Camera shake intensity is set by Game (which detects armor damage on the human player), not by Frame code. During gameplay, the camera resolves the human player's position through `gpGame->HumanPlayerIndex()`.
 
-**Velocity Extrapolation**: When the human player is not found in the current frame (e.g., during cross-cell grid transfers), the camera extrapolates from the last known position using a derived velocity.
+**Velocity Extrapolation**: When the human player is not found in the current frame (e.g., during cross-cell grid transfers), the camera extrapolates from the last known position using a derived velocity. Both velocity derivation and elapsed-time calculation use `mfTime` (monotonically increasing real time) rather than tick indices, so extrapolation remains smooth under high latency.
 
 **Async Rendering**: Two `Update` overloads support both standard Frame-based updates and direct `FrameInterpolate` updates for the async rendering pipeline.
 

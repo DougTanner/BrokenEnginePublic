@@ -71,6 +71,7 @@ public:
 	void SendDebugFrameRequest(int64_t iTick, GridCoord coord);
 	bool SendSubscribe(GridCoord coord);
 	void SendUnsubscribe(int64_t iSlot);
+	void SendUnsubscribeOnly(int64_t iSlot);
 	void SendResyncRequest();
 	void Flush();
 	void Disconnect();

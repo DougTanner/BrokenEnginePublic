@@ -5,6 +5,7 @@ inline constexpr bool kbEnableFrameDispatch = true;
 inline constexpr bool kbEnableQuadrantNeighborSubscriptions = true;
 inline constexpr bool kbEnableRenderThread = true;
 inline constexpr bool kbEnableReconcileThread = true;
+inline constexpr bool kbEnableReconcileDispatch = true;
 
 inline constexpr bool kbAlsoLogToPrintf = false;
 inline constexpr bool kbEnableFramebufferClearColor = false;
@@ -69,4 +70,4 @@ inline constexpr bool kbShowProfileTextByDefault = false;
 #include "Frame/Frame.h"
 #include "Engine.h"
 
-inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kDisabled;
+inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kChina;

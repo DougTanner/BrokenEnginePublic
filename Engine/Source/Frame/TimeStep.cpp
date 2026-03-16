@@ -34,35 +34,24 @@ int64_t TimeStep::TickRealtime()
 	}
 
 	// Accumulate time with scaling
+	mTickRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
+
+	// Death spiral prevention: detect excessive updates and auto-reduce time scale
 	if constexpr (kbEnableDebugInput)
 	{
-		mTickRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
-
-		// Death spiral prevention: detect excessive updates and auto-reduce time scale
 		int64_t iEstimatedTicks = mTickRemainderNs / game::kTickNs;
 		if (iEstimatedTicks > kiMaxTicksPerFrame && miTimeMultiply > 1) [[unlikely]]
 		{
 			Log("Death spiral detected: {} ticks at {}x speed", iEstimatedTicks, miTimeMultiply);
 			DecreaseTimeScale(false);
-
-			// Clamp accumulator to prevent backlog cascade
-			std::chrono::nanoseconds maxAccumulator = game::kTickNs * kiMaxAccumulatorTicks;
-			if (mTickRemainderNs > maxAccumulator)
-			{
-				mTickRemainderNs = maxAccumulator;
-			}
 		}
 	}
-	else
-	{
-		mTickRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
 
-		// Death spiral prevention: clamp accumulator to prevent backlog cascade
-		std::chrono::nanoseconds maxAccumulator = game::kTickNs * kiMaxAccumulatorTicks;
-		if (mTickRemainderNs > maxAccumulator)
-		{
-			mTickRemainderNs = maxAccumulator;
-		}
+	// Clamp accumulator to prevent backlog cascade (e.g., after background/focus loss)
+	std::chrono::nanoseconds maxAccumulator = game::kTickNs * kiMaxAccumulatorTicks;
+	if (mTickRemainderNs > maxAccumulator)
+	{
+		mTickRemainderNs = maxAccumulator;
 	}
 
 	// Calculate number of ticks needed

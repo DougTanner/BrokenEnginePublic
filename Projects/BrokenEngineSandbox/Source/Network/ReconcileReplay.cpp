@@ -113,7 +113,7 @@ static CrcValidateResult CrcValidateLoop(CoordReconcileWork& rWork, int64_t iTar
 	return result;
 }
 
-static void CrcApplyMatchResult(CoordReconcileWork& rWork, int64_t iLastMatched, int64_t iLastMatchedIndex, ReconcileContext::Profiling& rProfiling)
+static void CrcApplyMatchResult(CoordReconcileWork& rWork, int64_t iLastMatched, int64_t iLastMatchedIndex, ReconcileProfiling& rProfiling)
 {
 	rWork.bCrcFastPath = true;
 	rWork.iNewConfirmedTick = iLastMatched;
@@ -128,7 +128,7 @@ struct CrcFastPathCoordResult
 	bool bHandled = true;
 };
 
-static CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork, int64_t iTargetTick, ReconcileContext::Profiling& rProfiling)
+static CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork, int64_t iTargetTick, ReconcileProfiling& rProfiling)
 {
 	CrcFastPathCoordResult result;
 
@@ -319,9 +319,6 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 			LogStatusChangeList("Client StatusChanges", rFrameInput.statusChanges);
 		}
 
-		// DT TEMP
-		Log(kLogNetwork, "ReconcileValidateCrcCoord HumanCoord: ({},{}) IsNeighbor: {}", rReconcileContext.confirmedHumanState.humanGridCoord.x, rReconcileContext.confirmedHumanState.humanGridCoord.y, rWork.coord != rReconcileContext.confirmedHumanState.humanGridCoord);
-
 		if (rWork.coord != rReconcileContext.confirmedHumanState.humanGridCoord)
 		{
 			Log(kLogNetwork, "ReconcileValidateCrcCoord Neighbor CRC mismatch (non-fatal) Coord: ({},{}) Frame: {}", rWork.coord.x, rWork.coord.y, iTick);
@@ -330,11 +327,10 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 			return true;
 		}
 
-		rReconcileContext.iDesyncTick = iTick;
-		rReconcileContext.desyncCoord = rWork.coord;
-		rReconcileContext.desyncServerCrc = rUpdate.serverCrc;
-		rReconcileContext.desyncClientCrc = clientCrc;
-		rReconcileContext.pDesyncClientFrame = CloneFrameViaSerialization(rCurrentFrame);
+		rWork.iDesyncTick = iTick;
+		rWork.desyncServerCrc = rUpdate.serverCrc;
+		rWork.desyncClientCrc = clientCrc;
+		rWork.pDesyncClientFrame = CloneFrameViaSerialization(rCurrentFrame);
 		return false;
 	}
 
@@ -360,11 +356,10 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 			return true;
 		}
 
-		rReconcileContext.iDesyncTick = iTick;
-		rReconcileContext.desyncCoord = rWork.coord;
-		rReconcileContext.desyncServerCrc = rUpdate.inputCrc;
-		rReconcileContext.desyncClientCrc = clientInputCrc;
-		rReconcileContext.pDesyncClientFrame = CloneFrameViaSerialization(rCurrentFrame);
+		rWork.iDesyncTick = iTick;
+		rWork.desyncServerCrc = rUpdate.inputCrc;
+		rWork.desyncClientCrc = clientInputCrc;
+		rWork.pDesyncClientFrame = CloneFrameViaSerialization(rCurrentFrame);
 		return false;
 	}
 
@@ -425,11 +420,11 @@ static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordRecon
 
 		if (bHadStatusChanges)
 		{
-			++rReconcileContext.profiling.iStatusChangeReplayTicks;
+			++rWork.profiling.iStatusChangeReplayTicks;
 		}
 		else
 		{
-			++rReconcileContext.profiling.iKnockOnReplayTicks;
+			++rWork.profiling.iKnockOnReplayTicks;
 		}
 
 		++iReplayCount;
@@ -449,7 +444,7 @@ static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordRecon
 	}
 }
 
-static void ReconcileCatchUpCoord(CoordReconcileWork& rWork, int64_t iTargetTick, float& rfTime, ReconcileContext::Profiling& rProfiling)
+static void ReconcileCatchUpCoord(CoordReconcileWork& rWork, int64_t iTargetTick, float& rfTime, ReconcileProfiling& rProfiling)
 {
 	int64_t iStartWriteCount = rWork.iReplayWriteCount;
 	int64_t iCurrentTick = rWork.replayStack[rWork.iReplayStackCount - 1]->interpolate.iTick;
@@ -467,6 +462,8 @@ static void ReconcileCatchUpCoord(CoordReconcileWork& rWork, int64_t iTargetTick
 		++rProfiling.iAssumedFrameTicks;
 	}
 
+	ASSERT(iCurrentTick <= iTargetTick);
+
 	// Clear recalculated flag on catch-up frames (replay frames keep it for rendering)
 	for (int64_t i = iStartWriteCount; i < rWork.iReplayWriteCount; ++i)
 	{
@@ -478,10 +475,10 @@ static void ReconcileCatchUpCoord(CoordReconcileWork& rWork, int64_t iTargetTick
 void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork)
 {
 	// Try CRC fast path first
-	CrcFastPathCoordResult fastPathResult = CrcFastPathProcessCoord(rWork, rReconcileContext.iTargetTick, rReconcileContext.profiling);
+	CrcFastPathCoordResult fastPathResult = CrcFastPathProcessCoord(rWork, rReconcileContext.iTargetTick, rWork.profiling);
 	if (fastPathResult.bHandled)
 	{
-		++rReconcileContext.profiling.iCrcFastPathEvents;
+		++rWork.profiling.iCrcFastPathEvents;
 		return;
 	}
 
@@ -491,10 +488,7 @@ void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWo
 	rWork.iNewConfirmedOffset = -1;
 	rWork.iOutputCount = 0;
 
-	if (rWork.coord == rReconcileContext.confirmedHumanState.humanGridCoord)
-	{
-		rReconcileContext.bAnyFullReplay = true;
-	}
+	rWork.bFullReplay = true;
 
 	Log(kLogNetwork, "ReconcileCoord Full replay Coord: ({},{}) Confirmed: {} Target: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, rReconcileContext.iTargetTick);
 
@@ -514,12 +508,12 @@ void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWo
 	Log(kLogNetwork, "ReconcileCoord ReplayRange Coord: ({},{}) MaxConsecutive: {} Size: {}", rWork.coord.x, rWork.coord.y, iMaxConsecutive, iMaxConsecutive - rWork.iConfirmedTick);
 
 	ReconcileReplayCoord(rReconcileContext, rWork, iMaxConsecutive, fTime);
-	if (rReconcileContext.iDesyncTick >= 0)
+	if (rWork.iDesyncTick >= 0)
 	{
 		return;
 	}
 
-	ReconcileCatchUpCoord(rWork, rReconcileContext.iTargetTick, fTime, rReconcileContext.profiling);
+	ReconcileCatchUpCoord(rWork, rReconcileContext.iTargetTick, fTime, rWork.profiling);
 
 	// Compute output layout: confirmed frame + remaining replay/catch-up frames
 	if (rWork.iLastValidatedIndex > 0)
@@ -531,12 +525,13 @@ void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWo
 		rWork.iOutputCount = rWork.iReplayWriteCount + 1;
 	}
 
-	// Set context counters from this coord's final state
-	rReconcileContext.iTickCounter = rReconcileContext.iTargetTick;
-	if (rWork.coord == rReconcileContext.confirmedHumanState.humanGridCoord)
-	{
-		rReconcileContext.fCurrentTime = fTime;
-	}
+	rWork.iOutputCount = std::min(rWork.iOutputCount, static_cast<int64_t>(engine::kiNetworkBufferSize));
+	ASSERT(rWork.iOutputCount >= 0 && rWork.iOutputCount <= engine::kiNetworkBufferSize);
+
+	// Set per-coord counters from this coord's final state
+	rWork.iTickCounter = rReconcileContext.iTargetTick;
+	ASSERT(rWork.replayStack[rWork.iReplayStackCount - 1]->interpolate.iTick <= rReconcileContext.iTargetTick);
+	rWork.fCurrentTime = fTime;
 }
 
 void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)

@@ -150,18 +150,18 @@ AudioManager::~AudioManager()
 
 	// Move streams to local storage while holding lock, destroy after releasing
 	// This prevents deadlock with XAudio2 callbacks that also acquire the mutex
-	std::unique_ptr<StreamingVoice> currentStream;
+	std::unique_ptr<StreamingVoice> pCurrentStream;
 	std::vector<std::unique_ptr<StreamingVoice>> previousStreams;
 
 	{
 		std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
 
-		currentStream = std::move(mpCurrentMusicStream);
+		pCurrentStream = std::move(mpCurrentMusicStream);
 		previousStreams = std::move(mPreviousStreams);
 	}
 
 	// Destruction happens here, after mutex is released
-	currentStream.reset();
+	pCurrentStream.reset();
 	previousStreams.clear();
 
 	if (mpAudioEngine != nullptr)
@@ -568,6 +568,8 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot([[maybe_unused]] const game::Fram
 		return nullptr;
 	}
 
+	std::lock_guard<std::recursive_mutex> lock(mOneShotRecursiveMutex);
+
 	// Heap: AllocateVoice creates an XAudio2 source voice that persists until playback ends.
 	// XAudio2 owns the allocation internally, so workbuffer and pre-allocation are not possible.
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
@@ -605,6 +607,8 @@ void XM_CALLCONV AudioManager::PlayOneShot3d([[maybe_unused]] const game::Frame&
 	{
 		return;
 	}
+
+	std::lock_guard<std::recursive_mutex> lock(mOneShotRecursiveMutex);
 
 	if (fPitchRange > 0.0f)
 	{

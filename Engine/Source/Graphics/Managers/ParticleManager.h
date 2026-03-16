@@ -16,6 +16,8 @@ public:
 
 	int32_t GetOrAssignTextureIndex(common::crc_t textureCrc);
 
+	std::mutex mSpawnMutex;
+
 	bool mbReset = true;
 
 	shaders::ParticlesSpawnLayout mLongParticlesSpawnLayout {};

@@ -1,5 +1,7 @@
 #include "MemoryManager.h"
 
+#include "CrashReport.h"
+
 std::atomic<int64_t> giAllocationsThisFrame = 0;
 thread_local int64_t giAllocationTrackingSuppressed = 0;
 
@@ -101,6 +103,9 @@ struct MemoryInitializer
 #if defined(DEBUG) || defined(_DEBUG)
 		// Route mimalloc output to VS Output window
 		mi_register_output([](const char* msg, [[maybe_unused]] void* arg) { OutputDebugStringA(msg); }, nullptr);
+
+		// Write crash report on any abort() call (catches mimalloc assertions and other CRT aborts)
+		signal(SIGABRT, [](int) { engine::HandleException(); });
 #endif
 #endif
 	}
