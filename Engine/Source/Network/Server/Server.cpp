@@ -200,8 +200,13 @@ void Server::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, G
 	miLatestBufferedTick = iTick;
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
+	std::unordered_set<GridCoord> activeCoords;
+	activeCoords.reserve(rGridUpdates.size());
+
 	for (const auto& [coord, updateData] : rGridUpdates)
 	{
+		activeCoords.insert(coord);
+
 		// Heap: per-coord ring buffer grows until steady state
 		PerCoordBufferedFrame buffered {};
 		buffered.iTick = iTick;
@@ -223,16 +228,9 @@ void Server::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, G
 	}
 
 	// Prune ring buffers for coords no longer in the active set
-	std::erase_if(mPerCoordBufferedFrames, [&rGridUpdates](const auto& rEntry)
+	std::erase_if(mPerCoordBufferedFrames, [&activeCoords](const std::pair<const GridCoord, std::deque<PerCoordBufferedFrame>>& rEntry)
 	{
-		for (const auto& [coord, updateData] : rGridUpdates)
-		{
-			if (coord == rEntry.first)
-			{
-				return false;
-			}
-		}
-		return true;
+		return !activeCoords.contains(rEntry.first);
 	});
 }
 
