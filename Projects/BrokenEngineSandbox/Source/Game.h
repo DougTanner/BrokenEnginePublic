@@ -26,7 +26,7 @@ inline constexpr std::string_view kGameName = "Broken Engine Sandbox";
 #else
 inline constexpr std::string_view kGameName = "Broken Engine Sandbox Server";
 #endif
-inline constexpr int64_t kiDesiredCoordSlots = 5; // 4 subscriptions + 1 spare for grid transitions
+inline constexpr int64_t kiDesiredCoordSlots = 8; // 4 subscriptions + 3 sticky + 1 spare for grid transitions
 
 enum class UiState
 {
@@ -111,8 +111,8 @@ public:
 	bool mbShowImGui = false;
 
 	engine::GridCoord mHumanGridCoord {};
-	int32_t miQuadrantDirX = 1;
-	int32_t miQuadrantDirY = 1;
+	int32_t miQuadrantDirX = 0;
+	int32_t miQuadrantDirY = 0;
 	std::vector<engine::GridCoord> mActiveCoords;
 	std::unordered_map<engine::GridCoord, FrameInput> mFrameInputs;
 
@@ -145,7 +145,7 @@ private:
 public:
 	engine::alignment_t PlayerAlignment() const { return mPlayerAlignment; }
 	void SetHumanPlayerId(player_t id) { mHumanPlayerId = id; }
-	void SetPreviousHumanArmor(float f) { mfPreviousHumanArmor = f; }
+	void SetPreviousHumanArmor(float fArmor) { mfPreviousHumanArmor = fArmor; }
 	const engine::Alignments& Alignments() const { return mAlignments; }
 
 #if defined(BT_CLIENT)
@@ -161,6 +161,6 @@ private:
 
 inline Game* gpGame = nullptr;
 
-void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& data, engine::alignment_t playerAlignment);
+void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rData, engine::alignment_t playerAlignment);
 
 } // namespace game

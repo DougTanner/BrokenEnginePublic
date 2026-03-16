@@ -51,7 +51,7 @@ private:
 	void PollDebugFrameResponse();
 
 	// Subscription helpers
-	void UpdateDesiredCoords(const char* pcReason);
+	void UpdateDesiredCoords(std::string_view pcReason);
 
 	void ApplyReceivedFullStates();
 	void ApplyReceivedUpdates();
@@ -79,6 +79,8 @@ private:
 
 	// Subscription tracking
 	std::vector<engine::GridCoord> mDesiredCoords;
+	std::unordered_map<engine::GridCoord, std::chrono::steady_clock::time_point> mUnwantedTimestamps;
+	static constexpr std::chrono::seconds kStickySubscriptionDuration {2};
 
 	// Reconciliation
 	std::unique_ptr<ClientReconciler> mpReconciler;

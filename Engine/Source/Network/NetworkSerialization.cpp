@@ -292,7 +292,9 @@ int64_t CompressStatusChangeBatch(const game::StatusChange* pChanges, int64_t iC
 	}
 
 	// Serialize into workbuffer, then LZ4 compress into pDest
+	// Largest type is kTransferPlayer: 3 Vec4(16) + uint32(4) + 9 float(4) + uint8(1) = 89 bytes
 	constexpr int64_t kiMaxBytesPerItem = 96;
+	static_assert(kiMaxBytesPerItem >= 89, "kiMaxBytesPerItem must cover the largest StatusChange serialization (currently kTransferPlayer at 89 bytes)");
 	constexpr int64_t kiMaxGroupHeaders = 7 * 3;
 	int64_t iMaxSerializedSize = kiMaxGroupHeaders + iCount * kiMaxBytesPerItem;
 

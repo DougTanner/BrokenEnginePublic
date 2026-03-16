@@ -64,8 +64,8 @@ struct CoordReconcileWork
 
 	// Desync (if any)
 	int64_t iDesyncTick = -1;
-	common::crc_t desyncServerCrc = 0;
-	common::crc_t desyncClientCrc = 0;
+	common::crc_t desyncExpectedCrc = 0;
+	common::crc_t desyncActualCrc = 0;
 	std::unique_ptr<Frame> pDesyncClientFrame;
 };
 
@@ -96,8 +96,8 @@ struct ReconcileContext
 	// Deferred desync info (from any coord)
 	int64_t iDesyncTick = -1;
 	engine::GridCoord desyncCoord {};
-	common::crc_t desyncServerCrc = 0;
-	common::crc_t desyncClientCrc = 0;
+	common::crc_t desyncExpectedCrc = 0;
+	common::crc_t desyncActualCrc = 0;
 	std::unique_ptr<Frame> pDesyncClientFrame;
 };
 
@@ -106,8 +106,8 @@ struct ReconcileDesyncInfo
 	bool bDesync = false;
 	int64_t iDesyncTick = -1;
 	engine::GridCoord desyncCoord {};
-	common::crc_t desyncServerCrc = 0;
-	common::crc_t desyncClientCrc = 0;
+	common::crc_t desyncExpectedCrc = 0;
+	common::crc_t desyncActualCrc = 0;
 	std::unique_ptr<Frame> pDesyncClientFrame;
 };
 

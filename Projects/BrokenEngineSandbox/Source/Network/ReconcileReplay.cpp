@@ -328,8 +328,8 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 		}
 
 		rWork.iDesyncTick = iTick;
-		rWork.desyncServerCrc = rUpdate.serverCrc;
-		rWork.desyncClientCrc = clientCrc;
+		rWork.desyncExpectedCrc = rUpdate.serverCrc;
+		rWork.desyncActualCrc = clientCrc;
 		rWork.pDesyncClientFrame = CloneFrameViaSerialization(rCurrentFrame);
 		return false;
 	}
@@ -357,8 +357,8 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 		}
 
 		rWork.iDesyncTick = iTick;
-		rWork.desyncServerCrc = rUpdate.inputCrc;
-		rWork.desyncClientCrc = clientInputCrc;
+		rWork.desyncExpectedCrc = rUpdate.inputCrc;
+		rWork.desyncActualCrc = clientInputCrc;
 		rWork.pDesyncClientFrame = CloneFrameViaSerialization(rCurrentFrame);
 		return false;
 	}
@@ -503,7 +503,7 @@ void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWo
 		Log(kLogNetwork, "ReconcileCoord Injected pending full state Coord: ({},{}) AtTick: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick);
 	}
 
-	int64_t iMaxConsecutive = ReconcileFindReplayRangeCoord(rWork);
+	int64_t iMaxConsecutive = std::min(ReconcileFindReplayRangeCoord(rWork), rReconcileContext.iTargetTick);
 
 	Log(kLogNetwork, "ReconcileCoord ReplayRange Coord: ({},{}) MaxConsecutive: {} Size: {}", rWork.coord.x, rWork.coord.y, iMaxConsecutive, iMaxConsecutive - rWork.iConfirmedTick);
 

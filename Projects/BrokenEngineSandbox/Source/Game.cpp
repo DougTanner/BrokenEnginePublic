@@ -104,7 +104,6 @@ void Game::ComputeActiveSet()
 
 		if constexpr (kbEnableQuadrantNeighborSubscriptions)
 		{
-			// Update quadrant direction from player position when available
 			const Frame& rFrame = RenderFrame(mHumanGridCoord);
 			auto it = rFrame.interpolate.pPlayers->idToIndexMap.find(mHumanPlayerId);
 			if (it != rFrame.interpolate.pPlayers->idToIndexMap.end())
@@ -113,30 +112,40 @@ void Game::ComputeActiveSet()
 				XMVECTOR vecArea = rFrame.postRender.vecArea;
 				float fCenterX = (XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f;
 				float fCenterY = (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f;
+				float fHalfWidth = (XMVectorGetZ(vecArea) - XMVectorGetX(vecArea)) * 0.5f;
+				float fHalfHeight = (XMVectorGetY(vecArea) - XMVectorGetW(vecArea)) * 0.5f;
 
 				constexpr float kfHysteresis = 2.0f;
+				float fZoneX = fHalfWidth / 3.0f;
+				float fZoneY = fHalfHeight / 3.0f;
 				float fDeltaX = XMVectorGetX(vecPos) - fCenterX;
 				float fDeltaY = XMVectorGetY(vecPos) - fCenterY;
 
-				if (fDeltaX * static_cast<float>(miQuadrantDirX) < -kfHysteresis)
+				// X axis: 3-state transition (edge → center → edge)
+				if (miQuadrantDirX == 0)
 				{
-					miQuadrantDirX = -miQuadrantDirX;
+					if (fDeltaX > fZoneX + kfHysteresis) miQuadrantDirX = 1;
+					else if (fDeltaX < -(fZoneX + kfHysteresis)) miQuadrantDirX = -1;
 				}
-				if (fDeltaY * static_cast<float>(miQuadrantDirY) < -kfHysteresis)
+				else if (fDeltaX * static_cast<float>(miQuadrantDirX) < fZoneX - kfHysteresis)
 				{
-					miQuadrantDirY = -miQuadrantDirY;
+					miQuadrantDirX = 0;
+				}
+
+				// Y axis: 3-state transition (edge → center → edge)
+				if (miQuadrantDirY == 0)
+				{
+					if (fDeltaY > fZoneY + kfHysteresis) miQuadrantDirY = 1;
+					else if (fDeltaY < -(fZoneY + kfHysteresis)) miQuadrantDirY = -1;
+				}
+				else if (fDeltaY * static_cast<float>(miQuadrantDirY) < fZoneY - kfHysteresis)
+				{
+					miQuadrantDirY = 0;
 				}
 			}
 
-			// Always add neighbors using stored quadrant direction
-			engine::GridCoord quadrantOffsets[3];
-			quadrantOffsets[0] = {.x = miQuadrantDirX, .y = 0};
-			quadrantOffsets[1] = {.x = 0, .y = miQuadrantDirY};
-			quadrantOffsets[2] = {.x = miQuadrantDirX, .y = miQuadrantDirY};
-
-			for (const engine::GridCoord& rOffset : quadrantOffsets)
+			auto ensureNeighbor = [&](engine::GridCoord neighbor)
 			{
-				engine::GridCoord neighbor {.x = mHumanGridCoord.x + rOffset.x, .y = mHumanGridCoord.y + rOffset.y};
 				if (!mCoordFrames.contains(neighbor))
 				{
 					CreateFrameAtCoord(neighbor);
@@ -145,7 +154,14 @@ void Game::ComputeActiveSet()
 				{
 					mActiveCoords.push_back(neighbor);
 				}
-			}
+			};
+
+			if (miQuadrantDirX != 0)
+				ensureNeighbor({.x = mHumanGridCoord.x + miQuadrantDirX, .y = mHumanGridCoord.y});
+			if (miQuadrantDirY != 0)
+				ensureNeighbor({.x = mHumanGridCoord.x, .y = mHumanGridCoord.y + miQuadrantDirY});
+			if (miQuadrantDirX != 0 && miQuadrantDirY != 0)
+				ensureNeighbor({.x = mHumanGridCoord.x + miQuadrantDirX, .y = mHumanGridCoord.y + miQuadrantDirY});
 		}
 	}
 	else
@@ -208,10 +224,10 @@ void Game::BuildFrameInputs()
 		const PlayersInterpolate& rPlayers = *rCurrentFrame.interpolate.pPlayers;
 		const PlayersPostRender& rPlayersPostRender = *rCurrentFrame.postRender.pPlayers;
 
-		auto idIt = rPlayers.idToIndexMap.find(mHumanPlayerId);
-		if (idIt != rPlayers.idToIndexMap.end())
+		auto it = rPlayers.idToIndexMap.find(mHumanPlayerId);
+		if (it != rPlayers.idToIndexMap.end())
 		{
-			int64_t iHumanIndex = idIt->second;
+			int64_t iHumanIndex = it->second;
 
 			// Camera shake: detect armor damage on human player
 			float fCurrentArmor = rPlayersPostRender.pfArmors[iHumanIndex];
@@ -250,37 +266,37 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	pFrame->postRender.eIslandsFlip = static_cast<engine::IslandsFlip>((bFlipX ? engine::kFlipX : 0) | (bFlipY ? engine::kFlipY : 0));
 }
 
-void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& data, engine::alignment_t playerAlignment)
+void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rData, engine::alignment_t playerAlignment)
 {
 	switch (eType)
 	{
 		case StatusChangeType::kTransferSpaceship:
 			SpaceshipsPostRender::Spawn(rFrame, {
-				.vecPosition = data.vecPosition,
-				.vecDirection = data.vecDirection,
-				.vecVelocity = data.vecVelocity,
-				.alignment = data.alignment,
-				.fHealth = data.fHealth,
-				.fNextBlasterSpawnTime = data.fNextBlasterSpawnTime,
+				.vecPosition = rData.vecPosition,
+				.vecDirection = rData.vecDirection,
+				.vecVelocity = rData.vecVelocity,
+				.alignment = rData.alignment,
+				.fHealth = rData.fHealth,
+				.fNextBlasterSpawnTime = rData.fNextBlasterSpawnTime,
 			});
 			break;
 
 		case StatusChangeType::kTransferBlaster:
 			BlastersPostRender::Spawn(rFrame, {
-				.vecPosition = data.vecPosition,
-				.vecVelocity = data.vecVelocity,
-				.uiTypeIndex = data.uiTypeIndex,
-				.alignment = data.alignment,
-				.fWindTrailIntensity = data.fWindTrailIntensity,
-				.fWindTrailWidth = data.fWindTrailWidth,
-				.fWindTrailLengthMultiplier = data.fWindTrailLengthMultiplier,
+				.vecPosition = rData.vecPosition,
+				.vecVelocity = rData.vecVelocity,
+				.uiTypeIndex = rData.uiTypeIndex,
+				.alignment = rData.alignment,
+				.fWindTrailIntensity = rData.fWindTrailIntensity,
+				.fWindTrailWidth = rData.fWindTrailWidth,
+				.fWindTrailLengthMultiplier = rData.fWindTrailLengthMultiplier,
 			});
 			break;
 
 		case StatusChangeType::kTransferMissile:
 		{
 			MissileFlags_t missileFlags;
-			if (data.alignment == playerAlignment)
+			if (rData.alignment == playerAlignment)
 			{
 				missileFlags.Set(MissileFlags::kTargetEnemy);
 			}
@@ -290,20 +306,20 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& da
 			}
 
 			MissilesPostRender::Spawn(rFrame, {
-				.vecPosition = data.vecPosition,
-				.vecDirection = data.vecDirection,
-				.vecVelocity = data.vecVelocity,
-				.vecStoredDirection = data.vecDirection,
+				.vecPosition = rData.vecPosition,
+				.vecDirection = rData.vecDirection,
+				.vecVelocity = rData.vecVelocity,
+				.vecStoredDirection = rData.vecDirection,
 				.uiTarget = {},
-				.fAcceleration = data.fAcceleration,
+				.fAcceleration = rData.fAcceleration,
 				.flags = missileFlags,
-				.alignment = data.alignment,
-				.fDeltaRotationDelay = data.fDeltaRotationDelay,
-				.fTime = data.fTime,
-				.fExhaustDelay = data.fExhaustDelay,
-				.fNextJitter = data.fNextJitter,
+				.alignment = rData.alignment,
+				.fDeltaRotationDelay = rData.fDeltaRotationDelay,
+				.fTime = rData.fTime,
+				.fExhaustDelay = rData.fExhaustDelay,
+				.fNextJitter = rData.fNextJitter,
 #if defined(BT_CLIENT)
-				.smokeTrailId = data.smokeTrailId,
+				.smokeTrailId = rData.smokeTrailId,
 #endif
 			});
 			break;
@@ -311,20 +327,20 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& da
 
 		case StatusChangeType::kTransferPlayer:
 			PlayersPostRender::Spawn(rFrame, {
-				.vecPosition = data.vecPosition,
-				.vecDirection = data.vecDirection,
-				.vecVelocity = data.vecVelocity,
-				.alignment = data.alignment,
-				.fArmor = data.fHealth,
-				.fShield = data.fShield,
-				.fNextBlasterFireTime = data.fNextBlasterFireTime,
-				.fNextSecondarySpawnTime = data.fNextSecondarySpawnTime,
-				.fShieldCooldown = data.fShieldCooldown,
-				.fShieldDownSoundCooldown = data.fShieldDownSoundCooldown,
-				.fAnimationTime = data.fAnimationTime,
-				.fShieldRotation = data.fShieldRotation,
-				.fShieldShrink = data.fShieldShrink,
-				.flags = PlayerFlags_t {static_cast<PlayerFlags>(data.uiPlayerFlags)},
+				.vecPosition = rData.vecPosition,
+				.vecDirection = rData.vecDirection,
+				.vecVelocity = rData.vecVelocity,
+				.alignment = rData.alignment,
+				.fArmor = rData.fHealth,
+				.fShield = rData.fShield,
+				.fNextBlasterFireTime = rData.fNextBlasterFireTime,
+				.fNextSecondarySpawnTime = rData.fNextSecondarySpawnTime,
+				.fShieldCooldown = rData.fShieldCooldown,
+				.fShieldDownSoundCooldown = rData.fShieldDownSoundCooldown,
+				.fAnimationTime = rData.fAnimationTime,
+				.fShieldRotation = rData.fShieldRotation,
+				.fShieldShrink = rData.fShieldShrink,
+				.flags = PlayerFlags_t {static_cast<PlayerFlags>(rData.uiPlayerFlags)},
 				.fTransferLockTimer = 1.0f,
 			});
 			break;
@@ -407,8 +423,8 @@ void Game::Reset()
 	mHumanPlayerId = {};
 	mfPreviousHumanArmor = 0.0f;
 	mHumanGridCoord = engine::kOriginCoord;
-	miQuadrantDirX = 1;
-	miQuadrantDirY = 1;
+	miQuadrantDirX = 0;
+	miQuadrantDirY = 0;
 	mActiveCoords.clear();
 	mActiveCoords.push_back(mHumanGridCoord);
 }

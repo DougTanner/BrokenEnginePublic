@@ -59,9 +59,7 @@ void ClientSession::PollNetwork()
 		{
 			case PlayerEventType::kAssigned:
 				// DT TEMP
-				Log(kLogNetwork, "PlayerEvent kAssigned NewPlayerId: {} NewCoord: ({},{}) OldPlayerId: {} OldCoord: ({},{})",
-					rEvent.playerId.ToUuid().Value(), rEvent.coord.x, rEvent.coord.y,
-					gpGame->HumanPlayerId().ToUuid().Value(), gpGame->mHumanGridCoord.x, gpGame->mHumanGridCoord.y);
+				Log(kLogNetwork, "PlayerEvent kAssigned NewPlayerId: {} NewCoord: ({},{}) OldPlayerId: {} OldCoord: ({},{})", rEvent.playerId.ToUuid().Value(), rEvent.coord.x, rEvent.coord.y, gpGame->HumanPlayerId().ToUuid().Value(), gpGame->mHumanGridCoord.x, gpGame->mHumanGridCoord.y);
 				if (rEvent.playerId != gpGame->HumanPlayerId())
 				{
 					gpGame->SetHumanPlayerId(rEvent.playerId);
@@ -79,15 +77,20 @@ void ClientSession::PollNetwork()
 				gpGame->mHumanGridCoord = rEvent.coord;
 				int32_t iDeltaX = rEvent.coord.x - preEventHumanCoord.x;
 				int32_t iDeltaY = rEvent.coord.y - preEventHumanCoord.y;
-				if (iDeltaX != 0) gpGame->miQuadrantDirX = -iDeltaX;
-				if (iDeltaY != 0) gpGame->miQuadrantDirY = -iDeltaY;
-				{ // DT TEMP
-					Log(kLogNetwork, "kChangedFrame NewCoord: ({},{}) QuadrantDir: ({},{})", rEvent.coord.x, rEvent.coord.y, gpGame->miQuadrantDirX, gpGame->miQuadrantDirY);
-					const auto& rSlots = mpClientNetwork->GetCoordSlots();
-					for (int64_t s = 0; s < std::ssize(rSlots); ++s)
-					{
-						Log(kLogNetwork, "  Slot {} State: {} Coord: ({},{})", s, static_cast<int>(rSlots[s].eState), rSlots[s].coord.x, rSlots[s].coord.y);
-					}
+				if (iDeltaX != 0)
+				{
+					gpGame->miQuadrantDirX = -iDeltaX;
+				}
+				if (iDeltaY != 0)
+				{
+					gpGame->miQuadrantDirY = -iDeltaY;
+				}
+				// DT TEMP
+				Log(kLogNetwork, "kChangedFrame NewCoord: ({},{}) QuadrantDir: ({},{})", rEvent.coord.x, rEvent.coord.y, gpGame->miQuadrantDirX, gpGame->miQuadrantDirY);
+				const std::vector<engine::ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
+				for (int64_t s = 0; s < std::ssize(rSlots); ++s)
+				{
+					Log(kLogNetwork, "  Slot {} State: {} Coord: ({},{})", s, static_cast<int>(rSlots[s].eState), rSlots[s].coord.x, rSlots[s].coord.y);
 				}
 				UpdateDesiredCoords("kChangedFrame");
 				break;
@@ -122,7 +125,7 @@ void ClientSession::WaitForReconcile()
 	{
 		// Heap: Network sends for desync reporting
 		ScopedSuppressAllocationTracking suppressAllocationTracking;
-		mpClientNetwork->SendDesyncReport(desyncInfo.iDesyncTick, desyncInfo.desyncCoord, desyncInfo.desyncServerCrc, desyncInfo.desyncClientCrc);
+		mpClientNetwork->SendDesyncReport(desyncInfo.iDesyncTick, desyncInfo.desyncCoord, desyncInfo.desyncExpectedCrc, desyncInfo.desyncActualCrc);
 		mpClientNetwork->SendDebugFrameRequest(desyncInfo.iDesyncTick, desyncInfo.desyncCoord);
 		mpClientNetwork->SetDesyncDebugMode(true);
 
@@ -315,6 +318,7 @@ void ClientSession::DisconnectFromServer()
 	mDesyncDebugState = {};
 	miDesyncCount = 0;
 	mDesiredCoords.clear();
+	mUnwantedTimestamps.clear();
 }
 
 bool ClientSession::PollConnectionStatus()
@@ -473,6 +477,7 @@ void ClientSession::ResetCoordStatesForResync()
 	}
 
 	mpReconciler->Reset();
+	mUnwantedTimestamps.clear();
 }
 
 void ClientSession::CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, [[maybe_unused]] int64_t iTick, [[maybe_unused]] engine::GridCoord coord)

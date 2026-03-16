@@ -222,23 +222,28 @@ void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 	if (iBitIndex >= kiNetworkBufferSize)
 	{
 		Log(kLogNetwork, "Client::TrackReceivedTick Too many missing frames, disconnecting Slot: {} Gap: {}", iSlot, iBitIndex + 1);
-		DEBUG_BREAK();
 		mbDisconnectedEvent = true;
 		return;
 	}
 
 	// Mark this frame as received and advance the floor past any contiguous run
 	if (iBitIndex < 64)
+	{
 		rAck.uiReceivedBitfieldLow |= (1ULL << iBitIndex);
+	}
 	else
+	{
 		rAck.uiReceivedBitfieldHigh |= (1ULL << (iBitIndex - 64));
+	}
 
 	while (rAck.uiReceivedBitfieldLow & 1ULL)
 	{
 		++rAck.iAckFloor;
 		rAck.uiReceivedBitfieldLow >>= 1;
 		if (rAck.uiReceivedBitfieldHigh & 1ULL)
+		{
 			rAck.uiReceivedBitfieldLow |= (1ULL << 63);
+		}
 		rAck.uiReceivedBitfieldHigh >>= 1;
 	}
 

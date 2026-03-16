@@ -161,8 +161,8 @@ static void ReconcileMergeResults(ReconcileContext& rReconcileContext)
 		{
 			rReconcileContext.iDesyncTick = rWork.iDesyncTick;
 			rReconcileContext.desyncCoord = rWork.coord;
-			rReconcileContext.desyncServerCrc = rWork.desyncServerCrc;
-			rReconcileContext.desyncClientCrc = rWork.desyncClientCrc;
+			rReconcileContext.desyncExpectedCrc = rWork.desyncExpectedCrc;
+			rReconcileContext.desyncActualCrc = rWork.desyncActualCrc;
 			rReconcileContext.pDesyncClientFrame = std::move(rWork.pDesyncClientFrame);
 		}
 
@@ -181,16 +181,26 @@ void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext, [[maybe_un
 
 	if constexpr (kbEnableReconcileDispatch)
 	{
-		// Parallel per-coord reconciliation
-		auto processRange = [&](int64_t iStart, int64_t iEnd)
+		if (mpDispatch)
 		{
-			ScopedSuppressAllocationTracking suppress;
-			for (int64_t i = iStart; i < iEnd; ++i)
+			// Parallel per-coord reconciliation
+			auto processRange = [&](int64_t iStart, int64_t iEnd)
 			{
-				ReconcileCoord(rReconcileContext, rReconcileContext.coordWork[i]);
+				ScopedSuppressAllocationTracking suppress;
+				for (int64_t i = iStart; i < iEnd; ++i)
+				{
+					ReconcileCoord(rReconcileContext, rReconcileContext.coordWork[i]);
+				}
+			};
+			mpDispatch->Dispatch(static_cast<int64_t>(rReconcileContext.coordWork.size()), processRange);
+		}
+		else
+		{
+			for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
+			{
+				ReconcileCoord(rReconcileContext, rWork);
 			}
-		};
-		mpDispatch->Dispatch(static_cast<int64_t>(rReconcileContext.coordWork.size()), processRange);
+		}
 	}
 	else
 	{
@@ -277,8 +287,8 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 		desyncInfo.bDesync = true;
 		desyncInfo.iDesyncTick = rReconcileContext.iDesyncTick;
 		desyncInfo.desyncCoord = rReconcileContext.desyncCoord;
-		desyncInfo.desyncServerCrc = rReconcileContext.desyncServerCrc;
-		desyncInfo.desyncClientCrc = rReconcileContext.desyncClientCrc;
+		desyncInfo.desyncExpectedCrc = rReconcileContext.desyncExpectedCrc;
+		desyncInfo.desyncActualCrc = rReconcileContext.desyncActualCrc;
 		desyncInfo.pDesyncClientFrame = std::move(rReconcileContext.pDesyncClientFrame);
 
 		// Restore per-coord state (moved to context at kick time)
