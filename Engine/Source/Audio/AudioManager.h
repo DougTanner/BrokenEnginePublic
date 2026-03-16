@@ -15,9 +15,9 @@ struct Frame;
 namespace engine
 {
 
-constexpr int64_t kiMaxStaticVoices = 128;
+inline constexpr int64_t kiMaxStaticVoices = 128;
 
-constexpr float VolumeToPower(float fMasterVolume, float fSoundVolume, float fLocalVolume = 1.0f)
+inline constexpr float VolumeToPower(float fMasterVolume, float fSoundVolume, float fLocalVolume = 1.0f)
 {
 	// More natural-feeling volume controls
 	float fVolume = fMasterVolume * fSoundVolume * fLocalVolume;
@@ -79,6 +79,7 @@ private:
 		.Velocity = {0.0f, 0.0f, 0.0f},
 	};
 
+	void TransitionCurrentToPrevious();
 	void UpdateMusicStreams(float fDeltaTime);
 	void ClearStreamingVoices();
 
@@ -90,6 +91,7 @@ private:
 
 	std::unique_ptr<StreamingVoice> mpCurrentMusicStream;
 	std::vector<std::unique_ptr<StreamingVoice>> mPreviousStreams;
+	std::vector<std::unique_ptr<StreamingVoice>> mStreamsToDestroy;
 	std::function<common::crc_t()> mGetNextMusicTrack;
 };
 

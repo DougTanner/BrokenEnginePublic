@@ -7,9 +7,9 @@ namespace engine
 
 struct LazyChunk;
 
-constexpr int64_t kiBufferCount = 3;
-constexpr int64_t kiBufferSize = 16 * 1024;
-constexpr float kfCrossfadeDuration = 1.0f;
+inline constexpr int64_t kiBufferCount = 3;
+inline constexpr int64_t kiBufferSize = 16 * 1024;
+inline constexpr float kfCrossfadeDuration = 1.0f;
 
 enum class StreamingVoiceFlags : uint8_t
 {
@@ -31,11 +31,11 @@ public:
 	StreamingVoice(const StreamingVoice&) = delete;
 	StreamingVoice& operator=(const StreamingVoice&) = delete;
 
-	StreamingVoice(StreamingVoice&& rToMove) noexcept;
-	StreamingVoice& operator=(StreamingVoice&& rToMove) noexcept;
+	StreamingVoice(StreamingVoice&&) = delete;
+	StreamingVoice& operator=(StreamingVoice&&) = delete;
 
 	float GetRemainingTime() const;
-	bool FillBuffer(std::vector<uint8_t>& rBuffer, int64_t& riBytesRead, bool& rbLastBuffer);
+	bool FillBuffer(uint8_t (&rBuffer)[kiBufferSize], int64_t& riBytesRead, bool& rbLastBuffer);
 	bool UpdateVolume(float fDeltaTime);
 
 	// IVoiceNotify
@@ -53,7 +53,7 @@ public:
 	int64_t miCurrentPosition = 0;
 	float mfCurrentVolume = 0.0f;
 	int64_t miActiveBuffer = 0;
-	std::vector<std::vector<uint8_t>> mBuffers;
+	uint8_t mBuffers[kiBufferCount][kiBufferSize] {};
 	IXAudio2SourceVoice* mpVoice = nullptr;
 };
 

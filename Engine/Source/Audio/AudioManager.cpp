@@ -107,7 +107,15 @@ AudioManager::AudioManager()
 		if (mpAudioEngine != nullptr)
 		{
 			IXAudio2* pIXAudio2 = mpAudioEngine->GetInterface();
-			XAUDIO2_DEBUG_CONFIGURATION debugConfiguration {XAUDIO2_LOG_ERRORS | XAUDIO2_LOG_WARNINGS, XAUDIO2_LOG_ERRORS, true, true, true, false};
+			XAUDIO2_DEBUG_CONFIGURATION debugConfiguration
+			{
+				.TraceMask = XAUDIO2_LOG_ERRORS | XAUDIO2_LOG_WARNINGS,
+				.BreakMask = XAUDIO2_LOG_ERRORS,
+				.LogThreadID = true,
+				.LogFileline = true,
+				.LogFunctionName = true,
+				.LogTiming = false,
+			};
 			pIXAudio2->SetDebugConfiguration(&debugConfiguration);
 
 			mpAudioEngine->RegisterNotify(this, false);
@@ -216,6 +224,22 @@ void AudioManager::ClearStreamingVoices()
 		}
 	}
 	mPreviousStreams.clear();
+
+	for (std::unique_ptr<StreamingVoice>& pStream : mStreamsToDestroy)
+	{
+		if (pStream != nullptr)
+		{
+			pStream->mpVoice = nullptr;
+		}
+	}
+	mStreamsToDestroy.clear();
+}
+
+void AudioManager::TransitionCurrentToPrevious()
+{
+	mpCurrentMusicStream->mFlags.Clear(StreamingVoiceFlags::kFadingIn);
+	mpCurrentMusicStream->mFlags.Set(StreamingVoiceFlags::kFadingOut);
+	mPreviousStreams.push_back(std::move(mpCurrentMusicStream));
 }
 
 void AudioManager::PlayMusic(common::crc_t audioCrc)
@@ -229,9 +253,7 @@ void AudioManager::PlayMusic(common::crc_t audioCrc)
 	// Move current stream to previous list for fade out
 	if (mpCurrentMusicStream != nullptr)
 	{
-		mpCurrentMusicStream->mFlags.Clear(StreamingVoiceFlags::kFadingIn);
-		mpCurrentMusicStream->mFlags.Set(StreamingVoiceFlags::kFadingOut);
-		mPreviousStreams.push_back(std::move(mpCurrentMusicStream));
+		TransitionCurrentToPrevious();
 	}
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
@@ -252,13 +274,11 @@ void AudioManager::PlayMusic(common::crc_t audioCrc)
 
 void AudioManager::UpdateMusicStreams(float fDeltaTime)
 {
-	// Heap: Local vector collects faded-out streams for deferred destruction outside the mutex.
-	// Must be a real vector (workbuffer can't run unique_ptr destructors), count varies per frame.
+	// Heap: Member vector collects faded-out streams for deferred destruction outside the mutex.
+	// Allocation reused across frames. Suppression covers potential growth and destructor calls.
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	// Collect streams to destroy outside the lock to prevent deadlock with XAudio2 callbacks
-	std::vector<std::unique_ptr<StreamingVoice>> streamsToDestroy;
-
 	{
 		std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
 
@@ -274,7 +294,7 @@ void AudioManager::UpdateMusicStreams(float fDeltaTime)
 			if ((*it)->UpdateVolume(fDeltaTime))
 			{
 				// Fade out complete, move to deferred destruction list
-				streamsToDestroy.push_back(std::move(*it));
+				mStreamsToDestroy.push_back(std::move(*it));
 				it = mPreviousStreams.erase(it);
 			}
 			else
@@ -286,6 +306,7 @@ void AudioManager::UpdateMusicStreams(float fDeltaTime)
 
 	// Destruction happens here, after mutex is released
 	// DestroyVoice() can now safely wait for OnBufferEnd callbacks
+	mStreamsToDestroy.clear();
 }
 
 void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch)
@@ -395,9 +416,7 @@ void AudioManager::Update(const game::Frame* pFrame)
 				common::crc_t nextTrackCrc = mGetNextMusicTrack();
 
 				// Move current stream to previous list for fade out
-				mpCurrentMusicStream->mFlags.Clear(StreamingVoiceFlags::kFadingIn);
-				mpCurrentMusicStream->mFlags.Set(StreamingVoiceFlags::kFadingOut);
-				mPreviousStreams.push_back(std::move(mpCurrentMusicStream));
+				TransitionCurrentToPrevious();
 
 				// Load next track as current
 				const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(nextTrackCrc);
@@ -423,7 +442,7 @@ void AudioManager::Update(const game::Frame* pFrame)
 		// Fade out and stop invalid static voices
 		for (int64_t i = 0; i < static_cast<int64_t>(mStaticVoices.size());)
 		{
-			StaticVoice& rVoice = mStaticVoices[i];
+			StaticVoice& rVoice = mStaticVoices.at(i);
 
 			bool bValid = rSoundsInterpolate.idToIndexMap.contains(rVoice.mId);
 			if (bValid)
@@ -455,7 +474,7 @@ void AudioManager::Update(const game::Frame* pFrame)
 			{
 				if (i < static_cast<int64_t>(mStaticVoices.size()) - 1)
 				{
-					mStaticVoices[i] = std::move(mStaticVoices.back());
+					mStaticVoices.at(i) = std::move(mStaticVoices.back());
 				}
 				mStaticVoices.pop_back();
 			}

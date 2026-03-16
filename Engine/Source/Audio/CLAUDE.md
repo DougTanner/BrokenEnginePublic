@@ -8,7 +8,7 @@
 
 - **AudioManager** - Orchestrates playback: listener positioning, music crossfading, voice lifecycle, and XAudio2 device reset handling. Owns a time-seeded `RandomEngine` for pitch randomization, keeping audio variance out of the Frame's deterministic random engine.
 - **StaticVoice** - Frame-driven 3D sound effects managed by AudioManager. Each voice is tracked by ID, synced with frame sound data (volume, pitch, position, velocity) each update, and faded out when no longer present in the frame. Also provides `LoadXAudio2SourceVoice` for fire-and-forget one-shot playback.
-- **StreamingVoice** - Music playback via triple-buffered streaming from lazy-loaded chunks. Handles continuous buffer submission through XAudio2 callbacks.
+- **StreamingVoice** - Music playback via triple-buffered streaming from lazy-loaded chunks. Buffers are fixed-size `std::array` (no heap allocation per stream). Handles continuous buffer submission through XAudio2 callbacks. Non-copyable and non-movable; always owned via `unique_ptr`.
 
 ## Architecture
 
@@ -27,4 +27,4 @@ X3DAudio integration provides distance attenuation, Doppler effect, and multi-ch
 - **XAudio2 thread** - `OnBufferEnd()` callbacks trigger next buffer submission
 - **Background thread** - Lazy loading of audio chunks via FileManager
 
-Voice cleanup uses thread-safe handoff: XAudio2 callbacks clear streaming voices (mutex-protected) and set an atomic flag; `Update()` on the main thread checks the flag and clears static voices, avoiding data races. StreamingVoice destruction moves streams to local storage while holding the mutex, then destroys after releasing, preventing XAudio2 deadlocks from `DestroyVoice()` waiting on `OnBufferEnd()` callbacks.
+Voice cleanup uses thread-safe handoff: XAudio2 callbacks clear streaming voices (mutex-protected) and set an atomic flag; `Update()` on the main thread checks the flag and clears static voices, avoiding data races. `TransitionCurrentToPrevious()` promotes the current music stream to the fading-out previous list. Streams pending destruction are moved into a persistent `mStreamsToDestroy` member (reused each frame to avoid per-frame heap allocation) while holding the mutex, then destroyed after releasing, preventing XAudio2 deadlocks from `DestroyVoice()` waiting on `OnBufferEnd()` callbacks.
