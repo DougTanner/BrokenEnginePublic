@@ -133,7 +133,7 @@ void ClientReconciler::Kick()
 		if (iDesiredWorkers > 0 && (!mpDispatch || mpDispatch->WorkerCount() < iDesiredWorkers))
 		{
 			// Heap: Dispatch pool creation (rare, only when coord count grows)
-			ScopedSuppressAllocationTracking suppress;
+			ScopedSuppressAllocationTracking suppressAllocationTracking;
 			mpDispatch = std::make_unique<common::Multithreading>(common::kThreadReconcileDispatch, iDesiredWorkers, 10 * 1'024 * 1'024);
 		}
 	}
@@ -186,7 +186,7 @@ void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext, [[maybe_un
 			// Parallel per-coord reconciliation
 			auto processRange = [&](int64_t iStart, int64_t iEnd)
 			{
-				ScopedSuppressAllocationTracking suppress;
+				ScopedSuppressAllocationTracking suppressAllocationTracking;
 				for (int64_t i = iStart; i < iEnd; ++i)
 				{
 					ReconcileCoord(rReconcileContext, rReconcileContext.coordWork[i]);
@@ -271,6 +271,12 @@ void ClientReconciler::ApplyCoordWriteback(CoordReconcileWork& rWork, engine::Co
 			rSub.serverUpdates.insert_or_assign(iTick, std::move(rUpdate));
 		}
 	}
+
+	// Preserve unconsumed pending full state for next reconcile pass (keep newer main-thread arrival if present)
+	if (rWork.pendingFullState.has_value() && (!rSub.pendingFullState.has_value() || rWork.pendingFullState->iTick >= rSub.pendingFullState->iTick))
+	{
+		rSub.pendingFullState = std::move(rWork.pendingFullState);
+	}
 }
 
 ReconcileDesyncInfo ClientReconciler::ApplyResult()
@@ -310,6 +316,12 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 				{
 					rSub.serverUpdates.insert_or_assign(iTick, std::move(rUpdate));
 				}
+			}
+
+			// Preserve unconsumed pending full state (keep newer main-thread arrival if present)
+			if (rWork.pendingFullState.has_value() && (!rSub.pendingFullState.has_value() || rWork.pendingFullState->iTick >= rSub.pendingFullState->iTick))
+			{
+				rSub.pendingFullState = std::move(rWork.pendingFullState);
 			}
 
 			// Restore snapshots via swap back

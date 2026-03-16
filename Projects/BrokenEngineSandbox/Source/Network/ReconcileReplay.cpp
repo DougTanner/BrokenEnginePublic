@@ -197,6 +197,7 @@ static std::unique_ptr<Frame> CloneFrameViaSerialization(const Frame& rFrame)
 
 void ReconcileInjectPendingFullState([[maybe_unused]] ReconcileContext& rReconcileContext, CoordReconcileWork& rWork)
 {
+	ASSERT(rWork.pendingFullState->pFrame->interpolate.iTick == rWork.pendingFullState->iTick);
 	int64_t iSlot = SnapshotIndex(rWork.iReplayWriteHead, rWork.iReplayWriteCount);
 	rWork.snapshots[iSlot] = std::move(rWork.pendingFullState->pFrame);
 	rWork.replayStack.clear();
@@ -290,8 +291,8 @@ static bool ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, floa
 
 	// Advance replay stack
 	rWork.replayStack.push_back(pNext);
-	rWork.iReplayStackCount++;
-	rWork.iReplayWriteCount++;
+	++rWork.iReplayStackCount;
+	++rWork.iReplayWriteCount;
 
 	return true;
 }
@@ -495,12 +496,17 @@ void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWo
 	ReconcileRollbackCoord(rWork);
 	float fTime = rWork.replayStack[0]->interpolate.fCurrentTime;
 
-	// Inject pending full state at or before confirmed frame
-	if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick <= rWork.iConfirmedTick)
+	// Inject pending full state at confirmed frame (stale states rejected at receive time)
+	if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick == rWork.iConfirmedTick)
 	{
 		ReconcileInjectPendingFullState(rReconcileContext, rWork);
 		fTime = rWork.replayStack[0]->interpolate.fCurrentTime;
 		Log(kLogNetwork, "ReconcileCoord Injected pending full state Coord: ({},{}) AtTick: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick);
+	}
+	else if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick < rWork.iConfirmedTick)
+	{
+		Log(kLogNetwork, "ReconcileCoord Discarded stale pending full state Coord: ({},{}) FullStateTick: {} ConfirmedTick: {}", rWork.coord.x, rWork.coord.y, rWork.pendingFullState->iTick, rWork.iConfirmedTick);
+		rWork.pendingFullState.reset();
 	}
 
 	int64_t iMaxConsecutive = std::min(ReconcileFindReplayRangeCoord(rWork), rReconcileContext.iTargetTick);

@@ -88,9 +88,9 @@ void ClientSession::PollNetwork()
 				// DT TEMP
 				Log(kLogNetwork, "kChangedFrame NewCoord: ({},{}) QuadrantDir: ({},{})", rEvent.coord.x, rEvent.coord.y, gpGame->miQuadrantDirX, gpGame->miQuadrantDirY);
 				const std::vector<engine::ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
-				for (int64_t s = 0; s < std::ssize(rSlots); ++s)
+				for (int64_t i = 0; i < std::ssize(rSlots); ++i)
 				{
-					Log(kLogNetwork, "  Slot {} State: {} Coord: ({},{})", s, static_cast<int>(rSlots[s].eState), rSlots[s].coord.x, rSlots[s].coord.y);
+					Log(kLogNetwork, "  Slot {} State: {} Coord: ({},{})", i, static_cast<int>(rSlots[i].eState), rSlots[i].coord.x, rSlots[i].coord.y);
 				}
 				UpdateDesiredCoords("kChangedFrame");
 				break;
@@ -282,6 +282,13 @@ void ClientSession::ApplyReceivedFullStates()
 		}
 		else
 		{
+			// Reject stale full states: tick must be after confirmed tick
+			if (iTick <= rSub.iConfirmedTick)
+			{
+				Log(kLogNetwork, "ApplyReceivedFullStates Rejected stale full state Coord: ({},{}) FullStateTick: {} ConfirmedTick: {}", coord.x, coord.y, iTick, rSub.iConfirmedTick);
+				continue;
+			}
+
 			// Coord already has confirmed state: store as pending for reconcile injection
 			rSub.pendingFullState = engine::CoordFrames::PendingFullState {
 				.iTick = iTick,
