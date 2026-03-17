@@ -424,7 +424,7 @@ void SwapchainManager::AcquireNextImage()
 	{
 		// Make sure previous image has been fully acquired before proceeding
 		ScopedCpuProfile scopedCpuProfileFence(kCpuTimerAcquireImageFence);
-		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mCurrentImageAvailableVkFence, VK_TRUE, kFenceTimeoutNs.count()));
+		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mCurrentImageAvailableVkFence, VK_TRUE, kFenceTimeoutNanoseconds.count()));
 		mCurrentImageAvailableVkFence = VK_NULL_HANDLE;
 	}
 

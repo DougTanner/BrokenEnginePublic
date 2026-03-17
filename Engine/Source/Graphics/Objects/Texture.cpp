@@ -96,7 +96,7 @@ void Texture::AdoptTransferredImage(VkImage& rVkImage, VmaAllocation& rVmaAlloca
 
 void Texture::RecordAcquireBarrier(VkCommandBuffer vkCommandBuffer)
 {
-	bool bQfotOptional = gpDeviceManager->mbTransferQfotOptional;
+	bool bQueueFamilyOwnershipTransferOptional = gpDeviceManager->mbTransferQueueFamilyOwnershipTransferOptional;
 
 	VkImageMemoryBarrier vkImageMemoryBarrier
 	{
@@ -104,10 +104,10 @@ void Texture::RecordAcquireBarrier(VkCommandBuffer vkCommandBuffer)
 		.pNext = nullptr,
 		.srcAccessMask = 0,
 		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-		.oldLayout = bQfotOptional ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		.oldLayout = bQueueFamilyOwnershipTransferOptional ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		.srcQueueFamilyIndex = bQfotOptional ? VK_QUEUE_FAMILY_IGNORED : static_cast<uint32_t>(gpInstanceManager->miTransferQueueFamilyIndex),
-		.dstQueueFamilyIndex = bQfotOptional ? VK_QUEUE_FAMILY_IGNORED : static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex),
+		.srcQueueFamilyIndex = bQueueFamilyOwnershipTransferOptional ? VK_QUEUE_FAMILY_IGNORED : static_cast<uint32_t>(gpInstanceManager->miTransferQueueFamilyIndex),
+		.dstQueueFamilyIndex = bQueueFamilyOwnershipTransferOptional ? VK_QUEUE_FAMILY_IGNORED : static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex),
 		.image = mVkImage,
 		.subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = mInfo.mipLevels, .baseArrayLayer = 0, .layerCount = mInfo.arrayLayers},
 	};

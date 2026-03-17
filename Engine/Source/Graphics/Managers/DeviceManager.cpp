@@ -160,6 +160,26 @@ DeviceManager::DeviceManager()
 
 	VkName(VK_OBJECT_TYPE_DEVICE, mVkDevice, "Logical");
 
+	// Shared command pool for OneShotCommandBuffer (single-threaded, graphics queue only)
+	VkCommandPoolCreateInfo oneShotCommandPoolCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+		.queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex),
+	};
+	CHECK_VK(vkCreateCommandPool(mVkDevice, &oneShotCommandPoolCreateInfo, nullptr, &mOneShotVkCommandPool));
+	VkName(VK_OBJECT_TYPE_COMMAND_POOL, mOneShotVkCommandPool, "OneShot");
+
+	VkFenceCreateInfo oneShotFenceCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = VK_FENCE_CREATE_SIGNALED_BIT,
+	};
+	CHECK_VK(vkCreateFence(mVkDevice, &oneShotFenceCreateInfo, nullptr, &mOneShotVkFence));
+	VkName(VK_OBJECT_TYPE_FENCE, mOneShotVkFence, "OneShot");
+
 	// Retrieve the queues now that the device has been created
 	vkGetDeviceQueue(mVkDevice, static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex), 0, &mGraphicsVkQueue);
 	VkName(VK_OBJECT_TYPE_QUEUE, mGraphicsVkQueue, "Graphics");
@@ -197,19 +217,19 @@ DeviceManager::DeviceManager()
 	{
 		uint32_t uiQueueFamilyCount = 0;
 		vkGetPhysicalDeviceQueueFamilyProperties2(gpInstanceManager->mVkPhysicalDevice, &uiQueueFamilyCount, nullptr);
-		std::vector<VkQueueFamilyOwnershipTransferPropertiesKHR> qfotProperties(uiQueueFamilyCount, {.sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_OWNERSHIP_TRANSFER_PROPERTIES_KHR, .pNext = nullptr});
+		std::vector<VkQueueFamilyOwnershipTransferPropertiesKHR> queueFamilyOwnershipTransferProperties(uiQueueFamilyCount, {.sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_OWNERSHIP_TRANSFER_PROPERTIES_KHR, .pNext = nullptr});
 		std::vector<VkQueueFamilyProperties2> queueFamilyProperties2(uiQueueFamilyCount, {.sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2, .pNext = nullptr});
 		for (uint32_t i = 0; i < uiQueueFamilyCount; ++i)
 		{
-			queueFamilyProperties2[i].pNext = &qfotProperties[i];
+			queueFamilyProperties2[i].pNext = &queueFamilyOwnershipTransferProperties[i];
 		}
 		vkGetPhysicalDeviceQueueFamilyProperties2(gpInstanceManager->mVkPhysicalDevice, &uiQueueFamilyCount, queueFamilyProperties2.data());
 
 		uint32_t uiTransferFamily = static_cast<uint32_t>(gpInstanceManager->miTransferQueueFamilyIndex);
 		uint32_t uiGraphicsFamily = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex);
-		uint32_t uiOptimalMask = qfotProperties[uiTransferFamily].optimalImageTransferToQueueFamilies;
-		mbTransferQfotOptional = (uiOptimalMask & (1u << uiGraphicsFamily)) != 0;
-		Log("Transfer->Graphics QFOT optional: {} (transfer family {} optimal mask {:#010b}, graphics family {})", mbTransferQfotOptional, uiTransferFamily, uiOptimalMask, uiGraphicsFamily);
+		uint32_t uiOptimalMask = queueFamilyOwnershipTransferProperties[uiTransferFamily].optimalImageTransferToQueueFamilies;
+		mbTransferQueueFamilyOwnershipTransferOptional = (uiOptimalMask & (1u << uiGraphicsFamily)) != 0;
+		Log("Transfer->Graphics QFOT optional: {} (transfer family {} optimal mask {:#010b}, graphics family {})", mbTransferQueueFamilyOwnershipTransferOptional, uiTransferFamily, uiOptimalMask, uiGraphicsFamily);
 	}
 
 	// Descriptor pool
@@ -299,6 +319,9 @@ DeviceManager::~DeviceManager()
 
 	// All descriptor sets freed explicitly in Pipeline::Destroy() before reaching here
 	vkDestroyDescriptorPool(gpDeviceManager->mVkDevice, mVkDescriptorPool, nullptr);
+
+	vkDestroyFence(mVkDevice, mOneShotVkFence, nullptr);
+	vkDestroyCommandPool(mVkDevice, mOneShotVkCommandPool, nullptr);
 
 	vkDestroyDevice(mVkDevice, nullptr);
 

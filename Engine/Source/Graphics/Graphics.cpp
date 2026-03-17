@@ -118,7 +118,7 @@ void Graphics::RenderGlobal(float fCurrentTime)
 	if (vkResult == VK_NOT_READY)
 	{
 		ScopedCpuProfile scopedCpuProfile(kCpuTimerWaitFence);
-		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNs.count()));
+		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNanoseconds.count()));
 	}
 	else if (vkResult != VK_SUCCESS)
 	{

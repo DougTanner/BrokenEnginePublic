@@ -85,7 +85,7 @@ void TextureUploadManager::DestroyTransferResources()
 
 	if (mTransferVkFence != VK_NULL_HANDLE)
 	{
-		vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence, VK_TRUE, kFenceTimeoutNs.count());
+		vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence, VK_TRUE, kFenceTimeoutNanoseconds.count());
 	}
 
 	// Clean up persistent staging buffer
@@ -185,7 +185,7 @@ void TextureUploadManager::UploadThread()
 			}
 
 			// Wait for previous submission (fence starts signaled, so first wait is free)
-			CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence, VK_TRUE, kFenceTimeoutNs.count()));
+			CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence, VK_TRUE, kFenceTimeoutNanoseconds.count()));
 
 			bool bFirstChunk = (mCurrentDataOffset == 0);
 			bool bCubemap = rLazyChunk.header.flags & common::ChunkFlags::kCubemap;
@@ -329,7 +329,7 @@ void TextureUploadManager::UploadThread()
 				bool bSeparateTransferFamily = gpInstanceManager->miTransferQueueFamilyIndex != gpInstanceManager->miGraphicsQueueFamilyIndex;
 				if (bSeparateTransferFamily)
 				{
-					if (gpDeviceManager->mbTransferQfotOptional)
+					if (gpDeviceManager->mbTransferQueueFamilyOwnershipTransferOptional)
 					{
 						// QFOT optional (VK_KHR_maintenance9): no ownership transfer needed, transition layout directly
 						vkImageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -385,7 +385,7 @@ void TextureUploadManager::UploadThread()
 			if (bDone)
 			{
 				// Wait for GPU to finish before signaling completion
-				CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence, VK_TRUE, kFenceTimeoutNs.count()));
+				CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence, VK_TRUE, kFenceTimeoutNanoseconds.count()));
 
 				rLazyChunk.eState.store(ChunkState::kGpuUploadComplete, std::memory_order_release);
 				gpFileManager->NotifyChunkCompletion();

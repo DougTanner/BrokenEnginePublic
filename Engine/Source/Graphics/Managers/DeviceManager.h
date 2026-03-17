@@ -3,9 +3,9 @@
 namespace engine
 {
 
-inline constexpr std::chrono::nanoseconds kFenceTimeoutNs = 4'000'000'000ns;
+inline constexpr std::chrono::nanoseconds kFenceTimeoutNanoseconds = 4'000'000'000ns;
 
-int64_t FindMemoryType(int64_t iTypeFilter, VkMemoryPropertyFlags properties);
+int64_t FindMemoryType(int64_t iTypeFilter, VkMemoryPropertyFlags vkMemoryPropertyFlags);
 
 class DeviceManager
 {
@@ -24,7 +24,10 @@ public:
 	VkPipelineCache mVkPipelineCache = VK_NULL_HANDLE;
 
 	bool mbMemoryBudgetAvailable = false;
-	bool mbTransferQfotOptional = false;
+	bool mbTransferQueueFamilyOwnershipTransferOptional = false;
+
+	VkCommandPool mOneShotVkCommandPool = VK_NULL_HANDLE;
+	VkFence mOneShotVkFence = VK_NULL_HANDLE;
 
 	VmaAllocator mpAllocator = nullptr;
 	VmaVulkanFunctions mVmaFunctions = {};
