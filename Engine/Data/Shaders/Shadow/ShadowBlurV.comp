@@ -30,16 +30,13 @@ void main()
 	float fInvSigma = float(iRadius) / fSigma;
 
 	float fTotal = 0.0f;
-	float fWeightSum = 0.0f;
 	for (int j = -iRadius; j <= iRadius; ++j)
 	{
 		float fA = float(j) / fInvSigma;
 		float fWeight = exp(-0.5f * fA * fA);
 		vec2 vUv = vec2(float(uiX), float(int(uiY) + j)) / vec2(globalLayout.fShadowTextureSizeWidth, globalLayout.fShadowTextureSizeHeight);
-		float fSample = texture(shadowBlurIntermediateSampler, vUv).x;
-		fTotal += fWeight * fSample;
-		fWeightSum += fWeight;
+		fTotal += fWeight * texture(shadowBlurIntermediateSampler, vUv).x;
 	}
 
-	imageStore(shadowBlurTexture, ivec2(uiX, uiY), vec4(fTotal / fWeightSum, 0.0f, 0.0f, 0.0f));
+	imageStore(shadowBlurTexture, ivec2(uiX, uiY), vec4(fTotal, 0.0f, 0.0f, 0.0f));
 }
