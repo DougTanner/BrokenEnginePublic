@@ -234,15 +234,28 @@ void PipelineManager::CreatePipelineShadows()
 		},
 	});
 
-	mpPipelines[kPipelineShadowBlur].Create(
+	mpPipelines[kPipelineShadowBlurH].Create(
 	{
-		.name = "ShadowBlur",
+		.name = "ShadowBlurH",
 		.flags = {kCompute},
-		.ppShaders = {&mShaders.at(data::kShadersShadowShadowBlurcompCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersShadowShadowBlurHcompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowTexture},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurIntermediateTexture},
+		},
+	});
+
+	mpPipelines[kPipelineShadowBlurV].Create(
+	{
+		.name = "ShadowBlurV",
+		.flags = {kCompute},
+		.ppShaders = {&mShaders.at(data::kShadersShadowShadowBlurVcompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurIntermediateTexture},
 			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
 		},
 	});
@@ -694,4 +707,4 @@ void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
 
 } // namespace engine
 
-#endif // BT_CLIENT
+#endif // defined(BT_CLIENT)

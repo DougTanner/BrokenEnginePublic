@@ -1108,7 +1108,10 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\Shadow.comp">
       <Filter>Engine\Data\Shaders\Shadow</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowBlur.comp">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowBlurH.comp">
+      <Filter>Engine\Data\Shaders\Shadow</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowBlurV.comp">
       <Filter>Engine\Data\Shaders\Shadow</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\PointLight.frag">

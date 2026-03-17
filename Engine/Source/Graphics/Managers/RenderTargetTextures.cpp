@@ -268,6 +268,21 @@ void RenderTargetTextures::CreateShadowTextures()
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		.eTextureLayout = kShaderReadOnly,
 	});
+	mShadowBlurIntermediateTexture.Create(
+	{
+		.textureFlags = {},
+		.name = "ShadowBlurIntermediate",
+		.flags = 0,
+		.format = VK_FORMAT_R8_UNORM,
+		.extent = VkExtent3D {static_cast<uint32_t>(iShadowTextureX), static_cast<uint32_t>(iShadowTextureY), 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	});
 }
 
 void RenderTargetTextures::CreateSmokeTextures()
@@ -530,4 +545,4 @@ void RenderTargetTextures::CreateTerrainTextures()
 
 } // namespace engine
 
-#endif // BT_CLIENT
+#endif // defined(BT_CLIENT)

@@ -7,7 +7,8 @@ Compute and fragment shaders for terrain shadow map generation and blur filterin
 ## Shaders
 
 - **Shadow.comp** - Generates terrain shadow maps by ray-marching from each texel toward the sun across the elevation texture, computing shadow intensity based on terrain angle, distance falloff, and elevation-based height fade
-- **ShadowBlur.comp** - Applies Gaussian blur to the terrain shadow texture using a sliding-window approach that shifts pixel data through a rolling buffer to minimize redundant texture reads
+- **ShadowBlurH.comp** - Horizontal pass of separable Gaussian blur on the terrain shadow texture, writing to an intermediate texture
+- **ShadowBlurV.comp** - Vertical pass of separable Gaussian blur, reading the intermediate texture and writing the final blurred shadow
 - **ObjectShadowsBlur.frag** - Blurs object shadow textures using a box filter with distance-based offset spacing, running as a fullscreen fragment pass
 
 ## Architecture Notes

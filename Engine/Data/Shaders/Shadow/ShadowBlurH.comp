@@ -1,0 +1,45 @@
+#version 460
+
+#include "ShaderLayouts.h"
+
+layout (local_size_x = 8, local_size_y = kiShadowTextureExecutionSize) in;
+
+// Uniforms
+layout (binding = 0) uniform globalUniform
+{
+    GlobalLayout globalLayout;
+};
+
+layout (binding = 1) uniform sampler2D shadowTextureSampler;
+layout (binding = 2, r8) uniform image2D shadowBlurIntermediateTexture;
+
+void main()
+{
+	uint uiX = gl_GlobalInvocationID.x;
+	uint uiY = gl_GlobalInvocationID.y;
+
+	uint uiWidth = globalLayout.iShadowTextureWidth;
+	uint uiHeight = globalLayout.iShadowTextureHeight;
+
+	if (uiX >= uiWidth || uiY >= uiHeight)
+		return;
+
+	float fSigma = globalLayout.fShadowBlurSigma;
+
+	const int iRadius = 5;
+	float fInvSigma = float(iRadius) / fSigma;
+
+	float fTotal = 0.0f;
+	float fWeightSum = 0.0f;
+	for (int i = -iRadius; i <= iRadius; ++i)
+	{
+		float fA = float(i) / fInvSigma;
+		float fWeight = exp(-0.5f * fA * fA);
+		vec2 vUv = vec2(float(int(uiX) + i), float(uiY)) / vec2(globalLayout.fShadowTextureSizeWidth, globalLayout.fShadowTextureSizeHeight);
+		float fSample = texture(shadowTextureSampler, vUv).x;
+		fTotal += fWeight * fSample;
+		fWeightSum += fWeight;
+	}
+
+	imageStore(shadowBlurIntermediateTexture, ivec2(uiX, uiY), vec4(fTotal / fWeightSum, 0.0f, 0.0f, 0.0f));
+}

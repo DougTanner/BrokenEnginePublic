@@ -13,7 +13,8 @@ enum Pipelines
 
 	kPipelineObjectShadowsBlur,
 	kPipelineShadow,
-	kPipelineShadowBlur,
+	kPipelineShadowBlurH,
+	kPipelineShadowBlurV,
 	kPipelineShadowElevation,
 
 	kPipelineLongParticlesLighting,

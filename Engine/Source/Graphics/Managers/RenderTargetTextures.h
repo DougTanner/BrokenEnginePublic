@@ -43,6 +43,7 @@ struct RenderTargetTextures
 	Texture mShadowElevationTexture;
 	Texture mShadowTexture;
 	Texture mShadowBlurTexture;
+	Texture mShadowBlurIntermediateTexture;
 
 	Texture mObjectShadowsTexture;
 	Texture mObjectShadowsBlurTexture;

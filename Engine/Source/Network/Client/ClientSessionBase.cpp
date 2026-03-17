@@ -1,4 +1,7 @@
 #include "Pch.h"
+
+#include "Network/Client/ClientSessionBase.h"
+
 #include "Game.h"
 
 #if defined(BT_CLIENT)
@@ -112,12 +115,16 @@ void ClientSessionBase::UnsubscribeStaleCoords(const std::vector<GridCoord>& rDe
 				rSlots.at(i) = {};
 				mpClientNetwork->GetCancelledSubscriptions().push_back(unsubCoord);
 				Log(kLogNetwork, "UnsubscribeStaleCoords Cancel kSubscribing Slot: {} Coord: ({},{}) CancelledCount: {}", i, unsubCoord.x, unsubCoord.y, mpClientNetwork->GetCancelledSubscriptions().size()); // DT TEMP
+				game::gpGame->mCoordFrames.erase(unsubCoord);
 			}
 			else
 			{
 				mpClientNetwork->SendUnsubscribe(i);
+				if (rSlots.at(i).eState == CoordSubscriptionState::kUnsubscribing)
+				{
+					game::gpGame->mCoordFrames.erase(unsubCoord);
+				}
 			}
-			game::gpGame->mCoordFrames.erase(unsubCoord);
 		}
 	}
 }

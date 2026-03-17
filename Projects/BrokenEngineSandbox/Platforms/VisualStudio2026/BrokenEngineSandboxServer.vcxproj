@@ -604,7 +604,8 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsAxisAligned.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsAxisAlignedVisibleArea.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\Shadow.comp" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowBlur.comp" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowBlurH.comp" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowBlurV.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\Smoke.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadCommon.h" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadOne.frag" />
