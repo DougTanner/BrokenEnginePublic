@@ -621,6 +621,58 @@ void ProfileManagerBase::UpdateProfileText()
 
 			gpTextManager->UpdateTextArea(kTextProfileGpuTimers, rWorkbuffer.View());
 			rWorkbuffer.Pop();
+
+			// GPU memory (VMA)
+			rWorkbuffer.Push();
+			rWorkbuffer.Append("GPU Memory\n");
+
+			VmaTotalStatistics stats {};
+			vmaCalculateStatistics(gpDeviceManager->mpAllocator, &stats);
+
+			rWorkbuffer.Append("Allocated: ");
+			rWorkbuffer.AppendFloat(static_cast<float>(stats.total.statistics.blockBytes) / (1024.0f * 1024.0f), 1);
+			rWorkbuffer.Append(" MB\nUsed: ");
+			rWorkbuffer.AppendFloat(static_cast<float>(stats.total.statistics.allocationBytes) / (1024.0f * 1024.0f), 1);
+			rWorkbuffer.Append(" MB\nUnused: ");
+			rWorkbuffer.AppendFloat(static_cast<float>(stats.total.statistics.blockBytes - stats.total.statistics.allocationBytes) / (1024.0f * 1024.0f), 1);
+			rWorkbuffer.Append(" MB\nAllocations: ");
+			rWorkbuffer.Append(static_cast<int64_t>(stats.total.statistics.allocationCount));
+			rWorkbuffer.Append("  Blocks: ");
+			rWorkbuffer.Append(static_cast<int64_t>(stats.total.statistics.blockCount));
+
+			if (gpDeviceManager->mbMemoryBudgetAvailable)
+			{
+				uint32_t uiHeapCount = gpInstanceManager->mVkPhysicalDeviceMemoryProperties.memoryHeapCount;
+				VmaBudget budgets[VK_MAX_MEMORY_HEAPS];
+				vmaGetHeapBudgets(gpDeviceManager->mpAllocator, budgets);
+
+				for (uint32_t i = 0; i < uiHeapCount; ++i)
+				{
+					VkMemoryHeapFlags uiFlags = gpInstanceManager->mVkPhysicalDeviceMemoryProperties.memoryHeaps[i].flags;
+					bool bDeviceLocal = (uiFlags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0;
+
+					rWorkbuffer.Append("\nHeap ");
+					rWorkbuffer.Append(static_cast<int64_t>(i));
+					rWorkbuffer.Append(bDeviceLocal ? " (Device Local)\n" : " (Host)\n");
+
+					rWorkbuffer.Append("  Budget: ");
+					rWorkbuffer.AppendFloat(static_cast<float>(budgets[i].budget) / (1024.0f * 1024.0f), 1);
+					rWorkbuffer.Append(" MB  Usage: ");
+					rWorkbuffer.AppendFloat(static_cast<float>(budgets[i].usage) / (1024.0f * 1024.0f), 1);
+					rWorkbuffer.Append(" MB");
+
+					if (budgets[i].budget > 0)
+					{
+						float fPercent = static_cast<float>(static_cast<double>(budgets[i].usage) / static_cast<double>(budgets[i].budget)) * 100.0f;
+						rWorkbuffer.Append(" (");
+						rWorkbuffer.AppendFloat(fPercent, 1);
+						rWorkbuffer.Append("%)");
+					}
+				}
+			}
+
+			gpTextManager->UpdateTextArea(kTextProfileMemory, rWorkbuffer.View());
+			rWorkbuffer.Pop();
 		}
 
 		if (meProfileScreen == ProfileScreen::kFrames)

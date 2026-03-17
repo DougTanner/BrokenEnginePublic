@@ -58,6 +58,7 @@ public:
 	int64_t miClockTargetBehind = 0;
 	int64_t miCurrentTargetBehind = 0;
 	bool mbClockErrorDisconnect = false;
+	int64_t miConsecutiveClockErrorFrames = 0;
 	int64_t miCoordSlots = 0;
 	std::vector<GridCoord> mSubscriptionQueue;
 };

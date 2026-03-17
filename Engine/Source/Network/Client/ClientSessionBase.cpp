@@ -31,6 +31,7 @@ void ClientSessionBase::DisconnectFromServerBase()
 	miClockError = 0;
 	miCurrentTargetBehind = 0;
 	mbClockErrorDisconnect = false;
+	miConsecutiveClockErrorFrames = 0;
 }
 
 void ClientSessionBase::StartServerDiscovery()
@@ -176,7 +177,7 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 		const ClientCoordSlot& rSlot = rCoordSlots.at(iSlot);
 		if (rSlot.eState != CoordSubscriptionState::kActive)
 		{
-		rSlotUpdates.clear();
+			rSlotUpdates.clear();
 			continue;
 		}
 
@@ -260,7 +261,15 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 
 	if (std::abs(iError) >= kiClockErrorDisconnectThreshold)
 	{
-		mbClockErrorDisconnect = true;
+		++miConsecutiveClockErrorFrames;
+		if (miConsecutiveClockErrorFrames >= kiClockErrorDisconnectConsecutiveFrames)
+		{
+			mbClockErrorDisconnect = true;
+		}
+	}
+	else
+	{
+		miConsecutiveClockErrorFrames = 0;
 	}
 
 	if (std::abs(iError) >= 4)

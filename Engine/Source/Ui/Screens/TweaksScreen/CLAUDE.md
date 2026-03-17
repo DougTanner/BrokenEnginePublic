@@ -4,9 +4,9 @@ Multi-section ImGui parameter adjustment screen for runtime control over renderi
 
 ## File Organization
 
-- **TweaksScreen.h** - Class declaration with `TweakSection` enum and all render method signatures
+- **TweaksScreen.h** - Class declaration with `TweakSection` enum (14 sections) and all render method signatures
 - **TweaksScreen.cpp** - Core logic: constructor, `Render()`, toggle bar, section window rendering, slider helpers, and the static slider-to-Wrapper lookup map
-- **TweaksScreen\<Section\>.cpp** - One file per section, each implementing a single `Render*Section()` method
+- **TweaksScreen\<Section\>.cpp** - One file per section, each implementing a single `Render*Section()` method. Sections cover PBR, terrain, water, lighting, shadows, misc, hex shield, smoke, wind, and wind deposits
 
 ## Architecture Notes
 
