@@ -21,6 +21,7 @@ public:
 	VkQueue mTransferVkQueue = VK_NULL_HANDLE;
 
 	VkDescriptorPool mVkDescriptorPool = VK_NULL_HANDLE;
+	VkPipelineCache mVkPipelineCache = VK_NULL_HANDLE;
 
 	bool mbMemoryBudgetAvailable = false;
 	bool mbTransferQfotOptional = false;

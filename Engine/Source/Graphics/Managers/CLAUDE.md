@@ -9,7 +9,7 @@ See also: [Graphics Pipeline](../../../../Documents/Architecture/GraphicsPipelin
 ## Key Classes
 
 - **InstanceManager** (`gpInstanceManager`) - Vulkan instance creation and physical device selection
-- **DeviceManager** (`gpDeviceManager`) - Logical device, queues, descriptor pool, VmaAllocator
+- **DeviceManager** (`gpDeviceManager`) - Logical device, queues, descriptor pool, VmaAllocator, and pipeline cache (loaded from disk on startup, saved on shutdown with device-UUID validation)
 - **SwapchainManager** (`gpSwapchainManager`) - Swapchain, framebuffers, depth textures, synchronization
 - **CommandBufferManager** (`gpCommandBufferManager`) - Command pool and buffer management (Global/Main types)
 - **BufferManager** (`gpBufferManager`) - GPU buffer creation (vertex, index, uniform, storage)
