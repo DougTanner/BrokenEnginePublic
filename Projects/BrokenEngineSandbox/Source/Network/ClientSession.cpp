@@ -259,8 +259,9 @@ void ClientSession::ApplyReceivedFullStates()
 			// Original received frame -> snapshot[0], which IS the confirmed frame
 			rSub.iSnapshotHead = 0;
 			rSub.snapshots[0] = std::move(rFullState.pFrame);
-			rSub.snapshots[0]->postRender.serverCrc = rSub.snapshots[0]->ServerCrc();
-			rSub.snapshots[0]->postRender.crc = rSub.snapshots[0]->Crc();
+			auto [crc, serverCrc] = rSub.snapshots[0]->Crcs();
+			rSub.snapshots[0]->postRender.crc = crc;
+			rSub.snapshots[0]->postRender.serverCrc = serverCrc;
 			rSub.iSnapshotCount = 1;
 			rSub.iConfirmedTick = iTick;
 			rSub.iConfirmedOffset = 0;

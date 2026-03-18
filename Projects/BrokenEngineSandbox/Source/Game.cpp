@@ -568,6 +568,37 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 			mTimeStep.IncreaseTimeScale();
 		}
 
+		if (mTimeStep.mbTimeScaleChanged)
+		{
+			mTimeStep.mbTimeScaleChanged = false;
+			if (mTimeStep.miTimeMultiply == 1 && mTimeStep.miTimeDivide == 1)
+			{
+#if defined(BT_CLIENT)
+				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, "");
+#endif
+			}
+			else
+			{
+				common::gpThreadLocal->mWorkbuffer.Push();
+				if (mTimeStep.miTimeMultiply > 1)
+				{
+					common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
+					common::gpThreadLocal->mWorkbuffer.Append(mTimeStep.miTimeMultiply);
+					common::gpThreadLocal->mWorkbuffer.Append("x");
+				}
+				else
+				{
+					common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
+					common::gpThreadLocal->mWorkbuffer.Append(mTimeStep.miTimeDivide);
+					common::gpThreadLocal->mWorkbuffer.Append("x");
+				}
+#if defined(BT_CLIENT)
+				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
+#endif
+				common::gpThreadLocal->mWorkbuffer.Pop();
+			}
+		}
+
 #if defined(BT_CLIENT)
 		if (rMenuInput.flags & MenuInputFlags::kConnectLocal && InMainMenu() && !gpClientSession->IsNetworkMode())
 		{

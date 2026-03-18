@@ -1,6 +1,6 @@
 ---
 name: external-architecture-review
-description: Performs a multi-perspective architectural review of a codebase area, launching parallel analysis agents and consolidating into a single report.
+description: Performs a multi-perspective architectural review of a codebase area, launching parallel analysis agents and consolidating into a single report. Only invoke when the user explicitly requests it (e.g., "/external-architecture-review", "run an architecture review") or when another skill explicitly instructs it. Never trigger autonomously from general code questions or during routine code changes.
 allowed-tools: [Read, Grep, Glob, Task]
 ---
 
@@ -12,11 +12,13 @@ Performs a comprehensive architectural review of a specified codebase area using
 
 The user provides a target path (file or directory) to review. If no path is given, ask for one.
 
+**Recursion**: By default, recurse into sub-directories. If the caller specifies "non-recursive" or "only files directly in this directory", pass this constraint to each subagent so they use non-recursive glob patterns (e.g., `path/*.h` instead of `path/**/*.h`).
+
 ## Instructions
 
 ### 1. Launch Parallel Analysis Agents
 
-Use the Task tool to launch three subagents in parallel. Each agent receives the target path and produces a focused report.
+Use the Task tool to launch three subagents in parallel. Each agent receives the target path (and any recursion constraint) and produces a focused report.
 
 #### Agent A: Dependency & Include Analysis (subagent_type: Explore)
 
@@ -37,7 +39,7 @@ Prompt the agent to:
 - **Client/Server guards**: Find code that should differ between `BT_CLIENT`/`BT_SERVER` but doesn't, and `#ifdef` guards that are too broad or too narrow
 - **Memory patterns**: Flag heap allocations in per-frame code that should use workbuffer, and missing `ScopedSuppressAllocationTracking` for unavoidable heap use
 
-#### Agent C: Coupling & Cohesion Analysis (subagent_type: general-purpose)
+#### Agent C: Coupling & Cohesion Analysis (subagent_type: Explore)
 
 Prompt the agent to:
 - Analyze function/class sizes — flag functions over 100 lines and files over 1000 lines

@@ -1,6 +1,6 @@
 ---
 name: code-style-review
-description: Reviews and auto-fixes C++ style violations in files modified during the session. Use this skill after making code changes as part of the C++ code change workflow (step 7).
+description: Reviews and auto-fixes C++ style violations in files modified during the session. Use this skill after making code changes as part of the C++ code change workflow (step 6).
 allowed-tools: [Read, Edit, Grep, Glob]
 ---
 
@@ -10,26 +10,21 @@ Reviews C++ files edited in this conversation and fixes style violations.
 
 ## Instructions
 
-1. **Identify modified files**: List all `.cpp` and `.h` files you edited in this conversation (check your Edit/Write tool calls), IMPORTANT: apply the following steps #2 and #2 only to line ranges that were modified in this conversation (not the entire file)
+1. **Identify modified files**: List all `.cpp` and `.h` files you edited in this conversation (check your Edit/Write tool calls). Apply the following steps only to line ranges that were modified (not the entire file).
 
-2. **Read and fix each file** applying these rules:
+2. **Read `/Documents/C++StyleGuide.txt`** and fix violations in each modified file. The style guide is the authoritative source — apply all 59 rules. Pay special attention to rules 56-57 (no abbreviations, no Impl suffixes).
 
-### Naming
-- Use complete words in all variable and function names — no abbreviations (e.g., `rReconcileContext` not `ctx`, `bufferIt` not `bufIt`, `rCommandBuffer` not `cmdBuf`). Exception: loop counters `i`/`j`/`k` and iterators `it`
-- Do not use "Impl", "Internal", or similar non-word suffixes on function names. Use scope (private, anonymous namespace) to distinguish internal from public versions (e.g., `Reconcile()` not `ReconcileImpl()`)
+3. **Additionally enforce these rules** (not covered by the style guide):
 
 ### Function Call and Macro Formatting
-- IMPORTANT: Keep function and macro arguments on ONE line (do not split across multiple lines) — this applies to regular function calls AND macros like FILE_LOG, ASSERT, etc.
+- Keep function and macro arguments on ONE line (do not split across multiple lines) — this applies to regular function calls AND macros like FILE_LOG, ASSERT, etc.
 - **Exceptions** (these SHOULD be multi-line):
   - Lambdas
   - Structs with designated initializers
 
 ### Comments
 - Add a single-line comment before related code blocks explaining purpose
-- Add comments when purpose isn't obvious from context
 - **DO NOT** add comments about removed code or fixed bugs
-
-3. **IMPORTANT**: Apple the full style guide at `/Documents/C++StyleGuide.txt`
 
 ## Notes
 - Fix violations directly without asking permission

@@ -1,6 +1,6 @@
 ---
 name: external-tech-debt
-description: Scans a codebase area and produces a prioritized inventory of technical debt with effort estimates and recommended remediation order.
+description: Scans a codebase area and produces a prioritized inventory of technical debt with effort estimates and recommended remediation order. Only invoke when the user explicitly requests it (e.g., "/external-tech-debt", "scan for tech debt") or when another skill explicitly instructs it. Never trigger autonomously from general code questions or during routine code changes.
 allowed-tools: [Read, Grep, Glob, Task]
 ---
 
@@ -12,11 +12,13 @@ Produces a prioritized technical debt inventory for a C++23 data-oriented Vulkan
 
 The user provides a target path (file or directory) to assess. If no path is given, ask for one.
 
+**Recursion**: By default, recurse into sub-directories. If the caller specifies "non-recursive" or "only files directly in this directory", use non-recursive glob patterns (e.g., `path/*.h` instead of `path/**/*.h`).
+
 ## Instructions
 
 ### 1. Survey the Target Area
 
-Use Glob to enumerate all `.h`, `.cpp`, and `CLAUDE.md` files in the target path. Read `CLAUDE.md` files first to understand the subsystem's intended architecture. Then sample source files, prioritizing larger files and headers.
+Use Glob to enumerate `.h`, `.cpp`, and `CLAUDE.md` files in the target path. Use recursive globs (`**/*.h`) by default, or non-recursive globs (`*.h`) if the caller requested non-recursive mode. Read `CLAUDE.md` files first to understand the subsystem's intended architecture. Then sample source files, prioritizing larger files and headers.
 
 ### 2. Assess Debt Categories
 

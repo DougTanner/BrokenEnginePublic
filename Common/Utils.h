@@ -140,6 +140,15 @@ inline crc_t XM_CALLCONV Crc(FXMVECTOR vecIn)
 	return Crc(f4Temp);
 }
 
+// XORs a value's CRC into two checksums at once (used by Crcs() methods)
+template<typename T> requires NotStringLike<T>
+void Crc(const T& rValue, crc_t& rCrc, crc_t& rServerCrc)
+{
+	crc_t c = Crc(rValue);
+	rCrc ^= c;
+	rServerCrc ^= c;
+}
+
 // Zero-allocation hex conversion. Writes "0x" + uppercase hex digits + null terminator.
 // Returns buffer data pointer for convenience. Fixed-extent span enables compile-time size verification.
 template<std::unsigned_integral T, size_t N>
@@ -214,9 +223,9 @@ constexpr std::string IntToString(int64_t i)
 
 	do
 	{
-		int64_t digit = i % 10;
+		int64_t iDigit = i % 10;
 		i = i / 10;
-		string.push_back(static_cast<char>(digit) + '0');
+		string.push_back(static_cast<char>(iDigit) + '0');
 	}
 	while (i > 0);
 
@@ -306,13 +315,13 @@ inline std::pair<bool, std::string> GetFileOrStringContent(const T& rSource)
 		}
 		
 		// Pre-allocate string based on file size
-		size_t fileSize = std::filesystem::file_size(rSource);
+		size_t uiFileSize = std::filesystem::file_size(rSource);
 		std::string fileContents;
-		fileContents.resize(fileSize);
-		
+		fileContents.resize(uiFileSize);
+
 		// Read file into string
 		std::fstream fileStream(rSource, std::ios::in | std::ios::binary);
-		fileStream.read(fileContents.data(), fileSize);
+		fileStream.read(fileContents.data(), uiFileSize);
 		fileStream.close();
 		
 		return {true, std::move(fileContents)};

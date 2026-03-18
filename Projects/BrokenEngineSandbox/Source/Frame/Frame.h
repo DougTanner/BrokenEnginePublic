@@ -72,8 +72,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 	std::unique_ptr<SpaceshipsInterpolate> pSpaceships;
 	std::unique_ptr<TargetsInterpolate> pTargets;
 
-	static common::crc_t Crc(const FrameInterpolate& rCurrent);
-	static common::crc_t ServerCrc(const FrameInterpolate& rCurrent);
+	static std::pair<common::crc_t, common::crc_t> Crcs(const FrameInterpolate& rCurrent);
 	bool LogDifferences(const FrameInterpolate& rOther) const;
 	void Write(std::ostream& rStream) const;
 	void Read(std::istream& rStream);
@@ -166,8 +165,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 	// Transient transfer output buffer (not serialized, not in CRC/equality)
 	std::vector<TransferRequest> transferRequests;
 
-	static common::crc_t Crc(const FramePostRender& rCurrent);
-	static common::crc_t ServerCrc(const FramePostRender& rCurrent);
+	static std::pair<common::crc_t, common::crc_t> Crcs(const FramePostRender& rCurrent);
 	bool LogDifferences(const FramePostRender& rOther) const;
 	void Write(std::ostream& rStream) const;
 	void Read(std::istream& rStream);
@@ -196,8 +194,8 @@ struct Frame
 	FrameInterpolate interpolate;
 	FramePostRender postRender;
 
+	std::pair<common::crc_t, common::crc_t> Crcs() const;
 	common::crc_t Crc() const;
-	common::crc_t ServerCrc() const;
 	bool LogDifferences(const Frame& rOther) const;
 	void ServerRead(std::istream& rStream);
 };

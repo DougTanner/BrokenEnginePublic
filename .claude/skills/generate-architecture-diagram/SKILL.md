@@ -1,7 +1,6 @@
 ---
 name: generate-architecture-diagram
-description: Generates Mermaid architecture diagrams for cross-system relationships. Only creates diagrams that show information spanning 3+ files. Output linked from subsystem CLAUDE.md files.
-allowed-tools: [Read, Grep, Glob, Task]
+description: Generates Mermaid architecture diagrams for cross-system relationships. Only creates diagrams spanning 3+ files. Output linked from subsystem CLAUDE.md files. Only invoke when the user explicitly requests it (e.g., "/generate-architecture-diagram", "generate an architecture diagram") or when another skill explicitly instructs it. Never trigger autonomously from general code questions or during routine code changes.
 ---
 
 # Generate Architecture Diagram
@@ -24,7 +23,7 @@ Before doing any work, answer these questions. If the answer to ANY is "no", **t
 
 If the relationships can be described in 2-3 sentences of prose, **add them to the subsystem's CLAUDE.md instead**. Prefer enriching CLAUDE.md over creating a new diagram — CLAUDE.md files are always read by agents, diagrams are not.
 
-**The bar is high.** The entire codebase currently has only 5 diagrams. A new diagram must be as valuable as the existing ones (GPU semaphore chains, reconciliation state machines, frame phase ordering). Most subsystems do NOT need a diagram.
+**The bar is high.** The codebase currently has only 2 diagrams (`Documents/Architecture/GameReconciliation.md` and `Documents/Architecture/FrameUpdatePipeline.md`). A new diagram must be as valuable as these (reconciliation state machines, frame phase ordering). Most subsystems do NOT need a diagram.
 
 ## What Makes a Useful Diagram
 
@@ -75,7 +74,7 @@ graph TD
 
 ### 1. Explore the Target
 
-Use the Task tool to launch an Explore subagent analyzing the target path. Prompt it to report:
+Use the Agent tool to launch an Explore subagent analyzing the target path. Prompt it to report:
 - Cross-system dependencies (what external managers/globals does this area use?)
 - `gp*` global pointer relationships
 - `#ifdef BT_CLIENT`/`BT_SERVER` boundaries

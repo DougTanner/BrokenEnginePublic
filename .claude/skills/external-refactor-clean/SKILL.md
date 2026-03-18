@@ -1,6 +1,6 @@
 ---
 name: external-refactor-clean
-description: Analyzes C++ code for dead code, duplication, unnecessary complexity, and refactoring opportunities. Reports findings with locations and suggested improvements.
+description: Analyzes C++ code for dead code, duplication, unnecessary complexity, and refactoring opportunities. Reports findings with locations and suggested improvements. Only invoke when the user explicitly requests it (e.g., "/external-refactor-clean", "find refactoring opportunities") or when another skill explicitly instructs it. Never trigger autonomously from general code questions or during routine code changes.
 allowed-tools: [Read, Grep, Glob, Task]
 ---
 
@@ -12,11 +12,13 @@ Analyzes specified code areas for refactoring opportunities specific to a C++23 
 
 The user provides a target path (file or directory) to analyze. If no path is given, ask for one.
 
+**Recursion**: By default, recurse into sub-directories. If the caller specifies "non-recursive" or "only files directly in this directory", use non-recursive glob patterns (e.g., `path/*.h` instead of `path/**/*.h`).
+
 ## Instructions
 
 ### 1. Scan the Target Area
 
-Use Glob and Read to enumerate and examine all `.h` and `.cpp` files in the target path. For large directories, prioritize files by size (larger files tend to accumulate more debt).
+Use Glob and Read to enumerate and examine `.h` and `.cpp` files in the target path. Use recursive globs (`**/*.h`) by default, or non-recursive globs (`*.h`) if the caller requested non-recursive mode. For large directories, prioritize files by size (larger files tend to accumulate more debt).
 
 ### 2. Identify Dead Code
 

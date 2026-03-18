@@ -6,25 +6,21 @@ allowed-tools: [Read, Edit, Write, Grep, Glob]
 
 # Update CLAUDE.md Documentation
 
-Updates CLAUDE.md files in directories where code has been modified during this conversation session to keep documentation synchronized with the current codebase state.
-
-## When to Use
-
-- Invoke this skill after making C++ code changes. This ensures documentation reflects the current state of the code.
-- The user may also request that this skill be run manually to update/improve/sync the entire CLAUDE.md. In that case all files will be investigated.
+Updates CLAUDE.md files in directories where code has been modified to keep documentation synchronized with the current codebase state. The user may also request a manual run to update/improve/sync CLAUDE.md files broadly — in that case investigate all relevant files.
 
 ## Instructions
 
-1. **Identify affected directories**: Look at files modified in this conversation. Update CLAUDE.md only in the immediate directories containing those files (not parent directories unless their content directly changed).
+1. **Identify affected directories**: Determine which directories contain modified files. If invoked as a subagent, the caller should provide the list of changed files. Otherwise, check which files were modified in this conversation. Update CLAUDE.md only in the immediate directories containing those files (not parent directories unless their content directly changed).
 
-2. **Create or update CLAUDE.md**:
-   - If no CLAUDE.md exists in an affected directory, create one
+2. **Read existing CLAUDE.md**: Before editing, read each affected directory's CLAUDE.md (if it exists) to understand what's already documented.
+
+3. **Create or update CLAUDE.md**:
    - If one exists, update only the sections affected by the code changes
-   - If the existing file exceeds the 20-50 line target, trim bloated sections (even unrelated ones) to bring it closer to target
-   - The CLAUDE.md file should ONLY reflect what is CURRENTLY in the code
-   - DO NOT mention changes, fixes, or reference what was previously there
+   - Only create a new CLAUDE.md if the directory represents a distinct subsystem (not for single-file utility directories)
+   - The CLAUDE.md file should ONLY reflect what is CURRENTLY in the code — do not mention changes, fixes, or reference what was previously there
+   - **Separately**: if the file exceeds the 20-50 line target, trim bloated sections to bring it closer to target
 
-3. **Target structure** (adapt sections as needed):
+4. **Target structure** (adapt sections as needed):
    ```markdown
    # [Directory Name] - [One-line Purpose]
 
@@ -41,9 +37,7 @@ Updates CLAUDE.md files in directories where code has been modified during this 
    - [Subdirectory/CLAUDE.md](Subdirectory/CLAUDE.md) - Brief description
    ```
 
-4. **Length target**: Aim for 20-50 lines per CLAUDE.md. If longer, you're likely too detailed.
-
-5. **Auto-update**: Make the documentation updates directly - do not ask for permission
+5. **Length target**: Aim for 20-50 lines per CLAUDE.md. If longer, you're likely too detailed.
 
 ## Content Guidelines
 
@@ -76,14 +70,12 @@ Updates CLAUDE.md files in directories where code has been modified during this 
 - "Orchestrates the server main loop (network polling, physics ticks, broadcast). See [Architecture doc](link) for detailed flow."
 
 ### Keep it High-Level
-- Readers should understand system architecture and responsibilities
-- They should NOT be able to reconstruct class definitions from the docs
-- If you're listing variable names with explanations, you're too detailed
+
+Readers should understand system architecture and responsibilities, not be able to reconstruct class definitions. If you're listing variable names with explanations, you're too detailed.
 
 ## Important Notes
 
-- **Context window awareness**: These files will be added to an LLM's finite context window. Balance clarity against conciseness.
-- **No duplication**: DO NOT repeat details from CLAUDE.md files in parent directories or from `Documents/Architecture/` docs
-- **Cross-references**: DO reference child directory CLAUDE.md files with links when relevant
+- **Context window awareness**: These files are added to an LLM's finite context window. Balance clarity against conciseness.
+- **No duplication**: Do not repeat details from parent CLAUDE.md files or `Documents/Architecture/` docs — link to them instead
+- **Cross-references**: Reference child directory CLAUDE.md files with links when relevant
 - **Consistency**: Maintain consistency with existing CLAUDE.md style in the codebase
-- **Purpose**: Help Claude quickly understand the codebase, not serve as an API reference

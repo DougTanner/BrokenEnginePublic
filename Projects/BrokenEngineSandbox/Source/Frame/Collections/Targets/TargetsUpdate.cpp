@@ -1,7 +1,5 @@
 #include "Targets.h"
 
-#include "Profile/ProfileManager.h"
-
 namespace game
 {
 
@@ -19,8 +17,6 @@ void TargetsInterpolate::Sync(FrameInterpolate& rFrameInterpolate, id_t id, cons
 void TargetsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	// Owner (Spaceships) writes position and type index via IdToIndex pattern.
-	[[maybe_unused]] TargetsInterpolate& rCurrent = *rCurrentFrameInterpolate.pTargets;
-	gpProfileManager->SetCount(game::kCpuCounterTargets, rCurrent.iCount);
 }
 
 void TargetsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)

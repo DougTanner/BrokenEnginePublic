@@ -228,8 +228,8 @@ Wrapper gWindToSmokePower(1.05f, 0.6f, 2.0f);
 Wrapper gWindDisplacementNoiseScale(1.25f, 0.0f, 5.0f);
 
 // Wind - Deposit
-Wrapper gWindDepositExplosionsWidth(12.0f, 4.0f, 20.0f);
-Wrapper gWindDepositExplosionsIntensity(0.004f, 0.0f, 0.01f);
+Wrapper gWindDepositExplosionsWidth(15.0f, 4.0f, 20.0f);
+Wrapper gWindDepositExplosionsIntensity(0.005f, 0.0f, 0.01f);
 
 Wrapper gWindDepositPlayerBlastersWidth(0.75f, 0.1f, 2.0f);
 Wrapper gWindDepositPlayerBlastersIntensity(0.05f, 0.0f, 0.2f);

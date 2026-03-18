@@ -285,8 +285,9 @@ static bool ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, floa
 
 	if (bHadTransfers)
 	{
-		pNext->postRender.serverCrc = pNext->ServerCrc();
-		pNext->postRender.crc = pNext->Crc();
+		auto [crc, serverCrc] = pNext->Crcs();
+		pNext->postRender.crc = crc;
+		pNext->postRender.serverCrc = serverCrc;
 	}
 
 	// Advance replay stack

@@ -306,7 +306,7 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	// Collections
 	engine::ForEachPostRenderAreaDamage(GamePostRenderTypes{}, rFrame, rPreviousFrame);
 
-	engine::Collision::ClearAreaDamage();
+	engine::AreaDamage::Clear();
 }
 
 [[nodiscard]] target_t Frame::GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::alignment_t alignment)
@@ -409,42 +409,25 @@ void FrameInterpolate::EndRender(int64_t iCommandBuffer)
 }
 #endif // BT_CLIENT
 
-common::crc_t FrameInterpolate::Crc(const FrameInterpolate& rCurrent)
+std::pair<common::crc_t, common::crc_t> FrameInterpolate::Crcs(const FrameInterpolate& rCurrent)
 {
-	common::crc_t checksum = 0;
+	auto [crc, serverCrc] = static_cast<const engine::FrameInterpolateBase&>(rCurrent).Crcs();
 
-	checksum ^= static_cast<const engine::FrameInterpolateBase&>(rCurrent).Crc();
+	common::Crc(rCurrent.gameFlags, crc, serverCrc);
+	common::Crc(rCurrent.fSpawnTimer, crc, serverCrc);
 
-	checksum ^= common::Crc(rCurrent.gameFlags);
-	checksum ^= common::Crc(rCurrent.fSpawnTimer);
-
-	checksum ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->Members());
+	crc ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->Members());
+	serverCrc ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->ServerCrcMembers());
 
 	std::apply([&](const auto&... cols)
 	{
-		((checksum ^= engine::CollectionCrc(cols, cols.Members())), ...);
+		(([&] {
+			crc ^= engine::CollectionCrc(cols, cols.Members());
+			serverCrc ^= engine::ServerCollectionCrc(cols);
+		}()), ...);
 	}, GameInterpolateCollections(rCurrent));
 
-	return checksum;
-}
-
-common::crc_t FrameInterpolate::ServerCrc(const FrameInterpolate& rCurrent)
-{
-	common::crc_t checksum = 0;
-
-	checksum ^= static_cast<const engine::FrameInterpolateBase&>(rCurrent).ServerCrc();
-
-	checksum ^= common::Crc(rCurrent.gameFlags);
-	checksum ^= common::Crc(rCurrent.fSpawnTimer);
-
-	checksum ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->ServerCrcMembers());
-
-	std::apply([&](const auto&... cols)
-	{
-		((checksum ^= engine::ServerCollectionCrc(cols)), ...);
-	}, GameInterpolateCollections(rCurrent));
-
-	return checksum;
+	return {crc, serverCrc};
 }
 
 bool FrameInterpolate::LogDifferences(const FrameInterpolate& rOther) const
@@ -508,42 +491,26 @@ void FrameInterpolate::ServerRead(std::istream& rStream)
 	}, GameInterpolateCollections(*this));
 }
 
-common::crc_t FramePostRender::Crc(const FramePostRender& rCurrent)
+std::pair<common::crc_t, common::crc_t> FramePostRender::Crcs(const FramePostRender& rCurrent)
 {
-	common::crc_t checksum = 0;
+	auto [crc, serverCrc] = static_cast<const engine::FramePostRenderBase&>(rCurrent).Crcs();
 
-	checksum ^= static_cast<const engine::FramePostRenderBase&>(rCurrent).Crc();
+	common::Crc(rCurrent.enemyAlignment, crc, serverCrc);
+	common::Crc(rCurrent.playerAlignment, crc, serverCrc);
 
-	checksum ^= common::Crc(rCurrent.enemyAlignment);
-	checksum ^= common::Crc(rCurrent.playerAlignment);
-
-	checksum ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->Members());
+	common::crc_t uiPlayersCrc = engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->Members());
+	crc ^= uiPlayersCrc;
+	serverCrc ^= uiPlayersCrc;
 
 	std::apply([&](const auto&... cols)
 	{
-		((checksum ^= engine::CollectionCrc(cols, cols.Members())), ...);
+		(([&] {
+			crc ^= engine::CollectionCrc(cols, cols.Members());
+			serverCrc ^= engine::ServerCollectionCrc(cols);
+		}()), ...);
 	}, GamePostRenderCollections(rCurrent));
 
-	return checksum;
-}
-
-common::crc_t FramePostRender::ServerCrc(const FramePostRender& rCurrent)
-{
-	common::crc_t checksum = 0;
-
-	checksum ^= static_cast<const engine::FramePostRenderBase&>(rCurrent).ServerCrc();
-
-	checksum ^= common::Crc(rCurrent.enemyAlignment);
-	checksum ^= common::Crc(rCurrent.playerAlignment);
-
-	checksum ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->Members());
-
-	std::apply([&](const auto&... cols)
-	{
-		((checksum ^= engine::ServerCollectionCrc(cols)), ...);
-	}, GamePostRenderCollections(rCurrent));
-
-	return checksum;
+	return {crc, serverCrc};
 }
 
 bool FramePostRender::LogDifferences(const FramePostRender& rOther) const
@@ -607,20 +574,16 @@ void FramePostRender::ServerRead(std::istream& rStream)
 	}, GamePostRenderCollections(*this));
 }
 
-common::crc_t Frame::Crc() const
+std::pair<common::crc_t, common::crc_t> Frame::Crcs() const
 {
-	common::crc_t checksum = 0;
-	checksum ^= FrameInterpolate::Crc(interpolate);
-	checksum ^= FramePostRender::Crc(postRender);
-	return checksum;
+	auto [interpCrc, interpServerCrc] = FrameInterpolate::Crcs(interpolate);
+	auto [postCrc, postServerCrc] = FramePostRender::Crcs(postRender);
+	return {interpCrc ^ postCrc, interpServerCrc ^ postServerCrc};
 }
 
-common::crc_t Frame::ServerCrc() const
+common::crc_t Frame::Crc() const
 {
-	common::crc_t checksum = 0;
-	checksum ^= FrameInterpolate::ServerCrc(interpolate);
-	checksum ^= FramePostRender::ServerCrc(postRender);
-	return checksum;
+	return Crcs().first;
 }
 
 bool Frame::LogDifferences(const Frame& rOther) const

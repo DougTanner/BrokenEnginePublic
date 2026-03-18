@@ -10,38 +10,27 @@ FramePostRenderBase::FramePostRenderBase()
 {
 }
 
-common::crc_t FrameInterpolateBase::Crc() const
+std::pair<common::crc_t, common::crc_t> FrameInterpolateBase::Crcs() const
 {
-	common::crc_t checksum = 0;
+	common::crc_t crc = 0;
+	common::crc_t serverCrc = 0;
 
-	checksum ^= common::Crc(frameFlags);
-	checksum ^= common::Crc(iTick);
-	checksum ^= common::Crc(fCurrentTime);
-	checksum ^= common::Crc(fDeltaTime);
+	common::Crc(frameFlags, crc, serverCrc);
+	common::Crc(iTick, crc, serverCrc);
+	common::Crc(fCurrentTime, crc, serverCrc);
+	common::Crc(fDeltaTime, crc, serverCrc);
 
 	std::apply([&](const auto&... cols)
 	{
-		((checksum ^= CollectionCrc(cols, cols.Members())), ...);
+		((crc ^= CollectionCrc(cols, cols.Members())), ...);
 	}, Collections());
 
-	return checksum;
-}
-
-common::crc_t FrameInterpolateBase::ServerCrc() const
-{
-	common::crc_t checksum = 0;
-
-	checksum ^= common::Crc(frameFlags);
-	checksum ^= common::Crc(iTick);
-	checksum ^= common::Crc(fCurrentTime);
-	checksum ^= common::Crc(fDeltaTime);
-
 	std::apply([&](const auto&... cols)
 	{
-		((checksum ^= ServerCollectionCrc(cols)), ...);
+		((serverCrc ^= ServerCollectionCrc(cols)), ...);
 	}, ServerCollections());
 
-	return checksum;
+	return {crc, serverCrc};
 }
 
 bool FrameInterpolateBase::LogDifferences(const FrameInterpolateBase& rOther) const
@@ -96,46 +85,39 @@ void FrameInterpolateBase::ServerRead(std::istream& rStream)
 	}, ServerCollections());
 }
 
-common::crc_t FramePostRenderBase::Crc() const
+std::pair<common::crc_t, common::crc_t> FramePostRenderBase::Crcs() const
 {
-	common::crc_t checksum = 0;
+	common::crc_t outCrc = 0;
+	common::crc_t outServerCrc = 0;
 
-	checksum ^= randomEngine.Crc();
-	checksum ^= common::Crc(vecArea);
-	checksum ^= common::Crc(uiNextUuid);
+	common::crc_t c = randomEngine.Crc();
+	outCrc ^= c;
+	outServerCrc ^= c;
+
+	common::Crc(vecArea, outCrc, outServerCrc);
+	common::Crc(uiNextUuid, outCrc, outServerCrc);
 #if defined(BT_CLIENT)
-	checksum ^= common::Crc(uiNextSoundUuid);
-	checksum ^= common::Crc(uiNextVisualUuid);
+	outCrc ^= common::Crc(uiNextSoundUuid);
+	outCrc ^= common::Crc(uiNextVisualUuid);
 #endif
-	checksum ^= common::Crc(uiFrameId);
-	checksum ^= common::Crc(eIslandsFlip);
-	checksum ^= alignments.Crc();
+	common::Crc(uiFrameId, outCrc, outServerCrc);
+	common::Crc(eIslandsFlip, outCrc, outServerCrc);
+
+	c = alignments.Crc();
+	outCrc ^= c;
+	outServerCrc ^= c;
 
 	std::apply([&](const auto&... cols)
 	{
-		((checksum ^= CollectionCrc(cols, cols.Members())), ...);
+		((outCrc ^= CollectionCrc(cols, cols.Members())), ...);
 	}, Collections());
 
-	return checksum;
-}
-
-common::crc_t FramePostRenderBase::ServerCrc() const
-{
-	common::crc_t checksum = 0;
-
-	checksum ^= randomEngine.Crc();
-	checksum ^= common::Crc(vecArea);
-	checksum ^= common::Crc(uiNextUuid);
-	checksum ^= common::Crc(uiFrameId);
-	checksum ^= common::Crc(eIslandsFlip);
-	checksum ^= alignments.Crc();
-
 	std::apply([&](const auto&... cols)
 	{
-		((checksum ^= ServerCollectionCrc(cols)), ...);
+		((outServerCrc ^= ServerCollectionCrc(cols)), ...);
 	}, ServerCollections());
 
-	return checksum;
+	return {outCrc, outServerCrc};
 }
 
 bool FramePostRenderBase::LogDifferences(const FramePostRenderBase& rOther) const

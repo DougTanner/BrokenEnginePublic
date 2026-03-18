@@ -66,7 +66,7 @@ inline constexpr NetworkSimulationBounds GetNetworkSimulationBounds(NetworkSimul
 		case NetworkSimulationLevel::kWestCoast:    return {40, 20, 20, 20, 24};
 		case NetworkSimulationLevel::kEurope:       return {32, 32, 32, 30, 36};
 		case NetworkSimulationLevel::kSouthAmerica: return {24, 50, 50, 44, 50};
-		case NetworkSimulationLevel::kChina:        return {12, 90, 80, 70, 80};
+		case NetworkSimulationLevel::kChina:        return {12, 90, 600, 70, 80};
 		default:                                    return {62,  2,  2,  2,  2};
 	}
 }

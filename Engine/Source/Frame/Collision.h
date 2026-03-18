@@ -16,7 +16,8 @@ inline constexpr int32_t kiCollisionZonesY = 8;
 inline constexpr int64_t kiCollisionZonePreallocate = 256;
 inline constexpr int64_t kiCollisionLayerPreallocate = 16;
 inline constexpr int64_t kiCollisionLayerPairPreallocate = 16;
-inline constexpr int64_t kiAreaDamageSourcePreallocate = 16;
+inline constexpr int64_t kiCollisionResultPreallocate = 512;
+inline constexpr int64_t kiCollisionResultSpanPreallocate = 1024;
 
 // Collision Flags - Behavior modifiers
 enum class CollisionFlags : uint8_t
@@ -57,13 +58,28 @@ struct CollisionResult
 	XMVECTOR vecOtherVelocity {};  // Velocity of the colliding object (zero if not provided)
 };
 
-// Area damage source (registered when objects explode)
-struct AreaDamageSource
+// Result span for a single object (offset into sResultEntries + count)
+struct CollisionResultSpan
 {
-	XMVECTOR vecPosition {};
-	float fRadius = 0.0f;
-	float fDamage = 0.0f;
-	uint16_t uiCategory = 0;
+	int64_t iOffset = -1;  // -1 means no collision
+	int64_t iCount = 0;
+};
+
+// Pending collision result written to workbuffer during CollideLayerPair
+struct PendingCollisionResult
+{
+	int64_t iLayerIndex;
+	int64_t iObjectIndex;
+	CollisionResult result;
+};
+
+// Zone range for spatial partitioning
+struct ZoneRange
+{
+	int32_t iStartX;
+	int32_t iEndX;
+	int32_t iStartY;
+	int32_t iEndY;
 };
 
 // Per-zone storage for a layer pair
@@ -108,28 +124,19 @@ public:
 
 	// Query by layer + index
 	static bool HasCollision(size_t uiLayerIndex, int64_t iIndex);
-	static const std::vector<CollisionResult>* GetCollisions(size_t uiLayerIndex, int64_t iIndex);
+	static std::span<const CollisionResult> GetCollisions(size_t uiLayerIndex, int64_t iIndex);
 
 	// Clear layers for next frame (called at end of PostCollision phase)
 	static void Clear();
 
-	// Area damage registration (called in PostCollision when objects explode)
-	static void AddAreaDamage(const AreaDamageSource& rSource);
-
-	// Query area damage at a position (called in AreaDamage phase)
-	// Returns total damage with linear falloff applied, filtered by category mask
-	// Outputs the closest damage source position via rvecClosestSource
-	static float GetAreaDamage(FXMVECTOR vecPosition, uint16_t uiCategoryMask, XMVECTOR& rvecClosestSource);
-
-	// Clear area damage sources (called at end of AreaDamage phase)
-	static void ClearAreaDamage();
-
 private:
 
 	static void SetupZones(FXMVECTOR vecArea);
-	static void InsertIntoZones(LayerPairZones& rPairZones, int64_t iIndex, FXMVECTOR vecPosition, float fRadius, bool bIsLayerA);
-	static void InsertIntoZonesSwept(LayerPairZones& rPairZones, int64_t iIndex, FXMVECTOR vecMin, FXMVECTOR vecMax, float fRadius, bool bIsLayerA);
+	static ZoneRange CalculateZoneRange(float fMinX, float fMaxX, float fMinY, float fMaxY, float fRadius);
+	static ZoneRange CalculateObjectZoneRange(const CollisionLayer& rLayer, int64_t iIndex);
+	static void InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex, const ZoneRange& range, bool bIsLayerA);
 	static void CollideLayerPair(const Alignments& rAlignments, LayerPairZones& rPairZones);
+	static void AllocateResultStorage();
 
 	// thread_local: each Dispatch worker and reconcile thread gets its own copy
 	static thread_local float sfAreaMinX;
@@ -140,13 +147,16 @@ private:
 	static thread_local std::vector<CollisionLayer> sLayers;
 	static thread_local int64_t siLayerCount;
 
-	static thread_local std::vector<AreaDamageSource> sAreaDamageSources;
-	static thread_local int64_t siAreaDamageSourceCount;
-
 	static thread_local std::vector<LayerPairZones> sLayerPairZones;
 	static thread_local int64_t siLayerPairCount;
 
-	static thread_local std::unordered_map<uint64_t, std::vector<CollisionResult>> sResults;
+	static thread_local std::vector<CollisionResult> sResultEntries;
+	static thread_local int64_t siResultEntryCount;
+	static thread_local std::vector<CollisionResultSpan> sResultSpans;
+	static thread_local int64_t siResultSpanCount;
+	static thread_local int64_t sLayerBaseOffsets[kiCollisionLayerPreallocate];
+	static thread_local std::vector<uint32_t> sTestedBGeneration;
+	static thread_local uint32_t suiTestedBCurrentGeneration;
 };
 
 } // namespace engine

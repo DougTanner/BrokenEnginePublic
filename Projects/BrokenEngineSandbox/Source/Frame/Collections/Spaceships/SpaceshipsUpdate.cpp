@@ -389,8 +389,8 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 		// Note: Missile damage is handled via area damage system in AreaDamage phase
 		if (engine::Collision::HasCollision(suiCollisionLayerIndex, i))
 		{
-			const std::vector<engine::CollisionResult>* pCollisions = engine::Collision::GetCollisions(suiCollisionLayerIndex, i);
-			for (const engine::CollisionResult& rResult : *pCollisions)
+			std::span<const engine::CollisionResult> collisions = engine::Collision::GetCollisions(suiCollisionLayerIndex, i);
+			for (const engine::CollisionResult& rResult : collisions)
 			{
 				if (rResult.uiOtherCategory == CollisionCategory::kBlaster)
 				{
@@ -433,7 +433,7 @@ void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame,
 
 		// Query area damage from missiles (filter by kMissile category)
 		XMVECTOR vecClosestSource {};
-		float fDamage = engine::Collision::GetAreaDamage(rCurrentInterpolate.pVecPositions[i], CollisionCategory::kMissile, vecClosestSource);
+		float fDamage = engine::AreaDamage::Get(rCurrentInterpolate.pVecPositions[i], CollisionCategory::kMissile, vecClosestSource);
 
 		if (fDamage <= 0.0f)
 		{

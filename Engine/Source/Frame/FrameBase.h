@@ -127,8 +127,7 @@ struct FrameInterpolateBase
 		return fDeltaX <= kfVisibleEastWest && fDeltaY <= kfVisibleNorthSouth;
 	}
 
-	common::crc_t Crc() const;
-	common::crc_t ServerCrc() const;
+	std::pair<common::crc_t, common::crc_t> Crcs() const;
 	bool LogDifferences(const FrameInterpolateBase& rOther) const;
 	void Write(std::ostream& rStream) const;
 	void Read(std::istream& rStream);
@@ -166,8 +165,8 @@ struct FramePostRenderBase
 
 	common::crc_t previousCrc = 0;      // Crc() of the previous frame (chain link)
 	common::crc_t previousInputCrc = 0;  // ServerInputCrc() of input used to produce this frame
-	common::crc_t crc = 0;              // Full Crc() of this frame
-	common::crc_t serverCrc = 0;        // ServerCrc() of this frame (for server comparison)
+	common::crc_t crc = 0;              // Crcs().first — full CRC of this frame
+	common::crc_t serverCrc = 0;        // Crcs().second — server-only CRC (for cross-build comparison)
 
 	Alignments alignments {};
 
@@ -229,8 +228,7 @@ struct FramePostRenderBase
 		return std::tie(rSelf.explosions, rSelf.pushers);
 	}
 
-	common::crc_t Crc() const;
-	common::crc_t ServerCrc() const;
+	std::pair<common::crc_t, common::crc_t> Crcs() const;
 	bool LogDifferences(const FramePostRenderBase& rOther) const;
 	void Write(std::ostream& rStream) const;
 	void Read(std::istream& rStream);

@@ -1,17 +1,19 @@
 ---
 name: reduce-file
-description: Analyzes a C++ file that exceeds size guidelines and produces a plan for refactoring or splitting it into smaller files. Use when a .h/.cpp file exceeds 500-1000 lines.
-allowed-tools: [Read, Grep, Glob, Bash, Task]
+description: Analyzes a C++ file that exceeds size guidelines and produces a plan for refactoring or splitting it into smaller files. Use when a .h/.cpp file exceeds 500-1000 lines. Only invoke when the user explicitly requests it (e.g., "/reduce-file", "this file is too big", "split this file") or when another skill explicitly instructs it. Never trigger autonomously from general code questions or during routine code changes.
+allowed-tools: [Read, Grep, Glob, Bash]
 user-invocable: true
 ---
 
 # Reduce File
 
-Analyzes a C++ source file that exceeds the project's size guidelines (500-1000 lines) and produces a structured plan for reducing it — either through extracting helpers to utility files or extracting new classes.
+Analyzes a C++ source file that exceeds the project's size guidelines (500-1000 lines) and produces a structured plan for reducing it — either through extracting helpers to utility files, extracting new classes, or splitting struct implementations across multiple `.cpp` files.
 
-## Key Principle
+## Key Principles
 
-- **Classes** (instance methods, member data): Each class gets its own `.h` and `.cpp` pair. Reducing a file means extracting cohesive responsibilities into new classes — not splitting one class's method implementations across multiple `.cpp` files. The goal is to identify groups of data + behavior that form a natural class, then move that data and its methods into a new class that the original class delegates to.
+- **Free functions / helpers**: Extract to `*Utils.h`/`*Utils.cpp` files. This is the lightest-weight option and should be considered first.
+- **Classes** (instance methods, member data): Each class gets its own `.h` and `.cpp` pair. The goal is to identify groups of data + behavior that form a natural class, then move that data and its methods into a new class that the original class delegates to.
+- **Structs with static methods** (e.g., SOA collections): Can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). The struct definition stays in one header; each `.cpp` file implements a subset of the static methods.
 
 ## Arguments
 
@@ -76,9 +78,9 @@ For each responsibility group, determine what includes it needs:
 
 ### 6. Propose Options
 
-Present two categories of options in priority order:
+Present options in priority order. Not all options apply to every file — include only those that are relevant.
 
-#### Option A: Extract Helper Functions to Utils Files (preferred)
+#### Option A: Extract Helper Functions to Utils Files (preferred for free functions)
 
 Identify free functions, anonymous namespace helpers, utility logic, shared constants, and local structs that can be extracted to `*Utils.h`/`*Utils.cpp` files.
 
@@ -104,7 +106,22 @@ Also state:
 - What remains in the original class and its reduced line count
 - How the original class's header changes (removed members, new includes/forward declarations)
 
-**Important**: The extracted class must be a genuine abstraction — it should own the data it operates on and present a meaningful interface. Don't create a class that just wraps free functions with no state.
+The extracted class must be a genuine abstraction — it should own the data it operates on and present a meaningful interface. Don't create a class that just wraps free functions with no state.
+
+#### Option C: Split Struct Implementation Across Multiple .cpp Files (for structs with static methods)
+
+This applies to structs whose interface is a set of static methods (common for SOA collections). The struct definition stays in a single `.h`; the static method implementations are split across multiple `.cpp` files by responsibility.
+
+For each proposed `.cpp` file:
+- **File name**: `StructName<Responsibility>.cpp` (e.g., `BlastersUpdate.cpp`, `BlastersRender.cpp`)
+- **Methods moved**: Which static methods go into this file
+- **Line count estimate**: How many lines the new `.cpp` will have
+- **Scope guard**: Whether the file is wrapped in `#ifdef`
+- **Includes needed**: What headers the new file requires
+
+Also state:
+- What remains in the original `.cpp` and its reduced line count
+- The `.h` file does not change (all methods remain declared there)
 
 ### 7. Highlight Risks
 
@@ -118,56 +135,72 @@ Flag any complications:
 
 ## Output Format
 
-```
-## File Analysis: <filename>
+## File Analysis: `<filename>`
 
-**Lines**: <count> (<severity>)
+**Lines**: `<count>` (`<severity>`)
 
 ### Responsibility Groups
 
 | # | Responsibility | Lines | Scope | Key Types | Member Variables |
 |---|---------------|-------|-------|-----------|-----------------|
-| 1 | <name>        | ~<n>  | shared/client/server | <types> | <vars> |
-| 2 | <name>        | ~<n>  | shared/client/server | <types> | <vars> |
-| ...
+| 1 | `<name>`      | ~`<n>` | shared/client/server | `<types>` | `<vars>` |
+| 2 | `<name>`      | ~`<n>` | shared/client/server | `<types>` | `<vars>` |
 
 ### Shared Symbols
-- `<symbol>` (<type>) — used by groups <X, Y>. Recommendation: <action>
+- `<symbol>` (`<type>`) — used by groups `<X, Y>`. Recommendation: `<action>`
+
+### Dependencies
+- **Group `<name>`**: requires `<headers>`. Circular dependency risks: `<none or description>`
 
 ### Option A: Extract to Utils Files (preferred)
 
 **Target file**: `<ExistingOrNewUtils>.h` / `<ExistingOrNewUtils>.cpp`
-- <function/constant/struct to extract>
-- <function/constant/struct to extract>
+- `<function/constant/struct to extract>`
+- `<function/constant/struct to extract>`
 
 **Target file**: `<AnotherUtils>.h` / `<AnotherUtils>.cpp` (if needed)
-- <function/constant/struct to extract>
+- `<function/constant/struct to extract>`
 
-**Estimated result**: ~<n> lines (down from <original>)
+**Estimated result**: ~`<n>` lines (down from `<original>`)
 
 ### Option B: Extract New Classes
 
 #### `<ClassName>` (`<ClassName>.h` / `<ClassName>.cpp`)
-- **Purpose**: <what this class represents>
-- **Extracted data**: <member variables that move to this class>
-- **Extracted methods**: <methods that become methods of this class>
-- **~Lines**: <h lines> + <cpp lines>
-- **Scope**: <shared/client/server>
-- **Delegation**: <how the original class uses this — member, pointer, global, etc.>
-
-#### `<ClassName2>` ...
+- **Purpose**: `<what this class represents>`
+- **Extracted data**: `<member variables that move to this class>`
+- **Extracted methods**: `<methods that become methods of this class>`
+- **~Lines**: `<h lines>` + `<cpp lines>`
+- **Scope**: `<shared/client/server>`
+- **Delegation**: `<how the original class uses this — member, pointer, global, etc.>`
 
 **Original class after extraction**:
-- **Removed members**: <list>
-- **New members/includes**: <list>
-- **~Lines**: <h lines> + <cpp lines> (down from <original>)
+- **Removed members**: `<list>`
+- **New members/includes**: `<list>`
+- **~Lines**: `<h lines>` + `<cpp lines>` (down from `<original>`)
+
+### Option C: Split Struct Implementation
+
+**Header** (unchanged): `<StructName>.h`
+
+#### `<StructName><Responsibility>.cpp`
+- **Methods**: `<static methods in this file>`
+- **~Lines**: `<n>`
+- **Scope**: `<shared/client/server>`
+
+#### `<StructName><Responsibility2>.cpp`
+- **Methods**: `<static methods in this file>`
+- **~Lines**: `<n>`
+- **Scope**: `<shared/client/server>`
+
+**Original `.cpp` after split**: ~`<n>` lines (down from `<original>`)
 
 ### Shared Symbol Resolution
-- `<symbol>`: <where it goes and why>
+- `<symbol>`: `<where it goes and why>`
 
 ### Risks
-- <risk 1>
-- <risk 2>
-```
+- `<risk 1>`
+- `<risk 2>`
 
-After presenting the analysis, ask the user which option they'd like to proceed with. If they choose a class extraction, the output can be used directly as input to a planning document.
+---
+
+After presenting the analysis, ask the user which option they'd like to proceed with. If they choose a class extraction or struct split, the output can be used directly as input to a planning document.

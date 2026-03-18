@@ -1,9 +1,6 @@
 #include "TimeStep.h"
 
 #include "Profile/ProfileManager.h"
-#if defined(BT_CLIENT)
-#include "Graphics/Managers/TextManager.h"
-#endif
 
 #include "Game.h"
 
@@ -83,14 +80,14 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 	{
 		miTimeMultiply /= 2;
 		Log("Time ratio: {}x", miTimeMultiply);
-		UpdateTimeScaleText();
+		mbTimeScaleChanged = true;
 		return true;
 	}
 	else if (bAllowSlowMo)
 	{
 		miTimeDivide *= 2;
 		Log("Time ratio: 1/{}x", miTimeDivide);
-		UpdateTimeScaleText();
+		mbTimeScaleChanged = true;
 		return true;
 	}
 	return false;
@@ -108,36 +105,7 @@ void TimeStep::IncreaseTimeScale()
 		miTimeMultiply *= 2;
 		Log("Time ratio: {}x", miTimeMultiply);
 	}
-	UpdateTimeScaleText();
-}
-
-void TimeStep::UpdateTimeScaleText()
-{
-	if (miTimeMultiply == 1 && miTimeDivide == 1)
-	{
-#if defined(BT_CLIENT)
-		gpTextManager->UpdateTextArea(kTextDebug, "");
-#endif
-		return;
-	}
-
-	common::gpThreadLocal->mWorkbuffer.Push();
-	if (miTimeMultiply > 1)
-	{
-		common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
-		common::gpThreadLocal->mWorkbuffer.Append(miTimeMultiply);
-		common::gpThreadLocal->mWorkbuffer.Append("x");
-	}
-	else
-	{
-		common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
-		common::gpThreadLocal->mWorkbuffer.Append(miTimeDivide);
-		common::gpThreadLocal->mWorkbuffer.Append("x");
-	}
-#if defined(BT_CLIENT)
-	gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
-#endif
-	common::gpThreadLocal->mWorkbuffer.Pop();
+	mbTimeScaleChanged = true;
 }
 
 } // namespace engine

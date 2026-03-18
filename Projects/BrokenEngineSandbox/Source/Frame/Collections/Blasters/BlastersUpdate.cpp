@@ -4,7 +4,6 @@
 #include "Blasters.h"
 
 #include "Frame/HealthDamage.h"
-#include "Profile/ProfileManager.h"
 #if defined(BT_CLIENT)
 #include "Frame/Collections/Puffs/Puffs.h"
 #endif
@@ -180,9 +179,7 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 
 #if defined(BT_CLIENT)
 		// Sync owned objects
-		SyncBlaster(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i],
-			rPreviousPostRender.puiSounds[i],
-			vecPosition, vecVelocity, uiTypeIndex, rPreviousPostRender.pfPitches[i]);
+		SyncBlaster(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rPreviousPostRender.puiSounds[i], vecPosition, vecVelocity, uiTypeIndex, rPreviousPostRender.pfPitches[i]);
 
 		// Sync wind deposit
 		if (rCurrent.puiWindTrails[i].IsValid())
@@ -198,7 +195,6 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 #endif // BT_CLIENT
 	}
 
-	gpProfileManager->SetCount(game::kCpuCounterBlasters, rCurrent.iCount);
 }
 
 void BlastersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)

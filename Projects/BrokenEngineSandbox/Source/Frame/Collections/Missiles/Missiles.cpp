@@ -43,7 +43,7 @@ constexpr float kfExhaustLightingIntensity = 12.0f;
 #if defined(BT_CLIENT)
 // Missile trail
 constexpr float kfTrailIntensity = 0.5f;
-constexpr float kfTrailOffset = -1.0f;
+constexpr float kfTrailOffset = -1.1f;
 constexpr float kfTrailOffsetExtra = -0.07f;
 constexpr float kfTrailWidth = 0.15f;
 #endif
@@ -555,7 +555,7 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	SpawnMissileExplosion(rFrame, 1.0f, rCurrentInterpolate.pVecPositions[i], rCurrentPostRender.pVecExplosionDirections[i], rCurrentPostRender.pFlags[i]);
 
 	// Register area damage for the AreaDamage phase
-	engine::Collision::AddAreaDamage(
+	engine::AreaDamage::Add(
 	{
 		.vecPosition = rCurrentInterpolate.pVecPositions[i],
 		.fRadius = kfMissileDamageRadius,

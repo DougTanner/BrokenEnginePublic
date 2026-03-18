@@ -15,7 +15,7 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 2. Any new files created should be added to the appropriate filter in any relevant .vcproj files
 3. Build the affected projects and verify there are no errors (see Build section above)
 4. Use a Sonnet subagent (task tool) to search the codebase and update all locations in the code affected by this modified code
-5. Use a Sonnet subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure)
+5. Use a Sonnet subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure). If review flags any files for `/reduce-file`, invoke it on them
 6. Use a Sonnet subagent (task tool) to invoke the code-style-review skill
 7. Use a Sonnet subagent (task tool) to invoke the update-claude-docs skill
 
@@ -39,7 +39,7 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 - `/Documents/` - Style guide (`C++StyleGuide.txt`) and architecture overview (`Overview.txt`)
 
 ## Build
-Use the `/build` skill for build commands and details. Always use `timeout: 600000` (10 minutes) on all build invocations.
+Use the `/compile` skill for build commands and details. Always use `timeout: 600000` (10 minutes) on all build invocations.
 Linker errors (LNK errors) can be ignored — the client or server executable may be running, which locks the file and prevents linking.
 
 ## Client/Server Builds

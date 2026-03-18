@@ -401,8 +401,9 @@ void ServerSession::HarvestTransfers()
 	for (const auto& [rCoord, rTransfers] : mTickBroadcast.transfers)
 	{
 		Frame& rDestFrame = *gpGame->mCoordFrames.at(rCoord).pNext;
-		rDestFrame.postRender.serverCrc = rDestFrame.ServerCrc();
-		rDestFrame.postRender.crc = rDestFrame.Crc();
+		auto [crc, serverCrc] = rDestFrame.Crcs();
+		rDestFrame.postRender.crc = crc;
+		rDestFrame.postRender.serverCrc = serverCrc;
 	}
 
 	TrackHumanTransfers(humanTransfers);
@@ -491,8 +492,8 @@ void ServerSession::FinalizeNewClients([[maybe_unused]] int64_t iTick)
 
 	// Assign new players to waiting clients (in order)
 	// Client handles subscriptions — no full state sent here
-	size_t iAssignCount = std::min(mClientsWaitingForSpawn.size(), newPlayerIds.size());
-	for (size_t i = 0; i < iAssignCount; ++i)
+	size_t uiAssignCount = std::min(mClientsWaitingForSpawn.size(), newPlayerIds.size());
+	for (size_t i = 0; i < uiAssignCount; ++i)
 	{
 		int64_t iClientId = mClientsWaitingForSpawn.at(i).iClientId;
 		player_t playerId = newPlayerIds.at(i);
@@ -501,7 +502,7 @@ void ServerSession::FinalizeNewClients([[maybe_unused]] int64_t iTick)
 		engine::gpServer->SendPlayerState(iClientId, PlayerEventTypeToWire(PlayerEventType::kSpawned), playerId.ToUuid().Value(), engine::kOriginCoord);
 	}
 
-	mClientsWaitingForSpawn.erase(mClientsWaitingForSpawn.begin(), mClientsWaitingForSpawn.begin() + static_cast<int64_t>(iAssignCount));
+	mClientsWaitingForSpawn.erase(mClientsWaitingForSpawn.begin(), mClientsWaitingForSpawn.begin() + static_cast<int64_t>(uiAssignCount));
 
 	// Refresh snapshot for subsequent ticks
 	RefreshPreSpawnSnapshot();

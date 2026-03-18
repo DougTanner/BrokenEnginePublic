@@ -1,7 +1,7 @@
 ---
 name: code-review
-description: Reviews C++ code changes for bugs, implementation correctness, and simplification opportunities. Use this skill after making code changes as part of the C++ code change workflow (step 6). (project)
-allowed-tools: [Read, Grep, Glob, Task]
+description: Reviews C++ code changes for bugs, implementation correctness, and simplification opportunities. Use this skill after making code changes as part of the C++ code change workflow (step 5).
+allowed-tools: [Read, Grep, Glob]
 ---
 
 # Code Review
@@ -20,11 +20,10 @@ Review the conversation history to find all files that were edited during this s
 
 ### 2. Review for General Bugs
 
-Check each modified section for common issues:
+Check each modified section for common issues. Note: the project assumes parameters to functions are valid (no defensive null checks or validation needed), so only flag pointer/bounds issues where data comes from external sources (file I/O, network, user input).
 
-- **Null/invalid pointer access** - Are pointers checked or guaranteed valid before dereferencing?
-- **Array bounds** - Are all array/vector accesses within valid ranges? Use `.at()` not `[]` for bounds checking.
 - **Uninitialized variables** - Are all variables initialized before use? Check struct members especially.
+- **Array bounds** - Are all array/vector accesses within valid ranges?
 - **Resource leaks** - Are resources managed via RAII? No manual `new`/`delete` or `malloc`/`free`.
 - **Logic errors** - Does the control flow match the intended behavior? Check loop conditions and early returns.
 - **Type mismatches** - Are conversions between types correct? Watch for narrowing conversions.
@@ -106,32 +105,23 @@ Verify that existing utilities are used instead of reimplementing:
 **Type Safety**:
 - `common::Flags<ENUM>` - type-safe bitfield wrapper with Set/Clear/Toggle
 
-### 6. Verify Implementation Completeness
+### 6. File Size Check
 
-Answer these questions:
-- **Does the implementation address the user's request?** Is the functionality complete?
-- **Were all integration points updated?** Check callers, related systems, and edge cases.
-- **Are changes minimal?** No unnecessary additions beyond what was requested.
+For each modified `.cpp` file, check its total line count:
+- **Over 1000 lines**: Always flag as **REQUIRED** — `/reduce-file` must be invoked on this file
+- **500-1000 lines**: Only flag as **RECOMMEND** if you identified a natural split point during the review (e.g., distinct responsibility groups, client/server code that could separate, utility functions that belong in a `*Utils` file). Do not flag files in this range that are cohesive and have no obvious split
 
-### 7. Check for Simplification Opportunities
+### 7. Implementation Assessment
 
-Look for logic improvements (not style - that's step 7):
-- **Duplicated code** that could be extracted into a function
-- **Over-complicated algorithms** that could be simplified
-- **Missing Common library usage** where utilities exist
-- **Unnecessary intermediate variables** that add no clarity
-
-### 8. Verify Minimal Changes Principle
-
-Ensure changes follow minimal change philosophy:
-- No unnecessary refactoring of surrounding code
-- No additional features beyond what was requested
-- No extra error handling or validation (per project directives)
-- No cosmetic changes to unrelated code
+Evaluate the changes holistically:
+- **Completeness** - Does the implementation fully address the user's request?
+- **Integration** - Were all callers, related systems, and edge cases updated?
+- **Minimality** - No unnecessary refactoring, extra features, error handling, or cosmetic changes beyond what was requested.
+- **Simplification** - Could any duplicated code be extracted, over-complicated algorithms be simplified, or unnecessary intermediate variables be removed?
 
 ## Output Format
 
-Provide a structured review report:
+Only include sections where issues were found. For sections with no issues, omit them entirely.
 
 ```
 ## Code Review Results
@@ -140,29 +130,20 @@ Provide a structured review report:
 - [list of modified files with paths]
 
 ### Bugs Found
-[List any bugs discovered, or "No bugs found"]
 - file:line - Description of bug and suggested fix
 
-### Engine Pattern Compliance
-- ✓/✗ Collection integrity (if applicable) - [details]
-- ✓/✗ Manager patterns - [details]
-- ✓/✗ Frame phase separation - [details]
-- ✓/✗ RAII compliance - [details]
-- ✓/✗ Determinism (if replay-sensitive) - [details]
+### Engine Pattern Issues
+- ✗ [pattern name] - [details of what's wrong and how to fix]
 
-### Implementation Assessment
-- ✓/✗ Fully addresses user request - [details]
-- ✓/✗ All integration points updated - [details]
+### File Size Warnings
+- file (N lines) - [RECOMMEND / REQUIRED] `/reduce-file <path>`
 
-### Simplification Opportunities
-[List any suggestions, or "None identified"]
-- Description of opportunity and location
-
-### Minimal Changes Check
-- ✓ Changes are minimal and focused
-- or: List unnecessary additions that should be removed
+### Implementation Issues
+- [Description of completeness, integration, minimality, or simplification concern]
 
 ### Recommendation
 [PASS / NEEDS FIXES]
 Brief summary of overall assessment.
 ```
+
+If no issues were found in any category, output only the Files Reviewed list and "PASS — no issues found."

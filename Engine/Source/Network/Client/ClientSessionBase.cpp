@@ -201,7 +201,12 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 				continue;
 			}
 
+			int64_t iPrevLatestServerTick = miLatestServerTick;
 			miLatestServerTick = std::max(miLatestServerTick, rUpdate.iTick);
+			if (miLatestServerTick != iPrevLatestServerTick) // DT: TEMP
+			{
+				Log(kLogNetwork, "ClientSessionBase::ApplyReceivedUpdatesBase LatestServerTick advanced Old: {} New: {} Gap: {}", iPrevLatestServerTick, miLatestServerTick, miLatestServerTick - iPrevLatestServerTick); // DT: TEMP
+			}
 
 			if (static_cast<int64_t>(rSub.serverUpdates.size()) >= kiMaxBufferedFrames)
 			{
@@ -249,6 +254,10 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	}
 	if (!bHasActiveSlot)
 	{
+		if (miLatestServerTick >= 0) // DT: TEMP
+		{
+			Log(kLogNetwork, "ClientSessionBase::ComputeClockCorrectionNs No active slots, resetting LatestServerTick from {} to -1", miLatestServerTick); // DT: TEMP
+		}
 		miLatestServerTick = -1;
 		return 0ns;
 	}
@@ -260,6 +269,10 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	int64_t iComputedTargetBehind = (iRttUs > 0) ? ((iRttUs / 2 + iTickTimeUs - 1) / iTickTimeUs + 1) : 1;
 	if (miCurrentTargetBehind == 0 || std::abs(iComputedTargetBehind - miCurrentTargetBehind) >= 2)
 	{
+		if (miCurrentTargetBehind != 0 && miCurrentTargetBehind != iComputedTargetBehind) // DT: TEMP
+		{
+			Log(kLogNetwork, "ClientSessionBase::ComputeClockCorrectionNs TargetBehind changed Old: {} New: {} RttUs: {}", miCurrentTargetBehind, iComputedTargetBehind, iRttUs); // DT: TEMP
+		}
 		miCurrentTargetBehind = iComputedTargetBehind;
 	}
 
@@ -272,6 +285,7 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	if (std::abs(iError) >= kiClockErrorDisconnectThreshold)
 	{
 		++miConsecutiveClockErrorFrames;
+		Log(kLogNetwork, "ClientSessionBase::ComputeClockCorrectionNs Clock error accumulating ConsecutiveFrames: {} Error: {} Offset: {} TargetBehind: {} RttUs: {} LatestServerTick: {} PreReconcileTick: {}", miConsecutiveClockErrorFrames, iError, iOffset, miCurrentTargetBehind, iRttUs, miLatestServerTick, iPreReconcileTick); // DT: TEMP
 		if (miConsecutiveClockErrorFrames >= kiClockErrorDisconnectConsecutiveFrames)
 		{
 			mbClockErrorDisconnect = true;
@@ -279,6 +293,10 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	}
 	else
 	{
+		if (miConsecutiveClockErrorFrames > 0) // DT: TEMP
+		{
+			Log(kLogNetwork, "ClientSessionBase::ComputeClockCorrectionNs Clock error recovered after {} consecutive frames Error: {} Offset: {} TargetBehind: {}", miConsecutiveClockErrorFrames, iError, iOffset, miCurrentTargetBehind); // DT: TEMP
+		}
 		miConsecutiveClockErrorFrames = 0;
 	}
 
@@ -366,6 +384,11 @@ void ClientSessionBase::BuildExtrapolationFrameRef(const GridCoord& rCoord, game
 	{
 		int64_t iCurrentPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount - 1);
 		rpCurrent = rSub.snapshots[iCurrentPhysical].get();
+		if (rpCurrent == nullptr)
+		{
+			rpNext = nullptr;
+			return;
+		}
 	}
 }
 

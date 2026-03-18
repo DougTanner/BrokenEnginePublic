@@ -559,8 +559,8 @@ void PlayersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame,
 		// Check collision results
 		if (engine::Collision::HasCollision(siCollisionLayerIndex, i))
 		{
-			const std::vector<engine::CollisionResult>* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, i);
-			for (const engine::CollisionResult& rResult : *pCollisions)
+			std::span<const engine::CollisionResult> collisions = engine::Collision::GetCollisions(siCollisionLayerIndex, i);
+			for (const engine::CollisionResult& rResult : collisions)
 			{
 				if (rResult.uiOtherCategory == CollisionCategory::kSpaceship)
 				{

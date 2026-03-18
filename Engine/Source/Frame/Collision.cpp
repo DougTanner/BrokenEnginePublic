@@ -20,13 +20,16 @@ thread_local float Collision::sfZoneHeight = 0.0f;
 thread_local std::vector<CollisionLayer> Collision::sLayers;
 thread_local int64_t Collision::siLayerCount = 0;
 
-thread_local std::vector<AreaDamageSource> Collision::sAreaDamageSources;
-thread_local int64_t Collision::siAreaDamageSourceCount = 0;
-
 thread_local std::vector<LayerPairZones> Collision::sLayerPairZones;
 thread_local int64_t Collision::siLayerPairCount = 0;
 
-thread_local std::unordered_map<uint64_t, std::vector<CollisionResult>> Collision::sResults;
+thread_local std::vector<CollisionResult> Collision::sResultEntries;
+thread_local int64_t Collision::siResultEntryCount = 0;
+thread_local std::vector<CollisionResultSpan> Collision::sResultSpans;
+thread_local int64_t Collision::siResultSpanCount = 0;
+thread_local int64_t Collision::sLayerBaseOffsets[kiCollisionLayerPreallocate] {};
+thread_local std::vector<uint32_t> Collision::sTestedBGeneration;
+thread_local uint32_t Collision::suiTestedBCurrentGeneration = 0;
 
 using enum CollisionFlags;
 
@@ -53,21 +56,52 @@ size_t Collision::AddLayer(const CollisionLayer& rLayer)
 	return uiLayerIndex;
 }
 
-void Collision::InsertIntoZones(LayerPairZones& rPairZones, int64_t iIndex, FXMVECTOR vecPosition, float fRadius, bool bIsLayerA)
+ZoneRange Collision::CalculateZoneRange(float fMinX, float fMaxX, float fMinY, float fMaxY, float fRadius)
 {
-	XMFLOAT4A f4Position {};
-	XMStoreFloat4A(&f4Position, vecPosition);
-
-	// Map world position to grid indices with clamping
-	int32_t iZoneStartX = std::clamp(static_cast<int32_t>((f4Position.x - fRadius - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1);
-	int32_t iZoneEndX = std::clamp(static_cast<int32_t>((f4Position.x + fRadius - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1);
-	int32_t iZoneStartY = std::clamp(static_cast<int32_t>((f4Position.y - fRadius - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1);
-	int32_t iZoneEndY = std::clamp(static_cast<int32_t>((f4Position.y + fRadius - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1);
-
-	// Insert into all overlapping zones
-	for (int32_t y = iZoneStartY; y <= iZoneEndY; ++y)
+	return
 	{
-		for (int32_t x = iZoneStartX; x <= iZoneEndX; ++x)
+		.iStartX = std::clamp(static_cast<int32_t>((fMinX - fRadius - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1),
+		.iEndX = std::clamp(static_cast<int32_t>((fMaxX + fRadius - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1),
+		.iStartY = std::clamp(static_cast<int32_t>((fMinY - fRadius - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1),
+		.iEndY = std::clamp(static_cast<int32_t>((fMaxY + fRadius - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1),
+	};
+}
+
+ZoneRange Collision::CalculateObjectZoneRange(const CollisionLayer& rLayer, int64_t iIndex)
+{
+	float fMinX, fMaxX, fMinY, fMaxY;
+	if (rLayer.bSweptTest && rLayer.pVecVelocities != nullptr)
+	{
+		XMVECTOR vecPos = rLayer.pVecPositions[iIndex];
+		XMVECTOR vecEndPos = XMVectorAdd(vecPos, XMVectorScale(rLayer.pVecVelocities[iIndex], game::kfDeltaTime));
+		XMVECTOR vecMin = XMVectorMin(vecPos, vecEndPos);
+		XMVECTOR vecMax = XMVectorMax(vecPos, vecEndPos);
+		XMFLOAT4A f4Min {};
+		XMFLOAT4A f4Max {};
+		XMStoreFloat4A(&f4Min, vecMin);
+		XMStoreFloat4A(&f4Max, vecMax);
+		fMinX = f4Min.x;
+		fMaxX = f4Max.x;
+		fMinY = f4Min.y;
+		fMaxY = f4Max.y;
+	}
+	else
+	{
+		XMFLOAT4A f4Position {};
+		XMStoreFloat4A(&f4Position, rLayer.pVecPositions[iIndex]);
+		fMinX = f4Position.x;
+		fMaxX = f4Position.x;
+		fMinY = f4Position.y;
+		fMaxY = f4Position.y;
+	}
+	return CalculateZoneRange(fMinX, fMaxX, fMinY, fMaxY, rLayer.pfRadii[iIndex]);
+}
+
+void Collision::InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex, const ZoneRange& range, bool bIsLayerA)
+{
+	for (int32_t y = range.iStartY; y <= range.iEndY; ++y)
+	{
+		for (int32_t x = range.iStartX; x <= range.iEndX; ++x)
 		{
 			ZonePair& rZonePair = rPairZones.zones[y][x];
 			if (bIsLayerA)
@@ -96,9 +130,7 @@ void Collision::InsertIntoZones(LayerPairZones& rPairZones, int64_t iIndex, FXMV
 	}
 }
 
-static bool XM_CALLCONV SweptSphereTest(FXMVECTOR vecPosA, FXMVECTOR vecVelA, float fRadiusA,
-                                        GXMVECTOR vecPosB, HXMVECTOR vecVelB, float fRadiusB,
-                                        float& rfContactTime)
+static bool XM_CALLCONV SweptSphereTest(FXMVECTOR vecPosA, FXMVECTOR vecVelA, float fRadiusA, GXMVECTOR vecPosB, HXMVECTOR vecVelB, float fRadiusB, float& rfContactTime)
 {
 	XMVECTOR vecRelPos = XMVectorSubtract(vecPosB, vecPosA);
 	XMVECTOR vecRelVel = XMVectorScale(XMVectorSubtract(vecVelB, vecVelA), game::kfDeltaTime);
@@ -140,49 +172,6 @@ static bool XM_CALLCONV SweptSphereTest(FXMVECTOR vecPosA, FXMVECTOR vecVelA, fl
 		return true;
 	}
 	return false;
-}
-
-void Collision::InsertIntoZonesSwept(LayerPairZones& rPairZones, int64_t iIndex, FXMVECTOR vecMin, FXMVECTOR vecMax, float fRadius, bool bIsLayerA)
-{
-	XMFLOAT4A f4Min {};
-	XMFLOAT4A f4Max {};
-	XMStoreFloat4A(&f4Min, vecMin);
-	XMStoreFloat4A(&f4Max, vecMax);
-
-	int32_t iZoneStartX = std::clamp(static_cast<int32_t>((f4Min.x - fRadius - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1);
-	int32_t iZoneEndX = std::clamp(static_cast<int32_t>((f4Max.x + fRadius - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1);
-	int32_t iZoneStartY = std::clamp(static_cast<int32_t>((f4Min.y - fRadius - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1);
-	int32_t iZoneEndY = std::clamp(static_cast<int32_t>((f4Max.y + fRadius - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1);
-
-	for (int32_t y = iZoneStartY; y <= iZoneEndY; ++y)
-	{
-		for (int32_t x = iZoneStartX; x <= iZoneEndX; ++x)
-		{
-			ZonePair& rZonePair = rPairZones.zones[y][x];
-			if (bIsLayerA)
-			{
-				if (rZonePair.iCountA >= static_cast<int64_t>(rZonePair.indicesA.size()))
-				{
-					Log("Collision: ZonePair.indicesA overflow (count: {}, capacity: {}). Increase kiCollisionZonePreallocate in Collision.h", rZonePair.iCountA, rZonePair.indicesA.size());
-					DEBUG_BREAK();
-					rZonePair.indicesA.resize(rZonePair.iCountA * 2);
-				}
-				rZonePair.indicesA.at(static_cast<size_t>(rZonePair.iCountA)) = iIndex;
-				++rZonePair.iCountA;
-			}
-			else
-			{
-				if (rZonePair.iCountB >= static_cast<int64_t>(rZonePair.indicesB.size()))
-				{
-					Log("Collision: ZonePair.indicesB overflow (count: {}, capacity: {}). Increase kiCollisionZonePreallocate in Collision.h", rZonePair.iCountB, rZonePair.indicesB.size());
-					DEBUG_BREAK();
-					rZonePair.indicesB.resize(rZonePair.iCountB * 2);
-				}
-				rZonePair.indicesB.at(static_cast<size_t>(rZonePair.iCountB)) = iIndex;
-				++rZonePair.iCountB;
-			}
-		}
-	}
 }
 
 void Collision::SetupZones(FXMVECTOR vecArea)
@@ -262,16 +251,8 @@ void Collision::SetupZones(FXMVECTOR vecArea)
 					continue;
 				}
 
-				if (rLayerA.bSweptTest && rLayerA.pVecVelocities != nullptr)
-				{
-					XMVECTOR vecPos = rLayerA.pVecPositions[i];
-					XMVECTOR vecEndPos = XMVectorAdd(vecPos, XMVectorScale(rLayerA.pVecVelocities[i], game::kfDeltaTime));
-					InsertIntoZonesSwept(rPairZones, i, XMVectorMin(vecPos, vecEndPos), XMVectorMax(vecPos, vecEndPos), rLayerA.pfRadii[i], true);
-				}
-				else
-				{
-					InsertIntoZones(rPairZones, i, rLayerA.pVecPositions[i], rLayerA.pfRadii[i], true);
-				}
+				ZoneRange range = CalculateObjectZoneRange(rLayerA, i);
+				InsertObjectIntoZones(rPairZones, i, range, true);
 			}
 
 			// Insert layer B objects
@@ -282,16 +263,8 @@ void Collision::SetupZones(FXMVECTOR vecArea)
 					continue;
 				}
 
-				if (rLayerB.bSweptTest && rLayerB.pVecVelocities != nullptr)
-				{
-					XMVECTOR vecPos = rLayerB.pVecPositions[i];
-					XMVECTOR vecEndPos = XMVectorAdd(vecPos, XMVectorScale(rLayerB.pVecVelocities[i], game::kfDeltaTime));
-					InsertIntoZonesSwept(rPairZones, i, XMVectorMin(vecPos, vecEndPos), XMVectorMax(vecPos, vecEndPos), rLayerB.pfRadii[i], false);
-				}
-				else
-				{
-					InsertIntoZones(rPairZones, i, rLayerB.pVecPositions[i], rLayerB.pfRadii[i], false);
-				}
+				ZoneRange range = CalculateObjectZoneRange(rLayerB, i);
+				InsertObjectIntoZones(rPairZones, i, range, false);
 			}
 
 			++uiPairIndex;
@@ -304,16 +277,103 @@ void Collision::Collide(const Alignments& rAlignments, FXMVECTOR vecArea)
 {
 	ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderCollide);
 
-	// Clear previous frame results
-	sResults.clear();
-
 	// Build zone acceleration structure (includes layer pair filtering and same-layer collision assert)
 	SetupZones(vecArea);
+
+	// Collect pending collision results into workbuffer
+	common::gpThreadLocal->mWorkbuffer.Push();
 
 	// Process all layer pair zones
 	for (int64_t i = 0; i < siLayerPairCount; ++i)
 	{
 		CollideLayerPair(rAlignments, sLayerPairZones.at(static_cast<size_t>(i)));
+	}
+
+	// Bucket pending results into flat contiguous storage
+	AllocateResultStorage();
+
+	std::span<const PendingCollisionResult> pendingResults = common::gpThreadLocal->mWorkbuffer.Span<PendingCollisionResult>();
+
+	// Pass 1: Count results per key
+	for (const PendingCollisionResult& rPending : pendingResults)
+	{
+		int64_t iSpanIndex = sLayerBaseOffsets[static_cast<size_t>(rPending.iLayerIndex)] + rPending.iObjectIndex;
+		++sResultSpans.at(static_cast<size_t>(iSpanIndex)).iCount;
+	}
+
+	// Prefix sum: assign offsets, reset counts for fill pass
+	int64_t iTotalResults = 0;
+	for (int64_t i = 0; i < siResultSpanCount; ++i)
+	{
+		CollisionResultSpan& rSpan = sResultSpans.at(static_cast<size_t>(i));
+		if (rSpan.iCount > 0)
+		{
+			rSpan.iOffset = iTotalResults;
+			iTotalResults += rSpan.iCount;
+			rSpan.iCount = 0;
+		}
+	}
+
+	// Grow result entries if needed
+	if (iTotalResults > 0)
+	{
+		if (sResultEntries.empty())
+		{
+			// Heap: one-time per-thread pre-allocation (thread_local vectors start empty to avoid allocating during mi_process_init)
+			ScopedSuppressAllocationTracking suppressAllocationTracking;
+			sResultEntries.resize(std::max(kiCollisionResultPreallocate, iTotalResults));
+		}
+		else if (iTotalResults > static_cast<int64_t>(sResultEntries.size()))
+		{
+			// Heap: rare growth when collision count exceeds pre-allocation
+			ScopedSuppressAllocationTracking suppressAllocationTracking;
+			sResultEntries.resize(iTotalResults);
+		}
+	}
+	siResultEntryCount = iTotalResults;
+
+	// Pass 2: Fill results at their assigned offsets
+	for (const PendingCollisionResult& rPending : pendingResults)
+	{
+		int64_t iSpanIndex = sLayerBaseOffsets[static_cast<size_t>(rPending.iLayerIndex)] + rPending.iObjectIndex;
+		CollisionResultSpan& rSpan = sResultSpans.at(static_cast<size_t>(iSpanIndex));
+		sResultEntries.at(static_cast<size_t>(rSpan.iOffset + rSpan.iCount)) = rPending.result;
+		++rSpan.iCount;
+	}
+
+	// Release pending buffer
+	common::gpThreadLocal->mWorkbuffer.Pop();
+}
+
+void Collision::AllocateResultStorage()
+{
+	// Compute layer base offsets (prefix sum of layer counts)
+	int64_t iTotal = 0;
+	for (int64_t i = 0; i < siLayerCount; ++i)
+	{
+		sLayerBaseOffsets[static_cast<size_t>(i)] = iTotal;
+		iTotal += sLayers.at(static_cast<size_t>(i)).iCount;
+	}
+	siResultSpanCount = iTotal;
+
+	// Lazy pre-allocate spans
+	if (sResultSpans.empty())
+	{
+		// Heap: one-time per-thread pre-allocation (thread_local vectors start empty to avoid allocating during mi_process_init)
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		sResultSpans.resize(std::max(kiCollisionResultSpanPreallocate, iTotal));
+	}
+	else if (iTotal > static_cast<int64_t>(sResultSpans.size()))
+	{
+		// Heap: rare growth when total object count exceeds pre-allocation
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		sResultSpans.resize(iTotal);
+	}
+
+	// Reset all active spans
+	for (int64_t i = 0; i < iTotal; ++i)
+	{
+		sResultSpans.at(static_cast<size_t>(i)) = {-1, 0};
 	}
 }
 
@@ -327,10 +387,14 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 
 	bool bSweptPair = rLayerA.bSweptTest || rLayerB.bSweptTest;
 
-	// Track tested B objects to avoid duplicates from multi-zone presence
-	int64_t iTestedBSize = rLayerB.iCount * static_cast<int64_t>(sizeof(bool));
-	bool* pTestedB = common::gpThreadLocal->mWorkbuffer.PushBuffer<bool*>(iTestedBSize);
-	memset(pTestedB, 0, static_cast<size_t>(iTestedBSize));
+	// Track tested B objects to avoid duplicates from multi-zone presence (generation counter)
+	if (rLayerB.iCount > static_cast<int64_t>(sTestedBGeneration.size()))
+	{
+		// Heap: one-time per-thread growth (thread_local vectors start empty to avoid allocating during mi_process_init)
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		sTestedBGeneration.resize(static_cast<size_t>(rLayerB.iCount));
+		memset(sTestedBGeneration.data(), 0, sTestedBGeneration.size() * sizeof(uint32_t));
+	}
 
 	for (int64_t i = 0; i < rLayerA.iCount; ++i)
 	{
@@ -345,43 +409,20 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 		float fRadiusA = rLayerA.pfRadii[i];
 
 		// Calculate A's zone range with clamping (expand to swept AABB if swept)
-		float fMinX, fMaxX, fMinY, fMaxY;
-		if (rLayerA.bSweptTest && rLayerA.pVecVelocities != nullptr)
-		{
-			XMVECTOR vecEndPos = XMVectorAdd(vecPositionA, XMVectorScale(rLayerA.pVecVelocities[i], game::kfDeltaTime));
-			XMVECTOR vecMin = XMVectorMin(vecPositionA, vecEndPos);
-			XMVECTOR vecMax = XMVectorMax(vecPositionA, vecEndPos);
-			XMFLOAT4A f4Min {};
-			XMFLOAT4A f4Max {};
-			XMStoreFloat4A(&f4Min, vecMin);
-			XMStoreFloat4A(&f4Max, vecMax);
-			fMinX = f4Min.x;
-			fMaxX = f4Max.x;
-			fMinY = f4Min.y;
-			fMaxY = f4Max.y;
-		}
-		else
-		{
-			XMFLOAT4A f4PositionA {};
-			XMStoreFloat4A(&f4PositionA, vecPositionA);
-			fMinX = f4PositionA.x;
-			fMaxX = f4PositionA.x;
-			fMinY = f4PositionA.y;
-			fMaxY = f4PositionA.y;
-		}
+		ZoneRange range = CalculateObjectZoneRange(rLayerA, i);
 
-		int32_t iZoneStartX = std::clamp(static_cast<int32_t>((fMinX - fRadiusA - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1);
-		int32_t iZoneEndX = std::clamp(static_cast<int32_t>((fMaxX + fRadiusA - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1);
-		int32_t iZoneStartY = std::clamp(static_cast<int32_t>((fMinY - fRadiusA - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1);
-		int32_t iZoneEndY = std::clamp(static_cast<int32_t>((fMaxY + fRadiusA - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1);
-
-		// Clear tested flags for this A object
-		memset(pTestedB, 0, static_cast<size_t>(iTestedBSize));
+		// Increment generation counter instead of memset per A object
+		++suiTestedBCurrentGeneration;
+		if (suiTestedBCurrentGeneration == 0)
+		{
+			memset(sTestedBGeneration.data(), 0, sTestedBGeneration.size() * sizeof(uint32_t));
+			suiTestedBCurrentGeneration = 1;
+		}
 
 		// Iterate zones in A's range
-		for (int32_t y = iZoneStartY; y <= iZoneEndY; ++y)
+		for (int32_t y = range.iStartY; y <= range.iEndY; ++y)
 		{
-			for (int32_t x = iZoneStartX; x <= iZoneEndX; ++x)
+			for (int32_t x = range.iStartX; x <= range.iEndX; ++x)
 			{
 				ZonePair& rZonePair = rPairZones.zones[y][x];
 				if (rZonePair.iCountB == 0)
@@ -394,11 +435,11 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 				{
 					int64_t j = rZonePair.indicesB.at(static_cast<size_t>(k));
 					// Skip if already tested this B object
-					if (pTestedB[j])
+					if (sTestedBGeneration[j] == suiTestedBCurrentGeneration)
 					{
 						continue;
 					}
-					pTestedB[j] = true;
+					sTestedBGeneration[j] = suiTestedBCurrentGeneration;
 
 					// Skip if alignments don't allow collision
 					if (!rAlignments.CanCollide(rLayerA.pAlignments[i], rLayerB.pAlignments[j]))
@@ -417,6 +458,7 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 					float fRadiusB = rLayerB.pfRadii[j];
 
 					XMVECTOR vecContactPoint = vecPositionA;
+					bool bCollided = false;
 
 					// Swept sphere test (for fast-moving projectiles)
 					if (bSweptPair)
@@ -435,12 +477,13 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 							{
 								vecContactPoint = XMVectorSubtract(vecImpactA, XMVectorScale(vecDiff, fRadiusA / fDistance));
 							}
-							goto record_collision;
+							bCollided = true;
 						}
 						// Fall through to discrete check (handles already-overlapping case)
 					}
 
 					// Discrete distance check
+					if (!bCollided)
 					{
 						XMVECTOR vecDiff = XMVectorSubtract(vecPositionA, vecPositionB);
 						float fDistanceSquared = XMVectorGetX(XMVector3LengthSq(vecDiff));
@@ -459,24 +502,22 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 						}
 					}
 
-				record_collision:
-
-					// Heap: unordered_map insert + vector push_back into sResults, which persists until PostCollision reads it.
-					//   Can't use workbuffer (data outlives the call) or pre-allocate (collision count varies per frame)
-					ScopedSuppressAllocationTracking suppressAllocationTracking;
-
 					// Record collision for A (always bidirectional per assert in SetupZones)
 					float fDamageB = rLayerB.pfDamages[j];
 
-					uint64_t uiKeyA = (static_cast<uint64_t>(uiLayerA) << 32) | (static_cast<uint64_t>(i) & 0xFFFFFFFF);
-					sResults.try_emplace(uiKeyA).first->second.push_back(
+					common::gpThreadLocal->mWorkbuffer.PushBack<PendingCollisionResult>(
 					{
-						.iOtherIndex = j,
-						.uiOtherLayerIndex = uiLayerB,
-						.uiOtherCategory = rLayerB.uiCategory,
-						.fDamageReceived = fDamageB,
-						.vecContactPoint = vecContactPoint,
-						.vecOtherVelocity = rLayerB.pVecVelocities != nullptr ? rLayerB.pVecVelocities[j] : XMVectorZero(),
+						.iLayerIndex = static_cast<int64_t>(uiLayerA),
+						.iObjectIndex = i,
+						.result =
+						{
+							.iOtherIndex = j,
+							.uiOtherLayerIndex = uiLayerB,
+							.uiOtherCategory = rLayerB.uiCategory,
+							.fDamageReceived = fDamageB,
+							.vecContactPoint = vecContactPoint,
+							.vecOtherVelocity = rLayerB.pVecVelocities != nullptr ? rLayerB.pVecVelocities[j] : XMVectorZero(),
+						},
 					});
 
 					// Mark A as already collided if it's destroy-on-collide
@@ -488,15 +529,19 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 					// Record collision for B (always bidirectional per assert in SetupZones)
 					float fDamageA = rLayerA.pfDamages[i];
 
-					uint64_t uiKeyB = (static_cast<uint64_t>(uiLayerB) << 32) | (static_cast<uint64_t>(j) & 0xFFFFFFFF);
-					sResults.try_emplace(uiKeyB).first->second.push_back(
+					common::gpThreadLocal->mWorkbuffer.PushBack<PendingCollisionResult>(
 					{
-						.iOtherIndex = i,
-						.uiOtherLayerIndex = uiLayerA,
-						.uiOtherCategory = rLayerA.uiCategory,
-						.fDamageReceived = fDamageA,
-						.vecContactPoint = vecContactPoint,
-						.vecOtherVelocity = rLayerA.pVecVelocities != nullptr ? rLayerA.pVecVelocities[i] : XMVectorZero(),
+						.iLayerIndex = static_cast<int64_t>(uiLayerB),
+						.iObjectIndex = j,
+						.result =
+						{
+							.iOtherIndex = i,
+							.uiOtherLayerIndex = uiLayerA,
+							.uiOtherCategory = rLayerA.uiCategory,
+							.fDamageReceived = fDamageA,
+							.vecContactPoint = vecContactPoint,
+							.vecOtherVelocity = rLayerA.pVecVelocities != nullptr ? rLayerA.pVecVelocities[i] : XMVectorZero(),
+						},
 					});
 
 					// Mark B as already collided if it's destroy-on-collide
@@ -508,8 +553,6 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 			}
 		}
 	}
-
-	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 void Collision::Clear()
@@ -519,84 +562,17 @@ void Collision::Clear()
 
 bool Collision::HasCollision(size_t uiLayerIndex, int64_t iIndex)
 {
-	uint64_t uiKey = (static_cast<uint64_t>(uiLayerIndex) << 32) | (static_cast<uint64_t>(iIndex) & 0xFFFFFFFF);
-	return sResults.contains(uiKey);
+	return sResultSpans.at(static_cast<size_t>(sLayerBaseOffsets[uiLayerIndex] + iIndex)).iCount > 0;
 }
 
-const std::vector<CollisionResult>* Collision::GetCollisions(size_t uiLayerIndex, int64_t iIndex)
+std::span<const CollisionResult> Collision::GetCollisions(size_t uiLayerIndex, int64_t iIndex)
 {
-	uint64_t uiKey = (static_cast<uint64_t>(uiLayerIndex) << 32) | (static_cast<uint64_t>(iIndex) & 0xFFFFFFFF);
-	auto it = sResults.find(uiKey);
-	if (it != sResults.end())
+	const CollisionResultSpan& rSpan = sResultSpans.at(static_cast<size_t>(sLayerBaseOffsets[uiLayerIndex] + iIndex));
+	if (rSpan.iCount > 0)
 	{
-		return &it->second;
+		return {sResultEntries.data() + rSpan.iOffset, static_cast<size_t>(rSpan.iCount)};
 	}
-	return nullptr;
-}
-
-void Collision::AddAreaDamage(const AreaDamageSource& rSource)
-{
-	int64_t iIndex = siAreaDamageSourceCount;
-	if (sAreaDamageSources.empty())
-	{
-		// Heap: one-time per-thread pre-allocation (thread_local vectors start empty to avoid allocating during mi_process_init)
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
-		sAreaDamageSources.resize(kiAreaDamageSourcePreallocate);
-	}
-
-	if (siAreaDamageSourceCount >= static_cast<int64_t>(sAreaDamageSources.size()))
-	{
-		Log("Collision: sAreaDamageSources overflow (count: {}, capacity: {}). Increase kiAreaDamageSourcePreallocate in Collision.h", siAreaDamageSourceCount, sAreaDamageSources.size());
-		DEBUG_BREAK();
-		sAreaDamageSources.resize(siAreaDamageSourceCount * 2);
-	}
-	sAreaDamageSources.at(static_cast<size_t>(iIndex)) = rSource;
-	++siAreaDamageSourceCount;
-}
-
-float Collision::GetAreaDamage(FXMVECTOR vecPosition, uint16_t uiCategoryMask, XMVECTOR& rvecClosestSource)
-{
-	float fTotalDamage = 0.0f;
-	float fClosestDistance = std::numeric_limits<float>::max();
-	rvecClosestSource = vecPosition;
-
-	for (int64_t i = 0; i < siAreaDamageSourceCount; ++i)
-	{
-		const AreaDamageSource& rSource = sAreaDamageSources.at(static_cast<size_t>(i));
-		// Filter by category
-		if ((rSource.uiCategory & uiCategoryMask) == 0)
-		{
-			continue;
-		}
-
-		// Calculate distance
-		XMVECTOR vecDiff = XMVectorSubtract(vecPosition, rSource.vecPosition);
-		float fDistance = XMVectorGetX(XMVector3Length(vecDiff));
-
-		// Skip if outside radius
-		if (fDistance >= rSource.fRadius)
-		{
-			continue;
-		}
-
-		// Track closest source
-		if (fDistance < fClosestDistance)
-		{
-			fClosestDistance = fDistance;
-			rvecClosestSource = rSource.vecPosition;
-		}
-
-		// Linear falloff: full damage at center, zero at edge
-		float fFalloff = 1.0f - (fDistance / rSource.fRadius);
-		fTotalDamage += rSource.fDamage * fFalloff;
-	}
-
-	return fTotalDamage;
-}
-
-void Collision::ClearAreaDamage()
-{
-	siAreaDamageSourceCount = 0;
+	return {};
 }
 
 } // namespace engine

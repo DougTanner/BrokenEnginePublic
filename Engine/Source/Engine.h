@@ -7,6 +7,7 @@
 #include "Profile/ProfileManagerBase.h"
 
 // Frame
+#include "Frame/AreaDamage.h"
 #include "Frame/Collision.h"
 #include "Frame/TimeStep.h"
 
