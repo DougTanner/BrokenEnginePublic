@@ -567,6 +567,20 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		{
 			mTimeStep.IncreaseTimeScale();
 		}
+
+#if defined(BT_CLIENT)
+		if (rMenuInput.flags & MenuInputFlags::kConnectLocal && InMainMenu() && !gpClientSession->IsNetworkMode())
+		{
+			if (gpClientSession->mbServerDiscovered)
+			{
+				gpClientSession->ConnectToDiscoveredServer();
+			}
+			else
+			{
+				gpClientSession->ConnectToServer("127.0.0.1");
+			}
+		}
+#endif
 	}
 
 #if defined(BT_CLIENT)

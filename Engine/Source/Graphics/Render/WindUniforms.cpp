@@ -23,27 +23,7 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 		gbWindClear = true;
 	}
 
-	if (gbWindClear)
-	{
-		gbWindClear = false;
-
-		gpPipelineManager->mpPipelines[kPipelineWindClearA].WriteIndirectBuffer(iCommandBuffer, 1);
-		gpPipelineManager->mpPipelines[kPipelineWindClearB].WriteIndirectBuffer(iCommandBuffer, 1);
-		gpPipelineManager->mpPipelines[kPipelineWindSpreadA].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineWindSpreadB].WriteIndirectBuffer(iCommandBuffer, 0);
-
-		return;
-	}
-
-	if (!gWind.Get<bool>())
-	{
-		gpPipelineManager->mpPipelines[kPipelineWindClearA].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineWindClearB].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineWindSpreadA].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineWindSpreadB].WriteIndirectBuffer(iCommandBuffer, 0);
-
-		return;
-	}
+	gbWindClear = false;
 
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
@@ -75,6 +55,9 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 
 	rGlobalLayout.fWindDisplacementNoiseScale = gWindDisplacementNoiseScale.Get();
 
+	uint32_t uiWindWidth = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.width;
+	rGlobalLayout.uiWindTilesX = (uiWindWidth + 7) / 8;
+
 	// Toggle ping-pong index
 	giWindTextureIndex = 1 - giWindTextureIndex;
 
@@ -89,11 +72,6 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	rQuad.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
 	rQuad.f4Params = {};
 	sf4PreviousWindArea = rGlobalLayout.f4SmokeArea;
-
-	gpPipelineManager->mpPipelines[kPipelineWindClearA].WriteIndirectBuffer(iCommandBuffer, 0);
-	gpPipelineManager->mpPipelines[kPipelineWindClearB].WriteIndirectBuffer(iCommandBuffer, 0);
-	gpPipelineManager->mpPipelines[kPipelineWindSpreadA].WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? 1 : 0);
-	gpPipelineManager->mpPipelines[kPipelineWindSpreadB].WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? 1 : 0);
 }
 
 } // namespace engine

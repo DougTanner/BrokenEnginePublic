@@ -12,12 +12,17 @@ Collections register storage buffers during CreatePipelines() via CRC-keyed dyna
 
 Per-frame bump allocation for mesh data and joint matrices with per-command-buffer offset tracking. Auto-grows by doubling capacity and propagates descriptor updates to model pipelines. Joint matrices use a compact 3-row format (48 bytes) since the fourth row is always identity.
 
-## Smoke Hierarchical Dispatch Buffers
+## Hierarchical Dispatch Buffers
 
-Two dedicated buffers support the smoke occupancy system:
+Both smoke and wind use the same occupancy + active tile list pattern for hierarchical indirect dispatch.
 
-- **`mSmokeOccupancyVkBuffer`** (~200 KB) - Bit-packed buffer with one bit per 8x8 smoke tile. Written by `Smoke.frag` and both spread shaders to mark active tiles; read and zeroed each frame by `kPipelineSmokeOccupancyDilate`.
-- **`mSmokeActiveTileVkBuffer`** (~6.5 MB) - Compacted flat list of active tile indices produced by the dilate+compact pass. Also serves as the indirect dispatch argument buffer for `vkCmdDispatchIndirect`.
+**Smoke** (single pair):
+- **`mSmokeOccupancyVkBuffer`** - Bit-packed buffer with one bit per 8x8 smoke tile. Written by `Smoke.frag` and both spread shaders; read and zeroed each frame by `kPipelineSmokeOccupancyDilate`.
+- **`mSmokeActiveTileVkBuffer`** - Compacted flat list of active tile indices produced by the dilate+compact pass. Also serves as the indirect dispatch argument buffer.
+
+**Wind** (two pairs A/B, one per ping-pong texture index):
+- **`mWindOccupancyVkBuffers[2]`** - Per-index bit-packed occupancy. Written by `WindDeposit.frag` and the spread compute shaders.
+- **`mWindActiveTileVkBuffers[2]`** - Per-index active tile list with indirect dispatch args prefix. Enables record-once command buffers: both spread pipelines are always dispatched, and each returns early if its index is inactive.
 
 ## Swapchain Lifecycle
 

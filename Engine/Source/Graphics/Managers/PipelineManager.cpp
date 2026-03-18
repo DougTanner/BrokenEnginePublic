@@ -473,62 +473,69 @@ void PipelineManager::CreateSmokeWindPipelines()
 		},
 	});
 
-	mpPipelines[kPipelineWindClearA].Create(
+	gpBufferManager->CreateWindHierarchicalBuffers();
+
+	// Wind occupancy dilate A: reads OccupancyB, writes ActiveTileA
+	mpPipelines[kPipelineWindOccupancyDilateA].Create(
 	{
-		.name = "WindClearA",
-		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
-		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersClearfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent,
+		.name = "WindOccupancyDilateA",
+		.flags = {kCompute},
+		.ppShaders = {&mShaders.at(data::kShadersWindWindOccupancyDilatecompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindOccupancyVkBuffers[1]},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindActiveTileVkBuffers[0]},
 		},
 	});
-	mpPipelines[kPipelineWindSpreadA].Create(
+
+	// Wind occupancy dilate B: reads OccupancyA, writes ActiveTileB
+	mpPipelines[kPipelineWindOccupancyDilateB].Create(
 	{
-		.name = "WindSpreadA",
-		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
-		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &mShaders.at(data::kShadersWindWindSpreadfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent,
+		.name = "WindOccupancyDilateB",
+		.flags = {kCompute},
+		.ppShaders = {&mShaders.at(data::kShadersWindWindOccupancyDilatecompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindOccupancyVkBuffers[0]},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindActiveTileVkBuffers[1]},
+		},
+	});
+
+	// Wind spread compute A: reads TextureTwo, writes TextureOne, uses ActiveTileA + OccupancyA
+	mpPipelines[kPipelineWindSpreadComputeA].Create(
+	{
+		.name = "WindSpreadComputeA",
+		.flags = {kCompute, kUpdateAfterBind},
+		.ppShaders = {&mShaders.at(data::kShadersWindWindSpreadOnecompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mWindSpreadStorageBuffers.data()},
 			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mWindTextureTwo},
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mWindTextureOne},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindActiveTileVkBuffers[0]},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindOccupancyVkBuffers[0]},
 		},
 	});
-	mpPipelines[kPipelineWindClearB].Create(
+
+	// Wind spread compute B: reads TextureOne, writes TextureTwo, uses ActiveTileB + OccupancyB
+	mpPipelines[kPipelineWindSpreadComputeB].Create(
 	{
-		.name = "WindClearB",
-		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
-		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersClearfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mWindTextureTwo.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mWindTextureTwo.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-		},
-	});
-	mpPipelines[kPipelineWindSpreadB].Create(
-	{
-		.name = "WindSpreadB",
-		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
-		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &mShaders.at(data::kShadersWindWindSpreadfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mWindTextureTwo.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mWindTextureTwo.mInfo.extent,
+		.name = "WindSpreadComputeB",
+		.flags = {kCompute, kUpdateAfterBind},
+		.ppShaders = {&mShaders.at(data::kShadersWindWindSpreadTwocompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mWindSpreadStorageBuffers.data()},
 			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mWindTextureOne},
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mWindTextureTwo},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindActiveTileVkBuffers[1]},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindOccupancyVkBuffers[1]},
 		},
 	});
 }

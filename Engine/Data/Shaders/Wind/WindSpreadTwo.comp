@@ -1,0 +1,84 @@
+#version 460
+
+#include "ShaderLayouts.h"
+#include "WindSpreadCommon.h"
+
+layout (local_size_x = 8, local_size_y = 8) in;
+
+// Uniforms
+layout (binding = 0) uniform globalUniform
+{
+	GlobalLayout globalLayout;
+};
+
+layout (binding = 1) buffer windSpreadBuffer
+{
+	AxisAlignedQuadLayout windSpreadQuad;
+};
+
+layout (binding = 2) uniform sampler2D windTextureSampler;
+layout (binding = 3) uniform sampler2D noiseTextureSampler;
+layout (binding = 4, rg16f) uniform image2D outputImage;
+
+// Active tile list: [VkDispatchIndirectCommand (3 uint32s)] [packed tile indices...]
+layout (binding = 5) buffer activeTileBuffer
+{
+	uint uiDispatchX;
+	uint uiDispatchY;
+	uint uiDispatchZ;
+	uint activeTiles[];
+};
+
+layout (binding = 6) buffer occupancyBuffer
+{
+	uint occupancy[];
+};
+
+shared uint suHasWind;
+
+void main()
+{
+	// SpreadB is active when fWindTextureIndex >= 0.5 (index 1 = write TextureTwo)
+	if (globalLayout.fWindTextureIndex < 0.5f)
+		return;
+
+	// Look up tile from active tile list
+	uint uiTileIndex = activeTiles[gl_WorkGroupID.x];
+	uint uiTilesX = globalLayout.uiWindTilesX;
+	uint uiTileY = uiTileIndex / uiTilesX;
+	uint uiTileX = uiTileIndex - uiTileY * uiTilesX;
+	uint uiX = uiTileX * 8 + gl_LocalInvocationID.x;
+	uint uiY = uiTileY * 8 + gl_LocalInvocationID.y;
+
+	ivec2 i2Size = imageSize(outputImage);
+	bool bInBounds = uiX < i2Size.x && uiY < i2Size.y;
+
+	vec2 f2Texcoord = (vec2(uiX, uiY) + vec2(0.5f)) / vec2(i2Size);
+
+	// Apply camera offset
+	float fXOffset = (windSpreadQuad.f4VertexRect.x + 1.0f) * 0.5f;
+	float fYOffset = (1.0f - windSpreadQuad.f4VertexRect.y) * 0.5f;
+	f2Texcoord -= vec2(fXOffset, fYOffset);
+
+	if (gl_LocalInvocationIndex == 0)
+		suHasWind = 0;
+	barrier();
+
+	vec2 f2Result = vec2(0.0f);
+	if (bInBounds)
+	{
+		f2Result = WindSpread(globalLayout, windTextureSampler, noiseTextureSampler, f2Texcoord);
+		imageStore(outputImage, ivec2(uiX, uiY), vec4(f2Result, 0.0f, 1.0f));
+	}
+
+	// Mark output tile in occupancy for next pass
+	if (dot(f2Result, f2Result) > 0.0f)
+		atomicOr(suHasWind, 1u);
+	barrier();
+
+	if (gl_LocalInvocationIndex == 0 && suHasWind != 0)
+	{
+		uint uiOutTileIndex = uiTileY * uiTilesX + uiTileX;
+		atomicOr(occupancy[uiOutTileIndex >> 5], 1u << (uiOutTileIndex & 31));
+	}
+}

@@ -53,6 +53,7 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 		rMenuInput.flags.Set(kQuit, KeyboardPressed(VK_F4, rRawInput));
 		rMenuInput.flags.Set(kTogglePauseFrame, KeyboardPressed(VK_SPACE, rRawInput));
 		rMenuInput.flags.Set(kResetFrame, KeyboardPressed(VK_RETURN, rRawInput));
+		rMenuInput.flags.Set(kConnectLocal, KeyboardPressed(VK_RETURN, rRawInput));
 		rMenuInput.flags.Set(kQuicksave, KeyboardPressed(VK_F5, rRawInput));
 		rMenuInput.flags.Set(kQuickload, KeyboardPressed(VK_F6, rRawInput));
 		rMenuInput.flags.Set(kSaveReplay, KeyboardPressed(VK_F7, rRawInput));

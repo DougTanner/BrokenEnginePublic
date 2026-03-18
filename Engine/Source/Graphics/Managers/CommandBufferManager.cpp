@@ -135,22 +135,119 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture.RecordEndRenderPass(vkCommandBuffer);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainAmbientOcclusion);
 
-	// Wind spread passes (ping-pong: one set active per frame via indirect instance counts)
+	// Wind spread (hierarchical indirect dispatch)
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWindSpread);
 
-	// Wind spread pass A (writes TextureOne, reads TextureTwo)
-	gpTextureManager->mRenderTargetTextures.mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
-	gpTextureManager->mRenderTargetTextures.mWindTextureOne.RecordBeginRenderPass(vkCommandBuffer);
-	pPipelines[kPipelineWindSpreadA].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	pPipelines[kPipelineWindClearA].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	gpTextureManager->mRenderTargetTextures.mWindTextureOne.RecordEndRenderPass(vkCommandBuffer);
+	uint32_t uiWindWidth = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.width;
+	uint32_t uiWindTilesX = (uiWindWidth + 7) / 8;
+	uint32_t uiWindDilateGroups = (uiWindTilesX * uiWindTilesX + 255) / 256;
 
-	// Wind spread pass B (writes TextureTwo, reads TextureOne)
-	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
-	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.RecordBeginRenderPass(vkCommandBuffer);
-	pPipelines[kPipelineWindSpreadB].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	pPipelines[kPipelineWindClearB].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.RecordEndRenderPass(vkCommandBuffer);
+	// Reset both active tile buffers: {0, 1, 1}
+	uint32_t pWindResetCmd[3] = {0, 1, 1};
+	vkCmdUpdateBuffer(vkCommandBuffer, gpBufferManager->mWindActiveTileVkBuffers[0], 0, sizeof(pWindResetCmd), pWindResetCmd);
+	vkCmdUpdateBuffer(vkCommandBuffer, gpBufferManager->mWindActiveTileVkBuffers[1], 0, sizeof(pWindResetCmd), pWindResetCmd);
+
+	// Barrier: transfer -> compute (both active tile buffers)
+	VkBufferMemoryBarrier pWindActiveTileResetBarriers[]
+	{
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, .pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mWindActiveTileVkBuffers[0], .offset = 0, .size = VK_WHOLE_SIZE,
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, .pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mWindActiveTileVkBuffers[1], .offset = 0, .size = VK_WHOLE_SIZE,
+		},
+	};
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, static_cast<uint32_t>(std::size(pWindActiveTileResetBarriers)), pWindActiveTileResetBarriers, 0, nullptr);
+
+	// Both dilates (read different occupancy buffers, write different active tile buffers)
+	pPipelines[kPipelineWindOccupancyDilateB].RecordCompute(iCommandBuffer, vkCommandBuffer, uiWindDilateGroups);
+	pPipelines[kPipelineWindOccupancyDilateA].RecordCompute(iCommandBuffer, vkCommandBuffer, uiWindDilateGroups);
+
+	// Barrier: compute read/write -> transfer write (occupancy), compute read/write -> indirect+compute (active tiles)
+	VkBufferMemoryBarrier pWindDilateBarriers[]
+	{
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, .pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mWindActiveTileVkBuffers[0], .offset = 0, .size = VK_WHOLE_SIZE,
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, .pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mWindActiveTileVkBuffers[1], .offset = 0, .size = VK_WHOLE_SIZE,
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, .pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+			.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mWindOccupancyVkBuffers[0], .offset = 0, .size = VK_WHOLE_SIZE,
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, .pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+			.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mWindOccupancyVkBuffers[1], .offset = 0, .size = VK_WHOLE_SIZE,
+		},
+	};
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, static_cast<uint32_t>(std::size(pWindDilateBarriers)), pWindDilateBarriers, 0, nullptr);
+
+	// Clear both occupancy buffers
+	vkCmdFillBuffer(vkCommandBuffer, gpBufferManager->mWindOccupancyVkBuffers[0], 0, gpBufferManager->mWindOccupancyBufferSize, 0);
+	vkCmdFillBuffer(vkCommandBuffer, gpBufferManager->mWindOccupancyVkBuffers[1], 0, gpBufferManager->mWindOccupancyBufferSize, 0);
+
+	// Barrier: transfer -> compute (both occupancy buffers)
+	VkBufferMemoryBarrier pWindOccupancyClearBarriers[]
+	{
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, .pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mWindOccupancyVkBuffers[0], .offset = 0, .size = VK_WHOLE_SIZE,
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, .pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mWindOccupancyVkBuffers[1], .offset = 0, .size = VK_WHOLE_SIZE,
+		},
+	};
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, static_cast<uint32_t>(std::size(pWindOccupancyClearBarriers)), pWindOccupancyClearBarriers, 0, nullptr);
+
+	// SpreadB: dispatch from ActiveTileB (reads TextureOne, writes TextureTwo)
+	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
+	{
+		int64_t iDescriptorSetIndex = pPipelines[kPipelineWindSpreadComputeB].mbPerCommandBuffer ? iCommandBuffer : 0;
+		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineWindSpreadComputeB].mVkPipeline);
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineWindSpreadComputeB].mVkPipelineLayout, 0, 1, &pPipelines[kPipelineWindSpreadComputeB].mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
+		vkCmdDispatchIndirect(vkCommandBuffer, gpBufferManager->mWindActiveTileVkBuffers[1], 0);
+	}
+	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
+
+	// SpreadA: dispatch from ActiveTileA (reads TextureTwo, writes TextureOne)
+	gpTextureManager->mRenderTargetTextures.mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
+	{
+		int64_t iDescriptorSetIndex = pPipelines[kPipelineWindSpreadComputeA].mbPerCommandBuffer ? iCommandBuffer : 0;
+		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineWindSpreadComputeA].mVkPipeline);
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineWindSpreadComputeA].mVkPipelineLayout, 0, 1, &pPipelines[kPipelineWindSpreadComputeA].mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
+		vkCmdDispatchIndirect(vkCommandBuffer, gpBufferManager->mWindActiveTileVkBuffers[0], 0);
+	}
+	gpTextureManager->mRenderTargetTextures.mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWindSpread);
 
@@ -457,7 +554,7 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 
 	// Wind deposit pass A (writes TextureOne)
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWindDeposit);
-	gpTextureManager->mRenderTargetTextures.mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
+	gpTextureManager->mRenderTargetTextures.mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
 	gpTextureManager->mRenderTargetTextures.mWindTextureOne.RecordBeginRenderPass(vkCommandBuffer);
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineWindDepositA])
 	{
@@ -470,7 +567,7 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	gpTextureManager->mRenderTargetTextures.mWindTextureOne.RecordEndRenderPass(vkCommandBuffer);
 
 	// Wind deposit pass B (writes TextureTwo)
-	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
+	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
 	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.RecordBeginRenderPass(vkCommandBuffer);
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineWindDepositB])
 	{

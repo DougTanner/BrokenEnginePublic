@@ -40,10 +40,10 @@ enum Pipelines
 	kPipelineSmokeSpreadComputeB,
 	kPipelineSmokeOccupancyDilate,
 
-	kPipelineWindClearA,
-	kPipelineWindSpreadA,
-	kPipelineWindClearB,
-	kPipelineWindSpreadB,
+	kPipelineWindOccupancyDilateA,
+	kPipelineWindOccupancyDilateB,
+	kPipelineWindSpreadComputeA,
+	kPipelineWindSpreadComputeB,
 
 	kPipelineLongParticlesSpawn,
 	kPipelineLongParticlesUpdate,

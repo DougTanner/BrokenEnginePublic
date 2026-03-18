@@ -90,16 +90,16 @@ void main()
 
 	vec3 f3SunNormal = normalize(f3Normal + fSnowPercent * globalLayout.f4SunNormal.xyz);
 
-	// Smoke at base height (shared between shadow and additive smoke)
+	// Shadow with smoke at world position
+	float fShadow = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
+	f4OutColor = vec4(SunLighting(f3Color, globalLayout, vec4(f3InPosition, 1.0f), f3SunNormal, fShadow, 1.0f - texture(ambientOcclusionTextureSampler, f2InVisibleAreaTexcoord).x), 1.0f);
+
+	// Additive smoke at base height
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
 	float fSmokeAreaTexcoordX = (f2PositionAtBaseHeight.x - globalLayout.f4SmokeArea.x) / (globalLayout.f4SmokeArea.z - globalLayout.f4SmokeArea.x);
 	float fSmokeAreaTexcoordY = (f2PositionAtBaseHeight.y - globalLayout.f4SmokeArea.y) / (globalLayout.f4SmokeArea.w - globalLayout.f4SmokeArea.y);
 	float fSmokeRaw = globalLayout.fSmokeMax * texture(smokeSampler, vec2(fSmokeAreaTexcoordX, fSmokeAreaTexcoordY)).x;
 	float fSmokePow = clamp(pow(fSmokeRaw, globalLayout.fSmokePower), 0.0f, 1.0f);
-
-	// Shadow with shared smoke
-	float fShadow = (1.0f - mainLayout.fSmokeShadowIntensity * fSmokePow) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
-	f4OutColor = vec4(SunLighting(f3Color, globalLayout, vec4(f3InPosition, 1.0f), f3SunNormal, fShadow, 1.0f - texture(ambientOcclusionTextureSampler, f2InVisibleAreaTexcoord).x), 1.0f);
 
 	// Lighting at base height
 	vec2 f2BaseHeightTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4VisibleArea);
@@ -109,7 +109,7 @@ void main()
 	pf4Lighting[2] = texture(pLightingSamplers[2], f2BaseHeightTexcoord);
 	f4OutColor.xyz += Lighting(globalLayout, f3Color, f3InPosition.z, f3Normal, pf4Lighting, globalLayout.fLightingTerrain, globalLayout.fLightingAddTerrain);
 
-	// Additive smoke (reusing shared smoke sample)
+	// Additive smoke
 	float fSmokeDensity = globalLayout.fSmokeColorMin + globalLayout.fSmokeColorMultiplier * fSmokePow;
 	float fRed = IntensityLighting(pf4Lighting[0]);
 	float fGreen = IntensityLighting(pf4Lighting[1]);

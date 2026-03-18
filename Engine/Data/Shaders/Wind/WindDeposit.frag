@@ -9,6 +9,7 @@ layout (set = 0, binding = 0) uniform globalUniform
 };
 
 layout (set = 1, binding = 2) uniform sampler2D textureSampler;
+layout (set = 1, binding = 3) buffer windOccupancyBuffer { uint occupancy[]; };
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;
@@ -39,4 +40,12 @@ void main()
 	}
 
 	f4OutColor = vec4(fFalloff * fMagnitude * f2WindDir, 0.0, 1.0);
+
+	// Mark occupancy for deposited tiles (seeds hierarchical dispatch)
+	if (dot(f4OutColor.rg, f4OutColor.rg) > 0.0f)
+	{
+		ivec2 i2TileCoord = ivec2(gl_FragCoord.xy) / 8;
+		uint uiTileIndex = i2TileCoord.y * globalLayout.uiWindTilesX + i2TileCoord.x;
+		atomicOr(occupancy[uiTileIndex >> 5], 1u << (uiTileIndex & 31));
+	}
 }

@@ -352,6 +352,7 @@ void DynamicPipelines::CreatePipelineWindDepositA(common::crc_t crc, std::string
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindOccupancyVkBuffers[0]},
 		},
 	});
 
@@ -383,11 +384,12 @@ void DynamicPipelines::CreatePipelineWindDepositB(common::crc_t crc, std::string
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindOccupancyVkBuffers[1]},
 		},
 	});
 
-	Pipeline* pPipelineTwo = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineWindDepositB].insert_or_assign(crc, pPipelineTwo);
+	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
+	mPipelineMaps[kDynamicPipelineWindDepositB].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineWindDepositAxisAlignedA(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -416,7 +418,8 @@ void DynamicPipelines::CreatePipelineWindDepositAxisAlignedA(common::crc_t crc, 
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesParticlesBC4Square16pngCrc},
+			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesParticlesBC4Square24pngCrc},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindOccupancyVkBuffers[0]},
 		},
 	});
 
@@ -448,13 +451,14 @@ void DynamicPipelines::CreatePipelineWindDepositAxisAlignedB(common::crc_t crc, 
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesParticlesBC4Square16pngCrc},
+			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesParticlesBC4Square24pngCrc},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindOccupancyVkBuffers[1]},
 		},
 	});
 
 	// Register pipeline in axis-aligned wind deposit B map
-	Pipeline* pPipelineAxisAlignedTwo = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineWindDepositAxisAlignedB].insert_or_assign(crc, pPipelineAxisAlignedTwo);
+	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
+	mPipelineMaps[kDynamicPipelineWindDepositAxisAlignedB].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineHexShields(common::crc_t crc, std::string_view name, int64_t iBufferSize)

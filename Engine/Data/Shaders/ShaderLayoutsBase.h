@@ -200,6 +200,7 @@ struct GlobalLayout
 	float fWindDiffusionHigh INIT;
 	float fWindDiffusionLow INIT;
 	float fWindTextureIndex INIT; // Blend factor: 0.0 = TextureOne, 1.0 = TextureTwo (continuous for interpolation)
+	uint32_t uiWindTilesX INIT;
 
 	// Lighting
 	float fLightingDirectional INIT;

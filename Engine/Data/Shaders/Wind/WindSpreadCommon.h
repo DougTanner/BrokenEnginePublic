@@ -1,52 +1,21 @@
-#version 460
-
-#include "ShaderLayouts.h"
-
-// Uniforms
-layout (set = 0, binding = 0) uniform globalUniform
-{
-	GlobalLayout globalLayout;
-};
-
-layout (set = 1, binding = 2) uniform sampler2D windTextureSampler;
-layout (set = 1, binding = 3) uniform sampler2D noiseTextureSampler;
-
-// Input
-layout (location = 0) in flat int iInInstanceIndex;
-layout (location = 1) in vec4 f4InMisc;
-layout (location = 2) in vec2 f2InTexcoord;
-layout (location = 3) in flat uint uiInColor;
-
-// Output
-layout (location = 0) out vec4 f4OutColor;
-
-void main()
+vec2 WindSpread(GlobalLayout globalLayout, sampler2D windTextureSampler, sampler2D noiseTextureSampler, vec2 f2Texcoord)
 {
 	float fTexelSize = globalLayout.fWindTexelSize;
 	float fTimeScale = globalLayout.fWindTimeScale;
 
 	// World position for noise sampling
 	vec2 f2WorldPosition = vec2(
-		(1.0f - f2InTexcoord.x) * globalLayout.f4SmokeArea.x + f2InTexcoord.x * globalLayout.f4SmokeArea.z,
-		(1.0f - f2InTexcoord.y) * globalLayout.f4SmokeArea.y + f2InTexcoord.y * globalLayout.f4SmokeArea.w);
+		(1.0f - f2Texcoord.x) * globalLayout.f4SmokeArea.x + f2Texcoord.x * globalLayout.f4SmokeArea.z,
+		(1.0f - f2Texcoord.y) * globalLayout.f4SmokeArea.y + f2Texcoord.y * globalLayout.f4SmokeArea.w);
 
 	// Semi-Lagrangian advection: trace back along wind direction to find source
-	vec2 f2Wind = texture(windTextureSampler, f2InTexcoord).rg;
+	vec2 f2Wind = texture(windTextureSampler, f2Texcoord).rg;
 
-	// Neighbor reads (shared by early-out, vorticity, and diffusion)
-	float h = fTexelSize;
-	vec2 f2Right = texture(windTextureSampler, f2InTexcoord + vec2(h, 0.0f)).rg;
-	vec2 f2Left  = texture(windTextureSampler, f2InTexcoord - vec2(h, 0.0f)).rg;
-	vec2 f2Up    = texture(windTextureSampler, f2InTexcoord + vec2(0.0f, h)).rg;
-	vec2 f2Down  = texture(windTextureSampler, f2InTexcoord - vec2(0.0f, h)).rg;
-
-	// Early-out: most of the wind texture is zeros (all dot terms non-negative, no cancellation)
-	float fTotalEnergy = dot(f2Wind, f2Wind) + dot(f2Right, f2Right) + dot(f2Left, f2Left) + dot(f2Up, f2Up) + dot(f2Down, f2Down);
-	if (fTotalEnergy == 0.0f)
-	{
-		f4OutColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
-		return;
-	}
+	// Neighbor reads (shared by vorticity and diffusion)
+	vec2 f2Right = texture(windTextureSampler, f2Texcoord + vec2(fTexelSize, 0.0f)).rg;
+	vec2 f2Left  = texture(windTextureSampler, f2Texcoord - vec2(fTexelSize, 0.0f)).rg;
+	vec2 f2Up    = texture(windTextureSampler, f2Texcoord + vec2(0.0f, fTexelSize)).rg;
+	vec2 f2Down  = texture(windTextureSampler, f2Texcoord - vec2(0.0f, fTexelSize)).rg;
 
 	// Magnitude-dependent behavior: weak wind is laminar, strong wind is turbulent
 	float fMag = length(f2Wind);
@@ -62,7 +31,7 @@ void main()
 	{
 		f2Displacement *= fMaxStep / fDispLen;
 	}
-	vec2 f2SourceUV = f2InTexcoord - f2Displacement;
+	vec2 f2SourceUV = f2Texcoord - f2Displacement;
 	vec2 f2AdvectedWind = texture(windTextureSampler, f2SourceUV).rg;
 
 	// Swirl: perpendicular perturbation via noise
@@ -113,10 +82,8 @@ void main()
 	if (fWindMag > fConstDecay)
 	{
 		f2AdvectedWind *= (fWindMag - fConstDecay) / fWindMag;
-		f4OutColor = vec4(f2AdvectedWind, 0.0f, 1.0f);
+		return f2AdvectedWind;
 	}
-	else
-	{
-		f4OutColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
-	}
+
+	return vec2(0.0f);
 }

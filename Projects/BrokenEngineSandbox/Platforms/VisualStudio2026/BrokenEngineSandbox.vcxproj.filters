@@ -1252,7 +1252,16 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelStatic.vert">
       <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindSpread.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindOccupancyDilate.comp">
+      <Filter>Engine\Data\Shaders\Wind</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindSpreadCommon.h">
+      <Filter>Engine\Data\Shaders\Wind</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindSpreadOne.comp">
+      <Filter>Engine\Data\Shaders\Wind</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindSpreadTwo.comp">
       <Filter>Engine\Data\Shaders\Wind</Filter>
     </None>
   </ItemGroup>

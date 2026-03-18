@@ -50,8 +50,6 @@ void MainMenuScreen::Render()
 		gpClientSession->StartServerDiscovery();
 	}
 
-	bool bEnterPressed = ImGui::IsKeyPressed(ImGuiKey_Enter);
-
 	// Local Server button (discovers localhost + LAN)
 	if (gpClientSession->IsNetworkMode())
 	{
@@ -61,8 +59,7 @@ void MainMenuScreen::Render()
 	}
 	else if (gpClientSession->mbServerDiscovered)
 	{
-		bool bClicked = ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, fButtonHeight));
-		if (bClicked || bEnterPressed)
+		if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, fButtonHeight)))
 		{
 			gpClientSession->ConnectToDiscoveredServer();
 		}

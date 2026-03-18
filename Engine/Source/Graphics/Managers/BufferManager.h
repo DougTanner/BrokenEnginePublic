@@ -72,6 +72,16 @@ public:
 	void CreateSmokeHierarchicalBuffers();
 	void DestroySmokeHierarchicalBuffers();
 
+	// Wind hierarchical dispatch buffers (two pairs: A for TextureOne, B for TextureTwo)
+	VkBuffer mWindOccupancyVkBuffers[2] = {};
+	VmaAllocation mWindOccupancyVmaAllocations[2] = {};
+	VkDeviceSize mWindOccupancyBufferSize = 0;
+	VkBuffer mWindActiveTileVkBuffers[2] = {};
+	VmaAllocation mWindActiveTileVmaAllocations[2] = {};
+	VkDeviceSize mWindActiveTileBufferSize = 0;
+	void CreateWindHierarchicalBuffers();
+	void DestroyWindHierarchicalBuffers();
+
 	Buffer mQuadsVertexBuffer;
 	Buffer mTerrainMeshBuffer;
 	Buffer mWaterMeshBuffer;

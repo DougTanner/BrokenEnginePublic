@@ -190,7 +190,7 @@ Wrapper gSmokeNoiseScaleOne(3.0f, 0.1f, 8.0f);
 Wrapper gSmokeNoiseScaleTwo(0.2f, 0.01f, 1.0f);
 Wrapper gSmokeNoiseQuantity(0.000055f, 0.00001f, 0.0002f);
 Wrapper gSmokeNoiseInfluence(0.0f, 0.0f, 1000.0f);
-Wrapper gSmokeMax(0.3f, 0.0f, 1.0f);
+Wrapper gSmokeMax(0.2f, 0.0f, 1.0f);
 Wrapper gSmokePower(0.18f, 0.1f, 1.0f);
 Wrapper gSmokeColorMin(0.6f, 0.0f, 1.0f);
 Wrapper gSmokeColorMultiplier(2.0f, 0.1f, 4.0f);
@@ -228,7 +228,7 @@ Wrapper gWindToSmokePower(1.05f, 0.6f, 2.0f);
 Wrapper gWindDisplacementNoiseScale(1.25f, 0.0f, 5.0f);
 
 // Wind - Deposit
-Wrapper gWindDepositExplosionsWidth(4.0f, 0.1f, 20.0f);
+Wrapper gWindDepositExplosionsWidth(12.0f, 4.0f, 20.0f);
 Wrapper gWindDepositExplosionsIntensity(0.004f, 0.0f, 0.01f);
 
 Wrapper gWindDepositPlayerBlastersWidth(0.75f, 0.1f, 2.0f);

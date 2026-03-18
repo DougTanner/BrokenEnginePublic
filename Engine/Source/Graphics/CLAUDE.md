@@ -29,3 +29,4 @@ Multi-pass deferred Vulkan renderer with lighting, shadows, GPU particles, and p
 
 - [Managers/CLAUDE.md](Managers/CLAUDE.md) - Individual manager implementations and Vulkan patterns
 - [Objects/CLAUDE.md](Objects/CLAUDE.md) - RAII wrappers for Vulkan resources
+- [Render/CLAUDE.md](Render/CLAUDE.md) - Per-subsystem GPU uniform buffer population
