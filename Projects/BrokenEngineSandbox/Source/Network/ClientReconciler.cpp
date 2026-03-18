@@ -125,6 +125,7 @@ void ClientReconciler::Kick()
 	ASSERT(rReconcileContext.iTargetTick >= 0);
 	rReconcileContext.playerAlignment = gpGame->PlayerAlignment();
 	rReconcileContext.alignments = gpGame->Alignments();
+	rReconcileContext.iJitterUs = (gpClientSession->mpClientNetwork != nullptr) ? gpClientSession->mpClientNetwork->GetJitterUs() : 0;
 
 	// Create/resize per-coord dispatch pool
 	if constexpr (kbEnableReconcileDispatch)

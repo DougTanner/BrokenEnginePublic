@@ -95,6 +95,8 @@ public:
 	int64_t GetBytesInPerSecond() { return mBytesInPerSecond.Get(); }
 	int64_t GetBytesOutPerSecond() { return mBytesOutPerSecond.Get(); }
 	int64_t GetPipelineRttUs() { return mSmoothedPipelineRttUs.Get(); }
+	float GetPacketLossPercent();
+	int64_t GetJitterUs() { return mSmoothedJitterUs.Get(); }
 
 private:
 
@@ -139,6 +141,14 @@ private:
 	uint32_t muiPrevSentData = 0;
 	common::InTheLastSecond mBytesInPerSecond;
 	common::InTheLastSecond mBytesOutPerSecond;
+
+	// Packet loss tracking
+	common::InTheLastSecond mFramesReceived;
+
+	// Interarrival jitter tracking
+	std::chrono::high_resolution_clock::time_point mLastUpdateArrival {};
+	bool mbHasLastUpdateArrival = false;
+	common::Smoothed<int64_t> mSmoothedJitterUs;
 
 	bool mbDesyncDebugMode = false;
 

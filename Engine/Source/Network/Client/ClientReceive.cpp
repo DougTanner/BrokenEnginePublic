@@ -34,7 +34,7 @@ static std::unique_ptr<game::Frame> DecompressAndReadFrame(const uint8_t*& pCurs
 	}
 
 	std::istringstream frameStream(std::move(decompressed), std::ios::binary);
-	auto pFrame = std::make_unique<game::Frame>();
+	std::unique_ptr<game::Frame> pFrame = std::make_unique<game::Frame>();
 	pFrame->ServerRead(frameStream);
 	return pFrame;
 }
@@ -172,6 +172,18 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 		{
 			mSmoothedPipelineRttUs = iRttUs;
 			mSmoothedPipelineRttUs.Update();
+
+			std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
+			if (mbHasLastUpdateArrival)
+			{
+				int64_t iIntervalUs = std::chrono::duration_cast<std::chrono::microseconds>(now - mLastUpdateArrival).count();
+				int64_t iExpectedUs = 1'000'000 / kiTickRate;
+				int64_t iDeviation = std::abs(iIntervalUs - iExpectedUs);
+				mSmoothedJitterUs = iDeviation;
+				mSmoothedJitterUs.Update();
+			}
+			mLastUpdateArrival = now;
+			mbHasLastUpdateArrival = true;
 		}
 	}
 

@@ -209,6 +209,7 @@ void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 	if (rAck.iAckFloor < 0)
 	{
 		rAck.iAckFloor = iTick;
+		mFramesReceived.Set(1);
 		return;
 	}
 
@@ -235,6 +236,7 @@ void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 	{
 		rAck.uiReceivedBitfieldHigh |= (1ULL << (iBitIndex - 64));
 	}
+	mFramesReceived.Set(1);
 
 	while (rAck.uiReceivedBitfieldLow & 1ULL)
 	{
@@ -266,6 +268,24 @@ void Client::Disconnect()
 		enet_peer_disconnect(mpServerPeer, 0);
 		mbConnected = false;
 	}
+}
+
+float Client::GetPacketLossPercent()
+{
+	int64_t iActiveSlots = 0;
+	for (const ClientCoordSlot& rSlot : mCoordSlots)
+	{
+		if (rSlot.eState == CoordSubscriptionState::kActive)
+		{
+			++iActiveSlots;
+		}
+	}
+	int64_t iExpected = kiTickRate * iActiveSlots;
+	if (iExpected <= 0) return 0.0f;
+	int64_t iReceived = mFramesReceived.Get();
+	int64_t iLost = iExpected - iReceived;
+	if (iLost <= 0) return 0.0f;
+	return static_cast<float>(iLost) * 100.0f / static_cast<float>(iExpected);
 }
 
 } // namespace engine

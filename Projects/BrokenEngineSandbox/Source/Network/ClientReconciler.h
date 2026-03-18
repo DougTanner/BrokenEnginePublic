@@ -78,6 +78,7 @@ struct ReconcileContext
 	ConfirmedHumanState confirmedHumanState;
 	uint16_t uiNextFrameId = 0;
 	int64_t iTargetTick = 0;
+	int64_t iJitterUs = 0;
 	engine::alignment_t playerAlignment {};
 	engine::Alignments alignments;
 

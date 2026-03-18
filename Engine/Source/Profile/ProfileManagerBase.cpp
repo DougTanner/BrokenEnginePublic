@@ -800,6 +800,12 @@ void ProfileManagerBase::UpdateProfileText()
 						rWorkbuffer.Append("%)");
 					}
 					rWorkbuffer.Append("\n");
+
+					rWorkbuffer.Append("Pkt Loss: ");
+					rWorkbuffer.AppendFloat(gpClient->GetPacketLossPercent(), 1);
+					rWorkbuffer.Append("%  Jitter: ");
+					rWorkbuffer.AppendFloat(gpClient->GetJitterUs() / 1000.0f, 1);
+					rWorkbuffer.Append(" ms\n");
 				}
 
 				rWorkbuffer.Append("In: ");

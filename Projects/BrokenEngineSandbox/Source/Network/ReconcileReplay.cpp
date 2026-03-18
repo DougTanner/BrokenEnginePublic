@@ -190,7 +190,7 @@ static std::unique_ptr<Frame> CloneFrameViaSerialization(const Frame& rFrame)
 	std::ostringstream outputStream(std::ios::binary);
 	outputStream << rFrame;
 	std::istringstream inputStream(outputStream.str(), std::ios::binary);
-	auto pClone = std::make_unique<Frame>();
+	std::unique_ptr<Frame> pClone = std::make_unique<Frame>();
 	inputStream >> *pClone;
 	return pClone;
 }
@@ -374,7 +374,23 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork, int64_t iMaxConsecutive, float& rfTime)
 {
 	int64_t iReplayStart = rWork.iConfirmedTick + 1;
-	const int64_t iMaxReplay = std::max(1LL, (iMaxConsecutive - rWork.iConfirmedTick + 1) / 2);
+	int64_t iAvailable = iMaxConsecutive - rWork.iConfirmedTick + 1;
+	constexpr int64_t kiLowJitterThresholdUs = 2000;
+	constexpr int64_t kiHighJitterThresholdUs = 8000;
+	int64_t iJitterUs = rReconcileContext.iJitterUs;
+	int64_t iMaxReplay;
+	if (iJitterUs <= kiLowJitterThresholdUs)
+	{
+		iMaxReplay = iAvailable;
+	}
+	else if (iJitterUs >= kiHighJitterThresholdUs)
+	{
+		iMaxReplay = std::max(iAvailable / 4, 1LL);
+	}
+	else
+	{
+		iMaxReplay = std::max(iAvailable / 2, 1LL);
+	}
 	int64_t iReplayCount = 0;
 
 	for (int64_t iTick = iReplayStart; iTick <= iMaxConsecutive; ++iTick)
