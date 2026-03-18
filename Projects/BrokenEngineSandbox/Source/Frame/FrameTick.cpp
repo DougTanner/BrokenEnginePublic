@@ -7,6 +7,12 @@ namespace game
 
 void RunFrameTick(const ActiveFrameRef& rRef, int64_t iTickCounter, float fCurrentTime)
 {
+	// Verify MXCSR has not been corrupted by external calls (audio, Vulkan, etc.)
+	unsigned int uiControlWord = 0;
+	_controlfp_s(&uiControlWord, 0, 0);
+	ASSERT((uiControlWord & _MCW_DN) == _DN_FLUSH);
+	ASSERT((uiControlWord & _MCW_RC) == _RC_NEAR);
+
 	Frame& rNext = *rRef.pNext;
 	const Frame& rCurrent = *rRef.pCurrent;
 

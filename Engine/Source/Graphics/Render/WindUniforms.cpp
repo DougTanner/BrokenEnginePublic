@@ -74,8 +74,6 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fWindDiffusionLow = gWindDiffusionLow.Get();
 
 	rGlobalLayout.fWindDisplacementNoiseScale = gWindDisplacementNoiseScale.Get();
-	rGlobalLayout.fWindDisplacementSwirlScale = gWindDisplacementSwirlScale.Get();
-	rGlobalLayout.fWindDisplacementSwirlPower = gWindDisplacementSwirlPower.Get();
 
 	// Toggle ping-pong index
 	giWindTextureIndex = 1 - giWindTextureIndex;

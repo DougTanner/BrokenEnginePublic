@@ -1,0 +1,43 @@
+#version 460
+
+#include "ShaderLayouts.h"
+
+layout (local_size_x = 8, local_size_y = 8) in;
+
+// Uniforms
+layout (binding = 0) uniform globalUniform
+{
+    GlobalLayout globalLayout;
+};
+
+layout (binding = 1) uniform sampler2D objectShadowsBlurIntermediateSampler;
+layout (binding = 2, r16) uniform image2D objectShadowsBlurTexture;
+
+void main()
+{
+	uint uiX = gl_GlobalInvocationID.x;
+	uint uiY = gl_GlobalInvocationID.y;
+
+	ivec2 i2Size = imageSize(objectShadowsBlurTexture);
+	if (uiX >= i2Size.x || uiY >= i2Size.y)
+		return;
+
+	const int iRadius = 5;
+	float fInvSigma = float(iRadius) / globalLayout.fObjectShadowsBlurSigma;
+
+	vec2 f2Uv = (vec2(uiX, uiY) + vec2(0.5f)) / vec2(i2Size);
+
+	float fTotal = 0.0f;
+	float fWeightSum = 0.0f;
+	for (int j = -iRadius; j <= iRadius; ++j)
+	{
+		float fA = float(j) / fInvSigma;
+		float fWeight = exp(-0.5f * fA * fA);
+		vec2 f2Offset = vec2(0.0f, float(j)) / vec2(i2Size);
+		fTotal += fWeight * texture(objectShadowsBlurIntermediateSampler, f2Uv + f2Offset).x;
+		fWeightSum += fWeight;
+	}
+
+	float fOutColor = 1.0f - globalLayout.fObjectShadowsIntensity * fTotal / fWeightSum;
+	imageStore(objectShadowsBlurTexture, ivec2(uiX, uiY), vec4(fOutColor, 0.0f, 0.0f, 0.0f));
+}

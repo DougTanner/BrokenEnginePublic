@@ -52,6 +52,9 @@ public:
 	std::unique_ptr<Client> mpClientNetwork;
 	std::unique_ptr<NetworkDiscoveryScanner> mpDiscoveryScanner;
 
+	bool mbServerDiscovered = false;
+	char mpcDiscoveredAddress[16] {};
+
 	int64_t miLatestServerTick = -1;
 	int64_t miClockError = 0;
 	int64_t miClockOffset = 0;

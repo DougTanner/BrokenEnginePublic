@@ -139,14 +139,14 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWindSpread);
 
 	// Wind spread pass A (writes TextureOne, reads TextureTwo)
-	gpTextureManager->mRenderTargetTextures.mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
+	gpTextureManager->mRenderTargetTextures.mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
 	gpTextureManager->mRenderTargetTextures.mWindTextureOne.RecordBeginRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineWindSpreadA].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	pPipelines[kPipelineWindClearA].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	gpTextureManager->mRenderTargetTextures.mWindTextureOne.RecordEndRenderPass(vkCommandBuffer);
 
 	// Wind spread pass B (writes TextureTwo, reads TextureOne)
-	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
+	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
 	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.RecordBeginRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineWindSpreadB].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	pPipelines[kPipelineWindClearB].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
@@ -154,17 +154,154 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWindSpread);
 
-	// Smoke spread passes
+	// Smoke spread passes (hierarchical indirect dispatch)
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeSpread);
-	gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.RecordBeginRenderPass(vkCommandBuffer);
-	pPipelines[kPipelineSmokeSpreadB].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	pPipelines[kPipelineSmokeClearB].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.RecordEndRenderPass(vkCommandBuffer);
-	gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
-	gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.RecordBeginRenderPass(vkCommandBuffer);
-	pPipelines[kPipelineSmokeSpreadA].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	pPipelines[kPipelineSmokeClearA].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.RecordEndRenderPass(vkCommandBuffer);
+
+	uint32_t uiSmokeTilesX = (std::max(gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.width, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.width) + 7) / 8;
+	uint32_t uiTotalTiles = uiSmokeTilesX * uiSmokeTilesX;
+	uint32_t uiDilateGroups = (uiTotalTiles + 255) / 256;
+
+	// === Dilate + Compact for SpreadB ===
+	// Reset active tile buffer indirect command: {0, 1, 1}
+	uint32_t pResetCmd[3] = {0, 1, 1};
+	vkCmdUpdateBuffer(vkCommandBuffer, gpBufferManager->mSmokeActiveTileVkBuffer, 0, sizeof(pResetCmd), pResetCmd);
+
+	// Barrier: transfer write → compute read for active tile buffer
+	VkBufferMemoryBarrier vkActiveTileResetBarrier
+	{
+		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+		.pNext = nullptr,
+		.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.buffer = gpBufferManager->mSmokeActiveTileVkBuffer,
+		.offset = 0,
+		.size = VK_WHOLE_SIZE,
+	};
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &vkActiveTileResetBarrier, 0, nullptr);
+
+	// Dilate: read occupancy (from prev frame deposit + spread), write active tile list
+	pPipelines[kPipelineSmokeOccupancyDilate].RecordCompute(iCommandBuffer, vkCommandBuffer, uiDilateGroups);
+
+	// Barrier: dilate compute → indirect read + compute read (active tile), compute read → transfer write (occupancy)
+	VkBufferMemoryBarrier pDilateBarriersB[] =
+	{
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, .pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mSmokeActiveTileVkBuffer, .offset = 0, .size = VK_WHOLE_SIZE,
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, .pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+			.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mSmokeOccupancyVkBuffer, .offset = 0, .size = VK_WHOLE_SIZE,
+		},
+	};
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, static_cast<uint32_t>(std::size(pDilateBarriersB)), pDilateBarriersB, 0, nullptr);
+
+	// Clear occupancy before SpreadB writes fresh marks
+	vkCmdFillBuffer(vkCommandBuffer, gpBufferManager->mSmokeOccupancyVkBuffer, 0, gpBufferManager->mSmokeOccupancyBufferSize, 0);
+	VkBufferMemoryBarrier vkOccupancyClearBarrier
+	{
+		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+		.pNext = nullptr,
+		.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.buffer = gpBufferManager->mSmokeOccupancyVkBuffer,
+		.offset = 0,
+		.size = VK_WHOLE_SIZE,
+	};
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &vkOccupancyClearBarrier, 0, nullptr);
+
+	// Clear TextureTwo before indirect spread writes active tiles only
+	gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kTransferDestination);
+	VkClearColorValue vkSmokeClearColor = {{0.0f, 0.0f, 0.0f, 0.0f}};
+	VkImageSubresourceRange vkSmokeSubresource {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+	vkCmdClearColorImage(vkCommandBuffer, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &vkSmokeClearColor, 1, &vkSmokeSubresource);
+	gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.TransitionImageLayout(vkCommandBuffer, kTransferDestination, kComputeReadWrite);
+
+	// SpreadB: indirect dispatch from active tile buffer
+	{
+		int64_t iDescriptorSetIndex = pPipelines[kPipelineSmokeSpreadComputeB].mbPerCommandBuffer ? iCommandBuffer : 0;
+		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineSmokeSpreadComputeB].mVkPipeline);
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineSmokeSpreadComputeB].mVkPipelineLayout, 0, 1, &pPipelines[kPipelineSmokeSpreadComputeB].mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
+		vkCmdDispatchIndirect(vkCommandBuffer, gpBufferManager->mSmokeActiveTileVkBuffer, 0);
+	}
+	gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
+
+	// === Dilate + Compact for SpreadA ===
+	// Barrier: SpreadB compute writes (occupancy) → dilate reads; SpreadB indirect+compute reads (active tile) → transfer write
+	VkBufferMemoryBarrier pSpreadBBarriers[] =
+	{
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, .pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mSmokeOccupancyVkBuffer, .offset = 0, .size = VK_WHOLE_SIZE,
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, .pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
+			.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mSmokeActiveTileVkBuffer, .offset = 0, .size = VK_WHOLE_SIZE,
+		},
+	};
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, static_cast<uint32_t>(std::size(pSpreadBBarriers)), pSpreadBBarriers, 0, nullptr);
+
+	// Reset active tile buffer indirect command: {0, 1, 1}
+	vkCmdUpdateBuffer(vkCommandBuffer, gpBufferManager->mSmokeActiveTileVkBuffer, 0, sizeof(pResetCmd), pResetCmd);
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &vkActiveTileResetBarrier, 0, nullptr);
+
+	// Dilate: read SpreadB's occupancy, write active tile list for SpreadA
+	pPipelines[kPipelineSmokeOccupancyDilate].RecordCompute(iCommandBuffer, vkCommandBuffer, uiDilateGroups);
+
+	// Barrier: dilate compute → indirect read + compute read (active tile), compute read → transfer write (occupancy)
+	VkBufferMemoryBarrier pDilateBarriersA[] =
+	{
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, .pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mSmokeActiveTileVkBuffer, .offset = 0, .size = VK_WHOLE_SIZE,
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, .pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+			.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mSmokeOccupancyVkBuffer, .offset = 0, .size = VK_WHOLE_SIZE,
+		},
+	};
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, static_cast<uint32_t>(std::size(pDilateBarriersA)), pDilateBarriersA, 0, nullptr);
+
+	// Clear occupancy before SpreadA writes fresh marks
+	vkCmdFillBuffer(vkCommandBuffer, gpBufferManager->mSmokeOccupancyVkBuffer, 0, gpBufferManager->mSmokeOccupancyBufferSize, 0);
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &vkOccupancyClearBarrier, 0, nullptr);
+
+	// Clear TextureOne before indirect spread writes active tiles only
+	gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kTransferDestination);
+	vkCmdClearColorImage(vkCommandBuffer, gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &vkSmokeClearColor, 1, &vkSmokeSubresource);
+	gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.TransitionImageLayout(vkCommandBuffer, kTransferDestination, kComputeReadWrite);
+
+	// SpreadA: indirect dispatch from active tile buffer
+	{
+		int64_t iDescriptorSetIndex = pPipelines[kPipelineSmokeSpreadComputeA].mbPerCommandBuffer ? iCommandBuffer : 0;
+		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineSmokeSpreadComputeA].mVkPipeline);
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineSmokeSpreadComputeA].mVkPipelineLayout, 0, 1, &pPipelines[kPipelineSmokeSpreadComputeA].mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
+		vkCmdDispatchIndirect(vkCommandBuffer, gpBufferManager->mSmokeActiveTileVkBuffer, 0);
+	}
+	gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
+
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeSpread);
 
 	BarrierInfo pBarriers[] =
@@ -261,7 +398,7 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	vkCmdEndRenderPass(vkCommandBuffer);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
 
-	// Lighting blur passes
+	// Lighting blur passes (single MRT pass per level)
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingBlur);
 	float fBlurFirstDivisor = gLightingBlurFirstDivisor.Get();
 	if (gpGraphics->mFramebufferExtent2D.height <= 1080)
@@ -271,60 +408,33 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	float fBlurDivisor = gLightingBlurDivisor.Get();
 	for (int64_t i = 0; i < gpTextureManager->mRenderTargetTextures.miLightingBlurCount; ++i)
 	{
-		VkExtent3D previousVkExtent3D = i == 0 ? gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent : gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[i - 1].mInfo.extent;
-		gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[i].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
-		gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[i].RecordBeginRenderPass(vkCommandBuffer);
-		gpPipelineManager->mpRedLightingBlurPipelines[i].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0,
+		float fDivisor = i == 0 ? fBlurFirstDivisor : fBlurDivisor;
+		float fDistanceCount = i <= 1 ? 4.0f : (i <= 3 ? 3.0f : 2.0f);
+		if (i >= 2)
 		{
-			static_cast<float>(previousVkExtent3D.width),
-			static_cast<float>(previousVkExtent3D.height),
-			i == 0 ? fBlurFirstDivisor : fBlurDivisor,
-			0.0f,
-		});
-		gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[i].RecordEndRenderPass(vkCommandBuffer);
-	}
-	for (int64_t i = 0; i < gpTextureManager->mRenderTargetTextures.miLightingBlurCount; ++i)
-	{
-		VkExtent3D previousVkExtent3D = i == 0 ? gpTextureManager->mRenderTargetTextures.mpLightingTextures[1].mInfo.extent : gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures[i - 1].mInfo.extent;
-		gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures[i].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
-		gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures[i].RecordBeginRenderPass(vkCommandBuffer);
-		gpPipelineManager->mpGreenLightingBlurPipelines[i].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0,
-		{
-			static_cast<float>(previousVkExtent3D.width),
-			static_cast<float>(previousVkExtent3D.height),
-			i == 0 ? fBlurFirstDivisor : fBlurDivisor,
-			0.0f,
-		});
-		gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures[i].RecordEndRenderPass(vkCommandBuffer);
-	}
-	for (int64_t i = 0; i < gpTextureManager->mRenderTargetTextures.miLightingBlurCount; ++i)
-	{
-		VkExtent3D previousVkExtent3D = i == 0 ? gpTextureManager->mRenderTargetTextures.mpLightingTextures[2].mInfo.extent : gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures[i - 1].mInfo.extent;
-		gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures[i].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
-		gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures[i].RecordBeginRenderPass(vkCommandBuffer);
-		gpPipelineManager->mpBlueLightingBlurPipelines[i].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0,
-		{
-			static_cast<float>(previousVkExtent3D.width),
-			static_cast<float>(previousVkExtent3D.height),
-			i == 0 ? fBlurFirstDivisor : fBlurDivisor,
-			0.0f,
-		});
-		gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures[i].RecordEndRenderPass(vkCommandBuffer);
+			fDistanceCount = -fDistanceCount;
+		}
+
+		VkExtent3D previousExtent = i == 0
+			? gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent
+			: gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[i - 1].mInfo.extent;
+
+		RecordLightingBlurMRT(vkCommandBuffer, iCommandBuffer, i, fDivisor, fDistanceCount, previousExtent);
 	}
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingBlur);
 
 	// Lighting combine passes
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
 	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
-	gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[iCombineTextureIndex].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
+	gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[iCombineTextureIndex].TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
 	gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[iCombineTextureIndex].RecordBeginRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineRedLightingCombine].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0);
 	gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[iCombineTextureIndex].RecordEndRenderPass(vkCommandBuffer);
-	gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures[iCombineTextureIndex].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
+	gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures[iCombineTextureIndex].TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
 	gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures[iCombineTextureIndex].RecordBeginRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineGreenLightingCombine].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0);
 	gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures[iCombineTextureIndex].RecordEndRenderPass(vkCommandBuffer);
-	gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures[iCombineTextureIndex].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
+	gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures[iCombineTextureIndex].TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
 	gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures[iCombineTextureIndex].RecordBeginRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineBlueLightingCombine].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0);
 	gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures[iCombineTextureIndex].RecordEndRenderPass(vkCommandBuffer);
@@ -347,7 +457,7 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 
 	// Wind deposit pass A (writes TextureOne)
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWindDeposit);
-	gpTextureManager->mRenderTargetTextures.mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
+	gpTextureManager->mRenderTargetTextures.mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
 	gpTextureManager->mRenderTargetTextures.mWindTextureOne.RecordBeginRenderPass(vkCommandBuffer);
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineWindDepositA])
 	{
@@ -360,7 +470,7 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	gpTextureManager->mRenderTargetTextures.mWindTextureOne.RecordEndRenderPass(vkCommandBuffer);
 
 	// Wind deposit pass B (writes TextureTwo)
-	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
+	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
 	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.RecordBeginRenderPass(vkCommandBuffer);
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineWindDepositB])
 	{
@@ -382,11 +492,17 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.RecordEndRenderPass(vkCommandBuffer);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadows);
 
-	// Object shadows blur pass
+	// Object shadows blur passes (separable compute)
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadowsBlur);
-	gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture.RecordBeginRenderPass(vkCommandBuffer);
-	pPipelines[kPipelineObjectShadowsBlur].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0);
-	gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture.RecordEndRenderPass(vkCommandBuffer);
+	uint32_t uiObjectShadowsBlurWidth = gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture.mInfo.extent.width;
+	uint32_t uiObjectShadowsBlurHeight = gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture.mInfo.extent.height;
+	gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurIntermediateTexture.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
+	pPipelines[kPipelineObjectShadowsBlurH].RecordCompute(iCommandBuffer, vkCommandBuffer, (uiObjectShadowsBlurWidth + 7) / 8, (uiObjectShadowsBlurHeight + 7) / 8);
+	gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurIntermediateTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kComputeReadOnly);
+	gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
+	pPipelines[kPipelineObjectShadowsBlurV].RecordCompute(iCommandBuffer, vkCommandBuffer, (uiObjectShadowsBlurWidth + 7) / 8, (uiObjectShadowsBlurHeight + 7) / 8);
+	gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
+	gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurIntermediateTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadOnly, kShaderReadOnly);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadowsBlur);
 
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
@@ -457,6 +573,37 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerImage);
 
 	CHECK_VK(vkEndCommandBuffer(vkCommandBuffer));
+}
+
+void CommandBufferManager::RecordLightingBlurMRT(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, int64_t iLevel, float fBlurDivisor, float fDistanceCount, VkExtent3D previousExtent)
+{
+	RenderTargetTextures& rRenderTargetTextures = gpTextureManager->mRenderTargetTextures;
+
+	rRenderTargetTextures.mpRedLightingBlurTextures[iLevel].TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
+	rRenderTargetTextures.mpGreenLightingBlurTextures[iLevel].TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
+	rRenderTargetTextures.mpBlueLightingBlurTextures[iLevel].TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
+
+	VkRenderPassBeginInfo vkRenderPassBeginInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+		.pNext = nullptr,
+		.renderPass = rRenderTargetTextures.mpLightingBlurVkRenderPasses[iLevel],
+		.framebuffer = rRenderTargetTextures.mpLightingBlurVkFramebuffers[iLevel],
+		.renderArea = {.offset = {0, 0}, .extent = {rRenderTargetTextures.mpRedLightingBlurTextures[iLevel].mInfo.extent.width, rRenderTargetTextures.mpRedLightingBlurTextures[iLevel].mInfo.extent.height}},
+		.clearValueCount = 0,
+		.pClearValues = nullptr,
+	};
+	vkCmdBeginRenderPass(vkCommandBuffer, &vkRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	gpPipelineManager->mpLightingBlurPipelines[iLevel].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0,
+	{
+		static_cast<float>(previousExtent.width),
+		static_cast<float>(previousExtent.height),
+		fBlurDivisor,
+		fDistanceCount,
+	});
+
+	vkCmdEndRenderPass(vkCommandBuffer);
 }
 
 void CommandBufferManager::SubmitGlobalToQueue(int64_t iFramebufferIndex)

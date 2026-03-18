@@ -13,7 +13,7 @@ namespace engine
 void CheckVkFailed(VkResult vkResult, std::string_view expression, std::source_location loc)
 {
 	const char* pcResult = gEnumToString.Convert(vkResult);
-	Log("CheckVk failed: {} - \"{}\" at {}:{} in {}", pcResult, expression, loc.file_name(), loc.line(), loc.function_name());
+	Log(kLogError, "CheckVk failed: {} - \"{}\" at {}:{} in {}", pcResult, expression, loc.file_name(), loc.line(), loc.function_name());
 
 	// Format exception message with call site information
 	thread_local char spcException[1024] {};

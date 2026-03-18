@@ -17,11 +17,11 @@ RawInputManager::RawInputManager()
 	}
 	catch ([[maybe_unused]] const std::exception& rException)
 	{
-		Log("Failed GamePad: {}", rException.what());
+		Log(kLogError, "Failed GamePad: {}", rException.what());
 	}
 	catch (...)
 	{
-		Log("Failed GamePad");
+		Log(kLogError, "Failed GamePad");
 	}
 }
 
@@ -50,7 +50,7 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 		Log("RegisterRawInputDevices");
 		if (RegisterRawInputDevices(pRawinputdevices, 2, sizeof(RAWINPUTDEVICE)) == FALSE)
 		{
-			Log("Failed to register raw input: {}", common::LastErrorString().data());
+			Log(kLogError, "Failed to register raw input: {}", common::LastErrorString().data());
 		}
 
 		if (mpGamePad != nullptr)
@@ -77,7 +77,7 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 		Log("UnregisterRawInputDevices");
 		if (RegisterRawInputDevices(pRawinputdevices, 2, sizeof(RAWINPUTDEVICE)) == FALSE)
 		{
-			Log("Failed to unregister raw input: {}", common::LastErrorString().data());
+			Log(kLogError, "Failed to unregister raw input: {}", common::LastErrorString().data());
 		}
 
 		if (mpGamePad != nullptr)

@@ -1,6 +1,7 @@
 #include "Frame.h"
 
 #include "Frame/FrameCollections.h"
+#include "Frame/SmokeSpreadTest.h"
 #include "Profile/ProfileManager.h"
 
 namespace game
@@ -241,12 +242,24 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 		return;
 	}
 
-	// Spawn one spaceship every half second
-	constexpr float kfSpawnInterval = 0.5f;
-	while (rInterpolate.fSpawnTimer >= kfSpawnInterval)
+	if constexpr (kbEnableSmokeSpreadTest)
 	{
-		rInterpolate.fSpawnTimer -= kfSpawnInterval;
-		SpawnSingleSpaceship(rFrame);
+		constexpr float kfTestSpawnInterval = 1.0f;
+		while (rInterpolate.fSpawnTimer >= kfTestSpawnInterval)
+		{
+			rInterpolate.fSpawnTimer -= kfTestSpawnInterval;
+			SmokeSpreadTestSpawnSpaceship(rFrame);
+		}
+	}
+	else
+	{
+		// Spawn one spaceship every half second
+		constexpr float kfSpawnInterval = 0.5f;
+		while (rInterpolate.fSpawnTimer >= kfSpawnInterval)
+		{
+			rInterpolate.fSpawnTimer -= kfSpawnInterval;
+			SpawnSingleSpaceship(rFrame);
+		}
 	}
 }
 

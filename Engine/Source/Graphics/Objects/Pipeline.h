@@ -80,6 +80,7 @@ struct PipelineInfo
 	// Render target
 	VkRenderPass vkRenderPass = VK_NULL_HANDLE;
 	VkExtent3D vkExtent3D {};
+	int32_t iColorAttachmentCount = 1;
 
 	DescriptorInfo pDescriptorInfos[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings];
 };

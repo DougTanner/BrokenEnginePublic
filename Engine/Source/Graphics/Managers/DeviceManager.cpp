@@ -142,6 +142,7 @@ DeviceManager::DeviceManager()
 		.shaderInt16 = VK_TRUE,
 	#endif
 	};
+	vkPhysicalDeviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
 	if constexpr (kbEnableWireframe)
 	{
 		vkPhysicalDeviceFeatures.fillModeNonSolid = VK_TRUE;
@@ -235,12 +236,12 @@ DeviceManager::DeviceManager()
 	// Descriptor pool
 	VkDescriptorPoolSize pVkDescriptorPoolSizes[]
 	{
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 32},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 64},
 		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 2048},
 		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 512},
 		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 8},
 		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 2 * 1024},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .descriptorCount = 16},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .descriptorCount = 32},
 	};
 	VkDescriptorPoolCreateInfo vkDescriptorPoolCreateInfo
 	{

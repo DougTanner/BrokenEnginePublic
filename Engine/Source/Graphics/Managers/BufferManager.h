@@ -62,6 +62,16 @@ public:
 	std::vector<Buffer> mSmokeSpreadStorageBuffers;
 	std::vector<Buffer> mWindSpreadStorageBuffers;
 
+	// Smoke hierarchical dispatch buffers (device-local, single instance)
+	VkBuffer mSmokeOccupancyVkBuffer = VK_NULL_HANDLE;
+	VmaAllocation mSmokeOccupancyVmaAllocation = VK_NULL_HANDLE;
+	VkDeviceSize mSmokeOccupancyBufferSize = 0;
+	VkBuffer mSmokeActiveTileVkBuffer = VK_NULL_HANDLE;
+	VmaAllocation mSmokeActiveTileVmaAllocation = VK_NULL_HANDLE;
+	VkDeviceSize mSmokeActiveTileBufferSize = 0;
+	void CreateSmokeHierarchicalBuffers();
+	void DestroySmokeHierarchicalBuffers();
+
 	Buffer mQuadsVertexBuffer;
 	Buffer mTerrainMeshBuffer;
 	Buffer mWaterMeshBuffer;

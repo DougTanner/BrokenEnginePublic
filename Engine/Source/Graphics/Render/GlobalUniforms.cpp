@@ -139,7 +139,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	rGlobalLayout.fShadowBlurSigma = gShadowBlurSigma.Get();
 
 	rGlobalLayout.fObjectShadowsBlurDistance = fDayPercent * gObjectShadowsBlurDistanceNoon.Get() + (1.0f - fDayPercent) * gObjectShadowsBlurDistanceSunset.Get();
-	rGlobalLayout.fShadowThreePadY = 0.0f;
+	rGlobalLayout.fObjectShadowsBlurSigma = gObjectShadowsBlurSigma.Get();
 	rGlobalLayout.fObjectShadowsIntensity = fDayPercent * gObjectShadowsNoon.Get() + (1.0f - fDayPercent) * gObjectShadowsSunset.Get();
 	rGlobalLayout.fObjectShadowsIntensity *= std::pow(fDayPercent, 0.1f);
 	rGlobalLayout.fShadowSunsetOffset = fShadowEvening * gShadowFeatherSunsetOffset.Get();

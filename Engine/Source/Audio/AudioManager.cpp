@@ -137,12 +137,12 @@ AudioManager::AudioManager()
 	}
 	catch ([[maybe_unused]] const std::exception& rException)
 	{
-		Log("Failed to create AudioManager: {}", rException.what());
+		Log(kLogError, "Failed to create AudioManager: {}", rException.what());
 		return;
 	}
 	catch (...)
 	{
-		Log("Failed to create AudioManager");
+		Log(kLogError, "Failed to create AudioManager");
 		return;
 	}
 }
@@ -643,7 +643,7 @@ void XM_CALLCONV AudioManager::PlayOneShot3d([[maybe_unused]] const game::Frame&
 
 void AudioManager::OnCriticalError()
 {
-	Log("AudioManager::OnCriticalError()");
+	Log(kLogError, "AudioManager::OnCriticalError()");
 	mbClearVoicesRequested.store(true, std::memory_order_release);
 	ClearStreamingVoices();
 }

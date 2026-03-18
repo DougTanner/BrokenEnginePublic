@@ -29,6 +29,20 @@ void RenderTargetTextures::Create()
 
 void RenderTargetTextures::DestroyLightingTextures()
 {
+	for (int64_t i = 0; i < shaders::kiMaxLightingBlurCount; ++i)
+	{
+		if (mpLightingBlurVkFramebuffers[i] != VK_NULL_HANDLE)
+		{
+			vkDestroyFramebuffer(gpDeviceManager->mVkDevice, mpLightingBlurVkFramebuffers[i], nullptr);
+			mpLightingBlurVkFramebuffers[i] = VK_NULL_HANDLE;
+		}
+		if (mpLightingBlurVkRenderPasses[i] != VK_NULL_HANDLE)
+		{
+			vkDestroyRenderPass(gpDeviceManager->mVkDevice, mpLightingBlurVkRenderPasses[i], nullptr);
+			mpLightingBlurVkRenderPasses[i] = VK_NULL_HANDLE;
+		}
+	}
+
 	if (mLightingVkFramebuffer != VK_NULL_HANDLE)
 	{
 		vkDestroyFramebuffer(gpDeviceManager->mVkDevice, mLightingVkFramebuffer, nullptr);
@@ -200,7 +214,7 @@ void RenderTargetTextures::CreateLightingTextures()
 			.renderPassInitialVkImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 			.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			.renderPassVkClearColorValue = {0.0f, 0.0f, 0.0f, 0.0f},
-			.eTextureLayout = kShaderReadOnly,
+			.eTextureLayout = kFragmentShaderReadOnly,
 		};
 
 		mpRedLightingBlurTextures[i].Create(lightingBlurTextureInfo);
@@ -210,6 +224,91 @@ void RenderTargetTextures::CreateLightingTextures()
 		mpBlueLightingBlurTextures[i].Create(lightingBlurTextureInfo);
 	}
 	Log("kiMaxLightingBlurCount: {} -> miLightingBlurCount: {}", shaders::kiMaxLightingBlurCount, miLightingBlurCount);
+
+	// Create per-level MRT render passes and framebuffers for blur
+	for (int64_t i = 0; i < miLightingBlurCount; ++i)
+	{
+		VkAttachmentDescription pBlurAttachments[3] {};
+		for (int32_t j = 0; j < 3; ++j)
+		{
+			pBlurAttachments[j] =
+			{
+				.flags = 0,
+				.format = shaders::keLightingFormat,
+				.samples = VK_SAMPLE_COUNT_1_BIT,
+				.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+				.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+				.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+				.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			};
+		}
+		VkAttachmentReference pBlurAttachmentRefs[3]
+		{
+			{.attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
+			{.attachment = 1, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
+			{.attachment = 2, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
+		};
+		VkSubpassDescription vkBlurSubpass
+		{
+			.flags = 0,
+			.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+			.inputAttachmentCount = 0,
+			.pInputAttachments = nullptr,
+			.colorAttachmentCount = 3,
+			.pColorAttachments = pBlurAttachmentRefs,
+			.pResolveAttachments = nullptr,
+			.pDepthStencilAttachment = nullptr,
+			.preserveAttachmentCount = 0,
+			.pPreserveAttachments = nullptr,
+		};
+		VkSubpassDependency vkBlurDependency
+		{
+			.srcSubpass = 0,
+			.dstSubpass = VK_SUBPASS_EXTERNAL,
+			.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+			.dependencyFlags = 0,
+		};
+		VkRenderPassCreateInfo vkBlurRenderPassInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+			.pNext = nullptr,
+			.flags = 0,
+			.attachmentCount = 3,
+			.pAttachments = pBlurAttachments,
+			.subpassCount = 1,
+			.pSubpasses = &vkBlurSubpass,
+			.dependencyCount = 1,
+			.pDependencies = &vkBlurDependency,
+		};
+		CHECK_VK(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkBlurRenderPassInfo, nullptr, &mpLightingBlurVkRenderPasses[i]));
+		VkName(VK_OBJECT_TYPE_RENDER_PASS, mpLightingBlurVkRenderPasses[i], "LightingBlurMRT");
+
+		VkImageView pBlurImageViews[3]
+		{
+			mpRedLightingBlurTextures[i].mVkImageView,
+			mpGreenLightingBlurTextures[i].mVkImageView,
+			mpBlueLightingBlurTextures[i].mVkImageView,
+		};
+		VkFramebufferCreateInfo vkBlurFramebufferInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+			.pNext = nullptr,
+			.flags = 0,
+			.renderPass = mpLightingBlurVkRenderPasses[i],
+			.attachmentCount = 3,
+			.pAttachments = pBlurImageViews,
+			.width = mpRedLightingBlurTextures[i].mInfo.extent.width,
+			.height = mpRedLightingBlurTextures[i].mInfo.extent.height,
+			.layers = 1,
+		};
+		CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkBlurFramebufferInfo, nullptr, &mpLightingBlurVkFramebuffers[i]));
+		VkName(VK_OBJECT_TYPE_FRAMEBUFFER, mpLightingBlurVkFramebuffers[i], "LightingBlurMRT");
+	}
 
 	mppLightingFinalTextures[0] = &mpRedLightingBlurTextures[iCombineTextureIndex];
 	mppLightingFinalTextures[1] = &mpGreenLightingBlurTextures[iCombineTextureIndex];
@@ -237,13 +336,14 @@ void RenderTargetTextures::CreateShadowTextures()
 		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		.renderPassVkClearColorValue = {gpIslandTerrain->mfSeaFloorElevation, 0.0f, 0.0f, 1.0f},
 		.eTextureLayout = kShaderReadOnly,
+		.renderPassDstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
 	});
 	mShadowTexture.Create(
 	{
 		.textureFlags = {},
 		.name = "Shadow",
 		.flags = 0,
-		.format = VK_FORMAT_R8_UNORM,
+		.format = VK_FORMAT_R16_UNORM,
 		.extent = VkExtent3D {static_cast<uint32_t>(iShadowTextureX), static_cast<uint32_t>(iShadowTextureY), 1},
 		.mipLevels = 1,
 		.arrayLayers = 1,
@@ -258,7 +358,7 @@ void RenderTargetTextures::CreateShadowTextures()
 		.textureFlags = {},
 		.name = "ShadowBlur",
 		.flags = 0,
-		.format = VK_FORMAT_R8_UNORM,
+		.format = VK_FORMAT_R16_UNORM,
 		.extent = VkExtent3D {static_cast<uint32_t>(iShadowTextureX), static_cast<uint32_t>(iShadowTextureY), 1},
 		.mipLevels = 1,
 		.arrayLayers = 1,
@@ -273,7 +373,7 @@ void RenderTargetTextures::CreateShadowTextures()
 		.textureFlags = {},
 		.name = "ShadowBlurIntermediate",
 		.flags = 0,
-		.format = VK_FORMAT_R8_UNORM,
+		.format = VK_FORMAT_R16_UNORM,
 		.extent = VkExtent3D {static_cast<uint32_t>(iShadowTextureX), static_cast<uint32_t>(iShadowTextureY), 1},
 		.mipLevels = 1,
 		.arrayLayers = 1,
@@ -337,7 +437,7 @@ void RenderTargetTextures::CreateSmokeTextures()
 		.mipLevels = 1,
 		.arrayLayers = 1,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
@@ -347,7 +447,6 @@ void RenderTargetTextures::CreateSmokeTextures()
 	};
 	mSmokeTextureOne.Create(smokeTextureInfo);
 	smokeTextureInfo.name = "SmokeTwo";
-	smokeTextureInfo.extent = VkExtent3D {static_cast<uint32_t>(1.25f * SmokeSimulationPixels()), static_cast<uint32_t>(1.25f * SmokeSimulationPixels()), 1};
 	smokeTextureInfo.renderPassInitialVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	mSmokeTextureTwo.Create(smokeTextureInfo);
 }
@@ -404,7 +503,7 @@ void RenderTargetTextures::CreateObjectShadowsTextures()
 		.textureFlags = {kRenderPass},
 		.name = "ObjectShadows",
 		.flags = 0,
-		.format = VK_FORMAT_R8_UNORM,
+		.format = VK_FORMAT_R16_UNORM,
 		.extent = VkExtent3D {static_cast<uint32_t>(iObjectShadowsRenderTextureX), static_cast<uint32_t>(iObjectShadowsRenderTextureY), 1},
 		.mipLevels = 1,
 		.arrayLayers = 1,
@@ -416,24 +515,38 @@ void RenderTargetTextures::CreateObjectShadowsTextures()
 		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		.renderPassVkClearColorValue = {1.0f, 0.0f, 0.0f, 0.0f},
 		.eTextureLayout = kShaderReadOnly,
+		.renderPassDstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
 	});
 
 	auto [iObjectShadowsBlurTextureX, iObjectShadowsBlurTextureY] = TextureManager::DetailTextureSize(gObjectShadowsBlurMultiplier.Get());
 	mObjectShadowsBlurTexture.Create(
 	{
-		.textureFlags = {kRenderPass},
+		.textureFlags = {},
 		.name = "ObjectShadowsBlur",
 		.flags = 0,
-		.format = VK_FORMAT_R8_UNORM,
+		.format = VK_FORMAT_R16_UNORM,
 		.extent = VkExtent3D {static_cast<uint32_t>(iObjectShadowsBlurTextureX), static_cast<uint32_t>(iObjectShadowsBlurTextureY), 1},
 		.mipLevels = 1,
 		.arrayLayers = 1,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		.eTextureLayout = kShaderReadOnly,
+	});
+	mObjectShadowsBlurIntermediateTexture.Create(
+	{
+		.textureFlags = {},
+		.name = "ObjectShadowsBlurIntermediate",
+		.flags = 0,
+		.format = VK_FORMAT_R16_UNORM,
+		.extent = VkExtent3D {static_cast<uint32_t>(iObjectShadowsBlurTextureX), static_cast<uint32_t>(iObjectShadowsBlurTextureY), 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		.eTextureLayout = kShaderReadOnly,
 	});
 }

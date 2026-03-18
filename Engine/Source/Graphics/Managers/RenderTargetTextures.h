@@ -38,6 +38,8 @@ struct RenderTargetTextures
 	Texture mpRedLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
 	Texture mpGreenLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
 	Texture mpBlueLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
+	VkRenderPass mpLightingBlurVkRenderPasses[shaders::kiMaxLightingBlurCount] {};
+	VkFramebuffer mpLightingBlurVkFramebuffers[shaders::kiMaxLightingBlurCount] {};
 	Texture* mppLightingFinalTextures[3] {};
 
 	Texture mShadowElevationTexture;
@@ -47,6 +49,7 @@ struct RenderTargetTextures
 
 	Texture mObjectShadowsTexture;
 	Texture mObjectShadowsBlurTexture;
+	Texture mObjectShadowsBlurIntermediateTexture;
 
 	std::vector<Texture*> mElevationTextures;
 	std::vector<Texture*> mColorTextures;

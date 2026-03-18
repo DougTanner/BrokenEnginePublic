@@ -49,7 +49,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebu
 
 		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "VkDescriptorSetAllocateInfo-descriptorCount") != nullptr)
 		{
-			Log("Double the number of descriptor sets in DeviceManager::DeviceManager() {}", pCallbackData->pMessage);
+			Log(kLogError, "Double the number of descriptor sets in DeviceManager::DeviceManager() {}", pCallbackData->pMessage);
 			ASSERT(false);
 			return VK_FALSE;
 		}
@@ -67,7 +67,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebu
 			return VK_FALSE;
 		}
 
-		Log("DebugUtilsCallback {} {} \"{}\" \"{}\"", static_cast<uint64_t>(messageSeverity), static_cast<uint64_t>(messageType), pCallbackData->pMessageIdName, pCallbackData->pMessage);
+		Log(kLogError, "DebugUtilsCallback {} {} \"{}\" \"{}\"", static_cast<uint64_t>(messageSeverity), static_cast<uint64_t>(messageType), pCallbackData->pMessageIdName, pCallbackData->pMessage);
 		DEBUG_BREAK();
 	}
 
@@ -253,7 +253,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	if (vkResultCreateInstance != VK_SUCCESS)
 	{
 		const char* pcResult = gEnumToString.Convert(vkResultCreateInstance);
-		Log("vkCreateInstance failed with {}, Vulkan 1.2 is required", pcResult);
+		Log(kLogError, "vkCreateInstance failed with {}, Vulkan 1.2 is required", pcResult);
 		std::string errorMessage = "Failed to create Vulkan instance.\n\nVulkan 1.2 or higher is required.\n\nError: ";
 		errorMessage += pcResult;
 

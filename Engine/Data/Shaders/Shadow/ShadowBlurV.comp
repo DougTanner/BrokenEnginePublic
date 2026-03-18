@@ -11,7 +11,7 @@ layout (binding = 0) uniform globalUniform
 };
 
 layout (binding = 1) uniform sampler2D shadowBlurIntermediateSampler;
-layout (binding = 2, r8) uniform image2D shadowBlurTexture;
+layout (binding = 2, r16) uniform image2D shadowBlurTexture;
 
 void main()
 {

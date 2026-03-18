@@ -315,6 +315,12 @@ void ClientSession::ConnectToServer(std::string_view serverAddress)
 	ClientSessionBase::ConnectToServer(serverAddress, engine::kuiDefaultPort, kiDesiredCoordSlots);
 }
 
+void ClientSession::ConnectToDiscoveredServer()
+{
+	mbServerDiscovered = false;
+	ConnectToServer(mpcDiscoveredAddress);
+}
+
 void ClientSession::DisconnectFromServer()
 {
 	// Heap: ClientNetwork destructor triggers ENet disconnect and cleanup

@@ -1,0 +1,60 @@
+#version 460
+
+#include "ShaderLayouts.h"
+
+layout (local_size_x = 256) in;
+
+// Uniforms
+layout (binding = 0) uniform globalUniform
+{
+	GlobalLayout globalLayout;
+};
+
+layout (binding = 1) buffer occupancyBuffer
+{
+	uint occupancy[];
+};
+
+// Active tile list: [VkDispatchIndirectCommand (3 uint32s)] [packed tile indices...]
+layout (binding = 2) buffer activeTileBuffer
+{
+	uint uiDispatchX;
+	uint uiDispatchY;
+	uint uiDispatchZ;
+	uint activeTiles[];
+};
+
+void main()
+{
+	uint uiTilesX = globalLayout.uiSmokeTilesX;
+	uint uiTotalTiles = uiTilesX * uiTilesX; // Square texture assumption (both dimensions use uiSmokeTilesX for max)
+	uint uiTileIndex = gl_GlobalInvocationID.x;
+	if (uiTileIndex >= uiTotalTiles)
+		return;
+
+	uint uiTileY = uiTileIndex / uiTilesX;
+	uint uiTileX = uiTileIndex - uiTileY * uiTilesX;
+
+	// Check this tile and neighbors within Manhattan distance 2
+	bool bActive = false;
+	for (int iDy = -2; iDy <= 2 && !bActive; ++iDy)
+	{
+		for (int iDx = -2; iDx <= 2 && !bActive; ++iDx)
+		{
+			int iNx = int(uiTileX) + iDx;
+			int iNy = int(uiTileY) + iDy;
+			if (iNx < 0 || iNy < 0 || uint(iNx) >= uiTilesX || uint(iNy) >= uiTilesX)
+				continue;
+
+			uint uiNeighborIndex = uint(iNy) * uiTilesX + uint(iNx);
+			if ((occupancy[uiNeighborIndex >> 5] & (1u << (uiNeighborIndex & 31))) != 0)
+				bActive = true;
+		}
+	}
+
+	if (bActive)
+	{
+		uint uiSlot = atomicAdd(uiDispatchX, 1u);
+		activeTiles[uiSlot] = uiTileIndex;
+	}
+}

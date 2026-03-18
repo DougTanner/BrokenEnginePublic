@@ -341,9 +341,9 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 			.srcSubpass = 0,
 			.dstSubpass = VK_SUBPASS_EXTERNAL,
 			.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			.dstStageMask = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+			.dstStageMask = mInfo.renderPassDstStageMask,
 			.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT,
+			.dstAccessMask = mInfo.renderPassDstAccessMask,
 			.dependencyFlags = 0,
 		};
 		VkRenderPassCreateInfo vkRenderPassCreateInfo
@@ -508,6 +508,12 @@ void Texture::TransitionImageLayout(VkCommandBuffer vkCommandBuffer, TextureLayo
 			srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 			break;
 
+		case kFragmentShaderReadOnly:
+			oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			break;
+
 		case kShaderReadOnly:
 			oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
@@ -551,6 +557,12 @@ void Texture::TransitionImageLayout(VkCommandBuffer vkCommandBuffer, TextureLayo
 			newLayout = VK_IMAGE_LAYOUT_GENERAL;
 			dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
 			dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+			break;
+
+		case kFragmentShaderReadOnly:
+			newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 			break;
 
 		case kGeneral:

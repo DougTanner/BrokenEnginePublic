@@ -108,16 +108,22 @@ void main()
 	f3LightingColor *= fReflectionHeightMultiplier2;
 	f3LightingColor *= fSunlight;
 
+	// Smoke sample at base height (shared between shadow and additive smoke)
+	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
+	float f2SmokeAreaTexcoordX = (f2PositionAtBaseHeight.x - globalLayout.f4SmokeArea.x) / (globalLayout.f4SmokeArea.z - globalLayout.f4SmokeArea.x);
+	float f2SmokeAreaTexcoordY = (f2PositionAtBaseHeight.y - globalLayout.f4SmokeArea.y) / (globalLayout.f4SmokeArea.w - globalLayout.f4SmokeArea.y);
+	float fSmokeRaw = globalLayout.fSmokeMax * texture(smokeSampler, vec2(f2SmokeAreaTexcoordX, f2SmokeAreaTexcoordY)).x;
+	float fSmokePow = clamp(pow(fSmokeRaw, globalLayout.fSmokePower), 0.0f, 1.0f);
+
 	// Sunlight & shadow
-	float fShadow = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
+	float fShadow = (1.0f - mainLayout.fSmokeShadowIntensity * fSmokePow) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
 	f4OutColor.xyz = fShadow * f3LightingColor;
 	f4OutColor.xyz = max(f4OutColor.xyz, 0.5f * globalLayout.f4AmbientColor.xyz * f3SkyboxColor);
 
 	// Terrain elevation (for water transparency)
 	f4OutColor.w = clamp(-fTerrainElevation / globalLayout.fWaterTerrainFade, 0.0f, 1.0f);
 
-	// Lighting and smoke at base height
-	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
+	// Lighting at base height
 	vec2 f2BaseHeightTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4VisibleArea);
 
 	const float fSpecularNormalSoften = mainLayout.fLightingWaterSpecularNormalSoften;
@@ -131,5 +137,17 @@ void main()
 	pf4Lighting[1] = texture(pLightingSamplers[1], f2BaseHeightTexcoord);
 	pf4Lighting[2] = texture(pLightingSamplers[2], f2BaseHeightTexcoord);
 	f4OutColor.xyz += fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * SpecularLighting(globalLayout, mainLayout, f3PreLightingColor, f3InPosition, f3InNormal, f3LightingNormal, pf4Lighting, mainLayout.fLightingWaterSpecularIntensity, mainLayout.fLightingWaterSpecularAdd);
-	f4OutColor.xyz = AddSmoke(globalLayout, f4OutColor.xyz, f2PositionAtBaseHeight, smokeSampler, 1.0f, pf4Lighting);
+
+	// Additive smoke (reusing shared smoke sample)
+	float fSmokeDensity = globalLayout.fSmokeColorMin + globalLayout.fSmokeColorMultiplier * fSmokePow;
+	float fRed = IntensityLighting(pf4Lighting[0]);
+	float fGreen = IntensityLighting(pf4Lighting[1]);
+	float fBlue = IntensityLighting(pf4Lighting[2]);
+	vec3 f3SmokeLighting = vec3(fRed, fGreen, fBlue);
+	float fSmokeLightPower = globalLayout.fLightingCombinePower;
+	f3SmokeLighting = pow(f3SmokeLighting + vec3(1.0f), vec3(fSmokeLightPower)) - vec3(1.0f);
+	f3SmokeLighting *= 0.5f;
+	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4AmbientColor.xyz);
+	f3SmokeLighting = min(vec3(1.0f), f3SmokeLighting);
+	f4OutColor.xyz = (1.0f - fSmokePow) * f4OutColor.xyz + fSmokePow * f3SmokeLighting * min(vec3(1.25f), vec3(fSmokeDensity));
 }

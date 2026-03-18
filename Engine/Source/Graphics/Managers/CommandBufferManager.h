@@ -35,6 +35,8 @@ public:
 
 private:
 
+	void RecordLightingBlurMRT(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, int64_t iLevel, float fBlurDivisor, float fDistanceCount, VkExtent3D previousExtent);
+
 	void SubmitGlobalToQueue(int64_t iFramebufferIndex);
 	void SubmitMainToQueue(int64_t iFramebufferIndex, bool bSignalFence);
 };

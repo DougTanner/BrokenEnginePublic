@@ -163,8 +163,6 @@ struct GlobalLayout
 	float fSmokeColorMin INIT;
 	float fSmokeColorMultiplier INIT;
 	float fSmokeIntensityFalloff INIT;
-	float fSmokeDecayExtra INIT;
-	float fSmokeDecayExtraThreshold INIT;
 	float fSmokeWindNoiseScale INIT;
 	float fSmokeWindNoiseQuantity INIT;
 	float fSmokeNoiseQuantity INIT;
@@ -173,8 +171,9 @@ struct GlobalLayout
 	float fSmokeObjectHeightInv INIT;
 	float fSmokeEdgeDecayDistanceInv INIT;
 	float fSmokeNoiseInfluence INIT;
+	uint32_t uiSmokeTilesX INIT;
+	float fSmokeDepositTileScale INIT;
 	float fWindDisplacementNoiseScale INIT;
-	float fWindDisplacementSwirlScale INIT;
 	// Wind
 	float fWindAdvectionScaleHigh INIT;
 	float fWindAdvectionScaleLow INIT;
@@ -226,7 +225,7 @@ struct GlobalLayout
 	float fShadowDistanceFalloff INIT;
 	float fShadowBlurSigma INIT;
 	float fObjectShadowsBlurDistance INIT;
-	float fShadowThreePadY INIT;
+	float fObjectShadowsBlurSigma INIT;
 	float fObjectShadowsIntensity INIT;
 	float fShadowSunsetOffset INIT;
 	float fShadowSunriseStretch INIT;
@@ -326,7 +325,6 @@ struct GlobalLayout
 	float fLightingTimeOfDayMultiplier INIT;
 	float fLightingNightMultiplier INIT;
 	float fLightingWaterSkyboxOne INIT;
-	float fWindDisplacementSwirlPower INIT;
 };
 
 struct MainLayout

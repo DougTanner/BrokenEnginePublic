@@ -51,7 +51,7 @@ public:
 	template<typename T>
 	std::tuple<T, T, bool> Changed()
 	{
-		auto values = std::make_tuple(static_cast<T>(mfCurrent), static_cast<T>(mfPrevious), mfPrevious != mfCurrent);
+		std::tuple<T, T, bool> values = std::make_tuple(static_cast<T>(mfCurrent), static_cast<T>(mfPrevious), mfPrevious != mfCurrent);
 		mfPrevious = mfCurrent;
 		return values;
 	}
@@ -367,8 +367,6 @@ extern Wrapper gLightingWaterSpecularThreePower;
 
 // Smoke
 extern Wrapper gSmokeDecay;
-extern Wrapper gSmokeDecayExtra;
-extern Wrapper gSmokeDecayExtraThreshold;
 extern Wrapper gSmokeEdgeDecayDistance;
 extern Wrapper gSmokeTrailsQuantity;
 extern Wrapper gSmokeTrailsWidthCurrent;
@@ -421,8 +419,6 @@ extern Wrapper gWindSmokeRetention;
 extern Wrapper gWindToSmokePower;
 // Wind - Displacement
 extern Wrapper gWindDisplacementNoiseScale;
-extern Wrapper gWindDisplacementSwirlScale;
-extern Wrapper gWindDisplacementSwirlPower;
 // Wind - Per-entity deposits
 extern Wrapper gWindDepositPlayerWidth;
 extern Wrapper gWindDepositPlayerIntensity;
@@ -492,6 +488,7 @@ extern Wrapper gObjectShadowsSunset;
 extern Wrapper gObjectShadowsSunsetStretch;
 extern Wrapper gObjectShadowsBlurDistanceNoon;
 extern Wrapper gObjectShadowsBlurDistanceSunset;
+extern Wrapper gObjectShadowsBlurSigma;
 
 extern Wrapper gSmokeShadowIntensity;
 

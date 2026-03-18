@@ -6,7 +6,7 @@
 // Uniform buffers
 layout (set = 0, binding = 0) uniform globalUniform
 {
-    GlobalLayout globalLayout;
+	GlobalLayout globalLayout;
 };
 
 layout (set = 0, binding = 1) uniform mainUniform
@@ -51,7 +51,7 @@ void main()
 		f4OutColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);
 		return;
 	}
-	
+
 	vec3 f3Color = texture(colorTextureSampler, f2InVisibleAreaTexcoord).xyz;
 
 	vec3 f3Normal = texture(normalTextureSampler, f2InVisibleAreaTexcoord).xyz;
@@ -71,9 +71,8 @@ void main()
 
 	if (fRockPercent > 0.001f)
 	{
-		vec3 f3RockNormal = normalize(SampleNormal(globalLayout, rockNormalsSampler0, f3InPosition.xy + f3InPosition.z, globalLayout.fTerrainRockNormalsSizeOne, 0.0f, globalLayout.fElapsedTime, vec2(0.0f, 0.0f)) +
-									  SampleNormal(globalLayout, rockNormalsSampler1, f3InPosition.xy + f3InPosition.z, globalLayout.fTerrainRockNormalsSizeTwo, 0.0f, globalLayout.fElapsedTime, vec2(0.0f, 0.0f)) +
-									  SampleNormal(globalLayout, rockNormalsSampler2, f3InPosition.xy + f3InPosition.z, globalLayout.fTerrainRockNormalsSizeThree, 0.0f, globalLayout.fElapsedTime, vec2(0.0f, 0.0f)));
+		vec3 f3RockNormalSum = SampleNormal(globalLayout, rockNormalsSampler0, f3InPosition.xy + f3InPosition.z, globalLayout.fTerrainRockNormalsSizeOne, 0.0f, globalLayout.fElapsedTime, vec2(0.0f, 0.0f)) + SampleNormal(globalLayout, rockNormalsSampler1, f3InPosition.xy + f3InPosition.z, globalLayout.fTerrainRockNormalsSizeTwo, 0.0f, globalLayout.fElapsedTime, vec2(0.0f, 0.0f)) + SampleNormal(globalLayout, rockNormalsSampler2, f3InPosition.xy + f3InPosition.z, globalLayout.fTerrainRockNormalsSizeThree, 0.0f, globalLayout.fElapsedTime, vec2(0.0f, 0.0f));
+		vec3 f3RockNormal = normalize(f3RockNormalSum);
 		f3Normal = normalize(f3Normal + globalLayout.fTerrainRockNormalsBlend * fRockPercent * dot(f3RockNormal, f3Normal));
 
 		f3Color = mix(f3Color, texture(rockSampler, globalLayout.fTerrainRockSize * f3InPosition.xy).xyz, globalLayout.fTerrainRockBlend * fRockPercent);
@@ -81,9 +80,8 @@ void main()
 
 	if (fBeachPercent > 0.001f)
 	{
-		vec3 f3BeachNormal = normalize(2.0f * SampleNormal(globalLayout, sandNormalsSampler0, f3InPosition.xy, globalLayout.fTerrainBeachNormalsSizeOne, 0.0f, globalLayout.fElapsedTime, vec2(0.0f, 0.0f)) +
-									   0.5f * SampleNormal(globalLayout, sandNormalsSampler1, f3InPosition.yx, globalLayout.fTerrainBeachNormalsSizeTwo, 0.0f, globalLayout.fElapsedTime, vec2(0.0f, 0.0f)) +
-									   1.0f * SampleNormal(globalLayout, sandNormalsSampler2, f3InPosition.yx, globalLayout.fTerrainBeachNormalsSizeThree, 0.0f, globalLayout.fElapsedTime, vec2(0.0f, 0.0f)));
+		vec3 f3BeachNormalSum = 2.0f * SampleNormal(globalLayout, sandNormalsSampler0, f3InPosition.xy, globalLayout.fTerrainBeachNormalsSizeOne, 0.0f, globalLayout.fElapsedTime, vec2(0.0f, 0.0f)) + 0.5f * SampleNormal(globalLayout, sandNormalsSampler1, f3InPosition.yx, globalLayout.fTerrainBeachNormalsSizeTwo, 0.0f, globalLayout.fElapsedTime, vec2(0.0f, 0.0f)) + 1.0f * SampleNormal(globalLayout, sandNormalsSampler2, f3InPosition.yx, globalLayout.fTerrainBeachNormalsSizeThree, 0.0f, globalLayout.fElapsedTime, vec2(0.0f, 0.0f));
+		vec3 f3BeachNormal = normalize(f3BeachNormalSum);
 		f3BeachNormal.z = 0.0f;
 		f3Normal = normalize(f3Normal + globalLayout.fTerrainBeachNormalsBlend * fBeachPercent * f3BeachNormal);
 
@@ -91,17 +89,36 @@ void main()
 	}
 
 	vec3 f3SunNormal = normalize(f3Normal + fSnowPercent * globalLayout.f4SunNormal.xyz);
-	float fShadow = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
-    f4OutColor = vec4(SunLighting(f3Color, globalLayout, vec4(f3InPosition, 1.0f), f3SunNormal, fShadow, 1.0f - texture(ambientOcclusionTextureSampler, f2InVisibleAreaTexcoord).x), 1.0f);
 
-	// Lighting and smoke at base height
-    vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
+	// Smoke at base height (shared between shadow and additive smoke)
+	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
+	float fSmokeAreaTexcoordX = (f2PositionAtBaseHeight.x - globalLayout.f4SmokeArea.x) / (globalLayout.f4SmokeArea.z - globalLayout.f4SmokeArea.x);
+	float fSmokeAreaTexcoordY = (f2PositionAtBaseHeight.y - globalLayout.f4SmokeArea.y) / (globalLayout.f4SmokeArea.w - globalLayout.f4SmokeArea.y);
+	float fSmokeRaw = globalLayout.fSmokeMax * texture(smokeSampler, vec2(fSmokeAreaTexcoordX, fSmokeAreaTexcoordY)).x;
+	float fSmokePow = clamp(pow(fSmokeRaw, globalLayout.fSmokePower), 0.0f, 1.0f);
+
+	// Shadow with shared smoke
+	float fShadow = (1.0f - mainLayout.fSmokeShadowIntensity * fSmokePow) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
+	f4OutColor = vec4(SunLighting(f3Color, globalLayout, vec4(f3InPosition, 1.0f), f3SunNormal, fShadow, 1.0f - texture(ambientOcclusionTextureSampler, f2InVisibleAreaTexcoord).x), 1.0f);
+
+	// Lighting at base height
 	vec2 f2BaseHeightTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4VisibleArea);
-
-    vec4 pf4Lighting[3];
+	vec4 pf4Lighting[3];
 	pf4Lighting[0] = texture(pLightingSamplers[0], f2BaseHeightTexcoord);
 	pf4Lighting[1] = texture(pLightingSamplers[1], f2BaseHeightTexcoord);
 	pf4Lighting[2] = texture(pLightingSamplers[2], f2BaseHeightTexcoord);
-    f4OutColor.xyz += Lighting(globalLayout, f3Color, f3InPosition.z, f3Normal, pf4Lighting, globalLayout.fLightingTerrain, globalLayout.fLightingAddTerrain);
-    f4OutColor.xyz = AddSmoke(globalLayout, f4OutColor.xyz, f2PositionAtBaseHeight, smokeSampler, 1.0f, pf4Lighting);
+	f4OutColor.xyz += Lighting(globalLayout, f3Color, f3InPosition.z, f3Normal, pf4Lighting, globalLayout.fLightingTerrain, globalLayout.fLightingAddTerrain);
+
+	// Additive smoke (reusing shared smoke sample)
+	float fSmokeDensity = globalLayout.fSmokeColorMin + globalLayout.fSmokeColorMultiplier * fSmokePow;
+	float fRed = IntensityLighting(pf4Lighting[0]);
+	float fGreen = IntensityLighting(pf4Lighting[1]);
+	float fBlue = IntensityLighting(pf4Lighting[2]);
+	vec3 f3SmokeLighting = vec3(fRed, fGreen, fBlue);
+	float fSmokeLightPower = globalLayout.fLightingCombinePower;
+	f3SmokeLighting = pow(f3SmokeLighting + vec3(1.0f), vec3(fSmokeLightPower)) - vec3(1.0f);
+	f3SmokeLighting *= 0.5f;
+	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4AmbientColor.xyz);
+	f3SmokeLighting = min(vec3(1.0f), f3SmokeLighting);
+	f4OutColor.xyz = (1.0f - fSmokePow) * f4OutColor.xyz + fSmokePow * f3SmokeLighting * min(vec3(1.25f), vec3(fSmokeDensity));
 }

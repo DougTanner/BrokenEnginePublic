@@ -132,11 +132,11 @@ void ReadDxDiag()
 	}
 	catch ([[maybe_unused]] const std::exception& rException)
 	{
-		Log("Failed to read DxDiag: {}", rException.what());
+		Log(kLogError, "Failed to read DxDiag: {}", rException.what());
 	}
 	catch (...)
 	{
-		Log("Failed to read DxDiag");
+		Log(kLogError, "Failed to read DxDiag");
 	}
 }
 

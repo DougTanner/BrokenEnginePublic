@@ -27,6 +27,7 @@ void TweaksScreen::RenderShadowSection()
 	WrapperSlider("Sunset Stretch", static_cast<int>(TweakSection::kShadow));
 	WrapperSlider("Blur Distance Noon", static_cast<int>(TweakSection::kShadow));
 	WrapperSlider("Blur Distance Sunset", static_cast<int>(TweakSection::kShadow));
+	WrapperSlider("Object Blur Sigma", static_cast<int>(TweakSection::kShadow));
 	WrapperSlider("Smoke Shadow Intensity", static_cast<int>(TweakSection::kShadow));
 }
 

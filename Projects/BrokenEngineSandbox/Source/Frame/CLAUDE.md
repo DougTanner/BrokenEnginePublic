@@ -12,10 +12,11 @@ Frame code is purely functional. Frame updates must only rely on explicit functi
 
 - **Frame / FrameInterpolate / FramePostRender** (`Frame.h/cpp`) - Hierarchical frame structures extending engine base classes. Collections held via `std::unique_ptr` with forward declarations to minimize include dependencies. Provides `ServerCrc()`, `LogDifferences()`, and `ServerRead()` for cross-build determinism validation
 - **FrameCollections.h** - Aggregation header including all collection types; provides `GameInterpolateCollections()` / `GamePostRenderCollections()` tuple accessors
-- **RunFrameTick()** (`FrameTick.h/cpp`) - Unified physics pipeline executing all five phases (Interpolate, PostRender with Collision, Transfer, Destroy, Spawn) for a single Frame. Shared by both GameBase parallel dispatch and client reconciliation replay
+- **RunFrameTick()** (`FrameTick.h/cpp`) - Unified physics pipeline executing all five phases (Interpolate, PostRender with Collision, Transfer, Destroy, Spawn) for a single Frame. Shared by both GameBase parallel dispatch and client reconciliation replay. Asserts MXCSR flags (flush-denormals, round-to-nearest) at entry to catch corruption by external APIs (audio, Vulkan, etc.)
 - **TerrainUtils** (`TerrainUtils.h/cpp`) - Shared AI terrain-following and obstacle avoidance used by Players and Spaceships
 - **StatusChange.h** - Status change types (spawn, respawn, transfer, destroy) and `TransferData` struct for cross-cell entity migration with full entity state
 - **HealthDamage.h** - Combat balance constants, collision category/mask configuration, and difficulty-scaled damage
+- **SmokeSpreadTest** (`SmokeSpreadTest.h/cpp`) - Automated smoke/stress test that orbits the player around the origin while continuously firing, and spawns spaceships at random angles. Enabled via `kbEnableSmokeSpreadTest` in `Pch.h`
 
 ## Architecture Notes
 

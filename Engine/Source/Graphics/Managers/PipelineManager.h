@@ -11,7 +11,8 @@ enum Pipelines
 {
 	kPipelineLog,
 
-	kPipelineObjectShadowsBlur,
+	kPipelineObjectShadowsBlurH,
+	kPipelineObjectShadowsBlurV,
 	kPipelineShadow,
 	kPipelineShadowBlurH,
 	kPipelineShadowBlurV,
@@ -35,8 +36,9 @@ enum Pipelines
 
 	kPipelineSmokeClearA,
 	kPipelineSmokeClearB,
-	kPipelineSmokeSpreadA,
-	kPipelineSmokeSpreadB,
+	kPipelineSmokeSpreadComputeA,
+	kPipelineSmokeSpreadComputeB,
+	kPipelineSmokeOccupancyDilate,
 
 	kPipelineWindClearA,
 	kPipelineWindSpreadA,
@@ -62,7 +64,7 @@ public:
 
 	std::unordered_map<common::crc_t, Shader> mShaders;
 
-	void CreateLightingBlurCombinePipelines(Pipelines eCombinePipeline, Texture* pLightingTexture, Pipeline (&pLightingBlurPipelines)[shaders::kiMaxLightingBlurCount], Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount]);
+	void CreateLightingCombinePipeline(Pipelines eCombinePipeline, Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount]);
 	void CreateLightingPipelines();
 	void CreatePipelineShadows();
 	void CreateLightingShadowDependantPipelines();
@@ -73,9 +75,7 @@ public:
 
 	Pipeline mpPipelines[kPipelineCount];
 
-	Pipeline mpRedLightingBlurPipelines[shaders::kiMaxLightingBlurCount];
-	Pipeline mpGreenLightingBlurPipelines[shaders::kiMaxLightingBlurCount];
-	Pipeline mpBlueLightingBlurPipelines[shaders::kiMaxLightingBlurCount];
+	Pipeline mpLightingBlurPipelines[shaders::kiMaxLightingBlurCount];
 
 	DynamicPipelines mDynamicPipelines;
 };

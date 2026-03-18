@@ -15,7 +15,7 @@ Foundation layer (`namespace common`) with no dependencies outside the codebase.
 
 ## Architecture Notes
 
-- **Zero-allocation logging**: `Log()` writes directly into per-thread buffers via `std::format_to`. Supports bitmask category filtering via `Log(category, format, ...)` -- `gLogEnabledCategories` controls which categories are active (e.g., `kLogDefault`, `kLogLoading`, `kLogNetwork`). Avoid `std::format` hex specifiers in `Log()` calls (MSVC may heap-allocate); use `common::ToHex()` with a stack buffer instead
+- **Zero-allocation logging**: `Log()` writes directly into per-thread buffers via `std::format_to`. Supports bitmask category filtering via `Log(category, format, ...)` -- `guiLogEnabledCategories` controls which categories are active (e.g., `kLogDefault`, `kLogLoading`, `kLogNetwork`). `kLogError` always outputs regardless of `guiLogEnabledCategories` — use it for fatal/unexpected error conditions. Avoid `std::format` hex specifiers in `Log()` calls (MSVC may heap-allocate); use `common::ToHex()` with a stack buffer instead
 - **Deterministic math**: `ThreadLocal` constructor sets MXCSR state (flush denormals, round-to-nearest) on every thread for cross-thread consistency
 - **ExternalHeaders.h**: Central include for all external/standard library headers. New `#include <header>` additions go here, not in individual source files
 - **Compile-time CRC**: `Crc()` is constexpr; `CrcConsteval()` forces compile-time evaluation. Used for asset identification throughout the engine

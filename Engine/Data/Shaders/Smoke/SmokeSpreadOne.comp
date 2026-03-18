@@ -1,0 +1,83 @@
+#version 460
+
+#include "ShaderLayouts.h"
+#include "ShaderFunctions.h"
+#include "SmokeSpreadCommon.h"
+
+layout (local_size_x = 8, local_size_y = 8) in;
+
+// Uniforms
+layout (binding = 0) uniform globalUniform
+{
+	GlobalLayout globalLayout;
+};
+
+layout (binding = 1) buffer smokeSpreadBuffer
+{
+	AxisAlignedQuadLayout smokeSpreadQuad;
+};
+
+layout (binding = 2) uniform sampler2D textureSampler;
+layout (binding = 3) uniform sampler2D noiseTextureSampler;
+layout (binding = 4) uniform sampler2D windTextureSamplerOne;
+layout (binding = 5) uniform sampler2D windTextureSamplerTwo;
+layout (binding = 6, r32f) uniform image2D outputImage;
+
+// Active tile list: [VkDispatchIndirectCommand (3 uint32s)] [packed tile indices...]
+layout (binding = 7) buffer activeTileBuffer
+{
+	uint uiDispatchX;
+	uint uiDispatchY;
+	uint uiDispatchZ;
+	uint activeTiles[];
+};
+
+layout (binding = 8) buffer occupancyBuffer
+{
+	uint occupancy[];
+};
+
+shared uint suHasSmoke;
+
+void main()
+{
+	// Look up tile from active tile list
+	uint uiTileIndex = activeTiles[gl_WorkGroupID.x];
+	uint uiTilesX = globalLayout.uiSmokeTilesX;
+	uint uiTileY = uiTileIndex / uiTilesX;
+	uint uiTileX = uiTileIndex - uiTileY * uiTilesX;
+	uint uiX = uiTileX * 8 + gl_LocalInvocationID.x;
+	uint uiY = uiTileY * 8 + gl_LocalInvocationID.y;
+
+	ivec2 i2Size = imageSize(outputImage);
+	bool bInBounds = uiX < i2Size.x && uiY < i2Size.y;
+
+	vec2 f2Texcoord = (vec2(uiX, uiY) + vec2(0.5f)) / vec2(i2Size);
+
+	// Apply camera offset
+	float fXOffset = (smokeSpreadQuad.f4VertexRect.x + 1.0f) * 0.5f;
+	float fYOffset = (1.0f - smokeSpreadQuad.f4VertexRect.y) * 0.5f;
+	f2Texcoord -= vec2(fXOffset, fYOffset);
+
+	if (gl_LocalInvocationIndex == 0)
+		suHasSmoke = 0;
+	barrier();
+
+	vec4 f4Result = vec4(0.0f);
+	if (bInBounds)
+	{
+		f4Result = SmokeSpread(globalLayout, textureSampler, noiseTextureSampler, windTextureSamplerOne, windTextureSamplerTwo, f2Texcoord, globalLayout.fSmokeNoiseScaleOne, 0.0f);
+		imageStore(outputImage, ivec2(uiX, uiY), f4Result);
+	}
+
+	// Mark output tile in occupancy for next pass
+	if (f4Result.x > 0.0f)
+		atomicOr(suHasSmoke, 1u);
+	barrier();
+
+	if (gl_LocalInvocationIndex == 0 && suHasSmoke != 0)
+	{
+		uint uiOutTileIndex = uiTileY * uiTilesX + uiTileX;
+		atomicOr(occupancy[uiOutTileIndex >> 5], 1u << (uiOutTileIndex & 31));
+	}
+}

@@ -26,22 +26,17 @@ vec4 SmokeSpread(GlobalLayout globalLayout, sampler2D textureSampler, sampler2D 
 	// Sample wind field from the current ping-pong buffer
 	vec2 f2WindSample = globalLayout.fWindTextureIndex < 0.5f ? texture(windTextureSamplerOne, f2Texcoord).rg : texture(windTextureSamplerTwo, f2Texcoord).rg;
 	float fWindMag = length(f2WindSample);
-	if (fWindMag > 1e-3f)
-	{
-		float fWindMagNew = globalLayout.fWindToSmokeStrength * pow(fWindMag, globalLayout.fWindToSmokePower);
-		vec2 f2WindRescaled = vec2(fWindMagNew) * (f2WindSample / vec2(fWindMag));
-		f2WindRescaled.x = -f2WindRescaled.x;  // Additive sampling reverses direction; Y cancels with inverted texcoord Y
+	float fWindMagSafe = max(fWindMag, 1e-3f);
+	float fWindMagNew = globalLayout.fWindToSmokeStrength * pow(fWindMag, globalLayout.fWindToSmokePower);
+	vec2 f2WindRescaled = vec2(fWindMagNew) * (f2WindSample / vec2(fWindMagSafe));
+	f2WindRescaled.x = -f2WindRescaled.x;  // Additive sampling reverses direction; Y cancels with inverted texcoord Y
 
-		vec2 f2WindDisplacement = globalLayout.fWindDisplacementNoiseScale * abs(fWindNoiseSample) * f2WindRescaled
-			+ globalLayout.fWindDisplacementSwirlScale * pow(fWindMag, globalLayout.fWindDisplacementSwirlPower) * vec2(fSwirlNoiseSampleX, fSwirlNoiseSampleY);
+	vec2 f2WindDisplacement = globalLayout.fWindDisplacementNoiseScale * abs(fWindNoiseSample) * f2WindRescaled;
 
-		// Blend between wind-displaced and stationary smoke
-		float fSmokeMoved = texture(textureSampler, f2Texcoord + f2Noise + f2WindDisplacement).x;
-		float fSmokeStayed = texture(textureSampler, f2Texcoord + f2Noise).x;
-		return globalLayout.fSmokeDecay * vec4(mix(fSmokeMoved, fSmokeStayed, globalLayout.fWindSmokeRetention));
-	}
-	else
-	{
-		return globalLayout.fSmokeDecay * vec4(texture(textureSampler, f2Texcoord + f2Noise).x);
-	}
+	// Branchless blend between wind-displaced and stationary smoke
+	vec2 f2Base = f2Texcoord + f2Noise;
+	float fSmokeStayed = texture(textureSampler, f2Base).x;
+	float fSmokeMoved = texture(textureSampler, f2Base + f2WindDisplacement).x;
+	float fHasWind = step(1e-3f, fWindMag);
+	return globalLayout.fSmokeDecay * vec4(mix(fSmokeStayed, mix(fSmokeMoved, fSmokeStayed, globalLayout.fWindSmokeRetention), fHasWind));
 }

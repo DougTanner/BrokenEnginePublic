@@ -44,22 +44,34 @@ void MainMenuScreen::Render()
 	float fButtonHeight = rIo.DisplaySize.y * 0.045f;
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
-	// Local Server button (discovers localhost + LAN)
-	if (gpClientSession->mpDiscoveryScanner != nullptr)
+	// Auto-start discovery when main menu is shown
+	if (gpClientSession->mpDiscoveryScanner == nullptr && !gpClientSession->mbServerDiscovered && !gpClientSession->IsNetworkMode())
 	{
-		ImGui::BeginDisabled();
-		ImGui::Button("SCANNING...", ImVec2(fButtonWidth, fButtonHeight));
-		ImGui::EndDisabled();
+		gpClientSession->StartServerDiscovery();
 	}
-	else if (gpClientSession->IsNetworkMode())
+
+	bool bEnterPressed = ImGui::IsKeyPressed(ImGuiKey_Enter);
+
+	// Local Server button (discovers localhost + LAN)
+	if (gpClientSession->IsNetworkMode())
 	{
 		ImGui::BeginDisabled();
 		ImGui::Button("CONNECTING...", ImVec2(fButtonWidth, fButtonHeight));
 		ImGui::EndDisabled();
 	}
-	else if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, fButtonHeight)))
+	else if (gpClientSession->mbServerDiscovered)
 	{
-		gpClientSession->StartServerDiscovery();
+		bool bClicked = ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, fButtonHeight));
+		if (bClicked || bEnterPressed)
+		{
+			gpClientSession->ConnectToDiscoveredServer();
+		}
+	}
+	else
+	{
+		ImGui::BeginDisabled();
+		ImGui::Button("SCANNING...", ImVec2(fButtonWidth, fButtonHeight));
+		ImGui::EndDisabled();
 	}
 
 	// Remote Server button (placeholder for future Internet servers)
@@ -106,7 +118,7 @@ void MainMenuScreen::Render()
 	ImGui::SetCursorPosX((rIo.DisplaySize.x - fTotalLangWidth) / 2.0f);
 
 	static constexpr const char* kpcLanguageNames[] = {"ENGLISH", "中文", "ESPANOL", "PORTUGUES", "FRANCAIS", "DEUTSCH"};
-	for (int i = 0; i < kLanguageCount; ++i)
+	for (int64_t i = 0; i < kLanguageCount; ++i)
 	{
 		if (i > 0)
 		{

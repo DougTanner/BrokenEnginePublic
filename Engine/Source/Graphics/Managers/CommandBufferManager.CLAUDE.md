@@ -8,6 +8,21 @@ Records and submits Vulkan command buffers using a record-once, submit-many patt
 
 Global (shadows, terrain generation, wind/smoke spread, particle spawn/update), Main (lighting, smoke emit, object shadows, then main render pass), and ImGui (UI overlay, recorded per-frame).
 
+## Smoke Spread Recording
+
+Smoke spread uses **hierarchical indirect dispatch** rather than direct full-grid dispatch. The sequence runs twice per frame (once for each ping-pong direction):
+
+1. **Dilate+Compact** (`kPipelineSmokeOccupancyDilate`) - reads the bit-packed occupancy buffer, dilates active tiles, and writes a compacted tile index list into `mSmokeActiveTileVkBuffer` (which also serves as the indirect dispatch args buffer).
+2. `vkCmdFillBuffer` resets the occupancy buffer to zero.
+3. `vkCmdClearColorImage` clears the output smoke texture (requires `VK_IMAGE_USAGE_TRANSFER_DST_BIT`).
+4. **Indirect spread** (`kPipelineSmokeSpreadComputeB` or `kPipelineSmokeSpreadComputeA`) dispatched via `vkCmdDispatchIndirect` from `mSmokeActiveTileVkBuffer`; each workgroup looks up its tile from the active tile list.
+
+Full sequence per frame: Dilate+Compact → Fill → Clear → indirect SpreadB → Dilate+Compact → Fill → Clear → indirect SpreadA. Each spread pass transitions the output texture from `kShaderReadOnly` to `kComputeReadWrite` before dispatch and back to `kShaderReadOnly` after. Pass B writes the larger `mSmokeTextureTwo`; pass A writes `mSmokeTextureOne`.
+
+## Lighting Blur Recording
+
+Each blur level is recorded via `RecordLightingBlurMRT()`: transitions all three R/G/B output textures to color-attachment layout, begins the per-level MRT render pass (3 attachments), dispatches a single `mpLightingBlurPipelines[iLevel]` draw with push constants for previous-level dimensions, divisor, and distance count, then ends the pass. The per-channel combine passes that follow reuse individual per-channel framebuffers.
+
 ## Main Render Pass Order
 
 Opaque models, terrain, water, hex shields, transparent models, particles (long then square), visible lights, billboards, text. Opaque materials drawn first with depth writing; transparent materials drawn after water/hex shields with alpha blending.

@@ -5,7 +5,7 @@ ImGui-based UI screens for the game, rendered by engine's ImGuiManager. Most scr
 ## Screen Classes
 
 - **HudScreen** - In-game overlay showing player shield and armor bars with icons. Has Initialize/Shutdown lifecycle for Vulkan descriptor management
-- **MainMenuScreen** - Entry point with Local Server (LAN discovery), Remote Server (placeholder), settings, and quit options plus language selection. Local Server triggers `Game::StartServerDiscovery()` covering both localhost and LAN
+- **MainMenuScreen** - Entry point with Local Server (LAN discovery), Remote Server (placeholder), settings, and quit options plus language selection. Discovery auto-starts when the main menu is shown. The Local Server button shows SCANNING... while discovery is in progress, becomes active when a server is found, and shows CONNECTING... once a connection is in progress. Enter key also triggers connection when a server is discovered
 - **ModalScreen** - Centered modal error dialog for connection rejection and desync notifications. Client-only
 - **PauseMenuScreen** - In-game pause overlay with resume, settings, main menu, and quit options
 - **GraphicsMenuScreen** - Rendering settings panel exposing engine Wrapper variables. Time of day slider appears only in main menu

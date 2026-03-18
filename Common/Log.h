@@ -10,9 +10,10 @@ namespace common
 inline constexpr uint64_t kLogDefault = 1ULL << 0;
 inline constexpr uint64_t kLogLoading = 1ULL << 1;
 inline constexpr uint64_t kLogNetwork = 1ULL << 2;
+inline constexpr uint64_t kLogError = 1ULL << 3;
 
 // Enabled categories mask (set directly to change filtering)
-inline uint64_t gLogEnabledCategories = kLogNetwork; // DT: TEMP kLogDefault;
+inline uint64_t guiLogEnabledCategories = kLogNetwork; // DT: TEMP kLogDefault;
 
 inline std::atomic<int64_t> giMyOutputDebugString = 0;
 inline std::ofstream* gpLogFileStream = nullptr;
@@ -95,7 +96,7 @@ void Log(uint64_t uiCategory, std::format_string<const TUV&...> format, const TU
 {
 	if constexpr (kbEnableLogging)
 	{
-		if (!(gLogEnabledCategories & uiCategory)) [[unlikely]]
+		if (!(uiCategory & kLogError) && !(guiLogEnabledCategories & uiCategory)) [[unlikely]]
 		{
 			return;
 		}
@@ -148,6 +149,7 @@ public:
 using common::kLogDefault;
 using common::kLogLoading;
 using common::kLogNetwork;
+using common::kLogError;
 using common::Log;
 using common::LogIndent;
 using common::ScopedLogIndent;

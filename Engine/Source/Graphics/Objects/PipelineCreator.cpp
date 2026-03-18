@@ -235,8 +235,8 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 	if (rPipeline.mInfo.flags & kIndirectHostVisible)
 	{
 		// Use max of actual count and 3 to handle swapchain recreation scenarios
-		size_t framebufferCount = gpSwapchainManager->mFramebuffers.size();
-		int64_t iCommandBufferCount = std::max(framebufferCount, static_cast<size_t>(3));
+		size_t uiFramebufferCount = gpSwapchainManager->mFramebuffers.size();
+		int64_t iCommandBufferCount = std::max(uiFramebufferCount, static_cast<size_t>(3));
 		VkDeviceSize vkDeviceSize = iCommandBufferCount * sizeof(VkDrawIndexedIndirectCommand);
 		VmaAllocationInfo vmaAllocationInfo {};
 		Buffer::CreateBuffer(rPipelineInfo.name, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation, &vmaAllocationInfo);
@@ -263,8 +263,8 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 	else if (rPipeline.mInfo.flags & kIndirectDeviceLocal)
 	{
 		// Use max of actual count and 3 to handle swapchain recreation scenarios
-		size_t framebufferCount = gpSwapchainManager->mFramebuffers.size();
-		int64_t iCommandBufferCount = std::max(framebufferCount, static_cast<size_t>(3));
+		size_t uiFramebufferCount = gpSwapchainManager->mFramebuffers.size();
+		int64_t iCommandBufferCount = std::max(uiFramebufferCount, static_cast<size_t>(3));
 		VkDeviceSize vkDeviceSize = iCommandBufferCount * sizeof(VkDrawIndexedIndirectCommand);
 		Buffer::CreateBuffer(rPipelineInfo.name, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation);
 	}
@@ -489,15 +489,20 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 	vkGraphicsPipelineCreateInfo.layout = rPipeline.mVkPipelineLayout;
 	vkGraphicsPipelineCreateInfo.renderPass = rPipeline.mInfo.flags & kRenderTarget ? rPipelineInfo.vkRenderPass : gpSwapchainManager->mVkRenderPass;
 
-	// Configure MRT blend states for lighting pass
-	VkPipelineColorBlendAttachmentState pMrtBlendStates[3] = {};
-	if (rPipelineInfo.vkRenderPass == gpTextureManager->mRenderTargetTextures.mLightingVkRenderPass)
+	// Configure MRT blend states
+	int32_t iColorAttachmentCount = rPipelineInfo.iColorAttachmentCount;
+	if (iColorAttachmentCount == 1 && rPipelineInfo.vkRenderPass == gpTextureManager->mRenderTargetTextures.mLightingVkRenderPass)
 	{
-		for (int64_t i = 0; i < 3; ++i)
+		iColorAttachmentCount = 3;
+	}
+	VkPipelineColorBlendAttachmentState pMrtBlendStates[3] = {};
+	if (iColorAttachmentCount > 1)
+	{
+		for (int64_t i = 0; i < iColorAttachmentCount; ++i)
 		{
 			pMrtBlendStates[i] = vkPipelineColorBlendAttachmentState;
 		}
-		vkPipelineColorBlendStateCreateInfo.attachmentCount = 3;
+		vkPipelineColorBlendStateCreateInfo.attachmentCount = iColorAttachmentCount;
 		vkPipelineColorBlendStateCreateInfo.pAttachments = pMrtBlendStates;
 	}
 	else

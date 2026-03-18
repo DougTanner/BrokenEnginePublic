@@ -31,12 +31,6 @@ void main()
 
 	f4OutColor = SmokeSpread(globalLayout, textureSampler, noiseTextureSampler, windTextureSamplerOne, windTextureSamplerTwo, f2InTexcoord, globalLayout.fSmokeNoiseScaleTwo, fElevation);
 
-	// Extra decay when value is low
-	if (f4OutColor.x < globalLayout.fSmokeDecayExtraThreshold)
-	{
-		f4OutColor.x *= globalLayout.fSmokeDecayExtra;
-	}
-
 	// Extra decay over terrain
 	if (fElevation > 0.0f)
 	{

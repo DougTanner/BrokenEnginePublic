@@ -387,6 +387,9 @@
     <ClInclude Include="..\..\Source\Frame\FrameTick.h">
       <Filter>Game\Frame</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Frame\SmokeSpreadTest.h">
+      <Filter>Game\Frame</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Frame\TerrainUtils.h">
       <Filter>Game\Frame</Filter>
     </ClInclude>
@@ -782,6 +785,9 @@
     <ClCompile Include="..\..\Source\Frame\FrameTick.cpp">
       <Filter>Game\Frame</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\Frame\SmokeSpreadTest.cpp">
+      <Filter>Game\Frame</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\Frame\TerrainUtils.cpp">
       <Filter>Game\Frame</Filter>
     </ClCompile>
@@ -1120,7 +1126,10 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingBlur.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ObjectShadowsBlur.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ObjectShadowsBlurH.comp">
+      <Filter>Engine\Data\Shaders\Shadow</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ObjectShadowsBlurV.comp">
       <Filter>Engine\Data\Shaders\Shadow</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Ui\ProfileText.frag">
@@ -1144,7 +1153,13 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadOne.frag">
       <Filter>Engine\Data\Shaders\Smoke</Filter>
     </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadOne.comp">
+      <Filter>Engine\Data\Shaders\Smoke</Filter>
+    </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadTwo.frag">
+      <Filter>Engine\Data\Shaders\Smoke</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadTwo.comp">
       <Filter>Engine\Data\Shaders\Smoke</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindDeposit.frag">

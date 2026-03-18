@@ -26,11 +26,13 @@ void ClientSessionBase::DisconnectFromServerBase()
 
 	miLatestServerTick = -1;
 	mpClientNetwork.reset();
+	mpDiscoveryScanner.reset();
 	for (auto& [rCoord, rSub] : game::gpGame->mCoordFrames)
 	{
 		rSub.ResetClientState();
 	}
 	mSubscriptionQueue.clear();
+	mbServerDiscovered = false;
 	miClockError = 0;
 	miCurrentTargetBehind = 0;
 	mbClockErrorDisconnect = false;
@@ -56,19 +58,20 @@ bool ClientSessionBase::PollLANDiscovery()
 
 	if (mpDiscoveryScanner->IsFound())
 	{
-		char pcAddress[16] {};
-		snprintf(pcAddress, sizeof(pcAddress), "%s", mpDiscoveryScanner->GetFoundAddress());
+		snprintf(mpcDiscoveredAddress, sizeof(mpcDiscoveredAddress), "%s", mpDiscoveryScanner->GetFoundAddress());
 		mpDiscoveryScanner.reset();
-		ConnectToServer(pcAddress, kuiDefaultPort, miCoordSlots);
+		mbServerDiscovered = true;
 		return true;
 	}
 	else if (!mpDiscoveryScanner->IsScanning())
 	{
-		DEBUG_BREAK();
+		// Timeout — restart scan
 		mpDiscoveryScanner.reset();
+		StartServerDiscovery();
 	}
 	return false;
 }
+
 
 // Subscription mechanics
 

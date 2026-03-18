@@ -22,6 +22,7 @@ enum class TextureLayout
 	kColorAttachment,
 	kComputeReadOnly,
 	kComputeReadWrite,
+	kFragmentShaderReadOnly,
 	kGeneral,
 	kShaderReadOnly,
 	kTransferDestination,
@@ -57,6 +58,10 @@ struct TextureInfo
 
 	// TransitionImageLayout
 	TextureLayout eTextureLayout = TextureLayout::kShaderReadOnly;
+
+	// Subpass dependency masks (render targets only)
+	VkPipelineStageFlags renderPassDstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	VkAccessFlags renderPassDstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 };
 
 class Texture

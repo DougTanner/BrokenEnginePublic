@@ -10,6 +10,7 @@ layout (set = 0, binding = 0) uniform globalUniform
 };
 
 layout (set = 1, binding = 2) uniform sampler2D textureSampler;
+layout (set = 1, binding = 3) buffer smokeOccupancyBuffer { uint occupancy[]; };
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;
@@ -28,4 +29,12 @@ void main()
     float fTexture = texture(textureSampler, f2Center + Rotate(f2InTexcoord - f2Center, f4InParams.w)).x;
 
     fOutColor = fTexture * vec4(f4InParams.x * pow(fMiscY, globalLayout.fSmokeIntensityFalloff) * 0.0166666657f, 0.0f, 0.0f, 1.0f);
+
+    // Mark occupancy for deposited tiles (seeds hierarchical dispatch)
+    if (fOutColor.x > 0.0f)
+    {
+        ivec2 i2TileCoord = ivec2(gl_FragCoord.xy * globalLayout.fSmokeDepositTileScale) / 8;
+        uint uiTileIndex = i2TileCoord.y * globalLayout.uiSmokeTilesX + i2TileCoord.x;
+        atomicOr(occupancy[uiTileIndex >> 5], 1u << (uiTileIndex & 31));
+    }
 }

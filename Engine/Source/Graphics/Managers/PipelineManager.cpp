@@ -111,27 +111,8 @@ PipelineManager::~PipelineManager()
 	gpPipelineManager = nullptr;
 }
 
-void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipeline, Texture* pLightingTexture, Pipeline (&pLightingBlurPipelines)[shaders::kiMaxLightingBlurCount], Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount])
+void PipelineManager::CreateLightingCombinePipeline(Pipelines eCombinePipeline, Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount])
 {
-	for (int64_t i = 0; i < gpTextureManager->mRenderTargetTextures.miLightingBlurCount; ++i)
-	{
-		pLightingBlurPipelines[i].Create(
-		{
-			.name = "LightingBlur",
-			.flags = {kRenderTarget, kPushConstants},
-			.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersLightingLightingBlurfragCrc)},
-			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-			.vkRenderPass = pLightingBlurTextures[i].mVkRenderPass,
-			.vkExtent3D = pLightingBlurTextures[i].mInfo.extent,
-			.pDescriptorInfos =
-			{
-				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-				{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = i == 0 ? pLightingTexture : &pLightingBlurTextures[i - 1]},
-			},
-		});
-	}
-
-	// Select which blur textures to combine based on current settings
 	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
 	Texture* ppLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
 	for (int64_t i = 0; i < iBlurTextureCount; ++i)
@@ -198,9 +179,36 @@ void PipelineManager::CreateLightingPipelines()
 		},
 	});
 
-	CreateLightingBlurCombinePipelines(kPipelineRedLightingCombine, &gpTextureManager->mRenderTargetTextures.mpLightingTextures[0], mpRedLightingBlurPipelines, gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures);
-	CreateLightingBlurCombinePipelines(kPipelineGreenLightingCombine, &gpTextureManager->mRenderTargetTextures.mpLightingTextures[1], mpGreenLightingBlurPipelines, gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures);
-	CreateLightingBlurCombinePipelines(kPipelineBlueLightingCombine, &gpTextureManager->mRenderTargetTextures.mpLightingTextures[2], mpBlueLightingBlurPipelines, gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures);
+	// MRT blur pipelines (3 input samplers, 3 MRT outputs per level)
+	for (int64_t i = 0; i < gpTextureManager->mRenderTargetTextures.miLightingBlurCount; ++i)
+	{
+		Texture* pRedSource = i == 0 ? &gpTextureManager->mRenderTargetTextures.mpLightingTextures[0] : &gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[i - 1];
+		Texture* pGreenSource = i == 0 ? &gpTextureManager->mRenderTargetTextures.mpLightingTextures[1] : &gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures[i - 1];
+		Texture* pBlueSource = i == 0 ? &gpTextureManager->mRenderTargetTextures.mpLightingTextures[2] : &gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures[i - 1];
+
+		mpLightingBlurPipelines[i].Create(
+		{
+			.name = "LightingBlurMRT",
+			.flags = {kRenderTarget, kPushConstants},
+			.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersLightingLightingBlurfragCrc)},
+			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+			.vkRenderPass = gpTextureManager->mRenderTargetTextures.mpLightingBlurVkRenderPasses[i],
+			.vkExtent3D = gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[i].mInfo.extent,
+			.iColorAttachmentCount = 3,
+			.pDescriptorInfos =
+			{
+				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+				{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = pRedSource},
+				{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = pGreenSource},
+				{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = pBlueSource},
+			},
+		});
+	}
+
+	// Per-channel combine pipelines
+	CreateLightingCombinePipeline(kPipelineRedLightingCombine, gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures);
+	CreateLightingCombinePipeline(kPipelineGreenLightingCombine, gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures);
+	CreateLightingCombinePipeline(kPipelineBlueLightingCombine, gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures);
 }
 
 void PipelineManager::CreatePipelineShadows()
@@ -260,21 +268,31 @@ void PipelineManager::CreatePipelineShadows()
 		},
 	});
 
-	mpPipelines[kPipelineObjectShadowsBlur].Create(
+	mpPipelines[kPipelineObjectShadowsBlurH].Create(
 	{
-		.name = "ShadowBlur",
-		.flags = {kRenderTarget},
-		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersShadowObjectShadowsBlurfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture.mInfo.extent,
+		.name = "ObjectShadowsBlurH",
+		.flags = {kCompute},
+		.ppShaders = {&mShaders.at(data::kShadersShadowObjectShadowsBlurHcompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurIntermediateTexture},
 		},
-	},
-	false);
+	});
+
+	mpPipelines[kPipelineObjectShadowsBlurV].Create(
+	{
+		.name = "ObjectShadowsBlurV",
+		.flags = {kCompute},
+		.ppShaders = {&mShaders.at(data::kShadersShadowObjectShadowsBlurVcompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurIntermediateTexture},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture},
+		},
+	});
 }
 
 void PipelineManager::CreateLightingShadowDependantPipelines()
@@ -283,7 +301,7 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 	mpPipelines[kPipelineTerrain].Create(
 	{
 		.name = "Terrain",
-		.flags = {kDepthTest, kDepthWrite, kCullBack, kSampleShading, kUpdateAfterBind},
+		.flags = {kDepthTest, kDepthWrite, kCullBack, kUpdateAfterBind},
 		.ppShaders = {&mShaders.at(data::kShadersTerrainTerrainvertCrc), &mShaders.at(data::kShadersTerrainTerrainfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mTerrainMeshBuffer,
 		.pDescriptorInfos =
@@ -402,14 +420,26 @@ void PipelineManager::CreateSmokeWindPipelines()
 		},
 	});
 
-	mpPipelines[kPipelineSmokeSpreadB].Create(
+	gpBufferManager->CreateSmokeHierarchicalBuffers();
+
+	mpPipelines[kPipelineSmokeOccupancyDilate].Create(
 	{
-		.name = "SmokeSpreadB",
-		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
-		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersSmokeSmokeSpreadTwofragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent,
+		.name = "SmokeOccupancyDilate",
+		.flags = {kCompute},
+		.ppShaders = {&mShaders.at(data::kShadersSmokeSmokeOccupancyDilatecompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mSmokeOccupancyVkBuffer},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mSmokeActiveTileVkBuffer},
+		},
+	});
+
+	mpPipelines[kPipelineSmokeSpreadComputeB].Create(
+	{
+		.name = "SmokeSpreadComputeB",
+		.flags = {kCompute, kUpdateAfterBind},
+		.ppShaders = {&mShaders.at(data::kShadersSmokeSmokeSpreadTwocompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
@@ -418,17 +448,17 @@ void PipelineManager::CreateSmokeWindPipelines()
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
 			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mWindTextureOne},
 			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mWindTextureTwo},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mSmokeActiveTileVkBuffer},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mSmokeOccupancyVkBuffer},
 		},
 	});
 
-	mpPipelines[kPipelineSmokeSpreadA].Create(
+	mpPipelines[kPipelineSmokeSpreadComputeA].Create(
 	{
-		.name = "SmokeSpreadA",
-		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
-		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &mShaders.at(data::kShadersSmokeSmokeSpreadOnefragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent,
+		.name = "SmokeSpreadComputeA",
+		.flags = {kCompute, kUpdateAfterBind},
+		.ppShaders = {&mShaders.at(data::kShadersSmokeSmokeSpreadOnecompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
@@ -437,6 +467,9 @@ void PipelineManager::CreateSmokeWindPipelines()
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
 			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mWindTextureOne},
 			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mWindTextureTwo},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mSmokeActiveTileVkBuffer},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mSmokeOccupancyVkBuffer},
 		},
 	});
 

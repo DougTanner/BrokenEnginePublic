@@ -8,7 +8,7 @@ Low-level Vulkan resource wrappers providing RAII semantics for GPU resources. A
 
 - **Buffer** - GPU memory buffer (vertex, index, uniform, storage) with dual-buffer staging architecture for CPU-to-GPU transfer. Supports batched pipeline barriers via `RecordBarriers()`
 - **CommandBuffers** - Per-framebuffer command buffer allocation with semaphore (GPU-GPU) and fence (CPU-GPU) synchronization. Creates Global, Main, and ImGui primary command buffers per swap chain image
-- **Pipeline** - Complete Vulkan pipeline state for graphics and compute. Combines shaders, vertex input, render state, and descriptor bindings. Split across three files by responsibility:
+- **Pipeline** - Complete Vulkan pipeline state for graphics and compute. Combines shaders, vertex input, render state, and descriptor bindings. `PipelineInfo::iColorAttachmentCount` controls MRT blend state expansion (default 1; set to 3 for R/G/B blur pipelines). Split across three files by responsibility:
   - `Pipeline.cpp` - Core lifecycle, command recording, indirect buffer writes
   - `PipelineCreator.cpp` - Vulkan pipeline/layout object creation
   - `PipelineDescriptorWriter.cpp` - Descriptor set allocation and writes

@@ -174,12 +174,10 @@ Wrapper gLightingWaterSpecularThreePower(0.1f, 0.05f, 0.5f);
 
 // Smoke
 Wrapper gSmokeDecay(0.996f, 0.990f, 1.0f);
-Wrapper gSmokeDecayExtra(0.99f, 0.95f, 1.0f);
-Wrapper gSmokeDecayExtraThreshold(0.00025f, 0.0f, 0.0005f);
-Wrapper gSmokeEdgeDecayDistance(0.05f, 0.0f, 1.0f);
-Wrapper gSmokeTrailsQuantity(400.0f, 0.0f, 2000.0f);
+Wrapper gSmokeEdgeDecayDistance(0.05f, 0.0f, 0.1f);
+Wrapper gSmokeTrailsQuantity(800.0f, 0.0f, 2000.0f);
 Wrapper gSmokeTrailsWidthCurrent(0.06f, 0.0f, 0.2f);
-Wrapper gSmokeTrailsWidthPrevious(0.015f, 0.0f, 0.2f);
+Wrapper gSmokeTrailsWidthPrevious(0.02f, 0.0f, 0.2f);
 Wrapper gSmokeTrailsLength(2.5f, 0.0f, 10.0f);
 Wrapper gSmokeTrailsLengthJitter(0.0f, 0.0f, 10.0f);
 Wrapper gSmokeTrailsSideJitter(3.0f, 0.0f, 6.0f);
@@ -192,9 +190,9 @@ Wrapper gSmokeNoiseScaleOne(3.0f, 0.1f, 8.0f);
 Wrapper gSmokeNoiseScaleTwo(0.2f, 0.01f, 1.0f);
 Wrapper gSmokeNoiseQuantity(0.000055f, 0.00001f, 0.0002f);
 Wrapper gSmokeNoiseInfluence(0.0f, 0.0f, 1000.0f);
-Wrapper gSmokeMax(0.1f, 0.0f, 1.0f);
+Wrapper gSmokeMax(0.3f, 0.0f, 1.0f);
 Wrapper gSmokePower(0.18f, 0.1f, 1.0f);
-Wrapper gSmokeColorMin(0.45f, 0.0f, 1.0f);
+Wrapper gSmokeColorMin(0.6f, 0.0f, 1.0f);
 Wrapper gSmokeColorMultiplier(2.0f, 0.1f, 4.0f);
 Wrapper gSmokeTrailPower(1.0f, 0.1f, 10.0f);
 Wrapper gSmokeTrailAlpha(0.8f, 0.0f, 1.0f);
@@ -217,7 +215,7 @@ Wrapper gWindSwirlSpeedLow(0.0f, 0.0f, 10.0f);
 Wrapper gWindVorticityConfinementHigh(2.0f, 0.0f, 4.0f);
 Wrapper gWindVorticityConfinementLow(0.5f, 0.0f, 1.0f);
 Wrapper gWindDecayHigh(0.99f, 0.5f, 0.999f);
-Wrapper gWindDecayLow(0.4f, 0.0f, 0.9f);
+Wrapper gWindDecayLow(0.2f, 0.0f, 0.9f);
 Wrapper gWindMomentumHigh(0.6f, 0.0f, 1.0f);
 Wrapper gWindMomentumLow(0.75f, 0.0f, 1.0f);
 Wrapper gWindDiffusionHigh(0.0f, 0.0f, 100.0f);
@@ -228,12 +226,10 @@ Wrapper gWindSmokeRetention(0.6f, 0.0f, 1.0f);
 Wrapper gWindToSmokePower(1.05f, 0.6f, 2.0f);
 // Wind - Displacement
 Wrapper gWindDisplacementNoiseScale(1.25f, 0.0f, 5.0f);
-Wrapper gWindDisplacementSwirlScale(0.005f, 0.001f, 0.01f);
-Wrapper gWindDisplacementSwirlPower(2.0f, 0.1f, 4.0f);
 
 // Wind - Deposit
 Wrapper gWindDepositExplosionsWidth(4.0f, 0.1f, 20.0f);
-Wrapper gWindDepositExplosionsIntensity(0.002f, 0.0f, 0.01f);
+Wrapper gWindDepositExplosionsIntensity(0.004f, 0.0f, 0.01f);
 
 Wrapper gWindDepositPlayerBlastersWidth(0.75f, 0.1f, 2.0f);
 Wrapper gWindDepositPlayerBlastersIntensity(0.05f, 0.0f, 0.2f);
@@ -304,8 +300,9 @@ Wrapper gObjectShadowsSunset(0.4f, 0.01f, 1.0f);
 Wrapper gObjectShadowsSunsetStretch(2.5f, 0.0f, 10.0f);
 Wrapper gObjectShadowsBlurDistanceNoon(0.0001f, 0.00005f, 0.002f);
 Wrapper gObjectShadowsBlurDistanceSunset(0.0008f, 0.0001f, 0.004f);
+Wrapper gObjectShadowsBlurSigma(5.0f, 1.0f, 20.0f);
 
-Wrapper gSmokeShadowIntensity(0.3f, 0.0f, 1.0f);
+Wrapper gSmokeShadowIntensity(0.5f, 0.0f, 1.0f);
 
 // Hex shield
 Wrapper gHexShieldGrow(2.0f, 1.0f, 4.0f);

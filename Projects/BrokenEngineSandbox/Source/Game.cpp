@@ -467,7 +467,6 @@ bool Game::ShouldUseCrosshair()
 void Game::ChangeFrame(GameFlags_t gameFlags)
 {
 #if defined(BT_CLIENT)
-	gpClientSession->mpDiscoveryScanner.reset();
 	gpClientSession->DisconnectFromServer();
 #endif
 

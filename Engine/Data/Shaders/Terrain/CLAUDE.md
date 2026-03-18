@@ -22,3 +22,4 @@ Renders terrain as a visible-area-covering mesh with elevation displacement. A s
 
 - G-buffer passes use bindless per-island texture arrays with `nonuniformEXT` dynamic indexing, decoupling per-island rendering from the lighting pipeline
 - Material boundaries (rock, sand, snow) are determined by elevation and color heuristics rather than explicit material maps
+- `Terrain.frag` computes smoke texcoords once at base height and reuses the single sample for both shadow attenuation and additive smoke blending

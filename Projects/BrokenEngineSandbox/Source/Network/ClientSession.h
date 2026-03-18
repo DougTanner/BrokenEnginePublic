@@ -20,6 +20,7 @@ public:
 	// Connection
 	bool IsNetworkMode() const { return mpClientNetwork != nullptr; }
 	void ConnectToServer(std::string_view serverAddress);
+	void ConnectToDiscoveredServer();
 	void DisconnectFromServer();
 
 	// Main-loop integration

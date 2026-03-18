@@ -338,7 +338,8 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	if (rType.uiWindRadialControllerTypeIndex != kuiInvalidControllerType)
 	{
 #if defined(BT_CLIENT)
-		WindRadialsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiWindRadialControllerTypeIndex, rInfo.vecPosition, gWindDepositExplosionsIntensity.Get() * rInfo.fSizePercent, gWindDepositExplosionsWidth.Get() * rInfo.fSizePercent);
+		float fWindSizePercent = std::sqrt(rInfo.fSizePercent);
+		WindRadialsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiWindRadialControllerTypeIndex, rInfo.vecPosition, gWindDepositExplosionsIntensity.Get() * fWindSizePercent, gWindDepositExplosionsWidth.Get() * fWindSizePercent);
 #endif
 	}
 

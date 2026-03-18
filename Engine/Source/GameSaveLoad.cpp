@@ -108,7 +108,7 @@ void GameSaveLoad::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuI
 			game::ReplayMeta meta {};
 			if (!ReadVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay.meta"), meta))
 			{
-				Log("Failed to read replay metadata");
+				Log(kLogError, "Failed to read replay metadata");
 				return;
 			}
 
@@ -235,7 +235,7 @@ bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::pa
 
 	if (iVersion != game::Frame::kiVersion)
 	{
-		Log("ReadGrid {} failed: version {} != {}", rFilename, iVersion, game::Frame::kiVersion);
+		Log(kLogError, "ReadGrid {} failed: version {} != {}", rFilename, iVersion, game::Frame::kiVersion);
 		return false;
 	}
 

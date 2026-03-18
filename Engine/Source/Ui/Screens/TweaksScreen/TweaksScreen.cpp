@@ -20,7 +20,7 @@ static constexpr const char* kpcSectionNames[] =
 	"Hex Shield",
 	"Smoke",
 	"Wind",
-	"Wind Dep",
+	"Wind Deposits",
 };
 static_assert(std::size(kpcSectionNames) == static_cast<size_t>(TweakSection::kCount));
 
@@ -205,6 +205,7 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"Sunset Stretch", &gObjectShadowsSunsetStretch},
 		{"Blur Distance Noon", &gObjectShadowsBlurDistanceNoon},
 		{"Blur Distance Sunset", &gObjectShadowsBlurDistanceSunset},
+		{"Object Blur Sigma", &gObjectShadowsBlurSigma},
 		{"Smoke Shadow Intensity", &gSmokeShadowIntensity},
 		// Misc
 		{"Misc Island Height", &gIslandHeight},
@@ -231,8 +232,6 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"Smoke Max", &gSmokeMax},
 		{"Smoke Power", &gSmokePower},
 		{"Smoke Decay", &gSmokeDecay},
-		{"Smoke Decay Extra", &gSmokeDecayExtra},
-		{"Smoke Decay Extra Threshold", &gSmokeDecayExtraThreshold},
 		{"Smoke Edge Decay Distance", &gSmokeEdgeDecayDistance},
 		// Smoke - Color
 		{"Smoke Color Min", &gSmokeColorMin},
@@ -256,8 +255,6 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"Wind To Smoke Strength", &gWindToSmokeStrength},
 		{"Wind To Smoke Power", &gWindToSmokePower},
 		{"Wind Displacement Noise Scale", &gWindDisplacementNoiseScale},
-		{"Wind Displacement Swirl Scale", &gWindDisplacementSwirlScale},
-		{"Wind Displacement Swirl Power", &gWindDisplacementSwirlPower},
 		{"Wind Smoke Retention", &gWindSmokeRetention},
 		// Wind - Time & Global
 		{"Wind Time Scale", &gWindTimeScale},

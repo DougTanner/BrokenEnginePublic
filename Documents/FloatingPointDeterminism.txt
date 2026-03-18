@@ -1,0 +1,133 @@
+Floating-Point Determinism
+==========================
+
+Reference: https://gafferongames.com/post/floating_point_determinism/
+
+This engine uses rollback-and-replay netcode with CRC validation, so
+client and server must produce bit-identical simulation results from
+the same inputs. This document describes the mitigations in place and
+the rationale behind each.
+
+
+1. Compiler Floating-Point Model
+---------------------------------
+Both client and server vcxproj set /fp:strict for all configurations
+(Debug, Profile, Release). This prevents the compiler from reordering,
+fusing, or algebraically simplifying floating-point operations in ways
+that could change results.
+
+Files:
+  BrokenEngineSandbox.vcxproj       <FloatingPointModel>Strict</FloatingPointModel>
+  BrokenEngineSandboxServer.vcxproj <FloatingPointModel>Strict</FloatingPointModel>
+  DataPacker.vcxproj                <FloatingPointModel>Strict</FloatingPointModel>
+  ThirdParty.vcxproj                <FloatingPointModel>Strict</FloatingPointModel>
+
+DirectXTK uses /fp:fast but it is a render-only third-party library
+that never touches simulation state.
+
+
+2. FMA3 Disabled
+-----------------
+Fused Multiply-Add instructions produce different rounding than
+separate multiply + add on different CPUs. The CRT auto-detects FMA3
+at startup; we disable it explicitly so all machines produce the same
+results regardless of CPU generation.
+
+File: Engine/Source/Main.cpp
+  _set_FMA3_enable(0);
+
+
+3. MXCSR Per-Thread Setup
+--------------------------
+Every thread sets the MXCSR control register to:
+  - _DN_FLUSH:  Flush denormals to zero (avoids CPU-specific slowdowns
+                and different handling of denormalized numbers)
+  - _RC_NEAR:   Round-to-nearest (consistent rounding mode)
+
+This happens in the ThreadLocal constructor, which runs on every
+thread: main, worker pool, reconcile, persistent workers.
+
+File: Common/ThreadLocal.cpp
+  _controlfp_s(&uiCurrentState, _DN_FLUSH | _RC_NEAR, _MCW_DN | _MCW_RC);
+
+A debug assertion in RunFrameTick verifies MXCSR has not been
+corrupted by external calls (audio, Vulkan, etc.) before each tick.
+
+File: Projects/BrokenEngineSandbox/Source/Frame/FrameTick.cpp
+
+
+4. Fixed Timestep
+------------------
+Physics runs at a fixed 32 Hz (31.25 ms per tick). Variable frame
+rates only affect rendering interpolation, never simulation state.
+Death spiral prevention caps the accumulator at 4 ticks and limits
+processing to 12 ticks per frame.
+
+File: Engine/Source/Frame/TimeStep.h
+  inline constexpr int64_t kiTickRate = 32;
+
+
+5. Math Library
+----------------
+All simulation math uses DirectXMath (SSE intrinsics). Under /fp:strict
+with consistent MXCSR, SSE operations are fully deterministic for IEEE
+754 basic operations (+, -, *, /, sqrt, comparisons).
+
+No direct calls to sinf/cosf/tanf exist in simulation code. These
+transcendental functions are known to differ across implementations;
+avoiding them eliminates this class of non-determinism entirely.
+
+
+6. Deterministic RNG
+---------------------
+Simulation uses a Xorshift PRNG with explicit 64-bit seeding. The
+random engine state is stored in FramePostRender and included in CRC
+calculations, ensuring any divergence is immediately detected.
+
+No time-based or hardware-based seeding occurs in simulation paths.
+
+File: Common/Random.h
+
+
+7. Container Iteration Safety
+------------------------------
+Several std::unordered_map instances exist in the codebase. None are
+iterated in simulation-critical paths:
+
+  - Collision::sResults: accessed only by direct key lookup
+    (GetCollisions(layerIndex, entityIndex)), never iterated.
+  - mCoordFrames: iterated only for rendering (BeginRender), with a
+    deterministic rActiveCoords vector providing the iteration order.
+  - mFrameInputs: each coord's data is independent; iteration order
+    does not affect per-coord simulation results.
+
+All game entity collections use SOA (Structure-of-Arrays) with integer
+indices, not hash-based containers.
+
+
+8. No Address-Dependent Ordering
+---------------------------------
+Entity identity uses uuid_t (int64_t counter), not memory addresses.
+No pointer-based sorting or pointer-derived hash keys exist in
+simulation code.
+
+
+9. Thread-Safe Parallel Physics
+--------------------------------
+Frame ticks are dispatched in parallel across grid coordinates via
+common::gpMultithreading->Dispatch(). Each coordinate processes
+independently with thread_local collision state. No cross-thread
+floating-point aggregation occurs during simulation.
+
+
+10. CRC Validation
+-------------------
+A dual CRC system detects any divergence:
+
+  - Crc():       includes all collections (client self-check)
+  - ServerCrc(): excludes client-only visual data (cross-build check)
+
+CRCs are computed after every tick and compared during reconciliation.
+On mismatch, the client performs rollback-and-replay. Persistent
+mismatches trigger a soft resync request to the server; 3 desyncs
+within 10 seconds escalate to disconnect.

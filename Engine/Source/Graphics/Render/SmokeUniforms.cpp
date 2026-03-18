@@ -20,9 +20,6 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSmokeColorMin = gSmokeColorMin.Get();
 	rGlobalLayout.fSmokeColorMultiplier = gSmokeColorMultiplier.Get();
 	rGlobalLayout.fSmokeIntensityFalloff = gSmokeIntensityFalloff.Get();
-	rGlobalLayout.fSmokeDecayExtra = gSmokeDecayExtra.Get();
-
-	rGlobalLayout.fSmokeDecayExtraThreshold = gSmokeDecayExtraThreshold.Get();
 	rGlobalLayout.fSmokeWindNoiseScale = gSmokeWindNoiseScale.Get();
 	rGlobalLayout.fSmokeWindNoiseQuantity = gSmokeWindNoiseQuantity.Get();
 	rGlobalLayout.fSmokeNoiseQuantity = gSmokeNoiseQuantity.Get();
@@ -32,6 +29,11 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSmokeObjectHeightInv = 1.0f / gSmokeObjectHeight.Get();
 	rGlobalLayout.fSmokeEdgeDecayDistanceInv = 1.0f / gSmokeEdgeDecayDistance.Get();
 	rGlobalLayout.fSmokeNoiseInfluence = gSmokeNoiseInfluence.Get();
+
+	uint32_t uiTextureOneWidth = gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.width;
+	uint32_t uiMaxWidth = std::max(uiTextureOneWidth, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.width);
+	rGlobalLayout.uiSmokeTilesX = (uiMaxWidth + 7) / 8;
+	rGlobalLayout.fSmokeDepositTileScale = static_cast<float>(uiMaxWidth) / static_cast<float>(uiTextureOneWidth);
 
 	static bool sbSmoke = false;
 	if (sbSmoke != gSmoke.Get<bool>())
@@ -46,8 +48,6 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 
 		gpPipelineManager->mpPipelines[kPipelineSmokeClearA].WriteIndirectBuffer(iCommandBuffer, 1);
 		gpPipelineManager->mpPipelines[kPipelineSmokeClearB].WriteIndirectBuffer(iCommandBuffer, 1);
-		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadB].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadA].WriteIndirectBuffer(iCommandBuffer, 0);
 
 		return;
 	}
@@ -59,8 +59,6 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 
 		gpPipelineManager->mpPipelines[kPipelineSmokeClearA].WriteIndirectBuffer(iCommandBuffer, 0);
 		gpPipelineManager->mpPipelines[kPipelineSmokeClearB].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadB].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadA].WriteIndirectBuffer(iCommandBuffer, 0);
 
 		return;
 	}
@@ -82,8 +80,6 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 
 	gpPipelineManager->mpPipelines[kPipelineSmokeClearA].WriteIndirectBuffer(iCommandBuffer, 0);
 	gpPipelineManager->mpPipelines[kPipelineSmokeClearB].WriteIndirectBuffer(iCommandBuffer, 0);
-	gpPipelineManager->mpPipelines[kPipelineSmokeSpreadB].WriteIndirectBuffer(iCommandBuffer, 1);
-	gpPipelineManager->mpPipelines[kPipelineSmokeSpreadA].WriteIndirectBuffer(iCommandBuffer, 1);
 }
 
 } // namespace engine

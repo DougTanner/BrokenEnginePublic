@@ -7,7 +7,7 @@ GLSL shader source files for the Vulkan 1.2 rendering pipeline, compiled to SPIR
 ## Key Files
 
 - **ShaderLayoutsBase.h** - Dual-language (C++/GLSL) header defining all uniform buffer layouts, push constants, vertex formats, and shared constants between CPU and GPU
-- **ShaderFunctions.h** - Common GLSL utilities for coordinate transforms, directional lighting, specular highlights, normal mapping, and parallax projection
+- **ShaderFunctions.h** - Common GLSL utilities for coordinate transforms, lighting (directional weights inlined into `Lighting` and `SpecularLighting`), specular highlights, normal mapping, and parallax projection
 - **Clear.frag / Log.vert** - Simple utility shaders for render target clearing and debug logging
 
 ## Architecture Notes
@@ -16,7 +16,7 @@ GLSL shader source files for the Vulkan 1.2 rendering pipeline, compiled to SPIR
 - **Bindless textures**: Unsized `texture2D[]` arrays with separate samplers and `nonuniformEXT()` dynamic indexing
 - **Multi-set descriptors**: Set 0 = global (UBOs, samplers, bindless textures), Set 1 = per-pipeline (SSBOs, combined image samplers), Set 2 = per-material (models only)
 - **Rendering modes via push constants**: Vertex shaders support camera/visible-area/shadow projection modes without separate permutations
-- **Four-channel directional lighting**: RGB stored as separate render targets with EWNS directional weights
+- **Four-channel directional lighting**: RGB stored as separate render targets with EWNS directional weights; direction weights are computed once per call in `Lighting`/`SpecularLighting` using component extraction and applied across all three color channels in a single pass
 
 ## Known Issues
 

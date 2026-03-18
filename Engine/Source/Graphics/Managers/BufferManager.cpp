@@ -222,11 +222,15 @@ BufferManager::BufferManager()
 
 BufferManager::~BufferManager()
 {
+	DestroySmokeHierarchicalBuffers();
+
 	gpBufferManager = nullptr;
 }
 
 void BufferManager::DestroySwapchainDependentBuffers()
 {
+	DestroySmokeHierarchicalBuffers();
+
 	mGlobalLayoutUniformBuffers.clear();
 	mMainLayoutUniformBuffers.clear();
 	mTextStorageBuffers.clear();
@@ -531,6 +535,52 @@ void BufferManager::GrowJointMatrixBuffer(int64_t iCommandBuffer)
 	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[kDynamicModelPipelineModelShadow])
 	{
 		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, 16, pNewBuffer);
+	}
+}
+
+void BufferManager::CreateSmokeHierarchicalBuffers()
+{
+	DestroySmokeHierarchicalBuffers();
+
+	uint32_t uiMaxWidth = std::max(gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.width, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.width);
+	uint32_t uiMaxHeight = std::max(gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.height, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.height);
+	uint32_t uiTilesX = (uiMaxWidth + 7) / 8;
+	uint32_t uiTilesY = (uiMaxHeight + 7) / 8;
+	uint32_t uiTotalTiles = uiTilesX * uiTilesY;
+
+	// Bit-packed occupancy: 1 bit per tile, packed into uint32s
+	uint32_t uiOccupancyUints = (uiTotalTiles + 31) / 32;
+	mSmokeOccupancyBufferSize = static_cast<VkDeviceSize>(uiOccupancyUints) * sizeof(uint32_t);
+	VkDeviceMemory unusedMemory = VK_NULL_HANDLE;
+	Buffer::CreateBuffer("SmokeOccupancy", mSmokeOccupancyBufferSize,
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		mSmokeOccupancyVkBuffer, unusedMemory, mSmokeOccupancyVmaAllocation);
+
+	// Active tile list: VkDispatchIndirectCommand (12 bytes) + packed tile indices (4 bytes each)
+	mSmokeActiveTileBufferSize = sizeof(VkDispatchIndirectCommand) + static_cast<VkDeviceSize>(uiTotalTiles) * sizeof(uint32_t);
+	VkDeviceMemory unusedMemory2 = VK_NULL_HANDLE;
+	Buffer::CreateBuffer("SmokeActiveTile", mSmokeActiveTileBufferSize,
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		mSmokeActiveTileVkBuffer, unusedMemory2, mSmokeActiveTileVmaAllocation);
+}
+
+void BufferManager::DestroySmokeHierarchicalBuffers()
+{
+	if (mSmokeOccupancyVkBuffer != VK_NULL_HANDLE)
+	{
+		vmaDestroyBuffer(gpDeviceManager->mpAllocator, mSmokeOccupancyVkBuffer, mSmokeOccupancyVmaAllocation);
+		mSmokeOccupancyVkBuffer = VK_NULL_HANDLE;
+		mSmokeOccupancyVmaAllocation = VK_NULL_HANDLE;
+		mSmokeOccupancyBufferSize = 0;
+	}
+	if (mSmokeActiveTileVkBuffer != VK_NULL_HANDLE)
+	{
+		vmaDestroyBuffer(gpDeviceManager->mpAllocator, mSmokeActiveTileVkBuffer, mSmokeActiveTileVmaAllocation);
+		mSmokeActiveTileVkBuffer = VK_NULL_HANDLE;
+		mSmokeActiveTileVmaAllocation = VK_NULL_HANDLE;
+		mSmokeActiveTileBufferSize = 0;
 	}
 }
 

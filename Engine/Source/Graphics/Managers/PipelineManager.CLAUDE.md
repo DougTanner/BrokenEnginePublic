@@ -6,7 +6,9 @@ Loads all SPIR-V shader modules from pack chunks at construction and creates all
 
 ## Static Pipelines
 
-Indexed by `Pipelines` enum, covering lighting (MRT R/G/B blur chains), shadows, terrain, water, particles, smoke, and UI.
+Indexed by `Pipelines` enum, covering lighting blur combines (per R/G/B channel), shadows, terrain, water, particles, smoke, and UI. Smoke spread pipelines are compute pipelines (`kPipelineSmokeSpreadComputeA`/`kPipelineSmokeSpreadComputeB`); the clear pipelines (`kPipelineSmokeClearA`/`kPipelineSmokeClearB`) remain fragment-shader render-pass pipelines.
+
+A separate `mpLightingBlurPipelines[kiMaxLightingBlurCount]` array holds the MRT blur pipelines (one per blur level). Each reads R/G/B source textures via 3 combined samplers and writes to 3 color attachments in a single draw, using the per-level MRT render pass and framebuffer created by `RenderTargetTextures`.
 
 ## Dynamic Pipelines (`mDynamicPipelines`)
 
