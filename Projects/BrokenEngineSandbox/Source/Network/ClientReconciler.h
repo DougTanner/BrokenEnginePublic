@@ -141,7 +141,7 @@ private:
 	void Kick();
 	ReconcileDesyncInfo ApplyResult();
 	static void ApplyCoordWriteback(CoordReconcileWork& rWork, engine::CoordFrames& rSub);
-	void Reconcile(ReconcileContext& rReconcileContext, const engine::Alignments& rAlignments);
+	void Reconcile(ReconcileContext& rReconcileContext);
 
 	std::unique_ptr<common::PersistentWorker> mpWorker;
 	std::unique_ptr<common::Multithreading> mpDispatch; // Per-coord parallel reconciliation

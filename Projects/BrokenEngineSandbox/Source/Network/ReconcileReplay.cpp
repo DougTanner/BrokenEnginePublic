@@ -195,7 +195,7 @@ static std::unique_ptr<Frame> CloneFrameViaSerialization(const Frame& rFrame)
 	return pClone;
 }
 
-void ReconcileInjectPendingFullState([[maybe_unused]] ReconcileContext& rReconcileContext, CoordReconcileWork& rWork)
+void ReconcileInjectPendingFullState(CoordReconcileWork& rWork)
 {
 	ASSERT(rWork.pendingFullState->pFrame->interpolate.iTick == rWork.pendingFullState->iTick);
 	int64_t iSlot = SnapshotIndex(rWork.iReplayWriteHead, rWork.iReplayWriteCount);
@@ -420,7 +420,7 @@ static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordRecon
 		// Inject pending full state at matching tick
 		if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick == iTick)
 		{
-			ReconcileInjectPendingFullState(rReconcileContext, rWork);
+			ReconcileInjectPendingFullState(rWork);
 			Log(kLogNetwork, "ReconcileReplayCoord Injected pending full state Coord: ({},{}) Tick: {}", rWork.coord.x, rWork.coord.y, iTick);
 		}
 
@@ -516,7 +516,7 @@ void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWo
 	// Inject pending full state at confirmed frame (stale states rejected at receive time)
 	if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick == rWork.iConfirmedTick)
 	{
-		ReconcileInjectPendingFullState(rReconcileContext, rWork);
+		ReconcileInjectPendingFullState(rWork);
 		fTime = rWork.replayStack[0]->interpolate.fCurrentTime;
 		Log(kLogNetwork, "ReconcileCoord Injected pending full state Coord: ({},{}) AtTick: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick);
 	}

@@ -1,12 +1,12 @@
-# `/Engine/Source/Debug/`
+# `/Engine/Source/Debug/` - Client-Only Vulkan Debug Utilities
 
-Vulkan development utilities for human-readable enum-to-string conversions used in logging and error messages.
+Vulkan development utilities for human-readable enum-to-string conversions used in logging and error messages. Included only in `BT_CLIENT` builds via `Engine.h`.
 
 **Global**: `engine::gEnumToString` (inline global instance of `EnumToString`)
 
 ## Key Classes
 
-- **EnumToString** - Converts Vulkan enum values (VkResult, VkFormat, VkColorSpaceKHR, VkPresentModeKHR, VkObjectType, VkDebugReportFlagsEXT) to human-readable strings for logging and error messages. When logging is disabled, falls back to numeric string conversion via `std::to_chars`.
+- **EnumToString** - Converts Vulkan enum values (VkResult, VkFormat, VkColorSpaceKHR, VkPresentModeKHR, VkObjectType, VkDebugReportFlagsEXT) to human-readable strings for logging and error messages. `Convert(Workbuffer&, EnumType)` takes a `Workbuffer&` and returns a `ScopedWorkbufferPop` (using `PushBuffer` for scratch storage in non-logging builds instead of a `thread_local` buffer).
 
 ## Architecture Notes
 

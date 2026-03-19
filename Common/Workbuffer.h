@@ -30,6 +30,7 @@ public:
 			Grow(iNeeded);
 		}
 		miSize = iNeeded;
+		miLastPushBufferSize = iSizeInBytes;
 		void* pData = mBuffer.data() + miBase;
 		return static_cast<T>(pData);
 	}
@@ -73,6 +74,12 @@ public:
 		miSize += static_cast<int64_t>(sizeof(T));
 	}
 
+	void ShrinkLastPushBuffer(int64_t iActualSize)
+	{
+		miSize -= (miLastPushBufferSize - iActualSize);
+		miLastPushBufferSize = iActualSize;
+	}
+
 	template<typename T>
 	std::span<const T> Span() const
 	{
@@ -87,7 +94,41 @@ private:
 	int64_t miSize = 0;
 	int64_t miBase = 0;
 	int64_t miDepth = 0;
+	int64_t miLastPushBufferSize = 0;
 	std::vector<int64_t> mSavedBase;
 };
 
+class ScopedWorkbufferPop
+{
+public:
+
+	ScopedWorkbufferPop(Workbuffer& rWorkbuffer, const char* pcData)
+	: mWorkbuffer(rWorkbuffer)
+	, mpcData(pcData)
+	{
+	}
+
+	~ScopedWorkbufferPop() { mWorkbuffer.Pop(); }
+
+	ScopedWorkbufferPop(const ScopedWorkbufferPop&) = delete;
+	ScopedWorkbufferPop& operator=(const ScopedWorkbufferPop&) = delete;
+
+	operator const char*() const { return mpcData; }
+
+private:
+
+	Workbuffer& mWorkbuffer;
+	const char* mpcData;
+};
+
 } // namespace common
+
+template <>
+struct std::formatter<common::ScopedWorkbufferPop> : std::formatter<std::string_view>
+{
+	template <typename CONTEXT>
+	auto format(const common::ScopedWorkbufferPop& rValue, CONTEXT& rContext) const
+	{
+		return std::formatter<std::string_view>::format(static_cast<const char*>(rValue), rContext);
+	}
+};

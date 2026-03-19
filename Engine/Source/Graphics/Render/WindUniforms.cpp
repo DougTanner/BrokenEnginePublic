@@ -23,8 +23,6 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 		gbWindClear = true;
 	}
 
-	gbWindClear = false;
-
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	// Set wind uniforms
@@ -65,6 +63,11 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 
 	// Compute wind spread quad offset (shares smoke area coordinate space)
 	static XMFLOAT4 sf4PreviousWindArea {};
+	if (gbWindClear)
+	{
+		gbWindClear = false;
+		sf4PreviousWindArea = {};
+	}
 	float fXOffset = (sf4PreviousWindArea.x - rGlobalLayout.f4SmokeArea.x) / (sf4PreviousWindArea.z - rGlobalLayout.f4SmokeArea.x);
 	float fYOffset = (sf4PreviousWindArea.y - rGlobalLayout.f4SmokeArea.y) / (sf4PreviousWindArea.w - rGlobalLayout.f4SmokeArea.y);
 	shaders::AxisAlignedQuadLayout& rQuad = *reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mWindSpreadStorageBuffers.at(iCommandBuffer).mpMappedMemory);

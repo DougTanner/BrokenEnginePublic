@@ -12,32 +12,38 @@ namespace engine
 
 void CheckVkFailed(VkResult vkResult, std::string_view expression, std::source_location loc)
 {
-	const char* pcResult = gEnumToString.Convert(vkResult);
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	auto pcResult = gEnumToString.Convert(vkResult, rWorkbuffer);
 	Log(kLogError, "CheckVk failed: {} - \"{}\" at {}:{} in {}", pcResult, expression, loc.file_name(), loc.line(), loc.function_name());
 
 	// Format exception message with call site information
-	thread_local char spcException[1024] {};
-	snprintf(spcException, std::size(spcException) - 1, "CheckVk failed: \"%.*s\" at %s:%u in %s\nVkResult: %s", static_cast<int>(expression.size()), expression.data(), loc.file_name(), loc.line(), loc.function_name(), pcResult);
+	char* pcException = rWorkbuffer.PushBuffer<char*>(1024);
+	snprintf(pcException, 1023, "CheckVk failed: \"%.*s\" at %s:%u in %s\nVkResult: %s", static_cast<int>(expression.size()), expression.data(), loc.file_name(), loc.line(), loc.function_name(), static_cast<const char*>(pcResult));
 
 	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
 	{
 		gpGraphics->meDestroyType = DestroyType::kSwapchain;
+		rWorkbuffer.Pop();
 		return;
 	}
 
 	if (vkResult == VK_ERROR_SURFACE_LOST_KHR)
 	{
 		gpGraphics->meDestroyType = DestroyType::kSurface;
+		rWorkbuffer.Pop();
 		return;
 	}
 
+	// Pop exception buffer before throw — data survives in workbuffer memory until next write
+	rWorkbuffer.Pop();
+
 	if (vkResult == VK_ERROR_DEVICE_LOST)
 	{
-		throw DeviceLostException(spcException);
+		throw DeviceLostException(pcException);
 	}
 
 	DEBUG_BREAK();
-	throw std::runtime_error(spcException);
+	throw std::runtime_error(pcException);
 }
 
 void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t handle, [[maybe_unused]] std::string_view name)
@@ -46,9 +52,9 @@ void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t ha
 	{
 		if (vkSetDebugUtilsObjectNameEXT != nullptr)
 		{
-			const char* pcFullName = gEnumToString.Convert(type);
-			const char* pcPrefix = pcFullName + std::char_traits<char>::length("VK_OBJECT_TYPE_");
 			common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+			auto pcFullName = gEnumToString.Convert(type, rWorkbuffer);
+			const char* pcPrefix = static_cast<const char*>(pcFullName) + std::char_traits<char>::length("VK_OBJECT_TYPE_");
 			rWorkbuffer.Push();
 			rWorkbuffer.Append(pcPrefix);
 			rWorkbuffer.Append(" ");

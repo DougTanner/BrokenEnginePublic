@@ -1,7 +1,5 @@
 #include "TweaksScreen.h"
 
-#include "Game.h"
-
 namespace engine
 {
 
@@ -18,8 +16,6 @@ void TweaksScreen::RenderSmokeSection()
 		WrapperSlider("Smoke Max", kiSection, 1.0f);
 		WrapperSlider("Smoke Power", kiSection, 1.0f);
 		WrapperSlider("Smoke Decay", kiSection, 1.0f);
-		WrapperSlider("Smoke Decay Extra", kiSection, 1.0f);
-		WrapperSlider("Smoke Decay Extra Threshold", kiSection, 1.0f);
 		WrapperSlider("Smoke Edge Decay Distance", kiSection, 1.0f);
 
 		WrapperSeparatorText("Color");
@@ -37,8 +33,6 @@ void TweaksScreen::RenderSmokeSection()
 		WrapperSlider("Wind To Smoke Strength", kiSection, 1.0f);
 		WrapperSlider("Wind To Smoke Power", kiSection, 1.0f);
 		WrapperSlider("Wind Displacement Noise Scale", kiSection, 1.0f);
-		WrapperSlider("Wind Displacement Swirl Scale", kiSection, 1.0f);
-		WrapperSlider("Wind Displacement Swirl Power", kiSection, 1.0f);
 		WrapperSlider("Wind Smoke Retention", kiSection, 1.0f);
 
 		WrapperSlider("Smoke Object Height", kiSection, 1.0f);

@@ -260,7 +260,10 @@ void Graphics::Refresh()
 	auto [ePresentMode, ePreviousPresentMode, bPresentModeChanged] = gPresentMode.Changed<VkPresentModeKHR>();
 	if (bPresentModeChanged) [[unlikely]]
 	{
-		Log("{} -> {}", gEnumToString.Convert(ePreviousPresentMode), gEnumToString.Convert(ePresentMode));
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+		auto pcPreviousPresentMode = gEnumToString.Convert(ePreviousPresentMode, rWorkbuffer);
+		auto pcPresentMode = gEnumToString.Convert(ePresentMode, rWorkbuffer);
+		Log("{} -> {}", pcPreviousPresentMode, pcPresentMode);
 		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
 	}
 

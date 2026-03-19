@@ -131,19 +131,14 @@ float Camera::SunAngle(bool bInternalOnly) const
 	}
 
 	// Apply time of day slider override when in Graphics or Tweaks UI
+	bool bUseOverride = (game::gpGame->meUiState == game::UiState::kGraphics);
 	if constexpr (kbEnableDebugInput)
 	{
-		if (game::gpGame->meUiState == game::UiState::kGraphics || game::gpGame->mbShowImGui)
-		{
-			return engine::gSunAngleOverride.Get();
-		}
+		bUseOverride = bUseOverride || game::gpGame->mbShowImGui;
 	}
-	else
+	if (bUseOverride)
 	{
-		if (game::gpGame->meUiState == game::UiState::kGraphics)
-		{
-			return engine::gSunAngleOverride.Get();
-		}
+		return engine::gSunAngleOverride.Get();
 	}
 	return mfSunAngle;
 }

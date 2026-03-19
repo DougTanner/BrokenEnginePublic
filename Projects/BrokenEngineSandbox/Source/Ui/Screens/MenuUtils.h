@@ -24,9 +24,6 @@ public:
 	}
 };
 
-// Convert UTF-32 string to UTF-8 for ImGui
-std::string ToUtf8(std::u32string_view u32str);
-
 // Append UTF-32 string as null-terminated UTF-8 into Workbuffer (Push first, returns const char*)
 const char* AppendUtf8(common::Workbuffer& rWorkbuffer, std::u32string_view u32str);
 

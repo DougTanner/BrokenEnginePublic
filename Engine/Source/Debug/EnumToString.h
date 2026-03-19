@@ -8,15 +8,17 @@ class EnumToString
 public:
 
 	template <typename T>
-	const char* Convert(T eVkEnum)
+	common::ScopedWorkbufferPop Convert(T eVkEnum, common::Workbuffer& rWorkbuffer)
 	{
+		char* pcResult = rWorkbuffer.PushBuffer<char*>(32);
+
 		if constexpr (kbEnableLogging)
 		{
 			if constexpr (std::is_same_v<T, VkColorSpaceKHR>)
 			{
 				if (auto it = mVkColorSpaceKHRMap.find(eVkEnum); it != mVkColorSpaceKHRMap.end())
 				{
-					return it->second.data();
+					return {rWorkbuffer, it->second.data()};
 				}
 			}
 
@@ -24,7 +26,7 @@ public:
 			{
 				if (auto it = mVkDebugReportFlagsEXTMap.find(eVkEnum); it != mVkDebugReportFlagsEXTMap.end())
 				{
-					return it->second.data();
+					return {rWorkbuffer, it->second.data()};
 				}
 			}
 
@@ -32,7 +34,7 @@ public:
 			{
 				if (auto it = mVkFormatMap.find(eVkEnum); it != mVkFormatMap.end())
 				{
-					return it->second.data();
+					return {rWorkbuffer, it->second.data()};
 				}
 			}
 
@@ -40,7 +42,7 @@ public:
 			{
 				if (auto it = mVkObjectTypeMap.find(eVkEnum); it != mVkObjectTypeMap.end())
 				{
-					return it->second.data();
+					return {rWorkbuffer, it->second.data()};
 				}
 			}
 
@@ -48,7 +50,7 @@ public:
 			{
 				if (auto it = mVkPresentModeKHRMap.find(eVkEnum); it != mVkPresentModeKHRMap.end())
 				{
-					return it->second.data();
+					return {rWorkbuffer, it->second.data()};
 				}
 			}
 
@@ -56,18 +58,19 @@ public:
 			{
 				if (auto it = mVkResultMap.find(eVkEnum); it != mVkResultMap.end())
 				{
-					return it->second.data();
+					return {rWorkbuffer, it->second.data()};
 				}
 			}
 
 			DEBUG_BREAK();
-			return "UNKNOWN_VK_ENUM";
+			return {rWorkbuffer, "UNKNOWN_VK_ENUM"};
 		}
 		else
 		{
-			static char spcResult[32] {};
-			std::to_chars(spcResult, spcResult + std::size(spcResult) - 1, eVkEnum);
-			return spcResult;
+			char* pcEnd = std::to_chars(pcResult, pcResult + 31, eVkEnum).ptr;
+			*pcEnd = '\0';
+			rWorkbuffer.ShrinkLastPushBuffer(static_cast<int64_t>(pcEnd - pcResult + 1));
+			return {rWorkbuffer, pcResult};
 		}
 	}
 
@@ -408,7 +411,7 @@ struct std::formatter<VkResult> : std::formatter<std::string_view>
 	template <typename CONTEXT>
 	auto format(const VkResult vkResult, CONTEXT& rContext) const
 	{
-		const char* pcVkResult = engine::gEnumToString.Convert(vkResult);
-		return std::formatter<std::string_view>::format(pcVkResult, rContext);
+		auto pcVkResult = engine::gEnumToString.Convert(vkResult, common::gpThreadLocal->mWorkbuffer);
+		return std::formatter<std::string_view>::format(static_cast<const char*>(pcVkResult), rContext);
 	}
 };

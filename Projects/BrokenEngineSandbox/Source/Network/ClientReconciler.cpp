@@ -142,7 +142,7 @@ void ClientReconciler::Kick()
 	// Dispatch to worker
 	mpWorker->Wake([this]()
 	{
-		Reconcile(*mpContext, mpContext->alignments);
+		Reconcile(*mpContext);
 	});
 }
 
@@ -176,7 +176,7 @@ static void ReconcileMergeResults(ReconcileContext& rReconcileContext)
 	}
 }
 
-void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const engine::Alignments& rAlignments)
+void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext)
 {
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 

@@ -1,8 +1,5 @@
 #pragma once
 
-// Debug
-#include "Debug/EnumToString.h"
-
 // Profile
 #include "Profile/ProfileManagerBase.h"
 
@@ -26,6 +23,9 @@
 #include "Ui/Screens/TweaksScreen/TweaksScreen.h"
 
 #if defined(BT_CLIENT)
+
+// Debug (Vulkan enum stringification, client-only)
+#include "Debug/EnumToString.h"
 
 // Graphics objects
 #include "Graphics/Objects/Buffer.h"

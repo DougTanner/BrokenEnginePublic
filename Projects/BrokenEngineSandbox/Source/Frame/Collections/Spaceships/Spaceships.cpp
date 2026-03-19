@@ -493,7 +493,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	SpaceshipsInterpolate::ClientInit(rFrame, iIndex);
 #endif
 
-	// Create owned target for missile tracking (also creates its billboard)
+	// Create owned target for missile tracking
 	rCurrentInterpolate.puiTargets[iIndex] = {};
 	TargetsPostRender::Add(rFrame, rCurrentInterpolate.puiTargets[iIndex], gSpaceshipTargetTypeIndex, rInfo.alignment);
 

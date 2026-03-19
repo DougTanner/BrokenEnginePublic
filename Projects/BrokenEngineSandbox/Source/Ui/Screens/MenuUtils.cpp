@@ -3,38 +3,6 @@
 namespace game
 {
 
-std::string ToUtf8(std::u32string_view u32str)
-{
-	std::string result;
-	result.reserve(u32str.size() * 4);
-	for (char32_t c : u32str)
-	{
-		if (c < 0x80)
-		{
-			result += static_cast<char>(c);
-		}
-		else if (c < 0x800)
-		{
-			result += static_cast<char>(0xC0 | (c >> 6));
-			result += static_cast<char>(0x80 | (c & 0x3F));
-		}
-		else if (c < 0x10000)
-		{
-			result += static_cast<char>(0xE0 | (c >> 12));
-			result += static_cast<char>(0x80 | ((c >> 6) & 0x3F));
-			result += static_cast<char>(0x80 | (c & 0x3F));
-		}
-		else
-		{
-			result += static_cast<char>(0xF0 | (c >> 18));
-			result += static_cast<char>(0x80 | ((c >> 12) & 0x3F));
-			result += static_cast<char>(0x80 | ((c >> 6) & 0x3F));
-			result += static_cast<char>(0x80 | (c & 0x3F));
-		}
-	}
-	return result;
-}
-
 const char* AppendUtf8(common::Workbuffer& rWorkbuffer, std::u32string_view u32str)
 {
 	rWorkbuffer.Push();

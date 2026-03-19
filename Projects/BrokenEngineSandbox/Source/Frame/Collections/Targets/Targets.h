@@ -46,7 +46,7 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 		uint8_t uiTypeIndex;
 	};
 
-	// Sync owned target with parent-provided data (also syncs owned billboard)
+	// Sync owned target with parent-provided data
 	static void Sync(FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
 
 	// Interpolate
@@ -84,7 +84,7 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 	static void Remove(Frame& __restrict rFrame, target_t& rId, TargetFlags_t flags);
 	static void AddSubscriber(Frame& __restrict rFrame, target_t id);
 
-	// Type registration (custom - also registers billboard type)
+	// Type registration (custom)
 	static void RegisterType(uint8_t& ruiIndex, const TargetsType& rType);
 
 	target_t* __restrict puiIds = nullptr;

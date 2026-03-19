@@ -10,7 +10,7 @@ struct CoordReconcileWork;
 
 void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork);
 void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext);
-void ReconcileInjectPendingFullState(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork);
+void ReconcileInjectPendingFullState(CoordReconcileWork& rWork);
 
 } // namespace game
 

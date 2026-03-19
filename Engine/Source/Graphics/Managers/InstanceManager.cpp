@@ -252,10 +252,10 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 	if (vkResultCreateInstance != VK_SUCCESS)
 	{
-		const char* pcResult = gEnumToString.Convert(vkResultCreateInstance);
+		auto pcResult = gEnumToString.Convert(vkResultCreateInstance, common::gpThreadLocal->mWorkbuffer);
 		Log(kLogError, "vkCreateInstance failed with {}, Vulkan 1.2 is required", pcResult);
 		std::string errorMessage = "Failed to create Vulkan instance.\n\nVulkan 1.2 or higher is required.\n\nError: ";
-		errorMessage += pcResult;
+		errorMessage += static_cast<const char*>(pcResult);
 
 		MessageBox(nullptr, errorMessage.c_str(), game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 
@@ -499,10 +499,13 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	std::vector<VkSurfaceFormatKHR> physicalDeviceSurfaceFormats(uiFormatCount);
 	CHECK_VK(vkGetPhysicalDeviceSurfaceFormatsKHR(mVkPhysicalDevice, mVkSurfaceKHR, &uiFormatCount, physicalDeviceSurfaceFormats.data()));
 
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	Log("Surface formats ({}):", physicalDeviceSurfaceFormats.size());
 	for ([[maybe_unused]] const VkSurfaceFormatKHR& rVkSurfaceFormatKHR : physicalDeviceSurfaceFormats)
 	{
-		Log("  {} ({})", gEnumToString.Convert(rVkSurfaceFormatKHR.format), gEnumToString.Convert(rVkSurfaceFormatKHR.colorSpace));
+		auto pcFormat = gEnumToString.Convert(rVkSurfaceFormatKHR.format, rWorkbuffer);
+		auto pcColorSpace = gEnumToString.Convert(rVkSurfaceFormatKHR.colorSpace, rWorkbuffer);
+		Log("  {} ({})", pcFormat, pcColorSpace);
 	}
 	Log("");
 
@@ -510,7 +513,11 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	if (uiFormatCount == 1 && physicalDeviceSurfaceFormats.at(0).format == VK_FORMAT_UNDEFINED)
 	{
 		mFramebufferVkFormat = VK_FORMAT_B8G8R8A8_UNORM;
-		Log("Selected framebuffer format: {} with color space: {} (no preferred format)\n", gEnumToString.Convert(mFramebufferVkFormat), gEnumToString.Convert(mFramebufferVkColorSpace));
+		{
+			auto pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
+			auto pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
+			Log("Selected framebuffer format: {} with color space: {} (no preferred format)\n", pcFormat, pcColorSpace);
+		}
 	}
 	else
 	{
@@ -522,7 +529,11 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 				mFramebufferVkFormat = rVkSurfaceFormatKHR.format;
 				mFramebufferVkColorSpace = rVkSurfaceFormatKHR.colorSpace;
 				bFoundPreferredFormat = true;
-				Log("Selected framebuffer format: {} with color space: {}\n", gEnumToString.Convert(mFramebufferVkFormat), gEnumToString.Convert(mFramebufferVkColorSpace));
+				{
+					auto pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
+					auto pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
+					Log("Selected framebuffer format: {} with color space: {}\n", pcFormat, pcColorSpace);
+				}
 				break;
 			}
 		}
@@ -532,7 +543,11 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		{
 			mFramebufferVkFormat = physicalDeviceSurfaceFormats.at(0).format;
 			mFramebufferVkColorSpace = physicalDeviceSurfaceFormats.at(0).colorSpace;
-			Log("Using fallback surface format: {} with color space: {} (preferred formats not available)\n", gEnumToString.Convert(mFramebufferVkFormat), gEnumToString.Convert(mFramebufferVkColorSpace));
+			{
+				auto pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
+				auto pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
+				Log("Using fallback surface format: {} with color space: {} (preferred formats not available)\n", pcFormat, pcColorSpace);
+			}
 		}
 	}
 
@@ -547,7 +562,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 		if ((vkFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0)
 		{
-			Log("Depth format selected: {} (optimal)\n", gEnumToString.Convert(rFormat));
+			Log("Depth format selected: {} (optimal)\n", gEnumToString.Convert(rFormat, rWorkbuffer));
 			mDepthVkFormat = rFormat;
 			break;
 		}
@@ -563,7 +578,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 			if ((vkFormatProperties.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0)
 			{
-				Log("Depth format selected: {} (linear)\n", gEnumToString.Convert(rFormat));
+				Log("Depth format selected: {} (linear)\n", gEnumToString.Convert(rFormat, rWorkbuffer));
 				mDepthVkFormat = rFormat;
 				break;
 			}

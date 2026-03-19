@@ -24,7 +24,7 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 ## Subsystems
 
 - [Audio/CLAUDE.md](Audio/CLAUDE.md) - XAudio2 3D spatial audio (client-only)
-- [Debug/CLAUDE.md](Debug/CLAUDE.md) - Vulkan debug utilities
+- [Debug/CLAUDE.md](Debug/CLAUDE.md) - Vulkan debug utilities (client-only)
 - [File/CLAUDE.md](File/CLAUDE.md) - Asset loading, save files, DifferenceStream replay
 - [Frame/CLAUDE.md](Frame/CLAUDE.md) - Game state, collections, IslandTerrain
 - [Graphics/CLAUDE.md](Graphics/CLAUDE.md) - Vulkan multi-pass renderer (client-only)
