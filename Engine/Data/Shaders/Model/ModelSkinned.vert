@@ -1,8 +1,5 @@
 #version 460
 
-#extension GL_ARB_separate_shader_objects : require
-#extension GL_EXT_shader_explicit_arithmetic_types : require
-
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 

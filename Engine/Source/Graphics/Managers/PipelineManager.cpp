@@ -4,7 +4,6 @@
 
 #include "Profile/ProfileManager.h"
 
-#include "Data/Model.h"
 #include "Data/Shader.h"
 #include "Data/Texture.h"
 
@@ -242,57 +241,36 @@ void PipelineManager::CreatePipelineShadows()
 		},
 	});
 
-	mpPipelines[kPipelineShadowBlurH].Create(
+	struct ShadowBlurDesc
 	{
-		.name = "ShadowBlurH",
-		.flags = {kCompute},
-		.ppShaders = {&mShaders.at(data::kShadersShadowShadowBlurHcompCrc)},
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowTexture},
-			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurIntermediateTexture},
-		},
-	});
-
-	mpPipelines[kPipelineShadowBlurV].Create(
+		Pipelines ePipeline;
+		const char* pcName;
+		common::crc_t shaderCrc;
+		Texture& rInputTexture;
+		Texture& rOutputTexture;
+	};
+	ShadowBlurDesc pShadowBlurDescs[]
 	{
-		.name = "ShadowBlurV",
-		.flags = {kCompute},
-		.ppShaders = {&mShaders.at(data::kShadersShadowShadowBlurVcompCrc)},
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurIntermediateTexture},
-			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
-		},
-	});
-
-	mpPipelines[kPipelineObjectShadowsBlurH].Create(
+		{kPipelineShadowBlurH, "ShadowBlurH", data::kShadersShadowShadowBlurHcompCrc, gpTextureManager->mRenderTargetTextures.mShadowTexture, gpTextureManager->mRenderTargetTextures.mShadowBlurIntermediateTexture},
+		{kPipelineShadowBlurV, "ShadowBlurV", data::kShadersShadowShadowBlurVcompCrc, gpTextureManager->mRenderTargetTextures.mShadowBlurIntermediateTexture, gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
+		{kPipelineObjectShadowsBlurH, "ObjectShadowsBlurH", data::kShadersShadowObjectShadowsBlurHcompCrc, gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture, gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurIntermediateTexture},
+		{kPipelineObjectShadowsBlurV, "ObjectShadowsBlurV", data::kShadersShadowObjectShadowsBlurVcompCrc, gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurIntermediateTexture, gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture},
+	};
+	for (const ShadowBlurDesc& rDesc : pShadowBlurDescs)
 	{
-		.name = "ObjectShadowsBlurH",
-		.flags = {kCompute},
-		.ppShaders = {&mShaders.at(data::kShadersShadowObjectShadowsBlurHcompCrc)},
-		.pDescriptorInfos =
+		mpPipelines[rDesc.ePipeline].Create(
 		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture},
-			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurIntermediateTexture},
-		},
-	});
-
-	mpPipelines[kPipelineObjectShadowsBlurV].Create(
-	{
-		.name = "ObjectShadowsBlurV",
-		.flags = {kCompute},
-		.ppShaders = {&mShaders.at(data::kShadersShadowObjectShadowsBlurVcompCrc)},
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurIntermediateTexture},
-			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture},
-		},
-	});
+			.name = rDesc.pcName,
+			.flags = {kCompute},
+			.ppShaders = {&mShaders.at(rDesc.shaderCrc)},
+			.pDescriptorInfos =
+			{
+				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rDesc.rInputTexture},
+				{.flags = kStorageImages, .iCount = 1, .pTexture = &rDesc.rOutputTexture},
+			},
+		});
+	}
 }
 
 void PipelineManager::CreateLightingShadowDependantPipelines()

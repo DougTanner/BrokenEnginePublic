@@ -1,9 +1,9 @@
-#include "TweaksScreen.h"
+#include "TweaksScreenBase.h"
 
 namespace engine
 {
 
-void TweaksScreen::RenderSmokeSection()
+void TweaksScreenBase::RenderSmokeSection()
 {
 	static constexpr int kiSection = static_cast<int>(TweakSection::kSmoke);
 

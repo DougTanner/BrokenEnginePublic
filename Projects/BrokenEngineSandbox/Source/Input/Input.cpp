@@ -26,14 +26,9 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 	{
 		mbGamepadMode = true;
 	}
-	else
+	else if (!::operator==(rRawInput.f2MousePosition, mPreviousRawInputMenu.f2MousePosition))
 	{
-		static XMFLOAT2 sf2MousePosition {};
-		if (!::operator==(rRawInput.f2MousePosition, sf2MousePosition))
-		{
-			mbGamepadMode = false;
-		}
-		sf2MousePosition = rRawInput.f2MousePosition;
+		mbGamepadMode = false;
 	}
 
 	rMenuInput.bGamepad = mbGamepadMode;
@@ -125,32 +120,11 @@ common::crc_t FrameInput::ServerInputCrc() const
 	common::crc_t checksum = 0;
 	for (const StatusChange& rStatusChange : statusChanges)
 	{
-		// CRC shared fields only (TransferData has #if defined(BT_CLIENT) smokeTrailId at the end)
 		checksum ^= common::Crc(rStatusChange.eType);
-		checksum ^= common::Crc(rStatusChange.data.vecPosition);
-		checksum ^= common::Crc(rStatusChange.data.vecDirection);
-		checksum ^= common::Crc(rStatusChange.data.vecVelocity);
-		checksum ^= common::Crc(rStatusChange.data.alignment);
-		checksum ^= common::Crc(rStatusChange.data.fHealth);
-		checksum ^= common::Crc(rStatusChange.data.fShield);
-		checksum ^= common::Crc(rStatusChange.data.uiTypeIndex);
-		checksum ^= common::Crc(rStatusChange.data.fWindTrailIntensity);
-		checksum ^= common::Crc(rStatusChange.data.fWindTrailWidth);
-		checksum ^= common::Crc(rStatusChange.data.fWindTrailLengthMultiplier);
-		checksum ^= common::Crc(rStatusChange.data.fAcceleration);
-		checksum ^= common::Crc(rStatusChange.data.fNextBlasterFireTime);
-		checksum ^= common::Crc(rStatusChange.data.fNextSecondarySpawnTime);
-		checksum ^= common::Crc(rStatusChange.data.fShieldCooldown);
-		checksum ^= common::Crc(rStatusChange.data.fShieldDownSoundCooldown);
-		checksum ^= common::Crc(rStatusChange.data.fAnimationTime);
-		checksum ^= common::Crc(rStatusChange.data.fShieldRotation);
-		checksum ^= common::Crc(rStatusChange.data.fShieldShrink);
-		checksum ^= common::Crc(rStatusChange.data.uiPlayerFlags);
-		checksum ^= common::Crc(rStatusChange.data.fNextBlasterSpawnTime);
-		checksum ^= common::Crc(rStatusChange.data.fDeltaRotationDelay);
-		checksum ^= common::Crc(rStatusChange.data.fTime);
-		checksum ^= common::Crc(rStatusChange.data.fExhaustDelay);
-		checksum ^= common::Crc(rStatusChange.data.fNextJitter);
+		std::apply([&](const auto&... fields)
+		{
+			((checksum ^= common::Crc(fields)), ...);
+		}, rStatusChange.data.SharedMembers());
 	}
 	return checksum;
 }
@@ -161,7 +135,7 @@ std::ostream& operator<<(std::ostream& rStream, const FrameInput& rInput)
 	common::Write(rStream, iStatusCount);
 	if (iStatusCount > 0)
 	{
-		common::Write(rStream, rInput.statusChanges.data(), static_cast<uint64_t>(iStatusCount));
+		common::Write(rStream, rInput.statusChanges.data(), iStatusCount);
 	}
 
 	return rStream;
@@ -174,7 +148,7 @@ std::istream& operator>>(std::istream& rStream, FrameInput& rInput)
 	rInput.statusChanges.resize(iStatusCount);
 	if (iStatusCount > 0)
 	{
-		common::Read(rStream, rInput.statusChanges.data(), static_cast<uint64_t>(iStatusCount));
+		common::Read(rStream, rInput.statusChanges.data(), iStatusCount);
 	}
 
 	return rStream;

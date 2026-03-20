@@ -62,7 +62,7 @@ void main()
 	f3OutWorldPosition = f4Position.xyz;
 
 	// Rotate texcoords
-	float fRotation = particles.pParticles[i].fRotationDelta;
+	float fRotation = particles.pParticles[i].fRotation;
 	f2OutTexcoord = f2InQuadVertex;
 	f2OutTexcoord -= vec2(0.5f, 0.5f);
 	f2OutTexcoord = Rotate(f2OutTexcoord, fRotation);

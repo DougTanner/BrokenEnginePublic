@@ -12,8 +12,8 @@ class Camera : public engine::CameraBase
 {
 public:
 
-	static inline constexpr XMVECTOR kVecMainMenuPosition {29.0f, -81.0f, 0.0f, 1.0f};
-	static inline constexpr float kfDefaultSunAngle = 1.15f;
+	static constexpr XMVECTOR kVecMainMenuPosition {29.0f, -81.0f, 0.0f, 1.0f};
+	static constexpr float kfDefaultSunAngle = 1.15f;
 
 	Camera();
 	~Camera();
@@ -21,7 +21,8 @@ public:
 	void Update(const Frame& rFrame);
 	void Update(const FrameInterpolate& rFrameInterpolate);
 
-	float SunAngle(bool bInternalOnly = false) const;
+	float SunAngle() const override;
+	float RawSunAngle() const { return mfSunAngle; }
 	void ResetSunAngle() { mfSunAngle = kfDefaultSunAngle; }
 
 	float mfTime = 0.0f;
@@ -31,20 +32,10 @@ public:
 	float mfCameraEyeRotation = -1.2f;
 	float mfCameraEyeHeightVelocity = 0.0f;
 	float mfCameraEyeRotationVelocity = 0.0f;
-	XMVECTOR mVecToEyeNormal {};
-
-	// Camera shake intensity (0.0 - 1.0), set by damage, decays over time
-	float mfShake = 0.0f;
-
-	int64_t miFrame = 0;
-
 	XMVECTOR mVecLastKnownPlayerPosition {};
 	XMVECTOR mVecLastKnownPlayerVelocity {};
 	float mfLastKnownPlayerTime = 0.0f;
 
-private:
-
-	float mfSunAngle = kfDefaultSunAngle;
 };
 
 inline Camera* gpCamera = nullptr;

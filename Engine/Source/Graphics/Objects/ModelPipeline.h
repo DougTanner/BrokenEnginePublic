@@ -5,6 +5,9 @@ namespace engine
 
 struct PipelineInfo;
 
+inline constexpr int64_t kModelPipelineBindingMeshData = 15;
+inline constexpr int64_t kModelPipelineBindingJointMatrix = 16;
+
 enum class ModelDrawPass : uint8_t { kAll, kOpaque, kTransparent };
 
 class ModelPipeline

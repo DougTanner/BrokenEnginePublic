@@ -11,6 +11,7 @@ inline constexpr uint64_t kLogDefault = 1ULL << 0;
 inline constexpr uint64_t kLogLoading = 1ULL << 1;
 inline constexpr uint64_t kLogNetwork = 1ULL << 2;
 inline constexpr uint64_t kLogError = 1ULL << 3;
+inline constexpr uint64_t kLogAudio = 1ULL << 4;
 
 // Enabled categories mask (set directly to change filtering)
 inline uint64_t guiLogEnabledCategories = kLogNetwork; // DT: TEMP kLogDefault;
@@ -150,6 +151,7 @@ using common::kLogDefault;
 using common::kLogLoading;
 using common::kLogNetwork;
 using common::kLogError;
+using common::kLogAudio;
 using common::Log;
 using common::LogIndent;
 using common::ScopedLogIndent;

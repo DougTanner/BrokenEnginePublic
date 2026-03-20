@@ -59,6 +59,7 @@ public:
 	void CreatePipelineWindDepositAxisAlignedB(common::crc_t crc, std::string_view name);
 	void CreatePipelineHexShields(common::crc_t crc, std::string_view name, int64_t iBufferSize);
 	void CreatePipelineHexShieldsLighting(common::crc_t crc, std::string_view name);
+	void UpdateAllModelPipelineDescriptors(int64_t iCommandBuffer, int64_t iBinding, Buffer* pBuffer);
 
 	std::vector<std::unique_ptr<Pipeline>> mPipelines;
 	std::vector<std::unique_ptr<ModelPipeline>> mModelPipelines;
@@ -67,6 +68,8 @@ public:
 	std::unordered_map<common::crc_t, std::string> mShadowPipelineNames; // Owns shadow pipeline name strings
 
 private:
+
+	void CreateDepositPipeline(DynamicPipelineType eType, common::crc_t crc, std::string_view name, common::crc_t vertexShaderCrc, common::crc_t fragmentShaderCrc, Texture& rTargetTexture, DescriptorInfo textureDescriptor, VkBuffer* pOccupancyBuffer, int64_t iBufferSize);
 
 	std::unordered_map<common::crc_t, Shader>& mrShaders;
 };

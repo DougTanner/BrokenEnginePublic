@@ -23,15 +23,8 @@ void BillboardsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer,
 	siRendered = 0;
 	siTotalCount = 0;
 
-	int64_t iTotalCapacity = 0;
-	for (const GridCoord& rCoord : rActiveCoords)
-	{
-		auto it = rRenderInterpolates.find(rCoord);
-		if (it != rRenderInterpolates.end())
-		{
-			iTotalCapacity += it->second.billboards.iCapacity;
-		}
-	}
+	int64_t iTotalCapacity = AccumulateRenderCapacity(rRenderInterpolates, rActiveCoords,
+		[](const game::FrameInterpolate& rInterpolate) -> const auto& { return rInterpolate.billboards; });
 
 	if (iTotalCapacity == 0)
 	{
@@ -60,7 +53,7 @@ void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 	{
 		// Load
 		uint8_t uiTypeIndex = rCurrent.puiTypeIndices[i];
-		BillboardFlags_t flags;
+		BillboardFlags_t flags {};
 		flags.meFlags = static_cast<BillboardFlags>(rCurrent.puiFlags[i]);
 		float fRotation = rCurrent.pfRotations[i];
 		float fExtra = rCurrent.pfExtra[i];
@@ -119,14 +112,7 @@ void BillboardsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 	gpProfileManager->SetCount(kCpuCounterBillboards, siTotalCount);
 	gpProfileManager->SetCount(kCpuCounterBillboardsRendered, siRendered);
 
-	if constexpr (kbEnableRecording)
-	{
-		gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineBillboards].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
-	}
-	else
-	{
-		gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineBillboards].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
-	}
+	gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineBillboards].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 }
 
 } // namespace engine

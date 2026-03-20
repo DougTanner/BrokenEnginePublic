@@ -19,6 +19,7 @@ struct CpuCounter
 {
 	std::string_view name;
 	int64_t iCount = 0;
+	std::chrono::steady_clock::time_point lastVisibleTime {};
 };
 
 struct CpuTimerThreadState
@@ -38,6 +39,8 @@ struct CpuTimer
 
 	common::Smoothed<int64_t> smoothedMicroseconds;
 	common::Smoothed<int64_t> smoothedAllocations;
+
+	std::chrono::steady_clock::time_point lastVisibleTime {};
 };
 
 enum EngineCpuCounters : int64_t
@@ -124,6 +127,7 @@ struct GpuTimer
 {
 	std::string_view name;
 	common::Smoothed<int64_t> smoothedMicroseconds;
+	std::chrono::steady_clock::time_point lastVisibleTime {};
 };
 
 enum BootTimers : int64_t
@@ -178,9 +182,7 @@ public:
 	void SetCount(int64_t iCounter, int64_t iCount);
 
 #if defined(BT_CLIENT)
-	void ResetGlobalQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
-	void ResetMainQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
-	void ResetUiQueryPool(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
+	void ResetQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eStart, GpuTimers eEnd);
 
 	void GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer);
 	void GpuStop(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer);
@@ -199,6 +201,11 @@ public:
 	virtual int64_t GetCpuCounterCount() const;
 	virtual int64_t GetCpuTimerCount() const;
 
+	virtual void FormatGameScreens(common::Workbuffer&) {}
+
+	GpuTimer* GetGpuTimers() { return mGpuTimers; }
+	common::Smoothed<int64_t>& GetSmoothedAllocations() { return mSmoothedAllocations; }
+
 	common::InTheLastSecond mFullUpdatesInTheLastSecond;
 	common::InTheLastSecond mInterpolateUpdatesInTheLastSecond;
 
@@ -210,27 +217,6 @@ public:
 	int64_t miMimallocHeapUsedMib = 0;
 	int64_t miMimallocPeakHeapUsedMib = 0;
 #endif
-
-#if defined(BT_CLIENT)
-	void SetClockCorrection(int64_t iOffset, int64_t iTargetBehind, int64_t iError)
-	{
-		mSmoothedClockOffset = iOffset;
-		mSmoothedClockTarget = iTargetBehind;
-		mSmoothedClockError = iError;
-		mSmoothedClockOffset.Update();
-		mSmoothedClockTarget.Update();
-		mSmoothedClockError.Update();
-	}
-
-	void SetReconcileCounters(int64_t iCrcValidated, int64_t iAssumed, int64_t iCrcFastPath, int64_t iStatusChangeReplay, int64_t iKnockOnReplay)
-	{
-		if (iCrcValidated > 0) mCrcValidatedTicksPerSecond.Set(iCrcValidated);
-		if (iAssumed > 0) mAssumedTicksPerSecond.Set(iAssumed);
-		if (iCrcFastPath > 0) mCrcFastPathEventsPerSecond.Set(iCrcFastPath);
-		if (iStatusChangeReplay > 0) mStatusChangeReplayTicksPerSecond.Set(iStatusChangeReplay);
-		if (iKnockOnReplay > 0) mKnockOnReplayTicksPerSecond.Set(iKnockOnReplay);
-	}
-#endif // BT_CLIENT
 
 protected:
 
@@ -338,19 +324,6 @@ protected:
 	common::Smoothed<int64_t> mSmoothedAllocations;
 
 #if defined(BT_CLIENT)
-	common::Smoothed<int64_t> mSmoothedClockOffset;
-	common::Smoothed<int64_t> mSmoothedClockTarget;
-	common::Smoothed<int64_t> mSmoothedClockError;
-	common::Smoothed<int64_t> mSmoothedRollback;
-	common::Smoothed<int64_t> mSmoothedBuffer;
-	common::Smoothed<int64_t> mSmoothedRecv;
-
-	common::InTheLastSecond mCrcValidatedTicksPerSecond;
-	common::InTheLastSecond mAssumedTicksPerSecond;
-	common::InTheLastSecond mCrcFastPathEventsPerSecond;
-	common::InTheLastSecond mStatusChangeReplayTicksPerSecond;
-	common::InTheLastSecond mKnockOnReplayTicksPerSecond;
-
 	VkQueryPool mVkQueryPool = VK_NULL_HANDLE;
 #endif // BT_CLIENT
 };

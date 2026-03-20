@@ -2,10 +2,6 @@
 
 #include "Frame/Collections/Collection.h"
 
-#if defined(BT_CLIENT)
-#include "Frame/Collections/SmokeTrails/SmokeTrails.h"
-#endif
-
 namespace game
 {
 
@@ -15,6 +11,11 @@ struct Frame;
 
 namespace engine
 {
+
+#if defined(BT_CLIENT)
+struct SmokeTrailsInterpolate;
+using smoke_trails_t = id_t<SmokeTrailsInterpolate>;
+#endif
 
 inline constexpr int64_t kiMaxExplosionTrails = 8;
 inline constexpr uint8_t kuiInvalidTrailType = 255;

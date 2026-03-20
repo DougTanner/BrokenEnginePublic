@@ -11,6 +11,7 @@ bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2Sour
 {
 	if (pAudioEngine == nullptr || !pAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
+		Log(kLogAudio, "StaticVoice::LoadXAudio2SourceVoice Audio device not present");
 		return false;
 	}
 
@@ -28,6 +29,7 @@ bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2Sour
 	pAudioEngine->AllocateVoice(&rLazyChunk.header.audioHeader.waveFormat, SoundEffectInstance_Default, bOneShot, &rpVoice);
 	if (rpVoice == nullptr)
 	{
+		Log(kLogAudio, "StaticVoice::LoadXAudio2SourceVoice AllocateVoice failed for CRC {:#018x}", audioCrc);
 		return false;
 	}
 
@@ -50,7 +52,7 @@ bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2Sour
 	return true;
 }
 
-StaticVoice::StaticVoice(IXAudio2SourceVoice* pVoice, sound_t id, [[maybe_unused]] common::crc_t uiCrc, float fVolume, float fPitch, float fFadeOutTime, FXMVECTOR vecPosition, FXMVECTOR vecVelocity)
+StaticVoice::StaticVoice(IXAudio2SourceVoice* pVoice, sound_t id, float fVolume, float fPitch, float fFadeOutTime, FXMVECTOR vecPosition, FXMVECTOR vecVelocity)
 : mpVoice(pVoice)
 , mId(id)
 , mfVolume(fVolume)
@@ -68,16 +70,7 @@ StaticVoice::StaticVoice(IXAudio2SourceVoice* pVoice, sound_t id, [[maybe_unused
 
 StaticVoice::~StaticVoice()
 {
-	if (mpVoice != nullptr)
-	{
-		mpVoice->Stop(0, XAUDIO2_COMMIT_NOW);
-		mpVoice->FlushSourceBuffers();
-
-		if (gpAudioManager->mpAudioEngine != nullptr)
-		{
-			gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
-		}
-	}
+	DestroyXAudio2SourceVoice(mpVoice);
 }
 
 StaticVoice::StaticVoice(StaticVoice&& rToMove) noexcept
@@ -98,16 +91,7 @@ StaticVoice& StaticVoice::operator=(StaticVoice&& rToMove) noexcept
 		mVecPosition = rToMove.mVecPosition;
 		mVecVelocity = rToMove.mVecVelocity;
 
-		if (mpVoice != nullptr)
-		{
-			mpVoice->Stop(0, XAUDIO2_COMMIT_NOW);
-			mpVoice->FlushSourceBuffers();
-
-			if (gpAudioManager->mpAudioEngine != nullptr)
-			{
-				gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
-			}
-		}
+		DestroyXAudio2SourceVoice(mpVoice);
 		mpVoice = rToMove.mpVoice;
 		rToMove.mpVoice = nullptr;
 	}

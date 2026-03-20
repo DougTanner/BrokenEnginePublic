@@ -7,8 +7,6 @@
 namespace engine
 {
 
-static XMFLOAT4 sf4SmokeArea {};
-
 void RenderSmokeGlobal(int64_t iCommandBuffer)
 {
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
@@ -32,7 +30,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 
 	uint32_t uiTextureOneWidth = gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.width;
 	uint32_t uiMaxWidth = std::max(uiTextureOneWidth, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.width);
-	rGlobalLayout.uiSmokeTilesX = (uiMaxWidth + 7) / 8;
+	rGlobalLayout.uiSmokeTilesX = (uiMaxWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
 	rGlobalLayout.fSmokeDepositTileScale = static_cast<float>(uiMaxWidth) / static_cast<float>(uiTextureOneWidth);
 
 	static bool sbSmoke = false;
@@ -68,14 +66,9 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	float fAreaX = 0.5f * (0.025f * 8000.0f * gSmokeSimulationArea.Get());
 	float fAreaY = 0.5f * (0.025f * 8000.0f * gSmokeSimulationArea.Get());
 	rGlobalLayout.f4SmokeArea = {f4PlayerPosition.x - fAreaX, f4PlayerPosition.y + fAreaY, f4PlayerPosition.x + fAreaX, f4PlayerPosition.y - fAreaY};
-	sf4SmokeArea = rGlobalLayout.f4SmokeArea;
 
-	float fXOffset = (sf4PreviousSmokeArea.x - rGlobalLayout.f4SmokeArea.x) / (sf4PreviousSmokeArea.z - rGlobalLayout.f4SmokeArea.x);
-	float fYOffset = (sf4PreviousSmokeArea.y - rGlobalLayout.f4SmokeArea.y) / (sf4PreviousSmokeArea.w - rGlobalLayout.f4SmokeArea.y);
 	shaders::AxisAlignedQuadLayout& rQuad = *reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mSmokeSpreadStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	rQuad.f4VertexRect = {-1.0f + 2.0f * fXOffset, 1.0f - 2.0f * fYOffset, 2.0f, -2.0f};
-	rQuad.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
-	rQuad.f4Params = {};
+	WriteSpreadQuad(sf4PreviousSmokeArea, rGlobalLayout.f4SmokeArea, rQuad);
 	sf4PreviousSmokeArea = rGlobalLayout.f4SmokeArea;
 
 	gpPipelineManager->mpPipelines[kPipelineSmokeClearA].WriteIndirectBuffer(iCommandBuffer, 0);
@@ -84,4 +77,4 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 
 } // namespace engine
 
-#endif // BT_CLIENT
+#endif // defined(BT_CLIENT)

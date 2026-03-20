@@ -29,12 +29,7 @@ void AreaLightsInterpolate::AllocateAndCopy(AreaLightsInterpolate& rCurrent, con
 
 void AreaLightsPostRender::AllocateAndCopy(AreaLightsPostRender& rCurrent, const AreaLightsPostRender& rPrevious)
 {
-	Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
-	}
+	AllocateAndCopyIds(rCurrent, rPrevious);
 }
 
 void AreaLightsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)

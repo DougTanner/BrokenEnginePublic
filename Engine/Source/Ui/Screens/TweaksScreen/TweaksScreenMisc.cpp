@@ -1,16 +1,18 @@
-#include "TweaksScreen.h"
+#include "TweaksScreenBase.h"
 
 namespace engine
 {
 
-void TweaksScreen::RenderMiscSection()
+void TweaksScreenBase::RenderMiscSection()
 {
-	WrapperSlider("Misc Island Height", static_cast<int>(TweakSection::kMisc));
-	WrapperSlider("Water Depth", static_cast<int>(TweakSection::kMisc));
-	WrapperSlider("Water Terrain Height", static_cast<int>(TweakSection::kMisc));
-	WrapperSlider("Water Terrain Fade", static_cast<int>(TweakSection::kMisc));
-	WrapperSlider("Misc Depth Reflection Feather", static_cast<int>(TweakSection::kMisc));
-	WrapperSlider("Misc0", static_cast<int>(TweakSection::kMisc));
+	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kMisc);
+
+	WrapperSlider("Misc Island Height", kiSection);
+	WrapperSlider("Water Depth", kiSection);
+	WrapperSlider("Water Terrain Height", kiSection);
+	WrapperSlider("Water Terrain Fade", kiSection);
+	WrapperSlider("Misc Depth Reflection Feather", kiSection);
+	WrapperSlider("Misc0", kiSection);
 }
 
 } // namespace engine

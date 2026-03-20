@@ -33,21 +33,13 @@ crc_t RandomEngine::Crc() const
 
 uint32_t Random(uint32_t uiMax, RandomEngine& rRandomEngine)
 {
-	uint64_t x = rRandomEngine.uiState;
-	x ^= x << 13;
-	x ^= x >> 7;
-	x ^= x << 17;
-	rRandomEngine.uiState = x;
+	uint64_t x = XorshiftNext(rRandomEngine);
 	return static_cast<uint32_t>(x) % (uiMax + 1);
 }
 
 float Random(float fMax, RandomEngine& rRandomEngine)
 {
-	uint64_t x = rRandomEngine.uiState;
-	x ^= x << 13;
-	x ^= x >> 7;
-	x ^= x << 17;
-	rRandomEngine.uiState = x;
+	uint64_t x = XorshiftNext(rRandomEngine);
 	return static_cast<float>(x) * (fMax / static_cast<float>(std::numeric_limits<uint64_t>::max()));
 }
 

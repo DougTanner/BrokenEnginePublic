@@ -24,15 +24,8 @@ void HexShieldsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer,
 	siRendered = 0;
 	siTotalCount = 0;
 
-	int64_t iTotalCapacity = 0;
-	for (const GridCoord& rCoord : rActiveCoords)
-	{
-		auto it = rRenderInterpolates.find(rCoord);
-		if (it != rRenderInterpolates.end())
-		{
-			iTotalCapacity += it->second.hexShields.iCapacity;
-		}
-	}
+	int64_t iTotalCapacity = AccumulateRenderCapacity(rRenderInterpolates, rActiveCoords,
+		[](const game::FrameInterpolate& rInterpolate) -> const auto& { return rInterpolate.hexShields; });
 
 	if (iTotalCapacity == 0)
 	{

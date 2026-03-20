@@ -7,14 +7,6 @@
 namespace engine
 {
 
-XMVECTOR XM_CALLCONV DirectionToDirectionMultipliers(FXMVECTOR vecDirection)
-{
-	XMFLOAT4A f4Direction {};
-	XMStoreFloat4A(&f4Direction, vecDirection);
-
-	return XMVectorSet(std::max(f4Direction.x, 0.0f), std::max(-f4Direction.x, 0.0f), std::max(f4Direction.y, 0.0f), std::max(-f4Direction.y, 0.0f));
-}
-
 void RenderLightingGlobal(int64_t iCommandBuffer)
 {
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
@@ -36,7 +28,7 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fLightingCombineDecay = gLightingCombineDecay.Get();
 }
 
-void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::FrameInterpolate& rFrameInterpolate)
+void RenderLightingMain(int64_t iCommandBuffer)
 {
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 

@@ -47,8 +47,6 @@ void main()
 
     // Lighting
     vec4 pf4Lighting[3];
-	pf4Lighting[0] = texture(pLightingSamplers[0], f2VisibleAreaTexcoord);
-	pf4Lighting[1] = texture(pLightingSamplers[1], f2VisibleAreaTexcoord);
-	pf4Lighting[2] = texture(pLightingSamplers[2], f2VisibleAreaTexcoord);
+	ReadLighting(pf4Lighting, pLightingSamplers, f2VisibleAreaTexcoord);
 	f4OutColor.xyz += Lighting(globalLayout, vec3(1.0f, 1.0f, 1.0f), f3InWorldPosition.z, f3InNormal, pf4Lighting, globalLayout.fLightingObjects, globalLayout.fLightingObjectsAdd);
 }

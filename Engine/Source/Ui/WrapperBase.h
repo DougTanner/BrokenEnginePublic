@@ -222,8 +222,6 @@ extern Wrapper gMinimumAmbient;
 
 extern Wrapper gBaseHeight;
 
-extern Wrapper gMisc0;
-
 // Pbr - Engine Variables
 extern Wrapper gPbrDayBrightness;
 extern Wrapper gPbrSun;
@@ -419,22 +417,6 @@ extern Wrapper gWindSmokeRetention;
 extern Wrapper gWindToSmokePower;
 // Wind - Displacement
 extern Wrapper gWindDisplacementNoiseScale;
-// Wind - Per-entity deposits
-extern Wrapper gWindDepositPlayerWidth;
-extern Wrapper gWindDepositPlayerIntensity;
-extern Wrapper gWindDepositPlayerLengthMultiplier;
-extern Wrapper gWindDepositSpaceshipsWidth;
-extern Wrapper gWindDepositSpaceshipsIntensity;
-extern Wrapper gWindDepositSpaceshipsLengthMultiplier;
-extern Wrapper gWindDepositPlayerBlastersWidth;
-extern Wrapper gWindDepositPlayerBlastersIntensity;
-extern Wrapper gWindDepositBlastersLengthMultiplier;
-extern Wrapper gWindDepositSpaceshipsBlastersWidth;
-extern Wrapper gWindDepositSpaceshipsBlastersIntensity;
-extern Wrapper gWindDepositSpaceshipsBlastersLengthMultiplier;
-extern Wrapper gWindDepositExplosionsWidth;
-extern Wrapper gWindDepositExplosionsIntensity;
-
 // Low frequency waves
 extern Wrapper gLowCount;
 extern Wrapper gLowMax;
@@ -491,21 +473,6 @@ extern Wrapper gObjectShadowsBlurDistanceSunset;
 extern Wrapper gObjectShadowsBlurSigma;
 
 extern Wrapper gSmokeShadowIntensity;
-
-// Hex shield
-extern Wrapper gHexShieldGrow;
-extern Wrapper gHexShieldEdgeDistance;
-extern Wrapper gHexShieldEdgePower;
-extern Wrapper gHexShieldEdgeMultiplier;
-
-extern Wrapper gHexShieldWaveMultiplier;
-extern Wrapper gHexShieldWaveDotMultiplier;
-extern Wrapper gHexShieldWaveIntensityMultiplier;
-extern Wrapper gHexShieldWaveIntensityPower;
-extern Wrapper gHexShieldWaveFalloffPower;
-
-extern Wrapper gHexShieldDirectionFalloffPower;
-extern Wrapper gHexShieldDirectionMultiplier;
 
 // Particles
 extern Wrapper gParticlesWindStrength;

@@ -2,8 +2,6 @@
 
 #include "Profile/ProfileManager.h"
 
-#include "Game.h"
-
 namespace engine
 {
 

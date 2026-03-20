@@ -2,6 +2,7 @@
 
 #include "Network/Server/Server.h"
 
+#include "Game.h"
 #include "Memory/MemoryManager.h"
 #include "Network/NetworkCursor.h"
 
@@ -42,17 +43,17 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 		{
 			// Clamp to server's latest sent tick to prevent future ACK floors
 			iSlotAckFloor = std::min(iSlotAckFloor, miLatestBufferedTick);
-			AckState& rAck = pClient->coordAckStates.at(uiSlotIndex);
-			if (iSlotAckFloor == rAck.iAckFloor)
+			AckState& rAckState = pClient->coordAckStates.at(uiSlotIndex);
+			if (iSlotAckFloor == rAckState.iAckFloor)
 			{
-				rAck.uiReceivedBitfieldLow |= uiSlotBitfieldLow;
-				rAck.uiReceivedBitfieldHigh |= uiSlotBitfieldHigh;
+				rAckState.uiReceivedBitfieldLow |= uiSlotBitfieldLow;
+				rAckState.uiReceivedBitfieldHigh |= uiSlotBitfieldHigh;
 			}
 			else
 			{
-				rAck.iAckFloor = iSlotAckFloor;
-				rAck.uiReceivedBitfieldLow = uiSlotBitfieldLow;
-				rAck.uiReceivedBitfieldHigh = uiSlotBitfieldHigh;
+				rAckState.iAckFloor = iSlotAckFloor;
+				rAckState.uiReceivedBitfieldLow = uiSlotBitfieldLow;
+				rAckState.uiReceivedBitfieldHigh = uiSlotBitfieldHigh;
 			}
 		}
 	}
@@ -254,7 +255,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	// Already subscribed?
 	if (pClient->IsCoordSubscribed(coord))
 	{
-		Log(kLogNetwork, "Server::ClientSubscribe AlreadySubscribed Client: {} Coord: ({},{})", iClientId, coord.x, coord.y); // DT TEMP
+		Log(kLogNetwork, "Server::ClientSubscribe AlreadySubscribed Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
 		return;
 	}
 
@@ -322,6 +323,27 @@ void Server::ClientResyncRequest([[maybe_unused]] const uint8_t* pData, int64_t 
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	mPendingResyncClientIds.push_back(iClientId);
+}
+
+void Server::ClientPauseRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
+{
+	// [1B type][1B paused]
+	if (iSize < 2)
+	{
+		return;
+	}
+
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	{
+		return;
+	}
+
+	const uint8_t* pCursor = pData + 1; // Skip packet type
+	uint8_t uiPaused = ReadUint8(pCursor);
+
+	game::gpGame->mGameFlags.Set(GameFlags::kPaused, uiPaused != 0);
+	Log("Server paused: {}", uiPaused != 0);
 }
 
 } // namespace engine

@@ -253,212 +253,93 @@ void DynamicPipelines::CreatePipelineBillboards(common::crc_t crc, std::string_v
 	mPipelineMaps[kDynamicPipelineBillboards].insert_or_assign(crc, pPipeline);
 }
 
-void DynamicPipelines::CreatePipelineSmokeAxisAligned(common::crc_t crc, std::string_view name, int64_t iBufferSize)
+void DynamicPipelines::CreateDepositPipeline(DynamicPipelineType eType, common::crc_t crc, std::string_view name, common::crc_t vertexShaderCrc, common::crc_t fragmentShaderCrc, Texture& rTargetTexture, DescriptorInfo textureDescriptor, VkBuffer* pOccupancyBuffer, int64_t iBufferSize)
 {
-	// Skip if smoke axis-aligned pipeline already exists
-	if (mPipelineMaps[kDynamicPipelineSmokeAxisAligned].contains(crc))
+	if (mPipelineMaps[eType].contains(crc))
 	{
 		return;
 	}
 
-	// Create storage buffer for this smoke pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
+	if (iBufferSize > 0)
+	{
+		gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
+	}
 
-	// Allocate pipeline and configure for smoke puff rendering
 	size_t iPipelineIndex = mPipelines.size();
 	mPipelines.push_back(std::make_unique<Pipeline>());
 	mPipelines[iPipelineIndex]->Create(
 	{
 		.name = name,
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
-		.ppShaders = {&mrShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mrShaders.at(data::kShadersSmokeSmokefragCrc)},
+		.ppShaders = {&mrShaders.at(vertexShaderCrc), &mrShaders.at(fragmentShaderCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent,
+		.vkRenderPass = rTargetTexture.mVkRenderPass,
+		.vkExtent3D = rTargetTexture.mInfo.extent,
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC44jpgCrc},
-			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mSmokeOccupancyVkBuffer},
+			textureDescriptor,
+			{.flags = kStorageBuffer, .pVkBuffers = pOccupancyBuffer},
 		},
 	});
 
-	// Register pipeline in smoke axis-aligned map for iteration during rendering
 	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineSmokeAxisAligned].insert_or_assign(crc, pPipeline);
+	mPipelineMaps[eType].insert_or_assign(crc, pPipeline);
+}
+
+void DynamicPipelines::CreatePipelineSmokeAxisAligned(common::crc_t crc, std::string_view name, int64_t iBufferSize)
+{
+	CreateDepositPipeline(kDynamicPipelineSmokeAxisAligned, crc, name,
+		data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc, data::kShadersSmokeSmokefragCrc,
+		gpTextureManager->mRenderTargetTextures.mSmokeTextureOne,
+		{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC44jpgCrc},
+		&gpBufferManager->mSmokeOccupancyVkBuffer, iBufferSize);
 }
 
 void DynamicPipelines::CreatePipelineSmoke(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
-	// Skip if smoke pipeline already exists
-	if (mPipelineMaps[kDynamicPipelineSmoke].contains(crc))
-	{
-		return;
-	}
-
-	// Create storage buffer for this smoke pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
-
-	// Allocate pipeline and configure for smoke trail rendering
-	size_t iPipelineIndex = mPipelines.size();
-	mPipelines.push_back(std::make_unique<Pipeline>());
-	mPipelines[iPipelineIndex]->Create(
-	{
-		.name = name,
-		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
-		.ppShaders = {&mrShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &mrShaders.at(data::kShadersSmokeSmokefragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeGradientTexture},
-			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mSmokeOccupancyVkBuffer},
-		},
-	});
-
-	// Register pipeline in smoke map for iteration during rendering
-	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineSmoke].insert_or_assign(crc, pPipeline);
+	CreateDepositPipeline(kDynamicPipelineSmoke, crc, name,
+		data::kShadersQuadsQuadsVisibleAreavertCrc, data::kShadersSmokeSmokefragCrc,
+		gpTextureManager->mRenderTargetTextures.mSmokeTextureOne,
+		{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeGradientTexture},
+		&gpBufferManager->mSmokeOccupancyVkBuffer, iBufferSize);
 }
 
 void DynamicPipelines::CreatePipelineWindDepositA(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
-	// Skip if wind deposit pipeline already exists
-	if (mPipelineMaps[kDynamicPipelineWindDepositA].contains(crc))
-	{
-		return;
-	}
-
-	// Create storage buffer for this wind deposit pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
-
-	// Allocate pipeline and configure for wind deposit rendering
-	size_t iPipelineIndex = mPipelines.size();
-	mPipelines.push_back(std::make_unique<Pipeline>());
-	mPipelines[iPipelineIndex]->Create(
-	{
-		.name = name,
-		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
-		.ppShaders = {&mrShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &mrShaders.at(data::kShadersWindWindDepositfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
-			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindOccupancyVkBuffers[0]},
-		},
-	});
-
-	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineWindDepositA].insert_or_assign(crc, pPipeline);
+	CreateDepositPipeline(kDynamicPipelineWindDepositA, crc, name,
+		data::kShadersQuadsQuadsVisibleAreavertCrc, data::kShadersWindWindDepositfragCrc,
+		gpTextureManager->mRenderTargetTextures.mWindTextureOne,
+		{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
+		&gpBufferManager->mWindOccupancyVkBuffers[0], iBufferSize);
 }
 
 void DynamicPipelines::CreatePipelineWindDepositB(common::crc_t crc, std::string_view name)
 {
-	// Skip if wind deposit B pipeline already exists
-	if (mPipelineMaps[kDynamicPipelineWindDepositB].contains(crc))
-	{
-		return;
-	}
-
-	// Allocate pipeline and configure for wind deposit rendering (texture B target)
-	size_t iPipelineIndex = mPipelines.size();
-	mPipelines.push_back(std::make_unique<Pipeline>());
-	mPipelines[iPipelineIndex]->Create(
-	{
-		.name = name,
-		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
-		.ppShaders = {&mrShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &mrShaders.at(data::kShadersWindWindDepositfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mWindTextureTwo.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mWindTextureTwo.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
-			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindOccupancyVkBuffers[1]},
-		},
-	});
-
-	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineWindDepositB].insert_or_assign(crc, pPipeline);
+	CreateDepositPipeline(kDynamicPipelineWindDepositB, crc, name,
+		data::kShadersQuadsQuadsVisibleAreavertCrc, data::kShadersWindWindDepositfragCrc,
+		gpTextureManager->mRenderTargetTextures.mWindTextureTwo,
+		{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
+		&gpBufferManager->mWindOccupancyVkBuffers[1], 0);
 }
 
 void DynamicPipelines::CreatePipelineWindDepositAxisAlignedA(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
-	// Skip if axis-aligned wind deposit A pipeline already exists
-	if (mPipelineMaps[kDynamicPipelineWindDepositAxisAlignedA].contains(crc))
-	{
-		return;
-	}
-
-	// Create storage buffer for this wind deposit pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
-
-	// Allocate pipeline and configure for axis-aligned wind deposit rendering
-	size_t iPipelineIndex = mPipelines.size();
-	mPipelines.push_back(std::make_unique<Pipeline>());
-	mPipelines[iPipelineIndex]->Create(
-	{
-		.name = name,
-		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
-		.ppShaders = {&mrShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mrShaders.at(data::kShadersWindWindDepositfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesParticlesBC4Square24pngCrc},
-			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindOccupancyVkBuffers[0]},
-		},
-	});
-
-	// Register pipeline in axis-aligned wind deposit A map
-	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineWindDepositAxisAlignedA].insert_or_assign(crc, pPipeline);
+	CreateDepositPipeline(kDynamicPipelineWindDepositAxisAlignedA, crc, name,
+		data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc, data::kShadersWindWindDepositfragCrc,
+		gpTextureManager->mRenderTargetTextures.mWindTextureOne,
+		{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesParticlesBC4Square24pngCrc},
+		&gpBufferManager->mWindOccupancyVkBuffers[0], iBufferSize);
 }
 
 void DynamicPipelines::CreatePipelineWindDepositAxisAlignedB(common::crc_t crc, std::string_view name)
 {
-	// Skip if axis-aligned wind deposit B pipeline already exists
-	if (mPipelineMaps[kDynamicPipelineWindDepositAxisAlignedB].contains(crc))
-	{
-		return;
-	}
-
-	// Allocate pipeline and configure for axis-aligned wind deposit rendering (texture B target)
-	size_t iPipelineIndex = mPipelines.size();
-	mPipelines.push_back(std::make_unique<Pipeline>());
-	mPipelines[iPipelineIndex]->Create(
-	{
-		.name = name,
-		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
-		.ppShaders = {&mrShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mrShaders.at(data::kShadersWindWindDepositfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mWindTextureTwo.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mWindTextureTwo.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesParticlesBC4Square24pngCrc},
-			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mWindOccupancyVkBuffers[1]},
-		},
-	});
-
-	// Register pipeline in axis-aligned wind deposit B map
-	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineWindDepositAxisAlignedB].insert_or_assign(crc, pPipeline);
+	CreateDepositPipeline(kDynamicPipelineWindDepositAxisAlignedB, crc, name,
+		data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc, data::kShadersWindWindDepositfragCrc,
+		gpTextureManager->mRenderTargetTextures.mWindTextureTwo,
+		{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesParticlesBC4Square24pngCrc},
+		&gpBufferManager->mWindOccupancyVkBuffers[1], 0);
 }
 
 void DynamicPipelines::CreatePipelineHexShields(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -527,6 +408,18 @@ void DynamicPipelines::CreatePipelineHexShieldsLighting(common::crc_t crc, std::
 	mPipelineMaps[kDynamicPipelineHexShieldsLighting].insert_or_assign(crc, pPipeline);
 }
 
+void DynamicPipelines::UpdateAllModelPipelineDescriptors(int64_t iCommandBuffer, int64_t iBinding, Buffer* pBuffer)
+{
+	for (auto& [rCrc, rpPipeline] : mModelPipelineMaps[kDynamicModelPipelineModel])
+	{
+		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, iBinding, pBuffer);
+	}
+	for (auto& [rCrc, rpPipeline] : mModelPipelineMaps[kDynamicModelPipelineModelShadow])
+	{
+		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, iBinding, pBuffer);
+	}
+}
+
 } // namespace engine
 
-#endif // BT_CLIENT
+#endif // defined(BT_CLIENT)

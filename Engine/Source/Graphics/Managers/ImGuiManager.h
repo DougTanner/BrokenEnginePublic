@@ -1,12 +1,16 @@
 #pragma once
 
-#include "Ui/Screens/DeathMenuScreen.h"
-#include "Ui/Screens/GraphicsMenuScreen.h"
-#include "Ui/Screens/HudScreen.h"
-#include "Ui/Screens/MainMenuScreen.h"
-#include "Ui/Screens/ModalScreen.h"
-#include "Ui/Screens/PauseMenuScreen.h"
-#include "Ui/Screens/SoundMenuScreen.h"
+namespace game
+{
+class DeathMenuScreen;
+class GraphicsMenuScreen;
+class HudScreen;
+class MainMenuScreen;
+class ModalScreen;
+class PauseMenuScreen;
+class SoundMenuScreen;
+class TweaksScreen;
+}
 
 namespace engine
 {
@@ -31,14 +35,14 @@ private:
 	VkRenderPass mImGuiRenderPass = VK_NULL_HANDLE;
 	std::vector<VkFramebuffer> mImGuiFramebuffers;
 	ImDrawData* mpDrawData = nullptr;
-	TweaksScreen mTweaksScreen;
-	game::MainMenuScreen mMainMenuScreen;
-	game::ModalScreen mModalScreen;
-	game::PauseMenuScreen mPauseMenuScreen;
-	game::GraphicsMenuScreen mGraphicsMenuScreen;
-	game::SoundMenuScreen mSoundMenuScreen;
-	game::DeathMenuScreen mDeathMenuScreen;
-	game::HudScreen mHudScreen;
+	std::unique_ptr<game::TweaksScreen> mpTweaksScreen;
+	std::unique_ptr<game::MainMenuScreen> mpMainMenuScreen;
+	std::unique_ptr<game::ModalScreen> mpModalScreen;
+	std::unique_ptr<game::PauseMenuScreen> mpPauseMenuScreen;
+	std::unique_ptr<game::GraphicsMenuScreen> mpGraphicsMenuScreen;
+	std::unique_ptr<game::SoundMenuScreen> mpSoundMenuScreen;
+	std::unique_ptr<game::DeathMenuScreen> mpDeathMenuScreen;
+	std::unique_ptr<game::HudScreen> mpHudScreen;
 };
 
 inline ImGuiManager* gpImGuiManager = nullptr;

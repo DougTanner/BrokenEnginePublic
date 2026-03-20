@@ -1,0 +1,226 @@
+#include "TweaksSliderMap.h"
+
+namespace engine
+{
+
+std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
+{
+	// Heap: static unordered_map built once on first call, lives forever. Can't use workbuffer (data lost on Pop)
+	// and can't pre-allocate (STL map manages its own hash buckets internally)
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	static std::unordered_map<std::string_view, Wrapper*> sSliderMap =
+	{
+		// Test
+		{"Test One", &gTestOne},
+		{"Test Two", &gTestTwo},
+		// Pbr - Tone Mapping
+		{"Exposure", &gPbrExposure},
+		{"Gamma", &gPbrGamma},
+		// Pbr - BRDF
+		{"BRDF Diffuse", &gPbrBrdfDiffuse},
+		{"BRDF Diffuse Power", &gPbrBrdfDiffusePower},
+		{"BRDF Specular", &gPbrBrdfSpecular},
+		{"BRDF Specular Power", &gPbrBrdfSpecularPower},
+		{"IBL Ambient", &gPbrIblAmbient},
+		{"IBL Diffuse", &gPbrIblDiffuse},
+		{"IBL Diffuse Power", &gPbrIblDiffusePower},
+		{"IBL Specular", &gPbrIblSpecular},
+		{"IBL Specular Power", &gPbrIblSpecularPower},
+		{"IBL Shadow Blend", &gPbrIblShadowBlend},
+		{"IBL Ambient Color Blend", &gPbrIblAmbientColorBlend},
+		{"Cubemap Lod Power", &gPbrCubemapLodPower},
+		{"Cubemap Lod Offset", &gPbrCubemapLodOffset},
+		{"Shadow Floor", &gPbrShadowFloor},
+		// Pbr - Sun
+		{"Day Brightness", &gPbrDayBrightness},
+		{"Sun", &gPbrSun},
+		{"Sun Power", &gPbrSunPower},
+		// Pbr - Post Lighting
+		{"Lighting Specular", &gPbrLightingSpecular},
+		{"Lighting Specular Power", &gPbrLightingSpecularPower},
+		{"Lighting", &gPbrLighting},
+		{"Lighting Power", &gPbrLightingPower},
+		// Pbr - Smoke
+		{"Smoke", &gPbrSmoke},
+		// Pbr - Emissive
+		{"Emissive", &gPbrEmissive},
+		// Terrain - Beach
+		{"Snow Multiplier", &gTerrainSnowMultiplier},
+		{"Beach Height", &gTerrainBeachHeight},
+		{"Beach Sand Size", &gTerrainBeachSandSize},
+		{"Beach Sand Blend", &gTerrainBeachSandBlend},
+		{"Beach Normals Size 1", &gTerrainBeachNormalsSizeOne},
+		{"Beach Normals Size 2", &gTerrainBeachNormalsSizeTwo},
+		{"Beach Normals Size 3", &gTerrainBeachNormalsSizeThree},
+		{"Beach Normals Blend", &gTerrainBeachNormalsBlend},
+		// Terrain - Rock
+		{"Island Height", &gIslandHeight},
+		{"Rock Multiplier", &gTerrainRockMultiplier},
+		{"Rock Size", &gTerrainRockSize},
+		{"Rock Blend", &gTerrainRockBlend},
+		{"Rock Normals Size 1", &gTerrainRockNormalsSizeOne},
+		{"Rock Normals Size 2", &gTerrainRockNormalsSizeTwo},
+		{"Rock Normals Size 3", &gTerrainRockNormalsSizeThree},
+		{"Rock Normals Blend", &gTerrainRockNormalsBlend},
+		// Water Specular - Normals
+		{"Sampled Normals Size", &gLightingSampledNormalsSize},
+		{"Sampled Normals Size Mod", &gLightingSampledNormalsSizeMod},
+		{"Sampled Normals Speed", &gLightingSampledNormalsSpeed},
+		{"Depth Reflection Feather", &gWaterDepthReflectionFeather},
+		// Water Specular - Skybox
+		{"Sun Bias", &gLightingWaterSkyboxSunBias},
+		{"Normal Soften", &gLightingWaterSkyboxNormalSoften},
+		{"Normal Blend Wave", &gLightingWaterSkyboxNormalBlendWave},
+		{"Intensity", &gLightingWaterSkyboxIntensity},
+		{"Add", &gLightingWaterSkyboxAdd},
+		{"Skybox 1", &gLightingWaterSkyboxOne},
+		{"Skybox 1 Power", &gLightingWaterSkyboxOnePower},
+		{"Skybox 2", &gLightingWaterSkyboxTwo},
+		{"Skybox 2 Power", &gLightingWaterSkyboxTwoPower},
+		{"Skybox 3", &gLightingWaterSkyboxThree},
+		{"Skybox 3 Power", &gLightingWaterSkyboxThreePower},
+		{"Skybox Lod", &gLightingWaterSkyboxLod},
+		// Water Specular - Height Darken
+		{"Height Darken Top", &gWaterHeightDarkenTop},
+		{"Height Darken Bottom", &gWaterHeightDarkenBottom},
+		{"Height Darken Clamp", &gWaterHeightDarkenClamp},
+		// Water Low - Wave
+		{"Low Max", &gLowMax},
+		{"Angle", &gLowAngle},
+		{"Wavelength", &gLowWavelength},
+		{"Amplitude", &gLowAmplitude},
+		{"Speed", &gLowSpeed},
+		{"Steepness", &gLowSteepness},
+		// Water Low - Adjustments
+		{"Angle Adjust", &gLowAngleAdjust},
+		{"Wavelength Adjust", &gLowWavelengthAdjust},
+		{"Amplitude Adjust", &gLowAmplitudeAdjust},
+		{"Speed Adjust", &gLowSpeedAdjust},
+		// Water Low - Beach Fade
+		{"Beach Directional Fade Bottom", &gBeachDirectionalFadeBottom},
+		{"Beach Directional Fade Height", &gBeachDirectionalFadeHeight},
+		// Water Medium - Wave
+		{"Medium Wavelength", &gMediumWavelength},
+		{"Medium Amplitude", &gMediumAmplitude},
+		{"Medium Speed", &gMediumSpeed},
+		{"Medium Steepness", &gMediumSteepness},
+		// Water Medium - Adjustments
+		{"Medium Angle Adjust", &gMediumAngleAdjust},
+		{"Medium Wavelength Adjust", &gMediumWavelengthAdjust},
+		{"Medium Amplitude Adjust", &gMediumAmplitudeAdjust},
+		{"Medium Speed Adjust", &gMediumSpeedAdjust},
+		// Lighting - Blur
+		{"Texture Multiplier", &gLightingTextureMultiplier},
+		{"Blur Distance", &gLightingBlurDistance},
+		{"Blur Directionality", &gLightingBlurDirectionality},
+		{"Blur Jitter", &gLightingBlurJitter},
+		{"Downscale", &gLightingBlurDownscale},
+		// Lighting - Combine
+		{"Combine Index", &gLightingCombineIndex},
+		{"Blur First Divisor", &gLightingBlurFirstDivisor},
+		{"Blur Divisor", &gLightingBlurDivisor},
+		{"Combine Decay", &gLightingCombineDecay},
+		{"Combine Power", &gLightingCombinePower},
+		// Lighting - Directional
+		{"Directional", &gLightingDirectional},
+		{"Indirect", &gLightingIndirect},
+		{"Terrain", &gLightingTerrain},
+		{"Terrain Add", &gLightingAddTerrain},
+		{"Objects", &gLightingObjects},
+		{"Objects Add", &gLightingObjectsAdd},
+		{"Time of Day Multiplier", &gLightingTimeOfDayMultiplier},
+		// Water Lighting - Specular
+		{"Specular Normal Soften", &gLightingWaterSpecularNormalSoften},
+		{"Specular Normal Blend Wave", &gLightingWaterSpecularNormalBlendWave},
+		{"Specular Diffuse", &gLightingWaterSpecularDiffuse},
+		{"Specular Direct", &gLightingWaterSpecularDirect},
+		{"Water Specular", &gLightingWaterSpecular},
+		{"Specular Intensity", &gLightingWaterSpecularIntensity},
+		{"Specular Add", &gLightingWaterSpecularAdd},
+		{"Specular One", &gLightingWaterSpecularOne},
+		{"Specular Two", &gLightingWaterSpecularTwo},
+		{"Specular Three", &gLightingWaterSpecularThree},
+		// Shadow - Feather
+		{"Feather Noon", &gShadowFeatherNoon},
+		{"Feather Noon Offset", &gShadowFeatherNoonOffset},
+		{"Feather Sunset", &gShadowFeatherSunset},
+		{"Feather Sunset Offset", &gShadowFeatherSunsetOffset},
+		{"Feather Power", &gShadowFeatherPower},
+		{"Distance Falloff", &gShadowDistanceFallof},
+		{"Blur Sigma", &gShadowBlurSigma},
+		{"Affect Ambient", &gShadowAffectAmbient},
+		{"Height Fade Top", &gShadowHeightFadeTop},
+		{"Height Fade Bottom", &gShadowHeightFadeBottom},
+		// Shadow - Object Shadows
+		{"Render Multiplier", &gObjectShadowsRenderMultiplier},
+		{"Blur Multiplier", &gObjectShadowsBlurMultiplier},
+		{"Shadow Noon", &gObjectShadowsNoon},
+		{"Shadow Sunset", &gObjectShadowsSunset},
+		{"Sunset Stretch", &gObjectShadowsSunsetStretch},
+		{"Blur Distance Noon", &gObjectShadowsBlurDistanceNoon},
+		{"Blur Distance Sunset", &gObjectShadowsBlurDistanceSunset},
+		{"Object Blur Sigma", &gObjectShadowsBlurSigma},
+		{"Smoke Shadow Intensity", &gSmokeShadowIntensity},
+		// Misc
+		{"Misc Island Height", &gIslandHeight},
+		{"Water Depth", &gWaterDepth},
+		{"Water Terrain Height", &gWaterTerrainHeight},
+		{"Water Terrain Fade", &gWaterTerrainFade},
+		{"Misc Depth Reflection Feather", &gWaterDepthReflectionFeather},
+		// Smoke - Decay
+		{"Smoke Max", &gSmokeMax},
+		{"Smoke Power", &gSmokePower},
+		{"Smoke Decay", &gSmokeDecay},
+		{"Smoke Edge Decay Distance", &gSmokeEdgeDecayDistance},
+		// Smoke - Color
+		{"Smoke Color Min", &gSmokeColorMin},
+		{"Smoke Color Multiplier", &gSmokeColorMultiplier},
+		{"Smoke Intensity Falloff", &gSmokeIntensityFalloff},
+		{"Smoke Trails Quantity", &gSmokeTrailsQuantity},
+		{"Smoke Trails Width Current", &gSmokeTrailsWidthCurrent},
+		{"Smoke Trails Width Previous", &gSmokeTrailsWidthPrevious},
+		{"Smoke Trails Length", &gSmokeTrailsLength},
+		{"Smoke Trails Length Jitter", &gSmokeTrailsLengthJitter},
+		{"Smoke Trails Side Jitter", &gSmokeTrailsSideJitter},
+		{"Smoke Trails Follow", &gSmokeTrailsFollow},
+		// Smoke - Noise
+		{"Smoke Noise Scale One", &gSmokeNoiseScaleOne},
+		{"Smoke Noise Scale Two", &gSmokeNoiseScaleTwo},
+		{"Smoke Wind Noise Scale", &gSmokeWindNoiseScale},
+		{"Smoke Noise Quantity", &gSmokeNoiseQuantity},
+		{"Smoke Wind Noise Quantity", &gSmokeWindNoiseQuantity},
+		{"Smoke Object Height", &gSmokeObjectHeight},
+		// Smoke - Wind Displacement
+		{"Wind To Smoke Strength", &gWindToSmokeStrength},
+		{"Wind To Smoke Power", &gWindToSmokePower},
+		{"Wind Displacement Noise Scale", &gWindDisplacementNoiseScale},
+		{"Wind Smoke Retention", &gWindSmokeRetention},
+		// Wind - Time & Global
+		{"Wind Time Scale", &gWindTimeScale},
+		{"Wind Threshold Low", &gWindThresholdLow},
+		{"Wind Threshold High", &gWindThresholdHigh},
+		// Wind - Propagation
+		{"Wind Advection Scale High", &gWindAdvectionScaleHigh},
+		{"Wind Advection Scale Low", &gWindAdvectionScaleLow},
+		{"Wind Swirl Scale High", &gWindSwirlScaleHigh},
+		{"Wind Swirl Scale Low", &gWindSwirlScaleLow},
+		{"Wind Swirl Amount High", &gWindSwirlAmountHigh},
+		{"Wind Swirl Amount Low", &gWindSwirlAmountLow},
+		{"Wind Swirl Speed High", &gWindSwirlSpeedHigh},
+		{"Wind Swirl Speed Low", &gWindSwirlSpeedLow},
+		{"Wind Vorticity Confinement High", &gWindVorticityConfinementHigh},
+		{"Wind Vorticity Confinement Low", &gWindVorticityConfinementLow},
+		{"Wind Decay High", &gWindDecayHigh},
+		{"Wind Decay Low", &gWindDecayLow},
+		{"Wind Momentum High", &gWindMomentumHigh},
+		{"Wind Momentum Low", &gWindMomentumLow},
+		{"Wind Diffusion High", &gWindDiffusionHigh},
+		{"Wind Diffusion Low", &gWindDiffusionLow},
+		// Wind - Particles
+		{"Particles Wind Strength", &gParticlesWindStrength},
+	};
+	return sSliderMap;
+}
+
+} // namespace engine

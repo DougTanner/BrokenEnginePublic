@@ -123,13 +123,8 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 }
 
 // Return sun angle, applying UI slider override when in Graphics or ImGui mode
-float Camera::SunAngle(bool bInternalOnly) const
+float Camera::SunAngle() const
 {
-	if (bInternalOnly)
-	{
-		return mfSunAngle;
-	}
-
 	// Apply time of day slider override when in Graphics or Tweaks UI
 	bool bUseOverride = (game::gpGame->meUiState == game::UiState::kGraphics);
 	if constexpr (kbEnableDebugInput)

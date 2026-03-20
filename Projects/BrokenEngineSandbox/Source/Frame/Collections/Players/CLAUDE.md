@@ -13,13 +13,11 @@ Shared constants used across multiple `.cpp` files are declared in `Players.h`.
 
 ## Architecture
 
-**Multi-Player AI**: `PostRender::Update()` computes AI behavior inline from frame state (terrain, spaceship positions) for all players uniformly. No external input is consumed during Update; the frame is self-contained. AI uses `ComputeAiSteering()` from `TerrainUtils.h` for terrain following and targets the nearest alive spaceship with line-of-sight checks. The wanted direction is smoothly interpolated toward the target (or travel/AI direction as fallback), and weapons fire from the smoothed interpolated direction rather than the raw wanted direction.
+**Multi-Player AI**: All players run identical AI logic from frame state alone (no external input). Uses `ComputeAiSteering()` for terrain following and edge-crossing encouragement. Targets nearest alive spaceship with line-of-sight checks. Burst-fire timers control blaster and missile cadence.
 
-**Spawn and Destroy**: Driven by `StatusChange` events in `FrameInput`. Spawn position is offset by frame center for grid-cell correctness. A `SpawnInfo` overload supports transfer-based spawning that preserves full gameplay state.
+**Spawn/Destroy/Transfer**: Driven by `StatusChange` events in `FrameInput`. Transfer preserves full gameplay state via `TransferRequest` with entity ID. A transfer lock timer skips AI/weapon logic briefly after arriving in a new cell.
 
-**Cross-Cell Transfer**: Out-of-bounds entities are flagged `kTransfer` in PostCollision, then the Transfer phase generates `TransferRequest`s (with entity ID for human player tracking) and removes the entity. A brief transfer lock timer skips AI and weapon logic to maintain smooth constant-velocity transitions.
-
-**Shield and Damage**: Shield absorbs damage before armor with cooldown-based regeneration. Client-only hex shield displays directional hit indicators with intensity decay and impact VFX at contact points.
+**Shield and Damage**: Shield absorbs damage before armor with cooldown-based regeneration. Client-only hex shield displays directional hit indicators with intensity decay and impact VFX.
 
 **Owned Objects**: Each player owns a wind trail and hex shield (client-only), created in Spawn and removed in Destroy/Transfer.
 

@@ -63,127 +63,28 @@ int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight)
 	}
 }
 
-// https://stackoverflow.com/a/50821858
-std::wstring GetStringValueFromHKLM(const std::wstring& rRegSubKey, const std::wstring& rRegValue)
-{
-	size_t uiBufferSize = 0xFFF;
-	std::wstring valueBuf;
-	valueBuf.resize(uiBufferSize);
-	DWORD uiCbData = static_cast<DWORD>(uiBufferSize * sizeof(wchar_t));
-	LSTATUS iRc = RegGetValueW(HKEY_LOCAL_MACHINE, rRegSubKey.c_str(), rRegValue.c_str(), RRF_RT_REG_SZ, nullptr, valueBuf.data(), &uiCbData);
-
-	while (iRc == ERROR_MORE_DATA)
-	{
-		uiCbData /= sizeof(wchar_t);
-
-		if (uiCbData > static_cast<DWORD>(uiBufferSize))
-		{
-			uiBufferSize = static_cast<size_t>(uiCbData);
-		}
-		else
-		{
-			uiBufferSize *= 2;
-			uiCbData = static_cast<DWORD>(uiBufferSize * sizeof(wchar_t));
-		}
-
-		valueBuf.resize(uiBufferSize);
-
-		iRc = RegGetValueW(HKEY_LOCAL_MACHINE, rRegSubKey.c_str(), rRegValue.c_str(), RRF_RT_REG_SZ, nullptr, valueBuf.data(), &uiCbData);
-	}
-
-	if (iRc == ERROR_SUCCESS)
-	{
-		uiCbData /= sizeof(wchar_t);
-
-		// Remove end null character
-		valueBuf.resize(static_cast<size_t>(uiCbData - 1));
-
-		return valueBuf;
-	}
-	else
-	{
-		throw std::runtime_error("Windows system error code: " + std::to_string(iRc));
-	}
-}
-
-XMVECTOR XM_CALLCONV ColorToVector(uint32_t uiColor)
-{
-	static constexpr float kfMultiplier = 1.0f / 255.0f;
-	return XMVectorSet(kfMultiplier * static_cast<float>(uiColor >> 24), kfMultiplier * static_cast<float>((uiColor & 0x00FF0000) >> 16), kfMultiplier * static_cast<float>((uiColor & 0x0000FF00) >> 8), kfMultiplier * static_cast<float>(uiColor & 0x000000FF));
-}
-
-uint32_t XM_CALLCONV ColorToUint(FXMVECTOR vecColor)
-{
-	XMFLOAT4A f4Color {};
-	XMStoreFloat4A(&f4Color, vecColor);
-
-	static constexpr float kfMultiplier = 255.0f;
-	return static_cast<uint32_t>(kfMultiplier * f4Color.x) << 24 | static_cast<uint32_t>(kfMultiplier * f4Color.y) << 16 | static_cast<uint32_t>(kfMultiplier * f4Color.z) << 8 | static_cast<uint32_t>(kfMultiplier * f4Color.w);
-}
-
-uint32_t ColorLerp(uint32_t uiA, uint32_t uiB, float fPercent)
-{
-	return ColorToUint(XMVectorLerp(ColorToVector(uiA), ColorToVector(uiB), fPercent));
-}
-
 std::string ToString(std::wstring_view wideChars)
 {
-	std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> convert;
-	return convert.to_bytes(wideChars.data());
+	if (wideChars.empty())
+		return {};
+
+	int iSize = WideCharToMultiByte(CP_UTF8, 0, wideChars.data(), static_cast<int>(wideChars.size()), nullptr, 0, nullptr, nullptr);
+	std::string result(iSize, '\0');
+	WideCharToMultiByte(CP_UTF8, 0, wideChars.data(), static_cast<int>(wideChars.size()), result.data(), iSize, nullptr, nullptr);
+	return result;
 }
 
-std::string ToString(std::u32string_view unicodeChars)
+std::string ToLower(std::string_view chars)
 {
-	if (unicodeChars.size() == 0)
-	{
-		return "null";
-	}
-
-	std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> convert;
-	return convert.to_bytes(unicodeChars.data());
-}
-
-std::wstring ToWstring(std::string_view chars)
-{
-	return std::wstring(chars.begin(), chars.end());
-}
-
-std::u32string ToU32string(std::string_view chars)
-{
-	return std::u32string(chars.begin(), chars.end());
-}
-
-void WaitAll(std::vector<std::future<void>>& futures)
-{
-	for (std::future<void>& future : futures)
-	{
-		future.get();
-	}
-}
-
-std::string FromFloat(float fValue, int64_t iDecimals)
-{
-	std::string str = std::to_string(fValue);
-	return str.substr(0, str.find(".") + iDecimals + 1);
-}
-
-std::string ToLower(std::string_view in)
-{
-	std::string out(in);
+	std::string out(chars);
 	std::transform(out.begin(), out.end(), out.begin(), [](unsigned char uc)	{ return static_cast<char>(std::tolower(uc)); });
 	return out;
 }
 
-std::string PathToCppVariable(std::string_view in)
+std::string PathToCppVariable(std::string_view path)
 {
-	std::string out(in);
-	out.erase(std::remove(out.begin(), out.end(), '\\'), out.end());
-	out.erase(std::remove(out.begin(), out.end(), '.'), out.end());
-	out.erase(std::remove(out.begin(), out.end(), ' '), out.end());
-	out.erase(std::remove(out.begin(), out.end(), '['), out.end());
-	out.erase(std::remove(out.begin(), out.end(), ']'), out.end());
-	out.erase(std::remove(out.begin(), out.end(), '-'), out.end());
-	out.erase(std::remove(out.begin(), out.end(), ','), out.end());
+	std::string out(path);
+	std::erase_if(out, [](char c) { return c == '\\' || c == '.' || c == ' ' || c == '[' || c == ']' || c == '-' || c == ','; });
 	return out;
 }
 

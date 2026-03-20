@@ -23,15 +23,8 @@ void AreaLightsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer,
 	siRendered = 0;
 	siTotalCount = 0;
 
-	int64_t iTotalCapacity = 0;
-	for (const GridCoord& rCoord : rActiveCoords)
-	{
-		auto it = rRenderInterpolates.find(rCoord);
-		if (it != rRenderInterpolates.end())
-		{
-			iTotalCapacity += it->second.areaLights.iCapacity;
-		}
-	}
+	int64_t iTotalCapacity = AccumulateRenderCapacity(rRenderInterpolates, rActiveCoords,
+		[](const game::FrameInterpolate& rInterpolate) -> const auto& { return rInterpolate.areaLights; });
 
 	if (iTotalCapacity == 0)
 	{
@@ -75,6 +68,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		// Calculate center and get type configuration
 		XMVECTOR vecCenter = (vecVisiblePos0 + vecVisiblePos1 + vecVisiblePos2 + vecVisiblePos3) * 0.25f;
 		const AreaLightsType& rType = AreaLightsInterpolate::GetType(rCurrent.puiTypeIndices[i]);
+		float fTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc);
 		float fIntensityMultiplier = rCurrent.pfIntensityMultipliers[i];
 		float fLightingSize = rType.fLightingSize;
 
@@ -113,7 +107,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 		rVisibleLayout.fIntensity = rType.fVisibleIntensity * fIntensityMultiplier;
 		rVisibleLayout.fRotation = 0.0f;
-		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc));
+		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(fTextureIndex);
 
 		// Populate area light quad with base height positions for ground shadow effect
 		shaders::QuadLayout& rAreaLayout = pAreaLightsLayouts[siRendered];
@@ -135,14 +129,13 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		rAreaLayout.pf4VerticesTexcoords[3] = {f4Base.x, f4Base.y, rType.pf2Texcoords[3].x, rType.pf2Texcoords[3].y};
 
 		XMFLOAT4A f4Params {};
-		f4Params.x = gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc);
+		f4Params.x = fTextureIndex;
 		f4Params.y = rType.fLightingIntensity * fIntensityMultiplier;
 		rAreaLayout.pf4Params[0] = f4Params;
 		rAreaLayout.pf4Params[1] = f4Params;
 		rAreaLayout.pf4Params[2] = f4Params;
 		rAreaLayout.pf4Params[3] = f4Params;
 		rAreaLayout.uiColor = rType.puiColors[0];
-
 
 		++siRendered;
 	}

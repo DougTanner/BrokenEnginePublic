@@ -21,15 +21,8 @@ void PuffsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, cons
 	siRendered = 0;
 	siTotalCount = 0;
 
-	int64_t iTotalCapacity = 0;
-	for (const GridCoord& rCoord : rActiveCoords)
-	{
-		auto it = rRenderInterpolates.find(rCoord);
-		if (it != rRenderInterpolates.end())
-		{
-			iTotalCapacity += it->second.puffs.iCapacity;
-		}
-	}
+	int64_t iTotalCapacity = AccumulateRenderCapacity(rRenderInterpolates, rActiveCoords,
+		[](const game::FrameInterpolate& rInterpolate) -> const auto& { return rInterpolate.puffs; });
 
 	if (iTotalCapacity == 0)
 	{

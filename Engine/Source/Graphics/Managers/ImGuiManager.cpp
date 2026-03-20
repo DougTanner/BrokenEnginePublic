@@ -1,8 +1,15 @@
 #include "ImGuiManager.h"
 
-#include "Profile/ProfileManager.h"
+#include "Ui/Screens/DeathMenuScreen.h"
+#include "Ui/Screens/GraphicsMenuScreen.h"
+#include "Ui/Screens/HudScreen.h"
+#include "Ui/Screens/MainMenuScreen.h"
+#include "Ui/Screens/ModalScreen.h"
+#include "Ui/Screens/PauseMenuScreen.h"
+#include "Ui/Screens/SoundMenuScreen.h"
+#include "Ui/Screens/TweaksScreen/TweaksScreen.h"
 
-#include "Game.h"
+#include "Profile/ProfileManager.h"
 
 #include "Data/Raw.h"
 
@@ -77,20 +84,30 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 
 	ImGui::EndFrame();
 
+	// Allocate game screens
+	mpTweaksScreen = std::make_unique<game::TweaksScreen>();
+	mpMainMenuScreen = std::make_unique<game::MainMenuScreen>();
+	mpModalScreen = std::make_unique<game::ModalScreen>();
+	mpPauseMenuScreen = std::make_unique<game::PauseMenuScreen>();
+	mpGraphicsMenuScreen = std::make_unique<game::GraphicsMenuScreen>();
+	mpSoundMenuScreen = std::make_unique<game::SoundMenuScreen>();
+	mpDeathMenuScreen = std::make_unique<game::DeathMenuScreen>();
+	mpHudScreen = std::make_unique<game::HudScreen>();
+
 	// Initialize game screens after ImGui backend is ready
-	mHudScreen.Initialize();
+	mpHudScreen->Initialize();
 }
 
 void ImGuiManager::RecreateSamplerDependencies()
 {
-	mHudScreen.Shutdown();
-	mHudScreen.Initialize();
+	mpHudScreen->Shutdown();
+	mpHudScreen->Initialize();
 }
 
 ImGuiManager::~ImGuiManager()
 {
 	// Shutdown game screens before ImGui backend is destroyed
-	mHudScreen.Shutdown();
+	mpHudScreen->Shutdown();
 
 	ImGui_ImplVulkan_Shutdown();
 	ImGui_ImplWin32_Shutdown();
@@ -198,17 +215,17 @@ void ImGuiManager::Submit(int64_t iFramebuffer)
 	ImGui::NewFrame();
 
 	// Render HUD (background layer, visible during gameplay)
-	mHudScreen.Render();
+	mpHudScreen->Render();
 
 	// Render menu screens based on UiState
-	mMainMenuScreen.Render();
-	mPauseMenuScreen.Render();
-	mGraphicsMenuScreen.Render();
-	mSoundMenuScreen.Render();
-	mDeathMenuScreen.Render();
-	mModalScreen.Render();
+	mpMainMenuScreen->Render();
+	mpPauseMenuScreen->Render();
+	mpGraphicsMenuScreen->Render();
+	mpSoundMenuScreen->Render();
+	mpDeathMenuScreen->Render();
+	mpModalScreen->Render();
 
-	mTweaksScreen.Render();
+	mpTweaksScreen->Render();
 
 	ImGui::Render();
 	mpDrawData = ImGui::GetDrawData();
@@ -226,7 +243,7 @@ void ImGuiManager::Submit(int64_t iFramebuffer)
 	};
 	CHECK_VK(vkBeginCommandBuffer(rCommandBuffers.mImGuiVkCommandBuffer, &vkCommandBufferBeginInfo));
 
-	gpProfileManager->ResetUiQueryPool(iFramebuffer, rCommandBuffers.mImGuiVkCommandBuffer);
+	gpProfileManager->ResetQueryPools(iFramebuffer, rCommandBuffers.mImGuiVkCommandBuffer, kGpuTimerUiRender, kGpuTimerCount);
 	gpProfileManager->GpuStart(iFramebuffer, rCommandBuffers.mImGuiVkCommandBuffer, kGpuTimerUiRender);
 
 	VkRenderPassBeginInfo vkRenderPassBeginInfo

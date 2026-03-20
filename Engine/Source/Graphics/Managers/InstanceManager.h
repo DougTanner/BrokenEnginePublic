@@ -51,13 +51,17 @@ public:
 	VkColorSpaceKHR mFramebufferVkColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 	VkFormat mDepthVkFormat = VK_FORMAT_UNDEFINED;
 
-	void ReadLayerProperties();
-
 	std::vector<const char*> mValidationLayers;
 	bool mbFoundKhronosValidation = false;
 	VkDebugUtilsMessengerEXT mVkDebugUtilsMessengerEXT = nullptr;
 
 private:
+
+	void ReadLayerProperties();
+	void SelectPhysicalDevice();
+	void SelectQueueFamilies();
+	void SelectSurfaceFormat();
+	void SelectDepthFormat();
 
 	HINSTANCE mHinstance = nullptr;
 	HWND mHwnd = nullptr;

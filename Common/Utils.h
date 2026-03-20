@@ -56,23 +56,6 @@ constexpr FLOAT_TYPE NanosecondsToFloatSeconds(std::chrono::nanoseconds nanoseco
 	return std::chrono::duration_cast<std::chrono::duration<FLOAT_TYPE, std::ratio<1, 1>>>(nanoseconds).count();
 }
 
-// Converts packed RGBA uint32_t color to XMVECTOR with normalized components (0-1 range)
-// Format: RGBA with 8 bits per channel (0xRRGGBBAA)
-// Parameters: uiColor - Packed color value
-// Returns: XMVECTOR with components in range [0.0, 1.0]
-XMVECTOR XM_CALLCONV ColorToVector(uint32_t uiColor);
-
-// Converts XMVECTOR color to packed RGBA uint32_t (inverse of ColorToVector)
-// Components are clamped to [0.0, 1.0] range before packing
-// Parameters: vecColor - XMVECTOR color with normalized components
-// Returns: Packed RGBA color (0xRRGGBBAA)
-uint32_t XM_CALLCONV ColorToUint(FXMVECTOR vecColor);
-
-// Linear interpolation between two packed RGBA colors by a given percentage
-// Parameters: uiA - Start color, uiB - End color, fPercent - Interpolation factor [0.0, 1.0]
-// Returns: Interpolated color
-uint32_t ColorLerp(uint32_t uiA, uint32_t uiB, float fPercent);
-
 using crc_t = uint64_t;
 
 // Compile-time CRC hash function for string hashing
@@ -107,13 +90,13 @@ consteval crc_t CrcConsteval(std::string_view pData)
 static_assert(Crc("test") == CrcConsteval("test"), "CRC functions must produce identical results");
 
 // Template overload for hashing arrays (pointer + count)
-// Parameters: pValues - Pointer to array to hash, uiCount - Number of elements
+// Parameters: pValues - Pointer to array to hash, iCount - Number of elements
 // Returns: 64-bit hash value
 template<typename T>
-inline crc_t Crc(const T* pValues, int64_t uiCount)
+inline crc_t Crc(const T* pValues, int64_t iCount)
 {
 	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
-	return Crc(std::string_view(reinterpret_cast<const char*>(pValues), uiCount * sizeof(T)));
+	return Crc(std::string_view(reinterpret_cast<const char*>(pValues), iCount * sizeof(T)));
 }
 
 // Concept to exclude string-like types from template Crc
@@ -168,27 +151,10 @@ char* ToHex(std::span<char, N> pcBuffer, T uiValue)
 	return pcBuffer.data();
 }
 
-// Converts wide string (UTF-16) to UTF-8 narrow string using standard library codecvt
+// Converts wide string (UTF-16) to UTF-8 narrow string using Win32 WideCharToMultiByte
 // Parameters: wideChars - Wide string to convert
 // Returns: UTF-8 encoded string
 std::string ToString(std::wstring_view wideChars);
-
-// Converts UTF-32 string to UTF-8 with special handling for empty strings (returns "null")
-// Parameters: unicodeChars - UTF-32 string to convert
-// Returns: UTF-8 encoded string or "null" if input is empty
-std::string ToString(std::u32string_view unicodeChars);
-
-// Converts narrow string to wide string
-// Note: Simple character-by-character conversion, not proper UTF-8 to UTF-16
-// Parameters: chars - Narrow string to convert
-// Returns: Wide string
-std::wstring ToWstring(std::string_view chars);
-
-// Converts narrow string to UTF-32 string
-// Note: Simple character-by-character conversion, not proper UTF-8 to UTF-32
-// Parameters: chars - Narrow string to convert
-// Returns: UTF-32 string
-std::u32string ToU32string(std::string_view chars);
 
 // Splits a string into a vector of substrings based on a delimiter
 // Generic template works with any string type (std::string, std::wstring, etc.)
@@ -233,11 +199,6 @@ constexpr std::string IntToString(int64_t i)
 	return string;
 }
 
-// Synchronization helper that waits for all futures in a vector to complete
-// Used for parallel task execution and ensures all tasks finish before proceeding
-// Parameters: futures - Vector of futures to wait for (will be consumed)
-void WaitAll(std::vector<std::future<void>>& futures);
-
 // Calculates memory size in bytes for a texture given its Vulkan format and dimensions
 // Supports both compressed formats (BC4, BC7) and uncompressed formats (R8, RGBA8, RGBA16F, etc.)
 // Parameters: vkFormat - Vulkan texture format, iWidth - Width in pixels, iHeight - Height in pixels
@@ -278,25 +239,16 @@ int64_t VectorByteSize(const std::vector<T>& rVector)
 	return rVector.size() * sizeof(T);
 }
 
-// Converts float to string with specified decimal precision by substring truncation
-// Parameters: fValue - Float value to convert, iDecimals - Number of decimal places to include
-// Returns: String representation with specified precision
-std::string FromFloat(float fValue, int64_t iDecimals);
-
-// Reads a string value from the Windows registry (HKEY_LOCAL_MACHINE)
-// https://stackoverflow.com/a/50821858
-std::wstring GetStringValueFromHKLM(const std::wstring& rRegSubKey, const std::wstring& rRegValue);
-
 // Converts string to lowercase using std::tolower
 // Parameters: rIn - String to convert
 // Returns: Lowercase version of the input string
-std::string ToLower(std::string_view in);
+std::string ToLower(std::string_view chars);
 
 // Sanitizes file paths to be valid C++ variable names by removing special characters
 // Removes: backslash, dot, space, brackets, hyphen, comma
 // Parameters: rIn - Path string to sanitize
 // Returns: Sanitized string suitable for use as a C++ variable name
-std::string PathToCppVariable(std::string_view in);
+std::string PathToCppVariable(std::string_view path);
 
 // Helper function to get content from either a file path or string
 template<typename T>
@@ -360,10 +312,10 @@ inline void Read(std::istream& rStream, T& rValue)
 }
 
 template<typename T>
-inline void Read(std::istream& rStream, T* pValues, uint64_t uiCount)
+inline void Read(std::istream& rStream, T* pValues, int64_t iCount)
 {
 	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
-	rStream.read(reinterpret_cast<char*>(pValues), uiCount * sizeof(T));
+	rStream.read(reinterpret_cast<char*>(pValues), iCount * sizeof(T));
 }
 
 // Stream read helper for containers (vectors)
@@ -385,10 +337,10 @@ inline void Write(std::ostream& rStream, const T& rValue)
 }
 
 template<typename T>
-inline void Write(std::ostream& rStream, T* pValues, uint64_t uiCount)
+inline void Write(std::ostream& rStream, T* pValues, int64_t iCount)
 {
 	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
-	rStream.write(reinterpret_cast<const char*>(pValues), uiCount * sizeof(T));
+	rStream.write(reinterpret_cast<const char*>(pValues), iCount * sizeof(T));
 }
 
 // Stream write helper for containers (vectors)

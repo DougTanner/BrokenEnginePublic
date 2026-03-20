@@ -258,6 +258,19 @@ void Allocate(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 	}
 }
 
+// Allocates and copies the ID array from previous frame. Used by PostRender collections
+// whose only persistent member is puiIds.
+template <typename TPostRender>
+void AllocateAndCopyIds(TPostRender& rCurrent, const TPostRender& rPrevious)
+{
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
+	}
+}
+
 // Grows capacity while preserving existing data. Growth strategy: 2 * capacity + 1.
 template <typename TStruct, typename TTuple>
 void GrowCapacityWithCopy(TStruct& rStruct, int64_t iNewCapacity, int64_t iCurrentCount, TTuple&& members)

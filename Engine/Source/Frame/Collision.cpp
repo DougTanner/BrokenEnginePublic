@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "Collision.h"
-#include "Frame/HealthDamage.h"
 #include "Memory/MemoryManager.h"
 #include "Profile/ProfileManager.h"
 
@@ -97,11 +96,11 @@ ZoneRange Collision::CalculateObjectZoneRange(const CollisionLayer& rLayer, int6
 	return CalculateZoneRange(fMinX, fMaxX, fMinY, fMaxY, rLayer.pfRadii[iIndex]);
 }
 
-void Collision::InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex, const ZoneRange& range, bool bIsLayerA)
+void Collision::InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex, const ZoneRange& rRange, bool bIsLayerA)
 {
-	for (int32_t y = range.iStartY; y <= range.iEndY; ++y)
+	for (int32_t y = rRange.iStartY; y <= rRange.iEndY; ++y)
 	{
-		for (int32_t x = range.iStartX; x <= range.iEndX; ++x)
+		for (int32_t x = rRange.iStartX; x <= rRange.iEndX; ++x)
 		{
 			ZonePair& rZonePair = rPairZones.zones[y][x];
 			if (bIsLayerA)

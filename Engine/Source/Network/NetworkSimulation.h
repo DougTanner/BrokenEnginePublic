@@ -119,15 +119,14 @@ inline bool ShouldDrop(const NetworkSimulationConfig& rConfig)
 // Enqueue a received unreliable packet into the delay queue, or drop it.
 // Reliable packets are passed through immediately via HandleReliable.
 template <typename FnHandleReliable>
-inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const NetworkSimulationConfig& rSimConfig,
-	ENetEvent& rEvent, FnHandleReliable HandleReliable)
+inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const NetworkSimulationConfig& rSimConfig, ENetEvent& rEvent, FnHandleReliable HandleReliable)
 {
 	bool bUnreliable = NetworkManager::IsUnreliableChannel(rEvent.channelID);
 	if (bUnreliable)
 	{
 		if (ShouldDrop(rSimConfig))
 		{
-			Log(kLogNetwork, "NetworkSimulation dropped unreliable packet channel: {} size: {}", rEvent.channelID, rEvent.packet->dataLength); // DT: TEMP
+			Log(kLogNetwork, "NetworkSimulation dropped unreliable packet channel: {} size: {}", rEvent.channelID, rEvent.packet->dataLength);
 			enet_packet_destroy(rEvent.packet);
 			return;
 		}

@@ -83,7 +83,6 @@ void ModelVertexOutput(vec3 f3LocalPosition, vec3 f3LocalNormal, ModelLayout mod
 	vec3 f3WorldNormal = normalize(Transform(vec4(f3LocalNormal, 0.0f), model.f3x4TransformNormal));
 
 	// IMPORTANT: Do not Y-axis flip here
-	// f3WorldPosition.y = -f3WorldPosition.y;
 
 	f3OutWorldPosition = f3WorldPosition;
 	f3OutNormal = f3WorldNormal;
@@ -109,30 +108,6 @@ void ModelVertexOutput(vec3 f3LocalPosition, vec3 f3LocalNormal, ModelLayout mod
 	else
 	{
 		// Mode 2: Shadow projection
-		float fSunriseOffset = globalLayout.fShadowSunriseStretch;
-		float fSunsetOffset = globalLayout.fShadowSunsetStretch;
-
-		// Cubic falloff for softer shadow transition
-		float fSunriseOffsetCubed = fSunriseOffset * fSunriseOffset * fSunriseOffset;
-		float fSunsetOffsetCubed = fSunsetOffset * fSunsetOffset * fSunsetOffset;
-		float fShadowOffset = fSunriseOffsetCubed + fSunsetOffsetCubed;
-
-		// Translation: shift entire shadow opposite to sun direction
-		vec2 f2ShadowDirection = -globalLayout.f4SunNormal.xy;
-		vec2 f2Translation = fShadowOffset * f2ShadowDirection;
-
-		// Differential stretch: vertices further from object center stretch more
-		float fSunriseDiff = max(0.0f, model.f4Position.x - f3WorldPosition.x);
-		float fSunsetDiff = max(0.0f, f3WorldPosition.x - model.f4Position.x);
-		float fStretchX = -(0.5f + fSunriseDiff) * fSunriseOffsetCubed + (0.5f + fSunsetDiff) * fSunsetOffsetCubed;
-
-		vec3 f3ShadowPosition = vec3(
-			f3WorldPosition.x + f2Translation.x + fStretchX,
-			f3WorldPosition.y + f2Translation.y,
-			f3WorldPosition.z
-		);
-
-		vec2 f2VisibleAreaUV = WorldToVisibleArea(f3ShadowPosition, globalLayout.f4VisibleArea);
-		gl_Position = vec4(2.0f * f2VisibleAreaUV.x - 1.0f, 1.0f - 2.0f * f2VisibleAreaUV.y, 0.0f, 1.0f);
+		gl_Position = ShadowStretchProjection(globalLayout, f3WorldPosition, model.f4Position.xyz);
 	}
 }

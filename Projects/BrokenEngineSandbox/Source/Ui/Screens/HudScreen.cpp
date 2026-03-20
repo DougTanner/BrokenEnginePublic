@@ -84,30 +84,25 @@ void HudScreen::Render()
 	ImGuiIO& rIo = ImGui::GetIO();
 	ImDrawList* pDrawList = ImGui::GetBackgroundDrawList();
 
-	RenderShieldBar(pDrawList, rIo.DisplaySize);
-	RenderArmorBar(pDrawList, rIo.DisplaySize);
+	std::optional<int64_t> oIdx = gpGame->HumanPlayerIndex(*gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers);
+	if (oIdx)
+	{
+		PlayersPostRender& rPlayers = *gpGame->CurrentFrame(gpGame->mHumanGridCoord).postRender.pPlayers;
+		RenderBar(pDrawList, rIo.DisplaySize, rPlayers.pfShields[*oIdx], kfShieldHalfWidthPerPoint, -1.0f, kuiShieldColor, mShieldIconVkDescriptorSet);
+		RenderBar(pDrawList, rIo.DisplaySize, rPlayers.pfArmors[*oIdx], kfArmorHalfWidthPerPoint, 1.0f, kuiArmorColor, mArmorIconVkDescriptorSet);
+	}
 }
 
-void HudScreen::RenderShieldBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize)
+void HudScreen::RenderBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize, float fValue, float fHalfWidthPerPoint, float fBarYSign, ImU32 uiBarColor, VkDescriptorSet vkIconDescriptorSet)
 {
 	float fAspectRatio = engine::gpSwapchainManager->mfAspectRatio;
 
-	std::optional<int64_t> oIdx = gpGame->HumanPlayerIndex(*gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers);
-	if (!oIdx)
-	{
-		return;
-	}
-
-	// Get player shield value and calculate half-width (bar extends both directions from center)
-	float fShield = gpGame->CurrentFrame(gpGame->mHumanGridCoord).postRender.pPlayers->pfShields[*oIdx];
-	float fHalfWidth = std::max(kfShieldHalfWidthPerPoint * fShield, 0.001f);
+	float fHalfWidth = std::max(fHalfWidthPerPoint * fValue, 0.001f);
 
 	// Calculate position (centered horizontally, near bottom)
 	float fCenterX = rDisplaySize.x * 0.5f;
 	float fBottomY = rDisplaySize.y * (1.0f - kfBottomPadding);
-
-	// Shield bar is in the upper row of the two-row layout
-	float fBarCenterY = fBottomY - rDisplaySize.y * kfBarSpacing * 0.5f;
+	float fBarCenterY = fBottomY + fBarYSign * rDisplaySize.y * kfBarSpacing * 0.5f;
 
 	// Convert normalized sizes to pixels
 	float fBarHeightPixels = rDisplaySize.y * kfBarHeight;
@@ -124,69 +119,18 @@ void HudScreen::RenderShieldBar(ImDrawList* pDrawList, const ImVec2& rDisplaySiz
 	// Left end cap (white)
 	pDrawList->AddRectFilled(ImVec2(fBarLeft - fCapWidth, fBarTop), ImVec2(fBarLeft, fBarBottom), kuiWhiteColor);
 
-	// Shield bar (blue)
-	pDrawList->AddRectFilled(ImVec2(fBarLeft, fBarTop), ImVec2(fBarRight, fBarBottom), kuiShieldColor);
+	// Bar fill
+	pDrawList->AddRectFilled(ImVec2(fBarLeft, fBarTop), ImVec2(fBarRight, fBarBottom), uiBarColor);
 
 	// Right end cap (white)
 	pDrawList->AddRectFilled(ImVec2(fBarRight, fBarTop), ImVec2(fBarRight + fCapWidth, fBarBottom), kuiWhiteColor);
 
-	// Shield icon (centered, square)
-	if (mShieldIconVkDescriptorSet != VK_NULL_HANDLE)
+	// Icon (centered, square)
+	if (vkIconDescriptorSet != VK_NULL_HANDLE)
 	{
 		float fIconLeft = fCenterX - fIconSizePixels * 0.5f;
 		float fIconTop = fBarCenterY - fIconSizePixels * 0.5f;
-		pDrawList->AddImage(mShieldIconVkDescriptorSet, ImVec2(fIconLeft, fIconTop), ImVec2(fIconLeft + fIconSizePixels, fIconTop + fIconSizePixels));
-	}
-}
-
-void HudScreen::RenderArmorBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize)
-{
-	float fAspectRatio = engine::gpSwapchainManager->mfAspectRatio;
-
-	std::optional<int64_t> oIdx = gpGame->HumanPlayerIndex(*gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers);
-	if (!oIdx)
-	{
-		return;
-	}
-
-	// Get player armor value and calculate half-width (bar extends both directions from center)
-	float fArmor = gpGame->CurrentFrame(gpGame->mHumanGridCoord).postRender.pPlayers->pfArmors[*oIdx];
-	float fHalfWidth = std::max(kfArmorHalfWidthPerPoint * fArmor, 0.001f);
-
-	// Calculate position (centered horizontally, near bottom)
-	float fCenterX = rDisplaySize.x * 0.5f;
-	float fBottomY = rDisplaySize.y * (1.0f - kfBottomPadding);
-
-	// Armor bar is in the lower row of the two-row layout
-	float fBarCenterY = fBottomY + rDisplaySize.y * kfBarSpacing * 0.5f;
-
-	// Convert normalized sizes to pixels
-	float fBarHeightPixels = rDisplaySize.y * kfBarHeight;
-	float fCapWidth = rDisplaySize.y * kfBarCapWidth;
-	float fHalfWidthPixels = rDisplaySize.x * fHalfWidth / fAspectRatio;
-	float fIconSizePixels = rDisplaySize.y * kfIconSize;
-
-	// Bar extends both directions from center
-	float fBarLeft = fCenterX - fHalfWidthPixels;
-	float fBarRight = fCenterX + fHalfWidthPixels;
-	float fBarTop = fBarCenterY - fBarHeightPixels * 0.5f;
-	float fBarBottom = fBarCenterY + fBarHeightPixels * 0.5f;
-
-	// Left end cap (white)
-	pDrawList->AddRectFilled(ImVec2(fBarLeft - fCapWidth, fBarTop), ImVec2(fBarLeft, fBarBottom), kuiWhiteColor);
-
-	// Armor bar (red)
-	pDrawList->AddRectFilled(ImVec2(fBarLeft, fBarTop), ImVec2(fBarRight, fBarBottom), kuiArmorColor);
-
-	// Right end cap (white)
-	pDrawList->AddRectFilled(ImVec2(fBarRight, fBarTop), ImVec2(fBarRight + fCapWidth, fBarBottom), kuiWhiteColor);
-
-	// Armor icon (centered, square)
-	if (mArmorIconVkDescriptorSet != VK_NULL_HANDLE)
-	{
-		float fIconLeft = fCenterX - fIconSizePixels * 0.5f;
-		float fIconTop = fBarCenterY - fIconSizePixels * 0.5f;
-		pDrawList->AddImage(mArmorIconVkDescriptorSet, ImVec2(fIconLeft, fIconTop), ImVec2(fIconLeft + fIconSizePixels, fIconTop + fIconSizePixels));
+		pDrawList->AddImage(vkIconDescriptorSet, ImVec2(fIconLeft, fIconTop), ImVec2(fIconLeft + fIconSizePixels, fIconTop + fIconSizePixels));
 	}
 }
 

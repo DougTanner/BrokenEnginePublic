@@ -4,7 +4,7 @@ GDI-based monitoring window for the headless server build (`BT_SERVER` only). Re
 
 ## Key Systems
 
-- **UpdateServerDisplayStats()** - Aggregates entity counts and memory statistics into profile counters each tick
+- **ServerUpdateDisplayStats()** - Aggregates entity counts (Players, Spaceships, Blasters, Missiles, Targets, Explosions) and mimalloc memory statistics into profile counters each tick
 - **PaintServerDisplay()** - Paints a fixed-width stats panel on the left and a centered grid map on the right, highlighting cells with connected clients
 
 ## Architecture Notes

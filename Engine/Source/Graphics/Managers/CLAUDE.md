@@ -10,13 +10,13 @@ See also: [Graphics Pipeline](../../../../Documents/Architecture/GraphicsPipelin
 
 - **InstanceManager** (`gpInstanceManager`) - Vulkan instance creation and physical device selection
 - **DeviceManager** (`gpDeviceManager`) - Logical device, queues, descriptor pool, VmaAllocator, pipeline cache (loaded from disk on startup, saved on shutdown with device-UUID validation), and shared one-shot command pool/fence used by `OneShotCommandBuffer`
-- **SwapchainManager** (`gpSwapchainManager`) - Swapchain, framebuffers, depth textures, synchronization
-- **CommandBufferManager** (`gpCommandBufferManager`) - Command pool and buffer management (Global/Main types)
-- **BufferManager** (`gpBufferManager`) - GPU buffer creation (vertex, index, uniform, storage)
-- **TextureManager** (`gpTextureManager`) - Texture lifecycle, samplers, and delegates to sub-objects: TextureDescriptors (bindless descriptor Set 0), TextureCache (GPU readback, file caching, BRDF LUT), RenderTargetTextures (shadows, lighting, smoke, wind)
+- **SwapchainManager** (`gpSwapchainManager`) - Swapchain, framebuffers, depth/multisampling textures, main render pass, image acquisition/presentation synchronization (semaphores, fences), and `PersistentWorker` for async presentation
+- **CommandBufferManager** (`gpCommandBufferManager`) - Command pool and buffer management (Global/Main/ImGui), record-once command buffers, submission via `PersistentWorker` threads, and particle compute synchronization via semaphore
+- **BufferManager** (`gpBufferManager`) - GPU buffer lifecycle (vertex, index, uniform, storage), dynamic storage buffers with auto-resize per collection, per-frame skinning allocations (mesh data + joint matrices with auto-grow), and hierarchical dispatch buffers for smoke/wind compute
+- **TextureManager** (`gpTextureManager`) - Texture lifecycle, samplers, and delegates to sub-objects: TextureDescriptors (bindless descriptor Set 0), TextureCache (GPU readback, file caching, BRDF LUT), RenderTargetTextures (shadows, smoke, wind, terrain in `RenderTargetTextures.cpp`; lighting blur passes and framebuffers in `RenderTargetTexturesLighting.cpp`)
 - **TextureUploadManager** (`gpTextureUploadManager`) - Background GPU texture uploads on a dedicated transfer queue
 - **TextManager** (`gpTextManager`) - Font rendering and text layout
-- **PipelineManager** (`gpPipelineManager`) - SPIR-V shader loading, graphics/compute pipeline creation; delegates dynamic per-collection pipelines to DynamicPipelines sub-object
+- **PipelineManager** (`gpPipelineManager`) - SPIR-V shader loading, graphics/compute pipeline creation; delegates dynamic per-collection pipelines to `DynamicPipelines` sub-object. `DynamicPipelines::UpdateAllModelPipelineDescriptors` fans out descriptor updates across all model and shadow pipeline maps, called by `BufferManager` after skinning buffer growth
 - **ParticleManager** (`gpParticleManager`) - GPU particle system with compute shaders
 - **ImGuiManager** (`gpImGuiManager`) - Dear ImGui UI rendering (menus, dialogs, HUD)
 

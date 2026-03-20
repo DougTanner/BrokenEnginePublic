@@ -41,22 +41,6 @@ struct GridCoord
 
 inline constexpr GridCoord kOriginCoord {0, 0};
 
-inline constexpr GridCoord kNeighborOffsets[] =
-{
-	{-1, -1}, {0, -1}, {1, -1},
-	{-1,  0},          {1,  0},
-	{-1,  1}, {0,  1}, {1,  1},
-};
-
-inline void ComputeQuadrantOffsets(float fPositionX, float fPositionY, float fCenterX, float fCenterY, GridCoord (&pOffsets)[3])
-{
-	int32_t iDirX = (fPositionX >= fCenterX) ? 1 : -1;
-	int32_t iDirY = (fPositionY >= fCenterY) ? 1 : -1;
-	pOffsets[0] = {iDirX, 0};
-	pOffsets[1] = {0, iDirY};
-	pOffsets[2] = {iDirX, iDirY};
-}
-
 } // namespace engine
 
 template<>

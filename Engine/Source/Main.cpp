@@ -8,7 +8,6 @@ namespace engine
 {
 
 static bool sbQuit = false;
-static int64_t siBackgroundThreadCount = 0;
 
 #if defined(BT_CLIENT)
 static HCURSOR sHcursorArrow = nullptr;
@@ -75,12 +74,12 @@ void MainThread(HINSTANCE hinstance)
 
 #if defined(BT_CLIENT)
 	// Save one core for the main thread, and one core for the render thread
-	siBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1 - 1);
+	int64_t iBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1 - 1);
 #else
 	// Server has no render thread
-	siBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1);
+	int64_t iBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1);
 #endif
-	auto pMultithreading = std::make_unique<common::Multithreading>(siBackgroundThreadCount);
+	auto pMultithreading = std::make_unique<common::Multithreading>(iBackgroundThreadCount);
 
 	// Profile
 	auto pProfileManager = std::make_unique<game::ProfileManager>();
@@ -615,13 +614,15 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANC
 	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
-	// Windows::Foundation::Initialize is required for XAudio2 (and possibly gampads as well)
+#if defined(BT_CLIENT)
+	// Windows::Foundation::Initialize is required for XAudio2 (and possibly gamepads as well)
 	HRESULT hresult = Windows::Foundation::Initialize(RO_INIT_MULTITHREADED);
 	if (hresult != S_OK) [[unlikely]]
 	{
 		MessageBox(nullptr, common::HresultToString(hresult).data(), "Windows::Foundation::Initialize", MB_OK | MB_SYSTEMMODAL);
 		return 0;
 	}
+#endif
 
 #if defined(BT_CLIENT)
 	auto pTextureUploadManager = std::make_unique<engine::TextureUploadManager>();
@@ -648,8 +649,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANC
 		}
 	}
 
+#if defined(BT_CLIENT)
 	Log("Windows foundation uninitialize");
 	Windows::Foundation::Uninitialize();
+#endif
 
 	return 0;
 }

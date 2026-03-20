@@ -2,6 +2,8 @@
 
 #include "Network/Client/Client.h"
 
+#if defined(BT_CLIENT)
+
 #include "Network/NetworkCursor.h"
 
 namespace engine
@@ -281,11 +283,19 @@ float Client::GetPacketLossPercent()
 		}
 	}
 	int64_t iExpected = kiTickRate * iActiveSlots;
-	if (iExpected <= 0) return 0.0f;
+	if (iExpected <= 0)
+	{
+		return 0.0f;
+	}
 	int64_t iReceived = mFramesReceived.Get();
 	int64_t iLost = iExpected - iReceived;
-	if (iLost <= 0) return 0.0f;
+	if (iLost <= 0)
+	{
+		return 0.0f;
+	}
 	return static_cast<float>(iLost) * 100.0f / static_cast<float>(iExpected);
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

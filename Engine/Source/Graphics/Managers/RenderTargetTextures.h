@@ -11,6 +11,8 @@ struct RenderTargetTextures
 
 	void DestroyLightingTextures();
 	void CreateLightingTextures();
+	void CreateBlurTextures(int64_t iLightingTextureX, int64_t iLightingTextureY, float fDownscale, int64_t iMaxCount);
+	void CreateBlurRenderPassAndFramebuffer(int64_t iLevel, int64_t iBlurTextureX, int64_t iBlurTextureY);
 	void CreateShadowTextures();
 	void CreateSmokeTextures();
 	void CreateWindTextures();

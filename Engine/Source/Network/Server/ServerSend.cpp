@@ -3,7 +3,6 @@
 #include "Network/Server/Server.h"
 
 #include "Memory/MemoryManager.h"
-#include "Network/NetworkCursor.h"
 
 namespace engine
 {

@@ -3,7 +3,7 @@
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 
-layout (local_size_x = 32) in;
+layout (local_size_x = kiParticleUpdateGroupSize) in;
 
 layout (binding = 0) uniform globalUniform
 {

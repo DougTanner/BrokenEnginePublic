@@ -49,14 +49,6 @@ AreaVertices XM_CALLCONV CalculateArea(FXMVECTOR vecPosition, FXMVECTOR vecDirec
 	return AreaVertices {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight};
 }
 
-bool XM_CALLCONV InsideAreaVertices(FXMVECTOR vecPosition, const AreaVertices& rAreaVertices)
-{
-	float fDist = 0.0f;
-	bool bFirst = TriangleTests::Intersects(XMVectorSetZ(vecPosition, 0.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), rAreaVertices.vecTopRight, rAreaVertices.vecTopLeft, rAreaVertices.vecBottomLeft, fDist);
-	bool bSecond = TriangleTests::Intersects(XMVectorSetZ(vecPosition, 0.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), rAreaVertices.vecBottomLeft, rAreaVertices.vecBottomRight, rAreaVertices.vecTopRight, fDist);
-	return bFirst || bSecond;
-}
-
 XMVECTOR XM_CALLCONV RotateTowardsPercent(FXMVECTOR vecDirection, FXMVECTOR vecTowards, float fPercent)
 {
 	float fCrossZ = XMVectorGetZ(XMVector3Cross(vecTowards, vecDirection));
@@ -121,6 +113,26 @@ bool XM_CALLCONV InsideArea(FXMVECTOR vecPosition, FXMVECTOR vecArea)
 	XMVECTOR vecB = XMVectorPermute<4, 7, 0, 1>(vecPosition, vecArea);  // (minX, minY, posX, posY)
 	uint32_t uiCR = XMVector4GreaterR(vecA, vecB);
 	return XMComparisonAllTrue(uiCR);
+}
+
+XMVECTOR XM_CALLCONV ColorToVector(uint32_t uiColor)
+{
+	static constexpr float kfMultiplier = 1.0f / 255.0f;
+	return XMVectorSet(kfMultiplier * static_cast<float>(uiColor >> 24), kfMultiplier * static_cast<float>((uiColor & 0x00FF0000) >> 16), kfMultiplier * static_cast<float>((uiColor & 0x0000FF00) >> 8), kfMultiplier * static_cast<float>(uiColor & 0x000000FF));
+}
+
+uint32_t XM_CALLCONV ColorToUint(FXMVECTOR vecColor)
+{
+	XMFLOAT4A f4Color {};
+	XMStoreFloat4A(&f4Color, vecColor);
+
+	static constexpr float kfMultiplier = 255.0f;
+	return static_cast<uint32_t>(kfMultiplier * f4Color.x) << 24 | static_cast<uint32_t>(kfMultiplier * f4Color.y) << 16 | static_cast<uint32_t>(kfMultiplier * f4Color.z) << 8 | static_cast<uint32_t>(kfMultiplier * f4Color.w);
+}
+
+uint32_t ColorLerp(uint32_t uiA, uint32_t uiB, float fPercent)
+{
+	return ColorToUint(XMVectorLerp(ColorToVector(uiA), ColorToVector(uiB), fPercent));
 }
 
 } // namespace common

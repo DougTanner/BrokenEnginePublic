@@ -134,7 +134,7 @@ private:
 	static void SetupZones(FXMVECTOR vecArea);
 	static ZoneRange CalculateZoneRange(float fMinX, float fMaxX, float fMinY, float fMaxY, float fRadius);
 	static ZoneRange CalculateObjectZoneRange(const CollisionLayer& rLayer, int64_t iIndex);
-	static void InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex, const ZoneRange& range, bool bIsLayerA);
+	static void InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex, const ZoneRange& rRange, bool bIsLayerA);
 	static void CollideLayerPair(const Alignments& rAlignments, LayerPairZones& rPairZones);
 	static void AllocateResultStorage();
 

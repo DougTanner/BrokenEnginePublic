@@ -2,7 +2,8 @@
 
 #include "Network/Client/Client.h"
 
-#include "Memory/MemoryManager.h"
+#if defined(BT_CLIENT)
+
 #include "Network/NetworkCursor.h"
 
 namespace engine
@@ -37,6 +38,17 @@ static std::unique_ptr<game::Frame> DecompressAndReadFrame(const uint8_t*& pCurs
 	std::unique_ptr<game::Frame> pFrame = std::make_unique<game::Frame>();
 	pFrame->ServerRead(frameStream);
 	return pFrame;
+}
+
+bool Client::RemoveCancelledSubscription(GridCoord coord)
+{
+	auto it = std::ranges::find(mCancelledSubscriptions, coord);
+	if (it != mCancelledSubscriptions.end())
+	{
+		mCancelledSubscriptions.erase(it);
+		return true;
+	}
+	return false;
 }
 
 void Client::ClearSubscribingPlaceholder(GridCoord coord)
@@ -98,11 +110,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 		// Validate coord matches to prevent stale full state from a previous subscription
 		if (rSlot.coord != coord)
 		{
-			auto cancelIt = std::ranges::find(mCancelledSubscriptions, coord);
-			if (cancelIt != mCancelledSubscriptions.end())
-			{
-				mCancelledSubscriptions.erase(cancelIt);
-			}
+			RemoveCancelledSubscription(coord);
 			SendUnsubscribeOnly(uiSlotIndex);
 			Log(kLogNetwork, "Client::ServerCoordFullState coord mismatch, sent unsubscribe for ghost Slot: {} Coord: ({},{}) SlotCoord: ({},{})", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y);
 			return;
@@ -120,11 +128,8 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	}
 
 	// If this coord was cancelled while kSubscribing, reject the full state
-	std::vector<GridCoord>& rCancelled = mCancelledSubscriptions;
-	auto cancelIt = std::ranges::find(rCancelled, coord);
-	if (cancelIt != rCancelled.end())
+	if (RemoveCancelledSubscription(coord))
 	{
-		rCancelled.erase(cancelIt);
 		SendUnsubscribeOnly(uiSlotIndex);
 		Log(kLogNetwork, "Client::ServerCoordFullState cancelled, sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		rSlot = {};
@@ -314,13 +319,9 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	bool bTargetIsPlaceholder = (rSlot.eState == CoordSubscriptionState::kSubscribing && rSlot.coord == coord);
 	if (rSlot.eState != CoordSubscriptionState::kUnsubscribed && !bTargetIsPlaceholder)
 	{
-		Log(kLogNetwork, "Client::ServerSubscribeAccept Ignoring Slot: {} Coord: ({},{}) SlotCoord: ({},{}) State: {}", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y, static_cast<int>(rSlot.eState)); // DT TEMP
+		Log(kLogNetwork, "Client::ServerSubscribeAccept Ignoring Slot: {} Coord: ({},{}) SlotCoord: ({},{}) State: {}", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y, static_cast<int>(rSlot.eState));
 		SendUnsubscribeOnly(uiSlotIndex);
-		auto cancelIt = std::ranges::find(mCancelledSubscriptions, coord);
-		if (cancelIt != mCancelledSubscriptions.end())
-		{
-			mCancelledSubscriptions.erase(cancelIt);
-		}
+		RemoveCancelledSubscription(coord);
 		Log(kLogNetwork, "Client::ServerSubscribeAccept sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		return;
 	}
@@ -339,11 +340,8 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	rSlot.ackState.uiEpoch = uiEpoch;
 
 	// If this coord was cancelled while kSubscribing, immediately unsubscribe
-	std::vector<GridCoord>& rCancelled = mCancelledSubscriptions;
-	auto cancelIt = std::ranges::find(rCancelled, coord);
-	if (cancelIt != rCancelled.end())
+	if (RemoveCancelledSubscription(coord))
 	{
-		rCancelled.erase(cancelIt);
 		Log(kLogNetwork, "Client::ServerSubscribeAccept Cancelled Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		SendUnsubscribe(uiSlotIndex);
 		return;
@@ -390,3 +388,5 @@ void Client::ServerUnsubscribeAck(const uint8_t* pData, size_t iSize)
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

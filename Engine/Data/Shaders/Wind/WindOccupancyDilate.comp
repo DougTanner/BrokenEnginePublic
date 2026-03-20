@@ -2,7 +2,7 @@
 
 #include "ShaderLayouts.h"
 
-layout (local_size_x = 256) in;
+layout (local_size_x = kiOccupancyDilateGroupSize) in;
 
 // Uniforms
 layout (binding = 0) uniform globalUniform

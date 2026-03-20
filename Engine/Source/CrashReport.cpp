@@ -1,7 +1,5 @@
 #include "CrashReport.h"
 
-#include "Memory/MemoryManager.h"
-
 #include "Game.h"
 
 namespace engine
@@ -15,7 +13,7 @@ void HandleException(std::optional<const std::exception*> pException)
 
 	int iResult = MessageBox(nullptr, "Save crash report to desktop?", game::kGameName.data(), MB_YESNO | MB_SYSTEMMODAL);
 
-	std::wstring gameName = common::ToWstring(game::kGameName);
+	std::wstring gameName(game::kGameName.begin(), game::kGameName.end());
 
 	static wchar_t spcPath[MAX_PATH + 1] {};
 	if (iResult == IDYES)
@@ -90,7 +88,13 @@ void ReadDxDiag()
 		Microsoft::WRL::ComPtr<IDxDiagProvider> pIdxDiagProvider;
 		CHECK_HRESULT(CoCreateInstance(CLSID_DxDiagProvider, nullptr, CLSCTX_INPROC_SERVER, IID_IDxDiagProvider, reinterpret_cast<void**>(pIdxDiagProvider.GetAddressOf())));
 
-		DXDIAG_INIT_PARAMS dxdiagInitParams {.dwSize = sizeof(DXDIAG_INIT_PARAMS), .dwDxDiagHeaderVersion = DXDIAG_DX9_SDK_VERSION, .bAllowWHQLChecks = false, .pReserved = nullptr,};
+		DXDIAG_INIT_PARAMS dxdiagInitParams
+		{
+			.dwSize = sizeof(DXDIAG_INIT_PARAMS),
+			.dwDxDiagHeaderVersion = DXDIAG_DX9_SDK_VERSION,
+			.bAllowWHQLChecks = false,
+			.pReserved = nullptr,
+		};
 		CHECK_HRESULT(pIdxDiagProvider->Initialize(&dxdiagInitParams));
 
 		Microsoft::WRL::ComPtr<IDxDiagContainer> pRoot;

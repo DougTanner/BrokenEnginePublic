@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 namespace game
 {
 
@@ -73,6 +75,7 @@ public:
 	void SendUnsubscribe(int64_t iSlot);
 	void SendUnsubscribeOnly(int64_t iSlot);
 	void SendResyncRequest();
+	void SendPauseRequest(bool bPaused);
 	void Flush();
 	void Disconnect();
 	void SetDesyncDebugMode(bool bEnabled) { mbDesyncDebugMode = bEnabled; }
@@ -110,6 +113,7 @@ private:
 	void ServerUnsubscribeAck(const uint8_t* pData, size_t iSize);
 	void SendHello();
 
+	bool RemoveCancelledSubscription(GridCoord coord);
 	void ClearSubscribingPlaceholder(GridCoord coord);
 	void TrackReceivedTick(int64_t iSlot, int64_t iTick);
 
@@ -162,3 +166,5 @@ private:
 inline Client* gpClient = nullptr;
 
 } // namespace engine
+
+#endif // BT_CLIENT

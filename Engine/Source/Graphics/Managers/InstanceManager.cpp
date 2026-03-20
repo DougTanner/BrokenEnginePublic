@@ -4,9 +4,6 @@
 
 #include "Game.h"
 
-#include "Data/Raw.h"
-#include "Data/Texture.h"
-
 namespace engine
 {
 
@@ -252,7 +249,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 	if (vkResultCreateInstance != VK_SUCCESS)
 	{
-		auto pcResult = gEnumToString.Convert(vkResultCreateInstance, common::gpThreadLocal->mWorkbuffer);
+		common::ScopedWorkbufferPop pcResult = gEnumToString.Convert(vkResultCreateInstance, common::gpThreadLocal->mWorkbuffer);
 		Log(kLogError, "vkCreateInstance failed with {}, Vulkan 1.2 is required", pcResult);
 		std::string errorMessage = "Failed to create Vulkan instance.\n\nVulkan 1.2 or higher is required.\n\nError: ";
 		errorMessage += static_cast<const char*>(pcResult);
@@ -299,7 +296,14 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	};
 	CHECK_VK(vkCreateWin32SurfaceKHR(mVkInstance, &vkWin32SurfaceCreateInfoKHR, nullptr, &mVkSurfaceKHR));
 
-	// Look for and select a graphics card in the system that supports the features we need
+	SelectPhysicalDevice();
+	SelectQueueFamilies();
+	SelectSurfaceFormat();
+	SelectDepthFormat();
+}
+
+void InstanceManager::SelectPhysicalDevice()
+{
 	uint32_t uiPhysicalDeviceCount = 0;
 	Log("\nEnumerate physical devices");
 	CHECK_VK(vkEnumeratePhysicalDevices(mVkInstance, &uiPhysicalDeviceCount, nullptr));
@@ -323,10 +327,10 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		Log("    \"{}\"{}", vkPhysicalDeviceProperties.deviceName, vkPhysicalDeviceProperties.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? " (Discrete) " : "");
 
 		// Validate device supports required Vulkan API version
-		uint32_t deviceApiVersion = vkPhysicalDeviceProperties.apiVersion;
-		if (deviceApiVersion < VK_API_VERSION_1_2)
+		uint32_t uiDeviceApiVersion = vkPhysicalDeviceProperties.apiVersion;
+		if (uiDeviceApiVersion < VK_API_VERSION_1_2)
 		{
-			Log("      Skipping device: API version {}.{}.{} < required 1.2.0", VK_VERSION_MAJOR(deviceApiVersion), VK_VERSION_MINOR(deviceApiVersion), VK_VERSION_PATCH(deviceApiVersion));
+			Log("      Skipping device: API version {}.{}.{} < required 1.2.0", VK_VERSION_MAJOR(uiDeviceApiVersion), VK_VERSION_MINOR(uiDeviceApiVersion), VK_VERSION_PATCH(uiDeviceApiVersion));
 			continue;
 		}
 
@@ -418,9 +422,10 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	{
 		gSampleCount.Reset<VkSampleCountFlagBits>(meMaxMultisampleCount);
 	}
+}
 
-	// There are different types of queues that originate from different queue families and each family of queues allows only a subset of commands
-	// For example, there could be a queue family that only allows processing of compute commands or one that only allows memory transfer related commands
+void InstanceManager::SelectQueueFamilies()
+{
 	uint32_t uiPhysicalDeviceQueueFamilyCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(mVkPhysicalDevice, &uiPhysicalDeviceQueueFamilyCount, nullptr);
 	ASSERT(uiPhysicalDeviceQueueFamilyCount != 0);
@@ -491,8 +496,10 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 	ASSERT(miGraphicsQueueFamilyIndex != UINT32_MAX && miPresentQueueFamilyIndex != UINT32_MAX);
 	Log("Selected queue families: graphics {}, present {}, transfer {}", miGraphicsQueueFamilyIndex, miPresentQueueFamilyIndex, miTransferQueueFamilyIndex);
+}
 
-	// Get the list of surface formats that are supported
+void InstanceManager::SelectSurfaceFormat()
+{
 	uint32_t uiFormatCount = 0;
 	CHECK_VK(vkGetPhysicalDeviceSurfaceFormatsKHR(mVkPhysicalDevice, mVkSurfaceKHR, &uiFormatCount, nullptr));
 	ASSERT(uiFormatCount != 0);
@@ -503,8 +510,8 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	Log("Surface formats ({}):", physicalDeviceSurfaceFormats.size());
 	for ([[maybe_unused]] const VkSurfaceFormatKHR& rVkSurfaceFormatKHR : physicalDeviceSurfaceFormats)
 	{
-		auto pcFormat = gEnumToString.Convert(rVkSurfaceFormatKHR.format, rWorkbuffer);
-		auto pcColorSpace = gEnumToString.Convert(rVkSurfaceFormatKHR.colorSpace, rWorkbuffer);
+		common::ScopedWorkbufferPop pcFormat = gEnumToString.Convert(rVkSurfaceFormatKHR.format, rWorkbuffer);
+		common::ScopedWorkbufferPop pcColorSpace = gEnumToString.Convert(rVkSurfaceFormatKHR.colorSpace, rWorkbuffer);
 		Log("  {} ({})", pcFormat, pcColorSpace);
 	}
 	Log("");
@@ -514,8 +521,8 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	{
 		mFramebufferVkFormat = VK_FORMAT_B8G8R8A8_UNORM;
 		{
-			auto pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
-			auto pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
+			common::ScopedWorkbufferPop pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
+			common::ScopedWorkbufferPop pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
 			Log("Selected framebuffer format: {} with color space: {} (no preferred format)\n", pcFormat, pcColorSpace);
 		}
 	}
@@ -530,8 +537,8 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 				mFramebufferVkColorSpace = rVkSurfaceFormatKHR.colorSpace;
 				bFoundPreferredFormat = true;
 				{
-					auto pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
-					auto pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
+					common::ScopedWorkbufferPop pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
+					common::ScopedWorkbufferPop pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
 					Log("Selected framebuffer format: {} with color space: {}\n", pcFormat, pcColorSpace);
 				}
 				break;
@@ -544,12 +551,17 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 			mFramebufferVkFormat = physicalDeviceSurfaceFormats.at(0).format;
 			mFramebufferVkColorSpace = physicalDeviceSurfaceFormats.at(0).colorSpace;
 			{
-				auto pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
-				auto pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
+				common::ScopedWorkbufferPop pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
+				common::ScopedWorkbufferPop pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
 				Log("Using fallback surface format: {} with color space: {} (preferred formats not available)\n", pcFormat, pcColorSpace);
 			}
 		}
 	}
+}
+
+void InstanceManager::SelectDepthFormat()
+{
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
 	// Prefer high precision depth formats
 	VkFormat pVkFormats[] {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM, VK_FORMAT_D16_UNORM_S8_UINT};

@@ -13,8 +13,7 @@ public:
 
 private:
 
-	void RenderShieldBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize);
-	void RenderArmorBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize);
+	void RenderBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize, float fValue, float fHalfWidthPerPoint, float fBarYSign, ImU32 uiBarColor, VkDescriptorSet vkIconDescriptorSet);
 
 	VkDescriptorSet mShieldIconVkDescriptorSet = VK_NULL_HANDLE;
 	VkDescriptorSet mArmorIconVkDescriptorSet = VK_NULL_HANDLE;

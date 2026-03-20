@@ -11,7 +11,7 @@
 namespace engine
 {
 
-constexpr AUDIO_ENGINE_FLAGS kAudioEngineFlags = AudioEngine_UseMasteringLimiter; //  | AudioEngine_Debug;
+constexpr AUDIO_ENGINE_FLAGS kAudioEngineFlags = AudioEngine_UseMasteringLimiter;
 
 AudioManager::AudioManager()
 {
@@ -235,6 +235,21 @@ void AudioManager::ClearStreamingVoices()
 	mStreamsToDestroy.clear();
 }
 
+void AudioManager::CreateMusicStream(common::crc_t audioCrc)
+{
+	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
+	IXAudio2SourceVoice* pVoice = nullptr;
+	mpAudioEngine->AllocateVoice(&rLazyChunk.header.audioHeader.waveFormat, SoundEffectInstance_Default, false, &pVoice);
+	if (pVoice != nullptr)
+	{
+		mpCurrentMusicStream = std::make_unique<StreamingVoice>(pVoice, &rLazyChunk);
+	}
+	else
+	{
+		Log(kLogAudio, "CreateMusicStream AllocateVoice failed for CRC {:#018x}", audioCrc);
+	}
+}
+
 void AudioManager::TransitionCurrentToPrevious()
 {
 	mpCurrentMusicStream->mFlags.Clear(StreamingVoiceFlags::kFadingIn);
@@ -262,14 +277,7 @@ void AudioManager::PlayMusic(common::crc_t audioCrc)
 	}
 
 	// Load new track as current
-	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
-	IXAudio2SourceVoice* pVoice = nullptr;
-	mpAudioEngine->AllocateVoice(&rLazyChunk.header.audioHeader.waveFormat, SoundEffectInstance_Default, false, &pVoice);
-	if (pVoice != nullptr)
-	{
-		// StreamingVoice takes ownership of pVoice
-		mpCurrentMusicStream = std::make_unique<StreamingVoice>(pVoice, &rLazyChunk);
-	}
+	CreateMusicStream(audioCrc);
 }
 
 void AudioManager::UpdateMusicStreams(float fDeltaTime)
@@ -359,6 +367,141 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 	CHECK_HRESULT(pVoice->SetFrequencyRatio(x3dAudioDspSettings.DopplerFactor * fPitch));
 }
 
+void AudioManager::UpdateStaticVoiceLifecycle(const game::Frame& rFrame, float fDeltaTime)
+{
+	const SoundsInterpolate& rSoundsInterpolate = rFrame.interpolate.sounds;
+	const SoundsPostRender& rSoundsPostRender = rFrame.postRender.sounds;
+
+	// Fade out and stop invalid static voices
+	for (int64_t i = 0; i < static_cast<int64_t>(mStaticVoices.size());)
+	{
+		StaticVoice& rVoice = mStaticVoices.at(i);
+
+		bool bValid = rSoundsInterpolate.idToIndexMap.contains(rVoice.mId);
+		if (bValid)
+		{
+			++i;
+			continue;
+		}
+
+		bool bDestroy = false;
+		if (rVoice.mfVolume <= 0.0f)
+		{
+			bDestroy = true;
+		}
+		if (rVoice.mFlags & StaticVoiceFlags::kFadingOut)
+		{
+			rVoice.mfFadeOutVolume -= fDeltaTime / rVoice.mfFadeOutTime;
+			if (rVoice.mfFadeOutVolume <= 0.0f)
+			{
+				bDestroy = true;
+			}
+		}
+		else
+		{
+			rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
+			rVoice.mfFadeOutVolume = 1.0f;
+		}
+
+		if (bDestroy)
+		{
+			if (i < static_cast<int64_t>(mStaticVoices.size()) - 1)
+			{
+				mStaticVoices.at(i) = std::move(mStaticVoices.back());
+			}
+			mStaticVoices.pop_back();
+		}
+		else
+		{
+			++i;
+		}
+	}
+
+	// Add new voices and sync existing voice volume/positions
+	for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
+	{
+		sound_t id = rSoundsPostRender.puiIds[i];
+		int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
+		float fVolume = rSoundsInterpolate.pfVolumes[iIndex];
+
+		// Find existing voice
+		StaticVoice* pExistingVoice = nullptr;
+		for (StaticVoice& rExisting : mStaticVoices)
+		{
+			if (rExisting.mId == id)
+			{
+				pExistingVoice = &rExisting;
+				break;
+			}
+		}
+
+		if (pExistingVoice != nullptr)
+		{
+			// Sync existing voice
+			pExistingVoice->mfVolume = fVolume;
+			pExistingVoice->mfPitch = rSoundsInterpolate.pfPitches[iIndex];
+			pExistingVoice->mVecPosition = rSoundsInterpolate.pVecPositions[iIndex];
+			pExistingVoice->mVecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
+			continue;
+		}
+
+		// Add new voice
+		if (fVolume <= 0.0f)
+		{
+			continue;
+		}
+		if (static_cast<int64_t>(mStaticVoices.size()) >= kiMaxStaticVoices)
+		{
+			Log(kLogAudio, "Max static voices reached ({}), skipping", kiMaxStaticVoices);
+			continue;
+		}
+
+		common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[iIndex];
+		IXAudio2SourceVoice* pVoice = nullptr;
+		if (StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine.get(), pVoice, uiCrc, false, true))
+		{
+			float fPitch = rSoundsInterpolate.pfPitches[iIndex];
+			float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
+			XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[iIndex];
+			XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
+			mStaticVoices.push_back(StaticVoice(pVoice, id, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity));
+		}
+	}
+}
+
+void AudioManager::UpdateListenerPosition(const game::Frame& rFrame)
+{
+	XMVECTOR vecListenerPos = XMVectorZero();
+	XMVECTOR vecListenerVel = XMVectorZero();
+	std::optional<int64_t> oHumanIndex = game::gpGame->HumanPlayerIndex(*rFrame.interpolate.pPlayers);
+	if (oHumanIndex.has_value())
+	{
+		int64_t iHumanIndex = oHumanIndex.value();
+		vecListenerPos = rFrame.interpolate.pPlayers->pVecPositions[iHumanIndex];
+
+		// Search postRender players for matching human ID to get interpolated velocity
+		game::player_t humanId = game::gpGame->HumanPlayerId();
+		const game::PlayersPostRender& rPostRenderPlayers = *rFrame.postRender.pPlayers;
+		for (int64_t i = 0; i < rPostRenderPlayers.iCount; ++i)
+		{
+			if (rPostRenderPlayers.puiIds[i] == humanId)
+			{
+				vecListenerVel = rPostRenderPlayers.pVecVelocities[i];
+				break;
+			}
+		}
+	}
+	mVecListenerPosition = vecListenerPos;
+	XMFLOAT3A f3Position {};
+	XMStoreFloat3A(&f3Position, vecListenerPos);
+	XMFLOAT3A f3Velocity {};
+	XMStoreFloat3A(&f3Velocity, vecListenerVel);
+	mX3dAudioListener.OrientFront = {0.0f, 0.0f, -1.0f};
+	mX3dAudioListener.OrientTop = {0.0f, -1.0f, 0.0f};
+	mX3dAudioListener.Position = f3Position;
+	mX3dAudioListener.Velocity = f3Velocity;
+}
+
 void AudioManager::Update(const game::Frame* pFrame)
 {
 	ScopedCpuProfile scopedCpuProfile(kCpuTimerAudio);
@@ -419,14 +562,7 @@ void AudioManager::Update(const game::Frame* pFrame)
 				TransitionCurrentToPrevious();
 
 				// Load next track as current
-				const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(nextTrackCrc);
-				IXAudio2SourceVoice* pVoice = nullptr;
-				mpAudioEngine->AllocateVoice(&rLazyChunk.header.audioHeader.waveFormat, SoundEffectInstance_Default, false, &pVoice);
-				if (pVoice != nullptr)
-				{
-					// StreamingVoice takes ownership of pVoice
-					mpCurrentMusicStream = std::make_unique<StreamingVoice>(pVoice, &rLazyChunk);
-				}
+				CreateMusicStream(nextTrackCrc);
 			}
 		}
 	}
@@ -435,135 +571,8 @@ void AudioManager::Update(const game::Frame* pFrame)
 
 	if (pFrame != nullptr)
 	{
-		const game::Frame& rFrame = *pFrame;
-		const SoundsInterpolate& rSoundsInterpolate = rFrame.interpolate.sounds;
-		const SoundsPostRender& rSoundsPostRender = rFrame.postRender.sounds;
-
-		// Fade out and stop invalid static voices
-		for (int64_t i = 0; i < static_cast<int64_t>(mStaticVoices.size());)
-		{
-			StaticVoice& rVoice = mStaticVoices.at(i);
-
-			bool bValid = rSoundsInterpolate.idToIndexMap.contains(rVoice.mId);
-			if (bValid)
-			{
-				++i;
-				continue;
-			}
-
-			bool bDestroy = false;
-			if (rVoice.mfVolume <= 0.0f)
-			{
-				bDestroy = true;
-			}
-			if (rVoice.mFlags & StaticVoiceFlags::kFadingOut)
-			{
-				rVoice.mfFadeOutVolume -= fDeltaTime / rVoice.mfFadeOutTime;
-				if (rVoice.mfFadeOutVolume <= 0.0f)
-				{
-					bDestroy = true;
-				}
-			}
-			else
-			{
-				rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
-				rVoice.mfFadeOutVolume = 1.0f;
-			}
-
-			if (bDestroy)
-			{
-				if (i < static_cast<int64_t>(mStaticVoices.size()) - 1)
-				{
-					mStaticVoices.at(i) = std::move(mStaticVoices.back());
-				}
-				mStaticVoices.pop_back();
-			}
-			else
-			{
-				++i;
-			}
-		}
-
-		// Add new voices and sync existing voice volume/positions
-		for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
-		{
-			sound_t id = rSoundsPostRender.puiIds[i];
-			int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
-			float fVolume = rSoundsInterpolate.pfVolumes[iIndex];
-
-			// Find existing voice
-			StaticVoice* pExistingVoice = nullptr;
-			for (StaticVoice& rExisting : mStaticVoices)
-			{
-				if (rExisting.mId == id)
-				{
-					pExistingVoice = &rExisting;
-					break;
-				}
-			}
-
-			if (pExistingVoice != nullptr)
-			{
-				// Sync existing voice
-				pExistingVoice->mfVolume = fVolume;
-				pExistingVoice->mfPitch = rSoundsInterpolate.pfPitches[iIndex];
-				pExistingVoice->mVecPosition = rSoundsInterpolate.pVecPositions[iIndex];
-				pExistingVoice->mVecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
-				continue;
-			}
-
-			// Add new voice
-			if (fVolume <= 0.0f)
-			{
-				continue;
-			}
-			if (static_cast<int64_t>(mStaticVoices.size()) >= kiMaxStaticVoices)
-			{
-				continue;
-			}
-
-			common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[iIndex];
-			IXAudio2SourceVoice* pVoice = nullptr;
-			if (StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine.get(), pVoice, uiCrc, false, true))
-			{
-				float fPitch = rSoundsInterpolate.pfPitches[iIndex];
-				float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
-				XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[iIndex];
-				XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
-				mStaticVoices.push_back(StaticVoice(pVoice, id, uiCrc, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity));
-			}
-		}
-
-		// Update listener position from human player
-		XMVECTOR vecListenerPos = XMVectorZero();
-		XMVECTOR vecListenerVel = XMVectorZero();
-		std::optional<int64_t> oHumanIndex = game::gpGame->HumanPlayerIndex(*rFrame.interpolate.pPlayers);
-		if (oHumanIndex.has_value())
-		{
-			int64_t iHumanIndex = oHumanIndex.value();
-			vecListenerPos = rFrame.interpolate.pPlayers->pVecPositions[iHumanIndex];
-
-			// Find matching index in postRender for velocity
-			game::player_t humanId = game::gpGame->HumanPlayerId();
-			const game::PlayersPostRender& rPostRenderPlayers = *rFrame.postRender.pPlayers;
-			for (int64_t i = 0; i < rPostRenderPlayers.iCount; ++i)
-			{
-				if (rPostRenderPlayers.puiIds[i] == humanId)
-				{
-					vecListenerVel = rPostRenderPlayers.pVecVelocities[i];
-					break;
-				}
-			}
-		}
-		mVecListenerPosition = vecListenerPos;
-		XMFLOAT3A f3Position {};
-		XMStoreFloat3A(&f3Position, vecListenerPos);
-		XMFLOAT3A f3Velocity {};
-		XMStoreFloat3A(&f3Velocity, vecListenerVel);
-		mX3dAudioListener.OrientFront = {0.0f, 0.0f, -1.0f};
-		mX3dAudioListener.OrientTop = {0.0f, -1.0f, 0.0f};
-		mX3dAudioListener.Position = f3Position;
-		mX3dAudioListener.Velocity = f3Velocity;
+		UpdateStaticVoiceLifecycle(*pFrame, fDeltaTime);
+		UpdateListenerPosition(*pFrame);
 	}
 
 	// 3D volume calculation uses cached mVecListenerPosition — runs always
@@ -674,4 +683,4 @@ void AudioManager::OnDestroyParent() noexcept
 
 } // namespace engine
 
-#endif // BT_CLIENT
+#endif // defined(BT_CLIENT)

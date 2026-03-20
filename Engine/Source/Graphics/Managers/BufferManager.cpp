@@ -2,8 +2,6 @@
 
 #include "Profile/ProfileManager.h"
 
-#include "Game.h"
-
 namespace engine
 {
 
@@ -62,65 +60,7 @@ BufferManager::BufferManager()
 	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
 	ASSERT(iCommandBufferCount <= 4);
 
-	mGlobalLayoutUniformBuffers.resize(iCommandBufferCount);
-	mMainLayoutUniformBuffers.resize(iCommandBufferCount);
-	mTextStorageBuffers.resize(iCommandBufferCount);
-	mSmokeSpreadStorageBuffers.resize(iCommandBufferCount);
-	mWindSpreadStorageBuffers.resize(iCommandBufferCount);
-	mLongParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
-	mSquareParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
-
-	for (int64_t i = 0; i < iCommandBufferCount; ++i)
-	{
-		mGlobalLayoutUniformBuffers.at(i).Create(
-		{
-			.name = "GlobalLayout",
-			.flags = {kUniform, kCopyToDeviceLocalEveryFrame},
-			.dataVkDeviceSize = sizeof(shaders::GlobalLayout),
-		});
-
-		mMainLayoutUniformBuffers.at(i).Create(
-		{
-			.name = "MainLayout",
-			.flags = {kUniform, kCopyToDeviceLocalEveryFrame},
-			.dataVkDeviceSize = sizeof(shaders::MainLayout),
-		});
-
-		mTextStorageBuffers.at(i).Create(
-		{
-			.name = "Text",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = kiMaxTextQuads * sizeof(shaders::AxisAlignedQuadLayout),
-		});
-
-		mSmokeSpreadStorageBuffers.at(i).Create(
-		{
-			.name = "SmokeSpread",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = sizeof(shaders::AxisAlignedQuadLayout),
-		});
-
-		mWindSpreadStorageBuffers.at(i).Create(
-		{
-			.name = "WindSpread",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = sizeof(shaders::AxisAlignedQuadLayout),
-		});
-
-		mLongParticlesSpawnStorageBuffers.at(i).Create(
-		{
-			.name = "LongParticlesSpawn",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = sizeof(shaders::ParticlesSpawnLayout),
-		});
-
-		mSquareParticlesSpawnStorageBuffers.at(i).Create(
-		{
-			.name = "SquareParticlesSpawn",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = sizeof(shaders::ParticlesSpawnLayout),
-		});
-	}
+	InitializePerCommandBufferBuffers(iCommandBufferCount);
 
 	mLongParticlesStorageBuffer.Create(
 	{
@@ -143,81 +83,6 @@ BufferManager::BufferManager()
 	{
 		memset(pData, 0, sizeof(shaders::ParticlesLayout));
 	});
-
-	// MeshData buffer for glTF skeletal animation (small struct without embedded joints)
-	// Per-framebuffer with host-visible for CPU updates during Render()
-	// Each mesh gets: matrix (mesh world) + normalMatrix + jointCount + jointMatrixOffset
-	mMeshDataStorageBuffers.resize(iCommandBufferCount);
-	for (int64_t i = 0; i < iCommandBufferCount; ++i)
-	{
-		mMeshDataStorageBuffers.at(i).Create(
-		{
-			.name = "MeshData",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = common::MeshData::kiMaxMeshes * sizeof(common::MeshData),
-		},
-		[&](void* pData)
-		{
-			common::MeshData* pMeshData = static_cast<common::MeshData*>(pData);
-
-			// Initialize all mesh data with identity matrices and zero joint count
-			XMFLOAT4X4 identity;
-			XMStoreFloat4x4(&identity, XMMatrixIdentity());
-
-			for (int64_t iMesh = 0; iMesh < common::MeshData::kiMaxMeshes; ++iMesh)
-			{
-				pMeshData[iMesh].matrix = identity;
-				// Initialize normal matrix to identity (mat3 as 3 vec4s)
-				pMeshData[iMesh].normalMatrix[0] = {1.0f, 0.0f, 0.0f, 0.0f};
-				pMeshData[iMesh].normalMatrix[1] = {0.0f, 1.0f, 0.0f, 0.0f};
-				pMeshData[iMesh].normalMatrix[2] = {0.0f, 0.0f, 1.0f, 0.0f};
-				pMeshData[iMesh].uiJointCount = 0;
-				pMeshData[iMesh].uiJointMatrixOffset = 0;
-			}
-		});
-	}
-
-	// Joint matrix buffer for glTF skeletal animation (separate from MeshData)
-	// Separate buffer avoids NVIDIA driver hang when dynamically indexing large mat4 arrays
-	// Uses JointMatrix (3 vec4s, 48 bytes) instead of mat4 (64 bytes) - translation packed into .w
-	mJointMatrixStorageBuffers.resize(iCommandBufferCount);
-	for (int64_t i = 0; i < iCommandBufferCount; ++i)
-	{
-		mJointMatrixStorageBuffers.at(i).Create(
-		{
-			.name = "JointMatrices",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = common::kiInitialJointMatrixCapacity * sizeof(common::JointMatrix),
-		},
-		[&](void* pData)
-		{
-			common::JointMatrix* pJointMatrices = static_cast<common::JointMatrix*>(pData);
-
-			// Initialize all joint matrices to identity
-			// Format: rows[i].xyz = rotation row i, rows[i].w = translation component i
-			// Identity: rotation = I, translation = (0,0,0)
-			common::JointMatrix identity
-			{
-				.rows =
-				{
-					{1.0f, 0.0f, 0.0f, 0.0f},  // rotation row 0, Tx=0
-					{0.0f, 1.0f, 0.0f, 0.0f},  // rotation row 1, Ty=0
-					{0.0f, 0.0f, 1.0f, 0.0f},  // rotation row 2, Tz=0
-				},
-			};
-
-			for (int64_t j = 0; j < common::kiInitialJointMatrixCapacity; ++j)
-			{
-				pJointMatrices[j] = identity;
-			}
-		});
-	}
-
-	for (int64_t i = 0; i < iCommandBufferCount; ++i)
-	{
-		miMeshDataCapacity[i] = common::MeshData::kiMaxMeshes;
-		miJointMatrixCapacity[i] = common::kiInitialJointMatrixCapacity;
-	}
 }
 
 BufferManager::~BufferManager()
@@ -272,6 +137,11 @@ void BufferManager::CreateSwapchainDependentBuffers()
 	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
 	ASSERT(iCommandBufferCount <= 4);
 
+	InitializePerCommandBufferBuffers(iCommandBufferCount);
+}
+
+void BufferManager::InitializePerCommandBufferBuffers(int64_t iCommandBufferCount)
+{
 	mGlobalLayoutUniformBuffers.resize(iCommandBufferCount);
 	mMainLayoutUniformBuffers.resize(iCommandBufferCount);
 	mTextStorageBuffers.resize(iCommandBufferCount);
@@ -332,6 +202,8 @@ void BufferManager::CreateSwapchainDependentBuffers()
 		});
 	}
 
+	// MeshData buffer for glTF skeletal animation
+	// Per-framebuffer with host-visible for CPU updates during Render()
 	mMeshDataStorageBuffers.resize(iCommandBufferCount);
 	for (int64_t i = 0; i < iCommandBufferCount; ++i)
 	{
@@ -345,7 +217,7 @@ void BufferManager::CreateSwapchainDependentBuffers()
 		{
 			common::MeshData* pMeshData = static_cast<common::MeshData*>(pData);
 
-			XMFLOAT4X4 identity;
+			XMFLOAT4X4 identity {};
 			XMStoreFloat4x4(&identity, XMMatrixIdentity());
 
 			for (int64_t iMesh = 0; iMesh < common::MeshData::kiMaxMeshes; ++iMesh)
@@ -360,6 +232,8 @@ void BufferManager::CreateSwapchainDependentBuffers()
 		});
 	}
 
+	// Joint matrix buffer for glTF skeletal animation (separate from MeshData)
+	// Separate buffer avoids NVIDIA driver hang when dynamically indexing large mat4 arrays
 	mJointMatrixStorageBuffers.resize(iCommandBufferCount);
 	for (int64_t i = 0; i < iCommandBufferCount; ++i)
 	{
@@ -500,16 +374,9 @@ void BufferManager::GrowMeshDataBuffer(int64_t iCommandBuffer)
 
 	memcpy(mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory, pOldData, miMeshDataOffset[iCommandBuffer] * sizeof(common::MeshData));
 
-	// Update MeshData descriptor (binding 15) on all model pipelines
+	// Update MeshData descriptor on all model pipelines
 	Buffer* pNewBuffer = &mMeshDataStorageBuffers.at(iCommandBuffer);
-	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[kDynamicModelPipelineModel])
-	{
-		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, 15, pNewBuffer);
-	}
-	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[kDynamicModelPipelineModelShadow])
-	{
-		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, 15, pNewBuffer);
-	}
+	gpPipelineManager->mDynamicPipelines.UpdateAllModelPipelineDescriptors(iCommandBuffer, kModelPipelineBindingMeshData, pNewBuffer);
 }
 
 void BufferManager::GrowJointMatrixBuffer(int64_t iCommandBuffer)
@@ -528,16 +395,9 @@ void BufferManager::GrowJointMatrixBuffer(int64_t iCommandBuffer)
 
 	memcpy(mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory, pOldData, miJointMatrixOffset[iCommandBuffer] * sizeof(common::JointMatrix));
 
-	// Update JointMatrix descriptor (binding 16) on all model pipelines
+	// Update JointMatrix descriptor on all model pipelines
 	Buffer* pNewBuffer = &mJointMatrixStorageBuffers.at(iCommandBuffer);
-	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[kDynamicModelPipelineModel])
-	{
-		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, 16, pNewBuffer);
-	}
-	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[kDynamicModelPipelineModelShadow])
-	{
-		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, 16, pNewBuffer);
-	}
+	gpPipelineManager->mDynamicPipelines.UpdateAllModelPipelineDescriptors(iCommandBuffer, kModelPipelineBindingJointMatrix, pNewBuffer);
 }
 
 void BufferManager::CreateSmokeHierarchicalBuffers()
@@ -546,8 +406,8 @@ void BufferManager::CreateSmokeHierarchicalBuffers()
 
 	uint32_t uiMaxWidth = std::max(gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.width, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.width);
 	uint32_t uiMaxHeight = std::max(gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.height, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.height);
-	uint32_t uiTilesX = (uiMaxWidth + 7) / 8;
-	uint32_t uiTilesY = (uiMaxHeight + 7) / 8;
+	uint32_t uiTilesX = (uiMaxWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	uint32_t uiTilesY = (uiMaxHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
 	uint32_t uiTotalTiles = uiTilesX * uiTilesY;
 
 	// Bit-packed occupancy: 1 bit per tile, packed into uint32s
@@ -591,7 +451,7 @@ void BufferManager::CreateWindHierarchicalBuffers()
 	DestroyWindHierarchicalBuffers();
 
 	uint32_t uiWidth = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.width;
-	uint32_t uiTilesX = (uiWidth + 7) / 8;
+	uint32_t uiTilesX = (uiWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
 	uint32_t uiTotalTiles = uiTilesX * uiTilesX;
 
 	// Bit-packed occupancy: 1 bit per tile, packed into uint32s

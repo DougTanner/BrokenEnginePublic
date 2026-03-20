@@ -425,9 +425,9 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 				.uiTypeIndex = suiEnemyBlasterTypeIndex,
 				.flags = {},
 				.alignment = rCurrentPostRender.pAlignments[i],
-				.fWindTrailIntensity = engine::gWindDepositSpaceshipsBlastersIntensity.Get(),
-				.fWindTrailWidth = engine::gWindDepositSpaceshipsBlastersWidth.Get(),
-				.fWindTrailLengthMultiplier = engine::gWindDepositSpaceshipsBlastersLengthMultiplier.Get(),
+				.fWindTrailIntensity = game::gWindDepositSpaceshipsBlastersIntensity.Get(),
+				.fWindTrailWidth = game::gWindDepositSpaceshipsBlastersWidth.Get(),
+				.fWindTrailLengthMultiplier = game::gWindDepositSpaceshipsBlastersLengthMultiplier.Get(),
 			});
 		}
 	}
@@ -446,9 +446,9 @@ void SpaceshipsInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 	engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rSpaceships.puiWindTrails[iIndex],
 	{
 		.vecPosition = rSpaceships.pVecPositions[iIndex],
-		.fIntensity = engine::gWindDepositSpaceshipsIntensity.Get(),
-		.fWidth = engine::gWindDepositSpaceshipsWidth.Get(),
-		.fLengthMultiplier = engine::gWindDepositSpaceshipsLengthMultiplier.Get(),
+		.fIntensity = game::gWindDepositSpaceshipsIntensity.Get(),
+		.fWidth = game::gWindDepositSpaceshipsWidth.Get(),
+		.fLengthMultiplier = game::gWindDepositSpaceshipsLengthMultiplier.Get(),
 	});
 }
 

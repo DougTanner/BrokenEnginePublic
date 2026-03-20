@@ -39,33 +39,13 @@ void SmokeTrailsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer
 	siTotalCount = 0;
 	sfRenderDeltaTime = common::NanosecondsToFloatSeconds<float>(sRenderTimer.GetDeltaNs(true));
 
-	int64_t iTotalCapacity = 0;
-	for (const GridCoord& rCoord : rActiveCoords)
-	{
-		auto it = rRenderInterpolates.find(rCoord);
-		if (it != rRenderInterpolates.end())
-		{
-			iTotalCapacity += it->second.smokeTrails.iCapacity;
-		}
-	}
+	int64_t iTotalCapacity = AccumulateRenderCapacity(rRenderInterpolates, rActiveCoords,
+		[](const game::FrameInterpolate& rInterpolate) -> const auto& { return rInterpolate.smokeTrails; });
 
-	{
-		// Perf: If profiling shows this as a bottleneck, replace the nested coord iteration with a persistent
-		// sorted vector of live IDs in sRenderState, rebuilt only on trail add/remove, and use binary_search here.
-		// Heap: unordered_map erase for stale smoothed positions
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		std::erase_if(sRenderState.smoothedPositions, [&rRenderInterpolates, &rActiveCoords](const auto& pair) {
-			for (const GridCoord& rCoord : rActiveCoords)
-			{
-				auto it = rRenderInterpolates.find(rCoord);
-				if (it != rRenderInterpolates.end() && it->second.smokeTrails.idToIndexMap.contains(pair.first))
-				{
-					return false;
-				}
-			}
-			return true;
-		});
-	}
+	// Perf: If profiling shows this as a bottleneck, replace the nested coord iteration with a persistent
+	// sorted vector of live IDs in sRenderState, rebuilt only on trail add/remove, and use binary_search here.
+	EraseStaleRenderState(sRenderState.smoothedPositions, rRenderInterpolates, rActiveCoords,
+		[](const game::FrameInterpolate& rInterpolate) -> const auto& { return rInterpolate.smokeTrails.idToIndexMap; });
 
 	if (iTotalCapacity == 0)
 	{
@@ -188,7 +168,6 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 
 			++siRendered;
 		}
-
 	}
 }
 

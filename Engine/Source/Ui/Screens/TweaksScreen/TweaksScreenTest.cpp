@@ -1,12 +1,14 @@
-#include "TweaksScreen.h"
+#include "TweaksScreenBase.h"
 
 namespace engine
 {
 
-void TweaksScreen::RenderTestSection()
+void TweaksScreenBase::RenderTestSection()
 {
-	WrapperSlider("Test One", static_cast<int>(TweakSection::kTest));
-	WrapperSlider("Test Two", static_cast<int>(TweakSection::kTest));
+	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kTest);
+
+	WrapperSlider("Test One", kiSection);
+	WrapperSlider("Test Two", kiSection);
 }
 
 } // namespace engine

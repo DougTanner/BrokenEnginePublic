@@ -13,7 +13,7 @@ struct Frame;
 namespace engine
 {
 
-// Zone system constants (preserved from original pool implementation)
+// Zone system constants for spatial acceleration
 inline constexpr float kfPusherArenaSize = 400.0f;
 inline constexpr float kfPusherZoneSize = 8.0f;
 inline constexpr int64_t kiPusherZones = static_cast<int64_t>(common::Ceil(kfPusherArenaSize / kfPusherZoneSize));
@@ -60,10 +60,12 @@ struct PushersInterpolate : public Collection<PushersInterpolate, CollectionFlag
 	// Query force at position using zone acceleration
 	static XMVECTOR XM_CALLCONV ApplyPush(const game::FrameInterpolate& rFrameInterpolate, FXMVECTOR vecPosition, id_t uiIgnorePusher = id_t {}, PusherFlags_t includeFlags = PusherFlags::kTypeDefault, PusherFlags_t excludeFlags = PusherFlags::kTypeMines);
 
+#if defined(BT_CLIENT)
 	// Render
 	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords);
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 	static void EndRender(int64_t iCommandBuffer);
+#endif
 
 	// Member arrays (SOA)
 	XMVECTOR* __restrict pVecPositions = nullptr;
@@ -74,8 +76,7 @@ struct PushersInterpolate : public Collection<PushersInterpolate, CollectionFlag
 
 	auto Members(this auto&& rSelf)
 	{
-		return std::tie(rSelf.pVecPositions, rSelf.pfRadii, rSelf.pfIntensities,
-		                rSelf.pfPowers, rSelf.pFlags);
+		return std::tie(rSelf.pVecPositions, rSelf.pfRadii, rSelf.pfIntensities, rSelf.pfPowers, rSelf.pFlags);
 	}
 
 	bool LogDifferences(const PushersInterpolate& rOther) const;

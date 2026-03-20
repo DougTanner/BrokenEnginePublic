@@ -37,7 +37,6 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 		ASSERT(iStbiWidth != 0 && iStbiHeight != 0 && pPixels != nullptr);
 		miWidth = iStbiWidth;
 		miHeight = iStbiHeight;
-		miChannels = 4;
 
 		stbi_uc* puiSrc = pPixels;
 		std::vector<float>& rPixels = mData.emplace_back(4 * iStbiWidth * iStbiHeight);
@@ -91,35 +90,35 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 	}
 	else
 	{
-		exr_context_initializer_t ctxtinit = EXR_DEFAULT_CONTEXT_INITIALIZER;
-		exr_context_t f {};
-		exr_result_t rv = exr_start_read(&f, rPath.string().c_str(), &ctxtinit);
-		ASSERT(rv == EXR_ERR_SUCCESS);
+		exr_context_initializer_t exrContextInitializer = EXR_DEFAULT_CONTEXT_INITIALIZER;
+		exr_context_t exrContext {};
+		exr_result_t exrResult = exr_start_read(&exrContext, rPath.string().c_str(), &exrContextInitializer);
+		ASSERT(exrResult == EXR_ERR_SUCCESS);
 		common::ScopedLambda releaseExrContext([=]()
 		{
-			exr_context_t exrContextCopy = f;
+			exr_context_t exrContextCopy = exrContext;
 			exr_finish(&exrContextCopy);
 		});
 
-		exr_attr_box2i_t dw {};
-		exr_get_data_window(f, 0, &dw);
-		int32_t scansperchunk = 0;
-		exr_get_scanlines_per_chunk(f, 0, &scansperchunk);
-		ASSERT(scansperchunk == 1);
+		exr_attr_box2i_t dataWindow {};
+		exr_get_data_window(exrContext, 0, &dataWindow);
+		int32_t iScansPerChunk = 0;
+		exr_get_scanlines_per_chunk(exrContext, 0, &iScansPerChunk);
+		ASSERT(iScansPerChunk == 1);
 
-		miWidth = dw.max.x + 1;
-		miHeight = dw.max.y + 1;
+		miWidth = dataWindow.max.x + 1;
+		miHeight = dataWindow.max.y + 1;
 		std::vector<float> pixelsR(miWidth * miHeight);
 		std::vector<float> pixelsG(miWidth * miHeight);
 		std::vector<float> pixelsB(miWidth * miHeight);
 
-		for (int y = dw.min.y; y <= dw.max.y; y += scansperchunk)
+		for (int y = dataWindow.min.y; y <= dataWindow.max.y; y += iScansPerChunk)
 		{
-			exr_chunk_info_t cinfo;
-			exr_read_scanline_chunk_info(f, 0, y, &cinfo);
+			exr_chunk_info_t exrChunkInfo {};
+			exr_read_scanline_chunk_info(exrContext, 0, y, &exrChunkInfo);
 
 			exr_decode_pipeline_t decoder {};
-			exr_decoding_initialize(f, 0, &cinfo, &decoder);
+			exr_decoding_initialize(exrContext, 0, &exrChunkInfo, &decoder);
 
 			decoder.channels[0].user_data_type = EXR_PIXEL_FLOAT;
 			decoder.channels[0].decode_to_ptr = reinterpret_cast<uint8_t*>(pixelsB.data() + y * miWidth);
@@ -139,9 +138,9 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 			decoder.channels[2].user_line_stride = static_cast<int32_t>(4 * miWidth);
 			decoder.channels[2].user_bytes_per_element = 4;
 
-			exr_decoding_choose_default_routines(f, 0, &decoder);
-			exr_decoding_run(f, 0, &decoder);
-			exr_decoding_destroy(f, &decoder);
+			exr_decoding_choose_default_routines(exrContext, 0, &decoder);
+			exr_decoding_run(exrContext, 0, &decoder);
+			exr_decoding_destroy(exrContext, &decoder);
 		}
 
 		float* pfSrcR = pixelsR.data();
@@ -251,18 +250,18 @@ void Texture::Downsize(int64_t iLevels)
 	// Generate mipmaps in float format to downsample
 	MakeMipmaps(VK_FORMAT_R32_SFLOAT, iLevels + 1);
 
-	// Remove higher-resolution levels and update dimensions
+	// Verify even dimensions at each level before erasing
 	for (int64_t i = 0; i < iLevels; ++i)
 	{
-		mData.erase(mData.begin());
-		ASSERT(miWidth % 2 == 0);
-		ASSERT(miHeight % 2 == 0);
-		miWidth /= 2;
-		miHeight /= 2;
+		ASSERT((miWidth >> i) % 2 == 0);
+		ASSERT((miHeight >> i) % 2 == 0);
 	}
+	mData.erase(mData.begin(), mData.begin() + iLevels);
+	miWidth >>= iLevels;
+	miHeight >>= iLevels;
 }
 
-uint32_t Texture::PixelToUint32(const std::vector<float>& rIn, int64_t iWidth, [[maybe_unused]] int64_t iHeight, int64_t iX, int64_t iY)
+uint32_t Texture::PixelToUint32(const std::vector<float>& rIn, int64_t iWidth, int64_t iX, int64_t iY)
 {
 	return static_cast<uint32_t>(rIn.at(4 * (iY * iWidth + iX) + 3)) << 24 |
 	       static_cast<uint32_t>(rIn.at(4 * (iY * iWidth + iX) + 2)) << 16 |
@@ -309,10 +308,10 @@ void Texture::ToBc7(std::byte* puiOut, const std::vector<float>& rIn, int64_t iW
 			uint32_t puiBlock[16] {};
 			for (int64_t k = 0; k < 4; ++k)
 			{
-				puiBlock[4 * k + 0] = PixelToUint32(rIn, iWidth, iHeight, 4 * i + 0, 4 * j + k);
-				puiBlock[4 * k + 1] = PixelToUint32(rIn, iWidth, iHeight, 4 * i + 1, 4 * j + k);
-				puiBlock[4 * k + 2] = PixelToUint32(rIn, iWidth, iHeight, 4 * i + 2, 4 * j + k);
-				puiBlock[4 * k + 3] = PixelToUint32(rIn, iWidth, iHeight, 4 * i + 3, 4 * j + k);
+				puiBlock[4 * k + 0] = PixelToUint32(rIn, iWidth, 4 * i + 0, 4 * j + k);
+				puiBlock[4 * k + 1] = PixelToUint32(rIn, iWidth, 4 * i + 1, 4 * j + k);
+				puiBlock[4 * k + 2] = PixelToUint32(rIn, iWidth, 4 * i + 2, 4 * j + k);
+				puiBlock[4 * k + 3] = PixelToUint32(rIn, iWidth, 4 * i + 3, 4 * j + k);
 			}
 
 			bool bAlpha = bc7enc_compress_block(&puiOut[iCurrentPosition], puiBlock, &bc7encCompressBlockParams);
@@ -332,7 +331,7 @@ void Texture::ToR8G8B8A8(std::byte* puiOut, const std::vector<float>& rIn, int64
 	{
 		for (int64_t i = 0; i < iWidth; ++i)
 		{
-			reinterpret_cast<uint32_t*>(puiOut)[j * iWidth + i] = PixelToUint32(rIn, iWidth, iHeight, i, j);
+			reinterpret_cast<uint32_t*>(puiOut)[j * iWidth + i] = PixelToUint32(rIn, iWidth, i, j);
 		}
 	}
 }

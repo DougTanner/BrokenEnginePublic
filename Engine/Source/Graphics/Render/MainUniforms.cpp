@@ -2,8 +2,6 @@
 
 #include "Render.h"
 
-#include "Profile/ProfileManager.h"
-
 #include "Game.h"
 
 namespace engine
@@ -18,8 +16,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 
 	const game::FrameInterpolate& rCameraInterpolate = rRenderInterpolates.at(cameraCoord);
 
-	// One-time setup (preserved from original RenderFrameMain)
-	RenderLightingMain(iCommandBuffer, rCameraInterpolate);
+	RenderLightingMain(iCommandBuffer);
 	gpBufferManager->ResetSkinningAllocations(iCommandBuffer);
 
 	// Phase 1: BeginRender — compute total capacities, resize GPU buffers, reset counters
@@ -57,13 +54,13 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	rMainLayout.iRenderNumber = ++siRenderCount;
 
 	// Camera shake
-	float fCameraShake = std::pow(game::gpCamera->mfShake, 1.0f);
+	float fCameraShake = game::gpCamera->mfShake;
 	static constexpr float kfMaxRoll = 0.005f;
 	static constexpr float kfMaxPitch = 0.005f;
 	static constexpr float kfMaxYaw = 0.01f;
-	siv::BasicPerlinNoise<float> perlinRoll {0};
-	siv::BasicPerlinNoise<float> perlinPitch {1};
-	siv::BasicPerlinNoise<float> perlinYaw {2};
+	siv::BasicPerlinNoise<float> perlinRoll(0);
+	siv::BasicPerlinNoise<float> perlinPitch(1);
+	siv::BasicPerlinNoise<float> perlinYaw(2);
 	auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll * fCameraShake * (-1.0f + 2.0f * perlinRoll.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)), kfMaxPitch * fCameraShake * (-1.0f + 2.0f * perlinPitch.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)), kfMaxYaw * fCameraShake * (-1.0f + 2.0f * perlinYaw.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)));
 
 	XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(&rMainLayout.f4x4ViewProjection[0]), XMMatrixTranspose(XMMatrixMultiply(game::gpCamera->mMatView, XMMatrixMultiply(matCameraShake, game::gpCamera->mMatPerspective))));
@@ -100,7 +97,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 			rMainLayout.pf4LowWavesOne[i].z = XMVectorGetX(vecDirection);
 			rMainLayout.pf4LowWavesOne[i].w = XMVectorGetY(vecDirection);
 
-			float fAdjust = common::Random(randomEngine); // static_cast<float>(i) / static_cast<float>(iCount - 1);
+			float fAdjust = common::Random(randomEngine);
 			float fWavelengthAdjust = fAdjust * gLowWavelengthAdjust.Get();
 			float fAmplitudeAdjust = (1.0f - fAdjust) * std::abs(gLowAmplitudeAdjust.Get()) * common::Random(randomEngine);
 			float fSpeedAdjust = fAdjust * gLowSpeedAdjust.Get();
@@ -141,19 +138,19 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	}
 
 	// Hex shield
-	rMainLayout.fHexShieldGrow = gHexShieldGrow.Get();
-	rMainLayout.fHexShieldEdgeDistance = gHexShieldEdgeDistance.Get();
-	rMainLayout.fHexShieldEdgePower = gHexShieldEdgePower.Get();
-	rMainLayout.fHexShieldEdgeMultiplier = gHexShieldEdgeMultiplier.Get();
+	rMainLayout.fHexShieldGrow = game::gHexShieldGrow.Get();
+	rMainLayout.fHexShieldEdgeDistance = game::gHexShieldEdgeDistance.Get();
+	rMainLayout.fHexShieldEdgePower = game::gHexShieldEdgePower.Get();
+	rMainLayout.fHexShieldEdgeMultiplier = game::gHexShieldEdgeMultiplier.Get();
 
-	rMainLayout.fHexShieldWaveMultiplier = gHexShieldWaveMultiplier.Get();
-	rMainLayout.fHexShieldWaveDotMultiplier = gHexShieldWaveDotMultiplier.Get();
-	rMainLayout.fHexShieldWaveIntensityMultiplier = gHexShieldWaveIntensityMultiplier.Get();
-	rMainLayout.fHexShieldWaveIntensityPower = gHexShieldWaveIntensityPower.Get();
-	rMainLayout.fHexShieldWaveFalloffPower = gHexShieldWaveFalloffPower.Get();
+	rMainLayout.fHexShieldWaveMultiplier = game::gHexShieldWaveMultiplier.Get();
+	rMainLayout.fHexShieldWaveDotMultiplier = game::gHexShieldWaveDotMultiplier.Get();
+	rMainLayout.fHexShieldWaveIntensityMultiplier = game::gHexShieldWaveIntensityMultiplier.Get();
+	rMainLayout.fHexShieldWaveIntensityPower = game::gHexShieldWaveIntensityPower.Get();
+	rMainLayout.fHexShieldWaveFalloffPower = game::gHexShieldWaveFalloffPower.Get();
 
-	rMainLayout.fHexShieldDirectionFalloffPower = gHexShieldDirectionFalloffPower.Get();
-	rMainLayout.fHexShieldDirectionMultiplier = gHexShieldDirectionMultiplier.Get();
+	rMainLayout.fHexShieldDirectionFalloffPower = game::gHexShieldDirectionFalloffPower.Get();
+	rMainLayout.fHexShieldDirectionMultiplier = game::gHexShieldDirectionMultiplier.Get();
 }
 
 } // namespace engine

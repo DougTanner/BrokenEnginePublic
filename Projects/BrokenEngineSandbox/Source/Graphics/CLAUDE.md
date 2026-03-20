@@ -4,7 +4,7 @@ Game-specific camera controller for BrokenEngineSandbox. Client-only (`BT_CLIENT
 
 ## Overview
 
-Extends `engine::CameraBase` with game-specific behavior: smooth player tracking during gameplay, orbital animation during the main menu, camera shake with controller vibration feedback, and a day/night cycle driven by sun angle progression.
+Extends `engine::CameraBase` with game-specific behavior: smooth player tracking during gameplay, orbital animation during the main menu, camera shake with controller vibration feedback, and a day/night cycle driven by sun angle progression. Shake intensity (`mfShake`) and sun angle (`mfSunAngle`) are defined in `CameraBase`; `Camera` overrides `SunAngle()` to apply time-of-day modulation and exposes `RawSunAngle()` for direct access to the raw stored value.
 
 **Global**: `gpCamera`
 

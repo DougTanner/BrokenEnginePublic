@@ -34,16 +34,16 @@ layout (location = 3) in vec3 f3InNormal;
 // Output
 layout (location = 0) out vec4 f4OutColor;
 
-float Fresnel(vec3 cameraPos, vec3 position, vec3 normal, float fReduction)
+float Fresnel(vec3 f3CameraPosition, vec3 f3Position, vec3 f3InNormal, float fReduction)
 {
-	normal = normalize(normal);
+	vec3 f3Normal = normalize(f3InNormal);
 
 	// Schlick's approximation fresnel
-	float cosTheta = dot(normal, normalize(cameraPos - position));
-	float F0 = globalLayout.fWaterFresnel;
-	float fPow = 1.0f - cosTheta;
-	fPow = fPow * fPow * fPow * fPow; // Note: ^3 instead of ^5
-	return clamp(F0 + (fReduction - F0) * fPow, 0.0f, 1.0f);
+	float fCosTheta = dot(f3Normal, normalize(f3CameraPosition - f3Position));
+	float fF0 = globalLayout.fWaterFresnel;
+	float fPow = 1.0f - fCosTheta;
+	fPow = fPow * fPow * fPow * fPow; // Note: ^4 instead of ^5
+	return clamp(fF0 + (fReduction - fF0) * fPow, 0.0f, 1.0f);
 }
 
 void main()
@@ -63,12 +63,12 @@ void main()
 
 	float fSize = mainLayout.fLightingSampledNormalsSize + mainLayout.fLightingSampledNormalsSizeMod * f3InPosition.z;
 	float fSpeed = mainLayout.fLightingSampledNormalsSpeed;
-	vec3 f3SampledNormalOne = SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 0.2f * fSize, 1.1f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.1f, 0.2f)) +
-	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 1.1f * fSize, 1.2f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.2f, 0.3f)) +
-	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 2.5f * fSize, 1.3f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.3f, 0.4f));
-	vec3 f3SampledNormalTwo = SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 0.3f * fSize, 1.4f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.4f, 0.5f)) +
-	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 1.2f * fSize, 1.5f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.6f, 0.7f)) +
-	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 3.0f * fSize, 1.6f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.8f, 0.9f));
+	vec3 f3SampledNormalOne = SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 0.2f * fSize, 1.1f * fSize * fSpeed, vec2(0.1f, 0.2f)) +
+	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 1.1f * fSize, 1.2f * fSize * fSpeed, vec2(0.2f, 0.3f)) +
+	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 2.5f * fSize, 1.3f * fSize * fSpeed, vec2(0.3f, 0.4f));
+	vec3 f3SampledNormalTwo = SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 0.3f * fSize, 1.4f * fSize * fSpeed, vec2(0.4f, 0.5f)) +
+	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 1.2f * fSize, 1.5f * fSize * fSpeed, vec2(0.6f, 0.7f)) +
+	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 3.0f * fSize, 1.6f * fSize * fSpeed, vec2(0.8f, 0.9f));
 	vec3 f3SampledNormal = normalize(f3SampledNormalOne + f3SampledNormalTwo);
 
 	// Color
@@ -118,9 +118,8 @@ void main()
 
 	// Additive smoke at base height
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
-	float fSmokeAreaTexcoordX = (f2PositionAtBaseHeight.x - globalLayout.f4SmokeArea.x) / (globalLayout.f4SmokeArea.z - globalLayout.f4SmokeArea.x);
-	float fSmokeAreaTexcoordY = (f2PositionAtBaseHeight.y - globalLayout.f4SmokeArea.y) / (globalLayout.f4SmokeArea.w - globalLayout.f4SmokeArea.y);
-	float fSmokeRaw = globalLayout.fSmokeMax * texture(smokeSampler, vec2(fSmokeAreaTexcoordX, fSmokeAreaTexcoordY)).x;
+	vec2 f2SmokeTexcoord = WorldToSmokeTexcoord(globalLayout.f4SmokeArea, f2PositionAtBaseHeight);
+	float fSmokeRaw = globalLayout.fSmokeMax * texture(smokeSampler, f2SmokeTexcoord).x;
 	float fSmokePow = clamp(pow(fSmokeRaw, globalLayout.fSmokePower), 0.0f, 1.0f);
 
 	// Lighting at base height
@@ -133,21 +132,9 @@ void main()
 	f3LightingNormal = normalize(f3LightingNormal);
 
 	vec4 pf4Lighting[3];
-	pf4Lighting[0] = texture(pLightingSamplers[0], f2BaseHeightTexcoord);
-	pf4Lighting[1] = texture(pLightingSamplers[1], f2BaseHeightTexcoord);
-	pf4Lighting[2] = texture(pLightingSamplers[2], f2BaseHeightTexcoord);
+	ReadLighting(pf4Lighting, pLightingSamplers, f2BaseHeightTexcoord);
 	f4OutColor.xyz += fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * SpecularLighting(globalLayout, mainLayout, f3PreLightingColor, f3InPosition, f3InNormal, f3LightingNormal, pf4Lighting, mainLayout.fLightingWaterSpecularIntensity, mainLayout.fLightingWaterSpecularAdd);
 
 	// Additive smoke
-	float fSmokeDensity = globalLayout.fSmokeColorMin + globalLayout.fSmokeColorMultiplier * fSmokePow;
-	float fRed = IntensityLighting(pf4Lighting[0]);
-	float fGreen = IntensityLighting(pf4Lighting[1]);
-	float fBlue = IntensityLighting(pf4Lighting[2]);
-	vec3 f3SmokeLighting = vec3(fRed, fGreen, fBlue);
-	float fSmokeLightPower = globalLayout.fLightingCombinePower;
-	f3SmokeLighting = pow(f3SmokeLighting + vec3(1.0f), vec3(fSmokeLightPower)) - vec3(1.0f);
-	f3SmokeLighting *= 0.5f;
-	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4AmbientColor.xyz);
-	f3SmokeLighting = min(vec3(1.0f), f3SmokeLighting);
-	f4OutColor.xyz = (1.0f - fSmokePow) * f4OutColor.xyz + fSmokePow * f3SmokeLighting * min(vec3(1.25f), vec3(fSmokeDensity));
+	f4OutColor.xyz = BlendSmoke(f4OutColor.xyz, fSmokePow, pf4Lighting, globalLayout);
 }

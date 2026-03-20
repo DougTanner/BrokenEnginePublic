@@ -57,7 +57,9 @@ public:
 
 	void Reset() override;
 	bool ShouldTrapCursor() override;
+#if defined(BT_CLIENT)
 	bool ShouldUseCrosshair() override;
+#endif
 
 	void ChangeFrame(GameFlags_t gameFlags);
 	void CreateNewFrame(GameFlags_t gameFlags);
@@ -93,9 +95,11 @@ public:
 
 	XMVECTOR GetHumanPlayerPosition() const;
 
+#if defined(BT_CLIENT)
 	static void SaveSoundSettings();
 	static void LoadSoundSettings();
 	static void ResetSoundSettings();
+#endif
 
 #if defined(BT_CLIENT)
 	common::crc_t GetNextMusicTrack();
@@ -129,8 +133,8 @@ private:
 	}
 
 #if defined(BT_CLIENT)
-	std::vector<common::crc_t> mMenuMusicPlaylist {data::kAudioMusicdoodlewavCrc, data::kAudioMusicMandatoryOvertimewavCrc, data::kAudioMusicsong18wavCrc, data::kAudioMusicTyhosibzzzzwavCrc};
-	std::vector<common::crc_t> mGameMusicPlaylist {data::kAudioMusicS31UnexpectedTroublewavCrc, data::kAudioMusicS31HighAlertwavCrc, data::kAudioMusicS31OnPatrolwavCrc, data::kAudioMusicS31TheGearsofProgresswavCrc};
+	static constexpr common::crc_t mMenuMusicPlaylist[4] {data::kAudioMusicdoodlewavCrc, data::kAudioMusicMandatoryOvertimewavCrc, data::kAudioMusicsong18wavCrc, data::kAudioMusicTyhosibzzzzwavCrc};
+	static constexpr common::crc_t mGameMusicPlaylist[4] {data::kAudioMusicS31UnexpectedTroublewavCrc, data::kAudioMusicS31HighAlertwavCrc, data::kAudioMusicS31OnPatrolwavCrc, data::kAudioMusicS31TheGearsofProgresswavCrc};
 
 	int64_t miMenuMusicIndex = 0;
 	int64_t miGameMusicIndex = 0;
@@ -149,12 +153,21 @@ public:
 	const engine::Alignments& Alignments() const { return mAlignments; }
 
 #if defined(BT_CLIENT)
+	void StartMenuMusic()
+	{
+		miMenuMusicIndex = 0;
+		engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist[0]);
+	}
+
 	void StartGameMusic()
 	{
 		miGameMusicIndex = 0;
-		engine::gpAudioManager->PlayMusic(mGameMusicPlaylist.at(0));
+		engine::gpAudioManager->PlayMusic(mGameMusicPlaylist[0]);
 	}
 #endif
+
+	void InitFramePostRender(Frame& rFrame);
+	void ProcessDebugInput(const MenuInput& rMenuInput);
 
 private:
 };

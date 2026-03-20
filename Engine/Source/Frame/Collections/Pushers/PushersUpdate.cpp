@@ -5,10 +5,9 @@
 namespace engine
 {
 
-// Zone acceleration structure (preserved from original pool implementation)
-// thread_local: each Dispatch worker and reconcile thread gets its own copy
+// Zone acceleration structure: thread_local so each Dispatch worker and reconcile thread gets its own copy
 thread_local alignas(64) uint16_t gppuiPushersPerZone[kiPusherZones][kiPusherZones] {};
-thread_local alignas(64) int64_t gpppuiPusherZones[kiPusherZones][kiPusherZones][kiMaxPushersPerZone] {};
+thread_local alignas(64) int16_t gpppuiPusherZones[kiPusherZones][kiPusherZones][kiMaxPushersPerZone] {};
 
 thread_local float gfPusherArenaLeft = -0.5f * kfPusherArenaSize;
 thread_local float gfPusherArenaTop = 0.5f * kfPusherArenaSize;
@@ -18,21 +17,13 @@ void PushersInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restr
 	PushersInterpolate& __restrict rCurrent = rFrameInterpolate.pushers;
 	const PushersInterpolate& rPrevious = rPreviousFrame.interpolate.pushers;
 
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	if (rCurrent.iCount > 0)
 	{
-		// Load
-		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
-		float fRadius = rPrevious.pfRadii[i];
-		float fIntensity = rPrevious.pfIntensities[i];
-		float fPower = rPrevious.pfPowers[i];
-		PusherFlags_t flags = rPrevious.pFlags[i];
-
-		// Save
-		rCurrent.pVecPositions[i] = vecPosition;
-		rCurrent.pfRadii[i] = fRadius;
-		rCurrent.pfIntensities[i] = fIntensity;
-		rCurrent.pfPowers[i] = fPower;
-		rCurrent.pFlags[i] = flags;
+		std::memcpy(rCurrent.pVecPositions, rPrevious.pVecPositions, rCurrent.iCount * sizeof(rCurrent.pVecPositions[0]));
+		std::memcpy(rCurrent.pfRadii, rPrevious.pfRadii, rCurrent.iCount * sizeof(rCurrent.pfRadii[0]));
+		std::memcpy(rCurrent.pfIntensities, rPrevious.pfIntensities, rCurrent.iCount * sizeof(rCurrent.pfIntensities[0]));
+		std::memcpy(rCurrent.pfPowers, rPrevious.pfPowers, rCurrent.iCount * sizeof(rCurrent.pfPowers[0]));
+		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, rCurrent.iCount * sizeof(rCurrent.pFlags[0]));
 	}
 }
 
@@ -101,7 +92,7 @@ void PushersInterpolate::SetupZones([[maybe_unused]] game::Frame& __restrict rFr
 					continue;
 				}
 
-				gpppuiPusherZones[x][y][iPushersPerZone] = i;
+				gpppuiPusherZones[x][y][iPushersPerZone] = static_cast<int16_t>(i);
 				++gppuiPushersPerZone[x][y];
 			}
 		}
@@ -119,7 +110,7 @@ XMVECTOR XM_CALLCONV PushersInterpolate::ApplyPush(const game::FrameInterpolate&
 	// Get zone for query position
 	int64_t iZoneX = std::clamp(static_cast<int64_t>((f2Position.x - gfPusherArenaLeft) / kfPusherZoneSize), 0ll, kiPusherZones - 1);
 	int64_t iZoneY = std::clamp(static_cast<int64_t>(-(f2Position.y - gfPusherArenaTop) / kfPusherZoneSize), 0ll, kiPusherZones - 1);
-	int64_t* piZone = gpppuiPusherZones[iZoneX][iZoneY];
+	int16_t* piZone = gpppuiPusherZones[iZoneX][iZoneY];
 	int64_t iPushersInZone = gppuiPushersPerZone[iZoneX][iZoneY];
 
 	// Look up ignore pusher index if valid

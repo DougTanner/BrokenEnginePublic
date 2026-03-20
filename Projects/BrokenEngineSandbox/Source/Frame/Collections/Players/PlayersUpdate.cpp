@@ -166,9 +166,9 @@ void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rF
 			engine::WindTrailsInterpolate::Sync(rFrameInterpolate, rCurrent.pWindTrails[i],
 			{
 				.vecPosition = vecPosition,
-				.fIntensity = engine::gWindDepositPlayerIntensity.Get(),
-				.fWidth = engine::gWindDepositPlayerWidth.Get(),
-				.fLengthMultiplier = engine::gWindDepositPlayerLengthMultiplier.Get(),
+				.fIntensity = game::gWindDepositPlayerIntensity.Get(),
+				.fWidth = game::gWindDepositPlayerWidth.Get(),
+				.fLengthMultiplier = game::gWindDepositPlayerLengthMultiplier.Get(),
 			});
 		}
 

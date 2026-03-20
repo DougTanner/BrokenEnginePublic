@@ -48,6 +48,11 @@ void GameBase::ClientUpdate()
 	}
 
 	int64_t iFullTicks = mTimeStep.TickRealtime();
+	if (mGameFlags & GameFlags::kPaused) [[unlikely]]
+	{
+		mTimeStep.ClearAccumulator();
+		iFullTicks = 0;
+	}
 	PrepareActiveSet();
 
 	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
@@ -92,7 +97,12 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 	game::gpServerSession->WaitForTick(mTimeStep);
 
 	int64_t iFullTicks = mTimeStep.TickRealtime();
-	if (iFullTicks != 1) [[unlikely]]
+	if (mGameFlags & GameFlags::kPaused) [[unlikely]]
+	{
+		mTimeStep.ClearAccumulator();
+		iFullTicks = 0;
+	}
+	else if (iFullTicks != 1) [[unlikely]]
 	{
 		Log("iFullTicks: {} != 1", iFullTicks);
 	}
@@ -111,7 +121,10 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 		BuildAndDispatchFrameTicks(rActiveCoords, false);
 		FinalizeFrameTick(rActiveCoords, false);
 	}
-	game::gpServerSession->SendResends(miTickCounter);
+	if (iFullTicks > 0)
+	{
+		game::gpServerSession->SendResends(miTickCounter);
+	}
 	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
 
 	if constexpr (kbEnableProfiling)
@@ -214,12 +227,6 @@ void GameBase::FinalizeFrameTick([[maybe_unused]] const std::vector<GridCoord>& 
 }
 
 #if defined(BT_CLIENT)
-void GameBase::TickFramesAndRender()
-{
-	ClientUpdate();
-	Render();
-}
-
 game::Frame& GameBase::RenderFrame(GridCoord coord) const
 {
 	if (game::gpClientSession->IsExtrapolating())

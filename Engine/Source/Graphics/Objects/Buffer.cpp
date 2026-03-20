@@ -140,23 +140,15 @@ Buffer::Buffer(const BufferInfo& rInfo, std::function<void(void*)> dataFunction)
 }
 
 Buffer::Buffer(Buffer&& rOther) noexcept
-	: mInfo(rOther.mInfo)
-	, mHostVisibleVkBuffer(rOther.mHostVisibleVkBuffer)
-	, mHostVisibleVkDeviceMemory(rOther.mHostVisibleVkDeviceMemory)
-	, mHostVisibleVmaAllocation(rOther.mHostVisibleVmaAllocation)
-	, mpMappedMemory(rOther.mpMappedMemory)
-	, mDeviceLocalVkBuffer(rOther.mDeviceLocalVkBuffer)
-	, mDeviceLocalVkDeviceMemory(rOther.mDeviceLocalVkDeviceMemory)
-	, mDeviceLocalVmaAllocation(rOther.mDeviceLocalVmaAllocation)
+	: mInfo(std::exchange(rOther.mInfo, {}))
+	, mHostVisibleVkBuffer(std::exchange(rOther.mHostVisibleVkBuffer, VK_NULL_HANDLE))
+	, mHostVisibleVkDeviceMemory(std::exchange(rOther.mHostVisibleVkDeviceMemory, VK_NULL_HANDLE))
+	, mHostVisibleVmaAllocation(std::exchange(rOther.mHostVisibleVmaAllocation, VK_NULL_HANDLE))
+	, mpMappedMemory(std::exchange(rOther.mpMappedMemory, nullptr))
+	, mDeviceLocalVkBuffer(std::exchange(rOther.mDeviceLocalVkBuffer, VK_NULL_HANDLE))
+	, mDeviceLocalVkDeviceMemory(std::exchange(rOther.mDeviceLocalVkDeviceMemory, VK_NULL_HANDLE))
+	, mDeviceLocalVmaAllocation(std::exchange(rOther.mDeviceLocalVmaAllocation, VK_NULL_HANDLE))
 {
-	rOther.mInfo = {};
-	rOther.mHostVisibleVkBuffer = VK_NULL_HANDLE;
-	rOther.mHostVisibleVkDeviceMemory = VK_NULL_HANDLE;
-	rOther.mHostVisibleVmaAllocation = VK_NULL_HANDLE;
-	rOther.mpMappedMemory = nullptr;
-	rOther.mDeviceLocalVkBuffer = VK_NULL_HANDLE;
-	rOther.mDeviceLocalVkDeviceMemory = VK_NULL_HANDLE;
-	rOther.mDeviceLocalVmaAllocation = VK_NULL_HANDLE;
 }
 
 Buffer& Buffer::operator=(Buffer&& rOther) noexcept
@@ -165,23 +157,14 @@ Buffer& Buffer::operator=(Buffer&& rOther) noexcept
 	{
 		Destroy();
 
-		mInfo = rOther.mInfo;
-		mHostVisibleVkBuffer = rOther.mHostVisibleVkBuffer;
-		mHostVisibleVkDeviceMemory = rOther.mHostVisibleVkDeviceMemory;
-		mHostVisibleVmaAllocation = rOther.mHostVisibleVmaAllocation;
-		mpMappedMemory = rOther.mpMappedMemory;
-		mDeviceLocalVkBuffer = rOther.mDeviceLocalVkBuffer;
-		mDeviceLocalVkDeviceMemory = rOther.mDeviceLocalVkDeviceMemory;
-		mDeviceLocalVmaAllocation = rOther.mDeviceLocalVmaAllocation;
-
-		rOther.mInfo = {};
-		rOther.mHostVisibleVkBuffer = VK_NULL_HANDLE;
-		rOther.mHostVisibleVkDeviceMemory = VK_NULL_HANDLE;
-		rOther.mHostVisibleVmaAllocation = VK_NULL_HANDLE;
-		rOther.mpMappedMemory = nullptr;
-		rOther.mDeviceLocalVkBuffer = VK_NULL_HANDLE;
-		rOther.mDeviceLocalVkDeviceMemory = VK_NULL_HANDLE;
-		rOther.mDeviceLocalVmaAllocation = VK_NULL_HANDLE;
+		mInfo = std::exchange(rOther.mInfo, {});
+		mHostVisibleVkBuffer = std::exchange(rOther.mHostVisibleVkBuffer, VK_NULL_HANDLE);
+		mHostVisibleVkDeviceMemory = std::exchange(rOther.mHostVisibleVkDeviceMemory, VK_NULL_HANDLE);
+		mHostVisibleVmaAllocation = std::exchange(rOther.mHostVisibleVmaAllocation, VK_NULL_HANDLE);
+		mpMappedMemory = std::exchange(rOther.mpMappedMemory, nullptr);
+		mDeviceLocalVkBuffer = std::exchange(rOther.mDeviceLocalVkBuffer, VK_NULL_HANDLE);
+		mDeviceLocalVkDeviceMemory = std::exchange(rOther.mDeviceLocalVkDeviceMemory, VK_NULL_HANDLE);
+		mDeviceLocalVmaAllocation = std::exchange(rOther.mDeviceLocalVmaAllocation, VK_NULL_HANDLE);
 	}
 
 	return *this;

@@ -25,6 +25,10 @@ CPU profiling is thread-safe via per-thread timer state stored in a mutex-protec
 - **Direct API**: `CpuStart()`/`CpuStop()`, `GpuStart()`/`GpuStop()`, `SetCount()`
 - **Overlay**: Cycles through `ProfileScreen` modes (Off, Cpu, Gpu, Frames, Network) via `ToggleProfileText()`. CPU screen shows timers, counters, memory stats, and allocations. GPU screen shows graphics info, GPU timers, and VMA GPU memory statistics (allocated/used/unused bytes, allocation and block counts, and per-heap budget and usage via `vmaGetHeapBudgets` when `mbMemoryBudgetAvailable`). Frames screen shows active grid visualization. Network screen is organized into sections (Transport, Sync, Prediction, Clock, Reconciliation) and displays packet loss percent, interarrival jitter, and the active simulation level. When simulation is enabled, stats exceeding their `NetworkSimulationBounds` thresholds are flagged with `!`. All overlay text is built using the workbuffer to avoid per-frame heap allocations.
 
+## File Organization
+
+Screen formatting logic is split into `ProfileScreens.cpp` (engine-level screens: FPS header, CPU, GPU) to keep `ProfileManagerBase.cpp` under 500 lines. Game-specific screens (Frames, Network) are implemented by overriding `FormatGameScreens()` in the derived class.
+
 ## Extension
 
-Game projects inherit from `ProfileManagerBase`, adding game-specific counter and timer arrays. See [game ProfileManager](../../../Projects/BrokenEngineSandbox/Source/Profile/CLAUDE.md).
+Game projects inherit from `ProfileManagerBase`, adding game-specific counter and timer arrays and overriding `FormatGameScreens()` to add game-specific overlay screens. See [game ProfileManager](../../../Projects/BrokenEngineSandbox/Source/Profile/CLAUDE.md).

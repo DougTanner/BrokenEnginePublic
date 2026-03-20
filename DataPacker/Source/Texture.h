@@ -29,11 +29,11 @@ public:
 
 	void Downsize(int64_t iLevels);
 
-	uint32_t PixelToUint32(const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, int64_t iX, int64_t iY);
-	void ToBc4(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, int64_t iIndex = 0);
-	void ToBc7(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, bool bVerifyNoAlpha);
-	void ToR8G8B8A8(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight);
-	void ToR16(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight);
+	static uint32_t PixelToUint32(const std::vector<float>& rIn, int64_t iWidth, int64_t iX, int64_t iY);
+	static void ToBc4(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, int64_t iIndex = 0);
+	static void ToBc7(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, bool bVerifyNoAlpha);
+	static void ToR8G8B8A8(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight);
+	static void ToR16(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight);
 
 	void Export(std::vector<std::byte>& rData, VkFormat vkFormat, bool bVerifyNoAlpha);
 
@@ -48,7 +48,6 @@ public:
 
 	int64_t miWidth = 0;
 	int64_t miHeight = 0;
-	int64_t miChannels = 0;
 
 	std::vector<std::vector<float>> mData;
 };

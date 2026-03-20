@@ -29,8 +29,6 @@ Wrapper gMinimumAmbient(kfDefaultMinimumAmbient, kfDefaultMinimumAmbient, 0.1f);
 
 Wrapper gBaseHeight(6.0f, 0.0f, 20.0f);
 
-Wrapper gMisc0(-50.0f, -60.0f, -40.0f);
-
 // Pbr - Engine Variables
 Wrapper gPbrDayBrightness(3.0f, 1.0f, 4.0f);
 Wrapper gPbrSun(0.8f, 0.5f, 1.0f);
@@ -227,26 +225,6 @@ Wrapper gWindToSmokePower(1.05f, 0.6f, 2.0f);
 // Wind - Displacement
 Wrapper gWindDisplacementNoiseScale(1.25f, 0.0f, 5.0f);
 
-// Wind - Deposit
-Wrapper gWindDepositExplosionsWidth(15.0f, 4.0f, 20.0f);
-Wrapper gWindDepositExplosionsIntensity(0.005f, 0.0f, 0.01f);
-
-Wrapper gWindDepositPlayerBlastersWidth(0.75f, 0.1f, 2.0f);
-Wrapper gWindDepositPlayerBlastersIntensity(0.05f, 0.0f, 0.2f);
-Wrapper gWindDepositBlastersLengthMultiplier(2.0f, 0.5f, 3.0f);
-
-Wrapper gWindDepositPlayerWidth(3.0f, 0.1f, 5.0f);
-Wrapper gWindDepositPlayerIntensity(0.03f, 0.0f, 0.1f);
-Wrapper gWindDepositPlayerLengthMultiplier(5.0f, 0.5f, 10.0f);
-
-Wrapper gWindDepositSpaceshipsWidth(2.0f, 0.1f, 5.0f);
-Wrapper gWindDepositSpaceshipsIntensity(0.03f, 0.0f, 0.1f);
-Wrapper gWindDepositSpaceshipsLengthMultiplier(3.0f, 0.5f, 5.0f);
-
-Wrapper gWindDepositSpaceshipsBlastersWidth(3.0f, 0.1f, 5.0f);
-Wrapper gWindDepositSpaceshipsBlastersIntensity(0.05f, 0.0f, 0.1f);
-Wrapper gWindDepositSpaceshipsBlastersLengthMultiplier(2.0f, 0.5f, 3.0f);
-
 // Low frequency waves
 Wrapper gLowCount(15i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
 Wrapper gLowMax(150.0f, 0.0f, 255.0f);
@@ -303,21 +281,6 @@ Wrapper gObjectShadowsBlurDistanceSunset(0.0008f, 0.0001f, 0.004f);
 Wrapper gObjectShadowsBlurSigma(5.0f, 1.0f, 20.0f);
 
 Wrapper gSmokeShadowIntensity(0.5f, 0.0f, 1.0f);
-
-// Hex shield
-Wrapper gHexShieldGrow(2.0f, 1.0f, 4.0f);
-Wrapper gHexShieldEdgeDistance(18.8f, 18.0f, 19.1f);
-Wrapper gHexShieldEdgePower(1.0f, 0.5f, 2.0f);
-Wrapper gHexShieldEdgeMultiplier(0.5f, 0.25f, 1.0f);
-
-Wrapper gHexShieldWaveMultiplier(7.0f, 0.0f, 20.0f);
-Wrapper gHexShieldWaveDotMultiplier(5.0f, 0.5f, 10.0f);
-Wrapper gHexShieldWaveIntensityMultiplier(12.0f, 0.5f, 20.0f);
-Wrapper gHexShieldWaveIntensityPower(1.6f, 0.25f, 4.0f);
-Wrapper gHexShieldWaveFalloffPower(2.1f, 0.25f, 4.0f);
-
-Wrapper gHexShieldDirectionFalloffPower(4.35f, 2.0f, 10.0f);
-Wrapper gHexShieldDirectionMultiplier(4.5f, 0.5f, 8.0f);
 
 // Particles
 Wrapper gParticlesWindStrength(2000.0f, 0.0f, 5000.0f);

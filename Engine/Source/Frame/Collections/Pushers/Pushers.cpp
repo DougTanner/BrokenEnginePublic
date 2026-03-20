@@ -1,6 +1,8 @@
 #include "Pushers.h"
 
+#if defined(BT_CLIENT)
 #include "Profile/ProfileManager.h"
+#endif
 
 namespace engine
 {
@@ -19,12 +21,7 @@ void PushersInterpolate::AllocateAndCopy(PushersInterpolate& rCurrent, const Pus
 
 void PushersPostRender::AllocateAndCopy(PushersPostRender& rCurrent, const PushersPostRender& rPrevious)
 {
-	Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
-	}
+	AllocateAndCopyIds(rCurrent, rPrevious);
 }
 
 void PushersPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
@@ -72,6 +69,8 @@ bool PushersPostRender::LogDifferences(const PushersPostRender& rOther) const
 	return bEqual;
 }
 
+#if defined(BT_CLIENT)
+
 static int64_t siTotalCount = 0;
 
 void PushersInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, [[maybe_unused]] const std::vector<GridCoord>& rActiveCoords)
@@ -88,5 +87,7 @@ void PushersInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 {
 	gpProfileManager->SetCount(kCpuCounterPushers, siTotalCount);
 }
+
+#endif // BT_CLIENT
 
 } // namespace engine

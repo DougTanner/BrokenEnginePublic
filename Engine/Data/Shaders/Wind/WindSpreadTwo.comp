@@ -3,7 +3,7 @@
 #include "ShaderLayouts.h"
 #include "WindSpreadCommon.h"
 
-layout (local_size_x = 8, local_size_y = 8) in;
+layout (local_size_x = kiComputeTileSize, local_size_y = kiComputeTileSize) in;
 
 // Uniforms
 layout (binding = 0) uniform globalUniform
@@ -47,8 +47,8 @@ void main()
 	uint uiTilesX = globalLayout.uiWindTilesX;
 	uint uiTileY = uiTileIndex / uiTilesX;
 	uint uiTileX = uiTileIndex - uiTileY * uiTilesX;
-	uint uiX = uiTileX * 8 + gl_LocalInvocationID.x;
-	uint uiY = uiTileY * 8 + gl_LocalInvocationID.y;
+	uint uiX = uiTileX * kiComputeTileSize + gl_LocalInvocationID.x;
+	uint uiY = uiTileY * kiComputeTileSize + gl_LocalInvocationID.y;
 
 	ivec2 i2Size = imageSize(outputImage);
 	bool bInBounds = uiX < i2Size.x && uiY < i2Size.y;

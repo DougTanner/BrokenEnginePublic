@@ -31,9 +31,11 @@ public:
 
 	virtual int64_t GetVersion() const override { return 12 + sizeof(common::ChunkHeader) + VK_HEADER_VERSION; }
 
+	bool CheckDirty(const std::filesystem::path& rPackFile) override;
+
 protected:
 
-	virtual void Export() override;
+	void Export() override;
 	void CleanupOnFailure() override;
 
 	std::vector<std::filesystem::path> mIntermediateFiles;

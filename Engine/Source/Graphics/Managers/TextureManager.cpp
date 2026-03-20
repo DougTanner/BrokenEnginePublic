@@ -281,8 +281,6 @@ void TextureManager::DestroySamplers()
 	mVkSamplerRepeat = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerMirroredRepeat, nullptr);
 	mVkSamplerMirroredRepeat = VK_NULL_HANDLE;
-	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerNearestBorder, nullptr);
-	mVkSamplerNearestBorder = VK_NULL_HANDLE;
 }
 
 void TextureManager::CreateSamplers()
@@ -373,15 +371,6 @@ void TextureManager::CreateSamplers()
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerMirroredRepeat));
 	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerMirroredRepeat, "MirroredRepeat");
-	vkSamplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-	vkSamplerCreateInfo.minFilter = VK_FILTER_NEAREST;
-	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	vkSamplerCreateInfo.anisotropyEnable = VK_FALSE;
-	vkSamplerCreateInfo.maxAnisotropy = 0.0f;
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerNearestBorder));
-	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerNearestBorder, "NearestBorder");
 }
 
 VkSampler TextureManager::GetSampler(DescriptorFlags_t flags)
@@ -409,10 +398,6 @@ VkSampler TextureManager::GetSampler(DescriptorFlags_t flags)
 	else if (flags & DescriptorFlags::kSamplerWindClamp)
 	{
 		return mVkSamplerWindClamp;
-	}
-	else if (flags & DescriptorFlags::kSamplerNearestBorder)
-	{
-		return mVkSamplerNearestBorder;
 	}
 	else
 	{

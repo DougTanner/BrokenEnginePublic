@@ -7,8 +7,8 @@ class ScopedLambda
 {
 public:
 
-	ScopedLambda(std::function<void()> releaseFunction)
-	: mReleaseFunction(releaseFunction)
+	ScopedLambda(std::move_only_function<void()> releaseFunction)
+	: mReleaseFunction(std::move(releaseFunction))
 	{
 	}
 
@@ -30,7 +30,7 @@ public:
 
 private:
 
-	std::function<void()> mReleaseFunction;
+	std::move_only_function<void()> mReleaseFunction;
 };
 
 } // namespace common

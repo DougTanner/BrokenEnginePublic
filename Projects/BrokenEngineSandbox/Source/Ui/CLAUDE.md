@@ -10,12 +10,13 @@ The UI system uses ImGui for all game UI rendering. The HUD and menu screens are
 
 - **HUD** - In-game overlay showing player shield and armor bars with icons
 - **Menu Screens** - Main menu, modal error dialog, pause, graphics settings, sound settings, and death screen
-- **Localization** - UTF-32 string table supporting six languages (English, Chinese, Spanish, Portuguese, French, German) with automatic English fallback for missing translations. Menu screens convert localized strings to UTF-8 via workbuffer-based encoding in `MenuUtils.h/.cpp`
+- **Localization** - UTF-32 string table supporting six languages (English, Chinese, Spanish, Portuguese, French, German) with automatic English fallback for missing translations. `InitializeLocalization()` in `Localization.h` sets the locale and uppercases all string table entries at startup (called from `Game` constructor). Menu screens convert localized strings to UTF-8 via workbuffer-based encoding in `MenuUtils.h/.cpp`
 
 ## Architecture Notes
 
-ImGuiManager (engine-side) owns instances of all screen classes and calls their `Render()` methods during the ImGui frame. `Wrapper.h` extends the engine's `WrapperBase` for game-specific runtime-adjustable settings.
+ImGuiManager (engine-side) owns instances of all screen classes and calls their `Render()` methods during the ImGui frame. `Wrapper.h` declares 25 game-specific `engine::Wrapper` globals in the `game::` namespace, split into two groups: hex shield parameters (`gHexShield*`, 11 globals) and wind deposit parameters (`gWindDeposit*`, 14 globals). These are consumed by `game::TweaksScreen` and game rendering code.
 
 ## See Also
 
 - [Screens/CLAUDE.md](Screens/CLAUDE.md) - ImGui-based UI screens (HUD and menus)
+- [Screens/TweaksScreen/](Screens/TweaksScreen/) - `game::TweaksScreen` overriding `engine::TweaksScreenBase` with hex shield and wind deposit sections

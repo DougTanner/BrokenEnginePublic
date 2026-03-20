@@ -17,6 +17,37 @@
 
 using enum common::ChunkFlags;
 
+struct KtxCubemapData
+{
+	std::vector<float> floatData;
+	uint32_t uiFaceSize = 0;
+};
+
+KtxCubemapData LoadKtxCubemapAsFloat(const std::filesystem::path& rPath)
+{
+	KtxCubemapData result;
+	gli::texture texture = gli::load(rPath.string());
+	ASSERT(!texture.empty() && texture.target() == gli::TARGET_CUBE);
+	gli::texture_cube textureCube(texture);
+	ASSERT(textureCube.format() == gli::FORMAT_RGBA16_SFLOAT_PACK16);
+	result.uiFaceSize = textureCube[0].extent().x;
+	uint32_t uiPixelsPerFace = result.uiFaceSize * result.uiFaceSize;
+	result.floatData.resize(uiPixelsPerFace * 6 * 4);
+	for (int64_t iFace = 0; iFace < 6; ++iFace)
+	{
+		const uint16_t* pSrcHalf = reinterpret_cast<const uint16_t*>(textureCube[iFace].data());
+		float* pDstFloat = result.floatData.data() + iFace * uiPixelsPerFace * 4;
+		for (uint32_t uiPixel = 0; uiPixel < uiPixelsPerFace; ++uiPixel)
+		{
+			for (uint32_t uiChannel = 0; uiChannel < 4; ++uiChannel)
+			{
+				pDstFloat[uiPixel * 4 + uiChannel] = DirectX::PackedVector::XMConvertHalfToFloat(pSrcHalf[uiPixel * 4 + uiChannel]);
+			}
+		}
+	}
+	return result;
+}
+
 void GenerateIrradianceCubemaps()
 {
 	for (const std::filesystem::path& rBaseDirectory : gpFileManager->mpInputDirectories)
@@ -45,38 +76,15 @@ void GenerateIrradianceCubemaps()
 
 			Log("Generating irradiance cubemap for \"{}\"", rDirectoryEntry.path().filename().string());
 
-			// Load KTX cubemap
-			gli::texture texture = gli::load(rDirectoryEntry.path().string());
-			ASSERT(!texture.empty() && texture.target() == gli::TARGET_CUBE);
-
-			gli::texture_cube textureCube(texture);
-			ASSERT(textureCube.format() == gli::FORMAT_RGBA16_SFLOAT_PACK16);
-
-			uint32_t uiFaceSize = textureCube[0].extent().x;
-
-			// Convert RGBA16F source data to RGBA32F for CMFT
+			KtxCubemapData cubemapData = LoadKtxCubemapAsFloat(rDirectoryEntry.path());
+			uint32_t uiFaceSize = cubemapData.uiFaceSize;
 			uint32_t uiPixelsPerFace = uiFaceSize * uiFaceSize;
 			uint32_t uiTotalPixels = uiPixelsPerFace * 6;
-			std::vector<float> floatData(uiTotalPixels * 4);
-
-			for (int64_t iFace = 0; iFace < 6; ++iFace)
-			{
-				const uint16_t* pSrcHalf = reinterpret_cast<const uint16_t*>(textureCube[iFace].data());
-				float* pDstFloat = floatData.data() + iFace * uiPixelsPerFace * 4;
-
-				for (uint32_t uiPixel = 0; uiPixel < uiPixelsPerFace; ++uiPixel)
-				{
-					for (uint32_t uiChannel = 0; uiChannel < 4; ++uiChannel)
-					{
-						pDstFloat[uiPixel * 4 + uiChannel] = DirectX::PackedVector::XMConvertHalfToFloat(pSrcHalf[uiPixel * 4 + uiChannel]);
-					}
-				}
-			}
 
 			// Create CMFT source image and populate with float data
 			cmft::Image srcImage;
 			cmft::imageCreate(srcImage, uiFaceSize, uiFaceSize, 0x000000ff, 1, 6, cmft::TextureFormat::RGBA32F);
-			std::memcpy(srcImage.m_data, floatData.data(), uiTotalPixels * 4 * sizeof(float));
+			std::memcpy(srcImage.m_data, cubemapData.floatData.data(), uiTotalPixels * 4 * sizeof(float));
 
 			// Generate 128x128 irradiance cubemap using spherical harmonics
 			static constexpr uint32_t kuiIrradianceFaceSize = 128;
@@ -198,34 +206,14 @@ void GeneratePreFilteredCubemaps()
 
 			Log("Generating pre-filtered cubemap for \"{}\"", rDirectoryEntry.path().filename().string());
 
-			gli::texture texture = gli::load(rDirectoryEntry.path().string());
-			ASSERT(!texture.empty() && texture.target() == gli::TARGET_CUBE);
-
-			gli::texture_cube textureCube(texture);
-			ASSERT(textureCube.format() == gli::FORMAT_RGBA16_SFLOAT_PACK16);
-
-			uint32_t uiFaceSize = textureCube[0].extent().x;
+			KtxCubemapData cubemapData = LoadKtxCubemapAsFloat(rDirectoryEntry.path());
+			uint32_t uiFaceSize = cubemapData.uiFaceSize;
 			uint32_t uiPixelsPerFace = uiFaceSize * uiFaceSize;
 			uint32_t uiTotalPixels = uiPixelsPerFace * 6;
-			std::vector<float> floatData(uiTotalPixels * 4);
-
-			for (int64_t iFace = 0; iFace < 6; ++iFace)
-			{
-				const uint16_t* pSrcHalf = reinterpret_cast<const uint16_t*>(textureCube[iFace].data());
-				float* pDstFloat = floatData.data() + iFace * uiPixelsPerFace * 4;
-
-				for (uint32_t uiPixel = 0; uiPixel < uiPixelsPerFace; ++uiPixel)
-				{
-					for (uint32_t uiChannel = 0; uiChannel < 4; ++uiChannel)
-					{
-						pDstFloat[uiPixel * 4 + uiChannel] = DirectX::PackedVector::XMConvertHalfToFloat(pSrcHalf[uiPixel * 4 + uiChannel]);
-					}
-				}
-			}
 
 			cmft::Image srcImage;
 			cmft::imageCreate(srcImage, uiFaceSize, uiFaceSize, 0x000000ff, 1, 6, cmft::TextureFormat::RGBA32F);
-			std::memcpy(srcImage.m_data, floatData.data(), uiTotalPixels * 4 * sizeof(float));
+			std::memcpy(srcImage.m_data, cubemapData.floatData.data(), uiTotalPixels * 4 * sizeof(float));
 
 			cmft::Image dstImage;
 			cmft::imageRadianceFilter(dstImage, kuiFaceSize, cmft::LightingModel::BlinnBrdf, false, kuiMipCount, 14, 4, srcImage, cmft::EdgeFixup::None, kuiCpuThreads, pClContext);

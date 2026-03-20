@@ -19,8 +19,6 @@ struct StatusChange;
 namespace engine
 {
 
-struct RawInput;
-
 enum class MenuFlags : uint64_t
 {
 	kMouseVisible = 0x01,
@@ -34,6 +32,7 @@ enum class GameFlags : uint64_t
 	kLoadReplay           = 0x04,
 	kMainMenu             = 0x08,
 	kDeathScreen          = 0x10,
+	kPaused               = 0x20,
 };
 using GameFlags_t = common::Flags<GameFlags>;
 
@@ -99,7 +98,9 @@ public:
 
 	virtual void Reset() = 0;
 	virtual bool ShouldTrapCursor() = 0;
+#if defined(BT_CLIENT)
 	virtual bool ShouldUseCrosshair() = 0;
+#endif
 	virtual std::filesystem::path QuicksaveFile() = 0;
 	virtual std::filesystem::path ReplayFile() = 0;
 	virtual void ProcessMenuInput(const game::MenuInput& rMenuInput) = 0;
@@ -107,7 +108,6 @@ public:
 	void ProcessInput(bool bLostFocus, game::MenuInput& rMenuInput);
 #if defined(BT_CLIENT)
 	void ClientUpdate();
-	void TickFramesAndRender();
 	void Render();
 	game::Frame& RenderFrame(GridCoord coord) const;
 #endif // BT_CLIENT
@@ -118,10 +118,10 @@ public:
 	uint16_t GenerateFrameId() { return muiNextFrameId++; }
 	int64_t TickCounter() const { return miTickCounter; }
 	float CurrentTime() const { return mfCurrentTime; }
-	void SetTickCounter(int64_t i) { miTickCounter = i; }
-	void SetCurrentTime(float f) { mfCurrentTime = f; }
+	void SetTickCounter(int64_t iTickCounter) { miTickCounter = iTickCounter; }
+	void SetCurrentTime(float fCurrentTime) { mfCurrentTime = fCurrentTime; }
 	uint16_t NextFrameId() const { return muiNextFrameId; }
-	void SetNextFrameId(uint16_t id) { muiNextFrameId = id; }
+	void SetNextFrameId(uint16_t uiNextFrameId) { muiNextFrameId = uiNextFrameId; }
 
 	game::Frame& CurrentFrame(GridCoord coord) const
 	{

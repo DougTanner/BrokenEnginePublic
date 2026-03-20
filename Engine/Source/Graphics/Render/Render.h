@@ -20,14 +20,23 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord);
 
 // Lighting
-XMVECTOR XM_CALLCONV DirectionToDirectionMultipliers(FXMVECTOR vecDirection);
 void RenderLightingGlobal(int64_t iCommandBuffer);
-void RenderLightingMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate);
+void RenderLightingMain(int64_t iCommandBuffer);
 
 // Smoke
 inline bool gbSmokeClear = true;
 
 void RenderSmokeGlobal(int64_t iCommandBuffer);
+
+// Shared spread quad helper (smoke/wind)
+inline void WriteSpreadQuad(const XMFLOAT4& rPreviousArea, const XMFLOAT4& rCurrentArea, shaders::AxisAlignedQuadLayout& rQuad)
+{
+	float fXOffset = (rPreviousArea.x - rCurrentArea.x) / (rPreviousArea.z - rCurrentArea.x);
+	float fYOffset = (rPreviousArea.y - rCurrentArea.y) / (rPreviousArea.w - rCurrentArea.y);
+	rQuad.f4VertexRect = {-1.0f + 2.0f * fXOffset, 1.0f - 2.0f * fYOffset, 2.0f, -2.0f};
+	rQuad.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
+	rQuad.f4Params = {};
+}
 
 // Wind
 inline bool gbWindClear = false;
@@ -37,4 +46,4 @@ void RenderWindGlobal(int64_t iCommandBuffer);
 
 } // namespace engine
 
-#endif // BT_CLIENT
+#endif // defined(BT_CLIENT)

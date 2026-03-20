@@ -22,7 +22,6 @@
 
 // Visual Studio
 #define _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR // https://stackoverflow.com/questions/78598141/first-stdmutexlock-crashes-in-application-built-with-latest-visual-studio
-#define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
 #define _CRT_SECURE_NO_WARNINGS
 
 // Windows headers
@@ -53,7 +52,6 @@
 #include <charconv>
 #include <chrono>
 using namespace std::chrono_literals;
-#include <codecvt>
 #include <concepts>
 #include <csignal>
 #include <cstddef>

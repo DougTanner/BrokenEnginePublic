@@ -11,7 +11,7 @@ StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLa
 : mpLazyChunk(pLazyChunk)
 , mpVoice(pVoice)
 {
-	LOG_STREAMING_VOICES("Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, buffer size: {} bytes", mpLazyChunk->location.crc, mpLazyChunk->header.iSize, kiBufferSize);
+	Log(kLogAudio, "Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, buffer size: {} bytes", mpLazyChunk->location.crc, mpLazyChunk->header.iSize, kiBufferSize);
 
 	CHECK_HRESULT(mpVoice->SetVolume(0.0f));
 
@@ -36,7 +36,7 @@ StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLa
 		CHECK_HRESULT(mpVoice->SubmitSourceBuffer(&xaudio2Buffer));
 		mFlags.Set(kLastBufferSubmitted, bLastBuffer);
 
-		LOG_STREAMING_VOICES("Music streaming: Submitted initial buffer [0] with {} bytes, last buffer: {}", iBytesRead, bLastBuffer);
+		Log(kLogAudio, "Music streaming: Submitted initial buffer [0] with {} bytes, last buffer: {}", iBytesRead, bLastBuffer);
 	}
 	else
 	{
@@ -48,15 +48,7 @@ StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLa
 
 StreamingVoice::~StreamingVoice()
 {
-	if (mpVoice != nullptr)
-	{
-		mpVoice->Stop(0, XAUDIO2_COMMIT_NOW);
-		mpVoice->FlushSourceBuffers();
-		if (gpAudioManager->mpAudioEngine != nullptr)
-		{
-			gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
-		}
-	}
+	DestroyXAudio2SourceVoice(mpVoice);
 }
 
 float StreamingVoice::GetRemainingTime() const
@@ -80,7 +72,7 @@ bool StreamingVoice::FillBuffer(uint8_t (&rBuffer)[kiBufferSize], int64_t& riByt
 	if (iRemainingData == 0)
 	{
 		rbLastBuffer = true;
-		LOG_STREAMING_VOICES("Music streaming: No remaining data to read, position: {}/{}", miCurrentPosition, mpLazyChunk->header.iSize);
+		Log(kLogAudio, "Music streaming: No remaining data to read, position: {}/{}", miCurrentPosition, mpLazyChunk->header.iSize);
 		return false;
 	}
 
@@ -92,7 +84,7 @@ bool StreamingVoice::FillBuffer(uint8_t (&rBuffer)[kiBufferSize], int64_t& riByt
 
 	if (!bSuccess)
 	{
-		LOG_STREAMING_VOICES("Music streaming: Failed to read chunk data at position {}", miCurrentPosition);
+		Log(kLogAudio, "Music streaming: Failed to read chunk data at position {}", miCurrentPosition);
 		return false;
 	}
 
@@ -104,7 +96,7 @@ bool StreamingVoice::FillBuffer(uint8_t (&rBuffer)[kiBufferSize], int64_t& riByt
 	if (miCurrentPosition >= mpLazyChunk->header.iSize)
 	{
 		rbLastBuffer = true;
-		LOG_STREAMING_VOICES("Music streaming last buffer: Read {} bytes at position {}/{}", iBytesToRead, miCurrentPosition, mpLazyChunk->header.iSize);
+		Log(kLogAudio, "Music streaming last buffer: Read {} bytes at position {}/{}", iBytesToRead, miCurrentPosition, mpLazyChunk->header.iSize);
 	}
 
 	return true;
@@ -165,7 +157,7 @@ void StreamingVoice::OnBufferEnd()
 		HRESULT hr = mpVoice->SubmitSourceBuffer(&xaudio2Buffer);
 		if (FAILED(hr))
 		{
-			LOG_STREAMING_VOICES("ProcessNextBuffer: ERROR - Failed to submit buffer for stream, HRESULT: 0x{:08X}", hr);
+			Log(kLogAudio, "ProcessNextBuffer: ERROR - Failed to submit buffer for stream, HRESULT: 0x{:08X}", hr);
 			mFlags.Set(kLastBufferSubmitted);
 			return;
 		}
@@ -174,7 +166,7 @@ void StreamingVoice::OnBufferEnd()
 	}
 	else
 	{
-		LOG_STREAMING_VOICES("ProcessNextBuffer: stream reached end, marking as inactive");
+		Log(kLogAudio, "ProcessNextBuffer: stream reached end, marking as inactive");
 		mFlags.Set(kLastBufferSubmitted);
 	}
 }

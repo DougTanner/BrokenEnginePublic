@@ -49,34 +49,6 @@ XMMATRIX ComputeNodeWorldTransform(int iNodeIndex, const tinygltf::Model& rModel
 	return matWorld;
 }
 
-AncestorJointResult FindNearestAncestorJoint(Parent* pParent, const std::unordered_map<int, int>& rNodeToJointMap)
-{
-	AncestorJointResult result;
-	Parent* pCurrent = pParent;
-	while (pCurrent != nullptr)
-	{
-		if (pCurrent->iNodeIndex >= 0)
-		{
-			auto it = rNodeToJointMap.find(pCurrent->iNodeIndex);
-			if (it != rNodeToJointMap.end())
-			{
-				result.iJointIndex = it->second;
-				// Compute accumulated world transform from root to this ancestor joint (inclusive)
-				result.matAncestorWorld = pCurrent->matNode;
-				Parent* pAncestor = pCurrent->pParent;
-				while (pAncestor != nullptr)
-				{
-					result.matAncestorWorld = pAncestor->matNode * result.matAncestorWorld;
-					pAncestor = pAncestor->pParent;
-				}
-				return result;
-			}
-		}
-		pCurrent = pCurrent->pParent;
-	}
-	return result;
-}
-
 void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<common::ModelVertex>& rVertices, std::vector<Material>& rMaterials, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::unordered_map<std::pair<int, int>, int, PairHash>& rMaterialNodeMap)
 {
 	XMMATRIX matNode = XMMatrixIdentity();
@@ -413,13 +385,13 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 
 bool IsOcclusion(int64_t iIndex, const tinygltf::Material& rMaterial)
 {
-	bool bOcculsion = rMaterial.additionalValues.find("occlusionTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("occlusionTexture").TextureIndex() == iIndex;
+	bool bOcclusion = rMaterial.additionalValues.find("occlusionTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("occlusionTexture").TextureIndex() == iIndex;
 
 	// Check if occlusion texture is shared with another texture type (if so, treat as non-occlusion)
-	if (bOcculsion && (rMaterial.values.find("baseColorTexture") != rMaterial.values.end() && rMaterial.values.at("baseColorTexture").TextureIndex() == iIndex || rMaterial.additionalValues.find("normalTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("normalTexture").TextureIndex() == iIndex || rMaterial.values.find("metallicRoughnessTexture") != rMaterial.values.end() && rMaterial.values.at("metallicRoughnessTexture").TextureIndex() == iIndex || rMaterial.additionalValues.find("emissiveTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("emissiveTexture").TextureIndex() == iIndex))
+	if (bOcclusion && (rMaterial.values.find("baseColorTexture") != rMaterial.values.end() && rMaterial.values.at("baseColorTexture").TextureIndex() == iIndex || rMaterial.additionalValues.find("normalTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("normalTexture").TextureIndex() == iIndex || rMaterial.values.find("metallicRoughnessTexture") != rMaterial.values.end() && rMaterial.values.at("metallicRoughnessTexture").TextureIndex() == iIndex || rMaterial.additionalValues.find("emissiveTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("emissiveTexture").TextureIndex() == iIndex))
 	{
-		bOcculsion = false;
+		bOcclusion = false;
 	}
 
-	return bOcculsion;
+	return bOcclusion;
 }

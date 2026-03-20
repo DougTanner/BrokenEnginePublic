@@ -6,4 +6,4 @@ Integrates Dear ImGui for menu and debug UI rendering with dedicated Vulkan rend
 
 ## Screen Delegation
 
-Owns HUD, menu screens (main, modal, pause, graphics, sound, death), and debug screens (tweaks). See [../../Ui/Screens/CLAUDE.md](../../Ui/Screens/CLAUDE.md).
+Owns HUD, menu screens (main, modal, pause, graphics, sound, death), and debug screens (tweaks) as `std::unique_ptr` members. Game screen types are forward-declared in `ImGuiManager.h` (avoiding game-layer includes in the header); actual headers are included only in `ImGuiManager.cpp` where `make_unique` is called. See [../../Ui/Screens/CLAUDE.md](../../Ui/Screens/CLAUDE.md).

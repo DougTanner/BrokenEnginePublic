@@ -6,7 +6,7 @@ Vulkan development utilities for human-readable enum-to-string conversions used 
 
 ## Key Classes
 
-- **EnumToString** - Converts Vulkan enum values (VkResult, VkFormat, VkColorSpaceKHR, VkPresentModeKHR, VkObjectType, VkDebugReportFlagsEXT) to human-readable strings for logging and error messages. `Convert(Workbuffer&, EnumType)` takes a `Workbuffer&` and returns a `ScopedWorkbufferPop` (using `PushBuffer` for scratch storage in non-logging builds instead of a `thread_local` buffer).
+- **EnumToString** - Converts Vulkan enum values (VkResult, VkFormat, VkColorSpaceKHR, VkPresentModeKHR, VkObjectType) to human-readable strings for logging and error messages. `Convert(EnumType, Workbuffer&)` returns a `ScopedWorkbufferPop` (using `PushBuffer` for scratch storage in non-logging builds instead of a `thread_local` buffer).
 
 ## Architecture Notes
 

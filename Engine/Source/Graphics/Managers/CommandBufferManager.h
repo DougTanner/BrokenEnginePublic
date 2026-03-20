@@ -35,6 +35,11 @@ public:
 
 private:
 
+	void RecordTerrainPasses(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, Pipeline* pPipelines);
+	void RecordWindSpreadPipeline(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, uint32_t uiWindWidth, Pipeline* pPipelines);
+	void RecordSmokeSpreadPipeline(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, uint32_t uiSmokeTilesX, Pipeline* pPipelines);
+	void RecordParticleUpdatePasses(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, Pipeline* pPipelines);
+
 	void RecordLightingBlurMRT(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, int64_t iLevel, float fBlurDivisor, float fDistanceCount, VkExtent3D previousExtent);
 
 	void SubmitGlobalToQueue(int64_t iFramebufferIndex);

@@ -164,7 +164,7 @@ IMPORTANT do not use auto in range-based for loops
 41. Explicitly use std:: namespace, do not `using namespace std;`: std::vector, std::string, std::unordered_map
 NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 
-42. Use designated initializers for struct initializers: LazyChunk { .eDataType = type, .location = loc, }
+42. Use designated initializers for struct initializers: LazyChunk { .location = loc, .header = chunkHeader, }
 
 43. Run-Time Type Info (RTTI) is disabled, do not use it
 

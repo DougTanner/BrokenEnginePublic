@@ -13,7 +13,7 @@ Analyzes a C++ source file that exceeds the project's size guidelines (500-1000 
 
 - **Free functions / helpers**: Extract to `*Utils.h`/`*Utils.cpp` files. This is the lightest-weight option and should be considered first.
 - **Classes** (instance methods, member data): Each class gets its own `.h` and `.cpp` pair. The goal is to identify groups of data + behavior that form a natural class, then move that data and its methods into a new class that the original class delegates to.
-- **Structs with static methods** (e.g., SOA collections): Can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). The struct definition stays in one header; each `.cpp` file implements a subset of the static methods.
+- **Structs with static methods** (e.g., SOA collections): Can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). The struct definition stays in one header; each `.cpp` file implements a subset of the static methods. **Important:** This applies ONLY to structs with static methods. Classes (with instance methods and member data) must NEVER be split across multiple `.cpp` files — use Option B (Extract New Classes) instead.
 
 ## Arguments
 
@@ -108,7 +108,7 @@ Also state:
 
 The extracted class must be a genuine abstraction — it should own the data it operates on and present a meaningful interface. Don't create a class that just wraps free functions with no state.
 
-#### Option C: Split Struct Implementation Across Multiple .cpp Files (for structs with static methods)
+#### Option C: Split Struct Implementation Across Multiple .cpp Files (structs with static methods ONLY — never classes)
 
 This applies to structs whose interface is a set of static methods (common for SOA collections). The struct definition stays in a single `.h`; the static method implementations are split across multiple `.cpp` files by responsibility.
 

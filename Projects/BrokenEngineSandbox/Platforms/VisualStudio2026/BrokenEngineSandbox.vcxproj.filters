@@ -623,6 +623,9 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\RenderTargetTextures.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\RenderTargetTexturesLighting.cpp">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureCache.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
@@ -657,6 +660,12 @@
       <Filter>Game\Network</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Network\ReconcileReplay.cpp">
+      <Filter>Game\Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Network\ReconcileReplayCrc.cpp">
+      <Filter>Game\Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Network\ReconcileReplayHumanState.cpp">
       <Filter>Game\Network</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp">
@@ -711,6 +720,9 @@
       <Filter>Engine</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.cpp">
+      <Filter>Engine\Profile</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileScreens.cpp">
       <Filter>Engine\Profile</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Profile\ProfileManager.cpp">
@@ -965,9 +977,7 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrails.cpp">
       <Filter>Engine\Frame\Collections\SmokeTrails</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrailsUpdate.cpp">
-      <Filter>Engine\Frame\Collections\SmokeTrails</Filter>
-    </ClCompile>
+
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrailsRender.cpp">
       <Filter>Engine\Frame\Collections\SmokeTrails</Filter>
     </ClCompile>
@@ -1159,13 +1169,7 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadCommon.h">
       <Filter>Engine\Data\Shaders\Smoke</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadOne.frag">
-      <Filter>Engine\Data\Shaders\Smoke</Filter>
-    </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadOne.comp">
-      <Filter>Engine\Data\Shaders\Smoke</Filter>
-    </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadTwo.frag">
       <Filter>Engine\Data\Shaders\Smoke</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadTwo.comp">
@@ -1247,9 +1251,6 @@
       <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelGenBrdfLut.vert">
-      <Filter>Engine\Data\Shaders\Model</Filter>
-    </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelLighting.frag">
       <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelCommon.h">

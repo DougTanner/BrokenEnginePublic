@@ -32,14 +32,7 @@ struct MaterialNodeInfo
 	int iOriginalMaterialIndex = -1;  // Original glTF material index (for split materials)
 };
 
-struct AncestorJointResult
-{
-	int iJointIndex = 0;
-	XMMATRIX matAncestorWorld = XMMatrixIdentity();
-};
-
 XMMATRIX ComputeNodeWorldTransform(int iNodeIndex, const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeParentMap);
-AncestorJointResult FindNearestAncestorJoint(Parent* pParent, const std::unordered_map<int, int>& rNodeToJointMap);
 
 // rMaterialNodeMap: tracks (originalMaterial, nodeIndex) -> effectiveMaterialIndex for handling primitives from different mesh nodes that share a material
 void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<common::ModelVertex>& rVertices, std::vector<Material>& rMaterials, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::unordered_map<std::pair<int, int>, int, PairHash>& rMaterialNodeMap);

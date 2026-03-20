@@ -28,10 +28,5 @@ SOA collections managing dynamic game entities (projectiles, enemies, players) u
 
 ## See Also
 
-- [Blasters/CLAUDE.md](Blasters/CLAUDE.md)
-- [Missiles/CLAUDE.md](Missiles/CLAUDE.md)
-- [Targets/CLAUDE.md](Targets/CLAUDE.md)
-- [Spaceships/CLAUDE.md](Spaceships/CLAUDE.md)
-- [Players/CLAUDE.md](Players/CLAUDE.md)
 - Engine collections: [../../../../../Engine/Source/Frame/Collections/CLAUDE.md](../../../../../Engine/Source/Frame/Collections/CLAUDE.md)
 - Parent frame: [../CLAUDE.md](../CLAUDE.md)

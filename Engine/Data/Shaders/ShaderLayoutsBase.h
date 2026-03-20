@@ -124,6 +124,10 @@ CONSTEXPR int kiMaxLightingBlurCount = 32;
 
 CONSTEXPR int kiShadowTextureExecutionSize = 64;
 
+CONSTEXPR int kiComputeTileSize = 8;
+CONSTEXPR int kiOccupancyDilateGroupSize = 256;
+CONSTEXPR int kiParticleUpdateGroupSize = 32;
+
 CONSTEXPR int kiMaxAlphaMesh = 16;
 
 CONSTEXPR float kfAmbient = 0.05f;

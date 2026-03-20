@@ -14,9 +14,124 @@
 
 using enum common::ChunkFlags;
 
+static bool ShaderHeadersChanged()
+{
+	static bool sbComputed = false;
+	static bool sbChanged = false;
+	if (sbComputed)
+		return sbChanged;
+	sbComputed = true;
+
+	// Find most recent modification time across all shader files
+	std::filesystem::file_time_type maxWriteTime;
+	for (int64_t i = 0; i < 2; ++i)
+	{
+		std::filesystem::path shadersDir = gpFileManager->mpInputDirectories[i] / "Shaders";
+		for (const std::filesystem::directory_entry& rEntry : std::filesystem::recursive_directory_iterator(shadersDir))
+		{
+			if (!rEntry.is_regular_file())
+				continue;
+			std::filesystem::file_time_type writeTime = rEntry.last_write_time();
+			if (writeTime > maxWriteTime)
+				maxWriteTime = writeTime;
+		}
+	}
+
+	// Compare with stored time
+	std::filesystem::path storedTimePath = gpFileManager->mTempDirectory / "ShaderHeadersModifiedTime.bin";
+	if (std::filesystem::exists(storedTimePath))
+	{
+		int64_t iStoredTime = 0;
+		std::fstream fileStream(storedTimePath, std::ios::in | std::ios::binary);
+		fileStream.read(reinterpret_cast<char*>(&iStoredTime), sizeof(iStoredTime));
+		if (maxWriteTime.time_since_epoch().count() <= iStoredTime)
+		{
+			sbChanged = false;
+			return sbChanged;
+		}
+	}
+
+	// Something changed — update stored time
+	int64_t iMaxTime = maxWriteTime.time_since_epoch().count();
+	std::fstream fileStream(storedTimePath, std::ios::out | std::ios::binary);
+	fileStream.write(reinterpret_cast<char*>(&iMaxTime), sizeof(iMaxTime));
+
+	sbChanged = true;
+	return sbChanged;
+}
+
+static void CollectShaderIncludes(const std::filesystem::path& rFile, const std::filesystem::path& rIncludeDir0, const std::filesystem::path& rIncludeDir1, std::vector<std::filesystem::path>& rResolvedIncludes)
+{
+	std::fstream fileStream(rFile, std::ios::in);
+	std::string line;
+	while (std::getline(fileStream, line))
+	{
+		size_t uiIncludePos = line.find("#include");
+		if (uiIncludePos == std::string::npos)
+			continue;
+
+		size_t uiFirstQuote = line.find('"', uiIncludePos);
+		if (uiFirstQuote == std::string::npos)
+			continue;
+
+		size_t uiSecondQuote = line.find('"', uiFirstQuote + 1);
+		if (uiSecondQuote == std::string::npos)
+			continue;
+
+		std::string includePath = line.substr(uiFirstQuote + 1, uiSecondQuote - uiFirstQuote - 1);
+
+		// Resolve: relative to file, then includeDir0, then includeDir1
+		std::filesystem::path resolved;
+		if (std::filesystem::path candidate0 = rFile.parent_path() / includePath; std::filesystem::exists(candidate0))
+			resolved = std::filesystem::canonical(candidate0);
+		else if (std::filesystem::path candidate1 = rIncludeDir0 / includePath; std::filesystem::exists(candidate1))
+			resolved = std::filesystem::canonical(candidate1);
+		else if (std::filesystem::path candidate2 = rIncludeDir1 / includePath; std::filesystem::exists(candidate2))
+			resolved = std::filesystem::canonical(candidate2);
+		else
+			continue;
+
+		if (std::find(rResolvedIncludes.begin(), rResolvedIncludes.end(), resolved) != rResolvedIncludes.end())
+			continue;
+
+		rResolvedIncludes.push_back(resolved);
+		CollectShaderIncludes(resolved, rIncludeDir0, rIncludeDir1, rResolvedIncludes);
+	}
+}
+
 std::optional<common::ChunkFlags_t> ExportShader::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 {
 	return rDirectoryEntry.path().extension() == ".comp" || rDirectoryEntry.path().extension() == ".frag" || rDirectoryEntry.path().extension() == ".vert" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kShader) : std::nullopt;
+}
+
+bool ExportShader::CheckDirty(const std::filesystem::path& rPackFile)
+{
+	if (ExportJob::CheckDirty(rPackFile))
+		return true;
+
+	if (ShaderHeadersChanged())
+	{
+		std::filesystem::path includeDir0 = gpFileManager->mpInputDirectories[0] / "Shaders";
+		std::filesystem::path includeDir1 = gpFileManager->mpInputDirectories[1] / "Shaders";
+
+		std::vector<std::filesystem::path> resolvedIncludes;
+		CollectShaderIncludes(mInputPath, includeDir0, includeDir1, resolvedIncludes);
+
+		std::filesystem::file_time_type chunkFileLastWriteTime = std::filesystem::last_write_time(mChunkFile);
+		for (const std::filesystem::path& rHeaderFile : resolvedIncludes)
+		{
+			std::filesystem::file_time_type headerFileLastWriteTime = std::filesystem::last_write_time(rHeaderFile);
+			if (headerFileLastWriteTime > chunkFileLastWriteTime)
+			{
+				auto [date, time] = common::FileTimeString(chunkFileLastWriteTime);
+				Log("Chunk file \"{}\" is out of date (header modified): {} {}", mChunkFile.string(), date, time);
+				mbDirty = true;
+				return mbDirty;
+			}
+		}
+	}
+
+	return mbDirty;
 }
 
 void WriteBinding(VkDescriptorSetLayoutBinding* pBindings, uint32_t* pSetIndices, int64_t iBinding, uint32_t uiSet, VkDescriptorType vkDescriptorType, int64_t iDescriptorCount, common::ChunkFlags_t chunkFlags)
@@ -149,20 +264,20 @@ void ExportShader::Export()
 			// This is required because stage_inputs can be out of order
 			if (iLocation == i)
 			{
-				const spirv_cross::SPIRType& spirType = spirvCrossCompiler.get_type(rResource.type_id);
-				Log("   {} {} {} size {}", static_cast<uint32_t>(rResource.type_id), static_cast<uint32_t>(rResource.base_type_id), rResource.name, spirType.vecsize);
+				const spirv_cross::SPIRType& rSpirvType = spirvCrossCompiler.get_type(rResource.type_id);
+				Log("   {} {} {} size {}", static_cast<uint32_t>(rResource.type_id), static_cast<uint32_t>(rResource.base_type_id), rResource.name, rSpirvType.vecsize);
 
 				ASSERT(iLocation < common::ShaderHeader::kiMaxVertexInputAttributeDescriptions);
 				VkVertexInputAttributeDescription& rVkVertexInputAttributeDescription = tempAttrs[iLocation];
 				rVkVertexInputAttributeDescription.location = static_cast<uint32_t>(iLocation);
 				rVkVertexInputAttributeDescription.binding = 0;
-				rVkVertexInputAttributeDescription.format = spirType.vecsize == 2 ? VK_FORMAT_R32G32_SFLOAT : (spirType.vecsize == 3 ? VK_FORMAT_R32G32B32_SFLOAT : VK_FORMAT_R32G32B32A32_SFLOAT);
+				rVkVertexInputAttributeDescription.format = rSpirvType.vecsize == 2 ? VK_FORMAT_R32G32_SFLOAT : (rSpirvType.vecsize == 3 ? VK_FORMAT_R32G32B32_SFLOAT : VK_FORMAT_R32G32B32A32_SFLOAT);
 				rVkVertexInputAttributeDescription.offset = static_cast<uint32_t>(iVertexInputStride);
 				++iAttrCount;
 
 				Log("       location {} binding {} format {} offset {}", rVkVertexInputAttributeDescription.location, rVkVertexInputAttributeDescription.binding, static_cast<int64_t>(rVkVertexInputAttributeDescription.format), rVkVertexInputAttributeDescription.offset);
 
-				iVertexInputStride += spirType.vecsize * sizeof(float);
+				iVertexInputStride += rSpirvType.vecsize * sizeof(float);
 			}
 		}
 	}
@@ -201,13 +316,13 @@ void ExportShader::Export()
 			uint32_t uiSet = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationDescriptorSet);
 			Log("   {} {} {} set {} bound at {}", static_cast<uint32_t>(rResource.type_id), static_cast<uint32_t>(rResource.base_type_id), rResource.name, uiSet, iBinding);
 
-			const spirv_cross::SPIRType& spirType = spirvCrossCompiler.get_type(rResource.type_id);
-			if (!spirType.array.empty())
+			const spirv_cross::SPIRType& rSpirvType = spirvCrossCompiler.get_type(rResource.type_id);
+			if (!rSpirvType.array.empty())
 			{
-				Log("   Array size: {}", spirType.array[0]);
+				Log("   Array size: {}", rSpirvType.array[0]);
 			}
 
-			WriteBinding(tempBindings, tempSetIndices, iBinding, uiSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
+			WriteBinding(tempBindings, tempSetIndices, iBinding, uiSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, rSpirvType.array.empty() ? 1 : rSpirvType.array[0], mChunkFlags);
 			iBindingCount = std::max(iBinding + 1, iBindingCount);
 		}
 	}
@@ -221,13 +336,13 @@ void ExportShader::Export()
 			uint32_t uiSet = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationDescriptorSet);
 			Log("   {} {} {} set {} bound at {}", static_cast<uint32_t>(rResource.type_id), static_cast<uint32_t>(rResource.base_type_id), rResource.name, uiSet, iBinding);
 
-			const spirv_cross::SPIRType& spirType = spirvCrossCompiler.get_type(rResource.type_id);
-			if (!spirType.array.empty())
+			const spirv_cross::SPIRType& rSpirvType = spirvCrossCompiler.get_type(rResource.type_id);
+			if (!rSpirvType.array.empty())
 			{
-				Log("   Array size: {}", spirType.array[0]);
+				Log("   Array size: {}", rSpirvType.array[0]);
 			}
 
-			WriteBinding(tempBindings, tempSetIndices, iBinding, uiSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
+			WriteBinding(tempBindings, tempSetIndices, iBinding, uiSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, rSpirvType.array.empty() ? 1 : rSpirvType.array[0], mChunkFlags);
 			iBindingCount = std::max(iBinding + 1, iBindingCount);
 		}
 	}
@@ -241,13 +356,13 @@ void ExportShader::Export()
 			uint32_t uiSet = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationDescriptorSet);
 			Log("   {} {} {} set {} bound at {}", static_cast<uint32_t>(rResource.type_id), static_cast<uint32_t>(rResource.base_type_id), rResource.name, uiSet, iBinding);
 
-			const spirv_cross::SPIRType& spirType = spirvCrossCompiler.get_type(rResource.type_id);
-			if (!spirType.array.empty())
+			const spirv_cross::SPIRType& rSpirvType = spirvCrossCompiler.get_type(rResource.type_id);
+			if (!rSpirvType.array.empty())
 			{
-				Log("   Array size: {}", spirType.array[0]);
+				Log("   Array size: {}", rSpirvType.array[0]);
 			}
 
-			WriteBinding(tempBindings, tempSetIndices, iBinding, uiSet, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
+			WriteBinding(tempBindings, tempSetIndices, iBinding, uiSet, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, rSpirvType.array.empty() ? 1 : rSpirvType.array[0], mChunkFlags);
 			iBindingCount = std::max(iBinding + 1, iBindingCount);
 		}
 	}
@@ -261,14 +376,14 @@ void ExportShader::Export()
 			uint32_t uiSet = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationDescriptorSet);
 			Log("   {} {} {} set {} bound at {}", static_cast<uint32_t>(rResource.type_id), static_cast<uint32_t>(rResource.base_type_id), rResource.name, uiSet, iBinding);
 
-			const spirv_cross::SPIRType& spirType = spirvCrossCompiler.get_type(rResource.type_id);
-			if (!spirType.array.empty())
+			const spirv_cross::SPIRType& rSpirvType = spirvCrossCompiler.get_type(rResource.type_id);
+			if (!rSpirvType.array.empty())
 			{
-				Log("   Array size: {}", spirType.array[0]);
+				Log("   Array size: {}", rSpirvType.array[0]);
 			}
 
 			// Runtime-sized arrays (unsized) report array[0] == 0; use UINT32_MAX sentinel for pipeline to resolve
-			int64_t iArraySize = spirType.array.empty() ? 1 : (spirType.array[0] == 0 ? UINT32_MAX : spirType.array[0]);
+			int64_t iArraySize = rSpirvType.array.empty() ? 1 : (rSpirvType.array[0] == 0 ? UINT32_MAX : rSpirvType.array[0]);
 			WriteBinding(tempBindings, tempSetIndices, iBinding, uiSet, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, iArraySize, mChunkFlags);
 			iBindingCount = std::max(iBinding + 1, iBindingCount);
 		}

@@ -6,6 +6,8 @@
 namespace engine
 {
 
+static auto AlignmentKeyLess = [](const AlignmentPair& rPair, uint64_t uiKey) { return rPair.uiKey < uiKey; };
+
 uint64_t Alignments::MakeAlignmentKey(alignment_t idA, alignment_t idB)
 {
 	uint32_t uiKeyA = idA.Value();
@@ -20,10 +22,7 @@ uint64_t Alignments::MakeAlignmentKey(alignment_t idA, alignment_t idB)
 void Alignments::AddAlignment(alignment_t idA, alignment_t idB, uint8_t uiFlags)
 {
 	uint64_t uiKey = MakeAlignmentKey(idA, idB);
-	auto it = std::lower_bound(alignmentPairs.begin(), alignmentPairs.end(), uiKey, [](const AlignmentPair& rPair, uint64_t uiKey)
-	{
-		return rPair.uiKey < uiKey;
-	});
+	auto it = std::lower_bound(alignmentPairs.begin(), alignmentPairs.end(), uiKey, AlignmentKeyLess);
 
 	if (it != alignmentPairs.end() && it->uiKey == uiKey)
 	{
@@ -38,10 +37,7 @@ void Alignments::AddAlignment(alignment_t idA, alignment_t idB, uint8_t uiFlags)
 void Alignments::RemoveAlignment(alignment_t idA, alignment_t idB)
 {
 	uint64_t uiKey = MakeAlignmentKey(idA, idB);
-	auto it = std::lower_bound(alignmentPairs.begin(), alignmentPairs.end(), uiKey, [](const AlignmentPair& rPair, uint64_t uiKey)
-	{
-		return rPair.uiKey < uiKey;
-	});
+	auto it = std::lower_bound(alignmentPairs.begin(), alignmentPairs.end(), uiKey, AlignmentKeyLess);
 
 	if (it != alignmentPairs.end() && it->uiKey == uiKey)
 	{
@@ -52,10 +48,7 @@ void Alignments::RemoveAlignment(alignment_t idA, alignment_t idB)
 bool Alignments::CanCollide(alignment_t idA, alignment_t idB) const
 {
 	uint64_t uiKey = MakeAlignmentKey(idA, idB);
-	auto it = std::lower_bound(alignmentPairs.begin(), alignmentPairs.end(), uiKey, [](const AlignmentPair& rPair, uint64_t uiKey)
-	{
-		return rPair.uiKey < uiKey;
-	});
+	auto it = std::lower_bound(alignmentPairs.begin(), alignmentPairs.end(), uiKey, AlignmentKeyLess);
 
 	if (it == alignmentPairs.end() || it->uiKey != uiKey)
 	{

@@ -1,4 +1,4 @@
-	#version 460
+#version 460
 
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
@@ -12,7 +12,7 @@ layout(push_constant) uniform pushConstants
 // Uniforms
 layout (set = 0, binding = 0) uniform globalUniform
 {
-    GlobalLayout globalLayout;
+	GlobalLayout globalLayout;
 };
 
 layout (set = 0, binding = 1) uniform mainUniform
@@ -51,20 +51,6 @@ void main()
 	}
 	else
 	{
-		float fSunriseOffset = globalLayout.fShadowSunriseStretch;
-		float fSunsetOffset = globalLayout.fShadowSunsetStretch;
-
-		float fSunriseOffsetCubed = fSunriseOffset * fSunriseOffset * fSunriseOffset;
-		float fSunsetOffsetCubed = fSunsetOffset * fSunsetOffset * fSunsetOffset;
-		vec2 f2Translation = (fSunriseOffsetCubed + fSunsetOffsetCubed) * -globalLayout.f4SunNormal.xy;
-
-		float fSunriseDiff = max(0.0f, pObjects[gl_InstanceIndex].f4Position.x - f3OutWorldPosition.x);
-		float fSunsetDiff = max(0.0f, f3OutWorldPosition.x - pObjects[gl_InstanceIndex].f4Position.x);
-		float fStretchX = -(0.5f + fSunriseDiff) * fSunriseOffsetCubed + (0.5f + fSunsetDiff) * fSunsetOffsetCubed;
-
-		vec3 f3ShadowPosition = f3OutWorldPosition + vec3(f2Translation.x + fStretchX, f2Translation.y, 0.0f);
-
-		vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3ShadowPosition, globalLayout.f4VisibleArea);
-		gl_Position = vec4(2.0f * f2VisibleAreaPosition.x - 1.0f, 1.0f - 2.0f * f2VisibleAreaPosition.y, 0.0f, 1.0f);
+		gl_Position = ShadowStretchProjection(globalLayout, f3OutWorldPosition, pObjects[gl_InstanceIndex].f4Position.xyz);
 	}
 }

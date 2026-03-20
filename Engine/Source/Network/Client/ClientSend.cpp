@@ -2,6 +2,8 @@
 
 #include "Network/Client/Client.h"
 
+#if defined(BT_CLIENT)
+
 #include "Network/NetworkCursor.h"
 
 namespace engine
@@ -183,7 +185,7 @@ bool Client::SendSubscribe(GridCoord coord)
 			mCoordSlots.at(i).ackState.uiReceivedBitfieldLow = 0;
 			mCoordSlots.at(i).ackState.uiReceivedBitfieldHigh = 0;
 			bFoundSlot = true;
-			Log(kLogNetwork, "Client::SendSubscribe Coord: ({},{}) Slot: {}", coord.x, coord.y, i); // DT TEMP
+			Log(kLogNetwork, "Client::SendSubscribe Coord: ({},{}) Slot: {}", coord.x, coord.y, i);
 			break;
 		}
 	}
@@ -215,30 +217,8 @@ bool Client::SendSubscribe(GridCoord coord)
 
 void Client::SendUnsubscribe(int64_t iSlot)
 {
-	if (!mbConnected || mpServerPeer == nullptr)
-	{
-		return;
-	}
-
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	rWorkbuffer.Push();
-
-	// [1B type][1B slotIndex]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientUnsubscribe));
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
-
 	mCoordSlots.at(iSlot).eState = CoordSubscriptionState::kUnsubscribing;
-
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
-
-	rWorkbuffer.Pop();
+	SendUnsubscribeOnly(iSlot);
 }
 
 void Client::SendUnsubscribeOnly(int64_t iSlot)
@@ -293,6 +273,32 @@ void Client::SendResyncRequest()
 	rWorkbuffer.Pop();
 }
 
+void Client::SendPauseRequest(bool bPaused)
+{
+	if (!mbConnected || mpServerPeer == nullptr)
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	// [1B type][1B paused]
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientPauseRequest));
+	rWorkbuffer.PushBack<uint8_t>(bPaused ? 1 : 0);
+
+	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
+
+	{
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		// Heap: ENet allocates packet data internally
+		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
+		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
+	}
+
+	rWorkbuffer.Pop();
+}
+
 void Client::SendHello()
 {
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
@@ -315,3 +321,5 @@ void Client::SendHello()
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

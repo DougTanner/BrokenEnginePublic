@@ -1,29 +1,31 @@
-#include "TweaksScreen.h"
+#include "TweaksScreenBase.h"
 
 namespace engine
 {
 
-void TweaksScreen::RenderTerrainSection()
+void TweaksScreenBase::RenderTerrainSection()
 {
+	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kTerrain);
+
 	WrapperSeparatorText("Beach");
-	WrapperSlider("Snow Multiplier", static_cast<int>(TweakSection::kTerrain));
-	WrapperSlider("Beach Height", static_cast<int>(TweakSection::kTerrain));
-	WrapperSlider("Beach Sand Size", static_cast<int>(TweakSection::kTerrain));
-	WrapperSlider("Beach Sand Blend", static_cast<int>(TweakSection::kTerrain));
-	WrapperSlider("Beach Normals Size 1", static_cast<int>(TweakSection::kTerrain));
-	WrapperSlider("Beach Normals Size 2", static_cast<int>(TweakSection::kTerrain));
-	WrapperSlider("Beach Normals Size 3", static_cast<int>(TweakSection::kTerrain));
-	WrapperSlider("Beach Normals Blend", static_cast<int>(TweakSection::kTerrain));
+	WrapperSlider("Snow Multiplier", kiSection);
+	WrapperSlider("Beach Height", kiSection);
+	WrapperSlider("Beach Sand Size", kiSection);
+	WrapperSlider("Beach Sand Blend", kiSection);
+	WrapperSlider("Beach Normals Size 1", kiSection);
+	WrapperSlider("Beach Normals Size 2", kiSection);
+	WrapperSlider("Beach Normals Size 3", kiSection);
+	WrapperSlider("Beach Normals Blend", kiSection);
 
 	WrapperSeparatorText("Rock");
-	WrapperSlider("Island Height", static_cast<int>(TweakSection::kTerrain));
-	WrapperSlider("Rock Multiplier", static_cast<int>(TweakSection::kTerrain));
-	WrapperSlider("Rock Size", static_cast<int>(TweakSection::kTerrain));
-	WrapperSlider("Rock Blend", static_cast<int>(TweakSection::kTerrain));
-	WrapperSlider("Rock Normals Size 1", static_cast<int>(TweakSection::kTerrain));
-	WrapperSlider("Rock Normals Size 2", static_cast<int>(TweakSection::kTerrain));
-	WrapperSlider("Rock Normals Size 3", static_cast<int>(TweakSection::kTerrain));
-	WrapperSlider("Rock Normals Blend", static_cast<int>(TweakSection::kTerrain));
+	WrapperSlider("Island Height", kiSection);
+	WrapperSlider("Rock Multiplier", kiSection);
+	WrapperSlider("Rock Size", kiSection);
+	WrapperSlider("Rock Blend", kiSection);
+	WrapperSlider("Rock Normals Size 1", kiSection);
+	WrapperSlider("Rock Normals Size 2", kiSection);
+	WrapperSlider("Rock Normals Size 3", kiSection);
+	WrapperSlider("Rock Normals Blend", kiSection);
 }
 
 } // namespace engine

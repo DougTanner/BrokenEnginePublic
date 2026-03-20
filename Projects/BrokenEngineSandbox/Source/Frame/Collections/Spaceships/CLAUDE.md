@@ -1,6 +1,6 @@
 # /Projects/BrokenEngineSandbox/Source/Frame/Collections/Spaceships/
 
-AI-controlled enemy spaceships with health, weapons, behavior flags, and per-instance skeletal animation. Compiles in both client and server builds. Each spaceship owns a pusher and target, plus client-only wind trail and animation time.
+AI-controlled enemy spaceships with health, weapons, behavior flags, freeze time, and per-instance skeletal animation. Compiles in both client and server builds. Each spaceship owns a pusher and target, plus client-only wind trail and animation time. Hit flash effects spawn controlled point lights at collision contact points (client-only).
 
 ## File Structure
 

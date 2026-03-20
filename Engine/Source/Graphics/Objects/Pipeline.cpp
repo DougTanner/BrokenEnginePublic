@@ -9,6 +9,32 @@ namespace engine
 using enum DescriptorFlags;
 using enum PipelineFlags;
 
+namespace
+{
+
+void RecordPushConstants(VkCommandBuffer vkCommandBuffer, VkPipelineLayout vkPipelineLayout, VkShaderStageFlags stageFlags, const XMFLOAT4& f4PushConstants, uint32_t uiMaterialIndex)
+{
+	shaders::PushConstantsLayout pushConstantsLayout {};
+	pushConstantsLayout.f4Pipeline = f4PushConstants;
+	pushConstantsLayout.f4Material = {static_cast<float>(uiMaterialIndex), 0.0f, 0.0f, 0.0f};
+	vkCmdPushConstants(vkCommandBuffer, vkPipelineLayout, stageFlags, 0, sizeof(pushConstantsLayout), &pushConstantsLayout);
+}
+
+void BindGraphicsDescriptorSets(VkCommandBuffer vkCommandBuffer, VkPipelineLayout vkPipelineLayout, VkDescriptorSetLayout vkExternalLayout, int64_t iDescriptorSetIndex, const std::vector<VkDescriptorSet>& rDescriptorSets)
+{
+	if (vkExternalLayout != VK_NULL_HANDLE)
+	{
+		VkDescriptorSet sets[2] = {gpTextureManager->mTextureDescriptors.mGlobalDescriptorSets[iDescriptorSetIndex], rDescriptorSets[iDescriptorSetIndex]};
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipelineLayout, 0, 2, sets, 0, nullptr);
+	}
+	else
+	{
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipelineLayout, 0, 1, &rDescriptorSets[iDescriptorSetIndex], 0, nullptr);
+	}
+}
+
+} // namespace
+
 Pipeline::Pipeline(const PipelineInfo& rInfo)
 {
 	Create(rInfo);
@@ -174,23 +200,12 @@ void Pipeline::RecordDraw(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffe
 
 	if (mInfo.flags & kPushConstants)
 	{
-		shaders::PushConstantsLayout pushConstantsLayout {};
-		pushConstantsLayout.f4Pipeline = f4PushConstants;
-		pushConstantsLayout.f4Material = {static_cast<float>(mInfo.uiMaterialIndex), 0.0f, 0.0f, 0.0f};
-		vkCmdPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstantsLayout), &pushConstantsLayout);
+		RecordPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, f4PushConstants, mInfo.uiMaterialIndex);
 	}
 
 	int64_t iDescriptorSetIndex = mbPerCommandBuffer ? iCommandBuffer : 0;
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipeline);
-	if (mVkExternalDescriptorSetLayout != VK_NULL_HANDLE)
-	{
-		VkDescriptorSet sets[2] = {gpTextureManager->mTextureDescriptors.mGlobalDescriptorSets[iDescriptorSetIndex], mVkDescriptorSets[iDescriptorSetIndex]};
-		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 0, 2, sets, 0, nullptr);
-	}
-	else
-	{
-		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 0, 1, &mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
-	}
+	BindGraphicsDescriptorSets(vkCommandBuffer, mVkPipelineLayout, mVkExternalDescriptorSetLayout, iDescriptorSetIndex, mVkDescriptorSets);
 	mInfo.pVertexBuffer->RecordBindVertexBuffer(vkCommandBuffer);
 
 	vkCmdDrawIndexed(vkCommandBuffer, static_cast<uint32_t>(mInfo.pVertexBuffer->mInfo.iCount), static_cast<uint32_t>(iInstanceCount), 0, 0, static_cast<uint32_t>(iFirstInstance));
@@ -202,22 +217,11 @@ void Pipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkComm
 
 	if (mInfo.flags & kPushConstants)
 	{
-		shaders::PushConstantsLayout pushConstantsLayout {};
-		pushConstantsLayout.f4Pipeline = f4PushConstants;
-		pushConstantsLayout.f4Material = {static_cast<float>(mInfo.uiMaterialIndex), 0.0f, 0.0f, 0.0f};
-		vkCmdPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstantsLayout), &pushConstantsLayout);
+		RecordPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, f4PushConstants, mInfo.uiMaterialIndex);
 	}
 
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipeline);
-	if (mVkExternalDescriptorSetLayout != VK_NULL_HANDLE)
-	{
-		VkDescriptorSet sets[2] = {gpTextureManager->mTextureDescriptors.mGlobalDescriptorSets[iCommandBuffer], mVkDescriptorSets[iCommandBuffer]};
-		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 0, 2, sets, 0, nullptr);
-	}
-	else
-	{
-		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 0, 1, &mVkDescriptorSets[iCommandBuffer], 0, nullptr);
-	}
+	BindGraphicsDescriptorSets(vkCommandBuffer, mVkPipelineLayout, mVkExternalDescriptorSetLayout, iCommandBuffer, mVkDescriptorSets);
 	mInfo.pVertexBuffer->RecordBindVertexBuffer(vkCommandBuffer);
 	VkDeviceSize vkIndirectOffset = mInfo.flags & kIndirectDeviceLocal ? 0 : iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
 
@@ -236,10 +240,7 @@ void Pipeline::RecordDrawIndirectSet2(int64_t iCommandBuffer, VkCommandBuffer vk
 
 	if (mInfo.flags & kPushConstants)
 	{
-		shaders::PushConstantsLayout pushConstantsLayout {};
-		pushConstantsLayout.f4Pipeline = f4PushConstants;
-		pushConstantsLayout.f4Material = {static_cast<float>(mInfo.uiMaterialIndex), 0.0f, 0.0f, 0.0f};
-		vkCmdPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstantsLayout), &pushConstantsLayout);
+		RecordPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, f4PushConstants, mInfo.uiMaterialIndex);
 	}
 
 	// Bind pipeline and Set 2 only (Set 0, Set 1, and vertex buffer already bound by ModelPipeline)
@@ -255,10 +256,7 @@ void Pipeline::RecordCompute(int64_t iCommandBuffer, VkCommandBuffer vkCommandBu
 
 	if (mInfo.flags & kPushConstants)
 	{
-		shaders::PushConstantsLayout pushConstantsLayout {};
-		pushConstantsLayout.f4Pipeline = f4PushConstants;
-		pushConstantsLayout.f4Material = {static_cast<float>(mInfo.uiMaterialIndex), 0.0f, 0.0f, 0.0f};
-		vkCmdPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushConstantsLayout), &pushConstantsLayout);
+		RecordPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, f4PushConstants, mInfo.uiMaterialIndex);
 	}
 
 	int64_t iDescriptorSetIndex = mbPerCommandBuffer ? iCommandBuffer : 0;
@@ -273,10 +271,7 @@ void Pipeline::RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkC
 
 	if (mInfo.flags & kPushConstants)
 	{
-		shaders::PushConstantsLayout pushConstantsLayout {};
-		pushConstantsLayout.f4Pipeline = f4PushConstants;
-		pushConstantsLayout.f4Material = {static_cast<float>(mInfo.uiMaterialIndex), 0.0f, 0.0f, 0.0f};
-		vkCmdPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushConstantsLayout), &pushConstantsLayout);
+		RecordPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, f4PushConstants, mInfo.uiMaterialIndex);
 	}
 
 	int64_t iDescriptorSetIndex = mbPerCommandBuffer ? iCommandBuffer : 0;

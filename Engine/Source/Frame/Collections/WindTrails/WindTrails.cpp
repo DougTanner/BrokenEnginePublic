@@ -27,12 +27,7 @@ void WindTrailsInterpolate::AllocateAndCopy(WindTrailsInterpolate& rCurrent, con
 
 void WindTrailsPostRender::AllocateAndCopy(WindTrailsPostRender& rCurrent, const WindTrailsPostRender& rPrevious)
 {
-	Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
-	}
+	AllocateAndCopyIds(rCurrent, rPrevious);
 }
 
 void WindTrailsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)

@@ -1,9 +1,9 @@
-#include "TweaksScreen.h"
+#include "TweaksScreenBase.h"
 
 namespace engine
 {
 
-void TweaksScreen::RenderWindSection()
+void TweaksScreenBase::RenderWindSection()
 {
 	static constexpr int kiSection = static_cast<int>(TweakSection::kWind);
 

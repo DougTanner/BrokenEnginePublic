@@ -33,6 +33,21 @@ vec2 WorldToVisibleArea(vec3 f3WorldPosition, vec4 f4VisibleArea)
 	return vec2(fMultiplierX * (f3WorldPosition.x - f4VisibleArea.x), 1.0f - fMultiplierY * (f3WorldPosition.y - f4VisibleArea.w));
 }
 
+vec4 ShadowStretchProjection(GlobalLayout globalLayout, vec3 f3WorldPosition, vec3 f3ObjectPosition)
+{
+	float fSunriseOffset = globalLayout.fShadowSunriseStretch;
+	float fSunsetOffset = globalLayout.fShadowSunsetStretch;
+	float fSunriseOffsetCubed = fSunriseOffset * fSunriseOffset * fSunriseOffset;
+	float fSunsetOffsetCubed = fSunsetOffset * fSunsetOffset * fSunsetOffset;
+	vec2 f2Translation = (fSunriseOffsetCubed + fSunsetOffsetCubed) * -globalLayout.f4SunNormal.xy;
+	float fSunriseDiff = max(0.0f, f3ObjectPosition.x - f3WorldPosition.x);
+	float fSunsetDiff = max(0.0f, f3WorldPosition.x - f3ObjectPosition.x);
+	float fStretchX = -(0.5f + fSunriseDiff) * fSunriseOffsetCubed + (0.5f + fSunsetDiff) * fSunsetOffsetCubed;
+	vec3 f3ShadowPosition = vec3(f3WorldPosition.x + f2Translation.x + fStretchX, f3WorldPosition.y + f2Translation.y, f3WorldPosition.z);
+	vec2 f2VisibleAreaUV = WorldToVisibleArea(f3ShadowPosition, globalLayout.f4VisibleArea);
+	return vec4(2.0f * f2VisibleAreaUV.x - 1.0f, 1.0f - 2.0f * f2VisibleAreaUV.y, 0.0f, 1.0f);
+}
+
 vec2 BaseHeightPosition(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3InPosition)
 {
 	vec3 f3ToEyeNormal = normalize(mainLayout.f4EyePosition.xyz - f3InPosition);
@@ -41,7 +56,7 @@ vec2 BaseHeightPosition(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f
 	return (f3InPosition + max(fMult, 0.0f) * f3ToEyeNormal).xy;
 }
 
-vec3 SampleNormal(GlobalLayout globalLayout, sampler2D normalSampler, vec2 f2Position, float fSize, float fSpeed, float fTime, vec2 f2Offset)
+vec3 SampleNormal(GlobalLayout globalLayout, sampler2D normalSampler, vec2 f2Position, float fSize, float fSpeed, vec2 f2Offset)
 {
 	vec3 f3SampledNormal = texture(normalSampler, f2Offset + fSize * f2Position + fSpeed * vec2(globalLayout.fElapsedTime, globalLayout.fElapsedTime)).xyz;
 	return vec3(1.0f - 2.0f * f3SampledNormal.x, 1.0f - 2.0f * f3SampledNormal.y, f3SampledNormal.z);
@@ -165,20 +180,25 @@ vec3 SpecularLighting(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3C
 	return f3Final;
 }
 
+vec2 WorldToSmokeTexcoord(vec4 f4SmokeArea, vec2 f2Position)
+{
+	return vec2(
+		(f2Position.x - f4SmokeArea.x) / (f4SmokeArea.z - f4SmokeArea.x),
+		(f2Position.y - f4SmokeArea.y) / (f4SmokeArea.w - f4SmokeArea.y));
+}
+
 float SmokeShadow(GlobalLayout globalLayout, vec3 f3InPosition, sampler2D smokeSampler, float fMulti)
 {
-	float fSmokeAreaTexcoordX = (f3InPosition.x - globalLayout.f4SmokeArea.x) / (globalLayout.f4SmokeArea.z - globalLayout.f4SmokeArea.x);
-	float fSmokeAreaTexcoordY = (f3InPosition.y - globalLayout.f4SmokeArea.y) / (globalLayout.f4SmokeArea.w - globalLayout.f4SmokeArea.y);
-	float fSmokeShadow = globalLayout.fSmokeMax * texture(smokeSampler, vec2(fSmokeAreaTexcoordX, fSmokeAreaTexcoordY)).x;
+	vec2 f2SmokeTexcoord = WorldToSmokeTexcoord(globalLayout.f4SmokeArea, f3InPosition.xy);
+	float fSmokeShadow = globalLayout.fSmokeMax * texture(smokeSampler, f2SmokeTexcoord).x;
 	fSmokeShadow = clamp(pow(fSmokeShadow, globalLayout.fSmokePower), 0.0f, 1.0f);
 	return 1.0f - fMulti * fSmokeShadow;
 }
 
 vec3 AddSmoke(GlobalLayout globalLayout, vec3 f3InColor, vec2 f2InPosition, sampler2D smokeSampler, float fInMax, vec4 pf4Lighting[3])
 {
-	float fSmokeAreaTexcoordX = (f2InPosition.x - globalLayout.f4SmokeArea.x) / (globalLayout.f4SmokeArea.z - globalLayout.f4SmokeArea.x);
-	float fSmokeAreaTexcoordY = (f2InPosition.y - globalLayout.f4SmokeArea.y) / (globalLayout.f4SmokeArea.w - globalLayout.f4SmokeArea.y);
-	float fSmoke = globalLayout.fSmokeMax * texture(smokeSampler, vec2(fSmokeAreaTexcoordX, fSmokeAreaTexcoordY)).x;
+	vec2 f2SmokeTexcoord = WorldToSmokeTexcoord(globalLayout.f4SmokeArea, f2InPosition);
+	float fSmoke = globalLayout.fSmokeMax * texture(smokeSampler, f2SmokeTexcoord).x;
 	fSmoke = clamp(pow(fSmoke, globalLayout.fSmokePower), 0.0f, 1.0f);
 	float fDensity = globalLayout.fSmokeColorMin + globalLayout.fSmokeColorMultiplier * fSmoke;
 	fSmoke *= fInMax;
@@ -195,5 +215,20 @@ vec3 AddSmoke(GlobalLayout globalLayout, vec3 f3InColor, vec2 f2InPosition, samp
 
 	f3Final = min(vec3(1.0f, 1.0f, 1.0f), f3Final);
 	return (1.0f - fSmoke) * f3InColor + fSmoke * f3Final * min(vec3(1.25f, 1.25f, 1.25f), vec3(fDensity, fDensity, fDensity));
+}
+
+vec3 BlendSmoke(vec3 f3Color, float fSmokePow, vec4 pf4Lighting[3], GlobalLayout globalLayout)
+{
+	float fSmokeDensity = globalLayout.fSmokeColorMin + globalLayout.fSmokeColorMultiplier * fSmokePow;
+	float fRed = IntensityLighting(pf4Lighting[0]);
+	float fGreen = IntensityLighting(pf4Lighting[1]);
+	float fBlue = IntensityLighting(pf4Lighting[2]);
+	vec3 f3SmokeLighting = vec3(fRed, fGreen, fBlue);
+	float fSmokeLightPower = globalLayout.fLightingCombinePower;
+	f3SmokeLighting = pow(f3SmokeLighting + vec3(1.0f), vec3(fSmokeLightPower)) - vec3(1.0f);
+	f3SmokeLighting *= 0.5f;
+	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4AmbientColor.xyz);
+	f3SmokeLighting = min(vec3(1.0f), f3SmokeLighting);
+	return (1.0f - fSmokePow) * f3Color + fSmokePow * f3SmokeLighting * min(vec3(1.25f), vec3(fSmokeDensity));
 }
 

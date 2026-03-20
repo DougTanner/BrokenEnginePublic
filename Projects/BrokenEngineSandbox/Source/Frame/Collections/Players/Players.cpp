@@ -420,9 +420,9 @@ static void SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
 				.vecVelocity = vecBlasterVelocity,
 				.uiTypeIndex = PlayersInterpolate::suiBlasterTypeIndex,
 				.alignment = rCurrentPostRender.pAlignments[i],
-				.fWindTrailIntensity = engine::gWindDepositPlayerBlastersIntensity.Get(),
-				.fWindTrailWidth = engine::gWindDepositPlayerBlastersWidth.Get(),
-				.fWindTrailLengthMultiplier = engine::gWindDepositBlastersLengthMultiplier.Get(),
+				.fWindTrailIntensity = game::gWindDepositPlayerBlastersIntensity.Get(),
+				.fWindTrailWidth = game::gWindDepositPlayerBlastersWidth.Get(),
+				.fWindTrailLengthMultiplier = game::gWindDepositBlastersLengthMultiplier.Get(),
 			});
 
 			rCurrentPostRender.pfNextBlasterFireTimes[i] += kfBlasterFireInterval;
@@ -551,9 +551,9 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 			engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.pWindTrails[i],
 			{
 				.vecPosition = rCurrentInterpolate.pVecPositions[i],
-				.fIntensity = engine::gWindDepositPlayerIntensity.Get(),
-				.fWidth = engine::gWindDepositPlayerWidth.Get(),
-				.fLengthMultiplier = engine::gWindDepositPlayerLengthMultiplier.Get(),
+				.fIntensity = game::gWindDepositPlayerIntensity.Get(),
+				.fWidth = game::gWindDepositPlayerWidth.Get(),
+				.fLengthMultiplier = game::gWindDepositPlayerLengthMultiplier.Get(),
 			});
 		}
 

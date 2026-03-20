@@ -218,4 +218,21 @@ inline std::u32string_view TranslatedString(Strings eString)
 	return gppTranslatedStrings[eString][geLanguage];
 }
 
+inline void InitializeLocalization()
+{
+	std::setlocale(LC_ALL, "en_US.utf8");
+	for (int64_t i = 0; i < kStringsCount; ++i)
+	{
+		for (int64_t j = 0; j < kLanguageCount; ++j)
+		{
+			int64_t k = 0;
+			while (gppTranslatedStrings[i][j][k] != 0)
+			{
+				gppTranslatedStrings[i][j][k] = towupper(static_cast<wint_t>(gppTranslatedStrings[i][j][k]));
+				++k;
+			}
+		}
+	}
+}
+
 } // namespace game

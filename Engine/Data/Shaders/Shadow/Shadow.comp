@@ -31,7 +31,7 @@ void main()
 	for (uint i = x + globalLayout.iShadowStartOffset + globalLayout.iShadowIncrement; i != globalLayout.iShadowElevationSize; i += globalLayout.iShadowIncrement, fOtherX += globalLayout.fShadowWidthScale)
 	{
 		float fAbsOtherX = abs(fOtherX);
-		if (abs(fAbsOtherX) > fDistance)
+		if (fAbsOtherX > fDistance)
 		{
 			break;
 		}

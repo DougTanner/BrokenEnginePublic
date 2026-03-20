@@ -15,12 +15,26 @@ struct AreaVertices
 	bool operator==(const AreaVertices& rOther) const = default;
 };
 
+// Converts packed RGBA uint32_t to XMVECTOR with normalized [0.0, 1.0] components
+// Parameters: uiColor - Packed RGBA color (0xRRGGBBAA)
+// Returns: XMVECTOR with RGBA components in [0.0, 1.0] range
 XMVECTOR XM_CALLCONV ColorToVector(uint32_t uiColor);
+
+// Converts XMVECTOR color to packed RGBA uint32_t (inverse of ColorToVector)
+// Components are clamped to [0.0, 1.0] range before packing
+// Parameters: vecColor - XMVECTOR color with normalized components
+// Returns: Packed RGBA color (0xRRGGBBAA)
+uint32_t XM_CALLCONV ColorToUint(FXMVECTOR vecColor);
+
+// Linear interpolation between two packed RGBA colors by a given percentage
+// Parameters: uiA - Start color, uiB - End color, fPercent - Interpolation factor [0.0, 1.0]
+// Returns: Interpolated color
+uint32_t ColorLerp(uint32_t uiA, uint32_t uiB, float fPercent);
+
 XMVECTOR XM_CALLCONV ToBaseHeight(FXMVECTOR vecPosition, FXMVECTOR vecEyePosition, float fBaseHeight);
 float RotationFromPosition(FXMVECTOR vecPosition);
 XMVECTOR XM_CALLCONV QuaternionFromDirection(FXMVECTOR vecDirection, FXMVECTOR vecOriginNormal, FXMVECTOR vecUp = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f));
 AreaVertices XM_CALLCONV CalculateArea(FXMVECTOR vecPosition, FXMVECTOR vecDirection, float fForward, float fBack, float fWidth);
-bool XM_CALLCONV InsideAreaVertices(FXMVECTOR vecPosition, const AreaVertices& rAreaVertices);
 XMVECTOR XM_CALLCONV RotateTowardsPercent(FXMVECTOR vecDirection, FXMVECTOR vecTowards, float fPercent);
 XMVECTOR XM_CALLCONV RandomAngleJitter(FXMVECTOR vecDirection, float fMaxJitter, RandomEngine& rRandomEngine);
 

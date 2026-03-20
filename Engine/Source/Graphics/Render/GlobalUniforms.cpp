@@ -2,36 +2,13 @@
 
 #include "Render.h"
 
-#include "Input/Input.h"
-#include "Profile/ProfileManager.h"
-
 #include "Game.h"
 
 namespace engine
 {
 
-void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick)
+static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float& rfDayPercent, float& rfNoonPercent)
 {
-	RenderLightingGlobal(iCommandBuffer);
-	RenderSmokeGlobal(iCommandBuffer);
-	RenderWindGlobal(iCommandBuffer);
-
-	float fSunAngle = game::gpCamera->SunAngle();
-
-	// Global data
-	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
-
-	rGlobalLayout.iCommandBuffer = static_cast<int>(iCommandBuffer);
-	rGlobalLayout.iCameraFrame = static_cast<int>(game::gpCamera->miFrame);
-	rGlobalLayout.iTickCounter = static_cast<int>(iTick);
-	rGlobalLayout.iCommandBufferPad = static_cast<int>(iCommandBuffer);
-
-	rGlobalLayout.fElapsedTime = fCurrentTime;
-	rGlobalLayout.fBaseHeight = gBaseHeight.Get();
-	rGlobalLayout.fAspectRatio = gpSwapchainManager->mfAspectRatio;
-	rGlobalLayout.fDetailTextureAspectRatio = TextureManager::DetailTextureAspectRatio();
-
-	rGlobalLayout.f4VisibleArea = game::gpCamera->f4RenderVisibleArea;
 	// Sun
 	XMVECTOR vecSunNormal = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
 	XMMATRIX matSunRotation = XMMatrixRotationY(-fSunAngle);
@@ -68,9 +45,8 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	}
 	else if (fSunAngle >= kfNoonStart && fSunAngle < kfNoonEnd)
 	{
-		float fLerp = (fSunAngle - kfNoonStart) / (kfEvening - kfNoonStart);
-		vecSun = XMVectorLerp(vecSunNoon, vecSunNoon, fLerp);
-		vecAmbient = XMVectorLerp(vecAmbientNoon, vecAmbientNoon, fLerp);
+		vecSun = vecSunNoon;
+		vecAmbient = vecAmbientNoon;
 	}
 	else if (fSunAngle >= kfNoonEnd && fSunAngle < kfEvening)
 	{
@@ -104,26 +80,29 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	XMStoreFloat4(&rGlobalLayout.f4AmbientColor, vecAmbient);
 
 	static constexpr float kfNoonFeatherEnd = XM_PIDIV8;
-	float fNoonPercent = 0.0f;
+	rfNoonPercent = 0.0f;
 	if (fSunAngle >= kfNoonFeatherEnd && fSunAngle <= XM_PIDIV2)
 	{
-		fNoonPercent = (fSunAngle - kfNoonFeatherEnd) / (XM_PIDIV2 - kfNoonFeatherEnd);
+		rfNoonPercent = (fSunAngle - kfNoonFeatherEnd) / (XM_PIDIV2 - kfNoonFeatherEnd);
 	}
 	else if (fSunAngle > XM_PIDIV2 && fSunAngle <= (XM_PI - kfNoonFeatherEnd))
 	{
-		fNoonPercent = 1.0f - (fSunAngle - XM_PIDIV2) / (XM_PIDIV2 - kfNoonFeatherEnd);
+		rfNoonPercent = 1.0f - (fSunAngle - XM_PIDIV2) / (XM_PIDIV2 - kfNoonFeatherEnd);
 	}
 
-	float fDayPercent = 0.0f;
+	rfDayPercent = 0.0f;
 	if (fSunAngle >= 0.0f && fSunAngle <= XM_PIDIV2)
 	{
-		fDayPercent = fSunAngle / XM_PIDIV2;
+		rfDayPercent = fSunAngle / XM_PIDIV2;
 	}
 	else if (fSunAngle > XM_PIDIV2 && fSunAngle <= XM_PI)
 	{
-		fDayPercent = 1.0f - (fSunAngle - XM_PIDIV2) / XM_PIDIV2;
+		rfDayPercent = 1.0f - (fSunAngle - XM_PIDIV2) / XM_PIDIV2;
 	}
+}
 
+static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fDayPercent, float fNoonPercent)
+{
 	// Shadow texture
 	float fShadowTextureSizeWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.width);
 	float fShadowTextureSizeHeight = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.height);
@@ -223,7 +202,10 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 		rGlobalLayout.iShadowIncrement = -1; // ++
 		rGlobalLayout.iShadowStartOffset = static_cast<int>(fShadowTextureSizeWidth / 2.0f); // Start offset
 	}
+}
 
+static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, float fDayPercent, float fNoonPercent)
+{
 	// Terrain
 	rGlobalLayout.fIslandHeight = gIslandHeight.Get();
 	rGlobalLayout.fIslandAmbientOcclusion = fNoonPercent * gIslandAmbientOcclusion.Get();
@@ -261,7 +243,10 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	rGlobalLayout.fLightingTimeOfDayMultiplier = std::min(fDayPercent + (1.0f - fDayPercent) * gLightingTimeOfDayMultiplier.Get(), 0.85f);
 	rGlobalLayout.fLightingNightMultiplier = std::pow(fDayPercent, 0.5f);
 	rGlobalLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - fDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
+}
 
+static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fDayPercent)
+{
 	// Water global
 	rGlobalLayout.fWaterTerrainHeight = gWaterTerrainHeight.Get();
 	rGlobalLayout.fWaterTerrainFade = gWaterTerrainFade.Get();
@@ -319,7 +304,37 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 
 	rGlobalLayout.iWaterLowCount = static_cast<int>(std::min(gLowCount.Get<int64_t>(), static_cast<int64_t>(gLowMax.Get())));
 	rGlobalLayout.iWaterMediumCount = static_cast<int>(gMediumCount.Get<int64_t>());
+}
 
+void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick)
+{
+	RenderLightingGlobal(iCommandBuffer);
+	RenderSmokeGlobal(iCommandBuffer);
+	RenderWindGlobal(iCommandBuffer);
+
+	float fSunAngle = game::gpCamera->SunAngle();
+
+	// Global data
+	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
+
+	rGlobalLayout.iCommandBuffer = static_cast<int>(iCommandBuffer);
+	rGlobalLayout.iCameraFrame = static_cast<int>(game::gpCamera->miFrame);
+	rGlobalLayout.iTickCounter = static_cast<int>(iTick);
+	rGlobalLayout.iCommandBufferPad = static_cast<int>(iCommandBuffer);
+
+	rGlobalLayout.fElapsedTime = fCurrentTime;
+	rGlobalLayout.fBaseHeight = gBaseHeight.Get();
+	rGlobalLayout.fAspectRatio = gpSwapchainManager->mfAspectRatio;
+	rGlobalLayout.fDetailTextureAspectRatio = TextureManager::DetailTextureAspectRatio();
+
+	rGlobalLayout.f4VisibleArea = game::gpCamera->f4RenderVisibleArea;
+
+	float fDayPercent = 0.0f;
+	float fNoonPercent = 0.0f;
+	PopulateSunAndLighting(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent);
+	PopulateShadowParameters(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent);
+	PopulateTerrainParameters(rGlobalLayout, fDayPercent, fNoonPercent);
+	PopulateWaterParameters(rGlobalLayout, fSunAngle, fDayPercent);
 }
 
 } // namespace engine

@@ -20,7 +20,8 @@
 #include "Network/NetworkSimulation.h"
 
 // Ui
-#include "Ui/Screens/TweaksScreen/TweaksScreen.h"
+#include "Ui/Screens/TweaksScreen/TweaksScreenBase.h"
+#include "Ui/Screens/TweaksScreen/TweaksSliderMap.h"
 
 #if defined(BT_CLIENT)
 

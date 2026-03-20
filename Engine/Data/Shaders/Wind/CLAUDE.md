@@ -16,8 +16,8 @@ Each frame the active-tile pipeline (`WindOccupancyDilate.comp`) reads the previ
 
 - **WindDeposit.frag** - Fragment shader writing wind velocity into the wind texture from per-object quads. Supports radial (explosions) and directional (motion trails) modes with falloff and magnitude scaling. Also writes to the occupancy buffer.
 - **WindSpreadCommon.h** - Shared GLSL header containing the full `WindSpread()` function with advection, swirl, vorticity confinement, diffusion, and decay logic. Included by both spread compute shaders.
-- **WindSpreadOne.comp** - Compute spread pass for ping-pong index 0 (writes TextureOne). Returns early when index 1 is active.
-- **WindSpreadTwo.comp** - Compute spread pass for ping-pong index 1 (writes TextureTwo). Returns early when index 0 is active.
+- **WindSpreadOne.comp** - Compute spread pass for ping-pong index 0 (writes TextureOne). Uses tile-list lookup with camera offset from axis-aligned quad storage buffer. Returns early when index 1 is active.
+- **WindSpreadTwo.comp** - Compute spread pass for ping-pong index 1 (writes TextureTwo). Uses tile-list lookup with camera offset from axis-aligned quad storage buffer. Returns early when index 0 is active.
 - **WindOccupancyDilate.comp** - Dilates occupancy from previous frame and compacts into active tile list for indirect dispatch.
 
 ## See Also

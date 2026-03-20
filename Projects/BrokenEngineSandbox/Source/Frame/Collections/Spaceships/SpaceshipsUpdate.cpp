@@ -177,9 +177,9 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 			engine::WindTrailsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindTrails[i],
 			{
 				.vecPosition = vecPosition,
-				.fIntensity = engine::gWindDepositSpaceshipsIntensity.Get(),
-				.fWidth = engine::gWindDepositSpaceshipsWidth.Get(),
-				.fLengthMultiplier = engine::gWindDepositSpaceshipsLengthMultiplier.Get(),
+				.fIntensity = game::gWindDepositSpaceshipsIntensity.Get(),
+				.fWidth = game::gWindDepositSpaceshipsWidth.Get(),
+				.fLengthMultiplier = game::gWindDepositSpaceshipsLengthMultiplier.Get(),
 			});
 		}
 #endif // BT_CLIENT

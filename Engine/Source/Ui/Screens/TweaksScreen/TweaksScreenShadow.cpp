@@ -1,32 +1,34 @@
-#include "TweaksScreen.h"
+#include "TweaksScreenBase.h"
 
 namespace engine
 {
 
-void TweaksScreen::RenderShadowSection()
+void TweaksScreenBase::RenderShadowSection()
 {
+	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kShadow);
+
 	WrapperSeparatorText("Feather");
-	WrapperSlider("Feather Noon", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Feather Noon Offset", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Feather Sunset", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Feather Sunset Offset", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Feather Power", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Distance Falloff", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Blur Sigma", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Affect Ambient", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Height Fade Top", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Height Fade Bottom", static_cast<int>(TweakSection::kShadow));
+	WrapperSlider("Feather Noon", kiSection);
+	WrapperSlider("Feather Noon Offset", kiSection);
+	WrapperSlider("Feather Sunset", kiSection);
+	WrapperSlider("Feather Sunset Offset", kiSection);
+	WrapperSlider("Feather Power", kiSection);
+	WrapperSlider("Distance Falloff", kiSection);
+	WrapperSlider("Blur Sigma", kiSection);
+	WrapperSlider("Affect Ambient", kiSection);
+	WrapperSlider("Height Fade Top", kiSection);
+	WrapperSlider("Height Fade Bottom", kiSection);
 
 	WrapperSeparatorText("Object Shadows");
-	WrapperSlider("Render Multiplier", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Blur Multiplier", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Shadow Noon", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Shadow Sunset", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Sunset Stretch", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Blur Distance Noon", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Blur Distance Sunset", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Object Blur Sigma", static_cast<int>(TweakSection::kShadow));
-	WrapperSlider("Smoke Shadow Intensity", static_cast<int>(TweakSection::kShadow));
+	WrapperSlider("Render Multiplier", kiSection);
+	WrapperSlider("Blur Multiplier", kiSection);
+	WrapperSlider("Shadow Noon", kiSection);
+	WrapperSlider("Shadow Sunset", kiSection);
+	WrapperSlider("Sunset Stretch", kiSection);
+	WrapperSlider("Blur Distance Noon", kiSection);
+	WrapperSlider("Blur Distance Sunset", kiSection);
+	WrapperSlider("Object Blur Sigma", kiSection);
+	WrapperSlider("Smoke Shadow Intensity", kiSection);
 }
 
 } // namespace engine

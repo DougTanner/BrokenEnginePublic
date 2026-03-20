@@ -8,8 +8,8 @@ Runtime-adjustable parameter wrappers and ImGui-based screen classes for UI rend
 
 ## Architecture Notes
 
-Wrapper globals are declared in `WrapperBase.h` and defined in `WrapperBase.cpp` as `engine::` namespace globals. They expose runtime-adjustable parameters consumed by shaders, audio, and rendering code throughout the engine.
+Wrapper globals are declared in `WrapperBase.h` and defined in `WrapperBase.cpp` as `engine::` namespace globals. They expose runtime-adjustable parameters consumed by shaders, audio, and rendering code throughout the engine. Game-specific globals (hex shield, wind deposits) live in `game::Wrapper.h/.cpp`, not in `WrapperBase`.
 
 ## See Also
 
-- [Screens/CLAUDE.md](Screens/CLAUDE.md) - ImGui-based debug overlays (TweaksScreen)
+- [Screens/CLAUDE.md](Screens/CLAUDE.md) - ImGui-based debug overlays (TweaksScreenBase)

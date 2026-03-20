@@ -5,6 +5,7 @@
 #include "Frame/Collections/Missiles/Missiles.h"
 #include "Frame/Collections/Spaceships/Spaceships.h"
 #include "Profile/ProfileManager.h"
+#include "Ui/Localization.h"
 
 namespace game
 {
@@ -18,6 +19,8 @@ constexpr float kfCameraShakeMax = 1.0f;
 Game::Game()
 {
 	gpGame = this;
+
+	InitializeLocalization();
 
 	// Set up alignments
 	uint32_t uiNextAlignment = 1;
@@ -41,7 +44,7 @@ Game::Game()
 
 	// Start music
 #if defined(BT_CLIENT)
-	engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist.at(0));
+	StartMenuMusic();
 	engine::gpAudioManager->Set3dSettings(10.0f, 0.0f, 150.0f, 0.05f);
 	engine::gpAudioManager->SetNextMusicTrackCallback([this]()
 	{
@@ -171,12 +174,15 @@ void Game::ComputeActiveSet()
 	}
 
 	// Delete local-only frames outside the active set, preserve network-subscribed frames
-	std::erase_if(mCoordFrames, [this](const auto& rPair)
+	std::erase_if(mCoordFrames, [this](const std::pair<const engine::GridCoord, engine::CoordFrames>& rPair)
 	{
 		return !std::ranges::contains(mActiveCoords, rPair.first) && rPair.second.iConfirmedTick < 0;
 	});
 
-	ASSERT(std::ranges::count_if(mCoordFrames, [](const auto& rPair) { return rPair.second.iConfirmedTick < 0; }) <= 4);
+	ASSERT(std::ranges::count_if(mCoordFrames, [](const std::pair<const engine::GridCoord, engine::CoordFrames>& rPair)
+	{
+		return rPair.second.iConfirmedTick < 0;
+	}) <= 4);
 
 	// Update island rendering to match active frames
 	engine::gpIslands->UpdateActiveIslands(mCoordFrames, mActiveCoords);
@@ -251,11 +257,7 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	pFrame->interpolate.iTick = miTickCounter;
 	pFrame->interpolate.fCurrentTime = mfCurrentTime;
 	pFrame->interpolate.gameFlags.Set(GameFlags::kGame);
-	pFrame->postRender.uiFrameId = GenerateFrameId();
-	pFrame->postRender.randomEngine.TimeSeed();
-	pFrame->postRender.playerAlignment = mPlayerAlignment;
-	pFrame->postRender.enemyAlignment = mEnemyAlignment;
-	pFrame->postRender.alignments = mAlignments;
+	InitFramePostRender(*pFrame);
 
 	XMVECTOR vecBaseArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	pFrame->postRender.vecArea = ComputeFrameArea(vecBaseArea, coord);
@@ -412,7 +414,7 @@ void Game::Reset()
 	game::gpCamera->mVecLastKnownPlayerPosition = {};
 	game::gpCamera->mVecLastKnownPlayerVelocity = {};
 	game::gpCamera->mfLastKnownPlayerTime = 0.0f;
-	engine::gSunAngleOverride.Reset(game::gpCamera->SunAngle(true));
+	engine::gSunAngleOverride.Reset(game::gpCamera->RawSunAngle());
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
 	engine::SmokeTrailsInterpolate::ResetRenderState();
@@ -420,6 +422,7 @@ void Game::Reset()
 #endif // BT_CLIENT
 
 	mGameFlags.Clear(engine::GameFlags::kDeathScreen);
+	mGameFlags.Clear(engine::GameFlags::kPaused);
 	mHumanPlayerId = {};
 	mfPreviousHumanArmor = 0.0f;
 	mHumanGridCoord = engine::kOriginCoord;
@@ -439,11 +442,7 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	std::unique_ptr<Frame>& pFrame = mCoordFrames.try_emplace(engine::kOriginCoord).first->second.pCurrent;
 	pFrame = std::make_unique<Frame>();
 	pFrame->interpolate.gameFlags.Set(gameFlags.meFlags);
-	pFrame->postRender.uiFrameId = GenerateFrameId();
-	pFrame->postRender.randomEngine.TimeSeed();
-	pFrame->postRender.playerAlignment = mPlayerAlignment;
-	pFrame->postRender.enemyAlignment = mEnemyAlignment;
-	pFrame->postRender.alignments = mAlignments;
+	InitFramePostRender(*pFrame);
 	pFrame->postRender.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	pFrame->postRender.eIslandsFlip = engine::kFlipNone;
 
@@ -455,6 +454,7 @@ bool Game::ShouldTrapCursor()
 	return !InMainMenu();
 }
 
+#if defined(BT_CLIENT)
 bool Game::ShouldUseCrosshair()
 {
 	if (!mCoordFrames.contains(mHumanGridCoord))
@@ -463,6 +463,7 @@ bool Game::ShouldUseCrosshair()
 	}
 	return CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kGame && meUiState == kNone;
 }
+#endif // BT_CLIENT
 
 void Game::ChangeFrame(GameFlags_t gameFlags)
 {
@@ -481,13 +482,11 @@ void Game::ChangeFrame(GameFlags_t gameFlags)
 #if defined(BT_CLIENT)
 	if (gameFlags & GameFlags::kMainMenu)
 	{
-		miMenuMusicIndex = 0;
-		engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist.at(0));
+		StartMenuMusic();
 	}
 	else
 	{
-		miGameMusicIndex = 0;
-		engine::gpAudioManager->PlayMusic(mGameMusicPlaylist.at(0));
+		StartGameMusic();
 	}
 #endif // BT_CLIENT
 
@@ -544,75 +543,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		}
 	}
 
-	if constexpr (kbEnableDebugInput)
-	{
-		if (rMenuInput.flags & MenuInputFlags::kMenuTweaks)
-		{
-			mbShowImGui = !mbShowImGui;
-		}
-
-		if (rMenuInput.flags & MenuInputFlags::kMenuGraphics)
-		{
-			meUiState = meUiState == kGraphics ? kNone : kGraphics;
-#if defined(BT_CLIENT)
-			engine::gSunAngleOverride.Set(game::gpCamera->SunAngle(true));
-#endif
-		}
-
-		if (rMenuInput.flags & MenuInputFlags::kSlowTime)
-		{
-			mTimeStep.DecreaseTimeScale();
-		}
-		else if (rMenuInput.flags & MenuInputFlags::kSpeedUpTime)
-		{
-			mTimeStep.IncreaseTimeScale();
-		}
-
-		if (mTimeStep.mbTimeScaleChanged)
-		{
-			mTimeStep.mbTimeScaleChanged = false;
-			if (mTimeStep.miTimeMultiply == 1 && mTimeStep.miTimeDivide == 1)
-			{
-#if defined(BT_CLIENT)
-				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, "");
-#endif
-			}
-			else
-			{
-				common::gpThreadLocal->mWorkbuffer.Push();
-				if (mTimeStep.miTimeMultiply > 1)
-				{
-					common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
-					common::gpThreadLocal->mWorkbuffer.Append(mTimeStep.miTimeMultiply);
-					common::gpThreadLocal->mWorkbuffer.Append("x");
-				}
-				else
-				{
-					common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
-					common::gpThreadLocal->mWorkbuffer.Append(mTimeStep.miTimeDivide);
-					common::gpThreadLocal->mWorkbuffer.Append("x");
-				}
-#if defined(BT_CLIENT)
-				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
-#endif
-				common::gpThreadLocal->mWorkbuffer.Pop();
-			}
-		}
-
-#if defined(BT_CLIENT)
-		if (rMenuInput.flags & MenuInputFlags::kConnectLocal && InMainMenu() && !gpClientSession->IsNetworkMode())
-		{
-			if (gpClientSession->mbServerDiscovered)
-			{
-				gpClientSession->ConnectToDiscoveredServer();
-			}
-			else
-			{
-				gpClientSession->ConnectToServer("127.0.0.1");
-			}
-		}
-#endif
-	}
+	ProcessDebugInput(rMenuInput);
 
 #if defined(BT_CLIENT)
 	if constexpr (kbEnableScreenshots)
@@ -625,6 +556,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 #endif // BT_CLIENT
 }
 
+#if defined(BT_CLIENT)
 struct SoundSettings
 {
 	static constexpr int64_t kiVersion = 1;
@@ -672,22 +604,123 @@ void Game::ResetSoundSettings()
 
 	SaveSoundSettings();
 }
+#endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
 common::crc_t Game::GetNextMusicTrack()
 {
 	if (InMainMenu())
 	{
-		miMenuMusicIndex = (miMenuMusicIndex + 1) % mMenuMusicPlaylist.size();
-		return mMenuMusicPlaylist.at(miMenuMusicIndex);
+		miMenuMusicIndex = (miMenuMusicIndex + 1) % static_cast<int64_t>(std::size(mMenuMusicPlaylist));
+		return mMenuMusicPlaylist[miMenuMusicIndex];
 	}
 	else
 	{
-		miGameMusicIndex = (miGameMusicIndex + 1) % mGameMusicPlaylist.size();
-		return mGameMusicPlaylist.at(miGameMusicIndex);
+		miGameMusicIndex = (miGameMusicIndex + 1) % static_cast<int64_t>(std::size(mGameMusicPlaylist));
+		return mGameMusicPlaylist[miGameMusicIndex];
 	}
 }
 #endif // BT_CLIENT
+
+void Game::InitFramePostRender(Frame& rFrame)
+{
+	rFrame.postRender.uiFrameId = GenerateFrameId();
+	rFrame.postRender.randomEngine.TimeSeed();
+	rFrame.postRender.playerAlignment = mPlayerAlignment;
+	rFrame.postRender.enemyAlignment = mEnemyAlignment;
+	rFrame.postRender.alignments = mAlignments;
+}
+
+void Game::ProcessDebugInput(const MenuInput& rMenuInput)
+{
+	if constexpr (kbEnableDebugInput)
+	{
+		if (rMenuInput.flags & MenuInputFlags::kMenuTweaks)
+		{
+			mbShowImGui = !mbShowImGui;
+		}
+
+		if (rMenuInput.flags & MenuInputFlags::kMenuGraphics)
+		{
+			meUiState = meUiState == kGraphics ? kNone : kGraphics;
+#if defined(BT_CLIENT)
+			engine::gSunAngleOverride.Set(game::gpCamera->RawSunAngle());
+#endif
+		}
+
+		if (rMenuInput.flags & MenuInputFlags::kSlowTime)
+		{
+			mTimeStep.DecreaseTimeScale();
+		}
+		else if (rMenuInput.flags & MenuInputFlags::kSpeedUpTime)
+		{
+			mTimeStep.IncreaseTimeScale();
+		}
+
+		if (mTimeStep.mbTimeScaleChanged)
+		{
+			mTimeStep.mbTimeScaleChanged = false;
+			if (mTimeStep.miTimeMultiply == 1 && mTimeStep.miTimeDivide == 1)
+			{
+#if defined(BT_CLIENT)
+				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, "");
+#endif
+			}
+			else
+			{
+				common::gpThreadLocal->mWorkbuffer.Push();
+				if (mTimeStep.miTimeMultiply > 1)
+				{
+					common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
+					common::gpThreadLocal->mWorkbuffer.Append(mTimeStep.miTimeMultiply);
+					common::gpThreadLocal->mWorkbuffer.Append("x");
+				}
+				else
+				{
+					common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
+					common::gpThreadLocal->mWorkbuffer.Append(mTimeStep.miTimeDivide);
+					common::gpThreadLocal->mWorkbuffer.Append("x");
+				}
+#if defined(BT_CLIENT)
+				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
+#endif
+				common::gpThreadLocal->mWorkbuffer.Pop();
+			}
+		}
+
+		if (rMenuInput.flags & MenuInputFlags::kTogglePauseFrame)
+		{
+			mGameFlags.Toggle(engine::GameFlags::kPaused);
+#if defined(BT_CLIENT)
+			engine::gpClient->SendPauseRequest(static_cast<bool>(mGameFlags & engine::GameFlags::kPaused));
+			if (mGameFlags & engine::GameFlags::kPaused)
+			{
+				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, "PAUSED");
+			}
+			else
+			{
+				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, "");
+			}
+#else
+			Log("Server paused: {}", static_cast<bool>(mGameFlags & engine::GameFlags::kPaused));
+#endif
+		}
+
+#if defined(BT_CLIENT)
+		if (rMenuInput.flags & MenuInputFlags::kConnectLocal && InMainMenu() && !gpClientSession->IsNetworkMode())
+		{
+			if (gpClientSession->mbServerDiscovered)
+			{
+				gpClientSession->ConnectToDiscoveredServer();
+			}
+			else
+			{
+				gpClientSession->ConnectToServer("127.0.0.1");
+			}
+		}
+#endif
+	}
+}
 
 void Game::RestoreReplayMeta(const ReplayMeta& rMeta)
 {

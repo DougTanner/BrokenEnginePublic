@@ -36,31 +36,11 @@ void WindTrailsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer,
 		return;
 	}
 
-	int64_t iTotalCapacity = 0;
-	for (const GridCoord& rCoord : rActiveCoords)
-	{
-		auto it = rRenderInterpolates.find(rCoord);
-		if (it != rRenderInterpolates.end())
-		{
-			iTotalCapacity += it->second.windTrails.iCapacity;
-		}
-	}
+	int64_t iTotalCapacity = AccumulateRenderCapacity(rRenderInterpolates, rActiveCoords,
+		[](const game::FrameInterpolate& rInterpolate) -> const auto& { return rInterpolate.windTrails; });
 
-	{
-		// Heap: unordered_map erase for stale previous positions
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		std::erase_if(sRenderState.previousPositions, [&rRenderInterpolates, &rActiveCoords](const auto& pair) {
-			for (const GridCoord& rCoord : rActiveCoords)
-			{
-				auto it = rRenderInterpolates.find(rCoord);
-				if (it != rRenderInterpolates.end() && it->second.windTrails.idToIndexMap.contains(pair.first))
-				{
-					return false;
-				}
-			}
-			return true;
-		});
-	}
+	EraseStaleRenderState(sRenderState.previousPositions, rRenderInterpolates, rActiveCoords,
+		[](const game::FrameInterpolate& rInterpolate) -> const auto& { return rInterpolate.windTrails.idToIndexMap; });
 
 	if (iTotalCapacity == 0)
 	{

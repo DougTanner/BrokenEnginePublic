@@ -7,12 +7,14 @@ class InTheLastSecond
 {
 public:
 
+	static constexpr int64_t kiCapacity = 1024;
+
 	void Set(int64_t count = 1);
 	int64_t Get();
 
 private:
 
-	std::pair<std::chrono::high_resolution_clock::time_point, int64_t> mFramesInTheLastSecond[1024] {};
+	std::pair<std::chrono::high_resolution_clock::time_point, int64_t> mFramesInTheLastSecond[kiCapacity] {};
 	int64_t miHead = 0;
 	int64_t miCount = 0;
 };

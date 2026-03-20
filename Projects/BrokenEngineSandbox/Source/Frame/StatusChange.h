@@ -38,34 +38,25 @@ struct TransferData
 {
 	bool operator==(const TransferData& rOther) const
 	{
-		return XMVector4Equal(vecPosition, rOther.vecPosition) &&
-			XMVector4Equal(vecDirection, rOther.vecDirection) &&
-			XMVector4Equal(vecVelocity, rOther.vecVelocity) &&
-			alignment == rOther.alignment &&
-			fHealth == rOther.fHealth &&
-			fShield == rOther.fShield &&
-			uiTypeIndex == rOther.uiTypeIndex &&
-			fWindTrailIntensity == rOther.fWindTrailIntensity &&
-			fWindTrailWidth == rOther.fWindTrailWidth &&
-			fWindTrailLengthMultiplier == rOther.fWindTrailLengthMultiplier &&
-			fAcceleration == rOther.fAcceleration &&
-			fNextBlasterFireTime == rOther.fNextBlasterFireTime &&
-			fNextSecondarySpawnTime == rOther.fNextSecondarySpawnTime &&
-			fShieldCooldown == rOther.fShieldCooldown &&
-			fShieldDownSoundCooldown == rOther.fShieldDownSoundCooldown &&
-			fAnimationTime == rOther.fAnimationTime &&
-			fShieldRotation == rOther.fShieldRotation &&
-			fShieldShrink == rOther.fShieldShrink &&
-			uiPlayerFlags == rOther.uiPlayerFlags &&
-			fNextBlasterSpawnTime == rOther.fNextBlasterSpawnTime &&
-			fDeltaRotationDelay == rOther.fDeltaRotationDelay &&
-			fTime == rOther.fTime &&
-			fExhaustDelay == rOther.fExhaustDelay &&
-			fNextJitter == rOther.fNextJitter
+		bool bEqual = SharedMembers() == rOther.SharedMembers();
 #if defined(BT_CLIENT)
-			&& smokeTrailId == rOther.smokeTrailId
+		bEqual = bEqual && smokeTrailId == rOther.smokeTrailId;
 #endif
-			;
+		return bEqual;
+	}
+
+	auto SharedMembers(this auto&& rSelf)
+	{
+		return std::tie(
+			rSelf.vecPosition, rSelf.vecDirection, rSelf.vecVelocity,
+			rSelf.alignment,
+			rSelf.fHealth, rSelf.fShield, rSelf.uiTypeIndex,
+			rSelf.fWindTrailIntensity, rSelf.fWindTrailWidth, rSelf.fWindTrailLengthMultiplier,
+			rSelf.fAcceleration,
+			rSelf.fNextBlasterFireTime, rSelf.fNextSecondarySpawnTime, rSelf.fShieldCooldown, rSelf.fShieldDownSoundCooldown,
+			rSelf.fAnimationTime, rSelf.fShieldRotation, rSelf.fShieldShrink, rSelf.uiPlayerFlags,
+			rSelf.fNextBlasterSpawnTime,
+			rSelf.fDeltaRotationDelay, rSelf.fTime, rSelf.fExhaustDelay, rSelf.fNextJitter);
 	}
 
 	XMVECTOR vecPosition {};

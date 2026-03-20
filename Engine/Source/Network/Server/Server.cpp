@@ -3,7 +3,6 @@
 #include "Network/Server/Server.h"
 
 #include "Memory/MemoryManager.h"
-#include "Network/NetworkCursor.h"
 
 namespace engine
 {
@@ -121,9 +120,6 @@ void Server::Connect(ENetEvent& rEvent)
 	enet_peer_throttle_configure(rEvent.peer, UINT32_MAX, 0, 0);
 
 	Log(kLogNetwork, "Server::Connect Client: {}", mClients.back().iClientId);
-
-	char pcAddress[64] {};
-	enet_address_get_host_ip(&rEvent.peer->address, pcAddress, sizeof(pcAddress));
 }
 
 void Server::Disconnect(ENetEvent& rEvent)
@@ -143,9 +139,6 @@ void Server::Disconnect(ENetEvent& rEvent)
 	}
 
 	Log(kLogNetwork, "Server::Disconnect Client: {}", iClientId);
-
-	char pcAddress[64] {};
-	enet_address_get_host_ip(&rEvent.peer->address, pcAddress, sizeof(pcAddress));
 }
 
 void Server::Receive(ENetEvent& rEvent)
@@ -189,6 +182,9 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 		case PacketType::kClientResyncRequest:
 			ClientResyncRequest(pData, iClientId);
 			break;
+		case PacketType::kClientPauseRequest:
+			ClientPauseRequest(pData, iSize, iClientId);
+			break;
 		default:
 			Log(kLogNetwork, "Server::Receive unknown packet type {} Client: {}", static_cast<uint8_t>(eType), iClientId);
 			break;
@@ -203,23 +199,25 @@ void Server::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, G
 	std::unordered_set<GridCoord> activeCoords;
 	activeCoords.reserve(rGridUpdates.size());
 
-	for (const auto& [coord, updateData] : rGridUpdates)
+	for (const std::pair<GridCoord, GridUpdateData>& rGridUpdate : rGridUpdates)
 	{
-		activeCoords.insert(coord);
+		const GridCoord& rCoord = rGridUpdate.first;
+		const GridUpdateData& rUpdateData = rGridUpdate.second;
+		activeCoords.insert(rCoord);
 
 		// Heap: per-coord ring buffer grows until steady state
 		PerCoordBufferedFrame buffered {};
 		buffered.iTick = iTick;
-		buffered.serverCrc = updateData.serverCrc;
-		buffered.inputCrc = updateData.inputCrc;
+		buffered.serverCrc = rUpdateData.serverCrc;
+		buffered.inputCrc = rUpdateData.inputCrc;
 
-		if (!updateData.statusChanges.empty())
+		if (!rUpdateData.statusChanges.empty())
 		{
-			int64_t iCompressedSize = CompressStatusChangeBatch(updateData.statusChanges.data(), static_cast<int64_t>(updateData.statusChanges.size()), mCompressionBuffer.data(), kiMaxPacketSize);
+			int64_t iCompressedSize = CompressStatusChangeBatch(rUpdateData.statusChanges.data(), static_cast<int64_t>(rUpdateData.statusChanges.size()), mCompressionBuffer.data(), kiMaxPacketSize);
 			buffered.compressedData.assign(mCompressionBuffer.begin(), mCompressionBuffer.begin() + iCompressedSize);
 		}
 
-		std::deque<PerCoordBufferedFrame>& rCoordBuffer = mPerCoordBufferedFrames.try_emplace(coord).first->second;
+		std::deque<PerCoordBufferedFrame>& rCoordBuffer = mPerCoordBufferedFrames.try_emplace(rCoord).first->second;
 		rCoordBuffer.push_back(std::move(buffered));
 		while (static_cast<int64_t>(rCoordBuffer.size()) > kiMaxBufferedFrames)
 		{
@@ -242,12 +240,12 @@ void Server::BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoor
 	BufferedFullFrame buffered {};
 	buffered.iTick = iTick;
 
-	for (const auto& [coord, pFrame] : rFrames)
+	for (const std::pair<GridCoord, const game::Frame*>& rFrame : rFrames)
 	{
 		// Heap: stringstream allocates for frame serialization
 		std::ostringstream frameStream(std::ios::binary);
-		frameStream << *pFrame;
-		buffered.serializedFrames.insert_or_assign(coord, frameStream.str());
+		frameStream << *rFrame.second;
+		buffered.serializedFrames.insert_or_assign(rFrame.first, frameStream.str());
 	}
 
 	mBufferedFullFrames.push_back(std::move(buffered));

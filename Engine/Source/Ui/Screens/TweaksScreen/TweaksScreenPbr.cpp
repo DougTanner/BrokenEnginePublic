@@ -1,9 +1,9 @@
-#include "TweaksScreen.h"
+#include "TweaksScreenBase.h"
 
 namespace engine
 {
 
-void TweaksScreen::RenderPbrSection()
+void TweaksScreenBase::RenderPbrSection()
 {
 	static constexpr int kiSection = static_cast<int>(TweakSection::kModel);
 

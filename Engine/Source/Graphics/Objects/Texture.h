@@ -15,6 +15,14 @@ enum class TextureFlags : uint64_t
 };
 using TextureFlags_t = common::Flags<TextureFlags>;
 
+enum class RenderPassFlags : uint8_t
+{
+	kDepth         = 0x01,
+	kMultisampling = 0x02,
+	kClear         = 0x04,
+};
+using RenderPassFlags_t = common::Flags<RenderPassFlags>;
+
 enum class TextureLayout
 {
 	kUndefined,
@@ -54,7 +62,7 @@ struct TextureInfo
 	VkImageLayout renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	// vkCmdBeginRenderPass
-	VkClearColorValue renderPassVkClearColorValue = {};
+	VkClearColorValue renderPassVkClearColorValue {};
 
 	// TransitionImageLayout
 	TextureLayout eTextureLayout = TextureLayout::kShaderReadOnly;
@@ -68,8 +76,8 @@ class Texture
 {
 public:
 
-	static void RecordBeginRenderPass(VkCommandBuffer vkCommandBuffer, VkRenderPass vkRenderPass, VkFramebuffer vkFramebuffer, VkExtent2D vkExtent2D, VkClearColorValue vkClearColorValue, bool bDepth, bool bMultisampling, bool bClear, VkSubpassContents vkSubpassContents = VK_SUBPASS_CONTENTS_INLINE);
-	static void RecordEndRenderPass(VkCommandBuffer vkCommandBuffer, VkRenderPass vkRenderPass);
+	static void RecordBeginRenderPass(VkCommandBuffer vkCommandBuffer, VkRenderPass vkRenderPass, VkFramebuffer vkFramebuffer, VkExtent2D vkExtent2D, VkClearColorValue vkClearColorValue, RenderPassFlags_t renderPassFlags, VkSubpassContents vkSubpassContents = VK_SUBPASS_CONTENTS_INLINE);
+	static void RecordEndRenderPass(VkCommandBuffer vkCommandBuffer);
 
 	Texture() = default;
 	Texture(const Texture&) = delete;
@@ -88,7 +96,7 @@ public:
 	~Texture();
 
 	void Create(const TextureInfo& rInfo, std::function<void(void*, int64_t, int64_t)> dataFunction = nullptr);
-	void InitDeferred(const TextureInfo& rInfo, VkImageView placeholderImageView);
+	void InitDeferred(const TextureInfo& rInfo, VkImageView vkPlaceholderImageView);
 	void AdoptTransferredImage(VkImage& rVkImage, VmaAllocation& rVmaAllocation, VkDeviceMemory& rVkDeviceMemory);
 	void RecordAcquireBarrier(VkCommandBuffer vkCommandBuffer);
 	void UpdateData(std::function<void(void*, int64_t, int64_t)> dataFunction);
@@ -97,9 +105,15 @@ public:
 
 	void TransitionImageLayout(VkCommandBuffer vkCommandBuffer, TextureLayout eOldLayout, TextureLayout eNewLayout);
 	void RecordBeginRenderPass(VkCommandBuffer vkCommandBuffer);
-	void RecordEndRenderPass(VkCommandBuffer vkCommandBuffer);
 
 	TextureInfo mInfo {};
+
+private:
+
+	void UploadImageData(std::function<void(void*, int64_t, int64_t)> dataFunction, TextureLayout eOldLayout, TextureLayout eFinalLayout);
+	void CreateRenderTarget();
+
+public:
 
 	// Image
 	VkDeviceMemory mVkDeviceMemory = VK_NULL_HANDLE;

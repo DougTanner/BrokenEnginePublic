@@ -5,8 +5,8 @@ Trackable world positions for missile guidance with stable ID-based references. 
 ## File Structure
 
 The implementation is split across two `.cpp` files:
-- **Targets.cpp** - Registration, lifecycle (spawn/transfer/destroy), equality, GPU resources
-- **TargetsUpdate.cpp** - Update, sync, add/remove (subscriber pattern), collision phases
+- **Targets.cpp** - Type registration, allocate/copy, equality, lifecycle stubs (targets are created/removed by owners, not by frame phases)
+- **TargetsUpdate.cpp** - Sync (owner writes position/type via ID lookup), add/remove with subscriber-counted lifetime
 
 ## See Also
 - Parent collections: [../CLAUDE.md](../CLAUDE.md)

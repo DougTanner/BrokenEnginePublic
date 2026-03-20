@@ -23,9 +23,15 @@ public:
 
 	XMVECTOR mVecPosition {};
 	XMVECTOR mVecEyePosition {};
+	XMVECTOR mVecToEyeNormal {};
+
+	float mfShake = 0.0f;
+	int64_t miFrame = 0;
 
 	CameraBase() = default;
 	virtual ~CameraBase() = default;
+
+	virtual float SunAngle() const { return mfSunAngle; }
 
 	XMVECTOR XM_CALLCONV ScreenToWorld(FXMVECTOR vecScreenPos, float fHeight);
 
@@ -47,6 +53,8 @@ public:
 	}
 
 protected:
+
+	float mfSunAngle = 1.15f;
 
 	void CalculateMatricesAndVisibleArea();
 };

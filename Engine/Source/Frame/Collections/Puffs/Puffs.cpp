@@ -47,13 +47,6 @@ void PuffsPostRender::Destroy(game::Frame& __restrict rFrame)
 	for (int64_t i = 0; i < rInterpolate.iCount; ++i)
 	{
 		uint8_t uiControllerTypeIndex = rInterpolate.puiControllerTypeIndices[i];
-
-		// Skip non-controlled puffs (shouldn't exist, but defensive)
-		if (uiControllerTypeIndex == kuiInvalidControllerType)
-		{
-			continue;
-		}
-
 		const PuffControllerType& rController = PuffsInterpolate::GetControllerType(uiControllerTypeIndex);
 
 		// Skip if not auto-destroy

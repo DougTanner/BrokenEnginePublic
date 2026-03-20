@@ -12,5 +12,7 @@ Extends the engine's Base/Derived profiling pattern with game-specific CPU count
 
 Follows the engine's ProfileManager Base/Derived pattern: `game::ProfileManager` inherits from `engine::ProfileManagerBase`, adding game-specific counter and timer arrays. Virtual dispatch routes to the correct array based on index. The constructor sets up the `gpProfileManager` global and starts boot timing when profiling is enabled.
 
+`FormatGameScreens()` is overridden (client-only) to render the Frames and Network overlay screens. Network state (clock correction, reconcile counters) is fed in via `SetClockCorrection()` and `SetReconcileCounters()`, which store smoothed values for display. Network smoothing members and `InTheLastSecond` rate counters live in the game-derived class, not the engine base.
+
 ## See Also
 - Engine profiling base: [../../../../Engine/Source/Profile/CLAUDE.md](../../../../Engine/Source/Profile/CLAUDE.md)

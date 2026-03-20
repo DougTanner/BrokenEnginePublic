@@ -7,8 +7,6 @@
 
 using enum common::ChunkFlags;
 
-tinygltf::TinyGLTF gGltfContext;
-
 std::optional<common::ChunkFlags_t> ExportScene::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 {
 	return rDirectoryEntry.path().extension() == ".gltf" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kScene) : std::nullopt;
@@ -95,6 +93,26 @@ VkSamplerAddressMode ToVkSamplerAddressMode(int iWrapMode)
 	}
 }
 
+std::vector<bool> ComputeOcclusionFlags(const tinygltf::Model& rModel)
+{
+	std::vector<bool> occlusionFlags;
+	occlusionFlags.reserve(rModel.textures.size());
+	for (const tinygltf::Texture& rTexture : rModel.textures)
+	{
+		bool bOcclusion = false;
+		for (const tinygltf::Material& rMaterial : rModel.materials)
+		{
+			if (IsOcclusion(rTexture.source, rMaterial))
+			{
+				bOcclusion = true;
+				break;
+			}
+		}
+		occlusionFlags.push_back(bOcclusion);
+	}
+	return occlusionFlags;
+}
+
 std::filesystem::path ExportScene::GetPreExportMarkerPath() const
 {
 	std::filesystem::path path(mInputPath);
@@ -126,7 +144,8 @@ tinygltf::Model ExportScene::LoadGltfModel()
 	std::string error;
 	std::string warning;
 	// Load glTF model from file (binary or ASCII)
-	bool bFileLoaded = bBinary ? gGltfContext.LoadBinaryFromFile(&gltfModel, &error, &warning, filename.c_str()) : gGltfContext.LoadASCIIFromFile(&gltfModel, &error, &warning, filename.c_str());
+	tinygltf::TinyGLTF gltfContext;
+	bool bFileLoaded = bBinary ? gltfContext.LoadBinaryFromFile(&gltfModel, &error, &warning, filename.c_str()) : gltfContext.LoadASCIIFromFile(&gltfModel, &error, &warning, filename.c_str());
 	if (!bFileLoaded)
 	{
 		throw std::runtime_error(std::format("Failed to load GLTF model '{}': {} (warning: {})", filename, error, warning));
@@ -164,22 +183,7 @@ void ExportScene::PreExport(tinygltf::Model& rGltfModel)
 	ASSERT(rGltfModel.textures.size() <= common::SceneHeader::kiMaxTextures);
 	Log("Pre-processing {} textures", rGltfModel.textures.size());
 
-	// Pre-compute occlusion flags
-	std::vector<bool> occlusionFlags;
-	occlusionFlags.reserve(rGltfModel.textures.size());
-	for (const tinygltf::Texture& rTexture : rGltfModel.textures)
-	{
-		bool bOcclusion = false;
-		for (const tinygltf::Material& rMaterial : rGltfModel.materials)
-		{
-			if (IsOcclusion(rTexture.source, rMaterial))
-			{
-				bOcclusion = true;
-				break;
-			}
-		}
-		occlusionFlags.push_back(bOcclusion);
-	}
+	std::vector<bool> occlusionFlags = ComputeOcclusionFlags(rGltfModel);
 
 	// Launch async texture processing tasks
 	std::vector<std::future<void>> futures;
@@ -224,18 +228,13 @@ void ExportScene::PreExport(tinygltf::Model& rGltfModel)
 
 	if (bUseSkeletalAnimation)
 	{
-		// Identity mapping - all nodes stored
-		for (int64_t i = 0; i < static_cast<int64_t>(rGltfModel.nodes.size()); ++i)
-		{
-			nodeToJointMap.insert_or_assign(static_cast<int>(i), static_cast<int>(i));
-		}
+		LoadSkeletonData(rGltfModel, nodeToJointMap);
 		Log("  Skeletal animation detected: {} skin joints, {} total nodes", rGltfModel.skins[0].joints.size(), rGltfModel.nodes.size());
 	}
 	else if (rGltfModel.animations.size() > 0)
 	{
-		// Node-based animation: build skeleton from node hierarchy (also uses identity mapping)
 		bNodeBasedAnimation = true;
-		SkeletonData tempSkeletonData = BuildNodeSkeleton(rGltfModel, nodeToJointMap);
+		SkeletonData tempSkeletonData = LoadSkeletonData(rGltfModel, nodeToJointMap);
 		Log("  Node-based animation detected: {} nodes in skeleton", tempSkeletonData.skeleton.uiNodeCount);
 	}
 
@@ -267,8 +266,7 @@ void ExportScene::PreExport(tinygltf::Model& rGltfModel)
 		size_t uiJointCount = rGltfModel.skins[0].joints.size();
 		if (uiJointCount > common::kiMaxJointsPerMesh)
 		{
-			Log("WARNING: Model has {} joints, exceeding shader limit of {}. Skinning will use first {} joints only.",
-				uiJointCount, common::kiMaxJointsPerMesh, common::kiMaxJointsPerMesh);
+			Log("WARNING: Model has {} joints, exceeding shader limit of {}. Skinning will use first {} joints only.", uiJointCount, common::kiMaxJointsPerMesh, common::kiMaxJointsPerMesh);
 		}
 		uiSkinJointCount = static_cast<uint8_t>(uiJointCount);
 	}
@@ -387,40 +385,36 @@ void ExportScene::PreExport(tinygltf::Model& rGltfModel)
 		}
 	}
 
+	std::filesystem::remove(path);
+	std::fstream fileStreamOut(path, std::ios::out | std::ios::binary);
+	size_t uiMaterialCount = materials.size();
+	size_t uiIndexCount = indices32.size();
+	size_t uiVertexCount = vertices.size();
+	fileStreamOut.write(reinterpret_cast<const char*>(&uiMaterialCount), sizeof(uiMaterialCount));
+	fileStreamOut.write(reinterpret_cast<const char*>(materialIndexPositions.data()), common::VectorByteSize(materialIndexPositions));
+	fileStreamOut.write(reinterpret_cast<const char*>(materialInfos.data()), common::VectorByteSize(materialInfos));
+	fileStreamOut.write(reinterpret_cast<const char*>(&uiIndexCount), sizeof(uiIndexCount));
+	fileStreamOut.write(reinterpret_cast<const char*>(&uiVertexCount), sizeof(uiVertexCount));
+	if (indices16.size() > 0)
 	{
-		std::filesystem::remove(path);
-		std::fstream fileStreamOut(path, std::ios::out | std::ios::binary);
-		size_t uiMaterialCount = materials.size();
-		size_t uiIndexCount = indices32.size();
-		size_t uiVertexCount = vertices.size();
-		fileStreamOut.write(reinterpret_cast<const char*>(&uiMaterialCount), sizeof(uiMaterialCount));
-		fileStreamOut.write(reinterpret_cast<const char*>(materialIndexPositions.data()), common::VectorByteSize(materialIndexPositions));
-		fileStreamOut.write(reinterpret_cast<const char*>(materialInfos.data()), common::VectorByteSize(materialInfos));
-		fileStreamOut.write(reinterpret_cast<const char*>(&uiIndexCount), sizeof(uiIndexCount));
-		fileStreamOut.write(reinterpret_cast<const char*>(&uiVertexCount), sizeof(uiVertexCount));
-		if (indices16.size() > 0)
-		{
-			fileStreamOut.write(reinterpret_cast<const char*>(indices16.data()), common::VectorByteSize(indices16));
-		}
-		else
-		{
-			fileStreamOut.write(reinterpret_cast<const char*>(indices32.data()), common::VectorByteSize(indices32));
-		}
-		fileStreamOut.write(reinterpret_cast<const char*>(vertices.data()), common::VectorByteSize(vertices));
-		fileStreamOut.flush();
-		fileStreamOut.close();
-		mIntermediateFiles.push_back(path);
+		fileStreamOut.write(reinterpret_cast<const char*>(indices16.data()), common::VectorByteSize(indices16));
 	}
+	else
+	{
+		fileStreamOut.write(reinterpret_cast<const char*>(indices32.data()), common::VectorByteSize(indices32));
+	}
+	fileStreamOut.write(reinterpret_cast<const char*>(vertices.data()), common::VectorByteSize(vertices));
+	fileStreamOut.flush();
+	fileStreamOut.close();
+	mIntermediateFiles.push_back(path);
 
-	{
-		std::filesystem::path preExportPath = GetPreExportMarkerPath();
-		std::fstream fileStreamOut(preExportPath, std::ios::out | std::ios::binary);
-		int64_t iVersion = GetVersion();
-		fileStreamOut.write(reinterpret_cast<const char*>(&iVersion), sizeof(iVersion));
-		fileStreamOut.flush();
-		fileStreamOut.close();
-		mIntermediateFiles.push_back(preExportPath);
-	}
+	std::filesystem::path preExportMarkerPath = GetPreExportMarkerPath();
+	std::fstream fileStreamOutMarker(preExportMarkerPath, std::ios::out | std::ios::binary);
+	int64_t iVersion = GetVersion();
+	fileStreamOutMarker.write(reinterpret_cast<const char*>(&iVersion), sizeof(iVersion));
+	fileStreamOutMarker.flush();
+	fileStreamOutMarker.close();
+	mIntermediateFiles.push_back(preExportMarkerPath);
 
 	Log("Samplers: {}", rGltfModel.samplers.size());
 	for (const tinygltf::Sampler& rSampler : rGltfModel.samplers)
@@ -450,24 +444,16 @@ void ExportScene::MainExport(tinygltf::Model& rGltfModel)
 	common::MaterialShaderData* pMaterialShaderDatas = reinterpret_cast<common::MaterialShaderData*>(dataSpan.data() + iSceneArraysSize);
 
 	Log("Textures: {}", rGltfModel.textures.size());
+	std::vector<bool> occlusionFlags = ComputeOcclusionFlags(rGltfModel);
 	pHeader->sceneHeader.uiTextureCount = 0;
-	for (const tinygltf::Texture& rTexture : rGltfModel.textures)
+	for (size_t i = 0; i < rGltfModel.textures.size(); ++i)
 	{
-		bool bOcclusion = false;
-		for (const tinygltf::Material& rMaterial : rGltfModel.materials)
-		{
-			if (IsOcclusion(rTexture.source, rMaterial))
-			{
-				bOcclusion = true;
-				break;
-			}
-		}
-
+		const tinygltf::Texture& rTexture = rGltfModel.textures[i];
 		std::filesystem::path relativeFile = mRelativeDirectory;
 		relativeFile /= mInputPath.filename();
 		relativeFile += ".Texture";
 		relativeFile += std::to_string(rTexture.source);
-		relativeFile += bOcclusion ? ".BC4_UNORM_BLOCK" : ".BC7_UNORM_BLOCK";
+		relativeFile += occlusionFlags[i] ? ".BC4_UNORM_BLOCK" : ".BC7_UNORM_BLOCK";
 		pTextureCrcs[pHeader->sceneHeader.uiTextureCount++] = common::Crc(relativeFile.string());
 	}
 
@@ -598,24 +584,7 @@ void ExportScene::MainExport(tinygltf::Model& rGltfModel)
 
 		Log("  Using {} animation path", bUseSkeletalAnimation ? "SKELETAL" : "NODE-BASED");
 
-		if (bUseSkeletalAnimation)
-		{
-			// Skeletal animation path
-			Log("Loading skeletal animation...");
-			skeletonData = LoadSkeleton(rGltfModel, 0);
-
-			// Build nodeToNodeIndexMap - identity mapping since we store all nodes
-			for (int64_t i = 0; i < static_cast<int64_t>(rGltfModel.nodes.size()); ++i)
-			{
-				nodeToJointMap.insert_or_assign(static_cast<int>(i), static_cast<int>(i));
-			}
-		}
-		else
-		{
-			// Node-based animation path (no skin, or skin joints don't match animated nodes)
-			Log("Loading node-based animation...");
-			skeletonData = BuildNodeSkeleton(rGltfModel, nodeToJointMap);
-		}
+		skeletonData = LoadSkeletonData(rGltfModel, nodeToJointMap);
 
 		Log("  {} nodes in skeleton, {} skin joints", skeletonData.skeleton.uiNodeCount, skeletonData.skeleton.uiSkinJointCount);
 
@@ -698,8 +667,7 @@ void ExportScene::MainExport(tinygltf::Model& rGltfModel)
 
 		int64_t iCurrentSize = static_cast<int64_t>(mHeaderAndData.size());
 		int64_t iExpectedOffset = common::kiChunkDataOffset + iSceneArraysSize + static_cast<int64_t>(uiMaterialCount) * sizeof(common::MaterialShaderData);
-		Log("  Animation data: writing at offset {} (buffer size {}), expected runtime offset {} (diff {})",
-			iCurrentSize, mHeaderAndData.size(), iExpectedOffset, iCurrentSize - iExpectedOffset);
+		Log("  Animation data: writing at offset {} (buffer size {}), expected runtime offset {} (diff {})", iCurrentSize, mHeaderAndData.size(), iExpectedOffset, iCurrentSize - iExpectedOffset);
 		mHeaderAndData.resize(iCurrentSize + iAnimDataSize);
 		std::byte* pAnimData = mHeaderAndData.data() + iCurrentSize;
 

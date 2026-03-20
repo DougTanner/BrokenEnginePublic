@@ -54,7 +54,7 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fWindDisplacementNoiseScale = gWindDisplacementNoiseScale.Get();
 
 	uint32_t uiWindWidth = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.width;
-	rGlobalLayout.uiWindTilesX = (uiWindWidth + 7) / 8;
+	rGlobalLayout.uiWindTilesX = (uiWindWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
 
 	// Toggle ping-pong index
 	giWindTextureIndex = 1 - giWindTextureIndex;
@@ -68,15 +68,11 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 		gbWindClear = false;
 		sf4PreviousWindArea = {};
 	}
-	float fXOffset = (sf4PreviousWindArea.x - rGlobalLayout.f4SmokeArea.x) / (sf4PreviousWindArea.z - rGlobalLayout.f4SmokeArea.x);
-	float fYOffset = (sf4PreviousWindArea.y - rGlobalLayout.f4SmokeArea.y) / (sf4PreviousWindArea.w - rGlobalLayout.f4SmokeArea.y);
 	shaders::AxisAlignedQuadLayout& rQuad = *reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mWindSpreadStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	rQuad.f4VertexRect = {-1.0f + 2.0f * fXOffset, 1.0f - 2.0f * fYOffset, 2.0f, -2.0f};
-	rQuad.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
-	rQuad.f4Params = {};
+	WriteSpreadQuad(sf4PreviousWindArea, rGlobalLayout.f4SmokeArea, rQuad);
 	sf4PreviousWindArea = rGlobalLayout.f4SmokeArea;
 }
 
 } // namespace engine
 
-#endif // BT_CLIENT
+#endif // defined(BT_CLIENT)

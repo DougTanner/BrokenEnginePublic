@@ -126,6 +126,7 @@ private:
 	void ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void ClientResyncRequest(const uint8_t* pData, int64_t iClientId);
+	void ClientPauseRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage);
 	void SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord);
 	void SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot);

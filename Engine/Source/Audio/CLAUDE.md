@@ -21,6 +21,10 @@ Callback-based playlist decoupling: game logic owns track selection, AudioManage
 ### 3D Spatial Audio
 X3DAudio integration provides distance attenuation, Doppler effect, and multi-channel speaker panning. Listener position updated from player frame data each tick. Custom manual fade applies additional distance-based volume attenuation.
 
+### Logging
+
+Silent failure points (max static voice limit, music playback issues, voice creation failures) emit `Log(kLogAudio, ...)` messages. `kLogAudio` is deactivated by default in `guiLogEnabledCategories` — enable it when debugging audio issues.
+
 ### Threading
 - **Main thread** - 3D position updates, playlist logic, static voice cleanup
 - **Worker threads** - One-shot playback (`PlayOneShot`/`PlayOneShot3d`) serialized via `mOneShotRecursiveMutex`

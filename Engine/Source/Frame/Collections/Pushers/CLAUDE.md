@@ -1,12 +1,19 @@
 # /Engine/Source/Frame/Collections/Pushers/
 
-Physics force fields with zone-based spatial acceleration for push queries with flag-based filtering. Compiles in both client and server builds using the Sync pattern.
+Physics force fields with zone-based spatial acceleration for push queries with flag-based filtering. Compiles in both client and server builds using the Sync pattern. Render methods are present in the header but guarded with `#ifdef BT_CLIENT`.
 
 ## File Structure
 
 The implementation is split across two `.cpp` files:
-- **Pushers.cpp** - Registration, lifecycle (spawn/transfer/destroy), equality
-- **PushersUpdate.cpp** - Update, sync, add/remove, zone setup, push application, collision phases. Pusher zone globals are `thread_local` to enable parallel per-Frame physics execution across multiple threads
+- **Pushers.cpp** - Registration, lifecycle (allocate/copy, spawn, transfer, destroy), `LogDifferences()`, render counter tracking (`#ifdef BT_CLIENT`)
+- **PushersUpdate.cpp** - Update, sync, add/remove, zone setup, push application, collision phases
+
+## Architecture Notes
+
+- Zone acceleration uses `thread_local` globals so each Dispatch worker and reconcile thread has its own copy for safe parallel physics execution
+- `Update()` bulk-copies all SOA arrays from previous frame; `Sync()` then overwrites the entry for a specific ID each frame
+- `SetupZones()` is called from `FramePostRenderBase::Update()` and rebuilds the spatial grid each frame centered on the player position; `ApplyPush()` queries a single zone cell with flag-based include/exclude filtering
+- Render methods only track a profile counter (no GPU draw calls)
 
 ## See Also
 - Parent collections: [../CLAUDE.md](../CLAUDE.md)

@@ -88,9 +88,7 @@ static uint8_t suiMissileExplosionTypeIndex = 0xFF;
 
 #if defined(BT_CLIENT)
 // Helper to sync owned objects for a missile
-void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::smoke_trails_t uiSmokeTrail,
-	engine::sound_t uiSound,
-	FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength)
+void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::smoke_trails_t uiSmokeTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength)
 {
 	// Sync area light (exhaust flame) if not exploding
 	if (uiAreaLight.IsValid() && !(flags & kExploding))
@@ -176,10 +174,7 @@ void MissilesInterpolate::ClientInit(Frame& rFrame, int64_t iIndex, engine::smok
 	engine::SoundsPostRender::Add(rFrame, rPostRender.puiSounds[iIndex]);
 
 	// Sync all owned objects (reads fields from arrays)
-	SyncMissile(rFrame.interpolate, rMissiles.puiAreaLights[iIndex], rMissiles.puiPushers[iIndex], rMissiles.puiSmokeTrails[iIndex],
-		rPostRender.puiSounds[iIndex],
-		rMissiles.pVecPositions[iIndex], rMissiles.pVecDirections[iIndex], rPostRender.pVecVelocities[iIndex], rMissiles.pVecPositions[iIndex],
-		rPostRender.pFlags[iIndex], rPostRender.pfPitches[iIndex], rPostRender.pfDeltaRotations[iIndex], rPostRender.pfExhaustLengths[iIndex]);
+	SyncMissile(rFrame.interpolate, rMissiles.puiAreaLights[iIndex], rMissiles.puiPushers[iIndex], rMissiles.puiSmokeTrails[iIndex], rPostRender.puiSounds[iIndex], rMissiles.pVecPositions[iIndex], rMissiles.pVecDirections[iIndex], rPostRender.pVecVelocities[iIndex], rMissiles.pVecPositions[iIndex], rPostRender.pFlags[iIndex], rPostRender.pfPitches[iIndex], rPostRender.pfDeltaRotations[iIndex], rPostRender.pfExhaustLengths[iIndex]);
 }
 
 void MissilesInterpolate::ClientInitAll(Frame& rFrame)
@@ -414,7 +409,7 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 			continue;
 		}
 
-		// Remove owned objects
+		// Remove owned objects (area light and sound may already be removed by Explode())
 #if defined(BT_CLIENT)
 		if (rCurrentInterpolate.puiAreaLights[i].IsValid())
 		{
@@ -543,13 +538,20 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 
 	// Remove area light when exploding
 #if defined(BT_CLIENT)
-	rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
-	rCurrentInterpolate.puiAreaLights[i] = {};
+	if (rCurrentInterpolate.puiAreaLights[i].IsValid())
+	{
+		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		rCurrentInterpolate.puiAreaLights[i] = {};
+	}
 #endif
 
 	// Remove sound when exploding (missile engine sound stops, replaced by explosion sound)
 #if defined(BT_CLIENT)
-	engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+	if (rCurrentPostRender.puiSounds[i].IsValid())
+	{
+		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+		rCurrentPostRender.puiSounds[i] = {};
+	}
 #endif
 
 	SpawnMissileExplosion(rFrame, 1.0f, rCurrentInterpolate.pVecPositions[i], rCurrentPostRender.pVecExplosionDirections[i], rCurrentPostRender.pFlags[i]);

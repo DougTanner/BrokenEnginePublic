@@ -1,38 +1,25 @@
-#include "TweaksScreen.h"
+#include "TweaksScreenBase.h"
 
 namespace engine
 {
 
-void TweaksScreen::RenderWaterMediumSection()
+void TweaksScreenBase::RenderWaterMediumSection()
 {
-	// Radio buttons for wave count selection (skip when slider is active)
-	if (mActiveSlider.empty())
-	{
-		ImGui::Text("Wave Count");
-		ImGui::SameLine();
-		int64_t iCurrent = gMediumCount.Get<int64_t>();
-		for (const std::pair<const char*, int64_t>& rPair : std::initializer_list<std::pair<const char*, int64_t>>{{"15", 15}, {"31", 31}, {"63", 63}, {"127", 127}, {"255", 255}})
-		{
-			if (ImGui::RadioButton(rPair.first, iCurrent == rPair.second))
-			{
-				gMediumCount.Set(rPair.second);
-			}
-			ImGui::SameLine();
-		}
-		ImGui::NewLine();
-	}
+	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kWaterMedium);
+
+	RenderWaveCountRadioButtons(gMediumCount);
 
 	WrapperSeparatorText("Wave");
-	WrapperSlider("Medium Wavelength", static_cast<int>(TweakSection::kWaterMedium));
-	WrapperSlider("Medium Amplitude", static_cast<int>(TweakSection::kWaterMedium));
-	WrapperSlider("Medium Speed", static_cast<int>(TweakSection::kWaterMedium));
-	WrapperSlider("Medium Steepness", static_cast<int>(TweakSection::kWaterMedium));
+	WrapperSlider("Medium Wavelength", kiSection);
+	WrapperSlider("Medium Amplitude", kiSection);
+	WrapperSlider("Medium Speed", kiSection);
+	WrapperSlider("Medium Steepness", kiSection);
 
 	WrapperSeparatorText("Adjustments");
-	WrapperSlider("Medium Angle Adjust", static_cast<int>(TweakSection::kWaterMedium));
-	WrapperSlider("Medium Wavelength Adjust", static_cast<int>(TweakSection::kWaterMedium));
-	WrapperSlider("Medium Amplitude Adjust", static_cast<int>(TweakSection::kWaterMedium));
-	WrapperSlider("Medium Speed Adjust", static_cast<int>(TweakSection::kWaterMedium));
+	WrapperSlider("Medium Angle Adjust", kiSection);
+	WrapperSlider("Medium Wavelength Adjust", kiSection);
+	WrapperSlider("Medium Amplitude Adjust", kiSection);
+	WrapperSlider("Medium Speed Adjust", kiSection);
 }
 
 } // namespace engine

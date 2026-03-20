@@ -1,6 +1,5 @@
 #include "TextManager.h"
 
-#include "Ui/Localization.h"
 #include "Profile/ProfileManager.h"
 
 #include "Data/Font.h"
@@ -23,20 +22,6 @@ TextManager::TextManager()
 	gpTextManager = this;
 
 	ScopedBootTimer scopedBootTimer(kBootTimerTextManager);
-
-	std::setlocale(LC_ALL, "en_US.utf8");
-	for (int64_t i = 0; i < game::kStringsCount; ++i)
-	{
-		for (int64_t j = 0; j < game::kLanguageCount; ++j)
-		{
-			int64_t k = 0;
-			while (game::gppTranslatedStrings[i][j][k] != 0)
-			{
-				game::gppTranslatedStrings[i][j][k] = towupper(static_cast<wint_t>(game::gppTranslatedStrings[i][j][k]));
-				++k;
-			}			
-		}
-	}
 
 	const std::unordered_map<common::crc_t, EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
 

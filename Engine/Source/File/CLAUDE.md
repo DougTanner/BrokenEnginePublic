@@ -12,15 +12,19 @@ Manages file operations and asset loading with platform directory access (AppDat
 
 Assets stored in `.pack` files with `.manifest` metadata, using two loading strategies:
 
-- **Eager Loading** (Font, Scene, Model, Raw, Shader): Entire pack files loaded into memory at startup with zero-copy access via pointers into the loaded data.
-- **Lazy Loading** (Audio, Islands, Texture): A background thread processes a priority queue using unbuffered disk I/O. All lazy data is pre-allocated in a single `VirtualAlloc` pool. Textures go through a multi-stage state machine coordinating with TextureUploadManager; non-texture chunks become ready immediately after disk load.
+- **Eager Loading** (Font, Scene, Model, Raw, Shader): Client-only. Entire pack files loaded into memory at startup with zero-copy access via pointers into the loaded data. On server builds, these types are skipped entirely — no manifests are read and no pack files are loaded for them.
+- **Lazy Loading** (Audio, Islands, Texture): A background thread processes a priority queue using unbuffered disk I/O (`FILE_FLAG_NO_BUFFERING`). All lazy data is pre-allocated in a single `VirtualAlloc` pool. Disk reads use non-temporal copies (`_mm_stream_si128`) to bypass L3 cache. Textures go through a multi-stage state machine (`ChunkState`: kNotLoaded -> kLoadRequested -> kDiskLoaded -> kUploading -> kGpuUploadComplete -> kReady) coordinating with TextureUploadManager; non-texture chunks become ready immediately after disk load.
 - **Priority Loading**: IslandTerrain and TextureManager populate priority CRC vectors at startup, queued at realtime priority before normal requests.
 
 **Device Recreation**: After GPU device loss, `ResetTextureChunkStates()` restores lazy chunks to a re-loadable state based on whether CPU data is still resident.
 
+### Streaming API
+
+`ReadChunkData()` reads data at a specific offset within a chunk. For loaded chunks, copies directly from memory. For unloaded lazy chunks, reads directly from the pack file on disk (used for streaming audio playback without loading entire chunks).
+
 ### Versioned I/O Templates
 
-Type-safe save/load with automatic version validation via `WriteVersionedFile<T>()` / `ReadVersionedFile<T>()` / `ExistsVersionedFile<T>()`. Requires structs to define `static constexpr int64_t kiVersion`.
+Type-safe save/load with automatic version validation via `WriteVersionedFile<T>()` / `ReadVersionedFile<T>()`. Requires structs to define `static constexpr int64_t kiVersion`.
 
 ## DifferenceStream.h
 

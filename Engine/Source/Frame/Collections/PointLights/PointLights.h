@@ -16,6 +16,7 @@ struct PointLightsType
 	float fVisibleIntensity = 1.0f;
 	float fLightingArea = 1.0f;
 	float fLightingIntensity = 1.0f;
+	bool bCameraAligned = false;
 };
 
 struct PointLightsInterpolate : public Collection<PointLightsInterpolate, CollectionFlags::kIdToIndex>,

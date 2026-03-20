@@ -12,7 +12,7 @@ bool sbTrackingReady = false;
 
 void TrackAllocation()
 {
-	if (kbEnableProfiling)
+	if constexpr (kbEnableProfiling)
 	{
 		giAllocationsThisFrame.fetch_add(1, std::memory_order_relaxed);
 	}
@@ -91,7 +91,7 @@ struct MemoryInitializer
 	{
 #if defined(ENABLE_CRT_DEBUG_HEAP)
 		_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-		// Set to the allocation number from the CRT leak report to break on that allocation
+		// Usage: set to the allocation number from the CRT leak report to break on that allocation (e.g., _crtBreakAlloc = 5374)
 		// _crtBreakAlloc = 5374;
 #else
 		// Pre-commit arena pages on allocation (eliminates soft page faults during gameplay)

@@ -38,7 +38,6 @@ void main()
 {
 	int i = iInInstanceIndex;
 	float fIntensity = particles.pParticles[i].fIntensity;
-	// fIntensity = pow(max(fIntensity, 0.0f), particles.pParticles[i].fIntensityPower);
 
 	vec4 f4Color = unpackUnorm4x8(particles.pParticles[i].iColor).abgr;
 	float fCookie = texture(sampler2D(pTextures[nonuniformEXT(particles.pParticles[i].iCookie)], particleSampler), f2InTexcoord).x;

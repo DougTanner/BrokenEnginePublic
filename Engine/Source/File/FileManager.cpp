@@ -76,11 +76,6 @@ bool FileManager::Exists(const FileFlags_t& rFlags, const std::filesystem::path&
 	return std::filesystem::exists(GetFilePath(rFlags, rFilename));
 }
 
-int64_t FileManager::GetFileSize(const FileFlags_t& rFlags, const std::filesystem::path& rFilename)
-{
-	return file_size(GetFilePath(rFlags, rFilename));
-}
-
 std::filesystem::path FileManager::GetFilePath(const FileFlags_t& rFlags, const std::filesystem::path& rFilename)
 {
 	std::filesystem::path filePath;
@@ -112,9 +107,9 @@ std::fstream FileManager::OpenFile(const FileFlags_t& rFlags, const std::filesys
 		std::filesystem::path backupFile(file);
 		std::time_t time = std::time(nullptr);
 		std::tm timeStruct = *std::localtime(&time);
-		std::ostringstream oss;
-		oss << std::put_time(&timeStruct, ".%d-%m-%Y-%H-%M-%S");
-		std::string timeString = oss.str();
+		std::ostringstream timeStringStream;
+		timeStringStream << std::put_time(&timeStruct, ".%d-%m-%Y-%H-%M-%S");
+		std::string timeString = timeStringStream.str();
 		backupFile += timeString;
 		std::filesystem::copy_file(file, backupFile);
 	}
@@ -160,6 +155,13 @@ void FileManager::LoadPackFiles()
 {
 	for (int64_t i = 0; i < data::kDataTypeCount; ++i)
 	{
+#if defined(BT_SERVER)
+		if (IsEagerChunk(static_cast<data::DataTypes>(i)))
+		{
+			continue;
+		}
+#endif
+
 		// Cache pack file path for reuse across loading stages
 		mPackFilePaths[i] = GetDataFilePath(static_cast<data::DataTypes>(i), ".pack");
 		// Read chunk locations from manifest
@@ -216,9 +218,9 @@ void FileManager::LoadPackFiles()
 	}
 
 	// Query disk sector size for FILE_FLAG_NO_BUFFERING alignment requirements
-	DWORD sectorsPerCluster = 0, bytesPerSector = 0, numberOfFreeClusters = 0, totalNumberOfClusters = 0;
-	GetDiskFreeSpaceW(mDataDirectory.root_path().c_str(), &sectorsPerCluster, &bytesPerSector, &numberOfFreeClusters, &totalNumberOfClusters);
-	miSectorSize = bytesPerSector;
+	DWORD uiSectorsPerCluster = 0, uiBytesPerSector = 0, uiNumberOfFreeClusters = 0, uiTotalNumberOfClusters = 0;
+	GetDiskFreeSpaceW(mDataDirectory.root_path().c_str(), &uiSectorsPerCluster, &uiBytesPerSector, &uiNumberOfFreeClusters, &uiTotalNumberOfClusters);
+	miSectorSize = uiBytesPerSector;
 
 	// Open persistent unbuffered handles for lazy pack files
 	for (int64_t i = 0; i < data::kDataTypeCount; ++i)
@@ -239,6 +241,7 @@ void FileManager::LoadPackFiles()
 	{
 		common::ThreadLocal threadLocal(0, common::kThreadEagerLoad);
 
+#if defined(BT_CLIENT)
 		for (uint32_t i = 0; i < data::kDataTypeCount; ++i)
 		{
 			if (!IsEagerChunk(static_cast<data::DataTypes>(i)))
@@ -296,6 +299,7 @@ void FileManager::LoadPackFiles()
 				}
 			}
 		}
+#endif
 
 		// Start background loading thread
 		mLoadingThread = std::thread(&FileManager::LoadingThread, this);
@@ -606,50 +610,33 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t uiOffset, std::span<
 	return false;
 }
 
-int64_t FileManager::GetEagerMemoryBytes() const
+MemoryStats FileManager::GetEagerStats() const
 {
-	int64_t iTotalBytes = 0;
+	MemoryStats stats;
 	for (uint32_t i = 0; i < data::kDataTypeCount; ++i)
 	{
 		if (IsEagerChunk(static_cast<data::DataTypes>(i)))
 		{
-			iTotalBytes += static_cast<int64_t>(mPackFileData[i].size());
+			stats.iBytes += static_cast<int64_t>(mPackFileData[i].size());
 		}
 	}
-	return iTotalBytes;
+	stats.iCount = static_cast<int64_t>(mEagerChunkMap.size());
+	return stats;
 }
 
-int64_t FileManager::GetLazyMemoryBytes() const
+MemoryStats FileManager::GetLazyStats() const
 {
-	int64_t iTotalBytes = 0;
+	MemoryStats stats;
 	std::unique_lock lock(mQueueMutex);
 	for (const auto& [crc, rLazyChunk] : mLazyChunkMap)
 	{
 		if (rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kDiskLoaded)
 		{
-			iTotalBytes += rLazyChunk.iDataSize;
+			stats.iBytes += rLazyChunk.iDataSize;
+			++stats.iCount;
 		}
 	}
-	return iTotalBytes;
-}
-
-int64_t FileManager::GetEagerAllocationCount() const
-{
-	return static_cast<int64_t>(mEagerChunkMap.size());
-}
-
-int64_t FileManager::GetLazyAllocationCount() const
-{
-	int64_t iCount = 0;
-	std::unique_lock lock(mQueueMutex);
-	for (const auto& [crc, rLazyChunk] : mLazyChunkMap)
-	{
-		if (rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kDiskLoaded)
-		{
-			++iCount;
-		}
-	}
-	return iCount;
+	return stats;
 }
 
 MemoryStats FileManager::GetMemoryStats(data::DataTypes eDataType) const

@@ -59,7 +59,6 @@ struct MovableAtomicChunkState
 
 struct LazyChunk
 {
-	data::DataTypes eDataType = data::kDataTypeCount; // Which pack file it is in
 	common::ChunkLocation location;                   // Offset and size in pack file, maps manifest file
 	MovableAtomicChunkState eState {};                // Atomic state tracking load progress
 	common::ChunkHeader header {};                    // Chunk header
@@ -110,7 +109,6 @@ public:
 	~FileManager();
 
 	bool Exists(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
-	int64_t GetFileSize(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 	std::fstream OpenFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 	void RemoveFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 
@@ -145,10 +143,8 @@ public:
 	void ResetTextureChunkStates();
 
 	// Memory profiling
-	int64_t GetEagerMemoryBytes() const;
-	int64_t GetLazyMemoryBytes() const;
-	int64_t GetEagerAllocationCount() const;
-	int64_t GetLazyAllocationCount() const;
+	MemoryStats GetEagerStats() const;
+	MemoryStats GetLazyStats() const;
 	MemoryStats GetMemoryStats(data::DataTypes eDataType) const;
 
 	std::vector<common::ChunkLocation> mpChunkLocations[data::kDataTypeCount];
@@ -229,30 +225,6 @@ struct has_binary_stream_operators
 
 template <typename T>
 inline constexpr bool has_binary_stream_operators_v = has_binary_stream_operators<T>::value;
-
-template <typename STRUCT_TYPE>
-bool ExistsVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename)
-{
-	if (!gpFileManager->Exists(rFlags, rFilename))
-	{
-		return false;
-	}
-
-	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
-	int64_t iVersion = 0;
-	common::Read(fileStream, iVersion);
-	int64_t iSize = 0;
-	common::Read(fileStream, iSize);
-
-	if constexpr (std::is_trivially_copyable_v<STRUCT_TYPE>)
-	{
-		return iVersion == STRUCT_TYPE::kiVersion && iSize == sizeof(STRUCT_TYPE);
-	}
-	else
-	{
-		return iVersion == STRUCT_TYPE::kiVersion;
-	}
-}
 
 template <typename STRUCT_TYPE>
 void WriteVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, STRUCT_TYPE& rStructure)

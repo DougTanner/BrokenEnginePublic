@@ -4,7 +4,7 @@ vec2 SmokeWorldPosition(vec4 f4SmokeArea, vec2 f2Texcoord)
 }
 
 // Spread smoke using noise displacement and wind-driven advection
-vec4 SmokeSpread(GlobalLayout globalLayout, sampler2D textureSampler, sampler2D noiseTextureSampler, sampler2D windTextureSamplerOne, sampler2D windTextureSamplerTwo, vec2 f2Texcoord, float fNoiseScale, float fElevation)
+vec4 SmokeSpread(GlobalLayout globalLayout, sampler2D textureSampler, sampler2D noiseTextureSampler, sampler2D windTextureSamplerOne, sampler2D windTextureSamplerTwo, vec2 f2Texcoord, float fNoiseScale)
 {
 	vec2 f2WorldPosition = SmokeWorldPosition(globalLayout.f4SmokeArea, f2Texcoord);
 

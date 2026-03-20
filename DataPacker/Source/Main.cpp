@@ -12,11 +12,18 @@
 
 using enum common::ChunkFlags;
 
-constexpr int64_t kiDataPackerVersion = 1;
-
-static bool sbSingleThread = false;
-
 void Quit(const char* message, const char* title);
+
+static void WriteIfChanged(const std::string& rContent, const std::filesystem::path& rPath, const char* logName)
+{
+	if (!common::ContentsEqual(rContent, rPath))
+	{
+		std::fstream stream(rPath, std::ios::out | std::ios::binary);
+		stream << rContent;
+		stream.close();
+		Log("Re-generated %s", logName);
+	}
+}
 
 template <typename T>
 bool RunExportJobs()
@@ -67,10 +74,6 @@ bool RunExportJobs()
 	for (std::unique_ptr<T>& rpExportJob : exportJobs)
 	{
 		rpExportJob->mFuture = std::async(std::launch::async, &T::RunExport, rpExportJob.get());
-		if (sbSingleThread)
-		{
-			rpExportJob->mFuture.wait();
-		}
 	}
 
 	// Open temporary manifest file and write header
@@ -244,13 +247,7 @@ bool MainThread(int argc, char* argv[])
 	std::filesystem::path dataTypesPath = gpFileManager->mOutputDirectory;
 	dataTypesPath /= "DataTypes.h";
 
-	if (!common::ContentsEqual(dataTypesString, dataTypesPath))
-	{
-		std::fstream dataTypesStream(dataTypesPath, std::ios::out | std::ios::binary);
-		dataTypesStream << dataTypesString;
-		dataTypesStream.close();
-		Log("Re-generated DataTypes.h");
-	}
+	WriteIfChanged(dataTypesString, dataTypesPath, "DataTypes.h");
 
 	// Generate Data.h file with DataTypes.h include and all CRC headers
 	std::stringstream dataHeaderContent;
@@ -274,13 +271,7 @@ bool MainThread(int argc, char* argv[])
 	std::filesystem::path dataHeaderPath = gpFileManager->mOutputDirectory;
 	dataHeaderPath /= "Data.h";
 
-	if (!common::ContentsEqual(dataHeaderString, dataHeaderPath))
-	{
-		std::fstream dataHeaderStream(dataHeaderPath, std::ios::out | std::ios::binary);
-		dataHeaderStream << dataHeaderString;
-		dataHeaderStream.close();
-		Log("Re-generated Data.h");
-	}
+	WriteIfChanged(dataHeaderString, dataHeaderPath, "Data.h");
 
 	// Copy license files from ThirdParty directories to Attribution directory in output
 	gpFileManager->CopyThirdPartyLicenses();

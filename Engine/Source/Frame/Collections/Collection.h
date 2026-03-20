@@ -17,6 +17,7 @@ namespace engine
 
 struct FrameBase;
 struct FramePostRenderBase;
+struct GridCoord;
 
 class Buffer;
 class BufferManager;
@@ -586,7 +587,6 @@ inline common::crc_t ServerCollectionElementCrc(const TStruct& rCurrent, int64_t
 		return engine::MultiElementCrc(iIndex, rCurrent.Members());
 }
 
-
 // Reads collection from a server-format stream. Allocates full Members() (zero-initialized) so client-only
 // pointers are valid, then reads only SharedMembers() from the stream to match what the server wrote.
 template <typename TStruct>
@@ -636,6 +636,49 @@ inline std::istream& CollectionRead(std::istream& rStream, TStruct& rCurrent, TT
 	rCurrent.Read(rStream);
 	engine::AllocateAndRead(rCurrent, rStream, std::forward<TTuple>(members));
 	return rStream;
+}
+
+// Accumulates total capacity across all active coords for a collection's BeginRender phase.
+// TAccessor: callable returning a const reference to the collection from a FrameInterpolate.
+template <typename TAccessor>
+int64_t AccumulateRenderCapacity(
+	const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates,
+	const std::vector<GridCoord>& rActiveCoords,
+	TAccessor accessor)
+{
+	int64_t iTotalCapacity = 0;
+	for (const GridCoord& rCoord : rActiveCoords)
+	{
+		auto it = rRenderInterpolates.find(rCoord);
+		if (it != rRenderInterpolates.end())
+		{
+			iTotalCapacity += accessor(it->second).iCapacity;
+		}
+	}
+	return iTotalCapacity;
+}
+
+// Erases entries from a render state map whose IDs are no longer present in any active collection.
+// TAccessor: callable returning the collection's idToIndexMap from a FrameInterpolate reference.
+template <typename TMapType, typename TAccessor>
+void EraseStaleRenderState(TMapType& rRenderStateMap,
+    const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates,
+    const std::vector<GridCoord>& rActiveCoords,
+    TAccessor accessor)
+{
+	// Heap: unordered_map erase for stale render state entries
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	std::erase_if(rRenderStateMap, [&rRenderInterpolates, &rActiveCoords, &accessor](const auto& pair) {
+		for (const GridCoord& rCoord : rActiveCoords)
+		{
+			auto it = rRenderInterpolates.find(rCoord);
+			if (it != rRenderInterpolates.end() && accessor(it->second).contains(pair.first))
+			{
+				return false;
+			}
+		}
+		return true;
+	});
 }
 
 } // namespace engine

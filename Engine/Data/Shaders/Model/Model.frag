@@ -6,8 +6,6 @@
 
 #version 460
 
-#extension GL_ARB_separate_shader_objects : require
-#extension GL_EXT_shader_explicit_arithmetic_types : require
 #extension GL_EXT_nonuniform_qualifier : require
 
 #include "ShaderLayouts.h"
@@ -78,7 +76,6 @@ layout (location = 7) in vec4 f4InColorAdd;
 layout (location = 0) out vec4 f4OutColor;
 
 // Constants
-const float M_PI = 3.141592653589793;
 const float kMinRoughness = 0.04;
 
 // Select UV based on texture set index
@@ -124,7 +121,7 @@ float D_GGX(float NdotH, float alphaRoughness)
 {
 	float a2 = alphaRoughness * alphaRoughness;
 	float f = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
-	return a2 / (M_PI * f * f);
+	return a2 / (fPi * f * f);
 }
 
 // Schlick Fresnel approximation
@@ -146,14 +143,12 @@ float V_SmithGGXCorrelated(float NdotL, float NdotV, float alphaRoughness)
 // Lambertian diffuse BRDF
 vec3 DiffuseLambert(vec3 diffuseColor)
 {
-	return diffuseColor / M_PI;
+	return diffuseColor / fPi;
 }
 
 // Compute perturbed normal from normal map using screen-space derivatives
-vec3 GetNormal()
+vec3 GetNormal(PbrMaterialLayout material)
 {
-	PbrMaterialLayout material = pMaterials[int32_t(pushConstantsLayout.f4Pipeline.w)];
-
 	vec3 N = normalize(f3InNormal);
 
 	if (material.iNormalTextureSet < 0)
@@ -241,7 +236,7 @@ void main()
 	vec3 specularColor = mix(f0, baseColor.rgb, metallic);
 
 	// Compute vectors
-	vec3 n = GetNormal();
+	vec3 n = GetNormal(material);
 	vec3 v = normalize(mainLayout.f4EyePosition.xyz - f3InWorldPosition);
 	vec3 l = normalize(globalLayout.f4SunNormal.xyz);
 	vec3 h = normalize(l + v);

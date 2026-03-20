@@ -225,6 +225,22 @@ void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext)
 	ReconcileUpdateHumanState(rReconcileContext);
 }
 
+static void RestoreUnconsumedUpdates(CoordReconcileWork& rWork, engine::CoordFrames& rSub)
+{
+	for (auto& [iTick, rUpdate] : rWork.serverUpdates)
+	{
+		if (iTick > rSub.iConfirmedTick)
+		{
+			rSub.serverUpdates.insert_or_assign(iTick, std::move(rUpdate));
+		}
+	}
+
+	if (rWork.pendingFullState.has_value() && (!rSub.pendingFullState.has_value() || rWork.pendingFullState->iTick >= rSub.pendingFullState->iTick))
+	{
+		rSub.pendingFullState = std::move(rWork.pendingFullState);
+	}
+}
+
 void ClientReconciler::ApplyCoordWriteback(CoordReconcileWork& rWork, engine::CoordFrames& rSub)
 {
 	if (rWork.iNewConfirmedTick >= 0)
@@ -264,20 +280,7 @@ void ClientReconciler::ApplyCoordWriteback(CoordReconcileWork& rWork, engine::Co
 		ASSERT(rSub.iSnapshotCount <= engine::kiNetworkBufferSize);
 	}
 
-	// Restore unconsumed server updates
-	for (auto& [iTick, rUpdate] : rWork.serverUpdates)
-	{
-		if (iTick > rSub.iConfirmedTick)
-		{
-			rSub.serverUpdates.insert_or_assign(iTick, std::move(rUpdate));
-		}
-	}
-
-	// Preserve unconsumed pending full state for next reconcile pass (keep newer main-thread arrival if present)
-	if (rWork.pendingFullState.has_value() && (!rSub.pendingFullState.has_value() || rWork.pendingFullState->iTick >= rSub.pendingFullState->iTick))
-	{
-		rSub.pendingFullState = std::move(rWork.pendingFullState);
-	}
+	RestoreUnconsumedUpdates(rWork, rSub);
 }
 
 ReconcileDesyncInfo ClientReconciler::ApplyResult()
@@ -311,19 +314,7 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 			rSub.iConfirmedOffset = rWork.iConfirmedOffset;
 			rSub.iSnapshotHead = rWork.iSnapshotHead;
 
-			for (auto& [iTick, rUpdate] : rWork.serverUpdates)
-			{
-				if (iTick > rSub.iConfirmedTick)
-				{
-					rSub.serverUpdates.insert_or_assign(iTick, std::move(rUpdate));
-				}
-			}
-
-			// Preserve unconsumed pending full state (keep newer main-thread arrival if present)
-			if (rWork.pendingFullState.has_value() && (!rSub.pendingFullState.has_value() || rWork.pendingFullState->iTick >= rSub.pendingFullState->iTick))
-			{
-				rSub.pendingFullState = std::move(rWork.pendingFullState);
-			}
+			RestoreUnconsumedUpdates(rWork, rSub);
 
 			// Restore snapshots via swap back
 			std::swap(rSub.snapshots, rWork.snapshots);

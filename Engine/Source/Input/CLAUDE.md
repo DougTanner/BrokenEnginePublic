@@ -1,6 +1,6 @@
 # `/Engine/Source/Input/`
 
-Engine-level hardware input polling for keyboard, mouse, and gamepad. Client-only (`#ifdef BT_CLIENT`); compiles in both builds but `gpRawInputManager` is null on the server.
+Engine-level hardware input polling for keyboard, mouse, and gamepad. The `RawInput` struct and button enums compile in both builds; the `RawInputManager` class and `gpRawInputManager` global exist only in `BT_CLIENT` builds.
 
 ## Architecture
 

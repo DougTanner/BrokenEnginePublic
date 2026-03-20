@@ -102,6 +102,8 @@ public:
 	std::unordered_map<common::crc_t, std::vector<Buffer>> mDynamicStorageBuffers[kBufferTypeCount];
 	std::optional<Buffer> mPreviousBuffer;
 
+	void InitializePerCommandBufferBuffers(int64_t iCommandBufferCount);
+
 private:
 
 	void GrowMeshDataBuffer(int64_t iCommandBuffer);

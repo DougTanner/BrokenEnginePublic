@@ -400,7 +400,9 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\ServerTypes.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.h" />
     <ClInclude Include="..\..\Source\Profile\ProfileManager.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreen.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenBase.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksSliderMap.h" />
+    <ClInclude Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreen.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\WrapperBase.h" />
     <ClInclude Include="..\..\Data\Shaders\ShaderLayouts.h" />
     <ClInclude Include="..\..\Source\Frame\Collections\Blasters\Blasters.h" />
@@ -483,7 +485,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds\Sounds.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds\SoundsUpdate.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrails.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrailsUpdate.cpp" />
+
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrailsRender.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindRadials\WindRadials.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindRadials\WindRadialsUpdate.cpp" />
@@ -520,6 +522,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\InstanceManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\SwapchainManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\RenderTargetTextures.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\RenderTargetTexturesLighting.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureCache.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureDescriptors.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureManager.cpp" />
@@ -555,8 +558,10 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSend.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileScreens.cpp" />
     <ClCompile Include="..\..\Source\Profile\ProfileManager.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreen.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenBase.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksSliderMap.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenTest.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenPbr.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenTerrain.cpp" />
@@ -567,11 +572,13 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterLighting.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenShadow.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenMisc.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenHexShield.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenSmoke.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWind.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWindDeposits.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\WrapperBase.cpp" />
+    <ClCompile Include="..\..\Source\Ui\Wrapper.cpp" />
+    <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreen.cpp" />
+    <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenHexShield.cpp" />
+    <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenWindDeposits.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters\Blasters.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters\BlastersRender.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters\BlastersUpdate.cpp" />
@@ -595,6 +602,8 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\Source\Network\ClientSessionSubscriptions.cpp" />
     <ClCompile Include="..\..\Source\Network\ClientReconciler.cpp" />
     <ClCompile Include="..\..\Source\Network\ReconcileReplay.cpp" />
+    <ClCompile Include="..\..\Source\Network\ReconcileReplayCrc.cpp" />
+    <ClCompile Include="..\..\Source\Network\ReconcileReplayHumanState.cpp" />
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp" />
     <ClCompile Include="..\..\Source\Network\ServerSession.cpp" />
     <ClCompile Include="..\..\Source\Graphics\Camera.cpp" />
@@ -644,9 +653,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowBlurV.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\Smoke.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadCommon.h" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadOne.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadOne.comp" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadTwo.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadTwo.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindDeposit.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindOccupancyDilate.comp" />
@@ -665,7 +672,6 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\Model.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelGenBrdfLut.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelGenBrdfLut.vert" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelLighting.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelShadow.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelCommon.h" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelSkinned.vert" />

@@ -2,9 +2,6 @@
 
 #if defined(BT_CLIENT)
 
-#define LOG_STATIC_VOICES(a, ...) ((void)0)
-#define LOG_STREAMING_VOICES(a, ...) ((void)0)
-
 namespace game
 {
 
@@ -62,6 +59,8 @@ public:
 
 private:
 
+	void UpdateStaticVoiceLifecycle(const game::Frame& rFrame, float fDeltaTime);
+	void UpdateListenerPosition(const game::Frame& rFrame);
 	void XM_CALLCONV Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch);
 
 	common::RandomEngine mRandomEngine;
@@ -89,6 +88,8 @@ private:
 	float mfManualFadeVolume = 0.05f;
 	int64_t miMasteringVoiceChannels = 0;
 
+	void CreateMusicStream(common::crc_t audioCrc);
+
 	std::unique_ptr<StreamingVoice> mpCurrentMusicStream;
 	std::vector<std::unique_ptr<StreamingVoice>> mPreviousStreams;
 	std::vector<std::unique_ptr<StreamingVoice>> mStreamsToDestroy;
@@ -96,6 +97,20 @@ private:
 };
 
 inline AudioManager* gpAudioManager = nullptr;
+
+inline void DestroyXAudio2SourceVoice(IXAudio2SourceVoice*& rpVoice)
+{
+	if (rpVoice != nullptr)
+	{
+		rpVoice->Stop(0, XAUDIO2_COMMIT_NOW);
+		rpVoice->FlushSourceBuffers();
+		if (gpAudioManager->mpAudioEngine != nullptr)
+		{
+			gpAudioManager->mpAudioEngine->DestroyVoice(rpVoice);
+		}
+		rpVoice = nullptr;
+	}
+}
 
 } // namespace engine
 

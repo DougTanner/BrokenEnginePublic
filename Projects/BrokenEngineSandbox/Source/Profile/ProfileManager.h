@@ -56,6 +56,13 @@ public:
 	int64_t GetCpuCounterCount() const override;
 	int64_t GetCpuTimerCount() const override;
 
+#if defined(BT_CLIENT)
+	void FormatGameScreens(common::Workbuffer& rWorkbuffer) override;
+
+	void SetClockCorrection(int64_t iOffset, int64_t iTargetBehind, int64_t iError);
+	void SetReconcileCounters(int64_t iCrcValidated, int64_t iAssumed, int64_t iCrcFastPath, int64_t iStatusChangeReplay, int64_t iKnockOnReplay);
+#endif
+
 private:
 
 	engine::CpuCounter mGameCpuCounters[static_cast<int64_t>(kGameCpuCounterCount) - static_cast<int64_t>(engine::kEngineCpuCounterCount)]
@@ -93,6 +100,21 @@ private:
 		{.name = "    Spaceships"},
 		{.name = "        Animate"},
 	};
+
+#if defined(BT_CLIENT)
+	common::Smoothed<int64_t> mSmoothedClockOffset;
+	common::Smoothed<int64_t> mSmoothedClockTarget;
+	common::Smoothed<int64_t> mSmoothedClockError;
+	common::Smoothed<int64_t> mSmoothedRollback;
+	common::Smoothed<int64_t> mSmoothedBuffer;
+	common::Smoothed<int64_t> mSmoothedRecv;
+
+	common::InTheLastSecond mCrcValidatedTicksPerSecond;
+	common::InTheLastSecond mAssumedTicksPerSecond;
+	common::InTheLastSecond mCrcFastPathEventsPerSecond;
+	common::InTheLastSecond mStatusChangeReplayTicksPerSecond;
+	common::InTheLastSecond mKnockOnReplayTicksPerSecond;
+#endif
 };
 
 extern ProfileManager* gpProfileManager;

@@ -23,15 +23,8 @@ void PointLightsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer
 	siRendered = 0;
 	siTotalCount = 0;
 
-	int64_t iTotalCapacity = 0;
-	for (const GridCoord& rCoord : rActiveCoords)
-	{
-		auto it = rRenderInterpolates.find(rCoord);
-		if (it != rRenderInterpolates.end())
-		{
-			iTotalCapacity += it->second.pointLights.iCapacity;
-		}
-	}
+	int64_t iTotalCapacity = AccumulateRenderCapacity(rRenderInterpolates, rActiveCoords,
+		[](const game::FrameInterpolate& rInterpolate) -> const auto& { return rInterpolate.pointLights; });
 
 	if (iTotalCapacity == 0)
 	{
@@ -64,6 +57,9 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 	ASSERT(siRendered + rCurrent.iCount <= iPointLightsBufferCapacity);
 	ASSERT(siRendered + rCurrent.iCount <= iVisibleLightsBufferCapacity);
 
+	XMVECTOR vecCameraRight = XMVector3Normalize(game::gpCamera->mMatView.r[0]);
+	XMVECTOR vecCameraUp = XMVector3Normalize(game::gpCamera->mMatView.r[1]);
+
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
@@ -87,8 +83,9 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		XMStoreFloat4A(&f4Position, ProjectToBaseHeight(vecPosition));
 
 		// Build AxisAlignedQuadLayout for lighting pass (uses base height projected position)
+		float fTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc);
 		XMFLOAT4A f4Params {};
-		f4Params.x = gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc);
+		f4Params.x = fTextureIndex;
 		f4Params.y = fLightingIntensity;
 		f4Params.z = fRotation;
 		BuildAxisAlignedQuad(pPointLightsLayouts[siRendered], f4Position, fLightingArea, f4Params, rType.uiColor);
@@ -99,11 +96,29 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 
 		shaders::VisibleLightQuadLayout& rVisibleLayout = pVisibleLightsLayouts[siRendered];
 
-		// 4 corners for billboard-style quad
-		rVisibleLayout.pf4Vertices[0] = {f4VisiblePosition.x - fVisibleArea, f4VisiblePosition.y + fVisibleArea, f4VisiblePosition.z, 1.0f};
-		rVisibleLayout.pf4Vertices[1] = {f4VisiblePosition.x + fVisibleArea, f4VisiblePosition.y + fVisibleArea, f4VisiblePosition.z, 1.0f};
-		rVisibleLayout.pf4Vertices[2] = {f4VisiblePosition.x - fVisibleArea, f4VisiblePosition.y - fVisibleArea, f4VisiblePosition.z, 1.0f};
-		rVisibleLayout.pf4Vertices[3] = {f4VisiblePosition.x + fVisibleArea, f4VisiblePosition.y - fVisibleArea, f4VisiblePosition.z, 1.0f};
+		// 4 corners for quad
+		if (rType.bCameraAligned)
+		{
+			XMVECTOR vecCenter = XMLoadFloat4A(&f4VisiblePosition);
+			XMVECTOR vecRight = XMVectorScale(vecCameraRight, fVisibleArea);
+			XMVECTOR vecUp = XMVectorScale(vecCameraUp, fVisibleArea);
+			XMFLOAT4A f4Corner {};
+			XMStoreFloat4A(&f4Corner, XMVectorAdd(XMVectorSubtract(vecCenter, vecRight), vecUp));
+			rVisibleLayout.pf4Vertices[0] = {f4Corner.x, f4Corner.y, f4Corner.z, 1.0f};
+			XMStoreFloat4A(&f4Corner, XMVectorAdd(XMVectorAdd(vecCenter, vecRight), vecUp));
+			rVisibleLayout.pf4Vertices[1] = {f4Corner.x, f4Corner.y, f4Corner.z, 1.0f};
+			XMStoreFloat4A(&f4Corner, XMVectorSubtract(XMVectorSubtract(vecCenter, vecRight), vecUp));
+			rVisibleLayout.pf4Vertices[2] = {f4Corner.x, f4Corner.y, f4Corner.z, 1.0f};
+			XMStoreFloat4A(&f4Corner, XMVectorSubtract(XMVectorAdd(vecCenter, vecRight), vecUp));
+			rVisibleLayout.pf4Vertices[3] = {f4Corner.x, f4Corner.y, f4Corner.z, 1.0f};
+		}
+		else
+		{
+			rVisibleLayout.pf4Vertices[0] = {f4VisiblePosition.x - fVisibleArea, f4VisiblePosition.y + fVisibleArea, f4VisiblePosition.z, 1.0f};
+			rVisibleLayout.pf4Vertices[1] = {f4VisiblePosition.x + fVisibleArea, f4VisiblePosition.y + fVisibleArea, f4VisiblePosition.z, 1.0f};
+			rVisibleLayout.pf4Vertices[2] = {f4VisiblePosition.x - fVisibleArea, f4VisiblePosition.y - fVisibleArea, f4VisiblePosition.z, 1.0f};
+			rVisibleLayout.pf4Vertices[3] = {f4VisiblePosition.x + fVisibleArea, f4VisiblePosition.y - fVisibleArea, f4VisiblePosition.z, 1.0f};
+		}
 
 		// Texture coordinates
 		rVisibleLayout.pf4Texcoords[0] = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -119,7 +134,7 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 
 		rVisibleLayout.fIntensity = fVisibleIntensity;
 		rVisibleLayout.fRotation = fRotation;
-		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc));
+		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(fTextureIndex);
 
 		++siRendered;
 	}

@@ -339,7 +339,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	{
 #if defined(BT_CLIENT)
 		float fWindSizePercent = std::sqrt(rInfo.fSizePercent);
-		WindRadialsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiWindRadialControllerTypeIndex, rInfo.vecPosition, gWindDepositExplosionsIntensity.Get() * fWindSizePercent, gWindDepositExplosionsWidth.Get() * fWindSizePercent);
+		WindRadialsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiWindRadialControllerTypeIndex, rInfo.vecPosition, game::gWindDepositExplosionsIntensity.Get() * fWindSizePercent, game::gWindDepositExplosionsWidth.Get() * fWindSizePercent);
 #endif
 	}
 

@@ -27,7 +27,6 @@ void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int,
 {
 	Log("LoadAnimations: nodeToNodeIndexMap has {} entries", rNodeToNodeIndexMap.size());
 
-	int iAnimIndex = 0;
 	for (const tinygltf::Animation& rAnim : rModel.animations)
 	{
 		common::AnimationClip animation {};
@@ -174,6 +173,5 @@ void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int,
 		{
 			rAnimations.push_back(animation);
 		}
-		++iAnimIndex;
 	}
 }
