@@ -31,12 +31,15 @@ vec4 SmokeSpread(GlobalLayout globalLayout, sampler2D textureSampler, sampler2D 
 	vec2 f2WindRescaled = vec2(fWindMagNew) * (f2WindSample / vec2(fWindMagSafe));
 	f2WindRescaled.x = -f2WindRescaled.x;  // Additive sampling reverses direction; Y cancels with inverted texcoord Y
 
+	// Branchless wind presence flag (moved up for use by advection)
+	float fHasWind = step(1e-3f, fWindMag);
+	// Direct wind advection: shift base sampling in wind direction (works in uniform fields)
+	vec2 f2WindAdvection = fHasWind * globalLayout.fWindSmokeAdvection * f2WindRescaled;
+	// Noise-modulated displacement for visual variation (works in gradient fields)
 	vec2 f2WindDisplacement = globalLayout.fWindDisplacementNoiseScale * abs(fWindNoiseSample) * f2WindRescaled;
-
 	// Branchless blend between wind-displaced and stationary smoke
-	vec2 f2Base = f2Texcoord + f2Noise;
+	vec2 f2Base = f2Texcoord + f2Noise + f2WindAdvection;
 	float fSmokeStayed = texture(textureSampler, f2Base).x;
 	float fSmokeMoved = texture(textureSampler, f2Base + f2WindDisplacement).x;
-	float fHasWind = step(1e-3f, fWindMag);
 	return globalLayout.fSmokeDecay * vec4(mix(fSmokeStayed, mix(fSmokeMoved, fSmokeStayed, globalLayout.fWindSmokeRetention), fHasWind));
 }

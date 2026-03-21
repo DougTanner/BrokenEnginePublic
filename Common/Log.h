@@ -14,7 +14,7 @@ inline constexpr uint64_t kLogError = 1ULL << 3;
 inline constexpr uint64_t kLogAudio = 1ULL << 4;
 
 // Enabled categories mask (set directly to change filtering)
-inline uint64_t guiLogEnabledCategories = kLogNetwork; // DT: TEMP kLogDefault;
+inline uint64_t guiLogEnabledCategories = kLogEnabledCategoriesDefault;
 
 inline std::atomic<int64_t> giMyOutputDebugString = 0;
 inline std::ofstream* gpLogFileStream = nullptr;
@@ -92,7 +92,7 @@ inline void LogWrite(char* pLogBuffer)
 	}
 }
 
-template<typename... TUV>
+template <typename... TUV>
 void Log(uint64_t uiCategory, std::format_string<const TUV&...> format, const TUV&... parameters)
 {
 	if constexpr (kbEnableLogging)
@@ -115,7 +115,7 @@ void Log(uint64_t uiCategory, std::format_string<const TUV&...> format, const TU
 	}
 }
 
-template<typename... TUV>
+template <typename... TUV>
 void Log(std::format_string<const TUV&...> format, const TUV&... parameters)
 {
 	Log(kLogDefault, format, parameters...);

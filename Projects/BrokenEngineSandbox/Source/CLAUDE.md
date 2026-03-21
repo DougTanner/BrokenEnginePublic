@@ -18,7 +18,7 @@ Frame code is purely functional. Frame updates must only rely on explicit functi
 
 - **Deterministic floating-point**: `/fp:strict` in vcxproj ensures cross-hardware determinism for CRC-based reconciliation. See [Documents/FloatingPointDeterminism.txt](../../../Documents/FloatingPointDeterminism.txt) for full details on all mitigations
 - **Client-driven subscriptions**: Client subscribes to 4 grid coords (human cell + 3 quadrant neighbors) rather than the server computing active sets
-- **Compile-time toggles**: `Pch.h` contains `inline constexpr` flags for reconcile threading, frame dispatch parallelism, network simulation levels, smoke spread testing (`kbEnableSmokeSpreadTest`), and other debug/profile features, used with `if constexpr` for zero overhead
+- **Compile-time toggles**: `Pch.h` contains `inline constexpr` flags for reconcile threading, frame dispatch parallelism, network simulation levels, smoke spread testing (`kbEnableSmokeSpreadTest`), the initial log category filter (`kLogEnabledCategoriesDefault`), and other debug/profile features, used with `if constexpr` for zero overhead
 - For detailed reconciliation and networking architecture, see [Game Reconciliation](../../../Documents/Architecture/GameReconciliation.md) and [Network Architecture](../../../Documents/Architecture/Network.md)
 
 ## Subdirectories

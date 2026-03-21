@@ -196,6 +196,7 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Wind To Smoke Power", &gWindToSmokePower},
 		{"Wind Displacement Noise Scale", &gWindDisplacementNoiseScale},
 		{"Wind Smoke Retention", &gWindSmokeRetention},
+		{"Wind Smoke Advection", &gWindSmokeAdvection},
 		// Wind - Time & Global
 		{"Wind Time Scale", &gWindTimeScale},
 		{"Wind Threshold Low", &gWindThresholdLow},

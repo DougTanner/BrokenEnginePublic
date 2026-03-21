@@ -2,6 +2,7 @@
 
 #define ENABLE_CRT_DEBUG_HEAP
 
+inline constexpr unsigned long long kLogEnabledCategoriesDefault = ~0ULL;
 inline constexpr bool kbAlsoLogToPrintf = true;
 inline constexpr bool kbEnableDebugBreak = true;
 inline constexpr bool kbEnableLogging = true;

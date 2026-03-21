@@ -417,6 +417,7 @@ extern Wrapper gWindSmokeRetention;
 extern Wrapper gWindToSmokePower;
 // Wind - Displacement
 extern Wrapper gWindDisplacementNoiseScale;
+extern Wrapper gWindSmokeAdvection;
 // Low frequency waves
 extern Wrapper gLowCount;
 extern Wrapper gLowMax;

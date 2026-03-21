@@ -178,6 +178,7 @@ struct GlobalLayout
 	uint32_t uiSmokeTilesX INIT;
 	float fSmokeDepositTileScale INIT;
 	float fWindDisplacementNoiseScale INIT;
+	float fWindSmokeAdvection INIT;
 	// Wind
 	float fWindAdvectionScaleHigh INIT;
 	float fWindAdvectionScaleLow INIT;

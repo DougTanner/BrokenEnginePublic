@@ -123,7 +123,7 @@ Wrapper gLightingBlurDistance(0.1f, 0.0f, 0.5f);
 Wrapper gLightingBlurDirectionality(1.0f, 0.0f, 1.0f);
 Wrapper gLightingBlurJitter(0.1f, 0.0f, 0.2f);
 Wrapper gLightingBlurFirstDivisor(1300.0f, 100.0f, 2000.0f);
-Wrapper gLightingBlurDivisor(0.24f, 00.0f, 1.0f);
+Wrapper gLightingBlurDivisor(0.24f, 0.0f, 1.0f);
 Wrapper gLightingCombineDecay(0.7f, 0.5f, 1.0f);
 Wrapper gLightingCombinePower(0.5f, 0.1f, 2.0f);
 
@@ -206,10 +206,10 @@ Wrapper gWindAdvectionScaleHigh(2.0f, 0.5f, 5.0f);
 Wrapper gWindAdvectionScaleLow(0.0f, 0.0f, 1.0f);
 Wrapper gWindSwirlScaleHigh(3.0f, 0.5f, 4.0f);
 Wrapper gWindSwirlScaleLow(1.5f, 0.5f, 3.0f);
-Wrapper gWindSwirlAmountHigh(200.0f, 0.0f, 500.0f);
+Wrapper gWindSwirlAmountHigh(150.0f, 0.0f, 500.0f);
 Wrapper gWindSwirlAmountLow(0.0f, 0.0f, 100.0f);
 Wrapper gWindSwirlSpeedHigh(2.0f, 0.0f, 10.0f);
-Wrapper gWindSwirlSpeedLow(0.0f, 0.0f, 10.0f);
+Wrapper gWindSwirlSpeedLow(5.0f, 0.0f, 10.0f);
 Wrapper gWindVorticityConfinementHigh(2.0f, 0.0f, 4.0f);
 Wrapper gWindVorticityConfinementLow(0.5f, 0.0f, 1.0f);
 Wrapper gWindDecayHigh(0.99f, 0.5f, 0.999f);
@@ -219,11 +219,12 @@ Wrapper gWindMomentumLow(0.75f, 0.0f, 1.0f);
 Wrapper gWindDiffusionHigh(0.0f, 0.0f, 100.0f);
 Wrapper gWindDiffusionLow(10.0f, 0.0f, 100.0f);
 // Wind - Integration
-Wrapper gWindToSmokeStrength(0.015f, 0.0f, 0.1f);
+Wrapper gWindToSmokeStrength(0.003f, 0.0f, 0.01f);
 Wrapper gWindSmokeRetention(0.6f, 0.0f, 1.0f);
 Wrapper gWindToSmokePower(1.05f, 0.6f, 2.0f);
 // Wind - Displacement
-Wrapper gWindDisplacementNoiseScale(1.25f, 0.0f, 5.0f);
+Wrapper gWindDisplacementNoiseScale(1.0f, 0.0f, 4.0f);
+Wrapper gWindSmokeAdvection(0.5f, 0.0f, 2.0f);
 
 // Low frequency waves
 Wrapper gLowCount(15i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));

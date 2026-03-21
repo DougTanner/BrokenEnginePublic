@@ -5,7 +5,7 @@ namespace engine
 
 void TweaksScreenBase::RenderSmokeSection()
 {
-	static constexpr int kiSection = static_cast<int>(TweakSection::kSmoke);
+	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kSmoke);
 
 	if (ImGui::BeginTable("SmokeColumns", 2))
 	{
@@ -34,6 +34,7 @@ void TweaksScreenBase::RenderSmokeSection()
 		WrapperSlider("Wind To Smoke Power", kiSection, 1.0f);
 		WrapperSlider("Wind Displacement Noise Scale", kiSection, 1.0f);
 		WrapperSlider("Wind Smoke Retention", kiSection, 1.0f);
+		WrapperSlider("Wind Smoke Advection", kiSection, 1.0f);
 
 		WrapperSlider("Smoke Object Height", kiSection, 1.0f);
 

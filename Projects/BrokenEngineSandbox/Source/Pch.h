@@ -8,6 +8,7 @@ inline constexpr bool kbEnableRenderThread = true;
 inline constexpr bool kbEnableReconcileThread = true;
 inline constexpr bool kbEnableReconcileDispatch = true;
 
+inline constexpr unsigned long long kLogEnabledCategoriesDefault = 1ULL << 2; // kLogNetwork // DT: TEMP kLogDefault;
 inline constexpr bool kbAlsoLogToPrintf = false;
 inline constexpr bool kbEnableFramebufferClearColor = false;
 inline constexpr bool kbEnableGpuAssistedValidation = false;

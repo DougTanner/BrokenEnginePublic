@@ -52,6 +52,7 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fWindDiffusionLow = gWindDiffusionLow.Get();
 
 	rGlobalLayout.fWindDisplacementNoiseScale = gWindDisplacementNoiseScale.Get();
+	rGlobalLayout.fWindSmokeAdvection = gWindSmokeAdvection.Get();
 
 	uint32_t uiWindWidth = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.width;
 	rGlobalLayout.uiWindTilesX = (uiWindWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;

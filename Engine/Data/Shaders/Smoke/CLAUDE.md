@@ -10,7 +10,7 @@ The smoke system maintains a density field that deposits, spreads, and decays ov
 
 - **Smoke.frag** - Deposits smoke density from per-object quads with rotation and intensity falloff. Marks output tiles in the occupancy buffer.
 - **SmokeOccupancyDilate.comp** - Dilates the bit-packed occupancy buffer by Manhattan distance 2 and compacts active tile indices into the indirect dispatch buffer.
-- **SmokeSpreadCommon.h** - Shared header for both spread passes with wind-driven advection combining wind noise displacement and swirl noise perturbation. Blends between wind-displaced and stationary smoke via a retention factor.
+- **SmokeSpreadCommon.h** - Shared header for both spread passes. Wind influence uses two mechanisms: direct advection (shifts the base sampling coordinate in the wind direction for uniform fields) and noise-modulated displacement (scales displacement by wind noise amplitude for gradient fields). Blends between wind-displaced and stationary smoke via a retention factor.
 - **SmokeSpreadOne.comp** - First ping-pong spread pass (8x8 workgroups). Reads tile index from active tile buffer, applies camera movement offset via axis-aligned quad storage buffer, and spreads via SmokeSpreadCommon. Marks output tiles in occupancy.
 - **SmokeSpreadTwo.comp** - Second ping-pong spread pass (8x8 workgroups). Same tile-list pattern as pass one, plus terrain-elevation-based decay, edge-of-area fade-out, and constant subtraction with threshold zeroing to eliminate lingering low-density smoke.
 
