@@ -16,4 +16,4 @@ Plans are organized by area: Audio, Engine, Frame, Graphics, Misc, Network.
 ## Rules
 
 - Any new plan added to this directory **must** be added to one of the index files (`Order.md` or `FutureOrder.md`)
-- When a plan is executed, **remove it** from the index file
+- When a plan is executed, **remove it** from the index file and **delete the plan file** from disk
