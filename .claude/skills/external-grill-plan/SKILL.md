@@ -7,7 +7,7 @@ description: >-
   tree, asking engine-specific questions about determinism, client/server, memory,
   threading, and frame phases. For each question, provides a recommended answer based
   on codebase exploration.
-allowed-tools: [Read, Grep, Glob, Agent]
+allowed-tools: [Read, Grep, Glob, Agent, AskUserQuestion]
 ---
 
 # Grill Plan
@@ -18,16 +18,30 @@ Interview the user about every aspect of this plan until reaching shared underst
 - For each question, provide your recommended answer based on codebase exploration
 - If a question can be answered by exploring the codebase, explore it instead of asking
 - Ask one focused question at a time, not a batch of 10
+- Skip branches that are clearly irrelevant to the plan (e.g., don't probe determinism for a client-only UI change)
 - Stop when all branches of the decision tree are resolved
+
+## Workflow
+1. Read the plan file from the current conversation context
+2. Identify all decision points, ambiguities, and unstated assumptions
+3. Walk each branch of the decision tree, resolving dependencies one-by-one
+4. When all branches are resolved, summarize the decisions made and update the plan file with the resolved details
 
 ## Engine-Specific Interrogation Branches
 
 Always probe these areas if the plan touches them:
 
 - **Determinism**: Will this produce identical results on client and server? Are there floating-point or ordering dependencies?
+  _e.g., "The plan sorts entities by distance — is the sort stable, or could client/server diverge on ties?"_
 - **Client/Server**: What happens in the server build where client-only code is stripped? Are `#ifdef BT_CLIENT` guards at the narrowest scope?
+  _e.g., "This new field is only used for rendering. Should it live in `ClientMembers()` with a `BT_CLIENT` guard?"_
 - **Memory**: Does this allocate on the heap in the main loop? Can it use `gpThreadLocal->mWorkbuffer` instead? Does it need `ScopedSuppressAllocationTracking`?
+  _e.g., "The plan adds a `std::vector<EntityId>` in `Update()`. This would trigger the allocation tracker — should it use workbuffer instead?"_
 - **Threading**: Is this safe under `gpMultithreading->Dispatch()`? What's the data access pattern? Any shared mutable state?
+  _e.g., "This writes to a shared counter during `Dispatch()`. Should it use per-thread accumulators and reduce after?"_
 - **Frame phases**: Which phase does this run in? Does it respect Update vs PostRender boundaries?
+  _e.g., "The plan reads position data during Update, but positions aren't finalized until PostRender. Should this move to PostRender?"_
 - **Collection integrity**: Does this maintain SOA alignment? Are all member arrays updated consistently across AllocateAndCopy, LogDifferences, Spawn, Transfer?
+  _e.g., "You're adding a new member to Blasters — have you accounted for it in AllocateAndCopy and LogDifferences?"_
 - **Layer compliance**: Does engine code access game-layer through `game::gpGame`? Any new cross-layer dependencies?
+  _e.g., "This engine code references a game-specific enum directly. Should it go through `game::gpGame` instead?"_

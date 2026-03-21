@@ -17,7 +17,7 @@ Generate multiple radically different C++ interface designs for an engine system
 
 ## Arguments
 
-The user provides a description of the system to design. If no description is given, ask what system they want to explore interface options for.
+The user provides a description of the system to design. If no description is given, use AskUserQuestion to ask what system they want to explore interface options for, and wait for a response before proceeding.
 
 ## Instructions
 
@@ -31,13 +31,28 @@ Before designing, understand:
 
 Use the codebase to answer as many of these as possible before asking the user.
 
-### 2. Generate Designs (Parallel Sub-Agents)
+### 2. Explore Existing Patterns
 
-Spawn 3+ sub-agents using Agent tool. Each gets a different design constraint:
-- Agent 1: "Minimize the interface — 1-3 entry points max, opaque internals"
-- Agent 2: "Maximize SOA data locality — optimize for cache-friendly iteration and workbuffer usage"
-- Agent 3: "Optimize for the most common caller pattern in this codebase"
-- Agent 4 (if applicable): "Design around the existing manager singleton pattern (`gp*` globals)"
+Launch an Explore agent (`subagent_type: "Explore"`) to find:
+- Similar systems in the codebase (same problem domain or similar shape)
+- The dominant caller pattern for this kind of system (how do existing callers invoke similar APIs?)
+- Relevant conventions (naming, parameter ordering, `gp*` usage, workbuffer patterns)
+
+Record these findings — they get passed to every design agent in the next step.
+
+### 3. Generate Designs (Parallel Sub-Agents)
+
+Spawn exactly 3 Plan agents (`subagent_type: "Plan"`) in parallel using the Agent tool. Each agent's prompt must include:
+- The requirements gathered in step 1
+- The existing patterns and caller conventions found in step 2
+- One of the design constraints below
+
+**Design constraints** (each targets a fundamentally different optimization axis):
+- **Agent 1 — Minimal surface area**: "Design the interface with 1-3 entry points max, hiding all complexity behind opaque internals. Favor a deep module — small interface, significant internal machinery."
+- **Agent 2 — Data locality**: "Design the interface to maximize SOA data locality — optimize for cache-friendly iteration, workbuffer usage, and batch processing of contiguous arrays."
+- **Agent 3 — Caller ergonomics**: "Design the interface to be ergonomic for [specific caller pattern found in step 2], prioritizing call-site simplicity and readability."
+
+**Conditional 4th agent**: Add a 4th agent only when the system being designed is a manager or singleton: "Design around the existing `gp*` singleton pattern, following how other managers expose their API."
 
 Each agent outputs:
 1. Interface signature (types, methods, params) — C++ code
@@ -47,13 +62,11 @@ Each agent outputs:
 5. Memory/allocation implications (workbuffer vs heap)
 6. Trade-offs
 
-### 3. Present Designs
+### 4. Present & Compare
 
-Show each design with interface signature, usage examples, what it hides. Present sequentially.
+Show each design sequentially with interface signature, usage examples, and what it hides.
 
-### 4. Compare Designs
-
-Compare on:
+Then compare on:
 - **Interface simplicity**: fewer methods, simpler params
 - **Depth**: small interface hiding significant complexity (deep module = good)
 - **SOA friendliness**: does the shape work well with data-oriented design?
@@ -62,14 +75,19 @@ Compare on:
 - **Thread safety**: safe under `gpMultithreading->Dispatch()`?
 - **Frame phase clarity**: clean Update vs PostRender separation?
 
-Discuss trade-offs in prose. Give opinionated recommendation.
+Discuss trade-offs in prose. Give an opinionated recommendation.
 
 ### 5. Synthesize
 
-Ask which design best fits, whether elements from others are worth incorporating.
+Ask which design best fits, and whether elements from other designs are worth incorporating.
+
+After the user picks, output a final synthesized interface:
+1. A C++ header-style code block with the complete interface (types, methods, params)
+2. Brief usage examples at key call sites
+3. Notes on any elements incorporated from other designs
 
 ### Anti-Patterns
-- Don't let sub-agents produce similar designs — enforce radical difference
-- Don't skip comparison — the value is in contrast
-- Don't implement — this is purely about interface shape
-- Don't evaluate based on implementation effort
+- Each agent prompt specifies a fundamentally different optimization axis — do not soften or merge the constraints, as the value comes from contrast between divergent designs
+- Do not skip the comparison step — presenting designs without contrasting them loses most of the skill's value
+- Do not implement beyond interface shape — no .cpp bodies, no allocation code, just the API surface
+- Do not evaluate designs based on implementation effort — focus on the quality of the interface for callers
