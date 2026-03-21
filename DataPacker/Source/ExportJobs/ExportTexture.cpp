@@ -407,7 +407,35 @@ void ExportTexture::Export()
 	else
 	{
 		Texture texture(mInputPath, FileType::kImage, false);
-		texture.MakeMipmaps(vkFormat);
+
+		bool bFontAtlas = false;
+		std::wstring stem = mInputPath.stem().native();
+		if (auto pos = stem.rfind(L']'); pos != std::wstring::npos)
+		{
+			stem = stem.substr(pos + 1);
+		}
+		for (const std::filesystem::path& rBaseDirectory : gpFileManager->mpInputDirectories)
+		{
+			std::filesystem::path fontsDir = rBaseDirectory / "Fonts";
+			if (!std::filesystem::exists(fontsDir))
+			{
+				continue;
+			}
+			for (const std::filesystem::directory_entry& rEntry : std::filesystem::recursive_directory_iterator(fontsDir))
+			{
+				if (rEntry.path().extension() == ".fnt" && rEntry.path().stem().native() == stem)
+				{
+					bFontAtlas = true;
+					break;
+				}
+			}
+				if (bFontAtlas)
+			{
+				break;
+			}
+		}
+
+		texture.MakeMipmaps(vkFormat, 32, bFontAtlas);
 		std::vector<std::byte> data = texture.Export(vkFormat, false);
 
 		auto [pHeader, dataSpan] = AllocateHeaderAndData(data.size());

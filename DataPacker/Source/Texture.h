@@ -19,12 +19,12 @@ public:
 
 	~Texture() = default;
 
-	void MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel, int64_t iPreviousLevel, int64_t iPreviousWidth, int64_t iPreviousHeight);
+	void MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel, bool bUseBoxFilter, int64_t iPreviousLevel, int64_t iPreviousWidth, int64_t iPreviousHeight);
 
-	void MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel = 32)
+	void MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel = 32, bool bUseBoxFilter = false)
 	{
 		ASSERT(mData.size() == 1);
-		MakeMipmaps(vkFormat, iMaxLevel, 0, miWidth, miHeight);
+		MakeMipmaps(vkFormat, iMaxLevel, bUseBoxFilter, 0, miWidth, miHeight);
 	}
 
 	void Downsize(int64_t iLevels);
