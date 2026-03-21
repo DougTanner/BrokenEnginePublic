@@ -1,0 +1,84 @@
+Replace Hot-Path std::unordered_map with std::flat_map
+=====================================================
+
+Context
+-------
+Several std::unordered_map instances sit on hot paths (per-frame update/render). At the sizes involved (1-200 entries), hash table overhead — pointer chasing, bucket arrays, per-node allocations — loses to a sorted vector with binary search. std::flat_map (C++23) is exactly that: a drop-in sorted-vector map. The render state maps already have perf comments suggesting "sorted vector + binary_search" as an optimization, and the CRC/serialization code already copies keys into a sorted buffer before iterating — flat_map makes both free.
+
+Why
+---
+- mRenderInterpolates holds 1-9 entries — linear scan in a contiguous vector always beats hash overhead at this size
+- idToIndexMap (4-200 entries) already sorts keys for deterministic CRC and Write(); flat_map eliminates those extra sort steps
+- Render state maps (SmokeTrails, WindTrails) already have "Heap:" comments and ScopedSuppressAllocationTracking; flat_map reduces allocations
+- Better cache locality for iteration-heavy paths (CRC, serialization, EraseStaleRenderState)
+- id_t already has operator<=>; GridCoord needs a trivial one-line addition
+
+Changes
+-------
+
+1. Common/ExternalHeaders.h
+   - Add #include <flat_map>
+
+2. Engine/Source/Frame/GridCoord.h
+   - Add: constexpr auto operator<=>(const GridCoord&) const = default;
+
+3. All 35 files containing std::unordered_map<GridCoord, game::FrameInterpolate> (41 occurrences)
+   - Replace directly with std::flat_map<GridCoord, game::FrameInterpolate>
+   - No type alias — keep the type explicit everywhere
+   - Files: every collection .h/.cpp with BeginRender, Graphics.h/cpp, FrameUtils.h,
+     FrameBase.h/cpp, GameBase.h, Render.h, MainUniforms.cpp, Islands.h/cpp,
+     Server.h, GameSaveLoad.h
+
+4. Engine/Source/Frame/Collections/Collection.h
+   - idToIndexMap: change std::unordered_map<id_t, int64_t> to std::flat_map<id_t, int64_t>
+   - Remove GetSortedKeys() — flat_map iteration is already sorted
+   - Simplify Crc(): remove workbuffer sort, iterate flat_map directly
+   - Fix Read(): reserve underlying containers via keys()/values() before inserting
+   - Keep hash specializations for uuid_t/id_t — still needed by unconverted unordered containers
+
+5. Engine/Source/Frame/Collections/SmokeTrails/SmokeTrailsRender.cpp
+   - Change smoothedPositions from std::unordered_map<smoke_trails_t, XMVECTOR>
+     to std::flat_map<smoke_trails_t, XMVECTOR>
+
+6. Engine/Source/Frame/Collections/WindTrails/WindTrailsRender.cpp
+   - Change previousPositions from std::unordered_map<wind_trail_t, XMVECTOR>
+     to std::flat_map<wind_trail_t, XMVECTOR>
+
+7. Size guard — DEBUG_BREAK on flat_map growth beyond performance threshold
+   - At every insertion point for the converted flat_maps, add a DEBUG_BREAK if
+     size exceeds a threshold constant (e.g., 256)
+   - Above ~256 entries, flat_map's O(n) insert loses its cache advantage over
+     unordered_map — this guard catches unexpected growth during development
+   - Add checks after growth operations in:
+     - CollectionMemory.h: AddIndexableElement (idToIndexMap insert)
+     - SmokeTrailsRender.cpp: smoothedPositions insert_or_assign
+     - WindTrailsRender.cpp: previousPositions insert_or_assign
+     - Graphics.cpp / GameBase.cpp: mRenderInterpolates try_emplace
+
+8. .claude/skills/add-collection/SKILL.md
+   - Update BeginRender signature template to use std::flat_map
+
+Do NOT convert
+--------------
+- DynamicPipelines::mPipelineMaps / mModelPipelineMaps — crc_t key, cached lookups, rarely modified
+- BufferManager::mDynamicStorageBuffers — same reasoning
+- Game::mFrameInputs — cleared/rebuilt each frame, marginal benefit
+- All cold-path maps — FileManager, TextureManager, AnimationData, ProfileManager,
+  TextureDescriptors, EnumToString, GameSaveLoad replay maps, TweaksSliderMap, Server buffered frames
+
+Blocker
+-------
+MSVC toolset 14.50 (VS 2026) does not ship <flat_map>. The header is not present in the
+include directory. This plan is blocked until Microsoft ships std::flat_map support.
+Attempted implementation on 2026-03-21 confirmed the header is missing.
+
+Notes
+-----
+- flat_map insert is O(n) due to maintaining sorted order, but at typical collection sizes
+  (4-200 elements) this is a memcpy of a few hundred bytes — faster than hash table node allocation
+- Read() pattern: reserve underlying containers via keys()/values(), then insert_or_assign in loop
+- ScopedSuppressAllocationTracking stays — flat_map still heap-allocates its vectors
+- Hash specializations for uuid_t/id_t stay — still used by unconverted unordered containers
+- GameBase.cpp erase_if lambda must use const auto& (not std::pair<const Key, T>&) for flat_map compatibility
+- Verify by running the game and checking CRC determinism (client/server desync detection
+  will catch any ordering issues)

@@ -13,6 +13,7 @@
 #pragma warning(pop)
 
 #include "stb/stb_image.h"
+#include "stb/stb_image_resize2.h"
 
 void Texture::StaticInit()
 {
@@ -198,49 +199,39 @@ Texture::Texture(const std::byte* puiPixels, int64_t iWidth, int64_t iHeight, in
 
 void Texture::MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel, int64_t iPreviousLevel, int64_t iPreviousWidth, int64_t iPreviousHeight)
 {
-	if (iPreviousWidth == 1 || iPreviousHeight == 1 || iPreviousLevel + 1 == iMaxLevel)
-	{
-		return;
-	}
+	int64_t iLevel = iPreviousLevel;
+	int64_t iSrcWidth = iPreviousWidth;
+	int64_t iSrcHeight = iPreviousHeight;
 
-	int64_t iWidth = std::max(iPreviousWidth / 2, 1ll);
-	int64_t iHeight = std::max(iPreviousHeight / 2, 1ll);
-
-	if (vkFormat == VK_FORMAT_BC4_UNORM_BLOCK || vkFormat == VK_FORMAT_BC7_UNORM_BLOCK)
+	while (iSrcWidth > 1 && iSrcHeight > 1 && iLevel + 1 < iMaxLevel)
 	{
-		if (iWidth < 4 || iHeight < 4)
+		int64_t iDstWidth = std::max(iSrcWidth / 2, 1ll);
+		int64_t iDstHeight = std::max(iSrcHeight / 2, 1ll);
+
+		if (vkFormat == VK_FORMAT_BC4_UNORM_BLOCK || vkFormat == VK_FORMAT_BC7_UNORM_BLOCK)
 		{
-			return;
+			if (iDstWidth < 4 || iDstHeight < 4)
+			{
+				return;
+			}
+
+			if ((iDstWidth % 4) != 0 || (iDstHeight % 4) != 0)
+			{
+				Log("BC4/BC7 early out {} x {}", iDstWidth, iDstHeight);
+				return;
+			}
 		}
 
-		if ((iWidth % 4) != 0 || (iHeight % 4) != 0)
-		{
-			Log("BC4/BC7 early out {} x {}", iWidth, iHeight);
-			return;
-		}
+		mData.emplace_back(4 * iDstWidth * iDstHeight);
+		stbir_resize_float_linear(
+			mData.at(iLevel).data(), static_cast<int>(iSrcWidth), static_cast<int>(iSrcHeight), static_cast<int>(4 * iSrcWidth * sizeof(float)),
+			mData.back().data(), static_cast<int>(iDstWidth), static_cast<int>(iDstHeight), static_cast<int>(4 * iDstWidth * sizeof(float)),
+			STBIR_4CHANNEL);
+
+		iSrcWidth = iDstWidth;
+		iSrcHeight = iDstHeight;
+		++iLevel;
 	}
-
-	std::vector<float>& rPixels = mData.emplace_back(4 * iWidth * iHeight);
-
-	float* pfPreviousPixels = mData.at(iPreviousLevel).data();
-	float* pfPixels = rPixels.data();
-	for (int64_t j = 0; j < iHeight; ++j)
-	{
-		for (int64_t i = 0; i < iWidth; ++i)
-		{
-			int64_t iTopLeft     = (2 * j + 0) * 4 * iPreviousWidth + (2 * i + 0) * 4;
-			int64_t iTopRight    = (2 * j + 0) * 4 * iPreviousWidth + (2 * i + 1) * 4;
-			int64_t iBottomLeft  = (2 * j + 1) * 4 * iPreviousWidth + (2 * i + 0) * 4;
-			int64_t iBottomRight = (2 * j + 1) * 4 * iPreviousWidth + (2 * i + 1) * 4;
-
-			pfPixels[j * 4 * iWidth + 4 * i + 0] = 0.25f * (pfPreviousPixels[iTopLeft + 0] + pfPreviousPixels[iTopRight + 0] + pfPreviousPixels[iBottomLeft + 0] + pfPreviousPixels[iBottomRight + 0]);
-			pfPixels[j * 4 * iWidth + 4 * i + 1] = 0.25f * (pfPreviousPixels[iTopLeft + 1] + pfPreviousPixels[iTopRight + 1] + pfPreviousPixels[iBottomLeft + 1] + pfPreviousPixels[iBottomRight + 1]);
-			pfPixels[j * 4 * iWidth + 4 * i + 2] = 0.25f * (pfPreviousPixels[iTopLeft + 2] + pfPreviousPixels[iTopRight + 2] + pfPreviousPixels[iBottomLeft + 2] + pfPreviousPixels[iBottomRight + 2]);
-			pfPixels[j * 4 * iWidth + 4 * i + 3] = 0.25f * (pfPreviousPixels[iTopLeft + 3] + pfPreviousPixels[iTopRight + 3] + pfPreviousPixels[iBottomLeft + 3] + pfPreviousPixels[iBottomRight + 3]);
-		}
-	}
-
-	return MakeMipmaps(vkFormat, iMaxLevel, iPreviousLevel + 1, iWidth, iHeight);
 }
 
 void Texture::Downsize(int64_t iLevels)

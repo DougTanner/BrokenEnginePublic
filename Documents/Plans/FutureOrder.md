@@ -19,7 +19,7 @@ These are plan ideas — plan files have not yet been written for them.
 | 6 | TerrainSnowInGrooves | 1 | 2 | 0 | -1 | Small | Curvature-aware snow in Terrain.frag using AO/normal derivatives instead of color-based detection. |
 | 7 | SpirvOptIntegration | 1 | 2 | 0 | -1 | Small | Add spirv-opt pass to DataPacker shader compilation. Reduces shader size, improves driver compile. |
 | 8 | WaterFoamAndRefraction | 3 | 4 | 1 | 0 | Medium | Foam/whitecaps from wave steepness, refraction via UV-distorted scene sampling, mesh LOD clipmap. |
-| 9 | FlatContainersOptimization | 2 | 3 | 1 | 0 | Small | Replace std::unordered_map with std::flat_map in hot paths (Collection::idToIndexMap, render-state maps). |
+| 9 | FlatContainersOptimization | 3 | 3 | 1 | 1 | Small | Replace std::unordered_map with std::flat_map in hot paths. **BLOCKED**: MSVC 14.50 lacks \<flat_map\>. Plan file: Misc/FlatContainersOptimization.txt |
 | 10 | AdaptiveMusic | 2 | 2 | 0 | 0 | Small | GetNextMusicTrack considers game state (combat, location). Crossfade infrastructure exists. |
 | 11 | DecalSystem | 3 | 3 | 1 | 1 | Medium | Projected texture rendering for terrain marks (bullet holes, scorches, tracks). New pipeline pass. |
 | 12 | FlipbookSpriteAnimations | 3 | 2 | 1 | 2 | Medium | Sprite-sheet animation for explosions (texture atlas with frame indexing). |
