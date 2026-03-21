@@ -112,14 +112,19 @@ void Server::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick,
 	rWorkbuffer.Pop();
 }
 
-void Server::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage)
+void Server::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage, const ClientGuid* pGuid)
 {
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerConnectionResponse));
 	rWorkbuffer.PushBack<uint8_t>(bAccepted ? 1 : 0);
-	if (!bAccepted && pMessage != nullptr)
+	if (bAccepted && pGuid != nullptr)
+	{
+		rWorkbuffer.PushBack<uint64_t>(pGuid->uiHigh);
+		rWorkbuffer.PushBack<uint64_t>(pGuid->uiLow);
+	}
+	else if (!bAccepted && pMessage != nullptr)
 	{
 		rWorkbuffer.Append(std::string_view(pMessage));
 	}
@@ -175,6 +180,41 @@ void Server::SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot)
 	rWorkbuffer.Pop();
 }
 
+void Server::SendTimespeedUpdate(ENetPeer* pPeer, int64_t iMultiply, int64_t iDivide)
+{
+	Log(kLogNetwork, "Server::SendTimespeedUpdate Multiply: {} Divide: {}", iMultiply, iDivide);
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	// [1B type][8B multiply][8B divide]
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerTimespeedUpdate));
+	rWorkbuffer.PushBack<int64_t>(iMultiply);
+	rWorkbuffer.PushBack<int64_t>(iDivide);
+
+	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
+
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	// Heap: ENet allocates packet data internally
+	ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
+	enet_peer_send(pPeer, NetworkManager::kuiChannelReliable, pPacket);
+
+	rWorkbuffer.Pop();
+}
+
+void Server::BroadcastTimespeedUpdate(int64_t iMultiply, int64_t iDivide)
+{
+	for (ClientConnection& rClient : mClients)
+	{
+		if (!rClient.bHandshakeComplete)
+		{
+			continue;
+		}
+
+		SendTimespeedUpdate(rClient.pPeer, iMultiply, iDivide);
+	}
+}
+
 void Server::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, PacketType eType, int64_t iSlot, uint16_t uiEpoch, const PerCoordBufferedFrame& rBuffered, int64_t iTimestampNs)
 {
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(eType));
@@ -182,7 +222,7 @@ void Server::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, PacketTyp
 	rWorkbuffer.PushBack<uint16_t>(uiEpoch);
 	rWorkbuffer.PushBack<int64_t>(rBuffered.iTick);
 	rWorkbuffer.PushBack<int64_t>(iTimestampNs);
-	rWorkbuffer.PushBack<uint64_t>(rBuffered.serverCrc);
+	rWorkbuffer.PushBack<uint64_t>(rBuffered.sharedCrc);
 	rWorkbuffer.PushBack<uint64_t>(rBuffered.inputCrc);
 
 	int32_t iCompressedSize = static_cast<int32_t>(rBuffered.compressedData.size());
@@ -297,6 +337,33 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 		{
 			Log(kLogNetwork, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {}", rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount);
 		}
+	}
+}
+
+void Server::BroadcastLoadNotification()
+{
+	Log("Server::BroadcastLoadNotification");
+
+	for (ClientConnection& rClient : mClients)
+	{
+		if (!rClient.bHandshakeComplete)
+		{
+			continue;
+		}
+
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+		rWorkbuffer.Push();
+
+		rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerLoadNotification));
+
+		std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
+
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		// Heap: ENet allocates packet data internally
+		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
+		enet_peer_send(rClient.pPeer, NetworkManager::kuiChannelReliable, pPacket);
+
+		rWorkbuffer.Pop();
 	}
 }
 

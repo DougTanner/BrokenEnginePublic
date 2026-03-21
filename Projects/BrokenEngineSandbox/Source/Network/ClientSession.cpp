@@ -49,6 +49,11 @@ void ClientSession::PollNetwork()
 		return;
 	}
 
+	if (mpClientNetwork->DrainLoadNotification())
+	{
+		ResetForServerLoad();
+	}
+
 	// Parse and process player events from raw game packets
 	std::vector<ReceivedPlayerEvent> playerEvents;
 	ParsePlayerEvents(mpClientNetwork->DrainReceivedGamePackets(), playerEvents);
@@ -259,9 +264,9 @@ void ClientSession::ApplyReceivedFullStates()
 			// Original received frame -> snapshot[0], which IS the confirmed frame
 			rSub.iSnapshotHead = 0;
 			rSub.snapshots[0] = std::move(rFullState.pFrame);
-			auto [crc, serverCrc] = rSub.snapshots[0]->Crcs();
+			auto [crc, sharedCrc] = rSub.snapshots[0]->Crcs();
 			rSub.snapshots[0]->postRender.crc = crc;
-			rSub.snapshots[0]->postRender.serverCrc = serverCrc;
+			rSub.snapshots[0]->postRender.sharedCrc = sharedCrc;
 			rSub.iSnapshotCount = 1;
 			rSub.iConfirmedTick = iTick;
 			rSub.iConfirmedOffset = 0;
@@ -481,6 +486,55 @@ void ClientSession::RecoverFromDesync()
 	mpClientNetwork->SendResyncRequest();
 	mpClientNetwork->SetDesyncDebugMode(false);
 	ResetCoordStatesForResync();
+}
+
+void ClientSession::ResetForServerLoad()
+{
+	Log("ClientSession::ResetForServerLoad");
+
+	// Reset tick counter and time step — server tick resets to the saved value
+	gpGame->SetTickCounter(0);
+	gpGame->mTimeStep.ClearAccumulator();
+	gpGame->mTimeStep.mRealTime.Reset();
+
+	// Reset clock correction state
+	miLatestServerTick = -1;
+	miClockError = 0;
+	miCurrentTargetBehind = 0;
+	mbClockErrorDisconnect = false;
+	miConsecutiveClockErrorFrames = 0;
+
+	// Clear player identity — server will reassign
+	gpGame->SetHumanPlayerId({});
+	gpGame->mHumanGridCoord = {};
+	gpGame->SetPreviousHumanArmor(0.0f);
+	gpGame->mGameFlags.Clear(engine::GameFlags::kDeathScreen);
+
+	// Force-reset all client coord slots
+	std::vector<engine::ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
+	for (int64_t i = 0; i < std::ssize(rSlots); ++i)
+	{
+		rSlots.at(i) = {};
+	}
+	mpClientNetwork->GetCancelledSubscriptions().clear();
+
+	// Clear local coord frames (stale pre-load data)
+	gpGame->mCoordFrames.clear();
+
+	// Reset reconciler and subscription state
+	mpReconciler->Reset();
+	mDesiredCoords.clear();
+	mUnwantedTimestamps.clear();
+	mSubscriptionQueue.clear();
+	mDesyncDebugState = {};
+	miDesyncCount = 0;
+
+	// Clear stale coord data from this poll cycle (game packets preserved for assign processing)
+	mpClientNetwork->DrainReceivedFullStates().clear();
+	for (auto& rSlotUpdates : mpClientNetwork->DrainReceivedCoordUpdates())
+	{
+		rSlotUpdates.clear();
+	}
 }
 
 void ClientSession::ResetCoordStatesForResync()

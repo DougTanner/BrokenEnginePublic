@@ -4,6 +4,7 @@
 
 #include "GameBase.h"
 #include "Game.h"
+#include "Network/ServerSession.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -33,6 +34,30 @@ void GameSaveLoad::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 			WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite}, mrGameBase.QuicksaveFile(), game::gpGame->mHumanGridCoord);
 		}
 	}
+}
+
+void GameSaveLoad::ServerSave()
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite}, mrGameBase.QuicksaveFile(), game::gpGame->mHumanGridCoord);
+}
+
+bool GameSaveLoad::ServerLoad()
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	GridCoord loadedHumanGridCoord {};
+	if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, mrGameBase.QuicksaveFile(), loadedHumanGridCoord))
+	{
+		return false;
+	}
+
+	mrGameBase.Reset();
+	game::gpGame->mHumanGridCoord = loadedHumanGridCoord;
+	game::gpServerSession->ResetClientsForLoad();
+	game::gpServerSession->ComputeActiveSet();
+
+	return true;
 }
 
 bool GameSaveLoad::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
@@ -70,6 +95,7 @@ bool GameSaveLoad::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 			{
 				game::gpGame->mHumanGridCoord = loadedHumanGridCoord;
 				ASSERT(mrGameBase.mCoordFrames.contains(game::gpGame->mHumanGridCoord));
+				game::gpServerSession->ResetClientsForLoad();
 			}
 
 			return true;

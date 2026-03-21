@@ -50,6 +50,7 @@ public:
 	void SubscriptionUpdates(int64_t iTick);
 	void HandleResyncRequests(int64_t iTick);
 	void RefreshPreSpawnSnapshot();
+	void ResetClientsForLoad();
 
 private:
 

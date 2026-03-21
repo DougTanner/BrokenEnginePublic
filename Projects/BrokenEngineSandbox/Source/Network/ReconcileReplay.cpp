@@ -111,9 +111,9 @@ static bool ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, floa
 
 	if (bHadTransfers)
 	{
-		auto [crc, serverCrc] = pNext->Crcs();
+		auto [crc, sharedCrc] = pNext->Crcs();
 		pNext->postRender.crc = crc;
-		pNext->postRender.serverCrc = serverCrc;
+		pNext->postRender.sharedCrc = sharedCrc;
 	}
 
 	// Advance replay stack
@@ -128,15 +128,15 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 {
 	Frame& rCurrentFrame = *rWork.replayStack[rWork.iReplayStackCount - 1];
 	rCurrentFrame.interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
-	common::crc_t clientCrc = rCurrentFrame.postRender.serverCrc;
+	common::crc_t clientCrc = rCurrentFrame.postRender.sharedCrc;
 
-	if (clientCrc != rUpdate.serverCrc)
+	if (clientCrc != rUpdate.sharedCrc)
 	{
-		char acServerCrc[20] {}, acClientCrc[20] {}, acPrevCrc[20] {};
-		common::ToHex(std::span<char, 20>(acServerCrc), rUpdate.serverCrc);
+		char acSharedCrc[20] {}, acClientCrc[20] {}, acPrevCrc[20] {};
+		common::ToHex(std::span<char, 20>(acSharedCrc), rUpdate.sharedCrc);
 		common::ToHex(std::span<char, 20>(acClientCrc), clientCrc);
 		common::ToHex(std::span<char, 20>(acPrevCrc), rCurrentFrame.postRender.previousCrc);
-		Log(kLogNetwork, "ReconcileValidateCrcCoord Desync Coord: ({},{}) Frame: {} ServerCrc: {} ClientCrc: {} PrevCrc: {}", rWork.coord.x, rWork.coord.y, iTick, acServerCrc, acClientCrc, acPrevCrc);
+		Log(kLogNetwork, "ReconcileValidateCrcCoord Desync Coord: ({},{}) Frame: {} SharedCrc: {} ClientCrc: {} PrevCrc: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, acPrevCrc);
 		{
 			ScopedLogIndent scopedCrcIndent;
 			char acServerInputCrc[20] {}, acClientInputCrc[20] {};
@@ -156,7 +156,7 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 		}
 
 		rWork.iDesyncTick = iTick;
-		rWork.desyncExpectedCrc = rUpdate.serverCrc;
+		rWork.desyncExpectedCrc = rUpdate.sharedCrc;
 		rWork.desyncActualCrc = clientCrc;
 		rWork.pDesyncClientFrame = CloneFrameViaSerialization(rCurrentFrame);
 		return false;

@@ -124,7 +124,7 @@ private:
 
 	std::filesystem::path QuicksaveFile() override
 	{
-		return std::filesystem::path("Quicksave.save");
+		return std::filesystem::path("ServerQuicksave.save");
 	}
 
 	std::filesystem::path ReplayFile() override

@@ -125,11 +125,11 @@ inline crc_t XM_CALLCONV Crc(FXMVECTOR vecIn)
 
 // XORs a value's CRC into two checksums at once (used by Crcs() methods)
 template<typename T> requires NotStringLike<T>
-void Crc(const T& rValue, crc_t& rCrc, crc_t& rServerCrc)
+void Crc(const T& rValue, crc_t& rCrc, crc_t& rSharedCrc)
 {
 	crc_t c = Crc(rValue);
 	rCrc ^= c;
-	rServerCrc ^= c;
+	rSharedCrc ^= c;
 }
 
 // Zero-allocation hex conversion. Writes "0x" + uppercase hex digits + null terminator.

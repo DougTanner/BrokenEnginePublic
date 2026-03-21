@@ -97,7 +97,7 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 
 	// CRC-only subset: excludes pfAnimationTimes which is only meaningfully updated on client
 	// (pfRotationAccelerationXs/Ys are now in ClientMembers)
-	auto ServerCrcMembers(this auto&& rSelf)
+	auto SharedCrcMembers(this auto&& rSelf)
 	{
 		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections,
 			rSelf.pfDestroyedTimes);
@@ -125,7 +125,7 @@ using PlayerFlags_t = common::Flags<PlayerFlags>;
 
 struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 {
-	static constexpr int64_t kiVersion = 9;
+	static constexpr int64_t kiVersion = 10;
 
 	// Collision layer (set each frame in PreCollision)
 	// thread_local: parallel per-Frame tick via Dispatch
@@ -161,8 +161,23 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	float* __restrict pfAiEdgeCrossCooldowns = nullptr;
 	int8_t* __restrict piAiEdgeCrossTargets = nullptr;
 	float* __restrict pfTransferLockTimers = nullptr;
+	engine::ClientGuid* __restrict pClientGuids = nullptr;
 
 	auto Members(this auto&& rSelf)
+	{
+		return std::tie(rSelf.puiIds, rSelf.pFlags, rSelf.pAlignments,
+			rSelf.pfNextBlasterFireTimes, rSelf.pfNextSecondarySpawnTimes,
+			rSelf.pVecVelocities, rSelf.pVecWantedDirections,
+			rSelf.pfArmors, rSelf.pfShields, rSelf.pfShieldCooldowns,
+			rSelf.pfDestroyedExplosionTimes, rSelf.pfShieldDownSoundCooldowns,
+			rSelf.pVecAiDirections, rSelf.pfAiFireTimers, rSelf.pfAiMissileTimers,
+			rSelf.pfAiEdgeCrossCooldowns, rSelf.piAiEdgeCrossTargets,
+			rSelf.pfTransferLockTimers, rSelf.pClientGuids);
+	}
+
+	// CRC-only subset: excludes pClientGuids which is server-side bookkeeping
+	// (client never receives it — not in TransferData, zeroed in Spawn)
+	auto SharedCrcMembers(this auto&& rSelf)
 	{
 		return std::tie(rSelf.puiIds, rSelf.pFlags, rSelf.pAlignments,
 			rSelf.pfNextBlasterFireTimes, rSelf.pfNextSecondarySpawnTimes,

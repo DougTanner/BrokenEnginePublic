@@ -117,9 +117,9 @@ inline bool ShouldDrop(const NetworkSimulationConfig& rConfig)
 }
 
 // Enqueue a received unreliable packet into the delay queue, or drop it.
-// Reliable packets are passed through immediately via HandleReliable.
+// Reliable packets are passed through immediately via handleReliable.
 template <typename FnHandleReliable>
-inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const NetworkSimulationConfig& rSimConfig, ENetEvent& rEvent, FnHandleReliable HandleReliable)
+inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const NetworkSimulationConfig& rSimConfig, ENetEvent& rEvent, FnHandleReliable handleReliable)
 {
 	bool bUnreliable = NetworkManager::IsUnreliableChannel(rEvent.channelID);
 	if (bUnreliable)
@@ -144,19 +144,30 @@ inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const Netw
 	}
 	else
 	{
-		HandleReliable(rEvent);
+		handleReliable(rEvent);
 		enet_packet_destroy(rEvent.packet);
 	}
 }
 
 // Process delayed packets whose release time has passed.
 template <typename FnHandlePacket>
-inline void ProcessDelayed(std::deque<DelayedPacket>& rDelayedPackets, FnHandlePacket HandlePacket)
+inline void ProcessDelayed(std::deque<DelayedPacket>& rDelayedPackets, FnHandlePacket handlePacket)
 {
 	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 	while (!rDelayedPackets.empty() && rDelayedPackets.front().releaseTime <= now)
 	{
-		HandlePacket(rDelayedPackets.front());
+		handlePacket(rDelayedPackets.front());
+		rDelayedPackets.pop_front();
+	}
+}
+
+// Flush all delayed packets immediately, ignoring release times.
+template <typename FnHandlePacket>
+inline void FlushDelayed(std::deque<DelayedPacket>& rDelayedPackets, FnHandlePacket handlePacket)
+{
+	while (!rDelayedPackets.empty())
+	{
+		handlePacket(rDelayedPackets.front());
 		rDelayedPackets.pop_front();
 	}
 }

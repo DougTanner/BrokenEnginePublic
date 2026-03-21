@@ -140,12 +140,21 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 		{
 			constexpr engine::NetworkSimulationConfig kSimConfig = engine::GetNetworkSimulationConfig(keNetworkSimulation);
 			rWorkbuffer.Append("Network (Sim: ");
-			rWorkbuffer.Append(engine::GetNetworkSimulationName(keNetworkSimulation));
-			rWorkbuffer.Append(" ");
-			rWorkbuffer.Append(kSimConfig.iPingMinMs);
-			rWorkbuffer.Append("-");
-			rWorkbuffer.Append(kSimConfig.iPingMaxMs);
-			rWorkbuffer.Append("ms)");
+			if (gpGame->mTimeStep.miTimeMultiply > 1)
+			{
+				rWorkbuffer.Append("BYPASS ");
+				rWorkbuffer.Append(engine::GetNetworkSimulationName(keNetworkSimulation));
+				rWorkbuffer.Append(")");
+			}
+			else
+			{
+				rWorkbuffer.Append(engine::GetNetworkSimulationName(keNetworkSimulation));
+				rWorkbuffer.Append(" ");
+				rWorkbuffer.Append(kSimConfig.iPingMinMs);
+				rWorkbuffer.Append("-");
+				rWorkbuffer.Append(kSimConfig.iPingMaxMs);
+				rWorkbuffer.Append("ms)");
+			}
 		}
 		else
 		{
@@ -187,13 +196,20 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 				if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 				{
 					constexpr engine::NetworkSimulationConfig kSimConfig = engine::GetNetworkSimulationConfig(keNetworkSimulation);
-					if (fLoss > kSimConfig.fPacketLossPercent * 2.0f)
+					if (gpGame->mTimeStep.miTimeMultiply > 1)
 					{
-						rWorkbuffer.Append("!");
+						rWorkbuffer.Append(" (sim: BYPASS)");
 					}
-					rWorkbuffer.Append(" (sim: ");
-					rWorkbuffer.AppendFloat(kSimConfig.fPacketLossPercent, 1);
-					rWorkbuffer.Append("%)");
+					else
+					{
+						if (fLoss > kSimConfig.fPacketLossPercent * 2.0f)
+						{
+							rWorkbuffer.Append("!");
+						}
+						rWorkbuffer.Append(" (sim: ");
+						rWorkbuffer.AppendFloat(kSimConfig.fPacketLossPercent, 1);
+						rWorkbuffer.Append("%)");
+					}
 				}
 				rWorkbuffer.Append("\n");
 

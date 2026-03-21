@@ -24,6 +24,11 @@ enum class PacketType : uint8_t
 	kServerUnsubscribeAck,      // Server confirms unsubscription
 	kServerPlayerState,         // Server notifies client of player state change (spawn, frame change, death)
 	kClientPauseRequest,        // Client requests server pause/unpause (debug only)
+	kClientTimespeedRequest,    // Client requests timescale change (debug only)
+	kServerTimespeedUpdate,     // Server broadcasts current timescale to all clients
+	kClientSaveRequest,         // Client requests server quicksave (debug only)
+	kClientLoadRequest,         // Client requests server quickload (debug only)
+	kServerLoadNotification,    // Server loaded a save, clients must reset state
 };
 
 // Client request flags for spawn/respawn
@@ -35,7 +40,7 @@ enum class ClientRequestFlags : uint8_t
 using ClientRequestFlags_t = common::Flags<ClientRequestFlags>;
 
 // Protocol constants
-inline constexpr uint32_t kuiProtocolVersion = 1;
+inline constexpr uint32_t kuiProtocolVersion = 2;
 inline constexpr uint16_t kuiDefaultPort = 27015;
 inline constexpr int64_t kiMaxResendFrames = 8;
 inline constexpr int64_t kiMaxBufferedFrames = 256;
@@ -51,6 +56,16 @@ inline constexpr int64_t kiDiscoveryScanMs = 1500;
 
 // Network buffer size for ACK bitfield and snapshot ring buffers (decoupled from physics tick rate)
 inline constexpr int64_t kiNetworkBufferSize = 128;
+
+// 128-bit client GUID for persistent identity across save/load
+struct ClientGuid
+{
+	uint64_t uiHigh = 0;
+	uint64_t uiLow = 0;
+
+	bool IsEmpty() const { return uiHigh == 0 && uiLow == 0; }
+	bool operator==(const ClientGuid&) const = default;
+};
 
 // Per-slot ACK tracking state (shared by client and server)
 struct AckState

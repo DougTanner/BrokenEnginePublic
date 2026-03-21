@@ -97,6 +97,12 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 	game::gpServerSession->WaitForTick(mTimeStep);
 
 	int64_t iFullTicks = mTimeStep.TickRealtime();
+	if (mTimeStep.mbTimeScaleChanged) [[unlikely]]
+	{
+		mTimeStep.mbTimeScaleChanged = false;
+		gpServer->BroadcastTimespeedUpdate(mTimeStep.miTimeMultiply, mTimeStep.miTimeDivide);
+		Log(kLogNetwork, "Timespeed changed Multiply: {} Divide: {}", mTimeStep.miTimeMultiply, mTimeStep.miTimeDivide);
+	}
 	if (mGameFlags & GameFlags::kPaused) [[unlikely]]
 	{
 		mTimeStep.ClearAccumulator();

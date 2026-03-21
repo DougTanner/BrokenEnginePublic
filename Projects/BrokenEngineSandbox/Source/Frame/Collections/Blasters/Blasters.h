@@ -3,6 +3,7 @@
 #include "Frame/Alignments.h"
 #if defined(BT_CLIENT)
 #include "Frame/Collections/AreaLights/AreaLights.h"
+#include "Frame/Collections/PointLights/PointLights.h"
 #endif
 #include "Frame/Collections/Collection.h"
 #if defined(BT_CLIENT)
@@ -21,6 +22,7 @@ struct BlastersType
 {
 	XMFLOAT2 f2Size {0.11f, 1.5f};
 	uint8_t uiAreaLightTypeIndex = 0;
+	uint8_t uiPointLightTypeIndex = 0xFF; // 0xFF = use area light
 };
 
 struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
@@ -58,6 +60,7 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 	XMVECTOR* __restrict pVecDirections = nullptr;
 #if defined(BT_CLIENT)
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
+	engine::point_lights_t* __restrict puiPointLights = nullptr;
 	engine::wind_trail_t* __restrict puiWindTrails = nullptr;
 	float* __restrict pfWindTrailIntensities = nullptr;
 	float* __restrict pfWindTrailWidths = nullptr;
@@ -65,7 +68,7 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 #endif
 	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pVecDirections); }
 #if defined(BT_CLIENT)
-	auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiAreaLights, rSelf.puiWindTrails, rSelf.pfWindTrailIntensities, rSelf.pfWindTrailWidths, rSelf.pfWindTrailLengthMultipliers); }
+	auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiAreaLights, rSelf.puiPointLights, rSelf.puiWindTrails, rSelf.pfWindTrailIntensities, rSelf.pfWindTrailWidths, rSelf.pfWindTrailLengthMultipliers); }
 #endif
 	auto Members(this auto&& rSelf)
 	{

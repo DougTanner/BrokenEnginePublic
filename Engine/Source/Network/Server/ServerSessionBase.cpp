@@ -33,7 +33,7 @@ void ServerSessionBase::WaitForTick(TimeStep& rTimeStep, std::chrono::nanosecond
 	if ((remainderNs < 0ns || remainderNs > tickMarginNs)) [[unlikely]]
 	{
 		++siOvershootTicks;
-		Log(kLogNetwork, "ServerSessionBase::WaitForTick Remainder: {}ns Overshoot: {}/{} = {}%", remainderNs.count(), siOvershootTicks, siTotalTicks, siOvershootTicks * 100 / siTotalTicks);
+		// DT: TEMP Log(kLogNetwork, "ServerSessionBase::WaitForTick Remainder: {}ns Overshoot: {}/{} = {}%", remainderNs.count(), siOvershootTicks, siTotalTicks, siOvershootTicks * 100 / siTotalTicks);
 	}
 }
 

@@ -2,6 +2,7 @@
 
 #include "Network/Server/Server.h"
 
+#include "Game.h"
 #include "Memory/MemoryManager.h"
 
 namespace engine
@@ -76,9 +77,17 @@ void Server::Poll()
 			case ENET_EVENT_TYPE_RECEIVE:
 				if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 				{
-					constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
-					NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, event,
-						[this](ENetEvent& rEvent) { Receive(rEvent); });
+					if (game::gpGame->mTimeStep.miTimeMultiply > 1)
+					{
+						Receive(event);
+						enet_packet_destroy(event.packet);
+					}
+					else
+					{
+						constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
+						NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, event,
+							[this](ENetEvent& rEvent) { Receive(rEvent); });
+					}
 				}
 				else
 				{
@@ -91,13 +100,21 @@ void Server::Poll()
 		}
 	}
 
-	// Process delayed packets whose release time has passed
+	// Process delayed packets whose release time has passed (or flush all when bypassing simulation)
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
-		NetworkSimulation::ProcessDelayed(mDelayedPackets, [this](const DelayedPacket& rPacket)
+		auto handleDelayed = [this](const DelayedPacket& rPacket)
 		{
 			Receive(rPacket.data.data(), rPacket.data.size(), rPacket.pPeer);
-		});
+		};
+		if (game::gpGame->mTimeStep.miTimeMultiply > 1)
+		{
+			NetworkSimulation::FlushDelayed(mDelayedPackets, handleDelayed);
+		}
+		else
+		{
+			NetworkSimulation::ProcessDelayed(mDelayedPackets, handleDelayed);
+		}
 	}
 }
 
@@ -185,6 +202,17 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 		case PacketType::kClientPauseRequest:
 			ClientPauseRequest(pData, iSize, iClientId);
 			break;
+		case PacketType::kClientTimespeedRequest:
+			ClientTimespeedRequest(pData, iSize, iClientId);
+			break;
+#if defined(BT_SERVER)
+		case PacketType::kClientSaveRequest:
+			ClientSaveRequest(pData, iSize, iClientId);
+			break;
+		case PacketType::kClientLoadRequest:
+			ClientLoadRequest(pData, iSize, iClientId);
+			break;
+#endif // BT_SERVER
 		default:
 			Log(kLogNetwork, "Server::Receive unknown packet type {} Client: {}", static_cast<uint8_t>(eType), iClientId);
 			break;
@@ -208,7 +236,7 @@ void Server::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, G
 		// Heap: per-coord ring buffer grows until steady state
 		PerCoordBufferedFrame buffered {};
 		buffered.iTick = iTick;
-		buffered.serverCrc = rUpdateData.serverCrc;
+		buffered.sharedCrc = rUpdateData.sharedCrc;
 		buffered.inputCrc = rUpdateData.inputCrc;
 
 		if (!rUpdateData.statusChanges.empty())
@@ -253,6 +281,13 @@ void Server::BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoor
 	{
 		mBufferedFullFrames.pop_front();
 	}
+}
+
+void Server::ClearBufferedFrames()
+{
+	mPerCoordBufferedFrames.clear();
+	mBufferedFullFrames.clear();
+	miLatestBufferedTick = -1;
 }
 
 const PerCoordBufferedFrame* Server::FindBufferedFrame(GridCoord coord, int64_t iTick) const

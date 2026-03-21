@@ -209,6 +209,7 @@ void PlayersPostRender::AllocateAndCopy(PlayersPostRender& rCurrent, const Playe
 	{
 		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
 		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
+		std::memcpy(rCurrent.pClientGuids, rPrevious.pClientGuids, rCurrent.iCount * sizeof(rCurrent.pClientGuids[0]));
 	}
 }
 
@@ -614,6 +615,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	rCurrentPostRender.pfAiEdgeCrossCooldowns[iIndex] = kfAiEdgeCrossCooldown;
 	rCurrentPostRender.piAiEdgeCrossTargets[iIndex] = -1;
 	rCurrentPostRender.pfTransferLockTimers[iIndex] = rInfo.fTransferLockTimer;
+	rCurrentPostRender.pClientGuids[iIndex] = {};
 }
 
 bool PlayersInterpolate::LogDifferences(const PlayersInterpolate& rOther) const
@@ -658,6 +660,8 @@ bool PlayersPostRender::LogDifferences(const PlayersPostRender& rOther) const
 		bEqual &= common::LogDifference<"pfAiEdgeCrossCooldowns">(i, pfAiEdgeCrossCooldowns[i], rOther.pfAiEdgeCrossCooldowns[i]);
 		bEqual &= common::LogDifference<"piAiEdgeCrossTargets">(i, piAiEdgeCrossTargets[i], rOther.piAiEdgeCrossTargets[i]);
 		bEqual &= common::LogDifference<"pfTransferLockTimers">(i, pfTransferLockTimers[i], rOther.pfTransferLockTimers[i]);
+		bEqual &= common::LogDifference<"pClientGuids.uiHigh">(i, pClientGuids[i].uiHigh, rOther.pClientGuids[i].uiHigh);
+		bEqual &= common::LogDifference<"pClientGuids.uiLow">(i, pClientGuids[i].uiLow, rOther.pClientGuids[i].uiLow);
 	}
 
 	return bEqual;

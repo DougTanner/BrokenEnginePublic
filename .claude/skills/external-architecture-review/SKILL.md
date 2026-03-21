@@ -6,7 +6,7 @@ allowed-tools: [Read, Grep, Glob, Task]
 
 # Architecture Review
 
-Performs a comprehensive architectural review of a specified codebase area using parallel analysis agents. Designed for a C++23 data-oriented Vulkan game engine with Common → Engine → Projects layering.
+Performs a comprehensive architectural review of a specified codebase area using parallel analysis agents. Designed for a C++23 data-oriented Vulkan game engine with Common → Engine → Projects layering. Applies the "deep modules" lens (John Ousterhout): a well-designed module has a small interface hiding significant complexity. Shallow modules (large interface, thin implementation) are a code smell.
 
 ## Arguments
 
@@ -29,6 +29,11 @@ Prompt the agent to:
 - Detect circular or near-circular include chains
 - Check that `Common/ExternalHeaders.h` is used for standard library headers (not individual files)
 - Report include depth: how many transitive headers does each file pull in?
+- Classify dependencies into categories:
+  - In-process: pure computation, in-memory state, no I/O
+  - Local-substitutable: dependencies with local stand-ins
+  - Remote-but-owned: own services across boundaries (Ports & Adapters)
+  - True external: third-party libraries/services (mock boundary)
 
 #### Agent B: Pattern Compliance & Layer Integrity (subagent_type: Explore)
 
@@ -48,10 +53,18 @@ Prompt the agent to:
 - Identify god-classes or god-managers (too many responsibilities)
 - Find feature envy (code that manipulates another module's data more than its own)
 - Check for proper data-oriented design: arrays of structs that should be structs of arrays, or vice versa
+- Explore organically and note friction:
+  - Where does understanding one concept require bouncing between many small files?
+  - Where are modules so shallow that the interface is nearly as complex as the implementation?
+  - Where do tightly-coupled modules create integration risk in the seams between them?
 
 ### 2. Consolidate Results
 
 After all agents complete, read their reports and merge into a single architecture review. Deduplicate findings that appear in multiple agent reports. Cross-reference findings to identify systemic issues (e.g., a layer violation that also causes include chain bloat).
+
+### 2.5. Synthesize Recommendation
+
+After deduplicating findings, provide an opinionated recommendation: what is the single most impactful architectural improvement? Be specific — name the modules, the proposed change, and why it matters most. The user wants a strong read, not just a list.
 
 ### 3. Output Consolidated Report
 

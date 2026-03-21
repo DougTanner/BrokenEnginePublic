@@ -41,6 +41,7 @@ void BlastersInterpolate::AllocateAndCopy(BlastersInterpolate& rCurrent, const B
 		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
 #if defined(BT_CLIENT)
 		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
+		std::memcpy(rCurrent.puiPointLights, rPrevious.puiPointLights, rCurrent.iCount * sizeof(rCurrent.puiPointLights[0]));
 		std::memcpy(rCurrent.puiWindTrails, rPrevious.puiWindTrails, rCurrent.iCount * sizeof(rCurrent.puiWindTrails[0]));
 		std::memcpy(rCurrent.pfWindTrailIntensities, rPrevious.pfWindTrailIntensities, rCurrent.iCount * sizeof(rCurrent.pfWindTrailIntensities[0]));
 		std::memcpy(rCurrent.pfWindTrailWidths, rPrevious.pfWindTrailWidths, rCurrent.iCount * sizeof(rCurrent.pfWindTrailWidths[0]));
@@ -73,8 +74,18 @@ void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 
 	// Add client-only owned objects
 	const BlastersType& rType = GetType(rBlasters.puiTypeIndices[iIndex]);
+
 	rBlasters.puiAreaLights[iIndex] = {};
-	rFrame.postRender.areaLights.Add(rFrame, rBlasters.puiAreaLights[iIndex], rType.uiAreaLightTypeIndex);
+	rBlasters.puiPointLights[iIndex] = {};
+
+	if (rType.uiPointLightTypeIndex != 0xFF)
+	{
+		engine::PointLightsPostRender::Add(rFrame, rBlasters.puiPointLights[iIndex], rType.uiPointLightTypeIndex);
+	}
+	else
+	{
+		rFrame.postRender.areaLights.Add(rFrame, rBlasters.puiAreaLights[iIndex], rType.uiAreaLightTypeIndex);
+	}
 
 	rBlasters.puiWindTrails[iIndex] = {};
 	if (rBlasters.pfWindTrailIntensities[iIndex] > 0.0f)
@@ -84,7 +95,6 @@ void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 
 	rPostRender.puiSounds[iIndex] = {};
 	engine::SoundsPostRender::Add(rFrame, rPostRender.puiSounds[iIndex]);
-
 
 	// Sync wind trail
 	if (rBlasters.pfWindTrailIntensities[iIndex] > 0.0f)
@@ -98,7 +108,22 @@ void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 		});
 	}
 
-	// Sync area light
+	// Sync light
+	if (rBlasters.puiPointLights[iIndex].IsValid())
+	{
+		float fSize = rType.f2Size.x;
+		const engine::PointLightsType& rPointLightType = engine::PointLightsInterpolate::GetType(rType.uiPointLightTypeIndex);
+		engine::PointLightsInterpolate::Sync(rFrame.interpolate, rBlasters.puiPointLights[iIndex],
+		{
+			.vecPosition = rBlasters.pVecPositions[iIndex],
+			.fVisibleArea = fSize,
+			.fVisibleIntensity = rPointLightType.fVisibleIntensity,
+			.fLightingArea = rPointLightType.fLightingArea,
+			.fLightingIntensity = rPointLightType.fLightingIntensity,
+			.fRotation = 0.0f,
+		});
+	}
+	else
 	{
 		float fWidth = rType.f2Size.x;
 		float fLength = rType.f2Size.y;
@@ -213,7 +238,14 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 
 		// Remove owned objects
 #if defined(BT_CLIENT)
-		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		if (rCurrentInterpolate.puiPointLights[i].IsValid())
+		{
+			engine::PointLightsPostRender::Remove(rFrame, rCurrentInterpolate.puiPointLights[i]);
+		}
+		else
+		{
+			rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		}
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
 			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
@@ -238,7 +270,14 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		}
 
 #if defined(BT_CLIENT)
-		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		if (rCurrentInterpolate.puiPointLights[i].IsValid())
+		{
+			engine::PointLightsPostRender::Remove(rFrame, rCurrentInterpolate.puiPointLights[i]);
+		}
+		else
+		{
+			rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		}
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
 			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);

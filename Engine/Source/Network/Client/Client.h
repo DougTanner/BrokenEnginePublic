@@ -20,7 +20,7 @@ namespace engine
 struct ReceivedCoordUpdate
 {
 	int64_t iTick = 0;
-	common::crc_t serverCrc = 0;
+	common::crc_t sharedCrc = 0;
 	common::crc_t inputCrc = 0;
 	// Heap: ENet packet data, variable per frame
 	std::vector<game::StatusChange> statusChanges;
@@ -76,6 +76,9 @@ public:
 	void SendUnsubscribeOnly(int64_t iSlot);
 	void SendResyncRequest();
 	void SendPauseRequest(bool bPaused);
+	void SendTimespeedRequest(uint8_t uiDirection);
+	void SendSaveRequest();
+	void SendLoadRequest();
 	void Flush();
 	void Disconnect();
 	void SetDesyncDebugMode(bool bEnabled) { mbDesyncDebugMode = bEnabled; }
@@ -91,6 +94,8 @@ public:
 	// Heap: raw game packet buffer grows on assign/player-state packets
 	std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& DrainReceivedGamePackets() { return mReceivedGamePackets; }
 
+	const ClientGuid& GetClientGuid() const { return mClientGuid; }
+	bool DrainLoadNotification() { bool b = mbLoadNotificationReceived; mbLoadNotificationReceived = false; return b; }
 	const std::vector<ClientCoordSlot>& GetCoordSlots() const { return mCoordSlots; }
 	std::vector<ClientCoordSlot>& GetCoordSlots() { return mCoordSlots; }
 	std::vector<GridCoord>& GetCancelledSubscriptions() { return mCancelledSubscriptions; }
@@ -111,6 +116,7 @@ private:
 	void ServerConnectionResponse(const uint8_t* pData, size_t iSize);
 	void ServerSubscribeAccept(const uint8_t* pData, size_t iSize);
 	void ServerUnsubscribeAck(const uint8_t* pData, size_t iSize);
+	void ServerTimespeedUpdate(const uint8_t* pData, size_t iSize);
 	void SendHello();
 
 	bool RemoveCancelledSubscription(GridCoord coord);
@@ -155,6 +161,8 @@ private:
 	common::Smoothed<int64_t> mSmoothedJitterUs;
 
 	bool mbDesyncDebugMode = false;
+	bool mbLoadNotificationReceived = false;
+	ClientGuid mClientGuid {};
 
 	// Network simulation delay queue
 	std::deque<DelayedPacket> mDelayedPackets;

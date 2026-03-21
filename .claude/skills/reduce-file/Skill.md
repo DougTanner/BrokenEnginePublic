@@ -34,6 +34,15 @@ Count total lines and determine severity:
 
 Report the line count upfront.
 
+### 1.5. Consider Alternatives
+
+Before analyzing the file structure, ask the user:
+- Have they considered other approaches to reducing this file?
+- Are there constraints that favor one splitting strategy over others?
+- Is there a preferred direction (e.g., "I want to keep the core logic here and extract helpers")?
+
+This ensures the analysis aligns with the user's intent rather than assuming a direction.
+
 ### 2. Map the File Structure
 
 Build a complete map of the file's contents. For each function/method/struct, record:
@@ -101,6 +110,7 @@ For each proposed new class:
 - **Scope guard**: Whether the files are wrapped in `#ifdef`
 - **Includes needed**: What headers the new files require
 - **Delegation pattern**: How the original class uses the new class (owns it as a member? pointer? global?)
+- **Implementation order**: Break into incremental steps where the program compiles and works after each step (e.g., 1. Create new file with class shell, 2. Move first method group, 3. Move data members, 4. Update callers)
 
 Also state:
 - What remains in the original class and its reduced line count
@@ -118,6 +128,7 @@ For each proposed `.cpp` file:
 - **Line count estimate**: How many lines the new `.cpp` will have
 - **Scope guard**: Whether the file is wrapped in `#ifdef`
 - **Includes needed**: What headers the new file requires
+- **Implementation order**: Break into incremental steps where the program compiles after each step (e.g., 1. Create new .cpp, 2. Move first method group, 3. Update vcxproj, 4. Verify build)
 
 Also state:
 - What remains in the original `.cpp` and its reduced line count
@@ -132,6 +143,14 @@ Flag any complications:
 - `friend` declarations that create coupling
 - Virtual method overrides that must stay together
 - Data that is tightly coupled across groups (hard to separate into distinct classes)
+
+### 8. Decision Document
+
+Summarize the key decisions in the chosen option. Reference modules and responsibilities, not specific file paths (which become outdated):
+- **Modules affected**: Which logical modules change
+- **Interfaces changed**: New public APIs introduced, old ones removed
+- **Architectural decisions**: Why this split boundary was chosen
+- **Out of scope**: What was considered but explicitly excluded from this refactoring
 
 ## Output Format
 

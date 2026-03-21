@@ -5,6 +5,7 @@
 
 #include "Frame/HealthDamage.h"
 #if defined(BT_CLIENT)
+#include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
 #endif
 
@@ -120,26 +121,40 @@ void RegisterBlasterTerrainEffects()
 
 // Helper to sync owned objects for a blaster
 static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight,
-	engine::sound_t uiSound,
+	engine::point_lights_t uiPointLight, engine::sound_t uiSound,
 	FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, float fPitch)
 {
 	const BlastersType& rType = BlastersInterpolate::GetType(uiTypeIndex);
 
-	// Get blaster dimensions from type
-	float fWidth = rType.f2Size.x;
-	float fLength = rType.f2Size.y;
-
-	// Create velocity-aligned quad using common::CalculateArea
-	XMVECTOR vecDirection = XMVector3Normalize(vecVelocity);
-	auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(vecPosition, vecDirection, fLength, fLength, fWidth);
-
-	// Sync area light
-	engine::AreaLightsInterpolate::Sync(rFrameInterpolate, uiAreaLight,
+	// Sync light (point light or area light)
+	if (uiPointLight.IsValid())
 	{
-		.uiTypeIndex = rType.uiAreaLightTypeIndex,
-		.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
-	});
+		float fSize = rType.f2Size.x;
+		const engine::PointLightsType& rPointLightType = engine::PointLightsInterpolate::GetType(rType.uiPointLightTypeIndex);
+		engine::PointLightsInterpolate::Sync(rFrameInterpolate, uiPointLight,
+		{
+			.vecPosition = vecPosition,
+			.fVisibleArea = fSize,
+			.fVisibleIntensity = rPointLightType.fVisibleIntensity,
+			.fLightingArea = rPointLightType.fLightingArea,
+			.fLightingIntensity = rPointLightType.fLightingIntensity,
+			.fRotation = 0.0f,
+		});
+	}
+	else
+	{
+		float fWidth = rType.f2Size.x;
+		float fLength = rType.f2Size.y;
 
+		XMVECTOR vecDirection = XMVector3Normalize(vecVelocity);
+		auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(vecPosition, vecDirection, fLength, fLength, fWidth);
+
+		engine::AreaLightsInterpolate::Sync(rFrameInterpolate, uiAreaLight,
+		{
+			.uiTypeIndex = rType.uiAreaLightTypeIndex,
+			.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
+		});
+	}
 
 	// Sync sound
 	engine::SoundsInterpolate::Sync(rFrameInterpolate, uiSound,
@@ -179,7 +194,7 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 
 #if defined(BT_CLIENT)
 		// Sync owned objects
-		SyncBlaster(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rPreviousPostRender.puiSounds[i], vecPosition, vecVelocity, uiTypeIndex, rPreviousPostRender.pfPitches[i]);
+		SyncBlaster(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rCurrent.puiPointLights[i], rPreviousPostRender.puiSounds[i], vecPosition, vecVelocity, uiTypeIndex, rPreviousPostRender.pfPitches[i]);
 
 		// Sync wind deposit
 		if (rCurrent.puiWindTrails[i].IsValid())

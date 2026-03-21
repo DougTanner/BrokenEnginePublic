@@ -299,14 +299,112 @@ void Client::SendPauseRequest(bool bPaused)
 	rWorkbuffer.Pop();
 }
 
+void Client::SendTimespeedRequest(uint8_t uiDirection)
+{
+	if (!mbConnected || mpServerPeer == nullptr)
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	// [1B type][1B direction]
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientTimespeedRequest));
+	rWorkbuffer.PushBack<uint8_t>(uiDirection);
+
+	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
+
+	{
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		// Heap: ENet allocates packet data internally
+		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
+		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
+	}
+
+	rWorkbuffer.Pop();
+}
+
+void Client::SendSaveRequest()
+{
+	if (!mbConnected || mpServerPeer == nullptr)
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientSaveRequest));
+
+	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
+
+	{
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		// Heap: ENet allocates packet data internally
+		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
+		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
+	}
+
+	rWorkbuffer.Pop();
+}
+
+void Client::SendLoadRequest()
+{
+	if (!mbConnected || mpServerPeer == nullptr)
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientLoadRequest));
+
+	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
+
+	{
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		// Heap: ENet allocates packet data internally
+		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
+		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
+	}
+
+	rWorkbuffer.Pop();
+}
+
 void Client::SendHello()
 {
+	// Load GUID from disk if we don't have one yet
+	if (mClientGuid.IsEmpty())
+	{
+		ClientGuid loadedGuid {};
+		int64_t iGuidVersion = 0;
+		std::fstream guidStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("ClientGuid.bin"));
+		if (guidStream.good())
+		{
+			common::Read(guidStream, iGuidVersion);
+			int64_t iSize = 0;
+			common::Read(guidStream, iSize);
+			common::Read(guidStream, loadedGuid.uiHigh);
+			common::Read(guidStream, loadedGuid.uiLow);
+		}
+		if (iGuidVersion >= 1 && !loadedGuid.IsEmpty())
+		{
+			mClientGuid = loadedGuid;
+			Log("Client::SendHello Loaded GUID from disk: {} {}", mClientGuid.uiHigh, mClientGuid.uiLow);
+		}
+	}
+
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientHello));
 	rWorkbuffer.PushBack<uint32_t>(kuiProtocolVersion);
 	rWorkbuffer.Append(std::string_view(kpcBuildConfigName));
+	rWorkbuffer.PushBack<uint8_t>(0); // null terminator for config string
+	rWorkbuffer.PushBack<uint64_t>(mClientGuid.uiHigh);
+	rWorkbuffer.PushBack<uint64_t>(mClientGuid.uiLow);
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 

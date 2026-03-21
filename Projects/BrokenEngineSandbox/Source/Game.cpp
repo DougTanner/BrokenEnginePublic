@@ -635,6 +635,23 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 {
 	if constexpr (kbEnableDebugInput)
 	{
+#if defined(BT_CLIENT)
+		if (rMenuInput.flags & MenuInputFlags::kQuicksave)
+		{
+			if (gpClientSession->IsNetworkMode())
+			{
+				engine::gpClient->SendSaveRequest();
+			}
+		}
+		if (rMenuInput.flags & MenuInputFlags::kQuickload)
+		{
+			if (gpClientSession->IsNetworkMode())
+			{
+				engine::gpClient->SendLoadRequest();
+			}
+		}
+#endif
+
 		if (rMenuInput.flags & MenuInputFlags::kMenuTweaks)
 		{
 			mbShowImGui = !mbShowImGui;
@@ -650,16 +667,40 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 
 		if (rMenuInput.flags & MenuInputFlags::kSlowTime)
 		{
+#if defined(BT_CLIENT)
+			if (gpClientSession->IsNetworkMode())
+			{
+				engine::gpClient->SendTimespeedRequest(0);
+			}
+			else
+			{
+				mTimeStep.DecreaseTimeScale();
+			}
+#else
 			mTimeStep.DecreaseTimeScale();
+#endif
 		}
 		else if (rMenuInput.flags & MenuInputFlags::kSpeedUpTime)
 		{
+#if defined(BT_CLIENT)
+			if (gpClientSession->IsNetworkMode())
+			{
+				engine::gpClient->SendTimespeedRequest(1);
+			}
+			else
+			{
+				mTimeStep.IncreaseTimeScale();
+			}
+#else
 			mTimeStep.IncreaseTimeScale();
+#endif
 		}
 
 		if (mTimeStep.mbTimeScaleChanged)
 		{
 			mTimeStep.mbTimeScaleChanged = false;
+			Log(kLogNetwork, "Timespeed changed Multiply: {} Divide: {}", mTimeStep.miTimeMultiply, mTimeStep.miTimeDivide);
+
 			if (mTimeStep.miTimeMultiply == 1 && mTimeStep.miTimeDivide == 1)
 			{
 #if defined(BT_CLIENT)

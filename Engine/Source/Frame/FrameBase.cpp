@@ -11,12 +11,12 @@ FramePostRenderBase::FramePostRenderBase()
 std::pair<common::crc_t, common::crc_t> FrameInterpolateBase::Crcs() const
 {
 	common::crc_t crc = 0;
-	common::crc_t serverCrc = 0;
+	common::crc_t sharedCrc = 0;
 
-	common::Crc(frameFlags, crc, serverCrc);
-	common::Crc(iTick, crc, serverCrc);
-	common::Crc(fCurrentTime, crc, serverCrc);
-	common::Crc(fDeltaTime, crc, serverCrc);
+	common::Crc(frameFlags, crc, sharedCrc);
+	common::Crc(iTick, crc, sharedCrc);
+	common::Crc(fCurrentTime, crc, sharedCrc);
+	common::Crc(fDeltaTime, crc, sharedCrc);
 
 	std::apply([&](const auto&... cols)
 	{
@@ -25,10 +25,10 @@ std::pair<common::crc_t, common::crc_t> FrameInterpolateBase::Crcs() const
 
 	std::apply([&](const auto&... cols)
 	{
-		((serverCrc ^= ServerCollectionCrc(cols)), ...);
+		((sharedCrc ^= SharedCollectionCrc(cols)), ...);
 	}, ServerCollections());
 
-	return {crc, serverCrc};
+	return {crc, sharedCrc};
 }
 
 bool FrameInterpolateBase::LogDifferences(const FrameInterpolateBase& rOther) const
@@ -79,31 +79,31 @@ void FrameInterpolateBase::ServerRead(std::istream& rStream)
 
 	std::apply([&](auto&... cols)
 	{
-		(ServerCollectionRead(rStream, cols), ...);
+		(SharedCollectionRead(rStream, cols), ...);
 	}, ServerCollections());
 }
 
 std::pair<common::crc_t, common::crc_t> FramePostRenderBase::Crcs() const
 {
 	common::crc_t outCrc = 0;
-	common::crc_t outServerCrc = 0;
+	common::crc_t outSharedCrc = 0;
 
 	common::crc_t c = randomEngine.Crc();
 	outCrc ^= c;
-	outServerCrc ^= c;
+	outSharedCrc ^= c;
 
-	common::Crc(vecArea, outCrc, outServerCrc);
-	common::Crc(uiNextUuid, outCrc, outServerCrc);
+	common::Crc(vecArea, outCrc, outSharedCrc);
+	common::Crc(uiNextUuid, outCrc, outSharedCrc);
 #if defined(BT_CLIENT)
 	outCrc ^= common::Crc(uiNextSoundUuid);
 	outCrc ^= common::Crc(uiNextVisualUuid);
 #endif
-	common::Crc(uiFrameId, outCrc, outServerCrc);
-	common::Crc(eIslandsFlip, outCrc, outServerCrc);
+	common::Crc(uiFrameId, outCrc, outSharedCrc);
+	common::Crc(eIslandsFlip, outCrc, outSharedCrc);
 
 	c = alignments.Crc();
 	outCrc ^= c;
-	outServerCrc ^= c;
+	outSharedCrc ^= c;
 
 	std::apply([&](const auto&... cols)
 	{
@@ -112,10 +112,10 @@ std::pair<common::crc_t, common::crc_t> FramePostRenderBase::Crcs() const
 
 	std::apply([&](const auto&... cols)
 	{
-		((outServerCrc ^= ServerCollectionCrc(cols)), ...);
+		((outSharedCrc ^= SharedCollectionCrc(cols)), ...);
 	}, ServerCollections());
 
-	return {outCrc, outServerCrc};
+	return {outCrc, outSharedCrc};
 }
 
 bool FramePostRenderBase::LogDifferences(const FramePostRenderBase& rOther) const
@@ -188,7 +188,7 @@ void FramePostRenderBase::ServerRead(std::istream& rStream)
 
 	std::apply([&](auto&... cols)
 	{
-		(ServerCollectionRead(rStream, cols), ...);
+		(SharedCollectionRead(rStream, cols), ...);
 	}, ServerCollections());
 }
 

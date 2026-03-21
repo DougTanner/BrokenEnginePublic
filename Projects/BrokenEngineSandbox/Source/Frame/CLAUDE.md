@@ -2,7 +2,7 @@
 
 ## Overview
 
-Game-specific frame state for a space combat game, extending the engine's `FrameBase` with collections for players, blasters, missiles, spaceships, and targets. Runs at a 64 fps fixed timestep with phase-separated structures (FrameInterpolate and FramePostRender) enabling deterministic replay and server CRC validation.
+Game-specific frame state for a space combat game, extending the engine's `FrameBase` with collections for players, blasters, missiles, spaceships, and targets. Runs at a 64 fps fixed timestep with phase-separated structures (FrameInterpolate and FramePostRender) enabling deterministic replay and shared CRC validation.
 
 ## IMPORTANT: Frame Purity Constraint
 
@@ -14,7 +14,7 @@ Frame code is purely functional. Frame updates must only rely on explicit functi
 - **FrameCollections.h** - Aggregation header including all collection types; provides tuple accessors and type list aliases used by engine `ForEach*` dispatch helpers
 - **RunFrameTick()** (`FrameTick.h/cpp`) - Unified physics pipeline executing all five phases via `ActiveFrameRef`. Shared by GameBase parallel dispatch and client reconciliation replay. Asserts MXCSR flags at entry to catch corruption by external APIs
 - **TerrainUtils** (`TerrainUtils.h/cpp`) - Shared AI terrain-following, obstacle avoidance, and edge-crossing encouragement used by Players and Spaceships. Combines gradient-based contour following, elevation correction, mountain look-ahead, and periodic edge-crossing steering
-- **StatusChange.h** - Status change types and `TransferData` struct for cross-cell entity migration. `TransferData` uses deducing-this `SharedMembers()` for server CRC subset
+- **StatusChange.h** - Status change types and `TransferData` struct for cross-cell entity migration. `TransferData` uses deducing-this `SharedMembers()` for shared CRC subset
 - **HealthDamage.h** - Combat balance constants, collision category/mask configuration, and difficulty-scaled damage
 - **SmokeSpreadTest** (`SmokeSpreadTest.h/cpp`) - Automated smoke/stress test. Enabled via `kbEnableSmokeSpreadTest` in `Pch.h`
 

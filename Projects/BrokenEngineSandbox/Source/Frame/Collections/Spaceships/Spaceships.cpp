@@ -79,7 +79,6 @@ constexpr float kfHitFlashLightingArea = 1.0f;
 constexpr float kfHitFlashLightingIntensity = 30.0f;
 #endif // BT_CLIENT
 
-
 // Find the nearest alive (non-exploding) player position. Returns false if no alive players exist.
 [[nodiscard]] bool XM_CALLCONV NearestAlivePlayerPosition(const PlayersInterpolate& rPlayers, const PlayersPostRender& rPlayersPostRender, FXMVECTOR vecFrom, XMVECTOR& rVecResult)
 {
@@ -139,7 +138,7 @@ void SpaceshipsInterpolate::Register()
 }
 
 // Enemy blaster type registration
-static uint8_t suiEnemyBlasterAreaLightTypeIndex = 0xFF;
+static uint8_t suiEnemyBlasterPointLightTypeIndex = 0xFF;
 static uint8_t suiEnemyBlasterTypeIndex = 0xFF;
 
 static void RegisterEnemyBlasterType()
@@ -150,23 +149,24 @@ static void RegisterEnemyBlasterType()
 	}
 
 #if defined(BT_CLIENT)
-	// Register area light type for enemy blasters
-	engine::AreaLightsInterpolate::RegisterType(suiEnemyBlasterAreaLightTypeIndex,
+	// Register camera-aligned point light type for enemy blasters
+	engine::PointLightsInterpolate::RegisterType(suiEnemyBlasterPointLightTypeIndex,
 	{
 		.crc = data::kTexturesBlasterBC72pngCrc,
-		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
-		.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
+		.uiColor = 0xFFFFFFFF,
+		.fVisibleArea = kfEnemyBlasterSize,
 		.fVisibleIntensity = kfEnemyBlasterVisibleIntensity,
-		.fLightingSize = kfEnemyBlasterLightingSize,
+		.fLightingArea = kfEnemyBlasterLightingSize,
 		.fLightingIntensity = kfEnemyBlasterLightingIntensity,
+		.bCameraAligned = true,
 	});
 #endif // BT_CLIENT
 
-	// Register blaster type with area light
+	// Register blaster type with point light
 	BlastersInterpolate::RegisterType(suiEnemyBlasterTypeIndex,
 	{
 		.f2Size = {kfEnemyBlasterSize, kfEnemyBlasterSize},
-		.uiAreaLightTypeIndex = suiEnemyBlasterAreaLightTypeIndex,
+		.uiPointLightTypeIndex = suiEnemyBlasterPointLightTypeIndex,
 	});
 }
 

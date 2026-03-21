@@ -4,6 +4,7 @@
 
 #if defined(BT_CLIENT)
 
+#include "Game.h"
 #include "Network/NetworkCursor.h"
 
 namespace engine
@@ -114,9 +115,17 @@ void Client::Poll()
 			case ENET_EVENT_TYPE_RECEIVE:
 				if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 				{
-					constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
-					NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, event,
-						[this](ENetEvent& rEvent) { Receive(rEvent); });
+					if (game::gpGame->mTimeStep.miTimeMultiply > 1)
+					{
+						Receive(event);
+						enet_packet_destroy(event.packet);
+					}
+					else
+					{
+						constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
+						NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, event,
+							[this](ENetEvent& rEvent) { Receive(rEvent); });
+					}
 				}
 				else
 				{
@@ -129,13 +138,21 @@ void Client::Poll()
 		}
 	}
 
-	// Process delayed packets whose release time has passed
+	// Process delayed packets whose release time has passed (or flush all when bypassing simulation)
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
-		NetworkSimulation::ProcessDelayed(mDelayedPackets, [this](const DelayedPacket& rPacket)
+		auto handleDelayed = [this](const DelayedPacket& rPacket)
 		{
 			Receive(rPacket.data.data(), rPacket.data.size());
-		});
+		};
+		if (game::gpGame->mTimeStep.miTimeMultiply > 1)
+		{
+			NetworkSimulation::FlushDelayed(mDelayedPackets, handleDelayed);
+		}
+		else
+		{
+			NetworkSimulation::ProcessDelayed(mDelayedPackets, handleDelayed);
+		}
 	}
 
 	// Track bandwidth deltas from host-level cumulative counters
@@ -191,6 +208,12 @@ void Client::Receive(const uint8_t* pData, size_t iSize)
 			break;
 		case PacketType::kServerUnsubscribeAck:
 			ServerUnsubscribeAck(pData, iSize);
+			break;
+		case PacketType::kServerTimespeedUpdate:
+			ServerTimespeedUpdate(pData, iSize);
+			break;
+		case PacketType::kServerLoadNotification:
+			mbLoadNotificationReceived = true;
 			break;
 		default:
 			Log(kLogNetwork, "Client::Receive unknown packet type {}", static_cast<uint8_t>(eType));
@@ -250,7 +273,6 @@ void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 		}
 		rAck.uiReceivedBitfieldHigh >>= 1;
 	}
-
 }
 
 void Client::Flush()

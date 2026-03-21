@@ -4,6 +4,7 @@
 
 #if defined(BT_CLIENT)
 
+#include "Game.h"
 #include "Network/NetworkCursor.h"
 
 namespace engine
@@ -154,7 +155,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 
 void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool bProcessRtt)
 {
-	// 1B type + 1B slot + 2B epoch + 8B tick + 8B echoTs + 8B serverCrc + 8B inputCrc + 4B compressedSize = 40 fixed bytes
+	// 1B type + 1B slot + 2B epoch + 8B tick + 8B echoTs + 8B sharedCrc + 8B inputCrc + 4B compressedSize = 40 fixed bytes
 	if (iSize < 40)
 	{
 		return;
@@ -203,7 +204,7 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 		return;
 	}
 
-	common::crc_t serverCrc = static_cast<common::crc_t>(ReadUint64(pCursor));
+	common::crc_t sharedCrc = static_cast<common::crc_t>(ReadUint64(pCursor));
 	common::crc_t inputCrc = static_cast<common::crc_t>(ReadUint64(pCursor));
 	int32_t iCompressedSize = ReadInt32(pCursor);
 
@@ -216,7 +217,7 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 
 	ReceivedCoordUpdate update {};
 	update.iTick = iTick;
-	update.serverCrc = serverCrc;
+	update.sharedCrc = sharedCrc;
 	update.inputCrc = inputCrc;
 
 	if (iCompressedSize > 0)
@@ -281,6 +282,24 @@ void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 	if (bAccepted)
 	{
 		mbConnectionAccepted = true;
+
+		// Read assigned GUID (1B type + 1B accepted + 8B high + 8B low = 18 bytes)
+		if (iSize >= 18)
+		{
+			mClientGuid.uiHigh = ReadUint64(pCursor);
+			mClientGuid.uiLow = ReadUint64(pCursor);
+			Log("Client GUID assigned: {} {}", mClientGuid.uiHigh, mClientGuid.uiLow);
+
+			// Persist to disk
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			std::fstream guidStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("ClientGuid.bin"));
+			int64_t iGuidVersion = 1;
+			common::Write(guidStream, iGuidVersion);
+			int64_t iGuidSize = 0;
+			common::Write(guidStream, iGuidSize);
+			common::Write(guidStream, mClientGuid.uiHigh);
+			common::Write(guidStream, mClientGuid.uiLow);
+		}
 	}
 	else
 	{
@@ -385,6 +404,23 @@ void Client::ServerUnsubscribeAck(const uint8_t* pData, size_t iSize)
 	}
 
 	rSlot = {};
+}
+
+void Client::ServerTimespeedUpdate(const uint8_t* pData, size_t iSize)
+{
+	// [1B type][8B multiply][8B divide]
+	if (iSize < 17)
+	{
+		return;
+	}
+
+	const uint8_t* pCursor = pData + 1; // Skip packet type
+
+	int64_t iMultiply = ReadInt64(pCursor);
+	int64_t iDivide = ReadInt64(pCursor);
+
+	Log(kLogNetwork, "Client::ServerTimespeedUpdate Multiply: {} Divide: {}", iMultiply, iDivide);
+	game::gpGame->mTimeStep.SetTimeScale(iMultiply, iDivide);
 }
 
 } // namespace engine

@@ -36,10 +36,10 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 		uint64_t uiSlotBitfieldLow = ReadUint64(pCursor);
 		uint64_t uiSlotBitfieldHigh = ReadUint64(pCursor);
 
-		if (uiSlotIndex < std::ssize(pClient->coordSubscriptions)
-		&& pClient->coordSubscriptions.at(uiSlotIndex).bActive
-		&& uiSlotEpoch == pClient->coordAckStates.at(uiSlotIndex).uiEpoch
-		&& iSlotAckFloor >= pClient->coordAckStates.at(uiSlotIndex).iAckFloor)
+		if (uiSlotIndex < std::ssize(pClient->coordSubscriptions) &&
+			pClient->coordSubscriptions.at(uiSlotIndex).bActive &&
+			uiSlotEpoch == pClient->coordAckStates.at(uiSlotIndex).uiEpoch &&
+			iSlotAckFloor >= pClient->coordAckStates.at(uiSlotIndex).iAckFloor)
 		{
 			// Clamp to server's latest sent tick to prevent future ACK floors
 			iSlotAckFloor = std::min(iSlotAckFloor, miLatestBufferedTick);
@@ -198,16 +198,27 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 		snprintf(pcMessage, sizeof(pcMessage), "Protocol version mismatch: server is %u, client is %u", kuiProtocolVersion, uiClientProtocolVersion);
 		Log(kLogNetwork, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
 
-		SendConnectionResponse(pPeer, false, pcMessage);
+		SendConnectionResponse(pPeer, false, pcMessage, nullptr);
 		RemoveClient(iClientId);
 		enet_peer_disconnect_later(pPeer, 0);
 		return;
 	}
 
-	char pcClientConfig[64] = {};
+	// Read build config string (null-terminated, variable length)
 	size_t iConfigOffset = static_cast<size_t>(pCursor - pData);
-	size_t iLength = std::min(iSize - iConfigOffset, sizeof(pcClientConfig) - 1);
-	std::memcpy(pcClientConfig, pCursor, iLength);
+	size_t iConfigMaxLength = 0;
+	for (size_t i = iConfigOffset; i < iSize; ++i)
+	{
+		++iConfigMaxLength;
+		if (pData[i] == '\0')
+		{
+			break;
+		}
+	}
+	char pcClientConfig[64] = {};
+	size_t iCopyLength = std::min(iConfigMaxLength, sizeof(pcClientConfig) - 1);
+	std::memcpy(pcClientConfig, pCursor, iCopyLength);
+	pCursor += iConfigMaxLength;
 
 	if (strcmp(pcClientConfig, kpcBuildConfigName) != 0)
 	{
@@ -215,7 +226,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 		snprintf(pcMessage, sizeof(pcMessage), "Build mismatch: server is %s, client is %s", kpcBuildConfigName, pcClientConfig);
 		Log(kLogNetwork, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
 
-		SendConnectionResponse(pPeer, false, pcMessage);
+		SendConnectionResponse(pPeer, false, pcMessage, nullptr);
 
 		// Remove from mClients (added during Connect before hello arrived)
 		RemoveClient(iClientId);
@@ -224,14 +235,39 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 		return;
 	}
 
+	// Read client GUID (16 bytes after config string)
+	ClientGuid clientGuid {};
+	size_t iGuidOffset = static_cast<size_t>(pCursor - pData);
+	if (iGuidOffset + 16 <= iSize)
+	{
+		clientGuid.uiHigh = ReadUint64(pCursor);
+		clientGuid.uiLow = ReadUint64(pCursor);
+	}
+
+	// Generate GUID if client sent empty
+	if (clientGuid.IsEmpty())
+	{
+		::UUID uuid;
+		UuidCreate(&uuid);
+		std::memcpy(&clientGuid.uiHigh, &uuid, 8);
+		std::memcpy(&clientGuid.uiLow, reinterpret_cast<const uint8_t*>(&uuid) + 8, 8);
+	}
+
 	ClientConnection* pClient = FindClient(iClientId);
 	if (pClient != nullptr)
 	{
 		pClient->bHandshakeComplete = true;
+		pClient->clientGuid = clientGuid;
 	}
 
-	Log(kLogNetwork, "Server::ClientHello Accepted Client: {} Config: {}", iClientId, pcClientConfig);
-	SendConnectionResponse(pPeer, true, nullptr);
+	Log(kLogNetwork, "Server::ClientHello Accepted Client: {} Config: {} GUID: {} {}", iClientId, pcClientConfig, clientGuid.uiHigh, clientGuid.uiLow);
+	SendConnectionResponse(pPeer, true, nullptr, &clientGuid);
+
+	// Send current timespeed so clients joining a non-1x server stay in sync
+	if (game::gpGame->mTimeStep.miTimeMultiply != 1 || game::gpGame->mTimeStep.miTimeDivide != 1)
+	{
+		SendTimespeedUpdate(pPeer, game::gpGame->mTimeStep.miTimeMultiply, game::gpGame->mTimeStep.miTimeDivide);
+	}
 }
 
 void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId)
@@ -345,5 +381,70 @@ void Server::ClientPauseRequest(const uint8_t* pData, size_t iSize, int64_t iCli
 	game::gpGame->mGameFlags.Set(GameFlags::kPaused, uiPaused != 0);
 	Log("Server paused: {}", uiPaused != 0);
 }
+
+void Server::ClientTimespeedRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
+{
+	// [1B type][1B direction]
+	if (iSize < 2)
+	{
+		return;
+	}
+
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	{
+		return;
+	}
+
+	const uint8_t* pCursor = pData + 1; // Skip packet type
+	uint8_t uiDirection = ReadUint8(pCursor);
+
+	if (uiDirection == 0)
+	{
+		game::gpGame->mTimeStep.DecreaseTimeScale();
+	}
+	else
+	{
+		game::gpGame->mTimeStep.IncreaseTimeScale();
+	}
+
+	BroadcastTimespeedUpdate(game::gpGame->mTimeStep.miTimeMultiply, game::gpGame->mTimeStep.miTimeDivide);
+}
+
+#if defined(BT_SERVER)
+void Server::ClientSaveRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
+{
+	if (iSize < 1)
+	{
+		return;
+	}
+
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	{
+		return;
+	}
+
+	Log("Server::ClientSaveRequest Client: {}", iClientId);
+	game::gpGame->mGameSaveLoad.ServerSave();
+}
+
+void Server::ClientLoadRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
+{
+	if (iSize < 1)
+	{
+		return;
+	}
+
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	{
+		return;
+	}
+
+	Log("Server::ClientLoadRequest Client: {}", iClientId);
+	game::gpGame->mGameSaveLoad.ServerLoad();
+}
+#endif // BT_SERVER
 
 } // namespace engine

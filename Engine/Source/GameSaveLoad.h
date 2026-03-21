@@ -13,6 +13,8 @@ public:
 
 	void Quicksave(const game::MenuInput& rMenuInput);
 	bool Quickload(const game::MenuInput& rMenuInput);
+	void ServerSave();
+	bool ServerLoad();
 	void SaveLoadReplay(const game::MenuInput& rMenuInput);
 	void SyncReplay(game::Frame& rFrame, game::FrameInput& rFrameInput);
 

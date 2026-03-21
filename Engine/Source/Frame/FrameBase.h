@@ -166,7 +166,7 @@ struct FramePostRenderBase
 	common::crc_t previousCrc = 0;      // Crc() of the previous frame (chain link)
 	common::crc_t previousInputCrc = 0;  // ServerInputCrc() of input used to produce this frame
 	common::crc_t crc = 0;              // Crcs().first — full CRC of this frame
-	common::crc_t serverCrc = 0;        // Crcs().second — server-only CRC (for cross-build comparison)
+	common::crc_t sharedCrc = 0;        // Crcs().second — shared CRC excluding client-only and server-only fields
 
 	Alignments alignments {};
 

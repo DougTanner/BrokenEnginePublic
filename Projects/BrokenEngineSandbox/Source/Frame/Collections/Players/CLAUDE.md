@@ -21,6 +21,10 @@ Shared constants used across multiple `.cpp` files are declared in `Players.h`.
 
 **Owned Objects**: Each player owns a wind trail and hex shield (client-only), created in Spawn and removed in Destroy/Transfer.
 
+## Architecture
+
+**PlayersPostRender**: Includes `pClientGuids` (`engine::ClientGuid*`) — a parallel array of GUIDs identifying which connected client controls each player. Initialized in `Spawn`, copied via `AllocateAndCopy`, and compared in `LogDifferences`. Used by `ServerSession::ResetClientsForLoad` to re-link client connections to player slots after a load.
+
 ## See Also
 - Parent collections: [../CLAUDE.md](../CLAUDE.md)
 - Parent frame: [../../CLAUDE.md](../../CLAUDE.md)

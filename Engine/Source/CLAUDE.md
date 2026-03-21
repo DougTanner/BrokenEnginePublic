@@ -10,7 +10,7 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 
 - **Main.cpp** - Entry point: initialization, main loop, shutdown. Client loop runs input/physics/render/audio then kicks `PostRender()` reconciliation; server loop runs physics with network broadcasts and GDI stats display
 - **GameBase** - Abstract base orchestrating fixed-rate physics over a sparse grid of dual-buffered frames. Client adds snapshot ring buffers for extrapolation/reconciliation. Owns a `GameFlags` bitmask for game-wide state transitions (e.g., `kPaused` freezes the timestep on both client and server). Game code accesses this via the derived `game::gpGame` pointer
-- **GameSaveLoad** - Save/load/replay responsibility extracted from GameBase (server-only, `BT_SERVER`). Delta-compressed deterministic recording/playback with CRC validation, plus multi-frame grid quicksave/quickload
+- **GameSaveLoad** - Save/load/replay responsibility extracted from GameBase (server-only, `BT_SERVER`). Delta-compressed deterministic recording/playback with CRC validation, plus multi-frame grid quicksave/quickload. Exposes `ServerSave()`/`ServerLoad()` for network-triggered save/load; quickload calls `ResetClientsForLoad` after a successful load to re-link clients by GUID and clear buffered frames
 - **CrashReport** - Crash report generation with callstack (StackWalker) and DxDiag output
 - **Engine.h** - Single aggregation header with `#ifdef` guards for client/server-conditional includes
 

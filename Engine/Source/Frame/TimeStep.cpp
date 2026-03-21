@@ -72,6 +72,7 @@ void TimeStep::SetTimeScale(int64_t iMultiply, int64_t iDivide)
 {
 	miTimeMultiply = iMultiply;
 	miTimeDivide = iDivide;
+	mbTimeScaleChanged = true;
 }
 
 bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)

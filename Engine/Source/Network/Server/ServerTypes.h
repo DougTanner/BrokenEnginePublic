@@ -39,7 +39,7 @@ struct PendingNewSubscription
 
 struct GridUpdateData
 {
-	common::crc_t serverCrc = 0;
+	common::crc_t sharedCrc = 0;
 	common::crc_t inputCrc = 0;
 	std::span<const game::StatusChange> statusChanges;
 };

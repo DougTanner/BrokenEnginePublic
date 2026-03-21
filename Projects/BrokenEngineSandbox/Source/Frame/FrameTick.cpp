@@ -42,9 +42,9 @@ void RunFrameTick(const ActiveFrameRef& rRef, int64_t iTickCounter, float fCurre
 	// Compute CRCs after all phases complete
 	rNext.postRender.previousCrc = rCurrent.postRender.crc;
 	rNext.postRender.previousInputCrc = rRef.pFrameInput->ServerInputCrc();
-	auto [crc, serverCrc] = rNext.Crcs();
+	auto [crc, sharedCrc] = rNext.Crcs();
 	rNext.postRender.crc = crc;
-	rNext.postRender.serverCrc = serverCrc;
+	rNext.postRender.sharedCrc = sharedCrc;
 }
 
 } // namespace game

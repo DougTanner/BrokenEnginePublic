@@ -77,6 +77,7 @@ private:
 	void CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, int64_t iTick, engine::GridCoord coord);
 	void RecoverFromDesync();
 	void ResetCoordStatesForResync();
+	void ResetForServerLoad();
 
 	// Subscription tracking
 	std::vector<engine::GridCoord> mDesiredCoords;

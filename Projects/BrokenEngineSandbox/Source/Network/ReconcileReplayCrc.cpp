@@ -72,13 +72,13 @@ static CrcValidateResult CrcValidateLoop(CoordReconcileWork& rWork, int64_t iTar
 			break;
 		}
 		int64_t iPhysical = SnapshotIndex(rWork.iSnapshotHead, iIndex);
-		if (rWork.snapshots[iPhysical]->postRender.serverCrc != it->second.serverCrc)
+		if (rWork.snapshots[iPhysical]->postRender.sharedCrc != it->second.sharedCrc)
 		{
-			char acServerCrc[20] {}, acClientCrc[20] {}, acPrevCrc[20] {};
-			common::ToHex(std::span<char, 20>(acServerCrc), it->second.serverCrc);
-			common::ToHex(std::span<char, 20>(acClientCrc), rWork.snapshots[iPhysical]->postRender.serverCrc);
+			char acSharedCrc[20] {}, acClientCrc[20] {}, acPrevCrc[20] {};
+			common::ToHex(std::span<char, 20>(acSharedCrc), it->second.sharedCrc);
+			common::ToHex(std::span<char, 20>(acClientCrc), rWork.snapshots[iPhysical]->postRender.sharedCrc);
 			common::ToHex(std::span<char, 20>(acPrevCrc), rWork.snapshots[iPhysical]->postRender.previousCrc);
-			Log(kLogNetwork, "CrcValidateLoop Server CRC mismatch Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} PrevCrc: {}", rWork.coord.x, rWork.coord.y, iExpected, acServerCrc, acClientCrc, acPrevCrc);
+			Log(kLogNetwork, "CrcValidateLoop Server CRC mismatch Coord: ({},{}) Tick: {} SharedCrc: {} ClientCrc: {} PrevCrc: {}", rWork.coord.x, rWork.coord.y, iExpected, acSharedCrc, acClientCrc, acPrevCrc);
 			{
 				ScopedLogIndent scopedCrcIndent;
 				char acServerInputCrc[20] {}, acClientInputCrc[20] {};

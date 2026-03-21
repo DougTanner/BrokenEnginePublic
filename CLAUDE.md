@@ -11,6 +11,7 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
 0. The user will use plan mode to create a planning document (or load a plan from a file)
 	- DO NOT add a 'Verification' section
+0.5. Invoke /external-grill-plan to interview the user about the plan — resolve ambiguities, gather missing information, and ensure plan completeness before implementation
 1. Make the code changes using the planning document
 2. Any new files created should be added to the appropriate filter in any relevant .vcproj files
 3. Build the affected projects and verify there are no errors (see Build section above)
@@ -57,10 +58,3 @@ The codebase produces two executables from the same source: a **client** (full g
 - **Standard library headers**: `#include <header>` additions go in `Common/ExternalHeaders.h`, not in individual source files
 - **Flags over booleans**: Use `common::Flags<EnumType>` instead of multiple `bool` variables. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/CLAUDE.md](Common/CLAUDE.md)
-
-## Code Analysis Skills (user-initiated only, never run automatically)
-Run in order from broad to specific (survey → diagnose → prescribe). Use results to decide what path to pass to the next skill.
-1. **`/external-tech-debt <path>`** — Broad scan, prioritizes debt across 8 categories
-2. **`/external-architecture-review <path>`** — Analyzes dependencies, pattern compliance, and coupling
-3. **`/external-refactor-clean <path>`** — Actionable refactoring recommendations for specific files/folders
-- **`/generate-architecture-diagram <path>`** — Generates Mermaid diagrams in `Documents/Architecture/`
