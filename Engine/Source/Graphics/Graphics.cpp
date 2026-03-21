@@ -151,37 +151,35 @@ void Graphics::RenderGlobal(float fCurrentTime)
 
 void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord)
 {
+	gpProfileManager->CpuStart(kCpuTimerRenderMain);
+	RenderFrameMain(iCommandBuffer, rRenderInterpolates, rActiveCoords, cameraCoord);
+	gpProfileManager->CpuStop(kCpuTimerRenderMain, false);
+
+	gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer, false);
+
+	gpCommandBufferManager->SubmitUiCommandBuffer(iCommandBuffer);
+
+	gpSwapchainManager->Present(iCommandBuffer);
+
+	// Signal upload thread to process one upload iteration
+	gpTextureUploadManager->mFrameSignal.release();
+
+	// Renders per second
+	mRendersInTheLastSecond.Set();
+
+	gpProfileManager->UpdateProfileText();
+
+	if constexpr (kbEnableRenderThread)
 	{
-		gpProfileManager->CpuStart(kCpuTimerRenderMain);
-		RenderFrameMain(iCommandBuffer, rRenderInterpolates, rActiveCoords, cameraCoord);
-		gpProfileManager->CpuStop(kCpuTimerRenderMain, false);
-
-		gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer, false);
-
-		gpCommandBufferManager->SubmitUiCommandBuffer(iCommandBuffer);
-
-		gpSwapchainManager->Present(iCommandBuffer);
-
-		// Signal upload thread to process one upload iteration
-		gpTextureUploadManager->mFrameSignal.release();
-
-		// Renders per second
-		mRendersInTheLastSecond.Set();
-
-		gpProfileManager->UpdateProfileText();
-
-		if constexpr (kbEnableRenderThread)
-		{
-			gpProfileManager->CpuStart(kCpuTimerWaitPresentFuture);
-			gpSwapchainManager->mPresent.Wait();
-			gpProfileManager->CpuStop(kCpuTimerWaitPresentFuture, false);
-		}
-
-		Create();
-
-		gpSwapchainManager->AcquireNextImage();
-		gpProfileManager->CpuStart(kCpuTimerAcquireToGlobal);
+		gpProfileManager->CpuStart(kCpuTimerWaitPresentFuture);
+		gpSwapchainManager->mPresent.Wait();
+		gpProfileManager->CpuStop(kCpuTimerWaitPresentFuture, false);
 	}
+
+	Create();
+
+	gpSwapchainManager->AcquireNextImage();
+	gpProfileManager->CpuStart(kCpuTimerAcquireToGlobal);
 }
 
 void Graphics::Create()

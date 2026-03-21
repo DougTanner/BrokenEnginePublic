@@ -68,8 +68,6 @@ inline constexpr bool kbRandomlyInvalidatePbrCubemapCache = false;
 inline constexpr bool kbShowProfileTextByDefault = false;
 #endif
 
-inline constexpr uint64_t kLogEnabledCategoriesDefault = 1ULL << 2; // kLogNetwork // DT: TEMP kLogDefault;
-
 #include "Common.h"
 #include "Shaders/ShaderLayouts.h"
 #include "Ui/Wrapper.h"
@@ -77,3 +75,4 @@ inline constexpr uint64_t kLogEnabledCategoriesDefault = 1ULL << 2; // kLogNetwo
 #include "Engine.h"
 
 inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kChina;
+inline constexpr uint64_t kLogEnabledCategoriesDefault = kLogNetwork; // DT: TEMP kLogDefault;

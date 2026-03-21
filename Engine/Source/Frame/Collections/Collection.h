@@ -596,7 +596,7 @@ inline std::istream& SharedCollectionRead(std::istream& rStream, TStruct& rCurre
 
 	if (rCurrent.iCapacity > 0)
 	{
-		auto fullMembers = rCurrent.Members();
+		decltype(rCurrent.Members()) fullMembers = rCurrent.Members();
 		AllocateAndAssign(rCurrent, rCurrent.iCapacity, fullMembers);
 
 		// Zero the buffer so client-only fields default to 0 (invalid IDs, null references)
@@ -668,7 +668,8 @@ void EraseStaleRenderState(TMapType& rRenderStateMap,
 {
 	// Heap: unordered_map erase for stale render state entries
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	std::erase_if(rRenderStateMap, [&rRenderInterpolates, &rActiveCoords, &accessor](const auto& pair) {
+	std::erase_if(rRenderStateMap, [&rRenderInterpolates, &rActiveCoords, &accessor](const auto& pair)
+	{
 		for (const GridCoord& rCoord : rActiveCoords)
 		{
 			auto it = rRenderInterpolates.find(rCoord);
@@ -679,6 +680,29 @@ void EraseStaleRenderState(TMapType& rRenderStateMap,
 		}
 		return true;
 	});
+}
+
+// Removes controlled elements whose keyframe animation has expired.
+// removeFn signature: void(TInterpolate&, TPostRender&, int64_t& i)
+template <typename TInterpolate, typename TPostRender, typename TRemoveFn>
+void DestroyExpiredControlled(TInterpolate& rInterpolate, TPostRender& rPostRender, float fCurrentTime, TRemoveFn removeFn)
+{
+	for (int64_t i = 0; i < rInterpolate.iCount; ++i)
+	{
+		uint8_t uiControllerTypeIndex = rInterpolate.puiControllerTypeIndices[i];
+		if (uiControllerTypeIndex == kuiInvalidControllerType)
+			continue;
+
+		const auto& rController = TInterpolate::GetControllerType(uiControllerTypeIndex);
+		if (!rController.bDestroysSelf)
+			continue;
+
+		float fElapsedTime = fCurrentTime - rInterpolate.pfStartTimes[i];
+		if (fElapsedTime > rController.pfTimes[rController.uiKeyframeCount - 1]) [[unlikely]]
+		{
+			removeFn(rInterpolate, rPostRender, i);
+		}
+	}
 }
 
 } // namespace engine

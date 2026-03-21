@@ -8,6 +8,6 @@ inline constexpr bool kbEnableDebugBreak = true;
 inline constexpr bool kbEnableLogging = true;
 inline constexpr bool kbIsDataPacker = true;
 
-inline constexpr uint64_t kLogEnabledCategoriesDefault = ~0ULL;
-
 #include "Common.h"
+
+inline constexpr uint64_t kLogEnabledCategoriesDefault = ~0ULL;

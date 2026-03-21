@@ -7,6 +7,7 @@ Score = Effort - Impact + Risks (lower = higher priority)
 | # | Plan | Description | Effort | Impact | Risks | Score |
 |---|------|-------------|--------|--------|-------|-------|
 
+
 ## Dependencies
 
 Plans that must be executed in order due to shared files or stale line numbers:

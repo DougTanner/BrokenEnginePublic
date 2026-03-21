@@ -1,0 +1,26 @@
+FUTURE: Collection Variants (Archetype-Lite)
+=============================================
+Status: Do not implement — no evidence of need
+Trigger: When collections have significant wasted memory from fields used by only a subset of instances
+
+Context
+-------
+This concept would allow optional SOA "extensions" that are only allocated when needed — essentially
+sparse components on an otherwise dense collection.
+
+Analysis Found No Need
+----------------------
+- MissilesPostRender has target vs untargeted fields, but the waste is ~24 bytes per missile
+  (one target_t + one XMVECTOR). With typical counts of dozens to low hundreds, this is kilobytes.
+  The code handles the variant cleanly with a simple IsValid() branch.
+- PlayersPostRender AI fields are used by ALL players (human player's AI is overridden by input
+  at the Game level, not the Frame level).
+- No collections are near-copies of each other with small additions.
+- #ifdef BT_CLIENT + SharedMembers/ClientMembers/Members already handles build-time variants.
+- TypeRegistry handles per-type configuration (e.g., different blaster types, explosion types).
+
+Revisit When
+------------
+- A collection gains 5+ fields that are only used by a small fraction of instances
+- You need multiple enemy/weapon types that are 80% identical but 20% different
+- Memory profiling shows significant waste from unused fields in dense arrays

@@ -41,42 +41,12 @@ void PointLightsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rF
 
 void PointLightsPostRender::Destroy(game::Frame& __restrict rFrame)
 {
-	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
-	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
-
-	float fCurrentTime = rFrame.interpolate.fCurrentTime;
-
-	for (int64_t i = 0; i < rInterpolate.iCount; ++i)
-	{
-		uint8_t uiControllerTypeIndex = rInterpolate.puiControllerTypeIndices[i];
-
-		// Skip non-controlled lights
-		if (uiControllerTypeIndex == kuiInvalidControllerType)
+	DestroyExpiredControlled(rFrame.interpolate.pointLights, rFrame.postRender.pointLights, rFrame.interpolate.fCurrentTime,
+		[](auto& rI, auto& rPR, int64_t& i)
 		{
-			continue;
-		}
-
-		const ControllerType& rController = PointLightsInterpolate::sControllerTypes.at(uiControllerTypeIndex);
-
-		// Skip if not auto-destroy
-		if (!rController.bDestroysSelf)
-		{
-			continue;
-		}
-
-		// Check if animation has expired
-		float fStartTime = rInterpolate.pfStartTimes[i];
-		float fElapsedTime = fCurrentTime - fStartTime;
-		bool bExpired = fElapsedTime > rController.pfTimes[rController.uiKeyframeCount - 1];
-
-		if (bExpired) [[unlikely]]
-		{
-			// Remove the point light using swap-and-pop
-			point_lights_t id = rPostRender.puiIds[i];
-			engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
-			--i; // Re-check this index (new element swapped in)
-		}
-	}
+			RemoveIndexableElement(rI, rPR, rPR.puiIds[i], rI.Members(), rPR.Members());
+			--i;
+		});
 }
 
 } // namespace engine

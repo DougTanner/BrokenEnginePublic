@@ -195,6 +195,25 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 #endif
 }
 
+static void RemoveOwnedObjects([[maybe_unused]] Frame& rFrame, [[maybe_unused]] BlastersInterpolate& rCurrentInterpolate, [[maybe_unused]] BlastersPostRender& rCurrentPostRender, [[maybe_unused]] int64_t i)
+{
+#if defined(BT_CLIENT)
+	if (rCurrentInterpolate.puiPointLights[i].IsValid())
+	{
+		engine::PointLightsPostRender::Remove(rFrame, rCurrentInterpolate.puiPointLights[i]);
+	}
+	else
+	{
+		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+	}
+	if (rCurrentInterpolate.puiWindTrails[i].IsValid())
+	{
+		engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
+	}
+	engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+#endif // BT_CLIENT
+}
+
 void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 {
 	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;
@@ -236,22 +255,7 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 		}
 		rFrame.postRender.transferRequests.push_back(request);
 
-		// Remove owned objects
-#if defined(BT_CLIENT)
-		if (rCurrentInterpolate.puiPointLights[i].IsValid())
-		{
-			engine::PointLightsPostRender::Remove(rFrame, rCurrentInterpolate.puiPointLights[i]);
-		}
-		else
-		{
-			rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
-		}
-		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
-		{
-			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
-		}
-		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
-#endif // BT_CLIENT
+		RemoveOwnedObjects(rFrame, rCurrentInterpolate, rCurrentPostRender, i);
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
@@ -269,21 +273,7 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 			continue;
 		}
 
-#if defined(BT_CLIENT)
-		if (rCurrentInterpolate.puiPointLights[i].IsValid())
-		{
-			engine::PointLightsPostRender::Remove(rFrame, rCurrentInterpolate.puiPointLights[i]);
-		}
-		else
-		{
-			rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
-		}
-		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
-		{
-			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
-		}
-		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
-#endif // BT_CLIENT
+		RemoveOwnedObjects(rFrame, rCurrentInterpolate, rCurrentPostRender, i);
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}

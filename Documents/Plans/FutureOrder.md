@@ -32,6 +32,10 @@ Ideas evaluated from Engine.txt and triaged against the current codebase (2026-0
 | 20 | Engine/TreePlacementAndRendering.txt | Large | Tree/bush placement with LOD. New collection and instanced rendering. | 4 | 3 | 2 | 3 |
 | 21 | Frame/FrameRelativePositions.txt | Large | Convert world-absolute to frame-relative positions. | 5 | 5 | 3 | 3 |
 | 22 | Audio/ReplaceDirectXTKAudioWithMiniaudio.txt | Large | Replace audio engine with miniaudio. | 5 | 3 | 2 | 4 |
+| 23 | Frame/Future_SharedBehaviorTraits.txt | Large | Reusable SOA trait structs composed into collections via tuple_cat with shared logic functions. Revisit at 20-25 collections. | 4 | 3 | 2 | 3 |
+| 24 | Frame/Future_TagBasedGenericIteration.txt | Medium | C++ concepts for generic cross-collection operations. Revisit when 3+ more game collections added. | 3 | 2 | 1 | 2 |
+| 25 | Frame/Future_EventMessageBus.txt | Medium | Frame-scoped event queue decoupling collection communication. Revisit when fan-out exceeds 3-4 consumers. | 3 | 3 | 2 | 2 |
+| 26 | Frame/Future_CollectionVariants.txt | Large | Optional sparse SOA extensions for subset-only fields. No evidence of need currently. | 4 | 2 | 2 | 4 |
 
 ## Declined / Not Applicable
 

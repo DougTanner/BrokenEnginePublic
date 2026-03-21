@@ -39,32 +39,11 @@ void PuffsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
 
 void PuffsPostRender::Destroy(game::Frame& __restrict rFrame)
 {
-	PuffsInterpolate& rInterpolate = rFrame.interpolate.puffs;
-	PuffsPostRender& rPostRender = rFrame.postRender.puffs;
-
-	float fCurrentTime = rFrame.interpolate.fCurrentTime;
-
-	for (int64_t i = 0; i < rInterpolate.iCount; ++i)
-	{
-		uint8_t uiControllerTypeIndex = rInterpolate.puiControllerTypeIndices[i];
-		const PuffControllerType& rController = PuffsInterpolate::GetControllerType(uiControllerTypeIndex);
-
-		// Skip if not auto-destroy
-		if (!rController.bDestroysSelf)
+	DestroyExpiredControlled(rFrame.interpolate.puffs, rFrame.postRender.puffs, rFrame.interpolate.fCurrentTime,
+		[](auto& rI, auto& rPR, int64_t& i)
 		{
-			continue;
-		}
-
-		// Check if animation has expired
-		float fStartTime = rInterpolate.pfStartTimes[i];
-		float fElapsedTime = fCurrentTime - fStartTime;
-		bool bExpired = fElapsedTime > rController.pfTimes[rController.uiKeyframeCount - 1];
-
-		if (bExpired) [[unlikely]]
-		{
-			DestroyElement(rInterpolate, rPostRender, i, rInterpolate.Members(), rPostRender.Members());
-		}
-	}
+			DestroyElement(rI, rPR, i, rI.Members(), rPR.Members());
+		});
 }
 
 } // namespace engine

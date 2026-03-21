@@ -3,6 +3,7 @@
 
 #include "Missiles.h"
 
+#include "Data/Audio.h"
 #include "Frame/HealthDamage.h"
 #include "Profile/ProfileManager.h"
 #if defined(BT_CLIENT)
@@ -12,7 +13,6 @@
 #include "Frame/Collections/Explosions/Explosions.h"
 #include "Frame/Collections/Targets/Targets.h"
 
-#include "Data/Audio.h"
 #if defined(BT_CLIENT)
 #include "Data/Scene.h"
 #include "Data/Texture.h"
@@ -317,6 +317,41 @@ void MissilesPostRender::AllocateAndCopy(MissilesPostRender& rCurrent, const Mis
 	}
 }
 
+static void RemoveOwnedObjects(Frame& rFrame, MissilesInterpolate& rCurrentInterpolate, MissilesPostRender& rCurrentPostRender, int64_t i)
+{
+#if defined(BT_CLIENT)
+	if (rCurrentInterpolate.puiAreaLights[i].IsValid())
+	{
+		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+	}
+#endif
+	engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
+#if defined(BT_CLIENT)
+	if (rCurrentInterpolate.puiSmokeTrails[i].IsValid())
+	{
+		engine::SmokeTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiSmokeTrails[i]);
+	}
+	if (rCurrentPostRender.puiSounds[i].IsValid())
+	{
+		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+	}
+#endif // BT_CLIENT
+
+	// Remove target subscription (if target still exists)
+	if (rCurrentPostRender.puiTargets[i].IsValid())
+	{
+		const TargetsInterpolate& rTargets = *rFrame.interpolate.pTargets;
+		if (rTargets.idToIndexMap.contains(rCurrentPostRender.puiTargets[i]))
+		{
+			TargetsPostRender::Remove(rFrame, rCurrentPostRender.puiTargets[i], {});
+		}
+		else
+		{
+			rCurrentPostRender.puiTargets[i] = {};
+		}
+	}
+}
+
 void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 {
 	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
@@ -360,38 +395,7 @@ void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 		}
 		rFrame.postRender.transferRequests.push_back(request);
 
-		// Remove owned objects
-#if defined(BT_CLIENT)
-		if (rCurrentInterpolate.puiAreaLights[i].IsValid())
-		{
-			rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
-		}
-#endif
-		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
-#if defined(BT_CLIENT)
-		if (rCurrentInterpolate.puiSmokeTrails[i].IsValid())
-		{
-			engine::SmokeTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiSmokeTrails[i]);
-		}
-		if (rCurrentPostRender.puiSounds[i].IsValid())
-		{
-			engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
-		}
-#endif // BT_CLIENT
-
-		// Remove target subscription (if target still exists)
-		if (rCurrentPostRender.puiTargets[i].IsValid())
-		{
-			const TargetsInterpolate& rTargets = *rFrame.interpolate.pTargets;
-			if (rTargets.idToIndexMap.contains(rCurrentPostRender.puiTargets[i]))
-			{
-				TargetsPostRender::Remove(rFrame, rCurrentPostRender.puiTargets[i], {});
-			}
-			else
-			{
-				rCurrentPostRender.puiTargets[i] = {};
-			}
-		}
+		RemoveOwnedObjects(rFrame, rCurrentInterpolate, rCurrentPostRender, i);
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
@@ -409,38 +413,8 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 			continue;
 		}
 
-		// Remove owned objects (area light and sound may already be removed by Explode())
-#if defined(BT_CLIENT)
-		if (rCurrentInterpolate.puiAreaLights[i].IsValid())
-		{
-			rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
-		}
-#endif
-		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
-#if defined(BT_CLIENT)
-		if (rCurrentInterpolate.puiSmokeTrails[i].IsValid())
-		{
-			engine::SmokeTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiSmokeTrails[i]);
-		}
-		if (rCurrentPostRender.puiSounds[i].IsValid())
-		{
-			engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
-		}
-#endif // BT_CLIENT
-
-		// Remove target subscription (if target still exists)
-		if (rCurrentPostRender.puiTargets[i].IsValid())
-		{
-			const TargetsInterpolate& rTargets = *rFrame.interpolate.pTargets;
-			if (rTargets.idToIndexMap.contains(rCurrentPostRender.puiTargets[i]))
-			{
-				TargetsPostRender::Remove(rFrame, rCurrentPostRender.puiTargets[i], {});
-			}
-			else
-			{
-				rCurrentPostRender.puiTargets[i] = {};
-			}
-		}
+		// Area light and sound may already be removed by Explode()
+		RemoveOwnedObjects(rFrame, rCurrentInterpolate, rCurrentPostRender, i);
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}

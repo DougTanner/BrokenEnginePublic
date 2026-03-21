@@ -1,25 +1,22 @@
 #include "Players.h"
 
-#include "Ui/WrapperBase.h"
-#include "Frame/Collections/Explosions/Explosions.h"
-
+#include "Data/Audio.h"
+#include "Data/Texture.h"
 #include "Frame/HealthDamage.h"
 #include "Frame/TerrainUtils.h"
 #include "Input/Input.h"
 #include "Profile/ProfileManager.h"
+#include "Ui/WrapperBase.h"
 #include "Frame/Collections/Blasters/Blasters.h"
+#include "Frame/Collections/Explosions/Explosions.h"
 #include "Frame/Collections/Missiles/Missiles.h"
 #include "Frame/Collections/Spaceships/Spaceships.h"
 
-#include "Data/Texture.h"
-
 #if defined(BT_CLIENT)
+#include "Data/Scene.h"
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
-#include "Data/Scene.h"
 #endif
-
-#include "Data/Audio.h"
 
 namespace engine
 {
@@ -213,6 +210,20 @@ void PlayersPostRender::AllocateAndCopy(PlayersPostRender& rCurrent, const Playe
 	}
 }
 
+#if defined(BT_CLIENT)
+static void RemoveOwnedVisuals(Frame& rFrame, PlayersInterpolate& rCurrentInterpolate, int64_t i)
+{
+	if (rCurrentInterpolate.pWindTrails[i].IsValid())
+	{
+		engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.pWindTrails[i]);
+	}
+	if (rCurrentInterpolate.pHexShields[i].IsValid())
+	{
+		engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.pHexShields[i]);
+	}
+}
+#endif // BT_CLIENT
+
 void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 {
 	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
@@ -263,16 +274,8 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 		rFrame.postRender.transferRequests.push_back(request);
 		Log(kLogNetwork, "  Transfer Player: {} Delta: ({},{})", request.iEntityId, request.iDeltaX, request.iDeltaY);
 
-		// Remove owned objects
 #if defined(BT_CLIENT)
-		if (rCurrentInterpolate.pWindTrails[i].IsValid())
-		{
-			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.pWindTrails[i]);
-		}
-		if (rCurrentInterpolate.pHexShields[i].IsValid())
-		{
-			engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.pHexShields[i]);
-		}
+		RemoveOwnedVisuals(rFrame, rCurrentInterpolate, i);
 #endif // BT_CLIENT
 
 		engine::RemoveIndexableElement(rCurrentInterpolate, rCurrentPostRender, rCurrentPostRender.puiIds[i], rCurrentInterpolate.Members(), rCurrentPostRender.Members());
@@ -287,16 +290,9 @@ void PlayersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 #if defined(BT_CLIENT)
-		// Remove wind trail when exploding
-		if ((rCurrentPostRender.pFlags[i] & kExploding) && rCurrentInterpolate.pWindTrails[i].IsValid())
+		if (rCurrentPostRender.pFlags[i] & kExploding)
 		{
-			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.pWindTrails[i]);
-		}
-
-		// Remove hex shield when exploding
-		if ((rCurrentPostRender.pFlags[i] & kExploding) && rCurrentInterpolate.pHexShields[i].IsValid())
-		{
-			engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.pHexShields[i]);
+			RemoveOwnedVisuals(rFrame, rCurrentInterpolate, i);
 		}
 #endif // BT_CLIENT
 	}
@@ -330,17 +326,8 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 			auto idIt = rCurrentInterpolate.idToIndexMap.find(destroyId);
 			if (idIt != rCurrentInterpolate.idToIndexMap.end())
 			{
-				// Remove owned visual objects before removing the player
-#if defined(BT_CLIENT)
-				int64_t iIndex = idIt->second;
-				if (rCurrentInterpolate.pWindTrails[iIndex].IsValid())
-				{
-					engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.pWindTrails[iIndex]);
-				}
-				if (rCurrentInterpolate.pHexShields[iIndex].IsValid())
-				{
-					engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.pHexShields[iIndex]);
-				}
+	#if defined(BT_CLIENT)
+				RemoveOwnedVisuals(rFrame, rCurrentInterpolate, idIt->second);
 #endif // BT_CLIENT
 
 				engine::RemoveIndexableElement(rCurrentInterpolate, rCurrentPostRender, destroyId, rCurrentInterpolate.Members(), rCurrentPostRender.Members());

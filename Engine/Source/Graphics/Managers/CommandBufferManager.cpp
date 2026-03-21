@@ -481,7 +481,7 @@ void CommandBufferManager::RecordSmokeSpreadPipeline(VkCommandBuffer vkCommandBu
 
 void CommandBufferManager::RecordParticleUpdatePasses(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, Pipeline* pPipelines)
 {
-	BarrierInfo pBarriers[] =
+	BarrierInfo pBarriers[]
 	{
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kComputeRead, gpBufferManager->mLongParticlesStorageBuffer.mDeviceLocalVkBuffer},
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineLongParticlesUpdate].mIndirectVkBuffer},
@@ -496,7 +496,7 @@ void CommandBufferManager::RecordParticleUpdatePasses(VkCommandBuffer vkCommandB
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesUpdate);
 	pPipelines[kPipelineLongParticlesUpdate].RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
-	BarrierInfo pLongParticleBarrier[] =
+	BarrierInfo pLongParticleBarrier[]
 	{
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kStorageBufferRead, gpBufferManager->mLongParticlesStorageBuffer.mDeviceLocalVkBuffer},
 	};
@@ -505,7 +505,7 @@ void CommandBufferManager::RecordParticleUpdatePasses(VkCommandBuffer vkCommandB
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesUpdate);
 	pPipelines[kPipelineSquareParticlesUpdate].RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
-	BarrierInfo pSquareParticleBarrier[] =
+	BarrierInfo pSquareParticleBarrier[]
 	{
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kStorageBufferRead, gpBufferManager->mSquareParticlesStorageBuffer.mDeviceLocalVkBuffer},
 	};

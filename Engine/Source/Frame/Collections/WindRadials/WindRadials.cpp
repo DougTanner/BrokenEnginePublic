@@ -40,32 +40,11 @@ void WindRadialsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rF
 
 void WindRadialsPostRender::Destroy(game::Frame& __restrict rFrame)
 {
-	WindRadialsInterpolate& rInterpolate = rFrame.interpolate.windRadials;
-	WindRadialsPostRender& rPostRender = rFrame.postRender.windRadials;
-
-	float fCurrentTime = rFrame.interpolate.fCurrentTime;
-
-	for (int64_t i = 0; i < rInterpolate.iCount; ++i)
-	{
-		uint8_t uiControllerTypeIndex = rInterpolate.puiControllerTypeIndices[i];
-		const WindRadialControllerType& rController = WindRadialsInterpolate::GetControllerType(uiControllerTypeIndex);
-
-		// Skip if not auto-destroy
-		if (!rController.bDestroysSelf)
+	DestroyExpiredControlled(rFrame.interpolate.windRadials, rFrame.postRender.windRadials, rFrame.interpolate.fCurrentTime,
+		[](auto& rI, auto& rPR, int64_t& i)
 		{
-			continue;
-		}
-
-		// Check if animation has expired
-		float fStartTime = rInterpolate.pfStartTimes[i];
-		float fElapsedTime = fCurrentTime - fStartTime;
-		bool bExpired = fElapsedTime > rController.pfTimes[rController.uiKeyframeCount - 1];
-
-		if (bExpired) [[unlikely]]
-		{
-			DestroyElement(rInterpolate, rPostRender, i, rInterpolate.Members(), rPostRender.Members());
-		}
-	}
+			DestroyElement(rI, rPR, i, rI.Members(), rPR.Members());
+		});
 }
 
 } // namespace engine

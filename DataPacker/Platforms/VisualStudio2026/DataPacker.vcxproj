@@ -20,6 +20,7 @@
     <ClCompile Include="..\..\..\Common\Multithreading.cpp" />
     <ClCompile Include="..\..\..\Common\PersistentWorker.cpp" />
     <ClCompile Include="..\..\..\Common\Random.cpp" />
+    <ClCompile Include="..\..\..\Common\Log.cpp" />
     <ClCompile Include="..\..\..\Common\Smoothed.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportAudio.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportFont.cpp" />

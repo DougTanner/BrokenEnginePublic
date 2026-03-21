@@ -13,84 +13,15 @@ inline constexpr uint64_t kLogNetwork = 1ULL << 2;
 inline constexpr uint64_t kLogError = 1ULL << 3;
 inline constexpr uint64_t kLogAudio = 1ULL << 4;
 
-// Enabled categories mask (set directly to change filtering)
-inline uint64_t guiLogEnabledCategories = kLogEnabledCategoriesDefault;
+// Mutable globals (defined in Log.cpp)
+extern uint64_t guiLogEnabledCategories;
+extern std::atomic<int64_t> giMyOutputDebugString;
+extern std::ofstream* gpLogFileStream;
+extern std::mutex gLogMutex;
 
-inline std::atomic<int64_t> giMyOutputDebugString = 0;
-inline std::ofstream* gpLogFileStream = nullptr;
-
-inline void LogIndent(int64_t iIndent)
-{
-	if constexpr (kbEnableLogging)
-	{
-		gpThreadLocal->miLogIndent += iIndent;
-	}
-}
-
-inline std::mutex gLogMutex;
-
-// Write indent and thread ID prefix, return pointer past prefix
-inline char* LogPrefix(char* pLogBuffer)
-{
-	char* it = pLogBuffer;
-
-	if (gpThreadLocal != nullptr) [[likely]]
-	{
-		int64_t iLogIndent = gpThreadLocal->miLogIndent;
-		for (int64_t i = 0; i < iLogIndent; ++i)
-		{
-			*(it++) = ' ';
-			*(it++) = ' ';
-		}
-
-		if (gpThreadLocal->miThreadId.has_value())
-		{
-			if (gpThreadLocal->miThreadId.value() >= 100)
-			{
-				std::to_chars(&*it, &*it + 3, gpThreadLocal->miThreadId.value());
-				++it; ++it; ++it;
-			}
-			else if (gpThreadLocal->miThreadId.value() >= 10)
-			{
-				std::to_chars(&*it, &*it + 2, gpThreadLocal->miThreadId.value());
-				++it; ++it;
-			}
-			else
-			{
-				std::to_chars(&*it, &*it + 1, gpThreadLocal->miThreadId.value());
-				++it;
-			}
-
-			*(it++) = ':';
-			*(it++) = ' ';
-		}
-	}
-	else
-	{
-		*(it++) = '#';
-		*(it++) = ':';
-		*(it++) = ' ';
-	}
-
-	return it;
-}
-
-// Write formatted buffer to debug output, printf, and log file
-inline void LogWrite(char* pLogBuffer)
-{
-	std::unique_lock lockGuard(gLogMutex);
-	++giMyOutputDebugString;
-	OutputDebugString(pLogBuffer);
-	--giMyOutputDebugString;
-	if constexpr (kbAlsoLogToPrintf)
-	{
-		printf("%s", pLogBuffer);
-	}
-	if (gpLogFileStream != nullptr)
-	{
-		*gpLogFileStream << pLogBuffer << std::flush;
-	}
-}
+void LogIndent(int64_t iIndent);
+char* LogPrefix(char* pLogBuffer);
+void LogWrite(char* pLogBuffer);
 
 template <typename... TUV>
 void Log(uint64_t uiCategory, std::format_string<const TUV&...> format, const TUV&... parameters)

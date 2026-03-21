@@ -13,7 +13,6 @@ The implementation is split across three `.cpp` files:
 
 - Uses custom `WindRadialKeyframe` / `WindRadialControllerType` (intensity, size) instead of the default `ControllerType`/`ControllerKeyframe`, registered via `ControllerTypeRegistry<WindRadialsInterpolate, WindRadialControllerType>`
 - `WindRadialsPostRender::Members()` returns an empty tuple -- there are no PostRender SOA arrays
-- `Destroy()` iterates controlled radials and swap-pops any whose animation has expired
 
 ## See Also
 - Parent collections: [../CLAUDE.md](../CLAUDE.md)

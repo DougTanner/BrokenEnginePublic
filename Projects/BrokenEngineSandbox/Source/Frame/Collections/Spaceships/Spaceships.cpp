@@ -1,23 +1,20 @@
 #include "Spaceships.h"
 
-#include "Ui/WrapperBase.h"
-#include "Frame/Collections/Collection.h"
-#include "Frame/Collections/Explosions/Explosions.h"
-#include "Frame/Collections/Pushers/Pushers.h"
-
+#include "Data/Audio.h"
+#include "Data/Texture.h"
 #include "Frame/HealthDamage.h"
 #include "Profile/ProfileManager.h"
+#include "Ui/WrapperBase.h"
 #include "Frame/Collections/Blasters/Blasters.h"
-#include "Frame/Collections/Targets/Targets.h"
+#include "Frame/Collections/Collection.h"
+#include "Frame/Collections/Explosions/Explosions.h"
 #include "Frame/Collections/Players/Players.h"
-
-#include "Data/Texture.h"
+#include "Frame/Collections/Pushers/Pushers.h"
+#include "Frame/Collections/Targets/Targets.h"
 
 #if defined(BT_CLIENT)
 #include "Frame/Collections/PointLights/PointLights.h"
 #endif
-
-#include "Data/Audio.h"
 
 namespace engine
 {
@@ -38,8 +35,8 @@ static void RegisterSpaceshipTargetType();
 uint8_t gSpaceshipExplosionTypeIndex = 0xFF;
 uint8_t gSpaceshipTargetTypeIndex = 0xFF;
 #if defined(BT_CLIENT)
-static uint8_t suiSpaceshipHitFlashTypeIndex = 255;
-uint8_t gSpaceshipHitFlashControllerTypeIndex = 255;
+static uint8_t suiSpaceshipHitFlashTypeIndex = 0xFF;
+uint8_t gSpaceshipHitFlashControllerTypeIndex = 0xFF;
 
 static void RegisterSpaceshipHitFlashEffect();
 #endif
@@ -212,7 +209,7 @@ static void RegisterSpaceshipTargetType()
 #if defined(BT_CLIENT)
 static void RegisterSpaceshipHitFlashEffect()
 {
-	if (suiSpaceshipHitFlashTypeIndex == 255)
+	if (suiSpaceshipHitFlashTypeIndex == 0xFF)
 	{
 		engine::PointLightsInterpolate::RegisterType(suiSpaceshipHitFlashTypeIndex,
 		{
@@ -289,6 +286,21 @@ void SpaceshipsPostRender::AllocateAndCopy(SpaceshipsPostRender& rCurrent, const
 	}
 }
 
+static void RemoveOwnedObjects(Frame& rFrame, SpaceshipsInterpolate& rCurrentInterpolate, int64_t i, bool bRemoveTarget)
+{
+	if (bRemoveTarget && rCurrentInterpolate.puiTargets[i].IsValid())
+	{
+		TargetsPostRender::Remove(rFrame, rCurrentInterpolate.puiTargets[i], {TargetFlags::kDestination});
+	}
+	engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
+#if defined(BT_CLIENT)
+	if (rCurrentInterpolate.puiWindTrails[i].IsValid())
+	{
+		engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
+	}
+#endif
+}
+
 void SpaceshipsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = *rFrame.interpolate.pSpaceships;
@@ -326,18 +338,7 @@ void SpaceshipsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 		}
 		rFrame.postRender.transferRequests.push_back(request);
 
-		// Remove owned objects
-		if (rCurrentInterpolate.puiTargets[i].IsValid())
-		{
-			TargetsPostRender::Remove(rFrame, rCurrentInterpolate.puiTargets[i], {TargetFlags::kDestination});
-		}
-		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
-#if defined(BT_CLIENT)
-		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
-		{
-			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
-		}
-#endif
+		RemoveOwnedObjects(rFrame, rCurrentInterpolate, i, true);
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
@@ -355,14 +356,7 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 			continue;
 		}
 
-		// Cleanup owned objects
-		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
-#if defined(BT_CLIENT)
-		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
-		{
-			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
-		}
-#endif
+		RemoveOwnedObjects(rFrame, rCurrentInterpolate, i, false);
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
