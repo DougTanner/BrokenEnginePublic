@@ -144,12 +144,12 @@ struct std::formatter<int8_t> : std::formatter<int>
 };
 
 template<>
-struct std::formatter<uint8_t> : std::formatter<unsigned int>
+struct std::formatter<uint8_t> : std::formatter<uint32_t>
 {
 	template<typename CONTEXT>
 	auto format(const uint8_t value, CONTEXT& rContext) const
 	{
-		return std::formatter<unsigned int>::format(static_cast<unsigned int>(value), rContext);
+		return std::formatter<uint32_t>::format(static_cast<uint32_t>(value), rContext);
 	}
 };
 

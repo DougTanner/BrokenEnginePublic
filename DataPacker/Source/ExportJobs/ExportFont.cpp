@@ -8,31 +8,31 @@ using enum common::ChunkFlags;
 // https://www.angelcode.com/products/bmfont/doc/file_format.html
 struct CommonBlock
 {
-	unsigned short lineHeight;
-	unsigned short base;
-	unsigned short scaleW;
-	unsigned short scaleH;
-	unsigned short pages;
-	unsigned char packed:1;
-	unsigned char reserved:7;
-	unsigned char alphaChnl;
-	unsigned char redChnl;
-	unsigned char greenChnl;
-	unsigned char blueChnl;
+	uint16_t lineHeight;
+	uint16_t base;
+	uint16_t scaleW;
+	uint16_t scaleH;
+	uint16_t pages;
+	uint8_t packed:1;
+	uint8_t reserved:7;
+	uint8_t alphaChnl;
+	uint8_t redChnl;
+	uint8_t greenChnl;
+	uint8_t blueChnl;
 };
 
 struct CharInfo
 {
 	DWORD id;
-	unsigned short x;
-	unsigned short y;
-	unsigned short width;
-	unsigned short height;
-	short xoffset;
-	short yoffset;
-	short xadvance;
-	unsigned char page;
-	unsigned char chnl;
+	uint16_t x;
+	uint16_t y;
+	uint16_t width;
+	uint16_t height;
+	int16_t xoffset;
+	int16_t yoffset;
+	int16_t xadvance;
+	uint8_t page;
+	uint8_t chnl;
 };
 
 struct KerningPair

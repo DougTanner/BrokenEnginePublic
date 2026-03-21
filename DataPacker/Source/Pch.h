@@ -1,12 +1,13 @@
 #pragma once
 
 #define ENABLE_CRT_DEBUG_HEAP
+#include "ExternalHeaders.h"
 
-inline constexpr unsigned long long kLogEnabledCategoriesDefault = ~0ULL;
 inline constexpr bool kbAlsoLogToPrintf = true;
 inline constexpr bool kbEnableDebugBreak = true;
 inline constexpr bool kbEnableLogging = true;
 inline constexpr bool kbIsDataPacker = true;
 
-#include "ExternalHeaders.h"
+inline constexpr uint64_t kLogEnabledCategoriesDefault = ~0ULL;
+
 #include "Common.h"

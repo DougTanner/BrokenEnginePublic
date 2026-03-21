@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ExternalHeaders.h"
+
 inline constexpr bool kbEnableDesyncRecovery = false; // DT: TEMP true;
 inline constexpr bool kbEnableFrameDispatch = true;
 inline constexpr bool kbEnableLogging = true;
@@ -8,7 +10,6 @@ inline constexpr bool kbEnableRenderThread = true;
 inline constexpr bool kbEnableReconcileThread = true;
 inline constexpr bool kbEnableReconcileDispatch = true;
 
-inline constexpr unsigned long long kLogEnabledCategoriesDefault = 1ULL << 2; // kLogNetwork // DT: TEMP kLogDefault;
 inline constexpr bool kbAlsoLogToPrintf = false;
 inline constexpr bool kbEnableFramebufferClearColor = false;
 inline constexpr bool kbEnableGpuAssistedValidation = false;
@@ -67,7 +68,8 @@ inline constexpr bool kbRandomlyInvalidatePbrCubemapCache = false;
 inline constexpr bool kbShowProfileTextByDefault = false;
 #endif
 
-#include "ExternalHeaders.h"
+inline constexpr uint64_t kLogEnabledCategoriesDefault = 1ULL << 2; // kLogNetwork // DT: TEMP kLogDefault;
+
 #include "Common.h"
 #include "Shaders/ShaderLayouts.h"
 #include "Ui/Wrapper.h"
