@@ -4,44 +4,38 @@ Brand new features and eventual/maybe plans. Sorted by score (lowest = highest p
 
 Score = Effort - Impact + Risks (lower = higher priority)
 
-## Plan Ideas
+## Plans Ready to Execute
 
 Ideas evaluated from Engine.txt and triaged against the current codebase (2026-03-21).
-These are plan ideas — plan files have not yet been written for them.
 
-| # | Plan Idea | Effort | Impact | Risks | Score | Scope | Description |
-|---|-----------|--------|--------|-------|-------|-------|-------------|
-| 1 | SkyboxRenderPass | 1 | 4 | 0 | -3 | Small | Fullscreen skybox draw (cubemap exists, only used for reflections). Star field at night, sun/moon disc using existing fSunAngle. |
-| 2 | HdrResolveAndColorGrading | 3 | 5 | 1 | -1 | Medium | Render to F16 intermediate, ACES tone mapping resolve (dead code exists in Model.frag), 3D LUT color grading. Unlocks all HDR effects. |
-| 3 | ReverseZDepth | 2 | 4 | 1 | -1 | Small | Flip min/max depth, GREATER_EQUAL compare, clear to 0. Eliminates z-fighting. Contained change. |
-| 4 | HeatDistortionAndShockwave | 2 | 3 | 0 | -1 | Small | Screen-space UV distortion near heat/explosions. Displacement-map shockwave for explosions. |
-| 5 | GradientParticlesAndCurlNoise | 2 | 3 | 0 | -1 | Small | Lifetime color gradient for particles (white->orange->smoke). Curl noise in smoke spread shader. |
-| 6 | TerrainSnowInGrooves | 1 | 2 | 0 | -1 | Small | Curvature-aware snow in Terrain.frag using AO/normal derivatives instead of color-based detection. |
-| 7 | SpirvOptIntegration | 1 | 2 | 0 | -1 | Small | Add spirv-opt pass to DataPacker shader compilation. Reduces shader size, improves driver compile. |
-| 8 | WaterFoamAndRefraction | 3 | 4 | 1 | 0 | Medium | Foam/whitecaps from wave steepness, refraction via UV-distorted scene sampling, mesh LOD clipmap. |
-| 9 | FlatContainersOptimization | 3 | 3 | 1 | 1 | Small | Replace std::unordered_map with std::flat_map in hot paths. **BLOCKED**: MSVC 14.50 lacks \<flat_map\>. Plan file: Misc/FlatContainersOptimization.txt |
-| 10 | AdaptiveMusic | 2 | 2 | 0 | 0 | Small | GetNextMusicTrack considers game state (combat, location). Crossfade infrastructure exists. |
-| 11 | DecalSystem | 3 | 3 | 1 | 1 | Medium | Projected texture rendering for terrain marks (bullet holes, scorches, tracks). New pipeline pass. |
-| 12 | FlipbookSpriteAnimations | 3 | 2 | 1 | 2 | Medium | Sprite-sheet animation for explosions (texture atlas with frame indexing). |
-| 13 | DestructionBuffer | 3 | 3 | 2 | 2 | Medium | Per-entity damage accumulation, fragment shader peels/blends sub-surface based on hit positions. |
-| 14 | GrassRendering | 4 | 3 | 2 | 3 | Large | Instanced grass patches, vertex shader height, noise textures for dryness/height. New collection + shaders. |
-| 15 | TreePlacementAndRendering | 4 | 3 | 2 | 3 | Large | Tree/bush placement with LOD. New collection and instanced rendering. |
-
-## Existing Plans Ready to Execute
-
-| # | Plan File | Description | Effort | Impact | Risks | Score |
-|---|-----------|-------------|--------|--------|-------|-------|
-| 1 | Engine/AddImPlot.txt | Add real-time plotting extension for performance visualization | 1 | 2 | 0 | -1 |
-| 2 | Misc/AddMeshoptimizer.txt | Replace custom vertex dedup with meshoptimizer library | 2 | 4 | 1 | -1 |
-| 3 | Engine/WindSmokeAdvection.txt | Add wind advection parameter for smoke simulation | 1 | 1 | 0 | 0 |
-| 4 | Network/NetworkMetricsAndAdaptiveBuffering.txt | Packet loss/jitter metrics, adaptive reconciliation buffering | 3 | 3 | 0 | 0 |
-| 5 | Network/RemoteEntityInterpolation.txt | Snapshot-based interpolation for remote entities | 3 | 4 | 1 | 0 |
-| 6 | Network/SoftDesyncRecovery.txt | Soft recovery via full state re-download instead of disconnect | 3 | 4 | 1 | 0 |
-| 7 | Engine/AddTracyProfiler.txt | Integrate Tracy profiler with existing profiling system | 3 | 3 | 1 | 1 |
-| 8 | Misc/LinterToolingForStyleGuide.txt | clang-format and clang-tidy for style enforcement | 3 | 2 | 0 | 1 |
-| 9 | Network/ForwardErrorCorrection.txt | XOR-based FEC for unreliable coord updates | 4 | 3 | 1 | 2 |
-| 10 | Frame/FrameRelativePositions.txt | Convert world-absolute to frame-relative positions | 5 | 5 | 3 | 3 |
-| 11 | Audio/ReplaceDirectXTKAudioWithMiniaudio.txt | Replace audio engine with miniaudio | 5 | 3 | 2 | 4 |
+| # | Plan File | Scope | Description | Effort | Impact | Risks | Score |
+|---|-----------|-------|-------------|--------|--------|-------|-------|
+| 1 | Graphics/SkyboxRenderPass.txt | Small | Fullscreen skybox draw (cubemap exists, only used for reflections). Star field at night, sun/moon disc using existing fSunAngle. | 1 | 4 | 0 | -3 |
+| 2 | Graphics/HdrResolveAndColorGrading.txt | Medium | Render to F16 intermediate, ACES tone mapping resolve (dead code exists in Model.frag), 3D LUT color grading. Unlocks all HDR effects. | 3 | 5 | 1 | -1 |
+| 3 | Graphics/ReverseZDepth.txt | Small | Flip min/max depth, GREATER_EQUAL compare, clear to 0. Eliminates z-fighting. Contained change. | 2 | 4 | 1 | -1 |
+| 4 | Graphics/HeatDistortionAndShockwave.txt | Small | Screen-space UV distortion near heat/explosions. Displacement-map shockwave for explosions. | 2 | 3 | 0 | -1 |
+| 5 | Engine/GradientParticlesAndCurlNoise.txt | Small | Lifetime color gradient for particles (white->orange->smoke). Curl noise in smoke spread shader. | 2 | 3 | 0 | -1 |
+| 6 | Graphics/TerrainSnowInGrooves.txt | Small | Curvature-aware snow in Terrain.frag using AO/normal derivatives instead of color-based detection. | 1 | 2 | 0 | -1 |
+| 7 | Misc/SpirvOptIntegration.txt | Small | Add spirv-opt pass to DataPacker shader compilation. Reduces shader size, improves driver compile. | 1 | 2 | 0 | -1 |
+| 8 | Engine/AddImPlot.txt | Small | Add real-time plotting extension for performance visualization. | 1 | 2 | 0 | -1 |
+| 9 | Misc/AddMeshoptimizer.txt | Medium | Replace custom vertex dedup with meshoptimizer library. | 2 | 4 | 1 | -1 |
+| 10 | Graphics/WaterFoamAndRefraction.txt | Medium | Foam/whitecaps from wave steepness, refraction via UV-distorted scene sampling. | 3 | 4 | 1 | 0 |
+| 11 | Audio/AdaptiveMusic.txt | Small | GetNextMusicTrack considers game state (combat, location). Crossfade infrastructure exists. | 2 | 2 | 0 | 0 |
+| 12 | Engine/WindSmokeAdvection.txt | Small | Add wind advection parameter for smoke simulation. | 1 | 1 | 0 | 0 |
+| 13 | Network/NetworkMetricsAndAdaptiveBuffering.txt | Medium | Packet loss/jitter metrics, adaptive reconciliation buffering. | 3 | 3 | 0 | 0 |
+| 14 | Network/RemoteEntityInterpolation.txt | Medium | Snapshot-based interpolation for remote entities. | 3 | 4 | 1 | 0 |
+| 15 | Network/SoftDesyncRecovery.txt | Medium | Soft recovery via full state re-download instead of disconnect. | 3 | 4 | 1 | 0 |
+| 16 | Misc/FlatContainersOptimization.txt | Small | Replace std::unordered_map with std::flat_map in hot paths. **BLOCKED**: MSVC 14.50 lacks \<flat_map\>. | 3 | 3 | 1 | 1 |
+| 17 | Graphics/DecalSystem.txt | Medium | Projected texture rendering for terrain marks (bullet holes, scorches, tracks). New pipeline pass. | 3 | 3 | 1 | 1 |
+| 18 | Engine/AddTracyProfiler.txt | Medium | Integrate Tracy profiler with existing profiling system. | 3 | 3 | 1 | 1 |
+| 19 | Misc/LinterToolingForStyleGuide.txt | Medium | clang-format and clang-tidy for style enforcement. | 3 | 2 | 0 | 1 |
+| 20 | Graphics/FlipbookSpriteAnimations.txt | Medium | Sprite-sheet animation for explosions (texture atlas with frame indexing). | 3 | 2 | 1 | 2 |
+| 21 | Graphics/DestructionBuffer.txt | Medium | Per-entity damage accumulation, fragment shader peels/blends sub-surface based on hit positions. | 3 | 3 | 2 | 2 |
+| 22 | Network/ForwardErrorCorrection.txt | Medium | XOR-based FEC for unreliable coord updates. | 4 | 3 | 1 | 2 |
+| 23 | Engine/GrassRendering.txt | Large | Instanced grass patches, vertex shader height, noise textures for dryness/height. New collection + shaders. | 4 | 3 | 2 | 3 |
+| 24 | Engine/TreePlacementAndRendering.txt | Large | Tree/bush placement with LOD. New collection and instanced rendering. | 4 | 3 | 2 | 3 |
+| 25 | Frame/FrameRelativePositions.txt | Large | Convert world-absolute to frame-relative positions. | 5 | 5 | 3 | 3 |
+| 26 | Audio/ReplaceDirectXTKAudioWithMiniaudio.txt | Large | Replace audio engine with miniaudio. | 5 | 3 | 2 | 4 |
 
 ## Declined / Not Applicable
 

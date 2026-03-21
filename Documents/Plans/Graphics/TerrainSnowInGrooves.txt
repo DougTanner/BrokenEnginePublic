@@ -1,0 +1,118 @@
+Feature: Curvature-aware terrain snow rendering
+=================================================
+
+Context
+-------
+Snow detection in Terrain.frag (lines 62-63) is purely color-based:
+it measures distance from the terrain color to white, scaled by
+fTerrainSnowMultiplier.  This means snow covers flat plateaus and
+concave grooves equally.  In reality, snow accumulates preferentially
+in concave areas (erosion grooves, crevices) and gets blown off convex
+ridges.  The ambient occlusion texture (binding 8) and normal map
+(binding 7) are already sampled in Terrain.frag but are not used to
+influence snow distribution.
+
+Snow follows hydrolic erosion grooves, as seen on Mt. Fuji where snow
+fills the radial gullies carved into the volcanic cone while exposed
+ridges between grooves remain bare.
+
+Why
+---
+- Concave terrain features (grooves, gullies) should trap more snow,
+  while convex ridges should shed it -- matching real-world erosion
+  patterns like Mt. Fuji
+- The AO texture already encodes surface concavity (low AO = concave,
+  occluded areas) and is sampled but only used for final lighting, not
+  snow distribution
+- Adding curvature awareness to snow requires only shader math changes
+  and two new tunable uniforms -- no new textures or render passes
+
+Changes (4 files)
+-----------------
+
+1. Engine/Data/Shaders/Terrain/Terrain.frag
+   After line 63 (the existing fSnowPercent calculation), boost snow in
+   concave areas using the AO texture as a concavity proxy.  Low AO
+   values indicate concave/occluded geometry (grooves), high AO values
+   indicate convex/exposed geometry (ridges).  Replace lines 62-63
+   with:
+
+     vec3 f3SnowDiff = abs(f3Color - vec3(1.0f, 1.0f, 1.0f));
+     float fSnowPercent = 1.0f - clamp(globalLayout.fTerrainSnowMultiplier * (f3SnowDiff.x + f3SnowDiff.y + f3SnowDiff.z), 0.0f, 1.0f);
+
+     // Curvature-aware snow: AO encodes concavity (low AO = grooves)
+     float fAO = texture(ambientOcclusionTextureSampler, f2InVisibleAreaTexcoord).x;
+     float fConcavity = 1.0f - fAO;
+     float fSnowCurvatureBias = mix(-globalLayout.fTerrainSnowCurvature, globalLayout.fTerrainSnowCurvature, fConcavity);
+     fSnowPercent = clamp(fSnowPercent + fSnowCurvatureBias, 0.0f, 1.0f);
+
+   This shifts fSnowPercent up in concave areas (grooves get more snow)
+   and down on convex ridges (exposed areas lose snow).  The AO sample
+   is reused from the existing line 95 read -- the texture cache will
+   serve it at near-zero cost.
+
+   Note: the existing AO sample on line 95 remains unchanged for
+   lighting.  This new sample is a separate read at the same texcoord
+   for the snow calculation, which occurs before the lighting section.
+
+2. Engine/Data/Shaders/ShaderLayoutsBase.h
+   Repurpose the two unused terrain padding fields (lines 256-257) for
+   the new snow curvature uniforms.  Replace lines 256-257:
+
+     float fTerrainTwoPadZ INIT;
+     float fTerrainTwoPadW INIT;
+
+   With:
+
+     float fTerrainSnowCurvature INIT;
+     float fTerrainSnowCurvaturePadW INIT;
+
+3. Engine/Source/Graphics/Render/GlobalUniforms.cpp
+   In PopulateTerrainParameters(), replace the padding assignments at
+   lines 217-218:
+
+     rGlobalLayout.fTerrainTwoPadZ = 0.0f;
+     rGlobalLayout.fTerrainTwoPadW = 0.0f;
+
+   With:
+
+     rGlobalLayout.fTerrainSnowCurvature = gTerrainSnowCurvature.Get();
+     rGlobalLayout.fTerrainSnowCurvaturePadW = 0.0f;
+
+4. Engine/Source/Ui/WrapperBase.h + WrapperBase.cpp +
+   TweaksSliderMap.cpp + TweaksScreenTerrain.cpp
+   (a) WrapperBase.h -- after line 281 (extern Wrapper
+       gTerrainSnowMultiplier;), add:
+
+     extern Wrapper gTerrainSnowCurvature;
+
+   (b) WrapperBase.cpp -- after line 88 (Wrapper
+       gTerrainSnowMultiplier), add:
+
+     Wrapper gTerrainSnowCurvature(0.3f, 0.0f, 1.0f);
+
+   (c) TweaksSliderMap.cpp -- after the "Snow Multiplier" entry
+       (line 49), add:
+
+     {"Snow Curvature", &gTerrainSnowCurvature},
+
+   (d) TweaksScreenTerrain.cpp -- after line 11
+       (WrapperSlider("Snow Multiplier", kiSection);), add:
+
+     WrapperSlider("Snow Curvature", kiSection);
+
+Notes
+-----
+- The AO texture is a natural concavity proxy: areas with low ambient
+  occlusion are geometrically concave (surrounded by nearby surfaces
+  that block light), which correlates with erosion grooves
+- fTerrainSnowCurvature at 0.0 disables the effect entirely (pure
+  color-based snow as before); at 1.0 the full AO-derived bias applies
+- The mix from -curvature to +curvature means convex ridges (high AO,
+  fConcavity near 0) get snow reduced and concave grooves (low AO,
+  fConcavity near 1) get snow added, with a neutral midpoint at
+  AO = 0.5
+- No new texture bindings or render passes are needed -- this reuses
+  the existing AO sampler already bound at set 1, binding 8
+- The two repurposed padding fields maintain std140 alignment since
+  they occupy the same float slots

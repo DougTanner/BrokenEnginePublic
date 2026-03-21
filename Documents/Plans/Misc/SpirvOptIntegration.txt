@@ -1,0 +1,78 @@
+Add spirv-opt optimization pass to shader pipeline
+===================================================
+
+Context
+-------
+The DataPacker shader pipeline currently runs: glslc (preprocess with #include) -> glslangValidator (compile to SPIR-V) -> SPIRV-Cross (reflect).
+glslangValidator performs its own optimizations, but spirv-opt from the Vulkan SDK provides additional SPIR-V-level optimizations
+(dead code elimination, constant folding, inlining, loop unrolling, etc.) that can further reduce shader size and improve GPU performance.
+spirv-opt lives in the same Vulkan SDK bin directory as glslangValidator and glslc.
+
+Why
+---
+- spirv-opt runs purpose-built SPIR-V optimization passes that glslangValidator does not perform
+- Smaller SPIR-V binaries reduce pack file size and shader module creation time
+- Better-optimized SPIR-V can improve GPU execution performance
+- The tool is already available in the Vulkan SDK -- no new dependencies
+
+Changes (1 file)
+-----------------
+
+1. DataPacker/Source/ExportJobs/ExportShader.cpp
+   After the glslangValidator compile block (after line 238, the mIntermediateFiles.push_back(spirvFile) call)
+   and before the "Read SPIR-V into temporary buffer" block (line 240), insert a spirv-opt invocation
+   gated by #if defined(OPTIMIZE_SHADERS):
+
+     #if defined(OPTIMIZE_SHADERS)
+         // Run spirv-opt on the compiled SPIR-V
+         std::filesystem::path spirvOptExecutable(gpFileManager->mVulkanSdkBinariesDirectory);
+         spirvOptExecutable.append("spirv-opt.exe");
+
+         std::filesystem::path optimizedSpirvFile(spirvFile);
+         optimizedSpirvFile += ".opt.spv";
+         std::filesystem::remove(optimizedSpirvFile);
+
+         std::wstring spirvOptParams = L"";
+         spirvOptParams += L" -O";                          // Run performance optimization passes
+         spirvOptParams += L" --target-env=vulkan1.2";      // Match glslangValidator target
+         spirvOptParams += L" -o \"" + optimizedSpirvFile.native() + L"\"";
+         spirvOptParams += L" \"" + spirvFile.native() + L"\"";
+
+         log = std::to_wstring(common::gpThreadLocal->miThreadId.value());
+         log += L": ";
+         log += spirvOptExecutable.native();
+         log += spirvOptParams;
+         log += L"\n";
+         OutputDebugStringW(log.c_str());
+
+         output = common::RunExecutable(spirvOptExecutable, spirvOptParams);
+         if (!output.empty())
+         {
+             Log("spirv-opt.exe output: {}", output);
+         }
+
+         if (std::filesystem::exists(optimizedSpirvFile))
+         {
+             spirvFile = optimizedSpirvFile;
+             mIntermediateFiles.push_back(optimizedSpirvFile);
+         }
+     #endif
+
+   The existing code after this point already reads spirvFile for reflection and packing,
+   so it will naturally pick up the optimized file when available.
+
+2. DataPacker/Source/ExportJobs/ExportShader.h
+   Bump GetVersion() from 12 to 13 to force re-export of all shaders:
+
+     virtual int64_t GetVersion() const override { return 13 + sizeof(common::ChunkHeader) + VK_HEADER_VERSION; }
+
+Notes
+-----
+- spirv-opt -O runs all performance-oriented passes; -Os is an alternative for size optimization
+- The optimized file uses a .opt.spv extension to avoid overwriting the input, since spirv-opt
+  does not support in-place optimization
+- If spirv-opt fails or the optimized file is missing, the pipeline falls through to the
+  original spirvFile, keeping the build robust
+- spirv-opt non-error output (e.g. warnings) is logged the same way as glslangValidator output
+- The #if defined(OPTIMIZE_SHADERS) guard matches the existing pattern used for glslc and
+  glslangValidator optimization flags, so debug builds skip this step

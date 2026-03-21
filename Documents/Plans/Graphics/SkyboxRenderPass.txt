@@ -1,0 +1,211 @@
+Feature: Fullscreen Skybox Render Pass
+========================================
+
+Context
+-------
+The engine currently has no visible sky -- the clear color fills any
+background pixels.  IBL cubemaps (irradiance + pre-filtered specular)
+are already loaded for PBR reflections but are never rendered as a
+skybox.  CameraBase drives a sun angle that controls day/night
+lighting via PopulateSunAndLighting() in GlobalUniforms.cpp.
+
+Why
+---
+- A rendered sky replaces the flat clear color with a cubemap-sampled
+  environment, giving depth and atmosphere to every scene
+- The existing pre-filtered cubemap can be reused with minimal new
+  GPU resources -- only a new pipeline, a fragment shader, and an
+  inverse-VP matrix are needed
+- Drawing the skybox first with depth write OFF and depth test OFF
+  means every subsequent draw (terrain, water, objects) naturally
+  occludes it with no extra work
+
+Changes (11 files)
+------------------
+
+1. Engine/Data/Shaders/Skybox/Skybox.frag  (new file)
+   Create a new fragment shader that samples the pre-filtered cubemap
+   using a world-space ray direction reconstructed from the inverse
+   view-projection matrix:
+
+     #version 460
+
+     #include "ShaderLayouts.h"
+     #include "ShaderFunctions.h"
+
+     layout (set = 0, binding = 0) uniform globalUniform
+     {
+         GlobalLayout globalLayout;
+     };
+
+     layout (set = 1, binding = 0) uniform mainUniform
+     {
+         MainLayout mainLayout;
+     };
+
+     layout (set = 1, binding = 1) uniform samplerCube skyboxSampler;
+
+     layout (location = 0) in flat int iInInstanceIndex;
+     layout (location = 1) in vec2 f2InTexcoord;
+
+     layout (location = 0) out vec4 f4OutColor;
+
+     void main()
+     {
+         // Reconstruct clip-space position from fullscreen quad UVs
+         vec2 ndc = vec2(f2InTexcoord.x * 2.0 - 1.0, 1.0 - f2InTexcoord.y * 2.0);
+
+         // Unproject to world-space direction using inverse VP (rotation only)
+         mat4 invVP = inverse(mat4(
+             mainLayout.f4x4InverseViewProjectionRotation[0],
+             mainLayout.f4x4InverseViewProjectionRotation[1],
+             mainLayout.f4x4InverseViewProjectionRotation[2],
+             mainLayout.f4x4InverseViewProjectionRotation[3]));
+         vec4 worldDir = invVP * vec4(ndc, 0.0, 1.0);
+         vec3 dir = normalize(worldDir.xyz);
+
+         // Convert from Z-up engine space to Y-up cubemap space
+         vec3 cubemapDir = vec3(dir.x, dir.z, dir.y);
+
+         vec3 color = texture(skyboxSampler, cubemapDir).rgb;
+
+         // Apply exposure and gamma from PBR settings
+         vec3 mapped = ACESFilm(color * mainLayout.fPbrExposure);
+         mapped = pow(mapped, vec3(1.0 / mainLayout.fPbrGamma));
+
+         f4OutColor = vec4(mapped, 1.0);
+     }
+
+   NOTE: Do NOT use GLSL inverse() on the GPU -- the NVIDIA driver
+   bug documented in Shaders/CLAUDE.md causes pipeline creation hangs.
+   Instead, the mat4 passed via f4x4InverseViewProjectionRotation is
+   pre-inverted on the CPU (see change 3 below).  The shader code
+   above should therefore be simplified to just use the matrix
+   directly without calling inverse():
+
+     mat4 invVP = mat4(
+         mainLayout.f4x4InverseViewProjectionRotation[0],
+         mainLayout.f4x4InverseViewProjectionRotation[1],
+         mainLayout.f4x4InverseViewProjectionRotation[2],
+         mainLayout.f4x4InverseViewProjectionRotation[3]);
+     vec4 worldDir = invVP * vec4(ndc, 0.0, 1.0);
+
+2. Engine/Data/Shaders/ShaderLayoutsBase.h
+   Add the inverse view-projection rotation matrix to MainLayout.
+   After line 435 (float fHexShieldDirectionMultiplier INIT;), before
+   the closing brace of MainLayout, add:
+
+     // Skybox
+     vec4 f4x4InverseViewProjectionRotation[4] INIT;
+     float fSkyboxExposure INIT;
+     float fSkyboxPadY INIT;
+     float fSkyboxPadZ INIT;
+     float fSkyboxPadW INIT;
+
+3. Engine/Source/Graphics/Render/MainUniforms.cpp
+   After line 66 (the XMStoreFloat4x4 for f4x4ViewProjection), add
+   computation of the inverse VP rotation matrix (translation zeroed
+   so the skybox rotates with the camera but does not translate):
+
+     // Skybox inverse VP (rotation only -- zero out view translation)
+     {
+         XMMATRIX matViewRotation = game::gpCamera->mMatView;
+         matViewRotation.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+         XMMATRIX matVP = XMMatrixMultiply(matViewRotation, XMMatrixMultiply(matCameraShake, game::gpCamera->mMatPerspective));
+         XMMATRIX matInvVP = XMMatrixInverse(nullptr, matVP);
+         XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(&rMainLayout.f4x4InverseViewProjectionRotation[0]), XMMatrixTranspose(matInvVP));
+     }
+
+4. Engine/Source/Graphics/Managers/PipelineManager.h
+   Add kPipelineSkybox to the Pipelines enum.  Insert after
+   kPipelineWater (line 35), before kPipelineSmokeClearA:
+
+     kPipelineSkybox,
+
+5. Engine/Source/Graphics/Managers/PipelineManager.cpp
+   Create the skybox pipeline inside CreateLightingShadowDependantPipelines(),
+   after the Water pipeline creation (after line 330, before the closing
+   brace of the function).  Add:
+
+     // Skybox (fullscreen quad, no depth write, no depth test)
+     mpPipelines[kPipelineSkybox].Create(
+     {
+         .name = "Skybox",
+         .flags = {kCullBack, kUpdateAfterBind},
+         .ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersSkyboxSkyboxfragCrc)},
+         .pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+         .pDescriptorInfos =
+         {
+             {.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+             {.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+             {.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCKloofendalPuresky_PrefilteredR16G16B16A16_SFLOATCrc},
+         },
+     });
+
+   The pipeline has no kDepthTest / kDepthWrite flags, so it writes
+   color to every pixel without interacting with the depth buffer.
+
+6. Engine/Source/Graphics/Managers/CommandBufferManager.cpp
+   Insert the skybox draw call as the first thing inside the image
+   render pass, before the Objects GPU timer.  After line 692
+   (RecordBeginRenderPass), before line 694 (kGpuTimerObjects), add:
+
+     gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSkybox);
+     pPipelines[kPipelineSkybox].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0);
+     gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSkybox);
+
+7. Engine/Source/Profile/ProfileManagerBase.h
+   Add kGpuTimerSkybox to the GpuTimers enum.  Insert after
+   kGpuTimerImage (line 110), before kGpuTimerObjects (line 111):
+
+     kGpuTimerSkybox,
+
+   Add the corresponding name in the mGpuTimers initializer list.
+   After line 283 ({.name = "Image render"},), before
+   line 284 ({.name = "    Objects"},), add:
+
+     {.name = "    Skybox"},
+
+8. Engine/Source/Ui/WrapperBase.h
+   Add the skybox exposure Wrapper declaration.  After line 219
+   (extern Wrapper gSunAngleOverride;), add:
+
+     extern Wrapper gSkyboxExposure;
+
+9. Engine/Source/Ui/WrapperBase.cpp
+   Add the skybox exposure Wrapper definition.  After line 27
+   (Wrapper gSunAngleOverride ...), add:
+
+     Wrapper gSkyboxExposure(1.0f, 0.1f, 5.0f);
+
+10. Engine/Source/Ui/Screens/TweaksScreen/TweaksScreenMisc.cpp
+    Add the skybox slider to the Misc section.  After line 15
+    (WrapperSlider("Misc0", kiSection);), before the closing brace,
+    add:
+
+      WrapperSeparatorText("Skybox");
+      WrapperSlider("Skybox Exposure", kiSection);
+
+11. Engine/Source/Ui/Screens/TweaksScreen/TweaksSliderMap.cpp
+    Register the skybox slider in the map.  After line 170
+    ({"Misc Depth Reflection Feather", ...}), add:
+
+      {"Skybox Exposure", &gSkyboxExposure},
+
+Notes
+-----
+- The skybox pipeline reuses QuadsFullscreen.vert (existing) and the
+  existing pre-filtered cubemap (KloofendalPuresky) -- no new textures
+  or vertex buffers are needed
+- Depth write and depth test are both OFF for the skybox so it never
+  interferes with scene geometry depth
+- Drawing the skybox first (before Objects) means every opaque draw
+  naturally overwrites it; there is no need for a depth-at-far-plane
+  trick
+- The inverse VP matrix is computed CPU-side to avoid the NVIDIA
+  inverse() driver bug
+- The clear color in RecordBeginRenderPass remains but is immediately
+  overdrawn by the skybox; it could later be removed or set to black
+- Future work from Engine.txt: nighttime stars, animated sun/moon
+  position in the cubemap, and HDRI / LatLong panorama support can
+  build on this pass without structural changes

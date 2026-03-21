@@ -1,0 +1,397 @@
+Screen-Space Heat Distortion and Explosion Shockwaves
+======================================================
+
+Context
+-------
+The engine has no screen-space distortion effects. Explosions spawn
+lights, puffs, smoke trails, wind radials, and GPU particles, but
+produce no visual screen distortion. The render pipeline draws the
+scene into the swapchain framebuffer (or HDR intermediate once
+HdrResolveAndColorGrading is implemented), then presents. There is
+no post-process pass that can warp the rendered image.
+
+Heat distortion applies a persistent wavy UV offset near explosion
+sites (simulating heat shimmer from hot air). Shockwaves apply a
+one-shot expanding ring of UV displacement that ripples outward from
+the explosion origin.
+
+Both effects work by sampling the already-rendered scene texture at
+offset UV coordinates in a fullscreen post-process pass. This
+requires a copy of the scene color before the distortion pass runs.
+
+Why
+---
+- Explosions currently lack screen-space visual punch; shockwaves
+  add immediate impact feedback and heat distortion adds lingering
+  atmospheric presence
+- Both effects reuse the existing explosion collection data
+  (positions, start times, type percents) with no new collections
+- A single fullscreen distortion pass handles both effects,
+  sampling a copy of the scene texture with UV offsets computed per
+  pixel from all active explosion sources
+- The distortion pass runs after the image render pass ends (after
+  billboards/text), before HdrResolve (if present) or before
+  present (if no HDR pass yet), so it distorts the fully composed
+  scene
+
+Changes (12 files)
+------------------
+
+1. Engine/Data/Shaders/ShaderLayoutsBase.h
+   a) Add a distortion source layout struct after ParticlesLayout
+      (line 608), before the #if defined(BT_ENGINE) guard:
+
+        inline constexpr int32_t kiMaxDistortionSources = 32;
+
+        struct DistortionSourceLayout
+        {
+            vec4 f4ScreenPosition INIT; // xy = screen-space position (0-1), z = age (seconds), w = size percent
+            vec4 f4Params INIT;         // x = time percent, y = type (0 = heat, 1 = shockwave), zw = unused
+        };
+
+   b) Add distortion uniforms to MainLayout after
+      fHexShieldDirectionMultiplier (line 435):
+
+        // Distortion
+        int32_t iDistortionSourceCount INIT;
+        float fDistortionHeatStrength INIT;
+        float fDistortionHeatSpeed INIT;
+        float fDistortionHeatScale INIT;
+        float fDistortionShockwaveStrength INIT;
+        float fDistortionShockwaveSpeed INIT;
+        float fDistortionShockwaveWidth INIT;
+        float fDistortionShockwaveFalloff INIT;
+
+2. Engine/Data/Shaders/Distortion/Distortion.frag (NEW FILE)
+   Fullscreen fragment shader that samples the scene color texture
+   with UV offsets computed from active distortion sources:
+
+     #version 460
+     #include "ShaderLayouts.h"
+
+     layout (set = 0, binding = 0) uniform globalUniform { GlobalLayout globalLayout; };
+     layout (set = 1, binding = 0) uniform mainUniform { MainLayout mainLayout; };
+     layout (set = 1, binding = 1) readonly buffer distortionBuffer { DistortionSourceLayout pSources[]; };
+     layout (set = 1, binding = 2) uniform sampler2D sceneSampler;
+
+     layout (location = 0) in flat int iInInstanceIndex;
+     layout (location = 1) in vec2 f2InTexcoord;
+     layout (location = 0) out vec4 f4OutColor;
+
+     void main()
+     {
+         vec2 f2Offset = vec2(0.0);
+         float fTime = globalLayout.fElapsedTime;
+         float fAspect = globalLayout.fAspectRatio;
+
+         for (int i = 0; i < mainLayout.iDistortionSourceCount; ++i)
+         {
+             vec2 f2SourcePos = pSources[i].f4ScreenPosition.xy;
+             float fAge = pSources[i].f4ScreenPosition.z;
+             float fSizePercent = pSources[i].f4ScreenPosition.w;
+             float fTimePercent = pSources[i].f4Params.x;
+             float fType = pSources[i].f4Params.y;
+
+             // Aspect-corrected distance
+             vec2 f2Delta = f2InTexcoord - f2SourcePos;
+             f2Delta.x *= fAspect;
+             float fDist = length(f2Delta);
+
+             if (fType < 0.5)
+             {
+                 // Heat distortion: persistent wavy offset near source
+                 float fDuration = 3.0 * fTimePercent;
+                 float fFade = 1.0 - clamp(fAge / fDuration, 0.0, 1.0);
+                 fFade *= fFade;
+                 float fRadius = 0.15 * fSizePercent;
+                 float fFalloff = 1.0 - clamp(fDist / fRadius, 0.0, 1.0);
+                 fFalloff *= fFalloff;
+                 float fStrength = mainLayout.fDistortionHeatStrength * fFade * fFalloff * fSizePercent;
+                 float fSpeed = mainLayout.fDistortionHeatSpeed;
+                 float fScale = mainLayout.fDistortionHeatScale;
+                 f2Offset += fStrength * vec2(
+                     sin(f2InTexcoord.y * fScale + fTime * fSpeed),
+                     cos(f2InTexcoord.x * fScale * fAspect + fTime * fSpeed * 1.3));
+             }
+             else
+             {
+                 // Shockwave: expanding ring displacement
+                 float fSpeed = mainLayout.fDistortionShockwaveSpeed;
+                 float fWaveRadius = fAge * fSpeed * fSizePercent;
+                 float fWidth = mainLayout.fDistortionShockwaveWidth;
+                 float fRingDist = abs(fDist - fWaveRadius);
+                 float fRing = 1.0 - clamp(fRingDist / fWidth, 0.0, 1.0);
+                 float fFade = 1.0 - clamp(fAge / (1.0 * fTimePercent), 0.0, 1.0);
+                 float fFalloff = pow(fFade, mainLayout.fDistortionShockwaveFalloff);
+                 float fStrength = mainLayout.fDistortionShockwaveStrength * fRing * fFalloff * fSizePercent;
+                 vec2 f2Dir = fDist > 0.001 ? f2Delta / fDist : vec2(0.0);
+                 f2Offset += fStrength * f2Dir;
+             }
+         }
+
+         // Undo aspect correction for UV sampling
+         f2Offset.x /= fAspect;
+
+         f4OutColor = texture(sceneSampler, f2InTexcoord + f2Offset);
+     }
+
+3. Engine/Source/Graphics/Managers/RenderTargetTextures.h
+   Add a scene copy texture for the distortion pass to sample.
+   After mObjectShadowsBlurIntermediateTexture (line 54), add:
+
+     Texture mDistortionSceneCopyTexture;
+
+4. Engine/Source/Graphics/Managers/RenderTargetTextures.cpp
+   a) Add CreateDistortionTextures() call in Create() after
+      CreateObjectShadowsTextures() (line 19):
+
+        CreateDistortionTextures();
+
+   b) Add the method declaration to RenderTargetTextures.h:
+
+        void CreateDistortionTextures();
+
+   c) Implement CreateDistortionTextures() at end of file (before
+      the #endif). Creates a screen-resolution texture matching the
+      swapchain format:
+
+        void RenderTargetTextures::CreateDistortionTextures()
+        {
+            VkExtent2D framebufferExtent = gpGraphics->mFramebufferExtent2D;
+            mDistortionSceneCopyTexture.Create(
+            {
+                .textureFlags = {},
+                .name = "DistortionSceneCopy",
+                .flags = 0,
+                .format = VK_FORMAT_B8G8R8A8_UNORM,
+                .extent = VkExtent3D {framebufferExtent.width, framebufferExtent.height, 1},
+                .mipLevels = 1,
+                .arrayLayers = 1,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .eTextureLayout = kShaderReadOnly,
+            });
+        }
+
+      NOTE: If HdrResolveAndColorGrading is implemented first, use
+      VK_FORMAT_R16G16B16A16_SFLOAT and copy from the HDR texture
+      instead. The distortion pass would then run between the image
+      pass and the HDR resolve pass.
+
+5. Engine/Source/Graphics/Managers/BufferManager.h
+   Add a distortion source storage buffer.
+   After mTextStorageBuffers (line 60), add:
+
+     std::vector<Buffer> mDistortionStorageBuffers;
+
+   Initialize these in BufferManager.cpp alongside the text storage
+   buffers, one per framebuffer, with size for
+   kiMaxDistortionSources * sizeof(DistortionSourceLayout).
+
+6. Engine/Source/Graphics/Managers/PipelineManager.h
+   Add kPipelineDistortion to the Pipelines enum before
+   kPipelineCount (line 55):
+
+     kPipelineDistortion,
+
+7. Engine/Source/Graphics/Managers/PipelineManager.cpp
+   Create the distortion pipeline after the particle pipelines
+   (after CreateParticlePipelines()). Uses QuadsFullscreen.vert and
+   Distortion.frag, targets the swapchain render pass, samples the
+   scene copy texture:
+
+     mpPipelines[kPipelineDistortion].Create(
+     {
+         .name = "Distortion",
+         .flags = {kNoWireframe},
+         .ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersDistortionDistortionfragCrc)},
+         .pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+         .pDescriptorInfos =
+         {
+             {.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+             {.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDistortionStorageBuffers.data()},
+             {.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mDistortionSceneCopyTexture},
+         },
+     });
+
+8. Engine/Source/Graphics/Managers/CommandBufferManager.cpp
+   After the image render pass ends (line 753,
+   Texture::RecordEndRenderPass) and before GpuStop for
+   kGpuTimerImage (line 754), insert the distortion pass:
+
+     // Copy the resolved scene to the distortion source texture
+     gpTextureManager->mRenderTargetTextures.mDistortionSceneCopyTexture.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kTransferDst);
+     // Record blit from swapchain resolve target to distortion copy
+     VkImageBlit blitRegion
+     {
+         .srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+         .srcOffsets = {{0, 0, 0}, {static_cast<int32_t>(gpGraphics->mFramebufferExtent2D.width), static_cast<int32_t>(gpGraphics->mFramebufferExtent2D.height), 1}},
+         .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+         .dstOffsets = {{0, 0, 0}, {static_cast<int32_t>(gpGraphics->mFramebufferExtent2D.width), static_cast<int32_t>(gpGraphics->mFramebufferExtent2D.height), 1}},
+     };
+     Texture::RecordImageCopy(vkCommandBuffer, gpSwapchainManager->GetResolveImage(iFramebuffer), gpTextureManager->mRenderTargetTextures.mDistortionSceneCopyTexture, blitRegion);
+     gpTextureManager->mRenderTargetTextures.mDistortionSceneCopyTexture.TransitionImageLayout(vkCommandBuffer, kTransferDst, kShaderReadOnly);
+
+     // Distortion pass: warp scene with heat and shockwave effects
+     gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerDistortion);
+     {
+         RenderPassFlags_t distortionFlags {};
+         distortionFlags.Set(RenderPassFlags::kClear);
+         Texture::RecordBeginRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, gpGraphics->mFramebufferExtent2D, VkClearColorValue {}, distortionFlags, VK_SUBPASS_CONTENTS_INLINE);
+     }
+     pPipelines[kPipelineDistortion].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0);
+     Texture::RecordEndRenderPass(vkCommandBuffer);
+     gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerDistortion);
+
+   The swapchain image must have VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+   for the blit. If it doesn't already, add it in
+   SwapchainManager.cpp where swapchain images are created.
+
+   NOTE: When HdrResolveAndColorGrading is present, the distortion
+   pass runs between the image render pass and the HDR resolve pass,
+   copying and sampling the HDR texture instead of the swapchain.
+
+9. Engine/Source/Graphics/Render/MainUniforms.cpp
+   After the existing MainLayout population (post-render camera
+   setup), populate distortion source data from the explosion
+   collections across all active coordinates:
+
+     // Distortion sources from active explosions
+     shaders::DistortionSourceLayout* pDistortionSources = reinterpret_cast<shaders::DistortionSourceLayout*>(gpBufferManager->mDistortionStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+     int32_t iDistortionCount = 0;
+     float fCurrentTime = rFrameInterpolate.interpolate.fRenderTime;
+     for (const GridCoord& rCoord : rActiveCoords)
+     {
+         auto it = rRenderInterpolates.find(rCoord);
+         if (it == rRenderInterpolates.end()) continue;
+         const ExplosionsInterpolate& rExplosions = it->second.interpolate.mExplosions;
+         for (int64_t i = 0; i < rExplosions.miCount && iDistortionCount < shaders::kiMaxDistortionSources; ++i)
+         {
+             float fAge = fCurrentTime - rExplosions.pfStartTimes[i];
+             float fMaxAge = 3.0f * rExplosions.pfTimePercents[i];
+             if (fAge > fMaxAge) continue;
+
+             // Project world position to screen space
+             XMVECTOR vecClip = XMVector4Transform(rExplosions.pVecPositions[i], game::gpCamera->GetViewProjection());
+             XMFLOAT4 f4Clip;
+             XMStoreFloat4(&f4Clip, vecClip);
+             if (f4Clip.w <= 0.0f) continue;
+             float fScreenX = (f4Clip.x / f4Clip.w) * 0.5f + 0.5f;
+             float fScreenY = (-f4Clip.y / f4Clip.w) * 0.5f + 0.5f;
+             if (fScreenX < -0.2f || fScreenX > 1.2f || fScreenY < -0.2f || fScreenY > 1.2f) continue;
+
+             auto& rSrc = pDistortionSources[iDistortionCount];
+             rSrc.f4ScreenPosition = {fScreenX, fScreenY, fAge, rExplosions.pfSizePercents[i]};
+             // Heat distortion for first half of life, shockwave at spawn
+             float fType = fAge < 0.15f * rExplosions.pfTimePercents[i] ? 1.0f : 0.0f;
+             rSrc.f4Params = {rExplosions.pfTimePercents[i], fType, 0.0f, 0.0f};
+             ++iDistortionCount;
+         }
+     }
+     rMainLayout.iDistortionSourceCount = iDistortionCount;
+
+10. Engine/Source/Ui/WrapperBase.h / WrapperBase.cpp
+    Add Wrapper globals for distortion tuning.
+
+    In WrapperBase.h after the Pbr - Emissive section (line 256):
+      // Distortion
+      extern Wrapper gDistortionHeatStrength;
+      extern Wrapper gDistortionHeatSpeed;
+      extern Wrapper gDistortionHeatScale;
+      extern Wrapper gDistortionShockwaveStrength;
+      extern Wrapper gDistortionShockwaveSpeed;
+      extern Wrapper gDistortionShockwaveWidth;
+      extern Wrapper gDistortionShockwaveFalloff;
+
+    In WrapperBase.cpp, define them:
+      // Distortion
+      Wrapper gDistortionHeatStrength(0.003f, 0.0f, 0.02f);
+      Wrapper gDistortionHeatSpeed(8.0f, 1.0f, 30.0f);
+      Wrapper gDistortionHeatScale(80.0f, 10.0f, 300.0f);
+      Wrapper gDistortionShockwaveStrength(0.03f, 0.0f, 0.15f);
+      Wrapper gDistortionShockwaveSpeed(0.5f, 0.1f, 2.0f);
+      Wrapper gDistortionShockwaveWidth(0.03f, 0.005f, 0.1f);
+      Wrapper gDistortionShockwaveFalloff(2.0f, 0.5f, 5.0f);
+
+    Populate them in MainUniforms.cpp alongside the distortion
+    source population:
+      rMainLayout.fDistortionHeatStrength = gDistortionHeatStrength.Get();
+      rMainLayout.fDistortionHeatSpeed = gDistortionHeatSpeed.Get();
+      rMainLayout.fDistortionHeatScale = gDistortionHeatScale.Get();
+      rMainLayout.fDistortionShockwaveStrength = gDistortionShockwaveStrength.Get();
+      rMainLayout.fDistortionShockwaveSpeed = gDistortionShockwaveSpeed.Get();
+      rMainLayout.fDistortionShockwaveWidth = gDistortionShockwaveWidth.Get();
+      rMainLayout.fDistortionShockwaveFalloff = gDistortionShockwaveFalloff.Get();
+
+11. Engine/Source/Ui/Screens/TweaksScreen/TweaksSliderMap.cpp
+    and Engine/Source/Ui/Screens/TweaksScreen/TweaksScreenPbr.cpp
+    Add distortion sliders to the PBR tweaks screen.
+
+    In TweaksSliderMap.cpp, add after the Wind entries (line 221):
+      // Distortion
+      {"Heat Strength", &gDistortionHeatStrength},
+      {"Heat Speed", &gDistortionHeatSpeed},
+      {"Heat Scale", &gDistortionHeatScale},
+      {"Shockwave Strength", &gDistortionShockwaveStrength},
+      {"Shockwave Speed", &gDistortionShockwaveSpeed},
+      {"Shockwave Width", &gDistortionShockwaveWidth},
+      {"Shockwave Falloff", &gDistortionShockwaveFalloff},
+
+    In TweaksScreenPbr.cpp, add after the Emissive section
+    (line 53):
+      WrapperSeparatorText("Distortion - Heat");
+      WrapperSlider("Heat Strength", kiSection, 1.0f);
+      WrapperSlider("Heat Speed", kiSection, 1.0f);
+      WrapperSlider("Heat Scale", kiSection, 1.0f);
+      WrapperSeparatorText("Distortion - Shockwave");
+      WrapperSlider("Shockwave Strength", kiSection, 1.0f);
+      WrapperSlider("Shockwave Speed", kiSection, 1.0f);
+      WrapperSlider("Shockwave Width", kiSection, 1.0f);
+      WrapperSlider("Shockwave Falloff", kiSection, 1.0f);
+
+12. Engine/Source/Profile/ProfileManagerBase.h
+    Add a GPU timer for the distortion pass.
+    After kGpuTimerBillboards (line 120), add:
+
+      kGpuTimerDistortion,
+
+    In the mGpuTimers initializer list, after
+    {.name = "    Billboards"} (line 293), add:
+
+      {.name = "    Distortion"},
+
+Additional: vcxproj files
+-------------------------
+Add Engine/Data/Shaders/Distortion/Distortion.frag to the <None>
+item group in:
+- Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.vcxproj
+- Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandboxServer.vcxproj
+And their .filters files under an Engine\Data\Shaders\Distortion
+filter.
+
+Notes
+-----
+- The distortion pass early-outs when iDistortionSourceCount is 0
+  (the shader samples the scene at unmodified UVs, producing an
+  identical copy). A CPU-side check could skip the pass entirely
+  when no explosions are active, but the blit cost is the main
+  overhead regardless
+- Each explosion produces both a shockwave (first 0.15s scaled by
+  time percent) and heat distortion (full lifetime). The shader
+  handles this with the type field per source
+- kiMaxDistortionSources = 32 limits GPU loop iterations. Oldest or
+  off-screen explosions are dropped first by the population code
+- The scene copy uses vkCmdBlitImage from the swapchain's resolve
+  target (after multisampling resolve). The swapchain image may need
+  VK_IMAGE_USAGE_TRANSFER_SRC_BIT added if not already present
+- DataPacker must be re-run to compile the new Distortion.frag
+  shader and generate data::kShadersDistortionDistortionfragCrc
+- When HdrResolveAndColorGrading is implemented, the distortion
+  pass should be reordered to run between the image pass and HDR
+  resolve, copying the HDR intermediate texture instead. The
+  texture format would change to R16G16B16A16_SFLOAT
+- The wind radial system already provides physical shockwave
+  effects (pushing smoke); this feature adds the complementary
+  visual screen distortion
