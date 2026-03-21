@@ -58,6 +58,7 @@ public:
 
 #if defined(BT_CLIENT)
 	void FormatGameScreens(common::Workbuffer& rWorkbuffer) override;
+	void RenderImPlotGraphs() override;
 
 	void SetClockCorrection(int64_t iOffset, int64_t iTargetBehind, int64_t iError);
 	void SetReconcileCounters(int64_t iCrcValidated, int64_t iAssumed, int64_t iCrcFastPath, int64_t iStatusChangeReplay, int64_t iKnockOnReplay);
@@ -102,6 +103,8 @@ private:
 	};
 
 #if defined(BT_CLIENT)
+	common::Smoothed<int64_t> mSmoothedRtt;
+	common::Smoothed<int64_t> mSmoothedJitter;
 	common::Smoothed<int64_t> mSmoothedClockOffset;
 	common::Smoothed<int64_t> mSmoothedClockTarget;
 	common::Smoothed<int64_t> mSmoothedClockError;

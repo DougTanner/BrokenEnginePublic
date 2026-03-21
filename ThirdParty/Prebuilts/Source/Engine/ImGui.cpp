@@ -20,4 +20,7 @@ namespace common { void Assert(bool bCondition, std::string_view expression, std
 #include "imgui/backends/imgui_impl_win32.cpp"
 #include "imgui/backends/imgui_impl_vulkan.cpp"
 
+#include "implot/implot.cpp"
+#include "implot/implot_items.cpp"
+
 #pragma warning(pop)

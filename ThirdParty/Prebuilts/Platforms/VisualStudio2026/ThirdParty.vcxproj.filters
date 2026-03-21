@@ -57,6 +57,9 @@
     <ClCompile Include="..\..\Source\DataPacker\tinyobjloader.cpp">
       <Filter>DataPacker</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\DataPacker\meshoptimizer.cpp">
+      <Filter>DataPacker</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\DataPacker\openexr\openexr.c">
       <Filter>DataPacker</Filter>
     </ClCompile>

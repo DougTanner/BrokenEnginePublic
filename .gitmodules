@@ -50,3 +50,9 @@
 [submodule "ThirdParty/enet"]
 	path = ThirdParty/enet
 	url = https://github.com/lsalzman/enet.git
+[submodule "ThirdParty/implot"]
+	path = ThirdParty/implot
+	url = https://github.com/epezent/implot.git
+[submodule "ThirdParty/meshoptimizer"]
+	path = ThirdParty/meshoptimizer
+	url = https://github.com/zeux/meshoptimizer.git

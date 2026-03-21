@@ -1,8 +1,6 @@
-#include "Pch.h"
+#include "Camera.h"
 
 #if defined(BT_CLIENT)
-
-#include "Camera.h"
 
 #include "Game.h"
 #include "Frame/Frame.h"
@@ -88,7 +86,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 
 			mVecLastKnownPlayerPosition = vecPlayerPos;
 			mfLastKnownPlayerTime = mfTime;
-			vecTargetPosition = vecPlayerPos;
+			vecTargetPosition = XMVectorAdd(vecPlayerPos, gpGame->mVecVisualErrorOffset);
 		}
 		else
 		{

@@ -166,17 +166,12 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPee
 	// [1B type][8B frame][4B gridX][4B gridY][4B uncompressedSize][4B compressedSize][...LZ4 data]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerDebugFrame));
 	rWorkbuffer.PushBack<int64_t>(iTick);
-	rWorkbuffer.PushBack<int32_t>(coord.x);
-	rWorkbuffer.PushBack<int32_t>(coord.y);
+	WriteGridCoord(rWorkbuffer, coord);
 	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(rFrameData.size()));
 	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(iCompressedSize));
 	rWorkbuffer.Append(std::string_view(reinterpret_cast<const char*>(mCompressionBuffer.data()), iCompressedSize));
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	// Heap: ENet allocates packet data internally
-	ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-	enet_peer_send(pPeer, NetworkManager::kuiChannelReliable, pPacket);
+	NetworkManager::SendPacket(pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 }

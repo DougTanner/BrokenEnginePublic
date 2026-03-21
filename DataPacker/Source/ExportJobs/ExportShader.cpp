@@ -14,89 +14,39 @@
 
 using enum common::ChunkFlags;
 
-static bool ShaderHeadersChanged()
+static std::vector<std::filesystem::path> ParseDependencyFile(const std::filesystem::path& rDependencyFilePath)
 {
-	static bool sbComputed = false;
-	static bool sbChanged = false;
-	if (sbComputed)
-		return sbChanged;
-	sbComputed = true;
+	std::vector<std::filesystem::path> dependencies;
+	std::fstream fileStream(rDependencyFilePath, std::ios::in);
+	std::string content((std::istreambuf_iterator<char>(fileStream)), std::istreambuf_iterator<char>());
 
-	// Find most recent modification time across all shader files
-	std::filesystem::file_time_type maxWriteTime;
-	for (int64_t i = 0; i < 2; ++i)
+	// Skip target (everything before first ':')
+	size_t uiColon = content.find(':');
+	if (uiColon == std::string::npos)
+		return dependencies;
+	content = content.substr(uiColon + 1);
+
+	// Remove backslash-newline continuations and carriage returns
+	std::string cleaned;
+	for (size_t i = 0; i < content.size(); ++i)
 	{
-		std::filesystem::path shadersDir = gpFileManager->mpInputDirectories[i] / "Shaders";
-		for (const std::filesystem::directory_entry& rEntry : std::filesystem::recursive_directory_iterator(shadersDir))
+		if (content[i] == '\\' && i + 1 < content.size() && (content[i + 1] == '\n' || content[i + 1] == '\r'))
 		{
-			if (!rEntry.is_regular_file())
-				continue;
-			std::filesystem::file_time_type writeTime = rEntry.last_write_time();
-			if (writeTime > maxWriteTime)
-				maxWriteTime = writeTime;
+			++i;
+			if (content[i] == '\r' && i + 1 < content.size() && content[i + 1] == '\n')
+				++i;
 		}
+		else if (content[i] != '\r')
+			cleaned += content[i];
 	}
 
-	// Compare with stored time
-	std::filesystem::path storedTimePath = gpFileManager->mTempDirectory / "ShaderHeadersModifiedTime.bin";
-	if (std::filesystem::exists(storedTimePath))
-	{
-		int64_t iStoredTime = 0;
-		std::fstream fileStream(storedTimePath, std::ios::in | std::ios::binary);
-		fileStream.read(reinterpret_cast<char*>(&iStoredTime), sizeof(iStoredTime));
-		if (maxWriteTime.time_since_epoch().count() <= iStoredTime)
-		{
-			sbChanged = false;
-			return sbChanged;
-		}
-	}
+	// Split on whitespace to get dependency paths
+	std::istringstream stream(cleaned);
+	std::string token;
+	while (stream >> token)
+		dependencies.emplace_back(token);
 
-	// Something changed — update stored time
-	int64_t iMaxTime = maxWriteTime.time_since_epoch().count();
-	std::fstream fileStream(storedTimePath, std::ios::out | std::ios::binary);
-	fileStream.write(reinterpret_cast<char*>(&iMaxTime), sizeof(iMaxTime));
-
-	sbChanged = true;
-	return sbChanged;
-}
-
-static void CollectShaderIncludes(const std::filesystem::path& rFile, const std::filesystem::path& rIncludeDir0, const std::filesystem::path& rIncludeDir1, std::vector<std::filesystem::path>& rResolvedIncludes)
-{
-	std::fstream fileStream(rFile, std::ios::in);
-	std::string line;
-	while (std::getline(fileStream, line))
-	{
-		size_t uiIncludePos = line.find("#include");
-		if (uiIncludePos == std::string::npos)
-			continue;
-
-		size_t uiFirstQuote = line.find('"', uiIncludePos);
-		if (uiFirstQuote == std::string::npos)
-			continue;
-
-		size_t uiSecondQuote = line.find('"', uiFirstQuote + 1);
-		if (uiSecondQuote == std::string::npos)
-			continue;
-
-		std::string includePath = line.substr(uiFirstQuote + 1, uiSecondQuote - uiFirstQuote - 1);
-
-		// Resolve: relative to file, then includeDir0, then includeDir1
-		std::filesystem::path resolved;
-		if (std::filesystem::path candidate0 = rFile.parent_path() / includePath; std::filesystem::exists(candidate0))
-			resolved = std::filesystem::canonical(candidate0);
-		else if (std::filesystem::path candidate1 = rIncludeDir0 / includePath; std::filesystem::exists(candidate1))
-			resolved = std::filesystem::canonical(candidate1);
-		else if (std::filesystem::path candidate2 = rIncludeDir1 / includePath; std::filesystem::exists(candidate2))
-			resolved = std::filesystem::canonical(candidate2);
-		else
-			continue;
-
-		if (std::find(rResolvedIncludes.begin(), rResolvedIncludes.end(), resolved) != rResolvedIncludes.end())
-			continue;
-
-		rResolvedIncludes.push_back(resolved);
-		CollectShaderIncludes(resolved, rIncludeDir0, rIncludeDir1, rResolvedIncludes);
-	}
+	return dependencies;
 }
 
 std::optional<common::ChunkFlags_t> ExportShader::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
@@ -109,25 +59,26 @@ bool ExportShader::CheckDirty(const std::filesystem::path& rPackFile)
 	if (ExportJob::CheckDirty(rPackFile))
 		return true;
 
-	if (ShaderHeadersChanged())
+	// Use dependency file from previous export to check if any included header changed
+	std::filesystem::path dependencyFile = gpFileManager->mTempDirectory / mRelativeDirectory / (mInputPath.filename().native() + L".d");
+	if (!std::filesystem::exists(dependencyFile))
 	{
-		std::filesystem::path includeDir0 = gpFileManager->mpInputDirectories[0] / "Shaders";
-		std::filesystem::path includeDir1 = gpFileManager->mpInputDirectories[1] / "Shaders";
+		mbDirty = true;
+		return true;
+	}
 
-		std::vector<std::filesystem::path> resolvedIncludes;
-		CollectShaderIncludes(mInputPath, includeDir0, includeDir1, resolvedIncludes);
-
-		std::filesystem::file_time_type chunkFileLastWriteTime = std::filesystem::last_write_time(mChunkFile);
-		for (const std::filesystem::path& rHeaderFile : resolvedIncludes)
+	std::vector<std::filesystem::path> dependencies = ParseDependencyFile(dependencyFile);
+	std::filesystem::file_time_type chunkFileLastWriteTime = std::filesystem::last_write_time(mChunkFile);
+	for (const std::filesystem::path& rDependency : dependencies)
+	{
+		if (!std::filesystem::exists(rDependency))
+			continue;
+		if (std::filesystem::last_write_time(rDependency) > chunkFileLastWriteTime)
 		{
-			std::filesystem::file_time_type headerFileLastWriteTime = std::filesystem::last_write_time(rHeaderFile);
-			if (headerFileLastWriteTime > chunkFileLastWriteTime)
-			{
-				auto [date, time] = common::FileTimeString(chunkFileLastWriteTime);
-				Log("Chunk file \"{}\" is out of date (header modified): {} {}", mChunkFile.string(), date, time);
-				mbDirty = true;
-				return mbDirty;
-			}
+			auto [date, time] = common::FileTimeString(chunkFileLastWriteTime);
+			Log("Chunk file \"{}\" is out of date (dependency modified): {} {}", mChunkFile.string(), date, time);
+			mbDirty = true;
+			return mbDirty;
 		}
 	}
 
@@ -168,6 +119,9 @@ void ExportShader::Export()
 #endif
 	commandLineParameters += L" -E";      // Pre-process only
 	commandLineParameters += L" -Werror"; // Treat warnings as errors
+	std::filesystem::path dependencyFile = gpFileManager->mTempDirectory / mRelativeDirectory / (mInputPath.filename().native() + L".d");
+	commandLineParameters += L" -MD";
+	commandLineParameters += L" -MF \"" + dependencyFile.native() + L"\"";
 	commandLineParameters += L" -I \"" + gpFileManager->mpInputDirectories[0].native() + L"/Shaders\"";
 	commandLineParameters += L" -I \"" + gpFileManager->mpInputDirectories[1].native() + L"/Shaders\"";
 	commandLineParameters += L" -o \"" + preProcessedFile.native() + L"\"";
@@ -236,6 +190,41 @@ void ExportShader::Export()
 
 	mIntermediateFiles.push_back(spirvFile);
 	VERIFY_SUCCESS(std::filesystem::exists(spirvFile));
+
+#if defined(OPTIMIZE_SHADERS)
+	// Run spirv-opt on the compiled SPIR-V
+	std::filesystem::path spirvOptExecutable(gpFileManager->mVulkanSdkBinariesDirectory);
+	spirvOptExecutable.append("spirv-opt.exe");
+
+	std::filesystem::path optimizedSpirvFile(spirvFile);
+	optimizedSpirvFile += ".opt.spv";
+	std::filesystem::remove(optimizedSpirvFile);
+
+	std::wstring spirvOptCommandLineParameters = L"";
+	spirvOptCommandLineParameters += L" -O";
+	spirvOptCommandLineParameters += L" --target-env=vulkan1.2";
+	spirvOptCommandLineParameters += L" -o \"" + optimizedSpirvFile.native() + L"\"";
+	spirvOptCommandLineParameters += L" \"" + spirvFile.native() + L"\"";
+
+	log = std::to_wstring(common::gpThreadLocal->miThreadId.value());
+	log += L": ";
+	log += spirvOptExecutable.native();
+	log += spirvOptCommandLineParameters;
+	log += L"\n";
+	OutputDebugStringW(log.c_str());
+
+	output = common::RunExecutable(spirvOptExecutable, spirvOptCommandLineParameters);
+	if (!output.empty())
+	{
+		Log("spirv-opt.exe output: {}", output);
+	}
+
+	if (std::filesystem::exists(optimizedSpirvFile))
+	{
+		spirvFile = optimizedSpirvFile;
+		mIntermediateFiles.push_back(optimizedSpirvFile);
+	}
+#endif
 
 	// Read SPIR-V into temporary buffer for reflection
 	int64_t iSpirvFileBytes = std::filesystem::file_size(spirvFile);
@@ -369,7 +358,7 @@ void ExportShader::Export()
 
 	if (shaderResources.separate_images.size() > 0)
 	{
-		Log("Seperate images:");
+		Log("Separate images:");
 		for (const spirv_cross::Resource& rResource : shaderResources.separate_images)
 		{
 			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
@@ -383,7 +372,7 @@ void ExportShader::Export()
 			}
 
 			// Runtime-sized arrays (unsized) report array[0] == 0; use UINT32_MAX sentinel for pipeline to resolve
-			int64_t iArraySize = rSpirvType.array.empty() ? 1 : (rSpirvType.array[0] == 0 ? UINT32_MAX : rSpirvType.array[0]);
+			int64_t iArraySize = rSpirvType.array.empty() ? 1 : (rSpirvType.array[0] == 0 ? std::numeric_limits<uint32_t>::max() : rSpirvType.array[0]);
 			WriteBinding(tempBindings, tempSetIndices, iBinding, uiSet, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, iArraySize, mChunkFlags);
 			iBindingCount = std::max(iBinding + 1, iBindingCount);
 		}
@@ -391,7 +380,7 @@ void ExportShader::Export()
 
 	if (shaderResources.separate_samplers.size() > 0)
 	{
-		Log("Seperate samplers:");
+		Log("Separate samplers:");
 		for (const spirv_cross::Resource& rResource : shaderResources.separate_samplers)
 		{
 			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);

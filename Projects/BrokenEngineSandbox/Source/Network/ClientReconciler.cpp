@@ -325,6 +325,26 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 		return desyncInfo;
 	}
 
+	// Capture pre-writeback human player position for visual smoothing
+	auto GetHumanSnapshotPosition = [](XMVECTOR& rOut) -> bool
+	{
+		auto subIt = gpGame->mCoordFrames.find(gpGame->mHumanGridCoord);
+		if (subIt == gpGame->mCoordFrames.end() || subIt->second.iSnapshotCount <= 0)
+			return false;
+		int64_t iPhysical = engine::SnapshotIndex(subIt->second.iSnapshotHead, subIt->second.iSnapshotCount - 1);
+		const std::unique_ptr<game::Frame>& pSnapshot = subIt->second.snapshots[iPhysical];
+		if (pSnapshot == nullptr)
+			return false;
+		auto oIdx = gpGame->HumanPlayerIndex(*pSnapshot->interpolate.pPlayers);
+		if (!oIdx)
+			return false;
+		rOut = pSnapshot->interpolate.pPlayers->pVecPositions[*oIdx];
+		return true;
+	};
+
+	XMVECTOR vecPreWritebackPosition {};
+	bool bCapturedPrePosition = GetHumanSnapshotPosition(vecPreWritebackPosition);
+
 	// Write back per-coord results
 	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
 	{
@@ -334,6 +354,22 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 			continue;
 		}
 		ApplyCoordWriteback(rWork, subscriptionIt->second);
+	}
+
+	// Compute visual error offset from position delta after writeback
+	XMVECTOR vecPostWritebackPosition {};
+	if (bCapturedPrePosition && rReconcileContext.bAnyFullReplay && GetHumanSnapshotPosition(vecPostWritebackPosition))
+	{
+		XMVECTOR vecError = XMVectorSubtract(vecPreWritebackPosition, vecPostWritebackPosition);
+		XMVECTOR vecTotal = XMVectorAdd(gpGame->mVecVisualErrorOffset, vecError);
+		if (XMVectorGetX(XMVector3Length(vecTotal)) > Game::kfVisualErrorMaxDistance)
+		{
+			gpGame->mVecVisualErrorOffset = {};
+		}
+		else
+		{
+			gpGame->mVecVisualErrorOffset = vecTotal;
+		}
 	}
 
 	// Update human tracking from reconciled state

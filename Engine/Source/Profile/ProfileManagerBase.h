@@ -187,6 +187,8 @@ public:
 	void GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer);
 	void GpuStop(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer);
 	void GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTimers eEnd);
+
+	virtual void RenderImPlotGraphs() {}
 #endif // BT_CLIENT
 
 	void BootStart(BootTimers eBootTimer);

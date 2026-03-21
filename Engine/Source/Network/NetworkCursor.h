@@ -121,4 +121,16 @@ inline void WriteVec4(uint8_t*& pCursor, XMVECTOR vec)
 	WriteBytes(pCursor, &f4, sizeof(XMFLOAT4A));
 }
 
+inline void WriteGridCoord(uint8_t*& pCursor, GridCoord coord)
+{
+	WriteInt32(pCursor, coord.x);
+	WriteInt32(pCursor, coord.y);
+}
+
+inline void WriteGridCoord(common::Workbuffer& rWorkbuffer, GridCoord coord)
+{
+	rWorkbuffer.PushBack<int32_t>(coord.x);
+	rWorkbuffer.PushBack<int32_t>(coord.y);
+}
+
 } // namespace engine

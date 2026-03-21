@@ -25,6 +25,7 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
+	ImPlot::CreateContext();
 	ImGuiIO& rIo = ImGui::GetIO();
 	rIo.IniFilename = nullptr;
 	rIo.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
@@ -111,6 +112,7 @@ ImGuiManager::~ImGuiManager()
 
 	ImGui_ImplVulkan_Shutdown();
 	ImGui_ImplWin32_Shutdown();
+	ImPlot::DestroyContext();
 	ImGui::DestroyContext();
 
 	for (const VkFramebuffer vkFramebuffer : mImGuiFramebuffers)
@@ -226,6 +228,8 @@ void ImGuiManager::Submit(int64_t iFramebuffer)
 	mpModalScreen->Render();
 
 	mpTweaksScreen->Render();
+
+	gpProfileManager->RenderImPlotGraphs();
 
 	ImGui::Render();
 	mpDrawData = ImGui::GetDrawData();

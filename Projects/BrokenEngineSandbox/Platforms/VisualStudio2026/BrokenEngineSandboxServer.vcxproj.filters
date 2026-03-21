@@ -698,6 +698,9 @@
     <ClCompile Include="..\..\Source\Profile\ProfileManager.cpp">
       <Filter>Game\Profile</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\Profile\NetworkGraphs.cpp">
+      <Filter>Game\Profile</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Common\ErrorUtils.cpp">
       <Filter>Common</Filter>
     </ClCompile>
@@ -750,6 +753,9 @@
       <Filter>Game\Frame\Collections\Players</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersRender.cpp">
+      <Filter>Game\Frame\Collections\Players</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersCollision.cpp">
       <Filter>Game\Frame\Collections\Players</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersUpdate.cpp">
@@ -849,6 +855,9 @@
       <Filter>Engine\Frame</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Explosions\Explosions.cpp">
+      <Filter>Engine\Frame\Collections\Explosions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Explosions\ExplosionsSpawn.cpp">
       <Filter>Engine\Frame\Collections\Explosions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Explosions\ExplosionsUpdate.cpp">

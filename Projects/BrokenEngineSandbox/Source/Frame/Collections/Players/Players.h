@@ -17,6 +17,19 @@ namespace game
 inline constexpr float kfDestroyTime = 0.7f;
 inline constexpr float kfDestroyExplosionInterval = 0.005f;
 
+// Collision
+inline constexpr float kfPlayerRadius = 1.5f;
+
+// Damage response
+inline constexpr float kfShieldHitSoundVolumeBase = 0.1f;
+inline constexpr float kfShieldHitSoundVolumeScale = 0.1f;
+inline constexpr float kfShieldCooldown = 2.0f;
+inline constexpr float kfShieldDownSoundCooldown = 2.0f;
+inline constexpr float kfShieldDownSoundVolume = 0.1f;
+inline constexpr float kfArmorHitSoundDamageThreshold = 3.0f;
+inline constexpr float kfArmorHitSoundVolumeBase = 0.2f;
+inline constexpr float kfArmorHitSoundVolumeScale = 0.5f;
+
 #if defined(BT_CLIENT)
 struct HexShieldDirections
 {
@@ -96,7 +109,6 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 	}
 
 	// CRC-only subset: excludes pfAnimationTimes which is only meaningfully updated on client
-	// (pfRotationAccelerationXs/Ys are now in ClientMembers)
 	auto SharedCrcMembers(this auto&& rSelf)
 	{
 		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections,

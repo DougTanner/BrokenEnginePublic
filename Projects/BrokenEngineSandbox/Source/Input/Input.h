@@ -42,39 +42,6 @@ struct MenuInput
 };
 
 // Frame
-enum class FrameInputHeldFlags : uint64_t
-{
-	kPrimary   = 0x0001,
-	kSecondary = 0x0002,
-	kZoomOut   = 0x0004,
-	kZoomIn    = 0x0008,
-};
-using FrameInputHeldFlags_t = common::Flags<FrameInputHeldFlags>;
-
-enum class FrameInputPressedFlags : uint32_t
-{
-	kTogglePrimary = 0x0001,
-	kToggleSecondary = 0x0002,
-	kToggleSkill = 0x0004,
-};
-using FrameInputPressedFlags_t = common::Flags<FrameInputPressedFlags>;
-
-inline constexpr int64_t kiMaxSpawnedPlayers = 5;
-
-struct PlayerInput
-{
-	bool operator==(const PlayerInput& rOther) const
-	{
-		return flags == rOther.flags &&
-			f3Move.x == rOther.f3Move.x && f3Move.y == rOther.f3Move.y && f3Move.z == rOther.f3Move.z &&
-			XMVector4Equal(vecDirection, rOther.vecDirection);
-	}
-
-	FrameInputHeldFlags_t flags {};
-	XMFLOAT3 f3Move {};
-	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
-};
-
 struct FrameInput
 {
 	static constexpr int64_t kiVersion = 9;
@@ -107,8 +74,8 @@ private:
 
 	// Was pressed helpers (use mPreviousRawInputMenu)
 	bool KeyboardPressed(int64_t iKey, const engine::RawInput& rRawInput) { return rRawInput.pKeyboardKeys[iKey] && !mPreviousRawInputMenu.pKeyboardKeys[iKey]; }
-	bool MousePressed(int iButton, const engine::RawInput& rRawInput) { return rRawInput.pMouseButtons[iButton] && !mPreviousRawInputMenu.pMouseButtons[iButton]; }
-	bool GamepadPressed(int iButton, const engine::RawInput& rRawInput) { return rRawInput.pGamepadButtons[iButton] && !mPreviousRawInputMenu.pGamepadButtons[iButton]; }
+	bool MousePressed(int64_t iButton, const engine::RawInput& rRawInput) { return rRawInput.pMouseButtons[iButton] && !mPreviousRawInputMenu.pMouseButtons[iButton]; }
+	bool GamepadPressed(int64_t iButton, const engine::RawInput& rRawInput) { return rRawInput.pGamepadButtons[iButton] && !mPreviousRawInputMenu.pGamepadButtons[iButton]; }
 };
 
 inline Input* gpInput = nullptr;

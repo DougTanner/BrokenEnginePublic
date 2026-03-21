@@ -24,6 +24,15 @@ public:
 	static constexpr int64_t ChannelToSlot(uint8_t uiChannel) { return (uiChannel - 2) / 2; }
 	static constexpr bool IsCoordChannel(uint8_t uiChannel) { return uiChannel >= 2; }
 	static constexpr bool IsUnreliableChannel(uint8_t uiChannel) { return uiChannel == kuiChannelUnreliable || (IsCoordChannel(uiChannel) && (uiChannel % 2) == 1); }
+
+	static inline void SendPacket(ENetPeer* pPeer, uint8_t uiChannel, common::Workbuffer& rWorkbuffer, uint32_t uiFlags)
+	{
+		std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		// Heap: ENet allocates packet data internally
+		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), uiFlags);
+		enet_peer_send(pPeer, uiChannel, pPacket);
+	}
 };
 
 inline NetworkManager* gpNetworkManager = nullptr;

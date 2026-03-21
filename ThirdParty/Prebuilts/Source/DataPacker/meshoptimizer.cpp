@@ -1,0 +1,25 @@
+#include <codeanalysis/warnings.h>
+#pragma warning(push, 0)
+#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+
+#include "meshoptimizer/src/allocator.cpp"
+#include "meshoptimizer/src/clusterizer.cpp"
+#include "meshoptimizer/src/indexanalyzer.cpp"
+#include "meshoptimizer/src/indexcodec.cpp"
+#include "meshoptimizer/src/indexgenerator.cpp"
+#include "meshoptimizer/src/meshletcodec.cpp"
+#include "meshoptimizer/src/meshletutils.cpp"
+#include "meshoptimizer/src/opacitymap.cpp"
+#include "meshoptimizer/src/overdrawoptimizer.cpp"
+#include "meshoptimizer/src/partition.cpp"
+#include "meshoptimizer/src/quantization.cpp"
+#include "meshoptimizer/src/rasterizer.cpp"
+#include "meshoptimizer/src/simplifier.cpp"
+#include "meshoptimizer/src/spatialorder.cpp"
+#include "meshoptimizer/src/stripifier.cpp"
+#include "meshoptimizer/src/vcacheoptimizer.cpp"
+#include "meshoptimizer/src/vertexcodec.cpp"
+#include "meshoptimizer/src/vertexfilter.cpp"
+#include "meshoptimizer/src/vfetchoptimizer.cpp"
+
+#pragma warning(pop)

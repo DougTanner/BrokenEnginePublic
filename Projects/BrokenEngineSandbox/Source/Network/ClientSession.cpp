@@ -509,6 +509,7 @@ void ClientSession::ResetForServerLoad()
 	gpGame->mHumanGridCoord = {};
 	gpGame->SetPreviousHumanArmor(0.0f);
 	gpGame->mGameFlags.Clear(engine::GameFlags::kDeathScreen);
+	gpGame->mVecVisualErrorOffset = {};
 
 	// Force-reset all client coord slots
 	std::vector<engine::ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();

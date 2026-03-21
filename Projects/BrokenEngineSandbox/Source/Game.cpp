@@ -118,7 +118,7 @@ void Game::ComputeActiveSet()
 				float fHalfWidth = (XMVectorGetZ(vecArea) - XMVectorGetX(vecArea)) * 0.5f;
 				float fHalfHeight = (XMVectorGetY(vecArea) - XMVectorGetW(vecArea)) * 0.5f;
 
-				constexpr float kfHysteresis = 2.0f;
+				static constexpr float kfHysteresis = 2.0f;
 				float fZoneX = fHalfWidth / 3.0f;
 				float fZoneY = fHalfHeight / 3.0f;
 				float fDeltaX = XMVectorGetX(vecPos) - fCenterX;
@@ -419,6 +419,7 @@ void Game::Reset()
 	engine::gpParticleManager->mbReset = true;
 	engine::SmokeTrailsInterpolate::ResetRenderState();
 	engine::WindTrailsInterpolate::ResetRenderState();
+	mVecVisualErrorOffset = {};
 #endif // BT_CLIENT
 
 	mGameFlags.Clear(engine::GameFlags::kDeathScreen);
@@ -497,14 +498,14 @@ void Game::ChangeFrame(GameFlags_t gameFlags)
 
 void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 {
-	if (meUiState == UiState::kModal)
-	{
-		return;
-	}
-
 	if (rMenuInput.flags & MenuInputFlags::kQuit || (rMenuInput.flags & MenuInputFlags::kPauseMenu && InMainMenu()))
 	{
 		mGameFlags.Set(engine::GameFlags::kQuit);
+	}
+
+	if (meUiState == UiState::kModal)
+	{
+		return;
 	}
 
 	if (rMenuInput.bGamepad && mMenuFlags & engine::MenuFlags::kMouseVisible)

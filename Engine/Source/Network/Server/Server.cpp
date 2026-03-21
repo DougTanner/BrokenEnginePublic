@@ -348,14 +348,7 @@ void Server::RemoveClient(int64_t iClientId)
 
 ClientConnection* Server::FindClient(int64_t iClientId)
 {
-	for (ClientConnection& rClient : mClients)
-	{
-		if (rClient.iClientId == iClientId)
-		{
-			return &rClient;
-		}
-	}
-	return nullptr;
+	return const_cast<ClientConnection*>(std::as_const(*this).FindClient(iClientId));
 }
 
 const ClientConnection* Server::FindClient(int64_t iClientId) const

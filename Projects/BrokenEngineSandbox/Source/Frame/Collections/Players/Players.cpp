@@ -365,7 +365,7 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 			continue;
 		}
 
-		if ((rStatusChange.eType == StatusChangeType::kSpawnPlayer || rStatusChange.eType == StatusChangeType::kRespawnPlayer) && rCurrentInterpolate.iCount < kiMaxSpawnedPlayers)
+		if (rStatusChange.eType == StatusChangeType::kSpawnPlayer || rStatusChange.eType == StatusChangeType::kRespawnPlayer)
 		{
 			// Respawn clears death screen
 			if (rStatusChange.eType == StatusChangeType::kRespawnPlayer)

@@ -48,14 +48,7 @@ void Client::SendAck()
 	int64_t iTimestampNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 	rWorkbuffer.PushBack<int64_t>(iTimestampNs);
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), 0);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelUnreliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelUnreliable, rWorkbuffer, 0);
 
 	rWorkbuffer.Pop();
 }
@@ -77,14 +70,7 @@ void Client::SendSpawnRequest(ClientRequestFlags_t flags)
 
 	Log(kLogNetwork, "Client::SendSpawnRequest Spawn: {} Respawn: {}", static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 }
@@ -101,8 +87,7 @@ void Client::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expe
 
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientDesyncReport));
 	rWorkbuffer.PushBack<int64_t>(iTick);
-	rWorkbuffer.PushBack<int32_t>(coord.x);
-	rWorkbuffer.PushBack<int32_t>(coord.y);
+	WriteGridCoord(rWorkbuffer, coord);
 	rWorkbuffer.PushBack<uint64_t>(expected);
 	rWorkbuffer.PushBack<uint64_t>(actual);
 
@@ -110,14 +95,7 @@ void Client::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expe
 	char pcActual[20] {};
 	Log(kLogNetwork, "Client::SendDesyncReport Frame: {} Grid: ({},{}) Expected: {} Actual: {}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), expected), common::ToHex(std::span(pcActual), actual));
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 }
@@ -135,19 +113,11 @@ void Client::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 	// [1B type][8B frame][4B gridX][4B gridY]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientDebugFrameRequest));
 	rWorkbuffer.PushBack<int64_t>(iTick);
-	rWorkbuffer.PushBack<int32_t>(coord.x);
-	rWorkbuffer.PushBack<int32_t>(coord.y);
+	WriteGridCoord(rWorkbuffer, coord);
 
 	Log(kLogNetwork, "Client::SendDebugFrameRequest Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 }
@@ -199,17 +169,9 @@ bool Client::SendSubscribe(GridCoord coord)
 
 	// [1B type][4B coord.x][4B coord.y]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientSubscribe));
-	rWorkbuffer.PushBack<int32_t>(coord.x);
-	rWorkbuffer.PushBack<int32_t>(coord.y);
+	WriteGridCoord(rWorkbuffer, coord);
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 	return true;
@@ -235,14 +197,7 @@ void Client::SendUnsubscribeOnly(int64_t iSlot)
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientUnsubscribe));
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 }
@@ -261,14 +216,7 @@ void Client::SendResyncRequest()
 
 	Log(kLogNetwork, "Client::SendResyncRequest");
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 }
@@ -287,14 +235,7 @@ void Client::SendPauseRequest(bool bPaused)
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientPauseRequest));
 	rWorkbuffer.PushBack<uint8_t>(bPaused ? 1 : 0);
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 }
@@ -313,14 +254,7 @@ void Client::SendTimespeedRequest(uint8_t uiDirection)
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientTimespeedRequest));
 	rWorkbuffer.PushBack<uint8_t>(uiDirection);
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 }
@@ -337,14 +271,7 @@ void Client::SendSaveRequest()
 
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientSaveRequest));
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 }
@@ -361,14 +288,7 @@ void Client::SendLoadRequest()
 
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientLoadRequest));
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 }
@@ -385,14 +305,7 @@ void Client::SendWeaponModeRequest()
 
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientWeaponModeRequest));
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 }
@@ -409,14 +322,7 @@ void Client::SendReplayRecordRequest()
 
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientReplayRecordRequest));
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 }
@@ -433,14 +339,7 @@ void Client::SendReplayPlaybackRequest()
 
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientReplayPlaybackRequest));
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 }
@@ -478,14 +377,7 @@ void Client::SendHello()
 	rWorkbuffer.PushBack<uint64_t>(mClientGuid.uiHigh);
 	rWorkbuffer.PushBack<uint64_t>(mClientGuid.uiLow);
 
-	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		// Heap: ENet allocates packet data internally
-		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
-	}
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
 }

@@ -218,6 +218,11 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 				rWorkbuffer.Append("%  Jitter: ");
 				rWorkbuffer.AppendFloat(engine::gpClient->GetJitterUs() / 1000.0f, 1);
 				rWorkbuffer.Append(" ms\n");
+
+				mSmoothedRtt = iRtt;
+				mSmoothedRtt.Update();
+				mSmoothedJitter = engine::gpClient->GetJitterUs() / 1000;
+				mSmoothedJitter.Update();
 			}
 
 			rWorkbuffer.Append("In: ");

@@ -179,6 +179,7 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 	#include "imgui.h"
 	#include "backends/imgui_impl_win32.h"
 	#include "backends/imgui_impl_vulkan.h"
+	#include "implot.h"
 
 	extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #endif

@@ -8,7 +8,7 @@ Client/server networking infrastructure using the ENet reliable UDP library. Pro
 
 ## Key Classes
 
-- **NetworkManager** (`gpNetworkManager`) - Singleton managing ENet lifecycle. Defines channel layout: control channels (reliable + unreliable) plus paired reliable/unreliable channels per coord slot
+- **NetworkManager** (`gpNetworkManager`) - Singleton managing ENet lifecycle. Defines channel layout: control channels (reliable + unreliable) plus paired reliable/unreliable channels per coord slot. `SendPacket` static helper encapsulates ENet packet creation, send, and allocation-tracking suppression
 - **NetworkProtocol** - Wire protocol definitions: `PacketType` enum (includes `kClientPauseRequest` for debug pause, `kClientTimespeedRequest` for debug timespeed control, `kServerTimespeedUpdate` for server broadcast of current timescale, `kClientSaveRequest`/`kClientLoadRequest` for server-authoritative save/load, `kServerLoadNotification` for broadcasting load completion, `kClientWeaponModeRequest` for per-player weapon mode toggle, `kClientReplayRecordRequest` for server-authoritative replay record start/stop, and `kClientReplayPlaybackRequest` for server-authoritative replay playback), `ClientGuid` (128-bit persistent client identity wrapper), `ClientRequestFlags`, `AckState`, protocol constants, and LAN discovery constants
 - **NetworkSimulation** - Optional latency/loss simulation for testing. Region presets with delay queue and packet drop logic. Per-level bounds define expected reconciliation stats for profile overlay anomaly detection. When timespeed is accelerated (`miTimeMultiply > 1`), delayed packets are flushed immediately to prevent simulation artifacts. Enabled via compile-time enum in `Pch.h`; zero overhead when disabled via `if constexpr`
 - **Server** (`gpServer`, `Server/`) - Server-side ENet host managing client connections, slot-based subscriptions, per-coord frame ring buffers for resend and debug, and ACK state with epoch-based slot reuse protection. Send methods use raw `int64_t` player IDs (not `player_t`)
@@ -17,7 +17,7 @@ Client/server networking infrastructure using the ENet reliable UDP library. Pro
 - **ServerSessionBase** (`Server/`, server-only) - Engine-generic base for game server sessions. Owns `NetworkDiscoveryResponder` and Windows waitable timer for fixed-rate ticks
 - **NetworkDiscovery** - LAN server discovery via UDP broadcast (responder on server, scanner on client)
 - **ServerTypes** - Shared pending-event structs used by `Server` and game layer
-- **NetworkCursor** - Inline cursor-based binary read/write helpers for packet assembly/parsing
+- **NetworkCursor** - Inline cursor-based binary read/write helpers for packet assembly/parsing. Includes `WriteGridCoord` in both cursor and `Workbuffer` overloads
 - **NetworkSerialization** - Interface for `StatusChange` batch serialization with LZ4 compression. Implementation in game layer
 
 ## Architecture Notes

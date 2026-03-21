@@ -308,6 +308,17 @@ void GameBase::Render()
 
 		// Update camera before async launch
 		game::gpCamera->Update(gpGraphics->mRenderInterpolates.at(cameraCoord));
+
+		// Decay visual error offset for smooth reconciliation corrections
+		{
+			float fDisplayDeltaTime = 1.0f / static_cast<float>(gpGraphics->miMonitorRefreshRate);
+			float fDecay = std::exp(-game::Game::kfVisualErrorDecayRate * fDisplayDeltaTime);
+			game::gpGame->mVecVisualErrorOffset = XMVectorScale(game::gpGame->mVecVisualErrorOffset, fDecay);
+			if (XMVectorGetX(XMVector3Length(game::gpGame->mVecVisualErrorOffset)) < game::Game::kfVisualErrorMinDistance)
+			{
+				game::gpGame->mVecVisualErrorOffset = {};
+			}
+		}
 	}
 
 	// Write UI buffers on main thread (safe - Update() already complete)

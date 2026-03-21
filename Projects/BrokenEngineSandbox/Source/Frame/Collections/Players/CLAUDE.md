@@ -4,9 +4,10 @@ SOA collection of player spaceships supporting multiple players (1 human + AI wi
 
 ## File Structure
 
-Split across three `.cpp` files sharing a single `.h`:
+Split across four `.cpp` files sharing a single `.h`:
 - **Players.cpp** - Registration, lifecycle (spawn, transfer, destroy), weapon spawning (blasters, missiles), death explosions
-- **PlayersUpdate.cpp** - Movement, AI steering, collision, shield/armor damage
+- **PlayersUpdate.cpp** - Movement, AI steering, shield/armor damage
+- **PlayersCollision.cpp** - Collision detection and response
 - **PlayersRender.cpp** - Skeletal animation and model rendering (`#ifdef BT_CLIENT` only)
 
 Shared constants used across multiple `.cpp` files are declared in `Players.h`.

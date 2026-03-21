@@ -15,4 +15,4 @@ Centralizes third-party code compilation into one static library linked by both 
 
 ## Source Organization
 
-The project compiles source files from `ThirdParty/Prebuilts/Source/` using filters that separate Engine and DataPacker dependencies. When adding a new third-party library, add a compilation unit under the appropriate `Source/Engine/` or `Source/DataPacker/` directory and register it in both `ThirdParty.vcxproj` and `ThirdParty.vcxproj.filters`.
+The project compiles source files from `ThirdParty/Prebuilts/Source/` using filters that separate Engine and DataPacker dependencies. DataPacker dependencies currently include meshoptimizer (offline mesh optimization). When adding a new third-party library, add a compilation unit under the appropriate `Source/Engine/` or `Source/DataPacker/` directory and register it in both `ThirdParty.vcxproj` and `ThirdParty.vcxproj.filters`.

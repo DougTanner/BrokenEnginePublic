@@ -107,6 +107,11 @@ public:
 
 #if defined(BT_CLIENT)
 	Camera mCamera {};
+	XMVECTOR mVecVisualErrorOffset {};
+
+	static constexpr float kfVisualErrorDecayRate = 15.0f;
+	static constexpr float kfVisualErrorMaxDistance = 5.0f;
+	static constexpr float kfVisualErrorMinDistance = 0.001f;
 #endif
 
 	UiState meUiState = UiState::kPause;

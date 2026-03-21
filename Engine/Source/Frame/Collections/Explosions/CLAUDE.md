@@ -4,8 +4,9 @@ Composite explosion effects that spawn lights, puffs, smoke trails, wind radials
 
 ## File Structure
 
-The implementation is split across two `.cpp` files:
-- **Explosions.cpp** - Registration, type registry, lifecycle (`Spawn()` with fire-and-forget child effects, transfer, `Destroy()` with trail cleanup and expiry), `LogDifferences()`, render counter tracking
+The implementation is split across three `.cpp` files:
+- **Explosions.cpp** - Registration, type registry, lifecycle (transfer, `Destroy()` with trail cleanup and expiry), `LogDifferences()`, render counter tracking
+- **ExplosionsSpawn.cpp** - `Spawn()` with fire-and-forget child effects
 - **ExplosionsUpdate.cpp** - `Update()` (copies explosion state, syncs trail positions with gravity), collision phases (all empty)
 
 ## Architecture Notes
