@@ -14,7 +14,7 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 0.5. Invoke /external-grill-plan to interview the user about the plan — resolve ambiguities, gather missing information, and ensure plan completeness before implementation
 1. Make the code changes using the planning document
 2. Any new files created should be added to the appropriate filter in any relevant .vcproj files
-3. Build the affected projects and verify there are no errors (see Build section above)
+3. Build the affected projects and verify there are no errors (see Build section below)
 4. Use a Sonnet subagent (task tool) to search the codebase and update all locations in the code affected by this modified code
 5. Use a Sonnet subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure). If review flags any files for `/reduce-file`, invoke it on them
 6. Use a Sonnet subagent (task tool) to invoke the code-style-review skill

@@ -10,7 +10,7 @@ The implementation is split across two `.cpp` files:
 
 ## Architecture Notes
 
-- Sound IDs use a separate UUID counter to avoid perturbing deterministic sequences shared with the server
+- Sound IDs use a separate UUID counter (`GenerateSoundUuid()`) to avoid perturbing deterministic entity UUID sequences shared with the server -- sound creation order is client-only and must not affect simulation determinism
 - No GPU resources or rendering; audio playback is handled by AudioManager, not the render pipeline
 
 ## See Also

@@ -15,12 +15,17 @@ Foundation layer (`namespace common`) with no dependencies outside the codebase.
 
 ## Architecture Notes
 
+### Logging
 - **Zero-allocation logging**: `Log()` writes directly into per-thread buffers via `std::format_to`. Supports bitmask category filtering via `Log(category, format, ...)` -- `guiLogEnabledCategories` controls which categories are active (e.g., `kLogDefault`, `kLogLoading`, `kLogNetwork`, `kLogAudio`). `kLogError` always outputs regardless of `guiLogEnabledCategories` — use it for fatal/unexpected error conditions. `kLogAudio` is defined but deactivated by default. Avoid `std::format` hex specifiers in `Log()` calls (MSVC may heap-allocate); use `common::ToHex()` with a stack buffer instead
+- **DiagnosticLog**: `FILE_LOG_INIT(index, filename)` / `FILE_LOG(index, ...)` for thread-safe diagnostic output to up to 4 simultaneous log files. `FILE_LOG` is for data comparison logging with descriptive labels; prefer `Log(kLogCategory, "")` with categories for temporary diagnostic logging
+- **LogDifference**: Template helpers (`LogDifference<NAME>`, `LogDifference_Vec`) for field-by-field comparison logging. Used by frame/collection `LogDifferences()` methods for desync diagnosis. `ScopedLogDifferenceContext` sets a thread-local context string so log output identifies which collection or frame section produced the mismatch
+
+### Math & Headers
 - **Deterministic math**: `ThreadLocal` constructor sets MXCSR state (flush denormals, round-to-nearest) on every thread for cross-thread consistency
 - **ExternalHeaders.h**: Central include for all external/standard library headers. New `#include <header>` additions go here, not in individual source files
 - **Compile-time CRC**: `Crc()` is constexpr; `CrcConsteval()` forces compile-time evaluation. Used for asset identification throughout the engine
-- **DiagnosticLog**: `FILE_LOG_INIT(index, filename)` / `FILE_LOG(index, ...)` for thread-safe diagnostic output to up to 4 simultaneous log files
-- **LogDifference**: Template helpers (`LogDifference<NAME>`, `LogDifference_Vec`) for field-by-field comparison logging. Used by frame/collection `LogDifferences()` methods for desync diagnosis. `ScopedLogDifferenceContext` sets a thread-local context string so log output identifies which collection or frame section produced the mismatch
+
+### Validation
 - **Validation macros**: `ASSERT`, `CHECK_HRESULT`, `VERIFY_SUCCESS` with `std::source_location` for automatic call site capture
 
 ## See Also

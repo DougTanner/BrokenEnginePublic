@@ -11,7 +11,8 @@ The implementation is split across three `.cpp` files:
 
 ## Architecture Notes
 
-- `SyncData` carries decomposed transform matrices and per-direction damage intensities for multi-directional hit visualization
+- `SyncData` carries position, size, color mix, glow intensity, decomposed 3-row transform and normal matrices, and 16-direction damage channels with separate vertex-stage and fragment-stage intensities
+- Directional damage enables multi-directional hit visualization with up to 16 simultaneous impact directions
 - Supports color mixing between base and lighting colors, plus configurable shield glow intensity
 
 ## See Also

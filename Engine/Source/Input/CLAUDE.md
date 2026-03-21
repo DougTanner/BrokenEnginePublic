@@ -10,7 +10,7 @@ Engine-level hardware input polling for keyboard, mouse, and gamepad. The `RawIn
 
 ## Key Behaviors
 
-- **State-only tracking**: Records current button state, not transitions. Game-layer input classes diff frames to detect press/release
+- **State-only tracking**: Records current button state, not transitions. Game-layer input classes diff consecutive frames to detect press/release — this ensures deterministic frame input since transition detection is deferred to the game layer
 - **Focus-aware**: Registers/unregisters raw input devices on window focus changes; clears keyboard state on focus gain to prevent stuck keys; suspends gamepad polling when unfocused
 - **Cursor trapping**: Constrains cursor to window bounds during gameplay, driven by `game::gpGame->ShouldTrapCursor()`
 

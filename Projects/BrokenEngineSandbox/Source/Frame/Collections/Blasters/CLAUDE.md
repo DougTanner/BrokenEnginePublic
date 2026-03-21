@@ -2,6 +2,12 @@
 
 Fast-moving energy projectiles with shared `BlasterType` configuration. Compiles in both client and server builds. Terrain impacts spawn visual and audio effects.
 
+## Physics & Collision
+
+- **Movement**: Constant velocity linear integration, direction derived from normalized velocity
+- **Collision**: Swept sphere test, destroyed on any collision
+- **Terrain impact**: Binary search to find exact intersection point with random jitter. Spawns crater point light and puff, plus terrain impact sound (client-only)
+
 ## Light Type Selection
 
 Each blaster type uses either an area light or a camera-aligned point light for its visual, selected by `BlastersType::uiPointLightTypeIndex` (0xFF = use area light; any other value = point light). Player blasters use area lights; enemy blasters use camera-aligned point lights registered in `Spaceships.cpp`. Client-owned light handles (`puiAreaLights`, `puiPointLights`) and wind trail/sound handles are stored in `BlastersInterpolate` (SOA, `#ifdef BT_CLIENT`).
