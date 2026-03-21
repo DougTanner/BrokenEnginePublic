@@ -6,7 +6,7 @@
 // Uniforms
 layout (set = 0, binding = 0) uniform globalUniform
 {
-    GlobalLayout globalLayout;
+	GlobalLayout globalLayout;
 };
 
 layout (set = 0, binding = 1) uniform mainUniform
@@ -45,8 +45,8 @@ void main()
 
 	float fWorldX = f4Center.x - fSize + 2.0f * f2InQuadVertex.x * fSize;
 	float fWorldY = f4Center.y + fSize - 2.0f * f2InQuadVertex.y * fSize;
-	gl_Position = vec4(-1.0f + 2.0f * (fWorldX - globalLayout.f4VisibleArea.x) / (globalLayout.f4VisibleArea.z - globalLayout.f4VisibleArea.x),
-	                    1.0f - 2.0f * (fWorldY - globalLayout.f4VisibleArea.y) / (globalLayout.f4VisibleArea.w - globalLayout.f4VisibleArea.y),
+	gl_Position = vec4(-1.0f + 2.0f * (fWorldX - globalLayout.f4LightingArea.x) / (globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x),
+	                    1.0f - 2.0f * (fWorldY - globalLayout.f4LightingArea.y) / (globalLayout.f4LightingArea.w - globalLayout.f4LightingArea.y),
 					    0.0f,
 					    1.0f);
 

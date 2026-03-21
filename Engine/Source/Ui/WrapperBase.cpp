@@ -120,15 +120,15 @@ Wrapper gLightingTextureMultiplier(1.0f / 4.0f, 1.0f / 64.0f, 1.0f / 1.0f);
 Wrapper gLightingBlurDownscale(0.8f, 0.5f, 0.9f);
 Wrapper gLightingCombineIndex(0.4f, 0.0f, 10.4f);
 Wrapper gLightingBlurDistance(0.1f, 0.0f, 0.5f);
-Wrapper gLightingBlurDirectionality(1.0f, 0.0f, 1.0f);
+Wrapper gLightingBlurDirectionality(0.9f, 0.0f, 1.0f);
 Wrapper gLightingBlurJitter(0.1f, 0.0f, 0.2f);
-Wrapper gLightingBlurFirstDivisor(1300.0f, 100.0f, 2000.0f);
+Wrapper gLightingBlurFirstDivisor(1400.0f, 200.0f, 4000.0f);
 Wrapper gLightingBlurDivisor(0.24f, 0.0f, 1.0f);
 Wrapper gLightingCombineDecay(0.7f, 0.5f, 1.0f);
 Wrapper gLightingCombinePower(0.5f, 0.1f, 2.0f);
 
-Wrapper gLightingDirectional(1.6f, 1.0f, 3.0f);
-Wrapper gLightingIndirect(0.8f, 0.5f, 2.0f);
+Wrapper gLightingDirectional(4.0f, 0.0f, 6.0f);
+Wrapper gLightingIndirect(0.8f, 0.0f, 2.0f);
 Wrapper gLightingTerrain(0.6f, 0.0f, 2.0f);
 Wrapper gLightingAddTerrain(0.3f, 0.0f, 1.0f);
 Wrapper gLightingObjects(3.0f, 0.0f, 8.0f);
@@ -155,19 +155,19 @@ Wrapper gLightingWaterSkyboxThreePower(1.3f, 0.01f, 2.0f);
 Wrapper gLightingWaterSkyboxLod(1.5f, 0.0f, 10.0f);
 
 // Water specular lighting
-Wrapper gLightingWaterSpecularNormalSoften(0.1f, 0.0f, 0.5f);
-Wrapper gLightingWaterSpecularNormalBlendWave(0.2f, 0.0f, 0.5f);
+Wrapper gLightingWaterSpecularNormalSoften(0.0f, 0.0f, 0.5f);
+Wrapper gLightingWaterSpecularNormalBlendWave(0.0f, 0.0f, 0.5f);
 
-Wrapper gLightingWaterSpecularDiffuse(1.5f, 0.0f, 4.0f);
-Wrapper gLightingWaterSpecularDirect(9.0f, 0.0f, 40.0f);
-Wrapper gLightingWaterSpecular(4.0f, 0.0f, 8.0f);
-Wrapper gLightingWaterSpecularIntensity(0.01f, 0.0f, 0.02f);
-Wrapper gLightingWaterSpecularAdd(0.6f, 0.0f, 2.0f);
-Wrapper gLightingWaterSpecularOne(140.0f, 0.0f, 600.0f);
+Wrapper gLightingWaterSpecularDiffuse(2.0f, 0.0f, 4.0f);
+Wrapper gLightingWaterSpecularDirect(0.0f, 0.0f, 40.0f);
+Wrapper gLightingWaterSpecular(5.0f, 0.0f, 8.0f);
+Wrapper gLightingWaterSpecularIntensity(0.006f, 0.0f, 0.02f);
+Wrapper gLightingWaterSpecularAdd(0.8f, 0.0f, 2.0f);
+Wrapper gLightingWaterSpecularOne(200.0f, 0.0f, 600.0f);
 Wrapper gLightingWaterSpecularOnePower(5.0f, 1.0f, 20.0f);
-Wrapper gLightingWaterSpecularTwo(7.0f, 0.0f, 20.0f);
+Wrapper gLightingWaterSpecularTwo(3.0f, 0.0f, 20.0f);
 Wrapper gLightingWaterSpecularTwoPower(1.3f, 0.5f, 5.0f);
-Wrapper gLightingWaterSpecularThree(4.0f, 0.0f, 10.0f);
+Wrapper gLightingWaterSpecularThree(.6f, 0.0f, 10.0f);
 Wrapper gLightingWaterSpecularThreePower(0.1f, 0.05f, 0.5f);
 
 // Smoke

@@ -268,6 +268,7 @@ void main()
 	vec3 f3AmbientColor = globalLayout.f4AmbientColor.rgb;
 
 	vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4VisibleArea);
+	vec2 f2LightingPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
 	float fShadow = max(mainLayout.fPbrShadowFloor, texture(shadowTextureSampler, f2VisibleAreaPosition).r);
 
 	// Accumulate lighting
@@ -310,7 +311,7 @@ void main()
 
 	// Read engine directional lighting
 	vec4 pf4Lighting[3];
-	ReadLighting(pf4Lighting, pLightingSamplers, f2VisibleAreaPosition);
+	ReadLighting(pf4Lighting, pLightingSamplers, f2LightingPosition);
 
 	// Cook-Torrance specular from engine directional lights (EWNS cardinal directions)
 #if ENABLE_SPECULAR_LIGHTING

@@ -28,16 +28,22 @@ std::string_view HresultToString(HRESULT hresult);
 // Thread-safety: Thread-safe - uses local stack buffers
 std::tuple<std::string, std::string> FileTimeString(const std::filesystem::file_time_type& rFileTime);
 
-// Executes an external process with captured stdin/stdout/stderr and returns the output
+struct ExecutableResult
+{
+	std::string mOutput;
+	int64_t miExitCode = 0;
+};
+
+// Executes an external process with captured stdin/stdout/stderr and returns the output and exit code
 // Parameters:
 //   rExecutableFile - Full path to the executable to run
 //   rCommandLine - Command-line arguments (wide string). Modified by CreateProcessW so cannot be const
-// Returns: std::string containing all output from stdout and stderr combined
+// Returns: ExecutableResult containing combined stdout/stderr output and the process exit code
 // Creates pipes for process communication, runs the process with CREATE_NO_WINDOW flag,
 // captures all output until the process terminates or closes its output handles
 // Used by DataPacker to run build tools like glslangValidator and ffmpeg
 // Thread-safety: Thread-safe - uses local resources and process isolation
-std::string RunExecutable(const std::filesystem::path& rExecutableFile, std::wstring& rCommandLine);
+ExecutableResult RunExecutable(const std::filesystem::path& rExecutableFile, std::wstring& rCommandLine);
 
 // Returns the number of logical CPU cores including hyperthreading
 // Uses std::thread::hardware_concurrency() to query the system

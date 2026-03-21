@@ -194,6 +194,7 @@ void ServerSession::BuildFrameInputs()
 	for (const ClientSpawnInfo& rInfo : mClientsWaitingForSpawn)
 	{
 		gpGame->mFrameInputs.try_emplace(rInfo.spawnCoord).first->second.statusChanges.push_back({.eType = StatusChangeType::kSpawnPlayer,});
+		Log(kLogNetwork, "BuildFrameInputs kSpawnPlayer Client: {} Coord: ({},{})", rInfo.iClientId, rInfo.spawnCoord.x, rInfo.spawnCoord.y); // DT TEMP
 	}
 
 	// Add destroy StatusChanges for disconnected players
@@ -498,6 +499,7 @@ void ServerSession::NewClients()
 		}
 
 		mClientsWaitingForSpawn.push_back({rClient.iClientId, engine::kOriginCoord});
+		Log(kLogNetwork, "NewClients Added Client: {} Handshake: {}", rClient.iClientId, rClient.bHandshakeComplete); // DT TEMP
 	}
 }
 
@@ -532,6 +534,9 @@ void ServerSession::FinalizeNewClients([[maybe_unused]] int64_t iTick)
 			newPlayerIds.push_back(rPlayers.puiIds[i]);
 		}
 	}
+
+	// DT TEMP
+	Log(kLogNetwork, "FinalizeNewClients Waiting: {} PlayerCount: {} PreSpawn: {} NewIds: {}", mClientsWaitingForSpawn.size(), rPlayers.iCount, mPreSpawnPlayerIds.size(), newPlayerIds.size());
 
 	// Assign new players to waiting clients (in order)
 	// Client handles subscriptions — no full state sent here
@@ -583,6 +588,12 @@ void ServerSession::Disconnects()
 		{
 			return rInfo.iClientId == rDisconnect.iClientId;
 		});
+	}
+
+	// Unpause when no clients remain so the server resumes ticking for the next connection
+	if (gpGame->mGameFlags & engine::GameFlags::kPaused && engine::gpServer->GetClients().empty())
+	{
+		gpGame->mGameFlags.Clear(engine::GameFlags::kPaused);
 	}
 }
 

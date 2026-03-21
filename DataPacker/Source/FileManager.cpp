@@ -18,20 +18,18 @@ FileManager::FileManager(std::span<char*> argvSpan)
 		mOutputDirectory = argvSpan[3];
 	}
 
-	// Extract project name from project data directory and append to output directory
-	std::filesystem::path normalizedPath = mpInputDirectories[1].lexically_normal();
-	std::filesystem::path projectDataParent = normalizedPath.parent_path();
-	mProjectName = projectDataParent.filename().string();
+	mpInputDirectories[0] = std::filesystem::canonical(mpInputDirectories[0]);
+	mpInputDirectories[1] = std::filesystem::canonical(mpInputDirectories[1]);
 
-	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[0]));
-	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[1]));
+	// Extract project name from project data directory
+	mProjectName = mpInputDirectories[1].parent_path().filename().string();
 	std::filesystem::create_directories(mOutputDirectory);
 	VERIFY_SUCCESS(std::filesystem::exists(mOutputDirectory));
 
 	// Vulkan SDK Path
 	char pcDirectory[MAX_PATH] {};
-	DWORD result = GetEnvironmentVariable("VK_SDK_PATH", pcDirectory, static_cast<DWORD>(std::size(pcDirectory) - 1));
-	if (result == 0)
+	DWORD uiResult = GetEnvironmentVariable("VK_SDK_PATH", pcDirectory, static_cast<DWORD>(std::size(pcDirectory) - 1));
+	if (uiResult == 0)
 	{
 		throw std::runtime_error("VK_SDK_PATH environment variable not found");
 	}
@@ -46,8 +44,8 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	Log("Project name: \"{}\"", mProjectName);
 
 	// Temporaries directory
-	DWORD tempResult = GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
-	if (tempResult == 0)
+	DWORD uiTempResult = GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
+	if (uiTempResult == 0)
 	{
 		throw std::runtime_error("Failed to get temp directory path");
 	}

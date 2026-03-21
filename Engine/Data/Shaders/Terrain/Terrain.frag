@@ -101,7 +101,7 @@ void main()
 	float fSmokePow = clamp(pow(fSmokeRaw, globalLayout.fSmokePower), 0.0f, 1.0f);
 
 	// Lighting at base height
-	vec2 f2BaseHeightTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4VisibleArea);
+	vec2 f2BaseHeightTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4Lighting[3];
 	ReadLighting(pf4Lighting, pLightingSamplers, f2BaseHeightTexcoord);
 	f4OutColor.xyz += Lighting(globalLayout, f3Color, f3InPosition.z, f3Normal, pf4Lighting, globalLayout.fLightingTerrain, globalLayout.fLightingAddTerrain);

@@ -16,6 +16,8 @@ Fragment and vertex shaders for rendering dynamic lights and post-processing the
 
 **Two light categories**: Area/point lights write to MRT directional lighting textures that go through blur and combine post-processing before consumption by terrain/object shaders. Visible lights bypass this pipeline and render directly to the main framebuffer as additive screen-space billboards.
 
+**Stable lighting area**: The lighting spread system uses a dedicated lighting area (stable, ceil'd dimensions with a texel-grid-snapped origin) independent of the camera visible area. This follows the same pattern as smoke and wind areas, eliminating per-frame flicker caused by sub-texel camera movement.
+
 **Blur MRT pass**: A single LightingBlur draw per blur level processes all three color channels simultaneously (3 inputs, 3 outputs). The sample distance count is passed via push constants, allowing higher blur levels to use fewer samples for a progressive quality/cost tradeoff.
 
 **Alpha-as-contribution model**: Both light categories use alpha as an independent contribution multiplier rather than transparency, scaling additive RGB output. Visible lights additionally apply terrain intersection fading to the alpha channel.

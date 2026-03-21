@@ -41,12 +41,12 @@ void CameraBase::CalculateMatricesAndVisibleArea()
 
 	XMMATRIX matIdentity = XMMatrixIdentity();
 
-	XMVECTOR vecRayStart{};
-	XMVECTOR vecRayEnd{};
-	XMVECTOR vecIntersectPlane{};
+	XMVECTOR vecRayStart {};
+	XMVECTOR vecRayEnd {};
+	XMVECTOR vecIntersectPlane {};
 
 	// Calculate visible area corners by unprojecting screen corners to world space at Z=0
-	XMFLOAT3 f3ScreenPos{ 0.0f, 0.0f, 0.0f };
+	XMFLOAT3 f3ScreenPos { 0.0f, 0.0f, 0.0f };
 
 	// Top left
 	f3ScreenPos.x = 0.0f;

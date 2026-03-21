@@ -109,7 +109,7 @@ std::tuple<std::string, std::string> FileTimeString(const std::filesystem::file_
 	return std::make_tuple(std::string(pcDate), std::string(pcTime));
 }
 
-std::string RunExecutable(const std::filesystem::path& rExecutableFile, std::wstring& rCommandLine)
+ExecutableResult RunExecutable(const std::filesystem::path& rExecutableFile, std::wstring& rCommandLine)
 {
 	SECURITY_ATTRIBUTES securityAttributes
 	{
@@ -148,12 +148,16 @@ std::string RunExecutable(const std::filesystem::path& rExecutableFile, std::wst
 		output.append(pcPipeOutput, &pcPipeOutput[uiBytesRead]);
 	}
 
+	WaitForSingleObject(processInformation.hProcess, INFINITE);
+	DWORD uiExitCode = 0;
+	GetExitCodeProcess(processInformation.hProcess, &uiExitCode);
+
 	CloseHandle(hStdOutPipeRead);
 	CloseHandle(hStdInPipeWrite);
 	CloseHandle(processInformation.hThread);
 	CloseHandle(processInformation.hProcess);
 
-	return output;
+	return {.mOutput = std::move(output), .miExitCode = static_cast<int64_t>(uiExitCode)};
 }
 
 } // namespace common

@@ -30,7 +30,7 @@ layout (location = 2) out vec4 f4OutBlue;
 
 void main()
 {
-	float fAspectRatioY = 1.0f / (globalLayout.f4VisibleArea.z - globalLayout.f4VisibleArea.x);
+	float fAspectRatioY = 1.0f / (globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x);
 	float fAspectRatioX = fAspectRatioY;
 
 	const float fDirectionality = globalLayout.fLightingBlurDirectionality;

@@ -12,7 +12,7 @@ layout(push_constant) uniform pushConstants
 // Uniforms
 layout (set = 0, binding = 0) uniform globalUniform
 {
-    GlobalLayout globalLayout;
+	GlobalLayout globalLayout;
 };
 
 layout (set = 0, binding = 1) uniform mainUniform
@@ -88,7 +88,7 @@ void main()
 	}
 	else
 	{
-		vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3OutPosition, globalLayout.f4VisibleArea);
+		vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3OutPosition, globalLayout.f4LightingArea);
 		gl_Position = vec4(vec2(-1.0f + 2.0f * f2VisibleAreaPosition.x, 1.0f - 2.0f * f2VisibleAreaPosition.y), 0.0f, 1.0f);
 	}
 }

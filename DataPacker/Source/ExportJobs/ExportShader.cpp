@@ -23,7 +23,9 @@ static std::vector<std::filesystem::path> ParseDependencyFile(const std::filesys
 	// Skip target (everything before first ':')
 	size_t uiColon = content.find(':');
 	if (uiColon == std::string::npos)
+	{
 		return dependencies;
+	}
 	content = content.substr(uiColon + 1);
 
 	// Remove backslash-newline continuations and carriage returns
@@ -34,17 +36,23 @@ static std::vector<std::filesystem::path> ParseDependencyFile(const std::filesys
 		{
 			++i;
 			if (content[i] == '\r' && i + 1 < content.size() && content[i + 1] == '\n')
+			{
 				++i;
+			}
 		}
 		else if (content[i] != '\r')
+		{
 			cleaned += content[i];
+		}
 	}
 
 	// Split on whitespace to get dependency paths
 	std::istringstream stream(cleaned);
 	std::string token;
 	while (stream >> token)
+	{
 		dependencies.emplace_back(token);
+	}
 
 	return dependencies;
 }
@@ -57,7 +65,9 @@ std::optional<common::ChunkFlags_t> ExportShader::Handles(const std::filesystem:
 bool ExportShader::CheckDirty(const std::filesystem::path& rPackFile)
 {
 	if (ExportJob::CheckDirty(rPackFile))
+	{
 		return true;
+	}
 
 	// Use dependency file from previous export to check if any included header changed
 	std::filesystem::path dependencyFile = gpFileManager->mTempDirectory / mRelativeDirectory / (mInputPath.filename().native() + L".d");
@@ -72,7 +82,10 @@ bool ExportShader::CheckDirty(const std::filesystem::path& rPackFile)
 	for (const std::filesystem::path& rDependency : dependencies)
 	{
 		if (!std::filesystem::exists(rDependency))
-			continue;
+		{
+			mbDirty = true;
+			return true;
+		}
 		if (std::filesystem::last_write_time(rDependency) > chunkFileLastWriteTime)
 		{
 			auto [date, time] = common::FileTimeString(chunkFileLastWriteTime);
@@ -134,10 +147,10 @@ void ExportShader::Export()
 	log += L"\n";
 	OutputDebugStringW(log.c_str());
 
-	std::string output = common::RunExecutable(glslcExecutable, commandLineParameters);
-	if (!output.empty())
+	common::ExecutableResult result = common::RunExecutable(glslcExecutable, commandLineParameters);
+	if (!result.mOutput.empty())
 	{
-		throw std::runtime_error(std::format("glslc.exe error: {}", output));
+		throw std::runtime_error(std::format("glslc.exe error: {}", result.mOutput));
 	}
 
 	if (!std::filesystem::exists(preProcessedFile))
@@ -177,19 +190,17 @@ void ExportShader::Export()
 	log += L"\n";
 	OutputDebugStringW(log.c_str());
 
-	output = common::RunExecutable(glslangValidatorExecutable, commandLineParameters);
-	if (!output.empty())
+	result = common::RunExecutable(glslangValidatorExecutable, commandLineParameters);
+	if (result.miExitCode != 0 || !std::filesystem::exists(spirvFile))
 	{
-		Log("glslangValidator.exe output: {}", output);
+		throw std::runtime_error(std::format("glslangValidator.exe error: {}", result.mOutput));
 	}
-
-	if (!std::filesystem::exists(spirvFile))
+	if (!result.mOutput.empty())
 	{
-		throw std::runtime_error(std::format("Shader '{}' failed to compile", mInputPath.string()));
+		Log("glslangValidator.exe output: {}", result.mOutput);
 	}
 
 	mIntermediateFiles.push_back(spirvFile);
-	VERIFY_SUCCESS(std::filesystem::exists(spirvFile));
 
 #if defined(OPTIMIZE_SHADERS)
 	// Run spirv-opt on the compiled SPIR-V
@@ -203,6 +214,7 @@ void ExportShader::Export()
 	std::wstring spirvOptCommandLineParameters = L"";
 	spirvOptCommandLineParameters += L" -O";
 	spirvOptCommandLineParameters += L" --target-env=vulkan1.2";
+	spirvOptCommandLineParameters += L" --scalar-block-layout";
 	spirvOptCommandLineParameters += L" -o \"" + optimizedSpirvFile.native() + L"\"";
 	spirvOptCommandLineParameters += L" \"" + spirvFile.native() + L"\"";
 
@@ -213,17 +225,18 @@ void ExportShader::Export()
 	log += L"\n";
 	OutputDebugStringW(log.c_str());
 
-	output = common::RunExecutable(spirvOptExecutable, spirvOptCommandLineParameters);
-	if (!output.empty())
+	result = common::RunExecutable(spirvOptExecutable, spirvOptCommandLineParameters);
+	if (result.miExitCode != 0 || !std::filesystem::exists(optimizedSpirvFile))
 	{
-		Log("spirv-opt.exe output: {}", output);
+		throw std::runtime_error(std::format("spirv-opt.exe error: {}", result.mOutput));
+	}
+	if (!result.mOutput.empty())
+	{
+		Log("spirv-opt.exe output: {}", result.mOutput);
 	}
 
-	if (std::filesystem::exists(optimizedSpirvFile))
-	{
-		spirvFile = optimizedSpirvFile;
-		mIntermediateFiles.push_back(optimizedSpirvFile);
-	}
+	spirvFile = optimizedSpirvFile;
+	mIntermediateFiles.push_back(optimizedSpirvFile);
 #endif
 
 	// Read SPIR-V into temporary buffer for reflection

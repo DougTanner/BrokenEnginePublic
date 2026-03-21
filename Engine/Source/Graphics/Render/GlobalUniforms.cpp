@@ -329,6 +329,32 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 
 	rGlobalLayout.f4VisibleArea = game::gpCamera->f4RenderVisibleArea;
 
+	// Lighting area: stable dimensions + texel-snapped origin
+	float fVisibleWidth = rGlobalLayout.f4VisibleArea.z - rGlobalLayout.f4VisibleArea.x;
+	float fVisibleHeight = rGlobalLayout.f4VisibleArea.y - rGlobalLayout.f4VisibleArea.w;
+	if (fVisibleWidth > 0.0f && fVisibleHeight > 0.0f)
+	{
+		auto [iLightingTextureX, iLightingTextureY] = TextureManager::DetailTextureSize(gLightingTextureMultiplier.Get());
+
+		float fWidth = std::ceil(fVisibleWidth);
+		float fHeight = std::ceil(fVisibleHeight);
+
+		float fTexelSizeX = fWidth / static_cast<float>(iLightingTextureX);
+		float fTexelSizeY = fHeight / static_cast<float>(iLightingTextureY);
+
+		XMFLOAT4A f4CameraPos {};
+		XMStoreFloat4A(&f4CameraPos, game::gpCamera->mVecPosition);
+
+		float fLeft = common::RoundDown(f4CameraPos.x - fWidth * 0.5f, fTexelSizeX);
+		float fTop = common::RoundDown(f4CameraPos.y + fHeight * 0.5f + fTexelSizeY, fTexelSizeY);
+
+		rGlobalLayout.f4LightingArea = {fLeft, fTop, fLeft + fWidth, fTop - fHeight};
+	}
+	else
+	{
+		rGlobalLayout.f4LightingArea = rGlobalLayout.f4VisibleArea;
+	}
+
 	float fDayPercent = 0.0f;
 	float fNoonPercent = 0.0f;
 	PopulateSunAndLighting(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent);

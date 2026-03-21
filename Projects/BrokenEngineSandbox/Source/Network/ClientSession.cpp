@@ -414,12 +414,15 @@ bool ClientSession::PollConnection()
 	}
 
 	mpClientNetwork->Poll();
+	Log(kLogNetwork, "PollConnection After Poll"); // DT TEMP
 
 	if (!PollConnectionStatus())
 	{
+		Log(kLogNetwork, "PollConnection NotAccepted"); // DT TEMP
 		return false;
 	}
 
+	Log(kLogNetwork, "PollConnection Accepted"); // DT TEMP
 	TryEnterGame();
 
 	PollDebugFrameResponse();

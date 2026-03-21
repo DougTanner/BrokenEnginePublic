@@ -12,7 +12,7 @@ layout(push_constant) uniform pushConstants
 // Uniforms
 layout (set = 0, binding = 0) uniform globalUniform
 {
-    GlobalLayout globalLayout;
+	GlobalLayout globalLayout;
 };
 
 layout (scalar, set = 1, binding = 1) buffer readonly quadsUniform
@@ -53,6 +53,10 @@ void main()
 	else if (int(pushConstantsLayout.f4Pipeline.x) == 2)
 	{
 		f4VisibleArea = globalLayout.f4SmokeArea;
+	}
+	else if (int(pushConstantsLayout.f4Pipeline.x) == 3)
+	{
+		f4VisibleArea = globalLayout.f4LightingArea;
 	}
 
 	float fWorldX = pQuads[gl_InstanceIndex].pf4VerticesTexcoords[iIndex].x;

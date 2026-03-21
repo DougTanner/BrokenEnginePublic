@@ -18,7 +18,7 @@ inline constexpr bool kbEnableScreenshots = false;
 inline constexpr bool kbEnableWireframe = false;
 
 // DT: TEMP GAMELOGIC
-inline constexpr bool kbEnableSmokeSpreadTest = true; // DT: TEMP false;
+inline constexpr bool kbEnableSmokeSpreadTest = false;
 
 #if defined(BT_SERVER)
 inline constexpr bool kbSingleInstance = true;

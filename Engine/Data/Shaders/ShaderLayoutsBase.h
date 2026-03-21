@@ -220,6 +220,7 @@ struct GlobalLayout
 	float fLightingAddTerrain INIT;
 	float fLightingBlurJitter INIT;
 	float fLightingCombineDecay INIT;
+	vec4 f4LightingArea INIT;
 
 	// Shadow
 	float fShadowWidthScale INIT;
@@ -610,7 +611,7 @@ struct ParticlesLayout
 
 #if defined(BT_ENGINE)
 
-// NOTE: Uniform buffer structs (GlobalLayout, MainLayout) are padded to 16-bytes (std140)
+// NOTE: Uniform buffer structs (GlobalLayout, MainLayout) use scalar layout (no padding requirements)
 static_assert(sizeof(GlobalLayout) <= 65536);
 
 } // namespace shaders

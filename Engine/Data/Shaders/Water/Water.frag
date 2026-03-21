@@ -123,7 +123,7 @@ void main()
 	float fSmokePow = clamp(pow(fSmokeRaw, globalLayout.fSmokePower), 0.0f, 1.0f);
 
 	// Lighting at base height
-	vec2 f2BaseHeightTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4VisibleArea);
+	vec2 f2BaseHeightTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
 
 	const float fSpecularNormalSoften = mainLayout.fLightingWaterSpecularNormalSoften;
 	const float fSpecularNormalBlendWave = mainLayout.fLightingWaterSpecularNormalBlendWave;

@@ -346,6 +346,11 @@ void Client::SendReplayPlaybackRequest()
 
 void Client::SendHello()
 {
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	// Heap: std::fstream and std::filesystem::path allocate for GUID file I/O
+
+	Log(kLogNetwork, "Client::SendHello"); // DT TEMP
+
 	// Load GUID from disk if we don't have one yet
 	if (mClientGuid.IsEmpty())
 	{
@@ -380,6 +385,8 @@ void Client::SendHello()
 	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();
+
+	Log(kLogNetwork, "Client::SendHello Complete"); // DT TEMP
 }
 
 } // namespace engine

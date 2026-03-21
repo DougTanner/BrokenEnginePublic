@@ -8,7 +8,7 @@ Each file owns a specific region of the GPU uniform layout, reading from game st
 
 ## Key Files
 
-- **GlobalUniforms.cpp** - `RenderFrameGlobal`: camera, projection matrices, and shared global state. Delegates to four static helpers: `PopulateSunAndLighting`, `PopulateShadowParameters`, `PopulateTerrainParameters`, and `PopulateWaterParameters`
+- **GlobalUniforms.cpp** - `RenderFrameGlobal`: camera, projection matrices, and shared global state. Delegates to four static helpers: `PopulateSunAndLighting`, `PopulateShadowParameters`, `PopulateTerrainParameters`, and `PopulateWaterParameters`. Also computes the stable lighting area (ceil'd dimensions, texel-grid-snapped origin) mirroring the smoke/wind area pattern
 - **MainUniforms.cpp** - `RenderFrameMain`: per-coordinate main render pass uniform population (lighting, skinning allocations, collection rendering)
 - **LightingUniforms.cpp** - `RenderLightingGlobal` and `RenderLightingMain`: directional/ambient lighting parameters and per-frame lighting texture combine info
 - **SmokeUniforms.cpp** - Smoke simulation parameters and ping-pong index management
