@@ -12,6 +12,7 @@ enum class StatusChangeType : uint8_t
 	kTransferBlaster,
 	kTransferMissile,
 	kDestroyPlayer,
+	kWeaponModeChange,
 };
 
 inline bool IsTransferType(StatusChangeType eType)
@@ -30,6 +31,7 @@ inline const char* StatusChangeTypeName(StatusChangeType eType)
 		case StatusChangeType::kTransferBlaster:   return "TransferBlaster";
 		case StatusChangeType::kTransferMissile:   return "TransferMissile";
 		case StatusChangeType::kDestroyPlayer:     return "DestroyPlayer";
+		case StatusChangeType::kWeaponModeChange:  return "WeaponModeChange";
 	}
 	return "Unknown";
 }

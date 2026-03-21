@@ -411,6 +411,25 @@ void Server::ClientTimespeedRequest(const uint8_t* pData, size_t iSize, int64_t 
 	BroadcastTimespeedUpdate(game::gpGame->mTimeStep.miTimeMultiply, game::gpGame->mTimeStep.miTimeDivide);
 }
 
+void Server::ClientWeaponModeRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
+{
+	if (iSize < 1)
+	{
+		return;
+	}
+
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	{
+		return;
+	}
+
+	Log(kLogNetwork, "Server::ClientWeaponModeRequest Client: {}", iClientId);
+
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	mPendingWeaponModeRequests.push_back({iClientId});
+}
+
 #if defined(BT_SERVER)
 void Server::ClientSaveRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
 {
@@ -444,6 +463,40 @@ void Server::ClientLoadRequest([[maybe_unused]] const uint8_t* pData, size_t iSi
 
 	Log("Server::ClientLoadRequest Client: {}", iClientId);
 	game::gpGame->mGameSaveLoad.ServerLoad();
+}
+
+void Server::ClientReplayRecordRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
+{
+	if (iSize < 1)
+	{
+		return;
+	}
+
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	{
+		return;
+	}
+
+	Log("Server::ClientReplayRecordRequest Client: {}", iClientId);
+	game::gpGame->mGameFlags.Set(GameFlags::kSaveReplay);
+}
+
+void Server::ClientReplayPlaybackRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
+{
+	if (iSize < 1)
+	{
+		return;
+	}
+
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	{
+		return;
+	}
+
+	Log("Server::ClientReplayPlaybackRequest Client: {}", iClientId);
+	game::gpGame->mGameFlags.Set(GameFlags::kLoadReplay);
 }
 #endif // BT_SERVER
 

@@ -348,6 +348,23 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 			continue;
 		}
 
+		// Toggle weapon mode by player ID encoded in vecPosition
+		if (rStatusChange.eType == StatusChangeType::kWeaponModeChange)
+		{
+			XMFLOAT4A f4 {};
+			XMStoreFloat4A(&f4, rStatusChange.data.vecPosition);
+			int64_t iPlayerUuid = 0;
+			std::memcpy(&iPlayerUuid, &f4, sizeof(int64_t));
+			player_t toggleId {engine::uuid_t {iPlayerUuid}};
+
+			auto idIt = rCurrentInterpolate.idToIndexMap.find(toggleId);
+			if (idIt != rCurrentInterpolate.idToIndexMap.end())
+			{
+				rCurrentPostRender.pFlags[idIt->second].Toggle(kUseMissiles);
+			}
+			continue;
+		}
+
 		if ((rStatusChange.eType == StatusChangeType::kSpawnPlayer || rStatusChange.eType == StatusChangeType::kRespawnPlayer) && rCurrentInterpolate.iCount < kiMaxSpawnedPlayers)
 		{
 			// Respawn clears death screen
@@ -386,6 +403,11 @@ static void SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
 			continue;
 		}
 		rCurrentPostRender.pFlags[i].Clear(kFireBlaster);
+
+		if (rCurrentPostRender.pFlags[i] & kUseMissiles)
+		{
+			continue;
+		}
 
 		// Calculate base blaster direction and barrel offset normal
 		XMVECTOR vecBaseDirection = rCurrentInterpolate.pVecDirections[i];
@@ -447,6 +469,11 @@ static void SpawnMissiles([[maybe_unused]] Frame& __restrict rFrame)
 			continue;
 		}
 		rCurrentPostRender.pFlags[i].Clear(kFireMissile);
+
+		if (!(rCurrentPostRender.pFlags[i] & kUseMissiles))
+		{
+			continue;
+		}
 
 		if (rCurrentPostRender.pfNextSecondarySpawnTimes[i] >= 0.0f || (rCurrentPostRender.pFlags[i] & kExploding))
 		{

@@ -41,6 +41,7 @@ public:
 	void ComputeActiveSet();
 	void BuildFrameInputs();
 	void ProcessSpawnRequests();
+	void ProcessWeaponModeRequests();
 	void HarvestTransfers();
 	void BroadcastStatusChanges(int64_t iTick);
 	void Disconnects();

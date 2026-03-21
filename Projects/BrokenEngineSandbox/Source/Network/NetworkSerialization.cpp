@@ -158,6 +158,7 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 				SerializePlayerTransfer(pCursor, rData);
 				break;
 			case game::StatusChangeType::kDestroyPlayer:
+			case game::StatusChangeType::kWeaponModeChange:
 			{
 				XMFLOAT4A f4 {};
 				XMStoreFloat4A(&f4, rData.vecPosition);
@@ -168,7 +169,7 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 	}
 }
 
-constexpr int64_t kiTypeCount = static_cast<int64_t>(game::StatusChangeType::kDestroyPlayer) + 1;
+constexpr int64_t kiTypeCount = static_cast<int64_t>(game::StatusChangeType::kWeaponModeChange) + 1;
 
 static void GroupIndicesByType(const game::StatusChange* pChanges, int64_t iCount, int64_t piOffsets[kiTypeCount], int64_t piCounts[kiTypeCount], int64_t* pSortedIndices)
 {
@@ -266,6 +267,7 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 					DeserializePlayerTransfer(pCursor, rChange.data);
 					break;
 				case game::StatusChangeType::kDestroyPlayer:
+				case game::StatusChangeType::kWeaponModeChange:
 				{
 					XMFLOAT4A f4 {};
 					ReadBytes(pCursor, &f4, sizeof(int64_t));

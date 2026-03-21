@@ -17,8 +17,8 @@ GameSaveLoad::GameSaveLoad(GameBase& rGameBase)
 
 void GameSaveLoad::ResetStreams()
 {
-	mpDifferenceStreamWriter.reset();
-	mpDifferenceStreamReader.reset();
+	mReplayWriters.clear();
+	mReplayReaders.clear();
 }
 
 void GameSaveLoad::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
@@ -105,19 +105,10 @@ bool GameSaveLoad::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 	return false;
 }
 
-void GameSaveLoad::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuInput)
+void GameSaveLoad::SaveLoadReplay()
 {
 	if constexpr (kbEnableDebugInput)
 	{
-		if (rMenuInput.flags & game::MenuInputFlags::kSaveReplay)
-		{
-			mrGameBase.mGameFlags.Set(GameFlags::kSaveReplay);
-		}
-		else if (rMenuInput.flags & game::MenuInputFlags::kLoadReplay)
-		{
-			mrGameBase.mGameFlags.Set(GameFlags::kLoadReplay);
-		}
-
 		if (mrGameBase.mGameFlags & GameFlags::kLoadReplay)
 		{
 			// Heap: DifferenceStream reader + Frame deserialization + ReplayMeta file I/O
@@ -125,9 +116,9 @@ void GameSaveLoad::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuI
 
 			mrGameBase.mGameFlags.Clear(GameFlags::kLoadReplay);
 
-			if (mpDifferenceStreamReader != nullptr)
+			if (!mReplayReaders.empty())
 			{
-				mpDifferenceStreamReader.reset();
+				mReplayReaders.clear();
 				return;
 			}
 
@@ -138,34 +129,76 @@ void GameSaveLoad::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuI
 				return;
 			}
 
-			mrGameBase.Reset();
-
-			// Clear all frames and create fresh at recorded coordinate
-			mrGameBase.mCoordFrames.clear();
-			CoordFrames& rSub = mrGameBase.mCoordFrames.try_emplace(meta.humanGridCoord).first->second;
-			rSub.pCurrent = std::make_unique<game::Frame>();
-			rSub.pNext = std::make_unique<game::Frame>();
-
-			game::gpGame->mHumanGridCoord = meta.humanGridCoord;
-
-			// DifferenceStreamReader deserializes initial frame and initial FrameInput
-			game::FrameInput initialFrameInput {};
-			mpDifferenceStreamReader = std::make_unique<DifferenceStreamReader<game::Frame, game::FrameInput>>(FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay"), mrGameBase.CurrentFrame(meta.humanGridCoord), initialFrameInput);
-
-			if (!mpDifferenceStreamReader->Loaded())
+			// Read manifest to get recorded coord list
+			std::fstream manifestStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay.manifest"));
+			if (!manifestStream)
 			{
-				mpDifferenceStreamReader.reset();
+				Log(kLogError, "Failed to read replay manifest");
+				return;
+			}
+			int64_t iCoordCount = 0;
+			common::Read(manifestStream, iCoordCount);
+			std::vector<GridCoord> recordedCoords;
+			recordedCoords.reserve(iCoordCount);
+			for (int64_t i = 0; i < iCoordCount; ++i)
+			{
+				GridCoord coord;
+				coord.Read(manifestStream);
+				recordedCoords.push_back(coord);
+			}
+
+			// Load initial grid state
+			GridCoord loadedHumanGridCoord {};
+			if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay.grid"), loadedHumanGridCoord))
+			{
+				Log(kLogError, "Failed to read replay grid");
 				return;
 			}
 
-			mrGameBase.miTickCounter = mrGameBase.CurrentFrame(meta.humanGridCoord).interpolate.iTick;
-			mrGameBase.mfCurrentTime = mrGameBase.CurrentFrame(meta.humanGridCoord).interpolate.fCurrentTime;
+			mrGameBase.Reset();
+
+			// Create one DifferenceStreamReader per recorded coord
+			for (const GridCoord& rCoord : recordedCoords)
+			{
+				CoordFrames& rSub = mrGameBase.mCoordFrames.try_emplace(rCoord).first->second;
+				if (rSub.pCurrent == nullptr)
+				{
+					rSub.pCurrent = std::make_unique<game::Frame>();
+				}
+				if (rSub.pNext == nullptr)
+				{
+					rSub.pNext = std::make_unique<game::Frame>();
+				}
+
+				std::filesystem::path coordReplayPath = std::filesystem::path("F7.replay." + std::to_string(rCoord.ToKey()));
+				game::FrameInput initialFrameInput {};
+				auto pReader = std::make_unique<DifferenceStreamReader<game::Frame, game::FrameInput>>(FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, coordReplayPath, *rSub.pCurrent, initialFrameInput);
+
+				if (!pReader->Loaded())
+				{
+					Log(kLogError, "Failed to load replay for coord ({},{})", rCoord.x, rCoord.y);
+					mReplayReaders.clear();
+					return;
+				}
+
+				mReplayReaders.emplace(rCoord, std::move(pReader));
+			}
+
+			if (!recordedCoords.empty())
+			{
+				const GridCoord& rFirstCoord = recordedCoords.front();
+				mrGameBase.miTickCounter = mrGameBase.CurrentFrame(rFirstCoord).interpolate.iTick;
+				mrGameBase.mfCurrentTime = mrGameBase.CurrentFrame(rFirstCoord).interpolate.fCurrentTime;
+			}
+
 			game::gpGame->RestoreReplayMeta(meta);
+			game::gpServerSession->ResetClientsForLoad();
+			game::gpServerSession->ComputeActiveSet();
 		}
 	}
 }
 
-void GameSaveLoad::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]] game::FrameInput& rFrameInput)
+void GameSaveLoad::SyncReplayTick()
 {
 	// Heap: DifferenceStream reader/writer persist across frames, growing vectors for diffs and checksums.
 	//   Workbuffer is popped each frame so can't hold cross-frame state; size depends on recording length
@@ -173,18 +206,43 @@ void GameSaveLoad::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unus
 
 	if constexpr (kbEnableDebugInput)
 	{
-		if ((mrGameBase.mGameFlags & GameFlags::kSaveReplay) && mpDifferenceStreamWriter == nullptr)
+		// Recording start: create one writer per active coord
+		if ((mrGameBase.mGameFlags & GameFlags::kSaveReplay) && mReplayWriters.empty())
 		{
 			mrGameBase.mGameFlags.Clear(GameFlags::kSaveReplay);
-			mpDifferenceStreamReader.reset();
-			mpDifferenceStreamWriter = std::make_unique<DifferenceStreamWriter<game::Frame, game::FrameInput>>(rFrame, rFrameInput);
+			mReplayReaders.clear();
+
+			WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("F7.replay.grid"), game::gpGame->mHumanGridCoord);
+
+			for (const auto& [rCoord, rFrames] : mrGameBase.mCoordFrames)
+			{
+				game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.try_emplace(rCoord).first->second;
+				mReplayWriters.emplace(rCoord, std::make_unique<DifferenceStreamWriter<game::Frame, game::FrameInput>>(*rFrames.pCurrent, rFrameInput));
+			}
+
+			Log("Recording started for {} coords", mReplayWriters.size());
 			return;
 		}
-		else if ((mrGameBase.mGameFlags & GameFlags::kSaveReplay) && mpDifferenceStreamWriter != nullptr)
+
+		// Recording stop: save all writers
+		if ((mrGameBase.mGameFlags & GameFlags::kSaveReplay) && !mReplayWriters.empty())
 		{
 			mrGameBase.mGameFlags.Clear(GameFlags::kSaveReplay);
-			mpDifferenceStreamWriter->Save({FileFlags::kAppDataDirectory, FileFlags::kWrite, FileFlags::kBackup}, std::filesystem::path("F7.replay"), rFrame);
-			mpDifferenceStreamWriter.reset();
+
+			// Write manifest listing all recorded coords
+			std::fstream manifestStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("F7.replay.manifest"));
+			int64_t iCoordCount = static_cast<int64_t>(mReplayWriters.size());
+			common::Write(manifestStream, iCoordCount);
+
+			for (auto& [rCoord, rpWriter] : mReplayWriters)
+			{
+				rCoord.Write(manifestStream);
+
+				std::filesystem::path coordReplayPath = std::filesystem::path("F7.replay." + std::to_string(rCoord.ToKey()));
+				rpWriter->Save({FileFlags::kAppDataDirectory, FileFlags::kWrite, FileFlags::kBackup}, coordReplayPath, mrGameBase.CurrentFrame(rCoord));
+			}
+
+			mReplayWriters.clear();
 
 			// Write replay metadata for F8 load
 			game::ReplayMeta meta {
@@ -194,26 +252,45 @@ void GameSaveLoad::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unus
 			};
 			WriteVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("F7.replay.meta"), meta);
 
+			Log("Recording stopped");
 			return;
 		}
 
-		if (mpDifferenceStreamWriter != nullptr) [[unlikely]]
+		// Recording tick: update all writers
+		if (!mReplayWriters.empty()) [[unlikely]]
 		{
-			mpDifferenceStreamWriter->Update(mrGameBase.miTickCounter, rFrameInput, rFrame);
+			for (auto& [rCoord, rpWriter] : mReplayWriters)
+			{
+				if (mrGameBase.mCoordFrames.contains(rCoord))
+				{
+					game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
+					rpWriter->Update(mrGameBase.miTickCounter, rFrameInput, mrGameBase.CurrentFrame(rCoord));
+				}
+			}
 		}
-		else if (mpDifferenceStreamReader != nullptr) [[unlikely]]
+
+		// Playback tick: load differences for all readers
+		if (!mReplayReaders.empty()) [[unlikely]]
 		{
-			if (!mpDifferenceStreamReader->LoadDifference(mrGameBase.miTickCounter, rFrameInput))
+			bool bEndReached = false;
+			for (auto& [rCoord, rpReader] : mReplayReaders)
+			{
+				game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
+				if (!rpReader->LoadDifference(mrGameBase.miTickCounter, rFrameInput))
+				{
+					bEndReached = true;
+					break;
+				}
+
+				game::gpGame->ApplyTransferStatusChanges(mrGameBase.CurrentFrame(rCoord), rFrameInput);
+				rpReader->ValidateChecksum(mrGameBase.miTickCounter, mrGameBase.CurrentFrame(rCoord));
+			}
+
+			if (bEndReached)
 			{
 				Log("End replay {}, looping", mrGameBase.miTickCounter);
-				rFrame.LogDifferences(mpDifferenceStreamReader->GetSavedEnd());
-				mpDifferenceStreamReader.reset();
+				mReplayReaders.clear();
 				mrGameBase.mGameFlags.Set(GameFlags::kLoadReplay);
-			}
-			else
-			{
-				game::gpGame->ApplyTransferStatusChanges(rFrame, rFrameInput);
-				mpDifferenceStreamReader->ValidateChecksum(mrGameBase.miTickCounter, rFrame);
 			}
 		}
 	}

@@ -90,7 +90,21 @@ void HudScreen::Render()
 		PlayersPostRender& rPlayers = *gpGame->CurrentFrame(gpGame->mHumanGridCoord).postRender.pPlayers;
 		RenderBar(pDrawList, rIo.DisplaySize, rPlayers.pfShields[*oIdx], kfShieldHalfWidthPerPoint, -1.0f, kuiShieldColor, mShieldIconVkDescriptorSet);
 		RenderBar(pDrawList, rIo.DisplaySize, rPlayers.pfArmors[*oIdx], kfArmorHalfWidthPerPoint, 1.0f, kuiArmorColor, mArmorIconVkDescriptorSet);
+		RenderWeaponMode(*oIdx);
 	}
+}
+
+void HudScreen::RenderWeaponMode(int64_t iPlayerIndex)
+{
+	PlayersPostRender& rPlayers = *gpGame->CurrentFrame(gpGame->mHumanGridCoord).postRender.pPlayers;
+	bool bUseMissiles = static_cast<bool>(rPlayers.pFlags[iPlayerIndex] & PlayerFlags::kUseMissiles);
+
+	ImGuiIO& rIo = ImGui::GetIO();
+	ImDrawList* pDrawList = ImGui::GetBackgroundDrawList();
+
+	const char* pLabel = bUseMissiles ? "[Q] Missiles" : "[Q] Blasters";
+	ImVec2 pos(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.50f);
+	pDrawList->AddText(pos, kuiWhiteColor, pLabel);
 }
 
 void HudScreen::RenderBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize, float fValue, float fHalfWidthPerPoint, float fBarYSign, ImU32 uiBarColor, VkDescriptorSet vkIconDescriptorSet)

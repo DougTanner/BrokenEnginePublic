@@ -1,0 +1,57 @@
+Fix: Wind doesn't push low-value smoke
+=========================================
+
+Context
+-------
+Low-value (old, diffused) smoke is barely affected by wind. Only recently-deposited high-value smoke visibly moves. Two root causes in SmokeSpreadCommon.h:
+
+1. Wind displacement is entirely noise-gated (line 34): f2WindDisplacement = noiseScale * abs(fWindNoiseSample) * f2WindRescaled. When fWindNoiseSample is near zero (common), displacement is zero regardless of wind strength. High-value smoke survives enough frames to get pushed when noise is favorable; low-value smoke decays away first.
+
+2. Sample blending fails in smooth fields (lines 38-39): Wind works by blending between a base sample and a wind-displaced sample. In uniform density fields (old diffused smoke), both samples return nearly the same value, so the blend produces no visible movement.
+
+Fix
+---
+Add a direct wind advection offset to the base sampling coordinate -- a non-noise-dependent wind push that physically shifts where each texel samples from. Works even in uniform density fields. The existing noise-modulated displacement stays for visual variation.
+
+New tunable: fWindSmokeAdvection (default 0.4, range 0.0-2.0)
+
+Changes (7 files)
+-----------------
+
+1. Engine/Data/Shaders/Smoke/SmokeSpreadCommon.h
+   Replace lines 34-41 with:
+     // Branchless wind presence flag (moved up for use by advection)
+     float fHasWind = step(1e-3f, fWindMag);
+     // Direct wind advection: shift base sampling in wind direction (works in uniform fields)
+     vec2 f2WindAdvection = fHasWind * globalLayout.fWindSmokeAdvection * f2WindRescaled;
+     // Noise-modulated displacement for visual variation (works in gradient fields)
+     vec2 f2WindDisplacement = globalLayout.fWindDisplacementNoiseScale * abs(fWindNoiseSample) * f2WindRescaled;
+     // Branchless blend between wind-displaced and stationary smoke
+     vec2 f2Base = f2Texcoord + f2Noise + f2WindAdvection;
+     float fSmokeStayed = texture(textureSampler, f2Base).x;
+     float fSmokeMoved = texture(textureSampler, f2Base + f2WindDisplacement).x;
+     return globalLayout.fSmokeDecay * vec4(mix(fSmokeStayed, mix(fSmokeMoved, fSmokeStayed, globalLayout.fWindSmokeRetention), fHasWind));
+
+2. Engine/Data/Shaders/ShaderLayoutsBase.h (after line 180)
+   Add after "float fWindDisplacementNoiseScale INIT;":
+     float fWindSmokeAdvection INIT;
+
+3. Engine/Source/Ui/WrapperBase.h (after line 419)
+   Add after "extern Wrapper gWindDisplacementNoiseScale;":
+     extern Wrapper gWindSmokeAdvection;
+
+4. Engine/Source/Ui/WrapperBase.cpp (after line 226)
+   Add after "Wrapper gWindDisplacementNoiseScale(1.25f, 0.0f, 5.0f);":
+     Wrapper gWindSmokeAdvection(0.4f, 0.0f, 2.0f);
+
+5. Engine/Source/Graphics/Render/WindUniforms.cpp (after line 54)
+   Add after "rGlobalLayout.fWindDisplacementNoiseScale = gWindDisplacementNoiseScale.Get();":
+     rGlobalLayout.fWindSmokeAdvection = gWindSmokeAdvection.Get();
+
+6. Engine/Source/Ui/Screens/TweaksScreen/TweaksScreenSmoke.cpp (after line 36)
+   Add after WrapperSlider("Wind Smoke Retention", kiSection, 1.0f);:
+     WrapperSlider("Wind Smoke Advection", kiSection, 1.0f);
+
+7. Engine/Source/Ui/Screens/TweaksScreen/TweaksSliderMap.cpp (after line 198)
+   Add after {"Wind Smoke Retention", &gWindSmokeRetention},:
+     {"Wind Smoke Advection", &gWindSmokeAdvection},

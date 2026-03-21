@@ -29,6 +29,7 @@ enum class MenuInputFlags : uint64_t
 	kMenuTweaks        = 0x00020000,
 	kToggleScreenshots = 0x00040000,
 	kConnectLocal      = 0x00080000,
+	kWeaponModeToggle  = 0x00100000,
 };
 using MenuInputFlags_t = common::Flags<MenuInputFlags>;
 

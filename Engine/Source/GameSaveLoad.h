@@ -15,15 +15,14 @@ public:
 	bool Quickload(const game::MenuInput& rMenuInput);
 	void ServerSave();
 	bool ServerLoad();
-	void SaveLoadReplay(const game::MenuInput& rMenuInput);
-	void SyncReplay(game::Frame& rFrame, game::FrameInput& rFrameInput);
+	void SaveLoadReplay();
+	void SyncReplayTick();
 
-	bool IsReplaying() const { return mpDifferenceStreamReader != nullptr; }
-	bool IsRecording() const { return mpDifferenceStreamWriter != nullptr; }
+	bool IsReplaying() const { return !mReplayReaders.empty(); }
+	bool IsRecording() const { return !mReplayWriters.empty(); }
 	void ResetStreams();
 
-	std::unique_ptr<DifferenceStreamWriter<game::Frame, game::FrameInput>> mpDifferenceStreamWriter;
-	std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInput>> mpDifferenceStreamReader;
+	const std::unordered_map<GridCoord, std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInput>>>& GetReplayReaders() const { return mReplayReaders; }
 
 private:
 
@@ -31,6 +30,9 @@ private:
 	bool ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord& rHumanGridCoord);
 
 	GameBase& mrGameBase;
+
+	std::unordered_map<GridCoord, std::unique_ptr<DifferenceStreamWriter<game::Frame, game::FrameInput>>> mReplayWriters;
+	std::unordered_map<GridCoord, std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInput>>> mReplayReaders;
 };
 
 } // namespace engine

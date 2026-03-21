@@ -120,6 +120,7 @@ enum class PlayerFlags : uint8_t
 	kFireMissile      = 0x08,
 	kMissileSpawnLeft = 0x10,
 	kTransfer         = 0x20,
+	kUseMissiles      = 0x40,
 };
 using PlayerFlags_t = common::Flags<PlayerFlags>;
 

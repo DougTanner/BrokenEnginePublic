@@ -79,6 +79,9 @@ public:
 	void SendTimespeedRequest(uint8_t uiDirection);
 	void SendSaveRequest();
 	void SendLoadRequest();
+	void SendWeaponModeRequest();
+	void SendReplayRecordRequest();
+	void SendReplayPlaybackRequest();
 	void Flush();
 	void Disconnect();
 	void SetDesyncDebugMode(bool bEnabled) { mbDesyncDebugMode = bEnabled; }

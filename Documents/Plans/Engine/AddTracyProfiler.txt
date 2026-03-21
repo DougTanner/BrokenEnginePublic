@@ -1,0 +1,50 @@
+Add Tracy Profiler (Optional Layer)
+====================================
+
+Context
+-------
+The engine has a custom CPU/GPU profiling system (ProfileManagerBase, ScopedCpuProfile, Vulkan timestamp queries) with an ImGui overlay. Tracy (BSD-3) is the gold standard for game engine profiling, offering CPU-GPU timeline correlation, lock contention visualization, memory tracking, and remote capture. This would be additive -- the existing overlay stays.
+
+Why
+---
+- CPU-GPU timeline correlation via VK_EXT_calibrated_timestamps
+- Lock contention and wait visualization
+- Memory allocation tracking with callstacks
+- Frame graph with zone drill-down
+- Remote capture to a separate desktop application
+- Used by Godot 4, RPCS3, many AAA studios
+
+Changes
+-------
+
+1. ThirdParty/
+   - Add Tracy as a git submodule
+
+2. Common/ExternalHeaders.h or a new TracyIntegration.h
+   - Include Tracy headers, gated behind #ifdef TRACY_ENABLE
+   - Define convenience macros that forward to Tracy when enabled, no-op when disabled
+
+3. Engine vcxproj (both client and server)
+   - Add Tracy source files to project
+   - Add TRACY_ENABLE preprocessor define for profiling build configurations only
+
+4. Common/Multithreading.cpp (or ThreadLocal.cpp)
+   - Set Tracy thread names via tracy::SetThreadName()
+
+5. Engine/Source/Profile/ProfileManagerBase.cpp
+   - In ScopedCpuProfile constructor/destructor, emit Tracy zones alongside existing timing
+   - This gives Tracy visibility into all existing profile scopes automatically
+
+6. Engine/Source/Graphics/ (client only)
+   - Set up Tracy GPU context using VkDevice and calibrated timestamps
+   - Emit GPU zones in command buffer recording paths
+
+7. Engine/Source/Memory/MemoryManager.cpp
+   - Hook operator new/delete to emit Tracy memory events (gated behind TRACY_ENABLE)
+   - Use ScopedSuppressAllocationTracking around Tracy's own internal allocations
+
+Notes
+-----
+- Tracy adds a background networking thread -- suppress allocation tracking for it
+- TRACY_ENABLE should only be defined in dedicated profiling build configs, not Release
+- The existing ImGui overlay remains the primary runtime tool; Tracy is for deep analysis

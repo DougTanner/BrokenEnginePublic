@@ -23,6 +23,12 @@ ServerSession::~ServerSession()
 
 void ServerSession::PrepareTick()
 {
+	// During replay, PrepareActiveSet already configured mActiveCoords from the reader map
+	if (gpGame->mGameSaveLoad.IsReplaying()) [[unlikely]]
+	{
+		return;
+	}
+
 	// Recompute active set each tick so new client subscriptions
 	// (set by FinalizeNewClients on the previous frame) are picked up immediately
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -207,6 +213,9 @@ void ServerSession::BuildFrameInputs()
 		frameInputIt->second.statusChanges.push_back(destroyChange);
 	}
 	mPendingPlayerDestroys.clear();
+
+	// Inject weapon mode toggle StatusChanges
+	ProcessWeaponModeRequests();
 
 	// Save StatusChanges for broadcasting (spawns only, transfers handled separately in HarvestTransfers)
 	for (const auto& [rCoord, rFrameInput] : gpGame->mFrameInputs)
@@ -433,6 +442,35 @@ void ServerSession::ProcessSpawnRequests()
 			mDeadClientIds.erase(rRequest.iClientId);
 			mClientsWaitingForSpawn.push_back({rRequest.iClientId, engine::kOriginCoord});
 		}
+	}
+}
+
+void ServerSession::ProcessWeaponModeRequests()
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	for (const engine::PendingWeaponModeRequest& rRequest : engine::gpServer->DrainPendingWeaponModeRequests())
+	{
+		engine::ClientConnection* pClient = engine::gpServer->FindClient(rRequest.iClientId);
+		if (pClient == nullptr || !pClient->humanPlayerId.IsValid())
+		{
+			continue;
+		}
+
+		auto frameInputIt = gpGame->mFrameInputs.find(pClient->humanGridCoord);
+		if (frameInputIt == gpGame->mFrameInputs.end())
+		{
+			continue;
+		}
+
+		StatusChange weaponChange {.eType = StatusChangeType::kWeaponModeChange,};
+		int64_t iPlayerUuid = pClient->humanPlayerId.ToUuid().Value();
+		XMFLOAT4A f4 {};
+		std::memcpy(&f4, &iPlayerUuid, sizeof(int64_t));
+		weaponChange.data.vecPosition = XMLoadFloat4A(&f4);
+		frameInputIt->second.statusChanges.push_back(weaponChange);
+
+		Log(kLogNetwork, "ServerSession::ProcessWeaponModeRequests Client: {} Player: {} Coord: ({},{})", rRequest.iClientId, iPlayerUuid, pClient->humanGridCoord.x, pClient->humanGridCoord.y);
 	}
 }
 
@@ -719,6 +757,7 @@ void ServerSession::ResetClientsForLoad()
 	engine::gpServer->DrainPendingSpawnRequests().clear();
 	engine::gpServer->DrainPendingNewSubscriptions().clear();
 	engine::gpServer->DrainPendingResyncClientIds().clear();
+	engine::gpServer->DrainPendingWeaponModeRequests().clear();
 
 	engine::gpServer->Flush();
 }

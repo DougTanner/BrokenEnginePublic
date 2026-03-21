@@ -62,6 +62,7 @@ void Server::Poll()
 	mPendingDisconnects.clear();
 	mPendingNewSubscriptions.clear();
 	mPendingResyncClientIds.clear();
+	mPendingWeaponModeRequests.clear();
 
 	ENetEvent event {};
 	while (enet_host_service(mpHost, &event, 0) > 0)
@@ -212,7 +213,16 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 		case PacketType::kClientLoadRequest:
 			ClientLoadRequest(pData, iSize, iClientId);
 			break;
+		case PacketType::kClientReplayRecordRequest:
+			ClientReplayRecordRequest(pData, iSize, iClientId);
+			break;
+		case PacketType::kClientReplayPlaybackRequest:
+			ClientReplayPlaybackRequest(pData, iSize, iClientId);
+			break;
 #endif // BT_SERVER
+		case PacketType::kClientWeaponModeRequest:
+			ClientWeaponModeRequest(pData, iSize, iClientId);
+			break;
 		default:
 			Log(kLogNetwork, "Server::Receive unknown packet type {} Client: {}", static_cast<uint8_t>(eType), iClientId);
 			break;

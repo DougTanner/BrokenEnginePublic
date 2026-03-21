@@ -1,0 +1,37 @@
+Add ImPlot Extension
+====================
+
+Context
+-------
+The engine uses Dear ImGui for debug overlays and tweaks screens. ImPlot (MIT) is an ImGui extension that adds real-time plotting (line graphs, histograms, scatter plots, heatmaps). It integrates directly with ImGui -- no additional dependencies.
+
+Why
+---
+- Visualize frame time history, network jitter, RTT over time, bandwidth graphs
+- Replace text-based metric display with interactive plots in the profile overlay
+- Zero additional dependencies beyond ImGui
+- MIT license
+
+Changes
+-------
+
+1. ThirdParty/
+   - Add ImPlot as a git submodule (or copy implot.h, implot.cpp, implot_items.cpp)
+
+2. Engine vcxproj (client only)
+   - Add ImPlot source files to the imgui filter
+   - Add include path
+
+3. Engine/Source/Graphics/ImGuiManager.cpp (or wherever ImGui context is created)
+   - Call ImPlot::CreateContext() after ImGui::CreateContext()
+   - Call ImPlot::DestroyContext() before ImGui::DestroyContext()
+
+4. Engine/Source/Profile/ProfileScreens.cpp (or game-layer equivalent)
+   - Use ImPlot::BeginPlot/EndPlot to graph Smoothed<> metric histories
+   - Example: frame time line plot, network RTT plot, GPU time plot
+
+Notes
+-----
+- ImPlot uses ImGui's draw list -- no additional Vulkan setup needed
+- Smoothed<T> already stores a circular buffer of values, which maps directly to ImPlot line plots
+- Very low effort, very low risk

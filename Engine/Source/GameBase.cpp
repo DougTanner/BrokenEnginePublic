@@ -92,7 +92,7 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 		return;
 	}
 
-	mGameSaveLoad.SaveLoadReplay(rMenuInput);
+	mGameSaveLoad.SaveLoadReplay();
 
 	game::gpServerSession->WaitForTick(mTimeStep);
 
@@ -123,6 +123,11 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 		mfCurrentTime += game::kfDeltaTime;
 
 		game::gpServerSession->PrepareTick();
+
+		if (mGameSaveLoad.IsRecording() || mGameSaveLoad.IsReplaying()) [[unlikely]]
+		{
+			mGameSaveLoad.SyncReplayTick();
+		}
 
 		BuildAndDispatchFrameTicks(rActiveCoords, false);
 		FinalizeFrameTick(rActiveCoords, false);
@@ -320,14 +325,18 @@ void GameBase::PrepareActiveSet()
 #if defined(BT_SERVER)
 	if (mGameSaveLoad.IsReplaying())
 	{
-		// During replay, only the human's frame is active
+		// During replay, all recorded coords are active
 		// Heap: vector clear/push_back, unordered_map insertion + make_unique<Frame>
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 		game::gpGame->mActiveCoords.clear();
-		game::gpGame->mActiveCoords.push_back(game::gpGame->mHumanGridCoord);
-		if (mCoordFrames.at(game::gpGame->mHumanGridCoord).pNext == nullptr)
+		for (const auto& [rCoord, rpReader] : mGameSaveLoad.GetReplayReaders())
 		{
-			mCoordFrames.at(game::gpGame->mHumanGridCoord).pNext = std::make_unique<game::Frame>();
+			game::gpGame->mActiveCoords.push_back(rCoord);
+			CoordFrames& rSub = mCoordFrames.try_emplace(rCoord).first->second;
+			if (rSub.pNext == nullptr)
+			{
+				rSub.pNext = std::make_unique<game::Frame>();
+			}
 		}
 		game::gpGame->BuildFrameInputs();
 	}

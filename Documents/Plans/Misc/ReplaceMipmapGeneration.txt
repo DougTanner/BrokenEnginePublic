@@ -1,0 +1,35 @@
+Replace Custom Mipmap Generation with stb_image_resize2
+========================================================
+
+Context
+-------
+The DataPacker generates mipmaps using a custom box-filter (2x2 average) downsample loop in Texture.cpp (~45 lines). Box filtering is the lowest-quality downsampling method — it produces aliasing artifacts on detailed textures. stb_image_resize2 (MIT/Public Domain) provides high-quality Lanczos/Mitchell/Catmull-Rom filtering with proper gamma-aware resizing.
+
+Why
+---
+- Box filter causes aliasing on high-frequency textures (normals, detail maps)
+- stb_image_resize2 supports proper gamma-correct sRGB resizing
+- Supports multiple filter kernels (Mitchell for most textures, Lanczos for normals)
+- Already in the stb family — consistent with existing stb_image usage
+- Single-header, MIT/Public Domain, zero dependencies
+
+Changes
+-------
+
+1. ThirdParty/stb/ (already exists)
+   - Add stb_image_resize2.h if not already present
+
+2. DataPacker/Source/Texture.cpp
+   - Replace GenerateMips() box-filter loop (~lines 199-243) with stbir_resize_float_linear() calls
+   - Use STBIR_FILTER_MITCHELL for color/albedo textures
+   - Use STBIR_FILTER_DEFAULT (Lanczos) for normal maps
+   - Use STBIR_COLORSPACE_SRGB for sRGB textures, LINEAR for normals/data
+   - Preserve the existing mip chain termination logic (stop at 4px for BC4/BC7)
+   - Replace Downsize() method similarly
+
+Notes
+-----
+- stb_image_resize2 works directly with float32 RGBA buffers, matching existing Texture internal format
+- The API handles arbitrary source/dest dimensions — no power-of-two requirement
+- Processing time may increase slightly due to wider filter kernels, but this is offline
+- Verify visual quality of terrain AO and normal mips after the change

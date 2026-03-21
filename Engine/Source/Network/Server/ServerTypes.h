@@ -44,4 +44,9 @@ struct GridUpdateData
 	std::span<const game::StatusChange> statusChanges;
 };
 
+struct PendingWeaponModeRequest
+{
+	int64_t iClientId = 0;
+};
+
 } // namespace engine

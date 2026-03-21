@@ -1,0 +1,37 @@
+Replace TinyGLTF with fastgltf
+==============================
+
+Context
+-------
+TinyGLTF v2.9.0 is used in the DataPacker for glTF model loading (ExportScene). fastgltf (MIT) is a modern C++17 header-only library that is significantly faster for large glTF files, with better extension support and active maintenance.
+
+Why
+---
+- fastgltf parses large glTF files significantly faster than TinyGLTF
+- Modern C++17 API fits the C++23 codebase better
+- Active development with good extension coverage
+- MIT license, same as TinyGLTF
+- TinyGLTF embeds nlohmann/json v3.10.4 -- fastgltf uses simdjson internally
+
+Changes
+-------
+
+1. ThirdParty/
+   - Add fastgltf as a git submodule
+   - Remove tinygltf submodule (after migration complete)
+
+2. DataPacker vcxproj
+   - Update include paths and filters to reference fastgltf instead of tinygltf
+
+3. DataPacker/Source/ (ExportScene and any glTF loading code)
+   - Replace tinygltf API calls with fastgltf equivalents
+   - Map data access patterns: tinygltf uses direct struct access, fastgltf uses typed accessors
+   - Key mapping:
+     - tinygltf::Model -> fastgltf::Asset
+     - tinygltf::TinyGLTF loader -> fastgltf::Parser
+     - Direct buffer/accessor reading -> fastgltf visitor pattern
+
+Notes
+-----
+- Both libraries produce the same logical data; the DataPacker's output .pack files should be identical
+- Verify packed output is bit-identical before and after migration

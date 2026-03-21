@@ -546,6 +546,14 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 	ProcessDebugInput(rMenuInput);
 
 #if defined(BT_CLIENT)
+	if (rMenuInput.flags & MenuInputFlags::kWeaponModeToggle)
+	{
+		if (gpClientSession != nullptr && gpClientSession->IsNetworkMode())
+		{
+			engine::gpClient->SendWeaponModeRequest();
+		}
+	}
+
 	if constexpr (kbEnableScreenshots)
 	{
 		if (rMenuInput.flags & MenuInputFlags::kToggleScreenshots)
@@ -650,7 +658,21 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 				engine::gpClient->SendLoadRequest();
 			}
 		}
-#endif
+		if (rMenuInput.flags & MenuInputFlags::kSaveReplay)
+		{
+			if (gpClientSession->IsNetworkMode())
+			{
+				engine::gpClient->SendReplayRecordRequest();
+			}
+		}
+		if (rMenuInput.flags & MenuInputFlags::kLoadReplay)
+		{
+			if (gpClientSession->IsNetworkMode())
+			{
+				engine::gpClient->SendReplayPlaybackRequest();
+			}
+		}
+#endif // defined(BT_CLIENT)
 
 		if (rMenuInput.flags & MenuInputFlags::kMenuTweaks)
 		{
