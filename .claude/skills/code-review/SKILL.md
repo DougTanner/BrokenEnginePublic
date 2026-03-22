@@ -110,6 +110,7 @@ Verify that existing utilities are used instead of reimplementing:
 For each modified `.cpp` file, check its total line count:
 - **Over 1000 lines**: Always flag as **REQUIRED** — `/reduce-file` must be invoked on this file
 - **500-1000 lines**: Only flag as **RECOMMEND** if you identified a natural split point during the review (e.g., distinct responsibility groups, client/server code that could separate, utility functions that belong in a `*Utils` file). Do not flag files in this range that are cohesive and have no obvious split
+- **Struct splitting**: Structs with static methods (e.g., SOA collections) can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). Classes must NOT be split this way — extract independent classes instead. See `/reduce-file` skill
 
 ### 7. Implementation Assessment
 
@@ -118,6 +119,14 @@ Evaluate the changes holistically:
 - **Integration** - Were all callers, related systems, and edge cases updated?
 - **Minimality** - No unnecessary refactoring, extra features, error handling, or cosmetic changes beyond what was requested.
 - **Simplification** - Could any duplicated code be extracted, over-complicated algorithms be simplified, or unnecessary intermediate variables be removed?
+
+### 8. Function Size and Nesting
+
+Check modified functions for size and nesting as related code smells — deeply nested code often signals a function doing too much:
+- **Function size**: Aim for 50-100 lines max per function. Soft guideline — some functions are legitimately large
+- **Nesting depth**: Flag functions where nesting depth makes the logic hard to follow
+- Recommend **inversion** (early return / guard clauses) as the preferred fix: flip conditions and return/continue early for error or edge cases, keeping the happy path at the lowest indentation
+- Only recommend **extraction** when there is a natural split — the extracted block must represent a genuinely independent responsibility. Do NOT recommend extracting small blocks just to reduce indentation; this trades visible nesting for call-stack nesting, which is equally hard to follow
 
 ## Output Format
 
@@ -137,6 +146,9 @@ Only include sections where issues were found. For sections with no issues, omit
 
 ### File Size Warnings
 - file (N lines) - [RECOMMEND / REQUIRED] `/reduce-file <path>`
+
+### Function Size / Nesting Issues
+- file:line - Description of issue and suggested inversion or extraction
 
 ### Implementation Issues
 - [Description of completeness, integration, minimality, or simplification concern]
