@@ -1202,6 +1202,9 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Clear.frag">
       <Filter>Engine\Data\Shaders</Filter>
     </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\DebugTexture.frag">
+      <Filter>Engine\Data\Shaders</Filter>
+    </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\AreaLight.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>

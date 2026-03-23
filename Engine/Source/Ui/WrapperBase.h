@@ -479,6 +479,8 @@ extern Wrapper gSmokeShadowIntensity;
 extern Wrapper gParticlesWindStrength;
 
 // Test
+extern Wrapper gDebugTexture;
+
 extern Wrapper gTestOne;
 extern Wrapper gTestTwo;
 

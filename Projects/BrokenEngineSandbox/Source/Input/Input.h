@@ -25,11 +25,11 @@ enum class MenuInputFlags : uint64_t
 	kSlowTime          = 0x00002000,
 	kSpeedUpTime       = 0x00004000,
 	kSingleStep        = 0x00008000,
-	kMenuGraphics      = 0x00010000,
 	kMenuTweaks        = 0x00020000,
 	kToggleScreenshots = 0x00040000,
 	kConnectLocal      = 0x00080000,
 	kWeaponModeToggle  = 0x00100000,
+	kMenuDebugTexture  = 0x00200000,
 };
 using MenuInputFlags_t = common::Flags<MenuInputFlags>;
 

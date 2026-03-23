@@ -680,12 +680,9 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 			mbShowImGui = !mbShowImGui;
 		}
 
-		if (rMenuInput.flags & MenuInputFlags::kMenuGraphics)
+		if (rMenuInput.flags & MenuInputFlags::kMenuDebugTexture)
 		{
-			meUiState = meUiState == kGraphics ? kNone : kGraphics;
-#if defined(BT_CLIENT)
-			engine::gSunAngleOverride.Set(game::gpCamera->RawSunAngle());
-#endif
+			engine::gDebugTexture.Toggle();
 		}
 
 		if (rMenuInput.flags & MenuInputFlags::kSlowTime)

@@ -25,7 +25,7 @@ Each blur level is recorded via `RecordLightingBlurMRT()`: transitions all three
 
 ## Main Render Pass Order
 
-Opaque models, terrain, water, hex shields, transparent models, particles (long then square), visible lights, billboards, text. Opaque materials drawn first with depth writing; transparent materials drawn after water/hex shields with alpha blending.
+Opaque models, terrain, water, hex shields, transparent models, particles (long then square), visible lights, billboards, text. Opaque materials drawn first with depth writing; transparent materials drawn after water/hex shields with alpha blending. In debug builds, the entire geometry sequence can be replaced by a single fullscreen debug texture draw (toggled at runtime via F2), with only profile text remaining.
 
 ## Synchronization
 

@@ -98,6 +98,22 @@ PipelineManager::PipelineManager()
 		},
 	});
 
+	if constexpr (kbEnableDebugInput)
+	{
+		mpPipelines[kPipelineDebugTexture].Create(
+		{
+			.name = "DebugTexture",
+			.flags = {kNoWireframe},
+			.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersDebugTexturefragCrc)},
+			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+			.pDescriptorInfos =
+			{
+				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mpLightingTextures[0]},
+			},
+		});
+	}
+
 	CreateSmokeWindPipelines();
 
 	CreateParticlePipelines();

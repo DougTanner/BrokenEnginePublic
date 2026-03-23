@@ -52,6 +52,8 @@ enum Pipelines
 	kPipelineSquareParticlesUpdate,
 	kPipelineSquareParticlesRender,
 
+	kPipelineDebugTexture,
+
 	kPipelineCount
 };
 

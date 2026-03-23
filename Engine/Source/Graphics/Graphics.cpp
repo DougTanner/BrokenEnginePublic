@@ -318,6 +318,12 @@ void Graphics::Refresh()
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
 
+	auto [bDebugTexture, bPreviousDebugTexture, bDebugTextureChanged] = gDebugTexture.Changed<bool>();
+	if (bDebugTextureChanged) [[unlikely]]
+	{
+		meDestroyType = std::max(DestroyType::kCommandBuffers, meDestroyType);
+	}
+
 	auto [fWorldDetail, fPreviousWorldDetail, bWorldDetailChanged] = gWorldDetail.Changed<float>();
 	if (bWorldDetailChanged && gpBufferManager != nullptr) [[unlikely]]
 	{

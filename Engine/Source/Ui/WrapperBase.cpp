@@ -286,6 +286,9 @@ Wrapper gSmokeShadowIntensity(0.5f, 0.0f, 1.0f);
 // Particles
 Wrapper gParticlesWindStrength(2000.0f, 0.0f, 5000.0f);
 
+// Debug
+Wrapper gDebugTexture(false);
+
 // Test
 Wrapper gTestOne(0.0f, -10.0f, 10.0f);
 Wrapper gTestTwo(0.0f, -10.0f, 10.0f);

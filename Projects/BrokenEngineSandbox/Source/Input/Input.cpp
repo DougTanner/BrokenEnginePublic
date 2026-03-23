@@ -73,7 +73,7 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 						             GamepadPressed(engine::kGamepadButtonB, rRawInput));
 	if constexpr (kbEnableDebugInput)
 	{
-		rMenuInput.flags.Set(kMenuGraphics, KeyboardPressed(VK_F2, rRawInput));
+		rMenuInput.flags.Set(kMenuDebugTexture, KeyboardPressed(VK_F2, rRawInput));
 		rMenuInput.flags.Set(kMenuTweaks, KeyboardPressed(VK_F3, rRawInput));
 	}
 
