@@ -1,6 +1,6 @@
 # Broken Engine
 
-A C++23 Vulkan game engine client/server with data pre-packer, using data-oriented design.
+A C++23 Vulkan game engine client/server with data pre-packer, using data-oriented design. The camera views the world from kilometers above, looking down on islands scattered across an ocean. Units appear small on screen, similar to an RTS perspective.
 
 ## Environment
 - **IDE**: Visual Studio 2026

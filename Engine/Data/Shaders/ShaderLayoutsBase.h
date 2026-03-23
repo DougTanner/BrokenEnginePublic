@@ -78,6 +78,7 @@ struct uvec4
 #extension GL_ARB_separate_shader_objects : require
 #extension GL_EXT_shader_explicit_arithmetic_types : require
 #extension GL_EXT_scalar_block_layout : require
+layout(scalar) uniform;
 #if defined(ENABLE_DEBUG_PRINTF_EXT)
 	#extension GL_EXT_debug_printf : require
 #endif

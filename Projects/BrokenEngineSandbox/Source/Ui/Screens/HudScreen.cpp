@@ -5,6 +5,7 @@
 #include "Game.h"
 #include "Frame/HealthDamage.h"
 #include "Frame/Collections/Players/Players.h"
+#include "MenuUtils.h"
 
 #include "Data/Texture.h"
 
@@ -100,11 +101,22 @@ void HudScreen::RenderWeaponMode(int64_t iPlayerIndex)
 	bool bUseMissiles = static_cast<bool>(rPlayers.pFlags[iPlayerIndex] & PlayerFlags::kUseMissiles);
 
 	ImGuiIO& rIo = ImGui::GetIO();
-	ImDrawList* pDrawList = ImGui::GetBackgroundDrawList();
+	ScopedMenuScale menuScale;
+
+	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.50f), ImGuiCond_Always);
+	ImGui::Begin("WeaponMode", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+	ImGui::SetWindowFontScale(kfMenuUiScale);
 
 	const char* pLabel = bUseMissiles ? "[Q] Missiles" : "[Q] Blasters";
-	ImVec2 pos(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.50f);
-	pDrawList->AddText(pos, kuiWhiteColor, pLabel);
+	if (ImGui::Button(pLabel))
+	{
+		if (gpClientSession != nullptr && gpClientSession->IsNetworkMode())
+		{
+			engine::gpClient->SendWeaponModeRequest();
+		}
+	}
+
+	ImGui::End();
 }
 
 void HudScreen::RenderBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize, float fValue, float fHalfWidthPerPoint, float fBarYSign, ImU32 uiBarColor, VkDescriptorSet vkIconDescriptorSet)

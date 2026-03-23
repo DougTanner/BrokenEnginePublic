@@ -21,7 +21,7 @@ static void WriteIfChanged(const std::string& rContent, const std::filesystem::p
 		std::fstream stream(rPath, std::ios::out | std::ios::binary);
 		stream << rContent;
 		stream.close();
-		Log("Re-generated %s", logName);
+		Log("Re-generated {}", logName);
 	}
 }
 
