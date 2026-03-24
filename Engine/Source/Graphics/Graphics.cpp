@@ -334,17 +334,11 @@ void Graphics::Refresh()
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
 
-	auto [fLightingBlurFirstDivisor, fLightingBlurFirstDivisorPrevious, bLightingBlurFirstDivisorChanged] = gLightingBlurFirstDivisor.Changed<float>();
-	auto [fLightingBlurDivisor, fLightingBlurDivisorPrevious, bLightingBlurDivisorChanged] = gLightingBlurDivisor.Changed<float>();
-	if (bLightingBlurFirstDivisorChanged || bLightingBlurDivisorChanged)
-	{
-		meDestroyType = std::max(DestroyType::kCommandBuffers, meDestroyType);
-	}
-
-	auto [fLightingMultiplier, fLightingMultiplierPrevious, bLightingMultiplierChanged] = gLightingTextureMultiplier.Changed<float>();
-	auto [fLightingBlurDownscale, fLightingBlurDownscalePrevious, bLightingBlurDownscaleChanged] = gLightingBlurDownscale.Changed<float>();
-	auto [fLightingCombineIndex, fLightingCombineIndexPrevious, bLightingCombineIndexChanged] = gLightingCombineIndex.Changed<float>();
-	if ((bLightingMultiplierChanged || bLightingBlurDownscaleChanged || bLightingCombineIndexChanged) && gpTextureManager != nullptr) [[unlikely]]
+	auto [fLightingMultiplier, fLightingMultiplierPrevious, bLightingMultiplierChanged] = gLightingDepositTextureMultiplier.Changed<float>();
+	auto [fFirstSpreadMultiplier, fFirstSpreadMultiplierPrevious, bFirstSpreadMultiplierChanged] = gFirstSpreadTextureMultiplier.Changed<float>();
+	auto [fLightCascadeDownscale, fLightCascadeDownscalePrevious, bLightCascadeDownscaleChanged] = gLightCascadeDownscale.Changed<float>();
+	auto [fLightCascadeCount, fLightCascadeCountPrevious, bLightCascadeCountChanged] = gLightCascadeCount.Changed<float>();
+	if ((bLightingMultiplierChanged || bFirstSpreadMultiplierChanged || bLightCascadeDownscaleChanged || bLightCascadeCountChanged) && gpTextureManager != nullptr) [[unlikely]]
 	{
 		mDestroyFlags.Set(DestroyFlags::kLightingTextures);
 
@@ -514,12 +508,23 @@ bool Graphics::Destroy()
 
 	Log("Graphics::Destroy() {}", static_cast<int64_t>(meDestroyType));
 
+	// Drain worker threads (Vulkan requires exclusive host access to all queues)
+	if (gpSwapchainManager != nullptr)
+	{
+		gpSwapchainManager->mPresent.Wait();
+	}
+	if (gpCommandBufferManager != nullptr)
+	{
+		gpCommandBufferManager->mSubmitMain.Wait();
+		gpCommandBufferManager->mSubmitGlobal.Wait();
+	}
+	if (gpTextureUploadManager != nullptr)
+	{
+		gpTextureUploadManager->WaitIdle();
+	}
+
 	if (gpDeviceManager != nullptr)
 	{
-		// This idle wait only occurs:
-		// 1. On app shutdown
-		// 2. On Vulkan error (to re-create Surface/Swapchain)
-		// 3. When the user changes graphics settings
 		vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
 	}
 
@@ -622,4 +627,4 @@ bool Graphics::Destroy()
 
 } // namespace engine
 
-#endif // BT_CLIENT
+#endif // defined(BT_CLIENT)

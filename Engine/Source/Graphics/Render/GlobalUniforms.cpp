@@ -334,7 +334,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	float fVisibleHeight = rGlobalLayout.f4VisibleArea.y - rGlobalLayout.f4VisibleArea.w;
 	if (fVisibleWidth > 0.0f && fVisibleHeight > 0.0f)
 	{
-		auto [iLightingTextureX, iLightingTextureY] = TextureManager::DetailTextureSize(gLightingTextureMultiplier.Get());
+		auto [iLightingTextureX, iLightingTextureY] = TextureManager::DetailTextureSize(gLightingDepositTextureMultiplier.Get());
 
 		float fWidth = std::ceil(fVisibleWidth);
 		float fHeight = std::ceil(fVisibleHeight);
@@ -349,6 +349,8 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 		float fTop = common::RoundDown(f4CameraPos.y + fHeight * 0.5f + fTexelSizeY, fTexelSizeY);
 
 		rGlobalLayout.f4LightingArea = {fLeft, fTop, fLeft + fWidth, fTop - fHeight};
+		rGlobalLayout.uiLightTilesX = static_cast<uint32_t>((iLightingTextureX + 7) / 8);
+		rGlobalLayout.uiLightTilesY = static_cast<uint32_t>((iLightingTextureY + 7) / 8);
 	}
 	else
 	{
@@ -365,4 +367,4 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 
 } // namespace engine
 
-#endif // BT_CLIENT
+#endif // defined(BT_CLIENT)

@@ -100,6 +100,8 @@ void HudScreen::RenderWeaponMode(int64_t iPlayerIndex)
 	PlayersPostRender& rPlayers = *gpGame->CurrentFrame(gpGame->mHumanGridCoord).postRender.pPlayers;
 	bool bUseMissiles = static_cast<bool>(rPlayers.pFlags[iPlayerIndex] & PlayerFlags::kUseMissiles);
 
+	gpGame->mWeaponModeToggle.Update(bUseMissiles);
+
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
@@ -108,13 +110,16 @@ void HudScreen::RenderWeaponMode(int64_t iPlayerIndex)
 	ImGui::SetWindowFontScale(kfMenuUiScale);
 
 	const char* pLabel = bUseMissiles ? "[Q] Missiles" : "[Q] Blasters";
+	ImGui::BeginDisabled(gpGame->mWeaponModeToggle.IsPending());
 	if (ImGui::Button(pLabel))
 	{
-		if (gpClientSession != nullptr && gpClientSession->IsNetworkMode())
+		if (gpClientSession != nullptr)
 		{
+			gpGame->mWeaponModeToggle.SetPending();
 			engine::gpClient->SendWeaponModeRequest();
 		}
 	}
+	ImGui::EndDisabled();
 
 	ImGui::End();
 }

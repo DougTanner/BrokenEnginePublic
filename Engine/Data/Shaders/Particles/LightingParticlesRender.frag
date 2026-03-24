@@ -22,6 +22,8 @@ layout (scalar, set = 1, binding = 2) buffer readonly particlesUniform
 	ParticlesLayout particles;
 };
 
+layout (set = 1, binding = 3) buffer lightOccupancyBuffer { uint occupancy[]; };
+
 layout (set = 0, binding = 12) uniform sampler particleSampler;
 layout (set = 0, binding = 4) uniform texture2D pTextures[];
 
@@ -48,4 +50,22 @@ void main()
 	f4OutColorRed = f4Color.r * vec4(0.25f, 0.25f, 0.25f, 0.25f) * fParticleIntensity;
 	f4OutColorGreen = f4Color.g * vec4(0.25f, 0.25f, 0.25f, 0.25f) * fParticleIntensity;
 	f4OutColorBlue = f4Color.b * vec4(0.25f, 0.25f, 0.25f, 0.25f) * fParticleIntensity;
+
+	// Mark occupancy for deposited tile and surrounding tiles within dilation radius
+	int iCenterTileX = int(gl_FragCoord.x) / int(kiComputeTileSize);
+	int iCenterTileY = int(gl_FragCoord.y) / int(kiComputeTileSize);
+	int iDilation = int(globalLayout.uiLightOccupancyDilation);
+	for (int iDy = -iDilation; iDy <= iDilation; ++iDy)
+	{
+		for (int iDx = -iDilation; iDx <= iDilation; ++iDx)
+		{
+			int iTileX = iCenterTileX + iDx;
+			int iTileY = iCenterTileY + iDy;
+			if (iTileX >= 0 && iTileY >= 0 && uint(iTileX) < globalLayout.uiLightTilesX && uint(iTileY) < globalLayout.uiLightTilesY)
+			{
+				uint uiTileIndex = uint(iTileY) * globalLayout.uiLightTilesX + uint(iTileX);
+				atomicOr(occupancy[uiTileIndex >> 5], 1u << (uiTileIndex & 31));
+			}
+		}
+	}
 }

@@ -60,7 +60,9 @@ PipelineManager::PipelineManager()
 	// Clear stale pipeline pointers before pipelines are recreated
 	gpTextureManager->mTextureDescriptors.ClearTextureBindings();
 
+	gpBufferManager->CreateLightingSpreadBuffers();
 	CreateLightingPipelines();
+	CreateLightingSpreadPipelines();
 	CreatePipelineShadows();
 	CreateLightingShadowDependantPipelines();
 
@@ -103,13 +105,14 @@ PipelineManager::PipelineManager()
 		mpPipelines[kPipelineDebugTexture].Create(
 		{
 			.name = "DebugTexture",
-			.flags = {kNoWireframe},
+			.flags = {kNoWireframe, kPushConstants},
 			.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersDebugTexturefragCrc)},
 			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 			.pDescriptorInfos =
 			{
 				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mpLightingTextures[0]},
+				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mpFirstSpreadTextures[0]},
 			},
 		});
 	}
@@ -124,36 +127,6 @@ PipelineManager::PipelineManager()
 PipelineManager::~PipelineManager()
 {
 	gpPipelineManager = nullptr;
-}
-
-void PipelineManager::CreateLightingCombinePipeline(Pipelines eCombinePipeline, Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount])
-{
-	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
-	Texture* ppLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
-	for (int64_t i = 0; i < iBlurTextureCount; ++i)
-	{
-		ppLightingBlurTextures[i] = &pLightingBlurTextures[iCombineTextureIndex + 1 + i];
-	}
-	for (int64_t i = iBlurTextureCount; i < shaders::kiMaxLightingBlurCount; ++i)
-	{
-		// Not used, just placeholders
-		ppLightingBlurTextures[i] = &pLightingBlurTextures[i];
-	}
-	mpPipelines[eCombinePipeline].Create(
-	{
-		.name = "LightingCombine",
-		.flags = {kRenderTarget, kAdd},
-		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersLightingLightingCombinefragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = pLightingBlurTextures[iCombineTextureIndex].mVkRenderPass,
-		.vkExtent3D = pLightingBlurTextures[iCombineTextureIndex].mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = std::size(ppLightingBlurTextures), .ppTextures = ppLightingBlurTextures},
-		},
-	});
 }
 
 void PipelineManager::CreateLightingPipelines()
@@ -171,6 +144,7 @@ void PipelineManager::CreateLightingPipelines()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mLongParticlesStorageBuffer},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mLightOccupancyVkBuffers[0]},
 			{.flags = kSamplerClamp},
 			{.flags = kTextures},
 		},
@@ -189,41 +163,126 @@ void PipelineManager::CreateLightingPipelines()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mSquareParticlesStorageBuffer},
+			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mLightOccupancyVkBuffers[0]},
 			{.flags = kSamplerClamp},
 			{.flags = kTextures},
 		},
 	});
+}
 
-	// MRT blur pipelines (3 input samplers, 3 MRT outputs per level)
-	for (int64_t i = 0; i < gpTextureManager->mRenderTargetTextures.miLightingBlurCount; ++i)
+void PipelineManager::CreateLightingSpreadPipelines()
+{
+	// Destroy all existing spread pipelines before recreation
+	for (int64_t i = 0; i < kiMaxCascadeLevels; ++i)
 	{
-		Texture* pRedSource = i == 0 ? &gpTextureManager->mRenderTargetTextures.mpLightingTextures[0] : &gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[i - 1];
-		Texture* pGreenSource = i == 0 ? &gpTextureManager->mRenderTargetTextures.mpLightingTextures[1] : &gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures[i - 1];
-		Texture* pBlueSource = i == 0 ? &gpTextureManager->mRenderTargetTextures.mpLightingTextures[2] : &gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures[i - 1];
+		mLightOccupancyDilatePipelines[i].Destroy();
+	}
+	for (int64_t i = 0; i < 3; ++i)
+	{
+		mLightFirstSpreadPipelines[i].Destroy();
+	}
+	for (int64_t i = 0; i < kiMaxCascadeLevels * 3; ++i)
+	{
+		mLightScatterPipelines[i].Destroy();
+	}
+	for (int64_t i = 0; i < 3; ++i)
+	{
+		mLightAccumulatePipelines[i].Destroy();
+	}
 
-		mpLightingBlurPipelines[i].Create(
+	RenderTargetTextures& rTextures = gpTextureManager->mRenderTargetTextures;
+	int64_t iCascadeCount = rTextures.miCascadeLevelCount;
+
+	// Occupancy dilate: one per cascade level
+	for (int64_t iLevel = 0; iLevel < iCascadeCount; ++iLevel)
+	{
+		mLightOccupancyDilatePipelines[iLevel].Create(
 		{
-			.name = "LightingBlurMRT",
-			.flags = {kRenderTarget, kPushConstants},
-			.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersLightingLightingBlurfragCrc)},
-			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-			.vkRenderPass = gpTextureManager->mRenderTargetTextures.mpLightingBlurVkRenderPasses[i],
-			.vkExtent3D = gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[i].mInfo.extent,
-			.iColorAttachmentCount = 3,
+			.name = "LightOccupancyDilate",
+			.flags = {kCompute, kPushConstants},
+			.ppShaders = {&mShaders.at(data::kShadersLightingLightOccupancyDilatecompCrc)},
 			.pDescriptorInfos =
 			{
 				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-				{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = pRedSource},
-				{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = pGreenSource},
-				{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = pBlueSource},
+				{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mLightOccupancyVkBuffers[iLevel]},
+				{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mLightActiveTileVkBuffers[iLevel]},
 			},
 		});
 	}
 
-	// Per-channel combine pipelines
-	CreateLightingCombinePipeline(kPipelineRedLightingCombine, gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures);
-	CreateLightingCombinePipeline(kPipelineGreenLightingCombine, gpTextureManager->mRenderTargetTextures.mpGreenLightingBlurTextures);
-	CreateLightingCombinePipeline(kPipelineBlueLightingCombine, gpTextureManager->mRenderTargetTextures.mpBlueLightingBlurTextures);
+	// First spread: deposit -> first spread textures (one per color, uses occupancy)
+	for (int64_t iColor = 0; iColor < 3; ++iColor)
+	{
+		mLightFirstSpreadPipelines[iColor].Create(
+		{
+			.name = "LightFirstSpread",
+			.flags = {kCompute, kPushConstants},
+			.ppShaders = {&mShaders.at(data::kShadersLightingLightFirstSpreadcompCrc)},
+			.pDescriptorInfos =
+			{
+				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mpLightingTextures[iColor]},
+				{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpFirstSpreadTextures[iColor]},
+				{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mLightOccupancyVkBuffers[0]},
+				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mTerrainElevationTexture},
+			},
+		});
+	}
+
+	// Cascade scatter: unconditional, no occupancy — gathers from level L into level L+1
+	// Level 0 source is first spread; higher levels source from previous cascade
+	for (int64_t iLevel = 0; iLevel < iCascadeCount - 1; ++iLevel)
+	{
+		for (int64_t iColor = 0; iColor < 3; ++iColor)
+		{
+			Texture* pSourceTexture = (iLevel == 0)
+				? &rTextures.mpFirstSpreadTextures[iColor]
+				: &rTextures.mpCascadeTextures[iLevel][iColor];
+
+			mLightScatterPipelines[iLevel * 3 + iColor].Create(
+			{
+				.name = "LightScatter",
+				.flags = {kCompute, kPushConstants},
+				.ppShaders = {&mShaders.at(data::kShadersLightingLightScattercompCrc)},
+				.pDescriptorInfos =
+				{
+					{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+					{.flags = kCombinedSamplers, .iCount = 1, .pTexture = pSourceTexture},
+					{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpCascadeTextures[iLevel + 1][iColor]},
+					{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mTerrainElevationTexture},
+				},
+			});
+		}
+	}
+
+	// Accumulate: first spread (index 0) + cascade levels (index 1..N)
+	for (int64_t iColor = 0; iColor < 3; ++iColor)
+	{
+		Texture* ppCascadeChain[kiMaxCascadeLevels] {};
+		ppCascadeChain[0] = &rTextures.mpFirstSpreadTextures[iColor];
+		for (int64_t iLevel = 1; iLevel < iCascadeCount; ++iLevel)
+		{
+			ppCascadeChain[iLevel] = &rTextures.mpCascadeTextures[iLevel][iColor];
+		}
+		// Fill remaining slots with first spread to avoid null pointers
+		for (int64_t iLevel = iCascadeCount; iLevel < kiMaxCascadeLevels; ++iLevel)
+		{
+			ppCascadeChain[iLevel] = &rTextures.mpFirstSpreadTextures[iColor];
+		}
+
+		mLightAccumulatePipelines[iColor].Create(
+		{
+			.name = "LightAccumulate",
+			.flags = {kCompute, kPushConstants},
+			.ppShaders = {&mShaders.at(data::kShadersLightingLightAccumulatecompCrc)},
+			.pDescriptorInfos =
+			{
+				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+				{.flags = kCombinedSamplers, .iCount = kiMaxCascadeLevels, .ppTextures = ppCascadeChain},
+				{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpLightingAccumulateTextures[iColor]},
+			},
+		});
+	}
 }
 
 void PipelineManager::CreatePipelineShadows()
@@ -640,7 +699,9 @@ void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
 	// Stage 1: Lighting pipelines (must come before terrain/water and particles)
 	if (flags & kLightingTextures)
 	{
+		gpBufferManager->CreateLightingSpreadBuffers();
 		CreateLightingPipelines();
+		CreateLightingSpreadPipelines();
 
 		// Dynamic lighting pipelines render to lighting textures
 		VkRenderPass vkLightingRenderPass = gpTextureManager->mRenderTargetTextures.mLightingVkRenderPass;
@@ -653,6 +714,24 @@ void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
 				rpPipeline->mInfo.vkExtent3D = vkLightingExtent;
 				rpPipeline->Create(rpPipeline->mInfo);
 			}
+		}
+
+		// Debug texture pipeline references deposit and first spread textures
+		if constexpr (kbEnableDebugInput)
+		{
+			mpPipelines[kPipelineDebugTexture].Create(
+			{
+				.name = "DebugTexture",
+				.flags = {kNoWireframe, kPushConstants},
+				.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersDebugTexturefragCrc)},
+				.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+				.pDescriptorInfos =
+				{
+					{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+					{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mpLightingTextures[0]},
+					{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mpFirstSpreadTextures[0]},
+				},
+			});
 		}
 	}
 
@@ -674,6 +753,12 @@ void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
 	if ((flags & kTerrainElevation) || (flags & kTerrainColor) || (flags & kTerrainNormal) || (flags & kTerrainAO))
 	{
 		CreateTerrainDataPipelines();
+	}
+
+	// Light spread pipelines (depend on terrain elevation for scatter)
+	if ((flags & kTerrainElevation) && !(flags & kLightingTextures))
+	{
+		CreateLightingSpreadPipelines();
 	}
 
 	// Smoke and wind pipelines

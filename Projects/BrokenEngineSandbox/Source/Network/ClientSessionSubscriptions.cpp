@@ -7,7 +7,7 @@ namespace game
 
 #if defined(BT_CLIENT)
 
-void ClientSession::UpdateDesiredCoords(std::string_view pcReason)
+void ClientSession::UpdateDesiredCoords(std::string_view reason)
 {
 	std::vector<engine::GridCoord> desiredCoords;
 	desiredCoords.reserve(5);
@@ -55,7 +55,7 @@ void ClientSession::UpdateDesiredCoords(std::string_view pcReason)
 
 	if (desiredCoords != mDesiredCoords)
 	{
-		Log(kLogNetwork, "Desired subscriptions changed Reason: {} Count: {} -> {}", pcReason, mDesiredCoords.size(), desiredCoords.size());
+		Log(kLogNetwork, "Desired subscriptions changed Reason: {} Count: {} -> {}", reason, mDesiredCoords.size(), desiredCoords.size());
 
 		// Track when coords become unwanted for sticky subscriptions
 		std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();

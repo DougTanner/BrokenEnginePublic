@@ -22,6 +22,8 @@ layout (scalar, set = 1, binding = 1) buffer readonly quadsUniform
 	AxisAlignedQuadLayout pQuads[];
 };
 
+layout (set = 1, binding = 2) buffer lightOccupancyBuffer { uint occupancy[]; };
+
 layout (set = 0, binding = 12) uniform sampler texturesSampler;
 layout (set = 0, binding = 4) uniform texture2D pTextures[];
 
@@ -44,10 +46,39 @@ void main()
 	vec4 f4Color = unpackUnorm4x8(pQuads[iInInstanceIndex].uiColor).abgr;
 	float fAlpha = f4Color.a * f4Texture.a;
 
-	// Calculate normalized direction from quad center
-	vec4 f4Direction = CalculateDirectionalLight(f2InTexcoord);
+#if 1 // defined(ENABLE_DIRECTIONAL_DEPOSIT)
+	vec2 f2Dir = f2InTexcoord - f2Center;
+	vec2 f2AbsDir = abs(f2Dir);
+	float fMaxDist = max(f2AbsDir.x, f2AbsDir.y);
+	vec2 f2NormDir = fMaxDist > 0.0f ? f2Dir / fMaxDist : vec2(0.0f);
+	vec4 f4Direction = vec4(max(f2NormDir.x, 0.0f), max(-f2NormDir.x, 0.0f), max(f2NormDir.y, 0.0f), max(-f2NormDir.y, 0.0f));
+#else
+	vec4 f4Direction = vec4(0.25f);
+#endif
 
-	f4OutColorRed = f4Direction * f4InParams.y * fAlpha * (f4Color.r * f4Texture.r);
-	f4OutColorGreen = f4Direction * f4InParams.y * fAlpha * (f4Color.g * f4Texture.g);
-	f4OutColorBlue = f4Direction * f4InParams.y * fAlpha * (f4Color.b * f4Texture.b);
+	// Radial falloff: intensity drops to zero at quad edges
+	float fDist = length(f2InTexcoord - vec2(0.5f)) * 2.0f;
+	float fFalloff = 1.0f - smoothstep(0.0f, 1.0f, fDist);
+
+	f4OutColorRed = f4Direction * f4InParams.y * fAlpha * fFalloff * (f4Color.r * f4Texture.r);
+	f4OutColorGreen = f4Direction * f4InParams.y * fAlpha * fFalloff * (f4Color.g * f4Texture.g);
+	f4OutColorBlue = f4Direction * f4InParams.y * fAlpha * fFalloff * (f4Color.b * f4Texture.b);
+
+	// Mark occupancy for deposited tile and surrounding tiles within dilation radius
+	int iCenterTileX = int(gl_FragCoord.x) / int(kiComputeTileSize);
+	int iCenterTileY = int(gl_FragCoord.y) / int(kiComputeTileSize);
+	int iDilation = int(globalLayout.uiLightOccupancyDilation);
+	for (int iDy = -iDilation; iDy <= iDilation; ++iDy)
+	{
+		for (int iDx = -iDilation; iDx <= iDilation; ++iDx)
+		{
+			int iTileX = iCenterTileX + iDx;
+			int iTileY = iCenterTileY + iDy;
+			if (iTileX >= 0 && iTileY >= 0 && uint(iTileX) < globalLayout.uiLightTilesX && uint(iTileY) < globalLayout.uiLightTilesY)
+			{
+				uint uiTileIndex = uint(iTileY) * globalLayout.uiLightTilesX + uint(iTileX);
+				atomicOr(occupancy[uiTileIndex >> 5], 1u << (uiTileIndex & 31));
+			}
+		}
+	}
 }

@@ -16,7 +16,7 @@ Multi-pass deferred Vulkan renderer with lighting, shadows, GPU particles, and p
 
 ## Architecture Notes
 
-- Managers are created in strict dependency order: InstanceManager, DeviceManager, SwapchainManager, CommandBufferManager, BufferManager, TextureManager, TextManager, Islands, PipelineManager, ParticleManager, ImGuiManager
+- Managers are created in strict dependency order: InstanceManager, DeviceManager, SwapchainManager, CommandBufferManager, BufferManager, Islands, TextureManager, TextManager, PipelineManager, ParticleManager, ImGuiManager
 - Three GPU submissions per frame synchronized via semaphores, with the fence signaled by the final submission
 - Record-once command buffers resubmitted every frame; re-recorded only on resize or settings change
 - Per-framebuffer descriptor sets prevent GPU conflicts across frames in flight

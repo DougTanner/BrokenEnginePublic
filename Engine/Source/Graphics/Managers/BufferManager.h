@@ -82,6 +82,17 @@ public:
 	void CreateWindHierarchicalBuffers();
 	void DestroyWindHierarchicalBuffers();
 
+	// Lighting spread hierarchical dispatch buffers (per cascade level)
+	static constexpr int64_t kiMaxCascadeLevels = 8;
+	VkBuffer mLightOccupancyVkBuffers[kiMaxCascadeLevels] {};
+	VkBuffer mLightActiveTileVkBuffers[kiMaxCascadeLevels] {};
+	VmaAllocation mLightOccupancyVmaAllocations[kiMaxCascadeLevels] {};
+	VmaAllocation mLightActiveTileVmaAllocations[kiMaxCascadeLevels] {};
+	VkDeviceSize mLightOccupancyBufferSizes[kiMaxCascadeLevels] {};
+	VkDeviceSize mLightActiveTileBufferSizes[kiMaxCascadeLevels] {};
+	void CreateLightingSpreadBuffers();
+	void DestroyLightingSpreadBuffers();
+
 	Buffer mQuadsVertexBuffer;
 	Buffer mTerrainMeshBuffer;
 	Buffer mWaterMeshBuffer;

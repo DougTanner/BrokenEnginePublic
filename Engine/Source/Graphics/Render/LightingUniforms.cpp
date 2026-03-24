@@ -16,16 +16,24 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fLightingObjectsAdd = gLightingObjectsAdd.Get();
 	rGlobalLayout.fLightingCombinePower = gLightingCombinePower.Get();
 
-	rGlobalLayout.fLightingBlurDistance = gLightingBlurDistance.Get();
-	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
-	rGlobalLayout.fLightingBlurTextureCount = static_cast<float>(iBlurTextureCount);
 	rGlobalLayout.fLightingTerrain = gLightingTerrain.Get();
 	rGlobalLayout.fLightingObjects = gLightingObjects.Get();
-
-	rGlobalLayout.fLightingBlurDirectionality = gLightingBlurDirectionality.Get();
 	rGlobalLayout.fLightingAddTerrain = gLightingAddTerrain.Get();
-	rGlobalLayout.fLightingBlurJitter = gLightingBlurJitter.Get();
 	rGlobalLayout.fLightingCombineDecay = gLightingCombineDecay.Get();
+
+	// First spread
+	rGlobalLayout.fFirstSpreadKernelWorld = gFirstSpreadKernelWorld.Get();
+	rGlobalLayout.fFirstSpreadKernelSize = gFirstSpreadKernelSize.Get();
+	rGlobalLayout.fFirstSpreadDecay = gFirstSpreadDecay.Get();
+	rGlobalLayout.fLightSpreadTerrainCutoff = gLightSpreadTerrainCutoff.Get();
+	rGlobalLayout.uiLightOccupancyDilation = static_cast<uint32_t>(gLightOccupancyDilation.Get());
+
+	// Cascade spread
+	rGlobalLayout.fLightCascadeDownscale = gLightCascadeDownscale.Get();
+	rGlobalLayout.uiLightCascadeCount = static_cast<uint32_t>(gLightCascadeCount.Get());
+	rGlobalLayout.fCascadeSpreadKernelWorld = gCascadeSpreadKernelWorld.Get();
+	rGlobalLayout.fCascadeSpreadKernelSize = gCascadeSpreadKernelSize.Get();
+	rGlobalLayout.fCascadeSpreadDecay = gCascadeSpreadDecay.Get();
 }
 
 void RenderLightingMain(int64_t iCommandBuffer)
@@ -104,4 +112,4 @@ void RenderLightingMain(int64_t iCommandBuffer)
 
 } // namespace engine
 
-#endif // BT_CLIENT
+#endif // defined(BT_CLIENT)

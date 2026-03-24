@@ -1,0 +1,80 @@
+#version 460
+
+#include "ShaderLayouts.h"
+#include "ShaderFunctions.h"
+
+layout (local_size_x = kiComputeTileSize, local_size_y = kiComputeTileSize) in;
+
+// Uniforms
+layout (binding = 0) uniform globalUniform
+{
+	GlobalLayout globalLayout;
+};
+
+layout (binding = 1) uniform sampler2D sourceSampler;
+layout (binding = 2, rgba16f) uniform writeonly image2D outputImage;
+
+layout (binding = 3) uniform sampler2D elevationSampler;
+
+layout (push_constant) uniform PushConstants
+{
+	uint uiSourceWidth;
+	uint uiSourceHeight;
+	uint uiDestWidth;
+	uint uiDestHeight;
+};
+
+void main()
+{
+	uint uiDestX = gl_GlobalInvocationID.x;
+	uint uiDestY = gl_GlobalInvocationID.y;
+
+	if (uiDestX >= uiDestWidth || uiDestY >= uiDestHeight)
+		return;
+
+	// DT: TEMP - terrain blocking disabled; should take into account slope so light spreads uphill and only blocks after going over a ridge
+#if 0
+	vec2 f2ElevTexcoord = (vec2(uiDestX, uiDestY) + vec2(0.5f)) / vec2(uiDestWidth, uiDestHeight);
+	float fElevation = texture(elevationSampler, f2ElevTexcoord).x;
+	float fTerrainCutoff = globalLayout.fLightSpreadTerrainCutoff;
+	if (fElevation > fTerrainCutoff)
+		return;
+#endif
+
+	// World area controls reach, kernel size controls sample count (performance budget)
+	float fWorldWidth = globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x;
+	float fWorldHeight = globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w;
+	float fKernelWorld = globalLayout.fCascadeSpreadKernelWorld;
+	float fPixelRadiusX = fKernelWorld * float(uiSourceWidth) / fWorldWidth;
+	float fPixelRadiusY = fKernelWorld * float(uiSourceHeight) / fWorldHeight;
+	int iHalfKernel = int(globalLayout.fCascadeSpreadKernelSize) / 2;
+	iHalfKernel = clamp(iHalfKernel, 1, max(int(ceil(max(fPixelRadiusX, fPixelRadiusY))), 1));
+	float fStepSizeX = max(fPixelRadiusX / float(iHalfKernel), 1.0f);
+	float fStepSizeY = max(fPixelRadiusY / float(iHalfKernel), 1.0f);
+	float fDecay = globalLayout.fCascadeSpreadDecay;
+
+	// Map destination pixel center to source space
+	vec2 f2SourceCenter = (vec2(uiDestX, uiDestY) + vec2(0.5f)) * vec2(uiSourceWidth, uiSourceHeight) / vec2(uiDestWidth, uiDestHeight);
+
+	// 2D convolution: kernel size samples across pixel radius, step >= 1
+	vec4 f4Result = vec4(0.0f);
+	float fHalfKernel = float(iHalfKernel);
+
+	for (int iDy = -iHalfKernel; iDy <= iHalfKernel; ++iDy)
+	{
+		for (int iDx = -iHalfKernel; iDx <= iHalfKernel; ++iDx)
+		{
+			float fDistSq = float(iDx * iDx + iDy * iDy);
+			if (fDistSq > fHalfKernel * fHalfKernel)
+				continue;
+
+			float fDist = sqrt(fDistSq);
+			float fWeight = pow(max(1.0f - fDist / fHalfKernel, 0.0f), fDecay);
+
+			vec2 f2SampleUv = (f2SourceCenter + vec2(float(iDx) * fStepSizeX, float(iDy) * fStepSizeY)) / vec2(uiSourceWidth, uiSourceHeight);
+			f4Result += texture(sourceSampler, f2SampleUv) * fWeight;
+		}
+	}
+
+	imageStore(outputImage, ivec2(uiDestX, uiDestY), f4Result);
+}

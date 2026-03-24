@@ -18,7 +18,6 @@ public:
 	~ClientSession() override;
 
 	// Connection
-	bool IsNetworkMode() const { return mpClientNetwork != nullptr; }
 	void ConnectToServer(std::string_view serverAddress);
 	void ConnectToDiscoveredServer();
 	void DisconnectFromServer();
@@ -52,7 +51,7 @@ private:
 	void PollDebugFrameResponse();
 
 	// Subscription helpers
-	void UpdateDesiredCoords(std::string_view pcReason);
+	void UpdateDesiredCoords(std::string_view reason);
 
 	void ApplyReceivedFullStates();
 	void ApplyReceivedUpdates();

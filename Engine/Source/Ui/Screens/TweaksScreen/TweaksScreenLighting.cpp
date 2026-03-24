@@ -7,28 +7,47 @@ void TweaksScreenBase::RenderLightingSection()
 {
 	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kLighting);
 
-	WrapperSeparatorText("Blur");
-	WrapperSlider("Texture Multiplier", kiSection);
-	WrapperSlider("Blur Distance", kiSection);
-	WrapperSlider("Blur Directionality", kiSection);
-	WrapperSlider("Blur Jitter", kiSection);
-	WrapperSlider("Downscale", kiSection);
+	if (ImGui::BeginTable("LightingColumns", 2))
+	{
+		// Left column: pipeline phases
+		ImGui::TableNextColumn();
 
-	WrapperSeparatorText("Combine");
-	WrapperSlider("Combine Index", kiSection);
-	WrapperSlider("Blur First Divisor", kiSection);
-	WrapperSlider("Blur Divisor", kiSection);
-	WrapperSlider("Combine Decay", kiSection);
-	WrapperSlider("Combine Power", kiSection);
+		WrapperSeparatorText("1. Deposit");
+		WrapperSlider("Deposit Texture Multiplier", kiSection, 1.0f);
 
-	WrapperSeparatorText("Directional");
-	WrapperSlider("Directional", kiSection);
-	WrapperSlider("Indirect", kiSection);
-	WrapperSlider("Terrain", kiSection);
-	WrapperSlider("Terrain Add", kiSection);
-	WrapperSlider("Objects", kiSection);
-	WrapperSlider("Objects Add", kiSection);
-	WrapperSlider("Time of Day Multiplier", kiSection);
+		WrapperSeparatorText("2. First Spread");
+		WrapperSlider("First Spread Texture Multiplier", kiSection, 1.0f);
+		WrapperSlider("First Spread Kernel World", kiSection, 1.0f);
+		WrapperSlider("First Spread Kernel Size", kiSection, 1.0f);
+		WrapperSlider("First Spread Decay", kiSection, 1.0f);
+		WrapperSlider("Occupancy Dilation", kiSection, 1.0f);
+		WrapperSlider("Spread Terrain Cutoff", kiSection, 1.0f);
+
+		WrapperSeparatorText("3. Cascade");
+		WrapperSlider("Cascade Downscale", kiSection, 1.0f);
+		WrapperSlider("Cascade Count", kiSection, 1.0f);
+		WrapperSlider("Cascade Kernel World", kiSection, 1.0f);
+		WrapperSlider("Cascade Kernel Size", kiSection, 1.0f);
+		WrapperSlider("Cascade Decay", kiSection, 1.0f);
+
+		WrapperSeparatorText("4. Combine");
+		WrapperSlider("Combine Decay", kiSection, 1.0f);
+		WrapperSlider("Combine Power", kiSection, 1.0f);
+
+		// Right column: reading from the lighting texture (how it's applied)
+		ImGui::TableNextColumn();
+
+		WrapperSeparatorText("Directional");
+		WrapperSlider("Directional", kiSection, 1.0f);
+		WrapperSlider("Indirect", kiSection, 1.0f);
+		WrapperSlider("Terrain", kiSection, 1.0f);
+		WrapperSlider("Terrain Add", kiSection, 1.0f);
+		WrapperSlider("Objects", kiSection, 1.0f);
+		WrapperSlider("Objects Add", kiSection, 1.0f);
+		WrapperSlider("Time of Day Multiplier", kiSection, 1.0f);
+
+		ImGui::EndTable();
+	}
 }
 
 } // namespace engine

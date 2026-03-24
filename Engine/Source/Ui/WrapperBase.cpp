@@ -116,14 +116,6 @@ Wrapper gWaterHeightDarkenBottom(-0.17f, -0.5f, 0.0f);
 Wrapper gWaterHeightDarkenClamp(0.0f, 0.0f, 0.9f);
 
 // Lighting
-Wrapper gLightingTextureMultiplier(1.0f / 4.0f, 1.0f / 64.0f, 1.0f / 1.0f);
-Wrapper gLightingBlurDownscale(0.8f, 0.5f, 0.9f);
-Wrapper gLightingCombineIndex(0.4f, 0.0f, 10.4f);
-Wrapper gLightingBlurDistance(0.1f, 0.0f, 0.5f);
-Wrapper gLightingBlurDirectionality(0.9f, 0.0f, 1.0f);
-Wrapper gLightingBlurJitter(0.1f, 0.0f, 0.2f);
-Wrapper gLightingBlurFirstDivisor(1400.0f, 200.0f, 4000.0f);
-Wrapper gLightingBlurDivisor(0.24f, 0.0f, 1.0f);
 Wrapper gLightingCombineDecay(0.7f, 0.5f, 1.0f);
 Wrapper gLightingCombinePower(0.5f, 0.1f, 2.0f);
 
@@ -139,6 +131,24 @@ Wrapper gLightingSampledNormalsSizeMod(0.007f, -0.02f, 0.02f);
 Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
 
 Wrapper gLightingTimeOfDayMultiplier(0.5f, 0.0f, 1.0f);
+
+// Deposit
+Wrapper gLightingDepositTextureMultiplier(0.75f, 1.0f / 64.0f, 1.0f / 1.0f);
+
+// First spread
+Wrapper gFirstSpreadTextureMultiplier(0.2f, 1.0f / 64.0f, 1.0f);
+Wrapper gFirstSpreadKernelWorld(2.0f, 0.1f, 10.0f);
+Wrapper gFirstSpreadKernelSize(64.0f, 2.0f, 128.0f);
+Wrapper gFirstSpreadDecay(6.0f, 0.0f, 10.0f);
+Wrapper gLightOccupancyDilation(3.5f, 0.0f, 16.0f);
+Wrapper gLightSpreadTerrainCutoff(0.0f, 0.0f, 1.0f);
+
+// Cascade spread
+Wrapper gLightCascadeDownscale(2.0f, 1.5f, 4.0f);
+Wrapper gLightCascadeCount(4.0f, 1.0f, 8.0f);
+Wrapper gCascadeSpreadKernelWorld(2.0f, 0.1f, 20.0f);
+Wrapper gCascadeSpreadKernelSize(32.0f, 2.0f, 64.0f);
+Wrapper gCascadeSpreadDecay(1.5f, 0.0f, 4.0f);
 
 // Water skybox
 Wrapper gLightingWaterSkyboxSunBias(2.6f, 0.0f, 4.0f);
@@ -167,7 +177,7 @@ Wrapper gLightingWaterSpecularOne(200.0f, 0.0f, 600.0f);
 Wrapper gLightingWaterSpecularOnePower(5.0f, 1.0f, 20.0f);
 Wrapper gLightingWaterSpecularTwo(3.0f, 0.0f, 20.0f);
 Wrapper gLightingWaterSpecularTwoPower(1.3f, 0.5f, 5.0f);
-Wrapper gLightingWaterSpecularThree(.6f, 0.0f, 10.0f);
+Wrapper gLightingWaterSpecularThree(0.6f, 0.0f, 10.0f);
 Wrapper gLightingWaterSpecularThreePower(0.1f, 0.05f, 0.5f);
 
 // Smoke
@@ -287,7 +297,7 @@ Wrapper gSmokeShadowIntensity(0.5f, 0.0f, 1.0f);
 Wrapper gParticlesWindStrength(2000.0f, 0.0f, 5000.0f);
 
 // Debug
-Wrapper gDebugTexture(false);
+Wrapper gDebugTexture(0.0f, 0.0f, 2.0f); // 0=off, 1=deposit, 2=first spread
 
 // Test
 Wrapper gTestOne(0.0f, -10.0f, 10.0f);

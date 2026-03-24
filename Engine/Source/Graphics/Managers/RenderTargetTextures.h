@@ -11,8 +11,7 @@ struct RenderTargetTextures
 
 	void DestroyLightingTextures();
 	void CreateLightingTextures();
-	void CreateBlurTextures(int64_t iLightingTextureX, int64_t iLightingTextureY, float fDownscale, int64_t iMaxCount);
-	void CreateBlurRenderPassAndFramebuffer(int64_t iLevel, int64_t iBlurTextureX, int64_t iBlurTextureY);
+	void CreateCascadeTextures(int64_t iLightingTextureX, int64_t iLightingTextureY);
 	void CreateShadowTextures();
 	void CreateSmokeTextures();
 	void CreateWindTextures();
@@ -36,12 +35,17 @@ struct RenderTargetTextures
 	Texture mpLightingTextures[3];
 	VkRenderPass mLightingVkRenderPass = VK_NULL_HANDLE;
 	VkFramebuffer mLightingVkFramebuffer = VK_NULL_HANDLE;
-	int64_t miLightingBlurCount = 0;
-	Texture mpRedLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
-	Texture mpGreenLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
-	Texture mpBlueLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
-	VkRenderPass mpLightingBlurVkRenderPasses[shaders::kiMaxLightingBlurCount] {};
-	VkFramebuffer mpLightingBlurVkFramebuffers[shaders::kiMaxLightingBlurCount] {};
+
+	// First spread textures (intermediate between deposit and cascade)
+	Texture mpFirstSpreadTextures[3]; // R, G, B — RGBA16F
+
+	// Cascade spread textures (per level, 3 colors with EWNS in RGBA channels)
+	static constexpr int64_t kiMaxCascadeLevels = 8;
+	int64_t miCascadeLevelCount = 0;
+	Texture mpCascadeTextures[kiMaxCascadeLevels][3]; // [level][color] RGBA16F
+
+	// Final accumulated output
+	Texture mpLightingAccumulateTextures[3]; // R, G, B
 	Texture* mppLightingFinalTextures[3] {};
 
 	Texture mShadowElevationTexture;

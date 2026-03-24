@@ -17,7 +17,7 @@ TextureUploadManager::~TextureUploadManager()
 
 void TextureUploadManager::InitTransferResources()
 {
-	mShutdown = false;
+	mbShutdown = false;
 
 	VkCommandPoolCreateInfo vkCommandPoolCreateInfo
 	{
@@ -63,7 +63,7 @@ void TextureUploadManager::DestroyTransferResources()
 	}
 
 	// Join upload thread first
-	mShutdown = true;
+	mbShutdown = true;
 	mFrameSignal.release();
 	if (mUploadThread.joinable())
 	{
@@ -72,9 +72,9 @@ void TextureUploadManager::DestroyTransferResources()
 
 	// Reset upload-in-progress state
 	mCurrentCrc = 0;
-	mCurrentLayer = 0;
-	mCurrentMip = 0;
-	mCurrentMipY = 0;
+	muiCurrentLayer = 0;
+	muiCurrentMip = 0;
+	muiCurrentMipY = 0;
 	mCurrentDataOffset = 0;
 
 	// Clear stale upload queue
@@ -126,7 +126,7 @@ void TextureUploadManager::StartThread()
 	mUploadThread = std::thread(&TextureUploadManager::UploadThread, this);
 }
 
-void TextureUploadManager::RequestUpload(common::crc_t crc, LoadPriority priority)
+void TextureUploadManager::RequestUpload(common::crc_t crc, LoadPriority ePriority)
 {
 	{
 		std::unique_lock lock(mUploadMutex);
@@ -135,8 +135,13 @@ void TextureUploadManager::RequestUpload(common::crc_t crc, LoadPriority priorit
 		//   so a workbuffer (frame-scoped) can't own them, and the queue grows/shrinks unpredictably
 		ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-		mUploadQueue.push({crc, priority});
+		mUploadQueue.push({crc, ePriority});
 	}
+}
+
+void TextureUploadManager::WaitIdle()
+{
+	std::unique_lock lock(mWorkMutex);
 }
 
 void TextureUploadManager::UploadThread()
@@ -145,11 +150,13 @@ void TextureUploadManager::UploadThread()
 
 	common::ThreadLocal threadLocal(1024, common::kThreadTextureUpload);
 
-	while (!mShutdown)
+	while (!mbShutdown)
 	{
 		// Wait for the main thread to signal one chunk this frame
 		mFrameSignal.acquire();
-		if (mShutdown) break;
+		if (mbShutdown) break;
+
+		std::unique_lock workLock(mWorkMutex);
 
 		try
 		{
@@ -218,7 +225,7 @@ void TextureUploadManager::UploadThread()
 					.pQueueFamilyIndices = nullptr,
 					.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 				};
-				VmaAllocationCreateInfo vmaAllocationCreateInfo = {};
+				VmaAllocationCreateInfo vmaAllocationCreateInfo {};
 				vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
 				VmaAllocationInfo vmaAllocationInfo {};
 				CHECK_VK(vmaCreateImage(gpDeviceManager->mpAllocator, &vkImageCreateInfo, &vmaAllocationCreateInfo, &rLazyChunk.vkImage, &rLazyChunk.vmaAllocation, &vmaAllocationInfo));
@@ -259,11 +266,11 @@ void TextureUploadManager::UploadThread()
 			const std::byte* pData = rLazyChunk.pData;
 			VkDeviceSize vkStagingUsed = 0;
 
-			while (vkStagingUsed < mStagingSize && mCurrentLayer < uiArrayLayers)
+			while (vkStagingUsed < mStagingSize && muiCurrentLayer < uiArrayLayers)
 			{
-				uint32_t uiMipWidth = std::max(uiBaseWidth >> mCurrentMip, 1u);
-				uint32_t uiMipHeight = std::max(uiBaseHeight >> mCurrentMip, 1u);
-				uint32_t uiRemainingHeight = uiMipHeight - mCurrentMipY;
+				uint32_t uiMipWidth = std::max(uiBaseWidth >> muiCurrentMip, 1u);
+				uint32_t uiMipHeight = std::max(uiBaseHeight >> muiCurrentMip, 1u);
+				uint32_t uiRemainingHeight = uiMipHeight - muiCurrentMipY;
 				int64_t iRemainingMipBytes = common::SizeInBytes(vkFormat, uiMipWidth, uiRemainingHeight);
 				VkDeviceSize vkRemainingStaging = mStagingSize - vkStagingUsed;
 
@@ -272,24 +279,24 @@ void TextureUploadManager::UploadThread()
 					// Whole remaining mip fits
 					memcpy(static_cast<std::byte*>(mStagingMappedData) + vkStagingUsed, pData + mCurrentDataOffset, iRemainingMipBytes);
 
-					VkBufferImageCopy vkBufferImageCopy = {};
+					VkBufferImageCopy vkBufferImageCopy {};
 					vkBufferImageCopy.bufferOffset = vkStagingUsed;
 					vkBufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-					vkBufferImageCopy.imageSubresource.mipLevel = mCurrentMip;
-					vkBufferImageCopy.imageSubresource.baseArrayLayer = mCurrentLayer;
+					vkBufferImageCopy.imageSubresource.mipLevel = muiCurrentMip;
+					vkBufferImageCopy.imageSubresource.baseArrayLayer = muiCurrentLayer;
 					vkBufferImageCopy.imageSubresource.layerCount = 1;
-					vkBufferImageCopy.imageOffset = {0, static_cast<int32_t>(mCurrentMipY), 0};
+					vkBufferImageCopy.imageOffset = {0, static_cast<int32_t>(muiCurrentMipY), 0};
 					vkBufferImageCopy.imageExtent = {uiMipWidth, uiRemainingHeight, 1};
 					vkCmdCopyBufferToImage(mTransferVkCommandBuffer, mStagingVkBuffer, rLazyChunk.vkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkBufferImageCopy);
 
 					vkStagingUsed += iRemainingMipBytes;
 					mCurrentDataOffset += iRemainingMipBytes;
-					mCurrentMipY = 0;
-					++mCurrentMip;
-					if (mCurrentMip >= uiMipLevels)
+					muiCurrentMipY = 0;
+					++muiCurrentMip;
+					if (muiCurrentMip >= uiMipLevels)
 					{
-						mCurrentMip = 0;
-						++mCurrentLayer;
+						muiCurrentMip = 0;
+						++muiCurrentLayer;
 					}
 				}
 				else
@@ -304,24 +311,24 @@ void TextureUploadManager::UploadThread()
 
 					memcpy(static_cast<std::byte*>(mStagingMappedData) + vkStagingUsed, pData + mCurrentDataOffset, iCopyBytes);
 
-					VkBufferImageCopy vkBufferImageCopy = {};
+					VkBufferImageCopy vkBufferImageCopy {};
 					vkBufferImageCopy.bufferOffset = vkStagingUsed;
 					vkBufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-					vkBufferImageCopy.imageSubresource.mipLevel = mCurrentMip;
-					vkBufferImageCopy.imageSubresource.baseArrayLayer = mCurrentLayer;
+					vkBufferImageCopy.imageSubresource.mipLevel = muiCurrentMip;
+					vkBufferImageCopy.imageSubresource.baseArrayLayer = muiCurrentLayer;
 					vkBufferImageCopy.imageSubresource.layerCount = 1;
-					vkBufferImageCopy.imageOffset = {0, static_cast<int32_t>(mCurrentMipY), 0};
+					vkBufferImageCopy.imageOffset = {0, static_cast<int32_t>(muiCurrentMipY), 0};
 					vkBufferImageCopy.imageExtent = {uiMipWidth, uiCopyHeight, 1};
 					vkCmdCopyBufferToImage(mTransferVkCommandBuffer, mStagingVkBuffer, rLazyChunk.vkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkBufferImageCopy);
 
 					vkStagingUsed += iCopyBytes;
 					mCurrentDataOffset += iCopyBytes;
-					mCurrentMipY += uiCopyHeight;
+					muiCurrentMipY += uiCopyHeight;
 					break; // staging full
 				}
 			}
 
-			bool bDone = (mCurrentLayer >= uiArrayLayers);
+			bool bDone = (muiCurrentLayer >= uiArrayLayers);
 
 			// Post-copy barrier on final chunk
 			if (bDone)
@@ -392,9 +399,9 @@ void TextureUploadManager::UploadThread()
 
 				mCurrentCrc = 0;
 				mCurrentDataOffset = 0;
-				mCurrentLayer = 0;
-				mCurrentMip = 0;
-				mCurrentMipY = 0;
+				muiCurrentLayer = 0;
+				muiCurrentMip = 0;
+				muiCurrentMipY = 0;
 			}
 		}
 		catch (DeviceLostException&)

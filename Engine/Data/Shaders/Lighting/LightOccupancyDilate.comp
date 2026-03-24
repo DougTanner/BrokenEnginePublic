@@ -1,0 +1,67 @@
+#version 460
+
+#include "ShaderLayouts.h"
+
+layout (local_size_x = kiOccupancyDilateGroupSize) in;
+
+// Uniforms
+layout (binding = 0) uniform globalUniform
+{
+	GlobalLayout globalLayout;
+};
+
+layout (binding = 1) buffer occupancyBuffer
+{
+	uint occupancy[];
+};
+
+// Active tile list: [VkDispatchIndirectCommand (3 uint32s)] [packed tile indices...]
+layout (binding = 2) buffer activeTileBuffer
+{
+	uint uiDispatchX;
+	uint uiDispatchY;
+	uint uiDispatchZ;
+	uint activeTiles[];
+};
+
+layout (push_constant) uniform PushConstants
+{
+	uint uiTilesX;
+	uint uiTilesY;
+};
+
+void main()
+{
+	uint uiTotalTiles = uiTilesX * uiTilesY;
+	uint uiTileIndex = gl_GlobalInvocationID.x;
+	if (uiTileIndex >= uiTotalTiles)
+		return;
+
+	uint uiTileY = uiTileIndex / uiTilesX;
+	uint uiTileX = uiTileIndex - uiTileY * uiTilesX;
+
+	int iRadius = int(globalLayout.uiLightOccupancyDilation);
+
+	// Check this tile and neighbors within Manhattan distance of the dilation radius
+	bool bActive = false;
+	for (int iDy = -iRadius; iDy <= iRadius && !bActive; ++iDy)
+	{
+		for (int iDx = -iRadius; iDx <= iRadius && !bActive; ++iDx)
+		{
+			int iNx = int(uiTileX) + iDx;
+			int iNy = int(uiTileY) + iDy;
+			if (iNx < 0 || iNy < 0 || uint(iNx) >= uiTilesX || uint(iNy) >= uiTilesY)
+				continue;
+
+			uint uiNeighborIndex = uint(iNy) * uiTilesX + uint(iNx);
+			if ((occupancy[uiNeighborIndex >> 5] & (1u << (uiNeighborIndex & 31))) != 0)
+				bActive = true;
+		}
+	}
+
+	if (bActive)
+	{
+		uint uiSlot = atomicAdd(uiDispatchX, 1u);
+		activeTiles[uiSlot] = uiTileIndex;
+	}
+}

@@ -10,27 +10,22 @@ namespace engine
 using enum TextureFlags;
 using enum TextureLayout;
 
-std::tuple<int64_t, int64_t> CombineTextureInfo()
-{
-	int64_t iCombineTextureIndex = static_cast<int64_t>(gLightingCombineIndex.Get());
-	int64_t iBlurTextureCount = gpTextureManager->mRenderTargetTextures.miLightingBlurCount - iCombineTextureIndex - 1;
-	return std::make_tuple(iCombineTextureIndex, iBlurTextureCount);
-}
-
 void RenderTargetTextures::DestroyLightingTextures()
 {
-	for (int64_t i = 0; i < shaders::kiMaxLightingBlurCount; ++i)
+	for (int64_t i = 0; i < 3; ++i)
 	{
-		if (mpLightingBlurVkFramebuffers[i] != VK_NULL_HANDLE)
+		mpFirstSpreadTextures[i].Destroy();
+	}
+	for (int64_t iLevel = 0; iLevel < kiMaxCascadeLevels; ++iLevel)
+	{
+		for (int64_t iColor = 0; iColor < 3; ++iColor)
 		{
-			vkDestroyFramebuffer(gpDeviceManager->mVkDevice, mpLightingBlurVkFramebuffers[i], nullptr);
-			mpLightingBlurVkFramebuffers[i] = VK_NULL_HANDLE;
+			mpCascadeTextures[iLevel][iColor].Destroy();
 		}
-		if (mpLightingBlurVkRenderPasses[i] != VK_NULL_HANDLE)
-		{
-			vkDestroyRenderPass(gpDeviceManager->mVkDevice, mpLightingBlurVkRenderPasses[i], nullptr);
-			mpLightingBlurVkRenderPasses[i] = VK_NULL_HANDLE;
-		}
+	}
+	for (int64_t i = 0; i < 3; ++i)
+	{
+		mpLightingAccumulateTextures[i].Destroy();
 	}
 
 	if (mLightingVkFramebuffer != VK_NULL_HANDLE)
@@ -46,7 +41,7 @@ void RenderTargetTextures::CreateLightingTextures()
 {
 	DestroyLightingTextures();
 
-	auto [iLightingTextureX, iLightingTextureY] = TextureManager::DetailTextureSize(gLightingTextureMultiplier.Get());
+	auto [iLightingTextureX, iLightingTextureY] = TextureManager::DetailTextureSize(gLightingDepositTextureMultiplier.Get());
 	// Create 3 lighting textures without individual render passes
 	TextureInfo lightingTextureInfo
 	{
@@ -170,149 +165,96 @@ void RenderTargetTextures::CreateLightingTextures()
 	CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &mLightingVkFramebuffer));
 	VkName(VK_OBJECT_TYPE_FRAMEBUFFER, mLightingVkFramebuffer, "LightingMRT");
 
-	float fDownscale = gLightingBlurDownscale.Get();
-	CreateBlurTextures(iLightingTextureX, iLightingTextureY, fDownscale, shaders::kiMaxLightingBlurCount);
-
-	for (int64_t i = 0; i < miLightingBlurCount; ++i)
+	// Create first spread textures at their own pixel density
+	auto [iFirstSpreadX, iFirstSpreadY] = TextureManager::DetailTextureSize(gFirstSpreadTextureMultiplier.Get());
+	static constexpr std::string_view pFirstSpreadNames[3] {"FirstSpreadRed", "FirstSpreadGreen", "FirstSpreadBlue"};
+	for (int64_t i = 0; i < 3; ++i)
 	{
-		CreateBlurRenderPassAndFramebuffer(i, mpRedLightingBlurTextures[i].mInfo.extent.width, mpRedLightingBlurTextures[i].mInfo.extent.height);
-	}
-
-	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
-	mppLightingFinalTextures[0] = &mpRedLightingBlurTextures[iCombineTextureIndex];
-	mppLightingFinalTextures[1] = &mpGreenLightingBlurTextures[iCombineTextureIndex];
-	mppLightingFinalTextures[2] = &mpBlueLightingBlurTextures[iCombineTextureIndex];
-}
-
-void RenderTargetTextures::CreateBlurTextures(int64_t iLightingTextureX, int64_t iLightingTextureY, float fDownscale, int64_t iMaxCount)
-{
-	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
-	int64_t iLightingBlurTextureX = iLightingTextureX;
-	int64_t iLightingBlurTextureY = iLightingTextureY;
-	miLightingBlurCount = 0;
-	for (int64_t i = 0; i < iMaxCount; ++i)
-	{
-		iLightingBlurTextureX = static_cast<int64_t>(fDownscale * static_cast<float>(iLightingBlurTextureX));
-		iLightingBlurTextureX = std::max(1ll, iLightingBlurTextureX);
-		iLightingBlurTextureY = static_cast<int64_t>(fDownscale * static_cast<float>(iLightingBlurTextureY));
-		iLightingBlurTextureY = std::max(1ll, iLightingBlurTextureY);
-
-		if (iLightingBlurTextureX > 2 && iLightingBlurTextureY > 2)
+		mpFirstSpreadTextures[i].Create(TextureInfo
 		{
-			++miLightingBlurCount;
-		}
-
-		TextureInfo lightingBlurTextureInfo
-		{
-			.textureFlags = {kRenderPass},
-			.name = "RedLightingBlur",
+			.textureFlags = {},
+			.name = pFirstSpreadNames[i],
 			.flags = 0,
-			.format = shaders::keLightingFormat,
-			.extent = VkExtent3D {static_cast<uint32_t>(iLightingBlurTextureX), static_cast<uint32_t>(iLightingBlurTextureY), 1},
+			.format = VK_FORMAT_R16G16B16A16_SFLOAT,
+			.extent = VkExtent3D {static_cast<uint32_t>(iFirstSpreadX), static_cast<uint32_t>(iFirstSpreadY), 1},
 			.mipLevels = 1,
 			.arrayLayers = 1,
 			.samples = VK_SAMPLE_COUNT_1_BIT,
-			.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+			.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 			.viewType = VK_IMAGE_VIEW_TYPE_2D,
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			.renderPassVkAttachmentLoadOp = i == iCombineTextureIndex ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-			.renderPassInitialVkImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-			.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			.renderPassVkClearColorValue = {0.0f, 0.0f, 0.0f, 0.0f},
-			.eTextureLayout = kFragmentShaderReadOnly,
-		};
-
-		mpRedLightingBlurTextures[i].Create(lightingBlurTextureInfo);
-		lightingBlurTextureInfo.name = "GreenLightingBlur";
-		mpGreenLightingBlurTextures[i].Create(lightingBlurTextureInfo);
-		lightingBlurTextureInfo.name = "BlueLightingBlur";
-		mpBlueLightingBlurTextures[i].Create(lightingBlurTextureInfo);
+			.eTextureLayout = kShaderReadOnly,
+		});
 	}
-	Log("kiMaxLightingBlurCount: {} -> miLightingBlurCount: {}", iMaxCount, miLightingBlurCount);
+
+	CreateCascadeTextures(iFirstSpreadX, iFirstSpreadY);
+
+	// Create accumulate textures at deposit dimensions (consumed by terrain/object shaders)
+	static constexpr std::string_view pAccumulateNames[3] {"AccumulateRed", "AccumulateGreen", "AccumulateBlue"};
+	for (int64_t i = 0; i < 3; ++i)
+	{
+		mpLightingAccumulateTextures[i].Create(TextureInfo
+		{
+			.textureFlags = {},
+			.name = pAccumulateNames[i],
+			.flags = 0,
+			.format = VK_FORMAT_R16G16B16A16_SFLOAT,
+			.extent = VkExtent3D {static_cast<uint32_t>(iLightingTextureX), static_cast<uint32_t>(iLightingTextureY), 1},
+			.mipLevels = 1,
+			.arrayLayers = 1,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.eTextureLayout = kShaderReadOnly,
+		});
+	}
+
+	mppLightingFinalTextures[0] = &mpLightingAccumulateTextures[0];
+	mppLightingFinalTextures[1] = &mpLightingAccumulateTextures[1];
+	mppLightingFinalTextures[2] = &mpLightingAccumulateTextures[2];
 }
 
-void RenderTargetTextures::CreateBlurRenderPassAndFramebuffer(int64_t iLevel, int64_t iBlurTextureX, int64_t iBlurTextureY)
+void RenderTargetTextures::CreateCascadeTextures(int64_t iLightingTextureX, int64_t iLightingTextureY)
 {
-	VkAttachmentDescription pBlurAttachments[3] {};
-	for (int64_t j = 0; j < 3; ++j)
-	{
-		pBlurAttachments[j] =
-		{
-			.flags = 0,
-			.format = shaders::keLightingFormat,
-			.samples = VK_SAMPLE_COUNT_1_BIT,
-			.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-			.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		};
-	}
-	VkAttachmentReference pBlurAttachmentRefs[3]
-	{
-		{.attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
-		{.attachment = 1, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
-		{.attachment = 2, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
-	};
-	VkSubpassDescription vkBlurSubpass
-	{
-		.flags = 0,
-		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-		.inputAttachmentCount = 0,
-		.pInputAttachments = nullptr,
-		.colorAttachmentCount = 3,
-		.pColorAttachments = pBlurAttachmentRefs,
-		.pResolveAttachments = nullptr,
-		.pDepthStencilAttachment = nullptr,
-		.preserveAttachmentCount = 0,
-		.pPreserveAttachments = nullptr,
-	};
-	VkSubpassDependency vkBlurDependency
-	{
-		.srcSubpass = 0,
-		.dstSubpass = VK_SUBPASS_EXTERNAL,
-		.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-		.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-		.dependencyFlags = 0,
-	};
-	VkRenderPassCreateInfo vkBlurRenderPassInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-		.pNext = nullptr,
-		.flags = 0,
-		.attachmentCount = 3,
-		.pAttachments = pBlurAttachments,
-		.subpassCount = 1,
-		.pSubpasses = &vkBlurSubpass,
-		.dependencyCount = 1,
-		.pDependencies = &vkBlurDependency,
-	};
-	CHECK_VK(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkBlurRenderPassInfo, nullptr, &mpLightingBlurVkRenderPasses[iLevel]));
-	VkName(VK_OBJECT_TYPE_RENDER_PASS, mpLightingBlurVkRenderPasses[iLevel], "LightingBlurMRT");
+	float fDownscale = gLightCascadeDownscale.Get();
+	int64_t iCascadeCount = static_cast<int64_t>(gLightCascadeCount.Get());
+	miCascadeLevelCount = std::min(iCascadeCount, kiMaxCascadeLevels);
 
-	VkImageView pBlurImageViews[3]
+	static constexpr std::string_view pColorNames[3] {"Red", "Green", "Blue"};
+
+	// Create cascade RGBA16F textures for all levels 1+ (unused levels get 1x1 to keep descriptors valid)
+	for (int64_t iLevel = 1; iLevel < kiMaxCascadeLevels; ++iLevel)
 	{
-		mpRedLightingBlurTextures[iLevel].mVkImageView,
-		mpGreenLightingBlurTextures[iLevel].mVkImageView,
-		mpBlueLightingBlurTextures[iLevel].mVkImageView,
-	};
-	VkFramebufferCreateInfo vkBlurFramebufferInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-		.pNext = nullptr,
-		.flags = 0,
-		.renderPass = mpLightingBlurVkRenderPasses[iLevel],
-		.attachmentCount = 3,
-		.pAttachments = pBlurImageViews,
-		.width = static_cast<uint32_t>(iBlurTextureX),
-		.height = static_cast<uint32_t>(iBlurTextureY),
-		.layers = 1,
-	};
-	CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkBlurFramebufferInfo, nullptr, &mpLightingBlurVkFramebuffers[iLevel]));
-	VkName(VK_OBJECT_TYPE_FRAMEBUFFER, mpLightingBlurVkFramebuffers[iLevel], "LightingBlurMRT");
+		int64_t iWidth = iLightingTextureX;
+		int64_t iHeight = iLightingTextureY;
+		for (int64_t j = 0; j < iLevel; ++j)
+		{
+			iWidth = std::max(1ll, static_cast<int64_t>(static_cast<float>(iWidth) / fDownscale));
+			iHeight = std::max(1ll, static_cast<int64_t>(static_cast<float>(iHeight) / fDownscale));
+		}
+
+		for (int64_t iColor = 0; iColor < 3; ++iColor)
+		{
+			mpCascadeTextures[iLevel][iColor].Create(TextureInfo
+			{
+				.textureFlags = {},
+				.name = pColorNames[iColor],
+				.flags = 0,
+				.format = VK_FORMAT_R16G16B16A16_SFLOAT,
+				.extent = VkExtent3D {static_cast<uint32_t>(iWidth), static_cast<uint32_t>(iHeight), 1},
+				.mipLevels = 1,
+				.arrayLayers = 1,
+				.samples = VK_SAMPLE_COUNT_1_BIT,
+				.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+				.viewType = VK_IMAGE_VIEW_TYPE_2D,
+				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+				.eTextureLayout = kShaderReadOnly,
+			});
+		}
+	}
+
+	Log("Cascade levels: {} first spread: {}x{}", miCascadeLevelCount, iLightingTextureX, iLightingTextureY);
 }
 
 } // namespace engine

@@ -110,16 +110,22 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Medium Wavelength Adjust", &gMediumWavelengthAdjust},
 		{"Medium Amplitude Adjust", &gMediumAmplitudeAdjust},
 		{"Medium Speed Adjust", &gMediumSpeedAdjust},
-		// Lighting - Blur
-		{"Texture Multiplier", &gLightingTextureMultiplier},
-		{"Blur Distance", &gLightingBlurDistance},
-		{"Blur Directionality", &gLightingBlurDirectionality},
-		{"Blur Jitter", &gLightingBlurJitter},
-		{"Downscale", &gLightingBlurDownscale},
+		// Lighting - Deposit
+		{"Deposit Texture Multiplier", &gLightingDepositTextureMultiplier},
+		// Lighting - First Spread
+		{"First Spread Texture Multiplier", &gFirstSpreadTextureMultiplier},
+		{"First Spread Kernel World", &gFirstSpreadKernelWorld},
+		{"First Spread Kernel Size", &gFirstSpreadKernelSize},
+		{"First Spread Decay", &gFirstSpreadDecay},
+		{"Occupancy Dilation", &gLightOccupancyDilation},
+		{"Spread Terrain Cutoff", &gLightSpreadTerrainCutoff},
+		// Lighting - Cascade
+		{"Cascade Downscale", &gLightCascadeDownscale},
+		{"Cascade Count", &gLightCascadeCount},
+		{"Cascade Kernel World", &gCascadeSpreadKernelWorld},
+		{"Cascade Kernel Size", &gCascadeSpreadKernelSize},
+		{"Cascade Decay", &gCascadeSpreadDecay},
 		// Lighting - Combine
-		{"Combine Index", &gLightingCombineIndex},
-		{"Blur First Divisor", &gLightingBlurFirstDivisor},
-		{"Blur Divisor", &gLightingBlurDivisor},
 		{"Combine Decay", &gLightingCombineDecay},
 		{"Combine Power", &gLightingCombinePower},
 		// Lighting - Directional

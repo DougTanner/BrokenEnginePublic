@@ -12,17 +12,17 @@ See also: [Graphics Pipeline](../../../../Documents/Architecture/GraphicsPipelin
 - **DeviceManager** (`gpDeviceManager`) - Logical device, queues, descriptor pool, VmaAllocator, pipeline cache (loaded from disk on startup, saved on shutdown with device-UUID validation), and shared one-shot command pool/fence used by `OneShotCommandBuffer`
 - **SwapchainManager** (`gpSwapchainManager`) - Swapchain, framebuffers, depth/multisampling textures, main render pass, image acquisition/presentation synchronization (semaphores, fences), and `PersistentWorker` for async presentation
 - **CommandBufferManager** (`gpCommandBufferManager`) - Command pool and buffer management (Global/Main/ImGui), record-once command buffers, submission via `PersistentWorker` threads, and particle compute synchronization via semaphore
-- **BufferManager** (`gpBufferManager`) - GPU buffer lifecycle (vertex, index, uniform, storage), dynamic storage buffers with auto-resize per collection, per-frame skinning allocations (mesh data + joint matrices with auto-grow), and hierarchical dispatch buffers for smoke/wind compute
-- **TextureManager** (`gpTextureManager`) - Texture lifecycle, samplers, and delegates to sub-objects: TextureDescriptors (bindless descriptor Set 0), TextureCache (GPU readback, file caching, BRDF LUT), RenderTargetTextures (shadows, smoke, wind, terrain in `RenderTargetTextures.cpp`; lighting blur passes and framebuffers in `RenderTargetTexturesLighting.cpp`)
+- **BufferManager** (`gpBufferManager`) - GPU buffer lifecycle (vertex, index, uniform, storage), dynamic storage buffers with auto-resize per collection, per-frame skinning allocations (mesh data + joint matrices with auto-grow), and hierarchical dispatch buffers for smoke/wind/lighting-spread compute
+- **TextureManager** (`gpTextureManager`) - Texture lifecycle, samplers, and delegates to sub-objects: TextureDescriptors (bindless descriptor Set 0), TextureCache (GPU readback, file caching, BRDF LUT), RenderTargetTextures (shadows, smoke, wind, terrain in `RenderTargetTextures.cpp`; lighting MRT framebuffer and first-spread/cascade/accumulate textures in `RenderTargetTexturesLighting.cpp`)
 - **TextureUploadManager** (`gpTextureUploadManager`) - Background GPU texture uploads on a dedicated transfer queue
 - **TextManager** (`gpTextManager`) - Font rendering and text layout
-- **PipelineManager** (`gpPipelineManager`) - SPIR-V shader loading, graphics/compute pipeline creation; delegates dynamic per-collection pipelines to `DynamicPipelines` sub-object. `DynamicPipelines::UpdateAllModelPipelineDescriptors` fans out descriptor updates across all model and shadow pipeline maps, called by `BufferManager` after skinning buffer growth
+- **PipelineManager** (`gpPipelineManager`) - SPIR-V shader loading, graphics/compute pipeline creation; delegates dynamic per-collection pipelines to `DynamicPipelines` sub-object. Maintains per-level/color pipeline arrays for all 4 lighting spread phases (first spread, scatter, accumulate, occupancy dilate). `DynamicPipelines::UpdateAllModelPipelineDescriptors` fans out descriptor updates across all model and shadow pipeline maps, called by `BufferManager` after skinning buffer growth
 - **ParticleManager** (`gpParticleManager`) - GPU particle system with compute shaders
 - **ImGuiManager** (`gpImGuiManager`) - Dear ImGui UI rendering (menus, dialogs, HUD)
 
 ## Architecture Notes
 
-- Initialization order is strict: Instance, Device, Swapchain, CommandBuffer, Buffer, Texture, Text, Islands, Pipeline, Particle, ImGui. Violating this crashes or causes validation errors
+- Initialization order is strict: Instance, Device, Swapchain, CommandBuffer, Buffer, Islands, Texture, Text, Pipeline, Particle, ImGui. Violating this crashes or causes validation errors
 - Fence wait required before all GPU resource updates to avoid modifying in-use resources
 - Single descriptor pool in DeviceManager serves all pipelines; global Set 0 owned by TextureDescriptors, per-pipeline Sets 1 and 2
 - Per-framebuffer resource duplication enables parallel frame processing

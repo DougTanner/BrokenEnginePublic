@@ -25,6 +25,9 @@
 
 #if defined(BT_CLIENT)
 
+// Ui (client-only)
+#include "Ui/NetworkUiControl.h"
+
 // Debug (Vulkan enum stringification, client-only)
 #include "Debug/EnumToString.h"
 

@@ -108,6 +108,7 @@ public:
 #if defined(BT_CLIENT)
 	Camera mCamera {};
 	XMVECTOR mVecVisualErrorOffset {};
+	engine::NetworkUiControl<bool> mWeaponModeToggle {};
 
 	static constexpr float kfVisualErrorDecayRate = 15.0f;
 	static constexpr float kfVisualErrorMaxDistance = 5.0f;

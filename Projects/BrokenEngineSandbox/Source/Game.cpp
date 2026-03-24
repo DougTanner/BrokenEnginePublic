@@ -13,8 +13,8 @@ namespace game
 using enum UiState;
 
 // Camera shake
-constexpr float kfCameraShakeAdd = 0.25f;
-constexpr float kfCameraShakeMax = 1.0f;
+static constexpr float kfCameraShakeAdd = 0.25f;
+static constexpr float kfCameraShakeMax = 1.0f;
 
 Game::Game()
 {
@@ -420,6 +420,7 @@ void Game::Reset()
 	engine::SmokeTrailsInterpolate::ResetRenderState();
 	engine::WindTrailsInterpolate::ResetRenderState();
 	mVecVisualErrorOffset = {};
+	mWeaponModeToggle.Reset();
 #endif // BT_CLIENT
 
 	mGameFlags.Clear(engine::GameFlags::kDeathScreen);
@@ -549,8 +550,9 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 #if defined(BT_CLIENT)
 	if (rMenuInput.flags & MenuInputFlags::kWeaponModeToggle)
 	{
-		if (gpClientSession != nullptr && gpClientSession->IsNetworkMode())
+		if (gpClientSession != nullptr && !mWeaponModeToggle.IsPending())
 		{
+			mWeaponModeToggle.SetPending();
 			engine::gpClient->SendWeaponModeRequest();
 		}
 	}
@@ -574,7 +576,7 @@ struct SoundSettings
 	float fMusicVolume = 0.0f;
 	float fSoundVolume = 0.0f;
 };
-constexpr char kpcSoundSettingsPath[] = "SoundSettings.bin";
+static constexpr char kpcSoundSettingsPath[] = "SoundSettings.bin";
 
 void Game::SaveSoundSettings()
 {
@@ -647,31 +649,19 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 #if defined(BT_CLIENT)
 		if (rMenuInput.flags & MenuInputFlags::kQuicksave)
 		{
-			if (gpClientSession->IsNetworkMode())
-			{
-				engine::gpClient->SendSaveRequest();
-			}
+			engine::gpClient->SendSaveRequest();
 		}
 		if (rMenuInput.flags & MenuInputFlags::kQuickload)
 		{
-			if (gpClientSession->IsNetworkMode())
-			{
-				engine::gpClient->SendLoadRequest();
-			}
+			engine::gpClient->SendLoadRequest();
 		}
 		if (rMenuInput.flags & MenuInputFlags::kSaveReplay)
 		{
-			if (gpClientSession->IsNetworkMode())
-			{
-				engine::gpClient->SendReplayRecordRequest();
-			}
+			engine::gpClient->SendReplayRecordRequest();
 		}
 		if (rMenuInput.flags & MenuInputFlags::kLoadReplay)
 		{
-			if (gpClientSession->IsNetworkMode())
-			{
-				engine::gpClient->SendReplayPlaybackRequest();
-			}
+			engine::gpClient->SendReplayPlaybackRequest();
 		}
 #endif // defined(BT_CLIENT)
 
@@ -682,20 +672,18 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 
 		if (rMenuInput.flags & MenuInputFlags::kMenuDebugTexture)
 		{
-			engine::gDebugTexture.Toggle();
+			float fDebugTexture = engine::gDebugTexture.Get() + 1.0f;
+			if (fDebugTexture > engine::gDebugTexture.GetMax())
+			{
+				fDebugTexture = 0.0f;
+			}
+			engine::gDebugTexture.Set(fDebugTexture);
 		}
 
 		if (rMenuInput.flags & MenuInputFlags::kSlowTime)
 		{
 #if defined(BT_CLIENT)
-			if (gpClientSession->IsNetworkMode())
-			{
-				engine::gpClient->SendTimespeedRequest(0);
-			}
-			else
-			{
-				mTimeStep.DecreaseTimeScale();
-			}
+			engine::gpClient->SendTimespeedRequest(0);
 #else
 			mTimeStep.DecreaseTimeScale();
 #endif
@@ -703,14 +691,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 		else if (rMenuInput.flags & MenuInputFlags::kSpeedUpTime)
 		{
 #if defined(BT_CLIENT)
-			if (gpClientSession->IsNetworkMode())
-			{
-				engine::gpClient->SendTimespeedRequest(1);
-			}
-			else
-			{
-				mTimeStep.IncreaseTimeScale();
-			}
+			engine::gpClient->SendTimespeedRequest(1);
 #else
 			mTimeStep.IncreaseTimeScale();
 #endif
@@ -768,7 +749,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 		}
 
 #if defined(BT_CLIENT)
-		if (rMenuInput.flags & MenuInputFlags::kConnectLocal && InMainMenu() && !gpClientSession->IsNetworkMode())
+		if (rMenuInput.flags & MenuInputFlags::kConnectLocal && InMainMenu())
 		{
 			if (gpClientSession->mbServerDiscovered)
 			{

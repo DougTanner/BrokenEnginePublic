@@ -32,7 +32,7 @@ namespace shaders
 inline constexpr VkFormat keElevationFormat = VK_FORMAT_R16_SFLOAT;
 
 constexpr VkFormat keLightingFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-constexpr VkFormat keLightingSpreadFormat = VK_FORMAT_R32_SFLOAT;
+inline constexpr VkFormat keLightingSpreadFormat = VK_FORMAT_R32_SFLOAT;
 
 constexpr VkFormat keSmokeFormat = VK_FORMAT_R32_SFLOAT;
 constexpr VkFormat keWindFormat = VK_FORMAT_R16G16_SFLOAT;
@@ -120,8 +120,6 @@ CONSTEXPR int kiLightingTextures = 11;
 CONSTEXPR int kiBillboardTexturesCount = 3;
 
 CONSTEXPR int kiMaxIslands = 64;
-
-CONSTEXPR int kiMaxLightingBlurCount = 32;
 
 CONSTEXPR int kiShadowTextureExecutionSize = 64;
 
@@ -213,15 +211,28 @@ struct GlobalLayout
 	float fLightingIndirect INIT;
 	float fLightingObjectsAdd INIT;
 	float fLightingCombinePower INIT;
-	float fLightingBlurDistance INIT;
-	float fLightingBlurTextureCount INIT;
+	float fCascadeSpreadKernelWorld INIT;
+	float fCascadeSpreadPadOne INIT;
 	float fLightingTerrain INIT;
 	float fLightingObjects INIT;
-	float fLightingBlurDirectionality INIT;
+	float fCascadeSpreadDecay INIT;
 	float fLightingAddTerrain INIT;
-	float fLightingBlurJitter INIT;
+	float fFirstSpreadKernelSize INIT;
 	float fLightingCombineDecay INIT;
 	vec4 f4LightingArea INIT;
+
+	// Light spread
+	float fFirstSpreadKernelWorld INIT;
+	float fFirstSpreadPadOne INIT;
+	float fFirstSpreadDecay INIT;
+	float fFirstSpreadPadTwo INIT;
+	float fLightSpreadTerrainCutoff INIT;
+	float fCascadeSpreadKernelSize INIT;
+	float fLightCascadeDownscale INIT;
+	uint32_t uiLightCascadeCount INIT;
+	uint32_t uiLightTilesX INIT;
+	uint32_t uiLightTilesY INIT;
+	uint32_t uiLightOccupancyDilation INIT;
 
 	// Shadow
 	float fShadowWidthScale INIT;

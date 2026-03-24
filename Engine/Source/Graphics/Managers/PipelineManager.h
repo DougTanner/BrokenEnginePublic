@@ -20,10 +20,6 @@ enum Pipelines
 
 	kPipelineLongParticlesLighting,
 	kPipelineSquareParticlesLighting,
-	kPipelineRedLightingCombine,
-	kPipelineGreenLightingCombine,
-	kPipelineBlueLightingCombine,
-
 	kPipelineTerrainElevation,
 	kPipelineTerrainColor,
 	kPipelineTerrainNormal,
@@ -54,6 +50,10 @@ enum Pipelines
 
 	kPipelineDebugTexture,
 
+	kPipelineLightOccupancyDilate,
+	kPipelineLightScatter,
+	kPipelineLightAccumulate,
+
 	kPipelineCount
 };
 
@@ -66,8 +66,8 @@ public:
 
 	std::unordered_map<common::crc_t, Shader> mShaders;
 
-	void CreateLightingCombinePipeline(Pipelines eCombinePipeline, Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount]);
 	void CreateLightingPipelines();
+	void CreateLightingSpreadPipelines();
 	void CreatePipelineShadows();
 	void CreateLightingShadowDependantPipelines();
 	void CreateTerrainDataPipelines();
@@ -77,7 +77,12 @@ public:
 
 	Pipeline mpPipelines[kPipelineCount];
 
-	Pipeline mpLightingBlurPipelines[shaders::kiMaxLightingBlurCount];
+	// Per-level/color lighting spread pipelines
+	static constexpr int64_t kiMaxCascadeLevels = 8;
+	Pipeline mLightOccupancyDilatePipelines[kiMaxCascadeLevels];
+	Pipeline mLightFirstSpreadPipelines[3]; // per color (deposit -> first spread)
+	Pipeline mLightScatterPipelines[kiMaxCascadeLevels * 3]; // [level * 3 + color]
+	Pipeline mLightAccumulatePipelines[3]; // per color
 
 	DynamicPipelines mDynamicPipelines;
 };

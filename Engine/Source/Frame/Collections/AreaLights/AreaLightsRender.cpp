@@ -72,14 +72,16 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		float fIntensityMultiplier = rCurrent.pfIntensityMultipliers[i];
 		float fLightingSize = rType.fLightingSize;
 
-		// Calculate lighting quad vertices from center expansion
-		XMFLOAT4A f4Center {};
-		XMStoreFloat4A(&f4Center, vecCenter);
+		// Scale visible positions around center to create oriented lighting quad
+		XMVECTOR vecOffset0 = XMVectorSubtract(vecVisiblePos0, vecCenter);
+		float fVisibleExtent = XMVectorGetX(XMVector2Length(vecOffset0));
+		float fScale = fVisibleExtent > 0.0f ? fLightingSize / fVisibleExtent : 1.0f;
+		XMVECTOR vecScaleFactor = XMVectorReplicate(fScale);
 
-		XMVECTOR vecLightingPos0 = XMVectorSet(f4Center.x - fLightingSize, f4Center.y + fLightingSize, f4Center.z, 1.0f);
-		XMVECTOR vecLightingPos1 = XMVectorSet(f4Center.x + fLightingSize, f4Center.y + fLightingSize, f4Center.z, 1.0f);
-		XMVECTOR vecLightingPos2 = XMVectorSet(f4Center.x - fLightingSize, f4Center.y - fLightingSize, f4Center.z, 1.0f);
-		XMVECTOR vecLightingPos3 = XMVectorSet(f4Center.x + fLightingSize, f4Center.y - fLightingSize, f4Center.z, 1.0f);
+		XMVECTOR vecLightingPos0 = XMVectorMultiplyAdd(vecOffset0, vecScaleFactor, vecCenter);
+		XMVECTOR vecLightingPos1 = XMVectorMultiplyAdd(XMVectorSubtract(vecVisiblePos1, vecCenter), vecScaleFactor, vecCenter);
+		XMVECTOR vecLightingPos2 = XMVectorMultiplyAdd(XMVectorSubtract(vecVisiblePos2, vecCenter), vecScaleFactor, vecCenter);
+		XMVECTOR vecLightingPos3 = XMVectorMultiplyAdd(XMVectorSubtract(vecVisiblePos3, vecCenter), vecScaleFactor, vecCenter);
 
 		// Frustum culling: compute AABB of all 8 vertices and test intersection
 		auto [vecMin, vecMax] = common::ComputeAabb(vecVisiblePos0, vecVisiblePos1, vecVisiblePos2, vecVisiblePos3, vecLightingPos0, vecLightingPos1, vecLightingPos2, vecLightingPos3);

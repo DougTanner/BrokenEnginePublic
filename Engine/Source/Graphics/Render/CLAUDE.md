@@ -8,9 +8,9 @@ Each file owns a specific region of the GPU uniform layout, reading from game st
 
 ## Key Files
 
-- **GlobalUniforms.cpp** - `RenderFrameGlobal`: camera, projection matrices, and shared global state. Delegates to four static helpers: `PopulateSunAndLighting`, `PopulateShadowParameters`, `PopulateTerrainParameters`, and `PopulateWaterParameters`. Also computes the stable lighting area (ceil'd dimensions, texel-grid-snapped origin) mirroring the smoke/wind area pattern
+- **GlobalUniforms.cpp** - `RenderFrameGlobal`: camera, projection matrices, and shared global state. Delegates to four static helpers: `PopulateSunAndLighting`, `PopulateShadowParameters`, `PopulateTerrainParameters`, and `PopulateWaterParameters`. Computes the stable lighting area (ceil'd dimensions, texel-grid-snapped origin) following the same pattern as smoke/wind areas
 - **MainUniforms.cpp** - `RenderFrameMain`: per-coordinate main render pass uniform population (lighting, skinning allocations, collection rendering)
-- **LightingUniforms.cpp** - `RenderLightingGlobal` and `RenderLightingMain`: directional/ambient lighting parameters and per-frame lighting texture combine info
+- **LightingUniforms.cpp** - `RenderLightingGlobal` and `RenderLightingMain`: directional/ambient lighting parameters and light spread pipeline parameters (first spread kernel/sigma/decay, occupancy dilation, cascade downscale/count/kernel/sigma/decay, combine decay/power)
 - **SmokeUniforms.cpp** - Smoke simulation parameters and ping-pong index management
 - **WindUniforms.cpp** - Wind simulation parameters, ping-pong index toggle, and wind spread quad offset. Computes `uiWindTilesX` from texture dimensions for use by the hierarchical indirect dispatch compute shaders.
 

@@ -87,6 +87,7 @@ BufferManager::BufferManager()
 
 BufferManager::~BufferManager()
 {
+	DestroyLightingSpreadBuffers();
 	DestroyWindHierarchicalBuffers();
 	DestroySmokeHierarchicalBuffers();
 
@@ -95,6 +96,7 @@ BufferManager::~BufferManager()
 
 void BufferManager::DestroySwapchainDependentBuffers()
 {
+	DestroyLightingSpreadBuffers();
 	DestroyWindHierarchicalBuffers();
 	DestroySmokeHierarchicalBuffers();
 
@@ -496,6 +498,71 @@ void BufferManager::DestroyWindHierarchicalBuffers()
 	}
 	mWindOccupancyBufferSize = 0;
 	mWindActiveTileBufferSize = 0;
+}
+
+void BufferManager::CreateLightingSpreadBuffers()
+{
+	DestroyLightingSpreadBuffers();
+
+	int64_t iCascadeCount = gpTextureManager->mRenderTargetTextures.miCascadeLevelCount;
+
+	for (int64_t iLevel = 0; iLevel < iCascadeCount; ++iLevel)
+	{
+		uint32_t uiWidth = 0;
+		uint32_t uiHeight = 0;
+		if (iLevel == 0)
+		{
+			uiWidth = gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.width;
+			uiHeight = gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.height;
+		}
+		else
+		{
+			uiWidth = gpTextureManager->mRenderTargetTextures.mpCascadeTextures[iLevel][0].mInfo.extent.width;
+			uiHeight = gpTextureManager->mRenderTargetTextures.mpCascadeTextures[iLevel][0].mInfo.extent.height;
+		}
+
+		uint32_t uiTilesX = (uiWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+		uint32_t uiTilesY = (uiHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+		uint32_t uiTotalTiles = uiTilesX * uiTilesY;
+
+		// Bit-packed occupancy: 1 bit per tile, packed into uint32s
+		uint32_t uiOccupancyUints = (uiTotalTiles + 31) / 32;
+		VkDeviceSize occupancySize = static_cast<VkDeviceSize>(uiOccupancyUints) * sizeof(uint32_t);
+		mLightOccupancyBufferSizes[iLevel] = occupancySize;
+		VkDeviceMemory unusedOccupancyMemory = VK_NULL_HANDLE;
+		Buffer::CreateBuffer("LightOccupancy", occupancySize,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			mLightOccupancyVkBuffers[iLevel], unusedOccupancyMemory, mLightOccupancyVmaAllocations[iLevel]);
+
+		// Active tile list: VkDispatchIndirectCommand (12 bytes) + packed tile indices (4 bytes each)
+		VkDeviceSize activeTileSize = sizeof(VkDispatchIndirectCommand) + static_cast<VkDeviceSize>(uiTotalTiles) * sizeof(uint32_t);
+		mLightActiveTileBufferSizes[iLevel] = activeTileSize;
+		VkDeviceMemory unusedActiveTileMemory = VK_NULL_HANDLE;
+		Buffer::CreateBuffer("LightActiveTile", activeTileSize,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			mLightActiveTileVkBuffers[iLevel], unusedActiveTileMemory, mLightActiveTileVmaAllocations[iLevel]);
+	}
+}
+
+void BufferManager::DestroyLightingSpreadBuffers()
+{
+	for (int64_t i = 0; i < kiMaxCascadeLevels; ++i)
+	{
+		if (mLightOccupancyVkBuffers[i] != VK_NULL_HANDLE)
+		{
+			vmaDestroyBuffer(gpDeviceManager->mpAllocator, mLightOccupancyVkBuffers[i], mLightOccupancyVmaAllocations[i]);
+			mLightOccupancyVkBuffers[i] = VK_NULL_HANDLE;
+			mLightOccupancyVmaAllocations[i] = VK_NULL_HANDLE;
+		}
+		if (mLightActiveTileVkBuffers[i] != VK_NULL_HANDLE)
+		{
+			vmaDestroyBuffer(gpDeviceManager->mpAllocator, mLightActiveTileVkBuffers[i], mLightActiveTileVmaAllocations[i]);
+			mLightActiveTileVkBuffers[i] = VK_NULL_HANDLE;
+			mLightActiveTileVmaAllocations[i] = VK_NULL_HANDLE;
+		}
+	}
 }
 
 void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<uint32_t>& rIndices, std::vector<std::byte>& rVertices)

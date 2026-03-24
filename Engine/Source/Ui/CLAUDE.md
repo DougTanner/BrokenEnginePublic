@@ -5,6 +5,7 @@ Runtime-adjustable parameter wrappers and ImGui-based screen classes for UI rend
 ## Key Systems
 
 - **Wrapper** (`WrapperBase.h/.cpp`) - Type-safe value container for UI-bound settings. Stores current/previous values with min/max bounds, supports float, bool, and discrete enum types. Change detection via `Changed()` method. Supports percent-based get/set for normalized slider control, toggle for booleans, and index-based access for discrete allowed-value lists
+- **NetworkUiControl** (`NetworkUiControl.h`) - Templated helper that tracks pending state for network-confirmed UI controls (toggles, dropdowns, sliders). Disables a control while awaiting server confirmation, then resets when the confirmed value arrives
 
 ## Architecture Notes
 

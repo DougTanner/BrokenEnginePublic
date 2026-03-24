@@ -19,10 +19,6 @@ Smoke spread uses **hierarchical indirect dispatch** rather than direct full-gri
 
 Full sequence per frame: Dilate+Compact → Fill → Clear → indirect SpreadB → Dilate+Compact → Fill → Clear → indirect SpreadA. Each spread pass transitions the output texture from `kShaderReadOnly` to `kComputeReadWrite` before dispatch and back to `kShaderReadOnly` after. Pass B writes the larger `mSmokeTextureTwo`; pass A writes `mSmokeTextureOne`.
 
-## Lighting Blur Recording
-
-Each blur level is recorded via `RecordLightingBlurMRT()`: transitions all three R/G/B output textures to color-attachment layout, begins the per-level MRT render pass (3 attachments), dispatches a single `mpLightingBlurPipelines[iLevel]` draw with push constants for previous-level dimensions, divisor, and distance count, then ends the pass. The per-channel combine passes that follow reuse individual per-channel framebuffers.
-
 ## Main Render Pass Order
 
 Opaque models, terrain, water, hex shields, transparent models, particles (long then square), visible lights, billboards, text. Opaque materials drawn first with depth writing; transparent materials drawn after water/hex shields with alpha blending. In debug builds, the entire geometry sequence can be replaced by a single fullscreen debug texture draw (toggled at runtime via F2), with only profile text remaining.

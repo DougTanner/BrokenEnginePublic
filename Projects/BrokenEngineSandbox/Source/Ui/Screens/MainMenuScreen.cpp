@@ -45,19 +45,13 @@ void MainMenuScreen::Render()
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
 	// Auto-start discovery when main menu is shown
-	if (gpClientSession->mpDiscoveryScanner == nullptr && !gpClientSession->mbServerDiscovered && !gpClientSession->IsNetworkMode())
+	if (gpClientSession->mpDiscoveryScanner == nullptr && !gpClientSession->mbServerDiscovered)
 	{
 		gpClientSession->StartServerDiscovery();
 	}
 
 	// Local Server button (discovers localhost + LAN)
-	if (gpClientSession->IsNetworkMode())
-	{
-		ImGui::BeginDisabled();
-		ImGui::Button("CONNECTING...", ImVec2(fButtonWidth, fButtonHeight));
-		ImGui::EndDisabled();
-	}
-	else if (gpClientSession->mbServerDiscovered)
+	if (gpClientSession->mbServerDiscovered)
 	{
 		if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, fButtonHeight)))
 		{

@@ -228,6 +228,11 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 
 59. Indent "case" statements one level from their "switch":
 
+60. Gate std::memcpy size on the destination, not the source. If sizes differ, use std::min(sizeof(source), sizeof(dest)):
+
+	std::memcpy(&dest, &source, std::min(sizeof(source), sizeof(dest)));
+
+
 	switch (eState)
 	{
 		case State::kIdle:

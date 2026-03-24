@@ -14,7 +14,8 @@ public:
 	void DestroyTransferResources();
 	void StartThread();
 
-	void RequestUpload(common::crc_t crc, LoadPriority priority);
+	void RequestUpload(common::crc_t crc, LoadPriority ePriority);
+	void WaitIdle();
 
 	std::binary_semaphore mFrameSignal {0};
 
@@ -26,15 +27,16 @@ private:
 
 	// In-progress upload state (persists across frames for one texture at a time)
 	common::crc_t mCurrentCrc = 0;
-	uint32_t mCurrentLayer = 0;
-	uint32_t mCurrentMip = 0;
-	uint32_t mCurrentMipY = 0;        // Y texel offset within current mip (for sub-mip partial copies)
+	uint32_t muiCurrentLayer = 0;
+	uint32_t muiCurrentMip = 0;
+	uint32_t muiCurrentMipY = 0;      // Y texel offset within current mip (for sub-mip partial copies)
 	size_t mCurrentDataOffset = 0;     // Byte offset into LazyChunk.pData
 
 	std::thread mUploadThread;
+	std::mutex mWorkMutex;
 	std::mutex mUploadMutex;
 	std::priority_queue<LoadRequest> mUploadQueue;
-	std::atomic<bool> mShutdown {false};
+	std::atomic<bool> mbShutdown {false};
 
 	VkCommandPool mTransferVkCommandPool = VK_NULL_HANDLE;
 	VkCommandBuffer mTransferVkCommandBuffer = VK_NULL_HANDLE;
