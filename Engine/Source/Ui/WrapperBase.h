@@ -310,6 +310,15 @@ extern Wrapper gWaterHeightDarkenClamp;
 
 // Lighting
 extern Wrapper gLightingDepositTextureMultiplier;
+extern Wrapper gLightingBlurTextureMultiplier;
+extern Wrapper gLightingCombineTextureMultiplier;
+extern Wrapper gLightingBlurDownscale;
+extern Wrapper gLightingCombineIndex;
+extern Wrapper gLightingBlurDistance;
+extern Wrapper gLightingBlurDirectionality;
+extern Wrapper gLightingBlurJitter;
+extern Wrapper gLightingBlurFirstDivisor;
+extern Wrapper gLightingBlurDivisor;
 extern Wrapper gLightingCombineDecay;
 extern Wrapper gLightingCombinePower;
 
@@ -333,13 +342,6 @@ extern Wrapper gFirstSpreadKernelSize;
 extern Wrapper gFirstSpreadDecay;
 extern Wrapper gLightSpreadTerrainCutoff;
 extern Wrapper gLightOccupancyDilation;
-
-// Cascade spread
-extern Wrapper gLightCascadeDownscale;
-extern Wrapper gLightCascadeCount;
-extern Wrapper gCascadeSpreadKernelWorld;
-extern Wrapper gCascadeSpreadKernelSize;
-extern Wrapper gCascadeSpreadDecay;
 
 // Water skybox
 extern Wrapper gLightingWaterSkyboxSunBias;
@@ -488,6 +490,7 @@ extern Wrapper gParticlesWindStrength;
 
 // Test
 extern Wrapper gDebugTexture;
+extern Wrapper gDebugTextureIndex;
 
 extern Wrapper gTestOne;
 extern Wrapper gTestTwo;

@@ -11,7 +11,8 @@ struct RenderTargetTextures
 
 	void DestroyLightingTextures();
 	void CreateLightingTextures();
-	void CreateCascadeTextures(int64_t iLightingTextureX, int64_t iLightingTextureY);
+	void CreateBlurTextures(int64_t iLightingTextureX, int64_t iLightingTextureY, float fDownscale, int64_t iMaxCount);
+	void CreateBlurRenderPassAndFramebuffer(int64_t iLevel, int64_t iBlurTextureX, int64_t iBlurTextureY);
 	void CreateShadowTextures();
 	void CreateSmokeTextures();
 	void CreateWindTextures();
@@ -36,17 +37,24 @@ struct RenderTargetTextures
 	VkRenderPass mLightingVkRenderPass = VK_NULL_HANDLE;
 	VkFramebuffer mLightingVkFramebuffer = VK_NULL_HANDLE;
 
-	// First spread textures (intermediate between deposit and cascade)
+	// First spread textures (intermediate between deposit and blur)
 	Texture mpFirstSpreadTextures[3]; // R, G, B — RGBA16F
 
-	// Cascade spread textures (per level, 3 colors with EWNS in RGBA channels)
-	static constexpr int64_t kiMaxCascadeLevels = 8;
-	int64_t miCascadeLevelCount = 0;
-	Texture mpCascadeTextures[kiMaxCascadeLevels][3]; // [level][color] RGBA16F
-
-	// Final accumulated output
-	Texture mpLightingAccumulateTextures[3]; // R, G, B
+	// Blur textures (hierarchical downscaling from first spread)
+	int64_t miLightingBlurCount = 0;
+	Texture mpRedLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
+	Texture mpGreenLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
+	Texture mpBlueLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
+	VkRenderPass mpLightingBlurVkRenderPasses[shaders::kiMaxLightingBlurCount] {};
+	VkFramebuffer mpLightingBlurVkFramebuffers[shaders::kiMaxLightingBlurCount] {};
 	Texture* mppLightingFinalTextures[3] {};
+
+	// Combine output textures (separate from blur so blur levels stay pristine)
+	Texture mpLightingCombineTextures[3];
+
+	// Debug texture array (deposit, first spread, blur levels, combine)
+	int64_t miDebugTextureCount = 0;
+	Texture* mppDebugTextures[shaders::kiMaxDebugTextures] {};
 
 	Texture mShadowElevationTexture;
 	Texture mShadowTexture;

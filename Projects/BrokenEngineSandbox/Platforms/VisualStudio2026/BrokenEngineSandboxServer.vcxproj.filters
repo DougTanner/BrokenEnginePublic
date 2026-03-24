@@ -1073,16 +1073,10 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightFirstSpread.comp">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightScatter.comp">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingBlur.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightNormalize.comp">
-      <Filter>Engine\Data\Shaders\Lighting</Filter>
-    </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightAccumulate.comp">
-      <Filter>Engine\Data\Shaders\Lighting</Filter>
-    </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightScatterCommon.h">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingCombine.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ObjectShadowsBlurH.comp">

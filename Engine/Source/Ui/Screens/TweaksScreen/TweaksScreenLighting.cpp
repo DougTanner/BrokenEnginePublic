@@ -23,14 +23,18 @@ void TweaksScreenBase::RenderLightingSection()
 		WrapperSlider("Occupancy Dilation", kiSection, 1.0f);
 		WrapperSlider("Spread Terrain Cutoff", kiSection, 1.0f);
 
-		WrapperSeparatorText("3. Cascade");
-		WrapperSlider("Cascade Downscale", kiSection, 1.0f);
-		WrapperSlider("Cascade Count", kiSection, 1.0f);
-		WrapperSlider("Cascade Kernel World", kiSection, 1.0f);
-		WrapperSlider("Cascade Kernel Size", kiSection, 1.0f);
-		WrapperSlider("Cascade Decay", kiSection, 1.0f);
+		WrapperSeparatorText("3. Blur");
+		WrapperSlider("Blur Texture Multiplier", kiSection, 1.0f);
+		WrapperSlider("Blur Distance", kiSection, 1.0f);
+		WrapperSlider("Blur Directionality", kiSection, 1.0f);
+		WrapperSlider("Blur Jitter", kiSection, 1.0f);
+		WrapperSlider("Downscale", kiSection, 1.0f);
 
 		WrapperSeparatorText("4. Combine");
+		WrapperSlider("Combine Texture Multiplier", kiSection, 1.0f);
+		WrapperSlider("Combine Index", kiSection, 1.0f);
+		WrapperSlider("Blur First Divisor", kiSection, 1.0f);
+		WrapperSlider("Blur Divisor", kiSection, 1.0f);
 		WrapperSlider("Combine Decay", kiSection, 1.0f);
 		WrapperSlider("Combine Power", kiSection, 1.0f);
 

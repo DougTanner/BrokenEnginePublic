@@ -18,6 +18,7 @@ The implementation is split across three `.cpp` files:
 - Texture lookup in `Render()` uses `gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc)` per type to resolve the GPU texture slot
 - Supports both synced lights (parent-managed) and controlled lights (fire-and-forget with keyframe animation that auto-destroys on expiry)
 - Controlled lights use `InterpolateKeyframes()` each frame to drive visible area, intensity, lighting area, and rotation
+- Lighting deposit quads enforce a minimum world-space size derived from the deposit texture resolution to prevent sub-texel flickering
 
 ## See Also
 - Parent collections: [../CLAUDE.md](../CLAUDE.md)

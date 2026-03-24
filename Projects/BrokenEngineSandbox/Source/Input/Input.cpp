@@ -74,6 +74,8 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 	if constexpr (kbEnableDebugInput)
 	{
 		rMenuInput.flags.Set(kMenuDebugTexture, KeyboardPressed(VK_F2, rRawInput));
+		rMenuInput.flags.Set(kDebugTextureNext, KeyboardPressed(VK_RIGHT, rRawInput));
+		rMenuInput.flags.Set(kDebugTexturePrev, KeyboardPressed(VK_LEFT, rRawInput));
 		rMenuInput.flags.Set(kMenuTweaks, KeyboardPressed(VK_F3, rRawInput));
 	}
 

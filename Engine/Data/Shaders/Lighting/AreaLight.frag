@@ -14,7 +14,7 @@ layout(push_constant) uniform pushConstants
 // Uniforms
 layout (set = 0, binding = 0) uniform globalUniform
 {
-    GlobalLayout globalLayout;
+	GlobalLayout globalLayout;
 };
 
 layout (scalar, set = 1, binding = 1) buffer readonly quadsUniform
@@ -71,21 +71,9 @@ void main()
 	f4OutColorGreen = f4Direction * f4InParams.y * fAlpha * fFalloff * (f4Color.g * f4Texture.g);
 	f4OutColorBlue = f4Direction * f4InParams.y * fAlpha * fFalloff * (f4Color.b * f4Texture.b);
 
-	// Mark occupancy for deposited tile and surrounding tiles within dilation radius
-	int iCenterTileX = int(gl_FragCoord.x) / int(kiComputeTileSize);
-	int iCenterTileY = int(gl_FragCoord.y) / int(kiComputeTileSize);
-	int iDilation = int(globalLayout.uiLightOccupancyDilation);
-	for (int iDy = -iDilation; iDy <= iDilation; ++iDy)
-	{
-		for (int iDx = -iDilation; iDx <= iDilation; ++iDx)
-		{
-			int iTileX = iCenterTileX + iDx;
-			int iTileY = iCenterTileY + iDy;
-			if (iTileX >= 0 && iTileY >= 0 && uint(iTileX) < globalLayout.uiLightTilesX && uint(iTileY) < globalLayout.uiLightTilesY)
-			{
-				uint uiTileIndex = uint(iTileY) * globalLayout.uiLightTilesX + uint(iTileX);
-				atomicOr(occupancy[uiTileIndex >> 5], 1u << (uiTileIndex & 31));
-			}
-		}
-	}
+	// Mark occupancy for deposited center tile (dilation done in compute)
+	uint uiTileX = uint(gl_FragCoord.x) / kiComputeTileSize;
+	uint uiTileY = uint(gl_FragCoord.y) / kiComputeTileSize;
+	uint uiTileIndex = uiTileY * globalLayout.uiLightTilesX + uiTileX;
+	atomicOr(occupancy[uiTileIndex >> 5], 1u << (uiTileIndex & 31));
 }

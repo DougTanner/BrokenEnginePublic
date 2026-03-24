@@ -121,6 +121,9 @@ CONSTEXPR int kiBillboardTexturesCount = 3;
 
 CONSTEXPR int kiMaxIslands = 64;
 
+CONSTEXPR int kiMaxLightingBlurCount = 32;
+CONSTEXPR int kiMaxDebugTextures = kiMaxLightingBlurCount + 3; // deposit + spread + blur levels + final combine
+
 CONSTEXPR int kiShadowTextureExecutionSize = 64;
 
 CONSTEXPR int kiComputeTileSize = 8;
@@ -211,11 +214,11 @@ struct GlobalLayout
 	float fLightingIndirect INIT;
 	float fLightingObjectsAdd INIT;
 	float fLightingCombinePower INIT;
-	float fCascadeSpreadKernelWorld INIT;
-	float fCascadeSpreadPadOne INIT;
+	float fLightingBlurDistance INIT;
+	float fLightingBlurTextureCount INIT;
 	float fLightingTerrain INIT;
 	float fLightingObjects INIT;
-	float fCascadeSpreadDecay INIT;
+	float fLightingBlurDirectionality INIT;
 	float fLightingAddTerrain INIT;
 	float fFirstSpreadKernelSize INIT;
 	float fLightingCombineDecay INIT;
@@ -225,11 +228,11 @@ struct GlobalLayout
 	float fFirstSpreadKernelWorld INIT;
 	float fFirstSpreadPadOne INIT;
 	float fFirstSpreadDecay INIT;
-	float fFirstSpreadPadTwo INIT;
+	float fLightingBlurJitter INIT;
 	float fLightSpreadTerrainCutoff INIT;
-	float fCascadeSpreadKernelSize INIT;
-	float fLightCascadeDownscale INIT;
-	uint32_t uiLightCascadeCount INIT;
+	float fLightSpreadPadOne INIT;
+	float fLightSpreadPadTwo INIT;
+	float fLightSpreadPadThree INIT;
 	uint32_t uiLightTilesX INIT;
 	uint32_t uiLightTilesY INIT;
 	uint32_t uiLightOccupancyDilation INIT;
@@ -344,6 +347,9 @@ struct GlobalLayout
 	float fLightingTimeOfDayMultiplier INIT;
 	float fLightingNightMultiplier INIT;
 	float fLightingWaterSkyboxOne INIT;
+
+	// Debug
+	float fDebugTextureIndex INIT;
 };
 
 struct MainLayout

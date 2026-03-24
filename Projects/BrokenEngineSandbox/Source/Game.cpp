@@ -672,13 +672,28 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 
 		if (rMenuInput.flags & MenuInputFlags::kMenuDebugTexture)
 		{
-			float fDebugTexture = engine::gDebugTexture.Get() + 1.0f;
-			if (fDebugTexture > engine::gDebugTexture.GetMax())
-			{
-				fDebugTexture = 0.0f;
-			}
-			engine::gDebugTexture.Set(fDebugTexture);
+			engine::gDebugTexture.Toggle();
 		}
+#if defined(BT_CLIENT)
+		if (rMenuInput.flags & MenuInputFlags::kDebugTextureNext)
+		{
+			float fNext = engine::gDebugTextureIndex.Get() + 1.0f;
+			if (fNext >= static_cast<float>(engine::gpTextureManager->mRenderTargetTextures.miDebugTextureCount))
+			{
+				fNext = 0.0f;
+			}
+			engine::gDebugTextureIndex.Set(fNext);
+		}
+		if (rMenuInput.flags & MenuInputFlags::kDebugTexturePrev)
+		{
+			float fPrev = engine::gDebugTextureIndex.Get() - 1.0f;
+			if (fPrev < 0.0f)
+			{
+				fPrev = static_cast<float>(engine::gpTextureManager->mRenderTargetTextures.miDebugTextureCount - 1);
+			}
+			engine::gDebugTextureIndex.Set(fPrev);
+		}
+#endif
 
 		if (rMenuInput.flags & MenuInputFlags::kSlowTime)
 		{

@@ -15,15 +15,6 @@ layout (binding = 1) buffer occupancyBuffer
 	uint occupancy[];
 };
 
-// Active tile list: [VkDispatchIndirectCommand (3 uint32s)] [packed tile indices...]
-layout (binding = 2) buffer activeTileBuffer
-{
-	uint uiDispatchX;
-	uint uiDispatchY;
-	uint uiDispatchZ;
-	uint activeTiles[];
-};
-
 layout (push_constant) uniform PushConstants
 {
 	uint uiTilesX;
@@ -37,31 +28,29 @@ void main()
 	if (uiTileIndex >= uiTotalTiles)
 		return;
 
+	// Only dilate tiles that were marked by fragment shaders
+	if ((occupancy[uiTileIndex >> 5] & (1u << (uiTileIndex & 31))) == 0)
+		return;
+
 	uint uiTileY = uiTileIndex / uiTilesX;
 	uint uiTileX = uiTileIndex - uiTileY * uiTilesX;
-
 	int iRadius = int(globalLayout.uiLightOccupancyDilation);
 
-	// Check this tile and neighbors within Manhattan distance of the dilation radius
-	bool bActive = false;
-	for (int iDy = -iRadius; iDy <= iRadius && !bActive; ++iDy)
+	// Dilate: mark all neighbors within radius
+	for (int iDy = -iRadius; iDy <= iRadius; ++iDy)
 	{
-		for (int iDx = -iRadius; iDx <= iRadius && !bActive; ++iDx)
+		for (int iDx = -iRadius; iDx <= iRadius; ++iDx)
 		{
+			if (iDx == 0 && iDy == 0)
+				continue;
+
 			int iNx = int(uiTileX) + iDx;
 			int iNy = int(uiTileY) + iDy;
 			if (iNx < 0 || iNy < 0 || uint(iNx) >= uiTilesX || uint(iNy) >= uiTilesY)
 				continue;
 
 			uint uiNeighborIndex = uint(iNy) * uiTilesX + uint(iNx);
-			if ((occupancy[uiNeighborIndex >> 5] & (1u << (uiNeighborIndex & 31))) != 0)
-				bActive = true;
+			atomicOr(occupancy[uiNeighborIndex >> 5], 1u << (uiNeighborIndex & 31));
 		}
-	}
-
-	if (bActive)
-	{
-		uint uiSlot = atomicAdd(uiDispatchX, 1u);
-		activeTiles[uiSlot] = uiTileIndex;
 	}
 }

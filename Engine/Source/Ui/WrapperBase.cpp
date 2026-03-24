@@ -116,6 +116,15 @@ Wrapper gWaterHeightDarkenBottom(-0.17f, -0.5f, 0.0f);
 Wrapper gWaterHeightDarkenClamp(0.0f, 0.0f, 0.9f);
 
 // Lighting
+Wrapper gLightingBlurTextureMultiplier(0.2f, 1.0f / 64.0f, 1.0f);
+Wrapper gLightingCombineTextureMultiplier(0.2f, 1.0f / 64.0f, 1.0f);
+Wrapper gLightingBlurDownscale(0.8f, 0.5f, 0.9f);
+Wrapper gLightingCombineIndex(0.4f, 0.0f, 10.4f);
+Wrapper gLightingBlurDistance(0.1f, 0.0f, 0.5f);
+Wrapper gLightingBlurDirectionality(0.9f, 0.0f, 1.0f);
+Wrapper gLightingBlurJitter(0.1f, 0.0f, 0.2f);
+Wrapper gLightingBlurFirstDivisor(1400.0f, 200.0f, 4000.0f);
+Wrapper gLightingBlurDivisor(0.24f, 0.0f, 1.0f);
 Wrapper gLightingCombineDecay(0.7f, 0.5f, 1.0f);
 Wrapper gLightingCombinePower(0.5f, 0.1f, 2.0f);
 
@@ -133,7 +142,7 @@ Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
 Wrapper gLightingTimeOfDayMultiplier(0.5f, 0.0f, 1.0f);
 
 // Deposit
-Wrapper gLightingDepositTextureMultiplier(0.75f, 1.0f / 64.0f, 1.0f / 1.0f);
+Wrapper gLightingDepositTextureMultiplier(0.25f, 1.0f / 64.0f, 1.0f / 1.0f);
 
 // First spread
 Wrapper gFirstSpreadTextureMultiplier(0.2f, 1.0f / 64.0f, 1.0f);
@@ -142,13 +151,6 @@ Wrapper gFirstSpreadKernelSize(64.0f, 2.0f, 128.0f);
 Wrapper gFirstSpreadDecay(6.0f, 0.0f, 10.0f);
 Wrapper gLightOccupancyDilation(3.5f, 0.0f, 16.0f);
 Wrapper gLightSpreadTerrainCutoff(0.0f, 0.0f, 1.0f);
-
-// Cascade spread
-Wrapper gLightCascadeDownscale(2.0f, 1.5f, 4.0f);
-Wrapper gLightCascadeCount(4.0f, 1.0f, 8.0f);
-Wrapper gCascadeSpreadKernelWorld(2.0f, 0.1f, 20.0f);
-Wrapper gCascadeSpreadKernelSize(32.0f, 2.0f, 64.0f);
-Wrapper gCascadeSpreadDecay(1.5f, 0.0f, 4.0f);
 
 // Water skybox
 Wrapper gLightingWaterSkyboxSunBias(2.6f, 0.0f, 4.0f);
@@ -297,7 +299,8 @@ Wrapper gSmokeShadowIntensity(0.5f, 0.0f, 1.0f);
 Wrapper gParticlesWindStrength(2000.0f, 0.0f, 5000.0f);
 
 // Debug
-Wrapper gDebugTexture(0.0f, 0.0f, 2.0f); // 0=off, 1=deposit, 2=first spread
+Wrapper gDebugTexture(false);
+Wrapper gDebugTextureIndex(0.0f, 0.0f, static_cast<float>(shaders::kiMaxLightingBlurCount + 2));
 
 // Test
 Wrapper gTestOne(0.0f, -10.0f, 10.0f);

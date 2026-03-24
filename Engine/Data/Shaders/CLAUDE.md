@@ -24,7 +24,7 @@ GLSL shader source files for the Vulkan 1.2 rendering pipeline, compiled to SPIR
 
 ## See Also
 
-- [Lighting/CLAUDE.md](Lighting/CLAUDE.md) - Area, point, and visible light shaders with compute-based cascaded light spreading
+- [Lighting/CLAUDE.md](Lighting/CLAUDE.md) - Area, point, and visible light shaders with compute first-spread and fragment blur+combine pipeline
 - [Model/CLAUDE.md](Model/CLAUDE.md) - PBR model rendering shaders
 - [Objects/CLAUDE.md](Objects/CLAUDE.md) - Game object shaders (hex shields, player)
 - [Particles/CLAUDE.md](Particles/CLAUDE.md) - GPU-driven particle compute and render shaders

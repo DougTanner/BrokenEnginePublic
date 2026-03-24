@@ -30,6 +30,8 @@ enum class MenuInputFlags : uint64_t
 	kConnectLocal      = 0x00080000,
 	kWeaponModeToggle  = 0x00100000,
 	kMenuDebugTexture  = 0x00200000,
+	kDebugTextureNext  = 0x00400000,
+	kDebugTexturePrev  = 0x00800000,
 };
 using MenuInputFlags_t = common::Flags<MenuInputFlags>;
 

@@ -363,6 +363,9 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	PopulateShadowParameters(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent);
 	PopulateTerrainParameters(rGlobalLayout, fDayPercent, fNoonPercent);
 	PopulateWaterParameters(rGlobalLayout, fSunAngle, fDayPercent);
+
+	// Debug
+	rGlobalLayout.fDebugTextureIndex = gDebugTextureIndex.Get();
 }
 
 } // namespace engine

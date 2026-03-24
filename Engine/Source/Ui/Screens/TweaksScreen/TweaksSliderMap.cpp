@@ -119,13 +119,17 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"First Spread Decay", &gFirstSpreadDecay},
 		{"Occupancy Dilation", &gLightOccupancyDilation},
 		{"Spread Terrain Cutoff", &gLightSpreadTerrainCutoff},
-		// Lighting - Cascade
-		{"Cascade Downscale", &gLightCascadeDownscale},
-		{"Cascade Count", &gLightCascadeCount},
-		{"Cascade Kernel World", &gCascadeSpreadKernelWorld},
-		{"Cascade Kernel Size", &gCascadeSpreadKernelSize},
-		{"Cascade Decay", &gCascadeSpreadDecay},
+		// Lighting - Blur
+		{"Blur Texture Multiplier", &gLightingBlurTextureMultiplier},
+		{"Blur Distance", &gLightingBlurDistance},
+		{"Blur Directionality", &gLightingBlurDirectionality},
+		{"Blur Jitter", &gLightingBlurJitter},
+		{"Downscale", &gLightingBlurDownscale},
 		// Lighting - Combine
+		{"Combine Texture Multiplier", &gLightingCombineTextureMultiplier},
+		{"Combine Index", &gLightingCombineIndex},
+		{"Blur First Divisor", &gLightingBlurFirstDivisor},
+		{"Blur Divisor", &gLightingBlurDivisor},
 		{"Combine Decay", &gLightingCombineDecay},
 		{"Combine Power", &gLightingCombinePower},
 		// Lighting - Directional

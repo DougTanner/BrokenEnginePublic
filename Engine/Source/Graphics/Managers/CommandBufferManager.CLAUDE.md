@@ -19,6 +19,10 @@ Smoke spread uses **hierarchical indirect dispatch** rather than direct full-gri
 
 Full sequence per frame: Dilate+Compact → Fill → Clear → indirect SpreadB → Dilate+Compact → Fill → Clear → indirect SpreadA. Each spread pass transitions the output texture from `kShaderReadOnly` to `kComputeReadWrite` before dispatch and back to `kShaderReadOnly` after. Pass B writes the larger `mSmokeTextureTwo`; pass A writes `mSmokeTextureOne`.
 
+## Lighting Spread Pipeline Order
+
+After the lighting deposit render pass (area lights, point lights, lighting particles) writes center-tile occupancy bits, a `LightOccupancyDilate.comp` dispatch dilates those bits to neighboring tiles before the first-spread compute phase reads them. Barriers enforce: fragment SSBO write → compute read/write (dilate) → compute read (first spread).
+
 ## Main Render Pass Order
 
 Opaque models, terrain, water, hex shields, transparent models, particles (long then square), visible lights, billboards, text. Opaque materials drawn first with depth writing; transparent materials drawn after water/hex shields with alpha blending. In debug builds, the entire geometry sequence can be replaced by a single fullscreen debug texture draw (toggled at runtime via F2), with only profile text remaining.

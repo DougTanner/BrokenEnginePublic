@@ -14,6 +14,7 @@ The implementation is split across three `.cpp` files:
 - Lighting quads preserve the orientation of the visible quad (scaled around the shared center), so the ground illumination matches the light's rotation
 - The fragment shader uses rectangular falloff (smoothstep on both axes independently) rather than circular
 - Frustum culling tests the AABB of all 8 vertices (4 visible + 4 lighting) via `AabbIntersectsVisibleArea`
+- Lighting deposit quads enforce a minimum world-space size derived from the deposit texture resolution to prevent sub-texel flickering
 
 ## See Also
 - Parent collections: [../CLAUDE.md](../CLAUDE.md)
