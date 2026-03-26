@@ -15,7 +15,7 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fLightingIndirect = gLightingIndirect.Get();
 	rGlobalLayout.fLightingObjectsAdd = gLightingObjectsAdd.Get();
 	rGlobalLayout.fDepositEnergyNormalize = gDepositEnergyNormalize.Get();
-	rGlobalLayout.fPointLightCoreRadius = gPointLightCoreRadius.Get();
+
 	rGlobalLayout.fCombineExposure = gCombineExposure.Get();
 	rGlobalLayout.fCombinePower = gCombinePower.Get();
 	rGlobalLayout.fCombineLinearClamp = gCombineLinearClamp.Get();
@@ -24,20 +24,23 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fLightingObjects = gLightingObjects.Get();
 	rGlobalLayout.fLightingAddTerrain = gLightingAddTerrain.Get();
 
-	// First spread
-	rGlobalLayout.fFirstSpreadKernelWorld = gFirstSpreadKernelWorld.Get();
-	rGlobalLayout.fFirstSpreadKernelSize = gFirstSpreadKernelSize.Get();
-	rGlobalLayout.fFirstSpreadSigma = gFirstSpreadSigma.Get();
-	rGlobalLayout.fFirstSpreadDecay = gFirstSpreadDecay.Get();
-	rGlobalLayout.fLightSpreadTerrainCutoff = gLightSpreadTerrainCutoff.Get();
-
 	// Spread
 	rGlobalLayout.fSpreadDirectionality = gSpreadDirectionality.Get();
-	float fPassCount = std::max(1.0f, gLightingSpreadPassCount.Get() - 1.0f);
-	rGlobalLayout.fSpreadKernelWorld = gSpreadKernelWorld.Get() / fPassCount;
-	rGlobalLayout.fSpreadKernelSize = gSpreadKernelSize.Get();
-	rGlobalLayout.fSpreadSigma = gSpreadSigma.Get();
+	rGlobalLayout.fSpreadDirectionCount = gSpreadDirectionCount.Get();
+	rGlobalLayout.fSpreadDistance = gSpreadDistance.Get();
+	rGlobalLayout.fSpreadRingCount = gSpreadRingCount.Get();
+	rGlobalLayout.fSpreadJitter = gSpreadJitter.Get();
 	rGlobalLayout.fSpreadDecay = gSpreadDecay.Get();
+	rGlobalLayout.fSpreadPassCount = gSpreadPassCount.Get();
+
+	// Per-ring rotation angles: jitter slider sets the seed and scales the result
+	// Each ring uses its own seed for uncorrelated rotations
+	float fJitter = gSpreadJitter.Get();
+	common::RandomEngine ringRng(1000 * static_cast<uint32_t>(20.0f * fJitter));
+	for (int64_t i = 0; i < 8; ++i)
+	{
+		rGlobalLayout.pfSpreadRingRotations[i] = common::Random<360.0f>(ringRng);
+	}
 }
 
 void RenderLightingMain(int64_t iCommandBuffer)

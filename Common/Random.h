@@ -6,7 +6,7 @@ namespace common
 // https://en.wikipedia.org/wiki/Xorshift
 struct RandomEngine
 {
-	uint64_t uiState = (static_cast<uint64_t>(362436069) << 32) | 521288629;
+	uint64_t uiState = 0xe220a8397b1dcdaf; // splitmix64(0)
 
 	RandomEngine() = default;
 
@@ -17,7 +17,7 @@ struct RandomEngine
 	crc_t Crc() const;
 };
 
-inline uint64_t XorshiftNext(RandomEngine& rRandomEngine)
+inline uint64_t RandomNext(RandomEngine& rRandomEngine)
 {
 	uint64_t x = rRandomEngine.uiState;
 	x ^= x << 13;
@@ -33,8 +33,7 @@ template<float MAX = 1.0f>
 inline float Random(RandomEngine& rRandomEngine)
 {
 	static constexpr float kfDivisor = MAX / static_cast<float>(std::numeric_limits<uint64_t>::max());
-	uint64_t x = XorshiftNext(rRandomEngine);
-	return static_cast<float>(x) * kfDivisor;
+	return static_cast<float>(RandomNext(rRandomEngine)) * kfDivisor;
 }
 
 float Random(float fMax, RandomEngine& rRandomEngine);

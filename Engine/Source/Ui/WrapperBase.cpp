@@ -128,38 +128,31 @@ Wrapper gLightingSampledNormalsSizeMod(0.007f, -0.02f, 0.02f);
 Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
 
 Wrapper gLightingTimeOfDayMultiplier(0.5f, 0.0f, 1.0f);
-Wrapper gLightingNewDirectional(0.3f, 0.0f, 4.0f);
-Wrapper gLightingNewAmbient(0.4f, 0.0f, 4.0f);
 
 // Deposit
-Wrapper gLightingDepositTextureMultiplier(0.25f, 1.0f / 64.0f, 1.0f / 1.0f);
-
-// First spread
-Wrapper gFirstSpreadTextureMultiplier(0.2f, 0.05f, 0.4f);
-Wrapper gFirstSpreadKernelWorld(3.0f, 0.1f, 10.0f);
-Wrapper gFirstSpreadKernelSize(40.0f, 2.0f, 128.0f);
-Wrapper gFirstSpreadSigma(0.5f, 0.1f, 1.0f);
-Wrapper gFirstSpreadDecay(1.0f, 0.0f, 2.0f);
-Wrapper gLightOccupancyDilation(2.0f, 0.0f, 16.0f);
-Wrapper gLightSpreadTerrainCutoff(0.0f, 0.0f, 1.0f);
+Wrapper gLightingDepositTextureMultiplier(0.2f, 0.05f, 0.5f);
 
 // Spread
-Wrapper gLightingSpreadPassCount(8.0f, 1.0f, 16.0f);
-Wrapper gSpreadDirectionality(1.0f, 0.0f, 1.0f);
 Wrapper gSpreadTextureMultiplier(0.1f, 0.01f, 0.2f);
-Wrapper gSpreadKernelWorld(40.0f, 0.1f, 50.0f);
-Wrapper gSpreadKernelSize(16.0f, 2.0f, 32.0f);
-Wrapper gSpreadSigma(1.0f, 0.1f, 2.0f);
-Wrapper gSpreadDecay(1.0f, 0.0f, 2.0f);
+Wrapper gSpreadDirectionality(0.9f, 0.0f, 1.0f);
+Wrapper gSpreadDirectionCount(24.0f, 8.0f, 32.0f);
+Wrapper gSpreadDistance(6.0f, 0.1f, 20.0f);
+Wrapper gSpreadRingCount(12.0f, 1.0f, 16.0f);
+Wrapper gSpreadJitter(0.874f, 0.0f, 1.0f);
+Wrapper gSpreadDecay(3.0f, 0.0f, 10.0f);
+Wrapper gSpreadPassCount(16.0f, 8.0f, 32.0f);
 
 // Deposit
 Wrapper gDepositEnergyNormalize(0.0f, 0.0f, 1.0f);
-Wrapper gPointLightCoreRadius(0.0f, 0.0f, 0.9f);
 
 // Combine
-Wrapper gCombineExposure(0.2f, 0.01f, 0.4f);
-Wrapper gCombinePower(3.0f, 0.1f, 8.0f);
+Wrapper gCombineExposure(0.16f, 0.01f, 1.0f);
+Wrapper gCombinePower(1.6f, 0.1f, 8.0f);
 Wrapper gCombineLinearClamp(0.0f, 0.0f, 1.0f);
+
+// Sample
+Wrapper gLightingNewDirectional(0.7f, 0.0f, 4.0f);
+Wrapper gLightingNewAmbient(0.5f, 0.0f, 4.0f);
 
 // Water skybox
 Wrapper gLightingWaterSkyboxSunBias(2.6f, 0.0f, 4.0f);

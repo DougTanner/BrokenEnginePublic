@@ -15,27 +15,18 @@ void TweaksScreenBase::RenderLightingSection()
 		WrapperSeparatorText("1. Deposit");
 		WrapperSlider("Deposit Texture Multiplier", kiSection, 1.0f);
 		WrapperSlider("Deposit Energy Normalize", kiSection, 1.0f);
-		WrapperSlider("Point Light Core Radius", kiSection, 1.0f);
 
-		WrapperSeparatorText("2. First Spread");
-		WrapperSlider("Spread Pass Count", kiSection, 1.0f);
-		WrapperSlider("First Spread Texture Multiplier", kiSection, 1.0f);
-		WrapperSlider("First Spread Kernel World", kiSection, 1.0f);
-		WrapperSlider("First Spread Kernel Size", kiSection, 1.0f);
-		WrapperSlider("First Spread Sigma", kiSection, 1.0f);
-		WrapperSlider("First Spread Decay", kiSection, 1.0f);
-		WrapperSlider("Occupancy Dilation", kiSection, 1.0f);
-		WrapperSlider("Spread Terrain Cutoff", kiSection, 1.0f);
-
-		WrapperSeparatorText("3. Spread");
+		WrapperSeparatorText("2. Spread");
 		WrapperSlider("Spread Directionality", kiSection, 1.0f);
+		WrapperSlider("Spread Direction Count", kiSection, 1.0f);
 		WrapperSlider("Spread Texture Multiplier", kiSection, 1.0f);
-		WrapperSlider("Spread Kernel World", kiSection, 1.0f);
-		WrapperSlider("Spread Kernel Size", kiSection, 1.0f);
-		WrapperSlider("Spread Sigma", kiSection, 1.0f);
+		WrapperSlider("Spread Distance", kiSection, 1.0f);
+		WrapperSlider("Spread Ring Count", kiSection, 1.0f);
+		WrapperSlider("Spread Jitter", kiSection, 1.0f);
 		WrapperSlider("Spread Decay", kiSection, 1.0f);
+		WrapperSlider("Spread Pass Count", kiSection, 1.0f);
 
-		WrapperSeparatorText("4. Combine");
+		WrapperSeparatorText("3. Combine");
 		WrapperSlider("Combine Exposure", kiSection, 1.0f);
 		WrapperSlider("Combine Power", kiSection, 1.0f);
 		WrapperSlider("Combine Linear Clamp", kiSection, 1.0f);

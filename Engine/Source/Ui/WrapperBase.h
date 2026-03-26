@@ -29,7 +29,7 @@ public:
 	{
 	}
 
-	template<typename T>
+	template <typename T>
 	Wrapper(T value, const std::vector<T>& rAllowedValues)
 	: mfDefault(static_cast<float>(value))
 	, mfMin(0.0f)
@@ -48,7 +48,7 @@ public:
 
 	~Wrapper() = default;
 
-	template<typename T>
+	template <typename T>
 	std::tuple<T, T, bool> Changed()
 	{
 		std::tuple<T, T, bool> values = std::make_tuple(static_cast<T>(mfCurrent), static_cast<T>(mfPrevious), mfPrevious != mfCurrent);
@@ -81,7 +81,7 @@ public:
 		return mfDefault;
 	}
 
-	template<typename T>
+	template <typename T>
 	T Get() const
 	{
 		static_assert(!std::is_same_v<T, float>);
@@ -96,7 +96,7 @@ public:
 		}
 	}
 
-	template<typename T>
+	template <typename T>
 	T GetDefault() const
 	{
 		static_assert(!std::is_same_v<T, float>);
@@ -121,7 +121,7 @@ public:
 		mfCurrent = bValue ? 1.0f : 0.0f;
 	}
 
-	template<typename T>
+	template <typename T>
 	void Set(T value)
 	{
 		static_assert(!std::is_same_v<T, float> && !std::is_same_v<T, bool>);
@@ -130,7 +130,7 @@ public:
 		GetIndex();
 	}
 
-	template<typename T>
+	template <typename T>
 	void operator=(T value) = delete;
 
 	void Reset(float fValue)
@@ -138,7 +138,7 @@ public:
 		mfCurrent = mfPrevious = fValue;
 	}
 
-	template<typename T>
+	template <typename T>
 	void Reset(T value)
 	{
 		static_assert(!std::is_same_v<T, float> && !std::is_same_v<T, bool>);
@@ -311,7 +311,7 @@ extern Wrapper gWaterHeightDarkenClamp;
 // Lighting
 extern Wrapper gLightingDepositTextureMultiplier;
 extern Wrapper gDepositEnergyNormalize;
-extern Wrapper gPointLightCoreRadius;
+
 extern Wrapper gCombineExposure;
 extern Wrapper gCombinePower;
 extern Wrapper gCombineLinearClamp;
@@ -331,23 +331,15 @@ extern Wrapper gLightingTimeOfDayMultiplier;
 extern Wrapper gLightingNewDirectional;
 extern Wrapper gLightingNewAmbient;
 
-// First spread
-extern Wrapper gLightingSpreadPassCount;
-extern Wrapper gFirstSpreadTextureMultiplier;
-extern Wrapper gFirstSpreadKernelWorld;
-extern Wrapper gFirstSpreadKernelSize;
-extern Wrapper gFirstSpreadSigma;
-extern Wrapper gFirstSpreadDecay;
-extern Wrapper gLightOccupancyDilation;
-extern Wrapper gLightSpreadTerrainCutoff;
-
 // Spread
 extern Wrapper gSpreadDirectionality;
 extern Wrapper gSpreadTextureMultiplier;
-extern Wrapper gSpreadKernelWorld;
-extern Wrapper gSpreadKernelSize;
-extern Wrapper gSpreadSigma;
+extern Wrapper gSpreadDirectionCount;
+extern Wrapper gSpreadDistance;
+extern Wrapper gSpreadRingCount;
+extern Wrapper gSpreadJitter;
 extern Wrapper gSpreadDecay;
+extern Wrapper gSpreadPassCount;
 
 // Water skybox
 extern Wrapper gLightingWaterSkyboxSunBias;

@@ -53,12 +53,20 @@ void main()
 #if 1 // defined(ENABLE_DIRECTIONAL_DEPOSIT)
 	// Calculate EWNS directional weights from world-space direction (interpolated varyings)
 	vec2 f2WorldDir = f2InWorldPosition - f2InWorldCenter;
-	vec2 f2AbsDir = abs(f2WorldDir);
-	float fMaxDist = max(f2AbsDir.x, f2AbsDir.y);
-	vec2 f2NormDir = fMaxDist > 0.0f ? f2WorldDir / fMaxDist : vec2(0.0f);
-	vec4 f4Direction = vec4(max(f2NormDir.x, 0.0f), max(-f2NormDir.x, 0.0f), max(f2NormDir.y, 0.0f), max(-f2NormDir.y, 0.0f));
+	float fDist = length(f2WorldDir);
+	vec2 f2NormDir = fDist > 0.0f ? f2WorldDir / fDist : vec2(0.0f);
+#if 1 // Omnidirectional: equal deposit, spread handles directionality
+	vec4 f4Direction = vec4(0.25f);
+#elif 0 // Cosine-lobe: smooth cos^2 falloff at axis boundaries
+	vec4 f4Direction = vec4(f2NormDir.x * f2NormDir.x * step(0.0f, f2NormDir.x),
+	                        f2NormDir.x * f2NormDir.x * step(0.0f, -f2NormDir.x),
+	                        f2NormDir.y * f2NormDir.y * step(0.0f, -f2NormDir.y),
+	                        f2NormDir.y * f2NormDir.y * step(0.0f, f2NormDir.y));
+#else // Hard clamp: binary split at EWNS axes
+	vec4 f4Direction = vec4(max(f2NormDir.x, 0.0f), max(-f2NormDir.x, 0.0f), max(-f2NormDir.y, 0.0f), max(f2NormDir.y, 0.0f));
+#endif
 
-	// Energy normalization: blend between Chebyshev (sum varies) and normalized (sum = 1)
+	// Energy normalization: blend between Euclidean (sum varies) and normalized (sum = 1)
 	float fDirSum = f4Direction.x + f4Direction.y + f4Direction.z + f4Direction.w;
 	if (fDirSum > 0.0f)
 		f4Direction = mix(f4Direction, f4Direction / fDirSum, globalLayout.fDepositEnergyNormalize);
@@ -66,14 +74,10 @@ void main()
 	vec4 f4Direction = vec4(0.25f);
 #endif
 
-	// Rectangular falloff: full intensity in interior, fades to zero at quad edges
-	vec2 f2Edge = abs(f2InTexcoord - vec2(0.5f)) * 2.0f;
-	float fFalloff = (1.0f - smoothstep(0.5f, 1.0f, f2Edge.x)) * (1.0f - smoothstep(0.5f, 1.0f, f2Edge.y));
-
-	if (fAlpha * fFalloff < 0.001f)
+	if (fAlpha < 0.001f)
 		discard;
 
-	vec4 f4Base = f4Direction * (f4InParams.y * fAlpha * fFalloff);
+	vec4 f4Base = f4Direction * (f4InParams.y * fAlpha);
 	f4OutColorRed = f4Base * (f4Color.r * f4Texture.r);
 	f4OutColorGreen = f4Base * (f4Color.g * f4Texture.g);
 	f4OutColorBlue = f4Base * (f4Color.b * f4Texture.b);

@@ -14,18 +14,29 @@ void RenderTargetTextures::DestroyLightingTextures()
 {
 	miDebugTextureCount = 0;
 
-	for (int64_t iPass = 0; iPass < shaders::kiMaxLightingSpreadPasses; ++iPass)
+	for (int64_t i = 0; i < 3; ++i)
 	{
-		for (int64_t i = 0; i < 3; ++i)
+		mpCombineTextures[i].Destroy();
+	}
+
+	for (int64_t iPass = 0; iPass < shaders::kiMaxSpreadPasses; ++iPass)
+	{
+		for (int64_t iColor = 0; iColor < 3; ++iColor)
 		{
-			mpSpreadTextures[iPass][i].Destroy();
+			mpSpreadTextures[iPass][iColor].Destroy();
+		}
+
+		if (mpSpreadVkFramebuffers[iPass] != VK_NULL_HANDLE)
+		{
+			vkDestroyFramebuffer(gpDeviceManager->mVkDevice, mpSpreadVkFramebuffers[iPass], nullptr);
+			mpSpreadVkFramebuffers[iPass] = VK_NULL_HANDLE;
 		}
 	}
 
-	for (int64_t i = 0; i < 3; ++i)
+	if (mSpreadVkRenderPass != VK_NULL_HANDLE)
 	{
-		mpAccumulateTextures[i].Destroy();
-		mpCombineTextures[i].Destroy();
+		vkDestroyRenderPass(gpDeviceManager->mVkDevice, mSpreadVkRenderPass, nullptr);
+		mSpreadVkRenderPass = VK_NULL_HANDLE;
 	}
 
 	if (mLightingVkFramebuffer != VK_NULL_HANDLE)
@@ -165,30 +176,25 @@ void RenderTargetTextures::CreateLightingTextures()
 	CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &mLightingVkFramebuffer));
 	VkName(VK_OBJECT_TYPE_FRAMEBUFFER, mLightingVkFramebuffer, "LightingMRT");
 
-	// Create spread textures: first spread has its own size, remaining spreads share a single size
-	float fFirstSpreadMult = gFirstSpreadTextureMultiplier.Get();
+	// Create spread textures (MRT color attachments, one set per pass)
 	float fSpreadMult = gSpreadTextureMultiplier.Get();
-	int64_t iPassCount = static_cast<int64_t>(gLightingSpreadPassCount.Get());
 	static constexpr std::string_view pColorNames[3] {"Red", "Green", "Blue"};
-	auto [iFirstSpreadX, iFirstSpreadY] = TextureManager::DetailTextureSize(fFirstSpreadMult);
 	auto [iSpreadX, iSpreadY] = TextureManager::DetailTextureSize(fSpreadMult);
-	for (int64_t iPass = 0; iPass < shaders::kiMaxLightingSpreadPasses; ++iPass)
+	for (int64_t iPass = 0; iPass < shaders::kiMaxSpreadPasses; ++iPass)
 	{
-		int64_t iPassWidth = iPass == 0 ? iFirstSpreadX : iSpreadX;
-		int64_t iPassHeight = iPass == 0 ? iFirstSpreadY : iSpreadY;
-		for (int64_t i = 0; i < 3; ++i)
+		for (int64_t iColor = 0; iColor < 3; ++iColor)
 		{
-			mpSpreadTextures[iPass][i].Create(TextureInfo
+			mpSpreadTextures[iPass][iColor].Create(TextureInfo
 			{
 				.textureFlags = {},
-				.name = std::format("Spread{}{}", pColorNames[i], iPass),
+				.name = std::format("Spread{}_{}", pColorNames[iColor], iPass),
 				.flags = 0,
 				.format = VK_FORMAT_R16G16B16A16_SFLOAT,
-				.extent = VkExtent3D {static_cast<uint32_t>(iPassWidth), static_cast<uint32_t>(iPassHeight), 1},
+				.extent = VkExtent3D {static_cast<uint32_t>(iSpreadX), static_cast<uint32_t>(iSpreadY), 1},
 				.mipLevels = 1,
 				.arrayLayers = 1,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
-				.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+				.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 				.viewType = VK_IMAGE_VIEW_TYPE_2D,
 				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 				.eTextureLayout = kShaderReadOnly,
@@ -196,27 +202,51 @@ void RenderTargetTextures::CreateLightingTextures()
 		}
 	}
 
-	// Accumulate and combine use the first spread (highest spread) resolution
-
-	// Create accumulate textures (final summed output)
-	static constexpr std::string_view pAccumulateNames[3] {"AccumulateRed", "AccumulateGreen", "AccumulateBlue"};
-	for (int64_t i = 0; i < 3; ++i)
+	// Create spread MRT render pass (3 color attachments → spread textures)
+	// Reuse the same attachment/subpass pattern as deposit MRT but with fragment→fragment+compute dependency
+	VkSubpassDependency vkSpreadSubpassDependency
 	{
-		mpAccumulateTextures[i].Create(TextureInfo
+		.srcSubpass = 0,
+		.dstSubpass = VK_SUBPASS_EXTERNAL,
+		.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+		.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+		.dependencyFlags = 0,
+	};
+	VkRenderPassCreateInfo vkSpreadRenderPassCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.attachmentCount = 3,
+		.pAttachments = pVkAttachmentDescriptions,
+		.subpassCount = 1,
+		.pSubpasses = &vkSubpassDescription,
+		.dependencyCount = 1,
+		.pDependencies = &vkSpreadSubpassDependency,
+	};
+	CHECK_VK(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkSpreadRenderPassCreateInfo, nullptr, &mSpreadVkRenderPass));
+	VkName(VK_OBJECT_TYPE_RENDER_PASS, mSpreadVkRenderPass, "SpreadMRT");
+
+	// Create spread framebuffers (one per spread pass, each binding its 3 spread textures)
+	for (int64_t iPass = 0; iPass < shaders::kiMaxSpreadPasses; ++iPass)
+	{
+		VkImageView pSpreadImageViews[3] {mpSpreadTextures[iPass][0].mVkImageView, mpSpreadTextures[iPass][1].mVkImageView, mpSpreadTextures[iPass][2].mVkImageView};
+		VkFramebufferCreateInfo vkSpreadFramebufferCreateInfo
 		{
-			.textureFlags = {},
-			.name = pAccumulateNames[i],
+			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+			.pNext = nullptr,
 			.flags = 0,
-			.format = VK_FORMAT_R16G16B16A16_SFLOAT,
-			.extent = VkExtent3D {static_cast<uint32_t>(iSpreadX), static_cast<uint32_t>(iSpreadY), 1},
-			.mipLevels = 1,
-			.arrayLayers = 1,
-			.samples = VK_SAMPLE_COUNT_1_BIT,
-			.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-			.viewType = VK_IMAGE_VIEW_TYPE_2D,
-			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			.eTextureLayout = kShaderReadOnly,
-		});
+			.renderPass = mSpreadVkRenderPass,
+			.attachmentCount = 3,
+			.pAttachments = pSpreadImageViews,
+			.width = static_cast<uint32_t>(iSpreadX),
+			.height = static_cast<uint32_t>(iSpreadY),
+			.layers = 1,
+		};
+		CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkSpreadFramebufferCreateInfo, nullptr, &mpSpreadVkFramebuffers[iPass]));
+		VkName(VK_OBJECT_TYPE_FRAMEBUFFER, mpSpreadVkFramebuffers[iPass], std::format("SpreadMRT_{}", iPass));
 	}
 
 	// Create combine textures (UNORM tone-mapped output)
@@ -246,22 +276,17 @@ void RenderTargetTextures::CreateLightingTextures()
 		mppLightingFinalTextures[i] = &mpCombineTextures[i];
 	}
 
-	// Debug textures: combine red (stable index 0), deposit red, spread[0..N-1] red
+	// Debug textures: combine red, deposit red, then spread pass 0..N red
 	mppDebugTextures[0] = &mpCombineTextures[0];
 	mpDebugTextureFormats[0] = shaders::kiDebugTextureFormatUnormLightingDirectional;
 	mppDebugTextures[1] = &mpLightingTextures[0];
 	mpDebugTextureFormats[1] = shaders::kiDebugTextureFormatFloat16LightingDirectional;
-	for (int64_t iPass = 0; iPass < iPassCount; ++iPass)
+	for (int64_t i = 0; i < shaders::kiMaxSpreadPasses; ++i)
 	{
-		mppDebugTextures[2 + iPass] = &mpSpreadTextures[iPass][0];
-		mpDebugTextureFormats[2 + iPass] = shaders::kiDebugTextureFormatFloat16LightingDirectional;
+		mppDebugTextures[2 + i] = &mpSpreadTextures[i][0];
+		mpDebugTextureFormats[2 + i] = shaders::kiDebugTextureFormatFloat16LightingDirectional;
 	}
-	miDebugTextureCount = 2 + iPassCount;
-	for (int64_t i = miDebugTextureCount; i < shaders::kiMaxDebugTextures; ++i)
-	{
-		mppDebugTextures[i] = &mpLightingTextures[0];
-		mpDebugTextureFormats[i] = shaders::kiDebugTextureFormatFloat16LightingDirectional;
-	}
+	miDebugTextureCount = 2 + shaders::kiMaxSpreadPasses;
 }
 
 } // namespace engine

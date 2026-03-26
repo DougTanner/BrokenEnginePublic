@@ -35,9 +35,11 @@ struct RenderTargetTextures
 	VkRenderPass mLightingVkRenderPass = VK_NULL_HANDLE;
 	VkFramebuffer mLightingVkFramebuffer = VK_NULL_HANDLE;
 
-	// Individual spread textures [pass][color R/G/B]
-	Texture mpSpreadTextures[shaders::kiMaxLightingSpreadPasses][3];
-	Texture mpAccumulateTextures[3];
+	// Spread output textures [pass][color R/G/B]
+	Texture mpSpreadTextures[shaders::kiMaxSpreadPasses][3];
+	VkRenderPass mSpreadVkRenderPass = VK_NULL_HANDLE;
+	VkFramebuffer mpSpreadVkFramebuffers[shaders::kiMaxSpreadPasses] {};
+
 	Texture mpCombineTextures[3];
 	Texture* mppLightingFinalTextures[3] {};
 

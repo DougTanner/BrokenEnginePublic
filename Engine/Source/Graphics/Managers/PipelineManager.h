@@ -72,14 +72,8 @@ public:
 
 	Pipeline mpPipelines[kPipelineCount];
 
-	// Occupancy dilation pipeline (grows existing occupancy)
-	Pipeline mOccupancyDilatePipeline;
-
-	// Spread pipelines [pass][color]: source → spread[pass]
-	Pipeline mSpreadPipelines[shaders::kiMaxLightingSpreadPasses][3];
-
-	// Accumulate pipeline (all 3 colors in one dispatch)
-	Pipeline mAccumulatePipeline;
+	// Spread pipelines [pass]: radial directional spread, fragment shader with MRT
+	Pipeline mSpreadPipelines[shaders::kiMaxSpreadPasses];
 
 	// Combine pipeline (tone map accumulate → UNORM, all 3 colors in one dispatch)
 	Pipeline mCombinePipeline;

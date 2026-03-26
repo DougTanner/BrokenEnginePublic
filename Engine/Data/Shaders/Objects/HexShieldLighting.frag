@@ -52,7 +52,7 @@ void main()
 
 	// Lighting direction
 	vec2 f2Direction = normalize(f3InCenterNormal.xy);
-	vec4 f4Direction = vec4(f2Direction.x > 0.0f ? f2Direction.x : 0.0f, f2Direction.x < 0.0f ? -f2Direction.x : 0.0f, f2Direction.y > 0.0f ? f2Direction.y : 0.0f, f2Direction.y < 0.0f ? -f2Direction.y : 0.0f);
+	vec4 f4Direction = vec4(f2Direction.x > 0.0f ? f2Direction.x : 0.0f, f2Direction.x < 0.0f ? -f2Direction.x : 0.0f, f2Direction.y < 0.0f ? -f2Direction.y : 0.0f, f2Direction.y > 0.0f ? f2Direction.y : 0.0f);
 
 	// Compute all color channels simultaneously
 	f4OutColorRed = pHexShields[i].fLightingIntensity * fDirection * pHexShields[i].f4LightingColor.r * f4Direction;

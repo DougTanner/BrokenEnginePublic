@@ -6,7 +6,11 @@ Loads all SPIR-V shader modules from pack chunks at construction and creates all
 
 ## Static Pipelines
 
-Indexed by `Pipelines` enum, covering shadows, terrain, water, particles, smoke, wind, lighting compute (scatter, accumulate, normalize, occupancy dilate), UI, and a debug texture visualization pipeline (debug builds only, gated on `kbEnableDebugInput`). Smoke and wind spread pipelines are compute pipelines; smoke clear pipelines (`kPipelineSmokeClearA`/`kPipelineSmokeClearB`) remain fragment-shader render-pass pipelines. Wind pipelines include `kPipelineWindOccupancyDilateA`/`B` (compact pass) and `kPipelineWindSpreadComputeA`/`B` (spread pass).
+Indexed by `Pipelines` enum, covering shadows, terrain, water, particles, smoke, wind, and a debug texture visualization pipeline (debug builds only, gated on `kbEnableDebugInput`). Smoke and wind spread pipelines are compute pipelines; smoke clear pipelines (`kPipelineSmokeClearA`/`kPipelineSmokeClearB`) remain fragment-shader render-pass pipelines. Wind pipelines include `kPipelineWindOccupancyDilateA`/`B` (compact pass) and `kPipelineWindSpreadComputeA`/`B` (spread pass).
+
+## Lighting Pipelines
+
+Lighting pipelines are stored as named members rather than in the `Pipelines` enum: an array of spread pipelines (fragment MRT, one per spread pass, each writing all three spread textures), and a combine pipeline (compute, tone maps all three channels in one dispatch, reading from all spread pass outputs).
 
 ## Dynamic Pipelines (`mDynamicPipelines`)
 

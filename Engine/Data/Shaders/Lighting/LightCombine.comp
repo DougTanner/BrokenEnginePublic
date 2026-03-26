@@ -9,9 +9,9 @@ layout (binding = 0) uniform globalUniform
 	GlobalLayout globalLayout;
 };
 
-layout (binding = 1) uniform sampler2D sourceR;
-layout (binding = 2) uniform sampler2D sourceG;
-layout (binding = 3) uniform sampler2D sourceB;
+layout (binding = 1) uniform sampler2D sourcesR[kiMaxSpreadPasses];
+layout (binding = 2) uniform sampler2D sourcesG[kiMaxSpreadPasses];
+layout (binding = 3) uniform sampler2D sourcesB[kiMaxSpreadPasses];
 layout (binding = 4, rgba8) uniform writeonly image2D combineImageR;
 layout (binding = 5, rgba8) uniform writeonly image2D combineImageG;
 layout (binding = 6, rgba8) uniform writeonly image2D combineImageB;
@@ -35,19 +35,31 @@ void main()
 	float fExposure = globalLayout.fCombineExposure;
 	float fLinearClamp = globalLayout.fCombineLinearClamp;
 	vec4 f4Power = vec4(globalLayout.fCombinePower);
+	uint uiPassCount = uint(globalLayout.fSpreadPassCount);
+
+	// Sum all spread pass outputs
+	vec4 f4R = vec4(0.0f);
+	vec4 f4G = vec4(0.0f);
+	vec4 f4B = vec4(0.0f);
+	for (uint i = 0; i < uiPassCount; ++i)
+	{
+		f4R += texture(sourcesR[i], f2Uv);
+		f4G += texture(sourcesG[i], f2Uv);
+		f4B += texture(sourcesB[i], f2Uv);
+	}
 
 	// Red
-	vec4 f4R = texture(sourceR, f2Uv) * fExposure;
+	f4R *= fExposure;
 	f4R = mix(f4R / (vec4(1.0f) + f4R), clamp(f4R, vec4(0.0f), vec4(1.0f)), fLinearClamp);
 	imageStore(combineImageR, i2Coord, pow(f4R, f4Power));
 
 	// Green
-	vec4 f4G = texture(sourceG, f2Uv) * fExposure;
+	f4G *= fExposure;
 	f4G = mix(f4G / (vec4(1.0f) + f4G), clamp(f4G, vec4(0.0f), vec4(1.0f)), fLinearClamp);
 	imageStore(combineImageG, i2Coord, pow(f4G, f4Power));
 
 	// Blue
-	vec4 f4B = texture(sourceB, f2Uv) * fExposure;
+	f4B *= fExposure;
 	f4B = mix(f4B / (vec4(1.0f) + f4B), clamp(f4B, vec4(0.0f), vec4(1.0f)), fLinearClamp);
 	imageStore(combineImageB, i2Coord, pow(f4B, f4Power));
 }

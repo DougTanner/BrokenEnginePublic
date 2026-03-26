@@ -319,8 +319,7 @@ void Graphics::Refresh()
 	}
 
 	auto [bDebugTexture, bPreviousDebugTexture, bDebugTextureChanged] = gDebugTexture.Changed<bool>();
-	auto [fOccupancyDilation, fOccupancyDilationPrevious, bOccupancyDilationChanged] = gLightOccupancyDilation.Changed<float>();
-	if (bDebugTextureChanged || bOccupancyDilationChanged) [[unlikely]]
+	if (bDebugTextureChanged) [[unlikely]]
 	{
 		meDestroyType = std::max(DestroyType::kCommandBuffers, meDestroyType);
 	}
@@ -336,10 +335,9 @@ void Graphics::Refresh()
 	}
 
 	auto [fLightingMultiplier, fLightingMultiplierPrevious, bLightingMultiplierChanged] = gLightingDepositTextureMultiplier.Changed<float>();
-	auto [fFirstSpreadMult, fFirstSpreadMultPrev, bFirstSpreadMultChanged] = gFirstSpreadTextureMultiplier.Changed<float>();
-	auto [fSpreadMult, fSpreadMultPrev, bSpreadMultChanged] = gSpreadTextureMultiplier.Changed<float>();
-	auto [fLightingSpreadPassCount, fLightingSpreadPassCountPrevious, bLightingSpreadPassCountChanged] = gLightingSpreadPassCount.Changed<float>();
-	if ((bLightingMultiplierChanged || bFirstSpreadMultChanged || bSpreadMultChanged || bLightingSpreadPassCountChanged) && gpTextureManager != nullptr) [[unlikely]]
+	auto [fSpreadMult, fSpreadMultPrevious, bSpreadMultChanged] = gSpreadTextureMultiplier.Changed<float>();
+	auto [fSpreadPassCount, fSpreadPassCountPrevious, bSpreadPassCountChanged] = gSpreadPassCount.Changed<float>();
+	if ((bLightingMultiplierChanged || bSpreadMultChanged || bSpreadPassCountChanged) && gpTextureManager != nullptr) [[unlikely]]
 	{
 		mDestroyFlags.Set(DestroyFlags::kLightingTextures);
 
@@ -470,10 +468,10 @@ void Graphics::RecreateResources()
 
 		TerrainTextureRecreateDesc pTerrainDescs[]
 		{
-			{DestroyFlags::kTerrainElevation, gTerrainElevationTextureMultiplier, gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
-			{DestroyFlags::kTerrainColor, gTerrainColorTextureMultiplier, gpTextureManager->mRenderTargetTextures.mTerrainColorTexture},
-			{DestroyFlags::kTerrainNormal, gTerrainNormalTextureMultiplier, gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture},
-			{DestroyFlags::kTerrainAO, gTerrainAmbientOcclusionTextureMultiplier, gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture},
+			{.eFlag = DestroyFlags::kTerrainElevation, .rMultiplierCvar = gTerrainElevationTextureMultiplier, .rTexture = gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
+			{.eFlag = DestroyFlags::kTerrainColor, .rMultiplierCvar = gTerrainColorTextureMultiplier, .rTexture = gpTextureManager->mRenderTargetTextures.mTerrainColorTexture},
+			{.eFlag = DestroyFlags::kTerrainNormal, .rMultiplierCvar = gTerrainNormalTextureMultiplier, .rTexture = gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture},
+			{.eFlag = DestroyFlags::kTerrainAO, .rMultiplierCvar = gTerrainAmbientOcclusionTextureMultiplier, .rTexture = gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture},
 		};
 
 		for (const TerrainTextureRecreateDesc& rDesc : pTerrainDescs)

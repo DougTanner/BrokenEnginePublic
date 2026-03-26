@@ -26,11 +26,17 @@ void main()
 
 	if (iFormat == kiDebugTextureFormatFloat16LightingDirectional)
 	{
-		// Float16 EWNS: Reinhard on total intensity, directional hue
-		float fTotal = f4Sample.r + f4Sample.g + f4Sample.b + f4Sample.a;
-		float fIntensity = min(fTotal / 100.0f, 1.0f);
-		float fEastWest = fTotal > 0.0f ? (f4Sample.r - f4Sample.g) / fTotal * 0.5f + 0.5f : 0.0f;
-		float fNorthSouth = fTotal > 0.0f ? (f4Sample.a - f4Sample.b) / fTotal * 0.5f + 0.5f : 0.0f;
+		// Float16 EWNS: Same tone mapping as LightCombine.comp
+		float fExposure = globalLayout.fCombineExposure;
+		float fLinearClamp = globalLayout.fCombineLinearClamp;
+		float fPower = globalLayout.fCombinePower;
+		vec4 f4Scaled = f4Sample * fExposure;
+		f4Scaled = mix(f4Scaled / (vec4(1.0f) + f4Scaled), clamp(f4Scaled, vec4(0.0f), vec4(1.0f)), fLinearClamp);
+		f4Scaled = pow(f4Scaled, vec4(fPower));
+		float fTotal = f4Scaled.r + f4Scaled.g + f4Scaled.b + f4Scaled.a;
+		float fIntensity = min(fTotal, 1.0f);
+		float fEastWest = fTotal > 0.0f ? (f4Scaled.r - f4Scaled.g) / fTotal * 0.5f + 0.5f : 0.0f;
+		float fNorthSouth = fTotal > 0.0f ? (f4Scaled.a - f4Scaled.b) / fTotal * 0.5f + 0.5f : 0.0f;
 		f4OutColor = vec4(fEastWest * fIntensity, fNorthSouth * fIntensity, 0.0f, 1.0f);
 	}
 	else if (iFormat == kiDebugTextureFormatUnormLightingDirectional)

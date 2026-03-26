@@ -32,7 +32,6 @@ namespace shaders
 inline constexpr VkFormat keElevationFormat = VK_FORMAT_R16_SFLOAT;
 
 inline constexpr VkFormat keLightingFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-inline constexpr VkFormat keLightingSpreadFormat = VK_FORMAT_R32_SFLOAT;
 
 inline constexpr VkFormat keSmokeFormat = VK_FORMAT_R32_SFLOAT;
 inline constexpr VkFormat keWindFormat = VK_FORMAT_R16G16_SFLOAT;
@@ -121,8 +120,8 @@ CONSTEXPR int kiBillboardTexturesCount = 3;
 
 CONSTEXPR int kiMaxIslands = 64;
 
-CONSTEXPR int kiMaxLightingSpreadPasses = 8;
-CONSTEXPR int kiMaxDebugTextures = 16;
+CONSTEXPR int kiMaxSpreadPasses = 32;
+CONSTEXPR int kiMaxDebugTextures = 2 + kiMaxSpreadPasses;
 
 CONSTEXPR int kiDebugTextureFormatFloat16LightingDirectional = 0;
 CONSTEXPR int kiDebugTextureFormatUnormLightingDirectional = 1;
@@ -221,27 +220,22 @@ struct GlobalLayout
 	float fDepositEnergyNormalize INIT;
 	float fLightingTerrain INIT;
 	float fLightingObjects INIT;
-	float fPointLightCoreRadius INIT;
+
 	float fLightingAddTerrain INIT;
 	float fCombineLinearClamp INIT;
 	float fSpreadDirectionality INIT;
 	vec4 f4LightingArea INIT;
-
-	// First spread
-	float fFirstSpreadKernelWorld INIT;
-	float fFirstSpreadKernelSize INIT;
-	float fFirstSpreadSigma INIT;
-	float fFirstSpreadDecay INIT;
-	float fLightSpreadTerrainCutoff INIT;
 	uint32_t uiLightTilesX INIT;
 	uint32_t uiLightTilesY INIT;
-	float fLightSpreadPadOne INIT;
 
-	// Spread
-	float fSpreadKernelWorld INIT;
-	float fSpreadKernelSize INIT;
-	float fSpreadSigma INIT;
+	// Spread (radial directional spread)
+	float fSpreadDirectionCount INIT;
+	float fSpreadDistance INIT;
+	float fSpreadRingCount INIT;
+	float fSpreadJitter INIT;
 	float fSpreadDecay INIT;
+	float fSpreadPassCount INIT;
+	float pfSpreadRingRotations[8] INIT;
 
 	// Shadow
 	float fShadowWidthScale INIT;

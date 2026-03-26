@@ -12,12 +12,13 @@ GLSL shader source files for the Vulkan 1.2 rendering pipeline, compiled to SPIR
 
 ## Architecture Notes
 
+- **Scalar block layout**: All uniform and storage buffers use `GL_EXT_scalar_block_layout` with a global `layout(scalar) uniform;` directive in `ShaderLayoutsBase.h`. This means struct members are tightly packed with C++ alignment rules (no std140 padding). The DataPacker also passes `--scalar-block-layout` to spirv-opt. Plain `float[]` arrays in uniform buffers are 4-byte stride, not 16-byte
 - **Dual-language headers**: `ShaderLayoutsBase.h` preprocessor-switches between DirectXMath (C++) and GLSL vec types, keeping CPU/GPU struct layouts in sync
 - **Bindless textures**: Unsized `texture2D[]` arrays with separate samplers and `nonuniformEXT()` dynamic indexing
 - **Multi-set descriptors**: Set 0 = global (UBOs, samplers, bindless textures), Set 1 = per-pipeline (SSBOs, combined image samplers), Set 2 = per-material (models only)
 - **Rendering modes via push constants**: Vertex shaders support camera/visible-area/shadow projection modes without separate permutations
 - **Four-channel directional lighting**: RGB stored as separate render targets with EWNS directional weights; direction weights are computed once per call in `Lighting`/`SpecularLighting` using component extraction and applied across all three color channels in a single pass
-- **World-space directional deposit**: Area light fragment shaders receive interpolated world position and world center varyings from the vertex shader; EWNS direction weights are derived from world-space offset rather than texcoord-space offset
+- **World-space directional deposit**: Area light fragment shaders receive interpolated world position and world center varyings from the vertex shader; EWNS direction weights are derived from world-space offset. Both area and point deposit shaders support a tunable blend between Euclidean and sum-normalized energy distribution via a global uniform
 
 ## Known Issues
 
@@ -25,7 +26,7 @@ GLSL shader source files for the Vulkan 1.2 rendering pipeline, compiled to SPIR
 
 ## See Also
 
-- [Lighting/CLAUDE.md](Lighting/CLAUDE.md) - Area, point, and visible light shaders with compute occupancy-dilate, independent spread, and accumulate pipeline
+- [Lighting/CLAUDE.md](Lighting/CLAUDE.md) - Area, point, and visible light shaders with deposit and radial spread pipeline
 - [Quads/CLAUDE.md](Quads/CLAUDE.md) - Quad vertex shaders (visible-area, axis-aligned, fullscreen)
 - [Model/CLAUDE.md](Model/CLAUDE.md) - PBR model rendering shaders
 - [Objects/CLAUDE.md](Objects/CLAUDE.md) - Game object shaders (hex shields, player)
