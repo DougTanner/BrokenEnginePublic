@@ -349,8 +349,9 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 		float fTop = common::RoundDown(f4CameraPos.y + fHeight * 0.5f + fTexelSizeY, fTexelSizeY);
 
 		rGlobalLayout.f4LightingArea = {fLeft, fTop, fLeft + fWidth, fTop - fHeight};
-		rGlobalLayout.uiLightTilesX = static_cast<uint32_t>((iLightingTextureX + 7) / 8);
-		rGlobalLayout.uiLightTilesY = static_cast<uint32_t>((iLightingTextureY + 7) / 8);
+
+		rGlobalLayout.uiLightTilesX = std::max(1u, static_cast<uint32_t>(iLightingTextureX) / shaders::kiComputeTileSize);
+		rGlobalLayout.uiLightTilesY = std::max(1u, static_cast<uint32_t>(iLightingTextureY) / shaders::kiComputeTileSize);
 	}
 	else
 	{
@@ -366,6 +367,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 
 	// Debug
 	rGlobalLayout.fDebugTextureIndex = gDebugTextureIndex.Get();
+	rGlobalLayout.fDebugTextureFormat = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpDebugTextureFormats[static_cast<int64_t>(gDebugTextureIndex.Get())]);
 }
 
 } // namespace engine

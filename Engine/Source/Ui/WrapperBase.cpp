@@ -116,18 +116,6 @@ Wrapper gWaterHeightDarkenBottom(-0.17f, -0.5f, 0.0f);
 Wrapper gWaterHeightDarkenClamp(0.0f, 0.0f, 0.9f);
 
 // Lighting
-Wrapper gLightingBlurTextureMultiplier(0.2f, 1.0f / 64.0f, 1.0f);
-Wrapper gLightingCombineTextureMultiplier(0.2f, 1.0f / 64.0f, 1.0f);
-Wrapper gLightingBlurDownscale(0.8f, 0.5f, 0.9f);
-Wrapper gLightingCombineIndex(0.4f, 0.0f, 10.4f);
-Wrapper gLightingBlurDistance(0.1f, 0.0f, 0.5f);
-Wrapper gLightingBlurDirectionality(0.9f, 0.0f, 1.0f);
-Wrapper gLightingBlurJitter(0.1f, 0.0f, 0.2f);
-Wrapper gLightingBlurFirstDivisor(1400.0f, 200.0f, 4000.0f);
-Wrapper gLightingBlurDivisor(0.24f, 0.0f, 1.0f);
-Wrapper gLightingCombineDecay(0.7f, 0.5f, 1.0f);
-Wrapper gLightingCombinePower(0.5f, 0.1f, 2.0f);
-
 Wrapper gLightingDirectional(4.0f, 0.0f, 6.0f);
 Wrapper gLightingIndirect(0.8f, 0.0f, 2.0f);
 Wrapper gLightingTerrain(0.6f, 0.0f, 2.0f);
@@ -140,17 +128,38 @@ Wrapper gLightingSampledNormalsSizeMod(0.007f, -0.02f, 0.02f);
 Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
 
 Wrapper gLightingTimeOfDayMultiplier(0.5f, 0.0f, 1.0f);
+Wrapper gLightingNewDirectional(0.3f, 0.0f, 4.0f);
+Wrapper gLightingNewAmbient(0.4f, 0.0f, 4.0f);
 
 // Deposit
 Wrapper gLightingDepositTextureMultiplier(0.25f, 1.0f / 64.0f, 1.0f / 1.0f);
 
 // First spread
-Wrapper gFirstSpreadTextureMultiplier(0.2f, 1.0f / 64.0f, 1.0f);
-Wrapper gFirstSpreadKernelWorld(2.0f, 0.1f, 10.0f);
-Wrapper gFirstSpreadKernelSize(64.0f, 2.0f, 128.0f);
-Wrapper gFirstSpreadDecay(6.0f, 0.0f, 10.0f);
-Wrapper gLightOccupancyDilation(3.5f, 0.0f, 16.0f);
+Wrapper gFirstSpreadTextureMultiplier(0.2f, 0.05f, 0.4f);
+Wrapper gFirstSpreadKernelWorld(3.0f, 0.1f, 10.0f);
+Wrapper gFirstSpreadKernelSize(40.0f, 2.0f, 128.0f);
+Wrapper gFirstSpreadSigma(0.5f, 0.1f, 1.0f);
+Wrapper gFirstSpreadDecay(1.0f, 0.0f, 2.0f);
+Wrapper gLightOccupancyDilation(2.0f, 0.0f, 16.0f);
 Wrapper gLightSpreadTerrainCutoff(0.0f, 0.0f, 1.0f);
+
+// Spread
+Wrapper gLightingSpreadPassCount(8.0f, 1.0f, 16.0f);
+Wrapper gSpreadDirectionality(1.0f, 0.0f, 1.0f);
+Wrapper gSpreadTextureMultiplier(0.1f, 0.01f, 0.2f);
+Wrapper gSpreadKernelWorld(40.0f, 0.1f, 50.0f);
+Wrapper gSpreadKernelSize(16.0f, 2.0f, 32.0f);
+Wrapper gSpreadSigma(1.0f, 0.1f, 2.0f);
+Wrapper gSpreadDecay(1.0f, 0.0f, 2.0f);
+
+// Deposit
+Wrapper gDepositEnergyNormalize(0.0f, 0.0f, 1.0f);
+Wrapper gPointLightCoreRadius(0.0f, 0.0f, 0.9f);
+
+// Combine
+Wrapper gCombineExposure(0.2f, 0.01f, 0.4f);
+Wrapper gCombinePower(3.0f, 0.1f, 8.0f);
+Wrapper gCombineLinearClamp(0.0f, 0.0f, 1.0f);
 
 // Water skybox
 Wrapper gLightingWaterSkyboxSunBias(2.6f, 0.0f, 4.0f);
@@ -300,7 +309,7 @@ Wrapper gParticlesWindStrength(2000.0f, 0.0f, 5000.0f);
 
 // Debug
 Wrapper gDebugTexture(false);
-Wrapper gDebugTextureIndex(0.0f, 0.0f, static_cast<float>(shaders::kiMaxLightingBlurCount + 2));
+Wrapper gDebugTextureIndex(0.0f, 0.0f, static_cast<float>(shaders::kiMaxDebugTextures - 1));
 
 // Test
 Wrapper gTestOne(0.0f, -10.0f, 10.0f);

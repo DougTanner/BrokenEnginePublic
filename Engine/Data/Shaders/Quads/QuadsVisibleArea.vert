@@ -27,7 +27,8 @@ layout (location = 0) in vec2 f2InQuadVertex;
 layout (location = 0) out flat int iOutInstanceIndex;
 layout (location = 1) out vec4 f4OutParams;
 layout (location = 2) out vec2 f2OutTexcoord;
-layout (location = 3) out vec2 f2OutQuadPosition;
+layout (location = 4) out vec2 f2OutWorldPosition;
+layout (location = 5) out flat vec2 f2OutWorldCenter;
 
 void main()
 {
@@ -38,8 +39,6 @@ void main()
 	f4OutParams = pQuads[gl_InstanceIndex].pf4Params[iIndex];
 
 	f2OutTexcoord = pQuads[gl_InstanceIndex].pf4VerticesTexcoords[iIndex].zw;
-
-	f2OutQuadPosition = f2InQuadVertex;
 
 	vec4 f4VisibleArea;
 	if (int(pushConstantsLayout.f4Pipeline.x) == 0)
@@ -65,4 +64,10 @@ void main()
 	                    1.0f - 2.0f * (fWorldY - f4VisibleArea.y) / (f4VisibleArea.w - f4VisibleArea.y),
 					   0.0f,
 					   1.0f);
+
+	f2OutWorldPosition = vec2(fWorldX, fWorldY);
+	f2OutWorldCenter = (pQuads[gl_InstanceIndex].pf4VerticesTexcoords[0].xy
+	                  + pQuads[gl_InstanceIndex].pf4VerticesTexcoords[1].xy
+	                  + pQuads[gl_InstanceIndex].pf4VerticesTexcoords[2].xy
+	                  + pQuads[gl_InstanceIndex].pf4VerticesTexcoords[3].xy) * 0.25f;
 }

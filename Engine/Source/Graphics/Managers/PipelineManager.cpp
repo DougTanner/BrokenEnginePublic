@@ -63,7 +63,7 @@ PipelineManager::PipelineManager()
 	gpBufferManager->CreateLightingSpreadBuffers();
 	CreateLightingPipelines();
 	CreatePipelineShadows();
-	CreateLightingShadowDependantPipelines();
+	CreateLightingShadowDependentPipelines();
 
 	if constexpr (kbEnableDebugPrintf)
 	{
@@ -168,10 +168,13 @@ void PipelineManager::CreateLightingPipelines()
 		},
 	});
 
-	// First spread pipelines (deposit -> first spread, uses occupancy)
 	RenderTargetTextures& rTextures = gpTextureManager->mRenderTargetTextures;
-	mLightOccupancyDilatePipeline.Destroy();
-	mLightOccupancyDilatePipeline.Create(
+
+	int64_t iPassCount = static_cast<int64_t>(gLightingSpreadPassCount.Get());
+
+	// Occupancy dilation pipeline (grows existing occupancy bits)
+	mOccupancyDilatePipeline.Destroy();
+	mOccupancyDilatePipeline.Create(
 	{
 		.name = "LightOccupancyDilate",
 		.flags = {kCompute, kPushConstants},
@@ -183,89 +186,98 @@ void PipelineManager::CreateLightingPipelines()
 		},
 	});
 
-	for (int64_t i = 0; i < 3; ++i)
-	{
-		mLightFirstSpreadPipelines[i].Destroy();
-	}
+	// First spread pipelines: source sampler + dest storage image + occupancy buffer
 	for (int64_t iColor = 0; iColor < 3; ++iColor)
 	{
-		mLightFirstSpreadPipelines[iColor].Create(
+		mSpreadPipelines[0][iColor].Destroy();
+		mSpreadPipelines[0][iColor].Create(
 		{
-			.name = "LightFirstSpread",
+			.name = "FirstLightSpread",
 			.flags = {kCompute, kPushConstants},
-			.ppShaders = {&mShaders.at(data::kShadersLightingLightFirstSpreadcompCrc)},
+			.ppShaders = {&mShaders.at(data::kShadersLightingFirstLightSpreadcompCrc)},
 			.pDescriptorInfos =
 			{
 				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mpLightingTextures[iColor]},
-				{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpFirstSpreadTextures[iColor]},
+				{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpSpreadTextures[0][iColor]},
 				{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mLightOccupancyVkBuffers[0]},
-				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mTerrainElevationTexture},
 			},
 		});
 	}
 
-	// Blur MRT pipelines (3 input samplers, 3 MRT outputs per level)
-	// Level 0 reads from first spread; subsequent levels read from previous blur level
-	for (int64_t i = 0; i < rTextures.miLightingBlurCount; ++i)
+	// Subsequent spread pipelines: source sampler + dest storage image (no occupancy)
+	for (int64_t iPass = 1; iPass < iPassCount; ++iPass)
 	{
-		Texture* pRedSource = i == 0 ? &rTextures.mpFirstSpreadTextures[0] : &rTextures.mpRedLightingBlurTextures[i - 1];
-		Texture* pGreenSource = i == 0 ? &rTextures.mpFirstSpreadTextures[1] : &rTextures.mpGreenLightingBlurTextures[i - 1];
-		Texture* pBlueSource = i == 0 ? &rTextures.mpFirstSpreadTextures[2] : &rTextures.mpBlueLightingBlurTextures[i - 1];
-
-		mpLightingBlurPipelines[i].Create(
+		for (int64_t iColor = 0; iColor < 3; ++iColor)
 		{
-			.name = "LightingBlurMRT",
-			.flags = {kRenderTarget, kPushConstants},
-			.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersLightingLightingBlurfragCrc)},
-			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-			.vkRenderPass = rTextures.mpLightingBlurVkRenderPasses[i],
-			.vkExtent3D = rTextures.mpRedLightingBlurTextures[i].mInfo.extent,
-			.iColorAttachmentCount = 3,
-			.pDescriptorInfos =
+			mSpreadPipelines[iPass][iColor].Destroy();
+			mSpreadPipelines[iPass][iColor].Create(
 			{
-				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-				{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = pRedSource},
-				{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = pGreenSource},
-				{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = pBlueSource},
-			},
-		});
+				.name = "LightSpread",
+				.flags = {kCompute, kPushConstants},
+				.ppShaders = {&mShaders.at(data::kShadersLightingLightSpreadcompCrc)},
+				.pDescriptorInfos =
+				{
+					{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+					{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mpSpreadTextures[iPass - 1][iColor]},
+					{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpSpreadTextures[iPass][iColor]},
+				},
+			});
+		}
 	}
 
-	// Per-channel combine pipelines
-	CreateLightingCombinePipeline(kPipelineRedLightingCombine, rTextures.mpRedLightingBlurTextures, 0);
-	CreateLightingCombinePipeline(kPipelineGreenLightingCombine, rTextures.mpGreenLightingBlurTextures, 1);
-	CreateLightingCombinePipeline(kPipelineBlueLightingCombine, rTextures.mpBlueLightingBlurTextures, 2);
-}
+	// Accumulate pipeline (all 3 colors in one dispatch)
+	Texture* pSpreadRedTextures[shaders::kiMaxLightingSpreadPasses] {};
+	Texture* pSpreadGreenTextures[shaders::kiMaxLightingSpreadPasses] {};
+	Texture* pSpreadBlueTextures[shaders::kiMaxLightingSpreadPasses] {};
+	for (int64_t iPass = 0; iPass < iPassCount; ++iPass)
+	{
+		pSpreadRedTextures[iPass] = &rTextures.mpSpreadTextures[iPass][0];
+		pSpreadGreenTextures[iPass] = &rTextures.mpSpreadTextures[iPass][1];
+		pSpreadBlueTextures[iPass] = &rTextures.mpSpreadTextures[iPass][2];
+	}
+	// Pad unused slots with spread[0] so descriptor array entries are valid
+	for (int64_t iPass = iPassCount; iPass < shaders::kiMaxLightingSpreadPasses; ++iPass)
+	{
+		pSpreadRedTextures[iPass] = &rTextures.mpSpreadTextures[0][0];
+		pSpreadGreenTextures[iPass] = &rTextures.mpSpreadTextures[0][1];
+		pSpreadBlueTextures[iPass] = &rTextures.mpSpreadTextures[0][2];
+	}
 
-void PipelineManager::CreateLightingCombinePipeline(Pipelines eCombinePipeline, Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount], int64_t iColorIndex)
-{
-	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
-	Texture* ppLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
-	for (int64_t i = 0; i < iBlurTextureCount; ++i)
+	mAccumulatePipeline.Destroy();
+	mAccumulatePipeline.Create(
 	{
-		ppLightingBlurTextures[i] = &pLightingBlurTextures[iCombineTextureIndex + 1 + i];
-	}
-	for (int64_t i = iBlurTextureCount; i < shaders::kiMaxLightingBlurCount; ++i)
-	{
-		ppLightingBlurTextures[i] = &pLightingBlurTextures[i];
-	}
-	mpPipelines[eCombinePipeline].Create(
-	{
-		.name = "LightingCombine",
-		.flags = {kRenderTarget, kAdd},
-		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersLightingLightingCombinefragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mpLightingCombineTextures[iColorIndex].mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mpLightingCombineTextures[iColorIndex].mInfo.extent,
+		.name = "LightAccumulate",
+		.flags = {kCompute, kPushConstants},
+		.ppShaders = {&mShaders.at(data::kShadersLightingLightAccumulatecompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = std::size(ppLightingBlurTextures), .ppTextures = ppLightingBlurTextures},
-#if defined(ENABLE_COMBINE_FIRST_SPREAD)
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mpFirstSpreadTextures[iColorIndex]},
-#endif
+			{.flags = kCombinedSamplers, .iCount = shaders::kiMaxLightingSpreadPasses, .ppTextures = pSpreadRedTextures},
+			{.flags = kCombinedSamplers, .iCount = shaders::kiMaxLightingSpreadPasses, .ppTextures = pSpreadGreenTextures},
+			{.flags = kCombinedSamplers, .iCount = shaders::kiMaxLightingSpreadPasses, .ppTextures = pSpreadBlueTextures},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpAccumulateTextures[0]},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpAccumulateTextures[1]},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpAccumulateTextures[2]},
+		},
+	});
+
+	// Combine pipeline (tone map accumulate float16 → UNORM, all 3 colors)
+	mCombinePipeline.Destroy();
+	mCombinePipeline.Create(
+	{
+		.name = "LightCombine",
+		.flags = {kCompute, kPushConstants},
+		.ppShaders = {&mShaders.at(data::kShadersLightingLightCombinecompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mpAccumulateTextures[0]},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mpAccumulateTextures[1]},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mpAccumulateTextures[2]},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpCombineTextures[0]},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpCombineTextures[1]},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpCombineTextures[2]},
 		},
 	});
 }
@@ -333,7 +345,7 @@ void PipelineManager::CreatePipelineShadows()
 	}
 }
 
-void PipelineManager::CreateLightingShadowDependantPipelines()
+void PipelineManager::CreateLightingShadowDependentPipelines()
 {
 	// Terrain
 	mpPipelines[kPipelineTerrain].Create(
@@ -730,7 +742,7 @@ void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
 		|| (flags & kTerrainElevation) || (flags & kTerrainColor) || (flags & kTerrainNormal) || (flags & kTerrainAO)
 		|| (flags & kSmokeTextures))
 	{
-		CreateLightingShadowDependantPipelines();
+		CreateLightingShadowDependentPipelines();
 	}
 
 	// Terrain data pipelines (render TO terrain detail textures)

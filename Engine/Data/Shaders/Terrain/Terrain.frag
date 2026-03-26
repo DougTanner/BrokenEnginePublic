@@ -39,6 +39,7 @@ layout (location = 0) out vec4 f4OutColor;
 
 void main()
 {
+#if 0
 	vec3 f3InPosition = vec3
 	(
 		(1.0f - f2InVisibleAreaTexcoord.x) * globalLayout.f4VisibleArea.x + f2InVisibleAreaTexcoord.x * globalLayout.f4VisibleArea.z,
@@ -108,4 +109,40 @@ void main()
 
 	// Additive smoke
 	f4OutColor.xyz = BlendSmoke(f4OutColor.xyz, fSmokePow, pf4Lighting, globalLayout);
+#else
+	vec3 f3InPosition = vec3
+	(
+		(1.0f - f2InVisibleAreaTexcoord.x) * globalLayout.f4VisibleArea.x + f2InVisibleAreaTexcoord.x * globalLayout.f4VisibleArea.z,
+		(1.0f - f2InVisibleAreaTexcoord.y) * globalLayout.f4VisibleArea.y + f2InVisibleAreaTexcoord.y * globalLayout.f4VisibleArea.w,
+		texture(elevationTextureSampler, f2InVisibleAreaTexcoord).x
+	);
+
+	if (f3InPosition.z < globalLayout.fTerrainEarlyOut)
+	{
+		f4OutColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);
+		return;
+	}
+
+	vec3 f3Color = texture(colorTextureSampler, f2InVisibleAreaTexcoord).xyz;
+
+	vec3 f3Normal = texture(normalTextureSampler, f2InVisibleAreaTexcoord).xyz;
+	f3Normal.x = 1.0f - 2.0f * f3Normal.x;
+	f3Normal.y = 1.0f - 2.0f * f3Normal.y;
+	f3Normal = normalize(f3Normal);
+
+	// Directional: sample at world-space x/y position
+	vec2 f2DirectTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4LightingArea);
+	vec4 pf4DirectLighting[3];
+	ReadLighting(pf4DirectLighting, pLightingSamplers, f2DirectTexcoord);
+	vec3 f3Direct = DirectionalLighting2D(pf4DirectLighting, f3Normal, mainLayout.fLightingNewDirectional);
+
+	// Ambient: sample projected to base height toward eye
+	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
+	vec2 f2AmbientTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
+	vec4 pf4AmbientLighting[3];
+	ReadLighting(pf4AmbientLighting, pLightingSamplers, f2AmbientTexcoord);
+	vec3 f3Ambient = AmbientLighting(pf4AmbientLighting, mainLayout.fLightingNewAmbient);
+
+	f4OutColor = vec4(f3Color * (f3Direct + f3Ambient), 1.0f);
+#endif
 }

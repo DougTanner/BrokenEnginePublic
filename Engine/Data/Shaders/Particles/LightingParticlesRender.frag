@@ -22,7 +22,10 @@ layout (scalar, set = 1, binding = 2) buffer readonly particlesUniform
 	ParticlesLayout particles;
 };
 
-layout (set = 1, binding = 3) buffer lightOccupancyBuffer { uint occupancy[]; };
+layout (set = 1, binding = 3) buffer lightOccupancyBuffer
+{
+	uint occupancy[];
+};
 
 layout (set = 0, binding = 12) uniform sampler particleSampler;
 layout (set = 0, binding = 4) uniform texture2D pTextures[];
@@ -51,9 +54,9 @@ void main()
 	f4OutColorGreen = f4Color.g * vec4(0.25f, 0.25f, 0.25f, 0.25f) * fParticleIntensity;
 	f4OutColorBlue = f4Color.b * vec4(0.25f, 0.25f, 0.25f, 0.25f) * fParticleIntensity;
 
-	// Mark occupancy for deposited center tile (dilation done in compute)
-	uint uiTileX = uint(gl_FragCoord.x) / kiComputeTileSize;
-	uint uiTileY = uint(gl_FragCoord.y) / kiComputeTileSize;
+	// Mark occupancy (deposit-texture-space tiles)
+	uint uiTileX = uint(gl_FragCoord.x) / uint(kiComputeTileSize);
+	uint uiTileY = uint(gl_FragCoord.y) / uint(kiComputeTileSize);
 	uint uiTileIndex = uiTileY * globalLayout.uiLightTilesX + uiTileX;
 	atomicOr(occupancy[uiTileIndex >> 5], 1u << (uiTileIndex & 31));
 }

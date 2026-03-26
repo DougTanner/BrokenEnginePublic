@@ -14,24 +14,30 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fLightingDirectional = gLightingDirectional.Get();
 	rGlobalLayout.fLightingIndirect = gLightingIndirect.Get();
 	rGlobalLayout.fLightingObjectsAdd = gLightingObjectsAdd.Get();
-	rGlobalLayout.fLightingCombinePower = gLightingCombinePower.Get();
+	rGlobalLayout.fDepositEnergyNormalize = gDepositEnergyNormalize.Get();
+	rGlobalLayout.fPointLightCoreRadius = gPointLightCoreRadius.Get();
+	rGlobalLayout.fCombineExposure = gCombineExposure.Get();
+	rGlobalLayout.fCombinePower = gCombinePower.Get();
+	rGlobalLayout.fCombineLinearClamp = gCombineLinearClamp.Get();
 
-	rGlobalLayout.fLightingBlurDistance = gLightingBlurDistance.Get();
-	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
-	rGlobalLayout.fLightingBlurTextureCount = static_cast<float>(iBlurTextureCount);
 	rGlobalLayout.fLightingTerrain = gLightingTerrain.Get();
 	rGlobalLayout.fLightingObjects = gLightingObjects.Get();
-	rGlobalLayout.fLightingBlurDirectionality = gLightingBlurDirectionality.Get();
 	rGlobalLayout.fLightingAddTerrain = gLightingAddTerrain.Get();
-	rGlobalLayout.fLightingBlurJitter = gLightingBlurJitter.Get();
-	rGlobalLayout.fLightingCombineDecay = gLightingCombineDecay.Get();
 
 	// First spread
 	rGlobalLayout.fFirstSpreadKernelWorld = gFirstSpreadKernelWorld.Get();
 	rGlobalLayout.fFirstSpreadKernelSize = gFirstSpreadKernelSize.Get();
+	rGlobalLayout.fFirstSpreadSigma = gFirstSpreadSigma.Get();
 	rGlobalLayout.fFirstSpreadDecay = gFirstSpreadDecay.Get();
 	rGlobalLayout.fLightSpreadTerrainCutoff = gLightSpreadTerrainCutoff.Get();
-	rGlobalLayout.uiLightOccupancyDilation = static_cast<uint32_t>(gLightOccupancyDilation.Get());
+
+	// Spread
+	rGlobalLayout.fSpreadDirectionality = gSpreadDirectionality.Get();
+	float fPassCount = std::max(1.0f, gLightingSpreadPassCount.Get() - 1.0f);
+	rGlobalLayout.fSpreadKernelWorld = gSpreadKernelWorld.Get() / fPassCount;
+	rGlobalLayout.fSpreadKernelSize = gSpreadKernelSize.Get();
+	rGlobalLayout.fSpreadSigma = gSpreadSigma.Get();
+	rGlobalLayout.fSpreadDecay = gSpreadDecay.Get();
 }
 
 void RenderLightingMain(int64_t iCommandBuffer)
@@ -71,6 +77,9 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fLightingWaterSpecularTwoPower = gLightingWaterSpecularTwoPower.Get();
 	rMainLayout.fLightingWaterSpecularThree = gLightingWaterSpecularThree.Get();
 	rMainLayout.fLightingWaterSpecularThreePower = gLightingWaterSpecularThreePower.Get();
+
+	rMainLayout.fLightingNewDirectional = gLightingNewDirectional.Get();
+	rMainLayout.fLightingNewAmbient = gLightingNewAmbient.Get();
 
 	// Pbr
 	rMainLayout.fPbrExposure = gPbrExposure.Get();

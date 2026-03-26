@@ -113,25 +113,26 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		// Lighting - Deposit
 		{"Deposit Texture Multiplier", &gLightingDepositTextureMultiplier},
 		// Lighting - First Spread
+		{"Spread Pass Count", &gLightingSpreadPassCount},
 		{"First Spread Texture Multiplier", &gFirstSpreadTextureMultiplier},
 		{"First Spread Kernel World", &gFirstSpreadKernelWorld},
 		{"First Spread Kernel Size", &gFirstSpreadKernelSize},
+		{"First Spread Sigma", &gFirstSpreadSigma},
 		{"First Spread Decay", &gFirstSpreadDecay},
 		{"Occupancy Dilation", &gLightOccupancyDilation},
 		{"Spread Terrain Cutoff", &gLightSpreadTerrainCutoff},
-		// Lighting - Blur
-		{"Blur Texture Multiplier", &gLightingBlurTextureMultiplier},
-		{"Blur Distance", &gLightingBlurDistance},
-		{"Blur Directionality", &gLightingBlurDirectionality},
-		{"Blur Jitter", &gLightingBlurJitter},
-		{"Downscale", &gLightingBlurDownscale},
-		// Lighting - Combine
-		{"Combine Texture Multiplier", &gLightingCombineTextureMultiplier},
-		{"Combine Index", &gLightingCombineIndex},
-		{"Blur First Divisor", &gLightingBlurFirstDivisor},
-		{"Blur Divisor", &gLightingBlurDivisor},
-		{"Combine Decay", &gLightingCombineDecay},
-		{"Combine Power", &gLightingCombinePower},
+		// Lighting - Spread
+		{"Spread Directionality", &gSpreadDirectionality},
+		{"Spread Texture Multiplier", &gSpreadTextureMultiplier},
+		{"Spread Kernel World", &gSpreadKernelWorld},
+		{"Spread Kernel Size", &gSpreadKernelSize},
+		{"Spread Sigma", &gSpreadSigma},
+		{"Spread Decay", &gSpreadDecay},
+		{"Deposit Energy Normalize", &gDepositEnergyNormalize},
+		{"Point Light Core Radius", &gPointLightCoreRadius},
+		{"Combine Exposure", &gCombineExposure},
+		{"Combine Power", &gCombinePower},
+		{"Combine Linear Clamp", &gCombineLinearClamp},
 		// Lighting - Directional
 		{"Directional", &gLightingDirectional},
 		{"Indirect", &gLightingIndirect},
@@ -140,6 +141,8 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Objects", &gLightingObjects},
 		{"Objects Add", &gLightingObjectsAdd},
 		{"Time of Day Multiplier", &gLightingTimeOfDayMultiplier},
+		{"New Directional", &gLightingNewDirectional},
+		{"New Ambient", &gLightingNewAmbient},
 		// Water Lighting - Specular
 		{"Specular Normal Soften", &gLightingWaterSpecularNormalSoften},
 		{"Specular Normal Blend Wave", &gLightingWaterSpecularNormalBlendWave},

@@ -19,6 +19,7 @@ layout (push_constant) uniform PushConstants
 {
 	uint uiTilesX;
 	uint uiTilesY;
+	uint uiOccupancyDilation;
 };
 
 void main()
@@ -28,15 +29,16 @@ void main()
 	if (uiTileIndex >= uiTotalTiles)
 		return;
 
-	// Only dilate tiles that were marked by fragment shaders
-	if ((occupancy[uiTileIndex >> 5] & (1u << (uiTileIndex & 31))) == 0)
+	// Check if this tile is already occupied
+	if ((occupancy[uiTileIndex >> 5] & (1u << (uiTileIndex & 31))) == 0u)
 		return;
 
 	uint uiTileY = uiTileIndex / uiTilesX;
 	uint uiTileX = uiTileIndex - uiTileY * uiTilesX;
-	int iRadius = int(globalLayout.uiLightOccupancyDilation);
 
-	// Dilate: mark all neighbors within radius
+	int iRadius = int(uiOccupancyDilation);
+
+	// Grow: mark all neighbors within radius
 	for (int iDy = -iRadius; iDy <= iRadius; ++iDy)
 	{
 		for (int iDx = -iRadius; iDx <= iRadius; ++iDx)

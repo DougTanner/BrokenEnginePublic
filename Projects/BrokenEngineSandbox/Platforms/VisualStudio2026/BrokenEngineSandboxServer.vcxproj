@@ -610,9 +610,10 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <None Include="..\..\..\..\Engine\Data\Shaders\Particles\ParticlesUpdate.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\PointLight.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightOccupancyDilate.comp" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightFirstSpread.comp" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingBlur.frag" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingCombine.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\FirstLightSpread.comp" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightSpread.comp" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightAccumulate.comp" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightCombine.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Log.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Objects\Objects.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Objects\ObjectShadows.frag" />

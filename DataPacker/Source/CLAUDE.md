@@ -5,7 +5,7 @@ Asset preprocessing tool that converts raw assets (textures, models, shaders, au
 ## Architecture
 
 ### Main.cpp - Entry Point & Orchestration
-Coordinates the asset processing pipeline through six phases:
+Enforces single-instance execution at startup (prevents concurrent runs), then coordinates the asset processing pipeline through six phases:
 1. Pre-export phase (Scene, Islands) -- generates intermediate assets consumed by later phases (Scene produces `.MODEL` files and extracted textures for Model/Texture export; Islands produces GPU textures for Texture export)
 2. Irradiance cubemap generation -- offline diffuse IBL convolution
 3. Pre-filtered cubemap generation -- offline specular IBL prefiltering

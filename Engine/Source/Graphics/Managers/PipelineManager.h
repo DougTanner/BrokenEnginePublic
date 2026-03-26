@@ -20,9 +20,6 @@ enum Pipelines
 
 	kPipelineLongParticlesLighting,
 	kPipelineSquareParticlesLighting,
-	kPipelineRedLightingCombine,
-	kPipelineGreenLightingCombine,
-	kPipelineBlueLightingCombine,
 	kPipelineTerrainElevation,
 	kPipelineTerrainColor,
 	kPipelineTerrainNormal,
@@ -65,10 +62,9 @@ public:
 
 	std::unordered_map<common::crc_t, Shader> mShaders;
 
-	void CreateLightingCombinePipeline(Pipelines eCombinePipeline, Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount], int64_t iColorIndex);
 	void CreateLightingPipelines();
 	void CreatePipelineShadows();
-	void CreateLightingShadowDependantPipelines();
+	void CreateLightingShadowDependentPipelines();
 	void CreateTerrainDataPipelines();
 	void CreateSmokeWindPipelines();
 	void CreateParticlePipelines();
@@ -76,11 +72,17 @@ public:
 
 	Pipeline mpPipelines[kPipelineCount];
 
-	Pipeline mpLightingBlurPipelines[shaders::kiMaxLightingBlurCount];
+	// Occupancy dilation pipeline (grows existing occupancy)
+	Pipeline mOccupancyDilatePipeline;
 
-	// First spread pipelines (deposit -> first spread, uses occupancy)
-	Pipeline mLightOccupancyDilatePipeline;
-	Pipeline mLightFirstSpreadPipelines[3]; // per color
+	// Spread pipelines [pass][color]: source → spread[pass]
+	Pipeline mSpreadPipelines[shaders::kiMaxLightingSpreadPasses][3];
+
+	// Accumulate pipeline (all 3 colors in one dispatch)
+	Pipeline mAccumulatePipeline;
+
+	// Combine pipeline (tone map accumulate → UNORM, all 3 colors in one dispatch)
+	Pipeline mCombinePipeline;
 
 	DynamicPipelines mDynamicPipelines;
 };

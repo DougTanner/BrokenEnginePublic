@@ -1,13 +1,3 @@
-vec4 CalculateDirectionalLight(vec2 f2Position)
-{
-	const vec2 f2Center = vec2(0.5f, 0.5f);
-	vec2 f2Direction = f2Position - f2Center;
-	vec2 f2AbsDirection = abs(f2Direction);
-	float fMaxDistance = max(f2AbsDirection.x, f2AbsDirection.y);
-	vec2 f2NormalizedDirection = fMaxDistance > 0.0f ? f2Direction / fMaxDistance : vec2(0.0f, 0.0f);
-	return vec4(max(f2NormalizedDirection.x, 0.0f), max(-f2NormalizedDirection.x, 0.0f), max(f2NormalizedDirection.y, 0.0f), max(-f2NormalizedDirection.y, 0.0f));
-}
-
 vec2 Rotate(vec2 f2, float f)
 {
 	float fSin = sin(f);
@@ -110,15 +100,15 @@ vec3 Lighting(GlobalLayout globalLayout, vec3 f3Color, float fHeight, vec3 f3Nor
 	// Direct — component extraction instead of dot(normalize(axis), normal)
 	float fDirectE = max(0.0f, -f3Normal.x);
 	float fDirectW = max(0.0f, f3Normal.x);
-	float fDirectN = max(0.0f, -f3Normal.y);
-	float fDirectS = max(0.0f, f3Normal.y);
+	float fDirectN = max(0.0f, f3Normal.y);
+	float fDirectS = max(0.0f, -f3Normal.y);
 
 	// Indirect — bent normals (normalize needed on right operand only)
 	float fHeightBend = globalLayout.fLightingIndirect;
 	float fIndirectE = max(0.0f, -normalize(f3Normal + vec3(-fHeightBend, 0.0f, 0.0f)).x);
 	float fIndirectW = max(0.0f, normalize(f3Normal + vec3(fHeightBend, 0.0f, 0.0f)).x);
-	float fIndirectN = max(0.0f, -normalize(f3Normal + vec3(0.0f, -fHeightBend, 0.0f)).y);
-	float fIndirectS = max(0.0f, normalize(f3Normal + vec3(0.0f, fHeightBend, 0.0f)).y);
+	float fIndirectN = max(0.0f, normalize(f3Normal + vec3(0.0f, fHeightBend, 0.0f)).y);
+	float fIndirectS = max(0.0f, -normalize(f3Normal + vec3(0.0f, -fHeightBend, 0.0f)).y);
 
 	// Weight — combines direct, indirect, and directional add
 	float fOneMinusHeight = 1.0f - fHeightPercent;
@@ -134,13 +124,32 @@ vec3 Lighting(GlobalLayout globalLayout, vec3 f3Color, float fHeight, vec3 f3Nor
 		pf4Lighting[2].x * fWeightE + pf4Lighting[2].y * fWeightW + pf4Lighting[2].z * fWeightN + pf4Lighting[2].w * fWeightS);
 
 	vec3 f3Final = fAdd * f3LightingColor + (1.0f - fAdd) * f3LightingColor * f3Color;
-	float fPower = globalLayout.fLightingCombinePower;
-	f3Final = pow(vec3(1.0f) + f3Final, vec3(fPower)) - vec3(1.0f);
-	f3Final = min(f3Final, vec3(1.0f));
-	return f3Final;
+	return min(f3Final, vec3(1.0f));
 }
 
-vec3 SpecularLighting(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3Color, vec3 f3Position, vec3 fDirect3Normal, vec3 f3SpecularNormal, vec4 pf4Lighting[3], float fIntensity, float fAdd)
+vec3 DirectionalLighting2D(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity)
+{
+	vec2 f2Normal = normalize(f3Normal.xy);
+	float fWeightE = max(0.0f, -f2Normal.x);
+	float fWeightW = max(0.0f, f2Normal.x);
+	float fWeightN = max(0.0f, f2Normal.y);
+	float fWeightS = max(0.0f, -f2Normal.y);
+
+	return fIntensity * vec3(
+		pf4Lighting[0].x * fWeightE + pf4Lighting[0].y * fWeightW + pf4Lighting[0].z * fWeightN + pf4Lighting[0].w * fWeightS,
+		pf4Lighting[1].x * fWeightE + pf4Lighting[1].y * fWeightW + pf4Lighting[1].z * fWeightN + pf4Lighting[1].w * fWeightS,
+		pf4Lighting[2].x * fWeightE + pf4Lighting[2].y * fWeightW + pf4Lighting[2].z * fWeightN + pf4Lighting[2].w * fWeightS);
+}
+
+vec3 AmbientLighting(vec4 pf4Lighting[3], float fIntensity)
+{
+	return fIntensity * 0.25f * vec3(
+		pf4Lighting[0].x + pf4Lighting[0].y + pf4Lighting[0].z + pf4Lighting[0].w,
+		pf4Lighting[1].x + pf4Lighting[1].y + pf4Lighting[1].z + pf4Lighting[1].w,
+		pf4Lighting[2].x + pf4Lighting[2].y + pf4Lighting[2].z + pf4Lighting[2].w);
+}
+
+vec3 SpecularLighting(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3Color, vec3 f3Position, vec3 f3DirectNormal, vec3 f3SpecularNormal, vec4 pf4Lighting[3], float fIntensity, float fAdd)
 {
 	vec3 f3ToEyeNormal = normalize(mainLayout.f4EyePosition.xyz - f3Position);
 
@@ -151,10 +160,10 @@ vec3 SpecularLighting(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3C
 		pf4Lighting[2].x + pf4Lighting[2].y + pf4Lighting[2].z + pf4Lighting[2].w);
 
 	// Direct — component extraction instead of dot(normalize(axis), normal)
-	float fDirectE = max(0.0f, -fDirect3Normal.x);
-	float fDirectW = max(0.0f, fDirect3Normal.x);
-	float fDirectN = max(0.0f, -fDirect3Normal.y);
-	float fDirectS = max(0.0f, fDirect3Normal.y);
+	float fDirectE = max(0.0f, -f3DirectNormal.x);
+	float fDirectW = max(0.0f, f3DirectNormal.x);
+	float fDirectN = max(0.0f, f3DirectNormal.y);
+	float fDirectS = max(0.0f, -f3DirectNormal.y);
 	vec3 f3Direct = vec3(
 		pf4Lighting[0].x * fDirectE + pf4Lighting[0].y * fDirectW + pf4Lighting[0].z * fDirectN + pf4Lighting[0].w * fDirectS,
 		pf4Lighting[1].x * fDirectE + pf4Lighting[1].y * fDirectW + pf4Lighting[1].z * fDirectN + pf4Lighting[1].w * fDirectS,
@@ -174,10 +183,7 @@ vec3 SpecularLighting(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3C
 	vec3 f3LightingColor = fIntensity * (mainLayout.fLightingWaterSpecularDiffuse * f3Diffuse + mainLayout.fLightingWaterSpecularDirect * f3Direct + mainLayout.fLightingWaterSpecular * f3Specular);
 
 	vec3 f3Final = fAdd * f3LightingColor + (1.0f - fAdd) * f3LightingColor * f3Color;
-	float fPower = globalLayout.fLightingCombinePower;
-	f3Final = pow(vec3(1.0f) + f3Final, vec3(fPower)) - vec3(1.0f);
-	f3Final = min(f3Final, vec3(1.0f));
-	return f3Final;
+	return min(f3Final, vec3(1.0f));
 }
 
 vec2 WorldToSmokeTexcoord(vec4 f4SmokeArea, vec2 f2Position)
@@ -206,10 +212,7 @@ vec3 AddSmoke(GlobalLayout globalLayout, vec3 f3InColor, vec2 f2InPosition, samp
 	float fRed = IntensityLighting(pf4Lighting[0]);
 	float fGreen = IntensityLighting(pf4Lighting[1]);
 	float fBlue = IntensityLighting(pf4Lighting[2]);
-	vec3 f3Final = vec3(fRed, fGreen, fBlue);
-	float fPower = globalLayout.fLightingCombinePower;
-	f3Final = pow(f3Final + vec3(1.0f, 1.0f, 1.0f), vec3(fPower, fPower, fPower)) - vec3(1.0f, 1.0f, 1.0f);
-	f3Final *= 0.5f;
+	vec3 f3Final = vec3(fRed, fGreen, fBlue) * 0.5f;
 
 	f3Final += max(vec3(0.1f, 0.1f, 0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4AmbientColor.xyz);
 
@@ -223,10 +226,7 @@ vec3 BlendSmoke(vec3 f3Color, float fSmokePow, vec4 pf4Lighting[3], GlobalLayout
 	float fRed = IntensityLighting(pf4Lighting[0]);
 	float fGreen = IntensityLighting(pf4Lighting[1]);
 	float fBlue = IntensityLighting(pf4Lighting[2]);
-	vec3 f3SmokeLighting = vec3(fRed, fGreen, fBlue);
-	float fSmokeLightPower = globalLayout.fLightingCombinePower;
-	f3SmokeLighting = pow(f3SmokeLighting + vec3(1.0f), vec3(fSmokeLightPower)) - vec3(1.0f);
-	f3SmokeLighting *= 0.5f;
+	vec3 f3SmokeLighting = vec3(fRed, fGreen, fBlue) * 0.5f;
 	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4AmbientColor.xyz);
 	f3SmokeLighting = min(vec3(1.0f), f3SmokeLighting);
 	return (1.0f - fSmokePow) * f3Color + fSmokePow * f3SmokeLighting * min(vec3(1.25f), vec3(fSmokeDensity));

@@ -31,11 +31,11 @@ namespace shaders
 
 inline constexpr VkFormat keElevationFormat = VK_FORMAT_R16_SFLOAT;
 
-constexpr VkFormat keLightingFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+inline constexpr VkFormat keLightingFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 inline constexpr VkFormat keLightingSpreadFormat = VK_FORMAT_R32_SFLOAT;
 
-constexpr VkFormat keSmokeFormat = VK_FORMAT_R32_SFLOAT;
-constexpr VkFormat keWindFormat = VK_FORMAT_R16G16_SFLOAT;
+inline constexpr VkFormat keSmokeFormat = VK_FORMAT_R32_SFLOAT;
+inline constexpr VkFormat keWindFormat = VK_FORMAT_R16G16_SFLOAT;
 
 struct vec2 : public XMFLOAT2
 {
@@ -121,8 +121,11 @@ CONSTEXPR int kiBillboardTexturesCount = 3;
 
 CONSTEXPR int kiMaxIslands = 64;
 
-CONSTEXPR int kiMaxLightingBlurCount = 32;
-CONSTEXPR int kiMaxDebugTextures = kiMaxLightingBlurCount + 3; // deposit + spread + blur levels + final combine
+CONSTEXPR int kiMaxLightingSpreadPasses = 8;
+CONSTEXPR int kiMaxDebugTextures = 16;
+
+CONSTEXPR int kiDebugTextureFormatFloat16LightingDirectional = 0;
+CONSTEXPR int kiDebugTextureFormatUnormLightingDirectional = 1;
 
 CONSTEXPR int kiShadowTextureExecutionSize = 64;
 
@@ -213,29 +216,32 @@ struct GlobalLayout
 	float fLightingDirectional INIT;
 	float fLightingIndirect INIT;
 	float fLightingObjectsAdd INIT;
-	float fLightingCombinePower INIT;
-	float fLightingBlurDistance INIT;
-	float fLightingBlurTextureCount INIT;
+	float fCombineExposure INIT;
+	float fCombinePower INIT;
+	float fDepositEnergyNormalize INIT;
 	float fLightingTerrain INIT;
 	float fLightingObjects INIT;
-	float fLightingBlurDirectionality INIT;
+	float fPointLightCoreRadius INIT;
 	float fLightingAddTerrain INIT;
-	float fFirstSpreadKernelSize INIT;
-	float fLightingCombineDecay INIT;
+	float fCombineLinearClamp INIT;
+	float fSpreadDirectionality INIT;
 	vec4 f4LightingArea INIT;
 
-	// Light spread
+	// First spread
 	float fFirstSpreadKernelWorld INIT;
-	float fFirstSpreadPadOne INIT;
+	float fFirstSpreadKernelSize INIT;
+	float fFirstSpreadSigma INIT;
 	float fFirstSpreadDecay INIT;
-	float fLightingBlurJitter INIT;
 	float fLightSpreadTerrainCutoff INIT;
-	float fLightSpreadPadOne INIT;
-	float fLightSpreadPadTwo INIT;
-	float fLightSpreadPadThree INIT;
 	uint32_t uiLightTilesX INIT;
 	uint32_t uiLightTilesY INIT;
-	uint32_t uiLightOccupancyDilation INIT;
+	float fLightSpreadPadOne INIT;
+
+	// Spread
+	float fSpreadKernelWorld INIT;
+	float fSpreadKernelSize INIT;
+	float fSpreadSigma INIT;
+	float fSpreadDecay INIT;
 
 	// Shadow
 	float fShadowWidthScale INIT;
@@ -350,6 +356,7 @@ struct GlobalLayout
 
 	// Debug
 	float fDebugTextureIndex INIT;
+	float fDebugTextureFormat INIT;
 };
 
 struct MainLayout
@@ -403,6 +410,9 @@ struct MainLayout
 	float fLightingWaterSpecularTwoPower INIT;
 	float fLightingWaterSpecularThree INIT;
 	float fLightingWaterSpecularThreePower INIT;
+
+	float fLightingNewDirectional INIT;
+	float fLightingNewAmbient INIT;
 
 	// Pbr
 	float fPbrExposure INIT;

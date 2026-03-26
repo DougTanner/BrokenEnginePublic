@@ -310,17 +310,11 @@ extern Wrapper gWaterHeightDarkenClamp;
 
 // Lighting
 extern Wrapper gLightingDepositTextureMultiplier;
-extern Wrapper gLightingBlurTextureMultiplier;
-extern Wrapper gLightingCombineTextureMultiplier;
-extern Wrapper gLightingBlurDownscale;
-extern Wrapper gLightingCombineIndex;
-extern Wrapper gLightingBlurDistance;
-extern Wrapper gLightingBlurDirectionality;
-extern Wrapper gLightingBlurJitter;
-extern Wrapper gLightingBlurFirstDivisor;
-extern Wrapper gLightingBlurDivisor;
-extern Wrapper gLightingCombineDecay;
-extern Wrapper gLightingCombinePower;
+extern Wrapper gDepositEnergyNormalize;
+extern Wrapper gPointLightCoreRadius;
+extern Wrapper gCombineExposure;
+extern Wrapper gCombinePower;
+extern Wrapper gCombineLinearClamp;
 
 extern Wrapper gLightingDirectional;
 extern Wrapper gLightingIndirect;
@@ -334,14 +328,26 @@ extern Wrapper gLightingSampledNormalsSizeMod;
 extern Wrapper gLightingSampledNormalsSpeed;
 
 extern Wrapper gLightingTimeOfDayMultiplier;
+extern Wrapper gLightingNewDirectional;
+extern Wrapper gLightingNewAmbient;
 
 // First spread
+extern Wrapper gLightingSpreadPassCount;
 extern Wrapper gFirstSpreadTextureMultiplier;
 extern Wrapper gFirstSpreadKernelWorld;
 extern Wrapper gFirstSpreadKernelSize;
+extern Wrapper gFirstSpreadSigma;
 extern Wrapper gFirstSpreadDecay;
-extern Wrapper gLightSpreadTerrainCutoff;
 extern Wrapper gLightOccupancyDilation;
+extern Wrapper gLightSpreadTerrainCutoff;
+
+// Spread
+extern Wrapper gSpreadDirectionality;
+extern Wrapper gSpreadTextureMultiplier;
+extern Wrapper gSpreadKernelWorld;
+extern Wrapper gSpreadKernelSize;
+extern Wrapper gSpreadSigma;
+extern Wrapper gSpreadDecay;
 
 // Water skybox
 extern Wrapper gLightingWaterSkyboxSunBias;

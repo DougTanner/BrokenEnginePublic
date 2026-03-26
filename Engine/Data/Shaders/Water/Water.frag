@@ -48,6 +48,7 @@ float Fresnel(vec3 f3CameraPosition, vec3 f3Position, vec3 f3InNormal, float fRe
 
 void main()
 {
+#if 0
 	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4VisibleArea);
 
 	float fTerrainElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x;
@@ -137,4 +138,32 @@ void main()
 
 	// Additive smoke
 	f4OutColor.xyz = BlendSmoke(f4OutColor.xyz, fSmokePow, pf4Lighting, globalLayout);
+#else
+	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4VisibleArea);
+
+	float fTerrainElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x;
+	if (fTerrainElevation > globalLayout.fWaterEarlyOut)
+	{
+		f4OutColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);
+		return;
+	}
+
+	vec3 f3Normal = normalize(f3InNormal);
+	vec3 f3WaterColor = vec3(0.0f, 0.15f, 0.25f);
+
+	// Directional: sample at world-space x/y position
+	vec2 f2DirectTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4LightingArea);
+	vec4 pf4DirectLighting[3];
+	ReadLighting(pf4DirectLighting, pLightingSamplers, f2DirectTexcoord);
+	vec3 f3Direct = DirectionalLighting2D(pf4DirectLighting, f3Normal, mainLayout.fLightingNewDirectional);
+
+	// Ambient: sample projected to base height toward eye
+	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
+	vec2 f2AmbientTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
+	vec4 pf4AmbientLighting[3];
+	ReadLighting(pf4AmbientLighting, pLightingSamplers, f2AmbientTexcoord);
+	vec3 f3Ambient = AmbientLighting(pf4AmbientLighting, mainLayout.fLightingNewAmbient);
+
+	f4OutColor = vec4(f3WaterColor * (f3Direct + f3Ambient), 1.0f);
+#endif
 }

@@ -9,8 +9,6 @@
 namespace engine
 {
 
-std::tuple<int64_t, int64_t> CombineTextureInfo();
-
 struct LazyChunk;
 
 class TextureManager

@@ -289,6 +289,15 @@ void Quit(const char* message, const char* title)
 
 int main(int argc, char* argv[])
 {
+	// Prevent multiple instances from running simultaneously
+	HANDLE hMutex = CreateMutex(nullptr, TRUE, "BrokenEngineDataPacker");
+	std::unique_ptr<void, decltype(&CloseHandle)> pMutex(hMutex, &CloseHandle);
+	if (GetLastError() == ERROR_ALREADY_EXISTS)
+	{
+		printf("DataPacker is already running.\n");
+		return 1;
+	}
+
 	bool bSuccess = false;
 
 	if (IsDebuggerPresent() == TRUE)

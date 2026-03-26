@@ -6,18 +6,21 @@ Fragment and vertex shaders for rendering dynamic lights, plus compute shaders f
 
 ## Shaders
 
-- **AreaLight.frag** - Renders oriented area lights into MRT color attachments with EWNS directional weighting and rectangular falloff; marks the center tile's occupancy bit
-- **PointLight.frag** - Renders axis-aligned point lights into MRT color attachments with EWNS directional weighting; marks the center tile's occupancy bit
+- **AreaLight.frag** - Renders oriented area lights into MRT color attachments with EWNS directional weighting and rectangular falloff
+- **PointLight.frag** - Renders axis-aligned point lights into MRT color attachments with EWNS directional weighting
 - **VisibleLight.vert / VisibleLight.frag** - Instanced billboard rendering for visible light effects with terrain intersection fading
-- **LightOccupancyDilate.comp** - Compute pass dispatched after the deposit render pass; dilates the center-only occupancy marks so the first-spread phase covers neighboring tiles
-- **LightFirstSpread.comp** - Gaussian gather from deposit texture into first-spread textures; uses occupancy-based early-out and world-space locked kernel
-- **LightingBlur.frag** - Fragment MRT blur pass: samples first-spread (or previous blur level) in 20 directions at configurable distance, writing RGB directional channels; supports jitter and directionality blending. Input texture size drives per-level downscaling
-- **LightingCombine.frag** - Fragment combine pass: additively blends all blur levels with exponential decay weighting plus an optional first-spread layer (compile-time `ENABLE_COMBINE_FIRST_SPREAD`); outputs final lighting texture. Uses a descriptor array of blur textures with `nonuniformEXT` indexing
+- **LightOccupancyDilate.comp** - Compute pass that grows existing occupancy bits by a fixed dilation radius
+- **FirstLightSpread.comp** - Initial spread from deposit textures with occupancy-based early-out and directional Gaussian convolution
+- **LightSpread.comp** - Subsequent spread passes; gathers from the previous spread texture into an independent output texture per pass (no occupancy check)
+- **LightAccumulate.comp** - Additive accumulate pass; reads spread texture arrays for all three color channels in a single dispatch (indexed by push constant) and blends into accumulate image targets
+- **LightCombine.comp** - Tone maps accumulated float16 lighting to UNORM8 output for all three color channels in a single dispatch using exposure, linear-clamp blend, and power curve
 
 ## Architecture Notes
 
-**4-phase pipeline**: Deposit (MRT fragment) → Occupancy Dilate + First Spread (compute, occupancy-gated) → Blur MRT (fragment, hierarchical downscale over N levels) → Combine (fragment, additive).
+**Pipeline**: Deposit (MRT fragment) → Dilate Occupancy → FirstSpread (with occupancy early-out) → N-1 subsequent Spreads (no occupancy) → Accumulate (additive blend all spread textures) → Combine (tone map to UNORM).
 
-**Blur MRT**: Each level renders a full-resolution MRT quad sampling from the previous level (or the first-spread texture at level 0) with a 20-direction radial kernel. Level count and downscale factor are runtime-tunable via Wrapper globals.
+Each spread pass writes to its own independent texture rather than ping-ponging. The accumulate phase then additively combines all spread results. Deposit fragment shaders write initial occupancy bits, and the dilation shader grows them before the first spread.
 
 **Stable lighting area**: Uses a dedicated area with ceil'd dimensions and a texel-grid-snapped origin (computed in `GlobalUniforms.cpp`), independent of the visible area, eliminating per-frame flicker from sub-texel camera movement.
+
+**Area vs. point directional deposit**: `AreaLight.frag` computes EWNS direction weights from interpolated world-space position relative to the quad center (passed as varyings from `QuadsVisibleArea.vert`); `PointLight.frag` uses texcoord-space offset from the quad center instead.

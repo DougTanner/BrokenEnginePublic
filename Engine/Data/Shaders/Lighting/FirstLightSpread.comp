@@ -1,0 +1,96 @@
+#version 460
+
+#include "ShaderLayouts.h"
+#include "ShaderFunctions.h"
+
+layout (local_size_x = kiComputeTileSize, local_size_y = kiComputeTileSize) in;
+
+// Uniforms
+layout (binding = 0) uniform globalUniform
+{
+	GlobalLayout globalLayout;
+};
+
+layout (binding = 1) uniform sampler2D sourceSampler;
+layout (binding = 2, rgba16f) uniform writeonly image2D outputImage;
+
+layout (binding = 3) buffer occupancyBuffer
+{
+	uint occupancy[];
+};
+
+layout (push_constant) uniform PushConstants
+{
+	uint uiSourceWidth;
+	uint uiSourceHeight;
+	uint uiDestWidth;
+	uint uiDestHeight;
+};
+
+void main()
+{
+	uint uiDestX = gl_GlobalInvocationID.x;
+	uint uiDestY = gl_GlobalInvocationID.y;
+
+	if (uiDestX >= uiDestWidth || uiDestY >= uiDestHeight)
+		return;
+
+	// Map destination pixel center to source space
+	vec2 f2SourceCenter = (vec2(uiDestX, uiDestY) + vec2(0.5f)) * vec2(uiSourceWidth, uiSourceHeight) / vec2(uiDestWidth, uiDestHeight);
+
+	// Occupancy early-out: map dest pixel UV to deposit-space tile
+	vec2 f2Uv = (vec2(uiDestX, uiDestY) + vec2(0.5f)) / vec2(uiDestWidth, uiDestHeight);
+	uint uiTileX = min(uint(f2Uv.x * float(globalLayout.uiLightTilesX)), globalLayout.uiLightTilesX - 1u);
+	uint uiTileY = min(uint(f2Uv.y * float(globalLayout.uiLightTilesY)), globalLayout.uiLightTilesY - 1u);
+	uint uiTileIdx = uiTileY * globalLayout.uiLightTilesX + uiTileX;
+	if ((occupancy[uiTileIdx >> 5] & (1u << (uiTileIdx & 31))) == 0u)
+		return;
+
+	// Kernel size controls sample count (performance budget), kernel world controls reach (step size)
+	float fWorldWidth = globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x;
+	float fWorldHeight = globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w;
+	float fKernelWorld = globalLayout.fFirstSpreadKernelWorld;
+	float fPixelRadiusX = fKernelWorld * float(uiSourceWidth) / fWorldWidth;
+	float fPixelRadiusY = fKernelWorld * float(uiSourceHeight) / fWorldHeight;
+	int iHalfKernel = max(int(globalLayout.fFirstSpreadKernelSize) / 2, 1);
+	float fStepSizeX = fPixelRadiusX / float(iHalfKernel);
+	float fStepSizeY = fPixelRadiusY / float(iHalfKernel);
+
+	// Gaussian-weighted direction-aware convolution
+	// EWNS channels: R=East(+X), G=West(-X), B=North(+Y world, -Y pixel), A=South(-Y world, +Y pixel)
+	vec4 f4Result = vec4(0.0f);
+	vec4 f4TotalWeight = vec4(0.0f);
+	float fHalfKernel = float(iHalfKernel);
+	float fSigma = globalLayout.fFirstSpreadSigma * fHalfKernel;
+	float fTwoSigmaSq = 2.0f * fSigma * fSigma;
+
+	for (int iDy = -iHalfKernel; iDy <= iHalfKernel; ++iDy)
+	{
+		for (int iDx = -iHalfKernel; iDx <= iHalfKernel; ++iDx)
+		{
+			float fDistSq = float(iDx * iDx + iDy * iDy);
+			if (fDistSq > fHalfKernel * fHalfKernel)
+				continue;
+
+			vec2 f2SampleUv = (f2SourceCenter + vec2(float(iDx) * fStepSizeX, float(iDy) * fStepSizeY)) / vec2(uiSourceWidth, uiSourceHeight);
+			vec4 f4Sample = texture(sourceSampler, f2SampleUv);
+
+			// Gaussian falloff
+			float fGaussian = exp(-fDistSq / fTwoSigmaSq);
+
+			// Directional filtering: blend between uniform Gaussian and directional weighting
+			vec4 f4DirWeight = vec4(fGaussian);
+			if (fDistSq > 0.0f)
+			{
+				float fDist = sqrt(fDistSq);
+				vec2 f2SampleToDest = vec2(float(-iDx), float(-iDy)) / fDist;
+				vec4 f4Directional = vec4(max(f2SampleToDest.x, 0.0f), max(-f2SampleToDest.x, 0.0f), max(f2SampleToDest.y, 0.0f), max(-f2SampleToDest.y, 0.0f));
+				f4DirWeight = fGaussian * mix(vec4(1.0f), f4Directional, globalLayout.fSpreadDirectionality);
+			}
+			f4Result += f4Sample * f4DirWeight;
+			f4TotalWeight += f4DirWeight;
+		}
+	}
+
+	imageStore(outputImage, ivec2(uiDestX, uiDestY), f4Result / f4TotalWeight * globalLayout.fFirstSpreadDecay);
+}

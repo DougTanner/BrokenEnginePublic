@@ -11,8 +11,6 @@ struct RenderTargetTextures
 
 	void DestroyLightingTextures();
 	void CreateLightingTextures();
-	void CreateBlurTextures(int64_t iLightingTextureX, int64_t iLightingTextureY, float fDownscale, int64_t iMaxCount);
-	void CreateBlurRenderPassAndFramebuffer(int64_t iLevel, int64_t iBlurTextureX, int64_t iBlurTextureY);
 	void CreateShadowTextures();
 	void CreateSmokeTextures();
 	void CreateWindTextures();
@@ -37,24 +35,16 @@ struct RenderTargetTextures
 	VkRenderPass mLightingVkRenderPass = VK_NULL_HANDLE;
 	VkFramebuffer mLightingVkFramebuffer = VK_NULL_HANDLE;
 
-	// First spread textures (intermediate between deposit and blur)
-	Texture mpFirstSpreadTextures[3]; // R, G, B — RGBA16F
-
-	// Blur textures (hierarchical downscaling from first spread)
-	int64_t miLightingBlurCount = 0;
-	Texture mpRedLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
-	Texture mpGreenLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
-	Texture mpBlueLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
-	VkRenderPass mpLightingBlurVkRenderPasses[shaders::kiMaxLightingBlurCount] {};
-	VkFramebuffer mpLightingBlurVkFramebuffers[shaders::kiMaxLightingBlurCount] {};
+	// Individual spread textures [pass][color R/G/B]
+	Texture mpSpreadTextures[shaders::kiMaxLightingSpreadPasses][3];
+	Texture mpAccumulateTextures[3];
+	Texture mpCombineTextures[3];
 	Texture* mppLightingFinalTextures[3] {};
 
-	// Combine output textures (separate from blur so blur levels stay pristine)
-	Texture mpLightingCombineTextures[3];
-
-	// Debug texture array (deposit, first spread, blur levels, combine)
+	// Debug texture array
 	int64_t miDebugTextureCount = 0;
 	Texture* mppDebugTextures[shaders::kiMaxDebugTextures] {};
+	int64_t mpDebugTextureFormats[shaders::kiMaxDebugTextures] {};
 
 	Texture mShadowElevationTexture;
 	Texture mShadowTexture;

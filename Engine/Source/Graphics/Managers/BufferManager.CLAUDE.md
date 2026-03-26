@@ -25,8 +25,7 @@ Both smoke and wind use the same occupancy + active tile list pattern for hierar
 - **`mWindActiveTileVkBuffers[2]`** - Per-index active tile list with indirect dispatch args prefix. Enables record-once command buffers: both spread pipelines are always dispatched, and each returns early if its index is inactive.
 
 **Lighting Spread** (per cascade level, up to `kiMaxCascadeLevels`):
-- **`mLightOccupancyVkBuffers[]`** - Per-level bit-packed occupancy for cascaded light spreading. Level 0 uses lighting deposit texture dimensions; levels 1+ use cascade texture dimensions.
-- **`mLightActiveTileVkBuffers[]`** - Per-level active tile list with indirect dispatch args prefix. Created/destroyed alongside lighting texture recreation via `DestroyFlags::kLightingTextures`.
+- **`mLightOccupancyVkBuffers[]`** - Per-level bit-packed occupancy at spread resolution, derived fresh each pass from the source texture. Created/destroyed alongside lighting texture recreation via `DestroyFlags::kLightingTextures`.
 
 ## Swapchain Lifecycle
 

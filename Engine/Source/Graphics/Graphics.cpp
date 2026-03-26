@@ -319,7 +319,8 @@ void Graphics::Refresh()
 	}
 
 	auto [bDebugTexture, bPreviousDebugTexture, bDebugTextureChanged] = gDebugTexture.Changed<bool>();
-	if (bDebugTextureChanged) [[unlikely]]
+	auto [fOccupancyDilation, fOccupancyDilationPrevious, bOccupancyDilationChanged] = gLightOccupancyDilation.Changed<float>();
+	if (bDebugTextureChanged || bOccupancyDilationChanged) [[unlikely]]
 	{
 		meDestroyType = std::max(DestroyType::kCommandBuffers, meDestroyType);
 	}
@@ -334,20 +335,11 @@ void Graphics::Refresh()
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
 
-	auto [fLightingBlurFirstDivisor, fLightingBlurFirstDivisorPrevious, bLightingBlurFirstDivisorChanged] = gLightingBlurFirstDivisor.Changed<float>();
-	auto [fLightingBlurDivisor, fLightingBlurDivisorPrevious, bLightingBlurDivisorChanged] = gLightingBlurDivisor.Changed<float>();
-	if (bLightingBlurFirstDivisorChanged || bLightingBlurDivisorChanged)
-	{
-		meDestroyType = std::max(DestroyType::kCommandBuffers, meDestroyType);
-	}
-
 	auto [fLightingMultiplier, fLightingMultiplierPrevious, bLightingMultiplierChanged] = gLightingDepositTextureMultiplier.Changed<float>();
-	auto [fFirstSpreadMultiplier, fFirstSpreadMultiplierPrevious, bFirstSpreadMultiplierChanged] = gFirstSpreadTextureMultiplier.Changed<float>();
-	auto [fLightingBlurTextureMultiplier, fLightingBlurTextureMultiplierPrevious, bLightingBlurTextureMultiplierChanged] = gLightingBlurTextureMultiplier.Changed<float>();
-	auto [fLightingCombineTextureMultiplier, fLightingCombineTextureMultiplierPrevious, bLightingCombineTextureMultiplierChanged] = gLightingCombineTextureMultiplier.Changed<float>();
-	auto [fLightingBlurDownscale, fLightingBlurDownscalePrevious, bLightingBlurDownscaleChanged] = gLightingBlurDownscale.Changed<float>();
-	auto [fLightingCombineIndex, fLightingCombineIndexPrevious, bLightingCombineIndexChanged] = gLightingCombineIndex.Changed<float>();
-	if ((bLightingMultiplierChanged || bFirstSpreadMultiplierChanged || bLightingBlurTextureMultiplierChanged || bLightingCombineTextureMultiplierChanged || bLightingBlurDownscaleChanged || bLightingCombineIndexChanged) && gpTextureManager != nullptr) [[unlikely]]
+	auto [fFirstSpreadMult, fFirstSpreadMultPrev, bFirstSpreadMultChanged] = gFirstSpreadTextureMultiplier.Changed<float>();
+	auto [fSpreadMult, fSpreadMultPrev, bSpreadMultChanged] = gSpreadTextureMultiplier.Changed<float>();
+	auto [fLightingSpreadPassCount, fLightingSpreadPassCountPrevious, bLightingSpreadPassCountChanged] = gLightingSpreadPassCount.Changed<float>();
+	if ((bLightingMultiplierChanged || bFirstSpreadMultChanged || bSpreadMultChanged || bLightingSpreadPassCountChanged) && gpTextureManager != nullptr) [[unlikely]]
 	{
 		mDestroyFlags.Set(DestroyFlags::kLightingTextures);
 

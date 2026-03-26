@@ -1,0 +1,53 @@
+#version 460
+
+#include "ShaderLayouts.h"
+
+layout (local_size_x = kiComputeTileSize, local_size_y = kiComputeTileSize) in;
+
+layout (binding = 0) uniform globalUniform
+{
+	GlobalLayout globalLayout;
+};
+
+layout (binding = 1) uniform sampler2D sourceR;
+layout (binding = 2) uniform sampler2D sourceG;
+layout (binding = 3) uniform sampler2D sourceB;
+layout (binding = 4, rgba8) uniform writeonly image2D combineImageR;
+layout (binding = 5, rgba8) uniform writeonly image2D combineImageG;
+layout (binding = 6, rgba8) uniform writeonly image2D combineImageB;
+
+layout (push_constant) uniform PushConstants
+{
+	uint uiWidth;
+	uint uiHeight;
+};
+
+void main()
+{
+	uint uiX = gl_GlobalInvocationID.x;
+	uint uiY = gl_GlobalInvocationID.y;
+	if (uiX >= uiWidth || uiY >= uiHeight)
+		return;
+
+	vec2 f2Uv = (vec2(uiX, uiY) + vec2(0.5f)) / vec2(uiWidth, uiHeight);
+	ivec2 i2Coord = ivec2(uiX, uiY);
+
+	float fExposure = globalLayout.fCombineExposure;
+	float fLinearClamp = globalLayout.fCombineLinearClamp;
+	vec4 f4Power = vec4(globalLayout.fCombinePower);
+
+	// Red
+	vec4 f4R = texture(sourceR, f2Uv) * fExposure;
+	f4R = mix(f4R / (vec4(1.0f) + f4R), clamp(f4R, vec4(0.0f), vec4(1.0f)), fLinearClamp);
+	imageStore(combineImageR, i2Coord, pow(f4R, f4Power));
+
+	// Green
+	vec4 f4G = texture(sourceG, f2Uv) * fExposure;
+	f4G = mix(f4G / (vec4(1.0f) + f4G), clamp(f4G, vec4(0.0f), vec4(1.0f)), fLinearClamp);
+	imageStore(combineImageG, i2Coord, pow(f4G, f4Power));
+
+	// Blue
+	vec4 f4B = texture(sourceB, f2Uv) * fExposure;
+	f4B = mix(f4B / (vec4(1.0f) + f4B), clamp(f4B, vec4(0.0f), vec4(1.0f)), fLinearClamp);
+	imageStore(combineImageB, i2Coord, pow(f4B, f4Power));
+}

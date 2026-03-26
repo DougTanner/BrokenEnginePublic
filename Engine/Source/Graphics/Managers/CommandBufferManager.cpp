@@ -113,26 +113,6 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 
 	RecordTerrainPasses(vkCommandBuffer, iCommandBuffer, pPipelines);
 
-	// Clear level-0 lighting occupancy buffer
-	if (gpBufferManager->mLightOccupancyVkBuffers[0] != VK_NULL_HANDLE)
-	{
-		// Barrier: previous frame's compute read/write on this buffer -> this frame's transfer write
-		VkBufferMemoryBarrier vkOccupancyPreClearBarrier
-		{
-			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-			.pNext = nullptr,
-			.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
-			.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.buffer = gpBufferManager->mLightOccupancyVkBuffers[0],
-			.offset = 0,
-			.size = VK_WHOLE_SIZE,
-		};
-		vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1, &vkOccupancyPreClearBarrier, 0, nullptr);
-		vkCmdFillBuffer(vkCommandBuffer, gpBufferManager->mLightOccupancyVkBuffers[0], 0, gpBufferManager->mLightOccupancyBufferSizes[0], 0);
-	}
-
 	uint32_t uiWindWidth = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.width;
 	RecordWindSpreadPipeline(vkCommandBuffer, iCommandBuffer, uiWindWidth, pPipelines);
 
@@ -545,67 +525,180 @@ void CommandBufferManager::RecordLightingSpreadPipeline(VkCommandBuffer vkComman
 		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
 	};
 
-	// First spread (deposit -> first spread, uses occupancy)
-	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingSpread);
-
 	uint32_t uiDepositWidth = rRenderTargetTextures.mpLightingTextures[0].mInfo.extent.width;
 	uint32_t uiDepositHeight = rRenderTargetTextures.mpLightingTextures[0].mInfo.extent.height;
-	uint32_t uiFirstSpreadWidth = rRenderTargetTextures.mpFirstSpreadTextures[0].mInfo.extent.width;
-	uint32_t uiFirstSpreadHeight = rRenderTargetTextures.mpFirstSpreadTextures[0].mInfo.extent.height;
+	uint32_t uiAccumulateWidth = rRenderTargetTextures.mpAccumulateTextures[0].mInfo.extent.width;
+	uint32_t uiAccumulateHeight = rRenderTargetTextures.mpAccumulateTextures[0].mInfo.extent.height;
 
-	shaders::PushConstantsLayout firstSpreadPushConstants {};
-	struct { uint32_t uiWidth; uint32_t uiHeight; uint32_t uiDestinationWidth; uint32_t uiDestinationHeight; } firstSpreadData {uiDepositWidth, uiDepositHeight, uiFirstSpreadWidth, uiFirstSpreadHeight};
-	std::memcpy(&firstSpreadPushConstants, &firstSpreadData, std::min(sizeof(firstSpreadData), sizeof(firstSpreadPushConstants)));
+	uint32_t uiOccupancyTilesX = std::max(1u, uiDepositWidth / shaders::kiComputeTileSize);
+	uint32_t uiOccupancyTilesY = std::max(1u, uiDepositHeight / shaders::kiComputeTileSize);
+	uint32_t uiTotalTiles = uiOccupancyTilesX * uiOccupancyTilesY;
+	uint32_t uiDilateGroups = (uiTotalTiles + shaders::kiOccupancyDilateGroupSize - 1) / shaders::kiOccupancyDilateGroupSize;
 
-	uint32_t uiFirstSpreadGroupsX = (uiFirstSpreadWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-	uint32_t uiFirstSpreadGroupsY = (uiFirstSpreadHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	uint32_t uiAccumulateGroupsX = (uiAccumulateWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	uint32_t uiAccumulateGroupsY = (uiAccumulateHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
 
-	for (int64_t iColor = 0; iColor < 3; ++iColor)
+	int64_t iPassCount = static_cast<int64_t>(gLightingSpreadPassCount.Get());
+	uint32_t uiOccupancyDilation = static_cast<uint32_t>(gLightOccupancyDilation.Get());
+
+	VkClearColorValue vkClearColor {.float32 = {0.0f, 0.0f, 0.0f, 0.0f}};
+	VkImageSubresourceRange vkSubresourceRange {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1};
+
+	// Phase 1a: First spread (dilate occupancy + spread pass 0)
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingFirstSpread);
 	{
-		rRenderTargetTextures.mpFirstSpreadTextures[iColor].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
+		// Dilate (grow) deposit occupancy for the first spread pass
+		Pipeline& rDilatePipeline = gpPipelineManager->mOccupancyDilatePipeline;
 
-		Pipeline& rFirstSpreadPipeline = gpPipelineManager->mLightFirstSpreadPipelines[iColor];
+		shaders::PushConstantsLayout dilatePushConstants {};
+		struct { uint32_t uiTilesX; uint32_t uiTilesY; uint32_t uiOccupancyDilation; } dilateData {.uiTilesX = uiOccupancyTilesX, .uiTilesY = uiOccupancyTilesY, .uiOccupancyDilation = uiOccupancyDilation};
+		std::memcpy(&dilatePushConstants, &dilateData, std::min(sizeof(dilateData), sizeof(dilatePushConstants)));
+
+		int64_t iDilateDescriptorSetIndex = rDilatePipeline.mbPerCommandBuffer ? iCommandBuffer : 0;
+		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rDilatePipeline.mVkPipeline);
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rDilatePipeline.mVkPipelineLayout, 0, 1, &rDilatePipeline.mVkDescriptorSets[iDilateDescriptorSetIndex], 0, nullptr);
+		vkCmdPushConstants(vkCommandBuffer, rDilatePipeline.mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(shaders::PushConstantsLayout), &dilatePushConstants);
+		vkCmdDispatch(vkCommandBuffer, uiDilateGroups, 1, 1);
+
+		// Barrier: dilation writes → spread reads
+		VkBufferMemoryBarrier vkDilateToSpreadBarrier
 		{
-			int64_t iDescriptorSetIndex = rFirstSpreadPipeline.mbPerCommandBuffer ? iCommandBuffer : 0;
-			vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rFirstSpreadPipeline.mVkPipeline);
-			vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rFirstSpreadPipeline.mVkPipelineLayout, 0, 1, &rFirstSpreadPipeline.mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
-			vkCmdPushConstants(vkCommandBuffer, rFirstSpreadPipeline.mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(shaders::PushConstantsLayout), &firstSpreadPushConstants);
-			vkCmdDispatch(vkCommandBuffer, uiFirstSpreadGroupsX, uiFirstSpreadGroupsY, 1);
-		}
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+			.pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = gpBufferManager->mLightOccupancyVkBuffers[0],
+			.offset = 0,
+			.size = VK_WHOLE_SIZE,
+		};
+		vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &vkDilateToSpreadBarrier, 0, nullptr);
 
-		rRenderTargetTextures.mpFirstSpreadTextures[iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
+		// First spread: deposit → spread[0]
+		uint32_t uiDestWidth = rRenderTargetTextures.mpSpreadTextures[0][0].mInfo.extent.width;
+		uint32_t uiDestHeight = rRenderTargetTextures.mpSpreadTextures[0][0].mInfo.extent.height;
+		uint32_t uiPassGroupsX = (uiDestWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+		uint32_t uiPassGroupsY = (uiDestHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+
+		shaders::PushConstantsLayout spreadPushConstants {};
+		struct { uint32_t uiSourceWidth; uint32_t uiSourceHeight; uint32_t uiDestWidth; uint32_t uiDestHeight; } spreadData {.uiSourceWidth = uiDepositWidth, .uiSourceHeight = uiDepositHeight, .uiDestWidth = uiDestWidth, .uiDestHeight = uiDestHeight};
+		std::memcpy(&spreadPushConstants, &spreadData, std::min(sizeof(spreadData), sizeof(spreadPushConstants)));
+
+		for (int64_t iColor = 0; iColor < 3; ++iColor)
+		{
+			rRenderTargetTextures.mpSpreadTextures[0][iColor].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kTransferDestination);
+			vkCmdClearColorImage(vkCommandBuffer, rRenderTargetTextures.mpSpreadTextures[0][iColor].mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &vkClearColor, 1, &vkSubresourceRange);
+			rRenderTargetTextures.mpSpreadTextures[0][iColor].TransitionImageLayout(vkCommandBuffer, kTransferDestination, kComputeReadWrite);
+
+			Pipeline& rSpreadPipeline = gpPipelineManager->mSpreadPipelines[0][iColor];
+			int64_t iDescriptorSetIndex = rSpreadPipeline.mbPerCommandBuffer ? iCommandBuffer : 0;
+			vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rSpreadPipeline.mVkPipeline);
+			vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rSpreadPipeline.mVkPipelineLayout, 0, 1, &rSpreadPipeline.mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
+			vkCmdPushConstants(vkCommandBuffer, rSpreadPipeline.mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(shaders::PushConstantsLayout), &spreadPushConstants);
+			vkCmdDispatch(vkCommandBuffer, uiPassGroupsX, uiPassGroupsY, 1);
+
+			rRenderTargetTextures.mpSpreadTextures[0][iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
+		}
+		vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &vkComputeBarrier, 0, nullptr, 0, nullptr);
+	}
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingFirstSpread);
+
+	// Phase 1b: Subsequent spread passes (no occupancy)
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingSpread);
+	for (int64_t iPass = 1; iPass < iPassCount; ++iPass)
+	{
+		uint32_t uiDestWidth = rRenderTargetTextures.mpSpreadTextures[iPass][0].mInfo.extent.width;
+		uint32_t uiDestHeight = rRenderTargetTextures.mpSpreadTextures[iPass][0].mInfo.extent.height;
+		uint32_t uiSourceWidth = rRenderTargetTextures.mpSpreadTextures[iPass - 1][0].mInfo.extent.width;
+		uint32_t uiSourceHeight = rRenderTargetTextures.mpSpreadTextures[iPass - 1][0].mInfo.extent.height;
+		uint32_t uiPassGroupsX = (uiDestWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+		uint32_t uiPassGroupsY = (uiDestHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+
+		shaders::PushConstantsLayout spreadPushConstants {};
+		struct { uint32_t uiSourceWidth; uint32_t uiSourceHeight; uint32_t uiDestWidth; uint32_t uiDestHeight; } spreadData {.uiSourceWidth = uiSourceWidth, .uiSourceHeight = uiSourceHeight, .uiDestWidth = uiDestWidth, .uiDestHeight = uiDestHeight};
+		std::memcpy(&spreadPushConstants, &spreadData, std::min(sizeof(spreadData), sizeof(spreadPushConstants)));
+
+		for (int64_t iColor = 0; iColor < 3; ++iColor)
+		{
+			rRenderTargetTextures.mpSpreadTextures[iPass][iColor].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kTransferDestination);
+			vkCmdClearColorImage(vkCommandBuffer, rRenderTargetTextures.mpSpreadTextures[iPass][iColor].mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &vkClearColor, 1, &vkSubresourceRange);
+			rRenderTargetTextures.mpSpreadTextures[iPass][iColor].TransitionImageLayout(vkCommandBuffer, kTransferDestination, kComputeReadWrite);
+
+			Pipeline& rSpreadPipeline = gpPipelineManager->mSpreadPipelines[iPass][iColor];
+			int64_t iDescriptorSetIndex = rSpreadPipeline.mbPerCommandBuffer ? iCommandBuffer : 0;
+			vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rSpreadPipeline.mVkPipeline);
+			vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rSpreadPipeline.mVkPipelineLayout, 0, 1, &rSpreadPipeline.mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
+			vkCmdPushConstants(vkCommandBuffer, rSpreadPipeline.mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(shaders::PushConstantsLayout), &spreadPushConstants);
+			vkCmdDispatch(vkCommandBuffer, uiPassGroupsX, uiPassGroupsY, 1);
+
+			rRenderTargetTextures.mpSpreadTextures[iPass][iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
+		}
 		vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &vkComputeBarrier, 0, nullptr, 0, nullptr);
 	}
 
+	// Phase 2: Accumulate all spread textures into accumulate textures
+	// Clear accumulate textures
+	for (int64_t iColor = 0; iColor < 3; ++iColor)
+	{
+		rRenderTargetTextures.mpAccumulateTextures[iColor].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kTransferDestination);
+		vkCmdClearColorImage(vkCommandBuffer, rRenderTargetTextures.mpAccumulateTextures[iColor].mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &vkClearColor, 1, &vkSubresourceRange);
+		rRenderTargetTextures.mpAccumulateTextures[iColor].TransitionImageLayout(vkCommandBuffer, kTransferDestination, kComputeReadWrite);
+	}
+
+	Pipeline& rAccumulatePipeline = gpPipelineManager->mAccumulatePipeline;
+	int64_t iAccumulateDescriptorSetIndex = rAccumulatePipeline.mbPerCommandBuffer ? iCommandBuffer : 0;
+	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rAccumulatePipeline.mVkPipeline);
+	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rAccumulatePipeline.mVkPipelineLayout, 0, 1, &rAccumulatePipeline.mVkDescriptorSets[iAccumulateDescriptorSetIndex], 0, nullptr);
+
+	for (int64_t iSpreadIndex = 0; iSpreadIndex < iPassCount; ++iSpreadIndex)
+	{
+		shaders::PushConstantsLayout accumulatePushConstants {};
+		struct { uint32_t uiSpreadIndex; uint32_t uiWidth; uint32_t uiHeight; } accumulateData {.uiSpreadIndex = static_cast<uint32_t>(iSpreadIndex), .uiWidth = uiAccumulateWidth, .uiHeight = uiAccumulateHeight};
+		std::memcpy(&accumulatePushConstants, &accumulateData, std::min(sizeof(accumulateData), sizeof(accumulatePushConstants)));
+
+		vkCmdPushConstants(vkCommandBuffer, rAccumulatePipeline.mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(shaders::PushConstantsLayout), &accumulatePushConstants);
+		vkCmdDispatch(vkCommandBuffer, uiAccumulateGroupsX, uiAccumulateGroupsY, 1);
+		vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &vkComputeBarrier, 0, nullptr, 0, nullptr);
+	}
+
+	// Transition accumulate textures to shader read-only (for combine to sample)
+	for (int64_t iColor = 0; iColor < 3; ++iColor)
+	{
+		rRenderTargetTextures.mpAccumulateTextures[iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
+	}
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &vkComputeBarrier, 0, nullptr, 0, nullptr);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingSpread);
 
-	// Final barrier: compute -> fragment (first spread textures are now readable by blur shaders)
-	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 1, &vkComputeBarrier, 0, nullptr, 0, nullptr);
-}
-
-void CommandBufferManager::RecordLightingBlurMRT(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, int64_t iLevel, float fBlurDivisor, float fDistanceCount, VkExtent3D previousExtent)
-{
-	RenderTargetTextures& rRenderTargetTextures = gpTextureManager->mRenderTargetTextures;
-
-	rRenderTargetTextures.mpRedLightingBlurTextures[iLevel].TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
-	rRenderTargetTextures.mpGreenLightingBlurTextures[iLevel].TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
-	rRenderTargetTextures.mpBlueLightingBlurTextures[iLevel].TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kColorAttachment);
-
-	VkRenderPassBeginInfo vkRenderPassBeginInfo
+	// Phase 3: Combine (tone map accumulate float16 → UNORM)
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
+	for (int64_t iColor = 0; iColor < 3; ++iColor)
 	{
-		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-		.pNext = nullptr,
-		.renderPass = rRenderTargetTextures.mpLightingBlurVkRenderPasses[iLevel],
-		.framebuffer = rRenderTargetTextures.mpLightingBlurVkFramebuffers[iLevel],
-		.renderArea = {.offset = {0, 0}, .extent = {rRenderTargetTextures.mpRedLightingBlurTextures[iLevel].mInfo.extent.width, rRenderTargetTextures.mpRedLightingBlurTextures[iLevel].mInfo.extent.height}},
-		.clearValueCount = 0,
-		.pClearValues = nullptr,
-	};
-	vkCmdBeginRenderPass(vkCommandBuffer, &vkRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		rRenderTargetTextures.mpCombineTextures[iColor].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
+	}
 
-	gpPipelineManager->mpLightingBlurPipelines[iLevel].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {static_cast<float>(previousExtent.width), static_cast<float>(previousExtent.height), fBlurDivisor, fDistanceCount});
+	{
+		Pipeline& rCombinePipeline = gpPipelineManager->mCombinePipeline;
+		int64_t iDescriptorSetIndex = rCombinePipeline.mbPerCommandBuffer ? iCommandBuffer : 0;
+		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rCombinePipeline.mVkPipeline);
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rCombinePipeline.mVkPipelineLayout, 0, 1, &rCombinePipeline.mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
 
-	vkCmdEndRenderPass(vkCommandBuffer);
+		shaders::PushConstantsLayout combinePushConstants {};
+		struct { uint32_t uiWidth; uint32_t uiHeight; } combineData {.uiWidth = uiAccumulateWidth, .uiHeight = uiAccumulateHeight};
+		std::memcpy(&combinePushConstants, &combineData, std::min(sizeof(combineData), sizeof(combinePushConstants)));
+
+		vkCmdPushConstants(vkCommandBuffer, rCombinePipeline.mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(shaders::PushConstantsLayout), &combinePushConstants);
+		vkCmdDispatch(vkCommandBuffer, uiAccumulateGroupsX, uiAccumulateGroupsY, 1);
+	}
+
+	for (int64_t iColor = 0; iColor < 3; ++iColor)
+	{
+		rRenderTargetTextures.mpCombineTextures[iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
+	}
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
+
+	// Final barrier: compute → fragment (combine textures are now readable by fragment shaders)
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 1, &vkComputeBarrier, 0, nullptr, 0, nullptr);
 }
 
 void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
@@ -638,23 +731,35 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingDeposit);
 
-	// Barrier: level-0 occupancy was cleared in Global command buffer, wait for transfer before fragment writes
-	if (gpBufferManager->mLightOccupancyVkBuffers[0] != VK_NULL_HANDLE)
+	// Clear occupancy buffer before deposit (deposit shaders write occupancy)
+	VkBufferMemoryBarrier vkOccupancyPreClearBarrier
 	{
-		VkBufferMemoryBarrier vkOccupancyClearBarrier
-		{
-			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-			.pNext = nullptr,
-			.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-			.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.buffer = gpBufferManager->mLightOccupancyVkBuffers[0],
-			.offset = 0,
-			.size = VK_WHOLE_SIZE,
-		};
-		vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 1, &vkOccupancyClearBarrier, 0, nullptr);
-	}
+		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+		.pNext = nullptr,
+		.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.buffer = gpBufferManager->mLightOccupancyVkBuffers[0],
+		.offset = 0,
+		.size = VK_WHOLE_SIZE,
+	};
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1, &vkOccupancyPreClearBarrier, 0, nullptr);
+	vkCmdFillBuffer(vkCommandBuffer, gpBufferManager->mLightOccupancyVkBuffers[0], 0, gpBufferManager->mLightOccupancyBufferSizes[0], 0);
+
+	VkBufferMemoryBarrier vkOccupancyClearToFragmentBarrier
+	{
+		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+		.pNext = nullptr,
+		.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.buffer = gpBufferManager->mLightOccupancyVkBuffers[0],
+		.offset = 0,
+		.size = VK_WHOLE_SIZE,
+	};
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 1, &vkOccupancyClearToFragmentBarrier, 0, nullptr);
 
 	VkClearValue pClearValues[3] {};
 	VkRenderPassBeginInfo vkRenderPassBeginInfo
@@ -685,126 +790,17 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	vkCmdEndRenderPass(vkCommandBuffer);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingDeposit);
 
-	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingOccupancy);
-	// Barrier: fragment SSBO writes (occupancy) -> compute read+write (dilate)
-	if (gpBufferManager->mLightOccupancyVkBuffers[0] != VK_NULL_HANDLE)
-	{
-		VkBufferMemoryBarrier vkOccupancyBarrier
-		{
-			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-			.pNext = nullptr,
-			.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.buffer = gpBufferManager->mLightOccupancyVkBuffers[0],
-			.offset = 0,
-			.size = VK_WHOLE_SIZE,
-		};
-		vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &vkOccupancyBarrier, 0, nullptr);
-
-		// Dispatch light occupancy dilation
-		RenderTargetTextures& rRenderTargetTextures = gpTextureManager->mRenderTargetTextures;
-		uint32_t uiLightTilesX = (rRenderTargetTextures.mpLightingTextures[0].mInfo.extent.width + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-		uint32_t uiLightTilesY = (rRenderTargetTextures.mpLightingTextures[0].mInfo.extent.height + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-		uint32_t uiTotalTiles = uiLightTilesX * uiLightTilesY;
-		uint32_t uiDilateGroups = (uiTotalTiles + shaders::kiOccupancyDilateGroupSize - 1) / shaders::kiOccupancyDilateGroupSize;
-
-		Pipeline& rDilatePipeline = gpPipelineManager->mLightOccupancyDilatePipeline;
-		int64_t iDescriptorSetIndex = rDilatePipeline.mbPerCommandBuffer ? iCommandBuffer : 0;
-		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rDilatePipeline.mVkPipeline);
-		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rDilatePipeline.mVkPipelineLayout, 0, 1, &rDilatePipeline.mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
-
-		shaders::PushConstantsLayout dilatePushConstants {};
-		struct { uint32_t uiTilesX; uint32_t uiTilesY; } dilateData {uiLightTilesX, uiLightTilesY};
-		std::memcpy(&dilatePushConstants, &dilateData, std::min(sizeof(dilateData), sizeof(dilatePushConstants)));
-		vkCmdPushConstants(vkCommandBuffer, rDilatePipeline.mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(shaders::PushConstantsLayout), &dilatePushConstants);
-
-		vkCmdDispatch(vkCommandBuffer, uiDilateGroups, 1, 1);
-
-		// Barrier: dilate compute writes -> first spread compute reads on occupancy
-		VkBufferMemoryBarrier vkDilateBarrier
-		{
-			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-			.pNext = nullptr,
-			.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.buffer = gpBufferManager->mLightOccupancyVkBuffers[0],
-			.offset = 0,
-			.size = VK_WHOLE_SIZE,
-		};
-		vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &vkDilateBarrier, 0, nullptr);
-	}
-
-	// Barrier: deposit MRT color attachment writes -> compute shader reads (first spread)
+	// Barrier: deposit MRT color attachment + occupancy writes → compute shader reads (spread)
 	VkMemoryBarrier vkDepositToComputeBarrier
 	{
 		.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
 		.pNext = nullptr,
-		.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+		.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
 	};
-	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &vkDepositToComputeBarrier, 0, nullptr, 0, nullptr);
-
-	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingOccupancy);
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &vkDepositToComputeBarrier, 0, nullptr, 0, nullptr);
 
 	RecordLightingSpreadPipeline(vkCommandBuffer, iCommandBuffer);
-
-	// Lighting blur passes (single MRT pass per level)
-	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingBlur);
-	float fBlurFirstDivisor = gLightingBlurFirstDivisor.Get();
-	if (gpGraphics->mFramebufferExtent2D.height <= 1080)
-	{
-		fBlurFirstDivisor *= 0.5f;
-	}
-	float fBlurDivisor = gLightingBlurDivisor.Get();
-	for (int64_t i = 0; i < gpTextureManager->mRenderTargetTextures.miLightingBlurCount; ++i)
-	{
-		float fDivisor = i == 0 ? fBlurFirstDivisor : fBlurDivisor;
-		float fDistanceCount = i <= 1 ? 4.0f : (i <= 3 ? 3.0f : 2.0f);
-		if (i >= 2)
-		{
-			fDistanceCount = -fDistanceCount;
-		}
-
-		VkExtent3D previousExtent = i == 0
-			? gpTextureManager->mRenderTargetTextures.mpFirstSpreadTextures[0].mInfo.extent
-			: gpTextureManager->mRenderTargetTextures.mpRedLightingBlurTextures[i - 1].mInfo.extent;
-
-		RecordLightingBlurMRT(vkCommandBuffer, iCommandBuffer, i, fDivisor, fDistanceCount, previousExtent);
-	}
-	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingBlur);
-
-	// Lighting combine passes: copy blur base level to combine textures, then additive blend
-	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
-	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
-	RenderTargetTextures& rTextures = gpTextureManager->mRenderTargetTextures;
-	Texture* pBlurSources[3] {&rTextures.mpRedLightingBlurTextures[iCombineTextureIndex], &rTextures.mpGreenLightingBlurTextures[iCombineTextureIndex], &rTextures.mpBlueLightingBlurTextures[iCombineTextureIndex]};
-	Pipelines pCombinePipelines[3] {kPipelineRedLightingCombine, kPipelineGreenLightingCombine, kPipelineBlueLightingCombine};
-	VkImageBlit vkImageBlit
-	{
-		.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-		.srcOffsets = {{0, 0, 0}, {static_cast<int32_t>(pBlurSources[0]->mInfo.extent.width), static_cast<int32_t>(pBlurSources[0]->mInfo.extent.height), 1}},
-		.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-		.dstOffsets = {{0, 0, 0}, {static_cast<int32_t>(rTextures.mpLightingCombineTextures[0].mInfo.extent.width), static_cast<int32_t>(rTextures.mpLightingCombineTextures[0].mInfo.extent.height), 1}},
-	};
-	for (int64_t i = 0; i < 3; ++i)
-	{
-		// Blit blur base level to combine texture (handles different sizes)
-		pBlurSources[i]->TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kTransferSource);
-		rTextures.mpLightingCombineTextures[i].TransitionImageLayout(vkCommandBuffer, kFragmentShaderReadOnly, kTransferDestination);
-		vkCmdBlitImage(vkCommandBuffer, pBlurSources[i]->mVkImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, rTextures.mpLightingCombineTextures[i].mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkImageBlit, VK_FILTER_LINEAR);
-		// Transition for combine render pass
-		pBlurSources[i]->TransitionImageLayout(vkCommandBuffer, kTransferSource, kFragmentShaderReadOnly);
-		rTextures.mpLightingCombineTextures[i].TransitionImageLayout(vkCommandBuffer, kTransferDestination, kColorAttachment);
-		// Additive combine render
-		rTextures.mpLightingCombineTextures[i].RecordBeginRenderPass(vkCommandBuffer);
-		pPipelines[pCombinePipelines[i]].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0);
-		rTextures.mpLightingCombineTextures[i].RecordEndRenderPass(vkCommandBuffer);
-	}
-	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
 
 	// Smoke emit pass
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeEmit);

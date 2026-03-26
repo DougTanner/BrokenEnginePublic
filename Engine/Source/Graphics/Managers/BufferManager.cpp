@@ -504,12 +504,10 @@ void BufferManager::CreateLightingSpreadBuffers()
 {
 	DestroyLightingSpreadBuffers();
 
-	// Only level 0 is needed (used by first-spread occupancy)
-	uint32_t uiWidth = gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.width;
-	uint32_t uiHeight = gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.height;
-
-	uint32_t uiTilesX = (uiWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-	uint32_t uiTilesY = (uiHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	// Occupancy grid: one tile per kiComputeTileSize pixels of deposit texture
+	auto [iDepositX, iDepositY] = TextureManager::DetailTextureSize(gLightingDepositTextureMultiplier.Get());
+	uint32_t uiTilesX = std::max(1u, static_cast<uint32_t>(iDepositX) / shaders::kiComputeTileSize);
+	uint32_t uiTilesY = std::max(1u, static_cast<uint32_t>(iDepositY) / shaders::kiComputeTileSize);
 	uint32_t uiTotalTiles = uiTilesX * uiTilesY;
 
 	// Bit-packed occupancy: 1 bit per tile, packed into uint32s
@@ -521,15 +519,6 @@ void BufferManager::CreateLightingSpreadBuffers()
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		mLightOccupancyVkBuffers[0], unusedOccupancyMemory, mLightOccupancyVmaAllocations[0]);
-
-	// Active tile list: VkDispatchIndirectCommand (12 bytes) + packed tile indices (4 bytes each)
-	VkDeviceSize activeTileSize = sizeof(VkDispatchIndirectCommand) + static_cast<VkDeviceSize>(uiTotalTiles) * sizeof(uint32_t);
-	mLightActiveTileBufferSizes[0] = activeTileSize;
-	VkDeviceMemory unusedActiveTileMemory = VK_NULL_HANDLE;
-	Buffer::CreateBuffer("LightActiveTile", activeTileSize,
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		mLightActiveTileVkBuffers[0], unusedActiveTileMemory, mLightActiveTileVmaAllocations[0]);
 }
 
 void BufferManager::DestroyLightingSpreadBuffers()
@@ -541,12 +530,6 @@ void BufferManager::DestroyLightingSpreadBuffers()
 			vmaDestroyBuffer(gpDeviceManager->mpAllocator, mLightOccupancyVkBuffers[i], mLightOccupancyVmaAllocations[i]);
 			mLightOccupancyVkBuffers[i] = VK_NULL_HANDLE;
 			mLightOccupancyVmaAllocations[i] = VK_NULL_HANDLE;
-		}
-		if (mLightActiveTileVkBuffers[i] != VK_NULL_HANDLE)
-		{
-			vmaDestroyBuffer(gpDeviceManager->mpAllocator, mLightActiveTileVkBuffers[i], mLightActiveTileVmaAllocations[i]);
-			mLightActiveTileVkBuffers[i] = VK_NULL_HANDLE;
-			mLightActiveTileVmaAllocations[i] = VK_NULL_HANDLE;
 		}
 	}
 }

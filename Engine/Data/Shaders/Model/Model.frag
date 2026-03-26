@@ -204,6 +204,7 @@ void GetIBLContribution(float NdotV, float perceptualRoughness, vec3 diffuseColo
 
 void main()
 {
+#if 0
 	PbrMaterialLayout material = pMaterials[int32_t(pushConstantsLayout.f4Pipeline.w)];
 
 	// Sample base color
@@ -315,7 +316,7 @@ void main()
 
 	// Cook-Torrance specular from engine directional lights (EWNS cardinal directions)
 #if ENABLE_SPECULAR_LIGHTING
-	const vec3 kCardinalDirs[4] = vec3[4](vec3(-1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(0.0, -1.0, 0.0), vec3(0.0, 1.0, 0.0));
+	const vec3 kCardinalDirs[4] = vec3[4](vec3(-1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, -1.0, 0.0));
 	vec3 specLightAccum = vec3(0.0);
 	for (int i = 0; i < 4; i++)
 	{
@@ -365,4 +366,30 @@ void main()
 
 	// Per-instance color add (for effects like damage flash)
 	f4OutColor += f4InColorAdd;
+#else
+	PbrMaterialLayout material = pMaterials[int32_t(pushConstantsLayout.f4Pipeline.w)];
+
+	vec4 baseColor = material.f4BaseColorFactor;
+	if (material.iColorTextureSet > -1)
+	{
+		baseColor *= SRGBtoLinear(texture(sampler2D(pTextures[nonuniformEXT(int(material.fColorTextureIndex))], samplerRepeat), getUV(material.iColorTextureSet)));
+	}
+
+	vec3 n = GetNormal(material);
+
+	// Directional: sample at world-space x/y position
+	vec2 f2DirectTexcoord = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
+	vec4 pf4DirectLighting[3];
+	ReadLighting(pf4DirectLighting, pLightingSamplers, f2DirectTexcoord);
+	vec3 f3Direct = DirectionalLighting2D(pf4DirectLighting, n, mainLayout.fLightingNewDirectional);
+
+	// Ambient: sample projected to base height toward eye
+	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InWorldPosition);
+	vec2 f2AmbientTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
+	vec4 pf4AmbientLighting[3];
+	ReadLighting(pf4AmbientLighting, pLightingSamplers, f2AmbientTexcoord);
+	vec3 f3Ambient = AmbientLighting(pf4AmbientLighting, mainLayout.fLightingNewAmbient);
+
+	f4OutColor = vec4(baseColor.rgb * (f3Direct + f3Ambient), baseColor.a);
+#endif
 }
