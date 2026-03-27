@@ -1169,6 +1169,12 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightCombine.comp">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingBlurH.comp">
+      <Filter>Engine\Data\Shaders\Lighting</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingBlurV.comp">
+      <Filter>Engine\Data\Shaders\Lighting</Filter>
+    </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ObjectShadowsBlurH.comp">
       <Filter>Engine\Data\Shaders\Shadow</Filter>
     </None>

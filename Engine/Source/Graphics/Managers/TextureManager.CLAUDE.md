@@ -12,6 +12,10 @@ Comprehensive texture and sampler management with lazy loading and deferred desc
 | `mTextureCache` | `TextureCache` | GPU-to-CPU image readback, file-based texture caching, PBR BRDF LUT generation |
 | `mRenderTargetTextures` | `RenderTargetTextures` | All effect render targets: lighting (MRT + blur chains), shadows, smoke, wind, object shadows, terrain |
 
+## Pre-Blur Lighting Textures
+
+When a light type texture (AreaLights, PointLights) finishes loading, `BlurLightingTexture()` runs a separable Gaussian blur via the `kPipelineLightingBlurH`/`kPipelineLightingBlurV` compute pipelines into a 2x-size RGBA8 result texture. The blurred result is registered in the bindless array under a salted CRC (`originalCrc ^ "BLUR"`) so deposit shaders can look it up via `CrcToBlurredIndex()`. `ReblurAllLightingTextures()` re-runs all blurs when sigma changes at runtime. CRCs to blur are tracked in `mLightingTextureCrcs`, populated at startup via `RegisterLightingTextureCrc()` called from `TypeRegistry::RegisterType()`.
+
 ## Lazy Loading
 
 Deferred textures start with white placeholder VkImageView. Background disk loading via FileManager, GPU upload via TextureUploadManager, then adoption into rendering pipeline. Adoption rate-limited (4 GPU-uploaded and 1 fallback per frame) to prevent frame spikes.
@@ -30,7 +34,7 @@ Eight sampler types with runtime-configurable anisotropy. Three IBL cubemaps (ir
 
 ## TextureDescriptors
 
-Shared descriptor set layout and per-framebuffer sets containing uniform buffers, repeat/clamp samplers, and an unsized bindless texture array with PARTIALLY_BOUND and UPDATE_AFTER_BIND flags. All non-compute graphics pipelines reference this as their external Set 0. Pipelines register texture bindings during descriptor set creation; when textures load, new VkImageViews are propagated to all registered bindings. Sampler-only recreation supported without pipeline rebuild via `RewriteSamplerDescriptors()`.
+Shared descriptor set layout and per-framebuffer sets containing uniform buffers, repeat/clamp samplers, and an unsized bindless texture array with PARTIALLY_BOUND and UPDATE_AFTER_BIND flags. All non-compute graphics pipelines reference this as their external Set 0. Pipelines register texture bindings during descriptor set creation; when textures load, new VkImageViews are propagated to all registered bindings. Sampler-only recreation supported without pipeline rebuild via `RewriteSamplerDescriptors()`. `CrcToBlurredIndex()` looks up the salted CRC (`crc ^ "BLUR"`) in the bindless map, falling back to the original CRC if no blurred version exists.
 
 ## TextureCache
 

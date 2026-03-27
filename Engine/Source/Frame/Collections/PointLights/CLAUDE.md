@@ -15,7 +15,7 @@ The implementation is split across three `.cpp` files:
 
 ## Architecture Notes
 
-- Texture lookup in `Render()` uses `gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc)` per type to resolve the GPU texture slot
+- Deposit quads sample the pre-blurred texture via `CrcToBlurredIndex()`; visible light sprites use the original unblurred texture via `CrcToIndex()`
 - Supports both synced lights (parent-managed) and controlled lights (fire-and-forget with keyframe animation that auto-destroys on expiry)
 - Controlled lights use `InterpolateKeyframes()` each frame to drive visible area, intensity, lighting area, and rotation
 - Lighting deposit quads enforce a minimum world-space size derived from the deposit texture resolution to prevent sub-texel flickering

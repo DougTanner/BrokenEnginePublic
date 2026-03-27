@@ -13,6 +13,7 @@ struct PipelineDescriptorWriter
 	static void UpdateStorageBuffer(Pipeline& rPipeline, int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer);
 	static void UpdateCombinedImageSampler(Pipeline& rPipeline, int64_t iBinding, VkImageView vkImageView, VkSampler vkSampler);
 	static void UpdateSampler(Pipeline& rPipeline, int64_t iBinding, VkSampler vkSampler);
+	static void UpdateStorageImage(Pipeline& rPipeline, int64_t iBinding, VkImageView vkImageView);
 };
 
 } // namespace engine

@@ -158,7 +158,7 @@ common::crc_t MultiCrc(int64_t iCount, TTuple&& members)
 			{
 				if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
 				{
-					constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
+					static constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
 					for (size_t i = 0; i < N; ++i)
 					{
 						checksum ^= common::Crc(memberPtrRefs[i], iCount);
@@ -185,7 +185,7 @@ void MultiWrite(std::ostream& rStream, int64_t iCount, TTuple&& members)
 		{
 			if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
 			{
-				constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
+				static constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
 				for (size_t i = 0; i < N; ++i)
 				{
 					common::Write(rStream, memberPtrRefs[i], iCount);
@@ -210,7 +210,7 @@ void MultiRead(std::istream& rStream, int64_t iCount, TTuple&& members)
 		{
 			if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
 			{
-				constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
+				static constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
 				for (size_t i = 0; i < N; ++i)
 				{
 					common::Read(rStream, memberPtrRefs[i], iCount);
@@ -349,6 +349,11 @@ struct ControllerTypeRegistry
 // Request lazy-load of a texture chunk by CRC (implemented in FileManager.cpp)
 void RequestTextureChunkLoad(common::crc_t crc);
 
+#if defined(BT_CLIENT)
+// Register a CRC for pre-blur (implemented in TextureManager.cpp)
+void RegisterLightingTextureCrc(common::crc_t crc);
+#endif
+
 // Mixin providing static type registry for collections with type-based configuration sharing.
 // Type is passed as template parameter (must be defined before collection).
 template <typename TType>
@@ -368,6 +373,9 @@ struct TypeRegistry
 			if (rType.crc != 0)
 			{
 				RequestTextureChunkLoad(rType.crc);
+#if defined(BT_CLIENT)
+				RegisterLightingTextureCrc(rType.crc);
+#endif
 			}
 		}
 	}
@@ -551,7 +559,7 @@ common::crc_t MultiElementCrc(int64_t iIndex, TTuple&& members)
 		{
 			if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
 			{
-				constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
+				static constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
 				for (size_t i = 0; i < N; ++i)
 				{
 					checksum ^= common::Crc(memberPtrRefs[i][iIndex]);

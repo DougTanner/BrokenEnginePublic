@@ -311,6 +311,7 @@ extern Wrapper gWaterHeightDarkenClamp;
 // Lighting
 extern Wrapper gLightingDepositTextureMultiplier;
 extern Wrapper gDepositEnergyNormalize;
+extern Wrapper gLightingBlurSigma;
 
 extern Wrapper gCombineExposure;
 extern Wrapper gCombinePower;

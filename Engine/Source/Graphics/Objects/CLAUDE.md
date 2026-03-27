@@ -11,7 +11,7 @@ Low-level Vulkan resource wrappers providing RAII semantics for GPU resources. A
 - **Pipeline** - Complete Vulkan pipeline state for graphics and compute. Combines shaders, vertex input, render state, and descriptor bindings. `PipelineInfo::iColorAttachmentCount` controls MRT blend state expansion (default 1; set to 3 for R/G/B blur pipelines). Split across three files by responsibility:
   - `Pipeline.cpp` - Core lifecycle, command recording, indirect buffer writes
   - `PipelineCreator.cpp` - Vulkan pipeline/layout object creation
-  - `PipelineDescriptorWriter.cpp` - Descriptor set allocation and writes
+  - `PipelineDescriptorWriter.cpp` - Descriptor set allocation and writes. `UpdateStorageImageDescriptor()` updates a single storage image binding in place (used by lighting blur pipelines to point at per-texture intermediate and result images)
 - **ModelPipeline** - Multi-material pipeline wrapper that creates a Pipeline per material with per-material descriptor sets and indirect draw buffers. Supports two-pass transparency rendering (opaque/transparent). Defines `kModelPipelineBindingMeshData` and `kModelPipelineBindingJointMatrix` binding index constants used by `BufferManager` when updating descriptors after buffer growth
 - **Shader** - SPIR-V shader module wrapper with zero-copy pointers into chunk data for descriptor bindings, set indices, and vertex attributes
 - **Texture** - Image resource and render target management with mipmaps, texture arrays, and lazy loading. Supports deferred loading via placeholder swap, render target auto-creation, and layout transitions with synchronization. `RecordBeginRenderPass` accepts a `RenderPassFlags_t` (combining `kDepth`, `kMultisampling`, `kClear`) instead of individual booleans

@@ -124,7 +124,9 @@ TextureManager::TextureManager()
 	}
 
 	// Pre-fill texture arrays with white placeholders for lazy index assignment
-	mTextureDescriptors.mImageInfos.resize(mTextureMap.size(), {nullptr, mWhiteTexture.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
+	// Extra slots reserved for pre-blurred lighting texture copies
+	static constexpr int64_t kiLightingBlurSlots = 16;
+	mTextureDescriptors.mImageInfos.resize(mTextureMap.size() + kiLightingBlurSlots, {nullptr, mWhiteTexture.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
 
 	mTextureDescriptors.Create();
 
@@ -458,6 +460,11 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 
 			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
 
+			if (mLightingTextureCrcs.contains(rCrc))
+			{
+				BlurLightingTexture(rCrc);
+			}
+
 			if (bFromTransferQueue && ++iAdoptedCount >= kiMaxAdoptionsPerFrame)
 			{
 				break;
@@ -474,6 +481,11 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 			bAdoptedTextures = true;
 
 			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
+
+			if (mLightingTextureCrcs.contains(rCrc))
+			{
+				BlurLightingTexture(rCrc);
+			}
 
 			// Only upload one texture a frame
 			break;
@@ -562,6 +574,131 @@ void TextureManager::WaitForTextures(std::span<Texture* const> textures)
 
 	WaitForTextures(common::gpThreadLocal->mWorkbuffer.Span<common::crc_t>());
 	common::gpThreadLocal->mWorkbuffer.Pop();
+}
+
+void RegisterLightingTextureCrc(common::crc_t crc)
+{
+	gpTextureManager->RegisterLightingTextureCrc(crc);
+}
+
+void TextureManager::RegisterLightingTextureCrc(common::crc_t crc)
+{
+	// Heap: unordered_set insert during startup registration
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	mLightingTextureCrcs.insert(crc);
+}
+
+void TextureManager::BlurLightingTexture(common::crc_t crc)
+{
+	// Heap: GPU textures for pre-blurred lighting
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	const Texture& rSource = mTextureMap.at(crc);
+	uint32_t uiWidth = rSource.mInfo.extent.width * 2;
+	uint32_t uiHeight = rSource.mInfo.extent.height * 2;
+
+	// Create or recreate intermediate texture
+	auto [itIntermediate, bInsertedIntermediate] = mBlurIntermediateTextures.try_emplace(crc);
+	if (!bInsertedIntermediate)
+	{
+		itIntermediate->second.Destroy();
+	}
+	itIntermediate->second.Create(
+	{
+		.textureFlags = {},
+		.name = "LightingBlurIntermediate",
+		.flags = 0,
+		.format = VK_FORMAT_R8G8B8A8_UNORM,
+		.extent = VkExtent3D {uiWidth, uiHeight, 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kComputeReadWrite,
+	});
+
+	// Create or recreate result texture
+	auto [itResult, bInsertedResult] = mBlurredLightingTextures.try_emplace(crc);
+	if (!bInsertedResult)
+	{
+		itResult->second.Destroy();
+	}
+	itResult->second.Create(
+	{
+		.textureFlags = {},
+		.name = "LightingBlurResult",
+		.flags = 0,
+		.format = VK_FORMAT_R8G8B8A8_UNORM,
+		.extent = VkExtent3D {uiWidth, uiHeight, 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	});
+
+	Texture& rIntermediate = itIntermediate->second;
+	Texture& rResult = itResult->second;
+
+	// Update pipeline descriptors for this blur pass
+	Pipeline& rBlurH = gpPipelineManager->mpPipelines[kPipelineLightingBlurH];
+	Pipeline& rBlurV = gpPipelineManager->mpPipelines[kPipelineLightingBlurV];
+
+	rBlurH.UpdateCombinedImageSamplerDescriptor(0, rSource.mVkImageView, mVkSamplerClamp);
+	rBlurH.UpdateStorageImageDescriptor(1, rIntermediate.mVkImageView);
+	rBlurV.UpdateCombinedImageSamplerDescriptor(0, rIntermediate.mVkImageView, mVkSamplerClamp);
+	rBlurV.UpdateStorageImageDescriptor(1, rResult.mVkImageView);
+
+	// Execute blur via one-shot command buffer
+	struct BlurPushConstants
+	{
+		int32_t iWidth;
+		int32_t iHeight;
+		float fSigma;
+	};
+	BlurPushConstants pushConstants {static_cast<int32_t>(uiWidth), static_cast<int32_t>(uiHeight), gLightingBlurSigma.Get()};
+
+	OneShotCommandBuffer cmd;
+	VkCommandBuffer vkCmd = cmd.mVkCommandBuffer;
+
+	// Horizontal pass: source → intermediate
+	rIntermediate.TransitionImageLayout(vkCmd, kComputeReadWrite, kComputeReadWrite);
+	rBlurH.RecordCompute(0, vkCmd, (uiWidth + 7) / 8, (uiHeight + 7) / 8, 1, {std::bit_cast<float>(pushConstants.iWidth), std::bit_cast<float>(pushConstants.iHeight), pushConstants.fSigma, 0.0f});
+
+	// Transition intermediate: storage write → shader read for V pass sampler
+	rIntermediate.TransitionImageLayout(vkCmd, kComputeReadWrite, kShaderReadOnly);
+
+	// Vertical pass: intermediate → result
+	rResult.TransitionImageLayout(vkCmd, kShaderReadOnly, kComputeReadWrite);
+	rBlurV.RecordCompute(0, vkCmd, (uiWidth + 7) / 8, (uiHeight + 7) / 8, 1, {std::bit_cast<float>(pushConstants.iWidth), std::bit_cast<float>(pushConstants.iHeight), pushConstants.fSigma, 0.0f});
+
+	// Transition result back to shader read for bindless sampling
+	rResult.TransitionImageLayout(vkCmd, kComputeReadWrite, kShaderReadOnly);
+
+	cmd.Execute(true);
+
+	// Register blurred texture in bindless array
+	static constexpr common::crc_t kBlurSalt = 0x424C5552; // "BLUR"
+	common::crc_t blurredCrc = crc ^ kBlurSalt;
+	int64_t iBlurredIndex = static_cast<int64_t>(mTextureDescriptors.CrcToIndex(blurredCrc));
+	mTextureDescriptors.mImageInfos.at(iBlurredIndex).imageView = rResult.mVkImageView;
+	mTextureDescriptors.UpdateTextureArrayDescriptors();
+}
+
+void TextureManager::ReblurAllLightingTextures()
+{
+	for (common::crc_t crc : mLightingTextureCrcs)
+	{
+		LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(crc);
+		if (rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kReady)
+		{
+			BlurLightingTexture(crc);
+		}
+	}
 }
 
 } // namespace engine

@@ -26,6 +26,7 @@ public:
 	void ClearTextureBindings();
 
 	float CrcToIndex(common::crc_t crc);
+	float CrcToBlurredIndex(common::crc_t crc);
 
 	// Global descriptor Set 0 shared by all graphics pipelines
 	VkDescriptorSetLayout mGlobalDescriptorSetLayout = VK_NULL_HANDLE;

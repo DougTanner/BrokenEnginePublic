@@ -20,6 +20,13 @@ GLSL shader source files for the Vulkan 1.2 rendering pipeline, compiled to SPIR
 - **Four-channel directional lighting**: RGB stored as separate render targets with EWNS directional weights; direction weights are computed once per call in `Lighting`/`SpecularLighting` using component extraction and applied across all three color channels in a single pass
 - **World-space directional deposit**: Area light fragment shaders receive interpolated world position and world center varyings from the vertex shader; EWNS direction weights are derived from world-space offset. Both area and point deposit shaders support a tunable blend between Euclidean and sum-normalized energy distribution via a global uniform
 
+## Adding New Shaders
+
+New shader files are auto-discovered by the DataPacker at build time, but must also be added to the client `.vcxproj` for IDE visibility:
+
+1. Add a `<None Include>` entry in `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.vcxproj` alongside existing shader entries
+2. Add a matching `<None Include>` with `<Filter>` in the `.vcxproj.filters` file, using the appropriate `Engine\Data\Shaders\<Subdirectory>` filter
+
 ## Known Issues
 
 **NVIDIA driver bug**: Do NOT use `inverse()` on mat3/mat4 in shaders. NVIDIA's compiler hangs indefinitely during pipeline creation. Precompute inverse matrices on the CPU and pass via buffers.

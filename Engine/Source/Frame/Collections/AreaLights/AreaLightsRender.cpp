@@ -77,6 +77,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		XMVECTOR vecCenter = (vecVisiblePos0 + vecVisiblePos1 + vecVisiblePos2 + vecVisiblePos3) * 0.25f;
 		const AreaLightsType& rType = AreaLightsInterpolate::GetType(rCurrent.puiTypeIndices[i]);
 		float fTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc);
+		float fBlurredTextureIndex = gpTextureManager->mTextureDescriptors.CrcToBlurredIndex(rType.crc);
 		float fIntensityMultiplier = rCurrent.pfIntensityMultipliers[i];
 		float fLightingSize = std::max(rType.fLightingSize, fMinLightingSize);
 
@@ -139,7 +140,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		rAreaLayout.pf4VerticesTexcoords[3] = {f4Base.x, f4Base.y, rType.pf2Texcoords[3].x, rType.pf2Texcoords[3].y};
 
 		XMFLOAT4A f4Params {};
-		f4Params.x = fTextureIndex;
+		f4Params.x = fBlurredTextureIndex;
 		f4Params.y = rType.fLightingIntensity * fIntensityMultiplier;
 		rAreaLayout.pf4Params[0] = f4Params;
 		rAreaLayout.pf4Params[1] = f4Params;

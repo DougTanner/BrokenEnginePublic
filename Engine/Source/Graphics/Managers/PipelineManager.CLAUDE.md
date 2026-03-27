@@ -12,6 +12,8 @@ Indexed by `Pipelines` enum, covering shadows, terrain, water, particles, smoke,
 
 Lighting pipelines are stored as named members rather than in the `Pipelines` enum: an array of spread pipelines (fragment MRT, one per spread pass, each writing all three spread textures), and a combine pipeline (compute, tone maps all three channels in one dispatch, reading from all spread pass outputs).
 
+Two static compute pipelines (`kPipelineLightingBlurH`, `kPipelineLightingBlurV`) implement separable Gaussian blur for pre-blurring light type textures at load time. Their descriptors are updated per-texture before each blur dispatch via `UpdateStorageImageDescriptor()` and `UpdateCombinedImageSamplerDescriptor()`.
+
 ## Dynamic Pipelines (`mDynamicPipelines`)
 
 Delegated to the `DynamicPipelines` sub-object (`DynamicPipelines.h/.cpp`), owned as a member of PipelineManager. Collections register pipelines during CreatePipelines() phase via `gpPipelineManager->mDynamicPipelines.Create*()`. Two indexing systems: `DynamicPipelineType` for non-model pipelines (lighting, visible lights, billboards, smoke, wind deposit, hex shields) and `DynamicModelPipelineType` for model pipelines (regular and shadow). Both stored as CRC-keyed maps accessed via `mDynamicPipelines.mPipelineMaps` and `mDynamicPipelines.mModelPipelineMaps`.

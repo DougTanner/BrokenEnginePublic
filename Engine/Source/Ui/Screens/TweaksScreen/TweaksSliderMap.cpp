@@ -122,6 +122,7 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Spread Decay", &gSpreadDecay},
 		{"Spread Pass Count", &gSpreadPassCount},
 		{"Deposit Energy Normalize", &gDepositEnergyNormalize},
+		{"Lighting Blur Sigma", &gLightingBlurSigma},
 
 		{"Combine Exposure", &gCombineExposure},
 		{"Combine Power", &gCombinePower},

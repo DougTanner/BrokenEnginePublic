@@ -6,7 +6,7 @@ Multi-section ImGui parameter adjustment screen base class for runtime control o
 
 - **TweaksScreenBase.h** - Base class declaration (`engine::TweaksScreenBase`) with `TweakSection` enum (14 sections) and all render method signatures
 - **TweaksScreenBase.cpp** - Core logic: constructor, `Render()`, toggle bar, section window rendering, slider helpers, and `RenderWaveCountRadioButtons()`
-- **TweaksSliderMap.h/.cpp** - Standalone static class holding the slider-to-Wrapper lookup map; `Get()` returns the shared map instance. Includes lighting entries for all pipeline phases: deposit multiplier/energy normalize, radial spread directionality/distance/ring count/jitter/decay/pass count, and combine exposure/power/linear-clamp
+- **TweaksSliderMap.h/.cpp** - Standalone static class holding the slider-to-Wrapper lookup map; `Get()` returns the shared map instance. Includes lighting entries for all pipeline phases: deposit multiplier/energy normalize, radial spread directionality/distance/ring count/jitter/decay/pass count, combine exposure/power/linear-clamp, and pre-blur sigma (`gLightingBlurSigma`)
 - **TweaksScreen\<Section\>.cpp** - One file per section, each implementing a single `Render*Section()` method. Sections cover test, PBR, terrain, water (specular, low, medium, lighting), lighting, shadow, misc, smoke, and wind. Each file uses `static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::k*)` for the section index
 
 ## Architecture Notes

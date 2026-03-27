@@ -92,8 +92,9 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 
 		// Build AxisAlignedQuadLayout for lighting pass (uses base height projected position)
 		float fTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc);
+		float fBlurredTextureIndex = gpTextureManager->mTextureDescriptors.CrcToBlurredIndex(rType.crc);
 		XMFLOAT4A f4Params {};
-		f4Params.x = fTextureIndex;
+		f4Params.x = fBlurredTextureIndex;
 		f4Params.y = fLightingIntensity;
 		f4Params.z = fRotation;
 		BuildAxisAlignedQuad(pPointLightsLayouts[siRendered], f4Position, fLightingArea, f4Params, rType.uiColor);

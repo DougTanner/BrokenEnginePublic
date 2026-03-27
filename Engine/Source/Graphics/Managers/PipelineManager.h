@@ -48,6 +48,9 @@ enum Pipelines
 	kPipelineSquareParticlesUpdate,
 	kPipelineSquareParticlesRender,
 
+	kPipelineLightingBlurH,
+	kPipelineLightingBlurV,
+
 	kPipelineDebugTexture,
 
 	kPipelineCount
@@ -63,6 +66,7 @@ public:
 	std::unordered_map<common::crc_t, Shader> mShaders;
 
 	void CreateLightingPipelines();
+	void CreateLightingBlurPipelines();
 	void CreatePipelineShadows();
 	void CreateLightingShadowDependentPipelines();
 	void CreateTerrainDataPipelines();

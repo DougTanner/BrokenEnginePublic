@@ -62,6 +62,7 @@ PipelineManager::PipelineManager()
 
 	gpBufferManager->CreateLightingSpreadBuffers();
 	CreateLightingPipelines();
+	CreateLightingBlurPipelines();
 	CreatePipelineShadows();
 	CreateLightingShadowDependentPipelines();
 
@@ -285,6 +286,33 @@ void PipelineManager::CreatePipelineShadows()
 			},
 		});
 	}
+}
+
+void PipelineManager::CreateLightingBlurPipelines()
+{
+	// Lighting texture pre-blur pipelines (descriptors rebound per-texture at blur time)
+	mpPipelines[kPipelineLightingBlurH].Create(
+	{
+		.name = "LightingBlurH",
+		.flags = {kCompute, kPushConstants},
+		.ppShaders = {&mShaders.at(data::kShadersLightingLightingBlurHcompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mWhiteTexture},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mpCombineTextures[0]},
+		},
+	});
+	mpPipelines[kPipelineLightingBlurV].Create(
+	{
+		.name = "LightingBlurV",
+		.flags = {kCompute, kPushConstants},
+		.ppShaders = {&mShaders.at(data::kShadersLightingLightingBlurVcompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mWhiteTexture},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mpCombineTextures[0]},
+		},
+	});
 }
 
 void PipelineManager::CreateLightingShadowDependentPipelines()

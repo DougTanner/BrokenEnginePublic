@@ -191,7 +191,10 @@ void Graphics::Create()
 	Refresh();
 	Destroy();
 
-	if (mpInstanceManager == nullptr) { mpInstanceManager = std::make_unique<InstanceManager>(mHinstance, mHwnd); }
+	if (mpInstanceManager == nullptr)
+	{
+		mpInstanceManager = std::make_unique<InstanceManager>(mHinstance, mHwnd);
+	}
 	if (mpDeviceManager == nullptr)
 	{
 		mpDeviceManager = std::make_unique<DeviceManager>();
@@ -213,19 +216,42 @@ void Graphics::Create()
 		mpCommandBufferManager = std::make_unique<CommandBufferManager>();
 		bRecordCommandBuffers = true;
 	}
-	if (mpBufferManager == nullptr) { mpBufferManager = std::make_unique<BufferManager>(); }
-	else if (bSwapchainRecreated) { gpBufferManager->CreateSwapchainDependentBuffers(); }
-	if (mpIslands == nullptr) { mpIslands = std::make_unique<Islands>(); }
-	if (mpTextureManager == nullptr) { mpTextureManager = std::make_unique<TextureManager>(); }
-	else if (bSwapchainRecreated) { gpTextureManager->CreateScreenDependentResources(); }
-	if (mpTextManager == nullptr) { mpTextManager = std::make_unique<TextManager>(); }
+	if (mpBufferManager == nullptr)
+	{
+		mpBufferManager = std::make_unique<BufferManager>();
+	}
+	else if (bSwapchainRecreated)
+	{
+		gpBufferManager->CreateSwapchainDependentBuffers();
+	}
+	if (mpIslands == nullptr)
+	{
+		mpIslands = std::make_unique<Islands>();
+	}
+	if (mpTextureManager == nullptr)
+	{
+		mpTextureManager = std::make_unique<TextureManager>();
+	}
+	else if (bSwapchainRecreated)
+	{
+		gpTextureManager->CreateScreenDependentResources();
+	}
+	if (mpTextManager == nullptr)
+	{
+		mpTextManager = std::make_unique<TextManager>();
+	}
 	if (mpPipelineManager == nullptr)
 	{
 		mpPipelineManager = std::make_unique<PipelineManager>();
 	}
-	if (mpParticleManager == nullptr) { mpParticleManager = std::make_unique<ParticleManager>(); }
-
-	if (mpImGuiManager == nullptr) { mpImGuiManager = std::make_unique<ImGuiManager>(mHwnd); }
+	if (mpParticleManager == nullptr)
+	{
+		mpParticleManager = std::make_unique<ParticleManager>();
+	}
+	if (mpImGuiManager == nullptr)
+	{
+		mpImGuiManager = std::make_unique<ImGuiManager>(mHwnd);
+	}
 
 	if (bRecordCommandBuffers)
 	{
@@ -342,6 +368,12 @@ void Graphics::Refresh()
 		mDestroyFlags.Set(DestroyFlags::kLightingTextures);
 
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
+	}
+
+	auto [fLightingBlurSigma, fLightingBlurSigmaPrevious, bLightingBlurSigmaChanged] = gLightingBlurSigma.Changed<float>();
+	if (bLightingBlurSigmaChanged && gpTextureManager != nullptr) [[unlikely]]
+	{
+		gpTextureManager->ReblurAllLightingTextures();
 	}
 
 	auto [fObjectShadowsRenderMultiplier, fObjectShadowsRenderMultiplierPrevious, bObjectShadowsRenderMultiplierChanged] = gObjectShadowsRenderMultiplier.Changed<float>();

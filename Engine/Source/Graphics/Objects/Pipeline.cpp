@@ -328,4 +328,9 @@ void Pipeline::UpdateSamplerDescriptor(int64_t iBinding, VkSampler vkSampler)
 	PipelineDescriptorWriter::UpdateSampler(*this, iBinding, vkSampler);
 }
 
+void Pipeline::UpdateStorageImageDescriptor(int64_t iBinding, VkImageView vkImageView)
+{
+	PipelineDescriptorWriter::UpdateStorageImage(*this, iBinding, vkImageView);
+}
+
 } // namespace engine

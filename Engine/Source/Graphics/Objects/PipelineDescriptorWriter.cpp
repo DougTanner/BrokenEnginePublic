@@ -578,4 +578,33 @@ void PipelineDescriptorWriter::UpdateSampler(Pipeline& rPipeline, int64_t iBindi
 	}
 }
 
+void PipelineDescriptorWriter::UpdateStorageImage(Pipeline& rPipeline, int64_t iBinding, VkImageView vkImageView)
+{
+	for (VkDescriptorSet& rVkDescriptorSet : rPipeline.mVkDescriptorSets)
+	{
+		VkDescriptorImageInfo vkDescriptorImageInfo
+		{
+			.sampler = VK_NULL_HANDLE,
+			.imageView = vkImageView,
+			.imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+		};
+
+		VkWriteDescriptorSet vkWriteDescriptorSet
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.pNext = nullptr,
+			.dstSet = rVkDescriptorSet,
+			.dstBinding = static_cast<uint32_t>(iBinding),
+			.dstArrayElement = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			.pImageInfo = &vkDescriptorImageInfo,
+			.pBufferInfo = nullptr,
+			.pTexelBufferView = nullptr,
+		};
+
+		vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
+	}
+}
+
 } // namespace engine

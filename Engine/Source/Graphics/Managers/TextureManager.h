@@ -69,6 +69,14 @@ public:
 
 	std::unordered_map<common::crc_t, Texture> mTextureMap;
 
+	// Pre-blur lighting textures
+	std::unordered_set<common::crc_t> mLightingTextureCrcs;
+	std::unordered_map<common::crc_t, Texture> mBlurredLightingTextures;
+	std::unordered_map<common::crc_t, Texture> mBlurIntermediateTextures;
+	void RegisterLightingTextureCrc(common::crc_t crc);
+	void BlurLightingTexture(common::crc_t crc);
+	void ReblurAllLightingTextures();
+
 	VkCommandPool mAcquireVkCommandPool = VK_NULL_HANDLE;
 	std::vector<VkCommandBuffer> mAcquireVkCommandBuffers;
 	int64_t miAcquireFramebufferIndex = 0;

@@ -135,7 +135,7 @@ void TextureDescriptors::UpdateTextureArrayDescriptors()
 void TextureDescriptors::WriteArrayBindingDescriptors(const TextureBinding& rBinding, VkSampler vkSampler)
 {
 	int64_t iTextureCount = static_cast<int64_t>(rBinding.textures.size());
-	auto* pImageInfos = common::gpThreadLocal->mWorkbuffer.PushBuffer<VkDescriptorImageInfo*>(iTextureCount * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
+	VkDescriptorImageInfo* pImageInfos = common::gpThreadLocal->mWorkbuffer.PushBuffer<VkDescriptorImageInfo*>(iTextureCount * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
 	for (int64_t i = 0; i < iTextureCount; ++i)
 	{
 		pImageInfos[i].sampler = vkSampler;
@@ -270,6 +270,16 @@ float TextureDescriptors::CrcToIndex(common::crc_t crc)
 	ASSERT(iIndex < static_cast<int64_t>(mImageInfos.size()));
 	mImageInfosMap.emplace(crc, iIndex);
 	return static_cast<float>(iIndex);
+}
+
+float TextureDescriptors::CrcToBlurredIndex(common::crc_t crc)
+{
+	static constexpr common::crc_t kBlurSalt = 0x424C5552; // "BLUR"
+	common::crc_t blurredCrc = crc ^ kBlurSalt;
+	auto it = mImageInfosMap.find(blurredCrc);
+	if (it != mImageInfosMap.end())
+		return static_cast<float>(it->second);
+	return CrcToIndex(crc);
 }
 
 } // namespace engine

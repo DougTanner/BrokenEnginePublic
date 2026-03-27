@@ -110,6 +110,7 @@ public:
 	void UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer);
 	void UpdateCombinedImageSamplerDescriptor(int64_t iBinding, VkImageView vkImageView, VkSampler vkSampler);
 	void UpdateSamplerDescriptor(int64_t iBinding, VkSampler vkSampler);
+	void UpdateStorageImageDescriptor(int64_t iBinding, VkImageView vkImageView);
 
 	PipelineInfo mInfo;
 

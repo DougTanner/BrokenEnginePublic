@@ -130,24 +130,25 @@ Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
 Wrapper gLightingTimeOfDayMultiplier(0.5f, 0.0f, 1.0f);
 
 // Deposit
-Wrapper gLightingDepositTextureMultiplier(0.2f, 0.05f, 0.5f);
+Wrapper gLightingDepositTextureMultiplier(0.2f, 0.2f, 0.5f);
 
 // Spread
 Wrapper gSpreadTextureMultiplier(0.1f, 0.01f, 0.2f);
 Wrapper gSpreadDirectionality(0.9f, 0.0f, 1.0f);
-Wrapper gSpreadDirectionCount(24.0f, 8.0f, 32.0f);
-Wrapper gSpreadDistance(6.0f, 0.1f, 20.0f);
+Wrapper gSpreadDirectionCount(20.0f, 8.0f, 32.0f);
+Wrapper gSpreadDistance(7.0f, 0.1f, 20.0f);
 Wrapper gSpreadRingCount(12.0f, 1.0f, 16.0f);
 Wrapper gSpreadJitter(0.874f, 0.0f, 1.0f);
-Wrapper gSpreadDecay(3.0f, 0.0f, 10.0f);
+Wrapper gSpreadDecay(3.5f, 0.0f, 10.0f);
 Wrapper gSpreadPassCount(16.0f, 8.0f, 32.0f);
 
 // Deposit
 Wrapper gDepositEnergyNormalize(0.0f, 0.0f, 1.0f);
+Wrapper gLightingBlurSigma(2.0f, 0.1f, 10.0f);
 
 // Combine
-Wrapper gCombineExposure(0.16f, 0.01f, 1.0f);
-Wrapper gCombinePower(1.6f, 0.1f, 8.0f);
+Wrapper gCombineExposure(0.35f, 0.01f, 1.0f);
+Wrapper gCombinePower(3.0f, 0.1f, 8.0f);
 Wrapper gCombineLinearClamp(0.0f, 0.0f, 1.0f);
 
 // Sample
