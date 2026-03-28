@@ -276,17 +276,19 @@ void RenderTargetTextures::CreateLightingTextures()
 		mppLightingFinalTextures[i] = &mpCombineTextures[i];
 	}
 
-	// Debug textures: combine red, deposit red, then spread pass 0..N red
+	// Debug textures: combine red, deposit red (lighting space), deposit red (visible area space), then spread pass 0..N red
 	mppDebugTextures[0] = &mpCombineTextures[0];
 	mpDebugTextureFormats[0] = shaders::kiDebugTextureFormatUnormLightingDirectional;
 	mppDebugTextures[1] = &mpLightingTextures[0];
-	mpDebugTextureFormats[1] = shaders::kiDebugTextureFormatFloat16LightingDirectional;
+	mpDebugTextureFormats[1] = shaders::kiDebugTextureFormatFloat16Linear;
+	mppDebugTextures[2] = &mpLightingTextures[0];
+	mpDebugTextureFormats[2] = shaders::kiDebugTextureFormatFloat16LinearVisibleArea;
 	for (int64_t i = 0; i < shaders::kiMaxSpreadPasses; ++i)
 	{
-		mppDebugTextures[2 + i] = &mpSpreadTextures[i][0];
-		mpDebugTextureFormats[2 + i] = shaders::kiDebugTextureFormatFloat16LightingDirectional;
+		mppDebugTextures[3 + i] = &mpSpreadTextures[i][0];
+		mpDebugTextureFormats[3 + i] = shaders::kiDebugTextureFormatFloat16LightingDirectional;
 	}
-	miDebugTextureCount = 2 + shaders::kiMaxSpreadPasses;
+	miDebugTextureCount = 3 + shaders::kiMaxSpreadPasses;
 }
 
 } // namespace engine

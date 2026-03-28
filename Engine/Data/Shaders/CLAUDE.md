@@ -9,6 +9,7 @@ GLSL shader source files for the Vulkan 1.2 rendering pipeline, compiled to SPIR
 - **ShaderLayoutsBase.h** - Dual-language (C++/GLSL) header defining all uniform buffer layouts, push constants, vertex formats, and shared constants between CPU and GPU
 - **ShaderFunctions.h** - Common GLSL utilities for coordinate transforms, lighting (directional weights inlined into `Lighting` and `SpecularLighting`), specular highlights (`Specular`), sun lighting (`SunLighting`), normal mapping, parallax projection (`BaseHeightPosition`), smoke functions (`WorldToSmokeTexcoord`, `SmokeShadow`, `AddSmoke`, `BlendSmoke`), and shadow stretch projection (`ShadowStretchProjection`)
 - **Clear.frag / Log.vert** - Simple utility shaders for render target clearing and debug logging
+- **DebugTexture.frag** - Debug visualization shader supporting three format modes: float16 directional lighting (tone-mapped EWNS), UNORM directional lighting (raw EWNS), and float16 linear-range grayscale (value divided by a configurable range). Format is selected per-texture slot at runtime via a uniform index; command buffers need not be re-recorded when cycling textures
 
 ## Architecture Notes
 

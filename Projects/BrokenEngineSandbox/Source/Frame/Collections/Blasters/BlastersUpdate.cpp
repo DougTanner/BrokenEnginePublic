@@ -54,8 +54,8 @@ constexpr float kfTerrainCraterVisibleIntensity = 2.0f;
 constexpr float kfTerrainCraterVisibleAreaEnd = 0.25f;
 constexpr float kfTerrainCraterVisibleIntensityEnd = 1.0f;
 
-constexpr float kfTerrainCraterLightingArea = 0.5f;
-constexpr float kfTerrainCraterLightingAreaEnd = 0.5f;
+constexpr float kfTerrainCraterLightingArea = 1.0f;
+constexpr float kfTerrainCraterLightingAreaEnd = 1.0f;
 constexpr float kfTerrainCraterLightingIntensityStart = 10000.0f;
 constexpr float kfTerrainCraterLightingIntensityMid = 5000.0f;
 constexpr float kfTerrainCraterLightingIntensityEnd = 2000.0f;

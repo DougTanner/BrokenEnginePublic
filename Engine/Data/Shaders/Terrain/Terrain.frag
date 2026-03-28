@@ -143,6 +143,7 @@ void main()
 	ReadLighting(pf4AmbientLighting, pLightingSamplers, f2AmbientTexcoord);
 	vec3 f3Ambient = AmbientLighting(pf4AmbientLighting, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower);
 
-	f4OutColor = vec4(f3Color * (f3Direct + f3Ambient), 1.0f);
+	vec3 f3Lighting = (f3Direct + f3Ambient) * globalLayout.fLightingTimeOfDayMultiplier * globalLayout.fLightingTerrain;
+	f4OutColor = vec4(f3Lighting * mix(f3Color, vec3(1.0f), globalLayout.fLightingAddTerrain), 1.0f);
 #endif
 }

@@ -12,7 +12,6 @@ enum class TweakSection : int
 	kWaterLow,
 	kWaterMedium,
 	kLighting,
-	kWaterLighting,
 	kShadow,
 	kMisc,
 	kHexShield,
@@ -41,7 +40,6 @@ public:
 	void RenderWaterLowSection();
 	void RenderWaterMediumSection();
 	void RenderLightingSection();
-	void RenderWaterLightingSection();
 	void RenderShadowSection();
 	void RenderMiscSection();
 	virtual void RenderHexShieldSection() = 0;

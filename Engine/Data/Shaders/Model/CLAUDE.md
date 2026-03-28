@@ -8,7 +8,7 @@ GLSL shaders implementing Cook-Torrance microfacet BRDF for rendering models wit
 - **ModelCommon.h** - Shared vertex I/O declarations, `MeshData` and `JointMatrix` struct definitions, and the `ModelVertexOutput` function handling camera, visible area, and shadow projection modes
 - **ModelStatic.vert** - Vertex shader for static (non-animated) models
 - **ModelSkinned.vert** - Vertex shader for animated models with skeletal skinning using offset-based indexing into a shared joint matrix buffer, with precomputed normal matrices from `MeshData`
-- **Model.frag** - Full PBR fragment shader combining direct sun BRDF, IBL via split-sum approximation, engine directional lighting with per-direction specular, emissive, and smoke. Includes preprocessor debug toggles to isolate individual contributions
+- **Model.frag** - Model fragment shader using the new lighting system in its active branch: combines directional and ambient lighting passes, scales by `fLightingTimeOfDayMultiplier * fLightingObjects`, and blends multiplicatively or additively via `fLightingObjectsAdd`. The inactive `#if 0` branch retains the full PBR path: Cook-Torrance BRDF, IBL split-sum, per-direction specular, emissive, and smoke, with preprocessor debug toggles to isolate contributions
 - **ModelShadow.frag** - Minimal shadow pass for shadow map generation
 
 ### IBL Precomputation

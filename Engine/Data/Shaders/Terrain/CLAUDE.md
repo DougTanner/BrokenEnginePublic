@@ -22,4 +22,5 @@ Renders terrain as a visible-area-covering mesh with elevation displacement. A s
 
 - G-buffer passes use bindless per-island texture arrays with `nonuniformEXT` dynamic indexing, decoupling per-island rendering from the lighting pipeline
 - Material boundaries (rock, sand, snow) are determined by elevation and color heuristics rather than explicit material maps
-- `Terrain.frag` uses two separate smoke samples: `SmokeShadow()` at world position for shadow attenuation, and a base-height projected sample for additive smoke via `BlendSmoke`
+- `Terrain.frag` combines directional and ambient lighting passes, then scales by `fLightingTimeOfDayMultiplier * fLightingTerrain` with a multiplicative/additive blend controlled by `fLightingAddTerrain`
+- The inactive `#if 0` branch retains the legacy path (sun lighting, shadows, smoke); the active branch uses the new lighting system exclusively

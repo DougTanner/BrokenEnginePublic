@@ -352,11 +352,6 @@ extern Wrapper gCombineExposurePassScale;
 // Directional
 extern Wrapper gLightingDirectional;
 extern Wrapper gLightingIndirect;
-extern Wrapper gLightingTerrain;
-extern Wrapper gLightingAddTerrain;
-extern Wrapper gLightingObjects;
-extern Wrapper gLightingObjectsAdd;
-extern Wrapper gLightingTimeOfDayMultiplier;
 
 extern Wrapper gLightingSampledNormalsSize;
 extern Wrapper gLightingSampledNormalsSizeMod;
@@ -367,6 +362,26 @@ extern Wrapper gLightingNewDirectional;
 extern Wrapper gLightingNewDirectionalPower;
 extern Wrapper gLightingNewAmbient;
 extern Wrapper gLightingNewAmbientPower;
+extern Wrapper gLightingTerrain;
+extern Wrapper gLightingAddTerrain;
+extern Wrapper gLightingObjects;
+extern Wrapper gLightingObjectsAdd;
+extern Wrapper gLightingTimeOfDayMultiplier;
+
+// Water specular lighting
+extern Wrapper gLightingWaterSpecularNormalSoften;
+extern Wrapper gLightingWaterSpecularNormalBlendWave;
+extern Wrapper gLightingWaterSpecularDiffuse;
+extern Wrapper gLightingWaterSpecularDirect;
+extern Wrapper gLightingWaterSpecular;
+extern Wrapper gLightingWaterSpecularIntensity;
+extern Wrapper gLightingWaterSpecularAdd;
+extern Wrapper gLightingWaterSpecularOne;
+extern Wrapper gLightingWaterSpecularOnePower;
+extern Wrapper gLightingWaterSpecularTwo;
+extern Wrapper gLightingWaterSpecularTwoPower;
+extern Wrapper gLightingWaterSpecularThree;
+extern Wrapper gLightingWaterSpecularThreePower;
 
 // Water skybox
 extern Wrapper gLightingWaterSkyboxSunBias;
@@ -381,22 +396,6 @@ extern Wrapper gLightingWaterSkyboxTwoPower;
 extern Wrapper gLightingWaterSkyboxThree;
 extern Wrapper gLightingWaterSkyboxThreePower;
 extern Wrapper gLightingWaterSkyboxLod;
-
-// Water specular lighting
-extern Wrapper gLightingWaterSpecularNormalSoften;
-extern Wrapper gLightingWaterSpecularNormalBlendWave;
-
-extern Wrapper gLightingWaterSpecularDiffuse;
-extern Wrapper gLightingWaterSpecularDirect;
-extern Wrapper gLightingWaterSpecular;
-extern Wrapper gLightingWaterSpecularIntensity;
-extern Wrapper gLightingWaterSpecularAdd;
-extern Wrapper gLightingWaterSpecularOne;
-extern Wrapper gLightingWaterSpecularOnePower;
-extern Wrapper gLightingWaterSpecularTwo;
-extern Wrapper gLightingWaterSpecularTwoPower;
-extern Wrapper gLightingWaterSpecularThree;
-extern Wrapper gLightingWaterSpecularThreePower;
 
 // Smoke
 extern Wrapper gSmokeDecay;
@@ -513,10 +512,12 @@ extern Wrapper gSmokeShadowIntensity;
 // Particles
 extern Wrapper gParticlesWindStrength;
 
-// Test
+// Debug
 extern Wrapper gDebugTexture;
 extern Wrapper gDebugTextureIndex;
+extern Wrapper gDebugTextureLinearRange;
 
+// Test
 extern Wrapper gTestOne;
 extern Wrapper gTestTwo;
 

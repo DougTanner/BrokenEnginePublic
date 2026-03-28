@@ -121,10 +121,12 @@ CONSTEXPR int kiBillboardTexturesCount = 3;
 CONSTEXPR int kiMaxIslands = 64;
 
 CONSTEXPR int kiMaxSpreadPasses = 32;
-CONSTEXPR int kiMaxDebugTextures = 2 + kiMaxSpreadPasses;
+CONSTEXPR int kiMaxDebugTextures = 3 + kiMaxSpreadPasses;
 
 CONSTEXPR int kiDebugTextureFormatFloat16LightingDirectional = 0;
 CONSTEXPR int kiDebugTextureFormatUnormLightingDirectional = 1;
+CONSTEXPR int kiDebugTextureFormatFloat16Linear = 2;
+CONSTEXPR int kiDebugTextureFormatFloat16LinearVisibleArea = 3;
 
 CONSTEXPR int kiShadowTextureExecutionSize = 64;
 
@@ -365,6 +367,7 @@ struct GlobalLayout
 	// Debug
 	float fDebugTextureIndex INIT;
 	float fDebugTextureFormat INIT;
+	float fDebugTextureLinearRange INIT;
 };
 
 struct MainLayout

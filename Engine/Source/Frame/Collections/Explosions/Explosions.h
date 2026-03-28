@@ -57,7 +57,7 @@ struct ExplosionType
 	float fParticleIntensityRandom = 2.0f;
 	float fParticleIntensityDecay = 2.4f;
 	float fParticleIntensityPower = 2.5f;
-	float fParticleLightingSize = 3.0f;
+	float fParticleLightingSize = 10.0f;
 	float fParticleLightingIntensity = 400.0f;
 
 	// Timing

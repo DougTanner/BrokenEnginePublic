@@ -329,24 +329,31 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 
 	rGlobalLayout.f4VisibleArea = game::gpCamera->f4RenderVisibleArea;
 
-	// Lighting area: stable dimensions + texel-snapped origin
+	// Lighting area: fixed world-space dimensions, origin shifts one texel at a time
 	float fVisibleWidth = rGlobalLayout.f4VisibleArea.z - rGlobalLayout.f4VisibleArea.x;
 	float fVisibleHeight = rGlobalLayout.f4VisibleArea.y - rGlobalLayout.f4VisibleArea.w;
 	if (fVisibleWidth > 0.0f && fVisibleHeight > 0.0f)
 	{
 		auto [iLightingTextureX, iLightingTextureY] = TextureManager::DetailTextureSize(gLightingDepositTextureMultiplier.Get());
+		float fTexelsX = static_cast<float>(iLightingTextureX);
+		float fTexelsY = static_cast<float>(iLightingTextureY);
 
-		float fWidth = std::ceil(fVisibleWidth);
-		float fHeight = std::ceil(fVisibleHeight);
+		// Texel size derived from deposit texture pixels and visible area
+		float fTexelSizeX = fVisibleWidth / fTexelsX;
+		float fTexelSizeY = fVisibleHeight / fTexelsY;
 
-		float fTexelSizeX = fWidth / static_cast<float>(iLightingTextureX);
-		float fTexelSizeY = fHeight / static_cast<float>(iLightingTextureY);
+		// Fixed dimensions: exactly texturePixels * texelSize
+		float fWidth = fTexelSizeX * fTexelsX;
+		float fHeight = fTexelSizeY * fTexelsY;
 
 		XMFLOAT4A f4CameraPos {};
 		XMStoreFloat4A(&f4CameraPos, game::gpCamera->mVecPosition);
 
-		float fLeft = common::RoundDown(f4CameraPos.x - fWidth * 0.5f, fTexelSizeX);
-		float fTop = common::RoundDown(f4CameraPos.y + fHeight * 0.5f + fTexelSizeY, fTexelSizeY);
+		// Integer texel math: compute origin as integer texel index * texelSize
+		int64_t iLeftTexel = static_cast<int64_t>(std::floor((f4CameraPos.x - fWidth * 0.5f) / fTexelSizeX));
+		int64_t iTopTexel = static_cast<int64_t>(std::floor((f4CameraPos.y + fHeight * 0.5f) / fTexelSizeY)) + 1;
+		float fLeft = static_cast<float>(iLeftTexel) * fTexelSizeX;
+		float fTop = static_cast<float>(iTopTexel) * fTexelSizeY;
 
 		rGlobalLayout.f4LightingArea = {fLeft, fTop, fLeft + fWidth, fTop - fHeight};
 
@@ -368,6 +375,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	// Debug
 	rGlobalLayout.fDebugTextureIndex = gDebugTextureIndex.Get();
 	rGlobalLayout.fDebugTextureFormat = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpDebugTextureFormats[static_cast<int64_t>(gDebugTextureIndex.Get())]);
+	rGlobalLayout.fDebugTextureLinearRange = gDebugTextureLinearRange.Get();
 }
 
 } // namespace engine

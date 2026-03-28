@@ -54,4 +54,31 @@ void main()
 		float fNorthSouth = fTotal > 0.0f ? (f4Sample.a - f4Sample.b) / fTotal * 0.5f + 0.5f : 0.0f;
 		f4OutColor = vec4(fEastWest * fIntensity, fNorthSouth * fIntensity, 0.0f, 1.0f);
 	}
+	else if (iFormat == kiDebugTextureFormatFloat16Linear)
+	{
+		float fTotal = f4Sample.r + f4Sample.g + f4Sample.b + f4Sample.a;
+		float fValue = clamp(fTotal / globalLayout.fDebugTextureLinearRange, 0.0f, 1.0f);
+		f4OutColor = vec4(fValue, fValue, fValue, 1.0f);
+	}
+	else if (iFormat == kiDebugTextureFormatFloat16LinearVisibleArea)
+	{
+		// Remap screen texcoord to lighting area texcoord, camera-tracked via lighting area center
+		float fVisibleWidth = globalLayout.f4VisibleArea.z - globalLayout.f4VisibleArea.x;
+		float fVisibleHeight = globalLayout.f4VisibleArea.y - globalLayout.f4VisibleArea.w;
+		float fLightingCenterX = (globalLayout.f4LightingArea.x + globalLayout.f4LightingArea.z) * 0.5f;
+		float fLightingCenterY = (globalLayout.f4LightingArea.y + globalLayout.f4LightingArea.w) * 0.5f;
+		vec2 f2WorldPos = vec2(
+			fLightingCenterX - fVisibleWidth * 0.5f + f2InTexcoord.x * fVisibleWidth,
+			fLightingCenterY + fVisibleHeight * 0.5f - f2InTexcoord.y * fVisibleHeight);
+		float fLightingMultX = 1.0f / (globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x);
+		float fLightingMultY = 1.0f / (globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w);
+		vec2 f2LightingTexcoord = vec2(
+			fLightingMultX * (f2WorldPos.x - globalLayout.f4LightingArea.x),
+			1.0f - fLightingMultY * (f2WorldPos.y - globalLayout.f4LightingArea.w));
+
+		vec4 f4Remapped = texture(debugTextures[iIndex], f2LightingTexcoord);
+		float fTotal = f4Remapped.r + f4Remapped.g + f4Remapped.b + f4Remapped.a;
+		float fValue = clamp(fTotal / globalLayout.fDebugTextureLinearRange, 0.0f, 1.0f);
+		f4OutColor = vec4(fValue, fValue, fValue, 1.0f);
+	}
 }

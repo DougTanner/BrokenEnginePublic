@@ -4,14 +4,14 @@ Multi-section ImGui parameter adjustment screen base class for runtime control o
 
 ## File Organization
 
-- **TweaksScreenBase.h** - Base class declaration (`engine::TweaksScreenBase`) with `TweakSection` enum (14 sections) and all render method signatures
+- **TweaksScreenBase.h** - Base class declaration (`engine::TweaksScreenBase`) with `TweakSection` enum (13 sections) and all render method signatures
 - **TweaksScreenBase.cpp** - Core logic: constructor, `Render()`, toggle bar, section window rendering, slider helpers, and `RenderWaveCountRadioButtons()`
-- **TweaksSliderMap.h/.cpp** - Standalone static class holding the slider-to-Wrapper lookup map; `Get()` returns the shared map instance. Includes lighting entries for all pipeline phases: deposit multiplier, pre-blur sigma/sample count/edge falloff, radial spread directionality/distance/ring count/jitter/decay/pass count plus a matching set of end-value interpolation targets for the final spread pass plus height-aware attenuation (distance and intensity), and combine exposure/power/linear-clamp
-- **TweaksScreen\<Section\>.cpp** - One file per section, each implementing a single `Render*Section()` method. Sections cover test, PBR, terrain, water (specular, low, medium, lighting), lighting, shadow, misc, smoke, and wind. Each file uses `static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::k*)` for the section index
+- **TweaksSliderMap.h/.cpp** - Standalone static class holding the slider-to-Wrapper lookup map; `Get()` returns the shared map instance. Includes lighting entries for all pipeline phases: deposit multiplier, pre-blur sigma/sample count/edge falloff, radial spread directionality/distance/ring count/jitter/decay/pass count plus a matching set of end-value interpolation targets for the final spread pass plus height-aware attenuation (distance and intensity), combine exposure/power/linear-clamp, new lighting system controls (directional, ambient, terrain/object channel intensities with add modes, time-of-day multiplier), and water specular controls
+- **TweaksScreen\<Section\>.cpp** - One file per section, each implementing a single `Render*Section()` method. Sections cover test, PBR, terrain, water (specular, low, medium), lighting (with Write/Read tab bar), shadow, misc, smoke, and wind. Each file uses `static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::k*)` for the section index
 
 ## Architecture Notes
 
-A full-width toggle bar lets users show/hide any combination of sections, each rendered as its own auto-resizing ImGui window. Uses a data-driven design with a slider-to-Wrapper lookup map (`TweaksSliderMap`) and function pointer table for section rendering.
+A full-width toggle bar lets users show/hide any combination of sections, each rendered as its own auto-resizing ImGui window. Uses a data-driven design with a slider-to-Wrapper lookup map (`TweaksSliderMap`) and function pointer table for section rendering. The Lighting section uses a Write/Read tab bar: Write covers the pipeline write phases (pre-blur, deposit, spread, combine); Read covers lighting readback controls (directional, ambient, terrain/object intensities) and water specular.
 
 `RenderHexShieldSection()` and `RenderWindDepositsSection()` are **pure virtual** — the game provides these implementations via `game::TweaksScreen`.
 
