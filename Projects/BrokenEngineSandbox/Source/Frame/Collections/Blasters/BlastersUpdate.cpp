@@ -48,15 +48,17 @@ static uint8_t suiTerrainPuffControllerIndex = 0xFF;
 constexpr float kfTerrainCraterTimeOne = 0.1f;
 constexpr float kfTerrainCraterTimeTwo = 3.0f;
 constexpr float kfTerrainCraterTimeThree = 5.1f;
+
 constexpr float kfTerrainCraterVisibleArea = 0.35f;
 constexpr float kfTerrainCraterVisibleIntensity = 2.0f;
-constexpr float kfTerrainCraterLightingArea = 4.0f;
-constexpr float kfTerrainCraterLightingIntensityStart = 2000.0f;
-constexpr float kfTerrainCraterLightingIntensityMid = 500.0f;
 constexpr float kfTerrainCraterVisibleAreaEnd = 0.25f;
 constexpr float kfTerrainCraterVisibleIntensityEnd = 1.0f;
+
+constexpr float kfTerrainCraterLightingArea = 0.5f;
 constexpr float kfTerrainCraterLightingAreaEnd = 0.5f;
-constexpr float kfTerrainCraterLightingIntensityEnd = 500.0f;
+constexpr float kfTerrainCraterLightingIntensityStart = 10000.0f;
+constexpr float kfTerrainCraterLightingIntensityMid = 5000.0f;
+constexpr float kfTerrainCraterLightingIntensityEnd = 2000.0f;
 
 // Terrain puff effect
 constexpr float kfTerrainPuffTime = 0.15f;

@@ -554,7 +554,7 @@ void CommandBufferManager::RecordLightingSpreadPipeline(VkCommandBuffer vkComman
 				.pClearValues = pSpreadClearValues,
 			};
 			vkCmdBeginRenderPass(vkCommandBuffer, &vkSpreadRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			gpPipelineManager->mSpreadPipelines[iPass].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {static_cast<float>(uiSpreadWidth), static_cast<float>(uiSpreadHeight), 0.0f, 0.0f});
+			gpPipelineManager->mSpreadPipelines[iPass].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {static_cast<float>(uiSpreadWidth), static_cast<float>(uiSpreadHeight), static_cast<float>(iPass), 0.0f});
 			vkCmdEndRenderPass(vkCommandBuffer);
 
 			// Barrier between spread passes (color attachment write → fragment shader read for next pass)

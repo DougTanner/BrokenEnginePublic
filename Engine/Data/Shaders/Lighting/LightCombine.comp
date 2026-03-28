@@ -32,34 +32,43 @@ void main()
 	vec2 f2Uv = (vec2(uiX, uiY) + vec2(0.5f)) / vec2(uiWidth, uiHeight);
 	ivec2 i2Coord = ivec2(uiX, uiY);
 
-	float fExposure = globalLayout.fCombineExposure;
-	float fLinearClamp = globalLayout.fCombineLinearClamp;
+	float fPassCount = globalLayout.fSpreadPassCount;
+	uint uiPassCount = uint(fPassCount);
 	vec4 f4Power = vec4(globalLayout.fCombinePower);
-	uint uiPassCount = uint(globalLayout.fSpreadPassCount);
 
-	// Sum all spread pass outputs
-	vec4 f4R = vec4(0.0f);
-	vec4 f4G = vec4(0.0f);
-	vec4 f4B = vec4(0.0f);
-	for (uint i = 0; i < uiPassCount; ++i)
-	{
-		f4R += texture(sourcesR[i], f2Uv);
-		f4G += texture(sourcesG[i], f2Uv);
-		f4B += texture(sourcesB[i], f2Uv);
-	}
+	// Option 1: Pass count normalization — blend between raw and divided-by-passCount
+	float fPassNorm = mix(1.0f, 1.0f / fPassCount, globalLayout.fCombinePassNormalize);
 
-	// Red
+	// Option 3: Exposure auto-scale — reduce exposure proportional to pass count
+	float fExposure = globalLayout.fCombineExposure * pow(fPassCount, -globalLayout.fCombineExposurePassScale);
+
+	// Read final accumulated spread pass
+	vec4 f4R = texture(sourcesR[uiPassCount - 1], f2Uv) * fPassNorm;
+	vec4 f4G = texture(sourcesG[uiPassCount - 1], f2Uv) * fPassNorm;
+	vec4 f4B = texture(sourcesB[uiPassCount - 1], f2Uv) * fPassNorm;
+
 	f4R *= fExposure;
-	f4R = mix(f4R / (vec4(1.0f) + f4R), clamp(f4R, vec4(0.0f), vec4(1.0f)), fLinearClamp);
-	imageStore(combineImageR, i2Coord, pow(f4R, f4Power));
-
-	// Green
 	f4G *= fExposure;
-	f4G = mix(f4G / (vec4(1.0f) + f4G), clamp(f4G, vec4(0.0f), vec4(1.0f)), fLinearClamp);
-	imageStore(combineImageG, i2Coord, pow(f4G, f4Power));
-
-	// Blue
 	f4B *= fExposure;
-	f4B = mix(f4B / (vec4(1.0f) + f4B), clamp(f4B, vec4(0.0f), vec4(1.0f)), fLinearClamp);
+
+#if 0 // Option 2: Luminance-based Reinhard — preserves color ratios across RGB channels
+	// Compute per-channel luminance (sum of EWNS directional weights)
+	float fLumR = dot(f4R, vec4(1.0f));
+	float fLumG = dot(f4G, vec4(1.0f));
+	float fLumB = dot(f4B, vec4(1.0f));
+	float fLum = max(fLumR + fLumG + fLumB, 0.001f);
+	float fToneMapped = fLum / (1.0f + fLum);
+	float fScale = fToneMapped / fLum;
+	f4R *= fScale;
+	f4G *= fScale;
+	f4B *= fScale;
+#else // Per-channel Reinhard
+	f4R = f4R / (vec4(1.0f) + f4R);
+	f4G = f4G / (vec4(1.0f) + f4G);
+	f4B = f4B / (vec4(1.0f) + f4B);
+#endif
+
+	imageStore(combineImageR, i2Coord, pow(f4R, f4Power));
+	imageStore(combineImageG, i2Coord, pow(f4G, f4Power));
 	imageStore(combineImageB, i2Coord, pow(f4B, f4Power));
 }

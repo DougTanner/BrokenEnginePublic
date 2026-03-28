@@ -24,7 +24,7 @@ void main()
 	if (uiX >= iWidth || uiY >= iHeight)
 		return;
 
-	const int iRadius = 5;
+	int iRadius = int(pushConstantsLayout.f4Pipeline.w) / 2;
 	float fInvSigma = float(iRadius) / fSigma;
 
 	vec4 f4Total = vec4(0.0f);

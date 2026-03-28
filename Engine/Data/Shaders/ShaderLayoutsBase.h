@@ -217,25 +217,39 @@ struct GlobalLayout
 	float fLightingObjectsAdd INIT;
 	float fCombineExposure INIT;
 	float fCombinePower INIT;
-	float fDepositEnergyNormalize INIT;
+	float fCombinePassNormalize INIT;
+	float fCombineExposurePassScale INIT;
 	float fLightingTerrain INIT;
 	float fLightingObjects INIT;
 
 	float fLightingAddTerrain INIT;
-	float fCombineLinearClamp INIT;
-	float fSpreadDirectionality INIT;
+	float fSpreadDirectionalityStart INIT;
 	vec4 f4LightingArea INIT;
 	uint32_t uiLightTilesX INIT;
 	uint32_t uiLightTilesY INIT;
 
-	// Spread (radial directional spread)
-	float fSpreadDirectionCount INIT;
-	float fSpreadDistance INIT;
-	float fSpreadRingCount INIT;
-	float fSpreadJitter INIT;
-	float fSpreadDecay INIT;
+	// Spread Start (radial directional spread)
+	float fSpreadDirectionCountStart INIT;
+	float fSpreadDistanceStart INIT;
+	float fSpreadRingCountStart INIT;
+	float fSpreadJitterStart INIT;
+	float fSpreadDecayStart INIT;
+	float fSpreadAccumulationDecayStart INIT;
 	float fSpreadPassCount INIT;
-	float pfSpreadRingRotations[8] INIT;
+	float pfSpreadRingRotations[kiMaxSpreadPasses] INIT;
+
+	// Spread End (interpolation targets for last spread pass)
+	float fSpreadDirectionalityEnd INIT;
+	float fSpreadDirectionCountEnd INIT;
+	float fSpreadDistanceEnd INIT;
+	float fSpreadRingCountEnd INIT;
+	float fSpreadJitterEnd INIT;
+	float fSpreadDecayEnd INIT;
+	float fSpreadAccumulationDecayEnd INIT;
+
+	// Spread Height
+	float fSpreadHeightDistance INIT;
+	float fSpreadHeightIntensity INIT;
 
 	// Shadow
 	float fShadowWidthScale INIT;
@@ -406,7 +420,9 @@ struct MainLayout
 	float fLightingWaterSpecularThreePower INIT;
 
 	float fLightingNewDirectional INIT;
+	float fLightingNewDirectionalPower INIT;
 	float fLightingNewAmbient INIT;
+	float fLightingNewAmbientPower INIT;
 
 	// Pbr
 	float fPbrExposure INIT;

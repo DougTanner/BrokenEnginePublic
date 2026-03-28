@@ -14,32 +14,45 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fLightingDirectional = gLightingDirectional.Get();
 	rGlobalLayout.fLightingIndirect = gLightingIndirect.Get();
 	rGlobalLayout.fLightingObjectsAdd = gLightingObjectsAdd.Get();
-	rGlobalLayout.fDepositEnergyNormalize = gDepositEnergyNormalize.Get();
 
 	rGlobalLayout.fCombineExposure = gCombineExposure.Get();
 	rGlobalLayout.fCombinePower = gCombinePower.Get();
-	rGlobalLayout.fCombineLinearClamp = gCombineLinearClamp.Get();
-
+	rGlobalLayout.fCombinePassNormalize = gCombinePassNormalize.Get();
+	rGlobalLayout.fCombineExposurePassScale = gCombineExposurePassScale.Get();
 	rGlobalLayout.fLightingTerrain = gLightingTerrain.Get();
 	rGlobalLayout.fLightingObjects = gLightingObjects.Get();
 	rGlobalLayout.fLightingAddTerrain = gLightingAddTerrain.Get();
 
-	// Spread
-	rGlobalLayout.fSpreadDirectionality = gSpreadDirectionality.Get();
-	rGlobalLayout.fSpreadDirectionCount = gSpreadDirectionCount.Get();
-	rGlobalLayout.fSpreadDistance = gSpreadDistance.Get();
-	rGlobalLayout.fSpreadRingCount = gSpreadRingCount.Get();
-	rGlobalLayout.fSpreadJitter = gSpreadJitter.Get();
-	rGlobalLayout.fSpreadDecay = gSpreadDecay.Get();
+	// Spread Start
+	rGlobalLayout.fSpreadDirectionalityStart = gSpreadDirectionality.Get();
+	rGlobalLayout.fSpreadDirectionCountStart = gSpreadDirectionCount.Get();
+	rGlobalLayout.fSpreadDistanceStart = gSpreadDistance.Get();
+	rGlobalLayout.fSpreadRingCountStart = gSpreadRingCount.Get();
+	rGlobalLayout.fSpreadJitterStart = gSpreadJitter.Get();
+	rGlobalLayout.fSpreadDecayStart = gSpreadDecay.Get();
+	rGlobalLayout.fSpreadAccumulationDecayStart = gSpreadAccumulationDecay.Get();
 	rGlobalLayout.fSpreadPassCount = gSpreadPassCount.Get();
+
+	// Spread End (interpolation targets for last spread pass)
+	rGlobalLayout.fSpreadDirectionalityEnd = gSpreadDirectionalityEnd.Get();
+	rGlobalLayout.fSpreadDirectionCountEnd = gSpreadDirectionCountEnd.Get();
+	rGlobalLayout.fSpreadDistanceEnd = gSpreadDistanceEnd.Get();
+	rGlobalLayout.fSpreadRingCountEnd = gSpreadRingCountEnd.Get();
+	rGlobalLayout.fSpreadJitterEnd = gSpreadJitterEnd.Get();
+	rGlobalLayout.fSpreadDecayEnd = gSpreadDecayEnd.Get();
+	rGlobalLayout.fSpreadAccumulationDecayEnd = gSpreadAccumulationDecayEnd.Get();
+
+	// Spread Height
+	rGlobalLayout.fSpreadHeightDistance = gSpreadHeightDistance.Get();
+	rGlobalLayout.fSpreadHeightIntensity = gSpreadHeightIntensity.Get();
 
 	// Per-ring rotation angles: jitter slider sets the seed and scales the result
 	// Each ring uses its own seed for uncorrelated rotations
 	float fJitter = gSpreadJitter.Get();
-	common::RandomEngine ringRng(1000 * static_cast<uint32_t>(20.0f * fJitter));
-	for (int64_t i = 0; i < 8; ++i)
+	common::RandomEngine ringRng(1000 * static_cast<uint32_t>(static_cast<float>(shaders::kiMaxSpreadPasses) * fJitter));
+	for (int64_t i = 0; i < _countof(rGlobalLayout.pfSpreadRingRotations); ++i)
 	{
-		rGlobalLayout.pfSpreadRingRotations[i] = common::Random<360.0f>(ringRng);
+		rGlobalLayout.pfSpreadRingRotations[i] = fJitter * common::Random<XM_2PI>(ringRng);
 	}
 }
 
@@ -82,7 +95,9 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fLightingWaterSpecularThreePower = gLightingWaterSpecularThreePower.Get();
 
 	rMainLayout.fLightingNewDirectional = gLightingNewDirectional.Get();
+	rMainLayout.fLightingNewDirectionalPower = gLightingNewDirectionalPower.Get();
 	rMainLayout.fLightingNewAmbient = gLightingNewAmbient.Get();
+	rMainLayout.fLightingNewAmbientPower = gLightingNewAmbientPower.Get();
 
 	// Pbr
 	rMainLayout.fPbrExposure = gPbrExposure.Get();

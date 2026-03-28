@@ -18,7 +18,7 @@ GLSL shader source files for the Vulkan 1.2 rendering pipeline, compiled to SPIR
 - **Multi-set descriptors**: Set 0 = global (UBOs, samplers, bindless textures), Set 1 = per-pipeline (SSBOs, combined image samplers), Set 2 = per-material (models only)
 - **Rendering modes via push constants**: Vertex shaders support camera/visible-area/shadow projection modes without separate permutations
 - **Four-channel directional lighting**: RGB stored as separate render targets with EWNS directional weights; direction weights are computed once per call in `Lighting`/`SpecularLighting` using component extraction and applied across all three color channels in a single pass
-- **World-space directional deposit**: Area light fragment shaders receive interpolated world position and world center varyings from the vertex shader; EWNS direction weights are derived from world-space offset. Both area and point deposit shaders support a tunable blend between Euclidean and sum-normalized energy distribution via a global uniform
+- **World-space directional deposit**: Area light fragment shaders receive interpolated world position and world center varyings from the vertex shader; EWNS direction weights are derived from world-space offset. Both area and point deposit shaders currently use omnidirectional deposit, with alternative directional modes available via compile-time switches
 
 ## Adding New Shaders
 

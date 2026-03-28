@@ -1166,6 +1166,9 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingBlur.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingSpread.frag">
+      <Filter>Engine\Data\Shaders\Lighting</Filter>
+    </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightCombine.comp">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>

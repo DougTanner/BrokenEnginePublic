@@ -50,7 +50,7 @@ public:
 	virtual void RenderWindDepositsSection() = 0;
 
 	void RenderWaveCountRadioButtons(Wrapper& rCountWrapper);
-	void WrapperSlider(std::string_view label, int64_t iSection, float fWidthMultiplier = 2.0f);
+	void WrapperSlider(std::string_view label, int64_t iSection, float fWidthMultiplier = 2.0f, std::string_view mapKey = {});
 	void WrapperSeparatorText(std::string_view label);
 
 protected:

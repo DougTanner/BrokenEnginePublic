@@ -24,7 +24,9 @@ void main()
 	if (uiX >= iWidth || uiY >= iHeight)
 		return;
 
-	const int iRadius = 5;
+	float fPacked = pushConstantsLayout.f4Pipeline.w;
+	int iRadius = int(fPacked) / 2;
+	float fEdgeFalloff = fract(fPacked) * 100.0;
 	float fInvSigma = float(iRadius) / fSigma;
 
 	vec4 f4Total = vec4(0.0f);
@@ -38,5 +40,7 @@ void main()
 		fWeightSum += fWeight;
 	}
 
-	imageStore(blurOutputTexture, ivec2(uiX, uiY), f4Total / fWeightSum);
+	vec2 vEdgeUv = vec2(float(uiX) + 0.5f, float(uiY) + 0.5f) / vec2(float(iWidth), float(iHeight));
+	float fEdgeDist = max(abs(vEdgeUv.x * 2.0 - 1.0), abs(vEdgeUv.y * 2.0 - 1.0));
+	imageStore(blurOutputTexture, ivec2(uiX, uiY), (f4Total / fWeightSum) * pow(1.0 - fEdgeDist, fEdgeFalloff));
 }

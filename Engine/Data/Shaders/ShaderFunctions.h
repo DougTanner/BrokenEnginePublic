@@ -127,7 +127,7 @@ vec3 Lighting(GlobalLayout globalLayout, vec3 f3Color, float fHeight, vec3 f3Nor
 	return min(f3Final, vec3(1.0f));
 }
 
-vec3 DirectionalLighting2D(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity)
+vec3 DirectionalLighting2D(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity, float fPower)
 {
 	vec2 f2Normal = normalize(f3Normal.xy);
 	float fWeightE = max(0.0f, -f2Normal.x);
@@ -135,18 +135,20 @@ vec3 DirectionalLighting2D(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity)
 	float fWeightN = max(0.0f, f2Normal.y);
 	float fWeightS = max(0.0f, -f2Normal.y);
 
-	return fIntensity * vec3(
+	vec3 f3Result = vec3(
 		pf4Lighting[0].x * fWeightE + pf4Lighting[0].y * fWeightW + pf4Lighting[0].z * fWeightN + pf4Lighting[0].w * fWeightS,
 		pf4Lighting[1].x * fWeightE + pf4Lighting[1].y * fWeightW + pf4Lighting[1].z * fWeightN + pf4Lighting[1].w * fWeightS,
 		pf4Lighting[2].x * fWeightE + pf4Lighting[2].y * fWeightW + pf4Lighting[2].z * fWeightN + pf4Lighting[2].w * fWeightS);
+	return fIntensity * pow(f3Result, vec3(fPower));
 }
 
-vec3 AmbientLighting(vec4 pf4Lighting[3], float fIntensity)
+vec3 AmbientLighting(vec4 pf4Lighting[3], float fIntensity, float fPower)
 {
-	return fIntensity * 0.25f * vec3(
+	vec3 f3Result = 0.25f * vec3(
 		pf4Lighting[0].x + pf4Lighting[0].y + pf4Lighting[0].z + pf4Lighting[0].w,
 		pf4Lighting[1].x + pf4Lighting[1].y + pf4Lighting[1].z + pf4Lighting[1].w,
 		pf4Lighting[2].x + pf4Lighting[2].y + pf4Lighting[2].z + pf4Lighting[2].w);
+	return fIntensity * pow(f3Result, vec3(fPower));
 }
 
 vec3 SpecularLighting(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3Color, vec3 f3Position, vec3 f3DirectNormal, vec3 f3SpecularNormal, vec4 pf4Lighting[3], float fIntensity, float fAdd)

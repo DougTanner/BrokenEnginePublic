@@ -654,32 +654,29 @@ void TextureManager::BlurLightingTexture(common::crc_t crc)
 	rBlurV.UpdateStorageImageDescriptor(1, rResult.mVkImageView);
 
 	// Execute blur via one-shot command buffer
-	struct BlurPushConstants
-	{
-		int32_t iWidth;
-		int32_t iHeight;
-		float fSigma;
-	};
-	BlurPushConstants pushConstants {static_cast<int32_t>(uiWidth), static_cast<int32_t>(uiHeight), gLightingBlurSigma.Get()};
+	int32_t iWidth = static_cast<int32_t>(uiWidth);
+	int32_t iHeight = static_cast<int32_t>(uiHeight);
+	float fSigma = gLightingBlurSigma.Get();
+	float fPackedW = static_cast<float>(static_cast<int32_t>(gLightingBlurSampleCount.Get())) + gLightingBlurEdgeFalloff.Get() / 100.0f;
 
-	OneShotCommandBuffer cmd;
-	VkCommandBuffer vkCmd = cmd.mVkCommandBuffer;
+	OneShotCommandBuffer oneShotCommandBuffer;
+	VkCommandBuffer vkCommandBuffer = oneShotCommandBuffer.mVkCommandBuffer;
 
 	// Horizontal pass: source → intermediate
-	rIntermediate.TransitionImageLayout(vkCmd, kComputeReadWrite, kComputeReadWrite);
-	rBlurH.RecordCompute(0, vkCmd, (uiWidth + 7) / 8, (uiHeight + 7) / 8, 1, {std::bit_cast<float>(pushConstants.iWidth), std::bit_cast<float>(pushConstants.iHeight), pushConstants.fSigma, 0.0f});
+	rIntermediate.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kComputeReadWrite);
+	rBlurH.RecordCompute(0, vkCommandBuffer, (uiWidth + 7) / 8, (uiHeight + 7) / 8, 1, {std::bit_cast<float>(iWidth), std::bit_cast<float>(iHeight), fSigma, fPackedW});
 
 	// Transition intermediate: storage write → shader read for V pass sampler
-	rIntermediate.TransitionImageLayout(vkCmd, kComputeReadWrite, kShaderReadOnly);
+	rIntermediate.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 
 	// Vertical pass: intermediate → result
-	rResult.TransitionImageLayout(vkCmd, kShaderReadOnly, kComputeReadWrite);
-	rBlurV.RecordCompute(0, vkCmd, (uiWidth + 7) / 8, (uiHeight + 7) / 8, 1, {std::bit_cast<float>(pushConstants.iWidth), std::bit_cast<float>(pushConstants.iHeight), pushConstants.fSigma, 0.0f});
+	rResult.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
+	rBlurV.RecordCompute(0, vkCommandBuffer, (uiWidth + 7) / 8, (uiHeight + 7) / 8, 1, {std::bit_cast<float>(iWidth), std::bit_cast<float>(iHeight), fSigma, fPackedW});
 
 	// Transition result back to shader read for bindless sampling
-	rResult.TransitionImageLayout(vkCmd, kComputeReadWrite, kShaderReadOnly);
+	rResult.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 
-	cmd.Execute(true);
+	oneShotCommandBuffer.Execute(true);
 
 	// Register blurred texture in bindless array
 	static constexpr common::crc_t kBlurSalt = 0x424C5552; // "BLUR"
@@ -703,4 +700,4 @@ void TextureManager::ReblurAllLightingTextures()
 
 } // namespace engine
 
-#endif // BT_CLIENT
+#endif // defined(BT_CLIENT)

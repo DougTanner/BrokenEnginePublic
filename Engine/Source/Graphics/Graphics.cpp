@@ -361,9 +361,9 @@ void Graphics::Refresh()
 	}
 
 	auto [fLightingMultiplier, fLightingMultiplierPrevious, bLightingMultiplierChanged] = gLightingDepositTextureMultiplier.Changed<float>();
-	auto [fSpreadMult, fSpreadMultPrevious, bSpreadMultChanged] = gSpreadTextureMultiplier.Changed<float>();
+	auto [fSpreadTextureMultiplier, fSpreadTextureMultiplierPrevious, bSpreadTextureMultiplierChanged] = gSpreadTextureMultiplier.Changed<float>();
 	auto [fSpreadPassCount, fSpreadPassCountPrevious, bSpreadPassCountChanged] = gSpreadPassCount.Changed<float>();
-	if ((bLightingMultiplierChanged || bSpreadMultChanged || bSpreadPassCountChanged) && gpTextureManager != nullptr) [[unlikely]]
+	if ((bLightingMultiplierChanged || bSpreadTextureMultiplierChanged || bSpreadPassCountChanged) && gpTextureManager != nullptr) [[unlikely]]
 	{
 		mDestroyFlags.Set(DestroyFlags::kLightingTextures);
 
@@ -371,7 +371,9 @@ void Graphics::Refresh()
 	}
 
 	auto [fLightingBlurSigma, fLightingBlurSigmaPrevious, bLightingBlurSigmaChanged] = gLightingBlurSigma.Changed<float>();
-	if (bLightingBlurSigmaChanged && gpTextureManager != nullptr) [[unlikely]]
+	auto [fLightingBlurSampleCount, fLightingBlurSampleCountPrevious, bLightingBlurSampleCountChanged] = gLightingBlurSampleCount.Changed<float>();
+	auto [fLightingBlurEdgeFalloff, fLightingBlurEdgeFalloffPrevious, bLightingBlurEdgeFalloffChanged] = gLightingBlurEdgeFalloff.Changed<float>();
+	if ((bLightingBlurSigmaChanged || bLightingBlurSampleCountChanged || bLightingBlurEdgeFalloffChanged) && gpTextureManager != nullptr) [[unlikely]]
 	{
 		gpTextureManager->ReblurAllLightingTextures();
 	}

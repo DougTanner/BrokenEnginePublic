@@ -37,6 +37,7 @@ public:
 	, mfCurrent(mfDefault)
 	, mfPrevious(mfCurrent)
 	{
+		mAllowed.reserve(rAllowedValues.size());
 		for (const T& rValue : rAllowedValues)
 		{
 			mAllowed.push_back(static_cast<float>(rValue));
@@ -308,39 +309,64 @@ extern Wrapper gWaterHeightDarkenTop;
 extern Wrapper gWaterHeightDarkenBottom;
 extern Wrapper gWaterHeightDarkenClamp;
 
-// Lighting
-extern Wrapper gLightingDepositTextureMultiplier;
-extern Wrapper gDepositEnergyNormalize;
+// Lighting (section order matches tweaks screen layout)
+// Pre-Blur
 extern Wrapper gLightingBlurSigma;
+extern Wrapper gLightingBlurSampleCount;
+extern Wrapper gLightingBlurEdgeFalloff;
 
+// Deposit
+extern Wrapper gLightingDepositTextureMultiplier;
+
+// Spread - Pixel Multiplier
+extern Wrapper gSpreadTextureMultiplier;
+extern Wrapper gSpreadPassCount;
+
+// Spread Start
+extern Wrapper gSpreadDirectionality;
+extern Wrapper gSpreadDirectionCount;
+extern Wrapper gSpreadDistance;
+extern Wrapper gSpreadRingCount;
+extern Wrapper gSpreadJitter;
+extern Wrapper gSpreadDecay;
+extern Wrapper gSpreadAccumulationDecay;
+
+// Spread End (interpolation targets for last spread pass)
+extern Wrapper gSpreadDirectionalityEnd;
+extern Wrapper gSpreadDirectionCountEnd;
+extern Wrapper gSpreadDistanceEnd;
+extern Wrapper gSpreadRingCountEnd;
+extern Wrapper gSpreadJitterEnd;
+extern Wrapper gSpreadDecayEnd;
+extern Wrapper gSpreadAccumulationDecayEnd;
+
+// Spread Height
+extern Wrapper gSpreadHeightDistance;
+extern Wrapper gSpreadHeightIntensity;
+
+// Combine
 extern Wrapper gCombineExposure;
 extern Wrapper gCombinePower;
-extern Wrapper gCombineLinearClamp;
-
+extern Wrapper gCombinePassNormalize;
+extern Wrapper gCombineExposurePassScale;
+// Directional
 extern Wrapper gLightingDirectional;
 extern Wrapper gLightingIndirect;
 extern Wrapper gLightingTerrain;
 extern Wrapper gLightingAddTerrain;
 extern Wrapper gLightingObjects;
 extern Wrapper gLightingObjectsAdd;
+extern Wrapper gLightingTimeOfDayMultiplier;
 
 extern Wrapper gLightingSampledNormalsSize;
 extern Wrapper gLightingSampledNormalsSizeMod;
 extern Wrapper gLightingSampledNormalsSpeed;
 
-extern Wrapper gLightingTimeOfDayMultiplier;
+// New Lighting
 extern Wrapper gLightingNewDirectional;
+extern Wrapper gLightingNewDirectionalPower;
 extern Wrapper gLightingNewAmbient;
-
-// Spread
-extern Wrapper gSpreadDirectionality;
-extern Wrapper gSpreadTextureMultiplier;
-extern Wrapper gSpreadDirectionCount;
-extern Wrapper gSpreadDistance;
-extern Wrapper gSpreadRingCount;
-extern Wrapper gSpreadJitter;
-extern Wrapper gSpreadDecay;
-extern Wrapper gSpreadPassCount;
+extern Wrapper gLightingNewAmbientPower;
 
 // Water skybox
 extern Wrapper gLightingWaterSkyboxSunBias;

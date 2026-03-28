@@ -134,14 +134,14 @@ void main()
 	vec2 f2DirectTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4LightingArea);
 	vec4 pf4DirectLighting[3];
 	ReadLighting(pf4DirectLighting, pLightingSamplers, f2DirectTexcoord);
-	vec3 f3Direct = DirectionalLighting2D(pf4DirectLighting, f3Normal, mainLayout.fLightingNewDirectional);
+	vec3 f3Direct = DirectionalLighting2D(pf4DirectLighting, f3Normal, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower);
 
 	// Ambient: sample projected to base height toward eye
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
 	vec2 f2AmbientTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4AmbientLighting[3];
 	ReadLighting(pf4AmbientLighting, pLightingSamplers, f2AmbientTexcoord);
-	vec3 f3Ambient = AmbientLighting(pf4AmbientLighting, mainLayout.fLightingNewAmbient);
+	vec3 f3Ambient = AmbientLighting(pf4AmbientLighting, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower);
 
 	f4OutColor = vec4(f3Color * (f3Direct + f3Ambient), 1.0f);
 #endif

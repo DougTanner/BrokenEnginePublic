@@ -50,8 +50,8 @@ constexpr float kfBlastersSpawnPreMove = 0.75f;
 constexpr float kfBlasterAngleJitter = 0.03f;
 
 constexpr float kfAreaLightVisibleIntensity = 1.0f;
-constexpr float kfAreaLightLightingSize = 2.0f;
-constexpr float kfAreaLightLightingIntensity = 700.0f;
+constexpr float kfAreaLightLightingSize = 3.0f;
+constexpr float kfAreaLightLightingIntensity = 2000.0f;
 
 // Missile spawn
 constexpr float kfMissileSpawnInterval = 0.2f;

@@ -6,7 +6,7 @@ Multi-section ImGui parameter adjustment screen base class for runtime control o
 
 - **TweaksScreenBase.h** - Base class declaration (`engine::TweaksScreenBase`) with `TweakSection` enum (14 sections) and all render method signatures
 - **TweaksScreenBase.cpp** - Core logic: constructor, `Render()`, toggle bar, section window rendering, slider helpers, and `RenderWaveCountRadioButtons()`
-- **TweaksSliderMap.h/.cpp** - Standalone static class holding the slider-to-Wrapper lookup map; `Get()` returns the shared map instance. Includes lighting entries for all pipeline phases: deposit multiplier/energy normalize, radial spread directionality/distance/ring count/jitter/decay/pass count, combine exposure/power/linear-clamp, and pre-blur sigma (`gLightingBlurSigma`)
+- **TweaksSliderMap.h/.cpp** - Standalone static class holding the slider-to-Wrapper lookup map; `Get()` returns the shared map instance. Includes lighting entries for all pipeline phases: deposit multiplier, pre-blur sigma/sample count/edge falloff, radial spread directionality/distance/ring count/jitter/decay/pass count plus a matching set of end-value interpolation targets for the final spread pass plus height-aware attenuation (distance and intensity), and combine exposure/power/linear-clamp
 - **TweaksScreen\<Section\>.cpp** - One file per section, each implementing a single `Render*Section()` method. Sections cover test, PBR, terrain, water (specular, low, medium, lighting), lighting, shadow, misc, smoke, and wind. Each file uses `static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::k*)` for the section index
 
 ## Architecture Notes
@@ -18,6 +18,10 @@ A full-width toggle bar lets users show/hide any combination of sections, each r
 **Slider map**: `TweaksSliderMap` is a standalone static class in `TweaksSliderMap.h/.cpp` that holds the engine-side slider-to-Wrapper lookup map. `TweaksSliderMap::Get()` returns a reference to the static map. Game-specific entries are inserted by `game::TweaksScreen`'s constructor rather than via virtual override.
 
 `RenderWaveCountRadioButtons(Wrapper& rCountWrapper)` is a shared helper that renders an inline radio button row for selecting wave count (15/31/63/127/255). Used by water section files that expose a wave count parameter.
+
+**Ordering convention**: Tweaks screen slider order in each `TweaksScreen<Section>.cpp` file is the source of truth for section layout. Wrapper global order in `WrapperBase.h/.cpp` (and `game::Wrapper.h/.cpp`) must match.
+
+**Slider label formatting**: Drop redundant prefixes from slider display labels when the section header or tab already provides that context (e.g., "Sigma" not "Lighting Blur Sigma" under the Pre-Blur header). Use the `mapKey` parameter of `WrapperSlider` to map the short display label to the full slider map key.
 
 **Auto-hide behavior**: When dragging a slider, all other UI elements fade to alpha=0 while preserving layout, so the user can see the visual effect of the parameter change without UI clutter.
 

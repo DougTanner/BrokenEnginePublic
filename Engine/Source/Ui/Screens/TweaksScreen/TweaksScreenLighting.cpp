@@ -12,28 +12,48 @@ void TweaksScreenBase::RenderLightingSection()
 		// Left column: pipeline phases
 		ImGui::TableNextColumn();
 
-		WrapperSeparatorText("1. Deposit");
-		WrapperSlider("Deposit Texture Multiplier", kiSection, 1.0f);
-		WrapperSlider("Deposit Energy Normalize", kiSection, 1.0f);
+		WrapperSeparatorText("1. Pre-Blur");
+		WrapperSlider("Sigma", kiSection, 1.0f, "Lighting Blur Sigma");
+		WrapperSlider("Sample Count", kiSection, 1.0f, "Lighting Blur Sample Count");
+		WrapperSlider("Edge Falloff", kiSection, 1.0f, "Lighting Blur Edge Falloff");
 
-		WrapperSeparatorText("2. Spread");
-		WrapperSlider("Spread Directionality", kiSection, 1.0f);
-		WrapperSlider("Spread Direction Count", kiSection, 1.0f);
-		WrapperSlider("Spread Texture Multiplier", kiSection, 1.0f);
-		WrapperSlider("Spread Distance", kiSection, 1.0f);
-		WrapperSlider("Spread Ring Count", kiSection, 1.0f);
-		WrapperSlider("Spread Jitter", kiSection, 1.0f);
-		WrapperSlider("Spread Decay", kiSection, 1.0f);
-		WrapperSlider("Spread Pass Count", kiSection, 1.0f);
+		WrapperSeparatorText("2. Deposit");
+		WrapperSlider("Texture Multiplier", kiSection, 1.0f, "Deposit Texture Multiplier");
 
-		WrapperSeparatorText("3. Combine");
-		WrapperSlider("Combine Exposure", kiSection, 1.0f);
-		WrapperSlider("Combine Power", kiSection, 1.0f);
-		WrapperSlider("Combine Linear Clamp", kiSection, 1.0f);
+		WrapperSeparatorText("3a. Spread - Pixel Multiplier");
+		WrapperSlider("Texture Multiplier", kiSection, 1.0f, "Spread Texture Multiplier");
+		WrapperSlider("Pass Count", kiSection, 1.0f, "Spread Pass Count");
 
-		// Right column: reading from the lighting texture (how it's applied)
+		WrapperSeparatorText("3b. Spread Start");
+		WrapperSlider("Directionality", kiSection, 1.0f, "Spread Directionality");
+		WrapperSlider("Direction Count", kiSection, 1.0f, "Spread Direction Count");
+		WrapperSlider("Distance", kiSection, 1.0f, "Spread Distance");
+		WrapperSlider("Ring Count", kiSection, 1.0f, "Spread Ring Count");
+		WrapperSlider("Jitter", kiSection, 1.0f, "Spread Jitter");
+		WrapperSlider("Decay", kiSection, 1.0f, "Spread Decay");
+		WrapperSlider("Accumulation Decay", kiSection, 1.0f, "Spread Accumulation Decay");
+
+		WrapperSeparatorText("3c. Spread End");
+		WrapperSlider("Directionality", kiSection, 1.0f, "Spread Directionality End");
+		WrapperSlider("Direction Count", kiSection, 1.0f, "Spread Direction Count End");
+		WrapperSlider("Distance", kiSection, 1.0f, "Spread Distance End");
+		WrapperSlider("Ring Count", kiSection, 1.0f, "Spread Ring Count End");
+		WrapperSlider("Jitter", kiSection, 1.0f, "Spread Jitter End");
+		WrapperSlider("Decay", kiSection, 1.0f, "Spread Decay End");
+		WrapperSlider("Accumulation Decay", kiSection, 1.0f, "Spread Accumulation Decay End");
+
+		WrapperSeparatorText("3d. Spread Height");
+		WrapperSlider("Height Distance", kiSection, 1.0f, "Spread Height Distance");
+		WrapperSlider("Height Intensity", kiSection, 1.0f, "Spread Height Intensity");
+
+		// Right column
 		ImGui::TableNextColumn();
 
+		WrapperSeparatorText("4. Combine");
+		WrapperSlider("Exposure", kiSection, 1.0f, "Combine Exposure");
+		WrapperSlider("Power", kiSection, 1.0f, "Combine Power");
+		WrapperSlider("Pass Normalize", kiSection, 1.0f, "Combine Pass Normalize");
+		WrapperSlider("Exposure Pass Scale", kiSection, 1.0f, "Combine Exposure Pass Scale");
 		WrapperSeparatorText("Directional");
 		WrapperSlider("Directional", kiSection, 1.0f);
 		WrapperSlider("Indirect", kiSection, 1.0f);
@@ -45,7 +65,9 @@ void TweaksScreenBase::RenderLightingSection()
 
 		WrapperSeparatorText("New Lighting");
 		WrapperSlider("New Directional", kiSection, 1.0f);
+		WrapperSlider("New Directional Power", kiSection, 1.0f);
 		WrapperSlider("New Ambient", kiSection, 1.0f);
+		WrapperSlider("New Ambient Power", kiSection, 1.0f);
 
 		ImGui::EndTable();
 	}

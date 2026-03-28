@@ -78,17 +78,22 @@ void TweaksScreenBase::RenderWaveCountRadioButtons(Wrapper& rCountWrapper)
 	}
 }
 
-void TweaksScreenBase::WrapperSlider(std::string_view label, int64_t iSection, float fWidthMultiplier)
+void TweaksScreenBase::WrapperSlider(std::string_view label, int64_t iSection, float fWidthMultiplier, std::string_view mapKey)
 {
+	if (mapKey.empty())
+	{
+		mapKey = label;
+	}
+
 	std::unordered_map<std::string_view, Wrapper*>& rSliderMap = TweaksSliderMap::Get();
-	auto it = rSliderMap.find(label);
+	auto it = rSliderMap.find(mapKey);
 	if (it == rSliderMap.end())
 	{
 		return;
 	}
 
 	// Render non-active sliders with alpha=0 to preserve layout
-	bool bIsActiveSlider = (mActiveSlider.empty() || label == mActiveSlider);
+	bool bIsActiveSlider = (mActiveSlider.empty() || mapKey == mActiveSlider);
 	if (!bIsActiveSlider)
 	{
 		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.0f);
@@ -102,13 +107,25 @@ void TweaksScreenBase::WrapperSlider(std::string_view label, int64_t iSection, f
 
 	Wrapper* pWrapper = it->second;
 	float fValue = pWrapper->Get();
-	if (ImGui::SliderFloat(label.data(), &fValue, pWrapper->GetMin(), pWrapper->GetMax(), "%.6f"))
+
+	// When mapKey differs from label, append ##mapKey for unique ImGui ID
+	char pImGuiLabel[128];
+	if (mapKey != label)
+	{
+		std::snprintf(pImGuiLabel, sizeof(pImGuiLabel), "%.*s##%.*s", static_cast<int>(label.size()), label.data(), static_cast<int>(mapKey.size()), mapKey.data());
+	}
+	else
+	{
+		std::snprintf(pImGuiLabel, sizeof(pImGuiLabel), "%.*s", static_cast<int>(label.size()), label.data());
+	}
+
+	if (ImGui::SliderFloat(pImGuiLabel, &fValue, pWrapper->GetMin(), pWrapper->GetMax(), "%.6f"))
 	{
 		pWrapper->Set(fValue);
 	}
 	if (ImGui::IsItemActive())
 	{
-		mActiveSlider = label.data();
+		mActiveSlider = mapKey.data();
 		miActiveSliderSection = iSection;
 	}
 

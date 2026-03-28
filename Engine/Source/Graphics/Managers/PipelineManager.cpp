@@ -191,6 +191,7 @@ void PipelineManager::CreateLightingPipelines()
 				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = iPass == 0 ? &rTextures.mpLightingTextures[0] : &rTextures.mpSpreadTextures[iPass - 1][0]},
 				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = iPass == 0 ? &rTextures.mpLightingTextures[1] : &rTextures.mpSpreadTextures[iPass - 1][1]},
 				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = iPass == 0 ? &rTextures.mpLightingTextures[2] : &rTextures.mpSpreadTextures[iPass - 1][2]},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mTerrainElevationTexture},
 			},
 		});
 	}
@@ -664,7 +665,7 @@ void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
 	using enum DestroyFlags;
 
 	// Stage 1: Lighting pipelines (must come before terrain/water and particles)
-	if (flags & kLightingTextures)
+	if ((flags & kLightingTextures) || (flags & kTerrainElevation))
 	{
 		gpBufferManager->CreateLightingSpreadBuffers();
 		CreateLightingPipelines();

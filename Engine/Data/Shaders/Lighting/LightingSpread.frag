@@ -18,6 +18,7 @@ layout (set = 0, binding = 0) uniform globalUniform
 layout (set = 1, binding = 1) uniform sampler2D redSampler;
 layout (set = 1, binding = 2) uniform sampler2D greenSampler;
 layout (set = 1, binding = 3) uniform sampler2D blueSampler;
+layout (set = 1, binding = 4) uniform sampler2D elevationSampler;
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;
@@ -30,12 +31,31 @@ layout (location = 2) out vec4 f4OutBlue;
 
 void main()
 {
+	// Per-pass interpolation: t=0 at pass 0 (Start values), t=1 at last pass (End values)
+	float fPassIndex = pushConstantsLayout.f4Pipeline.z;
+	float fT = fPassIndex / max(globalLayout.fSpreadPassCount - 1.0f, 1.0f);
+
+	// Interpolate spread parameters between Start and End
+	float fDirectionality = mix(globalLayout.fSpreadDirectionalityStart, globalLayout.fSpreadDirectionalityEnd, fT);
+	float fSpreadDistance = mix(globalLayout.fSpreadDistanceStart, globalLayout.fSpreadDistanceEnd, fT);
+	float fDirectionCountBase = mix(globalLayout.fSpreadDirectionCountStart, globalLayout.fSpreadDirectionCountEnd, fT);
+	float fRingCountF = mix(globalLayout.fSpreadRingCountStart, globalLayout.fSpreadRingCountEnd, fT);
+	float fJitter = mix(globalLayout.fSpreadJitterStart, globalLayout.fSpreadJitterEnd, fT);
+	float fDecay = mix(globalLayout.fSpreadDecayStart, globalLayout.fSpreadDecayEnd, fT);
+	float fAccumulationDecay = mix(globalLayout.fSpreadAccumulationDecayStart, globalLayout.fSpreadAccumulationDecayEnd, fT);
+
+	// Height-aware attenuation: convert lighting texcoord to world position, then to visible area texcoord
+	vec2 f2WorldPos = vec2(
+		globalLayout.f4LightingArea.x + f2InTexcoord.x * (globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x),
+		globalLayout.f4LightingArea.w + (1.0f - f2InTexcoord.y) * (globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w));
+	vec2 f2ElevTexcoord = WorldToVisibleArea(vec3(f2WorldPos, 0.0f), globalLayout.f4VisibleArea);
+	float fHeightFactor = clamp(texture(elevationSampler, f2ElevTexcoord).x / max(globalLayout.fIslandHeight, 0.001f), 0.0f, 1.0f);
+	fSpreadDistance *= 1.0f - fHeightFactor * globalLayout.fSpreadHeightDistance;
+	fDecay *= 1.0f - fHeightFactor * globalLayout.fSpreadHeightIntensity;
+
 	// World-to-texcoord conversion: texcoord 0-1 covers the lighting area
 	float fAspectRatioX = 1.0f / (globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x);
 	float fAspectRatioY = 1.0f / (globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w);
-
-	const float fDirectionality = globalLayout.fSpreadDirectionality;
-	const float fSpreadDistance = globalLayout.fSpreadDistance;
 
 	f4OutRed = vec4(0.0f);
 	f4OutGreen = vec4(0.0f);
@@ -43,20 +63,19 @@ void main()
 
 	// Configurable direction count: evenly spaced unit vectors around the circle
 	// Offset by half-step (0.25 * step) to avoid sampling exactly on cardinal axes
-	const uint32_t uiRingCount = uint32_t(globalLayout.fSpreadRingCount);
+	const uint32_t uiRingCount = uint32_t(fRingCountF);
 
-	// Constant normalization factor (not per-ring falloff): produces an implicit 1/sqrt(1+N) brightness
-	// scaling that softens the result as ring count increases, compensated by the fSpreadDecay slider
+	// Constant per-sample weight (not per-ring falloff): softens outer ring contributions relative to
+	// inner rings within a single spread, cancelled out in the final normalization for brightness invariance
 	float fInvSqrtDistance = inversesqrt(float(1 + uiRingCount));
 	float fTotalSamples = 0.0f;
 
 	for (uint32_t j = 0; j < uiRingCount; ++j)
 	{
-		// Per-ring jitter: alternating perturbation breaks even spacing so the sum changes
-		// Even directions shift clockwise, odd shift counter-clockwise by the ring's jitter amount
-		float fRingJitter = globalLayout.pfSpreadRingRotations[j];
+		// Per-ring jitter: rotation angle scaled by interpolated jitter
+		float fRingJitter = globalLayout.pfSpreadRingRotations[j] * fJitter;
 
-		float fDirectionCount = globalLayout.fSpreadDirectionCount + float(j);
+		float fDirectionCount = fDirectionCountBase + float(j);
 		const uint32_t uiDirectionCount = uint32_t(fDirectionCount);
 		fDirectionCount = float(uiDirectionCount);
 		const float fDirectionStep = (2.0f * fPi) / fDirectionCount;
@@ -85,12 +104,20 @@ void main()
 		}
 	}
 
-	float fNorm = fTotalSamples * mix(1.0f, 0.32f, fDirectionality);
+	float fNorm = fTotalSamples * fInvSqrtDistance * mix(1.0f, 0.32f, fDirectionality);
 	f4OutRed /= fNorm;
 	f4OutGreen /= fNorm;
 	f4OutBlue /= fNorm;
 
-	f4OutRed *= globalLayout.fSpreadDecay;
-	f4OutGreen *= globalLayout.fSpreadDecay;
-	f4OutBlue *= globalLayout.fSpreadDecay;
+	f4OutRed *= fDecay;
+	f4OutGreen *= fDecay;
+	f4OutBlue *= fDecay;
+
+	// Accumulate: add source pixel value to carry forward through passes (skip first pass — deposit already sampled)
+	if (fPassIndex > 0.0f)
+	{
+		f4OutRed += fAccumulationDecay * texture(redSampler, f2InTexcoord);
+		f4OutGreen += fAccumulationDecay * texture(greenSampler, f2InTexcoord);
+		f4OutBlue += fAccumulationDecay * texture(blueSampler, f2InTexcoord);
+	}
 }

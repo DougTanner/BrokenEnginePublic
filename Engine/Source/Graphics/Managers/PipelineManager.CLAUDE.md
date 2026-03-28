@@ -10,7 +10,7 @@ Indexed by `Pipelines` enum, covering shadows, terrain, water, particles, smoke,
 
 ## Lighting Pipelines
 
-Lighting pipelines are stored as named members rather than in the `Pipelines` enum: an array of spread pipelines (fragment MRT, one per spread pass, each writing all three spread textures), and a combine pipeline (compute, tone maps all three channels in one dispatch, reading from all spread pass outputs).
+Lighting pipelines are stored as named members rather than in the `Pipelines` enum: an array of spread pipelines (fragment MRT, one per spread pass, each writing all three spread textures; each spread pipeline binds the terrain elevation texture as an additional sampler for height-aware attenuation), and a combine pipeline (compute, tone maps all three channels in one dispatch, reading from all spread pass outputs).
 
 Two static compute pipelines (`kPipelineLightingBlurH`, `kPipelineLightingBlurV`) implement separable Gaussian blur for pre-blurring light type textures at load time. Their descriptors are updated per-texture before each blur dispatch via `UpdateStorageImageDescriptor()` and `UpdateCombinedImageSamplerDescriptor()`.
 

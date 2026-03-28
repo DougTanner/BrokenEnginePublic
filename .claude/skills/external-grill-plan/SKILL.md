@@ -18,6 +18,7 @@ Interview the user about every aspect of this plan until reaching shared underst
 - For each question, provide your recommended answer based on codebase exploration
 - If a question can be answered by exploring the codebase, explore it instead of asking
 - Ask one focused question at a time, not a batch of 10
+- Use adversarial thinking — actively try to find flaws, then provide concrete suggestions to fix them
 - Skip branches that are clearly irrelevant to the plan (e.g., don't probe determinism for a client-only UI change)
 - Stop when all branches of the decision tree are resolved
 

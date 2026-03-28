@@ -64,10 +64,6 @@ void main()
 	vec4 f4Direction = vec4(max(f2NormDir.x, 0.0f), max(-f2NormDir.x, 0.0f), max(f2NormDir.y, 0.0f), max(-f2NormDir.y, 0.0f));
 #endif
 
-	// Energy normalization: blend between Euclidean (sum varies) and normalized (sum = 1)
-	float fDirSum = f4Direction.x + f4Direction.y + f4Direction.z + f4Direction.w;
-	if (fDirSum > 0.0f)
-		f4Direction = mix(f4Direction, f4Direction / fDirSum, globalLayout.fDepositEnergyNormalize);
 #else
 	vec4 f4Direction = vec4(0.25f);
 #endif
