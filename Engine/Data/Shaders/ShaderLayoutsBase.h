@@ -214,8 +214,6 @@ struct GlobalLayout
 	uint32_t uiWindTilesX INIT;
 
 	// Lighting
-	float fLightingDirectional INIT;
-	float fLightingIndirect INIT;
 	float fLightingObjectsAdd INIT;
 	float fCombineExposure INIT;
 	float fCombinePower INIT;
@@ -294,8 +292,10 @@ struct GlobalLayout
 	int32_t iWaterMediumCount INIT;
 	int32_t iWaterPadZ INIT;
 	int32_t iWaterPadW INIT;
+	float fWaterHeight INIT;
 	float fWaterTerrainHeight INIT;
 	float fWaterTerrainFade INIT;
+	float fWaterTerrainFadeClamp INIT;
 	float fWaterNoiseFrequency INIT;
 	float fWaterNoiseAmount INIT;
 	float fWaterDepthLutFeather INIT;
@@ -408,8 +408,6 @@ struct MainLayout
 	float fLightingWaterSkyboxThreePower INIT;
 	float fLightingWaterSkyboxLod INIT;
 
-	float fLightingWaterSpecularDiffuse INIT;
-	float fLightingWaterSpecularDirect INIT;
 	float fLightingWaterSpecular INIT;
 	float fLightingWaterSpecularNormalSoften INIT;
 	float fLightingWaterSpecularNormalBlendWave INIT;

@@ -251,6 +251,14 @@ void Graphics::Create()
 	if (mpImGuiManager == nullptr)
 	{
 		mpImGuiManager = std::make_unique<ImGuiManager>(mHwnd);
+
+		if constexpr (kbEnableDebugInput)
+		{
+			if (game::gpGame != nullptr)
+			{
+				game::Game::LoadTweaksSettings();
+			}
+		}
 	}
 
 	if (bRecordCommandBuffers)
@@ -639,6 +647,13 @@ bool Graphics::Destroy()
 			mpSwapchainManager->mVkSwapchainKHR = VK_NULL_HANDLE;
 		}
 		mpSwapchainManager.reset();
+		if constexpr (kbEnableDebugInput)
+		{
+			if (game::gpGame != nullptr)
+			{
+				game::Game::SaveTweaksSettings();
+			}
+		}
 		mpImGuiManager.reset();
 	}
 

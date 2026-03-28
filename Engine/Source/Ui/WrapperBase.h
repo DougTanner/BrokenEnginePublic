@@ -290,8 +290,10 @@ extern Wrapper gTerrainBeachNormalsSizeThree;
 extern Wrapper gTerrainBeachNormalsBlend;
 
 // Water
+extern Wrapper gWaterHeight;
 extern Wrapper gWaterTerrainHeight;
 extern Wrapper gWaterTerrainFade;
+extern Wrapper gWaterTerrainFadeClamp;
 extern Wrapper gWaterNoiseFrequency;
 extern Wrapper gWaterNoiseAmount;
 extern Wrapper gWaterColorNoiseFrequency;
@@ -349,10 +351,6 @@ extern Wrapper gCombineExposure;
 extern Wrapper gCombinePower;
 extern Wrapper gCombinePassNormalize;
 extern Wrapper gCombineExposurePassScale;
-// Directional
-extern Wrapper gLightingDirectional;
-extern Wrapper gLightingIndirect;
-
 extern Wrapper gLightingSampledNormalsSize;
 extern Wrapper gLightingSampledNormalsSizeMod;
 extern Wrapper gLightingSampledNormalsSpeed;
@@ -371,8 +369,6 @@ extern Wrapper gLightingTimeOfDayMultiplier;
 // Water specular lighting
 extern Wrapper gLightingWaterSpecularNormalSoften;
 extern Wrapper gLightingWaterSpecularNormalBlendWave;
-extern Wrapper gLightingWaterSpecularDiffuse;
-extern Wrapper gLightingWaterSpecularDirect;
 extern Wrapper gLightingWaterSpecular;
 extern Wrapper gLightingWaterSpecularIntensity;
 extern Wrapper gLightingWaterSpecularAdd;

@@ -195,6 +195,9 @@ void MainThread(HINSTANCE hinstance)
 	auto pInput = std::make_unique<game::Input>();
 	game::gpInput = pInput.get();
 
+	// Load tweaks settings (requires both Game and ImGuiManager)
+	game::Game::LoadTweaksSettings();
+
 	gpProfileManager->BootStop(kBootTimerVulkan);
 
 	// Ensure priority textures are ready
@@ -308,6 +311,7 @@ void MainThread(HINSTANCE hinstance)
 
 #if defined(BT_CLIENT)
 	// Save settings
+	game::Game::SaveTweaksSettings();
 	game::Game::SaveSoundSettings();
 #endif
 

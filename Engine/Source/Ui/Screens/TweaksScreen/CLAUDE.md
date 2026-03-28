@@ -1,11 +1,11 @@
 # `/Engine/Source/Ui/Screens/TweaksScreen/` - Tweaks Parameter UI (Base)
 
-Multi-section ImGui parameter adjustment screen base class for runtime control over rendering parameters via Wrapper globals. Guarded by `if constexpr (kbEnableDebugInput)` with an early return when the ImGui overlay is hidden.
+Multi-section ImGui parameter adjustment screen base class for runtime control over rendering parameters via Wrapper globals. Guarded by `if constexpr (kbEnableDebugInput)` with an early return when the ImGui overlay is hidden. Screen state (section visibility and window positions) is persisted across restarts via `LoadState()` and saved to disk by the game layer.
 
 ## File Organization
 
-- **TweaksScreenBase.h** - Base class declaration (`engine::TweaksScreenBase`) with `TweakSection` enum (13 sections) and all render method signatures
-- **TweaksScreenBase.cpp** - Core logic: constructor, `Render()`, toggle bar, section window rendering, slider helpers, and `RenderWaveCountRadioButtons()`
+- **TweaksScreenBase.h** - Base class declaration (`engine::TweaksScreenBase`) with `TweakSection` enum (13 sections), all render method signatures, and public state members (section visibility, window positions, active slider tracking, toggle bar bottom) used for persistence
+- **TweaksScreenBase.cpp** - Core logic: constructor, `Render()`, toggle bar, section window rendering (applies loaded positions on first placement), slider helpers, `RenderWaveCountRadioButtons()`, and `LoadState()` for restoring persisted screen state
 - **TweaksSliderMap.h/.cpp** - Standalone static class holding the slider-to-Wrapper lookup map; `Get()` returns the shared map instance. Includes lighting entries for all pipeline phases: deposit multiplier, pre-blur sigma/sample count/edge falloff, radial spread directionality/distance/ring count/jitter/decay/pass count plus a matching set of end-value interpolation targets for the final spread pass plus height-aware attenuation (distance and intensity), combine exposure/power/linear-clamp, new lighting system controls (directional, ambient, terrain/object channel intensities with add modes, time-of-day multiplier), and water specular controls
 - **TweaksScreen\<Section\>.cpp** - One file per section, each implementing a single `Render*Section()` method. Sections cover test, PBR, terrain, water (specular, low, medium), lighting (with Write/Read tab bar), shadow, misc, smoke, and wind. Each file uses `static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::k*)` for the section index
 

@@ -140,9 +140,7 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Combine Power", &gCombinePower},
 		{"Combine Pass Normalize", &gCombinePassNormalize},
 		{"Combine Exposure Pass Scale", &gCombineExposurePassScale},
-		// Lighting - Directional
-		{"Directional", &gLightingDirectional},
-		{"Indirect", &gLightingIndirect},
+		// Lighting
 		{"New Directional", &gLightingNewDirectional},
 		{"New Directional Power", &gLightingNewDirectionalPower},
 		{"New Ambient", &gLightingNewAmbient},
@@ -155,8 +153,6 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		// Water Lighting - Specular
 		{"Specular Normal Soften", &gLightingWaterSpecularNormalSoften},
 		{"Specular Normal Blend Wave", &gLightingWaterSpecularNormalBlendWave},
-		{"Specular Diffuse", &gLightingWaterSpecularDiffuse},
-		{"Specular Direct", &gLightingWaterSpecularDirect},
 		{"Water Specular", &gLightingWaterSpecular},
 		{"Specular Intensity", &gLightingWaterSpecularIntensity},
 		{"Specular Add", &gLightingWaterSpecularAdd},
@@ -187,8 +183,10 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		// Misc
 		{"Misc Island Height", &gIslandHeight},
 		{"Water Depth", &gWaterDepth},
+		{"Water Height", &gWaterHeight},
 		{"Water Terrain Height", &gWaterTerrainHeight},
 		{"Water Terrain Fade", &gWaterTerrainFade},
+		{"Water Terrain Fade Clamp", &gWaterTerrainFadeClamp},
 		{"Misc Depth Reflection Feather", &gWaterDepthReflectionFeather},
 		// Smoke - Decay
 		{"Smoke Max", &gSmokeMax},

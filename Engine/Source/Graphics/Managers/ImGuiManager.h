@@ -26,6 +26,7 @@ public:
 	void RecreateSamplerDependencies();
 
 	ImFont* mpChineseFont = nullptr;
+	std::unique_ptr<game::TweaksScreen> mpTweaksScreen;
 
 private:
 
@@ -35,7 +36,6 @@ private:
 	VkRenderPass mImGuiRenderPass = VK_NULL_HANDLE;
 	std::vector<VkFramebuffer> mImGuiFramebuffers;
 	ImDrawData* mpDrawData = nullptr;
-	std::unique_ptr<game::TweaksScreen> mpTweaksScreen;
 	std::unique_ptr<game::MainMenuScreen> mpMainMenuScreen;
 	std::unique_ptr<game::ModalScreen> mpModalScreen;
 	std::unique_ptr<game::PauseMenuScreen> mpPauseMenuScreen;

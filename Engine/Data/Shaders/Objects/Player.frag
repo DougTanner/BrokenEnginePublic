@@ -30,8 +30,6 @@ layout (location = 0) out vec4 f4OutColor;
 void main()
 {
 	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4VisibleArea);
-	vec2 f2LightingTexcoord = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
-
 	float fShadow = texture(shadowTextureSampler, f2VisibleAreaTexcoord).x;
 	vec3 f3Color = SunLighting(vec3(1.0f, 1.0f, 1.0f), globalLayout, vec4(f3InWorldPosition, 1.0f), f3InNormal, fShadow, 1.0f);
 
@@ -48,6 +46,5 @@ void main()
 
 	// Lighting
 	vec4 pf4Lighting[3];
-	ReadLighting(pf4Lighting, pLightingSamplers, f2LightingTexcoord);
-	f4OutColor.xyz += Lighting(globalLayout, vec3(1.0f, 1.0f, 1.0f), f3InWorldPosition.z, f3InNormal, pf4Lighting, globalLayout.fLightingObjects, globalLayout.fLightingObjectsAdd);
+	f4OutColor.xyz += Lighting(globalLayout, mainLayout, vec3(1.0f, 1.0f, 1.0f), f3InWorldPosition, f3InNormal, pLightingSamplers, globalLayout.fLightingObjects, globalLayout.fLightingObjectsAdd, pf4Lighting);
 }

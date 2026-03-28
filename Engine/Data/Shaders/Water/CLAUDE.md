@@ -9,7 +9,7 @@ Renders the ocean surface as a tessellated quad covering the visible area. The v
 ## Shaders
 
 - **Water.vert** - Gerstner wave vertex animation with terrain-aware amplitude damping near shorelines and early culling for off-screen vertices.
-- **Water.frag** - Water surface shading using the new lighting system: combines directional and ambient lighting passes, scales by `fLightingTimeOfDayMultiplier * fLightingTerrain`, and blends multiplicatively or additively via `fLightingAddTerrain`. The inactive `#if 0` branch retains the legacy path (depth LUT, skybox reflections, Fresnel, shadow, specular, smoke).
+- **Water.frag** - Water surface shading: depth LUT color, skybox reflections via Fresnel, shadows, `Lighting()` for the directional/ambient pass, inline specular highlights via `Specular()` across four cardinal EWNS directions weighted by the lighting sample and depth-attenuated near shorelines, and additive smoke blending.
 
 ## Architecture Notes
 

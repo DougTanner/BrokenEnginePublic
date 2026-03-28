@@ -204,7 +204,6 @@ void GetIBLContribution(float NdotV, float perceptualRoughness, vec3 diffuseColo
 
 void main()
 {
-#if 0
 	PbrMaterialLayout material = pMaterials[int32_t(pushConstantsLayout.f4Pipeline.w)];
 
 	// Sample base color
@@ -339,7 +338,8 @@ void main()
 
 	// Engine directional lighting
 #if ENABLE_DIRECTIONAL_LIGHTING
-	vec3 directionalLighting = Lighting(globalLayout, baseColor.rgb, f3InWorldPosition.z, n, pf4Lighting, globalLayout.fLightingObjects, globalLayout.fLightingObjectsAdd);
+	vec4 pf4NewLighting[3];
+	vec3 directionalLighting = Lighting(globalLayout, mainLayout, baseColor.rgb, f3InWorldPosition, n, pLightingSamplers, globalLayout.fLightingObjects, globalLayout.fLightingObjectsAdd, pf4NewLighting);
 	color += pow(mainLayout.fPbrLighting * mainLayout.fPbrDayBrightness * directionalLighting, vec3(mainLayout.fPbrLightingPower));
 #endif
 
@@ -366,31 +366,4 @@ void main()
 
 	// Per-instance color add (for effects like damage flash)
 	f4OutColor += f4InColorAdd;
-#else
-	PbrMaterialLayout material = pMaterials[int32_t(pushConstantsLayout.f4Pipeline.w)];
-
-	vec4 baseColor = material.f4BaseColorFactor;
-	if (material.iColorTextureSet > -1)
-	{
-		baseColor *= SRGBtoLinear(texture(sampler2D(pTextures[nonuniformEXT(int(material.fColorTextureIndex))], samplerRepeat), getUV(material.iColorTextureSet)));
-	}
-
-	vec3 n = GetNormal(material);
-
-	// Directional: sample at world-space x/y position
-	vec2 f2DirectTexcoord = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
-	vec4 pf4DirectLighting[3];
-	ReadLighting(pf4DirectLighting, pLightingSamplers, f2DirectTexcoord);
-	vec3 f3Direct = DirectionalLighting2D(pf4DirectLighting, n, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower);
-
-	// Ambient: sample projected to base height toward eye
-	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InWorldPosition);
-	vec2 f2AmbientTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
-	vec4 pf4AmbientLighting[3];
-	ReadLighting(pf4AmbientLighting, pLightingSamplers, f2AmbientTexcoord);
-	vec3 f3Ambient = AmbientLighting(pf4AmbientLighting, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower);
-
-	vec3 f3Lighting = (f3Direct + f3Ambient) * globalLayout.fLightingTimeOfDayMultiplier * globalLayout.fLightingObjects;
-	f4OutColor = vec4(f3Lighting * mix(baseColor.rgb, vec3(1.0f), globalLayout.fLightingObjectsAdd), baseColor.a);
-#endif
 }

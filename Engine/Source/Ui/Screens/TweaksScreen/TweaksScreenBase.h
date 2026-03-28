@@ -28,6 +28,8 @@ public:
 	TweaksScreenBase();
 	virtual ~TweaksScreenBase() = default;
 
+	void LoadState(const bool* pSectionVisible, const ImVec2* pWindowPositions);
+
 	void Render();
 
 	void RenderToggleBar();
@@ -50,8 +52,6 @@ public:
 	void RenderWaveCountRadioButtons(Wrapper& rCountWrapper);
 	void WrapperSlider(std::string_view label, int64_t iSection, float fWidthMultiplier = 2.0f, std::string_view mapKey = {});
 	void WrapperSeparatorText(std::string_view label);
-
-protected:
 
 	std::string_view mActiveSlider;
 	int64_t miActiveSliderSection = -1; // -1 for toggle bar, 0+ for sections

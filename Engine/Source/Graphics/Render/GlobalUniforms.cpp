@@ -248,8 +248,10 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fDayPercent)
 {
 	// Water global
+	rGlobalLayout.fWaterHeight = gWaterHeight.Get();
 	rGlobalLayout.fWaterTerrainHeight = gWaterTerrainHeight.Get();
 	rGlobalLayout.fWaterTerrainFade = gWaterTerrainFade.Get();
+	rGlobalLayout.fWaterTerrainFadeClamp = gWaterTerrainFadeClamp.Get();
 	rGlobalLayout.fWaterNoiseFrequency = gWaterNoiseFrequency.Get();
 	rGlobalLayout.fWaterNoiseAmount = gWaterNoiseAmount.Get();
 

@@ -67,11 +67,7 @@ void TweaksScreenBase::RenderLightingSection()
 		}
 		if (ImGui::BeginTabItem("Read"))
 		{
-			WrapperSeparatorText("Directional");
-			WrapperSlider("Directional", kiSection, 1.0f);
-			WrapperSlider("Indirect", kiSection, 1.0f);
-
-			WrapperSeparatorText("New Lighting");
+			WrapperSeparatorText("Lighting");
 			WrapperSlider("New Directional", kiSection, 1.0f);
 			WrapperSlider("New Directional Power", kiSection, 1.0f);
 			WrapperSlider("New Ambient", kiSection, 1.0f);
@@ -85,8 +81,6 @@ void TweaksScreenBase::RenderLightingSection()
 			WrapperSeparatorText("Water Specular");
 			WrapperSlider("Specular Normal Soften", kiSection);
 			WrapperSlider("Specular Normal Blend Wave", kiSection);
-			WrapperSlider("Specular Diffuse", kiSection);
-			WrapperSlider("Specular Direct", kiSection);
 			WrapperSlider("Water Specular", kiSection);
 			WrapperSlider("Specular Intensity", kiSection);
 			WrapperSlider("Specular Add", kiSection);

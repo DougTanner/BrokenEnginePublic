@@ -85,7 +85,7 @@ void main()
 		(1.0f - f2InTexcoord.y) * globalLayout.f4VisibleArea.y + f2InTexcoord.y * globalLayout.f4VisibleArea.w
 	);
 
-	float fTerrainElevation = texture(elevationTextureSampler, WorldToVisibleArea(vec3(f2OutInitialPosition, 0.0f), globalLayout.f4VisibleArea)).x;
+	float fTerrainElevation = texture(elevationTextureSampler, WorldToVisibleArea(vec3(f2OutInitialPosition, 0.0f), globalLayout.f4VisibleArea)).x - globalLayout.fWaterHeight;
 	if (fTerrainElevation > 1.0f)
 	{
 		gl_Position = vec4(0.0f, 0.0f, -100.0f, 0.0f);
@@ -93,6 +93,7 @@ void main()
 	}
 
 	Gertsner(f2OutInitialPosition, fTerrainElevation);
+	f3OutPosition.z += globalLayout.fWaterHeight;
 
 	f2OutTexcoord = WorldToVisibleArea(f3OutPosition, globalLayout.f4VisibleArea);
 

@@ -11,8 +11,6 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 {
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
-	rGlobalLayout.fLightingDirectional = gLightingDirectional.Get();
-	rGlobalLayout.fLightingIndirect = gLightingIndirect.Get();
 	rGlobalLayout.fLightingObjectsAdd = gLightingObjectsAdd.Get();
 
 	rGlobalLayout.fCombineExposure = gCombineExposure.Get();
@@ -79,8 +77,6 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fLightingWaterSkyboxThreePower = gLightingWaterSkyboxThreePower.Get();
 	rMainLayout.fLightingWaterSkyboxLod = gLightingWaterSkyboxLod.Get();
 
-	rMainLayout.fLightingWaterSpecularDiffuse = gLightingWaterSpecularDiffuse.Get();
-	rMainLayout.fLightingWaterSpecularDirect = gLightingWaterSpecularDirect.Get();
 	rMainLayout.fLightingWaterSpecular = gLightingWaterSpecular.Get();
 
 	rMainLayout.fLightingWaterSpecularNormalSoften = gLightingWaterSpecularNormalSoften.Get();

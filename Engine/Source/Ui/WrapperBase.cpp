@@ -24,7 +24,7 @@ Wrapper gSmoke(true);
 Wrapper gSmokeSimulationPixels(1.0f, 0.5f, 1.5f);
 Wrapper gSmokeSimulationArea(1.0f, 0.8f, 1.2f);
 
-Wrapper gSunAngleOverride(0.1f, 0.0f, XM_PI);
+Wrapper gSunAngleOverride(1.15f, 0.0f, XM_PI);
 Wrapper gMinimumAmbient(kfDefaultMinimumAmbient, kfDefaultMinimumAmbient, 0.1f);
 
 Wrapper gBaseHeight(6.0f, 0.0f, 20.0f);
@@ -71,7 +71,7 @@ Wrapper gSoundVolume(1.0f, 0.0f, 1.0f);
 Wrapper gVisibleAreaExtraTop(0.046f, 0.0f, 1.0f);
 Wrapper gVisibleAreaExtraBottom(0.16f, 0.0f, 1.0f);
 Wrapper gIslandHeight(30.0f, 10.0f, 50.0f);
-Wrapper gWaterDepth(3.5f, 1.0f, 20.0f);
+Wrapper gWaterDepth(7.5f, 1.0f, 20.0f);
 Wrapper gIslandAmbientOcclusion(0.6f, 0.0f, 1.0f);
 
 Wrapper gTerrainEarlyOut(-0.1f, -1.0f, 0.0f);
@@ -96,8 +96,10 @@ Wrapper gTerrainBeachNormalsSizeThree(0.14f, 0.01f, 0.5f);
 Wrapper gTerrainBeachNormalsBlend(1.0f, 0.0f, 4.0f);
 
 // Water
-Wrapper gWaterTerrainHeight(3.5f, 1.0f, 8.0f);
-Wrapper gWaterTerrainFade(0.025f, 0.001f, 0.04f);
+Wrapper gWaterHeight(0.0f, -0.1f, 0.03f);
+Wrapper gWaterTerrainHeight(8.0f, 1.0f, 20.0f);
+Wrapper gWaterTerrainFade(0.04f, -0.025f, 0.1f);
+Wrapper gWaterTerrainFadeClamp(0.0f, 0.0f, 0.5f);
 Wrapper gWaterNoiseFrequency(0.007f, 0.0f, 0.02f);
 Wrapper gWaterNoiseAmount(1.4f, 0.0f, 2.0f);
 Wrapper gWaterColorNoiseFrequency(0.0013f, 0.0f, 0.01f);
@@ -105,7 +107,7 @@ Wrapper gWaterColorNoiseAmount(0.1f, 0.0f, 0.2f);
 
 Wrapper gWaterDepthLutFeather(4.0f, 0.01f, 10.0f);
 Wrapper gWaterDepthColorFeather(5.2f, 0.1f, 20.0f);
-Wrapper gWaterDepthReflectionFeather(0.05f, 0.001f, 0.1f);
+Wrapper gWaterDepthReflectionFeather(0.06f, 0.001f, 0.1f);
 Wrapper gWaterFresnel(0.07f, 0.0f, 0.2f);
 Wrapper gWaterFresnel2(0.8f, 0.0f, 4.0f);
 Wrapper gWaterColorBottom(0.134f, -2.0f, 2.0f);
@@ -155,10 +157,6 @@ Wrapper gCombinePower(12.0f, 0.1f, 32.0f);
 Wrapper gCombinePassNormalize(1.0f, 0.0f, 1.0f);
 Wrapper gCombineExposurePassScale(0.8f, 0.0f, 1.0f);
 
-// Lighting Directional
-Wrapper gLightingDirectional(4.0f, 0.0f, 6.0f);
-Wrapper gLightingIndirect(0.8f, 0.0f, 2.0f);
-
 Wrapper gLightingSampledNormalsSize(0.3f, 0.05f, 0.5f);
 Wrapper gLightingSampledNormalsSizeMod(0.007f, -0.02f, 0.02f);
 Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
@@ -177,8 +175,6 @@ Wrapper gLightingTimeOfDayMultiplier(0.5f, 0.0f, 1.0f);
 // Water specular lighting
 Wrapper gLightingWaterSpecularNormalSoften(0.0f, 0.0f, 0.5f);
 Wrapper gLightingWaterSpecularNormalBlendWave(0.0f, 0.0f, 0.5f);
-Wrapper gLightingWaterSpecularDiffuse(2.0f, 0.0f, 4.0f);
-Wrapper gLightingWaterSpecularDirect(0.0f, 0.0f, 40.0f);
 Wrapper gLightingWaterSpecular(5.0f, 0.0f, 8.0f);
 Wrapper gLightingWaterSpecularIntensity(0.006f, 0.0f, 0.02f);
 Wrapper gLightingWaterSpecularAdd(0.8f, 0.0f, 2.0f);

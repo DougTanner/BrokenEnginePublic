@@ -89,44 +89,6 @@ float Sum(vec4 pf4Lighting[3])
 	return pf4Lighting[0].x + pf4Lighting[0].y + pf4Lighting[0].z + pf4Lighting[0].w + pf4Lighting[1].x + pf4Lighting[1].y + pf4Lighting[1].z + pf4Lighting[1].w + pf4Lighting[2].x + pf4Lighting[2].y + pf4Lighting[2].z + pf4Lighting[2].w;
 }
 
-vec3 Lighting(GlobalLayout globalLayout, vec3 f3Color, float fHeight, vec3 f3Normal, vec4 pf4Lighting[3], float fIntensity, float fAdd)
-{
-	float fDirectionalAdd = globalLayout.fLightingDirectional * (1.0f - f3Normal.z);
-
-	const float fBaseHeight = globalLayout.fBaseHeight;
-	const float fFalloff = 2.0f * fBaseHeight;
-	float fHeightPercent = clamp(abs(fHeight - fBaseHeight) / fFalloff, 0.0f, 1.0f);
-
-	// Direct — component extraction instead of dot(normalize(axis), normal)
-	float fDirectE = max(0.0f, -f3Normal.x);
-	float fDirectW = max(0.0f, f3Normal.x);
-	float fDirectN = max(0.0f, f3Normal.y);
-	float fDirectS = max(0.0f, -f3Normal.y);
-
-	// Indirect — bent normals (normalize needed on right operand only)
-	float fHeightBend = globalLayout.fLightingIndirect;
-	float fIndirectE = max(0.0f, -normalize(f3Normal + vec3(-fHeightBend, 0.0f, 0.0f)).x);
-	float fIndirectW = max(0.0f, normalize(f3Normal + vec3(fHeightBend, 0.0f, 0.0f)).x);
-	float fIndirectN = max(0.0f, normalize(f3Normal + vec3(0.0f, fHeightBend, 0.0f)).y);
-	float fIndirectS = max(0.0f, -normalize(f3Normal + vec3(0.0f, -fHeightBend, 0.0f)).y);
-
-	// Weight — combines direct, indirect, and directional add
-	float fOneMinusHeight = 1.0f - fHeightPercent;
-	float fWeightE = fOneMinusHeight * (fOneMinusHeight * fDirectE + fHeightPercent * fIndirectE + fDirectionalAdd * fDirectE);
-	float fWeightW = fOneMinusHeight * (fOneMinusHeight * fDirectW + fHeightPercent * fIndirectW + fDirectionalAdd * fDirectW);
-	float fWeightN = fOneMinusHeight * (fOneMinusHeight * fDirectN + fHeightPercent * fIndirectN + fDirectionalAdd * fDirectN);
-	float fWeightS = fOneMinusHeight * (fOneMinusHeight * fDirectS + fHeightPercent * fIndirectS + fDirectionalAdd * fDirectS);
-
-	// Apply weights to all 3 channels at once
-	vec3 f3LightingColor = fIntensity * vec3(
-		pf4Lighting[0].x * fWeightE + pf4Lighting[0].y * fWeightW + pf4Lighting[0].z * fWeightN + pf4Lighting[0].w * fWeightS,
-		pf4Lighting[1].x * fWeightE + pf4Lighting[1].y * fWeightW + pf4Lighting[1].z * fWeightN + pf4Lighting[1].w * fWeightS,
-		pf4Lighting[2].x * fWeightE + pf4Lighting[2].y * fWeightW + pf4Lighting[2].z * fWeightN + pf4Lighting[2].w * fWeightS);
-
-	vec3 f3Final = fAdd * f3LightingColor + (1.0f - fAdd) * f3LightingColor * f3Color;
-	return min(f3Final, vec3(1.0f));
-}
-
 vec3 DirectionalLighting2D(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity, float fPower)
 {
 	vec2 f2Normal = normalize(f3Normal.xy);
@@ -151,41 +113,23 @@ vec3 AmbientLighting(vec4 pf4Lighting[3], float fIntensity, float fPower)
 	return fIntensity * pow(f3Result, vec3(fPower));
 }
 
-vec3 SpecularLighting(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3Color, vec3 f3Position, vec3 f3DirectNormal, vec3 f3SpecularNormal, vec4 pf4Lighting[3], float fIntensity, float fAdd)
+vec3 Lighting(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3Color, vec3 f3Position, vec3 f3Normal, sampler2D pLightingSamplers[3], float fIntensity, float fAdd, out vec4 pf4AmbientLighting[3])
 {
-	vec3 f3ToEyeNormal = normalize(mainLayout.f4EyePosition.xyz - f3Position);
+	// Directional: sample at world-space x/y position
+	vec2 f2DirectTexcoord = WorldToVisibleArea(f3Position, globalLayout.f4LightingArea);
+	vec4 pf4DirectLighting[3];
+	ReadLighting(pf4DirectLighting, pLightingSamplers, f2DirectTexcoord);
+	vec3 f3Direct = DirectionalLighting2D(pf4DirectLighting, f3Normal, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower);
 
-	// Diffuse (sum of EWNS weights per channel)
-	vec3 f3Diffuse = vec3(
-		pf4Lighting[0].x + pf4Lighting[0].y + pf4Lighting[0].z + pf4Lighting[0].w,
-		pf4Lighting[1].x + pf4Lighting[1].y + pf4Lighting[1].z + pf4Lighting[1].w,
-		pf4Lighting[2].x + pf4Lighting[2].y + pf4Lighting[2].z + pf4Lighting[2].w);
-
-	// Direct — component extraction instead of dot(normalize(axis), normal)
-	float fDirectE = max(0.0f, -f3DirectNormal.x);
-	float fDirectW = max(0.0f, f3DirectNormal.x);
-	float fDirectN = max(0.0f, f3DirectNormal.y);
-	float fDirectS = max(0.0f, -f3DirectNormal.y);
-	vec3 f3Direct = vec3(
-		pf4Lighting[0].x * fDirectE + pf4Lighting[0].y * fDirectW + pf4Lighting[0].z * fDirectN + pf4Lighting[0].w * fDirectS,
-		pf4Lighting[1].x * fDirectE + pf4Lighting[1].y * fDirectW + pf4Lighting[1].z * fDirectN + pf4Lighting[1].w * fDirectS,
-		pf4Lighting[2].x * fDirectE + pf4Lighting[2].y * fDirectW + pf4Lighting[2].z * fDirectN + pf4Lighting[2].w * fDirectS);
-
-	// Specular — 4 directions, computed once (geometry-only, channel-independent)
-	float fSpecE = max(0.0f, Specular(f3ToEyeNormal, vec3( 1.0f, 0.0f, 0.0f), f3SpecularNormal, mainLayout.fLightingWaterSpecularOne, mainLayout.fLightingWaterSpecularOnePower, mainLayout.fLightingWaterSpecularTwo, mainLayout.fLightingWaterSpecularTwoPower, mainLayout.fLightingWaterSpecularThree, mainLayout.fLightingWaterSpecularThreePower));
-	float fSpecW = max(0.0f, Specular(f3ToEyeNormal, vec3(-1.0f, 0.0f, 0.0f), f3SpecularNormal, mainLayout.fLightingWaterSpecularOne, mainLayout.fLightingWaterSpecularOnePower, mainLayout.fLightingWaterSpecularTwo, mainLayout.fLightingWaterSpecularTwoPower, mainLayout.fLightingWaterSpecularThree, mainLayout.fLightingWaterSpecularThreePower));
-	float fSpecN = max(0.0f, Specular(f3ToEyeNormal, vec3( 0.0f, 1.0f, 0.0f), f3SpecularNormal, mainLayout.fLightingWaterSpecularOne, mainLayout.fLightingWaterSpecularOnePower, mainLayout.fLightingWaterSpecularTwo, mainLayout.fLightingWaterSpecularTwoPower, mainLayout.fLightingWaterSpecularThree, mainLayout.fLightingWaterSpecularThreePower));
-	float fSpecS = max(0.0f, Specular(f3ToEyeNormal, vec3( 0.0f,-1.0f, 0.0f), f3SpecularNormal, mainLayout.fLightingWaterSpecularOne, mainLayout.fLightingWaterSpecularOnePower, mainLayout.fLightingWaterSpecularTwo, mainLayout.fLightingWaterSpecularTwoPower, mainLayout.fLightingWaterSpecularThree, mainLayout.fLightingWaterSpecularThreePower));
-	vec3 f3Specular = vec3(
-		pf4Lighting[0].x * fSpecE + pf4Lighting[0].y * fSpecW + pf4Lighting[0].z * fSpecN + pf4Lighting[0].w * fSpecS,
-		pf4Lighting[1].x * fSpecE + pf4Lighting[1].y * fSpecW + pf4Lighting[1].z * fSpecN + pf4Lighting[1].w * fSpecS,
-		pf4Lighting[2].x * fSpecE + pf4Lighting[2].y * fSpecW + pf4Lighting[2].z * fSpecN + pf4Lighting[2].w * fSpecS);
+	// Ambient: sample projected to base height toward eye
+	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3Position);
+	vec2 f2AmbientTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
+	ReadLighting(pf4AmbientLighting, pLightingSamplers, f2AmbientTexcoord);
+	vec3 f3Ambient = AmbientLighting(pf4AmbientLighting, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower);
 
 	// Combine
-	vec3 f3LightingColor = fIntensity * (mainLayout.fLightingWaterSpecularDiffuse * f3Diffuse + mainLayout.fLightingWaterSpecularDirect * f3Direct + mainLayout.fLightingWaterSpecular * f3Specular);
-
-	vec3 f3Final = fAdd * f3LightingColor + (1.0f - fAdd) * f3LightingColor * f3Color;
-	return min(f3Final, vec3(1.0f));
+	vec3 f3Lighting = (f3Direct + f3Ambient) * globalLayout.fLightingTimeOfDayMultiplier * fIntensity;
+	return fAdd * f3Lighting + (1.0f - fAdd) * f3Lighting * f3Color;
 }
 
 vec2 WorldToSmokeTexcoord(vec4 f4SmokeArea, vec2 f2Position)

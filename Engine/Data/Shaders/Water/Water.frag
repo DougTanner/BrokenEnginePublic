@@ -48,10 +48,9 @@ float Fresnel(vec3 f3CameraPosition, vec3 f3Position, vec3 f3InNormal, float fRe
 
 void main()
 {
-#if 0
 	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4VisibleArea);
 
-	float fTerrainElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x;
+	float fTerrainElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x - globalLayout.fWaterHeight;
 	if (fTerrainElevation > globalLayout.fWaterEarlyOut)
 	{
 		f4OutColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -115,7 +114,7 @@ void main()
 	f4OutColor.xyz = max(f4OutColor.xyz, 0.5f * globalLayout.f4AmbientColor.xyz * f3SkyboxColor);
 
 	// Terrain elevation (for water transparency)
-	f4OutColor.w = clamp(-fTerrainElevation / globalLayout.fWaterTerrainFade, 0.0f, 1.0f);
+	f4OutColor.w = clamp(-fTerrainElevation / globalLayout.fWaterTerrainFade, globalLayout.fWaterTerrainFadeClamp, 1.0f);
 
 	// Additive smoke at base height
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
@@ -123,9 +122,7 @@ void main()
 	float fSmokeRaw = globalLayout.fSmokeMax * texture(smokeSampler, f2SmokeTexcoord).x;
 	float fSmokePow = clamp(pow(fSmokeRaw, globalLayout.fSmokePower), 0.0f, 1.0f);
 
-	// Lighting at base height
-	vec2 f2BaseHeightTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
-
+	// Lighting
 	const float fSpecularNormalSoften = mainLayout.fLightingWaterSpecularNormalSoften;
 	const float fSpecularNormalBlendWave = mainLayout.fLightingWaterSpecularNormalBlendWave;
 	vec3 f3LightingNormal = (1.0f - fSpecularNormalBlendWave) * f3SampledNormal + fSpecularNormalBlendWave * f3InNormal;
@@ -133,38 +130,25 @@ void main()
 	f3LightingNormal = normalize(f3LightingNormal);
 
 	vec4 pf4Lighting[3];
-	ReadLighting(pf4Lighting, pLightingSamplers, f2BaseHeightTexcoord);
-	f4OutColor.xyz += fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * SpecularLighting(globalLayout, mainLayout, f3PreLightingColor, f3InPosition, f3InNormal, f3LightingNormal, pf4Lighting, mainLayout.fLightingWaterSpecularIntensity, mainLayout.fLightingWaterSpecularAdd);
+	f4OutColor.xyz += fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * Lighting(globalLayout, mainLayout, f3PreLightingColor, f3InPosition, f3InNormal, pLightingSamplers, globalLayout.fLightingTerrain, globalLayout.fLightingAddTerrain, pf4Lighting);
+
+	// Specular highlights
+	float fSpecE = max(0.0f, Specular(f3ToEyeNormal, vec3( 1.0f, 0.0f, 0.0f), f3LightingNormal, mainLayout.fLightingWaterSpecularOne, mainLayout.fLightingWaterSpecularOnePower, mainLayout.fLightingWaterSpecularTwo, mainLayout.fLightingWaterSpecularTwoPower, mainLayout.fLightingWaterSpecularThree, mainLayout.fLightingWaterSpecularThreePower));
+	float fSpecW = max(0.0f, Specular(f3ToEyeNormal, vec3(-1.0f, 0.0f, 0.0f), f3LightingNormal, mainLayout.fLightingWaterSpecularOne, mainLayout.fLightingWaterSpecularOnePower, mainLayout.fLightingWaterSpecularTwo, mainLayout.fLightingWaterSpecularTwoPower, mainLayout.fLightingWaterSpecularThree, mainLayout.fLightingWaterSpecularThreePower));
+	float fSpecN = max(0.0f, Specular(f3ToEyeNormal, vec3( 0.0f, 1.0f, 0.0f), f3LightingNormal, mainLayout.fLightingWaterSpecularOne, mainLayout.fLightingWaterSpecularOnePower, mainLayout.fLightingWaterSpecularTwo, mainLayout.fLightingWaterSpecularTwoPower, mainLayout.fLightingWaterSpecularThree, mainLayout.fLightingWaterSpecularThreePower));
+	float fSpecS = max(0.0f, Specular(f3ToEyeNormal, vec3( 0.0f,-1.0f, 0.0f), f3LightingNormal, mainLayout.fLightingWaterSpecularOne, mainLayout.fLightingWaterSpecularOnePower, mainLayout.fLightingWaterSpecularTwo, mainLayout.fLightingWaterSpecularTwoPower, mainLayout.fLightingWaterSpecularThree, mainLayout.fLightingWaterSpecularThreePower));
+	vec3 f3Specular = vec3(
+		pf4Lighting[0].x * fSpecE + pf4Lighting[0].y * fSpecW + pf4Lighting[0].z * fSpecN + pf4Lighting[0].w * fSpecS,
+		pf4Lighting[1].x * fSpecE + pf4Lighting[1].y * fSpecW + pf4Lighting[1].z * fSpecN + pf4Lighting[1].w * fSpecS,
+		pf4Lighting[2].x * fSpecE + pf4Lighting[2].y * fSpecW + pf4Lighting[2].z * fSpecN + pf4Lighting[2].w * fSpecS);
+	float fDepthAttenuation = clamp(-fTerrainElevation / globalLayout.fWaterDepthReflectionFeather, 0.0f, 1.0f);
+	vec3 f3SpecularLighting = fDepthAttenuation * mainLayout.fLightingWaterSpecularIntensity * mainLayout.fLightingWaterSpecular * f3Specular;
+	float fSpecularAdd = mainLayout.fLightingWaterSpecularAdd;
+	vec3 f3SpecularColor = fSpecularAdd * f3SpecularLighting + (1.0f - fSpecularAdd) * f3SpecularLighting * f3PreLightingColor;
+	f4OutColor.xyz += fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * f3SpecularColor;
 
 	// Additive smoke
 	f4OutColor.xyz = BlendSmoke(f4OutColor.xyz, fSmokePow, pf4Lighting, globalLayout);
-#else
-	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4VisibleArea);
 
-	float fTerrainElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x;
-	if (fTerrainElevation > globalLayout.fWaterEarlyOut)
-	{
-		f4OutColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);
-		return;
-	}
-
-	vec3 f3Normal = normalize(f3InNormal);
-	vec3 f3WaterColor = vec3(0.0f, 0.15f, 0.25f);
-
-	// Directional: sample at world-space x/y position
-	vec2 f2DirectTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4LightingArea);
-	vec4 pf4DirectLighting[3];
-	ReadLighting(pf4DirectLighting, pLightingSamplers, f2DirectTexcoord);
-	vec3 f3Direct = DirectionalLighting2D(pf4DirectLighting, f3Normal, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower);
-
-	// Ambient: sample projected to base height toward eye
-	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
-	vec2 f2AmbientTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
-	vec4 pf4AmbientLighting[3];
-	ReadLighting(pf4AmbientLighting, pLightingSamplers, f2AmbientTexcoord);
-	vec3 f3Ambient = AmbientLighting(pf4AmbientLighting, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower);
-
-	vec3 f3Lighting = (f3Direct + f3Ambient) * globalLayout.fLightingTimeOfDayMultiplier * globalLayout.fLightingTerrain;
-	f4OutColor = vec4(f3Lighting * mix(f3WaterColor, vec3(1.0f), globalLayout.fLightingAddTerrain), 1.0f);
-#endif
+	f4OutColor.xyz *= f4OutColor.w;
 }

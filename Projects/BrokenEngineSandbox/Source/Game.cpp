@@ -1,11 +1,13 @@
 #include "Game.h"
 
-#include "Frame/Collections/Players/Players.h"
-#include "Frame/Collections/Blasters/Blasters.h"
-#include "Frame/Collections/Missiles/Missiles.h"
-#include "Frame/Collections/Spaceships/Spaceships.h"
 #include "Profile/ProfileManager.h"
 #include "Ui/Localization.h"
+
+#include "Frame/Collections/Blasters/Blasters.h"
+#include "Frame/Collections/Missiles/Missiles.h"
+#include "Frame/Collections/Players/Players.h"
+#include "Frame/Collections/Spaceships/Spaceships.h"
+#include "Ui/Screens/TweaksScreen/TweaksScreen.h"
 
 namespace game
 {
@@ -614,6 +616,62 @@ void Game::ResetSoundSettings()
 	engine::gSoundVolume.ResetToDefault();
 
 	SaveSoundSettings();
+}
+
+struct TweaksSettings
+{
+	static constexpr int64_t kiVersion = 1;
+
+	bool bShowImGui = false;
+	bool bSectionVisible[static_cast<size_t>(engine::TweakSection::kCount)] {};
+	float fWindowPositionX[static_cast<size_t>(engine::TweakSection::kCount)] {};
+	float fWindowPositionY[static_cast<size_t>(engine::TweakSection::kCount)] {};
+};
+static constexpr char kpcTweaksSettingsPath[] = "TweaksSettings.bin";
+
+void Game::SaveTweaksSettings()
+{
+	if constexpr (!kbEnableDebugInput)
+	{
+		return;
+	}
+
+	TweaksSettings settings {};
+	settings.bShowImGui = gpGame->mbShowImGui;
+
+	const bool* pVisible = engine::gpImGuiManager->mpTweaksScreen->mSectionVisible;
+	const ImVec2* pPositions = engine::gpImGuiManager->mpTweaksScreen->mWindowPositions;
+
+	for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
+	{
+		settings.bSectionVisible[i] = pVisible[i];
+		settings.fWindowPositionX[i] = pPositions[i].x;
+		settings.fWindowPositionY[i] = pPositions[i].y;
+	}
+
+	engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, kpcTweaksSettingsPath, settings);
+}
+
+void Game::LoadTweaksSettings()
+{
+	if constexpr (!kbEnableDebugInput)
+	{
+		return;
+	}
+
+	TweaksSettings settings {};
+	if (engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, kpcTweaksSettingsPath, settings))
+	{
+		gpGame->mbShowImGui = settings.bShowImGui;
+
+		ImVec2 f2WindowPositions[static_cast<size_t>(engine::TweakSection::kCount)] {};
+		for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
+		{
+			f2WindowPositions[i] = {settings.fWindowPositionX[i], settings.fWindowPositionY[i]};
+		}
+
+		engine::gpImGuiManager->mpTweaksScreen->LoadState(settings.bSectionVisible, f2WindowPositions);
+	}
 }
 #endif // BT_CLIENT
 

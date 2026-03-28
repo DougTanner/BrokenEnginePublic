@@ -258,6 +258,12 @@ void TweaksScreenBase::WrapperSeparatorText(std::string_view label)
 	}
 }
 
+void TweaksScreenBase::LoadState(const bool* pSectionVisible, const ImVec2* pWindowPositions)
+{
+	std::memcpy(mSectionVisible, pSectionVisible, sizeof(mSectionVisible));
+	std::memcpy(mWindowPositions, pWindowPositions, sizeof(mWindowPositions));
+}
+
 void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)
 {
 	int64_t iSection = static_cast<int64_t>(eSection);
@@ -273,8 +279,8 @@ void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)
 	}
 
 	constexpr float kfStartX = 10.0f;
-	ImVec2 initialPos { kfStartX, mfToggleBarBottom };
-	ImGui::SetNextWindowPos(initialPos, ImGuiCond_FirstUseEver);
+	ImVec2 f2InitialPosition = (mWindowPositions[iSection].y > 0.0f) ? mWindowPositions[iSection] : ImVec2{kfStartX, mfToggleBarBottom};
+	ImGui::SetNextWindowPos(f2InitialPosition, ImGuiCond_FirstUseEver);
 	ImGui::Begin(kpcSectionNames[iSection], bHasActiveSlider ? nullptr : &mSectionVisible[iSection], ImGuiWindowFlags_AlwaysAutoResize);
 	ImGui::SetWindowFontScale(kfUiScale);
 	mWindowPositions[iSection] = ImGui::GetWindowPos();

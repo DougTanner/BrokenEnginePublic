@@ -99,6 +99,9 @@ public:
 	static void SaveSoundSettings();
 	static void LoadSoundSettings();
 	static void ResetSoundSettings();
+
+	static void SaveTweaksSettings();
+	static void LoadTweaksSettings();
 #endif
 
 #if defined(BT_CLIENT)
