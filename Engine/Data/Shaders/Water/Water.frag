@@ -149,6 +149,4 @@ void main()
 
 	// Additive smoke
 	f4OutColor.xyz = BlendSmoke(f4OutColor.xyz, fSmokePow, pf4Lighting, globalLayout);
-
-	f4OutColor.xyz *= f4OutColor.w;
 }

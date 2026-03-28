@@ -71,7 +71,7 @@ Wrapper gSoundVolume(1.0f, 0.0f, 1.0f);
 Wrapper gVisibleAreaExtraTop(0.046f, 0.0f, 1.0f);
 Wrapper gVisibleAreaExtraBottom(0.16f, 0.0f, 1.0f);
 Wrapper gIslandHeight(30.0f, 10.0f, 50.0f);
-Wrapper gWaterDepth(7.5f, 1.0f, 20.0f);
+Wrapper gWaterDepth(3.5f, 1.0f, 20.0f);
 Wrapper gIslandAmbientOcclusion(0.6f, 0.0f, 1.0f);
 
 Wrapper gTerrainEarlyOut(-0.1f, -1.0f, 0.0f);
@@ -97,8 +97,8 @@ Wrapper gTerrainBeachNormalsBlend(1.0f, 0.0f, 4.0f);
 
 // Water
 Wrapper gWaterHeight(0.0f, -0.1f, 0.03f);
-Wrapper gWaterTerrainHeight(8.0f, 1.0f, 20.0f);
-Wrapper gWaterTerrainFade(0.04f, -0.025f, 0.1f);
+Wrapper gWaterTerrainHeight(3.5f, 1.0f, 8.0f);
+Wrapper gWaterTerrainFade(0.025f, 0.001f, 0.04f);
 Wrapper gWaterTerrainFadeClamp(0.0f, 0.0f, 0.5f);
 Wrapper gWaterNoiseFrequency(0.007f, 0.0f, 0.02f);
 Wrapper gWaterNoiseAmount(1.4f, 0.0f, 2.0f);
@@ -107,7 +107,7 @@ Wrapper gWaterColorNoiseAmount(0.1f, 0.0f, 0.2f);
 
 Wrapper gWaterDepthLutFeather(4.0f, 0.01f, 10.0f);
 Wrapper gWaterDepthColorFeather(5.2f, 0.1f, 20.0f);
-Wrapper gWaterDepthReflectionFeather(0.06f, 0.001f, 0.1f);
+Wrapper gWaterDepthReflectionFeather(0.05f, 0.001f, 0.1f);
 Wrapper gWaterFresnel(0.07f, 0.0f, 0.2f);
 Wrapper gWaterFresnel2(0.8f, 0.0f, 4.0f);
 Wrapper gWaterColorBottom(0.134f, -2.0f, 2.0f);

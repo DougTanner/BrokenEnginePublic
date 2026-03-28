@@ -183,10 +183,8 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		// Misc
 		{"Misc Island Height", &gIslandHeight},
 		{"Water Depth", &gWaterDepth},
-		{"Water Height", &gWaterHeight},
 		{"Water Terrain Height", &gWaterTerrainHeight},
 		{"Water Terrain Fade", &gWaterTerrainFade},
-		{"Water Terrain Fade Clamp", &gWaterTerrainFadeClamp},
 		{"Misc Depth Reflection Feather", &gWaterDepthReflectionFeather},
 		// Smoke - Decay
 		{"Smoke Max", &gSmokeMax},

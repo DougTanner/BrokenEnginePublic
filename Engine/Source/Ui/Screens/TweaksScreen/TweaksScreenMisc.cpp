@@ -10,9 +10,7 @@ void TweaksScreenBase::RenderMiscSection()
 	WrapperSlider("Misc Island Height", kiSection);
 	WrapperSlider("Water Depth", kiSection);
 	WrapperSlider("Water Terrain Height", kiSection);
-	WrapperSlider("Water Height", kiSection);
 	WrapperSlider("Water Terrain Fade", kiSection);
-	WrapperSlider("Water Terrain Fade Clamp", kiSection);
 	WrapperSlider("Misc Depth Reflection Feather", kiSection);
 	WrapperSlider("Misc0", kiSection);
 }
