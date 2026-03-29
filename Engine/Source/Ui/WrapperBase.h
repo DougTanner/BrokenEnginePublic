@@ -345,6 +345,7 @@ extern Wrapper gSpreadAccumulationDecayEnd;
 // Spread Height
 extern Wrapper gSpreadHeightDistance;
 extern Wrapper gSpreadHeightIntensity;
+extern Wrapper gSpreadHeightIntensityTarget;
 
 // Combine
 extern Wrapper gCombineExposure;
@@ -362,22 +363,23 @@ extern Wrapper gLightingNewAmbient;
 extern Wrapper gLightingNewAmbientPower;
 extern Wrapper gLightingTerrain;
 extern Wrapper gLightingAddTerrain;
+extern Wrapper gLightingTerrainBelowBaseMultiplier;
+extern Wrapper gLightingTerrainBelowBasePower;
 extern Wrapper gLightingObjects;
 extern Wrapper gLightingObjectsAdd;
 extern Wrapper gLightingTimeOfDayMultiplier;
 
 // Water specular lighting
-extern Wrapper gLightingWaterSpecularNormalSoften;
-extern Wrapper gLightingWaterSpecularNormalBlendWave;
-extern Wrapper gLightingWaterSpecular;
-extern Wrapper gLightingWaterSpecularIntensity;
-extern Wrapper gLightingWaterSpecularAdd;
-extern Wrapper gLightingWaterSpecularOne;
-extern Wrapper gLightingWaterSpecularOnePower;
-extern Wrapper gLightingWaterSpecularTwo;
-extern Wrapper gLightingWaterSpecularTwoPower;
-extern Wrapper gLightingWaterSpecularThree;
-extern Wrapper gLightingWaterSpecularThreePower;
+extern Wrapper gLightingWaterNormalSoften;
+extern Wrapper gLightingWaterNormalBlendWave;
+extern Wrapper gLightingWaterIntensity;
+extern Wrapper gLightingWaterAdd;
+extern Wrapper gLightingWaterOne;
+extern Wrapper gLightingWaterOnePower;
+extern Wrapper gLightingWaterTwo;
+extern Wrapper gLightingWaterTwoPower;
+extern Wrapper gLightingWaterThree;
+extern Wrapper gLightingWaterThreePower;
 
 // Water skybox
 extern Wrapper gLightingWaterSkyboxSunBias;

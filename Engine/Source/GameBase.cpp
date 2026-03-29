@@ -40,9 +40,7 @@ void GameBase::ProcessInput([[maybe_unused]] bool bLostFocus, game::MenuInput& r
 void GameBase::ClientUpdate()
 {
 	game::gpClientSession->Poll();
-	Log(kLogNetwork, "ClientUpdate AfterPoll"); // DT TEMP
 	game::gpClientSession->Reconcile();
-	Log(kLogNetwork, "ClientUpdate AfterReconcile"); // DT TEMP
 
 	if (game::gpClientSession->IsStalled())
 	{

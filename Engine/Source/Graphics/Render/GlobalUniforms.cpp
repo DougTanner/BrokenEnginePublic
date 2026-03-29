@@ -353,7 +353,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 
 		// Integer texel math: compute origin as integer texel index * texelSize
 		int64_t iLeftTexel = static_cast<int64_t>(std::floor((f4CameraPos.x - fWidth * 0.5f) / fTexelSizeX));
-		int64_t iTopTexel = static_cast<int64_t>(std::floor((f4CameraPos.y + fHeight * 0.5f) / fTexelSizeY)) + 1;
+		int64_t iTopTexel = static_cast<int64_t>(std::floor((f4CameraPos.y + fHeight * 0.5f) / fTexelSizeY));
 		float fLeft = static_cast<float>(iLeftTexel) * fTexelSizeX;
 		float fTop = static_cast<float>(iTopTexel) * fTexelSizeY;
 

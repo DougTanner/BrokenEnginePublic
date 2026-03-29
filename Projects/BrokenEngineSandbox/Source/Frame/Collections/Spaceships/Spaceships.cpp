@@ -49,7 +49,7 @@ constexpr float kfSpaceshipExplosionParticleVerticalVelocityMin = -5.0f;
 constexpr float kfSpaceshipExplosionParticleVerticalVelocityRandom = 10.0f;
 constexpr float kfSpaceshipExplosionParticleIntensityDecay = 2.4f;
 constexpr float kfSpaceshipExplosionParticleLightingSize = 3.0f;
-constexpr float kfSpaceshipExplosionParticleLightingIntensity = 5000.0f;
+constexpr float kfSpaceshipExplosionParticleLightingIntensity = 1500.0f;
 constexpr float kfSpaceshipExplosionTrailLengthRandom = 2.5f;
 constexpr uint32_t kuiSpaceshipExplosionSecondaryCount = 1;
 
@@ -60,8 +60,8 @@ constexpr float kfBlastersSpawnCooldown = 1.0f;
 
 constexpr float kfEnemyBlasterSize = 0.3f;
 constexpr float kfEnemyBlasterVisibleIntensity = 1.0f;
-constexpr float kfEnemyBlasterLightingSize = 1.5f;
-constexpr float kfEnemyBlasterLightingIntensity = 800.0f;
+constexpr float kfEnemyBlasterLightingSize = 10.0f;
+constexpr float kfEnemyBlasterLightingIntensity = 200.0f;
 
 // Spaceship target
 constexpr float kfTargetSize = 0.06f;

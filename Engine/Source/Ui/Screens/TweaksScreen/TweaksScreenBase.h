@@ -28,7 +28,8 @@ public:
 	TweaksScreenBase();
 	virtual ~TweaksScreenBase() = default;
 
-	void LoadState(const bool* pSectionVisible, const ImVec2* pWindowPositions);
+	void SaveState(bool* pSectionVisible, ImVec2* pWindowPositions, int8_t* pActiveSubtab) const;
+	void LoadState(const bool* pSectionVisible, const ImVec2* pWindowPositions, const int8_t* pActiveSubtab);
 
 	void Render();
 
@@ -58,6 +59,8 @@ public:
 
 	bool mSectionVisible[static_cast<size_t>(TweakSection::kCount)] {};
 	ImVec2 mWindowPositions[static_cast<size_t>(TweakSection::kCount)];
+	int8_t mActiveSubtab[static_cast<size_t>(TweakSection::kCount)] {};
+	bool mApplySubtab[static_cast<size_t>(TweakSection::kCount)] {};
 	float mfToggleBarBottom = 0.0f;
 };
 

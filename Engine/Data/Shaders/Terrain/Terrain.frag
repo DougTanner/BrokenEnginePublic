@@ -78,9 +78,19 @@ void main()
 		f3Color = mix(f3Color, texture(rockSampler, globalLayout.fTerrainRockSize * f3InPosition.xy).xyz, globalLayout.fTerrainRockBlend * fRockPercent);
 	}
 
+	vec3 f3LightingNormal = f3Normal;
+
 	if (fBeachPercent > 0.001f)
 	{
-		vec3 f3BeachNormalSum = 2.0f * SampleNormal(globalLayout, sandNormalsSampler0, f3InPosition.xy, globalLayout.fTerrainBeachNormalsSizeOne, 0.0f, vec2(0.0f, 0.0f)) + 0.5f * SampleNormal(globalLayout, sandNormalsSampler1, f3InPosition.yx, globalLayout.fTerrainBeachNormalsSizeTwo, 0.0f, vec2(0.0f, 0.0f)) + 1.0f * SampleNormal(globalLayout, sandNormalsSampler2, f3InPosition.yx, globalLayout.fTerrainBeachNormalsSizeThree, 0.0f, vec2(0.0f, 0.0f));
+	#if 1
+		vec3 f3BeachNormalSum = 2.0f * SampleNormal(globalLayout, sandNormalsSampler0, f3InPosition.xy, globalLayout.fTerrainBeachNormalsSizeOne, 0.0f, vec2(0.0f, 0.0f)) +
+		                        0.5f * SampleNormal(globalLayout, sandNormalsSampler1, f3InPosition.yx, globalLayout.fTerrainBeachNormalsSizeTwo, 0.0f, vec2(0.0f, 0.0f)) +
+								1.0f * SampleNormal(globalLayout, sandNormalsSampler2, f3InPosition.yx, globalLayout.fTerrainBeachNormalsSizeThree, 0.0f, vec2(0.0f, 0.0f));
+	#else
+		vec3 f3BeachNormalSum = 2.0f * SampleNormal(globalLayout, sandNormalsSampler0, 5.0f * f3InPosition.xy, globalLayout.fTerrainBeachNormalsSizeOne, 0.0f, vec2(0.0f, 0.0f)) +
+		                        0.25f * SampleNormal(globalLayout, sandNormalsSampler1, 10.0f * f3InPosition.yx, globalLayout.fTerrainBeachNormalsSizeTwo, 0.0f, vec2(0.0f, 0.0f)) +
+								1.0f * SampleNormal(globalLayout, sandNormalsSampler2, 5.0f * f3InPosition.yx, globalLayout.fTerrainBeachNormalsSizeThree, 0.0f, vec2(0.0f, 0.0f));
+	#endif
 		vec3 f3BeachNormal = normalize(f3BeachNormalSum);
 		f3BeachNormal.z = 0.0f;
 		f3Normal = normalize(f3Normal + globalLayout.fTerrainBeachNormalsBlend * fBeachPercent * f3BeachNormal);
@@ -94,16 +104,24 @@ void main()
 	float fShadow = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
 	f4OutColor = vec4(SunLighting(f3Color, globalLayout, vec4(f3InPosition, 1.0f), f3SunNormal, fShadow, 1.0f - texture(ambientOcclusionTextureSampler, f2InVisibleAreaTexcoord).x), 1.0f);
 
-	// Additive smoke at base height
+	// Sample lighting texture, at world x/y and at projected base-height x/y
+	vec2 f2LightingTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4LightingArea);
+	vec4 pf4Lighting[3] = {texture(pLightingSamplers[0], f2LightingTexcoord), texture(pLightingSamplers[1], f2LightingTexcoord), texture(pLightingSamplers[2], f2LightingTexcoord)};
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
+	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
+	vec4 pf4LightingBaseHeight[3] = {texture(pLightingSamplers[0], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[1], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[2], f2LightingTexcoordBaseHeight)};
+
+	// Apply directional and ambient lighting
+	vec3 f3Directional = DirectionalLighting(pf4Lighting, f3Normal, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower);
+	vec3 f3Ambient = AmbientLighting(pf4LightingBaseHeight, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower);
+	vec3 f3Lighting = globalLayout.fLightingTerrain * globalLayout.fLightingTimeOfDayMultiplier * (f3Directional + f3Ambient);
+	float fHeightRatio = clamp(f3InPosition.z / max(globalLayout.fBaseHeight, 0.001), 0.0, 1.0);
+	f3Lighting *= mix(mainLayout.fLightingTerrainBelowBaseMultiplier, 1.0, pow(fHeightRatio, mainLayout.fLightingTerrainBelowBasePower));
+	f4OutColor.xyz += f3Lighting * mix(f3Color, vec3(1.0f), globalLayout.fLightingAddTerrain);
+
+	// Sample smoke at base-height projected position, affected by lighting at base-height projected position
 	vec2 f2SmokeTexcoord = WorldToSmokeTexcoord(globalLayout.f4SmokeArea, f2PositionAtBaseHeight);
 	float fSmokeRaw = globalLayout.fSmokeMax * texture(smokeSampler, f2SmokeTexcoord).x;
 	float fSmokePow = clamp(pow(fSmokeRaw, globalLayout.fSmokePower), 0.0f, 1.0f);
-
-	// Lighting
-	vec4 pf4Lighting[3];
-	f4OutColor.xyz += Lighting(globalLayout, mainLayout, f3Color, f3InPosition, f3Normal, pLightingSamplers, globalLayout.fLightingTerrain, globalLayout.fLightingAddTerrain, pf4Lighting);
-
-	// Additive smoke
-	f4OutColor.xyz = BlendSmoke(f4OutColor.xyz, fSmokePow, pf4Lighting, globalLayout);
+	f4OutColor.xyz = BlendSmoke(f4OutColor.xyz, fSmokePow, pf4LightingBaseHeight, globalLayout);
 }

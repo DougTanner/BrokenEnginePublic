@@ -31,7 +31,7 @@ constexpr float kfPrimaryTime = 0.06f;
 constexpr float kfPrimaryVisibleSize = 1.0f;
 constexpr float kfPrimaryVisibleIntensity = 0.6f;
 constexpr float kfPrimaryLightingSize = 2.0f;
-constexpr float kfPrimaryLightingIntensity = 450.0f;
+constexpr float kfPrimaryLightingIntensity = 1000.0f;
 
 // Secondary light
 constexpr float kfSecondaryVisibleSize = 0.75f;

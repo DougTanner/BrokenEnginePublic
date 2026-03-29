@@ -75,4 +75,4 @@ inline constexpr bool kbShowProfileTextByDefault = false;
 #include "Engine.h"
 
 inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kChina;
-inline constexpr uint64_t kLogEnabledCategoriesDefault = kLogNetwork; // DT: TEMP kLogDefault;
+inline constexpr uint64_t kLogEnabledCategoriesDefault = kLogDefault;

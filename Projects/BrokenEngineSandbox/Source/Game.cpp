@@ -620,12 +620,13 @@ void Game::ResetSoundSettings()
 
 struct TweaksSettings
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
 
 	bool bShowImGui = false;
 	bool bSectionVisible[static_cast<size_t>(engine::TweakSection::kCount)] {};
 	float fWindowPositionX[static_cast<size_t>(engine::TweakSection::kCount)] {};
 	float fWindowPositionY[static_cast<size_t>(engine::TweakSection::kCount)] {};
+	int8_t iActiveSubtab[static_cast<size_t>(engine::TweakSection::kCount)] {};
 };
 static constexpr char kpcTweaksSettingsPath[] = "TweaksSettings.bin";
 
@@ -636,17 +637,25 @@ void Game::SaveTweaksSettings()
 		return;
 	}
 
-	TweaksSettings settings {};
-	settings.bShowImGui = gpGame->mbShowImGui;
+	bool bSectionVisible[static_cast<size_t>(engine::TweakSection::kCount)] {};
+	ImVec2 f2WindowPositions[static_cast<size_t>(engine::TweakSection::kCount)] {};
+	int8_t iActiveSubtab[static_cast<size_t>(engine::TweakSection::kCount)] {};
+	engine::gpImGuiManager->mpTweaksScreen->SaveState(bSectionVisible, f2WindowPositions, iActiveSubtab);
 
-	const bool* pVisible = engine::gpImGuiManager->mpTweaksScreen->mSectionVisible;
-	const ImVec2* pPositions = engine::gpImGuiManager->mpTweaksScreen->mWindowPositions;
-
+	// DT TEMP
 	for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
 	{
-		settings.bSectionVisible[i] = pVisible[i];
-		settings.fWindowPositionX[i] = pPositions[i].x;
-		settings.fWindowPositionY[i] = pPositions[i].y;
+		Log("SaveTweaks [{}] visible:{} pos:({:.0f},{:.0f}) subtab:{}", i, bSectionVisible[i], f2WindowPositions[i].x, f2WindowPositions[i].y, iActiveSubtab[i]);
+	}
+
+	TweaksSettings settings {};
+	settings.bShowImGui = gpGame->mbShowImGui;
+	for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
+	{
+		settings.bSectionVisible[i] = bSectionVisible[i];
+		settings.fWindowPositionX[i] = f2WindowPositions[i].x;
+		settings.fWindowPositionY[i] = f2WindowPositions[i].y;
+		settings.iActiveSubtab[i] = iActiveSubtab[i];
 	}
 
 	engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, kpcTweaksSettingsPath, settings);
@@ -664,13 +673,23 @@ void Game::LoadTweaksSettings()
 	{
 		gpGame->mbShowImGui = settings.bShowImGui;
 
+		// DT TEMP
+		for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
+		{
+			Log("LoadTweaks [{}] visible:{} pos:({:.0f},{:.0f}) subtab:{}", i, settings.bSectionVisible[i], settings.fWindowPositionX[i], settings.fWindowPositionY[i], settings.iActiveSubtab[i]);
+		}
+
 		ImVec2 f2WindowPositions[static_cast<size_t>(engine::TweakSection::kCount)] {};
 		for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
 		{
 			f2WindowPositions[i] = {settings.fWindowPositionX[i], settings.fWindowPositionY[i]};
 		}
 
-		engine::gpImGuiManager->mpTweaksScreen->LoadState(settings.bSectionVisible, f2WindowPositions);
+		engine::gpImGuiManager->mpTweaksScreen->LoadState(settings.bSectionVisible, f2WindowPositions, settings.iActiveSubtab);
+	}
+	else
+	{
+		Log("LoadTweaks FAILED to read file"); // DT TEMP
 	}
 }
 #endif // BT_CLIENT

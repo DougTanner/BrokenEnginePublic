@@ -9,9 +9,10 @@ Renders the ocean surface as a tessellated quad covering the visible area. The v
 ## Shaders
 
 - **Water.vert** - Gerstner wave vertex animation with terrain-aware amplitude damping near shorelines and early culling for off-screen vertices.
-- **Water.frag** - Water surface shading: depth LUT color, skybox reflections via Fresnel, shadows, `Lighting()` for the directional/ambient pass, inline specular highlights via `Specular()` across four cardinal EWNS directions weighted by the lighting sample and depth-attenuated near shorelines, and additive smoke blending.
+- **Water.frag** - Water surface shading: depth LUT color blended with noise-modulated water color, directional sunlight and ambient color, height-darken attenuation, skybox cubemap reflection via `Specular()` with Fresnel and sun bias, shadow and smoke-shadow, `WaterLighting()` sampling the radial spread lighting texture at both the world position and base-height projected position, and additive smoke blending via `BlendSmoke()`.
 
 ## Architecture Notes
 
 - Wave parameters are split between `GlobalLayout` (counts, steepness) and `MainLayout` (per-wave direction, frequency, amplitude, speed), set per-frame from `Render.cpp`
 - Beach directional fade blends wave direction toward shore-perpendicular as terrain elevation increases, creating natural wave behavior near shorelines
+- Lighting and base-height texture lookups use the undisplaced grid position (`f2InInitialPosition`) rather than the wave-displaced world position, ensuring stable lighting that does not swim with wave animation

@@ -258,10 +258,19 @@ void TweaksScreenBase::WrapperSeparatorText(std::string_view label)
 	}
 }
 
-void TweaksScreenBase::LoadState(const bool* pSectionVisible, const ImVec2* pWindowPositions)
+void TweaksScreenBase::SaveState(bool* pSectionVisible, ImVec2* pWindowPositions, int8_t* pActiveSubtab) const
+{
+	std::memcpy(pSectionVisible, mSectionVisible, sizeof(mSectionVisible));
+	std::memcpy(pWindowPositions, mWindowPositions, sizeof(mWindowPositions));
+	std::memcpy(pActiveSubtab, mActiveSubtab, sizeof(mActiveSubtab));
+}
+
+void TweaksScreenBase::LoadState(const bool* pSectionVisible, const ImVec2* pWindowPositions, const int8_t* pActiveSubtab)
 {
 	std::memcpy(mSectionVisible, pSectionVisible, sizeof(mSectionVisible));
 	std::memcpy(mWindowPositions, pWindowPositions, sizeof(mWindowPositions));
+	std::memcpy(mActiveSubtab, pActiveSubtab, sizeof(mActiveSubtab));
+	std::fill(std::begin(mApplySubtab), std::end(mApplySubtab), true);
 }
 
 void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)

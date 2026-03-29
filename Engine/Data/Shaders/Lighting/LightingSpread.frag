@@ -45,13 +45,14 @@ void main()
 	float fAccumulationDecay = mix(globalLayout.fSpreadAccumulationDecayStart, globalLayout.fSpreadAccumulationDecayEnd, fT);
 
 	// Height-aware attenuation: convert lighting texcoord to world position, then to visible area texcoord
-	vec2 f2WorldPos = vec2(
-		globalLayout.f4LightingArea.x + f2InTexcoord.x * (globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x),
-		globalLayout.f4LightingArea.w + (1.0f - f2InTexcoord.y) * (globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w));
+	vec2 f2WorldPos = vec2(globalLayout.f4LightingArea.x + f2InTexcoord.x * (globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x),
+		                   globalLayout.f4LightingArea.w + (1.0f - f2InTexcoord.y) * (globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w));
 	vec2 f2ElevTexcoord = WorldToVisibleArea(vec3(f2WorldPos, 0.0f), globalLayout.f4VisibleArea);
-	float fHeightFactor = clamp(texture(elevationSampler, f2ElevTexcoord).x / max(globalLayout.fIslandHeight, 0.001f), 0.0f, 1.0f);
+	float fElevation = texture(elevationSampler, f2ElevTexcoord).x;
+	float fHeightFactor = clamp(fElevation / max(globalLayout.fIslandHeight, 0.001f), 0.0f, 1.0f);
 	fSpreadDistance *= 1.0f - fHeightFactor * globalLayout.fSpreadHeightDistance;
-	fDecay *= 1.0f - fHeightFactor * globalLayout.fSpreadHeightIntensity;
+	float fIntensityHeightFactor = clamp((fElevation - globalLayout.fBaseHeight) / max(globalLayout.fSpreadHeightIntensityTarget - globalLayout.fBaseHeight, 0.001f), 0.0f, 1.0f);
+	fDecay *= 1.0f - fIntensityHeightFactor * globalLayout.fSpreadHeightIntensity;
 
 	// World-to-texcoord conversion: texcoord 0-1 covers the lighting area
 	float fAspectRatioX = 1.0f / (globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x);

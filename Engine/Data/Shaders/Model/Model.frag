@@ -309,9 +309,34 @@ void main()
 		color *= ao;
 	}
 
-	// Read engine directional lighting
+	#if 1
+	// Sample lighting texture at world x/y (very close to base-height already)
+	vec2 f2LightingTexcoord = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
+	vec4 pf4Lighting[3] = {texture(pLightingSamplers[0], f2LightingTexcoord), texture(pLightingSamplers[1], f2LightingTexcoord), texture(pLightingSamplers[2], f2LightingTexcoord)};
+
+	// Apply directional lighting
+	vec3 f3Directional = DirectionalLighting(pf4Lighting, n, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower);
+	vec3 f3Lighting = globalLayout.fLightingObjects * globalLayout.fLightingTimeOfDayMultiplier * f3Directional;
+	vec3 directionalLighting = f3Lighting * mix(baseColor.rgb, vec3(1.0f), globalLayout.fLightingObjectsAdd);
+	#else
+	// Engine directional lighting
+	vec2 f2DirectTexcoord = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
+	vec4 pf4DirectLighting[3];
+	ReadLighting(pf4DirectLighting, pLightingSamplers, f2DirectTexcoord);
+	vec3 f3Direct = DirectionalLighting(pf4DirectLighting, n, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower);
+
+	vec2 f2AmbientPosition = BaseHeightPosition(globalLayout, mainLayout, f3InWorldPosition);
+	vec2 f2AmbientTexcoord = WorldToVisibleArea(vec3(f2AmbientPosition, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4Lighting[3];
-	ReadLighting(pf4Lighting, pLightingSamplers, f2LightingPosition);
+	ReadLighting(pf4Lighting, pLightingSamplers, f2AmbientTexcoord);
+	vec3 f3Ambient = AmbientLighting(pf4Lighting, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower);
+	pf4Lighting[0] *= mainLayout.fLightingNewAmbient;
+	pf4Lighting[1] *= mainLayout.fLightingNewAmbient;
+	pf4Lighting[2] *= mainLayout.fLightingNewAmbient;
+
+	vec3 f3NewLighting = (f3Direct + f3Ambient) * globalLayout.fLightingTimeOfDayMultiplier * globalLayout.fLightingObjects;
+	vec3 directionalLighting = globalLayout.fLightingObjectsAdd * f3NewLighting + (1.0f - globalLayout.fLightingObjectsAdd) * f3NewLighting * baseColor.rgb;
+	#endif
 
 	// Cook-Torrance specular from engine directional lights (EWNS cardinal directions)
 #if ENABLE_SPECULAR_LIGHTING
@@ -336,10 +361,7 @@ void main()
 	color += pow(mainLayout.fPbrLightingSpecular * specLightAccum, vec3(mainLayout.fPbrLightingSpecularPower));
 #endif
 
-	// Engine directional lighting
 #if ENABLE_DIRECTIONAL_LIGHTING
-	vec4 pf4NewLighting[3];
-	vec3 directionalLighting = Lighting(globalLayout, mainLayout, baseColor.rgb, f3InWorldPosition, n, pLightingSamplers, globalLayout.fLightingObjects, globalLayout.fLightingObjectsAdd, pf4NewLighting);
 	color += pow(mainLayout.fPbrLighting * mainLayout.fPbrDayBrightness * directionalLighting, vec3(mainLayout.fPbrLightingPower));
 #endif
 

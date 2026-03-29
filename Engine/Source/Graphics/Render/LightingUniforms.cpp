@@ -43,14 +43,15 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	// Spread Height
 	rGlobalLayout.fSpreadHeightDistance = gSpreadHeightDistance.Get();
 	rGlobalLayout.fSpreadHeightIntensity = gSpreadHeightIntensity.Get();
+	rGlobalLayout.fSpreadHeightIntensityTarget = gSpreadHeightIntensityTarget.Get();
 
-	// Per-ring rotation angles: jitter slider sets the seed and scales the result
+	// Per-ring rotation angles: jitter slider sets the seed; the shader scales by interpolated jitter
 	// Each ring uses its own seed for uncorrelated rotations
 	float fJitter = gSpreadJitter.Get();
-	common::RandomEngine ringRng(1000 * static_cast<uint32_t>(static_cast<float>(shaders::kiMaxSpreadPasses) * fJitter));
+	common::RandomEngine ringRandomEngine(1000 * static_cast<uint32_t>(static_cast<float>(shaders::kiMaxSpreadPasses) * fJitter));
 	for (int64_t i = 0; i < _countof(rGlobalLayout.pfSpreadRingRotations); ++i)
 	{
-		rGlobalLayout.pfSpreadRingRotations[i] = fJitter * common::Random<XM_2PI>(ringRng);
+		rGlobalLayout.pfSpreadRingRotations[i] = common::Random<XM_2PI>(ringRandomEngine);
 	}
 }
 
@@ -77,23 +78,23 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fLightingWaterSkyboxThreePower = gLightingWaterSkyboxThreePower.Get();
 	rMainLayout.fLightingWaterSkyboxLod = gLightingWaterSkyboxLod.Get();
 
-	rMainLayout.fLightingWaterSpecular = gLightingWaterSpecular.Get();
-
-	rMainLayout.fLightingWaterSpecularNormalSoften = gLightingWaterSpecularNormalSoften.Get();
-	rMainLayout.fLightingWaterSpecularNormalBlendWave = gLightingWaterSpecularNormalBlendWave.Get();
-	rMainLayout.fLightingWaterSpecularIntensity = gLightingWaterSpecularIntensity.Get();
-	rMainLayout.fLightingWaterSpecularAdd = gLightingWaterSpecularAdd.Get();
-	rMainLayout.fLightingWaterSpecularOne = gLightingWaterSpecularOne.Get();
-	rMainLayout.fLightingWaterSpecularOnePower = gLightingWaterSpecularOnePower.Get();
-	rMainLayout.fLightingWaterSpecularTwo = gLightingWaterSpecularTwo.Get();
-	rMainLayout.fLightingWaterSpecularTwoPower = gLightingWaterSpecularTwoPower.Get();
-	rMainLayout.fLightingWaterSpecularThree = gLightingWaterSpecularThree.Get();
-	rMainLayout.fLightingWaterSpecularThreePower = gLightingWaterSpecularThreePower.Get();
+	rMainLayout.fLightingWaterNormalSoften = gLightingWaterNormalSoften.Get();
+	rMainLayout.fLightingWaterNormalBlendWave = gLightingWaterNormalBlendWave.Get();
+	rMainLayout.fLightingWaterIntensity = gLightingWaterIntensity.Get();
+	rMainLayout.fLightingWaterAdd = gLightingWaterAdd.Get();
+	rMainLayout.fLightingWaterOne = gLightingWaterOne.Get();
+	rMainLayout.fLightingWaterOnePower = gLightingWaterOnePower.Get();
+	rMainLayout.fLightingWaterTwo = gLightingWaterTwo.Get();
+	rMainLayout.fLightingWaterTwoPower = gLightingWaterTwoPower.Get();
+	rMainLayout.fLightingWaterThree = gLightingWaterThree.Get();
+	rMainLayout.fLightingWaterThreePower = gLightingWaterThreePower.Get();
 
 	rMainLayout.fLightingNewDirectional = gLightingNewDirectional.Get();
 	rMainLayout.fLightingNewDirectionalPower = gLightingNewDirectionalPower.Get();
 	rMainLayout.fLightingNewAmbient = gLightingNewAmbient.Get();
 	rMainLayout.fLightingNewAmbientPower = gLightingNewAmbientPower.Get();
+	rMainLayout.fLightingTerrainBelowBaseMultiplier = gLightingTerrainBelowBaseMultiplier.Get();
+	rMainLayout.fLightingTerrainBelowBasePower = gLightingTerrainBelowBasePower.Get();
 
 	// Pbr
 	rMainLayout.fPbrExposure = gPbrExposure.Get();

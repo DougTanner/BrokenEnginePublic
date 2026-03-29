@@ -89,7 +89,7 @@ float Sum(vec4 pf4Lighting[3])
 	return pf4Lighting[0].x + pf4Lighting[0].y + pf4Lighting[0].z + pf4Lighting[0].w + pf4Lighting[1].x + pf4Lighting[1].y + pf4Lighting[1].z + pf4Lighting[1].w + pf4Lighting[2].x + pf4Lighting[2].y + pf4Lighting[2].z + pf4Lighting[2].w;
 }
 
-vec3 DirectionalLighting2D(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity, float fPower)
+vec3 DirectionalLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity, float fPower)
 {
 	vec2 f2Normal = normalize(f3Normal.xy);
 	float fWeightE = max(0.0f, -f2Normal.x);
@@ -97,46 +97,38 @@ vec3 DirectionalLighting2D(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity,
 	float fWeightN = max(0.0f, f2Normal.y);
 	float fWeightS = max(0.0f, -f2Normal.y);
 
-	vec3 f3Result = vec3(
-		pf4Lighting[0].x * fWeightE + pf4Lighting[0].y * fWeightW + pf4Lighting[0].z * fWeightN + pf4Lighting[0].w * fWeightS,
-		pf4Lighting[1].x * fWeightE + pf4Lighting[1].y * fWeightW + pf4Lighting[1].z * fWeightN + pf4Lighting[1].w * fWeightS,
-		pf4Lighting[2].x * fWeightE + pf4Lighting[2].y * fWeightW + pf4Lighting[2].z * fWeightN + pf4Lighting[2].w * fWeightS);
+	vec3 f3Result = vec3(pf4Lighting[0].x * fWeightE + pf4Lighting[0].y * fWeightW + pf4Lighting[0].z * fWeightN + pf4Lighting[0].w * fWeightS,
+		                 pf4Lighting[1].x * fWeightE + pf4Lighting[1].y * fWeightW + pf4Lighting[1].z * fWeightN + pf4Lighting[1].w * fWeightS,
+		                 pf4Lighting[2].x * fWeightE + pf4Lighting[2].y * fWeightW + pf4Lighting[2].z * fWeightN + pf4Lighting[2].w * fWeightS);
 	return fIntensity * pow(f3Result, vec3(fPower));
+}
+
+vec3 WaterLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fSoften, float fOne, float fOnePower, float fTwo, float fTwoPower, float fThree, float fThreePower)
+{
+	vec2 f2Normal = normalize(f3Normal.xy);
+	float fWeightE = mix(max(0.0f, -f2Normal.x), 0.25f, fSoften);
+	float fWeightW = mix(max(0.0f, f2Normal.x), 0.25f, fSoften);
+	float fWeightN = mix(max(0.0f, f2Normal.y), 0.25f, fSoften);
+	float fWeightS = mix(max(0.0f, -f2Normal.y), 0.25f, fSoften);
+
+	vec3 f3Result = vec3(pf4Lighting[0].x * fWeightE + pf4Lighting[0].y * fWeightW + pf4Lighting[0].z * fWeightN + pf4Lighting[0].w * fWeightS,
+		                 pf4Lighting[1].x * fWeightE + pf4Lighting[1].y * fWeightW + pf4Lighting[1].z * fWeightN + pf4Lighting[1].w * fWeightS,
+		                 pf4Lighting[2].x * fWeightE + pf4Lighting[2].y * fWeightW + pf4Lighting[2].z * fWeightN + pf4Lighting[2].w * fWeightS);
+	return fOne * pow(f3Result, vec3(fOnePower)) + fTwo * pow(f3Result, vec3(fTwoPower)) + fThree * pow(f3Result, vec3(fThreePower));
 }
 
 vec3 AmbientLighting(vec4 pf4Lighting[3], float fIntensity, float fPower)
 {
-	vec3 f3Result = 0.25f * vec3(
-		pf4Lighting[0].x + pf4Lighting[0].y + pf4Lighting[0].z + pf4Lighting[0].w,
-		pf4Lighting[1].x + pf4Lighting[1].y + pf4Lighting[1].z + pf4Lighting[1].w,
-		pf4Lighting[2].x + pf4Lighting[2].y + pf4Lighting[2].z + pf4Lighting[2].w);
+	vec3 f3Result = 0.25f * vec3(pf4Lighting[0].x + pf4Lighting[0].y + pf4Lighting[0].z + pf4Lighting[0].w,
+		                         pf4Lighting[1].x + pf4Lighting[1].y + pf4Lighting[1].z + pf4Lighting[1].w,
+		                         pf4Lighting[2].x + pf4Lighting[2].y + pf4Lighting[2].z + pf4Lighting[2].w);
 	return fIntensity * pow(f3Result, vec3(fPower));
-}
-
-vec3 Lighting(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3Color, vec3 f3Position, vec3 f3Normal, sampler2D pLightingSamplers[3], float fIntensity, float fAdd, out vec4 pf4AmbientLighting[3])
-{
-	// Directional: sample at world-space x/y position
-	vec2 f2DirectTexcoord = WorldToVisibleArea(f3Position, globalLayout.f4LightingArea);
-	vec4 pf4DirectLighting[3];
-	ReadLighting(pf4DirectLighting, pLightingSamplers, f2DirectTexcoord);
-	vec3 f3Direct = DirectionalLighting2D(pf4DirectLighting, f3Normal, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower);
-
-	// Ambient: sample projected to base height toward eye
-	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3Position);
-	vec2 f2AmbientTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
-	ReadLighting(pf4AmbientLighting, pLightingSamplers, f2AmbientTexcoord);
-	vec3 f3Ambient = AmbientLighting(pf4AmbientLighting, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower);
-
-	// Combine
-	vec3 f3Lighting = (f3Direct + f3Ambient) * globalLayout.fLightingTimeOfDayMultiplier * fIntensity;
-	return fAdd * f3Lighting + (1.0f - fAdd) * f3Lighting * f3Color;
 }
 
 vec2 WorldToSmokeTexcoord(vec4 f4SmokeArea, vec2 f2Position)
 {
-	return vec2(
-		(f2Position.x - f4SmokeArea.x) / (f4SmokeArea.z - f4SmokeArea.x),
-		(f2Position.y - f4SmokeArea.y) / (f4SmokeArea.w - f4SmokeArea.y));
+	return vec2((f2Position.x - f4SmokeArea.x) / (f4SmokeArea.z - f4SmokeArea.x),
+		        (f2Position.y - f4SmokeArea.y) / (f4SmokeArea.w - f4SmokeArea.y));
 }
 
 float SmokeShadow(GlobalLayout globalLayout, vec3 f3InPosition, sampler2D smokeSampler, float fMulti)

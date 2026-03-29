@@ -53,12 +53,12 @@ struct vec4 : public XMFLOAT4
 	{
 	}
 
-	constexpr vec4(const XMFLOAT4& other)
+	constexpr vec4(const XMFLOAT4& rOther)
 	{
-		x = other.x;
-		y = other.y;
-		z = other.z;
-		w = other.w;
+		x = rOther.x;
+		y = rOther.y;
+		z = rOther.z;
+		w = rOther.w;
 	}
 };
 
@@ -250,6 +250,7 @@ struct GlobalLayout
 	// Spread Height
 	float fSpreadHeightDistance INIT;
 	float fSpreadHeightIntensity INIT;
+	float fSpreadHeightIntensityTarget INIT;
 
 	// Shadow
 	float fShadowWidthScale INIT;
@@ -408,22 +409,23 @@ struct MainLayout
 	float fLightingWaterSkyboxThreePower INIT;
 	float fLightingWaterSkyboxLod INIT;
 
-	float fLightingWaterSpecular INIT;
-	float fLightingWaterSpecularNormalSoften INIT;
-	float fLightingWaterSpecularNormalBlendWave INIT;
-	float fLightingWaterSpecularIntensity INIT;
-	float fLightingWaterSpecularAdd INIT;
-	float fLightingWaterSpecularOne INIT;
-	float fLightingWaterSpecularOnePower INIT;
-	float fLightingWaterSpecularTwo INIT;
-	float fLightingWaterSpecularTwoPower INIT;
-	float fLightingWaterSpecularThree INIT;
-	float fLightingWaterSpecularThreePower INIT;
+	float fLightingWaterNormalSoften INIT;
+	float fLightingWaterNormalBlendWave INIT;
+	float fLightingWaterIntensity INIT;
+	float fLightingWaterAdd INIT;
+	float fLightingWaterOne INIT;
+	float fLightingWaterOnePower INIT;
+	float fLightingWaterTwo INIT;
+	float fLightingWaterTwoPower INIT;
+	float fLightingWaterThree INIT;
+	float fLightingWaterThreePower INIT;
 
 	float fLightingNewDirectional INIT;
 	float fLightingNewDirectionalPower INIT;
 	float fLightingNewAmbient INIT;
 	float fLightingNewAmbientPower INIT;
+	float fLightingTerrainBelowBaseMultiplier INIT;
+	float fLightingTerrainBelowBasePower INIT;
 
 	// Pbr
 	float fPbrExposure INIT;

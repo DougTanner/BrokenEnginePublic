@@ -9,8 +9,16 @@ void TweaksScreenBase::RenderLightingSection()
 
 	if (ImGui::BeginTabBar("LightingTabs"))
 	{
-		if (ImGui::BeginTabItem("Write"))
+		if (ImGui::BeginTabItem("Write", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 0) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
+			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 0)
+			{
+				mApplySubtab[kiSection] = false;
+			}
+			if (!mApplySubtab[kiSection])
+			{
+				mActiveSubtab[kiSection] = 0;
+			}
 			if (ImGui::BeginTable("LightingWriteColumns", 2))
 			{
 				ImGui::TableNextColumn();
@@ -41,6 +49,7 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSeparatorText("3d. Spread Height");
 				WrapperSlider("Height Distance", kiSection, 1.0f, "Spread Height Distance");
 				WrapperSlider("Height Intensity", kiSection, 1.0f, "Spread Height Intensity");
+				WrapperSlider("Height Intensity Target", kiSection, 1.0f, "Spread Height Intensity Target");
 
 				ImGui::TableNextColumn();
 
@@ -65,8 +74,16 @@ void TweaksScreenBase::RenderLightingSection()
 			}
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Read"))
+		if (ImGui::BeginTabItem("Read", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
+			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 1)
+			{
+				mApplySubtab[kiSection] = false;
+			}
+			if (!mApplySubtab[kiSection])
+			{
+				mActiveSubtab[kiSection] = 1;
+			}
 			WrapperSeparatorText("Lighting");
 			WrapperSlider("New Directional", kiSection, 1.0f);
 			WrapperSlider("New Directional Power", kiSection, 1.0f);
@@ -74,19 +91,23 @@ void TweaksScreenBase::RenderLightingSection()
 			WrapperSlider("New Ambient Power", kiSection, 1.0f);
 			WrapperSlider("Terrain", kiSection, 1.0f);
 			WrapperSlider("Terrain Add", kiSection, 1.0f);
+			WrapperSlider("Below Base Multiplier", kiSection, 1.0f, "Terrain Below Base Multiplier");
+			WrapperSlider("Below Base Power", kiSection, 1.0f, "Terrain Below Base Power");
 			WrapperSlider("Objects", kiSection, 1.0f);
 			WrapperSlider("Objects Add", kiSection, 1.0f);
 			WrapperSlider("Time of Day Multiplier", kiSection, 1.0f);
 
-			WrapperSeparatorText("Water Specular");
-			WrapperSlider("Specular Normal Soften", kiSection);
-			WrapperSlider("Specular Normal Blend Wave", kiSection);
-			WrapperSlider("Water Specular", kiSection);
-			WrapperSlider("Specular Intensity", kiSection);
-			WrapperSlider("Specular Add", kiSection);
-			WrapperSlider("Specular One", kiSection);
-			WrapperSlider("Specular Two", kiSection);
-			WrapperSlider("Specular Three", kiSection);
+			WrapperSeparatorText("Water Lighting");
+			WrapperSlider("Normal Soften", kiSection, 1.0f, "Water Normal Soften");
+			WrapperSlider("Normal Blend Wave", kiSection, 1.0f, "Water Normal Blend Wave");
+			WrapperSlider("Intensity", kiSection, 1.0f, "Water Intensity");
+			WrapperSlider("Add", kiSection, 1.0f, "Water Add");
+			WrapperSlider("One", kiSection, 1.0f, "Water One");
+			WrapperSlider("One Power", kiSection, 1.0f, "Water One Power");
+			WrapperSlider("Two", kiSection, 1.0f, "Water Two");
+			WrapperSlider("Two Power", kiSection, 1.0f, "Water Two Power");
+			WrapperSlider("Three", kiSection, 1.0f, "Water Three");
+			WrapperSlider("Three Power", kiSection, 1.0f, "Water Three Power");
 
 			ImGui::EndTabItem();
 		}
