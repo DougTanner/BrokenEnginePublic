@@ -73,7 +73,8 @@ void main()
 	if (fAlpha < 0.001f)
 		discard;
 
-	vec4 f4Base = f4Direction * (f4InParams.y * fAlpha);
+	float fEdgeFade = LightingDepositEdgeFade(gl_FragCoord.xy, globalLayout.uiLightTilesX, globalLayout.uiLightTilesY);
+	vec4 f4Base = f4Direction * (f4InParams.y * fAlpha * fEdgeFade);
 	f4OutColorRed = f4Base * (f4Color.r * f4Texture.r);
 	f4OutColorGreen = f4Base * (f4Color.g * f4Texture.g);
 	f4OutColorBlue = f4Base * (f4Color.b * f4Texture.b);

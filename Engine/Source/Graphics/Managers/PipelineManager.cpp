@@ -183,7 +183,7 @@ void PipelineManager::CreateLightingPipelines()
 			.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersLightingLightingSpreadfragCrc)},
 			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 			.vkRenderPass = rTextures.mSpreadVkRenderPass,
-			.vkExtent3D = rTextures.mpSpreadTextures[0][0].mInfo.extent,
+			.vkExtent3D = rTextures.mpSpreadTextures[iPass][0].mInfo.extent,
 			.iColorAttachmentCount = 3,
 			.pDescriptorInfos =
 			{
@@ -191,7 +191,7 @@ void PipelineManager::CreateLightingPipelines()
 				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = iPass == 0 ? &rTextures.mpLightingTextures[0] : &rTextures.mpSpreadTextures[iPass - 1][0]},
 				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = iPass == 0 ? &rTextures.mpLightingTextures[1] : &rTextures.mpSpreadTextures[iPass - 1][1]},
 				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = iPass == 0 ? &rTextures.mpLightingTextures[2] : &rTextures.mpSpreadTextures[iPass - 1][2]},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mTerrainElevationTexture},
+				{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mTerrainElevationTexture},
 			},
 		});
 	}

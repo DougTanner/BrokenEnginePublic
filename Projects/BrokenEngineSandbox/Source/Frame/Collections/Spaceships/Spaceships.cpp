@@ -49,7 +49,7 @@ constexpr float kfSpaceshipExplosionParticleVerticalVelocityMin = -5.0f;
 constexpr float kfSpaceshipExplosionParticleVerticalVelocityRandom = 10.0f;
 constexpr float kfSpaceshipExplosionParticleIntensityDecay = 2.4f;
 constexpr float kfSpaceshipExplosionParticleLightingSize = 3.0f;
-constexpr float kfSpaceshipExplosionParticleLightingIntensity = 1500.0f;
+constexpr float kfSpaceshipExplosionParticleLightingIntensity = 2000.0f;
 constexpr float kfSpaceshipExplosionTrailLengthRandom = 2.5f;
 constexpr uint32_t kuiSpaceshipExplosionSecondaryCount = 1;
 

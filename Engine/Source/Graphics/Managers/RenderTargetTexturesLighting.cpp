@@ -176,12 +176,16 @@ void RenderTargetTextures::CreateLightingTextures()
 	CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &mLightingVkFramebuffer));
 	VkName(VK_OBJECT_TYPE_FRAMEBUFFER, mLightingVkFramebuffer, "LightingMRT");
 
-	// Create spread textures (MRT color attachments, one set per pass)
-	float fSpreadMult = gSpreadTextureMultiplier.Get();
+	// Create spread textures (MRT color attachments, one set per pass, interpolated size)
+	float fSpreadMultStart = gSpreadTextureMultiplierStart.Get();
+	float fSpreadMultEnd = gSpreadTextureMultiplierEnd.Get();
+	int64_t iPassCount = static_cast<int64_t>(gSpreadPassCount.Get());
 	static constexpr std::string_view pColorNames[3] {"Red", "Green", "Blue"};
-	auto [iSpreadX, iSpreadY] = TextureManager::DetailTextureSize(fSpreadMult);
 	for (int64_t iPass = 0; iPass < shaders::kiMaxSpreadPasses; ++iPass)
 	{
+		float fT = (iPassCount > 1) ? static_cast<float>(iPass) / static_cast<float>(iPassCount - 1) : 0.0f;
+		float fMult = fSpreadMultStart + fT * (fSpreadMultEnd - fSpreadMultStart);
+		auto [iPassX, iPassY] = TextureManager::DetailTextureSize(fMult);
 		for (int64_t iColor = 0; iColor < 3; ++iColor)
 		{
 			mpSpreadTextures[iPass][iColor].Create(TextureInfo
@@ -190,7 +194,7 @@ void RenderTargetTextures::CreateLightingTextures()
 				.name = std::format("Spread{}_{}", pColorNames[iColor], iPass),
 				.flags = 0,
 				.format = VK_FORMAT_R16G16B16A16_SFLOAT,
-				.extent = VkExtent3D {static_cast<uint32_t>(iSpreadX), static_cast<uint32_t>(iSpreadY), 1},
+				.extent = VkExtent3D {static_cast<uint32_t>(iPassX), static_cast<uint32_t>(iPassY), 1},
 				.mipLevels = 1,
 				.arrayLayers = 1,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
@@ -241,15 +245,16 @@ void RenderTargetTextures::CreateLightingTextures()
 			.renderPass = mSpreadVkRenderPass,
 			.attachmentCount = 3,
 			.pAttachments = pSpreadImageViews,
-			.width = static_cast<uint32_t>(iSpreadX),
-			.height = static_cast<uint32_t>(iSpreadY),
+			.width = mpSpreadTextures[iPass][0].mInfo.extent.width,
+			.height = mpSpreadTextures[iPass][0].mInfo.extent.height,
 			.layers = 1,
 		};
 		CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkSpreadFramebufferCreateInfo, nullptr, &mpSpreadVkFramebuffers[iPass]));
 		VkName(VK_OBJECT_TYPE_FRAMEBUFFER, mpSpreadVkFramebuffers[iPass], std::format("SpreadMRT_{}", iPass));
 	}
 
-	// Create combine textures (UNORM tone-mapped output)
+	// Create combine textures (UNORM tone-mapped output, sized to max of start/end)
+	auto [iCombineX, iCombineY] = TextureManager::DetailTextureSize(std::max(fSpreadMultStart, fSpreadMultEnd));
 	static constexpr std::string_view pCombineNames[3] {"CombineRed", "CombineGreen", "CombineBlue"};
 	for (int64_t i = 0; i < 3; ++i)
 	{
@@ -259,7 +264,7 @@ void RenderTargetTextures::CreateLightingTextures()
 			.name = pCombineNames[i],
 			.flags = 0,
 			.format = VK_FORMAT_R8G8B8A8_UNORM,
-			.extent = VkExtent3D {static_cast<uint32_t>(iSpreadX), static_cast<uint32_t>(iSpreadY), 1},
+			.extent = VkExtent3D {static_cast<uint32_t>(iCombineX), static_cast<uint32_t>(iCombineY), 1},
 			.mipLevels = 1,
 			.arrayLayers = 1,
 			.samples = VK_SAMPLE_COUNT_1_BIT,

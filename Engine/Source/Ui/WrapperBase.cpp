@@ -126,7 +126,8 @@ Wrapper gLightingBlurEdgeFalloff(0.2f, 0.01f, 0.4f);
 Wrapper gLightingDepositTextureMultiplier(0.5f, 0.1f, 1.0f);
 
 // Lighting Spread - Pixel Multiplier
-Wrapper gSpreadTextureMultiplier(0.1f, 0.01f, 0.2f);
+Wrapper gSpreadTextureMultiplierStart(0.1f, 0.01f, 0.2f);
+Wrapper gSpreadTextureMultiplierEnd(0.01f, 0.01f, 0.2f);
 Wrapper gSpreadPassCount(32.0f, 8.0f, static_cast<float>(shaders::kiMaxSpreadPasses));
 
 // Lighting Spread Start
@@ -178,7 +179,7 @@ Wrapper gLightingTimeOfDayMultiplier(0.4f, 0.0f, 1.0f);
 // Water specular lighting
 Wrapper gLightingWaterNormalSoften(0.25f, 0.0f, 0.5f);
 Wrapper gLightingWaterNormalBlendWave(0.05f, 0.0f, 0.1f);
-Wrapper gLightingWaterIntensity(0.025f, 0.0f, 0.05f);
+Wrapper gLightingWaterIntensity(0.015f, 0.0f, 0.03f);
 Wrapper gLightingWaterAdd(0.7f, 0.0f, 1.0f);
 Wrapper gLightingWaterOne(40.0f, 0.0f, 200.0f);
 Wrapper gLightingWaterOnePower(2.0f, 1.0f, 4.0f);
@@ -223,6 +224,7 @@ Wrapper gSmokeMax(0.2f, 0.0f, 1.0f);
 Wrapper gSmokePower(0.18f, 0.1f, 1.0f);
 Wrapper gSmokeColorMin(0.6f, 0.0f, 1.0f);
 Wrapper gSmokeColorMultiplier(2.0f, 0.1f, 4.0f);
+Wrapper gSmokeLightingMultiplier(0.6f, 0.0f, 2.0f);
 Wrapper gSmokeTrailPower(1.0f, 0.1f, 10.0f);
 Wrapper gSmokeTrailAlpha(0.8f, 0.0f, 1.0f);
 Wrapper gSmokeObjectHeight(10.0f, 0.5f, 40.0f);

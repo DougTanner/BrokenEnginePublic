@@ -321,7 +321,8 @@ extern Wrapper gLightingBlurEdgeFalloff;
 extern Wrapper gLightingDepositTextureMultiplier;
 
 // Spread - Pixel Multiplier
-extern Wrapper gSpreadTextureMultiplier;
+extern Wrapper gSpreadTextureMultiplierStart;
+extern Wrapper gSpreadTextureMultiplierEnd;
 extern Wrapper gSpreadPassCount;
 
 // Spread Start
@@ -417,6 +418,7 @@ extern Wrapper gSmokeMax;
 extern Wrapper gSmokePower;
 extern Wrapper gSmokeColorMin;
 extern Wrapper gSmokeColorMultiplier;
+extern Wrapper gSmokeLightingMultiplier;
 extern Wrapper gSmokeTrailPower;
 extern Wrapper gSmokeTrailAlpha;
 extern Wrapper gSmokeObjectHeight;

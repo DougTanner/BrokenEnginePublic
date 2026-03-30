@@ -15,3 +15,4 @@ GLSL shaders for instanced rendering of dynamic game objects. Per-instance data 
 
 - HexShield uses glTF vertex format; Objects shader uses OBJ vertex format
 - HexShield has three shader stages because it contributes to both the main color output and the deferred directional lighting MRT targets
+- The hex shield lighting deposit applies an edge fade to prevent popping at lighting texture boundaries (see `ShaderFunctions.h`)

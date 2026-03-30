@@ -369,9 +369,10 @@ void Graphics::Refresh()
 	}
 
 	auto [fLightingMultiplier, fLightingMultiplierPrevious, bLightingMultiplierChanged] = gLightingDepositTextureMultiplier.Changed<float>();
-	auto [fSpreadTextureMultiplier, fSpreadTextureMultiplierPrevious, bSpreadTextureMultiplierChanged] = gSpreadTextureMultiplier.Changed<float>();
+	auto [fSpreadTextureMultiplierStart, fSpreadTextureMultiplierStartPrevious, bSpreadTextureMultiplierStartChanged] = gSpreadTextureMultiplierStart.Changed<float>();
+	auto [fSpreadTextureMultiplierEnd, fSpreadTextureMultiplierEndPrevious, bSpreadTextureMultiplierEndChanged] = gSpreadTextureMultiplierEnd.Changed<float>();
 	auto [fSpreadPassCount, fSpreadPassCountPrevious, bSpreadPassCountChanged] = gSpreadPassCount.Changed<float>();
-	if ((bLightingMultiplierChanged || bSpreadTextureMultiplierChanged || bSpreadPassCountChanged) && gpTextureManager != nullptr) [[unlikely]]
+	if ((bLightingMultiplierChanged || bSpreadTextureMultiplierStartChanged || bSpreadTextureMultiplierEndChanged || bSpreadPassCountChanged) && gpTextureManager != nullptr) [[unlikely]]
 	{
 		mDestroyFlags.Set(DestroyFlags::kLightingTextures);
 

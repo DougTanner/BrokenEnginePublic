@@ -21,6 +21,7 @@ void TweaksScreenBase::RenderSmokeSection()
 		WrapperSeparatorText("Color");
 		WrapperSlider("Smoke Color Min", kiSection, 1.0f);
 		WrapperSlider("Smoke Color Multiplier", kiSection, 1.0f);
+		WrapperSlider("Smoke Lighting Multiplier", kiSection, 1.0f);
 
 		WrapperSeparatorText("Noise");
 		WrapperSlider("Smoke Noise Scale One", kiSection, 1.0f);

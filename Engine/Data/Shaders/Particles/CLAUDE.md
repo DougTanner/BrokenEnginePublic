@@ -15,7 +15,7 @@ Compute shaders for GPU-driven particle spawning and physics simulation, plus ve
 - **SquareParticlesRender.vert** - Camera-facing square quads with per-particle texture rotation
 - **ParticlesRender.frag** - Shared fragment shader for long and square particles with intensity curve and smoke shadow attenuation
 - **Billboards.vert/.frag** - Screen-space billboards with aspect-ratio-corrected sizing and alpha modulation
-- **LightingParticlesRender.vert/.frag** - Particle light contribution to the deferred directional lighting pass via MRT
+- **LightingParticlesRender.vert/.frag** - Particle light contribution to the deferred directional lighting pass via MRT; applies edge fade to prevent popping at lighting texture boundaries
 
 ## Architecture Notes
 

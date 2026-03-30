@@ -32,7 +32,8 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSlider("Texture Multiplier", kiSection, 1.0f, "Deposit Texture Multiplier");
 
 				WrapperSeparatorText("3a. Spread - Pixel Multiplier");
-				WrapperSlider("Texture Multiplier", kiSection, 1.0f, "Spread Texture Multiplier");
+				WrapperSlider("Texture Multiplier Start", kiSection, 1.0f, "Spread Texture Multiplier Start");
+				WrapperSlider("Texture Multiplier End", kiSection, 1.0f, "Spread Texture Multiplier End");
 				WrapperSlider("Pass Count", kiSection, 1.0f, "Spread Pass Count");
 
 				float fSpreadStartY = ImGui::GetCursorPosY();

@@ -24,3 +24,5 @@ The spread phase uses a fragment shader render pass with MRT so all three color 
 **Stable lighting area**: Uses a dedicated area with ceil'd dimensions and a texel-grid-snapped origin (computed in `GlobalUniforms.cpp`), independent of the visible area, eliminating per-frame flicker from sub-texel camera movement.
 
 **Area vs. point directional deposit**: `AreaLight.frag` computes EWNS direction weights from interpolated world-space position relative to the quad center (passed as varyings from `QuadsVisibleArea.vert`); `PointLight.frag` uses texcoord-space offset from the quad center instead. Both currently use omnidirectional deposit (equal `0.25` per channel), with alternative directional modes (cosine-lobe, hard-clamp) available via compile-time `#if` switches.
+
+**Deposit edge fading**: All deposit shaders (area lights, point lights, and lighting particles) apply an edge fade that smoothly reduces deposit output to zero near the lighting texture boundary. This prevents visual popping when deposits move into or out of the lighting area.

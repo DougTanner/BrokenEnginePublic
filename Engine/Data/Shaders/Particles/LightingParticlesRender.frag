@@ -49,7 +49,8 @@ void main()
 	f4Color = vec4(fCookie * fIntensity * f4Color.w * f4Color.xyz, 0.0f);
 
 	// Compute all color channels simultaneously
-	float fParticleIntensity = float(particles.pParticles[i].iLightingIntensity);
+	float fEdgeFade = LightingDepositEdgeFade(gl_FragCoord.xy, globalLayout.uiLightTilesX, globalLayout.uiLightTilesY);
+	float fParticleIntensity = float(particles.pParticles[i].iLightingIntensity) * fEdgeFade;
 	f4OutColorRed = f4Color.r * vec4(0.25f, 0.25f, 0.25f, 0.25f) * fParticleIntensity;
 	f4OutColorGreen = f4Color.g * vec4(0.25f, 0.25f, 0.25f, 0.25f) * fParticleIntensity;
 	f4OutColorBlue = f4Color.b * vec4(0.25f, 0.25f, 0.25f, 0.25f) * fParticleIntensity;

@@ -525,9 +525,6 @@ void CommandBufferManager::RecordLightingSpreadPipeline(VkCommandBuffer vkComman
 		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
 	};
 
-	uint32_t uiSpreadWidth = rRenderTargetTextures.mpSpreadTextures[0][0].mInfo.extent.width;
-	uint32_t uiSpreadHeight = rRenderTargetTextures.mpSpreadTextures[0][0].mInfo.extent.height;
-
 	// Phase 1: Radial spread passes (fragment shader with MRT, chained: deposit → spread[0] → spread[1] → ...)
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingSpread);
 	{
@@ -542,6 +539,8 @@ void CommandBufferManager::RecordLightingSpreadPipeline(VkCommandBuffer vkComman
 
 		for (int64_t iPass = 0; iPass < iSpreadPassCount; ++iPass)
 		{
+			uint32_t uiPassWidth = rRenderTargetTextures.mpSpreadTextures[iPass][0].mInfo.extent.width;
+			uint32_t uiPassHeight = rRenderTargetTextures.mpSpreadTextures[iPass][0].mInfo.extent.height;
 			VkClearValue pSpreadClearValues[3] {};
 			VkRenderPassBeginInfo vkSpreadRenderPassBeginInfo
 			{
@@ -549,12 +548,12 @@ void CommandBufferManager::RecordLightingSpreadPipeline(VkCommandBuffer vkComman
 				.pNext = nullptr,
 				.renderPass = rRenderTargetTextures.mSpreadVkRenderPass,
 				.framebuffer = rRenderTargetTextures.mpSpreadVkFramebuffers[iPass],
-				.renderArea = {.offset = {0, 0}, .extent = {uiSpreadWidth, uiSpreadHeight}},
+				.renderArea = {.offset = {0, 0}, .extent = {uiPassWidth, uiPassHeight}},
 				.clearValueCount = 3,
 				.pClearValues = pSpreadClearValues,
 			};
 			vkCmdBeginRenderPass(vkCommandBuffer, &vkSpreadRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			gpPipelineManager->mSpreadPipelines[iPass].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {static_cast<float>(uiSpreadWidth), static_cast<float>(uiSpreadHeight), static_cast<float>(iPass), 0.0f});
+			gpPipelineManager->mSpreadPipelines[iPass].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {static_cast<float>(uiPassWidth), static_cast<float>(uiPassHeight), static_cast<float>(iPass), 0.0f});
 			vkCmdEndRenderPass(vkCommandBuffer);
 
 			// Barrier between spread passes (color attachment write → fragment shader read for next pass)
@@ -582,17 +581,19 @@ void CommandBufferManager::RecordLightingSpreadPipeline(VkCommandBuffer vkComman
 		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rCombinePipeline.mVkPipeline);
 		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rCombinePipeline.mVkPipelineLayout, 0, 1, &rCombinePipeline.mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
 
+		uint32_t uiCombineWidth = rRenderTargetTextures.mpCombineTextures[0].mInfo.extent.width;
+		uint32_t uiCombineHeight = rRenderTargetTextures.mpCombineTextures[0].mInfo.extent.height;
 		shaders::PushConstantsLayout combinePushConstants {};
 		struct CombineData { uint32_t uiWidth; uint32_t uiHeight; };
 		CombineData combineData
 		{
-			.uiWidth = uiSpreadWidth,
-			.uiHeight = uiSpreadHeight,
+			.uiWidth = uiCombineWidth,
+			.uiHeight = uiCombineHeight,
 		};
 		std::memcpy(&combinePushConstants, &combineData, std::min(sizeof(combineData), sizeof(combinePushConstants)));
 
-		uint32_t uiCombineGroupsX = (uiSpreadWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-		uint32_t uiCombineGroupsY = (uiSpreadHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+		uint32_t uiCombineGroupsX = (uiCombineWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+		uint32_t uiCombineGroupsY = (uiCombineHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
 		vkCmdPushConstants(vkCommandBuffer, rCombinePipeline.mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(shaders::PushConstantsLayout), &combinePushConstants);
 		vkCmdDispatch(vkCommandBuffer, uiCombineGroupsX, uiCombineGroupsY, 1);
 	}

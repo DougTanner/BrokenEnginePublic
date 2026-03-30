@@ -115,7 +115,8 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		// Lighting - Spread
 		{"Spread Directionality", &gSpreadDirectionality},
 		{"Spread Direction Count", &gSpreadDirectionCount},
-		{"Spread Texture Multiplier", &gSpreadTextureMultiplier},
+		{"Spread Texture Multiplier Start", &gSpreadTextureMultiplierStart},
+		{"Spread Texture Multiplier End", &gSpreadTextureMultiplierEnd},
 		{"Spread Distance", &gSpreadDistance},
 		{"Spread Ring Count", &gSpreadRingCount},
 		{"Spread Jitter", &gSpreadJitter},
@@ -199,6 +200,7 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		// Smoke - Color
 		{"Smoke Color Min", &gSmokeColorMin},
 		{"Smoke Color Multiplier", &gSmokeColorMultiplier},
+		{"Smoke Lighting Multiplier", &gSmokeLightingMultiplier},
 		{"Smoke Intensity Falloff", &gSmokeIntensityFalloff},
 		{"Smoke Trails Quantity", &gSmokeTrailsQuantity},
 		{"Smoke Trails Width Current", &gSmokeTrailsWidthCurrent},

@@ -11,7 +11,7 @@ Each file owns a specific region of the GPU uniform layout, reading from game st
 - **GlobalUniforms.cpp** - `RenderFrameGlobal`: camera, projection matrices, and shared global state. Delegates to four static helpers: `PopulateSunAndLighting`, `PopulateShadowParameters`, `PopulateTerrainParameters`, and `PopulateWaterParameters`. Computes the stable lighting area (ceil'd dimensions, texel-grid-snapped origin) following the same pattern as smoke/wind areas
 - **MainUniforms.cpp** - `RenderFrameMain`: per-coordinate main render pass uniform population (lighting, skinning allocations, collection rendering)
 - **LightingUniforms.cpp** - `RenderLightingGlobal` and `RenderLightingMain`: radial spread with start/end interpolation pairs (distance, ring count, jitter, decay, directionality, pass count), height-aware spread attenuation, per-ring rotation angles seeded from jitter, combine parameters, directional/ambient weights, water height darken, water lighting (normal soften, wave blend, multi-term power), water skybox reflection parameters, PBR parameters, and smoke shadow intensity
-- **SmokeUniforms.cpp** - Smoke simulation parameters and ping-pong index management
+- **SmokeUniforms.cpp** - Smoke simulation parameters and ping-pong index management, including smoke color, lighting multiplier, and decay uniforms
 - **WindUniforms.cpp** - Wind simulation parameters, ping-pong index toggle, and wind spread quad offset. Computes `uiWindTilesX` from texture dimensions for use by the hierarchical indirect dispatch compute shaders.
 
 ## Architecture Notes
