@@ -238,7 +238,7 @@ void main()
 	// Compute vectors
 	vec3 n = GetNormal(material);
 	vec3 v = normalize(mainLayout.f4EyePosition.xyz - f3InWorldPosition);
-	vec3 l = normalize(globalLayout.f4SunNormal.xyz);
+	vec3 l = normalize(globalLayout.f4SunMoonNormal.xyz);
 	vec3 h = normalize(l + v);
 	vec3 reflection = -normalize(reflect(v, n));
 	reflection.y *= -1.0;
@@ -261,9 +261,9 @@ void main()
 	}
 
 	// Engine-specific lighting variables
-	vec3 f3SunColor = mainLayout.fPbrSun * globalLayout.f4SunColor.rgb;
+	vec3 f3SunColor = mainLayout.fPbrSun * globalLayout.f4SunMoonColor.rgb;
 	float fSunIntensity = mainLayout.fPbrSun * (f3SunColor.r + f3SunColor.g + f3SunColor.b) / mainLayout.fPbrDayBrightness;
-	float fSunDot = max(0.0, dot(f3InNormal, globalLayout.f4SunNormal.xyz));
+	float fSunDot = max(0.0, dot(f3InNormal, globalLayout.f4SunMoonNormal.xyz));
 
 	vec3 f3AmbientColor = globalLayout.f4AmbientColor.rgb;
 

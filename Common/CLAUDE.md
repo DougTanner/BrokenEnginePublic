@@ -20,6 +20,9 @@ Foundation layer (`namespace common`) with no dependencies outside the codebase.
 - **DiagnosticLog**: `FILE_LOG_INIT(index, filename)` / `FILE_LOG(index, ...)` for thread-safe diagnostic output to up to 4 simultaneous log files. `FILE_LOG` is for data comparison logging with descriptive labels; prefer `Log(kLogCategory, "")` with categories for temporary diagnostic logging
 - **LogDifference**: Template helpers (`LogDifference<NAME>`, `LogDifference_Vec`) for field-by-field comparison logging. Used by frame/collection `LogDifferences()` methods for desync diagnosis. `ScopedLogDifferenceContext` sets a thread-local context string so log output identifies which collection or frame section produced the mismatch
 
+### Windows Utilities
+- **WindowsUtils.h** - Windows-specific helpers: error code formatting (`LastErrorString`, `HresultToString`), file time to locale string conversion, CPU core count queries, synchronous subprocess execution with output capture (`RunExecutable`, used by DataPacker), and fire-and-forget process launch (`LaunchExecutable`)
+
 ### Math & Headers
 - **Deterministic math**: `ThreadLocal` constructor sets MXCSR state (flush denormals, round-to-nearest) on every thread for cross-thread consistency
 - **ExternalHeaders.h**: Central include for all external/standard library headers. New `#include <header>` additions go here, not in individual source files

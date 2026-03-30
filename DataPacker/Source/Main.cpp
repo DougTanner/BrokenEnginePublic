@@ -291,11 +291,13 @@ int main(int argc, char* argv[])
 {
 	// Prevent multiple instances from running simultaneously
 	HANDLE hMutex = CreateMutex(nullptr, TRUE, "BrokenEngineDataPacker");
-	std::unique_ptr<void, decltype(&CloseHandle)> pMutex(hMutex, &CloseHandle);
+	__assume(hMutex != nullptr);
+	auto mutexDeleter = [](void* pH) { ReleaseMutex(pH); CloseHandle(pH); };
+	std::unique_ptr<void, decltype(mutexDeleter)> pMutex(hMutex, mutexDeleter);
 	if (GetLastError() == ERROR_ALREADY_EXISTS)
 	{
-		printf("DataPacker is already running.\n");
-		return 1;
+		printf("DataPacker is already running, waiting...\n");
+		WaitForSingleObject(hMutex, INFINITE);
 	}
 
 	bool bSuccess = false;

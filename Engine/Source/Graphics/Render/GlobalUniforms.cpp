@@ -9,14 +9,16 @@ namespace engine
 
 static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float& rfDayPercent, float& rfNoonPercent)
 {
-	// Sun
-	XMVECTOR vecSunNormal = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-	XMMATRIX matSunRotation = XMMatrixRotationY(-fSunAngle);
-	vecSunNormal = XMVector4Normalize(XMVector4Transform(vecSunNormal, matSunRotation));
-	XMStoreFloat4(&rGlobalLayout.f4SunNormal, vecSunNormal);
+	// Sun/Moon direction: night reverses across the sky from sunset back to sunrise
+	float fDirectionAngle = fSunAngle < XM_PI ? fSunAngle : XM_2PI - fSunAngle;
+	XMVECTOR vecSunMoonNormal = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+	XMMATRIX matSunRotation = XMMatrixRotationY(-fDirectionAngle);
+	vecSunMoonNormal = XMVector4Normalize(XMVector4Transform(vecSunMoonNormal, matSunRotation));
+	XMStoreFloat4(&rGlobalLayout.f4SunMoonNormal, vecSunMoonNormal);
+	rGlobalLayout.f4SunMoonNormal.w = fSunAngle;
 
-	// Sunlight
-	float fAmbientNight = std::max(kfDefaultMinimumAmbient, gMinimumAmbient.Get());
+	// Sun/Moon color
+	float fAmbientNight = gMinimumAmbient.Get();
 	float fAmbientMorning = std::max(0.075f, gMinimumAmbient.Get());
 	XMVECTOR vecSunMorning = 0.5f * XMVectorSet(1.0f, 219.0f / 255.0f, 0.0f, 1.0f);
 	XMVECTOR vecAmbientMorning = XMVectorSet(fAmbientMorning, fAmbientMorning, fAmbientMorning, 1.0f);
@@ -24,51 +26,51 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	XMVECTOR vecAmbientNoon = XMVectorSet(0.2f, 0.2f, 0.2f, 1.0f);
 	XMVECTOR vecSunEvening = 0.75f * XMVectorSet(0.8f, 0.4f, 0.4f, 1.0f);
 	XMVECTOR vecAmbientEvening = XMVectorSet(fAmbientMorning, fAmbientMorning, fAmbientMorning, 0.0f);
-	XMVECTOR vecSunMidnight = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+	XMVECTOR vecMidnight = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 	XMVECTOR vecAmbientMidnight = XMVectorSet(fAmbientNight, fAmbientNight, fAmbientNight, 1.0f);
+	float fMoonBrightness = gMoonBrightness.Get();
+	XMVECTOR vecMoonFloor = XMVectorSet(fMoonBrightness, fMoonBrightness, fMoonBrightness * 1.33f, 0.0f);
 
-	XMVECTOR vecSun = vecSunMidnight;
+	XMVECTOR vecSunMoon = vecMidnight;
 	XMVECTOR vecAmbient = vecAmbientMidnight;
 
 	static constexpr float kfNoonStart = XM_PIDIV8;
 	static constexpr float kfNoonEnd = XM_PIDIV2 + XM_PIDIV8;
 	static constexpr float kfEvening = XM_PI - XM_PIDIV16;
 	static constexpr float kfNightStart = XM_PI;
-	static constexpr float kfNightEnd = XM_2PI;
 	static constexpr float kfMorning = XM_PIDIV16;
 
 	if (fSunAngle >= kfMorning && fSunAngle < kfNoonStart)
 	{
 		float fLerp = (fSunAngle - kfMorning) / (kfNoonStart - kfMorning);
-		vecSun = XMVectorLerp(vecSunMorning, vecSunNoon, fLerp);
+		vecSunMoon = XMVectorLerp(vecSunMorning, vecSunNoon, fLerp);
 		vecAmbient = XMVectorLerp(vecAmbientMorning, vecAmbientNoon, fLerp);
 	}
 	else if (fSunAngle >= kfNoonStart && fSunAngle < kfNoonEnd)
 	{
-		vecSun = vecSunNoon;
+		vecSunMoon = vecSunNoon;
 		vecAmbient = vecAmbientNoon;
 	}
 	else if (fSunAngle >= kfNoonEnd && fSunAngle < kfEvening)
 	{
 		float fLerp = (fSunAngle - kfNoonEnd) / (kfEvening - kfNoonEnd);
-		vecSun = XMVectorLerp(vecSunNoon, vecSunEvening, fLerp);
+		vecSunMoon = XMVectorLerp(vecSunNoon, vecSunEvening, fLerp);
 		vecAmbient = XMVectorLerp(vecAmbientNoon, vecAmbientEvening, fLerp);
 	}
 	else if (fSunAngle >= kfEvening && fSunAngle < kfNightStart)
 	{
 		float fLerp = (fSunAngle - kfEvening) / (kfNightStart - kfEvening);
-		vecSun = XMVectorLerp(vecSunEvening, vecSunMidnight, fLerp);
+		vecSunMoon = XMVectorLerp(vecSunEvening, vecMidnight, fLerp);
 		vecAmbient = XMVectorLerp(vecAmbientEvening, vecAmbientMidnight, fLerp);
 	}
-	else if (fSunAngle >= kfNightStart && fSunAngle < kfNightEnd)
+	else if (fSunAngle >= kfNightStart)
 	{
-		vecSun = vecSunMidnight;
 		vecAmbient = vecAmbientMidnight;
 	}
 	else if (fSunAngle >= 0.0f)
 	{
 		float fLerp = fSunAngle / kfMorning;
-		vecSun = XMVectorLerp(vecSunMidnight, vecSunMorning, fLerp);
+		vecSunMoon = XMVectorLerp(vecMidnight, vecSunMorning, fLerp);
 		vecAmbient = XMVectorLerp(vecAmbientMidnight, vecAmbientMorning, fLerp);
 	}
 	else
@@ -76,7 +78,8 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 		DEBUG_BREAK();
 	}
 
-	XMStoreFloat4(&rGlobalLayout.f4SunColor, vecSun);
+	vecSunMoon = XMVectorMax(vecSunMoon, vecMoonFloor);
+	XMStoreFloat4(&rGlobalLayout.f4SunMoonColor, vecSunMoon);
 	XMStoreFloat4(&rGlobalLayout.f4AmbientColor, vecAmbient);
 
 	static constexpr float kfNoonFeatherEnd = XM_PIDIV8;
@@ -182,7 +185,7 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 		}
 		else
 		{
-			rGlobalLayout.fShadowSunAngle = 0.0f;
+			rGlobalLayout.fShadowSunAngle = XM_2PI - fSunAngle;
 		}
 		rGlobalLayout.fShadowDirectionMultiplier = 1.0f;
 
@@ -195,13 +198,36 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 		rGlobalLayout.f4VisibleAreaShadowsExtra.x -= (fQuads / 2.0f) * game::gpCamera->f2VisibleAreaQuadSize.x;
 
 		rGlobalLayout.fShadowWidthScale = -(game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / fShadowTextureSizeWidth;
-		rGlobalLayout.fShadowSunAngle = fSunAngle >= XM_PI ? 0.0f : XM_PI - fSunAngle;
+		rGlobalLayout.fShadowSunAngle = fSunAngle >= XM_PI ? fSunAngle - XM_PI : XM_PI - fSunAngle;
 		rGlobalLayout.fShadowDirectionMultiplier = -1.0f;
 
 		rGlobalLayout.iShadowElevationSize = 0; // !=
 		rGlobalLayout.iShadowIncrement = -1; // ++
 		rGlobalLayout.iShadowStartOffset = static_cast<int>(fShadowTextureSizeWidth / 2.0f); // Start offset
 	}
+
+	// Shadow multiplier: 1.0 during day, kfNightMultiplier at night
+	static constexpr float kfNightMultiplier = 0.2f;
+	static constexpr float kfSunsetStart = XM_PI - XM_PIDIV32;
+	static constexpr float kfSunsetEnd = XM_PI - XM_PIDIV128;
+	static constexpr float kfSunriseStart = XM_PIDIV128;
+	static constexpr float kfSunriseEnd = XM_PIDIV32;
+	float fMoonMultiplier = 1.0f;
+	if (fSunAngle >= kfSunsetStart && fSunAngle <= kfSunsetEnd)
+	{
+		float fLerp = (fSunAngle - kfSunsetStart) / (kfSunsetEnd - kfSunsetStart);
+		fMoonMultiplier = std::lerp(1.0f, kfNightMultiplier, fLerp);
+	}
+	else if (fSunAngle > kfSunsetEnd || fSunAngle <= kfSunriseStart)
+	{
+		fMoonMultiplier = kfNightMultiplier;
+	}
+	else if (fSunAngle >= kfSunriseStart && fSunAngle <= kfSunriseEnd)
+	{
+		float fLerp = (fSunAngle - kfSunriseStart) / (kfSunriseEnd - kfSunriseStart);
+		fMoonMultiplier = std::lerp(kfNightMultiplier, 1.0f, fLerp);
+	}
+	rGlobalLayout.fShadowMoonMultiplier = fMoonMultiplier;
 }
 
 static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, float fDayPercent, float fNoonPercent)

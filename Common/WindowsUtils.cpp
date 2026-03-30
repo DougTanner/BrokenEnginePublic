@@ -52,9 +52,9 @@ int64_t HardwareCoreCount()
 	BOOL bDone = FALSE;
 	while (!bDone)
 	{
-		DWORD rc = glpi(buffer.data(), &uiReturnLength);
+		BOOL bSuccess = glpi(buffer.data(), &uiReturnLength);
 
-		if (rc == FALSE)
+		if (bSuccess == FALSE)
 		{
 			if (GetLastError() == ERROR_INSUFFICIENT_BUFFER)
 			{
@@ -158,6 +158,20 @@ ExecutableResult RunExecutable(const std::filesystem::path& rExecutableFile, std
 	CloseHandle(processInformation.hProcess);
 
 	return {.mOutput = std::move(output), .miExitCode = static_cast<int64_t>(uiExitCode)};
+}
+
+void LaunchExecutable(const std::filesystem::path& rExecutableFile)
+{
+	STARTUPINFOW startupinfow
+	{
+		.cb = sizeof(STARTUPINFOW),
+	};
+	PROCESS_INFORMATION processInformation {};
+	std::wstring commandLine = rExecutableFile.native();
+	CreateProcessW(rExecutableFile.native().c_str(), commandLine.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startupinfow, &processInformation);
+
+	CloseHandle(processInformation.hThread);
+	CloseHandle(processInformation.hProcess);
 }
 
 } // namespace common

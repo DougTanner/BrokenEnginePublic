@@ -50,6 +50,36 @@ void MainMenuScreen::Render()
 		gpClientSession->StartServerDiscovery();
 	}
 
+	// Auto-launch server and auto-connect
+	if constexpr (kbAutoServer)
+	{
+		static bool sbServerLaunched = false;
+		if (!sbServerLaunched)
+		{
+			sbServerLaunched = true;
+			char pcPath[MAX_PATH] {};
+			GetModuleFileName(nullptr, pcPath, static_cast<DWORD>(std::size(pcPath) - 1));
+			std::filesystem::path serverPath = pcPath;
+			serverPath.remove_filename();
+			if constexpr (std::string_view(kpcBuildConfigName) == "Release")
+			{
+				serverPath /= "BrokenEngineSandboxServer.exe";
+			}
+			else
+			{
+				serverPath /= std::format("BrokenEngineSandboxServer.{}.exe", kpcBuildConfigName);
+			}
+			common::LaunchExecutable(serverPath);
+		}
+
+		static bool sbConnected = false;
+		if (!sbConnected && gpClientSession->mbServerDiscovered)
+		{
+			sbConnected = true;
+			gpClientSession->ConnectToDiscoveredServer();
+		}
+	}
+
 	// Local Server button (discovers localhost + LAN)
 	if (gpClientSession->mbServerDiscovered)
 	{

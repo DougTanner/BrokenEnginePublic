@@ -129,6 +129,7 @@ inline constexpr float XM_PIDIV8  = XM_PI / 8.0f;
 inline constexpr float XM_PIDIV16 = XM_PI / 16.0f;
 inline constexpr float XM_PIDIV32 = XM_PI / 32.0f;
 inline constexpr float XM_PIDIV64 = XM_PI / 64.0f;
+inline constexpr float XM_PIDIV128 = XM_PI / 128.0f;
 
 }
 using namespace DirectX;

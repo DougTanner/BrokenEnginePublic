@@ -29,7 +29,7 @@ vec4 ShadowStretchProjection(GlobalLayout globalLayout, vec3 f3WorldPosition, ve
 	float fSunsetOffset = globalLayout.fShadowSunsetStretch;
 	float fSunriseOffsetCubed = fSunriseOffset * fSunriseOffset * fSunriseOffset;
 	float fSunsetOffsetCubed = fSunsetOffset * fSunsetOffset * fSunsetOffset;
-	vec2 f2Translation = (fSunriseOffsetCubed + fSunsetOffsetCubed) * -globalLayout.f4SunNormal.xy;
+	vec2 f2Translation = (fSunriseOffsetCubed + fSunsetOffsetCubed) * -globalLayout.f4SunMoonNormal.xy;
 	float fSunriseDiff = max(0.0f, f3ObjectPosition.x - f3WorldPosition.x);
 	float fSunsetDiff = max(0.0f, f3WorldPosition.x - f3ObjectPosition.x);
 	float fStretchX = -(0.5f + fSunriseDiff) * fSunriseOffsetCubed + (0.5f + fSunsetDiff) * fSunsetOffsetCubed;
@@ -54,7 +54,7 @@ vec3 SampleNormal(GlobalLayout globalLayout, sampler2D normalSampler, vec2 f2Pos
 
 vec3 SunLighting(vec3 f3MaterialColor, GlobalLayout globalLayout, vec4 f4Position, vec3 f3Normal, float fShadow, float fAmbientOcclusion)
 {
-	vec3 f3SunLight = fShadow * max(0.0f, dot(normalize(f3Normal), globalLayout.f4SunNormal.xyz)) * globalLayout.f4SunColor.xyz;
+	vec3 f3SunLight = fShadow * max(0.0f, dot(normalize(f3Normal), globalLayout.f4SunMoonNormal.xyz)) * globalLayout.f4SunMoonColor.xyz;
 	float fShadowAffectAmbient = globalLayout.fShadowAffectAmbient;
 	return f3MaterialColor * fAmbientOcclusion * (f3SunLight + (1.0f - fShadowAffectAmbient) * globalLayout.f4AmbientColor.xyz + fShadowAffectAmbient * fShadow * globalLayout.f4AmbientColor.xyz);
 }
@@ -152,7 +152,7 @@ vec3 AddSmoke(GlobalLayout globalLayout, vec3 f3InColor, vec2 f2InPosition, samp
 	float fBlue = IntensityLighting(pf4Lighting[2]);
 	vec3 f3Final = vec3(fRed, fGreen, fBlue) * globalLayout.fSmokeLightingMultiplier;
 
-	f3Final += max(vec3(0.1f, 0.1f, 0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4AmbientColor.xyz);
+	f3Final += max(vec3(0.1f, 0.1f, 0.1f), globalLayout.f4SunMoonColor.xyz + globalLayout.f4AmbientColor.xyz);
 
 	f3Final = min(vec3(1.0f, 1.0f, 1.0f), f3Final);
 	return (1.0f - fSmoke) * f3InColor + fSmoke * f3Final * min(vec3(1.25f, 1.25f, 1.25f), vec3(fDensity, fDensity, fDensity));
@@ -165,7 +165,7 @@ vec3 BlendSmoke(vec3 f3Color, float fSmokePow, vec4 pf4Lighting[3], GlobalLayout
 	float fGreen = IntensityLighting(pf4Lighting[1]);
 	float fBlue = IntensityLighting(pf4Lighting[2]);
 	vec3 f3SmokeLighting = vec3(fRed, fGreen, fBlue) * globalLayout.fSmokeLightingMultiplier;
-	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4AmbientColor.xyz);
+	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunMoonColor.xyz + globalLayout.f4AmbientColor.xyz);
 	f3SmokeLighting = min(vec3(1.0f), f3SmokeLighting);
 	return (1.0f - fSmokePow) * f3Color + fSmokePow * f3SmokeLighting * min(vec3(1.25f), vec3(fSmokeDensity));
 }

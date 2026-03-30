@@ -724,21 +724,24 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 	if constexpr (kbEnableDebugInput)
 	{
 #if defined(BT_CLIENT)
-		if (rMenuInput.flags & MenuInputFlags::kQuicksave)
+		if (engine::gpClient != nullptr)
 		{
-			engine::gpClient->SendSaveRequest();
-		}
-		if (rMenuInput.flags & MenuInputFlags::kQuickload)
-		{
-			engine::gpClient->SendLoadRequest();
-		}
-		if (rMenuInput.flags & MenuInputFlags::kSaveReplay)
-		{
-			engine::gpClient->SendReplayRecordRequest();
-		}
-		if (rMenuInput.flags & MenuInputFlags::kLoadReplay)
-		{
-			engine::gpClient->SendReplayPlaybackRequest();
+			if (rMenuInput.flags & MenuInputFlags::kQuicksave)
+			{
+				engine::gpClient->SendSaveRequest();
+			}
+			if (rMenuInput.flags & MenuInputFlags::kQuickload)
+			{
+				engine::gpClient->SendLoadRequest();
+			}
+			if (rMenuInput.flags & MenuInputFlags::kSaveReplay)
+			{
+				engine::gpClient->SendReplayRecordRequest();
+			}
+			if (rMenuInput.flags & MenuInputFlags::kLoadReplay)
+			{
+				engine::gpClient->SendReplayPlaybackRequest();
+			}
 		}
 #endif // defined(BT_CLIENT)
 
@@ -775,7 +778,10 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 		if (rMenuInput.flags & MenuInputFlags::kSlowTime)
 		{
 #if defined(BT_CLIENT)
-			engine::gpClient->SendTimespeedRequest(0);
+			if (engine::gpClient != nullptr)
+			{
+				engine::gpClient->SendTimespeedRequest(0);
+			}
 #else
 			mTimeStep.DecreaseTimeScale();
 #endif
@@ -783,7 +789,10 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 		else if (rMenuInput.flags & MenuInputFlags::kSpeedUpTime)
 		{
 #if defined(BT_CLIENT)
-			engine::gpClient->SendTimespeedRequest(1);
+			if (engine::gpClient != nullptr)
+			{
+				engine::gpClient->SendTimespeedRequest(1);
+			}
 #else
 			mTimeStep.IncreaseTimeScale();
 #endif
@@ -826,7 +835,10 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 		{
 			mGameFlags.Toggle(engine::GameFlags::kPaused);
 #if defined(BT_CLIENT)
-			engine::gpClient->SendPauseRequest(static_cast<bool>(mGameFlags & engine::GameFlags::kPaused));
+			if (engine::gpClient != nullptr)
+			{
+				engine::gpClient->SendPauseRequest(static_cast<bool>(mGameFlags & engine::GameFlags::kPaused));
+			}
 			if (mGameFlags & engine::GameFlags::kPaused)
 			{
 				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, "PAUSED");

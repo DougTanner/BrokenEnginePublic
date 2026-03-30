@@ -98,7 +98,7 @@ void main()
 		f3Color = mix(f3Color, texture(sandSampler, globalLayout.fTerrainBeachSandSize * f3InPosition.xy).xyz, globalLayout.fTerrainBeachSandBlend * fBeachPercent);
 	}
 
-	vec3 f3SunNormal = normalize(f3Normal + fSnowPercent * globalLayout.f4SunNormal.xyz);
+	vec3 f3SunNormal = normalize(f3Normal + fSnowPercent * globalLayout.f4SunMoonNormal.xyz);
 
 	// Shadow with smoke at world position
 	float fShadow = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;

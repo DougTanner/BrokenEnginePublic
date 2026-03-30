@@ -24,8 +24,8 @@ Wrapper gSmoke(true);
 Wrapper gSmokeSimulationPixels(1.0f, 0.5f, 1.5f);
 Wrapper gSmokeSimulationArea(1.0f, 0.8f, 1.2f);
 
-Wrapper gSunAngleOverride(1.15f, 0.0f, XM_PI);
-Wrapper gMinimumAmbient(kfDefaultMinimumAmbient, kfDefaultMinimumAmbient, 0.1f);
+Wrapper gSunAngleOverride(1.15f, 0.0f, XM_2PI);
+Wrapper gMinimumAmbient(0.0f, 0.0f, 0.1f);
 
 Wrapper gBaseHeight(6.0f, 0.0f, 20.0f);
 
@@ -164,7 +164,7 @@ Wrapper gLightingSampledNormalsSizeMod(0.007f, -0.02f, 0.02f);
 Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
 
 // New Lighting
-Wrapper gLightingNewDirectional(3.5f, 0.0f, 6.0f);
+Wrapper gLightingNewDirectional(4.0f, 0.0f, 10.0f);
 Wrapper gLightingNewDirectionalPower(2.5f, 0.1f, 10.0f);
 Wrapper gLightingNewAmbient(1.5f, 0.0f, 4.0f);
 Wrapper gLightingNewAmbientPower(1.5f, 0.1f, 6.0f);
@@ -175,11 +175,12 @@ Wrapper gLightingTerrainBelowBasePower(1.0f, 0.1f, 6.0f);
 Wrapper gLightingObjects(2.3f, 0.0f, 8.0f);
 Wrapper gLightingObjectsAdd(0.2f, 0.0f, 1.0f);
 Wrapper gLightingTimeOfDayMultiplier(0.4f, 0.0f, 1.0f);
+Wrapper gMoonBrightness(0.1f, 0.0f, 1.0f);
 
 // Water specular lighting
 Wrapper gLightingWaterNormalSoften(0.25f, 0.0f, 0.5f);
 Wrapper gLightingWaterNormalBlendWave(0.05f, 0.0f, 0.1f);
-Wrapper gLightingWaterIntensity(0.015f, 0.0f, 0.03f);
+Wrapper gLightingWaterIntensity(0.025f, 0.0f, 0.04f);
 Wrapper gLightingWaterAdd(0.7f, 0.0f, 1.0f);
 Wrapper gLightingWaterOne(40.0f, 0.0f, 200.0f);
 Wrapper gLightingWaterOnePower(2.0f, 1.0f, 4.0f);

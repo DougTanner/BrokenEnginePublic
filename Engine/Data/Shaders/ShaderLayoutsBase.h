@@ -161,8 +161,8 @@ struct GlobalLayout
 	vec4 f4VisibleArea INIT;
 	vec4 f4VisibleAreaShadowsExtra INIT;
 
-	vec4 f4SunNormal INIT;
-	vec4 f4SunColor INIT;
+	vec4 f4SunMoonNormal INIT;
+	vec4 f4SunMoonColor INIT;
 	vec4 f4AmbientColor INIT;
 
 	// Smoke
@@ -257,7 +257,7 @@ struct GlobalLayout
 	float fShadowWidthScale INIT;
 	float fShadowSunAngle INIT;
 	float fShadowDirectionMultiplier INIT;
-	float fShadowOnePadW INIT;
+	float fShadowMoonMultiplier INIT;
 	float fShadowFeather INIT;
 	float fShadowNoonOffset INIT;
 	float fShadowDistanceFalloff INIT;

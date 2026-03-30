@@ -186,6 +186,9 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Blur Distance Sunset", &gObjectShadowsBlurDistanceSunset},
 		{"Object Blur Sigma", &gObjectShadowsBlurSigma},
 		{"Smoke Shadow Intensity", &gSmokeShadowIntensity},
+		// Moon
+		{"Moon Brightness", &gMoonBrightness},
+		{"Minimum Ambient", &gMinimumAmbient},
 		// Misc
 		{"Misc Island Height", &gIslandHeight},
 		{"Water Depth", &gWaterDepth},

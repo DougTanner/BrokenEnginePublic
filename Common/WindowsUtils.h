@@ -45,6 +45,13 @@ struct ExecutableResult
 // Thread-safety: Thread-safe - uses local resources and process isolation
 ExecutableResult RunExecutable(const std::filesystem::path& rExecutableFile, std::wstring& rCommandLine);
 
+// Launches an external process without waiting for it to complete (fire-and-forget)
+// Parameters:
+//   rExecutableFile - Full path to the executable to run
+// Creates the process with CREATE_NO_WINDOW flag and immediately closes handles
+// Thread-safety: Thread-safe - uses local resources and process isolation
+void LaunchExecutable(const std::filesystem::path& rExecutableFile);
+
 // Returns the number of logical CPU cores including hyperthreading
 // Uses std::thread::hardware_concurrency() to query the system
 // Returns: int64_t number of logical cores (minimum 1)

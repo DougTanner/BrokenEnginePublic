@@ -218,7 +218,6 @@ extern Wrapper gSmokeSimulationPixels;
 extern Wrapper gSmokeSimulationArea;
 
 extern Wrapper gSunAngleOverride;
-inline constexpr float kfDefaultMinimumAmbient = 0.03f;
 extern Wrapper gMinimumAmbient;
 
 extern Wrapper gBaseHeight;
@@ -369,6 +368,7 @@ extern Wrapper gLightingTerrainBelowBasePower;
 extern Wrapper gLightingObjects;
 extern Wrapper gLightingObjectsAdd;
 extern Wrapper gLightingTimeOfDayMultiplier;
+extern Wrapper gMoonBrightness;
 
 // Water specular lighting
 extern Wrapper gLightingWaterNormalSoften;
