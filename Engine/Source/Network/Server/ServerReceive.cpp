@@ -2,9 +2,10 @@
 
 #include "Network/Server/Server.h"
 
-#include "Game.h"
 #include "Memory/MemoryManager.h"
 #include "Network/NetworkCursor.h"
+
+#include "Game.h"
 
 namespace engine
 {
@@ -287,6 +288,16 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	if (pClient->IsCoordSubscribed(coord))
 	{
 		Log(kLogNetwork, "Server::ClientSubscribe AlreadySubscribed Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
+		return;
+	}
+
+	// Validate coord is adjacent to client's player frame (3x3 grid)
+	int32_t iDeltaX = std::abs(coord.x - pClient->humanGridCoord.x);
+	int32_t iDeltaY = std::abs(coord.y - pClient->humanGridCoord.y);
+	if (iDeltaX > 1 || iDeltaY > 1)
+	{
+		Log(kLogNetwork, "Server::ClientSubscribe Rejected (not adjacent) Client: {} Coord: ({},{}) PlayerCoord: ({},{})", iClientId, coord.x, coord.y, pClient->humanGridCoord.x, pClient->humanGridCoord.y);
+		SendSubscribeAccept(*pClient, 0xFF, coord);
 		return;
 	}
 

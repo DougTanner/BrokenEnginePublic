@@ -180,7 +180,7 @@ Wrapper gMoonBrightness(0.1f, 0.0f, 1.0f);
 // Water specular lighting
 Wrapper gLightingWaterNormalSoften(0.25f, 0.0f, 0.5f);
 Wrapper gLightingWaterNormalBlendWave(0.05f, 0.0f, 0.1f);
-Wrapper gLightingWaterIntensity(0.025f, 0.0f, 0.04f);
+Wrapper gLightingWaterIntensity(0.05f, 0.0f, 0.1f);
 Wrapper gLightingWaterAdd(0.7f, 0.0f, 1.0f);
 Wrapper gLightingWaterOne(40.0f, 0.0f, 200.0f);
 Wrapper gLightingWaterOnePower(2.0f, 1.0f, 4.0f);

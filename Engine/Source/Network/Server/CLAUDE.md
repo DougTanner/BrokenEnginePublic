@@ -14,6 +14,7 @@ Server-side ENet networking split into the low-level `Server` class (host, clien
 
 - `ClientConnection` tracks per-client state: ENet peer, player identity, `clientGuid` (128-bit persistent identity), handshake completion flag, slot-based coord subscriptions with independent ACK tracking and slot management helpers, and pipeline RTT timestamp echo
 - Receive handlers (ACK stream, spawn request, subscribe, resync) reject packets from clients that haven't completed the ClientHello handshake
+- Subscribe requests are validated against the client's `humanGridCoord`: only coords within the 3x3 adjacency grid are accepted; out-of-range requests receive a rejection response (slot `0xFF`) so the client can clean up
 - Server buffers compressed StatusChange deltas per-coord each tick, then sends one unreliable packet per active client subscription slot. Resend uses the same buffered data
 - Pending events (spawns, disconnects, new subscriptions, resync requests) are drained by the game layer each tick
 

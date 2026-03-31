@@ -116,22 +116,20 @@ void main()
 	// Terrain elevation (for water transparency)
 	f4OutColor.w = clamp(-fTerrainElevation / globalLayout.fWaterTerrainFade, globalLayout.fWaterTerrainFadeClamp, 1.0f);
 
-	// Sample lighting texture, at world x/y and at projected base-height x/y
-	vec2 f2LightingTexcoord = WorldToVisibleArea(vec3(f2InInitialPosition, 0.0f), globalLayout.f4LightingArea);
-	vec4 pf4Lighting[3] = {texture(pLightingSamplers[0], f2LightingTexcoord), texture(pLightingSamplers[1], f2LightingTexcoord), texture(pLightingSamplers[2], f2LightingTexcoord)};
+	// Sample lighting texture at projected base-height x/y
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, vec3(f2InInitialPosition, 0.0f));
 	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4LightingBaseHeight[3] = {texture(pLightingSamplers[0], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[1], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[2], f2LightingTexcoordBaseHeight)};
 
-	// Add both sources
-	pf4Lighting[0] = globalLayout.fLightingTimeOfDayMultiplier * (pow(pf4Lighting[0], vec4(mainLayout.fLightingNewDirectionalPower)) + pow(pf4LightingBaseHeight[0], vec4(mainLayout.fLightingNewAmbientPower)));
-	pf4Lighting[1] = globalLayout.fLightingTimeOfDayMultiplier * (pow(pf4Lighting[1], vec4(mainLayout.fLightingNewDirectionalPower)) + pow(pf4LightingBaseHeight[1], vec4(mainLayout.fLightingNewAmbientPower)));
-	pf4Lighting[2] = globalLayout.fLightingTimeOfDayMultiplier * (pow(pf4Lighting[2], vec4(mainLayout.fLightingNewDirectionalPower)) + pow(pf4LightingBaseHeight[2], vec4(mainLayout.fLightingNewAmbientPower)));
+	// Scale base-height lighting
+	pf4LightingBaseHeight[0] = globalLayout.fLightingTimeOfDayMultiplier * pow(pf4LightingBaseHeight[0], vec4(mainLayout.fLightingNewAmbientPower));
+	pf4LightingBaseHeight[1] = globalLayout.fLightingTimeOfDayMultiplier * pow(pf4LightingBaseHeight[1], vec4(mainLayout.fLightingNewAmbientPower));
+	pf4LightingBaseHeight[2] = globalLayout.fLightingTimeOfDayMultiplier * pow(pf4LightingBaseHeight[2], vec4(mainLayout.fLightingNewAmbientPower));
 
 	// Water lighting
 	const float fWaterNormalBlendWave = mainLayout.fLightingWaterNormalBlendWave;
 	vec3 f3LightingNormal = (1.0f - fWaterNormalBlendWave) * f3SampledNormal + fWaterNormalBlendWave * f3InNormal;
-	vec3 f3WaterLighting = WaterLighting(pf4Lighting, f3LightingNormal, mainLayout.fLightingWaterNormalSoften, mainLayout.fLightingWaterOne, mainLayout.fLightingWaterOnePower, mainLayout.fLightingWaterTwo, mainLayout.fLightingWaterTwoPower, mainLayout.fLightingWaterThree, mainLayout.fLightingWaterThreePower);
+	vec3 f3WaterLighting = WaterLighting(pf4LightingBaseHeight, f3LightingNormal, mainLayout.fLightingWaterNormalSoften, mainLayout.fLightingWaterOne, mainLayout.fLightingWaterOnePower, mainLayout.fLightingWaterTwo, mainLayout.fLightingWaterTwoPower, mainLayout.fLightingWaterThree, mainLayout.fLightingWaterThreePower);
 	float fDepthAttenuation = clamp(-fTerrainElevation / globalLayout.fWaterDepthReflectionFeather, 0.0f, 1.0f);
 	vec3 f3WaterLightingScaled = fDepthAttenuation * mainLayout.fLightingWaterIntensity * f3WaterLighting;
 	float fWaterLightingAdd = mainLayout.fLightingWaterAdd;
