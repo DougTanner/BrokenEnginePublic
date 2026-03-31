@@ -179,7 +179,7 @@ struct Frame
 	Frame(Frame&&) noexcept;
 	Frame& operator=(Frame&&) noexcept;
 
-	static constexpr int64_t kiVersion = 16;
+	static constexpr int64_t kiVersion = 17;
 
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};

@@ -56,27 +56,122 @@ Game::Game()
 
 }
 
-std::optional<int64_t> Game::HumanPlayerIndex(const PlayersInterpolate& rPlayers) const
+engine::global_player_t Game::ClientPlayerId() const
 {
-	if (mHumanPlayerId.IsValid())
+	if (miFocusedPlayerIndex >= 0 && miFocusedPlayerIndex < std::ssize(mClientPlayerIds))
 	{
-		auto it = rPlayers.idToIndexMap.find(mHumanPlayerId);
-		if (it != rPlayers.idToIndexMap.end())
+		return mClientPlayerIds.at(miFocusedPlayerIndex);
+	}
+	return {};
+}
+
+bool Game::IsClientPlayer(engine::global_player_t id) const
+{
+	return id.IsValid() && std::ranges::contains(mClientPlayerIds, id);
+}
+
+void Game::AddClientPlayer(engine::global_player_t id, engine::GridCoord coord)
+{
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	Log(kLogDefault, "AddClientPlayer GlobalPlayerId: {} Coord: ({},{}) OldPlayerCount: {}", id.iValue, coord.x, coord.y, std::ssize(mClientPlayerIds)); // DT TEMP
+	mClientPlayerIds.push_back(id);
+	mClientPlayerCoords.push_back(coord);
+	miFocusedPlayerIndex = std::ssize(mClientPlayerIds) - 1;
+	mClientGridCoord = coord;
+}
+
+void Game::RemoveClientPlayer(engine::global_player_t id)
+{
+	for (int64_t i = 0; i < std::ssize(mClientPlayerIds); ++i)
+	{
+		if (mClientPlayerIds.at(i) == id)
 		{
-			return it->second;
+			Log(kLogDefault, "RemoveClientPlayer GlobalPlayerId: {} Index: {} OldPlayerCount: {}", id.iValue, i, std::ssize(mClientPlayerIds)); // DT TEMP
+			mClientPlayerIds.erase(mClientPlayerIds.begin() + i);
+			mClientPlayerCoords.erase(mClientPlayerCoords.begin() + i);
+
+			// Adjust focused index: if removed before focus, shift down; if at/past end, clamp
+			if (i < miFocusedPlayerIndex)
+			{
+				--miFocusedPlayerIndex;
+			}
+			else if (miFocusedPlayerIndex >= std::ssize(mClientPlayerIds))
+			{
+				miFocusedPlayerIndex = std::ssize(mClientPlayerIds) - 1;
+			}
+
+			// Update mClientGridCoord to match new focus (or leave stale if no players)
+			if (miFocusedPlayerIndex >= 0)
+			{
+				mClientGridCoord = mClientPlayerCoords.at(miFocusedPlayerIndex);
+			}
+			return;
+		}
+	}
+}
+
+int64_t Game::PlayerCount() const
+{
+	return std::ssize(mClientPlayerIds);
+}
+
+int64_t Game::FocusedPlayerIndex() const
+{
+	return miFocusedPlayerIndex;
+}
+
+void Game::FocusNext()
+{
+	if (miFocusedPlayerIndex < std::ssize(mClientPlayerIds) - 1)
+	{
+		++miFocusedPlayerIndex;
+		mClientGridCoord = mClientPlayerCoords.at(miFocusedPlayerIndex);
+	}
+}
+
+void Game::FocusPrev()
+{
+	if (miFocusedPlayerIndex > 0)
+	{
+		--miFocusedPlayerIndex;
+		mClientGridCoord = mClientPlayerCoords.at(miFocusedPlayerIndex);
+	}
+}
+
+bool Game::CanFocusNext() const
+{
+	return miFocusedPlayerIndex < std::ssize(mClientPlayerIds) - 1;
+}
+
+bool Game::CanFocusPrev() const
+{
+	return miFocusedPlayerIndex > 0;
+}
+
+std::optional<int64_t> Game::ClientPlayerIndex(const PlayersPostRender& rPlayers) const
+{
+	engine::global_player_t focusedId = ClientPlayerId();
+	if (focusedId.IsValid())
+	{
+		for (int64_t i = 0; i < rPlayers.iCount; ++i)
+		{
+			if (rPlayers.pGlobalPlayerIds[i] == focusedId)
+			{
+				return i;
+			}
 		}
 	}
 
 	return std::nullopt;
 }
 
-XMVECTOR Game::GetHumanPlayerPosition() const
+XMVECTOR Game::GetClientPlayerPosition() const
 {
-	const Frame& rFrame = CurrentFrame(mHumanGridCoord);
-	auto it = rFrame.interpolate.pPlayers->idToIndexMap.find(mHumanPlayerId);
-	if (it != rFrame.interpolate.pPlayers->idToIndexMap.end())
+	const Frame& rFrame = CurrentFrame(mClientGridCoord);
+	std::optional<int64_t> oIdx = ClientPlayerIndex(*rFrame.postRender.pPlayers);
+	if (oIdx)
 	{
-		return rFrame.interpolate.pPlayers->pVecPositions[it->second];
+		return rFrame.interpolate.pPlayers->pVecPositions[*oIdx];
 	}
 	XMVECTOR vecArea = rFrame.postRender.vecArea;
 	return XMVectorSet((XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f, (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f, 0.0f, 0.0f);
@@ -95,25 +190,31 @@ void Game::ComputeActiveSet()
 		mActiveCoords.clear();
 		for (const auto& [rCoord, rFrames] : mCoordFrames)
 		{
-			if (rFrames.pCurrent != nullptr && (rFrames.iConfirmedTick >= 0 || rCoord == mHumanGridCoord))
+			if (rFrames.pCurrent != nullptr && (rFrames.iConfirmedTick >= 0 || rCoord == mClientGridCoord))
 			{
 				mActiveCoords.push_back(rCoord);
 			}
 		}
 
-		if (!mCoordFrames.contains(mHumanGridCoord))
 		{
-			CreateFrameAtCoord(mHumanGridCoord);
-			mActiveCoords.push_back(mHumanGridCoord);
+			auto it = mCoordFrames.find(mClientGridCoord);
+			if (it == mCoordFrames.end() || it->second.pCurrent == nullptr)
+			{
+				CreateFrameAtCoord(mClientGridCoord);
+			}
+			if (!std::ranges::contains(mActiveCoords, mClientGridCoord))
+			{
+				mActiveCoords.push_back(mClientGridCoord);
+			}
 		}
 
 		if constexpr (kbEnableQuadrantNeighborSubscriptions)
 		{
-			const Frame& rFrame = RenderFrame(mHumanGridCoord);
-			auto it = rFrame.interpolate.pPlayers->idToIndexMap.find(mHumanPlayerId);
-			if (it != rFrame.interpolate.pPlayers->idToIndexMap.end())
+			const Frame& rFrame = RenderFrame(mClientGridCoord);
+			std::optional<int64_t> oPlayerIdx = ClientPlayerIndex(*rFrame.postRender.pPlayers);
+			if (oPlayerIdx)
 			{
-				XMVECTOR vecPos = rFrame.interpolate.pPlayers->pVecPositions[it->second];
+				XMVECTOR vecPos = rFrame.interpolate.pPlayers->pVecPositions[*oPlayerIdx];
 				XMVECTOR vecArea = rFrame.postRender.vecArea;
 				float fCenterX = (XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f;
 				float fCenterY = (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f;
@@ -151,7 +252,8 @@ void Game::ComputeActiveSet()
 
 			auto ensureNeighbor = [&](engine::GridCoord neighbor)
 			{
-				if (!mCoordFrames.contains(neighbor))
+				auto it = mCoordFrames.find(neighbor);
+				if (it == mCoordFrames.end() || it->second.pCurrent == nullptr)
 				{
 					CreateFrameAtCoord(neighbor);
 				}
@@ -162,17 +264,17 @@ void Game::ComputeActiveSet()
 			};
 
 			if (miQuadrantDirX != 0)
-				ensureNeighbor({.x = mHumanGridCoord.x + miQuadrantDirX, .y = mHumanGridCoord.y});
+				ensureNeighbor({.x = mClientGridCoord.x + miQuadrantDirX, .y = mClientGridCoord.y});
 			if (miQuadrantDirY != 0)
-				ensureNeighbor({.x = mHumanGridCoord.x, .y = mHumanGridCoord.y + miQuadrantDirY});
+				ensureNeighbor({.x = mClientGridCoord.x, .y = mClientGridCoord.y + miQuadrantDirY});
 			if (miQuadrantDirX != 0 && miQuadrantDirY != 0)
-				ensureNeighbor({.x = mHumanGridCoord.x + miQuadrantDirX, .y = mHumanGridCoord.y + miQuadrantDirY});
+				ensureNeighbor({.x = mClientGridCoord.x + miQuadrantDirX, .y = mClientGridCoord.y + miQuadrantDirY});
 		}
 	}
 	else
 	{
 		mActiveCoords.clear();
-		mActiveCoords.push_back(mHumanGridCoord);
+		mActiveCoords.push_back(mClientGridCoord);
 	}
 
 	// Delete local-only frames outside the active set, preserve network-subscribed frames
@@ -226,24 +328,22 @@ void Game::BuildFrameInputs()
 	}
 
 	// Camera shake
-	if (mHumanPlayerId.IsValid() && mCoordFrames.contains(mHumanGridCoord))
+	auto inputIt = mCoordFrames.find(mClientGridCoord);
+	if (ClientPlayerId().IsValid() && inputIt != mCoordFrames.end() && inputIt->second.pCurrent != nullptr)
 	{
-		const Frame& rCurrentFrame = CurrentFrame(mHumanGridCoord);
-		const PlayersInterpolate& rPlayers = *rCurrentFrame.interpolate.pPlayers;
+		const Frame& rCurrentFrame = CurrentFrame(mClientGridCoord);
 		const PlayersPostRender& rPlayersPostRender = *rCurrentFrame.postRender.pPlayers;
 
-		auto it = rPlayers.idToIndexMap.find(mHumanPlayerId);
-		if (it != rPlayers.idToIndexMap.end())
+		std::optional<int64_t> oIdx = ClientPlayerIndex(rPlayersPostRender);
+		if (oIdx)
 		{
-			int64_t iHumanIndex = it->second;
-
 			// Camera shake: detect armor damage on human player
-			float fCurrentArmor = rPlayersPostRender.pfArmors[iHumanIndex];
-			if (fCurrentArmor < mfPreviousHumanArmor)
+			float fCurrentArmor = rPlayersPostRender.pfArmors[*oIdx];
+			if (fCurrentArmor < mfPreviousClientArmor)
 			{
 				mCamera.mfShake = std::min(mCamera.mfShake + kfCameraShakeAdd, kfCameraShakeMax);
 			}
-			mfPreviousHumanArmor = fCurrentArmor;
+			mfPreviousClientArmor = fCurrentArmor;
 		}
 	}
 #endif // BT_SERVER
@@ -346,6 +446,7 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rD
 				.fShieldShrink = rData.fShieldShrink,
 				.flags = PlayerFlags_t {static_cast<PlayerFlags>(rData.uiPlayerFlags)},
 				.fTransferLockTimer = 1.0f,
+				.globalPlayerId = rData.globalPlayerId,
 			});
 			break;
 
@@ -427,13 +528,15 @@ void Game::Reset()
 
 	mGameFlags.Clear(engine::GameFlags::kDeathScreen);
 	mGameFlags.Clear(engine::GameFlags::kPaused);
-	mHumanPlayerId = {};
-	mfPreviousHumanArmor = 0.0f;
-	mHumanGridCoord = engine::kOriginCoord;
+	mClientPlayerIds.clear();
+	mClientPlayerCoords.clear();
+	miFocusedPlayerIndex = -1;
+	mfPreviousClientArmor = 0.0f;
+	mClientGridCoord = engine::kOriginCoord;
 	miQuadrantDirX = 0;
 	miQuadrantDirY = 0;
 	mActiveCoords.clear();
-	mActiveCoords.push_back(mHumanGridCoord);
+	mActiveCoords.push_back(mClientGridCoord);
 }
 
 void Game::CreateNewFrame(GameFlags_t gameFlags)
@@ -461,11 +564,12 @@ bool Game::ShouldTrapCursor()
 #if defined(BT_CLIENT)
 bool Game::ShouldUseCrosshair()
 {
-	if (!mCoordFrames.contains(mHumanGridCoord))
+	auto it = mCoordFrames.find(mClientGridCoord);
+	if (it == mCoordFrames.end() || it->second.pCurrent == nullptr)
 	{
 		return false;
 	}
-	return CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kGame && meUiState == kNone;
+	return CurrentFrame(mClientGridCoord).interpolate.gameFlags & GameFlags::kGame && meUiState == kNone;
 }
 #endif // BT_CLIENT
 
@@ -552,10 +656,10 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 #if defined(BT_CLIENT)
 	if (rMenuInput.flags & MenuInputFlags::kWeaponModeToggle)
 	{
-		if (gpClientSession != nullptr && !mWeaponModeToggle.IsPending())
+		if (gpClientSession != nullptr && !mWeaponModeToggle.IsPending() && ClientPlayerId().IsValid())
 		{
 			mWeaponModeToggle.SetPending();
-			engine::gpClient->SendWeaponModeRequest();
+			engine::gpClient->SendWeaponModeRequest(ClientPlayerId().iValue);
 		}
 	}
 
@@ -642,10 +746,9 @@ void Game::SaveTweaksSettings()
 	int8_t iActiveSubtab[static_cast<size_t>(engine::TweakSection::kCount)] {};
 	engine::gpImGuiManager->mpTweaksScreen->SaveState(bSectionVisible, f2WindowPositions, iActiveSubtab);
 
-	// DT TEMP
 	for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
 	{
-		Log("SaveTweaks [{}] visible:{} pos:({:.0f},{:.0f}) subtab:{}", i, bSectionVisible[i], f2WindowPositions[i].x, f2WindowPositions[i].y, iActiveSubtab[i]);
+		Log("SaveTweaks [{}] visible:{} pos:({:.0f},{:.0f}) subtab:{}", i, bSectionVisible[i], f2WindowPositions[i].x, f2WindowPositions[i].y, iActiveSubtab[i]); // DT TEMP
 	}
 
 	TweaksSettings settings {};
@@ -673,10 +776,9 @@ void Game::LoadTweaksSettings()
 	{
 		gpGame->mbShowImGui = settings.bShowImGui;
 
-		// DT TEMP
 		for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
 		{
-			Log("LoadTweaks [{}] visible:{} pos:({:.0f},{:.0f}) subtab:{}", i, settings.bSectionVisible[i], settings.fWindowPositionX[i], settings.fWindowPositionY[i], settings.iActiveSubtab[i]);
+			Log("LoadTweaks [{}] visible:{} pos:({:.0f},{:.0f}) subtab:{}", i, settings.bSectionVisible[i], settings.fWindowPositionX[i], settings.fWindowPositionY[i], settings.iActiveSubtab[i]); // DT TEMP
 		}
 
 		ImVec2 f2WindowPositions[static_cast<size_t>(engine::TweakSection::kCount)] {};
@@ -870,12 +972,13 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 
 void Game::RestoreReplayMeta(const ReplayMeta& rMeta)
 {
-	mHumanGridCoord = rMeta.humanGridCoord;
-	if (rMeta.iHumanPlayerIdValue != 0)
+	mClientGridCoord = rMeta.clientGridCoord;
+	if (rMeta.iClientPlayerIdValue != 0)
 	{
-		mHumanPlayerId = player_t {engine::uuid_t {rMeta.iHumanPlayerIdValue}};
+		engine::global_player_t globalId {rMeta.iClientPlayerIdValue};
+		AddClientPlayer(globalId, rMeta.clientGridCoord);
 	}
-	mfPreviousHumanArmor = rMeta.fPreviousHumanArmor;
+	mfPreviousClientArmor = rMeta.fPreviousClientArmor;
 }
 
 } // namespace game

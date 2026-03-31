@@ -55,12 +55,13 @@ void HudScreen::Render()
 		return;
 	}
 
-	if (gpGame->mGameFlags & engine::GameFlags::kDeathScreen)
+	if (gpGame->mGameFlags & engine::GameFlags::kDeathScreen && gpGame->PlayerCount() == 0)
 	{
 		return;
 	}
 
-	if (!gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord))
+	auto coordIt = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
+	if (coordIt == gpGame->mCoordFrames.end() || coordIt->second.pCurrent == nullptr)
 	{
 		return;
 	}
@@ -85,41 +86,97 @@ void HudScreen::Render()
 	ImGuiIO& rIo = ImGui::GetIO();
 	ImDrawList* pDrawList = ImGui::GetBackgroundDrawList();
 
-	std::optional<int64_t> oIdx = gpGame->HumanPlayerIndex(*gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers);
+	std::optional<int64_t> oIdx = gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers);
 	if (oIdx)
 	{
-		PlayersPostRender& rPlayers = *gpGame->CurrentFrame(gpGame->mHumanGridCoord).postRender.pPlayers;
+		PlayersPostRender& rPlayers = *gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers;
 		RenderBar(pDrawList, rIo.DisplaySize, rPlayers.pfShields[*oIdx], kfShieldHalfWidthPerPoint, -1.0f, kuiShieldColor, mShieldIconVkDescriptorSet);
 		RenderBar(pDrawList, rIo.DisplaySize, rPlayers.pfArmors[*oIdx], kfArmorHalfWidthPerPoint, 1.0f, kuiArmorColor, mArmorIconVkDescriptorSet);
-		RenderWeaponMode(*oIdx);
 	}
+
+	RenderPlayerPanel();
 }
 
-void HudScreen::RenderWeaponMode(int64_t iPlayerIndex)
+void HudScreen::RenderPlayerPanel()
 {
-	PlayersPostRender& rPlayers = *gpGame->CurrentFrame(gpGame->mHumanGridCoord).postRender.pPlayers;
-	bool bUseMissiles = static_cast<bool>(rPlayers.pFlags[iPlayerIndex] & PlayerFlags::kUseMissiles);
-
-	gpGame->mWeaponModeToggle.Update(bUseMissiles);
-
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
-	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.50f), ImGuiCond_Always);
-	ImGui::Begin("WeaponMode", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.42f), ImGuiCond_Always);
+	ImGui::Begin("PlayerPanel", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 	ImGui::SetWindowFontScale(kfMenuUiScale);
 
-	const char* pLabel = bUseMissiles ? "[Q] Missiles" : "[Q] Blasters";
-	ImGui::BeginDisabled(gpGame->mWeaponModeToggle.IsPending());
-	if (ImGui::Button(pLabel))
+	int64_t iPlayerCount = gpGame->PlayerCount();
+
+	// Update spawn toggle: clears pending when player count changes
+	gpGame->mSpawnToggle.Update(iPlayerCount);
+
+	// Navigation row: [<] index/count [>] [+]
+	bool bCanPrev = gpGame->CanFocusPrev();
+	ImGui::BeginDisabled(!bCanPrev);
+	if (ImGui::Button("[<]"))
+	{
+		gpGame->FocusPrev();
+		gpClientSession->UpdateDesiredCoords("FocusPrev");
+		Log(kLogDefault, "HUD FocusPrev NewIndex: {} PlayerCount: {}", gpGame->FocusedPlayerIndex(), iPlayerCount); // DT TEMP
+	}
+	ImGui::EndDisabled();
+
+	ImGui::SameLine();
+	ImGui::Text("%lld/%lld", gpGame->FocusedPlayerIndex() + 1, iPlayerCount);
+	ImGui::SameLine();
+
+	bool bCanNext = gpGame->CanFocusNext();
+	ImGui::BeginDisabled(!bCanNext);
+	if (ImGui::Button("[>]"))
+	{
+		gpGame->FocusNext();
+		gpClientSession->UpdateDesiredCoords("FocusNext");
+		Log(kLogDefault, "HUD FocusNext NewIndex: {} PlayerCount: {}", gpGame->FocusedPlayerIndex(), iPlayerCount); // DT TEMP
+	}
+	ImGui::EndDisabled();
+
+	ImGui::SameLine();
+	ImGui::BeginDisabled(gpGame->mSpawnToggle.IsPending());
+	if (ImGui::Button("[+]"))
 	{
 		if (gpClientSession != nullptr)
 		{
-			gpGame->mWeaponModeToggle.SetPending();
-			engine::gpClient->SendWeaponModeRequest();
+			gpGame->mSpawnToggle.SetPending();
+			engine::gpClient->SendSpawnRequest({engine::ClientRequestFlags::kSpawnRequested});
+			Log(kLogDefault, "HUD SpawnRequest PlayerCount: {}", iPlayerCount); // DT TEMP
 		}
 	}
 	ImGui::EndDisabled();
+
+	// Weapon mode button: re-lookup player index after focus buttons may have changed mClientGridCoord
+	std::optional<int64_t> weaponPlayerIndex;
+	{
+		auto it = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
+		if (it != gpGame->mCoordFrames.end() && it->second.pCurrent != nullptr)
+		{
+			weaponPlayerIndex = gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers);
+		}
+	}
+	if (weaponPlayerIndex)
+	{
+		PlayersPostRender& rPlayers = *gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers;
+		bool bUseMissiles = static_cast<bool>(rPlayers.pFlags[*weaponPlayerIndex] & PlayerFlags::kUseMissiles);
+		gpGame->mWeaponModeToggle.Update(bUseMissiles);
+
+		const char* pLabel = bUseMissiles ? "[Q] Missiles" : "[Q] Blasters";
+		ImGui::BeginDisabled(gpGame->mWeaponModeToggle.IsPending());
+		if (ImGui::Button(pLabel))
+		{
+			if (gpClientSession != nullptr && gpGame->ClientPlayerId().IsValid())
+			{
+				gpGame->mWeaponModeToggle.SetPending();
+				engine::gpClient->SendWeaponModeRequest(gpGame->ClientPlayerId().iValue);
+				Log(kLogDefault, "HUD WeaponModeToggle GlobalPlayerId: {}", gpGame->ClientPlayerId().iValue); // DT TEMP
+			}
+		}
+		ImGui::EndDisabled();
+	}
 
 	ImGui::End();
 }

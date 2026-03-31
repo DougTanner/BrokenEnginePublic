@@ -66,6 +66,7 @@ static void SerializePlayerTransfer(uint8_t*& pCursor, const game::TransferData&
 	WriteFloat(pCursor, rData.fShieldRotation);
 	WriteFloat(pCursor, rData.fShieldShrink);
 	WriteUint8(pCursor, rData.uiPlayerFlags);
+	WriteInt64(pCursor, rData.globalPlayerId.iValue);
 }
 
 // Per-type deserialize helpers
@@ -123,6 +124,7 @@ static void DeserializePlayerTransfer(const uint8_t*& pCursor, game::TransferDat
 	rData.fShieldRotation = ReadFloat(pCursor);
 	rData.fShieldShrink = ReadFloat(pCursor);
 	rData.uiPlayerFlags = ReadUint8(pCursor);
+	rData.globalPlayerId.iValue = ReadInt64(pCursor);
 }
 
 // Serialize a group of StatusChanges that share the same type
@@ -143,6 +145,12 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 		switch (eType)
 		{
 			case game::StatusChangeType::kSpawnPlayer:
+			{
+				XMFLOAT4A f4 {};
+				XMStoreFloat4A(&f4, rData.vecPosition);
+				WriteBytes(pCursor, &f4, sizeof(int64_t));
+				break;
+			}
 			case game::StatusChangeType::kRespawnPlayer:
 				break;
 			case game::StatusChangeType::kTransferBlaster:
@@ -252,6 +260,12 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 			switch (eType)
 			{
 				case game::StatusChangeType::kSpawnPlayer:
+				{
+					XMFLOAT4A f4 {};
+					ReadBytes(pCursor, &f4, sizeof(int64_t));
+					rChange.data.vecPosition = XMLoadFloat4A(&f4);
+					break;
+				}
 				case game::StatusChangeType::kRespawnPlayer:
 					break;
 				case game::StatusChangeType::kTransferBlaster:
@@ -296,8 +310,8 @@ int64_t CompressStatusChangeBatch(const game::StatusChange* pChanges, int64_t iC
 
 	// Serialize into workbuffer, then LZ4 compress into pDest
 	// Largest type is kTransferPlayer: 3 Vec4(16) + uint32(4) + 9 float(4) + uint8(1) = 89 bytes
-	constexpr int64_t kiMaxBytesPerItem = 96;
-	static_assert(kiMaxBytesPerItem >= 89, "kiMaxBytesPerItem must cover the largest StatusChange serialization (currently kTransferPlayer at 89 bytes)");
+	constexpr int64_t kiMaxBytesPerItem = 104;
+	static_assert(kiMaxBytesPerItem >= 97, "kiMaxBytesPerItem must cover the largest StatusChange serialization (currently kTransferPlayer at 93 bytes)");
 	constexpr int64_t kiMaxGroupHeaders = kiTypeCount * 3;
 	int64_t iMaxSerializedSize = kiMaxGroupHeaders + iCount * kiMaxBytesPerItem;
 

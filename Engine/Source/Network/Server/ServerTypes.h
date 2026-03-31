@@ -26,8 +26,8 @@ struct PendingSpawnRequest
 struct PendingDisconnect
 {
 	int64_t iClientId = 0;
-	game::player_t playerId {};
-	GridCoord coord {};
+	std::vector<global_player_t> playerIds;
+	std::vector<GridCoord> coords;
 };
 
 struct PendingNewSubscription
@@ -47,6 +47,7 @@ struct GridUpdateData
 struct PendingWeaponModeRequest
 {
 	int64_t iClientId = 0;
+	global_player_t globalPlayerId {};
 };
 
 } // namespace engine

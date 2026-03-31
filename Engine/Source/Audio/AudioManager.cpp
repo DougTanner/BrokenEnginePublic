@@ -473,23 +473,12 @@ void AudioManager::UpdateListenerPosition(const game::Frame& rFrame)
 {
 	XMVECTOR vecListenerPos = XMVectorZero();
 	XMVECTOR vecListenerVel = XMVectorZero();
-	std::optional<int64_t> oHumanIndex = game::gpGame->HumanPlayerIndex(*rFrame.interpolate.pPlayers);
-	if (oHumanIndex.has_value())
+	std::optional<int64_t> oClientIndex = game::gpGame->ClientPlayerIndex(*rFrame.postRender.pPlayers);
+	if (oClientIndex.has_value())
 	{
-		int64_t iHumanIndex = oHumanIndex.value();
-		vecListenerPos = rFrame.interpolate.pPlayers->pVecPositions[iHumanIndex];
-
-		// Search postRender players for matching human ID to get interpolated velocity
-		game::player_t humanId = game::gpGame->HumanPlayerId();
-		const game::PlayersPostRender& rPostRenderPlayers = *rFrame.postRender.pPlayers;
-		for (int64_t i = 0; i < rPostRenderPlayers.iCount; ++i)
-		{
-			if (rPostRenderPlayers.puiIds[i] == humanId)
-			{
-				vecListenerVel = rPostRenderPlayers.pVecVelocities[i];
-				break;
-			}
-		}
+		int64_t iClientIndex = oClientIndex.value();
+		vecListenerPos = rFrame.interpolate.pPlayers->pVecPositions[iClientIndex];
+		vecListenerVel = rFrame.postRender.pPlayers->pVecVelocities[iClientIndex];
 	}
 	mVecListenerPosition = vecListenerPos;
 	XMFLOAT3A f3Position {};

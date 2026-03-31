@@ -13,6 +13,8 @@ void RunFrameTick(const ActiveFrameRef& rRef, int64_t iTickCounter, float fCurre
 	ASSERT((uiControlWord & _MCW_DN) == _DN_FLUSH);
 	ASSERT((uiControlWord & _MCW_RC) == _RC_NEAR);
 
+	ASSERT(rRef.pNext != nullptr); // DT TEMP
+	ASSERT(rRef.pCurrent != nullptr); // DT TEMP
 	Frame& rNext = *rRef.pNext;
 	const Frame& rCurrent = *rRef.pCurrent;
 

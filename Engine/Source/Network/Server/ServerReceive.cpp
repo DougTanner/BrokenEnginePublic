@@ -291,12 +291,21 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 		return;
 	}
 
-	// Validate coord is adjacent to client's player frame (3x3 grid)
-	int32_t iDeltaX = std::abs(coord.x - pClient->humanGridCoord.x);
-	int32_t iDeltaY = std::abs(coord.y - pClient->humanGridCoord.y);
-	if (iDeltaX > 1 || iDeltaY > 1)
+	// Validate coord is adjacent to ANY owned player's coord (3x3 grid)
+	bool bAdjacent = false;
+	for (const GridCoord& rOwnedCoord : pClient->ownedPlayerCoords)
 	{
-		Log(kLogNetwork, "Server::ClientSubscribe Rejected (not adjacent) Client: {} Coord: ({},{}) PlayerCoord: ({},{})", iClientId, coord.x, coord.y, pClient->humanGridCoord.x, pClient->humanGridCoord.y);
+		int32_t iDeltaX = std::abs(coord.x - rOwnedCoord.x);
+		int32_t iDeltaY = std::abs(coord.y - rOwnedCoord.y);
+		if (iDeltaX <= 1 && iDeltaY <= 1)
+		{
+			bAdjacent = true;
+			break;
+		}
+	}
+	if (!bAdjacent)
+	{
+		Log(kLogNetwork, "Server::ClientSubscribe Rejected (not adjacent) Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
 		SendSubscribeAccept(*pClient, 0xFF, coord);
 		return;
 	}
@@ -417,9 +426,10 @@ void Server::ClientTimespeedRequest(const uint8_t* pData, size_t iSize, int64_t 
 	BroadcastTimespeedUpdate(game::gpGame->mTimeStep.miTimeMultiply, game::gpGame->mTimeStep.miTimeDivide);
 }
 
-void Server::ClientWeaponModeRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
+void Server::ClientWeaponModeRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
 {
-	if (iSize < 1)
+	// 1B type + 8B global player ID = 9 bytes
+	if (iSize < 9)
 	{
 		return;
 	}
@@ -430,10 +440,14 @@ void Server::ClientWeaponModeRequest([[maybe_unused]] const uint8_t* pData, size
 		return;
 	}
 
-	Log(kLogNetwork, "Server::ClientWeaponModeRequest Client: {}", iClientId);
+	const uint8_t* pCursor = pData + 1; // Skip packet type
+	global_player_t globalPlayerId {};
+	globalPlayerId.iValue = ReadInt64(pCursor);
+
+	Log(kLogNetwork, "Server::ClientWeaponModeRequest Client: {} GlobalPlayer: {}", iClientId, globalPlayerId.iValue);
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	mPendingWeaponModeRequests.push_back({iClientId});
+	mPendingWeaponModeRequests.push_back({iClientId, globalPlayerId});
 }
 
 #if defined(BT_SERVER)

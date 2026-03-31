@@ -77,15 +77,15 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 		rWorkbuffer.Append("Frames: ");
 		rWorkbuffer.Append(static_cast<int64_t>(gpGame->mActiveCoords.size()));
 		rWorkbuffer.Append(" [");
-		rWorkbuffer.Append(static_cast<int64_t>(gpGame->mHumanGridCoord.x));
+		rWorkbuffer.Append(static_cast<int64_t>(gpGame->mClientGridCoord.x));
 		rWorkbuffer.Append(",");
-		rWorkbuffer.Append(static_cast<int64_t>(gpGame->mHumanGridCoord.y));
+		rWorkbuffer.Append(static_cast<int64_t>(gpGame->mClientGridCoord.y));
 		rWorkbuffer.Append("]\n");
 
-		int32_t iMinX = gpGame->mHumanGridCoord.x;
-		int32_t iMaxX = gpGame->mHumanGridCoord.x;
-		int32_t iMinY = gpGame->mHumanGridCoord.y;
-		int32_t iMaxY = gpGame->mHumanGridCoord.y;
+		int32_t iMinX = gpGame->mClientGridCoord.x;
+		int32_t iMaxX = gpGame->mClientGridCoord.x;
+		int32_t iMinY = gpGame->mClientGridCoord.y;
+		int32_t iMaxY = gpGame->mClientGridCoord.y;
 		for (const engine::GridCoord& rCoord : gpGame->mActiveCoords)
 		{
 			iMinX = std::min(iMinX, rCoord.x);
@@ -97,8 +97,8 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 		{
 			for (int32_t x = iMinX; x <= iMaxX; ++x)
 			{
-				bool bHuman = (x == gpGame->mHumanGridCoord.x && y == gpGame->mHumanGridCoord.y);
-				if (bHuman)
+				bool bClient = (x == gpGame->mClientGridCoord.x && y == gpGame->mClientGridCoord.y);
+				if (bClient)
 				{
 					rWorkbuffer.Append("P");
 				}
@@ -119,12 +119,13 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 			rWorkbuffer.Append("\n");
 		}
 
-		if (gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord))
+		auto profileCoordIt = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
+		if (profileCoordIt != gpGame->mCoordFrames.end() && profileCoordIt->second.pCurrent != nullptr)
 		{
 			rWorkbuffer.Append("Tick: ");
-			rWorkbuffer.Append(gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.iTick);
+			rWorkbuffer.Append(gpGame->CurrentFrame(gpGame->mClientGridCoord).interpolate.iTick);
 			rWorkbuffer.Append("  Time: ");
-			rWorkbuffer.AppendFloat(gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.fCurrentTime, 1);
+			rWorkbuffer.AppendFloat(gpGame->CurrentFrame(gpGame->mClientGridCoord).interpolate.fCurrentTime, 1);
 			rWorkbuffer.Append("s");
 		}
 		engine::gpTextManager->UpdateTextArea(engine::kTextProfileFrameStats, rWorkbuffer.View());
@@ -259,9 +260,10 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 
 			// -- Prediction --
 			rWorkbuffer.Append("\n-- Prediction --\n");
-			if (gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord))
+			auto predCoordIt = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
+			if (predCoordIt != gpGame->mCoordFrames.end() && predCoordIt->second.pCurrent != nullptr)
 			{
-				mSmoothedRollback = gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.iTick - gpClientSession->GetHumanConfirmedTick();
+				mSmoothedRollback = gpGame->CurrentFrame(gpGame->mClientGridCoord).interpolate.iTick - gpClientSession->GetClientConfirmedTick();
 			}
 			mSmoothedRollback.Update();
 			mSmoothedBuffer = gpClientSession->GetServerUpdateBufferSize();

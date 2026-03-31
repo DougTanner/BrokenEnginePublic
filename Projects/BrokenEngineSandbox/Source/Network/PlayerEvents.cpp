@@ -24,25 +24,25 @@ void ParsePlayerEvents(
 				continue;
 			}
 			const uint8_t* pCursor = rPayload.data();
-			int64_t iPlayerId = engine::ReadInt64(pCursor);
+			int64_t iGlobalPlayerId = engine::ReadInt64(pCursor);
 			engine::GridCoord coord = engine::ReadGridCoord(pCursor);
-			rOutEvents.push_back({PlayerEventType::kAssigned, player_t(engine::uuid_t(iPlayerId)), coord});
+			rOutEvents.push_back({PlayerEventType::kAssigned, engine::global_player_t {iGlobalPlayerId}, coord});
 		}
 		else if (eType == engine::PacketType::kServerPlayerState)
 		{
-			// 1B wireType + 8B playerId + 4B gridX + 4B gridY = 17 bytes (type byte already stripped)
+			// 1B wireType + 8B global player ID + 4B gridX + 4B gridY = 17 bytes (type byte already stripped)
 			if (rPayload.size() < 17)
 			{
 				continue;
 			}
 			const uint8_t* pCursor = rPayload.data();
 			uint8_t uiWireType = engine::ReadUint8(pCursor);
-			int64_t iPlayerId = engine::ReadInt64(pCursor);
+			int64_t iGlobalPlayerId = engine::ReadInt64(pCursor);
 			engine::GridCoord coord = engine::ReadGridCoord(pCursor);
 
 			// Wire type maps directly to PlayerEventType offset by 1 (kAssigned=0 has no wire equivalent)
 			PlayerEventType eEventType = static_cast<PlayerEventType>(uiWireType + 1);
-			rOutEvents.push_back({eEventType, player_t(engine::uuid_t(iPlayerId)), coord});
+			rOutEvents.push_back({eEventType, engine::global_player_t {iGlobalPlayerId}, coord});
 		}
 	}
 }

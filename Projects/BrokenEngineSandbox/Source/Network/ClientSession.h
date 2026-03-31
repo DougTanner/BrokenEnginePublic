@@ -42,6 +42,9 @@ public:
 	// Clock correction
 	std::chrono::nanoseconds ComputeClockCorrectionNs(int64_t iPreReconcileTick);
 
+	// Subscription helpers
+	void UpdateDesiredCoords(std::string_view reason);
+
 private:
 
 	// Connection helpers
@@ -49,9 +52,6 @@ private:
 	bool PollConnectionStatus();
 	void TryEnterGame();
 	void PollDebugFrameResponse();
-
-	// Subscription helpers
-	void UpdateDesiredCoords(std::string_view reason);
 
 	void ApplyReceivedFullStates();
 	void ApplyReceivedUpdates();

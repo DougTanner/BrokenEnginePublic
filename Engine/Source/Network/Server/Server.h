@@ -18,8 +18,8 @@ struct ClientConnection
 	ENetPeer* pPeer = nullptr;
 	int64_t iClientId = 0;
 	bool bHandshakeComplete = false;
-	game::player_t humanPlayerId {};
-	GridCoord humanGridCoord {};
+	std::vector<global_player_t> ownedPlayerIds;
+	std::vector<GridCoord> ownedPlayerCoords;
 	ClientGuid clientGuid {};
 
 	// Slot-based coord subscriptions with independent ACK tracking
@@ -95,7 +95,7 @@ public:
 
 	void Poll();
 
-	void SendAssignPlayer(int64_t iClientId, int64_t iPlayerId, GridCoord coord);
+	void SendAssignPlayer(int64_t iClientId, global_player_t globalPlayerId, GridCoord coord);
 	void SendPlayerState(int64_t iClientId, uint8_t uiStateType, int64_t iPlayerId, GridCoord coord);
 	void SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick, GridCoord coord, const game::Frame* pFrame);
 	void BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);

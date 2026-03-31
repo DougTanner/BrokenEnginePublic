@@ -122,6 +122,9 @@ public:
 	void SetCurrentTime(float fCurrentTime) { mfCurrentTime = fCurrentTime; }
 	uint16_t NextFrameId() const { return muiNextFrameId; }
 	void SetNextFrameId(uint16_t uiNextFrameId) { muiNextFrameId = uiNextFrameId; }
+	int64_t GenerateGlobalId() { return miNextGlobalId++; }
+	int64_t NextGlobalId() const { return miNextGlobalId; }
+	void SetNextGlobalId(int64_t iNextGlobalId) { miNextGlobalId = iNextGlobalId; }
 
 	game::Frame& CurrentFrame(GridCoord coord) const
 	{
@@ -153,6 +156,7 @@ protected:
 	float mfCurrentTime = 0.0f;
 
 	uint16_t muiNextFrameId = 0;
+	int64_t miNextGlobalId = 1;
 
 	MenuFlags_t mMenuFlags {MenuFlags::kMouseVisible};
 };

@@ -10,7 +10,7 @@ namespace game
 
 #if defined(BT_CLIENT)
 
-static std::optional<player_t> FindMatchingPlayerInCoord(const ReconcileContext& rReconcileContext, engine::GridCoord destination, XMVECTOR vecPosition)
+static std::optional<engine::global_player_t> FindMatchingPlayerInCoord(const ReconcileContext& rReconcileContext, engine::GridCoord destination, engine::global_player_t globalPlayerId)
 {
 	for (const CoordReconcileWork& rDestWork : rReconcileContext.coordWork)
 	{
@@ -35,27 +35,26 @@ static std::optional<player_t> FindMatchingPlayerInCoord(const ReconcileContext&
 		const Frame& rDestFrame = *pDestFrame;
 		for (int64_t j = 0; j < rDestFrame.postRender.pPlayers->iCount; ++j)
 		{
-			if (XMVector4Equal(rDestFrame.interpolate.pPlayers->pVecPositions[j], vecPosition))
+			if (rDestFrame.postRender.pPlayers->pGlobalPlayerIds[j] == globalPlayerId)
 			{
-				// DT TEMP
-				Log(kLogNetwork, "ReconcileUpdateHumanState Transfer matched NewPlayerId: {} Coord: ({},{})", rDestFrame.postRender.pPlayers->puiIds[j].ToUuid().Value(), destination.x, destination.y);
-				return rDestFrame.postRender.pPlayers->puiIds[j];
+				Log(kLogNetwork, "ReconcileUpdateClientState Transfer matched GlobalPlayerId: {} Coord: ({},{})", globalPlayerId.iValue, destination.x, destination.y); // DT TEMP
+				return globalPlayerId;
 			}
 		}
-		Log(kLogNetwork, "ReconcileUpdateHumanState Transfer position match failed Coord: ({},{}) PlayerCount: {}", destination.x, destination.y, rDestFrame.postRender.pPlayers->iCount);
+		Log(kLogNetwork, "ReconcileUpdateClientState Transfer global ID match failed Coord: ({},{}) PlayerCount: {}", destination.x, destination.y, rDestFrame.postRender.pPlayers->iCount);
 		break;
 	}
 	return std::nullopt;
 }
 
-void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)
+void ReconcileUpdateClientState(ReconcileContext& rReconcileContext)
 {
-	ConfirmedHumanState humanState = rReconcileContext.confirmedHumanState;
+	ConfirmedClientState clientState = rReconcileContext.confirmedClientState;
 
 	// Advance fCurrentTime based on human coord's reconciliation result
 	for (const CoordReconcileWork& rWork : rReconcileContext.coordWork)
 	{
-		if (rWork.coord != humanState.humanGridCoord)
+		if (rWork.coord != clientState.clientGridCoord)
 		{
 			continue;
 		}
@@ -63,7 +62,7 @@ void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)
 		if (!rWork.bCrcFastPath && rWork.iReplayStackCount > 0)
 		{
 			// Human coord did full replay: use replay tip's fCurrentTime
-			humanState.fCurrentTime = rWork.replayStack[rWork.iReplayStackCount - 1]->interpolate.fCurrentTime;
+			clientState.fCurrentTime = rWork.replayStack[rWork.iReplayStackCount - 1]->interpolate.fCurrentTime;
 		}
 		else
 		{
@@ -73,12 +72,12 @@ void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)
 				: SnapshotIndex(rWork.iSnapshotHead, rWork.iConfirmedOffset);
 			if (rWork.snapshots[iPhysical] != nullptr)
 			{
-				humanState.fCurrentTime = rWork.snapshots[iPhysical]->interpolate.fCurrentTime;
+				clientState.fCurrentTime = rWork.snapshots[iPhysical]->interpolate.fCurrentTime;
 				// Advance to target tick so fCurrentTime matches iTickCounter when SetCurrentTime is called
 				int64_t iConfirmedTick = (rWork.iNewConfirmedTick >= 0) ? rWork.iNewConfirmedTick : rWork.iConfirmedTick;
 				for (int64_t i = iConfirmedTick; i < rReconcileContext.iTargetTick; ++i)
 				{
-					humanState.fCurrentTime += kfDeltaTime;
+					clientState.fCurrentTime += kfDeltaTime;
 				}
 			}
 		}
@@ -105,32 +104,31 @@ void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext)
 					{
 						continue;
 					}
-					if (!humanState.humanPlayerId.IsValid())
+					if (!clientState.clientGlobalPlayerId.IsValid())
 					{
 						continue;
 					}
-					if (rRequest.iEntityId != humanState.humanPlayerId.ToUuid().Value())
+					if (rRequest.data.globalPlayerId != clientState.clientGlobalPlayerId)
 					{
 						continue;
 					}
 
 					engine::GridCoord destination {rWork.coord.x + rRequest.iDeltaX, rWork.coord.y + rRequest.iDeltaY};
-					// DT TEMP
-					Log(kLogNetwork, "ReconcileUpdateHumanState TransferPlayer PlayerId: {} Source: ({},{}) Dest: ({},{})", humanState.humanPlayerId.ToUuid().Value(), rWork.coord.x, rWork.coord.y, destination.x, destination.y);
-					humanState.humanGridCoord = destination;
-					humanState.fPreviousHumanArmor = rRequest.data.fHealth;
+					Log(kLogNetwork, "ReconcileUpdateClientState TransferPlayer GlobalPlayerId: {} Source: ({},{}) Dest: ({},{})", clientState.clientGlobalPlayerId.iValue, rWork.coord.x, rWork.coord.y, destination.x, destination.y); // DT TEMP
+					clientState.clientGridCoord = destination;
+					clientState.fPreviousClientArmor = rRequest.data.fHealth;
 
-					std::optional<player_t> matchedId = FindMatchingPlayerInCoord(rReconcileContext, destination, rRequest.data.vecPosition);
+					std::optional<engine::global_player_t> matchedId = FindMatchingPlayerInCoord(rReconcileContext, destination, clientState.clientGlobalPlayerId);
 					if (matchedId.has_value())
 					{
-						humanState.humanPlayerId = *matchedId;
+						clientState.clientGlobalPlayerId = *matchedId;
 					}
 				}
 			}
 		}
 	}
 
-	rReconcileContext.newConfirmedHumanState = humanState;
+	rReconcileContext.newConfirmedClientState = clientState;
 }
 
 #endif // BT_CLIENT

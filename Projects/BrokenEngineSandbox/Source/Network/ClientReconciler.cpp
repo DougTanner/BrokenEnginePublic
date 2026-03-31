@@ -75,7 +75,7 @@ void ClientReconciler::Reset()
 	}
 
 	mbHasNewData = false;
-	mConfirmedHumanState = {};
+	mConfirmedClientState = {};
 }
 
 void ClientReconciler::Kick()
@@ -114,12 +114,12 @@ void ClientReconciler::Kick()
 	}
 
 	// Re-sync human identity from main thread (updated by PollNetwork before Kick)
-	mConfirmedHumanState.humanGridCoord = gpGame->mHumanGridCoord;
-	mConfirmedHumanState.humanPlayerId = gpGame->HumanPlayerId();
-	mConfirmedHumanState.fPreviousHumanArmor = gpGame->PreviousHumanArmor();
+	mConfirmedClientState.clientGridCoord = gpGame->mClientGridCoord;
+	mConfirmedClientState.clientGlobalPlayerId = gpGame->ClientPlayerId();
+	mConfirmedClientState.fPreviousClientArmor = gpGame->PreviousClientArmor();
 
 	// Global input
-	rReconcileContext.confirmedHumanState = mConfirmedHumanState;
+	rReconcileContext.confirmedClientState = mConfirmedClientState;
 	rReconcileContext.uiNextFrameId = gpGame->NextFrameId();
 	rReconcileContext.iTargetTick = gpGame->TickCounter();
 	ASSERT(rReconcileContext.iTargetTick >= 0);
@@ -168,7 +168,7 @@ static void ReconcileMergeResults(ReconcileContext& rReconcileContext)
 		}
 
 		// Track full replay (only human coord triggers bAnyFullReplay — it gates SetTickCounter/SetCurrentTime in ApplyResult)
-		if (rWork.bFullReplay && rWork.coord == rReconcileContext.confirmedHumanState.humanGridCoord)
+		if (rWork.bFullReplay && rWork.coord == rReconcileContext.confirmedClientState.clientGridCoord)
 		{
 			rReconcileContext.bAnyFullReplay = true;
 			rReconcileContext.iTickCounter = rWork.iTickCounter;
@@ -222,7 +222,7 @@ void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext)
 		return;
 	}
 
-	ReconcileUpdateHumanState(rReconcileContext);
+	ReconcileUpdateClientState(rReconcileContext);
 }
 
 static void RestoreUnconsumedUpdates(CoordReconcileWork& rWork, engine::CoordFrames& rSub)
@@ -326,16 +326,16 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 	}
 
 	// Capture pre-writeback human player position for visual smoothing
-	auto GetHumanSnapshotPosition = [](XMVECTOR& rOut) -> bool
+	auto GetClientSnapshotPosition = [](XMVECTOR& rOut) -> bool
 	{
-		auto subIt = gpGame->mCoordFrames.find(gpGame->mHumanGridCoord);
+		auto subIt = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
 		if (subIt == gpGame->mCoordFrames.end() || subIt->second.iSnapshotCount <= 0)
 			return false;
 		int64_t iPhysical = engine::SnapshotIndex(subIt->second.iSnapshotHead, subIt->second.iSnapshotCount - 1);
 		const std::unique_ptr<game::Frame>& pSnapshot = subIt->second.snapshots[iPhysical];
 		if (pSnapshot == nullptr)
 			return false;
-		auto oIdx = gpGame->HumanPlayerIndex(*pSnapshot->interpolate.pPlayers);
+		auto oIdx = gpGame->ClientPlayerIndex(*pSnapshot->postRender.pPlayers);
 		if (!oIdx)
 			return false;
 		rOut = pSnapshot->interpolate.pPlayers->pVecPositions[*oIdx];
@@ -343,7 +343,7 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 	};
 
 	XMVECTOR vecPreWritebackPosition {};
-	bool bCapturedPrePosition = GetHumanSnapshotPosition(vecPreWritebackPosition);
+	bool bCapturedPrePosition = GetClientSnapshotPosition(vecPreWritebackPosition);
 
 	// Write back per-coord results
 	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
@@ -358,7 +358,7 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 
 	// Compute visual error offset from position delta after writeback
 	XMVECTOR vecPostWritebackPosition {};
-	if (bCapturedPrePosition && rReconcileContext.bAnyFullReplay && GetHumanSnapshotPosition(vecPostWritebackPosition))
+	if (bCapturedPrePosition && rReconcileContext.bAnyFullReplay && GetClientSnapshotPosition(vecPostWritebackPosition))
 	{
 		XMVECTOR vecError = XMVectorSubtract(vecPreWritebackPosition, vecPostWritebackPosition);
 		XMVECTOR vecTotal = XMVectorAdd(gpGame->mVecVisualErrorOffset, vecError);
@@ -373,8 +373,8 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 	}
 
 	// Update human tracking from reconciled state
-	mConfirmedHumanState = rReconcileContext.newConfirmedHumanState;
-	gpGame->SetPreviousHumanArmor(rReconcileContext.newConfirmedHumanState.fPreviousHumanArmor);
+	mConfirmedClientState = rReconcileContext.newConfirmedClientState;
+	gpGame->SetPreviousClientArmor(rReconcileContext.newConfirmedClientState.fPreviousClientArmor);
 
 	// Feed reconciliation counters to profile manager
 	gpProfileManager->SetReconcileCounters(rReconcileContext.profiling.iCrcValidatedFrameTicks, rReconcileContext.profiling.iAssumedFrameTicks, rReconcileContext.profiling.iCrcFastPathEvents, rReconcileContext.profiling.iStatusChangeReplayTicks, rReconcileContext.profiling.iKnockOnReplayTicks);
@@ -386,7 +386,7 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 	{
 		// Restore counters from caught-up state
 		gpGame->SetTickCounter(rReconcileContext.iTickCounter);
-		gpGame->SetCurrentTime(rReconcileContext.newConfirmedHumanState.fCurrentTime);
+		gpGame->SetCurrentTime(rReconcileContext.newConfirmedClientState.fCurrentTime);
 
 		// Ensure next frames exist
 		gpGame->EnsureNextFrames();

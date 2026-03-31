@@ -18,15 +18,17 @@ Shared constants used across multiple `.cpp` files are declared in `Players.h`.
 
 **Weapon Mode**: `PlayerFlags::kUseMissiles` gates which weapon fires — `SpawnBlasters` runs when the flag is clear, `SpawnMissiles` when set. The mode is toggled by `kWeaponModeChange` StatusChange events (player ID encoded in `vecPosition`) injected by the server session.
 
-**Spawn/Destroy/Transfer**: Driven by `StatusChange` events in `FrameInput`. Transfer preserves full gameplay state via `TransferRequest` with entity ID. A transfer lock timer skips AI/weapon logic briefly after arriving in a new cell.
+**Spawn/Destroy/Transfer**: Driven by `StatusChange` events in `FrameInput`. Transfer preserves full gameplay state via `TransferRequest` with entity ID, including the client GUID (carried in `TransferData` and restored on the destination cell). A transfer lock timer skips AI/weapon logic briefly after arriving in a new cell.
 
 **Shield and Damage**: Shield absorbs damage before armor with cooldown-based regeneration. Client-only hex shield displays directional hit indicators with intensity decay and impact VFX.
 
 **Owned Objects**: Each player owns a wind trail and hex shield (client-only), created in Spawn and removed in Destroy/Transfer.
 
-## Client GUIDs
+## Client GUIDs and Global Player IDs
 
-**PlayersPostRender**: Includes `pClientGuids` (`engine::ClientGuid*`) — a parallel array of GUIDs identifying which connected client controls each player. Initialized in `Spawn`, copied via `AllocateAndCopy`, and compared in `LogDifferences`. Used by `ServerSession::ResetClientsForLoad` to re-link client connections to player slots after a load.
+**PlayersPostRender**: Includes `pClientGuids` — a parallel array of GUIDs identifying which connected client controls each player. Used by `ServerSession::ResetClientsForLoad` to re-link client connections to player slots after a load.
+
+**Global Player IDs**: A parallel array of `engine::global_player_t` values provides stable cross-transfer, cross-session identity for each player. Assigned at spawn (carried in `SpawnInfo.globalPlayerId`), preserved across cell transfers via `TransferData.globalPlayerId`, and excluded from shared CRC validation since they are server-side bookkeeping. The Players collection uses these IDs (not local SOA indices) for all game-layer identity operations.
 
 ## See Also
 - Parent collections: [../CLAUDE.md](../CLAUDE.md)

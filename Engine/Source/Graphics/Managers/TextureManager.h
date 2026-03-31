@@ -74,7 +74,7 @@ public:
 	std::unordered_map<common::crc_t, Texture> mBlurredLightingTextures;
 	std::unordered_map<common::crc_t, Texture> mBlurIntermediateTextures;
 	void RegisterLightingTextureCrc(common::crc_t crc);
-	void BlurLightingTexture(common::crc_t crc);
+	void BlurLightingTexture(common::crc_t crc, bool bNeedAcquireBarrier = false);
 	void ReblurAllLightingTextures();
 
 	VkCommandPool mAcquireVkCommandPool = VK_NULL_HANDLE;

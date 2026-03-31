@@ -26,8 +26,8 @@ public:
 
 private:
 
-	void WriteGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord humanGridCoord);
-	bool ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord& rHumanGridCoord);
+	void WriteGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord clientGridCoord);
+	bool ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord& rClientGridCoord);
 
 	GameBase& mrGameBase;
 

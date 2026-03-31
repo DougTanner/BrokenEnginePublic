@@ -147,7 +147,8 @@ void Server::Disconnect(ENetEvent& rEvent)
 	ClientConnection* pClient = FindClient(iClientId);
 	if (pClient != nullptr)
 	{
-		mPendingDisconnects.push_back({iClientId, pClient->humanPlayerId, pClient->humanGridCoord});
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		mPendingDisconnects.push_back({iClientId, pClient->ownedPlayerIds, pClient->ownedPlayerCoords});
 	}
 	RemoveClient(iClientId);
 

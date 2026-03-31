@@ -147,7 +147,7 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 			LogStatusChangeList("Client StatusChanges", rFrameInput.statusChanges);
 		}
 
-		if (rWork.coord != rReconcileContext.confirmedHumanState.humanGridCoord)
+		if (rWork.coord != rReconcileContext.confirmedClientState.clientGridCoord)
 		{
 			Log(kLogNetwork, "ReconcileValidateCrcCoord Neighbor CRC mismatch (non-fatal) Coord: ({},{}) Frame: {}", rWork.coord.x, rWork.coord.y, iTick);
 			rWork.iLastValidatedIndex = rWork.iReplayStackCount - 1;
@@ -176,7 +176,7 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 			LogStatusChangeList("Client StatusChanges", rFrameInput.statusChanges);
 		}
 
-		if (rWork.coord != rReconcileContext.confirmedHumanState.humanGridCoord)
+		if (rWork.coord != rReconcileContext.confirmedClientState.clientGridCoord)
 		{
 			Log(kLogNetwork, "ReconcileValidateCrcCoord Neighbor input CRC mismatch (non-fatal) Coord: ({},{}) Frame: {}", rWork.coord.x, rWork.coord.y, iTick);
 			rWork.iLastValidatedIndex = rWork.iReplayStackCount - 1;

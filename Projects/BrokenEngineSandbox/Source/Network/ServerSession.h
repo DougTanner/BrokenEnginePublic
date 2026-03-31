@@ -23,7 +23,7 @@ struct SubscriptionUpdate
 {
 	int64_t iClientId = 0;
 	engine::GridCoord newCoord {};
-	player_t newPlayerId {};
+	engine::global_player_t globalPlayerId {};
 };
 
 class ServerSession : public engine::ServerSessionBase
@@ -62,10 +62,10 @@ private:
 	void SyncActiveFrames();
 
 	// HarvestTransfers helpers
-	void CollectTransfers(std::vector<struct HumanTransferInfo>& rHumanTransfers);
+	void CollectTransfers(std::vector<struct ClientTransferInfo>& rClientTransfers);
 	void SortTransfersByType();
 	void SpawnTransfers();
-	void TrackHumanTransfers(const std::vector<struct HumanTransferInfo>& rHumanTransfers);
+	void TrackClientTransfers(const std::vector<struct ClientTransferInfo>& rClientTransfers);
 
 	std::vector<PendingPlayerDestroy> mPendingPlayerDestroys;
 	std::vector<ClientSpawnInfo> mClientsWaitingForSpawn;

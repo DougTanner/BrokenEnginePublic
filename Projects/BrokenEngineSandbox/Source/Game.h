@@ -43,9 +43,9 @@ enum class UiState
 struct ReplayMeta
 {
 	static constexpr int64_t kiVersion = 1;
-	engine::GridCoord humanGridCoord {};
-	int64_t iHumanPlayerIdValue = 0;
-	float fPreviousHumanArmor = 0.0f;
+	engine::GridCoord clientGridCoord {};
+	int64_t iClientPlayerIdValue = 0;
+	float fPreviousClientArmor = 0.0f;
 };
 
 class Game : public engine::GameBase
@@ -85,15 +85,23 @@ public:
 	std::unique_ptr<ClientSession> mpClientSession;
 #endif
 
-	// Human player tracking
-	player_t HumanPlayerId() const { return mHumanPlayerId; }
-	float PreviousHumanArmor() const { return mfPreviousHumanArmor; }
-	bool IsHumanPlayer(player_t id) const { return id.IsValid() && id == mHumanPlayerId; }
+	// Client player tracking (multi-player per client)
+	engine::global_player_t ClientPlayerId() const;
+	float PreviousClientArmor() const { return mfPreviousClientArmor; }
+	bool IsClientPlayer(engine::global_player_t id) const;
+	void AddClientPlayer(engine::global_player_t id, engine::GridCoord coord);
+	void RemoveClientPlayer(engine::global_player_t id);
+	int64_t PlayerCount() const;
+	int64_t FocusedPlayerIndex() const;
+	void FocusNext();
+	void FocusPrev();
+	bool CanFocusNext() const;
+	bool CanFocusPrev() const;
 	void RestoreReplayMeta(const ReplayMeta& rMeta);
-	std::optional<int64_t> HumanPlayerIndex(const PlayersInterpolate& rPlayers) const;
+	std::optional<int64_t> ClientPlayerIndex(const PlayersPostRender& rPlayers) const;
 	void ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput);
 
-	XMVECTOR GetHumanPlayerPosition() const;
+	XMVECTOR GetClientPlayerPosition() const;
 
 #if defined(BT_CLIENT)
 	static void SaveSoundSettings();
@@ -112,6 +120,7 @@ public:
 	Camera mCamera {};
 	XMVECTOR mVecVisualErrorOffset {};
 	engine::NetworkUiControl<bool> mWeaponModeToggle {};
+	engine::NetworkUiControl<int64_t> mSpawnToggle {};
 
 	static constexpr float kfVisualErrorDecayRate = 15.0f;
 	static constexpr float kfVisualErrorMaxDistance = 5.0f;
@@ -123,7 +132,7 @@ public:
 
 	bool mbShowImGui = false;
 
-	engine::GridCoord mHumanGridCoord {};
+	engine::GridCoord mClientGridCoord {};
 	int32_t miQuadrantDirX = 0;
 	int32_t miQuadrantDirY = 0;
 	std::vector<engine::GridCoord> mActiveCoords;
@@ -149,16 +158,19 @@ private:
 	int64_t miGameMusicIndex = 0;
 #endif
 
-	player_t mHumanPlayerId {};
-	float mfPreviousHumanArmor = 0.0f;
+public:
+	std::vector<engine::global_player_t> mClientPlayerIds;
+	std::vector<engine::GridCoord> mClientPlayerCoords;
+	int64_t miFocusedPlayerIndex = -1;
+private:
+	float mfPreviousClientArmor = 0.0f;
 	engine::alignment_t mPlayerAlignment {};
 	engine::alignment_t mEnemyAlignment {};
 	engine::Alignments mAlignments {};
 
 public:
 	engine::alignment_t PlayerAlignment() const { return mPlayerAlignment; }
-	void SetHumanPlayerId(player_t id) { mHumanPlayerId = id; }
-	void SetPreviousHumanArmor(float fArmor) { mfPreviousHumanArmor = fArmor; }
+	void SetPreviousClientArmor(float fArmor) { mfPreviousClientArmor = fArmor; }
 	const engine::Alignments& Alignments() const { return mAlignments; }
 
 #if defined(BT_CLIENT)

@@ -9,23 +9,30 @@ namespace game
 
 void ClientSession::UpdateDesiredCoords(std::string_view reason)
 {
-	std::vector<engine::GridCoord> desiredCoords;
-	desiredCoords.reserve(5);
+	static constexpr int64_t kiMaxDesiredCoords = 8;
+	engine::GridCoord desiredCoords[kiMaxDesiredCoords] {};
+	int64_t iDesiredCount = 0;
+
+	auto pushCoord = [&](engine::GridCoord coord)
+	{
+		ASSERT(iDesiredCount < kiMaxDesiredCoords);
+		desiredCoords[iDesiredCount++] = coord;
+	};
 
 	bool bDead = gpGame->mGameFlags & engine::GameFlags::kDeathScreen;
 
-	if (gpGame->HumanPlayerId().IsValid())
+	if (gpGame->ClientPlayerId().IsValid())
 	{
-		desiredCoords.push_back(gpGame->mHumanGridCoord);
+		pushCoord(gpGame->mClientGridCoord);
 
 		if constexpr (kbEnableQuadrantNeighborSubscriptions)
 		{
 			if (gpGame->miQuadrantDirX != 0)
-				desiredCoords.push_back({.x = gpGame->mHumanGridCoord.x + gpGame->miQuadrantDirX, .y = gpGame->mHumanGridCoord.y});
+				pushCoord({.x = gpGame->mClientGridCoord.x + gpGame->miQuadrantDirX, .y = gpGame->mClientGridCoord.y});
 			if (gpGame->miQuadrantDirY != 0)
-				desiredCoords.push_back({.x = gpGame->mHumanGridCoord.x, .y = gpGame->mHumanGridCoord.y + gpGame->miQuadrantDirY});
+				pushCoord({.x = gpGame->mClientGridCoord.x, .y = gpGame->mClientGridCoord.y + gpGame->miQuadrantDirY});
 			if (gpGame->miQuadrantDirX != 0 && gpGame->miQuadrantDirY != 0)
-				desiredCoords.push_back({.x = gpGame->mHumanGridCoord.x + gpGame->miQuadrantDirX, .y = gpGame->mHumanGridCoord.y + gpGame->miQuadrantDirY});
+				pushCoord({.x = gpGame->mClientGridCoord.x + gpGame->miQuadrantDirX, .y = gpGame->mClientGridCoord.y + gpGame->miQuadrantDirY});
 		}
 	}
 	else if (bDead)
@@ -33,41 +40,63 @@ void ClientSession::UpdateDesiredCoords(std::string_view reason)
 		if constexpr (kbEnableQuadrantNeighborSubscriptions)
 		{
 			// Death screen: keep current subscriptions + ensure origin for respawn
-			desiredCoords = mDesiredCoords;
-			if (!desiredCoords.empty() && !std::ranges::contains(desiredCoords, engine::kOriginCoord))
+			for (const engine::GridCoord& rCoord : mDesiredCoords)
 			{
-				desiredCoords.push_back(engine::kOriginCoord);
+				pushCoord(rCoord);
+			}
+			if (iDesiredCount > 0 && !std::ranges::contains(std::span(desiredCoords, iDesiredCount), engine::kOriginCoord))
+			{
+				pushCoord(engine::kOriginCoord);
 			}
 		}
 		else
 		{
-			desiredCoords.push_back(gpGame->mHumanGridCoord);
-			if (gpGame->mHumanGridCoord != engine::kOriginCoord)
+			pushCoord(gpGame->mClientGridCoord);
+			if (gpGame->mClientGridCoord != engine::kOriginCoord)
 			{
-				desiredCoords.push_back(engine::kOriginCoord);
+				pushCoord(engine::kOriginCoord);
 			}
 		}
 	}
 	else
 	{
-		desiredCoords.push_back(engine::kOriginCoord);
+		pushCoord(engine::kOriginCoord);
 	}
 
-	if (desiredCoords != mDesiredCoords)
+	std::span<const engine::GridCoord> desiredSpan(desiredCoords, iDesiredCount);
+
+	// Check if desired set changed
+	bool bChanged = (iDesiredCount != std::ssize(mDesiredCoords));
+	if (!bChanged)
 	{
-		Log(kLogNetwork, "Desired subscriptions changed Reason: {} Count: {} -> {}", reason, mDesiredCoords.size(), desiredCoords.size());
+		for (int64_t i = 0; i < iDesiredCount; ++i)
+		{
+			if (desiredCoords[i] != mDesiredCoords.at(i))
+			{
+				bChanged = true;
+				break;
+			}
+		}
+	}
+
+	if (bChanged)
+	{
+		// Heap: mDesiredCoords.assign and mUnwantedTimestamps may allocate on subscription changes
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+		Log(kLogNetwork, "Desired subscriptions changed Reason: {} Count: {} -> {}", reason, mDesiredCoords.size(), iDesiredCount);
 
 		// Track when coords become unwanted for sticky subscriptions
 		std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 		for (const engine::GridCoord& rCoord : mDesiredCoords)
 		{
-			if (!std::ranges::contains(desiredCoords, rCoord))
+			if (!std::ranges::contains(desiredSpan, rCoord))
 			{
 				Log(kLogNetwork, "  Removed ({},{})", rCoord.x, rCoord.y);
 				mUnwantedTimestamps.try_emplace(rCoord, now);
 			}
 		}
-		for (const engine::GridCoord& rCoord : desiredCoords)
+		for (const engine::GridCoord& rCoord : desiredSpan)
 		{
 			if (!std::ranges::contains(mDesiredCoords, rCoord))
 			{
@@ -75,7 +104,7 @@ void ClientSession::UpdateDesiredCoords(std::string_view reason)
 			}
 			mUnwantedTimestamps.erase(rCoord);
 		}
-		mDesiredCoords = desiredCoords;
+		mDesiredCoords.assign(desiredSpan.begin(), desiredSpan.end());
 	}
 }
 

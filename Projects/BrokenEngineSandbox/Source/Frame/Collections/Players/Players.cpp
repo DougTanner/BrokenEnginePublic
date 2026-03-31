@@ -207,6 +207,7 @@ void PlayersPostRender::AllocateAndCopy(PlayersPostRender& rCurrent, const Playe
 		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
 		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
 		std::memcpy(rCurrent.pClientGuids, rPrevious.pClientGuids, rCurrent.iCount * sizeof(rCurrent.pClientGuids[0]));
+		std::memcpy(rCurrent.pGlobalPlayerIds, rPrevious.pGlobalPlayerIds, rCurrent.iCount * sizeof(rCurrent.pGlobalPlayerIds[0]));
 	}
 }
 
@@ -265,6 +266,9 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 			},
 			.iEntityId = rCurrentPostRender.puiIds[i].ToUuid().Value(),
 		};
+		request.data.globalPlayerId = rCurrentPostRender.pGlobalPlayerIds[i];
+		request.data.uiClientGuidHigh = rCurrentPostRender.pClientGuids[i].uiHigh;
+		request.data.uiClientGuidLow = rCurrentPostRender.pClientGuids[i].uiLow;
 		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
 
 		if (rFrame.postRender.transferRequests.size() == rFrame.postRender.transferRequests.capacity()) [[unlikely]]
@@ -326,7 +330,7 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 			auto idIt = rCurrentInterpolate.idToIndexMap.find(destroyId);
 			if (idIt != rCurrentInterpolate.idToIndexMap.end())
 			{
-	#if defined(BT_CLIENT)
+#if defined(BT_CLIENT)
 				RemoveOwnedVisuals(rFrame, rCurrentInterpolate, idIt->second);
 #endif // BT_CLIENT
 
@@ -360,6 +364,12 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 				rFrame.interpolate.gameFlags.Clear(GameFlags::kDeathScreen);
 			}
 
+			// Extract global player ID from vecPosition (packed by server)
+			engine::global_player_t globalPlayerId {};
+			XMFLOAT4A f4 {};
+			XMStoreFloat4A(&f4, rStatusChange.data.vecPosition);
+			std::memcpy(&globalPlayerId.iValue, &f4, sizeof(int64_t));
+
 			// Compute frame center from world-space vecArea for spawn offset
 			float fCenterX = (XMVectorGetX(rFrame.postRender.vecArea) + XMVectorGetZ(rFrame.postRender.vecArea)) * 0.5f;
 			float fCenterY = (XMVectorGetW(rFrame.postRender.vecArea) + XMVectorGetY(rFrame.postRender.vecArea)) * 0.5f;
@@ -372,6 +382,7 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 				.vecPosition = vecSpawnPosition,
 				.vecDirection = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
 				.alignment = rFrame.postRender.playerAlignment,
+				.globalPlayerId = globalPlayerId,
 			});
 		}
 	}
@@ -630,6 +641,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	rCurrentPostRender.piAiEdgeCrossTargets[iIndex] = -1;
 	rCurrentPostRender.pfTransferLockTimers[iIndex] = rInfo.fTransferLockTimer;
 	rCurrentPostRender.pClientGuids[iIndex] = {};
+	rCurrentPostRender.pGlobalPlayerIds[iIndex] = rInfo.globalPlayerId;
 }
 
 bool PlayersInterpolate::LogDifferences(const PlayersInterpolate& rOther) const
@@ -676,6 +688,7 @@ bool PlayersPostRender::LogDifferences(const PlayersPostRender& rOther) const
 		bEqual &= common::LogDifference<"pfTransferLockTimers">(i, pfTransferLockTimers[i], rOther.pfTransferLockTimers[i]);
 		bEqual &= common::LogDifference<"pClientGuids.uiHigh">(i, pClientGuids[i].uiHigh, rOther.pClientGuids[i].uiHigh);
 		bEqual &= common::LogDifference<"pClientGuids.uiLow">(i, pClientGuids[i].uiLow, rOther.pClientGuids[i].uiLow);
+		bEqual &= common::LogDifference<"pGlobalPlayerIds">(i, pGlobalPlayerIds[i].iValue, rOther.pGlobalPlayerIds[i].iValue);
 	}
 
 	return bEqual;

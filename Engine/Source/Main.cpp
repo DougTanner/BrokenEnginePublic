@@ -209,7 +209,7 @@ void MainThread(HINSTANCE hinstance)
 	{
 		// Heap: operator[] may insert default element
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates.try_emplace(kOriginCoord).first->second, pGame->CurrentFrame(pGame->mHumanGridCoord).interpolate);
+		game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates.try_emplace(kOriginCoord).first->second, pGame->CurrentFrame(pGame->mClientGridCoord).interpolate);
 	}
 	game::gpCamera->Update(gpGraphics->mRenderInterpolates.at(kOriginCoord));
 
@@ -218,7 +218,7 @@ void MainThread(HINSTANCE hinstance)
 	std::vector<GridCoord> bootActiveCoords = {kOriginCoord};
 	for (int64_t i = 0; i < static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size()); ++i)
 	{
-		gpGraphics->RenderGlobal(pGame->CurrentFrame(pGame->mHumanGridCoord).interpolate.fCurrentTime);
+		gpGraphics->RenderGlobal(pGame->CurrentFrame(pGame->mClientGridCoord).interpolate.fCurrentTime);
 		gpGraphics->RenderMainPresentAcquire(gpSwapchainManager->miFramebufferIndex, gpGraphics->mRenderInterpolates, bootActiveCoords, kOriginCoord);
 	}
 	gpProfileManager->BootStop(kBootTimerRenderPresent);
@@ -293,7 +293,8 @@ void MainThread(HINSTANCE hinstance)
 		}
 
 		// Audio update
-		pAudioManager->Update(pGame->mCoordFrames.contains(game::gpGame->mHumanGridCoord) ? &pGame->RenderFrame(game::gpGame->mHumanGridCoord) : nullptr);
+		auto audioCoordIt = pGame->mCoordFrames.find(game::gpGame->mClientGridCoord);
+		pAudioManager->Update(audioCoordIt != pGame->mCoordFrames.end() && audioCoordIt->second.pCurrent != nullptr ? &pGame->RenderFrame(game::gpGame->mClientGridCoord) : nullptr);
 		game::gpClientSession->PostRender(); // Kick reconcile after all rendering (including audio) is complete
 #else
 		{

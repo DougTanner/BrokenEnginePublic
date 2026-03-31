@@ -57,41 +57,65 @@ void ClientSession::PollNetwork()
 	// Parse and process player events from raw game packets
 	std::vector<ReceivedPlayerEvent> playerEvents;
 	ParsePlayerEvents(mpClientNetwork->DrainReceivedGamePackets(), playerEvents);
-	engine::GridCoord preEventHumanCoord = gpGame->mHumanGridCoord;
+	engine::GridCoord preEventClientCoord = gpGame->mClientGridCoord;
 	for (const ReceivedPlayerEvent& rEvent : playerEvents)
 	{
 		switch (rEvent.eType)
 		{
 			case PlayerEventType::kAssigned:
-				// DT TEMP
-				Log(kLogNetwork, "PlayerEvent kAssigned NewPlayerId: {} NewCoord: ({},{}) OldPlayerId: {} OldCoord: ({},{})", rEvent.playerId.ToUuid().Value(), rEvent.coord.x, rEvent.coord.y, gpGame->HumanPlayerId().ToUuid().Value(), gpGame->mHumanGridCoord.x, gpGame->mHumanGridCoord.y);
-				if (rEvent.playerId != gpGame->HumanPlayerId())
+				Log(kLogNetwork, "PlayerEvent kAssigned NewGlobalPlayerId: {} NewCoord: ({},{}) OldGlobalPlayerId: {} OldCoord: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->ClientPlayerId().iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y); // DT TEMP
+				if (!gpGame->IsClientPlayer(rEvent.globalPlayerId))
 				{
-					gpGame->SetHumanPlayerId(rEvent.playerId);
-					gpGame->mHumanGridCoord = rEvent.coord;
-					gpGame->mGameFlags.Clear(engine::GameFlags::kDeathScreen);
+					gpGame->AddClientPlayer(rEvent.globalPlayerId, rEvent.coord);
 				}
+				gpGame->mGameFlags.Clear(engine::GameFlags::kDeathScreen);
 				UpdateDesiredCoords("kAssigned");
 				break;
 			case PlayerEventType::kSpawned:
-				gpGame->mHumanGridCoord = rEvent.coord;
+			{
+				// Find matching player by global ID and update coord
+				for (int64_t i = 0; i < gpGame->PlayerCount(); ++i)
+				{
+					if (gpGame->mClientPlayerIds.at(i) == rEvent.globalPlayerId)
+					{
+						gpGame->mClientPlayerCoords.at(i) = rEvent.coord;
+						break;
+					}
+				}
+				if (rEvent.globalPlayerId == gpGame->ClientPlayerId())
+				{
+					gpGame->mClientGridCoord = rEvent.coord;
+				}
 				UpdateDesiredCoords("kSpawned");
 				break;
+			}
 			case PlayerEventType::kChangedFrame:
 			{
-				gpGame->mHumanGridCoord = rEvent.coord;
-				int32_t iDeltaX = rEvent.coord.x - preEventHumanCoord.x;
-				int32_t iDeltaY = rEvent.coord.y - preEventHumanCoord.y;
-				if (iDeltaX != 0)
+				// Find matching player by global ID and update coord
+				for (int64_t i = 0; i < gpGame->PlayerCount(); ++i)
 				{
-					gpGame->miQuadrantDirX = -iDeltaX;
+					if (gpGame->mClientPlayerIds.at(i) == rEvent.globalPlayerId)
+					{
+						gpGame->mClientPlayerCoords.at(i) = rEvent.coord;
+						break;
+					}
 				}
-				if (iDeltaY != 0)
+				// Only update quadrant dirs if it's the focused player
+				if (rEvent.globalPlayerId == gpGame->ClientPlayerId())
 				{
-					gpGame->miQuadrantDirY = -iDeltaY;
+					gpGame->mClientGridCoord = rEvent.coord;
+					int32_t iDeltaX = rEvent.coord.x - preEventClientCoord.x;
+					int32_t iDeltaY = rEvent.coord.y - preEventClientCoord.y;
+					if (iDeltaX != 0)
+					{
+						gpGame->miQuadrantDirX = -iDeltaX;
+					}
+					if (iDeltaY != 0)
+					{
+						gpGame->miQuadrantDirY = -iDeltaY;
+					}
 				}
-				// DT TEMP
-				Log(kLogNetwork, "kChangedFrame NewCoord: ({},{}) QuadrantDir: ({},{})", rEvent.coord.x, rEvent.coord.y, gpGame->miQuadrantDirX, gpGame->miQuadrantDirY);
+				Log(kLogNetwork, "kChangedFrame GlobalPlayer: {} NewCoord: ({},{}) QuadrantDir: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->miQuadrantDirX, gpGame->miQuadrantDirY); // DT TEMP
 				const std::vector<engine::ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
 				for (int64_t i = 0; i < std::ssize(rSlots); ++i)
 				{
@@ -101,13 +125,17 @@ void ClientSession::PollNetwork()
 				break;
 			}
 			case PlayerEventType::kDied:
-				gpGame->mGameFlags.Set(engine::GameFlags::kDeathScreen);
-				if (gpGame->mCoordFrames.contains(gpGame->mHumanGridCoord))
+				gpGame->RemoveClientPlayer(rEvent.globalPlayerId);
+				if (gpGame->PlayerCount() == 0)
 				{
-					gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.gameFlags.Set(GameFlags::kDeathScreen);
+					gpGame->mGameFlags.Set(engine::GameFlags::kDeathScreen);
+					auto deathIt = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
+					if (deathIt != gpGame->mCoordFrames.end() && deathIt->second.pCurrent != nullptr)
+					{
+						gpGame->CurrentFrame(gpGame->mClientGridCoord).interpolate.gameFlags.Set(GameFlags::kDeathScreen);
+					}
+					gpGame->SetPreviousClientArmor(0.0f);
 				}
-				gpGame->SetHumanPlayerId({});
-				gpGame->SetPreviousHumanArmor(0.0f);
 				UpdateDesiredCoords("kDied");
 				break;
 		}
@@ -278,12 +306,12 @@ void ClientSession::ApplyReceivedFullStates()
 				gpGame->SetCurrentTime(rSub.pCurrent->interpolate.fCurrentTime);
 			}
 
-			ConfirmedHumanState confirmedState;
-			confirmedState.humanGridCoord = gpGame->mHumanGridCoord;
-			confirmedState.humanPlayerId = gpGame->HumanPlayerId();
-			confirmedState.fPreviousHumanArmor = gpGame->PreviousHumanArmor();
+			ConfirmedClientState confirmedState;
+			confirmedState.clientGridCoord = gpGame->mClientGridCoord;
+			confirmedState.clientGlobalPlayerId = gpGame->ClientPlayerId();
+			confirmedState.fPreviousClientArmor = gpGame->PreviousClientArmor();
 			confirmedState.fCurrentTime = rSub.pCurrent->interpolate.fCurrentTime;
-			mpReconciler->InitConfirmedHumanState(confirmedState);
+			mpReconciler->InitConfirmedClientState(confirmedState);
 			mpReconciler->SetHasNewData();
 		}
 		else
@@ -414,15 +442,12 @@ bool ClientSession::PollConnection()
 	}
 
 	mpClientNetwork->Poll();
-	Log(kLogNetwork, "PollConnection After Poll"); // DT TEMP
 
 	if (!PollConnectionStatus())
 	{
-		Log(kLogNetwork, "PollConnection NotAccepted"); // DT TEMP
 		return false;
 	}
 
-	Log(kLogNetwork, "PollConnection Accepted"); // DT TEMP
 	TryEnterGame();
 
 	PollDebugFrameResponse();
@@ -508,11 +533,15 @@ void ClientSession::ResetForServerLoad()
 	miConsecutiveClockErrorFrames = 0;
 
 	// Clear player identity — server will reassign
-	gpGame->SetHumanPlayerId({});
-	gpGame->mHumanGridCoord = {};
-	gpGame->SetPreviousHumanArmor(0.0f);
+	gpGame->mClientPlayerIds.clear();
+	gpGame->mClientPlayerCoords.clear();
+	gpGame->miFocusedPlayerIndex = -1;
+	gpGame->mClientGridCoord = {};
+	gpGame->SetPreviousClientArmor(0.0f);
 	gpGame->mGameFlags.Clear(engine::GameFlags::kDeathScreen);
 	gpGame->mVecVisualErrorOffset = {};
+	gpGame->mWeaponModeToggle.Reset();
+	gpGame->mSpawnToggle.Reset();
 
 	// Force-reset all client coord slots
 	std::vector<engine::ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();

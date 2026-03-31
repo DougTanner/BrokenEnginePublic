@@ -29,6 +29,15 @@ class TextureManager;
 
 enum class CommandBufferFlags : uint8_t;
 
+// Stable player identity across transfers and reconnects
+// Assigned by server at first spawn, carried in TransferData
+struct global_player_t
+{
+	int64_t iValue = 0;
+	constexpr bool IsValid() const { return iValue != 0; }
+	bool operator==(const global_player_t&) const = default;
+};
+
 // Global unique identifier with counter stored in FramePostRenderBase
 // 0 = invalid/uninitialized, counter starts at 1
 struct uuid_t
@@ -649,10 +658,7 @@ inline std::istream& CollectionRead(std::istream& rStream, TStruct& rCurrent, TT
 // Accumulates total capacity across all active coords for a collection's BeginRender phase.
 // TAccessor: callable returning a const reference to the collection from a FrameInterpolate.
 template <typename TAccessor>
-int64_t AccumulateRenderCapacity(
-	const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates,
-	const std::vector<GridCoord>& rActiveCoords,
-	TAccessor accessor)
+int64_t AccumulateRenderCapacity(const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, TAccessor accessor)
 {
 	int64_t iTotalCapacity = 0;
 	for (const GridCoord& rCoord : rActiveCoords)
@@ -669,10 +675,7 @@ int64_t AccumulateRenderCapacity(
 // Erases entries from a render state map whose IDs are no longer present in any active collection.
 // TAccessor: callable returning the collection's idToIndexMap from a FrameInterpolate reference.
 template <typename TMapType, typename TAccessor>
-void EraseStaleRenderState(TMapType& rRenderStateMap,
-    const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates,
-    const std::vector<GridCoord>& rActiveCoords,
-    TAccessor accessor)
+void EraseStaleRenderState(TMapType& rRenderStateMap, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, TAccessor accessor)
 {
 	// Heap: unordered_map erase for stale render state entries
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;

@@ -175,6 +175,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	int8_t* __restrict piAiEdgeCrossTargets = nullptr;
 	float* __restrict pfTransferLockTimers = nullptr;
 	engine::ClientGuid* __restrict pClientGuids = nullptr;
+	engine::global_player_t* __restrict pGlobalPlayerIds = nullptr;
 
 	auto Members(this auto&& rSelf)
 	{
@@ -185,11 +186,10 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 			rSelf.pfDestroyedExplosionTimes, rSelf.pfShieldDownSoundCooldowns,
 			rSelf.pVecAiDirections, rSelf.pfAiFireTimers, rSelf.pfAiMissileTimers,
 			rSelf.pfAiEdgeCrossCooldowns, rSelf.piAiEdgeCrossTargets,
-			rSelf.pfTransferLockTimers, rSelf.pClientGuids);
+			rSelf.pfTransferLockTimers, rSelf.pClientGuids, rSelf.pGlobalPlayerIds);
 	}
 
-	// CRC-only subset: excludes pClientGuids which is server-side bookkeeping
-	// (client never receives it — not in TransferData, zeroed in Spawn)
+	// CRC-only subset: excludes pClientGuids and pGlobalPlayerIds which are server-side bookkeeping
 	auto SharedCrcMembers(this auto&& rSelf)
 	{
 		return std::tie(rSelf.puiIds, rSelf.pFlags, rSelf.pAlignments,
@@ -223,6 +223,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 		float fShieldShrink = 1.0f;
 		PlayerFlags_t flags = {PlayerFlags::kBlasterSpawnLeft};
 		float fTransferLockTimer = 0.0f;
+		engine::global_player_t globalPlayerId {};
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

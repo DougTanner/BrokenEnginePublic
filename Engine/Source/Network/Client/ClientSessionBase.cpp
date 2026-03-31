@@ -440,9 +440,9 @@ int64_t ClientSessionBase::GetConfirmedTick() const
 	return iMin;
 }
 
-int64_t ClientSessionBase::GetHumanConfirmedTick() const
+int64_t ClientSessionBase::GetClientConfirmedTick() const
 {
-	auto it = game::gpGame->mCoordFrames.find(game::gpGame->mHumanGridCoord);
+	auto it = game::gpGame->mCoordFrames.find(game::gpGame->mClientGridCoord);
 	if (it == game::gpGame->mCoordFrames.end() || it->second.iConfirmedTick < 0)
 	{
 		return -1;

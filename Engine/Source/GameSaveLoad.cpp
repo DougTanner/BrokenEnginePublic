@@ -31,7 +31,7 @@ void GameSaveLoad::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 	{
 		if (rMenuInput.flags & game::MenuInputFlags::kQuicksave)
 		{
-			WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite}, mrGameBase.QuicksaveFile(), game::gpGame->mHumanGridCoord);
+			WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite}, mrGameBase.QuicksaveFile(), game::gpGame->mClientGridCoord);
 		}
 	}
 }
@@ -39,21 +39,21 @@ void GameSaveLoad::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 void GameSaveLoad::ServerSave()
 {
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
-	WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite}, mrGameBase.QuicksaveFile(), game::gpGame->mHumanGridCoord);
+	WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite}, mrGameBase.QuicksaveFile(), game::gpGame->mClientGridCoord);
 }
 
 bool GameSaveLoad::ServerLoad()
 {
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	GridCoord loadedHumanGridCoord {};
-	if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, mrGameBase.QuicksaveFile(), loadedHumanGridCoord))
+	GridCoord loadedClientGridCoord {};
+	if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, mrGameBase.QuicksaveFile(), loadedClientGridCoord))
 	{
 		return false;
 	}
 
 	mrGameBase.Reset();
-	game::gpGame->mHumanGridCoord = loadedHumanGridCoord;
+	game::gpGame->mClientGridCoord = loadedClientGridCoord;
 	game::gpServerSession->ResetClientsForLoad();
 	game::gpServerSession->ComputeActiveSet();
 
@@ -70,12 +70,12 @@ bool GameSaveLoad::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 	{
 		if (rMenuInput.flags & game::MenuInputFlags::kQuickload || rMenuInput.flags & game::MenuInputFlags::kResetFrame)
 		{
-			GridCoord loadedHumanGridCoord {};
+			GridCoord loadedClientGridCoord {};
 			bool bQuickloaded = false;
 
 			if (rMenuInput.flags & game::MenuInputFlags::kQuickload)
 			{
-				if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, mrGameBase.QuicksaveFile(), loadedHumanGridCoord))
+				if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, mrGameBase.QuicksaveFile(), loadedClientGridCoord))
 				{
 					game::gpGame->CreateNewFrame(game::GameFlags::kGame);
 				}
@@ -93,8 +93,8 @@ bool GameSaveLoad::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 
 			if (bQuickloaded)
 			{
-				game::gpGame->mHumanGridCoord = loadedHumanGridCoord;
-				ASSERT(mrGameBase.mCoordFrames.contains(game::gpGame->mHumanGridCoord));
+				game::gpGame->mClientGridCoord = loadedClientGridCoord;
+				ASSERT(mrGameBase.mCoordFrames.contains(game::gpGame->mClientGridCoord));
 				game::gpServerSession->ResetClientsForLoad();
 			}
 
@@ -148,8 +148,8 @@ void GameSaveLoad::SaveLoadReplay()
 			}
 
 			// Load initial grid state
-			GridCoord loadedHumanGridCoord {};
-			if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay.grid"), loadedHumanGridCoord))
+			GridCoord loadedClientGridCoord {};
+			if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay.grid"), loadedClientGridCoord))
 			{
 				Log(kLogError, "Failed to read replay grid");
 				return;
@@ -212,7 +212,7 @@ void GameSaveLoad::SyncReplayTick()
 			mrGameBase.mGameFlags.Clear(GameFlags::kSaveReplay);
 			mReplayReaders.clear();
 
-			WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("F7.replay.grid"), game::gpGame->mHumanGridCoord);
+			WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("F7.replay.grid"), game::gpGame->mClientGridCoord);
 
 			for (const auto& [rCoord, rFrames] : mrGameBase.mCoordFrames)
 			{
@@ -246,9 +246,9 @@ void GameSaveLoad::SyncReplayTick()
 
 			// Write replay metadata for F8 load
 			game::ReplayMeta meta {
-				.humanGridCoord = game::gpGame->mHumanGridCoord,
-				.iHumanPlayerIdValue = game::gpGame->HumanPlayerId().ToUuid().Value(),
-				.fPreviousHumanArmor = game::gpGame->PreviousHumanArmor(),
+				.clientGridCoord = game::gpGame->mClientGridCoord,
+				.iClientPlayerIdValue = game::gpGame->ClientPlayerId().iValue,
+				.fPreviousClientArmor = game::gpGame->PreviousClientArmor(),
 			};
 			WriteVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("F7.replay.meta"), meta);
 
@@ -296,7 +296,7 @@ void GameSaveLoad::SyncReplayTick()
 	}
 }
 
-void GameSaveLoad::WriteGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord humanGridCoord)
+void GameSaveLoad::WriteGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord clientGridCoord)
 {
 	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
 	int64_t iVersion = game::Frame::kiVersion;
@@ -306,7 +306,8 @@ void GameSaveLoad::WriteGrid(const FileFlags_t& rFlags, const std::filesystem::p
 
 	int64_t iFrameCount = static_cast<int64_t>(mrGameBase.mCoordFrames.size());
 	common::Write(fileStream, iFrameCount);
-	humanGridCoord.Write(fileStream);
+	clientGridCoord.Write(fileStream);
+	common::Write(fileStream, mrGameBase.miNextGlobalId);
 
 	// Sort by coord key for deterministic output
 	std::vector<uint64_t> keys;
@@ -327,7 +328,7 @@ void GameSaveLoad::WriteGrid(const FileFlags_t& rFlags, const std::filesystem::p
 	Log("WriteGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
 }
 
-bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord& rHumanGridCoord)
+bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord& rClientGridCoord)
 {
 	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
 
@@ -344,7 +345,8 @@ bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::pa
 
 	int64_t iFrameCount = 0;
 	common::Read(fileStream, iFrameCount);
-	rHumanGridCoord.Read(fileStream);
+	rClientGridCoord.Read(fileStream);
+	common::Read(fileStream, mrGameBase.miNextGlobalId);
 
 	mrGameBase.mCoordFrames.clear();
 

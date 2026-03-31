@@ -293,7 +293,7 @@ void Client::SendLoadRequest()
 	rWorkbuffer.Pop();
 }
 
-void Client::SendWeaponModeRequest()
+void Client::SendWeaponModeRequest(int64_t iGlobalPlayerId)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -304,6 +304,7 @@ void Client::SendWeaponModeRequest()
 	rWorkbuffer.Push();
 
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientWeaponModeRequest));
+	rWorkbuffer.PushBack<int64_t>(iGlobalPlayerId);
 
 	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 

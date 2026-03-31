@@ -19,7 +19,7 @@ CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork, int64_
 void LogStatusChangeList(std::string_view label, std::span<const StatusChange> statusChanges);
 
 void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork);
-void ReconcileUpdateHumanState(ReconcileContext& rReconcileContext);
+void ReconcileUpdateClientState(ReconcileContext& rReconcileContext);
 void ReconcileInjectPendingFullState(CoordReconcileWork& rWork);
 
 } // namespace game

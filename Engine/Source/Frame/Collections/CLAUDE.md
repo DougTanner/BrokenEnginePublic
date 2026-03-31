@@ -2,7 +2,7 @@
 
 ## Overview
 
-Template-based Structure-of-Arrays (SOA) collection system providing memory management, serialization, GPU rendering, and deterministic CRC validation. Engine-level collections cover lights, effects, audio, physics, and wind simulation, split between always-compiled (server-relevant) and client-only (visual/audio) via `#ifdef BT_CLIENT`.
+Template-based Structure-of-Arrays (SOA) collection system providing memory management, serialization, GPU rendering, and deterministic CRC validation. Engine-level collections cover lights, effects, audio, physics, and wind simulation, split between always-compiled (server-relevant) and client-only (visual/audio) via `#ifdef BT_CLIENT`. Also defines `global_player_t`, the stable cross-transfer, cross-session identity type for players, assigned at first spawn and carried in `TransferData`.
 
 ## Key Systems
 

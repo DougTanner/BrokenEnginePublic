@@ -71,11 +71,22 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	{
 		vecTargetPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * mfTime)), 40.0f * std::sin(0.01f * mfTime), engine::gBaseHeight.Get(), 0.0f));
 	}
-	else if (gpGame->HumanPlayerId().IsValid())
+	else if (gpGame->ClientPlayerId().IsValid())
 	{
-		if (std::optional<int64_t> oIdx = gpGame->HumanPlayerIndex(*rFrameInterpolate.pPlayers))
+		auto coordIt = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
+		bool bHasCoord = coordIt != gpGame->mCoordFrames.end() && coordIt->second.pCurrent != nullptr;
+		std::optional<int64_t> oIdx = bHasCoord ? gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers) : std::nullopt;
+		if (oIdx)
 		{
+			// DT TEMP: Log when camera starts tracking a new player
+			engine::global_player_t focusedId = gpGame->ClientPlayerId();
 			XMVECTOR vecPlayerPos = rFrameInterpolate.pPlayers->pVecPositions[*oIdx];
+
+			if (focusedId != mLastTrackedPlayerId)
+			{
+				Log(kLogDefault, "Camera NowTracking GlobalPlayerId: {} Coord: ({},{}) Index: {}", focusedId.iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, *oIdx);
+				mLastTrackedPlayerId = focusedId;
+			}
 
 			// Compute velocity from position delta using real time
 			if (mfLastKnownPlayerTime > 0.0f && mfTime > mfLastKnownPlayerTime)
@@ -90,6 +101,28 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		}
 		else
 		{
+			// DT TEMP: Diagnostic logging for camera player lookup failure (throttled to once per second)
+			engine::global_player_t focusedId = gpGame->ClientPlayerId();
+			static float sfLastLogTime = -1.0f;
+			if (mfTime - sfLastLogTime >= 1.0f)
+			{
+				sfLastLogTime = mfTime;
+				if (bHasCoord)
+				{
+					const PlayersPostRender& rPlayers = *gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers;
+					Log(kLogDefault, "Camera PlayerNotFound FocusedGlobalId: {} Coord: ({},{}) PostRenderCount: {} InterpolateCount: {}",
+						focusedId.iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, rPlayers.iCount, rFrameInterpolate.pPlayers->iCount);
+					for (int64_t i = 0; i < rPlayers.iCount; ++i)
+					{
+						Log(kLogDefault, "  PostRender[{}] GlobalPlayerId: {}", i, rPlayers.pGlobalPlayerIds[i].iValue);
+					}
+				}
+				else
+				{
+					Log(kLogDefault, "Camera CoordNotFound FocusedGlobalId: {} Coord: ({},{})", focusedId.iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
+				}
+			}
+
 			// Player not found — extrapolate from last known position and velocity
 			float fElapsedTime = std::clamp(mfTime - mfLastKnownPlayerTime, 0.0f, 2.0f);
 			vecTargetPosition = XMVectorMultiplyAdd(XMVectorReplicate(fElapsedTime), mVecLastKnownPlayerVelocity, mVecLastKnownPlayerPosition);

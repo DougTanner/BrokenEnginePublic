@@ -58,7 +58,8 @@ struct TransferData
 			rSelf.fNextBlasterFireTime, rSelf.fNextSecondarySpawnTime, rSelf.fShieldCooldown, rSelf.fShieldDownSoundCooldown,
 			rSelf.fAnimationTime, rSelf.fShieldRotation, rSelf.fShieldShrink, rSelf.uiPlayerFlags,
 			rSelf.fNextBlasterSpawnTime,
-			rSelf.fDeltaRotationDelay, rSelf.fTime, rSelf.fExhaustDelay, rSelf.fNextJitter);
+			rSelf.fDeltaRotationDelay, rSelf.fTime, rSelf.fExhaustDelay, rSelf.fNextJitter,
+			rSelf.globalPlayerId);
 	}
 
 	XMVECTOR vecPosition {};
@@ -93,6 +94,13 @@ struct TransferData
 	float fTime = 0.0f;
 	float fExhaustDelay = 0.0f;
 	float fNextJitter = 0.0f;
+
+	// Global player ID (player transfers only)
+	engine::global_player_t globalPlayerId {};
+
+	// Client GUID (player transfers only, not serialized over network)
+	uint64_t uiClientGuidHigh = 0;
+	uint64_t uiClientGuidLow = 0;
 
 	// Smoke trail ID reuse (missiles only)
 #if defined(BT_CLIENT)

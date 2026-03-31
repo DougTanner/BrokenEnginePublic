@@ -22,7 +22,7 @@ enum class PlayerEventType : uint8_t
 struct ReceivedPlayerEvent
 {
 	PlayerEventType eType {};
-	player_t playerId {};
+	engine::global_player_t globalPlayerId {};
 	engine::GridCoord coord {};
 };
 

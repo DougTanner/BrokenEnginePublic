@@ -436,7 +436,11 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 			// Adopt the GPU-uploaded image (sets mVkImage and creates VkImageView)
 			rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
 
-			if (bNeedAcquireBarrier && bFromTransferQueue)
+			bool bIsLightingTexture = mLightingTextureCrcs.contains(rCrc);
+			bool bNeedsAcquire = bNeedAcquireBarrier && bFromTransferQueue;
+
+			// Lighting textures handle their own acquire barrier inside BlurLightingTexture's OneShotCommandBuffer
+			if (bNeedsAcquire && !bIsLightingTexture)
 			{
 				if (!bRecordedBarriers)
 				{
@@ -460,9 +464,9 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 
 			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
 
-			if (mLightingTextureCrcs.contains(rCrc))
+			if (bIsLightingTexture)
 			{
-				BlurLightingTexture(rCrc);
+				BlurLightingTexture(rCrc, bNeedsAcquire);
 			}
 
 			if (bFromTransferQueue && ++iAdoptedCount >= kiMaxAdoptionsPerFrame)
@@ -588,12 +592,12 @@ void TextureManager::RegisterLightingTextureCrc(common::crc_t crc)
 	mLightingTextureCrcs.insert(crc);
 }
 
-void TextureManager::BlurLightingTexture(common::crc_t crc)
+void TextureManager::BlurLightingTexture(common::crc_t crc, bool bNeedAcquireBarrier)
 {
 	// Heap: GPU textures for pre-blurred lighting
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	const Texture& rSource = mTextureMap.at(crc);
+	Texture& rSource = mTextureMap.at(crc);
 	uint32_t uiWidth = rSource.mInfo.extent.width * 2;
 	uint32_t uiHeight = rSource.mInfo.extent.height * 2;
 
@@ -661,6 +665,12 @@ void TextureManager::BlurLightingTexture(common::crc_t crc)
 
 	OneShotCommandBuffer oneShotCommandBuffer;
 	VkCommandBuffer vkCommandBuffer = oneShotCommandBuffer.mVkCommandBuffer;
+
+	// Complete queue family ownership transfer if texture was uploaded on a separate transfer queue
+	if (bNeedAcquireBarrier)
+	{
+		rSource.RecordAcquireBarrier(vkCommandBuffer);
+	}
 
 	// Horizontal pass: source → intermediate
 	rIntermediate.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kComputeReadWrite);

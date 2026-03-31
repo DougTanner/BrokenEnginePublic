@@ -10,11 +10,11 @@ struct FrameInput;
 
 using engine::SnapshotIndex;
 
-struct ConfirmedHumanState
+struct ConfirmedClientState
 {
-	engine::GridCoord humanGridCoord {};
-	player_t humanPlayerId {};
-	float fPreviousHumanArmor = 0.0f;
+	engine::GridCoord clientGridCoord {};
+	engine::global_player_t clientGlobalPlayerId {};
+	float fPreviousClientArmor = 0.0f;
 	float fCurrentTime = 0.0f;
 };
 
@@ -75,7 +75,7 @@ struct ReconcileContext
 	std::vector<CoordReconcileWork> coordWork;
 
 	// Global input
-	ConfirmedHumanState confirmedHumanState;
+	ConfirmedClientState confirmedClientState;
 	uint16_t uiNextFrameId = 0;
 	int64_t iTargetTick = 0;
 	int64_t iJitterUs = 0;
@@ -87,7 +87,7 @@ struct ReconcileContext
 	float fCurrentTime = 0.0f;
 
 	// Output
-	ConfirmedHumanState newConfirmedHumanState;
+	ConfirmedClientState newConfirmedClientState;
 	bool bAnyFullReplay = false;
 
 	// Profiling counters
@@ -125,18 +125,18 @@ public:
 	uint64_t NextGeneration() { return muiNextGeneration++; }
 
 	void SetHasNewData() { mbHasNewData = true; }
-	void InitConfirmedHumanState(const ConfirmedHumanState& rState)
+	void InitConfirmedClientState(const ConfirmedClientState& rState)
 	{
-		if (mConfirmedHumanState.fCurrentTime == 0.0f)
+		if (mConfirmedClientState.fCurrentTime == 0.0f)
 		{
-			mConfirmedHumanState.fCurrentTime = rState.fCurrentTime;
+			mConfirmedClientState.fCurrentTime = rState.fCurrentTime;
 		}
 	}
 
 private:
 
 	bool mbHasNewData = false;
-	ConfirmedHumanState mConfirmedHumanState;
+	ConfirmedClientState mConfirmedClientState;
 
 	void Kick();
 	ReconcileDesyncInfo ApplyResult();

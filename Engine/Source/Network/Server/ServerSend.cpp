@@ -8,7 +8,7 @@
 namespace engine
 {
 
-void Server::SendAssignPlayer(int64_t iClientId, int64_t iPlayerId, GridCoord coord)
+void Server::SendAssignPlayer(int64_t iClientId, global_player_t globalPlayerId, GridCoord coord)
 {
 	ClientConnection* pClient = FindClient(iClientId);
 	if (pClient == nullptr)
@@ -16,17 +16,14 @@ void Server::SendAssignPlayer(int64_t iClientId, int64_t iPlayerId, GridCoord co
 		return;
 	}
 
-	pClient->humanPlayerId = game::player_t(uuid_t(iPlayerId));
-	pClient->humanGridCoord = coord;
-
-	Log(kLogNetwork, "Server::SendAssignPlayer Client: {} Player: {} Grid: ({},{})", iClientId, iPlayerId, coord.x, coord.y);
+	Log(kLogNetwork, "Server::SendAssignPlayer Client: {} GlobalPlayer: {} Grid: ({},{})", iClientId, globalPlayerId.iValue, coord.x, coord.y);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
-	// [1B type][8B player_t ID][GridCoord]
+	// [1B type][8B global player ID][GridCoord]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerAssignPlayer));
-	rWorkbuffer.PushBack<int64_t>(iPlayerId);
+	rWorkbuffer.PushBack<int64_t>(globalPlayerId.iValue);
 	WriteGridCoord(rWorkbuffer, coord);
 
 	NetworkManager::SendPacket(pClient->pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
@@ -34,7 +31,7 @@ void Server::SendAssignPlayer(int64_t iClientId, int64_t iPlayerId, GridCoord co
 	rWorkbuffer.Pop();
 }
 
-void Server::SendPlayerState(int64_t iClientId, uint8_t uiStateType, int64_t iPlayerId, GridCoord coord)
+void Server::SendPlayerState(int64_t iClientId, uint8_t uiStateType, int64_t iGlobalPlayerId, GridCoord coord)
 {
 	ClientConnection* pClient = FindClient(iClientId);
 	if (pClient == nullptr)
@@ -42,15 +39,15 @@ void Server::SendPlayerState(int64_t iClientId, uint8_t uiStateType, int64_t iPl
 		return;
 	}
 
-	Log(kLogNetwork, "Server::SendPlayerState State: {} Client: {} Player: {} Grid: ({},{})", static_cast<int>(uiStateType), iClientId, iPlayerId, coord.x, coord.y);
+	Log(kLogNetwork, "Server::SendPlayerState State: {} Client: {} GlobalPlayer: {} Grid: ({},{})", static_cast<int>(uiStateType), iClientId, iGlobalPlayerId, coord.x, coord.y);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
-	// [1B type][1B state][8B player_t ID][4B coord.x][4B coord.y]
+	// [1B type][1B state][8B global player ID][4B coord.x][4B coord.y]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerPlayerState));
 	rWorkbuffer.PushBack<uint8_t>(uiStateType);
-	rWorkbuffer.PushBack<int64_t>(iPlayerId);
+	rWorkbuffer.PushBack<int64_t>(iGlobalPlayerId);
 	WriteGridCoord(rWorkbuffer, coord);
 
 	NetworkManager::SendPacket(pClient->pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);

@@ -116,6 +116,7 @@ static void PaintGridMap(HDC hdcBuffer, char* pcLine, size_t iLineSize, int iMap
 
 			GridCoord coord {gx, gy};
 			bool bIsActive = false;
+			bool bIsSubscribed = false;
 			int64_t iClientsInCell = 0;
 
 			for (const GridCoord& rActiveCoord : game::gpGame->mActiveCoords)
@@ -129,9 +130,17 @@ static void PaintGridMap(HDC hdcBuffer, char* pcLine, size_t iLineSize, int iMap
 
 			for (const ClientConnection& rClient : rClients)
 			{
-				if (rClient.humanGridCoord == coord && rClient.humanPlayerId.IsValid())
+				for (const GridCoord& rOwnedCoord : rClient.ownedPlayerCoords)
 				{
-					++iClientsInCell;
+					if (rOwnedCoord == coord)
+					{
+						++iClientsInCell;
+					}
+				}
+
+				if (!bIsSubscribed && rClient.IsCoordSubscribed(coord))
+				{
+					bIsSubscribed = true;
 				}
 			}
 
@@ -165,6 +174,19 @@ static void PaintGridMap(HDC hdcBuffer, char* pcLine, size_t iLineSize, int iMap
 			LineTo(hdcBuffer, iCellLeft, iCellTop);
 			SelectObject(hdcBuffer, hOldPen);
 			DeleteObject(hPen);
+
+			// Red interior border for subscribed cells
+			if (bIsSubscribed && iCellSize >= 20)
+			{
+				static constexpr int kiInset = 2;
+				HPEN hRedPen = CreatePen(PS_SOLID, 1, RGB(220, 40, 40));
+				HPEN hOldPen2 = static_cast<HPEN>(SelectObject(hdcBuffer, hRedPen));
+				HBRUSH hOldBrush = static_cast<HBRUSH>(SelectObject(hdcBuffer, GetStockObject(NULL_BRUSH)));
+				Rectangle(hdcBuffer, iCellLeft + kiInset, iCellTop + kiInset, iCellLeft + iCellSize - kiInset + 1, iCellTop + iCellSize - kiInset + 1);
+				SelectObject(hdcBuffer, hOldBrush);
+				SelectObject(hdcBuffer, hOldPen2);
+				DeleteObject(hRedPen);
+			}
 
 			// Cell labels for active cells
 			if (bIsActive && iCellSize >= 24)
