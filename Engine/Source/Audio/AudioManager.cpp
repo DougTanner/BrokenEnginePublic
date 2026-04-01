@@ -517,10 +517,13 @@ void AudioManager::Update(const game::Frame* pFrame)
 		// Re-cache mastering voice channels after device reset
 		{
 			IXAudio2MasteringVoice* pMasterVoice = mpAudioEngine->GetMasterVoice();
-			XAUDIO2_VOICE_DETAILS voiceDetails {};
-			pMasterVoice->GetVoiceDetails(&voiceDetails);
-			WAVEFORMATEXTENSIBLE waveFormat = mpAudioEngine->GetOutputFormat();
-			miMasteringVoiceChannels = std::min(static_cast<int64_t>(voiceDetails.InputChannels), static_cast<int64_t>(waveFormat.Format.nChannels));
+			if (pMasterVoice != nullptr)
+			{
+				XAUDIO2_VOICE_DETAILS voiceDetails {};
+				pMasterVoice->GetVoiceDetails(&voiceDetails);
+				WAVEFORMATEXTENSIBLE waveFormat = mpAudioEngine->GetOutputFormat();
+				miMasteringVoiceChannels = std::min(static_cast<int64_t>(voiceDetails.InputChannels), static_cast<int64_t>(waveFormat.Format.nChannels));
+			}
 		}
 
 		// After Reset() is called, all XAudio2SourceVoices are destroyed internally to AudioEngine and their pointers must be set to nullptr

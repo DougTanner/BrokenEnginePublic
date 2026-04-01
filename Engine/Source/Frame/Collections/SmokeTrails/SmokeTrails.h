@@ -43,19 +43,17 @@ struct SmokeTrailsInterpolate : public Collection<SmokeTrailsInterpolate, Collec
 	// Member arrays (SOA)
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
+	XMVECTOR* __restrict pVecSmoothedPositions = nullptr;
 	float* __restrict pfIntensities = nullptr;
 	float* __restrict pfStartTimes = nullptr;
 
 	auto Members(this auto&& rSelf)
 	{
-		return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pfIntensities, rSelf.pfStartTimes);
+		return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pVecSmoothedPositions, rSelf.pfIntensities, rSelf.pfStartTimes);
 	}
 
 	// Graphics resources
 	static void GraphicsResources();
-
-	// Reset render state (clears cached positions for world reset)
-	static void ResetRenderState();
 
 	// Render
 	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords);
@@ -85,7 +83,10 @@ struct SmokeTrailsPostRender : public Collection<SmokeTrailsPostRender>
 	static void Spawn(game::Frame& __restrict rFrame);
 
 	smoke_trails_t* __restrict puiIds = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }
+	auto Members(this auto&& rSelf)
+	{
+		return std::tie(rSelf.puiIds);
+	}
 
 };
 

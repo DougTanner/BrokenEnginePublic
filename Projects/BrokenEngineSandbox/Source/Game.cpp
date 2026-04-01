@@ -340,8 +340,8 @@ void Game::BuildFrameInputs()
 	}
 
 	// Camera shake
-	auto inputIt = mCoordFrames.find(mClientGridCoord);
-	if (ClientPlayerId().IsValid() && inputIt != mCoordFrames.end() && inputIt->second.pCurrent != nullptr)
+	auto it = mCoordFrames.find(mClientGridCoord);
+	if (ClientPlayerId().IsValid() && it != mCoordFrames.end() && it->second.pCurrent != nullptr)
 	{
 		const Frame& rCurrentFrame = CurrentFrame(mClientGridCoord);
 		const PlayersPostRender& rPlayersPostRender = *rCurrentFrame.postRender.pPlayers;
@@ -532,7 +532,6 @@ void Game::Reset()
 	engine::gSunAngleOverride.Reset(game::gpCamera->RawSunAngle());
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
-	engine::SmokeTrailsInterpolate::ResetRenderState();
 	engine::WindTrailsInterpolate::ResetRenderState();
 	mVecVisualErrorOffset = {};
 	mWeaponModeToggle.Reset();

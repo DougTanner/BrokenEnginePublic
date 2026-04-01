@@ -20,6 +20,7 @@ void SmokeTrailsInterpolate::AllocateAndCopy(SmokeTrailsInterpolate& rCurrent, c
 	{
 		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
 		std::memcpy(rCurrent.pVecPositions, rPrevious.pVecPositions, rCurrent.iCount * sizeof(rCurrent.pVecPositions[0]));
+		std::memcpy(rCurrent.pVecSmoothedPositions, rPrevious.pVecSmoothedPositions, rCurrent.iCount * sizeof(rCurrent.pVecSmoothedPositions[0]));
 		std::memcpy(rCurrent.pfIntensities, rPrevious.pfIntensities, rCurrent.iCount * sizeof(rCurrent.pfIntensities[0]));
 		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, rCurrent.iCount * sizeof(rCurrent.pfStartTimes[0]));
 	}
@@ -43,9 +44,24 @@ void SmokeTrailsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFr
 {
 }
 
-void SmokeTrailsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+static constexpr float kfSmoothingRate = 10.4f;
+
+void SmokeTrailsInterpolate::Update(game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
-	// Smoothing is handled in Render() using static render state
+	SmokeTrailsInterpolate& rCurrent = rFrameInterpolate.smokeTrails;
+	float fSmoothingInterpolant = common::ExponentialInterpolant(kfSmoothingRate, rFrameInterpolate.fDeltaTime);
+
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	{
+		if (XMVectorGetW(rCurrent.pVecSmoothedPositions[i]) == 0.0f)
+		{
+			rCurrent.pVecSmoothedPositions[i] = rCurrent.pVecPositions[i];
+		}
+		else
+		{
+			rCurrent.pVecSmoothedPositions[i] = XMVectorLerp(rCurrent.pVecSmoothedPositions[i], rCurrent.pVecPositions[i], fSmoothingInterpolant);
+		}
+	}
 }
 
 void SmokeTrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
@@ -92,6 +108,7 @@ void SmokeTrailsPostRender::Add(game::Frame& __restrict rFrame, smoke_trails_t& 
 	rId = id;
 	rPostRender.puiIds[iSpawnIndex] = id;
 	rInterpolate.puiTypeIndices[iSpawnIndex] = uiTypeIndex;
+	rInterpolate.pVecSmoothedPositions[iSpawnIndex] = XMVectorZero();
 	if (reuseId.IsValid())
 	{
 		rInterpolate.pfStartTimes[iSpawnIndex] = 0.0f;

@@ -129,8 +129,8 @@ void ClientSession::PollNetwork()
 				if (gpGame->PlayerCount() == 0)
 				{
 					gpGame->mGameFlags.Set(engine::GameFlags::kDeathScreen);
-					auto deathIt = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
-					if (deathIt != gpGame->mCoordFrames.end() && deathIt->second.pCurrent != nullptr)
+					auto it = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
+					if (it != gpGame->mCoordFrames.end() && it->second.pCurrent != nullptr)
 					{
 						gpGame->CurrentFrame(gpGame->mClientGridCoord).interpolate.gameFlags.Set(GameFlags::kDeathScreen);
 					}
@@ -261,13 +261,25 @@ void ClientSession::ApplyReceivedFullStates()
 		engine::GridCoord coord = rFullState.coord;
 		int64_t iTick = rFullState.iTick;
 
+		engine::CoordFrames& rSub = gpGame->mCoordFrames.try_emplace(coord).first->second;
+
 		// Initialize client-only objects
 		Frame& rFrame = *rFullState.pFrame;
 		BlastersInterpolate::ClientInitAll(rFrame);
 		MissilesInterpolate::ClientInitAll(rFrame);
 		SpaceshipsInterpolate::ClientInitAll(rFrame);
 
-		engine::CoordFrames& rSub = gpGame->mCoordFrames.try_emplace(coord).first->second;
+		// Copy smoke trail smoothed positions from existing frame to preserve rendering continuity across reconciliation
+		if (rSub.pCurrent != nullptr)
+		{
+			const engine::SmokeTrailsInterpolate& rOldSmokeTrails = rSub.pCurrent->interpolate.smokeTrails;
+			engine::SmokeTrailsInterpolate& rNewSmokeTrails = rFrame.interpolate.smokeTrails;
+			int64_t iCopyCount = std::min(rOldSmokeTrails.iCount, rNewSmokeTrails.iCount);
+			if (iCopyCount > 0)
+			{
+				std::memcpy(rNewSmokeTrails.pVecSmoothedPositions, rOldSmokeTrails.pVecSmoothedPositions, iCopyCount * sizeof(XMVECTOR));
+			}
+		}
 		if (rSub.uiGeneration == 0)
 		{
 			rSub.uiGeneration = mpReconciler->NextGeneration();
@@ -565,7 +577,7 @@ void ClientSession::ResetForServerLoad()
 
 	// Clear stale coord data from this poll cycle (game packets preserved for assign processing)
 	mpClientNetwork->DrainReceivedFullStates().clear();
-	for (auto& rSlotUpdates : mpClientNetwork->DrainReceivedCoordUpdates())
+	for (std::vector<engine::ReceivedCoordUpdate>& rSlotUpdates : mpClientNetwork->DrainReceivedCoordUpdates())
 	{
 		rSlotUpdates.clear();
 	}

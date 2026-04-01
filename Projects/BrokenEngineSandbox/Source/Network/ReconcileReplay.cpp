@@ -146,6 +146,7 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 			LogStatusChangeList("Server StatusChanges", rUpdate.statusChanges);
 			LogStatusChangeList("Client StatusChanges", rFrameInput.statusChanges);
 		}
+		LogPerCollectionCrcBreakdown(rCurrentFrame); // DT TEMP
 
 		if (rWork.coord != rReconcileContext.confirmedClientState.clientGridCoord)
 		{
@@ -219,6 +220,9 @@ static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordRecon
 		iMaxReplay = std::max(iAvailable / 2, 1LL);
 	}
 	int64_t iReplayCount = 0;
+
+	// DT TEMP
+	Log(kLogNetwork, kVerbose, "ReconcileReplayCoord Throttle Coord: ({},{}) JitterUs: {} Available: {} MaxReplay: {}", rWork.coord.x, rWork.coord.y, iJitterUs, iAvailable, iMaxReplay);
 
 	for (int64_t iTick = iReplayStart; iTick <= iMaxConsecutive; ++iTick)
 	{

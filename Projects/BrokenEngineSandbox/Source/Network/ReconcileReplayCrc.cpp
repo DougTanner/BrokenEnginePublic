@@ -3,6 +3,7 @@
 #include "Network/ReconcileReplay.h"
 
 #include "Network/ClientReconciler.h"
+#include "Frame/FrameCollections.h"
 
 namespace game
 {
@@ -50,6 +51,64 @@ void LogStatusChangeList(std::string_view label, std::span<const StatusChange> s
 		ScopedLogIndent scopedEntry;
 		LogStatusChangeDetail(rStatusChange);
 		++i;
+	}
+}
+
+// DT TEMP
+void LogPerCollectionCrcBreakdown(const Frame& rFrame)
+{
+	ScopedLogIndent scopedIndent;
+
+	// Entity counts
+	Log(kLogNetwork, kVerbose, "EntityCounts Players: {}/{} Blasters: {}/{} Missiles: {}/{} Spaceships: {}/{} Targets: {}/{}",
+		rFrame.interpolate.pPlayers->iCount, rFrame.postRender.pPlayers->iCount,
+		rFrame.interpolate.pBlasters->iCount, rFrame.postRender.pBlasters->iCount,
+		rFrame.interpolate.pMissiles->iCount, rFrame.postRender.pMissiles->iCount,
+		rFrame.interpolate.pSpaceships->iCount, rFrame.postRender.pSpaceships->iCount,
+		rFrame.interpolate.pTargets->iCount, rFrame.postRender.pTargets->iCount);
+
+	// Per-collection shared CRCs (interpolate)
+	{
+		auto [baseCrc, baseSharedCrc] = static_cast<const engine::FrameInterpolateBase&>(rFrame.interpolate).Crcs();
+		common::crc_t playerSharedCrc = engine::CollectionCrc(*rFrame.interpolate.pPlayers, rFrame.interpolate.pPlayers->SharedCrcMembers());
+		char acBase[20] {}, acPlayer[20] {};
+		common::ToHex(std::span<char, 20>(acBase), baseSharedCrc);
+		common::ToHex(std::span<char, 20>(acPlayer), playerSharedCrc);
+		Log(kLogNetwork, kVerbose, "InterpSharedCrc Base: {} Players: {}", acBase, acPlayer);
+
+		auto logInterp = [&]<typename T>(const T& col, const char* name)
+		{
+			common::crc_t colCrc = engine::SharedCollectionCrc(col);
+			char acCrc[20] {};
+			common::ToHex(std::span<char, 20>(acCrc), colCrc);
+			Log(kLogNetwork, kVerbose, "InterpSharedCrc {}: {} Count: {}", name, acCrc, col.iCount);
+		};
+		logInterp(*rFrame.interpolate.pBlasters, "Blasters");
+		logInterp(*rFrame.interpolate.pMissiles, "Missiles");
+		logInterp(*rFrame.interpolate.pSpaceships, "Spaceships");
+		logInterp(*rFrame.interpolate.pTargets, "Targets");
+	}
+
+	// Per-collection shared CRCs (post-render)
+	{
+		auto [baseCrc, baseSharedCrc] = static_cast<const engine::FramePostRenderBase&>(rFrame.postRender).Crcs();
+		common::crc_t playerSharedCrc = engine::CollectionCrc(*rFrame.postRender.pPlayers, rFrame.postRender.pPlayers->SharedCrcMembers());
+		char acBase[20] {}, acPlayer[20] {};
+		common::ToHex(std::span<char, 20>(acBase), baseSharedCrc);
+		common::ToHex(std::span<char, 20>(acPlayer), playerSharedCrc);
+		Log(kLogNetwork, kVerbose, "PostRenderSharedCrc Base: {} Players: {}", acBase, acPlayer);
+
+		auto logPostRender = [&]<typename T>(const T& col, const char* name)
+		{
+			common::crc_t colCrc = engine::SharedCollectionCrc(col);
+			char acCrc[20] {};
+			common::ToHex(std::span<char, 20>(acCrc), colCrc);
+			Log(kLogNetwork, kVerbose, "PostRenderSharedCrc {}: {} Count: {}", name, acCrc, col.iCount);
+		};
+		logPostRender(*rFrame.postRender.pBlasters, "Blasters");
+		logPostRender(*rFrame.postRender.pMissiles, "Missiles");
+		logPostRender(*rFrame.postRender.pSpaceships, "Spaceships");
+		logPostRender(*rFrame.postRender.pTargets, "Targets");
 	}
 }
 
@@ -102,6 +161,7 @@ static CrcValidateResult CrcValidateLoop(CoordReconcileWork& rWork, int64_t iTar
 				Log(kLogNetwork, kVerbose, "ServerInputCrc: {} ClientInputCrc: {}", acServerInputCrc, acClientInputCrc);
 				LogStatusChangeList("Server StatusChanges", it->second.statusChanges);
 			}
+			LogPerCollectionCrcBreakdown(*rWork.snapshots[iPhysical]); // DT TEMP
 			result.bMatch = false;
 			break;
 		}
