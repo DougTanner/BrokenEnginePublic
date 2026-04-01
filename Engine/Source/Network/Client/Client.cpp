@@ -22,7 +22,7 @@ Client::Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots)
 	mpHost = enet_host_create(nullptr, 1, NetworkManager::kuiChannelCount, 0, 0);
 	if (mpHost == nullptr)
 	{
-		Log(kLogNetwork, "Client::Client enet_host_create failed");
+		Log(kLogNetwork, kWarning, "Client::Client enet_host_create failed");
 		return;
 	}
 	// 1MB send/receive buffers to handle bursty packet traffic
@@ -217,7 +217,7 @@ void Client::Receive(const uint8_t* pData, size_t iSize)
 			mbLoadNotificationReceived = true;
 			break;
 		default:
-			Log(kLogNetwork, "Client::Receive unknown packet type {}", static_cast<uint8_t>(eType));
+			Log(kLogNetwork, kWarning, "Client::Receive unknown packet type {}", static_cast<uint8_t>(eType));
 			break;
 	}
 }
@@ -248,7 +248,7 @@ void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 	int64_t iBitIndex = iTick - rAck.iAckFloor - 1;
 	if (iBitIndex >= kiNetworkBufferSize)
 	{
-		Log(kLogNetwork, "Client::TrackReceivedTick Too many missing frames, disconnecting Slot: {} Gap: {}", iSlot, iBitIndex + 1);
+		Log(kLogNetwork, kWarning, "Client::TrackReceivedTick Too many missing frames, disconnecting Slot: {} Gap: {}", iSlot, iBitIndex + 1);
 		mbDisconnectedEvent = true;
 		return;
 	}

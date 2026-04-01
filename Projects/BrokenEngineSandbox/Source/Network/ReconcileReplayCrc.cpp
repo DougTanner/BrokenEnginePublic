@@ -11,42 +11,42 @@ namespace game
 
 static void LogStatusChangeDetail(const StatusChange& rStatusChange)
 {
-	Log(kLogNetwork, "Type: {}", StatusChangeTypeName(rStatusChange.eType));
+	Log(kLogNetwork, kVerbose, "Type: {}", StatusChangeTypeName(rStatusChange.eType));
 	ScopedLogIndent scopedDetail;
 
 	if (const auto* pSpawn = std::get_if<SpawnPlayerData>(&rStatusChange.data))
 	{
-		Log(kLogNetwork, "GlobalId: {}", pSpawn->iGlobalId);
+		Log(kLogNetwork, kVerbose, "GlobalId: {}", pSpawn->iGlobalId);
 	}
 	else if (const auto* pDestroy = std::get_if<DestroyPlayerData>(&rStatusChange.data))
 	{
-		Log(kLogNetwork, "PlayerUuid: {}", pDestroy->iPlayerUuid);
+		Log(kLogNetwork, kVerbose, "PlayerUuid: {}", pDestroy->iPlayerUuid);
 	}
 	else if (const auto* pWeapon = std::get_if<WeaponModeChangeData>(&rStatusChange.data))
 	{
-		Log(kLogNetwork, "PlayerUuid: {}", pWeapon->iPlayerUuid);
+		Log(kLogNetwork, kVerbose, "PlayerUuid: {}", pWeapon->iPlayerUuid);
 	}
 	else if (const auto* pTransfer = std::get_if<TransferData>(&rStatusChange.data))
 	{
-		Log(kLogNetwork, "Position: {} Direction: {} Velocity: {}", pTransfer->vecPosition, pTransfer->vecDirection, pTransfer->vecVelocity);
+		Log(kLogNetwork, kVerbose, "Position: {} Direction: {} Velocity: {}", pTransfer->vecPosition, pTransfer->vecDirection, pTransfer->vecVelocity);
 		char acAlignment[20] {};
 		common::ToHex(std::span<char, 20>(acAlignment), pTransfer->alignment.uiValue);
-		Log(kLogNetwork, "Alignment: {} Health: {} Shield: {} TypeIndex: {}", acAlignment, pTransfer->fHealth, pTransfer->fShield, pTransfer->uiTypeIndex);
-		Log(kLogNetwork, "WindTrailIntensity: {} WindTrailWidth: {} WindTrailLengthMultiplier: {} Acceleration: {}", pTransfer->fWindTrailIntensity, pTransfer->fWindTrailWidth, pTransfer->fWindTrailLengthMultiplier, pTransfer->fAcceleration);
-		Log(kLogNetwork, "NextBlasterFireTime: {} NextSecondarySpawnTime: {} ShieldCooldown: {} ShieldDownSoundCooldown: {}", pTransfer->fNextBlasterFireTime, pTransfer->fNextSecondarySpawnTime, pTransfer->fShieldCooldown, pTransfer->fShieldDownSoundCooldown);
-		Log(kLogNetwork, "AnimationTime: {} ShieldRotation: {} ShieldShrink: {} PlayerFlags: {}", pTransfer->fAnimationTime, pTransfer->fShieldRotation, pTransfer->fShieldShrink, pTransfer->uiPlayerFlags);
-		Log(kLogNetwork, "NextBlasterSpawnTime: {}", pTransfer->fNextBlasterSpawnTime);
-		Log(kLogNetwork, "DeltaRotationDelay: {} Time: {} ExhaustDelay: {} NextJitter: {}", pTransfer->fDeltaRotationDelay, pTransfer->fTime, pTransfer->fExhaustDelay, pTransfer->fNextJitter);
+		Log(kLogNetwork, kVerbose, "Alignment: {} Health: {} Shield: {} TypeIndex: {}", acAlignment, pTransfer->fHealth, pTransfer->fShield, pTransfer->uiTypeIndex);
+		Log(kLogNetwork, kVerbose, "WindTrailIntensity: {} WindTrailWidth: {} WindTrailLengthMultiplier: {} Acceleration: {}", pTransfer->fWindTrailIntensity, pTransfer->fWindTrailWidth, pTransfer->fWindTrailLengthMultiplier, pTransfer->fAcceleration);
+		Log(kLogNetwork, kVerbose, "NextBlasterFireTime: {} NextSecondarySpawnTime: {} ShieldCooldown: {} ShieldDownSoundCooldown: {}", pTransfer->fNextBlasterFireTime, pTransfer->fNextSecondarySpawnTime, pTransfer->fShieldCooldown, pTransfer->fShieldDownSoundCooldown);
+		Log(kLogNetwork, kVerbose, "AnimationTime: {} ShieldRotation: {} ShieldShrink: {} PlayerFlags: {}", pTransfer->fAnimationTime, pTransfer->fShieldRotation, pTransfer->fShieldShrink, pTransfer->uiPlayerFlags);
+		Log(kLogNetwork, kVerbose, "NextBlasterSpawnTime: {}", pTransfer->fNextBlasterSpawnTime);
+		Log(kLogNetwork, kVerbose, "DeltaRotationDelay: {} Time: {} ExhaustDelay: {} NextJitter: {}", pTransfer->fDeltaRotationDelay, pTransfer->fTime, pTransfer->fExhaustDelay, pTransfer->fNextJitter);
 	}
 }
 
 void LogStatusChangeList(std::string_view label, std::span<const StatusChange> statusChanges)
 {
-	Log(kLogNetwork, "{} Count: {}", label, statusChanges.size());
+	Log(kLogNetwork, kVerbose, "{} Count: {}", label, statusChanges.size());
 	ScopedLogIndent scopedList;
 	for (size_t i = 0; const StatusChange& rStatusChange : statusChanges)
 	{
-		Log(kLogNetwork, "[{}]", i);
+		Log(kLogNetwork, kVerbose, "[{}]", i);
 		ScopedLogIndent scopedEntry;
 		LogStatusChangeDetail(rStatusChange);
 		++i;
@@ -93,13 +93,13 @@ static CrcValidateResult CrcValidateLoop(CoordReconcileWork& rWork, int64_t iTar
 			common::ToHex(std::span<char, 20>(acSharedCrc), it->second.sharedCrc);
 			common::ToHex(std::span<char, 20>(acClientCrc), rWork.snapshots[iPhysical]->postRender.sharedCrc);
 			common::ToHex(std::span<char, 20>(acPrevCrc), rWork.snapshots[iPhysical]->postRender.previousCrc);
-			Log(kLogNetwork, "CrcValidateLoop Server CRC mismatch Coord: ({},{}) Tick: {} SharedCrc: {} ClientCrc: {} PrevCrc: {}", rWork.coord.x, rWork.coord.y, iExpected, acSharedCrc, acClientCrc, acPrevCrc);
+			Log(kLogNetwork, kVerbose, "CrcValidateLoop Server CRC mismatch Coord: ({},{}) Tick: {} SharedCrc: {} ClientCrc: {} PrevCrc: {}", rWork.coord.x, rWork.coord.y, iExpected, acSharedCrc, acClientCrc, acPrevCrc);
 			{
 				ScopedLogIndent scopedCrcIndent;
 				char acServerInputCrc[20] {}, acClientInputCrc[20] {};
 				common::ToHex(std::span<char, 20>(acServerInputCrc), it->second.inputCrc);
 				common::ToHex(std::span<char, 20>(acClientInputCrc), rWork.snapshots[iPhysical]->postRender.previousInputCrc);
-				Log(kLogNetwork, "ServerInputCrc: {} ClientInputCrc: {}", acServerInputCrc, acClientInputCrc);
+				Log(kLogNetwork, kVerbose, "ServerInputCrc: {} ClientInputCrc: {}", acServerInputCrc, acClientInputCrc);
 				LogStatusChangeList("Server StatusChanges", it->second.statusChanges);
 			}
 			result.bMatch = false;
@@ -110,7 +110,7 @@ static CrcValidateResult CrcValidateLoop(CoordReconcileWork& rWork, int64_t iTar
 			char acServerInputCrc[20] {}, acClientInputCrc[20] {};
 			common::ToHex(std::span<char, 20>(acServerInputCrc), it->second.inputCrc);
 			common::ToHex(std::span<char, 20>(acClientInputCrc), rWork.snapshots[iPhysical]->postRender.previousInputCrc);
-			Log(kLogNetwork, "CrcValidateLoop Input CRC mismatch Coord: ({},{}) Tick: {} ServerInputCrc: {} ClientInputCrc: {}", rWork.coord.x, rWork.coord.y, iExpected, acServerInputCrc, acClientInputCrc);
+			Log(kLogNetwork, kVerbose, "CrcValidateLoop Input CRC mismatch Coord: ({},{}) Tick: {} ServerInputCrc: {} ClientInputCrc: {}", rWork.coord.x, rWork.coord.y, iExpected, acServerInputCrc, acClientInputCrc);
 			{
 				ScopedLogIndent scopedInputIndent;
 				LogStatusChangeList("Server StatusChanges", it->second.statusChanges);
@@ -149,7 +149,7 @@ CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork, int64_
 	if (rWork.pendingFullState.has_value())
 	{
 		result.bHandled = false;
-		Log(kLogNetwork, "CrcFastPathProcessCoord Pending full state forces reconcile Coord: ({},{})", rWork.coord.x, rWork.coord.y);
+		Log(kLogNetwork, kVerbose, "CrcFastPathProcessCoord Pending full state forces reconcile Coord: ({},{})", rWork.coord.x, rWork.coord.y);
 		return result;
 	}
 
@@ -174,20 +174,20 @@ CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork, int64_
 		if (!validateResult.bMatch)
 		{
 			result.bHandled = false;
-			Log(kLogNetwork, "CrcFastPathProcessCoord CRC mismatch after partial match Coord: ({},{}) LastMatched: {}", rWork.coord.x, rWork.coord.y, validateResult.iLastMatched);
+			Log(kLogNetwork, kVerbose, "CrcFastPathProcessCoord CRC mismatch after partial match Coord: ({},{}) LastMatched: {}", rWork.coord.x, rWork.coord.y, validateResult.iLastMatched);
 		}
 	}
 	else if (!validateResult.bMatch)
 	{
 		result.bHandled = false;
-		Log(kLogNetwork, "CrcFastPathProcessCoord CRC mismatch no matches Coord: ({},{})", rWork.coord.x, rWork.coord.y);
+		Log(kLogNetwork, kVerbose, "CrcFastPathProcessCoord CRC mismatch no matches Coord: ({},{})", rWork.coord.x, rWork.coord.y);
 	}
 	else
 	{
 		if (rWork.iConfirmedTick + 1 < iTargetTick)
 		{
 			result.bHandled = false;
-			Log(kLogNetwork, "CrcFastPathProcessCoord Snapshot missing Coord: ({},{}) Confirmed: {} Target: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, iTargetTick);
+			Log(kLogNetwork, kVerbose, "CrcFastPathProcessCoord Snapshot missing Coord: ({},{}) Confirmed: {} Target: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, iTargetTick);
 		}
 	}
 

@@ -17,11 +17,11 @@ RawInputManager::RawInputManager()
 	}
 	catch ([[maybe_unused]] const std::exception& rException)
 	{
-		Log(kLogError, "Failed GamePad: {}", rException.what());
+		Log(kError, "Failed GamePad: {}", rException.what());
 	}
 	catch (...)
 	{
-		Log(kLogError, "Failed GamePad");
+		Log(kError, "Failed GamePad");
 	}
 }
 
@@ -50,7 +50,7 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 		Log("RegisterRawInputDevices");
 		if (RegisterRawInputDevices(pRawinputdevices, 2, sizeof(RAWINPUTDEVICE)) == FALSE)
 		{
-			Log(kLogError, "Failed to register raw input: {}", common::LastErrorString().data());
+			Log(kError, "Failed to register raw input: {}", common::LastErrorString().data());
 		}
 
 		if (mpGamePad != nullptr)
@@ -77,7 +77,7 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 		Log("UnregisterRawInputDevices");
 		if (RegisterRawInputDevices(pRawinputdevices, 2, sizeof(RAWINPUTDEVICE)) == FALSE)
 		{
-			Log(kLogError, "Failed to unregister raw input: {}", common::LastErrorString().data());
+			Log(kError, "Failed to unregister raw input: {}", common::LastErrorString().data());
 		}
 
 		if (mpGamePad != nullptr)
@@ -216,7 +216,7 @@ void RawInputManager::Update(bool bLostFocus)
 
 void RawInputManager::HandleRawInput(LPARAM lparam)
 {
-	auto hrawinput = reinterpret_cast<HRAWINPUT>(lparam);
+	HRAWINPUT hrawinput = reinterpret_cast<HRAWINPUT>(lparam);
 
 	UINT uiRawInputBytes = 0;
 	GetRawInputData(hrawinput, RID_INPUT, nullptr, &uiRawInputBytes, sizeof(RAWINPUTHEADER));
@@ -224,7 +224,7 @@ void RawInputManager::HandleRawInput(LPARAM lparam)
 	auto pRawinput = common::gpThreadLocal->mWorkbuffer.PushBuffer<RAWINPUT*>(uiRawInputBytes);
 	if (GetRawInputData(hrawinput, RID_INPUT, pRawinput, &uiRawInputBytes, sizeof(RAWINPUTHEADER)) != uiRawInputBytes)
 	{
-		Log("GetRawInputData did not return correct size!");
+		Log(kWarning, "GetRawInputData did not return correct size!");
 		DEBUG_BREAK();
 		common::gpThreadLocal->mWorkbuffer.Pop();
 		return;

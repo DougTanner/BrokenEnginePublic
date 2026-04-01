@@ -118,7 +118,7 @@ void HudScreen::RenderPlayerPanel()
 	{
 		gpGame->FocusPrev();
 		gpClientSession->UpdateDesiredCoords("FocusPrev");
-		Log(kLogDefault, "HUD FocusPrev NewIndex: {} PlayerCount: {}", gpGame->FocusedPlayerIndex(), iPlayerCount); // DT TEMP
+		Log(kVerbose, "HUD FocusPrev NewIndex: {} PlayerCount: {}", gpGame->FocusedPlayerIndex(), iPlayerCount); // DT TEMP
 	}
 	ImGui::EndDisabled();
 
@@ -132,7 +132,7 @@ void HudScreen::RenderPlayerPanel()
 	{
 		gpGame->FocusNext();
 		gpClientSession->UpdateDesiredCoords("FocusNext");
-		Log(kLogDefault, "HUD FocusNext NewIndex: {} PlayerCount: {}", gpGame->FocusedPlayerIndex(), iPlayerCount); // DT TEMP
+		Log(kVerbose, "HUD FocusNext NewIndex: {} PlayerCount: {}", gpGame->FocusedPlayerIndex(), iPlayerCount); // DT TEMP
 	}
 	ImGui::EndDisabled();
 
@@ -144,7 +144,7 @@ void HudScreen::RenderPlayerPanel()
 		{
 			gpGame->mSpawnToggle.SetPending();
 			engine::gpClient->SendSpawnRequest({engine::ClientRequestFlags::kSpawnRequested});
-			Log(kLogDefault, "HUD SpawnRequest PlayerCount: {}", iPlayerCount); // DT TEMP
+			Log(kVerbose, "HUD SpawnRequest PlayerCount: {}", iPlayerCount); // DT TEMP
 		}
 	}
 	ImGui::EndDisabled();
@@ -172,7 +172,7 @@ void HudScreen::RenderPlayerPanel()
 			{
 				gpGame->mWeaponModeToggle.SetPending();
 				engine::gpClient->SendWeaponModeRequest(gpGame->ClientPlayerId().iValue);
-				Log(kLogDefault, "HUD WeaponModeToggle GlobalPlayerId: {}", gpGame->ClientPlayerId().iValue); // DT TEMP
+				Log(kVerbose, "HUD WeaponModeToggle GlobalPlayerId: {}", gpGame->ClientPlayerId().iValue); // DT TEMP
 			}
 		}
 		ImGui::EndDisabled();

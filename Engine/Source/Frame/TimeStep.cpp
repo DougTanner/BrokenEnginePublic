@@ -17,7 +17,7 @@ int64_t TimeStep::TickRealtime()
 		float fDelta = common::NanosecondsToFloatSeconds<float>(realDeltaNs);
 		if (mAverageDelta.miCount > 200 && fDelta > 1.9f * mAverageDelta.Average())
 		{
-			Log("\n\n\n  deltaNs spike {} > {}", fDelta, mAverageDelta.Average());
+			Log(kWarning, "\n\n\n  deltaNs spike {} > {}", fDelta, mAverageDelta.Average());
 			static bool sbOnce = false;
 			if (!sbOnce)
 			{
@@ -25,7 +25,7 @@ int64_t TimeStep::TickRealtime()
 				gpProfileManager->LogTimers();
 			}
 		}
-		Log("\n\n");
+		Log(kVerbose, "\n\n");
 
 		mAverageDelta = fDelta;
 	}
@@ -39,7 +39,7 @@ int64_t TimeStep::TickRealtime()
 		int64_t iEstimatedTicks = mTickRemainderNs / game::kTickNs;
 		if (iEstimatedTicks > kiMaxTicksPerFrame && miTimeMultiply > 1) [[unlikely]]
 		{
-			Log("Death spiral detected: {} ticks at {}x speed", iEstimatedTicks, miTimeMultiply);
+			Log(kWarning, "Death spiral detected: {} ticks at {}x speed", iEstimatedTicks, miTimeMultiply);
 			DecreaseTimeScale(false);
 		}
 	}
@@ -48,6 +48,7 @@ int64_t TimeStep::TickRealtime()
 	std::chrono::nanoseconds maxAccumulator = game::kTickNs * kiMaxAccumulatorTicks;
 	if (mTickRemainderNs > maxAccumulator)
 	{
+		Log(kWarning, "TimeStep::TickRealtime Accumulator clamped DeltaMs: {} PreClampTicks: {} MaxTicks: {}", std::chrono::duration_cast<std::chrono::milliseconds>(realDeltaNs).count(), mTickRemainderNs / game::kTickNs, kiMaxAccumulatorTicks); // DT TEMP
 		mTickRemainderNs = maxAccumulator;
 	}
 

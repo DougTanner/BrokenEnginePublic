@@ -84,7 +84,7 @@ void ClientSession::UpdateDesiredCoords(std::string_view reason)
 		// Heap: mDesiredCoords.assign and mUnwantedTimestamps may allocate on subscription changes
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-		Log(kLogNetwork, "Desired subscriptions changed Reason: {} Count: {} -> {}", reason, mDesiredCoords.size(), iDesiredCount);
+		Log(kLogNetwork, kVerbose, "Desired subscriptions changed Reason: {} Count: {} -> {}", reason, mDesiredCoords.size(), iDesiredCount);
 
 		// Track when coords become unwanted for sticky subscriptions
 		std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
@@ -92,7 +92,7 @@ void ClientSession::UpdateDesiredCoords(std::string_view reason)
 		{
 			if (!std::ranges::contains(desiredSpan, rCoord))
 			{
-				Log(kLogNetwork, "  Removed ({},{})", rCoord.x, rCoord.y);
+				Log(kLogNetwork, kVerbose, "  Removed ({},{})", rCoord.x, rCoord.y);
 				mUnwantedTimestamps.try_emplace(rCoord, now);
 			}
 		}
@@ -100,7 +100,7 @@ void ClientSession::UpdateDesiredCoords(std::string_view reason)
 		{
 			if (!std::ranges::contains(mDesiredCoords, rCoord))
 			{
-				Log(kLogNetwork, "  Added ({},{})", rCoord.x, rCoord.y);
+				Log(kLogNetwork, kVerbose, "  Added ({},{})", rCoord.x, rCoord.y);
 			}
 			mUnwantedTimestamps.erase(rCoord);
 		}
@@ -125,7 +125,7 @@ void ClientSession::UpdateSubscriptions()
 	{
 		if (now - rPair.second >= kStickySubscriptionDuration)
 		{
-			Log(kLogNetwork, "Sticky subscription expired ({},{})", rPair.first.x, rPair.first.y);
+			Log(kLogNetwork, kVerbose, "Sticky subscription expired ({},{})", rPair.first.x, rPair.first.y);
 			return true;
 		}
 		effectiveDesired.push_back(rPair.first);

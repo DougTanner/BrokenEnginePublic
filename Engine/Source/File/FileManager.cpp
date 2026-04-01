@@ -22,8 +22,6 @@ FileManager::FileManager()
 	CoTaskMemFree(pWideChar);
 	mAppDataDirectory.append(game::kGameName);
 	std::filesystem::create_directory(mAppDataDirectory);
-	mLogFileStream.open(LogFile(), std::ofstream::out);
-	common::gpLogFileStream = &mLogFileStream;
 	Log(kLogLoading, "AppData directory: \"{}\"", mAppDataDirectory.string());
 
 	// Get Windows temp directory and append game name
@@ -65,8 +63,6 @@ FileManager::~FileManager()
 	}
 	_aligned_free(mpReadBuffer);
 	VirtualFree(mpLazyPool, 0, MEM_RELEASE);
-
-	common::gpLogFileStream = nullptr;
 
 	gpFileManager = nullptr;
 }
@@ -261,7 +257,7 @@ void FileManager::LoadPackFiles()
 			for (const common::ChunkLocation& rChunkLocation : mpChunkLocations[i])
 			{
 				// Add to eager chunk map
-				auto pChunkHeader = reinterpret_cast<common::ChunkHeader*>(&rPackBytes[rChunkLocation.uiOffset]);
+				common::ChunkHeader* pChunkHeader = reinterpret_cast<common::ChunkHeader*>(&rPackBytes[rChunkLocation.uiOffset]);
 				ASSERT(pChunkHeader->iMagic == common::ChunkHeader::kiMagic && pChunkHeader->crc == rChunkLocation.crc);
 				uint64_t uiDataOffset = rChunkLocation.uiOffset + common::kiChunkDataOffset;
 

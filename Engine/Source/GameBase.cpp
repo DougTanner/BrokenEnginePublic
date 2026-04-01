@@ -110,7 +110,7 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 	}
 	else if (iFullTicks != 1) [[unlikely]]
 	{
-		Log("iFullTicks: {} != 1", iFullTicks);
+		Log(kWarning, "iFullTicks: {} != 1", iFullTicks);
 	}
 	PrepareActiveSet();
 
@@ -136,7 +136,7 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 	{
 		game::gpServerSession->SendResends(miTickCounter);
 	}
-	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
+	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, true);
 
 	if constexpr (kbProfiling)
 	{
@@ -167,7 +167,7 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 				// DT TEMP: Catch null pCurrent from extrapolation path
 				if (pCurrent == nullptr)
 				{
-					Log(kLogDefault, "BuildDispatch NullExtrapolationCurrent Coord: ({},{}) SnapshotCount: {} ConfirmedTick: {}",
+					Log(kLogDefault, kWarning, "BuildDispatch NullExtrapolationCurrent Coord: ({},{}) SnapshotCount: {} ConfirmedTick: {}",
 						rCoord.x, rCoord.y, mCoordFrames.at(rCoord).iSnapshotCount, mCoordFrames.at(rCoord).iConfirmedTick);
 					continue;
 				}
@@ -184,7 +184,7 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 		auto& rFrames = mCoordFrames.at(rCoord);
 		if (rFrames.pCurrent == nullptr || rFrames.pNext == nullptr)
 		{
-			Log(kLogDefault, "BuildDispatch NullFrame Coord: ({},{}) pCurrent: {} pNext: {}",
+			Log(kLogDefault, kWarning, "BuildDispatch NullFrame Coord: ({},{}) pCurrent: {} pNext: {}",
 				rCoord.x, rCoord.y, rFrames.pCurrent != nullptr, rFrames.pNext != nullptr);
 			continue;
 		}
@@ -248,7 +248,7 @@ void GameBase::FinalizeFrameTick([[maybe_unused]] const std::vector<GridCoord>& 
 		auto it = mCoordFrames.find(rCoord);
 		if (it == mCoordFrames.end() || it->second.pCurrent == nullptr || it->second.pNext == nullptr)
 		{
-			Log(kLogDefault, "PostSwap NullFrame Coord: ({},{}) Exists: {} pCurrent: {} pNext: {}",
+			Log(kLogDefault, kWarning, "PostSwap NullFrame Coord: ({},{}) Exists: {} pCurrent: {} pNext: {}",
 				rCoord.x, rCoord.y, it != mCoordFrames.end(),
 				it != mCoordFrames.end() && it->second.pCurrent != nullptr,
 				it != mCoordFrames.end() && it->second.pNext != nullptr);

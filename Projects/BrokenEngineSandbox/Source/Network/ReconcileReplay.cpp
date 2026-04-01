@@ -66,7 +66,7 @@ static bool ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, floa
 {
 	if (rWork.iReplayWriteCount >= engine::kiNetworkBufferSize)
 	{
-		Log(kLogNetwork, "ReconcileRunTickCoord Ring buffer full WriteCount: {} Tick: {}", rWork.iReplayWriteCount, iTick);
+		Log(kLogNetwork, kVerbose, "ReconcileRunTickCoord Ring buffer full WriteCount: {} Tick: {}", rWork.iReplayWriteCount, iTick);
 		return false;
 	}
 
@@ -100,7 +100,7 @@ static bool ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, floa
 			if (rStatusChange.eType == StatusChangeType::kTransferPlayer)
 			{
 				// DT TEMP
-				Log(kLogNetwork, "ReconcileRunTickCoord SpawnTransfer TransferPlayer Coord: ({},{}) Tick: {} PlayerCount: {}", rWork.coord.x, rWork.coord.y, iTick, pNext->postRender.pPlayers->iCount);
+				Log(kLogNetwork, kVerbose, "ReconcileRunTickCoord SpawnTransfer TransferPlayer Coord: ({},{}) Tick: {} PlayerCount: {}", rWork.coord.x, rWork.coord.y, iTick, pNext->postRender.pPlayers->iCount);
 			}
 		}
 	}
@@ -136,20 +136,20 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 		common::ToHex(std::span<char, 20>(acSharedCrc), rUpdate.sharedCrc);
 		common::ToHex(std::span<char, 20>(acClientCrc), clientCrc);
 		common::ToHex(std::span<char, 20>(acPrevCrc), rCurrentFrame.postRender.previousCrc);
-		Log(kLogNetwork, "ReconcileValidateCrcCoord Desync Coord: ({},{}) Frame: {} SharedCrc: {} ClientCrc: {} PrevCrc: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, acPrevCrc);
+		Log(kLogNetwork, kVerbose, "ReconcileValidateCrcCoord Desync Coord: ({},{}) Frame: {} SharedCrc: {} ClientCrc: {} PrevCrc: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, acPrevCrc);
 		{
 			ScopedLogIndent scopedCrcIndent;
 			char acServerInputCrc[20] {}, acClientInputCrc[20] {};
 			common::ToHex(std::span<char, 20>(acServerInputCrc), rUpdate.inputCrc);
 			common::ToHex(std::span<char, 20>(acClientInputCrc), rFrameInput.ServerInputCrc());
-			Log(kLogNetwork, "ServerInputCrc: {} ClientInputCrc: {}", acServerInputCrc, acClientInputCrc);
+			Log(kLogNetwork, kVerbose, "ServerInputCrc: {} ClientInputCrc: {}", acServerInputCrc, acClientInputCrc);
 			LogStatusChangeList("Server StatusChanges", rUpdate.statusChanges);
 			LogStatusChangeList("Client StatusChanges", rFrameInput.statusChanges);
 		}
 
 		if (rWork.coord != rReconcileContext.confirmedClientState.clientGridCoord)
 		{
-			Log(kLogNetwork, "ReconcileValidateCrcCoord Neighbor CRC mismatch (non-fatal) Coord: ({},{}) Frame: {}", rWork.coord.x, rWork.coord.y, iTick);
+			Log(kLogNetwork, kVerbose, "ReconcileValidateCrcCoord Neighbor CRC mismatch (non-fatal) Coord: ({},{}) Frame: {}", rWork.coord.x, rWork.coord.y, iTick);
 			rWork.iLastValidatedIndex = rWork.iReplayStackCount - 1;
 			rWork.iNewConfirmedTick = iTick;
 			return true;
@@ -169,7 +169,7 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 		char acServerInputCrc[20] {}, acClientInputCrc[20] {};
 		common::ToHex(std::span<char, 20>(acServerInputCrc), rUpdate.inputCrc);
 		common::ToHex(std::span<char, 20>(acClientInputCrc), clientInputCrc);
-		Log(kLogNetwork, "ReconcileValidateCrcCoord Input desync Coord: ({},{}) Frame: {} ServerInputCrc: {} ClientInputCrc: {}", rWork.coord.x, rWork.coord.y, iTick, acServerInputCrc, acClientInputCrc);
+		Log(kLogNetwork, kVerbose, "ReconcileValidateCrcCoord Input desync Coord: ({},{}) Frame: {} ServerInputCrc: {} ClientInputCrc: {}", rWork.coord.x, rWork.coord.y, iTick, acServerInputCrc, acClientInputCrc);
 		{
 			ScopedLogIndent scopedInputIndent;
 			LogStatusChangeList("Server StatusChanges", rUpdate.statusChanges);
@@ -178,7 +178,7 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 
 		if (rWork.coord != rReconcileContext.confirmedClientState.clientGridCoord)
 		{
-			Log(kLogNetwork, "ReconcileValidateCrcCoord Neighbor input CRC mismatch (non-fatal) Coord: ({},{}) Frame: {}", rWork.coord.x, rWork.coord.y, iTick);
+			Log(kLogNetwork, kVerbose, "ReconcileValidateCrcCoord Neighbor input CRC mismatch (non-fatal) Coord: ({},{}) Frame: {}", rWork.coord.x, rWork.coord.y, iTick);
 			rWork.iLastValidatedIndex = rWork.iReplayStackCount - 1;
 			rWork.iNewConfirmedTick = iTick;
 			return true;
@@ -247,7 +247,7 @@ static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordRecon
 		if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick == iTick)
 		{
 			ReconcileInjectPendingFullState(rWork);
-			Log(kLogNetwork, "ReconcileReplayCoord Injected pending full state Coord: ({},{}) Tick: {}", rWork.coord.x, rWork.coord.y, iTick);
+			Log(kLogNetwork, kVerbose, "ReconcileReplayCoord Injected pending full state Coord: ({},{}) Tick: {}", rWork.coord.x, rWork.coord.y, iTick);
 		}
 
 		// CRC validation
@@ -334,7 +334,7 @@ void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWo
 
 	rWork.bFullReplay = true;
 
-	Log(kLogNetwork, "ReconcileCoord Full replay Coord: ({},{}) Confirmed: {} Target: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, rReconcileContext.iTargetTick);
+	Log(kLogNetwork, kVerbose, "ReconcileCoord Full replay Coord: ({},{}) Confirmed: {} Target: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, rReconcileContext.iTargetTick);
 
 	ReconcileRollbackCoord(rWork);
 	float fTime = rWork.replayStack[0]->interpolate.fCurrentTime;
@@ -344,17 +344,17 @@ void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWo
 	{
 		ReconcileInjectPendingFullState(rWork);
 		fTime = rWork.replayStack[0]->interpolate.fCurrentTime;
-		Log(kLogNetwork, "ReconcileCoord Injected pending full state Coord: ({},{}) AtTick: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick);
+		Log(kLogNetwork, kVerbose, "ReconcileCoord Injected pending full state Coord: ({},{}) AtTick: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick);
 	}
 	else if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick < rWork.iConfirmedTick)
 	{
-		Log(kLogNetwork, "ReconcileCoord Discarded stale pending full state Coord: ({},{}) FullStateTick: {} ConfirmedTick: {}", rWork.coord.x, rWork.coord.y, rWork.pendingFullState->iTick, rWork.iConfirmedTick);
+		Log(kLogNetwork, kVerbose, "ReconcileCoord Discarded stale pending full state Coord: ({},{}) FullStateTick: {} ConfirmedTick: {}", rWork.coord.x, rWork.coord.y, rWork.pendingFullState->iTick, rWork.iConfirmedTick);
 		rWork.pendingFullState.reset();
 	}
 
 	int64_t iMaxConsecutive = std::min(ReconcileFindReplayRangeCoord(rWork), rReconcileContext.iTargetTick);
 
-	Log(kLogNetwork, "ReconcileCoord ReplayRange Coord: ({},{}) MaxConsecutive: {} Size: {}", rWork.coord.x, rWork.coord.y, iMaxConsecutive, iMaxConsecutive - rWork.iConfirmedTick);
+	Log(kLogNetwork, kVerbose, "ReconcileCoord ReplayRange Coord: ({},{}) MaxConsecutive: {} Size: {}", rWork.coord.x, rWork.coord.y, iMaxConsecutive, iMaxConsecutive - rWork.iConfirmedTick);
 
 	ReconcileReplayCoord(rReconcileContext, rWork, iMaxConsecutive, fTime);
 	if (rWork.iDesyncTick >= 0)

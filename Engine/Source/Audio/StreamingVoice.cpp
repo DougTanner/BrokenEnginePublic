@@ -84,7 +84,7 @@ bool StreamingVoice::FillBuffer(uint8_t (&rBuffer)[kiBufferSize], int64_t& riByt
 
 	if (!bSuccess)
 	{
-		Log(kLogAudio, "Music streaming: Failed to read chunk data at position {}", miCurrentPosition);
+		Log(kLogAudio, kWarning, "Music streaming: Failed to read chunk data at position {}", miCurrentPosition);
 		return false;
 	}
 
@@ -157,7 +157,7 @@ void StreamingVoice::OnBufferEnd()
 		HRESULT hr = mpVoice->SubmitSourceBuffer(&xaudio2Buffer);
 		if (FAILED(hr))
 		{
-			Log(kLogAudio, "ProcessNextBuffer: ERROR - Failed to submit buffer for stream, HRESULT: 0x{:08X}", hr);
+			Log(kLogAudio, kWarning, "ProcessNextBuffer: ERROR - Failed to submit buffer for stream, HRESULT: 0x{:08X}", hr);
 			mFlags.Set(kLastBufferSubmitted);
 			return;
 		}

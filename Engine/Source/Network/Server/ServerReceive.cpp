@@ -143,14 +143,14 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPee
 
 	if (pBuffered == nullptr)
 	{
-		Log(kLogNetwork, "Server::ClientDebugFrameRequest Frame {} not found in buffer", iTick);
+		Log(kLogNetwork, kWarning, "Server::ClientDebugFrameRequest Frame {} not found in buffer", iTick);
 		return;
 	}
 
 	auto it = pBuffered->serializedFrames.find(coord);
 	if (it == pBuffered->serializedFrames.end())
 	{
-		Log(kLogNetwork, "Server::ClientDebugFrameRequest Frame: {} Coord: ({},{}) not found", iTick, coord.x, coord.y);
+		Log(kLogNetwork, kWarning, "Server::ClientDebugFrameRequest Frame: {} Coord: ({},{}) not found", iTick, coord.x, coord.y);
 		return;
 	}
 
@@ -192,7 +192,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	{
 		char pcMessage[256] {};
 		snprintf(pcMessage, sizeof(pcMessage), "Protocol version mismatch: server is %u, client is %u", kuiProtocolVersion, uiClientProtocolVersion);
-		Log(kLogNetwork, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
+		Log(kLogNetwork, kWarning, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
 
 		SendConnectionResponse(pPeer, false, pcMessage, nullptr);
 		RemoveClient(iClientId);
@@ -220,7 +220,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	{
 		char pcMessage[256] {};
 		snprintf(pcMessage, sizeof(pcMessage), "Build mismatch: server is %s, client is %s", kpcBuildConfigName, pcClientConfig);
-		Log(kLogNetwork, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
+		Log(kLogNetwork, kWarning, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
 
 		SendConnectionResponse(pPeer, false, pcMessage, nullptr);
 
@@ -287,7 +287,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	// Already subscribed?
 	if (pClient->IsCoordSubscribed(coord))
 	{
-		Log(kLogNetwork, "Server::ClientSubscribe AlreadySubscribed Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
+		Log(kLogNetwork, kVerbose, "Server::ClientSubscribe AlreadySubscribed Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
 		return;
 	}
 
@@ -305,7 +305,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	}
 	if (!bAdjacent)
 	{
-		Log(kLogNetwork, "Server::ClientSubscribe Rejected (not adjacent) Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
+		Log(kLogNetwork, kWarning, "Server::ClientSubscribe Rejected (not adjacent) Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
 		SendSubscribeAccept(*pClient, 0xFF, coord);
 		return;
 	}
@@ -313,7 +313,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	int64_t iSlot = pClient->AllocateSlot();
 	if (iSlot < 0)
 	{
-		Log(kLogNetwork, "Server::ClientSubscribe No free slot Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
+		Log(kLogNetwork, kWarning, "Server::ClientSubscribe No free slot Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
 		SendSubscribeAccept(*pClient, 0xFF, coord);
 		return;
 	}

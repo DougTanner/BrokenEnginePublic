@@ -25,6 +25,10 @@ Multi-pass deferred Vulkan renderer with lighting, shadows, GPU particles, and p
 - Lazy texture loading: white placeholder at startup, background disk load, transfer queue upload, deferred descriptor update
 - `Render/` subdirectory contains GPU uniform buffer population split by subsystem (global, main, lighting, smoke, wind)
 
+## Logging
+
+Graphics subsystem logging uses the `kLogGraphics` category. Use `kVerbose` for per-frame events, `kWarning` for recoverable issues, and `kError` for failures.
+
 ## See Also
 
 - [Managers/CLAUDE.md](Managers/CLAUDE.md) - Individual manager implementations and Vulkan patterns

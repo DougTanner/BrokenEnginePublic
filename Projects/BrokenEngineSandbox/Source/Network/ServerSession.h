@@ -57,8 +57,8 @@ private:
 
 	// ComputeActiveSet helpers
 	void AddSubscribedCoords();
-	void AddNeighborCoords();
-	void EnsureSpecialCoords();
+	void EnsurePlayerCoords();
+	void EnsureDestroyCoords();
 	void SyncActiveFrames();
 
 	// HarvestTransfers helpers

@@ -53,7 +53,8 @@ public:
 	std::unique_ptr<NetworkDiscoveryScanner> mpDiscoveryScanner;
 
 	bool mbServerDiscovered = false;
-	char mpcDiscoveredAddress[16] {};
+	bool mbDiscoveryScanTimedOut = false;
+	char mcDiscoveredAddress[16] {};
 
 	int64_t miLatestServerTick = -1;
 	int64_t miClockError = 0;

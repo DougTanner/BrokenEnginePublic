@@ -124,7 +124,7 @@ void TextureCache::GeneratePbrLutBrdf()
 		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
 		if (common::Random(10u, randomEngine) == 0)
 		{
-			Log("Randomly invalidating GLTF BRDF LUT cache");
+			Log(kLogGraphics, "Randomly invalidating GLTF BRDF LUT cache");
 			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "BrdfLut.cache");
 		}
 	}
@@ -224,7 +224,7 @@ bool TextureCache::TryLoadCachedTexture(const std::filesystem::path& rCachePath,
 	if (header.iMagic != TextureFileCacheHeader::kiMagic || header.iVersion != TextureFileCacheHeader::kiVersion || header.vkFormat != vkFormat || header.iWidth != iWidth || header.iHeight != iHeight || header.iMipLevels != iMipLevels || header.iArrayLayers != iArrayLayers || (sourceCrc != 0 && header.sourceCrc != sourceCrc))
 	{
 		fileStream.close();
-		Log("Invalid cache file {} (sourceCrc mismatch: cached={:#x} expected={:#x}), regenerating", rCachePath.string(), header.sourceCrc, sourceCrc);
+		Log(kLogGraphics, kWarning, "Invalid cache file {} (sourceCrc mismatch: cached={:#x} expected={:#x}), regenerating", rCachePath.string(), header.sourceCrc, sourceCrc);
 		return false;
 	}
 
@@ -270,7 +270,7 @@ void TextureCache::SaveTextureToCache(const std::filesystem::path& rCachePath, c
 	fileStreamOut.flush();
 	fileStreamOut.close();
 
-	Log("Saved texture cache to {}", rCachePath.string());
+	Log(kLogGraphics, "Saved texture cache to {}", rCachePath.string());
 }
 
 } // namespace engine

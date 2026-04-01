@@ -60,7 +60,7 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 	rCommandBuffers.mFlags.Set(CommandBufferFlags::kRecorded);
 	rCommandBuffers.mFlags.Clear(CommandBufferFlags::kExecuted);
 
-	Log("Record command buffer: {}", iFramebuffer);
+	Log(kLogGraphics, "Record command buffer: {}", iFramebuffer);
 
 	RecordGlobalCommandBuffer(iFramebuffer);
 	RecordMainCommandBuffer(iFramebuffer);

@@ -126,7 +126,7 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 
 	if (piMagicAndVersion[0] != kiMagic || piMagicAndVersion[1] != GetVersion())
 	{
-		Log("Chunk file \"{}\" has invalid magic {:#018x} or version {}", mChunkFile.string(), piMagicAndVersion[0], piMagicAndVersion[1]);
+		Log(kWarning, "Chunk file \"{}\" has invalid magic {:#018x} or version {}", mChunkFile.string(), piMagicAndVersion[0], piMagicAndVersion[1]);
 		mbDirty = true;
 		return mbDirty;
 	}

@@ -23,7 +23,7 @@ void RenderTargetTextures::Create()
 void RenderTargetTextures::CreateShadowTextures()
 {
 	auto [iShadowTextureX, iShadowTextureY] = TextureManager::DetailTextureSize(gWorldDetail.Get());
-	Log("iShadowTexture: {} x {}", iShadowTextureX, iShadowTextureY);
+	Log(kLogGraphics, "iShadowTexture: {} x {}", iShadowTextureX, iShadowTextureY);
 	mShadowElevationTexture.Create(
 	{
 		.textureFlags = {kRenderPass},

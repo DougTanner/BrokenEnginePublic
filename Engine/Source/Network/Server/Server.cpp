@@ -23,7 +23,7 @@ Server::Server(uint16_t uiPort)
 	mpHost = enet_host_create(&address, 64, NetworkManager::kuiChannelCount, 0, 0);
 	if (mpHost == nullptr)
 	{
-		Log(kLogNetwork, "Server::Server enet_host_create failed");
+		Log(kLogNetwork, kWarning, "Server::Server enet_host_create failed");
 		return;
 	}
 	// 1MB send/receive buffers to handle bursty packet dispatches
@@ -228,7 +228,7 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 			ClientWeaponModeRequest(pData, iSize, iClientId);
 			break;
 		default:
-			Log(kLogNetwork, "Server::Receive unknown packet type {} Client: {}", static_cast<uint8_t>(eType), iClientId);
+			Log(kLogNetwork, kWarning, "Server::Receive unknown packet type {} Client: {}", static_cast<uint8_t>(eType), iClientId);
 			break;
 	}
 }

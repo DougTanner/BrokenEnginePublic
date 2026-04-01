@@ -35,14 +35,14 @@ int64_t HardwareCoreCount()
 	HMODULE hmodule = GetModuleHandle(TEXT("kernel32"));
 	if (hmodule == nullptr)
 	{
-		Log("GetModuleHandle(TEXT(\"kernel32\")) returned nullptr");
+		Log(kWarning, "GetModuleHandle(TEXT(\"kernel32\")) returned nullptr");
 		return LogicalCoreCount();
 	}
 
 	LPFN_GLPI glpi = reinterpret_cast<LPFN_GLPI>(GetProcAddress(hmodule, "GetLogicalProcessorInformation"));
 	if (glpi == nullptr)
 	{
-		Log("GetProcAddress(hmodule, \"GetLogicalProcessorInformation\") returned nullptr");
+		Log(kWarning, "GetProcAddress(hmodule, \"GetLogicalProcessorInformation\") returned nullptr");
 		return LogicalCoreCount();
 	}
 
@@ -62,7 +62,7 @@ int64_t HardwareCoreCount()
 			}
 			else
 			{
-				Log("glpi GetLastError: {}", GetLastError());
+				Log(kWarning, "glpi GetLastError: {}", GetLastError());
 				return LogicalCoreCount();
 			}
 		}

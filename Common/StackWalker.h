@@ -25,7 +25,7 @@ protected:
 	{
 		if (entry.lineNumber > 0)
 		{
-			Log("{} | {} | {}", entry.name, entry.lineNumber, entry.lineFileName);
+			Log(kError, "{} | {} | {}", entry.name, entry.lineNumber, entry.lineFileName);
 		}
 	}
 

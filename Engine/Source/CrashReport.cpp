@@ -63,9 +63,7 @@ void HandleException(std::optional<const std::exception*> pException)
 	ofstream << sDxDiag;
 	ofstream << "<End DxDiag>\n" << std::flush;
 
-	ofstream << "\n\n\n<Begin Log>\n" << std::flush;
-	gpFileManager->WriteLogFile(ofstream);
-	ofstream << "<End Log>\n" << std::flush;
+	common::LogDumpBuffers(ofstream);
 
 	ofstream.close();
 }
@@ -136,11 +134,11 @@ void ReadDxDiag()
 	}
 	catch ([[maybe_unused]] const std::exception& rException)
 	{
-		Log(kLogError, "Failed to read DxDiag: {}", rException.what());
+		Log(kError, "Failed to read DxDiag: {}", rException.what());
 	}
 	catch (...)
 	{
-		Log(kLogError, "Failed to read DxDiag");
+		Log(kError, "Failed to read DxDiag");
 	}
 }
 

@@ -76,7 +76,7 @@ bool Game::IsClientPlayer(engine::global_player_t id) const
 void Game::AddClientPlayer(engine::global_player_t id, engine::GridCoord coord)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	Log(kLogDefault, "AddClientPlayer GlobalPlayerId: {} Coord: ({},{}) OldPlayerCount: {}", id.iValue, coord.x, coord.y, std::ssize(mClientPlayerIds)); // DT TEMP
+	Log(kVerbose, "AddClientPlayer GlobalPlayerId: {} Coord: ({},{}) OldPlayerCount: {}", id.iValue, coord.x, coord.y, std::ssize(mClientPlayerIds)); // DT TEMP
 	mClientPlayerIds.push_back(id);
 	mClientPlayerCoords.push_back(coord);
 	miFocusedPlayerIndex = std::ssize(mClientPlayerIds) - 1;
@@ -89,7 +89,7 @@ void Game::RemoveClientPlayer(engine::global_player_t id)
 	{
 		if (mClientPlayerIds.at(i) == id)
 		{
-			Log(kLogDefault, "RemoveClientPlayer GlobalPlayerId: {} Index: {} OldPlayerCount: {}", id.iValue, i, std::ssize(mClientPlayerIds)); // DT TEMP
+			Log(kVerbose, "RemoveClientPlayer GlobalPlayerId: {} Index: {} OldPlayerCount: {}", id.iValue, i, std::ssize(mClientPlayerIds)); // DT TEMP
 			mClientPlayerIds.erase(mClientPlayerIds.begin() + i);
 			mClientPlayerCoords.erase(mClientPlayerCoords.begin() + i);
 
@@ -291,8 +291,17 @@ void Game::ComputeActiveSet()
 		return rPair.second.iConfirmedTick < 0;
 	}) <= 4);
 
-	// Update island rendering to match active frames
-	engine::gpIslands->UpdateActiveIslands(mCoordFrames, mActiveCoords);
+	// Update island rendering only for subscribed frames (confirmed server data)
+	std::vector<engine::GridCoord> subscribedCoords;
+	for (const engine::GridCoord& rCoord : mActiveCoords)
+	{
+		auto it = mCoordFrames.find(rCoord);
+		if (it != mCoordFrames.end() && (it->second.iConfirmedTick >= 0 || rCoord == mClientGridCoord))
+		{
+			subscribedCoords.push_back(rCoord);
+		}
+	}
+	engine::gpIslands->UpdateActiveIslands(mCoordFrames, subscribedCoords);
 #endif // BT_SERVER
 }
 
@@ -751,7 +760,7 @@ void Game::SaveTweaksSettings()
 
 	for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
 	{
-		Log("SaveTweaks [{}] visible:{} pos:({:.0f},{:.0f}) subtab:{}", i, bSectionVisible[i], f2WindowPositions[i].x, f2WindowPositions[i].y, iActiveSubtab[i]); // DT TEMP
+		Log(kVerbose, "SaveTweaks [{}] visible:{} pos:({:.0f},{:.0f}) subtab:{}", i, bSectionVisible[i], f2WindowPositions[i].x, f2WindowPositions[i].y, iActiveSubtab[i]); // DT TEMP
 	}
 
 	TweaksSettings settings {};
@@ -781,7 +790,7 @@ void Game::LoadTweaksSettings()
 
 		for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
 		{
-			Log("LoadTweaks [{}] visible:{} pos:({:.0f},{:.0f}) subtab:{}", i, settings.bSectionVisible[i], settings.fWindowPositionX[i], settings.fWindowPositionY[i], settings.iActiveSubtab[i]); // DT TEMP
+			Log(kVerbose, "LoadTweaks [{}] visible:{} pos:({:.0f},{:.0f}) subtab:{}", i, settings.bSectionVisible[i], settings.fWindowPositionX[i], settings.fWindowPositionY[i], settings.iActiveSubtab[i]); // DT TEMP
 		}
 
 		ImVec2 f2WindowPositions[static_cast<size_t>(engine::TweakSection::kCount)] {};
@@ -794,7 +803,7 @@ void Game::LoadTweaksSettings()
 	}
 	else
 	{
-		Log("LoadTweaks FAILED to read file"); // DT TEMP
+		Log(kWarning, "LoadTweaks FAILED to read file"); // DT TEMP
 	}
 }
 #endif // BT_CLIENT
@@ -910,7 +919,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 		if (mTimeStep.mbTimeScaleChanged)
 		{
 			mTimeStep.mbTimeScaleChanged = false;
-			Log(kLogNetwork, "Timespeed changed Multiply: {} Divide: {}", mTimeStep.miTimeMultiply, mTimeStep.miTimeDivide);
+			Log(kLogNetwork, kWarning, "Timespeed changed Multiply: {} Divide: {}", mTimeStep.miTimeMultiply, mTimeStep.miTimeDivide);
 
 			if (mTimeStep.miTimeMultiply == 1 && mTimeStep.miTimeDivide == 1)
 			{

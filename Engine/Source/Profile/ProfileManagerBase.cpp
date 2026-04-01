@@ -35,7 +35,7 @@ void ProfileManagerBase::Create()
 		uint32_t uiTimestampValidBits = gpInstanceManager->mVkQueueFamilyProperties[gpInstanceManager->miGraphicsQueueFamilyIndex].timestampValidBits;
 		if (uiTimestampValidBits == 0)
 		{
-			Log("Warning: Graphics queue family does not support timestamp queries. GPU profiling disabled.");
+			Log(kWarning, "Warning: Graphics queue family does not support timestamp queries. GPU profiling disabled.");
 			return;
 		}
 

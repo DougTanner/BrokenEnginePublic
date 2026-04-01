@@ -10,4 +10,5 @@ inline constexpr bool kbIsDataPacker = true;
 
 #include "Common.h"
 
-inline constexpr uint64_t kLogEnabledCategoriesDefault = ~0ULL;
+inline constexpr LogCategory keFocusedLogCategoryDefault = kLogDefault;
+inline constexpr LogLevel keLogLevelDefault = kVerbose;

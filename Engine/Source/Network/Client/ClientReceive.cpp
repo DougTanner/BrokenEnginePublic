@@ -79,7 +79,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
 
-	Log(kLogNetwork, "Client::ServerCoordFullState Frame: {} Slot: {} Coord: ({},{})", iTick, uiSlotIndex, coord.x, coord.y);
+	Log(kLogNetwork, kVerbose, "Client::ServerCoordFullState Frame: {} Slot: {} Coord: ({},{})", iTick, uiSlotIndex, coord.x, coord.y);
 	ScopedLogIndent scopedLogIndent;
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -87,7 +87,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor, iSize - 20);
 	if (pFrame == nullptr)
 	{
-		Log(kLogNetwork, "Client::ServerCoordFullState LZ4 decompression failed Coord: ({},{}) Frame: {}", coord.x, coord.y, iTick);
+		Log(kLogNetwork, kWarning, "Client::ServerCoordFullState LZ4 decompression failed Coord: ({},{}) Frame: {}", coord.x, coord.y, iTick);
 		return;
 	}
 
@@ -113,7 +113,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 		{
 			RemoveCancelledSubscription(coord);
 			SendUnsubscribeOnly(uiSlotIndex);
-			Log(kLogNetwork, "Client::ServerCoordFullState coord mismatch, sent unsubscribe for ghost Slot: {} Coord: ({},{}) SlotCoord: ({},{})", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y);
+			Log(kLogNetwork, kVerbose, "Client::ServerCoordFullState coord mismatch, sent unsubscribe for ghost Slot: {} Coord: ({},{}) SlotCoord: ({},{})", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y);
 			return;
 		}
 		// Validate epoch for kWaitingFullState (epoch is set by SubscribeAccept)
@@ -132,7 +132,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	if (RemoveCancelledSubscription(coord))
 	{
 		SendUnsubscribeOnly(uiSlotIndex);
-		Log(kLogNetwork, "Client::ServerCoordFullState cancelled, sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+		Log(kLogNetwork, kVerbose, "Client::ServerCoordFullState cancelled, sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		rSlot = {};
 		return;
 	}
@@ -258,7 +258,7 @@ void Client::ServerDebugFrame(const uint8_t* pData, size_t iSize)
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor, iSize - 17);
 	if (pFrame == nullptr)
 	{
-		Log(kLogNetwork, "Client::ServerDebugFrame LZ4 decompression failed Frame: {}", iTick);
+		Log(kLogNetwork, kWarning, "Client::ServerDebugFrame LZ4 decompression failed Frame: {}", iTick);
 		return;
 	}
 
@@ -307,7 +307,7 @@ void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 		size_t iCopyLength = std::min(iMessageLength, sizeof(mpcRejectionReason) - 1);
 		std::memcpy(mpcRejectionReason, pCursor, iCopyLength);
 		mpcRejectionReason[iCopyLength] = '\0';
-		Log(kLogNetwork, "Client::ServerConnectionResponse Rejected: {}", mpcRejectionReason);
+		Log(kLogNetwork, kWarning, "Client::ServerConnectionResponse Rejected: {}", mpcRejectionReason);
 	}
 }
 
@@ -329,7 +329,7 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	{
 		// Server rejected subscription (no free slot) — clear the kSubscribing placeholder
 		ClearSubscribingPlaceholder(coord);
-		Log(kLogNetwork, "Client::ServerSubscribeAccept Rejected Coord: ({},{})", coord.x, coord.y);
+		Log(kLogNetwork, kWarning, "Client::ServerSubscribeAccept Rejected Coord: ({},{})", coord.x, coord.y);
 		return;
 	}
 
@@ -338,10 +338,10 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	bool bTargetIsPlaceholder = (rSlot.eState == CoordSubscriptionState::kSubscribing && rSlot.coord == coord);
 	if (rSlot.eState != CoordSubscriptionState::kUnsubscribed && !bTargetIsPlaceholder)
 	{
-		Log(kLogNetwork, "Client::ServerSubscribeAccept Ignoring Slot: {} Coord: ({},{}) SlotCoord: ({},{}) State: {}", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y, static_cast<int>(rSlot.eState));
+		Log(kLogNetwork, kVerbose, "Client::ServerSubscribeAccept Ignoring Slot: {} Coord: ({},{}) SlotCoord: ({},{}) State: {}", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y, static_cast<int>(rSlot.eState));
 		SendUnsubscribeOnly(uiSlotIndex);
 		RemoveCancelledSubscription(coord);
-		Log(kLogNetwork, "Client::ServerSubscribeAccept sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+		Log(kLogNetwork, kVerbose, "Client::ServerSubscribeAccept sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		return;
 	}
 
@@ -361,12 +361,12 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	// If this coord was cancelled while kSubscribing, immediately unsubscribe
 	if (RemoveCancelledSubscription(coord))
 	{
-		Log(kLogNetwork, "Client::ServerSubscribeAccept Cancelled Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+		Log(kLogNetwork, kVerbose, "Client::ServerSubscribeAccept Cancelled Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		SendUnsubscribe(uiSlotIndex);
 		return;
 	}
 
-	Log(kLogNetwork, "Client::ServerSubscribeAccept Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+	Log(kLogNetwork, kVerbose, "Client::ServerSubscribeAccept Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 }
 
 void Client::ServerUnsubscribeAck(const uint8_t* pData, size_t iSize)
@@ -392,7 +392,7 @@ void Client::ServerUnsubscribeAck(const uint8_t* pData, size_t iSize)
 		return;
 	}
 
-	Log(kLogNetwork, "Client::ServerUnsubscribeAck Slot: {} Coord: ({},{})", uiSlotIndex, rSlot.coord.x, rSlot.coord.y);
+	Log(kLogNetwork, kVerbose, "Client::ServerUnsubscribeAck Slot: {} Coord: ({},{})", uiSlotIndex, rSlot.coord.x, rSlot.coord.y);
 
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{

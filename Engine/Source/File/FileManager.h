@@ -5,14 +5,6 @@
 namespace engine
 {
 
-#if defined(BT_DEBUG)
-inline constexpr char kpcLogFile[] = "Debug.txt";
-#elif defined(BT_PROFILE)
-inline constexpr char kpcLogFile[] = "Profile.txt";
-#elif defined(BT_RELEASE)
-inline constexpr char kpcLogFile[] = "Release.txt";
-#endif
-
 enum class FileFlags : uint64_t
 {
 	kAppDataDirectory = 0x01,
@@ -112,19 +104,6 @@ public:
 	std::fstream OpenFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 	void RemoveFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 
-	std::filesystem::path LogFile()
-	{
-		std::filesystem::path logFile(mAppDataDirectory);
-		logFile /= std::string("Log.") + kpcLogFile;
-		return logFile;
-	}
-
-	void WriteLogFile(std::ofstream& rOfstream)
-	{
-		std::ifstream logFileStream(LogFile(), std::ofstream::in);
-		rOfstream << logFileStream.rdbuf() << std::flush;
-	}
-
 	const std::unordered_map<common::crc_t, EagerChunk>& GetEagerChunkMap() const;
 	const std::unordered_map<common::crc_t, LazyChunk>& GetLazyChunkMap() const;
 	
@@ -180,8 +159,6 @@ private:
 	mutable std::mutex mQueueMutex;
 	std::priority_queue<LoadRequest> mRequestQueue;
 	std::atomic<bool> mShutdown {false};
-
-	std::ofstream mLogFileStream;
 
 	// Persistent pack file handles for lazy loading (opened with FILE_FLAG_NO_BUFFERING)
 	HANDLE mLazyPackFileHandles[data::kDataTypeCount] {};

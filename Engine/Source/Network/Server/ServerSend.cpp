@@ -288,7 +288,7 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 
 		if (iSlotResendCount > 0)
 		{
-			Log(kLogNetwork, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {}", rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount);
+			Log(kLogNetwork, kVerbose, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {}", rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount);
 		}
 	}
 }

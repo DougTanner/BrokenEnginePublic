@@ -30,7 +30,7 @@ inline constexpr bool kbSingleInstance = false;
 // #define ENABLE_CRT_DEBUG_HEAP
 inline constexpr const char* kpcBuildConfigName = "Debug";
 
-inline constexpr bool kbAutoServer = false; // DT: TEMP true;
+inline constexpr bool kbAutoServer = true;
 inline constexpr bool kbDebugBreak = true;
 inline constexpr bool kbDebugInput = true;
 inline constexpr bool kbDxDiag = true;
@@ -78,4 +78,5 @@ inline constexpr bool kbShowProfileTextByDefault = false;
 #include "Engine.h"
 
 inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kChina;
-inline constexpr uint64_t kLogEnabledCategoriesDefault = kLogDefault | kLogNetwork;
+inline constexpr LogCategory keFocusedLogCategoryDefault = kLogNetwork; // DT: TEMP kLogDefault;
+inline constexpr LogLevel keLogLevelDefault = kDebug;

@@ -133,7 +133,7 @@ bool RunExportJobs()
 		}
 		catch (const std::exception& rException)
 		{
-			Log("Exception thrown from future: \"{}\"", rException.what());
+			Log(kError, "Exception thrown from future: \"{}\"", rException.what());
 			std::string message = std::format("Asset: {}\n\n{}", rpExportJob->mInputPath.string(), rException.what());
 			Quit(message.c_str(), "Data Packer - Export Failed");
 			bFailed = true;
@@ -154,7 +154,7 @@ bool RunExportJobs()
 
 	if (bFailed)
 	{
-		Log("\n\n\nFAILED\n\n\n");
+		Log(kError, "\n\n\nFAILED\n\n\n");
 
 		std::filesystem::remove(temporaryManifestFile);
 		std::filesystem::remove(temporaryPackFile);

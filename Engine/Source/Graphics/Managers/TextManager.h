@@ -138,7 +138,7 @@ public:
 		{
 			if (riPos >= iMaxPos)
 			{
-				Log("riPos >= iMaxPos");
+				Log(kLogGraphics, kWarning, "riPos >= iMaxPos");
 				break;
 			}
 

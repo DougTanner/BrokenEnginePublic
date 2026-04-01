@@ -46,7 +46,7 @@ size_t Collision::AddLayer(const CollisionLayer& rLayer)
 	size_t uiLayerIndex = static_cast<size_t>(siLayerCount);
 	if (siLayerCount >= static_cast<int64_t>(sLayers.size()))
 	{
-		Log("Collision: sLayers overflow (count: {}, capacity: {}). Increase kiCollisionLayerPreallocate in Collision.h", siLayerCount, sLayers.size());
+		Log(kWarning, "Collision: sLayers overflow (count: {}, capacity: {}). Increase kiCollisionLayerPreallocate in Collision.h", siLayerCount, sLayers.size());
 		DEBUG_BREAK();
 		sLayers.resize(siLayerCount * 2);
 	}
@@ -107,7 +107,7 @@ void Collision::InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex
 			{
 				if (rZonePair.iCountA >= static_cast<int64_t>(rZonePair.indicesA.size()))
 				{
-					Log("Collision: ZonePair.indicesA overflow (count: {}, capacity: {}). Increase kiCollisionZonePreallocate in Collision.h", rZonePair.iCountA, rZonePair.indicesA.size());
+					Log(kWarning, "Collision: ZonePair.indicesA overflow (count: {}, capacity: {}). Increase kiCollisionZonePreallocate in Collision.h", rZonePair.iCountA, rZonePair.indicesA.size());
 					DEBUG_BREAK();
 					rZonePair.indicesA.resize(rZonePair.iCountA * 2);
 				}
@@ -118,7 +118,7 @@ void Collision::InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex
 			{
 				if (rZonePair.iCountB >= static_cast<int64_t>(rZonePair.indicesB.size()))
 				{
-					Log("Collision: ZonePair.indicesB overflow (count: {}, capacity: {}). Increase kiCollisionZonePreallocate in Collision.h", rZonePair.iCountB, rZonePair.indicesB.size());
+					Log(kWarning, "Collision: ZonePair.indicesB overflow (count: {}, capacity: {}). Increase kiCollisionZonePreallocate in Collision.h", rZonePair.iCountB, rZonePair.indicesB.size());
 					DEBUG_BREAK();
 					rZonePair.indicesB.resize(rZonePair.iCountB * 2);
 				}
@@ -231,7 +231,7 @@ void Collision::SetupZones(FXMVECTOR vecArea)
 			// Reuse existing entry or grow if needed
 			if (uiPairIndex >= sLayerPairZones.size())
 			{
-				Log("Collision: sLayerPairZones overflow (index: {}, capacity: {}). Increase kiCollisionLayerPairPreallocate in Collision.h", uiPairIndex, sLayerPairZones.size());
+				Log(kWarning, "Collision: sLayerPairZones overflow (index: {}, capacity: {}). Increase kiCollisionLayerPairPreallocate in Collision.h", uiPairIndex, sLayerPairZones.size());
 				DEBUG_BREAK();
 				sLayerPairZones.resize(static_cast<int64_t>(uiPairIndex) * 2);
 			}

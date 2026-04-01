@@ -35,7 +35,7 @@ void ServerSessionBase::WaitForTick(TimeStep& rTimeStep, std::chrono::nanosecond
 		++siOvershootTicks;
 		if constexpr (kbProfilingFrameSpike)
 		{
-			Log(kLogNetwork, "ServerSessionBase::WaitForTick Remainder: {}ns Overshoot: {}/{} = {}%", remainderNs.count(), siOvershootTicks, siTotalTicks, siOvershootTicks * 100 / siTotalTicks);
+			Log(kLogNetwork, kVerbose, "ServerSessionBase::WaitForTick Remainder: {}ns Overshoot: {}/{} = {}%", remainderNs.count(), siOvershootTicks, siTotalTicks, siOvershootTicks * 100 / siTotalTicks);
 		}
 	}
 }

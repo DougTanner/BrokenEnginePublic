@@ -574,7 +574,7 @@ void BufferManager::CreateTerrainMesh()
 	auto [iTerrainQuadX, iTerrainQuadY] = gpTextureManager->DetailTextureSize(gWorldDetail.Get());
 	iTerrainQuadX -= 1;
 	iTerrainQuadY -= 1;
-	Log("iTerrainQuad: {} x {}", iTerrainQuadX, iTerrainQuadY);
+	Log(kLogGraphics, "iTerrainQuad: {} x {}", iTerrainQuadX, iTerrainQuadY);
 
 	int64_t iIndexCount = 6 * iTerrainQuadX * iTerrainQuadY;
 	std::vector<uint32_t> indices(iIndexCount);

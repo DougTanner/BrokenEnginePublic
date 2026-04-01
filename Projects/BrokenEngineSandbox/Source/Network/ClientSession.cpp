@@ -63,7 +63,7 @@ void ClientSession::PollNetwork()
 		switch (rEvent.eType)
 		{
 			case PlayerEventType::kAssigned:
-				Log(kLogNetwork, "PlayerEvent kAssigned NewGlobalPlayerId: {} NewCoord: ({},{}) OldGlobalPlayerId: {} OldCoord: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->ClientPlayerId().iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y); // DT TEMP
+				Log(kLogNetwork, kVerbose, "PlayerEvent kAssigned NewGlobalPlayerId: {} NewCoord: ({},{}) OldGlobalPlayerId: {} OldCoord: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->ClientPlayerId().iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y); // DT TEMP
 				if (!gpGame->IsClientPlayer(rEvent.globalPlayerId))
 				{
 					gpGame->AddClientPlayer(rEvent.globalPlayerId, rEvent.coord);
@@ -115,11 +115,11 @@ void ClientSession::PollNetwork()
 						gpGame->miQuadrantDirY = -iDeltaY;
 					}
 				}
-				Log(kLogNetwork, "kChangedFrame GlobalPlayer: {} NewCoord: ({},{}) QuadrantDir: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->miQuadrantDirX, gpGame->miQuadrantDirY); // DT TEMP
+				Log(kLogNetwork, kVerbose, "kChangedFrame GlobalPlayer: {} NewCoord: ({},{}) QuadrantDir: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->miQuadrantDirX, gpGame->miQuadrantDirY); // DT TEMP
 				const std::vector<engine::ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
 				for (int64_t i = 0; i < std::ssize(rSlots); ++i)
 				{
-					Log(kLogNetwork, "  Slot {} State: {} Coord: ({},{})", i, static_cast<int>(rSlots[i].eState), rSlots[i].coord.x, rSlots[i].coord.y);
+					Log(kLogNetwork, kVerbose, "  Slot {} State: {} Coord: ({},{})", i, static_cast<int>(rSlots[i].eState), rSlots[i].coord.x, rSlots[i].coord.y);
 				}
 				UpdateDesiredCoords("kChangedFrame");
 				break;
@@ -221,6 +221,10 @@ void ClientSession::Reconcile()
 		// Compensate time step for ticks rolled back during reconciliation
 		int64_t iTickDeficit = iPreReconcileTick - gpGame->TickCounter();
 		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iPreReconcileTick);
+		if (iTickDeficit > 0 || std::abs(clockCorrectionNs.count()) > kTickNs.count() / 16)
+		{
+			Log(kLogNetwork, kWarning, "ClientSession::Reconcile PreReconcileTick: {} PostReconcileTick: {} TickDeficit: {} ClockCorrectionNs: {}", iPreReconcileTick, gpGame->TickCounter(), iTickDeficit, clockCorrectionNs.count()); // DT TEMP
+		}
 		if (iTickDeficit > 0)
 		{
 			gpGame->mTimeStep.mTickRemainderNs += iTickDeficit * kTickNs;
@@ -229,6 +233,7 @@ void ClientSession::Reconcile()
 	}
 	gpProfileManager->CpuStop(engine::kCpuTimerNetworkPollReconcile, true);
 
+	UpdateDesiredCoords("tick");
 	UpdateSubscriptions();
 }
 
@@ -319,7 +324,7 @@ void ClientSession::ApplyReceivedFullStates()
 			// Reject stale full states: tick must be after confirmed tick
 			if (iTick <= rSub.iConfirmedTick)
 			{
-				Log(kLogNetwork, "ApplyReceivedFullStates Rejected stale full state Coord: ({},{}) FullStateTick: {} ConfirmedTick: {}", coord.x, coord.y, iTick, rSub.iConfirmedTick);
+				Log(kLogNetwork, kVerbose, "ApplyReceivedFullStates Rejected stale full state Coord: ({},{}) FullStateTick: {} ConfirmedTick: {}", coord.x, coord.y, iTick, rSub.iConfirmedTick);
 				continue;
 			}
 
@@ -352,7 +357,7 @@ void ClientSession::ConnectToServer(std::string_view serverAddress)
 void ClientSession::ConnectToDiscoveredServer()
 {
 	mbServerDiscovered = false;
-	ConnectToServer(mpcDiscoveredAddress);
+	ConnectToServer(mcDiscoveredAddress);
 }
 
 void ClientSession::DisconnectFromServer()
@@ -458,12 +463,12 @@ bool ClientSession::PollConnection()
 		mDesyncDebugState = {};
 		if constexpr (kbDesyncRecovery)
 		{
-			Log(kLogNetwork, "ClientSession::PollConnection Desync debug mode timed out, recovering without debug frame");
+			Log(kLogNetwork, kWarning, "ClientSession::PollConnection Desync debug mode timed out, recovering without debug frame");
 			RecoverFromDesync();
 		}
 		else
 		{
-			Log(kLogNetwork, "ClientSession::PollConnection Desync debug mode timed out, disconnecting");
+			Log(kLogNetwork, kWarning, "ClientSession::PollConnection Desync debug mode timed out, disconnecting");
 			ASSERT(false);
 			snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server (debug frame timeout)");
 			mpClientNetwork->Disconnect();
@@ -501,11 +506,11 @@ void ClientSession::RecoverFromDesync()
 	}
 	++miDesyncCount;
 
-	Log(kLogNetwork, "ClientSession::RecoverFromDesync DesyncCount: {} / {}", miDesyncCount, kiMaxDesyncsBeforeDisconnect);
+	Log(kLogNetwork, kWarning, "ClientSession::RecoverFromDesync DesyncCount: {} / {}", miDesyncCount, kiMaxDesyncsBeforeDisconnect);
 
 	if (miDesyncCount >= kiMaxDesyncsBeforeDisconnect)
 	{
-		Log(kLogNetwork, "ClientSession::RecoverFromDesync Escalating to disconnect");
+		Log(kLogNetwork, kWarning, "ClientSession::RecoverFromDesync Escalating to disconnect");
 		snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
 		mpClientNetwork->Disconnect();
 		return;

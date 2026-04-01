@@ -49,11 +49,11 @@ void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int,
 			if (it == rNodeToNodeIndexMap.end())
 			{
 				++iFilteredCount;
-				Log("  FILTERED: channel targeting node {} (\"{}\") not in map", rGltfChannel.target_node, rGltfChannel.target_node >= 0 ? rModel.nodes[rGltfChannel.target_node].name : "invalid");
+				Log(kVerbose, "  FILTERED: channel targeting node {} (\"{}\") not in map", rGltfChannel.target_node, rGltfChannel.target_node >= 0 ? rModel.nodes[rGltfChannel.target_node].name : "invalid");
 				continue;
 			}
 			++iKeptCount;
-			Log("  KEPT: channel targeting node {} (\"{}\") -> node index {}", rGltfChannel.target_node, rModel.nodes[rGltfChannel.target_node].name, it->second);
+			Log(kVerbose, "  KEPT: channel targeting node {} (\"{}\") -> node index {}", rGltfChannel.target_node, rModel.nodes[rGltfChannel.target_node].name, it->second);
 
 			const tinygltf::AnimationSampler& rSampler = rAnim.samplers[rGltfChannel.sampler];
 

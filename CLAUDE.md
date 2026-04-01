@@ -53,3 +53,4 @@ The codebase produces two executables from the same source: a **client** (full g
 - **Standard library headers**: `#include <header>` additions go in `Common/ExternalHeaders.h`, not in individual source files
 - **Flags over booleans**: Use `common::Flags<EnumType>` instead of multiple `bool` variables. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/CLAUDE.md](Common/CLAUDE.md)
+- **Log levels**: `kVerbose` — per-frame or high-frequency events (reconciliation ticks, subscription churn, status changes). `kDebug` — default; one-time events like startup, setup, connect/disconnect. `kWarning` — something to investigate (timeouts, overflows, clock desync, precursor-to-error); may spam. `kError` — failures; always logged regardless of threshold or category

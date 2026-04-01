@@ -156,7 +156,7 @@ void GameSaveLoad::SaveLoadReplay()
 			game::ReplayMeta meta {};
 			if (!ReadVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay.meta"), meta))
 			{
-				Log(kLogError, "Failed to read replay metadata");
+				Log(kError, "Failed to read replay metadata");
 				return;
 			}
 
@@ -164,7 +164,7 @@ void GameSaveLoad::SaveLoadReplay()
 			std::fstream manifestStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay.manifest"));
 			if (!manifestStream)
 			{
-				Log(kLogError, "Failed to read replay manifest");
+				Log(kError, "Failed to read replay manifest");
 				return;
 			}
 			int64_t iCoordCount = 0;
@@ -182,7 +182,7 @@ void GameSaveLoad::SaveLoadReplay()
 			GridCoord loadedClientGridCoord {};
 			if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay.grid"), loadedClientGridCoord))
 			{
-				Log(kLogError, "Failed to read replay grid");
+				Log(kError, "Failed to read replay grid");
 				return;
 			}
 
@@ -207,7 +207,7 @@ void GameSaveLoad::SaveLoadReplay()
 
 				if (!pReader->Loaded())
 				{
-					Log(kLogError, "Failed to load replay for coord ({},{})", rCoord.x, rCoord.y);
+					Log(kError, "Failed to load replay for coord ({},{})", rCoord.x, rCoord.y);
 					mReplayReaders.clear();
 					return;
 				}
@@ -370,7 +370,7 @@ bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::pa
 
 	if (iVersion != game::Frame::kiVersion)
 	{
-		Log(kLogError, "ReadGrid {} failed: version {} != {}", rFilename, iVersion, game::Frame::kiVersion);
+		Log(kError, "ReadGrid {} failed: version {} != {}", rFilename, iVersion, game::Frame::kiVersion);
 		return false;
 	}
 

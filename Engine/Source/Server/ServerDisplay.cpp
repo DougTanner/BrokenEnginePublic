@@ -267,6 +267,14 @@ void PaintServerDisplay(HWND hWnd)
 		iTextY += iLineHeight;
 	};
 
+	// FPS
+	SetTextColor(hdcBuffer, RGB(100, 180, 255));
+	textLine("FPS: %lld", gpProfileManager->mFullUpdatesInTheLastSecond.Get());
+	int64_t iFrameUpdateMicroseconds = gpProfileManager->GetCpuTimer(game::kCpuTimerFrameUpdate).smoothedMicroseconds.Average();
+	int64_t iPotentialFramesPerSecond = iFrameUpdateMicroseconds > 0 ? 1'000'000 / iFrameUpdateMicroseconds : 0;
+	textLine("Potential: %lld", iPotentialFramesPerSecond);
+	iTextY += iLineHeight;
+
 	SetTextColor(hdcBuffer, RGB(200, 200, 200));
 
 	textLine("Tick: %lld", iTick);
@@ -274,7 +282,7 @@ void PaintServerDisplay(HWND hWnd)
 	textLine("Active cells: %lld", iActiveCells);
 	snprintf(pcLine, sizeof(pcLine), "Clients: %lld", iClientCount);
 	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
-	iTextY += iLineHeight * 2;
+	iTextY += iLineHeight;
 
 	// Entity counts
 	SetTextColor(hdcBuffer, RGB(150, 220, 150));

@@ -67,7 +67,7 @@ void ExportFont::Export()
 		int64_t iBlockType = std::to_integer<int64_t>(fntData.at(iPos++));
 		int64_t iBlockSize = *reinterpret_cast<int*>(&fntData.at(iPos));
 		iPos += 4;
-		Log("Block {} {}", iBlockType, iBlockSize);
+		Log(kVerbose, "Block {} {}", iBlockType, iBlockSize);
 
 		switch (iBlockType)
 		{
@@ -79,7 +79,7 @@ void ExportFont::Export()
 			case 2:
 			{
 				CommonBlock& rCommonBlock = *reinterpret_cast<CommonBlock*>(&fntData.at(iPos));
-				Log("  CommonBlock {} {} {} {} {} {}", rCommonBlock.lineHeight, rCommonBlock.base, rCommonBlock.scaleW, rCommonBlock.scaleH, rCommonBlock.pages, rCommonBlock.packed);
+				Log(kVerbose, "  CommonBlock {} {} {} {} {} {}", rCommonBlock.lineHeight, rCommonBlock.base, rCommonBlock.scaleW, rCommonBlock.scaleH, rCommonBlock.pages, rCommonBlock.packed);
 				fontHeader.iLineHeight = rCommonBlock.lineHeight;
 				fontHeader.iBase = rCommonBlock.base;
 				fontHeader.iScaleW = rCommonBlock.scaleW;

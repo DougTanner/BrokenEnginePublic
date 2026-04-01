@@ -48,7 +48,7 @@ void SetupExceptionHandling()
 			return;
 		}
 
-		Log("In _set_se_translator: {}", uiCode);
+		Log(kError, "In _set_se_translator: {}", uiCode);
 	
 		DEBUG_BREAK();
 
@@ -70,7 +70,7 @@ void SetupExceptionHandling()
 			return;
 		}
 
-		Log("In _set_invalid_parameter_handler");
+		Log(kError, "In _set_invalid_parameter_handler");
 	
 		std::wstring description(L"_set_invalid_parameter_handler \"");
 		description += pcExpression ? pcExpression : L"nullptr";
@@ -108,19 +108,19 @@ void SetupExceptionHandling()
 			switch (uiExceptionCode)
 			{
 				case DBG_PRINTEXCEPTION_WIDE_C:
-					Log("DBG_PRINTEXCEPTION_WIDE_C");
+					Log(kVerbose, "DBG_PRINTEXCEPTION_WIDE_C");
 					break;
 
 				case DBG_PRINTEXCEPTION_C:
 					if (giMyOutputDebugString == 0)
 					{
-						Log("DBG_PRINTEXCEPTION_C: {}", reinterpret_cast<char*>(pExceptionPointers->ExceptionRecord->ExceptionInformation[1]));
+						Log(kVerbose, "DBG_PRINTEXCEPTION_C: {}", reinterpret_cast<char*>(pExceptionPointers->ExceptionRecord->ExceptionInformation[1]));
 					}
 					break;
 
 				case RPC_E_DISCONNECTED:
 					// Caused by gamepad library?
-					Log("RPC_E_DISCONNECTED: The object invoked has disconnected from its clients");
+					Log(kWarning, "RPC_E_DISCONNECTED: The object invoked has disconnected from its clients");
 					break;
 
 				case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
@@ -137,20 +137,20 @@ void SetupExceptionHandling()
 				case 0xE06D7363: // Microsoft C++ SEH Exception
 				{
 					char pcHex[20] {};
-					Log("Vectored exception: {}", ToHex(std::span(pcHex), uiExceptionCode));
+					Log(kError, "Vectored exception: {}", ToHex(std::span(pcHex), uiExceptionCode));
 
 					bool bDxDiagThread = gpThreadLocal != nullptr && gpThreadLocal->miThreadId.has_value() && gpThreadLocal->miThreadId.value() == kThreadDxDiag;
 					if (bDxDiagThread)
 					{
-						Log("  bDxDiagThread");
+						Log(kError, "  bDxDiagThread");
 					}
 					else
 					{
 						const char* pcType = uiExceptionCode == 0xC0000374 ? "Heap corruption" : (uiExceptionCode == 0xC0000005 ? "Access Violation" : (uiExceptionCode == 0xE06D7363 ? "Microsoft C++ SEH Exception" : "Unknown type"));
-						Log("<{}>", pcType);
+						Log(kError, "<{}>", pcType);
 						LogStackWalker logStackWalker(StackWalker::NonExcept);
 						logStackWalker.ShowCallstack();
-						Log("</ {}>", pcType);
+						Log(kError, "</ {}>", pcType);
 
 						DEBUG_BREAK();
 					}
@@ -159,7 +159,7 @@ void SetupExceptionHandling()
 				}
 
 				default:
-					Log("Unhandled vectored exception: {}", uiExceptionCode);
+					Log(kError, "Unhandled vectored exception: {}", uiExceptionCode);
 					DEBUG_BREAK();
 					break;
 			}
@@ -170,7 +170,7 @@ void SetupExceptionHandling()
 
 	std::set_terminate([]()
 	{
-		Log("std::set_terminate");
+		Log(kError, "std::set_terminate");
 		DEBUG_BREAK();
 		std::abort();
 	});

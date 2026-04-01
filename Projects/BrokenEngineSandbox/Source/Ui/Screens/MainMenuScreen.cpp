@@ -3,8 +3,8 @@
 #if defined(BT_CLIENT)
 
 #include "Game.h"
-#include "Network/ClientSession.h"
 #include "MenuUtils.h"
+#include "Network/ClientSession.h"
 #include "Ui/Localization.h"
 
 namespace game
@@ -54,7 +54,7 @@ void MainMenuScreen::Render()
 	if constexpr (kbAutoServer)
 	{
 		static bool sbServerLaunched = false;
-		if (!sbServerLaunched)
+		if (!sbServerLaunched && gpClientSession->mbDiscoveryScanTimedOut)
 		{
 			sbServerLaunched = true;
 			char pcPath[MAX_PATH] {};

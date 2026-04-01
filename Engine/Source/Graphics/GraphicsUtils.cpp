@@ -13,8 +13,8 @@ namespace engine
 void CheckVkFailed(VkResult vkResult, std::string_view expression, std::source_location loc)
 {
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	auto pcResult = gEnumToString.Convert(vkResult, rWorkbuffer);
-	Log(kLogError, "CheckVk failed: {} - \"{}\" at {}:{} in {}", pcResult, expression, loc.file_name(), loc.line(), loc.function_name());
+	common::ScopedWorkbufferPop pcResult = gEnumToString.Convert(vkResult, rWorkbuffer);
+	Log(kError, "CheckVk failed: {} - \"{}\" at {}:{} in {}", pcResult, expression, loc.file_name(), loc.line(), loc.function_name());
 
 	// Format exception message with call site information
 	char* pcException = rWorkbuffer.PushBuffer<char*>(1024);
@@ -53,7 +53,7 @@ void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t ha
 		if (vkSetDebugUtilsObjectNameEXT != nullptr)
 		{
 			common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-			auto pcFullName = gEnumToString.Convert(type, rWorkbuffer);
+			common::ScopedWorkbufferPop pcFullName = gEnumToString.Convert(type, rWorkbuffer);
 			const char* pcPrefix = static_cast<const char*>(pcFullName) + std::char_traits<char>::length("VK_OBJECT_TYPE_");
 			rWorkbuffer.Push();
 			rWorkbuffer.Append(pcPrefix);

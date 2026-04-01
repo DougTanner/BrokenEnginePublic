@@ -105,86 +105,27 @@ void ServerSession::AddSubscribedCoords()
 	}
 }
 
-void ServerSession::AddNeighborCoords()
+void ServerSession::EnsurePlayerCoords()
 {
-	const std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
-	for (const engine::ClientConnection& rClient : rClients)
+	for (const auto& [rCoord, rFrames] : gpGame->mCoordFrames)
 	{
-		if (rClient.ownedPlayerCoords.empty())
+		if (rFrames.pCurrent->postRender.pPlayers->iCount > 0)
 		{
-			continue;
-		}
-
-		for (const engine::GridCoord& rOwnedCoord : rClient.ownedPlayerCoords)
-		{
-			for (int64_t i = -1; i <= 1; ++i)
+			if (!std::ranges::contains(gpGame->mActiveCoords, rCoord))
 			{
-				for (int64_t j = -1; j <= 1; ++j)
-				{
-					engine::GridCoord neighbor {rOwnedCoord.x + static_cast<int32_t>(j), rOwnedCoord.y + static_cast<int32_t>(i)};
-					if (!std::ranges::contains(gpGame->mActiveCoords, neighbor))
-					{
-						gpGame->mActiveCoords.push_back(neighbor);
-					}
-				}
+				gpGame->mActiveCoords.push_back(rCoord);
 			}
 		}
 	}
 }
 
-void ServerSession::EnsureSpecialCoords()
+void ServerSession::EnsureDestroyCoords()
 {
-	// Origin is always active
-	if (!std::ranges::contains(gpGame->mActiveCoords, engine::kOriginCoord))
-	{
-		gpGame->mActiveCoords.push_back(engine::kOriginCoord);
-	}
-
-	// Ensure destroy coords are active so the StatusChange is processed and broadcast
 	for (const PendingPlayerDestroy& rDestroy : mPendingPlayerDestroys)
 	{
 		if (!std::ranges::contains(gpGame->mActiveCoords, rDestroy.coord))
 		{
 			gpGame->mActiveCoords.push_back(rDestroy.coord);
-		}
-	}
-
-	// Keep coords with orphaned players active (and neighbors for potential transfers)
-	const std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
-	for (const auto& [rCoord, rFrames] : gpGame->mCoordFrames)
-	{
-		const PlayersPostRender& rPlayers = *rFrames.pCurrent->postRender.pPlayers;
-		bool bHasOrphaned = false;
-		for (int64_t i = 0; i < rPlayers.iCount && !bHasOrphaned; ++i)
-		{
-			if (rPlayers.pClientGuids[i].IsEmpty())
-			{
-				continue;
-			}
-			bool bOwned = false;
-			for (const engine::ClientConnection& rClient : rClients)
-			{
-				if (rClient.clientGuid == rPlayers.pClientGuids[i])
-				{
-					bOwned = true;
-					break;
-				}
-			}
-			bHasOrphaned = !bOwned;
-		}
-		if (bHasOrphaned)
-		{
-			for (int32_t dy = -1; dy <= 1; ++dy)
-			{
-				for (int32_t dx = -1; dx <= 1; ++dx)
-				{
-					engine::GridCoord neighbor {rCoord.x + dx, rCoord.y + dy};
-					if (!std::ranges::contains(gpGame->mActiveCoords, neighbor))
-					{
-						gpGame->mActiveCoords.push_back(neighbor);
-					}
-				}
-			}
 		}
 	}
 }
@@ -214,8 +155,14 @@ void ServerSession::ComputeActiveSet()
 
 	gpGame->mActiveCoords.clear();
 	AddSubscribedCoords();
-	AddNeighborCoords();
-	EnsureSpecialCoords();
+	EnsurePlayerCoords();
+	EnsureDestroyCoords();
+
+	if (!std::ranges::contains(gpGame->mActiveCoords, engine::kOriginCoord))
+	{
+		gpGame->mActiveCoords.push_back(engine::kOriginCoord);
+	}
+
 	SyncActiveFrames();
 }
 
@@ -239,7 +186,7 @@ void ServerSession::BuildFrameInputs()
 		int64_t iGlobalId = gpGame->GenerateGlobalId();
 		StatusChange spawnChange {.eType = StatusChangeType::kSpawnPlayer, .data = SpawnPlayerData{.iGlobalId = iGlobalId}};
 		gpGame->mFrameInputs.try_emplace(rInfo.spawnCoord).first->second.statusChanges.push_back(spawnChange);
-		Log(kLogNetwork, "BuildFrameInputs kSpawnPlayer Client: {} GlobalId: {} Coord: ({},{})", rInfo.iClientId, iGlobalId, rInfo.spawnCoord.x, rInfo.spawnCoord.y); // DT TEMP
+		Log(kLogNetwork, kVerbose, "BuildFrameInputs kSpawnPlayer Client: {} GlobalId: {} Coord: ({},{})", rInfo.iClientId, iGlobalId, rInfo.spawnCoord.x, rInfo.spawnCoord.y); // DT TEMP
 	}
 
 	// Add destroy StatusChanges for disconnected players
@@ -328,11 +275,11 @@ void ServerSession::BroadcastStatusChanges(int64_t iTick)
 			char acSharedCrc[20] {}, acInputCrc[20] {};
 			common::ToHex(std::span<char, 20>(acSharedCrc), updateData.sharedCrc);
 			common::ToHex(std::span<char, 20>(acInputCrc), updateData.inputCrc);
-			Log(kLogNetwork, "BroadcastStatusChanges Coord: ({},{}) Frame: {} SharedCrc: {} InputCrc: {} StatusChanges: {}", rCoord.x, rCoord.y, iTick, acSharedCrc, acInputCrc, updateData.statusChanges.size());
+			Log(kLogNetwork, kVerbose, "BroadcastStatusChanges Coord: ({},{}) Frame: {} SharedCrc: {} InputCrc: {} StatusChanges: {}", rCoord.x, rCoord.y, iTick, acSharedCrc, acInputCrc, updateData.statusChanges.size());
 			ScopedLogIndent scopedIndent;
 			for (const StatusChange& rChange : updateData.statusChanges)
 			{
-				Log(kLogNetwork, "Type: {}", StatusChangeTypeName(rChange.eType));
+				Log(kLogNetwork, kVerbose, "Type: {}", StatusChangeTypeName(rChange.eType));
 			}
 		}
 	}
@@ -386,7 +333,11 @@ void ServerSession::CollectTransfers(std::vector<ClientTransferInfo>& rClientTra
 			auto it = gpGame->mCoordFrames.find(destination);
 			if (it == gpGame->mCoordFrames.end() || it->second.pNext == nullptr)
 			{
-				continue;
+				gpGame->CreateFrameAtCoord(destination);
+				auto& rFrames = gpGame->mCoordFrames.at(destination);
+				rFrames.pNext = std::make_unique<Frame>();
+				std::swap(rFrames.pCurrent, rFrames.pNext);
+				it = gpGame->mCoordFrames.find(destination);
 			}
 
 			mTickBroadcast.transfers.try_emplace(destination).first->second.push_back({.eType = rRequest.eType, .data = StatusChangeData{rRequest.data},});
@@ -585,7 +536,7 @@ void ServerSession::ProcessWeaponModeRequests()
 		StatusChange weaponChange {.eType = StatusChangeType::kWeaponModeChange, .data = WeaponModeChangeData{.iPlayerUuid = iPlayerUuid}};
 		frameInputIt->second.statusChanges.push_back(weaponChange);
 
-		Log(kLogNetwork, "ServerSession::ProcessWeaponModeRequests Client: {} GlobalPlayer: {} Coord: ({},{})", rRequest.iClientId, rRequest.globalPlayerId.iValue, weaponCoord.x, weaponCoord.y);
+		Log(kLogNetwork, kVerbose, "ServerSession::ProcessWeaponModeRequests Client: {} GlobalPlayer: {} Coord: ({},{})", rRequest.iClientId, rRequest.globalPlayerId.iValue, weaponCoord.x, weaponCoord.y);
 	}
 }
 
@@ -636,13 +587,15 @@ void ServerSession::NewClients()
 
 			std::ranges::sort(relinkEntries, [](const RelinkEntry& rLeft, const RelinkEntry& rRight) { return rLeft.globalId.iValue < rRight.globalId.iValue; });
 
+			rClient.ownedPlayerIds.reserve(relinkEntries.size());
+			rClient.ownedPlayerCoords.reserve(relinkEntries.size());
 			for (const RelinkEntry& rEntry : relinkEntries)
 			{
 				rClient.ownedPlayerIds.push_back(rEntry.globalId);
 				rClient.ownedPlayerCoords.push_back(rEntry.coord);
 				engine::gpServer->SendAssignPlayer(rClient.iClientId, rEntry.globalId, rEntry.coord);
 				engine::gpServer->SendPlayerState(rClient.iClientId, PlayerEventTypeToWire(PlayerEventType::kSpawned), rEntry.globalId.iValue, rEntry.coord);
-				Log(kLogNetwork, "NewClients Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, rEntry.globalId.iValue, rEntry.coord.x, rEntry.coord.y); // DT TEMP
+				Log(kLogNetwork, kVerbose, "NewClients Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, rEntry.globalId.iValue, rEntry.coord.x, rEntry.coord.y); // DT TEMP
 			}
 
 			if (!rClient.ownedPlayerIds.empty())
@@ -660,6 +613,7 @@ void ServerSession::RefreshPreSpawnSnapshot()
 {
 	mPreSpawnPlayerIds.clear();
 	const PlayersPostRender& rPlayers = *gpGame->CurrentFrame(engine::kOriginCoord).postRender.pPlayers;
+	mPreSpawnPlayerIds.reserve(static_cast<size_t>(rPlayers.iCount));
 	for (int64_t i = 0; i < rPlayers.iCount; ++i)
 	{
 		mPreSpawnPlayerIds.push_back(rPlayers.puiIds[i]);
@@ -688,7 +642,7 @@ void ServerSession::FinalizeNewClients([[maybe_unused]] int64_t iTick)
 		}
 	}
 
-	Log(kLogNetwork, "FinalizeNewClients Waiting: {} PlayerCount: {} PreSpawn: {} NewIds: {}", mClientsWaitingForSpawn.size(), rPlayers.iCount, mPreSpawnPlayerIds.size(), newPlayerIds.size()); // DT TEMP
+	Log(kLogNetwork, kVerbose, "FinalizeNewClients Waiting: {} PlayerCount: {} PreSpawn: {} NewIds: {}", mClientsWaitingForSpawn.size(), rPlayers.iCount, mPreSpawnPlayerIds.size(), newPlayerIds.size()); // DT TEMP
 
 	// Assign new players to waiting clients (in order)
 	// Client handles subscriptions — no full state sent here
@@ -732,7 +686,7 @@ void ServerSession::Disconnects()
 
 	for (const engine::PendingDisconnect& rDisconnect : engine::gpServer->DrainPendingDisconnects())
 	{
-		Log(kLogNetwork, "ServerSession::Disconnects Client: {} Players: {}", rDisconnect.iClientId, rDisconnect.playerIds.size()); // DT TEMP
+		Log(kLogNetwork, kVerbose, "ServerSession::Disconnects Client: {} Players: {}", rDisconnect.iClientId, rDisconnect.playerIds.size()); // DT TEMP
 
 		mDeadClientIds.erase(rDisconnect.iClientId);
 
@@ -799,7 +753,7 @@ void ServerSession::DetectPlayerDeaths()
 			if (!bFound)
 			{
 				engine::gpServer->SendPlayerState(rClient.iClientId, PlayerEventTypeToWire(PlayerEventType::kDied), globalId.iValue, coord);
-				Log(kLogNetwork, "ServerSession::DetectPlayerDeaths Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, globalId.iValue, coord.x, coord.y);
+				Log(kLogNetwork, kVerbose, "ServerSession::DetectPlayerDeaths Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, globalId.iValue, coord.x, coord.y);
 				rClient.ownedPlayerIds.erase(rClient.ownedPlayerIds.begin() + i);
 				rClient.ownedPlayerCoords.erase(rClient.ownedPlayerCoords.begin() + i);
 			}
@@ -850,7 +804,7 @@ void ServerSession::HandleResyncRequests([[maybe_unused]] int64_t iTick)
 			continue;
 		}
 
-		Log(kLogNetwork, "ServerSession::HandleResyncRequests Client: {}", iClientId);
+		Log(kLogNetwork, kWarning, "ServerSession::HandleResyncRequests Client: {}", iClientId);
 
 		for (int64_t iSlot = 0; iSlot < std::ssize(pClient->coordSubscriptions); ++iSlot)
 		{
