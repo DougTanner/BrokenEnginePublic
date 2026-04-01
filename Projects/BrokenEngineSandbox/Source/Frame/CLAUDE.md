@@ -16,7 +16,6 @@ Frame code is purely functional. Frame updates must only rely on explicit functi
 - **TerrainUtils** (`TerrainUtils.h/cpp`) - Shared AI terrain-following, obstacle avoidance, and edge-crossing encouragement used by Players and Spaceships. Combines gradient-based contour following, elevation correction, mountain look-ahead, and periodic edge-crossing steering
 - **StatusChange.h** - Status change types and `TransferData` struct for cross-cell entity migration. `TransferData` uses deducing-this `SharedMembers()` for shared CRC subset and carries a `global_player_t` and client GUID (two 64-bit halves, not serialized over the network) to preserve player and client identity across cell boundaries. `WeaponModeChangeData` carries a player UUID to identify which player should toggle blaster vs missile mode
 - **HealthDamage.h** - Combat balance constants, collision category/mask configuration, and difficulty-scaled damage
-- **SmokeSpreadTest** (`SmokeSpreadTest.h/cpp`) - Automated smoke/stress test. Enabled via `kbSmokeSpreadTest` in `Pch.h`
 
 ## Architecture Notes
 

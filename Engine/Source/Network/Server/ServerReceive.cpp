@@ -218,17 +218,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 
 	if (strcmp(pcClientConfig, kpcBuildConfigName) != 0)
 	{
-		char pcMessage[256] {};
-		snprintf(pcMessage, sizeof(pcMessage), "Build mismatch: server is %s, client is %s", kpcBuildConfigName, pcClientConfig);
-		Log(kLogNetwork, kWarning, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
-
-		SendConnectionResponse(pPeer, false, pcMessage, nullptr);
-
-		// Remove from mClients (added during Connect before hello arrived)
-		RemoveClient(iClientId);
-
-		enet_peer_disconnect_later(pPeer, 0);
-		return;
+		Log(kLogNetwork, kWarning, "Server::ClientHello Client {} build config mismatch: server is {}, client is {}", iClientId, kpcBuildConfigName, pcClientConfig);
 	}
 
 	// Read client GUID (16 bytes after config string)

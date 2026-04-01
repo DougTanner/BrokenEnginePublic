@@ -4,8 +4,6 @@
 #include "Frame/TerrainUtils.h"
 #include "Profile/ProfileManager.h"
 #include "Frame/Collections/Spaceships/Spaceships.h"
-#include "Frame/SmokeSpreadTest.h"
-
 #if defined(BT_CLIENT)
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
@@ -360,10 +358,6 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 				: (XMVectorGetX(XMVector3LengthSq(vecVelocity)) > 0.001f ? XMVector3Normalize(vecVelocity) : vecAiDirection);
 			vecWantedDirection = common::RotateTowardsPercent(vecWantedDirection, vecTargetDirection, common::ExponentialInterpolant(kfWantedDirectionSpeed, fDeltaTime));
 
-			if constexpr (kbSmokeSpreadTest)
-			{
-				SmokeSpreadTestUpdatePlayer(vecVelocity, vecWantedDirection, flags, vecPosition);
-			}
 		}
 
 		// Shield regeneration

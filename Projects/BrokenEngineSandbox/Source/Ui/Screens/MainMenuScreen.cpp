@@ -50,13 +50,15 @@ void MainMenuScreen::Render()
 		gpClientSession->StartServerDiscovery();
 	}
 
-	// Auto-launch server and auto-connect
-	if constexpr (kbAutoServer)
+	// Auto-launch server
+	if constexpr (kbAutoRunServer)
 	{
 		static bool sbServerLaunched = false;
 		if (!sbServerLaunched && gpClientSession->mbDiscoveryScanTimedOut)
 		{
 			sbServerLaunched = true;
+			// Heap: std::filesystem::path allocates; one-time server launch path
+			ScopedSuppressAllocationTracking suppressAllocationTracking;
 			char pcPath[MAX_PATH] {};
 			GetModuleFileName(nullptr, pcPath, static_cast<DWORD>(std::size(pcPath) - 1));
 			std::filesystem::path serverPath = pcPath;
@@ -71,7 +73,11 @@ void MainMenuScreen::Render()
 			}
 			common::LaunchExecutable(serverPath);
 		}
+	}
 
+	// Auto-connect
+	if constexpr (kbAutoConnect)
+	{
 		static bool sbConnected = false;
 		if (!sbConnected && gpClientSession->mbServerDiscovered)
 		{
