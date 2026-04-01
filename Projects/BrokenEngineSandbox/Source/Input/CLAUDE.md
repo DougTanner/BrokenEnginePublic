@@ -9,7 +9,7 @@ Converts raw hardware input into game and menu commands. Client-only (`#ifdef BT
 ## Key Classes/Systems
 
 - **Input** - Polls `RawInputManager` and produces `MenuInput` flags with toggle detection via previous-state tracking. Automatically switches between keyboard/mouse and gamepad modes each frame based on which device is active
-- **MenuInput** - Flags struct for UI navigation and system commands (pause, fullscreen, quit). Debug commands (quicksave/load, replay, time scaling, debug texture toggle/cycle) compile in via `if constexpr` when `kbEnableDebugInput` is true. Populates ImGui gamepad state when menus are visible
+- **MenuInput** - Flags struct for UI navigation and system commands (pause, fullscreen, quit). Debug commands (quicksave/load, replay, time scaling, debug texture toggle/cycle) compile in via `if constexpr` when `kbDebugInput` is true. Populates ImGui gamepad state when menus are visible
 - **FrameInput** - Per-coordinate input carrying only status changes (spawn, respawn, transfer, destroy). Serializable for deterministic replay. Two CRC methods: `Crc()` for full state (replay) and `ServerInputCrc()` for shared-field subset (reconciliation desync validation)
 - **StatusChange / TransferData** - Defined in `Frame/StatusChange.h`. One-shot game state events with full entity state for cross-cell migration
 

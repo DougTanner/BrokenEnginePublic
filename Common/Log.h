@@ -26,7 +26,7 @@ void LogWrite(char* pLogBuffer);
 template <typename... TUV>
 void Log(uint64_t uiCategory, std::format_string<const TUV&...> format, const TUV&... parameters)
 {
-	if constexpr (kbEnableLogging)
+	if constexpr (kbLogging)
 	{
 		if (!(uiCategory & kLogError) && !(guiLogEnabledCategories & uiCategory)) [[unlikely]]
 		{
@@ -58,7 +58,7 @@ public:
 
 	ScopedLogIndent()
 	{
-		if constexpr (kbEnableLogging)
+		if constexpr (kbLogging)
 		{
 			LogIndent(1);
 		}
@@ -66,7 +66,7 @@ public:
 
 	~ScopedLogIndent()
 	{
-		if constexpr (kbEnableLogging)
+		if constexpr (kbLogging)
 		{
 			LogIndent(-1);
 		}

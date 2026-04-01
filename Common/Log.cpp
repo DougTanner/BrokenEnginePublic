@@ -10,7 +10,7 @@ std::mutex gLogMutex;
 
 void LogIndent(int64_t iIndent)
 {
-	if constexpr (kbEnableLogging)
+	if constexpr (kbLogging)
 	{
 		gpThreadLocal->miLogIndent += iIndent;
 	}

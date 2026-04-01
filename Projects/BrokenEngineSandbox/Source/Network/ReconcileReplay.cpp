@@ -94,7 +94,7 @@ static bool ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, floa
 	{
 		if (IsTransferType(rStatusChange.eType))
 		{
-			SpawnTransfer(*pNext, rStatusChange.eType, rStatusChange.data, pNext->postRender.playerAlignment);
+			SpawnTransfer(*pNext, rStatusChange.eType, std::get<TransferData>(rStatusChange.data), pNext->postRender.playerAlignment);
 			bHadTransfers = true;
 
 			if (rStatusChange.eType == StatusChangeType::kTransferPlayer)

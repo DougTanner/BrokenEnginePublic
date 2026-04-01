@@ -58,5 +58,5 @@ Notes
 -----
 - Tracy spawns a background networking thread -- suppress allocation tracking for it
 - TRACY_ENABLE must NOT be defined in Release builds (measurable overhead)
-- if constexpr (kbEnableProfiling) guards are independent of TRACY_ENABLE -- both toggle independently
+- if constexpr (kbProfiling) guards are independent of TRACY_ENABLE -- both toggle independently
 - The existing ImGui overlay remains the primary runtime tool; Tracy is for deep analysis sessions

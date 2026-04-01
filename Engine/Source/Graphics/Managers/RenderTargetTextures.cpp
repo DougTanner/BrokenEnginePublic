@@ -258,7 +258,7 @@ void RenderTargetTextures::CreateObjectShadowsTextures()
 
 void RenderTargetTextures::CreateTerrainTextures()
 {
-	if constexpr (kbEnableDebugPrintf)
+	if constexpr (kbDebugPrintf)
 	{
 		mLogTexture.Create(
 		{

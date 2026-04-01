@@ -135,7 +135,7 @@ void TweaksScreenBase::WrapperSlider(std::string_view label, int64_t iSection, f
 
 void TweaksScreenBase::Render()
 {
-	if constexpr (kbEnableDebugInput)
+	if constexpr (kbDebugInput)
 	{
 		ImGuiIO& rIo = ImGui::GetIO();
 

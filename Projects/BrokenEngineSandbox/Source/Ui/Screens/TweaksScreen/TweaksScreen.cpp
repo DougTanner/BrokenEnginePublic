@@ -49,7 +49,7 @@ TweaksScreen::TweaksScreen()
 
 void TweaksScreen::Render()
 {
-	if constexpr (kbEnableDebugInput)
+	if constexpr (kbDebugInput)
 	{
 		if (!game::gpGame->mbShowImGui)
 		{

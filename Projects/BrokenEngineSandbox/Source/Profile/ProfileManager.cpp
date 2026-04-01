@@ -36,7 +36,7 @@ ProfileManager::ProfileManager()
 {
 	gpProfileManager = this;
 
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		BootStart(engine::kBootTimerTotal);
 	}

@@ -19,7 +19,7 @@ namespace engine
 
 void ServerUpdateDisplayStats()
 {
-	if constexpr (!kbEnableProfiling)
+	if constexpr (!kbProfiling)
 	{
 		return;
 	}

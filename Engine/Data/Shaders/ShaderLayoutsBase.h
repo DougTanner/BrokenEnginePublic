@@ -15,15 +15,15 @@
 
 // Constexpr bool equivalents of shader defines for C++ code
 #if defined(ENABLE_DEBUG_PRINTF_EXT)
-inline constexpr bool kbEnableDebugPrintf = true;
+inline constexpr bool kbDebugPrintf = true;
 #else
-inline constexpr bool kbEnableDebugPrintf = false;
+inline constexpr bool kbDebugPrintf = false;
 #endif
 
 #if defined(ENABLE_SHADER_REALTIME_CLOCK_EXT)
-inline constexpr bool kbEnableShaderRealtimeClock = true;
+inline constexpr bool kbShaderRealtimeClock = true;
 #else
-inline constexpr bool kbEnableShaderRealtimeClock = false;
+inline constexpr bool kbShaderRealtimeClock = false;
 #endif
 
 namespace shaders

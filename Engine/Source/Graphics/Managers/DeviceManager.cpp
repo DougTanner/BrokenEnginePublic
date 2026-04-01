@@ -20,11 +20,11 @@ DeviceManager::DeviceManager()
 	// Build device extension list
 	std::vector<const char*> deviceExtensions;
 	deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-	if constexpr (kbEnableDebugPrintf)
+	if constexpr (kbDebugPrintf)
 	{
 		deviceExtensions.push_back(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
 	}
-	if constexpr (kbEnableShaderRealtimeClock)
+	if constexpr (kbShaderRealtimeClock)
 	{
 		deviceExtensions.push_back(VK_KHR_SHADER_CLOCK_EXTENSION_NAME);
 	}
@@ -61,7 +61,7 @@ DeviceManager::DeviceManager()
 
 	// Build feature pNext chain tail: maintenance9 (if available) -> shader clock (if enabled)
 	void* pFeatureChainTail = nullptr;
-	if constexpr (kbEnableShaderRealtimeClock)
+	if constexpr (kbShaderRealtimeClock)
 	{
 		pFeatureChainTail = &vkPhysicalDeviceShaderClockFeaturesKHR;
 	}
@@ -91,7 +91,7 @@ DeviceManager::DeviceManager()
 		.runtimeDescriptorArray = VK_TRUE,
 		.scalarBlockLayout = VK_TRUE,
 	};
-	if constexpr (kbEnableGpuAssistedValidation || kbEnableDebugPrintf)
+	if constexpr (kbGpuAssistedValidation || kbDebugPrintf)
 	{
 		vkPhysicalDeviceVulkan12Features.storageBuffer8BitAccess = VK_TRUE;
 		vkPhysicalDeviceVulkan12Features.timelineSemaphore = VK_TRUE;
@@ -126,8 +126,8 @@ DeviceManager::DeviceManager()
 	}
 	vkDeviceCreateInfo.queueCreateInfoCount = uiUniqueFamilyCount;
 	vkDeviceCreateInfo.pQueueCreateInfos = pVkDeviceQueueCreateInfo;
-	vkDeviceCreateInfo.enabledLayerCount = kbEnableVulkanDebugLayers ? static_cast<uint32_t>(gpInstanceManager->mValidationLayers.size()) : 0;
-	vkDeviceCreateInfo.ppEnabledLayerNames = kbEnableVulkanDebugLayers ? gpInstanceManager->mValidationLayers.data() : nullptr;
+	vkDeviceCreateInfo.enabledLayerCount = kbVulkanDebugLayers ? static_cast<uint32_t>(gpInstanceManager->mValidationLayers.size()) : 0;
+	vkDeviceCreateInfo.ppEnabledLayerNames = kbVulkanDebugLayers ? gpInstanceManager->mValidationLayers.data() : nullptr;
 	vkDeviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 	vkDeviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 	VkPhysicalDeviceFeatures vkPhysicalDeviceFeatures
@@ -135,17 +135,17 @@ DeviceManager::DeviceManager()
 		.sampleRateShading = VK_TRUE,
 		.samplerAnisotropy = VK_TRUE,
 		.textureCompressionBC = VK_TRUE,
-		.shaderInt64 = kbEnableShaderRealtimeClock ? VK_TRUE : VK_FALSE,
+		.shaderInt64 = kbShaderRealtimeClock ? VK_TRUE : VK_FALSE,
 	#if !defined(ENABLE_32_BIT_BOOL)
 		.shaderInt16 = VK_TRUE,
 	#endif
 	};
 	vkPhysicalDeviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
-	if constexpr (kbEnableWireframe)
+	if constexpr (kbWireframe)
 	{
 		vkPhysicalDeviceFeatures.fillModeNonSolid = VK_TRUE;
 	}
-	if constexpr (kbEnableGpuAssistedValidation || kbEnableDebugPrintf)
+	if constexpr (kbGpuAssistedValidation || kbDebugPrintf)
 	{
 		vkPhysicalDeviceFeatures.vertexPipelineStoresAndAtomics = VK_TRUE;
 		vkPhysicalDeviceFeatures.fragmentStoresAndAtomics = VK_TRUE;

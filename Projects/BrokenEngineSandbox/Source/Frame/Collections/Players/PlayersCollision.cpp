@@ -124,7 +124,7 @@ static void XM_CALLCONV ApplyDamage([[maybe_unused]] const Frame& rFrame, [[mayb
 		}
 #endif
 
-		if constexpr (!kbEnableInvincibility)
+		if constexpr (!kbInvincibility)
 		{
 			rPlayer.pfArmors[i] -= fDamage;
 		}

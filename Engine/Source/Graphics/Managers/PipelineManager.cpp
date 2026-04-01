@@ -29,7 +29,7 @@ PipelineManager::PipelineManager()
 			continue;
 		}
 
-		if constexpr (!kbEnableDebugPrintf)
+		if constexpr (!kbDebugPrintf)
 		{
 			if (strcmp(rChunk.pHeader->pcPath, "Shaders\\Log.vert") == 0)
 			{
@@ -66,7 +66,7 @@ PipelineManager::PipelineManager()
 	CreatePipelineShadows();
 	CreateLightingShadowDependentPipelines();
 
-	if constexpr (kbEnableDebugPrintf)
+	if constexpr (kbDebugPrintf)
 	{
 		mpPipelines[kPipelineLog].Create(
 		{
@@ -100,7 +100,7 @@ PipelineManager::PipelineManager()
 		},
 	});
 
-	if constexpr (kbEnableDebugInput)
+	if constexpr (kbDebugInput)
 	{
 		RenderTargetTextures& rTextures = gpTextureManager->mRenderTargetTextures;
 		mpPipelines[kPipelineDebugTexture].Create(
@@ -684,7 +684,7 @@ void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
 		}
 
 		// Debug texture pipeline references all lighting debug textures
-		if constexpr (kbEnableDebugInput)
+		if constexpr (kbDebugInput)
 		{
 			RenderTargetTextures& rTextures = gpTextureManager->mRenderTargetTextures;
 			mpPipelines[kPipelineDebugTexture].Create(

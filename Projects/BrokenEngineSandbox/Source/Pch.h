@@ -2,23 +2,23 @@
 
 #include "ExternalHeaders.h"
 
-inline constexpr bool kbEnableDesyncRecovery = false; // DT: TEMP true;
-inline constexpr bool kbEnableFrameDispatch = true;
-inline constexpr bool kbEnableLogging = true;
-inline constexpr bool kbEnableQuadrantNeighborSubscriptions = true;
-inline constexpr bool kbEnableRenderThread = true;
-inline constexpr bool kbEnableReconcileThread = true;
-inline constexpr bool kbEnableReconcileDispatch = true;
+inline constexpr bool kbDesyncRecovery = false; // DT: TEMP true;
+inline constexpr bool kbFrameDispatch = true;
+inline constexpr bool kbLogging = true;
+inline constexpr bool kbQuadrantNeighborSubscriptions = true;
+inline constexpr bool kbRenderThread = true;
+inline constexpr bool kbReconcileThread = true;
+inline constexpr bool kbReconcileDispatch = true;
 
 inline constexpr bool kbAlsoLogToPrintf = false;
-inline constexpr bool kbEnableFramebufferClearColor = false;
-inline constexpr bool kbEnableGpuAssistedValidation = false;
-inline constexpr bool kbEnableRecording = false;
-inline constexpr bool kbEnableScreenshots = false;
-inline constexpr bool kbEnableWireframe = false;
+inline constexpr bool kbFramebufferClearColor = false;
+inline constexpr bool kbGpuAssistedValidation = false;
+inline constexpr bool kbRecording = false;
+inline constexpr bool kbScreenshots = false;
+inline constexpr bool kbWireframe = false;
 
 // DT: TEMP GAMELOGIC
-inline constexpr bool kbEnableSmokeSpreadTest = false;
+inline constexpr bool kbSmokeSpreadTest = false;
 
 #if defined(BT_SERVER)
 inline constexpr bool kbSingleInstance = true;
@@ -31,42 +31,42 @@ inline constexpr bool kbSingleInstance = false;
 inline constexpr const char* kpcBuildConfigName = "Debug";
 
 inline constexpr bool kbAutoServer = false; // DT: TEMP true;
-inline constexpr bool kbEnableDebugBreak = true;
-inline constexpr bool kbEnableDebugInput = true;
-inline constexpr bool kbEnableDxDiag = true;
-inline constexpr bool kbEnableInvincibility = true;
-inline constexpr bool kbEnableProfiling = true;
-inline constexpr bool kbEnableProfilingFrameSpike = false;
-inline constexpr bool kbEnableReplayFullFrames = true;
-inline constexpr bool kbEnableVulkanDebugLayers = true;
+inline constexpr bool kbDebugBreak = true;
+inline constexpr bool kbDebugInput = true;
+inline constexpr bool kbDxDiag = true;
+inline constexpr bool kbInvincibility = true;
+inline constexpr bool kbProfiling = true;
+inline constexpr bool kbProfilingFrameSpike = false;
+inline constexpr bool kbReplayFullFrames = true;
+inline constexpr bool kbVulkanDebugLayers = true;
 inline constexpr bool kbRandomlyInvalidatePbrCubemapCache = true;
 inline constexpr bool kbShowProfileTextByDefault = false;
 #elif defined(BT_PROFILE)
 inline constexpr const char* kpcBuildConfigName = "Profile";
 
 inline constexpr bool kbAutoServer = true;
-inline constexpr bool kbEnableDebugBreak = false;
-inline constexpr bool kbEnableDebugInput = false;
-inline constexpr bool kbEnableDxDiag = false;
-inline constexpr bool kbEnableInvincibility = true;
-inline constexpr bool kbEnableProfiling = true;
-inline constexpr bool kbEnableProfilingFrameSpike = true;
-inline constexpr bool kbEnableReplayFullFrames = false;
-inline constexpr bool kbEnableVulkanDebugLayers = false;
+inline constexpr bool kbDebugBreak = false;
+inline constexpr bool kbDebugInput = false;
+inline constexpr bool kbDxDiag = false;
+inline constexpr bool kbInvincibility = true;
+inline constexpr bool kbProfiling = true;
+inline constexpr bool kbProfilingFrameSpike = true;
+inline constexpr bool kbReplayFullFrames = false;
+inline constexpr bool kbVulkanDebugLayers = false;
 inline constexpr bool kbRandomlyInvalidatePbrCubemapCache = false;
 inline constexpr bool kbShowProfileTextByDefault = true;
 #elif defined(BT_RELEASE)
 inline constexpr const char* kpcBuildConfigName = "Release";
 
 inline constexpr bool kbAutoServer = false;
-inline constexpr bool kbEnableDebugBreak = false;
-inline constexpr bool kbEnableDebugInput = false;
-inline constexpr bool kbEnableDxDiag = true;
-inline constexpr bool kbEnableInvincibility = false;
-inline constexpr bool kbEnableProfiling = false;
-inline constexpr bool kbEnableProfilingFrameSpike = false;
-inline constexpr bool kbEnableReplayFullFrames = false;
-inline constexpr bool kbEnableVulkanDebugLayers = false;
+inline constexpr bool kbDebugBreak = false;
+inline constexpr bool kbDebugInput = false;
+inline constexpr bool kbDxDiag = true;
+inline constexpr bool kbInvincibility = false;
+inline constexpr bool kbProfiling = false;
+inline constexpr bool kbProfilingFrameSpike = false;
+inline constexpr bool kbReplayFullFrames = false;
+inline constexpr bool kbVulkanDebugLayers = false;
 inline constexpr bool kbRandomlyInvalidatePbrCubemapCache = false;
 inline constexpr bool kbShowProfileTextByDefault = false;
 #endif

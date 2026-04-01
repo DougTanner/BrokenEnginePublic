@@ -140,39 +140,33 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 
 	for (int64_t i = 0; i < iGroupCount; ++i)
 	{
-		const game::TransferData& rData = pChanges[pIndices[i]].data;
+		const game::StatusChangeData& rData = pChanges[pIndices[i]].data;
 
 		switch (eType)
 		{
 			case game::StatusChangeType::kSpawnPlayer:
-			{
-				XMFLOAT4A f4 {};
-				XMStoreFloat4A(&f4, rData.vecPosition);
-				WriteBytes(pCursor, &f4, sizeof(int64_t));
+				WriteInt64(pCursor, std::get<game::SpawnPlayerData>(rData).iGlobalId);
 				break;
-			}
 			case game::StatusChangeType::kRespawnPlayer:
 				break;
 			case game::StatusChangeType::kTransferBlaster:
-				SerializeBlasterTransfer(pCursor, rData);
+				SerializeBlasterTransfer(pCursor, std::get<game::TransferData>(rData));
 				break;
 			case game::StatusChangeType::kTransferSpaceship:
-				SerializeSpaceshipTransfer(pCursor, rData);
+				SerializeSpaceshipTransfer(pCursor, std::get<game::TransferData>(rData));
 				break;
 			case game::StatusChangeType::kTransferMissile:
-				SerializeMissileTransfer(pCursor, rData);
+				SerializeMissileTransfer(pCursor, std::get<game::TransferData>(rData));
 				break;
 			case game::StatusChangeType::kTransferPlayer:
-				SerializePlayerTransfer(pCursor, rData);
+				SerializePlayerTransfer(pCursor, std::get<game::TransferData>(rData));
 				break;
 			case game::StatusChangeType::kDestroyPlayer:
-			case game::StatusChangeType::kWeaponModeChange:
-			{
-				XMFLOAT4A f4 {};
-				XMStoreFloat4A(&f4, rData.vecPosition);
-				WriteBytes(pCursor, &f4, sizeof(int64_t));
+				WriteInt64(pCursor, std::get<game::DestroyPlayerData>(rData).iPlayerUuid);
 				break;
-			}
+			case game::StatusChangeType::kWeaponModeChange:
+				WriteInt64(pCursor, std::get<game::WeaponModeChangeData>(rData).iPlayerUuid);
+				break;
 		}
 	}
 }
@@ -257,37 +251,33 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 			rChange = {};
 			rChange.eType = eType;
 
+			rChange.data = game::DefaultDataForType(eType);
+
 			switch (eType)
 			{
 				case game::StatusChangeType::kSpawnPlayer:
-				{
-					XMFLOAT4A f4 {};
-					ReadBytes(pCursor, &f4, sizeof(int64_t));
-					rChange.data.vecPosition = XMLoadFloat4A(&f4);
+					std::get<game::SpawnPlayerData>(rChange.data).iGlobalId = ReadInt64(pCursor);
 					break;
-				}
 				case game::StatusChangeType::kRespawnPlayer:
 					break;
 				case game::StatusChangeType::kTransferBlaster:
-					DeserializeBlasterTransfer(pCursor, rChange.data);
+					DeserializeBlasterTransfer(pCursor, std::get<game::TransferData>(rChange.data));
 					break;
 				case game::StatusChangeType::kTransferSpaceship:
-					DeserializeSpaceshipTransfer(pCursor, rChange.data);
+					DeserializeSpaceshipTransfer(pCursor, std::get<game::TransferData>(rChange.data));
 					break;
 				case game::StatusChangeType::kTransferMissile:
-					DeserializeMissileTransfer(pCursor, rChange.data);
+					DeserializeMissileTransfer(pCursor, std::get<game::TransferData>(rChange.data));
 					break;
 				case game::StatusChangeType::kTransferPlayer:
-					DeserializePlayerTransfer(pCursor, rChange.data);
+					DeserializePlayerTransfer(pCursor, std::get<game::TransferData>(rChange.data));
 					break;
 				case game::StatusChangeType::kDestroyPlayer:
-				case game::StatusChangeType::kWeaponModeChange:
-				{
-					XMFLOAT4A f4 {};
-					ReadBytes(pCursor, &f4, sizeof(int64_t));
-					rChange.data.vecPosition = XMLoadFloat4A(&f4);
+					std::get<game::DestroyPlayerData>(rChange.data).iPlayerUuid = ReadInt64(pCursor);
 					break;
-				}
+				case game::StatusChangeType::kWeaponModeChange:
+					std::get<game::WeaponModeChangeData>(rChange.data).iPlayerUuid = ReadInt64(pCursor);
+					break;
 			}
 		}
 

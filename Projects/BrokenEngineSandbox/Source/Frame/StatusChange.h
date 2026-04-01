@@ -36,6 +36,24 @@ inline const char* StatusChangeTypeName(StatusChangeType eType)
 	return "Unknown";
 }
 
+struct SpawnPlayerData
+{
+	int64_t iGlobalId = 0;
+	bool operator==(const SpawnPlayerData&) const = default;
+};
+
+struct DestroyPlayerData
+{
+	int64_t iPlayerUuid = 0;
+	bool operator==(const DestroyPlayerData&) const = default;
+};
+
+struct WeaponModeChangeData
+{
+	int64_t iPlayerUuid = 0;
+	bool operator==(const WeaponModeChangeData&) const = default;
+};
+
 struct TransferData
 {
 	bool operator==(const TransferData& rOther) const
@@ -108,12 +126,30 @@ struct TransferData
 #endif
 };
 
+using StatusChangeData = std::variant<
+	SpawnPlayerData,      // kSpawnPlayer
+	TransferData,         // kTransfer* (all 4 types) and kRespawnPlayer (empty TransferData)
+	DestroyPlayerData,    // kDestroyPlayer
+	WeaponModeChangeData  // kWeaponModeChange
+>;
+
+inline StatusChangeData DefaultDataForType(StatusChangeType eType)
+{
+	switch (eType)
+	{
+		case StatusChangeType::kSpawnPlayer:      return SpawnPlayerData{};
+		case StatusChangeType::kDestroyPlayer:    return DestroyPlayerData{};
+		case StatusChangeType::kWeaponModeChange: return WeaponModeChangeData{};
+		default:                                  return TransferData{};
+	}
+}
+
 struct StatusChange
 {
 	bool operator==(const StatusChange&) const = default;
 
 	StatusChangeType eType {};
-	TransferData data {};
+	StatusChangeData data {};
 };
 
 } // namespace game

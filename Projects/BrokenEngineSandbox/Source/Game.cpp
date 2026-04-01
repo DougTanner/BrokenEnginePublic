@@ -211,7 +211,7 @@ void Game::ComputeActiveSet()
 			}
 		}
 
-		if constexpr (kbEnableQuadrantNeighborSubscriptions)
+		if constexpr (kbQuadrantNeighborSubscriptions)
 		{
 			const Frame& rFrame = RenderFrame(mClientGridCoord);
 			std::optional<int64_t> oPlayerIdx = ClientPlayerIndex(*rFrame.postRender.pPlayers);
@@ -474,7 +474,7 @@ void Game::ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput)
 	{
 		if (IsTransferType(rStatusChange.eType))
 		{
-			SpawnTransfer(rFrame, rStatusChange.eType, rStatusChange.data, rFrame.postRender.playerAlignment);
+			SpawnTransfer(rFrame, rStatusChange.eType, std::get<TransferData>(rStatusChange.data), rFrame.postRender.playerAlignment);
 		}
 	}
 
@@ -646,7 +646,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		engine::gFullscreen.Toggle();
 	}
 
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		if (rMenuInput.flags & MenuInputFlags::kToggleProfileText)
 		{
@@ -666,7 +666,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		}
 	}
 
-	if constexpr (kbEnableScreenshots)
+	if constexpr (kbScreenshots)
 	{
 		if (rMenuInput.flags & MenuInputFlags::kToggleScreenshots)
 		{
@@ -710,7 +710,7 @@ void Game::LoadSoundSettings()
 		engine::gSoundVolume.Set(soundSettings.fSoundVolume);
 	}
 
-	if constexpr (kbEnableRecording)
+	if constexpr (kbRecording)
 	{
 		engine::gMusicVolume.Set(0.0f);
 	}
@@ -739,7 +739,7 @@ static constexpr char kpcTweaksSettingsPath[] = "TweaksSettings.bin";
 
 void Game::SaveTweaksSettings()
 {
-	if constexpr (!kbEnableDebugInput)
+	if constexpr (!kbDebugInput)
 	{
 		return;
 	}
@@ -769,7 +769,7 @@ void Game::SaveTweaksSettings()
 
 void Game::LoadTweaksSettings()
 {
-	if constexpr (!kbEnableDebugInput)
+	if constexpr (!kbDebugInput)
 	{
 		return;
 	}
@@ -826,7 +826,7 @@ void Game::InitFramePostRender(Frame& rFrame)
 
 void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 {
-	if constexpr (kbEnableDebugInput)
+	if constexpr (kbDebugInput)
 	{
 #if defined(BT_CLIENT)
 		if (engine::gpClient != nullptr)

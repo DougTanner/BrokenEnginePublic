@@ -19,7 +19,7 @@ void VkNameImpl(VkObjectType type, uint64_t handle, std::string_view name);
 
 inline void VkName([[maybe_unused]] VkObjectType type, [[maybe_unused]] auto handle, [[maybe_unused]] std::string_view name)
 {
-	if constexpr (kbEnableVulkanDebugLayers)
+	if constexpr (kbVulkanDebugLayers)
 	{
 		VkNameImpl(type, reinterpret_cast<uint64_t>(handle), name);
 	}

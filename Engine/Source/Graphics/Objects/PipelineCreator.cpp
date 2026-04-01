@@ -471,7 +471,7 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 		vkPipelineColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 	}
 
-	if constexpr (kbEnableWireframe)
+	if constexpr (kbWireframe)
 	{
 		bool bWireframe = gWireframe.Get<bool>();
 		if (rPipeline.mInfo.flags & kRenderTarget || rPipeline.mInfo.flags & kNoWireframe)

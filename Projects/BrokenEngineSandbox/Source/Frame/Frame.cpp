@@ -242,7 +242,7 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 		return;
 	}
 
-	if constexpr (kbEnableSmokeSpreadTest)
+	if constexpr (kbSmokeSpreadTest)
 	{
 		constexpr float kfTestSpawnInterval = 1.0f;
 		while (rInterpolate.fSpawnTimer >= kfTestSpawnInterval)

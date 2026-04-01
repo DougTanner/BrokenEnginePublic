@@ -13,16 +13,31 @@ static void LogStatusChangeDetail(const StatusChange& rStatusChange)
 {
 	Log(kLogNetwork, "Type: {}", StatusChangeTypeName(rStatusChange.eType));
 	ScopedLogIndent scopedDetail;
-	const TransferData& rData = rStatusChange.data;
-	Log(kLogNetwork, "Position: {} Direction: {} Velocity: {}", rData.vecPosition, rData.vecDirection, rData.vecVelocity);
-	char acAlignment[20] {};
-	common::ToHex(std::span<char, 20>(acAlignment), rData.alignment.uiValue);
-	Log(kLogNetwork, "Alignment: {} Health: {} Shield: {} TypeIndex: {}", acAlignment, rData.fHealth, rData.fShield, rData.uiTypeIndex);
-	Log(kLogNetwork, "WindTrailIntensity: {} WindTrailWidth: {} WindTrailLengthMultiplier: {} Acceleration: {}", rData.fWindTrailIntensity, rData.fWindTrailWidth, rData.fWindTrailLengthMultiplier, rData.fAcceleration);
-	Log(kLogNetwork, "NextBlasterFireTime: {} NextSecondarySpawnTime: {} ShieldCooldown: {} ShieldDownSoundCooldown: {}", rData.fNextBlasterFireTime, rData.fNextSecondarySpawnTime, rData.fShieldCooldown, rData.fShieldDownSoundCooldown);
-	Log(kLogNetwork, "AnimationTime: {} ShieldRotation: {} ShieldShrink: {} PlayerFlags: {}", rData.fAnimationTime, rData.fShieldRotation, rData.fShieldShrink, rData.uiPlayerFlags);
-	Log(kLogNetwork, "NextBlasterSpawnTime: {}", rData.fNextBlasterSpawnTime);
-	Log(kLogNetwork, "DeltaRotationDelay: {} Time: {} ExhaustDelay: {} NextJitter: {}", rData.fDeltaRotationDelay, rData.fTime, rData.fExhaustDelay, rData.fNextJitter);
+
+	if (const auto* pSpawn = std::get_if<SpawnPlayerData>(&rStatusChange.data))
+	{
+		Log(kLogNetwork, "GlobalId: {}", pSpawn->iGlobalId);
+	}
+	else if (const auto* pDestroy = std::get_if<DestroyPlayerData>(&rStatusChange.data))
+	{
+		Log(kLogNetwork, "PlayerUuid: {}", pDestroy->iPlayerUuid);
+	}
+	else if (const auto* pWeapon = std::get_if<WeaponModeChangeData>(&rStatusChange.data))
+	{
+		Log(kLogNetwork, "PlayerUuid: {}", pWeapon->iPlayerUuid);
+	}
+	else if (const auto* pTransfer = std::get_if<TransferData>(&rStatusChange.data))
+	{
+		Log(kLogNetwork, "Position: {} Direction: {} Velocity: {}", pTransfer->vecPosition, pTransfer->vecDirection, pTransfer->vecVelocity);
+		char acAlignment[20] {};
+		common::ToHex(std::span<char, 20>(acAlignment), pTransfer->alignment.uiValue);
+		Log(kLogNetwork, "Alignment: {} Health: {} Shield: {} TypeIndex: {}", acAlignment, pTransfer->fHealth, pTransfer->fShield, pTransfer->uiTypeIndex);
+		Log(kLogNetwork, "WindTrailIntensity: {} WindTrailWidth: {} WindTrailLengthMultiplier: {} Acceleration: {}", pTransfer->fWindTrailIntensity, pTransfer->fWindTrailWidth, pTransfer->fWindTrailLengthMultiplier, pTransfer->fAcceleration);
+		Log(kLogNetwork, "NextBlasterFireTime: {} NextSecondarySpawnTime: {} ShieldCooldown: {} ShieldDownSoundCooldown: {}", pTransfer->fNextBlasterFireTime, pTransfer->fNextSecondarySpawnTime, pTransfer->fShieldCooldown, pTransfer->fShieldDownSoundCooldown);
+		Log(kLogNetwork, "AnimationTime: {} ShieldRotation: {} ShieldShrink: {} PlayerFlags: {}", pTransfer->fAnimationTime, pTransfer->fShieldRotation, pTransfer->fShieldShrink, pTransfer->uiPlayerFlags);
+		Log(kLogNetwork, "NextBlasterSpawnTime: {}", pTransfer->fNextBlasterSpawnTime);
+		Log(kLogNetwork, "DeltaRotationDelay: {} Time: {} ExhaustDelay: {} NextJitter: {}", pTransfer->fDeltaRotationDelay, pTransfer->fTime, pTransfer->fExhaustDelay, pTransfer->fNextJitter);
+	}
 }
 
 void LogStatusChangeList(std::string_view label, std::span<const StatusChange> statusChanges)

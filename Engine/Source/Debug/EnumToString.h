@@ -12,7 +12,7 @@ public:
 	{
 		char* pcResult = rWorkbuffer.PushBuffer<char*>(32);
 
-		if constexpr (kbEnableLogging)
+		if constexpr (kbLogging)
 		{
 			if constexpr (std::is_same_v<T, VkColorSpaceKHR>)
 			{

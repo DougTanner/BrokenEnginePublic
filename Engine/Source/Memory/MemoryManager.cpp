@@ -12,7 +12,7 @@ bool sbTrackingReady = false;
 
 void TrackAllocation()
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		giAllocationsThisFrame.fetch_add(1, std::memory_order_relaxed);
 	}

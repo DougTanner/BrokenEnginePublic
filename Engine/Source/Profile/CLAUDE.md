@@ -8,7 +8,7 @@ Performance profiling system providing CPU timing, GPU timing via Vulkan timesta
 
 **Base/Derived Pattern**: `engine::ProfileManagerBase` owns engine-level counters and timers as member arrays. `game::ProfileManager` inherits from it, adding game-specific arrays. Virtual dispatch on `GetCpuCounter()`/`GetCpuTimer()` routes to the correct array based on index. Game enums encode the engine offset directly so profiling calls need no additional calculation.
 
-**Compile-Time Elimination**: All profiling methods guard with `if constexpr (kbEnableProfiling)` for zero overhead when disabled.
+**Compile-Time Elimination**: All profiling methods guard with `if constexpr (kbProfiling)` for zero overhead when disabled.
 
 **GPU Queries** (client-only): Uses a single `VkQueryPool` with per-command-buffer query sets. Results are read without blocking to prevent hangs at low framerates; unavailable results retain previous smoothed values. Integrates with Vulkan debug utils for external profiler labeling (RenderDoc, etc.).
 

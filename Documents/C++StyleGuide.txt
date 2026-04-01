@@ -41,9 +41,9 @@ Use the following rules for C++ code
 
 5. Use RAII for allocations and locking: std::unique_ptr<game::Frame> mpCurrentFrame;
 
-6. Features are toggled via `inline constexpr bool kb*` variables in Pch.h (e.g., kbEnableLogging, kbEnableRecording). Use `if constexpr` for conditional compilation. Avoid using configuration differences directly (BT_DEBUG vs. BT_RELEASE):
+6. Features are toggled via `inline constexpr bool kb*` variables in Pch.h (e.g., kbLogging, kbRecording). Use `if constexpr` for conditional compilation. Avoid using configuration differences directly (BT_DEBUG vs. BT_RELEASE):
 
-	if constexpr (kbEnableLogging)
+	if constexpr (kbLogging)
 	{
 		Log("message");
 	}

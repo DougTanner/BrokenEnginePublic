@@ -4,8 +4,8 @@
 #include "ExternalHeaders.h"
 
 inline constexpr bool kbAlsoLogToPrintf = true;
-inline constexpr bool kbEnableDebugBreak = true;
-inline constexpr bool kbEnableLogging = true;
+inline constexpr bool kbDebugBreak = true;
+inline constexpr bool kbLogging = true;
 inline constexpr bool kbIsDataPacker = true;
 
 #include "Common.h"

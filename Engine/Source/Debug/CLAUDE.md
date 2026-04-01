@@ -10,7 +10,7 @@ Vulkan development utilities for human-readable enum-to-string conversions used 
 
 ## Architecture Notes
 
-Uses compile-time type dispatch (`std::is_same_v`) within a single templated `Convert()` method to select the appropriate lookup map based on enum type. Guarded by `if constexpr (kbEnableLogging)` so all lookup maps and string logic are eliminated at compile time in non-logging builds.
+Uses compile-time type dispatch (`std::is_same_v`) within a single templated `Convert()` method to select the appropriate lookup map based on enum type. Guarded by `if constexpr (kbLogging)` so all lookup maps and string logic are eliminated at compile time in non-logging builds.
 
 Includes a `std::formatter<VkResult>` specialization enabling direct use of VkResult values in `std::format()` and `Log()` calls.
 

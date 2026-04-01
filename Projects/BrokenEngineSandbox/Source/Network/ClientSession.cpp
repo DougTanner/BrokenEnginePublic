@@ -414,9 +414,9 @@ void ClientSession::PollDebugFrameResponse()
 		CompareWithServerFrame(*mDesyncDebugState.pClientFrame, *pDebugFrame->pFrame, mDesyncDebugState.iTick, mDesyncDebugState.coord);
 		mDesyncDebugState = {};
 
-		if constexpr (kbEnableDesyncRecovery)
+		if constexpr (kbDesyncRecovery)
 		{
-			if constexpr (kbEnableDebugBreak)
+			if constexpr (kbDebugBreak)
 			{
 				DEBUG_BREAK();
 			}
@@ -456,7 +456,7 @@ bool ClientSession::PollConnection()
 	if (mDesyncDebugState.iTick >= 0 && std::chrono::steady_clock::now() - mDesyncDebugState.entryTime > kDesyncDebugTimeout)
 	{
 		mDesyncDebugState = {};
-		if constexpr (kbEnableDesyncRecovery)
+		if constexpr (kbDesyncRecovery)
 		{
 			Log(kLogNetwork, "ClientSession::PollConnection Desync debug mode timed out, recovering without debug frame");
 			RecoverFromDesync();

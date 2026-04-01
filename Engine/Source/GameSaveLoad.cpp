@@ -27,7 +27,7 @@ void GameSaveLoad::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 	//   lifecycle doesn't apply, and SOA collection data must persist in the Frame after deserialization)
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	if constexpr (kbEnableDebugInput)
+	if constexpr (kbDebugInput)
 	{
 		if (rMenuInput.flags & game::MenuInputFlags::kQuicksave)
 		{
@@ -97,7 +97,7 @@ bool GameSaveLoad::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 	//   Stream must stay open across the read, and collection data must persist in the Frame afterward
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	if constexpr (kbEnableDebugInput)
+	if constexpr (kbDebugInput)
 	{
 		if (rMenuInput.flags & game::MenuInputFlags::kQuickload || rMenuInput.flags & game::MenuInputFlags::kResetFrame)
 		{
@@ -138,7 +138,7 @@ bool GameSaveLoad::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 
 void GameSaveLoad::SaveLoadReplay()
 {
-	if constexpr (kbEnableDebugInput)
+	if constexpr (kbDebugInput)
 	{
 		if (mrGameBase.mGameFlags & GameFlags::kLoadReplay)
 		{
@@ -235,7 +235,7 @@ void GameSaveLoad::SyncReplayTick()
 	//   Workbuffer is popped each frame so can't hold cross-frame state; size depends on recording length
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	if constexpr (kbEnableDebugInput)
+	if constexpr (kbDebugInput)
 	{
 		// Recording start: create one writer per active coord
 		if ((mrGameBase.mGameFlags & GameFlags::kSaveReplay) && mReplayWriters.empty())

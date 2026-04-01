@@ -48,7 +48,7 @@ void CheckVkFailed(VkResult vkResult, std::string_view expression, std::source_l
 
 void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t handle, [[maybe_unused]] std::string_view name)
 {
-	if constexpr (kbEnableVulkanDebugLayers)
+	if constexpr (kbVulkanDebugLayers)
 	{
 		if (vkSetDebugUtilsObjectNameEXT != nullptr)
 		{

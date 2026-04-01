@@ -11,7 +11,7 @@ int64_t TimeStep::TickRealtime()
 {
 	std::chrono::nanoseconds realDeltaNs = mRealTime.GetDeltaNs(true);
 
-	if constexpr (kbEnableProfilingFrameSpike)
+	if constexpr (kbProfilingFrameSpike)
 	{
 		// Track delta for performance monitoring
 		float fDelta = common::NanosecondsToFloatSeconds<float>(realDeltaNs);
@@ -34,7 +34,7 @@ int64_t TimeStep::TickRealtime()
 	mTickRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
 
 	// Death spiral prevention: detect excessive updates and auto-reduce time scale
-	if constexpr (kbEnableDebugInput)
+	if constexpr (kbDebugInput)
 	{
 		int64_t iEstimatedTicks = mTickRemainderNs / game::kTickNs;
 		if (iEstimatedTicks > kiMaxTicksPerFrame && miTimeMultiply > 1) [[unlikely]]

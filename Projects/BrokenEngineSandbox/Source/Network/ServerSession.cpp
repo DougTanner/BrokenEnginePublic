@@ -236,12 +236,8 @@ void ServerSession::BuildFrameInputs()
 	// Add spawn StatusChanges for clients waiting for initial spawn
 	for (const ClientSpawnInfo& rInfo : mClientsWaitingForSpawn)
 	{
-		// Generate global ID and pack into vecPosition
 		int64_t iGlobalId = gpGame->GenerateGlobalId();
-		StatusChange spawnChange {.eType = StatusChangeType::kSpawnPlayer,};
-		XMFLOAT4A f4 {};
-		std::memcpy(&f4, &iGlobalId, sizeof(int64_t));
-		spawnChange.data.vecPosition = XMLoadFloat4A(&f4);
+		StatusChange spawnChange {.eType = StatusChangeType::kSpawnPlayer, .data = SpawnPlayerData{.iGlobalId = iGlobalId}};
 		gpGame->mFrameInputs.try_emplace(rInfo.spawnCoord).first->second.statusChanges.push_back(spawnChange);
 		Log(kLogNetwork, "BuildFrameInputs kSpawnPlayer Client: {} GlobalId: {} Coord: ({},{})", rInfo.iClientId, iGlobalId, rInfo.spawnCoord.x, rInfo.spawnCoord.y); // DT TEMP
 	}
@@ -255,11 +251,8 @@ void ServerSession::BuildFrameInputs()
 			continue;
 		}
 
-		StatusChange destroyChange {.eType = StatusChangeType::kDestroyPlayer,};
 		int64_t iPlayerUuid = rDestroy.playerId.ToUuid().Value();
-		XMFLOAT4A f4 {};
-		std::memcpy(&f4, &iPlayerUuid, sizeof(int64_t));
-		destroyChange.data.vecPosition = XMLoadFloat4A(&f4);
+		StatusChange destroyChange {.eType = StatusChangeType::kDestroyPlayer, .data = DestroyPlayerData{.iPlayerUuid = iPlayerUuid}};
 		frameInputIt->second.statusChanges.push_back(destroyChange);
 	}
 	mPendingPlayerDestroys.clear();
@@ -396,7 +389,7 @@ void ServerSession::CollectTransfers(std::vector<ClientTransferInfo>& rClientTra
 				continue;
 			}
 
-			mTickBroadcast.transfers.try_emplace(destination).first->second.push_back({.eType = rRequest.eType, .data = rRequest.data,});
+			mTickBroadcast.transfers.try_emplace(destination).first->second.push_back({.eType = rRequest.eType, .data = StatusChangeData{rRequest.data},});
 
 			if (rRequest.eType == StatusChangeType::kTransferPlayer && rRequest.data.globalPlayerId.IsValid())
 			{
@@ -424,7 +417,7 @@ void ServerSession::SpawnTransfers()
 		Frame& rDestFrame = *gpGame->mCoordFrames.at(rCoord).pNext;
 		for (const StatusChange& rTransfer : rTransfers)
 		{
-			TransferData data = rTransfer.data;
+			TransferData data = std::get<TransferData>(rTransfer.data);
 			SpawnTransfer(rDestFrame, rTransfer.eType, data, gpGame->PlayerAlignment());
 		}
 	}
@@ -589,10 +582,7 @@ void ServerSession::ProcessWeaponModeRequests()
 			continue;
 		}
 
-		StatusChange weaponChange {.eType = StatusChangeType::kWeaponModeChange,};
-		XMFLOAT4A f4 {};
-		std::memcpy(&f4, &iPlayerUuid, sizeof(int64_t));
-		weaponChange.data.vecPosition = XMLoadFloat4A(&f4);
+		StatusChange weaponChange {.eType = StatusChangeType::kWeaponModeChange, .data = WeaponModeChangeData{.iPlayerUuid = iPlayerUuid}};
 		frameInputIt->second.statusChanges.push_back(weaponChange);
 
 		Log(kLogNetwork, "ServerSession::ProcessWeaponModeRequests Client: {} GlobalPlayer: {} Coord: ({},{})", rRequest.iClientId, rRequest.globalPlayerId.iValue, weaponCoord.x, weaponCoord.y);

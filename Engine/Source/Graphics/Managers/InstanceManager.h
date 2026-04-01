@@ -25,7 +25,7 @@ public:
 	VkPhysicalDevice16BitStorageFeatures mVkPhysicalDevice16BitStorageFeatures =
 	{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
-		.pNext = kbEnableShaderRealtimeClock ? &mVkPhysicalDeviceShaderClockFeaturesKHR : nullptr,
+		.pNext = kbShaderRealtimeClock ? &mVkPhysicalDeviceShaderClockFeaturesKHR : nullptr,
 	};
 	VkPhysicalDeviceVulkan12Features mVkPhysicalDeviceVulkan12Features
 	{

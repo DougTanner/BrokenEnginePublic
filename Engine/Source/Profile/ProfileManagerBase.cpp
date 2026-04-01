@@ -23,7 +23,7 @@ ProfileManagerBase::~ProfileManagerBase()
 
 void ProfileManagerBase::Create()
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 #if defined(BT_CLIENT)
 		if (mVkQueryPool != VK_NULL_HANDLE)
@@ -64,7 +64,7 @@ void ProfileManagerBase::Create()
 
 void ProfileManagerBase::Destroy()
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 #if defined(BT_CLIENT)
 		if (gpDeviceManager != nullptr && mVkQueryPool != VK_NULL_HANDLE)
@@ -79,7 +79,7 @@ void ProfileManagerBase::Destroy()
 
 void ProfileManagerBase::ToggleProfileText()
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		meProfileScreen = static_cast<ProfileScreen>((static_cast<uint8_t>(meProfileScreen) + 1) % static_cast<uint8_t>(ProfileScreen::kCount));
 
@@ -94,7 +94,7 @@ void ProfileManagerBase::ToggleProfileText()
 
 void ProfileManagerBase::CpuStart(int64_t iCpuTimer, int64_t iThreads)
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
 		int64_t iAllocations = giAllocationsThisFrame.load(std::memory_order_relaxed);
@@ -120,7 +120,7 @@ void ProfileManagerBase::CpuStart(int64_t iCpuTimer, int64_t iThreads)
 
 void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCrossThread)
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
 		int64_t iAllocations = giAllocationsThisFrame.load(std::memory_order_relaxed);
@@ -175,13 +175,13 @@ void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCross
 
 void ProfileManagerBase::SetCount(int64_t iCounter, int64_t iCount)
 {
-	if constexpr (kbEnableProfiling) { GetCpuCounter(iCounter).iCount = iCount; }
+	if constexpr (kbProfiling) { GetCpuCounter(iCounter).iCount = iCount; }
 }
 
 #if defined(BT_CLIENT)
 void ProfileManagerBase::ResetQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eStart, GpuTimers eEnd)
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		if (mVkQueryPool == VK_NULL_HANDLE)
 		{
@@ -198,7 +198,7 @@ void ProfileManagerBase::ResetQueryPools(int64_t iCommandBuffer, VkCommandBuffer
 #if defined(BT_CLIENT)
 void ProfileManagerBase::GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer)
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		if (mVkQueryPool == VK_NULL_HANDLE)
 		{
@@ -225,7 +225,7 @@ void ProfileManagerBase::GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkComm
 
 void ProfileManagerBase::GpuStop(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer)
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		if (mVkQueryPool == VK_NULL_HANDLE)
 		{
@@ -244,7 +244,7 @@ void ProfileManagerBase::GpuStop(int64_t iCommandBuffer, VkCommandBuffer vkComma
 
 void ProfileManagerBase::GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTimers eEnd)
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		if (mVkQueryPool == VK_NULL_HANDLE)
 		{
@@ -273,7 +273,7 @@ void ProfileManagerBase::GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTi
 
 void ProfileManagerBase::BootStart(BootTimers eBootTimer)
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		mBootTimers[eBootTimer].startTimePoint = std::chrono::high_resolution_clock::now();
 	}
@@ -281,7 +281,7 @@ void ProfileManagerBase::BootStart(BootTimers eBootTimer)
 
 void ProfileManagerBase::BootStop(BootTimers eBootTimer)
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		BootTimer& rBootTimer = mBootTimers[eBootTimer];
 		rBootTimer.timeNs += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - rBootTimer.startTimePoint);
@@ -290,7 +290,7 @@ void ProfileManagerBase::BootStop(BootTimers eBootTimer)
 
 void ProfileManagerBase::BootLog()
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		BootStop(kBootTimerTotal);
 
@@ -308,7 +308,7 @@ void ProfileManagerBase::BootLog()
 
 void ProfileManagerBase::LogTimers()
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		Log("");
 
@@ -345,7 +345,7 @@ void ProfileManagerBase::LogTimers()
 
 void ProfileManagerBase::UpdateProfileText()
 {
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 #if defined(BT_CLIENT)
 		ScopedCpuProfile scopedCpuProfile(kCpuTimerUpdateProfileText);
@@ -427,23 +427,23 @@ int64_t ProfileManagerBase::GetCpuTimerCount() const
 ScopedBootTimer::ScopedBootTimer(BootTimers eBootTimer)
 : meBootTimer(eBootTimer)
 {
-	if constexpr (kbEnableProfiling) { gpProfileManager->BootStart(meBootTimer); }
+	if constexpr (kbProfiling) { gpProfileManager->BootStart(meBootTimer); }
 }
 
 ScopedBootTimer::~ScopedBootTimer()
 {
-	if constexpr (kbEnableProfiling) { gpProfileManager->BootStop(meBootTimer); }
+	if constexpr (kbProfiling) { gpProfileManager->BootStop(meBootTimer); }
 }
 
 ScopedCpuProfile::ScopedCpuProfile(int64_t iCpuTimer, int64_t iThreads)
 : miCpuTimer(iCpuTimer)
 {
-	if constexpr (kbEnableProfiling) { gpProfileManager->CpuStart(miCpuTimer, iThreads); }
+	if constexpr (kbProfiling) { gpProfileManager->CpuStart(miCpuTimer, iThreads); }
 }
 
 ScopedCpuProfile::~ScopedCpuProfile()
 {
-	if constexpr (kbEnableProfiling) { gpProfileManager->CpuStop(miCpuTimer, false); }
+	if constexpr (kbProfiling) { gpProfileManager->CpuStop(miCpuTimer, false); }
 }
 
 } // namespace engine

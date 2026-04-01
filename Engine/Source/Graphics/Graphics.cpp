@@ -169,7 +169,7 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unord
 
 	gpProfileManager->UpdateProfileText();
 
-	if constexpr (kbEnableRenderThread)
+	if constexpr (kbRenderThread)
 	{
 		gpProfileManager->CpuStart(kCpuTimerWaitPresentFuture);
 		gpSwapchainManager->mPresent.Wait();
@@ -206,7 +206,7 @@ void Graphics::Create()
 		mpSwapchainManager = std::make_unique<SwapchainManager>(mOldVkSwapchainKHR);
 		mOldVkSwapchainKHR = VK_NULL_HANDLE;
 	}
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		gpProfileManager->Create();
 	}
@@ -252,7 +252,7 @@ void Graphics::Create()
 	{
 		mpImGuiManager = std::make_unique<ImGuiManager>(mHwnd);
 
-		if constexpr (kbEnableDebugInput)
+		if constexpr (kbDebugInput)
 		{
 			if (game::gpGame != nullptr)
 			{
@@ -637,7 +637,7 @@ bool Graphics::Destroy()
 			mpTextureManager.reset();
 			mpBufferManager.reset();
 		}
-		if constexpr (kbEnableProfiling)
+		if constexpr (kbProfiling)
 		{
 			gpProfileManager->Destroy();
 		}
@@ -648,7 +648,7 @@ bool Graphics::Destroy()
 			mpSwapchainManager->mVkSwapchainKHR = VK_NULL_HANDLE;
 		}
 		mpSwapchainManager.reset();
-		if constexpr (kbEnableDebugInput)
+		if constexpr (kbDebugInput)
 		{
 			if (game::gpGame != nullptr)
 			{

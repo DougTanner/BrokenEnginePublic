@@ -86,7 +86,7 @@ void MainThread(HINSTANCE hinstance)
 
 	// Start DxDiag reading in the background
 	std::future<void> readDxDiag;
-	if constexpr (kbEnableDxDiag)
+	if constexpr (kbDxDiag)
 	{
 		if (!IsDebuggerPresent()) [[likely]]
 		{
@@ -488,7 +488,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_KEYDOWN:
 		{
-			if constexpr (kbEnableDebugInput)
+			if constexpr (kbDebugInput)
 			{
 				if (wParam == VK_F4)
 				{

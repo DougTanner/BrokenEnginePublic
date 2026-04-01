@@ -76,6 +76,7 @@ using namespace std::chrono_literals;
 #include <semaphore>
 #include <source_location>
 #include <span>
+#include <variant>
 #include <sstream>
 #include <stdexcept>
 #include <string_view>

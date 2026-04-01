@@ -318,13 +318,9 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 
 	for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
 	{
-		// Remove disconnected player by ID encoded in vecPosition
 		if (rStatusChange.eType == StatusChangeType::kDestroyPlayer)
 		{
-			XMFLOAT4A f4 {};
-			XMStoreFloat4A(&f4, rStatusChange.data.vecPosition);
-			int64_t iPlayerUuid = 0;
-			std::memcpy(&iPlayerUuid, &f4, sizeof(int64_t));
+			int64_t iPlayerUuid = std::get<DestroyPlayerData>(rStatusChange.data).iPlayerUuid;
 			player_t destroyId {engine::uuid_t {iPlayerUuid}};
 
 			auto idIt = rCurrentInterpolate.idToIndexMap.find(destroyId);
@@ -339,13 +335,9 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 			continue;
 		}
 
-		// Toggle weapon mode by player ID encoded in vecPosition
 		if (rStatusChange.eType == StatusChangeType::kWeaponModeChange)
 		{
-			XMFLOAT4A f4 {};
-			XMStoreFloat4A(&f4, rStatusChange.data.vecPosition);
-			int64_t iPlayerUuid = 0;
-			std::memcpy(&iPlayerUuid, &f4, sizeof(int64_t));
+			int64_t iPlayerUuid = std::get<WeaponModeChangeData>(rStatusChange.data).iPlayerUuid;
 			player_t toggleId {engine::uuid_t {iPlayerUuid}};
 
 			auto idIt = rCurrentInterpolate.idToIndexMap.find(toggleId);
@@ -364,11 +356,11 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 				rFrame.interpolate.gameFlags.Clear(GameFlags::kDeathScreen);
 			}
 
-			// Extract global player ID from vecPosition (packed by server)
 			engine::global_player_t globalPlayerId {};
-			XMFLOAT4A f4 {};
-			XMStoreFloat4A(&f4, rStatusChange.data.vecPosition);
-			std::memcpy(&globalPlayerId.iValue, &f4, sizeof(int64_t));
+			if (rStatusChange.eType == StatusChangeType::kSpawnPlayer)
+			{
+				globalPlayerId.iValue = std::get<SpawnPlayerData>(rStatusChange.data).iGlobalId;
+			}
 
 			// Compute frame center from world-space vecArea for spawn offset
 			float fCenterX = (XMVectorGetX(rFrame.postRender.vecArea) + XMVectorGetZ(rFrame.postRender.vecArea)) * 0.5f;

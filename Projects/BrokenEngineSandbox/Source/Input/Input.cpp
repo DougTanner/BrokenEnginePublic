@@ -40,11 +40,11 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 	rMenuInput.flags.Set(kMouseIsDown, rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonLeft]);
 	rMenuInput.flags.Set(kMouseClick, MousePressed(engine::MouseButtons::kMouseButtonLeft, rRawInput));
 	rMenuInput.flags.Set(kGamepadButton, GamepadPressed(engine::GamepadButtons::kGamepadButtonA, rRawInput));
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		rMenuInput.flags.Set(kToggleProfileText, KeyboardPressed('P', rRawInput));
 	}
-	if constexpr (kbEnableDebugInput)
+	if constexpr (kbDebugInput)
 	{
 		rMenuInput.flags.Set(kQuit, KeyboardPressed(VK_F4, rRawInput));
 		rMenuInput.flags.Set(kTogglePauseFrame, KeyboardPressed(VK_SPACE, rRawInput));
@@ -58,7 +58,7 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 		rMenuInput.flags.Set(kSpeedUpTime, KeyboardPressed(VK_OEM_PLUS, rRawInput));
 		rMenuInput.flags.Set(kSingleStep, KeyboardPressed(VK_TAB, rRawInput));
 	}
-	if constexpr (kbEnableScreenshots)
+	if constexpr (kbScreenshots)
 	{
 		rMenuInput.flags.Set(kToggleScreenshots, KeyboardPressed(VK_F9, rRawInput));
 	}
@@ -71,7 +71,7 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 						             MousePressed(engine::kMouseButtonMiddle, rRawInput) ||
 						             GamepadPressed(engine::kGamepadMenu, rRawInput) ||
 						             GamepadPressed(engine::kGamepadButtonB, rRawInput));
-	if constexpr (kbEnableDebugInput)
+	if constexpr (kbDebugInput)
 	{
 		rMenuInput.flags.Set(kMenuDebugTexture, KeyboardPressed(VK_F2, rRawInput));
 		rMenuInput.flags.Set(kDebugTextureNext, KeyboardPressed(VK_RIGHT, rRawInput));
@@ -113,7 +113,8 @@ common::crc_t FrameInput::Crc() const
 	common::crc_t checksum = 0;
 	for (const StatusChange& rStatusChange : statusChanges)
 	{
-		checksum ^= common::Crc(rStatusChange);
+		checksum ^= common::Crc(rStatusChange.eType);
+		std::visit([&](const auto& payload) { checksum ^= common::Crc(payload); }, rStatusChange.data);
 	}
 	return checksum;
 }
@@ -124,10 +125,17 @@ common::crc_t FrameInput::ServerInputCrc() const
 	for (const StatusChange& rStatusChange : statusChanges)
 	{
 		checksum ^= common::Crc(rStatusChange.eType);
-		std::apply([&](const auto&... fields)
+		if (const auto* pTransfer = std::get_if<TransferData>(&rStatusChange.data))
 		{
-			((checksum ^= common::Crc(fields)), ...);
-		}, rStatusChange.data.SharedMembers());
+			std::apply([&](const auto&... fields)
+			{
+				((checksum ^= common::Crc(fields)), ...);
+			}, pTransfer->SharedMembers());
+		}
+		else
+		{
+			std::visit([&](const auto& payload) { checksum ^= common::Crc(payload); }, rStatusChange.data);
+		}
 	}
 	return checksum;
 }
@@ -136,9 +144,10 @@ std::ostream& operator<<(std::ostream& rStream, const FrameInput& rInput)
 {
 	int64_t iStatusCount = static_cast<int64_t>(rInput.statusChanges.size());
 	common::Write(rStream, iStatusCount);
-	if (iStatusCount > 0)
+	for (const StatusChange& rChange : rInput.statusChanges)
 	{
-		common::Write(rStream, rInput.statusChanges.data(), iStatusCount);
+		common::Write(rStream, rChange.eType);
+		std::visit([&](const auto& payload) { common::Write(rStream, payload); }, rChange.data);
 	}
 
 	return rStream;
@@ -149,9 +158,11 @@ std::istream& operator>>(std::istream& rStream, FrameInput& rInput)
 	int64_t iStatusCount = 0;
 	common::Read(rStream, iStatusCount);
 	rInput.statusChanges.resize(iStatusCount);
-	if (iStatusCount > 0)
+	for (StatusChange& rChange : rInput.statusChanges)
 	{
-		common::Read(rStream, rInput.statusChanges.data(), iStatusCount);
+		common::Read(rStream, rChange.eType);
+		rChange.data = DefaultDataForType(rChange.eType);
+		std::visit([&](auto& payload) { common::Read(rStream, payload); }, rChange.data);
 	}
 
 	return rStream;

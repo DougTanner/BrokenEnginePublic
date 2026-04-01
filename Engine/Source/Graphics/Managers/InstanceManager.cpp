@@ -27,7 +27,7 @@ constexpr uint32_t kiDebugExtensionCount = 5;
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, [[maybe_unused]] VkDebugUtilsMessageTypeFlagsEXT messageType, [[maybe_unused]] const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, [[maybe_unused]] void* pUserData)
 {
-	if constexpr (kbEnableVulkanDebugLayers)
+	if constexpr (kbVulkanDebugLayers)
 	{
 		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "TransitionUndefinedToReadOnly") != nullptr)
 		{
@@ -109,7 +109,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 	ScopedBootTimer scopedBootTimer(kBootTimerInstanceManager);
 
-	if constexpr (kbEnableVulkanDebugLayers)
+	if constexpr (kbVulkanDebugLayers)
 	{
 		ReadLayerProperties();
 	}
@@ -128,11 +128,11 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	[[maybe_unused]] VkBool32 vkTrue = VK_TRUE;
 	[[maybe_unused]] VkBool32 vkFalse = VK_FALSE;
 	const char* pcGpuBasedValue = nullptr;
-	if constexpr (kbEnableGpuAssistedValidation)
+	if constexpr (kbGpuAssistedValidation)
 	{
 		pcGpuBasedValue = "GPU_BASED_GPU_ASSISTED";
 	}
-	else if constexpr (kbEnableDebugPrintf)
+	else if constexpr (kbDebugPrintf)
 	{
 		pcGpuBasedValue = "GPU_BASED_DEBUG_PRINTF";
 	}
@@ -155,7 +155,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		},
 	};
 	uint32_t uiLayerSettingCount = 2;
-	if constexpr (kbEnableGpuAssistedValidation)
+	if constexpr (kbGpuAssistedValidation)
 	{
 		layerSettings[uiLayerSettingCount++] = {
 			.pLayerName = kpcKhronosValidation,
@@ -172,7 +172,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 			.pValues = &vkFalse,
 		};
 	}
-	else if constexpr (kbEnableDebugPrintf)
+	else if constexpr (kbDebugPrintf)
 	{
 		layerSettings[uiLayerSettingCount++] = {
 			.pLayerName = kpcKhronosValidation,
@@ -201,7 +201,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	{
 		VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT,
 	};
-	if constexpr (kbEnableDebugPrintf && !kbEnableGpuAssistedValidation)
+	if constexpr (kbDebugPrintf && !kbGpuAssistedValidation)
 	{
 		vkValidationFeaturesEXT.enabledValidationFeatureCount = 1;
 		vkValidationFeaturesEXT.pEnabledValidationFeatures = &vkValidationFeatureEnableEXT;
@@ -209,19 +209,19 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	VkLayerSettingsCreateInfoEXT vkLayerSettingsCreateInfoEXT =
 	{
 		.sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
-		.pNext = (kbEnableGpuAssistedValidation || kbEnableDebugPrintf) ? &vkValidationFeaturesEXT : nullptr,
+		.pNext = (kbGpuAssistedValidation || kbDebugPrintf) ? &vkValidationFeaturesEXT : nullptr,
 		.settingCount = uiLayerSettingCount,
 		.pSettings = layerSettings,
 	};
 	VkInstanceCreateInfo vkInstanceCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-		.pNext = kbEnableVulkanDebugLayers ? &vkLayerSettingsCreateInfoEXT : nullptr,
+		.pNext = kbVulkanDebugLayers ? &vkLayerSettingsCreateInfoEXT : nullptr,
 		.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR,
 		.pApplicationInfo = &vkApplicationInfo,
-		.enabledLayerCount = kbEnableVulkanDebugLayers ? static_cast<uint32_t>(mValidationLayers.size()) : 0,
-		.ppEnabledLayerNames = kbEnableVulkanDebugLayers ? mValidationLayers.data() : nullptr,
-		.enabledExtensionCount = kbEnableVulkanDebugLayers ? kiDebugExtensionCount : kiBaseExtensionCount,
+		.enabledLayerCount = kbVulkanDebugLayers ? static_cast<uint32_t>(mValidationLayers.size()) : 0,
+		.ppEnabledLayerNames = kbVulkanDebugLayers ? mValidationLayers.data() : nullptr,
+		.enabledExtensionCount = kbVulkanDebugLayers ? kiDebugExtensionCount : kiBaseExtensionCount,
 		.ppEnabledExtensionNames = kppcInstanceExtensionNames,
 	};
 
@@ -262,7 +262,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	// Load instance-specific Vulkan functions via Volk
 	volkLoadInstance(mVkInstance);
 
-	if constexpr (kbEnableVulkanDebugLayers)
+	if constexpr (kbVulkanDebugLayers)
 	{
 		// Set up a callback to receive messages from the debug utils validation layer
 		VkDebugUtilsMessengerCreateInfoEXT vkDebugUtilsMessengerCreateInfoEXT
@@ -401,13 +401,13 @@ void InstanceManager::SelectPhysicalDevice()
 
 	ASSERT(mVkPhysicalDeviceFeatures2.features.sampleRateShading == VK_TRUE);
 	ASSERT(mVkPhysicalDeviceFeatures2.features.samplerAnisotropy == VK_TRUE);
-	if constexpr (kbEnableShaderRealtimeClock)
+	if constexpr (kbShaderRealtimeClock)
 	{
 		ASSERT(mVkPhysicalDeviceShaderClockFeaturesKHR.shaderSubgroupClock == VK_TRUE);
 		ASSERT(mVkPhysicalDeviceShaderClockFeaturesKHR.shaderDeviceClock == VK_TRUE);
 	}
 	ASSERT(mVkPhysicalDeviceFeatures2.features.textureCompressionBC == VK_TRUE);
-	if constexpr (kbEnableShaderRealtimeClock)
+	if constexpr (kbShaderRealtimeClock)
 	{
 		ASSERT(mVkPhysicalDeviceFeatures2.features.shaderInt64 == VK_TRUE);
 	}
@@ -607,7 +607,7 @@ InstanceManager::~InstanceManager()
 {
 	vkDestroySurfaceKHR(mVkInstance, mVkSurfaceKHR, nullptr);
 
-	if constexpr (kbEnableVulkanDebugLayers)
+	if constexpr (kbVulkanDebugLayers)
 	{
 		if (mVkDebugUtilsMessengerEXT != nullptr)
 		{
@@ -622,7 +622,7 @@ InstanceManager::~InstanceManager()
 
 void InstanceManager::ReadLayerProperties()
 {
-	if constexpr (kbEnableVulkanDebugLayers)
+	if constexpr (kbVulkanDebugLayers)
 	{
 		uint32_t uiLayerCount = 0;
 		while (true)

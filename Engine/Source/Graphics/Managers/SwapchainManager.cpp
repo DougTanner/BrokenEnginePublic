@@ -22,7 +22,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 			.flags = 0,
 			.format = gpInstanceManager->mFramebufferVkFormat,
 			.samples = VK_SAMPLE_COUNT_1_BIT,
-			.loadOp = kbEnableFramebufferClearColor
+			.loadOp = kbFramebufferClearColor
 				? (gMultisampling.Get<bool>() ? VK_ATTACHMENT_LOAD_OP_DONT_CARE : VK_ATTACHMENT_LOAD_OP_CLEAR)
 				: VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -50,7 +50,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 			.flags = 0,
 			.format = gpInstanceManager->mFramebufferVkFormat,
 			.samples = gSampleCount.Get<VkSampleCountFlagBits>(),
-			.loadOp = kbEnableFramebufferClearColor ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.loadOp = kbFramebufferClearColor ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 			.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
 			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -136,7 +136,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 	// Validate swapchain image usage flags against surface capabilities
 	ASSERT((vkSurfaceCapabilitiesKHR.supportedUsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) != 0);
 	VkImageUsageFlags swapchainUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	if constexpr (kbEnableScreenshots)
+	if constexpr (kbScreenshots)
 	{
 		if ((vkSurfaceCapabilitiesKHR.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0)
 		{
@@ -485,7 +485,7 @@ void SwapchainManager::PresentToQueue(int64_t iFramebufferIndex)
 
 void SwapchainManager::Present(int64_t iFramebufferIndex)
 {
-	if constexpr (kbEnableRenderThread)
+	if constexpr (kbRenderThread)
 	{
 		mPresent.Wake([this, iFramebufferIndex]()
 		{

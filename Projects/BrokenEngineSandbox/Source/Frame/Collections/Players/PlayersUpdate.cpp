@@ -360,7 +360,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 				: (XMVectorGetX(XMVector3LengthSq(vecVelocity)) > 0.001f ? XMVector3Normalize(vecVelocity) : vecAiDirection);
 			vecWantedDirection = common::RotateTowardsPercent(vecWantedDirection, vecTargetDirection, common::ExponentialInterpolant(kfWantedDirectionSpeed, fDeltaTime));
 
-			if constexpr (kbEnableSmokeSpreadTest)
+			if constexpr (kbSmokeSpreadTest)
 			{
 				SmokeSpreadTestUpdatePlayer(vecVelocity, vecWantedDirection, flags, vecPosition);
 			}

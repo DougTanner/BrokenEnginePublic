@@ -12,7 +12,7 @@ namespace game
 
 ClientReconciler::ClientReconciler()
 {
-	if constexpr (kbEnableReconcileThread)
+	if constexpr (kbReconcileThread)
 	{
 		mpWorker = std::make_unique<common::PersistentWorker>(common::kThreadReconcile, 10 * 1'024 * 1'024);
 	}
@@ -20,7 +20,7 @@ ClientReconciler::ClientReconciler()
 
 ClientReconciler::~ClientReconciler()
 {
-	if constexpr (kbEnableReconcileThread)
+	if constexpr (kbReconcileThread)
 	{
 		if (mbInFlight)
 		{
@@ -44,7 +44,7 @@ void ClientReconciler::TryKick()
 
 ReconcileDesyncInfo ClientReconciler::Wait()
 {
-	if constexpr (kbEnableReconcileThread)
+	if constexpr (kbReconcileThread)
 	{
 		if (!mbInFlight)
 		{
@@ -64,7 +64,7 @@ ReconcileDesyncInfo ClientReconciler::Wait()
 
 void ClientReconciler::Reset()
 {
-	if constexpr (kbEnableReconcileThread)
+	if constexpr (kbReconcileThread)
 	{
 		if (mbInFlight)
 		{
@@ -128,7 +128,7 @@ void ClientReconciler::Kick()
 	rReconcileContext.iJitterUs = (gpClientSession->mpClientNetwork != nullptr) ? gpClientSession->mpClientNetwork->GetJitterUs() : 0;
 
 	// Create/resize per-coord dispatch pool
-	if constexpr (kbEnableReconcileDispatch)
+	if constexpr (kbReconcileDispatch)
 	{
 		int64_t iDesiredWorkers = static_cast<int64_t>(rReconcileContext.coordWork.size()) - 1;
 		if (iDesiredWorkers > 0 && (!mpDispatch || mpDispatch->WorkerCount() < iDesiredWorkers))
@@ -180,7 +180,7 @@ void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext)
 {
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	if constexpr (kbEnableReconcileDispatch)
+	if constexpr (kbReconcileDispatch)
 	{
 		if (mpDispatch)
 		{

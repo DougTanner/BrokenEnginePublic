@@ -626,7 +626,7 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	CHECK_VK(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
 	gpProfileManager->ResetQueryPools(iCommandBuffer, vkCommandBuffer, kGpuTimerMain, kGpuTimerUiRender);
 
-	if constexpr (kbEnableDebugPrintf)
+	if constexpr (kbDebugPrintf)
 	{
 		gpTextureManager->mRenderTargetTextures.mLogTexture.RecordBeginRenderPass(vkCommandBuffer);
 		pPipelines[kPipelineLog].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {static_cast<float>(iCommandBuffer), 0.0f, 0.0f, 0.0f});
@@ -788,7 +788,7 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	}
 
 	bool bDebugTextureMode = false;
-	if constexpr (kbEnableDebugInput)
+	if constexpr (kbDebugInput)
 	{
 		if (gDebugTexture.Get<bool>())
 		{
@@ -912,7 +912,7 @@ void CommandBufferManager::SubmitGlobalToQueue(int64_t iFramebufferIndex)
 
 void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 {
-	if constexpr (kbEnableRenderThread)
+	if constexpr (kbRenderThread)
 	{
 		mSubmitGlobal.Wake([this, iFramebufferIndex]()
 		{
@@ -965,7 +965,7 @@ void CommandBufferManager::SubmitMainToQueue(int64_t iFramebufferIndex, bool bSi
 
 	mbParticleSemaphoreSignaled = true;
 
-	if constexpr (kbEnableScreenshots)
+	if constexpr (kbScreenshots)
 	{
 		if (mbSaveScreenshot)
 		{
@@ -977,7 +977,7 @@ void CommandBufferManager::SubmitMainToQueue(int64_t iFramebufferIndex, bool bSi
 
 void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bool bSignalFence)
 {
-	if constexpr (kbEnableRenderThread)
+	if constexpr (kbRenderThread)
 	{
 		mSubmitMain.Wake([this, iFramebufferIndex, bSignalFence]()
 		{

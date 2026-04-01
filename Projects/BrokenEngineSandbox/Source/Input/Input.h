@@ -46,7 +46,7 @@ struct MenuInput
 // Frame
 struct FrameInput
 {
-	static constexpr int64_t kiVersion = 9;
+	static constexpr int64_t kiVersion = 10;
 
 	bool operator==(const FrameInput& rOther) const { return statusChanges == rOther.statusChanges; }
 

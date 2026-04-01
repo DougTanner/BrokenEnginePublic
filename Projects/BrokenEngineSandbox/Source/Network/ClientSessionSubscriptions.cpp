@@ -25,7 +25,7 @@ void ClientSession::UpdateDesiredCoords(std::string_view reason)
 	{
 		pushCoord(gpGame->mClientGridCoord);
 
-		if constexpr (kbEnableQuadrantNeighborSubscriptions)
+		if constexpr (kbQuadrantNeighborSubscriptions)
 		{
 			if (gpGame->miQuadrantDirX != 0)
 				pushCoord({.x = gpGame->mClientGridCoord.x + gpGame->miQuadrantDirX, .y = gpGame->mClientGridCoord.y});
@@ -37,7 +37,7 @@ void ClientSession::UpdateDesiredCoords(std::string_view reason)
 	}
 	else if (bDead)
 	{
-		if constexpr (kbEnableQuadrantNeighborSubscriptions)
+		if constexpr (kbQuadrantNeighborSubscriptions)
 		{
 			// Death screen: keep current subscriptions + ensure origin for respawn
 			for (const engine::GridCoord& rCoord : mDesiredCoords)

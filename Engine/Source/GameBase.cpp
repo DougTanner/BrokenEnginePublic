@@ -74,7 +74,7 @@ void GameBase::ClientUpdate()
 	}
 	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
 
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullTicks);
 	}
@@ -138,7 +138,7 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 	}
 	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
 
-	if constexpr (kbEnableProfiling)
+	if constexpr (kbProfiling)
 	{
 		gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullTicks);
 	}
@@ -206,7 +206,7 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 			game::RunFrameTick(activeFrameRefs[j], miTickCounter, mfCurrentTime);
 		}
 	};
-	if constexpr (kbEnableFrameDispatch)
+	if constexpr (kbFrameDispatch)
 	{
 		common::gpMultithreading->Dispatch(iActiveCount, processRange);
 	}
@@ -332,7 +332,7 @@ void GameBase::Render()
 		gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
 		gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
 
-		if constexpr (kbEnableProfiling)
+		if constexpr (kbProfiling)
 		{
 			gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
 		}

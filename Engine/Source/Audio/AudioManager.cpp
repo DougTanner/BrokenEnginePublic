@@ -642,8 +642,19 @@ void XM_CALLCONV AudioManager::PlayOneShot3d([[maybe_unused]] const game::Frame&
 void AudioManager::OnCriticalError()
 {
 	Log(kLogError, "AudioManager::OnCriticalError()");
-	mbClearVoicesRequested.store(true, std::memory_order_release);
-	ClearStreamingVoices();
+
+	// Destroy static voices immediately to remove them from the XAudio2 send graph
+	// before SetSilentMode destroys the mastering voice
+	mStaticVoices.clear();
+
+	// Destroy streaming voices (safe to hold mutex during critical error
+	// since XAudio2 callback thread is no longer running)
+	{
+		std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
+		mpCurrentMusicStream.reset();
+		mPreviousStreams.clear();
+		mStreamsToDestroy.clear();
+	}
 }
 
 void AudioManager::OnReset()
