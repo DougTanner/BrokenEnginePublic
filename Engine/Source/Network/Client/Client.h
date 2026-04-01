@@ -79,6 +79,7 @@ public:
 	void SendTimespeedRequest(uint8_t uiDirection);
 	void SendSaveRequest();
 	void SendLoadRequest();
+	void SendResetRequest();
 	void SendWeaponModeRequest(int64_t iGlobalPlayerId);
 	void SendReplayRecordRequest();
 	void SendReplayPlaybackRequest();

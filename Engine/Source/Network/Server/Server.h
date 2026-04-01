@@ -139,6 +139,7 @@ private:
 	void ClientLoadRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void ClientReplayRecordRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void ClientReplayPlaybackRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
+	void ClientResetRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
 #endif // BT_SERVER
 	void ClientWeaponModeRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage, const ClientGuid* pGuid);

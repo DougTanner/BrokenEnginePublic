@@ -220,6 +220,9 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 		case PacketType::kClientReplayPlaybackRequest:
 			ClientReplayPlaybackRequest(pData, iSize, iClientId);
 			break;
+		case PacketType::kClientResetRequest:
+			ClientResetRequest(pData, iSize, iClientId);
+			break;
 #endif // BT_SERVER
 		case PacketType::kClientWeaponModeRequest:
 			ClientWeaponModeRequest(pData, iSize, iClientId);

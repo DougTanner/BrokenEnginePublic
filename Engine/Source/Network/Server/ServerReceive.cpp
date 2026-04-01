@@ -518,6 +518,23 @@ void Server::ClientReplayPlaybackRequest([[maybe_unused]] const uint8_t* pData, 
 	Log("Server::ClientReplayPlaybackRequest Client: {}", iClientId);
 	game::gpGame->mGameFlags.Set(GameFlags::kLoadReplay);
 }
+
+void Server::ClientResetRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
+{
+	if (iSize < 1)
+	{
+		return;
+	}
+
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	{
+		return;
+	}
+
+	Log("Server::ClientResetRequest Client: {}", iClientId);
+	game::gpGame->mGameSaveLoad.ServerReset();
+}
 #endif // BT_SERVER
 
 } // namespace engine

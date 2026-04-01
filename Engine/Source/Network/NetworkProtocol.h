@@ -32,6 +32,7 @@ enum class PacketType : uint8_t
 	kClientWeaponModeRequest,   // Client requests weapon mode toggle (blasters/missiles)
 	kClientReplayRecordRequest, // Client requests server replay record start/stop (debug only)
 	kClientReplayPlaybackRequest, // Client requests server replay playback (debug only)
+	kClientResetRequest,          // Client requests server reset (debug only)
 };
 
 // Client request flags for spawn/respawn

@@ -310,6 +310,10 @@ void MainThread(HINSTANCE hinstance)
 
 	EnableAllocationTracking(false);
 
+#if defined(BT_SERVER)
+	pGame->mGameSaveLoad.Autosave();
+#endif
+
 #if defined(BT_CLIENT)
 	// Save settings
 	game::Game::SaveTweaksSettings();

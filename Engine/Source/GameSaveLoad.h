@@ -15,6 +15,9 @@ public:
 	bool Quickload(const game::MenuInput& rMenuInput);
 	void ServerSave();
 	bool ServerLoad();
+	void ServerReset();
+	void Autosave();
+	bool Autoload();
 	void SaveLoadReplay();
 	void SyncReplayTick();
 

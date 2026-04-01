@@ -32,7 +32,10 @@ Game::Game()
 
 	// Allocate frames
 #if defined(BT_SERVER)
-	CreateNewFrame(GameFlags::kGame);
+	if (!mGameSaveLoad.Autoload())
+	{
+		CreateNewFrame(GameFlags::kGame);
+	}
 	mpServerSession = std::make_unique<ServerSession>();
 	meUiState = kNone;
 #else
@@ -843,6 +846,10 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 			if (rMenuInput.flags & MenuInputFlags::kLoadReplay)
 			{
 				engine::gpClient->SendReplayPlaybackRequest();
+			}
+			if (rMenuInput.flags & MenuInputFlags::kResetFrame)
+			{
+				engine::gpClient->SendResetRequest();
 			}
 		}
 #endif // defined(BT_CLIENT)

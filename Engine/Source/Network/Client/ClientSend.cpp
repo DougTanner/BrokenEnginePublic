@@ -293,6 +293,23 @@ void Client::SendLoadRequest()
 	rWorkbuffer.Pop();
 }
 
+void Client::SendResetRequest()
+{
+	if (!mbConnected || mpServerPeer == nullptr)
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientResetRequest));
+
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+
+	rWorkbuffer.Pop();
+}
+
 void Client::SendWeaponModeRequest(int64_t iGlobalPlayerId)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
@@ -347,8 +364,8 @@ void Client::SendReplayPlaybackRequest()
 
 void Client::SendHello()
 {
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	// Heap: std::fstream and std::filesystem::path allocate for GUID file I/O
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	Log(kLogNetwork, "Client::SendHello"); // DT TEMP
 

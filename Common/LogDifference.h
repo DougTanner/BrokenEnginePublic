@@ -18,12 +18,18 @@ inline bool LogDifference(const T& rOne, const T& rTwo)
 {
 	bool bEqual = false;
 	if constexpr (std::is_same_v<T, XMFLOAT2> || std::is_same_v<T, XMFLOAT3> || std::is_same_v<T, XMFLOAT4> || std::is_same_v<T, XMFLOAT4A>)
+	{
 		bEqual = std::memcmp(&rOne, &rTwo, sizeof(T)) == 0;
+	}
 	else
+	{
 		bEqual = rOne == rTwo;
+	}
 
 	if (!bEqual) [[unlikely]]
-		Log(kLogNetwork, "LogDifferences {} {} Client: {} Server: {}", gpLogDifferenceContext, static_cast<const char*>(NAME), rOne, rTwo);
+	{
+		Log("LogDifferences {} {} Client: {} Server: {}", gpLogDifferenceContext, static_cast<const char*>(NAME), rOne, rTwo);
+	}
 
 	return bEqual;
 }

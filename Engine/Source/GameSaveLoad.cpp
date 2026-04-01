@@ -60,6 +60,37 @@ bool GameSaveLoad::ServerLoad()
 	return true;
 }
 
+void GameSaveLoad::ServerReset()
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	game::gpGame->CreateNewFrame(game::GameFlags::kGame);
+	mrGameBase.miNextGlobalId = 1;
+	mrGameBase.Reset();
+	game::gpServerSession->ResetClientsForLoad();
+	game::gpServerSession->ComputeActiveSet();
+}
+
+void GameSaveLoad::Autosave()
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("ServerAutosave.save"), game::gpGame->mClientGridCoord);
+}
+
+bool GameSaveLoad::Autoload()
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	GridCoord loadedClientGridCoord {};
+	if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("ServerAutosave.save"), loadedClientGridCoord))
+	{
+		return false;
+	}
+
+	game::gpGame->mClientGridCoord = loadedClientGridCoord;
+	return true;
+}
+
 bool GameSaveLoad::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 {
 	// Heap: fstream and Frame deserialization allocate vectors for variable-size SOA collections.
@@ -172,7 +203,7 @@ void GameSaveLoad::SaveLoadReplay()
 
 				std::filesystem::path coordReplayPath = std::filesystem::path("F7.replay." + std::to_string(rCoord.ToKey()));
 				game::FrameInput initialFrameInput {};
-				auto pReader = std::make_unique<DifferenceStreamReader<game::Frame, game::FrameInput>>(FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, coordReplayPath, *rSub.pCurrent, initialFrameInput);
+				std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInput>> pReader = std::make_unique<DifferenceStreamReader<game::Frame, game::FrameInput>>(FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, coordReplayPath, *rSub.pCurrent, initialFrameInput);
 
 				if (!pReader->Loaded())
 				{

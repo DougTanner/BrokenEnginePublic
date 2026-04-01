@@ -55,6 +55,7 @@ void ServerSession::BroadcastTick(int64_t iTick)
 	FinalizeNewClients(iTick);
 	DetectPlayerDeaths();
 	BroadcastStatusChanges(iTick);
+	mTickBroadcast.spawns.clear();
 	SubscriptionUpdates(iTick);
 	engine::gpServer->Flush();
 }
@@ -525,7 +526,10 @@ void ServerSession::ProcessSpawnRequests()
 		    rRequest.flags & engine::ClientRequestFlags::kSpawnRequested)
 		{
 			mDeadClientIds.erase(rRequest.iClientId);
-			mClientsWaitingForSpawn.push_back({rRequest.iClientId, engine::kOriginCoord});
+			if (!std::ranges::contains(mClientsWaitingForSpawn, rRequest.iClientId, &ClientSpawnInfo::iClientId))
+			{
+				mClientsWaitingForSpawn.push_back({rRequest.iClientId, engine::kOriginCoord});
+			}
 		}
 	}
 }
