@@ -206,9 +206,7 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 			miLatestServerTick = std::max(miLatestServerTick, rUpdate.iTick);
 			if (miLatestServerTick != iPrevLatestServerTick)
 			{
-				int64_t iGap = miLatestServerTick - iPrevLatestServerTick;
-				LogLevel eLevel = iGap > 2 ? kWarning : kVerbose; // DT TEMP
-				Log(kLogNetwork, eLevel, "ClientSessionBase::ApplyReceivedUpdatesBase LatestServerTick advanced Old: {} New: {} Gap: {}", iPrevLatestServerTick, miLatestServerTick, iGap);
+				Log(kLogNetwork, kVerbose, "ClientSessionBase::ApplyReceivedUpdatesBase LatestServerTick advanced Old: {} New: {}", iPrevLatestServerTick, miLatestServerTick);
 			}
 
 			if (static_cast<int64_t>(rSub.serverUpdates.size()) >= kiMaxBufferedFrames)

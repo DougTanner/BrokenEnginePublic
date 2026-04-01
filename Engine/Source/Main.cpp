@@ -253,9 +253,6 @@ void MainThread(HINSTANCE hinstance)
 	LogIndent(1);
 	while (true)
 	{
-#if defined(BT_CLIENT)
-		common::Timer phaseTimer; // DT TEMP
-#endif
 		gpProfileManager->CpuStart(kCpuTimerMessagesAndInput);
 
 		// Process Windows messages
@@ -264,9 +261,6 @@ void MainThread(HINSTANCE hinstance)
 		{
 			break;
 		}
-#if defined(BT_CLIENT)
-		int64_t iMessagesMs = std::chrono::duration_cast<std::chrono::milliseconds>(phaseTimer.GetDeltaNs(true)).count(); // DT TEMP
-#endif
 
 		// Input
 		game::MenuInput menuInput {};
@@ -276,14 +270,12 @@ void MainThread(HINSTANCE hinstance)
 		{
 			break;
 		}
-		int64_t iInputMs = std::chrono::duration_cast<std::chrono::milliseconds>(phaseTimer.GetDeltaNs(true)).count(); // DT TEMP
 #endif
 
 		gpProfileManager->CpuStop(kCpuTimerMessagesAndInput, false);
 
 #if defined(BT_CLIENT)
 		pGame->ClientUpdate();
-		int64_t iClientUpdateMs = std::chrono::duration_cast<std::chrono::milliseconds>(phaseTimer.GetDeltaNs(true)).count(); // DT TEMP
 #else
 		pGame->ServerUpdate(menuInput);
 #endif // BT_CLIENT
@@ -299,20 +291,11 @@ void MainThread(HINSTANCE hinstance)
 			pGraphics.reset();
 			pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
 		}
-		int64_t iRenderMs = std::chrono::duration_cast<std::chrono::milliseconds>(phaseTimer.GetDeltaNs(true)).count(); // DT TEMP
 
 		// Audio update
 		auto audioCoordIt = pGame->mCoordFrames.find(game::gpGame->mClientGridCoord);
 		pAudioManager->Update(audioCoordIt != pGame->mCoordFrames.end() && audioCoordIt->second.pCurrent != nullptr ? &pGame->RenderFrame(game::gpGame->mClientGridCoord) : nullptr);
 		game::gpClientSession->PostRender(); // Kick reconcile after all rendering (including audio) is complete
-		int64_t iPostRenderMs = std::chrono::duration_cast<std::chrono::milliseconds>(phaseTimer.GetDeltaNs(true)).count(); // DT TEMP
-
-		// DT TEMP: Log main loop phases exceeding 1/60s
-		static constexpr int64_t kiPhaseThresholdMs = 16;
-		if (iMessagesMs > kiPhaseThresholdMs || iInputMs > kiPhaseThresholdMs || iClientUpdateMs > kiPhaseThresholdMs || iRenderMs > kiPhaseThresholdMs || iPostRenderMs > kiPhaseThresholdMs)
-		{
-			Log(kWarning, "MainLoop phase spike Messages: {}ms Input: {}ms ClientUpdate: {}ms Render: {}ms PostRender: {}ms", iMessagesMs, iInputMs, iClientUpdateMs, iRenderMs, iPostRenderMs); // DT TEMP
-		}
 #else
 		{
 			// Heap: Win32 InvalidateRect may trigger internal GDI allocations
@@ -536,7 +519,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_SETFOCUS:
 		{
-			Log(kWarning, "WM_SETFOCUS TickCounter: {}", game::gpGame->TickCounter()); // DT TEMP
+			Log("WM_SETFOCUS");
 
 			if (!sbHasFocus)
 			{

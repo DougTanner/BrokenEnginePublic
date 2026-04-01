@@ -48,7 +48,7 @@ int64_t TimeStep::TickRealtime()
 	std::chrono::nanoseconds maxAccumulator = game::kTickNs * kiMaxAccumulatorTicks;
 	if (mTickRemainderNs > maxAccumulator)
 	{
-		Log(kWarning, "TimeStep::TickRealtime Accumulator clamped DeltaMs: {} PreClampTicks: {} MaxTicks: {}", std::chrono::duration_cast<std::chrono::milliseconds>(realDeltaNs).count(), mTickRemainderNs / game::kTickNs, kiMaxAccumulatorTicks); // DT TEMP
+		Log(kVerbose, "TimeStep::TickRealtime Accumulator clamped");
 		mTickRemainderNs = maxAccumulator;
 	}
 

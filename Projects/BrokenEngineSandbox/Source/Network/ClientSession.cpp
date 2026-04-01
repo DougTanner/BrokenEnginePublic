@@ -221,10 +221,6 @@ void ClientSession::Reconcile()
 		// Compensate time step for ticks rolled back during reconciliation
 		int64_t iTickDeficit = iPreReconcileTick - gpGame->TickCounter();
 		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iPreReconcileTick);
-		if (iTickDeficit > 0 || std::abs(clockCorrectionNs.count()) > kTickNs.count() / 16)
-		{
-			Log(kLogNetwork, kWarning, "ClientSession::Reconcile PreReconcileTick: {} PostReconcileTick: {} TickDeficit: {} ClockCorrectionNs: {}", iPreReconcileTick, gpGame->TickCounter(), iTickDeficit, clockCorrectionNs.count()); // DT TEMP
-		}
 		if (iTickDeficit > 0)
 		{
 			gpGame->mTimeStep.mTickRemainderNs += iTickDeficit * kTickNs;
