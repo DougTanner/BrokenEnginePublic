@@ -80,6 +80,7 @@ private:
 
 	void TransitionCurrentToPrevious();
 	void UpdateMusicStreams(float fDeltaTime);
+	void SubmitStreamingBuffers(StreamingVoice& rStream);
 	void ClearStreamingVoices();
 
 	float mfCurveDistanceScaler = 10.0f;

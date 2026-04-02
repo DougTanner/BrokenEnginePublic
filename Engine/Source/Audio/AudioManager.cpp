@@ -280,6 +280,53 @@ void AudioManager::PlayMusic(common::crc_t audioCrc)
 	CreateMusicStream(audioCrc);
 }
 
+void AudioManager::SubmitStreamingBuffers(StreamingVoice& rStream)
+{
+	int64_t iConsumed = rStream.miBuffersConsumed.exchange(0, std::memory_order_acquire);
+
+	for (int64_t i = 0; i < iConsumed; ++i)
+	{
+		if (rStream.mFlags & StreamingVoiceFlags::kLastBufferSubmitted)
+		{
+			break;
+		}
+
+		int64_t iNextBuffer = (rStream.miActiveBuffer + 1) % kiBufferCount;
+
+		bool bLastBuffer = false;
+		int64_t iBytesRead = 0;
+		if (rStream.FillBuffer(rStream.mBuffers[iNextBuffer], iBytesRead, bLastBuffer))
+		{
+			XAUDIO2_BUFFER xaudio2Buffer
+			{
+				.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
+				.AudioBytes = static_cast<UINT32>(iBytesRead),
+				.pAudioData = rStream.mBuffers[iNextBuffer],
+				.PlayBegin = 0,
+				.PlayLength = 0,
+				.LoopBegin = 0,
+				.LoopLength = 0,
+				.LoopCount = 0,
+				.pContext = &rStream,
+			};
+			HRESULT hr = rStream.mpVoice->SubmitSourceBuffer(&xaudio2Buffer);
+			if (FAILED(hr))
+			{
+				Log(kLogAudio, kWarning, "SubmitStreamingBuffers: Failed to submit buffer, HRESULT: 0x{:08X}", hr);
+				rStream.mFlags.Set(StreamingVoiceFlags::kLastBufferSubmitted);
+				break;
+			}
+			rStream.miActiveBuffer = iNextBuffer;
+			rStream.mFlags.Set(StreamingVoiceFlags::kLastBufferSubmitted, bLastBuffer);
+		}
+		else
+		{
+			Log(kLogAudio, "SubmitStreamingBuffers: stream reached end, marking as inactive");
+			rStream.mFlags.Set(StreamingVoiceFlags::kLastBufferSubmitted);
+		}
+	}
+}
+
 void AudioManager::UpdateMusicStreams(float fDeltaTime)
 {
 	// Heap: Member vector collects faded-out streams for deferred destruction outside the mutex.
@@ -289,6 +336,16 @@ void AudioManager::UpdateMusicStreams(float fDeltaTime)
 	// Collect streams to destroy outside the lock to prevent deadlock with XAudio2 callbacks
 	{
 		std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
+
+		// Submit pending streaming buffers (file I/O on main thread instead of XAudio2 callback)
+		if (mpCurrentMusicStream != nullptr)
+		{
+			SubmitStreamingBuffers(*mpCurrentMusicStream);
+		}
+		for (const std::unique_ptr<StreamingVoice>& pStream : mPreviousStreams)
+		{
+			SubmitStreamingBuffers(*pStream);
+		}
 
 		// Update current stream volume (fade in)
 		if (mpCurrentMusicStream != nullptr)

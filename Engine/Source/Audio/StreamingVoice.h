@@ -53,6 +53,7 @@ public:
 	int64_t miCurrentPosition = 0;
 	float mfCurrentVolume = 0.0f;
 	int64_t miActiveBuffer = 0;
+	std::atomic<int64_t> miBuffersConsumed = 0;
 	uint8_t mBuffers[kiBufferCount][kiBufferSize] {};
 	IXAudio2SourceVoice* mpVoice = nullptr;
 };

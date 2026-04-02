@@ -129,46 +129,7 @@ bool StreamingVoice::UpdateVolume(float fDeltaTime)
 
 void StreamingVoice::OnBufferEnd()
 {
-	std::lock_guard<std::recursive_mutex> lock(gpAudioManager->mMusicStreamRecursiveMutex);
-
-	if (mFlags & kLastBufferSubmitted)
-	{
-		return;
-	}
-
-	int64_t iNextBuffer = (miActiveBuffer + 1) % kiBufferCount;
-
-	bool bLastBuffer = false;
-	int64_t iBytesRead = 0;
-	if (FillBuffer(mBuffers[iNextBuffer], iBytesRead, bLastBuffer))
-	{
-		XAUDIO2_BUFFER xaudio2Buffer
-		{
-			.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
-			.AudioBytes = static_cast<UINT32>(iBytesRead),
-			.pAudioData = mBuffers[iNextBuffer],
-			.PlayBegin = 0,
-			.PlayLength = 0,
-			.LoopBegin = 0,
-			.LoopLength = 0,
-			.LoopCount = 0,
-			.pContext = this,
-		};
-		HRESULT hr = mpVoice->SubmitSourceBuffer(&xaudio2Buffer);
-		if (FAILED(hr))
-		{
-			Log(kLogAudio, kWarning, "ProcessNextBuffer: ERROR - Failed to submit buffer for stream, HRESULT: 0x{:08X}", hr);
-			mFlags.Set(kLastBufferSubmitted);
-			return;
-		}
-		miActiveBuffer = iNextBuffer;
-		mFlags.Set(kLastBufferSubmitted, bLastBuffer);
-	}
-	else
-	{
-		Log(kLogAudio, "ProcessNextBuffer: stream reached end, marking as inactive");
-		mFlags.Set(kLastBufferSubmitted);
-	}
+	miBuffersConsumed.fetch_add(1, std::memory_order_release);
 }
 
 } // namespace engine

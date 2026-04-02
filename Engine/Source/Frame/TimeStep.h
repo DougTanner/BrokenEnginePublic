@@ -49,6 +49,9 @@ public:
 	std::chrono::nanoseconds mTickRemainderNs = 0ns;
 	common::Smoothed<float, 256> mAverageDelta;
 	bool mbTimeScaleChanged = false;
+
+	// Temporarily raised accumulator cap for clock catch-up (0 = use kiMaxAccumulatorTicks)
+	int64_t miCatchUpAccumulatorTicks = 0;
 };
 
 } // namespace engine

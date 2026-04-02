@@ -35,8 +35,8 @@ using enum MissileFlags;
 constexpr float kfExhaustWidth = 0.25f;
 constexpr float kfExhaustOffset = -0.45f;
 constexpr float kfExhaustVisibleIntensity = 1.0f;
-constexpr float kfExhaustLightingArea = 11.0f;
-constexpr float kfExhaustLightingIntensity = 100.0f;
+constexpr float kfExhaustLightingArea = 10.0f;
+constexpr float kfExhaustLightingIntensity = 2000.0f;
 #endif // BT_CLIENT
 
 

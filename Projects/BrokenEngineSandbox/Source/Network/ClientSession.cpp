@@ -226,6 +226,24 @@ void ClientSession::Reconcile()
 			gpGame->mTimeStep.mTickRemainderNs += iTickDeficit * kTickNs;
 		}
 		gpGame->mTimeStep.mTickRemainderNs += clockCorrectionNs;
+
+		// Gradually raise accumulator cap when behind to allow catch-up
+		// miClockError already subtracts TargetBehind, so high-latency modes are accounted for
+		constexpr int64_t kiCatchUpErrorThreshold = 8;
+		if (miClockError <= -kiCatchUpErrorThreshold)
+		{
+			int64_t iCatchUpTicks = std::max(-miClockError / 2, engine::TimeStep::kiMaxAccumulatorTicks);
+			if (gpGame->mTimeStep.miCatchUpAccumulatorTicks != iCatchUpTicks)
+			{
+				Log(kLogNetwork, kVerbose, "ClientSession::Reconcile CatchUp accumulator Error: {} Cap: {}", miClockError, iCatchUpTicks);
+			}
+			gpGame->mTimeStep.miCatchUpAccumulatorTicks = iCatchUpTicks;
+		}
+		else if (gpGame->mTimeStep.miCatchUpAccumulatorTicks > 0)
+		{
+			Log(kLogNetwork, kVerbose, "ClientSession::Reconcile Restoring accumulator cap Error: {}", miClockError);
+			gpGame->mTimeStep.miCatchUpAccumulatorTicks = 0;
+		}
 	}
 	gpProfileManager->CpuStop(engine::kCpuTimerNetworkPollReconcile, true);
 
