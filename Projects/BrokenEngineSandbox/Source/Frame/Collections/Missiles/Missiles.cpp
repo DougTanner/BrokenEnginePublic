@@ -3,6 +3,7 @@
 
 #include "Missiles.h"
 
+#include "Frame/FrameStaticData.h"
 #include "Data/Audio.h"
 #include "Frame/HealthDamage.h"
 #include "Profile/ProfileManager.h"
@@ -36,7 +37,7 @@ constexpr float kfExhaustWidth = 0.25f;
 constexpr float kfExhaustOffset = -0.45f;
 constexpr float kfExhaustVisibleIntensity = 1.0f;
 constexpr float kfExhaustLightingArea = 20.0f;
-constexpr float kfExhaustLightingIntensity = 200.0f;
+constexpr float kfExhaustLightingIntensity = 250.0f;
 #endif // BT_CLIENT
 
 
@@ -351,12 +352,12 @@ static void RemoveOwnedObjects(Frame& rFrame, MissilesInterpolate& rCurrentInter
 	}
 }
 
-void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
+void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
 	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;
 
-	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
+	const FrameBounds bounds = ComputeFrameBounds(rStaticData.vecArea);
 
 	for (int64_t i = rCurrentInterpolate.iCount - 1; i >= 0; --i)
 	{
@@ -400,7 +401,7 @@ void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 	}
 }
 
-void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
+void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
 	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;
@@ -419,7 +420,7 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 	}
 }
 
-void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
+void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
 	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;

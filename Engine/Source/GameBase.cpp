@@ -175,6 +175,7 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 					.pNext = pNext,
 					.pCurrent = pCurrent,
 					.pFrameInput = &game::gpGame->mFrameInputs.at(rCoord),
+					.pStaticData = &mCoordFrames.at(rCoord).staticData,
 				});
 				continue;
 			}
@@ -192,6 +193,7 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 			.pNext = &NextFrame(rCoord),
 			.pCurrent = &CurrentFrame(rCoord),
 			.pFrameInput = &game::gpGame->mFrameInputs.at(rCoord),
+			.pStaticData = &rFrames.staticData,
 		});
 	}
 	std::span<const game::ActiveFrameRef> activeFrameRefs = common::gpThreadLocal->mWorkbuffer.Span<game::ActiveFrameRef>();

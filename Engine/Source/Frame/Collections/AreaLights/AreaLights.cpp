@@ -32,16 +32,16 @@ void AreaLightsPostRender::AllocateAndCopy(AreaLightsPostRender& rCurrent, const
 	AllocateAndCopyIds(rCurrent, rPrevious);
 }
 
-void AreaLightsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+void AreaLightsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 	// Owned objects are transferred by their parent
 }
 
-void AreaLightsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
+void AreaLightsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void AreaLightsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
+void AreaLightsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 

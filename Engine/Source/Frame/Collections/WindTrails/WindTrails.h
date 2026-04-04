@@ -8,6 +8,8 @@
 namespace engine
 {
 
+struct FrameStaticData;
+
 struct WindTrailsInterpolate : public Collection<WindTrailsInterpolate, CollectionFlags::kIdToIndex>
 {
 	static constexpr const char* kName = "WindTrails";
@@ -64,13 +66,13 @@ struct WindTrailsPostRender : public Collection<WindTrailsPostRender>
 	static void AllocateAndCopy(WindTrailsPostRender& rCurrent, const WindTrailsPostRender& rPrevious);
 
 	// Update
-	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void Transfer(game::Frame& __restrict rFrame);
-	static void Destroy(game::Frame& __restrict rFrame);
-	static void Spawn(game::Frame& __restrict rFrame);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void Transfer(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
+	static void Destroy(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
+	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	// Add wind trail (Sync pattern - owner manages lifetime)
 	static void Add(game::Frame& __restrict rFrame, wind_trail_t& rId);

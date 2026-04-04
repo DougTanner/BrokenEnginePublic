@@ -3,6 +3,8 @@
 #include "Frame/Alignments.h"
 #include "Frame/GridCoord.h"
 #include "Frame/Collections/Collection.h"
+
+namespace engine { struct FrameStaticData; }
 #if defined(BT_CLIENT)
 #include "Frame/Collections/HexShields/HexShields.h"
 #include "Frame/Collections/WindTrails/WindTrails.h"
@@ -148,13 +150,13 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	static void AllocateAndCopy(PlayersPostRender& rCurrent, const PlayersPostRender& rPrevious);
 
 	// Update
-	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void Transfer(Frame& __restrict rFrame);
-	static void Destroy(Frame& __restrict rFrame);
-	static void Spawn(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void Transfer(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
+	static void Destroy(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
+	static void Spawn(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, const engine::FrameStaticData& rStaticData);
 
 	player_t* __restrict puiIds = nullptr;
 	PlayerFlags_t* __restrict pFlags = nullptr;

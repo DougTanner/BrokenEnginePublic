@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frame/FrameStaticData.h"
 #include "GameSaveLoad.h"
 
 #if defined(BT_CLIENT)
@@ -38,6 +39,8 @@ using GameFlags_t = common::Flags<GameFlags>;
 
 struct CoordFrames
 {
+	FrameStaticData staticData;
+
 	std::unique_ptr<game::Frame> pCurrent;
 	std::unique_ptr<game::Frame> pNext;
 

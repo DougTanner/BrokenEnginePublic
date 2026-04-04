@@ -31,16 +31,16 @@ void BillboardsPostRender::AllocateAndCopy(BillboardsPostRender& rCurrent, const
 	AllocateAndCopyIds(rCurrent, rPrevious);
 }
 
-void BillboardsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
+void BillboardsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void BillboardsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+void BillboardsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 	// Owned objects are transferred by their parent
 }
 
-void BillboardsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
+void BillboardsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 

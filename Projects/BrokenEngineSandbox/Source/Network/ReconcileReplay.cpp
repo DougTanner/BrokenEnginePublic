@@ -85,6 +85,7 @@ static bool ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, floa
 		.pNext = pNext,
 		.pCurrent = pCurrent,
 		.pFrameInput = &rFrameInput,
+		.pStaticData = &rWork.staticData,
 	};
 	RunFrameTick(ref, iTick, fTime);
 
@@ -199,7 +200,7 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork, int64_t iMaxConsecutive, float& rfTime)
 {
 	int64_t iReplayStart = rWork.iConfirmedTick + 1;
-	int64_t iAvailable = iMaxConsecutive - rWork.iConfirmedTick + 1;
+	int64_t iAvailable = iMaxConsecutive - rWork.iConfirmedTick;
 	constexpr int64_t kiLowJitterThresholdUs = 2000;
 	constexpr int64_t kiHighJitterThresholdUs = 8000;
 	int64_t iJitterUs = rReconcileContext.iJitterUs;
@@ -222,7 +223,7 @@ static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordRecon
 	if (iGap >= kiGapOverrideThreshold)
 	{
 		static constexpr int64_t kiRingBudget = engine::kiNetworkBufferSize * 3 / 4;
-		iMaxReplay = std::min(iAvailable, kiRingBudget);
+		iMaxReplay = std::max(iMaxReplay, std::min(iAvailable, kiRingBudget));
 	}
 	int64_t iReplayCount = 0;
 

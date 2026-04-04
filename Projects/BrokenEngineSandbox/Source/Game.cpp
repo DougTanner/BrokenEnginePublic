@@ -176,7 +176,7 @@ XMVECTOR Game::GetClientPlayerPosition() const
 	{
 		return rFrame.interpolate.pPlayers->pVecPositions[*oIdx];
 	}
-	XMVECTOR vecArea = rFrame.postRender.vecArea;
+	XMVECTOR vecArea = mCoordFrames.at(mClientGridCoord).staticData.vecArea;
 	return XMVectorSet((XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f, (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f, 0.0f, 0.0f);
 }
 
@@ -218,7 +218,7 @@ void Game::ComputeActiveSet()
 			if (oPlayerIdx)
 			{
 				XMVECTOR vecPos = rFrame.interpolate.pPlayers->pVecPositions[*oPlayerIdx];
-				XMVECTOR vecArea = rFrame.postRender.vecArea;
+				XMVECTOR vecArea = mCoordFrames.at(mClientGridCoord).staticData.vecArea;
 				float fCenterX = (XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f;
 				float fCenterY = (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f;
 				float fHalfWidth = (XMVectorGetZ(vecArea) - XMVectorGetX(vecArea)) * 0.5f;
@@ -373,13 +373,15 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	pFrame->interpolate.gameFlags.Set(GameFlags::kGame);
 	InitFramePostRender(*pFrame);
 
+	// Populate static data for this coord
+	engine::FrameStaticData& rStaticData = mCoordFrames.at(coord).staticData;
 	XMVECTOR vecBaseArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
-	pFrame->postRender.vecArea = ComputeFrameArea(vecBaseArea, coord);
-
-	// Compute flip from grid coordinate parity for seamless tiling
+	rStaticData.vecArea = ComputeFrameArea(vecBaseArea, coord);
 	bool bFlipX = (std::abs(coord.x) % 2) == 1;
 	bool bFlipY = (std::abs(coord.y) % 2) == 1;
-	pFrame->postRender.eIslandsFlip = static_cast<engine::IslandsFlip>((bFlipX ? engine::kFlipX : 0) | (bFlipY ? engine::kFlipY : 0));
+	rStaticData.eIslandsFlip = static_cast<engine::IslandsFlip>((bFlipX ? engine::kFlipX : 0) | (bFlipY ? engine::kFlipY : 0));
+	rStaticData.f2IslandOffset = ComputeIslandOffset(coord);
+
 }
 
 void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rData, engine::alignment_t playerAlignment)
@@ -563,8 +565,11 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	pFrame = std::make_unique<Frame>();
 	pFrame->interpolate.gameFlags.Set(gameFlags.meFlags);
 	InitFramePostRender(*pFrame);
-	pFrame->postRender.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
-	pFrame->postRender.eIslandsFlip = engine::kFlipNone;
+	// Populate static data for origin coord (main menu: centered island)
+	engine::FrameStaticData& rStaticData = mCoordFrames.at(engine::kOriginCoord).staticData;
+	rStaticData.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
+	rStaticData.eIslandsFlip = engine::kFlipNone;
+	rStaticData.f2IslandOffset = ComputeIslandOffset(engine::kOriginCoord);
 
 	mCoordFrames.at(engine::kOriginCoord).pNext = std::make_unique<Frame>();
 }

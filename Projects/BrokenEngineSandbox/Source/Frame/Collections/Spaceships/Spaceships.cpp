@@ -1,5 +1,6 @@
 #include "Spaceships.h"
 
+#include "Frame/FrameStaticData.h"
 #include "Data/Audio.h"
 #include "Data/Texture.h"
 #include "Frame/HealthDamage.h"
@@ -306,12 +307,12 @@ static void RemoveOwnedObjects(Frame& rFrame, SpaceshipsInterpolate& rCurrentInt
 #endif
 }
 
-void SpaceshipsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
+void SpaceshipsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = *rFrame.interpolate.pSpaceships;
 	SpaceshipsPostRender& rCurrentPostRender = *rFrame.postRender.pSpaceships;
 
-	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
+	const FrameBounds bounds = ComputeFrameBounds(rStaticData.vecArea);
 
 	for (int64_t i = rCurrentInterpolate.iCount - 1; i >= 0; --i)
 	{
@@ -350,7 +351,7 @@ void SpaceshipsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 	}
 }
 
-void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
+void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = *rFrame.interpolate.pSpaceships;
 	SpaceshipsPostRender& rCurrentPostRender = *rFrame.postRender.pSpaceships;
@@ -368,7 +369,7 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 	}
 }
 
-void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
+void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = *rFrame.interpolate.pSpaceships;
 	SpaceshipsPostRender& rCurrentPostRender = *rFrame.postRender.pSpaceships;

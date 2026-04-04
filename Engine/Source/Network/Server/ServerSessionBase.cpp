@@ -64,6 +64,7 @@ void ServerSessionBase::SendNewSubscriptionFullStates([[maybe_unused]] int64_t i
 		auto frameIt = game::gpGame->mCoordFrames.find(rSub.coord);
 		if (frameIt != game::gpGame->mCoordFrames.end())
 		{
+			gpServer->SendCoordStaticData(rSub.iClientId, rSub.iSlot, rSub.coord, frameIt->second.staticData);
 			gpServer->SendCoordFullState(rSub.iClientId, rSub.iSlot, game::gpGame->TickCounter(), rSub.coord, frameIt->second.pCurrent.get());
 		}
 	}

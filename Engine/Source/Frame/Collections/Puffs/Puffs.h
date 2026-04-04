@@ -8,6 +8,8 @@
 namespace engine
 {
 
+struct FrameStaticData;
+
 struct PuffsType
 {
 	common::crc_t crc = 0;
@@ -95,18 +97,18 @@ struct PuffsPostRender : public Collection<PuffsPostRender>
 	static void AllocateAndCopy(PuffsPostRender& rCurrent, const PuffsPostRender& rPrevious);
 
 	// Update
-	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
 
 	// Add controlled puff (fire-and-forget, auto-destroys when animation ends)
 	static void XM_CALLCONV AddControlled(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiControllerTypeIndex, FXMVECTOR vecPosition);
 
 	// Destroy handles auto-removal of expired controlled puffs
-	static void Destroy(game::Frame& __restrict rFrame);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void Transfer(game::Frame& __restrict rFrame);
-	static void Spawn(game::Frame& __restrict rFrame);
+	static void Destroy(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void Transfer(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
+	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	auto Members([[maybe_unused]] this auto&& rSelf) { return std::tie(); }
 

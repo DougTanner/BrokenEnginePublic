@@ -144,13 +144,13 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 	// Post render phases
 	static void AllocateAndCopy(FramePostRender& __restrict rCurrent, const FramePostRender& __restrict rPrevious);
-	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput);
-	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void Transfer(Frame& __restrict rFrame);
-	static void Destroy(Frame& __restrict rFrame);
-	static void Spawn(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, const engine::FrameStaticData& rStaticData);
+	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void Transfer(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
+	static void Destroy(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
+	static void Spawn(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, const engine::FrameStaticData& rStaticData);
 
 	engine::alignment_t enemyAlignment {};
 	engine::alignment_t playerAlignment {};
@@ -179,15 +179,21 @@ struct Frame
 	Frame(Frame&&) noexcept;
 	Frame& operator=(Frame&&) noexcept;
 
-	static constexpr int64_t kiVersion = 18;
+	static constexpr int64_t kiVersion = 20;
 
 	static constexpr int64_t kiIslandCount = 1;
-	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};
 
-	static constexpr float kfBaseAreaMinX = kpfIslandPositions[0][0];
-	static constexpr float kfBaseAreaMaxY = kpfIslandPositions[0][1];
-	static constexpr float kfBaseAreaMaxX = kpfIslandPositions[0][0] + kpfIslandPositions[0][2];
-	static constexpr float kfBaseAreaMinY = kpfIslandPositions[0][1] + kpfIslandPositions[0][3];
+	static constexpr float kfCellWidth = 300.0f;
+	static constexpr float kfCellHeight = 300.0f;
+	static constexpr float kfIslandWidth = 200.0f;
+	static constexpr float kfIslandHeight = 200.0f;
+	static constexpr float kfMaxIslandOffsetX = kfCellWidth - kfIslandWidth;
+	static constexpr float kfMaxIslandOffsetY = kfCellHeight - kfIslandHeight;
+
+	static constexpr float kfBaseAreaMinX = -kfCellWidth / 2.0f;
+	static constexpr float kfBaseAreaMaxY = kfCellHeight / 2.0f;
+	static constexpr float kfBaseAreaMaxX = kfCellWidth / 2.0f;
+	static constexpr float kfBaseAreaMinY = -kfCellHeight / 2.0f;
 
 	[[nodiscard]] static target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::alignment_t alignment);
 
@@ -202,5 +208,16 @@ struct Frame
 
 std::ostream& operator<<(std::ostream& rStream, const Frame& rCurrent);
 std::istream& operator>>(std::istream& rStream, Frame& rCurrent);
+
+// Deterministic island offset within a grid cell, computed from grid coordinate hash
+inline XMFLOAT2 ComputeIslandOffset(engine::GridCoord coord)
+{
+	uint64_t uiKey = coord.ToKey() ^ 0x9E3779B97F4A7C15ull;
+	uint32_t uiHashX = static_cast<uint32_t>((uiKey * 2'654'435'761ull) >> 16);
+	uint32_t uiHashY = static_cast<uint32_t>((uiKey * 2'246'822'519ull) >> 16);
+	float fOffsetX = Frame::kfMaxIslandOffsetX * static_cast<float>(uiHashX % 1024) / 1023.0f;
+	float fOffsetY = Frame::kfMaxIslandOffsetY * static_cast<float>(uiHashY % 1024) / 1023.0f;
+	return {fOffsetX, fOffsetY};
+}
 
 } // namespace game

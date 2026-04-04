@@ -31,20 +31,20 @@ void SmokeTrailsPostRender::AllocateAndCopy(SmokeTrailsPostRender& rCurrent, con
 	AllocateAndCopyIds(rCurrent, rPrevious);
 }
 
-void SmokeTrailsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
+void SmokeTrailsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void SmokeTrailsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+void SmokeTrailsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 	// Owned objects are transferred by their parent
 }
 
-void SmokeTrailsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
+void SmokeTrailsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-static constexpr float kfSmoothingRate = 10.4f;
+static constexpr float kfSmoothingRate = 20.0f;
 
 void SmokeTrailsInterpolate::Update(game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
@@ -73,11 +73,11 @@ void SmokeTrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_
 	rSmokeTrails.pfIntensities[iIndex] = rData.fIntensity;
 }
 
-void SmokeTrailsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void SmokeTrailsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void SmokeTrailsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void SmokeTrailsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
@@ -131,11 +131,11 @@ void SmokeTrailsPostRender::Remove(game::Frame& __restrict rFrame, smoke_trails_
 	rId = {};
 }
 
-void SmokeTrailsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void SmokeTrailsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void SmokeTrailsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void SmokeTrailsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 

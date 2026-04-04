@@ -6,6 +6,8 @@
 #include "Frame/Collections/PointLights/PointLights.h"
 #endif
 #include "Frame/Collections/Collection.h"
+
+namespace engine { struct FrameStaticData; }
 #if defined(BT_CLIENT)
 #include "Frame/Collections/Sounds/Sounds.h"
 #include "Frame/Collections/WindTrails/WindTrails.h"
@@ -96,13 +98,13 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 	static void AllocateAndCopy(BlastersPostRender& rCurrent, const BlastersPostRender& rPrevious);
 
 	// Update
-	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void Transfer(Frame& __restrict rFrame);
-	static void Destroy(Frame& __restrict rFrame);
-	static void Spawn(Frame& __restrict rFrame);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void Transfer(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
+	static void Destroy(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
+	static void Spawn(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 
 	BlasterFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;

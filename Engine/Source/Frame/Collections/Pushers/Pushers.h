@@ -13,6 +13,8 @@ struct Frame;
 namespace engine
 {
 
+struct FrameStaticData;
+
 // Zone system constants for spatial acceleration
 inline constexpr float kfPusherArenaSize = 400.0f;
 inline constexpr float kfPusherZoneSize = 8.0f;
@@ -89,19 +91,19 @@ struct PushersPostRender : public Collection<PushersPostRender>
 	static void AllocateAndCopy(PushersPostRender& rCurrent, const PushersPostRender& rPrevious);
 
 	// Update
-	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
 
 	// Add pusher
 	static void Add(game::Frame& __restrict rFrame, pusher_t& rId);
 
 	// Remove pusher by ID
 	static void Remove(game::Frame& __restrict rFrame, pusher_t& rId);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void Transfer(game::Frame& __restrict rFrame);
-	static void Destroy(game::Frame& __restrict rFrame);
-	static void Spawn(game::Frame& __restrict rFrame);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void Transfer(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
+	static void Destroy(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
+	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	pusher_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

@@ -8,6 +8,8 @@
 namespace engine
 {
 
+struct FrameStaticData;
+
 struct AreaLightsType
 {
 	common::crc_t crc = 0;
@@ -65,16 +67,16 @@ struct AreaLightsPostRender : public Collection<AreaLightsPostRender>
 	static void AllocateAndCopy(AreaLightsPostRender& rCurrent, const AreaLightsPostRender& rPrevious);
 
 	// Update
-	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
 
 	static void Add(game::Frame& __restrict rFrame, area_lights_t& rId, uint8_t uiTypeIndex);
 	static void Remove(game::Frame& __restrict rFrame, area_lights_t& rId);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void Transfer(game::Frame& __restrict rFrame);
-	static void Destroy(game::Frame& __restrict rFrame);
-	static void Spawn(game::Frame& __restrict rFrame);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void Transfer(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
+	static void Destroy(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
+	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	area_lights_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

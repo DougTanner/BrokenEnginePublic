@@ -1,5 +1,7 @@
 #include "FrameTick.h"
 
+#include "Frame/FrameStaticData.h"
+
 #include "Frame/FrameCollections.h"
 
 namespace game
@@ -15,8 +17,10 @@ void RunFrameTick(const ActiveFrameRef& rRef, int64_t iTickCounter, float fCurre
 
 	ASSERT(rRef.pNext != nullptr); // DT TEMP
 	ASSERT(rRef.pCurrent != nullptr); // DT TEMP
+	ASSERT(rRef.pStaticData != nullptr); // DT TEMP
 	Frame& rNext = *rRef.pNext;
 	const Frame& rCurrent = *rRef.pCurrent;
+	const engine::FrameStaticData& rStaticData = *rRef.pStaticData;
 
 	// Phase 1: Interpolate
 	FrameInterpolate::AllocateAndCopy(rNext.interpolate, rCurrent.interpolate);
@@ -26,20 +30,20 @@ void RunFrameTick(const ActiveFrameRef& rRef, int64_t iTickCounter, float fCurre
 
 	// Phase 2: PostRender
 	FramePostRender::AllocateAndCopy(rNext.postRender, rCurrent.postRender);
-	FramePostRender::Update(rNext, rCurrent, *rRef.pFrameInput);
+	FramePostRender::Update(rNext, rCurrent, *rRef.pFrameInput, rStaticData);
 
 	// Phase 3: Collision
-	FramePostRender::PreCollision(rNext, rCurrent);
-	engine::Collision::Collide(rNext.postRender.alignments, rNext.postRender.vecArea);
-	FramePostRender::PostCollision(rNext, rCurrent);
-	FramePostRender::AreaDamage(rNext, rCurrent);
+	FramePostRender::PreCollision(rNext, rCurrent, rStaticData);
+	engine::Collision::Collide(rNext.postRender.alignments, rStaticData.vecArea);
+	FramePostRender::PostCollision(rNext, rCurrent, rStaticData);
+	FramePostRender::AreaDamage(rNext, rCurrent, rStaticData);
 
 	// Phase 4: Transfer
-	FramePostRender::Transfer(rNext);
+	FramePostRender::Transfer(rNext, rStaticData);
 
 	// Phase 5: Destroy/Spawn
-	FramePostRender::Destroy(rNext);
-	FramePostRender::Spawn(rNext, *rRef.pFrameInput);
+	FramePostRender::Destroy(rNext, rStaticData);
+	FramePostRender::Spawn(rNext, *rRef.pFrameInput, rStaticData);
 
 	// Compute CRCs after all phases complete
 	rNext.postRender.previousInputCrc = rRef.pFrameInput->ServerInputCrc();

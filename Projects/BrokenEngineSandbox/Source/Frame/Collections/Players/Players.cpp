@@ -1,5 +1,6 @@
 #include "Players.h"
 
+#include "Frame/FrameStaticData.h"
 #include "Data/Audio.h"
 #include "Data/Texture.h"
 #include "Frame/HealthDamage.h"
@@ -225,12 +226,12 @@ static void RemoveOwnedVisuals(Frame& rFrame, PlayersInterpolate& rCurrentInterp
 }
 #endif // BT_CLIENT
 
-void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
+void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
 	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
 
-	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
+	const FrameBounds bounds = ComputeFrameBounds(rStaticData.vecArea);
 
 	// Reverse iteration for swap-and-pop safety with RemoveIndexableElement
 	for (int64_t i = rCurrentInterpolate.iCount - 1; i >= 0; --i)
@@ -287,7 +288,7 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 	}
 }
 
-void PlayersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
+void PlayersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
 	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
@@ -312,7 +313,7 @@ void PlayersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 	}
 }
 
-static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
+static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
 	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
@@ -364,11 +365,11 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 			}
 
 			// Compute frame center from world-space vecArea for spawn offset
-			float fCenterX = (XMVectorGetX(rFrame.postRender.vecArea) + XMVectorGetZ(rFrame.postRender.vecArea)) * 0.5f;
-			float fCenterY = (XMVectorGetW(rFrame.postRender.vecArea) + XMVectorGetY(rFrame.postRender.vecArea)) * 0.5f;
+			float fCenterX = (XMVectorGetX(rStaticData.vecArea) + XMVectorGetZ(rStaticData.vecArea)) * 0.5f;
+			float fCenterY = (XMVectorGetW(rStaticData.vecArea) + XMVectorGetY(rStaticData.vecArea)) * 0.5f;
 
 			XMVECTOR vecSpawnPosition = XMVectorSet(fCenterX + 45.0f, fCenterY + (-12.0f), 0.0f, 1.0f);
-			ASSERT(!IsOutOfBounds(ComputeFrameBounds(rFrame.postRender.vecArea), vecSpawnPosition));
+			ASSERT(!IsOutOfBounds(ComputeFrameBounds(rStaticData.vecArea), vecSpawnPosition));
 
 			PlayersPostRender::Spawn(rFrame,
 			{
@@ -554,9 +555,9 @@ static void SpawnDeathExplosions([[maybe_unused]] Frame& __restrict rFrame)
 	}
 }
 
-void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
+void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
-	ProcessSpawnStatusChanges(rFrame, rFrameInput);
+	ProcessSpawnStatusChanges(rFrame, rFrameInput, rStaticData);
 
 #if defined(BT_CLIENT)
 	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;

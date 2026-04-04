@@ -2,6 +2,8 @@
 
 #include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
+
+namespace engine { struct FrameStaticData; }
 #include "Frame/GridCoord.h"
 
 namespace game
@@ -71,13 +73,13 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 	static void AllocateAndCopy(TargetsPostRender& rCurrent, const TargetsPostRender& rPrevious);
 
 	// Update
-	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void Transfer(Frame& __restrict rFrame);
-	static void Destroy(Frame& __restrict rFrame);
-	static void Spawn(Frame& __restrict rFrame);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void Transfer(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
+	static void Destroy(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
+	static void Spawn(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 
 	// Add/Remove API
 	static void Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiTargetTypeIndex, engine::alignment_t alignment);

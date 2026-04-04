@@ -30,16 +30,16 @@ void WindTrailsPostRender::AllocateAndCopy(WindTrailsPostRender& rCurrent, const
 	AllocateAndCopyIds(rCurrent, rPrevious);
 }
 
-void WindTrailsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
+void WindTrailsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void WindTrailsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+void WindTrailsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 	// Owned objects are transferred by their parent
 }
 
-void WindTrailsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
+void WindTrailsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 

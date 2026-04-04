@@ -29,15 +29,15 @@ void PuffsPostRender::AllocateAndCopy(PuffsPostRender& rCurrent, const PuffsPost
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
-void PuffsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
+void PuffsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void PuffsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+void PuffsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void PuffsPostRender::Destroy(game::Frame& __restrict rFrame)
+void PuffsPostRender::Destroy(game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 	DestroyExpiredControlled(rFrame.interpolate.puffs, rFrame.postRender.puffs, rFrame.interpolate.fCurrentTime,
 		[](auto& rI, auto& rPR, int64_t& i)

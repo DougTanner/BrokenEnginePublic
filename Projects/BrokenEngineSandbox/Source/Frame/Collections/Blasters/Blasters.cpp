@@ -3,6 +3,7 @@
 
 #include "Blasters.h"
 
+#include "Frame/FrameStaticData.h"
 #include "Data/Audio.h"
 
 namespace engine
@@ -159,7 +160,7 @@ void BlastersInterpolate::ClientInitAll(Frame& rFrame)
 }
 #endif // BT_CLIENT
 
-void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
+void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 }
 
@@ -214,12 +215,12 @@ static void RemoveOwnedObjects([[maybe_unused]] Frame& rFrame, [[maybe_unused]] 
 #endif // BT_CLIENT
 }
 
-void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
+void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;
 	BlastersPostRender& rCurrentPostRender = *rFrame.postRender.pBlasters;
 
-	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
+	const FrameBounds bounds = ComputeFrameBounds(rStaticData.vecArea);
 
 	for (int64_t i = rCurrentInterpolate.iCount - 1; i >= 0; --i)
 	{
@@ -261,7 +262,7 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 	}
 }
 
-void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
+void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;
 	BlastersPostRender& rCurrentPostRender = *rFrame.postRender.pBlasters;

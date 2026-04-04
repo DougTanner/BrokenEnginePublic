@@ -85,6 +85,7 @@ void Client::Poll()
 		rSlotUpdates.clear();
 	}
 	mReceivedFullStates.clear();
+	mReceivedStaticData.clear();
 	mReceivedGamePackets.clear();
 
 	ENetEvent event {};
@@ -191,6 +192,9 @@ void Client::Receive(const uint8_t* pData, size_t iSize)
 		}
 		case PacketType::kServerCoordFullState:
 			ServerCoordFullState(pData, iSize);
+			break;
+		case PacketType::kServerCoordStaticData:
+			ServerCoordStaticData(pData, iSize);
 			break;
 		case PacketType::kServerCoordUpdate:
 			ServerCoordUpdateOrResend(pData, iSize, true);

@@ -48,6 +48,11 @@ void IslandTerrain::WaitForElevationMaps()
 		miHeightmapWidth = rChunk.header.islandHeader.iHeightmapWidth;
 		miHeightmapHeight = rChunk.header.islandHeader.iHeightmapHeight;
 	}
+
+	if (mpfHeightmapData != nullptr)
+	{
+		BuildNavData(mNavData, mpfHeightmapData, miHeightmapWidth, miHeightmapHeight, mfBeachElevation, game::Frame::kfIslandWidth, game::Frame::kfIslandHeight);
+	}
 }
 
 float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
@@ -56,22 +61,40 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 	XMStoreFloat4A(&f4Position, vecPosition);
 
 	// Compute grid cell from world position
-	constexpr float fBaseWidth = game::Frame::kpfIslandPositions[0][2];
-	constexpr float fBaseHeight = -game::Frame::kpfIslandPositions[0][3];
-	constexpr float fBaseMinX = game::Frame::kfBaseAreaMinX;
-	constexpr float fBaseMinY = game::Frame::kfBaseAreaMinY;
-	constexpr float fBaseMaxY = game::Frame::kfBaseAreaMaxY;
+	static constexpr float fCellWidth = game::Frame::kfCellWidth;
+	static constexpr float fCellHeight = game::Frame::kfCellHeight;
+	static constexpr float fIslandWidth = game::Frame::kfIslandWidth;
+	static constexpr float fIslandHeight = game::Frame::kfIslandHeight;
+	static constexpr float fCellMinX = game::Frame::kfBaseAreaMinX;
+	static constexpr float fCellMinY = game::Frame::kfBaseAreaMinY;
+	static constexpr float fCellMaxY = game::Frame::kfBaseAreaMaxY;
 
-	int32_t iGridX = static_cast<int32_t>(std::floor((f4Position.x - fBaseMinX) / fBaseWidth));
-	int32_t iGridY = static_cast<int32_t>(std::floor((f4Position.y - fBaseMinY) / fBaseHeight));
+	int32_t iGridX = static_cast<int32_t>(std::floor((f4Position.x - fCellMinX) / fCellWidth));
+	int32_t iGridY = static_cast<int32_t>(std::floor((f4Position.y - fCellMinY) / fCellHeight));
 
-	// Island bounds for this grid cell
-	float fMinX = fBaseMinX + static_cast<float>(iGridX) * fBaseWidth;
-	float fMaxY = fBaseMaxY + static_cast<float>(iGridY) * fBaseHeight;
+	// Cell origin
+	float fCellOriginX = fCellMinX + static_cast<float>(iGridX) * fCellWidth;
+	float fCellOriginMaxY = fCellMaxY + static_cast<float>(iGridY) * fCellHeight;
+
+	// Island offset within cell (deterministic from grid coord)
+	XMFLOAT2 f2Offset = game::ComputeIslandOffset({iGridX, iGridY});
+
+	// Island bounds
+	float fIslandMinX = fCellOriginX + f2Offset.x;
+	float fIslandMaxY = fCellOriginMaxY - f2Offset.y;
+	float fIslandMaxX = fIslandMinX + fIslandWidth;
+	float fIslandMinY = fIslandMaxY - fIslandHeight;
+
+	// Ocean gap: position is outside island bounds
+	if (f4Position.x < fIslandMinX || f4Position.x > fIslandMaxX ||
+	    f4Position.y < fIslandMinY || f4Position.y > fIslandMaxY)
+	{
+		return mfSeaFloorElevation;
+	}
 
 	// UV within island
-	float fU = (f4Position.x - fMinX) / fBaseWidth;
-	float fV = (fMaxY - f4Position.y) / fBaseHeight;
+	float fU = (f4Position.x - fIslandMinX) / fIslandWidth;
+	float fV = (fIslandMaxY - f4Position.y) / fIslandHeight;
 
 	// Flip from grid coord parity (same logic as CreateFrameAtCoord)
 	if ((std::abs(iGridX) % 2) == 1)
@@ -103,10 +126,10 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 
 XMVECTOR XM_CALLCONV IslandTerrain::GlobalNormal(FXMVECTOR vecPosition) const
 {
-	constexpr float fBaseWidth = game::Frame::kpfIslandPositions[0][2];
-	constexpr float fBaseHeight = -game::Frame::kpfIslandPositions[0][3];
-	float fStepX = fBaseWidth / static_cast<float>(miHeightmapWidth);
-	float fStepY = fBaseHeight / static_cast<float>(miHeightmapHeight);
+	static constexpr float fIslandWidth = game::Frame::kfIslandWidth;
+	static constexpr float fIslandHeight = game::Frame::kfIslandHeight;
+	float fStepX = fIslandWidth / static_cast<float>(miHeightmapWidth);
+	float fStepY = fIslandHeight / static_cast<float>(miHeightmapHeight);
 	float fDistance = 2.0f * std::max(fStepX, fStepY);
 
 	// Sample 4 surrounding points (seamless across grid cell boundaries)

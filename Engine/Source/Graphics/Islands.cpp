@@ -11,15 +11,16 @@ Islands::Islands()
 
 	mIslands.resize(kiDefaultIslandCapacity);
 
-	// Fill initial quads from base island template
+	// Fill initial quads from base island template at origin
+	XMFLOAT2 f2OriginOffset = game::ComputeIslandOffset(engine::kOriginCoord);
 	for (size_t i = 0; i < mIslands.size(); ++i)
 	{
-		if (i < static_cast<size_t>(game::Frame::kiIslandCount))
+		if (i == 0)
 		{
-			mIslands[i].quad.f4VertexRect.x = game::Frame::kpfIslandPositions[i][0];
-			mIslands[i].quad.f4VertexRect.y = game::Frame::kpfIslandPositions[i][1];
-			mIslands[i].quad.f4VertexRect.z = game::Frame::kpfIslandPositions[i][2];
-			mIslands[i].quad.f4VertexRect.w = game::Frame::kpfIslandPositions[i][3];
+			mIslands[i].quad.f4VertexRect.x = game::Frame::kfBaseAreaMinX + f2OriginOffset.x;
+			mIslands[i].quad.f4VertexRect.y = game::Frame::kfBaseAreaMaxY - f2OriginOffset.y;
+			mIslands[i].quad.f4VertexRect.z = game::Frame::kfIslandWidth;
+			mIslands[i].quad.f4VertexRect.w = -game::Frame::kfIslandHeight;
 		}
 		else
 		{
@@ -32,7 +33,7 @@ Islands::Islands()
 		mIslands[i].quad.f4TextureRect.w = 1.0f;
 	}
 
-	// Calculate global area bounds from the base island template
+	// Calculate global area bounds from the base cell
 	mf4GlobalArea.x = game::Frame::kfBaseAreaMinX;
 	mf4GlobalArea.y = game::Frame::kfBaseAreaMaxY;
 	mf4GlobalArea.z = game::Frame::kfBaseAreaMaxX;
@@ -105,9 +106,6 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 	}
 
 	// Fill active island slots from frame data
-	float fBaseWidth = game::Frame::kpfIslandPositions[0][2];
-	float fBaseHeight = game::Frame::kpfIslandPositions[0][3];
-
 	for (int64_t i = 0; i < iActiveCount; ++i)
 	{
 		const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(i)];
@@ -117,18 +115,21 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 			continue;
 		}
 
-		const game::Frame& rFrame = *it->second.pCurrent;
-		IslandsFlip eFlip = rFrame.postRender.eIslandsFlip;
+		const FrameStaticData& rStaticData = it->second.staticData;
+		IslandsFlip eFlip = rStaticData.eIslandsFlip;
+		XMFLOAT2 f2Offset = rStaticData.f2IslandOffset;
 
 		Island& rIsland = mIslands[static_cast<size_t>(i)];
 		bool bFlipX = eFlip == kFlipX || eFlip == kFlipXY;
 		bool bFlipY = eFlip == kFlipY || eFlip == kFlipXY;
 
-		// Position from base island template offset by grid coordinate
-		rIsland.quad.f4VertexRect.x = game::Frame::kfBaseAreaMinX + static_cast<float>(rCoord.x) * fBaseWidth;
-		rIsland.quad.f4VertexRect.y = game::Frame::kfBaseAreaMaxY + static_cast<float>(rCoord.y) * std::abs(fBaseHeight);
-		rIsland.quad.f4VertexRect.z = fBaseWidth;
-		rIsland.quad.f4VertexRect.w = fBaseHeight;
+		// Position island quad within grid cell using baked offset
+		float fCellOriginX = game::Frame::kfBaseAreaMinX + static_cast<float>(rCoord.x) * game::Frame::kfCellWidth;
+		float fCellOriginMaxY = game::Frame::kfBaseAreaMaxY + static_cast<float>(rCoord.y) * game::Frame::kfCellHeight;
+		rIsland.quad.f4VertexRect.x = fCellOriginX + f2Offset.x;
+		rIsland.quad.f4VertexRect.y = fCellOriginMaxY - f2Offset.y;
+		rIsland.quad.f4VertexRect.z = game::Frame::kfIslandWidth;
+		rIsland.quad.f4VertexRect.w = -game::Frame::kfIslandHeight;
 
 		// Texture coords from flip state
 		rIsland.quad.f4TextureRect.x = bFlipX ? 1.0f : 0.0f;

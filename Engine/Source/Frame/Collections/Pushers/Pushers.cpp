@@ -24,16 +24,16 @@ void PushersPostRender::AllocateAndCopy(PushersPostRender& rCurrent, const Pushe
 	AllocateAndCopyIds(rCurrent, rPrevious);
 }
 
-void PushersPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
+void PushersPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void PushersPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+void PushersPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 	// Owned objects are transferred by their parent
 }
 
-void PushersPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
+void PushersPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 

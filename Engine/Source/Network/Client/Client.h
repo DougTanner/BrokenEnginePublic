@@ -2,6 +2,8 @@
 
 #if defined(BT_CLIENT)
 
+#include "Frame/FrameStaticData.h"
+
 namespace game
 {
 
@@ -33,6 +35,14 @@ struct ReceivedCoordFullState
 	GridCoord coord {};
 	int64_t iSlot = -1;
 	std::unique_ptr<game::Frame> pFrame;
+};
+
+// Per-coord received static data (sent once per subscription)
+struct ReceivedStaticData
+{
+	int64_t iSlot = -1;
+	GridCoord coord {};
+	FrameStaticData staticData;
 };
 
 enum class CoordSubscriptionState : uint8_t
@@ -89,6 +99,7 @@ public:
 
 	std::vector<std::vector<ReceivedCoordUpdate>>& DrainReceivedCoordUpdates() { return mReceivedCoordUpdates; }
 	std::vector<ReceivedCoordFullState>& DrainReceivedFullStates() { return mReceivedFullStates; }
+	std::vector<ReceivedStaticData>& DrainReceivedStaticData() { return mReceivedStaticData; }
 	std::unique_ptr<ReceivedDebugFrame> DrainReceivedDebugFrame() { return std::move(mpReceivedDebugFrame); }
 
 	bool IsConnected() const { return mbConnected; }
@@ -115,6 +126,7 @@ private:
 	void Receive(ENetEvent& rEvent);
 	void Receive(const uint8_t* pData, size_t iSize);
 	void ServerCoordFullState(const uint8_t* pData, size_t iSize);
+	void ServerCoordStaticData(const uint8_t* pData, size_t iSize);
 	void ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool bProcessRtt);
 	void ServerDebugFrame(const uint8_t* pData, size_t iSize);
 	void ServerConnectionResponse(const uint8_t* pData, size_t iSize);
@@ -140,6 +152,8 @@ private:
 	// Per-slot receive buffers
 	std::vector<std::vector<ReceivedCoordUpdate>> mReceivedCoordUpdates;
 	std::vector<ReceivedCoordFullState> mReceivedFullStates;
+	// Heap: static data received once per subscription
+	std::vector<ReceivedStaticData> mReceivedStaticData;
 
 	std::unique_ptr<ReceivedDebugFrame> mpReceivedDebugFrame;
 

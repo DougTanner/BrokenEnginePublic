@@ -4,6 +4,7 @@
 
 #if defined(BT_CLIENT)
 
+#include "Frame/FrameStaticData.h"
 #include "Game.h"
 #include "Network/NetworkCursor.h"
 
@@ -151,6 +152,61 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	rSlot.ackState.uiReceivedBitfieldHigh = 0;
 	rSlot.ackState.uiEpoch = uiEpoch;
 	rSlot.eState = CoordSubscriptionState::kActive;
+}
+
+void Client::ServerCoordStaticData(const uint8_t* pData, size_t iSize)
+{
+	// 1B type + 1B slot + 2B epoch + 4B coord.x + 4B coord.y + 4B size = 16 fixed bytes
+	if (iSize < 16)
+	{
+		return;
+	}
+
+	const uint8_t* pCursor = pData + 1; // Skip packet type
+
+	uint8_t uiSlotIndex = ReadUint8(pCursor);
+	uint16_t uiEpoch = ReadUint16(pCursor);
+	GridCoord coord = ReadGridCoord(pCursor);
+	int32_t iSize32 = ReadInt32(pCursor);
+
+	if (iSize32 <= 0 || static_cast<size_t>(iSize32) > iSize - 16)
+	{
+		return;
+	}
+
+	if (uiSlotIndex >= std::ssize(mCoordSlots))
+	{
+		return;
+	}
+
+	const ClientCoordSlot& rSlot = mCoordSlots.at(uiSlotIndex);
+	if (rSlot.eState != CoordSubscriptionState::kWaitingFullState
+		&& rSlot.eState != CoordSubscriptionState::kSubscribing
+		&& rSlot.eState != CoordSubscriptionState::kUnsubscribed)
+	{
+		return;
+	}
+
+	if ((rSlot.eState == CoordSubscriptionState::kWaitingFullState || rSlot.eState == CoordSubscriptionState::kSubscribing)
+		&& uiEpoch != rSlot.ackState.uiEpoch)
+	{
+		return;
+	}
+
+	Log(kLogNetwork, kVerbose, "Client::ServerCoordStaticData Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+	std::string staticBytes(reinterpret_cast<const char*>(pCursor), iSize32);
+	std::istringstream staticStream(std::move(staticBytes), std::ios::binary);
+
+	ReceivedStaticData received {};
+	received.iSlot = uiSlotIndex;
+	received.coord = coord;
+	received.staticData.Read(staticStream);
+
+	// Heap: received static data vector grows on new subscription
+	mReceivedStaticData.push_back(std::move(received));
 }
 
 void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool bProcessRtt)
@@ -338,6 +394,22 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	bool bTargetIsPlaceholder = (rSlot.eState == CoordSubscriptionState::kSubscribing && rSlot.coord == coord);
 	if (rSlot.eState != CoordSubscriptionState::kUnsubscribed && !bTargetIsPlaceholder)
 	{
+		// If the slot is already active for the same coord, the accept is from a re-subscription
+		// whose stale predecessor data already activated the slot. Update the epoch instead of ghost-killing it.
+		if (rSlot.eState == CoordSubscriptionState::kActive && rSlot.coord == coord)
+		{
+			rSlot.ackState.uiEpoch = uiEpoch;
+			ClearSubscribingPlaceholder(coord);
+			if (RemoveCancelledSubscription(coord))
+			{
+				Log(kLogNetwork, kVerbose, "Client::ServerSubscribeAccept Healed then cancelled Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+				SendUnsubscribe(uiSlotIndex);
+				return;
+			}
+			Log(kLogNetwork, kVerbose, "Client::ServerSubscribeAccept Healed active slot Slot: {} Coord: ({},{}) Epoch: {}", uiSlotIndex, coord.x, coord.y, uiEpoch);
+			return;
+		}
+
 		Log(kLogNetwork, kVerbose, "Client::ServerSubscribeAccept Ignoring Slot: {} Coord: ({},{}) SlotCoord: ({},{}) State: {}", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y, static_cast<int>(rSlot.eState));
 		SendUnsubscribeOnly(uiSlotIndex);
 		RemoveCancelledSubscription(coord);

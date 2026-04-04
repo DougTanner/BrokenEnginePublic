@@ -12,6 +12,8 @@ struct Frame;
 namespace engine
 {
 
+struct FrameStaticData;
+
 #if defined(BT_CLIENT)
 struct SmokeTrailsInterpolate;
 using smoke_trails_t = id_t<SmokeTrailsInterpolate>;
@@ -182,15 +184,15 @@ struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
 	static void AllocateAndCopy(ExplosionsPostRender& rCurrent, const ExplosionsPostRender& rPrevious);
 
 	// Update
-	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
 
 	// Destroy expired explosions
-	static void Destroy(game::Frame& __restrict rFrame);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void Transfer(game::Frame& __restrict rFrame);
-	static void Spawn(game::Frame& __restrict rFrame);
+	static void Destroy(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void Transfer(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
+	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	auto Members([[maybe_unused]] this auto&& rSelf) { return std::tie(); }
 

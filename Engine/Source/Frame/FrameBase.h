@@ -138,30 +138,28 @@ static_assert(std::tuple_size_v<decltype(std::declval<FrameInterpolateBase>().Co
 
 struct FramePostRenderBase
 {
-	FramePostRenderBase();
+	FramePostRenderBase() = default;
 	~FramePostRenderBase() = default;
 	FramePostRenderBase(FramePostRenderBase&&) noexcept = default;
 	FramePostRenderBase& operator=(FramePostRenderBase&&) noexcept = default;
 
 	// Post render phases
 	static void AllocateAndCopy(game::FramePostRender& __restrict rCurrent, const game::FramePostRender& __restrict rPrevious);
-	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void Transfer(game::Frame& __restrict rFrame);
-	static void Destroy(game::Frame& __restrict rFrame);
-	static void Spawn(game::Frame& __restrict rFrame);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, const FrameStaticData& rStaticData);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
+	static void Transfer(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
+	static void Destroy(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
+	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	common::RandomEngine randomEngine {};
-	XMVECTOR vecArea {};
 	uint64_t uiNextUuid = 1;
 #if defined(BT_CLIENT)
 	uint64_t uiNextSoundUuid = 1;
 	uint64_t uiNextVisualUuid = 1;
 #endif
 	uint16_t uiFrameId = 0;
-	IslandsFlip eIslandsFlip = kFlipNone;
 
 	common::crc_t previousInputCrc = 0;  // ServerInputCrc() of input used to produce this frame
 	common::crc_t sharedCrc = 0;        // Shared CRC excluding client-only and server-only fields

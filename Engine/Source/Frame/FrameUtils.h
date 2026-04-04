@@ -14,6 +14,8 @@ struct FramePostRender;
 namespace engine
 {
 
+struct FrameStaticData;
+
 // Type list for fold expression iteration
 template<typename... TS>
 struct TypeList {};
@@ -70,45 +72,45 @@ void ForEachGraphicsResources(TypeList<TS...>)
 }
 
 template<typename... TS>
-void ForEachPostRenderUpdate(TypeList<TS...>, game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame)
+void ForEachPostRenderUpdate(TypeList<TS...>, game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData)
 {
-	(TS::Update(rFrame, rPreviousFrame), ...);
+	(TS::Update(rFrame, rPreviousFrame, rStaticData), ...);
 }
 
 template<typename... TS>
-void ForEachPostRenderPreCollision(TypeList<TS...>, game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame)
+void ForEachPostRenderPreCollision(TypeList<TS...>, game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData)
 {
-	(TS::PreCollision(rFrame, rPreviousFrame), ...);
+	(TS::PreCollision(rFrame, rPreviousFrame, rStaticData), ...);
 }
 
 template<typename... TS>
-void ForEachPostRenderPostCollision(TypeList<TS...>, game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame)
+void ForEachPostRenderPostCollision(TypeList<TS...>, game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData)
 {
-	(TS::PostCollision(rFrame, rPreviousFrame), ...);
+	(TS::PostCollision(rFrame, rPreviousFrame, rStaticData), ...);
 }
 
 template<typename... TS>
-void ForEachPostRenderAreaDamage(TypeList<TS...>, game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame)
+void ForEachPostRenderAreaDamage(TypeList<TS...>, game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData)
 {
-	(TS::AreaDamage(rFrame, rPreviousFrame), ...);
+	(TS::AreaDamage(rFrame, rPreviousFrame, rStaticData), ...);
 }
 
 template<typename... TS>
-void ForEachPostRenderTransfer(TypeList<TS...>, game::Frame& __restrict rFrame)
+void ForEachPostRenderTransfer(TypeList<TS...>, game::Frame& __restrict rFrame, const FrameStaticData& rStaticData)
 {
-	(TS::Transfer(rFrame), ...);
+	(TS::Transfer(rFrame, rStaticData), ...);
 }
 
 template<typename... TS>
-void ForEachPostRenderDestroy(TypeList<TS...>, game::Frame& __restrict rFrame)
+void ForEachPostRenderDestroy(TypeList<TS...>, game::Frame& __restrict rFrame, const FrameStaticData& rStaticData)
 {
-	(TS::Destroy(rFrame), ...);
+	(TS::Destroy(rFrame, rStaticData), ...);
 }
 
 template<typename... TS>
-void ForEachPostRenderSpawn(TypeList<TS...>, game::Frame& __restrict rFrame)
+void ForEachPostRenderSpawn(TypeList<TS...>, game::Frame& __restrict rFrame, const FrameStaticData& rStaticData)
 {
-	(TS::Spawn(rFrame), ...);
+	(TS::Spawn(rFrame, rStaticData), ...);
 }
 
 // AllocateAndCopy helper using tuple and index sequence

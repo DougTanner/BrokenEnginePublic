@@ -2,6 +2,7 @@
 
 #include "Network/Server/Server.h"
 
+#include "Frame/FrameStaticData.h"
 #include "Memory/MemoryManager.h"
 #include "Network/NetworkCursor.h"
 
@@ -87,6 +88,38 @@ void Server::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick,
 	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(frameData.size()));
 	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(iCompressedSize));
 	rWorkbuffer.Append(std::string_view(reinterpret_cast<const char*>(mCompressionBuffer.data()), iCompressedSize));
+
+	NetworkManager::SendPacket(pClient->pPeer, NetworkManager::CoordSlotReliable(iSlot), rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+
+	rWorkbuffer.Pop();
+}
+
+void Server::SendCoordStaticData(int64_t iClientId, int64_t iSlot, GridCoord coord, const FrameStaticData& rStaticData)
+{
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr)
+	{
+		return;
+	}
+
+	Log(kLogNetwork, "Server::SendCoordStaticData Client: {} Slot: {} Coord: ({},{})", iClientId, iSlot, coord.x, coord.y);
+
+	// Heap: stringstream allocates for static data serialization
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	std::ostringstream staticStream(std::ios::binary);
+	rStaticData.Write(staticStream);
+	std::string staticData = staticStream.str();
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	// [1B type][1B slot][2B epoch][4B coord.x][4B coord.y][4B size][...staticData bytes]
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerCoordStaticData));
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
+	rWorkbuffer.PushBack<uint16_t>(pClient->coordAckStates.at(iSlot).uiEpoch);
+	WriteGridCoord(rWorkbuffer, coord);
+	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(staticData.size()));
+	rWorkbuffer.Append(std::string_view(staticData));
 
 	NetworkManager::SendPacket(pClient->pPeer, NetworkManager::CoordSlotReliable(iSlot), rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 

@@ -1,5 +1,7 @@
 #include "Targets.h"
 
+#include "Frame/FrameStaticData.h"
+
 namespace engine
 {
 template struct Collection<game::TargetsInterpolate, CollectionFlags::kIdToIndex>;
@@ -37,15 +39,15 @@ void TargetsPostRender::AllocateAndCopy(TargetsPostRender& rCurrent, const Targe
 	}
 }
 
-void TargetsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
+void TargetsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 }
 
-void TargetsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
+void TargetsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 }
 
-void TargetsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
+void TargetsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 }
 

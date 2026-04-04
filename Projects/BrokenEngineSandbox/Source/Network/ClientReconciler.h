@@ -30,6 +30,7 @@ struct ReconcileProfiling
 struct CoordReconcileWork
 {
 	engine::GridCoord coord {};
+	engine::FrameStaticData staticData;
 	uint64_t uiGeneration = 0;
 
 	// Input

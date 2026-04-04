@@ -244,7 +244,7 @@ uint8_t ExplosionsInterpolate::GetWindRadialControllerTypeIndex()
 
 #endif // BT_CLIENT
 
-void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame)
+void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 	ExplosionsInterpolate& rInterpolate = rFrame.interpolate.explosions;
 	ExplosionsPostRender& rPostRender = rFrame.postRender.explosions;
@@ -307,11 +307,11 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame)
 	}
 }
 
-void ExplosionsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+void ExplosionsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void ExplosionsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
+void ExplosionsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 

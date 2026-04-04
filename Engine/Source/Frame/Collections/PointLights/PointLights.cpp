@@ -30,16 +30,16 @@ void PointLightsPostRender::AllocateAndCopy(PointLightsPostRender& rCurrent, con
 	AllocateAndCopyIds(rCurrent, rPrevious);
 }
 
-void PointLightsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
+void PointLightsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void PointLightsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+void PointLightsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 	// Owned objects are transferred by their parent
 }
 
-void PointLightsPostRender::Destroy(game::Frame& __restrict rFrame)
+void PointLightsPostRender::Destroy(game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 	DestroyExpiredControlled(rFrame.interpolate.pointLights, rFrame.postRender.pointLights, rFrame.interpolate.fCurrentTime,
 		[](auto& rI, auto& rPR, int64_t& i)

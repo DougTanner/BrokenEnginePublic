@@ -135,6 +135,7 @@ void ClientSession::PollNetwork()
 		}
 	}
 
+	ApplyReceivedStaticData();
 	ApplyReceivedFullStates();
 	UpdateSubscriptions();
 	ApplyReceivedUpdates();
@@ -228,6 +229,7 @@ void ClientSession::Reconcile()
 			mbClockErrorDisconnect = false;
 			miConsecutiveClockErrorFrames = 0;
 			miClockError = 0;
+			miLatestServerTick = -1;
 		}
 		else
 		{
@@ -272,6 +274,16 @@ void ClientSession::PostRender()
 	// Kick reconcile after render so snapshots remain valid for GetSnapshotFrame during rendering
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	TryKickReconcile();
+}
+
+void ClientSession::ApplyReceivedStaticData()
+{
+	std::vector<engine::ReceivedStaticData>& rStaticDataList = mpClientNetwork->DrainReceivedStaticData();
+	for (engine::ReceivedStaticData& rReceived : rStaticDataList)
+	{
+		engine::CoordFrames& rFrames = gpGame->mCoordFrames.try_emplace(rReceived.coord).first->second;
+		rFrames.staticData = rReceived.staticData;
+	}
 }
 
 void ClientSession::ApplyReceivedFullStates()

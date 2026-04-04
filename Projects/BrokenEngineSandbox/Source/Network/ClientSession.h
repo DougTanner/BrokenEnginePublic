@@ -53,6 +53,7 @@ private:
 	void TryEnterGame();
 	void PollDebugFrameResponse();
 
+	void ApplyReceivedStaticData();
 	void ApplyReceivedFullStates();
 	void ApplyReceivedUpdates();
 

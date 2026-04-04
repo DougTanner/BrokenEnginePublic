@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Frame/NavBuild.h"
+
 namespace engine
 {
 
@@ -23,6 +25,8 @@ public:
 	// Constants loaded from pack files
 	float mfBeachElevation = 0.0f;
 	float mfSeaFloorElevation = 0.0f;
+
+	NavData mNavData;
 
 	static inline std::vector<common::crc_t> smPriorityIslands;
 };

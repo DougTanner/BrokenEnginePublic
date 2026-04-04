@@ -31,16 +31,16 @@ void HexShieldsPostRender::AllocateAndCopy(HexShieldsPostRender& rCurrent, const
 	AllocateAndCopyIds(rCurrent, rPrevious);
 }
 
-void HexShieldsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
+void HexShieldsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void HexShieldsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+void HexShieldsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 	// Owned objects are transferred by their parent
 }
 
-void HexShieldsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
+void HexShieldsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 

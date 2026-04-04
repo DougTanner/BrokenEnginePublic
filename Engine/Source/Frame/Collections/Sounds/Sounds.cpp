@@ -32,16 +32,16 @@ void SoundsPostRender::AllocateAndCopy(SoundsPostRender& rCurrent, const SoundsP
 	AllocateAndCopyIds(rCurrent, rPrevious);
 }
 
-void SoundsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
+void SoundsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void SoundsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+void SoundsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 	// Owned objects are transferred by their parent
 }
 
-void SoundsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
+void SoundsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 

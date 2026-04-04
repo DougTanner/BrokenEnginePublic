@@ -30,15 +30,15 @@ void WindRadialsPostRender::AllocateAndCopy(WindRadialsPostRender& rCurrent, con
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
-void WindRadialsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
+void WindRadialsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void WindRadialsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+void WindRadialsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 }
 
-void WindRadialsPostRender::Destroy(game::Frame& __restrict rFrame)
+void WindRadialsPostRender::Destroy(game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
 {
 	DestroyExpiredControlled(rFrame.interpolate.windRadials, rFrame.postRender.windRadials, rFrame.interpolate.fCurrentTime,
 		[](auto& rI, auto& rPR, int64_t& i)

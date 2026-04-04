@@ -2,6 +2,13 @@
 
 #include "Network/Server/ServerTypes.h"
 
+namespace engine
+{
+
+struct FrameStaticData;
+
+} // namespace engine
+
 namespace game
 {
 
@@ -98,6 +105,7 @@ public:
 	void SendAssignPlayer(int64_t iClientId, global_player_t globalPlayerId, GridCoord coord);
 	void SendPlayerState(int64_t iClientId, uint8_t uiStateType, int64_t iPlayerId, GridCoord coord);
 	void SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick, GridCoord coord, const game::Frame* pFrame);
+	void SendCoordStaticData(int64_t iClientId, int64_t iSlot, GridCoord coord, const FrameStaticData& rStaticData);
 	void BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);
 	void BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames);
 	void SendUpdate(ClientConnection& rClient, int64_t iTick);

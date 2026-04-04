@@ -122,53 +122,53 @@ void FramePostRender::AllocateAndCopy(FramePostRender& __restrict rCurrent, cons
 	engine::AllocateAndCopyCollections(GamePostRenderCollections(rCurrent), GamePostRenderCollections(rPrevious), std::make_index_sequence<std::tuple_size_v<decltype(GamePostRenderCollections(rCurrent))>>{});
 }
 
-void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput)
+void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, const engine::FrameStaticData& rStaticData)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderUpdate);
 
 	rFrame.postRender.transferRequests.clear();
 
 	// Parent
-	FramePostRenderBase::Update(rFrame, rPreviousFrame, rFrameInput);
+	FramePostRenderBase::Update(rFrame, rPreviousFrame, rFrameInput, rStaticData);
 
 	// Propagate game-specific fields
 	rFrame.postRender.enemyAlignment = rPreviousFrame.postRender.enemyAlignment;
 	rFrame.postRender.playerAlignment = rPreviousFrame.postRender.playerAlignment;
 
 	// Player
-	PlayersPostRender::Update(rFrame, rPreviousFrame);
+	PlayersPostRender::Update(rFrame, rPreviousFrame, rStaticData);
 
 	// Collections
-	engine::ForEachPostRenderUpdate(GamePostRenderTypes{}, rFrame, rPreviousFrame);
+	engine::ForEachPostRenderUpdate(GamePostRenderTypes{}, rFrame, rPreviousFrame, rStaticData);
 }
 
-void FramePostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
+void FramePostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	// Parent
-	FramePostRenderBase::Transfer(rFrame);
+	FramePostRenderBase::Transfer(rFrame, rStaticData);
 
 	// Player
-	PlayersPostRender::Transfer(rFrame);
+	PlayersPostRender::Transfer(rFrame, rStaticData);
 
 	// Collections
-	engine::ForEachPostRenderTransfer(GamePostRenderTypes{}, rFrame);
+	engine::ForEachPostRenderTransfer(GamePostRenderTypes{}, rFrame, rStaticData);
 }
 
-void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
+void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderDestroy);
 
 	// Parent
-	FramePostRenderBase::Destroy(rFrame);
+	FramePostRenderBase::Destroy(rFrame, rStaticData);
 
 	// Player
-	PlayersPostRender::Destroy(rFrame);
+	PlayersPostRender::Destroy(rFrame, rStaticData);
 
 	// Collections
-	engine::ForEachPostRenderDestroy(GamePostRenderTypes{}, rFrame);
+	engine::ForEachPostRenderDestroy(GamePostRenderTypes{}, rFrame, rStaticData);
 }
 
-static void SpawnSingleSpaceship(Frame& __restrict rFrame)
+static void SpawnSingleSpaceship(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData)
 {
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
@@ -207,7 +207,7 @@ static void SpawnSingleSpaceship(Frame& __restrict rFrame)
 	}
 
 	// If spawn position is outside bounds, spawn on opposite side of player (toward center)
-	if (!common::InsideArea(vecSpawnPosition, rFrame.postRender.vecArea))
+	if (!common::InsideArea(vecSpawnPosition, rStaticData.vecArea))
 	{
 		vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(-kfSpawnRadius), vecDirection, vecPlayerPosition);
 	}
@@ -221,18 +221,18 @@ static void SpawnSingleSpaceship(Frame& __restrict rFrame)
 	});
 }
 
-void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
+void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderSpawn);
 
 	// Parent
-	FramePostRenderBase::Spawn(rFrame);
+	FramePostRenderBase::Spawn(rFrame, rStaticData);
 
 	// Player
-	PlayersPostRender::Spawn(rFrame, rFrameInput);
+	PlayersPostRender::Spawn(rFrame, rFrameInput, rStaticData);
 
 	// Collections
-	engine::ForEachPostRenderSpawn(GamePostRenderTypes{}, rFrame);
+	engine::ForEachPostRenderSpawn(GamePostRenderTypes{}, rFrame, rStaticData);
 
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 	if (rFrame.interpolate.gameFlags & GameFlags::kMainMenu)
@@ -245,52 +245,52 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 	while (rInterpolate.fSpawnTimer >= kfSpawnInterval)
 	{
 		rInterpolate.fSpawnTimer -= kfSpawnInterval;
-		SpawnSingleSpaceship(rFrame);
+		SpawnSingleSpaceship(rFrame, rStaticData);
 	}
 }
 
-void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
+void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderPreCollision);
 
 	// Parent
-	FramePostRenderBase::PreCollision(rFrame, rPreviousFrame);
+	FramePostRenderBase::PreCollision(rFrame, rPreviousFrame, rStaticData);
 
 	// Player
-	PlayersPostRender::PreCollision(rFrame, rPreviousFrame);
+	PlayersPostRender::PreCollision(rFrame, rPreviousFrame, rStaticData);
 
 	// Collections
-	engine::ForEachPostRenderPreCollision(GamePostRenderTypes{}, rFrame, rPreviousFrame);
+	engine::ForEachPostRenderPreCollision(GamePostRenderTypes{}, rFrame, rPreviousFrame, rStaticData);
 }
 
-void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
+void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderPostCollision);
 
 	// Parent
-	FramePostRenderBase::PostCollision(rFrame, rPreviousFrame);
+	FramePostRenderBase::PostCollision(rFrame, rPreviousFrame, rStaticData);
 
 	// Player
-	PlayersPostRender::PostCollision(rFrame, rPreviousFrame);
+	PlayersPostRender::PostCollision(rFrame, rPreviousFrame, rStaticData);
 
 	// Collections
-	engine::ForEachPostRenderPostCollision(GamePostRenderTypes{}, rFrame, rPreviousFrame);
+	engine::ForEachPostRenderPostCollision(GamePostRenderTypes{}, rFrame, rPreviousFrame, rStaticData);
 
 	engine::Collision::Clear();
 }
 
-void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
+void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderAreaDamage);
 
 	// Parent
-	FramePostRenderBase::AreaDamage(rFrame, rPreviousFrame);
+	FramePostRenderBase::AreaDamage(rFrame, rPreviousFrame, rStaticData);
 
 	// Player
-	PlayersPostRender::AreaDamage(rFrame, rPreviousFrame);
+	PlayersPostRender::AreaDamage(rFrame, rPreviousFrame, rStaticData);
 
 	// Collections
-	engine::ForEachPostRenderAreaDamage(GamePostRenderTypes{}, rFrame, rPreviousFrame);
+	engine::ForEachPostRenderAreaDamage(GamePostRenderTypes{}, rFrame, rPreviousFrame, rStaticData);
 
 	engine::AreaDamage::Clear();
 }

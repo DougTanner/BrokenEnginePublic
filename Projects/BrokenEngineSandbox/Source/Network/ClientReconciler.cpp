@@ -94,6 +94,7 @@ void ClientReconciler::Kick()
 
 		CoordReconcileWork work;
 		work.coord = rCoord;
+		work.staticData = rSub.staticData;
 		work.uiGeneration = rSub.uiGeneration;
 		work.iConfirmedTick = rSub.iConfirmedTick;
 		work.iConfirmedOffset = rSub.iConfirmedOffset;

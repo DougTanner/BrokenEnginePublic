@@ -8,6 +8,7 @@ enum class PacketType : uint8_t
 {
 	kServerAssignPlayer,
 	kServerCoordFullState,      // Per-coord full state (reliable, slot channel)
+	kServerCoordStaticData,     // Per-coord static data sent once per subscription (reliable, slot channel)
 	kServerCoordUpdate,         // Per-coord delta update (unreliable, slot channel)
 	kServerCoordResend,         // Per-coord re-sent frame (unreliable, slot channel)
 	kClientSpawnRequest,
