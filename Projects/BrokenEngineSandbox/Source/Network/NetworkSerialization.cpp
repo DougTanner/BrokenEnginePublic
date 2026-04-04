@@ -29,6 +29,7 @@ static void SerializeSpaceshipTransfer(uint8_t*& pCursor, const game::TransferDa
 	WriteUint32(pCursor, rData.alignment.uiValue);
 	WriteFloat(pCursor, rData.fHealth);
 	WriteFloat(pCursor, rData.fNextBlasterSpawnTime);
+	WriteFloat(pCursor, rData.fArrivalGracePeriod);
 }
 
 static void SerializeMissileTransfer(uint8_t*& pCursor, const game::TransferData& rData)
@@ -66,6 +67,7 @@ static void SerializePlayerTransfer(uint8_t*& pCursor, const game::TransferData&
 	WriteFloat(pCursor, rData.fShieldRotation);
 	WriteFloat(pCursor, rData.fShieldShrink);
 	WriteUint8(pCursor, rData.uiPlayerFlags);
+	WriteFloat(pCursor, rData.fArrivalGracePeriod);
 	WriteInt64(pCursor, rData.globalPlayerId.iValue);
 }
 
@@ -89,6 +91,7 @@ static void DeserializeSpaceshipTransfer(const uint8_t*& pCursor, game::Transfer
 	rData.alignment = alignment_t(ReadUint32(pCursor));
 	rData.fHealth = ReadFloat(pCursor);
 	rData.fNextBlasterSpawnTime = ReadFloat(pCursor);
+	rData.fArrivalGracePeriod = ReadFloat(pCursor);
 }
 
 static void DeserializeMissileTransfer(const uint8_t*& pCursor, game::TransferData& rData)
@@ -124,6 +127,7 @@ static void DeserializePlayerTransfer(const uint8_t*& pCursor, game::TransferDat
 	rData.fShieldRotation = ReadFloat(pCursor);
 	rData.fShieldShrink = ReadFloat(pCursor);
 	rData.uiPlayerFlags = ReadUint8(pCursor);
+	rData.fArrivalGracePeriod = ReadFloat(pCursor);
 	rData.globalPlayerId.iValue = ReadInt64(pCursor);
 }
 

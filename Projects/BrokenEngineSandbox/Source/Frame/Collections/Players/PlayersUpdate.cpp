@@ -50,10 +50,6 @@ constexpr float kfTerrainPushVelocity = 15.0f;
 constexpr float kfMaxPushVelocity = 20.0f;
 
 // AI behavior
-constexpr float kfBurstDuration = 0.5f;
-constexpr float kfBurstCooldown = 0.5f;
-constexpr float kfMissileBurstDuration = 0.4f;
-constexpr float kfMissileBurstCooldown = 3.6f;
 constexpr float kfTargetRange = 80.0f;
 
 [[nodiscard]] static bool XM_CALLCONV HasLineOfSight(FXMVECTOR vecFrom, FXMVECTOR vecTo)
@@ -234,7 +230,8 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 
 	// Spaceship data for target acquisition
 	const SpaceshipsInterpolate& rSpaceshipsInterpolate = *rPreviousFrame.interpolate.pSpaceships;
-	int64_t iSpaceshipCount = rPreviousFrame.postRender.pSpaceships->iCount;
+	const SpaceshipsPostRender& rSpaceshipsPostRender = *rPreviousFrame.postRender.pSpaceships;
+	int64_t iSpaceshipCount = rSpaceshipsPostRender.iCount;
 
 	// Frame area and center
 	XMVECTOR vecArea = rFrame.postRender.vecArea;
@@ -254,11 +251,10 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		float fDestroyedExplosionTime = rPrevious.pfDestroyedExplosionTimes[i] - fDeltaTime;
 		float fShieldDownSoundCooldown = rPrevious.pfShieldDownSoundCooldowns[i] - fDeltaTime;
 		XMVECTOR vecAiDirection = rPrevious.pVecAiDirections[i];
-		float fAiFireTimer = rPrevious.pfAiFireTimers[i];
-		float fAiMissileTimer = rPrevious.pfAiMissileTimers[i];
 		float fAiEdgeCrossCooldown = rPrevious.pfAiEdgeCrossCooldowns[i];
 		int8_t iAiEdgeCrossTarget = rPrevious.piAiEdgeCrossTargets[i];
 		float fTransferLockTimer = rPrevious.pfTransferLockTimers[i];
+		float fArrivalGracePeriod = std::max(0.0f, rPrevious.pfArrivalGracePeriods[i] - fDeltaTime);
 		XMVECTOR vecPosition = rPreviousInterpolate.pVecPositions[i];
 
 		// Transfer lock: maintain constant velocity, skip AI and weapon logic
@@ -294,6 +290,11 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 					continue;
 				}
 
+				if (rSpaceshipsPostRender.pfArrivalGracePeriods[j] > 0.0f)
+				{
+					continue;
+				}
+
 				if (!FrameInterpolate::IsVisible(vecPosition, rSpaceshipsInterpolate.pVecPositions[j]))
 				{
 					continue;
@@ -313,38 +314,35 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 				}
 			}
 
-			// Manage burst timer
-			fAiFireTimer -= fDeltaTime;
-			if (fAiFireTimer <= 0.0f && bTargetFound)
+			// Fallback: if no in-range target, find nearest alive spaceship for look direction
+			XMVECTOR vecLookPosition = vecClosestPosition;
+			bool bLookTargetFound = bTargetFound;
+			if (!bLookTargetFound)
 			{
-				fAiFireTimer = kfBurstDuration + kfBurstCooldown;
+				float fLookClosestDistance = std::numeric_limits<float>::max();
+				for (int64_t j = 0; j < iSpaceshipCount; ++j)
+				{
+					if (rSpaceshipsInterpolate.pfDestroyedTimes[j] != -1.0f)
+					{
+						continue;
+					}
+
+					float fDistance = common::Distance(vecPosition, rSpaceshipsInterpolate.pVecPositions[j]);
+					if (fDistance < fLookClosestDistance)
+					{
+						fLookClosestDistance = fDistance;
+						vecLookPosition = rSpaceshipsInterpolate.pVecPositions[j];
+						bLookTargetFound = true;
+					}
+				}
 			}
-
-			bool bFiring = fAiFireTimer > kfBurstCooldown && bTargetFound;
-
-			// Manage missile timer
-			fAiMissileTimer -= fDeltaTime;
-			if (fAiMissileTimer <= 0.0f && bTargetFound)
-			{
-				fAiMissileTimer = kfMissileBurstDuration + kfMissileBurstCooldown;
-			}
-
-			bool bFiringMissiles = fAiMissileTimer > kfMissileBurstCooldown && bTargetFound;
 
 			// --- Apply AI results ---
 
-			// Fire flags
-			if (bFiring)
+			// Fire flags: fire continuously at in-range/LOS targets (rate limited by weapon spawn timers)
+			if (bTargetFound)
 			{
 				flags.Set(kFireBlaster);
-			}
-			else
-			{
-				fNextBlasterFireTime = 0.0f;
-			}
-
-			if (bFiringMissiles)
-			{
 				flags.Set(kFireMissile);
 			}
 
@@ -352,11 +350,12 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 			XMVECTOR vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), vecAiDirection);
 			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(common::ExponentialDecay(kfAccelerationDecay, fDeltaTime)), vecVelocity, vecAcceleration);
 
-			// Direction: face target if one exists, else face travel direction
-			XMVECTOR vecTargetDirection = bTargetFound
-				? XMVector3Normalize(XMVectorSubtract(vecClosestPosition, vecPosition))
-				: (XMVectorGetX(XMVector3LengthSq(vecVelocity)) > 0.001f ? XMVector3Normalize(vecVelocity) : vecAiDirection);
-			vecWantedDirection = common::RotateTowardsPercent(vecWantedDirection, vecTargetDirection, common::ExponentialInterpolant(kfWantedDirectionSpeed, fDeltaTime));
+			// Direction: face nearest spaceship (prioritize in-range/visible/LOS, fallback to any alive)
+			if (bLookTargetFound)
+			{
+				XMVECTOR vecLookDirection = XMVector3Normalize(XMVectorSubtract(vecLookPosition, vecPosition));
+				vecWantedDirection = common::RotateTowardsPercent(vecWantedDirection, vecLookDirection, common::ExponentialInterpolant(kfWantedDirectionSpeed, fDeltaTime));
+			}
 
 		}
 
@@ -395,11 +394,10 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		rCurrent.pfDestroyedExplosionTimes[i] = fDestroyedExplosionTime;
 		rCurrent.pfShieldDownSoundCooldowns[i] = fShieldDownSoundCooldown;
 		rCurrent.pVecAiDirections[i] = vecAiDirection;
-		rCurrent.pfAiFireTimers[i] = fAiFireTimer;
-		rCurrent.pfAiMissileTimers[i] = fAiMissileTimer;
 		rCurrent.pfAiEdgeCrossCooldowns[i] = fAiEdgeCrossCooldown;
 		rCurrent.piAiEdgeCrossTargets[i] = iAiEdgeCrossTarget;
 		rCurrent.pfTransferLockTimers[i] = fTransferLockTimer;
+		rCurrent.pfArrivalGracePeriods[i] = fArrivalGracePeriod;
 	}
 }
 

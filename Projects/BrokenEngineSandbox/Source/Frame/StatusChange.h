@@ -76,6 +76,7 @@ struct TransferData
 			rSelf.fNextBlasterFireTime, rSelf.fNextSecondarySpawnTime, rSelf.fShieldCooldown, rSelf.fShieldDownSoundCooldown,
 			rSelf.fAnimationTime, rSelf.fShieldRotation, rSelf.fShieldShrink, rSelf.uiPlayerFlags,
 			rSelf.fNextBlasterSpawnTime,
+			rSelf.fArrivalGracePeriod,
 			rSelf.fDeltaRotationDelay, rSelf.fTime, rSelf.fExhaustDelay, rSelf.fNextJitter,
 			rSelf.globalPlayerId);
 	}
@@ -106,6 +107,9 @@ struct TransferData
 
 	// Spaceship timers
 	float fNextBlasterSpawnTime = 0.0f;
+
+	// Arrival grace period (shared across player/spaceship transfers)
+	float fArrivalGracePeriod = 0.0f;
 
 	// Missile timers
 	float fDeltaRotationDelay = 0.0f;

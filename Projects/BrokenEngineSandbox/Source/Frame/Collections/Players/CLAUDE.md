@@ -14,11 +14,11 @@ Shared constants used across multiple `.cpp` files are declared in `Players.h`.
 
 ## Architecture
 
-**Multi-Player AI**: All players run identical AI logic from frame state alone (no external input). Uses `ComputeAiSteering()` for terrain following and edge-crossing encouragement. Targets nearest alive spaceship with line-of-sight checks. Burst-fire timers control blaster and missile cadence.
+**Multi-Player AI**: All players run identical AI logic from frame state alone (no external input). Uses `ComputeAiSteering()` for terrain following and edge-crossing encouragement. For targeting, prioritizes the nearest spaceship within range that passes visibility and line-of-sight checks; firing only occurs against such targets. Look direction falls back to any alive spaceship at unlimited range if no in-range/LOS target exists, and holds the current direction if no spaceships exist at all. Fires continuously at in-range targets, rate-limited by weapon spawn timers.
 
 **Weapon Mode**: `PlayerFlags::kUseMissiles` gates which weapon fires — `SpawnBlasters` runs when the flag is clear, `SpawnMissiles` when set. The mode is toggled by `kWeaponModeChange` StatusChange events (carrying a `WeaponModeChangeData` with player UUID) injected by the server session.
 
-**Spawn/Destroy/Transfer**: Driven by `StatusChange` events in `FrameInput`. Transfer preserves full gameplay state via `TransferRequest` with entity ID, including the client GUID (carried in `TransferData` and restored on the destination cell). A transfer lock timer skips AI/weapon logic briefly after arriving in a new cell.
+**Spawn/Destroy/Transfer**: Driven by `StatusChange` events in `FrameInput`. Transfer preserves full gameplay state via `TransferRequest` with entity ID, including the client GUID (carried in `TransferData` and restored on the destination cell). A transfer lock timer skips AI/weapon logic briefly after arriving in a new cell. An arrival grace period timer (carried in `TransferData`) makes arriving players invisible to spaceship targeting and behavior scans for a short window; see [Arrival Grace Period](../CLAUDE.md) in the Collections CLAUDE.md.
 
 **Shield and Damage**: Shield absorbs damage before armor with cooldown-based regeneration. Client-only hex shield displays directional hit indicators with intensity decay and impact VFX.
 

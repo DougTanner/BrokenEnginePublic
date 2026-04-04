@@ -9,6 +9,7 @@ AI-controlled enemy spaceships with health, weapons, behavior flags, freeze time
 - **Rotation**: Exponential smoothing with different rates for fleeing vs pursuing
 - **Health regen**: Gradual regen when alive and player is far enough away
 - Targets are removed on death so homing missiles stop tracking
+- Arriving spaceships receive an arrival grace period that makes them invisible to player targeting scans for a short window; the timer is carried in `TransferData`. See [Arrival Grace Period](../CLAUDE.md) in the Collections CLAUDE.md.
 
 ## File Structure
 

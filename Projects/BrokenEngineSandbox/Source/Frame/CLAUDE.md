@@ -10,7 +10,7 @@ Frame code is purely functional. Frame updates must only rely on explicit functi
 
 ## Key Classes/Systems
 
-- **Frame / FrameInterpolate / FramePostRender** (`Frame.h/cpp`) - Hierarchical frame structures extending engine base classes. Collections held via `std::unique_ptr` with forward declarations. Also defines `GameFlags`, `TransferRequest`, `FrameBounds`, and cross-cell transfer utility functions. Provides dual CRCs (full and server-only), `LogDifferences()`, and `ServerRead()` for determinism validation
+- **Frame / FrameInterpolate / FramePostRender** (`Frame.h/cpp`) - Hierarchical frame structures extending engine base classes. Collections held via `std::unique_ptr` with forward declarations. Also defines `GameFlags`, `TransferRequest`, `FrameBounds`, and cross-cell transfer utility functions. Provides shared CRC via `Crcs()`, `LogDifferences()`, and `ServerRead()` for determinism validation
 - **FrameCollections.h** - Aggregation header including all collection types; provides tuple accessors and type list aliases used by engine `ForEach*` dispatch helpers
 - **RunFrameTick()** (`FrameTick.h/cpp`) - Unified physics pipeline executing all five phases via `ActiveFrameRef`. Shared by GameBase parallel dispatch and client reconciliation replay. Asserts MXCSR flags at entry to catch corruption by external APIs
 - **TerrainUtils** (`TerrainUtils.h/cpp`) - Shared AI terrain-following, obstacle avoidance, and edge-crossing encouragement used by Players and Spaceships. Combines gradient-based contour following, elevation correction, mountain look-ahead, and periodic edge-crossing steering

@@ -35,16 +35,15 @@ using enum MissileFlags;
 constexpr float kfExhaustWidth = 0.25f;
 constexpr float kfExhaustOffset = -0.45f;
 constexpr float kfExhaustVisibleIntensity = 1.0f;
-constexpr float kfExhaustLightingArea = 10.0f;
-constexpr float kfExhaustLightingIntensity = 2000.0f;
+constexpr float kfExhaustLightingArea = 20.0f;
+constexpr float kfExhaustLightingIntensity = 200.0f;
 #endif // BT_CLIENT
 
 
 #if defined(BT_CLIENT)
 // Missile trail
 constexpr float kfTrailIntensity = 0.5f;
-constexpr float kfTrailOffset = -1.0f;
-constexpr float kfTrailOffsetExtra = -0.07f;
+constexpr float kfTrailOffset = -0.8f;
 constexpr float kfTrailWidth = 0.15f;
 #endif
 
@@ -128,7 +127,7 @@ void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_l
 	// Sync trail position
 	if (uiSmokeTrail.IsValid())
 	{
-		float fTrailOffset = kfTrailOffset + kfTrailOffsetExtra * std::abs(fDeltaRotation);
+		float fTrailOffset = kfTrailOffset;
 		XMVECTOR vecTrailOffset = XMVectorMultiply(XMVectorReplicate(fTrailOffset), XMVector3Normalize(vecDirection));
 		XMVECTOR vecTrailPosition = vecPosition + ((flags & kExploding) ? XMVectorZero() : vecTrailOffset);
 

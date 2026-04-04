@@ -219,7 +219,6 @@ static void SpawnSingleSpaceship(Frame& __restrict rFrame)
 		.vecDirection = vecDirectionToPlayer,
 		.alignment = rFrame.postRender.enemyAlignment,
 	});
-
 }
 
 void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
@@ -396,25 +395,21 @@ void FrameInterpolate::EndRender(int64_t iCommandBuffer)
 }
 #endif // BT_CLIENT
 
-std::pair<common::crc_t, common::crc_t> FrameInterpolate::Crcs(const FrameInterpolate& rCurrent)
+common::crc_t FrameInterpolate::Crcs(const FrameInterpolate& rCurrent)
 {
-	auto [crc, sharedCrc] = static_cast<const engine::FrameInterpolateBase&>(rCurrent).Crcs();
+	common::crc_t sharedCrc = static_cast<const engine::FrameInterpolateBase&>(rCurrent).Crcs();
 
-	common::Crc(rCurrent.gameFlags, crc, sharedCrc);
-	common::Crc(rCurrent.fSpawnTimer, crc, sharedCrc);
+	sharedCrc ^= common::Crc(rCurrent.gameFlags);
+	sharedCrc ^= common::Crc(rCurrent.fSpawnTimer);
 
-	crc ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->Members());
 	sharedCrc ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->SharedCrcMembers());
 
 	std::apply([&](const auto&... cols)
 	{
-		(([&] {
-			crc ^= engine::CollectionCrc(cols, cols.Members());
-			sharedCrc ^= engine::SharedCollectionCrc(cols);
-		}()), ...);
+		((sharedCrc ^= engine::SharedCollectionCrc(cols)), ...);
 	}, GameInterpolateCollections(rCurrent));
 
-	return {crc, sharedCrc};
+	return sharedCrc;
 }
 
 bool FrameInterpolate::LogDifferences(const FrameInterpolate& rOther) const
@@ -478,25 +473,21 @@ void FrameInterpolate::ServerRead(std::istream& rStream)
 	}, GameInterpolateCollections(*this));
 }
 
-std::pair<common::crc_t, common::crc_t> FramePostRender::Crcs(const FramePostRender& rCurrent)
+common::crc_t FramePostRender::Crcs(const FramePostRender& rCurrent)
 {
-	auto [crc, sharedCrc] = static_cast<const engine::FramePostRenderBase&>(rCurrent).Crcs();
+	common::crc_t sharedCrc = static_cast<const engine::FramePostRenderBase&>(rCurrent).Crcs();
 
-	common::Crc(rCurrent.enemyAlignment, crc, sharedCrc);
-	common::Crc(rCurrent.playerAlignment, crc, sharedCrc);
+	sharedCrc ^= common::Crc(rCurrent.enemyAlignment);
+	sharedCrc ^= common::Crc(rCurrent.playerAlignment);
 
-	crc ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->Members());
 	sharedCrc ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->SharedCrcMembers());
 
 	std::apply([&](const auto&... cols)
 	{
-		(([&] {
-			crc ^= engine::CollectionCrc(cols, cols.Members());
-			sharedCrc ^= engine::SharedCollectionCrc(cols);
-		}()), ...);
+		((sharedCrc ^= engine::SharedCollectionCrc(cols)), ...);
 	}, GamePostRenderCollections(rCurrent));
 
-	return {crc, sharedCrc};
+	return sharedCrc;
 }
 
 bool FramePostRender::LogDifferences(const FramePostRender& rOther) const
@@ -560,16 +551,14 @@ void FramePostRender::ServerRead(std::istream& rStream)
 	}, GamePostRenderCollections(*this));
 }
 
-std::pair<common::crc_t, common::crc_t> Frame::Crcs() const
+common::crc_t Frame::Crcs() const
 {
-	auto [interpCrc, interpSharedCrc] = FrameInterpolate::Crcs(interpolate);
-	auto [postCrc, postSharedCrc] = FramePostRender::Crcs(postRender);
-	return {interpCrc ^ postCrc, interpSharedCrc ^ postSharedCrc};
+	return FrameInterpolate::Crcs(interpolate) ^ FramePostRender::Crcs(postRender);
 }
 
 common::crc_t Frame::Crc() const
 {
-	return Crcs().first;
+	return Crcs();
 }
 
 bool Frame::LogDifferences(const Frame& rOther) const

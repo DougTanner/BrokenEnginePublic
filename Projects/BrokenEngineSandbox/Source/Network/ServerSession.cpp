@@ -445,9 +445,7 @@ void ServerSession::HarvestTransfers()
 	for (const auto& [rCoord, rTransfers] : mTickBroadcast.transfers)
 	{
 		Frame& rDestFrame = *gpGame->mCoordFrames.at(rCoord).pNext;
-		auto [crc, sharedCrc] = rDestFrame.Crcs();
-		rDestFrame.postRender.crc = crc;
-		rDestFrame.postRender.sharedCrc = sharedCrc;
+		rDestFrame.postRender.sharedCrc = rDestFrame.Crcs();
 	}
 
 	TrackClientTransfers(clientTransfers);

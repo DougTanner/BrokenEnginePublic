@@ -72,7 +72,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 	std::unique_ptr<SpaceshipsInterpolate> pSpaceships;
 	std::unique_ptr<TargetsInterpolate> pTargets;
 
-	static std::pair<common::crc_t, common::crc_t> Crcs(const FrameInterpolate& rCurrent);
+	static common::crc_t Crcs(const FrameInterpolate& rCurrent);
 	bool LogDifferences(const FrameInterpolate& rOther) const;
 	void Write(std::ostream& rStream) const;
 	void Read(std::istream& rStream);
@@ -165,7 +165,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 	// Transient transfer output buffer (not serialized, not in CRC/equality)
 	std::vector<TransferRequest> transferRequests;
 
-	static std::pair<common::crc_t, common::crc_t> Crcs(const FramePostRender& rCurrent);
+	static common::crc_t Crcs(const FramePostRender& rCurrent);
 	bool LogDifferences(const FramePostRender& rOther) const;
 	void Write(std::ostream& rStream) const;
 	void Read(std::istream& rStream);
@@ -179,7 +179,7 @@ struct Frame
 	Frame(Frame&&) noexcept;
 	Frame& operator=(Frame&&) noexcept;
 
-	static constexpr int64_t kiVersion = 17;
+	static constexpr int64_t kiVersion = 18;
 
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};
@@ -189,12 +189,12 @@ struct Frame
 	static constexpr float kfBaseAreaMaxX = kpfIslandPositions[0][0] + kpfIslandPositions[0][2];
 	static constexpr float kfBaseAreaMinY = kpfIslandPositions[0][1] + kpfIslandPositions[0][3];
 
-	static [[nodiscard]] target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::alignment_t alignment);
+	[[nodiscard]] static target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::alignment_t alignment);
 
 	FrameInterpolate interpolate;
 	FramePostRender postRender;
 
-	std::pair<common::crc_t, common::crc_t> Crcs() const;
+	common::crc_t Crcs() const;
 	common::crc_t Crc() const;
 	bool LogDifferences(const Frame& rOther) const;
 	void ServerRead(std::istream& rStream);

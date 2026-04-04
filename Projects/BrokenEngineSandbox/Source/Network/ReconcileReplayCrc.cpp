@@ -69,14 +69,14 @@ void LogPerCollectionCrcBreakdown(const Frame& rFrame)
 
 	// Per-collection shared CRCs (interpolate)
 	{
-		auto [baseCrc, baseSharedCrc] = static_cast<const engine::FrameInterpolateBase&>(rFrame.interpolate).Crcs();
+		common::crc_t baseSharedCrc = static_cast<const engine::FrameInterpolateBase&>(rFrame.interpolate).Crcs();
 		common::crc_t playerSharedCrc = engine::CollectionCrc(*rFrame.interpolate.pPlayers, rFrame.interpolate.pPlayers->SharedCrcMembers());
 		char acBase[20] {}, acPlayer[20] {};
 		common::ToHex(std::span<char, 20>(acBase), baseSharedCrc);
 		common::ToHex(std::span<char, 20>(acPlayer), playerSharedCrc);
 		Log(kLogNetwork, kVerbose, "InterpSharedCrc Base: {} Players: {}", acBase, acPlayer);
 
-		auto logInterp = [&]<typename T>(const T& col, const char* name)
+		auto logInterp = [&]<typename T>(const T& col, std::string_view name)
 		{
 			common::crc_t colCrc = engine::SharedCollectionCrc(col);
 			char acCrc[20] {};
@@ -91,14 +91,14 @@ void LogPerCollectionCrcBreakdown(const Frame& rFrame)
 
 	// Per-collection shared CRCs (post-render)
 	{
-		auto [baseCrc, baseSharedCrc] = static_cast<const engine::FramePostRenderBase&>(rFrame.postRender).Crcs();
+		common::crc_t baseSharedCrc = static_cast<const engine::FramePostRenderBase&>(rFrame.postRender).Crcs();
 		common::crc_t playerSharedCrc = engine::CollectionCrc(*rFrame.postRender.pPlayers, rFrame.postRender.pPlayers->SharedCrcMembers());
 		char acBase[20] {}, acPlayer[20] {};
 		common::ToHex(std::span<char, 20>(acBase), baseSharedCrc);
 		common::ToHex(std::span<char, 20>(acPlayer), playerSharedCrc);
 		Log(kLogNetwork, kVerbose, "PostRenderSharedCrc Base: {} Players: {}", acBase, acPlayer);
 
-		auto logPostRender = [&]<typename T>(const T& col, const char* name)
+		auto logPostRender = [&]<typename T>(const T& col, std::string_view name)
 		{
 			common::crc_t colCrc = engine::SharedCollectionCrc(col);
 			char acCrc[20] {};
@@ -148,11 +148,10 @@ static CrcValidateResult CrcValidateLoop(CoordReconcileWork& rWork, int64_t iTar
 		int64_t iPhysical = SnapshotIndex(rWork.iSnapshotHead, iIndex);
 		if (rWork.snapshots[iPhysical]->postRender.sharedCrc != it->second.sharedCrc)
 		{
-			char acSharedCrc[20] {}, acClientCrc[20] {}, acPrevCrc[20] {};
+			char acSharedCrc[20] {}, acClientCrc[20] {};
 			common::ToHex(std::span<char, 20>(acSharedCrc), it->second.sharedCrc);
 			common::ToHex(std::span<char, 20>(acClientCrc), rWork.snapshots[iPhysical]->postRender.sharedCrc);
-			common::ToHex(std::span<char, 20>(acPrevCrc), rWork.snapshots[iPhysical]->postRender.previousCrc);
-			Log(kLogNetwork, kVerbose, "CrcValidateLoop Server CRC mismatch Coord: ({},{}) Tick: {} SharedCrc: {} ClientCrc: {} PrevCrc: {}", rWork.coord.x, rWork.coord.y, iExpected, acSharedCrc, acClientCrc, acPrevCrc);
+			Log(kLogNetwork, kVerbose, "CrcValidateLoop Server CRC mismatch Coord: ({},{}) Tick: {} SharedCrc: {} ClientCrc: {}", rWork.coord.x, rWork.coord.y, iExpected, acSharedCrc, acClientCrc);
 			{
 				ScopedLogIndent scopedCrcIndent;
 				char acServerInputCrc[20] {}, acClientInputCrc[20] {};

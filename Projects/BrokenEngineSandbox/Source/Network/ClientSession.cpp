@@ -30,12 +30,6 @@ std::chrono::nanoseconds ClientSession::ComputeClockCorrectionNs(int64_t iPreRec
 	std::chrono::nanoseconds correction = ClientSessionBase::ComputeClockCorrectionNs(iPreReconcileTick, kTickNs);
 	gpProfileManager->SetClockCorrection(miClockOffset, miClockTargetBehind, miClockError);
 
-	if (mbClockErrorDisconnect)
-	{
-		snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Disconnected: clock error");
-		mpClientNetwork->Disconnect();
-	}
-
 	return correction;
 }
 
@@ -221,28 +215,45 @@ void ClientSession::Reconcile()
 		// Compensate time step for ticks rolled back during reconciliation
 		int64_t iTickDeficit = iPreReconcileTick - gpGame->TickCounter();
 		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iPreReconcileTick);
-		if (iTickDeficit > 0)
-		{
-			gpGame->mTimeStep.mTickRemainderNs += iTickDeficit * kTickNs;
-		}
-		gpGame->mTimeStep.mTickRemainderNs += clockCorrectionNs;
 
-		// Gradually raise accumulator cap when behind to allow catch-up
-		// miClockError already subtracts TargetBehind, so high-latency modes are accounted for
-		constexpr int64_t kiCatchUpErrorThreshold = 8;
-		if (miClockError <= -kiCatchUpErrorThreshold)
+		constexpr int64_t kiClockSnapThreshold = 16;
+		if (miLatestServerTick >= 0 && (mbClockErrorDisconnect || std::abs(miClockError) >= kiClockSnapThreshold))
 		{
-			int64_t iCatchUpTicks = std::max(-miClockError / 2, engine::TimeStep::kiMaxAccumulatorTicks);
-			if (gpGame->mTimeStep.miCatchUpAccumulatorTicks != iCatchUpTicks)
-			{
-				Log(kLogNetwork, kVerbose, "ClientSession::Reconcile CatchUp accumulator Error: {} Cap: {}", miClockError, iCatchUpTicks);
-			}
-			gpGame->mTimeStep.miCatchUpAccumulatorTicks = iCatchUpTicks;
-		}
-		else if (gpGame->mTimeStep.miCatchUpAccumulatorTicks > 0)
-		{
-			Log(kLogNetwork, kVerbose, "ClientSession::Reconcile Restoring accumulator cap Error: {}", miClockError);
+			// Snap tick counter to recover from extreme clock error
+			int64_t iSnapTick = miLatestServerTick + miCurrentTargetBehind;
+			Log(kLogNetwork, kWarning, "ClientSession::Reconcile Clock snap OldTick: {} NewTick: {} LatestServerTick: {} TargetBehind: {}", iPreReconcileTick, iSnapTick, miLatestServerTick, miCurrentTargetBehind);
+			gpGame->SetTickCounter(iSnapTick);
+			gpGame->mTimeStep.ClearAccumulator();
 			gpGame->mTimeStep.miCatchUpAccumulatorTicks = 0;
+			mbClockErrorDisconnect = false;
+			miConsecutiveClockErrorFrames = 0;
+			miClockError = 0;
+		}
+		else
+		{
+			if (iTickDeficit > 0)
+			{
+				gpGame->mTimeStep.mTickRemainderNs += iTickDeficit * kTickNs;
+			}
+			gpGame->mTimeStep.mTickRemainderNs += clockCorrectionNs;
+
+			// Gradually raise accumulator cap when behind to allow catch-up
+			// miClockError already subtracts TargetBehind, so high-latency modes are accounted for
+			constexpr int64_t kiCatchUpErrorThreshold = 8;
+			if (miClockError <= -kiCatchUpErrorThreshold)
+			{
+				int64_t iCatchUpTicks = std::max(-miClockError / 2, engine::TimeStep::kiMaxAccumulatorTicks);
+				if (gpGame->mTimeStep.miCatchUpAccumulatorTicks != iCatchUpTicks)
+				{
+					Log(kLogNetwork, kVerbose, "ClientSession::Reconcile CatchUp accumulator Error: {} Cap: {}", miClockError, iCatchUpTicks);
+				}
+				gpGame->mTimeStep.miCatchUpAccumulatorTicks = iCatchUpTicks;
+			}
+			else if (gpGame->mTimeStep.miCatchUpAccumulatorTicks > 0)
+			{
+				Log(kLogNetwork, kVerbose, "ClientSession::Reconcile Restoring accumulator cap Error: {}", miClockError);
+				gpGame->mTimeStep.miCatchUpAccumulatorTicks = 0;
+			}
 		}
 	}
 	gpProfileManager->CpuStop(engine::kCpuTimerNetworkPollReconcile, true);
@@ -323,9 +334,7 @@ void ClientSession::ApplyReceivedFullStates()
 			// Original received frame -> snapshot[0], which IS the confirmed frame
 			rSub.iSnapshotHead = 0;
 			rSub.snapshots[0] = std::move(rFullState.pFrame);
-			auto [crc, sharedCrc] = rSub.snapshots[0]->Crcs();
-			rSub.snapshots[0]->postRender.crc = crc;
-			rSub.snapshots[0]->postRender.sharedCrc = sharedCrc;
+			rSub.snapshots[0]->postRender.sharedCrc = rSub.snapshots[0]->Crcs();
 			rSub.iSnapshotCount = 1;
 			rSub.iConfirmedTick = iTick;
 			rSub.iConfirmedOffset = 0;

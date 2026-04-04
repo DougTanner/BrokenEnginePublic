@@ -106,7 +106,7 @@ using SpaceshipFlags_t = common::Flags<SpaceshipFlags>;
 
 struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 {
-	static constexpr int64_t kiVersion = 5;
+	static constexpr int64_t kiVersion = 6;
 
 	// Allocate and copy
 	static void AllocateAndCopy(SpaceshipsPostRender& rCurrent, const SpaceshipsPostRender& rPrevious);
@@ -127,7 +127,8 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	float* __restrict pfDestroyedExplosionTimes = nullptr;
 	float* __restrict pfNextBlasterSpawnTimes = nullptr;
 	engine::alignment_t* __restrict pAlignments = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecDamageDirections, rSelf.pfHealths, rSelf.pfDestroyedExplosionTimes, rSelf.pfNextBlasterSpawnTimes, rSelf.pAlignments); }
+	float* __restrict pfArrivalGracePeriods = nullptr;
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecDamageDirections, rSelf.pfHealths, rSelf.pfDestroyedExplosionTimes, rSelf.pfNextBlasterSpawnTimes, rSelf.pAlignments, rSelf.pfArrivalGracePeriods); }
 
 	// Utility
 	bool LogDifferences(const SpaceshipsPostRender& rOther) const;
@@ -136,12 +137,13 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	// SpawnInfo for spawn parameters
 	struct SpawnInfo
 	{
-		XMVECTOR vecPosition;
-		XMVECTOR vecDirection;
+		XMVECTOR vecPosition {};
+		XMVECTOR vecDirection {};
 		XMVECTOR vecVelocity {};
 		engine::alignment_t alignment {};
 		float fHealth = 0.0f;
 		float fNextBlasterSpawnTime = 0.0f;
+		float fArrivalGracePeriod = 0.0f;
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

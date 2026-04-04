@@ -111,9 +111,7 @@ static bool ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, floa
 
 	if (bHadTransfers)
 	{
-		auto [crc, sharedCrc] = pNext->Crcs();
-		pNext->postRender.crc = crc;
-		pNext->postRender.sharedCrc = sharedCrc;
+		pNext->postRender.sharedCrc = pNext->Crcs();
 	}
 
 	// Advance replay stack
@@ -132,11 +130,10 @@ static bool ReconcileValidateCrcCoord(ReconcileContext& rReconcileContext, Coord
 
 	if (clientCrc != rUpdate.sharedCrc)
 	{
-		char acSharedCrc[20] {}, acClientCrc[20] {}, acPrevCrc[20] {};
+		char acSharedCrc[20] {}, acClientCrc[20] {};
 		common::ToHex(std::span<char, 20>(acSharedCrc), rUpdate.sharedCrc);
 		common::ToHex(std::span<char, 20>(acClientCrc), clientCrc);
-		common::ToHex(std::span<char, 20>(acPrevCrc), rCurrentFrame.postRender.previousCrc);
-		Log(kLogNetwork, kVerbose, "ReconcileValidateCrcCoord Desync Coord: ({},{}) Frame: {} SharedCrc: {} ClientCrc: {} PrevCrc: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, acPrevCrc);
+		Log(kLogNetwork, kVerbose, "ReconcileValidateCrcCoord Desync Coord: ({},{}) Frame: {} SharedCrc: {} ClientCrc: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc);
 		{
 			ScopedLogIndent scopedCrcIndent;
 			char acServerInputCrc[20] {}, acClientInputCrc[20] {};
@@ -219,10 +216,18 @@ static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordRecon
 	{
 		iMaxReplay = std::max(iAvailable / 2, 1LL);
 	}
+	// Gap-aware override: when backlog is large, allow more replay to prevent cascading failure
+	int64_t iGap = rReconcileContext.iTargetTick - rWork.iConfirmedTick;
+	static constexpr int64_t kiGapOverrideThreshold = engine::kiNetworkBufferSize / 2;
+	if (iGap >= kiGapOverrideThreshold)
+	{
+		static constexpr int64_t kiRingBudget = engine::kiNetworkBufferSize * 3 / 4;
+		iMaxReplay = std::min(iAvailable, kiRingBudget);
+	}
 	int64_t iReplayCount = 0;
 
 	// DT TEMP
-	Log(kLogNetwork, kVerbose, "ReconcileReplayCoord Throttle Coord: ({},{}) JitterUs: {} Available: {} MaxReplay: {}", rWork.coord.x, rWork.coord.y, iJitterUs, iAvailable, iMaxReplay);
+	Log(kLogNetwork, kVerbose, "ReconcileReplayCoord Throttle Coord: ({},{}) JitterUs: {} Available: {} MaxReplay: {} Gap: {}", rWork.coord.x, rWork.coord.y, iJitterUs, iAvailable, iMaxReplay, iGap);
 
 	for (int64_t iTick = iReplayStart; iTick <= iMaxConsecutive; ++iTick)
 	{
@@ -297,7 +302,11 @@ static void ReconcileCatchUpCoord(CoordReconcileWork& rWork, int64_t iTargetTick
 	int64_t iStartWriteCount = rWork.iReplayWriteCount;
 	int64_t iCurrentTick = rWork.replayStack[rWork.iReplayStackCount - 1]->interpolate.iTick;
 
-	while (iCurrentTick < iTargetTick)
+	// Cap catch-up to remaining ring buffer budget
+	int64_t iBudget = engine::kiNetworkBufferSize - rWork.iReplayWriteCount;
+	int64_t iCappedTarget = std::min(iTargetTick, iCurrentTick + iBudget);
+
+	while (iCurrentTick < iCappedTarget)
 	{
 		++iCurrentTick;
 		rfTime += kfDeltaTime;
@@ -310,7 +319,7 @@ static void ReconcileCatchUpCoord(CoordReconcileWork& rWork, int64_t iTargetTick
 		++rProfiling.iAssumedFrameTicks;
 	}
 
-	ASSERT(iCurrentTick <= iTargetTick);
+	ASSERT(iCurrentTick <= iCappedTarget);
 
 	// Clear recalculated flag on catch-up frames (replay frames keep it for rendering)
 	for (int64_t i = iStartWriteCount; i < rWork.iReplayWriteCount; ++i)

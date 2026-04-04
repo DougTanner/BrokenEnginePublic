@@ -206,6 +206,14 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		float fHealth = rPrevious.pfHealths[i];
 		float fDestroyedExplosionTime = rPrevious.pfDestroyedExplosionTimes[i] - fDeltaTime;
 		float fNextBlasterSpawnTime = rPrevious.pfNextBlasterSpawnTimes[i] - fDeltaTime;
+		float fArrivalGracePeriod = std::max(0.0f, rPrevious.pfArrivalGracePeriods[i] - fDeltaTime);
+
+		// Set kDestination on target when grace period expires
+		if (rPrevious.pfArrivalGracePeriods[i] > 0.0f && fArrivalGracePeriod <= 0.0f && rCurrentInterpolate.puiTargets[i].IsValid())
+		{
+			int64_t iTargetIndex = rFrame.interpolate.pTargets->IdToIndex(rCurrentInterpolate.puiTargets[i]);
+			rFrame.postRender.pTargets->pFlags[iTargetIndex].Set(TargetFlags::kDestination);
+		}
 
 		// Load from Interpolate (these are now in Interpolate)
 		float fDeltaRotation = rPreviousInterpolate.pfDeltaRotations[i];
@@ -307,6 +315,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		rCurrent.pfHealths[i] = fHealth;
 		rCurrent.pfDestroyedExplosionTimes[i] = fDestroyedExplosionTime;
 		rCurrent.pfNextBlasterSpawnTimes[i] = fNextBlasterSpawnTime;
+		rCurrent.pfArrivalGracePeriods[i] = fArrivalGracePeriod;
 
 		// Save to Interpolate (these are now in Interpolate)
 		rCurrentInterpolate.pfDeltaRotations[i] = fDeltaRotation;

@@ -394,6 +394,7 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rD
 				.alignment = rData.alignment,
 				.fHealth = rData.fHealth,
 				.fNextBlasterSpawnTime = rData.fNextBlasterSpawnTime,
+				.fArrivalGracePeriod = kfArrivalGracePeriod,
 			});
 			break;
 
@@ -458,6 +459,7 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rD
 				.fShieldShrink = rData.fShieldShrink,
 				.flags = PlayerFlags_t {static_cast<PlayerFlags>(rData.uiPlayerFlags)},
 				.fTransferLockTimer = 1.0f,
+				.fArrivalGracePeriod = kfArrivalGracePeriod,
 				.globalPlayerId = rData.globalPlayerId,
 			});
 			break;

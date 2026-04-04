@@ -263,6 +263,7 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 				.fShieldShrink = rCurrentInterpolate.pfShieldShrinks[i],
 #endif
 				.uiPlayerFlags = static_cast<uint8_t>(std::to_underlying(rCurrentPostRender.pFlags[i].meFlags) & ~std::to_underlying(kTransfer)),
+				.fArrivalGracePeriod = rCurrentPostRender.pfArrivalGracePeriods[i],
 			},
 			.iEntityId = rCurrentPostRender.puiIds[i].ToUuid().Value(),
 		};
@@ -374,6 +375,7 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 				.vecPosition = vecSpawnPosition,
 				.vecDirection = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
 				.alignment = rFrame.postRender.playerAlignment,
+				.fArrivalGracePeriod = kfArrivalGracePeriod,
 				.globalPlayerId = globalPlayerId,
 			});
 		}
@@ -627,11 +629,10 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	rCurrentPostRender.pfDestroyedExplosionTimes[iIndex] = 0.0f;
 	rCurrentPostRender.pfShieldDownSoundCooldowns[iIndex] = rInfo.fShieldDownSoundCooldown;
 	rCurrentPostRender.pVecAiDirections[iIndex] = XMVectorZero();
-	rCurrentPostRender.pfAiFireTimers[iIndex] = 0.0f;
-	rCurrentPostRender.pfAiMissileTimers[iIndex] = 0.0f;
 	rCurrentPostRender.pfAiEdgeCrossCooldowns[iIndex] = kfAiEdgeCrossCooldown;
 	rCurrentPostRender.piAiEdgeCrossTargets[iIndex] = -1;
 	rCurrentPostRender.pfTransferLockTimers[iIndex] = rInfo.fTransferLockTimer;
+	rCurrentPostRender.pfArrivalGracePeriods[iIndex] = rInfo.fArrivalGracePeriod;
 	rCurrentPostRender.pClientGuids[iIndex] = {};
 	rCurrentPostRender.pGlobalPlayerIds[iIndex] = rInfo.globalPlayerId;
 }
@@ -673,11 +674,10 @@ bool PlayersPostRender::LogDifferences(const PlayersPostRender& rOther) const
 		bEqual &= common::LogDifference<"pfDestroyedExplosionTimes">(i, pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
 		bEqual &= common::LogDifference<"pfShieldDownSoundCooldowns">(i, pfShieldDownSoundCooldowns[i], rOther.pfShieldDownSoundCooldowns[i]);
 		bEqual &= common::LogDifference_Vec("pVecAiDirections", i, pVecAiDirections[i], rOther.pVecAiDirections[i]);
-		bEqual &= common::LogDifference<"pfAiFireTimers">(i, pfAiFireTimers[i], rOther.pfAiFireTimers[i]);
-		bEqual &= common::LogDifference<"pfAiMissileTimers">(i, pfAiMissileTimers[i], rOther.pfAiMissileTimers[i]);
 		bEqual &= common::LogDifference<"pfAiEdgeCrossCooldowns">(i, pfAiEdgeCrossCooldowns[i], rOther.pfAiEdgeCrossCooldowns[i]);
 		bEqual &= common::LogDifference<"piAiEdgeCrossTargets">(i, piAiEdgeCrossTargets[i], rOther.piAiEdgeCrossTargets[i]);
 		bEqual &= common::LogDifference<"pfTransferLockTimers">(i, pfTransferLockTimers[i], rOther.pfTransferLockTimers[i]);
+		bEqual &= common::LogDifference<"pfArrivalGracePeriods">(i, pfArrivalGracePeriods[i], rOther.pfArrivalGracePeriods[i]);
 		bEqual &= common::LogDifference<"pClientGuids.uiHigh">(i, pClientGuids[i].uiHigh, rOther.pClientGuids[i].uiHigh);
 		bEqual &= common::LogDifference<"pClientGuids.uiLow">(i, pClientGuids[i].uiLow, rOther.pClientGuids[i].uiLow);
 		bEqual &= common::LogDifference<"pGlobalPlayerIds">(i, pGlobalPlayerIds[i].iValue, rOther.pGlobalPlayerIds[i].iValue);

@@ -12,7 +12,7 @@ Client-side ENet networking split into the low-level `Client` class (connection,
 ## Architecture Notes
 
 - Subscription queue drains in parallel: `TrySubscribeNext` loops calling `SendSubscribe` (which claims a free slot and returns true, or returns false if none available) until the queue is empty or slots are exhausted. If a kSubscribing slot is cancelled before the server responds, the coord is tracked in `mCancelledSubscriptions` so that `ServerSubscribeAccept` and `ServerCoordFullState` can intercept and reject them
-- Clock correction computes tick error from RTT and nudges the client timestep by up to 4 steps per frame, with a variable divisor: 1/16th of a tick when |error| >= 4 (aggressive catchup) or 1/64th otherwise (gentle). Target-behind uses hysteresis (threshold of 2 ticks) to prevent jitter on variable-latency connections. Disconnect is triggered only after `kiClockErrorDisconnectConsecutiveFrames` (4) consecutive frames at or above the disconnect threshold, preventing false disconnects from single-frame spikes
+- Clock correction computes tick error from RTT and nudges the client timestep by up to 4 steps per frame, with a variable divisor: 1/16th of a tick when |error| >= 4 (aggressive catchup) or 1/64th otherwise (gentle). Target-behind uses hysteresis (threshold of 2 ticks) to prevent jitter on variable-latency connections. Extreme clock error accumulated over multiple consecutive frames sets `mbClockErrorDisconnect`, signaling the game layer to take recovery action (e.g., snapping the tick counter)
 - Extrapolation snapshots use a ring buffer sized to `kiNetworkBufferSize` (128 entries, decoupled from tick rate), managed with head/count/offset indices
 
 ## See Also

@@ -28,6 +28,9 @@ inline constexpr float kfPlayerEnergy = 25.0f;
 
 inline constexpr float kfSpaceshipArmorShardChance = 0.1f;
 
+// Arrival grace period: arriving entities are skipped in targeting/behavior scans (not collision)
+inline constexpr float kfArrivalGracePeriod = 1.0f;
+
 // Enemy health
 inline constexpr float kfBlasterDamage = 6.0f;
 inline constexpr float kfMissileCollisionRadius = 0.5f;

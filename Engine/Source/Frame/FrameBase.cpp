@@ -8,27 +8,21 @@ FramePostRenderBase::FramePostRenderBase()
 {
 }
 
-std::pair<common::crc_t, common::crc_t> FrameInterpolateBase::Crcs() const
+common::crc_t FrameInterpolateBase::Crcs() const
 {
-	common::crc_t crc = 0;
 	common::crc_t sharedCrc = 0;
 
-	common::Crc(frameFlags, crc, sharedCrc);
-	common::Crc(iTick, crc, sharedCrc);
-	common::Crc(fCurrentTime, crc, sharedCrc);
-	common::Crc(fDeltaTime, crc, sharedCrc);
-
-	std::apply([&](const auto&... cols)
-	{
-		((crc ^= CollectionCrc(cols, cols.Members())), ...);
-	}, Collections());
+	sharedCrc ^= common::Crc(frameFlags);
+	sharedCrc ^= common::Crc(iTick);
+	sharedCrc ^= common::Crc(fCurrentTime);
+	sharedCrc ^= common::Crc(fDeltaTime);
 
 	std::apply([&](const auto&... cols)
 	{
 		((sharedCrc ^= SharedCollectionCrc(cols)), ...);
 	}, ServerCollections());
 
-	return {crc, sharedCrc};
+	return sharedCrc;
 }
 
 bool FrameInterpolateBase::LogDifferences(const FrameInterpolateBase& rOther) const
@@ -83,39 +77,23 @@ void FrameInterpolateBase::ServerRead(std::istream& rStream)
 	}, ServerCollections());
 }
 
-std::pair<common::crc_t, common::crc_t> FramePostRenderBase::Crcs() const
+common::crc_t FramePostRenderBase::Crcs() const
 {
-	common::crc_t outCrc = 0;
-	common::crc_t outSharedCrc = 0;
+	common::crc_t crc = 0;
 
-	common::crc_t c = randomEngine.Crc();
-	outCrc ^= c;
-	outSharedCrc ^= c;
-
-	common::Crc(vecArea, outCrc, outSharedCrc);
-	common::Crc(uiNextUuid, outCrc, outSharedCrc);
-#if defined(BT_CLIENT)
-	outCrc ^= common::Crc(uiNextSoundUuid);
-	outCrc ^= common::Crc(uiNextVisualUuid);
-#endif
-	common::Crc(uiFrameId, outCrc, outSharedCrc);
-	common::Crc(eIslandsFlip, outCrc, outSharedCrc);
-
-	c = alignments.Crc();
-	outCrc ^= c;
-	outSharedCrc ^= c;
+	crc ^= randomEngine.Crc();
+	crc ^= common::Crc(vecArea);
+	crc ^= common::Crc(uiNextUuid);
+	crc ^= common::Crc(uiFrameId);
+	crc ^= common::Crc(eIslandsFlip);
+	crc ^= alignments.Crc();
 
 	std::apply([&](const auto&... cols)
 	{
-		((outCrc ^= CollectionCrc(cols, cols.Members())), ...);
-	}, Collections());
-
-	std::apply([&](const auto&... cols)
-	{
-		((outSharedCrc ^= SharedCollectionCrc(cols)), ...);
+		((crc ^= SharedCollectionCrc(cols)), ...);
 	}, ServerCollections());
 
-	return {outCrc, outSharedCrc};
+	return crc;
 }
 
 bool FramePostRenderBase::LogDifferences(const FramePostRenderBase& rOther) const

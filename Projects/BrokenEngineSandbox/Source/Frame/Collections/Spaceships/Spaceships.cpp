@@ -89,6 +89,11 @@ constexpr float kfHitFlashLightingIntensity = 30.0f;
 			continue;
 		}
 
+		if (rPlayersPostRender.pfArrivalGracePeriods[i] > 0.0f)
+		{
+			continue;
+		}
+
 		float fDistanceSq = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(rPlayers.pVecPositions[i], vecFrom)));
 		if (fDistanceSq < fClosestDistanceSq)
 		{
@@ -328,6 +333,7 @@ void SpaceshipsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 				.alignment = rCurrentPostRender.pAlignments[i],
 				.fHealth = rCurrentPostRender.pfHealths[i],
 				.fNextBlasterSpawnTime = rCurrentPostRender.pfNextBlasterSpawnTimes[i],
+				.fArrivalGracePeriod = rCurrentPostRender.pfArrivalGracePeriods[i],
 			},
 		};
 		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
@@ -492,8 +498,12 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	TargetsPostRender::Add(rFrame, rCurrentInterpolate.puiTargets[iIndex], gSpaceshipTargetTypeIndex, rInfo.alignment);
 
 	// Set target flags (PostRender field, not part of Sync)
+	// Defer kDestination during arrival grace period so missiles don't target this spaceship
 	int64_t iTargetIndex = rFrame.interpolate.pTargets->IdToIndex(rCurrentInterpolate.puiTargets[iIndex]);
-	rFrame.postRender.pTargets->pFlags[iTargetIndex] = {TargetFlags::kDestination};
+	if (rInfo.fArrivalGracePeriod <= 0.0f)
+	{
+		rFrame.postRender.pTargets->pFlags[iTargetIndex] = {TargetFlags::kDestination};
+	}
 
 	// Initialize post-render state
 	rCurrentPostRender.pFlags[iIndex] = {};
@@ -503,6 +513,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	rCurrentPostRender.pfDestroyedExplosionTimes[iIndex] = 0.0f;
 	rCurrentPostRender.pfNextBlasterSpawnTimes[iIndex] = rInfo.fNextBlasterSpawnTime;
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
+	rCurrentPostRender.pfArrivalGracePeriods[iIndex] = rInfo.fArrivalGracePeriod;
 
 	// Sync owned objects after Add()
 	SyncSpaceship(rFrame.interpolate, rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTargets[iIndex], rInfo.vecPosition);
@@ -543,6 +554,7 @@ bool SpaceshipsPostRender::LogDifferences(const SpaceshipsPostRender& rOther) co
 		bEqual &= common::LogDifference<"pfDestroyedExplosionTimes">(i, pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
 		bEqual &= common::LogDifference<"pfNextBlasterSpawnTimes">(i, pfNextBlasterSpawnTimes[i], rOther.pfNextBlasterSpawnTimes[i]);
 		bEqual &= common::LogDifference<"pAlignments">(i, pAlignments[i], rOther.pAlignments[i]);
+		bEqual &= common::LogDifference<"pfArrivalGracePeriods">(i, pfArrivalGracePeriods[i], rOther.pfArrivalGracePeriods[i]);
 	}
 
 	return bEqual;

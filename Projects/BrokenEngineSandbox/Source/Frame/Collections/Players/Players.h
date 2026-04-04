@@ -138,7 +138,7 @@ using PlayerFlags_t = common::Flags<PlayerFlags>;
 
 struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 {
-	static constexpr int64_t kiVersion = 10;
+	static constexpr int64_t kiVersion = 11;
 
 	// Collision layer (set each frame in PreCollision)
 	// thread_local: parallel per-Frame tick via Dispatch
@@ -169,11 +169,10 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	float* __restrict pfDestroyedExplosionTimes = nullptr;
 	float* __restrict pfShieldDownSoundCooldowns = nullptr;
 	XMVECTOR* __restrict pVecAiDirections = nullptr;
-	float* __restrict pfAiFireTimers = nullptr;
-	float* __restrict pfAiMissileTimers = nullptr;
 	float* __restrict pfAiEdgeCrossCooldowns = nullptr;
 	int8_t* __restrict piAiEdgeCrossTargets = nullptr;
 	float* __restrict pfTransferLockTimers = nullptr;
+	float* __restrict pfArrivalGracePeriods = nullptr;
 	engine::ClientGuid* __restrict pClientGuids = nullptr;
 	engine::global_player_t* __restrict pGlobalPlayerIds = nullptr;
 
@@ -184,9 +183,9 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 			rSelf.pVecVelocities, rSelf.pVecWantedDirections,
 			rSelf.pfArmors, rSelf.pfShields, rSelf.pfShieldCooldowns,
 			rSelf.pfDestroyedExplosionTimes, rSelf.pfShieldDownSoundCooldowns,
-			rSelf.pVecAiDirections, rSelf.pfAiFireTimers, rSelf.pfAiMissileTimers,
+			rSelf.pVecAiDirections,
 			rSelf.pfAiEdgeCrossCooldowns, rSelf.piAiEdgeCrossTargets,
-			rSelf.pfTransferLockTimers, rSelf.pClientGuids, rSelf.pGlobalPlayerIds);
+			rSelf.pfTransferLockTimers, rSelf.pfArrivalGracePeriods, rSelf.pClientGuids, rSelf.pGlobalPlayerIds);
 	}
 
 	// CRC-only subset: excludes pClientGuids and pGlobalPlayerIds which are server-side bookkeeping
@@ -197,9 +196,9 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 			rSelf.pVecVelocities, rSelf.pVecWantedDirections,
 			rSelf.pfArmors, rSelf.pfShields, rSelf.pfShieldCooldowns,
 			rSelf.pfDestroyedExplosionTimes, rSelf.pfShieldDownSoundCooldowns,
-			rSelf.pVecAiDirections, rSelf.pfAiFireTimers, rSelf.pfAiMissileTimers,
+			rSelf.pVecAiDirections,
 			rSelf.pfAiEdgeCrossCooldowns, rSelf.piAiEdgeCrossTargets,
-			rSelf.pfTransferLockTimers);
+			rSelf.pfTransferLockTimers, rSelf.pfArrivalGracePeriods);
 	}
 
 	// Utility
@@ -208,8 +207,8 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	// SpawnInfo for spawn parameters
 	struct SpawnInfo
 	{
-		XMVECTOR vecPosition;
-		XMVECTOR vecDirection;
+		XMVECTOR vecPosition {};
+		XMVECTOR vecDirection {};
 		XMVECTOR vecVelocity {};
 		engine::alignment_t alignment {};
 		float fArmor = 0.0f;
@@ -223,6 +222,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 		float fShieldShrink = 1.0f;
 		PlayerFlags_t flags = {PlayerFlags::kBlasterSpawnLeft};
 		float fTransferLockTimer = 0.0f;
+		float fArrivalGracePeriod = 0.0f;
 		engine::global_player_t globalPlayerId {};
 	};
 
