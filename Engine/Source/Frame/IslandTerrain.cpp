@@ -49,10 +49,14 @@ void IslandTerrain::WaitForElevationMaps()
 		miHeightmapHeight = rChunk.header.islandHeader.iHeightmapHeight;
 	}
 
+#if defined(BT_SERVER)
 	if (mpfHeightmapData != nullptr)
 	{
-		BuildNavData(mNavData, mpfHeightmapData, miHeightmapWidth, miHeightmapHeight, mfBeachElevation, game::Frame::kfIslandWidth, game::Frame::kfIslandHeight);
+		// Nav threshold: midway between beach (elevation 0) and base height in world space
+		float fNavThreshold = gBaseHeight.Get() * 0.5f;
+		BuildNavContour(mNavContour, mpfHeightmapData, miHeightmapWidth, miHeightmapHeight, mfBeachElevation, fNavThreshold);
 	}
+#endif
 }
 
 float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const

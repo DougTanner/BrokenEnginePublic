@@ -12,9 +12,8 @@ constexpr float kfHighElevationThreshold = 0.5f;
 constexpr float kfUrgentSteerMultiplier = 3.0f;
 constexpr float kfMinGradientSq = 0.0001f;
 constexpr float kfReturnToIslandDistance = 150.0f;
-constexpr float kfEdgeCrossThreshold = 40.0f;
 
-AiSteeringResult XM_CALLCONV ComputeAiSteering(FXMVECTOR vecPosition, FXMVECTOR vecCurrentDirection, FXMVECTOR vecArea, CXMVECTOR vecFrameCenter, float fDeltaTime, float fAiEdgeCrossCooldown, int8_t iAiEdgeCrossTarget, bool bAlternateContour)
+AiSteeringResult XM_CALLCONV ComputeAiSteering(FXMVECTOR vecPosition, FXMVECTOR vecCurrentDirection, FXMVECTOR vecFrameCenter, float fDeltaTime, bool bAlternateContour)
 {
 	XMVECTOR vecDirection = XMVector3Normalize(vecCurrentDirection);
 
@@ -62,57 +61,10 @@ AiSteeringResult XM_CALLCONV ComputeAiSteering(FXMVECTOR vecPosition, FXMVECTOR 
 		fLocalSteerRate = kfSteerRate * kfUrgentSteerMultiplier;
 	}
 
-	// Edge-crossing encouragement
-	fAiEdgeCrossCooldown -= fDeltaTime;
-	if (fAiEdgeCrossCooldown <= 0.0f)
-	{
-		const FrameBounds bounds = ComputeFrameBounds(vecArea);
-		float fDistToMinX = XMVectorGetX(vecPosition) - bounds.fMinX;
-		float fDistToMaxX = bounds.fMaxX - XMVectorGetX(vecPosition);
-		float fDistToMinY = XMVectorGetY(vecPosition) - bounds.fMinY;
-		float fDistToMaxY = bounds.fMaxY - XMVectorGetY(vecPosition);
-		float fMinDist = std::min({fDistToMinX, fDistToMaxX, fDistToMinY, fDistToMaxY});
-
-		int8_t iNearestEdge = 0;
-		if (fMinDist == fDistToMaxX)
-		{
-			iNearestEdge = 1;
-		}
-		else if (fMinDist == fDistToMinY)
-		{
-			iNearestEdge = 2;
-		}
-		else if (fMinDist == fDistToMaxY)
-		{
-			iNearestEdge = 3;
-		}
-
-		if (iAiEdgeCrossTarget >= 0 && iNearestEdge != iAiEdgeCrossTarget)
-		{
-			// Nearest edge changed — player crossed, start cooldown
-			fAiEdgeCrossCooldown = kfAiEdgeCrossCooldown;
-			iAiEdgeCrossTarget = -1;
-		}
-		else if (fMinDist < kfEdgeCrossThreshold)
-		{
-			// Near edge — steer toward it
-			iAiEdgeCrossTarget = iNearestEdge;
-			static constexpr XMVECTOR kVecEdgeDirections[] =
-			{
-				{-1.0f, 0.0f, 0.0f, 0.0f},
-				{ 1.0f, 0.0f, 0.0f, 0.0f},
-				{ 0.0f, -1.0f, 0.0f, 0.0f},
-				{ 0.0f, 1.0f, 0.0f, 0.0f},
-			};
-			vecDesired = kVecEdgeDirections[iNearestEdge];
-			fLocalSteerRate = kfSteerRate * kfUrgentSteerMultiplier;
-		}
-	}
-
 	// Smooth steering via exponential interpolation
 	XMVECTOR vecAiDirection = XMVector3Normalize(XMVectorLerp(vecDirection, vecDesired, common::ExponentialInterpolant(fLocalSteerRate, fDeltaTime)));
 
-	return {vecAiDirection, fAiEdgeCrossCooldown, iAiEdgeCrossTarget};
+	return {vecAiDirection};
 }
 
 // Terrain avoidance sampling constants

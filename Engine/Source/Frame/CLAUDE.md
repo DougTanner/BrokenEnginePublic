@@ -10,7 +10,7 @@ See also: [Frame Update Pipeline](../../../Documents/Architecture/FrameUpdatePip
 
 - **FrameInterpolateBase** - Rendering-phase state: frame timing, visibility bounds, visual collections (`#ifdef BT_CLIENT`), and render pipeline orchestration. Provides CRC/serialization/`LogDifferences()` for cross-build determinism validation
 - **FramePostRenderBase** - Logic-phase state: deterministic random engine, UUID generation (separate counters for shared/sound/visual UUIDs), CRC chain, alignments, and all PostRender collections. Orchestrates seven sub-phases (Update, PreCollision, PostCollision, AreaDamage, Transfer, Destroy, Spawn), each receiving a `const FrameStaticData&`
-- **FrameStaticData** - Immutable per-coord data (area bounds, island configuration) stored in `CoordFrames` alongside frames. Set once at coord creation, serialized separately from frames, and passed to all phase functions
+- **FrameStaticData** - Immutable per-coord data (area bounds, island configuration, and per-cell NavData) stored in `CoordFrames` alongside frames. Set once at coord creation, serialized separately from frames, and passed to all phase functions. NavData is built by the server from the island's canonical NavContour and distributed to clients via FrameStaticData network serialization
 - **FrameUtils** - Template utilities using `std::apply` and fold expressions to iterate all collections automatically for CRC, serialization, and copy
 - **GridCoord** - 2D coordinate keying frames in the sparse grid, with key packing and neighbor offset helpers
 - **TimeStep** - Fixed timestep accumulator converting variable render time into discrete physics ticks at `kiTickRate`. Includes time scaling and death spiral prevention. Signals time scale changes via `mbTimeScaleChanged` flag; Game polls and updates the text overlay
@@ -18,7 +18,7 @@ See also: [Frame Update Pipeline](../../../Documents/Architecture/FrameUpdatePip
 - **AreaDamage** - Thread-local accumulator for explosion/AoE damage sources. Collections call `Add()` in PostCollision and query `Get()` during the AreaDamage phase; `Clear()` resets the list each frame
 - **Alignments** - Sparse collision filtering via sorted flat vector with binary search
 - **IslandTerrain** - CPU terrain queries (elevation, normals) shared by client and server. All islands use the same heightmap flipped by parity
-- **NavBuild / NavQuery** - Visibility graph pathfinding built once from the island heightmap (marching squares contour extraction, RDP simplification, obstacle inflation). `NavQueryDirection()` returns a steering direction between two world-space points, using a direct line-of-sight fast path or A* through the visibility graph
+- **NavBuild / NavQuery** - Visibility graph pathfinding using per-cell NavData stored in world space. `NavBuild` constructs NavData from a canonical NavContour on IslandTerrain (server builds once; clients receive it via FrameStaticData). `NavQueryDirection(position, destination, navData)` returns a steering direction between two world-space points, using a direct line-of-sight fast path or A* through the visibility graph
 
 ## Architecture Notes
 

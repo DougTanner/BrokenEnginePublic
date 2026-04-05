@@ -3,16 +3,12 @@
 namespace game
 {
 
-inline constexpr float kfAiEdgeCrossCooldown = 20.0f;
-
 struct AiSteeringResult
 {
 	XMVECTOR vecAiDirection;
-	float fAiEdgeCrossCooldown;
-	int8_t iAiEdgeCrossTarget;
 };
 
-AiSteeringResult XM_CALLCONV ComputeAiSteering(FXMVECTOR vecPosition, FXMVECTOR vecCurrentDirection, FXMVECTOR vecArea, CXMVECTOR vecFrameCenter, float fDeltaTime, float fAiEdgeCrossCooldown, int8_t iAiEdgeCrossTarget, bool bAlternateContour);
+AiSteeringResult XM_CALLCONV ComputeAiSteering(FXMVECTOR vecPosition, FXMVECTOR vecCurrentDirection, FXMVECTOR vecFrameCenter, float fDeltaTime, bool bAlternateContour);
 
 float XM_CALLCONV ComputeTerrainAvoidance(FXMVECTOR vecPosition, FXMVECTOR vecDirection, float fCurrentDeltaRotation);
 

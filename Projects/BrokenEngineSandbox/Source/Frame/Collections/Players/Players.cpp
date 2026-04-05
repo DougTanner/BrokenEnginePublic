@@ -630,10 +630,12 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	rCurrentPostRender.pfDestroyedExplosionTimes[iIndex] = 0.0f;
 	rCurrentPostRender.pfShieldDownSoundCooldowns[iIndex] = rInfo.fShieldDownSoundCooldown;
 	rCurrentPostRender.pVecAiDirections[iIndex] = XMVectorZero();
-	rCurrentPostRender.pfAiEdgeCrossCooldowns[iIndex] = kfAiEdgeCrossCooldown;
-	rCurrentPostRender.piAiEdgeCrossTargets[iIndex] = -1;
 	rCurrentPostRender.pfTransferLockTimers[iIndex] = rInfo.fTransferLockTimer;
 	rCurrentPostRender.pfArrivalGracePeriods[iIndex] = rInfo.fArrivalGracePeriod;
+	// Always consume random for determinism, even if fFrameChangeTimer is pre-set
+	float fRandomTimer = 15.0f + common::Random<10.0f>(rFrame.postRender.randomEngine);
+	rCurrentPostRender.pfFrameChangeTimers[iIndex] = (rInfo.fFrameChangeTimer > 0.0f) ? rInfo.fFrameChangeTimer : fRandomTimer;
+	rCurrentPostRender.piNavDirections[iIndex] = rInfo.iNavDirection;
 	rCurrentPostRender.pClientGuids[iIndex] = {};
 	rCurrentPostRender.pGlobalPlayerIds[iIndex] = rInfo.globalPlayerId;
 }
@@ -675,10 +677,10 @@ bool PlayersPostRender::LogDifferences(const PlayersPostRender& rOther) const
 		bEqual &= common::LogDifference<"pfDestroyedExplosionTimes">(i, pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
 		bEqual &= common::LogDifference<"pfShieldDownSoundCooldowns">(i, pfShieldDownSoundCooldowns[i], rOther.pfShieldDownSoundCooldowns[i]);
 		bEqual &= common::LogDifference_Vec("pVecAiDirections", i, pVecAiDirections[i], rOther.pVecAiDirections[i]);
-		bEqual &= common::LogDifference<"pfAiEdgeCrossCooldowns">(i, pfAiEdgeCrossCooldowns[i], rOther.pfAiEdgeCrossCooldowns[i]);
-		bEqual &= common::LogDifference<"piAiEdgeCrossTargets">(i, piAiEdgeCrossTargets[i], rOther.piAiEdgeCrossTargets[i]);
 		bEqual &= common::LogDifference<"pfTransferLockTimers">(i, pfTransferLockTimers[i], rOther.pfTransferLockTimers[i]);
 		bEqual &= common::LogDifference<"pfArrivalGracePeriods">(i, pfArrivalGracePeriods[i], rOther.pfArrivalGracePeriods[i]);
+		bEqual &= common::LogDifference<"pfFrameChangeTimers">(i, pfFrameChangeTimers[i], rOther.pfFrameChangeTimers[i]);
+		bEqual &= common::LogDifference<"piNavDirections">(i, piNavDirections[i], rOther.piNavDirections[i]);
 		bEqual &= common::LogDifference<"pClientGuids.uiHigh">(i, pClientGuids[i].uiHigh, rOther.pClientGuids[i].uiHigh);
 		bEqual &= common::LogDifference<"pClientGuids.uiLow">(i, pClientGuids[i].uiLow, rOther.pClientGuids[i].uiLow);
 		bEqual &= common::LogDifference<"pGlobalPlayerIds">(i, pGlobalPlayerIds[i].iValue, rOther.pGlobalPlayerIds[i].iValue);

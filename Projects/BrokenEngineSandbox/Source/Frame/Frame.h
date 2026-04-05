@@ -179,7 +179,7 @@ struct Frame
 	Frame(Frame&&) noexcept;
 	Frame& operator=(Frame&&) noexcept;
 
-	static constexpr int64_t kiVersion = 20;
+	static constexpr int64_t kiVersion = 21;
 
 	static constexpr int64_t kiIslandCount = 1;
 

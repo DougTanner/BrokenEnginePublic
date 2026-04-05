@@ -278,11 +278,14 @@ void ClientSession::PostRender()
 
 void ClientSession::ApplyReceivedStaticData()
 {
+	// Heap: try_emplace may insert new CoordFrames, NavData vectors moved into staticData
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
 	std::vector<engine::ReceivedStaticData>& rStaticDataList = mpClientNetwork->DrainReceivedStaticData();
 	for (engine::ReceivedStaticData& rReceived : rStaticDataList)
 	{
 		engine::CoordFrames& rFrames = gpGame->mCoordFrames.try_emplace(rReceived.coord).first->second;
-		rFrames.staticData = rReceived.staticData;
+		rFrames.staticData = std::move(rReceived.staticData);
 	}
 }
 

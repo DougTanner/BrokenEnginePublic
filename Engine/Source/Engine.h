@@ -80,9 +80,8 @@
 
 #endif // BT_CLIENT
 
-// Terrain collision data and navigation (both client and server)
+// Terrain collision data (both client and server)
 #include "Frame/IslandTerrain.h"
-#include "Frame/NavQuery.h"
 
 #if defined(BT_SERVER)
 #include "Network/Server/Server.h"

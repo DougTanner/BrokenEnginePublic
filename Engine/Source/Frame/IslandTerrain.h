@@ -26,7 +26,7 @@ public:
 	float mfBeachElevation = 0.0f;
 	float mfSeaFloorElevation = 0.0f;
 
-	NavData mNavData;
+	NavContour mNavContour;
 
 	static inline std::vector<common::crc_t> smPriorityIslands;
 };

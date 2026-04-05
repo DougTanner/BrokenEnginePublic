@@ -1,12 +1,10 @@
 #pragma once
 
-#include "Graphics/IslandsFlip.h"
-
 namespace engine
 {
 
 struct NavData;
 
-XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDestination, FXMVECTOR vecArea, const NavData& rNavData, IslandsFlip eFlip, XMFLOAT2 f2IslandOffset);
+XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDestination, const NavData& rNavData);
 
 } // namespace engine

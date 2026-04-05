@@ -2,6 +2,7 @@
 
 #include "Frame/FrameStaticData.h"
 #include "Frame/HealthDamage.h"
+#include "Frame/NavQuery.h"
 #include "Frame/TerrainUtils.h"
 #include "Profile/ProfileManager.h"
 #include "Frame/Collections/Spaceships/Spaceships.h"
@@ -252,16 +253,17 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		float fDestroyedExplosionTime = rPrevious.pfDestroyedExplosionTimes[i] - fDeltaTime;
 		float fShieldDownSoundCooldown = rPrevious.pfShieldDownSoundCooldowns[i] - fDeltaTime;
 		XMVECTOR vecAiDirection = rPrevious.pVecAiDirections[i];
-		float fAiEdgeCrossCooldown = rPrevious.pfAiEdgeCrossCooldowns[i];
-		int8_t iAiEdgeCrossTarget = rPrevious.piAiEdgeCrossTargets[i];
 		float fTransferLockTimer = rPrevious.pfTransferLockTimers[i];
 		float fArrivalGracePeriod = std::max(0.0f, rPrevious.pfArrivalGracePeriods[i] - fDeltaTime);
+		float fFrameChangeTimer = rPrevious.pfFrameChangeTimers[i];
+		int8_t iNavDirection = rPrevious.piNavDirections[i];
 		XMVECTOR vecPosition = rPreviousInterpolate.pVecPositions[i];
 
 		// Transfer lock: maintain constant velocity, skip AI and weapon logic
 		if (fTransferLockTimer > 0.0f)
 		{
 			fTransferLockTimer -= fDeltaTime;
+			Log(kVerbose, "Player {} transferLock={}", i, fTransferLockTimer); // DT TEMP
 		}
 		else
 		{
@@ -274,10 +276,52 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 				vecAiDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
 			}
 
-			auto [vecNewAiDirection, fNewEdgeCrossCooldown, iNewEdgeCrossTarget] = ComputeAiSteering(vecPosition, vecAiDirection, vecArea, vecFrameCenter, fDeltaTime, fAiEdgeCrossCooldown, iAiEdgeCrossTarget, i % 2 == 0);
-			vecAiDirection = vecNewAiDirection;
-			fAiEdgeCrossCooldown = fNewEdgeCrossCooldown;
-			iAiEdgeCrossTarget = iNewEdgeCrossTarget;
+			// Frame change timer
+			fFrameChangeTimer -= fDeltaTime;
+			if (fFrameChangeTimer <= 0.0f && iNavDirection == -1)
+			{
+				iNavDirection = static_cast<int8_t>(common::Random(3u, rFrame.postRender.randomEngine));
+				Log(kVerbose, "Player {} picked navDir={}", i, iNavDirection); // DT TEMP
+			}
+
+			if (iNavDirection >= 0)
+			{
+				// Navigate toward neighboring frame center
+				XMVECTOR vecDestination = vecFrameCenter;
+				switch (iNavDirection)
+				{
+					case 0:
+						vecDestination = XMVectorAdd(vecFrameCenter, XMVectorSet(0.0f, Frame::kfCellHeight, 0.0f, 0.0f));
+						break;
+					case 1:
+						vecDestination = XMVectorAdd(vecFrameCenter, XMVectorSet(0.0f, -Frame::kfCellHeight, 0.0f, 0.0f));
+						break;
+					case 2:
+						vecDestination = XMVectorAdd(vecFrameCenter, XMVectorSet(Frame::kfCellWidth, 0.0f, 0.0f, 0.0f));
+						break;
+					case 3:
+						vecDestination = XMVectorAdd(vecFrameCenter, XMVectorSet(-Frame::kfCellWidth, 0.0f, 0.0f, 0.0f));
+						break;
+				}
+
+				XMVECTOR vecNavDirection = engine::NavQueryDirection(vecPosition, vecDestination, rStaticData.navData);
+				float fNavLenSq = XMVectorGetX(XMVector3LengthSq(vecNavDirection)); // DT TEMP
+				Log(kVerbose, "Player {} nav dir={} pos={} navResult={}", i, iNavDirection, vecPosition, vecNavDirection); // DT TEMP
+				if (fNavLenSq > 0.001f)
+				{
+					vecAiDirection = vecNavDirection;
+				}
+				else
+				{
+					vecAiDirection = XMVector3Normalize(XMVectorSetZ(XMVectorSubtract(vecDestination, vecPosition), 0.0f));
+					Log(kVerbose, "Player {} navQuery returned zero, fallback dir={}", i, vecAiDirection); // DT TEMP
+				}
+			}
+			else
+			{
+				auto [vecNewAiDirection] = ComputeAiSteering(vecPosition, vecAiDirection, vecFrameCenter, fDeltaTime, i % 2 == 0);
+				vecAiDirection = vecNewAiDirection;
+			}
 
 			// Find nearest alive spaceship
 			float fClosestDistance = kfTargetRange;
@@ -350,6 +394,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 			// Apply movement: decay existing velocity and add acceleration from AI direction
 			XMVECTOR vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), vecAiDirection);
 			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(common::ExponentialDecay(kfAccelerationDecay, fDeltaTime)), vecVelocity, vecAcceleration);
+			Log(kVerbose, "Player {} aiDir={} vel={}", i, vecAiDirection, vecVelocity); // DT TEMP
 
 			// Direction: face nearest spaceship (prioritize in-range/visible/LOS, fallback to any alive)
 			if (bLookTargetFound)
@@ -381,6 +426,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 			fPushStrength = std::min(fPushStrength, fAllowedPush);
 
 			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fPushStrength), vecTerrainNormal, vecVelocity);
+			Log(kVerbose, "Player {} terrainPush elev={} pen={} push={} velAfter={}", i, fElevation, fPenetration, fPushStrength, vecVelocity); // DT TEMP
 		}
 
 		// Save
@@ -395,10 +441,10 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		rCurrent.pfDestroyedExplosionTimes[i] = fDestroyedExplosionTime;
 		rCurrent.pfShieldDownSoundCooldowns[i] = fShieldDownSoundCooldown;
 		rCurrent.pVecAiDirections[i] = vecAiDirection;
-		rCurrent.pfAiEdgeCrossCooldowns[i] = fAiEdgeCrossCooldown;
-		rCurrent.piAiEdgeCrossTargets[i] = iAiEdgeCrossTarget;
 		rCurrent.pfTransferLockTimers[i] = fTransferLockTimer;
 		rCurrent.pfArrivalGracePeriods[i] = fArrivalGracePeriod;
+		rCurrent.pfFrameChangeTimers[i] = fFrameChangeTimer;
+		rCurrent.piNavDirections[i] = iNavDirection;
 	}
 }
 

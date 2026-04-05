@@ -326,7 +326,7 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 
 } // anonymous namespace
 
-XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDestination, FXMVECTOR vecArea, const NavData& rNavData, IslandsFlip eFlip, XMFLOAT2 f2IslandOffset)
+XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDestination, const NavData& rNavData)
 {
 	XMVECTOR vecDelta = XMVectorSubtract(vecDestination, vecPosition);
 	if (XMVector3LengthSq(vecDelta).m128_f32[0] < 1e-8f)
@@ -342,39 +342,14 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 	int32_t iVertexCount = static_cast<int32_t>(rNavData.vertices.size());
 	int32_t iTotalNodes = iVertexCount + 2;
 
-	// Single workbuffer allocation for all scratch memory: world vertices + A* arrays
-	int64_t iVertexBytes = static_cast<int64_t>(iVertexCount) * static_cast<int64_t>(sizeof(XMFLOAT2));
+	// Workbuffer allocation for A* scratch memory only (vertices already world-space in NavData)
 	int64_t iAStarBytes = ComputeAStarMemorySize(iTotalNodes, iVertexCount);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	std::byte* pMemory = rWorkbuffer.PushBuffer<std::byte*>(iVertexBytes + iAStarBytes);
+	std::byte* pMemory = rWorkbuffer.PushBuffer<std::byte*>(iAStarBytes);
+	AStarMemory astarMemory = PartitionAStarMemory(pMemory, iTotalNodes, iVertexCount);
 
-	// Partition memory: world vertices first, then A* arrays
-	XMFLOAT2* pWorldVertices = reinterpret_cast<XMFLOAT2*>(pMemory);
-	AStarMemory astarMemory = PartitionAStarMemory(pMemory + iVertexBytes, iTotalNodes, iVertexCount);
-
-	// Transform canonical UV vertices to world space
-	float fIslandMinX = XMVectorGetX(vecArea) + f2IslandOffset.x;
-	float fIslandMaxY = XMVectorGetY(vecArea) - f2IslandOffset.y;
-	bool bFlipU = (eFlip & kFlipX) != 0;
-	bool bFlipV = (eFlip & kFlipY) != 0;
-
-	for (int32_t i = 0; i < iVertexCount; ++i)
-	{
-		float fU = rNavData.vertices.at(i).x;
-		float fV = rNavData.vertices.at(i).y;
-
-		if (bFlipU)
-		{
-			fU = 1.0f - fU;
-		}
-		if (bFlipV)
-		{
-			fV = 1.0f - fV;
-		}
-
-		pWorldVertices[i] = {fIslandMinX + fU * rNavData.fIslandWidth, fIslandMaxY - fV * rNavData.fIslandHeight};
-	}
+	const XMFLOAT2* pVertices = rNavData.vertices.data();
 
 	XMFLOAT4A f4Position {};
 	XMStoreFloat4A(&f4Position, vecPosition);
@@ -387,17 +362,17 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 	XMVECTOR vecResult = XMVectorZero();
 
 	// Check if destination is inside an obstacle
-	if (!PointInAnyPolygon(f2Destination, pWorldVertices, rNavData))
+	if (!PointInAnyPolygon(f2Destination, pVertices, rNavData))
 	{
 		// Fast path: direct line of sight
-		if (!SegmentBlockedByObstacle(f2Position, f2Destination, pWorldVertices, rNavData))
+		if (!SegmentBlockedByObstacle(f2Position, f2Destination, pVertices, rNavData))
 		{
 			vecResult = XMVector3Normalize(XMVectorSubtract(vecDestination, vecPosition));
 		}
 		else
 		{
 			// A* pathfinding on visibility graph
-			vecResult = AStarPath(f2Position, f2Destination, pWorldVertices, rNavData, astarMemory);
+			vecResult = AStarPath(f2Position, f2Destination, pVertices, rNavData, astarMemory);
 		}
 	}
 

@@ -381,6 +381,7 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	bool bFlipY = (std::abs(coord.y) % 2) == 1;
 	rStaticData.eIslandsFlip = static_cast<engine::IslandsFlip>((bFlipX ? engine::kFlipX : 0) | (bFlipY ? engine::kFlipY : 0));
 	rStaticData.f2IslandOffset = ComputeIslandOffset(coord);
+	engine::BuildCellNavData(rStaticData.navData, engine::gpIslandTerrain->mNavContour, rStaticData.vecArea, rStaticData.eIslandsFlip, rStaticData.f2IslandOffset, Frame::kfIslandWidth, Frame::kfIslandHeight);
 
 }
 
@@ -570,6 +571,7 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	rStaticData.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	rStaticData.eIslandsFlip = engine::kFlipNone;
 	rStaticData.f2IslandOffset = ComputeIslandOffset(engine::kOriginCoord);
+	engine::BuildCellNavData(rStaticData.navData, engine::gpIslandTerrain->mNavContour, rStaticData.vecArea, rStaticData.eIslandsFlip, rStaticData.f2IslandOffset, Frame::kfIslandWidth, Frame::kfIslandHeight);
 
 	mCoordFrames.at(engine::kOriginCoord).pNext = std::make_unique<Frame>();
 }

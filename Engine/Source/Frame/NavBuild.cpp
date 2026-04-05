@@ -12,9 +12,19 @@ struct ContourEdge
 	XMFLOAT2 f2B {};
 };
 
-// Marching squares: extract isocontour edges at the given threshold
-// Each cell of the grid can produce 0, 1, or 2 edges based on its corner classification
-void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeightmapData, int32_t iWidth, int32_t iHeight, float fThreshold)
+// Convert a normalized heightmap sample to world-space elevation
+float HeightmapToWorldElevation(float fNormalized, float fBeachElevation)
+{
+	float fRelative = fNormalized - fBeachElevation;
+	if (fRelative >= 0.0f)
+	{
+		return gIslandHeight.Get() * fRelative;
+	}
+	return gWaterDepth.Get() * fRelative;
+}
+
+// Marching squares: extract isocontour edges at the given world-space elevation threshold
+void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeightmapData, int32_t iWidth, int32_t iHeight, float fBeachElevation, float fWorldThreshold)
 {
 	float fWidthScale = 1.0f / static_cast<float>(iWidth - 1);
 	float fHeightScale = 1.0f / static_cast<float>(iHeight - 1);
@@ -23,27 +33,27 @@ void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeight
 	{
 		for (int32_t iX = 0; iX < iWidth - 1; ++iX)
 		{
-			// Corner values (top-left, top-right, bottom-right, bottom-left)
-			float fTL = pfHeightmapData[iY * iWidth + iX];
-			float fTR = pfHeightmapData[iY * iWidth + iX + 1];
-			float fBR = pfHeightmapData[(iY + 1) * iWidth + iX + 1];
-			float fBL = pfHeightmapData[(iY + 1) * iWidth + iX];
+			// Corner values converted to world-space elevation
+			float fTL = HeightmapToWorldElevation(pfHeightmapData[iY * iWidth + iX], fBeachElevation);
+			float fTR = HeightmapToWorldElevation(pfHeightmapData[iY * iWidth + iX + 1], fBeachElevation);
+			float fBR = HeightmapToWorldElevation(pfHeightmapData[(iY + 1) * iWidth + iX + 1], fBeachElevation);
+			float fBL = HeightmapToWorldElevation(pfHeightmapData[(iY + 1) * iWidth + iX], fBeachElevation);
 
 			// Classification: 1 = above threshold (obstacle), 0 = below (navigable)
 			int32_t iCase = 0;
-			if (fTL >= fThreshold)
+			if (fTL >= fWorldThreshold)
 			{
 				iCase |= 8;
 			}
-			if (fTR >= fThreshold)
+			if (fTR >= fWorldThreshold)
 			{
 				iCase |= 4;
 			}
-			if (fBR >= fThreshold)
+			if (fBR >= fWorldThreshold)
 			{
 				iCase |= 2;
 			}
-			if (fBL >= fThreshold)
+			if (fBL >= fWorldThreshold)
 			{
 				iCase |= 1;
 			}
@@ -71,19 +81,19 @@ void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeight
 			};
 
 			// Top edge (TL to TR)
-			float fTopT = Lerp(fTL, fTR, fThreshold);
+			float fTopT = Lerp(fTL, fTR, fWorldThreshold);
 			XMFLOAT2 f2Top {fCellU + fTopT * fStepU, fCellV};
 
 			// Right edge (TR to BR)
-			float fRightT = Lerp(fTR, fBR, fThreshold);
+			float fRightT = Lerp(fTR, fBR, fWorldThreshold);
 			XMFLOAT2 f2Right {fCellU + fStepU, fCellV + fRightT * fStepV};
 
 			// Bottom edge (BL to BR)
-			float fBottomT = Lerp(fBL, fBR, fThreshold);
+			float fBottomT = Lerp(fBL, fBR, fWorldThreshold);
 			XMFLOAT2 f2Bottom {fCellU + fBottomT * fStepU, fCellV + fStepV};
 
 			// Left edge (TL to BL)
-			float fLeftT = Lerp(fTL, fBL, fThreshold);
+			float fLeftT = Lerp(fTL, fBL, fWorldThreshold);
 			XMFLOAT2 f2Left {fCellU, fCellV + fLeftT * fStepV};
 
 			// Produce edges based on case (standard marching squares lookup)
@@ -105,7 +115,7 @@ void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeight
 				case 5:
 				{
 					float fCenter = (fTL + fTR + fBR + fBL) * 0.25f;
-					if (fCenter >= fThreshold)
+					if (fCenter >= fWorldThreshold)
 					{
 						rEdges.push_back({f2Top, f2Left});
 						rEdges.push_back({f2Bottom, f2Right});
@@ -132,7 +142,7 @@ void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeight
 				case 10:
 				{
 					float fCenter = (fTL + fTR + fBR + fBL) * 0.25f;
-					if (fCenter >= fThreshold)
+					if (fCenter >= fWorldThreshold)
 					{
 						rEdges.push_back({f2Left, f2Bottom});
 						rEdges.push_back({f2Right, f2Top});
@@ -173,6 +183,30 @@ void ChainEdgesIntoPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons, const
 		return fDx * fDx + fDy * fDy;
 	};
 
+	// Quantize vertex positions to grid keys for O(1) lookup
+	// Marching squares vertices land on half-pixel boundaries, so scale to integers
+	static constexpr float kfQuantizeScale = 100000.0f;
+	auto QuantizeKey = [](const XMFLOAT2& rPoint) -> uint64_t
+	{
+		auto iX = static_cast<int32_t>(rPoint.x * kfQuantizeScale + 0.5f);
+		auto iY = static_cast<int32_t>(rPoint.y * kfQuantizeScale + 0.5f);
+		return (static_cast<uint64_t>(static_cast<uint32_t>(iX)) << 32) | static_cast<uint64_t>(static_cast<uint32_t>(iY));
+	};
+
+	// Build adjacency: map from quantized vertex position to list of (edge index, which endpoint)
+	struct EdgeRef
+	{
+		size_t iEdgeIndex;
+		bool bIsEndpointB; // false = matched on f2A, true = matched on f2B
+	};
+	std::unordered_multimap<uint64_t, EdgeRef> vertexToEdge;
+	vertexToEdge.reserve(rEdges.size() * 2);
+	for (size_t i = 0; i < rEdges.size(); ++i)
+	{
+		vertexToEdge.insert({QuantizeKey(rEdges.at(i).f2A), {i, false}});
+		vertexToEdge.insert({QuantizeKey(rEdges.at(i).f2B), {i, true}});
+	}
+
 	std::vector<bool> used(rEdges.size(), false);
 
 	for (size_t i = 0; i < rEdges.size(); ++i)
@@ -191,29 +225,28 @@ void ChainEdgesIntoPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons, const
 		while (bGrowing)
 		{
 			bGrowing = false;
-			XMFLOAT2 f2Tail = polygon.back();
+			uint64_t uiTailKey = QuantizeKey(polygon.back());
 
-			for (size_t j = 0; j < rEdges.size(); ++j)
+			auto range = vertexToEdge.equal_range(uiTailKey);
+			for (auto it = range.first; it != range.second; ++it)
 			{
+				size_t j = it->second.iEdgeIndex;
 				if (used.at(j))
 				{
 					continue;
 				}
 
-				if (DistanceSq(f2Tail, rEdges.at(j).f2A) < kfEpsilonSq)
-				{
-					polygon.push_back(rEdges.at(j).f2B);
-					used.at(j) = true;
-					bGrowing = true;
-					break;
-				}
-				if (DistanceSq(f2Tail, rEdges.at(j).f2B) < kfEpsilonSq)
+				if (it->second.bIsEndpointB)
 				{
 					polygon.push_back(rEdges.at(j).f2A);
-					used.at(j) = true;
-					bGrowing = true;
-					break;
 				}
+				else
+				{
+					polygon.push_back(rEdges.at(j).f2B);
+				}
+				used.at(j) = true;
+				bGrowing = true;
+				break;
 			}
 		}
 
@@ -511,9 +544,9 @@ bool MidpointInsideObstacle(XMFLOAT2 f2A, XMFLOAT2 f2B, const std::vector<XMFLOA
 	return false;
 }
 
-void BuildVisibilityGraph(NavData& rNavData)
+void BuildVisibilityGraph(NavContour& rContour)
 {
-	int32_t iVertexCount = static_cast<int32_t>(rNavData.vertices.size());
+	int32_t iVertexCount = static_cast<int32_t>(rContour.vertices.size());
 
 	for (int32_t i = 0; i < iVertexCount; ++i)
 	{
@@ -521,10 +554,10 @@ void BuildVisibilityGraph(NavData& rNavData)
 		{
 			// Skip edges between adjacent vertices on the same polygon (they're polygon edges, not visibility edges)
 			bool bAdjacent = false;
-			for (size_t iPoly = 0; iPoly < rNavData.polygonOffsets.size(); ++iPoly)
+			for (size_t iPoly = 0; iPoly < rContour.polygonOffsets.size(); ++iPoly)
 			{
-				int32_t iStart = rNavData.polygonOffsets.at(iPoly);
-				int32_t iEnd = (iPoly + 1 < rNavData.polygonOffsets.size()) ? rNavData.polygonOffsets.at(iPoly + 1) : iVertexCount;
+				int32_t iStart = rContour.polygonOffsets.at(iPoly);
+				int32_t iEnd = (iPoly + 1 < rContour.polygonOffsets.size()) ? rContour.polygonOffsets.at(iPoly + 1) : iVertexCount;
 				int32_t iCount = iEnd - iStart;
 
 				if (i >= iStart && i < iEnd && j >= iStart && j < iEnd)
@@ -544,36 +577,33 @@ void BuildVisibilityGraph(NavData& rNavData)
 				continue;
 			}
 
-			XMFLOAT2 f2A = rNavData.vertices.at(i);
-			XMFLOAT2 f2B = rNavData.vertices.at(j);
+			XMFLOAT2 f2A = rContour.vertices.at(i);
+			XMFLOAT2 f2B = rContour.vertices.at(j);
 
-			if (SegmentIntersectsAnyEdge(f2A, f2B, rNavData.vertices, rNavData.polygonOffsets))
+			if (SegmentIntersectsAnyEdge(f2A, f2B, rContour.vertices, rContour.polygonOffsets))
 			{
 				continue;
 			}
 
-			if (MidpointInsideObstacle(f2A, f2B, rNavData.vertices, rNavData.polygonOffsets))
+			if (MidpointInsideObstacle(f2A, f2B, rContour.vertices, rContour.polygonOffsets))
 			{
 				continue;
 			}
 
-			rNavData.visEdgeA.push_back(i);
-			rNavData.visEdgeB.push_back(j);
+			rContour.visEdgeA.push_back(i);
+			rContour.visEdgeB.push_back(j);
 		}
 	}
 }
 
 } // anonymous namespace
 
-void BuildNavData(NavData& rNavData, const float* pfHeightmapData, int32_t iHeightmapWidth, int32_t iHeightmapHeight, float fBeachElevation, float fIslandWidth, float fIslandHeight)
+void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapWidth, int32_t iHeightmapHeight, float fBeachElevation, float fWorldThreshold)
 {
-	rNavData.fIslandWidth = fIslandWidth;
-	rNavData.fIslandHeight = fIslandHeight;
-
 	// Step 1: Extract contour edges via marching squares
 	std::vector<ContourEdge> contourEdges;
 	contourEdges.reserve(static_cast<size_t>(iHeightmapWidth) * static_cast<size_t>(iHeightmapHeight));
-	ExtractContourEdges(contourEdges, pfHeightmapData, iHeightmapWidth, iHeightmapHeight, fBeachElevation);
+	ExtractContourEdges(contourEdges, pfHeightmapData, iHeightmapWidth, iHeightmapHeight, fBeachElevation, fWorldThreshold);
 
 	if (contourEdges.empty())
 	{
@@ -594,7 +624,7 @@ void BuildNavData(NavData& rNavData, const float* pfHeightmapData, int32_t iHeig
 		InflatePolygon(rPolygon, kfInflateDistance);
 	}
 
-	// Step 4: Pack polygons into NavData flat arrays
+	// Step 4: Pack polygons into flat arrays
 	for (const std::vector<XMFLOAT2>& rPolygon : polygons)
 	{
 		if (rPolygon.size() < 3)
@@ -602,20 +632,115 @@ void BuildNavData(NavData& rNavData, const float* pfHeightmapData, int32_t iHeig
 			continue;
 		}
 
-		rNavData.polygonOffsets.push_back(static_cast<int32_t>(rNavData.vertices.size()));
+		rContour.polygonOffsets.push_back(static_cast<int32_t>(rContour.vertices.size()));
 		for (const XMFLOAT2& rVertex : rPolygon)
 		{
-			rNavData.vertices.push_back(rVertex);
+			rContour.vertices.push_back(rVertex);
 		}
 	}
 
-	if (rNavData.vertices.empty())
+	if (rContour.vertices.empty())
 	{
 		return;
 	}
 
 	// Step 5: Build visibility graph
-	BuildVisibilityGraph(rNavData);
+	BuildVisibilityGraph(rContour);
+}
+
+void XM_CALLCONV BuildCellNavData(NavData& rNavData, const NavContour& rContour, FXMVECTOR vecArea, IslandsFlip eFlip, XMFLOAT2 f2IslandOffset, float fIslandWidth, float fIslandHeight)
+{
+	int32_t iVertexCount = static_cast<int32_t>(rContour.vertices.size());
+	if (iVertexCount == 0)
+	{
+		return;
+	}
+
+	// Transform canonical UV vertices to world space
+	float fIslandMinX = XMVectorGetX(vecArea) + f2IslandOffset.x;
+	float fIslandMaxY = XMVectorGetY(vecArea) - f2IslandOffset.y;
+	bool bFlipU = (eFlip & kFlipX) != 0;
+	bool bFlipV = (eFlip & kFlipY) != 0;
+
+	rNavData.vertices.resize(iVertexCount);
+	for (int32_t i = 0; i < iVertexCount; ++i)
+	{
+		float fU = rContour.vertices.at(i).x;
+		float fV = rContour.vertices.at(i).y;
+
+		if (bFlipU)
+		{
+			fU = 1.0f - fU;
+		}
+		if (bFlipV)
+		{
+			fV = 1.0f - fV;
+		}
+
+		rNavData.vertices.at(i) = {fIslandMinX + fU * fIslandWidth, fIslandMaxY - fV * fIslandHeight};
+	}
+
+	// Copy topology (preserved across flips)
+	rNavData.polygonOffsets = rContour.polygonOffsets;
+	rNavData.visEdgeA = rContour.visEdgeA;
+	rNavData.visEdgeB = rContour.visEdgeB;
+}
+
+void NavData::Write(std::ostream& rStream) const
+{
+	common::Write(rStream, static_cast<int32_t>(vertices.size()));
+	for (const XMFLOAT2& rVertex : vertices)
+	{
+		common::Write(rStream, rVertex);
+	}
+
+	common::Write(rStream, static_cast<int32_t>(polygonOffsets.size()));
+	for (int32_t iOffset : polygonOffsets)
+	{
+		common::Write(rStream, iOffset);
+	}
+
+	common::Write(rStream, static_cast<int32_t>(visEdgeA.size()));
+	for (int32_t iEdge : visEdgeA)
+	{
+		common::Write(rStream, iEdge);
+	}
+	for (int32_t iEdge : visEdgeB)
+	{
+		common::Write(rStream, iEdge);
+	}
+}
+
+void NavData::Read(std::istream& rStream)
+{
+	int32_t iVertexCount = 0;
+	common::Read(rStream, iVertexCount);
+	vertices.resize(iVertexCount);
+	for (int32_t i = 0; i < iVertexCount; ++i)
+	{
+		common::Read(rStream, vertices.at(i));
+	}
+
+	int32_t iPolygonCount = 0;
+	common::Read(rStream, iPolygonCount);
+	polygonOffsets.resize(iPolygonCount);
+	for (int32_t i = 0; i < iPolygonCount; ++i)
+	{
+		common::Read(rStream, polygonOffsets.at(i));
+	}
+
+	int32_t iEdgeCount = 0;
+	common::Read(rStream, iEdgeCount);
+	visEdgeA.resize(iEdgeCount);
+	visEdgeB.resize(iEdgeCount);
+	for (int32_t i = 0; i < iEdgeCount; ++i)
+	{
+		common::Read(rStream, visEdgeA.at(i));
+	}
+	for (int32_t i = 0; i < iEdgeCount; ++i)
+	{
+		common::Read(rStream, visEdgeB.at(i));
+	}
 }
 
 } // namespace engine

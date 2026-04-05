@@ -26,7 +26,7 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 - [Audio/CLAUDE.md](Audio/CLAUDE.md) - XAudio2 3D spatial audio (client-only)
 - [Debug/CLAUDE.md](Debug/CLAUDE.md) - Vulkan debug utilities (client-only)
 - [File/CLAUDE.md](File/CLAUDE.md) - Asset loading, save files, DifferenceStream replay
-- [Frame/CLAUDE.md](Frame/CLAUDE.md) - Game state, collections, IslandTerrain, navigation (NavBuild/NavQuery)
+- [Frame/CLAUDE.md](Frame/CLAUDE.md) - Game state, collections, IslandTerrain, navigation (NavBuild/NavQuery with per-cell world-space NavData in FrameStaticData)
 - [Graphics/CLAUDE.md](Graphics/CLAUDE.md) - Vulkan multi-pass renderer (client-only)
 - [Input/CLAUDE.md](Input/CLAUDE.md) - Raw Input keyboard, DirectXTK mouse/gamepad (client-only)
 - [Memory/CLAUDE.md](Memory/CLAUDE.md) - Global allocator, allocation tracking

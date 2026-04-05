@@ -140,7 +140,7 @@ using PlayerFlags_t = common::Flags<PlayerFlags>;
 
 struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 {
-	static constexpr int64_t kiVersion = 11;
+	static constexpr int64_t kiVersion = 12;
 
 	// Collision layer (set each frame in PreCollision)
 	// thread_local: parallel per-Frame tick via Dispatch
@@ -171,10 +171,10 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	float* __restrict pfDestroyedExplosionTimes = nullptr;
 	float* __restrict pfShieldDownSoundCooldowns = nullptr;
 	XMVECTOR* __restrict pVecAiDirections = nullptr;
-	float* __restrict pfAiEdgeCrossCooldowns = nullptr;
-	int8_t* __restrict piAiEdgeCrossTargets = nullptr;
 	float* __restrict pfTransferLockTimers = nullptr;
 	float* __restrict pfArrivalGracePeriods = nullptr;
+	float* __restrict pfFrameChangeTimers = nullptr;
+	int8_t* __restrict piNavDirections = nullptr;
 	engine::ClientGuid* __restrict pClientGuids = nullptr;
 	engine::global_player_t* __restrict pGlobalPlayerIds = nullptr;
 
@@ -186,8 +186,9 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 			rSelf.pfArmors, rSelf.pfShields, rSelf.pfShieldCooldowns,
 			rSelf.pfDestroyedExplosionTimes, rSelf.pfShieldDownSoundCooldowns,
 			rSelf.pVecAiDirections,
-			rSelf.pfAiEdgeCrossCooldowns, rSelf.piAiEdgeCrossTargets,
-			rSelf.pfTransferLockTimers, rSelf.pfArrivalGracePeriods, rSelf.pClientGuids, rSelf.pGlobalPlayerIds);
+			rSelf.pfTransferLockTimers, rSelf.pfArrivalGracePeriods,
+			rSelf.pfFrameChangeTimers, rSelf.piNavDirections,
+			rSelf.pClientGuids, rSelf.pGlobalPlayerIds);
 	}
 
 	// CRC-only subset: excludes pClientGuids and pGlobalPlayerIds which are server-side bookkeeping
@@ -199,8 +200,8 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 			rSelf.pfArmors, rSelf.pfShields, rSelf.pfShieldCooldowns,
 			rSelf.pfDestroyedExplosionTimes, rSelf.pfShieldDownSoundCooldowns,
 			rSelf.pVecAiDirections,
-			rSelf.pfAiEdgeCrossCooldowns, rSelf.piAiEdgeCrossTargets,
-			rSelf.pfTransferLockTimers, rSelf.pfArrivalGracePeriods);
+			rSelf.pfTransferLockTimers, rSelf.pfArrivalGracePeriods,
+			rSelf.pfFrameChangeTimers, rSelf.piNavDirections);
 	}
 
 	// Utility
@@ -225,6 +226,8 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 		PlayerFlags_t flags = {PlayerFlags::kBlasterSpawnLeft};
 		float fTransferLockTimer = 0.0f;
 		float fArrivalGracePeriod = 0.0f;
+		float fFrameChangeTimer = 0.0f;
+		int8_t iNavDirection = -1;
 		engine::global_player_t globalPlayerId {};
 	};
 
