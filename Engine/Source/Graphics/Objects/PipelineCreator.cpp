@@ -290,7 +290,7 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+		.topology = rPipelineInfo.flags & PipelineFlags::kLineList ? VK_PRIMITIVE_TOPOLOGY_LINE_LIST : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
 		.primitiveRestartEnable = VK_FALSE,
 	};
 

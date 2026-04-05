@@ -37,6 +37,12 @@
     <Filter Include="Engine\Graphics\Render">
       <UniqueIdentifier>{a1b2c3d4-e5f6-7890-abcd-ef1234567890}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Engine\Graphics\Debug">
+      <UniqueIdentifier>{b2c3d4e5-f6a7-8901-bcde-f12345678901}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Data\Shaders\Debug">
+      <UniqueIdentifier>{c3d4e5f6-a7b8-9012-cdef-123456789012}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Game">
       <UniqueIdentifier>{a470bb84-b6ed-4e31-b3ff-6414dfd76133}</UniqueIdentifier>
     </Filter>
@@ -182,6 +188,9 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Engine\Source\Debug\EnumToString.h">
       <Filter>Engine\Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Debug\DebugRender.h">
+      <Filter>Engine\Graphics\Debug</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\File\FileManager.h">
       <Filter>Engine\File</Filter>
@@ -929,6 +938,9 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\CameraBase.cpp">
       <Filter>Engine\Graphics</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Debug\DebugRender.cpp">
+      <Filter>Engine\Graphics\Debug</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\Graphics\Camera.cpp">
       <Filter>Game\Graphics</Filter>
     </ClCompile>
@@ -1216,6 +1228,12 @@
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Clear.frag">
       <Filter>Engine\Data\Shaders</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Debug\DebugRender.frag">
+      <Filter>Engine\Data\Shaders\Debug</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Debug\DebugRender.vert">
+      <Filter>Engine\Data\Shaders\Debug</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\DebugTexture.frag">
       <Filter>Engine\Data\Shaders</Filter>

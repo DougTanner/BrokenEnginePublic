@@ -33,6 +33,134 @@ BufferManager::BufferManager()
 		memcpy(static_cast<char*>(pData) + sizeof(puiQuads), pfQuads, sizeof(pfQuads));
 	});
 
+	if constexpr (kbDebugRender)
+	{
+		// Box: 8 vertices (unit cube -0.5..+0.5), 12 edges = 24 indices
+		{
+			constexpr float h = 0.5f;
+			float pfVertices[] =
+			{
+				-h, -h, -h,  h, -h, -h,  h,  h, -h, -h,  h, -h,
+				-h, -h,  h,  h, -h,  h,  h,  h,  h, -h,  h,  h,
+			};
+			uint16_t puiIndices[] =
+			{
+				0, 1, 1, 2, 2, 3, 3, 0,
+				4, 5, 5, 6, 6, 7, 7, 4,
+				0, 4, 1, 5, 2, 6, 3, 7,
+			};
+			mDebugBoxVertexBuffer.Create(
+			{
+				.name = "DebugBox",
+				.flags = {kIndexVertex, kDeviceLocal},
+				.iCount = std::size(puiIndices),
+				.vkIndexType = VK_INDEX_TYPE_UINT16,
+				.iVertexStride = sizeof(float) * 3,
+				.dataVkDeviceSize = sizeof(puiIndices) + sizeof(pfVertices),
+			},
+			[&](void* pData)
+			{
+				memcpy(pData, puiIndices, sizeof(puiIndices));
+				memcpy(static_cast<char*>(pData) + sizeof(puiIndices), pfVertices, sizeof(pfVertices));
+			});
+		}
+
+		// Sphere: 3 great circles (XY, XZ, YZ), 32 segments each
+		{
+			constexpr int64_t kiSegments = 32;
+			constexpr int64_t kiCircles = 3;
+			float pfVertices[kiCircles * kiSegments * 3] {};
+			uint16_t puiIndices[kiCircles * kiSegments * 2] {};
+
+			for (int64_t c = 0; c < kiCircles; ++c)
+			{
+				for (int64_t s = 0; s < kiSegments; ++s)
+				{
+					float fAngle = XM_2PI * static_cast<float>(s) / static_cast<float>(kiSegments);
+					float fCos = cosf(fAngle);
+					float fSin = sinf(fAngle);
+					int64_t iVertex = (c * kiSegments + s) * 3;
+					switch (c)
+					{
+					case 0: pfVertices[iVertex] = fCos; pfVertices[iVertex + 1] = fSin; pfVertices[iVertex + 2] = 0.0f; break; // XY
+					case 1: pfVertices[iVertex] = fCos; pfVertices[iVertex + 1] = 0.0f; pfVertices[iVertex + 2] = fSin; break; // XZ
+					case 2: pfVertices[iVertex] = 0.0f; pfVertices[iVertex + 1] = fCos; pfVertices[iVertex + 2] = fSin; break; // YZ
+					}
+					int64_t iIndex = (c * kiSegments + s) * 2;
+					puiIndices[iIndex] = static_cast<uint16_t>(c * kiSegments + s);
+					puiIndices[iIndex + 1] = static_cast<uint16_t>(c * kiSegments + ((s + 1) % kiSegments));
+				}
+			}
+			mDebugSphereVertexBuffer.Create(
+			{
+				.name = "DebugSphere",
+				.flags = {kIndexVertex, kDeviceLocal},
+				.iCount = std::size(puiIndices),
+				.vkIndexType = VK_INDEX_TYPE_UINT16,
+				.iVertexStride = sizeof(float) * 3,
+				.dataVkDeviceSize = sizeof(puiIndices) + sizeof(pfVertices),
+			},
+			[&](void* pData)
+			{
+				memcpy(pData, puiIndices, sizeof(puiIndices));
+				memcpy(static_cast<char*>(pData) + sizeof(puiIndices), pfVertices, sizeof(pfVertices));
+			});
+		}
+
+		// Circle: 1 circle in XZ plane, 32 segments
+		{
+			constexpr int64_t kiSegments = 32;
+			float pfVertices[kiSegments * 3] {};
+			uint16_t puiIndices[kiSegments * 2] {};
+
+			for (int64_t s = 0; s < kiSegments; ++s)
+			{
+				float fAngle = XM_2PI * static_cast<float>(s) / static_cast<float>(kiSegments);
+				int64_t iVertex = s * 3;
+				pfVertices[iVertex] = cosf(fAngle);
+				pfVertices[iVertex + 1] = 0.0f;
+				pfVertices[iVertex + 2] = sinf(fAngle);
+				int64_t iIndex = s * 2;
+				puiIndices[iIndex] = static_cast<uint16_t>(s);
+				puiIndices[iIndex + 1] = static_cast<uint16_t>((s + 1) % kiSegments);
+			}
+			mDebugCircleVertexBuffer.Create(
+			{
+				.name = "DebugCircle",
+				.flags = {kIndexVertex, kDeviceLocal},
+				.iCount = std::size(puiIndices),
+				.vkIndexType = VK_INDEX_TYPE_UINT16,
+				.iVertexStride = sizeof(float) * 3,
+				.dataVkDeviceSize = sizeof(puiIndices) + sizeof(pfVertices),
+			},
+			[&](void* pData)
+			{
+				memcpy(pData, puiIndices, sizeof(puiIndices));
+				memcpy(static_cast<char*>(pData) + sizeof(puiIndices), pfVertices, sizeof(pfVertices));
+			});
+		}
+
+		// Line: 2 vertices along +X
+		{
+			float pfVertices[] = {0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f};
+			uint16_t puiIndices[] = {0, 1};
+			mDebugLineVertexBuffer.Create(
+			{
+				.name = "DebugLine",
+				.flags = {kIndexVertex, kDeviceLocal},
+				.iCount = std::size(puiIndices),
+				.vkIndexType = VK_INDEX_TYPE_UINT16,
+				.iVertexStride = sizeof(float) * 3,
+				.dataVkDeviceSize = sizeof(puiIndices) + sizeof(pfVertices),
+			},
+			[&](void* pData)
+			{
+				memcpy(pData, puiIndices, sizeof(puiIndices));
+				memcpy(static_cast<char*>(pData) + sizeof(puiIndices), pfVertices, sizeof(pfVertices));
+			});
+		}
+	}
+
 	const std::unordered_map<common::crc_t, EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
 	for (auto& [rCrc, rChunk] : rChunkMap)
 	{

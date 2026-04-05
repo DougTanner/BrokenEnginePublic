@@ -278,7 +278,7 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[ma
 			DEBUG_BREAK();
 		}
 		rFrame.postRender.transferRequests.push_back(request);
-		Log(kLogNetwork, kVerbose, "  Transfer Player: {} Delta: ({},{})", request.iEntityId, request.iDeltaX, request.iDeltaY);
+		Log(kLogNetwork, kVerbose, "  Transfer Player: {} GlobalId: {} Delta: ({},{})", request.iEntityId, request.data.globalPlayerId.iValue, request.iDeltaX, request.iDeltaY);
 
 #if defined(BT_CLIENT)
 		RemoveOwnedVisuals(rFrame, rCurrentInterpolate, i);

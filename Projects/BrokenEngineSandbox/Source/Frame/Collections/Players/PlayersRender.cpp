@@ -4,7 +4,9 @@
 
 #include "Data/Scene.h"
 
+#include "Graphics/Debug/DebugRender.h"
 #include "Profile/ProfileManager.h"
+#include "Frame/Collections/Spaceships/Spaceships.h"
 
 namespace game
 {
@@ -149,6 +151,57 @@ void PlayersInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpo
 		}
 
 		++siRendered;
+	}
+
+	// Debug: draw red line from each player to nearest alive spaceship
+	if constexpr (kbDebugRender)
+	{
+		const SpaceshipsInterpolate& rSpaceships = *rFrameInterpolate.pSpaceships;
+
+		for (int64_t i = 0; i < iCount; ++i)
+		{
+			XMVECTOR vecPosition = rCurrent.pVecPositions[i];
+
+			// Find nearest alive spaceship
+			float fClosestDistanceSq = std::numeric_limits<float>::max();
+			XMVECTOR vecClosestPosition = XMVectorZero();
+			bool bFound = false;
+
+			for (int64_t j = 0; j < rSpaceships.iCount; ++j)
+			{
+				if (rSpaceships.pfDestroyedTimes[j] != -1.0f)
+				{
+					continue;
+				}
+
+				float fDistanceSq = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(vecPosition, rSpaceships.pVecPositions[j])));
+				if (fDistanceSq < fClosestDistanceSq)
+				{
+					fClosestDistanceSq = fDistanceSq;
+					vecClosestPosition = rSpaceships.pVecPositions[j];
+					bFound = true;
+				}
+			}
+
+			if (bFound)
+			{
+				XMFLOAT3A f3Start {};
+				XMFLOAT3A f3End {};
+				XMStoreFloat3A(&f3Start, vecPosition);
+				XMStoreFloat3A(&f3End, vecClosestPosition);
+				engine::DebugRender::Line(f3Start, f3End, {1.0f, 0.0f, 0.0f, 1.0f});
+			}
+
+			// Green line to nav destination (when navigating to next frame)
+			if (XMVectorGetW(rCurrent.pVecDebugNavDestinations[i]) > 0.0f)
+			{
+				XMFLOAT3A f3NavStart {};
+				XMFLOAT3A f3NavEnd {};
+				XMStoreFloat3A(&f3NavStart, vecPosition);
+				XMStoreFloat3A(&f3NavEnd, rCurrent.pVecDebugNavDestinations[i]);
+				engine::DebugRender::Line(f3NavStart, f3NavEnd, {0.0f, 1.0f, 0.0f, 1.0f});
+			}
+		}
 	}
 }
 

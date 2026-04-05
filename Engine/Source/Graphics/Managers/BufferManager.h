@@ -94,6 +94,11 @@ public:
 	Buffer mTerrainMeshBuffer;
 	Buffer mWaterMeshBuffer;
 
+	Buffer mDebugBoxVertexBuffer;
+	Buffer mDebugSphereVertexBuffer;
+	Buffer mDebugCircleVertexBuffer;
+	Buffer mDebugLineVertexBuffer;
+
 	std::vector<Buffer> mLongParticlesSpawnStorageBuffers;
 	Buffer mLongParticlesStorageBuffer;
 

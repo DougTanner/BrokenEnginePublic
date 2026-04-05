@@ -584,7 +584,11 @@ void CommandBufferManager::RecordLightingSpreadPipeline(VkCommandBuffer vkComman
 		uint32_t uiCombineWidth = rRenderTargetTextures.mpCombineTextures[0].mInfo.extent.width;
 		uint32_t uiCombineHeight = rRenderTargetTextures.mpCombineTextures[0].mInfo.extent.height;
 		shaders::PushConstantsLayout combinePushConstants {};
-		struct CombineData { uint32_t uiWidth; uint32_t uiHeight; };
+		struct CombineData
+		{
+			uint32_t uiWidth;
+			uint32_t uiHeight;
+		};
 		CombineData combineData
 		{
 			.uiWidth = uiCombineWidth,
@@ -853,6 +857,14 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 			pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 		}
 		gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerBillboards);
+
+		if constexpr (kbDebugRender)
+		{
+			pPipelines[kPipelineDebugBox].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+			pPipelines[kPipelineDebugSphere].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+			pPipelines[kPipelineDebugCircle].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+			pPipelines[kPipelineDebugLine].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+		}
 	}
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerText);

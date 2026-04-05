@@ -214,6 +214,31 @@ void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rF
 
 			engine::HexShieldsInterpolate::Sync(rFrameInterpolate, rCurrent.pHexShields[i], syncData);
 		}
+
+		// Debug: store nav destination for debug line rendering
+		if constexpr (kbDebugRender)
+		{
+			int8_t iNavDirection = rPreviousPostRender.piNavDirections[i];
+			if (iNavDirection >= 0)
+			{
+				// Compute frame center from player position (cells are kfCellWidth x kfCellHeight aligned to origin)
+				float fCenterX = std::round(XMVectorGetX(vecPosition) / Frame::kfCellWidth) * Frame::kfCellWidth;
+				float fCenterY = std::round(XMVectorGetY(vecPosition) / Frame::kfCellHeight) * Frame::kfCellHeight;
+				XMVECTOR vecDestination = XMVectorSet(fCenterX, fCenterY, 0.0f, 0.0f);
+				switch (iNavDirection)
+				{
+					case 0: vecDestination = XMVectorAdd(vecDestination, XMVectorSet(0.0f, Frame::kfCellHeight, 0.0f, 0.0f)); break;
+					case 1: vecDestination = XMVectorAdd(vecDestination, XMVectorSet(0.0f, -Frame::kfCellHeight, 0.0f, 0.0f)); break;
+					case 2: vecDestination = XMVectorAdd(vecDestination, XMVectorSet(Frame::kfCellWidth, 0.0f, 0.0f, 0.0f)); break;
+					case 3: vecDestination = XMVectorAdd(vecDestination, XMVectorSet(-Frame::kfCellWidth, 0.0f, 0.0f, 0.0f)); break;
+				}
+				rCurrent.pVecDebugNavDestinations[i] = XMVectorSetW(vecDestination, 1.0f);
+			}
+			else
+			{
+				rCurrent.pVecDebugNavDestinations[i] = XMVectorZero();
+			}
+		}
 #endif // BT_CLIENT
 	}
 }
@@ -281,7 +306,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 			if (fFrameChangeTimer <= 0.0f && iNavDirection == -1)
 			{
 				iNavDirection = static_cast<int8_t>(common::Random(3u, rFrame.postRender.randomEngine));
-				Log(kVerbose, "Player {} picked navDir={}", i, iNavDirection); // DT TEMP
+				Log(kLogNetwork, kVerbose, "Player {} GlobalId: {} started transition NavDir: {}", i, rCurrent.pGlobalPlayerIds[i].iValue, iNavDirection); // DT TEMP
 			}
 
 			if (iNavDirection >= 0)

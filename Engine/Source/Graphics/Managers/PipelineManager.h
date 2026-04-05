@@ -53,6 +53,11 @@ enum Pipelines
 
 	kPipelineDebugTexture,
 
+	kPipelineDebugBox,
+	kPipelineDebugSphere,
+	kPipelineDebugCircle,
+	kPipelineDebugLine,
+
 	kPipelineCount
 };
 
@@ -72,6 +77,7 @@ public:
 	void CreateTerrainDataPipelines();
 	void CreateSmokeWindPipelines();
 	void CreateParticlePipelines();
+	void CreateDebugRenderPipelines();
 	void RecreatePipelineGroups(DestroyFlags_t flags);
 
 	Pipeline mpPipelines[kPipelineCount];

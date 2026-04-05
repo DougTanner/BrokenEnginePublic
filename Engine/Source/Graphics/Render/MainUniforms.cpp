@@ -3,6 +3,7 @@
 #include "Render.h"
 
 #include "Game.h"
+#include "Graphics/Debug/DebugRender.h"
 
 namespace engine
 {
@@ -44,6 +45,9 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 
 	// Phase 3: EndRender — write indirect draw buffer counts
 	game::FrameInterpolate::EndRender(iCommandBuffer);
+
+	DebugRender::BeginRender(iCommandBuffer);
+	DebugRender::EndRender(iCommandBuffer);
 
 	// Post-render MainLayout setup (camera matrices, wave params, hex shields, camera shake)
 	const game::FrameInterpolate& rFrameInterpolate = rCameraInterpolate;

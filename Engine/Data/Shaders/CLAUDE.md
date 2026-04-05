@@ -34,6 +34,7 @@ New shader files are auto-discovered by the DataPacker at build time, but must a
 
 ## See Also
 
+- [Debug/CLAUDE.md](Debug/CLAUDE.md) - Wireframe debug visualization shaders (DebugRender box/sphere/circle/line)
 - [Lighting/CLAUDE.md](Lighting/CLAUDE.md) - Area, point, and visible light shaders with deposit and radial spread pipeline
 - [Quads/CLAUDE.md](Quads/CLAUDE.md) - Quad vertex shaders (visible-area, axis-aligned, fullscreen)
 - [Model/CLAUDE.md](Model/CLAUDE.md) - PBR model rendering shaders

@@ -85,6 +85,7 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 	HexShieldDirections* __restrict pHexShieldDirections = nullptr;
 	HexShieldIntensities* __restrict pHexShieldVertIntensities = nullptr;
 	HexShieldIntensities* __restrict pHexShieldFragIntensities = nullptr;
+	XMVECTOR* __restrict pVecDebugNavDestinations = nullptr;
 #endif // BT_CLIENT
 
 	auto SharedMembers(this auto&& rSelf)
@@ -98,7 +99,8 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 		return std::tie(rSelf.pfRotationAccelerationXs, rSelf.pfRotationAccelerationYs,
 			rSelf.pWindTrails,
 			rSelf.pHexShields, rSelf.pfShieldRotations, rSelf.pfShieldShrinks,
-			rSelf.pHexShieldDirections, rSelf.pHexShieldVertIntensities, rSelf.pHexShieldFragIntensities);
+			rSelf.pHexShieldDirections, rSelf.pHexShieldVertIntensities, rSelf.pHexShieldFragIntensities,
+			rSelf.pVecDebugNavDestinations);
 	}
 #endif // BT_CLIENT
 	auto Members(this auto&& rSelf)

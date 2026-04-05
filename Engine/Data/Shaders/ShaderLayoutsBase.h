@@ -496,6 +496,12 @@ struct BillboardLayout
 	float fAlpha INIT;
 };
 
+struct DebugRenderLayout
+{
+	vec4 f3x4Transform[3] INIT;
+	vec4 f4Color INIT;
+};
+
 struct QuadLayout
 {
 	vec4 pf4VerticesTexcoords[4] INIT;

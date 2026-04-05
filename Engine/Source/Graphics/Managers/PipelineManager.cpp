@@ -120,6 +120,7 @@ PipelineManager::PipelineManager()
 	CreateSmokeWindPipelines();
 
 	CreateParticlePipelines();
+	CreateDebugRenderPipelines();
 
 	game::FrameInterpolate::GraphicsResources();
 }
@@ -658,6 +659,52 @@ void PipelineManager::CreateParticlePipelines()
 			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineSquareParticlesLighting].mIndirectVkBuffer},
 		},
 	});
+}
+
+void PipelineManager::CreateDebugRenderPipelines()
+{
+	if constexpr (!kbDebugRender)
+	{
+		return;
+	}
+
+	using enum DescriptorFlags;
+	using enum PipelineFlags;
+
+	struct DebugRenderPipelineEntry
+	{
+		Pipelines ePipeline;
+		std::string_view name;
+		common::crc_t crc;
+		Buffer* pVertexBuffer;
+	};
+
+	DebugRenderPipelineEntry pEntries[]
+	{
+		{kPipelineDebugBox,    "DebugBox",    common::CrcConsteval("DebugBox"),    &gpBufferManager->mDebugBoxVertexBuffer},
+		{kPipelineDebugSphere, "DebugSphere", common::CrcConsteval("DebugSphere"), &gpBufferManager->mDebugSphereVertexBuffer},
+		{kPipelineDebugCircle, "DebugCircle", common::CrcConsteval("DebugCircle"), &gpBufferManager->mDebugCircleVertexBuffer},
+		{kPipelineDebugLine,   "DebugLine",   common::CrcConsteval("DebugLine"),   &gpBufferManager->mDebugLineVertexBuffer},
+	};
+
+	for (const DebugRenderPipelineEntry& rEntry : pEntries)
+	{
+		gpBufferManager->CreateDynamicBuffer(rEntry.crc, kBufferMain, rEntry.name, sizeof(shaders::DebugRenderLayout));
+
+		mpPipelines[rEntry.ePipeline].Create(
+		{
+			.name = rEntry.name,
+			.flags = {kIndirectHostVisible, kLineList, kAlphaBlend, kUpdateAfterBind},
+			.ppShaders = {&mShaders.at(data::kShadersDebugDebugRendervertCrc), &mShaders.at(data::kShadersDebugDebugRenderfragCrc)},
+			.pVertexBuffer = rEntry.pVertexBuffer,
+			.pDescriptorInfos =
+			{
+				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+				{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(rEntry.crc).data()},
+			},
+		});
+	}
 }
 
 void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)

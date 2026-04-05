@@ -63,6 +63,7 @@ enum class PipelineFlags : uint64_t
 	kUpdateAfterBind           = 0x8000,
 	kAddAlpha                  = 0x10000,
 	kMultiSet                  = 0x20000,
+	kLineList                  = 0x40000,
 };
 using PipelineFlags_t = common::Flags<PipelineFlags>;
 
