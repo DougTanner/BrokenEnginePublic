@@ -614,6 +614,8 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	rCurrentInterpolate.pHexShieldDirections[iIndex] = {};
 	rCurrentInterpolate.pHexShieldVertIntensities[iIndex] = {};
 	rCurrentInterpolate.pHexShieldFragIntensities[iIndex] = {};
+	rCurrentInterpolate.pVecDebugNavDestinations[iIndex] = XMVectorZero();
+	rCurrentInterpolate.pVecDebugIslandDestinations[iIndex] = XMVectorZero();
 #endif // BT_CLIENT
 
 	// Initialize post render state
@@ -636,8 +638,12 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	float fRandomTimer = 15.0f + common::Random<10.0f>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfFrameChangeTimers[iIndex] = (rInfo.fFrameChangeTimer > 0.0f) ? rInfo.fFrameChangeTimer : fRandomTimer;
 	rCurrentPostRender.piNavDirections[iIndex] = rInfo.iNavDirection;
+	rCurrentPostRender.pVecIslandDestinations[iIndex] = XMVectorZero();
 	rCurrentPostRender.pClientGuids[iIndex] = {};
 	rCurrentPostRender.pGlobalPlayerIds[iIndex] = rInfo.globalPlayerId;
+#if defined(BT_CLIENT)
+	rCurrentPostRender.pVecDebugNavWaypoints[iIndex] = XMVectorZero();
+#endif // BT_CLIENT
 }
 
 bool PlayersInterpolate::LogDifferences(const PlayersInterpolate& rOther) const
@@ -681,6 +687,7 @@ bool PlayersPostRender::LogDifferences(const PlayersPostRender& rOther) const
 		bEqual &= common::LogDifference<"pfArrivalGracePeriods">(i, pfArrivalGracePeriods[i], rOther.pfArrivalGracePeriods[i]);
 		bEqual &= common::LogDifference<"pfFrameChangeTimers">(i, pfFrameChangeTimers[i], rOther.pfFrameChangeTimers[i]);
 		bEqual &= common::LogDifference<"piNavDirections">(i, piNavDirections[i], rOther.piNavDirections[i]);
+		bEqual &= common::LogDifference_Vec("pVecIslandDestinations", i, pVecIslandDestinations[i], rOther.pVecIslandDestinations[i]);
 		bEqual &= common::LogDifference<"pClientGuids.uiHigh">(i, pClientGuids[i].uiHigh, rOther.pClientGuids[i].uiHigh);
 		bEqual &= common::LogDifference<"pClientGuids.uiLow">(i, pClientGuids[i].uiLow, rOther.pClientGuids[i].uiLow);
 		bEqual &= common::LogDifference<"pGlobalPlayerIds">(i, pGlobalPlayerIds[i].iValue, rOther.pGlobalPlayerIds[i].iValue);

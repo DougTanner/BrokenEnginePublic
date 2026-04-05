@@ -107,6 +107,66 @@ float Distance(XMFLOAT2 f2A, XMFLOAT2 f2B)
 	return std::sqrt(fDx * fDx + fDy * fDy);
 }
 
+// Find the nearest point on any polygon edge to the given position
+XMFLOAT2 NearestPolygonEdgePoint(XMFLOAT2 f2Position, const XMFLOAT2* pVertices, const NavData& rNavData)
+{
+	float fBestDistSq = std::numeric_limits<float>::max();
+	XMFLOAT2 f2BestPoint = f2Position;
+
+	for (size_t iPoly = 0; iPoly < rNavData.polygonOffsets.size(); ++iPoly)
+	{
+		int32_t iStart = rNavData.polygonOffsets.at(iPoly);
+		int32_t iEnd = (iPoly + 1 < rNavData.polygonOffsets.size()) ? rNavData.polygonOffsets.at(iPoly + 1) : static_cast<int32_t>(rNavData.vertices.size());
+		int32_t iCount = iEnd - iStart;
+
+		for (int32_t i = 0; i < iCount; ++i)
+		{
+			int32_t iNext = (i + 1) % iCount;
+			XMFLOAT2 f2A = pVertices[iStart + i];
+			XMFLOAT2 f2B = pVertices[iStart + iNext];
+
+			float fEdgeDx = f2B.x - f2A.x;
+			float fEdgeDy = f2B.y - f2A.y;
+			float fEdgeLenSq = fEdgeDx * fEdgeDx + fEdgeDy * fEdgeDy;
+
+			float fT = 0.0f;
+			if (fEdgeLenSq > 1e-10f)
+			{
+				fT = std::clamp(((f2Position.x - f2A.x) * fEdgeDx + (f2Position.y - f2A.y) * fEdgeDy) / fEdgeLenSq, 0.0f, 1.0f);
+			}
+
+			XMFLOAT2 f2Closest {f2A.x + fT * fEdgeDx, f2A.y + fT * fEdgeDy};
+			float fDx = f2Closest.x - f2Position.x;
+			float fDy = f2Closest.y - f2Position.y;
+			float fDistSq = fDx * fDx + fDy * fDy;
+
+			if (fDistSq < fBestDistSq)
+			{
+				fBestDistSq = fDistSq;
+				f2BestPoint = f2Closest;
+			}
+		}
+	}
+
+	return f2BestPoint;
+}
+
+// Snap a point inside a polygon to just outside the nearest edge
+XMFLOAT2 SnapOutsidePolygon(XMFLOAT2 f2Position, const XMFLOAT2* pVertices, const NavData& rNavData)
+{
+	static constexpr float kfSnapOffset = 0.5f;
+	XMFLOAT2 f2EdgePoint = NearestPolygonEdgePoint(f2Position, pVertices, rNavData);
+	float fDx = f2EdgePoint.x - f2Position.x;
+	float fDy = f2EdgePoint.y - f2Position.y;
+	float fLen = std::sqrt(fDx * fDx + fDy * fDy);
+	if (fLen > 1e-6f)
+	{
+		f2EdgePoint.x += (fDx / fLen) * kfSnapOffset;
+		f2EdgePoint.y += (fDy / fLen) * kfSnapOffset;
+	}
+	return f2EdgePoint;
+}
+
 // A* scratch memory layout, allocated as a single contiguous block
 struct AStarMemory
 {
@@ -155,7 +215,7 @@ AStarMemory PartitionAStarMemory(std::byte* pMemory, int32_t iTotalNodes, int32_
 
 // A* pathfinding on the visibility graph with temporary start/end nodes
 // Returns the direction toward the first waypoint, or zero vector if no path found
-XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, const NavData& rNavData, const AStarMemory& rMemory)
+XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, const NavData& rNavData, const AStarMemory& rMemory, XMVECTOR* pOutNextWaypoint)
 {
 	int32_t iVertexCount = static_cast<int32_t>(rNavData.vertices.size());
 	int32_t iStartNode = iVertexCount;
@@ -222,6 +282,10 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 			}
 
 			XMFLOAT2 f2Waypoint = GetPosition(iNode);
+			if (pOutNextWaypoint != nullptr)
+			{
+				*pOutNextWaypoint = XMVectorSet(f2Waypoint.x, f2Waypoint.y, 0.0f, 0.0f);
+			}
 			XMVECTOR vecDirection = XMVectorSet(f2Waypoint.x - f2Start.x, f2Waypoint.y - f2Start.y, 0.0f, 0.0f);
 			return XMVector3Normalize(vecDirection);
 		}
@@ -326,7 +390,24 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 
 } // anonymous namespace
 
-XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDestination, const NavData& rNavData)
+XMVECTOR XM_CALLCONV NavQuerySnapToNavigable(FXMVECTOR vecPosition, const NavData& rNavData)
+{
+	const XMFLOAT2* pVertices = rNavData.vertices.data();
+
+	XMFLOAT4A f4Position {};
+	XMStoreFloat4A(&f4Position, vecPosition);
+	XMFLOAT2 f2Position {f4Position.x, f4Position.y};
+
+	if (!PointInAnyPolygon(f2Position, pVertices, rNavData))
+	{
+		return vecPosition;
+	}
+
+	XMFLOAT2 f2BestPoint = SnapOutsidePolygon(f2Position, pVertices, rNavData);
+	return XMVectorSet(f2BestPoint.x, f2BestPoint.y, 0.0f, XMVectorGetW(vecPosition));
+}
+
+XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDestination, const NavData& rNavData, XMVECTOR* pOutNextWaypoint)
 {
 	XMVECTOR vecDelta = XMVectorSubtract(vecDestination, vecPosition);
 	if (XMVector3LengthSq(vecDelta).m128_f32[0] < 1e-8f)
@@ -347,7 +428,7 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	std::byte* pMemory = rWorkbuffer.PushBuffer<std::byte*>(iAStarBytes);
-	AStarMemory astarMemory = PartitionAStarMemory(pMemory, iTotalNodes, iVertexCount);
+	AStarMemory aStarMemory = PartitionAStarMemory(pMemory, iTotalNodes, iVertexCount);
 
 	const XMFLOAT2* pVertices = rNavData.vertices.data();
 
@@ -361,18 +442,72 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 
 	XMVECTOR vecResult = XMVectorZero();
 
-	// Check if destination is inside an obstacle
-	if (!PointInAnyPolygon(f2Destination, pVertices, rNavData))
+	// If start is inside an obstacle, direct toward nearest polygon edge to escape first
+	if (PointInAnyPolygon(f2Position, pVertices, rNavData))
 	{
-		// Fast path: direct line of sight
-		if (!SegmentBlockedByObstacle(f2Position, f2Destination, pVertices, rNavData))
+		XMFLOAT2 f2SnapPoint = SnapOutsidePolygon(f2Position, pVertices, rNavData);
+		XMVECTOR vecEscape = XMVectorSet(f2SnapPoint.x - f4Position.x, f2SnapPoint.y - f4Position.y, 0.0f, 0.0f);
+		if (XMVector3LengthSq(vecEscape).m128_f32[0] > 1e-8f)
 		{
-			vecResult = XMVector3Normalize(XMVectorSubtract(vecDestination, vecPosition));
+			if (pOutNextWaypoint != nullptr)
+			{
+				*pOutNextWaypoint = XMVectorSet(f2SnapPoint.x, f2SnapPoint.y, 0.0f, 0.0f);
+			}
+			rWorkbuffer.Pop();
+			return XMVector3Normalize(vecEscape);
 		}
-		else
+		f2Position = f2SnapPoint;
+	}
+
+	// If destination is inside an obstacle, snap it to nearest navigable point
+	if (PointInAnyPolygon(f2Destination, pVertices, rNavData))
+	{
+		f2Destination = SnapOutsidePolygon(f2Destination, pVertices, rNavData);
+	}
+
+	// Fast path: direct line of sight
+	if (!SegmentBlockedByObstacle(f2Position, f2Destination, pVertices, rNavData))
+	{
+		if (pOutNextWaypoint != nullptr)
 		{
-			// A* pathfinding on visibility graph
-			vecResult = AStarPath(f2Position, f2Destination, pVertices, rNavData, astarMemory);
+			*pOutNextWaypoint = XMVectorSet(f2Destination.x, f2Destination.y, 0.0f, 0.0f);
+		}
+		vecResult = XMVector3Normalize(XMVectorSet(f2Destination.x - f2Position.x, f2Destination.y - f2Position.y, 0.0f, 0.0f));
+	}
+	else
+	{
+		// A* pathfinding on visibility graph
+		vecResult = AStarPath(f2Position, f2Destination, pVertices, rNavData, aStarMemory, pOutNextWaypoint);
+
+		// Fallback: if A* found no path, move toward nearest visible obstacle vertex
+		if (XMVectorGetX(XMVector3LengthSq(vecResult)) < 1e-8f)
+		{
+			float fBestDist = std::numeric_limits<float>::max();
+			XMFLOAT2 f2BestVertex = f2Position;
+			bool bFound = false;
+
+			for (int32_t i = 0; i < iVertexCount; ++i)
+			{
+				if (!SegmentBlockedByObstacle(f2Position, pVertices[i], pVertices, rNavData))
+				{
+					float fDist = Distance(f2Position, pVertices[i]);
+					if (fDist < fBestDist)
+					{
+						fBestDist = fDist;
+						f2BestVertex = pVertices[i];
+						bFound = true;
+					}
+				}
+			}
+
+			if (bFound)
+			{
+				if (pOutNextWaypoint != nullptr)
+				{
+					*pOutNextWaypoint = XMVectorSet(f2BestVertex.x, f2BestVertex.y, 0.0f, 0.0f);
+				}
+				vecResult = XMVector3Normalize(XMVectorSet(f2BestVertex.x - f2Position.x, f2BestVertex.y - f2Position.y, 0.0f, 0.0f));
+			}
 		}
 	}
 

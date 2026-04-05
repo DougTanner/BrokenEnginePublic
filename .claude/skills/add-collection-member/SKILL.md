@@ -1,7 +1,7 @@
 ---
 name: add-collection-member
 description: >-
-  Reference guide for adding new SOA member pointers to collection structs (engine or game). Use this skill when adding a field, member, or data column to any collection — e.g., "add speed to BlastersPostRender", "I need to track health per entity", "add a new array to the collection". Every step in this checklist affects either compilation, memory layout, or deterministic CRC validation, so partial completion causes subtle bugs.
+  Reference guide for adding new SOA member pointers to collection structs (engine or game). Use this skill when adding a field, member, or data column to any collection — e.g., "add speed to BlastersPostRender", "I need to track health per entity", "add a new array to the collection". ALSO use this skill proactively whenever your implementation plan requires adding a new `* __restrict` pointer to any Collection struct, even if the user didn't explicitly ask to "add a member" — the checklist must be followed any time a collection's memory layout changes. Every step in this checklist affects either compilation, memory layout, or deterministic CRC validation, so partial completion causes subtle bugs.
 allowed-tools: [Read, Edit]
 ---
 
@@ -38,8 +38,12 @@ auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiSounds); }
 #endif
 ```
 
+**`SharedCrcMembers()` — CRC subset:** Some collections (e.g., Players) have a `SharedCrcMembers()` that is a subset of `SharedMembers()`, excluding fields like server-side bookkeeping (`pClientGuids`, `pGlobalPlayerIds`) or client-only animation state. If the collection has `SharedCrcMembers()`, decide whether the new member should participate in CRC validation and add it there too (or explicitly exclude it).
+
+**`kiVersion` bump:** If the collection has a `static constexpr int64_t kiVersion`, bump it when adding a new shared member that changes the serialization layout.
+
 **Why this matters:** `Members()` (which combines `SharedMembers()` + `ClientMembers()` via `std::tuple_cat`) drives all automatic operations:
-- `CollectionCrc()` / `ServerCollectionCrc()` — deterministic CRC validation
+- `CollectionCrc()` / `SharedCollectionCrc()` — deterministic CRC validation (Players overrides this with `SharedCrcMembers()` directly)
 - `CollectionWrite()` / `CollectionRead()` — save file serialization
 - `ServerCollectionRead()` — server stream deserialization (reads `SharedMembers()` only)
 - `engine::Allocate()` / `engine::AllocateAndAssign()` — SOA buffer allocation
@@ -50,7 +54,7 @@ If a member is in the tuple, all of the above handle it automatically. If it is 
 
 ## Step 2: Add to AllocateAndCopy (CPP)
 
-`AllocateAndCopy()` copies frame-persistent state from the previous frame. Add a `std::memcpy` for the new member if its value must persist across frames (most members do). The pattern is:
+`AllocateAndCopy()` copies frame-persistent state from the previous frame. Only add a `std::memcpy` for members that are NOT loaded/saved in the Update loop — typically owned object handles (IDs to child collections), identity fields (`puiIds`, `pAlignments`), and other "static" fields set once at spawn. Members fully handled by the Update load/save pattern (Step 5) do not need memcpy here. Check the existing `AllocateAndCopy` for the collection to see what it copies. The pattern is:
 
 ```cpp
 void BlastersPostRender::AllocateAndCopy(BlastersPostRender& rCurrent, const BlastersPostRender& rPrevious)
@@ -92,7 +96,7 @@ bool BlastersPostRender::LogDifferences(const BlastersPostRender& rOther) const
 
 Use `common::LogDifference<"fieldName">(index, value, otherValue)` for scalars/flags, and `common::LogDifference_Vec("fieldName", index, vec, otherVec)` for `XMVECTOR` members.
 
-**Note:** Client-only engine collections (AreaLights, Sounds, etc.) do NOT have `LogDifferences()` at all — skip this step for those.
+**Note:** LogDifferences logs ALL shared members for desync diagnosis, even those excluded from CRC via `SharedCrcMembers()`. Client-only engine collections (AreaLights, Sounds, etc.) do NOT have `LogDifferences()` at all — skip this step for those.
 
 ## Step 4: Initialize in Spawn (CPP) — Game Collections Only
 
@@ -126,6 +130,8 @@ float fSpeed = rPrevious.pfSpeed[i];
 // Save to current frame
 rCurrent.pfSpeed[i] = fSpeed;
 ```
+
+**The load and save MUST be unconditional** — outside any early-exit branches (e.g., transfer lock, destroyed checks). If a conditional block skips the save, `rCurrent` will contain uninitialized memory for that field, causing determinism failures. Load at the top of the per-entity loop alongside other fields, save at the bottom.
 
 Not all members need this — some are only set at spawn and copied via `AllocateAndCopy()`. Check the existing Update pattern for the collection.
 
@@ -169,9 +175,10 @@ void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 ## Important Notes
 
 - **`Members()` drives automatic operations**: CRC, serialization, allocation, grow, destroy, and swap are all handled by template functions that iterate the `Members()` tuple. A member missing from the tuple will cause memory corruption.
-- **`SharedMembers()` drives server CRC**: `ServerCollectionCrc()` uses `SharedMembers()` (when available) to exclude client-only fields. `ServerCollectionRead()` reads only `SharedMembers()` from the server stream, then allocates full `Members()` zero-initialized so client-only pointers are valid but empty.
+- **`SharedMembers()` drives server CRC**: `SharedCollectionCrc()` uses `SharedMembers()` (when available) to exclude client-only fields. Players overrides this by calling `CollectionCrc()` directly with `SharedCrcMembers()` in Frame.cpp. `ServerCollectionRead()` reads only `SharedMembers()` from the server stream, then allocates full `Members()` zero-initialized so client-only pointers are valid but empty.
+- **`AllocateAndCopyIds` helper**: For engine PostRender collections whose only persistent member is `puiIds`, `engine::AllocateAndCopyIds<T>()` handles the entire AllocateAndCopy in one call.
 - **Destroy needs no changes**: `engine::DestroyElement()` and `engine::SwapElement()` operate on the `Members()` tuple automatically — swap-and-pop removal handles the new member as long as it's in the tuple (Step 1).
-- **LogDifferences only logs shared fields**: Client-only fields are excluded because only shared state participates in deterministic CRC validation across client/server builds.
+- **LogDifferences logs all shared fields**: This includes fields excluded from CRC via `SharedCrcMembers()` — LogDifferences has broader scope than CRC for desync diagnosis. Client-only fields are excluded.
 - **`extern template`**: Collection headers declare `extern template struct Collection<T>` with explicit instantiation in the corresponding .cpp. No changes needed when adding members.
 
 ## See Also

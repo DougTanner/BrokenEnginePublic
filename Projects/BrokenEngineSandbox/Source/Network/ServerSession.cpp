@@ -1,8 +1,9 @@
 #include "Pch.h"
 
+#include "Network/ServerSession.h"
+
 #include "Game.h"
 
-#include "Network/ServerSession.h"
 #include "Network/PlayerEvents.h"
 #include "Frame/Collections/Players/Players.h"
 
@@ -272,15 +273,7 @@ void ServerSession::BroadcastStatusChanges(int64_t iTick)
 
 		if (!updateData.statusChanges.empty())
 		{
-			char acSharedCrc[20] {}, acInputCrc[20] {};
-			common::ToHex(std::span<char, 20>(acSharedCrc), updateData.sharedCrc);
-			common::ToHex(std::span<char, 20>(acInputCrc), updateData.inputCrc);
-			Log(kLogNetwork, kVerbose, "BroadcastStatusChanges Coord: ({},{}) Frame: {} SharedCrc: {} InputCrc: {} StatusChanges: {}", rCoord.x, rCoord.y, iTick, acSharedCrc, acInputCrc, updateData.statusChanges.size());
-			ScopedLogIndent scopedIndent;
-			for (const StatusChange& rChange : updateData.statusChanges)
-			{
-				Log(kLogNetwork, kVerbose, "Type: {}", StatusChangeTypeName(rChange.eType));
-			}
+			Log(kLogNetwork, kVerbose, "BroadcastStatusChanges Coord: ({},{}) Tick: {} StatusChanges: {}", rCoord.x, rCoord.y, iTick, updateData.statusChanges.size());
 		}
 	}
 	engine::gpServer->BufferFrame(iTick, allGridUpdates);
@@ -340,11 +333,18 @@ void ServerSession::CollectTransfers(std::vector<ClientTransferInfo>& rClientTra
 				it = gpGame->mCoordFrames.find(destination);
 			}
 
-			mTickBroadcast.transfers.try_emplace(destination).first->second.push_back({.eType = rRequest.eType, .data = StatusChangeData{rRequest.data},});
+			mTickBroadcast.transfers.try_emplace(destination).first->second.push_back({
+				.eType = rRequest.eType,
+				.data = StatusChangeData{rRequest.data},
+			});
 
 			if (rRequest.eType == StatusChangeType::kTransferPlayer && rRequest.data.globalPlayerId.IsValid())
 			{
-				rClientTransfers.push_back({.globalPlayerId = rRequest.data.globalPlayerId, .destination = destination, .clientGuid = TransferDataClientGuid(rRequest.data),});
+				rClientTransfers.push_back({
+					.globalPlayerId = rRequest.data.globalPlayerId,
+					.destination = destination,
+					.clientGuid = TransferDataClientGuid(rRequest.data),
+				});
 			}
 		}
 	}
@@ -406,7 +406,11 @@ void ServerSession::TrackClientTransfers(const std::vector<ClientTransferInfo>& 
 				if (rClient.ownedPlayerIds.at(k) == rClientTransfer.globalPlayerId)
 				{
 					rClient.ownedPlayerCoords.at(k) = rClientTransfer.destination;
-					mPendingSubscriptionUpdates.push_back({.iClientId = rClient.iClientId, .newCoord = rClientTransfer.destination, .globalPlayerId = rClientTransfer.globalPlayerId,});
+					mPendingSubscriptionUpdates.push_back({
+						.iClientId = rClient.iClientId,
+						.newCoord = rClientTransfer.destination,
+						.globalPlayerId = rClientTransfer.globalPlayerId,
+					});
 
 					// Copy client GUID to the new player entity in the destination frame
 					rDestPlayers.pClientGuids[iNewIndex] = rClient.clientGuid;
@@ -583,7 +587,10 @@ void ServerSession::NewClients()
 				}
 			}
 
-			std::ranges::sort(relinkEntries, [](const RelinkEntry& rLeft, const RelinkEntry& rRight) { return rLeft.globalId.iValue < rRight.globalId.iValue; });
+			std::ranges::sort(relinkEntries, [](const RelinkEntry& rLeft, const RelinkEntry& rRight)
+			{
+				return rLeft.globalId.iValue < rRight.globalId.iValue;
+			});
 
 			rClient.ownedPlayerIds.reserve(relinkEntries.size());
 			rClient.ownedPlayerCoords.reserve(relinkEntries.size());

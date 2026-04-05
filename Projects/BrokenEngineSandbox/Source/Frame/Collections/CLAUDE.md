@@ -26,6 +26,8 @@ SOA collections managing dynamic game entities (projectiles, enemies, players) u
 
 **Arrival Grace Period**: Players and Spaceships arriving via StatusChange (transfer or spawn) get a 1-second `pfArrivalGracePeriods` timer. While > 0, other entities skip them in targeting and behavior scans — Spaceships won't chase/flee/fire at grace-period Players, Players won't target grace-period Spaceships, and missiles won't home on them (kDestination deferred until expiry). Collision and damage still apply normally — invulnerability would hide real physics interactions, and collisions are unlikely during the first second at the frame edge. The timer is carried in TransferData; SpawnTransfer resets it to the full duration since each transfer is a new StatusChange clients must sync.
 
+**Unconditional Store Rule**: In Update loops, every shared field must be loaded from `rPrevious` at the top and stored to `rCurrent` at the bottom, unconditionally — outside any early-exit branches (transfer lock, destroyed checks, etc.). Storing inside a conditional block leaves uninitialized memory in `rCurrent`, causing client/server desync.
+
 **Extern Templates**: All collection headers declare `extern template struct Collection<T>` with explicit instantiations in the corresponding `.cpp` files.
 
 ## See Also

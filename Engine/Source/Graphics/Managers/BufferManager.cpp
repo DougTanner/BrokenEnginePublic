@@ -107,7 +107,7 @@ BufferManager::BufferManager()
 			});
 		}
 
-		// Circle: 1 circle in XZ plane, 32 segments
+		// Circle: 1 circle in XY plane, 32 segments
 		{
 			constexpr int64_t kiSegments = 32;
 			float pfVertices[kiSegments * 3] {};
@@ -118,8 +118,8 @@ BufferManager::BufferManager()
 				float fAngle = XM_2PI * static_cast<float>(s) / static_cast<float>(kiSegments);
 				int64_t iVertex = s * 3;
 				pfVertices[iVertex] = cosf(fAngle);
-				pfVertices[iVertex + 1] = 0.0f;
-				pfVertices[iVertex + 2] = sinf(fAngle);
+				pfVertices[iVertex + 1] = sinf(fAngle);
+				pfVertices[iVertex + 2] = 0.0f;
 				int64_t iIndex = s * 2;
 				puiIndices[iIndex] = static_cast<uint16_t>(s);
 				puiIndices[iIndex + 1] = static_cast<uint16_t>((s + 1) % kiSegments);

@@ -10,6 +10,7 @@ IslandTerrain::IslandTerrain()
 
 	// Collect island CRCs and setup beach elevation
 	const std::unordered_map<common::crc_t, LazyChunk>& rChunkMap = gpFileManager->GetLazyChunkMap();
+	smPriorityIslands.reserve(rChunkMap.size());
 	for (auto& [rCrc, rChunk] : rChunkMap)
 	{
 		if (!(rChunk.header.flags & common::ChunkFlags::kIsland))
@@ -35,7 +36,7 @@ IslandTerrain::~IslandTerrain()
 	gpIslandTerrain = nullptr;
 }
 
-void IslandTerrain::WaitForElevationMaps()
+void IslandTerrain::WaitForElevationMaps([[maybe_unused]] float fNavThreshold)
 {
 	gpFileManager->WaitForChunks(smPriorityIslands);
 
@@ -52,8 +53,6 @@ void IslandTerrain::WaitForElevationMaps()
 #if defined(BT_SERVER)
 	if (mpfHeightmapData != nullptr)
 	{
-		// Nav threshold: midway between beach (elevation 0) and base height in world space
-		float fNavThreshold = gBaseHeight.Get() * 0.5f;
 		BuildNavContour(mNavContour, mpfHeightmapData, miHeightmapWidth, miHeightmapHeight, mfBeachElevation, fNavThreshold);
 	}
 #endif
@@ -91,7 +90,7 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 
 	// Ocean gap: position is outside island bounds
 	if (f4Position.x < fIslandMinX || f4Position.x > fIslandMaxX ||
-	    f4Position.y < fIslandMinY || f4Position.y > fIslandMaxY)
+		f4Position.y < fIslandMinY || f4Position.y > fIslandMaxY)
 	{
 		return mfSeaFloorElevation;
 	}
@@ -141,12 +140,12 @@ XMVECTOR XM_CALLCONV IslandTerrain::GlobalNormal(FXMVECTOR vecPosition) const
 	vecTopLeft = XMVectorSetZ(vecTopLeft, GlobalElevation(vecTopLeft));
 	auto vecTopRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, fDistance, 0.0f, 0.0f));
 	vecTopRight = XMVectorSetZ(vecTopRight, GlobalElevation(vecTopRight));
-	auto vecBotLeft = XMVectorAdd(vecPosition, XMVectorSet(-fDistance, -fDistance, 0.0f, 0.0f));
-	vecBotLeft = XMVectorSetZ(vecBotLeft, GlobalElevation(vecBotLeft));
-	auto vecBotRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, -fDistance, 0.0f, 0.0f));
-	vecBotRight = XMVectorSetZ(vecBotRight, GlobalElevation(vecBotRight));
+	auto vecBottomLeft = XMVectorAdd(vecPosition, XMVectorSet(-fDistance, -fDistance, 0.0f, 0.0f));
+	vecBottomLeft = XMVectorSetZ(vecBottomLeft, GlobalElevation(vecBottomLeft));
+	auto vecBottomRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, -fDistance, 0.0f, 0.0f));
+	vecBottomRight = XMVectorSetZ(vecBottomRight, GlobalElevation(vecBottomRight));
 
-	return XMVector3Normalize(XMVector3Cross(vecTopRight - vecBotLeft, vecTopLeft - vecBotRight));
+	return XMVector3Normalize(XMVector3Cross(vecTopRight - vecBottomLeft, vecTopLeft - vecBottomRight));
 }
 
 } // namespace engine

@@ -1,6 +1,6 @@
 ---
 name: add-collection
-description: Reference guide for adding new dynamically-allocated Structure-of-Arrays collections to the engine or game frame system. Use this skill when adding a new collection type, creating a new entity/object type for the frame system, or when the user asks to add something that needs SOA storage with interpolation and update phases (e.g., new projectile type, new light type, new effect system). Also use when the user references FrameBase.h, Frame.h collection registration, Collection base class, or ForEach helpers.
+description: Reference guide for adding new dynamically-allocated Structure-of-Arrays collections to the engine or game frame system. Use this skill when adding a new collection type, creating a new entity/object type for the frame system, or when the user asks to add something that needs SOA storage with interpolation and update phases (e.g., new projectile type, new light type, new effect system). ALSO use this skill proactively whenever your implementation plan requires creating a new struct that inherits from `Collection<T>`, even if the user didn't explicitly ask to "add a collection." Also use when the user references FrameBase.h, Frame.h collection registration, Collection base class, or ForEach helpers.
 allowed-tools: [Read, Edit]
 ---
 
@@ -21,6 +21,8 @@ Both engine and game collections follow the same struct layout. The example belo
 #pragma once
 
 #include "Frame/Collections/Collection.h"
+
+namespace engine { struct FrameStaticData; }
 
 namespace game
 {
@@ -74,14 +76,14 @@ struct NewCollectionPostRender : public engine::Collection<NewCollectionPostRend
 	// Allocate and copy
 	static void AllocateAndCopy(NewCollectionPostRender& rCurrent, const NewCollectionPostRender& rPrevious);
 
-	// Update phases
-	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
-	static void Transfer(Frame& __restrict rFrame);
-	static void Destroy(Frame& __restrict rFrame);
-	static void Spawn(Frame& __restrict rFrame);
+	// Update phases (all receive const engine::FrameStaticData& rStaticData)
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+	static void Transfer(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
+	static void Destroy(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
+	static void Spawn(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 
 	// SOA members
 	auto SharedMembers(this auto&& rSelf) { return std::tie(); }
@@ -157,9 +159,14 @@ The `.cpp` file needs:
 
 **Client-only wrapping**: Most engine collections are client-only. Wrap the include, members, and `Collections()` entries in `#ifdef BT_CLIENT`. Only server-relevant collections (like Explosions, Pushers) are always compiled.
 
-### Step 3: No changes needed in FrameBase.cpp
+### Step 3: Update FrameBase.cpp — LogDifferences (manual)
 
-The `ForEach*` helpers and `AllocateAndCopyCollections()` use type lists derived from `Collections()`, so all phase methods, serialization, and CRC are called automatically.
+Add `LogDifferences` calls for the new collection in both `FrameInterpolateBase::LogDifferences()` and `FramePostRenderBase::LogDifferences()`:
+```cpp
+bEqual &= newCollections.LogDifferences(rOther.newCollections);
+```
+
+All other operations (phase dispatch, serialization, CRC, AllocateAndCopy) are automatic via `Collections()`.
 
 ### Step 4: Add files to vcxproj
 
@@ -256,7 +263,7 @@ Once the collection is in the `GameInterpolateCollections()`/`GamePostRenderColl
 | **Storage** | Direct members in FrameBase structs | `std::unique_ptr` with forward declarations |
 | **Collection tuple** | `Collections()` method on FrameBase structs | `GameInterpolateCollections()` / `GamePostRenderCollections()` free functions |
 | **kCollectionCount** | Must increment (has `static_assert`) | Not applicable |
-| **Frame.cpp changes** | None (fully automatic) | Constructors + LogDifferences |
+| **Frame.cpp changes** | LogDifferences (manual) | Constructors + LogDifferences |
 | **Update Parameters** | `game::FrameInterpolate&`, `game::Frame&` | `FrameInterpolate&`, `Frame&` |
 
 ## Optional Features
@@ -287,6 +294,10 @@ struct NewCollectionInterpolate : public engine::Collection<NewCollectionInterpo
                                   public engine::TypeRegistry<NewCollectionType>
 ```
 
+### Manual Frame.cpp Handling (Players Pattern)
+
+Players is excluded from `GameInterpolateCollections`/`GamePostRenderCollections` and handled entirely manually in Frame.cpp (constructors, Register, GraphicsResources, AllocateAndCopy, all phases, Crcs, LogDifferences, Write, Read, ServerRead). This is needed when a collection uses `CollectionFlags::kIdToIndex`, has a custom `SharedCrcMembers()` for CRC, or has a non-standard Spawn signature (taking `FrameInput`). If a new collection needs any of these, it must also be manually wired in Frame.cpp instead of relying on the tuple dispatch.
+
 ### Client Object Hydration
 
 Collections with client-only owned objects (area lights, wind trails, sounds) provide `ClientInit()` and `ClientInitAll()` to create visual/audio objects after receiving server state, since server streams exclude client-only fields.
@@ -299,9 +310,12 @@ Collections with client-only owned objects (area lights, wind trails, sounds) pr
 - [ ] Add member + `Collections()` entry + increment `kCollectionCount` in `FrameInterpolateBase`
 - [ ] Add member + `Collections()` entry + increment `kCollectionCount` in `FramePostRenderBase`
 - [ ] Add to `ServerCollections()` if server-relevant
+- [ ] Add `LogDifferences` calls in both `FrameInterpolateBase::LogDifferences()` and `FramePostRenderBase::LogDifferences()` in FrameBase.cpp
 - [ ] Add files to engine `.vcxproj`
 
-**Automatic via Collections():** LogDifferences, Crcs, Write, Read, ServerRead, AllocateAndCopy, all ForEach phase dispatch
+**Automatic via Collections():** Crcs, Write, Read, ServerRead, AllocateAndCopy, all ForEach phase dispatch. **Manual:** LogDifferences (FrameBase.cpp).
+
+**Note:** Engine collections always come in Interpolate/PostRender pairs — `static_assert` in FrameBase.h enforces matching `kCollectionCount` between the two.
 
 ### Game Collection
 - [ ] Create `NewCollection.h` and `NewCollection.cpp` in `/Projects/*/Source/Frame/Collections/NewCollection/`

@@ -44,7 +44,7 @@ constexpr float kfExhaustLightingIntensity = 250.0f;
 #if defined(BT_CLIENT)
 // Missile trail
 constexpr float kfTrailIntensity = 0.5f;
-constexpr float kfTrailOffset = -0.8f;
+constexpr float kfTrailOffset = -0.9f;
 constexpr float kfTrailWidth = 0.15f;
 #endif
 

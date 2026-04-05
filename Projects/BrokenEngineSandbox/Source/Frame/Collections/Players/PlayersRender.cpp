@@ -192,14 +192,23 @@ void PlayersInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpo
 				engine::DebugRender::Line(f3Start, f3End, {1.0f, 0.0f, 0.0f, 1.0f});
 			}
 
-			// Green line to nav destination (when navigating to next frame)
+			// Green line and circle at nav waypoint (when navigating)
 			if (XMVectorGetW(rCurrent.pVecDebugNavDestinations[i]) > 0.0f)
 			{
 				XMFLOAT3A f3NavStart {};
 				XMFLOAT3A f3NavEnd {};
 				XMStoreFloat3A(&f3NavStart, vecPosition);
-				XMStoreFloat3A(&f3NavEnd, rCurrent.pVecDebugNavDestinations[i]);
+				XMStoreFloat3A(&f3NavEnd, XMVectorSetZ(rCurrent.pVecDebugNavDestinations[i], engine::gBaseHeight.Get()));
 				engine::DebugRender::Line(f3NavStart, f3NavEnd, {0.0f, 1.0f, 0.0f, 1.0f});
+				engine::DebugRender::Circle(f3NavEnd, 0.75f, {0.0f, 1.0f, 0.0f, 1.0f});
+			}
+
+			// Green circle at island destination
+			if (XMVectorGetW(rCurrent.pVecDebugIslandDestinations[i]) > 0.0f)
+			{
+				XMFLOAT3A f3Dest {};
+				XMStoreFloat3A(&f3Dest, XMVectorSetZ(rCurrent.pVecDebugIslandDestinations[i], engine::gBaseHeight.Get()));
+				engine::DebugRender::Circle(f3Dest, 3.0f, {0.0f, 1.0f, 0.0f, 1.0f});
 			}
 		}
 	}

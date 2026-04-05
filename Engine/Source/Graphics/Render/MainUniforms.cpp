@@ -8,6 +8,44 @@
 namespace engine
 {
 
+static void DebugRenderNavData(const std::vector<GridCoord>& rActiveCoords)
+{
+	if constexpr (!kbDebugRender) return;
+
+	float fZ = gBaseHeight.Get();
+	constexpr XMFLOAT4A kf4PolygonColor = {1.0f, 1.0f, 0.0f, 1.0f};
+	constexpr XMFLOAT4A kf4VertexColor = {1.0f, 0.5f, 0.0f, 1.0f};
+
+	for (const GridCoord& rCoord : rActiveCoords)
+	{
+		auto it = game::gpGame->mCoordFrames.find(rCoord);
+		if (it == game::gpGame->mCoordFrames.end()) continue;
+
+		const NavData& rNav = it->second.staticData.navData;
+
+		// Polygon edges
+		for (int64_t iPoly = 0; iPoly < static_cast<int64_t>(rNav.polygonOffsets.size()); ++iPoly)
+		{
+			int64_t iStart = rNav.polygonOffsets[iPoly];
+			int64_t iEnd = (iPoly + 1 < static_cast<int64_t>(rNav.polygonOffsets.size())) ? rNav.polygonOffsets[iPoly + 1] : static_cast<int64_t>(rNav.vertices.size());
+
+			for (int64_t iVert = iStart; iVert < iEnd; ++iVert)
+			{
+				int64_t iNext = (iVert + 1 < iEnd) ? iVert + 1 : iStart;
+				XMFLOAT3A f3A = {rNav.vertices[iVert].x, rNav.vertices[iVert].y, fZ};
+				XMFLOAT3A f3B = {rNav.vertices[iNext].x, rNav.vertices[iNext].y, fZ};
+				DebugRender::Line(f3A, f3B, kf4PolygonColor);
+			}
+		}
+
+		// Vertex markers
+		for (const XMFLOAT2& rVert : rNav.vertices)
+		{
+			DebugRender::Circle({rVert.x, rVert.y, fZ}, 0.75f, kf4VertexColor);
+		}
+	}
+}
+
 void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord)
 {
 	if (rActiveCoords.empty())
@@ -45,6 +83,8 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 
 	// Phase 3: EndRender — write indirect draw buffer counts
 	game::FrameInterpolate::EndRender(iCommandBuffer);
+
+	DebugRenderNavData(rActiveCoords);
 
 	DebugRender::BeginRender(iCommandBuffer);
 	DebugRender::EndRender(iCommandBuffer);

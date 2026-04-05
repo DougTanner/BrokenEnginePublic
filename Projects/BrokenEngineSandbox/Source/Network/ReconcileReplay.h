@@ -16,8 +16,6 @@ struct CrcFastPathCoordResult
 };
 
 CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork, int64_t iTargetTick, ReconcileProfiling& rProfiling);
-void LogStatusChangeList(std::string_view label, std::span<const StatusChange> statusChanges);
-void LogPerCollectionCrcBreakdown(const Frame& rFrame); // DT TEMP
 
 void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork);
 void ReconcileUpdateClientState(ReconcileContext& rReconcileContext);

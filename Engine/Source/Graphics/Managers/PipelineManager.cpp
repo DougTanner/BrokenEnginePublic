@@ -677,14 +677,15 @@ void PipelineManager::CreateDebugRenderPipelines()
 		std::string_view name;
 		common::crc_t crc;
 		Buffer* pVertexBuffer;
+		common::crc_t vertexShaderCrc;
 	};
 
 	DebugRenderPipelineEntry pEntries[]
 	{
-		{kPipelineDebugBox,    "DebugBox",    common::CrcConsteval("DebugBox"),    &gpBufferManager->mDebugBoxVertexBuffer},
-		{kPipelineDebugSphere, "DebugSphere", common::CrcConsteval("DebugSphere"), &gpBufferManager->mDebugSphereVertexBuffer},
-		{kPipelineDebugCircle, "DebugCircle", common::CrcConsteval("DebugCircle"), &gpBufferManager->mDebugCircleVertexBuffer},
-		{kPipelineDebugLine,   "DebugLine",   common::CrcConsteval("DebugLine"),   &gpBufferManager->mDebugLineVertexBuffer},
+		{kPipelineDebugBox,    "DebugBox",    common::CrcConsteval("DebugBox"),    &gpBufferManager->mDebugBoxVertexBuffer,    data::kShadersDebugDebugRendervertCrc},
+		{kPipelineDebugSphere, "DebugSphere", common::CrcConsteval("DebugSphere"), &gpBufferManager->mDebugSphereVertexBuffer, data::kShadersDebugDebugRendervertCrc},
+		{kPipelineDebugCircle, "DebugCircle", common::CrcConsteval("DebugCircle"), &gpBufferManager->mDebugCircleVertexBuffer, data::kShadersDebugDebugRenderBillboardvertCrc},
+		{kPipelineDebugLine,   "DebugLine",   common::CrcConsteval("DebugLine"),   &gpBufferManager->mDebugLineVertexBuffer,   data::kShadersDebugDebugRendervertCrc},
 	};
 
 	for (const DebugRenderPipelineEntry& rEntry : pEntries)
@@ -695,7 +696,7 @@ void PipelineManager::CreateDebugRenderPipelines()
 		{
 			.name = rEntry.name,
 			.flags = {kIndirectHostVisible, kLineList, kAlphaBlend, kUpdateAfterBind},
-			.ppShaders = {&mShaders.at(data::kShadersDebugDebugRendervertCrc), &mShaders.at(data::kShadersDebugDebugRenderfragCrc)},
+			.ppShaders = {&mShaders.at(rEntry.vertexShaderCrc), &mShaders.at(data::kShadersDebugDebugRenderfragCrc)},
 			.pVertexBuffer = rEntry.pVertexBuffer,
 			.pDescriptorInfos =
 			{

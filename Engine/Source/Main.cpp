@@ -1,6 +1,7 @@
 #include "Memory/MemoryManager.h"
 
 #include "CrashReport.h"
+#include "Frame/Collections/Players/Players.h"
 #include "Game.h"
 #include "Profile/ProfileManager.h"
 
@@ -184,7 +185,7 @@ void MainThread(HINSTANCE hinstance)
 
 	// Wait for islands to load and initialize heightmaps
 	gpProfileManager->BootStart(kBootTimerWaitForIslands);
-	gpIslandTerrain->WaitForElevationMaps();
+	gpIslandTerrain->WaitForElevationMaps(gBaseHeight.Get() - game::kfPlayerRadius - game::kfPushMargin);
 	gpProfileManager->BootStop(kBootTimerWaitForIslands);
 
 	// Load game
@@ -227,7 +228,7 @@ void MainThread(HINSTANCE hinstance)
 #else
 	// Server: create terrain collision data (no Graphics)
 	auto pIslandTerrain = std::make_unique<IslandTerrain>();
-	gpIslandTerrain->WaitForElevationMaps();
+	gpIslandTerrain->WaitForElevationMaps(gBaseHeight.Get() - game::kfPlayerRadius - game::kfPushMargin);
 
 	auto pGame = std::make_unique<game::Game>();
 

@@ -544,6 +544,367 @@ bool MidpointInsideObstacle(XMFLOAT2 f2A, XMFLOAT2 f2B, const std::vector<XMFLOA
 	return false;
 }
 
+// Segment intersection returning the intersection point and parameters along each segment
+struct IntersectionResult
+{
+	XMFLOAT2 f2Point {};
+	float fTA {};
+	float fTB {};
+};
+
+bool SegmentsIntersectAt(XMFLOAT2 f2A1, XMFLOAT2 f2A2, XMFLOAT2 f2B1, XMFLOAT2 f2B2, IntersectionResult& rResult)
+{
+	float fD1x = f2A2.x - f2A1.x;
+	float fD1y = f2A2.y - f2A1.y;
+	float fD2x = f2B2.x - f2B1.x;
+	float fD2y = f2B2.y - f2B1.y;
+
+	float fDenom = fD1x * fD2y - fD1y * fD2x;
+	if (std::abs(fDenom) < 1e-10f)
+	{
+		return false;
+	}
+
+	float fDiffX = f2B1.x - f2A1.x;
+	float fDiffY = f2B1.y - f2A1.y;
+
+	float fT = (fDiffX * fD2y - fDiffY * fD2x) / fDenom;
+	float fU = (fDiffX * fD1y - fDiffY * fD1x) / fDenom;
+
+	static constexpr float kfSegmentEpsilon = 1e-6f;
+	if (fT > kfSegmentEpsilon && fT < (1.0f - kfSegmentEpsilon) && fU > kfSegmentEpsilon && fU < (1.0f - kfSegmentEpsilon))
+	{
+		rResult.f2Point = {f2A1.x + fT * fD1x, f2A1.y + fT * fD1y};
+		rResult.fTA = fT;
+		rResult.fTB = fU;
+		return true;
+	}
+	return false;
+}
+
+// Per-edge intersection record for the augmented vertex list
+struct EdgeIntersection
+{
+	float fT {};
+	XMFLOAT2 f2Point {};
+	size_t iPartnerEdge {};  // Edge index on the other polygon
+	size_t iSharedId {}; // Unique ID shared between matching intersection pairs in A and B
+};
+
+// Compute the union of two intersecting CCW polygons via boundary walk
+std::vector<XMFLOAT2> ComputePolygonUnion(const std::vector<XMFLOAT2>& rPolyA, const std::vector<XMFLOAT2>& rPolyB)
+{
+	size_t iCountA = rPolyA.size();
+	size_t iCountB = rPolyB.size();
+
+	// Find all edge-edge intersection points
+	// intersectionsA[edgeIndex] = sorted list of intersections along that edge of A
+	std::vector<std::vector<EdgeIntersection>> intersectionsA(iCountA);
+	std::vector<std::vector<EdgeIntersection>> intersectionsB(iCountB);
+
+	for (size_t iA = 0; iA < iCountA; ++iA)
+	{
+		size_t iANext = (iA + 1) % iCountA;
+		for (size_t iB = 0; iB < iCountB; ++iB)
+		{
+			size_t iBNext = (iB + 1) % iCountB;
+			IntersectionResult result {};
+			if (SegmentsIntersectAt(rPolyA.at(iA), rPolyA.at(iANext), rPolyB.at(iB), rPolyB.at(iBNext), result))
+			{
+				intersectionsA.at(iA).push_back({.fT = result.fTA, .f2Point = result.f2Point, .iPartnerEdge = iB, .iSharedId = 0,});
+				intersectionsB.at(iB).push_back({.fT = result.fTB, .f2Point = result.f2Point, .iPartnerEdge = iA, .iSharedId = 0,});
+			}
+		}
+	}
+
+	// Sort intersections along each edge by parameter t
+	for (std::vector<EdgeIntersection>& rList : intersectionsA)
+	{
+		std::sort(rList.begin(), rList.end(), [](const EdgeIntersection& rA, const EdgeIntersection& rB) { return rA.fT < rB.fT; });
+	}
+	for (std::vector<EdgeIntersection>& rList : intersectionsB)
+	{
+		std::sort(rList.begin(), rList.end(), [](const EdgeIntersection& rA, const EdgeIntersection& rB) { return rA.fT < rB.fT; });
+	}
+
+	// Build augmented vertex lists: original vertices interleaved with intersection points
+	// Each entry is tagged: false = original vertex, true = intersection point
+	struct AugmentedVertex
+	{
+		XMFLOAT2 f2Pos {};
+		bool bIsIntersection {};
+		size_t iIntersectionId {}; // Unique ID shared between the matching pair in A and B lists
+	};
+
+	// Assign unique IDs by matching intersection pairs
+	// iSharedId == 0 means unassigned; valid IDs start at 1
+	size_t iNextId = 1;
+	for (size_t iA = 0; iA < iCountA; ++iA)
+	{
+		for (EdgeIntersection& rIntA : intersectionsA.at(iA))
+		{
+			if (rIntA.iSharedId != 0)
+			{
+				continue;
+			}
+			size_t iB = rIntA.iPartnerEdge;
+			for (EdgeIntersection& rIntB : intersectionsB.at(iB))
+			{
+				if (rIntB.iSharedId != 0)
+				{
+					continue;
+				}
+				if (rIntB.iPartnerEdge == iA)
+				{
+					float fDx = rIntA.f2Point.x - rIntB.f2Point.x;
+					float fDy = rIntA.f2Point.y - rIntB.f2Point.y;
+					if (fDx * fDx + fDy * fDy < 1e-10f)
+					{
+						size_t iId = iNextId++;
+						rIntA.iSharedId = iId;
+						rIntB.iSharedId = iId;
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	// Count total entries for reserve
+	size_t iAugCountA = iCountA;
+	size_t iAugCountB = iCountB;
+	for (const std::vector<EdgeIntersection>& rList : intersectionsA)
+	{
+		iAugCountA += rList.size();
+	}
+	for (const std::vector<EdgeIntersection>& rList : intersectionsB)
+	{
+		iAugCountB += rList.size();
+	}
+
+	std::vector<AugmentedVertex> augmentedA;
+	std::vector<AugmentedVertex> augmentedB;
+	augmentedA.reserve(iAugCountA);
+	augmentedB.reserve(iAugCountB);
+
+	// Build augmented list for A
+	for (size_t i = 0; i < iCountA; ++i)
+	{
+		augmentedA.push_back({.f2Pos = rPolyA.at(i), .bIsIntersection = false, .iIntersectionId = 0,});
+		for (const EdgeIntersection& rInt : intersectionsA.at(i))
+		{
+			augmentedA.push_back({.f2Pos = rInt.f2Point, .bIsIntersection = true, .iIntersectionId = rInt.iSharedId,});
+		}
+	}
+
+	// Build augmented list for B
+	for (size_t i = 0; i < iCountB; ++i)
+	{
+		augmentedB.push_back({.f2Pos = rPolyB.at(i), .bIsIntersection = false, .iIntersectionId = 0,});
+		for (const EdgeIntersection& rInt : intersectionsB.at(i))
+		{
+			augmentedB.push_back({.f2Pos = rInt.f2Point, .bIsIntersection = true, .iIntersectionId = rInt.iSharedId,});
+		}
+	}
+
+	// Build lookup: intersection ID -> index in augmentedA / augmentedB
+	std::unordered_map<size_t, size_t> idToIndexA;
+	std::unordered_map<size_t, size_t> idToIndexB;
+	for (size_t i = 0; i < augmentedA.size(); ++i)
+	{
+		if (augmentedA.at(i).bIsIntersection)
+		{
+			idToIndexA.insert_or_assign(augmentedA.at(i).iIntersectionId, i);
+		}
+	}
+	for (size_t i = 0; i < augmentedB.size(); ++i)
+	{
+		if (augmentedB.at(i).bIsIntersection)
+		{
+			idToIndexB.insert_or_assign(augmentedB.at(i).iIntersectionId, i);
+		}
+	}
+
+	// Find starting vertex: leftmost vertex across both polygons (guaranteed on outer boundary)
+	size_t iStartIndex = 0;
+	bool bStartOnA = true;
+	float fMinX = augmentedA.at(0).f2Pos.x;
+
+	for (size_t i = 1; i < augmentedA.size(); ++i)
+	{
+		if (augmentedA.at(i).f2Pos.x < fMinX || (augmentedA.at(i).f2Pos.x == fMinX && augmentedA.at(i).f2Pos.y < augmentedA.at(iStartIndex).f2Pos.y))
+		{
+			fMinX = augmentedA.at(i).f2Pos.x;
+			iStartIndex = i;
+			bStartOnA = true;
+		}
+	}
+	for (size_t i = 0; i < augmentedB.size(); ++i)
+	{
+		if (augmentedB.at(i).f2Pos.x < fMinX || (augmentedB.at(i).f2Pos.x == fMinX && augmentedB.at(i).f2Pos.y < (bStartOnA ? augmentedA.at(iStartIndex).f2Pos.y : augmentedB.at(iStartIndex).f2Pos.y)))
+		{
+			fMinX = augmentedB.at(i).f2Pos.x;
+			iStartIndex = i;
+			bStartOnA = false;
+		}
+	}
+
+	// Boundary walk
+	std::vector<XMFLOAT2> result;
+	result.reserve(augmentedA.size() + augmentedB.size());
+	bool bOnA = bStartOnA;
+	size_t iCurrent = iStartIndex;
+	size_t iMaxSteps = augmentedA.size() + augmentedB.size() + 2;
+
+	// Test a point slightly past the intersection along the edge to avoid boundary-undefined PointInPolygon results
+	static constexpr float kfProbeOffset = 0.001f;
+	auto ProbePoint = [](const XMFLOAT2& rFrom, const XMFLOAT2& rTo) -> XMFLOAT2
+	{
+		return {rFrom.x + kfProbeOffset * (rTo.x - rFrom.x), rFrom.y + kfProbeOffset * (rTo.y - rFrom.y)};
+	};
+
+	for (size_t iStep = 0; iStep < iMaxSteps; ++iStep)
+	{
+		const std::vector<AugmentedVertex>& rAugmented = bOnA ? augmentedA : augmentedB;
+		result.push_back(rAugmented.at(iCurrent).f2Pos);
+
+		// Advance to next vertex in current polygon
+		size_t iNext = (iCurrent + 1) % rAugmented.size();
+
+		// If current vertex is an intersection, decide whether to switch polygons
+		if (rAugmented.at(iCurrent).bIsIntersection)
+		{
+			size_t iId = rAugmented.at(iCurrent).iIntersectionId;
+			XMFLOAT2 f2Current = rAugmented.at(iCurrent).f2Pos;
+			if (bOnA)
+			{
+				std::unordered_map<size_t, size_t>::iterator it = idToIndexB.find(iId);
+				if (it != idToIndexB.end())
+				{
+					// At a union boundary, follow the path that stays outside the other polygon
+					size_t iNextOnA = (iCurrent + 1) % augmentedA.size();
+					XMFLOAT2 f2Probe = ProbePoint(f2Current, augmentedA.at(iNextOnA).f2Pos);
+					bool bNextAInsideB = PointInPolygon(f2Probe, rPolyB.data(), static_cast<int32_t>(iCountB));
+					if (bNextAInsideB)
+					{
+						bOnA = false;
+						iCurrent = (it->second + 1) % augmentedB.size();
+						if (iCurrent == iStartIndex && bOnA == bStartOnA)
+						{
+							break;
+						}
+						continue;
+					}
+				}
+			}
+			else
+			{
+				std::unordered_map<size_t, size_t>::iterator it = idToIndexA.find(iId);
+				if (it != idToIndexA.end())
+				{
+					size_t iNextOnB = (iCurrent + 1) % augmentedB.size();
+					XMFLOAT2 f2Probe = ProbePoint(f2Current, augmentedB.at(iNextOnB).f2Pos);
+					bool bNextBInsideA = PointInPolygon(f2Probe, rPolyA.data(), static_cast<int32_t>(iCountA));
+					if (bNextBInsideA)
+					{
+						bOnA = true;
+						iCurrent = (it->second + 1) % augmentedA.size();
+						if (iCurrent == iStartIndex && bOnA == bStartOnA)
+						{
+							break;
+						}
+						continue;
+					}
+				}
+			}
+		}
+
+		iCurrent = iNext;
+		if (iCurrent == iStartIndex && bOnA == bStartOnA)
+		{
+			break;
+		}
+	}
+
+	if (result.size() >= iMaxSteps)
+	{
+		Log(kLogNavData, kWarning, "NavBuild: boundary walk exhausted step limit ({} steps), result may be malformed", iMaxSteps);
+	}
+
+	// Ensure CCW winding
+	if (ComputeSignedArea(result) < 0.0f)
+	{
+		std::reverse(result.begin(), result.end());
+	}
+
+	return result;
+}
+
+// Merge overlapping polygons: combine intersecting pairs and remove contained polygons
+void MergeOverlappingPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons)
+{
+	bool bMerged = true;
+	while (bMerged)
+	{
+		bMerged = false;
+		for (size_t i = 0; i < rPolygons.size() && !bMerged; ++i)
+		{
+			for (size_t j = i + 1; j < rPolygons.size() && !bMerged; ++j)
+			{
+				const std::vector<XMFLOAT2>& rPolyA = rPolygons.at(i);
+				const std::vector<XMFLOAT2>& rPolyB = rPolygons.at(j);
+
+				// Check for edge-edge intersections
+				bool bIntersects = false;
+				for (size_t iA = 0; iA < rPolyA.size() && !bIntersects; ++iA)
+				{
+					size_t iANext = (iA + 1) % rPolyA.size();
+					for (size_t iB = 0; iB < rPolyB.size() && !bIntersects; ++iB)
+					{
+						size_t iBNext = (iB + 1) % rPolyB.size();
+						if (SegmentsIntersect(rPolyA.at(iA), rPolyA.at(iANext), rPolyB.at(iB), rPolyB.at(iBNext)))
+						{
+							bIntersects = true;
+						}
+					}
+				}
+
+				if (bIntersects)
+				{
+					std::vector<XMFLOAT2> merged = ComputePolygonUnion(rPolyA, rPolyB);
+					if (merged.size() >= 3)
+					{
+						Log(kLogNavData, kDebug, "NavBuild: merged polygons {} ({} verts) and {} ({} verts) -> {} verts", i, rPolyA.size(), j, rPolyB.size(), merged.size());
+						rPolygons.at(i) = std::move(merged);
+						rPolygons.erase(rPolygons.begin() + static_cast<int64_t>(j));
+						bMerged = true;
+					}
+				}
+				else
+				{
+					bool bAInsideB = PointInPolygon(rPolyA.at(0), rPolyB.data(), static_cast<int32_t>(rPolyB.size()));
+					if (bAInsideB)
+					{
+						Log(kLogNavData, kDebug, "NavBuild: polygon {} ({} verts) contained in polygon {} ({} verts), removing inner", i, rPolyA.size(), j, rPolyB.size());
+						rPolygons.erase(rPolygons.begin() + static_cast<int64_t>(i));
+						bMerged = true;
+					}
+					else
+					{
+						bool bBInsideA = PointInPolygon(rPolyB.at(0), rPolyA.data(), static_cast<int32_t>(rPolyA.size()));
+						if (bBInsideA)
+						{
+							Log(kLogNavData, kDebug, "NavBuild: polygon {} ({} verts) contained in polygon {} ({} verts), removing inner", j, rPolyB.size(), i, rPolyA.size());
+							rPolygons.erase(rPolygons.begin() + static_cast<int64_t>(j));
+							bMerged = true;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 void BuildVisibilityGraph(NavContour& rContour)
 {
 	int32_t iVertexCount = static_cast<int32_t>(rContour.vertices.size());
@@ -600,10 +961,14 @@ void BuildVisibilityGraph(NavContour& rContour)
 
 void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapWidth, int32_t iHeightmapHeight, float fBeachElevation, float fWorldThreshold)
 {
+	Log(kLogNavData, kDebug, "NavBuild: heightmap {}x{} beachElev={} worldThreshold={}", iHeightmapWidth, iHeightmapHeight, fBeachElevation, fWorldThreshold);
+
 	// Step 1: Extract contour edges via marching squares
 	std::vector<ContourEdge> contourEdges;
 	contourEdges.reserve(static_cast<size_t>(iHeightmapWidth) * static_cast<size_t>(iHeightmapHeight));
 	ExtractContourEdges(contourEdges, pfHeightmapData, iHeightmapWidth, iHeightmapHeight, fBeachElevation, fWorldThreshold);
+
+	Log(kLogNavData, kDebug, "NavBuild: extracted {} contour edges", contourEdges.size());
 
 	if (contourEdges.empty())
 	{
@@ -614,17 +979,30 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 	std::vector<std::vector<XMFLOAT2>> polygons;
 	ChainEdgesIntoPolygons(polygons, contourEdges);
 
+	Log(kLogNavData, kDebug, "NavBuild: chained into {} polygons", polygons.size());
+
 	// Step 3: Simplify and inflate each polygon
 	static constexpr float kfSimplifyTolerance = 0.01f;
 	static constexpr float kfInflateDistance = 0.015f;
 
-	for (std::vector<XMFLOAT2>& rPolygon : polygons)
+	for (size_t iPoly = 0; iPoly < polygons.size(); ++iPoly)
 	{
-		SimplifyPolygon(rPolygon, kfSimplifyTolerance);
-		InflatePolygon(rPolygon, kfInflateDistance);
+		int64_t iPreSimplify = static_cast<int64_t>(polygons[iPoly].size());
+		SimplifyPolygon(polygons[iPoly], kfSimplifyTolerance);
+		int64_t iPostSimplify = static_cast<int64_t>(polygons[iPoly].size());
+		InflatePolygon(polygons[iPoly], kfInflateDistance);
+		Log(kLogNavData, kDebug, "NavBuild: polygon {} verts: {} -> {} (after simplify)", iPoly, iPreSimplify, iPostSimplify);
 	}
 
-	// Step 4: Pack polygons into flat arrays
+	// Step 4: Merge overlapping polygons (inflation can cause nearby polygons to intersect)
+	size_t iPreMergeCount = polygons.size();
+	MergeOverlappingPolygons(polygons);
+	if (polygons.size() != iPreMergeCount)
+	{
+		Log(kLogNavData, kDebug, "NavBuild: merged {} polygons -> {}", iPreMergeCount, polygons.size());
+	}
+
+	// Step 5: Pack polygons into flat arrays
 	for (const std::vector<XMFLOAT2>& rPolygon : polygons)
 	{
 		if (rPolygon.size() < 3)
@@ -639,13 +1017,17 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 		}
 	}
 
+	Log(kLogNavData, kDebug, "NavBuild: total vertices={} polygons={}", rContour.vertices.size(), rContour.polygonOffsets.size());
+
 	if (rContour.vertices.empty())
 	{
 		return;
 	}
 
-	// Step 5: Build visibility graph
+	// Step 6: Build visibility graph
 	BuildVisibilityGraph(rContour);
+
+	Log(kLogNavData, kDebug, "NavBuild: visibility graph edges={}", rContour.visEdgeA.size());
 }
 
 void XM_CALLCONV BuildCellNavData(NavData& rNavData, const NavContour& rContour, FXMVECTOR vecArea, IslandsFlip eFlip, XMFLOAT2 f2IslandOffset, float fIslandWidth, float fIslandHeight)
@@ -684,6 +1066,31 @@ void XM_CALLCONV BuildCellNavData(NavData& rNavData, const NavContour& rContour,
 	rNavData.polygonOffsets = rContour.polygonOffsets;
 	rNavData.visEdgeA = rContour.visEdgeA;
 	rNavData.visEdgeB = rContour.visEdgeB;
+
+	// Log per-polygon vertex positions for density analysis
+	for (size_t iPoly = 0; iPoly < rNavData.polygonOffsets.size(); ++iPoly)
+	{
+		int32_t iStart = rNavData.polygonOffsets[iPoly];
+		int32_t iEnd = (iPoly + 1 < rNavData.polygonOffsets.size()) ? rNavData.polygonOffsets[iPoly + 1] : iVertexCount;
+		int32_t iCount = iEnd - iStart;
+
+		// Compute bounding box to detect tight clusters
+		float fMinX = std::numeric_limits<float>::max();
+		float fMaxX = std::numeric_limits<float>::lowest();
+		float fMinY = std::numeric_limits<float>::max();
+		float fMaxY = std::numeric_limits<float>::lowest();
+		for (int32_t i = iStart; i < iEnd; ++i)
+		{
+			fMinX = std::min(fMinX, rNavData.vertices[i].x);
+			fMaxX = std::max(fMaxX, rNavData.vertices[i].x);
+			fMinY = std::min(fMinY, rNavData.vertices[i].y);
+			fMaxY = std::max(fMaxY, rNavData.vertices[i].y);
+		}
+		float fBoundsWidth = fMaxX - fMinX;
+		float fBoundsHeight = fMaxY - fMinY;
+
+		Log(kLogNavData, kDebug, "NavCell: polygon {} verts={} bounds=({} {})..({} {}) size={}x{}", iPoly, iCount, fMinX, fMinY, fMaxX, fMaxY, fBoundsWidth, fBoundsHeight);
+	}
 }
 
 void NavData::Write(std::ostream& rStream) const

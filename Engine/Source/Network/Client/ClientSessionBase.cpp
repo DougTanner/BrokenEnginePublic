@@ -202,12 +202,7 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 				continue;
 			}
 
-			int64_t iPrevLatestServerTick = miLatestServerTick;
 			miLatestServerTick = std::max(miLatestServerTick, rUpdate.iTick);
-			if (miLatestServerTick != iPrevLatestServerTick)
-			{
-				Log(kLogNetwork, kVerbose, "ClientSessionBase::ApplyReceivedUpdatesBase LatestServerTick advanced Old: {} New: {}", iPrevLatestServerTick, miLatestServerTick);
-			}
 
 			if (static_cast<int64_t>(rSub.serverUpdates.size()) >= kiMaxBufferedFrames)
 			{

@@ -22,6 +22,9 @@ inline constexpr float kfDestroyExplosionInterval = 0.005f;
 // Collision
 inline constexpr float kfPlayerRadius = 1.5f;
 
+// Terrain push
+inline constexpr float kfPushMargin = 1.0f;
+
 // Damage response
 inline constexpr float kfShieldHitSoundVolumeBase = 0.1f;
 inline constexpr float kfShieldHitSoundVolumeScale = 0.1f;
@@ -48,7 +51,7 @@ struct HexShieldIntensities
 
 struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine::CollectionFlags::kIdToIndex>
 {
-	static constexpr int64_t kiVersion = 10;
+	static constexpr int64_t kiVersion = 11;
 	static constexpr char kName[] = "Player";
 	static constexpr common::crc_t kCrc = common::CrcConsteval(kName);
 
@@ -86,6 +89,7 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 	HexShieldIntensities* __restrict pHexShieldVertIntensities = nullptr;
 	HexShieldIntensities* __restrict pHexShieldFragIntensities = nullptr;
 	XMVECTOR* __restrict pVecDebugNavDestinations = nullptr;
+	XMVECTOR* __restrict pVecDebugIslandDestinations = nullptr;
 #endif // BT_CLIENT
 
 	auto SharedMembers(this auto&& rSelf)
@@ -100,7 +104,7 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 			rSelf.pWindTrails,
 			rSelf.pHexShields, rSelf.pfShieldRotations, rSelf.pfShieldShrinks,
 			rSelf.pHexShieldDirections, rSelf.pHexShieldVertIntensities, rSelf.pHexShieldFragIntensities,
-			rSelf.pVecDebugNavDestinations);
+			rSelf.pVecDebugNavDestinations, rSelf.pVecDebugIslandDestinations);
 	}
 #endif // BT_CLIENT
 	auto Members(this auto&& rSelf)
@@ -142,7 +146,7 @@ using PlayerFlags_t = common::Flags<PlayerFlags>;
 
 struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 {
-	static constexpr int64_t kiVersion = 12;
+	static constexpr int64_t kiVersion = 14;
 
 	// Collision layer (set each frame in PreCollision)
 	// thread_local: parallel per-Frame tick via Dispatch
@@ -177,10 +181,14 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	float* __restrict pfArrivalGracePeriods = nullptr;
 	float* __restrict pfFrameChangeTimers = nullptr;
 	int8_t* __restrict piNavDirections = nullptr;
+	XMVECTOR* __restrict pVecIslandDestinations = nullptr;
 	engine::ClientGuid* __restrict pClientGuids = nullptr;
 	engine::global_player_t* __restrict pGlobalPlayerIds = nullptr;
+#if defined(BT_CLIENT)
+	XMVECTOR* __restrict pVecDebugNavWaypoints = nullptr;
+#endif // BT_CLIENT
 
-	auto Members(this auto&& rSelf)
+	auto SharedMembers(this auto&& rSelf)
 	{
 		return std::tie(rSelf.puiIds, rSelf.pFlags, rSelf.pAlignments,
 			rSelf.pfNextBlasterFireTimes, rSelf.pfNextSecondarySpawnTimes,
@@ -190,7 +198,22 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 			rSelf.pVecAiDirections,
 			rSelf.pfTransferLockTimers, rSelf.pfArrivalGracePeriods,
 			rSelf.pfFrameChangeTimers, rSelf.piNavDirections,
+			rSelf.pVecIslandDestinations,
 			rSelf.pClientGuids, rSelf.pGlobalPlayerIds);
+	}
+#if defined(BT_CLIENT)
+	auto ClientMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pVecDebugNavWaypoints);
+	}
+#endif // BT_CLIENT
+	auto Members(this auto&& rSelf)
+	{
+#if defined(BT_CLIENT)
+		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
+#else
+		return rSelf.SharedMembers();
+#endif
 	}
 
 	// CRC-only subset: excludes pClientGuids and pGlobalPlayerIds which are server-side bookkeeping
@@ -203,7 +226,8 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 			rSelf.pfDestroyedExplosionTimes, rSelf.pfShieldDownSoundCooldowns,
 			rSelf.pVecAiDirections,
 			rSelf.pfTransferLockTimers, rSelf.pfArrivalGracePeriods,
-			rSelf.pfFrameChangeTimers, rSelf.piNavDirections);
+			rSelf.pfFrameChangeTimers, rSelf.piNavDirections,
+			rSelf.pVecIslandDestinations);
 	}
 
 	// Utility
@@ -229,7 +253,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 		float fTransferLockTimer = 0.0f;
 		float fArrivalGracePeriod = 0.0f;
 		float fFrameChangeTimer = 0.0f;
-		int8_t iNavDirection = -1;
+		int8_t iNavDirection = 4;
 		engine::global_player_t globalPlayerId {};
 	};
 

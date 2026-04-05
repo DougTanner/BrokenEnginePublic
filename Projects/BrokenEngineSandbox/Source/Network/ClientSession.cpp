@@ -109,12 +109,7 @@ void ClientSession::PollNetwork()
 						gpGame->miQuadrantDirY = -iDeltaY;
 					}
 				}
-				Log(kLogNetwork, kVerbose, "kChangedFrame GlobalPlayer: {} NewCoord: ({},{}) QuadrantDir: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->miQuadrantDirX, gpGame->miQuadrantDirY); // DT TEMP
-				const std::vector<engine::ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
-				for (int64_t i = 0; i < std::ssize(rSlots); ++i)
-				{
-					Log(kLogNetwork, kVerbose, "  Slot {} State: {} Coord: ({},{})", i, static_cast<int>(rSlots[i].eState), rSlots[i].coord.x, rSlots[i].coord.y);
-				}
+				Log(kLogNetwork, kVerbose, "kChangedFrame GlobalPlayer: {} NewCoord: ({},{}) QuadrantDir: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->miQuadrantDirX, gpGame->miQuadrantDirY);
 				UpdateDesiredCoords("kChangedFrame");
 				break;
 			}

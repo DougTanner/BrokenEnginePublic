@@ -92,16 +92,11 @@ void ClientSession::UpdateDesiredCoords(std::string_view reason)
 		{
 			if (!std::ranges::contains(desiredSpan, rCoord))
 			{
-				Log(kLogNetwork, kVerbose, "  Removed ({},{})", rCoord.x, rCoord.y);
 				mUnwantedTimestamps.try_emplace(rCoord, now);
 			}
 		}
 		for (const engine::GridCoord& rCoord : desiredSpan)
 		{
-			if (!std::ranges::contains(mDesiredCoords, rCoord))
-			{
-				Log(kLogNetwork, kVerbose, "  Added ({},{})", rCoord.x, rCoord.y);
-			}
 			mUnwantedTimestamps.erase(rCoord);
 		}
 		mDesiredCoords.assign(desiredSpan.begin(), desiredSpan.end());

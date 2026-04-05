@@ -2,6 +2,7 @@
 
 #include "Frame/FrameBase.h"
 #include "Frame/GridCoord.h"
+#include "Frame/NavBuild.h"
 #include "Frame/TimeStep.h"
 
 #include "Input/Input.h"
@@ -179,7 +180,7 @@ struct Frame
 	Frame(Frame&&) noexcept;
 	Frame& operator=(Frame&&) noexcept;
 
-	static constexpr int64_t kiVersion = 21;
+	static constexpr int64_t kiVersion = 22 + engine::kiNavDataVersion;
 
 	static constexpr int64_t kiIslandCount = 1;
 

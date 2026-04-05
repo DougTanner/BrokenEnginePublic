@@ -12,7 +12,7 @@ public:
 	IslandTerrain();
 	~IslandTerrain();
 
-	void WaitForElevationMaps();
+	void WaitForElevationMaps(float fNavThreshold);
 
 	float XM_CALLCONV GlobalElevation(FXMVECTOR vecPosition) const;
 	XMVECTOR XM_CALLCONV GlobalNormal(FXMVECTOR vecPosition) const;

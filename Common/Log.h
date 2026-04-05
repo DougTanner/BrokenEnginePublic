@@ -23,11 +23,12 @@ enum class LogCategory : int8_t
 	kGraphics = 2,
 	kLoading  = 3,
 	kNetwork  = 4,
+	kNavData  = 5,
 };
-inline constexpr int64_t kiLogCategoryCount = 5;
+inline constexpr int64_t kiLogCategoryCount = 6;
 
 // Category names for crash dump labels
-inline constexpr const char* kpcLogCategoryNames[] = {"Audio", "Default", "Graphics", "Loading", "Network"};
+inline constexpr const char* kpcLogCategoryNames[] = {"Audio", "Default", "Graphics", "Loading", "Network", "NavData"};
 
 // Mutable globals (defined in Log.cpp)
 extern LogLevel geLogLevel;
@@ -188,6 +189,7 @@ inline constexpr auto kLogAudio    = common::LogCategory::kAudio;
 inline constexpr auto kLogDefault  = common::LogCategory::kDefault;
 inline constexpr auto kLogGraphics = common::LogCategory::kGraphics;
 inline constexpr auto kLogLoading  = common::LogCategory::kLoading;
+inline constexpr auto kLogNavData  = common::LogCategory::kNavData;
 inline constexpr auto kLogNetwork  = common::LogCategory::kNetwork;
 
 using common::LogLevel;
