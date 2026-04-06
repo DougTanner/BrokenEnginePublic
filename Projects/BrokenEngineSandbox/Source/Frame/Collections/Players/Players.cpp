@@ -368,12 +368,6 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 
 		if (rStatusChange.eType == StatusChangeType::kSpawnPlayer || rStatusChange.eType == StatusChangeType::kRespawnPlayer)
 		{
-			// Respawn clears death screen
-			if (rStatusChange.eType == StatusChangeType::kRespawnPlayer)
-			{
-				rFrame.interpolate.gameFlags.Clear(GameFlags::kDeathScreen);
-			}
-
 			engine::global_player_t globalPlayerId {};
 			if (rStatusChange.eType == StatusChangeType::kSpawnPlayer)
 			{

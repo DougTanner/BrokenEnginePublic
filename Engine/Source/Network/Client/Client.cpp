@@ -184,6 +184,7 @@ void Client::Receive(const uint8_t* pData, size_t iSize)
 	{
 		case PacketType::kServerAssignPlayer:
 		case PacketType::kServerPlayerState:
+		case PacketType::kServerFleetSync:
 		{
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 			// Heap: raw game packet buffer grows on game-specific packets

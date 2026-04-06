@@ -26,6 +26,7 @@ struct PendingSpawnRequest
 struct PendingDisconnect
 {
 	int64_t iClientId = 0;
+	ClientGuid clientGuid {};
 	std::vector<global_player_t> playerIds;
 	std::vector<GridCoord> coords;
 };
@@ -50,6 +51,24 @@ struct PendingUpdatePlayerRequest
 	global_player_t globalPlayerId {};
 	bool bUseMissiles = false;
 	float fNavigationDelay = 2.0f;
+};
+
+struct PendingCreateFleetRequest
+{
+	int64_t iClientId = 0;
+};
+
+struct PendingSpawnIntoFleetRequest
+{
+	int64_t iClientId = 0;
+	int64_t iFleetIndex = 0;
+};
+
+struct PendingRespawnInFleetRequest
+{
+	int64_t iClientId = 0;
+	int64_t iFleetIndex = 0;
+	int64_t iMemberIndex = 0;
 };
 
 } // namespace engine

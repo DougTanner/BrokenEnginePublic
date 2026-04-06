@@ -442,6 +442,72 @@ void Server::ClientUpdatePlayerRequest(const uint8_t* pData, size_t iSize, int64
 	mPendingUpdatePlayerRequests.push_back({iClientId, globalPlayerId, bUseMissiles, fNavigationDelay});
 }
 
+void Server::ClientCreateFleetRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
+{
+	if (iSize < 1)
+	{
+		return;
+	}
+
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	{
+		return;
+	}
+
+	Log(kLogNetwork, "Server::ClientCreateFleetRequest Client: {}", iClientId);
+
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	mPendingCreateFleetRequests.push_back({iClientId});
+}
+
+void Server::ClientSpawnIntoFleetRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
+{
+	// 1B type + 8B fleetIndex = 9 bytes
+	if (iSize < 9)
+	{
+		return;
+	}
+
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	{
+		return;
+	}
+
+	const uint8_t* pCursor = pData + 1;
+	int64_t iFleetIndex = ReadInt64(pCursor);
+
+	Log(kLogNetwork, "Server::ClientSpawnIntoFleetRequest Client: {} Fleet: {}", iClientId, iFleetIndex);
+
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	mPendingSpawnIntoFleetRequests.push_back({iClientId, iFleetIndex});
+}
+
+void Server::ClientRespawnInFleetRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
+{
+	// 1B type + 8B fleetIndex + 8B memberIndex = 17 bytes
+	if (iSize < 17)
+	{
+		return;
+	}
+
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	{
+		return;
+	}
+
+	const uint8_t* pCursor = pData + 1;
+	int64_t iFleetIndex = ReadInt64(pCursor);
+	int64_t iMemberIndex = ReadInt64(pCursor);
+
+	Log(kLogNetwork, "Server::ClientRespawnInFleetRequest Client: {} Fleet: {} Member: {}", iClientId, iFleetIndex, iMemberIndex);
+
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	mPendingRespawnInFleetRequests.push_back({iClientId, iFleetIndex, iMemberIndex});
+}
+
 #if defined(BT_SERVER)
 void Server::ClientSaveRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
 {

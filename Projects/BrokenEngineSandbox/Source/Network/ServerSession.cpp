@@ -84,6 +84,9 @@ void ServerSession::PreTickNetwork()
 	PollNetworkBase();
 	Disconnects();
 	NewClients();
+	ProcessCreateFleetRequests();
+	ProcessSpawnIntoFleetRequests();
+	ProcessRespawnInFleetRequests();
 	ProcessSpawnRequests();
 }
 
@@ -480,6 +483,96 @@ void ServerSession::ProcessSpawnRequests()
 	}
 }
 
+void ServerSession::ProcessCreateFleetRequests()
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	for (const engine::PendingCreateFleetRequest& rRequest : engine::gpServer->DrainPendingCreateFleetRequests())
+	{
+		const engine::ClientConnection* pClient = engine::gpServer->FindClient(rRequest.iClientId);
+		if (pClient == nullptr)
+		{
+			continue;
+		}
+
+		mClientFleets.try_emplace(rRequest.iClientId).first->second.emplace_back();
+		Log(kLogNetwork, "ProcessCreateFleetRequests Client: {} FleetCount: {}", rRequest.iClientId, mClientFleets.at(rRequest.iClientId).size());
+		SendFleetSyncToClient(rRequest.iClientId);
+	}
+}
+
+void ServerSession::ProcessSpawnIntoFleetRequests()
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	for (const engine::PendingSpawnIntoFleetRequest& rRequest : engine::gpServer->DrainPendingSpawnIntoFleetRequests())
+	{
+		const engine::ClientConnection* pClient = engine::gpServer->FindClient(rRequest.iClientId);
+		if (pClient == nullptr)
+		{
+			continue;
+		}
+
+		auto it = mClientFleets.find(rRequest.iClientId);
+		if (it == mClientFleets.end() || rRequest.iFleetIndex < 0 || rRequest.iFleetIndex >= std::ssize(it->second))
+		{
+			continue;
+		}
+
+		mDeadClientIds.erase(rRequest.iClientId);
+		mClientsWaitingForSpawn.push_back({rRequest.iClientId, engine::kOriginCoord, rRequest.iFleetIndex, -1});
+		Log(kLogNetwork, "ProcessSpawnIntoFleetRequests Client: {} Fleet: {}", rRequest.iClientId, rRequest.iFleetIndex);
+	}
+}
+
+void ServerSession::ProcessRespawnInFleetRequests()
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	for (const engine::PendingRespawnInFleetRequest& rRequest : engine::gpServer->DrainPendingRespawnInFleetRequests())
+	{
+		const engine::ClientConnection* pClient = engine::gpServer->FindClient(rRequest.iClientId);
+		if (pClient == nullptr)
+		{
+			continue;
+		}
+
+		auto it = mClientFleets.find(rRequest.iClientId);
+		if (it == mClientFleets.end() || rRequest.iFleetIndex < 0 || rRequest.iFleetIndex >= std::ssize(it->second))
+		{
+			continue;
+		}
+
+		const Fleet& rFleet = it->second.at(static_cast<size_t>(rRequest.iFleetIndex));
+		if (rRequest.iMemberIndex < 0 || rRequest.iMemberIndex >= std::ssize(rFleet.members))
+		{
+			continue;
+		}
+
+		if (rFleet.members.at(static_cast<size_t>(rRequest.iMemberIndex)).bAlive)
+		{
+			continue;
+		}
+
+		mDeadClientIds.erase(rRequest.iClientId);
+		mClientsWaitingForSpawn.push_back({rRequest.iClientId, engine::kOriginCoord, rRequest.iFleetIndex, rRequest.iMemberIndex});
+		Log(kLogNetwork, "ProcessRespawnInFleetRequests Client: {} Fleet: {} Member: {}", rRequest.iClientId, rRequest.iFleetIndex, rRequest.iMemberIndex);
+	}
+}
+
+void ServerSession::SendFleetSyncToClient(int64_t iClientId)
+{
+	auto it = mClientFleets.find(iClientId);
+	if (it != mClientFleets.end())
+	{
+		engine::gpServer->SendFleetSync(iClientId, it->second);
+	}
+	else
+	{
+		engine::gpServer->SendFleetSync(iClientId, {});
+	}
+}
+
 void ServerSession::ProcessUpdatePlayerRequests()
 {
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
@@ -605,6 +698,25 @@ void ServerSession::NewClients()
 
 			if (!rClient.ownedPlayerIds.empty())
 			{
+				// Restore fleet data from saved state
+				for (auto savedIt = mSavedFleets.begin(); savedIt != mSavedFleets.end(); ++savedIt)
+				{
+					if (savedIt->first == rClient.clientGuid)
+					{
+						// Update alive flags based on re-linked players
+						for (Fleet& rFleet : savedIt->second)
+						{
+							for (FleetMember& rMember : rFleet.members)
+							{
+								rMember.bAlive = std::ranges::contains(rClient.ownedPlayerIds, rMember.globalPlayerId);
+							}
+						}
+						mClientFleets.insert_or_assign(rClient.iClientId, std::move(savedIt->second));
+						mSavedFleets.erase(savedIt);
+						break;
+					}
+				}
+				SendFleetSyncToClient(rClient.iClientId);
 				continue;
 			}
 		}
@@ -675,6 +787,28 @@ void ServerSession::FinalizeNewClients([[maybe_unused]] int64_t iTick)
 				rPlayersPostRender.pClientGuids[iPlayerIndex] = pClient->clientGuid;
 				pClient->ownedPlayerIds.push_back(globalPlayerId);
 				pClient->ownedPlayerCoords.push_back(engine::kOriginCoord);
+
+				// Associate with fleet if this spawn was fleet-triggered
+				const ClientSpawnInfo& rSpawnInfo = mClientsWaitingForSpawn.at(i);
+				if (rSpawnInfo.iFleetIndex >= 0)
+				{
+					auto& rFleets = mClientFleets.try_emplace(iClientId).first->second;
+					if (rSpawnInfo.iFleetIndex < std::ssize(rFleets))
+					{
+						Fleet& rFleet = rFleets.at(static_cast<size_t>(rSpawnInfo.iFleetIndex));
+						if (rSpawnInfo.iMemberIndex >= 0 && rSpawnInfo.iMemberIndex < std::ssize(rFleet.members))
+						{
+							// Respawn: replace dead member
+							rFleet.members.at(static_cast<size_t>(rSpawnInfo.iMemberIndex)) = FleetMember {globalPlayerId, true};
+						}
+						else
+						{
+							// New member
+							rFleet.members.push_back(FleetMember {globalPlayerId, true});
+						}
+						SendFleetSyncToClient(iClientId);
+					}
+				}
 			}
 		}
 	}
@@ -694,6 +828,18 @@ void ServerSession::Disconnects()
 		Log(kLogNetwork, kVerbose, "ServerSession::Disconnects Client: {} Players: {}", rDisconnect.iClientId, rDisconnect.playerIds.size()); // DT TEMP
 
 		mDeadClientIds.erase(rDisconnect.iClientId);
+
+		// Preserve fleet data by ClientGuid for reconnection (client already removed from Server by this point)
+		auto fleetIt = mClientFleets.find(rDisconnect.iClientId);
+		if (fleetIt != mClientFleets.end() && !fleetIt->second.empty())
+		{
+			if (!rDisconnect.clientGuid.IsEmpty())
+			{
+				std::erase_if(mSavedFleets, [&](const auto& rPair) { return rPair.first == rDisconnect.clientGuid; });
+				mSavedFleets.push_back({rDisconnect.clientGuid, std::move(fleetIt->second)});
+			}
+			mClientFleets.erase(fleetIt);
+		}
 
 		// Remove from spawn queue if waiting
 		std::erase_if(mClientsWaitingForSpawn, [&](const ClientSpawnInfo& rInfo)
@@ -761,6 +907,33 @@ void ServerSession::DetectPlayerDeaths()
 				Log(kLogNetwork, kVerbose, "ServerSession::DetectPlayerDeaths Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, globalId.iValue, coord.x, coord.y);
 				rClient.ownedPlayerIds.erase(rClient.ownedPlayerIds.begin() + i);
 				rClient.ownedPlayerCoords.erase(rClient.ownedPlayerCoords.begin() + i);
+
+				// Mark fleet member as dead
+				auto fleetIt = mClientFleets.find(rClient.iClientId);
+				if (fleetIt != mClientFleets.end())
+				{
+					bool bFleetUpdated = false;
+					for (Fleet& rFleet : fleetIt->second)
+					{
+						for (FleetMember& rMember : rFleet.members)
+						{
+							if (rMember.globalPlayerId == globalId && rMember.bAlive)
+							{
+								rMember.bAlive = false;
+								bFleetUpdated = true;
+								break;
+							}
+						}
+						if (bFleetUpdated)
+						{
+							break;
+						}
+					}
+					if (bFleetUpdated)
+					{
+						SendFleetSyncToClient(rClient.iClientId);
+					}
+				}
 			}
 		}
 
@@ -880,6 +1053,29 @@ void ServerSession::ResetClientsForLoad()
 		{
 			Log("ResetClientsForLoad Client: {} no GUID match, will respawn", rClient.iClientId);
 		}
+
+		// Restore fleet data from saved state, matched by ClientGuid
+		mClientFleets.erase(rClient.iClientId);
+		if (!rClient.clientGuid.IsEmpty())
+		{
+			for (auto& [rGuid, rFleets] : mSavedFleets)
+			{
+				if (rGuid == rClient.clientGuid)
+				{
+					// Update alive flags based on re-linked players
+					for (Fleet& rFleet : rFleets)
+					{
+						for (FleetMember& rMember : rFleet.members)
+						{
+							rMember.bAlive = std::ranges::contains(rClient.ownedPlayerIds, rMember.globalPlayerId);
+						}
+					}
+					mClientFleets.insert_or_assign(rClient.iClientId, rFleets);
+					break;
+				}
+			}
+		}
+		SendFleetSyncToClient(rClient.iClientId);
 	}
 
 	// Clear all pending server session state
@@ -897,6 +1093,10 @@ void ServerSession::ResetClientsForLoad()
 	engine::gpServer->DrainPendingNewSubscriptions().clear();
 	engine::gpServer->DrainPendingResyncClientIds().clear();
 	engine::gpServer->DrainPendingUpdatePlayerRequests().clear();
+	engine::gpServer->DrainPendingCreateFleetRequests().clear();
+	engine::gpServer->DrainPendingSpawnIntoFleetRequests().clear();
+	engine::gpServer->DrainPendingRespawnInFleetRequests().clear();
+	mSavedFleets.clear();
 
 	engine::gpServer->Flush();
 }

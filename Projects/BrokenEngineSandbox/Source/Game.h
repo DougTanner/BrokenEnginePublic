@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Data/Audio.h"
+#include "Fleet.h"
 
 #if defined(BT_SERVER)
 #include "Network/ServerSession.h"
@@ -92,13 +93,21 @@ public:
 	void AddClientPlayer(engine::global_player_t id, engine::GridCoord coord);
 	void RemoveClientPlayer(engine::global_player_t id);
 	int64_t PlayerCount() const;
-	int64_t FocusedPlayerIndex() const;
-	void FocusNext();
-	void FocusPrev();
-	bool CanFocusNext() const;
-	bool CanFocusPrev() const;
 	void RestoreReplayMeta(const ReplayMeta& rMeta);
 	std::optional<int64_t> ClientPlayerIndex(const PlayersPostRender& rPlayers) const;
+
+	// Fleet navigation
+	int64_t FleetCount() const;
+	int64_t FocusedFleetIndex() const;
+	void FocusNextFleet();
+	void FocusPrevFleet();
+	bool CanFocusNextFleet() const;
+	bool CanFocusPrevFleet() const;
+	const Fleet* FocusedFleet() const;
+	void SelectPlayerInFleet(int64_t iPlayerIndex);
+	int64_t FocusedPlayerInFleetIndex() const;
+	void SyncFleets(std::vector<Fleet>&& fleets);
+	void AutoSelectFirstAliveMember();
 	void ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput);
 
 	XMVECTOR GetClientPlayerPosition() const;
@@ -121,7 +130,10 @@ public:
 	XMVECTOR mVecVisualErrorOffset {};
 	engine::NetworkUiControl<bool> mWeaponModeToggle {};
 	engine::NetworkUiControl<float> mNavigationDelayControl {};
-	engine::NetworkUiControl<int64_t> mSpawnToggle {};
+
+	std::vector<Fleet> mClientFleets;
+	int64_t miFocusedFleetIndex = -1;
+	int64_t miFocusedPlayerInFleetIndex = -1;
 
 	static constexpr float kfVisualErrorDecayRate = 15.0f;
 	static constexpr float kfVisualErrorMaxDistance = 5.0f;
@@ -162,7 +174,6 @@ private:
 public:
 	std::vector<engine::global_player_t> mClientPlayerIds;
 	std::vector<engine::GridCoord> mClientPlayerCoords;
-	int64_t miFocusedPlayerIndex = -1;
 private:
 	float mfPreviousClientArmor = 0.0f;
 	engine::alignment_t mPlayerAlignment {};

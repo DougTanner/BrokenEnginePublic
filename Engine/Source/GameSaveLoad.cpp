@@ -2,6 +2,7 @@
 
 #if defined(BT_SERVER)
 
+#include "Fleet.h"
 #include "GameBase.h"
 #include "Game.h"
 #include "Network/ServerSession.h"
@@ -340,6 +341,58 @@ void GameSaveLoad::WriteGrid(const FileFlags_t& rFlags, const std::filesystem::p
 	clientGridCoord.Write(fileStream);
 	common::Write(fileStream, mrGameBase.miNextGlobalId);
 
+	// Write fleet data keyed by ClientGuid (connected clients + disconnected clients in mSavedFleets)
+	{
+		auto writeFleets = [&fileStream](const ClientGuid& rGuid, const std::vector<game::Fleet>& rFleets)
+		{
+			common::Write(fileStream, rGuid.uiHigh);
+			common::Write(fileStream, rGuid.uiLow);
+			int64_t iFleetCount = std::ssize(rFleets);
+			common::Write(fileStream, iFleetCount);
+			for (const game::Fleet& rFleet : rFleets)
+			{
+				int64_t iMemberCount = std::ssize(rFleet.members);
+				common::Write(fileStream, iMemberCount);
+				for (const game::FleetMember& rMember : rFleet.members)
+				{
+					common::Write(fileStream, rMember.globalPlayerId.iValue);
+					uint8_t uiAlive = rMember.bAlive ? 1 : 0;
+					common::Write(fileStream, uiAlive);
+				}
+			}
+		};
+
+		// Count: connected clients with fleets + disconnected clients with saved fleets
+		const std::vector<ClientConnection>& rClients = gpServer->GetClients();
+		int64_t iClientCount = std::ssize(game::gpServerSession->mSavedFleets);
+		for (const ClientConnection& rClient : rClients)
+		{
+			auto fleetIt = game::gpServerSession->mClientFleets.find(rClient.iClientId);
+			if (fleetIt != game::gpServerSession->mClientFleets.end() && !fleetIt->second.empty())
+			{
+				++iClientCount;
+			}
+		}
+		common::Write(fileStream, iClientCount);
+
+		// Write connected clients' fleets
+		for (const ClientConnection& rClient : rClients)
+		{
+			auto fleetIt = game::gpServerSession->mClientFleets.find(rClient.iClientId);
+			if (fleetIt == game::gpServerSession->mClientFleets.end() || fleetIt->second.empty())
+			{
+				continue;
+			}
+			writeFleets(rClient.clientGuid, fleetIt->second);
+		}
+
+		// Write disconnected clients' saved fleets
+		for (const auto& [rGuid, rFleets] : game::gpServerSession->mSavedFleets)
+		{
+			writeFleets(rGuid, rFleets);
+		}
+	}
+
 	// Sort by coord key for deterministic output
 	std::vector<uint64_t> keys;
 	keys.reserve(mrGameBase.mCoordFrames.size());
@@ -379,6 +432,40 @@ bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::pa
 	common::Read(fileStream, iFrameCount);
 	rClientGridCoord.Read(fileStream);
 	common::Read(fileStream, mrGameBase.miNextGlobalId);
+
+	// Read fleet data keyed by ClientGuid
+	{
+		game::gpServerSession->mClientFleets.clear();
+		game::gpServerSession->mSavedFleets.clear();
+		int64_t iClientCount = 0;
+		common::Read(fileStream, iClientCount);
+		for (int64_t i = 0; i < iClientCount; ++i)
+		{
+			uint64_t uiGuidHigh = 0;
+			uint64_t uiGuidLow = 0;
+			common::Read(fileStream, uiGuidHigh);
+			common::Read(fileStream, uiGuidLow);
+			ClientGuid guid {uiGuidHigh, uiGuidLow};
+			int64_t iFleetCount = 0;
+			common::Read(fileStream, iFleetCount);
+			std::vector<game::Fleet> fleets(static_cast<size_t>(iFleetCount));
+			for (int64_t j = 0; j < iFleetCount; ++j)
+			{
+				int64_t iMemberCount = 0;
+				common::Read(fileStream, iMemberCount);
+				fleets.at(static_cast<size_t>(j)).members.resize(static_cast<size_t>(iMemberCount));
+				for (int64_t k = 0; k < iMemberCount; ++k)
+				{
+					int64_t iGlobalPlayerId = 0;
+					common::Read(fileStream, iGlobalPlayerId);
+					uint8_t uiAlive = 0;
+					common::Read(fileStream, uiAlive);
+					fleets.at(static_cast<size_t>(j)).members.at(static_cast<size_t>(k)) = game::FleetMember {global_player_t {iGlobalPlayerId}, uiAlive != 0};
+				}
+			}
+			game::gpServerSession->mSavedFleets.push_back({guid, std::move(fleets)});
+		}
+	}
 
 	mrGameBase.mCoordFrames.clear();
 

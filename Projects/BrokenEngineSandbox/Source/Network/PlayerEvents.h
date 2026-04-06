@@ -3,6 +3,8 @@
 namespace game
 {
 
+struct Fleet;
+
 // Wire values for kServerPlayerState payload (must match server send order)
 enum class PlayerStateWireType : uint8_t
 {
@@ -29,6 +31,10 @@ struct ReceivedPlayerEvent
 void ParsePlayerEvents(
 	std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets,
 	std::vector<ReceivedPlayerEvent>& rOutEvents);
+
+void ParseFleetSync(
+	std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets,
+	std::vector<Fleet>& rOutFleets);
 
 inline uint8_t PlayerEventTypeToWire(PlayerEventType eType)
 {

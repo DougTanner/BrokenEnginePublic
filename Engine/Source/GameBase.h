@@ -32,7 +32,6 @@ enum class GameFlags : uint64_t
 	kSaveReplay           = 0x02,
 	kLoadReplay           = 0x04,
 	kMainMenu             = 0x08,
-	kDeathScreen          = 0x10,
 	kPaused               = 0x20,
 };
 using GameFlags_t = common::Flags<GameFlags>;

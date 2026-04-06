@@ -14,12 +14,17 @@ public:
 private:
 
 	void RenderBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize, float fValue, float fHalfWidthPerPoint, float fBarYSign, ImU32 uiBarColor, VkDescriptorSet vkIconDescriptorSet);
-	void RenderPlayerPanel();
+	void RenderFleetPanel();
 	void RenderFocusedPlayerPanel();
 
 	VkDescriptorSet mShieldIconVkDescriptorSet = VK_NULL_HANDLE;
 	VkDescriptorSet mArmorIconVkDescriptorSet = VK_NULL_HANDLE;
 	bool mbTexturesRequested = false;
+
+#if defined(BT_CLIENT)
+	engine::NetworkUiControl<int64_t> mCreateFleetToggle {};
+	engine::NetworkUiControl<int64_t> mSpawnIntoFleetToggle {};
+#endif
 };
 
 } // namespace game

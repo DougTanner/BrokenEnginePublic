@@ -34,6 +34,10 @@ enum class PacketType : uint8_t
 	kClientReplayRecordRequest, // Client requests server replay record start/stop (debug only)
 	kClientReplayPlaybackRequest, // Client requests server replay playback (debug only)
 	kClientResetRequest,          // Client requests server reset (debug only)
+	kClientCreateFleetRequest,    // Client requests creation of an empty fleet
+	kClientSpawnIntoFleetRequest, // Client requests spawning a new player into a fleet
+	kClientRespawnInFleetRequest, // Client requests respawning a dead fleet member
+	kServerFleetSync,             // Server sends full fleet state to client
 };
 
 // Client request flags for spawn/respawn

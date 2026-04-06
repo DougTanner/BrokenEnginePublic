@@ -2,6 +2,7 @@
 
 #if defined(BT_CLIENT)
 
+#include "Fleet.h"
 #include "Game.h"
 #include "Frame/HealthDamage.h"
 #include "Frame/Collections/Players/Players.h"
@@ -55,17 +56,6 @@ void HudScreen::Render()
 		return;
 	}
 
-	if (gpGame->mGameFlags & engine::GameFlags::kDeathScreen && gpGame->PlayerCount() == 0)
-	{
-		return;
-	}
-
-	auto coordIt = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
-	if (coordIt == gpGame->mCoordFrames.end() || coordIt->second.pCurrent == nullptr)
-	{
-		return;
-	}
-
 	// Request texture loading on first render (same pattern as Pipeline::WriteIndirectBuffer)
 	if (!mbTexturesRequested)
 	{
@@ -83,72 +73,150 @@ void HudScreen::Render()
 		mArmorIconVkDescriptorSet = ImGui_ImplVulkan_AddTexture(engine::gpTextureManager->mVkSamplerClamp, engine::gpTextureManager->mTextureMap.at(data::kTexturesUiBC7ArmorIconpngCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	}
 
-	ImGuiIO& rIo = ImGui::GetIO();
-	ImDrawList* pDrawList = ImGui::GetBackgroundDrawList();
-
-	std::optional<int64_t> oIdx = gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers);
-	if (oIdx)
+	// Render health bars only if we have a focused player in view
+	auto coordIt = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
+	if (coordIt != gpGame->mCoordFrames.end() && coordIt->second.pCurrent != nullptr)
 	{
-		PlayersPostRender& rPlayers = *gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers;
-		RenderBar(pDrawList, rIo.DisplaySize, rPlayers.pfShields[*oIdx], kfShieldHalfWidthPerPoint, -1.0f, kuiShieldColor, mShieldIconVkDescriptorSet);
-		RenderBar(pDrawList, rIo.DisplaySize, rPlayers.pfArmors[*oIdx], kfArmorHalfWidthPerPoint, 1.0f, kuiArmorColor, mArmorIconVkDescriptorSet);
+		ImGuiIO& rIo = ImGui::GetIO();
+		ImDrawList* pDrawList = ImGui::GetBackgroundDrawList();
+
+		std::optional<int64_t> oIdx = gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers);
+		if (oIdx)
+		{
+			PlayersPostRender& rPlayers = *gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers;
+			RenderBar(pDrawList, rIo.DisplaySize, rPlayers.pfShields[*oIdx], kfShieldHalfWidthPerPoint, -1.0f, kuiShieldColor, mShieldIconVkDescriptorSet);
+			RenderBar(pDrawList, rIo.DisplaySize, rPlayers.pfArmors[*oIdx], kfArmorHalfWidthPerPoint, 1.0f, kuiArmorColor, mArmorIconVkDescriptorSet);
+		}
 	}
 
-	RenderPlayerPanel();
+	RenderFleetPanel();
 	RenderFocusedPlayerPanel();
 }
 
-void HudScreen::RenderPlayerPanel()
+void HudScreen::RenderFleetPanel()
 {
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
 	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.42f), ImGuiCond_Always);
-	ImGui::Begin("PlayerPanel", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+	ImGui::Begin("FleetPanel", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 	ImGui::SetWindowFontScale(kfMenuUiScale);
 
-	int64_t iPlayerCount = gpGame->PlayerCount();
+	int64_t iFleetCount = gpGame->FleetCount();
 
-	// Update spawn toggle: clears pending when player count changes
-	gpGame->mSpawnToggle.Update(iPlayerCount);
+	// Update fleet toggle: clears pending when fleet count changes
+	mCreateFleetToggle.Update(iFleetCount);
 
-	// Navigation row: [<] index/count [>] [+]
-	bool bCanPrev = gpGame->CanFocusPrev();
-	ImGui::BeginDisabled(!bCanPrev);
+	// Fleet navigation row: [<] fleet_index/fleet_count [>] [+]
+	ImGui::BeginDisabled(!gpGame->CanFocusPrevFleet());
 	if (ImGui::Button("[<]"))
 	{
-		gpGame->FocusPrev();
-		gpClientSession->UpdateDesiredCoords("FocusPrev");
-		Log(kVerbose, "HUD FocusPrev NewIndex: {} PlayerCount: {}", gpGame->FocusedPlayerIndex(), iPlayerCount); // DT TEMP
+		gpGame->FocusPrevFleet();
+		gpClientSession->UpdateDesiredCoords("FocusPrevFleet");
+		Log(kVerbose, "HUD FocusPrevFleet NewIndex: {} FleetCount: {}", gpGame->FocusedFleetIndex(), iFleetCount); // DT TEMP
 	}
 	ImGui::EndDisabled();
 
 	ImGui::SameLine();
-	ImGui::Text("%lld/%lld", gpGame->FocusedPlayerIndex() + 1, iPlayerCount);
+	if (iFleetCount > 0)
+	{
+		ImGui::Text("%lld/%lld", gpGame->FocusedFleetIndex() + 1, iFleetCount);
+	}
+	else
+	{
+		ImGui::Text("0/0");
+	}
 	ImGui::SameLine();
 
-	bool bCanNext = gpGame->CanFocusNext();
-	ImGui::BeginDisabled(!bCanNext);
+	ImGui::BeginDisabled(!gpGame->CanFocusNextFleet());
 	if (ImGui::Button("[>]"))
 	{
-		gpGame->FocusNext();
-		gpClientSession->UpdateDesiredCoords("FocusNext");
-		Log(kVerbose, "HUD FocusNext NewIndex: {} PlayerCount: {}", gpGame->FocusedPlayerIndex(), iPlayerCount); // DT TEMP
+		gpGame->FocusNextFleet();
+		gpClientSession->UpdateDesiredCoords("FocusNextFleet");
+		Log(kVerbose, "HUD FocusNextFleet NewIndex: {} FleetCount: {}", gpGame->FocusedFleetIndex(), iFleetCount); // DT TEMP
 	}
 	ImGui::EndDisabled();
 
 	ImGui::SameLine();
-	ImGui::BeginDisabled(gpGame->mSpawnToggle.IsPending());
-	if (ImGui::Button("[+]"))
+	ImGui::BeginDisabled(mCreateFleetToggle.IsPending());
+	if (ImGui::Button("[+]##Fleet"))
 	{
 		if (gpClientSession != nullptr)
 		{
-			gpGame->mSpawnToggle.SetPending();
-			engine::gpClient->SendSpawnRequest({engine::ClientRequestFlags::kSpawnRequested});
-			Log(kVerbose, "HUD SpawnRequest PlayerCount: {}", iPlayerCount); // DT TEMP
+			mCreateFleetToggle.SetPending();
+			engine::gpClient->SendCreateFleetRequest();
+			Log(kVerbose, "HUD CreateFleetRequest FleetCount: {}", iFleetCount); // DT TEMP
 		}
 	}
 	ImGui::EndDisabled();
+
+	// Fleet member list
+	const Fleet* pFleet = gpGame->FocusedFleet();
+	if (pFleet != nullptr)
+	{
+		ImGui::Separator();
+
+		// Update spawn into fleet toggle based on member count
+		mSpawnIntoFleetToggle.Update(std::ssize(pFleet->members));
+
+		for (int64_t i = 0; i < std::ssize(pFleet->members); ++i)
+		{
+			const FleetMember& rMember = pFleet->members.at(static_cast<size_t>(i));
+			bool bSelected = (i == gpGame->FocusedPlayerInFleetIndex());
+
+			// Find coord for display
+			engine::GridCoord memberCoord {};
+			for (int64_t j = 0; j < std::ssize(gpGame->mClientPlayerIds); ++j)
+			{
+				if (gpGame->mClientPlayerIds.at(j) == rMember.globalPlayerId)
+				{
+					memberCoord = gpGame->mClientPlayerCoords.at(j);
+					break;
+				}
+			}
+
+			ImGui::PushID(static_cast<int>(i));
+			if (rMember.bAlive)
+			{
+				char pcLabel[64];
+				snprintf(pcLabel, sizeof(pcLabel), "Ship %lld (%d,%d) #%lld", i + 1, memberCoord.x, memberCoord.y, rMember.globalPlayerId.iValue);
+				if (ImGui::Selectable(pcLabel, bSelected))
+				{
+					gpGame->SelectPlayerInFleet(i);
+					gpClientSession->UpdateDesiredCoords("SelectPlayer");
+				}
+			}
+			else
+			{
+				char pcLabel[64];
+				snprintf(pcLabel, sizeof(pcLabel), "Ship %lld [DEAD] #%lld", i + 1, rMember.globalPlayerId.iValue);
+				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+				if (ImGui::Selectable(pcLabel, false))
+				{
+					if (gpClientSession != nullptr)
+					{
+						engine::gpClient->SendRespawnInFleetRequest(gpGame->FocusedFleetIndex(), i);
+						Log(kVerbose, "HUD RespawnInFleet Fleet: {} Member: {}", gpGame->FocusedFleetIndex(), i); // DT TEMP
+					}
+				}
+				ImGui::PopStyleColor();
+			}
+			ImGui::PopID();
+		}
+
+		// Add player button at bottom of list
+		ImGui::BeginDisabled(mSpawnIntoFleetToggle.IsPending());
+		if (ImGui::Button("[+]##Player"))
+		{
+			if (gpClientSession != nullptr)
+			{
+				mSpawnIntoFleetToggle.SetPending();
+				engine::gpClient->SendSpawnIntoFleetRequest(gpGame->FocusedFleetIndex());
+				Log(kVerbose, "HUD SpawnIntoFleet Fleet: {}", gpGame->FocusedFleetIndex()); // DT TEMP
+			}
+		}
+		ImGui::EndDisabled();
+	}
 
 	ImGui::End();
 }

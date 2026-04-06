@@ -19,8 +19,6 @@ void ClientSession::UpdateDesiredCoords(std::string_view reason)
 		desiredCoords[iDesiredCount++] = coord;
 	};
 
-	bool bDead = gpGame->mGameFlags & engine::GameFlags::kDeathScreen;
-
 	if (gpGame->ClientPlayerId().IsValid())
 	{
 		pushCoord(gpGame->mClientGridCoord);
@@ -35,31 +33,9 @@ void ClientSession::UpdateDesiredCoords(std::string_view reason)
 				pushCoord({.x = gpGame->mClientGridCoord.x + gpGame->miQuadrantDirX, .y = gpGame->mClientGridCoord.y + gpGame->miQuadrantDirY});
 		}
 	}
-	else if (bDead)
-	{
-		if constexpr (kbQuadrantNeighborSubscriptions)
-		{
-			// Death screen: keep current subscriptions + ensure origin for respawn
-			for (const engine::GridCoord& rCoord : mDesiredCoords)
-			{
-				pushCoord(rCoord);
-			}
-			if (iDesiredCount > 0 && !std::ranges::contains(std::span(desiredCoords, iDesiredCount), engine::kOriginCoord))
-			{
-				pushCoord(engine::kOriginCoord);
-			}
-		}
-		else
-		{
-			pushCoord(gpGame->mClientGridCoord);
-			if (gpGame->mClientGridCoord != engine::kOriginCoord)
-			{
-				pushCoord(engine::kOriginCoord);
-			}
-		}
-	}
 	else
 	{
+		// No focused player: subscribe to origin for fleet spawn requests
 		pushCoord(engine::kOriginCoord);
 	}
 

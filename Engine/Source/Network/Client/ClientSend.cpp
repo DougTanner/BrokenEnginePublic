@@ -331,6 +331,63 @@ void Client::SendUpdatePlayerRequest(int64_t iGlobalPlayerId, bool bUseMissiles,
 	rWorkbuffer.Pop();
 }
 
+void Client::SendCreateFleetRequest()
+{
+	if (!mbConnected || mpServerPeer == nullptr)
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientCreateFleetRequest));
+
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	Log(kLogNetwork, "Client::SendCreateFleetRequest");
+
+	rWorkbuffer.Pop();
+}
+
+void Client::SendSpawnIntoFleetRequest(int64_t iFleetIndex)
+{
+	if (!mbConnected || mpServerPeer == nullptr)
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientSpawnIntoFleetRequest));
+	rWorkbuffer.PushBack<int64_t>(iFleetIndex);
+
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	Log(kLogNetwork, "Client::SendSpawnIntoFleetRequest Fleet: {}", iFleetIndex);
+
+	rWorkbuffer.Pop();
+}
+
+void Client::SendRespawnInFleetRequest(int64_t iFleetIndex, int64_t iMemberIndex)
+{
+	if (!mbConnected || mpServerPeer == nullptr)
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientRespawnInFleetRequest));
+	rWorkbuffer.PushBack<int64_t>(iFleetIndex);
+	rWorkbuffer.PushBack<int64_t>(iMemberIndex);
+
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	Log(kLogNetwork, "Client::SendRespawnInFleetRequest Fleet: {} Member: {}", iFleetIndex, iMemberIndex);
+
+	rWorkbuffer.Pop();
+}
+
 void Client::SendReplayRecordRequest()
 {
 	if (!mbConnected || mpServerPeer == nullptr)

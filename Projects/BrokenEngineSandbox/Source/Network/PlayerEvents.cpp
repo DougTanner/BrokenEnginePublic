@@ -1,5 +1,6 @@
 #include "Game.h"
 
+#include "Fleet.h"
 #include "Network/PlayerEvents.h"
 
 #include "Network/NetworkCursor.h"
@@ -44,6 +45,40 @@ void ParsePlayerEvents(
 			PlayerEventType eEventType = static_cast<PlayerEventType>(uiWireType + 1);
 			rOutEvents.push_back({eEventType, engine::global_player_t {iGlobalPlayerId}, coord});
 		}
+	}
+}
+
+void ParseFleetSync(
+	std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets,
+	std::vector<Fleet>& rOutFleets)
+{
+	for (auto it = rRawPackets.begin(); it != rRawPackets.end(); )
+	{
+		engine::PacketType eType = static_cast<engine::PacketType>(it->first);
+		if (eType != engine::PacketType::kServerFleetSync)
+		{
+			++it;
+			continue;
+		}
+
+		const std::vector<uint8_t>& rPayload = it->second;
+		const uint8_t* pCursor = rPayload.data();
+
+		int64_t iFleetCount = engine::ReadInt64(pCursor);
+		rOutFleets.resize(static_cast<size_t>(iFleetCount));
+		for (int64_t i = 0; i < iFleetCount; ++i)
+		{
+			int64_t iMemberCount = engine::ReadInt64(pCursor);
+			rOutFleets.at(static_cast<size_t>(i)).members.resize(static_cast<size_t>(iMemberCount));
+			for (int64_t j = 0; j < iMemberCount; ++j)
+			{
+				int64_t iGlobalPlayerId = engine::ReadInt64(pCursor);
+				uint8_t uiAlive = engine::ReadUint8(pCursor);
+				rOutFleets.at(static_cast<size_t>(i)).members.at(static_cast<size_t>(j)) = FleetMember {engine::global_player_t {iGlobalPlayerId}, uiAlive != 0};
+			}
+		}
+
+		it = rRawPackets.erase(it);
 	}
 }
 

@@ -63,6 +63,9 @@ void Server::Poll()
 	mPendingNewSubscriptions.clear();
 	mPendingResyncClientIds.clear();
 	mPendingUpdatePlayerRequests.clear();
+	mPendingCreateFleetRequests.clear();
+	mPendingSpawnIntoFleetRequests.clear();
+	mPendingRespawnInFleetRequests.clear();
 
 	ENetEvent event {};
 	while (enet_host_service(mpHost, &event, 0) > 0)
@@ -148,7 +151,7 @@ void Server::Disconnect(ENetEvent& rEvent)
 	if (pClient != nullptr)
 	{
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		mPendingDisconnects.push_back({iClientId, pClient->ownedPlayerIds, pClient->ownedPlayerCoords});
+		mPendingDisconnects.push_back({iClientId, pClient->clientGuid, pClient->ownedPlayerIds, pClient->ownedPlayerCoords});
 	}
 	RemoveClient(iClientId);
 
@@ -226,6 +229,15 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 #endif // BT_SERVER
 		case PacketType::kClientUpdatePlayerRequest:
 			ClientUpdatePlayerRequest(pData, iSize, iClientId);
+			break;
+		case PacketType::kClientCreateFleetRequest:
+			ClientCreateFleetRequest(pData, iSize, iClientId);
+			break;
+		case PacketType::kClientSpawnIntoFleetRequest:
+			ClientSpawnIntoFleetRequest(pData, iSize, iClientId);
+			break;
+		case PacketType::kClientRespawnInFleetRequest:
+			ClientRespawnInFleetRequest(pData, iSize, iClientId);
 			break;
 		default:
 			Log(kLogNetwork, kWarning, "Server::Receive unknown packet type {} Client: {}", static_cast<uint8_t>(eType), iClientId);

@@ -2,6 +2,7 @@
 
 #include "Network/Server/Server.h"
 
+#include "Fleet.h"
 #include "Frame/FrameStaticData.h"
 #include "Memory/MemoryManager.h"
 #include "Network/NetworkCursor.h"
@@ -355,6 +356,37 @@ void Server::BroadcastLoadNotification()
 
 		rWorkbuffer.Pop();
 	}
+}
+
+void Server::SendFleetSync(int64_t iClientId, const std::vector<game::Fleet>& rFleets)
+{
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr)
+	{
+		return;
+	}
+
+	Log(kLogNetwork, kVerbose, "Server::SendFleetSync Client: {} Fleets: {}", iClientId, rFleets.size());
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	// [1B type][8B fleetCount] per fleet: [8B memberCount] per member: [8B globalPlayerId][1B bAlive]
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerFleetSync));
+	rWorkbuffer.PushBack<int64_t>(std::ssize(rFleets));
+	for (const game::Fleet& rFleet : rFleets)
+	{
+		rWorkbuffer.PushBack<int64_t>(std::ssize(rFleet.members));
+		for (const game::FleetMember& rMember : rFleet.members)
+		{
+			rWorkbuffer.PushBack<int64_t>(rMember.globalPlayerId.iValue);
+			rWorkbuffer.PushBack<uint8_t>(rMember.bAlive ? 1 : 0);
+		}
+	}
+
+	NetworkManager::SendPacket(pClient->pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+
+	rWorkbuffer.Pop();
 }
 
 } // namespace engine

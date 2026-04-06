@@ -29,7 +29,6 @@ enum class GameFlags : uint64_t
 {
 	kMainMenu    = 0x00000001,
 	kGame        = 0x00000002,
-	kDeathScreen = 0x00000008,
 };
 using GameFlags_t = common::Flags<GameFlags>;
 

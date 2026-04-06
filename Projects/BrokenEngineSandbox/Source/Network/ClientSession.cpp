@@ -1,3 +1,4 @@
+#include "Fleet.h"
 #include "Game.h"
 
 #include "Network/ClientSession.h"
@@ -62,7 +63,6 @@ void ClientSession::PollNetwork()
 				{
 					gpGame->AddClientPlayer(rEvent.globalPlayerId, rEvent.coord);
 				}
-				gpGame->mGameFlags.Clear(engine::GameFlags::kDeathScreen);
 				UpdateDesiredCoords("kAssigned");
 				break;
 			case PlayerEventType::kSpawned:
@@ -115,18 +115,21 @@ void ClientSession::PollNetwork()
 			}
 			case PlayerEventType::kDied:
 				gpGame->RemoveClientPlayer(rEvent.globalPlayerId);
-				if (gpGame->PlayerCount() == 0)
-				{
-					gpGame->mGameFlags.Set(engine::GameFlags::kDeathScreen);
-					auto it = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
-					if (it != gpGame->mCoordFrames.end() && it->second.pCurrent != nullptr)
-					{
-						gpGame->CurrentFrame(gpGame->mClientGridCoord).interpolate.gameFlags.Set(GameFlags::kDeathScreen);
-					}
-					gpGame->SetPreviousClientArmor(0.0f);
-				}
 				UpdateDesiredCoords("kDied");
 				break;
+		}
+	}
+
+	// Parse fleet sync from remaining game packets
+	std::vector<Fleet> receivedFleets;
+	ParseFleetSync(mpClientNetwork->DrainReceivedGamePackets(), receivedFleets);
+	if (!receivedFleets.empty())
+	{
+		engine::GridCoord preFleetCoord = gpGame->mClientGridCoord;
+		gpGame->SyncFleets(std::move(receivedFleets));
+		if (gpGame->mClientGridCoord != preFleetCoord)
+		{
+			UpdateDesiredCoords("FleetSync");
 		}
 	}
 
@@ -585,14 +588,16 @@ void ClientSession::ResetForServerLoad()
 	// Clear player identity — server will reassign
 	gpGame->mClientPlayerIds.clear();
 	gpGame->mClientPlayerCoords.clear();
-	gpGame->miFocusedPlayerIndex = -1;
 	gpGame->mClientGridCoord = {};
 	gpGame->SetPreviousClientArmor(0.0f);
-	gpGame->mGameFlags.Clear(engine::GameFlags::kDeathScreen);
 	gpGame->mVecVisualErrorOffset = {};
 	gpGame->mWeaponModeToggle.Reset();
 	gpGame->mNavigationDelayControl.Reset();
-	gpGame->mSpawnToggle.Reset();
+
+	// Clear fleet state — server will re-sync
+	gpGame->mClientFleets.clear();
+	gpGame->miFocusedFleetIndex = -1;
+	gpGame->miFocusedPlayerInFleetIndex = -1;
 
 	// Force-reset all client coord slots
 	std::vector<engine::ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();

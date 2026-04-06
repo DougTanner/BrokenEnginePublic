@@ -2,6 +2,7 @@
 
 #if defined(BT_SERVER)
 
+#include "Fleet.h"
 #include "Network/Server/ServerSessionBase.h"
 
 namespace game
@@ -11,6 +12,8 @@ struct ClientSpawnInfo
 {
 	int64_t iClientId = 0;
 	engine::GridCoord spawnCoord {};
+	int64_t iFleetIndex = -1;
+	int64_t iMemberIndex = -1;
 };
 
 struct PendingPlayerDestroy
@@ -41,6 +44,10 @@ public:
 	void ComputeActiveSet();
 	void BuildFrameInputs();
 	void ProcessSpawnRequests();
+	void ProcessCreateFleetRequests();
+	void ProcessSpawnIntoFleetRequests();
+	void ProcessRespawnInFleetRequests();
+	void SendFleetSyncToClient(int64_t iClientId);
 	void ProcessUpdatePlayerRequests();
 	void HarvestTransfers();
 	void BroadcastStatusChanges(int64_t iTick);
@@ -52,6 +59,9 @@ public:
 	void HandleResyncRequests(int64_t iTick);
 	void RefreshPreSpawnSnapshot();
 	void ResetClientsForLoad();
+
+	std::unordered_map<int64_t, std::vector<Fleet>> mClientFleets;
+	std::vector<std::pair<engine::ClientGuid, std::vector<Fleet>>> mSavedFleets; // Loaded from save, consumed by ResetClientsForLoad
 
 private:
 

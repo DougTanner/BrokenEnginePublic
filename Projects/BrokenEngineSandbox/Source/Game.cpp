@@ -32,11 +32,11 @@ Game::Game()
 
 	// Allocate frames
 #if defined(BT_SERVER)
+	mpServerSession = std::make_unique<ServerSession>();
 	if (!mGameSaveLoad.Autoload())
 	{
 		CreateNewFrame(GameFlags::kGame);
 	}
-	mpServerSession = std::make_unique<ServerSession>();
 	meUiState = kNone;
 #else
 	CreateNewFrame(GameFlags::kMainMenu);
@@ -61,10 +61,20 @@ Game::Game()
 
 engine::global_player_t Game::ClientPlayerId() const
 {
-	if (miFocusedPlayerIndex >= 0 && miFocusedPlayerIndex < std::ssize(mClientPlayerIds))
+#if defined(BT_CLIENT)
+	if (miFocusedFleetIndex >= 0 && miFocusedFleetIndex < std::ssize(mClientFleets))
 	{
-		return mClientPlayerIds.at(miFocusedPlayerIndex);
+		const Fleet& rFleet = mClientFleets.at(static_cast<size_t>(miFocusedFleetIndex));
+		if (miFocusedPlayerInFleetIndex >= 0 && miFocusedPlayerInFleetIndex < std::ssize(rFleet.members))
+		{
+			const FleetMember& rMember = rFleet.members.at(static_cast<size_t>(miFocusedPlayerInFleetIndex));
+			if (rMember.bAlive)
+			{
+				return rMember.globalPlayerId;
+			}
+		}
 	}
+#endif
 	return {};
 }
 
@@ -79,8 +89,6 @@ void Game::AddClientPlayer(engine::global_player_t id, engine::GridCoord coord)
 	Log(kVerbose, "AddClientPlayer GlobalPlayerId: {} Coord: ({},{}) OldPlayerCount: {}", id.iValue, coord.x, coord.y, std::ssize(mClientPlayerIds)); // DT TEMP
 	mClientPlayerIds.push_back(id);
 	mClientPlayerCoords.push_back(coord);
-	miFocusedPlayerIndex = std::ssize(mClientPlayerIds) - 1;
-	mClientGridCoord = coord;
 }
 
 void Game::RemoveClientPlayer(engine::global_player_t id)
@@ -92,22 +100,6 @@ void Game::RemoveClientPlayer(engine::global_player_t id)
 			Log(kVerbose, "RemoveClientPlayer GlobalPlayerId: {} Index: {} OldPlayerCount: {}", id.iValue, i, std::ssize(mClientPlayerIds)); // DT TEMP
 			mClientPlayerIds.erase(mClientPlayerIds.begin() + i);
 			mClientPlayerCoords.erase(mClientPlayerCoords.begin() + i);
-
-			// Adjust focused index: if removed before focus, shift down; if at/past end, clamp
-			if (i < miFocusedPlayerIndex)
-			{
-				--miFocusedPlayerIndex;
-			}
-			else if (miFocusedPlayerIndex >= std::ssize(mClientPlayerIds))
-			{
-				miFocusedPlayerIndex = std::ssize(mClientPlayerIds) - 1;
-			}
-
-			// Update mClientGridCoord to match new focus (or leave stale if no players)
-			if (miFocusedPlayerIndex >= 0)
-			{
-				mClientGridCoord = mClientPlayerCoords.at(miFocusedPlayerIndex);
-			}
 			return;
 		}
 	}
@@ -116,39 +108,6 @@ void Game::RemoveClientPlayer(engine::global_player_t id)
 int64_t Game::PlayerCount() const
 {
 	return std::ssize(mClientPlayerIds);
-}
-
-int64_t Game::FocusedPlayerIndex() const
-{
-	return miFocusedPlayerIndex;
-}
-
-void Game::FocusNext()
-{
-	if (miFocusedPlayerIndex < std::ssize(mClientPlayerIds) - 1)
-	{
-		++miFocusedPlayerIndex;
-		mClientGridCoord = mClientPlayerCoords.at(miFocusedPlayerIndex);
-	}
-}
-
-void Game::FocusPrev()
-{
-	if (miFocusedPlayerIndex > 0)
-	{
-		--miFocusedPlayerIndex;
-		mClientGridCoord = mClientPlayerCoords.at(miFocusedPlayerIndex);
-	}
-}
-
-bool Game::CanFocusNext() const
-{
-	return miFocusedPlayerIndex < std::ssize(mClientPlayerIds) - 1;
-}
-
-bool Game::CanFocusPrev() const
-{
-	return miFocusedPlayerIndex > 0;
 }
 
 std::optional<int64_t> Game::ClientPlayerIndex(const PlayersPostRender& rPlayers) const
@@ -167,6 +126,176 @@ std::optional<int64_t> Game::ClientPlayerIndex(const PlayersPostRender& rPlayers
 
 	return std::nullopt;
 }
+
+#if defined(BT_CLIENT)
+
+void Game::AutoSelectFirstAliveMember()
+{
+	miFocusedPlayerInFleetIndex = -1;
+	mClientGridCoord = {};
+	const Fleet* pFleet = FocusedFleet();
+	if (pFleet != nullptr)
+	{
+		for (int64_t i = 0; i < std::ssize(pFleet->members); ++i)
+		{
+			if (pFleet->members.at(static_cast<size_t>(i)).bAlive)
+			{
+				SelectPlayerInFleet(i);
+				return;
+			}
+		}
+	}
+}
+
+int64_t Game::FleetCount() const
+{
+	return std::ssize(mClientFleets);
+}
+
+int64_t Game::FocusedFleetIndex() const
+{
+	return miFocusedFleetIndex;
+}
+
+void Game::FocusNextFleet()
+{
+	if (miFocusedFleetIndex < std::ssize(mClientFleets) - 1)
+	{
+		++miFocusedFleetIndex;
+		AutoSelectFirstAliveMember();
+	}
+}
+
+void Game::FocusPrevFleet()
+{
+	if (miFocusedFleetIndex > 0)
+	{
+		--miFocusedFleetIndex;
+		AutoSelectFirstAliveMember();
+	}
+}
+
+bool Game::CanFocusNextFleet() const
+{
+	return miFocusedFleetIndex < std::ssize(mClientFleets) - 1;
+}
+
+bool Game::CanFocusPrevFleet() const
+{
+	return miFocusedFleetIndex > 0;
+}
+
+const Fleet* Game::FocusedFleet() const
+{
+	if (miFocusedFleetIndex >= 0 && miFocusedFleetIndex < std::ssize(mClientFleets))
+	{
+		return &mClientFleets.at(static_cast<size_t>(miFocusedFleetIndex));
+	}
+	return nullptr;
+}
+
+void Game::SelectPlayerInFleet(int64_t iPlayerIndex)
+{
+	const Fleet* pFleet = FocusedFleet();
+	if (pFleet == nullptr || iPlayerIndex < 0 || iPlayerIndex >= std::ssize(pFleet->members))
+	{
+		return;
+	}
+
+	miFocusedPlayerInFleetIndex = iPlayerIndex;
+
+	// Update mClientGridCoord to match selected player's coord
+	const FleetMember& rMember = pFleet->members.at(static_cast<size_t>(iPlayerIndex));
+	if (rMember.bAlive)
+	{
+		for (int64_t i = 0; i < std::ssize(mClientPlayerIds); ++i)
+		{
+			if (mClientPlayerIds.at(i) == rMember.globalPlayerId)
+			{
+				mClientGridCoord = mClientPlayerCoords.at(i);
+				return;
+			}
+		}
+	}
+}
+
+int64_t Game::FocusedPlayerInFleetIndex() const
+{
+	return miFocusedPlayerInFleetIndex;
+}
+
+void Game::SyncFleets(std::vector<Fleet>&& fleets)
+{
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+	int64_t iPrevFleetCount = std::ssize(mClientFleets);
+	mClientFleets = std::move(fleets);
+
+	// Clamp fleet index
+	if (miFocusedFleetIndex >= std::ssize(mClientFleets))
+	{
+		miFocusedFleetIndex = std::ssize(mClientFleets) - 1;
+	}
+
+	// Auto-select new fleet if this is the first one
+	if (iPrevFleetCount == 0 && !mClientFleets.empty())
+	{
+		miFocusedFleetIndex = 0;
+	}
+
+	// Clamp or auto-select member index
+	const Fleet* pFleet = FocusedFleet();
+	if (pFleet != nullptr)
+	{
+		if (miFocusedPlayerInFleetIndex >= std::ssize(pFleet->members))
+		{
+			miFocusedPlayerInFleetIndex = std::ssize(pFleet->members) - 1;
+		}
+
+		// Auto-select newly added member (fleet grew)
+		if (miFocusedPlayerInFleetIndex < 0 && !pFleet->members.empty())
+		{
+			miFocusedPlayerInFleetIndex = std::ssize(pFleet->members) - 1;
+		}
+
+		// If focused member is dead, auto-fallback to first alive member
+		if (miFocusedPlayerInFleetIndex >= 0 && !pFleet->members.at(static_cast<size_t>(miFocusedPlayerInFleetIndex)).bAlive)
+		{
+			miFocusedPlayerInFleetIndex = -1;
+			for (int64_t i = 0; i < std::ssize(pFleet->members); ++i)
+			{
+				if (pFleet->members.at(static_cast<size_t>(i)).bAlive)
+				{
+					miFocusedPlayerInFleetIndex = i;
+					break;
+				}
+			}
+		}
+	}
+	else
+	{
+		miFocusedPlayerInFleetIndex = -1;
+	}
+
+	// Update mClientGridCoord based on current selection
+	engine::global_player_t focusedId = ClientPlayerId();
+	if (focusedId.IsValid())
+	{
+		for (int64_t i = 0; i < std::ssize(mClientPlayerIds); ++i)
+		{
+			if (mClientPlayerIds.at(i) == focusedId)
+			{
+				mClientGridCoord = mClientPlayerCoords.at(i);
+				return;
+			}
+		}
+	}
+
+	// No valid selection — camera to origin
+	mClientGridCoord = {};
+}
+
+#endif // BT_CLIENT
 
 XMVECTOR Game::GetClientPlayerPosition() const
 {
@@ -543,11 +672,14 @@ void Game::Reset()
 	mWeaponModeToggle.Reset();
 #endif // BT_CLIENT
 
-	mGameFlags.Clear(engine::GameFlags::kDeathScreen);
 	mGameFlags.Clear(engine::GameFlags::kPaused);
 	mClientPlayerIds.clear();
 	mClientPlayerCoords.clear();
-	miFocusedPlayerIndex = -1;
+#if defined(BT_CLIENT)
+	mClientFleets.clear();
+	miFocusedFleetIndex = -1;
+	miFocusedPlayerInFleetIndex = -1;
+#endif
 	mfPreviousClientArmor = 0.0f;
 	mClientGridCoord = engine::kOriginCoord;
 	miQuadrantDirX = 0;
