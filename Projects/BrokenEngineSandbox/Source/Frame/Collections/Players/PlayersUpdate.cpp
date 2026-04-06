@@ -271,7 +271,6 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		if (fTransferLockTimer > 0.0f)
 		{
 			fTransferLockTimer -= fDeltaTime;
-			Log(kDebug, "Player {} transferLock={}", i, fTransferLockTimer); // DT TEMP DEBUG
 		}
 		else
 		{
@@ -291,7 +290,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 				if (fFrameChangeTimer <= 0.0f)
 				{
 					iNavDirection = static_cast<int8_t>(common::Random(3u, rFrame.postRender.randomEngine));
-					Log(kLogNavData, kDebug, "Player {} GlobalId: {} started transition NavDir: {}", i, rCurrent.pGlobalPlayerIds[i].iValue, iNavDirection); // DT TEMP DEBUG
+					Log(kLogNavData, kVerbose, "Player {} GlobalId: {} started transition NavDir: {}", i, rCurrent.pGlobalPlayerIds[i].iValue, iNavDirection);
 				}
 			}
 
@@ -312,7 +311,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 					// Snap to navigable area if inside an obstacle
 					vecIslandDestination = engine::NavQuerySnapToNavigable(vecIslandDestination, rStaticData.navData);
 					vecIslandDestination = XMVectorSetW(vecIslandDestination, 1.0f);
-					Log(kLogNavData, kDebug, "Player {} NavSwitch: island dest generated pos={} dest={}", i, vecPosition, vecIslandDestination); // DT TEMP DEBUG
+					Log(kLogNavData, kVerbose, "Player {} NavSwitch: island dest generated pos={} dest={}", i, vecPosition, vecIslandDestination);
 				}
 
 				XMVECTOR vecDebugWaypoint = XMVectorZero();
@@ -329,13 +328,12 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 				{
 					vecAiDirection = XMVector3Normalize(XMVectorSetZ(XMVectorSubtract(vecIslandDestination, vecPosition), 0.0f));
 				}
-				Log(kLogNavData, kDebug, "Player {} Nav4: pos={} dest={} waypoint={} dir={}", i, vecPosition, vecIslandDestination, vecDebugWaypoint, vecAiDirection); // DT TEMP DEBUG
 
 				// Arrival check
 				float fDistanceSquared = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(vecPosition, vecIslandDestination)));
 				if (fDistanceSquared < 100.0f)
 				{
-					Log(kLogNavData, kDebug, "Player {} NavSwitch: arrived at island dest pos={} dest={}", i, vecPosition, vecIslandDestination); // DT TEMP DEBUG
+					Log(kLogNavData, kVerbose, "Player {} NavSwitch: arrived at island dest pos={} dest={}", i, vecPosition, vecIslandDestination);
 					iNavDirection = -1;
 					fFrameChangeTimer = fNavigationDelay;
 					vecIslandDestination = XMVectorZero();
@@ -374,8 +372,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 					engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderUpdateNavQuery);
 					vecNavDirection = engine::NavQueryDirection(vecPosition, vecDestination, rStaticData.navData, kbDebugRender ? &vecDebugWaypoint : nullptr);
 				}
-				float fNavLengthSquared = XMVectorGetX(XMVector3LengthSq(vecNavDirection)); // DT TEMP DEBUG
-				Log(kLogNavData, kDebug, "Player {} nav dir={} pos={} navResult={}", i, iNavDirection, vecPosition, vecNavDirection); // DT TEMP DEBUG
+				float fNavLengthSquared = XMVectorGetX(XMVector3LengthSq(vecNavDirection));
 				if (fNavLengthSquared > 0.001f)
 				{
 					vecAiDirection = vecNavDirection;
@@ -476,7 +473,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 			// Apply movement: decay existing velocity and add acceleration from AI direction
 			XMVECTOR vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), vecAiDirection);
 			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(common::ExponentialDecay(kfAccelerationDecay, fDeltaTime)), vecVelocity, vecAcceleration);
-			Log(kDebug, "Player {} aiDir={} vel={}", i, vecAiDirection, vecVelocity); // DT TEMP DEBUG
+
 
 			// Direction: face nearest spaceship (prioritize in-range/visible/LOS, fallback to any alive)
 			if (bLookTargetFound)

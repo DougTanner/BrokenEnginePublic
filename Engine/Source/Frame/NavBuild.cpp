@@ -1089,7 +1089,7 @@ void XM_CALLCONV BuildCellNavData(NavData& rNavData, const NavContour& rContour,
 		float fBoundsWidth = fMaxX - fMinX;
 		float fBoundsHeight = fMaxY - fMinY;
 
-		Log(kLogNavData, kDebug, "NavCell: polygon {} verts={} bounds=({} {})..({} {}) size={}x{}", iPoly, iCount, fMinX, fMinY, fMaxX, fMaxY, fBoundsWidth, fBoundsHeight);
+		Log(kLogNavData, kVerbose, "NavCell: polygon {} verts={} bounds=({} {})..({} {}) size={}x{}", iPoly, iCount, fMinX, fMinY, fMaxX, fMaxY, fBoundsWidth, fBoundsHeight);
 	}
 }
 

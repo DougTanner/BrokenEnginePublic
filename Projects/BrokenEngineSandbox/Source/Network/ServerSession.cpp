@@ -538,7 +538,7 @@ void ServerSession::ProcessUpdatePlayerRequests()
 		StatusChange updateChange {.eType = StatusChangeType::kUpdatePlayer, .data = UpdatePlayerData{.iPlayerUuid = iPlayerUuid, .bUseMissiles = rRequest.bUseMissiles, .fNavigationDelay = rRequest.fNavigationDelay}};
 		frameInputIt->second.statusChanges.push_back(updateChange);
 
-		Log(kLogNetwork, kVerbose, "ServerSession::ProcessUpdatePlayerRequests Client: {} GlobalPlayer: {} Coord: ({},{})", rRequest.iClientId, rRequest.globalPlayerId.iValue, updateCoord.x, updateCoord.y);
+		Log(kLogNetwork, "ServerSession::ProcessUpdatePlayerRequests Client: {} GlobalPlayer: {} PlayerUuid: {} Coord: ({},{}) Missiles: {} NavDelay: {}", rRequest.iClientId, rRequest.globalPlayerId.iValue, iPlayerUuid, updateCoord.x, updateCoord.y, rRequest.bUseMissiles, rRequest.fNavigationDelay); // DT TEMP
 	}
 }
 

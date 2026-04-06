@@ -186,22 +186,26 @@ void HudScreen::RenderFocusedPlayerPanel()
 			{
 				gpGame->mWeaponModeToggle.SetPending();
 				engine::gpClient->SendUpdatePlayerRequest(gpGame->ClientPlayerId().iValue, !bUseMissiles, fNavigationDelay);
-				Log(kVerbose, "HUD WeaponModeToggle GlobalPlayerId: {}", gpGame->ClientPlayerId().iValue); // DT TEMP
+				Log(kLogNetwork, "HUD WeaponModeToggle GlobalPlayerId: {} Missiles: {} NavDelay: {}", gpGame->ClientPlayerId().iValue, !bUseMissiles, fNavigationDelay); // DT TEMP
 			}
 		}
 		ImGui::EndDisabled();
 
 		// Navigation delay slider
 		ImGui::BeginDisabled(gpGame->mNavigationDelayControl.IsPending());
+		static float sNavDelayEditValue = 0.0f;
 		float fSliderValue = fNavigationDelay;
-		ImGui::SliderFloat("Nav Delay", &fSliderValue, 0.0f, 10.0f);
+		if (ImGui::SliderFloat("Nav Delay", &fSliderValue, 0.0f, 10.0f))
+		{
+			sNavDelayEditValue = fSliderValue;
+		}
 		if (ImGui::IsItemDeactivatedAfterEdit())
 		{
 			if (gpClientSession != nullptr && gpGame->ClientPlayerId().IsValid())
 			{
 				gpGame->mNavigationDelayControl.SetPending();
-				engine::gpClient->SendUpdatePlayerRequest(gpGame->ClientPlayerId().iValue, bUseMissiles, fSliderValue);
-				Log(kVerbose, "HUD NavigationDelay GlobalPlayerId: {} Delay: {}", gpGame->ClientPlayerId().iValue, fSliderValue); // DT TEMP
+				engine::gpClient->SendUpdatePlayerRequest(gpGame->ClientPlayerId().iValue, bUseMissiles, sNavDelayEditValue);
+				Log(kLogNetwork, "HUD NavigationDelay GlobalPlayerId: {} Missiles: {} Delay: {}", gpGame->ClientPlayerId().iValue, bUseMissiles, sNavDelayEditValue); // DT TEMP
 			}
 		}
 		ImGui::EndDisabled();

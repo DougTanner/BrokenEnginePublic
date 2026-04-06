@@ -326,6 +326,7 @@ void Client::SendUpdatePlayerRequest(int64_t iGlobalPlayerId, bool bUseMissiles,
 	rWorkbuffer.PushBack<float>(fNavigationDelay);
 
 	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	Log(kLogNetwork, "Client::SendUpdatePlayerRequest GlobalPlayer: {} Missiles: {} NavDelay: {}", iGlobalPlayerId, bUseMissiles, fNavigationDelay); // DT TEMP
 
 	rWorkbuffer.Pop();
 }

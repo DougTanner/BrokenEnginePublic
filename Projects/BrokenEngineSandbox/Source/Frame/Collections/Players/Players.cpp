@@ -347,6 +347,7 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 			if (idIt != rCurrentInterpolate.idToIndexMap.end())
 			{
 				int64_t idx = idIt->second;
+				Log(kLogNetwork, "ProcessSpawnStatusChanges kUpdatePlayer Uuid: {} Idx: {} OldMissiles: {} NewMissiles: {} OldNavDelay: {} NewNavDelay: {} OldFrameTimer: {} NewFrameTimer: {}", rUpdate.iPlayerUuid, idx, static_cast<bool>(rCurrentPostRender.pFlags[idx] & kUseMissiles), rUpdate.bUseMissiles, rCurrentPostRender.pfNavigationDelays[idx], rUpdate.fNavigationDelay, rCurrentPostRender.pfFrameChangeTimers[idx], rUpdate.fNavigationDelay); // DT TEMP
 				if (rUpdate.bUseMissiles)
 				{
 					rCurrentPostRender.pFlags[idx].Set(kUseMissiles);
@@ -357,6 +358,10 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 				}
 				rCurrentPostRender.pfNavigationDelays[idx] = rUpdate.fNavigationDelay;
 				rCurrentPostRender.pfFrameChangeTimers[idx] = rUpdate.fNavigationDelay;
+			}
+			else
+			{
+				Log(kLogNetwork, kWarning, "ProcessSpawnStatusChanges kUpdatePlayer Uuid: {} NOT FOUND in idToIndexMap", rUpdate.iPlayerUuid); // DT TEMP
 			}
 			continue;
 		}

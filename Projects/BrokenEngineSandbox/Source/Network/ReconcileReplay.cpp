@@ -112,6 +112,7 @@ static bool ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, floa
 	if (bHadTransfers)
 	{
 		pNext->postRender.sharedCrc = pNext->Crcs();
+		pNext->postRender.previousInputCrc = rFrameInput.ServerInputCrc();
 	}
 
 	// Advance replay stack
