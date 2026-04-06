@@ -310,7 +310,7 @@ void Client::SendResetRequest()
 	rWorkbuffer.Pop();
 }
 
-void Client::SendWeaponModeRequest(int64_t iGlobalPlayerId)
+void Client::SendUpdatePlayerRequest(int64_t iGlobalPlayerId, bool bUseMissiles, float fNavigationDelay)
 {
 	if (!mbConnected || mpServerPeer == nullptr)
 	{
@@ -320,8 +320,10 @@ void Client::SendWeaponModeRequest(int64_t iGlobalPlayerId)
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientWeaponModeRequest));
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientUpdatePlayerRequest));
 	rWorkbuffer.PushBack<int64_t>(iGlobalPlayerId);
+	rWorkbuffer.PushBack<uint8_t>(bUseMissiles ? 1 : 0);
+	rWorkbuffer.PushBack<float>(fNavigationDelay);
 
 	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 

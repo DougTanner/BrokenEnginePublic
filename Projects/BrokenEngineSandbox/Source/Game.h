@@ -120,6 +120,7 @@ public:
 	Camera mCamera {};
 	XMVECTOR mVecVisualErrorOffset {};
 	engine::NetworkUiControl<bool> mWeaponModeToggle {};
+	engine::NetworkUiControl<float> mNavigationDelayControl {};
 	engine::NetworkUiControl<int64_t> mSpawnToggle {};
 
 	static constexpr float kfVisualErrorDecayRate = 15.0f;

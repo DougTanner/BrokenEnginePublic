@@ -52,7 +52,6 @@ constexpr float kfMaxPushVelocity = 20.0f;
 
 // AI behavior
 constexpr float kfTargetRange = 80.0f;
-constexpr float kfFrameChangeDelay = 2.0f;
 
 [[nodiscard]] static bool XM_CALLCONV HasLineOfSight(FXMVECTOR vecFrom, FXMVECTOR vecTo)
 {
@@ -263,6 +262,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		float fTransferLockTimer = rPrevious.pfTransferLockTimers[i];
 		float fArrivalGracePeriod = std::max(0.0f, rPrevious.pfArrivalGracePeriods[i] - fDeltaTime);
 		float fFrameChangeTimer = rPrevious.pfFrameChangeTimers[i];
+		float fNavigationDelay = rPrevious.pfNavigationDelays[i];
 		int8_t iNavDirection = rPrevious.piNavDirections[i];
 		XMVECTOR vecIslandDestination = rPrevious.pVecIslandDestinations[i];
 		XMVECTOR vecPosition = rPreviousInterpolate.pVecPositions[i];
@@ -316,7 +316,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 				}
 
 				XMVECTOR vecDebugWaypoint = XMVectorZero();
-				XMVECTOR vecNavDirection;
+				XMVECTOR vecNavDirection = XMVectorZero();
 				{
 					engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderUpdateNavQuery);
 					vecNavDirection = engine::NavQueryDirection(vecPosition, vecIslandDestination, rStaticData.navData, &vecDebugWaypoint);
@@ -337,7 +337,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 				{
 					Log(kLogNavData, kDebug, "Player {} NavSwitch: arrived at island dest pos={} dest={}", i, vecPosition, vecIslandDestination); // DT TEMP DEBUG
 					iNavDirection = -1;
-					fFrameChangeTimer = kfFrameChangeDelay;
+					fFrameChangeTimer = fNavigationDelay;
 					vecIslandDestination = XMVectorZero();
 				}
 #if defined(BT_CLIENT)
@@ -369,7 +369,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 				}
 
 				XMVECTOR vecDebugWaypoint = XMVectorZero();
-				XMVECTOR vecNavDirection;
+				XMVECTOR vecNavDirection = XMVectorZero();
 				{
 					engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderUpdateNavQuery);
 					vecNavDirection = engine::NavQueryDirection(vecPosition, vecDestination, rStaticData.navData, kbDebugRender ? &vecDebugWaypoint : nullptr);
@@ -526,6 +526,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		rCurrent.pfTransferLockTimers[i] = fTransferLockTimer;
 		rCurrent.pfArrivalGracePeriods[i] = fArrivalGracePeriod;
 		rCurrent.pfFrameChangeTimers[i] = fFrameChangeTimer;
+		rCurrent.pfNavigationDelays[i] = fNavigationDelay;
 		rCurrent.piNavDirections[i] = iNavDirection;
 		rCurrent.pVecIslandDestinations[i] = vecIslandDestination;
 	}

@@ -44,10 +44,12 @@ struct GridUpdateData
 	std::span<const game::StatusChange> statusChanges;
 };
 
-struct PendingWeaponModeRequest
+struct PendingUpdatePlayerRequest
 {
 	int64_t iClientId = 0;
 	global_player_t globalPlayerId {};
+	bool bUseMissiles = false;
+	float fNavigationDelay = 2.0f;
 };
 
 } // namespace engine

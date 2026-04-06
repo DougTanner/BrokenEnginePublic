@@ -265,6 +265,7 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[ma
 #endif
 				.uiPlayerFlags = static_cast<uint8_t>(std::to_underlying(rCurrentPostRender.pFlags[i].meFlags) & ~std::to_underlying(kTransfer)),
 				.fArrivalGracePeriod = rCurrentPostRender.pfArrivalGracePeriods[i],
+				.fNavigationDelay = rCurrentPostRender.pfNavigationDelays[i],
 			},
 			.iEntityId = rCurrentPostRender.puiIds[i].ToUuid().Value(),
 		};
@@ -337,15 +338,25 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 			continue;
 		}
 
-		if (rStatusChange.eType == StatusChangeType::kWeaponModeChange)
+		if (rStatusChange.eType == StatusChangeType::kUpdatePlayer)
 		{
-			int64_t iPlayerUuid = std::get<WeaponModeChangeData>(rStatusChange.data).iPlayerUuid;
-			player_t toggleId {engine::uuid_t {iPlayerUuid}};
+			const UpdatePlayerData& rUpdate = std::get<UpdatePlayerData>(rStatusChange.data);
+			player_t updateId {engine::uuid_t {rUpdate.iPlayerUuid}};
 
-			auto idIt = rCurrentInterpolate.idToIndexMap.find(toggleId);
+			auto idIt = rCurrentInterpolate.idToIndexMap.find(updateId);
 			if (idIt != rCurrentInterpolate.idToIndexMap.end())
 			{
-				rCurrentPostRender.pFlags[idIt->second].Toggle(kUseMissiles);
+				int64_t idx = idIt->second;
+				if (rUpdate.bUseMissiles)
+				{
+					rCurrentPostRender.pFlags[idx].Set(kUseMissiles);
+				}
+				else
+				{
+					rCurrentPostRender.pFlags[idx].Clear(kUseMissiles);
+				}
+				rCurrentPostRender.pfNavigationDelays[idx] = rUpdate.fNavigationDelay;
+				rCurrentPostRender.pfFrameChangeTimers[idx] = rUpdate.fNavigationDelay;
 			}
 			continue;
 		}
@@ -638,6 +649,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	float fRandomTimer = 15.0f + common::Random<10.0f>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfFrameChangeTimers[iIndex] = (rInfo.fFrameChangeTimer > 0.0f) ? rInfo.fFrameChangeTimer : fRandomTimer;
 	rCurrentPostRender.piNavDirections[iIndex] = rInfo.iNavDirection;
+	rCurrentPostRender.pfNavigationDelays[iIndex] = rInfo.fNavigationDelay;
 	rCurrentPostRender.pVecIslandDestinations[iIndex] = XMVectorZero();
 	rCurrentPostRender.pClientGuids[iIndex] = {};
 	rCurrentPostRender.pGlobalPlayerIds[iIndex] = rInfo.globalPlayerId;
@@ -687,6 +699,7 @@ bool PlayersPostRender::LogDifferences(const PlayersPostRender& rOther) const
 		bEqual &= common::LogDifference<"pfArrivalGracePeriods">(i, pfArrivalGracePeriods[i], rOther.pfArrivalGracePeriods[i]);
 		bEqual &= common::LogDifference<"pfFrameChangeTimers">(i, pfFrameChangeTimers[i], rOther.pfFrameChangeTimers[i]);
 		bEqual &= common::LogDifference<"piNavDirections">(i, piNavDirections[i], rOther.piNavDirections[i]);
+		bEqual &= common::LogDifference<"pfNavigationDelays">(i, pfNavigationDelays[i], rOther.pfNavigationDelays[i]);
 		bEqual &= common::LogDifference_Vec("pVecIslandDestinations", i, pVecIslandDestinations[i], rOther.pVecIslandDestinations[i]);
 		bEqual &= common::LogDifference<"pClientGuids.uiHigh">(i, pClientGuids[i].uiHigh, rOther.pClientGuids[i].uiHigh);
 		bEqual &= common::LogDifference<"pClientGuids.uiLow">(i, pClientGuids[i].uiLow, rOther.pClientGuids[i].uiLow);

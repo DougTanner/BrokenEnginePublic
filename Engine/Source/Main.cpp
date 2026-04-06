@@ -498,6 +498,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			return 0;
 		}
+
+		case WM_LBUTTONDOWN:
+		{
+			HandleServerClick(hWnd, LOWORD(lParam), HIWORD(lParam));
+			InvalidateRect(hWnd, nullptr, FALSE);
+			return 0;
+		}
 #endif // BT_SERVER
 
 		case WM_SYSCOMMAND:

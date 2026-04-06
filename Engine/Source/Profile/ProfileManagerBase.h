@@ -195,6 +195,7 @@ public:
 	void BootStop(BootTimers eBootTimer);
 	void BootLog();
 
+	void SmoothCpuTimers();
 	void LogTimers();
 	void UpdateProfileText();
 
@@ -357,5 +358,8 @@ private:
 
 	int64_t miCpuTimer;
 };
+
+void FormatCpuTimersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager);
+void FormatCpuCountersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager);
 
 } // namespace engine

@@ -32,6 +32,8 @@ struct TargetsType
 struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine::CollectionFlags::kIdToIndex>,
                             public engine::TypeRegistry<TargetsType>
 {
+	static constexpr int64_t kiVersion = 1;
+
 	// Register
 	static void Register();
 
@@ -69,6 +71,8 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 
 struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 {
+	static constexpr int64_t kiVersion = 1;
+
 	// Allocate and copy
 	static void AllocateAndCopy(TargetsPostRender& rCurrent, const TargetsPostRender& rPrevious);
 

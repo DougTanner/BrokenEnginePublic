@@ -146,7 +146,7 @@ using PlayerFlags_t = common::Flags<PlayerFlags>;
 
 struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 {
-	static constexpr int64_t kiVersion = 14;
+	static constexpr int64_t kiVersion = 15;
 
 	// Collision layer (set each frame in PreCollision)
 	// thread_local: parallel per-Frame tick via Dispatch
@@ -184,6 +184,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	XMVECTOR* __restrict pVecIslandDestinations = nullptr;
 	engine::ClientGuid* __restrict pClientGuids = nullptr;
 	engine::global_player_t* __restrict pGlobalPlayerIds = nullptr;
+	float* __restrict pfNavigationDelays = nullptr;
 #if defined(BT_CLIENT)
 	XMVECTOR* __restrict pVecDebugNavWaypoints = nullptr;
 #endif // BT_CLIENT
@@ -199,7 +200,8 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 			rSelf.pfTransferLockTimers, rSelf.pfArrivalGracePeriods,
 			rSelf.pfFrameChangeTimers, rSelf.piNavDirections,
 			rSelf.pVecIslandDestinations,
-			rSelf.pClientGuids, rSelf.pGlobalPlayerIds);
+			rSelf.pClientGuids, rSelf.pGlobalPlayerIds,
+			rSelf.pfNavigationDelays);
 	}
 #if defined(BT_CLIENT)
 	auto ClientMembers(this auto&& rSelf)
@@ -227,7 +229,8 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 			rSelf.pVecAiDirections,
 			rSelf.pfTransferLockTimers, rSelf.pfArrivalGracePeriods,
 			rSelf.pfFrameChangeTimers, rSelf.piNavDirections,
-			rSelf.pVecIslandDestinations);
+			rSelf.pVecIslandDestinations,
+			rSelf.pfNavigationDelays);
 	}
 
 	// Utility
@@ -254,6 +257,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 		float fArrivalGracePeriod = 0.0f;
 		float fFrameChangeTimer = 0.0f;
 		int8_t iNavDirection = 4;
+		float fNavigationDelay = 2.0f;
 		engine::global_player_t globalPlayerId {};
 	};
 

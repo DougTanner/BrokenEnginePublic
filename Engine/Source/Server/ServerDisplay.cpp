@@ -17,6 +17,21 @@
 namespace engine
 {
 
+enum class ServerTab : uint8_t { kMap, kProfile };
+static ServerTab seActiveTab = ServerTab::kMap;
+
+static constexpr int64_t kiTabBarLeft = 250;
+static constexpr int64_t kiTabHeight = 32;
+static constexpr int64_t kiTabWidth = 100;
+static constexpr int64_t kiTabCount = 2;
+static constexpr std::string_view kTabNames[] = {"Map", "Profile"};
+
+static constexpr int64_t kiCopyButtonWidth = 80;
+static constexpr int64_t kiCopyButtonHeight = 28;
+static constexpr int64_t kiCopyButtonMargin = 10;
+static RECT sCopyButtonRect {};
+static std::string sProfileText;
+
 void ServerUpdateDisplayStats()
 {
 	if constexpr (!kbProfiling)
@@ -61,6 +76,8 @@ void ServerUpdateDisplayStats()
 	gpProfileManager->miMimallocHeapUsedMib = miStats.page_committed.current / (1024 * 1024);
 	gpProfileManager->miMimallocPeakHeapUsedMib = miStats.page_committed.peak / (1024 * 1024);
 #endif
+
+	gpProfileManager->SmoothCpuTimers();
 }
 
 static void PaintGridMap(HDC hdcBuffer, char* pcLine, size_t iLineSize, int iMapLeft, int iMapTop, int iMapWidth, int iMapHeight, const std::vector<ClientConnection>& rClients)
@@ -218,6 +235,204 @@ static void PaintGridMap(HDC hdcBuffer, char* pcLine, size_t iLineSize, int iMap
 	}
 }
 
+static void PaintWorkbufferText(HDC hdcBuffer, std::string_view svText, int64_t iX, int64_t& riY, int64_t iLineHeight)
+{
+	size_t iStart = 0;
+	while (iStart < svText.size())
+	{
+		size_t iEnd = svText.find('\n', iStart);
+		if (iEnd == std::string_view::npos)
+		{
+			iEnd = svText.size();
+		}
+
+		std::string_view svLine = svText.substr(iStart, iEnd - iStart);
+		if (!svLine.empty())
+		{
+			TextOutA(hdcBuffer, static_cast<int>(iX), static_cast<int>(riY), svLine.data(), static_cast<int>(svLine.size()));
+		}
+		riY += iLineHeight;
+		iStart = iEnd + 1;
+	}
+}
+
+static void CopyProfileToClipboard(HWND hWnd)
+{
+	if (sProfileText.empty())
+	{
+		return;
+	}
+
+	if (!OpenClipboard(hWnd))
+	{
+		return;
+	}
+
+	EmptyClipboard();
+	HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, sProfileText.size() + 1);
+	char* pDest = static_cast<char*>(GlobalLock(hMem));
+	memcpy(pDest, sProfileText.data(), sProfileText.size());
+	pDest[sProfileText.size()] = '\0';
+	GlobalUnlock(hMem);
+	SetClipboardData(CF_TEXT, hMem);
+	CloseClipboard();
+}
+
+void HandleServerClick(HWND hWnd, int64_t iX, int64_t iY)
+{
+	// Tab bar
+	if (iY <= kiTabHeight && iX >= kiTabBarLeft)
+	{
+		int64_t iTabIndex = (iX - kiTabBarLeft) / kiTabWidth;
+		if (iTabIndex == 0)
+		{
+			seActiveTab = ServerTab::kMap;
+		}
+		else if (iTabIndex == 1)
+		{
+			seActiveTab = ServerTab::kProfile;
+		}
+		return;
+	}
+
+	// Copy button (Profile tab only)
+	if (seActiveTab == ServerTab::kProfile)
+	{
+		POINT pt {static_cast<LONG>(iX), static_cast<LONG>(iY)};
+		if (PtInRect(&sCopyButtonRect, pt))
+		{
+			CopyProfileToClipboard(hWnd);
+		}
+	}
+}
+
+static void PaintProfilePanel(HDC hdcBuffer, int iLeft, int iTop, [[maybe_unused]] int iWidth, int iHeight)
+{
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	int64_t iTextX = iLeft + 10;
+	int64_t iTextY = iTop;
+	int64_t iLineHeight = 32;
+
+	// Heap: std::string operations for clipboard cache
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	sProfileText.clear();
+
+	// FPS header
+	char pcLine[256] {};
+	snprintf(pcLine, sizeof(pcLine), "FPS: %lld  Potential: %lld",
+		gpProfileManager->mFullUpdatesInTheLastSecond.Get(),
+		gpProfileManager->GetCpuTimer(game::kCpuTimerFrameUpdate).smoothedMicroseconds.Average() > 0
+			? 1'000'000 / gpProfileManager->GetCpuTimer(game::kCpuTimerFrameUpdate).smoothedMicroseconds.Average()
+			: static_cast<int64_t>(0));
+	SetTextColor(hdcBuffer, RGB(100, 180, 255));
+	TextOutA(hdcBuffer, static_cast<int>(iTextX), static_cast<int>(iTextY), pcLine, static_cast<int>(strlen(pcLine)));
+	sProfileText += pcLine;
+	sProfileText += "\n";
+	iTextY += iLineHeight + 4;
+
+	// CPU timers
+	FormatCpuTimersText(rWorkbuffer, *gpProfileManager);
+	std::string_view svTimers = rWorkbuffer.View();
+	SetTextColor(hdcBuffer, RGB(220, 220, 220));
+	PaintWorkbufferText(hdcBuffer, svTimers, iTextX, iTextY, iLineHeight);
+	sProfileText += svTimers;
+	rWorkbuffer.Pop();
+
+	iTextY += 4;
+
+	// CPU counters
+	FormatCpuCountersText(rWorkbuffer, *gpProfileManager);
+	std::string_view svCounters = rWorkbuffer.View();
+	SetTextColor(hdcBuffer, RGB(150, 220, 150));
+	PaintWorkbufferText(hdcBuffer, svCounters, iTextX, iTextY, iLineHeight);
+	sProfileText += svCounters;
+	rWorkbuffer.Pop();
+
+#if !defined(ENABLE_CRT_DEBUG_HEAP)
+	// Memory stats
+	iTextY += 4;
+	SetTextColor(hdcBuffer, RGB(220, 180, 100));
+
+	auto memLine = [&](const char* pcFormat, int64_t iValue)
+	{
+		snprintf(pcLine, sizeof(pcLine), pcFormat, iValue);
+		TextOutA(hdcBuffer, static_cast<int>(iTextX), static_cast<int>(iTextY), pcLine, static_cast<int>(strlen(pcLine)));
+		sProfileText += pcLine;
+		sProfileText += "\n";
+		iTextY += iLineHeight;
+	};
+
+	memLine("Committed: %lld MiB", gpProfileManager->miMimallocCommittedMib);
+	memLine("Peak cmtd: %lld MiB", gpProfileManager->miMimallocPeakCommittedMib);
+	memLine("Heap used: %lld MiB", gpProfileManager->miMimallocHeapUsedMib);
+	memLine("Peak heap: %lld MiB", gpProfileManager->miMimallocPeakHeapUsedMib);
+#endif
+
+	// Copy button
+	int64_t iButtonLeft = iLeft + kiCopyButtonMargin;
+	int64_t iButtonTop = iTop + iHeight - kiCopyButtonHeight - kiCopyButtonMargin;
+	sCopyButtonRect = {static_cast<int>(iButtonLeft), static_cast<int>(iButtonTop), static_cast<int>(iButtonLeft + kiCopyButtonWidth), static_cast<int>(iButtonTop + kiCopyButtonHeight)};
+
+	HBRUSH hBrush = CreateSolidBrush(RGB(50, 50, 50));
+	FillRect(hdcBuffer, &sCopyButtonRect, hBrush);
+	DeleteObject(hBrush);
+
+	HPEN hPen = CreatePen(PS_SOLID, 1, RGB(100, 180, 255));
+	HPEN hOldPen = static_cast<HPEN>(SelectObject(hdcBuffer, hPen));
+	MoveToEx(hdcBuffer, sCopyButtonRect.left, sCopyButtonRect.top, nullptr);
+	LineTo(hdcBuffer, sCopyButtonRect.right, sCopyButtonRect.top);
+	LineTo(hdcBuffer, sCopyButtonRect.right, sCopyButtonRect.bottom);
+	LineTo(hdcBuffer, sCopyButtonRect.left, sCopyButtonRect.bottom);
+	LineTo(hdcBuffer, sCopyButtonRect.left, sCopyButtonRect.top);
+	SelectObject(hdcBuffer, hOldPen);
+	DeleteObject(hPen);
+
+	SetTextColor(hdcBuffer, RGB(200, 200, 200));
+	TextOutA(hdcBuffer, sCopyButtonRect.left + 14, sCopyButtonRect.top + 2, "Copy", 4);
+}
+
+static void PaintTabBar(HDC hdcBuffer, int iWidth)
+{
+	for (int64_t i = 0; i < kiTabCount; ++i)
+	{
+		int iTabLeft = static_cast<int>(kiTabBarLeft + i * kiTabWidth);
+		RECT tabRect {iTabLeft, 0, static_cast<int>(iTabLeft + kiTabWidth), static_cast<int>(kiTabHeight)};
+
+		bool bActive = (i == static_cast<int64_t>(seActiveTab));
+		COLORREF uiColor = bActive ? RGB(60, 60, 60) : RGB(40, 40, 40);
+		HBRUSH hBrush = CreateSolidBrush(uiColor);
+		FillRect(hdcBuffer, &tabRect, hBrush);
+		DeleteObject(hBrush);
+
+		// Border
+		HPEN hPen = CreatePen(PS_SOLID, 1, bActive ? RGB(100, 180, 255) : RGB(80, 80, 80));
+		HPEN hOldPen = static_cast<HPEN>(SelectObject(hdcBuffer, hPen));
+		MoveToEx(hdcBuffer, iTabLeft, static_cast<int>(kiTabHeight), nullptr);
+		LineTo(hdcBuffer, iTabLeft, 0);
+		LineTo(hdcBuffer, static_cast<int>(iTabLeft + kiTabWidth), 0);
+		LineTo(hdcBuffer, static_cast<int>(iTabLeft + kiTabWidth), static_cast<int>(kiTabHeight));
+		if (!bActive)
+		{
+			LineTo(hdcBuffer, iTabLeft, static_cast<int>(kiTabHeight));
+		}
+		SelectObject(hdcBuffer, hOldPen);
+		DeleteObject(hPen);
+
+		// Label
+		SetTextColor(hdcBuffer, bActive ? RGB(255, 255, 255) : RGB(160, 160, 160));
+		TextOutA(hdcBuffer, iTabLeft + 12, 4, kTabNames[i].data(), static_cast<int>(kTabNames[i].size()));
+	}
+
+	// Bottom line across non-tab area
+	HPEN hLinePen = CreatePen(PS_SOLID, 1, RGB(80, 80, 80));
+	HPEN hOldPen = static_cast<HPEN>(SelectObject(hdcBuffer, hLinePen));
+	int iTabsEnd = static_cast<int>(kiTabBarLeft + kiTabCount * kiTabWidth);
+	MoveToEx(hdcBuffer, iTabsEnd, kiTabHeight, nullptr);
+	LineTo(hdcBuffer, iWidth, kiTabHeight);
+	SelectObject(hdcBuffer, hOldPen);
+	DeleteObject(hLinePen);
+}
+
 void PaintServerDisplay(HWND hWnd)
 {
 	PAINTSTRUCT ps {};
@@ -307,13 +522,23 @@ void PaintServerDisplay(HWND hWnd)
 	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
 #endif
 
-	// Right side: grid map (fixed-width stats panel on the left)
-	int iMapLeft = 250;
-	int iMapTop = 10;
-	int iMapWidth = iWidth - iMapLeft - 10;
-	int iMapHeight = iHeight - 20;
+	// Tab bar
+	PaintTabBar(hdcBuffer, iWidth);
 
-	PaintGridMap(hdcBuffer, pcLine, sizeof(pcLine), iMapLeft, iMapTop, iMapWidth, iMapHeight, rClients);
+	// Right side content area (below tab bar)
+	int iContentLeft = static_cast<int>(kiTabBarLeft);
+	int iContentTop = static_cast<int>(kiTabHeight) + 5;
+	int iContentWidth = iWidth - iContentLeft - 10;
+	int iContentHeight = iHeight - iContentTop - 10;
+
+	if (seActiveTab == ServerTab::kMap)
+	{
+		PaintGridMap(hdcBuffer, pcLine, sizeof(pcLine), iContentLeft, iContentTop, iContentWidth, iContentHeight, rClients);
+	}
+	else if (seActiveTab == ServerTab::kProfile)
+	{
+		PaintProfilePanel(hdcBuffer, iContentLeft, iContentTop, iContentWidth, iContentHeight);
+	}
 
 	SelectObject(hdcBuffer, hOldFont);
 	DeleteObject(hFont);

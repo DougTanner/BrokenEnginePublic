@@ -30,7 +30,7 @@ enum class PacketType : uint8_t
 	kClientSaveRequest,         // Client requests server quicksave (debug only)
 	kClientLoadRequest,         // Client requests server quickload (debug only)
 	kServerLoadNotification,    // Server loaded a save, clients must reset state
-	kClientWeaponModeRequest,   // Client requests weapon mode toggle (blasters/missiles)
+	kClientUpdatePlayerRequest, // Client sends per-player settings update (weapon mode, navigation delay)
 	kClientReplayRecordRequest, // Client requests server replay record start/stop (debug only)
 	kClientReplayPlaybackRequest, // Client requests server replay playback (debug only)
 	kClientResetRequest,          // Client requests server reset (debug only)

@@ -343,6 +343,28 @@ void ProfileManagerBase::LogTimers()
 	}
 }
 
+void ProfileManagerBase::SmoothCpuTimers()
+{
+	if constexpr (kbProfiling)
+	{
+		std::lock_guard lock(mCpuTimerMutex);
+		int64_t iCpuTimerCount = GetCpuTimerCount();
+		for (int64_t i = 0; i < iCpuTimerCount; ++i)
+		{
+			CpuTimer& rCpuTimer = GetCpuTimer(i);
+			if (i > kCpuTimerAcquireToGlobal)
+			{
+				rCpuTimer.smoothedMicroseconds = rCpuTimer.iTotalFrameTimeNs / 1000;
+				rCpuTimer.iTotalFrameTimeNs = 0;
+				rCpuTimer.smoothedAllocations = rCpuTimer.iAllocationsThisFrame;
+				rCpuTimer.iAllocationsThisFrame = 0;
+			}
+			rCpuTimer.smoothedMicroseconds.Update();
+			rCpuTimer.smoothedAllocations.Update();
+		}
+	}
+}
+
 void ProfileManagerBase::UpdateProfileText()
 {
 	if constexpr (kbProfiling)
@@ -350,23 +372,7 @@ void ProfileManagerBase::UpdateProfileText()
 #if defined(BT_CLIENT)
 		ScopedCpuProfile scopedCpuProfile(kCpuTimerUpdateProfileText);
 
-		int64_t iCpuTimerCount = GetCpuTimerCount();
-		{
-			std::lock_guard lock(mCpuTimerMutex);
-			for (int64_t i = 0; i < iCpuTimerCount; ++i)
-			{
-				CpuTimer& rCpuTimer = GetCpuTimer(i);
-				if (i > kCpuTimerAcquireToGlobal)
-				{
-					rCpuTimer.smoothedMicroseconds = rCpuTimer.iTotalFrameTimeNs / 1000;
-					rCpuTimer.iTotalFrameTimeNs = 0;
-					rCpuTimer.smoothedAllocations = rCpuTimer.iAllocationsThisFrame;
-					rCpuTimer.iAllocationsThisFrame = 0;
-				}
-				rCpuTimer.smoothedMicroseconds.Update();
-				rCpuTimer.smoothedAllocations.Update();
-			}
-		}
+		SmoothCpuTimers();
 
 		mSmoothedAllocations = giAllocationsThisFrame.exchange(0, std::memory_order_relaxed);
 		mSmoothedAllocations.Update();

@@ -95,6 +95,7 @@ void HudScreen::Render()
 	}
 
 	RenderPlayerPanel();
+	RenderFocusedPlayerPanel();
 }
 
 void HudScreen::RenderPlayerPanel()
@@ -149,20 +150,33 @@ void HudScreen::RenderPlayerPanel()
 	}
 	ImGui::EndDisabled();
 
-	// Weapon mode button: re-lookup player index after focus buttons may have changed mClientGridCoord
-	std::optional<int64_t> weaponPlayerIndex;
+	ImGui::End();
+}
+
+void HudScreen::RenderFocusedPlayerPanel()
+{
+	ImGuiIO& rIo = ImGui::GetIO();
+	ScopedMenuScale menuScale;
+
+	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.95f, rIo.DisplaySize.y * 0.42f), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+	ImGui::Begin("FocusedPlayerPanel", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+	ImGui::SetWindowFontScale(kfMenuUiScale);
+
+	std::optional<int64_t> playerIndex = std::nullopt;
 	{
 		auto it = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
 		if (it != gpGame->mCoordFrames.end() && it->second.pCurrent != nullptr)
 		{
-			weaponPlayerIndex = gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers);
+			playerIndex = gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers);
 		}
 	}
-	if (weaponPlayerIndex)
+	if (playerIndex)
 	{
 		PlayersPostRender& rPlayers = *gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers;
-		bool bUseMissiles = static_cast<bool>(rPlayers.pFlags[*weaponPlayerIndex] & PlayerFlags::kUseMissiles);
+		bool bUseMissiles = static_cast<bool>(rPlayers.pFlags[*playerIndex] & PlayerFlags::kUseMissiles);
+		float fNavigationDelay = rPlayers.pfNavigationDelays[*playerIndex];
 		gpGame->mWeaponModeToggle.Update(bUseMissiles);
+		gpGame->mNavigationDelayControl.Update(fNavigationDelay);
 
 		const char* pLabel = bUseMissiles ? "[Q] Missiles" : "[Q] Blasters";
 		ImGui::BeginDisabled(gpGame->mWeaponModeToggle.IsPending());
@@ -171,8 +185,23 @@ void HudScreen::RenderPlayerPanel()
 			if (gpClientSession != nullptr && gpGame->ClientPlayerId().IsValid())
 			{
 				gpGame->mWeaponModeToggle.SetPending();
-				engine::gpClient->SendWeaponModeRequest(gpGame->ClientPlayerId().iValue);
+				engine::gpClient->SendUpdatePlayerRequest(gpGame->ClientPlayerId().iValue, !bUseMissiles, fNavigationDelay);
 				Log(kVerbose, "HUD WeaponModeToggle GlobalPlayerId: {}", gpGame->ClientPlayerId().iValue); // DT TEMP
+			}
+		}
+		ImGui::EndDisabled();
+
+		// Navigation delay slider
+		ImGui::BeginDisabled(gpGame->mNavigationDelayControl.IsPending());
+		float fSliderValue = fNavigationDelay;
+		ImGui::SliderFloat("Nav Delay", &fSliderValue, 0.0f, 10.0f);
+		if (ImGui::IsItemDeactivatedAfterEdit())
+		{
+			if (gpClientSession != nullptr && gpGame->ClientPlayerId().IsValid())
+			{
+				gpGame->mNavigationDelayControl.SetPending();
+				engine::gpClient->SendUpdatePlayerRequest(gpGame->ClientPlayerId().iValue, bUseMissiles, fSliderValue);
+				Log(kVerbose, "HUD NavigationDelay GlobalPlayerId: {} Delay: {}", gpGame->ClientPlayerId().iValue, fSliderValue); // DT TEMP
 			}
 		}
 		ImGui::EndDisabled();
@@ -183,7 +212,7 @@ void HudScreen::RenderPlayerPanel()
 
 void HudScreen::RenderBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize, float fValue, float fHalfWidthPerPoint, float fBarYSign, ImU32 uiBarColor, VkDescriptorSet vkIconDescriptorSet)
 {
-	float fAspectRatio = engine::gpSwapchainManager->mfAspectRatio;
+	const float fAspectRatio = engine::gpSwapchainManager->mfAspectRatio;
 
 	float fHalfWidth = std::max(fHalfWidthPerPoint * fValue, 0.001f);
 

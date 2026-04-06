@@ -90,7 +90,7 @@ public:
 	void SendSaveRequest();
 	void SendLoadRequest();
 	void SendResetRequest();
-	void SendWeaponModeRequest(int64_t iGlobalPlayerId);
+	void SendUpdatePlayerRequest(int64_t iGlobalPlayerId, bool bUseMissiles, float fNavigationDelay);
 	void SendReplayRecordRequest();
 	void SendReplayPlaybackRequest();
 	void Flush();

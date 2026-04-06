@@ -416,10 +416,10 @@ void Server::ClientTimespeedRequest(const uint8_t* pData, size_t iSize, int64_t 
 	BroadcastTimespeedUpdate(game::gpGame->mTimeStep.miTimeMultiply, game::gpGame->mTimeStep.miTimeDivide);
 }
 
-void Server::ClientWeaponModeRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
+void Server::ClientUpdatePlayerRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
 {
-	// 1B type + 8B global player ID = 9 bytes
-	if (iSize < 9)
+	// 1B type + 8B global player ID + 1B bUseMissiles + 4B fNavigationDelay = 14 bytes
+	if (iSize < 14)
 	{
 		return;
 	}
@@ -433,11 +433,13 @@ void Server::ClientWeaponModeRequest(const uint8_t* pData, size_t iSize, int64_t
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 	global_player_t globalPlayerId {};
 	globalPlayerId.iValue = ReadInt64(pCursor);
+	bool bUseMissiles = ReadUint8(pCursor) != 0;
+	float fNavigationDelay = ReadFloat(pCursor);
 
-	Log(kLogNetwork, "Server::ClientWeaponModeRequest Client: {} GlobalPlayer: {}", iClientId, globalPlayerId.iValue);
+	Log(kLogNetwork, "Server::ClientUpdatePlayerRequest Client: {} GlobalPlayer: {} Missiles: {} NavDelay: {}", iClientId, globalPlayerId.iValue, bUseMissiles, fNavigationDelay);
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	mPendingWeaponModeRequests.push_back({iClientId, globalPlayerId});
+	mPendingUpdatePlayerRequests.push_back({iClientId, globalPlayerId, bUseMissiles, fNavigationDelay});
 }
 
 #if defined(BT_SERVER)

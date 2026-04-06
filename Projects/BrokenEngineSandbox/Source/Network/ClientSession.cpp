@@ -591,6 +591,7 @@ void ClientSession::ResetForServerLoad()
 	gpGame->mGameFlags.Clear(engine::GameFlags::kDeathScreen);
 	gpGame->mVecVisualErrorOffset = {};
 	gpGame->mWeaponModeToggle.Reset();
+	gpGame->mNavigationDelayControl.Reset();
 	gpGame->mSpawnToggle.Reset();
 
 	// Force-reset all client coord slots

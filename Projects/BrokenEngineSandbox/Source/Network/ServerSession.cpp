@@ -206,7 +206,7 @@ void ServerSession::BuildFrameInputs()
 	mPendingPlayerDestroys.clear();
 
 	// Inject weapon mode toggle StatusChanges
-	ProcessWeaponModeRequests();
+	ProcessUpdatePlayerRequests();
 
 	// Save StatusChanges for broadcasting (spawns only, transfers handled separately in HarvestTransfers)
 	for (const auto& [rCoord, rFrameInput] : gpGame->mFrameInputs)
@@ -480,11 +480,11 @@ void ServerSession::ProcessSpawnRequests()
 	}
 }
 
-void ServerSession::ProcessWeaponModeRequests()
+void ServerSession::ProcessUpdatePlayerRequests()
 {
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	for (const engine::PendingWeaponModeRequest& rRequest : engine::gpServer->DrainPendingWeaponModeRequests())
+	for (const engine::PendingUpdatePlayerRequest& rRequest : engine::gpServer->DrainPendingUpdatePlayerRequests())
 	{
 		engine::ClientConnection* pClient = engine::gpServer->FindClient(rRequest.iClientId);
 		if (pClient == nullptr || pClient->ownedPlayerIds.empty())
@@ -493,13 +493,13 @@ void ServerSession::ProcessWeaponModeRequests()
 		}
 
 		// Find the coord for this global player ID in the client's owned list
-		engine::GridCoord weaponCoord {};
+		engine::GridCoord updateCoord {};
 		bool bFound = false;
 		for (int64_t i = 0; i < std::ssize(pClient->ownedPlayerIds); ++i)
 		{
 			if (pClient->ownedPlayerIds.at(i) == rRequest.globalPlayerId)
 			{
-				weaponCoord = pClient->ownedPlayerCoords.at(i);
+				updateCoord = pClient->ownedPlayerCoords.at(i);
 				bFound = true;
 				break;
 			}
@@ -509,18 +509,18 @@ void ServerSession::ProcessWeaponModeRequests()
 			continue;
 		}
 
-		auto frameInputIt = gpGame->mFrameInputs.find(weaponCoord);
+		auto frameInputIt = gpGame->mFrameInputs.find(updateCoord);
 		if (frameInputIt == gpGame->mFrameInputs.end())
 		{
 			continue;
 		}
 
 		// Find the frame-local player ID by scanning pGlobalPlayerIds
-		if (!gpGame->mCoordFrames.contains(weaponCoord))
+		if (!gpGame->mCoordFrames.contains(updateCoord))
 		{
 			continue;
 		}
-		const PlayersPostRender& rPlayers = *gpGame->CurrentFrame(weaponCoord).postRender.pPlayers;
+		const PlayersPostRender& rPlayers = *gpGame->CurrentFrame(updateCoord).postRender.pPlayers;
 		int64_t iPlayerUuid = 0;
 		for (int64_t j = 0; j < rPlayers.iCount; ++j)
 		{
@@ -535,10 +535,10 @@ void ServerSession::ProcessWeaponModeRequests()
 			continue;
 		}
 
-		StatusChange weaponChange {.eType = StatusChangeType::kWeaponModeChange, .data = WeaponModeChangeData{.iPlayerUuid = iPlayerUuid}};
-		frameInputIt->second.statusChanges.push_back(weaponChange);
+		StatusChange updateChange {.eType = StatusChangeType::kUpdatePlayer, .data = UpdatePlayerData{.iPlayerUuid = iPlayerUuid, .bUseMissiles = rRequest.bUseMissiles, .fNavigationDelay = rRequest.fNavigationDelay}};
+		frameInputIt->second.statusChanges.push_back(updateChange);
 
-		Log(kLogNetwork, kVerbose, "ServerSession::ProcessWeaponModeRequests Client: {} GlobalPlayer: {} Coord: ({},{})", rRequest.iClientId, rRequest.globalPlayerId.iValue, weaponCoord.x, weaponCoord.y);
+		Log(kLogNetwork, kVerbose, "ServerSession::ProcessUpdatePlayerRequests Client: {} GlobalPlayer: {} Coord: ({},{})", rRequest.iClientId, rRequest.globalPlayerId.iValue, updateCoord.x, updateCoord.y);
 	}
 }
 
@@ -896,7 +896,7 @@ void ServerSession::ResetClientsForLoad()
 	engine::gpServer->DrainPendingSpawnRequests().clear();
 	engine::gpServer->DrainPendingNewSubscriptions().clear();
 	engine::gpServer->DrainPendingResyncClientIds().clear();
-	engine::gpServer->DrainPendingWeaponModeRequests().clear();
+	engine::gpServer->DrainPendingUpdatePlayerRequests().clear();
 
 	engine::gpServer->Flush();
 }

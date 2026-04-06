@@ -12,7 +12,7 @@ enum class StatusChangeType : uint8_t
 	kTransferBlaster,
 	kTransferMissile,
 	kDestroyPlayer,
-	kWeaponModeChange,
+	kUpdatePlayer,
 };
 
 inline bool IsTransferType(StatusChangeType eType)
@@ -31,7 +31,7 @@ inline const char* StatusChangeTypeName(StatusChangeType eType)
 		case StatusChangeType::kTransferBlaster:   return "TransferBlaster";
 		case StatusChangeType::kTransferMissile:   return "TransferMissile";
 		case StatusChangeType::kDestroyPlayer:     return "DestroyPlayer";
-		case StatusChangeType::kWeaponModeChange:  return "WeaponModeChange";
+		case StatusChangeType::kUpdatePlayer:      return "UpdatePlayer";
 	}
 	return "Unknown";
 }
@@ -48,10 +48,17 @@ struct DestroyPlayerData
 	bool operator==(const DestroyPlayerData&) const = default;
 };
 
-struct WeaponModeChangeData
+struct UpdatePlayerData
 {
 	int64_t iPlayerUuid = 0;
-	bool operator==(const WeaponModeChangeData&) const = default;
+	bool bUseMissiles = false;
+	float fNavigationDelay = 2.0f;
+	bool operator==(const UpdatePlayerData&) const = default;
+
+	auto SharedMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.iPlayerUuid, rSelf.bUseMissiles, rSelf.fNavigationDelay);
+	}
 };
 
 struct TransferData
@@ -77,6 +84,7 @@ struct TransferData
 			rSelf.fAnimationTime, rSelf.fShieldRotation, rSelf.fShieldShrink, rSelf.uiPlayerFlags,
 			rSelf.fNextBlasterSpawnTime,
 			rSelf.fArrivalGracePeriod,
+			rSelf.fNavigationDelay,
 			rSelf.fDeltaRotationDelay, rSelf.fTime, rSelf.fExhaustDelay, rSelf.fNextJitter,
 			rSelf.globalPlayerId);
 	}
@@ -111,6 +119,9 @@ struct TransferData
 	// Arrival grace period (shared across player/spaceship transfers)
 	float fArrivalGracePeriod = 0.0f;
 
+	// Navigation delay (player transfers only)
+	float fNavigationDelay = 2.0f;
+
 	// Missile timers
 	float fDeltaRotationDelay = 0.0f;
 	float fTime = 0.0f;
@@ -134,7 +145,7 @@ using StatusChangeData = std::variant<
 	SpawnPlayerData,      // kSpawnPlayer
 	TransferData,         // kTransfer* (all 4 types) and kRespawnPlayer (empty TransferData)
 	DestroyPlayerData,    // kDestroyPlayer
-	WeaponModeChangeData  // kWeaponModeChange
+	UpdatePlayerData      // kUpdatePlayer
 >;
 
 inline StatusChangeData DefaultDataForType(StatusChangeType eType)
@@ -143,7 +154,7 @@ inline StatusChangeData DefaultDataForType(StatusChangeType eType)
 	{
 		case StatusChangeType::kSpawnPlayer:      return SpawnPlayerData{};
 		case StatusChangeType::kDestroyPlayer:    return DestroyPlayerData{};
-		case StatusChangeType::kWeaponModeChange: return WeaponModeChangeData{};
+		case StatusChangeType::kUpdatePlayer:     return UpdatePlayerData{};
 		default:                                  return TransferData{};
 	}
 }

@@ -35,6 +35,7 @@ inline constexpr float kfSpaceshipHitSoundVolume = 0.2f;
 
 struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 {
+	static constexpr int64_t kiVersion = 1;
 	static constexpr const char* kName = "Spaceships";
 	static constexpr common::crc_t kCrc = common::CrcConsteval("Spaceships");
 
@@ -65,11 +66,7 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 #if defined(BT_CLIENT)
 	float* __restrict pfAnimationTimes = nullptr;
 #endif
-	auto SharedMembers(this auto&& rSelf)
-	{
-		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes, rSelf.puiPushers, rSelf.puiTargets,
-			rSelf.pfDeltaRotations, rSelf.pfFreezeTimes);
-	}
+	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes, rSelf.puiPushers, rSelf.puiTargets, rSelf.pfDeltaRotations, rSelf.pfFreezeTimes); }
 #if defined(BT_CLIENT)
 	auto ClientMembers(this auto&& rSelf)
 	{

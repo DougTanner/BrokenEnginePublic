@@ -12,7 +12,7 @@ Performance profiling system providing CPU timing, GPU timing via Vulkan timesta
 
 **GPU Queries** (client-only): Uses a single `VkQueryPool` with per-command-buffer query sets. Results are read without blocking to prevent hangs at low framerates; unavailable results retain previous smoothed values. Integrates with Vulkan debug utils for external profiler labeling (RenderDoc, etc.).
 
-**Client/Server Split**: GPU methods, `VkQueryPool`, and the profile text overlay are gated behind `BT_CLIENT`. CPU timers, counters, and boot timers compile in both builds.
+**Client/Server Split**: GPU methods, `VkQueryPool`, and the client profile overlay are gated behind `BT_CLIENT`. CPU timers, counters, boot timers, and CPU text formatting functions compile in both builds.
 
 ## Thread Safety
 
@@ -22,12 +22,12 @@ CPU profiling is thread-safe via per-thread timer state stored in a mutex-protec
 
 - **`ScopedCpuProfile`**: RAII scope-based CPU timing; also tracks per-timer heap allocation counts
 - **`ScopedBootTimer`**: RAII one-time initialization measurement
-- **Direct API**: `CpuStart()`/`CpuStop()`, `GpuStart()`/`GpuStop()`, `SetCount()`
+- **Direct API**: `CpuStart()`/`CpuStop()`, `GpuStart()`/`GpuStop()`, `SetCount()`, `SmoothCpuTimers()` (updates smoothed CPU timer values; available in both builds so the server can call it independently of the client overlay)
 - **Overlay**: Cycles through `ProfileScreen` modes (Off, Cpu, Gpu, Frames, Network) via `ToggleProfileText()`. CPU screen shows timers, counters, memory stats, and allocations. GPU screen shows graphics info, GPU timers, and VMA GPU memory statistics (allocated/used/unused bytes, allocation and block counts, and per-heap budget and usage via `vmaGetHeapBudgets` when `mbMemoryBudgetAvailable`). Frames screen shows active grid visualization. Network screen is organized into sections (Transport, Sync, Prediction, Clock, Reconciliation) and displays packet loss percent, interarrival jitter, and the active simulation level. When simulation is enabled, stats exceeding their `NetworkSimulationBounds` thresholds are flagged with `!`. All overlay text is built using the workbuffer to avoid per-frame heap allocations. The virtual `RenderImPlotGraphs()` hook (client-only) is called by `ImGuiManager::Submit()` after screen text; game-derived classes override it to render ImPlot time-series graphs alongside the text overlay.
 
 ## File Organization
 
-Screen formatting logic is split into `ProfileScreens.cpp` (engine-level screens: FPS header, CPU, GPU) to keep `ProfileManagerBase.cpp` under 500 lines. Game-specific screens (Frames, Network) are implemented by overriding `FormatGameScreens()` in the derived class.
+Screen formatting logic is split into `ProfileScreens.cpp` to keep `ProfileManagerBase.cpp` under 500 lines. CPU timer and counter text formatting functions in `ProfileScreens.cpp` are shared (not client-gated) so the server can reuse them; the client-only `FormatCpuScreen()` calls these shared helpers. Game-specific screens (Frames, Network) are implemented by overriding `FormatGameScreens()` in the derived class.
 
 ## Extension
 

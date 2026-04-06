@@ -30,6 +30,7 @@ struct BlastersType
 struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
                              public engine::TypeRegistry<BlastersType>
 {
+	static constexpr int64_t kiVersion = 1;
 	static constexpr char kName[] = "Blasters";
 	static constexpr common::crc_t kCrc = common::CrcConsteval(kName);
 
@@ -94,6 +95,8 @@ using BlasterFlags_t = common::Flags<BlasterFlags>;
 
 struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 {
+	static constexpr int64_t kiVersion = 1;
+
 	// Allocate and copy
 	static void AllocateAndCopy(BlastersPostRender& rCurrent, const BlastersPostRender& rPrevious);
 

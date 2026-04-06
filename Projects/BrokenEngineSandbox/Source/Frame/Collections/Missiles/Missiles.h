@@ -42,6 +42,7 @@ using MissileFlags_t = common::Flags<MissileFlags>;
 
 struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 {
+	static constexpr int64_t kiVersion = 1;
 	static constexpr const char* kName = "Missiles";
 	static constexpr common::crc_t kCrc = common::CrcConsteval("Missiles");
 

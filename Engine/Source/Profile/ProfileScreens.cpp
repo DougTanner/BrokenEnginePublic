@@ -7,6 +7,85 @@
 namespace engine
 {
 
+void FormatCpuTimersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager)
+{
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	int64_t iCpuTimerCount = rProfileManager.GetCpuTimerCount();
+
+	rWorkbuffer.Push();
+	rWorkbuffer.Append("\n\n");
+
+	for (int64_t i = 0; i < iCpuTimerCount; ++i)
+	{
+		CpuTimer& rCpuTimer = rProfileManager.GetCpuTimer(i);
+
+		int64_t iValue = rCpuTimer.smoothedMicroseconds.Get();
+		if (i > kCpuTimerAcquireToGlobal && iValue < 50)
+		{
+			if (now - rCpuTimer.lastVisibleTime > 1s)
+			{
+				continue;
+			}
+		}
+		else
+		{
+			rCpuTimer.lastVisibleTime = now;
+		}
+
+		rWorkbuffer.Append(rCpuTimer.name);
+		rWorkbuffer.Append(": ");
+		rWorkbuffer.Append(iValue);
+		rWorkbuffer.Append(" us");
+		if (rCpuTimer.iThreads > 1)
+		{
+			rWorkbuffer.Append(" (");
+			rWorkbuffer.Append(rCpuTimer.iThreads);
+			rWorkbuffer.Append(")");
+		}
+		if (rCpuTimer.smoothedAllocations.Get() > 0)
+		{
+			rWorkbuffer.Append(" [");
+			rWorkbuffer.Append(rCpuTimer.smoothedAllocations.Get());
+			rWorkbuffer.Append("]");
+		}
+		rWorkbuffer.Append("\n");
+
+		if (i == kCpuTimerAcquireToGlobal)
+		{
+			rWorkbuffer.Append("\n");
+		}
+	}
+}
+
+void FormatCpuCountersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager)
+{
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	int64_t iCpuCounterCount = rProfileManager.GetCpuCounterCount();
+
+	rWorkbuffer.Push();
+
+	for (int64_t i = 0; i < iCpuCounterCount; ++i)
+	{
+		CpuCounter& rCpuCounter = rProfileManager.GetCpuCounter(i);
+		if (rCpuCounter.iCount == 0)
+		{
+			if (now - rCpuCounter.lastVisibleTime > 1s)
+			{
+				continue;
+			}
+		}
+		else
+		{
+			rCpuCounter.lastVisibleTime = now;
+		}
+
+		rWorkbuffer.Append(rCpuCounter.name);
+		rWorkbuffer.Append(": ");
+		rWorkbuffer.Append(rCpuCounter.iCount);
+		rWorkbuffer.Append("\n");
+	}
+}
+
 namespace
 {
 
@@ -71,82 +150,13 @@ void FormatFpsHeader(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfi
 
 void FormatCpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager)
 {
-	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-	int64_t iCpuTimerCount = rProfileManager.GetCpuTimerCount();
-
 	// Cpu timers
-	rWorkbuffer.Push();
-	rWorkbuffer.Append("\n\n");
-
-	for (int64_t i = 0; i < iCpuTimerCount; ++i)
-	{
-		CpuTimer& rCpuTimer = rProfileManager.GetCpuTimer(i);
-
-		int64_t iValue = rCpuTimer.smoothedMicroseconds.Get();
-		if (i > kCpuTimerAcquireToGlobal && iValue < 50)
-		{
-			if (now - rCpuTimer.lastVisibleTime > 1s)
-			{
-				continue;
-			}
-		}
-		else
-		{
-			rCpuTimer.lastVisibleTime = now;
-		}
-
-		rWorkbuffer.Append(rCpuTimer.name);
-		rWorkbuffer.Append(": ");
-		rWorkbuffer.Append(iValue);
-		rWorkbuffer.Append(" us");
-		if (rCpuTimer.iThreads > 1)
-		{
-			rWorkbuffer.Append(" (");
-			rWorkbuffer.Append(rCpuTimer.iThreads);
-			rWorkbuffer.Append(")");
-		}
-		if (rCpuTimer.smoothedAllocations.Get() > 0)
-		{
-			rWorkbuffer.Append(" [");
-			rWorkbuffer.Append(rCpuTimer.smoothedAllocations.Get());
-			rWorkbuffer.Append("]");
-		}
-		rWorkbuffer.Append("\n");
-
-		if (i == kCpuTimerAcquireToGlobal)
-		{
-			rWorkbuffer.Append("\n");
-		}
-	}
-
+	FormatCpuTimersText(rWorkbuffer, rProfileManager);
 	gpTextManager->UpdateTextArea(kTextProfileCpuTimers, rWorkbuffer.View());
 	rWorkbuffer.Pop();
 
 	// Counters text
-	rWorkbuffer.Push();
-
-	int64_t iCpuCounterCount = rProfileManager.GetCpuCounterCount();
-	for (int64_t i = 0; i < iCpuCounterCount; ++i)
-	{
-		CpuCounter& rCpuCounter = rProfileManager.GetCpuCounter(i);
-		if (rCpuCounter.iCount == 0)
-		{
-			if (now - rCpuCounter.lastVisibleTime > 1s)
-			{
-				continue;
-			}
-		}
-		else
-		{
-			rCpuCounter.lastVisibleTime = now;
-		}
-
-		rWorkbuffer.Append(rCpuCounter.name);
-		rWorkbuffer.Append(": ");
-		rWorkbuffer.Append(rCpuCounter.iCount);
-		rWorkbuffer.Append("\n");
-	}
-
+	FormatCpuCountersText(rWorkbuffer, rProfileManager);
 	gpTextManager->UpdateTextArea(kTextProfileCpuCounters, rWorkbuffer.View());
 	rWorkbuffer.Pop();
 

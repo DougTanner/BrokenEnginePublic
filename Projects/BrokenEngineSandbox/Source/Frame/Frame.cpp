@@ -8,6 +8,18 @@ namespace game
 
 using enum GameFlags;
 
+const int64_t Frame::kiVersion = 23 + engine::kiNavDataVersion
+	+ BlastersInterpolate::kiVersion
+	+ BlastersPostRender::kiVersion
+	+ MissilesInterpolate::kiVersion
+	+ MissilesPostRender::kiVersion
+	+ PlayersInterpolate::kiVersion
+	+ PlayersPostRender::kiVersion
+	+ SpaceshipsInterpolate::kiVersion
+	+ SpaceshipsPostRender::kiVersion
+	+ TargetsInterpolate::kiVersion
+	+ TargetsPostRender::kiVersion;
+
 // FrameInterpolate
 FrameInterpolate::FrameInterpolate()
 	: pPlayers(std::make_unique<PlayersInterpolate>())
@@ -168,28 +180,18 @@ void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 	engine::ForEachPostRenderDestroy(GamePostRenderTypes{}, rFrame, rStaticData);
 }
 
-static void SpawnSingleSpaceship(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData)
+static void SpawnSingleSpaceship(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData, int64_t iPlayerIndex)
 {
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
 	constexpr float kfSpawnRadius = 100.0f;
 
-	// Find any alive player to spawn near; skip if no alive players
-	XMVECTOR vecPlayerPosition = XMVectorZero();
-	bool bFound = false;
-	for (int64_t i = 0; i < rInterpolate.pPlayers->iCount; ++i)
-	{
-		if (!(rFrame.postRender.pPlayers->pFlags[i] & PlayerFlags::kExploding))
-		{
-			vecPlayerPosition = rInterpolate.pPlayers->pVecPositions[i];
-			bFound = true;
-			break;
-		}
-	}
-	if (!bFound)
+	// Skip if this player is exploding
+	if (rFrame.postRender.pPlayers->pFlags[iPlayerIndex] & PlayerFlags::kExploding)
 	{
 		return;
 	}
+	XMVECTOR vecPlayerPosition = rInterpolate.pPlayers->pVecPositions[iPlayerIndex];
 
 	// Random angle around player
 	float fAngle = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
@@ -240,12 +242,15 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 		return;
 	}
 
-	// Spawn one spaceship every half second
+	// Spawn one spaceship per player every half second
 	constexpr float kfSpawnInterval = 0.5f;
 	while (rInterpolate.fSpawnTimer >= kfSpawnInterval)
 	{
 		rInterpolate.fSpawnTimer -= kfSpawnInterval;
-		SpawnSingleSpaceship(rFrame, rStaticData);
+		for (int64_t i = 0; i < rInterpolate.pPlayers->iCount; ++i)
+		{
+			SpawnSingleSpaceship(rFrame, rStaticData, i);
+		}
 	}
 }
 

@@ -68,6 +68,7 @@ static void SerializePlayerTransfer(uint8_t*& pCursor, const game::TransferData&
 	WriteFloat(pCursor, rData.fShieldShrink);
 	WriteUint8(pCursor, rData.uiPlayerFlags);
 	WriteFloat(pCursor, rData.fArrivalGracePeriod);
+	WriteFloat(pCursor, rData.fNavigationDelay);
 	WriteInt64(pCursor, rData.globalPlayerId.iValue);
 }
 
@@ -128,6 +129,7 @@ static void DeserializePlayerTransfer(const uint8_t*& pCursor, game::TransferDat
 	rData.fShieldShrink = ReadFloat(pCursor);
 	rData.uiPlayerFlags = ReadUint8(pCursor);
 	rData.fArrivalGracePeriod = ReadFloat(pCursor);
+	rData.fNavigationDelay = ReadFloat(pCursor);
 	rData.globalPlayerId.iValue = ReadInt64(pCursor);
 }
 
@@ -168,14 +170,19 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 			case game::StatusChangeType::kDestroyPlayer:
 				WriteInt64(pCursor, std::get<game::DestroyPlayerData>(rData).iPlayerUuid);
 				break;
-			case game::StatusChangeType::kWeaponModeChange:
-				WriteInt64(pCursor, std::get<game::WeaponModeChangeData>(rData).iPlayerUuid);
+			case game::StatusChangeType::kUpdatePlayer:
+			{
+				const game::UpdatePlayerData& rUpdate = std::get<game::UpdatePlayerData>(rData);
+				WriteInt64(pCursor, rUpdate.iPlayerUuid);
+				WriteUint8(pCursor, rUpdate.bUseMissiles ? 1 : 0);
+				WriteFloat(pCursor, rUpdate.fNavigationDelay);
 				break;
+			}
 		}
 	}
 }
 
-constexpr int64_t kiTypeCount = static_cast<int64_t>(game::StatusChangeType::kWeaponModeChange) + 1;
+constexpr int64_t kiTypeCount = static_cast<int64_t>(game::StatusChangeType::kUpdatePlayer) + 1;
 
 static void GroupIndicesByType(const game::StatusChange* pChanges, int64_t iCount, int64_t piOffsets[kiTypeCount], int64_t piCounts[kiTypeCount], int64_t* pSortedIndices)
 {
@@ -279,9 +286,14 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 				case game::StatusChangeType::kDestroyPlayer:
 					std::get<game::DestroyPlayerData>(rChange.data).iPlayerUuid = ReadInt64(pCursor);
 					break;
-				case game::StatusChangeType::kWeaponModeChange:
-					std::get<game::WeaponModeChangeData>(rChange.data).iPlayerUuid = ReadInt64(pCursor);
+				case game::StatusChangeType::kUpdatePlayer:
+				{
+					game::UpdatePlayerData& rUpdate = std::get<game::UpdatePlayerData>(rChange.data);
+					rUpdate.iPlayerUuid = ReadInt64(pCursor);
+					rUpdate.bUseMissiles = ReadUint8(pCursor) != 0;
+					rUpdate.fNavigationDelay = ReadFloat(pCursor);
 					break;
+				}
 			}
 		}
 
@@ -303,9 +315,9 @@ int64_t CompressStatusChangeBatch(const game::StatusChange* pChanges, int64_t iC
 	}
 
 	// Serialize into workbuffer, then LZ4 compress into pDest
-	// Largest type is kTransferPlayer: 3 Vec4(16) + uint32(4) + 9 float(4) + uint8(1) = 89 bytes
-	constexpr int64_t kiMaxBytesPerItem = 104;
-	static_assert(kiMaxBytesPerItem >= 97, "kiMaxBytesPerItem must cover the largest StatusChange serialization (currently kTransferPlayer at 93 bytes)");
+	// Largest type is kTransferPlayer: 3 Vec4(16) + uint32(4) + 10 float(4) + uint8(1) + int64(8) = 105 bytes
+	constexpr int64_t kiMaxBytesPerItem = 112;
+	static_assert(kiMaxBytesPerItem >= 105, "kiMaxBytesPerItem must cover the largest StatusChange serialization (currently kTransferPlayer at 105 bytes)");
 	constexpr int64_t kiMaxGroupHeaders = kiTypeCount * 3;
 	int64_t iMaxSerializedSize = kiMaxGroupHeaders + iCount * kiMaxBytesPerItem;
 

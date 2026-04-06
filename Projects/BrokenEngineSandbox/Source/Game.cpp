@@ -463,6 +463,7 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rD
 				.flags = PlayerFlags_t {static_cast<PlayerFlags>(rData.uiPlayerFlags)},
 				.fTransferLockTimer = 1.0f,
 				.fArrivalGracePeriod = kfArrivalGracePeriod,
+				.fNavigationDelay = rData.fNavigationDelay,
 				.globalPlayerId = rData.globalPlayerId,
 			});
 			break;
@@ -678,8 +679,19 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 	{
 		if (gpClientSession != nullptr && !mWeaponModeToggle.IsPending() && ClientPlayerId().IsValid())
 		{
-			mWeaponModeToggle.SetPending();
-			engine::gpClient->SendWeaponModeRequest(ClientPlayerId().iValue);
+			auto coordIt = mCoordFrames.find(mClientGridCoord);
+			if (coordIt != mCoordFrames.end() && coordIt->second.pCurrent != nullptr)
+			{
+				std::optional<int64_t> oIdx = ClientPlayerIndex(*coordIt->second.pCurrent->postRender.pPlayers);
+				if (oIdx)
+				{
+					const PlayersPostRender& rPlayers = *coordIt->second.pCurrent->postRender.pPlayers;
+					bool bCurrentMissiles = static_cast<bool>(rPlayers.pFlags[*oIdx] & PlayerFlags::kUseMissiles);
+					float fCurrentNavDelay = rPlayers.pfNavigationDelays[*oIdx];
+					mWeaponModeToggle.SetPending();
+					engine::gpClient->SendUpdatePlayerRequest(ClientPlayerId().iValue, !bCurrentMissiles, fCurrentNavDelay);
+				}
+			}
 		}
 	}
 

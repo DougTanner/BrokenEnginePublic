@@ -180,7 +180,7 @@ struct Frame
 	Frame(Frame&&) noexcept;
 	Frame& operator=(Frame&&) noexcept;
 
-	static constexpr int64_t kiVersion = 22 + engine::kiNavDataVersion;
+	static const int64_t kiVersion;
 
 	static constexpr int64_t kiIslandCount = 1;
 

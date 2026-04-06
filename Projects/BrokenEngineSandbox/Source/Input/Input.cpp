@@ -67,10 +67,7 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 	rMenuInput.f2Gamepad = rRawInput.f2LeftThumbstick;
 
 	// Menus
-	rMenuInput.flags.Set(kPauseMenu, KeyboardPressed(VK_ESCAPE, rRawInput) ||
-						             MousePressed(engine::kMouseButtonMiddle, rRawInput) ||
-						             GamepadPressed(engine::kGamepadMenu, rRawInput) ||
-						             GamepadPressed(engine::kGamepadButtonB, rRawInput));
+	rMenuInput.flags.Set(kPauseMenu, KeyboardPressed(VK_ESCAPE, rRawInput) || MousePressed(engine::kMouseButtonMiddle, rRawInput) || GamepadPressed(engine::kGamepadMenu, rRawInput) || GamepadPressed(engine::kGamepadButtonB, rRawInput));
 	if constexpr (kbDebugInput)
 	{
 		rMenuInput.flags.Set(kMenuDebugTexture, KeyboardPressed(VK_F2, rRawInput));
@@ -131,6 +128,13 @@ common::crc_t FrameInput::ServerInputCrc() const
 			{
 				((checksum ^= common::Crc(fields)), ...);
 			}, pTransfer->SharedMembers());
+		}
+		else if (const auto* pUpdate = std::get_if<UpdatePlayerData>(&rStatusChange.data))
+		{
+			std::apply([&](const auto&... fields)
+			{
+				((checksum ^= common::Crc(fields)), ...);
+			}, pUpdate->SharedMembers());
 		}
 		else
 		{
