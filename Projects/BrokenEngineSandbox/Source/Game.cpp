@@ -506,6 +506,7 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	engine::FrameStaticData& rStaticData = mCoordFrames.at(coord).staticData;
 	XMVECTOR vecBaseArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	rStaticData.vecArea = ComputeFrameArea(vecBaseArea, coord);
+	rStaticData.coord = coord;
 	bool bFlipX = (std::abs(coord.x) % 2) == 1;
 	bool bFlipY = (std::abs(coord.y) % 2) == 1;
 	rStaticData.eIslandsFlip = static_cast<engine::IslandsFlip>((bFlipX ? engine::kFlipX : 0) | (bFlipY ? engine::kFlipY : 0));
@@ -594,6 +595,7 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rD
 				.fArrivalGracePeriod = kfArrivalGracePeriod,
 				.fNavigationDelay = rData.fNavigationDelay,
 				.globalPlayerId = rData.globalPlayerId,
+				.flagshipCoord = rData.flagshipCoord,
 			});
 			break;
 
@@ -702,6 +704,7 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	// Populate static data for origin coord (main menu: centered island)
 	engine::FrameStaticData& rStaticData = mCoordFrames.at(engine::kOriginCoord).staticData;
 	rStaticData.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
+	rStaticData.coord = engine::kOriginCoord;
 	rStaticData.eIslandsFlip = engine::kFlipNone;
 	rStaticData.f2IslandOffset = ComputeIslandOffset(engine::kOriginCoord);
 	engine::BuildCellNavData(rStaticData.navData, engine::gpIslandTerrain->mNavContour, rStaticData.vecArea, rStaticData.eIslandsFlip, rStaticData.f2IslandOffset, Frame::kfIslandWidth, Frame::kfIslandHeight);

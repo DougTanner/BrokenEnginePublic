@@ -13,6 +13,7 @@ enum class StatusChangeType : uint8_t
 	kTransferMissile,
 	kDestroyPlayer,
 	kUpdatePlayer,
+	kUpdateFlagshipCoord,
 };
 
 inline bool IsTransferType(StatusChangeType eType)
@@ -31,7 +32,8 @@ inline const char* StatusChangeTypeName(StatusChangeType eType)
 		case StatusChangeType::kTransferBlaster:   return "TransferBlaster";
 		case StatusChangeType::kTransferMissile:   return "TransferMissile";
 		case StatusChangeType::kDestroyPlayer:     return "DestroyPlayer";
-		case StatusChangeType::kUpdatePlayer:      return "UpdatePlayer";
+		case StatusChangeType::kUpdatePlayer:          return "UpdatePlayer";
+		case StatusChangeType::kUpdateFlagshipCoord:  return "UpdateFlagshipCoord";
 	}
 	return "Unknown";
 }
@@ -39,7 +41,14 @@ inline const char* StatusChangeTypeName(StatusChangeType eType)
 struct SpawnPlayerData
 {
 	int64_t iGlobalId = 0;
+	bool bIsFlagship = false;
+	engine::GridCoord flagshipCoord {};
 	bool operator==(const SpawnPlayerData&) const = default;
+
+	auto SharedMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.iGlobalId, rSelf.bIsFlagship, rSelf.flagshipCoord);
+	}
 };
 
 struct DestroyPlayerData
@@ -58,6 +67,19 @@ struct UpdatePlayerData
 	auto SharedMembers(this auto&& rSelf)
 	{
 		return std::tie(rSelf.iPlayerUuid, rSelf.bUseMissiles, rSelf.fNavigationDelay);
+	}
+};
+
+struct UpdateFlagshipCoordData
+{
+	int64_t iPlayerUuid = 0;
+	bool bIsFlagship = false;
+	engine::GridCoord flagshipCoord {};
+	bool operator==(const UpdateFlagshipCoordData&) const = default;
+
+	auto SharedMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.iPlayerUuid, rSelf.bIsFlagship, rSelf.flagshipCoord);
 	}
 };
 
@@ -86,7 +108,8 @@ struct TransferData
 			rSelf.fArrivalGracePeriod,
 			rSelf.fNavigationDelay,
 			rSelf.fDeltaRotationDelay, rSelf.fTime, rSelf.fExhaustDelay, rSelf.fNextJitter,
-			rSelf.globalPlayerId);
+			rSelf.globalPlayerId,
+			rSelf.flagshipCoord);
 	}
 
 	XMVECTOR vecPosition {};
@@ -131,6 +154,9 @@ struct TransferData
 	// Global player ID (player transfers only)
 	engine::global_player_t globalPlayerId {};
 
+	// Flagship coord (player transfers only)
+	engine::GridCoord flagshipCoord {};
+
 	// Client GUID (player transfers only, not serialized over network)
 	uint64_t uiClientGuidHigh = 0;
 	uint64_t uiClientGuidLow = 0;
@@ -142,10 +168,11 @@ struct TransferData
 };
 
 using StatusChangeData = std::variant<
-	SpawnPlayerData,      // kSpawnPlayer
-	TransferData,         // kTransfer* (all 4 types) and kRespawnPlayer (empty TransferData)
-	DestroyPlayerData,    // kDestroyPlayer
-	UpdatePlayerData      // kUpdatePlayer
+	SpawnPlayerData,           // kSpawnPlayer
+	TransferData,              // kTransfer* (all 4 types) and kRespawnPlayer (empty TransferData)
+	DestroyPlayerData,         // kDestroyPlayer
+	UpdatePlayerData,          // kUpdatePlayer
+	UpdateFlagshipCoordData    // kUpdateFlagshipCoord
 >;
 
 inline StatusChangeData DefaultDataForType(StatusChangeType eType)
@@ -154,8 +181,9 @@ inline StatusChangeData DefaultDataForType(StatusChangeType eType)
 	{
 		case StatusChangeType::kSpawnPlayer:      return SpawnPlayerData{};
 		case StatusChangeType::kDestroyPlayer:    return DestroyPlayerData{};
-		case StatusChangeType::kUpdatePlayer:     return UpdatePlayerData{};
-		default:                                  return TransferData{};
+		case StatusChangeType::kUpdatePlayer:          return UpdatePlayerData{};
+		case StatusChangeType::kUpdateFlagshipCoord:  return UpdateFlagshipCoordData{};
+		default:                                      return TransferData{};
 	}
 }
 

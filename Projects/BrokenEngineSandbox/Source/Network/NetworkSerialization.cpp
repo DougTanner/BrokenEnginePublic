@@ -70,6 +70,7 @@ static void SerializePlayerTransfer(uint8_t*& pCursor, const game::TransferData&
 	WriteFloat(pCursor, rData.fArrivalGracePeriod);
 	WriteFloat(pCursor, rData.fNavigationDelay);
 	WriteInt64(pCursor, rData.globalPlayerId.iValue);
+	WriteGridCoord(pCursor, rData.flagshipCoord);
 }
 
 // Per-type deserialize helpers
@@ -131,6 +132,7 @@ static void DeserializePlayerTransfer(const uint8_t*& pCursor, game::TransferDat
 	rData.fArrivalGracePeriod = ReadFloat(pCursor);
 	rData.fNavigationDelay = ReadFloat(pCursor);
 	rData.globalPlayerId.iValue = ReadInt64(pCursor);
+	rData.flagshipCoord = ReadGridCoord(pCursor);
 }
 
 // Serialize a group of StatusChanges that share the same type
@@ -151,8 +153,13 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 		switch (eType)
 		{
 			case game::StatusChangeType::kSpawnPlayer:
-				WriteInt64(pCursor, std::get<game::SpawnPlayerData>(rData).iGlobalId);
+			{
+				const game::SpawnPlayerData& rSpawn = std::get<game::SpawnPlayerData>(rData);
+				WriteInt64(pCursor, rSpawn.iGlobalId);
+				WriteUint8(pCursor, rSpawn.bIsFlagship ? 1 : 0);
+				WriteGridCoord(pCursor, rSpawn.flagshipCoord);
 				break;
+			}
 			case game::StatusChangeType::kRespawnPlayer:
 				break;
 			case game::StatusChangeType::kTransferBlaster:
@@ -178,11 +185,19 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 				WriteFloat(pCursor, rUpdate.fNavigationDelay);
 				break;
 			}
+			case game::StatusChangeType::kUpdateFlagshipCoord:
+			{
+				const game::UpdateFlagshipCoordData& rUpdate = std::get<game::UpdateFlagshipCoordData>(rData);
+				WriteInt64(pCursor, rUpdate.iPlayerUuid);
+				WriteUint8(pCursor, rUpdate.bIsFlagship ? 1 : 0);
+				WriteGridCoord(pCursor, rUpdate.flagshipCoord);
+				break;
+			}
 		}
 	}
 }
 
-constexpr int64_t kiTypeCount = static_cast<int64_t>(game::StatusChangeType::kUpdatePlayer) + 1;
+constexpr int64_t kiTypeCount = static_cast<int64_t>(game::StatusChangeType::kUpdateFlagshipCoord) + 1;
 
 static void GroupIndicesByType(const game::StatusChange* pChanges, int64_t iCount, int64_t piOffsets[kiTypeCount], int64_t piCounts[kiTypeCount], int64_t* pSortedIndices)
 {
@@ -267,8 +282,13 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 			switch (eType)
 			{
 				case game::StatusChangeType::kSpawnPlayer:
-					std::get<game::SpawnPlayerData>(rChange.data).iGlobalId = ReadInt64(pCursor);
+				{
+					game::SpawnPlayerData& rSpawn = std::get<game::SpawnPlayerData>(rChange.data);
+					rSpawn.iGlobalId = ReadInt64(pCursor);
+					rSpawn.bIsFlagship = ReadUint8(pCursor) != 0;
+					rSpawn.flagshipCoord = ReadGridCoord(pCursor);
 					break;
+				}
 				case game::StatusChangeType::kRespawnPlayer:
 					break;
 				case game::StatusChangeType::kTransferBlaster:
@@ -294,6 +314,14 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 					rUpdate.fNavigationDelay = ReadFloat(pCursor);
 					break;
 				}
+				case game::StatusChangeType::kUpdateFlagshipCoord:
+				{
+					game::UpdateFlagshipCoordData& rUpdate = std::get<game::UpdateFlagshipCoordData>(rChange.data);
+					rUpdate.iPlayerUuid = ReadInt64(pCursor);
+					rUpdate.bIsFlagship = ReadUint8(pCursor) != 0;
+					rUpdate.flagshipCoord = ReadGridCoord(pCursor);
+					break;
+				}
 			}
 		}
 
@@ -315,9 +343,9 @@ int64_t CompressStatusChangeBatch(const game::StatusChange* pChanges, int64_t iC
 	}
 
 	// Serialize into workbuffer, then LZ4 compress into pDest
-	// Largest type is kTransferPlayer: 3 Vec4(16) + uint32(4) + 10 float(4) + uint8(1) + int64(8) = 105 bytes
-	constexpr int64_t kiMaxBytesPerItem = 112;
-	static_assert(kiMaxBytesPerItem >= 105, "kiMaxBytesPerItem must cover the largest StatusChange serialization (currently kTransferPlayer at 105 bytes)");
+	// Largest type is kTransferPlayer: 3 Vec4(16) + uint32(4) + 11 float(4) + uint8(1) + int64(8) + GridCoord(8) = 113 bytes
+	constexpr int64_t kiMaxBytesPerItem = 120;
+	static_assert(kiMaxBytesPerItem >= 113, "kiMaxBytesPerItem must cover the largest StatusChange serialization (currently kTransferPlayer at 113 bytes)");
 	constexpr int64_t kiMaxGroupHeaders = kiTypeCount * 3;
 	int64_t iMaxSerializedSize = kiMaxGroupHeaders + iCount * kiMaxBytesPerItem;
 

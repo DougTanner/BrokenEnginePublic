@@ -536,10 +536,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 #if defined(BT_CLIENT)
 				SetCursor(game::gpGame->ShouldUseCrosshair() ? sHcursorCrosshair : sHcursorArrow);
 
-				if (gpAudioManager->mpAudioEngine != nullptr)
-				{
-					gpAudioManager->mpAudioEngine->Resume();
-				}
+				gpAudioManager->Resume();
 
 				gpRawInputManager->UpdateFocus(true, sHwnd);
 #endif // BT_CLIENT
@@ -557,10 +554,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				sbHasFocus = false;
 
 #if defined(BT_CLIENT)
-				if (gpAudioManager->mpAudioEngine != nullptr)
-				{
-					gpAudioManager->mpAudioEngine->Suspend();
-				}
+				gpAudioManager->Suspend();
 
 				gpRawInputManager->UpdateFocus(false, sHwnd);
 #endif // BT_CLIENT

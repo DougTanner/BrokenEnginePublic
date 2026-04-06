@@ -188,9 +188,49 @@ void ServerSession::BuildFrameInputs()
 	for (const ClientSpawnInfo& rInfo : mClientsWaitingForSpawn)
 	{
 		int64_t iGlobalId = gpGame->GenerateGlobalId();
-		StatusChange spawnChange {.eType = StatusChangeType::kSpawnPlayer, .data = SpawnPlayerData{.iGlobalId = iGlobalId}};
+
+		bool bIsFlagship = false;
+		engine::GridCoord spawnFlagshipCoord {};
+		if (rInfo.iFleetIndex >= 0)
+		{
+			auto fleetIt = mClientFleets.find(rInfo.iClientId);
+			if (fleetIt != mClientFleets.end() && rInfo.iFleetIndex < std::ssize(fleetIt->second))
+			{
+				const Fleet& rFleet = fleetIt->second.at(static_cast<size_t>(rInfo.iFleetIndex));
+				if (rInfo.iMemberIndex == rFleet.iFlagshipIndex ||
+					(rInfo.iMemberIndex < 0 && rFleet.members.empty()))
+				{
+					bIsFlagship = true;
+				}
+				else if (rFleet.iFlagshipIndex < std::ssize(rFleet.members) &&
+						 rFleet.members.at(static_cast<size_t>(rFleet.iFlagshipIndex)).bAlive)
+				{
+					// Flagship alive — point non-flagship to the Flagship's current coord
+					engine::global_player_t flagshipGlobalId = rFleet.members.at(static_cast<size_t>(rFleet.iFlagshipIndex)).globalPlayerId;
+					engine::ClientConnection* pClient = engine::gpServer->FindClient(rInfo.iClientId);
+					if (pClient != nullptr)
+					{
+						for (int64_t k = 0; k < std::ssize(pClient->ownedPlayerIds); ++k)
+						{
+							if (pClient->ownedPlayerIds.at(k) == flagshipGlobalId)
+							{
+								spawnFlagshipCoord = pClient->ownedPlayerCoords.at(k);
+								break;
+							}
+						}
+					}
+				}
+				else
+				{
+					// Flagship dead — set to spawn coord so no navigation override triggers
+					spawnFlagshipCoord = rInfo.spawnCoord;
+				}
+			}
+		}
+
+		StatusChange spawnChange {.eType = StatusChangeType::kSpawnPlayer, .data = SpawnPlayerData{.iGlobalId = iGlobalId, .bIsFlagship = bIsFlagship, .flagshipCoord = spawnFlagshipCoord}};
 		gpGame->mFrameInputs.try_emplace(rInfo.spawnCoord).first->second.statusChanges.push_back(spawnChange);
-		Log(kLogNetwork, kVerbose, "BuildFrameInputs kSpawnPlayer Client: {} GlobalId: {} Coord: ({},{})", rInfo.iClientId, iGlobalId, rInfo.spawnCoord.x, rInfo.spawnCoord.y); // DT TEMP
+		Log(kLogNetwork, kVerbose, "BuildFrameInputs kSpawnPlayer Client: {} GlobalId: {} Coord: ({},{}) Flagship: {}", rInfo.iClientId, iGlobalId, rInfo.spawnCoord.x, rInfo.spawnCoord.y, bIsFlagship); // DT TEMP
 	}
 
 	// Add destroy StatusChanges for disconnected players
@@ -210,6 +250,9 @@ void ServerSession::BuildFrameInputs()
 
 	// Inject weapon mode toggle StatusChanges
 	ProcessUpdatePlayerRequests();
+
+	// Inject flagship coord updates (queued from previous tick's HarvestTransfers/DetectPlayerDeaths/FinalizeNewClients)
+	ProcessFlagshipUpdates();
 
 	// Save StatusChanges for broadcasting (spawns only, transfers handled separately in HarvestTransfers)
 	for (const auto& [rCoord, rFrameInput] : gpGame->mFrameInputs)
@@ -417,6 +460,23 @@ void ServerSession::TrackClientTransfers(const std::vector<ClientTransferInfo>& 
 
 					// Copy client GUID to the new player entity in the destination frame
 					rDestPlayers.pClientGuids[iNewIndex] = rClient.clientGuid;
+
+					// Check if this player is the Flagship of any fleet
+					auto fleetIt = mClientFleets.find(rClient.iClientId);
+					if (fleetIt != mClientFleets.end())
+					{
+						for (int64_t iFleet = 0; iFleet < std::ssize(fleetIt->second); ++iFleet)
+						{
+							const Fleet& rFleet = fleetIt->second.at(static_cast<size_t>(iFleet));
+							if (rFleet.iFlagshipIndex < std::ssize(rFleet.members) &&
+								rFleet.members.at(static_cast<size_t>(rFleet.iFlagshipIndex)).globalPlayerId == rClientTransfer.globalPlayerId)
+							{
+								mPendingFlagshipUpdates.push_back({rClient.iClientId, iFleet, rClientTransfer.destination});
+								break;
+							}
+						}
+					}
+
 					bFoundClient = true;
 					break;
 				}
@@ -635,6 +695,88 @@ void ServerSession::ProcessUpdatePlayerRequests()
 	}
 }
 
+void ServerSession::ProcessFlagshipUpdates()
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	for (const PendingFlagshipUpdate& rUpdate : mPendingFlagshipUpdates)
+	{
+		engine::ClientConnection* pClient = engine::gpServer->FindClient(rUpdate.iClientId);
+		if (pClient == nullptr)
+		{
+			continue;
+		}
+
+		auto fleetIt = mClientFleets.find(rUpdate.iClientId);
+		if (fleetIt == mClientFleets.end())
+		{
+			continue;
+		}
+
+		if (rUpdate.iFleetIndex >= std::ssize(fleetIt->second))
+		{
+			continue;
+		}
+		const Fleet& rFleet = fleetIt->second.at(static_cast<size_t>(rUpdate.iFleetIndex));
+
+		if (rFleet.iFlagshipIndex >= std::ssize(rFleet.members))
+		{
+			continue;
+		}
+
+		// Send update to all alive members in this fleet
+		for (int64_t i = 0; i < std::ssize(rFleet.members); ++i)
+		{
+			if (!rFleet.members.at(i).bAlive)
+			{
+				continue;
+			}
+			engine::global_player_t memberId = rFleet.members.at(i).globalPlayerId;
+			bool bMemberIsFlagship = (i == rFleet.iFlagshipIndex);
+
+			for (int64_t j = 0; j < std::ssize(pClient->ownedPlayerIds); ++j)
+			{
+				if (pClient->ownedPlayerIds.at(j) != memberId)
+				{
+					continue;
+				}
+				engine::GridCoord memberCoord = pClient->ownedPlayerCoords.at(j);
+
+				auto frameInputIt = gpGame->mFrameInputs.find(memberCoord);
+				if (frameInputIt == gpGame->mFrameInputs.end())
+				{
+					break;
+				}
+				if (!gpGame->mCoordFrames.contains(memberCoord))
+				{
+					break;
+				}
+
+				const PlayersPostRender& rPlayers = *gpGame->CurrentFrame(memberCoord).postRender.pPlayers;
+				for (int64_t k = 0; k < rPlayers.iCount; ++k)
+				{
+					if (rPlayers.pGlobalPlayerIds[k] == memberId)
+					{
+						int64_t iPlayerUuid = rPlayers.puiIds[k].ToUuid().Value();
+						engine::GridCoord injectedCoord = bMemberIsFlagship ? memberCoord : rUpdate.newFlagshipCoord;
+						frameInputIt->second.statusChanges.push_back({
+							.eType = StatusChangeType::kUpdateFlagshipCoord,
+							.data = UpdateFlagshipCoordData {
+								.iPlayerUuid = iPlayerUuid,
+								.bIsFlagship = bMemberIsFlagship,
+								.flagshipCoord = injectedCoord}
+						});
+						Log(kLogNetwork, kVerbose, "ProcessFlagshipUpdates Client: {} Fleet: {} GlobalId: {} Uuid: {} MemberCoord: ({},{}) IsFlagship: {} FlagshipCoord: ({},{})", rUpdate.iClientId, rUpdate.iFleetIndex, memberId.iValue, iPlayerUuid, memberCoord.x, memberCoord.y, bMemberIsFlagship, injectedCoord.x, injectedCoord.y); // DT TEMP
+						break;
+					}
+				}
+				break;
+			}
+		}
+	}
+	mPendingFlagshipUpdates.clear();
+}
+
 void ServerSession::NewClients()
 {
 	// Heap: vector push_back for waiting clients
@@ -807,6 +949,19 @@ void ServerSession::FinalizeNewClients([[maybe_unused]] int64_t iTick)
 							rFleet.members.push_back(FleetMember {globalPlayerId, true});
 						}
 						SendFleetSyncToClient(iClientId);
+
+						// Queue flagship update if this member is or becomes the Flagship
+						int64_t iThisMemberIndex = (rSpawnInfo.iMemberIndex >= 0)
+							? rSpawnInfo.iMemberIndex
+							: std::ssize(rFleet.members) - 1;
+						bool bHasAliveFlagship = rFleet.iFlagshipIndex < std::ssize(rFleet.members) &&
+							rFleet.members.at(static_cast<size_t>(rFleet.iFlagshipIndex)).bAlive &&
+							iThisMemberIndex != rFleet.iFlagshipIndex;
+						if (!bHasAliveFlagship)
+						{
+							rFleet.iFlagshipIndex = iThisMemberIndex;
+							mPendingFlagshipUpdates.push_back({iClientId, rSpawnInfo.iFleetIndex, engine::kOriginCoord});
+						}
 					}
 				}
 			}
@@ -908,19 +1063,48 @@ void ServerSession::DetectPlayerDeaths()
 				rClient.ownedPlayerIds.erase(rClient.ownedPlayerIds.begin() + i);
 				rClient.ownedPlayerCoords.erase(rClient.ownedPlayerCoords.begin() + i);
 
-				// Mark fleet member as dead
+				// Mark fleet member as dead and handle Flagship shift
 				auto fleetIt = mClientFleets.find(rClient.iClientId);
 				if (fleetIt != mClientFleets.end())
 				{
 					bool bFleetUpdated = false;
-					for (Fleet& rFleet : fleetIt->second)
+					for (int64_t iFleet = 0; iFleet < std::ssize(fleetIt->second); ++iFleet)
 					{
-						for (FleetMember& rMember : rFleet.members)
+						Fleet& rFleet = fleetIt->second.at(static_cast<size_t>(iFleet));
+						for (int64_t j = 0; j < std::ssize(rFleet.members); ++j)
 						{
-							if (rMember.globalPlayerId == globalId && rMember.bAlive)
+							if (rFleet.members.at(j).globalPlayerId == globalId && rFleet.members.at(j).bAlive)
 							{
-								rMember.bAlive = false;
+								rFleet.members.at(j).bAlive = false;
 								bFleetUpdated = true;
+
+								// Shift Flagship if the dead member was the Flagship
+								if (j == rFleet.iFlagshipIndex)
+								{
+									int64_t iNewFlagship = -1;
+									for (int64_t k = 1; k < std::ssize(rFleet.members); ++k)
+									{
+										int64_t iCandidate = (rFleet.iFlagshipIndex + k) % std::ssize(rFleet.members);
+										if (rFleet.members.at(static_cast<size_t>(iCandidate)).bAlive)
+										{
+											iNewFlagship = iCandidate;
+											break;
+										}
+									}
+									if (iNewFlagship >= 0)
+									{
+										rFleet.iFlagshipIndex = iNewFlagship;
+										engine::global_player_t newFlagshipId = rFleet.members.at(static_cast<size_t>(iNewFlagship)).globalPlayerId;
+										for (int64_t iOwned = 0; iOwned < std::ssize(rClient.ownedPlayerIds); ++iOwned)
+										{
+											if (rClient.ownedPlayerIds.at(iOwned) == newFlagshipId)
+											{
+												mPendingFlagshipUpdates.push_back({rClient.iClientId, iFleet, rClient.ownedPlayerCoords.at(iOwned)});
+												break;
+											}
+										}
+									}
+								}
 								break;
 							}
 						}
@@ -1010,6 +1194,7 @@ void ServerSession::ResetClientsForLoad()
 
 	engine::gpServer->BroadcastLoadNotification();
 
+	mPendingFlagshipUpdates.clear();
 	std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
 
 	// Try to re-link each client to their players by GUID
@@ -1062,12 +1247,48 @@ void ServerSession::ResetClientsForLoad()
 			{
 				if (rGuid == rClient.clientGuid)
 				{
-					// Update alive flags based on re-linked players
-					for (Fleet& rFleet : rFleets)
+					// Update alive flags and validate flagship index
+					for (int64_t iFleet = 0; iFleet < std::ssize(rFleets); ++iFleet)
 					{
+						Fleet& rFleet = rFleets.at(static_cast<size_t>(iFleet));
 						for (FleetMember& rMember : rFleet.members)
 						{
 							rMember.bAlive = std::ranges::contains(rClient.ownedPlayerIds, rMember.globalPlayerId);
+						}
+
+						// Shift flagship to next alive member if current flagship is dead
+						if (rFleet.iFlagshipIndex < std::ssize(rFleet.members) &&
+							!rFleet.members.at(static_cast<size_t>(rFleet.iFlagshipIndex)).bAlive)
+						{
+							int64_t iNewFlagship = -1;
+							for (int64_t k = 1; k < std::ssize(rFleet.members); ++k)
+							{
+								int64_t iCandidate = (rFleet.iFlagshipIndex + k) % std::ssize(rFleet.members);
+								if (rFleet.members.at(static_cast<size_t>(iCandidate)).bAlive)
+								{
+									iNewFlagship = iCandidate;
+									break;
+								}
+							}
+							if (iNewFlagship >= 0)
+							{
+								rFleet.iFlagshipIndex = iNewFlagship;
+							}
+						}
+
+						// Queue flagship coord update for all alive members
+						if (rFleet.iFlagshipIndex < std::ssize(rFleet.members) &&
+							rFleet.members.at(static_cast<size_t>(rFleet.iFlagshipIndex)).bAlive)
+						{
+							engine::global_player_t flagshipId = rFleet.members.at(static_cast<size_t>(rFleet.iFlagshipIndex)).globalPlayerId;
+							for (int64_t k = 0; k < std::ssize(rClient.ownedPlayerIds); ++k)
+							{
+								if (rClient.ownedPlayerIds.at(k) == flagshipId)
+								{
+									mPendingFlagshipUpdates.push_back({rClient.iClientId, iFleet, rClient.ownedPlayerCoords.at(k)});
+									break;
+								}
+							}
 						}
 					}
 					mClientFleets.insert_or_assign(rClient.iClientId, rFleets);
@@ -1083,6 +1304,7 @@ void ServerSession::ResetClientsForLoad()
 	mClientsWaitingForSpawn.clear();
 	mDeadClientIds.clear();
 	mPendingSubscriptionUpdates.clear();
+	// mPendingFlagshipUpdates intentionally NOT cleared — fleet restoration above may queue updates
 	mTickBroadcast.spawns.clear();
 	mTickBroadcast.transfers.clear();
 	mPreSpawnPlayerIds.clear();

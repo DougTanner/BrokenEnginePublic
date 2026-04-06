@@ -49,6 +49,7 @@ public:
 	void ProcessRespawnInFleetRequests();
 	void SendFleetSyncToClient(int64_t iClientId);
 	void ProcessUpdatePlayerRequests();
+	void ProcessFlagshipUpdates();
 	void HarvestTransfers();
 	void BroadcastStatusChanges(int64_t iTick);
 	void Disconnects();
@@ -60,8 +61,16 @@ public:
 	void RefreshPreSpawnSnapshot();
 	void ResetClientsForLoad();
 
+	struct PendingFlagshipUpdate
+	{
+		int64_t iClientId = 0;
+		int64_t iFleetIndex = 0;
+		engine::GridCoord newFlagshipCoord {};
+	};
+
 	std::unordered_map<int64_t, std::vector<Fleet>> mClientFleets;
-	std::vector<std::pair<engine::ClientGuid, std::vector<Fleet>>> mSavedFleets; // Loaded from save, consumed by ResetClientsForLoad
+	std::vector<std::pair<engine::ClientGuid, std::vector<Fleet>>> mSavedFleets;
+	std::vector<PendingFlagshipUpdate> mPendingFlagshipUpdates;
 
 private:
 

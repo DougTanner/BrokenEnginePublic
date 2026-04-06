@@ -9,6 +9,7 @@ namespace engine
 struct FrameStaticData
 {
 	XMVECTOR vecArea {};
+	GridCoord coord {};
 	IslandsFlip eIslandsFlip = kFlipNone;
 	XMFLOAT2 f2IslandOffset {};
 	NavData navData;

@@ -442,7 +442,7 @@ void Server::ClientUpdatePlayerRequest(const uint8_t* pData, size_t iSize, int64
 	mPendingUpdatePlayerRequests.push_back({iClientId, globalPlayerId, bUseMissiles, fNavigationDelay});
 }
 
-void Server::ClientCreateFleetRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
+void Server::ClientCreateFleetRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
 {
 	if (iSize < 1)
 	{

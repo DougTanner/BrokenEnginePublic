@@ -69,6 +69,7 @@ void ParseFleetSync(
 		for (int64_t i = 0; i < iFleetCount; ++i)
 		{
 			int64_t iMemberCount = engine::ReadInt64(pCursor);
+			rOutFleets.at(static_cast<size_t>(i)).iFlagshipIndex = engine::ReadInt64(pCursor);
 			rOutFleets.at(static_cast<size_t>(i)).members.resize(static_cast<size_t>(iMemberCount));
 			for (int64_t j = 0; j < iMemberCount; ++j)
 			{

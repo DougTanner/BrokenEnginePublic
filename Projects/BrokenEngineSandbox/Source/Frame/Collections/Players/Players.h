@@ -141,12 +141,13 @@ enum class PlayerFlags : uint8_t
 	kMissileSpawnLeft = 0x10,
 	kTransfer         = 0x20,
 	kUseMissiles      = 0x40,
+	kIsFlagship       = 0x80,
 };
 using PlayerFlags_t = common::Flags<PlayerFlags>;
 
 struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 {
-	static constexpr int64_t kiVersion = 15;
+	static constexpr int64_t kiVersion = 16;
 
 	// Collision layer (set each frame in PreCollision)
 	// thread_local: parallel per-Frame tick via Dispatch
@@ -185,6 +186,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	engine::ClientGuid* __restrict pClientGuids = nullptr;
 	engine::global_player_t* __restrict pGlobalPlayerIds = nullptr;
 	float* __restrict pfNavigationDelays = nullptr;
+	engine::GridCoord* __restrict pFlagshipCoords = nullptr;
 #if defined(BT_CLIENT)
 	XMVECTOR* __restrict pVecDebugNavWaypoints = nullptr;
 #endif // BT_CLIENT
@@ -201,7 +203,8 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 			rSelf.pfFrameChangeTimers, rSelf.piNavDirections,
 			rSelf.pVecIslandDestinations,
 			rSelf.pClientGuids, rSelf.pGlobalPlayerIds,
-			rSelf.pfNavigationDelays);
+			rSelf.pfNavigationDelays,
+			rSelf.pFlagshipCoords);
 	}
 #if defined(BT_CLIENT)
 	auto ClientMembers(this auto&& rSelf)
@@ -230,7 +233,8 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 			rSelf.pfTransferLockTimers, rSelf.pfArrivalGracePeriods,
 			rSelf.pfFrameChangeTimers, rSelf.piNavDirections,
 			rSelf.pVecIslandDestinations,
-			rSelf.pfNavigationDelays);
+			rSelf.pfNavigationDelays,
+			rSelf.pFlagshipCoords);
 	}
 
 	// Utility
@@ -259,6 +263,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 		int8_t iNavDirection = 4;
 		float fNavigationDelay = 2.0f;
 		engine::global_player_t globalPlayerId {};
+		engine::GridCoord flagshipCoord {};
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

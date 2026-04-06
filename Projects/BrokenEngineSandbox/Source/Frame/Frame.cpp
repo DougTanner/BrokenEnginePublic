@@ -8,7 +8,7 @@ namespace game
 
 using enum GameFlags;
 
-const int64_t Frame::kiVersion = 24 + engine::kiNavDataVersion
+const int64_t Frame::kiVersion = 26 + engine::kiNavDataVersion
 	+ BlastersInterpolate::kiVersion
 	+ BlastersPostRender::kiVersion
 	+ MissilesInterpolate::kiVersion

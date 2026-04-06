@@ -235,6 +235,43 @@ void AudioManager::ClearStreamingVoices()
 	mStreamsToDestroy.clear();
 }
 
+void AudioManager::Suspend()
+{
+	if (mpAudioEngine == nullptr)
+	{
+		return;
+	}
+
+	mbSuspended.store(true, std::memory_order_release);
+
+	mpAudioEngine->Suspend();
+
+	// Processing thread is now stopped — DestroyVoice returns instantly
+	Log(kLogAudio, "Suspend: destroying {} static voices, {} streams", mStaticVoices.size(), (mpCurrentMusicStream != nullptr ? 1 : 0) + mPreviousStreams.size());
+	mStaticVoices.clear();
+
+	// Destroy streaming voices properly (not ClearStreamingVoices which nulls mpVoice
+	// to skip DestroyVoice — that leaks XAudio2 source voices when the engine is only suspended)
+	{
+		std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
+		mpCurrentMusicStream.reset();
+		mPreviousStreams.clear();
+		mStreamsToDestroy.clear();
+	}
+}
+
+void AudioManager::Resume()
+{
+	if (mpAudioEngine == nullptr)
+	{
+		return;
+	}
+
+	mbSuspended.store(false, std::memory_order_release);
+	mpAudioEngine->Resume();
+	Log(kLogAudio, "Resume");
+}
+
 void AudioManager::CreateMusicStream(common::crc_t audioCrc)
 {
 	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
@@ -556,6 +593,11 @@ void AudioManager::Update(const game::Frame* pFrame)
 	// XAudio2 internal allocations (AllocateVoice, Update). Not controllable or pre-allocatable.
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
+	if (mbSuspended.load(std::memory_order_acquire))
+	{
+		return;
+	}
+
 	if (mbClearVoicesRequested.exchange(false, std::memory_order_acquire))
 	{
 		for (StaticVoice& rStaticVoice : mStaticVoices)
@@ -631,6 +673,7 @@ void AudioManager::Update(const game::Frame* pFrame)
 	}
 
 	gpProfileManager->SetCount(kCpuCounterSounds, mStaticVoices.size());
+	gpProfileManager->SetCount(kCpuCounterStreams, (mpCurrentMusicStream != nullptr ? 1 : 0) + static_cast<int64_t>(mPreviousStreams.size()) + static_cast<int64_t>(mStreamsToDestroy.size()));
 
 	// Update
 	mpAudioEngine->Update();
@@ -641,6 +684,11 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot([[maybe_unused]] const game::Fram
 	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
 
 	if (rFrame.interpolate.frameFlags & FrameFlags::kRecalculated)
+	{
+		return nullptr;
+	}
+
+	if (mbSuspended.load(std::memory_order_acquire))
 	{
 		return nullptr;
 	}

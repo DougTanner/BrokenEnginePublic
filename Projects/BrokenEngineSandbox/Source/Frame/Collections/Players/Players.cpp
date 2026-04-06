@@ -270,6 +270,7 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[ma
 			.iEntityId = rCurrentPostRender.puiIds[i].ToUuid().Value(),
 		};
 		request.data.globalPlayerId = rCurrentPostRender.pGlobalPlayerIds[i];
+		request.data.flagshipCoord = rCurrentPostRender.pFlagshipCoords[i];
 		request.data.uiClientGuidHigh = rCurrentPostRender.pClientGuids[i].uiHigh;
 		request.data.uiClientGuidLow = rCurrentPostRender.pClientGuids[i].uiLow;
 		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
@@ -338,6 +339,28 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 			continue;
 		}
 
+		if (rStatusChange.eType == StatusChangeType::kUpdateFlagshipCoord)
+		{
+			const UpdateFlagshipCoordData& rUpdate = std::get<UpdateFlagshipCoordData>(rStatusChange.data);
+			player_t updateId {engine::uuid_t {rUpdate.iPlayerUuid}};
+			auto idIt = rCurrentInterpolate.idToIndexMap.find(updateId);
+			if (idIt != rCurrentInterpolate.idToIndexMap.end())
+			{
+				int64_t idx = idIt->second;
+				if (rUpdate.bIsFlagship)
+				{
+					rCurrentPostRender.pFlags[idx].Set(kIsFlagship);
+				}
+				else
+				{
+					rCurrentPostRender.pFlags[idx].Clear(kIsFlagship);
+				}
+				rCurrentPostRender.pFlagshipCoords[idx] = rUpdate.flagshipCoord;
+				Log(kLogNetwork, kVerbose, "kUpdateFlagshipCoord Uuid: {} Idx: {} IsFlagship: {} FlagshipCoord: ({},{})", rUpdate.iPlayerUuid, idx, rUpdate.bIsFlagship, rUpdate.flagshipCoord.x, rUpdate.flagshipCoord.y); // DT TEMP
+			}
+			continue;
+		}
+
 		if (rStatusChange.eType == StatusChangeType::kUpdatePlayer)
 		{
 			const UpdatePlayerData& rUpdate = std::get<UpdatePlayerData>(rStatusChange.data);
@@ -369,9 +392,17 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 		if (rStatusChange.eType == StatusChangeType::kSpawnPlayer || rStatusChange.eType == StatusChangeType::kRespawnPlayer)
 		{
 			engine::global_player_t globalPlayerId {};
+			PlayerFlags_t spawnFlags {PlayerFlags::kBlasterSpawnLeft};
+			engine::GridCoord spawnFlagshipCoord {};
 			if (rStatusChange.eType == StatusChangeType::kSpawnPlayer)
 			{
-				globalPlayerId.iValue = std::get<SpawnPlayerData>(rStatusChange.data).iGlobalId;
+				const SpawnPlayerData& rSpawnData = std::get<SpawnPlayerData>(rStatusChange.data);
+				globalPlayerId.iValue = rSpawnData.iGlobalId;
+				if (rSpawnData.bIsFlagship)
+				{
+					spawnFlags.Set(kIsFlagship);
+				}
+				spawnFlagshipCoord = rSpawnData.flagshipCoord;
 			}
 
 			// Compute frame center from world-space vecArea for spawn offset
@@ -386,8 +417,10 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 				.vecPosition = vecSpawnPosition,
 				.vecDirection = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
 				.alignment = rFrame.postRender.playerAlignment,
+				.flags = spawnFlags,
 				.fArrivalGracePeriod = kfArrivalGracePeriod,
 				.globalPlayerId = globalPlayerId,
+				.flagshipCoord = spawnFlagshipCoord,
 			});
 		}
 	}
@@ -652,6 +685,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	rCurrentPostRender.pVecIslandDestinations[iIndex] = XMVectorZero();
 	rCurrentPostRender.pClientGuids[iIndex] = {};
 	rCurrentPostRender.pGlobalPlayerIds[iIndex] = rInfo.globalPlayerId;
+	rCurrentPostRender.pFlagshipCoords[iIndex] = rInfo.flagshipCoord;
 #if defined(BT_CLIENT)
 	rCurrentPostRender.pVecDebugNavWaypoints[iIndex] = XMVectorZero();
 #endif // BT_CLIENT
@@ -703,6 +737,8 @@ bool PlayersPostRender::LogDifferences(const PlayersPostRender& rOther) const
 		bEqual &= common::LogDifference<"pClientGuids.uiHigh">(i, pClientGuids[i].uiHigh, rOther.pClientGuids[i].uiHigh);
 		bEqual &= common::LogDifference<"pClientGuids.uiLow">(i, pClientGuids[i].uiLow, rOther.pClientGuids[i].uiLow);
 		bEqual &= common::LogDifference<"pGlobalPlayerIds">(i, pGlobalPlayerIds[i].iValue, rOther.pGlobalPlayerIds[i].iValue);
+		bEqual &= common::LogDifference<"pFlagshipCoords.x">(i, pFlagshipCoords[i].x, rOther.pFlagshipCoords[i].x);
+		bEqual &= common::LogDifference<"pFlagshipCoords.y">(i, pFlagshipCoords[i].y, rOther.pFlagshipCoords[i].y);
 	}
 
 	return bEqual;

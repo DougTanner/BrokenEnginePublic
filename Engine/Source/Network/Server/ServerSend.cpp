@@ -377,6 +377,7 @@ void Server::SendFleetSync(int64_t iClientId, const std::vector<game::Fleet>& rF
 	for (const game::Fleet& rFleet : rFleets)
 	{
 		rWorkbuffer.PushBack<int64_t>(std::ssize(rFleet.members));
+		rWorkbuffer.PushBack<int64_t>(rFleet.iFlagshipIndex);
 		for (const game::FleetMember& rMember : rFleet.members)
 		{
 			rWorkbuffer.PushBack<int64_t>(rMember.globalPlayerId.iValue);

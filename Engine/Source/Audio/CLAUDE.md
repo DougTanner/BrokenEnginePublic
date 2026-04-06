@@ -13,7 +13,10 @@
 ## Architecture
 
 ### Voice Lifecycle
-Two playback modes: **one-shot** (fire-and-forget via `PlayOneShot`/`PlayOneShot3d`, asserts `kPostRender`, skips reconciliation frames, thread-safe via `mOneShotRecursiveMutex`) and **managed** (persistent voices in a flat vector, capped at `kiMaxStaticVoices`, synced from `SoundsInterpolate`/`SoundsPostRender` frame data each tick with swap-and-pop removal after fade-out). `LoadXAudio2SourceVoice` creates XAudio2 source voices; the caller is responsible for any required thread synchronization.
+Two playback modes: **one-shot** (fire-and-forget via `PlayOneShot`/`PlayOneShot3d`, asserts `kPostRender`, skips reconciliation frames, thread-safe via `mOneShotRecursiveMutex`) and **managed** (persistent voices in a flat vector, capped at `kiMaxStaticVoices`, synced from `SoundsInterpolate`/`SoundsPostRender` frame data each tick with swap-and-pop removal after fade-out). `LoadXAudio2SourceVoice` creates XAudio2 source voices; the caller is responsible for any required thread synchronization. `DestroyXAudio2SourceVoice` emits a warning if the XAudio2 `DestroyVoice` call takes unexpectedly long.
+
+### Focus Handling
+`Suspend()` stops and clears all voices (static and streaming) and sets an atomic flag that causes `Update()` and `PlayOneShot()` to return early. `Resume()` clears the flag. Called from `Main.cpp` window focus messages.
 
 ### Music System
 Callback-based playlist decoupling: game logic owns track selection, AudioManager handles playback. Crossfade transitions overlap streams with volume fading, triggered when remaining time reaches a threshold.

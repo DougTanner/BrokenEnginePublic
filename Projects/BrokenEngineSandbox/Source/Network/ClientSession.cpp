@@ -284,6 +284,7 @@ void ClientSession::ApplyReceivedStaticData()
 	{
 		engine::CoordFrames& rFrames = gpGame->mCoordFrames.try_emplace(rReceived.coord).first->second;
 		rFrames.staticData = std::move(rReceived.staticData);
+		rFrames.staticData.coord = rReceived.coord;
 	}
 }
 

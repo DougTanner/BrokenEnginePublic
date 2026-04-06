@@ -263,6 +263,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		float fArrivalGracePeriod = std::max(0.0f, rPrevious.pfArrivalGracePeriods[i] - fDeltaTime);
 		float fFrameChangeTimer = rPrevious.pfFrameChangeTimers[i];
 		float fNavigationDelay = rPrevious.pfNavigationDelays[i];
+		engine::GridCoord flagshipCoord = rPrevious.pFlagshipCoords[i];
 		int8_t iNavDirection = rPrevious.piNavDirections[i];
 		XMVECTOR vecIslandDestination = rPrevious.pVecIslandDestinations[i];
 		XMVECTOR vecPosition = rPreviousInterpolate.pVecPositions[i];
@@ -283,14 +284,67 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 				vecAiDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
 			}
 
+			// Flagship navigation override: non-flagship in wrong cell immediately heads toward flagship
+			if (!(flags & kIsFlagship) && !(flagshipCoord == rStaticData.coord))
+			{
+				int32_t iDeltaX = flagshipCoord.x - rStaticData.coord.x;
+				int32_t iDeltaY = flagshipCoord.y - rStaticData.coord.y;
+
+				// Check if already heading in a valid direction toward flagship
+				bool bAlreadyValid = false;
+				if (iNavDirection >= 0 && iNavDirection <= 3)
+				{
+					switch (iNavDirection)
+					{
+						case 0: bAlreadyValid = iDeltaY > 0; break;
+						case 1: bAlreadyValid = iDeltaY < 0; break;
+						case 2: bAlreadyValid = iDeltaX > 0; break;
+						case 3: bAlreadyValid = iDeltaX < 0; break;
+					}
+				}
+
+				if (!bAlreadyValid)
+				{
+					int8_t iRandom = static_cast<int8_t>(common::Random(3u, rFrame.postRender.randomEngine));
+					if (iDeltaX != 0 && iDeltaY != 0)
+					{
+						iNavDirection = (iRandom < 2)
+							? (iDeltaY > 0 ? 0 : 1)
+							: (iDeltaX > 0 ? 2 : 3);
+					}
+					else if (iDeltaY != 0)
+					{
+						iNavDirection = iDeltaY > 0 ? 0 : 1;
+					}
+					else
+					{
+						iNavDirection = iDeltaX > 0 ? 2 : 3;
+					}
+					vecIslandDestination = XMVectorZero();
+					Log(kLogNavData, kVerbose, "Player {} GlobalId: {} flagship override NavDir: {} FlagshipCoord: ({},{}) CellCoord: ({},{})", i, rCurrent.pGlobalPlayerIds[i].iValue, iNavDirection, flagshipCoord.x, flagshipCoord.y, rStaticData.coord.x, rStaticData.coord.y); // DT TEMP
+				}
+			}
+
 			// Frame change timer (only ticks while roaming)
 			if (iNavDirection == -1)
 			{
 				fFrameChangeTimer -= fDeltaTime;
 				if (fFrameChangeTimer <= 0.0f)
 				{
-					iNavDirection = static_cast<int8_t>(common::Random(3u, rFrame.postRender.randomEngine));
-					Log(kLogNavData, kVerbose, "Player {} GlobalId: {} started transition NavDir: {}", i, rCurrent.pGlobalPlayerIds[i].iValue, iNavDirection);
+					// Always consume random for determinism
+					int8_t iRandomDirection = static_cast<int8_t>(common::Random(3u, rFrame.postRender.randomEngine));
+
+					if (!(flags & kIsFlagship) && (flagshipCoord == rStaticData.coord))
+					{
+						// Non-flagship in same cell as flagship: stay and resume island roaming
+						iNavDirection = 4;
+					}
+					else
+					{
+						iNavDirection = iRandomDirection;
+					}
+
+					Log(kLogNavData, kVerbose, "Player {} GlobalId: {} started transition NavDir: {} Flagship: {} FlagshipCoord: ({},{}) CellCoord: ({},{})", i, rCurrent.pGlobalPlayerIds[i].iValue, iNavDirection, static_cast<bool>(flags & kIsFlagship), flagshipCoord.x, flagshipCoord.y, rStaticData.coord.x, rStaticData.coord.y); // DT TEMP
 				}
 			}
 
@@ -526,6 +580,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		rCurrent.pfNavigationDelays[i] = fNavigationDelay;
 		rCurrent.piNavDirections[i] = iNavDirection;
 		rCurrent.pVecIslandDestinations[i] = vecIslandDestination;
+		rCurrent.pFlagshipCoords[i] = flagshipCoord;
 	}
 }
 

@@ -12,6 +12,7 @@ struct FleetMember
 struct Fleet
 {
 	std::vector<FleetMember> members;
+	int64_t iFlagshipIndex = 0;
 };
 
 } // namespace game

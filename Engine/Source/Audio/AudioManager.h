@@ -40,6 +40,9 @@ public:
 
 	void ClearVoices();
 
+	void Suspend();
+	void Resume();
+
 	// IVoiceNotify
 	void OnBufferEnd() override {}
 	void OnCriticalError() override;
@@ -66,6 +69,7 @@ private:
 	common::RandomEngine mRandomEngine;
 
 	int64_t miNextId = 1;
+	std::atomic<bool> mbSuspended = false;
 	std::atomic<bool> mbClearVoicesRequested = false;
 	std::vector<StaticVoice> mStaticVoices;
 
@@ -107,7 +111,13 @@ inline void DestroyXAudio2SourceVoice(IXAudio2SourceVoice*& rpVoice)
 		rpVoice->FlushSourceBuffers();
 		if (gpAudioManager->mpAudioEngine != nullptr)
 		{
+			std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 			gpAudioManager->mpAudioEngine->DestroyVoice(rpVoice);
+			std::chrono::steady_clock::duration elapsed = std::chrono::steady_clock::now() - start;
+			if (elapsed > std::chrono::milliseconds(100))
+			{
+				Log(kLogAudio, kWarning, "DestroyXAudio2SourceVoice took {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
+			}
 		}
 		rpVoice = nullptr;
 	}

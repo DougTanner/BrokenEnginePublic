@@ -136,6 +136,20 @@ common::crc_t FrameInput::ServerInputCrc() const
 				((checksum ^= common::Crc(fields)), ...);
 			}, pUpdate->SharedMembers());
 		}
+		else if (const auto* pSpawn = std::get_if<SpawnPlayerData>(&rStatusChange.data))
+		{
+			std::apply([&](const auto&... fields)
+			{
+				((checksum ^= common::Crc(fields)), ...);
+			}, pSpawn->SharedMembers());
+		}
+		else if (const auto* pFlagship = std::get_if<UpdateFlagshipCoordData>(&rStatusChange.data))
+		{
+			std::apply([&](const auto&... fields)
+			{
+				((checksum ^= common::Crc(fields)), ...);
+			}, pFlagship->SharedMembers());
+		}
 		else
 		{
 			std::visit([&](const auto& payload) { checksum ^= common::Crc(payload); }, rStatusChange.data);

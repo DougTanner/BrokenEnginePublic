@@ -60,6 +60,7 @@ enum EngineCpuCounters : int64_t
 	kCpuCounterExplosions,
 	kCpuCounterPushers,
 	kCpuCounterSounds,
+	kCpuCounterStreams,
 
 	kEngineCpuCounterCount
 };
@@ -240,6 +241,7 @@ protected:
 		{.name = "Explosions"},
 		{.name = "Pushers"},
 		{.name = "Sounds"},
+		{.name = "Streams"},
 	};
 
 	CpuTimer mEngineCpuTimers[kEngineCpuTimerCount]

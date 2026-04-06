@@ -88,7 +88,7 @@ static uint8_t suiMissileExplosionTypeIndex = 0xFF;
 
 #if defined(BT_CLIENT)
 // Helper to sync owned objects for a missile
-void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::smoke_trails_t uiSmokeTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength)
+void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::smoke_trails_t uiSmokeTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, [[maybe_unused]] float fDeltaRotation, float fExhaustLength)
 {
 	// Sync area light (exhaust flame) if not exploding
 	if (uiAreaLight.IsValid() && !(flags & kExploding))

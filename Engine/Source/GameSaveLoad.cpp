@@ -353,6 +353,7 @@ void GameSaveLoad::WriteGrid(const FileFlags_t& rFlags, const std::filesystem::p
 			{
 				int64_t iMemberCount = std::ssize(rFleet.members);
 				common::Write(fileStream, iMemberCount);
+				common::Write(fileStream, rFleet.iFlagshipIndex);
 				for (const game::FleetMember& rMember : rFleet.members)
 				{
 					common::Write(fileStream, rMember.globalPlayerId.iValue);
@@ -453,6 +454,7 @@ bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::pa
 			{
 				int64_t iMemberCount = 0;
 				common::Read(fileStream, iMemberCount);
+				common::Read(fileStream, fleets.at(static_cast<size_t>(j)).iFlagshipIndex);
 				fleets.at(static_cast<size_t>(j)).members.resize(static_cast<size_t>(iMemberCount));
 				for (int64_t k = 0; k < iMemberCount; ++k)
 				{
@@ -475,6 +477,7 @@ bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::pa
 		coord.Read(fileStream);
 		CoordFrames& rSub = mrGameBase.mCoordFrames.try_emplace(coord).first->second;
 		rSub.staticData.Read(fileStream);
+		rSub.staticData.coord = coord;
 		auto pFrame = std::make_unique<game::Frame>();
 		fileStream >> *pFrame;
 		rSub.pCurrent = std::move(pFrame);
