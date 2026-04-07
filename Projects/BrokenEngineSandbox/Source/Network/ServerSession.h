@@ -89,6 +89,7 @@ private:
 	std::vector<PendingPlayerDestroy> mPendingPlayerDestroys;
 	std::vector<ClientSpawnInfo> mClientsWaitingForSpawn;
 	std::unordered_set<int64_t> mDeadClientIds;
+	std::unordered_set<int64_t> mProcessedClientIds;
 	std::vector<player_t> mPreSpawnPlayerIds;
 	struct TickBroadcastData
 	{

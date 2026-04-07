@@ -535,6 +535,7 @@ void ServerSession::ProcessSpawnRequests()
 		    rRequest.flags & engine::ClientRequestFlags::kSpawnRequested)
 		{
 			mDeadClientIds.erase(rRequest.iClientId);
+			mProcessedClientIds.erase(rRequest.iClientId);
 			if (!std::ranges::contains(mClientsWaitingForSpawn, rRequest.iClientId, &ClientSpawnInfo::iClientId))
 			{
 				mClientsWaitingForSpawn.push_back({rRequest.iClientId, engine::kOriginCoord});
@@ -580,6 +581,7 @@ void ServerSession::ProcessSpawnIntoFleetRequests()
 		}
 
 		mDeadClientIds.erase(rRequest.iClientId);
+		mProcessedClientIds.erase(rRequest.iClientId);
 		mClientsWaitingForSpawn.push_back({rRequest.iClientId, engine::kOriginCoord, rRequest.iFleetIndex, -1});
 		Log(kLogNetwork, "ProcessSpawnIntoFleetRequests Client: {} Fleet: {}", rRequest.iClientId, rRequest.iFleetIndex);
 	}
@@ -615,6 +617,7 @@ void ServerSession::ProcessRespawnInFleetRequests()
 		}
 
 		mDeadClientIds.erase(rRequest.iClientId);
+		mProcessedClientIds.erase(rRequest.iClientId);
 		mClientsWaitingForSpawn.push_back({rRequest.iClientId, engine::kOriginCoord, rRequest.iFleetIndex, rRequest.iMemberIndex});
 		Log(kLogNetwork, "ProcessRespawnInFleetRequests Client: {} Fleet: {} Member: {}", rRequest.iClientId, rRequest.iFleetIndex, rRequest.iMemberIndex);
 	}
@@ -795,6 +798,11 @@ void ServerSession::NewClients()
 			continue;
 		}
 
+		if (mProcessedClientIds.contains(rClient.iClientId))
+		{
+			continue;
+		}
+
 		if (std::ranges::contains(mClientsWaitingForSpawn, rClient.iClientId, &ClientSpawnInfo::iClientId))
 		{
 			continue;
@@ -863,8 +871,9 @@ void ServerSession::NewClients()
 			}
 		}
 
-		mClientsWaitingForSpawn.push_back({rClient.iClientId, engine::kOriginCoord});
-		Log(kLogNetwork, "NewClients Added Client: {} Handshake: {}", rClient.iClientId, rClient.bHandshakeComplete); // DT TEMP
+		// Client connects with zero players — spawns happen via fleet creation requests
+		mProcessedClientIds.insert(rClient.iClientId);
+		Log(kLogNetwork, "NewClients Client: {} connected with no players", rClient.iClientId); // DT TEMP
 	}
 }
 
@@ -983,6 +992,7 @@ void ServerSession::Disconnects()
 		Log(kLogNetwork, kVerbose, "ServerSession::Disconnects Client: {} Players: {}", rDisconnect.iClientId, rDisconnect.playerIds.size()); // DT TEMP
 
 		mDeadClientIds.erase(rDisconnect.iClientId);
+		mProcessedClientIds.erase(rDisconnect.iClientId);
 
 		// Preserve fleet data by ClientGuid for reconnection (client already removed from Server by this point)
 		auto fleetIt = mClientFleets.find(rDisconnect.iClientId);
@@ -1303,6 +1313,7 @@ void ServerSession::ResetClientsForLoad()
 	mPendingPlayerDestroys.clear();
 	mClientsWaitingForSpawn.clear();
 	mDeadClientIds.clear();
+	mProcessedClientIds.clear();
 	mPendingSubscriptionUpdates.clear();
 	// mPendingFlagshipUpdates intentionally NOT cleared — fleet restoration above may queue updates
 	mTickBroadcast.spawns.clear();
