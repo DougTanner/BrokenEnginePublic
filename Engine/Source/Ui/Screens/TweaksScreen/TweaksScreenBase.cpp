@@ -13,6 +13,7 @@ static constexpr const char* kpcSectionNames[] =
 	"Water Specular",
 	"Water Low",
 	"Water Medium",
+	"Water Debug",
 	"Lighting",
 	"Shadow",
 	"Misc",
@@ -32,6 +33,7 @@ static constexpr RenderSectionFunc kRenderSectionFunctions[] =
 	&TweaksScreenBase::RenderWaterSpecularSection,
 	&TweaksScreenBase::RenderWaterLowSection,
 	&TweaksScreenBase::RenderWaterMediumSection,
+	&TweaksScreenBase::RenderWaterDebugSection,
 	&TweaksScreenBase::RenderLightingSection,
 	&TweaksScreenBase::RenderShadowSection,
 	&TweaksScreenBase::RenderMiscSection,
@@ -64,7 +66,7 @@ void TweaksScreenBase::RenderWaveCountRadioButtons(Wrapper& rCountWrapper)
 		ImGui::Text("Wave Count");
 		ImGui::SameLine();
 		int64_t iCurrent = rCountWrapper.Get<int64_t>();
-		for (const std::pair<const char*, int64_t>& rPair : std::initializer_list<std::pair<const char*, int64_t>>{{"15", 15}, {"31", 31}, {"63", 63}, {"127", 127}, {"255", 255}})
+		for (const std::pair<const char*, int64_t>& rPair : std::initializer_list<std::pair<const char*, int64_t>> {{"15", 15}, {"31", 31}, {"63", 63}, {"127", 127}, {"255", 255}})
 		{
 			if (ImGui::RadioButton(rPair.first, iCurrent == rPair.second))
 			{
@@ -288,7 +290,7 @@ void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)
 	}
 
 	constexpr float kfStartX = 10.0f;
-	ImVec2 f2InitialPosition = (mWindowPositions[iSection].y > 0.0f) ? mWindowPositions[iSection] : ImVec2{kfStartX, mfToggleBarBottom};
+	ImVec2 f2InitialPosition = (mWindowPositions[iSection].y > 0.0f) ? mWindowPositions[iSection] : ImVec2 {kfStartX, mfToggleBarBottom};
 	ImGui::SetNextWindowPos(f2InitialPosition, ImGuiCond_FirstUseEver);
 	ImGui::Begin(kpcSectionNames[iSection], bHasActiveSlider ? nullptr : &mSectionVisible[iSection], ImGuiWindowFlags_AlwaysAutoResize);
 	ImGui::SetWindowFontScale(kfUiScale);

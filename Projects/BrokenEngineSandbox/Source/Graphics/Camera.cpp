@@ -70,7 +70,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	XMVECTOR vecTargetPosition {};
 	if (rFrameInterpolate.gameFlags & GameFlags::kMainMenu)
 	{
-		vecTargetPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * mfTime)), 40.0f * std::sin(0.01f * mfTime), engine::gBaseHeight.Get(), 0.0f));
+		vecTargetPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(0.0f, 0.0f, engine::gBaseHeight.Get(), 0.0f));
 	}
 	else if (gpGame->ClientPlayerId().IsValid())
 	{
@@ -80,7 +80,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		if (oIdx)
 		{
 			// DT TEMP: Log when camera starts tracking a new player
-			engine::global_player_t focusedId = gpGame->ClientPlayerId();
+			engine::global_id_t focusedId = gpGame->ClientPlayerId();
 			XMVECTOR vecPlayerPos = rFrameInterpolate.pPlayers->pVecPositions[*oIdx];
 
 			if (focusedId != mLastTrackedPlayerId)
@@ -103,7 +103,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		else
 		{
 			// DT TEMP: Diagnostic logging for camera player lookup failure (throttled to once per second)
-			engine::global_player_t focusedId = gpGame->ClientPlayerId();
+			engine::global_id_t focusedId = gpGame->ClientPlayerId();
 			static float sfLastLogTime = -1.0f;
 			if (mfTime - sfLastLogTime >= 1.0f)
 			{

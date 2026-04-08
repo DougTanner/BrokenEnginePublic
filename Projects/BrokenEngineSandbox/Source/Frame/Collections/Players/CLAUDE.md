@@ -28,7 +28,7 @@ Shared constants used across multiple `.cpp` files are declared in `Players.h`.
 
 **PlayersPostRender**: Includes `pClientGuids` — a parallel array of GUIDs identifying which connected client controls each player. Used by `ServerSession::ResetClientsForLoad` to re-link client connections to player slots after a load. Also includes `pFlagshipCoords` — a parallel array of grid coords indicating each player's Flagship location, and the `kIsFlagship` flag marking whether the player is itself the Flagship. Both are updated via `kUpdateFlagshipCoord` events and carried through cell transfers via `TransferData`.
 
-**Global Player IDs**: A parallel array of `engine::global_player_t` values provides stable cross-transfer, cross-session identity for each player. Assigned at spawn (carried in `SpawnInfo.globalPlayerId`), preserved across cell transfers via `TransferData.globalPlayerId`, and excluded from shared CRC validation since they are server-side bookkeeping. The Players collection uses these IDs (not local SOA indices) for all game-layer identity operations.
+**Global Player IDs**: A parallel array of `engine::global_id_t` values provides stable cross-transfer, cross-session identity for each player. Assigned at spawn (carried in `SpawnInfo.globalPlayerId`), preserved across cell transfers via `TransferData.globalPlayerId`, and excluded from shared CRC validation since they are server-side bookkeeping. The Players collection uses these IDs (not local SOA indices) for all game-layer identity operations.
 
 ## See Also
 - Parent collections: [../CLAUDE.md](../CLAUDE.md)

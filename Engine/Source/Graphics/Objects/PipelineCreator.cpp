@@ -378,6 +378,10 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 		// .alphaBlendOp
 		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
 	};
+	if (rPipelineInfo.flags & kNoColorWrite)
+	{
+		vkPipelineColorBlendAttachmentState.colorWriteMask = 0;
+	}
 
 	VkPipelineColorBlendStateCreateInfo vkPipelineColorBlendStateCreateInfo
 	{
@@ -426,11 +430,20 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 	pVkPipelineShaderStageCreateInfos[0].module = pVertexShader->mVkShaderModule;
 	pVkPipelineShaderStageCreateInfos[1].module = pFragmentShader->mVkShaderModule;
 
-	ASSERT(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride == rPipelineInfo.pVertexBuffer->mInfo.iVertexStride);
-	vkVertexInputBindingDescription.stride = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride);
-
-	vkPipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputAttributeDescriptions);
-	vkPipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = pVertexShader->mInfo.pVertexAttributes;
+	if (rPipelineInfo.pVertexBuffer != nullptr)
+	{
+		ASSERT(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride == rPipelineInfo.pVertexBuffer->mInfo.iVertexStride);
+		vkVertexInputBindingDescription.stride = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride);
+		vkPipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputAttributeDescriptions);
+		vkPipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = pVertexShader->mInfo.pVertexAttributes;
+	}
+	else
+	{
+		vkPipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
+		vkPipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
+		vkPipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+		vkPipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
+	}
 
 	VkExtent2D vkExtent2D
 	{

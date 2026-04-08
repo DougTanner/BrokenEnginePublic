@@ -26,23 +26,22 @@ layout (location = 1) out vec3 f3OutPosition;
 layout (location = 2) out vec2 f2OutTexcoord;
 layout (location = 3) out vec3 f3OutNormal;
 
-void Gertsner(vec2 f2Position, float fTerrainElevation)
+void Gertsner(vec2 f2LocalPosition, float fTerrainElevation)
 {
-	float fTime = globalLayout.fElapsedTime;
 	float fMix = clamp(globalLayout.fBeachDirectionalFadeBottom + globalLayout.fBeachDirectionalFadeHeightInv * fTerrainElevation, 0.0f, 1.0f);
 
 	float fLowSteepness = globalLayout.fWaterLowSteepness;
-	vec3 f3TotalLow = vec3(f2Position, 0.0f);
+	vec3 f3TotalLow = vec3(f2LocalPosition, 0.0f);
 	vec3 f3LowNormal = vec3(0.0f, 0.0f, 1.0f);
 	for (int i = 0; i < globalLayout.iWaterLowCount; ++i)
 	{
 		float fOmega = mainLayout.pf4LowWavesTwo[i].x; // Frequency
 		float fAmplitude = mainLayout.pf4LowWavesTwo[i].y;
-		float fPhi = mainLayout.pf4LowWavesTwo[i].z; // Speed
 		vec2 f2Direction = normalize(fMix * mainLayout.pf4LowWavesOne[i].zw + (1.0f - fMix) * mainLayout.pf4LowWavesOne[i].xy);
 
 		float fWA = fOmega * fAmplitude;
-		float fRadians = dot(f2Direction, f2Position) * fOmega + fPhi * (fTime + float(i));
+		float fReducedPhiTime = mainLayout.pf4LowWavesTwo[i].w;
+		float fRadians = dot(f2Direction, f2LocalPosition + globalLayout.fWaterDebugLowWaveOffset) * fOmega + fReducedPhiTime;
 		float fSin = sin(fRadians);
 		float fCos = cos(fRadians);
 
@@ -59,11 +58,11 @@ void Gertsner(vec2 f2Position, float fTerrainElevation)
 	{
 		float fOmega = mainLayout.pf4MediumWavesTwo[i].x; // Frequency
 		float fAmplitude = mainLayout.pf4MediumWavesTwo[i].y;
-		float fPhi = mainLayout.pf4MediumWavesTwo[i].z; // Speed
 		vec2 f2Direction = mainLayout.pf4MediumWavesOne[i].xy;
 
 		float fWA = fOmega * fAmplitude;
-		float fRadians = dot(f2Direction, f2Position) * fOmega + fPhi * fTime;
+		float fReducedPhiTime = mainLayout.pf4MediumWavesTwo[i].w;
+		float fRadians = dot(f2Direction, f2LocalPosition + globalLayout.fWaterDebugMediumWaveOffset) * fOmega + fReducedPhiTime;
 		float fSin = sin(fRadians);
 		float fCos = cos(fRadians);
 
@@ -79,13 +78,16 @@ void Gertsner(vec2 f2Position, float fTerrainElevation)
 
 void main()
 {
-	f2OutInitialPosition = vec2
+	vec2 f2WorldPosition = vec2
 	(
 		(1.0f - f2InTexcoord.x) * globalLayout.f4VisibleArea.x + f2InTexcoord.x * globalLayout.f4VisibleArea.z,
 		(1.0f - f2InTexcoord.y) * globalLayout.f4VisibleArea.y + f2InTexcoord.y * globalLayout.f4VisibleArea.w
 	);
 
-	float fTerrainElevation = texture(elevationTextureSampler, WorldToVisibleArea(vec3(f2OutInitialPosition, 0.0f), globalLayout.f4VisibleArea)).x - globalLayout.fWaterHeight;
+	// Camera-relative position for precision in fragment shader UV computation
+	f2OutInitialPosition = f2WorldPosition - vec2(globalLayout.fWaterOriginX, globalLayout.fWaterOriginY);
+
+	float fTerrainElevation = texture(elevationTextureSampler, WorldToVisibleArea(vec3(f2WorldPosition, 0.0f), globalLayout.f4VisibleArea)).x - globalLayout.fWaterHeight;
 	if (fTerrainElevation > 1.0f)
 	{
 		gl_Position = vec4(0.0f, 0.0f, -100.0f, 0.0f);
@@ -93,6 +95,7 @@ void main()
 	}
 
 	Gertsner(f2OutInitialPosition, fTerrainElevation);
+	f3OutPosition.xy += vec2(globalLayout.fWaterOriginX, globalLayout.fWaterOriginY);
 	f3OutPosition.z += globalLayout.fWaterHeight;
 
 	f2OutTexcoord = WorldToVisibleArea(f3OutPosition, globalLayout.f4VisibleArea);

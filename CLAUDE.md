@@ -11,7 +11,7 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
 0. The user will use plan mode to create a planning document (or load a plan from a file)
 	- DO NOT add a 'Verification' section
-0.5. Invoke /external-grill-plan to interview the user about the plan — resolve ambiguities, gather missing information, and ensure plan completeness before implementation
+0.5. Invoke /external-grill-plan to interview the user about the plan — resolve ambiguities, gather missing information, and ensure plan completeness before implementation. **When the grill completes, DO NOT stop or summarize — immediately continue to step 1 in the same turn.**
 1. Make the code changes using the planning document
 2. Any new files created should be added to the appropriate filter in any relevant .vcproj files
 3. Build the affected projects and verify there are no errors (see Build section below)

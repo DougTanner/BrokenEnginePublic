@@ -6,7 +6,6 @@ namespace engine
 // Packet types for client/server communication
 enum class PacketType : uint8_t
 {
-	kServerAssignPlayer,
 	kServerCoordFullState,      // Per-coord full state (reliable, slot channel)
 	kServerCoordStaticData,     // Per-coord static data sent once per subscription (reliable, slot channel)
 	kServerCoordUpdate,         // Per-coord delta update (unreliable, slot channel)
@@ -23,21 +22,16 @@ enum class PacketType : uint8_t
 	kClientResyncRequest,       // Client requests full state re-download after desync recovery
 	kServerSubscribeAccept,     // Server confirms subscription with assigned slot
 	kServerUnsubscribeAck,      // Server confirms unsubscription
-	kServerPlayerState,         // Server notifies client of player state change (spawn, frame change, death)
 	kClientPauseRequest,        // Client requests server pause/unpause (debug only)
 	kClientTimespeedRequest,    // Client requests timescale change (debug only)
 	kServerTimespeedUpdate,     // Server broadcasts current timescale to all clients
 	kClientSaveRequest,         // Client requests server quicksave (debug only)
 	kClientLoadRequest,         // Client requests server quickload (debug only)
 	kServerLoadNotification,    // Server loaded a save, clients must reset state
-	kClientUpdatePlayerRequest, // Client sends per-player settings update (weapon mode, navigation delay)
 	kClientReplayRecordRequest, // Client requests server replay record start/stop (debug only)
 	kClientReplayPlaybackRequest, // Client requests server replay playback (debug only)
 	kClientResetRequest,          // Client requests server reset (debug only)
-	kClientCreateFleetRequest,    // Client requests creation of an empty fleet
-	kClientSpawnIntoFleetRequest, // Client requests spawning a new player into a fleet
-	kClientRespawnInFleetRequest, // Client requests respawning a dead fleet member
-	kServerFleetSync,             // Server sends full fleet state to client
+	kGamePacketStart,             // All values >= this are game-layer packets forwarded as raw bytes
 };
 
 // Client request flags for spawn/respawn
@@ -49,7 +43,7 @@ enum class ClientRequestFlags : uint8_t
 using ClientRequestFlags_t = common::Flags<ClientRequestFlags>;
 
 // Protocol constants
-inline constexpr uint32_t kuiProtocolVersion = 2;
+inline constexpr uint32_t kuiProtocolVersion = 3;
 inline constexpr uint16_t kuiDefaultPort = 27015;
 inline constexpr int64_t kiMaxResendFrames = 8;
 inline constexpr int64_t kiMaxBufferedFrames = 256;

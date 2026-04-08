@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -422,11 +422,18 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\Source\Frame\StatusChange.h" />
     <ClInclude Include="..\..\Source\Frame\Collections\Players\Players.h" />
     <ClInclude Include="..\..\Source\Game.h" />
-    <ClInclude Include="..\..\Source\Network\ClientSession.h" />
-    <ClInclude Include="..\..\Source\Network\ClientReconciler.h" />
-    <ClInclude Include="..\..\Source\Network\ReconcileReplay.h" />
+    <ClInclude Include="..\..\Source\Network\Client\ClientSession.h" />
+    <ClInclude Include="..\..\Source\Network\Client\ClientDataReceiver.h" />
+    <ClInclude Include="..\..\Source\Network\Client\ClientDesyncManager.h" />
+    <ClInclude Include="..\..\Source\Network\Client\ClientReconciler.h" />
+    <ClInclude Include="..\..\Source\Network\Client\ReconcileReplay.h" />
     <ClInclude Include="..\..\Source\Network\PlayerEvents.h" />
-    <ClInclude Include="..\..\Source\Network\ServerSession.h" />
+    <ClInclude Include="..\..\Source\Network\Server\ServerSession.h" />
+    <ClInclude Include="..\..\Source\Network\Server\ServerFleetManager.h" />
+    <ClInclude Include="..\..\Source\Network\Server\ServerTransferManager.h" />
+    <ClInclude Include="..\..\Source\Network\Server\ServerBroadcaster.h" />
+    <ClInclude Include="..\..\Source\Network\Server\ServerClientManager.h" />
+    <ClInclude Include="..\..\Source\Network\GamePacketType.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Client\ClientSessionBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionBase.h" />
     <ClInclude Include="..\..\Source\Graphics\Camera.h" />
@@ -579,6 +586,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterSpecular.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterLow.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterMedium.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterDebug.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenLighting.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenShadow.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenMisc.cpp" />
@@ -608,14 +616,20 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersCollision.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersUpdate.cpp" />
     <ClCompile Include="..\..\Source\Game.cpp" />
-    <ClCompile Include="..\..\Source\Network\ClientSession.cpp" />
-    <ClCompile Include="..\..\Source\Network\ClientSessionSubscriptions.cpp" />
-    <ClCompile Include="..\..\Source\Network\ClientReconciler.cpp" />
-    <ClCompile Include="..\..\Source\Network\ReconcileReplay.cpp" />
-    <ClCompile Include="..\..\Source\Network\ReconcileReplayCrc.cpp" />
-    <ClCompile Include="..\..\Source\Network\ReconcileReplayHumanState.cpp" />
+    <ClCompile Include="..\..\Source\Network\Client\ClientSession.cpp" />
+    <ClCompile Include="..\..\Source\Network\Client\ClientSessionSubscriptions.cpp" />
+    <ClCompile Include="..\..\Source\Network\Client\ClientDataReceiver.cpp" />
+    <ClCompile Include="..\..\Source\Network\Client\ClientDesyncManager.cpp" />
+    <ClCompile Include="..\..\Source\Network\Client\ClientReconciler.cpp" />
+    <ClCompile Include="..\..\Source\Network\Client\ReconcileReplay.cpp" />
+    <ClCompile Include="..\..\Source\Network\Client\ReconcileReplayCrc.cpp" />
+    <ClCompile Include="..\..\Source\Network\Client\ReconcileReplayHumanState.cpp" />
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp" />
-    <ClCompile Include="..\..\Source\Network\ServerSession.cpp" />
+    <ClCompile Include="..\..\Source\Network\Server\ServerSession.cpp" />
+    <ClCompile Include="..\..\Source\Network\Server\ServerFleetManager.cpp" />
+    <ClCompile Include="..\..\Source\Network\Server\ServerTransferManager.cpp" />
+    <ClCompile Include="..\..\Source\Network\Server\ServerBroadcaster.cpp" />
+    <ClCompile Include="..\..\Source\Network\Server\ServerClientManager.cpp" />
     <ClCompile Include="..\..\Source\Graphics\Camera.cpp" />
     <ClCompile Include="..\..\Source\Input\Input.cpp" />
     <ClCompile Include="..\..\Source\Ui\Screens\DeathMenuScreen.cpp" />
@@ -659,6 +673,8 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ObjectShadowsBlurH.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ObjectShadowsBlurV.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Ui\ProfileText.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Ui\UiDepthPrepass.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Ui\UiDepthPrepass.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsVisibleArea.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsFullscreen.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsAxisAligned.vert" />

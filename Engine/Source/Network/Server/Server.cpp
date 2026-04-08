@@ -62,10 +62,7 @@ void Server::Poll()
 	mPendingDisconnects.clear();
 	mPendingNewSubscriptions.clear();
 	mPendingResyncClientIds.clear();
-	mPendingUpdatePlayerRequests.clear();
-	mPendingCreateFleetRequests.clear();
-	mPendingSpawnIntoFleetRequests.clear();
-	mPendingRespawnInFleetRequests.clear();
+	mReceivedGamePackets.clear();
 
 	ENetEvent event {};
 	while (enet_host_service(mpHost, &event, 0) > 0)
@@ -150,8 +147,7 @@ void Server::Disconnect(ENetEvent& rEvent)
 	ClientConnection* pClient = FindClient(iClientId);
 	if (pClient != nullptr)
 	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		mPendingDisconnects.push_back({iClientId, pClient->clientGuid, pClient->ownedPlayerIds, pClient->ownedPlayerCoords});
+		mPendingDisconnects.push_back({iClientId, pClient->clientGuid});
 	}
 	RemoveClient(iClientId);
 
@@ -227,20 +223,22 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 			ClientResetRequest(pData, iSize, iClientId);
 			break;
 #endif // BT_SERVER
-		case PacketType::kClientUpdatePlayerRequest:
-			ClientUpdatePlayerRequest(pData, iSize, iClientId);
-			break;
-		case PacketType::kClientCreateFleetRequest:
-			ClientCreateFleetRequest(pData, iSize, iClientId);
-			break;
-		case PacketType::kClientSpawnIntoFleetRequest:
-			ClientSpawnIntoFleetRequest(pData, iSize, iClientId);
-			break;
-		case PacketType::kClientRespawnInFleetRequest:
-			ClientRespawnInFleetRequest(pData, iSize, iClientId);
-			break;
 		default:
-			Log(kLogNetwork, kWarning, "Server::Receive unknown packet type {} Client: {}", static_cast<uint8_t>(eType), iClientId);
+			if (static_cast<uint8_t>(eType) >= static_cast<uint8_t>(PacketType::kGamePacketStart))
+			{
+				ClientConnection* pClient = FindClient(iClientId);
+				if (pClient == nullptr || !pClient->bHandshakeComplete)
+				{
+					break;
+				}
+				ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+				// Heap: raw game packet buffer grows on game-specific packets
+				mReceivedGamePackets.push_back({iClientId, pData[0], std::vector<uint8_t>(pData + 1, pData + iSize)});
+			}
+			else
+			{
+				Log(kLogNetwork, kWarning, "Server::Receive unknown packet type {} Client: {}", static_cast<uint8_t>(eType), iClientId);
+			}
 			break;
 	}
 }

@@ -11,6 +11,7 @@ enum class TweakSection : int
 	kWaterSpecular,
 	kWaterLow,
 	kWaterMedium,
+	kWaterDebug,
 	kLighting,
 	kShadow,
 	kMisc,
@@ -42,6 +43,7 @@ public:
 	void RenderWaterSpecularSection();
 	void RenderWaterLowSection();
 	void RenderWaterMediumSection();
+	void RenderWaterDebugSection();
 	void RenderLightingSection();
 	void RenderShadowSection();
 	void RenderMiscSection();

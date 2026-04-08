@@ -1,6 +1,6 @@
 #include "Game.h"
 
-#include "Network/ClientSession.h"
+#include "Network/Client/ClientSession.h"
 
 namespace game
 {

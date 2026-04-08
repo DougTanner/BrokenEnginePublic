@@ -283,7 +283,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 
 	// Validate coord is adjacent to ANY owned player's coord (3x3 grid)
 	bool bAdjacent = false;
-	for (const GridCoord& rOwnedCoord : pClient->ownedPlayerCoords)
+	for (const GridCoord& rOwnedCoord : pClient->authorizedCoords)
 	{
 		int32_t iDeltaX = std::abs(coord.x - rOwnedCoord.x);
 		int32_t iDeltaY = std::abs(coord.y - rOwnedCoord.y);
@@ -414,98 +414,6 @@ void Server::ClientTimespeedRequest(const uint8_t* pData, size_t iSize, int64_t 
 	}
 
 	BroadcastTimespeedUpdate(game::gpGame->mTimeStep.miTimeMultiply, game::gpGame->mTimeStep.miTimeDivide);
-}
-
-void Server::ClientUpdatePlayerRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
-{
-	// 1B type + 8B global player ID + 1B bUseMissiles + 4B fNavigationDelay = 14 bytes
-	if (iSize < 14)
-	{
-		return;
-	}
-
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
-	{
-		return;
-	}
-
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-	global_player_t globalPlayerId {};
-	globalPlayerId.iValue = ReadInt64(pCursor);
-	bool bUseMissiles = ReadUint8(pCursor) != 0;
-	float fNavigationDelay = ReadFloat(pCursor);
-
-	Log(kLogNetwork, "Server::ClientUpdatePlayerRequest Client: {} GlobalPlayer: {} Missiles: {} NavDelay: {}", iClientId, globalPlayerId.iValue, bUseMissiles, fNavigationDelay);
-
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	mPendingUpdatePlayerRequests.push_back({iClientId, globalPlayerId, bUseMissiles, fNavigationDelay});
-}
-
-void Server::ClientCreateFleetRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
-{
-	if (iSize < 1)
-	{
-		return;
-	}
-
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
-	{
-		return;
-	}
-
-	Log(kLogNetwork, "Server::ClientCreateFleetRequest Client: {}", iClientId);
-
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	mPendingCreateFleetRequests.push_back({iClientId});
-}
-
-void Server::ClientSpawnIntoFleetRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
-{
-	// 1B type + 8B fleetIndex = 9 bytes
-	if (iSize < 9)
-	{
-		return;
-	}
-
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
-	{
-		return;
-	}
-
-	const uint8_t* pCursor = pData + 1;
-	int64_t iFleetIndex = ReadInt64(pCursor);
-
-	Log(kLogNetwork, "Server::ClientSpawnIntoFleetRequest Client: {} Fleet: {}", iClientId, iFleetIndex);
-
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	mPendingSpawnIntoFleetRequests.push_back({iClientId, iFleetIndex});
-}
-
-void Server::ClientRespawnInFleetRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
-{
-	// 1B type + 8B fleetIndex + 8B memberIndex = 17 bytes
-	if (iSize < 17)
-	{
-		return;
-	}
-
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
-	{
-		return;
-	}
-
-	const uint8_t* pCursor = pData + 1;
-	int64_t iFleetIndex = ReadInt64(pCursor);
-	int64_t iMemberIndex = ReadInt64(pCursor);
-
-	Log(kLogNetwork, "Server::ClientRespawnInFleetRequest Client: {} Fleet: {} Member: {}", iClientId, iFleetIndex, iMemberIndex);
-
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	mPendingRespawnInFleetRequests.push_back({iClientId, iFleetIndex, iMemberIndex});
 }
 
 #if defined(BT_SERVER)

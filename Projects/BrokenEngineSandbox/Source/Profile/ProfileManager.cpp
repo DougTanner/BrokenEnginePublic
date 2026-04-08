@@ -2,7 +2,7 @@
 
 #include "Game.h"
 #if defined(BT_CLIENT)
-#include "Network/ClientSession.h"
+#include "Network/Client/ClientSession.h"
 #endif
 
 namespace game

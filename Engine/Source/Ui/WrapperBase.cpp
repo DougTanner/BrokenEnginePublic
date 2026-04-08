@@ -294,6 +294,13 @@ Wrapper gHighScaleTwo(1.2f, 0.0f, 2.0f);
 Wrapper gBeachDirectionalFadeBottom(0.25f, 0.0f, 2.0f);
 Wrapper gBeachDirectionalFadeHeight(0.7f, 0.0f, 1.0f);
 
+// Water Debug
+Wrapper gWaterDebugLowWaveOffset(0.0f, 0.0f, 100000.0f);
+Wrapper gWaterDebugMediumWaveOffset(0.0f, 0.0f, 100000.0f);
+Wrapper gWaterDebugNormalOneOffset(0.0f, 0.0f, 100000.0f);
+Wrapper gWaterDebugNormalTwoOffset(0.0f, 0.0f, 100000.0f);
+Wrapper gWaterDebugNoiseOffset(0.0f, 0.0f, 100000.0f);
+
 // Shadow
 Wrapper gShadowFeatherNoon(2.5f, 0.0f, 8.0f);
 Wrapper gShadowFeatherNoonOffset(0.92f, 0.0f, 5.0f);
@@ -319,6 +326,12 @@ Wrapper gSmokeShadowIntensity(0.5f, 0.0f, 1.0f);
 
 // Particles
 Wrapper gParticlesWindStrength(2000.0f, 0.0f, 5000.0f);
+
+// Opaque UI
+Wrapper gOpaqueUi(false);
+
+// Font Scale
+Wrapper gUiFontScale(1.0f, 0.5f, 3.0f);
 
 // Debug
 Wrapper gDebugTexture(false);

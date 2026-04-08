@@ -791,6 +791,15 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 		Texture::RecordBeginRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, gpGraphics->mFramebufferExtent2D, VkClearColorValue {}, renderPassFlags, VK_SUBPASS_CONTENTS_INLINE);
 	}
 
+	// UI depth pre-pass: depth-only quads at ImGui window positions (instanceCount=0 when disabled)
+	{
+		Pipeline& rUiPrepass = pPipelines[kPipelineUiDepthPrepass];
+		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rUiPrepass.mVkPipeline);
+		VkDescriptorSet pUiPrepassSets[2] = {gpTextureManager->mTextureDescriptors.mGlobalDescriptorSets[iFramebuffer], rUiPrepass.mVkDescriptorSets[iFramebuffer]};
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rUiPrepass.mVkPipelineLayout, 0, 2, pUiPrepassSets, 0, nullptr);
+		vkCmdDrawIndirect(vkCommandBuffer, gpImGuiManager->mUiPrepassIndirectVkBuffer, static_cast<VkDeviceSize>(iFramebuffer) * sizeof(VkDrawIndirectCommand), 1, sizeof(VkDrawIndirectCommand));
+	}
+
 	bool bDebugTextureMode = false;
 	if constexpr (kbDebugInput)
 	{

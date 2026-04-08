@@ -1,9 +1,9 @@
-#include "Network/ReconcileReplay.h"
+#include "Network/Client/ReconcileReplay.h"
 
 #include "Game.h"
 #include "Frame/FrameTick.h"
 #include "Frame/Collections/Players/Players.h"
-#include "Network/ClientReconciler.h"
+#include "Network/Client/ClientReconciler.h"
 
 namespace game
 {
@@ -99,7 +99,6 @@ static bool ReconcileRunTickCoord(CoordReconcileWork& rWork, int64_t iTick, floa
 
 			if (rStatusChange.eType == StatusChangeType::kTransferPlayer)
 			{
-				// DT TEMP
 				Log(kLogNetwork, kVerbose, "ReconcileRunTickCoord SpawnTransfer TransferPlayer Coord: ({},{}) Tick: {} PlayerCount: {}", rWork.coord.x, rWork.coord.y, iTick, pNext->postRender.pPlayers->iCount);
 			}
 		}

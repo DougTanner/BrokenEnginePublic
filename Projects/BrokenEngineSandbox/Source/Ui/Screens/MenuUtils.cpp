@@ -59,4 +59,27 @@ bool WrapperSlider(std::string_view label, engine::Wrapper* pWrapper)
 	return false;
 }
 
+bool WrapperPlusMinus(std::string_view label, engine::Wrapper* pWrapper, float fStep)
+{
+	bool bChanged = false;
+	ImGui::Text("%s", label.data());
+	ImGui::SameLine();
+	ImGui::PushID(label.data());
+	if (ImGui::Button("-"))
+	{
+		pWrapper->Set(pWrapper->Get() - fStep);
+		bChanged = true;
+	}
+	ImGui::SameLine();
+	ImGui::Text("%.0f%%", pWrapper->Get() * 100.0f);
+	ImGui::SameLine();
+	if (ImGui::Button("+"))
+	{
+		pWrapper->Set(pWrapper->Get() + fStep);
+		bChanged = true;
+	}
+	ImGui::PopID();
+	return bChanged;
+}
+
 } // namespace game

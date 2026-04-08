@@ -1,8 +1,8 @@
-#include "Network/ReconcileReplay.h"
+#include "Network/Client/ReconcileReplay.h"
 
 #include "Game.h"
 
-#include "Network/ClientReconciler.h"
+#include "Network/Client/ClientReconciler.h"
 
 namespace game
 {

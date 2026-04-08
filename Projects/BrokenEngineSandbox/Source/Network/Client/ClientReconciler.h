@@ -13,7 +13,7 @@ using engine::SnapshotIndex;
 struct ConfirmedClientState
 {
 	engine::GridCoord clientGridCoord {};
-	engine::global_player_t clientGlobalPlayerId {};
+	engine::global_id_t clientGlobalPlayerId {};
 	float fPreviousClientArmor = 0.0f;
 	float fCurrentTime = 0.0f;
 };

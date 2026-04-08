@@ -4,10 +4,10 @@
 #include "Fleet.h"
 
 #if defined(BT_SERVER)
-#include "Network/ServerSession.h"
+#include "Network/Server/ServerSession.h"
 #endif
 #if defined(BT_CLIENT)
-#include "Network/ClientSession.h"
+#include "Network/Client/ClientSession.h"
 #endif
 
 namespace engine
@@ -87,11 +87,11 @@ public:
 #endif
 
 	// Client player tracking (multi-player per client)
-	engine::global_player_t ClientPlayerId() const;
+	engine::global_id_t ClientPlayerId() const;
 	float PreviousClientArmor() const { return mfPreviousClientArmor; }
-	bool IsClientPlayer(engine::global_player_t id) const;
-	void AddClientPlayer(engine::global_player_t id, engine::GridCoord coord);
-	void RemoveClientPlayer(engine::global_player_t id);
+	bool IsClientPlayer(engine::global_id_t id) const;
+	void AddClientPlayer(engine::global_id_t id, engine::GridCoord coord);
+	void RemoveClientPlayer(engine::global_id_t id);
 	int64_t PlayerCount() const;
 	void RestoreReplayMeta(const ReplayMeta& rMeta);
 	std::optional<int64_t> ClientPlayerIndex(const PlayersPostRender& rPlayers) const;
@@ -116,6 +116,10 @@ public:
 	static void SaveSoundSettings();
 	static void LoadSoundSettings();
 	static void ResetSoundSettings();
+
+	static void SaveGraphicsSettings();
+	static bool LoadGraphicsSettings();
+	static void ResetGraphicsSettings();
 
 	static void SaveTweaksSettings();
 	static void LoadTweaksSettings();
@@ -172,7 +176,7 @@ private:
 #endif
 
 public:
-	std::vector<engine::global_player_t> mClientPlayerIds;
+	std::vector<engine::global_id_t> mClientPlayerIds;
 	std::vector<engine::GridCoord> mClientPlayerCoords;
 private:
 	float mfPreviousClientArmor = 0.0f;

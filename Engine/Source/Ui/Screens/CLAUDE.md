@@ -6,7 +6,7 @@ ImGui-based debug overlays rendered by ImGuiManager. Each screen class encapsula
 
 ## Key Classes
 
-- **TweaksScreenBase** - Multi-section parameter adjustment UI base class providing runtime control over rendering parameters via Wrapper globals. Organized into 13 toggleable sections (`TweakSection` enum) covering PBR, terrain, water, lighting, shadows, smoke, wind, and other visual systems. Split across a subdirectory with core logic in `TweaksScreenBase.cpp` and one `.cpp` file per section. `RenderHexShieldSection()` and `RenderWindDepositsSection()` are pure virtual; the game-side `game::TweaksScreen` provides these implementations and inserts game-specific Wrapper globals into `TweaksSliderMap` via its constructor.
+- **TweaksScreenBase** - Multi-section parameter adjustment UI base class providing runtime control over rendering parameters via Wrapper globals. Organized into 14 toggleable sections (`TweakSection` enum) covering PBR, terrain, water, lighting, shadows, smoke, wind, and other visual systems. Split across a subdirectory with core logic in `TweaksScreenBase.cpp` and one `.cpp` file per section. `RenderHexShieldSection()` and `RenderWindDepositsSection()` are pure virtual; the game-side `game::TweaksScreen` provides these implementations and inserts game-specific Wrapper globals into `TweaksSliderMap` via its constructor.
 
 ## See Also
 

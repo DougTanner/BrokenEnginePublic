@@ -5,7 +5,7 @@ namespace game
 
 struct FleetMember
 {
-	engine::global_player_t globalPlayerId {};
+	engine::global_id_t globalPlayerId {};
 	bool bAlive = true;
 };
 

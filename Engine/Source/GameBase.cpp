@@ -2,10 +2,10 @@
 
 #include "Game.h"
 #if defined(BT_CLIENT)
-#include "Network/ClientSession.h"
+#include "Network/Client/ClientSession.h"
 #endif
 #if defined(BT_SERVER)
-#include "Network/ServerSession.h"
+#include "Network/Server/ServerSession.h"
 #endif
 #include "Frame/FrameTick.h"
 #include "Frame/HealthDamage.h"

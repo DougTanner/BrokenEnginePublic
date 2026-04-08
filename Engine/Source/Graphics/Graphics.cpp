@@ -155,6 +155,8 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unord
 	RenderFrameMain(iCommandBuffer, rRenderInterpolates, rActiveCoords, cameraCoord);
 	gpProfileManager->CpuStop(kCpuTimerRenderMain, false);
 
+	gpImGuiManager->Prepare(iCommandBuffer);
+
 	gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer, false);
 
 	gpCommandBufferManager->SubmitUiCommandBuffer(iCommandBuffer);

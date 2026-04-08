@@ -43,6 +43,12 @@
     <Filter Include="Game\Network">
       <UniqueIdentifier>{c5d6e7f8-a9b0-1234-5678-9abcdef01234}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Game\Network\Client">
+      <UniqueIdentifier>{e80e1f00-b3a2-40fe-9df3-809396ba29bd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game\Network\Server">
+      <UniqueIdentifier>{0089e6d6-1e73-45d5-8ba3-156da330284f}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Common">
       <UniqueIdentifier>{e1fb165c-2138-41cf-ad28-2ff6586ba2c4}</UniqueIdentifier>
     </Filter>
@@ -225,19 +231,40 @@
     <ClInclude Include="..\..\Source\Game.h">
       <Filter>Game</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Network\ClientSession.h">
-      <Filter>Game\Network</Filter>
+    <ClInclude Include="..\..\Source\Network\Client\ClientSession.h">
+      <Filter>Game\Network\Client</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Network\ClientReconciler.h">
-      <Filter>Game\Network</Filter>
+    <ClInclude Include="..\..\Source\Network\Client\ClientDataReceiver.h">
+      <Filter>Game\Network\Client</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Network\ReconcileReplay.h">
-      <Filter>Game\Network</Filter>
+    <ClInclude Include="..\..\Source\Network\Client\ClientDesyncManager.h">
+      <Filter>Game\Network\Client</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Network\Client\ClientReconciler.h">
+      <Filter>Game\Network\Client</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Network\Client\ReconcileReplay.h">
+      <Filter>Game\Network\Client</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Network\PlayerEvents.h">
       <Filter>Game\Network</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Network\ServerSession.h">
+    <ClInclude Include="..\..\Source\Network\Server\ServerSession.h">
+      <Filter>Game\Network\Server</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Network\Server\ServerFleetManager.h">
+      <Filter>Game\Network\Server</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Network\Server\ServerTransferManager.h">
+      <Filter>Game\Network\Server</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Network\Server\ServerBroadcaster.h">
+      <Filter>Game\Network\Server</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Network\Server\ServerClientManager.h">
+      <Filter>Game\Network\Server</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Network\GamePacketType.h">
       <Filter>Game\Network</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Client\ClientSessionBase.h">
@@ -629,29 +656,47 @@
     <ClCompile Include="..\..\Source\Game.cpp">
       <Filter>Game</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Network\ClientSession.cpp">
-      <Filter>Game\Network</Filter>
+    <ClCompile Include="..\..\Source\Network\Client\ClientSession.cpp">
+      <Filter>Game\Network\Client</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Network\ClientSessionSubscriptions.cpp">
-      <Filter>Game\Network</Filter>
+    <ClCompile Include="..\..\Source\Network\Client\ClientSessionSubscriptions.cpp">
+      <Filter>Game\Network\Client</Filter>
     </ClCompile>
-<ClCompile Include="..\..\Source\Network\ClientReconciler.cpp">
-      <Filter>Game\Network</Filter>
+<ClCompile Include="..\..\Source\Network\Client\ClientDataReceiver.cpp">
+      <Filter>Game\Network\Client</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Network\ReconcileReplay.cpp">
-      <Filter>Game\Network</Filter>
+    <ClCompile Include="..\..\Source\Network\Client\ClientDesyncManager.cpp">
+      <Filter>Game\Network\Client</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Network\ReconcileReplayCrc.cpp">
-      <Filter>Game\Network</Filter>
+    <ClCompile Include="..\..\Source\Network\Client\ClientReconciler.cpp">
+      <Filter>Game\Network\Client</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Network\ReconcileReplayHumanState.cpp">
-      <Filter>Game\Network</Filter>
+    <ClCompile Include="..\..\Source\Network\Client\ReconcileReplay.cpp">
+      <Filter>Game\Network\Client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Network\Client\ReconcileReplayCrc.cpp">
+      <Filter>Game\Network\Client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Network\Client\ReconcileReplayHumanState.cpp">
+      <Filter>Game\Network\Client</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp">
       <Filter>Game\Network</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Network\ServerSession.cpp">
-      <Filter>Game\Network</Filter>
+    <ClCompile Include="..\..\Source\Network\Server\ServerSession.cpp">
+      <Filter>Game\Network\Server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Network\Server\ServerFleetManager.cpp">
+      <Filter>Game\Network\Server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Network\Server\ServerTransferManager.cpp">
+      <Filter>Game\Network\Server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Network\Server\ServerBroadcaster.cpp">
+      <Filter>Game\Network\Server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Network\Server\ServerClientManager.cpp">
+      <Filter>Game\Network\Server</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Pch.cpp">
       <Filter>Engine</Filter>
@@ -972,6 +1017,9 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterMedium.cpp">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterDebug.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenLighting.cpp">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
@@ -1083,6 +1131,12 @@
       <Filter>Engine\Data\Shaders\Shadow</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Ui\ProfileText.frag">
+      <Filter>Engine\Data\Shaders\Ui</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Ui\UiDepthPrepass.vert">
+      <Filter>Engine\Data\Shaders\Ui</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Ui\UiDepthPrepass.frag">
       <Filter>Engine\Data\Shaders\Ui</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsFullscreen.vert">

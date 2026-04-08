@@ -101,6 +101,7 @@ void HudScreen::RenderFleetPanel()
 	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.42f), ImGuiCond_Always);
 	ImGui::Begin("FleetPanel", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 	ImGui::SetWindowFontScale(kfMenuUiScale);
+	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
 
 	int64_t iFleetCount = gpGame->FleetCount();
 
@@ -144,7 +145,7 @@ void HudScreen::RenderFleetPanel()
 		if (gpClientSession != nullptr)
 		{
 			mCreateFleetToggle.SetPending();
-			engine::gpClient->SendCreateFleetRequest();
+			gpClientSession->SendCreateFleetRequest();
 			Log(kVerbose, "HUD CreateFleetRequest FleetCount: {}", iFleetCount); // DT TEMP
 		}
 	}
@@ -195,7 +196,7 @@ void HudScreen::RenderFleetPanel()
 				{
 					if (gpClientSession != nullptr)
 					{
-						engine::gpClient->SendRespawnInFleetRequest(gpGame->FocusedFleetIndex(), i);
+						gpClientSession->SendRespawnInFleetRequest(gpGame->FocusedFleetIndex(), i);
 						Log(kVerbose, "HUD RespawnInFleet Fleet: {} Member: {}", gpGame->FocusedFleetIndex(), i); // DT TEMP
 					}
 				}
@@ -211,7 +212,7 @@ void HudScreen::RenderFleetPanel()
 			if (gpClientSession != nullptr)
 			{
 				mSpawnIntoFleetToggle.SetPending();
-				engine::gpClient->SendSpawnIntoFleetRequest(gpGame->FocusedFleetIndex());
+				gpClientSession->SendSpawnIntoFleetRequest(gpGame->FocusedFleetIndex());
 				Log(kVerbose, "HUD SpawnIntoFleet Fleet: {}", gpGame->FocusedFleetIndex()); // DT TEMP
 			}
 		}
@@ -229,6 +230,7 @@ void HudScreen::RenderFocusedPlayerPanel()
 	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.95f, rIo.DisplaySize.y * 0.42f), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
 	ImGui::Begin("FocusedPlayerPanel", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 	ImGui::SetWindowFontScale(kfMenuUiScale);
+	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
 
 	std::optional<int64_t> playerIndex = std::nullopt;
 	{
@@ -253,7 +255,7 @@ void HudScreen::RenderFocusedPlayerPanel()
 			if (gpClientSession != nullptr && gpGame->ClientPlayerId().IsValid())
 			{
 				gpGame->mWeaponModeToggle.SetPending();
-				engine::gpClient->SendUpdatePlayerRequest(gpGame->ClientPlayerId().iValue, !bUseMissiles, fNavigationDelay);
+				gpClientSession->SendUpdatePlayerRequest(gpGame->ClientPlayerId().iValue, !bUseMissiles, fNavigationDelay);
 				Log(kLogNetwork, "HUD WeaponModeToggle GlobalPlayerId: {} Missiles: {} NavDelay: {}", gpGame->ClientPlayerId().iValue, !bUseMissiles, fNavigationDelay); // DT TEMP
 			}
 		}
@@ -272,7 +274,7 @@ void HudScreen::RenderFocusedPlayerPanel()
 			if (gpClientSession != nullptr && gpGame->ClientPlayerId().IsValid())
 			{
 				gpGame->mNavigationDelayControl.SetPending();
-				engine::gpClient->SendUpdatePlayerRequest(gpGame->ClientPlayerId().iValue, bUseMissiles, sNavDelayEditValue);
+				gpClientSession->SendUpdatePlayerRequest(gpGame->ClientPlayerId().iValue, bUseMissiles, sNavDelayEditValue);
 				Log(kLogNetwork, "HUD NavigationDelay GlobalPlayerId: {} Missiles: {} Delay: {}", gpGame->ClientPlayerId().iValue, bUseMissiles, sNavDelayEditValue); // DT TEMP
 			}
 		}

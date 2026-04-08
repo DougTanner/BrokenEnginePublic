@@ -182,15 +182,6 @@ void Client::Receive(const uint8_t* pData, size_t iSize)
 
 	switch (eType)
 	{
-		case PacketType::kServerAssignPlayer:
-		case PacketType::kServerPlayerState:
-		case PacketType::kServerFleetSync:
-		{
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			// Heap: raw game packet buffer grows on game-specific packets
-			mReceivedGamePackets.emplace_back(pData[0], std::vector<uint8_t>(pData + 1, pData + iSize));
-			break;
-		}
 		case PacketType::kServerCoordFullState:
 			ServerCoordFullState(pData, iSize);
 			break;
@@ -222,7 +213,16 @@ void Client::Receive(const uint8_t* pData, size_t iSize)
 			mbLoadNotificationReceived = true;
 			break;
 		default:
-			Log(kLogNetwork, kWarning, "Client::Receive unknown packet type {}", static_cast<uint8_t>(eType));
+			if (static_cast<uint8_t>(eType) >= static_cast<uint8_t>(PacketType::kGamePacketStart))
+			{
+				ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+				// Heap: raw game packet buffer grows on game-specific packets
+				mReceivedGamePackets.emplace_back(pData[0], std::vector<uint8_t>(pData + 1, pData + iSize));
+			}
+			else
+			{
+				Log(kLogNetwork, kWarning, "Client::Receive unknown packet type {}", static_cast<uint8_t>(eType));
+			}
 			break;
 	}
 }

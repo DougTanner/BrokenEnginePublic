@@ -10,9 +10,9 @@ Frame code is purely functional. Frame updates must only rely on explicit functi
 
 ## Key Classes/Systems
 
-- **Game** (`Game.h`/`Game.cpp`) - Central coordinator inheriting from `engine::GameBase`, accessed via `gpGame`. Manages lifecycle (menu/gameplay), multi-player-per-client tracking (a list of owned `global_player_t` IDs), fleet navigation (`FocusNextFleet()`/`FocusPrevFleet()`, `SelectPlayerInFleet()`, `FocusedFleet()`, `SyncFleets()` which receives the authoritative `Fleet` list from the server via `kServerFleetSync`). Each `Fleet` tracks a designated Flagship member; on death, leadership shifts to the next alive member, multi-frame grid orchestration, cross-grid entity transfers, sound settings and tweaks screen state persistence, and music playlists. Owns `ClientSession` (client) or `ServerSession` (server) for networking. On the server, the constructor attempts `Autoload()` to restore state from the previous run before falling back to creating a fresh frame; on shutdown, `Autosave()` is called from `Main.cpp` after the main loop exits. Holds a visual error offset used by the camera to smooth abrupt reconciliation corrections; decayed each render frame by `GameBase`, cleared on reset
-- **ClientSession** - Client networking orchestration: connection, rollback-and-replay reconciliation, coord subscriptions, extrapolation snapshots, and clock correction. See [Network/CLAUDE.md](Network/CLAUDE.md)
-- **ServerSession** - Server networking orchestration: active set management, tick broadcasting, spawn/death detection, and transfer harvesting. See [Network/CLAUDE.md](Network/CLAUDE.md)
+- **Game** (`Game.h`/`Game.cpp`) - Central coordinator inheriting from `engine::GameBase`, accessed via `gpGame`. Manages lifecycle (menu/gameplay), multi-player-per-client tracking (a list of owned `global_id_t` IDs), fleet navigation (`FocusNextFleet()`/`FocusPrevFleet()`, `SelectPlayerInFleet()`, `FocusedFleet()`, `SyncFleets()` which receives the authoritative `Fleet` list from the server via `kServerFleetSync`). Each `Fleet` tracks a designated Flagship member; on death, leadership shifts to the next alive member, multi-frame grid orchestration, cross-grid entity transfers, sound settings and tweaks screen state persistence, and music playlists. Owns `ClientSession` (client) or `ServerSession` (server) for networking. On the server, the constructor attempts `Autoload()` to restore state from the previous run before falling back to creating a fresh frame; on shutdown, `Autosave()` is called from `Main.cpp` after the main loop exits. Holds a visual error offset used by the camera to smooth abrupt reconciliation corrections; decayed each render frame by `GameBase`, cleared on reset
+- **ClientSession** - Client networking orchestration: connection, rollback-and-replay reconciliation, coord subscriptions, extrapolation snapshots, clock correction, and game packet sends (player settings, fleet operations). See [Network/CLAUDE.md](Network/CLAUDE.md)
+- **ServerSession** - Server networking orchestration: thin tick-pipeline orchestrator owning four managers (fleet lifecycle, cross-cell transfers, frame broadcasting, client connect/disconnect). Parses and dispatches game packets received from the engine's `Server`. See [Network/CLAUDE.md](Network/CLAUDE.md)
 
 ## Architecture Notes
 
@@ -26,7 +26,7 @@ Frame code is purely functional. Frame updates must only rely on explicit functi
 - [Frame/](Frame/CLAUDE.md) - Game state, physics tick pipeline, and SOA collections (players, blasters, missiles, spaceships, targets)
 - [Graphics/](Graphics/CLAUDE.md) - Camera controller with menu animations and player tracking
 - [Input/](Input/CLAUDE.md) - Three-tier input processing with keyboard/mouse and gamepad support
-- [Network/](Network/CLAUDE.md) - ClientSession and ServerSession networking classes
+- [Network/](Network/CLAUDE.md) - ClientSession, ServerSession, and supporting managers; packet types and serialization
 - [Profile/](Profile/CLAUDE.md) - Game-specific CPU profiling counters
 - [Ui/](Ui/CLAUDE.md) - ImGui-based HUD, menus, and settings screens
 

@@ -1,10 +1,11 @@
-#include "Game.h"
-
-#include "Fleet.h"
 #include "Network/PlayerEvents.h"
 
 #include "Network/NetworkCursor.h"
 #include "Network/NetworkProtocol.h"
+
+#include "Fleet.h"
+#include "Game.h"
+#include "Network/GamePacketType.h"
 
 namespace game
 {
@@ -15,9 +16,9 @@ void ParsePlayerEvents(
 {
 	for (const auto& [uiPacketType, rPayload] : rRawPackets)
 	{
-		engine::PacketType eType = static_cast<engine::PacketType>(uiPacketType);
+		GamePacketType eType = static_cast<GamePacketType>(uiPacketType);
 
-		if (eType == engine::PacketType::kServerAssignPlayer)
+		if (eType == GamePacketType::kServerAssignPlayer)
 		{
 			// 8B playerId + 4B gridX + 4B gridY = 16 bytes (type byte already stripped)
 			if (rPayload.size() < 16)
@@ -27,9 +28,9 @@ void ParsePlayerEvents(
 			const uint8_t* pCursor = rPayload.data();
 			int64_t iGlobalPlayerId = engine::ReadInt64(pCursor);
 			engine::GridCoord coord = engine::ReadGridCoord(pCursor);
-			rOutEvents.push_back({PlayerEventType::kAssigned, engine::global_player_t {iGlobalPlayerId}, coord});
+			rOutEvents.push_back({PlayerEventType::kAssigned, engine::global_id_t {iGlobalPlayerId}, coord});
 		}
-		else if (eType == engine::PacketType::kServerPlayerState)
+		else if (eType == GamePacketType::kServerPlayerState)
 		{
 			// 1B wireType + 8B global player ID + 4B gridX + 4B gridY = 17 bytes (type byte already stripped)
 			if (rPayload.size() < 17)
@@ -43,7 +44,7 @@ void ParsePlayerEvents(
 
 			// Wire type maps directly to PlayerEventType offset by 1 (kAssigned=0 has no wire equivalent)
 			PlayerEventType eEventType = static_cast<PlayerEventType>(uiWireType + 1);
-			rOutEvents.push_back({eEventType, engine::global_player_t {iGlobalPlayerId}, coord});
+			rOutEvents.push_back({eEventType, engine::global_id_t {iGlobalPlayerId}, coord});
 		}
 	}
 }
@@ -54,8 +55,8 @@ void ParseFleetSync(
 {
 	for (auto it = rRawPackets.begin(); it != rRawPackets.end(); )
 	{
-		engine::PacketType eType = static_cast<engine::PacketType>(it->first);
-		if (eType != engine::PacketType::kServerFleetSync)
+		GamePacketType eType = static_cast<GamePacketType>(it->first);
+		if (eType != GamePacketType::kServerFleetSync)
 		{
 			++it;
 			continue;
@@ -75,7 +76,7 @@ void ParseFleetSync(
 			{
 				int64_t iGlobalPlayerId = engine::ReadInt64(pCursor);
 				uint8_t uiAlive = engine::ReadUint8(pCursor);
-				rOutFleets.at(static_cast<size_t>(i)).members.at(static_cast<size_t>(j)) = FleetMember {engine::global_player_t {iGlobalPlayerId}, uiAlive != 0};
+				rOutFleets.at(static_cast<size_t>(i)).members.at(static_cast<size_t>(j)) = FleetMember {engine::global_id_t {iGlobalPlayerId}, uiAlive != 0};
 			}
 		}
 

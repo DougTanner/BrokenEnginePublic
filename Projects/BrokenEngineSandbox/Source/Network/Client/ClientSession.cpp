@@ -1,13 +1,11 @@
-#include "Fleet.h"
-#include "Game.h"
+#include "Network/Client/ClientSession.h"
 
-#include "Network/ClientSession.h"
+#include "Fleet.h"
+#include "Frame/Collections/Players/Players.h"
+#include "Game.h"
+#include "Network/GamePacketType.h"
 #include "Network/PlayerEvents.h"
 #include "Profile/ProfileManager.h"
-#include "Frame/Collections/Blasters/Blasters.h"
-#include "Frame/Collections/Missiles/Missiles.h"
-#include "Frame/Collections/Players/Players.h"
-#include "Frame/Collections/Spaceships/Spaceships.h"
 
 namespace game
 {
@@ -18,6 +16,8 @@ ClientSession::ClientSession()
 {
 	gpClientSession = this;
 	miCoordSlots = kiDesiredCoordSlots;
+	mpDataReceiver = std::make_unique<ClientDataReceiver>();
+	mpDesyncManager = std::make_unique<ClientDesyncManager>();
 	mpReconciler = std::make_unique<ClientReconciler>();
 }
 
@@ -52,13 +52,25 @@ void ClientSession::PollNetwork()
 	// Parse and process player events from raw game packets
 	std::vector<ReceivedPlayerEvent> playerEvents;
 	ParsePlayerEvents(mpClientNetwork->DrainReceivedGamePackets(), playerEvents);
+	auto updatePlayerCoord = [](engine::global_id_t globalPlayerId, engine::GridCoord coord)
+	{
+		for (int64_t i = 0; i < gpGame->PlayerCount(); ++i)
+		{
+			if (gpGame->mClientPlayerIds.at(i) == globalPlayerId)
+			{
+				gpGame->mClientPlayerCoords.at(i) = coord;
+				break;
+			}
+		}
+	};
+
 	engine::GridCoord preEventClientCoord = gpGame->mClientGridCoord;
 	for (const ReceivedPlayerEvent& rEvent : playerEvents)
 	{
 		switch (rEvent.eType)
 		{
 			case PlayerEventType::kAssigned:
-				Log(kLogNetwork, kVerbose, "PlayerEvent kAssigned NewGlobalPlayerId: {} NewCoord: ({},{}) OldGlobalPlayerId: {} OldCoord: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->ClientPlayerId().iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y); // DT TEMP
+				Log(kLogNetwork, kVerbose, "PlayerEvent kAssigned NewGlobalPlayerId: {} NewCoord: ({},{}) OldGlobalPlayerId: {} OldCoord: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->ClientPlayerId().iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
 				if (!gpGame->IsClientPlayer(rEvent.globalPlayerId))
 				{
 					gpGame->AddClientPlayer(rEvent.globalPlayerId, rEvent.coord);
@@ -67,15 +79,7 @@ void ClientSession::PollNetwork()
 				break;
 			case PlayerEventType::kSpawned:
 			{
-				// Find matching player by global ID and update coord
-				for (int64_t i = 0; i < gpGame->PlayerCount(); ++i)
-				{
-					if (gpGame->mClientPlayerIds.at(i) == rEvent.globalPlayerId)
-					{
-						gpGame->mClientPlayerCoords.at(i) = rEvent.coord;
-						break;
-					}
-				}
+				updatePlayerCoord(rEvent.globalPlayerId, rEvent.coord);
 				if (rEvent.globalPlayerId == gpGame->ClientPlayerId())
 				{
 					gpGame->mClientGridCoord = rEvent.coord;
@@ -85,15 +89,7 @@ void ClientSession::PollNetwork()
 			}
 			case PlayerEventType::kChangedFrame:
 			{
-				// Find matching player by global ID and update coord
-				for (int64_t i = 0; i < gpGame->PlayerCount(); ++i)
-				{
-					if (gpGame->mClientPlayerIds.at(i) == rEvent.globalPlayerId)
-					{
-						gpGame->mClientPlayerCoords.at(i) = rEvent.coord;
-						break;
-					}
-				}
+				updatePlayerCoord(rEvent.globalPlayerId, rEvent.coord);
 				// Only update quadrant dirs if it's the focused player
 				if (rEvent.globalPlayerId == gpGame->ClientPlayerId())
 				{
@@ -133,10 +129,10 @@ void ClientSession::PollNetwork()
 		}
 	}
 
-	ApplyReceivedStaticData();
-	ApplyReceivedFullStates();
+	mpDataReceiver->ApplyReceivedStaticData();
+	mpDataReceiver->ApplyReceivedFullStates();
 	UpdateSubscriptions();
-	ApplyReceivedUpdates();
+	mpDataReceiver->ApplyReceivedUpdates();
 }
 
 void ClientSession::WaitForReconcile()
@@ -149,16 +145,7 @@ void ClientSession::WaitForReconcile()
 	ReconcileDesyncInfo desyncInfo = mpReconciler->Wait();
 	if (desyncInfo.bDesync)
 	{
-		// Heap: Network sends for desync reporting
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
-		mpClientNetwork->SendDesyncReport(desyncInfo.iDesyncTick, desyncInfo.desyncCoord, desyncInfo.desyncExpectedCrc, desyncInfo.desyncActualCrc);
-		mpClientNetwork->SendDebugFrameRequest(desyncInfo.iDesyncTick, desyncInfo.desyncCoord);
-		mpClientNetwork->SetDesyncDebugMode(true);
-
-		mDesyncDebugState.iTick = desyncInfo.iDesyncTick;
-		mDesyncDebugState.coord = desyncInfo.desyncCoord;
-		mDesyncDebugState.pClientFrame = std::move(desyncInfo.pDesyncClientFrame);
-		mDesyncDebugState.entryTime = std::chrono::steady_clock::now();
+		mpDesyncManager->OnDesyncDetected(std::move(desyncInfo));
 	}
 }
 
@@ -274,129 +261,6 @@ void ClientSession::PostRender()
 	TryKickReconcile();
 }
 
-void ClientSession::ApplyReceivedStaticData()
-{
-	// Heap: try_emplace may insert new CoordFrames, NavData vectors moved into staticData
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
-
-	std::vector<engine::ReceivedStaticData>& rStaticDataList = mpClientNetwork->DrainReceivedStaticData();
-	for (engine::ReceivedStaticData& rReceived : rStaticDataList)
-	{
-		engine::CoordFrames& rFrames = gpGame->mCoordFrames.try_emplace(rReceived.coord).first->second;
-		rFrames.staticData = std::move(rReceived.staticData);
-		rFrames.staticData.coord = rReceived.coord;
-	}
-}
-
-void ClientSession::ApplyReceivedFullStates()
-{
-	// Heap: Moving unique_ptr<Frame> into mCurrentFrames, stringstream serialization
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
-
-	std::vector<engine::ReceivedCoordFullState>& rFullStates = mpClientNetwork->DrainReceivedFullStates();
-	if (rFullStates.empty())
-	{
-		return;
-	}
-
-	for (engine::ReceivedCoordFullState& rFullState : rFullStates)
-	{
-		engine::GridCoord coord = rFullState.coord;
-		int64_t iTick = rFullState.iTick;
-
-		engine::CoordFrames& rSub = gpGame->mCoordFrames.try_emplace(coord).first->second;
-
-		// Initialize client-only objects
-		Frame& rFrame = *rFullState.pFrame;
-		BlastersInterpolate::ClientInitAll(rFrame);
-		MissilesInterpolate::ClientInitAll(rFrame);
-		SpaceshipsInterpolate::ClientInitAll(rFrame);
-
-		// Copy smoke trail smoothed positions from existing frame to preserve rendering continuity across reconciliation
-		if (rSub.pCurrent != nullptr)
-		{
-			const engine::SmokeTrailsInterpolate& rOldSmokeTrails = rSub.pCurrent->interpolate.smokeTrails;
-			engine::SmokeTrailsInterpolate& rNewSmokeTrails = rFrame.interpolate.smokeTrails;
-			int64_t iCopyCount = std::min(rOldSmokeTrails.iCount, rNewSmokeTrails.iCount);
-			if (iCopyCount > 0)
-			{
-				std::memcpy(rNewSmokeTrails.pVecSmoothedPositions, rOldSmokeTrails.pVecSmoothedPositions, iCopyCount * sizeof(XMVECTOR));
-			}
-		}
-		if (rSub.uiGeneration == 0)
-		{
-			rSub.uiGeneration = mpReconciler->NextGeneration();
-		}
-
-		if (rSub.iConfirmedTick < 0)
-		{
-			// Only advance tick counter during initial setup (no other coords have confirmed data yet)
-			bool bInitialSetup = (GetConfirmedTick() < 0);
-
-			// Single serialization copy: received -> current
-			rSub.pCurrent = std::make_unique<Frame>();
-			std::ostringstream outputStream;
-			outputStream << *rFullState.pFrame;
-			std::istringstream inputStream(outputStream.str());
-			inputStream >> *rSub.pCurrent;
-
-			if (rSub.pNext == nullptr)
-			{
-				rSub.pNext = std::make_unique<Frame>();
-			}
-
-			// Original received frame -> snapshot[0], which IS the confirmed frame
-			rSub.iSnapshotHead = 0;
-			rSub.snapshots[0] = std::move(rFullState.pFrame);
-			rSub.snapshots[0]->postRender.sharedCrc = rSub.snapshots[0]->Crcs();
-			rSub.iSnapshotCount = 1;
-			rSub.iConfirmedTick = iTick;
-			rSub.iConfirmedOffset = 0;
-
-			// Set frame counter from first received full state only (not from subsequent neighbor subscriptions)
-			if (bInitialSetup && gpGame->TickCounter() < iTick)
-			{
-				gpGame->SetTickCounter(iTick);
-				gpGame->SetCurrentTime(rSub.pCurrent->interpolate.fCurrentTime);
-			}
-
-			ConfirmedClientState confirmedState;
-			confirmedState.clientGridCoord = gpGame->mClientGridCoord;
-			confirmedState.clientGlobalPlayerId = gpGame->ClientPlayerId();
-			confirmedState.fPreviousClientArmor = gpGame->PreviousClientArmor();
-			confirmedState.fCurrentTime = rSub.pCurrent->interpolate.fCurrentTime;
-			mpReconciler->InitConfirmedClientState(confirmedState);
-			mpReconciler->SetHasNewData();
-		}
-		else
-		{
-			// Reject stale full states: tick must be after confirmed tick
-			if (iTick <= rSub.iConfirmedTick)
-			{
-				Log(kLogNetwork, kVerbose, "ApplyReceivedFullStates Rejected stale full state Coord: ({},{}) FullStateTick: {} ConfirmedTick: {}", coord.x, coord.y, iTick, rSub.iConfirmedTick);
-				continue;
-			}
-
-			// Coord already has confirmed state: store as pending for reconcile injection
-			rSub.pendingFullState = engine::CoordFrames::PendingFullState {
-				.iTick = iTick,
-				.pFrame = std::move(rFullState.pFrame),
-			};
-
-			mpReconciler->SetHasNewData();
-		}
-	}
-
-}
-
-void ClientSession::ApplyReceivedUpdates()
-{
-	if (ApplyReceivedUpdatesBase())
-	{
-		mpReconciler->SetHasNewData();
-	}
-}
-
 void ClientSession::ConnectToServer(std::string_view serverAddress)
 {
 	gpGame->mModalMessage[0] = '\0';
@@ -416,8 +280,7 @@ void ClientSession::DisconnectFromServer()
 
 	mpReconciler->Reset();
 	DisconnectFromServerBase();
-	mDesyncDebugState = {};
-	miDesyncCount = 0;
+	mpDesyncManager->Reset();
 	mDesiredCoords.clear();
 	mUnwantedTimestamps.clear();
 }
@@ -460,32 +323,6 @@ void ClientSession::TryEnterGame()
 	}
 }
 
-void ClientSession::PollDebugFrameResponse()
-{
-	std::unique_ptr<engine::ReceivedDebugFrame> pDebugFrame = mpClientNetwork->DrainReceivedDebugFrame();
-	if (pDebugFrame != nullptr && mDesyncDebugState.pClientFrame != nullptr)
-	{
-		CompareWithServerFrame(*mDesyncDebugState.pClientFrame, *pDebugFrame->pFrame, mDesyncDebugState.iTick, mDesyncDebugState.coord);
-		mDesyncDebugState = {};
-
-		if constexpr (kbDesyncRecovery)
-		{
-			if constexpr (kbDebugBreak)
-			{
-				DEBUG_BREAK();
-			}
-
-			RecoverFromDesync();
-		}
-		else
-		{
-			ASSERT(false);
-			snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
-			mpClientNetwork->Disconnect();
-		}
-	}
-}
-
 bool ClientSession::PollConnection()
 {
 	PollLANDiscovery();
@@ -504,25 +341,8 @@ bool ClientSession::PollConnection()
 
 	TryEnterGame();
 
-	PollDebugFrameResponse();
-
-	// Timeout desync debug mode if server never responds
-	if (mDesyncDebugState.iTick >= 0 && std::chrono::steady_clock::now() - mDesyncDebugState.entryTime > kDesyncDebugTimeout)
-	{
-		mDesyncDebugState = {};
-		if constexpr (kbDesyncRecovery)
-		{
-			Log(kLogNetwork, kWarning, "ClientSession::PollConnection Desync debug mode timed out, recovering without debug frame");
-			RecoverFromDesync();
-		}
-		else
-		{
-			Log(kLogNetwork, kWarning, "ClientSession::PollConnection Desync debug mode timed out, disconnecting");
-			ASSERT(false);
-			snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server (debug frame timeout)");
-			mpClientNetwork->Disconnect();
-		}
-	}
+	mpDesyncManager->PollDebugFrameResponse();
+	mpDesyncManager->PollDesyncTimeout();
 
 	if (mpClientNetwork->WasDisconnected())
 	{
@@ -532,42 +352,12 @@ bool ClientSession::PollConnection()
 	}
 
 	// Waiting for debug frame response — skip normal processing
-	if (mDesyncDebugState.iTick >= 0)
+	if (IsStalled())
 	{
 		return false;
 	}
 
 	return true;
-}
-
-void ClientSession::RecoverFromDesync()
-{
-	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-
-	if (miDesyncCount > 0 && now - mFirstDesyncTime > kDesyncWindowDuration)
-	{
-		miDesyncCount = 0;
-	}
-
-	if (miDesyncCount == 0)
-	{
-		mFirstDesyncTime = now;
-	}
-	++miDesyncCount;
-
-	Log(kLogNetwork, kWarning, "ClientSession::RecoverFromDesync DesyncCount: {} / {}", miDesyncCount, kiMaxDesyncsBeforeDisconnect);
-
-	if (miDesyncCount >= kiMaxDesyncsBeforeDisconnect)
-	{
-		Log(kLogNetwork, kWarning, "ClientSession::RecoverFromDesync Escalating to disconnect");
-		snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
-		mpClientNetwork->Disconnect();
-		return;
-	}
-
-	mpClientNetwork->SendResyncRequest();
-	mpClientNetwork->SetDesyncDebugMode(false);
-	ResetCoordStatesForResync();
 }
 
 void ClientSession::ResetForServerLoad()
@@ -611,13 +401,10 @@ void ClientSession::ResetForServerLoad()
 	// Clear local coord frames (stale pre-load data)
 	gpGame->mCoordFrames.clear();
 
-	// Reset reconciler and subscription state
+	// Reset reconciler, subscription, and desync state
 	mpReconciler->Reset();
-	mDesiredCoords.clear();
-	mUnwantedTimestamps.clear();
-	mSubscriptionQueue.clear();
-	mDesyncDebugState = {};
-	miDesyncCount = 0;
+	ClearSubscriptionState();
+	mpDesyncManager->Reset();
 
 	// Clear stale coord data from this poll cycle (game packets preserved for assign processing)
 	mpClientNetwork->DrainReceivedFullStates().clear();
@@ -627,20 +414,88 @@ void ClientSession::ResetForServerLoad()
 	}
 }
 
-void ClientSession::ResetCoordStatesForResync()
+void ClientSession::ClearSubscriptionState()
 {
-	for (auto& [rCoord, rSub] : gpGame->mCoordFrames)
-	{
-		rSub.ResetClientState();
-	}
-
-	mpReconciler->Reset();
+	mDesiredCoords.clear();
 	mUnwantedTimestamps.clear();
+	mSubscriptionQueue.clear();
 }
 
-void ClientSession::CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, [[maybe_unused]] int64_t iTick, [[maybe_unused]] engine::GridCoord coord)
+void ClientSession::SendUpdatePlayerRequest(int64_t iGlobalPlayerId, bool bUseMissiles, float fNavigationDelay)
 {
-	rClientFrame.LogDifferences(rServerFrame);
+	if (!CanSend())
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kClientUpdatePlayerRequest));
+	rWorkbuffer.PushBack<int64_t>(iGlobalPlayerId);
+	rWorkbuffer.PushBack<uint8_t>(bUseMissiles ? 1 : 0);
+	rWorkbuffer.PushBack<float>(fNavigationDelay);
+
+	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	Log(kLogNetwork, kVerbose, "ClientSession::SendUpdatePlayerRequest GlobalPlayer: {} Missiles: {} NavDelay: {}", iGlobalPlayerId, bUseMissiles, fNavigationDelay);
+	rWorkbuffer.Pop();
+}
+
+void ClientSession::SendCreateFleetRequest()
+{
+	if (!CanSend())
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kClientCreateFleetRequest));
+
+	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	Log(kLogNetwork, "ClientSession::SendCreateFleetRequest");
+
+	rWorkbuffer.Pop();
+}
+
+void ClientSession::SendSpawnIntoFleetRequest(int64_t iFleetIndex)
+{
+	if (!CanSend())
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kClientSpawnIntoFleetRequest));
+	rWorkbuffer.PushBack<int64_t>(iFleetIndex);
+
+	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	Log(kLogNetwork, "ClientSession::SendSpawnIntoFleetRequest Fleet: {}", iFleetIndex);
+
+	rWorkbuffer.Pop();
+}
+
+void ClientSession::SendRespawnInFleetRequest(int64_t iFleetIndex, int64_t iMemberIndex)
+{
+	if (!CanSend())
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kClientRespawnInFleetRequest));
+	rWorkbuffer.PushBack<int64_t>(iFleetIndex);
+	rWorkbuffer.PushBack<int64_t>(iMemberIndex);
+
+	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	Log(kLogNetwork, "ClientSession::SendRespawnInFleetRequest Fleet: {} Member: {}", iFleetIndex, iMemberIndex);
+
+	rWorkbuffer.Pop();
 }
 
 #endif // BT_CLIENT

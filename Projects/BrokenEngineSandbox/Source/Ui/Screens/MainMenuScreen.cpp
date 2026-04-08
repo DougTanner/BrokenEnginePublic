@@ -4,7 +4,7 @@
 
 #include "Game.h"
 #include "MenuUtils.h"
-#include "Network/ClientSession.h"
+#include "Network/Client/ClientSession.h"
 #include "Ui/Localization.h"
 
 namespace game

@@ -58,6 +58,7 @@ public:
 	std::vector<Buffer> mMainLayoutUniformBuffers;
 
 	std::vector<Buffer> mTextStorageBuffers;
+	std::vector<Buffer> mUiRectStorageBuffers;
 
 	std::vector<Buffer> mSmokeSpreadStorageBuffers;
 	std::vector<Buffer> mWindSpreadStorageBuffers;

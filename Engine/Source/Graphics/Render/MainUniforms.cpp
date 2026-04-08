@@ -112,6 +112,15 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	XMStoreFloat4(&rMainLayout.f4EyePosition, game::gpCamera->mVecEyePosition);
 	XMStoreFloat4(&rMainLayout.f4ToEyeNormal, game::gpCamera->mVecToEyeNormal);
 
+	// Wave phase reduction: read elapsed time from already-populated global layout
+	const shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<const shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
+	double dWaveTime = static_cast<double>(rGlobalLayout.fElapsedTime);
+	XMFLOAT4A f4WaveCameraPos {};
+	XMStoreFloat4A(&f4WaveCameraPos, game::gpCamera->mVecPosition);
+	double dWaveCameraX = static_cast<double>(f4WaveCameraPos.x);
+	double dWaveCameraY = static_cast<double>(f4WaveCameraPos.y);
+	constexpr double kdTwoPi = 2.0 * 3.14159265358979323846;
+
 	// Water low frequency
 	{
 		int64_t iCount = gLowCount.Get<int64_t>();
@@ -127,7 +136,13 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 		rMainLayout.pf4LowWavesTwo[0].x = (2.0f * XM_PI) / (gLowWavelength.Get()); // Omega
 		rMainLayout.pf4LowWavesTwo[0].y = gLowAmplitude.Get();
 		rMainLayout.pf4LowWavesTwo[0].z = gLowSpeed.Get() * rMainLayout.pf4LowWavesTwo[0].x; // Phi
-		rMainLayout.pf4LowWavesTwo[0].w = 0.0f;
+		{
+			double dDirX = static_cast<double>(rMainLayout.pf4LowWavesOne[0].x);
+			double dDirY = static_cast<double>(rMainLayout.pf4LowWavesOne[0].y);
+			double dOmega = static_cast<double>(rMainLayout.pf4LowWavesTwo[0].x);
+			double dPhi = static_cast<double>(rMainLayout.pf4LowWavesTwo[0].z);
+			rMainLayout.pf4LowWavesTwo[0].w = static_cast<float>(std::fmod((dDirX * dWaveCameraX + dDirY * dWaveCameraY) * dOmega + dPhi * dWaveTime, kdTwoPi));
+		}
 
 		common::RandomEngine randomEngine {};
 		for (int64_t i = 1; i < iCount; ++i)
@@ -149,7 +164,13 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 			rMainLayout.pf4LowWavesTwo[i].y = std::abs(gLowAmplitude.Get() - fAmplitudeAdjust * gLowAmplitude.Get());
 			rMainLayout.pf4LowWavesTwo[i].y = std::min(rMainLayout.pf4LowWavesTwo[i].y, 0.1f * (1.0f / rMainLayout.pf4LowWavesTwo[i].x));
 			rMainLayout.pf4LowWavesTwo[i].z = (gLowSpeed.Get() + gLowSpeed.Get() * fSpeedAdjust * common::Random(randomEngine)) * rMainLayout.pf4LowWavesTwo[i].x; // Phi
-			rMainLayout.pf4LowWavesTwo[i].w = 0.0f;
+			{
+				double dDirX = static_cast<double>(rMainLayout.pf4LowWavesOne[i].x);
+				double dDirY = static_cast<double>(rMainLayout.pf4LowWavesOne[i].y);
+				double dOmega = static_cast<double>(rMainLayout.pf4LowWavesTwo[i].x);
+				double dPhi = static_cast<double>(rMainLayout.pf4LowWavesTwo[i].z);
+				rMainLayout.pf4LowWavesTwo[i].w = static_cast<float>(std::fmod((dDirX * dWaveCameraX + dDirY * dWaveCameraY) * dOmega + dPhi * (dWaveTime + static_cast<double>(i)), kdTwoPi));
+			}
 
 			if (i < 64 && (i % 3) == 0)
 			{
@@ -177,7 +198,11 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 			rMainLayout.pf4MediumWavesTwo[i].y = std::abs(gMediumAmplitude.Get() + fAmplitudeAdjust * gMediumAmplitude.Get());
 			rMainLayout.pf4MediumWavesTwo[i].y = std::min(rMainLayout.pf4MediumWavesTwo[i].y, 0.1f * (1.0f / rMainLayout.pf4MediumWavesTwo[i].x));
 			rMainLayout.pf4MediumWavesTwo[i].z = (gMediumSpeed.Get() + fSpeedAdjust * gMediumSpeed.Get()) * rMainLayout.pf4MediumWavesTwo[i].x; // Phi
-			rMainLayout.pf4MediumWavesTwo[i].w = 0.0f;
+			double dDirX = static_cast<double>(rMainLayout.pf4MediumWavesOne[i].x);
+			double dDirY = static_cast<double>(rMainLayout.pf4MediumWavesOne[i].y);
+			double dOmega = static_cast<double>(rMainLayout.pf4MediumWavesTwo[i].x);
+			double dPhi = static_cast<double>(rMainLayout.pf4MediumWavesTwo[i].z);
+			rMainLayout.pf4MediumWavesTwo[i].w = static_cast<float>(std::fmod((dDirX * dWaveCameraX + dDirY * dWaveCameraY) * dOmega + dPhi * dWaveTime, kdTwoPi));
 		}
 	}
 

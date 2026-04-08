@@ -1,8 +1,8 @@
 #include "Game.h"
 
-#include "Network/ReconcileReplay.h"
+#include "Network/Client/ReconcileReplay.h"
 
-#include "Network/ClientReconciler.h"
+#include "Network/Client/ClientReconciler.h"
 #include "Frame/Collections/Players/Players.h"
 
 namespace game
@@ -10,7 +10,7 @@ namespace game
 
 #if defined(BT_CLIENT)
 
-static std::optional<engine::global_player_t> FindMatchingPlayerInCoord(const ReconcileContext& rReconcileContext, engine::GridCoord destination, engine::global_player_t globalPlayerId)
+static std::optional<engine::global_id_t> FindMatchingPlayerInCoord(const ReconcileContext& rReconcileContext, engine::GridCoord destination, engine::global_id_t globalPlayerId)
 {
 	for (const CoordReconcileWork& rDestWork : rReconcileContext.coordWork)
 	{
@@ -37,7 +37,7 @@ static std::optional<engine::global_player_t> FindMatchingPlayerInCoord(const Re
 		{
 			if (rDestFrame.postRender.pPlayers->pGlobalPlayerIds[j] == globalPlayerId)
 			{
-				Log(kLogNetwork, kVerbose, "ReconcileUpdateClientState Transfer matched GlobalPlayerId: {} Coord: ({},{})", globalPlayerId.iValue, destination.x, destination.y); // DT TEMP
+				Log(kLogNetwork, kVerbose, "ReconcileUpdateClientState Transfer matched GlobalPlayerId: {} Coord: ({},{})", globalPlayerId.iValue, destination.x, destination.y);
 				return globalPlayerId;
 			}
 		}
@@ -114,11 +114,11 @@ void ReconcileUpdateClientState(ReconcileContext& rReconcileContext)
 					}
 
 					engine::GridCoord destination {rWork.coord.x + rRequest.iDeltaX, rWork.coord.y + rRequest.iDeltaY};
-					Log(kLogNetwork, kVerbose, "ReconcileUpdateClientState TransferPlayer GlobalPlayerId: {} Source: ({},{}) Dest: ({},{})", clientState.clientGlobalPlayerId.iValue, rWork.coord.x, rWork.coord.y, destination.x, destination.y); // DT TEMP
+					Log(kLogNetwork, kVerbose, "ReconcileUpdateClientState TransferPlayer GlobalPlayerId: {} Source: ({},{}) Dest: ({},{})", clientState.clientGlobalPlayerId.iValue, rWork.coord.x, rWork.coord.y, destination.x, destination.y);
 					clientState.clientGridCoord = destination;
 					clientState.fPreviousClientArmor = rRequest.data.fHealth;
 
-					std::optional<engine::global_player_t> matchedId = FindMatchingPlayerInCoord(rReconcileContext, destination, clientState.clientGlobalPlayerId);
+					std::optional<engine::global_id_t> matchedId = FindMatchingPlayerInCoord(rReconcileContext, destination, clientState.clientGlobalPlayerId);
 					if (matchedId.has_value())
 					{
 						clientState.clientGlobalPlayerId = *matchedId;

@@ -18,19 +18,26 @@ void GraphicsMenuScreen::Render()
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
-	// Semi-transparent background
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.1f, 0.1f, 0.1f, 0.9f));
+	// Semi-transparent background (opaque when gOpaqueUi enabled)
+	float fBgAlpha = engine::gOpaqueUi.Get<bool>() ? 1.0f : 0.9f;
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.1f, 0.1f, 0.1f, fBgAlpha));
 
-	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.04f), ImGuiCond_Always);
+	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.5f, rIo.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+	ImGui::SetNextWindowSize(ImVec2(rIo.DisplaySize.x * 0.6f, 0.0f));
 
 	ImGui::Begin("GraphicsMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
 	ImGui::SetWindowFontScale(kfMenuUiScale);
+
+	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
 
 	// FPS display
 	ImGui::Text("FPS: %lld", engine::gpGraphics->mRendersInTheLastSecond.Get());
 
 	ImGui::Separator();
 
+	ImGui::Columns(2, "GraphicsColumns", false);
+
+	// Left column: Display & Quality
 	// Time of day (only in main menu)
 	if (gpGame->InMainMenu())
 	{
@@ -44,7 +51,7 @@ void GraphicsMenuScreen::Render()
 	WrapperToggle("Fullscreen", &engine::gFullscreen);
 
 	ImGui::Text("Presentation Mode");
-	int iPresentMode = 0;
+	int64_t iPresentMode = 0;
 	VkPresentModeKHR ePresentMode = engine::gPresentMode.Get<VkPresentModeKHR>();
 	if (ePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) iPresentMode = 0;
 	else if (ePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) iPresentMode = 1;
@@ -61,7 +68,7 @@ void GraphicsMenuScreen::Render()
 	WrapperToggle("Multisampling", &engine::gMultisampling);
 	if (engine::gMultisampling.Get<bool>())
 	{
-		int iSampleCount = 0;
+		int64_t iSampleCount = 0;
 		VkSampleCountFlagBits eSampleCount = engine::gSampleCount.Get<VkSampleCountFlagBits>();
 		if (eSampleCount == VK_SAMPLE_COUNT_2_BIT) iSampleCount = 0;
 		else if (eSampleCount == VK_SAMPLE_COUNT_4_BIT) iSampleCount = 1;
@@ -77,7 +84,8 @@ void GraphicsMenuScreen::Render()
 		if (ImGui::RadioButton("16x", iSampleCount == 3)) engine::gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_16_BIT);
 	}
 
-	ImGui::Separator();
+	// Right column: Effects & Misc
+	ImGui::NextColumn();
 
 	WrapperToggle("Anisotropy", &engine::gAnisotropy);
 	if (engine::gAnisotropy.Get<bool>())
@@ -97,7 +105,7 @@ void GraphicsMenuScreen::Render()
 	ImGui::Separator();
 
 	ImGui::Text("World Detail");
-	int iWorldDetail = 0;
+	int64_t iWorldDetail = 0;
 	float fWorldDetail = engine::gWorldDetail.Get();
 	if (fWorldDetail == 0.0625f) iWorldDetail = 0;
 	else if (fWorldDetail == 0.125f) iWorldDetail = 1;
@@ -120,10 +128,19 @@ void GraphicsMenuScreen::Render()
 
 	WrapperToggle("Wind", &engine::gWind);
 
+	ImGui::Separator();
+
+	WrapperToggle("Opaque UI", &engine::gOpaqueUi);
+
+	WrapperPlusMinus("Font Size", &engine::gUiFontScale, 0.1f);
+
+	ImGui::Columns(1);
+
 	// Back button
 	ImGui::Separator();
 	if (ImGui::Button("Back"))
 	{
+		Game::SaveGraphicsSettings();
 		gpGame->meUiState = UiState::kPause;
 	}
 

@@ -100,6 +100,18 @@ PipelineManager::PipelineManager()
 		},
 	});
 
+	mpPipelines[kPipelineUiDepthPrepass].Create(
+	{
+		.name = "UiDepthPrepass",
+		.flags = {kDepthTest, kDepthWrite, kNoColorWrite, kNoWireframe},
+		.ppShaders = {&mShaders.at(data::kShadersUiUiDepthPrepassvertCrc), &mShaders.at(data::kShadersUiUiDepthPrepassfragCrc)},
+		.pVertexBuffer = nullptr,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mUiRectStorageBuffers.data()},
+		},
+	});
+
 	if constexpr (kbDebugInput)
 	{
 		RenderTargetTextures& rTextures = gpTextureManager->mRenderTargetTextures;

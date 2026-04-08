@@ -90,10 +90,6 @@ public:
 	void SendSaveRequest();
 	void SendLoadRequest();
 	void SendResetRequest();
-	void SendUpdatePlayerRequest(int64_t iGlobalPlayerId, bool bUseMissiles, float fNavigationDelay);
-	void SendCreateFleetRequest();
-	void SendSpawnIntoFleetRequest(int64_t iFleetIndex);
-	void SendRespawnInFleetRequest(int64_t iFleetIndex, int64_t iMemberIndex);
 	void SendReplayRecordRequest();
 	void SendReplayPlaybackRequest();
 	void Flush();

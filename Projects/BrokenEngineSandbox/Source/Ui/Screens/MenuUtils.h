@@ -29,5 +29,6 @@ const char* AppendUtf8(common::Workbuffer& rWorkbuffer, std::u32string_view u32s
 
 bool WrapperToggle(std::string_view label, engine::Wrapper* pWrapper);
 bool WrapperSlider(std::string_view label, engine::Wrapper* pWrapper);
+bool WrapperPlusMinus(std::string_view label, engine::Wrapper* pWrapper, float fStep);
 
 } // namespace game

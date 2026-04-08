@@ -151,7 +151,6 @@ struct GlobalLayout
 	int32_t iCommandBuffer INIT;
 	int32_t iCameraFrame INIT;
 	int32_t iTickCounter INIT;
-	int32_t iCommandBufferPad INIT;
 
 	float fElapsedTime INIT;
 	float fBaseHeight INIT;
@@ -269,11 +268,11 @@ struct GlobalLayout
 	float fShadowSunriseStretch INIT;
 	float fShadowSunsetStretch INIT;
 	float fShadowAffectAmbient INIT;
-	float fShadowFourPadW INIT;
+	float fWaterReducedNoiseOriginX INIT;
 	int32_t iShadowElevationSize INIT;
 	int32_t iShadowIncrement INIT;
 	int32_t iShadowStartOffset INIT;
-	int32_t iShadowOnePadW INIT;
+	float fWaterReducedNoiseOriginY INIT;
 	int32_t iShadowTextureWidth INIT;
 	int32_t iShadowTextureHeight INIT;
 	int32_t iObjectShadowTextureWidth INIT;
@@ -286,14 +285,14 @@ struct GlobalLayout
 	float fWaterEarlyOut INIT;
 	float fWaterDepth INIT;
 	float fTerrainSunBrightness INIT;
-	float fTerrainTwoPadZ INIT;
-	float fTerrainTwoPadW INIT;
+	float fWaterReducedNormalOriginX INIT;
+	float fWaterReducedNormalOriginY INIT;
 
 	// Water
 	int32_t iWaterLowCount INIT;
 	int32_t iWaterMediumCount INIT;
-	int32_t iWaterPadZ INIT;
-	int32_t iWaterPadW INIT;
+	float fWaterOriginX INIT;
+	float fWaterOriginY INIT;
 	float fWaterHeight INIT;
 	float fWaterTerrainHeight INIT;
 	float fWaterTerrainFade INIT;
@@ -312,18 +311,18 @@ struct GlobalLayout
 	float fWaterColorBottom INIT;
 	float fWaterColorHeightInv INIT;
 	float fWaterColorNoiseAmount INIT;
-	float fWaterFivePadX INIT;
-	float fWaterFivePadY INIT;
-	float fWaterFivePadZ INIT;
+	float fWaterDebugLowWaveOffset INIT;
+	float fWaterDebugMediumWaveOffset INIT;
+	float fWaterDebugNormalOneOffset INIT;
 	float fWaterDirectional INIT;
 	float fWaterFresnel2 INIT;
 	float fBeachDirectionalFadeBottom INIT;
 	float fBeachDirectionalFadeHeightInv INIT;
 	float fWaterLowSteepness INIT;
 	float fWaterMediumSteepness INIT;
-	float fWaterSevenPadY INIT;
-	float fWaterSevenPadZ INIT;
-	float fWaterSevenPadW INIT;
+	float fWaterDebugNormalTwoOffset INIT;
+	float fWaterDebugNoiseOffset INIT;
+	float fWaterReducedNormalTime INIT;
 
 	// Particles
 	float fParticlesStretchVelocityStart INIT;
@@ -376,8 +375,6 @@ struct MainLayout
 {
 	int32_t iFrameNumber INIT;
 	int32_t iRenderNumber INIT;
-	int32_t iPad0 INIT;
-	int32_t iPad1 INIT;
 
 	vec4 f4x4ViewProjection[4] INIT;
 

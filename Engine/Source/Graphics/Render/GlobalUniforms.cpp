@@ -158,7 +158,7 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	rGlobalLayout.fShadowSunriseStretch = fSunriseStretch * gObjectShadowsSunsetStretch.Get();
 	rGlobalLayout.fShadowSunsetStretch = fSunsetStretch * gObjectShadowsSunsetStretch.Get();
 	rGlobalLayout.fShadowAffectAmbient = std::pow(fDayPercent, 0.25f) * gShadowAffectAmbient.Get();
-	rGlobalLayout.fShadowFourPadW = 0.0f;
+	rGlobalLayout.fWaterReducedNoiseOriginX = 0.0f;
 
 	rGlobalLayout.fShadowTextureSizeWidth = fShadowTextureSizeWidth;
 	rGlobalLayout.fShadowTextureSizeHeight = fShadowTextureSizeHeight;
@@ -240,8 +240,8 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 
 	rGlobalLayout.fWaterDepth = gWaterDepth.Get();
 	rGlobalLayout.fTerrainSunBrightness = std::max(0.25f, std::pow(fDayPercent, 0.25f));
-	rGlobalLayout.fTerrainTwoPadZ = 0.0f;
-	rGlobalLayout.fTerrainTwoPadW = 0.0f;
+	rGlobalLayout.fWaterReducedNormalOriginX = 0.0f;
+	rGlobalLayout.fWaterReducedNormalOriginY = 0.0f;
 
 	// Normal flip is now per-island in TerrainNormal pass
 	rGlobalLayout.fTerrainNormalXMultiplier = 1.0f;
@@ -332,6 +332,39 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 
 	rGlobalLayout.iWaterLowCount = static_cast<int>(std::min(gLowCount.Get<int64_t>(), static_cast<int64_t>(gLowMax.Get())));
 	rGlobalLayout.iWaterMediumCount = static_cast<int>(gMediumCount.Get<int64_t>());
+
+	// Water debug offsets (wave offsets are raw; normal/noise offsets are double-precision reduced)
+	rGlobalLayout.fWaterDebugLowWaveOffset = gWaterDebugLowWaveOffset.Get();
+	rGlobalLayout.fWaterDebugMediumWaveOffset = gWaterDebugMediumWaveOffset.Get();
+
+	// Water precision: camera-relative UV reduction (double precision on CPU)
+	XMFLOAT4A f4CameraPos {};
+	XMStoreFloat4A(&f4CameraPos, game::gpCamera->mVecPosition);
+	rGlobalLayout.fWaterOriginX = f4CameraPos.x;
+	rGlobalLayout.fWaterOriginY = f4CameraPos.y;
+
+	double dSizeBase = static_cast<double>(gLightingSampledNormalsSize.Get());
+	double dSpeed = static_cast<double>(gLightingSampledNormalsSpeed.Get());
+	double dTime = static_cast<double>(rGlobalLayout.fElapsedTime);
+	double dCameraX = static_cast<double>(f4CameraPos.x);
+	double dCameraY = static_cast<double>(f4CameraPos.y);
+
+	rGlobalLayout.fWaterReducedNormalOriginX = static_cast<float>(std::fmod(dSizeBase * dCameraX, 1.0));
+	rGlobalLayout.fWaterReducedNormalOriginY = static_cast<float>(std::fmod(dSizeBase * dCameraY, 1.0));
+	rGlobalLayout.fWaterReducedNormalTime = static_cast<float>(std::fmod(dSizeBase * dSpeed * dTime, 1.0));
+
+	// Normal/noise debug offsets reduced alongside camera origin
+	double dDebugNormalOne = static_cast<double>(gWaterDebugNormalOneOffset.Get());
+	double dDebugNormalTwo = static_cast<double>(gWaterDebugNormalTwoOffset.Get());
+	rGlobalLayout.fWaterDebugNormalOneOffset = static_cast<float>(std::fmod(dSizeBase * dDebugNormalOne, 1.0));
+	rGlobalLayout.fWaterDebugNormalTwoOffset = static_cast<float>(std::fmod(dSizeBase * dDebugNormalTwo, 1.0));
+
+	double dNoiseFreq = static_cast<double>(gWaterColorNoiseFrequency.Get());
+	rGlobalLayout.fWaterReducedNoiseOriginX = static_cast<float>(std::fmod(dNoiseFreq * dCameraX, 1.0));
+	rGlobalLayout.fWaterReducedNoiseOriginY = static_cast<float>(std::fmod(dNoiseFreq * dCameraY, 1.0));
+
+	double dDebugNoise = static_cast<double>(gWaterDebugNoiseOffset.Get());
+	rGlobalLayout.fWaterDebugNoiseOffset = static_cast<float>(std::fmod(dNoiseFreq * dDebugNoise, 1.0));
 }
 
 void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick)
@@ -348,7 +381,6 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	rGlobalLayout.iCommandBuffer = static_cast<int>(iCommandBuffer);
 	rGlobalLayout.iCameraFrame = static_cast<int>(game::gpCamera->miFrame);
 	rGlobalLayout.iTickCounter = static_cast<int>(iTick);
-	rGlobalLayout.iCommandBufferPad = static_cast<int>(iCommandBuffer);
 
 	rGlobalLayout.fElapsedTime = fCurrentTime;
 	rGlobalLayout.fBaseHeight = gBaseHeight.Get();

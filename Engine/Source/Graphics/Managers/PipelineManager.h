@@ -53,6 +53,8 @@ enum Pipelines
 
 	kPipelineDebugTexture,
 
+	kPipelineUiDepthPrepass,
+
 	kPipelineDebugBox,
 	kPipelineDebugSphere,
 	kPipelineDebugCircle,

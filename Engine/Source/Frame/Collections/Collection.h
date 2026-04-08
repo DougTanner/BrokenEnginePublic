@@ -29,13 +29,13 @@ class TextureManager;
 
 enum class CommandBufferFlags : uint8_t;
 
-// Stable player identity across transfers and reconnects
+// Stable entity identity across transfers and reconnects
 // Assigned by server at first spawn, carried in TransferData
-struct global_player_t
+struct global_id_t
 {
 	int64_t iValue = 0;
 	constexpr bool IsValid() const { return iValue != 0; }
-	bool operator==(const global_player_t&) const = default;
+	bool operator==(const global_id_t&) const = default;
 };
 
 // Global unique identifier with counter stored in FramePostRenderBase

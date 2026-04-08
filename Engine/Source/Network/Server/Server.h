@@ -14,20 +14,26 @@ namespace game
 
 struct Frame;
 struct StatusChange;
-struct Fleet;
 
 } // namespace game
 
 namespace engine
 {
 
+struct ReceivedGamePacket
+{
+	int64_t iClientId = 0;
+	uint8_t uiPacketType = 0;
+	// Heap: raw game packet payload (type byte stripped)
+	std::vector<uint8_t> payload;
+};
+
 struct ClientConnection
 {
 	ENetPeer* pPeer = nullptr;
 	int64_t iClientId = 0;
 	bool bHandshakeComplete = false;
-	std::vector<global_player_t> ownedPlayerIds;
-	std::vector<GridCoord> ownedPlayerCoords;
+	std::vector<GridCoord> authorizedCoords;
 	ClientGuid clientGuid {};
 
 	// Slot-based coord subscriptions with independent ACK tracking
@@ -103,8 +109,6 @@ public:
 
 	void Poll();
 
-	void SendAssignPlayer(int64_t iClientId, global_player_t globalPlayerId, GridCoord coord);
-	void SendPlayerState(int64_t iClientId, uint8_t uiStateType, int64_t iPlayerId, GridCoord coord);
 	void SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick, GridCoord coord, const game::Frame* pFrame);
 	void SendCoordStaticData(int64_t iClientId, int64_t iSlot, GridCoord coord, const FrameStaticData& rStaticData);
 	void BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);
@@ -116,15 +120,11 @@ public:
 	std::vector<PendingDisconnect>& DrainPendingDisconnects() { return mPendingDisconnects; }
 	std::vector<PendingNewSubscription>& DrainPendingNewSubscriptions() { return mPendingNewSubscriptions; }
 	std::vector<int64_t>& DrainPendingResyncClientIds() { return mPendingResyncClientIds; }
-	std::vector<PendingUpdatePlayerRequest>& DrainPendingUpdatePlayerRequests() { return mPendingUpdatePlayerRequests; }
-	std::vector<PendingCreateFleetRequest>& DrainPendingCreateFleetRequests() { return mPendingCreateFleetRequests; }
-	std::vector<PendingSpawnIntoFleetRequest>& DrainPendingSpawnIntoFleetRequests() { return mPendingSpawnIntoFleetRequests; }
-	std::vector<PendingRespawnInFleetRequest>& DrainPendingRespawnInFleetRequests() { return mPendingRespawnInFleetRequests; }
+	std::vector<ReceivedGamePacket>& DrainReceivedGamePackets() { return mReceivedGamePackets; }
 	const std::vector<ClientConnection>& GetClients() const { return mClients; }
 	std::vector<ClientConnection>& GetClients() { return mClients; }
 	ClientConnection* FindClient(int64_t iClientId);
 	const ClientConnection* FindClient(int64_t iClientId) const;
-	void SendFleetSync(int64_t iClientId, const std::vector<game::Fleet>& rFleets);
 	void BroadcastTimespeedUpdate(int64_t iMultiply, int64_t iDivide);
 	void SendTimespeedUpdate(ENetPeer* pPeer, int64_t iMultiply, int64_t iDivide);
 	void BroadcastLoadNotification();
@@ -154,10 +154,6 @@ private:
 	void ClientReplayPlaybackRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void ClientResetRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
 #endif // BT_SERVER
-	void ClientUpdatePlayerRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
-	void ClientCreateFleetRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
-	void ClientSpawnIntoFleetRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
-	void ClientRespawnInFleetRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage, const ClientGuid* pGuid);
 	void SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord);
 	void SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot);
@@ -173,10 +169,8 @@ private:
 	std::vector<PendingDisconnect> mPendingDisconnects;
 	std::vector<PendingNewSubscription> mPendingNewSubscriptions;
 	std::vector<int64_t> mPendingResyncClientIds;
-	std::vector<PendingUpdatePlayerRequest> mPendingUpdatePlayerRequests;
-	std::vector<PendingCreateFleetRequest> mPendingCreateFleetRequests;
-	std::vector<PendingSpawnIntoFleetRequest> mPendingSpawnIntoFleetRequests;
-	std::vector<PendingRespawnInFleetRequest> mPendingRespawnInFleetRequests;
+	// Heap: raw game packets forwarded for game-layer parsing
+	std::vector<ReceivedGamePacket> mReceivedGamePackets;
 	int64_t miNextClientId = 1;
 
 	// Per-coord ring buffers for re-sends

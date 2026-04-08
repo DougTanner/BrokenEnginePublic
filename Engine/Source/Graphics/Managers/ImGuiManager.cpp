@@ -23,6 +23,32 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	CreateRenderPass();
 	CreateFramebuffers();
 
+	// Create host-visible indirect draw buffer for UI depth pre-pass
+	{
+		int64_t iFramebufferCount = static_cast<int64_t>(gpSwapchainManager->mFramebuffers.size());
+		VkBufferCreateInfo vkBufferCreateInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+			.size = static_cast<VkDeviceSize>(iFramebufferCount * sizeof(VkDrawIndirectCommand)),
+			.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
+			.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		};
+		VmaAllocationCreateInfo vmaAllocationCreateInfo
+		{
+			.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+			.usage = VMA_MEMORY_USAGE_AUTO,
+			.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		};
+		VmaAllocationInfo vmaAllocationInfo {};
+		CHECK_VK(vmaCreateBuffer(gpDeviceManager->mpAllocator, &vkBufferCreateInfo, &vmaAllocationCreateInfo, &mUiPrepassIndirectVkBuffer, &mUiPrepassIndirectVmaAllocation, &vmaAllocationInfo));
+		VkName(VK_OBJECT_TYPE_BUFFER, mUiPrepassIndirectVkBuffer, "UiPrepassIndirect");
+		mpUiPrepassIndirectMapped = static_cast<VkDrawIndirectCommand*>(vmaAllocationInfo.pMappedData);
+		for (int64_t i = 0; i < iFramebufferCount; ++i)
+		{
+			mpUiPrepassIndirectMapped[i] = {.vertexCount = 6, .instanceCount = 0, .firstVertex = 0, .firstInstance = 0};
+		}
+	}
+
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImPlot::CreateContext();
@@ -114,6 +140,8 @@ ImGuiManager::~ImGuiManager()
 	ImGui_ImplWin32_Shutdown();
 	ImPlot::DestroyContext();
 	ImGui::DestroyContext();
+
+	vmaDestroyBuffer(gpDeviceManager->mpAllocator, mUiPrepassIndirectVkBuffer, mUiPrepassIndirectVmaAllocation);
 
 	for (const VkFramebuffer vkFramebuffer : mImGuiFramebuffers)
 	{
@@ -210,8 +238,31 @@ void ImGuiManager::CreateFramebuffers()
 	}
 }
 
-void ImGuiManager::Submit(int64_t iFramebuffer)
+void ImGuiManager::Prepare(int64_t iFramebuffer)
 {
+	ImGui::GetStyle().FontScaleMain = gUiFontScale.Get();
+
+	// Toggle opaque UI style
+	auto [bOpaqueUi, bPreviousOpaqueUi, bOpaqueUiChanged] = gOpaqueUi.Changed<bool>();
+	if (bOpaqueUiChanged)
+	{
+		ImGuiStyle& rStyle = ImGui::GetStyle();
+		if (bOpaqueUi)
+		{
+			rStyle.Colors[ImGuiCol_WindowBg].w = 1.0f;
+			rStyle.Colors[ImGuiCol_ChildBg].w = 1.0f;
+			rStyle.Colors[ImGuiCol_PopupBg].w = 1.0f;
+		}
+		else
+		{
+			ImGuiStyle defaultStyle;
+			defaultStyle.ScaleAllSizes(2.0f);
+			rStyle.Colors[ImGuiCol_WindowBg].w = defaultStyle.Colors[ImGuiCol_WindowBg].w;
+			rStyle.Colors[ImGuiCol_ChildBg].w = defaultStyle.Colors[ImGuiCol_ChildBg].w;
+			rStyle.Colors[ImGuiCol_PopupBg].w = defaultStyle.Colors[ImGuiCol_PopupBg].w;
+		}
+	}
+
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
@@ -234,6 +285,44 @@ void ImGuiManager::Submit(int64_t iFramebuffer)
 	ImGui::Render();
 	mpDrawData = ImGui::GetDrawData();
 
+	UpdateUiRectBuffers(iFramebuffer);
+}
+
+void ImGuiManager::RegisterOpaqueRect(const ImVec2& pos, const ImVec2& size)
+{
+	if (!gOpaqueUi.Get<bool>() || miOpaqueRectCount >= kiMaxUiRects)
+	{
+		return;
+	}
+
+	float fWidth = static_cast<float>(gpGraphics->mFramebufferExtent2D.width);
+	float fHeight = static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
+
+	// Convert pixel coords to NDC [-1, 1] (Y inverted for negative viewport height)
+	float fMinX = 2.0f * pos.x / fWidth - 1.0f;
+	float fMaxX = 2.0f * (pos.x + size.x) / fWidth - 1.0f;
+	float fMinY = 1.0f - 2.0f * (pos.y + size.y) / fHeight;
+	float fMaxY = 1.0f - 2.0f * pos.y / fHeight;
+
+	mOpaqueRects[miOpaqueRectCount] = {fMinX, fMinY, fMaxX, fMaxY};
+	++miOpaqueRectCount;
+}
+
+void ImGuiManager::UpdateUiRectBuffers(int64_t iFramebuffer)
+{
+	if (miOpaqueRectCount > 0)
+	{
+		Buffer& rStorageBuffer = gpBufferManager->mUiRectStorageBuffers.at(iFramebuffer);
+		XMFLOAT4* pRects = reinterpret_cast<XMFLOAT4*>(rStorageBuffer.mpMappedMemory);
+		memcpy(pRects, mOpaqueRects, static_cast<size_t>(miOpaqueRectCount) * sizeof(XMFLOAT4));
+	}
+
+	mpUiPrepassIndirectMapped[iFramebuffer] = {.vertexCount = 6, .instanceCount = static_cast<uint32_t>(miOpaqueRectCount), .firstVertex = 0, .firstInstance = 0};
+	miOpaqueRectCount = 0;
+}
+
+void ImGuiManager::Submit(int64_t iFramebuffer)
+{
 	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer);
 
 	CHECK_VK(vkResetCommandBuffer(rCommandBuffers.mImGuiVkCommandBuffer, 0));

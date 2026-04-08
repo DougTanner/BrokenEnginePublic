@@ -1,12 +1,13 @@
 #include "Game.h"
 
-#include "Profile/ProfileManager.h"
-#include "Ui/Localization.h"
-
 #include "Frame/Collections/Blasters/Blasters.h"
 #include "Frame/Collections/Missiles/Missiles.h"
 #include "Frame/Collections/Players/Players.h"
 #include "Frame/Collections/Spaceships/Spaceships.h"
+#include "Network/Server/ServerBroadcaster.h"
+#include "Network/Server/ServerTransferManager.h"
+#include "Profile/ProfileManager.h"
+#include "Ui/Localization.h"
 #include "Ui/Screens/TweaksScreen/TweaksScreen.h"
 
 namespace game
@@ -59,7 +60,7 @@ Game::Game()
 
 }
 
-engine::global_player_t Game::ClientPlayerId() const
+engine::global_id_t Game::ClientPlayerId() const
 {
 #if defined(BT_CLIENT)
 	if (miFocusedFleetIndex >= 0 && miFocusedFleetIndex < std::ssize(mClientFleets))
@@ -78,12 +79,12 @@ engine::global_player_t Game::ClientPlayerId() const
 	return {};
 }
 
-bool Game::IsClientPlayer(engine::global_player_t id) const
+bool Game::IsClientPlayer(engine::global_id_t id) const
 {
 	return id.IsValid() && std::ranges::contains(mClientPlayerIds, id);
 }
 
-void Game::AddClientPlayer(engine::global_player_t id, engine::GridCoord coord)
+void Game::AddClientPlayer(engine::global_id_t id, engine::GridCoord coord)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	Log(kVerbose, "AddClientPlayer GlobalPlayerId: {} Coord: ({},{}) OldPlayerCount: {}", id.iValue, coord.x, coord.y, std::ssize(mClientPlayerIds)); // DT TEMP
@@ -91,7 +92,7 @@ void Game::AddClientPlayer(engine::global_player_t id, engine::GridCoord coord)
 	mClientPlayerCoords.push_back(coord);
 }
 
-void Game::RemoveClientPlayer(engine::global_player_t id)
+void Game::RemoveClientPlayer(engine::global_id_t id)
 {
 	for (int64_t i = 0; i < std::ssize(mClientPlayerIds); ++i)
 	{
@@ -112,7 +113,7 @@ int64_t Game::PlayerCount() const
 
 std::optional<int64_t> Game::ClientPlayerIndex(const PlayersPostRender& rPlayers) const
 {
-	engine::global_player_t focusedId = ClientPlayerId();
+	engine::global_id_t focusedId = ClientPlayerId();
 	if (focusedId.IsValid())
 	{
 		for (int64_t i = 0; i < rPlayers.iCount; ++i)
@@ -278,7 +279,7 @@ void Game::SyncFleets(std::vector<Fleet>&& fleets)
 	}
 
 	// Update mClientGridCoord based on current selection
-	engine::global_player_t focusedId = ClientPlayerId();
+	engine::global_id_t focusedId = ClientPlayerId();
 	if (focusedId.IsValid())
 	{
 		for (int64_t i = 0; i < std::ssize(mClientPlayerIds); ++i)
@@ -451,7 +452,7 @@ void Game::EnsureNextFrames()
 void Game::BuildFrameInputs()
 {
 #if defined(BT_SERVER)
-	gpServerSession->BuildFrameInputs();
+	gpServerSession->mpBroadcaster->BuildFrameInputs();
 #else
 	// Heap: unordered_map clear/insert for per-coordinate FrameInputs. Map persists as Game member
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
@@ -607,7 +608,7 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rD
 void Game::HarvestTransfers()
 {
 #if defined(BT_SERVER)
-	gpServerSession->HarvestTransfers();
+	gpServerSession->mpTransferManager->HarvestTransfers();
 #endif
 }
 
@@ -824,7 +825,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 					bool bCurrentMissiles = static_cast<bool>(rPlayers.pFlags[*oIdx] & PlayerFlags::kUseMissiles);
 					float fCurrentNavDelay = rPlayers.pfNavigationDelays[*oIdx];
 					mWeaponModeToggle.SetPending();
-					engine::gpClient->SendUpdatePlayerRequest(ClientPlayerId().iValue, !bCurrentMissiles, fCurrentNavDelay);
+					gpClientSession->SendUpdatePlayerRequest(ClientPlayerId().iValue, !bCurrentMissiles, fCurrentNavDelay);
 				}
 			}
 		}
@@ -889,9 +890,114 @@ void Game::ResetSoundSettings()
 	SaveSoundSettings();
 }
 
-struct TweaksSettings
+struct GraphicsSettings
 {
 	static constexpr int64_t kiVersion = 2;
+
+	bool bFullscreen = false;
+	VkPresentModeKHR ePresentMode = VK_PRESENT_MODE_FIFO_KHR;
+	bool bMultisampling = false;
+	VkSampleCountFlagBits eSampleCount = VK_SAMPLE_COUNT_4_BIT;
+	bool bAnisotropy = false;
+	float fMaxAnisotropy = 0.0f;
+	bool bSampleShading = false;
+	float fMinSampleShading = 0.0f;
+	float fMipLodBias = 0.0f;
+	float fWorldDetail = 0.0f;
+	bool bSmoke = false;
+	float fSmokeSimulationPixels = 0.0f;
+	float fSmokeSimulationArea = 0.0f;
+	float fMinimumAmbient = 0.0f;
+	bool bWind = false;
+	bool bOpaqueUi = false;
+	float fUiFontScale = 1.0f;
+};
+static constexpr char kpcGraphicsSettingsPath[] = "GraphicsSettings.bin";
+
+void Game::SaveGraphicsSettings()
+{
+	// Heap: file I/O allocates
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+	GraphicsSettings graphicsSettings
+	{
+		.bFullscreen = engine::gFullscreen.Get<bool>(),
+		.ePresentMode = engine::gPresentMode.Get<VkPresentModeKHR>(),
+		.bMultisampling = engine::gMultisampling.Get<bool>(),
+		.eSampleCount = engine::gSampleCount.Get<VkSampleCountFlagBits>(),
+		.bAnisotropy = engine::gAnisotropy.Get<bool>(),
+		.fMaxAnisotropy = engine::gMaxAnisotropy.Get(),
+		.bSampleShading = engine::gSampleShading.Get<bool>(),
+		.fMinSampleShading = engine::gMinSampleShading.Get(),
+		.fMipLodBias = engine::gMipLodBias.Get(),
+		.fWorldDetail = engine::gWorldDetail.Get(),
+		.bSmoke = engine::gSmoke.Get<bool>(),
+		.fSmokeSimulationPixels = engine::gSmokeSimulationPixels.Get(),
+		.fSmokeSimulationArea = engine::gSmokeSimulationArea.Get(),
+		.fMinimumAmbient = engine::gMinimumAmbient.Get(),
+		.bWind = engine::gWind.Get<bool>(),
+		.bOpaqueUi = engine::gOpaqueUi.Get<bool>(),
+		.fUiFontScale = engine::gUiFontScale.Get(),
+	};
+
+	engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, kpcGraphicsSettingsPath, graphicsSettings);
+}
+
+bool Game::LoadGraphicsSettings()
+{
+	GraphicsSettings graphicsSettings {};
+
+	if (engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, kpcGraphicsSettingsPath, graphicsSettings))
+	{
+		engine::gFullscreen.Set(graphicsSettings.bFullscreen);
+		engine::gPresentMode.Set<VkPresentModeKHR>(graphicsSettings.ePresentMode);
+		engine::gMultisampling.Set(graphicsSettings.bMultisampling);
+		engine::gSampleCount.Set<VkSampleCountFlagBits>(graphicsSettings.eSampleCount);
+		engine::gAnisotropy.Set(graphicsSettings.bAnisotropy);
+		engine::gMaxAnisotropy.Set(graphicsSettings.fMaxAnisotropy);
+		engine::gSampleShading.Set(graphicsSettings.bSampleShading);
+		engine::gMinSampleShading.Set(graphicsSettings.fMinSampleShading);
+		engine::gMipLodBias.Set(graphicsSettings.fMipLodBias);
+		engine::gWorldDetail.Set(graphicsSettings.fWorldDetail);
+		engine::gSmoke.Set(graphicsSettings.bSmoke);
+		engine::gSmokeSimulationPixels.Set(graphicsSettings.fSmokeSimulationPixels);
+		engine::gSmokeSimulationArea.Set(graphicsSettings.fSmokeSimulationArea);
+		engine::gMinimumAmbient.Set(graphicsSettings.fMinimumAmbient);
+		engine::gWind.Set(graphicsSettings.bWind);
+		engine::gOpaqueUi.Set(graphicsSettings.bOpaqueUi);
+		engine::gUiFontScale.Set(graphicsSettings.fUiFontScale);
+		return true;
+	}
+
+	return false;
+}
+
+void Game::ResetGraphicsSettings()
+{
+	engine::gFullscreen.ResetToDefault();
+	engine::gPresentMode.ResetToDefault();
+	engine::gMultisampling.ResetToDefault();
+	engine::gSampleCount.ResetToDefault();
+	engine::gAnisotropy.ResetToDefault();
+	engine::gMaxAnisotropy.ResetToDefault();
+	engine::gSampleShading.ResetToDefault();
+	engine::gMinSampleShading.ResetToDefault();
+	engine::gMipLodBias.ResetToDefault();
+	engine::gWorldDetail.ResetToDefault();
+	engine::gSmoke.ResetToDefault();
+	engine::gSmokeSimulationPixels.ResetToDefault();
+	engine::gSmokeSimulationArea.ResetToDefault();
+	engine::gMinimumAmbient.ResetToDefault();
+	engine::gWind.ResetToDefault();
+	engine::gOpaqueUi.ResetToDefault();
+	engine::gUiFontScale.ResetToDefault();
+
+	SaveGraphicsSettings();
+}
+
+struct TweaksSettings
+{
+	static constexpr int64_t kiVersion = 3;
 
 	bool bShowImGui = false;
 	bool bSectionVisible[static_cast<size_t>(engine::TweakSection::kCount)] {};
@@ -1146,7 +1252,7 @@ void Game::RestoreReplayMeta(const ReplayMeta& rMeta)
 	mClientGridCoord = rMeta.clientGridCoord;
 	if (rMeta.iClientPlayerIdValue != 0)
 	{
-		engine::global_player_t globalId {rMeta.iClientPlayerIdValue};
+		engine::global_id_t globalId {rMeta.iClientPlayerIdValue};
 		AddClientPlayer(globalId, rMeta.clientGridCoord);
 	}
 	mfPreviousClientArmor = rMeta.fPreviousClientArmor;

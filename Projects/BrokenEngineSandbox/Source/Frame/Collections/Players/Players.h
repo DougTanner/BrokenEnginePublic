@@ -184,7 +184,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	int8_t* __restrict piNavDirections = nullptr;
 	XMVECTOR* __restrict pVecIslandDestinations = nullptr;
 	engine::ClientGuid* __restrict pClientGuids = nullptr;
-	engine::global_player_t* __restrict pGlobalPlayerIds = nullptr;
+	engine::global_id_t* __restrict pGlobalPlayerIds = nullptr;
 	float* __restrict pfNavigationDelays = nullptr;
 	engine::GridCoord* __restrict pFlagshipCoords = nullptr;
 #if defined(BT_CLIENT)
@@ -262,7 +262,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 		float fFrameChangeTimer = 0.0f;
 		int8_t iNavDirection = 4;
 		float fNavigationDelay = 2.0f;
-		engine::global_player_t globalPlayerId {};
+		engine::global_id_t globalPlayerId {};
 		engine::GridCoord flagshipCoord {};
 	};
 

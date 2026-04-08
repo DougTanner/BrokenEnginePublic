@@ -64,6 +64,7 @@ enum class PipelineFlags : uint64_t
 	kAddAlpha                  = 0x10000,
 	kMultiSet                  = 0x20000,
 	kLineList                  = 0x40000,
+	kNoColorWrite              = 0x80000,
 };
 using PipelineFlags_t = common::Flags<PipelineFlags>;
 

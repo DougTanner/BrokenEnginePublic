@@ -391,7 +391,7 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 
 		if (rStatusChange.eType == StatusChangeType::kSpawnPlayer || rStatusChange.eType == StatusChangeType::kRespawnPlayer)
 		{
-			engine::global_player_t globalPlayerId {};
+			engine::global_id_t globalPlayerId {};
 			PlayerFlags_t spawnFlags {PlayerFlags::kBlasterSpawnLeft};
 			engine::GridCoord spawnFlagshipCoord {};
 			if (rStatusChange.eType == StatusChangeType::kSpawnPlayer)

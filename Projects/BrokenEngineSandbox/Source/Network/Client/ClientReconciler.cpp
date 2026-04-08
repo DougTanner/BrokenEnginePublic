@@ -1,7 +1,7 @@
 #include "Game.h"
 
-#include "Network/ClientReconciler.h"
-#include "Network/ReconcileReplay.h"
+#include "Network/Client/ClientReconciler.h"
+#include "Network/Client/ReconcileReplay.h"
 #include "Frame/Collections/Players/Players.h"
 #include "Profile/ProfileManager.h"
 

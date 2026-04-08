@@ -152,7 +152,7 @@ struct TransferData
 	float fNextJitter = 0.0f;
 
 	// Global player ID (player transfers only)
-	engine::global_player_t globalPlayerId {};
+	engine::global_id_t globalPlayerId {};
 
 	// Flagship coord (player transfers only)
 	engine::GridCoord flagshipCoord {};

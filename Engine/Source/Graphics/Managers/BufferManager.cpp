@@ -231,6 +231,7 @@ void BufferManager::DestroySwapchainDependentBuffers()
 	mGlobalLayoutUniformBuffers.clear();
 	mMainLayoutUniformBuffers.clear();
 	mTextStorageBuffers.clear();
+	mUiRectStorageBuffers.clear();
 	mSmokeSpreadStorageBuffers.clear();
 	mWindSpreadStorageBuffers.clear();
 	mLongParticlesSpawnStorageBuffers.clear();
@@ -275,6 +276,7 @@ void BufferManager::InitializePerCommandBufferBuffers(int64_t iCommandBufferCoun
 	mGlobalLayoutUniformBuffers.resize(iCommandBufferCount);
 	mMainLayoutUniformBuffers.resize(iCommandBufferCount);
 	mTextStorageBuffers.resize(iCommandBufferCount);
+	mUiRectStorageBuffers.resize(iCommandBufferCount);
 	mSmokeSpreadStorageBuffers.resize(iCommandBufferCount);
 	mWindSpreadStorageBuffers.resize(iCommandBufferCount);
 	mLongParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
@@ -301,6 +303,13 @@ void BufferManager::InitializePerCommandBufferBuffers(int64_t iCommandBufferCoun
 			.name = "Text",
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = kiMaxTextQuads * sizeof(shaders::AxisAlignedQuadLayout),
+		});
+
+		mUiRectStorageBuffers.at(i).Create(
+		{
+			.name = "UiRects",
+			.flags = {kStorage, kHostVisible},
+			.dataVkDeviceSize = ImGuiManager::kiMaxUiRects * sizeof(XMFLOAT4),
 		});
 
 		mSmokeSpreadStorageBuffers.at(i).Create(

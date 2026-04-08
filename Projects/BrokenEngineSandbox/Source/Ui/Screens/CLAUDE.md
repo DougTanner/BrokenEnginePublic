@@ -9,14 +9,14 @@ ImGui-based UI screens for the game, rendered by engine's ImGuiManager. Most scr
 - **MainMenuScreen** - Entry point with Local Server (LAN discovery), Remote Server (placeholder), settings, and quit options plus language selection. Discovery auto-starts when the main menu is shown. The Local Server button shows SCANNING... while discovery is in progress and becomes active once a server is found. A compile-time toggle in `Pch.h` enables automatic server launch and auto-connect: server launch is gated on `mbDiscoveryScanTimedOut` so that an already-running server on the LAN is detected before launching a duplicate, and auto-connect fires once `mbServerDiscovered` is set. Uses Chinese font globally when Chinese language is selected, with per-button Chinese font for the language selector in other modes
 - **ModalScreen** - Centered modal error dialog for connection rejection and desync notifications. Client-only
 - **PauseMenuScreen** - In-game pause overlay with resume, settings, main menu, and quit options
-- **GraphicsMenuScreen** - Rendering settings panel exposing engine Wrapper variables. Time of day slider appears only in main menu
+- **GraphicsMenuScreen** - Rendering settings panel exposing engine Wrapper variables. Time of day slider appears only in main menu. Includes the `gOpaqueUi` toggle and calls `RegisterOpaqueRect()` after rendering its window
 - **SoundMenuScreen** - Volume sliders for master, music, and sound with a defaults reset option
 - **DeathMenuScreen** - Game over screen with respawn button, gated on `GameFlags::kDeathScreen`. Sends respawn request via `Client` on client builds. Compiles in both builds
 
 ## MenuUtils
 
-Shared utilities providing RAII menu scaling (`ScopedMenuScale`), UTF-32 to UTF-8 string conversion via workbuffer, and ImGui controls bound to engine Wrapper settings.
+Shared utilities providing RAII menu scaling (`ScopedMenuScale`), UTF-32 to UTF-8 string conversion via workbuffer, and ImGui controls bound to engine Wrapper settings: checkbox toggle, float slider, and plus/minus step buttons (displays current value between `[-]` and `[+]` buttons, incrementing/decrementing by a fixed step).
 
 ## Architecture Notes
 
-Screens check game UI state and game flags to determine visibility, early-returning when not active. All positioning uses proportional screen percentages for resolution independence. ImGuiManager (engine-side) owns instances of these screen classes and calls their `Render()` methods.
+Screens check game UI state and game flags to determine visibility, early-returning when not active. All positioning uses proportional screen percentages for resolution independence. ImGuiManager (engine-side) owns instances of these screen classes and calls their `Render()` methods. Screens that want to participate in opaque UI occlusion culling call `gpImGuiManager->RegisterOpaqueRect()` after rendering their ImGui window, passing the window position and size; this is used by the depth pre-pass when `gOpaqueUi` is enabled.

@@ -34,6 +34,11 @@ layout (location = 3) in vec3 f3InNormal;
 // Output
 layout (location = 0) out vec4 f4OutColor;
 
+vec3 DecodeNormal(vec3 f3Encoded)
+{
+	return vec3(1.0f - 2.0f * f3Encoded.x, 1.0f - 2.0f * f3Encoded.y, f3Encoded.z);
+}
+
 float Fresnel(vec3 f3CameraPosition, vec3 f3Position, vec3 f3InNormal, float fReduction)
 {
 	vec3 f3Normal = normalize(f3InNormal);
@@ -57,23 +62,66 @@ void main()
 		return;
 	}
 
+	// Camera-relative to world-space reconstruction
+	vec2 f2WaterOrigin = vec2(globalLayout.fWaterOriginX, globalLayout.fWaterOriginY);
+	vec2 f2WorldInitialPosition = f2InInitialPosition + f2WaterOrigin;
+
 	// Bias eye normal up a bit for skybox
-	vec3 f3ToEyeNormal = normalize(mainLayout.f4EyePosition.xyz - vec3(f2InInitialPosition, 0.0f));
+	vec3 f3ToEyeNormal = normalize(mainLayout.f4EyePosition.xyz - vec3(f2WorldInitialPosition, 0.0f));
 	f3ToEyeNormal = normalize(mix(f3ToEyeNormal, mainLayout.f4ToEyeNormal.xyz, mainLayout.fLightingWaterSkyboxNormalSoften));
 
-	float fSize = mainLayout.fLightingSampledNormalsSize + mainLayout.fLightingSampledNormalsSizeMod * f3InPosition.z;
-	float fSpeed = mainLayout.fLightingSampledNormalsSpeed;
-	vec3 f3SampledNormalOne = SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 0.2f * fSize, 1.1f * fSize * fSpeed, vec2(0.1f, 0.2f)) +
-	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 1.1f * fSize, 1.2f * fSize * fSpeed, vec2(0.2f, 0.3f)) +
-	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 2.5f * fSize, 1.3f * fSize * fSpeed, vec2(0.3f, 0.4f));
-	vec3 f3SampledNormalTwo = SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 0.3f * fSize, 1.4f * fSize * fSpeed, vec2(0.4f, 0.5f)) +
-	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 1.2f * fSize, 1.5f * fSize * fSpeed, vec2(0.6f, 0.7f)) +
-	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 3.0f * fSize, 1.6f * fSize * fSpeed, vec2(0.8f, 0.9f));
+	// Normal map sampling with precision-safe UV computation
+	float fSizeBase = mainLayout.fLightingSampledNormalsSize;
+	float fSizeMod = mainLayout.fLightingSampledNormalsSizeMod;
+	float fSize = fSizeBase + fSizeMod * f3InPosition.z;
+	float fSpeedBase = mainLayout.fLightingSampledNormalsSpeed;
+	float fWaveHeight = f3InPosition.z;
+	vec2 f2ReducedOrigin = vec2(globalLayout.fWaterReducedNormalOriginX, globalLayout.fWaterReducedNormalOriginY);
+	float fReducedTime = globalLayout.fWaterReducedNormalTime;
+	vec2 f2HeightOriginCorrection = fSizeMod * fWaveHeight * f2WaterOrigin;
+	float fHeightTimeCorrection = fSizeMod * fWaveHeight * fSpeedBase * globalLayout.fElapsedTime;
+	vec2 f2LocalDx = dFdx(f2InInitialPosition);
+	vec2 f2LocalDy = dFdy(f2InInitialPosition);
+
+	#define SAMPLE_NORMAL_PRECISE(sampler, reducedOriginWithDebug, sizeMult, speedMult, offset) \
+	{ \
+		float fCallSize = sizeMult * fSize; \
+		vec2 f2UV = offset \
+			+ fCallSize * f2InInitialPosition \
+			+ sizeMult * reducedOriginWithDebug \
+			+ sizeMult * f2HeightOriginCorrection \
+			+ speedMult * vec2(fReducedTime) \
+			+ speedMult * vec2(fHeightTimeCorrection); \
+		vec2 f2Dx = fCallSize * f2LocalDx; \
+		vec2 f2Dy = fCallSize * f2LocalDy; \
+		f3Accum += DecodeNormal(textureGrad(sampler, fract(f2UV), f2Dx, f2Dy).xyz); \
+	}
+
+	// Normal map one (3 octaves, debug offset pre-reduced on CPU)
+	vec2 f2NormalOneOrigin = f2ReducedOrigin + vec2(globalLayout.fWaterDebugNormalOneOffset);
+	vec3 f3Accum = vec3(0.0f);
+	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, f2NormalOneOrigin, 0.2f, 1.1f, vec2(0.1f, 0.2f))
+	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, f2NormalOneOrigin, 1.1f, 1.2f, vec2(0.2f, 0.3f))
+	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, f2NormalOneOrigin, 2.5f, 1.3f, vec2(0.3f, 0.4f))
+	vec3 f3SampledNormalOne = f3Accum;
+
+	// Normal map two (3 octaves, debug offset pre-reduced on CPU)
+	vec2 f2NormalTwoOrigin = f2ReducedOrigin + vec2(globalLayout.fWaterDebugNormalTwoOffset);
+	f3Accum = vec3(0.0f);
+	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, f2NormalTwoOrigin, 0.3f, 1.4f, vec2(0.4f, 0.5f))
+	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, f2NormalTwoOrigin, 1.2f, 1.5f, vec2(0.6f, 0.7f))
+	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, f2NormalTwoOrigin, 3.0f, 1.6f, vec2(0.8f, 0.9f))
+	vec3 f3SampledNormalTwo = f3Accum;
+
+	#undef SAMPLE_NORMAL_PRECISE
+
 	vec3 f3SampledNormal = normalize(f3SampledNormalOne + f3SampledNormalTwo);
 
-	// Color
-	float fNoiseColorOne = clamp(globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, 2.0f * globalLayout.fWaterColorNoiseFrequency * f3InPosition.xy).x, 0.0f, 1.0f);
-	float fNoiseColorTwo = clamp(globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, globalLayout.fWaterColorNoiseFrequency * -f3InPosition.xy).x, 0.0f, 1.0f);
+	// Color (noise with precision-safe UV, debug offset pre-reduced on CPU)
+	vec2 f2LocalDisplacedPos = f3InPosition.xy - f2WaterOrigin;
+	vec2 f2ReducedNoiseOrigin = vec2(globalLayout.fWaterReducedNoiseOriginX, globalLayout.fWaterReducedNoiseOriginY) + vec2(globalLayout.fWaterDebugNoiseOffset);
+	float fNoiseColorOne = clamp(globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, 2.0f * globalLayout.fWaterColorNoiseFrequency * f2LocalDisplacedPos + 2.0f * f2ReducedNoiseOrigin).x, 0.0f, 1.0f);
+	float fNoiseColorTwo = clamp(globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, globalLayout.fWaterColorNoiseFrequency * -f2LocalDisplacedPos - f2ReducedNoiseOrigin).x, 0.0f, 1.0f);
 	vec3 f3WaterColor = mix(1.0f * vec3(0.0f, 15.0f / 100.0f, 25.0f / 100.0f), 1.5f * vec3(15.0f / 100.0f, 30.0f / 100.0f, 50.0f / 100.0f), clamp(fNoiseColorOne - fNoiseColorTwo + (f3InPosition.z * globalLayout.fWaterColorHeightInv + globalLayout.fWaterColorBottom), 0.0f, 1.0f));
 
 	vec3 f3DepthColor = texture(depthLutSampler, vec2(globalLayout.fWaterDepthLutFeather * -fTerrainElevation, 0.0f)).xyz;
@@ -117,7 +165,7 @@ void main()
 	f4OutColor.w = clamp(-fTerrainElevation / globalLayout.fWaterTerrainFade, globalLayout.fWaterTerrainFadeClamp, 1.0f);
 
 	// Sample lighting texture at projected base-height x/y
-	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, vec3(f2InInitialPosition, 0.0f));
+	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, vec3(f2WorldInitialPosition, 0.0f));
 	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4LightingBaseHeight[3] = {texture(pLightingSamplers[0], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[1], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[2], f2LightingTexcoordBaseHeight)};
 

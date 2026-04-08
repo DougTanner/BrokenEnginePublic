@@ -184,7 +184,6 @@ sequenceDiagram
 
     Server->>Net: Debug frame response
     Main->>Main: PollNetwork() drains debug frame
-    Main->>Main: CompareWithServerFrame()
     Main->>Main: LogDifferences() then DEBUG_BREAK()
 
     Main->>Main: Show modal, disconnect

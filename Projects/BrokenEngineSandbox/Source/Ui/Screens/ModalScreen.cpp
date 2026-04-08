@@ -18,7 +18,8 @@ void ModalScreen::Render()
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.05f, 0.05f, 0.05f, 0.85f));
+	float fBgAlpha = engine::gOpaqueUi.Get<bool>() ? 1.0f : 0.85f;
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.05f, 0.05f, 0.05f, fBgAlpha));
 
 	float fWindowWidth = rIo.DisplaySize.x * 0.35f;
 	ImGui::SetNextWindowPos(ImVec2((rIo.DisplaySize.x - fWindowWidth) / 2.0f, rIo.DisplaySize.y * 0.35f), ImGuiCond_Always);
@@ -26,6 +27,8 @@ void ModalScreen::Render()
 
 	ImGui::Begin("ModalDialog", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
 	ImGui::SetWindowFontScale(kfMenuUiScale);
+
+	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
 
 	ImGui::TextWrapped("%s", gpGame->mModalMessage);
 

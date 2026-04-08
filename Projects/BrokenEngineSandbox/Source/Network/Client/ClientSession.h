@@ -3,7 +3,9 @@
 #if defined(BT_CLIENT)
 
 #include "Network/Client/ClientSessionBase.h"
-#include "Network/ClientReconciler.h"
+#include "Network/Client/ClientDataReceiver.h"
+#include "Network/Client/ClientDesyncManager.h"
+#include "Network/Client/ClientReconciler.h"
 
 namespace game
 {
@@ -36,14 +38,28 @@ public:
 	void UpdateSubscriptions();
 
 	// Queries
-	int64_t GetDesyncTick() const { return mDesyncDebugState.iTick; }
-	bool IsStalled() const { return mDesyncDebugState.iTick >= 0; }
+	int64_t GetDesyncTick() const { return mpDesyncManager->GetDesyncTick(); }
+	bool IsStalled() const { return mpDesyncManager->IsStalled(); }
+	bool CanSend() const { return mpClientNetwork != nullptr && mpClientNetwork->IsConnected() && mpClientNetwork->GetServerPeer() != nullptr; }
 
 	// Clock correction
 	std::chrono::nanoseconds ComputeClockCorrectionNs(int64_t iPreReconcileTick);
 
-	// Subscription helpers
+	// Game packet sends
+	void SendUpdatePlayerRequest(int64_t iGlobalPlayerId, bool bUseMissiles, float fNavigationDelay);
+	void SendCreateFleetRequest();
+	void SendSpawnIntoFleetRequest(int64_t iFleetIndex);
+	void SendRespawnInFleetRequest(int64_t iFleetIndex, int64_t iMemberIndex);
+
+	// Subscriptions
 	void UpdateDesiredCoords(std::string_view reason);
+	void ClearStickySubscriptions() { mUnwantedTimestamps.clear(); }
+	void ClearSubscriptionState();
+
+	// Managers
+	std::unique_ptr<ClientDataReceiver> mpDataReceiver;
+	std::unique_ptr<ClientDesyncManager> mpDesyncManager;
+	std::unique_ptr<ClientReconciler> mpReconciler;
 
 private:
 
@@ -51,32 +67,6 @@ private:
 	bool PollConnection();
 	bool PollConnectionStatus();
 	void TryEnterGame();
-	void PollDebugFrameResponse();
-
-	void ApplyReceivedStaticData();
-	void ApplyReceivedFullStates();
-	void ApplyReceivedUpdates();
-
-	struct DesyncDebugState
-	{
-		int64_t iTick = -1;
-		engine::GridCoord coord {};
-		std::unique_ptr<Frame> pClientFrame;
-		std::chrono::steady_clock::time_point entryTime {};
-	};
-	DesyncDebugState mDesyncDebugState;
-
-	static constexpr std::chrono::seconds kDesyncDebugTimeout {5};
-
-	// Desync frequency tracking for escalation
-	int64_t miDesyncCount = 0;
-	std::chrono::steady_clock::time_point mFirstDesyncTime {};
-	static constexpr int64_t kiMaxDesyncsBeforeDisconnect = 3;
-	static constexpr std::chrono::seconds kDesyncWindowDuration {10};
-
-	void CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, int64_t iTick, engine::GridCoord coord);
-	void RecoverFromDesync();
-	void ResetCoordStatesForResync();
 	void ResetForServerLoad();
 
 	// Subscription tracking
@@ -84,8 +74,6 @@ private:
 	std::unordered_map<engine::GridCoord, std::chrono::steady_clock::time_point> mUnwantedTimestamps;
 	static constexpr std::chrono::seconds kStickySubscriptionDuration {2};
 
-	// Reconciliation
-	std::unique_ptr<ClientReconciler> mpReconciler;
 };
 
 inline ClientSession* gpClientSession = nullptr;

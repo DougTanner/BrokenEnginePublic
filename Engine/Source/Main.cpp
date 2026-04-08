@@ -135,11 +135,19 @@ void MainThread(HINSTANCE hinstance)
 
 	// Setup window rect & matrices
 #if defined(BT_CLIENT)
+	bool bLoadedGraphicsSettings = game::Game::LoadGraphicsSettings();
 	gWantedFramebufferExtent2D = SetupWindow(gFullscreen.Get<bool>(), sWindowStyle, sWindowRect);
 
-	if (gWantedFramebufferExtent2D.height < 2160)
+	if (!bLoadedGraphicsSettings)
 	{
-		gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_4_BIT);
+		if (gWantedFramebufferExtent2D.width >= 3840 && gWantedFramebufferExtent2D.height >= 2160)
+		{
+			gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_2_BIT);
+		}
+		else if (gWantedFramebufferExtent2D.height < 2160)
+		{
+			gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_4_BIT);
+		}
 	}
 #else
 	LONG iWindowStyle = WS_POPUP;
@@ -319,6 +327,7 @@ void MainThread(HINSTANCE hinstance)
 	// Save settings
 	game::Game::SaveTweaksSettings();
 	game::Game::SaveSoundSettings();
+	game::Game::SaveGraphicsSettings();
 #endif
 
 	PostQuitMessage(0);

@@ -100,6 +100,12 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		// Water Low - Beach Fade
 		{"Beach Directional Fade Bottom", &gBeachDirectionalFadeBottom},
 		{"Beach Directional Fade Height", &gBeachDirectionalFadeHeight},
+		// Water Debug
+		{"Water Debug Low Wave Offset", &gWaterDebugLowWaveOffset},
+		{"Water Debug Medium Wave Offset", &gWaterDebugMediumWaveOffset},
+		{"Water Debug Normal One Offset", &gWaterDebugNormalOneOffset},
+		{"Water Debug Normal Two Offset", &gWaterDebugNormalTwoOffset},
+		{"Water Debug Noise Offset", &gWaterDebugNoiseOffset},
 		// Water Medium - Wave
 		{"Medium Wavelength", &gMediumWavelength},
 		{"Medium Amplitude", &gMediumAmplitude},

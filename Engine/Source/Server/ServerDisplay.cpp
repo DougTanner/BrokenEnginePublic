@@ -147,7 +147,7 @@ static void PaintGridMap(HDC hdcBuffer, char* pcLine, size_t iLineSize, int iMap
 
 			for (const ClientConnection& rClient : rClients)
 			{
-				for (const GridCoord& rOwnedCoord : rClient.ownedPlayerCoords)
+				for (const GridCoord& rOwnedCoord : rClient.authorizedCoords)
 				{
 					if (rOwnedCoord == coord)
 					{
