@@ -1,5 +1,7 @@
 #include "TweaksScreenBase.h"
 
+#if defined(BT_CLIENT)
+
 #include "TweaksSliderMap.h"
 
 namespace engine
@@ -307,3 +309,5 @@ void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

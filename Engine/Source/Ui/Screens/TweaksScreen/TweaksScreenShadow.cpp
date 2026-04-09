@@ -1,5 +1,7 @@
 #include "TweaksScreenBase.h"
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -32,3 +34,5 @@ void TweaksScreenBase::RenderShadowSection()
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

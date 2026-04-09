@@ -19,13 +19,11 @@
 #include "Network/NetworkSerialization.h"
 #include "Network/NetworkSimulation.h"
 
-// Ui
-#include "Ui/Screens/TweaksScreen/TweaksScreenBase.h"
-#include "Ui/Screens/TweaksScreen/TweaksSliderMap.h"
-
 #if defined(BT_CLIENT)
 
 // Ui (client-only)
+#include "Ui/Screens/TweaksScreen/TweaksScreenBase.h"
+#include "Ui/Screens/TweaksScreen/TweaksSliderMap.h"
 #include "Ui/NetworkUiControl.h"
 
 // Debug (Vulkan enum stringification, client-only)
@@ -63,9 +61,11 @@
 // Render
 #include "Graphics/Render/Render.h"
 
-// Audio (voices before AudioManager: AudioManager uses StaticVoice and StreamingVoice)
+// Audio (voices before managers: AudioManager uses StaticVoices and StreamingVoices)
 #include "Audio/StaticVoice.h"
 #include "Audio/StreamingVoice.h"
+#include "Audio/StaticVoices.h"
+#include "Audio/StreamingVoices.h"
 #include "Audio/AudioManager.h"
 
 // Input

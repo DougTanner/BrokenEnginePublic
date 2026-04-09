@@ -170,7 +170,7 @@ All other operations (phase dispatch, serialization, CRC, AllocateAndCopy) are a
 
 ### Step 4: Add files to vcxproj
 
-Add the new `.h` and `.cpp` files to the appropriate filter in the engine `.vcxproj`.
+Add the new `.h` and `.cpp` files to the engine `.vcxproj` and `.vcxproj.filters`. The filter path must mirror the on-disk directory (e.g., `Engine/Source/Frame/Collections/NewCollection/` -> filter `Engine\Frame\Collections\NewCollection`). Create a new `<Filter>` definition with a GUID if the filter doesn't exist yet.
 
 ## Game Collection Steps
 
@@ -240,7 +240,7 @@ In `Frame.h`, increment `Frame::kiVersion` for save file compatibility.
 
 ### Step 6: Add files to vcxproj
 
-Add the new `.h` and `.cpp` files to the appropriate filter in the game `.vcxproj`.
+Add the new `.h` and `.cpp` files to the game `.vcxproj` and `.vcxproj.filters`. The filter path must mirror the on-disk directory (e.g., `Source/Frame/Collections/NewCollection/` -> filter `Game\Frame\Collections\NewCollection`). Create a new `<Filter>` definition with a GUID if the filter doesn't exist yet.
 
 ### What's Automatic for Game Collections
 

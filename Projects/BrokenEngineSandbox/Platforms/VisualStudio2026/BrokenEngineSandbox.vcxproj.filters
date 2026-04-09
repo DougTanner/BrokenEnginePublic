@@ -22,6 +22,12 @@
     <Filter Include="Engine\Network">
       <UniqueIdentifier>{d3e4f5a6-b7c8-9012-def0-345678901bcd}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Engine\Network\Client">
+      <UniqueIdentifier>{4ef67997-d209-4313-b217-4937d1357772}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Network\Server">
+      <UniqueIdentifier>{0dd195ea-fe72-4468-ae3a-79ace798eb3b}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Engine\Data\Shaders">
       <UniqueIdentifier>{4c249a6c-c550-4fa7-b6ac-0423c9b76a55}</UniqueIdentifier>
     </Filter>
@@ -255,35 +261,17 @@
     <ClInclude Include="..\..\Source\Network\PlayerEvents.h">
       <Filter>Game\Network</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Network\Server\ServerSession.h">
-      <Filter>Game\Network\Server</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Source\Network\Server\ServerFleetManager.h">
-      <Filter>Game\Network\Server</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Source\Network\Server\ServerTransferManager.h">
-      <Filter>Game\Network\Server</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Source\Network\Server\ServerBroadcaster.h">
-      <Filter>Game\Network\Server</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Source\Network\Server\ServerClientManager.h">
-      <Filter>Game\Network\Server</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Source\Network\GamePacketType.h">
       <Filter>Game\Network</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Client\ClientSessionBase.h">
-      <Filter>Engine\Network</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionBase.h">
-      <Filter>Engine\Network</Filter>
+      <Filter>Engine\Network\Client</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h">
       <Filter>Engine\Input</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Client\Client.h">
-      <Filter>Engine\Network</Filter>
+      <Filter>Engine\Network\Client</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkCursor.h">
       <Filter>Engine\Network</Filter>
@@ -304,10 +292,10 @@
       <Filter>Engine\Network</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\Server.h">
-      <Filter>Engine\Network</Filter>
+      <Filter>Engine\Network\Server</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\ServerTypes.h">
-      <Filter>Engine\Network</Filter>
+      <Filter>Engine\Network\Server</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.h">
       <Filter>Engine\Profile</Filter>
@@ -477,9 +465,6 @@
     <ClInclude Include="..\..\..\..\Engine\Source\GameBase.h">
       <Filter>Engine</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\GameSaveLoad.h">
-      <Filter>Engine</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Collection.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
@@ -555,7 +540,13 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Audio\StaticVoice.h">
       <Filter>Engine\Audio</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Audio\StaticVoices.h">
+      <Filter>Engine\Audio</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Audio\StreamingVoice.h">
+      <Filter>Engine\Audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Audio\StreamingVoices.h">
       <Filter>Engine\Audio</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\TimeStep.h">
@@ -722,21 +713,6 @@
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp">
       <Filter>Game\Network</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Network\Server\ServerSession.cpp">
-      <Filter>Game\Network\Server</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Source\Network\Server\ServerFleetManager.cpp">
-      <Filter>Game\Network\Server</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Source\Network\Server\ServerTransferManager.cpp">
-      <Filter>Game\Network\Server</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Source\Network\Server\ServerBroadcaster.cpp">
-      <Filter>Game\Network\Server</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Source\Network\Server\ServerClientManager.cpp">
-      <Filter>Game\Network\Server</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Pch.cpp">
       <Filter>Engine</Filter>
     </ClCompile>
@@ -744,16 +720,16 @@
       <Filter>Engine\Input</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Client\Client.cpp">
-      <Filter>Engine\Network</Filter>
+      <Filter>Engine\Network\Client</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Client\ClientReceive.cpp">
-      <Filter>Engine\Network</Filter>
+      <Filter>Engine\Network\Client</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Client\ClientSend.cpp">
-      <Filter>Engine\Network</Filter>
+      <Filter>Engine\Network\Client</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Client\ClientSessionBase.cpp">
-      <Filter>Engine\Network</Filter>
+      <Filter>Engine\Network\Client</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkDiscovery.cpp">
       <Filter>Engine\Network</Filter>
@@ -765,16 +741,13 @@
       <Filter>Game\Network</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\Server.cpp">
-      <Filter>Engine\Network</Filter>
+      <Filter>Engine\Network\Server</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerReceive.cpp">
-      <Filter>Engine\Network</Filter>
+      <Filter>Engine\Network\Server</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSend.cpp">
-      <Filter>Engine\Network</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionBase.cpp">
-      <Filter>Engine\Network</Filter>
+      <Filter>Engine\Network\Server</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\CrashReport.cpp">
       <Filter>Engine</Filter>
@@ -926,9 +899,6 @@
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp">
       <Filter>Engine</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\GameSaveLoad.cpp">
-      <Filter>Engine</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameBase.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
@@ -974,7 +944,13 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\StaticVoice.cpp">
       <Filter>Engine\Audio</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Audio\StaticVoices.cpp">
+      <Filter>Engine\Audio</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\StreamingVoice.cpp">
+      <Filter>Engine\Audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Audio\StreamingVoices.cpp">
       <Filter>Engine\Audio</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\TimeStep.cpp">

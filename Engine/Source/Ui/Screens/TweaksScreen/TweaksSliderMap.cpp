@@ -1,5 +1,7 @@
 #include "TweaksSliderMap.h"
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -65,7 +67,6 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Rock Normals Blend", &gTerrainRockNormalsBlend},
 		// Water Specular - Normals
 		{"Sampled Normals Size", &gLightingSampledNormalsSize},
-		{"Sampled Normals Size Mod", &gLightingSampledNormalsSizeMod},
 		{"Sampled Normals Speed", &gLightingSampledNormalsSpeed},
 		{"Depth Reflection Feather", &gWaterDepthReflectionFeather},
 		// Water Specular - Skybox
@@ -98,8 +99,8 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Amplitude Adjust", &gLowAmplitudeAdjust},
 		{"Speed Adjust", &gLowSpeedAdjust},
 		// Water Low - Beach Fade
-		{"Beach Directional Fade Bottom", &gBeachDirectionalFadeBottom},
-		{"Beach Directional Fade Height", &gBeachDirectionalFadeHeight},
+		{"Beach Fade Top", &gBeachFadeTop},
+		{"Beach Fade Bottom", &gBeachFadeBottom},
 		// Water Debug
 		{"Water Debug Low Wave Offset", &gWaterDebugLowWaveOffset},
 		{"Water Debug Medium Wave Offset", &gWaterDebugMediumWaveOffset},
@@ -259,3 +260,5 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

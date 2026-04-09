@@ -71,15 +71,9 @@ void main()
 	f3ToEyeNormal = normalize(mix(f3ToEyeNormal, mainLayout.f4ToEyeNormal.xyz, mainLayout.fLightingWaterSkyboxNormalSoften));
 
 	// Normal map sampling with precision-safe UV computation
-	float fSizeBase = mainLayout.fLightingSampledNormalsSize;
-	float fSizeMod = mainLayout.fLightingSampledNormalsSizeMod;
-	float fSize = fSizeBase + fSizeMod * f3InPosition.z;
-	float fSpeedBase = mainLayout.fLightingSampledNormalsSpeed;
-	float fWaveHeight = f3InPosition.z;
+	float fSize = mainLayout.fLightingSampledNormalsSize;
 	vec2 f2ReducedOrigin = vec2(globalLayout.fWaterReducedNormalOriginX, globalLayout.fWaterReducedNormalOriginY);
 	float fReducedTime = globalLayout.fWaterReducedNormalTime;
-	vec2 f2HeightOriginCorrection = fSizeMod * fWaveHeight * f2WaterOrigin;
-	float fHeightTimeCorrection = fSizeMod * fWaveHeight * fSpeedBase * globalLayout.fElapsedTime;
 	vec2 f2LocalDx = dFdx(f2InInitialPosition);
 	vec2 f2LocalDy = dFdy(f2InInitialPosition);
 
@@ -89,9 +83,7 @@ void main()
 		vec2 f2UV = offset \
 			+ fCallSize * f2InInitialPosition \
 			+ sizeMult * reducedOriginWithDebug \
-			+ sizeMult * f2HeightOriginCorrection \
-			+ speedMult * vec2(fReducedTime) \
-			+ speedMult * vec2(fHeightTimeCorrection); \
+			+ speedMult * vec2(fReducedTime); \
 		vec2 f2Dx = fCallSize * f2LocalDx; \
 		vec2 f2Dy = fCallSize * f2LocalDy; \
 		f3Accum += DecodeNormal(textureGrad(sampler, fract(f2UV), f2Dx, f2Dy).xyz); \

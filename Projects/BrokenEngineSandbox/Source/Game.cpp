@@ -230,6 +230,11 @@ void Game::SyncFleets(std::vector<Fleet>&& fleets)
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	int64_t iPrevFleetCount = std::ssize(mClientFleets);
+	int64_t iPrevFocusedFleetMemberCount = 0;
+	if (miFocusedFleetIndex >= 0 && miFocusedFleetIndex < iPrevFleetCount)
+	{
+		iPrevFocusedFleetMemberCount = std::ssize(mClientFleets.at(static_cast<size_t>(miFocusedFleetIndex)).members);
+	}
 	mClientFleets = std::move(fleets);
 
 	// Clamp fleet index
@@ -238,10 +243,12 @@ void Game::SyncFleets(std::vector<Fleet>&& fleets)
 		miFocusedFleetIndex = std::ssize(mClientFleets) - 1;
 	}
 
-	// Auto-select new fleet if this is the first one
-	if (iPrevFleetCount == 0 && !mClientFleets.empty())
+	// Auto-activate newly created fleet
+	if (iPrevFleetCount < std::ssize(mClientFleets))
 	{
-		miFocusedFleetIndex = 0;
+		miFocusedFleetIndex = std::ssize(mClientFleets) - 1;
+		miFocusedPlayerInFleetIndex = -1;
+		iPrevFocusedFleetMemberCount = 0;
 	}
 
 	// Clamp or auto-select member index
@@ -253,8 +260,12 @@ void Game::SyncFleets(std::vector<Fleet>&& fleets)
 			miFocusedPlayerInFleetIndex = std::ssize(pFleet->members) - 1;
 		}
 
-		// Auto-select newly added member (fleet grew)
-		if (miFocusedPlayerInFleetIndex < 0 && !pFleet->members.empty())
+		// Auto-focus newly added member (fleet member count grew)
+		if (std::ssize(pFleet->members) > iPrevFocusedFleetMemberCount)
+		{
+			miFocusedPlayerInFleetIndex = std::ssize(pFleet->members) - 1;
+		}
+		else if (miFocusedPlayerInFleetIndex < 0 && !pFleet->members.empty())
 		{
 			miFocusedPlayerInFleetIndex = std::ssize(pFleet->members) - 1;
 		}

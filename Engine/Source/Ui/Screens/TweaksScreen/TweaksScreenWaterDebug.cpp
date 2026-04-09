@@ -1,5 +1,7 @@
 #include "TweaksScreenBase.h"
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -29,3 +31,5 @@ void TweaksScreenBase::RenderWaterDebugSection()
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

@@ -5,7 +5,6 @@
 #include "Memory/MemoryManager.h"
 
 #include "Game.h"
-#include "Frame/Collections/Players/Players.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -16,8 +15,6 @@ constexpr AUDIO_ENGINE_FLAGS kAudioEngineFlags = AudioEngine_UseMasteringLimiter
 AudioManager::AudioManager()
 {
 	gpAudioManager = this;
-	mRandomEngine.TimeSeed();
-	mStaticVoices.reserve(kiMaxStaticVoices);
 
 	Log(kLogAudio, "\nAudioManager");
 
@@ -133,6 +130,9 @@ AudioManager::AudioManager()
 
 			WAVEFORMATEXTENSIBLE waveFormatExtensible = mpAudioEngine->GetOutputFormat();
 			miMasteringVoiceChannels = std::min(static_cast<int64_t>(voiceDetails.InputChannels), static_cast<int64_t>(waveFormatExtensible.Format.nChannels));
+
+			mStaticVoices.Init(mpAudioEngine.get(), &miMasteringVoiceChannels);
+			mStreamingVoices.Init(mpAudioEngine.get());
 		}
 	}
 	catch ([[maybe_unused]] const std::exception& rException)
@@ -154,23 +154,8 @@ AudioManager::~AudioManager()
 		mpAudioEngine->UnregisterNotify(this, false, false);
 	}
 
-	mStaticVoices.clear();
-
-	// Move streams to local storage while holding lock, destroy after releasing
-	// This prevents deadlock with XAudio2 callbacks that also acquire the mutex
-	std::unique_ptr<StreamingVoice> pCurrentStream;
-	std::vector<std::unique_ptr<StreamingVoice>> previousStreams;
-
-	{
-		std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
-
-		pCurrentStream = std::move(mpCurrentMusicStream);
-		previousStreams = std::move(mPreviousStreams);
-	}
-
-	// Destruction happens here, after mutex is released
-	pCurrentStream.reset();
-	previousStreams.clear();
+	mStaticVoices.Clear(false);
+	mStreamingVoices.Clear(false);
 
 	if (mpAudioEngine != nullptr)
 	{
@@ -180,59 +165,15 @@ AudioManager::~AudioManager()
 	gpAudioManager = nullptr;
 }
 
-void AudioManager::Set3dSettings(float fCurveDistanceScaler, float fManualFadeStart, float fManualFadeEnd, float fManualFadeVolume)
-{
-	mfCurveDistanceScaler = fCurveDistanceScaler;
-	mfManualFadeStart = fManualFadeStart;
-	mfManualFadeEnd = fManualFadeEnd;
-	mfManualFadeVolume = fManualFadeVolume;
-}
-
 void AudioManager::SetNextMusicTrackCallback(std::function<common::crc_t()> callback)
 {
-	std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
-
-	mGetNextMusicTrack = callback;
+	mStreamingVoices.SetNextTrackCallback(callback);
 }
 
 void AudioManager::ClearVoices()
 {
-	for (StaticVoice& rStaticVoice : mStaticVoices)
-	{
-		rStaticVoice.mpVoice = nullptr;
-	}
-	mStaticVoices.clear();
-
-	ClearStreamingVoices();
-}
-
-void AudioManager::ClearStreamingVoices()
-{
-	std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
-
-	if (mpCurrentMusicStream != nullptr)
-	{
-		mpCurrentMusicStream->mpVoice = nullptr;
-	}
-	mpCurrentMusicStream.reset();
-
-	for (std::unique_ptr<StreamingVoice>& pPreviousStream : mPreviousStreams)
-	{
-		if (pPreviousStream != nullptr)
-		{
-			pPreviousStream->mpVoice = nullptr;
-		}
-	}
-	mPreviousStreams.clear();
-
-	for (std::unique_ptr<StreamingVoice>& pStream : mStreamsToDestroy)
-	{
-		if (pStream != nullptr)
-		{
-			pStream->mpVoice = nullptr;
-		}
-	}
-	mStreamsToDestroy.clear();
+	mStaticVoices.Clear(true);
+	mStreamingVoices.Clear(true);
 }
 
 void AudioManager::Suspend()
@@ -243,21 +184,14 @@ void AudioManager::Suspend()
 	}
 
 	mbSuspended.store(true, std::memory_order_release);
+	mStaticVoices.SetSuspended(true);
 
 	mpAudioEngine->Suspend();
 
 	// Processing thread is now stopped — DestroyVoice returns instantly
-	Log(kLogAudio, "Suspend: destroying {} static voices, {} streams", mStaticVoices.size(), (mpCurrentMusicStream != nullptr ? 1 : 0) + mPreviousStreams.size());
-	mStaticVoices.clear();
-
-	// Destroy streaming voices properly (not ClearStreamingVoices which nulls mpVoice
-	// to skip DestroyVoice — that leaks XAudio2 source voices when the engine is only suspended)
-	{
-		std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
-		mpCurrentMusicStream.reset();
-		mPreviousStreams.clear();
-		mStreamsToDestroy.clear();
-	}
+	Log(kLogAudio, "Suspend: destroying {} static voices, {} streams", mStaticVoices.GetVoiceCount(), mStreamingVoices.GetStreamCount());
+	mStaticVoices.Clear(false);
+	mStreamingVoices.Clear(false);
 }
 
 void AudioManager::Resume()
@@ -268,321 +202,29 @@ void AudioManager::Resume()
 	}
 
 	mbSuspended.store(false, std::memory_order_release);
+	mStaticVoices.SetSuspended(false);
 	mpAudioEngine->Resume();
 	Log(kLogAudio, "Resume");
 }
 
-void AudioManager::CreateMusicStream(common::crc_t audioCrc)
+void AudioManager::PlayMusic(common::crc_t uiAudioCrc)
 {
-	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
-	IXAudio2SourceVoice* pVoice = nullptr;
-	mpAudioEngine->AllocateVoice(&rLazyChunk.header.audioHeader.waveFormat, SoundEffectInstance_Default, false, &pVoice);
-	if (pVoice != nullptr)
-	{
-		mpCurrentMusicStream = std::make_unique<StreamingVoice>(pVoice, &rLazyChunk);
-	}
-	else
-	{
-		Log(kLogAudio, "CreateMusicStream AllocateVoice failed for CRC {:#018x}", audioCrc);
-	}
+	mStreamingVoices.Play(uiAudioCrc);
 }
 
-void AudioManager::TransitionCurrentToPrevious()
+IXAudio2SourceVoice* AudioManager::PlayOneShot(const game::Frame& rFrame, common::crc_t uiAudioCrc, bool b3d, float fVolume, float fPitch, float fPitchRange)
 {
-	mpCurrentMusicStream->mFlags.Clear(StreamingVoiceFlags::kFadingIn);
-	mpCurrentMusicStream->mFlags.Set(StreamingVoiceFlags::kFadingOut);
-	mPreviousStreams.push_back(std::move(mpCurrentMusicStream));
+	return mStaticVoices.PlayOneShot(rFrame, uiAudioCrc, b3d, fVolume, fPitch, fPitchRange);
 }
 
-void AudioManager::PlayMusic(common::crc_t audioCrc)
+void XM_CALLCONV AudioManager::PlayOneShot3d(const game::Frame& rFrame, common::crc_t uiAudioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch, float fPitchRange)
 {
-	std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
-
-	// Heap: make_unique<StreamingVoice> (with triple buffers) and vector push_back for crossfade list.
-	// These outlive the call (persist until fade-out completes), so workbuffer/pre-alloc won't work.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
-
-	// Move current stream to previous list for fade out
-	if (mpCurrentMusicStream != nullptr)
-	{
-		TransitionCurrentToPrevious();
-	}
-
-	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
-	{
-		return;
-	}
-
-	// Load new track as current
-	CreateMusicStream(audioCrc);
+	mStaticVoices.PlayOneShot3d(rFrame, uiAudioCrc, vecPosition, fVolume, fPitch, fPitchRange);
 }
 
-void AudioManager::SubmitStreamingBuffers(StreamingVoice& rStream)
+void AudioManager::Set3dSettings(float fCurveDistanceScaler, float fManualFadeStart, float fManualFadeEnd, float fManualFadeVolume)
 {
-	int64_t iConsumed = rStream.miBuffersConsumed.exchange(0, std::memory_order_acquire);
-
-	for (int64_t i = 0; i < iConsumed; ++i)
-	{
-		if (rStream.mFlags & StreamingVoiceFlags::kLastBufferSubmitted)
-		{
-			break;
-		}
-
-		int64_t iNextBuffer = (rStream.miActiveBuffer + 1) % kiBufferCount;
-
-		bool bLastBuffer = false;
-		int64_t iBytesRead = 0;
-		if (rStream.FillBuffer(rStream.mBuffers[iNextBuffer], iBytesRead, bLastBuffer))
-		{
-			XAUDIO2_BUFFER xaudio2Buffer
-			{
-				.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
-				.AudioBytes = static_cast<UINT32>(iBytesRead),
-				.pAudioData = rStream.mBuffers[iNextBuffer],
-				.PlayBegin = 0,
-				.PlayLength = 0,
-				.LoopBegin = 0,
-				.LoopLength = 0,
-				.LoopCount = 0,
-				.pContext = &rStream,
-			};
-			HRESULT hr = rStream.mpVoice->SubmitSourceBuffer(&xaudio2Buffer);
-			if (FAILED(hr))
-			{
-				Log(kLogAudio, kWarning, "SubmitStreamingBuffers: Failed to submit buffer, HRESULT: 0x{:08X}", hr);
-				rStream.mFlags.Set(StreamingVoiceFlags::kLastBufferSubmitted);
-				break;
-			}
-			rStream.miActiveBuffer = iNextBuffer;
-			rStream.mFlags.Set(StreamingVoiceFlags::kLastBufferSubmitted, bLastBuffer);
-		}
-		else
-		{
-			Log(kLogAudio, "SubmitStreamingBuffers: stream reached end, marking as inactive");
-			rStream.mFlags.Set(StreamingVoiceFlags::kLastBufferSubmitted);
-		}
-	}
-}
-
-void AudioManager::UpdateMusicStreams(float fDeltaTime)
-{
-	// Heap: Member vector collects faded-out streams for deferred destruction outside the mutex.
-	// Allocation reused across frames. Suppression covers potential growth and destructor calls.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
-
-	// Collect streams to destroy outside the lock to prevent deadlock with XAudio2 callbacks
-	{
-		std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
-
-		// Submit pending streaming buffers (file I/O on main thread instead of XAudio2 callback)
-		if (mpCurrentMusicStream != nullptr)
-		{
-			SubmitStreamingBuffers(*mpCurrentMusicStream);
-		}
-		for (const std::unique_ptr<StreamingVoice>& pStream : mPreviousStreams)
-		{
-			SubmitStreamingBuffers(*pStream);
-		}
-
-		// Update current stream volume (fade in)
-		if (mpCurrentMusicStream != nullptr)
-		{
-			mpCurrentMusicStream->UpdateVolume(fDeltaTime);
-		}
-
-		// Update previous streams (fade out) and remove completed ones
-		for (auto it = mPreviousStreams.begin(); it != mPreviousStreams.end();)
-		{
-			if ((*it)->UpdateVolume(fDeltaTime))
-			{
-				// Fade out complete, move to deferred destruction list
-				mStreamsToDestroy.push_back(std::move(*it));
-				it = mPreviousStreams.erase(it);
-			}
-			else
-			{
-				++it;
-			}
-		}
-	}
-
-	// Destruction happens here, after mutex is released
-	// DestroyVoice() can now safely wait for OnBufferEnd callbacks
-	mStreamsToDestroy.clear();
-}
-
-void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch)
-{
-	XMFLOAT3A f3Position {};
-	XMStoreFloat3A(&f3Position, vecPosition);
-	XMFLOAT3A f3Velocity {};
-	XMStoreFloat3A(&f3Velocity, vecVelocity);
-
-	X3DAUDIO_EMITTER x3dAudioEmitter
-	{
-		.OrientFront = {0.0f, 0.0f, 1.0f},
-		.Position = f3Position,
-		.Velocity = f3Velocity,
-		.ChannelCount = 1,
-		.CurveDistanceScaler = mfCurveDistanceScaler,
-		.DopplerScaler = 1.0f,
-	};
-
-	int64_t iMasteringVoiceChannels = miMasteringVoiceChannels;
-
-	FLOAT32 pfMatrixCoefficients[XAUDIO2_MAX_AUDIO_CHANNELS] {};
-	FLOAT32 pfDelayTimes[XAUDIO2_MAX_AUDIO_CHANNELS] {};
-	X3DAUDIO_DSP_SETTINGS x3dAudioDspSettings
-	{
-		.pMatrixCoefficients = pfMatrixCoefficients,
-		.pDelayTimes = pfDelayTimes,
-		.SrcChannelCount = 1,
-		.DstChannelCount = static_cast<UINT32>(iMasteringVoiceChannels),
-	};
-	X3DAUDIO_HANDLE& rX3dAudioHandle = mpAudioEngine->Get3DHandle();
-	X3DAudioCalculate(rX3dAudioHandle, &mX3dAudioListener, &x3dAudioEmitter, X3DAUDIO_CALCULATE_MATRIX | X3DAUDIO_CALCULATE_LPF_DIRECT | X3DAUDIO_CALCULATE_DOPPLER, &x3dAudioDspSettings);
-
-	CHECK_HRESULT(pVoice->SetOutputMatrix(mpAudioEngine->GetMasterVoice(), 1, static_cast<UINT32>(iMasteringVoiceChannels), x3dAudioDspSettings.pMatrixCoefficients));
-
-	// Apply custom volume with distance-based attenuation
-	float fDistance = common::Distance(vecPosition, mVecListenerPosition);
-	float fDistanceVolume = fVolume;
-	if (fDistance >= mfManualFadeEnd)
-	{
-		fDistanceVolume = mfManualFadeVolume;
-	}
-	else if (fDistance >= mfManualFadeStart)
-	{
-		float fPercent = std::clamp((fDistance - mfManualFadeStart) / (mfManualFadeEnd - mfManualFadeStart), 0.0f, 1.0f);
-		fDistanceVolume = (1.0f - fPercent) * fVolume + fPercent * mfManualFadeVolume;
-	}
-
-	CHECK_HRESULT(pVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume)));
-	CHECK_HRESULT(pVoice->SetFrequencyRatio(x3dAudioDspSettings.DopplerFactor * fPitch));
-}
-
-void AudioManager::UpdateStaticVoiceLifecycle(const game::Frame& rFrame, float fDeltaTime)
-{
-	const SoundsInterpolate& rSoundsInterpolate = rFrame.interpolate.sounds;
-	const SoundsPostRender& rSoundsPostRender = rFrame.postRender.sounds;
-
-	// Fade out and stop invalid static voices
-	for (int64_t i = 0; i < static_cast<int64_t>(mStaticVoices.size());)
-	{
-		StaticVoice& rVoice = mStaticVoices.at(i);
-
-		bool bValid = rSoundsInterpolate.idToIndexMap.contains(rVoice.mId);
-		if (bValid)
-		{
-			++i;
-			continue;
-		}
-
-		bool bDestroy = false;
-		if (rVoice.mfVolume <= 0.0f)
-		{
-			bDestroy = true;
-		}
-		if (rVoice.mFlags & StaticVoiceFlags::kFadingOut)
-		{
-			rVoice.mfFadeOutVolume -= fDeltaTime / rVoice.mfFadeOutTime;
-			if (rVoice.mfFadeOutVolume <= 0.0f)
-			{
-				bDestroy = true;
-			}
-		}
-		else
-		{
-			rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
-			rVoice.mfFadeOutVolume = 1.0f;
-		}
-
-		if (bDestroy)
-		{
-			if (i < static_cast<int64_t>(mStaticVoices.size()) - 1)
-			{
-				mStaticVoices.at(i) = std::move(mStaticVoices.back());
-			}
-			mStaticVoices.pop_back();
-		}
-		else
-		{
-			++i;
-		}
-	}
-
-	// Add new voices and sync existing voice volume/positions
-	for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
-	{
-		sound_t id = rSoundsPostRender.puiIds[i];
-		int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
-		float fVolume = rSoundsInterpolate.pfVolumes[iIndex];
-
-		// Find existing voice
-		StaticVoice* pExistingVoice = nullptr;
-		for (StaticVoice& rExisting : mStaticVoices)
-		{
-			if (rExisting.mId == id)
-			{
-				pExistingVoice = &rExisting;
-				break;
-			}
-		}
-
-		if (pExistingVoice != nullptr)
-		{
-			// Sync existing voice
-			pExistingVoice->mfVolume = fVolume;
-			pExistingVoice->mfPitch = rSoundsInterpolate.pfPitches[iIndex];
-			pExistingVoice->mVecPosition = rSoundsInterpolate.pVecPositions[iIndex];
-			pExistingVoice->mVecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
-			continue;
-		}
-
-		// Add new voice
-		if (fVolume <= 0.0f)
-		{
-			continue;
-		}
-		if (static_cast<int64_t>(mStaticVoices.size()) >= kiMaxStaticVoices)
-		{
-			Log(kLogAudio, "Max static voices reached ({}), skipping", kiMaxStaticVoices);
-			continue;
-		}
-
-		common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[iIndex];
-		IXAudio2SourceVoice* pVoice = nullptr;
-		if (StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine.get(), pVoice, uiCrc, false, true))
-		{
-			float fPitch = rSoundsInterpolate.pfPitches[iIndex];
-			float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
-			XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[iIndex];
-			XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
-			mStaticVoices.push_back(StaticVoice(pVoice, id, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity));
-		}
-	}
-}
-
-void AudioManager::UpdateListenerPosition(const game::Frame& rFrame)
-{
-	XMVECTOR vecListenerPos = XMVectorZero();
-	XMVECTOR vecListenerVel = XMVectorZero();
-	std::optional<int64_t> oClientIndex = game::gpGame->ClientPlayerIndex(*rFrame.postRender.pPlayers);
-	if (oClientIndex.has_value())
-	{
-		int64_t iClientIndex = oClientIndex.value();
-		vecListenerPos = rFrame.interpolate.pPlayers->pVecPositions[iClientIndex];
-		vecListenerVel = rFrame.postRender.pPlayers->pVecVelocities[iClientIndex];
-	}
-	mVecListenerPosition = vecListenerPos;
-	XMFLOAT3A f3Position {};
-	XMStoreFloat3A(&f3Position, vecListenerPos);
-	XMFLOAT3A f3Velocity {};
-	XMStoreFloat3A(&f3Velocity, vecListenerVel);
-	mX3dAudioListener.OrientFront = {0.0f, 0.0f, -1.0f};
-	mX3dAudioListener.OrientTop = {0.0f, -1.0f, 0.0f};
-	mX3dAudioListener.Position = f3Position;
-	mX3dAudioListener.Velocity = f3Velocity;
+	mStaticVoices.Set3dSettings(fCurveDistanceScaler, fManualFadeStart, fManualFadeEnd, fManualFadeVolume);
 }
 
 void AudioManager::Update(const game::Frame* pFrame)
@@ -600,11 +242,7 @@ void AudioManager::Update(const game::Frame* pFrame)
 
 	if (mbClearVoicesRequested.exchange(false, std::memory_order_acquire))
 	{
-		for (StaticVoice& rStaticVoice : mStaticVoices)
-		{
-			rStaticVoice.mpVoice = nullptr;
-		}
-		mStaticVoices.clear();
+		mStaticVoices.Clear(true);
 	}
 
 	if (mpAudioEngine != nullptr && !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
@@ -636,147 +274,44 @@ void AudioManager::Update(const game::Frame* pFrame)
 
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mRealTime.GetDeltaNs(true));
 
-	{
-		std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
-
-		// Check if current stream has ended (position >= size or last buffer submitted)
-		if (mpCurrentMusicStream != nullptr)
-		{
-			float fRemaining = mpCurrentMusicStream->GetRemainingTime();
-
-			bool bShouldTransition = (fRemaining <= kfCrossfadeDuration) || (mpCurrentMusicStream->miCurrentPosition >= mpCurrentMusicStream->mpLazyChunk->header.iSize) || (mpCurrentMusicStream->mFlags & StreamingVoiceFlags::kLastBufferSubmitted);
-			if (bShouldTransition && mGetNextMusicTrack)
-			{
-				common::crc_t nextTrackCrc = mGetNextMusicTrack();
-
-				// Move current stream to previous list for fade out
-				TransitionCurrentToPrevious();
-
-				// Load next track as current
-				CreateMusicStream(nextTrackCrc);
-			}
-		}
-	}
-
-	UpdateMusicStreams(fDeltaTime);
+	mStreamingVoices.CheckTrackTransition();
+	mStreamingVoices.Update(fDeltaTime);
 
 	if (pFrame != nullptr)
 	{
-		UpdateStaticVoiceLifecycle(*pFrame, fDeltaTime);
-		UpdateListenerPosition(*pFrame);
+		mStaticVoices.UpdateLifecycle(*pFrame, fDeltaTime);
+		mStaticVoices.UpdateListenerPosition(*pFrame);
 	}
 
-	// 3D volume calculation uses cached mVecListenerPosition — runs always
-	for (const StaticVoice& rVoice : mStaticVoices)
-	{
-		Apply3dVolume(rVoice.mpVoice, rVoice.mVecPosition, rVoice.mVecVelocity, rVoice.mfFadeOutVolume * rVoice.mfVolume, rVoice.mfPitch);
-	}
+	mStaticVoices.UpdateVolumes();
 
-	gpProfileManager->SetCount(kCpuCounterSounds, mStaticVoices.size());
-	gpProfileManager->SetCount(kCpuCounterStreams, (mpCurrentMusicStream != nullptr ? 1 : 0) + static_cast<int64_t>(mPreviousStreams.size()) + static_cast<int64_t>(mStreamsToDestroy.size()));
+	gpProfileManager->SetCount(kCpuCounterSounds, mStaticVoices.GetVoiceCount());
+	gpProfileManager->SetCount(kCpuCounterStreams, mStreamingVoices.GetStreamCount());
 
-	// Update
 	mpAudioEngine->Update();
-}
-
-IXAudio2SourceVoice* AudioManager::PlayOneShot([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, bool b3d, float fVolume, float fPitch, float fPitchRange)
-{
-	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
-
-	if (rFrame.interpolate.frameFlags & FrameFlags::kRecalculated)
-	{
-		return nullptr;
-	}
-
-	if (mbSuspended.load(std::memory_order_acquire))
-	{
-		return nullptr;
-	}
-
-	std::lock_guard<std::recursive_mutex> lock(mOneShotRecursiveMutex);
-
-	// Heap: AllocateVoice creates an XAudio2 source voice that persists until playback ends.
-	// XAudio2 owns the allocation internally, so workbuffer and pre-allocation are not possible.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
-
-	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
-	{
-		return nullptr;
-	}
-
-	IXAudio2SourceVoice* pIXAudio2SourceVoice = nullptr;
-	if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine.get(), pIXAudio2SourceVoice, audioCrc, true, b3d))
-	{
-		return nullptr;
-	}
-
-	if (fPitchRange > 0.0f)
-	{
-		fPitch += common::Random(fPitchRange, mRandomEngine);
-	}
-
-	if (!b3d)
-	{
-		CHECK_HRESULT(pIXAudio2SourceVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fVolume)));
-	}
-	CHECK_HRESULT(pIXAudio2SourceVoice->SetFrequencyRatio(fPitch));
-	CHECK_HRESULT(pIXAudio2SourceVoice->Start(0, XAUDIO2_COMMIT_NOW));
-	return pIXAudio2SourceVoice;
-}
-
-void XM_CALLCONV AudioManager::PlayOneShot3d([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch, float fPitchRange)
-{
-	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
-
-	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
-	{
-		return;
-	}
-
-	std::lock_guard<std::recursive_mutex> lock(mOneShotRecursiveMutex);
-
-	if (fPitchRange > 0.0f)
-	{
-		fPitch += common::Random(fPitchRange, mRandomEngine);
-	}
-
-	IXAudio2SourceVoice* pIXAudio2SourceVoice = PlayOneShot(rFrame, audioCrc, true, fVolume, fPitch);
-	if (pIXAudio2SourceVoice != nullptr)
-	{
-		Apply3dVolume(pIXAudio2SourceVoice, vecPosition, XMVectorZero(), fVolume, fPitch);
-	}
 }
 
 void AudioManager::OnCriticalError()
 {
 	Log(kError, "AudioManager::OnCriticalError()");
 
-	// Destroy static voices immediately to remove them from the XAudio2 send graph
-	// before SetSilentMode destroys the mastering voice
-	mStaticVoices.clear();
-
-	// Destroy streaming voices (safe to hold mutex during critical error
-	// since XAudio2 callback thread is no longer running)
-	{
-		std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
-		mpCurrentMusicStream.reset();
-		mPreviousStreams.clear();
-		mStreamsToDestroy.clear();
-	}
+	// Destroy voices immediately — XAudio2 callback thread is no longer running
+	mStaticVoices.Clear(false);
+	mStreamingVoices.Clear(false);
 }
 
 void AudioManager::OnReset()
 {
 	Log(kLogAudio, "AudioManager::OnReset()");
 	mbClearVoicesRequested.store(true, std::memory_order_release);
-	ClearStreamingVoices();
+	mStreamingVoices.Clear(true);
 }
 
 void AudioManager::OnDestroyEngine() noexcept
 {
 	Log(kLogAudio, "AudioManager::OnDestroyEngine()");
 	mbClearVoicesRequested.store(true, std::memory_order_release);
-	ClearStreamingVoices();
+	mStreamingVoices.Clear(true);
 }
 
 void AudioManager::OnTrim()

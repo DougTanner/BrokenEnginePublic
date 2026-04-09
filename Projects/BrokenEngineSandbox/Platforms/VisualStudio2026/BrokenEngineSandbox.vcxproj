@@ -326,7 +326,9 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\..\..\Engine\Data\Shaders\ShaderLayoutsBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Audio\AudioManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Audio\StaticVoice.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Audio\StaticVoices.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Audio\StreamingVoice.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Audio\StreamingVoices.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Debug\EnumToString.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Debug\DebugRender.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\File\DifferenceStream.h" />
@@ -359,7 +361,6 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\..\..\Engine\Source\CrashReport.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Engine.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\GameBase.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\GameSaveLoad.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Memory\MemoryManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\CameraBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Graphics.h" />
@@ -428,14 +429,8 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\Source\Network\Client\ClientReconciler.h" />
     <ClInclude Include="..\..\Source\Network\Client\ReconcileReplay.h" />
     <ClInclude Include="..\..\Source\Network\PlayerEvents.h" />
-    <ClInclude Include="..\..\Source\Network\Server\ServerSession.h" />
-    <ClInclude Include="..\..\Source\Network\Server\ServerFleetManager.h" />
-    <ClInclude Include="..\..\Source\Network\Server\ServerTransferManager.h" />
-    <ClInclude Include="..\..\Source\Network\Server\ServerBroadcaster.h" />
-    <ClInclude Include="..\..\Source\Network\Server\ServerClientManager.h" />
     <ClInclude Include="..\..\Source\Network\GamePacketType.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Client\ClientSessionBase.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionBase.h" />
     <ClInclude Include="..\..\Source\Graphics\Camera.h" />
     <ClInclude Include="..\..\Source\Input\Input.h" />
     <ClInclude Include="..\..\Source\Pch.h" />
@@ -473,7 +468,9 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Common\Smoothed.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\AudioManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\StaticVoice.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Audio\StaticVoices.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\StreamingVoice.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Audio\StreamingVoices.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights\AreaLights.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights\AreaLightsUpdate.cpp" />
@@ -521,7 +518,6 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Render\WindUniforms.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\TimeStep.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\GameSaveLoad.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Memory\MemoryManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\CameraBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Debug\DebugRender.cpp" />
@@ -573,7 +569,6 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\Server.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerReceive.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSend.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileScreens.cpp" />
     <ClCompile Include="..\..\Source\Profile\ProfileManager.cpp" />
@@ -625,11 +620,6 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\Source\Network\Client\ReconcileReplayCrc.cpp" />
     <ClCompile Include="..\..\Source\Network\Client\ReconcileReplayHumanState.cpp" />
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp" />
-    <ClCompile Include="..\..\Source\Network\Server\ServerSession.cpp" />
-    <ClCompile Include="..\..\Source\Network\Server\ServerFleetManager.cpp" />
-    <ClCompile Include="..\..\Source\Network\Server\ServerTransferManager.cpp" />
-    <ClCompile Include="..\..\Source\Network\Server\ServerBroadcaster.cpp" />
-    <ClCompile Include="..\..\Source\Network\Server\ServerClientManager.cpp" />
     <ClCompile Include="..\..\Source\Graphics\Camera.cpp" />
     <ClCompile Include="..\..\Source\Input\Input.cpp" />
     <ClCompile Include="..\..\Source\Ui\Screens\DeathMenuScreen.cpp" />

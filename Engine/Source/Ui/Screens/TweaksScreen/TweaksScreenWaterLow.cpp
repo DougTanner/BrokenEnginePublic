@@ -1,5 +1,7 @@
 #include "TweaksScreenBase.h"
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -24,8 +26,10 @@ void TweaksScreenBase::RenderWaterLowSection()
 	WrapperSlider("Speed Adjust", kiSection);
 
 	WrapperSeparatorText("Beach Fade");
-	WrapperSlider("Beach Directional Fade Bottom", kiSection);
-	WrapperSlider("Beach Directional Fade Height", kiSection);
+	WrapperSlider("Beach Fade Top", kiSection);
+	WrapperSlider("Beach Fade Bottom", kiSection);
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

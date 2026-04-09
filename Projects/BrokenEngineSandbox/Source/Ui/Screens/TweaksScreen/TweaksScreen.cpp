@@ -2,6 +2,8 @@
 
 #include "Game.h"
 
+#if defined(BT_CLIENT)
+
 namespace game
 {
 
@@ -61,3 +63,5 @@ void TweaksScreen::Render()
 }
 
 } // namespace game
+
+#endif // BT_CLIENT

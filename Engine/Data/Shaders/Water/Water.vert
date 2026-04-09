@@ -28,7 +28,8 @@ layout (location = 3) out vec3 f3OutNormal;
 
 void Gertsner(vec2 f2LocalPosition, float fTerrainElevation)
 {
-	float fMix = clamp(globalLayout.fBeachDirectionalFadeBottom + globalLayout.fBeachDirectionalFadeHeightInv * fTerrainElevation, 0.0f, 1.0f);
+	// Shore amplitude fade: 1.0 at/below bottom, 0.0 at/above top
+	float fShoreAmplitude = clamp((fTerrainElevation - globalLayout.fBeachFadeTop) * globalLayout.fBeachFadeInvRange, 0.0f, 1.0f);
 
 	float fLowSteepness = globalLayout.fWaterLowSteepness;
 	vec3 f3TotalLow = vec3(f2LocalPosition, 0.0f);
@@ -36,8 +37,8 @@ void Gertsner(vec2 f2LocalPosition, float fTerrainElevation)
 	for (int i = 0; i < globalLayout.iWaterLowCount; ++i)
 	{
 		float fOmega = mainLayout.pf4LowWavesTwo[i].x; // Frequency
-		float fAmplitude = mainLayout.pf4LowWavesTwo[i].y;
-		vec2 f2Direction = normalize(fMix * mainLayout.pf4LowWavesOne[i].zw + (1.0f - fMix) * mainLayout.pf4LowWavesOne[i].xy);
+		float fAmplitude = mainLayout.pf4LowWavesTwo[i].y * fShoreAmplitude;
+		vec2 f2Direction = mainLayout.pf4LowWavesOne[i].xy;
 
 		float fWA = fOmega * fAmplitude;
 		float fReducedPhiTime = mainLayout.pf4LowWavesTwo[i].w;

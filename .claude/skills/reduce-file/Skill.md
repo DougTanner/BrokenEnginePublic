@@ -128,7 +128,7 @@ For each proposed `.cpp` file:
 - **Line count estimate**: How many lines the new `.cpp` will have
 - **Scope guard**: Whether the file is wrapped in `#ifdef`
 - **Includes needed**: What headers the new file requires
-- **Implementation order**: Break into incremental steps where the program compiles after each step (e.g., 1. Create new .cpp, 2. Move first method group, 3. Update vcxproj, 4. Verify build)
+- **Implementation order**: Break into incremental steps where the program compiles after each step (e.g., 1. Create new .cpp, 2. Move first method group, 3. Update vcxproj and vcxproj.filters (filter must mirror on-disk directory), 4. Verify build)
 
 Also state:
 - What remains in the original `.cpp` and its reduced line count

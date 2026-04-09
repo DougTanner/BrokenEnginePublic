@@ -1,5 +1,7 @@
 #include "TweaksScreenBase.h"
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -9,7 +11,6 @@ void TweaksScreenBase::RenderWaterSpecularSection()
 
 	WrapperSeparatorText("Normals");
 	WrapperSlider("Sampled Normals Size", kiSection);
-	WrapperSlider("Sampled Normals Size Mod", kiSection);
 	WrapperSlider("Sampled Normals Speed", kiSection);
 	WrapperSlider("Depth Reflection Feather", kiSection);
 
@@ -34,3 +35,5 @@ void TweaksScreenBase::RenderWaterSpecularSection()
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

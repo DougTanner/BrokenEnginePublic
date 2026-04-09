@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 namespace game
 {
 
@@ -16,3 +18,5 @@ public:
 };
 
 } // namespace game
+
+#endif // BT_CLIENT

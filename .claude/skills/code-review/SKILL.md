@@ -70,7 +70,24 @@ If modifying frame update code:
 - GPU resources wrapped in RAII classes (Buffer, Texture, Pipeline, CommandBuffer)
 - Use `common::AlignedUniquePtr` for 64-byte aligned allocations (SIMD data)
 
-### 4. Verify Determinism (Replay-Sensitive Code)
+### 4. Verify vcxproj Inclusion
+
+If new `.cpp` files were created during this session, verify they are added to the correct vcxproj:
+- If the file is fully wrapped in `#if defined(BT_CLIENT)` — must be in client vcxproj only, NOT in server vcxproj
+- If the file is fully wrapped in `#if defined(BT_SERVER)` — must be in server vcxproj only, NOT in client vcxproj
+- If the file has shared code (no guard or partial guards) — must be in both vcxproj files
+
+If an existing file was changed to be fully wrapped in a `BT_` guard that it wasn't before, flag that it should be removed from the opposite vcxproj.
+
+### 4b. Verify vcxproj.filters Paths
+
+If files were added to `.vcxproj.filters` during this session, verify the filter path mirrors the on-disk directory:
+- `Engine/Source/<path>/File.h` must use filter `Engine\<path>` (backslash-separated)
+- `Projects/BrokenEngineSandbox/Source/<path>/File.h` must use filter `Game\<path>`
+- If a new subdirectory filter is needed, verify it was added to the filter definitions with a unique GUID
+- Flag any file whose filter doesn't match its on-disk directory
+
+### 5. Verify Determinism (Replay-Sensitive Code)
 
 If the code affects game state that participates in replay:
 - CRC calculations updated if any serialized state was modified
@@ -78,7 +95,7 @@ If the code affects game state that participates in replay:
 - No platform-specific operations in replay code path
 - No wall-clock time dependencies (use frame delta time instead)
 
-### 5. Check Common Library Usage
+### 6. Check Common Library Usage
 
 Verify that existing utilities are used instead of reimplementing:
 
@@ -105,14 +122,14 @@ Verify that existing utilities are used instead of reimplementing:
 **Type Safety**:
 - `common::Flags<ENUM>` - type-safe bitfield wrapper with Set/Clear/Toggle
 
-### 6. File Size Check
+### 7. File Size Check
 
 For each modified `.cpp` file, check its total line count:
 - **Over 1000 lines**: Always flag as **REQUIRED** — `/reduce-file` must be invoked on this file
 - **500-1000 lines**: Only flag as **RECOMMEND** if you identified a natural split point during the review (e.g., distinct responsibility groups, client/server code that could separate, utility functions that belong in a `*Utils` file). Do not flag files in this range that are cohesive and have no obvious split
 - **Struct splitting**: Structs with static methods (e.g., SOA collections) can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). Classes must NOT be split this way — extract independent classes instead. See `/reduce-file` skill
 
-### 7. Implementation Assessment
+### 8. Implementation Assessment
 
 Evaluate the changes holistically:
 - **Completeness** - Does the implementation fully address the user's request?
@@ -120,7 +137,7 @@ Evaluate the changes holistically:
 - **Minimality** - No unnecessary refactoring, extra features, error handling, or cosmetic changes beyond what was requested.
 - **Simplification** - Could any duplicated code be extracted, over-complicated algorithms be simplified, or unnecessary intermediate variables be removed?
 
-### 8. Function Size and Nesting
+### 9. Function Size and Nesting
 
 Check modified functions for size and nesting as related code smells — deeply nested code often signals a function doing too much:
 - **Function size**: Aim for 50-100 lines max per function. Soft guideline — some functions are legitimately large

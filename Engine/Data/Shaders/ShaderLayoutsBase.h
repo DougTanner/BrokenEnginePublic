@@ -316,8 +316,8 @@ struct GlobalLayout
 	float fWaterDebugNormalOneOffset INIT;
 	float fWaterDirectional INIT;
 	float fWaterFresnel2 INIT;
-	float fBeachDirectionalFadeBottom INIT;
-	float fBeachDirectionalFadeHeightInv INIT;
+	float fBeachFadeTop INIT;
+	float fBeachFadeInvRange INIT;
 	float fWaterLowSteepness INIT;
 	float fWaterMediumSteepness INIT;
 	float fWaterDebugNormalTwoOffset INIT;
@@ -389,7 +389,7 @@ struct MainLayout
 
 	// Lighting
 	float fLightingSampledNormalsSize INIT;
-	float fLightingSampledNormalsSizeMod INIT;
+	float fMainPadA INIT;
 	float fLightingSampledNormalsSpeed INIT;
 	float fWaterHeightDarkenTop INIT;
 	float fWaterHeightDarkenBottom INIT;

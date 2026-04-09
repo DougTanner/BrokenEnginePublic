@@ -60,7 +60,6 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	rMainLayout.fLightingSampledNormalsSize = gLightingSampledNormalsSize.Get();
-	rMainLayout.fLightingSampledNormalsSizeMod = gLightingSampledNormalsSizeMod.Get();
 	rMainLayout.fLightingSampledNormalsSpeed = gLightingSampledNormalsSpeed.Get();
 	rMainLayout.fWaterHeightDarkenTop = gWaterHeightDarkenTop.Get();
 	rMainLayout.fWaterHeightDarkenBottom = gWaterHeightDarkenBottom.Get();

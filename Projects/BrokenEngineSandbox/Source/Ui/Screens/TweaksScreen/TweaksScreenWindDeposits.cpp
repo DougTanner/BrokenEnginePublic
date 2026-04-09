@@ -1,5 +1,7 @@
 #include "TweaksScreen.h"
 
+#if defined(BT_CLIENT)
+
 namespace game
 {
 
@@ -32,3 +34,5 @@ void TweaksScreen::RenderWindDepositsSection()
 }
 
 } // namespace game
+
+#endif // BT_CLIENT

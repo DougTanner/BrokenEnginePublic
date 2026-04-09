@@ -6,34 +6,14 @@
 
 ## Key Classes
 
-- **AudioManager** - Orchestrates playback: listener positioning, music crossfading, voice lifecycle, and XAudio2 device reset handling. Owns a time-seeded `RandomEngine` for pitch randomization, keeping audio variance out of the Frame's deterministic random engine.
-- **StaticVoice** - Frame-driven 3D sound effects managed by AudioManager. Each voice is tracked by ID, synced with frame sound data (volume, pitch, position, velocity) each update, and faded out when no longer present in the frame. Also provides `LoadXAudio2SourceVoice` for fire-and-forget one-shot playback.
-- **StreamingVoice** - Music playback via triple-buffered streaming from lazy-loaded chunks. Buffers are fixed-size arrays (no heap allocation per stream). Signals the main thread via an atomic counter when buffers are consumed. Non-copyable and non-movable; always owned via `unique_ptr`.
+- **AudioManager** - Orchestrator: XAudio2 device lifecycle, focus handling (`Suspend`/`Resume`), and the `IVoiceNotify` interface for device reset. Delegates all playback to `mStaticVoices` and `mStreamingVoices`; public API is unchanged from callers' perspective.
+- **StaticVoices** - 3D spatial audio manager: one-shot fire-and-forget playback and persistent frame-driven voices. Voices are capped, synced from frame sound data each tick, and faded out on removal. X3DAudio provides distance attenuation, Doppler, and speaker panning. One-shot calls are thread-safe via a recursive mutex.
+- **StreamingVoices** - Music streaming manager: triple-buffered playback with crossfade transitions. Buffer submission stays on the main thread; XAudio2 callbacks only increment an atomic counter. Destruction is deferred past mutex release to avoid `DestroyVoice` deadlocks.
+- **StaticVoice** / **StreamingVoice** - Per-voice data structs owned by their respective managers.
 
-## Architecture
+## Architecture Notes
 
-### Voice Lifecycle
-Two playback modes: **one-shot** (fire-and-forget via `PlayOneShot`/`PlayOneShot3d`, asserts `kPostRender`, skips reconciliation frames, thread-safe via `mOneShotRecursiveMutex`) and **managed** (persistent voices in a flat vector, capped at `kiMaxStaticVoices`, synced from `SoundsInterpolate`/`SoundsPostRender` frame data each tick with swap-and-pop removal after fade-out). `LoadXAudio2SourceVoice` creates XAudio2 source voices; the caller is responsible for any required thread synchronization. `DestroyXAudio2SourceVoice` emits a warning if the XAudio2 `DestroyVoice` call takes unexpectedly long.
-
-### Focus Handling
-`Suspend()` stops and clears all voices (static and streaming) and sets an atomic flag that causes `Update()` and `PlayOneShot()` to return early. `Resume()` clears the flag. Called from `Main.cpp` window focus messages.
-
-### Music System
-Callback-based playlist decoupling: game logic owns track selection, AudioManager handles playback. Crossfade transitions overlap streams with volume fading, triggered when remaining time reaches a threshold.
-
-### 3D Spatial Audio
-X3DAudio integration provides distance attenuation, Doppler effect, and multi-channel speaker panning. Listener position updated from player frame data each tick. Custom manual fade applies additional distance-based volume attenuation.
-
-### Logging
-
-Silent failure points (max static voice limit, music playback issues, voice creation failures) emit `Log(kLogAudio, ...)` messages. `kLogAudio` is deactivated by default in `guiLogEnabledCategories` — enable it when debugging audio issues.
-
-### Threading
-- **Main thread** - 3D position updates, playlist logic, static voice cleanup, and all buffer filling/submission for streaming voices
-- **Worker threads** - One-shot playback (`PlayOneShot`/`PlayOneShot3d`) serialized via `mOneShotRecursiveMutex`
-- **XAudio2 thread** - `OnBufferEnd()` only increments an atomic counter (`miBuffersConsumed`); no file I/O or buffer submission occurs on this thread
-- **Background thread** - Lazy loading of audio chunks via FileManager
-
-`AudioManager::SubmitStreamingBuffers()` is called from `UpdateMusicStreams()` on the main thread; it polls each stream's `miBuffersConsumed` counter and performs `FillBuffer` + `SubmitSourceBuffer` for any consumed slots. This keeps the XAudio2 callback thread free of I/O and mutex acquisition.
-
-Voice cleanup uses thread-safe handoff: XAudio2 callbacks set an atomic flag; `Update()` on the main thread checks the flag and clears static voices, avoiding data races. `TransitionCurrentToPrevious()` promotes the current music stream to the fading-out previous list. Streams pending destruction are moved into a persistent `mStreamsToDestroy` member (reused each frame to avoid per-frame heap allocation) while holding the mutex, then destroyed after releasing, preventing XAudio2 deadlocks from `DestroyVoice()` waiting on `OnBufferEnd()` callbacks.
+- `DestroyXAudio2SourceVoice` (free function in `AudioManager.h`) handles safe teardown and logs a warning if `DestroyVoice` takes unexpectedly long.
+- Callback-based playlist decoupling: game logic supplies the next-track callback; `StreamingVoices` drives transitions when remaining time crosses a threshold.
+- Silent failure points (voice cap reached, stream errors) emit `Log(kLogAudio, ...)`. `kLogAudio` is off by default — enable it when debugging audio.
+- XAudio2 callbacks are minimal (atomic increment only); all I/O and buffer submission happen on the main thread.

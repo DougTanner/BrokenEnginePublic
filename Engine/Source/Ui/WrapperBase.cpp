@@ -160,7 +160,6 @@ Wrapper gCombinePassNormalize(1.0f, 0.0f, 1.0f);
 Wrapper gCombineExposurePassScale(0.6f, 0.0f, 1.0f);
 
 Wrapper gLightingSampledNormalsSize(0.3f, 0.05f, 0.5f);
-Wrapper gLightingSampledNormalsSizeMod(0.007f, -0.02f, 0.02f);
 Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
 
 // New Lighting
@@ -265,20 +264,20 @@ Wrapper gLowCount(15i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}))
 Wrapper gLowMax(150.0f, 0.0f, 255.0f);
 Wrapper gLowAngle(4.95f, 0.0f, XM_2PI);
 Wrapper gLowWavelength(2.4f, 1.0f, 20.0f);
-Wrapper gLowAmplitude(0.05f, 0.0f, 0.1f);
+Wrapper gLowAmplitude(0.06f, 0.0f, 0.1f);
 Wrapper gLowSpeed(0.3f, 0.0f, 1.0f);
 Wrapper gLowSteepness(1.0f, 0.0f, 2.0f);
 
 Wrapper gLowAngleAdjust(0.239f, 0.0f, 2.0f);
-Wrapper gLowWavelengthAdjust(-0.8f, -2.0f, 0.0f);
+Wrapper gLowWavelengthAdjust(-0.7f, -2.0f, 0.0f);
 Wrapper gLowAmplitudeAdjust(2.0f, 0.0f, 4.0f);
-Wrapper gLowSpeedAdjust(2.0f, 0.0f, 4.0f);
+Wrapper gLowSpeedAdjust(1.0f, 0.0f, 4.0f);
 
 // Medium frequency waves
 Wrapper gMediumCount(63i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
 Wrapper gMediumWavelength(7.5f, 0.01f, 20.0f);
 Wrapper gMediumAmplitude(0.0075f, 0.0f, 0.025f);
-Wrapper gMediumSpeed(0.2f, 0.001f, 1.0f);
+Wrapper gMediumSpeed(0.3f, 0.001f, 1.0f);
 Wrapper gMediumSteepness(3.0f, 0.0f, 10.0f);
 
 Wrapper gMediumAngleAdjust(4.4f, 0.0f, 20.0f);
@@ -291,8 +290,8 @@ Wrapper gHighMultiplier(0.204f, 0.0f, 0.5f);
 Wrapper gHighScaleOne(0.85f, 0.0f, 2.0f);
 Wrapper gHighScaleTwo(1.2f, 0.0f, 2.0f);
 
-Wrapper gBeachDirectionalFadeBottom(0.25f, 0.0f, 2.0f);
-Wrapper gBeachDirectionalFadeHeight(0.7f, 0.0f, 1.0f);
+Wrapper gBeachFadeTop(-0.06f, -0.1f, 0.0f);
+Wrapper gBeachFadeBottom(-0.14f, -0.2f, -0.07f);
 
 // Water Debug
 Wrapper gWaterDebugLowWaveOffset(0.0f, 0.0f, 100000.0f);

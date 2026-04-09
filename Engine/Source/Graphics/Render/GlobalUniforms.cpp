@@ -324,8 +324,8 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterDirectional = std::pow(rGlobalLayout.fWaterDirectional, 2.0f);
 
 	rGlobalLayout.fWaterFresnel2 = std::pow(fDayPercent, 0.5f) * gWaterFresnel2.Get();
-	rGlobalLayout.fBeachDirectionalFadeBottom = gBeachDirectionalFadeBottom.Get();
-	rGlobalLayout.fBeachDirectionalFadeHeightInv = 1.0f / gBeachDirectionalFadeHeight.Get();
+	rGlobalLayout.fBeachFadeTop = gBeachFadeTop.Get();
+	rGlobalLayout.fBeachFadeInvRange = 1.0f / (gBeachFadeBottom.Get() - gBeachFadeTop.Get());
 	rGlobalLayout.fWaterLowSteepness = gLowSteepness.Get();
 
 	rGlobalLayout.fWaterMediumSteepness = gMediumSteepness.Get();
@@ -338,6 +338,9 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterDebugMediumWaveOffset = gWaterDebugMediumWaveOffset.Get();
 
 	// Water precision: camera-relative UV reduction (double precision on CPU)
+	// Normal map mod uses 10.0 (not 1.0) because the shader multiplies reducedOrigin by non-integer
+	// sizeMult values (0.2, 1.1, 2.5, etc.). With mod 1.0, wraps produce non-integer UV jumps that
+	// fract() can't absorb. With mod 10.0, sizeMult * 10 is always an integer for current multipliers.
 	XMFLOAT4A f4CameraPos {};
 	XMStoreFloat4A(&f4CameraPos, game::gpCamera->mVecPosition);
 	rGlobalLayout.fWaterOriginX = f4CameraPos.x;
@@ -349,15 +352,15 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	double dCameraX = static_cast<double>(f4CameraPos.x);
 	double dCameraY = static_cast<double>(f4CameraPos.y);
 
-	rGlobalLayout.fWaterReducedNormalOriginX = static_cast<float>(std::fmod(dSizeBase * dCameraX, 1.0));
-	rGlobalLayout.fWaterReducedNormalOriginY = static_cast<float>(std::fmod(dSizeBase * dCameraY, 1.0));
-	rGlobalLayout.fWaterReducedNormalTime = static_cast<float>(std::fmod(dSizeBase * dSpeed * dTime, 1.0));
+	rGlobalLayout.fWaterReducedNormalOriginX = static_cast<float>(std::fmod(dSizeBase * dCameraX, 10.0));
+	rGlobalLayout.fWaterReducedNormalOriginY = static_cast<float>(std::fmod(dSizeBase * dCameraY, 10.0));
+	rGlobalLayout.fWaterReducedNormalTime = static_cast<float>(std::fmod(dSizeBase * dSpeed * dTime, 10.0));
 
 	// Normal/noise debug offsets reduced alongside camera origin
 	double dDebugNormalOne = static_cast<double>(gWaterDebugNormalOneOffset.Get());
 	double dDebugNormalTwo = static_cast<double>(gWaterDebugNormalTwoOffset.Get());
-	rGlobalLayout.fWaterDebugNormalOneOffset = static_cast<float>(std::fmod(dSizeBase * dDebugNormalOne, 1.0));
-	rGlobalLayout.fWaterDebugNormalTwoOffset = static_cast<float>(std::fmod(dSizeBase * dDebugNormalTwo, 1.0));
+	rGlobalLayout.fWaterDebugNormalOneOffset = static_cast<float>(std::fmod(dSizeBase * dDebugNormalOne, 10.0));
+	rGlobalLayout.fWaterDebugNormalTwoOffset = static_cast<float>(std::fmod(dSizeBase * dDebugNormalTwo, 10.0));
 
 	double dNoiseFreq = static_cast<double>(gWaterColorNoiseFrequency.Get());
 	rGlobalLayout.fWaterReducedNoiseOriginX = static_cast<float>(std::fmod(dNoiseFreq * dCameraX, 1.0));

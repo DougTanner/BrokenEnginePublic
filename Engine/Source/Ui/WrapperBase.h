@@ -353,7 +353,6 @@ extern Wrapper gCombinePower;
 extern Wrapper gCombinePassNormalize;
 extern Wrapper gCombineExposurePassScale;
 extern Wrapper gLightingSampledNormalsSize;
-extern Wrapper gLightingSampledNormalsSizeMod;
 extern Wrapper gLightingSampledNormalsSpeed;
 
 // New Lighting
@@ -483,8 +482,8 @@ extern Wrapper gHighMultiplier;
 extern Wrapper gHighScaleOne;
 extern Wrapper gHighScaleTwo;
 
-extern Wrapper gBeachDirectionalFadeBottom;
-extern Wrapper gBeachDirectionalFadeHeight;
+extern Wrapper gBeachFadeTop;
+extern Wrapper gBeachFadeBottom;
 
 // Water Debug
 extern Wrapper gWaterDebugLowWaveOffset;

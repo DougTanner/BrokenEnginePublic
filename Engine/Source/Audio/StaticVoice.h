@@ -5,6 +5,13 @@
 namespace engine
 {
 
+inline constexpr float VolumeToPower(float fMasterVolume, float fSoundVolume, float fLocalVolume = 1.0f)
+{
+	// More natural-feeling volume controls
+	float fVolume = fMasterVolume * fSoundVolume * fLocalVolume;
+	return fVolume * fVolume;
+}
+
 enum class StaticVoiceFlags : uint8_t
 {
 	kFadingOut = 0x01,

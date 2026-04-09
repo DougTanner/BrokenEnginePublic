@@ -1,5 +1,7 @@
 #include "TweaksScreenBase.h"
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -12,3 +14,5 @@ void TweaksScreenBase::RenderTestSection()
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT
