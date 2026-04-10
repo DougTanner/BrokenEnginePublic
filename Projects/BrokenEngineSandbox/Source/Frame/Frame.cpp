@@ -8,7 +8,7 @@ namespace game
 
 using enum GameFlags;
 
-const int64_t Frame::kiVersion = 32 + engine::kiNavDataVersion
+const int64_t Frame::kiVersion = 33 + engine::kiNavDataVersion
 	+ BlastersInterpolate::kiVersion
 	+ BlastersPostRender::kiVersion
 	+ MissilesInterpolate::kiVersion
@@ -180,47 +180,88 @@ void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 	engine::ForEachPostRenderDestroy(GamePostRenderTypes{}, rFrame, rStaticData);
 }
 
-static void SpawnSingleSpaceship(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData, int64_t iPlayerIndex)
+static void SpawnSpaceshipGroup(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData)
 {
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
 	constexpr float kfSpawnRadius = 100.0f;
+	constexpr float kfMaxSpawnRadius = 200.0f;
+	constexpr float kfTerrainMargin = 1.0f;
+	constexpr float kfAngularSpacing = kfSpaceshipRadius * 3.0f / kfSpawnRadius;
 
-	// Skip if this player is exploding
-	if (rFrame.postRender.pPlayers->pFlags[iPlayerIndex] & PlayerFlags::kExploding)
+	// Count non-exploding players, use first as spawn center
+	int64_t iSpawnCount = 0;
+	auto vecPlayerPosition = XMVectorZero();
+	bool bFoundCenter = false;
+	for (int64_t i = 0; i < rInterpolate.pPlayers->iCount; ++i)
+	{
+		if (!(rFrame.postRender.pPlayers->pFlags[i] & PlayerFlags::kExploding))
+		{
+			if (!bFoundCenter)
+			{
+				vecPlayerPosition = rInterpolate.pPlayers->pVecPositions[i];
+				bFoundCenter = true;
+			}
+			++iSpawnCount;
+		}
+	}
+	if (iSpawnCount == 0)
 	{
 		return;
 	}
-	XMVECTOR vecPlayerPosition = rInterpolate.pPlayers->pVecPositions[iPlayerIndex];
 
-	// Random angle around player
-	float fAngle = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
-	auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
+	// Single random base angle for the group
+	float fBaseAngle = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
+	float fCenterOffset = static_cast<float>(iSpawnCount - 1) * 0.5f;
+
+	// Expand radius until all positions are below base height
 	float fCurrentRadius = kfSpawnRadius;
-	auto vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fCurrentRadius), vecDirection, vecPlayerPosition);
-
-	// Avoid islands, retry with expanded radius
-	float fTerrainElevation = engine::gpIslandTerrain->GlobalElevation(vecSpawnPosition);
-	while (fTerrainElevation > 0.0f)
+	for (; fCurrentRadius <= kfMaxSpawnRadius; fCurrentRadius += 1.0f)
 	{
-		fCurrentRadius += 1.0f;
-		vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fCurrentRadius), vecDirection, vecPlayerPosition);
-		fTerrainElevation = engine::gpIslandTerrain->GlobalElevation(vecSpawnPosition);
+		bool bAllClear = true;
+		for (int64_t i = 0; i < iSpawnCount; ++i)
+		{
+			float fAngle = fBaseAngle + (static_cast<float>(i) - fCenterOffset) * kfAngularSpacing;
+			auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
+			auto vecPos = XMVectorMultiplyAdd(XMVectorReplicate(fCurrentRadius), vecDirection, vecPlayerPosition);
+			if (engine::gpIslandTerrain->GlobalElevation(vecPos) > engine::gBaseHeight.Get() - kfTerrainMargin)
+			{
+				bAllClear = false;
+				break;
+			}
+		}
+		if (bAllClear)
+		{
+			break;
+		}
+	}
+	if (fCurrentRadius > kfMaxSpawnRadius)
+	{
+		DEBUG_BREAK();
+		return;
 	}
 
-	// If spawn position is outside bounds, spawn on opposite side of player (toward center)
-	if (!common::InsideArea(vecSpawnPosition, rStaticData.vecArea))
+	// Spawn each spaceship
+	for (int64_t i = 0; i < iSpawnCount; ++i)
 	{
-		vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(-kfSpawnRadius), vecDirection, vecPlayerPosition);
-	}
+		float fAngle = fBaseAngle + (static_cast<float>(i) - fCenterOffset) * kfAngularSpacing;
+		auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
+		auto vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fCurrentRadius), vecDirection, vecPlayerPosition);
 
-	XMVECTOR vecDirectionToPlayer = XMVector3Normalize(XMVectorSubtract(vecPlayerPosition, vecSpawnPosition));
-	SpaceshipsPostRender::Spawn(rFrame,
-	{
-		.vecPosition = vecSpawnPosition,
-		.vecDirection = vecDirectionToPlayer,
-		.alignment = rFrame.postRender.enemyAlignment,
-	});
+		// If spawn position is outside bounds, spawn on opposite side of player (toward center)
+		if (!common::InsideArea(vecSpawnPosition, rStaticData.vecArea))
+		{
+			vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(-kfSpawnRadius), vecDirection, vecPlayerPosition);
+		}
+
+		auto vecDirectionToPlayer = XMVector3Normalize(XMVectorSubtract(vecPlayerPosition, vecSpawnPosition));
+		SpaceshipsPostRender::Spawn(rFrame,
+		{
+			.vecPosition = vecSpawnPosition,
+			.vecDirection = vecDirectionToPlayer,
+			.alignment = rFrame.postRender.enemyAlignment,
+		});
+	}
 }
 
 void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
@@ -247,10 +288,7 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 	while (rInterpolate.fSpawnTimer >= kfSpawnInterval)
 	{
 		rInterpolate.fSpawnTimer -= kfSpawnInterval;
-		for (int64_t i = 0; i < rInterpolate.pPlayers->iCount; ++i)
-		{
-			SpawnSingleSpaceship(rFrame, rStaticData, i);
-		}
+		SpawnSpaceshipGroup(rFrame, rStaticData);
 	}
 }
 
