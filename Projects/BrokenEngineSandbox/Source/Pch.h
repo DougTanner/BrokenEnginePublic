@@ -79,5 +79,11 @@ inline constexpr bool kbShowProfileTextByDefault = false;
 #include "Engine.h"
 
 inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kChina;
-inline constexpr LogCategory keFocusedLogCategoryDefault = kLogNetwork; // DT: TEMP kLogDefault;
-inline constexpr LogLevel keLogLevelDefault = kDebug;
+inline constexpr LogLevel keLogLevelDefault  = kDebug;
+inline constexpr LogLevel keLogLevelTemp     = kDebug;
+
+inline constexpr LogLevel keLogLevelAudio    = kDebug;
+inline constexpr LogLevel keLogLevelGraphics = kDebug;
+inline constexpr LogLevel keLogLevelLoading  = kDebug;
+inline constexpr LogLevel keLogLevelNavData  = kDebug;
+inline constexpr LogLevel keLogLevelNetwork  = kVerbose; // DT: TEMP kDebug;

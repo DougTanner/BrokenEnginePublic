@@ -51,6 +51,10 @@ static CrcValidateResult CrcValidateLoop(CoordReconcileWork& rWork, int64_t iTar
 			common::ToHex(std::span<char, 20>(acServerInputCrc), it->second.inputCrc);
 			common::ToHex(std::span<char, 20>(acClientInputCrc), rWork.snapshots[iPhysical]->postRender.previousInputCrc);
 			Log(kLogNetwork, kVerbose, "CrcValidateLoop CRC mismatch Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} ServerInputCrc: {} ClientInputCrc: {} StatusChanges: {}", rWork.coord.x, rWork.coord.y, iExpected, acSharedCrc, acClientCrc, acServerInputCrc, acClientInputCrc, it->second.statusChanges.size());
+			for (const auto& rStatusChange : it->second.statusChanges)
+			{
+				Log(kLogNetwork, kVerbose, "  StatusChange type: {}", StatusChangeTypeName(rStatusChange.eType));
+			}
 			result.bMatch = false;
 			break;
 		}

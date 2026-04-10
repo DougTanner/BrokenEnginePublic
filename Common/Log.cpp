@@ -3,8 +3,17 @@
 namespace common
 {
 
-LogLevel geLogLevel = keLogLevelDefault;
-LogCategory geFocusedLogCategory = keFocusedLogCategoryDefault;
+LogLevel geLogLevels[kiLogCategoryCount] =
+{
+	keLogLevelDefault,
+	keLogLevelTemp,
+
+	keLogLevelAudio,
+	keLogLevelGraphics,
+	keLogLevelLoading,
+	keLogLevelNavData,
+	keLogLevelNetwork,
+};
 std::atomic<int64_t> giMyOutputDebugString = 0;
 std::mutex gLogMutex;
 
@@ -83,7 +92,7 @@ void LogWriteRingBuffers(const char* pLogBuffer, LogCategory eCategory)
 		if (pLine == nullptr)
 			return;
 		int64_t iLen = std::min(static_cast<int64_t>(strlen(pLogBuffer)), kiLogBufferSize - 2);
-		memcpy(pLine, pLogBuffer, iLen + 1);
+		std::memcpy(pLine, pLogBuffer, iLen + 1);
 	};
 
 	copyToLine(gLogRingBuffers[static_cast<int64_t>(eCategory)].AcquireLine());

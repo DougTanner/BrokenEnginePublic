@@ -143,7 +143,7 @@ common::crc_t FrameInput::ServerInputCrc() const
 				((checksum ^= common::Crc(fields)), ...);
 			}, pSpawn->SharedMembers());
 		}
-		else if (const auto* pFlagship = std::get_if<UpdateFlagshipCoordData>(&rStatusChange.data))
+		else if (const auto* pFlagship = std::get_if<UpdateFleetData>(&rStatusChange.data))
 		{
 			std::apply([&](const auto&... fields)
 			{

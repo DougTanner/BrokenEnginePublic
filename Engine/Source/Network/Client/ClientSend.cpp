@@ -349,7 +349,7 @@ void Client::SendHello()
 	// Heap: std::fstream and std::filesystem::path allocate for GUID file I/O
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-	Log(kLogNetwork, "Client::SendHello"); // DT TEMP
+	Log(kLogNetwork, "Client::SendHello");
 
 	// Load GUID from disk if we don't have one yet
 	if (mClientGuid.IsEmpty())
@@ -386,7 +386,6 @@ void Client::SendHello()
 
 	rWorkbuffer.Pop();
 
-	Log(kLogNetwork, "Client::SendHello Complete"); // DT TEMP
 }
 
 } // namespace engine

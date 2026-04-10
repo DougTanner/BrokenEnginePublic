@@ -162,16 +162,16 @@ void main()
 	vec4 pf4LightingBaseHeight[3] = {texture(pLightingSamplers[0], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[1], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[2], f2LightingTexcoordBaseHeight)};
 
 	// Scale base-height lighting
-	pf4LightingBaseHeight[0] = globalLayout.fLightingTimeOfDayMultiplier * pow(pf4LightingBaseHeight[0], vec4(mainLayout.fLightingNewAmbientPower));
-	pf4LightingBaseHeight[1] = globalLayout.fLightingTimeOfDayMultiplier * pow(pf4LightingBaseHeight[1], vec4(mainLayout.fLightingNewAmbientPower));
-	pf4LightingBaseHeight[2] = globalLayout.fLightingTimeOfDayMultiplier * pow(pf4LightingBaseHeight[2], vec4(mainLayout.fLightingNewAmbientPower));
+	pf4LightingBaseHeight[0] = pow(pf4LightingBaseHeight[0], vec4(mainLayout.fLightingNewAmbientPower));
+	pf4LightingBaseHeight[1] = pow(pf4LightingBaseHeight[1], vec4(mainLayout.fLightingNewAmbientPower));
+	pf4LightingBaseHeight[2] = pow(pf4LightingBaseHeight[2], vec4(mainLayout.fLightingNewAmbientPower));
 
 	// Water lighting
 	const float fWaterNormalBlendWave = mainLayout.fLightingWaterNormalBlendWave;
 	vec3 f3LightingNormal = (1.0f - fWaterNormalBlendWave) * f3SampledNormal + fWaterNormalBlendWave * f3InNormal;
 	vec3 f3WaterLighting = WaterLighting(pf4LightingBaseHeight, f3LightingNormal, mainLayout.fLightingWaterNormalSoften, mainLayout.fLightingWaterOne, mainLayout.fLightingWaterOnePower, mainLayout.fLightingWaterTwo, mainLayout.fLightingWaterTwoPower, mainLayout.fLightingWaterThree, mainLayout.fLightingWaterThreePower);
 	float fDepthAttenuation = clamp(-fTerrainElevation / globalLayout.fWaterDepthReflectionFeather, 0.0f, 1.0f);
-	vec3 f3WaterLightingScaled = fDepthAttenuation * mainLayout.fLightingWaterIntensity * f3WaterLighting;
+	vec3 f3WaterLightingScaled = fDepthAttenuation * globalLayout.fLightingTimeOfDayMultiplier * mainLayout.fLightingWaterIntensity * f3WaterLighting;
 	float fWaterLightingAdd = mainLayout.fLightingWaterAdd;
 	vec3 f3WaterLightingColor = f3WaterLightingScaled * mix(f3PreLightingColor, vec3(1.0f), fWaterLightingAdd);
 	f4OutColor.xyz += fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * f3WaterLightingColor;

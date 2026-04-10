@@ -230,7 +230,6 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 
 		GridCoord coord = rClient.coordSubscriptions.at(iSlot).coord;
 
-		// DT TEMP
 		int64_t iAckGap = iTick - rAckState.iAckFloor;
 		if (iAckGap > 64)
 		{
@@ -263,7 +262,6 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 			const PerCoordBufferedFrame* pBuffered = FindBufferedFrame(coord, iMissingFrame);
 			if (pBuffered == nullptr)
 			{
-				// DT TEMP
 				Log(kLogNetwork, kVerbose, "Server::SendResends Evicted frame Client: {} Slot: {} Coord: ({},{}) MissingTick: {} LatestBuffered: {}", rClient.iClientId, iSlot, coord.x, coord.y, iMissingFrame, miLatestBufferedTick);
 				continue;
 			}

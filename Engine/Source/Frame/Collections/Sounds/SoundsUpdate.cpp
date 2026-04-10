@@ -45,6 +45,12 @@ void SoundsPostRender::Add(game::Frame& __restrict rFrame, sound_t& rId)
 	rInterpolate.idToIndexMap.insert_or_assign(newId, iSpawnIndex);
 	rId = newId;
 	rPostRender.puiIds[iSpawnIndex] = newId;
+	rInterpolate.puiCrcs[iSpawnIndex] = {};
+	rInterpolate.pfVolumes[iSpawnIndex] = 0.0f;
+	rInterpolate.pfPitches[iSpawnIndex] = 0.0f;
+	rInterpolate.pfFadeOutTimes[iSpawnIndex] = 0.0f;
+	rInterpolate.pVecPositions[iSpawnIndex] = XMVectorZero();
+	rInterpolate.pVecVelocities[iSpawnIndex] = XMVectorZero();
 }
 
 void SoundsPostRender::Remove(game::Frame& __restrict rFrame, sound_t& rId)

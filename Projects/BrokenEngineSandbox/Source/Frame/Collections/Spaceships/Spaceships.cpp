@@ -1,8 +1,8 @@
 #include "Spaceships.h"
 
-#include "Frame/FrameStaticData.h"
 #include "Data/Audio.h"
 #include "Data/Texture.h"
+#include "Frame/FrameStaticData.h"
 #include "Frame/HealthDamage.h"
 #include "Profile/ProfileManager.h"
 #include "Ui/WrapperBase.h"
@@ -28,6 +28,21 @@ namespace game
 
 using enum SpaceshipFlags;
 
+// Pusher
+constexpr float kfSpaceshipPusherRadius = kfSpaceshipRadius * 1.5f;
+constexpr float kfSpaceshipPusherIntensity = 150.0f;
+constexpr float kfSpaceshipPusherPower = 1.0f;
+
+// Explosion
+constexpr float kfSpaceshipExplosionIntensity = 1.5f;
+constexpr float kfSpaceshipExplosionParticleCount = 8.0f;
+constexpr float kfSpaceshipExplosionSizeStart = kfSpaceshipRadius * 0.625f;
+constexpr float kfSpaceshipExplosionSizeEnd = kfSpaceshipRadius * 0.25f;
+constexpr float kfSpaceshipExplosionSmoke = 0.5f;
+constexpr float kfSpaceshipExplosionPositionJitter = kfSpaceshipRadius * 0.375f;
+constexpr float kfSpaceshipExplosionDirectionJitter = 0.5f;
+constexpr uint32_t kuiSpaceshipExplosionTrailCount = 5;
+
 // Forward declarations for registration functions (called from Register())
 static void RegisterEnemyBlasterType();
 static void RegisterSpaceshipTargetType();
@@ -49,9 +64,9 @@ constexpr float kfSpaceshipExplosionParticleVelocityRandom = 9.0f;
 constexpr float kfSpaceshipExplosionParticleVerticalVelocityMin = -5.0f;
 constexpr float kfSpaceshipExplosionParticleVerticalVelocityRandom = 10.0f;
 constexpr float kfSpaceshipExplosionParticleIntensityDecay = 2.4f;
-constexpr float kfSpaceshipExplosionParticleLightingSize = 3.0f;
+constexpr float kfSpaceshipExplosionParticleLightingSize = kfSpaceshipRadius * 1.5f;
 constexpr float kfSpaceshipExplosionParticleLightingIntensity = 2000.0f;
-constexpr float kfSpaceshipExplosionTrailLengthRandom = 2.5f;
+constexpr float kfSpaceshipExplosionTrailLengthRandom = kfSpaceshipRadius * 1.25f;
 constexpr uint32_t kuiSpaceshipExplosionSecondaryCount = 1;
 
 // Enemy blaster
@@ -59,21 +74,21 @@ constexpr float kfSpawnBlasterPlayerAngle = 0.1f;
 constexpr float kfBlastersSpeed = 50.0f;
 constexpr float kfBlastersSpawnCooldown = 1.0f;
 
-constexpr float kfEnemyBlasterSize = 0.3f;
+constexpr float kfEnemyBlasterSize = kfSpaceshipRadius * 0.15f;
 constexpr float kfEnemyBlasterVisibleIntensity = 1.0f;
 constexpr float kfEnemyBlasterLightingSize = 10.0f;
 constexpr float kfEnemyBlasterLightingIntensity = 200.0f;
 
 // Spaceship target
-constexpr float kfTargetSize = 0.06f;
+constexpr float kfTargetSize = kfSpaceshipRadius * 0.03f;
 constexpr float kfTargetAlpha = 1.5f;
 
 #if defined(BT_CLIENT)
 // Hit flash effect
 constexpr float kfHitFlashDuration = 0.3f;
-constexpr float kfHitFlashVisibleArea = 0.5f;
+constexpr float kfHitFlashVisibleArea = kfSpaceshipRadius * 0.25f;
 constexpr float kfHitFlashVisibleIntensity = 1.0f;
-constexpr float kfHitFlashLightingArea = 1.0f;
+constexpr float kfHitFlashLightingArea = kfSpaceshipRadius * 0.5f;
 constexpr float kfHitFlashLightingIntensity = 30.0f;
 #endif // BT_CLIENT
 

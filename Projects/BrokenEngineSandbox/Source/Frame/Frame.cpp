@@ -8,7 +8,7 @@ namespace game
 
 using enum GameFlags;
 
-const int64_t Frame::kiVersion = 28 + engine::kiNavDataVersion
+const int64_t Frame::kiVersion = 32 + engine::kiNavDataVersion
 	+ BlastersInterpolate::kiVersion
 	+ BlastersPostRender::kiVersion
 	+ MissilesInterpolate::kiVersion
@@ -397,6 +397,11 @@ void FrameInterpolate::EndRender(int64_t iCommandBuffer)
 
 	// Collections
 	engine::ForEachEndRender(GameInterpolateTypes{}, iCommandBuffer);
+}
+
+void FrameInterpolate::DebugRender(const FrameInterpolate& __restrict rFrameInterpolate, engine::GridCoord coord)
+{
+	PlayersInterpolate::DebugRender(rFrameInterpolate, coord);
 }
 #endif // BT_CLIENT
 

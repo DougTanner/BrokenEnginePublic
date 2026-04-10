@@ -366,7 +366,8 @@ extern Wrapper gLightingTerrainBelowBaseMultiplier;
 extern Wrapper gLightingTerrainBelowBasePower;
 extern Wrapper gLightingObjects;
 extern Wrapper gLightingObjectsAdd;
-extern Wrapper gLightingTimeOfDayMultiplier;
+extern Wrapper gLightingDayFinalMultiplier;
+extern Wrapper gLightingNightFinalMultiplier;
 extern Wrapper gMoonBrightness;
 
 // Water specular lighting

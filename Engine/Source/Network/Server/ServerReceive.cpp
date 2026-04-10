@@ -282,7 +282,8 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	}
 
 	// Validate coord is adjacent to ANY owned player's coord (3x3 grid)
-	bool bAdjacent = false;
+	// Origin coord is always allowed (always simulated, needed for initial fleet spawn)
+	bool bAdjacent = (coord == kOriginCoord);
 	for (const GridCoord& rOwnedCoord : pClient->authorizedCoords)
 	{
 		int32_t iDeltaX = std::abs(coord.x - rOwnedCoord.x);

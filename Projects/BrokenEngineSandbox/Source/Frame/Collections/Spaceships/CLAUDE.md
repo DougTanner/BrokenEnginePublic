@@ -2,6 +2,10 @@
 
 AI-controlled enemy spaceships with health, weapons, behavior flags, freeze time, and per-instance skeletal animation. Compiles in both client and server builds. Each spaceship owns a pusher and target, plus client-only wind trail and animation time. Hit flash effects spawn controlled point lights at collision contact points (client-only). `Register()` also registers the enemy blaster type (with a camera-aligned point light) used when spaceships fire.
 
+## Sizing
+
+`kfSpaceshipRadius` (defined in `Spaceships.h`) is the single source of truth for spaceship body size. All body-size-dependent values — pusher radius, explosion sizes/jitter/trail/lighting, blaster size, target size, hit flash areas, terrain collision displacement, and model visual scale — derive from it via ratio multipliers. Adjust `kfSpaceshipRadius` to proportionally rescale all spaceship-related sizes at once.
+
 ## AI Behavior
 
 - **Behavior flags**: Flee (when near player, with hysteresis), return to island center (when far from origin, with hysteresis), exploding (health depleted)

@@ -34,15 +34,17 @@ void ServerBroadcaster::BuildFrameInputs()
 		int64_t iGlobalId = gpGame->GenerateGlobalId();
 
 		bool bIsFlagship = false;
-		engine::GridCoord spawnFlagshipCoord {};
+		engine::GridCoord spawnFleetWantedCoord {};
+		uint8_t spawnPendingFleetTicks = 0;
 		if (rInfo.iFleetIndex >= 0)
 		{
-			ServerFleetManager::FlagshipLookupResult result = gpServerSession->mpFleetManager->LookupFlagshipCoord(rInfo.iClientId, rInfo.iFleetIndex, rInfo.iMemberIndex, rInfo.spawnCoord);
+			ServerFleetManager::FleetLookupResult result = gpServerSession->mpFleetManager->LookupFleetWantedCoord(rInfo.iClientId, rInfo.iFleetIndex, rInfo.iMemberIndex, rInfo.spawnCoord);
 			bIsFlagship = result.bIsFlagship;
-			spawnFlagshipCoord = result.flagshipCoord;
+			spawnFleetWantedCoord = result.fleetWantedCoord;
+			spawnPendingFleetTicks = result.uiPendingFleetWantedCoordTicks;
 		}
 
-		StatusChange spawnChange {.eType = StatusChangeType::kSpawnPlayer, .data = SpawnPlayerData{.iGlobalId = iGlobalId, .bIsFlagship = bIsFlagship, .flagshipCoord = spawnFlagshipCoord}};
+		StatusChange spawnChange {.eType = StatusChangeType::kSpawnPlayer, .data = SpawnPlayerData{.iGlobalId = iGlobalId, .bIsFlagship = bIsFlagship, .fleetWantedCoord = spawnFleetWantedCoord, .uiPendingFleetWantedCoordTicks = spawnPendingFleetTicks}};
 		gpGame->mFrameInputs.try_emplace(rInfo.spawnCoord).first->second.statusChanges.push_back(spawnChange);
 		Log(kLogNetwork, kVerbose, "BuildFrameInputs kSpawnPlayer Client: {} GlobalId: {} Coord: ({},{}) Flagship: {}", rInfo.iClientId, iGlobalId, rInfo.spawnCoord.x, rInfo.spawnCoord.y, bIsFlagship);
 	}
@@ -65,7 +67,8 @@ void ServerBroadcaster::BuildFrameInputs()
 	// Inject weapon mode toggle StatusChanges
 	ProcessUpdatePlayerRequests();
 
-	// Inject flagship coord updates (queued from previous tick's HarvestTransfers/DetectPlayerDeaths/FinalizeNewClients)
+	// Tick fleet timers and inject fleet coord updates
+	gpServerSession->mpFleetManager->TickFleetTimers();
 	gpServerSession->mpFleetManager->ProcessFlagshipUpdates();
 
 	// Save StatusChanges for broadcasting (spawns only, transfers handled separately in HarvestTransfers)
@@ -219,7 +222,8 @@ void ServerBroadcaster::ProcessUpdatePlayerRequests()
 			continue;
 		}
 
-		StatusChange updateChange {.eType = StatusChangeType::kUpdatePlayer, .data = UpdatePlayerData{.iPlayerUuid = iPlayerUuid, .bUseMissiles = rRequest.bUseMissiles, .fNavigationDelay = rRequest.fNavigationDelay}};
+		uint8_t uiPendingWeaponModeTicks = static_cast<uint8_t>(engine::kiTickRate);
+		StatusChange updateChange {.eType = StatusChangeType::kUpdatePlayer, .data = UpdatePlayerData{.iPlayerUuid = iPlayerUuid, .bUseMissiles = rRequest.bUseMissiles, .fNavigationDelay = rRequest.fNavigationDelay, .uiPendingWeaponModeTicks = uiPendingWeaponModeTicks}};
 		frameInputIt->second.statusChanges.push_back(updateChange);
 
 		Log(kLogNetwork, kVerbose, "ServerBroadcaster::ProcessUpdatePlayerRequests Client: {} GlobalPlayer: {} PlayerUuid: {} Coord: ({},{}) Missiles: {} NavDelay: {}", rRequest.iClientId, rRequest.globalId.iValue, iPlayerUuid, updateCoord.x, updateCoord.y, rRequest.bUseMissiles, rRequest.fNavigationDelay);

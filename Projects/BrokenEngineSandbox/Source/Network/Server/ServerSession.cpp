@@ -69,6 +69,7 @@ void ServerSession::BroadcastTick(int64_t iTick)
 	HandleResyncRequests(iTick);
 	mpClientManager->FinalizeNewClients(iTick);
 	mpClientManager->DetectPlayerDeaths();
+	mpFleetManager->DetectDisconnectedPlayerDeaths();
 	mpBroadcaster->BroadcastStatusChanges(iTick);
 	mpBroadcaster->ClearSpawns();
 	SubscriptionUpdates(iTick);
@@ -121,6 +122,18 @@ void ServerSession::ParseReceivedGamePackets()
 				mpFleetManager->QueueCreateRequest({rPacket.iClientId});
 				break;
 			}
+			case GamePacketType::kClientDeleteFleetRequest:
+			{
+				if (rPacket.payload.size() < 8)
+				{
+					break;
+				}
+				const uint8_t* pCursor = rPacket.payload.data();
+				int64_t iFleetIndex = engine::ReadInt64(pCursor);
+				Log(kLogNetwork, "ParseReceivedGamePackets::DeleteFleet Client: {} Fleet: {}", rPacket.iClientId, iFleetIndex);
+				mpFleetManager->QueueDeleteRequest({rPacket.iClientId, iFleetIndex});
+				break;
+			}
 			case GamePacketType::kClientSpawnIntoFleetRequest:
 			{
 				// 8B fleetIndex = 8 bytes (type byte already stripped)
@@ -148,6 +161,24 @@ void ServerSession::ParseReceivedGamePackets()
 				mpFleetManager->QueueRespawnRequest({rPacket.iClientId, iFleetIndex, iMemberIndex});
 				break;
 			}
+			case GamePacketType::kClientFleetNavigationDelay:
+			{
+				// 8B fleetIndex + 4B delay = 12 bytes (type byte already stripped)
+				if (rPacket.payload.size() < 12)
+				{
+					break;
+				}
+				const uint8_t* pCursor = rPacket.payload.data();
+				int64_t iFleetIndex = engine::ReadInt64(pCursor);
+				float fDelay = engine::ReadFloat(pCursor);
+				const engine::ClientConnection* pClient = engine::gpServer->FindClient(rPacket.iClientId);
+				if (pClient != nullptr)
+				{
+					mpFleetManager->UpdateFleetNavigationDelay(pClient->clientGuid, iFleetIndex, fDelay);
+				}
+				Log(kLogNetwork, "ParseReceivedGamePackets::FleetNavigationDelay Client: {} Fleet: {} Delay: {}", rPacket.iClientId, iFleetIndex, fDelay);
+				break;
+			}
 			default:
 				break;
 		}
@@ -165,6 +196,7 @@ void ServerSession::PreTickNetwork()
 	mpClientManager->Disconnects();
 	mpClientManager->NewClients();
 	mpFleetManager->ProcessCreateFleetRequests();
+	mpFleetManager->ProcessDeleteFleetRequests();
 	mpFleetManager->ProcessSpawnIntoFleetRequests();
 	mpFleetManager->ProcessRespawnInFleetRequests();
 	mpClientManager->ProcessSpawnRequests();

@@ -13,7 +13,7 @@ enum class StatusChangeType : uint8_t
 	kTransferMissile,
 	kDestroyPlayer,
 	kUpdatePlayer,
-	kUpdateFlagshipCoord,
+	kUpdateFleet,
 };
 
 inline bool IsTransferType(StatusChangeType eType)
@@ -32,8 +32,8 @@ inline const char* StatusChangeTypeName(StatusChangeType eType)
 		case StatusChangeType::kTransferBlaster:   return "TransferBlaster";
 		case StatusChangeType::kTransferMissile:   return "TransferMissile";
 		case StatusChangeType::kDestroyPlayer:     return "DestroyPlayer";
-		case StatusChangeType::kUpdatePlayer:          return "UpdatePlayer";
-		case StatusChangeType::kUpdateFlagshipCoord:  return "UpdateFlagshipCoord";
+		case StatusChangeType::kUpdatePlayer:      return "UpdatePlayer";
+		case StatusChangeType::kUpdateFleet:       return "UpdateFleet";
 	}
 	return "Unknown";
 }
@@ -42,12 +42,13 @@ struct SpawnPlayerData
 {
 	int64_t iGlobalId = 0;
 	bool bIsFlagship = false;
-	engine::GridCoord flagshipCoord {};
+	engine::GridCoord fleetWantedCoord {};
+	uint8_t uiPendingFleetWantedCoordTicks = 0;
 	bool operator==(const SpawnPlayerData&) const = default;
 
 	auto SharedMembers(this auto&& rSelf)
 	{
-		return std::tie(rSelf.iGlobalId, rSelf.bIsFlagship, rSelf.flagshipCoord);
+		return std::tie(rSelf.iGlobalId, rSelf.bIsFlagship, rSelf.fleetWantedCoord, rSelf.uiPendingFleetWantedCoordTicks);
 	}
 };
 
@@ -62,24 +63,26 @@ struct UpdatePlayerData
 	int64_t iPlayerUuid = 0;
 	bool bUseMissiles = false;
 	float fNavigationDelay = 2.0f;
+	uint8_t uiPendingWeaponModeTicks = 0;
 	bool operator==(const UpdatePlayerData&) const = default;
 
 	auto SharedMembers(this auto&& rSelf)
 	{
-		return std::tie(rSelf.iPlayerUuid, rSelf.bUseMissiles, rSelf.fNavigationDelay);
+		return std::tie(rSelf.iPlayerUuid, rSelf.bUseMissiles, rSelf.fNavigationDelay, rSelf.uiPendingWeaponModeTicks);
 	}
 };
 
-struct UpdateFlagshipCoordData
+struct UpdateFleetData
 {
 	int64_t iPlayerUuid = 0;
 	bool bIsFlagship = false;
-	engine::GridCoord flagshipCoord {};
-	bool operator==(const UpdateFlagshipCoordData&) const = default;
+	engine::GridCoord fleetWantedCoord {};
+	uint8_t uiPendingFleetWantedCoordTicks = 0;
+	bool operator==(const UpdateFleetData&) const = default;
 
 	auto SharedMembers(this auto&& rSelf)
 	{
-		return std::tie(rSelf.iPlayerUuid, rSelf.bIsFlagship, rSelf.flagshipCoord);
+		return std::tie(rSelf.iPlayerUuid, rSelf.bIsFlagship, rSelf.fleetWantedCoord, rSelf.uiPendingFleetWantedCoordTicks);
 	}
 };
 
@@ -109,7 +112,9 @@ struct TransferData
 			rSelf.fNavigationDelay,
 			rSelf.fDeltaRotationDelay, rSelf.fTime, rSelf.fExhaustDelay, rSelf.fNextJitter,
 			rSelf.globalPlayerId,
-			rSelf.flagshipCoord);
+			rSelf.fleetWantedCoord,
+			rSelf.uiPendingFleetWantedCoordTicks,
+			rSelf.uiPendingWeaponModeTicks);
 	}
 
 	XMVECTOR vecPosition {};
@@ -134,7 +139,7 @@ struct TransferData
 	float fAnimationTime = 0.0f;
 	float fShieldRotation = 0.0f;
 	float fShieldShrink = 1.0f;
-	uint8_t uiPlayerFlags = 0;
+	uint16_t uiPlayerFlags = 0;
 
 	// Spaceship timers
 	float fNextBlasterSpawnTime = 0.0f;
@@ -154,8 +159,12 @@ struct TransferData
 	// Global player ID (player transfers only)
 	engine::global_id_t globalPlayerId {};
 
-	// Flagship coord (player transfers only)
-	engine::GridCoord flagshipCoord {};
+	// Fleet wanted coord (player transfers only)
+	engine::GridCoord fleetWantedCoord {};
+
+	// Pending countdown ticks (player transfers only)
+	uint8_t uiPendingFleetWantedCoordTicks = 0;
+	uint8_t uiPendingWeaponModeTicks = 0;
 
 	// Client GUID (player transfers only, not serialized over network)
 	uint64_t uiClientGuidHigh = 0;
@@ -172,7 +181,7 @@ using StatusChangeData = std::variant<
 	TransferData,              // kTransfer* (all 4 types) and kRespawnPlayer (empty TransferData)
 	DestroyPlayerData,         // kDestroyPlayer
 	UpdatePlayerData,          // kUpdatePlayer
-	UpdateFlagshipCoordData    // kUpdateFlagshipCoord
+	UpdateFleetData    // kUpdateFleet
 >;
 
 inline StatusChangeData DefaultDataForType(StatusChangeType eType)
@@ -181,8 +190,8 @@ inline StatusChangeData DefaultDataForType(StatusChangeType eType)
 	{
 		case StatusChangeType::kSpawnPlayer:      return SpawnPlayerData{};
 		case StatusChangeType::kDestroyPlayer:    return DestroyPlayerData{};
-		case StatusChangeType::kUpdatePlayer:          return UpdatePlayerData{};
-		case StatusChangeType::kUpdateFlagshipCoord:  return UpdateFlagshipCoordData{};
+		case StatusChangeType::kUpdatePlayer:      return UpdatePlayerData{};
+		case StatusChangeType::kUpdateFleet:       return UpdateFleetData{};
 		default:                                      return TransferData{};
 	}
 }

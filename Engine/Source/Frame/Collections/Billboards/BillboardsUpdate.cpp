@@ -43,6 +43,10 @@ void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId,
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
+	rInterpolate.puiFlags[uiSpawnIndex] = 0;
+	rInterpolate.pfRotations[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfExtra[uiSpawnIndex] = 0.0f;
+	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
 }
 
 void BillboardsPostRender::Remove(game::Frame& __restrict rFrame, billboard_t& rId)

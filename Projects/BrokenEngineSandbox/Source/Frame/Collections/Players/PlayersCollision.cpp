@@ -17,6 +17,16 @@ namespace game
 
 using enum PlayerFlags;
 
+// Damage response
+constexpr float kfShieldHitSoundVolumeBase = 0.1f;
+constexpr float kfShieldHitSoundVolumeScale = 0.1f;
+constexpr float kfShieldCooldown = 2.0f;
+constexpr float kfShieldDownSoundCooldown = 2.0f;
+constexpr float kfShieldDownSoundVolume = 0.1f;
+constexpr float kfArmorHitSoundDamageThreshold = 3.0f;
+constexpr float kfArmorHitSoundVolumeBase = 0.2f;
+constexpr float kfArmorHitSoundVolumeScale = 0.5f;
+
 void PlayersPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 }
@@ -90,7 +100,7 @@ static void XM_CALLCONV ApplyDamage([[maybe_unused]] const Frame& rFrame, [[mayb
 		}
 		// Store damage direction and intensity
 		XMVECTOR vecDamageDirection = XMVector3Normalize(XMVectorSubtract(vecDamagePosition, rPlayerInterpolate.pVecPositions[i]));
-		XMStoreFloat4(&rPlayerInterpolate.pHexShieldDirections[i].data[iLowestIntensityIndex], vecDamageDirection);
+		XMStoreFloat4A(&rPlayerInterpolate.pHexShieldDirections[i].data[iLowestIntensityIndex], vecDamageDirection);
 		rPlayerInterpolate.pHexShieldVertIntensities[i].data[iLowestIntensityIndex] = fHexShieldIntensity;
 		rPlayerInterpolate.pHexShieldFragIntensities[i].data[iLowestIntensityIndex] = fHexShieldIntensity;
 #endif // BT_CLIENT

@@ -26,7 +26,15 @@ SOA collections managing dynamic game entities (projectiles, enemies, players) u
 
 **Arrival Grace Period**: Players and Spaceships arriving via StatusChange (transfer or spawn) get a 1-second `pfArrivalGracePeriods` timer. While > 0, other entities skip them in targeting and behavior scans — Spaceships won't chase/flee/fire at grace-period Players, Players won't target grace-period Spaceships, and missiles won't home on them (kDestination deferred until expiry). Collision and damage still apply normally — invulnerability would hide real physics interactions, and collisions are unlikely during the first second at the frame edge. The timer is carried in TransferData; SpawnTransfer resets it to the full duration since each transfer is a new StatusChange clients must sync.
 
+**Pending Tick Countdown**: Behavior-changing StatusChanges use `uint8_t` countdown fields (set to `engine::kiTickRate` by the server, decremented each frame tick, behavior takes effect at 0). Preferred over absolute tick comparison — simpler, smaller storage, no dependency on the global tick counter. Does NOT apply to entity transfers, spawns, or destroys.
+
+**Flags Field Packing**: Multi-valued fields (nav direction, pending states) should be packed into the collection's `Flags` type using bit ranges and helper functions, rather than stored as separate SOA arrays. This reduces SOA field count and keeps related state together.
+
 **Unconditional Store Rule**: In Update loops, every shared field must be loaded from `rPrevious` at the top and stored to `rCurrent` at the bottom, unconditionally — outside any early-exit branches (transfer lock, destroyed checks, etc.). Storing inside a conditional block leaves uninitialized memory in `rCurrent`, causing client/server desync.
+
+**Navigation**: Entities moving to a destination must use `NavQueryDirection` (per-cell `NavData` from `FrameStaticData`), never straight-line steering.
+
+**Debug Render Data**: Debug primitives are computed at render time in a dedicated `DebugRender` phase (called per-coord after collection `EndRender`), not during Interpolate Update. Entity positions MUST be read from the fully-interpolated `FrameInterpolate`, never from PostRender — PostRender positions lag behind the rendered frame. Only flags, metadata, and static world positions (nav waypoints, island destinations) may come from PostRender.
 
 **Extern Templates**: All collection headers declare `extern template struct Collection<T>` with explicit instantiations in the corresponding `.cpp` files.
 

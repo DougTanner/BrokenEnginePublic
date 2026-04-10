@@ -13,6 +13,7 @@ Client-only debug rendering utilities for visualizing world-space primitives dur
 - Four primitive types (box, sphere, circle, line) each map to a dedicated pipeline and pre-built unit mesh. Instance transforms are compact 3x4 row-major matrices with translation in the W column.
 - Relies on `BufferManager::ResizeDynamicBufferIfNeeded` for auto-growing storage buffers and `PipelineManager` indirect draw pipelines (using `kLineList` topology).
 - Call sites submit primitives any time during the frame; `BeginRender`/`EndRender` bracket the main render pass draw call.
+- Game-specific debug primitives (targeting lines, navigation indicators) are submitted via `game::FrameInterpolate::DebugRender` per-coord after collection `EndRender`, before `DebugRender::BeginRender`. Engine-level debug primitives (NavData visualization) are submitted via `DebugRenderNavData` in `MainUniforms.cpp`.
 
 ## See Also
 

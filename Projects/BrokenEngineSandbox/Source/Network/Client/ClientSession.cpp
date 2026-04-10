@@ -459,6 +459,25 @@ void ClientSession::SendCreateFleetRequest()
 	rWorkbuffer.Pop();
 }
 
+void ClientSession::SendDeleteFleetRequest(int64_t iFleetIndex)
+{
+	if (!CanSend())
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kClientDeleteFleetRequest));
+	rWorkbuffer.PushBack<int64_t>(iFleetIndex);
+
+	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	Log(kLogNetwork, "ClientSession::SendDeleteFleetRequest Fleet: {}", iFleetIndex);
+
+	rWorkbuffer.Pop();
+}
+
 void ClientSession::SendSpawnIntoFleetRequest(int64_t iFleetIndex)
 {
 	if (!CanSend())
@@ -494,6 +513,26 @@ void ClientSession::SendRespawnInFleetRequest(int64_t iFleetIndex, int64_t iMemb
 
 	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 	Log(kLogNetwork, "ClientSession::SendRespawnInFleetRequest Fleet: {} Member: {}", iFleetIndex, iMemberIndex);
+
+	rWorkbuffer.Pop();
+}
+
+void ClientSession::SendFleetNavigationDelayRequest(int64_t iFleetIndex, float fDelay)
+{
+	if (!CanSend())
+	{
+		return;
+	}
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kClientFleetNavigationDelay));
+	rWorkbuffer.PushBack<int64_t>(iFleetIndex);
+	rWorkbuffer.PushBack<float>(fDelay);
+
+	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	Log(kLogNetwork, "ClientSession::SendFleetNavigationDelayRequest Fleet: {} Delay: {}", iFleetIndex, fDelay);
 
 	rWorkbuffer.Pop();
 }

@@ -1,27 +1,31 @@
 #include "Spaceships.h"
 
+#include "Data/Audio.h"
 #include "Frame/FrameStaticData.h"
-#include "Frame/Collections/Collection.h"
-#include "Frame/Collections/Explosions/Explosions.h"
-#include "Frame/Collections/Pushers/Pushers.h"
-
 #include "Frame/HealthDamage.h"
 #include "Frame/TerrainUtils.h"
 #include "Profile/ProfileManager.h"
-#include "Frame/Collections/Targets/Targets.h"
+#include "Frame/Collections/Collection.h"
+#include "Frame/Collections/Explosions/Explosions.h"
 #include "Frame/Collections/Players/Players.h"
+#include "Frame/Collections/Pushers/Pushers.h"
+#include "Frame/Collections/Targets/Targets.h"
 
 #if defined(BT_CLIENT)
-#include "Frame/Collections/PointLights/PointLights.h"
 #include "Data/Scene.h"
+#include "Frame/Collections/PointLights/PointLights.h"
 #endif
-
-#include "Data/Audio.h"
 
 namespace game
 {
 
 using enum SpaceshipFlags;
+
+// Death sounds
+constexpr float kfSpaceshipDeathPitchMin = 0.75f;
+constexpr float kfSpaceshipDeathPitchRandom = 0.5f;
+constexpr float kfSpaceshipDeathExplosionVolume = 0.4f;
+constexpr float kfSpaceshipHitSoundVolume = 0.2f;
 
 // Collision layer index (set each frame in PreCollision)
 // thread_local: parallel per-Frame tick via Dispatch
@@ -55,11 +59,10 @@ constexpr float kfDeltaAngleMax = 4.0f;
 constexpr float kfVelocityToDirection = 4.0f;
 constexpr float kfDeathKnockbackSpeed = 20.0f;
 constexpr float kfTerrainCollisionRotation = 8.0f;
-constexpr float kfTerrainCollisionMovePosition = 4.0f;
+constexpr float kfTerrainCollisionMovePosition = kfSpaceshipRadius * 2.0f;
 constexpr float kfTerrainCollisionAddVelocity = 4.0f;
 
-// Spaceship collision
-constexpr float kfSpaceshipCollisionRadius = 2.0f;
+// Spaceship collision (kfSpaceshipRadius defined in Spaceships.h)
 constexpr float kfHealthRegenDistance = 60.0f;
 
 // Terrain avoidance (player-proximity skip constants; sampling constants in GameUtils.cpp)
@@ -349,7 +352,7 @@ void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFram
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {};
-		sCollisionRadii.at(static_cast<size_t>(i)) = kfSpaceshipCollisionRadius;
+		sCollisionRadii.at(static_cast<size_t>(i)) = kfSpaceshipRadius;
 		sCollisionDamages.at(static_cast<size_t>(i)) = kfSpaceshipCollisionDamage;
 	}
 

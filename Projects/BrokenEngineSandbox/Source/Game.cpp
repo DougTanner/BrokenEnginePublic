@@ -87,7 +87,7 @@ bool Game::IsClientPlayer(engine::global_id_t id) const
 void Game::AddClientPlayer(engine::global_id_t id, engine::GridCoord coord)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	Log(kVerbose, "AddClientPlayer GlobalPlayerId: {} Coord: ({},{}) OldPlayerCount: {}", id.iValue, coord.x, coord.y, std::ssize(mClientPlayerIds)); // DT TEMP
+	Log(kLogNetwork, kVerbose, "AddClientPlayer GlobalPlayerId: {} Coord: ({},{}) OldPlayerCount: {}", id.iValue, coord.x, coord.y, std::ssize(mClientPlayerIds));
 	mClientPlayerIds.push_back(id);
 	mClientPlayerCoords.push_back(coord);
 }
@@ -98,7 +98,7 @@ void Game::RemoveClientPlayer(engine::global_id_t id)
 	{
 		if (mClientPlayerIds.at(i) == id)
 		{
-			Log(kVerbose, "RemoveClientPlayer GlobalPlayerId: {} Index: {} OldPlayerCount: {}", id.iValue, i, std::ssize(mClientPlayerIds)); // DT TEMP
+			Log(kLogNetwork, kVerbose, "RemoveClientPlayer GlobalPlayerId: {} Index: {} OldPlayerCount: {}", id.iValue, i, std::ssize(mClientPlayerIds));
 			mClientPlayerIds.erase(mClientPlayerIds.begin() + i);
 			mClientPlayerCoords.erase(mClientPlayerCoords.begin() + i);
 			return;
@@ -607,7 +607,9 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rD
 				.fArrivalGracePeriod = kfArrivalGracePeriod,
 				.fNavigationDelay = rData.fNavigationDelay,
 				.globalPlayerId = rData.globalPlayerId,
-				.flagshipCoord = rData.flagshipCoord,
+				.fleetWantedCoord = rData.fleetWantedCoord,
+				.uiPendingFleetWantedCoordTicks = rData.uiPendingFleetWantedCoordTicks,
+				.uiPendingWeaponModeTicks = rData.uiPendingWeaponModeTicks,
 			});
 			break;
 
@@ -678,6 +680,10 @@ void Game::Reset()
 	game::gpCamera->mVecLastKnownPlayerPosition = {};
 	game::gpCamera->mVecLastKnownPlayerVelocity = {};
 	game::gpCamera->mfLastKnownPlayerTime = 0.0f;
+	game::gpCamera->mVecJumpStartPosition = {};
+	game::gpCamera->mVecPreviousTargetPosition = {};
+	game::gpCamera->mfJumpStartTime = 0.0f;
+	game::gpCamera->mbJumping = false;
 	engine::gSunAngleOverride.Reset(game::gpCamera->RawSunAngle());
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
@@ -1030,11 +1036,6 @@ void Game::SaveTweaksSettings()
 	int8_t iActiveSubtab[static_cast<size_t>(engine::TweakSection::kCount)] {};
 	engine::gpImGuiManager->mpTweaksScreen->SaveState(bSectionVisible, f2WindowPositions, iActiveSubtab);
 
-	for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
-	{
-		Log(kVerbose, "SaveTweaks [{}] visible:{} pos:({:.0f},{:.0f}) subtab:{}", i, bSectionVisible[i], f2WindowPositions[i].x, f2WindowPositions[i].y, iActiveSubtab[i]); // DT TEMP
-	}
-
 	TweaksSettings settings {};
 	settings.bShowImGui = gpGame->mbShowImGui;
 	for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
@@ -1060,11 +1061,6 @@ void Game::LoadTweaksSettings()
 	{
 		gpGame->mbShowImGui = settings.bShowImGui;
 
-		for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
-		{
-			Log(kVerbose, "LoadTweaks [{}] visible:{} pos:({:.0f},{:.0f}) subtab:{}", i, settings.bSectionVisible[i], settings.fWindowPositionX[i], settings.fWindowPositionY[i], settings.iActiveSubtab[i]); // DT TEMP
-		}
-
 		ImVec2 f2WindowPositions[static_cast<size_t>(engine::TweakSection::kCount)] {};
 		for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
 		{
@@ -1075,7 +1071,7 @@ void Game::LoadTweaksSettings()
 	}
 	else
 	{
-		Log(kWarning, "LoadTweaks FAILED to read file"); // DT TEMP
+		Log(kWarning, "LoadTweaks FAILED to read file");
 	}
 }
 #endif // BT_CLIENT

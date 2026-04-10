@@ -35,7 +35,12 @@ public:
 	XMVECTOR mVecLastKnownPlayerPosition {};
 	XMVECTOR mVecLastKnownPlayerVelocity {};
 	float mfLastKnownPlayerTime = 0.0f;
-	engine::global_id_t mLastTrackedPlayerId {}; // DT TEMP: diagnostic tracking
+	engine::global_id_t mLastTrackedPlayerId {};
+
+	XMVECTOR mVecJumpStartPosition {};
+	XMVECTOR mVecPreviousTargetPosition {};
+	float mfJumpStartTime = 0.0f;
+	bool mbJumping = false;
 
 };
 

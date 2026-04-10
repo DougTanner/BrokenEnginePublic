@@ -66,11 +66,13 @@ static void SerializePlayerTransfer(uint8_t*& pCursor, const game::TransferData&
 	WriteFloat(pCursor, rData.fAnimationTime);
 	WriteFloat(pCursor, rData.fShieldRotation);
 	WriteFloat(pCursor, rData.fShieldShrink);
-	WriteUint8(pCursor, rData.uiPlayerFlags);
+	WriteUint16(pCursor, rData.uiPlayerFlags);
 	WriteFloat(pCursor, rData.fArrivalGracePeriod);
 	WriteFloat(pCursor, rData.fNavigationDelay);
 	WriteInt64(pCursor, rData.globalPlayerId.iValue);
-	WriteGridCoord(pCursor, rData.flagshipCoord);
+	WriteGridCoord(pCursor, rData.fleetWantedCoord);
+	WriteUint8(pCursor, rData.uiPendingFleetWantedCoordTicks);
+	WriteUint8(pCursor, rData.uiPendingWeaponModeTicks);
 }
 
 // Per-type deserialize helpers
@@ -128,11 +130,13 @@ static void DeserializePlayerTransfer(const uint8_t*& pCursor, game::TransferDat
 	rData.fAnimationTime = ReadFloat(pCursor);
 	rData.fShieldRotation = ReadFloat(pCursor);
 	rData.fShieldShrink = ReadFloat(pCursor);
-	rData.uiPlayerFlags = ReadUint8(pCursor);
+	rData.uiPlayerFlags = ReadUint16(pCursor);
 	rData.fArrivalGracePeriod = ReadFloat(pCursor);
 	rData.fNavigationDelay = ReadFloat(pCursor);
 	rData.globalPlayerId.iValue = ReadInt64(pCursor);
-	rData.flagshipCoord = ReadGridCoord(pCursor);
+	rData.fleetWantedCoord = ReadGridCoord(pCursor);
+	rData.uiPendingFleetWantedCoordTicks = ReadUint8(pCursor);
+	rData.uiPendingWeaponModeTicks = ReadUint8(pCursor);
 }
 
 // Serialize a group of StatusChanges that share the same type
@@ -157,7 +161,8 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 				const game::SpawnPlayerData& rSpawn = std::get<game::SpawnPlayerData>(rData);
 				WriteInt64(pCursor, rSpawn.iGlobalId);
 				WriteUint8(pCursor, rSpawn.bIsFlagship ? 1 : 0);
-				WriteGridCoord(pCursor, rSpawn.flagshipCoord);
+				WriteGridCoord(pCursor, rSpawn.fleetWantedCoord);
+				WriteUint8(pCursor, rSpawn.uiPendingFleetWantedCoordTicks);
 				break;
 			}
 			case game::StatusChangeType::kRespawnPlayer:
@@ -183,21 +188,23 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 				WriteInt64(pCursor, rUpdate.iPlayerUuid);
 				WriteUint8(pCursor, rUpdate.bUseMissiles ? 1 : 0);
 				WriteFloat(pCursor, rUpdate.fNavigationDelay);
+				WriteUint8(pCursor, rUpdate.uiPendingWeaponModeTicks);
 				break;
 			}
-			case game::StatusChangeType::kUpdateFlagshipCoord:
+			case game::StatusChangeType::kUpdateFleet:
 			{
-				const game::UpdateFlagshipCoordData& rUpdate = std::get<game::UpdateFlagshipCoordData>(rData);
+				const game::UpdateFleetData& rUpdate = std::get<game::UpdateFleetData>(rData);
 				WriteInt64(pCursor, rUpdate.iPlayerUuid);
 				WriteUint8(pCursor, rUpdate.bIsFlagship ? 1 : 0);
-				WriteGridCoord(pCursor, rUpdate.flagshipCoord);
+				WriteGridCoord(pCursor, rUpdate.fleetWantedCoord);
+				WriteUint8(pCursor, rUpdate.uiPendingFleetWantedCoordTicks);
 				break;
 			}
 		}
 	}
 }
 
-constexpr int64_t kiTypeCount = static_cast<int64_t>(game::StatusChangeType::kUpdateFlagshipCoord) + 1;
+constexpr int64_t kiTypeCount = static_cast<int64_t>(game::StatusChangeType::kUpdateFleet) + 1;
 
 static void GroupIndicesByType(const game::StatusChange* pChanges, int64_t iCount, int64_t piOffsets[kiTypeCount], int64_t piCounts[kiTypeCount], int64_t* pSortedIndices)
 {
@@ -286,7 +293,8 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 					game::SpawnPlayerData& rSpawn = std::get<game::SpawnPlayerData>(rChange.data);
 					rSpawn.iGlobalId = ReadInt64(pCursor);
 					rSpawn.bIsFlagship = ReadUint8(pCursor) != 0;
-					rSpawn.flagshipCoord = ReadGridCoord(pCursor);
+					rSpawn.fleetWantedCoord = ReadGridCoord(pCursor);
+					rSpawn.uiPendingFleetWantedCoordTicks = ReadUint8(pCursor);
 					break;
 				}
 				case game::StatusChangeType::kRespawnPlayer:
@@ -312,14 +320,16 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 					rUpdate.iPlayerUuid = ReadInt64(pCursor);
 					rUpdate.bUseMissiles = ReadUint8(pCursor) != 0;
 					rUpdate.fNavigationDelay = ReadFloat(pCursor);
+					rUpdate.uiPendingWeaponModeTicks = ReadUint8(pCursor);
 					break;
 				}
-				case game::StatusChangeType::kUpdateFlagshipCoord:
+				case game::StatusChangeType::kUpdateFleet:
 				{
-					game::UpdateFlagshipCoordData& rUpdate = std::get<game::UpdateFlagshipCoordData>(rChange.data);
+					game::UpdateFleetData& rUpdate = std::get<game::UpdateFleetData>(rChange.data);
 					rUpdate.iPlayerUuid = ReadInt64(pCursor);
 					rUpdate.bIsFlagship = ReadUint8(pCursor) != 0;
-					rUpdate.flagshipCoord = ReadGridCoord(pCursor);
+					rUpdate.fleetWantedCoord = ReadGridCoord(pCursor);
+					rUpdate.uiPendingFleetWantedCoordTicks = ReadUint8(pCursor);
 					break;
 				}
 			}

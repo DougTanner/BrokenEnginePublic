@@ -6,7 +6,7 @@ Client-side networking: connection lifecycle, server data ingestion, rollback-an
 
 ## Key Classes
 
-- **ClientSession** - Top-level orchestrator inheriting `engine::ClientSessionBase`. Drives connection, subscription management, clock correction, and game packet sends (player settings, fleet operations). Delegates data handling, reconciliation, and desync management to three owned managers
+- **ClientSession** - Top-level orchestrator inheriting `engine::ClientSessionBase`. Drives connection, subscription management, clock correction, and game packet sends (player settings, fleet operations including `kClientFleetNavigationDelay` for the per-fleet navigation delay slider). Delegates data handling, reconciliation, and desync management to three owned managers
 - **ClientDataReceiver** - Handles incoming server data: applies static data, full states, and per-tick updates into `CoordFrames`
 - **ClientReconciler** - Rollback-and-replay reconciliation on a dedicated `PersistentWorker` thread. Owns `ReconcileContext`, parallelizes per-coord work via an owned `Multithreading` dispatch pool (controlled by `kbReconcileDispatch`). At writeback, captures position delta as a visual error offset on `gpGame` for smooth camera correction
 - **ClientDesyncManager** - Desync detection, debug frame capture, resync coordination, and frequency-based escalation to disconnect

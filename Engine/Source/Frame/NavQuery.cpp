@@ -1,6 +1,7 @@
 #include "NavQuery.h"
 
 #include "NavBuild.h"
+#include "Ui/WrapperBase.h"
 
 namespace engine
 {
@@ -284,7 +285,7 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 			XMFLOAT2 f2Waypoint = GetPosition(iNode);
 			if (pOutNextWaypoint != nullptr)
 			{
-				*pOutNextWaypoint = XMVectorSet(f2Waypoint.x, f2Waypoint.y, 0.0f, 0.0f);
+				*pOutNextWaypoint = XMVectorSet(f2Waypoint.x, f2Waypoint.y, gBaseHeight.Get(), 0.0f);
 			}
 			XMVECTOR vecDirection = XMVectorSet(f2Waypoint.x - f2Start.x, f2Waypoint.y - f2Start.y, 0.0f, 0.0f);
 			return XMVector3Normalize(vecDirection);
@@ -392,6 +393,9 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 
 XMVECTOR XM_CALLCONV NavQuerySnapToNavigable(FXMVECTOR vecPosition, const NavData& rNavData)
 {
+	float fBaseHeight = gBaseHeight.Get();
+	ASSERT(XMVectorGetZ(vecPosition) == fBaseHeight);
+
 	const XMFLOAT2* pVertices = rNavData.vertices.data();
 
 	XMFLOAT4A f4Position {};
@@ -404,11 +408,15 @@ XMVECTOR XM_CALLCONV NavQuerySnapToNavigable(FXMVECTOR vecPosition, const NavDat
 	}
 
 	XMFLOAT2 f2BestPoint = SnapOutsidePolygon(f2Position, pVertices, rNavData);
-	return XMVectorSet(f2BestPoint.x, f2BestPoint.y, 0.0f, XMVectorGetW(vecPosition));
+	return XMVectorSet(f2BestPoint.x, f2BestPoint.y, fBaseHeight, XMVectorGetW(vecPosition));
 }
 
 XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDestination, const NavData& rNavData, XMVECTOR* pOutNextWaypoint)
 {
+	float fBaseHeight = gBaseHeight.Get();
+	ASSERT(XMVectorGetZ(vecPosition) == fBaseHeight);
+	ASSERT(XMVectorGetZ(vecDestination) == fBaseHeight);
+
 	XMVECTOR vecDelta = XMVectorSubtract(vecDestination, vecPosition);
 	if (XMVector3LengthSq(vecDelta).m128_f32[0] < 1e-8f)
 	{
@@ -451,7 +459,7 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 		{
 			if (pOutNextWaypoint != nullptr)
 			{
-				*pOutNextWaypoint = XMVectorSet(f2SnapPoint.x, f2SnapPoint.y, 0.0f, 0.0f);
+				*pOutNextWaypoint = XMVectorSet(f2SnapPoint.x, f2SnapPoint.y, fBaseHeight, 0.0f);
 			}
 			rWorkbuffer.Pop();
 			return XMVector3Normalize(vecEscape);
@@ -470,7 +478,7 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 	{
 		if (pOutNextWaypoint != nullptr)
 		{
-			*pOutNextWaypoint = XMVectorSet(f2Destination.x, f2Destination.y, 0.0f, 0.0f);
+			*pOutNextWaypoint = XMVectorSet(f2Destination.x, f2Destination.y, fBaseHeight, 0.0f);
 		}
 		vecResult = XMVector3Normalize(XMVectorSet(f2Destination.x - f2Position.x, f2Destination.y - f2Position.y, 0.0f, 0.0f));
 	}
@@ -504,7 +512,7 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 			{
 				if (pOutNextWaypoint != nullptr)
 				{
-					*pOutNextWaypoint = XMVectorSet(f2BestVertex.x, f2BestVertex.y, 0.0f, 0.0f);
+					*pOutNextWaypoint = XMVectorSet(f2BestVertex.x, f2BestVertex.y, fBaseHeight, 0.0f);
 				}
 				vecResult = XMVector3Normalize(XMVectorSet(f2BestVertex.x - f2Position.x, f2BestVertex.y - f2Position.y, 0.0f, 0.0f));
 			}

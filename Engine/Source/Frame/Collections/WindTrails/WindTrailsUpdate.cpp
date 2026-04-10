@@ -39,6 +39,10 @@ void WindTrailsPostRender::Add(game::Frame& __restrict rFrame, wind_trail_t& rId
 	auto [uiSpawnIndex, newId] = AddVisualIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
+	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
+	rInterpolate.pfIntensities[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfWidths[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfLengthMultipliers[uiSpawnIndex] = 0.0f;
 }
 
 void WindTrailsPostRender::Remove(game::Frame& __restrict rFrame, wind_trail_t& rId)

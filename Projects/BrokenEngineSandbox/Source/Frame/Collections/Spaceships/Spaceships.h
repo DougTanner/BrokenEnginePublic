@@ -17,21 +17,9 @@ namespace game
 // Shared constants (used across Spaceships*.cpp files)
 inline constexpr float kfSpaceshipDestroyTime = 0.25f;
 inline constexpr float kfSpaceshipDestroyExplosionInterval = 0.024f;
-inline constexpr float kfSpaceshipPusherRadius = 3.0f;
-inline constexpr float kfSpaceshipPusherIntensity = 150.0f;
-inline constexpr float kfSpaceshipPusherPower = 1.0f;
-inline constexpr float kfSpaceshipExplosionIntensity = 1.5f;
-inline constexpr float kfSpaceshipExplosionParticleCount = 8.0f;
-inline constexpr float kfSpaceshipExplosionSizeStart = 1.25f;
-inline constexpr float kfSpaceshipExplosionSizeEnd = 0.5f;
-inline constexpr float kfSpaceshipExplosionSmoke = 0.5f;
-inline constexpr float kfSpaceshipExplosionPositionJitter = 0.75f;
-inline constexpr float kfSpaceshipExplosionDirectionJitter = 0.5f;
-inline constexpr uint32_t kuiSpaceshipExplosionTrailCount = 5;
-inline constexpr float kfSpaceshipDeathPitchMin = 0.75f;
-inline constexpr float kfSpaceshipDeathPitchRandom = 0.5f;
-inline constexpr float kfSpaceshipDeathExplosionVolume = 0.4f;
-inline constexpr float kfSpaceshipHitSoundVolume = 0.2f;
+
+// Collision
+inline constexpr float kfSpaceshipRadius = 1.5f;
 
 struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 {

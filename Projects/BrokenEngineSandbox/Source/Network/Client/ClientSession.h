@@ -50,6 +50,8 @@ public:
 	void SendCreateFleetRequest();
 	void SendSpawnIntoFleetRequest(int64_t iFleetIndex);
 	void SendRespawnInFleetRequest(int64_t iFleetIndex, int64_t iMemberIndex);
+	void SendDeleteFleetRequest(int64_t iFleetIndex);
+	void SendFleetNavigationDelayRequest(int64_t iFleetIndex, float fDelay);
 
 	// Subscriptions
 	void UpdateDesiredCoords(std::string_view reason);

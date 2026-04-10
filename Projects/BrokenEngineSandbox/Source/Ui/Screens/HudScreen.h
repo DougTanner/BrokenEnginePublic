@@ -24,6 +24,7 @@ private:
 #if defined(BT_CLIENT)
 	engine::NetworkUiControl<int64_t> mCreateFleetToggle {};
 	engine::NetworkUiControl<int64_t> mSpawnIntoFleetToggle {};
+	engine::NetworkUiControl<int64_t> mDeleteFleetToggle {};
 #endif
 };
 

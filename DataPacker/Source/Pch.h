@@ -10,5 +10,11 @@ inline constexpr bool kbIsDataPacker = true;
 
 #include "Common.h"
 
-inline constexpr LogCategory keFocusedLogCategoryDefault = kLogDefault;
-inline constexpr LogLevel keLogLevelDefault = kVerbose;
+inline constexpr LogLevel keLogLevelDefault  = kVerbose;
+inline constexpr LogLevel keLogLevelTemp     = kVerbose;
+
+inline constexpr LogLevel keLogLevelAudio    = kVerbose;
+inline constexpr LogLevel keLogLevelGraphics = kVerbose;
+inline constexpr LogLevel keLogLevelLoading  = kVerbose;
+inline constexpr LogLevel keLogLevelNavData  = kVerbose;
+inline constexpr LogLevel keLogLevelNetwork  = kVerbose;

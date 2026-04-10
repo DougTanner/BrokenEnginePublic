@@ -12,6 +12,8 @@ enum class GamePacketType : uint8_t
 	kClientSpawnIntoFleetRequest,
 	kClientRespawnInFleetRequest,
 	kServerFleetSync,
+	kClientDeleteFleetRequest,
+	kClientFleetNavigationDelay,
 };
 
 } // namespace game

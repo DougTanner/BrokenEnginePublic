@@ -274,7 +274,7 @@ void ServerClientManager::DetectPlayerDeaths()
 				rDeathOwnedIds.erase(rDeathOwnedIds.begin() + i);
 				rClient.authorizedCoords.erase(rClient.authorizedCoords.begin() + i);
 
-				gpServerSession->mpFleetManager->OnPlayerDeath(rClient.iClientId, globalId);
+				gpServerSession->mpFleetManager->OnPlayerDeath(rClient.clientGuid, globalId);
 			}
 		}
 

@@ -12,11 +12,11 @@ namespace game
 // Spaceship model (also used by SpaceshipsUpdate.cpp for animation lookup)
 #if 1
 extern const common::crc_t kSpaceshipModel = data::kModelsSpaceshipscenegltfCrc;
-constexpr float kfSize = 0.0035f;
+constexpr float kfModelScale = 0.00175f;
 #endif
 #if 0
 extern const common::crc_t kSpaceshipModel = data::kModelschernovan_nemesisscenegltfCrc;
-constexpr float kfSize = 0.3f;
+constexpr float kfModelScale = 0.15f;
 #endif
 
 // Spaceship rendering
@@ -139,7 +139,7 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 		{
 			int64_t i = pVisibleIndices[j];
 
-			float fSize = kfSize;
+			float fSize = kfSpaceshipRadius * kfModelScale;
 			if (rCurrent.pfDestroyedTimes[i] > 0.0f)
 			{
 				fSize *= std::pow(rCurrent.pfDestroyedTimes[i] / kfSpaceshipDestroyTime, 0.75f);

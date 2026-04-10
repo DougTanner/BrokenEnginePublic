@@ -98,7 +98,8 @@ void TweaksScreenBase::RenderLightingSection()
 			WrapperSlider("Below Base Power", kiSection, 1.0f, "Terrain Below Base Power");
 			WrapperSlider("Objects", kiSection, 1.0f);
 			WrapperSlider("Objects Add", kiSection, 1.0f);
-			WrapperSlider("Time of Day Multiplier", kiSection, 1.0f);
+			WrapperSlider("Day Final Multiplier", kiSection, 1.0f);
+			WrapperSlider("Night Final Multiplier", kiSection, 1.0f);
 
 			WrapperSeparatorText("Water Lighting");
 			WrapperSlider("Normal Soften", kiSection, 1.0f, "Water Normal Soften");

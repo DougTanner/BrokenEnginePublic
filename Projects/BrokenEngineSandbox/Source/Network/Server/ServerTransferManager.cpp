@@ -131,7 +131,7 @@ void ServerTransferManager::TrackClientTransfers(const std::vector<ClientTransfe
 					// Copy client GUID to the new player entity in the destination frame
 					rDestPlayers.pClientGuids[iNewIndex] = rClient.clientGuid;
 
-					gpServerSession->mpFleetManager->OnPlayerTransferred(rClient.iClientId, rClientTransfer.globalPlayerId, rClientTransfer.destination);
+					gpServerSession->mpFleetManager->OnPlayerTransferred(rClient.clientGuid, rClientTransfer.globalPlayerId, rClientTransfer.destination);
 
 					bFoundClient = true;
 					break;
@@ -143,10 +143,11 @@ void ServerTransferManager::TrackClientTransfers(const std::vector<ClientTransfe
 			}
 		}
 
-		// Preserve GUID for orphaned players (client disconnected)
+		// Orphaned players (client disconnected): preserve GUID and update fleet
 		if (!bFoundClient && !rClientTransfer.clientGuid.IsEmpty())
 		{
 			rDestPlayers.pClientGuids[iNewIndex] = rClientTransfer.clientGuid;
+			gpServerSession->mpFleetManager->OnPlayerTransferred(rClientTransfer.clientGuid, rClientTransfer.globalPlayerId, rClientTransfer.destination);
 		}
 	}
 }

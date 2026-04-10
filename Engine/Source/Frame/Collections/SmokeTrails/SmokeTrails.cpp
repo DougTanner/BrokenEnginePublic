@@ -108,7 +108,9 @@ void SmokeTrailsPostRender::Add(game::Frame& __restrict rFrame, smoke_trails_t& 
 	rId = id;
 	rPostRender.puiIds[iSpawnIndex] = id;
 	rInterpolate.puiTypeIndices[iSpawnIndex] = uiTypeIndex;
+	rInterpolate.pVecPositions[iSpawnIndex] = XMVectorZero();
 	rInterpolate.pVecSmoothedPositions[iSpawnIndex] = XMVectorZero();
+	rInterpolate.pfIntensities[iSpawnIndex] = 0.0f;
 	if (reuseId.IsValid())
 	{
 		rInterpolate.pfStartTimes[iSpawnIndex] = 0.0f;

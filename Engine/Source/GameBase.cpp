@@ -164,7 +164,6 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 			game::gpClientSession->BuildExtrapolationFrameRef(rCoord, pNext, pCurrent);
 			if (pNext != nullptr)
 			{
-				// DT TEMP: Catch null pCurrent from extrapolation path
 				if (pCurrent == nullptr)
 				{
 					Log(kLogDefault, kWarning, "BuildDispatch NullExtrapolationCurrent Coord: ({},{}) SnapshotCount: {} ConfirmedTick: {}",
@@ -181,7 +180,6 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 			}
 		}
 #endif // BT_CLIENT
-		// DT TEMP: Catch null pCurrent/pNext from normal path
 		auto& rFrames = mCoordFrames.at(rCoord);
 		if (rFrames.pCurrent == nullptr || rFrames.pNext == nullptr)
 		{
@@ -244,7 +242,6 @@ void GameBase::FinalizeFrameTick([[maybe_unused]] const std::vector<GridCoord>& 
 		SwapFrames();
 	}
 
-	// DT TEMP: Log if any active coord has null frames after swap
 	for (const GridCoord& rCoord : rActiveCoords)
 	{
 		auto it = mCoordFrames.find(rCoord);

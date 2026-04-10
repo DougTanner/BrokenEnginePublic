@@ -115,7 +115,7 @@ void BlastersPostRender::Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo)
 
 If the spawn uses a `SpawnInfo` struct, add the new field there too.
 
-For engine collections with Add/Remove (e.g., AreaLights, Sounds), initialize the member in the `Add()` method instead.
+For engine collections with Add/Remove (e.g., AreaLights, Sounds, Pushers), initialize the member in the `Add()` method instead. **Sync-pattern collections** (where the owner calls `Sync()` each Interpolate phase) must zero-initialize all Interpolate fields in `Add()` — `Sync()` doesn't run until the next Interpolate phase, and CRC is computed after PostRender, so stale memory in the new Interpolate slot causes client/server desync.
 
 ## Step 5: Load/Process in Update (CPP) — If Applicable
 

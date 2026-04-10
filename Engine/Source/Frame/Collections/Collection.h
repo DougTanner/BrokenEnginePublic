@@ -38,6 +38,14 @@ struct global_id_t
 	bool operator==(const global_id_t&) const = default;
 };
 
+struct GlobalIdHash
+{
+	size_t operator()(const global_id_t& rId) const
+	{
+		return std::hash<int64_t>{}(rId.iValue);
+	}
+};
+
 // Global unique identifier with counter stored in FramePostRenderBase
 // 0 = invalid/uninitialized, counter starts at 1
 struct uuid_t

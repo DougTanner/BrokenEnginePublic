@@ -44,7 +44,10 @@ void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rI
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
 	rInterpolate.pfIntensityMultipliers[uiSpawnIndex] = 1.0f;
-
+	for (int64_t j = 0; j < 4; ++j)
+	{
+		rInterpolate.pVecVisiblePositions[j][uiSpawnIndex] = XMVectorZero();
+	}
 }
 
 void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t& rId)

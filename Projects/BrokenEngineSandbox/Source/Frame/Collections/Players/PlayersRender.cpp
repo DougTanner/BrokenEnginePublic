@@ -3,6 +3,7 @@
 #include "Players.h"
 
 #include "Data/Scene.h"
+#include "Game.h"
 
 #include "Graphics/Debug/DebugRender.h"
 #include "Profile/ProfileManager.h"
@@ -14,28 +15,28 @@ namespace game
 // Player model (also used by PlayersUpdate.cpp for animation lookup)
 #if 1
 extern const common::crc_t kPlayerModel = data::kModelsspaceship2scenegltfCrc;
-constexpr float kfSize = 0.55f;
+constexpr float kfModelScale = 0.3667f;
 #endif
 
 #if 0
 extern const common::crc_t kPlayerModel = data::kModelsblack_dragon_with_idle_animationscenegltfCrc;
-constexpr float kfSize = 3.0f;
+constexpr float kfModelScale = 2.0f;
 #endif
 #if 0
 extern const common::crc_t kPlayerModel = data::kModelschernovan_nemesisscenegltfCrc;
-constexpr float kfSize = 3.0f;
+constexpr float kfModelScale = 2.0f;
 #endif
 #if 0
 extern const common::crc_t kPlayerModel = data::kModelsmirascenegltfCrc;
-constexpr float kfSize = 0.1f;
+constexpr float kfModelScale = 0.0667f;
 #endif
 #if 0
 extern const common::crc_t kPlayerModel = data::kModelsDamagedHelmetDamagedHelmetgltfCrc;
-constexpr float kfSize = 20.0f;
+constexpr float kfModelScale = 13.333f;
 #endif
 #if 0
 extern const common::crc_t kPlayerModel = data::kModelsSpaceshipscenegltfCrc;
-constexpr float kfSize = 0.1f;
+constexpr float kfModelScale = 0.0667f;
 #endif
 
 // Render
@@ -100,7 +101,7 @@ void PlayersInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpo
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		float fSize = kfSize;
+		float fSize = kfPlayerRadius * kfModelScale;
 		if (rCurrent.pfDestroyedTimes[i] > 0.0f)
 		{
 			fSize *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, kfDeathShrinkPower);
@@ -152,72 +153,105 @@ void PlayersInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpo
 
 		++siRendered;
 	}
-
-	// Debug: draw red line from each player to nearest alive spaceship
-	if constexpr (kbDebugRender)
-	{
-		const SpaceshipsInterpolate& rSpaceships = *rFrameInterpolate.pSpaceships;
-
-		for (int64_t i = 0; i < iCount; ++i)
-		{
-			XMVECTOR vecPosition = rCurrent.pVecPositions[i];
-
-			// Find nearest alive spaceship
-			float fClosestDistanceSq = std::numeric_limits<float>::max();
-			XMVECTOR vecClosestPosition = XMVectorZero();
-			bool bFound = false;
-
-			for (int64_t j = 0; j < rSpaceships.iCount; ++j)
-			{
-				if (rSpaceships.pfDestroyedTimes[j] != -1.0f)
-				{
-					continue;
-				}
-
-				float fDistanceSq = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(vecPosition, rSpaceships.pVecPositions[j])));
-				if (fDistanceSq < fClosestDistanceSq)
-				{
-					fClosestDistanceSq = fDistanceSq;
-					vecClosestPosition = rSpaceships.pVecPositions[j];
-					bFound = true;
-				}
-			}
-
-			if (bFound)
-			{
-				XMFLOAT3A f3Start {};
-				XMFLOAT3A f3End {};
-				XMStoreFloat3A(&f3Start, vecPosition);
-				XMStoreFloat3A(&f3End, vecClosestPosition);
-				engine::DebugRender::Line(f3Start, f3End, {1.0f, 0.0f, 0.0f, 1.0f});
-			}
-
-			// Green line and circle at nav waypoint (when navigating)
-			if (XMVectorGetW(rCurrent.pVecDebugNavDestinations[i]) > 0.0f)
-			{
-				XMFLOAT3A f3NavStart {};
-				XMFLOAT3A f3NavEnd {};
-				XMStoreFloat3A(&f3NavStart, vecPosition);
-				XMStoreFloat3A(&f3NavEnd, XMVectorSetZ(rCurrent.pVecDebugNavDestinations[i], engine::gBaseHeight.Get()));
-				engine::DebugRender::Line(f3NavStart, f3NavEnd, {0.0f, 1.0f, 0.0f, 1.0f});
-				engine::DebugRender::Circle(f3NavEnd, 0.75f, {0.0f, 1.0f, 0.0f, 1.0f});
-			}
-
-			// Green circle at island destination
-			if (XMVectorGetW(rCurrent.pVecDebugIslandDestinations[i]) > 0.0f)
-			{
-				XMFLOAT3A f3Dest {};
-				XMStoreFloat3A(&f3Dest, XMVectorSetZ(rCurrent.pVecDebugIslandDestinations[i], engine::gBaseHeight.Get()));
-				engine::DebugRender::Circle(f3Dest, 3.0f, {0.0f, 1.0f, 0.0f, 1.0f});
-			}
-		}
-	}
 }
 
 void PlayersInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 {
 	engine::gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 	engine::gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
+}
+
+void PlayersInterpolate::DebugRender(const FrameInterpolate& __restrict rFrameInterpolate, engine::GridCoord coord)
+{
+	if constexpr (!kbDebugRender) return;
+
+	using enum PlayerFlags;
+
+	// Entity positions MUST be read from rFrameInterpolate (the fully-interpolated frame),
+	// never from PostRender. PostRender positions lag behind the rendered frame.
+	// Only flags, metadata, and static world positions (nav waypoints, island destinations) come from PostRender.
+	const PlayersInterpolate& rPlayers = *rFrameInterpolate.pPlayers;
+	const SpaceshipsInterpolate& rSpaceships = *rFrameInterpolate.pSpaceships;
+	const PlayersPostRender& rPostRender = *gpGame->RenderFrame(coord).postRender.pPlayers;
+
+	int64_t iCount = (rFrameInterpolate.gameFlags & GameFlags::kMainMenu) ? 0 : rPlayers.iCount;
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		XMVECTOR vecPosition = rPlayers.pVecPositions[i];
+
+		// Red line to nearest alive spaceship
+		float fClosestDistanceSq = std::numeric_limits<float>::max();
+		XMVECTOR vecClosestPosition = XMVectorZero();
+		bool bFound = false;
+
+		for (int64_t j = 0; j < rSpaceships.iCount; ++j)
+		{
+			if (rSpaceships.pfDestroyedTimes[j] != -1.0f)
+			{
+				continue;
+			}
+
+			float fDistanceSq = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(vecPosition, rSpaceships.pVecPositions[j])));
+			if (fDistanceSq < fClosestDistanceSq)
+			{
+				fClosestDistanceSq = fDistanceSq;
+				vecClosestPosition = rSpaceships.pVecPositions[j];
+				bFound = true;
+			}
+		}
+
+		if (bFound)
+		{
+			XMFLOAT3A f3Start {};
+			XMFLOAT3A f3End {};
+			XMStoreFloat3A(&f3Start, vecPosition);
+			XMStoreFloat3A(&f3End, vecClosestPosition);
+			engine::DebugRender::Line(f3Start, f3End, {1.0f, 0.0f, 0.0f, 1.0f});
+		}
+
+		// Find flagship interpolated position (for mode 5 nav line + destination circle)
+		int8_t iNavDirection = GetNavDirection(rPostRender.pFlags[i]);
+		XMVECTOR vecFlagshipPosition = XMVectorZero();
+		if (iNavDirection == 5)
+		{
+			for (int64_t j = 0; j < iCount; ++j)
+			{
+				if (j == i) continue;
+				if (!(rPostRender.pFlags[j] & kIsFlagship)) continue;
+				vecFlagshipPosition = rPlayers.pVecPositions[j];
+				break;
+			}
+		}
+
+		// Green line and circle at nav waypoint (when navigating)
+		if (XMVectorGetW(rPostRender.pVecDebugNavWaypoints[i]) > 0.0f)
+		{
+			// In mode 5 (flagship follow), use the flagship's interpolated position as the waypoint
+			XMVECTOR vecWaypoint = (iNavDirection == 5) ? vecFlagshipPosition : rPostRender.pVecDebugNavWaypoints[i];
+			XMFLOAT3A f3NavStart {};
+			XMFLOAT3A f3NavEnd {};
+			XMStoreFloat3A(&f3NavStart, vecPosition);
+			XMStoreFloat3A(&f3NavEnd, XMVectorSetZ(vecWaypoint, engine::gBaseHeight.Get()));
+			engine::DebugRender::Line(f3NavStart, f3NavEnd, {0.0f, 1.0f, 0.0f, 1.0f});
+			engine::DebugRender::Circle(f3NavEnd, kfPlayerRadius * 0.5f, {0.0f, 1.0f, 0.0f, 1.0f});
+		}
+
+		// Green circle at island destination
+		if (iNavDirection == 5)
+		{
+			// Flagship follow: use the flagship's interpolated position
+			XMFLOAT3A f3Dest {};
+			XMStoreFloat3A(&f3Dest, XMVectorSetZ(vecFlagshipPosition, engine::gBaseHeight.Get()));
+			engine::DebugRender::Circle(f3Dest, kfPlayerRadius * 2.0f, {0.0f, 1.0f, 0.0f, 1.0f});
+		}
+		else if (XMVectorGetW(rPostRender.pVecIslandDestinations[i]) > 0.0f)
+		{
+			XMFLOAT3A f3Dest {};
+			XMStoreFloat3A(&f3Dest, XMVectorSetZ(rPostRender.pVecIslandDestinations[i], engine::gBaseHeight.Get()));
+			engine::DebugRender::Circle(f3Dest, kfPlayerRadius * 2.0f, {0.0f, 1.0f, 0.0f, 1.0f});
+		}
+	}
 }
 
 } // namespace game

@@ -5,6 +5,12 @@
 namespace engine
 {
 
+// Zone system constants for spatial acceleration
+constexpr float kfPusherArenaSize = 400.0f;
+constexpr float kfPusherZoneSize = 8.0f;
+constexpr int64_t kiPusherZones = static_cast<int64_t>(common::Ceil(kfPusherArenaSize / kfPusherZoneSize));
+constexpr int64_t kiMaxPushersPerZone = 512;
+
 // Zone acceleration structure: thread_local so each Dispatch worker and reconcile thread gets its own copy
 thread_local alignas(64) uint16_t gppuiPushersPerZone[kiPusherZones][kiPusherZones] {};
 thread_local alignas(64) int16_t gpppuiPusherZones[kiPusherZones][kiPusherZones][kiMaxPushersPerZone] {};
@@ -194,6 +200,12 @@ void PushersPostRender::Add(game::Frame& __restrict rFrame, pusher_t& rId)
 	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
+
+	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
+	rInterpolate.pfRadii[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfIntensities[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfPowers[uiSpawnIndex] = 0.0f;
+	rInterpolate.pFlags[uiSpawnIndex] = {};
 }
 
 void PushersPostRender::Remove(game::Frame& __restrict rFrame, pusher_t& rId)

@@ -15,12 +15,6 @@ namespace engine
 
 struct FrameStaticData;
 
-// Zone system constants for spatial acceleration
-inline constexpr float kfPusherArenaSize = 400.0f;
-inline constexpr float kfPusherZoneSize = 8.0f;
-inline constexpr int64_t kiPusherZones = static_cast<int64_t>(common::Ceil(kfPusherArenaSize / kfPusherZoneSize));
-inline constexpr int64_t kiMaxPushersPerZone = 512;
-
 enum class PusherFlags : uint8_t
 {
 	kTypeNone    = 0x00,

@@ -18,21 +18,22 @@ enum class LogLevel : int8_t
 // Log categories
 enum class LogCategory : int8_t
 {
-	kAudio    = 0,
-	kDefault  = 1,
-	kGraphics = 2,
-	kLoading  = 3,
-	kNetwork  = 4,
+	kDefault  = 0,
+	kTemp     = 1,
+
+	kAudio    = 2,
+	kGraphics = 3,
+	kLoading  = 4,
 	kNavData  = 5,
+	kNetwork  = 6,
 };
-inline constexpr int64_t kiLogCategoryCount = 6;
+inline constexpr int64_t kiLogCategoryCount = 7;
 
 // Category names for crash dump labels
-inline constexpr const char* kpcLogCategoryNames[] = {"Audio", "Default", "Graphics", "Loading", "Network", "NavData"};
+inline constexpr const char* kpcLogCategoryNames[] = {"Default", "Temp", "Audio", "Graphics", "Loading", "NavData", "Network"};
 
 // Mutable globals (defined in Log.cpp)
-extern LogLevel geLogLevel;
-extern LogCategory geFocusedLogCategory;
+extern LogLevel geLogLevels[kiLogCategoryCount];
 extern std::atomic<int64_t> giMyOutputDebugString;
 extern std::mutex gLogMutex;
 
@@ -95,9 +96,7 @@ inline bool ShouldLog(LogLevel eLevel, LogCategory eCategory)
 {
 	if (eLevel == LogLevel::kError) [[unlikely]]
 		return true;
-	if (eCategory == geFocusedLogCategory)
-		return true;
-	return eLevel >= geLogLevel;
+	return eLevel >= geLogLevels[static_cast<int64_t>(eCategory)];
 }
 
 void LogIndent(int64_t iIndent);
@@ -185,8 +184,10 @@ inline constexpr auto kWarning = common::LogLevel::kWarning;
 inline constexpr auto kError   = common::LogLevel::kError;
 
 // Category aliases (kLog* prefix avoids collisions with ChunkFlags::kAudio etc.)
-inline constexpr auto kLogAudio    = common::LogCategory::kAudio;
 inline constexpr auto kLogDefault  = common::LogCategory::kDefault;
+inline constexpr auto kLogTemp     = common::LogCategory::kTemp;
+
+inline constexpr auto kLogAudio    = common::LogCategory::kAudio;
 inline constexpr auto kLogGraphics = common::LogCategory::kGraphics;
 inline constexpr auto kLogLoading  = common::LogCategory::kLoading;
 inline constexpr auto kLogNavData  = common::LogCategory::kNavData;

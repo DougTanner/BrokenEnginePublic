@@ -95,12 +95,11 @@ void Client::Poll()
 		{
 			case ENET_EVENT_TYPE_CONNECT:
 			{
-				Log(kLogNetwork, "Client::Poll ENET_EVENT_TYPE_CONNECT Begin"); // DT TEMP
+				Log(kLogNetwork, "Client::Poll ENET_EVENT_TYPE_CONNECT");
 				mbConnected = true;
 				// Disable ENet peer throttle to prevent unreliable packet drops during reconciliation stalls
 				enet_peer_throttle_configure(mpServerPeer, UINT32_MAX, 0, 0);
 				SendHello();
-				Log(kLogNetwork, "Client::Poll ENET_EVENT_TYPE_CONNECT End"); // DT TEMP
 				ScopedLogIndent scopedLogIndent;
 				char pcServerAddress[64] {};
 				enet_address_get_host_ip(&mpServerPeer->address, pcServerAddress, sizeof(pcServerAddress));

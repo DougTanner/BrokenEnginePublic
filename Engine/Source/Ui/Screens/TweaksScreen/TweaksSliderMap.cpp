@@ -160,7 +160,8 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Terrain Below Base Power", &gLightingTerrainBelowBasePower},
 		{"Objects", &gLightingObjects},
 		{"Objects Add", &gLightingObjectsAdd},
-		{"Time of Day Multiplier", &gLightingTimeOfDayMultiplier},
+		{"Day Final Multiplier", &gLightingDayFinalMultiplier},
+		{"Night Final Multiplier", &gLightingNightFinalMultiplier},
 		// Water Lighting
 		{"Water Normal Soften", &gLightingWaterNormalSoften},
 		{"Water Normal Blend Wave", &gLightingWaterNormalBlendWave},

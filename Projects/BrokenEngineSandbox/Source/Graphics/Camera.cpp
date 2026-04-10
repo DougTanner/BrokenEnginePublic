@@ -10,6 +10,15 @@ namespace game
 {
 
 constexpr float kfCameraPositionBlend = 8.0f;
+constexpr float kfJumpDistanceThreshold = 50.0f;
+constexpr float kfJumpDuration = 2.0f;
+constexpr float kfJumpCancelThreshold = 5.0f;
+
+constexpr float Smoothstep(float t)
+{
+	t = std::clamp(t, 0.0f, 1.0f);
+	return t * t * (3.0f - 2.0f * t);
+}
 
 Camera::Camera()
 {
@@ -79,13 +88,12 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		std::optional<int64_t> oIdx = bHasCoord ? gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers) : std::nullopt;
 		if (oIdx)
 		{
-			// DT TEMP: Log when camera starts tracking a new player
 			engine::global_id_t focusedId = gpGame->ClientPlayerId();
 			XMVECTOR vecPlayerPos = rFrameInterpolate.pPlayers->pVecPositions[*oIdx];
 
 			if (focusedId != mLastTrackedPlayerId)
 			{
-				Log(kVerbose, "Camera NowTracking GlobalPlayerId: {} Coord: ({},{}) Index: {}", focusedId.iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, *oIdx);
+				Log(kLogGraphics, kVerbose, "Camera NowTracking GlobalPlayerId: {} Coord: ({},{}) Index: {}", focusedId.iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, *oIdx);
 				mLastTrackedPlayerId = focusedId;
 			}
 
@@ -102,7 +110,6 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		}
 		else
 		{
-			// DT TEMP: Diagnostic logging for camera player lookup failure (throttled to once per second)
 			engine::global_id_t focusedId = gpGame->ClientPlayerId();
 			static float sfLastLogTime = -1.0f;
 			if (mfTime - sfLastLogTime >= 1.0f)
@@ -111,16 +118,16 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 				if (bHasCoord)
 				{
 					const PlayersPostRender& rPlayers = *gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers;
-					Log(kVerbose, "Camera PlayerNotFound FocusedGlobalId: {} Coord: ({},{}) PostRenderCount: {} InterpolateCount: {}",
+					Log(kLogGraphics, kVerbose, "Camera PlayerNotFound FocusedGlobalId: {} Coord: ({},{}) PostRenderCount: {} InterpolateCount: {}",
 						focusedId.iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, rPlayers.iCount, rFrameInterpolate.pPlayers->iCount);
 					for (int64_t i = 0; i < rPlayers.iCount; ++i)
 					{
-						Log(kVerbose, "  PostRender[{}] GlobalPlayerId: {}", i, rPlayers.pGlobalPlayerIds[i].iValue);
+						Log(kLogGraphics, kVerbose, "  PostRender[{}] GlobalPlayerId: {}", i, rPlayers.pGlobalPlayerIds[i].iValue);
 					}
 				}
 				else
 				{
-					Log(kVerbose, "Camera CoordNotFound FocusedGlobalId: {} Coord: ({},{})", focusedId.iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
+					Log(kLogGraphics, kVerbose, "Camera CoordNotFound FocusedGlobalId: {} Coord: ({},{})", focusedId.iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
 				}
 			}
 
@@ -134,9 +141,50 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		vecTargetPosition = mVecPosition;
 	}
 
-	// Blend from previous camera position toward target position
-	float fBlend = std::clamp(fDeltaTime * kfCameraPositionBlend, 0.0f, 1.0f);
-	mVecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fBlend), vecTargetPosition, XMVectorMultiply(XMVectorReplicate(1.0f - fBlend), mVecPosition));
+	// Detect target switch during jump: target jumped far from where it was last frame
+	float fDistanceToTarget = XMVectorGetX(XMVector2Length(XMVectorSubtract(vecTargetPosition, mVecPosition)));
+	float fTargetShift = XMVectorGetX(XMVector2Length(XMVectorSubtract(vecTargetPosition, mVecPreviousTargetPosition)));
+	if (mbJumping && fTargetShift > kfJumpDistanceThreshold)
+	{
+		mVecJumpStartPosition = mVecPosition;
+		mfJumpStartTime = mfTime;
+	}
+	else if (!mbJumping && fDistanceToTarget > kfJumpDistanceThreshold)
+	{
+		mbJumping = true;
+		mVecJumpStartPosition = mVecPosition;
+		mfJumpStartTime = mfTime;
+	}
+
+	if (mbJumping)
+	{
+		if (fDistanceToTarget < kfJumpCancelThreshold)
+		{
+			mbJumping = false;
+		}
+		else
+		{
+			float fElapsed = mfTime - mfJumpStartTime;
+			if (fElapsed >= kfJumpDuration)
+			{
+				mbJumping = false;
+				mVecPosition = vecTargetPosition;
+			}
+			else
+			{
+				float fT = Smoothstep(fElapsed / kfJumpDuration);
+				mVecPosition = XMVectorLerp(mVecJumpStartPosition, vecTargetPosition, fT);
+			}
+		}
+	}
+
+	if (!mbJumping)
+	{
+		float fBlend = std::clamp(fDeltaTime * kfCameraPositionBlend, 0.0f, 1.0f);
+		mVecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fBlend), vecTargetPosition, XMVectorMultiply(XMVectorReplicate(1.0f - fBlend), mVecPosition));
+	}
+
+	mVecPreviousTargetPosition = vecTargetPosition;
 
 	// Calculate eye position relative to camera position
 	auto vecQuaternionEye = XMQuaternionRotationNormal(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), mfCameraEyeRotation);

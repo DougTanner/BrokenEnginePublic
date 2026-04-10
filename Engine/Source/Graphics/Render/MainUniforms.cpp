@@ -84,6 +84,19 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	// Phase 3: EndRender — write indirect draw buffer counts
 	game::FrameInterpolate::EndRender(iCommandBuffer);
 
+	// Phase 4: Game-specific debug rendering (per-coord, positions from fully-interpolated frame)
+	if constexpr (kbDebugRender)
+	{
+		for (const GridCoord& rCoord : rActiveCoords)
+		{
+			auto it = rRenderInterpolates.find(rCoord);
+			if (it != rRenderInterpolates.end())
+			{
+				game::FrameInterpolate::DebugRender(it->second, rCoord);
+			}
+		}
+	}
+
 	DebugRenderNavData(rActiveCoords);
 
 	DebugRender::BeginRender(iCommandBuffer);

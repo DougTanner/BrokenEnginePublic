@@ -173,20 +173,21 @@ Wrapper gLightingTerrainBelowBaseMultiplier(0.5f, 0.0f, 1.0f);
 Wrapper gLightingTerrainBelowBasePower(1.0f, 0.1f, 6.0f);
 Wrapper gLightingObjects(2.3f, 0.0f, 8.0f);
 Wrapper gLightingObjectsAdd(0.2f, 0.0f, 1.0f);
-Wrapper gLightingTimeOfDayMultiplier(0.4f, 0.0f, 1.0f);
+Wrapper gLightingDayFinalMultiplier(0.7f, 0.0f, 2.0f);
+Wrapper gLightingNightFinalMultiplier(0.45f, 0.0f, 1.0f);
 Wrapper gMoonBrightness(0.1f, 0.0f, 1.0f);
 
 // Water specular lighting
 Wrapper gLightingWaterNormalSoften(0.25f, 0.0f, 0.5f);
 Wrapper gLightingWaterNormalBlendWave(0.05f, 0.0f, 0.1f);
-Wrapper gLightingWaterIntensity(0.05f, 0.0f, 0.1f);
-Wrapper gLightingWaterAdd(0.7f, 0.0f, 1.0f);
-Wrapper gLightingWaterOne(40.0f, 0.0f, 200.0f);
-Wrapper gLightingWaterOnePower(2.0f, 1.0f, 4.0f);
-Wrapper gLightingWaterTwo(8.0f, 0.0f, 50.0f);
-Wrapper gLightingWaterTwoPower(1.0f, 0.75f, 1.5f);
-Wrapper gLightingWaterThree(2.0f, 0.0f, 10.0f);
-Wrapper gLightingWaterThreePower(0.6f, 0.1f, 0.8f);
+Wrapper gLightingWaterIntensity(0.035f, 0.0f, 0.1f);
+Wrapper gLightingWaterAdd(0.75f, 0.0f, 1.0f);
+Wrapper gLightingWaterOne(200.0f, 0.0f, 300.0f);
+Wrapper gLightingWaterOnePower(5.0f, 1.0f, 8.0f);
+Wrapper gLightingWaterTwo(20.0f, 0.0f, 30.0f);
+Wrapper gLightingWaterTwoPower(1.0f, 0.75f, 2.0f);
+Wrapper gLightingWaterThree(8.0f, 0.0f, 15.0f);
+Wrapper gLightingWaterThreePower(0.5f, 0.4f, 0.8f);
 
 // Water skybox
 Wrapper gLightingWaterSkyboxSunBias(2.6f, 0.0f, 4.0f);

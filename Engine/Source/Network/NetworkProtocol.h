@@ -70,6 +70,14 @@ struct ClientGuid
 	bool operator==(const ClientGuid&) const = default;
 };
 
+struct ClientGuidHash
+{
+	size_t operator()(const ClientGuid& rGuid) const
+	{
+		return std::hash<uint64_t>{}(rGuid.uiHigh) ^ (std::hash<uint64_t>{}(rGuid.uiLow) << 1);
+	}
+};
+
 // Per-slot ACK tracking state (shared by client and server)
 struct AckState
 {
