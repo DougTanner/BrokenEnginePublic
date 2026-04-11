@@ -4,11 +4,14 @@ SOA collection of player spaceships supporting multiple players (1 human + AI wi
 
 ## File Structure
 
-Split across four `.cpp` files sharing a single `.h`:
-- **Players.cpp** - Registration, lifecycle (spawn, transfer, destroy), weapon spawning (blasters, missiles), death explosions
-- **PlayersUpdate.cpp** - Movement, AI steering, shield/armor damage
-- **PlayersCollision.cpp** - Collision detection and response
-- **PlayersRender.cpp** - Skeletal animation, model rendering, and `DebugRender` (`#ifdef BT_CLIENT` only). `DebugRender` runs in a dedicated phase after collection `EndRender` — entity positions MUST be read from the fully-interpolated `FrameInterpolate`, never from PostRender. PostRender is only used for flags, metadata, and static world positions (nav waypoints, island destinations)
+Split by **subsystem** across four `.cpp` files sharing a single `.h`. File names describe domain responsibility, not lifecycle phase:
+
+- **Players.cpp** — default bucket: Registration, type/visual setup (`Register`, `GraphicsResources`), lifecycle (spawn-status-change processing, `Destroy`, `Spawn`), `PlayersInterpolate::Update` (synchronization-only — position integration, direction smoothing, hex shield animation, wind trail sync), `PreCollision` (collision-layer registration), `PlayersPostRender::Update` orchestrator (load → inline pending-tick countdowns → transfer-lock gate → calls helpers → save), `LogDifferences`, and `PlayersInterpolate::RemoveOwnedVisuals` (shared with `Transfer`)
+- **PlayersNavigation.cpp** — getting players around the world: `Transfer` (out-of-bounds → adjacent cell), and the `PlayersPostRender::Update` per-iter helpers `ComputeNavigation` (fleet override, flagship proximity, frame-change timer, nav modes -1/0–3/4/5 dispatch via `NavQueryDirection`/`NavQuerySnapToNavigable`/`ComputeAiSteering`), `ApplyMovement` (accel + decay), `ApplyTerrainPush`, `ApplyPusherPush`
+- **PlayersCombat.cpp** — weapons, targeting, shields, damage: `PostCollision` + `AreaDamage`, the per-iter helpers `AcquireTarget` (visibility/LOS spaceship scan + fire flag set), `UpdateFacing`, `RegenerateShield`, the spawn helpers `SpawnBlasters` / `SpawnMissiles` / `SpawnDeathExplosions` (called from `PlayersPostRender::Spawn`), and the file-local `ApplyDamage` (shield/hex shield/armor model) and `HasLineOfSight` statics
+- **PlayersRender.cpp** — Skeletal animation, model rendering, and `DebugRender` (`#ifdef BT_CLIENT` only). `DebugRender` runs in a dedicated phase after collection `EndRender` — entity positions MUST be read from the fully-interpolated `FrameInterpolate`, never from PostRender. PostRender is only used for flags, metadata, and static world positions (nav waypoints, island destinations)
+
+The seven per-iter helpers (`ComputeNavigation`/`ApplyMovement`/`ApplyTerrainPush`/`ApplyPusherPush`/`AcquireTarget`/`UpdateFacing`/`RegenerateShield`) are declared as `private static` methods on `PlayersPostRender` and called from the orchestrator inside the single per-player `Update` loop. They take per-player locals by reference; the orchestrator owns the load-at-top and save-at-bottom blocks so the unconditional store rule is preserved end-to-end. Phase order in the orchestrator (`ComputeNavigation` → `AcquireTarget` → `ApplyMovement` → `UpdateFacing` → `RegenerateShield` → `ApplyTerrainPush` → `ApplyPusherPush`) matches the original intra-function ordering exactly so random consumption stays deterministic.
 
 Shared constants used across multiple `.cpp` files are declared in `Players.h`. All size-dependent constants (weapon spawn offsets, explosion sizes, impact effect areas, pusher radius, hex shield size, push margin, debug circle radii) derive from `kfPlayerRadius` via ratio multipliers, so adjusting `kfPlayerRadius` proportionally scales all player-related sizes.
 
@@ -22,7 +25,7 @@ Shared constants used across multiple `.cpp` files are declared in `Players.h`. 
 
 **Shield and Damage**: Shield absorbs damage before armor with cooldown-based regeneration. Client-only hex shield displays directional hit indicators with intensity decay and impact VFX.
 
-**Owned Objects**: Each player owns a wind trail, hex shield (client-only), and a pusher. The pusher prevents player overlap by applying repulsion velocity when players are close; it is created on Spawn, synced in Interpolate, applied as velocity in PostRender, and removed on Transfer/Destroy.
+**Owned Objects**: Each player owns a wind trail, hex shield (client-only), and a pusher. The pusher prevents player overlap using a clamped impulse pattern: `engine::ApplyClampedPush()` caps velocity in the push direction to `kfPlayerMaxPusherPushVelocity`. Terrain push uses the same pattern via `engine::ApplyClampedPush()` with its own cap. The pusher is created on Spawn, synced in Interpolate, applied in PostRender, and removed on Transfer/Destroy.
 
 ## Client GUIDs and Global Player IDs
 

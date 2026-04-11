@@ -1,0 +1,78 @@
+Gate Audio Voice Lifecycle During Reconcile Replay
+===================================================
+
+Context
+-------
+On a kChina network profile run (RTT ~480-515ms), the main thread stalled
+multiple times with log lines like:
+
+  DestroyXAudio2SourceVoice took 108ms
+  DestroyXAudio2SourceVoice took 113ms
+  DestroyXAudio2SourceVoice took 189ms
+
+These hitches occur during reconcile storms where the client is full-
+replaying 30-60 ticks across multiple coords per frame. Audio should only
+play on main-thread frame updates, never during reconcile replay.
+
+Root Cause
+----------
+StaticVoices::PlayOneShot() is correctly gated on
+FrameFlags::kRecalculated so collision-triggered sounds skip during
+replay. PlayOneShot is only called from game code (collisions, explosions)
+and that path is fine.
+
+The bug is StaticVoices::UpdateLifecycle(): it unconditionally syncs
+voices from rFrame.postRender SoundsPostRender.puiIds[] every tick,
+including replayed ticks. Each replayed tick creates voices matching the
+recorded sound IDs, then destroys them when the next replayed tick
+supersedes them.
+
+With 30-60 ticks * 3-4 coords * several sounds per tick, this produces
+hundreds of voice create/destroy cycles per reconcile storm.
+IXAudio2SourceVoice::DestroyVoice blocks until the voice is idle - under
+rapid create/destroy churn the audio buffer cannot drain fast enough and
+the destroy call blocks 100-200ms on the main thread.
+
+The voice cap (kiMaxStaticVoices = 128) does not save us because voices
+are torn down in-flight; we never sit at the cap, we churn through it.
+
+Fix
+---
+Gate StaticVoices::UpdateLifecycle() with the same kRecalculated check
+used by PlayOneShot.
+
+Critical file: Engine/Source/Audio/StaticVoices.cpp (around lines
+148-196)
+
+  void StaticVoices::UpdateLifecycle(Frame& rFrame)
+  {
+      if (rFrame.interpolate.frameFlags & FrameFlags::kRecalculated)
+          return;
+      // ... existing body
+  }
+
+Audio state will reconverge on the next non-replay tick when
+UpdateLifecycle runs against the latest authoritative frame. KISS - one
+gate.
+
+Why This Is Safe
+----------------
+- Replay frames are intermediate; their sound state is meaningless except
+  as input to the next replay tick.
+- The next non-replay frame holds the final state and UpdateLifecycle
+  will sync voices to match it.
+- PlayOneShot already follows this pattern; we are extending the same
+  invariant to UpdateLifecycle.
+
+Validation
+----------
+Re-run the kChina scenario. Confirm that "DestroyXAudio2SourceVoice took
+N ms" log lines are gone or vastly reduced during reconcile storms. The
+audio output should remain correct because the gate only suppresses
+intermediate replay state, not final frame state.
+
+Dependency
+----------
+Independent of the network/reconcile fixes. Can land standalone for an
+immediate latency win. Recommended to land first since it is a one-line
+fix.

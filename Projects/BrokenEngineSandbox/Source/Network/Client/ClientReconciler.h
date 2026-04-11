@@ -36,6 +36,7 @@ struct CoordReconcileWork
 	// Input
 	int64_t iConfirmedTick = -1;
 	int64_t iConfirmedOffset = -1;
+	int64_t iHighWaterValidatedTick = -1;
 	int64_t iSnapshotHead = 0;
 	std::map<int64_t, engine::CoordFrames::CoordServerUpdate> serverUpdates;
 	std::unique_ptr<Frame> snapshots[engine::kiNetworkBufferSize] {};

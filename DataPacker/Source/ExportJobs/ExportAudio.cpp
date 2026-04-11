@@ -8,7 +8,7 @@ using enum common::ChunkFlags;
 
 std::optional<common::ChunkFlags_t> ExportAudio::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 {
-	return rDirectoryEntry.path().extension() == ".wav" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kAudio) : std::nullopt;
+	return rDirectoryEntry.path().extension() == ".wav" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kChunkAudio) : std::nullopt;
 }
 
 void ExportAudio::Export()

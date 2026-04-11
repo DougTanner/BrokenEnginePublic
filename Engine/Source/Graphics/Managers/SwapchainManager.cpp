@@ -144,7 +144,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 		}
 		else
 		{
-			Log(kLogGraphics, kWarning, "WARNING: Screenshot functionality will be disabled - VK_IMAGE_USAGE_TRANSFER_SRC_BIT not supported by surface");
+			LOG(kGraphics, kWarning, "WARNING: Screenshot functionality will be disabled - VK_IMAGE_USAGE_TRANSFER_SRC_BIT not supported by surface");
 		}
 	}
 
@@ -155,12 +155,12 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 	CHECK_VK(vkGetPhysicalDeviceSurfacePresentModesKHR(gpInstanceManager->mVkPhysicalDevice, gpInstanceManager->mVkSurfaceKHR, &uiPresentModeCount, physicalDevicePresentModes.data()));
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	Log(kLogGraphics, "Present modes ({}):", physicalDevicePresentModes.size());
+	LOG(kGraphics, kInfo, "Present modes ({}):", physicalDevicePresentModes.size());
 	// FIFO is guaranteed to be available
 	VkPresentModeKHR eVkPresentModeKHR = VK_PRESENT_MODE_FIFO_KHR;
 	for (const VkPresentModeKHR& reVkPresentModeKHR : physicalDevicePresentModes)
 	{
-		Log(kLogGraphics, "  {}", gEnumToString.Convert(reVkPresentModeKHR, rWorkbuffer));
+		LOG(kGraphics, kInfo, "  {}", gEnumToString.Convert(reVkPresentModeKHR, rWorkbuffer));
 
 		if (reVkPresentModeKHR == VK_PRESENT_MODE_MAILBOX_KHR && gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_MAILBOX_KHR)
 		{
@@ -171,7 +171,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 			eVkPresentModeKHR = VK_PRESENT_MODE_IMMEDIATE_KHR;
 		}
 	}
-	Log(kLogGraphics, "Present mode selected: {}", gEnumToString.Convert(eVkPresentModeKHR, rWorkbuffer));
+	LOG(kGraphics, kInfo, "Present mode selected: {}", gEnumToString.Convert(eVkPresentModeKHR, rWorkbuffer));
 	gPresentMode.Reset(eVkPresentModeKHR);
 
 	// The swap extent is the resolution of the swap chain images and it's almost always exactly equal to the resolution of the window that we're drawing to
@@ -213,7 +213,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 	{
 		uiMinImageCount = std::min(uiMinImageCount, vkSurfaceCapabilitiesKHR.maxImageCount);
 	}
-	Log(kLogGraphics, "uiMinImageCount: {}", uiMinImageCount);
+	LOG(kGraphics, kDebug, "uiMinImageCount: {}", uiMinImageCount);
 
 	uint32_t pQueueFamilyIndices[]
 	{

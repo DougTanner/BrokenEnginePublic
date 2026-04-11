@@ -72,6 +72,17 @@ inline constexpr bool kbRandomlyInvalidatePbrCubemapCache = false;
 inline constexpr bool kbShowProfileTextByDefault = false;
 #endif
 
+#include "LogTypes.h"
+
+inline constexpr LogLevel keLogLevelDefault  = kInfo;
+inline constexpr LogLevel keLogLevelTemp     = kInfo;
+
+inline constexpr LogLevel keLogLevelAudio    = kInfo;
+inline constexpr LogLevel keLogLevelGraphics = kInfo;
+inline constexpr LogLevel keLogLevelLoading  = kInfo;
+inline constexpr LogLevel keLogLevelNavData  = kInfo;
+inline constexpr LogLevel keLogLevelNetwork  = kVerbose; // DT: TEMP kDebug;
+
 #include "Common.h"
 #include "Shaders/ShaderLayouts.h"
 #include "Ui/Wrapper.h"
@@ -79,11 +90,3 @@ inline constexpr bool kbShowProfileTextByDefault = false;
 #include "Engine.h"
 
 inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kChina;
-inline constexpr LogLevel keLogLevelDefault  = kDebug;
-inline constexpr LogLevel keLogLevelTemp     = kDebug;
-
-inline constexpr LogLevel keLogLevelAudio    = kDebug;
-inline constexpr LogLevel keLogLevelGraphics = kDebug;
-inline constexpr LogLevel keLogLevelLoading  = kDebug;
-inline constexpr LogLevel keLogLevelNavData  = kDebug;
-inline constexpr LogLevel keLogLevelNetwork  = kVerbose; // DT: TEMP kDebug;

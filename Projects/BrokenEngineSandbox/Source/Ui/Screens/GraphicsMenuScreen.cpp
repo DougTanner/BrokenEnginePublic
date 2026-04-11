@@ -10,7 +10,7 @@ namespace game
 
 void GraphicsMenuScreen::Render()
 {
-	if (gpGame->meUiState != UiState::kGraphics)
+	if (gpGame->meUiState != UiState::kGraphicsSettings)
 	{
 		return;
 	}

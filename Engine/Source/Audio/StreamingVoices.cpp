@@ -183,7 +183,7 @@ void StreamingVoices::SubmitBuffers(StreamingVoice& rStream)
 			HRESULT hr = rStream.mpVoice->SubmitSourceBuffer(&xaudio2Buffer);
 			if (FAILED(hr))
 			{
-				Log(kLogAudio, kWarning, "SubmitBuffers: Failed to submit buffer, HRESULT: 0x{:08X}", hr);
+				LOG(kAudio, kWarning, "SubmitBuffers: Failed to submit buffer, HRESULT: 0x{:08X}", hr);
 				rStream.mFlags.Set(StreamingVoiceFlags::kLastBufferSubmitted);
 				break;
 			}
@@ -192,7 +192,7 @@ void StreamingVoices::SubmitBuffers(StreamingVoice& rStream)
 		}
 		else
 		{
-			Log(kLogAudio, "SubmitBuffers: stream reached end, marking as inactive");
+			LOG(kAudio, kDebug, "SubmitBuffers: stream reached end, marking as inactive");
 			rStream.mFlags.Set(StreamingVoiceFlags::kLastBufferSubmitted);
 		}
 	}
@@ -209,7 +209,7 @@ void StreamingVoices::CreateStream(common::crc_t uiAudioCrc)
 	}
 	else
 	{
-		Log(kLogAudio, "CreateStream AllocateVoice failed for CRC {:#018x}", uiAudioCrc);
+		LOG(kAudio, kDebug, "CreateStream AllocateVoice failed for CRC {:#018x}", uiAudioCrc);
 	}
 }
 

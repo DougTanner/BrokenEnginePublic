@@ -188,8 +188,8 @@ void ChainEdgesIntoPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons, const
 	static constexpr float kfQuantizeScale = 100000.0f;
 	auto QuantizeKey = [](const XMFLOAT2& rPoint) -> uint64_t
 	{
-		auto iX = static_cast<int32_t>(rPoint.x * kfQuantizeScale + 0.5f);
-		auto iY = static_cast<int32_t>(rPoint.y * kfQuantizeScale + 0.5f);
+		int32_t iX = static_cast<int32_t>(rPoint.x * kfQuantizeScale + 0.5f);
+		int32_t iY = static_cast<int32_t>(rPoint.y * kfQuantizeScale + 0.5f);
 		return (static_cast<uint64_t>(static_cast<uint32_t>(iX)) << 32) | static_cast<uint64_t>(static_cast<uint32_t>(iY));
 	};
 
@@ -362,6 +362,95 @@ float ComputeSignedArea(const std::vector<XMFLOAT2>& rPolygon)
 		fArea -= rPolygon.at(iNext).x * rPolygon.at(i).y;
 	}
 	return fArea * 0.5f;
+}
+
+// Detect dense vertex clusters and push them outward to smooth jagged boundaries
+// Vertices with many non-adjacent neighbors within fClusterRadius get inflated by fExpansion along their outward normal
+void SmoothDenseClusters(std::vector<XMFLOAT2>& rPolygon, float fClusterRadius, int32_t iMinClusterVertices, float fExpansion)
+{
+	if (rPolygon.size() < 4)
+	{
+		return;
+	}
+
+	float fRadiusSq = fClusterRadius * fClusterRadius;
+	size_t iSize = rPolygon.size();
+
+	// Ensure CCW winding so outward normals point away from obstacle
+	float fSignedArea = ComputeSignedArea(rPolygon);
+	if (fSignedArea < 0.0f)
+	{
+		std::reverse(rPolygon.begin(), rPolygon.end());
+	}
+
+	// Snapshot original positions so reads are not affected by writes
+	std::vector<XMFLOAT2> original = rPolygon;
+
+	// For each vertex, count non-adjacent vertices within the cluster radius
+	for (size_t i = 0; i < iSize; ++i)
+	{
+		int32_t iNearbyCount = 0;
+		for (size_t j = 0; j < iSize; ++j)
+		{
+			// Skip self and immediate polygon neighbors (trivially close)
+			size_t iForward = (j + iSize - i) % iSize;
+			size_t iBackward = (i + iSize - j) % iSize;
+			size_t iSeparation = std::min(iForward, iBackward);
+			if (iSeparation <= 2)
+			{
+				continue;
+			}
+
+			float fDx = original.at(j).x - original.at(i).x;
+			float fDy = original.at(j).y - original.at(i).y;
+			if (fDx * fDx + fDy * fDy < fRadiusSq)
+			{
+				++iNearbyCount;
+			}
+		}
+
+		if (iNearbyCount < iMinClusterVertices)
+		{
+			continue;
+		}
+
+		// Push vertex outward along its vertex normal (same pattern as InflatePolygon)
+		size_t iPrev = (i + iSize - 1) % iSize;
+		size_t iNext = (i + 1) % iSize;
+
+		float fE1x = original.at(i).x - original.at(iPrev).x;
+		float fE1y = original.at(i).y - original.at(iPrev).y;
+		float fLen1 = std::sqrt(fE1x * fE1x + fE1y * fE1y);
+
+		float fE2x = original.at(iNext).x - original.at(i).x;
+		float fE2y = original.at(iNext).y - original.at(i).y;
+		float fLen2 = std::sqrt(fE2x * fE2x + fE2y * fE2y);
+
+		if (fLen1 < 1e-8f || fLen2 < 1e-8f)
+		{
+			continue;
+		}
+
+		// Outward normals for CCW polygon (rotate edge direction 90 degrees clockwise)
+		float fN1x = fE1y / fLen1;
+		float fN1y = -fE1x / fLen1;
+		float fN2x = fE2y / fLen2;
+		float fN2y = -fE2x / fLen2;
+
+		float fNx = fN1x + fN2x;
+		float fNy = fN1y + fN2y;
+		float fNLen = std::sqrt(fNx * fNx + fNy * fNy);
+		if (fNLen < 1e-8f)
+		{
+			continue;
+		}
+
+		fNx /= fNLen;
+		fNy /= fNLen;
+
+		rPolygon.at(i).x = original.at(i).x + fNx * fExpansion;
+		rPolygon.at(i).y = original.at(i).y + fNy * fExpansion;
+	}
 }
 
 // Inflate polygon outward by the given distance
@@ -828,7 +917,7 @@ std::vector<XMFLOAT2> ComputePolygonUnion(const std::vector<XMFLOAT2>& rPolyA, c
 
 	if (result.size() >= iMaxSteps)
 	{
-		Log(kLogNavData, kWarning, "NavBuild: boundary walk exhausted step limit ({} steps), result may be malformed", iMaxSteps);
+		LOG(kNavData, kWarning, "NavBuild: boundary walk exhausted step limit ({} steps), result may be malformed", iMaxSteps);
 	}
 
 	// Ensure CCW winding
@@ -874,7 +963,7 @@ void MergeOverlappingPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons)
 					std::vector<XMFLOAT2> merged = ComputePolygonUnion(rPolyA, rPolyB);
 					if (merged.size() >= 3)
 					{
-						Log(kLogNavData, kDebug, "NavBuild: merged polygons {} ({} verts) and {} ({} verts) -> {} verts", i, rPolyA.size(), j, rPolyB.size(), merged.size());
+						LOG(kNavData, kDebug, "NavBuild: merged polygons {} ({} verts) and {} ({} verts) -> {} verts", i, rPolyA.size(), j, rPolyB.size(), merged.size());
 						rPolygons.at(i) = std::move(merged);
 						rPolygons.erase(rPolygons.begin() + static_cast<int64_t>(j));
 						bMerged = true;
@@ -885,7 +974,7 @@ void MergeOverlappingPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons)
 					bool bAInsideB = PointInPolygon(rPolyA.at(0), rPolyB.data(), static_cast<int32_t>(rPolyB.size()));
 					if (bAInsideB)
 					{
-						Log(kLogNavData, kDebug, "NavBuild: polygon {} ({} verts) contained in polygon {} ({} verts), removing inner", i, rPolyA.size(), j, rPolyB.size());
+						LOG(kNavData, kDebug, "NavBuild: polygon {} ({} verts) contained in polygon {} ({} verts), removing inner", i, rPolyA.size(), j, rPolyB.size());
 						rPolygons.erase(rPolygons.begin() + static_cast<int64_t>(i));
 						bMerged = true;
 					}
@@ -894,7 +983,7 @@ void MergeOverlappingPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons)
 						bool bBInsideA = PointInPolygon(rPolyB.at(0), rPolyA.data(), static_cast<int32_t>(rPolyA.size()));
 						if (bBInsideA)
 						{
-							Log(kLogNavData, kDebug, "NavBuild: polygon {} ({} verts) contained in polygon {} ({} verts), removing inner", j, rPolyB.size(), i, rPolyA.size());
+							LOG(kNavData, kDebug, "NavBuild: polygon {} ({} verts) contained in polygon {} ({} verts), removing inner", j, rPolyB.size(), i, rPolyA.size());
 							rPolygons.erase(rPolygons.begin() + static_cast<int64_t>(j));
 							bMerged = true;
 						}
@@ -961,14 +1050,14 @@ void BuildVisibilityGraph(NavContour& rContour)
 
 void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapWidth, int32_t iHeightmapHeight, float fBeachElevation, float fWorldThreshold)
 {
-	Log(kLogNavData, kDebug, "NavBuild: heightmap {}x{} beachElev={} worldThreshold={}", iHeightmapWidth, iHeightmapHeight, fBeachElevation, fWorldThreshold);
+	LOG(kNavData, kDebug, "NavBuild: heightmap {}x{} beachElev={} worldThreshold={}", iHeightmapWidth, iHeightmapHeight, fBeachElevation, fWorldThreshold);
 
 	// Step 1: Extract contour edges via marching squares
 	std::vector<ContourEdge> contourEdges;
 	contourEdges.reserve(static_cast<size_t>(iHeightmapWidth) * static_cast<size_t>(iHeightmapHeight));
 	ExtractContourEdges(contourEdges, pfHeightmapData, iHeightmapWidth, iHeightmapHeight, fBeachElevation, fWorldThreshold);
 
-	Log(kLogNavData, kDebug, "NavBuild: extracted {} contour edges", contourEdges.size());
+	LOG(kNavData, kDebug, "NavBuild: extracted {} contour edges", contourEdges.size());
 
 	if (contourEdges.empty())
 	{
@@ -979,19 +1068,24 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 	std::vector<std::vector<XMFLOAT2>> polygons;
 	ChainEdgesIntoPolygons(polygons, contourEdges);
 
-	Log(kLogNavData, kDebug, "NavBuild: chained into {} polygons", polygons.size());
+	LOG(kNavData, kDebug, "NavBuild: chained into {} polygons", polygons.size());
 
-	// Step 3: Simplify and inflate each polygon
+	// Step 3: Simplify, smooth dense clusters, and inflate each polygon
 	static constexpr float kfSimplifyTolerance = 0.01f;
+	static constexpr float kfClusterRadius = 0.05f;
+	static constexpr int32_t kiMinClusterVertices = 5;
+	static constexpr float kfClusterExpansion = 0.02f;
 	static constexpr float kfInflateDistance = 0.015f;
 
 	for (size_t iPoly = 0; iPoly < polygons.size(); ++iPoly)
 	{
-		int64_t iPreSimplify = static_cast<int64_t>(polygons[iPoly].size());
-		SimplifyPolygon(polygons[iPoly], kfSimplifyTolerance);
-		int64_t iPostSimplify = static_cast<int64_t>(polygons[iPoly].size());
-		InflatePolygon(polygons[iPoly], kfInflateDistance);
-		Log(kLogNavData, kDebug, "NavBuild: polygon {} verts: {} -> {} (after simplify)", iPoly, iPreSimplify, iPostSimplify);
+		int64_t iPreSimplify = static_cast<int64_t>(polygons.at(iPoly).size());
+		SimplifyPolygon(polygons.at(iPoly), kfSimplifyTolerance);
+		SmoothDenseClusters(polygons.at(iPoly), kfClusterRadius, kiMinClusterVertices, kfClusterExpansion);
+		SimplifyPolygon(polygons.at(iPoly), kfSimplifyTolerance);
+		int64_t iPostSimplify = static_cast<int64_t>(polygons.at(iPoly).size());
+		InflatePolygon(polygons.at(iPoly), kfInflateDistance);
+		LOG(kNavData, kDebug, "NavBuild: polygon {} verts: {} -> {} (after simplify+smooth)", iPoly, iPreSimplify, iPostSimplify);
 	}
 
 	// Step 4: Merge overlapping polygons (inflation can cause nearby polygons to intersect)
@@ -999,7 +1093,7 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 	MergeOverlappingPolygons(polygons);
 	if (polygons.size() != iPreMergeCount)
 	{
-		Log(kLogNavData, kDebug, "NavBuild: merged {} polygons -> {}", iPreMergeCount, polygons.size());
+		LOG(kNavData, kDebug, "NavBuild: merged {} polygons -> {}", iPreMergeCount, polygons.size());
 	}
 
 	// Step 5: Pack polygons into flat arrays
@@ -1017,7 +1111,7 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 		}
 	}
 
-	Log(kLogNavData, kDebug, "NavBuild: total vertices={} polygons={}", rContour.vertices.size(), rContour.polygonOffsets.size());
+	LOG(kNavData, kDebug, "NavBuild: total vertices={} polygons={}", rContour.vertices.size(), rContour.polygonOffsets.size());
 
 	if (rContour.vertices.empty())
 	{
@@ -1027,7 +1121,7 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 	// Step 6: Build visibility graph
 	BuildVisibilityGraph(rContour);
 
-	Log(kLogNavData, kDebug, "NavBuild: visibility graph edges={}", rContour.visEdgeA.size());
+	LOG(kNavData, kDebug, "NavBuild: visibility graph edges={}", rContour.visEdgeA.size());
 }
 
 void XM_CALLCONV BuildCellNavData(NavData& rNavData, const NavContour& rContour, FXMVECTOR vecArea, IslandsFlip eFlip, XMFLOAT2 f2IslandOffset, float fIslandWidth, float fIslandHeight)
@@ -1070,8 +1164,8 @@ void XM_CALLCONV BuildCellNavData(NavData& rNavData, const NavContour& rContour,
 	// Log per-polygon vertex positions for density analysis
 	for (size_t iPoly = 0; iPoly < rNavData.polygonOffsets.size(); ++iPoly)
 	{
-		int32_t iStart = rNavData.polygonOffsets[iPoly];
-		int32_t iEnd = (iPoly + 1 < rNavData.polygonOffsets.size()) ? rNavData.polygonOffsets[iPoly + 1] : iVertexCount;
+		int32_t iStart = rNavData.polygonOffsets.at(iPoly);
+		int32_t iEnd = (iPoly + 1 < rNavData.polygonOffsets.size()) ? rNavData.polygonOffsets.at(iPoly + 1) : iVertexCount;
 		int32_t iCount = iEnd - iStart;
 
 		// Compute bounding box to detect tight clusters
@@ -1081,15 +1175,15 @@ void XM_CALLCONV BuildCellNavData(NavData& rNavData, const NavContour& rContour,
 		float fMaxY = std::numeric_limits<float>::lowest();
 		for (int32_t i = iStart; i < iEnd; ++i)
 		{
-			fMinX = std::min(fMinX, rNavData.vertices[i].x);
-			fMaxX = std::max(fMaxX, rNavData.vertices[i].x);
-			fMinY = std::min(fMinY, rNavData.vertices[i].y);
-			fMaxY = std::max(fMaxY, rNavData.vertices[i].y);
+			fMinX = std::min(fMinX, rNavData.vertices.at(i).x);
+			fMaxX = std::max(fMaxX, rNavData.vertices.at(i).x);
+			fMinY = std::min(fMinY, rNavData.vertices.at(i).y);
+			fMaxY = std::max(fMaxY, rNavData.vertices.at(i).y);
 		}
 		float fBoundsWidth = fMaxX - fMinX;
 		float fBoundsHeight = fMaxY - fMinY;
 
-		Log(kLogNavData, kVerbose, "NavCell: polygon {} verts={} bounds=({} {})..({} {}) size={}x{}", iPoly, iCount, fMinX, fMinY, fMaxX, fMaxY, fBoundsWidth, fBoundsHeight);
+		LOG(kNavData, kVerbose, "NavCell: polygon {} verts={} bounds=({} {})..({} {}) size={}x{}", iPoly, iCount, fMinX, fMinY, fMaxX, fMaxY, fBoundsWidth, fBoundsHeight);
 	}
 }
 

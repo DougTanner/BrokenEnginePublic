@@ -35,7 +35,7 @@ void ProfileManagerBase::Create()
 		uint32_t uiTimestampValidBits = gpInstanceManager->mVkQueueFamilyProperties[gpInstanceManager->miGraphicsQueueFamilyIndex].timestampValidBits;
 		if (uiTimestampValidBits == 0)
 		{
-			Log(kWarning, "Warning: Graphics queue family does not support timestamp queries. GPU profiling disabled.");
+			LOG(kDefault, kWarning, "Warning: Graphics queue family does not support timestamp queries. GPU profiling disabled.");
 			return;
 		}
 
@@ -299,10 +299,10 @@ void ProfileManagerBase::BootLog()
 			std::chrono::milliseconds durationMilliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(rBootTimer.timeNs);
 			if (durationMilliseconds.count() > 10)
 			{
-				Log("{}: {} ms", rBootTimer.name, durationMilliseconds.count());
+				LOG(kDefault, kDebug, "{}: {} ms", rBootTimer.name, durationMilliseconds.count());
 			}
 		}
-		Log("\n");
+		LOG(kDefault, kDebug, "\n");
 	}
 }
 
@@ -310,7 +310,7 @@ void ProfileManagerBase::LogTimers()
 {
 	if constexpr (kbProfiling)
 	{
-		Log("");
+		LOG(kDefault, kDebug, "");
 
 		{
 			std::lock_guard lock(mCpuTimerMutex);
@@ -319,11 +319,11 @@ void ProfileManagerBase::LogTimers()
 			for (int64_t i = 0; i < iCpuTimerCount; ++i)
 			{
 				CpuTimer& rCpuTimer = GetCpuTimer(i);
-				Log("{}: {} ({}, {}) [{}]", rCpuTimer.name, rCpuTimer.smoothedMicroseconds.Current(), rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max(), rCpuTimer.smoothedAllocations.Get());
+				LOG(kDefault, kDebug, "{}: {} ({}, {}) [{}]", rCpuTimer.name, rCpuTimer.smoothedMicroseconds.Current(), rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max(), rCpuTimer.smoothedAllocations.Get());
 			}
 		}
 
-		Log("");
+		LOG(kDefault, kDebug, "");
 
 #if defined(BT_CLIENT)
 		int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
@@ -335,10 +335,10 @@ void ProfileManagerBase::LogTimers()
 		for (int64_t i = 0; i < kGpuTimerCount; ++i)
 		{
 			GpuTimer& rGpuTimer = mGpuTimers[i];
-			Log("{}: {} ({}, {})", rGpuTimer.name, rGpuTimer.smoothedMicroseconds.Current(), rGpuTimer.smoothedMicroseconds.Average(), rGpuTimer.smoothedMicroseconds.Max());
+			LOG(kDefault, kDebug, "{}: {} ({}, {})", rGpuTimer.name, rGpuTimer.smoothedMicroseconds.Current(), rGpuTimer.smoothedMicroseconds.Average(), rGpuTimer.smoothedMicroseconds.Max());
 		}
 
-		Log("");
+		LOG(kDefault, kDebug, "");
 #endif // BT_CLIENT
 	}
 }

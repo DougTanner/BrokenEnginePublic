@@ -2,7 +2,10 @@
 
 #include "Network/Server/ServerTransferManager.h"
 
+#include "Frame/Collections/Blasters/Blasters.h"
+#include "Frame/Collections/Missiles/Missiles.h"
 #include "Frame/Collections/Players/Players.h"
+#include "Frame/Collections/Spaceships/Spaceships.h"
 #include "Game.h"
 #include "Network/Server/ServerFleetManager.h"
 #include "Network/Server/ServerSession.h"
@@ -162,6 +165,17 @@ void ServerTransferManager::HarvestTransfers()
 
 	CollectTransfers(clientTransfers);
 	SortTransfersByType();
+
+	// Log 5: capture pre-transfer CRCs from frame state (populated by RunFrameTick
+	// before HarvestTransfers runs). Zero extra Crcs() calls - just read.
+	std::unordered_map<engine::GridCoord, common::crc_t> preCrcs;
+	preCrcs.reserve(mTransfers.size());
+	for (const auto& [rCoord, rTransfers] : mTransfers)
+	{
+		const Frame& rDestFrame = *gpGame->mCoordFrames.at(rCoord).pNext;
+		preCrcs.emplace(rCoord, rDestFrame.postRender.sharedCrc);
+	}
+
 	SpawnTransfers();
 
 	// Recompute CRCs for destination frames after transfers modified them
@@ -170,6 +184,11 @@ void ServerTransferManager::HarvestTransfers()
 	{
 		Frame& rDestFrame = *gpGame->mCoordFrames.at(rCoord).pNext;
 		rDestFrame.postRender.sharedCrc = rDestFrame.Crcs();
+
+		char acCrcPre[20] {}, acCrcPost[20] {};
+		common::ToHex(std::span<char, 20>(acCrcPre), preCrcs.at(rCoord));
+		common::ToHex(std::span<char, 20>(acCrcPost), rDestFrame.postRender.sharedCrc);
+		LOG(kNetwork, kVerbose, "Server SpawnTransfers Dest: ({},{}) TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} CrcPre: {} CrcPost: {}", rCoord.x, rCoord.y, rTransfers.size(), rDestFrame.postRender.pPlayers->iCount, rDestFrame.postRender.pBlasters->iCount, rDestFrame.postRender.pSpaceships->iCount, rDestFrame.postRender.pMissiles->iCount, acCrcPre, acCrcPost);
 	}
 
 	TrackClientTransfers(clientTransfers);

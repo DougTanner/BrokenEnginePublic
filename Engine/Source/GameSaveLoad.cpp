@@ -156,7 +156,7 @@ void GameSaveLoad::SaveLoadReplay()
 			game::ReplayMeta meta {};
 			if (!ReadVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay.meta"), meta))
 			{
-				Log(kError, "Failed to read replay metadata");
+				LOG(kDefault, kError, "Failed to read replay metadata");
 				return;
 			}
 
@@ -164,7 +164,7 @@ void GameSaveLoad::SaveLoadReplay()
 			std::fstream manifestStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay.manifest"));
 			if (!manifestStream)
 			{
-				Log(kError, "Failed to read replay manifest");
+				LOG(kDefault, kError, "Failed to read replay manifest");
 				return;
 			}
 			int64_t iCoordCount = 0;
@@ -182,7 +182,7 @@ void GameSaveLoad::SaveLoadReplay()
 			GridCoord loadedClientGridCoord {};
 			if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay.grid"), loadedClientGridCoord))
 			{
-				Log(kError, "Failed to read replay grid");
+				LOG(kDefault, kError, "Failed to read replay grid");
 				return;
 			}
 
@@ -207,7 +207,7 @@ void GameSaveLoad::SaveLoadReplay()
 
 				if (!pReader->Loaded())
 				{
-					Log(kError, "Failed to load replay for coord ({},{})", rCoord.x, rCoord.y);
+					LOG(kDefault, kError, "Failed to load replay for coord ({},{})", rCoord.x, rCoord.y);
 					mReplayReaders.clear();
 					return;
 				}
@@ -251,7 +251,7 @@ void GameSaveLoad::SyncReplayTick()
 				mReplayWriters.emplace(rCoord, std::make_unique<DifferenceStreamWriter<game::Frame, game::FrameInput>>(*rFrames.pCurrent, rFrameInput));
 			}
 
-			Log("Recording started for {} coords", mReplayWriters.size());
+			LOG(kDefault, kDebug, "Recording started for {} coords", mReplayWriters.size());
 			return;
 		}
 
@@ -283,7 +283,7 @@ void GameSaveLoad::SyncReplayTick()
 			};
 			WriteVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("F7.replay.meta"), meta);
 
-			Log("Recording stopped");
+			LOG(kDefault, kDebug, "Recording stopped");
 			return;
 		}
 
@@ -319,7 +319,7 @@ void GameSaveLoad::SyncReplayTick()
 
 			if (bEndReached)
 			{
-				Log("End replay {}, looping", mrGameBase.miTickCounter);
+				LOG(kDefault, kDebug, "End replay {}, looping", mrGameBase.miTickCounter);
 				mReplayReaders.clear();
 				mrGameBase.mGameFlags.Set(GameFlags::kLoadReplay);
 			}
@@ -359,7 +359,7 @@ void GameSaveLoad::WriteGrid(const FileFlags_t& rFlags, const std::filesystem::p
 		fileStream << *mrGameBase.mCoordFrames.at(coord).pCurrent;
 	}
 
-	Log("WriteGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
+	LOG(kDefault, kDebug, "WriteGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
 }
 
 bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord& rClientGridCoord)
@@ -373,7 +373,7 @@ bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::pa
 
 	if (iVersion != game::Frame::kiVersion)
 	{
-		Log(kError, "ReadGrid {} failed: version {} != {}", rFilename, iVersion, game::Frame::kiVersion);
+		LOG(kDefault, kError, "ReadGrid {} failed: version {} != {}", rFilename, iVersion, game::Frame::kiVersion);
 		return false;
 	}
 
@@ -405,7 +405,7 @@ bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::pa
 		mrGameBase.mfCurrentTime = mrGameBase.mCoordFrames.begin()->second.pCurrent->interpolate.fCurrentTime;
 	}
 
-	Log("ReadGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
+	LOG(kDefault, kDebug, "ReadGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
 	return fileStream.good();
 }
 

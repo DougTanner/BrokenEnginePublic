@@ -27,7 +27,7 @@ Multi-pass deferred Vulkan renderer with lighting, shadows, GPU particles, and p
 
 ## Logging
 
-Graphics subsystem logging uses the `kLogGraphics` category. Use `kVerbose` for per-frame events, `kWarning` for recoverable issues, and `kError` for failures.
+Graphics subsystem logging uses the `kGraphics` category. Use `kVerbose` for per-frame events, `kWarning` for recoverable issues, and `kError` for failures.
 
 ## See Also
 

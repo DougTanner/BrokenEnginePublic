@@ -112,7 +112,7 @@ void ServerClientManager::NewClients()
 				rClient.authorizedCoords.push_back(rEntry.coord);
 				gpServerSession->SendAssignPlayer(rClient.iClientId, rEntry.globalId, rEntry.coord);
 				gpServerSession->SendPlayerState(rClient.iClientId, PlayerEventTypeToWire(PlayerEventType::kSpawned), rEntry.globalId.iValue, rEntry.coord);
-				Log(kLogNetwork, kVerbose, "NewClients Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, rEntry.globalId.iValue, rEntry.coord.x, rEntry.coord.y);
+				LOG(kNetwork, kVerbose, "NewClients Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, rEntry.globalId.iValue, rEntry.coord.x, rEntry.coord.y);
 			}
 
 			if (!rNewClientOwnedIds.empty())
@@ -124,7 +124,7 @@ void ServerClientManager::NewClients()
 
 		// Client connects with zero players — spawns happen via fleet creation requests
 		mProcessedClientIds.insert(rClient.iClientId);
-		Log(kLogNetwork, kVerbose, "NewClients Client: {} connected with no players", rClient.iClientId);
+		LOG(kNetwork, kVerbose, "NewClients Client: {} connected with no players", rClient.iClientId);
 	}
 }
 
@@ -150,7 +150,7 @@ void ServerClientManager::FinalizeNewClients([[maybe_unused]] int64_t iTick)
 		}
 	}
 
-	Log(kLogNetwork, kVerbose, "FinalizeNewClients Waiting: {} PlayerCount: {} PreSpawn: {} NewIds: {}", mClientsWaitingForSpawn.size(), rPlayers.iCount, mPreSpawnPlayerIds.size(), newPlayerIds.size());
+	LOG(kNetwork, kVerbose, "FinalizeNewClients Waiting: {} PlayerCount: {} PreSpawn: {} NewIds: {}", mClientsWaitingForSpawn.size(), rPlayers.iCount, mPreSpawnPlayerIds.size(), newPlayerIds.size());
 	// Assign new players to waiting clients (in order)
 	// Client handles subscriptions — no full state sent here
 	size_t uiAssignCount = std::min(mClientsWaitingForSpawn.size(), newPlayerIds.size());
@@ -197,7 +197,7 @@ void ServerClientManager::Disconnects()
 
 	for (const engine::PendingDisconnect& rDisconnect : engine::gpServer->DrainPendingDisconnects())
 	{
-		Log(kLogNetwork, kVerbose, "ServerClientManager::Disconnects Client: {} Players: {}", rDisconnect.iClientId, gpServerSession->mClientOwnedPlayerIds.try_emplace(rDisconnect.iClientId).first->second.size());
+		LOG(kNetwork, kVerbose, "ServerClientManager::Disconnects Client: {} Players: {}", rDisconnect.iClientId, gpServerSession->mClientOwnedPlayerIds.try_emplace(rDisconnect.iClientId).first->second.size());
 		mDeadClientIds.erase(rDisconnect.iClientId);
 		mProcessedClientIds.erase(rDisconnect.iClientId);
 
@@ -270,7 +270,7 @@ void ServerClientManager::DetectPlayerDeaths()
 			if (!bFound)
 			{
 				gpServerSession->SendPlayerState(rClient.iClientId, PlayerEventTypeToWire(PlayerEventType::kDied), globalId.iValue, coord);
-				Log(kLogNetwork, kVerbose, "ServerClientManager::DetectPlayerDeaths Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, globalId.iValue, coord.x, coord.y);
+				LOG(kNetwork, kVerbose, "ServerClientManager::DetectPlayerDeaths Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, globalId.iValue, coord.x, coord.y);
 				rDeathOwnedIds.erase(rDeathOwnedIds.begin() + i);
 				rClient.authorizedCoords.erase(rClient.authorizedCoords.begin() + i);
 

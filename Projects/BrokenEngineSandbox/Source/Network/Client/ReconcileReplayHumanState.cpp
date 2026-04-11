@@ -37,11 +37,11 @@ static std::optional<engine::global_id_t> FindMatchingPlayerInCoord(const Reconc
 		{
 			if (rDestFrame.postRender.pPlayers->pGlobalPlayerIds[j] == globalPlayerId)
 			{
-				Log(kLogNetwork, kVerbose, "ReconcileUpdateClientState Transfer matched GlobalPlayerId: {} Coord: ({},{})", globalPlayerId.iValue, destination.x, destination.y);
+				LOG(kNetwork, kVerbose, "ReconcileUpdateClientState Transfer matched GlobalPlayerId: {} Coord: ({},{})", globalPlayerId.iValue, destination.x, destination.y);
 				return globalPlayerId;
 			}
 		}
-		Log(kLogNetwork, kVerbose, "ReconcileUpdateClientState Transfer global ID match failed Coord: ({},{}) PlayerCount: {}", destination.x, destination.y, rDestFrame.postRender.pPlayers->iCount);
+		LOG(kNetwork, kVerbose, "ReconcileUpdateClientState Transfer global ID match failed Coord: ({},{}) PlayerCount: {}", destination.x, destination.y, rDestFrame.postRender.pPlayers->iCount);
 		break;
 	}
 	return std::nullopt;
@@ -114,7 +114,7 @@ void ReconcileUpdateClientState(ReconcileContext& rReconcileContext)
 					}
 
 					engine::GridCoord destination {rWork.coord.x + rRequest.iDeltaX, rWork.coord.y + rRequest.iDeltaY};
-					Log(kLogNetwork, kVerbose, "ReconcileUpdateClientState TransferPlayer GlobalPlayerId: {} Source: ({},{}) Dest: ({},{})", clientState.clientGlobalPlayerId.iValue, rWork.coord.x, rWork.coord.y, destination.x, destination.y);
+					LOG(kNetwork, kVerbose, "ReconcileUpdateClientState TransferPlayer GlobalPlayerId: {} Source: ({},{}) Dest: ({},{})", clientState.clientGlobalPlayerId.iValue, rWork.coord.x, rWork.coord.y, destination.x, destination.y);
 					clientState.clientGridCoord = destination;
 					clientState.fPreviousClientArmor = rRequest.data.fHealth;
 

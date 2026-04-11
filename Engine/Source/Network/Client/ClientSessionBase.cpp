@@ -94,7 +94,7 @@ void ClientSessionBase::TrySubscribeNext()
 	{
 		if (!mpClientNetwork->SendSubscribe(mSubscriptionQueue.front()))
 		{
-			Log(kLogNetwork, kVerbose, "TrySubscribeNext NoFreeSlot Coord: ({},{})", mSubscriptionQueue.front().x, mSubscriptionQueue.front().y);
+			LOG(kNetwork, kVerbose, "TrySubscribeNext NoFreeSlot Coord: ({},{})", mSubscriptionQueue.front().x, mSubscriptionQueue.front().y);
 			break;
 		}
 		mSubscriptionQueue.erase(mSubscriptionQueue.begin());
@@ -119,7 +119,7 @@ void ClientSessionBase::UnsubscribeStaleCoords(const std::vector<GridCoord>& rDe
 			{
 				rSlots.at(i) = {};
 				mpClientNetwork->GetCancelledSubscriptions().push_back(unsubCoord);
-				Log(kLogNetwork, kVerbose, "UnsubscribeStaleCoords Cancel kSubscribing Slot: {} Coord: ({},{}) CancelledCount: {}", i, unsubCoord.x, unsubCoord.y, mpClientNetwork->GetCancelledSubscriptions().size());
+				LOG(kNetwork, kVerbose, "UnsubscribeStaleCoords Cancel kSubscribing Slot: {} Coord: ({},{}) CancelledCount: {}", i, unsubCoord.x, unsubCoord.y, mpClientNetwork->GetCancelledSubscriptions().size());
 				game::gpGame->mCoordFrames.erase(unsubCoord);
 			}
 			else
@@ -206,7 +206,7 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 
 			if (static_cast<int64_t>(rSub.serverUpdates.size()) >= kiMaxBufferedFrames)
 			{
-				Log(kLogNetwork, kWarning, "ClientSessionBase::ApplyReceivedUpdatesBase Buffer full Coord: ({},{}) Size: {} Tick: {}", coord.x, coord.y, rSub.serverUpdates.size(), rUpdate.iTick);
+				LOG(kNetwork, kWarning, "ClientSessionBase::ApplyReceivedUpdatesBase Buffer full Coord: ({},{}) Size: {} Tick: {}", coord.x, coord.y, rSub.serverUpdates.size(), rUpdate.iTick);
 				ASSERT(false);
 				bHasNewData = true;
 				continue;
@@ -252,7 +252,7 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	{
 		if (miLatestServerTick >= 0)
 		{
-			Log(kLogNetwork, kVerbose, "ClientSessionBase::ComputeClockCorrectionNs No active slots, resetting LatestServerTick from {} to -1", miLatestServerTick);
+			LOG(kNetwork, kVerbose, "ClientSessionBase::ComputeClockCorrectionNs No active slots, resetting LatestServerTick from {} to -1", miLatestServerTick);
 		}
 		miLatestServerTick = -1;
 		return 0ns;
@@ -267,7 +267,7 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	{
 		if (miCurrentTargetBehind != 0 && miCurrentTargetBehind != iComputedTargetBehind)
 		{
-			Log(kLogNetwork, kVerbose, "ClientSessionBase::ComputeClockCorrectionNs TargetBehind changed Old: {} New: {} RttUs: {}", miCurrentTargetBehind, iComputedTargetBehind, iRttUs);
+			LOG(kNetwork, kVerbose, "ClientSessionBase::ComputeClockCorrectionNs TargetBehind changed Old: {} New: {} RttUs: {}", miCurrentTargetBehind, iComputedTargetBehind, iRttUs);
 		}
 		miCurrentTargetBehind = iComputedTargetBehind;
 	}
@@ -281,7 +281,7 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	if (std::abs(iError) >= kiClockErrorDisconnectThreshold)
 	{
 		++miConsecutiveClockErrorFrames;
-		Log(kLogNetwork, kWarning, "ClientSessionBase::ComputeClockCorrectionNs Clock error accumulating ConsecutiveFrames: {} Error: {} Offset: {} TargetBehind: {} RttUs: {} LatestServerTick: {} PreReconcileTick: {}", miConsecutiveClockErrorFrames, iError, iOffset, miCurrentTargetBehind, iRttUs, miLatestServerTick, iPreReconcileTick);
+		LOG(kNetwork, kWarning, "ClientSessionBase::ComputeClockCorrectionNs Clock error accumulating ConsecutiveFrames: {} Error: {} Offset: {} TargetBehind: {} RttUs: {} LatestServerTick: {} PreReconcileTick: {}", miConsecutiveClockErrorFrames, iError, iOffset, miCurrentTargetBehind, iRttUs, miLatestServerTick, iPreReconcileTick);
 		if (miConsecutiveClockErrorFrames >= kiClockErrorDisconnectConsecutiveFrames)
 		{
 			mbClockErrorDisconnect = true;
@@ -291,18 +291,18 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	{
 		if (miConsecutiveClockErrorFrames > 0)
 		{
-			Log(kLogNetwork, kVerbose, "ClientSessionBase::ComputeClockCorrectionNs Clock error recovered after {} consecutive frames Error: {} Offset: {} TargetBehind: {}", miConsecutiveClockErrorFrames, iError, iOffset, miCurrentTargetBehind);
+			LOG(kNetwork, kVerbose, "ClientSessionBase::ComputeClockCorrectionNs Clock error recovered after {} consecutive frames Error: {} Offset: {} TargetBehind: {}", miConsecutiveClockErrorFrames, iError, iOffset, miCurrentTargetBehind);
 		}
 		miConsecutiveClockErrorFrames = 0;
 	}
 
 	if (std::abs(iError) >= 4)
 	{
-		Log(kLogNetwork, kWarning, "ClientSessionBase::ComputeClockCorrectionNs Extreme clock error Error: {} Offset: {} TargetBehind: {} RttUs: {} LatestServerTick: {} PreReconcileTick: {}", iError, iOffset, miCurrentTargetBehind, iRttUs, miLatestServerTick, iPreReconcileTick);
+		LOG(kNetwork, kWarning, "ClientSessionBase::ComputeClockCorrectionNs Extreme clock error Error: {} Offset: {} TargetBehind: {} RttUs: {} LatestServerTick: {} PreReconcileTick: {}", iError, iOffset, miCurrentTargetBehind, iRttUs, miLatestServerTick, iPreReconcileTick);
 	}
 
 	int64_t iCorrectionSteps = std::clamp(iError, -4LL, 4LL);
-	int64_t iDivisor = (std::abs(iError) >= 4) ? 16 : 64;
+	int64_t iDivisor = (std::abs(iError) >= 4) ? 8 : 64;
 	std::chrono::nanoseconds correction(-iCorrectionSteps * tickNs.count() / iDivisor);
 
 	return correction;

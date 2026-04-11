@@ -87,7 +87,7 @@ void Server::ClientSpawnRequest(const uint8_t* pData, size_t iSize, int64_t iCli
 	ClientRequestFlags_t flags;
 	std::memcpy(&flags, &uiFlags, sizeof(uint8_t));
 
-	Log(kLogNetwork, "Server::ClientSpawnRequest Client: {} Spawn: {} Respawn: {}", iClientId, static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
+	LOG(kNetwork, kDebug, "Server::ClientSpawnRequest Client: {} Spawn: {} Respawn: {}", iClientId, static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	// Heap: spawn request vector grows on request
@@ -111,7 +111,7 @@ void Server::ClientDesyncReport(const uint8_t* pData, size_t iSize)
 
 	char pcExpected[20] {};
 	char pcActual[20] {};
-	Log(kLogNetwork, "Server::ClientDesyncReport Frame: {} Grid: ({},{}) Expected: {} Actual: {}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), uiExpectedCrc), common::ToHex(std::span(pcActual), uiActualCrc));
+	LOG(kNetwork, kDebug, "Server::ClientDesyncReport Frame: {} Grid: ({},{}) Expected: {} Actual: {}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), uiExpectedCrc), common::ToHex(std::span(pcActual), uiActualCrc));
 }
 
 void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
@@ -127,7 +127,7 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPee
 	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
 
-	Log(kLogNetwork, "Server::ClientDebugFrameRequest Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
+	LOG(kNetwork, kDebug, "Server::ClientDebugFrameRequest Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
 	ScopedLogIndent scopedLogIndent;
 
 	// Find the frame in the ring buffer
@@ -143,14 +143,14 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPee
 
 	if (pBuffered == nullptr)
 	{
-		Log(kLogNetwork, kWarning, "Server::ClientDebugFrameRequest Frame {} not found in buffer", iTick);
+		LOG(kNetwork, kWarning, "Server::ClientDebugFrameRequest Frame {} not found in buffer", iTick);
 		return;
 	}
 
 	auto it = pBuffered->serializedFrames.find(coord);
 	if (it == pBuffered->serializedFrames.end())
 	{
-		Log(kLogNetwork, kWarning, "Server::ClientDebugFrameRequest Frame: {} Coord: ({},{}) not found", iTick, coord.x, coord.y);
+		LOG(kNetwork, kWarning, "Server::ClientDebugFrameRequest Frame: {} Coord: ({},{}) not found", iTick, coord.x, coord.y);
 		return;
 	}
 
@@ -192,7 +192,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	{
 		char pcMessage[256] {};
 		snprintf(pcMessage, sizeof(pcMessage), "Protocol version mismatch: server is %u, client is %u", kuiProtocolVersion, uiClientProtocolVersion);
-		Log(kLogNetwork, kWarning, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
+		LOG(kNetwork, kWarning, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
 
 		SendConnectionResponse(pPeer, false, pcMessage, nullptr);
 		RemoveClient(iClientId);
@@ -218,7 +218,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 
 	if (strcmp(pcClientConfig, kpcBuildConfigName) != 0)
 	{
-		Log(kLogNetwork, kWarning, "Server::ClientHello Client {} build config mismatch: server is {}, client is {}", iClientId, kpcBuildConfigName, pcClientConfig);
+		LOG(kNetwork, kWarning, "Server::ClientHello Client {} build config mismatch: server is {}, client is {}", iClientId, kpcBuildConfigName, pcClientConfig);
 	}
 
 	// Read client GUID (16 bytes after config string)
@@ -246,7 +246,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 		pClient->clientGuid = clientGuid;
 	}
 
-	Log(kLogNetwork, "Server::ClientHello Accepted Client: {} Config: {} GUID: {} {}", iClientId, pcClientConfig, clientGuid.uiHigh, clientGuid.uiLow);
+	LOG(kNetwork, kInfo, "Server::ClientHello Accepted Client: {} Config: {} GUID: {} {}", iClientId, pcClientConfig, clientGuid.uiHigh, clientGuid.uiLow);
 	SendConnectionResponse(pPeer, true, nullptr, &clientGuid);
 
 	// Send current timespeed so clients joining a non-1x server stay in sync
@@ -277,7 +277,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	// Already subscribed?
 	if (pClient->IsCoordSubscribed(coord))
 	{
-		Log(kLogNetwork, kVerbose, "Server::ClientSubscribe AlreadySubscribed Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
+		LOG(kNetwork, kVerbose, "Server::ClientSubscribe AlreadySubscribed Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
 		return;
 	}
 
@@ -296,7 +296,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	}
 	if (!bAdjacent)
 	{
-		Log(kLogNetwork, kWarning, "Server::ClientSubscribe Rejected (not adjacent) Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
+		LOG(kNetwork, kWarning, "Server::ClientSubscribe Rejected (not adjacent) Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
 		SendSubscribeAccept(*pClient, 0xFF, coord);
 		return;
 	}
@@ -304,7 +304,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	int64_t iSlot = pClient->AllocateSlot();
 	if (iSlot < 0)
 	{
-		Log(kLogNetwork, kWarning, "Server::ClientSubscribe No free slot Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
+		LOG(kNetwork, kWarning, "Server::ClientSubscribe No free slot Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
 		SendSubscribeAccept(*pClient, 0xFF, coord);
 		return;
 	}
@@ -313,7 +313,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	pClient->coordSubscriptions.at(iSlot).bActive = true;
 	++pClient->coordAckStates.at(iSlot).uiEpoch;
 
-	Log(kLogNetwork, "Server::ClientSubscribe Client: {} Coord: ({},{}) Slot: {}", iClientId, coord.x, coord.y, iSlot);
+	LOG(kNetwork, kDebug, "Server::ClientSubscribe Client: {} Coord: ({},{}) Slot: {}", iClientId, coord.x, coord.y, iSlot);
 
 	SendSubscribeAccept(*pClient, iSlot, coord);
 
@@ -348,7 +348,7 @@ void Server::ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClie
 	GridCoord coord = pClient->coordSubscriptions.at(uiSlotIndex).coord;
 	pClient->FreeSlot(uiSlotIndex);
 
-	Log(kLogNetwork, "Server::ClientUnsubscribe Client: {} Slot: {} Coord: ({},{})", iClientId, uiSlotIndex, coord.x, coord.y);
+	LOG(kNetwork, kDebug, "Server::ClientUnsubscribe Client: {} Slot: {} Coord: ({},{})", iClientId, uiSlotIndex, coord.x, coord.y);
 
 	SendUnsubscribeAck(*pClient, uiSlotIndex);
 }
@@ -361,7 +361,7 @@ void Server::ClientResyncRequest([[maybe_unused]] const uint8_t* pData, int64_t 
 		return;
 	}
 
-	Log(kLogNetwork, "Server::ClientResyncRequest Client: {}", iClientId);
+	LOG(kNetwork, kDebug, "Server::ClientResyncRequest Client: {}", iClientId);
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	mPendingResyncClientIds.push_back(iClientId);
@@ -385,7 +385,7 @@ void Server::ClientPauseRequest(const uint8_t* pData, size_t iSize, int64_t iCli
 	uint8_t uiPaused = ReadUint8(pCursor);
 
 	game::gpGame->mGameFlags.Set(GameFlags::kPaused, uiPaused != 0);
-	Log("Server paused: {}", uiPaused != 0);
+	LOG(kDefault, kDebug, "Server paused: {}", uiPaused != 0);
 }
 
 void Server::ClientTimespeedRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
@@ -431,7 +431,7 @@ void Server::ClientSaveRequest([[maybe_unused]] const uint8_t* pData, size_t iSi
 		return;
 	}
 
-	Log("Server::ClientSaveRequest Client: {}", iClientId);
+	LOG(kDefault, kDebug, "Server::ClientSaveRequest Client: {}", iClientId);
 	game::gpGame->mGameSaveLoad.ServerSave();
 }
 
@@ -448,7 +448,7 @@ void Server::ClientLoadRequest([[maybe_unused]] const uint8_t* pData, size_t iSi
 		return;
 	}
 
-	Log("Server::ClientLoadRequest Client: {}", iClientId);
+	LOG(kDefault, kDebug, "Server::ClientLoadRequest Client: {}", iClientId);
 	game::gpGame->mGameSaveLoad.ServerLoad();
 }
 
@@ -465,7 +465,7 @@ void Server::ClientReplayRecordRequest([[maybe_unused]] const uint8_t* pData, si
 		return;
 	}
 
-	Log("Server::ClientReplayRecordRequest Client: {}", iClientId);
+	LOG(kDefault, kDebug, "Server::ClientReplayRecordRequest Client: {}", iClientId);
 	game::gpGame->mGameFlags.Set(GameFlags::kSaveReplay);
 }
 
@@ -482,7 +482,7 @@ void Server::ClientReplayPlaybackRequest([[maybe_unused]] const uint8_t* pData, 
 		return;
 	}
 
-	Log("Server::ClientReplayPlaybackRequest Client: {}", iClientId);
+	LOG(kDefault, kDebug, "Server::ClientReplayPlaybackRequest Client: {}", iClientId);
 	game::gpGame->mGameFlags.Set(GameFlags::kLoadReplay);
 }
 
@@ -499,7 +499,7 @@ void Server::ClientResetRequest([[maybe_unused]] const uint8_t* pData, size_t iS
 		return;
 	}
 
-	Log("Server::ClientResetRequest Client: {}", iClientId);
+	LOG(kDefault, kDebug, "Server::ClientResetRequest Client: {}", iClientId);
 	game::gpGame->mGameSaveLoad.ServerReset();
 }
 #endif // BT_SERVER

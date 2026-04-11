@@ -25,7 +25,7 @@ bool DetermineAnimationPath(const tinygltf::Model& rGltfModel)
 
 void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeToNodeIndexMap, std::vector<common::AnimationClip>& rAnimations, std::vector<common::AnimationChannel>& rChannels, std::vector<common::AnimationKeyframe>& rKeyframes, std::vector<common::AnimationKeyframeCubic>& rCubicKeyframes)
 {
-	Log("LoadAnimations: nodeToNodeIndexMap has {} entries", rNodeToNodeIndexMap.size());
+	LOG(kDefault, kDebug, "LoadAnimations: nodeToNodeIndexMap has {} entries", rNodeToNodeIndexMap.size());
 
 	for (const tinygltf::Animation& rAnim : rModel.animations)
 	{
@@ -49,11 +49,11 @@ void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int,
 			if (it == rNodeToNodeIndexMap.end())
 			{
 				++iFilteredCount;
-				Log(kVerbose, "  FILTERED: channel targeting node {} (\"{}\") not in map", rGltfChannel.target_node, rGltfChannel.target_node >= 0 ? rModel.nodes[rGltfChannel.target_node].name : "invalid");
+				LOG(kDefault, kVerbose, "  FILTERED: channel targeting node {} (\"{}\") not in map", rGltfChannel.target_node, rGltfChannel.target_node >= 0 ? rModel.nodes[rGltfChannel.target_node].name : "invalid");
 				continue;
 			}
 			++iKeptCount;
-			Log(kVerbose, "  KEPT: channel targeting node {} (\"{}\") -> node index {}", rGltfChannel.target_node, rModel.nodes[rGltfChannel.target_node].name, it->second);
+			LOG(kDefault, kVerbose, "  KEPT: channel targeting node {} (\"{}\") -> node index {}", rGltfChannel.target_node, rModel.nodes[rGltfChannel.target_node].name, it->second);
 
 			const tinygltf::AnimationSampler& rSampler = rAnim.samplers[rGltfChannel.sampler];
 

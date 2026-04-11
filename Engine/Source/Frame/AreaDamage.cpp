@@ -21,7 +21,7 @@ void AreaDamage::Add(const AreaDamageSource& rSource)
 
 	if (siAreaDamageSourceCount >= static_cast<int64_t>(sAreaDamageSources.size()))
 	{
-		Log(kWarning, "AreaDamage: sAreaDamageSources overflow (count: {}, capacity: {}). Increase kiAreaDamageSourcePreallocate in AreaDamage.h", siAreaDamageSourceCount, sAreaDamageSources.size());
+		LOG(kDefault, kWarning, "AreaDamage: sAreaDamageSources overflow (count: {}, capacity: {}). Increase kiAreaDamageSourcePreallocate in AreaDamage.h", siAreaDamageSourceCount, sAreaDamageSources.size());
 		DEBUG_BREAK();
 		sAreaDamageSources.resize(siAreaDamageSourceCount * 2);
 	}

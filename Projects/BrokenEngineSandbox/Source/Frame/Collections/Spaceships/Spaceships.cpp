@@ -14,6 +14,7 @@
 #include "Frame/Collections/Targets/Targets.h"
 
 #if defined(BT_CLIENT)
+#include "Data/Scene.h"
 #include "Frame/Collections/PointLights/PointLights.h"
 #endif
 
@@ -27,11 +28,6 @@ namespace game
 {
 
 using enum SpaceshipFlags;
-
-// Pusher
-constexpr float kfSpaceshipPusherRadius = kfSpaceshipRadius * 1.5f;
-constexpr float kfSpaceshipPusherIntensity = 150.0f;
-constexpr float kfSpaceshipPusherPower = 1.0f;
 
 // Explosion
 constexpr float kfSpaceshipExplosionIntensity = 1.5f;
@@ -47,7 +43,7 @@ constexpr uint32_t kuiSpaceshipExplosionTrailCount = 5;
 static void RegisterEnemyBlasterType();
 static void RegisterSpaceshipTargetType();
 
-// Shared type indices (accessible from SpaceshipsUpdate.cpp via extern)
+// Shared type indices (accessible from SpaceshipsCombat.cpp via extern)
 uint8_t gSpaceshipExplosionTypeIndex = 0xFF;
 uint8_t gSpaceshipTargetTypeIndex = 0xFF;
 #if defined(BT_CLIENT)
@@ -276,6 +272,97 @@ void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPosition, XMV
 		.fSmokePercent = fPercent * kfSpaceshipExplosionSmoke,
 		.fTimePercent = fPercent,
 	});
+}
+
+#if defined(BT_CLIENT)
+// Spaceship model (defined in SpaceshipsRender.cpp)
+extern const common::crc_t kSpaceshipModel;
+#endif
+
+void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
+{
+	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerInterpolateUpdateSpaceships);
+
+	SpaceshipsInterpolate& rCurrent = *rCurrentFrameInterpolate.pSpaceships;
+	const SpaceshipsInterpolate& rPrevious = *rPreviousFrame.interpolate.pSpaceships;
+	const SpaceshipsPostRender& rPreviousPostRender = *rPreviousFrame.postRender.pSpaceships;
+	float fDeltaTime = rCurrentFrameInterpolate.fDeltaTime;
+
+	// Hoist animation duration lookup outside the loop
+#if defined(BT_CLIENT)
+	float fAnimationDuration = 0.0f;
+	if (engine::gAnimationDataMap.contains(kSpaceshipModel))
+	{
+		fAnimationDuration = engine::gAnimationDataMap.at(kSpaceshipModel).mpAnimations[0].fDuration;
+	}
+#endif
+
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	{
+		// Load
+		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
+		XMVECTOR vecDirection = rPrevious.pVecDirections[i];
+		float fDestroyedTime = rPrevious.pfDestroyedTimes[i];
+		float fDeltaRotation = rPrevious.pfDeltaRotations[i];
+		float fFreezeTime = rPrevious.pfFreezeTimes[i];
+#if defined(BT_CLIENT)
+		float fAnimationTime = rPrevious.pfAnimationTimes[i];
+#endif
+
+		// Add velocity to position (unless frozen)
+		if (fFreezeTime <= 0.0f)
+		{
+			vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
+		}
+
+		// Add delta rotation to direction
+		vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * fDeltaRotation)));
+
+		// Decay destroyed time (only when exploding, i.e., > 0.0f; sentinel -1.0f stays unchanged)
+		if (fDestroyedTime > 0.0f)
+		{
+			fDestroyedTime = std::max(fDestroyedTime - fDeltaTime, 0.0f);
+		}
+
+		// Advance animation time
+#if defined(BT_CLIENT)
+		if (fAnimationDuration > 0.0f)
+		{
+			fAnimationTime += fDeltaTime;
+			if (fAnimationTime >= fAnimationDuration)
+			{
+				fAnimationTime = std::fmod(fAnimationTime, fAnimationDuration);
+			}
+		}
+#endif // BT_CLIENT
+
+		// Save
+		rCurrent.pVecPositions[i] = vecPosition;
+		rCurrent.pVecDirections[i] = vecDirection;
+		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
+		rCurrent.pfDeltaRotations[i] = fDeltaRotation;
+		rCurrent.pfFreezeTimes[i] = fFreezeTime;
+#if defined(BT_CLIENT)
+		rCurrent.pfAnimationTimes[i] = fAnimationTime;
+#endif
+
+		// Sync owned objects (IDs copied in AllocateAndCopy)
+		SyncSpaceship(rCurrentFrameInterpolate, rCurrent.puiPushers[i], rCurrent.puiTargets[i], vecPosition);
+
+		// Sync wind deposit
+#if defined(BT_CLIENT)
+		if (rCurrent.puiWindTrails[i].IsValid())
+		{
+			engine::WindTrailsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindTrails[i],
+			{
+				.vecPosition = vecPosition,
+				.fIntensity = game::gWindDepositSpaceshipsIntensity.Get(),
+				.fWidth = game::gWindDepositSpaceshipsWidth.Get(),
+				.fLengthMultiplier = game::gWindDepositSpaceshipsLengthMultiplier.Get(),
+			});
+		}
+#endif // BT_CLIENT
+	}
 }
 
 void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, const SpaceshipsInterpolate& rPrevious)
@@ -533,6 +620,76 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 
 	// Sync owned objects after Add()
 	SyncSpaceship(rFrame.interpolate, rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTargets[iIndex], rInfo.vecPosition);
+}
+
+void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
+{
+	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderUpdateSpaceships);
+
+	SpaceshipsPostRender& __restrict rCurrent = *rFrame.postRender.pSpaceships;
+	SpaceshipsInterpolate& rCurrentInterpolate = *rFrame.interpolate.pSpaceships;
+	const SpaceshipsPostRender& rPrevious = *rPreviousFrame.postRender.pSpaceships;
+	const SpaceshipsInterpolate& rPreviousInterpolate = *rPreviousFrame.interpolate.pSpaceships;
+	const PlayersInterpolate& rPlayers = *rPreviousFrame.interpolate.pPlayers;
+	const PlayersPostRender& rPlayersPostRender = *rPreviousFrame.postRender.pPlayers;
+	float fDeltaTime = rFrame.interpolate.fDeltaTime;
+
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	{
+		// Load from PostRender (static fields copied via memcpy in AllocateAndCopy)
+		SpaceshipFlags_t flags = rPrevious.pFlags[i];
+		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
+		float fHealth = rPrevious.pfHealths[i];
+		float fDestroyedExplosionTime = rPrevious.pfDestroyedExplosionTimes[i] - fDeltaTime;
+		float fNextBlasterSpawnTime = rPrevious.pfNextBlasterSpawnTimes[i] - fDeltaTime;
+		float fArrivalGracePeriod = std::max(0.0f, rPrevious.pfArrivalGracePeriods[i] - fDeltaTime);
+
+		// Set kDestination on target when grace period expires
+		if (rPrevious.pfArrivalGracePeriods[i] > 0.0f && fArrivalGracePeriod <= 0.0f && rCurrentInterpolate.puiTargets[i].IsValid())
+		{
+			int64_t iTargetIndex = rFrame.interpolate.pTargets->IdToIndex(rCurrentInterpolate.puiTargets[i]);
+			rFrame.postRender.pTargets->pFlags[iTargetIndex].Set(TargetFlags::kDestination);
+		}
+
+		// Load from Interpolate (these are now in Interpolate)
+		float fDeltaRotation = rPreviousInterpolate.pfDeltaRotations[i];
+		float fFreezeTime = rPreviousInterpolate.pfFreezeTimes[i] - fDeltaTime;
+
+		// Find nearest alive player (shared input for RegenerateHealth + ComputeSteering)
+		XMVECTOR vecNearestPlayer = XMVectorZero();
+		bool bPlayerAlive = NearestAlivePlayerPosition(rPlayers, rPlayersPostRender, rCurrentInterpolate.pVecPositions[i], vecNearestPlayer);
+
+		RegenerateHealth(rCurrentInterpolate.pVecPositions[i], bPlayerAlive, vecNearestPlayer, flags, fDeltaTime, fHealth);
+
+		if (!(flags & kExploding)) [[likely]]
+		{
+			ComputeSteering(rCurrentInterpolate.pVecPositions[i], rCurrentInterpolate.pVecDirections[i], bPlayerAlive, vecNearestPlayer, fDeltaTime, flags, fDeltaRotation);
+			ApplyMovement(rFrame, rCurrentInterpolate, i, flags, fDeltaTime, vecVelocity);
+		}
+		else
+		{
+			ApplyDeathKnockback(rPrevious.pVecDamageDirections[i], vecVelocity);
+		}
+
+		ApplyTerrainBounce(rCurrentInterpolate, i, fDeltaTime, fDeltaRotation, vecVelocity);
+
+		// Clamp delta rotation
+		fDeltaRotation = common::MinAbs(fDeltaRotation, kfDeltaAngleMax);
+
+		// Save to PostRender (static fields copied via memcpy in AllocateAndCopy)
+		rCurrent.pFlags[i] = flags;
+		rCurrent.pVecVelocities[i] = vecVelocity;
+		rCurrent.pfHealths[i] = fHealth;
+		rCurrent.pfDestroyedExplosionTimes[i] = fDestroyedExplosionTime;
+		rCurrent.pfNextBlasterSpawnTimes[i] = fNextBlasterSpawnTime;
+		rCurrent.pfArrivalGracePeriods[i] = fArrivalGracePeriod;
+
+		// Save to Interpolate (these are now in Interpolate)
+		rCurrentInterpolate.pfDeltaRotations[i] = fDeltaRotation;
+		rCurrentInterpolate.pfFreezeTimes[i] = fFreezeTime;
+	}
+
+	SpaceshipsPostRender::AvoidTerrain(rFrame, rPreviousFrame, 0, rFrame.interpolate.pSpaceships->iCount);
 }
 
 bool SpaceshipsInterpolate::LogDifferences(const SpaceshipsInterpolate& rOther) const

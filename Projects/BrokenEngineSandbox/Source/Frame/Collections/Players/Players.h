@@ -25,6 +25,18 @@ inline constexpr float kfPlayerRadius = 1.1f;
 // Terrain push
 inline constexpr float kfPushMargin = kfPlayerRadius * 0.6667f;
 
+// Movement
+inline constexpr float kfPlayerAcceleration = 75.0f;
+inline constexpr float kfPlayerCatchUpAcceleration = 100.0f;
+inline constexpr float kfPlayerAccelerationDecay = 3.0f;
+inline constexpr float kfPlayerMaxSpeed = kfPlayerCatchUpAcceleration / kfPlayerAccelerationDecay;
+
+// Pusher
+inline constexpr float kfPlayerPusherRadius = kfPlayerRadius * 3.3333f;
+inline constexpr float kfPlayerPusherIntensity = 50.0f;
+inline constexpr float kfPlayerPusherPower = 2.0f;
+inline constexpr float kfPlayerMaxPusherPushVelocity = kfPlayerMaxSpeed * 0.5f;
+
 #if defined(BT_CLIENT)
 struct HexShieldDirections
 {
@@ -119,6 +131,11 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 
 	// Utility
 	bool LogDifferences(const PlayersInterpolate& rOther) const;
+
+#if defined(BT_CLIENT)
+	// Helper shared by Players.cpp (Destroy, spawn-status-change cleanup) and PlayersNavigation.cpp (Transfer)
+	static void RemoveOwnedVisuals(Frame& rFrame, PlayersInterpolate& rCurrentInterpolate, int64_t i);
+#endif
 };
 
 enum class PlayerFlags : uint16_t
@@ -165,14 +182,38 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	// Allocate and copy
 	static void AllocateAndCopy(PlayersPostRender& rCurrent, const PlayersPostRender& rPrevious);
 
-	// Update
+	// Update (orchestrator in Players.cpp; per-player phase work split into helpers below)
 	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+
+	// Collision (PreCollision: Players.cpp; PostCollision/AreaDamage: PlayersCombat.cpp)
 	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
 	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
+
+	// Lifecycle (Transfer: PlayersNavigation.cpp; Destroy/Spawn: Players.cpp)
 	static void Transfer(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 	static void Destroy(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 	static void Spawn(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, const engine::FrameStaticData& rStaticData);
+
+private:
+	// Per-player Update helpers (called from PlayersPostRender::Update orchestrator)
+	// Defined in PlayersNavigation.cpp:
+	static void XM_CALLCONV ComputeNavigation(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData, int64_t i, FXMVECTOR vecPosition, FXMVECTOR vecFrameCenter, engine::GridCoord fleetWantedCoord, uint8_t uiPendingFleetWantedCoordTicks, PlayerFlags_t flags, float fNavigationDelay, float fDeltaTime, int8_t& riNavDirection, XMVECTOR& rVecAiDirection, XMVECTOR& rVecIslandDestination, float& rfFrameChangeTimer);
+	static void XM_CALLCONV ApplyMovement(int8_t iNavDirection, FXMVECTOR vecAiDirection, float fDeltaTime, XMVECTOR& rVecVelocity);
+	static void XM_CALLCONV ApplyTerrainPush(FXMVECTOR vecPosition, XMVECTOR& rVecVelocity);
+	static void XM_CALLCONV ApplyPusherPush(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, int64_t i, FXMVECTOR vecPosition, XMVECTOR& rVecVelocity);
+
+	// Defined in PlayersCombat.cpp:
+	static void XM_CALLCONV AcquireTarget(const Frame& __restrict rPreviousFrame, FXMVECTOR vecPosition, PlayerFlags_t& rFlags, bool& rbLookTargetFound, XMVECTOR& rVecLookPosition);
+	static void XM_CALLCONV UpdateFacing(FXMVECTOR vecPosition, FXMVECTOR vecLookPosition, float fDeltaTime, XMVECTOR& rVecWantedDirection);
+	static void RegenerateShield(float fDeltaTime, float fShieldCooldown, float& rfShield);
+
+	// Weapon and death-explosion spawn helpers (called from PlayersPostRender::Spawn). Defined in PlayersCombat.cpp.
+	static void SpawnBlasters(Frame& __restrict rFrame);
+	static void SpawnMissiles(Frame& __restrict rFrame);
+	static void SpawnDeathExplosions(Frame& __restrict rFrame);
+
+public:
 
 	player_t* __restrict puiIds = nullptr;
 	PlayerFlags_t* __restrict pFlags = nullptr;

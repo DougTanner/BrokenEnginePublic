@@ -21,6 +21,18 @@ inline constexpr float kfSpaceshipDestroyExplosionInterval = 0.024f;
 // Collision
 inline constexpr float kfSpaceshipRadius = 1.5f;
 
+// Movement
+inline constexpr float kfSpaceshipMaxAcceleration = 10.0f;
+inline constexpr float kfSpaceshipVelocityDecay = 0.25f;
+inline constexpr float kfSpaceshipMaxSpeed = kfSpaceshipMaxAcceleration / kfSpaceshipVelocityDecay;
+inline constexpr float kfDeltaAngleMax = 4.0f;
+
+// Pusher
+inline constexpr float kfSpaceshipPusherRadius = kfSpaceshipRadius * 1.5f;
+inline constexpr float kfSpaceshipPusherIntensity = 36.0f;
+inline constexpr float kfSpaceshipPusherPower = 3.0f;
+inline constexpr float kfSpaceshipMaxPusherPushVelocity = kfSpaceshipMaxSpeed * 0.5f;
+
 struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 {
 	static constexpr int64_t kiVersion = 1;
@@ -107,6 +119,18 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	static void Destroy(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 	static void Spawn(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 
+private:
+	// Per-spaceship Update helpers (called from SpaceshipsPostRender::Update orchestrator)
+	// Defined in SpaceshipsNavigation.cpp:
+	static void XM_CALLCONV ComputeSteering(FXMVECTOR vecPosition, FXMVECTOR vecDirection, bool bPlayerAlive, FXMVECTOR vecNearestPlayer, float fDeltaTime, SpaceshipFlags_t& rFlags, float& rfDeltaRotation);
+	static void XM_CALLCONV ApplyMovement(Frame& __restrict rFrame, const SpaceshipsInterpolate& __restrict rCurrentInterpolate, int64_t i, SpaceshipFlags_t flags, float fDeltaTime, XMVECTOR& rVecVelocity);
+	static void ApplyTerrainBounce(SpaceshipsInterpolate& __restrict rCurrentInterpolate, int64_t i, float fDeltaTime, float& rfDeltaRotation, XMVECTOR& rVecVelocity);
+
+	// Defined in SpaceshipsCombat.cpp:
+	static void XM_CALLCONV RegenerateHealth(FXMVECTOR vecPosition, bool bPlayerAlive, FXMVECTOR vecNearestPlayer, SpaceshipFlags_t flags, float fDeltaTime, float& rfHealth);
+	static void XM_CALLCONV ApplyDeathKnockback(FXMVECTOR vecDamageDirection, XMVECTOR& rVecVelocity);
+
+public:
 	SpaceshipFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
 	XMVECTOR* __restrict pVecDamageDirections = nullptr;

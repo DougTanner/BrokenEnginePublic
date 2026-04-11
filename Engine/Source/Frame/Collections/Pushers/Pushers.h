@@ -23,6 +23,14 @@ enum class PusherFlags : uint8_t
 };
 using PusherFlags_t = common::Flags<PusherFlags>;
 
+// Apply a clamped push impulse: caps velocity in push direction to fMaxPushVelocity
+[[nodiscard]] inline XMVECTOR XM_CALLCONV ApplyClampedPush(FXMVECTOR vecVelocity, FXMVECTOR vecPushDirection, float fPushStrength, float fMaxPushVelocity)
+{
+	float fCurrentPushVelocity = XMVectorGetX(XMVector3Dot(vecVelocity, vecPushDirection));
+	float fAllowedPush = std::max(fMaxPushVelocity - fCurrentPushVelocity, 0.0f);
+	return XMVectorMultiplyAdd(XMVectorReplicate(std::min(fPushStrength, fAllowedPush)), vecPushDirection, vecVelocity);
+}
+
 struct PushersInterpolate : public Collection<PushersInterpolate, CollectionFlags::kIdToIndex>
 {
 	// Register
@@ -100,7 +108,10 @@ struct PushersPostRender : public Collection<PushersPostRender>
 	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	pusher_t* __restrict puiIds = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }
+	auto Members(this auto&& rSelf)
+	{
+		return std::tie(rSelf.puiIds);
+	}
 
 	bool LogDifferences(const PushersPostRender& rOther) const;
 };

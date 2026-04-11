@@ -15,16 +15,19 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 1. Make the code changes using the planning document
 2. Any new files created should be added to the appropriate filter in any relevant .vcproj files
 3. Build the affected projects and verify there are no errors (see Build section below)
-4. Use a Sonnet subagent (task tool) to search the codebase and update all locations in the code affected by this modified code
-5. Use a Sonnet subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure). If review flags any files for `/reduce-file`, invoke it on them
-6. Use a Sonnet subagent (task tool) to invoke the code-style-review skill
-7. Use a Sonnet subagent (task tool) to invoke the update-claude-docs skill
+4. Use a Opus subagent to search the codebase and update all locations in the code affected by this modified code
+5. Use a Opus subagent to invoke the code-review skill (evaluate advice for validity, query user if unsure). If review flags any files for `/reduce-file`, invoke it on them
+6. Use a Opus subagent to invoke the code-style-review skill
+7. Use a Opus subagent to invoke the update-claude-docs skill
+8. After all previous steps have completed, have an Opus subagent do a full audit/review of all the changes
+9. Inform the user if the subagent in step #8 found any problems and how severe they were (interrogate user about what to fix and how)
 
 ## IMPORTANT Directives
+- Follow KISS, YAGNI, DRY at all times
+- If there is any ambiguity or multiple possible paths forward, stop and interrogate the user for input (present pros and cons of each)
 - DO NOT run any Git commands
 - DO NOT add error handling or validation - assume parameters to functions are valid
 - DO NOT add unit tests
-- Follow KISS, YAGNI, DRY at all times
 
 ## Directory Structure
 - `/Common/` - Shared utilities (`common::` namespace); `Common.h` is the single aggregation header (included by `Pch.h`) - [CLAUDE.md](Common/CLAUDE.md)
@@ -53,4 +56,4 @@ The codebase produces two executables from the same source: a **client** (full g
 - **Standard library headers**: `#include <header>` additions go in `Common/ExternalHeaders.h`, not in individual source files
 - **Flags over booleans**: Use `common::Flags<EnumType>` instead of multiple `bool` variables. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/CLAUDE.md](Common/CLAUDE.md)
-- **Log levels**: `kVerbose` — per-frame or high-frequency events (reconciliation ticks, subscription churn, status changes). `kDebug` — default; one-time events like startup, setup, connect/disconnect. `kWarning` — something to investigate (timeouts, overflows, clock desync, precursor-to-error); may spam. `kError` — failures; always logged regardless of threshold or category
+- **Log levels**: `kVerbose` — per-frame or high-frequency events (reconciliation ticks, subscription churn, status changes). `kDebug` — one-time events like startup, setup, connect/disconnect. `kInfo` — app state transitions and high-importance one-time events (default threshold for most categories). `kWarning` — something to investigate (timeouts, overflows, clock desync, precursor-to-error); may spam. `kError` — failures; always logged regardless of threshold or category

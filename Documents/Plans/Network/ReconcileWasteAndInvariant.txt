@@ -1,0 +1,143 @@
+Reconcile Never-Re-Simulate Invariant + Catch-Up Waste Fix
+===========================================================
+
+Context
+-------
+On a kChina network profile run (RTT ~480-515ms), the client full-replays
+~37 ticks per frame for hundreds of frames. Confirmed advances by only 1-3
+ticks per frame while Target keeps climbing, so the same window of ticks
+gets re-simulated continuously. This burns CPU, causes clock to drift
+negative, triggers Clock snap as last resort, and eventually disconnects.
+
+The user invariant: "Any time a Frame's Tick is simulated and the CRC
+matches the server CRC for that Tick, it must NEVER be re-simulated."
+Violation = DEBUG_BREAK().
+
+Root Cause
+----------
+Two compounding effects, dominant one second:
+
+(a) Replay throttle under high jitter (ReconcileReplay.cpp:178-189): with
+    iJitterUs >= 8000, iMaxReplay = max(iAvailable/4, 1). Only 1-3 ticks
+    actually receive CRC validation per frame. iConfirmedTick advances
+    correspondingly slowly.
+
+(b) Catch-up simulates with empty input (ReconcileReplay.cpp:282):
+    "FrameInput emptyInput;" - catch-up produces ticks
+    LastValidated+1 .. TargetTick that are guaranteed CRC-wrong once real
+    server updates arrive for those ticks. Catch-up frames persist into
+    next cycle via iOutputCount = iReplayWriteCount - (iLastValidatedIndex
+    - 1) and writeback. Next frame, the CRC fast path tries to validate
+    those bogus frames, fails immediately, full replay rolls back to
+    iConfirmedOffset and re-simulates the same ~37 ticks.
+
+The 37-tick replay length is approximately iTargetTick - iConfirmedTick,
+which stays constant frame-over-frame because the throttle only allows 1-3
+ticks of real validation; the other 34-36 ticks are catch-up frames
+regenerated and thrown away every cycle.
+
+Part 1 - Invariant Enforcement (DEBUG_BREAK, no behavior change)
+----------------------------------------------------------------
+Add a scalar monotonic high-water mark per coord that survives worker-
+thread array swaps.
+
+Data:
+- Projects/BrokenEngineSandbox/Source/Network/Client/ClientReconciler.h:
+  CoordReconcileWork: add
+      int64_t iHighWaterValidatedTick = -1;
+- Engine-side CoordFrames (subscription struct): mirror
+      int64_t iHighWaterValidatedTick = -1;
+  so it persists across Kick/Writeback swaps.
+
+Update sites (record validation success):
+- ReconcileReplayCrc.cpp:~121 - after CrcApplyMatchResult(...) when
+  validateResult.iLastMatched >= 0:
+      rWork.iHighWaterValidatedTick = std::max(
+          rWork.iHighWaterValidatedTick, validateResult.iLastMatched);
+- ReconcileReplay.cpp:~166 - ReconcileValidateCrcCoord just before
+  return true;:
+      rWork.iHighWaterValidatedTick = std::max(
+          rWork.iHighWaterValidatedTick, iTick);
+
+Check site (invariant enforcement):
+- ReconcileReplay.cpp:~64 - top of ReconcileRunTickCoord:
+      if (iTick <= rWork.iHighWaterValidatedTick)
+          DEBUG_BREAK();
+  Single check covers both ReconcileReplayCoord and ReconcileCatchUpCoord
+  paths since both funnel through here.
+
+Persistence across worker boundary:
+- ClientReconciler::Kick (ClientReconciler.cpp:~97-103): copy
+  rSub.iHighWaterValidatedTick -> work.
+- ApplyCoordWriteback (ClientReconciler.cpp:~245, both success and desync
+  paths ~306-323): rSub.iHighWaterValidatedTick = max(rSub, rWork).
+- ReconcileInjectPendingFullState (ReconcileReplay.cpp:~33): full state
+  replaces the timeline; reset to pendingFullState->iTick.
+- Coord subscribe/unsubscribe: reset to -1.
+
+Tick IDs are monotonic int64 - no ring-wraparound concerns.
+
+Part 2 - Cap Catch-Up to Pending Server Updates
+-----------------------------------------------
+Highest-impact change. Catch-up currently simulates with FrameInput
+emptyInput past validated ticks to reach iTargetTick, then those frames
+get discarded next cycle when real server updates arrive. Stop simulating
+ticks for which a real update is already queued.
+
+In ReconcileCatchUpCoord (ReconcileReplay.cpp:~268-298):
+    int64_t iFirstPendingUpdate = rWork.serverUpdates.empty()
+        ? INT64_MAX
+        : rWork.serverUpdates.begin()->first;
+    int64_t iCappedTarget = std::min({
+        iTargetTick,
+        iCurrentTick + iBudget,
+        iFirstPendingUpdate - 1});
+
+Update rWork.iTickCounter assignment (ReconcileReplay.cpp:~360) to use the
+actually-achieved tick from the top of the replay stack rather than
+unconditionally iTargetTick.
+
+Part 3 - Preserve Validated Frames Across Cycles
+------------------------------------------------
+Writeback currently collapses the ring to
+[LastValidated-1 .. WriteCount-1], discarding the previously-confirmed
+frame and also dropping any intermediate validated frames.
+
+Change iOutputCount computation (ReconcileReplay.cpp:~347-354) to preserve
+the old confirmed frame plus all replayed frames. Adjust iConfirmedOffset
+in ApplyCoordWriteback (ClientReconciler.cpp:~255-261) so it points to the
+relative position of the latest validated frame rather than always 0.
+
+Benefit: next cycle's CrcValidateLoop can validate previously-replayed
+frames without re-simulation - their CRCs came from real FrameInput,
+unlike catch-up frames.
+
+Part 4 - Conditional Skip in Replay
+-----------------------------------
+Do not implement unless still needed. If measurements after Parts 1-3
+still show waste, split ReconcileReplayCoord to skip ReconcileRunTickCoord
+when a valid snapshot already exists for iTick. Recommend measuring first.
+
+Order of Implementation
+-----------------------
+1. Part 1 (high-water mark + DEBUG_BREAK) - asserts only, no behavior
+   change.
+2. Part 2 (catch-up cap) - smallest functional change, biggest win.
+3. Re-run high-latency scenario. If DEBUG_BREAK fires or replay still
+   re-sims many ticks, do Part 3.
+4. Part 4 only if Parts 1-3 are insufficient.
+
+Critical Files
+--------------
+- Projects/BrokenEngineSandbox/Source/Network/Client/ReconcileReplay.cpp
+- Projects/BrokenEngineSandbox/Source/Network/Client/ReconcileReplayCrc.cpp
+- Projects/BrokenEngineSandbox/Source/Network/Client/ClientReconciler.cpp
+- Projects/BrokenEngineSandbox/Source/Network/Client/ClientReconciler.h
+- Engine-side CoordFrames struct (add iHighWaterValidatedTick field)
+
+Dependency
+----------
+Best done after TransferReconciliationBarrier.txt - that fix removes the
+primary source of CRC mismatches that currently block validation
+progress. Without it the high-water mark advances slowly even with the
+catch-up cap.

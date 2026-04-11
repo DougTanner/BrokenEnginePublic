@@ -70,7 +70,7 @@ void ClientSession::PollNetwork()
 		switch (rEvent.eType)
 		{
 			case PlayerEventType::kAssigned:
-				Log(kLogNetwork, kVerbose, "PlayerEvent kAssigned NewGlobalPlayerId: {} NewCoord: ({},{}) OldGlobalPlayerId: {} OldCoord: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->ClientPlayerId().iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
+				LOG(kNetwork, kVerbose, "PlayerEvent kAssigned NewGlobalPlayerId: {} NewCoord: ({},{}) OldGlobalPlayerId: {} OldCoord: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->ClientPlayerId().iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
 				if (!gpGame->IsClientPlayer(rEvent.globalPlayerId))
 				{
 					gpGame->AddClientPlayer(rEvent.globalPlayerId, rEvent.coord);
@@ -105,7 +105,7 @@ void ClientSession::PollNetwork()
 						gpGame->miQuadrantDirY = -iDeltaY;
 					}
 				}
-				Log(kLogNetwork, kVerbose, "kChangedFrame GlobalPlayer: {} NewCoord: ({},{}) QuadrantDir: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->miQuadrantDirX, gpGame->miQuadrantDirY);
+				LOG(kNetwork, kVerbose, "kChangedFrame GlobalPlayer: {} NewCoord: ({},{}) QuadrantDir: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->miQuadrantDirX, gpGame->miQuadrantDirY);
 				UpdateDesiredCoords("kChangedFrame");
 				break;
 			}
@@ -202,12 +202,12 @@ void ClientSession::Reconcile()
 		int64_t iTickDeficit = iPreReconcileTick - gpGame->TickCounter();
 		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iPreReconcileTick);
 
-		constexpr int64_t kiClockSnapThreshold = 16;
+		static constexpr int64_t kiClockSnapThreshold = 28;
 		if (miLatestServerTick >= 0 && (mbClockErrorDisconnect || std::abs(miClockError) >= kiClockSnapThreshold))
 		{
 			// Snap tick counter to recover from extreme clock error
 			int64_t iSnapTick = miLatestServerTick + miCurrentTargetBehind;
-			Log(kLogNetwork, kWarning, "ClientSession::Reconcile Clock snap OldTick: {} NewTick: {} LatestServerTick: {} TargetBehind: {}", iPreReconcileTick, iSnapTick, miLatestServerTick, miCurrentTargetBehind);
+			LOG(kNetwork, kWarning, "ClientSession::Reconcile Clock snap OldTick: {} NewTick: {} LatestServerTick: {} TargetBehind: {}", iPreReconcileTick, iSnapTick, miLatestServerTick, miCurrentTargetBehind);
 			gpGame->SetTickCounter(iSnapTick);
 			gpGame->mTimeStep.ClearAccumulator();
 			gpGame->mTimeStep.miCatchUpAccumulatorTicks = 0;
@@ -229,16 +229,16 @@ void ClientSession::Reconcile()
 			constexpr int64_t kiCatchUpErrorThreshold = 8;
 			if (miClockError <= -kiCatchUpErrorThreshold)
 			{
-				int64_t iCatchUpTicks = std::max(-miClockError / 2, engine::TimeStep::kiMaxAccumulatorTicks);
+				int64_t iCatchUpTicks = std::min(std::max(-miClockError * 2 / 3, engine::TimeStep::kiMaxAccumulatorTicks), 10LL);
 				if (gpGame->mTimeStep.miCatchUpAccumulatorTicks != iCatchUpTicks)
 				{
-					Log(kLogNetwork, kVerbose, "ClientSession::Reconcile CatchUp accumulator Error: {} Cap: {}", miClockError, iCatchUpTicks);
+					LOG(kNetwork, kVerbose, "ClientSession::Reconcile CatchUp accumulator Error: {} Cap: {}", miClockError, iCatchUpTicks);
 				}
 				gpGame->mTimeStep.miCatchUpAccumulatorTicks = iCatchUpTicks;
 			}
 			else if (gpGame->mTimeStep.miCatchUpAccumulatorTicks > 0)
 			{
-				Log(kLogNetwork, kVerbose, "ClientSession::Reconcile Restoring accumulator cap Error: {}", miClockError);
+				LOG(kNetwork, kVerbose, "ClientSession::Reconcile Restoring accumulator cap Error: {}", miClockError);
 				gpGame->mTimeStep.miCatchUpAccumulatorTicks = 0;
 			}
 		}
@@ -362,7 +362,7 @@ bool ClientSession::PollConnection()
 
 void ClientSession::ResetForServerLoad()
 {
-	Log("ClientSession::ResetForServerLoad");
+	LOG(kDefault, kDebug, "ClientSession::ResetForServerLoad");
 
 	// Reset tick counter and time step — server tick resets to the saved value
 	gpGame->SetTickCounter(0);
@@ -437,7 +437,7 @@ void ClientSession::SendUpdatePlayerRequest(int64_t iGlobalPlayerId, bool bUseMi
 	rWorkbuffer.PushBack<float>(fNavigationDelay);
 
 	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-	Log(kLogNetwork, kVerbose, "ClientSession::SendUpdatePlayerRequest GlobalPlayer: {} Missiles: {} NavDelay: {}", iGlobalPlayerId, bUseMissiles, fNavigationDelay);
+	LOG(kNetwork, kVerbose, "ClientSession::SendUpdatePlayerRequest GlobalPlayer: {} Missiles: {} NavDelay: {}", iGlobalPlayerId, bUseMissiles, fNavigationDelay);
 	rWorkbuffer.Pop();
 }
 
@@ -454,7 +454,7 @@ void ClientSession::SendCreateFleetRequest()
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kClientCreateFleetRequest));
 
 	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-	Log(kLogNetwork, "ClientSession::SendCreateFleetRequest");
+	LOG(kNetwork, kDebug, "ClientSession::SendCreateFleetRequest");
 
 	rWorkbuffer.Pop();
 }
@@ -473,7 +473,7 @@ void ClientSession::SendDeleteFleetRequest(int64_t iFleetIndex)
 	rWorkbuffer.PushBack<int64_t>(iFleetIndex);
 
 	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-	Log(kLogNetwork, "ClientSession::SendDeleteFleetRequest Fleet: {}", iFleetIndex);
+	LOG(kNetwork, kDebug, "ClientSession::SendDeleteFleetRequest Fleet: {}", iFleetIndex);
 
 	rWorkbuffer.Pop();
 }
@@ -492,7 +492,7 @@ void ClientSession::SendSpawnIntoFleetRequest(int64_t iFleetIndex)
 	rWorkbuffer.PushBack<int64_t>(iFleetIndex);
 
 	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-	Log(kLogNetwork, "ClientSession::SendSpawnIntoFleetRequest Fleet: {}", iFleetIndex);
+	LOG(kNetwork, kDebug, "ClientSession::SendSpawnIntoFleetRequest Fleet: {}", iFleetIndex);
 
 	rWorkbuffer.Pop();
 }
@@ -512,7 +512,7 @@ void ClientSession::SendRespawnInFleetRequest(int64_t iFleetIndex, int64_t iMemb
 	rWorkbuffer.PushBack<int64_t>(iMemberIndex);
 
 	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-	Log(kLogNetwork, "ClientSession::SendRespawnInFleetRequest Fleet: {} Member: {}", iFleetIndex, iMemberIndex);
+	LOG(kNetwork, kDebug, "ClientSession::SendRespawnInFleetRequest Fleet: {} Member: {}", iFleetIndex, iMemberIndex);
 
 	rWorkbuffer.Pop();
 }
@@ -532,7 +532,7 @@ void ClientSession::SendFleetNavigationDelayRequest(int64_t iFleetIndex, float f
 	rWorkbuffer.PushBack<float>(fDelay);
 
 	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-	Log(kLogNetwork, "ClientSession::SendFleetNavigationDelayRequest Fleet: {} Delay: {}", iFleetIndex, fDelay);
+	LOG(kNetwork, kDebug, "ClientSession::SendFleetNavigationDelayRequest Fleet: {} Delay: {}", iFleetIndex, fDelay);
 
 	rWorkbuffer.Pop();
 }

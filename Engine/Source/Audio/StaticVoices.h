@@ -40,9 +40,15 @@ public:
 
 	void SetSuspended(bool bSuspended) { mbSuspended.store(bSuspended, std::memory_order_release); }
 
+	void SkipNextInvalidation() { mbSkipNextInvalidation = true; }
+
 private:
 
 	void XM_CALLCONV Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch);
+
+	void ReturnVoiceToPool(common::crc_t audioCrc, IXAudio2SourceVoice* pVoice);
+	IXAudio2SourceVoice* AcquireVoiceFromPool(common::crc_t audioCrc);
+	void ClearPool();
 
 	AudioEngine* mpAudioEngine = nullptr;
 	const int64_t* mpiMasteringVoiceChannels = nullptr;
@@ -51,7 +57,9 @@ private:
 	common::RandomEngine mRandomEngine;
 	std::atomic<bool> mbSuspended = false;
 
+	bool mbSkipNextInvalidation = false;
 	std::vector<StaticVoice> mVoices;
+	std::vector<std::pair<common::crc_t, IXAudio2SourceVoice*>> mPooledVoices;
 
 	XMVECTOR mVecListenerPosition {};
 	X3DAUDIO_LISTENER mX3dAudioListener

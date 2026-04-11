@@ -23,7 +23,7 @@ Server::Server(uint16_t uiPort)
 	mpHost = enet_host_create(&address, 64, NetworkManager::kuiChannelCount, 0, 0);
 	if (mpHost == nullptr)
 	{
-		Log(kLogNetwork, kWarning, "Server::Server enet_host_create failed");
+		LOG(kNetwork, kWarning, "Server::Server enet_host_create failed");
 		return;
 	}
 	// 1MB send/receive buffers to handle bursty packet dispatches
@@ -137,7 +137,7 @@ void Server::Connect(ENetEvent& rEvent)
 	// Disable ENet peer throttle to prevent unreliable packet drops during client reconciliation stalls
 	enet_peer_throttle_configure(rEvent.peer, UINT32_MAX, 0, 0);
 
-	Log(kLogNetwork, "Server::Connect Client: {}", mClients.back().iClientId);
+	LOG(kNetwork, kInfo, "Server::Connect Client: {}", mClients.back().iClientId);
 }
 
 void Server::Disconnect(ENetEvent& rEvent)
@@ -156,7 +156,7 @@ void Server::Disconnect(ENetEvent& rEvent)
 		std::erase_if(mDelayedPackets, [&rEvent](const DelayedPacket& rPacket) { return rPacket.pPeer == rEvent.peer; });
 	}
 
-	Log(kLogNetwork, "Server::Disconnect Client: {}", iClientId);
+	LOG(kNetwork, kInfo, "Server::Disconnect Client: {}", iClientId);
 }
 
 void Server::Receive(ENetEvent& rEvent)
@@ -237,7 +237,7 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 			}
 			else
 			{
-				Log(kLogNetwork, kWarning, "Server::Receive unknown packet type {} Client: {}", static_cast<uint8_t>(eType), iClientId);
+				LOG(kNetwork, kWarning, "Server::Receive unknown packet type {} Client: {}", static_cast<uint8_t>(eType), iClientId);
 			}
 			break;
 	}

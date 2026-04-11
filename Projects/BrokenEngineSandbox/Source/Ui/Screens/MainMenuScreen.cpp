@@ -109,7 +109,7 @@ void MainMenuScreen::Render()
 	// Graphics button
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringGraphics)), ImVec2(fButtonWidth, fButtonHeight)))
 	{
-		gpGame->meUiState = UiState::kGraphics;
+		gpGame->meUiState = UiState::kGraphicsSettings;
 		engine::gSunAngleOverride.Set(gpCamera->RawSunAngle());
 	}
 

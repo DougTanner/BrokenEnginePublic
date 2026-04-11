@@ -1,12 +1,12 @@
 # /Projects/BrokenEngineSandbox/Source/Frame/Collections/Missiles/
 
-Guided missiles with homing AI and visual effects. Compiles in both client and server builds. Self-contained GPU model pipeline. Each missile owns a pusher, plus client-only area light, smoke trail, and sound.
+Guided missiles with homing AI and visual effects. Compiles in both client and server builds. Self-contained GPU model pipeline. Each missile owns client-only area light, smoke trail, and sound.
 
 ## Architecture Notes
 
 - **Homing AI**: Two-phase guidance -- initial boost ramps rotation strength from zero to full over a short delay, then active tracking continuously orients toward the target with exponential smoothing. Falls back to stored direction if target is lost
 - **Area damage**: Missiles deal zero direct collision damage; all damage comes through area-of-effect explosions with per-missile configurable radius
-- **Owned objects**: Each missile syncs a pusher (shared), plus client-only area light, smoke trail, and sound
+- **Owned objects**: Each missile syncs client-only area light, smoke trail, and sound
 
 ## File Structure
 

@@ -126,7 +126,7 @@ inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const Netw
 	{
 		if (ShouldDrop(rSimConfig))
 		{
-			Log(kLogNetwork, kVerbose, "NetworkSimulation dropped unreliable packet channel: {} size: {}", rEvent.channelID, rEvent.packet->dataLength);
+			LOG(kNetwork, kVerbose, "NetworkSimulation dropped unreliable packet channel: {} size: {}", rEvent.channelID, rEvent.packet->dataLength);
 			enet_packet_destroy(rEvent.packet);
 			return;
 		}

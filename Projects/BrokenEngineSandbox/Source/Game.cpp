@@ -87,7 +87,7 @@ bool Game::IsClientPlayer(engine::global_id_t id) const
 void Game::AddClientPlayer(engine::global_id_t id, engine::GridCoord coord)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	Log(kLogNetwork, kVerbose, "AddClientPlayer GlobalPlayerId: {} Coord: ({},{}) OldPlayerCount: {}", id.iValue, coord.x, coord.y, std::ssize(mClientPlayerIds));
+	LOG(kNetwork, kVerbose, "AddClientPlayer GlobalPlayerId: {} Coord: ({},{}) OldPlayerCount: {}", id.iValue, coord.x, coord.y, std::ssize(mClientPlayerIds));
 	mClientPlayerIds.push_back(id);
 	mClientPlayerCoords.push_back(coord);
 }
@@ -98,7 +98,7 @@ void Game::RemoveClientPlayer(engine::global_id_t id)
 	{
 		if (mClientPlayerIds.at(i) == id)
 		{
-			Log(kLogNetwork, kVerbose, "RemoveClientPlayer GlobalPlayerId: {} Index: {} OldPlayerCount: {}", id.iValue, i, std::ssize(mClientPlayerIds));
+			LOG(kNetwork, kVerbose, "RemoveClientPlayer GlobalPlayerId: {} Index: {} OldPlayerCount: {}", id.iValue, i, std::ssize(mClientPlayerIds));
 			mClientPlayerIds.erase(mClientPlayerIds.begin() + i);
 			mClientPlayerCoords.erase(mClientPlayerCoords.begin() + i);
 			return;
@@ -666,7 +666,7 @@ Game::~Game()
 
 void Game::Reset()
 {
-	Log("Game::Reset()");
+	LOG(kDefault, kDebug, "Game::Reset()");
 
 	miTickCounter = 0;
 	mfCurrentTime = 0.0f;
@@ -802,7 +802,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 
 	if (rMenuInput.flags & MenuInputFlags::kPauseMenu) [[unlikely]]
 	{
-		if (meUiState == kNone || meUiState == kGraphics || meUiState == kSound)
+		if (meUiState == kNone || meUiState == kGraphicsSettings || meUiState == kSound)
 		{
 			meUiState = kPause;
 		}
@@ -1071,7 +1071,7 @@ void Game::LoadTweaksSettings()
 	}
 	else
 	{
-		Log(kWarning, "LoadTweaks FAILED to read file");
+		LOG(kDefault, kWarning, "LoadTweaks FAILED to read file");
 	}
 }
 #endif // BT_CLIENT
@@ -1187,7 +1187,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 		if (mTimeStep.mbTimeScaleChanged)
 		{
 			mTimeStep.mbTimeScaleChanged = false;
-			Log(kLogNetwork, kWarning, "Timespeed changed Multiply: {} Divide: {}", mTimeStep.miTimeMultiply, mTimeStep.miTimeDivide);
+			LOG(kNetwork, kWarning, "Timespeed changed Multiply: {} Divide: {}", mTimeStep.miTimeMultiply, mTimeStep.miTimeDivide);
 
 			if (mTimeStep.miTimeMultiply == 1 && mTimeStep.miTimeDivide == 1)
 			{
@@ -1234,7 +1234,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, "");
 			}
 #else
-			Log("Server paused: {}", static_cast<bool>(mGameFlags & engine::GameFlags::kPaused));
+			LOG(kDefault, kDebug, "Server paused: {}", static_cast<bool>(mGameFlags & engine::GameFlags::kPaused));
 #endif
 		}
 

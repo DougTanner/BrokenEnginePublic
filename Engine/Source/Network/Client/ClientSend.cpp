@@ -68,7 +68,7 @@ void Client::SendSpawnRequest(ClientRequestFlags_t flags)
 	std::memcpy(&uiFlags, &flags, sizeof(uint8_t));
 	rWorkbuffer.PushBack<uint8_t>(uiFlags);
 
-	Log(kLogNetwork, "Client::SendSpawnRequest Spawn: {} Respawn: {}", static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
+	LOG(kNetwork, kDebug, "Client::SendSpawnRequest Spawn: {} Respawn: {}", static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
 
 	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
@@ -93,7 +93,7 @@ void Client::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expe
 
 	char pcExpected[20] {};
 	char pcActual[20] {};
-	Log(kLogNetwork, "Client::SendDesyncReport Frame: {} Grid: ({},{}) Expected: {} Actual: {}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), expected), common::ToHex(std::span(pcActual), actual));
+	LOG(kNetwork, kDebug, "Client::SendDesyncReport Frame: {} Grid: ({},{}) Expected: {} Actual: {}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), expected), common::ToHex(std::span(pcActual), actual));
 
 	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
@@ -115,7 +115,7 @@ void Client::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 	rWorkbuffer.PushBack<int64_t>(iTick);
 	WriteGridCoord(rWorkbuffer, coord);
 
-	Log(kLogNetwork, "Client::SendDebugFrameRequest Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
+	LOG(kNetwork, kDebug, "Client::SendDebugFrameRequest Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
 
 	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
@@ -155,7 +155,7 @@ bool Client::SendSubscribe(GridCoord coord)
 			mCoordSlots.at(i).ackState.uiReceivedBitfieldLow = 0;
 			mCoordSlots.at(i).ackState.uiReceivedBitfieldHigh = 0;
 			bFoundSlot = true;
-			Log(kLogNetwork, kVerbose, "Client::SendSubscribe Coord: ({},{}) Slot: {}", coord.x, coord.y, i);
+			LOG(kNetwork, kVerbose, "Client::SendSubscribe Coord: ({},{}) Slot: {}", coord.x, coord.y, i);
 			break;
 		}
 	}
@@ -214,7 +214,7 @@ void Client::SendResyncRequest()
 
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientResyncRequest));
 
-	Log(kLogNetwork, "Client::SendResyncRequest");
+	LOG(kNetwork, kDebug, "Client::SendResyncRequest");
 
 	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
@@ -349,7 +349,7 @@ void Client::SendHello()
 	// Heap: std::fstream and std::filesystem::path allocate for GUID file I/O
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-	Log(kLogNetwork, "Client::SendHello");
+	LOG(kNetwork, kDebug, "Client::SendHello");
 
 	// Load GUID from disk if we don't have one yet
 	if (mClientGuid.IsEmpty())
@@ -368,7 +368,7 @@ void Client::SendHello()
 		if (iGuidVersion >= 1 && !loadedGuid.IsEmpty())
 		{
 			mClientGuid = loadedGuid;
-			Log("Client::SendHello Loaded GUID from disk: {} {}", mClientGuid.uiHigh, mClientGuid.uiLow);
+			LOG(kNetwork, kInfo, "Client::SendHello Loaded GUID from disk: {} {}", mClientGuid.uiHigh, mClientGuid.uiLow);
 		}
 	}
 

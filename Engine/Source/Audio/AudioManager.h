@@ -31,6 +31,7 @@ public:
 	void SetNextMusicTrackCallback(std::function<common::crc_t()> callback);
 
 	void Set3dSettings(float fCurveDistanceScaler, float fManualFadeStart, float fManualFadeEnd, float fManualFadeVolume);
+	void SkipNextStaticVoiceInvalidation() { mStaticVoices.SkipNextInvalidation(); }
 
 	void ClearVoices();
 
@@ -76,7 +77,7 @@ inline void DestroyXAudio2SourceVoice(IXAudio2SourceVoice*& rpVoice)
 			std::chrono::steady_clock::duration elapsed = std::chrono::steady_clock::now() - start;
 			if (elapsed > std::chrono::milliseconds(100))
 			{
-				Log(kLogAudio, kWarning, "DestroyXAudio2SourceVoice took {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
+				LOG(kAudio, kWarning, "DestroyXAudio2SourceVoice took {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
 			}
 		}
 		rpVoice = nullptr;

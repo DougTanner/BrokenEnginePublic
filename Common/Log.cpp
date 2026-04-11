@@ -3,17 +3,6 @@
 namespace common
 {
 
-LogLevel geLogLevels[kiLogCategoryCount] =
-{
-	keLogLevelDefault,
-	keLogLevelTemp,
-
-	keLogLevelAudio,
-	keLogLevelGraphics,
-	keLogLevelLoading,
-	keLogLevelNavData,
-	keLogLevelNetwork,
-};
 std::atomic<int64_t> giMyOutputDebugString = 0;
 std::mutex gLogMutex;
 

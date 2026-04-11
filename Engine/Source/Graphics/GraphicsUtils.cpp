@@ -14,7 +14,7 @@ void CheckVkFailed(VkResult vkResult, std::string_view expression, std::source_l
 {
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	common::ScopedWorkbufferPop pcResult = gEnumToString.Convert(vkResult, rWorkbuffer);
-	Log(kError, "CheckVk failed: {} - \"{}\" at {}:{} in {}", pcResult, expression, loc.file_name(), loc.line(), loc.function_name());
+	LOG(kDefault, kError, "CheckVk failed: {} - \"{}\" at {}:{} in {}", pcResult, expression, loc.file_name(), loc.line(), loc.function_name());
 
 	// Format exception message with call site information
 	char* pcException = rWorkbuffer.PushBuffer<char*>(1024);

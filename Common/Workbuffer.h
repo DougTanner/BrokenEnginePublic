@@ -121,6 +121,32 @@ private:
 	const char* mpcData;
 };
 
+class ScopedWorkbufferBuilder
+{
+public:
+
+	explicit ScopedWorkbufferBuilder(Workbuffer& rWorkbuffer)
+	: mWorkbuffer(rWorkbuffer)
+	{
+		mWorkbuffer.Push();
+	}
+
+	~ScopedWorkbufferBuilder() { mWorkbuffer.Pop(); }
+
+	ScopedWorkbufferBuilder(const ScopedWorkbufferBuilder&) = delete;
+	ScopedWorkbufferBuilder& operator=(const ScopedWorkbufferBuilder&) = delete;
+
+	void Append(std::string_view text) { mWorkbuffer.Append(text); }
+	void Append(int64_t iValue) { mWorkbuffer.Append(iValue); }
+	void AppendFloat(float fValue, int iPrecision) { mWorkbuffer.AppendFloat(fValue, iPrecision); }
+
+	std::string_view View() const { return mWorkbuffer.View(); }
+
+private:
+
+	Workbuffer& mWorkbuffer;
+};
+
 } // namespace common
 
 template <>
@@ -130,5 +156,15 @@ struct std::formatter<common::ScopedWorkbufferPop> : std::formatter<std::string_
 	auto format(const common::ScopedWorkbufferPop& rValue, CONTEXT& rContext) const
 	{
 		return std::formatter<std::string_view>::format(static_cast<const char*>(rValue), rContext);
+	}
+};
+
+template <>
+struct std::formatter<common::ScopedWorkbufferBuilder> : std::formatter<std::string_view>
+{
+	template <typename CONTEXT>
+	auto format(const common::ScopedWorkbufferBuilder& rValue, CONTEXT& rContext) const
+	{
+		return std::formatter<std::string_view>::format(rValue.View(), rContext);
 	}
 };

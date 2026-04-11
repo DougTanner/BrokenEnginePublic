@@ -46,7 +46,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebu
 
 		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "VkDescriptorSetAllocateInfo-descriptorCount") != nullptr)
 		{
-			Log(kError, "Double the number of descriptor sets in DeviceManager::DeviceManager() {}", pCallbackData->pMessage);
+			LOG(kDefault, kError, "Double the number of descriptor sets in DeviceManager::DeviceManager() {}", pCallbackData->pMessage);
 			ASSERT(false);
 			return VK_FALSE;
 		}
@@ -55,7 +55,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebu
 		{
 			std::string message = std::string(pCallbackData->pMessage);
 			std::vector<std::string> splits = common::Split(message, std::string("\n"));
-			Log(kLogGraphics, "[debugPrintfEXT] {}", splits.back());
+			LOG(kGraphics, kInfo, "[debugPrintfEXT] {}", splits.back());
 			return VK_FALSE;
 		}
 
@@ -64,7 +64,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebu
 			return VK_FALSE;
 		}
 
-		Log(kError, "DebugUtilsCallback {} {} \"{}\" \"{}\"", static_cast<uint64_t>(messageSeverity), static_cast<uint64_t>(messageType), pCallbackData->pMessageIdName, pCallbackData->pMessage);
+		LOG(kDefault, kError, "DebugUtilsCallback {} {} \"{}\" \"{}\"", static_cast<uint64_t>(messageSeverity), static_cast<uint64_t>(messageType), pCallbackData->pMessageIdName, pCallbackData->pMessage);
 		DEBUG_BREAK();
 	}
 
@@ -228,7 +228,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	HMODULE renderDocHmodule = GetModuleHandle("renderdoc.dll");
 	if (renderDocHmodule != nullptr)
 	{
-		Log(kLogGraphics, "renderDocHmodule: {}", reinterpret_cast<uint64_t>(renderDocHmodule));
+		LOG(kGraphics, kInfo, "renderDocHmodule: {}", reinterpret_cast<uint64_t>(renderDocHmodule));
 
 		// Some extensions are not compatible with RenderDoc
 		vkInstanceCreateInfo.enabledLayerCount = 0;
@@ -240,7 +240,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	if (vkResultCreateInstance != VK_SUCCESS)
 	{
 		// If the Vulkan SDK is not installed, validation layers will fail
-		Log(kLogGraphics, kWarning, "vkCreateInstance returned {}, re-trying with only 2 extensions", vkResultCreateInstance);
+		LOG(kGraphics, kWarning, "vkCreateInstance returned {}, re-trying with only 2 extensions", vkResultCreateInstance);
 
 		vkInstanceCreateInfo.enabledLayerCount = 0;
 		vkInstanceCreateInfo.enabledExtensionCount = 2;
@@ -250,7 +250,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	if (vkResultCreateInstance != VK_SUCCESS)
 	{
 		common::ScopedWorkbufferPop pcResult = gEnumToString.Convert(vkResultCreateInstance, common::gpThreadLocal->mWorkbuffer);
-		Log(kError, "vkCreateInstance failed with {}, Vulkan 1.2 is required", pcResult);
+		LOG(kDefault, kError, "vkCreateInstance failed with {}, Vulkan 1.2 is required", pcResult);
 		std::string errorMessage = "Failed to create Vulkan instance.\n\nVulkan 1.2 or higher is required.\n\nError: ";
 		errorMessage += static_cast<const char*>(pcResult);
 
@@ -305,9 +305,9 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 void InstanceManager::SelectPhysicalDevice()
 {
 	uint32_t uiPhysicalDeviceCount = 0;
-	Log(kLogGraphics, "\nEnumerate physical devices");
+	LOG(kGraphics, kInfo, "\nEnumerate physical devices");
 	CHECK_VK(vkEnumeratePhysicalDevices(mVkInstance, &uiPhysicalDeviceCount, nullptr));
-	Log(kLogGraphics, "  uiPhysicalDeviceCount: {}", uiPhysicalDeviceCount);
+	LOG(kGraphics, kInfo, "  uiPhysicalDeviceCount: {}", uiPhysicalDeviceCount);
 	if (uiPhysicalDeviceCount == 0)
 	{
 		throw std::runtime_error("No physical devices found");
@@ -319,18 +319,18 @@ void InstanceManager::SelectPhysicalDevice()
 		CHECK_VK(vkResult);
 	}
 
-	Log(kLogGraphics, "  Physical devices:");
+	LOG(kGraphics, kInfo, "  Physical devices:");
 	for (const VkPhysicalDevice& rVkPhysicalDevice : physicalDevices)
 	{
 		VkPhysicalDeviceProperties vkPhysicalDeviceProperties {};
 		vkGetPhysicalDeviceProperties(rVkPhysicalDevice, &vkPhysicalDeviceProperties);
-		Log(kLogGraphics, "    \"{}\"{}", vkPhysicalDeviceProperties.deviceName, vkPhysicalDeviceProperties.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? " (Discrete) " : "");
+		LOG(kGraphics, kInfo, "    \"{}\"{}", vkPhysicalDeviceProperties.deviceName, vkPhysicalDeviceProperties.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? " (Discrete) " : "");
 
 		// Validate device supports required Vulkan API version
 		uint32_t uiDeviceApiVersion = vkPhysicalDeviceProperties.apiVersion;
 		if (uiDeviceApiVersion < VK_API_VERSION_1_2)
 		{
-			Log(kLogGraphics, "      Skipping device: API version {}.{}.{} < required 1.2.0", VK_VERSION_MAJOR(uiDeviceApiVersion), VK_VERSION_MINOR(uiDeviceApiVersion), VK_VERSION_PATCH(uiDeviceApiVersion));
+			LOG(kGraphics, kInfo, "      Skipping device: API version {}.{}.{} < required 1.2.0", VK_VERSION_MAJOR(uiDeviceApiVersion), VK_VERSION_MINOR(uiDeviceApiVersion), VK_VERSION_PATCH(uiDeviceApiVersion));
 			continue;
 		}
 
@@ -363,10 +363,10 @@ void InstanceManager::SelectPhysicalDevice()
 	ASSERT(mVkPhysicalDevice != VK_NULL_HANDLE);
 
 	vkGetPhysicalDeviceProperties(mVkPhysicalDevice, &mVkPhysicalDeviceProperties);
-	Log(kLogGraphics, "  Selected device API version: {}.{}.{}", VK_VERSION_MAJOR(mVkPhysicalDeviceProperties.apiVersion), VK_VERSION_MINOR(mVkPhysicalDeviceProperties.apiVersion), VK_VERSION_PATCH(mVkPhysicalDeviceProperties.apiVersion));
-	Log(kLogGraphics, "  maxImageDimension2D: {}", mVkPhysicalDeviceProperties.limits.maxImageDimension2D);
-	Log(kLogGraphics, "  maxImageDimensionCube: {}", mVkPhysicalDeviceProperties.limits.maxImageDimensionCube);
-	Log(kLogGraphics, "  maxPerStageResources: {}", mVkPhysicalDeviceProperties.limits.maxPerStageResources);
+	LOG(kGraphics, kInfo, "  Selected device API version: {}.{}.{}", VK_VERSION_MAJOR(mVkPhysicalDeviceProperties.apiVersion), VK_VERSION_MINOR(mVkPhysicalDeviceProperties.apiVersion), VK_VERSION_PATCH(mVkPhysicalDeviceProperties.apiVersion));
+	LOG(kGraphics, kInfo, "  maxImageDimension2D: {}", mVkPhysicalDeviceProperties.limits.maxImageDimension2D);
+	LOG(kGraphics, kInfo, "  maxImageDimensionCube: {}", mVkPhysicalDeviceProperties.limits.maxImageDimensionCube);
+	LOG(kGraphics, kInfo, "  maxPerStageResources: {}", mVkPhysicalDeviceProperties.limits.maxPerStageResources);
 	ASSERT(mVkPhysicalDeviceProperties.limits.maxUniformBufferRange >= 65536);
 	vkGetPhysicalDeviceMemoryProperties(mVkPhysicalDevice, &mVkPhysicalDeviceMemoryProperties);
 
@@ -417,7 +417,7 @@ void InstanceManager::SelectPhysicalDevice()
 	ASSERT(mVkPhysicalDeviceFeatures2.features.shaderInt16 == VK_TRUE);
 #endif
 	meMaxMultisampleCount = SelectSampleCount(mVkPhysicalDeviceProperties.limits.framebufferColorSampleCounts & mVkPhysicalDeviceProperties.limits.framebufferDepthSampleCounts);
-	Log(kLogGraphics, "  Max multisample count: {}\n", static_cast<int64_t>(meMaxMultisampleCount));
+	LOG(kGraphics, kInfo, "  Max multisample count: {}\n", static_cast<int64_t>(meMaxMultisampleCount));
 	if (gSampleCount.Get<VkSampleCountFlagBits>() > meMaxMultisampleCount)
 	{
 		gSampleCount.Reset<VkSampleCountFlagBits>(meMaxMultisampleCount);
@@ -433,14 +433,14 @@ void InstanceManager::SelectQueueFamilies()
 	vkGetPhysicalDeviceQueueFamilyProperties(mVkPhysicalDevice, &uiPhysicalDeviceQueueFamilyCount, mVkQueueFamilyProperties.data());
 	ASSERT(uiPhysicalDeviceQueueFamilyCount != 0);
 
-	Log(kLogGraphics, "Physical device queues ({}):", uiPhysicalDeviceQueueFamilyCount);
+	LOG(kGraphics, kInfo, "Physical device queues ({}):", uiPhysicalDeviceQueueFamilyCount);
 	for (int64_t i = 0; i < uiPhysicalDeviceQueueFamilyCount; ++i)
 	{
 		VkBool32 supportsPresentVkBool32 = VK_FALSE;
 		CHECK_VK(vkGetPhysicalDeviceSurfaceSupportKHR(mVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
-		Log(kLogGraphics, "  {} | {} | {} | {}", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0 ? "VK_QUEUE_GRAPHICS_BIT" : "                     ", supportsPresentVkBool32 == VK_TRUE ? "Supports present" : "                ", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_COMPUTE_BIT) != 0 ? "VK_QUEUE_COMPUTE_BIT" : "                    ", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_TRANSFER_BIT) != 0 ? "VK_QUEUE_TRANSFER_BIT" : "                     ");
+		LOG(kGraphics, kInfo, "  {} | {} | {} | {}", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0 ? "VK_QUEUE_GRAPHICS_BIT" : "                     ", supportsPresentVkBool32 == VK_TRUE ? "Supports present" : "                ", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_COMPUTE_BIT) != 0 ? "VK_QUEUE_COMPUTE_BIT" : "                    ", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_TRANSFER_BIT) != 0 ? "VK_QUEUE_TRANSFER_BIT" : "                     ");
 	}
-	Log(kLogGraphics, "");
+	LOG(kGraphics, kInfo, "");
 
 	miGraphicsQueueFamilyIndex = UINT32_MAX;
 	miPresentQueueFamilyIndex = UINT32_MAX;
@@ -495,7 +495,7 @@ void InstanceManager::SelectQueueFamilies()
 	}
 
 	ASSERT(miGraphicsQueueFamilyIndex != UINT32_MAX && miPresentQueueFamilyIndex != UINT32_MAX);
-	Log(kLogGraphics, "Selected queue families: graphics {}, present {}, transfer {}", miGraphicsQueueFamilyIndex, miPresentQueueFamilyIndex, miTransferQueueFamilyIndex);
+	LOG(kGraphics, kInfo, "Selected queue families: graphics {}, present {}, transfer {}", miGraphicsQueueFamilyIndex, miPresentQueueFamilyIndex, miTransferQueueFamilyIndex);
 }
 
 void InstanceManager::SelectSurfaceFormat()
@@ -507,14 +507,14 @@ void InstanceManager::SelectSurfaceFormat()
 	CHECK_VK(vkGetPhysicalDeviceSurfaceFormatsKHR(mVkPhysicalDevice, mVkSurfaceKHR, &uiFormatCount, physicalDeviceSurfaceFormats.data()));
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	Log(kLogGraphics, "Surface formats ({}):", physicalDeviceSurfaceFormats.size());
+	LOG(kGraphics, kInfo, "Surface formats ({}):", physicalDeviceSurfaceFormats.size());
 	for ([[maybe_unused]] const VkSurfaceFormatKHR& rVkSurfaceFormatKHR : physicalDeviceSurfaceFormats)
 	{
 		common::ScopedWorkbufferPop pcFormat = gEnumToString.Convert(rVkSurfaceFormatKHR.format, rWorkbuffer);
 		common::ScopedWorkbufferPop pcColorSpace = gEnumToString.Convert(rVkSurfaceFormatKHR.colorSpace, rWorkbuffer);
-		Log(kLogGraphics, "  {} ({})", pcFormat, pcColorSpace);
+		LOG(kGraphics, kInfo, "  {} ({})", pcFormat, pcColorSpace);
 	}
-	Log(kLogGraphics, "");
+	LOG(kGraphics, kInfo, "");
 
 	// If the format list includes just one entry of VK_FORMAT_UNDEFINED, the surface has no preferred format
 	if (uiFormatCount == 1 && physicalDeviceSurfaceFormats.at(0).format == VK_FORMAT_UNDEFINED)
@@ -523,7 +523,7 @@ void InstanceManager::SelectSurfaceFormat()
 		{
 			common::ScopedWorkbufferPop pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
 			common::ScopedWorkbufferPop pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
-			Log(kLogGraphics, "Selected framebuffer format: {} with color space: {} (no preferred format)\n", pcFormat, pcColorSpace);
+			LOG(kGraphics, kInfo, "Selected framebuffer format: {} with color space: {} (no preferred format)\n", pcFormat, pcColorSpace);
 		}
 	}
 	else
@@ -539,7 +539,7 @@ void InstanceManager::SelectSurfaceFormat()
 				{
 					common::ScopedWorkbufferPop pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
 					common::ScopedWorkbufferPop pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
-					Log(kLogGraphics, "Selected framebuffer format: {} with color space: {}\n", pcFormat, pcColorSpace);
+					LOG(kGraphics, kInfo, "Selected framebuffer format: {} with color space: {}\n", pcFormat, pcColorSpace);
 				}
 				break;
 			}
@@ -553,7 +553,7 @@ void InstanceManager::SelectSurfaceFormat()
 			{
 				common::ScopedWorkbufferPop pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
 				common::ScopedWorkbufferPop pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
-				Log(kLogGraphics, "Using fallback surface format: {} with color space: {} (preferred formats not available)\n", pcFormat, pcColorSpace);
+				LOG(kGraphics, kInfo, "Using fallback surface format: {} with color space: {} (preferred formats not available)\n", pcFormat, pcColorSpace);
 			}
 		}
 	}
@@ -574,7 +574,7 @@ void InstanceManager::SelectDepthFormat()
 
 		if ((vkFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0)
 		{
-			Log(kLogGraphics, "Depth format selected: {} (optimal)\n", gEnumToString.Convert(rFormat, rWorkbuffer));
+			LOG(kGraphics, kInfo, "Depth format selected: {} (optimal)\n", gEnumToString.Convert(rFormat, rWorkbuffer));
 			mDepthVkFormat = rFormat;
 			break;
 		}
@@ -590,7 +590,7 @@ void InstanceManager::SelectDepthFormat()
 
 			if ((vkFormatProperties.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0)
 			{
-				Log(kLogGraphics, "Depth format selected: {} (linear)\n", gEnumToString.Convert(rFormat, rWorkbuffer));
+				LOG(kGraphics, kInfo, "Depth format selected: {} (linear)\n", gEnumToString.Convert(rFormat, rWorkbuffer));
 				mDepthVkFormat = rFormat;
 				break;
 			}
@@ -637,7 +637,7 @@ void InstanceManager::ReadLayerProperties()
 			break;
 		}
 
-		Log(kLogGraphics, "\nFound {} Vulkan validation layers:", uiLayerCount);
+		LOG(kGraphics, kInfo, "\nFound {} Vulkan validation layers:", uiLayerCount);
 
 		if (uiLayerCount == 0)
 		{
@@ -649,7 +649,7 @@ void InstanceManager::ReadLayerProperties()
 
 		for (const VkLayerProperties& rVkLayerProperties : instanceLayerProperties)
 		{
-			Log(kLogGraphics, "  {} {}.{}", rVkLayerProperties.layerName, VK_VERSION_PATCH(rVkLayerProperties.specVersion), rVkLayerProperties.implementationVersion);
+			LOG(kGraphics, kInfo, "  {} {}.{}", rVkLayerProperties.layerName, VK_VERSION_PATCH(rVkLayerProperties.specVersion), rVkLayerProperties.implementationVersion);
 
 			if (strcmp(rVkLayerProperties.layerName, kpcKhronosValidation) == 0)
 			{
@@ -686,16 +686,16 @@ void InstanceManager::ReadLayerProperties()
 			CHECK_VK(vkEnumerateInstanceExtensionProperties(rVkLayerProperties.layerName, &uiExtensionPropertiesCount, extensionProperties.data()));
 			for (const VkExtensionProperties& rVkExtensionProperties : extensionProperties)
 			{
-				Log(kLogGraphics, "    Extension: {} {}", rVkExtensionProperties.extensionName, VK_VERSION_PATCH(rVkExtensionProperties.specVersion));
+				LOG(kGraphics, kInfo, "    Extension: {} {}", rVkExtensionProperties.extensionName, VK_VERSION_PATCH(rVkExtensionProperties.specVersion));
 			}
 		}
 
-		Log(kLogGraphics, "");
+		LOG(kGraphics, kInfo, "");
 		for (const char* pcLayer : mValidationLayers)
 		{
-			Log(kLogGraphics, "Found \"{}\"", pcLayer);
+			LOG(kGraphics, kInfo, "Found \"{}\"", pcLayer);
 		}
-		Log(kLogGraphics, "");
+		LOG(kGraphics, kInfo, "");
 	}
 }
 

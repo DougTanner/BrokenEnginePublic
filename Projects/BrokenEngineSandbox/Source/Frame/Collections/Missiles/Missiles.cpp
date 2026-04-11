@@ -88,7 +88,7 @@ static uint8_t suiMissileExplosionTypeIndex = 0xFF;
 
 #if defined(BT_CLIENT)
 // Helper to sync owned objects for a missile
-void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::smoke_trails_t uiSmokeTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, [[maybe_unused]] float fDeltaRotation, float fExhaustLength)
+void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::smoke_trails_t uiSmokeTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, [[maybe_unused]] float fDeltaRotation, float fExhaustLength)
 {
 	// Sync area light (exhaust flame) if not exploding
 	if (uiAreaLight.IsValid() && !(flags & kExploding))
@@ -114,16 +114,6 @@ void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_l
 			.fIntensityMultiplier = fIntensityMultiplier,
 		});
 	}
-
-	// Sync pusher
-	engine::PushersInterpolate::Sync(rFrameInterpolate, uiPusher,
-	{
-		.vecPosition = vecPosition,
-		.fRadius = kfMissilePusherRadius,
-		.fIntensity = kfMissilePusherIntensity,
-		.fPower = kfMissilePusherPower,
-		.flags = {engine::PusherFlags::kTypeDefault},
-	});
 
 	// Sync trail position
 	if (uiSmokeTrail.IsValid())
@@ -174,7 +164,7 @@ void MissilesInterpolate::ClientInit(Frame& rFrame, int64_t iIndex, engine::smok
 	engine::SoundsPostRender::Add(rFrame, rPostRender.puiSounds[iIndex]);
 
 	// Sync all owned objects (reads fields from arrays)
-	SyncMissile(rFrame.interpolate, rMissiles.puiAreaLights[iIndex], rMissiles.puiPushers[iIndex], rMissiles.puiSmokeTrails[iIndex], rPostRender.puiSounds[iIndex], rMissiles.pVecPositions[iIndex], rMissiles.pVecDirections[iIndex], rPostRender.pVecVelocities[iIndex], rMissiles.pVecPositions[iIndex], rPostRender.pFlags[iIndex], rPostRender.pfPitches[iIndex], rPostRender.pfDeltaRotations[iIndex], rPostRender.pfExhaustLengths[iIndex]);
+	SyncMissile(rFrame.interpolate, rMissiles.puiAreaLights[iIndex], rMissiles.puiSmokeTrails[iIndex], rPostRender.puiSounds[iIndex], rMissiles.pVecPositions[iIndex], rMissiles.pVecDirections[iIndex], rPostRender.pVecVelocities[iIndex], rMissiles.pVecPositions[iIndex], rPostRender.pFlags[iIndex], rPostRender.pfPitches[iIndex], rPostRender.pfDeltaRotations[iIndex], rPostRender.pfExhaustLengths[iIndex]);
 }
 
 void MissilesInterpolate::ClientInitAll(Frame& rFrame)
@@ -201,7 +191,6 @@ void MissilesInterpolate::AllocateAndCopy(MissilesInterpolate& rCurrent, const M
 #if defined(BT_CLIENT)
 		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
 #endif
-		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, rCurrent.iCount * sizeof(rCurrent.puiPushers[0]));
 #if defined(BT_CLIENT)
 		std::memcpy(rCurrent.puiSmokeTrails, rPrevious.puiSmokeTrails, rCurrent.iCount * sizeof(rCurrent.puiSmokeTrails[0]));
 #endif
@@ -317,16 +306,14 @@ void MissilesPostRender::AllocateAndCopy(MissilesPostRender& rCurrent, const Mis
 	}
 }
 
-static void RemoveOwnedObjects(Frame& rFrame, MissilesInterpolate& rCurrentInterpolate, MissilesPostRender& rCurrentPostRender, int64_t i)
+static void RemoveOwnedObjects([[maybe_unused]] Frame& rFrame, [[maybe_unused]] MissilesInterpolate& rCurrentInterpolate, MissilesPostRender& rCurrentPostRender, int64_t i)
 {
 #if defined(BT_CLIENT)
 	if (rCurrentInterpolate.puiAreaLights[i].IsValid())
 	{
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 	}
-#endif
-	engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
-#if defined(BT_CLIENT)
+
 	if (rCurrentInterpolate.puiSmokeTrails[i].IsValid())
 	{
 		engine::SmokeTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiSmokeTrails[i]);
@@ -444,8 +431,6 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentInterpolate.pVecPositions[iIndex] = XMVectorSetW(rInfo.vecPosition, 1.0f);
 	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
 	rCurrentPostRender.pFlags[iIndex] = rInfo.flags;
-	rCurrentInterpolate.puiPushers[iIndex] = {};
-	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 
 	// Initialize post-render state
@@ -476,15 +461,6 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	// Sync owned objects after Add()
 #if defined(BT_CLIENT)
 	MissilesInterpolate::ClientInit(rFrame, iIndex, rInfo.smokeTrailId);
-#else
-	engine::PushersInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiPushers[iIndex],
-	{
-		.vecPosition = rInfo.vecPosition,
-		.fRadius = kfMissilePusherRadius,
-		.fIntensity = kfMissilePusherIntensity,
-		.fPower = kfMissilePusherPower,
-		.flags = {engine::PusherFlags::kTypeDefault},
-	});
 #endif // BT_CLIENT
 }
 
@@ -550,7 +526,6 @@ bool MissilesInterpolate::LogDifferences(const MissilesInterpolate& rOther) cons
 	{
 		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::LogDifference_Vec("pVecDirections", i, pVecDirections[i], rOther.pVecDirections[i]);
-		bEqual &= common::LogDifference<"puiPushers">(i, puiPushers[i], rOther.puiPushers[i]);
 		bEqual &= common::LogDifference<"pfDestroyedTimes">(i, pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
 	}
 

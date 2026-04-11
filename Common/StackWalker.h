@@ -13,27 +13,27 @@ public:
 
 protected:
 
-	void OnSymInit([[maybe_unused]] LPCSTR szSearchPath, [[maybe_unused]] DWORD symOptions, [[maybe_unused]] LPCSTR szUserName) override
+	void OnSymInit([[maybe_unused]] LPCSTR searchPath, [[maybe_unused]] DWORD symOptions, [[maybe_unused]] LPCSTR userName) override
 	{
 	}
 
-	void OnLoadModule([[maybe_unused]] LPCSTR img, [[maybe_unused]] LPCSTR mod, [[maybe_unused]] DWORD64 baseAddr, [[maybe_unused]] DWORD size, [[maybe_unused]] DWORD result, [[maybe_unused]] LPCSTR symType, [[maybe_unused]] LPCSTR pdbName, [[maybe_unused]] ULONGLONG fileVersion) override
+	void OnLoadModule([[maybe_unused]] LPCSTR imagePath, [[maybe_unused]] LPCSTR moduleName, [[maybe_unused]] DWORD64 baseAddr, [[maybe_unused]] DWORD size, [[maybe_unused]] DWORD result, [[maybe_unused]] LPCSTR symType, [[maybe_unused]] LPCSTR pdbName, [[maybe_unused]] ULONGLONG fileVersion) override
 	{
 	}
 
-	void OnCallstackEntry([[maybe_unused]] CallstackEntryType eType, CallstackEntry& entry) override
+	void OnCallstackEntry([[maybe_unused]] CallstackEntryType eType, CallstackEntry& rEntry) override
 	{
-		if (entry.lineNumber > 0)
+		if (rEntry.lineNumber > 0)
 		{
-			Log(kError, "{} | {} | {}", entry.name, entry.lineNumber, entry.lineFileName);
+			LOG(kDefault, kError, "{} | {} | {}", rEntry.name, rEntry.lineNumber, rEntry.lineFileName);
 		}
 	}
 
-	void OnDbgHelpErr([[maybe_unused]] LPCSTR szFuncName, [[maybe_unused]] DWORD gle, [[maybe_unused]] DWORD64 addr) override
+	void OnDbgHelpErr([[maybe_unused]] LPCSTR funcName, [[maybe_unused]] DWORD lastError, [[maybe_unused]] DWORD64 addr) override
 	{
 	}
 
-	void OnOutput([[maybe_unused]] LPCSTR szText) override
+	void OnOutput([[maybe_unused]] LPCSTR text) override
 	{
 	}
 };
@@ -49,27 +49,27 @@ public:
 
 protected:
 
-	void OnSymInit([[maybe_unused]] LPCSTR szSearchPath, [[maybe_unused]] DWORD symOptions, [[maybe_unused]] LPCSTR szUserName) override
+	void OnSymInit([[maybe_unused]] LPCSTR searchPath, [[maybe_unused]] DWORD symOptions, [[maybe_unused]] LPCSTR userName) override
 	{
 	}
 
-	void OnLoadModule([[maybe_unused]] LPCSTR img, [[maybe_unused]] LPCSTR mod, [[maybe_unused]] DWORD64 baseAddr, [[maybe_unused]] DWORD size, [[maybe_unused]] DWORD result, [[maybe_unused]] LPCSTR symType, [[maybe_unused]] LPCSTR pdbName, [[maybe_unused]] ULONGLONG fileVersion) override
+	void OnLoadModule([[maybe_unused]] LPCSTR imagePath, [[maybe_unused]] LPCSTR moduleName, [[maybe_unused]] DWORD64 baseAddr, [[maybe_unused]] DWORD size, [[maybe_unused]] DWORD result, [[maybe_unused]] LPCSTR symType, [[maybe_unused]] LPCSTR pdbName, [[maybe_unused]] ULONGLONG fileVersion) override
 	{
 	}
 
-	void OnCallstackEntry([[maybe_unused]] CallstackEntryType eType, CallstackEntry& entry) override
+	void OnCallstackEntry([[maybe_unused]] CallstackEntryType eType, CallstackEntry& rEntry) override
 	{
-		if (entry.lineNumber > 0)
+		if (rEntry.lineNumber > 0)
 		{
-			*mpOfstream << entry.name << " | " << entry.lineNumber << " | " << entry.lineFileName << std::endl << std::flush;
+			*mpOfstream << rEntry.name << " | " << rEntry.lineNumber << " | " << rEntry.lineFileName << std::endl << std::flush;
 		}
 	}
 
-	void OnDbgHelpErr([[maybe_unused]] LPCSTR szFuncName, [[maybe_unused]] DWORD gle, [[maybe_unused]] DWORD64 addr) override
+	void OnDbgHelpErr([[maybe_unused]] LPCSTR funcName, [[maybe_unused]] DWORD lastError, [[maybe_unused]] DWORD64 addr) override
 	{
 	}
 
-	void OnOutput([[maybe_unused]] LPCSTR szText) override
+	void OnOutput([[maybe_unused]] LPCSTR text) override
 	{
 	}
 

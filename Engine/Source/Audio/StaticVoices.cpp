@@ -94,53 +94,94 @@ void StaticVoices::Set3dSettings(float fCurveDistanceScaler, float fManualFadeSt
 	mfManualFadeVolume = fManualFadeVolume;
 }
 
+void StaticVoices::ReturnVoiceToPool(common::crc_t audioCrc, IXAudio2SourceVoice* pVoice)
+{
+	pVoice->Stop(0, XAUDIO2_COMMIT_NOW);
+	mPooledVoices.push_back({audioCrc, pVoice});
+}
+
+IXAudio2SourceVoice* StaticVoices::AcquireVoiceFromPool(common::crc_t audioCrc)
+{
+	for (size_t i = 0; i < mPooledVoices.size(); ++i)
+	{
+		if (mPooledVoices[i].first == audioCrc)
+		{
+			IXAudio2SourceVoice* pVoice = mPooledVoices[i].second;
+			if (i < mPooledVoices.size() - 1)
+			{
+				mPooledVoices[i] = mPooledVoices.back();
+			}
+			mPooledVoices.pop_back();
+			return pVoice;
+		}
+	}
+	return nullptr;
+}
+
+void StaticVoices::ClearPool()
+{
+	for (std::pair<common::crc_t, IXAudio2SourceVoice*>& rPooled : mPooledVoices)
+	{
+		DestroyXAudio2SourceVoice(rPooled.second);
+	}
+	mPooledVoices.clear();
+}
+
 void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 {
 	const SoundsInterpolate& rSoundsInterpolate = rFrame.interpolate.sounds;
 	const SoundsPostRender& rSoundsPostRender = rFrame.postRender.sounds;
 
+	bool bSkipInvalidation = mbSkipNextInvalidation;
+	mbSkipNextInvalidation = false;
+
 	// Fade out and stop invalid static voices
-	for (int64_t i = 0; i < static_cast<int64_t>(mVoices.size());)
+	if (!bSkipInvalidation)
 	{
-		StaticVoice& rVoice = mVoices.at(i);
+		for (int64_t i = 0; i < static_cast<int64_t>(mVoices.size());)
+		{
+			StaticVoice& rVoice = mVoices.at(i);
 
-		bool bValid = rSoundsInterpolate.idToIndexMap.contains(rVoice.mId);
-		if (bValid)
-		{
-			++i;
-			continue;
-		}
+			bool bValid = rSoundsInterpolate.idToIndexMap.contains(rVoice.mId);
+			if (bValid)
+			{
+				++i;
+				continue;
+			}
 
-		bool bDestroy = false;
-		if (rVoice.mfVolume <= 0.0f)
-		{
-			bDestroy = true;
-		}
-		if (rVoice.mFlags & StaticVoiceFlags::kFadingOut)
-		{
-			rVoice.mfFadeOutVolume -= fDeltaTime / rVoice.mfFadeOutTime;
-			if (rVoice.mfFadeOutVolume <= 0.0f)
+			bool bDestroy = false;
+			if (rVoice.mfVolume <= 0.0f)
 			{
 				bDestroy = true;
 			}
-		}
-		else
-		{
-			rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
-			rVoice.mfFadeOutVolume = 1.0f;
-		}
-
-		if (bDestroy)
-		{
-			if (i < static_cast<int64_t>(mVoices.size()) - 1)
+			if (rVoice.mFlags & StaticVoiceFlags::kFadingOut)
 			{
-				mVoices.at(i) = std::move(mVoices.back());
+				rVoice.mfFadeOutVolume -= fDeltaTime / rVoice.mfFadeOutTime;
+				if (rVoice.mfFadeOutVolume <= 0.0f)
+				{
+					bDestroy = true;
+				}
 			}
-			mVoices.pop_back();
-		}
-		else
-		{
-			++i;
+			else
+			{
+				rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
+				rVoice.mfFadeOutVolume = 1.0f;
+			}
+
+			if (bDestroy)
+			{
+				ReturnVoiceToPool(rVoice.mAudioCrc, rVoice.mpVoice);
+				rVoice.mpVoice = nullptr;
+				if (i < static_cast<int64_t>(mVoices.size()) - 1)
+				{
+					mVoices.at(i) = std::move(mVoices.back());
+				}
+				mVoices.pop_back();
+			}
+			else
+			{
+				++i;
+			}
 		}
 	}
 
@@ -179,20 +220,24 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 		}
 		if (static_cast<int64_t>(mVoices.size()) >= kiMaxStaticVoices)
 		{
-			Log(kLogAudio, "Max static voices reached ({}), skipping", kiMaxStaticVoices);
+			LOG(kAudio, kDebug, "Max static voices reached ({}), skipping", kiMaxStaticVoices);
 			continue;
 		}
 
 		common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[iIndex];
-		IXAudio2SourceVoice* pVoice = nullptr;
-		if (StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, false, true))
+		IXAudio2SourceVoice* pVoice = AcquireVoiceFromPool(uiCrc);
+		if (pVoice == nullptr)
 		{
-			float fPitch = rSoundsInterpolate.pfPitches[iIndex];
-			float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
-			XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[iIndex];
-			XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
-			mVoices.push_back(StaticVoice(pVoice, id, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity));
+			if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, false, true))
+			{
+				continue;
+			}
 		}
+		float fPitch = rSoundsInterpolate.pfPitches[iIndex];
+		float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
+		XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[iIndex];
+		XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
+		mVoices.push_back(StaticVoice(pVoice, id, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity, uiCrc));
 	}
 }
 
@@ -235,7 +280,28 @@ void StaticVoices::Clear(bool bNullVoicesBeforeDestroy)
 			rVoice.mpVoice = nullptr;
 		}
 	}
+	else
+	{
+		for (StaticVoice& rVoice : mVoices)
+		{
+			DestroyXAudio2SourceVoice(rVoice.mpVoice);
+			rVoice.mpVoice = nullptr;
+		}
+	}
 	mVoices.clear();
+
+	if (bNullVoicesBeforeDestroy)
+	{
+		for (std::pair<common::crc_t, IXAudio2SourceVoice*>& rPooled : mPooledVoices)
+		{
+			rPooled.second = nullptr;
+		}
+		mPooledVoices.clear();
+	}
+	else
+	{
+		ClearPool();
+	}
 }
 
 void XM_CALLCONV StaticVoices::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch)

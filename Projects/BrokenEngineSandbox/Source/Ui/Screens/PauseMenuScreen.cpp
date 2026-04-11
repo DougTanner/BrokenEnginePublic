@@ -45,7 +45,7 @@ void PauseMenuScreen::Render()
 
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringGraphics)), ImVec2(fButtonWidth, 0.0f)))
 	{
-		gpGame->meUiState = UiState::kGraphics;
+		gpGame->meUiState = UiState::kGraphicsSettings;
 	}
 
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound)), ImVec2(fButtonWidth, 0.0f)))

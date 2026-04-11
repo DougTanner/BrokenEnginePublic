@@ -45,7 +45,7 @@ enum class ChunkFlags : uint64_t
 		kCubemap     = 0x00008000,
 		kElevation   = 0x00010000,
 
-	kAudio           = 0x00020000,
+	kChunkAudio      = 0x00020000,
 	kRaw             = 0x00040000,
 };
 using ChunkFlags_t = Flags<ChunkFlags>;

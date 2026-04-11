@@ -18,6 +18,7 @@ Client-side networking: connection lifecycle, server data ingestion, rollback-an
 - `ReconcileReplay` splits across three `.cpp` files by concern: core replay pipeline, CRC fast-path, and human state tracking
 - Sticky subscriptions: unwanted coords stay active for 2 s via `mUnwantedTimestamps` to prevent flicker during brief coord transitions
 - Soft desync recovery: CRC mismatch triggers `kClientResyncRequest`; after 3 desyncs within 10 s `ClientDesyncManager` escalates to disconnect
+- After full replay, reconciliation sets a skip-invalidation flag on the audio manager to prevent transient voice churn from the replayed frame diff
 
 ## See Also
 

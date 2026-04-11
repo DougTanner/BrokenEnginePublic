@@ -103,7 +103,7 @@ void ReadDxDiag()
 
 		DWORD uiChildCount = 0;
 		CHECK_HRESULT(pDisplayDevices->GetNumberOfChildContainers(&uiChildCount));
-		Log("DxDiag found {} children", uiChildCount);
+		LOG(kDefault, kDebug, "DxDiag found {} children", uiChildCount);
 		for (DWORD i = 0; i < uiChildCount; ++i)
 		{
 			WCHAR pcChildName[256] {};
@@ -113,7 +113,7 @@ void ReadDxDiag()
 
 			DWORD uiPropCount = 0;
 			pChild->GetNumberOfProps(&uiPropCount);
-			Log("    {} props", uiPropCount);
+			LOG(kDefault, kDebug, "    {} props", uiPropCount);
 			for (DWORD j = 0; j < uiPropCount; ++j)
 			{
 				WCHAR pcPropName[256] {};
@@ -134,11 +134,11 @@ void ReadDxDiag()
 	}
 	catch ([[maybe_unused]] const std::exception& rException)
 	{
-		Log(kError, "Failed to read DxDiag: {}", rException.what());
+		LOG(kDefault, kError, "Failed to read DxDiag: {}", rException.what());
 	}
 	catch (...)
 	{
-		Log(kError, "Failed to read DxDiag");
+		LOG(kDefault, kError, "Failed to read DxDiag");
 	}
 }
 

@@ -52,6 +52,15 @@ struct CoordFrames
 	int64_t iConfirmedTick = -1;
 	int64_t iConfirmedOffset = -1;
 
+	// Monotonic high-water mark: highest tick whose CRC has matched the server. Re-simulating
+	// any tick <= this value is an invariant violation and trips DEBUG_BREAK in ReconcileRunTickCoord.
+	int64_t iHighWaterValidatedTick = -1;
+
+	// Monotonic guard for the rendered frame: the renderer must never regress to an older tick
+	// or an earlier interpolated time for the same coord. Trips DEBUG_BREAK in Render().
+	int64_t iLastRenderedTick = -1;
+	float fLastRenderedTime = 0.0f;
+
 	struct CoordServerUpdate
 	{
 		common::crc_t sharedCrc = 0;
@@ -73,6 +82,9 @@ struct CoordFrames
 	{
 		iConfirmedTick = -1;
 		iConfirmedOffset = -1;
+		iHighWaterValidatedTick = -1;
+		iLastRenderedTick = -1;
+		fLastRenderedTime = 0.0f;
 		iSnapshotHead = 0;
 		iSnapshotCount = 0;
 		serverUpdates.clear();

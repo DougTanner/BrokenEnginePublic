@@ -104,7 +104,7 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 	if (inputFileLastModifiedTime > packFileLastWriteTime)
 	{
 		auto [date, time] = common::FileTimeString(inputFileLastModifiedTime);
-		Log("Input file \"{}\" is out of date: {} {}", mInputPath.string(), date, time);
+		LOG(kDefault, kDebug, "Input file \"{}\" is out of date: {} {}", mInputPath.string(), date, time);
 		mbDirty = true;
 		return mbDirty;
 	}
@@ -112,7 +112,7 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 	// Does the chunk file exist?
 	if (!std::filesystem::exists(mChunkFile))
 	{
-		Log("Chunk file \"{}\" does not exist", mChunkFile.string());
+		LOG(kDefault, kDebug, "Chunk file \"{}\" does not exist", mChunkFile.string());
 		mbDirty = true;
 		return mbDirty;
 	}
@@ -126,7 +126,7 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 
 	if (piMagicAndVersion[0] != kiMagic || piMagicAndVersion[1] != GetVersion())
 	{
-		Log(kWarning, "Chunk file \"{}\" has invalid magic {:#018x} or version {}", mChunkFile.string(), piMagicAndVersion[0], piMagicAndVersion[1]);
+		LOG(kDefault, kWarning, "Chunk file \"{}\" has invalid magic {:#018x} or version {}", mChunkFile.string(), piMagicAndVersion[0], piMagicAndVersion[1]);
 		mbDirty = true;
 		return mbDirty;
 	}
@@ -134,7 +134,7 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 	// Does the last modified time file exist?
 	if (!std::filesystem::exists(mLastModifiedTimeFile))
 	{
-		Log("Last modified time file \"{}\" does not exist", mLastModifiedTimeFile.string());
+		LOG(kDefault, kDebug, "Last modified time file \"{}\" does not exist", mLastModifiedTimeFile.string());
 		mbDirty = true;
 		return mbDirty;
 	}
@@ -146,7 +146,7 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 	lastModifiedTimeFileStream.read(reinterpret_cast<char*>(&iLoadedLastModifiedTime), sizeof(iLoadedLastModifiedTime));
 	if (iLastModifiedTime != iLoadedLastModifiedTime)
 	{
-		Log("Last modified time does not match {} != {}", iLastModifiedTime, iLoadedLastModifiedTime);
+		LOG(kDefault, kDebug, "Last modified time does not match {} != {}", iLastModifiedTime, iLoadedLastModifiedTime);
 		mbDirty = true;
 		return mbDirty;
 	}
@@ -156,7 +156,7 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 	if (inputFileLastModifiedTime > chunkFileLastWriteTime)
 	{
 		auto [date, time] = common::FileTimeString(chunkFileLastWriteTime);
-		Log("Chunk file \"{}\" is out of date: {} {}", mChunkFile.string(), date, time);
+		LOG(kDefault, kDebug, "Chunk file \"{}\" is out of date: {} {}", mChunkFile.string(), date, time);
 		mbDirty = true;
 		return mbDirty;
 	}
@@ -199,7 +199,7 @@ std::vector<std::byte>& ExportJob::RunExport()
 	common::ChunkHeader* pChunkHeader = reinterpret_cast<common::ChunkHeader*>(mHeaderAndData.data());
 	pChunkHeader->iMagic = common::ChunkHeader::kiMagic;
 	pChunkHeader->crc = common::Crc(relativeFile.string());
-	Log("\"{}\" -> {:#018x}", relativeFile.string(), pChunkHeader->crc);
+	LOG(kDefault, kDebug, "\"{}\" -> {:#018x}", relativeFile.string(), pChunkHeader->crc);
 	pChunkHeader->flags = mChunkFlags;
 	std::string relativeFileString = common::ToString(relativeFile.native());
 	ASSERT(relativeFileString.length() < MAX_PATH);

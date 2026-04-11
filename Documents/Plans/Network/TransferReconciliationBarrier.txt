@@ -1,0 +1,107 @@
+Transfer Reconciliation Diagnostic Logs (Phase A)
+==================================================
+
+Context
+-------
+On a kChina network profile (RTT ~480-515ms), every CRC mismatch in a long
+high-latency run involves Transfer* StatusChanges (TransferBlaster,
+TransferSpaceship, TransferPlayer). Mismatches start at tick 9671 while the
+client is otherwise healthy and continue until disconnect. The
+"ReconcileUpdateClientState Transfer global ID match failed PlayerCount: 0"
+error fires repeatedly. The Transfer mismatches are the root producer of CRC
+divergence that drives the rest of the reconcile starvation cascade.
+
+Root Cause Hypothesis
+---------------------
+Server side runs RunFrameTick on all active coords, then
+ServerTransferManager::HarvestTransfers applies all pending transfers across
+coords as a barrier, then computes per-coord CRCs. The transfer pass is
+cross-coord-atomic within a tick.
+
+Client side ClientReconciler replays each CoordReconcileWork independently
+with no cross-coord barrier. Source coord A may be at tick N-k while
+destination coord B replays tick N, so when B's SpawnTransfer fires the
+sibling state does not match what the server saw.
+
+Secondary suspect: server's SortTransfersByType deterministically orders
+transfers before CRC; client applies frameInput.statusChanges in broadcast
+order. Order may differ.
+
+Code review caveat
+------------------
+SpawnTransfer in Game.cpp reads only the destination frame and the
+server-supplied TransferData bytes; it does not peek at sibling coord state
+directly. A per-tick barrier cannot change destination CRC on its own
+unless pre-transfer RunFrameTick state on the destination differs from
+what the server computed. Phase A logs are needed to distinguish:
+  (a) pre-transfer tick drift (barrier-fixable),
+  (b) transfer apply ordering drift (sort-fixable),
+  (c) something else.
+
+Phase A - Diagnostic Logs
+-------------------------
+All at kNetwork / kVerbose.
+
+1. Per-coord replay tick divergence.
+   ClientReconciler.cpp in Reconcile(), after ReconcileMergeResults and
+   before ReconcileUpdateClientState. Log one line per coord with final
+   state: ConfirmedTick, NewConfirmedTick, ReplayStackCount,
+   LastValidatedIndex, CrcFastPath, FullReplay, DesyncTick.
+
+2. Tick alignment at SpawnTransfer.
+   ReconcileReplay.cpp ReconcileRunTickCoord, once per coord-tick gated
+   on any transfer-type status change being present. Log this coord's
+   tick plus every sibling coord's (x,y)=ConfirmedTick/StackTipTick.
+   Requires threading ReconcileContext& into ReconcileRunTickCoord.
+   StackTipTick = iConfirmedTick + (iReplayStackCount - 1).
+
+3. Destination coord contents at SpawnTransfer.
+   ReconcileReplay.cpp ReconcileRunTickCoord, inside the transfer apply
+   loop. Extend the existing PlayerCount log to cover all transfer types
+   (Player, Blaster, Spaceship, Missile) with PreCount and PostCount
+   captured around the SpawnTransfer call, plus GlobalPlayerId for
+   TransferPlayer and the total StatusChange count.
+
+4. Client transfer ordering.
+   ReconcileReplay.cpp ReconcileRunTickCoord, at the same sibling-snapshot
+   site as Log 2. Emit the sequence of transfer types in the order they
+   appear in frameInput.statusChanges. Compare against server's
+   SortTransfersByType enum-ascending ordering. Use the existing
+   StatusChangeTypeName helper in Frame/StatusChange.h.
+
+5. Server authoritative destination state.
+   ServerTransferManager.cpp HarvestTransfers, inside the existing
+   post-recompute loop. Log
+   "Server SpawnTransfers Dest=(x,y) TransferCount={} PlayerCount={}
+    BlasterCount={} SpaceshipCount={} MissileCount={} CrcPre={} CrcPost={}".
+   Zero extra Crcs() calls: pre-CRC is already populated in
+   rDestFrame.postRender.sharedCrc by RunFrameTick before HarvestTransfers
+   runs. Capture it into a local unordered_map<GridCoord, crc_t> at the
+   top of HarvestTransfers (after SortTransfersByType, before
+   SpawnTransfers) by iterating mTransfers. Log inside the existing
+   post-recompute loop, reading post-CRC from the just-assigned
+   sharedCrc field.
+
+6. Log identity cleanup.
+   Grep LOG(kNetwork, ...) call sites for "Player" + "{}" and relabel
+   ambiguous ones per identity domain using the scheme
+     Player[uuid]: {}     for engine::uuid_t.iValue
+     Player[globalId]: {} for engine::global_id_t.iValue
+     Player[localIdx]: {} for SOA row indices
+   Starting point:
+   - PlayersNavigation.cpp: "Transfer Player: {}" prints iEntityId (UUID)
+     and was the worst offender.
+   Goal: disambiguate "Player: 851" so that matching vs non-matching
+   IDs across logs stops being confused with mislabeled identity domains.
+
+Phase B
+-------
+See TransferReconciliationBarrierFixB.txt for the follow-up fix design
+(per-tick barrier + client transfer sort). Phase B is gated on Phase A
+logs confirming the hypothesis.
+
+Invariant
+---------
+This fix supports the global invariant: once a tick's CRC matches the
+server CRC, that tick must never be re-simulated. See
+ReconcileWasteAndInvariant.txt for the enforcement plan.

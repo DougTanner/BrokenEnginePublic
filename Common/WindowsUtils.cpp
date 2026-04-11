@@ -22,7 +22,7 @@ int64_t LogicalCoreCount()
 	int64_t iLogicalCoreCount = std::thread::hardware_concurrency();
 	if (iLogicalCoreCount == 0)
 	{
-		Log("std::thread::hardware_concurrency() returned 0");
+		LOG(kDefault, kDebug, "std::thread::hardware_concurrency() returned 0");
 		iLogicalCoreCount = 1;
 	}
 
@@ -35,14 +35,14 @@ int64_t HardwareCoreCount()
 	HMODULE hmodule = GetModuleHandle(TEXT("kernel32"));
 	if (hmodule == nullptr)
 	{
-		Log(kWarning, "GetModuleHandle(TEXT(\"kernel32\")) returned nullptr");
+		LOG(kDefault, kWarning, "GetModuleHandle(TEXT(\"kernel32\")) returned nullptr");
 		return LogicalCoreCount();
 	}
 
 	LPFN_GLPI glpi = reinterpret_cast<LPFN_GLPI>(GetProcAddress(hmodule, "GetLogicalProcessorInformation"));
 	if (glpi == nullptr)
 	{
-		Log(kWarning, "GetProcAddress(hmodule, \"GetLogicalProcessorInformation\") returned nullptr");
+		LOG(kDefault, kWarning, "GetProcAddress(hmodule, \"GetLogicalProcessorInformation\") returned nullptr");
 		return LogicalCoreCount();
 	}
 
@@ -62,7 +62,7 @@ int64_t HardwareCoreCount()
 			}
 			else
 			{
-				Log(kWarning, "glpi GetLastError: {}", GetLastError());
+				LOG(kDefault, kWarning, "glpi GetLastError: {}", GetLastError());
 				return LogicalCoreCount();
 			}
 		}

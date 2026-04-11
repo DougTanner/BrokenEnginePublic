@@ -17,7 +17,7 @@ int64_t TimeStep::TickRealtime()
 		float fDelta = common::NanosecondsToFloatSeconds<float>(realDeltaNs);
 		if (mAverageDelta.miCount > 200 && fDelta > 1.9f * mAverageDelta.Average())
 		{
-			Log(kWarning, "\n\n\n  deltaNs spike {} > {}", fDelta, mAverageDelta.Average());
+			LOG(kDefault, kWarning, "\n\n\n  deltaNs spike {} > {}", fDelta, mAverageDelta.Average());
 			static bool sbOnce = false;
 			if (!sbOnce)
 			{
@@ -25,7 +25,7 @@ int64_t TimeStep::TickRealtime()
 				gpProfileManager->LogTimers();
 			}
 		}
-		Log(kVerbose, "\n\n");
+		LOG(kDefault, kVerbose, "\n\n");
 
 		mAverageDelta = fDelta;
 	}
@@ -39,7 +39,7 @@ int64_t TimeStep::TickRealtime()
 		int64_t iEstimatedTicks = mTickRemainderNs / game::kTickNs;
 		if (iEstimatedTicks > kiMaxTicksPerFrame && miTimeMultiply > 1) [[unlikely]]
 		{
-			Log(kWarning, "Death spiral detected: {} ticks at {}x speed", iEstimatedTicks, miTimeMultiply);
+			LOG(kDefault, kWarning, "Death spiral detected: {} ticks at {}x speed", iEstimatedTicks, miTimeMultiply);
 			DecreaseTimeScale(false);
 		}
 	}
@@ -49,7 +49,7 @@ int64_t TimeStep::TickRealtime()
 	std::chrono::nanoseconds maxAccumulator = game::kTickNs * iEffectiveMaxTicks;
 	if (mTickRemainderNs > maxAccumulator)
 	{
-		Log(kVerbose, "TimeStep::TickRealtime Accumulator clamped");
+		LOG(kDefault, kVerbose, "TimeStep::TickRealtime Accumulator clamped");
 		mTickRemainderNs = maxAccumulator;
 	}
 
@@ -82,14 +82,14 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 	if (miTimeMultiply > 1)
 	{
 		miTimeMultiply /= 2;
-		Log("Time ratio: {}x", miTimeMultiply);
+		LOG(kDefault, kDebug, "Time ratio: {}x", miTimeMultiply);
 		mbTimeScaleChanged = true;
 		return true;
 	}
 	else if (bAllowSlowMo)
 	{
 		miTimeDivide *= 2;
-		Log("Time ratio: 1/{}x", miTimeDivide);
+		LOG(kDefault, kDebug, "Time ratio: 1/{}x", miTimeDivide);
 		mbTimeScaleChanged = true;
 		return true;
 	}
@@ -101,12 +101,12 @@ void TimeStep::IncreaseTimeScale()
 	if (miTimeDivide > 1)
 	{
 		miTimeDivide /= 2;
-		Log("Time ratio: 1/{}x", miTimeDivide);
+		LOG(kDefault, kDebug, "Time ratio: 1/{}x", miTimeDivide);
 	}
 	else
 	{
 		miTimeMultiply *= 2;
-		Log("Time ratio: {}x", miTimeMultiply);
+		LOG(kDefault, kDebug, "Time ratio: {}x", miTimeMultiply);
 	}
 	mbTimeScaleChanged = true;
 }

@@ -114,7 +114,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 		ASSERT(rPrimitive.attributes.find("COLOR_0") == rPrimitive.attributes.end());
 		if (rPrimitive.attributes.find("TEXCOORD_6") != rPrimitive.attributes.end())
 		{
-			Log(kWarning, "WARNING: Found TEXCOORD_6");
+			LOG(kDefault, kWarning, "WARNING: Found TEXCOORD_6");
 		}
 
 		ASSERT(rPrimitive.material >= 0);
@@ -161,7 +161,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			newInfo.matMeshWorld = matNode * matLocal;
 			newInfo.iOriginalMaterialIndex = iOriginalMaterial;
 			rMaterialNodeInfos.push_back(newInfo);
-			Log(kVerbose, "  Split material {} for node {} -> new material {}", iOriginalMaterial, iCurrentNodeIndex, iEffectiveMaterial);
+			LOG(kDefault, kVerbose, "  Split material {} for node {} -> new material {}", iOriginalMaterial, iCurrentNodeIndex, iEffectiveMaterial);
 		}
 
 		Material& rMaterial = rMaterials.at(iEffectiveMaterial);
@@ -333,7 +333,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 		}
 
 		uint32_t uiNewVertexCount = static_cast<uint32_t>(rVertices.size()) - uiVertexStart;
-		Log(kVerbose, "  Vertices: {} -> {} (deduplicated {})", rPositionAccessor.count, uiNewVertexCount, rPositionAccessor.count - uiNewVertexCount);
+		LOG(kDefault, kVerbose, "  Vertices: {} -> {} (deduplicated {})", rPositionAccessor.count, uiNewVertexCount, rPositionAccessor.count - uiNewVertexCount);
 
 		if (rPrimitive.indices > -1)
 		{

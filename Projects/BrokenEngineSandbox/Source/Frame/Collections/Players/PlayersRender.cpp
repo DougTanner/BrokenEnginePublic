@@ -12,7 +12,7 @@
 namespace game
 {
 
-// Player model (also used by PlayersUpdate.cpp for animation lookup)
+// Player model (also used by Players.cpp for animation lookup in PlayersInterpolate::Update)
 #if 1
 extern const common::crc_t kPlayerModel = data::kModelsspaceship2scenegltfCrc;
 constexpr float kfModelScale = 0.3667f;

@@ -1,0 +1,103 @@
+Transfer Reconciliation Fix (Phase B)
+======================================
+
+Context
+-------
+Follow-up to TransferReconciliationBarrier.txt Phase A. Only run this plan
+after Phase A diagnostic logs have been captured on a kChina repro and show
+one or more of the following:
+
+(1) SpawnTransfer sibling snapshot logs show sibling coords at a different
+    tick than the destination coord at the moment a transfer is applied.
+(2) "Client transfer order" sequences differ from the server's
+    SortTransfersByType enum-ascending order.
+(3) "Server SpawnTransfers CrcPre" matches the client's pre-transfer CRC but
+    "CrcPost" diverges, implicating transfer apply (not pre-tick state).
+
+Fix scope depends on which signals fire:
+- Only (1)       -> Option 1 only (per-tick barrier).
+- Only (2)       -> Option 2 only (client-side transfer sort).
+- (1) and (2)    -> Both.
+- Only (3) w/o (1) or (2) -> re-investigate; neither option applies.
+
+Option 1 - Per-tick barrier across all coords during replay
+-----------------------------------------------------------
+Replace ReconcileReplay's per-coord driver loop with a tick-major driver
+that advances all active coords in lockstep per tick.
+
+Policy: LOOSE per-coord throttle (decided during Phase B split).
+- Each coord captures its own iStepMax in Begin based on the existing
+  jitter/gap-override logic.
+- The outer tick loop iterates [globalMinConfirmed+1, globalMaxStopTick]
+  where globalMaxStopTick = max of per-coord targets.
+- The per-tick inner loop no-ops for any coord whose current iTick is
+  greater than that coord's iStepMax, or which is CRC-fast-pathed, or
+  which is desynced.
+- Dispatch remains once-per-reconcile (outer coordinator), not per tick.
+  The per-tick inner loop is serial across coords: typical active set is
+  ~4, replay depth is tens of ticks, and per-tick dispatch overhead would
+  dominate the actual work.
+- Sibling coords can still diverge up to their own cap, but never due to
+  thread scheduling, which is the race the barrier is meant to kill.
+
+Sketch:
+
+    ReconcileCoordBegin(work, context)        // per coord
+        // CRC fast-path check; if hit, set output and mark "skip".
+        // Else rollback + pending-full-state injection at confirmed tick,
+        // compute iStepMax from jitter/gap-override, set iCurrentReplayTick
+        // = iConfirmedTick, mark "needs step".
+
+    for iTick = globalMinConfirmed+1 .. globalMaxStopTick:
+        for each coord (serial):
+            ReconcileCoordStepTick(work, iTick)
+            // no-op if work is fast-path, desynced, or iTick > work.iStepMax
+
+    ReconcileCoordFinish(work, context)       // per coord
+        // ReconcileCatchUpCoord + output layout
+
+ReconcileUpdateClientState stays post-Finish, serial. It scans replay
+stacks across all coords and must not be interleaved.
+
+Critical files:
+- Projects/BrokenEngineSandbox/Source/Network/Client/ClientReconciler.cpp
+  (driver loop)
+- Projects/BrokenEngineSandbox/Source/Network/Client/ReconcileReplay.cpp
+  (split ReconcileCoord into Begin / StepTick / Finish, extract inner
+  body of ReconcileReplayCoord as StepTick)
+- Projects/BrokenEngineSandbox/Source/Network/Client/ClientReconciler.h
+  (add per-coord iStepMax, iCurrentReplayTick if not already present)
+
+Jitter throttle and gap override captured per-coord in Begin. No changes
+to SpawnTransfer semantics or TransferData layout.
+
+Option 2 - Sort transfer status changes before applying
+-------------------------------------------------------
+In ReconcileReplay.cpp ReconcileRunTickCoord, just before the transfer
+apply loop, stable-sort the transfer-type StatusChanges in
+frameInput.statusChanges using the same comparator as
+ServerTransferManager::SortTransfersByType (enum-ascending).
+
+Partition so only transfer-type entries are reordered; non-transfer
+status changes keep their relative order untouched.
+
+Share the comparator: move it into a header so both server and client
+use the same code. Likely home:
+  Projects/BrokenEngineSandbox/Source/Frame/StatusChange.h
+add `inline bool LessStatusChangeType(const StatusChange& l, const
+StatusChange& r) { return l.eType < r.eType; }` and update the server's
+SortTransfersByType to use it.
+
+One-liner on the client once the comparator is shared.
+
+Invariant
+---------
+This fix supports the global invariant: once a tick's CRC matches the
+server CRC, that tick must never be re-simulated. See
+ReconcileWasteAndInvariant.txt for the enforcement plan.
+
+Scope boundaries
+----------------
+- No changes to SpawnTransfer semantics or TransferData layout.
+- No server code changes beyond adding the shared comparator header.
+- ReconcileUpdateClientState stays post-Finish, serial.

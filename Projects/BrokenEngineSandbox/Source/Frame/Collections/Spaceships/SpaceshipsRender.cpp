@@ -9,7 +9,7 @@
 namespace game
 {
 
-// Spaceship model (also used by SpaceshipsUpdate.cpp for animation lookup)
+// Spaceship model (also used by Spaceships.cpp for animation lookup)
 #if 1
 extern const common::crc_t kSpaceshipModel = data::kModelsSpaceshipscenegltfCrc;
 constexpr float kfModelScale = 0.00175f;

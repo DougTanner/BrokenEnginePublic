@@ -98,6 +98,7 @@ void ClientReconciler::Kick()
 		work.uiGeneration = rSub.uiGeneration;
 		work.iConfirmedTick = rSub.iConfirmedTick;
 		work.iConfirmedOffset = rSub.iConfirmedOffset;
+		work.iHighWaterValidatedTick = rSub.iHighWaterValidatedTick;
 		work.iSnapshotHead = rSub.iSnapshotHead;
 		work.serverUpdates = std::move(rSub.serverUpdates);
 		work.pendingFullState = std::move(rSub.pendingFullState);
@@ -218,6 +219,13 @@ void ClientReconciler::Reconcile(ReconcileContext& rReconcileContext)
 	}
 
 	ReconcileMergeResults(rReconcileContext);
+
+	for (const CoordReconcileWork& rWork : rReconcileContext.coordWork)
+	{
+		LOG(kNetwork, kVerbose, "Reconcile post-replay Coord: ({},{}) ConfirmedTick: {} NewConfirmedTick: {} ReplayStackCount: {} LastValidatedIndex: {} CrcFastPath: {} FullReplay: {} DesyncTick: {}",
+			rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, rWork.iNewConfirmedTick, rWork.iReplayStackCount, rWork.iLastValidatedIndex, rWork.bCrcFastPath, rWork.bFullReplay, rWork.iDesyncTick);
+	}
+
 	if (rReconcileContext.iDesyncTick >= 0)
 	{
 		return;
@@ -251,6 +259,7 @@ void ClientReconciler::ApplyCoordWriteback(CoordReconcileWork& rWork, engine::Co
 
 	int64_t iMainSnapshotCount = rSub.iSnapshotCount;
 	std::swap(rSub.snapshots, rWork.snapshots);
+	rSub.iHighWaterValidatedTick = std::max(rSub.iHighWaterValidatedTick, rWork.iHighWaterValidatedTick);
 
 	if (rWork.iNewConfirmedTick >= 0)
 	{
@@ -314,6 +323,7 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 
 			rSub.iConfirmedOffset = rWork.iConfirmedOffset;
 			rSub.iSnapshotHead = rWork.iSnapshotHead;
+			rSub.iHighWaterValidatedTick = std::max(rSub.iHighWaterValidatedTick, rWork.iHighWaterValidatedTick);
 
 			RestoreUnconsumedUpdates(rWork, rSub);
 
@@ -385,6 +395,11 @@ ReconcileDesyncInfo ClientReconciler::ApplyResult()
 
 	if (rReconcileContext.bAnyFullReplay)
 	{
+		if (engine::gpAudioManager != nullptr)
+		{
+			engine::gpAudioManager->SkipNextStaticVoiceInvalidation();
+		}
+
 		// Restore counters from caught-up state
 		gpGame->SetTickCounter(rReconcileContext.iTickCounter);
 		gpGame->SetCurrentTime(rReconcileContext.newConfirmedClientState.fCurrentTime);

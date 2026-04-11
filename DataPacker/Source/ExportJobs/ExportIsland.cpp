@@ -150,7 +150,7 @@ void ExportIsland::Export()
 			uiBeachElevation = ruiElevation;
 		}
 	}
-	Log("Beach elevation: {} {} ({} times)", uiBeachElevation, common::UnormToFloat(uiBeachElevation), iMaxCount);
+	LOG(kDefault, kDebug, "Beach elevation: {} {} ({} times)", uiBeachElevation, common::UnormToFloat(uiBeachElevation), iMaxCount);
 
 	// Save crcs, beach elevation, and CPU heightmap
 	std::filesystem::path relativeFile = mRelativeDirectory;

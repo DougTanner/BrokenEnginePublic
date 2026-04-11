@@ -21,7 +21,7 @@ static void WriteIfChanged(const std::string& rContent, const std::filesystem::p
 		std::fstream stream(rPath, std::ios::out | std::ios::binary);
 		stream << rContent;
 		stream.close();
-		Log("Re-generated {}", logName);
+		LOG(kDefault, kDebug, "Re-generated {}", logName);
 	}
 }
 
@@ -64,7 +64,7 @@ bool RunExportJobs()
 		return true;
 	}
 
-	Log("\"{}\" is dirty, running export", T::kName);
+	LOG(kDefault, kDebug, "\"{}\" is dirty, running export", T::kName);
 	ScopedLogIndent scopedLogIndent;
 
 	// Sort by relative path to ensure chunks are in same order inside the file (for more efficient Steam patching)
@@ -133,7 +133,7 @@ bool RunExportJobs()
 		}
 		catch (const std::exception& rException)
 		{
-			Log(kError, "Exception thrown from future: \"{}\"", rException.what());
+			LOG(kDefault, kError, "Exception thrown from future: \"{}\"", rException.what());
 			std::string message = std::format("Asset: {}\n\n{}", rpExportJob->mInputPath.string(), rException.what());
 			Quit(message.c_str(), "Data Packer - Export Failed");
 			bFailed = true;
@@ -154,7 +154,7 @@ bool RunExportJobs()
 
 	if (bFailed)
 	{
-		Log(kError, "\n\n\nFAILED\n\n\n");
+		LOG(kDefault, kError, "\n\n\nFAILED\n\n\n");
 
 		std::filesystem::remove(temporaryManifestFile);
 		std::filesystem::remove(temporaryPackFile);
@@ -180,7 +180,7 @@ bool MainThread(int argc, char* argv[])
 {
 	common::ThreadLocal threadLocal(1024, std::nullopt, false);
 
-	Log("\nData Packer");
+	LOG(kDefault, kDebug, "\nData Packer");
 	LogIndent(1);
 
 	VERIFY_SUCCESS(XMVerifyCPUSupport());
@@ -276,7 +276,7 @@ bool MainThread(int argc, char* argv[])
 	// Copy license files from ThirdParty directories to Attribution directory in output
 	gpFileManager->CopyThirdPartyLicenses();
 
-	Log("");
+	LOG(kDefault, kDebug, "");
 
 	return bSuccess;
 }

@@ -38,11 +38,11 @@ void MainThread(HINSTANCE hinstance)
 {
 	common::ThreadLocal threadLocal(10 * 1024 * 1024);
 
-	Log("\nGame name: {}", game::kGameName);
-	Log("Game version: {}", game::kiGameVersion);
-	Log("Compiled with Windows 10 SDK version: {}.{}", VER_PRODUCTBUILD, VER_PRODUCTBUILD_QFE);
+	LOG(kDefault, kInfo, "\nGame name: {}", game::kGameName);
+	LOG(kDefault, kInfo, "Game version: {}", game::kiGameVersion);
+	LOG(kDefault, kInfo, "Compiled with Windows 10 SDK version: {}.{}", VER_PRODUCTBUILD, VER_PRODUCTBUILD_QFE);
 #if defined(BT_CLIENT)
-	Log("Compiled with Vulkan SDK version: {}\n", VK_HEADER_VERSION);
+	LOG(kDefault, kInfo, "Compiled with Vulkan SDK version: {}\n", VK_HEADER_VERSION);
 	static_assert(VK_HEADER_VERSION >= 304, "Update the Vulkan SDK");
 #endif
 
@@ -129,7 +129,7 @@ void MainThread(HINSTANCE hinstance)
 	}
 	common::ScopedLambda unregisterClass([&hinstance]()
 	{
-		Log("Unregister class");
+		LOG(kDefault, kDebug, "Unregister class");
 		UnregisterClass(game::kGameName.data(), hinstance);
 	});
 
@@ -174,7 +174,7 @@ void MainThread(HINSTANCE hinstance)
 
 		if (sHwnd != nullptr)
 		{
-			Log("Destroy window");
+			LOG(kDefault, kDebug, "Destroy window");
 			DestroyWindow(sHwnd);
 			sHwnd = nullptr;
 		}
@@ -246,7 +246,7 @@ void MainThread(HINSTANCE hinstance)
 #endif // BT_CLIENT
 	common::ScopedLambda hideWindow([]()
 	{
-		Log("Hide window");
+		LOG(kDefault, kDebug, "Hide window");
 		ShowWindow(sHwnd, SW_HIDE);
 	});
 	BringWindowToTop(sHwnd);
@@ -258,7 +258,7 @@ void MainThread(HINSTANCE hinstance)
 	EnableAllocationTracking(true);
 	pGame->mTimeStep.mRealTime.Reset();
 
-	Log("\nEnter main loop");
+	LOG(kDefault, kInfo, "\nEnter main loop");
 	LogIndent(1);
 	while (true)
 	{
@@ -296,7 +296,7 @@ void MainThread(HINSTANCE hinstance)
 		}
 		catch (DeviceLostException& rDeviceLostException)
 		{
-			Log("Caught rDeviceLostException: {}", rDeviceLostException.what());
+			LOG(kDefault, kDebug, "Caught rDeviceLostException: {}", rDeviceLostException.what());
 			pGraphics.reset();
 			pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
 		}
@@ -315,7 +315,7 @@ void MainThread(HINSTANCE hinstance)
 #endif // BT_CLIENT
 	}
 	LogIndent(-1);
-	Log("Exit main loop\n\n");
+	LOG(kDefault, kInfo, "Exit main loop\n\n");
 
 	EnableAllocationTracking(false);
 
@@ -346,10 +346,10 @@ void FindMonitor(bool bUseCurrentRect)
 	if (sbUseCurrentRect)
 	{
 		GetWindowRect(sHwnd, &sWindowRect);
-		Log("Window left top: {}, {}", sWindowRect.left, sWindowRect.top);
+		LOG(kDefault, kDebug, "Window left top: {}, {}", sWindowRect.left, sWindowRect.top);
 	}
 
-	Log("Monitors:");
+	LOG(kDefault, kDebug, "Monitors:");
 	siMonitorCount = 0;
 	EnumDisplayMonitors(nullptr, nullptr, [](HMONITOR hmonitor, [[maybe_unused]] HDC hdc, [[maybe_unused]] LPRECT lprect, [[maybe_unused]] LPARAM lparam) -> BOOL
 	{
@@ -361,7 +361,7 @@ void FindMonitor(bool bUseCurrentRect)
 
 		[[maybe_unused]] LONG iWidth = monitorinfo.rcMonitor.right - monitorinfo.rcMonitor.left;
 		[[maybe_unused]] LONG iHeight = monitorinfo.rcMonitor.bottom - monitorinfo.rcMonitor.top;
-		Log("  {}: {} x {}{}{}", siMonitorCount++, iWidth, iHeight, bPrimary ? " (Primary)" : "", bRectIsInMonitor ? " (Monitor)" : "");
+		LOG(kDefault, kDebug, "  {}: {} x {}{}{}", siMonitorCount++, iWidth, iHeight, bPrimary ? " (Primary)" : "", bRectIsInMonitor ? " (Monitor)" : "");
 
 		if (sHmonitor == nullptr || (sbUseCurrentRect && bRectIsInMonitor) || (!sbUseCurrentRect && bPrimary))
 		{
@@ -371,7 +371,7 @@ void FindMonitor(bool bUseCurrentRect)
 
 		return TRUE;
 	}, 0);
-	Log("");
+	LOG(kDefault, kDebug, "");
 }
 
 VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect)
@@ -406,7 +406,7 @@ VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect)
 
 	LONG iFramebufferWidth = rWindowRect.right - rWindowRect.left;
 	LONG iFramebufferHeight = rWindowRect.bottom - rWindowRect.top;
-	Log("Set {} window {} x {} at ({}, {})", (riWindowStyle & WS_OVERLAPPEDWINDOW) != 0 ? "WS_OVERLAPPEDWINDOW" : "WS_POPUP", iFramebufferWidth, iFramebufferHeight, rWindowRect.left, rWindowRect.top);
+	LOG(kDefault, kDebug, "Set {} window {} x {} at ({}, {})", (riWindowStyle & WS_OVERLAPPEDWINDOW) != 0 ? "WS_OVERLAPPEDWINDOW" : "WS_POPUP", iFramebufferWidth, iFramebufferHeight, rWindowRect.left, rWindowRect.top);
 
 	if ((riWindowStyle & WS_OVERLAPPEDWINDOW) != 0)
 	{
@@ -536,7 +536,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_SETFOCUS:
 		{
-			Log("WM_SETFOCUS");
+			LOG(kDefault, kDebug, "WM_SETFOCUS");
 
 			if (!sbHasFocus)
 			{
@@ -556,7 +556,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_KILLFOCUS:
 		{
-			Log("WM_KILLFOCUS");
+			LOG(kDefault, kDebug, "WM_KILLFOCUS");
 
 			if (sbHasFocus)
 			{
@@ -584,7 +584,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 #if defined(BT_CLIENT)
 			gWantedFramebufferExtent2D = {static_cast<uint32_t>(lParam) & 0xFFFF, static_cast<uint32_t>(lParam) >> 16};
-			Log("WM_SIZE: {} x {}", gWantedFramebufferExtent2D.width, gWantedFramebufferExtent2D.height);
+			LOG(kDefault, kDebug, "WM_SIZE: {} x {}", gWantedFramebufferExtent2D.width, gWantedFramebufferExtent2D.height);
 #endif
 			break;
 		}
@@ -592,14 +592,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case WM_CLOSE:
 		case WM_QUIT:
 		{
-			Log("WM_CLOSE or WM_QUIT");
+			LOG(kDefault, kDebug, "WM_CLOSE or WM_QUIT");
 			sbQuit = true;
 			return 0;
 		}
 
 		case WM_DESTROY:
 		{
-			Log("WM_DESTROY");
+			LOG(kDefault, kDebug, "WM_DESTROY");
 			sbQuit = true;
 			sHwnd = nullptr;
 			break;
@@ -670,7 +670,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANC
 	}
 
 #if defined(BT_CLIENT)
-	Log("Windows foundation uninitialize");
+	LOG(kDefault, kDebug, "Windows foundation uninitialize");
 	Windows::Foundation::Uninitialize();
 #endif
 

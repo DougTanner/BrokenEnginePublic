@@ -11,7 +11,7 @@ bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2Sour
 {
 	if (pAudioEngine == nullptr || !pAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
-		Log(kLogAudio, "StaticVoice::LoadXAudio2SourceVoice Audio device not present");
+		LOG(kAudio, kDebug, "StaticVoice::LoadXAudio2SourceVoice Audio device not present");
 		return false;
 	}
 
@@ -29,7 +29,7 @@ bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2Sour
 	pAudioEngine->AllocateVoice(&rLazyChunk.header.audioHeader.waveFormat, SoundEffectInstance_Default, bOneShot, &rpVoice);
 	if (rpVoice == nullptr)
 	{
-		Log(kLogAudio, "StaticVoice::LoadXAudio2SourceVoice AllocateVoice failed for CRC {:#018x}", audioCrc);
+		LOG(kAudio, kDebug, "StaticVoice::LoadXAudio2SourceVoice AllocateVoice failed for CRC {:#018x}", audioCrc);
 		return false;
 	}
 
@@ -52,7 +52,7 @@ bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2Sour
 	return true;
 }
 
-StaticVoice::StaticVoice(IXAudio2SourceVoice* pVoice, sound_t id, float fVolume, float fPitch, float fFadeOutTime, FXMVECTOR vecPosition, FXMVECTOR vecVelocity)
+StaticVoice::StaticVoice(IXAudio2SourceVoice* pVoice, sound_t id, float fVolume, float fPitch, float fFadeOutTime, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, common::crc_t audioCrc)
 : mpVoice(pVoice)
 , mId(id)
 , mfVolume(fVolume)
@@ -61,6 +61,7 @@ StaticVoice::StaticVoice(IXAudio2SourceVoice* pVoice, sound_t id, float fVolume,
 , mfFadeOutTime(fFadeOutTime)
 , mVecPosition(vecPosition)
 , mVecVelocity(vecVelocity)
+, mAudioCrc(audioCrc)
 {
 	ASSERT(mfFadeOutTime > 0.0f);
 
@@ -70,7 +71,7 @@ StaticVoice::StaticVoice(IXAudio2SourceVoice* pVoice, sound_t id, float fVolume,
 
 StaticVoice::~StaticVoice()
 {
-	DestroyXAudio2SourceVoice(mpVoice);
+	ASSERT(mpVoice == nullptr);
 }
 
 StaticVoice::StaticVoice(StaticVoice&& rToMove) noexcept
@@ -90,8 +91,9 @@ StaticVoice& StaticVoice::operator=(StaticVoice&& rToMove) noexcept
 		mfFadeOutTime = rToMove.mfFadeOutTime;
 		mVecPosition = rToMove.mVecPosition;
 		mVecVelocity = rToMove.mVecVelocity;
+		mAudioCrc = rToMove.mAudioCrc;
 
-		DestroyXAudio2SourceVoice(mpVoice);
+		ASSERT(mpVoice == nullptr);
 		mpVoice = rToMove.mpVoice;
 		rToMove.mpVoice = nullptr;
 	}

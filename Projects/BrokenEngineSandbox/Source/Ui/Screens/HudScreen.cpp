@@ -114,7 +114,7 @@ void HudScreen::RenderFleetPanel()
 	{
 		gpGame->FocusPrevFleet();
 		gpClientSession->UpdateDesiredCoords("FocusPrevFleet");
-		Log(kVerbose, "HUD FocusPrevFleet NewIndex: {} FleetCount: {}", gpGame->FocusedFleetIndex(), iFleetCount);
+		LOG(kDefault, kVerbose, "HUD FocusPrevFleet NewIndex: {} FleetCount: {}", gpGame->FocusedFleetIndex(), iFleetCount);
 	}
 	ImGui::EndDisabled();
 
@@ -134,7 +134,7 @@ void HudScreen::RenderFleetPanel()
 	{
 		gpGame->FocusNextFleet();
 		gpClientSession->UpdateDesiredCoords("FocusNextFleet");
-		Log(kVerbose, "HUD FocusNextFleet NewIndex: {} FleetCount: {}", gpGame->FocusedFleetIndex(), iFleetCount);
+		LOG(kDefault, kVerbose, "HUD FocusNextFleet NewIndex: {} FleetCount: {}", gpGame->FocusedFleetIndex(), iFleetCount);
 	}
 	ImGui::EndDisabled();
 
@@ -146,7 +146,7 @@ void HudScreen::RenderFleetPanel()
 		{
 			mCreateFleetToggle.SetPending();
 			gpClientSession->SendCreateFleetRequest();
-			Log(kVerbose, "HUD CreateFleetRequest FleetCount: {}", iFleetCount);
+			LOG(kDefault, kVerbose, "HUD CreateFleetRequest FleetCount: {}", iFleetCount);
 		}
 	}
 	ImGui::EndDisabled();
@@ -164,7 +164,7 @@ void HudScreen::RenderFleetPanel()
 		{
 			mDeleteFleetToggle.SetPending();
 			gpClientSession->SendDeleteFleetRequest(gpGame->FocusedFleetIndex());
-			Log(kVerbose, "HUD DeleteFleetRequest Fleet: {} FleetCount: {}", gpGame->FocusedFleetIndex(), iFleetCount);
+			LOG(kDefault, kVerbose, "HUD DeleteFleetRequest Fleet: {} FleetCount: {}", gpGame->FocusedFleetIndex(), iFleetCount);
 		}
 	}
 	ImGui::EndDisabled();
@@ -214,7 +214,7 @@ void HudScreen::RenderFleetPanel()
 					if (gpClientSession != nullptr)
 					{
 						gpClientSession->SendRespawnInFleetRequest(gpGame->FocusedFleetIndex(), i);
-						Log(kVerbose, "HUD RespawnInFleet Fleet: {} Member: {}", gpGame->FocusedFleetIndex(), i);
+						LOG(kDefault, kVerbose, "HUD RespawnInFleet Fleet: {} Member: {}", gpGame->FocusedFleetIndex(), i);
 					}
 				}
 				ImGui::PopStyleColor();
@@ -230,7 +230,7 @@ void HudScreen::RenderFleetPanel()
 			{
 				mSpawnIntoFleetToggle.SetPending();
 				gpClientSession->SendSpawnIntoFleetRequest(gpGame->FocusedFleetIndex());
-				Log(kVerbose, "HUD SpawnIntoFleet Fleet: {}", gpGame->FocusedFleetIndex());
+				LOG(kDefault, kVerbose, "HUD SpawnIntoFleet Fleet: {}", gpGame->FocusedFleetIndex());
 			}
 		}
 		ImGui::EndDisabled();
@@ -251,7 +251,7 @@ void HudScreen::RenderFleetPanel()
 			{
 				gpGame->mNavigationDelayControl.SetPending();
 				gpClientSession->SendFleetNavigationDelayRequest(gpGame->FocusedFleetIndex(), sNavDelayEditValue);
-				Log(kLogNetwork, "HUD FleetNavigationDelay Fleet: {} Delay: {}", gpGame->FocusedFleetIndex(), sNavDelayEditValue);
+				LOG(kNetwork, kDebug, "HUD FleetNavigationDelay Fleet: {} Delay: {}", gpGame->FocusedFleetIndex(), sNavDelayEditValue);
 			}
 		}
 		ImGui::EndDisabled();
@@ -293,7 +293,7 @@ void HudScreen::RenderFocusedPlayerPanel()
 				gpGame->mWeaponModeToggle.SetPending();
 				float fNavigationDelay = rPlayers.pfNavigationDelays[*playerIndex];
 				gpClientSession->SendUpdatePlayerRequest(gpGame->ClientPlayerId().iValue, !bUseMissiles, fNavigationDelay);
-				Log(kLogNetwork, "HUD WeaponModeToggle GlobalPlayerId: {} Missiles: {}", gpGame->ClientPlayerId().iValue, !bUseMissiles);
+				LOG(kNetwork, kDebug, "HUD WeaponModeToggle GlobalPlayerId: {} Missiles: {}", gpGame->ClientPlayerId().iValue, !bUseMissiles);
 			}
 		}
 		ImGui::EndDisabled();

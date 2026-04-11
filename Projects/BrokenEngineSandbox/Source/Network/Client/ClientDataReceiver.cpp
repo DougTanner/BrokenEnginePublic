@@ -110,7 +110,7 @@ void ClientDataReceiver::ApplyReceivedFullStates()
 			// Reject stale full states: tick must be after confirmed tick
 			if (iTick <= rSub.iConfirmedTick)
 			{
-				Log(kLogNetwork, kVerbose, "ApplyReceivedFullStates Rejected stale full state Coord: ({},{}) FullStateTick: {} ConfirmedTick: {}", coord.x, coord.y, iTick, rSub.iConfirmedTick);
+				LOG(kNetwork, kVerbose, "ApplyReceivedFullStates Rejected stale full state Coord: ({},{}) FullStateTick: {} ConfirmedTick: {}", coord.x, coord.y, iTick, rSub.iConfirmedTick);
 				continue;
 			}
 

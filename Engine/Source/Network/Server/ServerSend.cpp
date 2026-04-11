@@ -16,7 +16,7 @@ void Server::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick,
 		return;
 	}
 
-	Log(kLogNetwork, "Server::SendCoordFullState Client: {} Frame: {} Slot: {} Coord: ({},{})", iClientId, iTick, iSlot, coord.x, coord.y);
+	LOG(kNetwork, kDebug, "Server::SendCoordFullState Client: {} Frame: {} Slot: {} Coord: ({},{})", iClientId, iTick, iSlot, coord.x, coord.y);
 
 	// Serialize frame to a temporary stringstream
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -54,7 +54,7 @@ void Server::SendCoordStaticData(int64_t iClientId, int64_t iSlot, GridCoord coo
 		return;
 	}
 
-	Log(kLogNetwork, "Server::SendCoordStaticData Client: {} Slot: {} Coord: ({},{})", iClientId, iSlot, coord.x, coord.y);
+	LOG(kNetwork, kDebug, "Server::SendCoordStaticData Client: {} Slot: {} Coord: ({},{})", iClientId, iSlot, coord.x, coord.y);
 
 	// Heap: stringstream allocates for static data serialization
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -133,7 +133,7 @@ void Server::SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot)
 
 void Server::SendTimespeedUpdate(ENetPeer* pPeer, int64_t iMultiply, int64_t iDivide)
 {
-	Log(kLogNetwork, "Server::SendTimespeedUpdate Multiply: {} Divide: {}", iMultiply, iDivide);
+	LOG(kNetwork, kDebug, "Server::SendTimespeedUpdate Multiply: {} Divide: {}", iMultiply, iDivide);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
@@ -233,7 +233,7 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 		int64_t iAckGap = iTick - rAckState.iAckFloor;
 		if (iAckGap > 64)
 		{
-			Log(kLogNetwork, kVerbose, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) AckFloor: {} CurrentTick: {} Gap: {}", rClient.iClientId, iSlot, coord.x, coord.y, rAckState.iAckFloor, iTick, iAckGap);
+			LOG(kNetwork, kVerbose, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) AckFloor: {} CurrentTick: {} Gap: {}", rClient.iClientId, iSlot, coord.x, coord.y, rAckState.iAckFloor, iTick, iAckGap);
 		}
 
 		if (rAckState.uiReceivedBitfieldLow == 0 && rAckState.uiReceivedBitfieldHigh == 0)
@@ -262,7 +262,7 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 			const PerCoordBufferedFrame* pBuffered = FindBufferedFrame(coord, iMissingFrame);
 			if (pBuffered == nullptr)
 			{
-				Log(kLogNetwork, kVerbose, "Server::SendResends Evicted frame Client: {} Slot: {} Coord: ({},{}) MissingTick: {} LatestBuffered: {}", rClient.iClientId, iSlot, coord.x, coord.y, iMissingFrame, miLatestBufferedTick);
+				LOG(kNetwork, kVerbose, "Server::SendResends Evicted frame Client: {} Slot: {} Coord: ({},{}) MissingTick: {} LatestBuffered: {}", rClient.iClientId, iSlot, coord.x, coord.y, iMissingFrame, miLatestBufferedTick);
 				continue;
 			}
 
@@ -280,14 +280,14 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 
 		if (iSlotResendCount > 0)
 		{
-			Log(kLogNetwork, kVerbose, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {}", rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount);
+			LOG(kNetwork, kVerbose, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {}", rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount);
 		}
 	}
 }
 
 void Server::BroadcastLoadNotification()
 {
-	Log("Server::BroadcastLoadNotification");
+	LOG(kDefault, kDebug, "Server::BroadcastLoadNotification");
 
 	for (ClientConnection& rClient : mClients)
 	{

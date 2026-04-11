@@ -22,7 +22,7 @@ Client::Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots)
 	mpHost = enet_host_create(nullptr, 1, NetworkManager::kuiChannelCount, 0, 0);
 	if (mpHost == nullptr)
 	{
-		Log(kLogNetwork, kWarning, "Client::Client enet_host_create failed");
+		LOG(kNetwork, kWarning, "Client::Client enet_host_create failed");
 		return;
 	}
 	// 1MB send/receive buffers to handle bursty packet traffic
@@ -95,7 +95,7 @@ void Client::Poll()
 		{
 			case ENET_EVENT_TYPE_CONNECT:
 			{
-				Log(kLogNetwork, "Client::Poll ENET_EVENT_TYPE_CONNECT");
+				LOG(kNetwork, kInfo, "Client::Poll ENET_EVENT_TYPE_CONNECT");
 				mbConnected = true;
 				// Disable ENet peer throttle to prevent unreliable packet drops during reconciliation stalls
 				enet_peer_throttle_configure(mpServerPeer, UINT32_MAX, 0, 0);
@@ -111,7 +111,7 @@ void Client::Poll()
 				mbConnected = false;
 				mbDisconnectedEvent = true;
 				mpServerPeer = nullptr;
-				Log(kLogNetwork, "ENET_EVENT_TYPE_DISCONNECT");
+				LOG(kNetwork, kInfo, "ENET_EVENT_TYPE_DISCONNECT");
 				break;
 			case ENET_EVENT_TYPE_RECEIVE:
 				if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
@@ -220,7 +220,7 @@ void Client::Receive(const uint8_t* pData, size_t iSize)
 			}
 			else
 			{
-				Log(kLogNetwork, kWarning, "Client::Receive unknown packet type {}", static_cast<uint8_t>(eType));
+				LOG(kNetwork, kWarning, "Client::Receive unknown packet type {}", static_cast<uint8_t>(eType));
 			}
 			break;
 	}
@@ -252,7 +252,7 @@ void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 	int64_t iBitIndex = iTick - rAck.iAckFloor - 1;
 	if (iBitIndex >= kiNetworkBufferSize)
 	{
-		Log(kLogNetwork, kWarning, "Client::TrackReceivedTick Too many missing frames, disconnecting Slot: {} Gap: {}", iSlot, iBitIndex + 1);
+		LOG(kNetwork, kWarning, "Client::TrackReceivedTick Too many missing frames, disconnecting Slot: {} Gap: {}", iSlot, iBitIndex + 1);
 		mbDisconnectedEvent = true;
 		return;
 	}

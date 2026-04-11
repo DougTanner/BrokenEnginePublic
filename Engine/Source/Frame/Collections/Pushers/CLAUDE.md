@@ -15,5 +15,9 @@ The implementation is split across two `.cpp` files:
 - `SetupZones()` is called from `FramePostRenderBase::Update()` and rebuilds the spatial grid each frame centered on the player position; `ApplyPush()` queries a single zone cell with flag-based include/exclude filtering
 - Render methods only track a profile counter (no GPU draw calls)
 
+## ApplyClampedPush Utility
+
+`engine::ApplyClampedPush(vecVelocity, vecPushDirection, fPushStrength, fMaxPushVelocity)` is an inline utility in `Pushers.h` implementing terrain-push-style clamped impulse: it caps the velocity component in the push direction to `fMaxPushVelocity`, preventing stacking of repeated pushes beyond the cap. Each caller passes its own cap (e.g., `kfPlayerMaxPusherPushVelocity`, `kfSpaceshipMaxPusherPushVelocity`), derived from half the entity's max speed.
+
 ## See Also
 - Parent collections: [../CLAUDE.md](../CLAUDE.md)

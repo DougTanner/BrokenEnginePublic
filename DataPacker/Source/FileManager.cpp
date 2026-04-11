@@ -36,12 +36,12 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	mVulkanSdkBinariesDirectory = pcDirectory;
 	VERIFY_SUCCESS(std::filesystem::exists(mVulkanSdkBinariesDirectory));
 	mVulkanSdkBinariesDirectory.append("Bin");
-	Log("Vulkan binaries directory: \"{}\"", gpFileManager->mVulkanSdkBinariesDirectory.string());
+	LOG(kDefault, kDebug, "Vulkan binaries directory: \"{}\"", gpFileManager->mVulkanSdkBinariesDirectory.string());
 
 	// Input data directories
-	Log("Engine data directory: \"{}\"", mpInputDirectories[0].string());
-	Log("Game data directory: \"{}\"", mpInputDirectories[1].string());
-	Log("Project name: \"{}\"", mProjectName);
+	LOG(kDefault, kDebug, "Engine data directory: \"{}\"", mpInputDirectories[0].string());
+	LOG(kDefault, kDebug, "Game data directory: \"{}\"", mpInputDirectories[1].string());
+	LOG(kDefault, kDebug, "Project name: \"{}\"", mProjectName);
 
 	// Temporaries directory
 	DWORD uiTempResult = GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
@@ -54,7 +54,7 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	mTempDirectory.append("DataPacker");
 	mTempDirectory /= mProjectName;
 	std::filesystem::create_directories(mTempDirectory);
-	Log("Temp directory: \"{}\"", gpFileManager->mTempDirectory.string());
+	LOG(kDefault, kDebug, "Temp directory: \"{}\"", gpFileManager->mTempDirectory.string());
 
 	// Output file and directory
 	if (!std::filesystem::exists(mOutputDirectory))
@@ -62,7 +62,7 @@ FileManager::FileManager(std::span<char*> argvSpan)
 		MessageBox(nullptr, mOutputDirectory.string().c_str(), "Output directory will be created", MB_OK | MB_SYSTEMMODAL);
 		std::filesystem::create_directories(mOutputDirectory);
 	}
-	Log("Output directory: \"{}\"", mOutputDirectory.string());
+	LOG(kDefault, kDebug, "Output directory: \"{}\"", mOutputDirectory.string());
 }
 
 FileManager::~FileManager()
@@ -88,13 +88,13 @@ void FileManager::CopyThirdPartyLicenses()
 
 			if (!bAnyCopied)
 			{
-				Log("\nCopying ThirdParty attribution files");
+				LOG(kDefault, kDebug, "\nCopying ThirdParty attribution files");
 				LogIndent(1);
 				bAnyCopied = true;
 			}
 
 			std::filesystem::copy_file(rSourceFile, destinationFile, std::filesystem::copy_options::overwrite_existing);
-			Log("Copied: {}/{}", rLibraryName, rSourceFile.filename().string());
+			LOG(kDefault, kDebug, "Copied: {}/{}", rLibraryName, rSourceFile.filename().string());
 		}
 	};
 

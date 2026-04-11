@@ -158,6 +158,9 @@
     <ClInclude Include="..\..\..\Common\Log.h">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\Common\LogTypes.h">
+      <Filter>Common</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\ExportJobs\ExportIsland.h">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClInclude>

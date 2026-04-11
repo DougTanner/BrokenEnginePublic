@@ -13,7 +13,7 @@ struct ScopedLogDifferenceContext
 };
 
 // Non-indexed version for scalar frame fields
-template<FixedString NAME, typename T>
+template <FixedString NAME, typename T>
 inline bool LogDifference(const T& rOne, const T& rTwo)
 {
 	bool bEqual = false;
@@ -28,14 +28,14 @@ inline bool LogDifference(const T& rOne, const T& rTwo)
 
 	if (!bEqual) [[unlikely]]
 	{
-		Log("LogDifferences {} {} Client: {} Server: {}", gpLogDifferenceContext, static_cast<const char*>(NAME), rOne, rTwo);
+		LOG(kDefault, kDebug, "LogDifferences {} {} Client: {} Server: {}", gpLogDifferenceContext, static_cast<const char*>(NAME), rOne, rTwo);
 	}
 
 	return bEqual;
 }
 
 // Indexed version for collection element fields (pVecPositions[i], etc.)
-template<FixedString NAME, typename T>
+template <FixedString NAME, typename T>
 inline bool LogDifference(int64_t iIndex, const T& rOne, const T& rTwo)
 {
 	bool bEqual = false;
@@ -50,7 +50,7 @@ inline bool LogDifference(int64_t iIndex, const T& rOne, const T& rTwo)
 
 	if (!bEqual) [[unlikely]]
 	{
-		Log(kLogNetwork, "LogDifferences {} {}[{}] Client: {} Server: {}", gpLogDifferenceContext, static_cast<const char*>(NAME), iIndex, rOne, rTwo);
+		LOG(kNetwork, kDebug, "LogDifferences {} {}[{}] Client: {} Server: {}", gpLogDifferenceContext, static_cast<const char*>(NAME), iIndex, rOne, rTwo);
 	}
 
 	return bEqual;

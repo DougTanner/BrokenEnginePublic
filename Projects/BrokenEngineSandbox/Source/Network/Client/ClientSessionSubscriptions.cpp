@@ -60,7 +60,7 @@ void ClientSession::UpdateDesiredCoords(std::string_view reason)
 		// Heap: mDesiredCoords.assign and mUnwantedTimestamps may allocate on subscription changes
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-		Log(kLogNetwork, kVerbose, "Desired subscriptions changed Reason: {} Count: {} -> {}", reason, mDesiredCoords.size(), iDesiredCount);
+		LOG(kNetwork, kVerbose, "Desired subscriptions changed Reason: {} Count: {} -> {}", reason, mDesiredCoords.size(), iDesiredCount);
 
 		// Track when coords become unwanted for sticky subscriptions
 		std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
@@ -96,7 +96,7 @@ void ClientSession::UpdateSubscriptions()
 	{
 		if (now - rPair.second >= kStickySubscriptionDuration)
 		{
-			Log(kLogNetwork, kVerbose, "Sticky subscription expired ({},{})", rPair.first.x, rPair.first.y);
+			LOG(kNetwork, kVerbose, "Sticky subscription expired ({},{})", rPair.first.x, rPair.first.y);
 			return true;
 		}
 		effectiveDesired.push_back(rPair.first);

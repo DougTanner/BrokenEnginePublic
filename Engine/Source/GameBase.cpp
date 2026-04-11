@@ -101,7 +101,7 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 	{
 		mTimeStep.mbTimeScaleChanged = false;
 		gpServer->BroadcastTimespeedUpdate(mTimeStep.miTimeMultiply, mTimeStep.miTimeDivide);
-		Log(kLogNetwork, "Timespeed changed Multiply: {} Divide: {}", mTimeStep.miTimeMultiply, mTimeStep.miTimeDivide);
+		LOG(kNetwork, kDebug, "Timespeed changed Multiply: {} Divide: {}", mTimeStep.miTimeMultiply, mTimeStep.miTimeDivide);
 	}
 	if (mGameFlags & GameFlags::kPaused) [[unlikely]]
 	{
@@ -110,7 +110,7 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 	}
 	else if (iFullTicks != 1) [[unlikely]]
 	{
-		Log(kWarning, "iFullTicks: {} != 1", iFullTicks);
+		LOG(kDefault, kWarning, "iFullTicks: {} != 1", iFullTicks);
 	}
 	PrepareActiveSet();
 
@@ -166,7 +166,7 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 			{
 				if (pCurrent == nullptr)
 				{
-					Log(kLogDefault, kWarning, "BuildDispatch NullExtrapolationCurrent Coord: ({},{}) SnapshotCount: {} ConfirmedTick: {}",
+					LOG(kDefault, kWarning, "BuildDispatch NullExtrapolationCurrent Coord: ({},{}) SnapshotCount: {} ConfirmedTick: {}",
 						rCoord.x, rCoord.y, mCoordFrames.at(rCoord).iSnapshotCount, mCoordFrames.at(rCoord).iConfirmedTick);
 					continue;
 				}
@@ -183,7 +183,7 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 		auto& rFrames = mCoordFrames.at(rCoord);
 		if (rFrames.pCurrent == nullptr || rFrames.pNext == nullptr)
 		{
-			Log(kLogDefault, kWarning, "BuildDispatch NullFrame Coord: ({},{}) pCurrent: {} pNext: {}",
+			LOG(kDefault, kWarning, "BuildDispatch NullFrame Coord: ({},{}) pCurrent: {} pNext: {}",
 				rCoord.x, rCoord.y, rFrames.pCurrent != nullptr, rFrames.pNext != nullptr);
 			continue;
 		}
@@ -247,7 +247,7 @@ void GameBase::FinalizeFrameTick([[maybe_unused]] const std::vector<GridCoord>& 
 		auto it = mCoordFrames.find(rCoord);
 		if (it == mCoordFrames.end() || it->second.pCurrent == nullptr || it->second.pNext == nullptr)
 		{
-			Log(kLogDefault, kWarning, "PostSwap NullFrame Coord: ({},{}) Exists: {} pCurrent: {} pNext: {}",
+			LOG(kDefault, kWarning, "PostSwap NullFrame Coord: ({},{}) Exists: {} pCurrent: {} pNext: {}",
 				rCoord.x, rCoord.y, it != mCoordFrames.end(),
 				it != mCoordFrames.end() && it->second.pCurrent != nullptr,
 				it != mCoordFrames.end() && it->second.pNext != nullptr);
@@ -316,6 +316,15 @@ void GameBase::Render()
 			auto interpolateFrame = [&](const GridCoord& rCoord)
 			{
 				const game::Frame& rFrame = RenderFrame(rCoord);
+				CoordFrames& rSub = mCoordFrames.at(rCoord);
+				if (rFrame.interpolate.iTick < rSub.iLastRenderedTick ||
+					(rFrame.interpolate.iTick == rSub.iLastRenderedTick && rFrame.interpolate.fCurrentTime < rSub.fLastRenderedTime))
+				{
+					LOG(kNetwork, kError, "Render regressed to older frame Coord: ({},{}) Tick: {} LastTick: {} Time: {} LastTime: {}", rCoord.x, rCoord.y, rFrame.interpolate.iTick, rSub.iLastRenderedTick, rFrame.interpolate.fCurrentTime, rSub.fLastRenderedTime);
+					DEBUG_BREAK();
+				}
+				rSub.iLastRenderedTick = rFrame.interpolate.iTick;
+				rSub.fLastRenderedTime = rFrame.interpolate.fCurrentTime;
 				game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates.try_emplace(rCoord).first->second, rFrame.interpolate);
 				game::FrameInterpolate::Update(gpGraphics->mRenderInterpolates.at(rCoord), rFrame, fDeltaTime);
 			};

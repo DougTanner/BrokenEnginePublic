@@ -46,7 +46,7 @@ void ServerBroadcaster::BuildFrameInputs()
 
 		StatusChange spawnChange {.eType = StatusChangeType::kSpawnPlayer, .data = SpawnPlayerData{.iGlobalId = iGlobalId, .bIsFlagship = bIsFlagship, .fleetWantedCoord = spawnFleetWantedCoord, .uiPendingFleetWantedCoordTicks = spawnPendingFleetTicks}};
 		gpGame->mFrameInputs.try_emplace(rInfo.spawnCoord).first->second.statusChanges.push_back(spawnChange);
-		Log(kLogNetwork, kVerbose, "BuildFrameInputs kSpawnPlayer Client: {} GlobalId: {} Coord: ({},{}) Flagship: {}", rInfo.iClientId, iGlobalId, rInfo.spawnCoord.x, rInfo.spawnCoord.y, bIsFlagship);
+		LOG(kNetwork, kVerbose, "BuildFrameInputs kSpawnPlayer Client: {} GlobalId: {} Coord: ({},{}) Flagship: {}", rInfo.iClientId, iGlobalId, rInfo.spawnCoord.x, rInfo.spawnCoord.y, bIsFlagship);
 	}
 
 	// Add destroy StatusChanges for disconnected players
@@ -138,7 +138,7 @@ void ServerBroadcaster::BroadcastStatusChanges(int64_t iTick)
 
 		if (!updateData.statusChanges.empty())
 		{
-			Log(kLogNetwork, kVerbose, "BroadcastStatusChanges Coord: ({},{}) Tick: {} StatusChanges: {}", rCoord.x, rCoord.y, iTick, updateData.statusChanges.size());
+			LOG(kNetwork, kVerbose, "BroadcastStatusChanges Coord: ({},{}) Tick: {} StatusChanges: {}", rCoord.x, rCoord.y, iTick, updateData.statusChanges.size());
 		}
 	}
 	engine::gpServer->BufferFrame(iTick, allGridUpdates);
@@ -226,7 +226,7 @@ void ServerBroadcaster::ProcessUpdatePlayerRequests()
 		StatusChange updateChange {.eType = StatusChangeType::kUpdatePlayer, .data = UpdatePlayerData{.iPlayerUuid = iPlayerUuid, .bUseMissiles = rRequest.bUseMissiles, .fNavigationDelay = rRequest.fNavigationDelay, .uiPendingWeaponModeTicks = uiPendingWeaponModeTicks}};
 		frameInputIt->second.statusChanges.push_back(updateChange);
 
-		Log(kLogNetwork, kVerbose, "ServerBroadcaster::ProcessUpdatePlayerRequests Client: {} GlobalPlayer: {} PlayerUuid: {} Coord: ({},{}) Missiles: {} NavDelay: {}", rRequest.iClientId, rRequest.globalId.iValue, iPlayerUuid, updateCoord.x, updateCoord.y, rRequest.bUseMissiles, rRequest.fNavigationDelay);
+		LOG(kNetwork, kVerbose, "ServerBroadcaster::ProcessUpdatePlayerRequests Client: {} GlobalPlayer: {} PlayerUuid: {} Coord: ({},{}) Missiles: {} NavDelay: {}", rRequest.iClientId, rRequest.globalId.iValue, iPlayerUuid, updateCoord.x, updateCoord.y, rRequest.bUseMissiles, rRequest.fNavigationDelay);
 	}
 }
 

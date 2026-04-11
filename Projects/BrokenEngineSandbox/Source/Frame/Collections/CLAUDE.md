@@ -22,7 +22,7 @@ SOA collections managing dynamic game entities (projectiles, enemies, players) u
 
 **LogDifferences**: All collections provide `LogDifferences()` for desync diagnosis, logging each mismatched shared (non-client-only) field via `common::LogDifference`.
 
-**File Splitting**: When a collection's `.cpp` exceeds size guidelines, it splits into `{Name}.cpp` (lifecycle), `{Name}Update.cpp` (simulation), and `{Name}Render.cpp` (rendering, `#ifdef BT_CLIENT`), sharing a single `.h`. See Players and Spaceships for examples.
+**File Splitting**: When a collection's `.cpp` exceeds size guidelines, split by **subsystem/domain** across multiple `.cpp` files sharing a single `.h`, with file names describing responsibility rather than lifecycle phase. `{Name}.cpp` is the default bucket for registration, lifecycle, and phase orchestrators, and `{Name}Render.cpp` (`#ifdef BT_CLIENT`) holds rendering. See Players (split into `Players.cpp`/`PlayersNavigation.cpp`/`PlayersCombat.cpp`/`PlayersRender.cpp`) and Spaceships for examples.
 
 **Arrival Grace Period**: Players and Spaceships arriving via StatusChange (transfer or spawn) get a 1-second `pfArrivalGracePeriods` timer. While > 0, other entities skip them in targeting and behavior scans — Spaceships won't chase/flee/fire at grace-period Players, Players won't target grace-period Spaceships, and missiles won't home on them (kDestination deferred until expiry). Collision and damage still apply normally — invulnerability would hide real physics interactions, and collisions are unlikely during the first second at the frame edge. The timer is carried in TransferData; SpawnTransfer resets it to the full duration since each transfer is a new StatusChange clients must sync.
 

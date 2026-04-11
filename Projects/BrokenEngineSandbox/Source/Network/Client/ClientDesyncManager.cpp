@@ -59,12 +59,12 @@ bool ClientDesyncManager::PollDesyncTimeout()
 	mDesyncDebugState = {};
 	if constexpr (kbDesyncRecovery)
 	{
-		Log(kLogNetwork, kWarning, "ClientDesyncManager::PollDesyncTimeout Desync debug mode timed out, recovering without debug frame");
+		LOG(kNetwork, kWarning, "ClientDesyncManager::PollDesyncTimeout Desync debug mode timed out, recovering without debug frame");
 		RecoverFromDesync();
 	}
 	else
 	{
-		Log(kLogNetwork, kWarning, "ClientDesyncManager::PollDesyncTimeout Desync debug mode timed out, disconnecting");
+		LOG(kNetwork, kWarning, "ClientDesyncManager::PollDesyncTimeout Desync debug mode timed out, disconnecting");
 		ASSERT(false);
 		snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server (debug frame timeout)");
 		gpClientSession->mpClientNetwork->Disconnect();
@@ -87,11 +87,11 @@ void ClientDesyncManager::RecoverFromDesync()
 	}
 	++miDesyncCount;
 
-	Log(kLogNetwork, kWarning, "ClientDesyncManager::RecoverFromDesync DesyncCount: {} / {}", miDesyncCount, kiMaxDesyncsBeforeDisconnect);
+	LOG(kNetwork, kWarning, "ClientDesyncManager::RecoverFromDesync DesyncCount: {} / {}", miDesyncCount, kiMaxDesyncsBeforeDisconnect);
 
 	if (miDesyncCount >= kiMaxDesyncsBeforeDisconnect)
 	{
-		Log(kLogNetwork, kWarning, "ClientDesyncManager::RecoverFromDesync Escalating to disconnect");
+		LOG(kNetwork, kWarning, "ClientDesyncManager::RecoverFromDesync Escalating to disconnect");
 		snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
 		gpClientSession->mpClientNetwork->Disconnect();
 		return;

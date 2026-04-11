@@ -33,7 +33,7 @@ enum class UiState
 {
 	kNone,
 
-	kGraphics,
+	kGraphicsSettings,
 	kModal,
 	kPause,
 	kSound,

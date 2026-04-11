@@ -34,7 +34,7 @@ constexpr float kfDeltaRotationTowardsStored = 3.0f;
 
 #if defined(BT_CLIENT)
 // Forward declaration of SyncMissile (defined in Missiles.cpp, also used by ClientInit)
-void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::smoke_trails_t uiSmokeTrail,
+void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::smoke_trails_t uiSmokeTrail,
 	engine::sound_t uiSound,
 	FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength);
 #endif
@@ -76,18 +76,9 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 
 		// Sync owned objects (IDs copied in AllocateAndCopy)
 #if defined(BT_CLIENT)
-		SyncMissile(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rCurrent.puiPushers[i], rCurrent.puiSmokeTrails[i],
+		SyncMissile(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rCurrent.puiSmokeTrails[i],
 			rPreviousPostRender.puiSounds[i],
 			vecPosition, vecDirection, rPreviousPostRender.pVecVelocities[i], vecPreviousPosition, flags, rPreviousPostRender.pfPitches[i], rPreviousPostRender.pfDeltaRotations[i], rPreviousPostRender.pfExhaustLengths[i]);
-#else
-		engine::PushersInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiPushers[i],
-		{
-			.vecPosition = vecPosition,
-			.fRadius = kfMissilePusherRadius,
-			.fIntensity = kfMissilePusherIntensity,
-			.fPower = kfMissilePusherPower,
-			.flags = {engine::PusherFlags::kTypeDefault},
-		});
 #endif // BT_CLIENT
 	}
 }

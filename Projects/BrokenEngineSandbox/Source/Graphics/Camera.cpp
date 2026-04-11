@@ -93,7 +93,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 
 			if (focusedId != mLastTrackedPlayerId)
 			{
-				Log(kLogGraphics, kVerbose, "Camera NowTracking GlobalPlayerId: {} Coord: ({},{}) Index: {}", focusedId.iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, *oIdx);
+				LOG(kGraphics, kVerbose, "Camera NowTracking GlobalPlayerId: {} Coord: ({},{}) Index: {}", focusedId.iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, *oIdx);
 				mLastTrackedPlayerId = focusedId;
 			}
 
@@ -118,16 +118,16 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 				if (bHasCoord)
 				{
 					const PlayersPostRender& rPlayers = *gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers;
-					Log(kLogGraphics, kVerbose, "Camera PlayerNotFound FocusedGlobalId: {} Coord: ({},{}) PostRenderCount: {} InterpolateCount: {}",
+					LOG(kGraphics, kVerbose, "Camera PlayerNotFound FocusedGlobalId: {} Coord: ({},{}) PostRenderCount: {} InterpolateCount: {}",
 						focusedId.iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, rPlayers.iCount, rFrameInterpolate.pPlayers->iCount);
 					for (int64_t i = 0; i < rPlayers.iCount; ++i)
 					{
-						Log(kLogGraphics, kVerbose, "  PostRender[{}] GlobalPlayerId: {}", i, rPlayers.pGlobalPlayerIds[i].iValue);
+						LOG(kGraphics, kVerbose, "  PostRender[{}] GlobalPlayerId: {}", i, rPlayers.pGlobalPlayerIds[i].iValue);
 					}
 				}
 				else
 				{
-					Log(kLogGraphics, kVerbose, "Camera CoordNotFound FocusedGlobalId: {} Coord: ({},{})", focusedId.iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
+					LOG(kGraphics, kVerbose, "Camera CoordNotFound FocusedGlobalId: {} Coord: ({},{})", focusedId.iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
 				}
 			}
 
@@ -206,7 +206,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 float Camera::SunAngle() const
 {
 	// Apply time of day slider override when in Graphics or Tweaks UI
-	bool bUseOverride = (game::gpGame->meUiState == game::UiState::kGraphics);
+	bool bUseOverride = (game::gpGame->meUiState == game::UiState::kGraphicsSettings);
 	if constexpr (kbDebugInput)
 	{
 		bUseOverride = bUseOverride || game::gpGame->mbShowImGui;

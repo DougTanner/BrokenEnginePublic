@@ -102,7 +102,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <ForcedIncludeFiles>Pch.h</ForcedIncludeFiles>
-      <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/Zc:__cplusplus /Zc:preprocessor %(AdditionalOptions)</AdditionalOptions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>Async</ExceptionHandling>
@@ -167,7 +167,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <ForcedIncludeFiles>Pch.h</ForcedIncludeFiles>
-      <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/Zc:__cplusplus /Zc:preprocessor %(AdditionalOptions)</AdditionalOptions>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
@@ -241,7 +241,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <ForcedIncludeFiles>Pch.h</ForcedIncludeFiles>
-      <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/Zc:__cplusplus /Zc:preprocessor %(AdditionalOptions)</AdditionalOptions>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
@@ -307,6 +307,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\..\..\Common\ExternalHeaders.h" />
     <ClInclude Include="..\..\..\..\Common\Flags.h" />
     <ClInclude Include="..\..\..\..\Common\Log.h" />
+    <ClInclude Include="..\..\..\..\Common\LogTypes.h" />
     <ClInclude Include="..\..\..\..\Common\Multithreading.h" />
     <ClInclude Include="..\..\..\..\Common\PersistentWorker.h" />
     <ClInclude Include="..\..\..\..\Common\LogDifference.h" />
@@ -447,15 +448,16 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\Source\Frame\Collections\Missiles\Missiles.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Missiles\MissilesUpdate.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Spaceships\Spaceships.cpp" />
-    <ClCompile Include="..\..\Source\Frame\Collections\Spaceships\SpaceshipsUpdate.cpp" />
+    <ClCompile Include="..\..\Source\Frame\Collections\Spaceships\SpaceshipsCombat.cpp" />
+    <ClCompile Include="..\..\Source\Frame\Collections\Spaceships\SpaceshipsNavigation.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Targets\Targets.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Targets\TargetsUpdate.cpp" />
     <ClCompile Include="..\..\Source\Frame\Frame.cpp" />
     <ClCompile Include="..\..\Source\Frame\FrameTick.cpp" />
     <ClCompile Include="..\..\Source\Frame\TerrainUtils.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Players\Players.cpp" />
-    <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersCollision.cpp" />
-    <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersUpdate.cpp" />
+    <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersNavigation.cpp" />
+    <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersCombat.cpp" />
     <ClCompile Include="..\..\Source\Game.cpp" />
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerSession.cpp" />

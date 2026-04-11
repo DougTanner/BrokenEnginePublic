@@ -35,13 +35,13 @@ DeviceManager::DeviceManager()
 		{
 			deviceExtensions.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
 			mbMemoryBudgetAvailable = true;
-			Log(kLogGraphics, "VK_EXT_memory_budget extension available");
+			LOG(kGraphics, kInfo, "VK_EXT_memory_budget extension available");
 		}
 		else if (strcmp(rExtension.extensionName, VK_KHR_MAINTENANCE_9_EXTENSION_NAME) == 0)
 		{
 			deviceExtensions.push_back(VK_KHR_MAINTENANCE_9_EXTENSION_NAME);
 			bMaintenance9Available = true;
-			Log(kLogGraphics, "VK_KHR_maintenance9 extension available");
+			LOG(kGraphics, kInfo, "VK_KHR_maintenance9 extension available");
 		}
 	}
 
@@ -204,11 +204,11 @@ DeviceManager::DeviceManager()
 
 	if (gpInstanceManager->miTransferQueueFamilyIndex == gpInstanceManager->miGraphicsQueueFamilyIndex)
 	{
-		Log(kLogGraphics, "Transfer queue: shared with graphics queue (family {}), background GPU uploads disabled", gpInstanceManager->miGraphicsQueueFamilyIndex);
+		LOG(kGraphics, kInfo, "Transfer queue: shared with graphics queue (family {}), background GPU uploads disabled", gpInstanceManager->miGraphicsQueueFamilyIndex);
 	}
 	else
 	{
-		Log(kLogGraphics, "Transfer queue: dedicated (family {}), background GPU uploads enabled", gpInstanceManager->miTransferQueueFamilyIndex);
+		LOG(kGraphics, kInfo, "Transfer queue: dedicated (family {}), background GPU uploads enabled", gpInstanceManager->miTransferQueueFamilyIndex);
 	}
 
 	// Query whether QFOT is optional for transfer -> graphics
@@ -228,7 +228,7 @@ DeviceManager::DeviceManager()
 		uint32_t uiGraphicsFamily = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex);
 		uint32_t uiOptimalMask = queueFamilyOwnershipTransferProperties[uiTransferFamily].optimalImageTransferToQueueFamilies;
 		mbTransferQueueFamilyOwnershipTransferOptional = (uiOptimalMask & (1u << uiGraphicsFamily)) != 0;
-		Log(kLogGraphics, "Transfer->Graphics QFOT optional: {} (transfer family {} optimal mask {:#010b}, graphics family {})", mbTransferQueueFamilyOwnershipTransferOptional, uiTransferFamily, uiOptimalMask, uiGraphicsFamily);
+		LOG(kGraphics, kDebug, "Transfer->Graphics QFOT optional: {} (transfer family {} optimal mask {:#010b}, graphics family {})", mbTransferQueueFamilyOwnershipTransferOptional, uiTransferFamily, uiOptimalMask, uiGraphicsFamily);
 	}
 
 	// Descriptor pool
@@ -295,7 +295,7 @@ DeviceManager::DeviceManager()
 		// Driver validates cache data and silently discards if incompatible
 		vkPipelineCacheCreateInfo.initialDataSize = cacheData.size();
 		vkPipelineCacheCreateInfo.pInitialData = cacheData.data();
-		Log(kLogGraphics, "Loaded pipeline cache ({} bytes)", iSize);
+		LOG(kGraphics, kDebug, "Loaded pipeline cache ({} bytes)", iSize);
 	}
 	CHECK_VK(vkCreatePipelineCache(mVkDevice, &vkPipelineCacheCreateInfo, nullptr, &mVkPipelineCache));
 }
@@ -310,7 +310,7 @@ DeviceManager::~DeviceManager()
 	gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "pipeline.cache");
 	std::fstream fileStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, "pipeline.cache");
 	fileStream.write(reinterpret_cast<const char*>(cacheData.data()), static_cast<std::streamsize>(uiDataSize));
-	Log(kLogGraphics, "Saved pipeline cache ({} bytes)", uiDataSize);
+	LOG(kGraphics, kDebug, "Saved pipeline cache ({} bytes)", uiDataSize);
 	vkDestroyPipelineCache(mVkDevice, mVkPipelineCache, nullptr);
 
 	vmaDestroyAllocator(mpAllocator);

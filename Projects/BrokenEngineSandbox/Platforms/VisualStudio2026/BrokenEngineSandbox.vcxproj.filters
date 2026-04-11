@@ -348,6 +348,9 @@
     <ClInclude Include="..\..\..\..\Common\Log.h">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\LogTypes.h">
+      <Filter>Common</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Common\Multithreading.h">
       <Filter>Common</Filter>
     </ClInclude>
@@ -854,19 +857,22 @@
     <ClCompile Include="..\..\Source\Frame\Collections\Players\Players.cpp">
       <Filter>Game\Frame\Collections\Players</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersNavigation.cpp">
+      <Filter>Game\Frame\Collections\Players</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersCombat.cpp">
+      <Filter>Game\Frame\Collections\Players</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersRender.cpp">
-      <Filter>Game\Frame\Collections\Players</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersCollision.cpp">
-      <Filter>Game\Frame\Collections\Players</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersUpdate.cpp">
       <Filter>Game\Frame\Collections\Players</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Frame\Collections\Spaceships\Spaceships.cpp">
       <Filter>Game\Frame\Collections\Spaceships</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Frame\Collections\Spaceships\SpaceshipsUpdate.cpp">
+    <ClCompile Include="..\..\Source\Frame\Collections\Spaceships\SpaceshipsCombat.cpp">
+      <Filter>Game\Frame\Collections\Spaceships</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Frame\Collections\Spaceships\SpaceshipsNavigation.cpp">
       <Filter>Game\Frame\Collections\Spaceships</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Frame\Collections\Spaceships\SpaceshipsRender.cpp">

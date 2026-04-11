@@ -100,7 +100,7 @@ bool FramePostRenderBase::LogDifferences(const FramePostRenderBase& rOther) cons
 	if (!(alignments == rOther.alignments))
 	{
 		bEqual = false;
-		Log(kLogNetwork, kVerbose, "LogDifferences {} alignments differ", common::gpLogDifferenceContext);
+		LOG(kNetwork, kVerbose, "LogDifferences {} alignments differ", common::gpLogDifferenceContext);
 	}
 	bEqual &= explosions.LogDifferences(rOther.explosions);
 	bEqual &= pushers.LogDifferences(rOther.pushers);

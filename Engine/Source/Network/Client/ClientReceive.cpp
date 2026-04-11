@@ -80,7 +80,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
 
-	Log(kLogNetwork, kVerbose, "Client::ServerCoordFullState Frame: {} Slot: {} Coord: ({},{})", iTick, uiSlotIndex, coord.x, coord.y);
+	LOG(kNetwork, kVerbose, "Client::ServerCoordFullState Frame: {} Slot: {} Coord: ({},{})", iTick, uiSlotIndex, coord.x, coord.y);
 	ScopedLogIndent scopedLogIndent;
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -88,7 +88,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor, iSize - 20);
 	if (pFrame == nullptr)
 	{
-		Log(kLogNetwork, kWarning, "Client::ServerCoordFullState LZ4 decompression failed Coord: ({},{}) Frame: {}", coord.x, coord.y, iTick);
+		LOG(kNetwork, kWarning, "Client::ServerCoordFullState LZ4 decompression failed Coord: ({},{}) Frame: {}", coord.x, coord.y, iTick);
 		return;
 	}
 
@@ -114,7 +114,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 		{
 			RemoveCancelledSubscription(coord);
 			SendUnsubscribeOnly(uiSlotIndex);
-			Log(kLogNetwork, kVerbose, "Client::ServerCoordFullState coord mismatch, sent unsubscribe for ghost Slot: {} Coord: ({},{}) SlotCoord: ({},{})", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y);
+			LOG(kNetwork, kVerbose, "Client::ServerCoordFullState coord mismatch, sent unsubscribe for ghost Slot: {} Coord: ({},{}) SlotCoord: ({},{})", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y);
 			return;
 		}
 		// Validate epoch for kWaitingFullState (epoch is set by SubscribeAccept)
@@ -133,7 +133,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	if (RemoveCancelledSubscription(coord))
 	{
 		SendUnsubscribeOnly(uiSlotIndex);
-		Log(kLogNetwork, kVerbose, "Client::ServerCoordFullState cancelled, sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+		LOG(kNetwork, kVerbose, "Client::ServerCoordFullState cancelled, sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		rSlot = {};
 		return;
 	}
@@ -193,7 +193,7 @@ void Client::ServerCoordStaticData(const uint8_t* pData, size_t iSize)
 		return;
 	}
 
-	Log(kLogNetwork, kVerbose, "Client::ServerCoordStaticData Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+	LOG(kNetwork, kVerbose, "Client::ServerCoordStaticData Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
@@ -306,7 +306,7 @@ void Client::ServerDebugFrame(const uint8_t* pData, size_t iSize)
 
 	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
-	Log(kLogNetwork, "Client::ServerDebugFrame Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
+	LOG(kNetwork, kDebug, "Client::ServerDebugFrame Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
 	ScopedLogIndent scopedLogIndent;
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -314,7 +314,7 @@ void Client::ServerDebugFrame(const uint8_t* pData, size_t iSize)
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor, iSize - 17);
 	if (pFrame == nullptr)
 	{
-		Log(kLogNetwork, kWarning, "Client::ServerDebugFrame LZ4 decompression failed Frame: {}", iTick);
+		LOG(kNetwork, kWarning, "Client::ServerDebugFrame LZ4 decompression failed Frame: {}", iTick);
 		return;
 	}
 
@@ -344,7 +344,7 @@ void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 		{
 			mClientGuid.uiHigh = ReadUint64(pCursor);
 			mClientGuid.uiLow = ReadUint64(pCursor);
-			Log("Client GUID assigned: {} {}", mClientGuid.uiHigh, mClientGuid.uiLow);
+			LOG(kNetwork, kInfo, "Client GUID assigned: {} {}", mClientGuid.uiHigh, mClientGuid.uiLow);
 
 			// Persist to disk
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -363,7 +363,7 @@ void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 		size_t iCopyLength = std::min(iMessageLength, sizeof(mpcRejectionReason) - 1);
 		std::memcpy(mpcRejectionReason, pCursor, iCopyLength);
 		mpcRejectionReason[iCopyLength] = '\0';
-		Log(kLogNetwork, kWarning, "Client::ServerConnectionResponse Rejected: {}", mpcRejectionReason);
+		LOG(kNetwork, kWarning, "Client::ServerConnectionResponse Rejected: {}", mpcRejectionReason);
 	}
 }
 
@@ -385,7 +385,7 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	{
 		// Server rejected subscription (no free slot) — clear the kSubscribing placeholder
 		ClearSubscribingPlaceholder(coord);
-		Log(kLogNetwork, kWarning, "Client::ServerSubscribeAccept Rejected Coord: ({},{})", coord.x, coord.y);
+		LOG(kNetwork, kWarning, "Client::ServerSubscribeAccept Rejected Coord: ({},{})", coord.x, coord.y);
 		return;
 	}
 
@@ -402,18 +402,18 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 			ClearSubscribingPlaceholder(coord);
 			if (RemoveCancelledSubscription(coord))
 			{
-				Log(kLogNetwork, kVerbose, "Client::ServerSubscribeAccept Healed then cancelled Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+				LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Healed then cancelled Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 				SendUnsubscribe(uiSlotIndex);
 				return;
 			}
-			Log(kLogNetwork, kVerbose, "Client::ServerSubscribeAccept Healed active slot Slot: {} Coord: ({},{}) Epoch: {}", uiSlotIndex, coord.x, coord.y, uiEpoch);
+			LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Healed active slot Slot: {} Coord: ({},{}) Epoch: {}", uiSlotIndex, coord.x, coord.y, uiEpoch);
 			return;
 		}
 
-		Log(kLogNetwork, kVerbose, "Client::ServerSubscribeAccept Ignoring Slot: {} Coord: ({},{}) SlotCoord: ({},{}) State: {}", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y, static_cast<int>(rSlot.eState));
+		LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Ignoring Slot: {} Coord: ({},{}) SlotCoord: ({},{}) State: {}", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y, static_cast<int>(rSlot.eState));
 		SendUnsubscribeOnly(uiSlotIndex);
 		RemoveCancelledSubscription(coord);
-		Log(kLogNetwork, kVerbose, "Client::ServerSubscribeAccept sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+		LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		return;
 	}
 
@@ -433,12 +433,12 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	// If this coord was cancelled while kSubscribing, immediately unsubscribe
 	if (RemoveCancelledSubscription(coord))
 	{
-		Log(kLogNetwork, kVerbose, "Client::ServerSubscribeAccept Cancelled Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+		LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Cancelled Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		SendUnsubscribe(uiSlotIndex);
 		return;
 	}
 
-	Log(kLogNetwork, kVerbose, "Client::ServerSubscribeAccept Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+	LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 }
 
 void Client::ServerUnsubscribeAck(const uint8_t* pData, size_t iSize)
@@ -464,7 +464,7 @@ void Client::ServerUnsubscribeAck(const uint8_t* pData, size_t iSize)
 		return;
 	}
 
-	Log(kLogNetwork, kVerbose, "Client::ServerUnsubscribeAck Slot: {} Coord: ({},{})", uiSlotIndex, rSlot.coord.x, rSlot.coord.y);
+	LOG(kNetwork, kVerbose, "Client::ServerUnsubscribeAck Slot: {} Coord: ({},{})", uiSlotIndex, rSlot.coord.x, rSlot.coord.y);
 
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
@@ -491,7 +491,7 @@ void Client::ServerTimespeedUpdate(const uint8_t* pData, size_t iSize)
 	int64_t iMultiply = ReadInt64(pCursor);
 	int64_t iDivide = ReadInt64(pCursor);
 
-	Log(kLogNetwork, "Client::ServerTimespeedUpdate Multiply: {} Divide: {}", iMultiply, iDivide);
+	LOG(kNetwork, kDebug, "Client::ServerTimespeedUpdate Multiply: {} Divide: {}", iMultiply, iDivide);
 	game::gpGame->mTimeStep.SetTimeScale(iMultiply, iDivide);
 }
 

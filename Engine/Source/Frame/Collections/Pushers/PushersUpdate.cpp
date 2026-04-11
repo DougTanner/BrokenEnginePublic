@@ -109,7 +109,6 @@ XMVECTOR XM_CALLCONV PushersInterpolate::ApplyPush(const game::FrameInterpolate&
 {
 	const PushersInterpolate& rCurrent = rFrameInterpolate.pushers;
 
-	auto vecPosition2d = XMVectorSetZ(vecPosition, 0.0f);
 	XMFLOAT2A f2Position {};
 	XMStoreFloat2A(&f2Position, vecPosition);
 
@@ -155,13 +154,13 @@ XMVECTOR XM_CALLCONV PushersInterpolate::ApplyPush(const game::FrameInterpolate&
 			continue;
 		}
 
-		auto vecPusherPosition = XMVectorSetW(rCurrent.pVecPositions[i], 1.0f);
-		if (XMVector3NearEqual(vecPosition2d, vecPusherPosition, XMVectorReplicate(kfEpsilon))) [[unlikely]]
+		auto vecPusherPosition = rCurrent.pVecPositions[i];
+		if (XMVector3NearEqual(vecPosition, vecPusherPosition, XMVectorReplicate(kfEpsilon))) [[unlikely]]
 		{
 			continue;
 		}
 
-		auto vecFromPusher = XMVectorSubtract(vecPosition2d, vecPusherPosition);
+		auto vecFromPusher = XMVectorSubtract(vecPosition, vecPusherPosition);
 		auto vecDistanceSquared = XMVector3LengthSq(vecFromPusher);
 		float fRadius = rCurrent.pfRadii[i];
 		if (XMVectorGetX(vecDistanceSquared) > fRadius * fRadius) [[likely]]

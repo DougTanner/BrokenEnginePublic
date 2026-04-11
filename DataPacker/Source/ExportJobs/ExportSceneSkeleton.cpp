@@ -15,7 +15,7 @@ std::unordered_map<int, int> BuildNodeParentMap(const tinygltf::Model& rModel)
 
 SkeletonData LoadSkeletonData(const tinygltf::Model& rModel, std::unordered_map<int, int>& rNodeToJointMap)
 {
-	Log("LoadSkeletonData: Loading all nodes...");
+	LOG(kDefault, kDebug, "LoadSkeletonData: Loading all nodes...");
 
 	std::unordered_map<int, int> parentMap = BuildNodeParentMap(rModel);
 
@@ -61,7 +61,7 @@ SkeletonData LoadSkeletonData(const tinygltf::Model& rModel, std::unordered_map<
 			}
 		}
 
-		Log("LoadSkeletonData: Loaded {} skin joints from skin", skeletonData.skeleton.uiSkinJointCount);
+		LOG(kDefault, kDebug, "LoadSkeletonData: Loaded {} skin joints from skin", skeletonData.skeleton.uiSkinJointCount);
 	}
 	else
 	{
@@ -75,7 +75,7 @@ SkeletonData LoadSkeletonData(const tinygltf::Model& rModel, std::unordered_map<
 		rNodeToJointMap.insert_or_assign(static_cast<int>(i), static_cast<int>(i));
 	}
 
-	Log("  Total nodes: {}", skeletonData.skeleton.uiNodeCount);
+	LOG(kDefault, kDebug, "  Total nodes: {}", skeletonData.skeleton.uiNodeCount);
 
 	// Process ALL nodes
 	skeletonData.nodes.resize(rModel.nodes.size());

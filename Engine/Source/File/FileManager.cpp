@@ -22,14 +22,14 @@ FileManager::FileManager()
 	CoTaskMemFree(pWideChar);
 	mAppDataDirectory.append(game::kGameName);
 	std::filesystem::create_directory(mAppDataDirectory);
-	Log(kLogLoading, "AppData directory: \"{}\"", mAppDataDirectory.string());
+	LOG(kLoading, kDebug, "AppData directory: \"{}\"", mAppDataDirectory.string());
 
 	// Get Windows temp directory and append game name
 	char pcDirectory[MAX_PATH] {};
 	GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
 	mTempDirectory = pcDirectory;
 	mTempDirectory.append(game::kGameName);
-	Log(kLogLoading, "Temp directory: \"{}\"", mTempDirectory.string());
+	LOG(kLoading, kDebug, "Temp directory: \"{}\"", mTempDirectory.string());
 	std::filesystem::create_directory(mTempDirectory);
 
 	// Get the file path of the executable, the /Data/ folder will be beside it
@@ -37,7 +37,7 @@ FileManager::FileManager()
 	mDataDirectory = pcDirectory;
 	mDataDirectory.remove_filename();
 	mDataDirectory /= "Data";
-	Log(kLogLoading, "Data directory: \"{}\"", mDataDirectory.string());
+	LOG(kLoading, kDebug, "Data directory: \"{}\"", mDataDirectory.string());
 
 	LoadPackFiles();
 }
@@ -111,14 +111,14 @@ std::fstream FileManager::OpenFile(const FileFlags_t& rFlags, const std::filesys
 	}
 
 	std::fstream fileStream(file, (rFlags & kRead ? std::ios::in : std::ios::out) | std::ios::binary);
-	Log(kLogLoading, "{} \"{}\" at \"{}\"", fileStream.is_open() ? (rFlags & kRead ? "Reading" : "Writing") : "Failed to open", rFilename.string(), file.string());
+	LOG(kLoading, kDebug, "{} \"{}\" at \"{}\"", fileStream.is_open() ? (rFlags & kRead ? "Reading" : "Writing") : "Failed to open", rFilename.string(), file.string());
 	return fileStream;
 }
 
 void FileManager::RemoveFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename)
 {
 	std::filesystem::path file = GetFilePath(rFlags, rFilename);
-	Log(kLogLoading, "Remove \"{}\" at \"{}\"", rFilename.string(), file.string());
+	LOG(kLoading, kDebug, "Remove \"{}\" at \"{}\"", rFilename.string(), file.string());
 	std::filesystem::remove(file);
 }
 
@@ -142,7 +142,7 @@ constexpr data::DataTypes DataTypeFromFlags(const common::ChunkFlags_t& rFlags)
 	if (rFlags & common::ChunkFlags::kModel)   return data::kDataTypeModel;
 	if (rFlags & common::ChunkFlags::kShader)  return data::kDataTypeShader;
 	if (rFlags & common::ChunkFlags::kTexture) return data::kDataTypeTexture;
-	if (rFlags & common::ChunkFlags::kAudio)   return data::kDataTypeAudio;
+	if (rFlags & common::ChunkFlags::kChunkAudio)   return data::kDataTypeAudio;
 	if (rFlags & common::ChunkFlags::kRaw)     return data::kDataTypeRaw;
 	return data::kDataTypeCount;
 }
@@ -190,7 +190,7 @@ void FileManager::LoadPackFiles()
 			auto [it, bInserted] = mLazyChunkMap.try_emplace(rChunkLocation.crc, LazyChunk {.location = rChunkLocation, .header = chunkHeader, .iDataSize = iDataSize});
 			if (!bInserted)
 			{
-				Log(kLogLoading, "Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
+				LOG(kLoading, kDebug, "Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
 				DEBUG_BREAK();
 			}
 		}
@@ -264,16 +264,16 @@ void FileManager::LoadPackFiles()
 				auto [it, bInserted] = mEagerChunkMap.try_emplace(rChunkLocation.crc, EagerChunk { .pHeader = pChunkHeader, .pData = &rPackBytes[uiDataOffset], });
 				if (!bInserted)
 				{
-					Log(kLogLoading, "Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
+					LOG(kLoading, kDebug, "Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
 					DEBUG_BREAK();
 				}
 
-				Log(kLogLoading, "Eager chunk {} \"{}\" size {}", rChunkLocation.crc, std::string_view(pChunkHeader->pcPath), rChunkLocation.uiSize);
+				LOG(kLoading, kDebug, "Eager chunk {} \"{}\" size {}", rChunkLocation.crc, std::string_view(pChunkHeader->pcPath), rChunkLocation.uiSize);
 
 				// Log GLTF chunk info for debugging animation loading
 				if (pChunkHeader->flags & common::ChunkFlags::kScene)
 				{
-					Log(kLogLoading, "GLTF chunk CRC {:#018x}: hasAnimation {}, materialCount {}, sizeof(MaterialShaderData) {}", rChunkLocation.crc, pChunkHeader->sceneHeader.bHasAnimation, pChunkHeader->sceneHeader.uiMaterialCount, sizeof(common::MaterialShaderData));
+					LOG(kLoading, kDebug, "GLTF chunk CRC {:#018x}: hasAnimation {}, materialCount {}, sizeof(MaterialShaderData) {}", rChunkLocation.crc, pChunkHeader->sceneHeader.bHasAnimation, pChunkHeader->sceneHeader.uiMaterialCount, sizeof(common::MaterialShaderData));
 				}
 
 				// Load animation data for GLTF chunks that have it
@@ -285,12 +285,12 @@ void FileManager::LoadPackFiles()
 					                         + common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
 					int64_t iMaterialDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(common::MaterialShaderData)));
 					[[maybe_unused]] const std::byte* pAnimationData = &rPackBytes[uiDataOffset + iSceneArraysSize + iMaterialDataSize];
-					Log(kLogLoading, "  Animation data offset: dataOffset {} + sceneArraysSize {} + materialDataSize {} = {}", uiDataOffset, iSceneArraysSize, iMaterialDataSize, uiDataOffset + iSceneArraysSize + iMaterialDataSize);
+					LOG(kLoading, kDebug, "  Animation data offset: dataOffset {} + sceneArraysSize {} + materialDataSize {} = {}", uiDataOffset, iSceneArraysSize, iMaterialDataSize, uiDataOffset + iSceneArraysSize + iMaterialDataSize);
 
 	#if defined(BT_CLIENT)
 				AnimationData& rAnimData = gAnimationDataMap.try_emplace(rChunkLocation.crc).first->second;
 					rAnimData.Load(pAnimationData, rChunkLocation.crc);
-					Log(kLogLoading, "Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations", rChunkLocation.crc, rAnimData.mHeader.skeleton.uiNodeCount, rAnimData.mHeader.skeleton.uiSkinJointCount, rAnimData.mHeader.uiAnimationCount);
+					LOG(kLoading, kDebug, "Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations", rChunkLocation.crc, rAnimData.mHeader.skeleton.uiNodeCount, rAnimData.mHeader.skeleton.uiSkinJointCount, rAnimData.mHeader.uiAnimationCount);
 #endif
 				}
 			}
@@ -466,7 +466,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 		iFilePos += uiBytesRead;
 	}
 
-	Log(kLogLoading, "Lazy chunk {} \"{}\" size {}", rRequest.crc, std::string_view(rLazyChunk.header.pcPath), rLazyChunk.location.uiSize);
+	LOG(kLoading, kDebug, "Lazy chunk {} \"{}\" size {}", rRequest.crc, std::string_view(rLazyChunk.header.pcPath), rLazyChunk.location.uiSize);
 
 #if defined(BT_CLIENT)
 	if (rLazyChunk.header.flags & common::ChunkFlags::kTexture)

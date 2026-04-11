@@ -8,7 +8,6 @@ namespace engine { struct FrameStaticData; }
 #if defined(BT_CLIENT)
 #include "Frame/Collections/AreaLights/AreaLights.h"
 #endif
-#include "Frame/Collections/Pushers/Pushers.h"
 #if defined(BT_CLIENT)
 #include "Frame/Collections/SmokeTrails/SmokeTrails.h"
 #include "Frame/Collections/Sounds/Sounds.h"
@@ -23,10 +22,6 @@ inline constexpr float kfMissileDestroyTime = 0.35f;
 inline constexpr float kfMissileDeltaRotationDelay = 0.5f;
 inline constexpr float kfMissileExhaustLength = 1.25f;
 inline constexpr float kfMissileExhaustLengthRandom = 1.0f;
-inline constexpr float kfMissilePusherRadius = 2.0f;
-inline constexpr float kfMissilePusherIntensity = 100.0f;
-inline constexpr float kfMissilePusherPower = 1.0f;
-
 struct Frame;
 struct FrameInterpolate;
 
@@ -42,7 +37,7 @@ using MissileFlags_t = common::Flags<MissileFlags>;
 
 struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
 	static constexpr const char* kName = "Missiles";
 	static constexpr common::crc_t kCrc = common::CrcConsteval("Missiles");
 
@@ -62,13 +57,12 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
-	engine::pusher_t* __restrict puiPushers = nullptr;
 	float* __restrict pfDestroyedTimes = nullptr;
 #if defined(BT_CLIENT)
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
 	engine::smoke_trails_t* __restrict puiSmokeTrails = nullptr;
 #endif
-	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiPushers, rSelf.pfDestroyedTimes); }
+	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes); }
 #if defined(BT_CLIENT)
 	auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiAreaLights, rSelf.puiSmokeTrails); }
 #endif

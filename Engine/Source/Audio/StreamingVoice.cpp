@@ -11,7 +11,7 @@ StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLa
 : mpLazyChunk(pLazyChunk)
 , mpVoice(pVoice)
 {
-	Log(kLogAudio, "Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, buffer size: {} bytes", mpLazyChunk->location.crc, mpLazyChunk->header.iSize, kiBufferSize);
+	LOG(kAudio, kDebug, "Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, buffer size: {} bytes", mpLazyChunk->location.crc, mpLazyChunk->header.iSize, kiBufferSize);
 
 	CHECK_HRESULT(mpVoice->SetVolume(0.0f));
 
@@ -36,7 +36,7 @@ StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLa
 		CHECK_HRESULT(mpVoice->SubmitSourceBuffer(&xaudio2Buffer));
 		mFlags.Set(kLastBufferSubmitted, bLastBuffer);
 
-		Log(kLogAudio, "Music streaming: Submitted initial buffer [0] with {} bytes, last buffer: {}", iBytesRead, bLastBuffer);
+		LOG(kAudio, kDebug, "Music streaming: Submitted initial buffer [0] with {} bytes, last buffer: {}", iBytesRead, bLastBuffer);
 	}
 	else
 	{
@@ -72,7 +72,7 @@ bool StreamingVoice::FillBuffer(uint8_t (&rBuffer)[kiBufferSize], int64_t& riByt
 	if (iRemainingData == 0)
 	{
 		rbLastBuffer = true;
-		Log(kLogAudio, "Music streaming: No remaining data to read, position: {}/{}", miCurrentPosition, mpLazyChunk->header.iSize);
+		LOG(kAudio, kDebug, "Music streaming: No remaining data to read, position: {}/{}", miCurrentPosition, mpLazyChunk->header.iSize);
 		return false;
 	}
 
@@ -84,7 +84,7 @@ bool StreamingVoice::FillBuffer(uint8_t (&rBuffer)[kiBufferSize], int64_t& riByt
 
 	if (!bSuccess)
 	{
-		Log(kLogAudio, kWarning, "Music streaming: Failed to read chunk data at position {}", miCurrentPosition);
+		LOG(kAudio, kWarning, "Music streaming: Failed to read chunk data at position {}", miCurrentPosition);
 		return false;
 	}
 
@@ -96,7 +96,7 @@ bool StreamingVoice::FillBuffer(uint8_t (&rBuffer)[kiBufferSize], int64_t& riByt
 	if (miCurrentPosition >= mpLazyChunk->header.iSize)
 	{
 		rbLastBuffer = true;
-		Log(kLogAudio, "Music streaming last buffer: Read {} bytes at position {}/{}", iBytesToRead, miCurrentPosition, mpLazyChunk->header.iSize);
+		LOG(kAudio, kDebug, "Music streaming last buffer: Read {} bytes at position {}/{}", iBytesToRead, miCurrentPosition, mpLazyChunk->header.iSize);
 	}
 
 	return true;

@@ -74,7 +74,7 @@ void GenerateIrradianceCubemaps()
 				continue;
 			}
 
-			Log("Generating irradiance cubemap for \"{}\"", rDirectoryEntry.path().filename().string());
+			LOG(kDefault, kDebug, "Generating irradiance cubemap for \"{}\"", rDirectoryEntry.path().filename().string());
 
 			KtxCubemapData cubemapData = LoadKtxCubemapAsFloat(rDirectoryEntry.path());
 			uint32_t uiFaceSize = cubemapData.uiFaceSize;
@@ -204,7 +204,7 @@ void GeneratePreFilteredCubemaps()
 				continue;
 			}
 
-			Log("Generating pre-filtered cubemap for \"{}\"", rDirectoryEntry.path().filename().string());
+			LOG(kDefault, kDebug, "Generating pre-filtered cubemap for \"{}\"", rDirectoryEntry.path().filename().string());
 
 			KtxCubemapData cubemapData = LoadKtxCubemapAsFloat(rDirectoryEntry.path());
 			uint32_t uiFaceSize = cubemapData.uiFaceSize;
@@ -275,7 +275,7 @@ void GeneratePreFilteredCubemaps()
 				}
 			}
 
-			Log("Generating pre-filtered cubemap for \"{}\"", rDirectoryEntry.path().filename().string());
+			LOG(kDefault, kDebug, "Generating pre-filtered cubemap for \"{}\"", rDirectoryEntry.path().filename().string());
 
 			cmft::Image faceImages[6];
 			for (int64_t i = 0; i < 6; ++i)

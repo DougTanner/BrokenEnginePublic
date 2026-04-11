@@ -49,6 +49,7 @@
     <ClInclude Include="..\..\..\Common\ExternalHeaders.h" />
     <ClInclude Include="..\..\..\Common\Flags.h" />
     <ClInclude Include="..\..\..\Common\Log.h" />
+    <ClInclude Include="..\..\..\Common\LogTypes.h" />
     <ClInclude Include="..\..\..\Common\LogDifference.h" />
     <ClInclude Include="..\..\..\Common\LogFormatters.h" />
     <ClInclude Include="..\..\..\Common\MathUtils.h" />
@@ -140,7 +141,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <ForcedIncludeFiles>Pch.h</ForcedIncludeFiles>
-      <AdditionalOptions>/Zc:__cplusplus /bigobj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/Zc:__cplusplus /Zc:preprocessor /bigobj %(AdditionalOptions)</AdditionalOptions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <ExceptionHandling>Async</ExceptionHandling>
       <DisableSpecificWarnings>28278;6385;6326;6340;6297</DisableSpecificWarnings>
@@ -174,7 +175,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <ForcedIncludeFiles>Pch.h</ForcedIncludeFiles>
-      <AdditionalOptions>/Zc:__cplusplus /bigobj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/Zc:__cplusplus /Zc:preprocessor /bigobj %(AdditionalOptions)</AdditionalOptions>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
