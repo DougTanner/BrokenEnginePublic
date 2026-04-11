@@ -110,6 +110,12 @@ public:
 		return total /= static_cast<VALUE_TYPE>(miCount);
 	}
 
+	void Seed(VALUE_TYPE value)
+	{
+		*this = value;
+		mSmoothedValue = value;
+	}
+
 	VALUE_TYPE Update()
 	{
 		if (miCount == 0)

@@ -85,7 +85,7 @@ static bool IsSlotActive(const ClientCoordSlot& rSlot)
 
 void ClientSessionBase::TrySubscribeNext()
 {
-	if (mpClientNetwork == nullptr)
+	if (mpClientNetwork == nullptr || !mpClientNetwork->IsConnected())
 	{
 		return;
 	}
@@ -258,22 +258,31 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 		return 0ns;
 	}
 
-	int64_t iRttUs = mpClientNetwork->GetPipelineRttUs();
-
+	int64_t iJitterUs = mpClientNetwork->GetJitterUs();
 	int64_t iTickTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(tickNs).count();
-	// Hysteresis: only update target-behind when the computed value differs by 2+ ticks to avoid oscillation
-	int64_t iComputedTargetBehind = (iRttUs > 0) ? ((iRttUs / 2 + iTickTimeUs - 1) / iTickTimeUs + 1) : 1;
+
+	// Jitter buffer: how many ticks behind latestServerTick the sim runs. Pure jitter absorption — RTT is
+	// already built into latestServerTick lagging server wall clock by one-way latency, so targetBehind
+	// only needs to cover arrival jitter + a fixed safety margin.
+	int64_t iTotalBufferUs = iJitterUs + kiJitterSafetyUs;
+	int64_t iComputedTargetBehind = (iTotalBufferUs + iTickTimeUs - 1) / iTickTimeUs;
+
+	// Hysteresis: only update when the computed value differs by 2+ ticks to avoid oscillation
 	if (miCurrentTargetBehind == 0 || std::abs(iComputedTargetBehind - miCurrentTargetBehind) >= 2)
 	{
 		if (miCurrentTargetBehind != 0 && miCurrentTargetBehind != iComputedTargetBehind)
 		{
-			LOG(kNetwork, kVerbose, "ClientSessionBase::ComputeClockCorrectionNs TargetBehind changed Old: {} New: {} RttUs: {}", miCurrentTargetBehind, iComputedTargetBehind, iRttUs);
+			LOG(kNetwork, kVerbose, "ClientSessionBase::ComputeClockCorrectionNs TargetBehind changed Old: {} New: {} JitterUs: {}", miCurrentTargetBehind, iComputedTargetBehind, iJitterUs);
 		}
 		miCurrentTargetBehind = iComputedTargetBehind;
 	}
 
+	// Sim runs BEHIND latestServerTick by miCurrentTargetBehind. Positive iError = sim is past the target
+	// (too far ahead — should be prevented by the hard clamp in ClientUpdate). Negative iError = sim is
+	// behind the target and needs to catch up via gradual correction or the snap cliff.
+	int64_t iTargetSimTick = miLatestServerTick - miCurrentTargetBehind;
 	int64_t iOffset = iPreReconcileTick - miLatestServerTick;
-	int64_t iError = iOffset - miCurrentTargetBehind;
+	int64_t iError = iPreReconcileTick - iTargetSimTick;
 	miClockError = iError;
 	miClockOffset = iOffset;
 	miClockTargetBehind = miCurrentTargetBehind;
@@ -281,7 +290,7 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	if (std::abs(iError) >= kiClockErrorDisconnectThreshold)
 	{
 		++miConsecutiveClockErrorFrames;
-		LOG(kNetwork, kWarning, "ClientSessionBase::ComputeClockCorrectionNs Clock error accumulating ConsecutiveFrames: {} Error: {} Offset: {} TargetBehind: {} RttUs: {} LatestServerTick: {} PreReconcileTick: {}", miConsecutiveClockErrorFrames, iError, iOffset, miCurrentTargetBehind, iRttUs, miLatestServerTick, iPreReconcileTick);
+		LOG(kNetwork, kWarning, "ClientSessionBase::ComputeClockCorrectionNs Clock error accumulating ConsecutiveFrames: {} Error: {} Offset: {} TargetBehind: {} JitterUs: {} LatestServerTick: {} PreReconcileTick: {}", miConsecutiveClockErrorFrames, iError, iOffset, miCurrentTargetBehind, iJitterUs, miLatestServerTick, iPreReconcileTick);
 		if (miConsecutiveClockErrorFrames >= kiClockErrorDisconnectConsecutiveFrames)
 		{
 			mbClockErrorDisconnect = true;
@@ -298,7 +307,7 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 
 	if (std::abs(iError) >= 4)
 	{
-		LOG(kNetwork, kWarning, "ClientSessionBase::ComputeClockCorrectionNs Extreme clock error Error: {} Offset: {} TargetBehind: {} RttUs: {} LatestServerTick: {} PreReconcileTick: {}", iError, iOffset, miCurrentTargetBehind, iRttUs, miLatestServerTick, iPreReconcileTick);
+		LOG(kNetwork, kVerbose, "ClientSessionBase::ComputeClockCorrectionNs Clock error Error: {} Offset: {} TargetBehind: {} JitterUs: {} LatestServerTick: {} PreReconcileTick: {}", iError, iOffset, miCurrentTargetBehind, iJitterUs, miLatestServerTick, iPreReconcileTick);
 	}
 
 	int64_t iCorrectionSteps = std::clamp(iError, -4LL, 4LL);
@@ -306,135 +315,6 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	std::chrono::nanoseconds correction(-iCorrectionSteps * tickNs.count() / iDivisor);
 
 	return correction;
-}
-
-// Extrapolation
-
-bool ClientSessionBase::IsExtrapolating() const
-{
-	if (mpClientNetwork == nullptr)
-	{
-		return false;
-	}
-	for (const auto& [rCoord, rFrame] : game::gpGame->mCoordFrames)
-	{
-		if (rFrame.iConfirmedTick >= 0)
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
-void ClientSessionBase::PrepareExtrapolationTick(const std::vector<GridCoord>& rActiveCoords, int64_t iTick)
-{
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	for (const GridCoord& rCoord : rActiveCoords)
-	{
-		auto subIt = game::gpGame->mCoordFrames.find(rCoord);
-		if (subIt == game::gpGame->mCoordFrames.end() || subIt->second.iConfirmedTick < 0)
-		{
-			continue;
-		}
-		// Fresh subscription whose full state is at a server tick ahead of the client clock:
-		// skip extrapolation until the client tick strictly passes the confirmed tick so that
-		// stamped snapshot iTicks stay monotonic with the initial full-state frame.
-		if (iTick <= subIt->second.iConfirmedTick)
-		{
-			continue;
-		}
-		CoordFrames& rSub = subIt->second;
-		if (rSub.iSnapshotCount >= kiNetworkBufferSize)
-		{
-			if (rSub.iConfirmedOffset > 0)
-			{
-				rSub.iSnapshotHead = SnapshotIndex(rSub.iSnapshotHead, 1);
-				--rSub.iSnapshotCount;
-				--rSub.iConfirmedOffset;
-			}
-			else
-			{
-				continue;
-			}
-		}
-		int64_t iPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount);
-		if (rSub.snapshots[iPhysical] == nullptr)
-		{
-			rSub.snapshots[iPhysical] = std::make_unique<game::Frame>();
-		}
-	}
-}
-
-void ClientSessionBase::BuildExtrapolationFrameRef(const GridCoord& rCoord, int64_t iTick, game::Frame*& rpNext, game::Frame*& rpCurrent)
-{
-	auto subIt = game::gpGame->mCoordFrames.find(rCoord);
-	if (subIt == game::gpGame->mCoordFrames.end() || subIt->second.iConfirmedTick < 0)
-	{
-		return;
-	}
-	if (iTick <= subIt->second.iConfirmedTick)
-	{
-		return;
-	}
-	CoordFrames& rSub = subIt->second;
-	if (rSub.iSnapshotCount >= kiNetworkBufferSize)
-	{
-		return;
-	}
-	int64_t iNextPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount);
-	rpNext = rSub.snapshots[iNextPhysical].get();
-	if (rSub.iSnapshotCount == 0)
-	{
-		rpCurrent = &game::gpGame->CurrentFrame(rCoord);
-	}
-	else
-	{
-		int64_t iCurrentPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount - 1);
-		rpCurrent = rSub.snapshots[iCurrentPhysical].get();
-		if (rpCurrent == nullptr)
-		{
-			rpNext = nullptr;
-			return;
-		}
-	}
-}
-
-void ClientSessionBase::RecordExtrapolationSnapshot(const std::vector<GridCoord>& rActiveCoords, int64_t iTick)
-{
-	for (const GridCoord& rCoord : rActiveCoords)
-	{
-		auto subIt = game::gpGame->mCoordFrames.find(rCoord);
-		if (subIt == game::gpGame->mCoordFrames.end() || subIt->second.iConfirmedTick < 0)
-		{
-			continue;
-		}
-		if (iTick <= subIt->second.iConfirmedTick)
-		{
-			continue;
-		}
-		CoordFrames& rSub = subIt->second;
-		if (rSub.iSnapshotCount >= kiNetworkBufferSize)
-		{
-			continue;
-		}
-		rSub.iSnapshotCount++;
-	}
-}
-
-game::Frame* ClientSessionBase::GetSnapshotFrame(GridCoord coord) const
-{
-	auto subIt = game::gpGame->mCoordFrames.find(coord);
-	if (subIt == game::gpGame->mCoordFrames.end() || subIt->second.iConfirmedTick < 0 || subIt->second.iSnapshotCount <= 0)
-	{
-		return nullptr;
-	}
-	const CoordFrames& rSub = subIt->second;
-	int64_t iPhysical = SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount - 1);
-	if (rSub.snapshots[iPhysical] == nullptr)
-	{
-		return nullptr;
-	}
-	return rSub.snapshots[iPhysical].get();
 }
 
 // Queries

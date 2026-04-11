@@ -356,6 +356,17 @@ void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 			common::Write(guidStream, mClientGuid.uiHigh);
 			common::Write(guidStream, mClientGuid.uiLow);
 		}
+
+		// Seed smoothed pipeline RTT from ENet's handshake measurement so early frames have a reasonable value
+		if (mpServerPeer != nullptr)
+		{
+			int64_t iRttUs = static_cast<int64_t>(mpServerPeer->roundTripTime) * 1000;
+			if (iRttUs > 0)
+			{
+				mSmoothedPipelineRttUs.Seed(iRttUs);
+			}
+			LOG(kNetwork, kDebug, "Client::ServerConnectionResponse Handshake RTT: {} us", iRttUs);
+		}
 	}
 	else
 	{

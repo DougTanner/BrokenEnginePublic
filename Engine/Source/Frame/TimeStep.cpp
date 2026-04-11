@@ -45,8 +45,7 @@ int64_t TimeStep::TickRealtime()
 	}
 
 	// Clamp accumulator to prevent backlog cascade (e.g., after background/focus loss)
-	int64_t iEffectiveMaxTicks = (miCatchUpAccumulatorTicks > 0) ? miCatchUpAccumulatorTicks : kiMaxAccumulatorTicks;
-	std::chrono::nanoseconds maxAccumulator = game::kTickNs * iEffectiveMaxTicks;
+	std::chrono::nanoseconds maxAccumulator = game::kTickNs * kiMaxAccumulatorTicks;
 	if (mTickRemainderNs > maxAccumulator)
 	{
 		LOG(kDefault, kVerbose, "TimeStep::TickRealtime Accumulator clamped");
@@ -68,6 +67,11 @@ float TimeStep::GetInterpolationAlpha() const
 void TimeStep::ClearAccumulator()
 {
 	mTickRemainderNs = 0ns;
+}
+
+void TimeStep::AbsorbUnusedTicks(int64_t iTicks)
+{
+	mTickRemainderNs += iTicks * game::kTickNs;
 }
 
 void TimeStep::SetTimeScale(int64_t iMultiply, int64_t iDivide)

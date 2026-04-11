@@ -84,7 +84,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	else if (gpGame->ClientPlayerId().IsValid())
 	{
 		auto coordIt = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
-		bool bHasCoord = coordIt != gpGame->mCoordFrames.end() && coordIt->second.pCurrent != nullptr;
+		bool bHasCoord = coordIt != gpGame->mCoordFrames.end() && coordIt->second.iSnapshotCount > 0;
 		std::optional<int64_t> oIdx = bHasCoord ? gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers) : std::nullopt;
 		if (oIdx)
 		{

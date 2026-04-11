@@ -27,7 +27,7 @@ void ClientDataReceiver::ApplyReceivedStaticData()
 
 void ClientDataReceiver::ApplyReceivedFullStates()
 {
-	// Heap: Moving unique_ptr<Frame> into mCurrentFrames, stringstream serialization
+	// Heap: try_emplace may insert new CoordFrames; full state is moved directly into snapshot ring slot 0
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	std::vector<engine::ReceivedCoordFullState>& rFullStates = gpClientSession->mpClientNetwork->DrainReceivedFullStates();
@@ -49,15 +49,21 @@ void ClientDataReceiver::ApplyReceivedFullStates()
 		MissilesInterpolate::ClientInitAll(rFrame);
 		SpaceshipsInterpolate::ClientInitAll(rFrame);
 
-		// Copy smoke trail smoothed positions from existing frame to preserve rendering continuity across reconciliation
-		if (rSub.pCurrent != nullptr)
+		// Copy smoke trail smoothed positions from the most recent ring frame to preserve
+		// rendering continuity across reconciliation.
+		if (rSub.iSnapshotCount > 0)
 		{
-			const engine::SmokeTrailsInterpolate& rOldSmokeTrails = rSub.pCurrent->interpolate.smokeTrails;
-			engine::SmokeTrailsInterpolate& rNewSmokeTrails = rFrame.interpolate.smokeTrails;
-			int64_t iCopyCount = std::min(rOldSmokeTrails.iCount, rNewSmokeTrails.iCount);
-			if (iCopyCount > 0)
+			int64_t iTailPhysical = engine::SnapshotIndex(rSub.iSnapshotHead, rSub.iSnapshotCount - 1);
+			const std::unique_ptr<Frame>& pTail = rSub.snapshots[iTailPhysical];
+			if (pTail != nullptr)
 			{
-				std::memcpy(rNewSmokeTrails.pVecSmoothedPositions, rOldSmokeTrails.pVecSmoothedPositions, iCopyCount * sizeof(XMVECTOR));
+				const engine::SmokeTrailsInterpolate& rOldSmokeTrails = pTail->interpolate.smokeTrails;
+				engine::SmokeTrailsInterpolate& rNewSmokeTrails = rFrame.interpolate.smokeTrails;
+				int64_t iCopyCount = std::min(rOldSmokeTrails.iCount, rNewSmokeTrails.iCount);
+				if (iCopyCount > 0)
+				{
+					std::memcpy(rNewSmokeTrails.pVecSmoothedPositions, rOldSmokeTrails.pVecSmoothedPositions, iCopyCount * sizeof(XMVECTOR));
+				}
 			}
 		}
 		if (rSub.uiGeneration == 0)
@@ -70,19 +76,7 @@ void ClientDataReceiver::ApplyReceivedFullStates()
 			// Only advance tick counter during initial setup (no other coords have confirmed data yet)
 			bool bInitialSetup = (gpClientSession->GetConfirmedTick() < 0);
 
-			// Single serialization copy: received -> current
-			rSub.pCurrent = std::make_unique<Frame>();
-			std::ostringstream outputStream;
-			outputStream << *rFullState.pFrame;
-			std::istringstream inputStream(outputStream.str());
-			inputStream >> *rSub.pCurrent;
-
-			if (rSub.pNext == nullptr)
-			{
-				rSub.pNext = std::make_unique<Frame>();
-			}
-
-			// Original received frame -> snapshot[0], which IS the confirmed frame
+			// Move the received full state into the ring as the confirmed frame.
 			rSub.iSnapshotHead = 0;
 			rSub.snapshots[0] = std::move(rFullState.pFrame);
 			rSub.snapshots[0]->postRender.sharedCrc = rSub.snapshots[0]->Crcs();
@@ -90,20 +84,26 @@ void ClientDataReceiver::ApplyReceivedFullStates()
 			rSub.iConfirmedTick = iTick;
 			rSub.iConfirmedOffset = 0;
 
-			// Set frame counter from first received full state only (not from subsequent neighbor subscriptions)
+			float fFullStateTime = rSub.snapshots[0]->interpolate.fCurrentTime;
+
+			// Set frame counter from first received full state only (not from subsequent neighbor subscriptions).
+			// Offset sim tick back by the jitter-safety floor so sim starts BEHIND latestServerTick, matching
+			// the steady-state target computed by ComputeClockCorrectionNs. Avoids a ~150 ms freeze while the
+			// ceiling clamp waits for latest to catch up and drains the spurious +targetBehind error.
 			if (bInitialSetup && gpGame->TickCounter() < iTick)
 			{
-				gpGame->SetTickCounter(iTick);
-				gpGame->SetCurrentTime(rSub.pCurrent->interpolate.fCurrentTime);
+				constexpr int64_t iTickTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(kTickNs).count();
+				constexpr int64_t iInitialTargetBehind = (engine::kiJitterSafetyUs + iTickTimeUs - 1) / iTickTimeUs;
+				gpGame->SetTickCounter(iTick - iInitialTargetBehind);
+				gpGame->SetCurrentTime(fFullStateTime - static_cast<float>(iInitialTargetBehind) * kfDeltaTime);
 			}
 
 			ConfirmedClientState confirmedState;
 			confirmedState.clientGridCoord = gpGame->mClientGridCoord;
 			confirmedState.clientGlobalPlayerId = gpGame->ClientPlayerId();
 			confirmedState.fPreviousClientArmor = gpGame->PreviousClientArmor();
-			confirmedState.fCurrentTime = rSub.pCurrent->interpolate.fCurrentTime;
+			confirmedState.fCurrentTime = fFullStateTime;
 			gpClientSession->mpReconciler->InitConfirmedClientState(confirmedState);
-			gpClientSession->mpReconciler->SetHasNewData();
 		}
 		else
 		{
@@ -119,18 +119,13 @@ void ClientDataReceiver::ApplyReceivedFullStates()
 				.iTick = iTick,
 				.pFrame = std::move(rFullState.pFrame),
 			};
-
-			gpClientSession->mpReconciler->SetHasNewData();
 		}
 	}
 }
 
 void ClientDataReceiver::ApplyReceivedUpdates()
 {
-	if (gpClientSession->ApplyReceivedUpdatesBase())
-	{
-		gpClientSession->mpReconciler->SetHasNewData();
-	}
+	gpClientSession->ApplyReceivedUpdatesBase();
 }
 
 #endif // BT_CLIENT

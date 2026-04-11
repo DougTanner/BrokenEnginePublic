@@ -4,7 +4,7 @@
 
 ## RunFrameTick Pipeline
 
-All physics phases are unified into a single `RunFrameTick()` function (defined in `FrameTick.cpp`). Both `GameBase::ClientUpdate()` and reconciliation replay call the same function. Each Frame runs all five phases sequentially; multiple Frames are dispatched in parallel via `Dispatch()`.
+All physics phases are unified into a single `RunFrameTick()` function (defined in `FrameTick.cpp`). Both `GameBase::ServerUpdate()` and client reconciliation replay/catch-up call the same function. Each Frame runs all five phases sequentially; multiple Frames are dispatched in parallel via `Dispatch()`.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -49,7 +49,7 @@ flowchart LR
 
 ## Client Main Loop
 
-Main.cpp calls `ProcessInput()`, `ClientUpdate()`, `Render()`, and `AudioManager::Update()` in sequence. Network orchestration is encapsulated within `ClientUpdate()` and `Render()`.
+Main.cpp calls `ProcessInput()`, `ClientUpdate()`, `Render()`, and `AudioManager::Update()` in sequence. The client has no per-tick physics loop — `ClientSession::Reconcile()` is a single-pass call that validates, replays mismatches, and forward-sims to the post-advance tick target.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -67,24 +67,15 @@ flowchart TD
 
     subgraph tick_frames ["GameBase::ClientUpdate()"]
         poll["ClientSession::Poll()"]:::network
-        reconcile["ClientSession::Reconcile()"]:::network
         stall_check{"IsStalled?"}:::network
-        poll --> reconcile
-        reconcile --> stall_check
+        poll --> stall_check
 
-        subgraph physics_loop ["Fixed Timestep Loop (64 Hz)"]
-            ts["TimeStep::TickRealtime()"]:::physics
-            extrap_check{"IsExtrapolating?"}:::physics
-            extrap_prep["PrepareExtrapolationTick()"]:::physics
-            dispatch["Dispatch RunFrameTick()"]:::physics
-            extrap_record["RecordExtrapolationSnapshot()"]:::physics
-            frame_swap["SwapFrames()"]:::physics
-            ts --> extrap_check
-            extrap_check -->|"Yes"| extrap_prep --> dispatch --> extrap_record
-            extrap_check -->|"No"| dispatch --> frame_swap
-        end
+        ts["TimeStep::TickRealtime()<br/>compute iFullTicks"]:::physics
+        prepare_active["PrepareActiveSet()"]:::physics
+        advance["Advance miTickCounter +<br/>mfCurrentTime"]:::physics
+        reconcile["ClientSession::Reconcile()<br/>single pass: drop validated,<br/>replay mismatches, forward sim<br/>to target tick"]:::network
 
-        stall_check -->|No| physics_loop
+        stall_check -->|No| ts --> prepare_active --> advance --> reconcile
     end
 
     subgraph render_method ["GameBase::Render()"]
@@ -144,7 +135,9 @@ flowchart TD
     display -->|next iteration| start
 ```
 
-## Dual-Buffered Frame Lifecycle
+## Frame Lifecycle
+
+Server uses dual-buffered `pCurrent`/`pNext` on `CoordFrames`. Client uses the `snapshots[]` ring as its sole state buffer — the reconciler replays into the ring and the ring tail is read by render, active-set, camera, HUD, etc.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -161,13 +154,14 @@ flowchart LR
         frame -->|owns| fpr
     end
 
-    subgraph buffers ["CoordFrames Double Buffer"]
+    subgraph server_buffers ["CoordFrames (server)"]
         current["pCurrent"]:::current
         next_buf["pNext"]:::next
     end
 
-    subgraph snapshot_buf ["Snapshot Ring (client, extrapolating)"]
-        snap_stack["CoordFrames::snapshots"]:::next
+    subgraph client_buffers ["CoordFrames (client)"]
+        snap_stack["snapshots[] ring<br/>(sole state buffer)"]:::next
+        tail["ring tail<br/>= read by render/camera/HUD"]:::current
     end
 
     subgraph render_buf ["Render Buffer (client)"]
@@ -176,8 +170,8 @@ flowchart LR
 
     current -->|"AllocateAndCopy"| next_buf
     next_buf -->|"std::swap"| current
-    current -->|"AllocateAndCopy + Update"| render_interp
-    snap_stack -->|"GetSnapshotFrame"| current
+    snap_stack --> tail
+    tail -->|"AllocateAndCopy + Update"| render_interp
 ```
 
 ## Collection Phase Participation

@@ -5,11 +5,9 @@
 inline constexpr bool kbDesyncRecovery = false; // DT: TEMP true;
 inline constexpr bool kbFrameDispatch = true;
 inline constexpr bool kbLogging = true;
-inline constexpr bool kbQuadrantNeighborSubscriptions = true;
+inline constexpr bool kbQuadrantNeighborSubscriptions = false;
 inline constexpr bool kbInvincibility = true;
 inline constexpr bool kbRenderThread = true;
-inline constexpr bool kbReconcileThread = true;
-inline constexpr bool kbReconcileDispatch = true;
 
 inline constexpr bool kbAlsoLogToPrintf = false;
 inline constexpr bool kbFramebufferClearColor = false;
@@ -74,7 +72,7 @@ inline constexpr bool kbShowProfileTextByDefault = false;
 
 #include "LogTypes.h"
 
-inline constexpr LogLevel keLogLevelDefault  = kInfo;
+inline constexpr LogLevel keLogLevelDefault  = kWarning;
 inline constexpr LogLevel keLogLevelTemp     = kWarning;
 
 inline constexpr LogLevel keLogLevelAudio    = kWarning;
@@ -90,4 +88,4 @@ inline constexpr LogLevel keLogLevelInput    = kWarning;
 #include "Frame/Frame.h"
 #include "Engine.h"
 
-inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kChina;
+inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kDisabled;

@@ -135,35 +135,6 @@ void ClientSession::PollNetwork()
 	mpDataReceiver->ApplyReceivedUpdates();
 }
 
-void ClientSession::WaitForReconcile()
-{
-	if (mpClientNetwork == nullptr)
-	{
-		return;
-	}
-
-	ReconcileDesyncInfo desyncInfo = mpReconciler->Wait();
-	if (desyncInfo.bDesync)
-	{
-		mpDesyncManager->OnDesyncDetected(std::move(desyncInfo));
-	}
-}
-
-void ClientSession::TryKickReconcile()
-{
-	if (mpClientNetwork == nullptr)
-	{
-		return;
-	}
-
-	if (IsStalled())
-	{
-		return;
-	}
-
-	mpReconciler->TryKick();
-}
-
 void ClientSession::Poll()
 {
 	// Poll network and send ACK before reconciliation so server gets acknowledgement ASAP
@@ -196,21 +167,25 @@ void ClientSession::Reconcile()
 	{
 		// Heap: reconciliation deserialization and map operations
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		int64_t iPreReconcileTick = gpGame->TickCounter();
-		WaitForReconcile();
-		// Compensate time step for ticks rolled back during reconciliation
-		int64_t iTickDeficit = iPreReconcileTick - gpGame->TickCounter();
-		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iPreReconcileTick);
+		int64_t iCurrentTick = gpGame->TickCounter();
+		if (mpClientNetwork != nullptr && !IsStalled())
+		{
+			ReconcileDesyncInfo desyncInfo = mpReconciler->Run();
+			if (desyncInfo.bDesync)
+			{
+				mpDesyncManager->OnDesyncDetected(std::move(desyncInfo));
+			}
+		}
+		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iCurrentTick);
 
 		static constexpr int64_t kiClockSnapThreshold = 28;
 		if (miLatestServerTick >= 0 && (mbClockErrorDisconnect || std::abs(miClockError) >= kiClockSnapThreshold))
 		{
-			// Snap tick counter to recover from extreme clock error
-			int64_t iSnapTick = miLatestServerTick + miCurrentTargetBehind;
-			LOG(kNetwork, kWarning, "ClientSession::Reconcile Clock snap OldTick: {} NewTick: {} LatestServerTick: {} TargetBehind: {}", iPreReconcileTick, iSnapTick, miLatestServerTick, miCurrentTargetBehind);
+			// Snap tick counter to recover from extreme clock error. Sim runs BEHIND latestServerTick.
+			int64_t iSnapTick = miLatestServerTick - miCurrentTargetBehind;
+			LOG(kNetwork, kWarning, "ClientSession::Reconcile Clock snap OldTick: {} NewTick: {} LatestServerTick: {} TargetBehind: {}", iCurrentTick, iSnapTick, miLatestServerTick, miCurrentTargetBehind);
 			gpGame->SetTickCounter(iSnapTick);
 			gpGame->mTimeStep.ClearAccumulator();
-			gpGame->mTimeStep.miCatchUpAccumulatorTicks = 0;
 			mbClockErrorDisconnect = false;
 			miConsecutiveClockErrorFrames = 0;
 			miClockError = 0;
@@ -218,47 +193,13 @@ void ClientSession::Reconcile()
 		}
 		else
 		{
-			if (iTickDeficit > 0)
-			{
-				gpGame->mTimeStep.mTickRemainderNs += iTickDeficit * kTickNs;
-			}
 			gpGame->mTimeStep.mTickRemainderNs += clockCorrectionNs;
-
-			// Gradually raise accumulator cap when behind to allow catch-up
-			// miClockError already subtracts TargetBehind, so high-latency modes are accounted for
-			constexpr int64_t kiCatchUpErrorThreshold = 8;
-			if (miClockError <= -kiCatchUpErrorThreshold)
-			{
-				int64_t iCatchUpTicks = std::min(std::max(-miClockError * 2 / 3, engine::TimeStep::kiMaxAccumulatorTicks), 10LL);
-				if (gpGame->mTimeStep.miCatchUpAccumulatorTicks != iCatchUpTicks)
-				{
-					LOG(kNetwork, kVerbose, "ClientSession::Reconcile CatchUp accumulator Error: {} Cap: {}", miClockError, iCatchUpTicks);
-				}
-				gpGame->mTimeStep.miCatchUpAccumulatorTicks = iCatchUpTicks;
-			}
-			else if (gpGame->mTimeStep.miCatchUpAccumulatorTicks > 0)
-			{
-				LOG(kNetwork, kVerbose, "ClientSession::Reconcile Restoring accumulator cap Error: {}", miClockError);
-				gpGame->mTimeStep.miCatchUpAccumulatorTicks = 0;
-			}
 		}
 	}
 	gpProfileManager->CpuStop(engine::kCpuTimerNetworkPollReconcile, true);
 
 	UpdateDesiredCoords("tick");
 	UpdateSubscriptions();
-}
-
-void ClientSession::PostRender()
-{
-	if (IsStalled())
-	{
-		return;
-	}
-
-	// Kick reconcile after render so snapshots remain valid for GetSnapshotFrame during rendering
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	TryKickReconcile();
 }
 
 void ClientSession::ConnectToServer(std::string_view serverAddress)

@@ -34,65 +34,59 @@ struct CrcValidateResult
 	int64_t iLowestUnresolvedMismatch = -1;
 };
 
-static CrcValidateResult CrcValidateLoop(CoordReconcileWork& rWork, int64_t iTargetTick)
+static CrcValidateResult CrcValidateLoop(CoordWork& rWork, int64_t iTargetTick)
 {
+	engine::CoordFrames& rFrames = *rWork.pFrames;
+
 	CrcValidateResult result;
-	int64_t iLowestUnresolved = INT64_MAX;
+	int64_t iLowestUnresolved = std::numeric_limits<int64_t>::max();
 
 	// Walk in tick-ascending order. iHighestMatch grows monotonically, so whenever it advances
 	// any prior-tracked mismatch becomes bypassed (older than the new confirmed tick) and we
 	// can reset the unresolved tracker.
-	for (auto it = rWork.serverUpdates.lower_bound(rWork.iConfirmedTick + 1);
-		it != rWork.serverUpdates.end() && it->first <= iTargetTick;
+	for (auto it = rFrames.serverUpdates.lower_bound(rFrames.iConfirmedTick + 1);
+		it != rFrames.serverUpdates.end() && it->first <= iTargetTick;
 		++it)
 	{
 		int64_t iTick = it->first;
-		int64_t iIndex = FindSnapshotIndex(rWork.snapshots, rWork.iSnapshotHead, rWork.iSnapshotCount, iTick);
+		int64_t iIndex = FindSnapshotIndex(rFrames.snapshots, rFrames.iSnapshotHead, rFrames.iSnapshotCount, iTick);
 		if (iIndex < 0)
 		{
 			continue;
 		}
-		int64_t iPhysical = SnapshotIndex(rWork.iSnapshotHead, iIndex);
-		const Frame& rClientFrame = *rWork.snapshots[iPhysical];
+		int64_t iPhysical = SnapshotIndex(rFrames.iSnapshotHead, iIndex);
+		const Frame& rClientFrame = *rFrames.snapshots[iPhysical];
 
 		if (rClientFrame.postRender.sharedCrc == it->second.sharedCrc)
 		{
-			if (rClientFrame.postRender.previousInputCrc != it->second.inputCrc)
-			{
-				char acServerInputCrc[20] {}, acClientInputCrc[20] {};
-				common::ToHex(std::span<char, 20>(acServerInputCrc), it->second.inputCrc);
-				common::ToHex(std::span<char, 20>(acClientInputCrc), rClientFrame.postRender.previousInputCrc);
-				LOG(kNetwork, kVerbose, "CrcValidateLoop inputCrc mismatch on sharedCrc match Coord: ({},{}) Tick: {} ServerInputCrc: {} ClientInputCrc: {}", rWork.coord.x, rWork.coord.y, iTick, acServerInputCrc, acClientInputCrc);
-			}
 			result.iHighestMatch = iTick;
 			result.iHighestMatchIndex = iIndex;
 			// Any prior-tracked mismatch is now bypassed — the new confirmed point is past it.
-			if (iLowestUnresolved != INT64_MAX)
+			if (iLowestUnresolved != std::numeric_limits<int64_t>::max())
 			{
 				LOG(kNetwork, kVerbose, "CrcValidateLoop bypassed mismatch Coord: ({},{}) Tick: {} HighestMatch: {}", rWork.coord.x, rWork.coord.y, iLowestUnresolved, iTick);
-				iLowestUnresolved = INT64_MAX;
+				iLowestUnresolved = std::numeric_limits<int64_t>::max();
 			}
 		}
 		else
 		{
-			char acSharedCrc[20] {}, acClientCrc[20] {}, acServerInputCrc[20] {}, acClientInputCrc[20] {};
+			char acSharedCrc[20] {}, acClientCrc[20] {}, acServerInputCrc[20] {};
 			common::ToHex(std::span<char, 20>(acSharedCrc), it->second.sharedCrc);
 			common::ToHex(std::span<char, 20>(acClientCrc), rClientFrame.postRender.sharedCrc);
 			common::ToHex(std::span<char, 20>(acServerInputCrc), it->second.inputCrc);
-			common::ToHex(std::span<char, 20>(acClientInputCrc), rClientFrame.postRender.previousInputCrc);
-			LOG(kNetwork, kVerbose, "CrcValidateLoop sharedCrc mismatch Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} ServerInputCrc: {} ClientInputCrc: {} StatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, acServerInputCrc, acClientInputCrc, it->second.statusChanges.size());
-			for (const auto& rStatusChange : it->second.statusChanges)
+			LOG(kNetwork, kVerbose, "CrcValidateLoop sharedCrc mismatch Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} ServerInputCrc: {} StatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, acServerInputCrc, it->second.statusChanges.size());
+			for (const StatusChange& rStatusChange : it->second.statusChanges)
 			{
 				LOG(kNetwork, kVerbose, "  StatusChange type: {}", StatusChangeTypeName(rStatusChange.eType));
 			}
-			if (iLowestUnresolved == INT64_MAX)
+			if (iLowestUnresolved == std::numeric_limits<int64_t>::max())
 			{
 				iLowestUnresolved = iTick;
 			}
 		}
 	}
 
-	if (iLowestUnresolved != INT64_MAX)
+	if (iLowestUnresolved != std::numeric_limits<int64_t>::max())
 	{
 		result.iLowestUnresolvedMismatch = iLowestUnresolved;
 		result.bMatch = false;
@@ -101,26 +95,35 @@ static CrcValidateResult CrcValidateLoop(CoordReconcileWork& rWork, int64_t iTar
 	return result;
 }
 
-static void CrcApplyMatchResult(CoordReconcileWork& rWork, int64_t iHighestMatch, int64_t iHighestMatchIndex, ReconcileProfiling& rProfiling)
+static void CrcApplyMatchResult(CoordWork& rWork, int64_t iHighestMatch, int64_t iHighestMatchIndex)
 {
-	rWork.bCrcFastPath = true;
-	rWork.iNewConfirmedTick = iHighestMatch;
-	rProfiling.iCrcValidatedFrameTicks += iHighestMatch - rWork.iConfirmedTick;
+	engine::CoordFrames& rFrames = *rWork.pFrames;
+	CoordScratch& rScratch = rWork.scratch;
 
-	rWork.iNewConfirmedOffset = SnapshotIndex(rWork.iSnapshotHead, iHighestMatchIndex);
-	rWork.iOutputCount = rWork.iSnapshotCount - iHighestMatchIndex;
+	rScratch.bCrcFastPath = true;
+	rScratch.iNewConfirmedTick = iHighestMatch;
+	rScratch.profiling.iCrcValidatedFrameTicks += iHighestMatch - rFrames.iConfirmedTick;
+
+	rScratch.iNewConfirmedOffset = SnapshotIndex(rFrames.iSnapshotHead, iHighestMatchIndex);
+	rScratch.iOutputCount = rFrames.iSnapshotCount - iHighestMatchIndex;
+
+	// Drop validated entries — fast-path advances iConfirmedTick in place, so anything
+	// at or below it is now consumed and would otherwise accumulate in serverUpdates.
+	rFrames.serverUpdates.erase(rFrames.serverUpdates.begin(), rFrames.serverUpdates.upper_bound(iHighestMatch));
 }
 
-CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork, int64_t iTargetTick, ReconcileProfiling& rProfiling)
+CrcFastPathCoordResult CrcFastPathProcessCoord(CoordWork& rWork, int64_t iTargetTick)
 {
+	engine::CoordFrames& rFrames = *rWork.pFrames;
+
 	CrcFastPathCoordResult result;
 
-	if (rWork.serverUpdates.empty() && !rWork.pendingFullState.has_value())
+	if (rFrames.serverUpdates.empty() && !rFrames.pendingFullState.has_value())
 	{
 		return result;
 	}
 
-	if (rWork.pendingFullState.has_value())
+	if (rFrames.pendingFullState.has_value())
 	{
 		result.bHandled = false;
 		LOG(kNetwork, kVerbose, "CrcFastPathProcessCoord Pending full state forces reconcile Coord: ({},{})", rWork.coord.x, rWork.coord.y);
@@ -131,26 +134,26 @@ CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork, int64_
 
 	// Gap at confirmed+1 with no matches/mismatches: first server update is non-consecutive
 	// and nothing was validatable. Nothing for the fast path or full replay to do this cycle.
-	if (validateResult.iHighestMatch == -1 && validateResult.bMatch && !rWork.serverUpdates.empty() && rWork.serverUpdates.begin()->first != rWork.iConfirmedTick + 1)
+	if (validateResult.iHighestMatch == -1 && validateResult.bMatch && !rFrames.serverUpdates.empty() && rFrames.serverUpdates.begin()->first != rFrames.iConfirmedTick + 1)
 	{
 		return result;
 	}
 
 	// No matches, no mismatches, already at/past target.
-	if (validateResult.iHighestMatch == -1 && validateResult.bMatch && rWork.iConfirmedTick >= iTargetTick)
+	if (validateResult.iHighestMatch == -1 && validateResult.bMatch && rFrames.iConfirmedTick >= iTargetTick)
 	{
 		return result;
 	}
 
 	if (validateResult.iHighestMatch >= 0)
 	{
-		CrcApplyMatchResult(rWork, validateResult.iHighestMatch, validateResult.iHighestMatchIndex, rProfiling);
-		rWork.iHighWaterValidatedTick = std::max(rWork.iHighWaterValidatedTick, validateResult.iHighestMatch);
+		CrcApplyMatchResult(rWork, validateResult.iHighestMatch, validateResult.iHighestMatchIndex);
+		rFrames.iHighWaterValidatedTick = std::max(rFrames.iHighWaterValidatedTick, validateResult.iHighestMatch);
 
 		// Advance iConfirmedTick/iConfirmedOffset so any subsequent rollback starts at the new
 		// confirmed point. Required by the Part 1 invariant (no re-simulation of validated ticks).
-		rWork.iConfirmedTick = validateResult.iHighestMatch;
-		rWork.iConfirmedOffset = validateResult.iHighestMatchIndex;
+		rFrames.iConfirmedTick = validateResult.iHighestMatch;
+		rFrames.iConfirmedOffset = validateResult.iHighestMatchIndex;
 
 		if (!validateResult.bMatch)
 		{
@@ -165,12 +168,11 @@ CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork, int64_
 		result.iLowestUnresolvedMismatch = validateResult.iLowestUnresolvedMismatch;
 		LOG(kNetwork, kVerbose, "CrcFastPathProcessCoord Unresolved mismatch no matches Coord: ({},{}) LowestMismatch: {}", rWork.coord.x, rWork.coord.y, validateResult.iLowestUnresolvedMismatch);
 	}
-	else if (rWork.iConfirmedTick + 1 < iTargetTick)
+	else if (rFrames.iConfirmedTick + 1 < iTargetTick)
 	{
 		// No matches, no mismatches, but target is past confirmed — gaps in serverUpdates.
 		// Fall through to full replay to extend the ring (or run catch-up).
 		result.bHandled = false;
-		LOG(kNetwork, kVerbose, "CrcFastPathProcessCoord Gap or snapshot missing Coord: ({},{}) Confirmed: {} Target: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, iTargetTick);
 	}
 
 	return result;

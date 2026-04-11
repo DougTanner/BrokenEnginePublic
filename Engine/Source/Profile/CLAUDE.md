@@ -16,7 +16,7 @@ Performance profiling system providing CPU timing, GPU timing via Vulkan timesta
 
 ## Thread Safety
 
-CPU profiling is thread-safe via per-thread timer state stored in a mutex-protected map keyed by `std::thread::id`. Timestamps are captured before acquiring the lock. This allows worker threads and the reconcile thread to contribute profiling data.
+CPU profiling is thread-safe via per-thread timer state stored in a mutex-protected map keyed by `std::thread::id`. Timestamps are captured before acquiring the lock. This allows dispatch worker threads to contribute profiling data.
 
 ## Usage
 

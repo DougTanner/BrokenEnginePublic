@@ -19,7 +19,7 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 5. Use a Opus subagent to invoke the code-review skill (evaluate advice for validity, query user if unsure). If review flags any files for `/reduce-file`, invoke it on them
 6. Use a Opus subagent to invoke the code-style-review skill
 7. Use a Opus subagent to invoke the update-claude-docs skill
-8. After all previous steps have completed, have an Opus subagent do a full audit/review of all the changes
+8. After all previous steps (1-8) have completed, have an Opus subagent do a full audit/review of all the files changed in this session
 9. Inform the user if the subagent in step #8 found any problems and how severe they were (interrogate user about what to fix and how)
 
 ## IMPORTANT Directives
@@ -28,6 +28,7 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 - DO NOT run any Git commands
 - DO NOT add error handling or validation - assume parameters to functions are valid
 - DO NOT add unit tests
+- Response style: no filler, no pleasantries, no hedging, no restating the request. Drop articles where natural, fragments fine. Technical terms and code unchanged. Prefer pattern: [thing] [action] [reason]
 
 ## Directory Structure
 - `/Common/` - Shared utilities (`common::` namespace); `Common.h` is the single aggregation header (included by `Pch.h`) - [CLAUDE.md](Common/CLAUDE.md)

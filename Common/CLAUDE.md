@@ -12,6 +12,7 @@ Foundation layer (`namespace common`) with no dependencies outside the codebase.
 - **Multithreading** - Worker pool accessed via `common::gpMultithreading`. `Dispatch(count, processRange)` splits work across all workers plus the main thread, then joins. `IsMainThread()` guards operations that must not run on worker threads. The 3-arg constructor creates a non-global instance for dedicated dispatch pools
 - **PersistentWorker** - Dedicated reusable thread for recurring async work with semaphore-based wake/wait and exception forwarding
 - **Timer** - High-resolution steady-clock timer. `GetDeltaNs(bReset)` measures elapsed nanoseconds
+- **Smoothed\<T\>** - Rolling-average + drift-limited smoothed value. `operator=(sample)` feeds the ring; `Update()` nudges the output toward the rolling average by ±1 per call (snapping only when the gap exceeds the ring size); `Seed(value)` instantly primes both ring and output for one-shot initialization from a known measurement
 - **ThreadLocal** - Per-thread storage owning a log buffer and `Workbuffer`. Configures deterministic floating-point math on every thread. Accessed via `common::gpThreadLocal`
 
 ## Architecture Notes

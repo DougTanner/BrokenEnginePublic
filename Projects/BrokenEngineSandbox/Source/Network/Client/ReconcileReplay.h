@@ -5,9 +5,10 @@
 namespace game
 {
 
-struct ReconcileContext;
-struct CoordReconcileWork;
+struct CoordWork;
+struct ReconcileInputs;
 struct ReconcileProfiling;
+struct ConfirmedClientState;
 struct StatusChange;
 
 struct CrcFastPathCoordResult
@@ -20,11 +21,11 @@ struct CrcFastPathCoordResult
 	int64_t iLowestUnresolvedMismatch = -1;
 };
 
-CrcFastPathCoordResult CrcFastPathProcessCoord(CoordReconcileWork& rWork, int64_t iTargetTick, ReconcileProfiling& rProfiling);
+CrcFastPathCoordResult CrcFastPathProcessCoord(CoordWork& rWork, int64_t iTargetTick);
 
-void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork);
-void ReconcileUpdateClientState(ReconcileContext& rReconcileContext);
-void ReconcileInjectPendingFullState(CoordReconcileWork& rWork);
+void ReconcileCoord(CoordWork& rWork, const ReconcileInputs& rInputs);
+void ReconcileUpdateClientState(std::span<const CoordWork> works, const ReconcileInputs& rInputs, bool bAnyFullReplay, ConfirmedClientState& rInOutState);
+void ReconcileInjectPendingFullState(CoordWork& rWork);
 
 } // namespace game
 

@@ -110,7 +110,7 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 	{
 		const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(i)];
 		auto it = rFrames.find(rCoord);
-		if (it == rFrames.end() || it->second.pCurrent == nullptr)
+		if (it == rFrames.end() || it->second.iSnapshotCount == 0)
 		{
 			continue;
 		}

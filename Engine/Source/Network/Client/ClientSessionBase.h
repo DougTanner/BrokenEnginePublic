@@ -2,11 +2,6 @@
 
 #if defined(BT_CLIENT)
 
-namespace game
-{
-struct Frame;
-}
-
 namespace engine
 {
 
@@ -37,17 +32,11 @@ public:
 	// Clock correction
 	std::chrono::nanoseconds ComputeClockCorrectionNs(int64_t iPreReconcileTick, std::chrono::nanoseconds tickNs);
 
-	// Extrapolation
-	bool IsExtrapolating() const;
-	void PrepareExtrapolationTick(const std::vector<GridCoord>& rActiveCoords, int64_t iTick);
-	void BuildExtrapolationFrameRef(const GridCoord& rCoord, int64_t iTick, game::Frame*& rpNext, game::Frame*& rpCurrent);
-	void RecordExtrapolationSnapshot(const std::vector<GridCoord>& rActiveCoords, int64_t iTick);
-	game::Frame* GetSnapshotFrame(GridCoord coord) const;
-
 	// Queries
 	int64_t GetConfirmedTick() const;
 	int64_t GetClientConfirmedTick() const;
 	int64_t GetServerUpdateBufferSize() const;
+	int64_t GetTargetSimTick() const { return (miLatestServerTick < 0) ? -1 : (miLatestServerTick - miCurrentTargetBehind); }
 
 	std::unique_ptr<Client> mpClientNetwork;
 	std::unique_ptr<NetworkDiscoveryScanner> mpDiscoveryScanner;

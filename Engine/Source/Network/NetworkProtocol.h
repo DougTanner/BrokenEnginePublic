@@ -49,6 +49,9 @@ inline constexpr int64_t kiMaxResendFrames = 8;
 inline constexpr int64_t kiMaxBufferedFrames = 256;
 inline constexpr int64_t kiClockErrorDisconnectThreshold = 64;
 inline constexpr int64_t kiClockErrorDisconnectConsecutiveFrames = 4;
+// Fixed jitter safety buffer added on top of measured jitter when computing miCurrentTargetBehind.
+// 125ms = 4 ticks at 32Hz; preserved in wall-clock terms if the tick rate ever changes.
+inline constexpr int64_t kiJitterSafetyUs = 125'000;
 inline constexpr int64_t kiMaxPacketSize = 64 * 1024;
 inline constexpr int64_t kiMaxStatusChangesPerCell = 1024;
 

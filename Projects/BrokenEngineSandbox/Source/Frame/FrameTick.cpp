@@ -46,7 +46,6 @@ void RunFrameTick(const ActiveFrameRef& rRef, int64_t iTickCounter, float fCurre
 	FramePostRender::Spawn(rNext, *rRef.pFrameInput, rStaticData);
 
 	// Compute CRCs after all phases complete
-	rNext.postRender.previousInputCrc = rRef.pFrameInput->ServerInputCrc();
 	rNext.postRender.sharedCrc = rNext.Crcs();
 }
 

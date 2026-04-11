@@ -40,8 +40,10 @@ struct CoordFrames
 {
 	FrameStaticData staticData;
 
+#if defined(BT_SERVER)
 	std::unique_ptr<game::Frame> pCurrent;
 	std::unique_ptr<game::Frame> pNext;
+#endif
 
 #if defined(BT_CLIENT)
 	std::unique_ptr<game::Frame> snapshots[kiNetworkBufferSize] {};
@@ -140,6 +142,7 @@ public:
 	int64_t NextGlobalId() const { return miNextGlobalId; }
 	void SetNextGlobalId(int64_t iNextGlobalId) { miNextGlobalId = iNextGlobalId; }
 
+#if defined(BT_SERVER)
 	game::Frame& CurrentFrame(GridCoord coord) const
 	{
 		return *mCoordFrames.at(coord).pCurrent;
@@ -149,6 +152,7 @@ public:
 	{
 		return *mCoordFrames.at(coord).pNext;
 	}
+#endif // BT_SERVER
 
 	GameFlags_t mGameFlags;
 
@@ -162,9 +166,11 @@ public:
 protected:
 
 	void PrepareActiveSet();
+#if defined(BT_SERVER)
 	void SwapFrames();
-	void BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveCoords, bool bExtrapolating);
-	void FinalizeFrameTick(const std::vector<GridCoord>& rActiveCoords, bool bExtrapolating);
+	void BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveCoords);
+	void FinalizeFrameTick(const std::vector<GridCoord>& rActiveCoords);
+#endif // BT_SERVER
 
 	int64_t miTickCounter = 0;
 	float mfCurrentTime = 0.0f;

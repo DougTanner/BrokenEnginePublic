@@ -24,41 +24,49 @@ static std::unique_ptr<Frame> CloneFrameViaSerialization(const Frame& rFrame)
 	return pClone;
 }
 
-void ReconcileInjectPendingFullState(CoordReconcileWork& rWork)
+void ReconcileInjectPendingFullState(CoordWork& rWork)
 {
-	ASSERT(rWork.pendingFullState->pFrame->interpolate.iTick == rWork.pendingFullState->iTick);
-	int64_t iSlot = SnapshotIndex(rWork.iReplayWriteHead, rWork.iReplayWriteCount);
-	rWork.snapshots[iSlot] = std::move(rWork.pendingFullState->pFrame);
-	rWork.replayStack.clear();
-	rWork.replayStack.push_back(rWork.snapshots[iSlot].get());
-	rWork.iReplayStackCount = 1;
-	rWork.iReplayWriteHead = SnapshotIndex(iSlot, 1);
-	rWork.iReplayWriteCount = 0;
+	engine::CoordFrames& rFrames = *rWork.pFrames;
+	CoordScratch& rScratch = rWork.scratch;
+
+	ASSERT(rFrames.pendingFullState->pFrame->interpolate.iTick == rFrames.pendingFullState->iTick);
+	int64_t iSlot = SnapshotIndex(rScratch.iReplayWriteHead, rScratch.iReplayWriteCount);
+	rFrames.snapshots[iSlot] = std::move(rFrames.pendingFullState->pFrame);
+	rScratch.replayStack.clear();
+	rScratch.replayStack.push_back(rFrames.snapshots[iSlot].get());
+	rScratch.iReplayStackCount = 1;
+	rScratch.iReplayWriteHead = SnapshotIndex(iSlot, 1);
+	rScratch.iReplayWriteCount = 0;
 	// Full state replaces the timeline; a prior higher high-water mark was against a discarded timeline.
-	rWork.iHighWaterValidatedTick = rWork.pendingFullState->iTick;
-	rWork.pendingFullState.reset();
+	rFrames.iHighWaterValidatedTick = rFrames.pendingFullState->iTick;
+	rFrames.pendingFullState.reset();
 }
 
 // --- Per-coord reconciliation functions ---
 
-static void ReconcileRollbackCoord(CoordReconcileWork& rWork, int64_t iRollbackOffset)
+static void ReconcileRollbackCoord(CoordWork& rWork, int64_t iRollbackOffset)
 {
+	engine::CoordFrames& rFrames = *rWork.pFrames;
+	CoordScratch& rScratch = rWork.scratch;
+
 	ASSERT(iRollbackOffset >= 0);
-	int64_t iRollbackPhysical = SnapshotIndex(rWork.iSnapshotHead, iRollbackOffset);
-	rWork.replayStack.clear();
-	rWork.replayStack.push_back(rWork.snapshots[iRollbackPhysical].get());
-	rWork.iReplayStackCount = 1;
-	rWork.iReplayWriteHead = SnapshotIndex(rWork.iSnapshotHead, iRollbackOffset + 1);
-	rWork.iReplayWriteCount = 0;
-	rWork.iLastValidatedIndex = -1;
+	int64_t iRollbackPhysical = SnapshotIndex(rFrames.iSnapshotHead, iRollbackOffset);
+	rScratch.replayStack.clear();
+	rScratch.replayStack.push_back(rFrames.snapshots[iRollbackPhysical].get());
+	rScratch.iReplayStackCount = 1;
+	rScratch.iReplayWriteHead = SnapshotIndex(rFrames.iSnapshotHead, iRollbackOffset + 1);
+	rScratch.iReplayWriteCount = 0;
+	rScratch.iLastValidatedIndex = -1;
 }
 
-static int64_t ReconcileFindReplayRangeCoord(CoordReconcileWork& rWork, int64_t iReplayStart)
+static int64_t ReconcileFindReplayRangeCoord(CoordWork& rWork, int64_t iReplayStart)
 {
+	const engine::CoordFrames& rFrames = *rWork.pFrames;
+
 	int64_t iMaxConsecutive = iReplayStart - 1;
 	for (int64_t iTick = iReplayStart; ; ++iTick)
 	{
-		if (!rWork.serverUpdates.contains(iTick))
+		if (!rFrames.serverUpdates.contains(iTick))
 		{
 			break;
 		}
@@ -67,28 +75,31 @@ static int64_t ReconcileFindReplayRangeCoord(CoordReconcileWork& rWork, int64_t 
 	return iMaxConsecutive;
 }
 
-static bool ReconcileRunTickCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork, int64_t iTick, float fTime, FrameInput& rFrameInput)
+static bool ReconcileRunTickCoord(CoordWork& rWork, int64_t iTick, float fTime, FrameInput& rFrameInput)
 {
+	engine::CoordFrames& rFrames = *rWork.pFrames;
+	CoordScratch& rScratch = rWork.scratch;
+
 	// Invariant: any tick whose CRC matched the server must never be re-simulated.
-	if (iTick <= rWork.iHighWaterValidatedTick)
+	if (iTick <= rFrames.iHighWaterValidatedTick)
 	{
 		DEBUG_BREAK();
 	}
 
-	if (rWork.iReplayWriteCount >= engine::kiNetworkBufferSize)
+	if (rScratch.iReplayWriteCount >= engine::kiNetworkBufferSize)
 	{
-		LOG(kNetwork, kVerbose, "ReconcileRunTickCoord Ring buffer full WriteCount: {} Tick: {}", rWork.iReplayWriteCount, iTick);
+		LOG(kNetwork, kVerbose, "ReconcileRunTickCoord Ring buffer full WriteCount: {} Tick: {}", rScratch.iReplayWriteCount, iTick);
 		return false;
 	}
 
-	int64_t iNextSlot = SnapshotIndex(rWork.iReplayWriteHead, rWork.iReplayWriteCount);
-	if (rWork.snapshots[iNextSlot] == nullptr)
+	int64_t iNextSlot = SnapshotIndex(rScratch.iReplayWriteHead, rScratch.iReplayWriteCount);
+	if (rFrames.snapshots[iNextSlot] == nullptr)
 	{
-		rWork.snapshots[iNextSlot] = std::make_unique<Frame>();
+		rFrames.snapshots[iNextSlot] = std::make_unique<Frame>();
 	}
 
-	Frame* pCurrent = rWork.replayStack[rWork.iReplayStackCount - 1];
-	Frame* pNext = rWork.snapshots[iNextSlot].get();
+	Frame* pCurrent = rScratch.replayStack[rScratch.iReplayStackCount - 1];
+	Frame* pNext = rFrames.snapshots[iNextSlot].get();
 
 	pNext->interpolate.frameFlags.Set(engine::FrameFlags::kRecalculated);
 
@@ -96,71 +107,9 @@ static bool ReconcileRunTickCoord(ReconcileContext& rReconcileContext, CoordReco
 		.pNext = pNext,
 		.pCurrent = pCurrent,
 		.pFrameInput = &rFrameInput,
-		.pStaticData = &rWork.staticData,
+		.pStaticData = &rFrames.staticData,
 	};
 	RunFrameTick(ref, iTick, fTime);
-
-	// Logs 2+4: pre-transfer sibling-coord snapshot + client transfer ordering,
-	// gated on any transfer-type status change being present in this coord-tick.
-	int64_t iTransferCount = 0;
-	for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
-	{
-		if (IsTransferType(rStatusChange.eType))
-		{
-			++iTransferCount;
-		}
-	}
-	if (iTransferCount > 0)
-	{
-		// Single workbuffer scope holds both Types and Siblings separated by a
-		// sentinel, since nested Push/Pop scopes cannot both be viewed at once
-		// (Workbuffer::View returns only the innermost scope).
-		// Sibling iConfirmedTick/iReplayStackCount are read lock-free during
-		// parallel reconcile dispatch; values are best-effort snapshots. int64_t
-		// reads are atomic on x86_64 so no tearing, but ordering across coords
-		// is non-deterministic — that is the signal we want.
-		common::ScopedWorkbufferBuilder builder(common::gpThreadLocal->mWorkbuffer);
-		builder.Append("[");
-		bool bFirstType = true;
-		for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
-		{
-			if (!IsTransferType(rStatusChange.eType))
-			{
-				continue;
-			}
-			if (!bFirstType)
-			{
-				builder.Append(",");
-			}
-			bFirstType = false;
-			builder.Append(StatusChangeTypeName(rStatusChange.eType));
-		}
-		builder.Append("] Siblings: [");
-		bool bFirstSibling = true;
-		for (const CoordReconcileWork& rSibling : rReconcileContext.coordWork)
-		{
-			if (&rSibling == &rWork)
-			{
-				continue;
-			}
-			if (!bFirstSibling)
-			{
-				builder.Append(" ");
-			}
-			bFirstSibling = false;
-			builder.Append("(");
-			builder.Append(static_cast<int64_t>(rSibling.coord.x));
-			builder.Append(",");
-			builder.Append(static_cast<int64_t>(rSibling.coord.y));
-			builder.Append(")=C");
-			builder.Append(rSibling.iConfirmedTick);
-			builder.Append("/T");
-			builder.Append(rSibling.iConfirmedTick + rSibling.iReplayStackCount - 1);
-		}
-		builder.Append("]");
-
-		LOG(kNetwork, kVerbose, "SpawnTransfer sibling snapshot Coord: ({},{}) Tick: {} TransferCount: {} TransferInfo: Types: {}", rWork.coord.x, rWork.coord.y, iTick, iTransferCount, builder);
-	}
 
 	// Apply transfer StatusChanges (runs after Destroy/Spawn to match server ordering)
 	bool bHadTransfers = false;
@@ -168,7 +117,7 @@ static bool ReconcileRunTickCoord(ReconcileContext& rReconcileContext, CoordReco
 	{
 		if (IsTransferType(rStatusChange.eType))
 		{
-			// Log 3: destination coord contents before/after this spawn.
+			// Capture destination coord entity counts before/after spawn for logging
 			int64_t iPreCount = 0;
 			switch (rStatusChange.eType)
 			{
@@ -206,84 +155,72 @@ static bool ReconcileRunTickCoord(ReconcileContext& rReconcileContext, CoordReco
 	if (bHadTransfers)
 	{
 		pNext->postRender.sharedCrc = pNext->Crcs();
-		pNext->postRender.previousInputCrc = rFrameInput.ServerInputCrc();
 	}
 
 	// Advance replay stack
-	rWork.replayStack.push_back(pNext);
-	++rWork.iReplayStackCount;
-	++rWork.iReplayWriteCount;
+	rScratch.replayStack.push_back(pNext);
+	++rScratch.iReplayStackCount;
+	++rScratch.iReplayWriteCount;
 
 	return true;
 }
 
-static bool ReconcileValidateCrcCoord([[maybe_unused]] ReconcileContext& rReconcileContext, CoordReconcileWork& rWork, int64_t iTick, const engine::CoordFrames::CoordServerUpdate& rUpdate, const FrameInput& rFrameInput)
+static bool ReconcileValidateCrcCoord(CoordWork& rWork, int64_t iTick, const engine::CoordFrames::CoordServerUpdate& rUpdate, const FrameInput& rFrameInput)
 {
-	Frame& rCurrentFrame = *rWork.replayStack[rWork.iReplayStackCount - 1];
+	engine::CoordFrames& rFrames = *rWork.pFrames;
+	CoordScratch& rScratch = rWork.scratch;
+
+	Frame& rCurrentFrame = *rScratch.replayStack[rScratch.iReplayStackCount - 1];
 	rCurrentFrame.interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
 	common::crc_t clientCrc = rCurrentFrame.postRender.sharedCrc;
 
 	if (clientCrc != rUpdate.sharedCrc)
 	{
-		char acSharedCrc[20] {}, acClientCrc[20] {}, acServerInputCrc[20] {}, acClientInputCrc[20] {};
+		char acSharedCrc[20] {}, acClientCrc[20] {}, acServerInputCrc[20] {};
 		common::ToHex(std::span<char, 20>(acSharedCrc), rUpdate.sharedCrc);
 		common::ToHex(std::span<char, 20>(acClientCrc), clientCrc);
 		common::ToHex(std::span<char, 20>(acServerInputCrc), rUpdate.inputCrc);
-		common::ToHex(std::span<char, 20>(acClientInputCrc), rFrameInput.ServerInputCrc());
-		LOG(kNetwork, kVerbose, "ReconcileValidateCrcCoord Desync Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} ServerInputCrc: {} ClientInputCrc: {} ServerStatusChanges: {} ClientStatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, acServerInputCrc, acClientInputCrc, rUpdate.statusChanges.size(), rFrameInput.statusChanges.size());
+		LOG(kNetwork, kVerbose, "ReconcileValidateCrcCoord Desync Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} ServerInputCrc: {} ServerStatusChanges: {} ClientStatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, acServerInputCrc, rUpdate.statusChanges.size(), rFrameInput.statusChanges.size());
 
-		rWork.iDesyncTick = iTick;
-		rWork.desyncExpectedCrc = rUpdate.sharedCrc;
-		rWork.desyncActualCrc = clientCrc;
-		rWork.pDesyncClientFrame = CloneFrameViaSerialization(rCurrentFrame);
-		return false;
-	}
-
-	// Validate input CRC
-	common::crc_t clientInputCrc = rFrameInput.ServerInputCrc();
-	if (clientInputCrc != rUpdate.inputCrc)
-	{
-		char acServerInputCrc[20] {}, acClientInputCrc[20] {};
-		common::ToHex(std::span<char, 20>(acServerInputCrc), rUpdate.inputCrc);
-		common::ToHex(std::span<char, 20>(acClientInputCrc), clientInputCrc);
-		LOG(kNetwork, kVerbose, "ReconcileValidateCrcCoord Input desync Coord: ({},{}) Tick: {} ServerInputCrc: {} ClientInputCrc: {} ServerStatusChanges: {} ClientStatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acServerInputCrc, acClientInputCrc, rUpdate.statusChanges.size(), rFrameInput.statusChanges.size());
-
-		rWork.iDesyncTick = iTick;
-		rWork.desyncExpectedCrc = rUpdate.inputCrc;
-		rWork.desyncActualCrc = clientInputCrc;
-		rWork.pDesyncClientFrame = CloneFrameViaSerialization(rCurrentFrame);
+		rScratch.iDesyncTick = iTick;
+		rScratch.desyncExpectedCrc = rUpdate.sharedCrc;
+		rScratch.desyncActualCrc = clientCrc;
+		rScratch.pDesyncClientFrame = CloneFrameViaSerialization(rCurrentFrame);
 		return false;
 	}
 
 	// Record CRC-validated index
-	rWork.iLastValidatedIndex = rWork.iReplayStackCount - 1;
-	rWork.iNewConfirmedTick = iTick;
-	rWork.iHighWaterValidatedTick = std::max(rWork.iHighWaterValidatedTick, iTick);
+	rScratch.iLastValidatedIndex = rScratch.iReplayStackCount - 1;
+	rScratch.iNewConfirmedTick = iTick;
+	rFrames.iHighWaterValidatedTick = std::max(rFrames.iHighWaterValidatedTick, iTick);
 
 	return true;
 }
 
-static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork, int64_t iReplayStart, int64_t iRollbackOffset, int64_t iMaxConsecutive, float& rfTime)
+static void ReconcileReplayCoord(CoordWork& rWork, const ReconcileInputs& rInputs, int64_t iReplayStart, int64_t iRollbackOffset, int64_t iMaxConsecutive, float& rfTime)
 {
+	engine::CoordFrames& rFrames = *rWork.pFrames;
+	CoordScratch& rScratch = rWork.scratch;
+
 	int64_t iAvailable = iMaxConsecutive - (iReplayStart - 1);
-	constexpr int64_t kiLowJitterThresholdUs = 2000;
-	constexpr int64_t kiHighJitterThresholdUs = 8000;
-	int64_t iJitterUs = rReconcileContext.iJitterUs;
-	int64_t iMaxReplay;
+	static constexpr int64_t kiLowJitterThresholdUs = 2000;
+	static constexpr int64_t kiHighJitterThresholdUs = 8000;
+	int64_t iJitterUs = rInputs.iJitterUs;
+	int64_t iMaxReplay = 0;
 	if (iJitterUs <= kiLowJitterThresholdUs)
 	{
 		iMaxReplay = iAvailable;
 	}
 	else if (iJitterUs >= kiHighJitterThresholdUs)
 	{
-		iMaxReplay = std::max(iAvailable / 4, 1LL);
+		iMaxReplay = std::max<int64_t>(iAvailable / 4, 1);
 	}
 	else
 	{
-		iMaxReplay = std::max(iAvailable / 2, 1LL);
+		iMaxReplay = std::max<int64_t>(iAvailable / 2, 1);
 	}
 	// Gap-aware override: when backlog is large, allow more replay to prevent cascading failure
-	int64_t iGap = rReconcileContext.iTargetTick - rWork.iConfirmedTick;
+	int64_t iGap = rInputs.iTargetTick - rFrames.iConfirmedTick;
 	static constexpr int64_t kiGapOverrideThreshold = engine::kiNetworkBufferSize / 2;
 	if (iGap >= kiGapOverrideThreshold)
 	{
@@ -299,31 +236,36 @@ static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordRecon
 			break;
 		}
 
-		auto updateIt = rWork.serverUpdates.find(iTick);
-		if (updateIt == rWork.serverUpdates.end())
+		auto updateIt = rFrames.serverUpdates.find(iTick);
+		if (updateIt == rFrames.serverUpdates.end())
 		{
 			break;
 		}
 
 		rfTime += kfDeltaTime;
 
+		if (iTick <= rScratch.iPreReconcileTailTick)
+		{
+			rScratch.bReSimOccurred = true;
+		}
+
 		FrameInput frameInput;
 		frameInput.statusChanges = updateIt->second.statusChanges;
 
-		if (!ReconcileRunTickCoord(rReconcileContext, rWork, iTick, rfTime, frameInput))
+		if (!ReconcileRunTickCoord(rWork, iTick, rfTime, frameInput))
 		{
 			break;
 		}
 
 		// Inject pending full state at matching tick
-		if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick == iTick)
+		if (rFrames.pendingFullState.has_value() && rFrames.pendingFullState->iTick == iTick)
 		{
 			ReconcileInjectPendingFullState(rWork);
 			LOG(kNetwork, kVerbose, "ReconcileReplayCoord Injected pending full state Coord: ({},{}) Tick: {}", rWork.coord.x, rWork.coord.y, iTick);
 		}
 
 		// CRC validation
-		if (!ReconcileValidateCrcCoord(rReconcileContext, rWork, iTick, updateIt->second, frameInput))
+		if (!ReconcileValidateCrcCoord(rWork, iTick, updateIt->second, frameInput))
 		{
 			return;
 		}
@@ -332,72 +274,187 @@ static void ReconcileReplayCoord(ReconcileContext& rReconcileContext, CoordRecon
 		bool bHadStatusChanges = !updateIt->second.statusChanges.empty();
 
 		// Consume server update
-		rWork.serverUpdates.erase(updateIt);
+		rFrames.serverUpdates.erase(updateIt);
 
 		if (bHadStatusChanges)
 		{
-			++rWork.profiling.iStatusChangeReplayTicks;
+			++rScratch.profiling.iStatusChangeReplayTicks;
 		}
 		else
 		{
-			++rWork.profiling.iKnockOnReplayTicks;
+			++rScratch.profiling.iKnockOnReplayTicks;
 		}
 
 		++iReplayCount;
 	}
 
 	// Record physical ring index of new confirmed frame
-	if (rWork.iLastValidatedIndex >= 0)
+	if (rScratch.iLastValidatedIndex >= 0)
 	{
-		if (rWork.iLastValidatedIndex == 0)
+		if (rScratch.iLastValidatedIndex == 0)
 		{
-			rWork.iNewConfirmedOffset = SnapshotIndex(rWork.iSnapshotHead, iRollbackOffset);
+			rScratch.iNewConfirmedOffset = SnapshotIndex(rFrames.iSnapshotHead, iRollbackOffset);
 		}
 		else
 		{
-			rWork.iNewConfirmedOffset = SnapshotIndex(rWork.iReplayWriteHead, rWork.iLastValidatedIndex - 1);
+			rScratch.iNewConfirmedOffset = SnapshotIndex(rScratch.iReplayWriteHead, rScratch.iLastValidatedIndex - 1);
 		}
 	}
 }
 
-static void ReconcileCatchUpCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork, int64_t iTargetTick, float& rfTime, ReconcileProfiling& rProfiling)
+// Simulate one forward tick. If serverUpdates has an entry for iTick, fold its StatusChanges
+// into the FrameInput so forward sim produces the server-correct state (CRC will match on the
+// next Reconcile's fast path). Does not validate, advance iConfirmedTick, or erase the entry —
+// all promotion happens on the next frame via the existing CRC fast path.
+static bool ReconcileForwardStepCoord(CoordWork& rWork, int64_t iTick, float& rfTime)
 {
-	int64_t iStartWriteCount = rWork.iReplayWriteCount;
-	int64_t iCurrentTick = rWork.replayStack[rWork.iReplayStackCount - 1]->interpolate.iTick;
+	engine::CoordFrames& rFrames = *rWork.pFrames;
+	CoordScratch& rScratch = rWork.scratch;
 
-	int64_t iBudget = engine::kiNetworkBufferSize - rWork.iReplayWriteCount;
+	rfTime += kfDeltaTime;
+
+	FrameInput frameInput;
+	auto updateIt = rFrames.serverUpdates.find(iTick);
+	if (updateIt != rFrames.serverUpdates.end())
+	{
+		frameInput.statusChanges = updateIt->second.statusChanges;
+	}
+
+	if (!ReconcileRunTickCoord(rWork, iTick, rfTime, frameInput))
+	{
+		return false;
+	}
+
+	++rScratch.profiling.iAssumedFrameTicks;
+	return true;
+}
+
+static void ReconcileCatchUpCoord(CoordWork& rWork, int64_t iTargetTick, float& rfTime)
+{
+	engine::CoordFrames& rFrames = *rWork.pFrames;
+	CoordScratch& rScratch = rWork.scratch;
+
+	int64_t iStartWriteCount = rScratch.iReplayWriteCount;
+	int64_t iCurrentTick = rScratch.replayStack[rScratch.iReplayStackCount - 1]->interpolate.iTick;
+
+	int64_t iBudget = engine::kiNetworkBufferSize - rScratch.iReplayWriteCount;
 	int64_t iCappedTarget = std::min(iTargetTick, iCurrentTick + iBudget);
 
 	while (iCurrentTick < iCappedTarget)
 	{
 		++iCurrentTick;
-		rfTime += kfDeltaTime;
-
-		FrameInput emptyInput;
-		if (!ReconcileRunTickCoord(rReconcileContext, rWork, iCurrentTick, rfTime, emptyInput))
+		if (!ReconcileForwardStepCoord(rWork, iCurrentTick, rfTime))
 		{
 			break;
 		}
-		++rProfiling.iAssumedFrameTicks;
 	}
 
 	// Clear recalculated flag on catch-up frames (replay frames keep it for rendering)
-	for (int64_t i = iStartWriteCount; i < rWork.iReplayWriteCount; ++i)
+	for (int64_t i = iStartWriteCount; i < rScratch.iReplayWriteCount; ++i)
 	{
-		int64_t iSlot = SnapshotIndex(rWork.iReplayWriteHead, i);
-		rWork.snapshots[iSlot]->interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
+		int64_t iSlot = SnapshotIndex(rScratch.iReplayWriteHead, i);
+		rFrames.snapshots[iSlot]->interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
 	}
 }
 
-void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork)
+// Fast-path catch-up: extends the ring tail forward to iTargetTick using empty-input sim.
+// Called after the CRC fast path commits, so the ring contains [confirmed, ...speculative tail].
+// The tail may be behind iTargetTick because miTickCounter advanced this frame; we append new
+// catch-up frames starting from the tail and grow iSnapshotCount in place.
+static void ReconcileFastPathCatchUp(CoordWork& rWork, int64_t iTargetTick)
 {
+	engine::CoordFrames& rFrames = *rWork.pFrames;
+	CoordScratch& rScratch = rWork.scratch;
+
+	if (rFrames.iSnapshotCount == 0)
+	{
+		return;
+	}
+
+	int64_t iTailOffset = rFrames.iSnapshotCount - 1;
+	int64_t iTailPhysical = SnapshotIndex(rFrames.iSnapshotHead, iTailOffset);
+	Frame* pTail = rFrames.snapshots[iTailPhysical].get();
+	if (pTail == nullptr || pTail->interpolate.iTick >= iTargetTick)
+	{
+		return;
+	}
+
+	rScratch.replayStack.clear();
+	rScratch.replayStack.push_back(pTail);
+	rScratch.iReplayStackCount = 1;
+	rScratch.iReplayWriteHead = SnapshotIndex(iTailPhysical, 1);
+	rScratch.iReplayWriteCount = 0;
+
+	float fTime = pTail->interpolate.fCurrentTime;
+	int64_t iStartCount = rFrames.iSnapshotCount;
+	int64_t iBudget = engine::kiNetworkBufferSize - iStartCount;
+	int64_t iCurrentTick = pTail->interpolate.iTick;
+	int64_t iCappedTarget = std::min(iTargetTick, iCurrentTick + iBudget);
+
+	while (iCurrentTick < iCappedTarget)
+	{
+		++iCurrentTick;
+		if (!ReconcileForwardStepCoord(rWork, iCurrentTick, fTime))
+		{
+			break;
+		}
+	}
+
+	for (int64_t i = 0; i < rScratch.iReplayWriteCount; ++i)
+	{
+		int64_t iSlot = SnapshotIndex(rScratch.iReplayWriteHead, i);
+		rFrames.snapshots[iSlot]->interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
+	}
+
+	rFrames.iSnapshotCount = std::min(
+		iStartCount + rScratch.iReplayWriteCount,
+		static_cast<int64_t>(engine::kiNetworkBufferSize));
+}
+
+// Apply scratch output to rFrames in-place — writeback runs inside the same dispatch worker
+// since the scratch already mutated rFrames fields (iHighWaterValidatedTick, iConfirmedTick via
+// fast path, serverUpdates erase, snapshot slot allocation). This routine commits the final
+// ring layout (iConfirmedTick/iSnapshotHead/iConfirmedOffset/iSnapshotCount) for success paths.
+static void ApplyCoordWriteback(CoordWork& rWork)
+{
+	engine::CoordFrames& rFrames = *rWork.pFrames;
+	CoordScratch& rScratch = rWork.scratch;
+
+	if (rScratch.iNewConfirmedTick >= 0)
+	{
+		rFrames.iConfirmedTick = rScratch.iNewConfirmedTick;
+		rFrames.iSnapshotHead = rScratch.iNewConfirmedOffset;
+		rFrames.iConfirmedOffset = 0;
+		rFrames.iSnapshotCount = rScratch.iOutputCount;
+		ASSERT(rFrames.iSnapshotCount >= 0 && rFrames.iSnapshotCount <= engine::kiNetworkBufferSize);
+	}
+}
+
+void ReconcileCoord(CoordWork& rWork, const ReconcileInputs& rInputs)
+{
+	engine::CoordFrames& rFrames = *rWork.pFrames;
+	CoordScratch& rScratch = rWork.scratch;
+
+	// Capture pre-reconcile ring tail tick so ReconcileReplayCoord can distinguish actual
+	// re-simulation (replay of a tick that already existed) from first-time forward sim.
+	if (rFrames.iSnapshotCount > 0)
+	{
+		int64_t iTailPhysical = SnapshotIndex(rFrames.iSnapshotHead, rFrames.iSnapshotCount - 1);
+		if (rFrames.snapshots[iTailPhysical] != nullptr)
+		{
+			rScratch.iPreReconcileTailTick = rFrames.snapshots[iTailPhysical]->interpolate.iTick;
+		}
+	}
+
 	// Aggressive CRC walk: finds the highest matching ring frame across all server updates
 	// in range, advances iConfirmedTick/iConfirmedOffset to it, and reports the lowest
 	// unresolved mismatch (if any) past the new confirmed point.
-	CrcFastPathCoordResult fastPathResult = CrcFastPathProcessCoord(rWork, rReconcileContext.iTargetTick, rWork.profiling);
+	CrcFastPathCoordResult fastPathResult = CrcFastPathProcessCoord(rWork, rInputs.iTargetTick);
 	if (fastPathResult.bHandled)
 	{
-		++rWork.profiling.iCrcFastPathEvents;
+		++rScratch.profiling.iCrcFastPathEvents;
+		ApplyCoordWriteback(rWork);
+		ReconcileFastPathCatchUp(rWork, rInputs.iTargetTick);
 		return;
 	}
 
@@ -405,26 +462,26 @@ void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWo
 	// preserve those as the floor result. If full replay validates further, ReconcileValidateCrcCoord
 	// and ReconcileReplayCoord will overwrite them. iOutputCount must be recomputed from scratch
 	// because walk's count included old speculative frames that replay will overwrite.
-	rWork.bCrcFastPath = false;
-	rWork.iOutputCount = 0;
+	rScratch.bCrcFastPath = false;
+	rScratch.iOutputCount = 0;
 
-	rWork.bFullReplay = true;
+	rScratch.bFullReplay = true;
 
 	// Determine rollback base: prefer the shrunk target (one tick before the lowest unresolved
 	// mismatch), using the speculative ring frame at that logical offset as the starting state.
 	// Fall back to iConfirmedTick if the shrunk target is unavailable or the walk didn't find
 	// a mismatch (e.g., pending full state or gap-only path).
-	int64_t iRollbackTick = rWork.iConfirmedTick;
-	int64_t iRollbackOffset = rWork.iConfirmedOffset;
+	int64_t iRollbackTick = rFrames.iConfirmedTick;
+	int64_t iRollbackOffset = rFrames.iConfirmedOffset;
 	bool bShrunkRollback = false;
-	if (fastPathResult.iLowestUnresolvedMismatch > rWork.iConfirmedTick + 1 && !rWork.pendingFullState.has_value())
+	if (fastPathResult.iLowestUnresolvedMismatch > rFrames.iConfirmedTick + 1 && !rFrames.pendingFullState.has_value())
 	{
 		int64_t iShrunkTick = fastPathResult.iLowestUnresolvedMismatch - 1;
 		int64_t iShrunkIndex = -1;
-		for (int64_t i = 0; i < rWork.iSnapshotCount; ++i)
+		for (int64_t i = 0; i < rFrames.iSnapshotCount; ++i)
 		{
-			int64_t iPhysical = SnapshotIndex(rWork.iSnapshotHead, i);
-			if (rWork.snapshots[iPhysical] != nullptr && rWork.snapshots[iPhysical]->interpolate.iTick == iShrunkTick)
+			int64_t iPhysical = SnapshotIndex(rFrames.iSnapshotHead, i);
+			if (rFrames.snapshots[iPhysical] != nullptr && rFrames.snapshots[iPhysical]->interpolate.iTick == iShrunkTick)
 			{
 				iShrunkIndex = i;
 				break;
@@ -438,89 +495,97 @@ void ReconcileCoord(ReconcileContext& rReconcileContext, CoordReconcileWork& rWo
 		}
 	}
 
-	LOG(kNetwork, kVerbose, "ReconcileCoord Full replay Coord: ({},{}) Confirmed: {} RollbackTick: {} Shrunk: {} Target: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick, iRollbackTick, bShrunkRollback, rReconcileContext.iTargetTick);
-
 	ReconcileRollbackCoord(rWork, iRollbackOffset);
-	float fTime = rWork.replayStack[0]->interpolate.fCurrentTime;
+	float fTime = rScratch.replayStack[0]->interpolate.fCurrentTime;
 
 	// Inject pending full state at confirmed frame (stale states rejected at receive time).
 	// Only applies to the full-rollback path — shrunk rollback disables this branch above.
-	if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick == rWork.iConfirmedTick)
+	if (rFrames.pendingFullState.has_value() && rFrames.pendingFullState->iTick == rFrames.iConfirmedTick)
 	{
 		ReconcileInjectPendingFullState(rWork);
-		fTime = rWork.replayStack[0]->interpolate.fCurrentTime;
-		LOG(kNetwork, kVerbose, "ReconcileCoord Injected pending full state Coord: ({},{}) AtTick: {}", rWork.coord.x, rWork.coord.y, rWork.iConfirmedTick);
+		fTime = rScratch.replayStack[0]->interpolate.fCurrentTime;
+		LOG(kNetwork, kVerbose, "ReconcileCoord Injected pending full state Coord: ({},{}) AtTick: {}", rWork.coord.x, rWork.coord.y, rFrames.iConfirmedTick);
 	}
-	else if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick < rWork.iConfirmedTick)
+	else if (rFrames.pendingFullState.has_value() && rFrames.pendingFullState->iTick < rFrames.iConfirmedTick)
 	{
-		LOG(kNetwork, kVerbose, "ReconcileCoord Discarded stale pending full state Coord: ({},{}) FullStateTick: {} ConfirmedTick: {}", rWork.coord.x, rWork.coord.y, rWork.pendingFullState->iTick, rWork.iConfirmedTick);
-		rWork.pendingFullState.reset();
+		LOG(kNetwork, kVerbose, "ReconcileCoord Discarded stale pending full state Coord: ({},{}) FullStateTick: {} ConfirmedTick: {}", rWork.coord.x, rWork.coord.y, rFrames.pendingFullState->iTick, rFrames.iConfirmedTick);
+		rFrames.pendingFullState.reset();
 	}
 
 	int64_t iReplayStart = iRollbackTick + 1;
-	int64_t iMaxConsecutive = std::min(ReconcileFindReplayRangeCoord(rWork, iReplayStart), rReconcileContext.iTargetTick);
+	int64_t iMaxConsecutive = std::min(ReconcileFindReplayRangeCoord(rWork, iReplayStart), rInputs.iTargetTick);
 
-	ReconcileReplayCoord(rReconcileContext, rWork, iReplayStart, iRollbackOffset, iMaxConsecutive, fTime);
+	ReconcileReplayCoord(rWork, rInputs, iReplayStart, iRollbackOffset, iMaxConsecutive, fTime);
 
 	// Two-tier rollback fallback: if shrunk rollback desynced at the very first replay tick,
 	// the speculative starting state was bad. Clear the desync, reset replay state, and retry
 	// with a full rollback to iConfirmedTick.
-	if (rWork.iDesyncTick >= 0 && bShrunkRollback && rWork.iDesyncTick == iReplayStart)
+	if (rScratch.iDesyncTick >= 0 && bShrunkRollback && rScratch.iDesyncTick == iReplayStart)
 	{
-		LOG(kNetwork, kVerbose, "ReconcileCoord Shrunk rollback failed Coord: ({},{}) DesyncTick: {} — falling back to full rollback", rWork.coord.x, rWork.coord.y, rWork.iDesyncTick);
-		rWork.iDesyncTick = -1;
-		rWork.desyncExpectedCrc = 0;
-		rWork.desyncActualCrc = 0;
-		rWork.pDesyncClientFrame.reset();
-		rWork.iLastValidatedIndex = -1;
+		LOG(kNetwork, kVerbose, "ReconcileCoord Shrunk rollback failed Coord: ({},{}) DesyncTick: {} — falling back to full rollback", rWork.coord.x, rWork.coord.y, rScratch.iDesyncTick);
+		rScratch.iDesyncTick = -1;
+		rScratch.desyncExpectedCrc = 0;
+		rScratch.desyncActualCrc = 0;
+		rScratch.pDesyncClientFrame.reset();
+		rScratch.iLastValidatedIndex = -1;
 
-		iRollbackTick = rWork.iConfirmedTick;
-		iRollbackOffset = rWork.iConfirmedOffset;
+		iRollbackTick = rFrames.iConfirmedTick;
+		iRollbackOffset = rFrames.iConfirmedOffset;
 		bShrunkRollback = false;
 
 		ReconcileRollbackCoord(rWork, iRollbackOffset);
-		fTime = rWork.replayStack[0]->interpolate.fCurrentTime;
+		fTime = rScratch.replayStack[0]->interpolate.fCurrentTime;
 
-		if (rWork.pendingFullState.has_value() && rWork.pendingFullState->iTick == rWork.iConfirmedTick)
+		if (rFrames.pendingFullState.has_value() && rFrames.pendingFullState->iTick == rFrames.iConfirmedTick)
 		{
 			ReconcileInjectPendingFullState(rWork);
-			fTime = rWork.replayStack[0]->interpolate.fCurrentTime;
+			fTime = rScratch.replayStack[0]->interpolate.fCurrentTime;
 		}
 
 		iReplayStart = iRollbackTick + 1;
-		iMaxConsecutive = std::min(ReconcileFindReplayRangeCoord(rWork, iReplayStart), rReconcileContext.iTargetTick);
-		ReconcileReplayCoord(rReconcileContext, rWork, iReplayStart, iRollbackOffset, iMaxConsecutive, fTime);
+		iMaxConsecutive = std::min(ReconcileFindReplayRangeCoord(rWork, iReplayStart), rInputs.iTargetTick);
+		ReconcileReplayCoord(rWork, rInputs, iReplayStart, iRollbackOffset, iMaxConsecutive, fTime);
 	}
 
-	if (rWork.iDesyncTick >= 0)
+	if (rScratch.iDesyncTick >= 0)
 	{
 		return;
 	}
 
-	ReconcileCatchUpCoord(rReconcileContext, rWork, rReconcileContext.iTargetTick, fTime, rWork.profiling);
+	ReconcileCatchUpCoord(rWork, rInputs.iTargetTick, fTime);
 
 	// Compute output layout: confirmed frame + remaining replay/catch-up frames
-	if (rWork.iLastValidatedIndex > 0)
+	if (rScratch.iLastValidatedIndex > 0)
 	{
-		rWork.iOutputCount = rWork.iReplayWriteCount - (rWork.iLastValidatedIndex - 1);
+		rScratch.iOutputCount = rScratch.iReplayWriteCount - (rScratch.iLastValidatedIndex - 1);
 	}
-	else if (rWork.iLastValidatedIndex == 0)
+	else if (rScratch.iLastValidatedIndex == 0)
 	{
-		rWork.iOutputCount = rWork.iReplayWriteCount + 1;
+		rScratch.iOutputCount = rScratch.iReplayWriteCount + 1;
 	}
-	else if (rWork.iNewConfirmedTick >= 0)
+	else if (rScratch.iNewConfirmedTick >= 0)
 	{
 		// Walk advanced iConfirmedTick but full replay didn't validate anything further.
 		// Preserve walk's confirmed frame as the base and include new catch-up frames.
-		rWork.iOutputCount = rWork.iReplayWriteCount + 1;
+		rScratch.iOutputCount = rScratch.iReplayWriteCount + 1;
+	}
+	else
+	{
+		// Full replay ran catch-up without validating (gap in serverUpdates past confirmed).
+		// Preserve existing confirmed tick/offset as the base so catch-up frames are committed.
+		rScratch.iNewConfirmedTick = rFrames.iConfirmedTick;
+		rScratch.iNewConfirmedOffset = SnapshotIndex(rFrames.iSnapshotHead, iRollbackOffset);
+		rScratch.iOutputCount = rScratch.iReplayWriteCount + 1;
 	}
 
-	rWork.iOutputCount = std::min(rWork.iOutputCount, static_cast<int64_t>(engine::kiNetworkBufferSize));
-	ASSERT(rWork.iOutputCount >= 0 && rWork.iOutputCount <= engine::kiNetworkBufferSize);
+	rScratch.iOutputCount = std::min(rScratch.iOutputCount, static_cast<int64_t>(engine::kiNetworkBufferSize));
+	ASSERT(rScratch.iOutputCount >= 0 && rScratch.iOutputCount <= engine::kiNetworkBufferSize);
 
-	rWork.iTickCounter = rReconcileContext.iTargetTick;
-	ASSERT(rWork.replayStack[rWork.iReplayStackCount - 1]->interpolate.iTick <= rReconcileContext.iTargetTick);
-	rWork.fCurrentTime = fTime;
+	rScratch.iTickCounter = rInputs.iTargetTick;
+	ASSERT(rScratch.replayStack[rScratch.iReplayStackCount - 1]->interpolate.iTick <= rInputs.iTargetTick);
+	rScratch.fCurrentTime = fTime;
+
+	ApplyCoordWriteback(rWork);
 }
 
 #endif // BT_CLIENT

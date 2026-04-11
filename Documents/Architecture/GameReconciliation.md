@@ -4,7 +4,7 @@
 
 ## Reconciliation State Machine
 
-Each coord is reconciled independently through CRC fast-path, per-coord rollback, replay, catch-up, and snapshot ring buffer storage. The pipeline runs on a dedicated `PersistentWorker` thread.
+Each coord is reconciled independently through CRC fast-path, per-coord rollback, replay, catch-up, and snapshot ring buffer storage. The pipeline runs synchronously on the main thread from `ClientUpdate()` in a single pass (drops validated old frames, replays mismatches, and forward-sims empty-input ticks up to the post-advance `miTickCounter`). Per-coord work is parallelized via `common::gpMultithreading->Dispatch()`.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -14,7 +14,7 @@ flowchart TD
     classDef error fill:#fee2e2,stroke:#ef4444
     classDef state fill:#fef3c7,stroke:#d97706
 
-    START["Reconcile()<br/>per CoordReconcileWork"] --> COORD["ReconcileCoord()<br/>per-coord orchestrator"]
+    START["ClientReconciler::Run()<br/>per CoordWork"] --> COORD["ReconcileCoord()<br/>per-coord orchestrator"]
 
     COORD --> CRC
 
@@ -55,7 +55,7 @@ flowchart TD
     NEXTCOORD -->|"Yes"| COORD
     NEXTCOORD -->|"No"| HUMAN["ReconcileUpdateHumanState()<br/>update time and track<br/>human migration"]:::state
 
-    HUMAN --> DONE["Return to main thread<br/>via ApplyResult()"]
+    HUMAN --> DONE["Writeback applied in-place<br/>on engine::CoordFrames"]
     FASTDONE --> NEXTCOORD
 ```
 
@@ -79,47 +79,11 @@ flowchart LR
 
 ## Extrapolation Mode
 
-Pre-reconciliation client simulation that runs physics forward from confirmed server state before the reconciler has kicked in.
-
-```mermaid
-%%{init: {'theme': 'default'}}%%
-flowchart TD
-    classDef check fill:#f3e8ff,stroke:#9333ea
-    classDef extrapolate fill:#fef3c7,stroke:#d97706
-    classDef normal fill:#dbeafe,stroke:#3b82f6
-    classDef snapshot fill:#dcfce7,stroke:#16a34a
-
-    START["GameBase::ClientUpdate()"]
-
-    IS_EXTRAP{"IsExtrapolating()?"}:::check
-
-    PREPARE["PrepareExtrapolationTick()<br/>manage snapshot ring buffer"]:::extrapolate
-
-    BUILD_REF["BuildExtrapolationFrameRef()<br/>redirect ActiveFrameRef<br/>to snapshot stack"]:::extrapolate
-
-    RUN_TICK["BuildAndDispatchFrameTicks()<br/>normal physics with<br/>empty inputs"]:::extrapolate
-
-    RECORD["RecordExtrapolationSnapshot()"]:::snapshot
-
-    FINALIZE["FinalizeFrameTick()"]:::extrapolate
-
-    EXIT_CHECK{"Reconciler has new data?"}:::check
-
-    TRANSITION["TryKickReconcile()<br/>extrapolation snapshots become<br/>initial reconciler ring"]:::normal
-
-    NORMAL["Normal reconciliation"]:::normal
-
-    START --> IS_EXTRAP
-    IS_EXTRAP -->|"Yes"| PREPARE --> BUILD_REF --> RUN_TICK --> RECORD --> FINALIZE
-    IS_EXTRAP -->|"No"| NORMAL_TICK["Normal physics tick"]:::normal
-    FINALIZE --> EXIT_CHECK
-    EXIT_CHECK -->|"Not yet"| START
-    EXIT_CHECK -->|"Yes"| TRANSITION --> NORMAL
-```
+No longer a distinct mode. Forward simulation from the confirmed server state is performed inline by `ClientReconciler::Run()`'s catch-up pass (`ReconcileCatchUpCoord` simulates empty-input ticks up to the post-advance `miTickCounter`). The snapshot ring (`CoordFrames::snapshots[]`) is now the unified state buffer — there is no separate extrapolation stack or transition step.
 
 ## Main Loop Integration
 
-Where reconciliation entry points sit relative to physics and render in the client main loop.
+Where reconciliation sits relative to render in the client main loop. There is no separate physics tick loop on the client — reconciliation's catch-up pass is the forward sim.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -131,25 +95,23 @@ flowchart TD
 
     MSG["ProcessMessages()<br/>RawInput Update"] --> TICK_FRAMES
 
-    subgraph TICK_FRAMES ["GameBase::UpdateClient()"]
+    subgraph TICK_FRAMES ["GameBase::ClientUpdate()"]
         POLL["ClientSession::Poll()<br/>network poll, ACK, flush"]:::reconcile
 
-        RECONCILE_STEP["ClientSession::Reconcile()<br/>gates on IsStalled()"]:::reconcile
-        POLL --> RECONCILE_STEP
-
         STALL_CHECK{"IsStalled()?"}
-        RECONCILE_STEP --> STALL_CHECK
-        STALL_CHECK -->|"Yes"| EARLY_RETURN["skip physics"]
+        POLL --> STALL_CHECK
+        STALL_CHECK -->|"Yes"| EARLY_RETURN["skip tick"]
 
-        PHYSICS["Fixed-rate physics ticks"]:::physics
+        TICK["TickRealtime()<br/>compute iFullTicks"]:::physics
+        PREPARE_ACTIVE["PrepareActiveSet()"]:::physics
+        ADVANCE["Advance miTickCounter<br/>and mfCurrentTime"]:::physics
+        RECONCILE_STEP["ClientSession::Reconcile()<br/>single pass: drops validated,<br/>replays mismatches,<br/>forward sims to target tick"]:::reconcile
 
-        STALL_CHECK -->|"No"| PHYSICS
+        STALL_CHECK -->|"No"| TICK --> PREPARE_ACTIVE --> ADVANCE --> RECONCILE_STEP
     end
 
     subgraph RENDER_METHOD ["GameBase::Render()"]
         RENDER["Render interpolation +<br/>GPU rendering"]:::render
-        POST_RENDER["ClientSession::PostRender()<br/>TryKickReconcile"]:::reconcile
-        RENDER --> POST_RENDER
     end
 
     AUDIO["AudioManager::Update()"]
@@ -165,16 +127,12 @@ CRC mismatch triggers a request for the server's full frame, then per-field comp
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 sequenceDiagram
-    participant Worker as Reconcile Worker
     participant Main as Main Thread
     participant Net as Client
     participant Server
 
-    Worker->>Worker: CRC mismatch detected
-    Worker->>Worker: Deep-copy client Frame
-    Worker->>Main: Return desync info
-
-    Main->>Main: ClientReconciler::Wait()
+    Main->>Main: ClientReconciler::Run() detects CRC mismatch
+    Main->>Main: Deep-copy client Frame
     Main->>Net: SendDesyncReport()
     Main->>Net: SendDebugFrameRequest()
     Main->>Net: SetDesyncDebugMode(true)

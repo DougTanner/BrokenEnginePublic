@@ -132,7 +132,7 @@ void ServerBroadcaster::BroadcastStatusChanges(int64_t iTick)
 			updateData.statusChanges = std::span<const StatusChange>(it->second);
 		}
 
-		updateData.inputCrc = gpGame->CurrentFrame(rCoord).postRender.previousInputCrc;
+		updateData.inputCrc = gpGame->mFrameInputs.at(rCoord).ServerInputCrc();
 
 		allGridUpdates.push_back({rCoord, updateData});
 

@@ -10,7 +10,7 @@ The implementation is split across two `.cpp` files:
 
 ## Architecture Notes
 
-- Zone acceleration uses `thread_local` globals so each Dispatch worker and reconcile thread has its own copy for safe parallel physics execution
+- Zone acceleration uses `thread_local` globals so each Dispatch worker has its own copy for safe parallel physics execution
 - `Update()` bulk-copies all SOA arrays from previous frame; `Sync()` then overwrites the entry for a specific ID each frame
 - `SetupZones()` is called from `FramePostRenderBase::Update()` and rebuilds the spatial grid each frame centered on the player position; `ApplyPush()` queries a single zone cell with flag-based include/exclude filtering
 - Render methods only track a profile counter (no GPU draw calls)

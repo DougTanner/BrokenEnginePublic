@@ -120,12 +120,13 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 		}
 
 		auto profileCoordIt = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
-		if (profileCoordIt != gpGame->mCoordFrames.end() && profileCoordIt->second.pCurrent != nullptr)
+		if (profileCoordIt != gpGame->mCoordFrames.end() && profileCoordIt->second.iSnapshotCount > 0)
 		{
+			const game::Frame& rRenderFrame = gpGame->RenderFrame(gpGame->mClientGridCoord);
 			rWorkbuffer.Append("Tick: ");
-			rWorkbuffer.Append(gpGame->CurrentFrame(gpGame->mClientGridCoord).interpolate.iTick);
+			rWorkbuffer.Append(rRenderFrame.interpolate.iTick);
 			rWorkbuffer.Append("  Time: ");
-			rWorkbuffer.AppendFloat(gpGame->CurrentFrame(gpGame->mClientGridCoord).interpolate.fCurrentTime, 1);
+			rWorkbuffer.AppendFloat(rRenderFrame.interpolate.fCurrentTime, 1);
 			rWorkbuffer.Append("s");
 		}
 		engine::gpTextManager->UpdateTextArea(engine::kTextProfileFrameStats, rWorkbuffer.View());
@@ -261,9 +262,9 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 			// -- Prediction --
 			rWorkbuffer.Append("\n-- Prediction --\n");
 			auto predCoordIt = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
-			if (predCoordIt != gpGame->mCoordFrames.end() && predCoordIt->second.pCurrent != nullptr)
+			if (predCoordIt != gpGame->mCoordFrames.end() && predCoordIt->second.iSnapshotCount > 0)
 			{
-				mSmoothedRollback = gpGame->CurrentFrame(gpGame->mClientGridCoord).interpolate.iTick - gpClientSession->GetClientConfirmedTick();
+				mSmoothedRollback = gpGame->RenderFrame(gpGame->mClientGridCoord).interpolate.iTick - gpClientSession->GetClientConfirmedTick();
 			}
 			mSmoothedRollback.Update();
 			mSmoothedBuffer = gpClientSession->GetServerUpdateBufferSize();

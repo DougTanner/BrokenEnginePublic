@@ -309,17 +309,27 @@ void Game::SyncFleets(std::vector<Fleet>&& fleets)
 
 #endif // BT_CLIENT
 
+#if defined(BT_CLIENT)
 XMVECTOR Game::GetClientPlayerPosition() const
 {
-	const Frame& rFrame = CurrentFrame(mClientGridCoord);
-	std::optional<int64_t> oIdx = ClientPlayerIndex(*rFrame.postRender.pPlayers);
-	if (oIdx)
+	const engine::CoordFrames& rFrames = mCoordFrames.at(mClientGridCoord);
+	if (rFrames.iSnapshotCount > 0)
 	{
-		return rFrame.interpolate.pPlayers->pVecPositions[*oIdx];
+		int64_t iTailPhysical = engine::SnapshotIndex(rFrames.iSnapshotHead, rFrames.iSnapshotCount - 1);
+		const std::unique_ptr<Frame>& pTail = rFrames.snapshots[iTailPhysical];
+		if (pTail != nullptr)
+		{
+			std::optional<int64_t> oIdx = ClientPlayerIndex(*pTail->postRender.pPlayers);
+			if (oIdx)
+			{
+				return pTail->interpolate.pPlayers->pVecPositions[*oIdx];
+			}
+		}
 	}
-	XMVECTOR vecArea = mCoordFrames.at(mClientGridCoord).staticData.vecArea;
+	XMVECTOR vecArea = rFrames.staticData.vecArea;
 	return XMVectorSet((XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f, (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f, 0.0f, 0.0f);
 }
+#endif // BT_CLIENT
 
 void Game::ComputeActiveSet()
 {
@@ -334,7 +344,7 @@ void Game::ComputeActiveSet()
 		mActiveCoords.clear();
 		for (const auto& [rCoord, rFrames] : mCoordFrames)
 		{
-			if (rFrames.pCurrent != nullptr && (rFrames.iConfirmedTick >= 0 || rCoord == mClientGridCoord))
+			if (rFrames.iSnapshotCount > 0 && (rFrames.iConfirmedTick >= 0 || rCoord == mClientGridCoord))
 			{
 				mActiveCoords.push_back(rCoord);
 			}
@@ -342,7 +352,7 @@ void Game::ComputeActiveSet()
 
 		{
 			auto it = mCoordFrames.find(mClientGridCoord);
-			if (it == mCoordFrames.end() || it->second.pCurrent == nullptr)
+			if (it == mCoordFrames.end() || it->second.iSnapshotCount == 0)
 			{
 				CreateFrameAtCoord(mClientGridCoord);
 			}
@@ -397,7 +407,7 @@ void Game::ComputeActiveSet()
 			auto ensureNeighbor = [&](engine::GridCoord neighbor)
 			{
 				auto it = mCoordFrames.find(neighbor);
-				if (it == mCoordFrames.end() || it->second.pCurrent == nullptr)
+				if (it == mCoordFrames.end() || it->second.iSnapshotCount == 0)
 				{
 					CreateFrameAtCoord(neighbor);
 				}
@@ -446,6 +456,7 @@ void Game::ComputeActiveSet()
 #endif // BT_SERVER
 }
 
+#if defined(BT_SERVER)
 void Game::EnsureNextFrames()
 {
 	// Heap: unordered_map insertion + make_unique<Frame>. Frames persist in mNextFrames across game lifetime
@@ -459,6 +470,7 @@ void Game::EnsureNextFrames()
 		}
 	}
 }
+#endif // BT_SERVER
 
 void Game::BuildFrameInputs()
 {
@@ -480,11 +492,17 @@ void Game::BuildFrameInputs()
 		mFrameInputs.try_emplace(rCoord);
 	}
 
-	// Camera shake
+	// Camera shake — read most recent ring frame (head + count - 1)
 	auto it = mCoordFrames.find(mClientGridCoord);
-	if (ClientPlayerId().IsValid() && it != mCoordFrames.end() && it->second.pCurrent != nullptr)
+	const Frame* pTailFrame = nullptr;
+	if (it != mCoordFrames.end() && it->second.iSnapshotCount > 0)
 	{
-		const Frame& rCurrentFrame = CurrentFrame(mClientGridCoord);
+		int64_t iTailPhysical = engine::SnapshotIndex(it->second.iSnapshotHead, it->second.iSnapshotCount - 1);
+		pTailFrame = it->second.snapshots[iTailPhysical].get();
+	}
+	if (ClientPlayerId().IsValid() && pTailFrame != nullptr)
+	{
+		const Frame& rCurrentFrame = *pTailFrame;
 		const PlayersPostRender& rPlayersPostRender = *rCurrentFrame.postRender.pPlayers;
 
 		std::optional<int64_t> oIdx = ClientPlayerIndex(rPlayersPostRender);
@@ -504,18 +522,27 @@ void Game::BuildFrameInputs()
 
 void Game::CreateFrameAtCoord(engine::GridCoord coord)
 {
-	// Heap: unordered_map insertion + make_unique<Frame>. Frame persists in mCurrentFrames across game lifetime
+	// Heap: unordered_map insertion + make_unique<Frame>. Frame persists across game lifetime
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	std::unique_ptr<Frame>& pFrame = mCoordFrames.try_emplace(coord).first->second.pCurrent;
-	pFrame = std::make_unique<Frame>();
-	pFrame->interpolate.iTick = miTickCounter;
-	pFrame->interpolate.fCurrentTime = mfCurrentTime;
-	pFrame->interpolate.gameFlags.Set(GameFlags::kGame);
-	InitFramePostRender(*pFrame);
+	engine::CoordFrames& rFrames = mCoordFrames.try_emplace(coord).first->second;
+#if defined(BT_CLIENT)
+	// Client uses snapshot ring as the source of truth — seed slot 0.
+	rFrames.iSnapshotHead = 0;
+	rFrames.iSnapshotCount = 1;
+	rFrames.snapshots[0] = std::make_unique<Frame>();
+	Frame& rFrame = *rFrames.snapshots[0];
+#else
+	rFrames.pCurrent = std::make_unique<Frame>();
+	Frame& rFrame = *rFrames.pCurrent;
+#endif
+	rFrame.interpolate.iTick = miTickCounter;
+	rFrame.interpolate.fCurrentTime = mfCurrentTime;
+	rFrame.interpolate.gameFlags.Set(GameFlags::kGame);
+	InitFramePostRender(rFrame);
 
 	// Populate static data for this coord
-	engine::FrameStaticData& rStaticData = mCoordFrames.at(coord).staticData;
+	engine::FrameStaticData& rStaticData = rFrames.staticData;
 	XMVECTOR vecBaseArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	rStaticData.vecArea = ComputeFrameArea(vecBaseArea, coord);
 	rStaticData.coord = coord;
@@ -524,7 +551,6 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	rStaticData.eIslandsFlip = static_cast<engine::IslandsFlip>((bFlipX ? engine::kFlipX : 0) | (bFlipY ? engine::kFlipY : 0));
 	rStaticData.f2IslandOffset = ComputeIslandOffset(coord);
 	engine::BuildCellNavData(rStaticData.navData, engine::gpIslandTerrain->mNavContour, rStaticData.vecArea, rStaticData.eIslandsFlip, rStaticData.f2IslandOffset, Frame::kfIslandWidth, Frame::kfIslandHeight);
-
 }
 
 void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rData, engine::alignment_t playerAlignment)
@@ -710,24 +736,35 @@ void Game::Reset()
 
 void Game::CreateNewFrame(GameFlags_t gameFlags)
 {
-	// Heap: make_unique<Frame> with all its SOA collections. The frame must persist in mCurrentFrames
-	// across the entire game state lifetime, so workbuffer (lost on Pop) can't hold it.
+	// Heap: make_unique<Frame> with all its SOA collections. Frame persists across the entire
+	// game state lifetime, so workbuffer (lost on Pop) can't hold it.
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	mCoordFrames.clear();
-	std::unique_ptr<Frame>& pFrame = mCoordFrames.try_emplace(engine::kOriginCoord).first->second.pCurrent;
-	pFrame = std::make_unique<Frame>();
-	pFrame->interpolate.gameFlags.Set(gameFlags.meFlags);
-	InitFramePostRender(*pFrame);
+	engine::CoordFrames& rFrames = mCoordFrames.try_emplace(engine::kOriginCoord).first->second;
+#if defined(BT_CLIENT)
+	rFrames.iSnapshotHead = 0;
+	rFrames.iSnapshotCount = 1;
+	rFrames.snapshots[0] = std::make_unique<Frame>();
+	Frame& rFrame = *rFrames.snapshots[0];
+#else
+	rFrames.pCurrent = std::make_unique<Frame>();
+	Frame& rFrame = *rFrames.pCurrent;
+#endif
+	rFrame.interpolate.gameFlags.Set(gameFlags.meFlags);
+	InitFramePostRender(rFrame);
+
 	// Populate static data for origin coord (main menu: centered island)
-	engine::FrameStaticData& rStaticData = mCoordFrames.at(engine::kOriginCoord).staticData;
+	engine::FrameStaticData& rStaticData = rFrames.staticData;
 	rStaticData.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	rStaticData.coord = engine::kOriginCoord;
 	rStaticData.eIslandsFlip = engine::kFlipNone;
 	rStaticData.f2IslandOffset = ComputeIslandOffset(engine::kOriginCoord);
 	engine::BuildCellNavData(rStaticData.navData, engine::gpIslandTerrain->mNavContour, rStaticData.vecArea, rStaticData.eIslandsFlip, rStaticData.f2IslandOffset, Frame::kfIslandWidth, Frame::kfIslandHeight);
 
-	mCoordFrames.at(engine::kOriginCoord).pNext = std::make_unique<Frame>();
+#if defined(BT_SERVER)
+	rFrames.pNext = std::make_unique<Frame>();
+#endif
 }
 
 bool Game::ShouldTrapCursor()
@@ -739,11 +776,17 @@ bool Game::ShouldTrapCursor()
 bool Game::ShouldUseCrosshair()
 {
 	auto it = mCoordFrames.find(mClientGridCoord);
-	if (it == mCoordFrames.end() || it->second.pCurrent == nullptr)
+	if (it == mCoordFrames.end() || it->second.iSnapshotCount == 0)
 	{
 		return false;
 	}
-	return CurrentFrame(mClientGridCoord).interpolate.gameFlags & GameFlags::kGame && meUiState == kNone;
+	int64_t iTailPhysical = engine::SnapshotIndex(it->second.iSnapshotHead, it->second.iSnapshotCount - 1);
+	const std::unique_ptr<Frame>& pTail = it->second.snapshots[iTailPhysical];
+	if (pTail == nullptr)
+	{
+		return false;
+	}
+	return pTail->interpolate.gameFlags & GameFlags::kGame && meUiState == kNone;
 }
 #endif // BT_CLIENT
 
@@ -833,16 +876,21 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		if (gpClientSession != nullptr && !mWeaponModeToggle.IsPending() && ClientPlayerId().IsValid())
 		{
 			auto coordIt = mCoordFrames.find(mClientGridCoord);
-			if (coordIt != mCoordFrames.end() && coordIt->second.pCurrent != nullptr)
+			if (coordIt != mCoordFrames.end() && coordIt->second.iSnapshotCount > 0)
 			{
-				std::optional<int64_t> oIdx = ClientPlayerIndex(*coordIt->second.pCurrent->postRender.pPlayers);
-				if (oIdx)
+				int64_t iTailPhysical = engine::SnapshotIndex(coordIt->second.iSnapshotHead, coordIt->second.iSnapshotCount - 1);
+				const std::unique_ptr<Frame>& pTail = coordIt->second.snapshots[iTailPhysical];
+				if (pTail != nullptr)
 				{
-					const PlayersPostRender& rPlayers = *coordIt->second.pCurrent->postRender.pPlayers;
-					bool bCurrentMissiles = static_cast<bool>(rPlayers.pFlags[*oIdx] & PlayerFlags::kUseMissiles);
-					float fCurrentNavDelay = rPlayers.pfNavigationDelays[*oIdx];
-					mWeaponModeToggle.SetPending();
-					gpClientSession->SendUpdatePlayerRequest(ClientPlayerId().iValue, !bCurrentMissiles, fCurrentNavDelay);
+					std::optional<int64_t> oIdx = ClientPlayerIndex(*pTail->postRender.pPlayers);
+					if (oIdx)
+					{
+						const PlayersPostRender& rPlayers = *pTail->postRender.pPlayers;
+						bool bCurrentMissiles = static_cast<bool>(rPlayers.pFlags[*oIdx] & PlayerFlags::kUseMissiles);
+						float fCurrentNavDelay = rPlayers.pfNavigationDelays[*oIdx];
+						mWeaponModeToggle.SetPending();
+						gpClientSession->SendUpdatePlayerRequest(ClientPlayerId().iValue, !bCurrentMissiles, fCurrentNavDelay);
+					}
 				}
 			}
 		}

@@ -74,7 +74,9 @@ public:
 
 	// Multi-frame grid
 	void ComputeActiveSet();
+#if defined(BT_SERVER)
 	void EnsureNextFrames();
+#endif
 	void BuildFrameInputs();
 	void CreateFrameAtCoord(engine::GridCoord coord);
 	void HarvestTransfers();
@@ -110,7 +112,9 @@ public:
 	void AutoSelectFirstAliveMember();
 	void ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput);
 
+#if defined(BT_CLIENT)
 	XMVECTOR GetClientPlayerPosition() const;
+#endif
 
 #if defined(BT_CLIENT)
 	static void SaveSoundSettings();

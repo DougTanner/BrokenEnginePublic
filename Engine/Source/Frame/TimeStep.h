@@ -23,6 +23,11 @@ public:
 	// Clear accumulator (used when falling too far behind)
 	void ClearAccumulator();
 
+	// Push ticks worth of time back into the accumulator (used by the client sim ceiling clamp when
+	// wall-clock wanted more ticks than latestServerTick - targetBehind allows). TickRealtime's
+	// existing kiMaxAccumulatorTicks cap bounds total growth during long stalls.
+	void AbsorbUnusedTicks(int64_t iTicks);
+
 	// Get current time multiplier
 	int64_t GetTimeMultiplier() const { return miTimeMultiply; }
 
@@ -49,9 +54,6 @@ public:
 	std::chrono::nanoseconds mTickRemainderNs = 0ns;
 	common::Smoothed<float, 256> mAverageDelta;
 	bool mbTimeScaleChanged = false;
-
-	// Temporarily raised accumulator cap for clock catch-up (0 = use kiMaxAccumulatorTicks)
-	int64_t miCatchUpAccumulatorTicks = 0;
 };
 
 } // namespace engine

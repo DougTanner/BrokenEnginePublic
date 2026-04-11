@@ -18,8 +18,6 @@ enum Threads
 	kThreadPresent,
 	kThreadScreenshot,
 	kThreadMultithreading,
-	kThreadReconcile,
-	kThreadReconcileDispatch,
 
 	kThreadCount
 };

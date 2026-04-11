@@ -161,7 +161,6 @@ struct FramePostRenderBase
 #endif
 	uint16_t uiFrameId = 0;
 
-	common::crc_t previousInputCrc = 0;  // ServerInputCrc() of input used to produce this frame
 	common::crc_t sharedCrc = 0;        // Shared CRC excluding client-only and server-only fields
 
 	Alignments alignments {};

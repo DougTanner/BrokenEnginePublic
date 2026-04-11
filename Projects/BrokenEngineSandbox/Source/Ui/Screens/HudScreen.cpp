@@ -75,7 +75,7 @@ void HudScreen::Render()
 
 	// Render health bars only if we have a focused player in view
 	auto coordIt = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
-	if (coordIt != gpGame->mCoordFrames.end() && coordIt->second.pCurrent != nullptr)
+	if (coordIt != gpGame->mCoordFrames.end() && coordIt->second.iSnapshotCount > 0)
 	{
 		ImGuiIO& rIo = ImGui::GetIO();
 		ImDrawList* pDrawList = ImGui::GetBackgroundDrawList();
@@ -273,7 +273,7 @@ void HudScreen::RenderFocusedPlayerPanel()
 	std::optional<int64_t> playerIndex = std::nullopt;
 	{
 		auto it = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
-		if (it != gpGame->mCoordFrames.end() && it->second.pCurrent != nullptr)
+		if (it != gpGame->mCoordFrames.end() && it->second.iSnapshotCount > 0)
 		{
 			playerIndex = gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers);
 		}

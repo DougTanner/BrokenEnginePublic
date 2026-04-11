@@ -28,11 +28,6 @@ public:
 	void PollNetwork();
 	void Poll();
 	void Reconcile();
-	void PostRender();
-
-	// Reconciliation
-	void WaitForReconcile();
-	void TryKickReconcile();
 
 	// Subscriptions
 	void UpdateSubscriptions();

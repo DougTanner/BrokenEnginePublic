@@ -40,7 +40,6 @@ void GameBase::ProcessInput([[maybe_unused]] bool bLostFocus, game::MenuInput& r
 void GameBase::ClientUpdate()
 {
 	game::gpClientSession->Poll();
-	game::gpClientSession->Reconcile();
 
 	if (game::gpClientSession->IsStalled())
 	{
@@ -53,25 +52,27 @@ void GameBase::ClientUpdate()
 		mTimeStep.ClearAccumulator();
 		iFullTicks = 0;
 	}
+
 	PrepareActiveSet();
 
-	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
+	// Hard ceiling: sim must not pass latestServerTick - targetBehind, so StatusChanges arrive before
+	// their tick is simulated. Extreme "sim way behind target" is handled by the snap path in Reconcile.
+	int64_t iCeiling = game::gpClientSession->GetTargetSimTick();
+	if (iCeiling >= 0 && iFullTicks > 0)
+	{
+		int64_t iRoomToAdvance = std::max<int64_t>(0, iCeiling - miTickCounter);
+		if (iFullTicks > iRoomToAdvance)
+		{
+			mTimeStep.AbsorbUnusedTicks(iFullTicks - iRoomToAdvance);
+			iFullTicks = iRoomToAdvance;
+		}
+	}
+
+	miTickCounter += iFullTicks;
+	mfCurrentTime += static_cast<float>(iFullTicks) * game::kfDeltaTime;
 
 	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
-	for (int64_t i = 0; i < iFullTicks; ++i)
-	{
-		++miTickCounter;
-		mfCurrentTime += game::kfDeltaTime;
-
-		bool bExtrapolating = game::gpClientSession->IsExtrapolating();
-		if (bExtrapolating)
-		{
-			game::gpClientSession->PrepareExtrapolationTick(rActiveCoords, miTickCounter);
-		}
-
-		BuildAndDispatchFrameTicks(rActiveCoords, bExtrapolating);
-		FinalizeFrameTick(rActiveCoords, bExtrapolating);
-	}
+	game::gpClientSession->Reconcile();
 	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
 
 	if constexpr (kbProfiling)
@@ -129,8 +130,8 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 			mGameSaveLoad.SyncReplayTick();
 		}
 
-		BuildAndDispatchFrameTicks(rActiveCoords, false);
-		FinalizeFrameTick(rActiveCoords, false);
+		BuildAndDispatchFrameTicks(rActiveCoords);
+		FinalizeFrameTick(rActiveCoords);
 	}
 	if (iFullTicks > 0)
 	{
@@ -147,7 +148,8 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 }
 #endif // BT_SERVER
 
-void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveCoords, [[maybe_unused]] bool bExtrapolating)
+#if defined(BT_SERVER)
+void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveCoords)
 {
 	const int64_t iActiveCount = static_cast<int64_t>(rActiveCoords.size());
 
@@ -156,37 +158,6 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 	for (int64_t j = 0; j < iActiveCount; ++j)
 	{
 		const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
-#if defined(BT_CLIENT)
-		if (bExtrapolating)
-		{
-			game::Frame* pNext = nullptr;
-			game::Frame* pCurrent = nullptr;
-			game::gpClientSession->BuildExtrapolationFrameRef(rCoord, miTickCounter, pNext, pCurrent);
-			if (pNext != nullptr)
-			{
-				if (pCurrent == nullptr)
-				{
-					LOG(kDefault, kWarning, "BuildDispatch NullExtrapolationCurrent Coord: ({},{}) SnapshotCount: {} ConfirmedTick: {}",
-						rCoord.x, rCoord.y, mCoordFrames.at(rCoord).iSnapshotCount, mCoordFrames.at(rCoord).iConfirmedTick);
-					continue;
-				}
-				common::gpThreadLocal->mWorkbuffer.PushBack<game::ActiveFrameRef>({
-					.pNext = pNext,
-					.pCurrent = pCurrent,
-					.pFrameInput = &game::gpGame->mFrameInputs.at(rCoord),
-					.pStaticData = &mCoordFrames.at(rCoord).staticData,
-				});
-				continue;
-			}
-			// Confirmed coord with no extrapolation slot this tick (client tick <= confirmed tick
-			// for a freshly-subscribed coord). Skip entirely — must not fall through to the main
-			// dual-buffer path, which is not being advanced during extrapolation.
-			if (auto subIt = mCoordFrames.find(rCoord); subIt != mCoordFrames.end() && subIt->second.iConfirmedTick >= 0)
-			{
-				continue;
-			}
-		}
-#endif // BT_CLIENT
 		auto& rFrames = mCoordFrames.at(rCoord);
 		if (rFrames.pCurrent == nullptr || rFrames.pNext == nullptr)
 		{
@@ -229,26 +200,15 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
-void GameBase::FinalizeFrameTick([[maybe_unused]] const std::vector<GridCoord>& rActiveCoords, [[maybe_unused]] bool bExtrapolating)
+void GameBase::FinalizeFrameTick(const std::vector<GridCoord>& rActiveCoords)
 {
-#if defined(BT_SERVER)
 	// Transfer entities that crossed frame boundaries into destination frames
 	if (!mGameSaveLoad.IsReplaying())
 	{
 		game::gpGame->HarvestTransfers();
 	}
-#endif
 
-#if defined(BT_CLIENT)
-	if (bExtrapolating)
-	{
-		game::gpClientSession->RecordExtrapolationSnapshot(rActiveCoords, miTickCounter);
-	}
-	else
-#endif
-	{
-		SwapFrames();
-	}
+	SwapFrames();
 
 	for (const GridCoord& rCoord : rActiveCoords)
 	{
@@ -262,28 +222,24 @@ void GameBase::FinalizeFrameTick([[maybe_unused]] const std::vector<GridCoord>& 
 		}
 	}
 
-#if defined(BT_SERVER)
 	game::gpServerSession->BroadcastTick(miTickCounter);
-#endif
 
 	for (auto& [rCoord, rFrameInput] : game::gpGame->mFrameInputs)
 	{
 		rFrameInput.statusChanges.clear();
 	}
 }
+#endif // BT_SERVER
 
 #if defined(BT_CLIENT)
 game::Frame& GameBase::RenderFrame(GridCoord coord) const
 {
-	if (game::gpClientSession->IsExtrapolating())
-	{
-		game::Frame* pFrame = game::gpClientSession->GetSnapshotFrame(coord);
-		if (pFrame != nullptr)
-		{
-			return *pFrame;
-		}
-	}
-	return *mCoordFrames.at(coord).pCurrent;
+	// Caller must ensure iSnapshotCount > 0 (enforced by ComputeActiveSet for active coords).
+	const CoordFrames& rFrames = mCoordFrames.at(coord);
+	ASSERT(rFrames.iSnapshotCount > 0);
+	int64_t iTailPhysical = SnapshotIndex(rFrames.iSnapshotHead, rFrames.iSnapshotCount - 1);
+	ASSERT(rFrames.snapshots[iTailPhysical] != nullptr);
+	return *rFrames.snapshots[iTailPhysical];
 }
 
 void GameBase::Render()
@@ -297,7 +253,7 @@ void GameBase::Render()
 	GridCoord cameraCoord = game::gpGame->mClientGridCoord;
 	{
 		auto it = mCoordFrames.find(cameraCoord);
-		if ((it == mCoordFrames.end() || it->second.pCurrent == nullptr) && !rActiveCoords.empty())
+		if ((it == mCoordFrames.end() || it->second.iSnapshotCount == 0) && !rActiveCoords.empty())
 		{
 			cameraCoord = rActiveCoords.front();
 		}
@@ -399,16 +355,18 @@ void GameBase::PrepareActiveSet()
 			}
 		}
 		game::gpGame->BuildFrameInputs();
+		return;
 	}
-	else
 #endif // BT_SERVER
-	{
-		game::gpGame->ComputeActiveSet();
-		game::gpGame->EnsureNextFrames();
-		game::gpGame->BuildFrameInputs();
-	}
+
+	game::gpGame->ComputeActiveSet();
+#if defined(BT_SERVER)
+	game::gpGame->EnsureNextFrames();
+#endif
+	game::gpGame->BuildFrameInputs();
 }
 
+#if defined(BT_SERVER)
 void GameBase::SwapFrames()
 {
 	for (auto& [rCoord, rFrames] : mCoordFrames)
@@ -418,14 +376,11 @@ void GameBase::SwapFrames()
 
 	// After swap, .next holds old current frames (stale data, reusable memory).
 	// Ensure active entries exist for next iteration's AllocateAndCopy.
-#if defined(BT_SERVER)
 	if (!mGameSaveLoad.IsReplaying())
 	{
 		game::gpGame->EnsureNextFrames();
 	}
-	else
-#endif // BT_SERVER
-	if (mCoordFrames.contains(game::gpGame->mClientGridCoord)
+	else if (mCoordFrames.contains(game::gpGame->mClientGridCoord)
 		&& mCoordFrames.at(game::gpGame->mClientGridCoord).pNext == nullptr)
 	{
 		// Heap: make_unique<Frame> for replay target coordinate
@@ -433,5 +388,6 @@ void GameBase::SwapFrames()
 		mCoordFrames.at(game::gpGame->mClientGridCoord).pNext = std::make_unique<game::Frame>();
 	}
 }
+#endif // BT_SERVER
 
 } // namespace engine

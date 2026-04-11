@@ -112,7 +112,7 @@ struct MemoryInitializer
 
 	~MemoryInitializer()
 	{
-#if !defined(ENABLE_CRT_DEBUG_HEAP)
+#if !defined(ENABLE_CRT_DEBUG_HEAP) && (defined(DEBUG) || defined(_DEBUG))
 		mi_stats_merge();
 
 		mi_stats_t stats = {};
@@ -123,9 +123,7 @@ struct MemoryInitializer
 		int64_t iPeakUsageMb = stats.page_committed.peak / (1024 * 1024);
 		int64_t iPeakCommittedMb = stats.committed.peak / (1024 * 1024);
 
-		char pcBuffer[256];
-		snprintf(pcBuffer, sizeof(pcBuffer), "[mimalloc] Peak heap usage: %lld MiB, peak committed: %lld MiB (arena reserve: %lld MiB)\n", iPeakUsageMb, iPeakCommittedMb, kiMimallocArenaReserveMb);
-		OutputDebugStringA(pcBuffer);
+		LOG(kDefault, kInfo, "Mimalloc peak heap usage: {} MiB, peak committed: {} MiB (arena reserve: {} MiB)", iPeakUsageMb, iPeakCommittedMb, kiMimallocArenaReserveMb);
 
 		if (iPeakCommittedMb > kiMimallocArenaReserveMb)
 		{
