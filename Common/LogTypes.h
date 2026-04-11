@@ -24,8 +24,9 @@ enum class LogCategory : int8_t
 	kLoading  = 4,
 	kNavData  = 5,
 	kNetwork  = 6,
+	kInput    = 7,
 };
-inline constexpr int64_t kiLogCategoryCount = 7;
+inline constexpr int64_t kiLogCategoryCount = 8;
 
 } // namespace common
 
@@ -45,6 +46,7 @@ inline constexpr common::LogCategory kGraphics = common::LogCategory::kGraphics;
 inline constexpr common::LogCategory kLoading  = common::LogCategory::kLoading;
 inline constexpr common::LogCategory kNavData  = common::LogCategory::kNavData;
 inline constexpr common::LogCategory kNetwork  = common::LogCategory::kNetwork;
+inline constexpr common::LogCategory kInput    = common::LogCategory::kInput;
 
 using common::LogLevel;
 using common::LogCategory;

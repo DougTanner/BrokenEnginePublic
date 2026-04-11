@@ -39,8 +39,8 @@ public:
 
 	// Extrapolation
 	bool IsExtrapolating() const;
-	void PrepareExtrapolationTick(const std::vector<GridCoord>& rActiveCoords);
-	void BuildExtrapolationFrameRef(const GridCoord& rCoord, game::Frame*& rpNext, game::Frame*& rpCurrent);
+	void PrepareExtrapolationTick(const std::vector<GridCoord>& rActiveCoords, int64_t iTick);
+	void BuildExtrapolationFrameRef(const GridCoord& rCoord, int64_t iTick, game::Frame*& rpNext, game::Frame*& rpCurrent);
 	void RecordExtrapolationSnapshot(const std::vector<GridCoord>& rActiveCoords, int64_t iTick);
 	game::Frame* GetSnapshotFrame(GridCoord coord) const;
 

@@ -17,7 +17,7 @@ Foundation layer (`namespace common`) with no dependencies outside the codebase.
 ## Architecture Notes
 
 ### Logging
-- **Public API**: `LOG(category, level, format, ...)` macro — always requires explicit category and level. Uses `if constexpr` against the project's `keLogLevels[]` constexpr array so filtered-out calls are eliminated entirely at compile time. Category aliases: `kDefault`, `kTemp`, `kAudio`, `kGraphics`, `kLoading`, `kNavData`, `kNetwork`. Level aliases: `kVerbose`, `kDebug`, `kInfo`, `kWarning`, `kError`. `kTemp` is reserved for AI agent temporary diagnostic logs
+- **Public API**: `LOG(category, level, format, ...)` macro — always requires explicit category and level. Uses `if constexpr` against the project's `keLogLevels[]` constexpr array so filtered-out calls are eliminated entirely at compile time. Category aliases: `kDefault`, `kTemp`, `kAudio`, `kGraphics`, `kLoading`, `kNavData`, `kNetwork`, `kInput`. Level aliases: `kVerbose`, `kDebug`, `kInfo`, `kWarning`, `kError`. `kTemp` is reserved for AI agent temporary diagnostic logs
 - **`LogTypes.h`**: Declares `LogLevel`/`LogCategory` enums and all aliases. Included directly in `Pch.h` before `Common.h` so that `keLogLevels[]` and `LOG()` are available in every header, including `LogDifference.h` and `StackWalker.h`
 - **`Log()` function**: Unfiltered writer called by the `LOG()` macro after compile-time filtering. Takes a `LogCategory` and format string; writes zero-allocation into per-thread buffers via `std::format_to`
 - **`keLogLevels[]`**: Each project's `Pch.h` defines a `constexpr LogLevel keLogLevels[]` array (one entry per category) before including `Common.h`, enabling compile-time threshold checks via `LOG()` in all headers

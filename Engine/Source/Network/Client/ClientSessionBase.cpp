@@ -326,13 +326,20 @@ bool ClientSessionBase::IsExtrapolating() const
 	return false;
 }
 
-void ClientSessionBase::PrepareExtrapolationTick(const std::vector<GridCoord>& rActiveCoords)
+void ClientSessionBase::PrepareExtrapolationTick(const std::vector<GridCoord>& rActiveCoords, int64_t iTick)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	for (const GridCoord& rCoord : rActiveCoords)
 	{
 		auto subIt = game::gpGame->mCoordFrames.find(rCoord);
 		if (subIt == game::gpGame->mCoordFrames.end() || subIt->second.iConfirmedTick < 0)
+		{
+			continue;
+		}
+		// Fresh subscription whose full state is at a server tick ahead of the client clock:
+		// skip extrapolation until the client tick strictly passes the confirmed tick so that
+		// stamped snapshot iTicks stay monotonic with the initial full-state frame.
+		if (iTick <= subIt->second.iConfirmedTick)
 		{
 			continue;
 		}
@@ -358,10 +365,14 @@ void ClientSessionBase::PrepareExtrapolationTick(const std::vector<GridCoord>& r
 	}
 }
 
-void ClientSessionBase::BuildExtrapolationFrameRef(const GridCoord& rCoord, game::Frame*& rpNext, game::Frame*& rpCurrent)
+void ClientSessionBase::BuildExtrapolationFrameRef(const GridCoord& rCoord, int64_t iTick, game::Frame*& rpNext, game::Frame*& rpCurrent)
 {
 	auto subIt = game::gpGame->mCoordFrames.find(rCoord);
 	if (subIt == game::gpGame->mCoordFrames.end() || subIt->second.iConfirmedTick < 0)
+	{
+		return;
+	}
+	if (iTick <= subIt->second.iConfirmedTick)
 	{
 		return;
 	}
@@ -388,12 +399,16 @@ void ClientSessionBase::BuildExtrapolationFrameRef(const GridCoord& rCoord, game
 	}
 }
 
-void ClientSessionBase::RecordExtrapolationSnapshot(const std::vector<GridCoord>& rActiveCoords, [[maybe_unused]] int64_t iTick)
+void ClientSessionBase::RecordExtrapolationSnapshot(const std::vector<GridCoord>& rActiveCoords, int64_t iTick)
 {
 	for (const GridCoord& rCoord : rActiveCoords)
 	{
 		auto subIt = game::gpGame->mCoordFrames.find(rCoord);
 		if (subIt == game::gpGame->mCoordFrames.end() || subIt->second.iConfirmedTick < 0)
+		{
+			continue;
+		}
+		if (iTick <= subIt->second.iConfirmedTick)
 		{
 			continue;
 		}

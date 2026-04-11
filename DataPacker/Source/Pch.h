@@ -18,5 +18,6 @@ inline constexpr LogLevel keLogLevelGraphics = kVerbose;
 inline constexpr LogLevel keLogLevelLoading  = kVerbose;
 inline constexpr LogLevel keLogLevelNavData  = kVerbose;
 inline constexpr LogLevel keLogLevelNetwork  = kVerbose;
+inline constexpr LogLevel keLogLevelInput    = kVerbose;
 
 #include "Common.h"

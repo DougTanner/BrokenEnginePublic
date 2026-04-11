@@ -66,7 +66,7 @@ void GameBase::ClientUpdate()
 		bool bExtrapolating = game::gpClientSession->IsExtrapolating();
 		if (bExtrapolating)
 		{
-			game::gpClientSession->PrepareExtrapolationTick(rActiveCoords);
+			game::gpClientSession->PrepareExtrapolationTick(rActiveCoords, miTickCounter);
 		}
 
 		BuildAndDispatchFrameTicks(rActiveCoords, bExtrapolating);
@@ -161,7 +161,7 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 		{
 			game::Frame* pNext = nullptr;
 			game::Frame* pCurrent = nullptr;
-			game::gpClientSession->BuildExtrapolationFrameRef(rCoord, pNext, pCurrent);
+			game::gpClientSession->BuildExtrapolationFrameRef(rCoord, miTickCounter, pNext, pCurrent);
 			if (pNext != nullptr)
 			{
 				if (pCurrent == nullptr)
@@ -176,6 +176,13 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 					.pFrameInput = &game::gpGame->mFrameInputs.at(rCoord),
 					.pStaticData = &mCoordFrames.at(rCoord).staticData,
 				});
+				continue;
+			}
+			// Confirmed coord with no extrapolation slot this tick (client tick <= confirmed tick
+			// for a freshly-subscribed coord). Skip entirely — must not fall through to the main
+			// dual-buffer path, which is not being advanced during extrapolation.
+			if (auto subIt = mCoordFrames.find(rCoord); subIt != mCoordFrames.end() && subIt->second.iConfirmedTick >= 0)
+			{
 				continue;
 			}
 		}
@@ -199,6 +206,7 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 	gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
 	gpProfileManager->CpuStart(game::kCpuTimerFramePostRender);
 
+	const int64_t iFrameRefCount = static_cast<int64_t>(activeFrameRefs.size());
 	auto processRange = [&](int64_t iBegin, int64_t iEnd)
 	{
 		for (int64_t j = iBegin; j < iEnd; ++j)
@@ -208,11 +216,11 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 	};
 	if constexpr (kbFrameDispatch)
 	{
-		common::gpMultithreading->Dispatch(iActiveCount, processRange);
+		common::gpMultithreading->Dispatch(iFrameRefCount, processRange);
 	}
 	else
 	{
-		processRange(0, iActiveCount);
+		processRange(0, iFrameRefCount);
 	}
 
 	gpProfileManager->CpuStop(game::kCpuTimerFramePostRender, false);
