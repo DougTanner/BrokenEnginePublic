@@ -97,7 +97,13 @@ inline std::chrono::steady_clock::duration RandomOneWayDelay(const NetworkSimula
 	return std::chrono::milliseconds(iDelayMs);
 }
 
-inline bool ShouldDrop(const NetworkSimulationConfig& rConfig, uint8_t uiChannel)
+struct DropResult
+{
+	bool bDrop = false;
+	int64_t iConsecutive = 0;
+};
+
+inline DropResult ShouldDrop(const NetworkSimulationConfig& rConfig, uint8_t uiChannel)
 {
 	static int64_t siConsecutiveDrops[NetworkManager::kuiChannelCount] {};
 	static constexpr int64_t kiMaxConsecutiveDrops = kiNetworkBufferSize / 2;
@@ -114,7 +120,7 @@ inline bool ShouldDrop(const NetworkSimulationConfig& rConfig, uint8_t uiChannel
 	}
 
 	riDrops = bDrop ? riDrops + 1 : 0;
-	return bDrop;
+	return {bDrop, riDrops};
 }
 
 // Enqueue a received unreliable packet into the delay queue, or drop it.
@@ -125,21 +131,27 @@ inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const Netw
 	bool bUnreliable = NetworkManager::IsUnreliableChannel(rEvent.channelID);
 	if (bUnreliable)
 	{
-		if (ShouldDrop(rSimConfig, rEvent.channelID))
+		DropResult dropResult = ShouldDrop(rSimConfig, rEvent.channelID);
+		if (dropResult.bDrop)
 		{
 			if (NetworkManager::IsCoordChannel(rEvent.channelID))
 			{
+				static int64_t siCoordDropCounts[NetworkManager::kiMaxEnetCoordSlots] {};
 				int64_t iSlot = NetworkManager::ChannelToSlot(rEvent.channelID);
 				int64_t iTick = 0;
+				uint8_t uiPacketType = (rEvent.packet->dataLength > 0) ? rEvent.packet->data[0] : 0;
 				if (rEvent.packet->dataLength >= 12)
 				{
 					std::memcpy(&iTick, rEvent.packet->data + 4, sizeof(iTick));
 				}
-				LOG(kNetwork, kVerbose, "NetworkSimulation dropped unreliable coord packet slot: {} tick: {} size: {}", iSlot, iTick, rEvent.packet->dataLength);
+				++siCoordDropCounts[iSlot];
+				LOG(kNetwork, kVerbose, "NetworkSimulation dropped coord packet Slot: {} Tick: {} Type: {} Size: {} TotalDrops: {} Consecutive: {}", iSlot, iTick, uiPacketType, rEvent.packet->dataLength, siCoordDropCounts[iSlot], dropResult.iConsecutive);
 			}
 			else
 			{
-				LOG(kNetwork, kVerbose, "NetworkSimulation dropped unreliable control packet channel: {} size: {}", rEvent.channelID, rEvent.packet->dataLength);
+				static int64_t siControlDropCount = 0;
+				++siControlDropCount;
+				LOG(kNetwork, kVerbose, "NetworkSimulation dropped control packet Channel: {} Size: {} TotalDrops: {} Consecutive: {}", rEvent.channelID, rEvent.packet->dataLength, siControlDropCount, dropResult.iConsecutive);
 			}
 			enet_packet_destroy(rEvent.packet);
 			return;

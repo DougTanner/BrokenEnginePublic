@@ -47,6 +47,7 @@ public:
 	void RenderWaterMediumSection();
 	void RenderWaterDebugSection();
 	void RenderLightingSection();
+	virtual void RenderLightingEffectsTab() {}
 	void RenderShadowSection();
 	void RenderMiscSection();
 	virtual void RenderHexShieldSection() = 0;

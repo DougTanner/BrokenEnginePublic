@@ -8,41 +8,33 @@ namespace game
 
 using enum GameFlags;
 
-const int64_t Frame::kiVersion = 48 + engine::kiNavDataVersion
-	+ BlastersInterpolate::kiVersion
-	+ BlastersPostRender::kiVersion
-	+ MissilesInterpolate::kiVersion
-	+ MissilesPostRender::kiVersion
-	+ PlayersInterpolate::kiVersion
-	+ PlayersPostRender::kiVersion
-	+ SpaceshipsInterpolate::kiVersion
-	+ SpaceshipsPostRender::kiVersion
-	+ TargetsInterpolate::kiVersion
-	+ TargetsPostRender::kiVersion;
+const int64_t Frame::kiVersion = 53 + engine::kiNavDataVersion + BlastersInterpolate::kiVersion + BlastersPostRender::kiVersion + MissilesInterpolate::kiVersion + MissilesPostRender::kiVersion + PlayersInterpolate::kiVersion + PlayersPostRender::kiVersion + SpaceshipsInterpolate::kiVersion + SpaceshipsPostRender::kiVersion + TargetsInterpolate::kiVersion + TargetsPostRender::kiVersion;
 
 // FrameInterpolate
 FrameInterpolate::FrameInterpolate()
-	: pPlayers(std::make_unique<PlayersInterpolate>())
-	, pBlasters(std::make_unique<BlastersInterpolate>())
-	, pMissiles(std::make_unique<MissilesInterpolate>())
-	, pSpaceships(std::make_unique<SpaceshipsInterpolate>())
-	, pTargets(std::make_unique<TargetsInterpolate>())
+: pPlayers(std::make_unique<PlayersInterpolate>())
+, pBlasters(std::make_unique<BlastersInterpolate>())
+, pMissiles(std::make_unique<MissilesInterpolate>())
+, pSpaceships(std::make_unique<SpaceshipsInterpolate>())
+, pTargets(std::make_unique<TargetsInterpolate>())
 {
 }
+
 FrameInterpolate::~FrameInterpolate() = default;
 FrameInterpolate::FrameInterpolate(FrameInterpolate&&) noexcept = default;
 FrameInterpolate& FrameInterpolate::operator=(FrameInterpolate&&) noexcept = default;
 
 // FramePostRender
 FramePostRender::FramePostRender()
-	: pPlayers(std::make_unique<PlayersPostRender>())
-	, pBlasters(std::make_unique<BlastersPostRender>())
-	, pMissiles(std::make_unique<MissilesPostRender>())
-	, pSpaceships(std::make_unique<SpaceshipsPostRender>())
-	, pTargets(std::make_unique<TargetsPostRender>())
+: pPlayers(std::make_unique<PlayersPostRender>())
+, pBlasters(std::make_unique<BlastersPostRender>())
+, pMissiles(std::make_unique<MissilesPostRender>())
+, pSpaceships(std::make_unique<SpaceshipsPostRender>())
+, pTargets(std::make_unique<TargetsPostRender>())
 {
 	transferRequests.reserve(kuiInitialTransferCapacity);
 }
+
 FramePostRender::~FramePostRender() = default;
 FramePostRender::FramePostRender(FramePostRender&&) noexcept = default;
 FramePostRender& FramePostRender::operator=(FramePostRender&&) noexcept = default;

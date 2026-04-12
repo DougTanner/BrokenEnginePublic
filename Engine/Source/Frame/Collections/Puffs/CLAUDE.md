@@ -11,7 +11,7 @@ The implementation is split across three `.cpp` files:
 
 ## Architecture Notes
 
-- Uses a custom `PuffControllerType` / `PuffKeyframe` pair (area, intensity, rotation) instead of the default `ControllerType`/`ControllerKeyframe`, registered via `ControllerTypeRegistry<PuffsInterpolate, PuffControllerType>`
+- Uses a custom `PuffControllerType` / `PuffKeyframe` pair (area, intensity, rotation) instead of the default `ControllerType`/`ControllerKeyframe`, registered via `ControllerTypeRegistry<PuffsInterpolate, PuffControllerType>`. `PuffControllerType` carries optional per-keyframe `Wrapper*` arrays for wrapper-scaled normalized keyframes
 - `PuffsPostRender::Members()` returns an empty tuple — there are no PostRender SOA arrays
 
 ## See Also

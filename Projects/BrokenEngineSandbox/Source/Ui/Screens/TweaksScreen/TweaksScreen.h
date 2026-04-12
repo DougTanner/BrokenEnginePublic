@@ -15,6 +15,7 @@ public:
 
 	void RenderHexShieldSection() override;
 	void RenderWindDepositsSection() override;
+	void RenderLightingEffectsTab() override;
 };
 
 } // namespace game

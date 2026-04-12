@@ -203,6 +203,7 @@ void Game::SelectPlayerInFleet(int64_t iPlayerIndex)
 	}
 
 	miFocusedPlayerInFleetIndex = iPlayerIndex;
+	mWeaponModeToggle.Reset();
 
 	// Update mClientGridCoord to match selected player's coord
 	const FleetMember& rMember = pFleet->members.at(static_cast<size_t>(iPlayerIndex));
@@ -227,6 +228,8 @@ int64_t Game::FocusedPlayerInFleetIndex() const
 void Game::SyncFleets(std::vector<Fleet>&& fleets)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+	LOG(kNetwork, kVerbose, "SyncFleets Fleets: {} Members: {} FocusedFleet: {} FocusedMember: {}", std::ssize(fleets), !fleets.empty() ? std::ssize(fleets.at(0).members) : 0, miFocusedFleetIndex, miFocusedPlayerInFleetIndex);
 
 	int64_t iPrevFleetCount = std::ssize(mClientFleets);
 	int64_t iPrevFocusedFleetMemberCount = 0;

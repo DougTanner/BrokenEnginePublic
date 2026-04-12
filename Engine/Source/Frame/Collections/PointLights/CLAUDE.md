@@ -17,7 +17,7 @@ The implementation is split across three `.cpp` files:
 
 - Deposit quads sample the pre-blurred texture via `CrcToBlurredIndex()`; visible light sprites use the original unblurred texture via `CrcToIndex()`
 - Supports both synced lights (parent-managed) and controlled lights (fire-and-forget with keyframe animation that auto-destroys on expiry)
-- Controlled lights use `InterpolateKeyframes()` each frame to drive visible area, intensity, lighting area, and rotation
+- Controlled lights use `InterpolateKeyframes()` each frame to drive visible area, intensity, lighting area, and rotation. Per-keyframe `Wrapper*` arrays on `ControllerType` enable wrapper-scaled normalized keyframes for live tweaking
 - Lighting deposit quads enforce a minimum world-space size derived from the deposit texture resolution to prevent sub-texel flickering
 
 ## See Also

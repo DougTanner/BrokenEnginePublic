@@ -31,6 +31,8 @@ public:
 		int64_t iPerThread = iCount / iThreadCount;
 		int64_t iRemainder = iCount % iThreadCount;
 
+		int64_t iLogTickCounter = gpThreadLocal->miLogTickCounter;
+
 		int64_t iPos = 0;
 		for (size_t i = 0; i < mWorkers.size(); ++i)
 		{
@@ -42,8 +44,9 @@ public:
 
 			int64_t iStart = iPos;
 			int64_t iEnd = iPos + iThreadItems;
-			mWorkers[i]->Wake([&processRange, iStart, iEnd]()
+			mWorkers[i]->Wake([&processRange, iStart, iEnd, iLogTickCounter]()
 			{
+				LogTickScope logTickScope(iLogTickCounter);
 				processRange(iStart, iEnd);
 			});
 			iPos += iThreadItems;

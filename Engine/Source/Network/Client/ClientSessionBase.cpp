@@ -36,6 +36,8 @@ void ClientSessionBase::DisconnectFromServerBase()
 	mbDiscoveryScanTimedOut = false;
 	miClockError = 0;
 	miCurrentTargetBehind = 0;
+	miLastLoggedClockTargetBehind = -1;
+	miLastPeriodicClockLogTick = -1;
 	mbClockErrorDisconnect = false;
 	miConsecutiveClockErrorFrames = 0;
 }
@@ -286,9 +288,15 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	miClockOffset = iOffset;
 	miClockTargetBehind = miCurrentTargetBehind;
 
-	if (iPreReconcileTick % kiTickRate == 0)
+	bool bPeriodicTrigger = (iPreReconcileTick % (kiTickRate * 32) == 0) && (iPreReconcileTick != miLastPeriodicClockLogTick);
+	if (miCurrentTargetBehind != miLastLoggedClockTargetBehind || bPeriodicTrigger)
 	{
 		LOG(kNetwork, kVerbose, "ClockSync TargetBehind: {} Error: {} Offset: {} JitterUs: {} LatestServer: {} SimTick: {}", miCurrentTargetBehind, iError, iOffset, iJitterUs, miLatestServerTick, iPreReconcileTick);
+		miLastLoggedClockTargetBehind = miCurrentTargetBehind;
+		if (bPeriodicTrigger)
+		{
+			miLastPeriodicClockLogTick = iPreReconcileTick;
+		}
 	}
 
 	if (std::abs(iError) >= kiClockErrorDisconnectThreshold)

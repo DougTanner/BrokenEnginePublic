@@ -18,6 +18,9 @@ namespace engine
 struct FrameBase;
 struct FramePostRenderBase;
 struct GridCoord;
+#if defined(BT_CLIENT)
+class Wrapper;
+#endif
 
 class Buffer;
 class BufferManager;
@@ -322,7 +325,15 @@ struct ControllerType
 	uint8_t uiKeyframeCount = 2;                                // Actual keyframes used (2-4)
 	bool bDestroysSelf = true;                                  // Auto-remove when animation ends
 	float pfTimes[kMaxControllerKeyframes] {};                  // Keyframe times (relative to start)
-	ControllerKeyframe keyframes[kMaxControllerKeyframes] {};   // Keyframe states
+	ControllerKeyframe keyframes[kMaxControllerKeyframes] {};   // Keyframe states (normalized when wrappers present)
+
+#if defined(BT_CLIENT)
+	// Per-keyframe wrapper scaling: keyframe values are multiplied by wrapper.Get() at interpolation time
+	Wrapper* ppVisibleAreaScales[kMaxControllerKeyframes] {};
+	Wrapper* ppVisibleIntensityScales[kMaxControllerKeyframes] {};
+	Wrapper* ppLightingAreaScales[kMaxControllerKeyframes] {};
+	Wrapper* ppLightingIntensityScales[kMaxControllerKeyframes] {};
+#endif
 
 	bool operator==(const ControllerType& rOther) const = default;
 };

@@ -3,6 +3,7 @@
 #if defined(BT_CLIENT)
 
 #include "Profile/ProfileManager.h"
+#include "Ui/WrapperBase.h"
 
 namespace engine
 {
@@ -79,7 +80,9 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		float fTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc);
 		float fBlurredTextureIndex = gpTextureManager->mTextureDescriptors.CrcToBlurredIndex(rType.crc);
 		float fIntensityMultiplier = rCurrent.pfIntensityMultipliers[i];
-		float fLightingSize = std::max(rType.fLightingSize, fMinLightingSize);
+		float fVisibleIntensity = rType.pVisibleIntensityWrapper ? rType.pVisibleIntensityWrapper->Get() : rType.fVisibleIntensity;
+		float fLightingSize = std::max(rType.pLightingSizeWrapper ? rType.pLightingSizeWrapper->Get() : rType.fLightingSize, fMinLightingSize);
+		float fLightingIntensity = rType.pLightingIntensityWrapper ? rType.pLightingIntensityWrapper->Get() : rType.fLightingIntensity;
 
 		// Scale visible positions around center to create oriented lighting quad
 		XMVECTOR vecOffset0 = XMVectorSubtract(vecVisiblePos0, vecCenter);
@@ -116,7 +119,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		rVisibleLayout.puiColors[2] = rType.puiColors[2];
 		rVisibleLayout.puiColors[3] = rType.puiColors[3];
 
-		rVisibleLayout.fIntensity = rType.fVisibleIntensity * fIntensityMultiplier;
+		rVisibleLayout.fIntensity = fVisibleIntensity * fIntensityMultiplier;
 		rVisibleLayout.fRotation = 0.0f;
 		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(fTextureIndex);
 
@@ -141,7 +144,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 		XMFLOAT4A f4Params {};
 		f4Params.x = fBlurredTextureIndex;
-		f4Params.y = rType.fLightingIntensity * fIntensityMultiplier;
+		f4Params.y = fLightingIntensity * fIntensityMultiplier;
 		rAreaLayout.pf4Params[0] = f4Params;
 		rAreaLayout.pf4Params[1] = f4Params;
 		rAreaLayout.pf4Params[2] = f4Params;

@@ -150,13 +150,17 @@ ReconcileDesyncInfo ClientReconciler::Run()
 
 		if (rScratch.iDesyncTick >= 0 || (rScratch.bFullReplay && rScratch.bReSimOccurred))
 		{
-			LOG(kNetwork, kVerbose, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} ReplayStackCount: {} LastValidatedIndex: {} CrcFastPath: {} FullReplay: {} DesyncTick: {}",
-				rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iReplayStackCount, rScratch.iLastValidatedIndex, rScratch.bCrcFastPath, rScratch.bFullReplay, rScratch.iDesyncTick);
+			LOG(kNetwork, kVerbose, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} ReplayStackCount: {} LastValidatedIndex: {} CrcFastPath: {} FullReplay: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iReplayStackCount, rScratch.iLastValidatedIndex, rScratch.bCrcFastPath, rScratch.bFullReplay, rScratch.iDesyncTick);
 		}
 	}
 
 	if (pDesyncWork != nullptr)
 	{
+		char acExpected[20] {}, acActual[20] {};
+		common::ToHex(std::span<char, 20>(acExpected), pDesyncWork->scratch.desyncExpectedCrc);
+		common::ToHex(std::span<char, 20>(acActual), pDesyncWork->scratch.desyncActualCrc);
+		LOG(kNetwork, kVerbose, "Reconcile Desync Summary Coord: ({},{}) DesyncTick: {} ExpectedCrc: {} ActualCrc: {} ReplayTicks: {} NewConfirmed: {}", pDesyncWork->coord.x, pDesyncWork->coord.y, pDesyncWork->scratch.iDesyncTick, acExpected, acActual, pDesyncWork->scratch.iReplayStackCount, pDesyncWork->scratch.iNewConfirmedTick);
+
 		ReconcileDesyncInfo desyncInfo;
 		desyncInfo.bDesync = true;
 		desyncInfo.iDesyncTick = pDesyncWork->scratch.iDesyncTick;

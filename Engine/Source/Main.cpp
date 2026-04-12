@@ -242,14 +242,17 @@ void MainThread(HINSTANCE hinstance)
 
 	auto pServerNetwork = std::make_unique<Server>(kuiDefaultPort);
 
-	ShowWindow(sHwnd, SW_SHOWMAXIMIZED);
+	ShowWindow(sHwnd, SW_SHOWNOACTIVATE);
 #endif // BT_CLIENT
 	common::ScopedLambda hideWindow([]()
 	{
 		LOG(kDefault, kDebug, "Hide window");
 		ShowWindow(sHwnd, SW_HIDE);
 	});
+#if defined(BT_CLIENT)
+	SetForegroundWindow(sHwnd);
 	BringWindowToTop(sHwnd);
+#endif
 	SetFocus(sHwnd);
 	ProcessMessages();
 

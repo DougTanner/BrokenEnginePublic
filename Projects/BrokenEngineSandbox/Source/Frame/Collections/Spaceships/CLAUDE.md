@@ -10,6 +10,7 @@ AI-controlled enemy spaceships with health, weapons, behavior flags, freeze time
 
 - **Behavior flags**: Flee (when near player, with hysteresis), return to island center (when far from origin, with hysteresis), exploding (health depleted)
 - **Targeting hierarchy**: Return to origin > flee from player > chase nearest alive player
+- **Lighting**: Hit flash and death explosion effects use game-side `LightingWrappers` globals for wrapper-scaled keyframes and area light render-time overrides
 - **Rotation**: Exponential decay smoothing with different rates for fleeing vs pursuing, clamped to `kfSpaceshipMaxTurnRate`
 - **Health regen**: Gradual regen when alive and player is far enough away
 - Targets are removed on death so homing missiles stop tracking

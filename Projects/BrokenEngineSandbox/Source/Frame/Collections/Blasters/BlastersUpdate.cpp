@@ -8,6 +8,7 @@
 #if defined(BT_CLIENT)
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
+#include "Ui/LightingWrappers.h"
 #endif
 
 #include "Data/Audio.h"
@@ -45,28 +46,13 @@ static uint8_t suiTerrainCraterControllerIndex = 0xFF;
 static uint8_t suiTerrainPuffTypeIndex = 0xFF;
 static uint8_t suiTerrainPuffControllerIndex = 0xFF;
 
-// Terrain crater effect
+// Terrain crater effect timing
 constexpr float kfTerrainCraterTimeOne = 0.1f;
 constexpr float kfTerrainCraterTimeTwo = 3.0f;
 constexpr float kfTerrainCraterTimeThree = 5.1f;
 
-constexpr float kfTerrainCraterVisibleArea = 0.35f;
-constexpr float kfTerrainCraterVisibleIntensity = 2.0f;
-constexpr float kfTerrainCraterVisibleAreaEnd = 0.25f;
-constexpr float kfTerrainCraterVisibleIntensityEnd = 1.0f;
-
-constexpr float kfTerrainCraterLightingArea = 1.0f;
-constexpr float kfTerrainCraterLightingAreaEnd = 1.0f;
-constexpr float kfTerrainCraterLightingIntensityStart = 10000.0f;
-constexpr float kfTerrainCraterLightingIntensityMid = 5000.0f;
-constexpr float kfTerrainCraterLightingIntensityEnd = 2000.0f;
-
-// Terrain puff effect
+// Terrain puff effect timing
 constexpr float kfTerrainPuffTime = 0.15f;
-constexpr float kfTerrainPuffAreaStart = 0.25f;
-constexpr float kfTerrainPuffIntensityStart = 6.0f;
-constexpr float kfTerrainPuffAreaEnd = 0.75f;
-constexpr float kfTerrainPuffIntensityEnd = 0.5f;
 constexpr float kfTerrainPuffRotationEnd = 10.0f;
 
 // Called from Register() in Blasters.cpp
@@ -92,11 +78,15 @@ void RegisterBlasterTerrainEffects()
 		.pfTimes = {0.0f, kfTerrainCraterTimeOne, kfTerrainCraterTimeTwo, kfTerrainCraterTimeThree},
 		.keyframes =
 		{
-			{.fVisibleArea = kfTerrainCraterVisibleArea, .fVisibleIntensity = kfTerrainCraterVisibleIntensity, .fLightingArea = kfTerrainCraterLightingArea, .fLightingIntensity = kfTerrainCraterLightingIntensityStart, .fRotation = 0.0f},
-			{.fVisibleArea = kfTerrainCraterVisibleArea, .fVisibleIntensity = kfTerrainCraterVisibleIntensity, .fLightingArea = kfTerrainCraterLightingArea, .fLightingIntensity = kfTerrainCraterLightingIntensityMid, .fRotation = 0.0f},
-			{.fVisibleArea = kfTerrainCraterVisibleAreaEnd, .fVisibleIntensity = kfTerrainCraterVisibleIntensityEnd, .fLightingArea = kfTerrainCraterLightingAreaEnd, .fLightingIntensity = kfTerrainCraterLightingIntensityEnd, .fRotation = 0.0f},
+			{.fVisibleArea = 1.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
+			{.fVisibleArea = 1.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
+			{.fVisibleArea = 1.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
 			{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
 		},
+		.ppVisibleAreaScales = {&gCraterVisibleAreaStart, &gCraterVisibleAreaStart, &gCraterVisibleAreaEnd, nullptr},
+		.ppVisibleIntensityScales = {&gCraterVisibleIntensityStart, &gCraterVisibleIntensityStart, &gCraterVisibleIntensityEnd, nullptr},
+		.ppLightingAreaScales = {&gCraterLightingArea, &gCraterLightingArea, &gCraterLightingArea, nullptr},
+		.ppLightingIntensityScales = {&gCraterLightingIntensityStart, &gCraterLightingIntensityMid, &gCraterLightingIntensityEnd, nullptr},
 	});
 
 	// Terrain impact smoke puff effect
@@ -114,11 +104,13 @@ void RegisterBlasterTerrainEffects()
 		.pfTimes = {0.0f, kfTerrainPuffTime, 0.0f, 0.0f},
 		.keyframes =
 		{
-			{.fArea = kfTerrainPuffAreaStart, .fIntensity = kfTerrainPuffIntensityStart, .fRotation = 0.0f},
-			{.fArea = kfTerrainPuffAreaEnd, .fIntensity = kfTerrainPuffIntensityEnd, .fRotation = kfTerrainPuffRotationEnd},
+			{.fArea = 1.0f, .fIntensity = 1.0f, .fRotation = 0.0f},
+			{.fArea = 1.0f, .fIntensity = 1.0f, .fRotation = kfTerrainPuffRotationEnd},
 			{},
 			{},
 		},
+		.ppAreaScales = {&gBlasterPuffAreaStart, &gBlasterPuffAreaEnd, nullptr, nullptr},
+		.ppIntensityScales = {&gBlasterPuffIntensityStart, &gBlasterPuffIntensityEnd, nullptr, nullptr},
 	});
 }
 

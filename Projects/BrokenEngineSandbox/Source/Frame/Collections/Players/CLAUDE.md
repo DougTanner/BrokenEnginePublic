@@ -25,7 +25,7 @@ Shared constants used across multiple `.cpp` files are declared in `Players.h`. 
 
 **Shield and Damage**: Shield absorbs damage before armor with cooldown-based regeneration. Client-only hex shield displays directional hit indicators with intensity decay and impact VFX.
 
-**Owned Objects**: Each player owns a wind trail, hex shield (client-only), and a pusher. The pusher prevents player overlap using a clamped impulse pattern: `engine::ApplyClampedPush()` caps velocity in the push direction to `kfPlayerMaxPusherPushVelocity`. Terrain push uses the same pattern via `engine::ApplyClampedPush()` with its own cap. The pusher is created on Spawn, synced in Interpolate, applied in PostRender, and removed on Transfer/Destroy.
+**Owned Objects**: Each player owns a wind trail, hex shield (client-only), and a pusher. Lighting effects (point lights, puffs) use game-side `LightingWrappers` globals for wrapper-scaled keyframes. The pusher prevents player overlap using a clamped impulse pattern: `engine::ApplyClampedPush()` caps velocity in the push direction to `kfPlayerMaxPusherPushVelocity`. Terrain push uses the same pattern via `engine::ApplyClampedPush()` with its own cap. The pusher is created on Spawn, synced in Interpolate, applied in PostRender, and removed on Transfer/Destroy.
 
 ## Client GUIDs and Global Player IDs
 

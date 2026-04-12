@@ -14,7 +14,7 @@ The UI system uses ImGui for all game UI rendering. The HUD and menu screens are
 
 ## Architecture Notes
 
-ImGuiManager (engine-side) owns instances of all screen classes and calls their `Render()` methods during the ImGui frame. `Wrapper.h` declares 25 game-specific `engine::Wrapper` globals in the `game::` namespace, split into two groups: hex shield parameters (`gHexShield*`, 11 globals) and wind deposit parameters (`gWindDeposit*`, 14 globals). These are consumed by `game::TweaksScreen` and game rendering code.
+ImGuiManager (engine-side) owns instances of all screen classes and calls their `Render()` methods during the ImGui frame. `Wrapper.h` declares 25 game-specific `engine::Wrapper` globals in the `game::` namespace, split into two groups: hex shield parameters (`gHexShield*`, 11 globals) and wind deposit parameters (`gWindDeposit*`, 14 globals). These are consumed by `game::TweaksScreen` and game rendering code. `LightingWrappers.h/.cpp` declares ~50 `game::Wrapper` globals centralizing all effect lighting configuration (point light intensity/area, puff intensity/area, area light intensity/area, etc.) previously scattered as `constexpr` values across collection files. These are consumed by per-keyframe wrapper scaling in controller types and render-time wrapper overrides in `AreaLightsType`.
 
 ## See Also
 

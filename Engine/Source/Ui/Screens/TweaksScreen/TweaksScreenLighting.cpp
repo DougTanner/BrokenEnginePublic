@@ -115,6 +115,19 @@ void TweaksScreenBase::RenderLightingSection()
 
 			ImGui::EndTabItem();
 		}
+		if (ImGui::BeginTabItem("Effects", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 2) ? ImGuiTabItemFlags_SetSelected : 0))
+		{
+			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 2)
+			{
+				mApplySubtab[kiSection] = false;
+			}
+			if (!mApplySubtab[kiSection])
+			{
+				mActiveSubtab[kiSection] = 2;
+			}
+			RenderLightingEffectsTab();
+			ImGui::EndTabItem();
+		}
 		ImGui::EndTabBar();
 	}
 }

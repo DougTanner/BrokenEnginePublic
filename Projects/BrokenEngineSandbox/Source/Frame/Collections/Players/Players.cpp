@@ -11,6 +11,7 @@
 #include "Data/Scene.h"
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
+#include "Ui/LightingWrappers.h"
 #endif
 
 namespace engine
@@ -28,9 +29,6 @@ using enum PlayerFlags;
 constexpr float kfBlasterSizeX = kfPlayerRadius * 0.3333f;
 constexpr float kfBlasterSizeY = kfPlayerRadius * 1.0f;
 
-constexpr float kfAreaLightVisibleIntensity = 1.0f;
-constexpr float kfAreaLightLightingSize = 50.0f;
-constexpr float kfAreaLightLightingIntensity = 100.0f;
 
 constexpr uint32_t kuiExplosionBaseParticleCount = 16;
 constexpr float kfExplosionParticleVelocityMin = 5.0f;
@@ -40,20 +38,11 @@ constexpr float kfExplosionParticleVerticalVelocityRandom = 20.0f;
 constexpr float kfExplosionParticleIntensityDecay = 2.4f;
 
 #if defined(BT_CLIENT)
-// Impact point light (Register only)
+// Impact point light timing
 constexpr float kfImpactPointLightDuration = 0.4f;
-constexpr float kfImpactPointLightStartVisibleArea = kfPlayerRadius * 0.5f;
-constexpr float kfImpactPointLightStartVisibleIntensity = 1.0f;
-constexpr float kfImpactPointLightStartLightingArea = kfPlayerRadius * 1.0f;
-constexpr float kfImpactPointLightStartLightingIntensity = 40.0f;
-constexpr float kfImpactPointLightEndVisibleIntensity = 0.5f;
-constexpr float kfImpactPointLightEndLightingIntensity = 10.0f;
 
-// Impact puff (Register only)
+// Impact puff timing
 constexpr float kfImpactPuffDuration = 0.1f;
-constexpr float kfImpactPuffStartArea = kfPlayerRadius * 0.1f;
-constexpr float kfImpactPuffStartIntensity = 4.0f;
-constexpr float kfImpactPuffEndArea = kfPlayerRadius * 0.3333f;
 #endif // BT_CLIENT
 
 // PlayersInterpolate::Update constants
@@ -61,10 +50,8 @@ constexpr float kfRotateTowardsSpeed = 10.0f;
 #if defined(BT_CLIENT)
 constexpr float kfShieldShrinkSpeed = 1.5f;
 constexpr float kfShieldRotationSpeed = 4.0f;
-constexpr float kfHexShieldIntensityDecay = 1.25f;
 
 // Hex shield rendering
-constexpr float kfHexShieldLightingIntensity = 125.0f;
 constexpr float kfHexShieldSizeScale = kfPlayerRadius * 0.0667f;
 constexpr float kfHexShieldColorMix = 0.85f;
 
@@ -84,9 +71,12 @@ void PlayersInterpolate::Register()
 		.crc = data::kTexturesBlasterBC74pngCrc,
 		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
 		.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
-		.fVisibleIntensity = kfAreaLightVisibleIntensity,
-		.fLightingSize = kfAreaLightLightingSize,
-		.fLightingIntensity = kfAreaLightLightingIntensity,
+		.fVisibleIntensity = gPlayerAreaLightVisibleIntensity.Get(),
+		.fLightingSize = gPlayerAreaLightLightingSize.Get(),
+		.fLightingIntensity = gPlayerAreaLightLightingIntensity.Get(),
+		.pVisibleIntensityWrapper = &gPlayerAreaLightVisibleIntensity,
+		.pLightingSizeWrapper = &gPlayerAreaLightLightingSize,
+		.pLightingIntensityWrapper = &gPlayerAreaLightLightingIntensity,
 	});
 #endif // BT_CLIENT
 
@@ -132,11 +122,15 @@ void PlayersInterpolate::Register()
 		.pfTimes = {0.0f, kfImpactPointLightDuration, 0.0f, 0.0f},
 		.keyframes =
 		{
-			{.fVisibleArea = kfImpactPointLightStartVisibleArea, .fVisibleIntensity = kfImpactPointLightStartVisibleIntensity, .fLightingArea = kfImpactPointLightStartLightingArea, .fLightingIntensity = kfImpactPointLightStartLightingIntensity, .fRotation = 0.0f},
-			{.fVisibleArea = 0.0f, .fVisibleIntensity = kfImpactPointLightEndVisibleIntensity, .fLightingArea = 0.0f, .fLightingIntensity = kfImpactPointLightEndLightingIntensity, .fRotation = 0.0f},
+			{.fVisibleArea = 1.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
+			{.fVisibleArea = 0.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 0.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
 			{},
 			{},
 		},
+		.ppVisibleAreaScales = {&gPlayerImpactStartVisibleArea, nullptr, nullptr, nullptr},
+		.ppVisibleIntensityScales = {&gPlayerImpactStartVisibleIntensity, &gPlayerImpactEndVisibleIntensity, nullptr, nullptr},
+		.ppLightingAreaScales = {&gPlayerImpactStartLightingArea, nullptr, nullptr, nullptr},
+		.ppLightingIntensityScales = {&gPlayerImpactStartLightingIntensity, &gPlayerImpactEndLightingIntensity, nullptr, nullptr},
 	});
 
 	// Register impact puff type and controller (smoke puff when hit)
@@ -154,11 +148,13 @@ void PlayersInterpolate::Register()
 		.pfTimes = {0.0f, kfImpactPuffDuration, 0.0f, 0.0f},
 		.keyframes =
 		{
-			{.fArea = kfImpactPuffStartArea, .fIntensity = kfImpactPuffStartIntensity, .fRotation = 0.0f},
-			{.fArea = kfImpactPuffEndArea, .fIntensity = 0.0f, .fRotation = 0.0f},
+			{.fArea = 1.0f, .fIntensity = 1.0f, .fRotation = 0.0f},
+			{.fArea = 1.0f, .fIntensity = 0.0f, .fRotation = 0.0f},
 			{},
 			{},
 		},
+		.ppAreaScales = {&gPlayerImpactPuffAreaStart, &gPlayerImpactPuffAreaEnd, nullptr, nullptr},
+		.ppIntensityScales = {&gPlayerImpactPuffIntensityStart, nullptr, nullptr, nullptr},
 	});
 
 	// Register hex shield type for player
@@ -246,7 +242,8 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
 
 	int64_t iUpdateFleetCount = 0;
-	engine::GridCoord updateFleetCoord {};
+	engine::GridCoord updateFleetNewCoord {};
+	int64_t iUpdateFleetFlagshipGlobalId = 0;
 
 	for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
 	{
@@ -279,18 +276,16 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 				if (rUpdate.bIsFlagship)
 				{
 					rCurrentPostRender.pFlags[iIndex].Set(kIsFlagship);
+					iUpdateFleetFlagshipGlobalId = rCurrentPostRender.pGlobalPlayerIds[iIndex].iValue;
 				}
 				else
 				{
 					rCurrentPostRender.pFlags[iIndex].Clear(kIsFlagship);
 				}
+				++iUpdateFleetCount;
+				updateFleetNewCoord = rUpdate.fleetWantedCoord;
 				rCurrentPostRender.pFleetWantedCoords[iIndex] = rUpdate.fleetWantedCoord;
 				rCurrentPostRender.puiPendingFleetWantedCoordTicks[iIndex] = rUpdate.uiPendingFleetWantedCoordTicks;
-				if (iUpdateFleetCount == 0)
-				{
-					updateFleetCoord = rUpdate.fleetWantedCoord;
-				}
-				++iUpdateFleetCount;
 			}
 			continue;
 		}
@@ -358,7 +353,7 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 
 	if (iUpdateFleetCount > 0)
 	{
-		LOG(kNetwork, kVerbose, "kUpdateFleet Count: {} WantedCoord: ({},{})", iUpdateFleetCount, updateFleetCoord.x, updateFleetCoord.y);
+		LOG(kNetwork, kVerbose, "kUpdateFleet Coord: ({},{}) NewWantedCoord: ({},{}) Players: {} Flagship: {}", rStaticData.coord.x, rStaticData.coord.y, updateFleetNewCoord.x, updateFleetNewCoord.y, iUpdateFleetCount, iUpdateFleetFlagshipGlobalId);
 	}
 }
 
@@ -556,8 +551,8 @@ void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rF
 		HexShieldIntensities hexShieldFragIntensities {};
 		for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
 		{
-			hexShieldVertIntensities.data[j] = std::max(rPrevious.pHexShieldVertIntensities[i].data[j] - kfHexShieldIntensityDecay * fDeltaTime, 0.0f);
-			hexShieldFragIntensities.data[j] = std::max(rPrevious.pHexShieldFragIntensities[i].data[j] - kfHexShieldIntensityDecay * fDeltaTime, 0.0f);
+			hexShieldVertIntensities.data[j] = std::max(rPrevious.pHexShieldVertIntensities[i].data[j] - gHexShieldIntensityDecay.Get() * fDeltaTime, 0.0f);
+			hexShieldFragIntensities.data[j] = std::max(rPrevious.pHexShieldFragIntensities[i].data[j] - gHexShieldIntensityDecay.Get() * fDeltaTime, 0.0f);
 		}
 		rCurrent.pHexShieldDirections[i] = hexShieldDirections;
 		rCurrent.pHexShieldVertIntensities[i] = hexShieldVertIntensities;
@@ -592,7 +587,7 @@ void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rF
 				.pf4Directions = {},
 				.pfVertIntensities = {},
 				.pfFragIntensities = {},
-				.fLightingIntensity = kfHexShieldLightingIntensity,
+				.fLightingIntensity = gHexShieldLightingIntensity.Get(),
 				.fSize = rCurrent.pfShieldShrinks[i] * kfHexShieldSizeScale,
 				.fColorMix = kfHexShieldColorMix,
 			};

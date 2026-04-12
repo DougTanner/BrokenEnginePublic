@@ -50,6 +50,8 @@ public:
 	int64_t miClockOffset = 0;
 	int64_t miClockTargetBehind = 0;
 	int64_t miCurrentTargetBehind = 0;
+	int64_t miLastLoggedClockTargetBehind = -1;
+	int64_t miLastPeriodicClockLogTick = -1;
 	bool mbClockErrorDisconnect = false;
 	int64_t miConsecutiveClockErrorFrames = 0;
 	int64_t miCoordSlots = 0;

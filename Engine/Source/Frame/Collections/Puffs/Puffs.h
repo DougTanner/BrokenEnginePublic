@@ -45,6 +45,10 @@ struct PuffControllerType
 	float pfTimes[kMaxControllerKeyframes] {};
 	PuffKeyframe keyframes[kMaxControllerKeyframes] {};
 
+	// Per-keyframe wrapper scaling: keyframe values are multiplied by wrapper.Get() at interpolation time
+	Wrapper* ppAreaScales[kMaxControllerKeyframes] {};
+	Wrapper* ppIntensityScales[kMaxControllerKeyframes] {};
+
 	bool operator==(const PuffControllerType& rOther) const = default;
 };
 

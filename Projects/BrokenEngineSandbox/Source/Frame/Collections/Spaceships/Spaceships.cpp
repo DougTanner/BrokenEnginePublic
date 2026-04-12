@@ -16,6 +16,7 @@
 #if defined(BT_CLIENT)
 #include "Data/Scene.h"
 #include "Frame/Collections/PointLights/PointLights.h"
+#include "Ui/LightingWrappers.h"
 #endif
 
 namespace engine
@@ -60,8 +61,7 @@ constexpr float kfSpaceshipExplosionParticleVelocityRandom = 9.0f;
 constexpr float kfSpaceshipExplosionParticleVerticalVelocityMin = -5.0f;
 constexpr float kfSpaceshipExplosionParticleVerticalVelocityRandom = 10.0f;
 constexpr float kfSpaceshipExplosionParticleIntensityDecay = 2.4f;
-constexpr float kfSpaceshipExplosionParticleLightingSize = kfSpaceshipRadius * 1.5f;
-constexpr float kfSpaceshipExplosionParticleLightingIntensity = 2000.0f;
+// Particle lighting now in LightingWrappers (gSpaceshipExplosionParticle*)
 constexpr float kfSpaceshipExplosionTrailLengthRandom = kfSpaceshipRadius * 1.25f;
 constexpr uint32_t kuiSpaceshipExplosionSecondaryCount = 1;
 
@@ -71,21 +71,15 @@ constexpr float kfBlastersSpeed = 50.0f;
 constexpr float kfBlastersSpawnCooldown = 1.0f;
 
 constexpr float kfEnemyBlasterSize = kfSpaceshipRadius * 0.15f;
-constexpr float kfEnemyBlasterVisibleIntensity = 1.0f;
-constexpr float kfEnemyBlasterLightingSize = 10.0f;
-constexpr float kfEnemyBlasterLightingIntensity = 200.0f;
+// Enemy blaster lighting now in LightingWrappers (gEnemyBlaster*)
 
 // Spaceship target
 constexpr float kfTargetSize = kfSpaceshipRadius * 0.03f;
 constexpr float kfTargetAlpha = 1.5f;
 
 #if defined(BT_CLIENT)
-// Hit flash effect
+// Hit flash effect timing
 constexpr float kfHitFlashDuration = 0.3f;
-constexpr float kfHitFlashVisibleArea = kfSpaceshipRadius * 0.25f;
-constexpr float kfHitFlashVisibleIntensity = 1.0f;
-constexpr float kfHitFlashLightingArea = kfSpaceshipRadius * 0.5f;
-constexpr float kfHitFlashLightingIntensity = 30.0f;
 #endif // BT_CLIENT
 
 // Find the nearest alive (non-exploding) player position. Returns false if no alive players exist.
@@ -138,8 +132,10 @@ void SpaceshipsInterpolate::Register()
 		.fParticleVerticalVelocityMin = kfSpaceshipExplosionParticleVerticalVelocityMin,
 		.fParticleVerticalVelocityRandom = kfSpaceshipExplosionParticleVerticalVelocityRandom,
 		.fParticleIntensityDecay = kfSpaceshipExplosionParticleIntensityDecay,
-		.fParticleLightingSize = kfSpaceshipExplosionParticleLightingSize,
-		.fParticleLightingIntensity = kfSpaceshipExplosionParticleLightingIntensity,
+#if defined(BT_CLIENT)
+		.fParticleLightingSize = gSpaceshipExplosionParticleLightingSize.Get(),
+		.fParticleLightingIntensity = gSpaceshipExplosionParticleLightingIntensity.Get(),
+#endif
 		.fTrailLengthRandom = kfSpaceshipExplosionTrailLengthRandom,
 		.uiSecondaryExplosionCount = kuiSpaceshipExplosionSecondaryCount,
 	});
@@ -169,9 +165,9 @@ static void RegisterEnemyBlasterType()
 		.crc = data::kTexturesBlasterBC72pngCrc,
 		.uiColor = 0xFFFFFFFF,
 		.fVisibleArea = kfEnemyBlasterSize,
-		.fVisibleIntensity = kfEnemyBlasterVisibleIntensity,
-		.fLightingArea = kfEnemyBlasterLightingSize,
-		.fLightingIntensity = kfEnemyBlasterLightingIntensity,
+		.fVisibleIntensity = gEnemyBlasterVisibleIntensity.Get(),
+		.fLightingArea = gEnemyBlasterLightingSize.Get(),
+		.fLightingIntensity = gEnemyBlasterLightingIntensity.Get(),
 		.bCameraAligned = true,
 	});
 #endif // BT_CLIENT
@@ -242,11 +238,15 @@ static void RegisterSpaceshipHitFlashEffect()
 			.pfTimes = {0.0f, kfHitFlashDuration, 0.0f, 0.0f},
 			.keyframes =
 			{
-				{.fVisibleArea = kfHitFlashVisibleArea, .fVisibleIntensity = kfHitFlashVisibleIntensity, .fLightingArea = kfHitFlashLightingArea, .fLightingIntensity = kfHitFlashLightingIntensity, .fRotation = 0.0f},
+				{.fVisibleArea = 1.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
 				{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
 				{},
 				{},
 			},
+			.ppVisibleAreaScales = {&gHitFlashStartVisibleArea, nullptr, nullptr, nullptr},
+			.ppVisibleIntensityScales = {&gHitFlashStartVisibleIntensity, nullptr, nullptr, nullptr},
+			.ppLightingAreaScales = {&gHitFlashStartLightingArea, nullptr, nullptr, nullptr},
+			.ppLightingIntensityScales = {&gHitFlashStartLightingIntensity, nullptr, nullptr, nullptr},
 		});
 	}
 }
@@ -267,7 +267,11 @@ void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPosition, XMV
 		.fTrailAngle = fPercent * XM_PI,
 		.uiParticleCount = static_cast<uint32_t>(fPercent * kfSpaceshipExplosionParticleCount),
 		.fParticleAngle = fPercent * XM_PIDIV2,
-		.fLightPercent = fPercent * kfSpaceshipExplosionIntensity,
+		#if defined(BT_CLIENT)
+			.fLightPercent = fPercent * gSpaceshipExplosionIntensity.Get(),
+#else
+			.fLightPercent = fPercent * kfSpaceshipExplosionIntensity,
+#endif
 		.fSizePercent = fPercent * kfSpaceshipExplosionSizeStart + (1.0f - fPercent) * kfSpaceshipExplosionSizeEnd,
 		.fSmokePercent = fPercent * kfSpaceshipExplosionSmoke,
 		.fTimePercent = fPercent,

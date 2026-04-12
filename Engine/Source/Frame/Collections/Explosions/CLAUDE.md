@@ -11,7 +11,7 @@ The implementation is split across three `.cpp` files:
 
 ## Architecture Notes
 
-- `Spawn()` spawns primary/secondary PointLights, Puffs, SmokeTrails, WindRadials, and GPU particles; random engine calls are unconditional to keep client/server in sync
+- `Spawn()` spawns primary/secondary PointLights, Puffs, SmokeTrails, WindRadials, and GPU particles; random engine calls are unconditional to keep client/server in sync. Keyframe values are normalized multipliers; game-side `Wrapper` globals supply base magnitudes via per-keyframe wrapper arrays on controller types
 - Per-instance scaling percentages gate visual effect intensity (light, size, smoke, time)
 - Trail management: up to 8 SmokeTrails per explosion with gravity-affected interpolation and auto-cleanup. `Explosions.h` forward-declares `SmokeTrailsInterpolate` and `smoke_trails_t` (client-only) rather than including `SmokeTrails.h`, keeping the header dependency-light
 - Uses `SharedMembers()`/`ClientMembers()`/`Members()` three-method pattern for shared CRC compatibility

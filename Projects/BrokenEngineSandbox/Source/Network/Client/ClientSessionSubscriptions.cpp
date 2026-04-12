@@ -101,7 +101,8 @@ void ClientSession::UpdateDesiredCoords(SubscriptionChangeReason eReason)
 			}
 			mUnwantedTimestamps.erase(rCoord);
 		}
-		message.Append("]");
+		message.Append("] Tick: ");
+		message.Append(gpGame->TickCounter());
 
 		LOG(kNetwork, kVerbose, "{}", message);
 

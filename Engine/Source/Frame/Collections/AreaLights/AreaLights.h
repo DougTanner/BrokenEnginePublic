@@ -18,6 +18,11 @@ struct AreaLightsType
 	float fVisibleIntensity = 1.0f;
 	float fLightingSize = 1.0f;
 	float fLightingIntensity = 1.0f;
+
+	// Render-time wrapper overrides: if non-null, wrapper.Get() replaces the baked value
+	Wrapper* pVisibleIntensityWrapper = nullptr;
+	Wrapper* pLightingSizeWrapper = nullptr;
+	Wrapper* pLightingIntensityWrapper = nullptr;
 };
 
 struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, CollectionFlags::kIdToIndex>,

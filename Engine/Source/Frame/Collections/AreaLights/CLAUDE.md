@@ -11,6 +11,7 @@ The implementation is split across three `.cpp` files:
 
 ## Architecture Notes
 
+- `AreaLightsType` supports optional `Wrapper*` fields that override baked type values (intensity, area, lighting area) at render time, enabling live tweaking without modifying type registration
 - Lighting quads preserve the orientation of the visible quad (scaled around the shared center), so the ground illumination matches the light's rotation
 - The fragment shader uses rectangular falloff (smoothstep on both axes independently) rather than circular
 - Frustum culling tests the AABB of all 8 vertices (4 visible + 4 lighting) via `AabbIntersectsVisibleArea`

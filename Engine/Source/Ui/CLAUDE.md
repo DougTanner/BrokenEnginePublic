@@ -13,6 +13,8 @@ Wrapper globals are declared in `WrapperBase.h` and defined in `WrapperBase.cpp`
 
 **Ordering convention**: Wrapper global declaration order in `WrapperBase.h` and definition order in `WrapperBase.cpp` must match the tweaks screen UI layout (e.g., `TweaksScreenLighting.cpp` for lighting globals).
 
+**Virtual extension points**: `RenderLightingEffectsTab()` is a virtual method on `TweaksScreenBase` allowing the game layer to inject an Effects tab into the Lighting Tweaks section for game-specific lighting wrapper controls.
+
 ## See Also
 
 - [Screens/CLAUDE.md](Screens/CLAUDE.md) - ImGui-based debug overlays (TweaksScreenBase)

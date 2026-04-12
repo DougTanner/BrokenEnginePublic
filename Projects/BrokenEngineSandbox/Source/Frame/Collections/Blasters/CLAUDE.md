@@ -6,7 +6,7 @@ Fast-moving energy projectiles with shared `BlasterType` configuration. Compiles
 
 - **Movement**: Constant velocity linear integration, direction derived from normalized velocity
 - **Collision**: Swept sphere test, destroyed on any collision
-- **Terrain impact**: Binary search to find exact intersection point with random jitter. Spawns crater point light and puff, plus terrain impact sound (client-only)
+- **Terrain impact**: Binary search to find exact intersection point with random jitter. Spawns crater point light and puff with normalized keyframes scaled by game-side lighting wrappers, plus terrain impact sound (client-only)
 
 ## Light Type Selection
 

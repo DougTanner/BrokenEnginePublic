@@ -9,6 +9,7 @@
 #include "Profile/ProfileManager.h"
 #if defined(BT_CLIENT)
 #include "Ui/WrapperBase.h"
+#include "Ui/LightingWrappers.h"
 #endif
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Explosions/Explosions.h"
@@ -32,18 +33,14 @@ using enum MissileFlags;
 
 
 #if defined(BT_CLIENT)
-// Missile exhaust
+// Missile exhaust (non-lighting)
 constexpr float kfExhaustWidth = 0.25f;
 constexpr float kfExhaustOffset = -0.45f;
-constexpr float kfExhaustVisibleIntensity = 1.0f;
-constexpr float kfExhaustLightingArea = 20.0f;
-constexpr float kfExhaustLightingIntensity = 250.0f;
 #endif // BT_CLIENT
 
 
 #if defined(BT_CLIENT)
-// Missile trail
-constexpr float kfTrailIntensity = 0.5f;
+// Missile trail (non-lighting)
 constexpr float kfTrailOffset = -0.9f;
 constexpr float kfTrailWidth = 0.15f;
 #endif
@@ -125,7 +122,7 @@ void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_l
 		engine::SmokeTrailsInterpolate::Sync(rFrameInterpolate, uiSmokeTrail,
 		{
 			.vecPosition = vecTrailPosition,
-			.fIntensity = kfTrailIntensity,
+			.fIntensity = gMissileTrailIntensity.Get(),
 		});
 	}
 
@@ -206,9 +203,12 @@ void MissilesInterpolate::Register()
 		.crc = data::kTexturesMissilesBC73pngCrc,
 		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
 		.pf2Texcoords = {{0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 1.0f}, {1.0f, 1.0f}},
-		.fVisibleIntensity = kfExhaustVisibleIntensity,
-		.fLightingSize = kfExhaustLightingArea,
-		.fLightingIntensity = kfExhaustLightingIntensity,
+		.fVisibleIntensity = gMissileExhaustVisibleIntensity.Get(),
+		.fLightingSize = gMissileExhaustLightingArea.Get(),
+		.fLightingIntensity = gMissileExhaustLightingIntensity.Get(),
+		.pVisibleIntensityWrapper = &gMissileExhaustVisibleIntensity,
+		.pLightingSizeWrapper = &gMissileExhaustLightingArea,
+		.pLightingIntensityWrapper = &gMissileExhaustLightingIntensity,
 	});
 
 	// Enemy missile exhaust
@@ -217,9 +217,12 @@ void MissilesInterpolate::Register()
 		.crc = data::kTexturesMissilesBC71pngCrc,
 		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
 		.pf2Texcoords = {{0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 1.0f}, {1.0f, 1.0f}},
-		.fVisibleIntensity = kfExhaustVisibleIntensity,
-		.fLightingSize = kfExhaustLightingArea,
-		.fLightingIntensity = kfExhaustLightingIntensity,
+		.fVisibleIntensity = gMissileExhaustVisibleIntensity.Get(),
+		.fLightingSize = gMissileExhaustLightingArea.Get(),
+		.fLightingIntensity = gMissileExhaustLightingIntensity.Get(),
+		.pVisibleIntensityWrapper = &gMissileExhaustVisibleIntensity,
+		.pLightingSizeWrapper = &gMissileExhaustLightingArea,
+		.pLightingIntensityWrapper = &gMissileExhaustLightingIntensity,
 	});
 
 	// Missile smoke trail
