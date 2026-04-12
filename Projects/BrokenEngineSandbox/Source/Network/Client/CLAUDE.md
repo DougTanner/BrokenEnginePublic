@@ -19,7 +19,7 @@ Client-side networking: connection lifecycle, server data ingestion, rollback-an
 - Sticky subscriptions: unwanted coords stay active for 2 s via `mUnwantedTimestamps` to prevent flicker during brief coord transitions
 - Soft desync recovery: CRC mismatch triggers `kClientResyncRequest`; after 3 desyncs within 10 s `ClientDesyncManager` escalates to disconnect
 - After full replay, reconciliation sets a skip-invalidation flag on the audio manager to prevent transient voice churn from the replayed frame diff
-- Log deduplication: when reconciliation is stuck replaying the same desync repeatedly, per-coord state in `CoordFrames` suppresses repeated mismatch/replay logging and only emits periodic updates (every 64 frames). Clock error logging in `ClientSessionBase` is similarly throttled to once per second
+- Log deduplication: when reconciliation is stuck replaying the same desync repeatedly, per-coord state in `CoordFrames` suppresses repeated mismatch/replay logging and only emits periodic updates (every 64 frames). Adaptive throttle logging uses hysteresis (delta > 1 or gap-override transition) to avoid redundant output. Clock error logging in `ClientSessionBase` is similarly throttled to once per second
 
 ## See Also
 

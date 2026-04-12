@@ -296,12 +296,21 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 			++iSlotResendCount;
 		}
 
+		constexpr int64_t kiResendLogCooldownTicks = 64;
+
 		bool bWasResending = rClient.prevResendCounts.at(iSlot) > 0;
 		bool bIsResending = iSlotResendCount > 0;
-		if (bWasResending != bIsResending)
+
+		if (rClient.resendLogCooldowns.at(iSlot) > 0)
+		{
+			--rClient.resendLogCooldowns.at(iSlot);
+		}
+
+		if (bWasResending != bIsResending && rClient.resendLogCooldowns.at(iSlot) <= 0)
 		{
 			LOG(kNetwork, kVerbose, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {}",
 				rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount);
+			rClient.resendLogCooldowns.at(iSlot) = kiResendLogCooldownTicks;
 		}
 		rClient.prevResendCounts.at(iSlot) = iSlotResendCount;
 	}

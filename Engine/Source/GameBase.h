@@ -99,6 +99,7 @@ struct CoordFrames
 
 	// Delta-only throttle logging: only log when the computed max replay changes
 	int64_t iLastLoggedMaxReplay = -1;
+	bool bLastLoggedGapOverride = false;
 
 	void ResetClientState()
 	{
@@ -121,6 +122,7 @@ struct CoordFrames
 		iLastReplayConfirmedTick = -1;
 		iLastReplayServerUpdateCount = -1;
 		iLastLoggedMaxReplay = -1;
+		bLastLoggedGapOverride = false;
 	}
 #endif // BT_CLIENT
 };

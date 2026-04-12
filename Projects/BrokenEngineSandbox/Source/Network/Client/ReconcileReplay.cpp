@@ -245,10 +245,12 @@ static void ReconcileReplayCoord(CoordWork& rWork, const ReconcileInputs& rInput
 		static constexpr int64_t kiRingBudget = engine::kiNetworkBufferSize * 3 / 4;
 		iMaxReplay = std::max(iMaxReplay, std::min(iAvailable, kiRingBudget));
 	}
-	if (iMaxReplay != rFrames.iLastLoggedMaxReplay)
+	bool bGapOverride = iGap >= kiGapOverrideThreshold;
+	if (std::abs(iMaxReplay - rFrames.iLastLoggedMaxReplay) > 1 || bGapOverride != rFrames.bLastLoggedGapOverride)
 	{
-		LOG(kNetwork, kVerbose, "ReconcileReplayCoord Throttle Coord: ({},{}) JitterUs: {} Available: {} MaxReplay: {} Gap: {} GapOverride: {}", rWork.coord.x, rWork.coord.y, iJitterUs, iAvailable, iMaxReplay, iGap, iGap >= kiGapOverrideThreshold);
+		LOG(kNetwork, kVerbose, "ReconcileReplayCoord Throttle Coord: ({},{}) JitterUs: {} Available: {} MaxReplay: {} Gap: {} GapOverride: {}", rWork.coord.x, rWork.coord.y, iJitterUs, iAvailable, iMaxReplay, iGap, bGapOverride);
 		rFrames.iLastLoggedMaxReplay = iMaxReplay;
+		rFrames.bLastLoggedGapOverride = bGapOverride;
 	}
 	int64_t iReplayCount = 0;
 

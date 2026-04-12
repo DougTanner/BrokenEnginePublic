@@ -45,12 +45,12 @@ struct ClientConnection
 
 	// Delta-only resend logging: previous resend count per slot
 	std::vector<int64_t> prevResendCounts;
+	std::vector<int64_t> resendLogCooldowns;
 
 	// Delta-only floor advance logging: consecutive zero-advance ACK count
 	int64_t iConsecutiveZeroAdvanceAcks = 0;
 	bool bFloorStalled = false;
 	int64_t iPeakConsecutiveStallAcks = 0;
-	int64_t iFloorStallLogCooldown = 0;
 
 	// Helpers
 	int64_t FindSlotForCoord(GridCoord coord) const
@@ -87,6 +87,10 @@ struct ClientConnection
 		if (iSlot < std::ssize(prevResendCounts))
 		{
 			prevResendCounts.at(iSlot) = 0;
+		}
+		if (iSlot < std::ssize(resendLogCooldowns))
+		{
+			resendLogCooldowns.at(iSlot) = 0;
 		}
 	}
 

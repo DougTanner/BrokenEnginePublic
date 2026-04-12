@@ -305,7 +305,13 @@ void ServerSession::SendPlayerState(int64_t iClientId, uint8_t uiStateType, int6
 		return;
 	}
 
-	LOG(kNetwork, kInfo, "ServerSession::SendPlayerState State: {} Client: {} GlobalPlayer: {} Grid: ({},{})", static_cast<int>(uiStateType), iClientId, iGlobalPlayerId, coord.x, coord.y);
+	static constexpr const char* kpStateNames[] =
+	{
+		"Spawned",
+		"Transfer",
+		"Died",
+	};
+	LOG(kNetwork, kInfo, "ServerSession::SendPlayerState State: {} Client: {} GlobalPlayer: {} Grid: ({},{})", kpStateNames[uiStateType], iClientId, iGlobalPlayerId, coord.x, coord.y);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();

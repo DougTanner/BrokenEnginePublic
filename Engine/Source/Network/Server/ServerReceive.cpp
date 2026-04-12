@@ -67,15 +67,14 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 		}
 	}
 
-	constexpr int64_t kiStallLogCooldownTicks = 128;
-
 	if (iFloorAdvanceCount > 0)
 	{
 		if (pClient->bFloorStalled)
 		{
+			LOG(kNetwork, kVerbose, "Server::ClientAckStream FloorStallResolved Client: {} PeakStalledAcks: {} Slots: {}",
+				iClientId, pClient->iPeakConsecutiveStallAcks, uiAckSlotCount);
 			pClient->bFloorStalled = false;
 			pClient->iPeakConsecutiveStallAcks = 0;
-			pClient->iFloorStallLogCooldown = 0;
 		}
 		pClient->iConsecutiveZeroAdvanceAcks = 0;
 	}
@@ -88,18 +87,8 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 			if (!pClient->bFloorStalled)
 			{
 				pClient->bFloorStalled = true;
-				pClient->iFloorStallLogCooldown = 0;
-			}
-
-			if (pClient->iFloorStallLogCooldown <= 0)
-			{
-				LOG(kNetwork, kVerbose, "Server::ClientAckStream FloorStall Client: {} StalledAcks: {} PeakStalledAcks: {} Slots: {}",
-					iClientId, pClient->iConsecutiveZeroAdvanceAcks, pClient->iPeakConsecutiveStallAcks, uiAckSlotCount);
-				pClient->iFloorStallLogCooldown = kiStallLogCooldownTicks;
-			}
-			else
-			{
-				--pClient->iFloorStallLogCooldown;
+				LOG(kNetwork, kVerbose, "Server::ClientAckStream FloorStall Client: {} StalledAcks: {} Slots: {}",
+					iClientId, pClient->iConsecutiveZeroAdvanceAcks, uiAckSlotCount);
 			}
 		}
 	}

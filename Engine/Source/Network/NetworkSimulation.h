@@ -145,13 +145,13 @@ inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const Netw
 					std::memcpy(&iTick, rEvent.packet->data + 4, sizeof(iTick));
 				}
 				++siCoordDropCounts[iSlot];
-				LOG(kNetwork, kVerbose, "NetworkSimulation dropped coord packet Slot: {} Tick: {} Type: {} Size: {} TotalDrops: {} Consecutive: {}", iSlot, iTick, PacketTypeName(static_cast<PacketType>(uiPacketType)), rEvent.packet->dataLength, siCoordDropCounts[iSlot], dropResult.iConsecutive);
+				LOG(kNetwork, kVerbose, "NetworkSimulation::Dropped Coord Slot: {} Tick: {} Type: {} Size: {} TotalDrops: {} Consecutive: {}", iSlot, iTick, PacketTypeName(static_cast<PacketType>(uiPacketType)), rEvent.packet->dataLength, siCoordDropCounts[iSlot], dropResult.iConsecutive);
 			}
 			else
 			{
 				static int64_t siControlDropCount = 0;
 				++siControlDropCount;
-				LOG(kNetwork, kVerbose, "NetworkSimulation dropped control packet Channel: {} Size: {} TotalDrops: {} Consecutive: {}", rEvent.channelID, rEvent.packet->dataLength, siControlDropCount, dropResult.iConsecutive);
+				LOG(kNetwork, kVerbose, "NetworkSimulation::Dropped Control Channel: {} Size: {} TotalDrops: {} Consecutive: {}", rEvent.channelID, rEvent.packet->dataLength, siControlDropCount, dropResult.iConsecutive);
 			}
 			enet_packet_destroy(rEvent.packet);
 			return;
