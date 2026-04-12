@@ -97,22 +97,23 @@ inline std::chrono::steady_clock::duration RandomOneWayDelay(const NetworkSimula
 	return std::chrono::milliseconds(iDelayMs);
 }
 
-inline bool ShouldDrop(const NetworkSimulationConfig& rConfig)
+inline bool ShouldDrop(const NetworkSimulationConfig& rConfig, uint8_t uiChannel)
 {
-	static int64_t siConsecutiveDrops = 0;
+	static int64_t siConsecutiveDrops[NetworkManager::kuiChannelCount] {};
 	static constexpr int64_t kiMaxConsecutiveDrops = kiNetworkBufferSize / 2;
 
+	int64_t& riDrops = siConsecutiveDrops[uiChannel];
 	bool bDrop = false;
-	if (siConsecutiveDrops > 0)
+	if (riDrops > 0)
 	{
-		bDrop = siConsecutiveDrops < kiMaxConsecutiveDrops && Random01() < 0.5f;
+		bDrop = riDrops < kiMaxConsecutiveDrops && Random01() < 0.5f;
 	}
 	else
 	{
 		bDrop = Random01() * 100.0f < rConfig.fPacketLossPercent;
 	}
 
-	siConsecutiveDrops = bDrop ? siConsecutiveDrops + 1 : 0;
+	riDrops = bDrop ? riDrops + 1 : 0;
 	return bDrop;
 }
 
@@ -124,9 +125,22 @@ inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const Netw
 	bool bUnreliable = NetworkManager::IsUnreliableChannel(rEvent.channelID);
 	if (bUnreliable)
 	{
-		if (ShouldDrop(rSimConfig))
+		if (ShouldDrop(rSimConfig, rEvent.channelID))
 		{
-			LOG(kNetwork, kVerbose, "NetworkSimulation dropped unreliable packet channel: {} size: {}", rEvent.channelID, rEvent.packet->dataLength);
+			if (NetworkManager::IsCoordChannel(rEvent.channelID))
+			{
+				int64_t iSlot = NetworkManager::ChannelToSlot(rEvent.channelID);
+				int64_t iTick = 0;
+				if (rEvent.packet->dataLength >= 12)
+				{
+					std::memcpy(&iTick, rEvent.packet->data + 4, sizeof(iTick));
+				}
+				LOG(kNetwork, kVerbose, "NetworkSimulation dropped unreliable coord packet slot: {} tick: {} size: {}", iSlot, iTick, rEvent.packet->dataLength);
+			}
+			else
+			{
+				LOG(kNetwork, kVerbose, "NetworkSimulation dropped unreliable control packet channel: {} size: {}", rEvent.channelID, rEvent.packet->dataLength);
+			}
 			enet_packet_destroy(rEvent.packet);
 			return;
 		}

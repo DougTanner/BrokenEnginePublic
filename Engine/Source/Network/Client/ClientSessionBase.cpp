@@ -286,6 +286,11 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	miClockOffset = iOffset;
 	miClockTargetBehind = miCurrentTargetBehind;
 
+	if (iPreReconcileTick % kiTickRate == 0)
+	{
+		LOG(kNetwork, kVerbose, "ClockSync TargetBehind: {} Error: {} Offset: {} JitterUs: {} LatestServer: {} SimTick: {}", miCurrentTargetBehind, iError, iOffset, iJitterUs, miLatestServerTick, iPreReconcileTick);
+	}
+
 	if (std::abs(iError) >= kiClockErrorDisconnectThreshold)
 	{
 		++miConsecutiveClockErrorFrames;

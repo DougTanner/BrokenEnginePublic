@@ -94,6 +94,15 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	// Scale UI element sizes to 2x
 	ImGui::GetStyle().ScaleAllSizes(2.0f);
 
+	// Set global dark window background with user-controlled opacity
+	{
+		ImGuiStyle& rStyle = ImGui::GetStyle();
+		float fOpacity = gUiOpacity.Get();
+		rStyle.Colors[ImGuiCol_WindowBg] = ImVec4(0.1f, 0.1f, 0.1f, fOpacity);
+		rStyle.Colors[ImGuiCol_ChildBg] = ImVec4(0.1f, 0.1f, 0.1f, fOpacity);
+		rStyle.Colors[ImGuiCol_PopupBg] = ImVec4(0.1f, 0.1f, 0.1f, fOpacity);
+	}
+
 	// Do a dummy frame cycle to ensure ImGui is in a clean state
 	// NewFrame triggers font atlas creation, then upload textures before EndFrame validates them
 	ImGui_ImplVulkan_NewFrame();
@@ -242,25 +251,16 @@ void ImGuiManager::Prepare(int64_t iFramebuffer)
 {
 	ImGui::GetStyle().FontScaleMain = gUiFontScale.Get();
 
-	// Toggle opaque UI style
+	// Apply UI opacity (opaque UI forces 1.0, otherwise use slider value)
 	auto [bOpaqueUi, bPreviousOpaqueUi, bOpaqueUiChanged] = gOpaqueUi.Changed<bool>();
-	if (bOpaqueUiChanged)
+	auto [fUiOpacity, fPreviousUiOpacity, bUiOpacityChanged] = gUiOpacity.Changed<float>();
+	if (bOpaqueUiChanged || bUiOpacityChanged)
 	{
 		ImGuiStyle& rStyle = ImGui::GetStyle();
-		if (bOpaqueUi)
-		{
-			rStyle.Colors[ImGuiCol_WindowBg].w = 1.0f;
-			rStyle.Colors[ImGuiCol_ChildBg].w = 1.0f;
-			rStyle.Colors[ImGuiCol_PopupBg].w = 1.0f;
-		}
-		else
-		{
-			ImGuiStyle defaultStyle;
-			defaultStyle.ScaleAllSizes(2.0f);
-			rStyle.Colors[ImGuiCol_WindowBg].w = defaultStyle.Colors[ImGuiCol_WindowBg].w;
-			rStyle.Colors[ImGuiCol_ChildBg].w = defaultStyle.Colors[ImGuiCol_ChildBg].w;
-			rStyle.Colors[ImGuiCol_PopupBg].w = defaultStyle.Colors[ImGuiCol_PopupBg].w;
-		}
+		float fAlpha = bOpaqueUi ? 1.0f : fUiOpacity;
+		rStyle.Colors[ImGuiCol_WindowBg].w = fAlpha;
+		rStyle.Colors[ImGuiCol_ChildBg].w = fAlpha;
+		rStyle.Colors[ImGuiCol_PopupBg].w = fAlpha;
 	}
 
 	ImGui_ImplVulkan_NewFrame();

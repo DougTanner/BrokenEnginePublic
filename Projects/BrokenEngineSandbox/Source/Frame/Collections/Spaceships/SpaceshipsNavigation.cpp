@@ -10,26 +10,34 @@ namespace game
 
 using enum SpaceshipFlags;
 
-// Spaceship Ai
-constexpr float kfAccelerationTowardsPlayer = 4.0f;
-constexpr float kfFleePlayerAcceleration = 6.0f;
-constexpr float kfReturnToIslandCenterAcceleration = kfSpaceshipMaxAcceleration;
-constexpr float kfDeltaAngleChange = 0.999f;
-constexpr float kfDeltaAngleDecay = 6.0f;
-constexpr float kfDeltaAngleTowardsPlayer = 32.0f;
-constexpr float kfFleePlayerDeltaAngle = 32.0f;
-constexpr float kfFleePlayerStart = 15.0f;
-constexpr float kfFleePlayerEnd = 25.0f;
-constexpr float kfReturnDistance = 180.0f;
-constexpr float kfReturnedDistance = kfReturnDistance - 20.0f;
-constexpr float kfVelocityToDirection = 4.0f;
-constexpr float kfTerrainCollisionRotation = 8.0f;
-constexpr float kfTerrainCollisionMovePosition = kfSpaceshipRadius * 2.0f;
-constexpr float kfTerrainCollisionAddVelocity = 4.0f;
+// Spaceship AI — acceleration per behavior
+constexpr float kfSpaceshipChaseAcceleration = 4.0f;
+constexpr float kfSpaceshipFleeAcceleration = 6.0f;
+constexpr float kfSpaceshipReturnAcceleration = kfSpaceshipAcceleration;
+
+// Steering
+constexpr float kfSpaceshipSteeringSmoothing = 3.0f;
+constexpr float kfSpaceshipSteeringDecay = 6.0f;
+constexpr float kfSpaceshipChaseTurnRate = 32.0f;
+constexpr float kfSpaceshipFleeTurnRate = 32.0f;
+
+// Velocity-to-direction blend (airplane constraint)
+constexpr float kfSpaceshipVelocityToDirection = 4.0f;
+
+// Flee/return hysteresis
+constexpr float kfSpaceshipFleeStartDistance = 15.0f;
+constexpr float kfSpaceshipFleeEndDistance = 25.0f;
+constexpr float kfSpaceshipReturnDistance = 180.0f;
+constexpr float kfSpaceshipReturnedDistance = kfSpaceshipReturnDistance - 20.0f;
+
+// Terrain collision
+constexpr float kfSpaceshipTerrainBounceRotation = 8.0f;
+constexpr float kfSpaceshipTerrainBounceMove = kfSpaceshipRadius * 2.0f;
+constexpr float kfSpaceshipTerrainBounceVelocity = 4.0f;
 
 // Terrain avoidance (player-proximity skip constants; sampling constants in GameUtils.cpp)
-constexpr float kfIgnoreAvoidTerrainPlayerAngle = 0.4f;
-constexpr float kfIgnoreAvoidTerrainPlayerDistance = 40.0f;
+constexpr float kfSpaceshipAvoidTerrainPlayerAngle = 0.4f;
+constexpr float kfSpaceshipAvoidTerrainPlayerDistance = 40.0f;
 
 // Forward declarations for shared helpers (defined in Spaceships.cpp)
 [[nodiscard]] bool XM_CALLCONV NearestAlivePlayerPosition(const PlayersInterpolate& rPlayers, const PlayersPostRender& rPlayersPostRender, FXMVECTOR vecFrom, XMVECTOR& rVecResult);
@@ -37,23 +45,23 @@ constexpr float kfIgnoreAvoidTerrainPlayerDistance = 40.0f;
 void XM_CALLCONV SpaceshipsPostRender::ComputeSteering(FXMVECTOR vecPosition, FXMVECTOR vecDirection, bool bPlayerAlive, FXMVECTOR vecNearestPlayer, float fDeltaTime, SpaceshipFlags_t& rFlags, float& rfDeltaRotation)
 {
 	XMVECTOR vecToPlayer = bPlayerAlive ? XMVectorSubtract(vecNearestPlayer, vecPosition) : XMVectorZero();
-	float fPlayerDistance = bPlayerAlive ? XMVectorGetX(XMVector3Length(vecToPlayer)) : kfFleePlayerEnd + 1.0f;
-	if (fPlayerDistance < kfFleePlayerStart)
+	float fPlayerDistance = bPlayerAlive ? XMVectorGetX(XMVector3Length(vecToPlayer)) : kfSpaceshipFleeEndDistance + 1.0f;
+	if (fPlayerDistance < kfSpaceshipFleeStartDistance)
 	{
 		rFlags.Set(kFleePlayer);
 	}
-	else if (fPlayerDistance > kfFleePlayerEnd)
+	else if (fPlayerDistance > kfSpaceshipFleeEndDistance)
 	{
 		rFlags.Clear(kFleePlayer);
 	}
 
 	XMVECTOR vecIslandCenter = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 	float fDistanceFromIslandCenter = common::Distance(vecPosition, vecIslandCenter);
-	if (fDistanceFromIslandCenter > kfReturnDistance)
+	if (fDistanceFromIslandCenter > kfSpaceshipReturnDistance)
 	{
 		rFlags.Set(kReturnToIslandCenter);
 	}
-	else if (fDistanceFromIslandCenter < kfReturnedDistance)
+	else if (fDistanceFromIslandCenter < kfSpaceshipReturnedDistance)
 	{
 		rFlags.Clear(kReturnToIslandCenter);
 	}
@@ -65,30 +73,22 @@ void XM_CALLCONV SpaceshipsPostRender::ComputeSteering(FXMVECTOR vecPosition, FX
 	}
 	XMVECTOR vecToDestinationNormal = XMVector3Normalize(XMVectorSubtract(vecDestination, vecPosition));
 	float fDirectionDestinationCrossZ = XMVectorGetZ(XMVector3Cross(vecDirection, vecToDestinationNormal));
-	float fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? kfDeltaAngleTowardsPlayer : -kfDeltaAngleTowardsPlayer;
+	float fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? kfSpaceshipChaseTurnRate : -kfSpaceshipChaseTurnRate;
 	if (!(rFlags & kReturnToIslandCenter) && rFlags & kFleePlayer)
 	{
-		fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? -kfFleePlayerDeltaAngle : kfFleePlayerDeltaAngle;
+		fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? -kfSpaceshipFleeTurnRate : kfSpaceshipFleeTurnRate;
 	}
 
-	rfDeltaRotation = kfDeltaAngleChange * rfDeltaRotation + (1.0f - kfDeltaAngleChange) * fWantedDeltaRotation;
-	rfDeltaRotation = common::ExponentialDecay(kfDeltaAngleDecay, fDeltaTime) * rfDeltaRotation;
+	rfDeltaRotation = std::lerp(fWantedDeltaRotation, rfDeltaRotation, common::ExponentialDecay(kfSpaceshipSteeringSmoothing, fDeltaTime));
+	rfDeltaRotation = common::ExponentialDecay(kfSpaceshipSteeringDecay, fDeltaTime) * rfDeltaRotation;
 }
 
 void XM_CALLCONV SpaceshipsPostRender::ApplyMovement(Frame& __restrict rFrame, const SpaceshipsInterpolate& __restrict rCurrentInterpolate, int64_t i, SpaceshipFlags_t flags, float fDeltaTime, XMVECTOR& rVecVelocity)
 {
-	// Decay velocity
-	rVecVelocity = XMVectorMultiply(XMVectorReplicate(common::ExponentialDecay(kfSpaceshipVelocityDecay, fDeltaTime)), rVecVelocity);
-
-	// Accelerate and rotate velocity
-	float fAcceleration = flags & kReturnToIslandCenter ? kfReturnToIslandCenterAcceleration : flags & kFleePlayer ? kfFleePlayerAcceleration : kfAccelerationTowardsPlayer;
-	rVecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * fAcceleration), rCurrentInterpolate.pVecDirections[i], rVecVelocity);
-
-	// Blend velocity direction toward facing direction
-	float fPercent = 1.0f - fDeltaTime * kfVelocityToDirection;
-	XMVECTOR vecVelocityComponent = XMVectorMultiply(XMVectorReplicate(fPercent), XMVector3Normalize(rVecVelocity));
-	XMVECTOR vecDirectionComponent = XMVectorMultiply(XMVectorReplicate(1.0f - fPercent), rCurrentInterpolate.pVecDirections[i]);
-	rVecVelocity = XMVectorMultiply(XMVector3Length(rVecVelocity), XMVector3Normalize(XMVectorAdd(vecVelocityComponent, vecDirectionComponent)));
+	float fAcceleration = flags & kReturnToIslandCenter ? kfSpaceshipReturnAcceleration
+	                    : flags & kFleePlayer ? kfSpaceshipFleeAcceleration
+	                    : kfSpaceshipChaseAcceleration;
+	rVecVelocity = engine::ApplyMovement<true>(rVecVelocity, rCurrentInterpolate.pVecDirections[i], fDeltaTime, fAcceleration, kfSpaceshipDrag, kfSpaceshipMaxSpeed, kfSpaceshipVelocityToDirection);
 
 	// Apply push from nearby pushers (pass own pusher ID to ignore self-push)
 	XMVECTOR vecPush = engine::PushersInterpolate::ApplyPush(rFrame.interpolate, rCurrentInterpolate.pVecPositions[i], rCurrentInterpolate.puiPushers[i]);
@@ -107,13 +107,13 @@ void SpaceshipsPostRender::ApplyTerrainBounce(SpaceshipsInterpolate& __restrict 
 	{
 		XMVECTOR vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslandTerrain->GlobalNormal(rCurrentInterpolate.pVecPositions[i]), 0.0f));
 
-		rCurrentInterpolate.pVecPositions[i] = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfTerrainCollisionMovePosition), vecTerrainNormal, rCurrentInterpolate.pVecPositions[i]);
+		rCurrentInterpolate.pVecPositions[i] = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfSpaceshipTerrainBounceMove), vecTerrainNormal, rCurrentInterpolate.pVecPositions[i]);
 
 		float fDirectionTerrainCrossZ = XMVectorGetZ(XMVector3Cross(rCurrentInterpolate.pVecDirections[i], vecTerrainNormal));
-		rfDeltaRotation = fDirectionTerrainCrossZ > 0.0f ? kfTerrainCollisionRotation : -kfTerrainCollisionRotation;
+		rfDeltaRotation = fDirectionTerrainCrossZ > 0.0f ? kfSpaceshipTerrainBounceRotation : -kfSpaceshipTerrainBounceRotation;
 
 		rVecVelocity = XMVector3Reflect(rVecVelocity, vecTerrainNormal);
-		rVecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfTerrainCollisionAddVelocity), vecTerrainNormal, rVecVelocity);
+		rVecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfSpaceshipTerrainBounceVelocity), vecTerrainNormal, rVecVelocity);
 	}
 }
 
@@ -135,11 +135,11 @@ void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFram
 		{
 			XMVECTOR vecToPlayer = XMVectorSubtract(vecNearestPlayer, rCurrentInterpolate.pVecPositions[i]);
 			float fDistanceToPlayer = XMVectorGetX(XMVector3Length(vecToPlayer));
-			if (fDistanceToPlayer < kfIgnoreAvoidTerrainPlayerDistance)
+			if (fDistanceToPlayer < kfSpaceshipAvoidTerrainPlayerDistance)
 			{
 				XMVECTOR vecToPlayerNormal = XMVector3Normalize(vecToPlayer);
 				float fAngleToPlayer = XMVectorGetX(XMVector3AngleBetweenNormals(rCurrentInterpolate.pVecDirections[i], vecToPlayerNormal));
-				if (fAngleToPlayer < kfIgnoreAvoidTerrainPlayerAngle)
+				if (fAngleToPlayer < kfSpaceshipAvoidTerrainPlayerAngle)
 				{
 					continue;
 				}
@@ -149,7 +149,7 @@ void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFram
 		rCurrentInterpolate.pfDeltaRotations[i] = ComputeTerrainAvoidance(rCurrentInterpolate.pVecPositions[i], rCurrentInterpolate.pVecDirections[i], rCurrentInterpolate.pfDeltaRotations[i]);
 
 		// Clamp delta rotation
-		rCurrentInterpolate.pfDeltaRotations[i] = common::MinAbs(rCurrentInterpolate.pfDeltaRotations[i], kfDeltaAngleMax);
+		rCurrentInterpolate.pfDeltaRotations[i] = common::MinAbs(rCurrentInterpolate.pfDeltaRotations[i], kfSpaceshipMaxTurnRate);
 	}
 }
 

@@ -18,9 +18,6 @@ void ModalScreen::Render()
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
-	float fBgAlpha = engine::gOpaqueUi.Get<bool>() ? 1.0f : 0.85f;
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.05f, 0.05f, 0.05f, fBgAlpha));
-
 	float fWindowWidth = rIo.DisplaySize.x * 0.35f;
 	ImGui::SetNextWindowPos(ImVec2((rIo.DisplaySize.x - fWindowWidth) / 2.0f, rIo.DisplaySize.y * 0.35f), ImGuiCond_Always);
 	ImGui::SetNextWindowSize(ImVec2(fWindowWidth, 0.0f));
@@ -44,7 +41,6 @@ void ModalScreen::Render()
 	}
 
 	ImGui::End();
-	ImGui::PopStyleColor();
 }
 
 } // namespace game

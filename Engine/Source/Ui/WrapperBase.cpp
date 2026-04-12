@@ -329,6 +329,7 @@ Wrapper gParticlesWindStrength(2000.0f, 0.0f, 5000.0f);
 
 // Opaque UI
 Wrapper gOpaqueUi(false);
+Wrapper gUiOpacity(0.9f, 0.0f, 1.0f);
 
 // Font Scale
 Wrapper gUiFontScale(1.0f, 0.5f, 3.0f);

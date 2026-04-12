@@ -8,7 +8,7 @@ namespace game
 
 using enum GameFlags;
 
-const int64_t Frame::kiVersion = 46 + engine::kiNavDataVersion
+const int64_t Frame::kiVersion = 48 + engine::kiNavDataVersion
 	+ BlastersInterpolate::kiVersion
 	+ BlastersPostRender::kiVersion
 	+ MissilesInterpolate::kiVersion
@@ -188,6 +188,7 @@ static void SpawnSpaceshipGroup(Frame& __restrict rFrame, const engine::FrameSta
 	constexpr float kfMaxSpawnRadius = 200.0f;
 	constexpr float kfTerrainMargin = 1.0f;
 	constexpr float kfAngularSpacing = kfSpaceshipRadius * 3.0f / kfSpawnRadius;
+	constexpr float kfChevronStagger = kfSpaceshipRadius * 2.0f;
 
 	// Count non-exploding players, use first as spawn center
 	int64_t iSpawnCount = 0;
@@ -222,8 +223,9 @@ static void SpawnSpaceshipGroup(Frame& __restrict rFrame, const engine::FrameSta
 		for (int64_t i = 0; i < iSpawnCount; ++i)
 		{
 			float fAngle = fBaseAngle + (static_cast<float>(i) - fCenterOffset) * kfAngularSpacing;
+			float fShipRadius = fCurrentRadius + std::abs(static_cast<float>(i) - fCenterOffset) * kfChevronStagger;
 			auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
-			auto vecPos = XMVectorMultiplyAdd(XMVectorReplicate(fCurrentRadius), vecDirection, vecPlayerPosition);
+			auto vecPos = XMVectorMultiplyAdd(XMVectorReplicate(fShipRadius), vecDirection, vecPlayerPosition);
 			if (engine::gpIslandTerrain->GlobalElevation(vecPos) > engine::gBaseHeight.Get() - kfTerrainMargin)
 			{
 				bAllClear = false;
@@ -245,8 +247,9 @@ static void SpawnSpaceshipGroup(Frame& __restrict rFrame, const engine::FrameSta
 	for (int64_t i = 0; i < iSpawnCount; ++i)
 	{
 		float fAngle = fBaseAngle + (static_cast<float>(i) - fCenterOffset) * kfAngularSpacing;
+		float fShipRadius = fCurrentRadius + std::abs(static_cast<float>(i) - fCenterOffset) * kfChevronStagger;
 		auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
-		auto vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fCurrentRadius), vecDirection, vecPlayerPosition);
+		auto vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fShipRadius), vecDirection, vecPlayerPosition);
 
 		// If spawn position is outside bounds, spawn on opposite side of player (toward center)
 		if (!common::InsideArea(vecSpawnPosition, rStaticData.vecArea))

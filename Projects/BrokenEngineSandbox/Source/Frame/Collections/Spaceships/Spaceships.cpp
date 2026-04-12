@@ -674,7 +674,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		ApplyTerrainBounce(rCurrentInterpolate, i, fDeltaTime, fDeltaRotation, vecVelocity);
 
 		// Clamp delta rotation
-		fDeltaRotation = common::MinAbs(fDeltaRotation, kfDeltaAngleMax);
+		fDeltaRotation = common::MinAbs(fDeltaRotation, kfSpaceshipMaxTurnRate);
 
 		// Save to PostRender (static fields copied via memcpy in AllocateAndCopy)
 		rCurrent.pFlags[i] = flags;

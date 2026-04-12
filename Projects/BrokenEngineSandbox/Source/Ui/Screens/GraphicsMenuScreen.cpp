@@ -18,10 +18,6 @@ void GraphicsMenuScreen::Render()
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
-	// Semi-transparent background (opaque when gOpaqueUi enabled)
-	float fBgAlpha = engine::gOpaqueUi.Get<bool>() ? 1.0f : 0.9f;
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.1f, 0.1f, 0.1f, fBgAlpha));
-
 	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.5f, rIo.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 	ImGui::SetNextWindowSize(ImVec2(rIo.DisplaySize.x * 0.6f, 0.0f));
 
@@ -131,6 +127,10 @@ void GraphicsMenuScreen::Render()
 	ImGui::Separator();
 
 	WrapperToggle("Opaque UI", &engine::gOpaqueUi);
+	if (!engine::gOpaqueUi.Get<bool>())
+	{
+		WrapperSlider("UI Opacity", &engine::gUiOpacity);
+	}
 
 	WrapperPlusMinus("Font Size", &engine::gUiFontScale, 0.1f);
 
@@ -145,8 +145,6 @@ void GraphicsMenuScreen::Render()
 	}
 
 	ImGui::End();
-
-	ImGui::PopStyleColor();
 }
 
 } // namespace game

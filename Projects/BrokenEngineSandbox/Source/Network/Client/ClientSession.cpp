@@ -213,9 +213,6 @@ void ClientSession::Reconcile()
 		}
 	}
 	gpProfileManager->CpuStop(engine::kCpuTimerNetworkPollReconcile, true);
-
-	UpdateDesiredCoords(SubscriptionChangeReason::kPollTick);
-	UpdateSubscriptions();
 }
 
 void ClientSession::ConnectToServer(std::string_view serverAddress)

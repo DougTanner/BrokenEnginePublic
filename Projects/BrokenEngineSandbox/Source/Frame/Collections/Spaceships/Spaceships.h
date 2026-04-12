@@ -21,11 +21,11 @@ inline constexpr float kfSpaceshipDestroyExplosionInterval = 0.024f;
 // Collision
 inline constexpr float kfSpaceshipRadius = 1.5f;
 
-// Movement
-inline constexpr float kfSpaceshipMaxAcceleration = 10.0f;
-inline constexpr float kfSpaceshipVelocityDecay = 0.25f;
-inline constexpr float kfSpaceshipMaxSpeed = kfSpaceshipMaxAcceleration / kfSpaceshipVelocityDecay;
-inline constexpr float kfDeltaAngleMax = 4.0f;
+// Movement — three independent tuning axes
+inline constexpr float kfSpaceshipAcceleration = 10.0f;
+inline constexpr float kfSpaceshipDrag = 0.25f;
+inline constexpr float kfSpaceshipMaxSpeed = 40.0f;
+inline constexpr float kfSpaceshipMaxTurnRate = 4.0f;
 
 // Pusher
 inline constexpr float kfSpaceshipPusherRadius = kfSpaceshipRadius * 1.5f;

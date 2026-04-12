@@ -188,7 +188,28 @@ void ServerTransferManager::HarvestTransfers()
 		char acCrcPre[20] {}, acCrcPost[20] {};
 		common::ToHex(std::span<char, 20>(acCrcPre), preCrcs.at(rCoord));
 		common::ToHex(std::span<char, 20>(acCrcPost), rDestFrame.postRender.sharedCrc);
-		LOG(kNetwork, kVerbose, "Server SpawnTransfers Dest: ({},{}) TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} CrcPre: {} CrcPost: {}", rCoord.x, rCoord.y, rTransfers.size(), rDestFrame.postRender.pPlayers->iCount, rDestFrame.postRender.pBlasters->iCount, rDestFrame.postRender.pSpaceships->iCount, rDestFrame.postRender.pMissiles->iCount, acCrcPre, acCrcPost);
+
+		char acPlayerIds[192] {};
+		int64_t iPlayerIdCount = 0;
+		int64_t iPos = 0;
+		for (const StatusChange& rTransfer : rTransfers)
+		{
+			if (rTransfer.eType == StatusChangeType::kTransferPlayer && iPlayerIdCount < 8)
+			{
+				if (iPlayerIdCount > 0) { acPlayerIds[iPos++] = ','; acPlayerIds[iPos++] = ' '; }
+				iPos += snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", std::get<TransferData>(rTransfer.data).globalPlayerId.iValue);
+				++iPlayerIdCount;
+			}
+		}
+
+		if (iPlayerIdCount > 0)
+		{
+			LOG(kNetwork, kVerbose, "Server SpawnTransfers Dest: ({},{}) TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} CrcPre: {} CrcPost: {} PlayerIds: [{}]", rCoord.x, rCoord.y, rTransfers.size(), rDestFrame.postRender.pPlayers->iCount, rDestFrame.postRender.pBlasters->iCount, rDestFrame.postRender.pSpaceships->iCount, rDestFrame.postRender.pMissiles->iCount, acCrcPre, acCrcPost, acPlayerIds);
+		}
+		else
+		{
+			LOG(kNetwork, kVerbose, "Server SpawnTransfers Dest: ({},{}) TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} CrcPre: {} CrcPost: {}", rCoord.x, rCoord.y, rTransfers.size(), rDestFrame.postRender.pPlayers->iCount, rDestFrame.postRender.pBlasters->iCount, rDestFrame.postRender.pSpaceships->iCount, rDestFrame.postRender.pMissiles->iCount, acCrcPre, acCrcPost);
+		}
 	}
 
 	TrackClientTransfers(clientTransfers);

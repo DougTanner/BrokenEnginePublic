@@ -443,6 +443,7 @@ void Game::ComputeActiveSet()
 
 	// Update island rendering only for subscribed frames (confirmed server data)
 	std::vector<engine::GridCoord> subscribedCoords;
+	subscribedCoords.reserve(mActiveCoords.size());
 	for (const engine::GridCoord& rCoord : mActiveCoords)
 	{
 		auto it = mCoordFrames.find(rCoord);
@@ -956,7 +957,7 @@ void Game::ResetSoundSettings()
 
 struct GraphicsSettings
 {
-	static constexpr int64_t kiVersion = 2;
+	static constexpr int64_t kiVersion = 3;
 
 	bool bFullscreen = false;
 	VkPresentModeKHR ePresentMode = VK_PRESENT_MODE_FIFO_KHR;
@@ -974,6 +975,7 @@ struct GraphicsSettings
 	float fMinimumAmbient = 0.0f;
 	bool bWind = false;
 	bool bOpaqueUi = false;
+	float fUiOpacity = 0.9f;
 	float fUiFontScale = 1.0f;
 };
 static constexpr char kpcGraphicsSettingsPath[] = "GraphicsSettings.bin";
@@ -1001,6 +1003,7 @@ void Game::SaveGraphicsSettings()
 		.fMinimumAmbient = engine::gMinimumAmbient.Get(),
 		.bWind = engine::gWind.Get<bool>(),
 		.bOpaqueUi = engine::gOpaqueUi.Get<bool>(),
+		.fUiOpacity = engine::gUiOpacity.Get(),
 		.fUiFontScale = engine::gUiFontScale.Get(),
 	};
 
@@ -1029,6 +1032,7 @@ bool Game::LoadGraphicsSettings()
 		engine::gMinimumAmbient.Set(graphicsSettings.fMinimumAmbient);
 		engine::gWind.Set(graphicsSettings.bWind);
 		engine::gOpaqueUi.Set(graphicsSettings.bOpaqueUi);
+		engine::gUiOpacity.Set(graphicsSettings.fUiOpacity);
 		engine::gUiFontScale.Set(graphicsSettings.fUiFontScale);
 		return true;
 	}
@@ -1054,6 +1058,7 @@ void Game::ResetGraphicsSettings()
 	engine::gMinimumAmbient.ResetToDefault();
 	engine::gWind.ResetToDefault();
 	engine::gOpaqueUi.ResetToDefault();
+	engine::gUiOpacity.ResetToDefault();
 	engine::gUiFontScale.ResetToDefault();
 
 	SaveGraphicsSettings();

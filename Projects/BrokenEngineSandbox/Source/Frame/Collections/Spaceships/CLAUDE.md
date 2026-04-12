@@ -10,7 +10,7 @@ AI-controlled enemy spaceships with health, weapons, behavior flags, freeze time
 
 - **Behavior flags**: Flee (when near player, with hysteresis), return to island center (when far from origin, with hysteresis), exploding (health depleted)
 - **Targeting hierarchy**: Return to origin > flee from player > chase nearest alive player
-- **Rotation**: Exponential smoothing with different rates for fleeing vs pursuing
+- **Rotation**: Exponential decay smoothing with different rates for fleeing vs pursuing, clamped to `kfSpaceshipMaxTurnRate`
 - **Health regen**: Gradual regen when alive and player is far enough away
 - Targets are removed on death so homing missiles stop tracking
 - Pusher overlap response uses `engine::ApplyClampedPush()` to apply a clamped impulse (velocity capped at `kfSpaceshipMaxPusherPushVelocity`, derived from `kfSpaceshipMaxSpeed * 0.5f`)
@@ -20,7 +20,7 @@ AI-controlled enemy spaceships with health, weapons, behavior flags, freeze time
 
 The implementation is split by subsystem across four `.cpp` files sharing `Spaceships.h`:
 - **Spaceships.cpp** - Registration, lifecycle (Spawn/Transfer/Destroy), client object hydration, `SpaceshipsInterpolate::Update`, and the `SpaceshipsPostRender::Update` orchestrator that loads per-entity state and calls into Navigation/Combat helpers
-- **SpaceshipsNavigation.cpp** - Per-iter nav helpers (`ComputeSteering`, `ApplyMovement`, `ApplyTerrainBounce`), the separate `AvoidTerrain` pass, and navigation constants (acceleration, rotation smoothing, flee/return hysteresis, terrain bounce params)
+- **SpaceshipsNavigation.cpp** - Per-iter nav helpers (`ComputeSteering`, `ApplyMovement`, `ApplyTerrainBounce`), the separate `AvoidTerrain` pass, and navigation constants (all prefixed `kfSpaceship*`). `ApplyMovement` delegates to `engine::ApplyMovement<true>()` for airplane-like steering with decoupled drag/acceleration/max speed. `ComputeSteering` uses `ExponentialDecay` for direction smoothing
 - **SpaceshipsCombat.cpp** - Collision phases (`PreCollision`/`PostCollision`/`AreaDamage`), `BeginExplosion`, per-iter helpers (`RegenerateHealth`, `ApplyDeathKnockback`), collision layer `thread_local` arrays, and combat constants (death sounds, health regen, knockback speed)
 - **SpaceshipsRender.cpp** - GPU model pipeline, skeletal animation, and draw submission (`#ifdef BT_CLIENT` only)
 

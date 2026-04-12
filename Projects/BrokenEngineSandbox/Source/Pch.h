@@ -88,4 +88,4 @@ inline constexpr LogLevel keLogLevelInput    = kWarning;
 #include "Frame/Frame.h"
 #include "Engine.h"
 
-inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kEastCoast;
+inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kWestCoast;

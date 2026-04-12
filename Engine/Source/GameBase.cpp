@@ -55,6 +55,8 @@ void GameBase::ClientUpdate()
 		iFullTicks = 0;
 	}
 
+	game::gpClientSession->UpdateDesiredCoords(game::SubscriptionChangeReason::kPollTick);
+	game::gpClientSession->UpdateSubscriptions();
 	PrepareActiveSet();
 
 	// Hard ceiling: sim must not pass latestServerTick - targetBehind, so StatusChanges arrive before

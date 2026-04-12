@@ -521,6 +521,7 @@ extern Wrapper gParticlesWindStrength;
 
 // Opaque UI
 extern Wrapper gOpaqueUi;
+extern Wrapper gUiOpacity;
 
 // Font Scale
 extern Wrapper gUiFontScale;

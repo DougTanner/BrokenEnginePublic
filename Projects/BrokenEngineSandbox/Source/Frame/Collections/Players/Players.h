@@ -25,12 +25,13 @@ inline constexpr float kfPlayerRadius = 1.1f;
 // Terrain push
 inline constexpr float kfPushMargin = kfPlayerRadius * 0.6667f;
 
-// Movement
+// Movement — three independent tuning axes
 inline constexpr float kfPlayerAcceleration = 75.0f;
 inline constexpr float kfPlayerCatchUpAcceleration = 100.0f;
-inline constexpr float kfPlayerAccelerationDecay = 3.0f;
+inline constexpr float kfPlayerDrag = 1.0f;
+inline constexpr float kfPlayerMaxSpeed = 33.33f;
+inline constexpr float kfPlayerCatchUpMaxSpeed = 33.33f;
 inline constexpr float kfPlayerJitterRange = 0.30f;
-inline constexpr float kfPlayerMaxSpeed = kfPlayerCatchUpAcceleration / kfPlayerAccelerationDecay;
 
 // Pusher
 inline constexpr float kfPlayerPusherRadius = kfPlayerRadius * 3.3333f;

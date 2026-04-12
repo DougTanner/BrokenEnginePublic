@@ -324,10 +324,9 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 
 void XM_CALLCONV PlayersPostRender::ApplyMovement(int8_t iNavDirection, FXMVECTOR vecAiDirection, float fDeltaTime, float fAccelMul, float fDecayMul, XMVECTOR& rVecVelocity)
 {
-	// Apply movement: decay existing velocity and add acceleration from AI direction
 	float fAcceleration = (iNavDirection == 5 ? kfPlayerCatchUpAcceleration : kfPlayerAcceleration) * fAccelMul;
-	XMVECTOR vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * fAcceleration), vecAiDirection);
-	rVecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(common::ExponentialDecay(kfPlayerAccelerationDecay * fDecayMul, fDeltaTime)), rVecVelocity, vecAcceleration);
+	float fMaxSpeed = iNavDirection == 5 ? kfPlayerCatchUpMaxSpeed : kfPlayerMaxSpeed;
+	rVecVelocity = engine::ApplyMovement(rVecVelocity, vecAiDirection, fDeltaTime, fAcceleration, kfPlayerDrag * fDecayMul, fMaxSpeed);
 }
 
 void XM_CALLCONV PlayersPostRender::ApplyTerrainPush(FXMVECTOR vecPosition, XMVECTOR& rVecVelocity)

@@ -16,6 +16,28 @@ namespace engine
 
 struct FrameStaticData;
 
+// Decoupled movement: drag decays velocity, acceleration scales down near max speed
+// kbBlendVelocityToDirection: when true, blends velocity direction toward vecDirection (airplane-like constraint)
+template<bool kbBlendVelocityToDirection = false>
+[[nodiscard]] inline XMVECTOR XM_CALLCONV ApplyMovement(FXMVECTOR vecVelocity, FXMVECTOR vecDirection, float fDeltaTime, float fAcceleration, float fDrag, float fMaxSpeed, float fVelocityToDirection = 0.0f)
+{
+	XMVECTOR vecResult = XMVectorMultiply(XMVectorReplicate(common::ExponentialDecay(fDrag, fDeltaTime)), vecVelocity);
+
+	float fSpeed = XMVectorGetX(XMVector3Length(vecResult));
+	float fAccelScale = 1.0f - std::min(fSpeed / fMaxSpeed, 1.0f);
+	vecResult = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * fAcceleration * fAccelScale), vecDirection, vecResult);
+
+	if constexpr (kbBlendVelocityToDirection)
+	{
+		float fDecay = common::ExponentialDecay(fVelocityToDirection, fDeltaTime);
+		XMVECTOR vecVelocityComponent = XMVectorMultiply(XMVectorReplicate(fDecay), XMVector3Normalize(vecResult));
+		XMVECTOR vecDirectionComponent = XMVectorMultiply(XMVectorReplicate(1.0f - fDecay), vecDirection);
+		vecResult = XMVectorMultiply(XMVector3Length(vecResult), XMVector3Normalize(XMVectorAdd(vecVelocityComponent, vecDirectionComponent)));
+	}
+
+	return vecResult;
+}
+
 // Type list for fold expression iteration
 template<typename... TS>
 struct TypeList {};

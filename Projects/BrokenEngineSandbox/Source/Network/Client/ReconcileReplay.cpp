@@ -117,16 +117,24 @@ static bool ReconcileRunTickCoord(CoordWork& rWork, int64_t iTick, float fTime, 
 	int64_t iTransferBlasterCount = 0;
 	int64_t iTransferSpaceshipCount = 0;
 	int64_t iTransferMissileCount = 0;
+	engine::global_id_t transferPlayerIds[8] {};
 	for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
 	{
 		if (IsTransferType(rStatusChange.eType))
 		{
-			SpawnTransfer(*pNext, rStatusChange.eType, std::get<TransferData>(rStatusChange.data), pNext->postRender.playerAlignment);
+			const TransferData& rData = std::get<TransferData>(rStatusChange.data);
+			SpawnTransfer(*pNext, rStatusChange.eType, rData, pNext->postRender.playerAlignment);
 			bHadTransfers = true;
 
 			switch (rStatusChange.eType)
 			{
-				case StatusChangeType::kTransferPlayer:    ++iTransferPlayerCount;    break;
+				case StatusChangeType::kTransferPlayer:
+					if (iTransferPlayerCount < 8)
+					{
+						transferPlayerIds[iTransferPlayerCount] = rData.globalPlayerId;
+					}
+					++iTransferPlayerCount;
+					break;
 				case StatusChangeType::kTransferBlaster:   ++iTransferBlasterCount;   break;
 				case StatusChangeType::kTransferSpaceship: ++iTransferSpaceshipCount; break;
 				case StatusChangeType::kTransferMissile:   ++iTransferMissileCount;   break;
@@ -136,7 +144,22 @@ static bool ReconcileRunTickCoord(CoordWork& rWork, int64_t iTick, float fTime, 
 	}
 	if (bHadTransfers)
 	{
-		LOG(kNetwork, kVerbose, "Client SpawnTransfers Coord: ({},{}) Tick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {}", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount);
+		if (iTransferPlayerCount > 0)
+		{
+			int64_t iLogCount = std::min(iTransferPlayerCount, int64_t {8});
+			char acPlayerIds[192] {};
+			int64_t iPos = 0;
+			for (int64_t i = 0; i < iLogCount; ++i)
+			{
+				if (i > 0) { acPlayerIds[iPos++] = ','; acPlayerIds[iPos++] = ' '; }
+				iPos += snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", transferPlayerIds[i].iValue);
+			}
+			LOG(kNetwork, kVerbose, "Client SpawnTransfers Coord: ({},{}) Tick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} PlayerIds: [{}]", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount, acPlayerIds);
+		}
+		else
+		{
+			LOG(kNetwork, kVerbose, "Client SpawnTransfers Coord: ({},{}) Tick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {}", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount);
+		}
 	}
 	std::erase_if(rFrameInput.statusChanges, [](const StatusChange& rStatusChange)
 	{
