@@ -71,8 +71,11 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 	{
 		if (pClient->bFloorStalled)
 		{
-			LOG(kNetwork, kVerbose, "Server::ClientAckStream FloorStallResolved Client: {} PeakStalledAcks: {} Slots: {}",
-				iClientId, pClient->iPeakConsecutiveStallAcks, uiAckSlotCount);
+			if (pClient->iPeakConsecutiveStallAcks >= kiFloorStallLogThreshold)
+			{
+				LOG(kNetwork, kVerbose, "Server::ClientAckStream FloorStallResolved Client: {} PeakStalledAcks: {} Slots: {}",
+					iClientId, pClient->iPeakConsecutiveStallAcks, uiAckSlotCount);
+			}
 			pClient->bFloorStalled = false;
 			pClient->iPeakConsecutiveStallAcks = 0;
 		}
@@ -84,12 +87,7 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 		pClient->iPeakConsecutiveStallAcks = std::max(pClient->iPeakConsecutiveStallAcks, pClient->iConsecutiveZeroAdvanceAcks);
 		if (pClient->iConsecutiveZeroAdvanceAcks >= 3)
 		{
-			if (!pClient->bFloorStalled)
-			{
-				pClient->bFloorStalled = true;
-				LOG(kNetwork, kVerbose, "Server::ClientAckStream FloorStall Client: {} StalledAcks: {} Slots: {}",
-					iClientId, pClient->iConsecutiveZeroAdvanceAcks, uiAckSlotCount);
-			}
+			pClient->bFloorStalled = true;
 		}
 	}
 
