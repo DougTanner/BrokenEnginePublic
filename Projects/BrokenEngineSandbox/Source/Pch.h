@@ -5,7 +5,7 @@
 inline constexpr bool kbDesyncRecovery = false; // DT: TEMP true;
 inline constexpr bool kbFrameDispatch = true;
 inline constexpr bool kbLogging = true;
-inline constexpr bool kbQuadrantNeighborSubscriptions = false;
+inline constexpr bool kbQuadrantNeighborSubscriptions = true;
 inline constexpr bool kbInvincibility = true;
 inline constexpr bool kbRenderThread = true;
 

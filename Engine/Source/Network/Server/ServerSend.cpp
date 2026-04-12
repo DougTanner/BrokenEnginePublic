@@ -296,25 +296,14 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 			++iSlotResendCount;
 		}
 
-		if (iSlotResendCount != rClient.prevResendCounts.at(iSlot))
+		bool bWasResending = rClient.prevResendCounts.at(iSlot) > 0;
+		bool bIsResending = iSlotResendCount > 0;
+		if (bWasResending != bIsResending)
 		{
-			if (iSlotResendCount > 0)
-			{
-				common::ScopedWorkbufferBuilder tickList(common::gpThreadLocal->mWorkbuffer);
-				tickList.Append("[");
-				for (int64_t i = 0; i < iSlotResendCount; ++i)
-				{
-					if (i > 0)
-					{
-						tickList.Append(",");
-					}
-					tickList.Append(aiResendTicks[i]);
-				}
-				tickList.Append("]");
-				LOG(kNetwork, kVerbose, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {} Ticks: {}", rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount, tickList.View());
-			}
-			rClient.prevResendCounts.at(iSlot) = iSlotResendCount;
+			LOG(kNetwork, kVerbose, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {}",
+				rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount);
 		}
+		rClient.prevResendCounts.at(iSlot) = iSlotResendCount;
 	}
 }
 

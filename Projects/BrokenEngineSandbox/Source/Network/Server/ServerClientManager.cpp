@@ -112,7 +112,7 @@ void ServerClientManager::NewClients()
 				rClient.authorizedCoords.push_back(rEntry.coord);
 				gpServerSession->SendAssignPlayer(rClient.iClientId, rEntry.globalId, rEntry.coord);
 				gpServerSession->SendPlayerState(rClient.iClientId, PlayerEventTypeToWire(PlayerEventType::kSpawned), rEntry.globalId.iValue, rEntry.coord);
-				LOG(kNetwork, kVerbose, "NewClients Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, rEntry.globalId, rEntry.coord.x, rEntry.coord.y);
+				LOG(kNetwork, kVerbose, "ServerClientManager::NewClients Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, rEntry.globalId, rEntry.coord.x, rEntry.coord.y);
 			}
 
 			if (!rNewClientOwnedIds.empty())
@@ -124,7 +124,7 @@ void ServerClientManager::NewClients()
 
 		// Client connects with zero players — spawns happen via fleet creation requests
 		mProcessedClientIds.insert(rClient.iClientId);
-		LOG(kNetwork, kVerbose, "NewClients Client: {} connected with no players", rClient.iClientId);
+		LOG(kNetwork, kVerbose, "ServerClientManager::NewClients Client: {} connected with no players", rClient.iClientId);
 	}
 }
 
@@ -150,7 +150,7 @@ void ServerClientManager::FinalizeNewClients([[maybe_unused]] int64_t iTick)
 		}
 	}
 
-	LOG(kNetwork, kVerbose, "FinalizeNewClients Waiting: {} PlayerCount: {} PreSpawn: {} NewIds: {}", mClientsWaitingForSpawn.size(), rPlayers.iCount, mPreSpawnPlayerIds.size(), newPlayerIds.size());
+	LOG(kNetwork, kVerbose, "ServerClientManager::FinalizeNewClients Waiting: {} PlayerCount: {} PreSpawn: {} NewIds: {}", mClientsWaitingForSpawn.size(), rPlayers.iCount, mPreSpawnPlayerIds.size(), newPlayerIds.size());
 	// Assign new players to waiting clients (in order)
 	// Client handles subscriptions — no full state sent here
 	size_t uiAssignCount = std::min(mClientsWaitingForSpawn.size(), newPlayerIds.size());

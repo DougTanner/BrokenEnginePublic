@@ -48,6 +48,9 @@ struct ClientConnection
 
 	// Delta-only floor advance logging: consecutive zero-advance ACK count
 	int64_t iConsecutiveZeroAdvanceAcks = 0;
+	bool bFloorStalled = false;
+	int64_t iPeakConsecutiveStallAcks = 0;
+	int64_t iFloorStallLogCooldown = 0;
 
 	// Helpers
 	int64_t FindSlotForCoord(GridCoord coord) const

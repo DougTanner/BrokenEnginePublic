@@ -27,9 +27,9 @@ void ClientSessionBase::DisconnectFromServerBase()
 	miLatestServerTick = -1;
 	mpClientNetwork.reset();
 	mpDiscoveryScanner.reset();
-	for (auto& [rCoord, rSub] : game::gpGame->mCoordFrames)
+	for (auto& [rCoord, rCoordFrames] : game::gpGame->mCoordFrames)
 	{
-		rSub.ResetClientState();
+		rCoordFrames.ResetClientState();
 	}
 	mSubscriptionQueue.clear();
 	mbServerDiscovered = false;
@@ -41,6 +41,7 @@ void ClientSessionBase::DisconnectFromServerBase()
 	mbClockErrorDisconnect = false;
 	miConsecutiveClockErrorFrames = 0;
 	miLastClockErrorLogTick = -1;
+	mbNoFreeSlotLogged = false;
 }
 
 void ClientSessionBase::StartServerDiscovery()
@@ -77,7 +78,6 @@ bool ClientSessionBase::PollLANDiscovery()
 	return false;
 }
 
-
 // Subscription mechanics
 
 static bool IsSlotActive(const ClientCoordSlot& rSlot)
@@ -93,11 +93,38 @@ void ClientSessionBase::TrySubscribeNext()
 		return;
 	}
 
+	// Early-out: if no slots are free/freeing, skip entirely — queue is rebuilt each frame anyway
+	if (!mSubscriptionQueue.empty())
+	{
+		bool bAnyFree = false;
+		for (const ClientCoordSlot& rSlot : mpClientNetwork->GetCoordSlots())
+		{
+			if (rSlot.eState == CoordSubscriptionState::kUnsubscribed || rSlot.eState == CoordSubscriptionState::kUnsubscribing)
+			{
+				bAnyFree = true;
+				break;
+			}
+		}
+		if (!bAnyFree)
+		{
+			if (!mbNoFreeSlotLogged)
+			{
+				mbNoFreeSlotLogged = true;
+				LOG(kNetwork, kWarning, "TrySubscribeNext NoFreeSlot (suppressing until slot frees) Pending: {} First: ({},{})", mSubscriptionQueue.size(), mSubscriptionQueue.front().x, mSubscriptionQueue.front().y);
+			}
+			return;
+		}
+		if (mbNoFreeSlotLogged)
+		{
+			LOG(kNetwork, kDebug, "TrySubscribeNext NoFreeSlot resolved");
+		}
+		mbNoFreeSlotLogged = false;
+	}
+
 	while (!mSubscriptionQueue.empty())
 	{
 		if (!mpClientNetwork->SendSubscribe(mSubscriptionQueue.front()))
 		{
-			LOG(kNetwork, kVerbose, "TrySubscribeNext NoFreeSlot Coord: ({},{})", mSubscriptionQueue.front().x, mSubscriptionQueue.front().y);
 			break;
 		}
 		mSubscriptionQueue.erase(mSubscriptionQueue.begin());
@@ -196,26 +223,26 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 		}
 
 		GridCoord coord = rSlot.coord;
-		CoordFrames& rSub = game::gpGame->mCoordFrames.at(coord);
+		CoordFrames& rCoordFrames = game::gpGame->mCoordFrames.at(coord);
 
 		for (ReceivedCoordUpdate& rUpdate : rSlotUpdates)
 		{
-			if (rUpdate.iTick <= rSub.iConfirmedTick)
+			if (rUpdate.iTick <= rCoordFrames.iConfirmedTick)
 			{
 				continue;
 			}
 
 			miLatestServerTick = std::max(miLatestServerTick, rUpdate.iTick);
 
-			if (static_cast<int64_t>(rSub.serverUpdates.size()) >= kiMaxBufferedFrames)
+			if (static_cast<int64_t>(rCoordFrames.serverUpdates.size()) >= kiMaxBufferedFrames)
 			{
-				LOG(kNetwork, kWarning, "ClientSessionBase::ApplyReceivedUpdatesBase Buffer full Coord: ({},{}) Size: {} Tick: {}", coord.x, coord.y, rSub.serverUpdates.size(), rUpdate.iTick);
+				LOG(kNetwork, kWarning, "ClientSessionBase::ApplyReceivedUpdatesBase Buffer full Coord: ({},{}) Size: {} Tick: {}", coord.x, coord.y, rCoordFrames.serverUpdates.size(), rUpdate.iTick);
 				ASSERT(false);
 				bHasNewData = true;
 				continue;
 			}
 
-			auto [it, bInserted] = rSub.serverUpdates.try_emplace(rUpdate.iTick, CoordFrames::CoordServerUpdate {
+			auto [it, bInserted] = rCoordFrames.serverUpdates.try_emplace(rUpdate.iTick, CoordFrames::CoordServerUpdate {
 				.sharedCrc = rUpdate.sharedCrc,
 				.statusChanges = std::move(rUpdate.statusChanges),
 			});
@@ -340,11 +367,11 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 int64_t ClientSessionBase::GetConfirmedTick() const
 {
 	int64_t iMin = -1;
-	for (const auto& [rCoord, rSub] : game::gpGame->mCoordFrames)
+	for (const auto& [rCoord, rCoordFrames] : game::gpGame->mCoordFrames)
 	{
-		if (rSub.iConfirmedTick >= 0 && (iMin < 0 || rSub.iConfirmedTick < iMin))
+		if (rCoordFrames.iConfirmedTick >= 0 && (iMin < 0 || rCoordFrames.iConfirmedTick < iMin))
 		{
-			iMin = rSub.iConfirmedTick;
+			iMin = rCoordFrames.iConfirmedTick;
 		}
 	}
 	return iMin;
@@ -363,11 +390,11 @@ int64_t ClientSessionBase::GetClientConfirmedTick() const
 int64_t ClientSessionBase::GetServerUpdateBufferSize() const
 {
 	int64_t iTotal = 0;
-	for (const auto& [rCoord, rSub] : game::gpGame->mCoordFrames)
+	for (const auto& [rCoord, rCoordFrames] : game::gpGame->mCoordFrames)
 	{
-		if (rSub.iConfirmedTick >= 0)
+		if (rCoordFrames.iConfirmedTick >= 0)
 		{
-			iTotal += static_cast<int64_t>(rSub.serverUpdates.size());
+			iTotal += static_cast<int64_t>(rCoordFrames.serverUpdates.size());
 		}
 	}
 	return iTotal;

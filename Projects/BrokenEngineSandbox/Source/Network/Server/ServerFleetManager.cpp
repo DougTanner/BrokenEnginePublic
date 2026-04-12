@@ -51,7 +51,7 @@ void ServerFleetManager::ProcessCreateFleetRequests()
 		engine::ClientGuid guid = pClient->clientGuid;
 		mFleets.try_emplace(guid).first->second.emplace_back();
 		mGuidToClientId.insert_or_assign(guid, rRequest.iClientId);
-		LOG(kNetwork, kDebug, "ProcessCreateFleetRequests Client: {} FleetCount: {}", rRequest.iClientId, mFleets.at(guid).size());
+		LOG(kNetwork, kDebug, "ServerFleetManager::ProcessCreateFleetRequests Client: {} FleetCount: {}", rRequest.iClientId, mFleets.at(guid).size());
 		SendFleetSyncToClient(rRequest.iClientId);
 	}
 }
@@ -82,7 +82,7 @@ void ServerFleetManager::ProcessDeleteFleetRequests()
 		}
 
 		it->second.erase(it->second.begin() + rRequest.iFleetIndex);
-		LOG(kNetwork, kDebug, "ProcessDeleteFleetRequests Client: {} Fleet: {} FleetCount: {}", rRequest.iClientId, rRequest.iFleetIndex, it->second.size());
+		LOG(kNetwork, kDebug, "ServerFleetManager::ProcessDeleteFleetRequests Client: {} Fleet: {} FleetCount: {}", rRequest.iClientId, rRequest.iFleetIndex, it->second.size());
 		SendFleetSyncToClient(rRequest.iClientId);
 	}
 }
@@ -107,7 +107,7 @@ void ServerFleetManager::ProcessSpawnIntoFleetRequests()
 		}
 
 		gpServerSession->mpClientManager->QueueSpawnForClient(rRequest.iClientId, engine::kOriginCoord, rRequest.iFleetIndex, -1);
-		LOG(kNetwork, kDebug, "ProcessSpawnIntoFleetRequests Client: {} Fleet: {}", rRequest.iClientId, rRequest.iFleetIndex);
+		LOG(kNetwork, kDebug, "ServerFleetManager::ProcessSpawnIntoFleetRequests Client: {} Fleet: {}", rRequest.iClientId, rRequest.iFleetIndex);
 	}
 }
 
@@ -142,7 +142,7 @@ void ServerFleetManager::ProcessRespawnInFleetRequests()
 		}
 
 		gpServerSession->mpClientManager->QueueSpawnForClient(rRequest.iClientId, engine::kOriginCoord, rRequest.iFleetIndex, rRequest.iMemberIndex);
-		LOG(kNetwork, kDebug, "ProcessRespawnInFleetRequests Client: {} Fleet: {} Member: {}", rRequest.iClientId, rRequest.iFleetIndex, rRequest.iMemberIndex);
+		LOG(kNetwork, kDebug, "ServerFleetManager::ProcessRespawnInFleetRequests Client: {} Fleet: {} Member: {}", rRequest.iClientId, rRequest.iFleetIndex, rRequest.iMemberIndex);
 	}
 }
 
@@ -221,7 +221,7 @@ void ServerFleetManager::TickFleetTimers()
 				rFleet.uiPendingFleetWantedCoordTicks = uiPendingTicks;
 				rFleet.fFrameChangeTimer = rFleet.fNavigationDelay;
 				mPendingFlagshipUpdates.push_back({rGuid, iFleet, destination, uiPendingTicks});
-				LOG(kNetwork, kVerbose, "TickFleetTimers Guid: ({},{}) Fleet: {} Direction: {} WantedCoord: ({},{})", rGuid.uiHigh, rGuid.uiLow, iFleet, iDirection, destination.x, destination.y);
+				LOG(kNetwork, kVerbose, "ServerFleetManager::TickFleetTimers Guid: ({},{}) Fleet: {} Direction: {} WantedCoord: ({},{})", rGuid.uiHigh, rGuid.uiLow, iFleet, iDirection, destination.x, destination.y);
 			}
 		}
 	}
@@ -293,7 +293,7 @@ void ServerFleetManager::ProcessFlagshipUpdates()
 				}
 			}
 		}
-		LOG(kNetwork, kVerbose, "ProcessFlagshipUpdates Guid: ({},{}) Fleet: {} MembersUpdated: {} WantedCoord: ({},{})",
+		LOG(kNetwork, kVerbose, "ServerFleetManager::ProcessFlagshipUpdates Guid: ({},{}) Fleet: {} MembersUpdated: {} WantedCoord: ({},{})",
 			rUpdate.clientGuid.uiHigh, rUpdate.clientGuid.uiLow, rUpdate.iFleetIndex, iMembersUpdated, rUpdate.newWantedCoord.x, rUpdate.newWantedCoord.y);
 	}
 	mPendingFlagshipUpdates.clear();
@@ -781,7 +781,7 @@ void ServerFleetManager::UpdateFleetNavigationDelay(const engine::ClientGuid& rG
 	}
 
 	fleetIt->second.at(static_cast<size_t>(iFleetIndex)).fNavigationDelay = fDelay;
-	LOG(kNetwork, kDebug, "UpdateFleetNavigationDelay Guid: ({},{}) Fleet: {} Delay: {}", rGuid.uiHigh, rGuid.uiLow, iFleetIndex, fDelay);
+	LOG(kNetwork, kDebug, "ServerFleetManager::UpdateFleetNavigationDelay Guid: ({},{}) Fleet: {} Delay: {}", rGuid.uiHigh, rGuid.uiLow, iFleetIndex, fDelay);
 
 	// Resync fleet to client so UI updates
 	int64_t iClientId = FindClientIdForGuid(rGuid);

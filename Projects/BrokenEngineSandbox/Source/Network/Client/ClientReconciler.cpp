@@ -155,7 +155,7 @@ ReconcileDesyncInfo ClientReconciler::Run()
 			bool bLogThis = !rScratch.bSuppressRepeatLogs || (rWork.pFrames->iStuckFrameCount % engine::CoordFrames::kiStuckLogInterval == 0);
 			if (bLogThis)
 			{
-				LOG(kNetwork, kVerbose, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} Validated: {}/{} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iLastValidatedIndex + 1, rScratch.iReplayStackCount, rScratch.bCrcFastPath, rScratch.bReplayed, rScratch.bShrunkRollback, rScratch.iDesyncTick);
+				LOG(kNetwork, kDebug, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} Validated: {}/{} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iLastValidatedIndex + 1, rScratch.iReplayStackCount, rScratch.bCrcFastPath, rScratch.bReplayed, rScratch.bShrunkRollback, rScratch.iDesyncTick);
 			}
 		}
 	}
@@ -207,7 +207,7 @@ ReconcileDesyncInfo ClientReconciler::Run()
 					int64_t iCurrentTick = gpGame->TickCounter();
 					if (fChange > 0.15f && (iCurrentTick - miLastVisualErrorLogTick > 32))
 					{
-						LOG(kNetwork, kVerbose, "Visual error offset Coord: ({},{}) Delta: {:.3f} Accumulated: {:.3f}", gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, fDelta, fTotal);
+						LOG(kNetwork, kDebug, "Visual error offset Coord: ({},{}) Delta: {:.3f} Accumulated: {:.3f}", gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, fDelta, fTotal);
 						mfLastLoggedVisualErrorDelta = fDelta;
 						miLastVisualErrorLogTick = iCurrentTick;
 					}

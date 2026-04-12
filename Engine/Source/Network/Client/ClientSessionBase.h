@@ -57,6 +57,7 @@ public:
 	int64_t miLastClockErrorLogTick = -1;
 	int64_t miCoordSlots = 0;
 	std::vector<GridCoord> mSubscriptionQueue;
+	bool mbNoFreeSlotLogged = false;
 };
 
 } // namespace engine

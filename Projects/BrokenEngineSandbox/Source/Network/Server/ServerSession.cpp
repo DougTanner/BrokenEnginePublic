@@ -112,13 +112,11 @@ void ServerSession::ParseReceivedGamePackets()
 				globalId.iValue = engine::ReadInt64(pCursor);
 				bool bUseMissiles = engine::ReadUint8(pCursor) != 0;
 				float fNavigationDelay = engine::ReadFloat(pCursor);
-				LOG(kNetwork, kDebug, "ParseReceivedGamePackets::UpdatePlayer Client: {} GlobalPlayer: {} Missiles: {} NavDelay: {}", rPacket.iClientId, globalId, bUseMissiles, fNavigationDelay);
 				mpBroadcaster->QueueUpdatePlayerRequest({rPacket.iClientId, globalId, bUseMissiles, fNavigationDelay});
 				break;
 			}
 			case GamePacketType::kClientCreateFleetRequest:
 			{
-				LOG(kNetwork, kDebug, "ParseReceivedGamePackets::CreateFleet Client: {}", rPacket.iClientId);
 				mpFleetManager->QueueCreateRequest({rPacket.iClientId});
 				break;
 			}
@@ -130,7 +128,6 @@ void ServerSession::ParseReceivedGamePackets()
 				}
 				const uint8_t* pCursor = rPacket.payload.data();
 				int64_t iFleetIndex = engine::ReadInt64(pCursor);
-				LOG(kNetwork, kDebug, "ParseReceivedGamePackets::DeleteFleet Client: {} Fleet: {}", rPacket.iClientId, iFleetIndex);
 				mpFleetManager->QueueDeleteRequest({rPacket.iClientId, iFleetIndex});
 				break;
 			}
@@ -143,7 +140,6 @@ void ServerSession::ParseReceivedGamePackets()
 				}
 				const uint8_t* pCursor = rPacket.payload.data();
 				int64_t iFleetIndex = engine::ReadInt64(pCursor);
-				LOG(kNetwork, kDebug, "ParseReceivedGamePackets::SpawnIntoFleet Client: {} Fleet: {}", rPacket.iClientId, iFleetIndex);
 				mpFleetManager->QueueSpawnIntoRequest({rPacket.iClientId, iFleetIndex});
 				break;
 			}
@@ -157,7 +153,6 @@ void ServerSession::ParseReceivedGamePackets()
 				const uint8_t* pCursor = rPacket.payload.data();
 				int64_t iFleetIndex = engine::ReadInt64(pCursor);
 				int64_t iMemberIndex = engine::ReadInt64(pCursor);
-				LOG(kNetwork, kDebug, "ParseReceivedGamePackets::RespawnInFleet Client: {} Fleet: {} Member: {}", rPacket.iClientId, iFleetIndex, iMemberIndex);
 				mpFleetManager->QueueRespawnRequest({rPacket.iClientId, iFleetIndex, iMemberIndex});
 				break;
 			}
@@ -176,7 +171,6 @@ void ServerSession::ParseReceivedGamePackets()
 				{
 					mpFleetManager->UpdateFleetNavigationDelay(pClient->clientGuid, iFleetIndex, fDelay);
 				}
-				LOG(kNetwork, kDebug, "ParseReceivedGamePackets::FleetNavigationDelay Client: {} Fleet: {} Delay: {}", rPacket.iClientId, iFleetIndex, fDelay);
 				break;
 			}
 			default:
@@ -289,8 +283,6 @@ void ServerSession::SendAssignPlayer(int64_t iClientId, engine::global_id_t glob
 	{
 		return;
 	}
-
-	LOG(kNetwork, kInfo, "ServerSession::SendAssignPlayer Client: {} GlobalPlayer: {} Grid: ({},{})", iClientId, globalId, coord.x, coord.y);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
@@ -430,7 +422,7 @@ void ServerSession::ResetClientsForLoad()
 
 						SendAssignPlayer(rClient.iClientId, globalId, rCoord);
 						SendPlayerState(rClient.iClientId, PlayerEventTypeToWire(PlayerEventType::kSpawned), globalId.iValue, rCoord);
-						LOG(kDefault, kDebug, "ResetClientsForLoad Client: {} re-linked to GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, globalId, rCoord.x, rCoord.y);
+						LOG(kDefault, kDebug, "ServerSession::ResetClientsForLoad Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, globalId, rCoord.x, rCoord.y);
 					}
 				}
 			}
@@ -438,7 +430,7 @@ void ServerSession::ResetClientsForLoad()
 
 		if (rLoadOwnedIds.empty())
 		{
-			LOG(kDefault, kDebug, "ResetClientsForLoad Client: {} no GUID match, will respawn", rClient.iClientId);
+			LOG(kDefault, kDebug, "ServerSession::ResetClientsForLoad Client: {} no GUID match, will respawn", rClient.iClientId);
 		}
 
 		mpFleetManager->OnResetForLoad(rClient.iClientId, rClient.clientGuid);

@@ -109,7 +109,10 @@ void ClientSession::UpdateDesiredCoords(SubscriptionChangeReason eReason)
 		message.Append("] Tick: ");
 		message.Append(gpGame->TickCounter());
 
-		LOG(kNetwork, kVerbose, "{}", message);
+		if (!bFirstRemoved || !bFirstAdded)
+		{
+			LOG(kNetwork, kVerbose, "{}", message);
+		}
 
 		mDesiredCoords.assign(desiredSpan.begin(), desiredSpan.end());
 	}
