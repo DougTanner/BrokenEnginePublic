@@ -69,7 +69,19 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 
 	if (iFloorAdvanceCount > 0)
 	{
-		LOG(kNetwork, kVerbose, "Server::ClientAckStream FloorAdvance Client: {} Slots: {}", iClientId, iFloorAdvanceCount);
+		if (pClient->iConsecutiveZeroAdvanceAcks >= 3)
+		{
+			LOG(kNetwork, kVerbose, "Server::ClientAckStream FloorRecovery Client: {} Slots: {} StalledAcks: {}", iClientId, iFloorAdvanceCount, pClient->iConsecutiveZeroAdvanceAcks);
+		}
+		pClient->iConsecutiveZeroAdvanceAcks = 0;
+	}
+	else if (uiAckSlotCount > 0)
+	{
+		++pClient->iConsecutiveZeroAdvanceAcks;
+		if (pClient->iConsecutiveZeroAdvanceAcks == 3)
+		{
+			LOG(kNetwork, kVerbose, "Server::ClientAckStream FloorStall Client: {} AfterAcks: {}", iClientId, pClient->iConsecutiveZeroAdvanceAcks);
+		}
 	}
 
 	// Pipeline RTT: store client timestamp for echo in SendUpdate (monotonically increasing to guard against out-of-order packets)

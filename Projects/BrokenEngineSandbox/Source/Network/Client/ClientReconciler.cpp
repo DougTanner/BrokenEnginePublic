@@ -204,10 +204,12 @@ ReconcileDesyncInfo ClientReconciler::Run()
 					float fChange = (mfLastLoggedVisualErrorDelta > 0.0f)
 						? std::abs(fDelta - mfLastLoggedVisualErrorDelta) / mfLastLoggedVisualErrorDelta
 						: 1.0f;
-					if (fChange > 0.15f)
+					int64_t iCurrentTick = gpGame->TickCounter();
+					if (fChange > 0.15f && (iCurrentTick - miLastVisualErrorLogTick > 32))
 					{
 						LOG(kNetwork, kVerbose, "Visual error offset Coord: ({},{}) Delta: {:.3f} Accumulated: {:.3f}", gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, fDelta, fTotal);
 						mfLastLoggedVisualErrorDelta = fDelta;
+						miLastVisualErrorLogTick = iCurrentTick;
 					}
 				}
 			}
@@ -235,6 +237,7 @@ void ClientReconciler::Reset()
 	mWorks.clear();
 	muiNextGeneration = 1;
 	mfLastLoggedVisualErrorDelta = 0.0f;
+	miLastVisualErrorLogTick = -1000;
 }
 
 #endif // BT_CLIENT

@@ -208,7 +208,19 @@ void ServerTransferManager::HarvestTransfers()
 		}
 		else
 		{
-			LOG(kNetwork, kDebug, "Server SpawnTransfers Dest: ({},{}) TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} CrcPre: {} CrcPost: {}", rCoord.x, rCoord.y, rTransfers.size(), rDestFrame.postRender.pPlayers->iCount, rDestFrame.postRender.pBlasters->iCount, rDestFrame.postRender.pSpaceships->iCount, rDestFrame.postRender.pMissiles->iCount, acCrcPre, acCrcPost);
+			bool bAnySubscribed = false;
+			for (const engine::ClientConnection& rClient : engine::gpServer->GetClients())
+			{
+				if (rClient.IsCoordSubscribed(rCoord))
+				{
+					bAnySubscribed = true;
+					break;
+				}
+			}
+			if (bAnySubscribed)
+			{
+				LOG(kNetwork, kDebug, "Server SpawnTransfers Dest: ({},{}) TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} CrcPre: {} CrcPost: {}", rCoord.x, rCoord.y, rTransfers.size(), rDestFrame.postRender.pPlayers->iCount, rDestFrame.postRender.pBlasters->iCount, rDestFrame.postRender.pSpaceships->iCount, rDestFrame.postRender.pMissiles->iCount, acCrcPre, acCrcPost);
+			}
 		}
 	}
 

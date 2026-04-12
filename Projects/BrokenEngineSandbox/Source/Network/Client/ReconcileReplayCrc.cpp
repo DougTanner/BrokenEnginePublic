@@ -109,7 +109,7 @@ static CrcValidateResult CrcValidateLoop(CoordWork& rWork, int64_t iTargetTick, 
 					}
 				}
 
-				LOG(kNetwork, kVerbose, "CrcValidateLoop sharedCrc mismatch Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} StatusChanges: {} [{}] TicksSinceFullState: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, it->second.statusChanges.size(), builder.View(), (rFrames.iLastFullStateTick >= 0) ? (iTick - rFrames.iLastFullStateTick) : int64_t{-1});
+				LOG(kNetwork, kVerbose, "CrcValidateLoop sharedCrc mismatch Coord: ({},{}) ForTick: {} ServerCrc: {} ClientCrc: {} StatusChanges: {} [{}] TicksSinceFullState: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, it->second.statusChanges.size(), builder.View(), (rFrames.iLastFullStateTick >= 0) ? (iTick - rFrames.iLastFullStateTick) : int64_t{-1});
 			}
 			++iMismatchCount;
 			if (iMismatchCount > 1)

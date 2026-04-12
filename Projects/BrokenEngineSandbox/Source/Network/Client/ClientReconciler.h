@@ -105,6 +105,7 @@ private:
 	std::vector<CoordWork> mWorks;
 	uint64_t muiNextGeneration = 1;
 	float mfLastLoggedVisualErrorDelta = 0.0f;
+	int64_t miLastVisualErrorLogTick = -1000;
 };
 
 } // namespace game

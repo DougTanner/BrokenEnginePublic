@@ -89,7 +89,7 @@ static bool ReconcileRunTickCoord(CoordWork& rWork, int64_t iTick, float fTime, 
 
 	if (rScratch.iReplayWriteCount >= engine::kiNetworkBufferSize)
 	{
-		LOG(kNetwork, kVerbose, "ReconcileRunTickCoord Ring buffer full WriteCount: {} Tick: {}", rScratch.iReplayWriteCount, iTick);
+		LOG(kNetwork, kVerbose, "ReconcileRunTickCoord Ring buffer full WriteCount: {} ForTick: {}", rScratch.iReplayWriteCount, iTick);
 		return false;
 	}
 
@@ -156,11 +156,11 @@ static bool ReconcileRunTickCoord(CoordWork& rWork, int64_t iTick, float fTime, 
 				if (i > 0) { acPlayerIds[iPos++] = ','; acPlayerIds[iPos++] = ' '; }
 				iPos += snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", transferPlayerIds[i].iValue);
 			}
-			LOG(kNetwork, kVerbose, "ReconcileRunTickCoord SpawnTransfers Coord: ({},{}) Tick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} PlayerIds: [{}]", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount, acPlayerIds);
+			LOG(kNetwork, kVerbose, "ReconcileRunTickCoord SpawnTransfers Coord: ({},{}) ForTick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} PlayerIds: [{}]", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount, acPlayerIds);
 		}
 		else
 		{
-			LOG(kNetwork, kVerbose, "ReconcileRunTickCoord SpawnTransfers Coord: ({},{}) Tick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {}", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount);
+			LOG(kNetwork, kVerbose, "ReconcileRunTickCoord SpawnTransfers Coord: ({},{}) ForTick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {}", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount);
 		}
 	}
 	std::erase_if(rFrameInput.statusChanges, [](const StatusChange& rStatusChange)
@@ -197,7 +197,7 @@ static bool ReconcileValidateCrcCoord(CoordWork& rWork, int64_t iTick, const eng
 			char acSharedCrc[20] {}, acClientCrc[20] {};
 			common::ToHex(std::span<char, 20>(acSharedCrc), rUpdate.sharedCrc);
 			common::ToHex(std::span<char, 20>(acClientCrc), clientCrc);
-			LOG(kNetwork, kVerbose, "ReconcileValidateCrcCoord Desync Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} ServerStatusChanges: {} ClientStatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, rUpdate.statusChanges.size(), rFrameInput.statusChanges.size());
+			LOG(kNetwork, kVerbose, "ReconcileValidateCrcCoord Desync Coord: ({},{}) ForTick: {} ServerCrc: {} ClientCrc: {} ServerStatusChanges: {} ClientStatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, rUpdate.statusChanges.size(), rFrameInput.statusChanges.size());
 		}
 
 		rScratch.iDesyncTick = iTick;
@@ -284,7 +284,7 @@ static void ReconcileReplayCoord(CoordWork& rWork, const ReconcileInputs& rInput
 		if (rFrames.pendingFullState.has_value() && rFrames.pendingFullState->iTick == iTick)
 		{
 			ReconcileInjectPendingFullState(rWork);
-			LOG(kNetwork, kVerbose, "ReconcileReplayCoord Injected pending full state Coord: ({},{}) Tick: {}", rWork.coord.x, rWork.coord.y, iTick);
+			LOG(kNetwork, kVerbose, "ReconcileReplayCoord Injected pending full state Coord: ({},{}) ForTick: {}", rWork.coord.x, rWork.coord.y, iTick);
 		}
 
 		// CRC validation
