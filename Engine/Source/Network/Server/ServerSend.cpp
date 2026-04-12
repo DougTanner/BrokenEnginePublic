@@ -204,6 +204,11 @@ void Server::SendUpdate(ClientConnection& rClient, int64_t iTick)
 		WriteBufferedFramePacket(rWorkbuffer, PacketType::kServerCoordUpdate, iSlot, rClient.coordAckStates.at(iSlot).uiEpoch, *pBuffered, rClient.iClientTimestampNs);
 
 		NetworkManager::SendPacket(rClient.pPeer, NetworkManager::CoordSlotUnreliable(iSlot), rWorkbuffer, 0);
+		if (!rClient.coordSubscriptions.at(iSlot).bFirstUpdateLogged)
+		{
+			LOG(kNetwork, kVerbose, "Server::SendUpdate Client: {} Slot: {} Coord: ({},{}) Tick: {}", rClient.iClientId, iSlot, coord.x, coord.y, iTick);
+			rClient.coordSubscriptions.at(iSlot).bFirstUpdateLogged = true;
+		}
 
 		rWorkbuffer.Pop();
 	}
@@ -255,6 +260,7 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 			? std::max(static_cast<int64_t>(std::bit_width(rAckState.uiReceivedBitfieldLow)), 64 + static_cast<int64_t>(std::bit_width(rAckState.uiReceivedBitfieldHigh)))
 			: static_cast<int64_t>(std::bit_width(rAckState.uiReceivedBitfieldLow));
 
+		int64_t aiResendTicks[kiMaxResendFrames] {};
 		int64_t iSlotResendCount = 0;
 		for (int64_t iBit = 0; iBit < iScanLimit && iSlotResendCount < kiMaxResendFrames; ++iBit)
 		{
@@ -286,6 +292,7 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 
 			rWorkbuffer.Pop();
 
+			aiResendTicks[iSlotResendCount] = iMissingFrame;
 			++iSlotResendCount;
 		}
 
@@ -293,7 +300,18 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 		{
 			if (iSlotResendCount > 0)
 			{
-				LOG(kNetwork, kVerbose, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {}", rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount);
+				common::ScopedWorkbufferBuilder tickList(common::gpThreadLocal->mWorkbuffer);
+				tickList.Append("[");
+				for (int64_t i = 0; i < iSlotResendCount; ++i)
+				{
+					if (i > 0)
+					{
+						tickList.Append(",");
+					}
+					tickList.Append(aiResendTicks[i]);
+				}
+				tickList.Append("]");
+				LOG(kNetwork, kVerbose, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {} Ticks: {}", rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount, tickList.View());
 			}
 			rClient.prevResendCounts.at(iSlot) = iSlotResendCount;
 		}

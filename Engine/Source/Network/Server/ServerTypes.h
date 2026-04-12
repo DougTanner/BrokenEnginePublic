@@ -7,6 +7,7 @@ struct ClientCoordSubscription
 {
 	GridCoord coord {};
 	bool bActive = false;
+	bool bFirstUpdateLogged = false;
 };
 
 struct PendingSpawnRequest

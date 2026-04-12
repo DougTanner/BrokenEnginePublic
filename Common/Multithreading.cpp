@@ -10,7 +10,7 @@ Multithreading::Multithreading(int64_t iWorkerCount)
 	mWorkers.reserve(static_cast<size_t>(iWorkerCount));
 	for (int64_t i = 0; i < iWorkerCount; ++i)
 	{
-		mWorkers.push_back(std::make_unique<PersistentWorker>(kThreadMultithreading, 65536));
+		mWorkers.push_back(std::make_unique<PersistentWorker>(std::nullopt, 65536));
 	}
 }
 
@@ -20,7 +20,7 @@ Multithreading::Multithreading(Threads eThread, int64_t iWorkerCount, int64_t iW
 	mWorkers.reserve(static_cast<size_t>(iWorkerCount));
 	for (int64_t i = 0; i < iWorkerCount; ++i)
 	{
-		mWorkers.push_back(std::make_unique<PersistentWorker>(eThread, iWorkbufferSize));
+		mWorkers.push_back(std::make_unique<PersistentWorker>(static_cast<int64_t>(eThread), iWorkbufferSize));
 	}
 }
 

@@ -279,9 +279,9 @@ void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 		}
 		rAck.uiReceivedBitfieldHigh >>= 1;
 	}
-	if (rAck.iAckFloor != iPreviousFloor)
+	if (rAck.iAckFloor != iPreviousFloor && rAck.iAckFloor - iPreviousFloor > 2)
 	{
-		LOG(kNetwork, kVerbose, "Client::TrackReceivedTick FloorAdvance Slot: {} Floor: {} -> {}", iSlot, iPreviousFloor, rAck.iAckFloor);
+		LOG(kNetwork, kVerbose, "Client::TrackReceivedTick FloorAdvance Slot: {} Floor: {} -> {} Delta: {}", iSlot, iPreviousFloor, rAck.iAckFloor, rAck.iAckFloor - iPreviousFloor);
 	}
 }
 

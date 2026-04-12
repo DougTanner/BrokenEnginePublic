@@ -9,7 +9,7 @@ class PersistentWorker
 {
 public:
 
-	PersistentWorker(Threads eThread, int64_t iWorkbufferSize = 0);
+	PersistentWorker(std::optional<int64_t> iThreadId, int64_t iWorkbufferSize = 0);
 	~PersistentWorker();
 
 	void Wake(std::move_only_function<void()> work);

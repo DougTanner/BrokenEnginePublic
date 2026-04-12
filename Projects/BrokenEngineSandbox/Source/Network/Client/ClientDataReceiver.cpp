@@ -82,6 +82,7 @@ void ClientDataReceiver::ApplyReceivedFullStates()
 			rSub.snapshots[0]->postRender.sharedCrc = rSub.snapshots[0]->Crcs();
 			rSub.iSnapshotCount = 1;
 			rSub.iConfirmedTick = iTick;
+			rSub.iLastFullStateTick = iTick;
 			rSub.iConfirmedOffset = 0;
 
 			float fFullStateTime = rSub.snapshots[0]->interpolate.fCurrentTime;

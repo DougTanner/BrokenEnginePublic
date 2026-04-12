@@ -39,6 +39,7 @@ void ReconcileInjectPendingFullState(CoordWork& rWork)
 	rScratch.iReplayWriteCount = 0;
 	// Full state replaces the timeline; a prior higher high-water mark was against a discarded timeline.
 	rFrames.iHighWaterValidatedTick = rFrames.pendingFullState->iTick;
+	rFrames.iLastFullStateTick = rFrames.pendingFullState->iTick;
 	rFrames.pendingFullState.reset();
 }
 
@@ -155,11 +156,11 @@ static bool ReconcileRunTickCoord(CoordWork& rWork, int64_t iTick, float fTime, 
 				if (i > 0) { acPlayerIds[iPos++] = ','; acPlayerIds[iPos++] = ' '; }
 				iPos += snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", transferPlayerIds[i].iValue);
 			}
-			LOG(kNetwork, kVerbose, "Client SpawnTransfers Coord: ({},{}) Tick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} PlayerIds: [{}]", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount, acPlayerIds);
+			LOG(kNetwork, kVerbose, "ReconcileRunTickCoord SpawnTransfers Coord: ({},{}) Tick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} PlayerIds: [{}]", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount, acPlayerIds);
 		}
 		else
 		{
-			LOG(kNetwork, kVerbose, "Client SpawnTransfers Coord: ({},{}) Tick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {}", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount);
+			LOG(kNetwork, kVerbose, "ReconcileRunTickCoord SpawnTransfers Coord: ({},{}) Tick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {}", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount);
 		}
 	}
 	std::erase_if(rFrameInput.statusChanges, [](const StatusChange& rStatusChange)

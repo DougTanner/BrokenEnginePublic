@@ -29,6 +29,7 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 	{
 		return;
 	}
+	int64_t iFloorAdvanceCount = 0;
 	for (uint8_t i = 0; i < uiAckSlotCount; ++i)
 	{
 		uint8_t uiSlotIndex = ReadUint8(pCursor);
@@ -52,7 +53,7 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 			}
 			else
 			{
-				LOG(kNetwork, kVerbose, "Server::ClientAckStream FloorAdvance Client: {} Slot: {} Floor: {} -> {}", iClientId, uiSlotIndex, rAckState.iAckFloor, iSlotAckFloor);
+				++iFloorAdvanceCount;
 				rAckState.iAckFloor = iSlotAckFloor;
 				rAckState.uiReceivedBitfieldLow = uiSlotBitfieldLow;
 				rAckState.uiReceivedBitfieldHigh = uiSlotBitfieldHigh;
@@ -64,6 +65,11 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 		{
 			LOG(kNetwork, kVerbose, "Server::ClientAckStream EpochMismatch Client: {} Slot: {} ClientEpoch: {} ServerEpoch: {}", iClientId, uiSlotIndex, uiSlotEpoch, pClient->coordAckStates.at(uiSlotIndex).uiEpoch);
 		}
+	}
+
+	if (iFloorAdvanceCount > 0)
+	{
+		LOG(kNetwork, kVerbose, "Server::ClientAckStream FloorAdvance Client: {} Slots: {}", iClientId, iFloorAdvanceCount);
 	}
 
 	// Pipeline RTT: store client timestamp for echo in SendUpdate (monotonically increasing to guard against out-of-order packets)

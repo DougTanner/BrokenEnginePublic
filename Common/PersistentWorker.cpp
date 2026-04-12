@@ -3,11 +3,11 @@
 namespace common
 {
 
-PersistentWorker::PersistentWorker(Threads eThread, int64_t iWorkbufferSize)
-: mThread([this, eThread, iWorkbufferSize]()
+PersistentWorker::PersistentWorker(std::optional<int64_t> iThreadId, int64_t iWorkbufferSize)
+: mThread([this, iThreadId, iWorkbufferSize]()
 {
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-	ThreadLocal threadLocal(iWorkbufferSize, eThread);
+	ThreadLocal threadLocal(iWorkbufferSize, iThreadId);
 
 	while (true)
 	{

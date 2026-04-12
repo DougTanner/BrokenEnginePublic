@@ -353,7 +353,7 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 
 	if (iUpdateFleetCount > 0)
 	{
-		LOG(kNetwork, kVerbose, "kUpdateFleet Coord: ({},{}) NewWantedCoord: ({},{}) Players: {} Flagship: {}", rStaticData.coord.x, rStaticData.coord.y, updateFleetNewCoord.x, updateFleetNewCoord.y, iUpdateFleetCount, iUpdateFleetFlagshipGlobalId);
+		LOG(kNetwork, kVerbose, "ProcessSpawnStatusChanges kUpdateFleet Coord: ({},{}) NewWantedCoord: ({},{}) Players: {} Flagship: {}", rStaticData.coord.x, rStaticData.coord.y, updateFleetNewCoord.x, updateFleetNewCoord.y, iUpdateFleetCount, iUpdateFleetFlagshipGlobalId);
 	}
 }
 

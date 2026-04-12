@@ -76,6 +76,7 @@ struct CoordFrames
 		std::unique_ptr<game::Frame> pFrame;
 	};
 	std::optional<PendingFullState> pendingFullState;
+	int64_t iLastFullStateTick = -1;
 
 	uint64_t uiGeneration = 0;
 
@@ -110,6 +111,7 @@ struct CoordFrames
 		iSnapshotCount = 0;
 		serverUpdates.clear();
 		pendingFullState.reset();
+		iLastFullStateTick = -1;
 		uiGeneration = 0;
 		iLastLoggedConfirmedTick = -1;
 		iLastLoggedFirstMismatch = -1;

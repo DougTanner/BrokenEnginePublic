@@ -155,7 +155,7 @@ ReconcileDesyncInfo ClientReconciler::Run()
 			bool bLogThis = !rScratch.bSuppressRepeatLogs || (rWork.pFrames->iStuckFrameCount % engine::CoordFrames::kiStuckLogInterval == 0);
 			if (bLogThis)
 			{
-				LOG(kNetwork, kVerbose, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} ReplayStackCount: {} LastValidatedIndex: {} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iReplayStackCount, rScratch.iLastValidatedIndex, rScratch.bCrcFastPath, rScratch.bReplayed, rScratch.bShrunkRollback, rScratch.iDesyncTick);
+				LOG(kNetwork, kVerbose, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} Validated: {}/{} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iLastValidatedIndex + 1, rScratch.iReplayStackCount, rScratch.bCrcFastPath, rScratch.bReplayed, rScratch.bShrunkRollback, rScratch.iDesyncTick);
 			}
 		}
 	}
