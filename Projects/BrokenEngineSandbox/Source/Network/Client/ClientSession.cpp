@@ -70,9 +70,9 @@ void ClientSession::PollNetwork()
 		switch (rEvent.eType)
 		{
 			case PlayerEventType::kAssigned:
-				LOG(kNetwork, kVerbose, "PlayerEvent kAssigned NewGlobalPlayerId: {} NewCoord: ({},{}) OldGlobalPlayerId: {} OldCoord: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->ClientPlayerId().iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
 				if (!gpGame->IsClientPlayer(rEvent.globalPlayerId))
 				{
+					LOG(kNetwork, kVerbose, "PlayerEvent kAssigned NewGlobalPlayerId: {} NewCoord: ({},{}) FocusedGlobalPlayerId: {} FocusedCoord: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->ClientPlayerId().iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
 					gpGame->AddClientPlayer(rEvent.globalPlayerId, rEvent.coord);
 				}
 				UpdateDesiredCoords("kAssigned");
@@ -105,7 +105,6 @@ void ClientSession::PollNetwork()
 						gpGame->miQuadrantDirY = -iDeltaY;
 					}
 				}
-				LOG(kNetwork, kVerbose, "kChangedFrame GlobalPlayer: {} NewCoord: ({},{}) QuadrantDir: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->miQuadrantDirX, gpGame->miQuadrantDirY);
 				UpdateDesiredCoords("kChangedFrame");
 				break;
 			}

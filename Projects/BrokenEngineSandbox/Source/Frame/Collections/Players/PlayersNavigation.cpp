@@ -75,7 +75,6 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[ma
 			DEBUG_BREAK();
 		}
 		rFrame.postRender.transferRequests.push_back(request);
-		LOG(kNetwork, kVerbose, "  Transfer Player[uuid]: {} Player[globalId]: {} Delta: ({},{})", request.iEntityId, request.data.globalPlayerId.iValue, request.iDeltaX, request.iDeltaY);
 
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
 #if defined(BT_CLIENT)
@@ -323,12 +322,12 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 	}
 }
 
-void XM_CALLCONV PlayersPostRender::ApplyMovement(int8_t iNavDirection, FXMVECTOR vecAiDirection, float fDeltaTime, XMVECTOR& rVecVelocity)
+void XM_CALLCONV PlayersPostRender::ApplyMovement(int8_t iNavDirection, FXMVECTOR vecAiDirection, float fDeltaTime, float fAccelMul, float fDecayMul, XMVECTOR& rVecVelocity)
 {
 	// Apply movement: decay existing velocity and add acceleration from AI direction
-	float fAcceleration = iNavDirection == 5 ? kfPlayerCatchUpAcceleration : kfPlayerAcceleration;
+	float fAcceleration = (iNavDirection == 5 ? kfPlayerCatchUpAcceleration : kfPlayerAcceleration) * fAccelMul;
 	XMVECTOR vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * fAcceleration), vecAiDirection);
-	rVecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(common::ExponentialDecay(kfPlayerAccelerationDecay, fDeltaTime)), rVecVelocity, vecAcceleration);
+	rVecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(common::ExponentialDecay(kfPlayerAccelerationDecay * fDecayMul, fDeltaTime)), rVecVelocity, vecAcceleration);
 }
 
 void XM_CALLCONV PlayersPostRender::ApplyTerrainPush(FXMVECTOR vecPosition, XMVECTOR& rVecVelocity)

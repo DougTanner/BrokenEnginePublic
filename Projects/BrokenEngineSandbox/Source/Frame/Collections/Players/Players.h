@@ -29,6 +29,7 @@ inline constexpr float kfPushMargin = kfPlayerRadius * 0.6667f;
 inline constexpr float kfPlayerAcceleration = 75.0f;
 inline constexpr float kfPlayerCatchUpAcceleration = 100.0f;
 inline constexpr float kfPlayerAccelerationDecay = 3.0f;
+inline constexpr float kfPlayerJitterRange = 0.30f;
 inline constexpr float kfPlayerMaxSpeed = kfPlayerCatchUpAcceleration / kfPlayerAccelerationDecay;
 
 // Pusher
@@ -199,7 +200,7 @@ private:
 	// Per-player Update helpers (called from PlayersPostRender::Update orchestrator)
 	// Defined in PlayersNavigation.cpp:
 	static void XM_CALLCONV ComputeNavigation(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData, int64_t i, FXMVECTOR vecPosition, FXMVECTOR vecFrameCenter, engine::GridCoord fleetWantedCoord, uint8_t uiPendingFleetWantedCoordTicks, PlayerFlags_t flags, float fNavigationDelay, float fDeltaTime, int8_t& riNavDirection, XMVECTOR& rVecAiDirection, XMVECTOR& rVecIslandDestination, float& rfFrameChangeTimer);
-	static void XM_CALLCONV ApplyMovement(int8_t iNavDirection, FXMVECTOR vecAiDirection, float fDeltaTime, XMVECTOR& rVecVelocity);
+	static void XM_CALLCONV ApplyMovement(int8_t iNavDirection, FXMVECTOR vecAiDirection, float fDeltaTime, float fAccelMul, float fDecayMul, XMVECTOR& rVecVelocity);
 	static void XM_CALLCONV ApplyTerrainPush(FXMVECTOR vecPosition, XMVECTOR& rVecVelocity);
 	static void XM_CALLCONV ApplyPusherPush(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, int64_t i, FXMVECTOR vecPosition, XMVECTOR& rVecVelocity);
 

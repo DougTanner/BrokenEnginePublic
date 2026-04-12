@@ -87,7 +87,6 @@ bool Game::IsClientPlayer(engine::global_id_t id) const
 void Game::AddClientPlayer(engine::global_id_t id, engine::GridCoord coord)
 {
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	LOG(kNetwork, kVerbose, "AddClientPlayer GlobalPlayerId: {} Coord: ({},{}) OldPlayerCount: {}", id.iValue, coord.x, coord.y, std::ssize(mClientPlayerIds));
 	mClientPlayerIds.push_back(id);
 	mClientPlayerCoords.push_back(coord);
 }

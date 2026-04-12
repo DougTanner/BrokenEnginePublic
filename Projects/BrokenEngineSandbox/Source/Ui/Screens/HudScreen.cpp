@@ -251,7 +251,6 @@ void HudScreen::RenderFleetPanel()
 			{
 				gpGame->mNavigationDelayControl.SetPending();
 				gpClientSession->SendFleetNavigationDelayRequest(gpGame->FocusedFleetIndex(), sNavDelayEditValue);
-				LOG(kNetwork, kDebug, "HUD FleetNavigationDelay Fleet: {} Delay: {}", gpGame->FocusedFleetIndex(), sNavDelayEditValue);
 			}
 		}
 		ImGui::EndDisabled();
@@ -293,7 +292,6 @@ void HudScreen::RenderFocusedPlayerPanel()
 				gpGame->mWeaponModeToggle.SetPending();
 				float fNavigationDelay = rPlayers.pfNavigationDelays[*playerIndex];
 				gpClientSession->SendUpdatePlayerRequest(gpGame->ClientPlayerId().iValue, !bUseMissiles, fNavigationDelay);
-				LOG(kNetwork, kDebug, "HUD WeaponModeToggle GlobalPlayerId: {} Missiles: {}", gpGame->ClientPlayerId().iValue, !bUseMissiles);
 			}
 		}
 		ImGui::EndDisabled();

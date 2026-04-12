@@ -16,9 +16,9 @@ enum class NetworkSimulationLevel : uint8_t
 
 struct NetworkSimulationConfig
 {
-	float fPacketLossPercent;
-	int64_t iPingMinMs;
-	int64_t iPingMaxMs;
+	float fPacketLossPercent = 0.0f;
+	int64_t iPingMinMs = 0;
+	int64_t iPingMaxMs = 0;
 };
 
 // Applied per-direction, so half-ping delay on each side
@@ -50,11 +50,11 @@ inline constexpr std::string_view GetNetworkSimulationName(NetworkSimulationLeve
 
 struct NetworkSimulationBounds
 {
-	int64_t iCrcMin;
-	int64_t iAssumedMax;
-	int64_t iFastReplayMax;
-	int64_t iStatusReplayMax;
-	int64_t iKnockOnReplayMax;
+	int64_t iCrcMin = 0;
+	int64_t iAssumedMax = 0;
+	int64_t iFastReplayMax = 0;
+	int64_t iStatusReplayMax = 0;
+	int64_t iKnockOnReplayMax = 0;
 };
 
 inline constexpr NetworkSimulationBounds GetNetworkSimulationBounds(NetworkSimulationLevel eLevel)

@@ -245,6 +245,10 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
 	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
 
+	int64_t iUpdateFleetCount = 0;
+	engine::GridCoord updateFleetCoord {};
+	uint8_t uiUpdateFleetPendingTicks = 0;
+
 	for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
 	{
 		if (rStatusChange.eType == StatusChangeType::kDestroyPlayer)
@@ -283,7 +287,12 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 				}
 				rCurrentPostRender.pFleetWantedCoords[iIndex] = rUpdate.fleetWantedCoord;
 				rCurrentPostRender.puiPendingFleetWantedCoordTicks[iIndex] = rUpdate.uiPendingFleetWantedCoordTicks;
-				LOG(kNetwork, kVerbose, "kUpdateFleet Uuid: {} Idx: {} IsFlagship: {} WantedCoord: ({},{}) PendingTicks: {}", rUpdate.iPlayerUuid, iIndex, rUpdate.bIsFlagship, rUpdate.fleetWantedCoord.x, rUpdate.fleetWantedCoord.y, rUpdate.uiPendingFleetWantedCoordTicks);
+				if (iUpdateFleetCount == 0)
+				{
+					updateFleetCoord = rUpdate.fleetWantedCoord;
+					uiUpdateFleetPendingTicks = rUpdate.uiPendingFleetWantedCoordTicks;
+				}
+				++iUpdateFleetCount;
 			}
 			continue;
 		}
@@ -297,7 +306,6 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 			if (idIt != rCurrentInterpolate.idToIndexMap.end())
 			{
 				int64_t iIndex = idIt->second;
-				LOG(kNetwork, kDebug, "ProcessSpawnStatusChanges kUpdatePlayer Uuid: {} Idx: {} NewMissiles: {} NavDelay: {} PendingTicks: {}", rUpdate.iPlayerUuid, iIndex, rUpdate.bUseMissiles, rUpdate.fNavigationDelay, rUpdate.uiPendingWeaponModeTicks);
 				// Weapon mode change is deferred via countdown ticks
 				rCurrentPostRender.pFlags[iIndex].Set(kPendingUseMissiles, rUpdate.bUseMissiles);
 				rCurrentPostRender.puiPendingWeaponModeTicks[iIndex] = rUpdate.uiPendingWeaponModeTicks;
@@ -348,6 +356,11 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 				.uiPendingFleetWantedCoordTicks = spawnPendingFleetTicks,
 			});
 		}
+	}
+
+	if (iUpdateFleetCount > 0)
+	{
+		LOG(kNetwork, kVerbose, "kUpdateFleet Count: {} WantedCoord: ({},{}) PendingTicks: {}", iUpdateFleetCount, updateFleetCoord.x, updateFleetCoord.y, uiUpdateFleetPendingTicks);
 	}
 }
 
@@ -733,7 +746,9 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 			XMVECTOR vecLookPosition = XMVectorZero();
 			AcquireTarget(rPreviousFrame, vecPosition, flags, bLookTargetFound, vecLookPosition);
 
-			ApplyMovement(iNavDirection, vecAiDirection, fDeltaTime, vecVelocity);
+			float fAccelMul = (1.0f - kfPlayerJitterRange * 0.5f) + common::Random<kfPlayerJitterRange>(rFrame.postRender.randomEngine);
+			float fDecayMul = (1.0f - kfPlayerJitterRange * 0.5f) + common::Random<kfPlayerJitterRange>(rFrame.postRender.randomEngine);
+			ApplyMovement(iNavDirection, vecAiDirection, fDeltaTime, fAccelMul, fDecayMul, vecVelocity);
 
 			if (bLookTargetFound)
 			{

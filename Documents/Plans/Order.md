@@ -6,8 +6,15 @@ Score = Effort - Impact + Risks (lower = higher priority)
 
 | # | Plan | Description | Effort | Impact | Risks | Score |
 |---|------|-------------|--------|--------|-------|-------|
-| 1 | [Network/TransferReconciliationBarrier.txt](Network/TransferReconciliationBarrier.txt) | Phase A diagnostic logs for Transfer-correlated CRC mismatches on kChina | 2 | 3 | 1 | 0 |
-| 2 | [Network/TransferReconciliationBarrierFixB.txt](Network/TransferReconciliationBarrierFixB.txt) | Phase B per-tick barrier + client transfer sort (gated on Phase A logs) | 5 | 5 | 3 | 3 |
+| 1 | [Network/JitterBufferSizing.txt](Network/JitterBufferSizing.txt) | Raise kiJitterSafetyUs + peak jitter tracking + tighter hysteresis; eliminates EastCoast CRC replays | 2 | 5 | 1 | -2 |
+| 2 | [Network/MinorLogPolish.txt](Network/MinorLogPolish.txt) | Reword fast-path handoff, drop/rename PendingTicks, render sentinel global IDs as (none) | 1 | 2 | 0 | -1 |
+| 3 | [Network/SpawnTransferLogCleanup.txt](Network/SpawnTransferLogCleanup.txt) | Hoist SpawnTransfer log out of SC loop, drop Player[globalId] on non-player transfers | 2 | 3 | 0 | -1 |
+| 4 | [Network/TransferReconciliationBarrier.txt](Network/TransferReconciliationBarrier.txt) | Phase A diagnostic logs for Transfer-correlated CRC mismatches on kChina | 2 | 3 | 1 | 0 |
+| 5 | [Network/HandshakeRttMeasurement.txt](Network/HandshakeRttMeasurement.txt) | Measure handshake RTT at game layer so kEastCoast sim is honored | 2 | 2 | 0 | 0 |
+| 6 | [Network/RemoveDeadServerInputCrc.txt](Network/RemoveDeadServerInputCrc.txt) | Delete vestigial inputCrc field end-to-end (post-2856f50 cleanup) | 3 | 3 | 0 | 0 |
+| 7 | [Network/SubscriptionLogCleanup.txt](Network/SubscriptionLogCleanup.txt) | Guard no-op Desired subscriptions log + SubscriptionChangeReason enum | 3 | 3 | 0 | 0 |
+| 8 | [Network/CentralizedTickLogPrefix.txt](Network/CentralizedTickLogPrefix.txt) | Thread-local tick prefix in LogPrefix for uniform correlation | 3 | 3 | 1 | 1 |
+| 9 | [Network/TransferReconciliationBarrierFixB.txt](Network/TransferReconciliationBarrierFixB.txt) | Phase B per-tick barrier + client transfer sort (gated on Phase A logs) | 5 | 5 | 3 | 3 |
 
 
 ## Dependencies

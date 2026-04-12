@@ -193,8 +193,6 @@ void Client::ServerCoordStaticData(const uint8_t* pData, size_t iSize)
 		return;
 	}
 
-	LOG(kNetwork, kVerbose, "Client::ServerCoordStaticData Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
-
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	std::string staticBytes(reinterpret_cast<const char*>(pCursor), iSize32);
@@ -448,8 +446,6 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 		SendUnsubscribe(uiSlotIndex);
 		return;
 	}
-
-	LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 }
 
 void Client::ServerUnsubscribeAck(const uint8_t* pData, size_t iSize)
@@ -474,8 +470,6 @@ void Client::ServerUnsubscribeAck(const uint8_t* pData, size_t iSize)
 	{
 		return;
 	}
-
-	LOG(kNetwork, kVerbose, "Client::ServerUnsubscribeAck Slot: {} Coord: ({},{})", uiSlotIndex, rSlot.coord.x, rSlot.coord.y);
 
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
