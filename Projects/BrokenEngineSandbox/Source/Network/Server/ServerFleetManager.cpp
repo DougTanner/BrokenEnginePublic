@@ -221,7 +221,7 @@ void ServerFleetManager::TickFleetTimers()
 				rFleet.uiPendingFleetWantedCoordTicks = uiPendingTicks;
 				rFleet.fFrameChangeTimer = rFleet.fNavigationDelay;
 				mPendingFlagshipUpdates.push_back({rGuid, iFleet, destination, uiPendingTicks});
-				LOG(kNetwork, kVerbose, "TickFleetTimers Guid: ({},{}) Fleet: {} Direction: {} WantedCoord: ({},{}) PendingTicks: {}", rGuid.uiHigh, rGuid.uiLow, iFleet, iDirection, destination.x, destination.y, uiPendingTicks);
+				LOG(kNetwork, kVerbose, "TickFleetTimers Guid: ({},{}) Fleet: {} Direction: {} WantedCoord: ({},{})", rGuid.uiHigh, rGuid.uiLow, iFleet, iDirection, destination.x, destination.y);
 			}
 		}
 	}
@@ -287,7 +287,7 @@ void ServerFleetManager::ProcessFlagshipUpdates()
 							.uiPendingFleetWantedCoordTicks = rUpdate.uiPendingFleetWantedCoordTicks,
 						},
 					});
-					LOG(kNetwork, kVerbose, "ProcessFlagshipUpdates Guid: ({},{}) Fleet: {} GlobalId: {} Uuid: {} MemberCoord: ({},{}) IsFlagship: {} WantedCoord: ({},{}) PendingTicks: {}", rUpdate.clientGuid.uiHigh, rUpdate.clientGuid.uiLow, rUpdate.iFleetIndex, rMember.globalPlayerId.iValue, iPlayerUuid, memberCoord.x, memberCoord.y, bMemberIsFlagship, rUpdate.newWantedCoord.x, rUpdate.newWantedCoord.y, rUpdate.uiPendingFleetWantedCoordTicks);
+					LOG(kNetwork, kVerbose, "ProcessFlagshipUpdates Guid: ({},{}) Fleet: {} GlobalId: {} Uuid: {} MemberCoord: ({},{}) IsFlagship: {} WantedCoord: ({},{})", rUpdate.clientGuid.uiHigh, rUpdate.clientGuid.uiLow, rUpdate.iFleetIndex, rMember.globalPlayerId, iPlayerUuid, memberCoord.x, memberCoord.y, bMemberIsFlagship, rUpdate.newWantedCoord.x, rUpdate.newWantedCoord.y);
 					break;
 				}
 			}

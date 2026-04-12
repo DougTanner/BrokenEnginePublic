@@ -47,6 +47,7 @@ ReconcileDesyncInfo ClientReconciler::Run()
 	inputs.uiNextFrameId = gpGame->NextFrameId();
 	inputs.iTargetTick = gpGame->TickCounter();
 	ASSERT(inputs.iTargetTick >= 0);
+	common::LogTickScope logTickScope(inputs.iTargetTick);
 	inputs.playerAlignment = gpGame->PlayerAlignment();
 	inputs.alignments = gpGame->Alignments();
 	inputs.iJitterUs = (gpClientSession->mpClientNetwork != nullptr) ? gpClientSession->mpClientNetwork->GetJitterUs() : 0;

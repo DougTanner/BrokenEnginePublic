@@ -51,6 +51,21 @@ char* LogPrefix(char* pLogBuffer)
 			*(pWrite++) = ':';
 			*(pWrite++) = ' ';
 		}
+
+		if (gpThreadLocal->miLogTickCounter >= 0)
+		{
+			*(pWrite++) = '[';
+			*(pWrite++) = 'T';
+			*(pWrite++) = 'i';
+			*(pWrite++) = 'c';
+			*(pWrite++) = 'k';
+			*(pWrite++) = ':';
+			*(pWrite++) = ' ';
+			std::to_chars_result toCharsResult = std::to_chars(pWrite, pWrite + 20, gpThreadLocal->miLogTickCounter);
+			pWrite = toCharsResult.ptr;
+			*(pWrite++) = ']';
+			*(pWrite++) = ' ';
+		}
 	}
 	else
 	{

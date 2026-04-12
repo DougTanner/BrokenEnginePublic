@@ -39,6 +39,7 @@ public:
 
 	std::optional<int64_t> miThreadId;
 	int64_t miLogIndent = 0;
+	int64_t miLogTickCounter = -1;
 
 private:
 
@@ -49,6 +50,29 @@ public:
 
 	char* mpLogBuffer = nullptr;
 	Workbuffer mWorkbuffer;
+};
+
+class LogTickScope
+{
+public:
+
+	explicit LogTickScope(int64_t iTick)
+	{
+		miPrior = gpThreadLocal->miLogTickCounter;
+		gpThreadLocal->miLogTickCounter = iTick;
+	}
+
+	~LogTickScope()
+	{
+		gpThreadLocal->miLogTickCounter = miPrior;
+	}
+
+	LogTickScope(const LogTickScope&) = delete;
+	LogTickScope& operator=(const LogTickScope&) = delete;
+
+private:
+
+	int64_t miPrior = -1;
 };
 
 } // namespace common

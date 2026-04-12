@@ -39,6 +39,8 @@ void GameBase::ProcessInput([[maybe_unused]] bool bLostFocus, game::MenuInput& r
 #if defined(BT_CLIENT)
 void GameBase::ClientUpdate()
 {
+	common::LogTickScope logTickScope(miTickCounter);
+
 	game::gpClientSession->Poll();
 
 	if (game::gpClientSession->IsStalled())
@@ -85,6 +87,8 @@ void GameBase::ClientUpdate()
 #if defined(BT_SERVER)
 void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 {
+	common::LogTickScope logTickScope(miTickCounter);
+
 	game::gpServerSession->PreTickNetwork();
 
 	if (mGameSaveLoad.Quickload(rMenuInput)) [[unlikely]]
@@ -122,6 +126,8 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 	{
 		++miTickCounter;
 		mfCurrentTime += game::kfDeltaTime;
+
+		common::LogTickScope perTickScope(miTickCounter);
 
 		game::gpServerSession->PrepareTick();
 

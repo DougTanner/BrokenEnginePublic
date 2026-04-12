@@ -64,17 +64,16 @@ static CrcValidateResult CrcValidateLoop(CoordWork& rWork, int64_t iTargetTick)
 			// Any prior-tracked mismatch is now bypassed — the new confirmed point is past it.
 			if (iLowestUnresolved != std::numeric_limits<int64_t>::max())
 			{
-				LOG(kNetwork, kVerbose, "CrcValidateLoop bypassed mismatch Coord: ({},{}) Tick: {} HighestMatch: {}", rWork.coord.x, rWork.coord.y, iLowestUnresolved, iTick);
+				LOG(kNetwork, kVerbose, "CrcValidateLoop Earlier mismatch resolved by later match Coord: ({},{}) MismatchTick: {} MatchTick: {}", rWork.coord.x, rWork.coord.y, iLowestUnresolved, iTick);
 				iLowestUnresolved = std::numeric_limits<int64_t>::max();
 			}
 		}
 		else
 		{
-			char acSharedCrc[20] {}, acClientCrc[20] {}, acServerInputCrc[20] {};
+			char acSharedCrc[20] {}, acClientCrc[20] {};
 			common::ToHex(std::span<char, 20>(acSharedCrc), it->second.sharedCrc);
 			common::ToHex(std::span<char, 20>(acClientCrc), rClientFrame.postRender.sharedCrc);
-			common::ToHex(std::span<char, 20>(acServerInputCrc), it->second.inputCrc);
-			LOG(kNetwork, kVerbose, "CrcValidateLoop sharedCrc mismatch Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} ServerInputCrc: {} StatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, acServerInputCrc, it->second.statusChanges.size());
+			LOG(kNetwork, kVerbose, "CrcValidateLoop sharedCrc mismatch Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} StatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, it->second.statusChanges.size());
 			for (const StatusChange& rStatusChange : it->second.statusChanges)
 			{
 				LOG(kNetwork, kVerbose, "  StatusChange type: {}", StatusChangeTypeName(rStatusChange.eType));
@@ -166,7 +165,7 @@ CrcFastPathCoordResult CrcFastPathProcessCoord(CoordWork& rWork, int64_t iTarget
 	{
 		result.bHandled = false;
 		result.iLowestUnresolvedMismatch = validateResult.iLowestUnresolvedMismatch;
-		LOG(kNetwork, kVerbose, "CrcFastPathProcessCoord Unresolved mismatch no matches Coord: ({},{}) LowestMismatch: {}", rWork.coord.x, rWork.coord.y, validateResult.iLowestUnresolvedMismatch);
+		LOG(kNetwork, kVerbose, "CrcFastPathProcessCoord No snapshot match, deferring to replay Coord: ({},{}) FirstMismatchTick: {}", rWork.coord.x, rWork.coord.y, validateResult.iLowestUnresolvedMismatch);
 	}
 	else if (rFrames.iConfirmedTick + 1 < iTargetTick)
 	{

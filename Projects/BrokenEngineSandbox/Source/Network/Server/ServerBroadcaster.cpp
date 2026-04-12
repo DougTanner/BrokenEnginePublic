@@ -132,8 +132,6 @@ void ServerBroadcaster::BroadcastStatusChanges(int64_t iTick)
 			updateData.statusChanges = std::span<const StatusChange>(it->second);
 		}
 
-		updateData.inputCrc = gpGame->mFrameInputs.at(rCoord).ServerInputCrc();
-
 		allGridUpdates.push_back({rCoord, updateData});
 
 		if (!updateData.statusChanges.empty())
@@ -226,7 +224,7 @@ void ServerBroadcaster::ProcessUpdatePlayerRequests()
 		StatusChange updateChange {.eType = StatusChangeType::kUpdatePlayer, .data = UpdatePlayerData{.iPlayerUuid = iPlayerUuid, .bUseMissiles = rRequest.bUseMissiles, .fNavigationDelay = rRequest.fNavigationDelay, .uiPendingWeaponModeTicks = uiPendingWeaponModeTicks}};
 		frameInputIt->second.statusChanges.push_back(updateChange);
 
-		LOG(kNetwork, kVerbose, "ServerBroadcaster::ProcessUpdatePlayerRequests Client: {} GlobalPlayer: {} PlayerUuid: {} Coord: ({},{}) Missiles: {} NavDelay: {}", rRequest.iClientId, rRequest.globalId.iValue, iPlayerUuid, updateCoord.x, updateCoord.y, rRequest.bUseMissiles, rRequest.fNavigationDelay);
+		LOG(kNetwork, kVerbose, "ServerBroadcaster::ProcessUpdatePlayerRequests Client: {} GlobalPlayer: {} PlayerUuid: {} Coord: ({},{}) Missiles: {} NavDelay: {}", rRequest.iClientId, rRequest.globalId, iPlayerUuid, updateCoord.x, updateCoord.y, rRequest.bUseMissiles, rRequest.fNavigationDelay);
 	}
 }
 

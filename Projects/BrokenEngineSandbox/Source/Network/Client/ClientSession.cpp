@@ -12,6 +12,23 @@ namespace game
 
 #if defined(BT_CLIENT)
 
+const char* ToString(SubscriptionChangeReason eReason)
+{
+	switch (eReason)
+	{
+		case SubscriptionChangeReason::kAssigned:       return "kAssigned";
+		case SubscriptionChangeReason::kSpawned:        return "kSpawned";
+		case SubscriptionChangeReason::kChangedFrame:   return "kChangedFrame";
+		case SubscriptionChangeReason::kDied:           return "kDied";
+		case SubscriptionChangeReason::kFleetSync:      return "kFleetSync";
+		case SubscriptionChangeReason::kPollTick:       return "kPollTick";
+		case SubscriptionChangeReason::kFocusNextFleet: return "kFocusNextFleet";
+		case SubscriptionChangeReason::kFocusPrevFleet: return "kFocusPrevFleet";
+		case SubscriptionChangeReason::kSelectPlayer:   return "kSelectPlayer";
+	}
+	return "Unknown";
+}
+
 ClientSession::ClientSession()
 {
 	gpClientSession = this;
@@ -72,10 +89,10 @@ void ClientSession::PollNetwork()
 			case PlayerEventType::kAssigned:
 				if (!gpGame->IsClientPlayer(rEvent.globalPlayerId))
 				{
-					LOG(kNetwork, kVerbose, "PlayerEvent kAssigned NewGlobalPlayerId: {} NewCoord: ({},{}) FocusedGlobalPlayerId: {} FocusedCoord: ({},{})", rEvent.globalPlayerId.iValue, rEvent.coord.x, rEvent.coord.y, gpGame->ClientPlayerId().iValue, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
+					LOG(kNetwork, kVerbose, "PlayerEvent kAssigned NewGlobalPlayerId: {} NewCoord: ({},{}) FocusedGlobalPlayerId: {} FocusedCoord: ({},{})", rEvent.globalPlayerId, rEvent.coord.x, rEvent.coord.y, gpGame->ClientPlayerId(), gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
 					gpGame->AddClientPlayer(rEvent.globalPlayerId, rEvent.coord);
 				}
-				UpdateDesiredCoords("kAssigned");
+				UpdateDesiredCoords(SubscriptionChangeReason::kAssigned);
 				break;
 			case PlayerEventType::kSpawned:
 			{
@@ -84,7 +101,7 @@ void ClientSession::PollNetwork()
 				{
 					gpGame->mClientGridCoord = rEvent.coord;
 				}
-				UpdateDesiredCoords("kSpawned");
+				UpdateDesiredCoords(SubscriptionChangeReason::kSpawned);
 				break;
 			}
 			case PlayerEventType::kChangedFrame:
@@ -105,12 +122,12 @@ void ClientSession::PollNetwork()
 						gpGame->miQuadrantDirY = -iDeltaY;
 					}
 				}
-				UpdateDesiredCoords("kChangedFrame");
+				UpdateDesiredCoords(SubscriptionChangeReason::kChangedFrame);
 				break;
 			}
 			case PlayerEventType::kDied:
 				gpGame->RemoveClientPlayer(rEvent.globalPlayerId);
-				UpdateDesiredCoords("kDied");
+				UpdateDesiredCoords(SubscriptionChangeReason::kDied);
 				break;
 		}
 	}
@@ -124,7 +141,7 @@ void ClientSession::PollNetwork()
 		gpGame->SyncFleets(std::move(receivedFleets));
 		if (gpGame->mClientGridCoord != preFleetCoord)
 		{
-			UpdateDesiredCoords("FleetSync");
+			UpdateDesiredCoords(SubscriptionChangeReason::kFleetSync);
 		}
 	}
 
@@ -197,7 +214,7 @@ void ClientSession::Reconcile()
 	}
 	gpProfileManager->CpuStop(engine::kCpuTimerNetworkPollReconcile, true);
 
-	UpdateDesiredCoords("tick");
+	UpdateDesiredCoords(SubscriptionChangeReason::kPollTick);
 	UpdateSubscriptions();
 }
 

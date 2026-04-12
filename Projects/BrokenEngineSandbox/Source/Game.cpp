@@ -97,7 +97,7 @@ void Game::RemoveClientPlayer(engine::global_id_t id)
 	{
 		if (mClientPlayerIds.at(i) == id)
 		{
-			LOG(kNetwork, kVerbose, "RemoveClientPlayer GlobalPlayerId: {} Index: {} OldPlayerCount: {}", id.iValue, i, std::ssize(mClientPlayerIds));
+			LOG(kNetwork, kVerbose, "RemoveClientPlayer GlobalPlayerId: {} Index: {} OldPlayerCount: {}", id, i, std::ssize(mClientPlayerIds));
 			mClientPlayerIds.erase(mClientPlayerIds.begin() + i);
 			mClientPlayerCoords.erase(mClientPlayerCoords.begin() + i);
 			return;

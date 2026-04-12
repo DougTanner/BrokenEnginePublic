@@ -40,9 +40,7 @@ flowchart TD
 
     REPLAY["ReconcileReplayCoord()<br/>replay capped at half<br/>available frames"]:::replay
 
-    REPLAY --> INPUTCRC{"Input CRC match?"}
-    INPUTCRC -->|"No"| DESYNC
-    INPUTCRC -->|"Yes"| CRCCHECK{"State CRC match?"}
+    REPLAY --> CRCCHECK{"State CRC match?"}
     CRCCHECK -->|"Yes"| NEXTSRV{"More server frames<br/>within cap?"}
     CRCCHECK -->|"No"| DESYNC["Store desync info,<br/>return early"]:::error
 

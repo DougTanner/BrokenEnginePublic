@@ -261,7 +261,6 @@ void Server::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, G
 		PerCoordBufferedFrame buffered {};
 		buffered.iTick = iTick;
 		buffered.sharedCrc = rUpdateData.sharedCrc;
-		buffered.inputCrc = rUpdateData.inputCrc;
 
 		if (!rUpdateData.statusChanges.empty())
 		{

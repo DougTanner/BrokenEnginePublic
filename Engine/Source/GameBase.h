@@ -66,7 +66,6 @@ struct CoordFrames
 	struct CoordServerUpdate
 	{
 		common::crc_t sharedCrc = 0;
-		common::crc_t inputCrc = 0;
 		std::vector<game::StatusChange> statusChanges;
 	};
 	std::map<int64_t, CoordServerUpdate> serverUpdates;

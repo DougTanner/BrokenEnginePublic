@@ -379,6 +379,8 @@ void Client::SendHello()
 	rWorkbuffer.PushBack<uint64_t>(mClientGuid.uiHigh);
 	rWorkbuffer.PushBack<uint64_t>(mClientGuid.uiLow);
 
+	miHelloSendTimeNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+
 	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	rWorkbuffer.Pop();

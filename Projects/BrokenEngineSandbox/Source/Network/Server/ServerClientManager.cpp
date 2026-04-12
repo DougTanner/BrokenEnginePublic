@@ -112,7 +112,7 @@ void ServerClientManager::NewClients()
 				rClient.authorizedCoords.push_back(rEntry.coord);
 				gpServerSession->SendAssignPlayer(rClient.iClientId, rEntry.globalId, rEntry.coord);
 				gpServerSession->SendPlayerState(rClient.iClientId, PlayerEventTypeToWire(PlayerEventType::kSpawned), rEntry.globalId.iValue, rEntry.coord);
-				LOG(kNetwork, kVerbose, "NewClients Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, rEntry.globalId.iValue, rEntry.coord.x, rEntry.coord.y);
+				LOG(kNetwork, kVerbose, "NewClients Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, rEntry.globalId, rEntry.coord.x, rEntry.coord.y);
 			}
 
 			if (!rNewClientOwnedIds.empty())
@@ -270,7 +270,7 @@ void ServerClientManager::DetectPlayerDeaths()
 			if (!bFound)
 			{
 				gpServerSession->SendPlayerState(rClient.iClientId, PlayerEventTypeToWire(PlayerEventType::kDied), globalId.iValue, coord);
-				LOG(kNetwork, kVerbose, "ServerClientManager::DetectPlayerDeaths Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, globalId.iValue, coord.x, coord.y);
+				LOG(kNetwork, kVerbose, "ServerClientManager::DetectPlayerDeaths Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, globalId, coord.x, coord.y);
 				rDeathOwnedIds.erase(rDeathOwnedIds.begin() + i);
 				rClient.authorizedCoords.erase(rClient.authorizedCoords.begin() + i);
 

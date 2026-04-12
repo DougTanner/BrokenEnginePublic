@@ -13,14 +13,15 @@ Foundation layer (`namespace common`) with no dependencies outside the codebase.
 - **PersistentWorker** - Dedicated reusable thread for recurring async work with semaphore-based wake/wait and exception forwarding
 - **Timer** - High-resolution steady-clock timer. `GetDeltaNs(bReset)` measures elapsed nanoseconds
 - **Smoothed\<T\>** - Rolling-average + drift-limited smoothed value. `operator=(sample)` feeds the ring; `Update()` nudges the output toward the rolling average by ±1 per call (snapping only when the gap exceeds the ring size); `Seed(value)` instantly primes both ring and output for one-shot initialization from a known measurement
-- **ThreadLocal** - Per-thread storage owning a log buffer and `Workbuffer`. Configures deterministic floating-point math on every thread. Accessed via `common::gpThreadLocal`
+- **ThreadLocal** - Per-thread storage owning a log buffer, `Workbuffer`, and optional `miLogTickCounter` for tick-prefixed log output. Configures deterministic floating-point math on every thread. Accessed via `common::gpThreadLocal`
 
 ## Architecture Notes
 
 ### Logging
 - **Public API**: `LOG(category, level, format, ...)` macro — always requires explicit category and level. Uses `if constexpr` against the project's `keLogLevels[]` constexpr array so filtered-out calls are eliminated entirely at compile time. Category aliases: `kDefault`, `kTemp`, `kAudio`, `kGraphics`, `kLoading`, `kNavData`, `kNetwork`, `kInput`. Level aliases: `kVerbose`, `kDebug`, `kInfo`, `kWarning`, `kError`. `kTemp` is reserved for AI agent temporary diagnostic logs
 - **`LogTypes.h`**: Declares `LogLevel`/`LogCategory` enums and all aliases. Included directly in `Pch.h` before `Common.h` so that `keLogLevels[]` and `LOG()` are available in every header, including `LogDifference.h` and `StackWalker.h`
-- **`Log()` function**: Unfiltered writer called by the `LOG()` macro after compile-time filtering. Takes a `LogCategory` and format string; writes zero-allocation into per-thread buffers via `std::format_to`
+- **`Log()` function**: Unfiltered writer called by the `LOG()` macro after compile-time filtering. Takes a `LogCategory` and format string; writes zero-allocation into per-thread buffers via `std::format_to`. `LogPrefix()` emits `[Tick: N] ` after the thread-id when `gpThreadLocal->miLogTickCounter >= 0`
+- **`LogTickScope`**: RAII helper that sets `gpThreadLocal->miLogTickCounter` on construct and restores the prior value on destruct. Supports nesting (e.g., reconciler overrides outer tick within its scope). Opened by `GameBase::ClientUpdate`/`ServerUpdate` so all logs within a tick are tagged
 - **`keLogLevels[]`**: Each project's `Pch.h` defines a `constexpr LogLevel keLogLevels[]` array (one entry per category) before including `Common.h`, enabling compile-time threshold checks via `LOG()` in all headers
 - **In-memory ring buffers**: Each log category has a 128-line wrapping ring buffer (`gLogRingBuffers[]`); a separate 1024-line write-once global buffer (`gLogGlobalBuffer`) captures all output. On crash, `LogDumpBuffers()` writes both to the crash report file
 - **DiagnosticLog**: `FILE_LOG_INIT(index, filename)` / `FILE_LOG(index, ...)` for thread-safe diagnostic output to up to 4 simultaneous log files. `FILE_LOG` is for data comparison logging with descriptive labels; prefer `LOG(category, kDebug, "")` for temporary diagnostic logging

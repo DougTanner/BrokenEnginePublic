@@ -7,7 +7,7 @@ namespace game
 
 #if defined(BT_CLIENT)
 
-void ClientSession::UpdateDesiredCoords(std::string_view reason)
+void ClientSession::UpdateDesiredCoords(SubscriptionChangeReason eReason)
 {
 	static constexpr int64_t kiMaxDesiredCoords = 8;
 	engine::GridCoord desiredCoords[kiMaxDesiredCoords] {};
@@ -60,21 +60,51 @@ void ClientSession::UpdateDesiredCoords(std::string_view reason)
 		// Heap: mDesiredCoords.assign and mUnwantedTimestamps may allocate on subscription changes
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-		LOG(kNetwork, kVerbose, "Desired subscriptions changed Reason: {} Count: {} -> {}", reason, mDesiredCoords.size(), iDesiredCount);
+		common::ScopedWorkbufferBuilder message(common::gpThreadLocal->mWorkbuffer);
+		message.Append("Desired subscriptions changed Reason: ");
+		message.Append(ToString(eReason));
+		message.Append(" Removed: [");
 
-		// Track when coords become unwanted for sticky subscriptions
+		auto appendCoord = [&message](bool& rbFirst, engine::GridCoord coord)
+		{
+			if (!rbFirst)
+			{
+				message.Append(",");
+			}
+			rbFirst = false;
+			message.Append("(");
+			message.Append(static_cast<int64_t>(coord.x));
+			message.Append(",");
+			message.Append(static_cast<int64_t>(coord.y));
+			message.Append(")");
+		};
+
+		// Track when coords become unwanted for sticky subscriptions; build removed list
 		std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+		bool bFirstRemoved = true;
 		for (const engine::GridCoord& rCoord : mDesiredCoords)
 		{
 			if (!std::ranges::contains(desiredSpan, rCoord))
 			{
 				mUnwantedTimestamps.try_emplace(rCoord, now);
+				appendCoord(bFirstRemoved, rCoord);
 			}
 		}
+		message.Append("] Added: [");
+		// Build added list; clear sticky timestamps for re-wanted coords
+		bool bFirstAdded = true;
 		for (const engine::GridCoord& rCoord : desiredSpan)
 		{
+			if (!std::ranges::contains(mDesiredCoords, rCoord))
+			{
+				appendCoord(bFirstAdded, rCoord);
+			}
 			mUnwantedTimestamps.erase(rCoord);
 		}
+		message.Append("]");
+
+		LOG(kNetwork, kVerbose, "{}", message);
+
 		mDesiredCoords.assign(desiredSpan.begin(), desiredSpan.end());
 	}
 }

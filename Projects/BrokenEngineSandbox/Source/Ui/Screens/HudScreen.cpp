@@ -80,12 +80,12 @@ void HudScreen::Render()
 		ImGuiIO& rIo = ImGui::GetIO();
 		ImDrawList* pDrawList = ImGui::GetBackgroundDrawList();
 
-		std::optional<int64_t> oIdx = gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers);
-		if (oIdx)
+		std::optional<int64_t> playerIndex = gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers);
+		if (playerIndex)
 		{
 			PlayersPostRender& rPlayers = *gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers;
-			RenderBar(pDrawList, rIo.DisplaySize, rPlayers.pfShields[*oIdx], kfShieldHalfWidthPerPoint, -1.0f, kuiShieldColor, mShieldIconVkDescriptorSet);
-			RenderBar(pDrawList, rIo.DisplaySize, rPlayers.pfArmors[*oIdx], kfArmorHalfWidthPerPoint, 1.0f, kuiArmorColor, mArmorIconVkDescriptorSet);
+			RenderBar(pDrawList, rIo.DisplaySize, rPlayers.pfShields[*playerIndex], kfShieldHalfWidthPerPoint, -1.0f, kuiShieldColor, mShieldIconVkDescriptorSet);
+			RenderBar(pDrawList, rIo.DisplaySize, rPlayers.pfArmors[*playerIndex], kfArmorHalfWidthPerPoint, 1.0f, kuiArmorColor, mArmorIconVkDescriptorSet);
 		}
 	}
 
@@ -113,7 +113,7 @@ void HudScreen::RenderFleetPanel()
 	if (ImGui::Button("[<]"))
 	{
 		gpGame->FocusPrevFleet();
-		gpClientSession->UpdateDesiredCoords("FocusPrevFleet");
+		gpClientSession->UpdateDesiredCoords(SubscriptionChangeReason::kFocusPrevFleet);
 		LOG(kDefault, kVerbose, "HUD FocusPrevFleet NewIndex: {} FleetCount: {}", gpGame->FocusedFleetIndex(), iFleetCount);
 	}
 	ImGui::EndDisabled();
@@ -133,7 +133,7 @@ void HudScreen::RenderFleetPanel()
 	if (ImGui::Button("[>]"))
 	{
 		gpGame->FocusNextFleet();
-		gpClientSession->UpdateDesiredCoords("FocusNextFleet");
+		gpClientSession->UpdateDesiredCoords(SubscriptionChangeReason::kFocusNextFleet);
 		LOG(kDefault, kVerbose, "HUD FocusNextFleet NewIndex: {} FleetCount: {}", gpGame->FocusedFleetIndex(), iFleetCount);
 	}
 	ImGui::EndDisabled();
@@ -201,7 +201,7 @@ void HudScreen::RenderFleetPanel()
 				if (ImGui::Selectable(pcLabel, bSelected))
 				{
 					gpGame->SelectPlayerInFleet(i);
-					gpClientSession->UpdateDesiredCoords("SelectPlayer");
+					gpClientSession->UpdateDesiredCoords(SubscriptionChangeReason::kSelectPlayer);
 				}
 			}
 			else

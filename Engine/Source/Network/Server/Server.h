@@ -88,7 +88,6 @@ struct PerCoordBufferedFrame
 {
 	int64_t iTick = 0;
 	common::crc_t sharedCrc = 0;
-	common::crc_t inputCrc = 0;
 	// Heap: variable-size compressed status change data per frame
 	std::vector<uint8_t> compressedData;
 };

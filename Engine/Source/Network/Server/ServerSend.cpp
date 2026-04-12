@@ -169,7 +169,6 @@ void Server::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, PacketTyp
 	rWorkbuffer.PushBack<int64_t>(rBuffered.iTick);
 	rWorkbuffer.PushBack<int64_t>(iTimestampNs);
 	rWorkbuffer.PushBack<uint64_t>(rBuffered.sharedCrc);
-	rWorkbuffer.PushBack<uint64_t>(rBuffered.inputCrc);
 
 	int32_t iCompressedSize = static_cast<int32_t>(rBuffered.compressedData.size());
 	rWorkbuffer.PushBack<int32_t>(iCompressedSize);

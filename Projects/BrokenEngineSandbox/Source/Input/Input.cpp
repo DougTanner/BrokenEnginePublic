@@ -116,48 +116,6 @@ common::crc_t FrameInput::Crc() const
 	return checksum;
 }
 
-common::crc_t FrameInput::ServerInputCrc() const
-{
-	common::crc_t checksum = 0;
-	for (const StatusChange& rStatusChange : statusChanges)
-	{
-		checksum ^= common::Crc(rStatusChange.eType);
-		if (const auto* pTransfer = std::get_if<TransferData>(&rStatusChange.data))
-		{
-			std::apply([&](const auto&... fields)
-			{
-				((checksum ^= common::Crc(fields)), ...);
-			}, pTransfer->SharedMembers());
-		}
-		else if (const auto* pUpdate = std::get_if<UpdatePlayerData>(&rStatusChange.data))
-		{
-			std::apply([&](const auto&... fields)
-			{
-				((checksum ^= common::Crc(fields)), ...);
-			}, pUpdate->SharedMembers());
-		}
-		else if (const auto* pSpawn = std::get_if<SpawnPlayerData>(&rStatusChange.data))
-		{
-			std::apply([&](const auto&... fields)
-			{
-				((checksum ^= common::Crc(fields)), ...);
-			}, pSpawn->SharedMembers());
-		}
-		else if (const auto* pFlagship = std::get_if<UpdateFleetData>(&rStatusChange.data))
-		{
-			std::apply([&](const auto&... fields)
-			{
-				((checksum ^= common::Crc(fields)), ...);
-			}, pFlagship->SharedMembers());
-		}
-		else
-		{
-			std::visit([&](const auto& payload) { checksum ^= common::Crc(payload); }, rStatusChange.data);
-		}
-	}
-	return checksum;
-}
-
 std::ostream& operator<<(std::ostream& rStream, const FrameInput& rInput)
 {
 	int64_t iStatusCount = static_cast<int64_t>(rInput.statusChanges.size());

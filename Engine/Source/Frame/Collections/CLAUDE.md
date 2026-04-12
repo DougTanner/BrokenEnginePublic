@@ -2,7 +2,7 @@
 
 ## Overview
 
-Template-based Structure-of-Arrays (SOA) collection system providing memory management, serialization, GPU rendering, and deterministic CRC validation. Engine-level collections cover lights, effects, audio, physics, and wind simulation, split between always-compiled (server-relevant) and client-only (visual/audio) via `#ifdef BT_CLIENT`. Also defines `global_id_t` (stable cross-transfer, cross-session entity identity, assigned at first spawn and carried in `TransferData`) with `GlobalIdHash` for use in `unordered_map`.
+Template-based Structure-of-Arrays (SOA) collection system providing memory management, serialization, GPU rendering, and deterministic CRC validation. Engine-level collections cover lights, effects, audio, physics, and wind simulation, split between always-compiled (server-relevant) and client-only (visual/audio) via `#ifdef BT_CLIENT`. Also defines `global_id_t` (stable cross-transfer, cross-session entity identity, assigned at first spawn and carried in `TransferData`) with `GlobalIdHash` for use in `unordered_map`, plus a `std::formatter<global_id_t>` specialization so values pass directly to `LOG()`/`std::format` (renders `(none)` for the 0 sentinel, otherwise delegates to `formatter<int64_t>`).
 
 ## Key Systems
 

@@ -209,8 +209,8 @@ void Client::ServerCoordStaticData(const uint8_t* pData, size_t iSize)
 
 void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool bProcessRtt)
 {
-	// 1B type + 1B slot + 2B epoch + 8B tick + 8B echoTs + 8B sharedCrc + 8B inputCrc + 4B compressedSize = 40 fixed bytes
-	if (iSize < 40)
+	// 1B type + 1B slot + 2B epoch + 8B tick + 8B echoTs + 8B sharedCrc + 4B compressedSize = 32 fixed bytes
+	if (iSize < 32)
 	{
 		return;
 	}
@@ -259,10 +259,9 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 	}
 
 	common::crc_t sharedCrc = static_cast<common::crc_t>(ReadUint64(pCursor));
-	common::crc_t inputCrc = static_cast<common::crc_t>(ReadUint64(pCursor));
 	int32_t iCompressedSize = ReadInt32(pCursor);
 
-	if (iCompressedSize < 0 || static_cast<size_t>(iCompressedSize) > iSize - 40)
+	if (iCompressedSize < 0 || static_cast<size_t>(iCompressedSize) > iSize - 32)
 	{
 		return;
 	}
@@ -272,7 +271,6 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 	ReceivedCoordUpdate update {};
 	update.iTick = iTick;
 	update.sharedCrc = sharedCrc;
-	update.inputCrc = inputCrc;
 
 	if (iCompressedSize > 0)
 	{
@@ -355,16 +353,14 @@ void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 			common::Write(guidStream, mClientGuid.uiLow);
 		}
 
-		// Seed smoothed pipeline RTT from ENet's handshake measurement so early frames have a reasonable value
-		if (mpServerPeer != nullptr)
+		// Seed smoothed pipeline RTT from game-layer handshake measurement so the value flows through the network sim
+		int64_t iNowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+		int64_t iRttUs = (miHelloSendTimeNs > 0) ? (iNowNs - miHelloSendTimeNs) / 1000 : 0;
+		if (iRttUs > 0 && iRttUs < 60'000'000)
 		{
-			int64_t iRttUs = static_cast<int64_t>(mpServerPeer->roundTripTime) * 1000;
-			if (iRttUs > 0)
-			{
-				mSmoothedPipelineRttUs.Seed(iRttUs);
-			}
-			LOG(kNetwork, kDebug, "Client::ServerConnectionResponse Handshake RTT: {} us", iRttUs);
+			mSmoothedPipelineRttUs.Seed(iRttUs);
 		}
+		LOG(kNetwork, kDebug, "Client::ServerConnectionResponse Handshake RTT: {} us", iRttUs);
 	}
 	else
 	{

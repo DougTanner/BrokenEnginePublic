@@ -247,7 +247,6 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 
 	int64_t iUpdateFleetCount = 0;
 	engine::GridCoord updateFleetCoord {};
-	uint8_t uiUpdateFleetPendingTicks = 0;
 
 	for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
 	{
@@ -290,7 +289,6 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 				if (iUpdateFleetCount == 0)
 				{
 					updateFleetCoord = rUpdate.fleetWantedCoord;
-					uiUpdateFleetPendingTicks = rUpdate.uiPendingFleetWantedCoordTicks;
 				}
 				++iUpdateFleetCount;
 			}
@@ -360,7 +358,7 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 
 	if (iUpdateFleetCount > 0)
 	{
-		LOG(kNetwork, kVerbose, "kUpdateFleet Count: {} WantedCoord: ({},{}) PendingTicks: {}", iUpdateFleetCount, updateFleetCoord.x, updateFleetCoord.y, uiUpdateFleetPendingTicks);
+		LOG(kNetwork, kVerbose, "kUpdateFleet Count: {} WantedCoord: ({},{})", iUpdateFleetCount, updateFleetCoord.x, updateFleetCoord.y);
 	}
 }
 
@@ -830,7 +828,7 @@ bool PlayersPostRender::LogDifferences(const PlayersPostRender& rOther) const
 		bEqual &= common::LogDifference_Vec("pVecIslandDestinations", i, pVecIslandDestinations[i], rOther.pVecIslandDestinations[i]);
 		bEqual &= common::LogDifference<"pClientGuids.uiHigh">(i, pClientGuids[i].uiHigh, rOther.pClientGuids[i].uiHigh);
 		bEqual &= common::LogDifference<"pClientGuids.uiLow">(i, pClientGuids[i].uiLow, rOther.pClientGuids[i].uiLow);
-		bEqual &= common::LogDifference<"pGlobalPlayerIds">(i, pGlobalPlayerIds[i].iValue, rOther.pGlobalPlayerIds[i].iValue);
+		bEqual &= common::LogDifference<"pGlobalPlayerIds">(i, pGlobalPlayerIds[i], rOther.pGlobalPlayerIds[i]);
 		bEqual &= common::LogDifference<"pFleetWantedCoords.x">(i, pFleetWantedCoords[i].x, rOther.pFleetWantedCoords[i].x);
 		bEqual &= common::LogDifference<"pFleetWantedCoords.y">(i, pFleetWantedCoords[i].y, rOther.pFleetWantedCoords[i].y);
 		bEqual &= common::LogDifference<"puiPendingFleetWantedCoordTicks">(i, puiPendingFleetWantedCoordTicks[i], rOther.puiPendingFleetWantedCoordTicks[i]);

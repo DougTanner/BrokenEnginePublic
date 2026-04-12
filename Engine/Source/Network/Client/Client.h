@@ -23,7 +23,6 @@ struct ReceivedCoordUpdate
 {
 	int64_t iTick = 0;
 	common::crc_t sharedCrc = 0;
-	common::crc_t inputCrc = 0;
 	// Heap: ENet packet data, variable per frame
 	std::vector<game::StatusChange> statusChanges;
 };
@@ -162,6 +161,7 @@ private:
 	// Pipeline RTT (timestamp echo)
 	common::Smoothed<int64_t> mSmoothedPipelineRttUs;
 	int64_t miLastEchoedTimestampNs = 0;
+	int64_t miHelloSendTimeNs = 0;
 
 	// Bandwidth tracking (host-level cumulative counters)
 	uint32_t muiPrevReceivedData = 0;

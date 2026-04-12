@@ -12,6 +12,21 @@ namespace game
 
 struct Frame;
 
+enum class SubscriptionChangeReason : uint8_t
+{
+	kAssigned,
+	kSpawned,
+	kChangedFrame,
+	kDied,
+	kFleetSync,
+	kPollTick,
+	kFocusNextFleet,
+	kFocusPrevFleet,
+	kSelectPlayer,
+};
+
+const char* ToString(SubscriptionChangeReason eReason);
+
 class ClientSession : public engine::ClientSessionBase
 {
 public:
@@ -49,7 +64,7 @@ public:
 	void SendFleetNavigationDelayRequest(int64_t iFleetIndex, float fDelay);
 
 	// Subscriptions
-	void UpdateDesiredCoords(std::string_view reason);
+	void UpdateDesiredCoords(SubscriptionChangeReason eReason);
 	void ClearStickySubscriptions() { mUnwantedTimestamps.clear(); }
 	void ClearSubscriptionState();
 

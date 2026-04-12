@@ -214,7 +214,6 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 
 			auto [it, bInserted] = rSub.serverUpdates.try_emplace(rUpdate.iTick, CoordFrames::CoordServerUpdate {
 				.sharedCrc = rUpdate.sharedCrc,
-				.inputCrc = rUpdate.inputCrc,
 				.statusChanges = std::move(rUpdate.statusChanges),
 			});
 			if (bInserted)

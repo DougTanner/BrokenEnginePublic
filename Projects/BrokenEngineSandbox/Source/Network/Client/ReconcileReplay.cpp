@@ -113,39 +113,30 @@ static bool ReconcileRunTickCoord(CoordWork& rWork, int64_t iTick, float fTime, 
 
 	// Apply transfer StatusChanges (runs after Destroy/Spawn to match server ordering)
 	bool bHadTransfers = false;
+	int64_t iTransferPlayerCount = 0;
+	int64_t iTransferBlasterCount = 0;
+	int64_t iTransferSpaceshipCount = 0;
+	int64_t iTransferMissileCount = 0;
 	for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
 	{
 		if (IsTransferType(rStatusChange.eType))
 		{
-			// Capture destination coord entity counts before/after spawn for logging
-			int64_t iPreCount = 0;
-			switch (rStatusChange.eType)
-			{
-				case StatusChangeType::kTransferPlayer:    iPreCount = pNext->postRender.pPlayers->iCount; break;
-				case StatusChangeType::kTransferBlaster:   iPreCount = pNext->postRender.pBlasters->iCount; break;
-				case StatusChangeType::kTransferSpaceship: iPreCount = pNext->postRender.pSpaceships->iCount; break;
-				case StatusChangeType::kTransferMissile:   iPreCount = pNext->postRender.pMissiles->iCount; break;
-				default: break;
-			}
-
 			SpawnTransfer(*pNext, rStatusChange.eType, std::get<TransferData>(rStatusChange.data), pNext->postRender.playerAlignment);
 			bHadTransfers = true;
 
-			int64_t iPostCount = 0;
 			switch (rStatusChange.eType)
 			{
-				case StatusChangeType::kTransferPlayer:    iPostCount = pNext->postRender.pPlayers->iCount; break;
-				case StatusChangeType::kTransferBlaster:   iPostCount = pNext->postRender.pBlasters->iCount; break;
-				case StatusChangeType::kTransferSpaceship: iPostCount = pNext->postRender.pSpaceships->iCount; break;
-				case StatusChangeType::kTransferMissile:   iPostCount = pNext->postRender.pMissiles->iCount; break;
+				case StatusChangeType::kTransferPlayer:    ++iTransferPlayerCount;    break;
+				case StatusChangeType::kTransferBlaster:   ++iTransferBlasterCount;   break;
+				case StatusChangeType::kTransferSpaceship: ++iTransferSpaceshipCount; break;
+				case StatusChangeType::kTransferMissile:   ++iTransferMissileCount;   break;
 				default: break;
 			}
-
-			int64_t iGlobalPlayerId = (rStatusChange.eType == StatusChangeType::kTransferPlayer)
-				? std::get<TransferData>(rStatusChange.data).globalPlayerId.iValue
-				: 0;
-			LOG(kNetwork, kVerbose, "SpawnTransfer applied Coord: ({},{}) Tick: {} Type: {} PreCount: {} PostCount: {} Player[globalId]: {} StatusChangeCount: {}", rWork.coord.x, rWork.coord.y, iTick, StatusChangeTypeName(rStatusChange.eType), iPreCount, iPostCount, iGlobalPlayerId, rFrameInput.statusChanges.size());
 		}
+	}
+	if (bHadTransfers)
+	{
+		LOG(kNetwork, kVerbose, "Client SpawnTransfers Coord: ({},{}) Tick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {}", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount);
 	}
 	std::erase_if(rFrameInput.statusChanges, [](const StatusChange& rStatusChange)
 	{
@@ -176,11 +167,10 @@ static bool ReconcileValidateCrcCoord(CoordWork& rWork, int64_t iTick, const eng
 
 	if (clientCrc != rUpdate.sharedCrc)
 	{
-		char acSharedCrc[20] {}, acClientCrc[20] {}, acServerInputCrc[20] {};
+		char acSharedCrc[20] {}, acClientCrc[20] {};
 		common::ToHex(std::span<char, 20>(acSharedCrc), rUpdate.sharedCrc);
 		common::ToHex(std::span<char, 20>(acClientCrc), clientCrc);
-		common::ToHex(std::span<char, 20>(acServerInputCrc), rUpdate.inputCrc);
-		LOG(kNetwork, kVerbose, "ReconcileValidateCrcCoord Desync Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} ServerInputCrc: {} ServerStatusChanges: {} ClientStatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, acServerInputCrc, rUpdate.statusChanges.size(), rFrameInput.statusChanges.size());
+		LOG(kNetwork, kVerbose, "ReconcileValidateCrcCoord Desync Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} ServerStatusChanges: {} ClientStatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, rUpdate.statusChanges.size(), rFrameInput.statusChanges.size());
 
 		rScratch.iDesyncTick = iTick;
 		rScratch.desyncExpectedCrc = rUpdate.sharedCrc;
