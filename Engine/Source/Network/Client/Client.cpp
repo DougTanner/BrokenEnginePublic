@@ -268,6 +268,7 @@ void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 	}
 	mFramesReceived.Set(1);
 
+	int64_t iPreviousFloor = rAck.iAckFloor;
 	while (rAck.uiReceivedBitfieldLow & 1ULL)
 	{
 		++rAck.iAckFloor;
@@ -277,6 +278,10 @@ void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 			rAck.uiReceivedBitfieldLow |= (1ULL << 63);
 		}
 		rAck.uiReceivedBitfieldHigh >>= 1;
+	}
+	if (rAck.iAckFloor != iPreviousFloor)
+	{
+		LOG(kNetwork, kVerbose, "Client::TrackReceivedTick FloorAdvance Slot: {} Floor: {} -> {}", iSlot, iPreviousFloor, rAck.iAckFloor);
 	}
 }
 

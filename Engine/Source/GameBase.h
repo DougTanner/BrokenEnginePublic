@@ -79,6 +79,26 @@ struct CoordFrames
 
 	uint64_t uiGeneration = 0;
 
+	// Log deduplication: suppress repeated mismatch logging when reconcile is stuck on same desync
+	int64_t iLastLoggedConfirmedTick = -1;
+	int64_t iLastLoggedFirstMismatch = -1;
+	int64_t iStuckFrameCount = 0;
+	static constexpr int64_t kiStuckLogInterval = 64;
+
+	// Per-coord log cooldowns: prevent redundant detail logging across multiple Run() calls
+	// within the same render frame (multiple ClientUpdates can fire at the same or adjacent ticks)
+	int64_t iLastMismatchDetailLogTick = -1;
+	int64_t iLastSpawnTransferLogTick = -1;
+	static constexpr int64_t kiMismatchDetailLogCooldown = 32;
+
+	// Repeated-work guard: detect if full replay is entered with identical state as last attempt.
+	// Set when entering full replay; checked on next entry to trip DEBUG_BREAK.
+	int64_t iLastReplayConfirmedTick = -1;
+	int64_t iLastReplayServerUpdateCount = -1;
+
+	// Delta-only throttle logging: only log when the computed max replay changes
+	int64_t iLastLoggedMaxReplay = -1;
+
 	void ResetClientState()
 	{
 		iConfirmedTick = -1;
@@ -91,6 +111,14 @@ struct CoordFrames
 		serverUpdates.clear();
 		pendingFullState.reset();
 		uiGeneration = 0;
+		iLastLoggedConfirmedTick = -1;
+		iLastLoggedFirstMismatch = -1;
+		iStuckFrameCount = 0;
+		iLastMismatchDetailLogTick = -1;
+		iLastSpawnTransferLogTick = -1;
+		iLastReplayConfirmedTick = -1;
+		iLastReplayServerUpdateCount = -1;
+		iLastLoggedMaxReplay = -1;
 	}
 #endif // BT_CLIENT
 };

@@ -14,6 +14,8 @@ enum class StatusChangeType : uint8_t
 	kDestroyPlayer,
 	kUpdatePlayer,
 	kUpdateFleet,
+
+	kCount,
 };
 
 inline bool IsTransferType(StatusChangeType eType)

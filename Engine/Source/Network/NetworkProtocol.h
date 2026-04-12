@@ -42,6 +42,40 @@ enum class ClientRequestFlags : uint8_t
 };
 using ClientRequestFlags_t = common::Flags<ClientRequestFlags>;
 
+inline constexpr const char* PacketTypeName(PacketType eType)
+{
+	switch (eType)
+	{
+		case PacketType::kServerCoordFullState:        return "kServerCoordFullState";
+		case PacketType::kServerCoordStaticData:       return "kServerCoordStaticData";
+		case PacketType::kServerCoordUpdate:           return "kServerCoordUpdate";
+		case PacketType::kServerCoordResend:           return "kServerCoordResend";
+		case PacketType::kClientSpawnRequest:           return "kClientSpawnRequest";
+		case PacketType::kServerDebugFrame:             return "kServerDebugFrame";
+		case PacketType::kClientDesyncReport:           return "kClientDesyncReport";
+		case PacketType::kClientAckStream:              return "kClientAckStream";
+		case PacketType::kClientDebugFrameRequest:      return "kClientDebugFrameRequest";
+		case PacketType::kClientHello:                  return "kClientHello";
+		case PacketType::kServerConnectionResponse:     return "kServerConnectionResponse";
+		case PacketType::kClientSubscribe:              return "kClientSubscribe";
+		case PacketType::kClientUnsubscribe:            return "kClientUnsubscribe";
+		case PacketType::kClientResyncRequest:          return "kClientResyncRequest";
+		case PacketType::kServerSubscribeAccept:        return "kServerSubscribeAccept";
+		case PacketType::kServerUnsubscribeAck:         return "kServerUnsubscribeAck";
+		case PacketType::kClientPauseRequest:           return "kClientPauseRequest";
+		case PacketType::kClientTimespeedRequest:       return "kClientTimespeedRequest";
+		case PacketType::kServerTimespeedUpdate:        return "kServerTimespeedUpdate";
+		case PacketType::kClientSaveRequest:            return "kClientSaveRequest";
+		case PacketType::kClientLoadRequest:            return "kClientLoadRequest";
+		case PacketType::kServerLoadNotification:       return "kServerLoadNotification";
+		case PacketType::kClientReplayRecordRequest:    return "kClientReplayRecordRequest";
+		case PacketType::kClientReplayPlaybackRequest:  return "kClientReplayPlaybackRequest";
+		case PacketType::kClientResetRequest:           return "kClientResetRequest";
+		case PacketType::kGamePacketStart:              return "kGamePacketStart";
+	}
+	return "Unknown";
+}
+
 // Protocol constants
 inline constexpr uint32_t kuiProtocolVersion = 3;
 inline constexpr uint16_t kuiDefaultPort = 27015;

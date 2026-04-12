@@ -204,7 +204,7 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 	}
 }
 
-constexpr int64_t kiTypeCount = static_cast<int64_t>(game::StatusChangeType::kUpdateFleet) + 1;
+constexpr int64_t kiTypeCount = static_cast<int64_t>(game::StatusChangeType::kCount);
 
 static void GroupIndicesByType(const game::StatusChange* pChanges, int64_t iCount, int64_t piOffsets[kiTypeCount], int64_t piCounts[kiTypeCount], int64_t* pSortedIndices)
 {

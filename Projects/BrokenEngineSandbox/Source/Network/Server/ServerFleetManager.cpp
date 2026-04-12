@@ -251,6 +251,7 @@ void ServerFleetManager::ProcessFlagshipUpdates()
 		}
 
 		// Send fleet wanted coord to all alive members
+		int64_t iMembersUpdated = 0;
 		for (int64_t i = 0; i < std::ssize(rFleet.members); ++i)
 		{
 			const FleetMember& rMember = rFleet.members.at(i);
@@ -287,11 +288,13 @@ void ServerFleetManager::ProcessFlagshipUpdates()
 							.uiPendingFleetWantedCoordTicks = rUpdate.uiPendingFleetWantedCoordTicks,
 						},
 					});
-					LOG(kNetwork, kVerbose, "ProcessFlagshipUpdates Guid: ({},{}) Fleet: {} GlobalId: {} Uuid: {} MemberCoord: ({},{}) IsFlagship: {} WantedCoord: ({},{})", rUpdate.clientGuid.uiHigh, rUpdate.clientGuid.uiLow, rUpdate.iFleetIndex, rMember.globalPlayerId, iPlayerUuid, memberCoord.x, memberCoord.y, bMemberIsFlagship, rUpdate.newWantedCoord.x, rUpdate.newWantedCoord.y);
+					++iMembersUpdated;
 					break;
 				}
 			}
 		}
+		LOG(kNetwork, kVerbose, "ProcessFlagshipUpdates Guid: ({},{}) Fleet: {} MembersUpdated: {} WantedCoord: ({},{})",
+			rUpdate.clientGuid.uiHigh, rUpdate.clientGuid.uiLow, rUpdate.iFleetIndex, iMembersUpdated, rUpdate.newWantedCoord.x, rUpdate.newWantedCoord.y);
 	}
 	mPendingFlagshipUpdates.clear();
 }

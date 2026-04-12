@@ -83,6 +83,13 @@ void Log(LogCategory eCategory, std::format_string<const TUV&...> format, const 
 	char* pLogBuffer = gpThreadLocal != nullptr ? gpThreadLocal->mpLogBuffer : spcLogBuffer;
 	char* pWrite = LogPrefix(pLogBuffer);
 
+	if (eCategory == LogCategory::kTemp)
+	{
+		constexpr const char kpcTempPrefix[] = "kTemp: ";
+		std::memcpy(pWrite, kpcTempPrefix, sizeof(kpcTempPrefix) - 1);
+		pWrite += sizeof(kpcTempPrefix) - 1;
+	}
+
 	pWrite = std::format_to(pWrite, format, parameters...);
 
 	*(pWrite++) = '\n';

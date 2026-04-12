@@ -48,8 +48,10 @@ struct CoordScratch
 	int64_t iNewConfirmedOffset = -1;
 	int64_t iOutputCount = 0;
 	bool bCrcFastPath = false;
-	bool bFullReplay = false;
+	bool bReplayed = false;
+	bool bShrunkRollback = false;
 	bool bReSimOccurred = false;
+	bool bSuppressRepeatLogs = false;
 	int64_t iPreReconcileTailTick = -1;
 	int64_t iTickCounter = 0;
 	float fCurrentTime = 0.0f;
@@ -102,6 +104,7 @@ private:
 	ConfirmedClientState mConfirmedClientState;
 	std::vector<CoordWork> mWorks;
 	uint64_t muiNextGeneration = 1;
+	float mfLastLoggedVisualErrorDelta = 0.0f;
 };
 
 } // namespace game

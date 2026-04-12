@@ -73,7 +73,7 @@ inline constexpr bool kbShowProfileTextByDefault = false;
 #include "LogTypes.h"
 
 inline constexpr LogLevel keLogLevelDefault  = kWarning;
-inline constexpr LogLevel keLogLevelTemp     = kWarning;
+inline constexpr LogLevel keLogLevelTemp     = kVerbose;
 
 inline constexpr LogLevel keLogLevelAudio    = kWarning;
 inline constexpr LogLevel keLogLevelGraphics = kWarning;
@@ -88,4 +88,4 @@ inline constexpr LogLevel keLogLevelInput    = kWarning;
 #include "Frame/Frame.h"
 #include "Engine.h"
 
-inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kEurope;
+inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kChina;

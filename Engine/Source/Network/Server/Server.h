@@ -43,6 +43,9 @@ struct ClientConnection
 	// Pipeline RTT: echoed back to client in update packets
 	int64_t iClientTimestampNs = 0;
 
+	// Delta-only resend logging: previous resend count per slot
+	std::vector<int64_t> prevResendCounts;
+
 	// Helpers
 	int64_t FindSlotForCoord(GridCoord coord) const
 	{
@@ -75,6 +78,10 @@ struct ClientConnection
 		uint16_t uiEpoch = coordAckStates.at(iSlot).uiEpoch;
 		coordAckStates.at(iSlot) = {};
 		coordAckStates.at(iSlot).uiEpoch = uiEpoch;
+		if (iSlot < std::ssize(prevResendCounts))
+		{
+			prevResendCounts.at(iSlot) = 0;
+		}
 	}
 
 	bool IsCoordSubscribed(GridCoord coord) const

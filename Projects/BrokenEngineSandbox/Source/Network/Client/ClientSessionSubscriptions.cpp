@@ -9,6 +9,11 @@ namespace game
 
 void ClientSession::UpdateDesiredCoords(SubscriptionChangeReason eReason)
 {
+	// Ensure tick prefix in log output even when called outside ClientUpdate (e.g., from UI)
+	std::optional<common::LogTickScope> optionalTickScope;
+	if (common::gpThreadLocal->miLogTickCounter < 0)
+		optionalTickScope.emplace(gpGame->TickCounter());
+
 	static constexpr int64_t kiMaxDesiredCoords = 8;
 	engine::GridCoord desiredCoords[kiMaxDesiredCoords] {};
 	int64_t iDesiredCount = 0;

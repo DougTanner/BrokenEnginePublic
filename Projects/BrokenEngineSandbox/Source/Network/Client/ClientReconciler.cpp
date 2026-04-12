@@ -88,8 +88,10 @@ ReconcileDesyncInfo ClientReconciler::Run()
 		rScratch.iNewConfirmedOffset = -1;
 		rScratch.iOutputCount = 0;
 		rScratch.bCrcFastPath = false;
-		rScratch.bFullReplay = false;
+		rScratch.bReplayed = false;
+		rScratch.bShrunkRollback = false;
 		rScratch.bReSimOccurred = false;
+		rScratch.bSuppressRepeatLogs = false;
 		rScratch.iPreReconcileTailTick = -1;
 		rScratch.iTickCounter = 0;
 		rScratch.fCurrentTime = 0.0f;
@@ -143,14 +145,18 @@ ReconcileDesyncInfo ClientReconciler::Run()
 		}
 
 		// Audio voice invalidation skip is gated on the human coord experiencing a full replay.
-		if (rScratch.bFullReplay && rWork.coord == mConfirmedClientState.clientGridCoord)
+		if (rScratch.bReplayed && rWork.coord == mConfirmedClientState.clientGridCoord)
 		{
 			bAnyFullReplay = true;
 		}
 
-		if (rScratch.iDesyncTick >= 0 || (rScratch.bFullReplay && rScratch.bReSimOccurred))
+		if (rScratch.iDesyncTick >= 0 || (rScratch.bReplayed && rScratch.bReSimOccurred))
 		{
-			LOG(kNetwork, kVerbose, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} ReplayStackCount: {} LastValidatedIndex: {} CrcFastPath: {} FullReplay: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iReplayStackCount, rScratch.iLastValidatedIndex, rScratch.bCrcFastPath, rScratch.bFullReplay, rScratch.iDesyncTick);
+			bool bLogThis = !rScratch.bSuppressRepeatLogs || (rWork.pFrames->iStuckFrameCount % engine::CoordFrames::kiStuckLogInterval == 0);
+			if (bLogThis)
+			{
+				LOG(kNetwork, kVerbose, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} ReplayStackCount: {} LastValidatedIndex: {} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iReplayStackCount, rScratch.iLastValidatedIndex, rScratch.bCrcFastPath, rScratch.bReplayed, rScratch.bShrunkRollback, rScratch.iDesyncTick);
+			}
 		}
 	}
 
@@ -183,13 +189,27 @@ ReconcileDesyncInfo ClientReconciler::Run()
 		{
 			XMVECTOR vecError = XMVectorSubtract(vecPreWritebackPosition, vecPostWritebackPosition);
 			XMVECTOR vecTotal = XMVectorAdd(gpGame->mVecVisualErrorOffset, vecError);
-			if (XMVectorGetX(XMVector3Length(vecTotal)) > Game::kfVisualErrorMaxDistance)
+			float fTotal = XMVectorGetX(XMVector3Length(vecTotal));
+			if (fTotal > Game::kfVisualErrorMaxDistance)
 			{
 				gpGame->mVecVisualErrorOffset = {};
+				LOG(kNetwork, kWarning, "Visual error offset reset (exceeded max) Coord: ({},{}) Delta: {:.3f} Max: {:.1f}", gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, XMVectorGetX(XMVector3Length(vecError)), Game::kfVisualErrorMaxDistance);
 			}
 			else
 			{
 				gpGame->mVecVisualErrorOffset = vecTotal;
+				float fDelta = XMVectorGetX(XMVector3Length(vecError));
+				if (fTotal > 0.1f)
+				{
+					float fChange = (mfLastLoggedVisualErrorDelta > 0.0f)
+						? std::abs(fDelta - mfLastLoggedVisualErrorDelta) / mfLastLoggedVisualErrorDelta
+						: 1.0f;
+					if (fChange > 0.15f)
+					{
+						LOG(kNetwork, kVerbose, "Visual error offset Coord: ({},{}) Delta: {:.3f} Accumulated: {:.3f}", gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, fDelta, fTotal);
+						mfLastLoggedVisualErrorDelta = fDelta;
+					}
+				}
 			}
 		}
 	}
@@ -214,6 +234,7 @@ void ClientReconciler::Reset()
 	mConfirmedClientState = {};
 	mWorks.clear();
 	muiNextGeneration = 1;
+	mfLastLoggedVisualErrorDelta = 0.0f;
 }
 
 #endif // BT_CLIENT

@@ -145,7 +145,7 @@ inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const Netw
 					std::memcpy(&iTick, rEvent.packet->data + 4, sizeof(iTick));
 				}
 				++siCoordDropCounts[iSlot];
-				LOG(kNetwork, kVerbose, "NetworkSimulation dropped coord packet Slot: {} Tick: {} Type: {} Size: {} TotalDrops: {} Consecutive: {}", iSlot, iTick, uiPacketType, rEvent.packet->dataLength, siCoordDropCounts[iSlot], dropResult.iConsecutive);
+				LOG(kNetwork, kVerbose, "NetworkSimulation dropped coord packet Slot: {} Tick: {} Type: {} Size: {} TotalDrops: {} Consecutive: {}", iSlot, iTick, PacketTypeName(static_cast<PacketType>(uiPacketType)), rEvent.packet->dataLength, siCoordDropCounts[iSlot], dropResult.iConsecutive);
 			}
 			else
 			{

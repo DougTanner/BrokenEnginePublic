@@ -218,12 +218,20 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 	{
 		if (!rClient.coordSubscriptions.at(iSlot).bActive)
 		{
+			if (rClient.prevResendCounts.at(iSlot) != 0)
+			{
+				rClient.prevResendCounts.at(iSlot) = 0;
+			}
 			continue;
 		}
 
 		const AckState& rAckState = rClient.coordAckStates.at(iSlot);
 		if (rAckState.iAckFloor < 0)
 		{
+			if (rClient.prevResendCounts.at(iSlot) != 0)
+			{
+				rClient.prevResendCounts.at(iSlot) = 0;
+			}
 			continue;
 		}
 
@@ -237,6 +245,10 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 
 		if (rAckState.uiReceivedBitfieldLow == 0 && rAckState.uiReceivedBitfieldHigh == 0)
 		{
+			if (rClient.prevResendCounts.at(iSlot) != 0)
+			{
+				rClient.prevResendCounts.at(iSlot) = 0;
+			}
 			continue;
 		}
 		int64_t iScanLimit = (rAckState.uiReceivedBitfieldHigh != 0)
@@ -277,9 +289,13 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 			++iSlotResendCount;
 		}
 
-		if (iSlotResendCount > 0)
+		if (iSlotResendCount != rClient.prevResendCounts.at(iSlot))
 		{
-			LOG(kNetwork, kVerbose, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {}", rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount);
+			if (iSlotResendCount > 0)
+			{
+				LOG(kNetwork, kVerbose, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {}", rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount);
+			}
+			rClient.prevResendCounts.at(iSlot) = iSlotResendCount;
 		}
 	}
 }

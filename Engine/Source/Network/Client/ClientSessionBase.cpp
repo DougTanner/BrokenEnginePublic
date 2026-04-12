@@ -40,6 +40,7 @@ void ClientSessionBase::DisconnectFromServerBase()
 	miLastPeriodicClockLogTick = -1;
 	mbClockErrorDisconnect = false;
 	miConsecutiveClockErrorFrames = 0;
+	miLastClockErrorLogTick = -1;
 }
 
 void ClientSessionBase::StartServerDiscovery()
@@ -289,13 +290,18 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 	miClockTargetBehind = miCurrentTargetBehind;
 
 	bool bPeriodicTrigger = (iPreReconcileTick % (kiTickRate * 32) == 0) && (iPreReconcileTick != miLastPeriodicClockLogTick);
-	if (miCurrentTargetBehind != miLastLoggedClockTargetBehind || bPeriodicTrigger)
+	bool bErrorTrigger = std::abs(iError) >= 4 && iPreReconcileTick != miLastClockErrorLogTick;
+	if (miCurrentTargetBehind != miLastLoggedClockTargetBehind || bPeriodicTrigger || bErrorTrigger)
 	{
 		LOG(kNetwork, kVerbose, "ClockSync TargetBehind: {} Error: {} Offset: {} JitterUs: {} LatestServer: {} SimTick: {}", miCurrentTargetBehind, iError, iOffset, iJitterUs, miLatestServerTick, iPreReconcileTick);
 		miLastLoggedClockTargetBehind = miCurrentTargetBehind;
 		if (bPeriodicTrigger)
 		{
 			miLastPeriodicClockLogTick = iPreReconcileTick;
+		}
+		if (bErrorTrigger)
+		{
+			miLastClockErrorLogTick = iPreReconcileTick;
 		}
 	}
 
@@ -317,9 +323,9 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 		miConsecutiveClockErrorFrames = 0;
 	}
 
-	if (std::abs(iError) >= 4)
+	if (std::abs(iError) < 4)
 	{
-		LOG(kNetwork, kVerbose, "ClientSessionBase::ComputeClockCorrectionNs Clock error Error: {} Offset: {} TargetBehind: {} JitterUs: {} LatestServerTick: {} PreReconcileTick: {}", iError, iOffset, miCurrentTargetBehind, iJitterUs, miLatestServerTick, iPreReconcileTick);
+		miLastClockErrorLogTick = -1;
 	}
 
 	int64_t iCorrectionSteps = std::clamp(iError, -4LL, 4LL);

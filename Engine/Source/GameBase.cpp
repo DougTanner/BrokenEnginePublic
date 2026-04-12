@@ -117,7 +117,7 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 	}
 	else if (iFullTicks != 1) [[unlikely]]
 	{
-		LOG(kDefault, kWarning, "iFullTicks: {} != 1", iFullTicks);
+		LOG(kDefault, kWarning, "ServerUpdate FullTicks: {} (expected 1)", iFullTicks);
 	}
 	PrepareActiveSet();
 

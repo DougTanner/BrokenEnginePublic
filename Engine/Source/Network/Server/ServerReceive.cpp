@@ -52,10 +52,17 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 			}
 			else
 			{
+				LOG(kNetwork, kVerbose, "Server::ClientAckStream FloorAdvance Client: {} Slot: {} Floor: {} -> {}", iClientId, uiSlotIndex, rAckState.iAckFloor, iSlotAckFloor);
 				rAckState.iAckFloor = iSlotAckFloor;
 				rAckState.uiReceivedBitfieldLow = uiSlotBitfieldLow;
 				rAckState.uiReceivedBitfieldHigh = uiSlotBitfieldHigh;
 			}
+		}
+		else if (uiSlotIndex < std::ssize(pClient->coordSubscriptions) &&
+			pClient->coordSubscriptions.at(uiSlotIndex).bActive &&
+			uiSlotEpoch != pClient->coordAckStates.at(uiSlotIndex).uiEpoch)
+		{
+			LOG(kNetwork, kVerbose, "Server::ClientAckStream EpochMismatch Client: {} Slot: {} ClientEpoch: {} ServerEpoch: {}", iClientId, uiSlotIndex, uiSlotEpoch, pClient->coordAckStates.at(uiSlotIndex).uiEpoch);
 		}
 	}
 
@@ -179,8 +186,8 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPee
 
 void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
 {
-	// 1B type + 4B protocolVersion = 5 minimum bytes
-	if (iSize < 5)
+	// 1B type + 4B protocolVersion + 8B frameVersion = 13 minimum bytes
+	if (iSize < 13)
 	{
 		return;
 	}
@@ -192,6 +199,19 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	{
 		char pcMessage[256] {};
 		snprintf(pcMessage, sizeof(pcMessage), "Protocol version mismatch: server is %u, client is %u", kuiProtocolVersion, uiClientProtocolVersion);
+		LOG(kNetwork, kWarning, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
+
+		SendConnectionResponse(pPeer, false, pcMessage, nullptr);
+		RemoveClient(iClientId);
+		enet_peer_disconnect_later(pPeer, 0);
+		return;
+	}
+
+	int64_t iClientFrameVersion = ReadInt64(pCursor);
+	if (iClientFrameVersion != game::Frame::kiVersion)
+	{
+		char pcMessage[256] {};
+		snprintf(pcMessage, sizeof(pcMessage), "Frame version mismatch: server is %lld, client is %lld", game::Frame::kiVersion, iClientFrameVersion);
 		LOG(kNetwork, kWarning, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
 
 		SendConnectionResponse(pPeer, false, pcMessage, nullptr);

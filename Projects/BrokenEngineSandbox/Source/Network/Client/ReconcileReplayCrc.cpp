@@ -34,12 +34,16 @@ struct CrcValidateResult
 	int64_t iLowestUnresolvedMismatch = -1;
 };
 
-static CrcValidateResult CrcValidateLoop(CoordWork& rWork, int64_t iTargetTick)
+static CrcValidateResult CrcValidateLoop(CoordWork& rWork, int64_t iTargetTick, bool bSuppressRepeatLogs)
 {
 	engine::CoordFrames& rFrames = *rWork.pFrames;
 
 	CrcValidateResult result;
 	int64_t iLowestUnresolved = std::numeric_limits<int64_t>::max();
+	int64_t iMismatchCount = 0;
+	int64_t iAdditionalMismatchesWithStatusChanges = 0;
+	int64_t iSecondMismatchTick = -1;
+	int64_t iLastMismatchTick = -1;
 
 	// Walk in tick-ascending order. iHighestMatch grows monotonically, so whenever it advances
 	// any prior-tracked mismatch becomes bypassed (older than the new confirmed tick) and we
@@ -70,19 +74,66 @@ static CrcValidateResult CrcValidateLoop(CoordWork& rWork, int64_t iTargetTick)
 		}
 		else
 		{
-			char acSharedCrc[20] {}, acClientCrc[20] {};
-			common::ToHex(std::span<char, 20>(acSharedCrc), it->second.sharedCrc);
-			common::ToHex(std::span<char, 20>(acClientCrc), rClientFrame.postRender.sharedCrc);
-			LOG(kNetwork, kVerbose, "CrcValidateLoop sharedCrc mismatch Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} StatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, it->second.statusChanges.size());
-			for (const StatusChange& rStatusChange : it->second.statusChanges)
+			if (!bSuppressRepeatLogs && iMismatchCount == 0)
 			{
-				LOG(kNetwork, kVerbose, "  StatusChange type: {}", StatusChangeTypeName(rStatusChange.eType));
+				char acSharedCrc[20] {}, acClientCrc[20] {};
+				common::ToHex(std::span<char, 20>(acSharedCrc), it->second.sharedCrc);
+				common::ToHex(std::span<char, 20>(acClientCrc), rClientFrame.postRender.sharedCrc);
+
+				// Collapse StatusChange types into counted format
+				common::ScopedWorkbufferBuilder builder(common::gpThreadLocal->mWorkbuffer);
+				if (!it->second.statusChanges.empty())
+				{
+					int64_t counts[static_cast<int64_t>(StatusChangeType::kCount)] {};
+					for (const StatusChange& rStatusChange : it->second.statusChanges)
+					{
+						++counts[static_cast<int64_t>(rStatusChange.eType)];
+					}
+					bool bFirst = true;
+					for (int64_t i = 0; i < static_cast<int64_t>(StatusChangeType::kCount); ++i)
+					{
+						if (counts[i] > 0)
+						{
+							if (!bFirst)
+							{
+								builder.Append(", ");
+							}
+							builder.Append(StatusChangeTypeName(static_cast<StatusChangeType>(i)));
+							if (counts[i] > 1)
+							{
+								builder.Append("x");
+								builder.Append(counts[i]);
+							}
+							bFirst = false;
+						}
+					}
+				}
+
+				LOG(kNetwork, kVerbose, "CrcValidateLoop sharedCrc mismatch Coord: ({},{}) Tick: {} ServerCrc: {} ClientCrc: {} StatusChanges: {} [{}]", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, it->second.statusChanges.size(), builder.View());
 			}
+			++iMismatchCount;
+			if (iMismatchCount > 1)
+			{
+				if (iSecondMismatchTick < 0)
+				{
+					iSecondMismatchTick = iTick;
+				}
+				if (!it->second.statusChanges.empty())
+				{
+					++iAdditionalMismatchesWithStatusChanges;
+				}
+			}
+			iLastMismatchTick = iTick;
 			if (iLowestUnresolved == std::numeric_limits<int64_t>::max())
 			{
 				iLowestUnresolved = iTick;
 			}
 		}
+	}
+
+	if (!bSuppressRepeatLogs && iMismatchCount > 1)
+	{
+		LOG(kNetwork, kVerbose, "CrcValidateLoop {} additional mismatches Coord: ({},{}) Ticks: {}-{} ({} with StatusChanges)", iMismatchCount - 1, rWork.coord.x, rWork.coord.y, iSecondMismatchTick, iLastMismatchTick, iAdditionalMismatchesWithStatusChanges);
 	}
 
 	if (iLowestUnresolved != std::numeric_limits<int64_t>::max())
@@ -129,7 +180,46 @@ CrcFastPathCoordResult CrcFastPathProcessCoord(CoordWork& rWork, int64_t iTarget
 		return result;
 	}
 
-	CrcValidateResult validateResult = CrcValidateLoop(rWork, iTargetTick);
+	// Compute log suppression: if confirmed tick and first mismatch tick are unchanged from
+	// last frame, this is a repeat stuck state — suppress per-tick mismatch detail logging.
+	bool bSameState = (rFrames.iConfirmedTick == rFrames.iLastLoggedConfirmedTick);
+	if (bSameState && !rFrames.serverUpdates.empty())
+	{
+		auto itFirst = rFrames.serverUpdates.upper_bound(rFrames.iConfirmedTick);
+		bSameState = (itFirst != rFrames.serverUpdates.end() && itFirst->first == rFrames.iLastLoggedFirstMismatch);
+	}
+
+	// Cooldown: suppress detail logging when mismatch was recently logged (covers multiple
+	// Run() calls at the same or adjacent ticks within a single render frame)
+	bool bCooldownActive = (rFrames.iLastMismatchDetailLogTick >= 0 &&
+		iTargetTick - rFrames.iLastMismatchDetailLogTick < engine::CoordFrames::kiMismatchDetailLogCooldown);
+
+	CrcValidateResult validateResult = CrcValidateLoop(rWork, iTargetTick, bSameState || bCooldownActive);
+
+	// Update dedup state after validation
+	if (bSameState)
+	{
+		++rFrames.iStuckFrameCount;
+		rWork.scratch.bSuppressRepeatLogs = true;
+		if ((rFrames.iStuckFrameCount % engine::CoordFrames::kiStuckLogInterval) == 0)
+		{
+			LOG(kNetwork, kVerbose, "CrcValidateLoop still stuck Coord: ({},{}) ConfirmedTick: {} FirstMismatch: {} StuckFrames: {}", rWork.coord.x, rWork.coord.y, rFrames.iConfirmedTick, rFrames.iLastLoggedFirstMismatch, rFrames.iStuckFrameCount);
+		}
+	}
+	else if (!validateResult.bMatch)
+	{
+		rFrames.iLastLoggedConfirmedTick = rFrames.iConfirmedTick;
+		rFrames.iLastLoggedFirstMismatch = validateResult.iLowestUnresolvedMismatch;
+		rFrames.iStuckFrameCount = 0;
+		if (!bCooldownActive)
+		{
+			rFrames.iLastMismatchDetailLogTick = iTargetTick;
+		}
+		else
+		{
+			rWork.scratch.bSuppressRepeatLogs = true;
+		}
+	}
 
 	// Gap at confirmed+1 with no matches/mismatches: first server update is non-consecutive
 	// and nothing was validatable. Nothing for the fast path or full replay to do this cycle.
@@ -158,14 +248,20 @@ CrcFastPathCoordResult CrcFastPathProcessCoord(CoordWork& rWork, int64_t iTarget
 		{
 			result.bHandled = false;
 			result.iLowestUnresolvedMismatch = validateResult.iLowestUnresolvedMismatch;
-			LOG(kNetwork, kVerbose, "CrcFastPathProcessCoord Matched with unresolved mismatch Coord: ({},{}) HighestMatch: {} LowestMismatch: {}", rWork.coord.x, rWork.coord.y, validateResult.iHighestMatch, validateResult.iLowestUnresolvedMismatch);
+			if (!rWork.scratch.bSuppressRepeatLogs)
+			{
+				LOG(kNetwork, kVerbose, "CrcFastPathProcessCoord Matched with unresolved mismatch Coord: ({},{}) HighestMatch: {} LowestMismatch: {}", rWork.coord.x, rWork.coord.y, validateResult.iHighestMatch, validateResult.iLowestUnresolvedMismatch);
+			}
 		}
 	}
 	else if (!validateResult.bMatch)
 	{
 		result.bHandled = false;
 		result.iLowestUnresolvedMismatch = validateResult.iLowestUnresolvedMismatch;
-		LOG(kNetwork, kVerbose, "CrcFastPathProcessCoord No snapshot match, deferring to replay Coord: ({},{}) FirstMismatchTick: {}", rWork.coord.x, rWork.coord.y, validateResult.iLowestUnresolvedMismatch);
+		if (!rWork.scratch.bSuppressRepeatLogs)
+		{
+			LOG(kNetwork, kVerbose, "CrcFastPathProcessCoord No snapshot match, deferring to replay Coord: ({},{}) FirstMismatchTick: {}", rWork.coord.x, rWork.coord.y, validateResult.iLowestUnresolvedMismatch);
+		}
 	}
 	else if (rFrames.iConfirmedTick + 1 < iTargetTick)
 	{

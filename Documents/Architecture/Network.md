@@ -30,7 +30,7 @@
      - A `pendingFullState` is queued — it must be injected at `iConfirmedTick`, which forces the rollback base to be confirmed
      - No speculative snapshot exists in the ring at `iShrunkTick` (pruned or never captured)
      - Shrunk rollback was attempted but desynced at its very first replay tick — interpreted as the speculative starting state being bad. The two-tier fallback clears desync state, resets replay, and retries from `iConfirmedTick`
-     - Note: the `FullReplay: true` field in `Reconcile post-replay` log lines means "rollback-and-replay pipeline ran" (non-fast-path), *not* "full rollback was used" — the shrunk-vs-full choice is not currently logged
+     - Note: the `Replayed: true` field in `Reconcile post-replay` log lines means "rollback-and-replay pipeline ran" (non-fast-path), *not* "full rollback was used" — the `ShrunkRollback:` field distinguishes shrunk vs full rollback
   2. Replay each buffered server update tick-by-tick, applying its StatusChanges and CRC-validating against the server's `sharedCrc`. Matching ticks advance `iConfirmedTick` in the same pass
   3. If a replayed Tick still CRC-fails *with* its StatusChanges applied, that is a genuine desync → escalate to resync/disconnect
   4. This is strictly better than "re-simulate forward with empty inputs": buffered server updates carry StatusChanges that must be folded in, otherwise every subsequent Tick would immediately mismatch again and thrash reconciliation every frame until the buffer drains

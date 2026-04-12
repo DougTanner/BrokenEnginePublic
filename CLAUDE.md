@@ -8,19 +8,29 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 - **Graphics API**: Vulkan 1.2
 - **Platform**: Windows 10+
 
+## Resolve ambiguities automatically where possible
+
+1. When multiple options exist, send each possibility to an Opus subagent with directions to validate this idea and create a plan
+2. Compare the valid ideas returned from the subagents, and weigh their pros and cons
+3. If no solution is superior, choose the simplest
+4. If architectural decisions need to be made; query the user for feedback, making sure to concisely but fully explain:
+	a) The problem
+	b) The proposed solutions
+	c) The pros and cons of each
+
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
 0. The user will use plan mode to create a planning document (or load a plan from a file)
 	- DO NOT add a 'Verification' section
-0.5. Invoke /external-grill-plan to interview the user about the plan — resolve ambiguities, gather missing information, and ensure plan completeness before implementation. **When the grill completes, DO NOT stop or summarize — immediately continue to step 1 in the same turn.**
-1. Make the code changes using the planning document
-2. Any new files created should be added to the appropriate filter in any relevant .vcproj files
-3. Build the affected projects and verify there are no errors (see Build section below)
-4. Use a Opus subagent to search the codebase and update all locations in the code affected by this modified code
-5. Use a Opus subagent to invoke the code-review skill (evaluate advice for validity, query user if unsure). If review flags any files for `/reduce-file`, invoke it on them
-6. Use a Opus subagent to invoke the code-style-review skill
-7. Use a Opus subagent to invoke the update-claude-docs skill
-8. After all previous steps (1-8) have completed, have an Opus subagent do a full audit/review of all the files changed in this session
-9. Inform the user if the subagent in step #8 found any problems and how severe they were (interrogate user about what to fix and how)
+1. Invoke /external-grill-plan to interview the user about the plan — resolve ambiguities, gather missing information, and ensure plan completeness before implementation. **When the grill completes, DO NOT stop or summarize — immediately continue to step 1 in the same turn.**
+2. Make the code changes using the planning document
+3. Use a Opus subagent to search the codebase and update all locations in the code affected by this modified code
+4. Use a Opus subagent to invoke the code-review skill (evaluate advice for validity, query user if unsure). If review flags any files for `/reduce-file`, invoke it on them
+5. Use a Opus subagent to invoke the code-style-review skill
+6. Use a Opus subagent to invoke the update-claude-docs skill
+7. Any new files created should be added to the appropriate filter in any relevant .vcproj files
+8. Build the affected projects and verify there are no errors (see Build section below)
+9. After all previous steps have completed, have an Opus subagent do a full audit/review of all the files changed in this session
+10. Inform the user if the subagent in the previous step found any problems and how severe they were (interrogate user about what to fix and how)
 
 ## IMPORTANT Directives
 - Follow KISS, YAGNI, DRY at all times
