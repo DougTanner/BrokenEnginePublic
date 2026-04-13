@@ -348,8 +348,12 @@ extern Wrapper gSpreadHeightIntensity;
 extern Wrapper gSpreadHeightIntensityTarget;
 
 // Combine
-extern Wrapper gCombineExposure;
-extern Wrapper gCombinePower;
+extern Wrapper gCombineIntensityOne;
+extern Wrapper gCombinePowerOne;
+extern Wrapper gCombineIntensityTwo;
+extern Wrapper gCombinePowerTwo;
+extern Wrapper gCombineIntensityThree;
+extern Wrapper gCombinePowerThree;
 extern Wrapper gCombinePassNormalize;
 extern Wrapper gCombineExposurePassScale;
 extern Wrapper gLightingSampledNormalsSize;

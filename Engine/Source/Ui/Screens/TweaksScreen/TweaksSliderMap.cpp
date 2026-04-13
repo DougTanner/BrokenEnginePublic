@@ -145,8 +145,12 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Lighting Blur Sample Count", &gLightingBlurSampleCount},
 		{"Lighting Blur Edge Falloff", &gLightingBlurEdgeFalloff},
 
-		{"Combine Exposure", &gCombineExposure},
-		{"Combine Power", &gCombinePower},
+		{"Combine Intensity One", &gCombineIntensityOne},
+		{"Combine Power One", &gCombinePowerOne},
+		{"Combine Intensity Two", &gCombineIntensityTwo},
+		{"Combine Power Two", &gCombinePowerTwo},
+		{"Combine Intensity Three", &gCombineIntensityThree},
+		{"Combine Power Three", &gCombinePowerThree},
 		{"Combine Pass Normalize", &gCombinePassNormalize},
 		{"Combine Exposure Pass Scale", &gCombineExposurePassScale},
 		// Lighting

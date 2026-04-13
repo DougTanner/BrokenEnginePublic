@@ -13,8 +13,12 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 
 	rGlobalLayout.fLightingObjectsAdd = gLightingObjectsAdd.Get();
 
-	rGlobalLayout.fCombineExposure = gCombineExposure.Get();
-	rGlobalLayout.fCombinePower = gCombinePower.Get();
+	rGlobalLayout.fCombineIntensityOne = gCombineIntensityOne.Get() * (gCombinePowerOne.Get() + 1.0f) * 0.5f;
+	rGlobalLayout.fCombinePowerOne = gCombinePowerOne.Get();
+	rGlobalLayout.fCombineIntensityTwo = gCombineIntensityTwo.Get() * (gCombinePowerTwo.Get() + 1.0f) * 0.5f;
+	rGlobalLayout.fCombinePowerTwo = gCombinePowerTwo.Get();
+	rGlobalLayout.fCombineIntensityThree = gCombineIntensityThree.Get() * (gCombinePowerThree.Get() + 1.0f) * 0.5f;
+	rGlobalLayout.fCombinePowerThree = gCombinePowerThree.Get();
 	rGlobalLayout.fCombinePassNormalize = gCombinePassNormalize.Get();
 	rGlobalLayout.fCombineExposurePassScale = gCombineExposurePassScale.Get();
 	rGlobalLayout.fLightingTerrain = gLightingTerrain.Get();

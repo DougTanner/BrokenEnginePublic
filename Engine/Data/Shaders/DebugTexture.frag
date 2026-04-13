@@ -26,19 +26,18 @@ void main()
 
 	if (iFormat == kiDebugTextureFormatFloat16LightingDirectional)
 	{
-		// Float16 EWNS: Same tone mapping as LightCombine.comp
+		// Float16 EWNS: Same tone mapping as LightCombine.comp (curve 1 only for debug)
 		float fPassCount = globalLayout.fSpreadPassCount;
 		float fPassNorm = mix(1.0f, 1.0f / fPassCount, globalLayout.fCombinePassNormalize);
-		float fExposure = globalLayout.fCombineExposure * pow(fPassCount, -globalLayout.fCombineExposurePassScale);
-		float fPower = globalLayout.fCombinePower;
-		vec4 f4Scaled = f4Sample * fPassNorm * fExposure;
+		float fPassScale = pow(fPassCount, -globalLayout.fCombineExposurePassScale);
+		vec4 f4Scaled = f4Sample * fPassNorm * fPassScale;
 #if 0 // Luminance-based Reinhard
 		float fLum = max(dot(f4Scaled, vec4(1.0f)), 0.001f);
 		f4Scaled *= (fLum / (1.0f + fLum)) / fLum;
 #else
 		f4Scaled = f4Scaled / (vec4(1.0f) + f4Scaled);
 #endif
-		f4Scaled = pow(f4Scaled, vec4(fPower));
+		f4Scaled = globalLayout.fCombineIntensityOne * pow(f4Scaled, vec4(globalLayout.fCombinePowerOne));
 		float fTotal = f4Scaled.r + f4Scaled.g + f4Scaled.b + f4Scaled.a;
 		float fIntensity = min(fTotal, 1.0f);
 		float fEastWest = fTotal > 0.0f ? (f4Scaled.r - f4Scaled.g) / fTotal * 0.5f + 0.5f : 0.0f;

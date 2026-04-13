@@ -215,8 +215,12 @@ struct GlobalLayout
 
 	// Lighting
 	float fLightingObjectsAdd INIT;
-	float fCombineExposure INIT;
-	float fCombinePower INIT;
+	float fCombineIntensityOne INIT;
+	float fCombinePowerOne INIT;
+	float fCombineIntensityTwo INIT;
+	float fCombinePowerTwo INIT;
+	float fCombineIntensityThree INIT;
+	float fCombinePowerThree INIT;
 	float fCombinePassNormalize INIT;
 	float fCombineExposurePassScale INIT;
 	float fLightingTerrain INIT;

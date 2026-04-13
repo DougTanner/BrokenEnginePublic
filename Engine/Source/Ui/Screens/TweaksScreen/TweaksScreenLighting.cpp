@@ -57,8 +57,12 @@ void TweaksScreenBase::RenderLightingSection()
 				ImGui::TableNextColumn();
 
 				WrapperSeparatorText("4. Combine");
-				WrapperSlider("Exposure", kiSection, 1.0f, "Combine Exposure");
-				WrapperSlider("Power", kiSection, 1.0f, "Combine Power");
+				WrapperSlider("Intensity One", kiSection, 1.0f, "Combine Intensity One");
+				WrapperSlider("Power One", kiSection, 1.0f, "Combine Power One");
+				WrapperSlider("Intensity Two", kiSection, 1.0f, "Combine Intensity Two");
+				WrapperSlider("Power Two", kiSection, 1.0f, "Combine Power Two");
+				WrapperSlider("Intensity Three", kiSection, 1.0f, "Combine Intensity Three");
+				WrapperSlider("Power Three", kiSection, 1.0f, "Combine Power Three");
 				WrapperSlider("Pass Normalize", kiSection, 1.0f, "Combine Pass Normalize");
 				WrapperSlider("Exposure Pass Scale", kiSection, 1.0f, "Combine Exposure Pass Scale");
 

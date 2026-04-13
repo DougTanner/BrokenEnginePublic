@@ -154,8 +154,12 @@ Wrapper gSpreadHeightIntensity(0.2f, 0.0f, 1.0f);
 Wrapper gSpreadHeightIntensityTarget(10.0f, 1.0f, 20.0f);
 
 // Lighting Combine
-Wrapper gCombineExposure(0.4f, 0.1f, 1.0f);
-Wrapper gCombinePower(40.0f, 1.0f, 64.0f);
+Wrapper gCombineIntensityOne(0.02f, 0.0f, 1.0f);
+Wrapper gCombinePowerOne(40.0f, 1.0f, 64.0f);
+Wrapper gCombineIntensityTwo(0.0f, 0.0f, 1.0f);
+Wrapper gCombinePowerTwo(1.0f, 1.0f, 64.0f);
+Wrapper gCombineIntensityThree(0.0f, 0.0f, 1.0f);
+Wrapper gCombinePowerThree(1.0f, 1.0f, 64.0f);
 Wrapper gCombinePassNormalize(1.0f, 0.0f, 1.0f);
 Wrapper gCombineExposurePassScale(0.6f, 0.0f, 1.0f);
 

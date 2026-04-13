@@ -34,25 +34,15 @@ void main()
 
 	float fPassCount = globalLayout.fSpreadPassCount;
 	uint uiPassCount = uint(fPassCount);
-	vec4 f4Power = vec4(globalLayout.fCombinePower);
 
-	// Option 1: Pass count normalization — blend between raw and divided-by-passCount
 	float fPassNorm = mix(1.0f, 1.0f / fPassCount, globalLayout.fCombinePassNormalize);
+	float fPassScale = pow(fPassCount, -globalLayout.fCombineExposurePassScale);
 
-	// Option 3: Exposure auto-scale — reduce exposure proportional to pass count
-	float fExposure = globalLayout.fCombineExposure * pow(fPassCount, -globalLayout.fCombineExposurePassScale);
+	vec4 f4R = texture(sourcesR[uiPassCount - 1], f2Uv) * fPassNorm * fPassScale;
+	vec4 f4G = texture(sourcesG[uiPassCount - 1], f2Uv) * fPassNorm * fPassScale;
+	vec4 f4B = texture(sourcesB[uiPassCount - 1], f2Uv) * fPassNorm * fPassScale;
 
-	// Read final accumulated spread pass
-	vec4 f4R = texture(sourcesR[uiPassCount - 1], f2Uv) * fPassNorm;
-	vec4 f4G = texture(sourcesG[uiPassCount - 1], f2Uv) * fPassNorm;
-	vec4 f4B = texture(sourcesB[uiPassCount - 1], f2Uv) * fPassNorm;
-
-	f4R *= fExposure;
-	f4G *= fExposure;
-	f4B *= fExposure;
-
-#if 0 // Option 2: Luminance-based Reinhard — preserves color ratios across RGB channels
-	// Compute per-channel luminance (sum of EWNS directional weights)
+#if 0 // Luminance-based Reinhard — preserves color ratios across RGB channels
 	float fLumR = dot(f4R, vec4(1.0f));
 	float fLumG = dot(f4G, vec4(1.0f));
 	float fLumB = dot(f4B, vec4(1.0f));
@@ -68,7 +58,15 @@ void main()
 	f4B = f4B / (vec4(1.0f) + f4B);
 #endif
 
-	imageStore(combineImageR, i2Coord, pow(f4R, f4Power));
-	imageStore(combineImageG, i2Coord, pow(f4G, f4Power));
-	imageStore(combineImageB, i2Coord, pow(f4B, f4Power));
+	// Weighted sum of 3 power curves
+	float fI1 = globalLayout.fCombineIntensityOne;
+	float fI2 = globalLayout.fCombineIntensityTwo;
+	float fI3 = globalLayout.fCombineIntensityThree;
+	vec4 f4P1 = vec4(globalLayout.fCombinePowerOne);
+	vec4 f4P2 = vec4(globalLayout.fCombinePowerTwo);
+	vec4 f4P3 = vec4(globalLayout.fCombinePowerThree);
+
+	imageStore(combineImageR, i2Coord, fI1 * pow(f4R, f4P1) + fI2 * pow(f4R, f4P2) + fI3 * pow(f4R, f4P3));
+	imageStore(combineImageG, i2Coord, fI1 * pow(f4G, f4P1) + fI2 * pow(f4G, f4P2) + fI3 * pow(f4G, f4P3));
+	imageStore(combineImageB, i2Coord, fI1 * pow(f4B, f4P1) + fI2 * pow(f4B, f4P2) + fI3 * pow(f4B, f4P3));
 }
