@@ -112,8 +112,8 @@ void main()
 	vec4 pf4LightingBaseHeight[3] = {texture(pLightingSamplers[0], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[1], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[2], f2LightingTexcoordBaseHeight)};
 
 	// Apply directional and ambient lighting
-	vec3 f3Directional = DirectionalLighting(pf4Lighting, f3Normal, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower);
-	vec3 f3Ambient = AmbientLighting(pf4LightingBaseHeight, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower);
+	vec3 f3Directional = DirectionalLighting(pf4Lighting, f3Normal, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower, mainLayout.fLightingDirectionalPowerMode);
+	vec3 f3Ambient = AmbientLighting(pf4LightingBaseHeight, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower, mainLayout.fLightingAmbientPowerMode);
 	vec3 f3Lighting = globalLayout.fLightingTerrain * globalLayout.fLightingTimeOfDayMultiplier * (f3Directional + f3Ambient);
 	float fHeightRatio = clamp(f3InPosition.z / max(globalLayout.fBaseHeight, 0.001), 0.0, 1.0);
 	f3Lighting *= mix(mainLayout.fLightingTerrainBelowBaseMultiplier, 1.0, pow(fHeightRatio, mainLayout.fLightingTerrainBelowBasePower));

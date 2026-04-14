@@ -161,15 +161,25 @@ void main()
 	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4LightingBaseHeight[3] = {texture(pLightingSamplers[0], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[1], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[2], f2LightingTexcoordBaseHeight)};
 
-	// Scale base-height lighting
-	pf4LightingBaseHeight[0] = pow(pf4LightingBaseHeight[0], vec4(mainLayout.fLightingNewAmbientPower));
-	pf4LightingBaseHeight[1] = pow(pf4LightingBaseHeight[1], vec4(mainLayout.fLightingNewAmbientPower));
-	pf4LightingBaseHeight[2] = pow(pf4LightingBaseHeight[2], vec4(mainLayout.fLightingNewAmbientPower));
+	// Scale base-height lighting (hue-preserving: pow applied to per-direction luminance/average scalar)
+	float fWaterAmbientPowerMode = mainLayout.fLightingWaterAmbientPowerMode;
+	for (int i = 0; i < 4; i++)
+	{
+		vec3 f3Dir = vec3(pf4LightingBaseHeight[0][i], pf4LightingBaseHeight[1][i], pf4LightingBaseHeight[2][i]);
+		float fLum = dot(f3Dir, vec3(0.2126f, 0.7152f, 0.0722f));
+		float fLumRatio = pow(max(fLum, 0.001f), mainLayout.fLightingNewAmbientPower) / max(fLum, 0.001f);
+		float fAvg = (f3Dir.x + f3Dir.y + f3Dir.z) / 3.0f;
+		float fAvgRatio = pow(max(fAvg, 0.001f), mainLayout.fLightingNewAmbientPower) / max(fAvg, 0.001f);
+		float fRatio = mix(fLumRatio, fAvgRatio, fWaterAmbientPowerMode);
+		pf4LightingBaseHeight[0][i] *= fRatio;
+		pf4LightingBaseHeight[1][i] *= fRatio;
+		pf4LightingBaseHeight[2][i] *= fRatio;
+	}
 
 	// Water lighting
 	const float fWaterNormalBlendWave = mainLayout.fLightingWaterNormalBlendWave;
 	vec3 f3LightingNormal = (1.0f - fWaterNormalBlendWave) * f3SampledNormal + fWaterNormalBlendWave * f3InNormal;
-	vec3 f3WaterLighting = WaterLighting(pf4LightingBaseHeight, f3LightingNormal, mainLayout.fLightingWaterNormalSoften, mainLayout.fLightingWaterOne, mainLayout.fLightingWaterOnePower, mainLayout.fLightingWaterTwo, mainLayout.fLightingWaterTwoPower, mainLayout.fLightingWaterThree, mainLayout.fLightingWaterThreePower);
+	vec3 f3WaterLighting = WaterLighting(pf4LightingBaseHeight, f3LightingNormal, mainLayout.fLightingWaterNormalSoften, mainLayout.fLightingWaterOne, mainLayout.fLightingWaterOnePower, mainLayout.fLightingWaterTwo, mainLayout.fLightingWaterTwoPower, mainLayout.fLightingWaterThree, mainLayout.fLightingWaterThreePower, mainLayout.fLightingWaterPowerMode);
 	float fDepthAttenuation = clamp(-fTerrainElevation / globalLayout.fWaterDepthReflectionFeather, 0.0f, 1.0f);
 	vec3 f3WaterLightingScaled = fDepthAttenuation * globalLayout.fLightingTimeOfDayMultiplier * mainLayout.fLightingWaterIntensity * f3WaterLighting;
 	float fWaterLightingAdd = mainLayout.fLightingWaterAdd;

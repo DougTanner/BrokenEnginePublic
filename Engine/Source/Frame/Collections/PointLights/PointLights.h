@@ -8,6 +8,7 @@
 namespace engine
 {
 
+class Wrapper;
 struct FrameStaticData;
 
 struct PointLightsType
@@ -19,6 +20,10 @@ struct PointLightsType
 	float fLightingArea = 1.0f;
 	float fLightingIntensity = 1.0f;
 	bool bCameraAligned = false;
+
+	Wrapper* pVisibleIntensityWrapper = nullptr;
+	Wrapper* pLightingAreaWrapper = nullptr;
+	Wrapper* pLightingIntensityWrapper = nullptr;
 };
 
 struct PointLightsInterpolate : public Collection<PointLightsInterpolate, CollectionFlags::kIdToIndex>,

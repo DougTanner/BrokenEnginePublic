@@ -315,7 +315,7 @@ void main()
 	vec4 pf4Lighting[3] = {texture(pLightingSamplers[0], f2LightingTexcoord), texture(pLightingSamplers[1], f2LightingTexcoord), texture(pLightingSamplers[2], f2LightingTexcoord)};
 
 	// Apply directional lighting
-	vec3 f3Directional = DirectionalLighting(pf4Lighting, n, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower);
+	vec3 f3Directional = DirectionalLighting(pf4Lighting, n, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower, mainLayout.fLightingDirectionalPowerMode);
 	vec3 f3Lighting = globalLayout.fLightingObjects * globalLayout.fLightingTimeOfDayMultiplier * f3Directional;
 	vec3 directionalLighting = f3Lighting * mix(baseColor.rgb, vec3(1.0f), globalLayout.fLightingObjectsAdd);
 	#else
@@ -323,13 +323,13 @@ void main()
 	vec2 f2DirectTexcoord = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
 	vec4 pf4DirectLighting[3];
 	ReadLighting(pf4DirectLighting, pLightingSamplers, f2DirectTexcoord);
-	vec3 f3Direct = DirectionalLighting(pf4DirectLighting, n, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower);
+	vec3 f3Direct = DirectionalLighting(pf4DirectLighting, n, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower, mainLayout.fLightingDirectionalPowerMode);
 
 	vec2 f2AmbientPosition = BaseHeightPosition(globalLayout, mainLayout, f3InWorldPosition);
 	vec2 f2AmbientTexcoord = WorldToVisibleArea(vec3(f2AmbientPosition, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4Lighting[3];
 	ReadLighting(pf4Lighting, pLightingSamplers, f2AmbientTexcoord);
-	vec3 f3Ambient = AmbientLighting(pf4Lighting, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower);
+	vec3 f3Ambient = AmbientLighting(pf4Lighting, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower, mainLayout.fLightingAmbientPowerMode);
 	pf4Lighting[0] *= mainLayout.fLightingNewAmbient;
 	pf4Lighting[1] *= mainLayout.fLightingNewAmbient;
 	pf4Lighting[2] *= mainLayout.fLightingNewAmbient;

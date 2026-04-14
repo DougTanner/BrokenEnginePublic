@@ -6,8 +6,8 @@ Vertex shaders for instanced quad rendering. Each shader reads per-instance data
 
 ## Shaders
 
-- **QuadsVisibleArea.vert** - Renders quads using `QuadLayout` (non-axis-aligned, per-vertex positions/texcoords). Projects world positions into clip space relative to a visible area selected by push constant (camera, shadow, smoke, or lighting area). Outputs world position and world center varyings for use by deposit fragment shaders (e.g., `AreaLight.frag`) to compute EWNS directional weights in world space
-- **QuadsAxisAlignedVisibleArea.vert** - Renders quads using `AxisAlignedQuadLayout` (rect + texcoord rect). Projects into the same push-constant-selected visible areas as `QuadsVisibleArea.vert`, but does not output world position varyings
+- **QuadsVisibleArea.vert** - Renders quads using `QuadLayout` (non-axis-aligned, per-vertex positions/texcoords). Projects world positions into clip space relative to a visible area selected by push constant (camera, shadow, smoke, or lighting area). Outputs world position and world center (average of all 4 vertex positions) for use by deposit fragment shaders (e.g., `AreaLight.frag`) to compute EWNS directional weights
+- **QuadsAxisAlignedVisibleArea.vert** - Renders quads using `AxisAlignedQuadLayout` (rect + texcoord rect). Projects into the same push-constant-selected visible areas as `QuadsVisibleArea.vert`. Outputs world position and world center varyings (computed from `f4VertexRect`) for use by deposit fragment shaders
 - **QuadsAxisAligned.vert** - Renders axis-aligned quads in NDC (no projection), outputting color packed as a uint varying
 - **QuadsFullscreen.vert** - Renders a single fullscreen triangle/quad (no instance data)
 

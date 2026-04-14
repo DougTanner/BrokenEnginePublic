@@ -88,4 +88,4 @@ inline constexpr LogLevel keLogLevelInput    = keLogLevelDefault;
 #include "Frame/Frame.h"
 #include "Engine.h"
 
-inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kChina;
+inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kDisabled;

@@ -22,6 +22,46 @@ layout (push_constant) uniform PushConstants
 	uint uiHeight;
 };
 
+// Uchimura tone curve (Gran Turismo Sport)
+// P: max brightness, a: contrast, m: linear start, l: linear length, c: toe curvature, b: black tightness
+vec4 Uchimura(vec4 f4X, float P, float a, float m, float l, float c, float b)
+{
+	float l0 = ((P - m) * l) / a;
+	float S0 = m + l0;
+	float S1 = m + a * l0;
+	float C2 = (a * P) / (P - S1);
+	float CP = -C2 / P;
+
+	vec4 f4W0 = vec4(1.0f) - smoothstep(vec4(0.0f), vec4(m), f4X);
+	vec4 f4W2 = step(vec4(S0), f4X);
+	vec4 f4W1 = vec4(1.0f) - f4W0 - f4W2;
+
+	vec4 f4T = m * pow(f4X / m, vec4(c)) + b;
+	vec4 f4L = m + a * (f4X - m);
+	vec4 f4S = P - (P - S1) * exp(CP * (f4X - S0));
+
+	return f4T * f4W0 + f4L * f4W1 + f4S * f4W2;
+}
+
+float UchimuraScalar(float fX, float P, float a, float m, float l, float c, float b)
+{
+	float l0 = ((P - m) * l) / a;
+	float S0 = m + l0;
+	float S1 = m + a * l0;
+	float C2 = (a * P) / (P - S1);
+	float CP = -C2 / P;
+
+	float fW0 = 1.0f - smoothstep(0.0f, m, fX);
+	float fW2 = step(S0, fX);
+	float fW1 = 1.0f - fW0 - fW2;
+
+	float fT = m * pow(fX / m, c) + b;
+	float fL = m + a * (fX - m);
+	float fS = P - (P - S1) * exp(CP * (fX - S0));
+
+	return fT * fW0 + fL * fW1 + fS * fW2;
+}
+
 void main()
 {
 	uint uiX = gl_GlobalInvocationID.x;
@@ -42,31 +82,42 @@ void main()
 	vec4 f4G = texture(sourcesG[uiPassCount - 1], f2Uv) * fPassNorm * fPassScale;
 	vec4 f4B = texture(sourcesB[uiPassCount - 1], f2Uv) * fPassNorm * fPassScale;
 
-#if 0 // Luminance-based Reinhard — preserves color ratios across RGB channels
-	float fLumR = dot(f4R, vec4(1.0f));
-	float fLumG = dot(f4G, vec4(1.0f));
-	float fLumB = dot(f4B, vec4(1.0f));
-	float fLum = max(fLumR + fLumG + fLumB, 0.001f);
-	float fToneMapped = fLum / (1.0f + fLum);
-	float fScale = fToneMapped / fLum;
-	f4R *= fScale;
-	f4G *= fScale;
-	f4B *= fScale;
-#else // Per-channel Reinhard
-	f4R = f4R / (vec4(1.0f) + f4R);
-	f4G = f4G / (vec4(1.0f) + f4G);
-	f4B = f4B / (vec4(1.0f) + f4B);
-#endif
+	float P = globalLayout.fCombineMaxBrightness;
+	float a = globalLayout.fCombineContrast;
+	float m = globalLayout.fCombineLinearStart;
+	float l = globalLayout.fCombineLinearLength;
+	float c = globalLayout.fCombineToe;
+	float b = globalLayout.fCombineBlackTightness;
 
-	// Weighted sum of 3 power curves
-	float fI1 = globalLayout.fCombineIntensityOne;
-	float fI2 = globalLayout.fCombineIntensityTwo;
-	float fI3 = globalLayout.fCombineIntensityThree;
-	vec4 f4P1 = vec4(globalLayout.fCombinePowerOne);
-	vec4 f4P2 = vec4(globalLayout.fCombinePowerTwo);
-	vec4 f4P3 = vec4(globalLayout.fCombinePowerThree);
+	float fHuePreserve = globalLayout.fCombineHuePreserve;
+	if (fHuePreserve < 0.001f)
+	{
+		imageStore(combineImageR, i2Coord, Uchimura(f4R, P, a, m, l, c, b));
+		imageStore(combineImageG, i2Coord, Uchimura(f4G, P, a, m, l, c, b));
+		imageStore(combineImageB, i2Coord, Uchimura(f4B, P, a, m, l, c, b));
+	}
+	else
+	{
+		vec4 f4OutR = Uchimura(f4R, P, a, m, l, c, b);
+		vec4 f4OutG = Uchimura(f4G, P, a, m, l, c, b);
+		vec4 f4OutB = Uchimura(f4B, P, a, m, l, c, b);
 
-	imageStore(combineImageR, i2Coord, fI1 * pow(f4R, f4P1) + fI2 * pow(f4R, f4P2) + fI3 * pow(f4R, f4P3));
-	imageStore(combineImageG, i2Coord, fI1 * pow(f4G, f4P1) + fI2 * pow(f4G, f4P2) + fI3 * pow(f4G, f4P3));
-	imageStore(combineImageB, i2Coord, fI1 * pow(f4B, f4P1) + fI2 * pow(f4B, f4P2) + fI3 * pow(f4B, f4P3));
+		// Hue-preserving: per-EWNS-direction, tone-map luminance scalar, scale all channels by ratio
+		vec4 f4HueR = f4R;
+		vec4 f4HueG = f4G;
+		vec4 f4HueB = f4B;
+		for (int i = 0; i < 4; i++)
+		{
+			float fLum = 0.2126f * f4R[i] + 0.7152f * f4G[i] + 0.0722f * f4B[i];
+			float fMappedLum = UchimuraScalar(fLum, P, a, m, l, c, b);
+			float fRatio = fMappedLum / max(fLum, 0.001f);
+			f4HueR[i] = f4R[i] * fRatio;
+			f4HueG[i] = f4G[i] * fRatio;
+			f4HueB[i] = f4B[i] * fRatio;
+		}
+
+		imageStore(combineImageR, i2Coord, mix(f4OutR, f4HueR, fHuePreserve));
+		imageStore(combineImageG, i2Coord, mix(f4OutG, f4HueG, fHuePreserve));
+		imageStore(combineImageB, i2Coord, mix(f4OutB, f4HueB, fHuePreserve));
+	}
 }

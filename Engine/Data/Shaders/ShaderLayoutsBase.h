@@ -121,7 +121,7 @@ CONSTEXPR int kiBillboardTexturesCount = 3;
 CONSTEXPR int kiMaxIslands = 64;
 
 CONSTEXPR int kiMaxSpreadPasses = 32;
-CONSTEXPR int kiMaxDebugTextures = 3 + kiMaxSpreadPasses;
+CONSTEXPR int kiMaxDebugTextures = 2 + kiMaxSpreadPasses;
 
 CONSTEXPR int kiDebugTextureFormatFloat16LightingDirectional = 0;
 CONSTEXPR int kiDebugTextureFormatUnormLightingDirectional = 1;
@@ -157,6 +157,7 @@ struct GlobalLayout
 	float fAspectRatio INIT;
 	float fDetailTextureAspectRatio INIT;
 
+	vec2 f2CameraPosition INIT;
 	vec4 f4VisibleArea INIT;
 	vec4 f4VisibleAreaShadowsExtra INIT;
 
@@ -215,14 +216,15 @@ struct GlobalLayout
 
 	// Lighting
 	float fLightingObjectsAdd INIT;
-	float fCombineIntensityOne INIT;
-	float fCombinePowerOne INIT;
-	float fCombineIntensityTwo INIT;
-	float fCombinePowerTwo INIT;
-	float fCombineIntensityThree INIT;
-	float fCombinePowerThree INIT;
+	float fCombineMaxBrightness INIT;
+	float fCombineContrast INIT;
+	float fCombineLinearStart INIT;
+	float fCombineLinearLength INIT;
+	float fCombineToe INIT;
+	float fCombineBlackTightness INIT;
 	float fCombinePassNormalize INIT;
 	float fCombineExposurePassScale INIT;
+	float fCombineHuePreserve INIT;
 	float fLightingTerrain INIT;
 	float fLightingObjects INIT;
 
@@ -239,6 +241,7 @@ struct GlobalLayout
 	float fSpreadJitterStart INIT;
 	float fSpreadDecayStart INIT;
 	float fSpreadAccumulationDecayStart INIT;
+	float fSpreadDistanceFalloffStart INIT;
 	float fSpreadPassCount INIT;
 	float pfSpreadRingRotations[kiMaxSpreadPasses] INIT;
 
@@ -250,6 +253,7 @@ struct GlobalLayout
 	float fSpreadJitterEnd INIT;
 	float fSpreadDecayEnd INIT;
 	float fSpreadAccumulationDecayEnd INIT;
+	float fSpreadDistanceFalloffEnd INIT;
 
 	// Spread Height
 	float fSpreadHeightDistance INIT;
@@ -421,11 +425,15 @@ struct MainLayout
 	float fLightingWaterTwoPower INIT;
 	float fLightingWaterThree INIT;
 	float fLightingWaterThreePower INIT;
+	float fLightingWaterPowerMode INIT;
 
 	float fLightingNewDirectional INIT;
 	float fLightingNewDirectionalPower INIT;
+	float fLightingDirectionalPowerMode INIT;
 	float fLightingNewAmbient INIT;
 	float fLightingNewAmbientPower INIT;
+	float fLightingAmbientPowerMode INIT;
+	float fLightingWaterAmbientPowerMode INIT;
 	float fLightingTerrainBelowBaseMultiplier INIT;
 	float fLightingTerrainBelowBasePower INIT;
 

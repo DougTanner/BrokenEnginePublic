@@ -118,94 +118,101 @@ Wrapper gWaterHeightDarkenBottom(-0.17f, -0.5f, 0.0f);
 Wrapper gWaterHeightDarkenClamp(0.0f, 0.0f, 0.9f);
 
 // Lighting Pre-Blur
-Wrapper gLightingBlurSigma(0.1f, 0.01f, 1.0f);
-Wrapper gLightingBlurSampleCount(140.0f, 16.0f, 400.0f);
-Wrapper gLightingBlurEdgeFalloff(0.2f, 0.01f, 0.4f);
+Wrapper gLightingBlurSigma(2.0f, 0.01f, 4.0f);
+Wrapper gLightingBlurSampleCount(200.0f, 16.0f, 400.0f);
+Wrapper gLightingBlurEdgeFalloff(0.01f, 0.01f, 0.4f);
 
 // Lighting Deposit
 Wrapper gLightingDepositTextureMultiplier(0.5f, 0.1f, 1.0f);
 
 // Lighting Spread - Pixel Multiplier
-Wrapper gSpreadTextureMultiplierStart(0.1f, 0.01f, 0.2f);
-Wrapper gSpreadTextureMultiplierEnd(0.01f, 0.01f, 0.2f);
-Wrapper gSpreadPassCount(32.0f, 8.0f, static_cast<float>(shaders::kiMaxSpreadPasses));
+Wrapper gSpreadTextureMultiplierStart(0.2f, 0.01f, 0.2f);
+Wrapper gSpreadTextureMultiplierEnd(0.1f, 0.01f, 0.2f);
+Wrapper gSpreadPassCount(32.0f, 1.0f, static_cast<float>(shaders::kiMaxSpreadPasses));
 
 // Lighting Spread Start
-Wrapper gSpreadDirectionality(0.0f, 0.0f, 1.0f);
+Wrapper gSpreadDirectionality(0.4f, 0.0f, 1.0f);
 Wrapper gSpreadDirectionCount(8.0f, 4.0f, 32.0f);
-Wrapper gSpreadDistance(0.5f, 0.1f, 2.0f);
+Wrapper gSpreadDistance(0.0f, 0.0f, 5.0f);
 Wrapper gSpreadRingCount(4.0f, 1.0f, 24.0f);
 Wrapper gSpreadJitter(0.0f, 0.0f, 1.0f);
-Wrapper gSpreadDecay(0.05f, 0.02f, 0.08f);
-Wrapper gSpreadAccumulationDecay(1.0f, 0.2f, 1.1f);
+Wrapper gSpreadDecay(1.0f, 0.0f, 1.0f);
+Wrapper gSpreadAccumulationDecay(0.45f, 0.0f, 1.0f);
+Wrapper gSpreadDistanceFalloff(1.0f, 0.0f, 1.0f);
 
 // Lighting Spread End
-Wrapper gSpreadDirectionalityEnd(0.7f, 0.0f, 1.0f);
+Wrapper gSpreadDirectionalityEnd(0.5f, 0.0f, 1.0f);
 Wrapper gSpreadDirectionCountEnd(4.0f, 4.0f, 16.0f);
-Wrapper gSpreadDistanceEnd(7.0f, 1.0f, 10.0f);
+Wrapper gSpreadDistanceEnd(10.0f, 1.0f, 20.0f);
 Wrapper gSpreadRingCountEnd(8.0f, 1.0f, 16.0f);
 Wrapper gSpreadJitterEnd(0.874f, 0.0f, 1.0f);
-Wrapper gSpreadDecayEnd(1.5f, 1.5f, 1.7f);
-Wrapper gSpreadAccumulationDecayEnd(0.4f, 0.2f, 0.6f);
+Wrapper gSpreadDecayEnd(1.0f, 0.0f, 2.0f);
+Wrapper gSpreadAccumulationDecayEnd(0.45f, 0.0f, 1.0f);
+Wrapper gSpreadDistanceFalloffEnd(0.5f, 0.0f, 1.0f);
 
 // Lighting Spread Height
-Wrapper gSpreadHeightDistance(1.6f, 0.0f, 4.0f);
-Wrapper gSpreadHeightIntensity(0.2f, 0.0f, 1.0f);
+Wrapper gSpreadHeightDistance(2.0f, 0.0f, 4.0f);
+Wrapper gSpreadHeightIntensity(0.25f, 0.0f, 1.0f);
 Wrapper gSpreadHeightIntensityTarget(10.0f, 1.0f, 20.0f);
 
-// Lighting Combine
-Wrapper gCombineIntensityOne(0.02f, 0.0f, 1.0f);
-Wrapper gCombinePowerOne(40.0f, 1.0f, 64.0f);
-Wrapper gCombineIntensityTwo(0.0f, 0.0f, 1.0f);
-Wrapper gCombinePowerTwo(1.0f, 1.0f, 64.0f);
-Wrapper gCombineIntensityThree(0.0f, 0.0f, 1.0f);
-Wrapper gCombinePowerThree(1.0f, 1.0f, 64.0f);
-Wrapper gCombinePassNormalize(1.0f, 0.0f, 1.0f);
-Wrapper gCombineExposurePassScale(0.6f, 0.0f, 1.0f);
+// Lighting Combine (Uchimura tone curve)
+Wrapper gCombineMaxBrightness(0.7f, 0.1f, 2.0f);
+Wrapper gCombineContrast(0.2f, 0.1f, 2.0f);
+Wrapper gCombineLinearStart(0.2f, 0.01f, 0.5f);
+Wrapper gCombineLinearLength(0.2f, 0.01f, 0.5f);
+Wrapper gCombineToe(1.33f, 0.1f, 2.0f);
+Wrapper gCombineBlackTightness(0.03f, 0.0f, 0.5f);
+Wrapper gCombinePassNormalize(0.4f, 0.0f, 1.0f);
+Wrapper gCombineExposurePassScale(0.2f, 0.0f, 1.0f);
+Wrapper gCombineHuePreserve(0.2f, 0.0f, 1.0f);
 
 Wrapper gLightingSampledNormalsSize(0.3f, 0.05f, 0.5f);
 Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
 
 // New Lighting
-Wrapper gLightingNewDirectional(4.0f, 0.0f, 10.0f);
-Wrapper gLightingNewDirectionalPower(2.5f, 0.1f, 10.0f);
+Wrapper gLightingNewDirectional(5.0f, 0.0f, 10.0f);
+Wrapper gLightingNewDirectionalPower(2.0f, 0.1f, 10.0f);
+Wrapper gLightingDirectionalPowerMode(0.0f, 0.0f, 1.0f);
 Wrapper gLightingNewAmbient(1.5f, 0.0f, 4.0f);
 Wrapper gLightingNewAmbientPower(1.5f, 0.1f, 6.0f);
+Wrapper gLightingAmbientPowerMode(0.0f, 0.0f, 1.0f);
+Wrapper gLightingWaterAmbientPowerMode(0.0f, 0.0f, 1.0f);
 Wrapper gLightingTerrain(0.4f, 0.0f, 1.0f);
-Wrapper gLightingAddTerrain(0.1f, 0.0f, 1.0f);
-Wrapper gLightingTerrainBelowBaseMultiplier(0.5f, 0.0f, 1.0f);
-Wrapper gLightingTerrainBelowBasePower(1.0f, 0.1f, 6.0f);
-Wrapper gLightingObjects(2.3f, 0.0f, 8.0f);
+Wrapper gLightingAddTerrain(0.2f, 0.0f, 1.0f);
+Wrapper gLightingTerrainBelowBaseMultiplier(0.4f, 0.0f, 1.0f);
+Wrapper gLightingTerrainBelowBasePower(3.0f, 0.1f, 6.0f);
+Wrapper gLightingObjects(2.0f, 0.0f, 8.0f);
 Wrapper gLightingObjectsAdd(0.2f, 0.0f, 1.0f);
 Wrapper gLightingDayFinalMultiplier(0.7f, 0.0f, 2.0f);
-Wrapper gLightingNightFinalMultiplier(0.45f, 0.0f, 1.0f);
+Wrapper gLightingNightFinalMultiplier(0.4f, 0.0f, 1.0f);
 Wrapper gMoonBrightness(0.1f, 0.0f, 1.0f);
 
 // Water specular lighting
-Wrapper gLightingWaterNormalSoften(0.25f, 0.0f, 0.5f);
-Wrapper gLightingWaterNormalBlendWave(0.05f, 0.0f, 0.1f);
-Wrapper gLightingWaterIntensity(0.035f, 0.0f, 0.1f);
-Wrapper gLightingWaterAdd(0.75f, 0.0f, 1.0f);
-Wrapper gLightingWaterOne(200.0f, 0.0f, 300.0f);
-Wrapper gLightingWaterOnePower(5.0f, 1.0f, 8.0f);
-Wrapper gLightingWaterTwo(20.0f, 0.0f, 30.0f);
-Wrapper gLightingWaterTwoPower(1.0f, 0.75f, 2.0f);
-Wrapper gLightingWaterThree(8.0f, 0.0f, 15.0f);
-Wrapper gLightingWaterThreePower(0.5f, 0.4f, 0.8f);
+Wrapper gLightingWaterNormalSoften(0.2f, 0.0f, 0.5f);
+Wrapper gLightingWaterNormalBlendWave(0.2f, 0.0f, 1.0f);
+Wrapper gLightingWaterIntensity(0.125f, 0.0f, 0.2f);
+Wrapper gLightingWaterAdd(1.0f, 0.0f, 1.0f);
+Wrapper gLightingWaterOne(20.0f, 0.0f, 40.0f);
+Wrapper gLightingWaterOnePower(3.0f, 2.0f, 5.0f);
+Wrapper gLightingWaterTwo(2.0f, 0.0f, 10.0f);
+Wrapper gLightingWaterTwoPower(1.2f, 0.75f, 2.0f);
+Wrapper gLightingWaterThree(3.0f, 0.0f, 15.0f);
+Wrapper gLightingWaterThreePower(0.7f, 0.5f, 1.0f);
+Wrapper gLightingWaterPowerMode(0.0f, 0.0f, 1.0f);
 
 // Water skybox
-Wrapper gLightingWaterSkyboxSunBias(2.6f, 0.0f, 4.0f);
-Wrapper gLightingWaterSkyboxNormalSoften(0.7f, 0.0f, 1.0f);
-Wrapper gLightingWaterSkyboxNormalBlendWave(0.08f, 0.0f, 0.2f);
+Wrapper gLightingWaterSkyboxSunBias(1.3f, 0.0f, 4.0f);
+Wrapper gLightingWaterSkyboxNormalSoften(0.5f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxNormalBlendWave(0.2f, 0.0f, 0.4f);
 Wrapper gLightingWaterSkyboxIntensity(0.001f, 0.0005f, 0.004f);
-Wrapper gLightingWaterSkyboxAdd(0.85f, 0.0f, 2.0f);
-Wrapper gLightingWaterSkyboxOne(900.0f, 0.0f, 3000.0f);
-Wrapper gLightingWaterSkyboxOnePower(200.0f, 50.0f, 400.0f);
-Wrapper gLightingWaterSkyboxTwo(280.0f, 0.0f, 400.0f);
-Wrapper gLightingWaterSkyboxTwoPower(8.0f, 2.0f, 10.0f);
-Wrapper gLightingWaterSkyboxThree(200.0f, 1.0f, 800.0f);
-Wrapper gLightingWaterSkyboxThreePower(1.3f, 0.01f, 2.0f);
-Wrapper gLightingWaterSkyboxLod(1.5f, 0.0f, 10.0f);
+Wrapper gLightingWaterSkyboxAdd(0.9f, 0.0f, 2.0f);
+Wrapper gLightingWaterSkyboxOne(650.0f, 0.0f, 3000.0f);
+Wrapper gLightingWaterSkyboxOnePower(190.0f, 50.0f, 400.0f);
+Wrapper gLightingWaterSkyboxTwo(170.0f, 0.0f, 400.0f);
+Wrapper gLightingWaterSkyboxTwoPower(6.0f, 2.0f, 10.0f);
+Wrapper gLightingWaterSkyboxThree(300.0f, 1.0f, 800.0f);
+Wrapper gLightingWaterSkyboxThreePower(1.0f, 0.01f, 2.0f);
+Wrapper gLightingWaterSkyboxLod(6.0f, 0.0f, 10.0f);
 
 // Smoke
 Wrapper gSmokeDecay(0.996f, 0.990f, 1.0f);
@@ -270,7 +277,7 @@ Wrapper gLowMax(150.0f, 0.0f, 255.0f);
 Wrapper gLowAngle(4.95f, 0.0f, XM_2PI);
 Wrapper gLowWavelength(2.4f, 1.0f, 20.0f);
 Wrapper gLowAmplitude(0.06f, 0.0f, 0.1f);
-Wrapper gLowSpeed(0.3f, 0.0f, 1.0f);
+Wrapper gLowSpeed(0.2f, 0.0f, 1.0f);
 Wrapper gLowSteepness(1.0f, 0.0f, 2.0f);
 
 Wrapper gLowAngleAdjust(0.239f, 0.0f, 2.0f);

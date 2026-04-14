@@ -13,14 +13,15 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 
 	rGlobalLayout.fLightingObjectsAdd = gLightingObjectsAdd.Get();
 
-	rGlobalLayout.fCombineIntensityOne = gCombineIntensityOne.Get() * (gCombinePowerOne.Get() + 1.0f) * 0.5f;
-	rGlobalLayout.fCombinePowerOne = gCombinePowerOne.Get();
-	rGlobalLayout.fCombineIntensityTwo = gCombineIntensityTwo.Get() * (gCombinePowerTwo.Get() + 1.0f) * 0.5f;
-	rGlobalLayout.fCombinePowerTwo = gCombinePowerTwo.Get();
-	rGlobalLayout.fCombineIntensityThree = gCombineIntensityThree.Get() * (gCombinePowerThree.Get() + 1.0f) * 0.5f;
-	rGlobalLayout.fCombinePowerThree = gCombinePowerThree.Get();
+	rGlobalLayout.fCombineMaxBrightness = gCombineMaxBrightness.Get();
+	rGlobalLayout.fCombineContrast = gCombineContrast.Get();
+	rGlobalLayout.fCombineLinearStart = gCombineLinearStart.Get();
+	rGlobalLayout.fCombineLinearLength = gCombineLinearLength.Get();
+	rGlobalLayout.fCombineToe = gCombineToe.Get();
+	rGlobalLayout.fCombineBlackTightness = gCombineBlackTightness.Get();
 	rGlobalLayout.fCombinePassNormalize = gCombinePassNormalize.Get();
 	rGlobalLayout.fCombineExposurePassScale = gCombineExposurePassScale.Get();
+	rGlobalLayout.fCombineHuePreserve = gCombineHuePreserve.Get();
 	rGlobalLayout.fLightingTerrain = gLightingTerrain.Get();
 	rGlobalLayout.fLightingObjects = gLightingObjects.Get();
 	rGlobalLayout.fLightingAddTerrain = gLightingAddTerrain.Get();
@@ -33,6 +34,7 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSpreadJitterStart = gSpreadJitter.Get();
 	rGlobalLayout.fSpreadDecayStart = gSpreadDecay.Get();
 	rGlobalLayout.fSpreadAccumulationDecayStart = gSpreadAccumulationDecay.Get();
+	rGlobalLayout.fSpreadDistanceFalloffStart = gSpreadDistanceFalloff.Get();
 	rGlobalLayout.fSpreadPassCount = gSpreadPassCount.Get();
 
 	// Spread End (interpolation targets for last spread pass)
@@ -43,6 +45,7 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSpreadJitterEnd = gSpreadJitterEnd.Get();
 	rGlobalLayout.fSpreadDecayEnd = gSpreadDecayEnd.Get();
 	rGlobalLayout.fSpreadAccumulationDecayEnd = gSpreadAccumulationDecayEnd.Get();
+	rGlobalLayout.fSpreadDistanceFalloffEnd = gSpreadDistanceFalloffEnd.Get();
 
 	// Spread Height
 	rGlobalLayout.fSpreadHeightDistance = gSpreadHeightDistance.Get();
@@ -91,11 +94,15 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fLightingWaterTwoPower = gLightingWaterTwoPower.Get();
 	rMainLayout.fLightingWaterThree = gLightingWaterThree.Get();
 	rMainLayout.fLightingWaterThreePower = gLightingWaterThreePower.Get();
+	rMainLayout.fLightingWaterPowerMode = gLightingWaterPowerMode.Get();
 
 	rMainLayout.fLightingNewDirectional = gLightingNewDirectional.Get();
 	rMainLayout.fLightingNewDirectionalPower = gLightingNewDirectionalPower.Get();
+	rMainLayout.fLightingDirectionalPowerMode = gLightingDirectionalPowerMode.Get();
 	rMainLayout.fLightingNewAmbient = gLightingNewAmbient.Get();
 	rMainLayout.fLightingNewAmbientPower = gLightingNewAmbientPower.Get();
+	rMainLayout.fLightingAmbientPowerMode = gLightingAmbientPowerMode.Get();
+	rMainLayout.fLightingWaterAmbientPowerMode = gLightingWaterAmbientPowerMode.Get();
 	rMainLayout.fLightingTerrainBelowBaseMultiplier = gLightingTerrainBelowBaseMultiplier.Get();
 	rMainLayout.fLightingTerrainBelowBasePower = gLightingTerrainBelowBasePower.Get();
 

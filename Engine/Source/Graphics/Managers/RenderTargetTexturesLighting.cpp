@@ -281,19 +281,20 @@ void RenderTargetTextures::CreateLightingTextures()
 		mppLightingFinalTextures[i] = &mpCombineTextures[i];
 	}
 
-	// Debug textures: combine red, deposit red (lighting space), deposit red (visible area space), then spread pass 0..N red
-	mppDebugTextures[0] = &mpCombineTextures[0];
-	mpDebugTextureFormats[0] = shaders::kiDebugTextureFormatUnormLightingDirectional;
-	mppDebugTextures[1] = &mpLightingTextures[0];
-	mpDebugTextureFormats[1] = shaders::kiDebugTextureFormatFloat16Linear;
-	mppDebugTextures[2] = &mpLightingTextures[0];
-	mpDebugTextureFormats[2] = shaders::kiDebugTextureFormatFloat16LinearVisibleArea;
-	for (int64_t i = 0; i < shaders::kiMaxSpreadPasses; ++i)
+	// Debug textures: deposit red (visible area space), spread pass 0..N red, combine red
+	mppDebugTextures[0] = &mpLightingTextures[0];
+	mpDebugTextureFormats[0] = shaders::kiDebugTextureFormatFloat16LinearVisibleArea;
+	for (int64_t i = 0; i < iPassCount; ++i)
 	{
-		mppDebugTextures[3 + i] = &mpSpreadTextures[i][0];
-		mpDebugTextureFormats[3 + i] = shaders::kiDebugTextureFormatFloat16LightingDirectional;
+		mppDebugTextures[1 + i] = &mpSpreadTextures[i][0];
+		mpDebugTextureFormats[1 + i] = shaders::kiDebugTextureFormatFloat16LightingDirectional;
 	}
-	miDebugTextureCount = 3 + shaders::kiMaxSpreadPasses;
+	mppDebugTextures[1 + iPassCount] = &mpCombineTextures[0];
+	mpDebugTextureFormats[1 + iPassCount] = shaders::kiDebugTextureFormatUnormLightingDirectional;
+	miDebugTextureCount = 2 + iPassCount;
+
+	if (gDebugTextureIndex.Get() >= static_cast<float>(miDebugTextureCount))
+		gDebugTextureIndex.Set(static_cast<float>(miDebugTextureCount - 1));
 }
 
 } // namespace engine

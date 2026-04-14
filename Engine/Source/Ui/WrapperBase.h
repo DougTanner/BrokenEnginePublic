@@ -332,6 +332,7 @@ extern Wrapper gSpreadRingCount;
 extern Wrapper gSpreadJitter;
 extern Wrapper gSpreadDecay;
 extern Wrapper gSpreadAccumulationDecay;
+extern Wrapper gSpreadDistanceFalloff;
 
 // Spread End (interpolation targets for last spread pass)
 extern Wrapper gSpreadDirectionalityEnd;
@@ -341,29 +342,34 @@ extern Wrapper gSpreadRingCountEnd;
 extern Wrapper gSpreadJitterEnd;
 extern Wrapper gSpreadDecayEnd;
 extern Wrapper gSpreadAccumulationDecayEnd;
+extern Wrapper gSpreadDistanceFalloffEnd;
 
 // Spread Height
 extern Wrapper gSpreadHeightDistance;
 extern Wrapper gSpreadHeightIntensity;
 extern Wrapper gSpreadHeightIntensityTarget;
 
-// Combine
-extern Wrapper gCombineIntensityOne;
-extern Wrapper gCombinePowerOne;
-extern Wrapper gCombineIntensityTwo;
-extern Wrapper gCombinePowerTwo;
-extern Wrapper gCombineIntensityThree;
-extern Wrapper gCombinePowerThree;
+// Combine (Uchimura tone curve)
+extern Wrapper gCombineMaxBrightness;
+extern Wrapper gCombineContrast;
+extern Wrapper gCombineLinearStart;
+extern Wrapper gCombineLinearLength;
+extern Wrapper gCombineToe;
+extern Wrapper gCombineBlackTightness;
 extern Wrapper gCombinePassNormalize;
 extern Wrapper gCombineExposurePassScale;
+extern Wrapper gCombineHuePreserve;
 extern Wrapper gLightingSampledNormalsSize;
 extern Wrapper gLightingSampledNormalsSpeed;
 
 // New Lighting
 extern Wrapper gLightingNewDirectional;
 extern Wrapper gLightingNewDirectionalPower;
+extern Wrapper gLightingDirectionalPowerMode;
 extern Wrapper gLightingNewAmbient;
 extern Wrapper gLightingNewAmbientPower;
+extern Wrapper gLightingAmbientPowerMode;
+extern Wrapper gLightingWaterAmbientPowerMode;
 extern Wrapper gLightingTerrain;
 extern Wrapper gLightingAddTerrain;
 extern Wrapper gLightingTerrainBelowBaseMultiplier;
@@ -385,6 +391,7 @@ extern Wrapper gLightingWaterTwo;
 extern Wrapper gLightingWaterTwoPower;
 extern Wrapper gLightingWaterThree;
 extern Wrapper gLightingWaterThreePower;
+extern Wrapper gLightingWaterPowerMode;
 
 // Water skybox
 extern Wrapper gLightingWaterSkyboxSunBias;

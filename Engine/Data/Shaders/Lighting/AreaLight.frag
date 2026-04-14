@@ -54,17 +54,25 @@ void main()
 	// Calculate EWNS directional weights from world-space direction (interpolated varyings)
 	vec2 f2WorldDir = f2InWorldPosition - f2InWorldCenter;
 	float fDist = length(f2WorldDir);
-	vec2 f2NormDir = fDist > 0.0f ? f2WorldDir / fDist : vec2(0.0f);
-#if 1 // Omnidirectional: equal deposit, spread handles directionality
-	vec4 f4Direction = vec4(0.25f);
-#elif 0 // Cosine-lobe: smooth cos^2 falloff at axis boundaries
-	vec4 f4Direction = vec4(f2NormDir.x * f2NormDir.x * step(0.0f, f2NormDir.x),
-	                        f2NormDir.x * f2NormDir.x * step(0.0f, -f2NormDir.x),
-	                        f2NormDir.y * f2NormDir.y * step(0.0f, -f2NormDir.y),
-	                        f2NormDir.y * f2NormDir.y * step(0.0f, f2NormDir.y));
+	vec4 f4Direction;
+	if (fDist > 1e-4f)
+	{
+		vec2 f2NormDir = f2WorldDir / fDist;
+#if 0 // Omnidirectional: equal deposit, spread handles directionality
+		f4Direction = vec4(0.25f);
+#elif 1 // Cosine-lobe: smooth cos^2 falloff at axis boundaries
+		f4Direction = vec4(f2NormDir.x * f2NormDir.x * step(0.0f, f2NormDir.x),
+		                   f2NormDir.x * f2NormDir.x * step(0.0f, -f2NormDir.x),
+		                   f2NormDir.y * f2NormDir.y * step(0.0f, -f2NormDir.y),
+		                   f2NormDir.y * f2NormDir.y * step(0.0f, f2NormDir.y));
 #else // Hard clamp: binary split at EWNS axes
-	vec4 f4Direction = vec4(max(f2NormDir.x, 0.0f), max(-f2NormDir.x, 0.0f), max(-f2NormDir.y, 0.0f), max(f2NormDir.y, 0.0f));
+		f4Direction = vec4(max(f2NormDir.x, 0.0f), max(-f2NormDir.x, 0.0f), max(-f2NormDir.y, 0.0f), max(f2NormDir.y, 0.0f));
 #endif
+	}
+	else
+	{
+		f4Direction = vec4(0.25f);
+	}
 
 #else
 	vec4 f4Direction = vec4(0.25f);

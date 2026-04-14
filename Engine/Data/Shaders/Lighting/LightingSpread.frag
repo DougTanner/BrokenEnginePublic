@@ -43,6 +43,7 @@ void main()
 	float fJitter = mix(globalLayout.fSpreadJitterStart, globalLayout.fSpreadJitterEnd, fT);
 	float fDecay = mix(globalLayout.fSpreadDecayStart, globalLayout.fSpreadDecayEnd, fT);
 	float fAccumulationDecay = mix(globalLayout.fSpreadAccumulationDecayStart, globalLayout.fSpreadAccumulationDecayEnd, fT);
+	float fDistanceFalloff = mix(globalLayout.fSpreadDistanceFalloffStart, globalLayout.fSpreadDistanceFalloffEnd, fT);
 
 	// Height-aware attenuation: convert lighting texcoord to world position, then to visible area texcoord
 	vec2 f2WorldPos = vec2(globalLayout.f4LightingArea.x + f2InTexcoord.x * (globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x),
@@ -75,6 +76,7 @@ void main()
 	{
 		// Per-ring jitter: rotation angle scaled by interpolated jitter
 		float fRingJitter = globalLayout.pfSpreadRingRotations[j] * fJitter;
+		float fRingFalloff = 1.0f - fDistanceFalloff * (float(j + 1) / float(uiRingCount));
 
 		float fDirectionCount = fDirectionCountBase + float(j);
 		const uint32_t uiDirectionCount = uint32_t(fDirectionCount);
@@ -99,9 +101,9 @@ void main()
 			vec4 f4Green = texture(greenSampler, f2Coord);
 			vec4 f4Blue = texture(blueSampler, f2Coord);
 
-			f4OutRed += mix(f4Red, f4DirWeight * f4Red, fDirectionality) * fInvSqrtDistance;
-			f4OutGreen += mix(f4Green, f4DirWeight * f4Green, fDirectionality) * fInvSqrtDistance;
-			f4OutBlue += mix(f4Blue, f4DirWeight * f4Blue, fDirectionality) * fInvSqrtDistance;
+			f4OutRed += mix(f4Red, f4DirWeight * f4Red, fDirectionality) * fInvSqrtDistance * fRingFalloff;
+			f4OutGreen += mix(f4Green, f4DirWeight * f4Green, fDirectionality) * fInvSqrtDistance * fRingFalloff;
+			f4OutBlue += mix(f4Blue, f4DirWeight * f4Blue, fDirectionality) * fInvSqrtDistance * fRingFalloff;
 		}
 	}
 

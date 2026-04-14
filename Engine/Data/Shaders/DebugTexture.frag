@@ -26,18 +26,27 @@ void main()
 
 	if (iFormat == kiDebugTextureFormatFloat16LightingDirectional)
 	{
-		// Float16 EWNS: Same tone mapping as LightCombine.comp (curve 1 only for debug)
+		// Float16 EWNS: Same tone mapping as LightCombine.comp (Uchimura)
 		float fPassCount = globalLayout.fSpreadPassCount;
 		float fPassNorm = mix(1.0f, 1.0f / fPassCount, globalLayout.fCombinePassNormalize);
 		float fPassScale = pow(fPassCount, -globalLayout.fCombineExposurePassScale);
 		vec4 f4Scaled = f4Sample * fPassNorm * fPassScale;
-#if 0 // Luminance-based Reinhard
-		float fLum = max(dot(f4Scaled, vec4(1.0f)), 0.001f);
-		f4Scaled *= (fLum / (1.0f + fLum)) / fLum;
-#else
-		f4Scaled = f4Scaled / (vec4(1.0f) + f4Scaled);
-#endif
-		f4Scaled = globalLayout.fCombineIntensityOne * pow(f4Scaled, vec4(globalLayout.fCombinePowerOne));
+
+		float P = globalLayout.fCombineMaxBrightness;
+		float a = globalLayout.fCombineContrast;
+		float m = globalLayout.fCombineLinearStart;
+		float l = globalLayout.fCombineLinearLength;
+		float c = globalLayout.fCombineToe;
+		float b = globalLayout.fCombineBlackTightness;
+		float l0 = ((P - m) * l) / a;
+		float S0 = m + l0;
+		float S1 = m + a * l0;
+		float C2 = (a * P) / (P - S1);
+		float CP = -C2 / P;
+		vec4 f4W0 = vec4(1.0f) - smoothstep(vec4(0.0f), vec4(m), f4Scaled);
+		vec4 f4W2 = step(vec4(S0), f4Scaled);
+		vec4 f4W1 = vec4(1.0f) - f4W0 - f4W2;
+		f4Scaled = (m * pow(f4Scaled / m, vec4(c)) + b) * f4W0 + (m + a * (f4Scaled - m)) * f4W1 + (P - (P - S1) * exp(CP * (f4Scaled - S0))) * f4W2;
 		float fTotal = f4Scaled.r + f4Scaled.g + f4Scaled.b + f4Scaled.a;
 		float fIntensity = min(fTotal, 1.0f);
 		float fEastWest = fTotal > 0.0f ? (f4Scaled.r - f4Scaled.g) / fTotal * 0.5f + 0.5f : 0.0f;
@@ -61,23 +70,43 @@ void main()
 	}
 	else if (iFormat == kiDebugTextureFormatFloat16LinearVisibleArea)
 	{
-		// Remap screen texcoord to lighting area texcoord, camera-tracked via lighting area center
+		// Camera-centered rectangle sized to visible area, mapped to lighting area UV
 		float fVisibleWidth = globalLayout.f4VisibleArea.z - globalLayout.f4VisibleArea.x;
 		float fVisibleHeight = globalLayout.f4VisibleArea.y - globalLayout.f4VisibleArea.w;
-		float fLightingCenterX = (globalLayout.f4LightingArea.x + globalLayout.f4LightingArea.z) * 0.5f;
-		float fLightingCenterY = (globalLayout.f4LightingArea.y + globalLayout.f4LightingArea.w) * 0.5f;
 		vec2 f2WorldPos = vec2(
-			fLightingCenterX - fVisibleWidth * 0.5f + f2InTexcoord.x * fVisibleWidth,
-			fLightingCenterY + fVisibleHeight * 0.5f - f2InTexcoord.y * fVisibleHeight);
-		float fLightingMultX = 1.0f / (globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x);
-		float fLightingMultY = 1.0f / (globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w);
+			globalLayout.f2CameraPosition.x - fVisibleWidth * 0.5f + f2InTexcoord.x * fVisibleWidth,
+			globalLayout.f2CameraPosition.y + fVisibleHeight * 0.5f - f2InTexcoord.y * fVisibleHeight);
 		vec2 f2LightingTexcoord = vec2(
-			fLightingMultX * (f2WorldPos.x - globalLayout.f4LightingArea.x),
-			1.0f - fLightingMultY * (f2WorldPos.y - globalLayout.f4LightingArea.w));
+			(f2WorldPos.x - globalLayout.f4LightingArea.x) / (globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x),
+			1.0f - (f2WorldPos.y - globalLayout.f4LightingArea.w) / (globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w));
 
 		vec4 f4Remapped = texture(debugTextures[iIndex], f2LightingTexcoord);
-		float fTotal = f4Remapped.r + f4Remapped.g + f4Remapped.b + f4Remapped.a;
-		float fValue = clamp(fTotal / globalLayout.fDebugTextureLinearRange, 0.0f, 1.0f);
-		f4OutColor = vec4(fValue, fValue, fValue, 1.0f);
+
+		// Same Uchimura tone mapping + EWNS directional as Float16LightingDirectional
+		float fPassCount = globalLayout.fSpreadPassCount;
+		float fPassNorm = mix(1.0f, 1.0f / fPassCount, globalLayout.fCombinePassNormalize);
+		float fPassScale = pow(fPassCount, -globalLayout.fCombineExposurePassScale);
+		vec4 f4Scaled = f4Remapped * fPassNorm * fPassScale;
+
+		float P = globalLayout.fCombineMaxBrightness;
+		float a = globalLayout.fCombineContrast;
+		float m = globalLayout.fCombineLinearStart;
+		float l = globalLayout.fCombineLinearLength;
+		float c = globalLayout.fCombineToe;
+		float b = globalLayout.fCombineBlackTightness;
+		float l0 = ((P - m) * l) / a;
+		float S0 = m + l0;
+		float S1 = m + a * l0;
+		float C2 = (a * P) / (P - S1);
+		float CP = -C2 / P;
+		vec4 f4W0 = vec4(1.0f) - smoothstep(vec4(0.0f), vec4(m), f4Scaled);
+		vec4 f4W2 = step(vec4(S0), f4Scaled);
+		vec4 f4W1 = vec4(1.0f) - f4W0 - f4W2;
+		f4Scaled = (m * pow(f4Scaled / m, vec4(c)) + b) * f4W0 + (m + a * (f4Scaled - m)) * f4W1 + (P - (P - S1) * exp(CP * (f4Scaled - S0))) * f4W2;
+		float fTotal = f4Scaled.r + f4Scaled.g + f4Scaled.b + f4Scaled.a;
+		float fIntensity = min(fTotal, 1.0f);
+		float fEastWest = fTotal > 0.0f ? (f4Scaled.r - f4Scaled.g) / fTotal * 0.5f + 0.5f : 0.0f;
+		float fNorthSouth = fTotal > 0.0f ? (f4Scaled.a - f4Scaled.b) / fTotal * 0.5f + 0.5f : 0.0f;
+		f4OutColor = vec4(fEastWest * fIntensity, fNorthSouth * fIntensity, 0.0f, 1.0f);
 	}
 }

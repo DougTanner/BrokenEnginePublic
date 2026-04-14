@@ -165,10 +165,10 @@ static void RegisterEnemyBlasterType()
 		.crc = data::kTexturesBlasterBC72pngCrc,
 		.uiColor = 0xFFFFFFFF,
 		.fVisibleArea = kfEnemyBlasterSize,
-		.fVisibleIntensity = gEnemyBlasterVisibleIntensity.Get(),
-		.fLightingArea = gEnemyBlasterLightingSize.Get(),
-		.fLightingIntensity = gEnemyBlasterLightingIntensity.Get(),
 		.bCameraAligned = true,
+		.pVisibleIntensityWrapper = &gEnemyBlasterVisibleIntensity,
+		.pLightingAreaWrapper = &gEnemyBlasterLightingSize,
+		.pLightingIntensityWrapper = &gEnemyBlasterLightingIntensity,
 	});
 #endif // BT_CLIENT
 
@@ -445,6 +445,7 @@ void SpaceshipsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [
 		};
 		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
 
+		// Heap realloc warning: capacity exceeded during burst transfers (e.g. network stall recovery). Increase kuiInitialTransferCapacity in Frame.h
 		if (rFrame.postRender.transferRequests.size() == rFrame.postRender.transferRequests.capacity()) [[unlikely]]
 		{
 			DEBUG_BREAK();

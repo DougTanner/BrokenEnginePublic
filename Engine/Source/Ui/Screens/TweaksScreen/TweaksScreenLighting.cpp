@@ -48,6 +48,7 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSlider("Jitter", kiSection, 1.0f, "Spread Jitter");
 				WrapperSlider("Decay", kiSection, 1.0f, "Spread Decay");
 				WrapperSlider("Accumulation Decay", kiSection, 1.0f, "Spread Accumulation Decay");
+				WrapperSlider("Distance Falloff", kiSection, 1.0f, "Spread Distance Falloff");
 
 				WrapperSeparatorText("3d. Spread Height");
 				WrapperSlider("Height Distance", kiSection, 1.0f, "Spread Height Distance");
@@ -57,14 +58,15 @@ void TweaksScreenBase::RenderLightingSection()
 				ImGui::TableNextColumn();
 
 				WrapperSeparatorText("4. Combine");
-				WrapperSlider("Intensity One", kiSection, 1.0f, "Combine Intensity One");
-				WrapperSlider("Power One", kiSection, 1.0f, "Combine Power One");
-				WrapperSlider("Intensity Two", kiSection, 1.0f, "Combine Intensity Two");
-				WrapperSlider("Power Two", kiSection, 1.0f, "Combine Power Two");
-				WrapperSlider("Intensity Three", kiSection, 1.0f, "Combine Intensity Three");
-				WrapperSlider("Power Three", kiSection, 1.0f, "Combine Power Three");
+				WrapperSlider("Max Brightness", kiSection, 1.0f, "Combine Max Brightness");
+				WrapperSlider("Contrast", kiSection, 1.0f, "Combine Contrast");
+				WrapperSlider("Linear Start", kiSection, 1.0f, "Combine Linear Start");
+				WrapperSlider("Linear Length", kiSection, 1.0f, "Combine Linear Length");
+				WrapperSlider("Toe", kiSection, 1.0f, "Combine Toe");
+				WrapperSlider("Black Tightness", kiSection, 1.0f, "Combine Black Tightness");
 				WrapperSlider("Pass Normalize", kiSection, 1.0f, "Combine Pass Normalize");
 				WrapperSlider("Exposure Pass Scale", kiSection, 1.0f, "Combine Exposure Pass Scale");
+			WrapperSlider("Hue Preserve", kiSection, 1.0f, "Combine Hue Preserve");
 
 				ImGui::SetCursorPosY(fSpreadStartY);
 
@@ -76,6 +78,7 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSlider("Jitter", kiSection, 1.0f, "Spread Jitter End");
 				WrapperSlider("Decay", kiSection, 1.0f, "Spread Decay End");
 				WrapperSlider("Accumulation Decay", kiSection, 1.0f, "Spread Accumulation Decay End");
+				WrapperSlider("Distance Falloff", kiSection, 1.0f, "Spread Distance Falloff End");
 
 				ImGui::EndTable();
 			}
@@ -94,8 +97,11 @@ void TweaksScreenBase::RenderLightingSection()
 			WrapperSeparatorText("Lighting");
 			WrapperSlider("New Directional", kiSection, 1.0f);
 			WrapperSlider("New Directional Power", kiSection, 1.0f);
+			WrapperSlider("Directional Power Mode", kiSection, 1.0f);
 			WrapperSlider("New Ambient", kiSection, 1.0f);
 			WrapperSlider("New Ambient Power", kiSection, 1.0f);
+			WrapperSlider("Ambient Power Mode", kiSection, 1.0f);
+			WrapperSlider("Water Ambient Power Mode", kiSection, 1.0f);
 			WrapperSlider("Terrain", kiSection, 1.0f);
 			WrapperSlider("Terrain Add", kiSection, 1.0f);
 			WrapperSlider("Below Base Multiplier", kiSection, 1.0f, "Terrain Below Base Multiplier");
@@ -116,6 +122,7 @@ void TweaksScreenBase::RenderLightingSection()
 			WrapperSlider("Two Power", kiSection, 1.0f, "Water Two Power");
 			WrapperSlider("Three", kiSection, 1.0f, "Water Three");
 			WrapperSlider("Three Power", kiSection, 1.0f, "Water Three Power");
+			WrapperSlider("Power Mode", kiSection, 1.0f, "Water Power Mode");
 
 			ImGui::EndTabItem();
 		}

@@ -390,6 +390,10 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	rGlobalLayout.fAspectRatio = gpSwapchainManager->mfAspectRatio;
 	rGlobalLayout.fDetailTextureAspectRatio = TextureManager::DetailTextureAspectRatio();
 
+	XMFLOAT4A f4CameraPosGlobal {};
+	XMStoreFloat4A(&f4CameraPosGlobal, game::gpCamera->mVecPosition);
+	rGlobalLayout.f2CameraPosition.x = f4CameraPosGlobal.x;
+	rGlobalLayout.f2CameraPosition.y = f4CameraPosGlobal.y;
 	rGlobalLayout.f4VisibleArea = game::gpCamera->f4RenderVisibleArea;
 
 	// Lighting area: fixed world-space dimensions, origin shifts one texel at a time

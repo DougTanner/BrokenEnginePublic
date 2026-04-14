@@ -34,6 +34,8 @@ layout (set = 0, binding = 4) uniform texture2D pTextures[];
 layout (location = 0) in flat int iInInstanceIndex;
 layout (location = 1) in vec4 f4InParams;
 layout (location = 2) in vec2 f2InTexcoord;
+layout (location = 4) in vec2 f2InWorldPosition;
+layout (location = 5) in flat vec2 f2InWorldCenter;
 
 // Output
 layout (location = 0) out vec4 f4OutColorRed;
@@ -50,19 +52,27 @@ void main()
 	float fAlpha = f4Color.a * f4Texture.a;
 
 #if 1 // defined(ENABLE_DIRECTIONAL_DEPOSIT)
-	vec2 f2Dir = f2InTexcoord - f2Center;
+	vec2 f2Dir = f2InWorldPosition - f2InWorldCenter;
 	float fDist = length(f2Dir);
-	vec2 f2NormDir = fDist > 0.0f ? f2Dir / fDist : vec2(0.0f);
-#if 1 // Omnidirectional: equal deposit, spread handles directionality
-	vec4 f4Direction = vec4(0.25f);
-#elif 0 // Cosine-lobe: smooth cos^2 falloff at axis boundaries
-	vec4 f4Direction = vec4(f2NormDir.x * f2NormDir.x * step(0.0f, f2NormDir.x),
-	                        f2NormDir.x * f2NormDir.x * step(0.0f, -f2NormDir.x),
-	                        f2NormDir.y * f2NormDir.y * step(0.0f, f2NormDir.y),
-	                        f2NormDir.y * f2NormDir.y * step(0.0f, -f2NormDir.y));
+	vec4 f4Direction;
+	if (fDist > 1e-4f)
+	{
+		vec2 f2NormDir = f2Dir / fDist;
+#if 0 // Omnidirectional: equal deposit, spread handles directionality
+		f4Direction = vec4(0.25f);
+#elif 1 // Cosine-lobe: smooth cos^2 falloff at axis boundaries
+		f4Direction = vec4(f2NormDir.x * f2NormDir.x * step(0.0f, f2NormDir.x),
+		                   f2NormDir.x * f2NormDir.x * step(0.0f, -f2NormDir.x),
+		                   f2NormDir.y * f2NormDir.y * step(0.0f, -f2NormDir.y),
+		                   f2NormDir.y * f2NormDir.y * step(0.0f, f2NormDir.y));
 #else // Hard clamp: binary split at EWNS axes
-	vec4 f4Direction = vec4(max(f2NormDir.x, 0.0f), max(-f2NormDir.x, 0.0f), max(f2NormDir.y, 0.0f), max(-f2NormDir.y, 0.0f));
+		f4Direction = vec4(max(f2NormDir.x, 0.0f), max(-f2NormDir.x, 0.0f), max(-f2NormDir.y, 0.0f), max(f2NormDir.y, 0.0f));
 #endif
+	}
+	else
+	{
+		f4Direction = vec4(0.25f);
+	}
 
 #else
 	vec4 f4Direction = vec4(0.25f);

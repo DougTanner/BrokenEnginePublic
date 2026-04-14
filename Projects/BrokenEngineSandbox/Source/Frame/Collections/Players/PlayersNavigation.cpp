@@ -70,6 +70,7 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[ma
 		request.data.uiClientGuidLow = rCurrentPostRender.pClientGuids[i].uiLow;
 		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
 
+		// Heap realloc warning: capacity exceeded during burst transfers (e.g. network stall recovery). Increase kuiInitialTransferCapacity in Frame.h
 		if (rFrame.postRender.transferRequests.size() == rFrame.postRender.transferRequests.capacity()) [[unlikely]]
 		{
 			DEBUG_BREAK();

@@ -89,7 +89,7 @@ float Sum(vec4 pf4Lighting[3])
 	return pf4Lighting[0].x + pf4Lighting[0].y + pf4Lighting[0].z + pf4Lighting[0].w + pf4Lighting[1].x + pf4Lighting[1].y + pf4Lighting[1].z + pf4Lighting[1].w + pf4Lighting[2].x + pf4Lighting[2].y + pf4Lighting[2].z + pf4Lighting[2].w;
 }
 
-vec3 DirectionalLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity, float fPower)
+vec3 DirectionalLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity, float fPower, float fPowerMode)
 {
 	vec2 f2Normal = normalize(f3Normal.xy);
 	float fWeightE = max(0.0f, -f2Normal.x);
@@ -100,10 +100,19 @@ vec3 DirectionalLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity, f
 	vec3 f3Result = vec3(pf4Lighting[0].x * fWeightE + pf4Lighting[0].y * fWeightW + pf4Lighting[0].z * fWeightN + pf4Lighting[0].w * fWeightS,
 		                 pf4Lighting[1].x * fWeightE + pf4Lighting[1].y * fWeightW + pf4Lighting[1].z * fWeightN + pf4Lighting[1].w * fWeightS,
 		                 pf4Lighting[2].x * fWeightE + pf4Lighting[2].y * fWeightW + pf4Lighting[2].z * fWeightN + pf4Lighting[2].w * fWeightS);
-	return fIntensity * pow(f3Result, vec3(fPower));
+
+	float fLuminance = dot(f3Result, vec3(0.2126f, 0.7152f, 0.0722f));
+	vec3 f3LumDir = f3Result / max(fLuminance, 0.001f);
+	vec3 f3LumResult = fIntensity * pow(fLuminance, fPower) * f3LumDir;
+
+	float fAverage = (f3Result.x + f3Result.y + f3Result.z) / 3.0f;
+	vec3 f3AvgDir = f3Result / max(fAverage, 0.001f);
+	vec3 f3AvgResult = fIntensity * pow(fAverage, fPower) * f3AvgDir;
+
+	return mix(f3LumResult, f3AvgResult, fPowerMode);
 }
 
-vec3 WaterLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fSoften, float fOne, float fOnePower, float fTwo, float fTwoPower, float fThree, float fThreePower)
+vec3 WaterLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fSoften, float fOne, float fOnePower, float fTwo, float fTwoPower, float fThree, float fThreePower, float fPowerMode)
 {
 	vec2 f2Normal = normalize(f3Normal.xy);
 	float fWeightE = mix(max(0.0f, -f2Normal.x), 0.25f, fSoften);
@@ -114,15 +123,35 @@ vec3 WaterLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fSoften, float fOne
 	vec3 f3Result = vec3(pf4Lighting[0].x * fWeightE + pf4Lighting[0].y * fWeightW + pf4Lighting[0].z * fWeightN + pf4Lighting[0].w * fWeightS,
 		                 pf4Lighting[1].x * fWeightE + pf4Lighting[1].y * fWeightW + pf4Lighting[1].z * fWeightN + pf4Lighting[1].w * fWeightS,
 		                 pf4Lighting[2].x * fWeightE + pf4Lighting[2].y * fWeightW + pf4Lighting[2].z * fWeightN + pf4Lighting[2].w * fWeightS);
-	return fOne * pow(f3Result, vec3(fOnePower)) + fTwo * pow(f3Result, vec3(fTwoPower)) + fThree * pow(f3Result, vec3(fThreePower));
+
+	float fLuminance = dot(f3Result, vec3(0.2126f, 0.7152f, 0.0722f));
+	vec3 f3LumDir = f3Result / max(fLuminance, 0.001f);
+	float fLumScalar = fOne * pow(fLuminance, fOnePower) + fTwo * pow(fLuminance, fTwoPower) + fThree * pow(fLuminance, fThreePower);
+	vec3 f3LumResult = fLumScalar * f3LumDir;
+
+	float fAverage = (f3Result.x + f3Result.y + f3Result.z) / 3.0f;
+	vec3 f3AvgDir = f3Result / max(fAverage, 0.001f);
+	float fAvgScalar = fOne * pow(fAverage, fOnePower) + fTwo * pow(fAverage, fTwoPower) + fThree * pow(fAverage, fThreePower);
+	vec3 f3AvgResult = fAvgScalar * f3AvgDir;
+
+	return mix(f3LumResult, f3AvgResult, fPowerMode);
 }
 
-vec3 AmbientLighting(vec4 pf4Lighting[3], float fIntensity, float fPower)
+vec3 AmbientLighting(vec4 pf4Lighting[3], float fIntensity, float fPower, float fPowerMode)
 {
 	vec3 f3Result = 0.25f * vec3(pf4Lighting[0].x + pf4Lighting[0].y + pf4Lighting[0].z + pf4Lighting[0].w,
 		                         pf4Lighting[1].x + pf4Lighting[1].y + pf4Lighting[1].z + pf4Lighting[1].w,
 		                         pf4Lighting[2].x + pf4Lighting[2].y + pf4Lighting[2].z + pf4Lighting[2].w);
-	return fIntensity * pow(f3Result, vec3(fPower));
+
+	float fLuminance = dot(f3Result, vec3(0.2126f, 0.7152f, 0.0722f));
+	vec3 f3LumDir = f3Result / max(fLuminance, 0.001f);
+	vec3 f3LumResult = fIntensity * pow(fLuminance, fPower) * f3LumDir;
+
+	float fAverage = (f3Result.x + f3Result.y + f3Result.z) / 3.0f;
+	vec3 f3AvgDir = f3Result / max(fAverage, 0.001f);
+	vec3 f3AvgResult = fIntensity * pow(fAverage, fPower) * f3AvgDir;
+
+	return mix(f3LumResult, f3AvgResult, fPowerMode);
 }
 
 vec2 WorldToSmokeTexcoord(vec4 f4SmokeArea, vec2 f2Position)

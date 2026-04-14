@@ -42,9 +42,9 @@ engine::Wrapper gBlasterPuffIntensityStart(6.0f, 0.6f, 30.0f);
 engine::Wrapper gBlasterPuffIntensityEnd(0.5f, 0.05f, 2.5f);
 
 // Players - Area light
-engine::Wrapper gPlayerAreaLightVisibleIntensity(1.0f, 0.1f, 5.0f);
-engine::Wrapper gPlayerAreaLightLightingSize(50.0f, 5.0f, 250.0f);
-engine::Wrapper gPlayerAreaLightLightingIntensity(100.0f, 10.0f, 500.0f);
+engine::Wrapper gPlayerAreaLightVisibleIntensity(1.0f, 0.1f, 1.0f);
+engine::Wrapper gPlayerAreaLightLightingSize(5.0f, 1.0f, 200.0f);
+engine::Wrapper gPlayerAreaLightLightingIntensity(500.0f, 10.0f, 10000.0f);
 
 // Players - Impact point light
 engine::Wrapper gPlayerImpactStartVisibleArea(0.675f, 0.07f, 3.5f);
@@ -65,7 +65,7 @@ engine::Wrapper gHexShieldLightingIntensity(125.0f, 10.0f, 625.0f);
 
 // Missiles - Exhaust
 engine::Wrapper gMissileExhaustVisibleIntensity(1.0f, 0.1f, 5.0f);
-engine::Wrapper gMissileExhaustLightingArea(20.0f, 2.0f, 100.0f);
+engine::Wrapper gMissileExhaustLightingArea(4.0f, 2.0f, 100.0f);
 engine::Wrapper gMissileExhaustLightingIntensity(250.0f, 25.0f, 1250.0f);
 
 // Missiles - Trail
@@ -78,7 +78,7 @@ engine::Wrapper gSpaceshipExplosionParticleLightingIntensity(2000.0f, 200.0f, 10
 
 // Spaceships - Enemy blaster
 engine::Wrapper gEnemyBlasterVisibleIntensity(1.0f, 0.1f, 5.0f);
-engine::Wrapper gEnemyBlasterLightingSize(10.0f, 1.0f, 50.0f);
+engine::Wrapper gEnemyBlasterLightingSize(2.0f, 1.0f, 50.0f);
 engine::Wrapper gEnemyBlasterLightingIntensity(200.0f, 20.0f, 1000.0f);
 
 // Spaceships - Hit flash

@@ -130,9 +130,9 @@ static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine:
 		{
 			.vecPosition = vecPosition,
 			.fVisibleArea = fSize,
-			.fVisibleIntensity = rPointLightType.fVisibleIntensity,
-			.fLightingArea = rPointLightType.fLightingArea,
-			.fLightingIntensity = rPointLightType.fLightingIntensity,
+			.fVisibleIntensity = rPointLightType.pVisibleIntensityWrapper ? rPointLightType.pVisibleIntensityWrapper->Get() : rPointLightType.fVisibleIntensity,
+			.fLightingArea = rPointLightType.pLightingAreaWrapper ? rPointLightType.pLightingAreaWrapper->Get() : rPointLightType.fLightingArea,
+			.fLightingIntensity = rPointLightType.pLightingIntensityWrapper ? rPointLightType.pLightingIntensityWrapper->Get() : rPointLightType.fLightingIntensity,
 			.fRotation = 0.0f,
 		});
 	}
