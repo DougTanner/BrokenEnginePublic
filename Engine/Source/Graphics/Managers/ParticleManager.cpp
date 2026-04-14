@@ -42,7 +42,11 @@ void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout
 		return;
 	}
 
-	ASSERT(layout.fIntensity > 0.0f);
+	if (layout.fIntensity <= 0.0f)
+	{
+		return;
+	}
+
 	layout.iCookie = gpParticleManager->GetOrAssignTextureIndex(textureCrc);
 	rParticlesSpawnLayout.pParticles[rParticlesSpawnLayout.iCount] = layout;
 	++rParticlesSpawnLayout.iCount;

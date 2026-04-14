@@ -9,6 +9,7 @@
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
 #include "Ui/LightingWrappers.h"
+#include "Ui/SmokeWrappers.h"
 #endif
 
 #include "Data/Audio.h"

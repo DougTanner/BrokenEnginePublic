@@ -25,6 +25,9 @@ void TweaksScreen::RenderLightingEffectsTab()
 		WrapperSlider("Lighting Area", kiSection, 1.0f, "Exp Secondary Lighting Area");
 		WrapperSlider("Lighting Intensity", kiSection, 1.0f, "Exp Secondary Lighting Intensity");
 
+		WrapperSeparatorText("Explosions - Particle");
+		WrapperSlider("Intensity", kiSection, 1.0f, "Exp Particle Intensity");
+
 		WrapperSeparatorText("Explosions - Primary Puff");
 		WrapperSlider("Area Start", kiSection, 1.0f, "Exp Primary Puff Area Start");
 		WrapperSlider("Area End", kiSection, 1.0f, "Exp Primary Puff Area End");

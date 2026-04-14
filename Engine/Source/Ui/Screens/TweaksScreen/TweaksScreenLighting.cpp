@@ -93,35 +93,45 @@ void TweaksScreenBase::RenderLightingSection()
 			{
 				mActiveSubtab[kiSection] = 1;
 			}
-			WrapperSeparatorText("Lighting");
-			WrapperSlider("New Directional", kiSection, 1.0f);
-			WrapperSlider("New Directional Power", kiSection, 1.0f);
-			WrapperSlider("Directional Power Mode", kiSection, 1.0f);
-			WrapperSlider("New Ambient", kiSection, 1.0f);
-			WrapperSlider("New Ambient Power", kiSection, 1.0f);
-			WrapperSlider("Ambient Power Mode", kiSection, 1.0f);
-			WrapperSlider("Water Ambient Power Mode", kiSection, 1.0f);
-			WrapperSlider("Terrain", kiSection, 1.0f);
-			WrapperSlider("Terrain Add", kiSection, 1.0f);
-			WrapperSlider("Below Base Multiplier", kiSection, 1.0f, "Terrain Below Base Multiplier");
-			WrapperSlider("Below Base Power", kiSection, 1.0f, "Terrain Below Base Power");
-			WrapperSlider("Objects", kiSection, 1.0f);
-			WrapperSlider("Objects Add", kiSection, 1.0f);
-			WrapperSlider("Day Final Multiplier", kiSection, 1.0f);
-			WrapperSlider("Night Final Multiplier", kiSection, 1.0f);
+			if (ImGui::BeginTable("LightingReadColumns", 2))
+			{
+				ImGui::TableNextColumn();
 
-			WrapperSeparatorText("Water Lighting");
-			WrapperSlider("Normal Soften", kiSection, 1.0f, "Water Normal Soften");
-			WrapperSlider("Normal Blend Wave", kiSection, 1.0f, "Water Normal Blend Wave");
-			WrapperSlider("Intensity", kiSection, 1.0f, "Water Intensity");
-			WrapperSlider("Add", kiSection, 1.0f, "Water Add");
-			WrapperSlider("One", kiSection, 1.0f, "Water One");
-			WrapperSlider("One Power", kiSection, 1.0f, "Water One Power");
-			WrapperSlider("Two", kiSection, 1.0f, "Water Two");
-			WrapperSlider("Two Power", kiSection, 1.0f, "Water Two Power");
-			WrapperSlider("Three", kiSection, 1.0f, "Water Three");
-			WrapperSlider("Three Power", kiSection, 1.0f, "Water Three Power");
-			WrapperSlider("Power Mode", kiSection, 1.0f, "Water Power Mode");
+				WrapperSeparatorText("Terrain Lighting");
+				WrapperSlider("New Directional", kiSection, 1.0f);
+				WrapperSlider("New Directional Power", kiSection, 1.0f);
+				WrapperSlider("Directional Power Mode", kiSection, 1.0f);
+				WrapperSlider("New Ambient", kiSection, 1.0f);
+				WrapperSlider("New Ambient Power", kiSection, 1.0f);
+				WrapperSlider("Ambient Power Mode", kiSection, 1.0f);
+				WrapperSlider("Terrain", kiSection, 1.0f);
+				WrapperSlider("Terrain Add", kiSection, 1.0f);
+				WrapperSlider("Below Base Multiplier", kiSection, 1.0f, "Terrain Below Base Multiplier");
+				WrapperSlider("Below Base Power", kiSection, 1.0f, "Terrain Below Base Power");
+				WrapperSlider("Objects", kiSection, 1.0f);
+				WrapperSlider("Objects Add", kiSection, 1.0f);
+				WrapperSlider("Day Final Multiplier", kiSection, 1.0f);
+				WrapperSlider("Night Final Multiplier", kiSection, 1.0f);
+
+				ImGui::TableNextColumn();
+
+				WrapperSeparatorText("Water Lighting");
+				WrapperSlider("Water Ambient Power", kiSection, 1.0f);
+				WrapperSlider("Water Ambient Power Mode", kiSection, 1.0f);
+				WrapperSlider("Normal Soften", kiSection, 1.0f, "Water Normal Soften");
+				WrapperSlider("Normal Blend Wave", kiSection, 1.0f, "Water Normal Blend Wave");
+				WrapperSlider("Intensity", kiSection, 1.0f, "Water Intensity");
+				WrapperSlider("Add", kiSection, 1.0f, "Water Add");
+				WrapperSlider("One", kiSection, 1.0f, "Water One");
+				WrapperSlider("One Power", kiSection, 1.0f, "Water One Power");
+				WrapperSlider("Two", kiSection, 1.0f, "Water Two");
+				WrapperSlider("Two Power", kiSection, 1.0f, "Water Two Power");
+				WrapperSlider("Three", kiSection, 1.0f, "Water Three");
+				WrapperSlider("Three Power", kiSection, 1.0f, "Water Three Power");
+				WrapperSlider("Power Mode", kiSection, 1.0f, "Water Power Mode");
+
+				ImGui::EndTable();
+			}
 
 			ImGui::EndTabItem();
 		}

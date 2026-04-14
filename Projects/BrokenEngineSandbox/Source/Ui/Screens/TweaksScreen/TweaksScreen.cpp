@@ -2,6 +2,7 @@
 
 #include "Game.h"
 #include "Ui/LightingWrappers.h"
+#include "Ui/SmokeWrappers.h"
 
 #if defined(BT_CLIENT)
 
@@ -48,20 +49,22 @@ TweaksScreen::TweaksScreen()
 		{"Explosions Deposit Width", &gWindDepositExplosionsWidth},
 		{"Explosions Deposit Intensity", &gWindDepositExplosionsIntensity},
 		// Lighting Effects - Explosions
-		{"Exp Primary Visible Area", &gExpPrimaryVisibleArea},
-		{"Exp Primary Visible Intensity", &gExpPrimaryVisibleIntensity},
-		{"Exp Primary Lighting Area", &gExpPrimaryLightingArea},
-		{"Exp Primary Lighting Intensity", &gExpPrimaryLightingIntensity},
-		{"Exp Secondary Visible Area", &gExpSecondaryVisibleArea},
-		{"Exp Secondary Visible Intensity", &gExpSecondaryVisibleIntensity},
-		{"Exp Secondary Lighting Area", &gExpSecondaryLightingArea},
-		{"Exp Secondary Lighting Intensity", &gExpSecondaryLightingIntensity},
-		{"Exp Primary Puff Area Start", &gExpPrimaryPuffAreaStart},
-		{"Exp Primary Puff Area End", &gExpPrimaryPuffAreaEnd},
-		{"Exp Primary Puff Intensity", &gExpPrimaryPuffIntensity},
-		{"Exp Secondary Puff Area Start", &gExpSecondaryPuffAreaStart},
-		{"Exp Secondary Puff Area End", &gExpSecondaryPuffAreaEnd},
-		{"Exp Secondary Puff Intensity", &gExpSecondaryPuffIntensity},
+		{"Explosion Primary Visible Area", &gExplosionPrimaryVisibleArea},
+		{"Explosion Primary Visible Intensity", &gExplosionPrimaryVisibleIntensity},
+		{"Explosion Primary Lighting Area", &gExplosionPrimaryLightingArea},
+		{"Explosion Primary Lighting Intensity", &gExplosionPrimaryLightingIntensity},
+		{"Explosion Secondary Visible Area", &gExplosionSecondaryVisibleArea},
+		{"Explosion Secondary Visible Intensity", &gExplosionSecondaryVisibleIntensity},
+		{"Explosion Secondary Lighting Area", &gExplosionSecondaryLightingArea},
+		{"Explosion Secondary Lighting Intensity", &gExplosionSecondaryLightingIntensity},
+		{"Explosion Particle Lighting Area", &gExplosionParticleLightingArea},
+		{"Explosion Particle Lighting Intensity", &gExplosionParticleLightingIntensity},
+		{"Explosion Primary Puff Area Start", &gExpPrimaryPuffAreaStart},
+		{"Explosion Primary Puff Area End", &gExpPrimaryPuffAreaEnd},
+		{"Explosion Primary Puff Intensity", &gExpPrimaryPuffIntensity},
+		{"Explosion Secondary Puff Area Start", &gExpSecondaryPuffAreaStart},
+		{"Explosion Secondary Puff Area End", &gExpSecondaryPuffAreaEnd},
+		{"Explosion Secondary Puff Intensity", &gExpSecondaryPuffIntensity},
 		// Lighting Effects - Blasters
 		{"Crater Visible Area Start", &gCraterVisibleAreaStart},
 		{"Crater Visible Area End", &gCraterVisibleAreaEnd},
@@ -77,11 +80,11 @@ TweaksScreen::TweaksScreen()
 		{"Blaster Puff Intensity End", &gBlasterPuffIntensityEnd},
 		// Lighting Effects - Players
 		{"Player Area Light Visible Intensity", &gPlayerAreaLightVisibleIntensity},
-		{"Player Area Light Lighting Size", &gPlayerAreaLightLightingSize},
-		{"Player Area Light Lighting Intensity", &gPlayerAreaLightLightingIntensity},
-		{"Player Impact Start Visible Area", &gPlayerImpactStartVisibleArea},
+		{"Player Area Light Lighting Size", &gPlayersBlasterLightingArea},
+		{"Player Area Light Lighting Intensity", &gPlayersBlasterLightingIntensity},
+		{"Player Impact Visible Area", &gPlayerImpactVisibleArea},
 		{"Player Impact Start Visible Intensity", &gPlayerImpactStartVisibleIntensity},
-		{"Player Impact Start Lighting Area", &gPlayerImpactStartLightingArea},
+		{"Player Impact Lighting Area", &gPlayerImpactLightingArea},
 		{"Player Impact Start Lighting Intensity", &gPlayerImpactStartLightingIntensity},
 		{"Player Impact End Visible Intensity", &gPlayerImpactEndVisibleIntensity},
 		{"Player Impact End Lighting Intensity", &gPlayerImpactEndLightingIntensity},
@@ -96,16 +99,16 @@ TweaksScreen::TweaksScreen()
 		{"Missile Exhaust Lighting Intensity", &gMissileExhaustLightingIntensity},
 		{"Missile Trail Intensity", &gMissileTrailIntensity},
 		// Lighting Effects - Spaceships
-		{"Spaceship Explosion Intensity", &gSpaceshipExplosionIntensity},
-		{"Spaceship Explosion Particle Lighting Size", &gSpaceshipExplosionParticleLightingSize},
+		{"Spaceship Explosion Intensity", &gSpaceshipExplosionLightingIntensity},
+		{"Spaceship Explosion Particle Lighting Size", &gSpaceshipExplosionParticleLightingArea},
 		{"Spaceship Explosion Particle Lighting Intensity", &gSpaceshipExplosionParticleLightingIntensity},
 		{"Enemy Blaster Visible Intensity", &gEnemyBlasterVisibleIntensity},
-		{"Enemy Blaster Lighting Size", &gEnemyBlasterLightingSize},
+		{"Enemy Blaster Lighting Area", &gEnemyBlasterLightingArea},
 		{"Enemy Blaster Lighting Intensity", &gEnemyBlasterLightingIntensity},
-		{"Hit Flash Visible Area", &gHitFlashStartVisibleArea},
-		{"Hit Flash Visible Intensity", &gHitFlashStartVisibleIntensity},
-		{"Hit Flash Lighting Area", &gHitFlashStartLightingArea},
-		{"Hit Flash Lighting Intensity", &gHitFlashStartLightingIntensity},
+		{"Hit Flash Visible Area", &gHitFlashVisibleArea},
+		{"Hit Flash Visible Intensity", &gHitFlashVisibleIntensity},
+		{"Hit Flash Lighting Area", &gHitFlashLightingArea},
+		{"Hit Flash Lighting Intensity", &gHitFlashLightingIntensity},
 	});
 }
 

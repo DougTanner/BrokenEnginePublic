@@ -10,6 +10,7 @@
 #if defined(BT_CLIENT)
 #include "Ui/WrapperBase.h"
 #include "Ui/LightingWrappers.h"
+#include "Ui/SmokeWrappers.h"
 #endif
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Explosions/Explosions.h"

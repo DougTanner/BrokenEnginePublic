@@ -23,6 +23,7 @@ Low-level Vulkan resource wrappers providing RAII semantics for GPU resources. A
 - Lazy texture loading uses placeholder images until background upload completes, then atomically adopts GPU resources
 - Pipelines support update-after-bind for runtime descriptor updates without command buffer re-recording
 - Indirect rendering supports both host-visible (CPU-written) and device-local (GPU compute-written) buffer types
+- Descriptor-info list drives both layout bindings and per-frame writes; `PipelineManager` builds this list at two sites and missing entries in either produce VUID-vkCmdDrawIndexed-None-08114. See [../Managers/CLAUDE.md](../Managers/CLAUDE.md)
 
 ## See Also
 

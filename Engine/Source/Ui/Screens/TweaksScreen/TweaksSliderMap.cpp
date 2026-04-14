@@ -16,6 +16,7 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		// Test
 		{"Test One", &gTestOne},
 		{"Test Two", &gTestTwo},
+			{"Debug Texture Range", &gDebugTextureLinearRange},
 		// Pbr - Tone Mapping
 		{"Exposure", &gPbrExposure},
 		{"Gamma", &gPbrGamma},
@@ -164,6 +165,7 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"New Ambient", &gLightingNewAmbient},
 		{"New Ambient Power", &gLightingNewAmbientPower},
 		{"Ambient Power Mode", &gLightingAmbientPowerMode},
+		{"Water Ambient Power", &gLightingWaterAmbientPower},
 		{"Water Ambient Power Mode", &gLightingWaterAmbientPowerMode},
 		{"Terrain", &gLightingTerrain},
 		{"Terrain Add", &gLightingAddTerrain},

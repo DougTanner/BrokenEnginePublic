@@ -27,6 +27,7 @@ See also: [Graphics Pipeline](../../../../Documents/Architecture/GraphicsPipelin
 - Single descriptor pool in DeviceManager serves all pipelines; global Set 0 owned by TextureDescriptors, per-pipeline Sets 1 and 2
 - Per-framebuffer resource duplication enables parallel frame processing
 - Semaphore chain: Image acquisition, Global, Main, ImGui, Presentation
+- **Dual pipeline-creation-site invariant**: `PipelineManager.cpp` builds each pipeline's descriptor-info list in two places (constructor + `RecreatePipelineGroups`); edits to one MUST be mirrored in the other or drift surfaces as VUID-vkCmdDrawIndexed-None-08114
 
 ## See Also
 

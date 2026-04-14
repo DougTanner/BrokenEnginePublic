@@ -1,3 +1,6 @@
+// DT: TEMP
+#define DT_LIGHTING_ONLY
+
 // #define ENABLE_SHADER_REALTIME_CLOCK_EXT
 // #define ENABLE_DEBUG_PRINTF_EXT
 #if defined(ENABLE_DEBUG_PRINTF_EXT)
@@ -121,12 +124,14 @@ CONSTEXPR int kiBillboardTexturesCount = 3;
 CONSTEXPR int kiMaxIslands = 64;
 
 CONSTEXPR int kiMaxSpreadPasses = 32;
-CONSTEXPR int kiMaxDebugTextures = 2 + kiMaxSpreadPasses;
+CONSTEXPR int kiMaxDebugTextures = 3 + kiMaxSpreadPasses;
 
 CONSTEXPR int kiDebugTextureFormatFloat16LightingDirectional = 0;
 CONSTEXPR int kiDebugTextureFormatUnormLightingDirectional = 1;
 CONSTEXPR int kiDebugTextureFormatFloat16Linear = 2;
 CONSTEXPR int kiDebugTextureFormatFloat16LinearVisibleArea = 3;
+CONSTEXPR int kiDebugTextureFormatFloat16DepositDirectionCombined = 4;
+CONSTEXPR int kiDebugTextureFormatFloat16SpreadDirectionCombined = 5;
 
 CONSTEXPR int kiShadowTextureExecutionSize = 64;
 
@@ -438,6 +443,7 @@ struct MainLayout
 	float fLightingNewAmbient INIT;
 	float fLightingNewAmbientPower INIT;
 	float fLightingAmbientPowerMode INIT;
+	float fLightingWaterAmbientPower INIT;
 	float fLightingWaterAmbientPowerMode INIT;
 	float fLightingTerrainBelowBaseMultiplier INIT;
 	float fLightingTerrainBelowBasePower INIT;

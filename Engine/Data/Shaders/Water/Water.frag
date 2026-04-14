@@ -167,9 +167,9 @@ void main()
 	{
 		vec3 f3Dir = vec3(pf4LightingBaseHeight[0][i], pf4LightingBaseHeight[1][i], pf4LightingBaseHeight[2][i]);
 		float fLum = dot(f3Dir, vec3(0.2126f, 0.7152f, 0.0722f));
-		float fLumRatio = pow(max(fLum, 0.001f), mainLayout.fLightingNewAmbientPower) / max(fLum, 0.001f);
+		float fLumRatio = pow(max(fLum, 0.001f), mainLayout.fLightingWaterAmbientPower) / max(fLum, 0.001f);
 		float fAvg = (f3Dir.x + f3Dir.y + f3Dir.z) / 3.0f;
-		float fAvgRatio = pow(max(fAvg, 0.001f), mainLayout.fLightingNewAmbientPower) / max(fAvg, 0.001f);
+		float fAvgRatio = pow(max(fAvg, 0.001f), mainLayout.fLightingWaterAmbientPower) / max(fAvg, 0.001f);
 		float fRatio = mix(fLumRatio, fAvgRatio, fWaterAmbientPowerMode);
 		pf4LightingBaseHeight[0][i] *= fRatio;
 		pf4LightingBaseHeight[1][i] *= fRatio;
@@ -185,6 +185,12 @@ void main()
 	float fWaterLightingAdd = mainLayout.fLightingWaterAdd;
 	vec3 f3WaterLightingColor = f3WaterLightingScaled * mix(f3PreLightingColor, vec3(1.0f), fWaterLightingAdd);
 	f4OutColor.xyz += fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * f3WaterLightingColor;
+
+	// DT: TEMP — show only lighting texture contributions (with normals and base color)
+#ifdef DT_LIGHTING_ONLY
+	f4OutColor.xyz = fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * f3WaterLightingColor;
+	return;
+#endif
 
 	// Additive smoke
 	vec2 f2SmokeTexcoord = WorldToSmokeTexcoord(globalLayout.f4SmokeArea, f2PositionAtBaseHeight);

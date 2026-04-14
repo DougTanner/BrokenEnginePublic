@@ -100,10 +100,6 @@ void main()
 
 	vec3 f3SunNormal = normalize(f3Normal + fSnowPercent * globalLayout.f4SunMoonNormal.xyz);
 
-	// Shadow with smoke at world position
-	float fShadow = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
-	f4OutColor = vec4(SunLighting(f3Color, globalLayout, vec4(f3InPosition, 1.0f), f3SunNormal, fShadow, 1.0f - texture(ambientOcclusionTextureSampler, f2InVisibleAreaTexcoord).x), 1.0f);
-
 	// Sample lighting texture, at world x/y and at projected base-height x/y
 	vec2 f2LightingTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4LightingArea);
 	vec4 pf4Lighting[3] = {texture(pLightingSamplers[0], f2LightingTexcoord), texture(pLightingSamplers[1], f2LightingTexcoord), texture(pLightingSamplers[2], f2LightingTexcoord)};
@@ -117,6 +113,16 @@ void main()
 	vec3 f3Lighting = globalLayout.fLightingTerrain * globalLayout.fLightingTimeOfDayMultiplier * (f3Directional + f3Ambient);
 	float fHeightRatio = clamp(f3InPosition.z / max(globalLayout.fBaseHeight, 0.001), 0.0, 1.0);
 	f3Lighting *= mix(mainLayout.fLightingTerrainBelowBaseMultiplier, 1.0, pow(fHeightRatio, mainLayout.fLightingTerrainBelowBasePower));
+
+	// DT: TEMP — show only lighting texture contributions (with normals and base color)
+#ifdef DT_LIGHTING_ONLY
+	f4OutColor = vec4(f3Lighting * mix(f3Color, vec3(1.0f), globalLayout.fLightingAddTerrain), 1.0f);
+	return;
+#endif
+
+	// Shadow with smoke at world position
+	float fShadow = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
+	f4OutColor = vec4(SunLighting(f3Color, globalLayout, vec4(f3InPosition, 1.0f), f3SunNormal, fShadow, 1.0f - texture(ambientOcclusionTextureSampler, f2InVisibleAreaTexcoord).x), 1.0f);
 	f4OutColor.xyz += f3Lighting * mix(f3Color, vec3(1.0f), globalLayout.fLightingAddTerrain);
 
 	// Sample smoke at base-height projected position, affected by lighting at base-height projected position

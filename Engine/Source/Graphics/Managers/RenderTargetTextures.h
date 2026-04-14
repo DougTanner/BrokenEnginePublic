@@ -32,6 +32,7 @@ struct RenderTargetTextures
 	Texture mWindTextureTwo;
 
 	Texture mpLightingTextures[3];
+	Texture* mppLightingDepositTextures[3] {};
 	VkRenderPass mLightingVkRenderPass = VK_NULL_HANDLE;
 	VkFramebuffer mLightingVkFramebuffer = VK_NULL_HANDLE;
 
@@ -43,9 +44,11 @@ struct RenderTargetTextures
 	Texture mpCombineTextures[3];
 	Texture* mppLightingFinalTextures[3] {};
 
-	// Debug texture array
+	// Debug texture array (channels A/B/C used by formats needing 3 textures per slot, e.g., spread direction combined)
 	int64_t miDebugTextureCount = 0;
 	Texture* mppDebugTextures[shaders::kiMaxDebugTextures] {};
+	Texture* mppDebugTexturesB[shaders::kiMaxDebugTextures] {};
+	Texture* mppDebugTexturesC[shaders::kiMaxDebugTextures] {};
 	int64_t mpDebugTextureFormats[shaders::kiMaxDebugTextures] {};
 
 	Texture mShadowElevationTexture;

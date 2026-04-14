@@ -142,6 +142,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		XMStoreFloat4A(&f4Base, vecBaseLighting3);
 		rAreaLayout.pf4VerticesTexcoords[3] = {f4Base.x, f4Base.y, rType.pf2Texcoords[3].x, rType.pf2Texcoords[3].y};
 
+		if (fLightingIntensity * fIntensityMultiplier > 2.0f) [[unlikely]] DEBUG_BREAK();
 		XMFLOAT4A f4Params {};
 		f4Params.x = fBlurredTextureIndex;
 		f4Params.y = fLightingIntensity * fIntensityMultiplier;

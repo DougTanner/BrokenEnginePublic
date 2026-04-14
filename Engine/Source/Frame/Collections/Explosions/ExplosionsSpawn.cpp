@@ -7,6 +7,7 @@
 #include "Frame/Collections/Puffs/Puffs.h"
 #include "Frame/Collections/SmokeTrails/SmokeTrails.h"
 #include "Frame/Collections/WindRadials/WindRadials.h"
+#include "Ui/LightingWrappers.h"
 #endif // BT_CLIENT
 
 namespace engine
@@ -183,6 +184,9 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 		}
 
 		[[maybe_unused]] float fParticleIntensity = rType.fParticleIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleIntensityRandom;
+#if defined(BT_CLIENT)
+		fParticleIntensity *= game::gExplosionParticleLightingIntensity.Get();
+#endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
 		if (!(rFrame.interpolate.frameFlags & FrameFlags::kRecalculated))

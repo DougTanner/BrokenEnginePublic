@@ -5,6 +5,7 @@
 #include "Profile/ProfileManager.h"
 #include "Ui/WrapperBase.h"
 #include "Ui/LightingWrappers.h"
+#include "Ui/SmokeWrappers.h"
 #include "Graphics/Managers/ParticleManager.h"
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
@@ -98,10 +99,10 @@ void ExplosionsInterpolate::Register()
 	{
 		.crc = data::kTexturesBC7ExplosionpngCrc,
 		.uiColor = 0xFFFFFFFF,
-		.fVisibleArea = game::gExpPrimaryVisibleArea.Get(),
-		.fVisibleIntensity = game::gExpPrimaryVisibleIntensity.Get(),
-		.fLightingArea = game::gExpPrimaryLightingArea.Get(),
-		.fLightingIntensity = game::gExpPrimaryLightingIntensity.Get(),
+		.fVisibleArea = game::gExplosionPrimaryVisibleArea.Get(),
+		.fVisibleIntensity = game::gExplosionPrimaryVisibleIntensity.Get(),
+		.fLightingArea = game::gExplosionPrimaryLightingArea.Get(),
+		.fLightingIntensity = game::gExplosionPrimaryLightingIntensity.Get(),
 	});
 
 	// Register primary light controller type (3-keyframe: start -> peak -> fade)
@@ -119,10 +120,10 @@ void ExplosionsInterpolate::Register()
 			{.fVisibleArea = 0.6f, .fVisibleIntensity = 0.0f, .fLightingArea = 1.2f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
 			{},
 		},
-		.ppVisibleAreaScales = {&game::gExpPrimaryVisibleArea, &game::gExpPrimaryVisibleArea, &game::gExpPrimaryVisibleArea, nullptr},
-		.ppVisibleIntensityScales = {&game::gExpPrimaryVisibleIntensity, &game::gExpPrimaryVisibleIntensity, nullptr, nullptr},
-		.ppLightingAreaScales = {&game::gExpPrimaryLightingArea, &game::gExpPrimaryLightingArea, &game::gExpPrimaryLightingArea, nullptr},
-		.ppLightingIntensityScales = {&game::gExpPrimaryLightingIntensity, &game::gExpPrimaryLightingIntensity, nullptr, nullptr},
+		.ppVisibleAreaScales = {&game::gExplosionPrimaryVisibleArea, &game::gExplosionPrimaryVisibleArea, &game::gExplosionPrimaryVisibleArea, nullptr},
+		.ppVisibleIntensityScales = {&game::gExplosionPrimaryVisibleIntensity, &game::gExplosionPrimaryVisibleIntensity, nullptr, nullptr},
+		.ppLightingAreaScales = {&game::gExplosionPrimaryLightingArea, &game::gExplosionPrimaryLightingArea, &game::gExplosionPrimaryLightingArea, nullptr},
+		.ppLightingIntensityScales = {&game::gExplosionPrimaryLightingIntensity, &game::gExplosionPrimaryLightingIntensity, nullptr, nullptr},
 	});
 
 	// Register secondary light controller type (3-keyframe: delayed start -> peak -> fade)
@@ -139,10 +140,10 @@ void ExplosionsInterpolate::Register()
 			{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
 			{},
 		},
-		.ppVisibleAreaScales = {nullptr, &game::gExpSecondaryVisibleArea, nullptr, nullptr},
-		.ppVisibleIntensityScales = {nullptr, &game::gExpSecondaryVisibleIntensity, nullptr, nullptr},
-		.ppLightingAreaScales = {nullptr, &game::gExpSecondaryLightingArea, nullptr, nullptr},
-		.ppLightingIntensityScales = {nullptr, &game::gExpSecondaryLightingIntensity, nullptr, nullptr},
+		.ppVisibleAreaScales = {nullptr, &game::gExplosionSecondaryVisibleArea, nullptr, nullptr},
+		.ppVisibleIntensityScales = {nullptr, &game::gExplosionSecondaryVisibleIntensity, nullptr, nullptr},
+		.ppLightingAreaScales = {nullptr, &game::gExplosionSecondaryLightingArea, nullptr, nullptr},
+		.ppLightingIntensityScales = {nullptr, &game::gExplosionSecondaryLightingIntensity, nullptr, nullptr},
 	});
 
 	// Register Puffs::Type for explosions

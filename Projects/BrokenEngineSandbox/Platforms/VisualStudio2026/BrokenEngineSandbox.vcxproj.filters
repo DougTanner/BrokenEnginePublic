@@ -435,6 +435,9 @@
     <ClInclude Include="..\..\Source\Ui\LightingWrappers.h">
       <Filter>Game\Ui</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\SmokeWrappers.h">
+      <Filter>Game\Ui</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Ui\Wrapper.h">
       <Filter>Game\Ui</Filter>
     </ClInclude>

@@ -133,7 +133,7 @@ void SpaceshipsInterpolate::Register()
 		.fParticleVerticalVelocityRandom = kfSpaceshipExplosionParticleVerticalVelocityRandom,
 		.fParticleIntensityDecay = kfSpaceshipExplosionParticleIntensityDecay,
 #if defined(BT_CLIENT)
-		.fParticleLightingSize = gSpaceshipExplosionParticleLightingSize.Get(),
+		.fParticleLightingSize = gSpaceshipExplosionParticleLightingArea.Get(),
 		.fParticleLightingIntensity = gSpaceshipExplosionParticleLightingIntensity.Get(),
 #endif
 		.fTrailLengthRandom = kfSpaceshipExplosionTrailLengthRandom,
@@ -167,7 +167,7 @@ static void RegisterEnemyBlasterType()
 		.fVisibleArea = kfEnemyBlasterSize,
 		.bCameraAligned = true,
 		.pVisibleIntensityWrapper = &gEnemyBlasterVisibleIntensity,
-		.pLightingAreaWrapper = &gEnemyBlasterLightingSize,
+		.pLightingAreaWrapper = &gEnemyBlasterLightingArea,
 		.pLightingIntensityWrapper = &gEnemyBlasterLightingIntensity,
 	});
 #endif // BT_CLIENT
@@ -243,10 +243,10 @@ static void RegisterSpaceshipHitFlashEffect()
 				{},
 				{},
 			},
-			.ppVisibleAreaScales = {&gHitFlashStartVisibleArea, nullptr, nullptr, nullptr},
-			.ppVisibleIntensityScales = {&gHitFlashStartVisibleIntensity, nullptr, nullptr, nullptr},
-			.ppLightingAreaScales = {&gHitFlashStartLightingArea, nullptr, nullptr, nullptr},
-			.ppLightingIntensityScales = {&gHitFlashStartLightingIntensity, nullptr, nullptr, nullptr},
+			.ppVisibleAreaScales = {&gHitFlashVisibleArea, nullptr, nullptr, nullptr},
+			.ppVisibleIntensityScales = {&gHitFlashVisibleIntensity, nullptr, nullptr, nullptr},
+			.ppLightingAreaScales = {&gHitFlashLightingArea, nullptr, nullptr, nullptr},
+			.ppLightingIntensityScales = {&gHitFlashLightingIntensity, nullptr, nullptr, nullptr},
 		});
 	}
 }
@@ -268,7 +268,7 @@ void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPosition, XMV
 		.uiParticleCount = static_cast<uint32_t>(fPercent * kfSpaceshipExplosionParticleCount),
 		.fParticleAngle = fPercent * XM_PIDIV2,
 		#if defined(BT_CLIENT)
-			.fLightPercent = fPercent * gSpaceshipExplosionIntensity.Get(),
+			.fLightPercent = fPercent * gSpaceshipExplosionLightingIntensity.Get(),
 #else
 			.fLightPercent = fPercent * kfSpaceshipExplosionIntensity,
 #endif

@@ -212,10 +212,14 @@ void ServerClientManager::Disconnects()
 		gpServerSession->mClientOwnedPlayerIds.erase(rDisconnect.iClientId);
 	}
 
-	// Unpause when no clients remain so the server resumes ticking for the next connection
-	if (gpGame->mGameFlags & engine::GameFlags::kPaused && engine::gpServer->GetClients().empty())
+	// Unpause and reset timespeed when no clients remain so the server resumes ticking at 1x for the next connection
+	if (engine::gpServer->GetClients().empty())
 	{
 		gpGame->mGameFlags.Clear(engine::GameFlags::kPaused);
+		if (gpGame->mTimeStep.miTimeMultiply != 1 || gpGame->mTimeStep.miTimeDivide != 1)
+		{
+			gpGame->mTimeStep.SetTimeScale(1, 1);
+		}
 	}
 }
 

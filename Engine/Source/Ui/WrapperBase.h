@@ -372,6 +372,7 @@ extern Wrapper gLightingDirectionalPowerMode;
 extern Wrapper gLightingNewAmbient;
 extern Wrapper gLightingNewAmbientPower;
 extern Wrapper gLightingAmbientPowerMode;
+extern Wrapper gLightingWaterAmbientPower;
 extern Wrapper gLightingWaterAmbientPowerMode;
 extern Wrapper gLightingTerrain;
 extern Wrapper gLightingAddTerrain;

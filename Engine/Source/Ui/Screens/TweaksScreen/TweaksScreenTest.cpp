@@ -11,6 +11,7 @@ void TweaksScreenBase::RenderTestSection()
 
 	WrapperSlider("Test One", kiSection);
 	WrapperSlider("Test Two", kiSection);
+	WrapperSlider("Debug Texture Range", kiSection);
 }
 
 } // namespace engine

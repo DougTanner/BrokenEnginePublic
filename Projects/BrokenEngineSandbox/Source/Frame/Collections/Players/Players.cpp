@@ -12,6 +12,7 @@
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
 #include "Ui/LightingWrappers.h"
+#include "Ui/SmokeWrappers.h"
 #endif
 
 namespace engine
@@ -72,11 +73,11 @@ void PlayersInterpolate::Register()
 		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
 		.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
 		.fVisibleIntensity = gPlayerAreaLightVisibleIntensity.Get(),
-		.fLightingSize = gPlayerAreaLightLightingSize.Get(),
-		.fLightingIntensity = gPlayerAreaLightLightingIntensity.Get(),
+		.fLightingSize = gPlayersBlasterLightingArea.Get(),
+		.fLightingIntensity = gPlayersBlasterLightingIntensity.Get(),
 		.pVisibleIntensityWrapper = &gPlayerAreaLightVisibleIntensity,
-		.pLightingSizeWrapper = &gPlayerAreaLightLightingSize,
-		.pLightingIntensityWrapper = &gPlayerAreaLightLightingIntensity,
+		.pLightingSizeWrapper = &gPlayersBlasterLightingArea,
+		.pLightingIntensityWrapper = &gPlayersBlasterLightingIntensity,
 	});
 #endif // BT_CLIENT
 
@@ -127,9 +128,9 @@ void PlayersInterpolate::Register()
 			{},
 			{},
 		},
-		.ppVisibleAreaScales = {&gPlayerImpactStartVisibleArea, nullptr, nullptr, nullptr},
+		.ppVisibleAreaScales = {&gPlayerImpactVisibleArea, nullptr, nullptr, nullptr},
 		.ppVisibleIntensityScales = {&gPlayerImpactStartVisibleIntensity, &gPlayerImpactEndVisibleIntensity, nullptr, nullptr},
-		.ppLightingAreaScales = {&gPlayerImpactStartLightingArea, nullptr, nullptr, nullptr},
+		.ppLightingAreaScales = {&gPlayerImpactLightingArea, nullptr, nullptr, nullptr},
 		.ppLightingIntensityScales = {&gPlayerImpactStartLightingIntensity, &gPlayerImpactEndLightingIntensity, nullptr, nullptr},
 	});
 

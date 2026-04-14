@@ -107,6 +107,7 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fLightingNewAmbient = gLightingNewAmbient.Get();
 	rMainLayout.fLightingNewAmbientPower = gLightingNewAmbientPower.Get();
 	rMainLayout.fLightingAmbientPowerMode = gLightingAmbientPowerMode.Get();
+	rMainLayout.fLightingWaterAmbientPower = gLightingWaterAmbientPower.Get();
 	rMainLayout.fLightingWaterAmbientPowerMode = gLightingWaterAmbientPowerMode.Get();
 	rMainLayout.fLightingTerrainBelowBaseMultiplier = gLightingTerrainBelowBaseMultiplier.Get();
 	rMainLayout.fLightingTerrainBelowBasePower = gLightingTerrainBelowBasePower.Get();

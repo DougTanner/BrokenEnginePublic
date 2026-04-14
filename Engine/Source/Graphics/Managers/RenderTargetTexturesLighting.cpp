@@ -279,19 +279,32 @@ void RenderTargetTextures::CreateLightingTextures()
 	for (int64_t i = 0; i < 3; ++i)
 	{
 		mppLightingFinalTextures[i] = &mpCombineTextures[i];
+		mppLightingDepositTextures[i] = &mpLightingTextures[i];
 	}
 
-	// Debug textures: deposit red (visible area space), spread pass 0..N red, combine red
+	// Debug textures: deposit RGB (visible area), deposit combined direction, spread pass 0..N combined direction, combine red
 	mppDebugTextures[0] = &mpLightingTextures[0];
 	mpDebugTextureFormats[0] = shaders::kiDebugTextureFormatFloat16LinearVisibleArea;
+	mppDebugTextures[1] = &mpLightingTextures[0];
+	mpDebugTextureFormats[1] = shaders::kiDebugTextureFormatFloat16DepositDirectionCombined;
 	for (int64_t i = 0; i < iPassCount; ++i)
 	{
-		mppDebugTextures[1 + i] = &mpSpreadTextures[i][0];
-		mpDebugTextureFormats[1 + i] = shaders::kiDebugTextureFormatFloat16LightingDirectional;
+		mppDebugTextures[2 + i] = &mpSpreadTextures[i][0];
+		mppDebugTexturesB[2 + i] = &mpSpreadTextures[i][1];
+		mppDebugTexturesC[2 + i] = &mpSpreadTextures[i][2];
+		mpDebugTextureFormats[2 + i] = shaders::kiDebugTextureFormatFloat16SpreadDirectionCombined;
 	}
-	mppDebugTextures[1 + iPassCount] = &mpCombineTextures[0];
-	mpDebugTextureFormats[1 + iPassCount] = shaders::kiDebugTextureFormatUnormLightingDirectional;
-	miDebugTextureCount = 2 + iPassCount;
+	mppDebugTextures[2 + iPassCount] = &mpCombineTextures[0];
+	mpDebugTextureFormats[2 + iPassCount] = shaders::kiDebugTextureFormatUnormLightingDirectional;
+	miDebugTextureCount = 3 + iPassCount;
+
+	// Fill unused B/C slots with primary texture so descriptor writes remain valid
+	for (int64_t i = 0; i < shaders::kiMaxDebugTextures; ++i)
+	{
+		if (mppDebugTexturesB[i] == nullptr) mppDebugTexturesB[i] = mppDebugTextures[i] != nullptr ? mppDebugTextures[i] : &mpLightingTextures[0];
+		if (mppDebugTexturesC[i] == nullptr) mppDebugTexturesC[i] = mppDebugTextures[i] != nullptr ? mppDebugTextures[i] : &mpLightingTextures[0];
+		if (mppDebugTextures[i] == nullptr) mppDebugTextures[i] = &mpLightingTextures[0];
+	}
 
 	if (gDebugTextureIndex.Get() >= static_cast<float>(miDebugTextureCount))
 		gDebugTextureIndex.Set(static_cast<float>(miDebugTextureCount - 1));
