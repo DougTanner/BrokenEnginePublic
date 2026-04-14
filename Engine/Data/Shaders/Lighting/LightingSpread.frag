@@ -51,9 +51,12 @@ void main()
 	vec2 f2ElevTexcoord = WorldToVisibleArea(vec3(f2WorldPos, 0.0f), globalLayout.f4VisibleArea);
 	float fElevation = texture(elevationSampler, f2ElevTexcoord).x;
 	float fHeightFactor = clamp(fElevation / max(globalLayout.fIslandHeight, 0.001f), 0.0f, 1.0f);
-	fSpreadDistance *= 1.0f - fHeightFactor * globalLayout.fSpreadHeightDistance;
-	float fIntensityHeightFactor = clamp((fElevation - globalLayout.fBaseHeight) / max(globalLayout.fSpreadHeightIntensityTarget - globalLayout.fBaseHeight, 0.001f), 0.0f, 1.0f);
-	fDecay *= 1.0f - fIntensityHeightFactor * globalLayout.fSpreadHeightIntensity;
+	float fSpreadHeightDistance = mix(globalLayout.fSpreadHeightDistanceStart, globalLayout.fSpreadHeightDistanceEnd, fT);
+	float fSpreadHeightIntensity = mix(globalLayout.fSpreadHeightIntensityStart, globalLayout.fSpreadHeightIntensityEnd, fT);
+	float fSpreadHeightIntensityTarget = mix(globalLayout.fSpreadHeightIntensityTargetStart, globalLayout.fSpreadHeightIntensityTargetEnd, fT);
+	fSpreadDistance *= 1.0f - fHeightFactor * fSpreadHeightDistance;
+	float fIntensityHeightFactor = clamp((fElevation - globalLayout.fBaseHeight) / max(fSpreadHeightIntensityTarget - globalLayout.fBaseHeight, 0.001f), 0.0f, 1.0f);
+	fDecay *= 1.0f - fIntensityHeightFactor * fSpreadHeightIntensity;
 
 	// World-to-texcoord conversion: texcoord 0-1 covers the lighting area
 	float fAspectRatioX = 1.0f / (globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x);
@@ -82,7 +85,7 @@ void main()
 		const uint32_t uiDirectionCount = uint32_t(fDirectionCount);
 		fDirectionCount = float(uiDirectionCount);
 		const float fDirectionStep = (2.0f * fPi) / fDirectionCount;
-		fTotalSamples += fDirectionCount;
+		fTotalSamples += fDirectionCount * fRingFalloff;
 		for (uint32_t i = 0; i < uiDirectionCount; ++i)
 		{
 			float fAngle = float(i) * fDirectionStep + fRingJitter;

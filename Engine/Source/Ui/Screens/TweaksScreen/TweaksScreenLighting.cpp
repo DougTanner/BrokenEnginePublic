@@ -33,24 +33,21 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSeparatorText("2. Deposit");
 				WrapperSlider("Texture Multiplier", kiSection, 1.0f, "Deposit Texture Multiplier");
 
-				WrapperSeparatorText("3a. Spread - Pixel Multiplier");
-				WrapperSlider("Texture Multiplier Start", kiSection, 1.0f, "Spread Texture Multiplier Start");
-				WrapperSlider("Texture Multiplier End", kiSection, 1.0f, "Spread Texture Multiplier End");
+				WrapperSeparatorText("3a. Spread");
 				WrapperSlider("Pass Count", kiSection, 1.0f, "Spread Pass Count");
+				WrapperSlider("Decay", kiSection, 1.0f, "Spread Decay");
+				WrapperSlider("Accumulation Decay", kiSection, 1.0f, "Spread Accumulation Decay");
 
 				float fSpreadStartY = ImGui::GetCursorPosY();
 
 				WrapperSeparatorText("3b. Spread Start");
+				WrapperSlider("Texture Multiplier Start", kiSection, 1.0f, "Spread Texture Multiplier Start");
 				WrapperSlider("Directionality", kiSection, 1.0f, "Spread Directionality");
 				WrapperSlider("Direction Count", kiSection, 1.0f, "Spread Direction Count");
 				WrapperSlider("Distance", kiSection, 1.0f, "Spread Distance");
 				WrapperSlider("Ring Count", kiSection, 1.0f, "Spread Ring Count");
 				WrapperSlider("Jitter", kiSection, 1.0f, "Spread Jitter");
-				WrapperSlider("Decay", kiSection, 1.0f, "Spread Decay");
-				WrapperSlider("Accumulation Decay", kiSection, 1.0f, "Spread Accumulation Decay");
 				WrapperSlider("Distance Falloff", kiSection, 1.0f, "Spread Distance Falloff");
-
-				WrapperSeparatorText("3d. Spread Height");
 				WrapperSlider("Height Distance", kiSection, 1.0f, "Spread Height Distance");
 				WrapperSlider("Height Intensity", kiSection, 1.0f, "Spread Height Intensity");
 				WrapperSlider("Height Intensity Target", kiSection, 1.0f, "Spread Height Intensity Target");
@@ -71,14 +68,16 @@ void TweaksScreenBase::RenderLightingSection()
 				ImGui::SetCursorPosY(fSpreadStartY);
 
 				WrapperSeparatorText("3c. Spread End");
+				WrapperSlider("Texture Multiplier End", kiSection, 1.0f, "Spread Texture Multiplier End");
 				WrapperSlider("Directionality", kiSection, 1.0f, "Spread Directionality End");
 				WrapperSlider("Direction Count", kiSection, 1.0f, "Spread Direction Count End");
 				WrapperSlider("Distance", kiSection, 1.0f, "Spread Distance End");
 				WrapperSlider("Ring Count", kiSection, 1.0f, "Spread Ring Count End");
 				WrapperSlider("Jitter", kiSection, 1.0f, "Spread Jitter End");
-				WrapperSlider("Decay", kiSection, 1.0f, "Spread Decay End");
-				WrapperSlider("Accumulation Decay", kiSection, 1.0f, "Spread Accumulation Decay End");
 				WrapperSlider("Distance Falloff", kiSection, 1.0f, "Spread Distance Falloff End");
+				WrapperSlider("Height Distance", kiSection, 1.0f, "Spread Height Distance End");
+				WrapperSlider("Height Intensity", kiSection, 1.0f, "Spread Height Intensity End");
+				WrapperSlider("Height Intensity Target", kiSection, 1.0f, "Spread Height Intensity Target End");
 
 				ImGui::EndTable();
 			}

@@ -125,38 +125,41 @@ Wrapper gLightingBlurEdgeFalloff(0.01f, 0.01f, 0.4f);
 // Lighting Deposit
 Wrapper gLightingDepositTextureMultiplier(0.5f, 0.1f, 1.0f);
 
-// Lighting Spread - Pixel Multiplier
-Wrapper gSpreadTextureMultiplierStart(0.2f, 0.01f, 0.2f);
-Wrapper gSpreadTextureMultiplierEnd(0.1f, 0.01f, 0.2f);
+// Lighting Spread
 Wrapper gSpreadPassCount(32.0f, 1.0f, static_cast<float>(shaders::kiMaxSpreadPasses));
+Wrapper gSpreadDecay(0.8f, 0.0f, 1.0f);
+Wrapper gSpreadAccumulationDecay(0.25f, 0.0f, 1.0f);
 
 // Lighting Spread Start
-Wrapper gSpreadDirectionality(0.4f, 0.0f, 1.0f);
+Wrapper gSpreadTextureMultiplierStart(0.2f, 0.05f, 0.2f);
+Wrapper gSpreadDirectionality(0.8f, 0.0f, 1.0f);
 Wrapper gSpreadDirectionCount(8.0f, 4.0f, 32.0f);
 Wrapper gSpreadDistance(0.0f, 0.0f, 5.0f);
 Wrapper gSpreadRingCount(4.0f, 1.0f, 24.0f);
 Wrapper gSpreadJitter(0.0f, 0.0f, 1.0f);
-Wrapper gSpreadDecay(1.0f, 0.0f, 1.0f);
-Wrapper gSpreadAccumulationDecay(0.45f, 0.0f, 1.0f);
-Wrapper gSpreadDistanceFalloff(1.0f, 0.0f, 1.0f);
+Wrapper gSpreadDistanceFalloff(0.8f, 0.0f, 1.0f);
 
 // Lighting Spread End
-Wrapper gSpreadDirectionalityEnd(0.5f, 0.0f, 1.0f);
+Wrapper gSpreadTextureMultiplierEnd(0.01f, 0.01f, 0.2f);
+Wrapper gSpreadDirectionalityEnd(0.2f, 0.0f, 1.0f);
 Wrapper gSpreadDirectionCountEnd(4.0f, 4.0f, 16.0f);
-Wrapper gSpreadDistanceEnd(10.0f, 1.0f, 20.0f);
+Wrapper gSpreadDistanceEnd(12.0f, 1.0f, 20.0f);
 Wrapper gSpreadRingCountEnd(8.0f, 1.0f, 16.0f);
 Wrapper gSpreadJitterEnd(0.874f, 0.0f, 1.0f);
-Wrapper gSpreadDecayEnd(1.0f, 0.0f, 2.0f);
-Wrapper gSpreadAccumulationDecayEnd(0.45f, 0.0f, 1.0f);
-Wrapper gSpreadDistanceFalloffEnd(0.5f, 0.0f, 1.0f);
+Wrapper gSpreadDistanceFalloffEnd(0.9f, 0.0f, 1.0f);
 
-// Lighting Spread Height
+// Lighting Spread Height Start
 Wrapper gSpreadHeightDistance(2.0f, 0.0f, 4.0f);
 Wrapper gSpreadHeightIntensity(0.25f, 0.0f, 1.0f);
 Wrapper gSpreadHeightIntensityTarget(10.0f, 1.0f, 20.0f);
 
+// Lighting Spread Height End
+Wrapper gSpreadHeightDistanceEnd(2.0f, 0.0f, 4.0f);
+Wrapper gSpreadHeightIntensityEnd(0.25f, 0.0f, 1.0f);
+Wrapper gSpreadHeightIntensityTargetEnd(10.0f, 1.0f, 20.0f);
+
 // Lighting Combine (Uchimura tone curve)
-Wrapper gCombineMaxBrightness(0.7f, 0.1f, 2.0f);
+Wrapper gCombineMaxBrightness(0.9f, 0.1f, 2.0f);
 Wrapper gCombineContrast(0.2f, 0.1f, 2.0f);
 Wrapper gCombineLinearStart(0.2f, 0.01f, 0.5f);
 Wrapper gCombineLinearLength(0.2f, 0.01f, 0.5f);
@@ -183,8 +186,8 @@ Wrapper gLightingTerrainBelowBaseMultiplier(0.4f, 0.0f, 1.0f);
 Wrapper gLightingTerrainBelowBasePower(3.0f, 0.1f, 6.0f);
 Wrapper gLightingObjects(2.0f, 0.0f, 8.0f);
 Wrapper gLightingObjectsAdd(0.2f, 0.0f, 1.0f);
-Wrapper gLightingDayFinalMultiplier(0.7f, 0.0f, 2.0f);
-Wrapper gLightingNightFinalMultiplier(0.4f, 0.0f, 1.0f);
+Wrapper gLightingDayFinalMultiplier(0.5f, 0.0f, 1.0f);
+Wrapper gLightingNightFinalMultiplier(0.3f, 0.0f, 1.0f);
 Wrapper gMoonBrightness(0.1f, 0.0f, 1.0f);
 
 // Water specular lighting

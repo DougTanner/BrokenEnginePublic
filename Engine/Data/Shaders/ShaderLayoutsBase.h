@@ -255,10 +255,15 @@ struct GlobalLayout
 	float fSpreadAccumulationDecayEnd INIT;
 	float fSpreadDistanceFalloffEnd INIT;
 
-	// Spread Height
-	float fSpreadHeightDistance INIT;
-	float fSpreadHeightIntensity INIT;
-	float fSpreadHeightIntensityTarget INIT;
+	// Spread Height Start
+	float fSpreadHeightDistanceStart INIT;
+	float fSpreadHeightIntensityStart INIT;
+	float fSpreadHeightIntensityTargetStart INIT;
+
+	// Spread Height End
+	float fSpreadHeightDistanceEnd INIT;
+	float fSpreadHeightIntensityEnd INIT;
+	float fSpreadHeightIntensityTargetEnd INIT;
 
 	// Shadow
 	float fShadowWidthScale INIT;

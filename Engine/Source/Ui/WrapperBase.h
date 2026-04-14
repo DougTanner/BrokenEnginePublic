@@ -319,35 +319,38 @@ extern Wrapper gLightingBlurEdgeFalloff;
 // Deposit
 extern Wrapper gLightingDepositTextureMultiplier;
 
-// Spread - Pixel Multiplier
-extern Wrapper gSpreadTextureMultiplierStart;
-extern Wrapper gSpreadTextureMultiplierEnd;
+// Spread
 extern Wrapper gSpreadPassCount;
+extern Wrapper gSpreadDecay;
+extern Wrapper gSpreadAccumulationDecay;
 
 // Spread Start
+extern Wrapper gSpreadTextureMultiplierStart;
 extern Wrapper gSpreadDirectionality;
 extern Wrapper gSpreadDirectionCount;
 extern Wrapper gSpreadDistance;
 extern Wrapper gSpreadRingCount;
 extern Wrapper gSpreadJitter;
-extern Wrapper gSpreadDecay;
-extern Wrapper gSpreadAccumulationDecay;
 extern Wrapper gSpreadDistanceFalloff;
 
 // Spread End (interpolation targets for last spread pass)
+extern Wrapper gSpreadTextureMultiplierEnd;
 extern Wrapper gSpreadDirectionalityEnd;
 extern Wrapper gSpreadDirectionCountEnd;
 extern Wrapper gSpreadDistanceEnd;
 extern Wrapper gSpreadRingCountEnd;
 extern Wrapper gSpreadJitterEnd;
-extern Wrapper gSpreadDecayEnd;
-extern Wrapper gSpreadAccumulationDecayEnd;
 extern Wrapper gSpreadDistanceFalloffEnd;
 
-// Spread Height
+// Spread Height Start
 extern Wrapper gSpreadHeightDistance;
 extern Wrapper gSpreadHeightIntensity;
 extern Wrapper gSpreadHeightIntensityTarget;
+
+// Spread Height End
+extern Wrapper gSpreadHeightDistanceEnd;
+extern Wrapper gSpreadHeightIntensityEnd;
+extern Wrapper gSpreadHeightIntensityTargetEnd;
 
 // Combine (Uchimura tone curve)
 extern Wrapper gCombineMaxBrightness;

@@ -43,14 +43,19 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSpreadDistanceEnd = gSpreadDistanceEnd.Get();
 	rGlobalLayout.fSpreadRingCountEnd = gSpreadRingCountEnd.Get();
 	rGlobalLayout.fSpreadJitterEnd = gSpreadJitterEnd.Get();
-	rGlobalLayout.fSpreadDecayEnd = gSpreadDecayEnd.Get();
-	rGlobalLayout.fSpreadAccumulationDecayEnd = gSpreadAccumulationDecayEnd.Get();
+	rGlobalLayout.fSpreadDecayEnd = gSpreadDecay.Get();
+	rGlobalLayout.fSpreadAccumulationDecayEnd = gSpreadAccumulationDecay.Get();
 	rGlobalLayout.fSpreadDistanceFalloffEnd = gSpreadDistanceFalloffEnd.Get();
 
-	// Spread Height
-	rGlobalLayout.fSpreadHeightDistance = gSpreadHeightDistance.Get();
-	rGlobalLayout.fSpreadHeightIntensity = gSpreadHeightIntensity.Get();
-	rGlobalLayout.fSpreadHeightIntensityTarget = gSpreadHeightIntensityTarget.Get();
+	// Spread Height Start
+	rGlobalLayout.fSpreadHeightDistanceStart = gSpreadHeightDistance.Get();
+	rGlobalLayout.fSpreadHeightIntensityStart = gSpreadHeightIntensity.Get();
+	rGlobalLayout.fSpreadHeightIntensityTargetStart = gSpreadHeightIntensityTarget.Get();
+
+	// Spread Height End
+	rGlobalLayout.fSpreadHeightDistanceEnd = gSpreadHeightDistanceEnd.Get();
+	rGlobalLayout.fSpreadHeightIntensityEnd = gSpreadHeightIntensityEnd.Get();
+	rGlobalLayout.fSpreadHeightIntensityTargetEnd = gSpreadHeightIntensityTargetEnd.Get();
 
 	// Per-ring rotation angles: jitter slider sets the seed; the shader scales by interpolated jitter
 	// Each ring uses its own seed for uncorrelated rotations
