@@ -1,5 +1,7 @@
 #include "TweaksScreenBase.h"
 
+#include "Ui/CurveWidget.h"
+
 #if defined(BT_CLIENT)
 
 namespace engine
@@ -54,17 +56,6 @@ void TweaksScreenBase::RenderLightingSection()
 
 				ImGui::TableNextColumn();
 
-				WrapperSeparatorText("4. Combine");
-				WrapperSlider("Max Brightness", kiSection, 1.0f, "Combine Max Brightness");
-				WrapperSlider("Contrast", kiSection, 1.0f, "Combine Contrast");
-				WrapperSlider("Linear Start", kiSection, 1.0f, "Combine Linear Start");
-				WrapperSlider("Linear Length", kiSection, 1.0f, "Combine Linear Length");
-				WrapperSlider("Toe", kiSection, 1.0f, "Combine Toe");
-				WrapperSlider("Black Tightness", kiSection, 1.0f, "Combine Black Tightness");
-				WrapperSlider("Pass Normalize", kiSection, 1.0f, "Combine Pass Normalize");
-				WrapperSlider("Exposure Pass Scale", kiSection, 1.0f, "Combine Exposure Pass Scale");
-			WrapperSlider("Hue Preserve", kiSection, 1.0f, "Combine Hue Preserve");
-
 				ImGui::SetCursorPosY(fSpreadStartY);
 
 				WrapperSeparatorText("3c. Spread End");
@@ -83,7 +74,7 @@ void TweaksScreenBase::RenderLightingSection()
 			}
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Read", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Combine", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
 			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 1)
 			{
@@ -92,6 +83,58 @@ void TweaksScreenBase::RenderLightingSection()
 			if (!mApplySubtab[kiSection])
 			{
 				mActiveSubtab[kiSection] = 1;
+			}
+			if (ImGui::BeginTable("LightingCombineColumns", 2))
+			{
+				ImGui::TableNextColumn();
+
+				WrapperSeparatorText("Tone Curve");
+				WrapperSlider("Max Brightness", kiSection, 1.0f, "Combine Max Brightness");
+				WrapperSlider("Contrast", kiSection, 1.0f, "Combine Contrast");
+				WrapperSlider("Linear Start", kiSection, 1.0f, "Combine Linear Start");
+				WrapperSlider("Linear Length", kiSection, 1.0f, "Combine Linear Length");
+				WrapperSlider("Toe", kiSection, 1.0f, "Combine Toe");
+				WrapperSlider("Black Tightness", kiSection, 1.0f, "Combine Black Tightness");
+				WrapperSlider("Pass Normalize", kiSection, 1.0f, "Combine Pass Normalize");
+				WrapperSlider("Exposure Pass Scale", kiSection, 1.0f, "Combine Exposure Pass Scale");
+				WrapperSlider("Hue Preserve", kiSection, 1.0f, "Combine Hue Preserve");
+
+				ImGui::TableNextColumn();
+
+				if (CurveWidget("Pass Contribution Curve", gCombineCurve))
+				{
+					mActiveSlider = "Combine Curve";
+					miActiveSliderSection = kiSection;
+				}
+
+				if (ImGui::Button("Copy Curve To Clipboard"))
+				{
+					char pBuffer[2048];
+					int iOffset = std::snprintf(pBuffer, sizeof(pBuffer), "CurveData gCombineCurve({");
+					for (int i = 0; i < gCombineCurve.GetPointCount(); ++i)
+					{
+						const ImVec2& rPoint = gCombineCurve.GetPoint(i);
+						iOffset += std::snprintf(pBuffer + iOffset, sizeof(pBuffer) - iOffset, "%sImVec2(%.4ff, %.4ff)", i == 0 ? "" : ", ", rPoint.x, rPoint.y);
+					}
+					std::snprintf(pBuffer + iOffset, sizeof(pBuffer) - iOffset, "}, %.4ff, %.4ff);", gCombineCurve.GetYMin(), gCombineCurve.GetYMax());
+					ImGui::SetClipboardText(pBuffer);
+					LOG(kGraphics, kInfo, "{}", pBuffer);
+				}
+
+				ImGui::EndTable();
+			}
+
+			ImGui::EndTabItem();
+		}
+		if (ImGui::BeginTabItem("Read", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 2) ? ImGuiTabItemFlags_SetSelected : 0))
+		{
+			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 2)
+			{
+				mApplySubtab[kiSection] = false;
+			}
+			if (!mApplySubtab[kiSection])
+			{
+				mActiveSubtab[kiSection] = 2;
 			}
 			if (ImGui::BeginTable("LightingReadColumns", 2))
 			{
@@ -135,15 +178,15 @@ void TweaksScreenBase::RenderLightingSection()
 
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Effects", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 2) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Effects", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 3) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 2)
+			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 3)
 			{
 				mApplySubtab[kiSection] = false;
 			}
 			if (!mApplySubtab[kiSection])
 			{
-				mActiveSubtab[kiSection] = 2;
+				mActiveSubtab[kiSection] = 3;
 			}
 			RenderLightingEffectsTab();
 			ImGui::EndTabItem();

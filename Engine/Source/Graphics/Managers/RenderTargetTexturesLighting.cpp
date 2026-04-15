@@ -24,6 +24,7 @@ void RenderTargetTextures::DestroyLightingTextures()
 		for (int64_t iColor = 0; iColor < 3; ++iColor)
 		{
 			mpSpreadTextures[iPass][iColor].Destroy();
+			mpSpreadOnlyTextures[iPass][iColor].Destroy();
 		}
 
 		if (mpSpreadVkFramebuffers[iPass] != VK_NULL_HANDLE)
@@ -203,11 +204,57 @@ void RenderTargetTextures::CreateLightingTextures()
 				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 				.eTextureLayout = kShaderReadOnly,
 			});
+			mpSpreadOnlyTextures[iPass][iColor].Create(TextureInfo
+			{
+				.textureFlags = {},
+				.name = std::format("SpreadOnly{}_{}", pColorNames[iColor], iPass),
+				.flags = 0,
+				.format = VK_FORMAT_R16G16B16A16_SFLOAT,
+				.extent = VkExtent3D {static_cast<uint32_t>(iPassX), static_cast<uint32_t>(iPassY), 1},
+				.mipLevels = 1,
+				.arrayLayers = 1,
+				.samples = VK_SAMPLE_COUNT_1_BIT,
+				.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+				.viewType = VK_IMAGE_VIEW_TYPE_2D,
+				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+				.eTextureLayout = kShaderReadOnly,
+			});
 		}
 	}
 
-	// Create spread MRT render pass (3 color attachments → spread textures)
-	// Reuse the same attachment/subpass pattern as deposit MRT but with fragment→fragment+compute dependency
+	// Create spread MRT render pass (6 color attachments: 3 accumulated + 3 spread-only)
+	// Locations 0–2: accumulated (fed to next spread pass). Locations 3–5: spread-only (read by combine).
+	VkAttachmentDescription pSpreadAttachmentDescriptions[6];
+	VkAttachmentReference pSpreadAttachmentReferences[6];
+	for (int64_t i = 0; i < 6; ++i)
+	{
+		pSpreadAttachmentDescriptions[i] = VkAttachmentDescription
+		{
+			.flags = 0,
+			.format = shaders::keLightingFormat,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		};
+		pSpreadAttachmentReferences[i] = {.attachment = static_cast<uint32_t>(i), .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+	}
+	VkSubpassDescription vkSpreadSubpassDescription
+	{
+		.flags = 0,
+		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+		.inputAttachmentCount = 0,
+		.pInputAttachments = nullptr,
+		.colorAttachmentCount = 6,
+		.pColorAttachments = pSpreadAttachmentReferences,
+		.pResolveAttachments = nullptr,
+		.pDepthStencilAttachment = nullptr,
+		.preserveAttachmentCount = 0,
+		.pPreserveAttachments = nullptr,
+	};
 	VkSubpassDependency vkSpreadSubpassDependency
 	{
 		.srcSubpass = 0,
@@ -223,27 +270,35 @@ void RenderTargetTextures::CreateLightingTextures()
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		.attachmentCount = 3,
-		.pAttachments = pVkAttachmentDescriptions,
+		.attachmentCount = 6,
+		.pAttachments = pSpreadAttachmentDescriptions,
 		.subpassCount = 1,
-		.pSubpasses = &vkSubpassDescription,
+		.pSubpasses = &vkSpreadSubpassDescription,
 		.dependencyCount = 1,
 		.pDependencies = &vkSpreadSubpassDependency,
 	};
 	CHECK_VK(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkSpreadRenderPassCreateInfo, nullptr, &mSpreadVkRenderPass));
 	VkName(VK_OBJECT_TYPE_RENDER_PASS, mSpreadVkRenderPass, "SpreadMRT");
 
-	// Create spread framebuffers (one per spread pass, each binding its 3 spread textures)
+	// Create spread framebuffers (one per spread pass, each binding 3 accumulated + 3 spread-only textures)
 	for (int64_t iPass = 0; iPass < shaders::kiMaxSpreadPasses; ++iPass)
 	{
-		VkImageView pSpreadImageViews[3] {mpSpreadTextures[iPass][0].mVkImageView, mpSpreadTextures[iPass][1].mVkImageView, mpSpreadTextures[iPass][2].mVkImageView};
+		VkImageView pSpreadImageViews[6]
+		{
+			mpSpreadTextures[iPass][0].mVkImageView,
+			mpSpreadTextures[iPass][1].mVkImageView,
+			mpSpreadTextures[iPass][2].mVkImageView,
+			mpSpreadOnlyTextures[iPass][0].mVkImageView,
+			mpSpreadOnlyTextures[iPass][1].mVkImageView,
+			mpSpreadOnlyTextures[iPass][2].mVkImageView,
+		};
 		VkFramebufferCreateInfo vkSpreadFramebufferCreateInfo
 		{
 			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
 			.pNext = nullptr,
 			.flags = 0,
 			.renderPass = mSpreadVkRenderPass,
-			.attachmentCount = 3,
+			.attachmentCount = 6,
 			.pAttachments = pSpreadImageViews,
 			.width = mpSpreadTextures[iPass][0].mInfo.extent.width,
 			.height = mpSpreadTextures[iPass][0].mInfo.extent.height,

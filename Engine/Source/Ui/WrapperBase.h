@@ -1,5 +1,9 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+#include "CurveData.h"
+#endif
+
 namespace engine
 {
 
@@ -362,6 +366,9 @@ extern Wrapper gCombineBlackTightness;
 extern Wrapper gCombinePassNormalize;
 extern Wrapper gCombineExposurePassScale;
 extern Wrapper gCombineHuePreserve;
+#if defined(BT_CLIENT)
+extern CurveData gCombineCurve;
+#endif
 extern Wrapper gLightingSampledNormalsSize;
 extern Wrapper gLightingSampledNormalsSpeed;
 

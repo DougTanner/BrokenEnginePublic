@@ -541,7 +541,7 @@ void CommandBufferManager::RecordLightingSpreadPipeline(VkCommandBuffer vkComman
 		{
 			uint32_t uiPassWidth = rRenderTargetTextures.mpSpreadTextures[iPass][0].mInfo.extent.width;
 			uint32_t uiPassHeight = rRenderTargetTextures.mpSpreadTextures[iPass][0].mInfo.extent.height;
-			VkClearValue pSpreadClearValues[3] {};
+			VkClearValue pSpreadClearValues[6] {};
 			VkRenderPassBeginInfo vkSpreadRenderPassBeginInfo
 			{
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -549,7 +549,7 @@ void CommandBufferManager::RecordLightingSpreadPipeline(VkCommandBuffer vkComman
 				.renderPass = rRenderTargetTextures.mSpreadVkRenderPass,
 				.framebuffer = rRenderTargetTextures.mpSpreadVkFramebuffers[iPass],
 				.renderArea = {.offset = {0, 0}, .extent = {uiPassWidth, uiPassHeight}},
-				.clearValueCount = 3,
+				.clearValueCount = 6,
 				.pClearValues = pSpreadClearValues,
 			};
 			vkCmdBeginRenderPass(vkCommandBuffer, &vkSpreadRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);

@@ -78,9 +78,19 @@ void main()
 	float fPassNorm = mix(1.0f, 1.0f / fPassCount, globalLayout.fCombinePassNormalize);
 	float fPassScale = pow(fPassCount, -globalLayout.fCombineExposurePassScale);
 
-	vec4 f4R = texture(sourcesR[uiPassCount - 1], f2Uv) * fPassNorm * fPassScale;
-	vec4 f4G = texture(sourcesG[uiPassCount - 1], f2Uv) * fPassNorm * fPassScale;
-	vec4 f4B = texture(sourcesB[uiPassCount - 1], f2Uv) * fPassNorm * fPassScale;
+	vec4 f4R = vec4(0.0f);
+	vec4 f4G = vec4(0.0f);
+	vec4 f4B = vec4(0.0f);
+	for (uint i = 0u; i < uiPassCount; ++i)
+	{
+		f4R += texture(sourcesR[i], f2Uv);
+		f4G += texture(sourcesG[i], f2Uv);
+		f4B += texture(sourcesB[i], f2Uv);
+	}
+	float fAvg = 1.0f / fPassCount;
+	f4R *= fAvg * fPassNorm * fPassScale;
+	f4G *= fAvg * fPassNorm * fPassScale;
+	f4B *= fAvg * fPassNorm * fPassScale;
 
 	float P = globalLayout.fCombineMaxBrightness;
 	float a = globalLayout.fCombineContrast;

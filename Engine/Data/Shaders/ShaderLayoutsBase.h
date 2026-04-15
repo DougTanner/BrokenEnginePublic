@@ -230,6 +230,7 @@ struct GlobalLayout
 	float fCombinePassNormalize INIT;
 	float fCombineExposurePassScale INIT;
 	float fCombineHuePreserve INIT;
+	float pfCombineCurvePoints[kiMaxSpreadPasses] INIT;
 	float fLightingTerrain INIT;
 	float fLightingObjects INIT;
 

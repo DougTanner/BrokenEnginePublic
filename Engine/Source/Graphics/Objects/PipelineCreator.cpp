@@ -529,7 +529,7 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 	{
 		iColorAttachmentCount = 3;
 	}
-	VkPipelineColorBlendAttachmentState pMrtBlendStates[3] {};
+	VkPipelineColorBlendAttachmentState pMrtBlendStates[6] {};
 	if (iColorAttachmentCount > 1)
 	{
 		for (int64_t i = 0; i < iColorAttachmentCount; ++i)

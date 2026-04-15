@@ -393,6 +393,12 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\OneShotCommandBuffer.h">
       <Filter>Engine\Graphics</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\CurveData.h">
+      <Filter>Engine\Ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\CurveWidget.h">
+      <Filter>Engine\Ui</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\NetworkUiControl.h">
       <Filter>Engine\Ui</Filter>
     </ClInclude>
@@ -1127,6 +1133,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWindDeposits.cpp">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\CurveWidget.cpp">
+      <Filter>Engine\Ui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\WrapperBase.cpp">
       <Filter>Engine\Ui</Filter>

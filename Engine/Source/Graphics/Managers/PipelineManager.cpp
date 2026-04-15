@@ -200,7 +200,7 @@ void PipelineManager::CreateLightingPipelines()
 			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 			.vkRenderPass = rTextures.mSpreadVkRenderPass,
 			.vkExtent3D = rTextures.mpSpreadTextures[iPass][0].mInfo.extent,
-			.iColorAttachmentCount = 3,
+			.iColorAttachmentCount = 6,
 			.pDescriptorInfos =
 			{
 				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
@@ -219,9 +219,9 @@ void PipelineManager::CreateLightingPipelines()
 	Texture* ppSpreadB[shaders::kiMaxSpreadPasses] {};
 	for (int64_t i = 0; i < shaders::kiMaxSpreadPasses; ++i)
 	{
-		ppSpreadR[i] = &rTextures.mpSpreadTextures[i][0];
-		ppSpreadG[i] = &rTextures.mpSpreadTextures[i][1];
-		ppSpreadB[i] = &rTextures.mpSpreadTextures[i][2];
+		ppSpreadR[i] = &rTextures.mpSpreadOnlyTextures[i][0];
+		ppSpreadG[i] = &rTextures.mpSpreadOnlyTextures[i][1];
+		ppSpreadB[i] = &rTextures.mpSpreadOnlyTextures[i][2];
 	}
 	mCombinePipeline.Destroy();
 	mCombinePipeline.Create(

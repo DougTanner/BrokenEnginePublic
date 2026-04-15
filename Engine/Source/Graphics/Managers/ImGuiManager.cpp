@@ -13,6 +13,8 @@
 
 #include "Data/Raw.h"
 
+#include "Game.h"
+
 namespace engine
 {
 
@@ -267,16 +269,20 @@ void ImGuiManager::Prepare(int64_t iFramebuffer)
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
 
-	// Render HUD (background layer, visible during gameplay)
-	mpHudScreen->Render();
+	// Hide regular ImGui UI when Tweaks menu is active
+	if (!game::gpGame->mbShowImGui)
+	{
+		// Render HUD (background layer, visible during gameplay)
+		mpHudScreen->Render();
 
-	// Render menu screens based on UiState
-	mpMainMenuScreen->Render();
-	mpPauseMenuScreen->Render();
-	mpGraphicsMenuScreen->Render();
-	mpSoundMenuScreen->Render();
-	mpDeathMenuScreen->Render();
-	mpModalScreen->Render();
+		// Render menu screens based on UiState
+		mpMainMenuScreen->Render();
+		mpPauseMenuScreen->Render();
+		mpGraphicsMenuScreen->Render();
+		mpSoundMenuScreen->Render();
+		mpDeathMenuScreen->Render();
+		mpModalScreen->Render();
+	}
 
 	mpTweaksScreen->Render();
 

@@ -28,6 +28,9 @@ layout (location = 1) in vec2 f2InTexcoord;
 layout (location = 0) out vec4 f4OutRed;
 layout (location = 1) out vec4 f4OutGreen;
 layout (location = 2) out vec4 f4OutBlue;
+layout (location = 3) out vec4 f4OutRedSpread;
+layout (location = 4) out vec4 f4OutGreenSpread;
+layout (location = 5) out vec4 f4OutBlueSpread;
 
 void main()
 {
@@ -120,6 +123,12 @@ void main()
 	f4OutRed *= fDecay;
 	f4OutGreen *= fDecay;
 	f4OutBlue *= fDecay;
+
+	// Spread-only outputs: pre-accumulation snapshot, weighted by the per-pass curve, read by LightCombine
+	float fCurveWeight = globalLayout.pfCombineCurvePoints[uint(fPassIndex)];
+	f4OutRedSpread = f4OutRed * fCurveWeight;
+	f4OutGreenSpread = f4OutGreen * fCurveWeight;
+	f4OutBlueSpread = f4OutBlue * fCurveWeight;
 
 	// Accumulate: add source pixel value to carry forward through passes (skip first pass — deposit already sampled)
 	if (fPassIndex > 0.0f)
