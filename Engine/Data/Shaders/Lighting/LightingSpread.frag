@@ -47,6 +47,8 @@ void main()
 	float fDecay = mix(globalLayout.fSpreadDecayStart, globalLayout.fSpreadDecayEnd, fT);
 	float fAccumulationDecay = mix(globalLayout.fSpreadAccumulationDecayStart, globalLayout.fSpreadAccumulationDecayEnd, fT);
 	float fDistanceFalloff = mix(globalLayout.fSpreadDistanceFalloffStart, globalLayout.fSpreadDistanceFalloffEnd, fT);
+	float fOutputThreshold = mix(globalLayout.fSpreadOutputThresholdStart, globalLayout.fSpreadOutputThresholdEnd, fT);
+	float fOutputCompress = mix(globalLayout.fSpreadOutputCompressStart, globalLayout.fSpreadOutputCompressEnd, fT);
 
 #ifdef SPREAD_HEIGHT_ATTENUATION
 	// Height-aware attenuation: convert lighting texcoord to world position, then to visible area texcoord
@@ -109,6 +111,23 @@ void main()
 			vec4 f4Green = texture(greenSampler, f2Coord);
 			vec4 f4Blue = texture(blueSampler, f2Coord);
 
+			// Pass 0 reads the deposit texture; Reinhard compress above threshold, hue-preserving per-EWNS
+			if (fPassIndex < 0.5f)
+			{
+				float fThreshold = globalLayout.fLightingDepositThreshold;
+				float fCompress = globalLayout.fLightingDepositCompress;
+				for (int k = 0; k < 4; ++k)
+				{
+					float fAvg = (f4Red[k] + f4Green[k] + f4Blue[k]) / 3.0f;
+					float fExcess = max(fAvg - fThreshold, 0.0f);
+					float fMapped = fThreshold + fExcess / (1.0f + fExcess * fCompress);
+					float fRatio = fMapped / max(fAvg, 1e-4f);
+					f4Red[k]   *= fRatio;
+					f4Green[k] *= fRatio;
+					f4Blue[k]  *= fRatio;
+				}
+			}
+
 			f4OutRed += mix(f4Red, f4DirWeight * f4Red, fDirectionality) * fInvSqrtDistance * fRingFalloff;
 			f4OutGreen += mix(f4Green, f4DirWeight * f4Green, fDirectionality) * fInvSqrtDistance * fRingFalloff;
 			f4OutBlue += mix(f4Blue, f4DirWeight * f4Blue, fDirectionality) * fInvSqrtDistance * fRingFalloff;
@@ -123,6 +142,18 @@ void main()
 	f4OutRed *= fDecay;
 	f4OutGreen *= fDecay;
 	f4OutBlue *= fDecay;
+
+	// Per-pass output Reinhard compressor: hue-preserving per-EWNS. Identity when fOutputCompress == 0.
+	for (int k = 0; k < 4; ++k)
+	{
+		float fAvg = (f4OutRed[k] + f4OutGreen[k] + f4OutBlue[k]) / 3.0f;
+		float fExcess = max(fAvg - fOutputThreshold, 0.0f);
+		float fMapped = fOutputThreshold + fExcess / (1.0f + fExcess * fOutputCompress);
+		float fRatio = fMapped / max(fAvg, 1e-4f);
+		f4OutRed[k]   *= fRatio;
+		f4OutGreen[k] *= fRatio;
+		f4OutBlue[k]  *= fRatio;
+	}
 
 	// Spread-only outputs: pre-accumulation snapshot, weighted by the per-pass curve, read by LightCombine
 	float fCurveWeight = globalLayout.pfCombineCurvePoints[uint(fPassIndex)];

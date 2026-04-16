@@ -58,33 +58,6 @@ constexpr float kfExplosionSmoke = 0.25f;
 constexpr float kfDeathRadialPower = 0.3f;
 constexpr uint32_t kuiDeathTrailCount = 2;
 
-// Line-of-sight check (used by AcquireTarget)
-[[nodiscard]] static bool XM_CALLCONV HasLineOfSight(FXMVECTOR vecFrom, FXMVECTOR vecTo)
-{
-	static constexpr float kfStepInterval = 8.0f;
-	static constexpr float kfBlockingElevation = 0.4f;
-
-	XMVECTOR vecDelta = XMVectorSubtract(vecTo, vecFrom);
-	float fDistance = XMVectorGetX(XMVector3Length(vecDelta));
-	int64_t iSteps = static_cast<int64_t>(fDistance / kfStepInterval);
-	if (iSteps <= 0)
-	{
-		return true;
-	}
-
-	XMVECTOR vecStep = vecDelta / static_cast<float>(iSteps);
-	XMVECTOR vecCurrent = vecFrom;
-	for (int64_t k = 1; k < iSteps; ++k)
-	{
-		vecCurrent = XMVectorAdd(vecCurrent, vecStep);
-		if (engine::gpIslandTerrain->GlobalElevation(vecCurrent) > kfBlockingElevation)
-		{
-			return false;
-		}
-	}
-	return true;
-}
-
 // =============================================================================
 // Per-player Update helpers
 // =============================================================================
@@ -120,11 +93,6 @@ void XM_CALLCONV PlayersPostRender::AcquireTarget(const Frame& __restrict rPrevi
 		float fDistance = common::Distance(vecPosition, rSpaceshipsInterpolate.pVecPositions[j]);
 		if (fDistance < fClosestDistance)
 		{
-			if (!HasLineOfSight(vecPosition, rSpaceshipsInterpolate.pVecPositions[j]))
-			{
-				continue;
-			}
-
 			fClosestDistance = fDistance;
 			vecClosestPosition = rSpaceshipsInterpolate.pVecPositions[j];
 			bTargetFound = true;
@@ -154,7 +122,7 @@ void XM_CALLCONV PlayersPostRender::AcquireTarget(const Frame& __restrict rPrevi
 		}
 	}
 
-	// Fire flags: fire continuously at in-range/LOS targets (rate limited by weapon spawn timers)
+	// Fire flags: fire continuously at in-range targets (rate limited by weapon spawn timers)
 	if (bTargetFound)
 	{
 		rFlags.Set(kFireBlaster);

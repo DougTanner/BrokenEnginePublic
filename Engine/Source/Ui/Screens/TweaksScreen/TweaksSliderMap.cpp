@@ -120,6 +120,8 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Medium Speed Adjust", &gMediumSpeedAdjust},
 		// Lighting - Deposit
 		{"Deposit Texture Multiplier", &gLightingDepositTextureMultiplier},
+		{"Deposit Threshold", &gLightingDepositThreshold},
+		{"Deposit Compress", &gLightingDepositCompress},
 		// Lighting - Spread
 		{"Spread Directionality", &gSpreadDirectionality},
 		{"Spread Direction Count", &gSpreadDirectionCount},
@@ -131,6 +133,8 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Spread Decay", &gSpreadDecay},
 		{"Spread Accumulation Decay", &gSpreadAccumulationDecay},
 		{"Spread Distance Falloff", &gSpreadDistanceFalloff},
+		{"Spread Output Threshold", &gSpreadOutputThreshold},
+		{"Spread Output Compress", &gSpreadOutputCompress},
 		{"Spread Pass Count", &gSpreadPassCount},
 		// Spread End
 		{"Spread Directionality End", &gSpreadDirectionalityEnd},
@@ -139,6 +143,8 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Spread Ring Count End", &gSpreadRingCountEnd},
 		{"Spread Jitter End", &gSpreadJitterEnd},
 		{"Spread Distance Falloff End", &gSpreadDistanceFalloffEnd},
+		{"Spread Output Threshold End", &gSpreadOutputThresholdEnd},
+		{"Spread Output Compress End", &gSpreadOutputCompressEnd},
 		{"Spread Height Distance", &gSpreadHeightDistance},
 		{"Spread Height Intensity", &gSpreadHeightIntensity},
 		{"Spread Height Intensity Target", &gSpreadHeightIntensityTarget},

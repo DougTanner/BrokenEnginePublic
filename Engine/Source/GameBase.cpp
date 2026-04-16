@@ -293,7 +293,7 @@ void GameBase::Render()
 					(rFrame.interpolate.iTick == rSub.iLastRenderedTick && rFrame.interpolate.fCurrentTime < rSub.fLastRenderedTime))
 				{
 					LOG(kNetwork, kError, "Render regressed to older frame Coord: ({},{}) Tick: {} LastTick: {} Time: {} LastTime: {}", rCoord.x, rCoord.y, rFrame.interpolate.iTick, rSub.iLastRenderedTick, rFrame.interpolate.fCurrentTime, rSub.fLastRenderedTime);
-					DEBUG_BREAK();
+ 					DEBUG_BREAK();
 				}
 				rSub.iLastRenderedTick = rFrame.interpolate.iTick;
 				rSub.fLastRenderedTime = rFrame.interpolate.fCurrentTime;

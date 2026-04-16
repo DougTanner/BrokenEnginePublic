@@ -109,11 +109,7 @@ void Collision::InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex
 			{
 				if (rZonePair.iCountA >= static_cast<int64_t>(rZonePair.indicesA.size()))
 				{
-					LOG(kDefault, kWarning, "Collision: ZonePair.indicesA overflow (count: {}, capacity: {}) pair A={}(cat=0x{:x},total={}) B={}(cat=0x{:x},total={}) zone=({},{}). Increase kiCollisionZonePreallocate in Collision.h",
-						rZonePair.iCountA, rZonePair.indicesA.size(),
-						rPairZones.uiLayerA, rLayerA.uiCategory, rLayerA.iCount,
-						rPairZones.uiLayerB, rLayerB.uiCategory, rLayerB.iCount,
-						x, y);
+					LOG(kDefault, kWarning, "Collision: ZonePair.indicesA overflow (count: {}, capacity: {}) pair A={}(cat={},total={}) B={}(cat={},total={}) zone=({},{}). Increase kiCollisionZonePreallocate in Collision.h", rZonePair.iCountA, rZonePair.indicesA.size(), rPairZones.uiLayerA, rLayerA.uiCategory, rLayerA.iCount, rPairZones.uiLayerB, rLayerB.uiCategory, rLayerB.iCount, x, y);
 					DEBUG_BREAK();
 					rZonePair.indicesA.resize(rZonePair.iCountA * 2);
 				}
@@ -124,11 +120,7 @@ void Collision::InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex
 			{
 				if (rZonePair.iCountB >= static_cast<int64_t>(rZonePair.indicesB.size()))
 				{
-					LOG(kDefault, kWarning, "Collision: ZonePair.indicesB overflow (count: {}, capacity: {}) pair A={}(cat=0x{:x},total={}) B={}(cat=0x{:x},total={}) zone=({},{}). Increase kiCollisionZonePreallocate in Collision.h",
-						rZonePair.iCountB, rZonePair.indicesB.size(),
-						rPairZones.uiLayerA, rLayerA.uiCategory, rLayerA.iCount,
-						rPairZones.uiLayerB, rLayerB.uiCategory, rLayerB.iCount,
-						x, y);
+					LOG(kDefault, kWarning, "Collision: ZonePair.indicesB overflow (count: {}, capacity: {}) pair A={}(cat={},total={}) B={}(cat={},total={}) zone=({},{}). Increase kiCollisionZonePreallocate in Collision.h", rZonePair.iCountB, rZonePair.indicesB.size(), rPairZones.uiLayerA, rLayerA.uiCategory, rLayerA.iCount, rPairZones.uiLayerB, rLayerB.uiCategory, rLayerB.iCount, x, y);
 					DEBUG_BREAK();
 					rZonePair.indicesB.resize(rZonePair.iCountB * 2);
 				}

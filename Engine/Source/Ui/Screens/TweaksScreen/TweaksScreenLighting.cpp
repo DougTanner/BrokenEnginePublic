@@ -34,6 +34,8 @@ void TweaksScreenBase::RenderLightingSection()
 
 				WrapperSeparatorText("2. Deposit");
 				WrapperSlider("Texture Multiplier", kiSection, 1.0f, "Deposit Texture Multiplier");
+				WrapperSlider("Threshold", kiSection, 1.0f, "Deposit Threshold");
+				WrapperSlider("Compress", kiSection, 1.0f, "Deposit Compress");
 
 				WrapperSeparatorText("3a. Spread");
 				WrapperSlider("Pass Count", kiSection, 1.0f, "Spread Pass Count");
@@ -53,6 +55,8 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSlider("Height Distance", kiSection, 1.0f, "Spread Height Distance");
 				WrapperSlider("Height Intensity", kiSection, 1.0f, "Spread Height Intensity");
 				WrapperSlider("Height Intensity Target", kiSection, 1.0f, "Spread Height Intensity Target");
+				WrapperSlider("Output Threshold", kiSection, 1.0f, "Spread Output Threshold");
+				WrapperSlider("Output Compress", kiSection, 1.0f, "Spread Output Compress");
 
 				ImGui::TableNextColumn();
 
@@ -69,6 +73,8 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSlider("Height Distance", kiSection, 1.0f, "Spread Height Distance End");
 				WrapperSlider("Height Intensity", kiSection, 1.0f, "Spread Height Intensity End");
 				WrapperSlider("Height Intensity Target", kiSection, 1.0f, "Spread Height Intensity Target End");
+				WrapperSlider("Output Threshold", kiSection, 1.0f, "Spread Output Threshold End");
+				WrapperSlider("Output Compress", kiSection, 1.0f, "Spread Output Compress End");
 
 				ImGui::EndTable();
 			}

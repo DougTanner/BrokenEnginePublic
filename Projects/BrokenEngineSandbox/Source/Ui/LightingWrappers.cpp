@@ -28,8 +28,8 @@ engine::Wrapper gExplosionParticleLightingIntensity(0.0f, 0.0f, 2.0f);
 
 // Blasters - Terrain crater
 engine::Wrapper gCraterLightingArea(2.0f, 1.0f, 4.0f);
-engine::Wrapper gCraterLightingIntensityStart(0.0f, 0.0f, 2.0f);
-engine::Wrapper gCraterLightingIntensityMid(0.0f, 0.0f, 2.0f);
+engine::Wrapper gCraterLightingIntensityStart(2.0f, 0.0f, 2.0f);
+engine::Wrapper gCraterLightingIntensityMid(0.5f, 0.0f, 2.0f);
 engine::Wrapper gCraterLightingIntensityEnd(0.0f, 0.0f, 2.0f);
 
 // Missiles - Exhaust

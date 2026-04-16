@@ -322,6 +322,8 @@ extern Wrapper gLightingBlurEdgeFalloff;
 
 // Deposit
 extern Wrapper gLightingDepositTextureMultiplier;
+extern Wrapper gLightingDepositThreshold;
+extern Wrapper gLightingDepositCompress;
 
 // Spread
 extern Wrapper gSpreadPassCount;
@@ -336,6 +338,8 @@ extern Wrapper gSpreadDistance;
 extern Wrapper gSpreadRingCount;
 extern Wrapper gSpreadJitter;
 extern Wrapper gSpreadDistanceFalloff;
+extern Wrapper gSpreadOutputThreshold;
+extern Wrapper gSpreadOutputCompress;
 
 // Spread End (interpolation targets for last spread pass)
 extern Wrapper gSpreadTextureMultiplierEnd;
@@ -345,6 +349,8 @@ extern Wrapper gSpreadDistanceEnd;
 extern Wrapper gSpreadRingCountEnd;
 extern Wrapper gSpreadJitterEnd;
 extern Wrapper gSpreadDistanceFalloffEnd;
+extern Wrapper gSpreadOutputThresholdEnd;
+extern Wrapper gSpreadOutputCompressEnd;
 
 // Spread Height Start
 extern Wrapper gSpreadHeightDistance;

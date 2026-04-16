@@ -221,6 +221,8 @@ struct GlobalLayout
 
 	// Lighting
 	float fLightingObjectsAdd INIT;
+	float fLightingDepositThreshold INIT;
+	float fLightingDepositCompress INIT;
 	float fCombineMaxBrightness INIT;
 	float fCombineContrast INIT;
 	float fCombineLinearStart INIT;
@@ -248,6 +250,8 @@ struct GlobalLayout
 	float fSpreadDecayStart INIT;
 	float fSpreadAccumulationDecayStart INIT;
 	float fSpreadDistanceFalloffStart INIT;
+	float fSpreadOutputThresholdStart INIT;
+	float fSpreadOutputCompressStart INIT;
 	float fSpreadPassCount INIT;
 	float pfSpreadRingRotations[kiMaxSpreadPasses] INIT;
 
@@ -260,6 +264,8 @@ struct GlobalLayout
 	float fSpreadDecayEnd INIT;
 	float fSpreadAccumulationDecayEnd INIT;
 	float fSpreadDistanceFalloffEnd INIT;
+	float fSpreadOutputThresholdEnd INIT;
+	float fSpreadOutputCompressEnd INIT;
 
 	// Spread Height Start
 	float fSpreadHeightDistanceStart INIT;

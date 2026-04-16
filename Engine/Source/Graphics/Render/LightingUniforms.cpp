@@ -12,6 +12,8 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	rGlobalLayout.fLightingObjectsAdd = gLightingObjectsAdd.Get();
+	rGlobalLayout.fLightingDepositThreshold = gLightingDepositThreshold.Get();
+	rGlobalLayout.fLightingDepositCompress = gLightingDepositCompress.Get();
 
 	rGlobalLayout.fCombineMaxBrightness = gCombineMaxBrightness.Get();
 	rGlobalLayout.fCombineContrast = gCombineContrast.Get();
@@ -42,6 +44,8 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSpreadDecayStart = gSpreadDecay.Get();
 	rGlobalLayout.fSpreadAccumulationDecayStart = gSpreadAccumulationDecay.Get();
 	rGlobalLayout.fSpreadDistanceFalloffStart = gSpreadDistanceFalloff.Get();
+	rGlobalLayout.fSpreadOutputThresholdStart = gSpreadOutputThreshold.Get();
+	rGlobalLayout.fSpreadOutputCompressStart = gSpreadOutputCompress.Get();
 	rGlobalLayout.fSpreadPassCount = gSpreadPassCount.Get();
 
 	// Spread End (interpolation targets for last spread pass)
@@ -53,6 +57,8 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSpreadDecayEnd = gSpreadDecay.Get();
 	rGlobalLayout.fSpreadAccumulationDecayEnd = gSpreadAccumulationDecay.Get();
 	rGlobalLayout.fSpreadDistanceFalloffEnd = gSpreadDistanceFalloffEnd.Get();
+	rGlobalLayout.fSpreadOutputThresholdEnd = gSpreadOutputThresholdEnd.Get();
+	rGlobalLayout.fSpreadOutputCompressEnd = gSpreadOutputCompressEnd.Get();
 
 	// Spread Height Start
 	rGlobalLayout.fSpreadHeightDistanceStart = gSpreadHeightDistance.Get();

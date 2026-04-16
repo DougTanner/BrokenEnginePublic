@@ -124,6 +124,8 @@ Wrapper gLightingBlurEdgeFalloff(0.4f, 0.01f, 0.6f);
 
 // Lighting Deposit
 Wrapper gLightingDepositTextureMultiplier(0.5f, 0.1f, 1.0f);
+Wrapper gLightingDepositThreshold(0.0f, 0.0f, 4.0f);
+Wrapper gLightingDepositCompress(0.0f, 0.0f, 4.0f);
 
 // Lighting Spread
 Wrapper gSpreadPassCount(32.0f, 1.0f, static_cast<float>(shaders::kiMaxSpreadPasses));
@@ -132,21 +134,25 @@ Wrapper gSpreadAccumulationDecay(0.3f, 0.0f, 1.0f);
 
 // Lighting Spread Start
 Wrapper gSpreadTextureMultiplierStart(0.2f, 0.05f, 0.2f);
-Wrapper gSpreadDirectionality(0.0f, 0.0f, 1.0f);
+Wrapper gSpreadDirectionality(0.35f, 0.0f, 1.0f);
 Wrapper gSpreadDirectionCount(18.0f, 4.0f, 32.0f);
-Wrapper gSpreadDistance(0.0f, 0.0f, 10.0f);
+Wrapper gSpreadDistance(1.0f, 0.0f, 10.0f);
 Wrapper gSpreadRingCount(4.0f, 1.0f, 24.0f);
 Wrapper gSpreadJitter(0.0f, 0.0f, 1.0f);
 Wrapper gSpreadDistanceFalloff(0.9f, 0.0f, 1.0f);
+Wrapper gSpreadOutputThreshold(0.0f, 0.0f, 4.0f);
+Wrapper gSpreadOutputCompress(3.5f, 0.0f, 4.0f);
 
 // Lighting Spread End
 Wrapper gSpreadTextureMultiplierEnd(0.01f, 0.01f, 0.1f);
-Wrapper gSpreadDirectionalityEnd(0.8f, 0.0f, 1.0f);
+Wrapper gSpreadDirectionalityEnd(0.6f, 0.0f, 1.0f);
 Wrapper gSpreadDirectionCountEnd(8.0f, 4.0f, 16.0f);
-Wrapper gSpreadDistanceEnd(15.0f, 1.0f, 40.0f);
+Wrapper gSpreadDistanceEnd(9.0f, 1.0f, 40.0f);
 Wrapper gSpreadRingCountEnd(5.0f, 1.0f, 16.0f);
 Wrapper gSpreadJitterEnd(0.874f, 0.0f, 1.0f);
 Wrapper gSpreadDistanceFalloffEnd(0.7f, 0.0f, 1.0f);
+Wrapper gSpreadOutputThresholdEnd(0.0f, 0.0f, 4.0f);
+Wrapper gSpreadOutputCompressEnd(1.0f, 0.0f, 4.0f);
 
 // Lighting Spread Height Start
 Wrapper gSpreadHeightDistance(3.1f, 0.0f, 8.0f);
@@ -163,29 +169,29 @@ Wrapper gCombineMaxBrightness(1.3f, 0.1f, 4.0f);
 Wrapper gCombineContrast(1.3f, 0.1f, 2.0f);
 Wrapper gCombineLinearStart(0.25f, 0.01f, 0.5f);
 Wrapper gCombineLinearLength(0.5f, 0.01f, 0.8f);
-Wrapper gCombineToe(1.33f, 0.1f, 2.0f);
+Wrapper gCombineToe(2.0f, 1.3f, 4.0f);
 Wrapper gCombineBlackTightness(0.0f, 0.0f, 0.5f);
 Wrapper gCombinePassNormalize(0.7f, 0.0f, 1.0f);
 Wrapper gCombineExposurePassScale(0.0f, 0.0f, 1.0f);
 Wrapper gCombineHuePreserve(0.0f, 0.0f, 1.0f);
 #if defined(BT_CLIENT)
-CurveData gCombineCurve({ImVec2(0.0000f, 32.0000f), ImVec2(0.3568f, 27.6741f), ImVec2(0.6948f, 0.0000f), ImVec2(1.0000f, 7.6741f)}, 0.0000f, 32.0000f);
+CurveData gCombineCurve({ImVec2(0.0000f, 32.0000f), ImVec2(0.3490f, 28.9185f), ImVec2(0.6745f, 0.0000f), ImVec2(1.0000f, 8.2074f)}, 0.0000f, 32.0000f);
 #endif
 
 Wrapper gLightingSampledNormalsSize(0.3f, 0.05f, 0.5f);
 Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
 
 // New Lighting
-Wrapper gLightingNewDirectional(0.8f, 0.0f, 2.0f);
-Wrapper gLightingNewDirectionalPower(0.8f, 0.5f, 2.0f);
+Wrapper gLightingNewDirectional(0.7f, 0.0f, 2.0f);
+Wrapper gLightingNewDirectionalPower(0.7f, 0.5f, 2.0f);
 Wrapper gLightingDirectionalPowerMode(1.0f, 0.0f, 1.0f);
-Wrapper gLightingNewAmbient(100.0f, 0.0f, 200.0f);
+Wrapper gLightingNewAmbient(110.0f, 0.0f, 200.0f);
 Wrapper gLightingNewAmbientPower(5.0f, 0.1f, 6.0f);
 Wrapper gLightingAmbientPowerMode(1.0f, 0.0f, 1.0f);
 Wrapper gLightingTerrain(1.0f, 0.0f, 2.0f);
 Wrapper gLightingAddTerrain(0.25f, 0.0f, 0.5f);
 Wrapper gLightingTerrainBelowBaseMultiplier(0.4f, 0.0f, 0.5f);
-Wrapper gLightingTerrainBelowBasePower(0.5f, 0.1f, 1.0f);
+Wrapper gLightingTerrainBelowBasePower(0.3f, 0.1f, 1.0f);
 Wrapper gLightingObjects(1.0f, 0.0f, 8.0f);
 Wrapper gLightingObjectsAdd(0.2f, 0.0f, 1.0f);
 Wrapper gLightingDayFinalMultiplier(1.0f, 0.0f, 1.0f);
@@ -193,19 +199,19 @@ Wrapper gLightingNightFinalMultiplier(1.0f, 0.0f, 1.0f);
 Wrapper gMoonBrightness(0.1f, 0.0f, 1.0f);
 
 // Water specular lighting
-Wrapper gLightingWaterAmbientPower(0.8f, 0.1f, 6.0f);
+Wrapper gLightingWaterAmbientPower(0.7f, 0.1f, 6.0f);
 Wrapper gLightingWaterAmbientPowerMode(1.0f, 0.0f, 1.0f);
-Wrapper gLightingWaterNormalSoften(0.4f, 0.0f, 1.0f);
+Wrapper gLightingWaterNormalSoften(0.5f, 0.0f, 1.0f);
 Wrapper gLightingWaterNormalBlendWave(0.25f, 0.0f, 1.0f);
-Wrapper gLightingWaterIntensity(0.035f, 0.0f, 0.15f);
+Wrapper gLightingWaterIntensity(0.14f, 0.0f, 0.3f);
 Wrapper gLightingWaterAdd(0.9f, 0.0f, 1.0f);
-Wrapper gLightingWaterOne(10.0f, 0.0f, 40.0f);
-Wrapper gLightingWaterOnePower(1.0f, 1.0f, 5.0f);
-Wrapper gLightingWaterTwo(4.5f, 0.0f, 10.0f);
-Wrapper gLightingWaterTwoPower(1.25f, 0.75f, 2.0f);
-Wrapper gLightingWaterThree(2.0f, 0.0f, 15.0f);
-Wrapper gLightingWaterThreePower(0.6f, 0.5f, 1.0f);
-Wrapper gLightingWaterPowerMode(0.0f, 0.0f, 1.0f);
+Wrapper gLightingWaterOne(12.0f, 0.0f, 40.0f);
+Wrapper gLightingWaterOnePower(2.0f, 1.0f, 5.0f);
+Wrapper gLightingWaterTwo(2.5f, 0.0f, 10.0f);
+Wrapper gLightingWaterTwoPower(0.9f, 0.75f, 2.0f);
+Wrapper gLightingWaterThree(1.6f, 0.0f, 15.0f);
+Wrapper gLightingWaterThreePower(0.7f, 0.5f, 1.0f);
+Wrapper gLightingWaterPowerMode(1.0f, 0.0f, 1.0f);
 
 // Water skybox
 Wrapper gLightingWaterSkyboxSunBias(1.3f, 0.0f, 4.0f);

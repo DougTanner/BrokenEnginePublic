@@ -352,7 +352,12 @@ void ClientSession::ResetForServerLoad()
 	}
 	mpClientNetwork->GetCancelledSubscriptions().clear();
 
-	// Clear local coord frames (stale pre-load data)
+	// Clear local coord frames (stale pre-load data). Reset render-progress fields first
+	// so that any entry re-emplaced by a racing packet in the same frame starts clean.
+	for (auto& [rCoord, rCoordFrames] : gpGame->mCoordFrames)
+	{
+		rCoordFrames.ResetClientState();
+	}
 	gpGame->mCoordFrames.clear();
 
 	// Reset reconciler, subscription, and desync state
