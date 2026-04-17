@@ -28,19 +28,8 @@ struct ReceivedPlayerEvent
 	engine::GridCoord coord {};
 };
 
-void ParsePlayerEvents(
-	std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets,
-	std::vector<ReceivedPlayerEvent>& rOutEvents);
+void ParsePlayerEvents(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets, std::vector<ReceivedPlayerEvent>& rOutEvents);
 
-void ParseFleetSync(
-	std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets,
-	std::vector<Fleet>& rOutFleets);
-
-inline uint8_t PlayerEventTypeToWire(PlayerEventType eType)
-{
-	// kAssigned has no wire equivalent (uses kServerAssignPlayer packet type)
-	// kSpawned/kChangedFrame/kDied map to wire values 0/1/2
-	return static_cast<uint8_t>(eType) - 1;
-}
+void ParseFleetSync(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets, std::vector<Fleet>& rOutFleets);
 
 } // namespace game

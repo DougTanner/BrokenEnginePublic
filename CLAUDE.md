@@ -1,6 +1,6 @@
 # Broken Engine
 
-A C++23 Vulkan game engine client/server with data pre-packer, using data-oriented design. The camera views the world from kilometers above, looking down on islands scattered across an ocean. Units appear small on screen, similar to an RTS perspective.
+A C++23 Vulkan game engine client/server with data pre-packer, using data-oriented design. Top-down RTS-scale camera: kilometers above an ocean of islands, small units on screen.
 
 ## Environment
 - **IDE**: Visual Studio 2026
@@ -8,20 +8,15 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 - **Graphics API**: Vulkan 1.2
 - **Platform**: Windows 10+
 
-## Resolve ambiguities automatically where possible
+## Resolving Ambiguity
 
-1. When multiple options exist, send each possibility to an Opus subagent with directions to validate this idea and create a plan
-2. Compare the valid ideas returned from the subagents, and weigh their pros and cons
-3. If no solution is superior, choose the simplest
-4. If architectural decisions need to be made; query the user for feedback, making sure to concisely but fully explain:
-	a) The problem
-	b) The proposed solutions
-	c) The pros and cons of each
+- **Trivial choices** (naming, small implementation details, equivalent approaches): pick the simplest and proceed. When two non-trivial options tie, fan out Opus subagents to validate each, compare pros/cons, then pick simplest.
+- **Architectural decisions** (new system shape, public API, data layout, threading model): STOP and interrogate the user. Concisely present: (a) the problem, (b) proposed solutions, (c) pros and cons of each.
 
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
 0. The user will use plan mode to create a planning document (or load a plan from a file)
 	- DO NOT add a 'Verification' section
-1. Invoke /external-grill-plan to interview the user about the plan — resolve ambiguities, gather missing information, and ensure plan completeness before implementation. **When the grill completes, DO NOT stop or summarize — immediately continue to step 1 in the same turn.**
+1. Invoke /external-grill-plan to interview the user about the plan — resolve ambiguities, gather missing information, and ensure plan completeness before implementation. **When the grill completes, DO NOT stop or summarize — immediately continue to step 2 in the same turn.**
 2. Make the code changes using the planning document
 3. Use a Opus subagent to search the codebase and update all locations in the code affected by this modified code
 4. Use a Opus subagent to invoke the code-review skill (evaluate advice for validity, query user if unsure). If review flags any files for `/reduce-file`, invoke it on them
@@ -34,11 +29,11 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 
 ## IMPORTANT Directives
 - Follow KISS, YAGNI, DRY at all times
-- If there is any ambiguity or multiple possible paths forward, stop and interrogate the user for input (present pros and cons of each)
+- Ambiguity: see `Resolving Ambiguity` above
 - DO NOT run any Git commands
 - DO NOT add error handling or validation - assume parameters to functions are valid
 - DO NOT add unit tests
-- Response style: no filler, no pleasantries, no hedging, no restating the request. Drop articles where natural, fragments fine. Technical terms and code unchanged. Prefer pattern: [thing] [action] [reason]
+- **Response style**: Stay concise — no pleasantries, hedging, or restating the request. But when the user (or output style) asks for explanation, provide the information fully. Concise ≠ omitting requested content. In code and commit messages: drop articles where natural, fragments fine, technical terms unchanged. Pattern: [thing] [action] [reason]
 
 ## Directory Structure
 - `/Common/` - Shared utilities (`common::` namespace); `Common.h` is the single aggregation header (included by `Pch.h`) - [CLAUDE.md](Common/CLAUDE.md)
@@ -54,7 +49,14 @@ Linker errors (LNK errors) can be ignored — the client or server executable ma
 
 ## Client/Server Builds
 
-The codebase produces two executables from the same source: a **client** (full game with graphics, audio, input) and a **server** (headless physics simulation). The vcxproj defines either `BT_CLIENT` or `BT_SERVER`; use `#ifdef BT_CLIENT` / `#endif` to gate client-only code at the narrowest practical scope. Files fully wrapped in `#if defined(BT_CLIENT)` must only be in the client vcxproj; files fully wrapped in `#if defined(BT_SERVER)` must only be in the server vcxproj. See [VisualStudio2026/CLAUDE.md](Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/CLAUDE.md) for detailed vcxproj inclusion rules. Collections with client-only fields use a three-method pattern: `SharedMembers()` (fields for both builds), `ClientMembers()` (client-only fields, `#ifdef BT_CLIENT`), and `Members()` which uses `std::tuple_cat` to combine them (client) or returns just `SharedMembers()` (server). See child CLAUDE.md files for subsystem-specific details.
+Same source, two executables:
+- **client** (graphics, audio, input) — vcxproj defines `BT_CLIENT`
+- **server** (headless physics) — vcxproj defines `BT_SERVER`
+
+Rules:
+- Gate client-only code with `#ifdef BT_CLIENT` at the narrowest practical scope.
+- Files fully wrapped in `#if defined(BT_CLIENT)` must only appear in the client vcxproj; same for `BT_SERVER`. See [VisualStudio2026/CLAUDE.md](Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/CLAUDE.md).
+- Collections with client-only fields use `SharedMembers()` + `ClientMembers()` (client-only, `#ifdef BT_CLIENT`) combined by `Members()` via `std::tuple_cat`; server `Members()` returns `SharedMembers()` only.
 
 ## Key Patterns
 - **Managers**: Singletons via `gp*` globals (`gpGraphics`, `gpAudioManager`)
@@ -62,9 +64,9 @@ The codebase produces two executables from the same source: a **client** (full g
 - **DirectX Math**: Prefer aligned versions (`Float4A` not `Float4`)
 - **Base classes**: Use game versions, not Base versions (e.g., `Camera.h` not `CameraBase.h`)
 - **Engine -> Game**: Engine code includes `Game.h` and accesses game functionality via `game::gpGame` (not GameBase directly). Never create globals for Base classes - always use the game-derived version
-- **Workbuffer**: Use `gpThreadLocal->mWorkbuffer` for temporary allocations instead of local `std::vector` or `std::string`. Supports nested push/pop and can always be grown if needed. See [Common/CLAUDE.md](Common/CLAUDE.md)
-- **Allocation tracking**: Heap allocations in the main loop trigger `DEBUG_BREAK()` — prefer workbuffer or static storage. When unavoidable, use `ScopedSuppressAllocationTracking` and add a `// Heap:` comment explaining why. See [Memory/CLAUDE.md](Engine/Source/Memory/CLAUDE.md)
+- **Workbuffer**: Use `gpThreadLocal->mWorkbuffer` for temp allocations instead of local `std::vector`/`std::string`. See [Common/CLAUDE.md](Common/CLAUDE.md)
+- **Allocation tracking**: Heap allocations in the main loop trigger `DEBUG_BREAK()`. When unavoidable, wrap with `ScopedSuppressAllocationTracking` + `// Heap:` comment. See [Memory/CLAUDE.md](Engine/Source/Memory/CLAUDE.md)
 - **Standard library headers**: `#include <header>` additions go in `Common/ExternalHeaders.h`, not in individual source files
 - **Flags over booleans**: Use `common::Flags<EnumType>` instead of multiple `bool` variables. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/CLAUDE.md](Common/CLAUDE.md)
-- **Log levels**: `kVerbose` — per-frame or high-frequency events (reconciliation ticks, subscription churn, status changes). `kDebug` — one-time events like startup, setup, connect/disconnect. `kInfo` — app state transitions and high-importance one-time events (default threshold for most categories). `kWarning` — something to investigate (timeouts, overflows, clock desync, precursor-to-error); may spam. `kError` — failures; always logged regardless of threshold or category
+- **Log levels**: `kVerbose` — per-frame / high-frequency. `kDebug` — one-time (startup, connect). `kInfo` — state transitions, important one-shots (default threshold). `kWarning` — investigate (timeouts, desync); may spam. `kError` — failures; always logged

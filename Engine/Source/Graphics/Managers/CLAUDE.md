@@ -2,33 +2,36 @@
 
 ## Overview
 
-Singleton manager classes for the Vulkan renderer, each accessed via a global pointer (e.g., `gpTextureManager`). All managers are created in strict dependency order during Graphics construction and destroyed in reverse order via RAII. They support resource recreation for window resize and device-lost recovery.
+Singleton managers for the Vulkan renderer, each accessed via a `gp*` global. Created in strict dependency order during Graphics construction and destroyed in reverse via RAII. Support resource recreation for window resize and device-lost recovery.
 
-See also: [Graphics Pipeline](../../../../Documents/Architecture/GraphicsPipeline.md)
+## Conventions
 
-## Key Classes
+- **Singleton wiring**: ctor assigns `gp*` global and wraps work in `ScopedBootTimer`; dtor nulls the global. Every Vulkan object is labeled via `VkName()`.
+- **Two-phase resize**: paired `Destroy*/Create*` methods tear down and rebuild swapchain/screen-dependent resources without destroying the manager instance.
+- **Manager vs. sub-object**: only classes with `gp*` globals are managers; owned-by-value structs are reached through their manager.
+- **TextureUploadManager lifecycle**: `InitTransferResources` / `DestroyTransferResources` / `StartThread` are split from ctor/dtor so the transfer thread and persistent staging survive swapchain recreation.
 
-- **InstanceManager** (`gpInstanceManager`) - Vulkan instance creation and physical device selection
-- **DeviceManager** (`gpDeviceManager`) - Logical device, queues, descriptor pool, VmaAllocator, pipeline cache (loaded from disk on startup, saved on shutdown with device-UUID validation), and shared one-shot command pool/fence used by `OneShotCommandBuffer`
-- **SwapchainManager** (`gpSwapchainManager`) - Swapchain, framebuffers, depth/multisampling textures, main render pass, image acquisition/presentation synchronization (semaphores, fences), and `PersistentWorker` for async presentation
-- **CommandBufferManager** (`gpCommandBufferManager`) - Command pool and buffer management (Global/Main/ImGui), record-once command buffers, submission via `PersistentWorker` threads, and particle compute synchronization via semaphore. The lighting section dispatches N radial spread fragment passes (each reading the previous pass's output into its own set of spread textures), then a single combine dispatch that sums all spread pass outputs
-- **BufferManager** (`gpBufferManager`) - GPU buffer lifecycle (vertex, index, uniform, storage), dynamic storage buffers with auto-resize per collection, per-frame skinning allocations (mesh data + joint matrices with auto-grow), and hierarchical dispatch buffers for smoke/wind/lighting-spread compute
-- **TextureManager** (`gpTextureManager`) - Texture lifecycle, samplers, and delegates to sub-objects: TextureDescriptors (bindless descriptor Set 0), TextureCache (GPU readback, file caching, BRDF LUT), RenderTargetTextures (shadows, smoke, wind, terrain in `RenderTargetTextures.cpp`; lighting MRT deposit framebuffer, per-pass spread texture sets (one set of 3 textures per spread pass with sizes linearly interpolated between start and end multiplier values across the pass count), per-pass spread framebuffers, and a debug texture pointer array in `RenderTargetTexturesLighting.cpp`)
-- **TextureUploadManager** (`gpTextureUploadManager`) - Background GPU texture uploads on a dedicated transfer queue
-- **TextManager** (`gpTextManager`) - Font rendering and text layout
-- **PipelineManager** (`gpPipelineManager`) - SPIR-V shader loading, graphics/compute pipeline creation; delegates dynamic per-collection pipelines to `DynamicPipelines` sub-object. Maintains pipeline arrays for the lighting pipeline phases: an array of radial spread fragment pipelines (one per spread pass, each MRT to its own set of spread textures), and a combine pipeline (tone map all 3 channels in one dispatch, summing all spread pass outputs). `DynamicPipelines::UpdateAllModelPipelineDescriptors` fans out descriptor updates across all model and shadow pipeline maps, called by `BufferManager` after skinning buffer growth. The debug texture pipeline uses a descriptor array of all lighting textures; texture selection is driven by a uniform index so command buffers need not be re-recorded when cycling between textures. The debug circle pipeline (`kPipelineDebugCircle`) uses a dedicated billboard vertex shader so circles always face the camera; all other debug primitives share the world-space debug vertex shader. `kPipelineUiDepthPrepass` is a depth-only pipeline (`kDepthTest | kDepthWrite | kNoColorWrite`) that draws procedural quads (no vertex buffer) at z=0 for opaque UI occlusion culling
-- **ParticleManager** (`gpParticleManager`) - GPU particle system with compute shaders
-- **ImGuiManager** (`gpImGuiManager`) - Dear ImGui UI rendering (menus, dialogs, HUD). Frame work is split into `Prepare()` (runs ImGui logic and collects draw data, called before the main render pass) and `Submit()` (records and submits the ImGui command buffer). Screens call `RegisterOpaqueRect()` to register UI window bounds for the depth pre-pass; these are uploaded via a host-visible storage buffer and drawn via `vkCmdDrawIndirect` using the `kPipelineUiDepthPrepass` pipeline at the start of the main pass when `gOpaqueUi` is enabled. The indirect buffer `instanceCount` is set to 0 when disabled, incurring zero GPU overhead
+## Managers
+
+- **InstanceManager / DeviceManager** - Instance, physical/logical device, queues, VMA, descriptor pool, pipeline cache
+- **SwapchainManager** - Swapchain, framebuffers, main render pass, async presentation worker
+- **CommandBufferManager** - Record-once primary buffers (Global/Main/ImGui), submission workers, cross-queue semaphore sync
+- **BufferManager** - GPU buffer lifecycle, auto-resize dynamic storage, per-frame skinning, hierarchical dispatch
+- **TextureManager / TextureUploadManager** - Texture lifecycle, samplers, bindless descriptors, render targets; uploads run on the dedicated transfer queue with a fixed-byte staging budget and graphics-queue ownership acquire
+- **PipelineManager** - SPIR-V load and pipeline creation. Fixed `kPipeline*` enum for engine-owned passes; CRC-keyed per-collection pipelines live in `DynamicPipelines` and register at collection init
+- **ParticleManager** - GPU particle compute
+- **TextManager** - Font rendering and layout
+- **ImGuiManager** - Split `Prepare()` / `Submit()`; registers opaque UI rects for depth pre-pass occlusion
 
 ## Architecture Notes
 
-- Initialization order is strict: Instance, Device, Swapchain, CommandBuffer, Buffer, Islands, Texture, Text, Pipeline, Particle, ImGui. Violating this crashes or causes validation errors
-- Fence wait required before all GPU resource updates to avoid modifying in-use resources
-- Single descriptor pool in DeviceManager serves all pipelines; global Set 0 owned by TextureDescriptors, per-pipeline Sets 1 and 2
-- Per-framebuffer resource duplication enables parallel frame processing
-- Semaphore chain: Image acquisition, Global, Main, ImGui, Presentation
-- **Dual pipeline-creation-site invariant**: `PipelineManager.cpp` builds each pipeline's descriptor-info list in two places (constructor + `RecreatePipelineGroups`); edits to one MUST be mirrored in the other or drift surfaces as VUID-vkCmdDrawIndexed-None-08114
+- Initialization order is strict; violations crash or trigger validation errors.
+- Single descriptor pool serves all pipelines; global Set 0 is shared, Sets 1/2 are per-pipeline. Texture slots are monotonic and descriptor writes are deferred until `UpdateTextureArrayDescriptors()`.
+- Semaphore chain: acquire -> Global -> Main -> ImGui -> present.
+- **Dual pipeline-creation-site invariant**: `PipelineManager.cpp` builds each pipeline's descriptor-info list in two places (constructor and `RecreatePipelineGroups`); edits must be mirrored or drift surfaces as VUID-vkCmdDrawIndexed-None-08114.
 
 ## See Also
 
-- Individual manager docs: [BufferManager](BufferManager.CLAUDE.md) | [CommandBufferManager](CommandBufferManager.CLAUDE.md) | [DeviceManager](DeviceManager.CLAUDE.md) | [ImGuiManager](ImGuiManager.CLAUDE.md) | [InstanceManager](InstanceManager.CLAUDE.md) | [ParticleManager](ParticleManager.CLAUDE.md) | [PipelineManager](PipelineManager.CLAUDE.md) | [SwapchainManager](SwapchainManager.CLAUDE.md) | [TextManager](TextManager.CLAUDE.md) | [TextureManager](TextureManager.CLAUDE.md) | [TextureUploadManager](TextureUploadManager.CLAUDE.md)
+- [Graphics Pipeline diagram](../../../../Documents/Architecture/GraphicsPipeline.md)
+</content>
+</invoke>

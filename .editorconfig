@@ -1,7 +1,16 @@
 # Visual Studio generated .editorconfig file with C++ settings.
 root = true
 
-[*.{c++,cc,cpp,cppm,cxx,h,h++,hh,hpp,hxx,inl,ipp,ixx,tlh,tli}]
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = tab
+indent_size = 4
+tab_width = 4
+
+[*.{cpp,h}]
 
 # Visual C++ Code Style settings
 
@@ -69,7 +78,7 @@ cpp_space_around_ternary_operator = insert
 cpp_use_unreal_engine_macro_formatting = true
 cpp_wrap_preserve_blocks = never
 
-# Visual C++ Inlcude Cleanup settings
+# Visual C++ Include Cleanup settings
 
 cpp_include_cleanup_add_missing_error_tag_type = suggestion
 cpp_include_cleanup_remove_unused_error_tag_type = dimmed
@@ -79,3 +88,10 @@ cpp_sort_includes_priority_case_sensitive = false
 cpp_sort_includes_priority_style = quoted
 cpp_includes_style = default
 cpp_includes_use_forward_slash = true
+
+[*.{md,txt}]
+trim_trailing_whitespace = false
+
+[*.{frag,vert,comp,glsl,hlsl}]
+indent_style = tab
+indent_size = 4

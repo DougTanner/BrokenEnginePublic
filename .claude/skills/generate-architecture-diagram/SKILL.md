@@ -1,6 +1,8 @@
 ---
 name: generate-architecture-diagram
 description: Generates Mermaid architecture diagrams for cross-system relationships. Only creates diagrams spanning 3+ files. Output linked from subsystem CLAUDE.md files. Only invoke when the user explicitly requests it (e.g., "/generate-architecture-diagram", "generate an architecture diagram") or when another skill explicitly instructs it. Never trigger autonomously from general code questions or during routine code changes.
+disable-model-invocation: true
+allowed-tools: [Read, Write, Edit, Glob, Grep, Agent]
 ---
 
 # Generate Architecture Diagram
@@ -23,7 +25,9 @@ Before doing any work, answer these questions. If the answer to ANY is "no", **t
 
 If the relationships can be described in 2-3 sentences of prose, **add them to the subsystem's CLAUDE.md instead**. Prefer enriching CLAUDE.md over creating a new diagram — CLAUDE.md files are always read by agents, diagrams are not.
 
-**The bar is high.** The codebase currently has only 2 diagrams (`Documents/Architecture/GameReconciliation.md` and `Documents/Architecture/FrameUpdatePipeline.md`). A new diagram must be as valuable as these (reconciliation state machines, frame phase ordering). Most subsystems do NOT need a diagram.
+**The bar is high.** The codebase currently has 3 diagrams: `Documents/Architecture/GameReconciliation.md`, `Documents/Architecture/FrameUpdatePipeline.md`, and `Documents/Architecture/Network.md`. A new diagram must be as valuable as these (reconciliation state machines, frame phase ordering, network protocol). Most subsystems do NOT need a diagram.
+
+**Sister skill:** Once a diagram exists, subsequent code changes that affect it are updated by `/update-architecture-diagrams` — not by re-running this skill.
 
 ## What Makes a Useful Diagram
 
@@ -113,6 +117,8 @@ Write to `Documents/Architecture/<Area>/<Name>.md`:
 ```
 
 Then add a "See also" link to the diagram from the **nearest CLAUDE.md** to the source code (not the root CLAUDE.md). This is critical for discoverability — an AI agent will find the diagram by reading the subsystem's CLAUDE.md, not by browsing `Documents/Architecture/`.
+
+This link is also how `/update-architecture-diagrams` discovers which diagrams belong to which subsystem when future code changes land. Skipping the link leaves the diagram orphaned.
 
 ### 5. Report
 

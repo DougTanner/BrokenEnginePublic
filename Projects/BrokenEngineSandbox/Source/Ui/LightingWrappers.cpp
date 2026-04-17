@@ -4,8 +4,8 @@ namespace game
 {
 
 // Players - Blasters
-engine::Wrapper gPlayersBlasterLightingArea(4.0f, 1.0f, 8.0f);
-engine::Wrapper gPlayersBlasterLightingIntensity(1.0f, 0.0f, 2.0f);
+engine::Wrapper gPlayersBlasterLightingArea(3.0f, 1.0f, 8.0f);
+engine::Wrapper gPlayersBlasterLightingIntensity(2.0f, 0.0f, 4.0f);
 
 engine::Wrapper gPlayerImpactLightingArea(2.0f, 1.0f, 4.0f);
 engine::Wrapper gPlayerImpactStartLightingIntensity(0.0f, 0.0f, 2.0f);
@@ -27,10 +27,10 @@ engine::Wrapper gExplosionParticleLightingArea(2.0f, 1.0f, 4.0f);
 engine::Wrapper gExplosionParticleLightingIntensity(0.0f, 0.0f, 2.0f);
 
 // Blasters - Terrain crater
-engine::Wrapper gCraterLightingArea(2.0f, 1.0f, 4.0f);
-engine::Wrapper gCraterLightingIntensityStart(2.0f, 0.0f, 2.0f);
-engine::Wrapper gCraterLightingIntensityMid(0.5f, 0.0f, 2.0f);
-engine::Wrapper gCraterLightingIntensityEnd(0.0f, 0.0f, 2.0f);
+engine::Wrapper gCraterLightingArea(1.0f, 1.0f, 4.0f);
+engine::Wrapper gCraterLightingIntensityStart(4.0f, 0.0f, 4.0f);
+engine::Wrapper gCraterLightingIntensityMid(0.2f, 0.0f, 2.0f);
+engine::Wrapper gCraterLightingIntensityEnd(0.1f, 0.0f, 2.0f);
 
 // Missiles - Exhaust
 engine::Wrapper gMissileExhaustLightingArea(2.0f, 1.0f, 4.0f);

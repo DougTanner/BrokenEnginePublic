@@ -2,20 +2,35 @@
 
 ## Overview
 
-Client-side ENet networking split into the low-level `Client` class (connection, packet I/O, slot state machine) and the engine-generic `ClientSessionBase` (game-session orchestration). Client-only (`BT_CLIENT`).
+Client-side ENet peer (`Client`, `gpClient`) and engine-generic `ClientSessionBase`. Game sessions inherit the session base. Client-only (`BT_CLIENT`).
 
-## Key Classes
+## Invariants
 
-- **Client** - ENet peer managing server connection with coord slot subscription state machine (kUnsubscribed -> kSubscribing -> kWaitingFullState -> kActive -> kUnsubscribing), per-slot ACK tracking, cancelled subscription interception, pipeline RTT/jitter/bandwidth measurement, packet loss tracking, soft desync recovery, debug frame support, timespeed request/receive, save/load request forwarding, replay control, and reset. Stores `mClientGuid` (assigned by server in `kServerConnectionResponse`) and `mbLoadNotificationReceived` flag (set on `kServerLoadNotification`, drained via `DrainLoadNotification`). GUID is persisted to disk (loaded before `kClientHello`, saved after `kServerConnectionResponse`). Packets with type values at or above `kGamePacketStart` are stored as raw bytes and drained by the game session for parsing. Game packet sends (fleet operations, player update requests) are provided by the game-layer `ClientSession`, which calls `SendPacket` directly. When network simulation is enabled and timespeed is accelerated, received packets bypass the delay queue and queued delayed packets are flushed immediately. Split across three `.cpp` files: core, receive, send
-- **ClientSessionBase** - Engine-generic base for game client sessions. Owns `Client` and `NetworkDiscoveryScanner`. Provides connection lifecycle, LAN discovery with auto-restart on timeout (tracking both `mbServerDiscovered` and `mbDiscoveryScanTimedOut` so callers can distinguish "found a server" from "scan completed with no result"), coord subscription queue management (build queue, unsubscribe stale, drain in parallel), update buffering into `CoordFrames`, clock correction with disconnect threshold, and confirmed-tick queries. The `CoordFrames::snapshots[]` ring is owned and driven by the game-layer reconciler, not `ClientSessionBase`. Game layer inherits and adds reconciliation, full-state application, and desync handling
+- **Drain-per-poll**: `Poll()` clears all receive buffers on entry; callers must consume every `Drain*` output before the next poll.
+- **Slot-active gate**: updates for non-`kActive` slots are dropped; `try_emplace` keeps first arrival; buffer overflow asserts.
+- **Epoch check on every receive handler**: mismatches silently dropped — this is what makes slot reuse safe across rapid (un)subscribe cycles.
+- **Out-of-order tolerance**: full-state can arrive before subscribe-accept (different ENet channels); handlers reconcile the placeholder slot either way.
+- **Cancelled-subscription ghosts**: locally-dropped `kSubscribing` slots record the coord; late accept/full-state triggers an unsubscribe. One epoch-heal case covers legitimate re-subscribe to an already-active slot.
+- **Gap beyond `kiNetworkBufferSize`** on a single slot forces disconnect.
 
-## Architecture Notes
+## Subscription State Machine
 
-- Subscription queue drains in parallel: `TrySubscribeNext` loops calling `SendSubscribe` (which claims a free slot and returns true, or returns false if none available) until the queue is empty or slots are exhausted. If a kSubscribing slot is cancelled before the server responds, the coord is tracked in `mCancelledSubscriptions` so that `ServerSubscribeAccept` and `ServerCoordFullState` can intercept and reject them. A special case in `ServerSubscribeAccept` handles a race where stale data from a cancelled subscription has already activated the slot: if the target slot is `kActive` for the same coord, the epoch is updated ("healed") rather than sending a ghost unsubscribe, so the legitimate re-subscription is not falsely evicted
-- Clock correction keeps the client sim running strictly **behind** `latestServerTick` by `miCurrentTargetBehind` ticks, so server StatusChanges always arrive before the client has simulated their tick (no reconcile replay in zero-loss steady state). `miCurrentTargetBehind` is a pure jitter buffer: `ceil((GetJitterUs() + kiJitterSafetyUs) / tickTimeUs)` with `kiJitterSafetyUs = 125ms` — RTT is deliberately excluded because it's already built into `latestServerTick` lagging server wall clock. `GameBase::ClientUpdate` enforces a hard ceiling via `GetTargetSimTick()` so `miTickCounter` never advances past `latestServerTick - miCurrentTargetBehind`; excess wall-clock time is absorbed back into `mTickRemainderNs` via `TimeStep::AbsorbUnusedTicks`. Small clock errors are corrected gradually by nudging the tick accumulator; extreme errors snap. Sustained disconnect-threshold errors set `mbClockErrorDisconnect`, signaling recovery to the game layer
-- `mSmoothedPipelineRttUs` is seeded on `kServerConnectionResponse` from a game-layer wall-clock delta (`Client::SendHello` stamps `miHelloSendTimeNs` before `SendPacket`; `Client::ServerConnectionResponse` computes `now - miHelloSendTimeNs`) so the value flows through `NetworkSimulation` — the prior ENet `roundTripTime` read bypassed the sim. The target-behind formula reads `mSmoothedJitterUs`; the seed is for profile overlay only
+`kUnsubscribed -> kSubscribing -> kWaitingFullState -> kActive -> kUnsubscribing`.
+
+## Clock & Pipeline
+
+Pipeline RTT seeded from handshake wall-clock delta, refined via client timestamp echoed in each server coord update (monotonic guard prevents duplicate processing during multi-frame ticks). Clock correction uses jitter-derived target with 2-tick hysteresis; sustained error forces disconnect. Full formulas in [Network.md](../../../../Documents/Architecture/Network.md).
+
+## Other
+
+- **ENet tuning**: 1 MB socket buffers; peer throttle disabled so reconciliation stalls don't drop unreliable traffic.
+- **GUID**: versioned `ClientGuid.bin` under `FileFlags::kAppDataDirectory`; loaded on hello, written on connection accept.
+- **Disconnect**: resets all session state and calls `CoordFrames::ResetClientState` on every coord.
+- **LAN discovery**: scanner auto-restarts on timeout.
+- **Network simulation**: fast-forward bypasses the delay queue and flushes pending; slot reuse and unsubscribe-ack paths purge delayed packets on that slot's channels.
 
 ## See Also
 
 - Parent: [../CLAUDE.md](../CLAUDE.md)
-- Game-layer session: [../../../../Projects/BrokenEngineSandbox/Source/Network/CLAUDE.md](../../../../Projects/BrokenEngineSandbox/Source/Network/CLAUDE.md)
+- Game session: [Projects/BrokenEngineSandbox/Source/Network/Client/CLAUDE.md](../../../../Projects/BrokenEngineSandbox/Source/Network/Client/CLAUDE.md)
+- [Network.md](../../../../Documents/Architecture/Network.md)

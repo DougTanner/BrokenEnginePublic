@@ -129,6 +129,16 @@ void StaticVoices::ClearPool()
 
 void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 {
+	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
+
+	// Skipping replay ticks also skips the consumption of mbSkipNextInvalidation below;
+	// that is intentional — if a device-reset callback raises the flag mid-storm we want
+	// the first real post-storm tick to still suppress invalidation of the cleared voices.
+	if (rFrame.interpolate.frameFlags & FrameFlags::kRecalculated)
+	{
+		return;
+	}
+
 	const SoundsInterpolate& rSoundsInterpolate = rFrame.interpolate.sounds;
 	const SoundsPostRender& rSoundsPostRender = rFrame.postRender.sounds;
 

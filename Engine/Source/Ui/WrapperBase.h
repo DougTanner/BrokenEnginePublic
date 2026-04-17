@@ -352,15 +352,10 @@ extern Wrapper gSpreadDistanceFalloffEnd;
 extern Wrapper gSpreadOutputThresholdEnd;
 extern Wrapper gSpreadOutputCompressEnd;
 
-// Spread Height Start
-extern Wrapper gSpreadHeightDistance;
-extern Wrapper gSpreadHeightIntensity;
-extern Wrapper gSpreadHeightIntensityTarget;
-
-// Spread Height End
-extern Wrapper gSpreadHeightDistanceEnd;
-extern Wrapper gSpreadHeightIntensityEnd;
-extern Wrapper gSpreadHeightIntensityTargetEnd;
+// Spread Height Fade
+extern Wrapper gSpreadHeightMultiplier;
+extern Wrapper gSpreadHeightEndHeight;
+extern Wrapper gSpreadHeightPower;
 
 // Combine (Uchimura tone curve)
 extern Wrapper gCombineMaxBrightness;
@@ -373,7 +368,9 @@ extern Wrapper gCombinePassNormalize;
 extern Wrapper gCombineExposurePassScale;
 extern Wrapper gCombineHuePreserve;
 #if defined(BT_CLIENT)
-extern CurveData gCombineCurve;
+extern CurveData gCombineCurveOld;
+extern CurveData gCombineCurveNew;
+extern bool gbUseCombineCurveNew;
 #endif
 extern Wrapper gLightingSampledNormalsSize;
 extern Wrapper gLightingSampledNormalsSpeed;

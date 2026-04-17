@@ -2,31 +2,30 @@
 
 ## Overview
 
-Manages per-frame game state through a dual-phase update system (Interpolate for rendering, PostRender for logic) over a sparse grid of simulation cells. Frame state uses composition: `game::Frame` aggregates engine base classes (`FrameInterpolateBase`, `FramePostRenderBase`) with game-specific extensions. All collections support automatic CRC, serialization, and comparison via compile-time type lists.
+Manages per-frame game state through a dual-phase update system (Interpolate for rendering, PostRender for logic) over a sparse grid of simulation cells. `game::Frame` aggregates engine base classes (`FrameInterpolateBase`, `FramePostRenderBase`) with game-specific extensions. Collections get automatic CRC, serialization, and comparison via compile-time type lists.
 
-See also: [Frame Update Pipeline](../../../Documents/Architecture/FrameUpdatePipeline.md)
+See also: [Frame Update Pipeline](../../../Documents/Architecture/FrameUpdatePipeline.md) — update this diagram if phase ordering changes.
 
 ## Key Classes
 
-- **FrameInterpolateBase** - Rendering-phase state: frame timing, visibility bounds, visual collections (`#ifdef BT_CLIENT`), and render pipeline orchestration. Provides CRC/serialization/`LogDifferences()` for cross-build determinism validation
-- **FramePostRenderBase** - Logic-phase state: deterministic random engine, UUID generation (separate counters for shared/sound/visual UUIDs), CRC chain, alignments, and all PostRender collections. Orchestrates seven sub-phases (Update, PreCollision, PostCollision, AreaDamage, Transfer, Destroy, Spawn), each receiving a `const FrameStaticData&`
-- **FrameStaticData** - Immutable per-coord data (area bounds, island configuration, and per-cell NavData) stored in `CoordFrames` alongside frames. Set once at coord creation, serialized separately from frames, and passed to all phase functions. NavData is built by the server from the island's canonical NavContour and distributed to clients via FrameStaticData network serialization. Also carries a `GridCoord` identifying the cell this data belongs to — set externally by the coord management layer and not included in serialization
-- **FrameUtils** - Template utilities using `std::apply` and fold expressions to iterate all collections automatically for CRC, serialization, and copy. Also provides `engine::ApplyMovement<>()` — a decoupled movement model with independent drag, acceleration, and max speed parameters; the template parameter enables optional airplane-like velocity-to-direction blending
-- **GridCoord** - 2D coordinate keying frames in the sparse grid, with key packing and neighbor offset helpers
-- **TimeStep** - Fixed timestep accumulator converting variable render time into discrete physics ticks at `kiTickRate`. Includes time scaling and death spiral prevention. Signals time scale changes via `mbTimeScaleChanged` flag; Game polls and updates the text overlay
-- **Collision** - Layer-based spatial partitioning with discrete and swept sphere tests. Uses `thread_local` statics for parallel per-frame execution. Results stored in flat contiguous workbuffer-backed storage with O(1) generation-counter deduplication
-- **AreaDamage** - Thread-local accumulator for explosion/AoE damage sources. Collections call `Add()` in PostCollision and query `Get()` during the AreaDamage phase; `Clear()` resets the list each frame
-- **Alignments** - Sparse collision filtering via sorted flat vector with binary search
-- **IslandTerrain** - CPU terrain queries (elevation, normals) shared by client and server. All islands use the same heightmap flipped by parity
-- **NavBuild / NavQuery** - Visibility graph pathfinding using per-cell NavData stored in world space. `NavBuild` constructs NavData from a canonical NavContour on IslandTerrain (server builds once; clients receive it via FrameStaticData) through a seven-step pipeline: contour extraction, simplification, dense-cluster smoothing (detects jagged vertex clusters on polygon boundaries and pushes them outward along their outward normal), re-simplification, inflation, polygon union merge (eliminates intersecting boundaries from independently inflated nearby polygons), flat-array packing, and visibility graph construction. `NavQueryDirection(position, destination, navData)` returns a steering direction between two world-space points: escapes toward the nearest polygon boundary if the start position is inside an obstacle, uses a direct line-of-sight fast path if unobstructed, or falls back to A* through the visibility graph; if A* fails, steers toward the nearest obstacle vertex with line-of-sight. If the destination is inside an obstacle it is snapped to navigable space before pathfinding. `NavQuerySnapToNavigable(position, navData)` moves a position that falls inside an obstacle to just outside the nearest polygon boundary, used to sanitize randomly generated destinations. **When changing anything that affects NavData content** (threshold, simplification, inflation, merge, contour extraction), bump `kiNavDataVersion` in `NavBuild.h` — it feeds into `Frame::kiVersion` for save compatibility
+- **FrameInterpolateBase / FramePostRenderBase** - Split base classes for render-phase vs. logic-phase state. PostRender orchestrates sub-phases (Update, PreCollision, PostCollision, AreaDamage, Transfer, Destroy, Spawn) and owns determinism infrastructure (CRC chain, deterministic random, UUID streams).
+- **FrameStaticData** - Immutable per-coord data (area bounds, island config, per-cell NavData) stored in `CoordFrames`. Server builds NavData from the island's canonical NavContour; clients receive it via network serialization.
+- **FrameUtils** - Template helpers using `std::apply` + fold expressions to iterate all collections for CRC, serialization, and copy. Also exposes the shared movement model (drag/acceleration/max-speed with optional velocity-to-direction blending).
+- **TimeStep** - Fixed-timestep accumulator with time scaling, clamp, and death-spiral auto-reduction. Also drives the client sim-ceiling clamp, not just stalls.
+- **Collision** - Layer-based spatial partitioning (fixed zone grid) with discrete and swept sphere tests; swept falls through to discrete on already-overlapping. Per-pair masks must be bi-directional (asserted); same-layer collision unsupported. Results land in flat `thread_local` storage via prefix-sum spans.
+- **AreaDamage** - Thread-local accumulator for explosion/AoE sources with linear falloff and category-bitmask filter; populated in PostCollision, queried in AreaDamage phase.
+- **Alignments** - Sparse collision filtering via sorted flat vector with binary search; key is lower-id-first so `(A,B) == (B,A)`.
+- **IslandTerrain** - CPU terrain queries (elevation, normals) shared by client and server. Builds the canonical `NavContour` once on the server; clients never walk the heightmap for nav.
+- **NavBuild / NavQuery** - Visibility-graph pathfinding over per-cell NavData. Direct LOS fast path with A* fallback. **Bump `kiNavDataVersion` when changing NavData content** (feeds into `Frame::kiVersion` for save compatibility).
 
 ## Architecture Notes
 
-- **CRC system**: `Crcs()` returns a single shared CRC (excluding both client-only and server-only fields), computed and cached after update phases complete. Used for cross-build determinism validation and reconciliation fast-path
-- **FrameFlags** bitmask tracks update phase and prevents duplicate side effects (e.g., `kRecalculated` guards audio/particle replay during reconciliation)
-- **Client/server split**: Visual-only collections (lights, billboards, sounds, trails) are `#ifdef BT_CLIENT`; collection counts adjust automatically
-- **No transient metadata in Frame structs** -- only logical state belongs here; derived data goes in lookup infrastructure
+- **CRC system**: Single shared CRC excludes both client-only and server-only fields, cached after update. Drives cross-build determinism validation and reconciliation fast-path. `ServerCollections()` is the cross-build-shared subset walked by CRC, `ServerRead`, and `LogDifferences`; client-only collections stay out of determinism.
+- **Collection registration**: `Collections()` tuple size is `static_assert`-locked to each base's `kCollectionCount`, and the two bases must agree. When adding a Collection pair, update both `kCollectionCount` constants and (if shared) `ServerCollections()` alongside the `Collections()` tuple.
+- **Client/server split**: Visual-only collections gated by `#ifdef BT_CLIENT`.
+- **thread_local lazy-init**: `Collision` and `AreaDamage` thread_local vectors MUST start empty — constructors run during `mi_process_init` before the allocator is ready. First-use resize and overflow growth wrap realloc in `ScopedSuppressAllocationTracking` and (on overflow) `DEBUG_BREAK` naming the preallocate constant to raise.
+- **No transient metadata in Frame structs** — only logical state belongs here; derived data goes in lookup infrastructure.
 
 ## See Also
 
-- [Collections/CLAUDE.md](Collections/CLAUDE.md) - SOA collection structures and spawn management
+- [Collections/CLAUDE.md](Collections/CLAUDE.md) - SOA collection framework and engine-level collections

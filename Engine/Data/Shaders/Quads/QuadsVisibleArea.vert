@@ -53,7 +53,7 @@ void main()
 	{
 		f4VisibleArea = globalLayout.f4SmokeArea;
 	}
-	else if (int(pushConstantsLayout.f4Pipeline.x) == 3)
+	else
 	{
 		f4VisibleArea = globalLayout.f4LightingArea;
 	}

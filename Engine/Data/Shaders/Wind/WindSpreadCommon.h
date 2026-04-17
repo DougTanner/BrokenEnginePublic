@@ -9,13 +9,13 @@ vec2 WindSpread(GlobalLayout globalLayout, sampler2D windTextureSampler, sampler
 		(1.0f - f2Texcoord.y) * globalLayout.f4SmokeArea.y + f2Texcoord.y * globalLayout.f4SmokeArea.w);
 
 	// Semi-Lagrangian advection: trace back along wind direction to find source
-	vec2 f2Wind = texture(windTextureSampler, f2Texcoord).rg;
+	vec2 f2Wind = textureLod(windTextureSampler, f2Texcoord, 0.0f).rg;
 
 	// Neighbor reads (shared by vorticity and diffusion)
-	vec2 f2Right = texture(windTextureSampler, f2Texcoord + vec2(fTexelSize, 0.0f)).rg;
-	vec2 f2Left  = texture(windTextureSampler, f2Texcoord - vec2(fTexelSize, 0.0f)).rg;
-	vec2 f2Up    = texture(windTextureSampler, f2Texcoord + vec2(0.0f, fTexelSize)).rg;
-	vec2 f2Down  = texture(windTextureSampler, f2Texcoord - vec2(0.0f, fTexelSize)).rg;
+	vec2 f2Right = textureLod(windTextureSampler, f2Texcoord + vec2(fTexelSize, 0.0f), 0.0f).rg;
+	vec2 f2Left  = textureLod(windTextureSampler, f2Texcoord - vec2(fTexelSize, 0.0f), 0.0f).rg;
+	vec2 f2Up    = textureLod(windTextureSampler, f2Texcoord + vec2(0.0f, fTexelSize), 0.0f).rg;
+	vec2 f2Down  = textureLod(windTextureSampler, f2Texcoord - vec2(0.0f, fTexelSize), 0.0f).rg;
 
 	// Magnitude-dependent behavior: weak wind is laminar, strong wind is turbulent
 	float fMag = length(f2Wind);
@@ -32,13 +32,13 @@ vec2 WindSpread(GlobalLayout globalLayout, sampler2D windTextureSampler, sampler
 		f2Displacement *= fMaxStep / fDispLen;
 	}
 	vec2 f2SourceUV = f2Texcoord - f2Displacement;
-	vec2 f2AdvectedWind = texture(windTextureSampler, f2SourceUV).rg;
+	vec2 f2AdvectedWind = textureLod(windTextureSampler, f2SourceUV, 0.0f).rg;
 
 	// Swirl: perpendicular perturbation via noise
 	float fSwirlScale = mix(globalLayout.fWindSwirlScaleLow, globalLayout.fWindSwirlScaleHigh, fMagFactor);
 	float fSwirlSpeed = mix(globalLayout.fWindSwirlSpeedLow, globalLayout.fWindSwirlSpeedHigh, fMagFactor);
 	float fSwirlAmount = mix(globalLayout.fWindSwirlAmountLow, globalLayout.fWindSwirlAmountHigh, fMagFactor);
-	float fSwirlNoise = texture(noiseTextureSampler, f2WorldPosition * fSwirlScale + vec2(globalLayout.fWindTime * fSwirlSpeed)).r;
+	float fSwirlNoise = textureLod(noiseTextureSampler, f2WorldPosition * fSwirlScale + vec2(globalLayout.fWindTime * fSwirlSpeed), 0.0f).r;
 	vec2 f2Perpendicular = vec2(-f2AdvectedWind.y, f2AdvectedWind.x);
 	f2AdvectedWind += fSwirlAmount * fSpread * fTimeScale * (fSwirlNoise - 0.5f) * f2Perpendicular;
 

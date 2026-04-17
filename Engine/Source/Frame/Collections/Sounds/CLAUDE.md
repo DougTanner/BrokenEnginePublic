@@ -1,17 +1,10 @@
 # /Engine/Source/Frame/Collections/Sounds/
 
-Client-only 3D spatial audio sources using the Sync pattern. Uses a separate `GenerateSoundUuid()` counter so sound ID generation does not affect deterministic UUID sequences.
+Client-only 3D spatial audio source data. Pure data carrier — no playback here; `gpAudioManager` reads the SOA arrays.
 
-## File Structure
+## Unique Aspects
 
-The implementation is split across two `.cpp` files:
-- **Sounds.cpp** - Registration, lifecycle (allocate/copy, spawn, transfer, destroy), render placeholder (empty `Render()`)
-- **SoundsUpdate.cpp** - Update, sync, add/remove, collision phases
-
-## Architecture Notes
-
-- Sound IDs use a separate UUID counter (`GenerateSoundUuid()`) to avoid perturbing deterministic entity UUID sequences shared with the server -- sound creation order is client-only and must not affect simulation determinism
-- No GPU resources or rendering; audio playback is handled by AudioManager, not the render pipeline
-
-## See Also
-- Parent collections: [../CLAUDE.md](../CLAUDE.md)
+- **Owner-driven lifecycle**: All phase functions are no-ops. Owners call `Add`/`Remove` and push state each frame via `Sync`; `Transfer` is empty because owners handle cross-coord transfer.
+- **Visual UUID counter**: uses `GenerateSoundUuid()` so client-side sound churn never perturbs the shared entity UUID sequence.
+- **No TypeRegistry registration**: `Register()` is empty despite a `crc` field — sounds are never rendered, so no pre-blur texture hookup.
+- **Position W=1 in Sync**: stored as points, not directions — load-bearing for spatialization math downstream.

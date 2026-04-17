@@ -2,20 +2,25 @@
 
 ## Overview
 
-Client-only debug rendering utilities for visualizing world-space primitives during development. Entirely gated by a `constexpr bool kbDebugRender` (`BT_DEBUG` only) so all calls compile to no-ops in non-debug builds.
-
-## Key Classes
-
-- **DebugRender** - Stateless facade for submitting wireframe primitives (boxes, spheres, circles, lines) each frame. Queues per-instance transform and color data into static per-type storage, then uploads to GPU via `BufferManager` dynamic storage buffers and draws via indirect pipeline calls. `BeginRender` uploads instance data; `EndRender` issues indirect draws and resets counts.
+Wireframe primitive rendering (boxes, spheres, circles, lines) for development visualization. Gated by a debug-render constexpr (`BT_DEBUG` only) so calls compile to no-ops in non-debug builds.
 
 ## Architecture Notes
 
-- Four primitive types (box, sphere, circle, line) each map to a dedicated pipeline and pre-built unit mesh. Instance transforms are compact 3x4 row-major matrices with translation in the W column.
-- Relies on `BufferManager::ResizeDynamicBufferIfNeeded` for auto-growing storage buffers and `PipelineManager` indirect draw pipelines (using `kLineList` topology).
-- Call sites submit primitives any time during the frame; `BeginRender`/`EndRender` bracket the main render pass draw call.
-- Game-specific debug primitives (targeting lines, navigation indicators) are submitted via `game::FrameInterpolate::DebugRender` per-coord after collection `EndRender`, before `DebugRender::BeginRender`. Engine-level debug primitives (NavData visualization) are submitted via `DebugRenderNavData` in `MainUniforms.cpp`.
+- Stateless facade queues per-instance data into per-primitive-type file-scope static arrays (no heap, allocation-tracker friendly). Hard per-frame cap per type; overflow asserts.
+- Not thread-safe: statics mutated without synchronization. Submit only from the render/main thread.
+- Primitives drawn via indirect pipeline calls with pre-built unit meshes; game layer submits game-specific primitives (targeting, nav indicators), engine submits engine-level (NavData).
+
+## Frame-Phase Contract
+
+Submission helpers may be called any time during the frame. Engine bracket calls wrap the main render pass draw:
+- `BeginRender` grows/updates the dynamic storage buffer (keyed by CRC per primitive type) and uploads queued layouts.
+- `EndRender` writes the indirect draw count AND resets per-type counters. Counters reset here, not in `BeginRender`.
+
+## Transform Encoding
+
+Row-major 3x4 packed into the per-instance layout. Box/Sphere/Circle use scale (or radius) on the diagonal with translation in column w. Line collapses the unit `(0,0,0)->(1,0,0)` mesh to the requested endpoints by carrying only the delta component per row with start position in column w.
 
 ## See Also
 
-- [../Managers/CLAUDE.md](../Managers/CLAUDE.md) - BufferManager and PipelineManager used for GPU resources
-- [../../../../Engine/Data/Shaders/Debug/](../../../../Engine/Data/Shaders/Debug/) - DebugRender vertex/fragment shaders
+- [../Managers/CLAUDE.md](../Managers/CLAUDE.md) - BufferManager and PipelineManager
+- `Engine/Data/Shaders/Debug/` - DebugRender shaders

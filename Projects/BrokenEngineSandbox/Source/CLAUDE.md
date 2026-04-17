@@ -2,33 +2,37 @@
 
 ## Overview
 
-A space combat game demonstrating the Broken Engine's client/server architecture. Features dogfighting, wave-based enemy spawning, terrain interaction, and rollback-based netcode. All game code lives in the `game` namespace; the vcxproj defines `BT_CLIENT` or `BT_SERVER` to produce separate executables from the same source.
+Space combat game demonstrating the Broken Engine's client/server architecture. All game code lives in the `game` namespace; the vcxproj defines `BT_CLIENT` or `BT_SERVER` to produce separate executables from the same source.
 
 ## IMPORTANT: Frame Purity Constraint
 
-Frame code is purely functional. Frame updates must only rely on explicit function parameters -- Frame code must NEVER query Game (`gpGame`) for anything. The Frame does not know which player is human vs AI. Human identity, camera shake, death transitions, and respawn orchestration are Game-level responsibilities.
+Frame code is purely functional. Frame updates must only rely on explicit function parameters — Frame code must NEVER query Game (`gpGame`) for anything. The Frame does not know which player is human vs AI. Human identity, camera shake, death transitions, and respawn orchestration are Game-level responsibilities.
 
 ## Key Classes/Systems
 
-- **Game** (`Game.h`/`Game.cpp`) - Central coordinator inheriting from `engine::GameBase`, accessed via `gpGame`. Manages lifecycle (menu/gameplay), multi-player-per-client tracking (a list of owned `global_id_t` IDs), fleet navigation (`FocusNextFleet()`/`FocusPrevFleet()`, `SelectPlayerInFleet()`, `FocusedFleet()`, `SyncFleets()` which receives the authoritative `Fleet` list from the server via `kServerFleetSync`). Each `Fleet` tracks a designated Flagship member; on death, leadership shifts to the next alive member, multi-frame grid orchestration, cross-grid entity transfers, sound settings and tweaks screen state persistence, and music playlists. Owns `ClientSession` (client) or `ServerSession` (server) for networking. On the server, the constructor attempts `Autoload()` to restore state from the previous run before falling back to creating a fresh frame; on shutdown, `Autosave()` is called from `Main.cpp` after the main loop exits. Holds a visual error offset used by the camera to smooth abrupt reconciliation corrections; decayed each render frame by `GameBase`, cleared on reset
-- **ClientSession** - Client networking orchestration: connection, single-pass rollback-and-replay reconciliation (which also drives the forward sim via its catch-up pass), coord subscriptions, clock correction, and game packet sends (player settings, fleet operations). See [Network/CLAUDE.md](Network/CLAUDE.md)
-- **ServerSession** - Server networking orchestration: thin tick-pipeline orchestrator owning four managers (fleet lifecycle, cross-cell transfers, frame broadcasting, client connect/disconnect). Parses and dispatches game packets received from the engine's `Server`. See [Network/CLAUDE.md](Network/CLAUDE.md)
+- **Game** (`Game.h`/`Game.cpp`) - Central coordinator inheriting from `engine::GameBase`, accessed via `gpGame`. Owns lifecycle, fleet selection, multi-frame grid orchestration, cross-grid entity transfers, persisted settings, and the `ClientSession`/`ServerSession`.
+- **Fleet** (`Fleet.h`) - Client-side grouping of player entities for focus/selection and shared navigation intent. Drives which grid cell the camera follows.
+- **ClientSession** / **ServerSession** - Per-side networking orchestration owned by `Game`. See [Network/CLAUDE.md](Network/CLAUDE.md).
 
 ## Architecture Notes
 
-- **Deterministic floating-point**: `/fp:strict` in vcxproj ensures cross-hardware determinism for CRC-based reconciliation. See [Documents/FloatingPointDeterminism.txt](../../../Documents/FloatingPointDeterminism.txt) for full details on all mitigations
-- **Client-driven subscriptions**: Client subscribes to 4 grid coords (human cell + 3 quadrant neighbors) rather than the server computing active sets
-- **Compile-time toggles**: `Pch.h` contains `inline constexpr` flags for frame dispatch parallelism, network simulation levels, auto-launching and auto-connecting to a local server, and other debug/profile features. It includes `LogTypes.h` first, then defines `keLogLevels[]` — a `constexpr LogLevel` array (one entry per log category) — before including `Common.h`, so that the `LOG()` macro is available in all headers including engine-level ones
-- For detailed reconciliation and networking architecture, see [Game Reconciliation](../../../Documents/Architecture/GameReconciliation.md) and [Network Architecture](../../../Documents/Architecture/Network.md)
+- **Deterministic floating-point**: `/fp:strict` in vcxproj ensures cross-hardware determinism for CRC-based reconciliation. See [Documents/FloatingPointDeterminism.txt](../../../Documents/FloatingPointDeterminism.txt).
+- **Client-driven subscriptions**: Client computes its own active set (current cell + up to three quadrant neighbors) using per-axis hysteresis; server only sees the resulting subscription list. Local-only frames outside the active set are evicted; confirmed frames are kept.
+- **Cross-grid transfers**: Entity hand-off between grid cells is expressed as transfer `StatusChange`s carrying fully-serialized spawn state, dispatched per collection type and stripped from `FrameInput` before the normal Spawn phase.
+- **Alignments**: `playerAlignment` / `enemyAlignment` are owned by `Game` and copied onto each new `Frame::postRender`. Frame code reads them from `postRender`, never from `gpGame`.
+- **Versioned persisted settings**: Sound/graphics/tweaks settings are client-only POD structs with an embedded `kiVersion`, round-tripped through `engine::{Write,Read}VersionedFile` into `kAppDataDirectory`. Bump the struct version on layout change.
+- **Save-format version**: `Version.h` holds a single `kGameVersion` constant included inside the `game` namespace; bump on save/replay/protocol-incompatible changes.
+- **Compile-time toggles**: `Pch.h` holds `inline constexpr` flags for frame dispatch parallelism, quadrant subscriptions, desync recovery, render thread, network simulation, and per-configuration debug/profile knobs. It also defines per-category log-level overrides before including `Common.h`.
+- Detailed networking flow: [Game Reconciliation](../../../Documents/Architecture/GameReconciliation.md), [Network Architecture](../../../Documents/Architecture/Network.md).
 
 ## Subdirectories
 
-- [Frame/](Frame/CLAUDE.md) - Game state, physics tick pipeline, and SOA collections (players, blasters, missiles, spaceships, targets)
-- [Graphics/](Graphics/CLAUDE.md) - Camera controller with menu animations and player tracking
-- [Input/](Input/CLAUDE.md) - Three-tier input processing with keyboard/mouse and gamepad support
-- [Network/](Network/CLAUDE.md) - ClientSession, ServerSession, and supporting managers; packet types and serialization
-- [Profile/](Profile/CLAUDE.md) - Game-specific CPU profiling counters
-- [Ui/](Ui/CLAUDE.md) - ImGui-based HUD, menus, and settings screens
+- [Frame/](Frame/CLAUDE.md) - Game state, physics tick pipeline, SOA collections
+- [Graphics/](Graphics/CLAUDE.md) - Camera controller
+- [Input/](Input/CLAUDE.md) - Keyboard/mouse and gamepad input pipeline
+- [Network/](Network/CLAUDE.md) - Sessions, packet types, serialization
+- [Profile/](Profile/CLAUDE.md) - Game CPU profiling counters
+- [Ui/](Ui/CLAUDE.md) - ImGui HUD, menus, settings
 
 ## See Also
 

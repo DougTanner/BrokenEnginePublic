@@ -17,10 +17,6 @@ Each project has its own `.sln`, `.vcxproj`, and `.vcxproj.filters`. Both use `$
 - **Floating point**: `/fp:strict` for deterministic math
 - **Preprocessor**: `BT_ENGINE` plus either `BT_CLIENT` or `BT_SERVER`, plus configuration define (`BT_DEBUG`, `BT_PROFILE`, or `BT_RELEASE`)
 
-## Conditional Compilation
-
-Source code uses `BT_CLIENT` and `BT_SERVER` to conditionally compile features. The `Pch.h` header auto-defines `BT_CLIENT` if neither `BT_CLIENT` nor `BT_SERVER` is defined, so standalone compilation defaults to client mode. Code guarded by `BT_CLIENT` includes graphics rendering, audio playback, and input handling.
-
 ## vcxproj File Inclusion Rules
 
 Each `.cpp` file belongs in the client vcxproj, server vcxproj, or both, based on its preprocessor guards:
@@ -34,11 +30,11 @@ Do not rely on preprocessor guards alone to exclude code — if a `.cpp` is enti
 Headers (ClInclude) for client-only or server-only systems should also only appear in the matching vcxproj for IDE Solution Explorer cleanliness.
 
 **Naming conventions that signal build affinity:**
-- `*Render.cpp` — client-only (rendering)
-- `Client*.cpp` in `Network/Client/` — client-only
-- Game-layer `Server*.cpp` in `Network/Server/` — server-only
-- Engine `Server.cpp`/`ServerReceive.cpp`/`ServerSend.cpp` — shared (client hosts a local server)
-- Engine collection base files (`AreaLights.cpp`, `Billboards.cpp`, etc.) and their `*Update.cpp`/`*Render.cpp` — check guards; many are client-only
+- `*Render.cpp` — client-only
+- `Network/Client/Client*.cpp` — client-only
+- Game-layer `Network/Server/Server*.cpp` — server-only
+- Engine `Server.cpp`/`ServerReceive.cpp`/`ServerSend.cpp` — shared (client hosts local server)
+- Engine collection files — check guards; many are client-only
 
 ## vcxproj.filters Rules
 

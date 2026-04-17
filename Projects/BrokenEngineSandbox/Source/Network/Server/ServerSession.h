@@ -4,6 +4,8 @@
 
 #include "Network/Server/ServerSessionBase.h"
 
+#include "Network/PlayerEvents.h"
+
 namespace game
 {
 
@@ -34,7 +36,7 @@ public:
 	void ComputeActiveSet();
 	void ParseReceivedGamePackets();
 	void SendAssignPlayer(int64_t iClientId, engine::global_id_t globalId, engine::GridCoord coord);
-	void SendPlayerState(int64_t iClientId, uint8_t uiStateType, int64_t iGlobalPlayerId, engine::GridCoord coord);
+	void SendPlayerState(int64_t iClientId, PlayerStateWireType eWireType, int64_t iGlobalPlayerId, engine::GridCoord coord);
 	void SubscriptionUpdates(int64_t iTick);
 	void HandleResyncRequests(int64_t iTick);
 	void ResetClientsForLoad();

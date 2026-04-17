@@ -297,7 +297,7 @@ void ServerSession::SendAssignPlayer(int64_t iClientId, engine::global_id_t glob
 	rWorkbuffer.Pop();
 }
 
-void ServerSession::SendPlayerState(int64_t iClientId, uint8_t uiStateType, int64_t iGlobalPlayerId, engine::GridCoord coord)
+void ServerSession::SendPlayerState(int64_t iClientId, PlayerStateWireType eWireType, int64_t iGlobalPlayerId, engine::GridCoord coord)
 {
 	engine::ClientConnection* pClient = engine::gpServer->FindClient(iClientId);
 	if (pClient == nullptr)
@@ -308,17 +308,17 @@ void ServerSession::SendPlayerState(int64_t iClientId, uint8_t uiStateType, int6
 	static constexpr const char* kpStateNames[] =
 	{
 		"Spawned",
-		"Transfer",
+		"ChangedFrame",
 		"Died",
 	};
-	LOG(kNetwork, kInfo, "ServerSession::SendPlayerState State: {} Client: {} GlobalPlayer: {} Grid: ({},{})", kpStateNames[uiStateType], iClientId, iGlobalPlayerId, coord.x, coord.y);
+	LOG(kNetwork, kInfo, "ServerSession::SendPlayerState State: {} Client: {} GlobalPlayer: {} Grid: ({},{})", kpStateNames[static_cast<size_t>(eWireType)], iClientId, iGlobalPlayerId, coord.x, coord.y);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
 	// [1B type][1B state][8B global player ID][4B coord.x][4B coord.y]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kServerPlayerState));
-	rWorkbuffer.PushBack<uint8_t>(uiStateType);
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(eWireType));
 	rWorkbuffer.PushBack<int64_t>(iGlobalPlayerId);
 	engine::WriteGridCoord(rWorkbuffer, coord);
 
@@ -341,7 +341,7 @@ void ServerSession::SubscriptionUpdates([[maybe_unused]] int64_t iTick)
 	for (const SubscriptionUpdate& rUpdate : rPendingUpdates)
 	{
 		SendAssignPlayer(rUpdate.iClientId, rUpdate.globalPlayerId, rUpdate.newCoord);
-		SendPlayerState(rUpdate.iClientId, PlayerEventTypeToWire(PlayerEventType::kChangedFrame), rUpdate.globalPlayerId.iValue, rUpdate.newCoord);
+		SendPlayerState(rUpdate.iClientId, PlayerStateWireType::kChangedFrame, rUpdate.globalPlayerId.iValue, rUpdate.newCoord);
 	}
 
 	rPendingUpdates.clear();
@@ -427,7 +427,7 @@ void ServerSession::ResetClientsForLoad()
 						rClient.authorizedCoords.push_back(rCoord);
 
 						SendAssignPlayer(rClient.iClientId, globalId, rCoord);
-						SendPlayerState(rClient.iClientId, PlayerEventTypeToWire(PlayerEventType::kSpawned), globalId.iValue, rCoord);
+						SendPlayerState(rClient.iClientId, PlayerStateWireType::kSpawned, globalId.iValue, rCoord);
 						LOG(kDefault, kDebug, "ServerSession::ResetClientsForLoad Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, globalId, rCoord.x, rCoord.y);
 					}
 				}

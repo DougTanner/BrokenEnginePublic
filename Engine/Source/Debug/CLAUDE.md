@@ -1,17 +1,15 @@
 # `/Engine/Source/Debug/` - Client-Only Vulkan Debug Utilities
 
-Vulkan development utilities for human-readable enum-to-string conversions used in logging and error messages. Included only in `BT_CLIENT` builds via `Engine.h`.
-
-**Global**: `engine::gEnumToString` (inline global instance of `EnumToString`)
-
-## Key Classes
-
-- **EnumToString** - Converts Vulkan enum values (VkResult, VkFormat, VkColorSpaceKHR, VkPresentModeKHR, VkObjectType) to human-readable strings for logging and error messages. `Convert(EnumType, Workbuffer&)` returns a `ScopedWorkbufferPop` (using `PushBuffer` for scratch storage in non-logging builds instead of a `thread_local` buffer).
+Vulkan enum-to-string conversion for logging and error messages. Client-only; included via `Engine.h` under `BT_CLIENT`.
 
 ## Architecture Notes
 
-Uses compile-time type dispatch (`std::is_same_v`) within a single templated `Convert()` method to select the appropriate lookup map based on enum type. Guarded by `if constexpr (kbLogging)` so all lookup maps and string logic are eliminated at compile time in non-logging builds.
+Compile-time type dispatch via `std::is_same_v` selects the lookup map per Vulkan enum type. Scratch storage uses the shared workbuffer (`PushBuffer`), not `thread_local`.
 
-Includes a `std::formatter<VkResult>` specialization enabling direct use of VkResult values in `std::format()` and `Log()` calls.
+**Lifetime contract**: conversion returns a `common::ScopedWorkbufferPop` owning the scratch allocation; the yielded `const char*` is valid only while that scoped object lives. Callers must keep the return value on the stack across any use of the string.
 
-Triggers debug break on unmapped enum values to catch missing lookup entries during development.
+**Non-logging builds**: with `kbLogging` false, lookup tables drop out and conversion falls back to `std::to_chars` returning the numeric enum. Call sites always receive a valid C-string regardless of build flavor.
+
+**`std::formatter<VkResult>`**: pulls scratch from `common::gpThreadLocal->mWorkbuffer` — only safe on threads with an initialized thread-local (see [Common/CLAUDE.md](../../../Common/CLAUDE.md)).
+
+Supported enum set is closed; unmapped values trip `DEBUG_BREAK()` to flag tables lagging the Vulkan SDK.

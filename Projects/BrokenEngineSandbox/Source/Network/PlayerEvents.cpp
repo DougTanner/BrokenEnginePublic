@@ -10,9 +10,7 @@
 namespace game
 {
 
-void ParsePlayerEvents(
-	std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets,
-	std::vector<ReceivedPlayerEvent>& rOutEvents)
+void ParsePlayerEvents(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets, std::vector<ReceivedPlayerEvent>& rOutEvents)
 {
 	for (const auto& [uiPacketType, rPayload] : rRawPackets)
 	{
@@ -38,20 +36,32 @@ void ParsePlayerEvents(
 				continue;
 			}
 			const uint8_t* pCursor = rPayload.data();
-			uint8_t uiWireType = engine::ReadUint8(pCursor);
+			uint8_t uiWire = engine::ReadUint8(pCursor);
 			int64_t iGlobalPlayerId = engine::ReadInt64(pCursor);
 			engine::GridCoord coord = engine::ReadGridCoord(pCursor);
 
-			// Wire type maps directly to PlayerEventType offset by 1 (kAssigned=0 has no wire equivalent)
-			PlayerEventType eEventType = static_cast<PlayerEventType>(uiWireType + 1);
+			PlayerEventType eEventType {};
+			switch (static_cast<PlayerStateWireType>(uiWire))
+			{
+				case PlayerStateWireType::kSpawned:
+					eEventType = PlayerEventType::kSpawned;
+					break;
+				case PlayerStateWireType::kChangedFrame:
+					eEventType = PlayerEventType::kChangedFrame;
+					break;
+				case PlayerStateWireType::kDied:
+					eEventType = PlayerEventType::kDied;
+					break;
+				default:
+					DEBUG_BREAK();
+					continue;
+			}
 			rOutEvents.push_back({eEventType, engine::global_id_t {iGlobalPlayerId}, coord});
 		}
 	}
 }
 
-void ParseFleetSync(
-	std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets,
-	std::vector<Fleet>& rOutFleets)
+void ParseFleetSync(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets, std::vector<Fleet>& rOutFleets)
 {
 	for (auto it = rRawPackets.begin(); it != rRawPackets.end(); )
 	{

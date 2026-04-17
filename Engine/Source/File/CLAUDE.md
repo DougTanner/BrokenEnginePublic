@@ -6,33 +6,30 @@ Centralized file I/O, packed asset loading, and state recording/replay.
 
 ## FileManager
 
-Manages file operations and asset loading with platform directory access (AppData, Temp) via `FileFlags`.
+Manages file operations and asset loading with platform directory access (AppData, Temp). Flags select directory plus read/write/backup; backup mode timestamps and copies the existing file before a write open.
 
-### Packed Asset System
+### Eager vs Lazy
 
-Assets stored in `.pack` files with `.manifest` metadata, using two loading strategies:
+Split determined by `IsEagerChunk(DataTypes)`: Font/Scene/Model/Shader/Raw are eager (client-only, entire pack mmap'd at boot for zero-copy access); Audio/Islands/Texture are lazy. Server skips eager types entirely. Eager parse runs async; first consumer blocks on the future.
 
-- **Eager Loading** (Font, Scene, Model, Raw, Shader): Client-only. Entire pack files loaded into memory at startup with zero-copy access via pointers into the loaded data. On server builds, these types are skipped entirely — no manifests are read and no pack files are loaded for them.
-- **Lazy Loading** (Audio, Islands, Texture): A background thread processes a priority queue using unbuffered disk I/O (`FILE_FLAG_NO_BUFFERING`). All lazy data is pre-allocated in a single `VirtualAlloc` pool. Disk reads use non-temporal copies (`_mm_stream_si128`) to bypass L3 cache. Textures go through a multi-stage state machine (`ChunkState`: kNotLoaded -> kLoadRequested -> kDiskLoaded -> kUploading -> kGpuUploadComplete -> kReady) coordinating with TextureUploadManager; non-texture chunks become ready immediately after disk load.
-- **Priority Loading**: IslandTerrain and TextureManager populate priority CRC vectors at startup, queued at realtime priority before normal requests.
+### Lazy Loading
 
-**Device Recreation**: After GPU device loss, `ResetTextureChunkStates()` restores lazy chunks to a re-loadable state based on whether CPU data is still resident.
+Background thread services a priority queue. Unbuffered disk I/O (`FILE_FLAG_NO_BUFFERING | FILE_FLAG_SEQUENTIAL_SCAN`) into a pre-faulted sector-aligned read buffer; sector size queried via `GetDiskFreeSpaceW` on the data drive root. Reads split into 256KB sub-chunks. Aligned 16B copy path uses `_mm_stream_si128` + `_mm_sfence` to bypass L3; tail/unaligned falls back to `memcpy`.
 
-### Streaming API
+Chunk state is an atomic acquire/release machine; textures traverse the full CPU+GPU chain via `TextureUploadManager`, non-texture chunks short-circuit to ready after disk load. Queue insertion wraps `ScopedSuppressAllocationTracking` — items must outlive frame scope. `WaitForChunks` auto-promotes to realtime priority.
 
-`ReadChunkData()` reads data at a specific offset within a chunk. For loaded chunks, copies directly from memory. For unloaded lazy chunks, reads directly from the pack file on disk (used for streaming audio playback without loading entire chunks).
+### Lazy Memory Pool Invariant
 
-### Versioned I/O Templates
+Single `VirtualAlloc` (`MEM_RESERVE | MEM_COMMIT`), sized by cumulative `RoundUp` over the full lazy chunk map. Per-chunk `pData` is assigned by walking the same map in the same order. **Any reset routine must iterate the entire map** (not a subset) to preserve the cumulative offset contract — hashmap iteration order *is* the layout.
 
-Type-safe save/load with automatic version validation via `WriteVersionedFile<T>()` / `ReadVersionedFile<T>()`. Requires structs to define `static constexpr int64_t kiVersion`.
+### Device-Loss Recovery
 
-## DifferenceStream.h
+`ResetTextureChunkStates` clears GPU handles and transitions based on CPU residency: ready chunks drop to not-loaded (full reload); upload-in-flight chunks drop to disk-loaded (re-upload only).
 
-Template-based delta compression for deterministic state recording and replay. Records full state at boundaries with only changed states between frames.
+### Versioned I/O
 
-- **DifferenceStreamWriter**: Records state changes during gameplay, capturing CRC checksums every frame but only writing difference records when state actually changes. Saves header plus `.frames`, `.checksums`, and optionally `.fullframes` files.
-- **DifferenceStreamReader**: Replays recorded state with CRC validation at each frame. Provides a split API (`LoadDifference()` + `ValidateChecksum()`) for callers that need to inject state between loading and validation, plus a combined `Update()` for simple cases.
+`WriteVersionedFile<T>` / `ReadVersionedFile<T>` prefix version + size. The `has_binary_stream_operators_v` trait routes trivially-copyable types through byte copy and non-trivial types through `operator<<` / `operator>>`. Matching version with mismatched size triggers `DEBUG_BREAK` (likely missing sub-version bump).
 
-### Requirements
-- Both template types need stream operators for serialization
-- Both template types must provide `Crc()` method returning `common::crc_t` (used for change detection and validation)
+## DifferenceStream
+
+Template delta compression for deterministic state recording/replay. Records full state at boundaries and only changed states between frames; per-frame CRC stream enables validation. Optional full-frame debug stream is compile-time gated via `[[no_unique_address]] std::conditional_t` for zero cost when disabled. Template parameters must supply stream operators and a `Crc()` method returning `common::crc_t`.

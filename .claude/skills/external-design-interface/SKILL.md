@@ -8,7 +8,9 @@ description: >-
   system — especially new Collections (game or engine), new manager classes, or new
   subsystem APIs. When auto-detecting, ask the user "Would you like me to run
   /external-design-interface to explore different API shapes?" before invoking.
-allowed-tools: [Read, Grep, Glob, Agent]
+  Do NOT auto-suggest for bug fixes, single-function additions, or adding a member to
+  an existing collection — those route to `/add-collection-member`.
+allowed-tools: [Read, Grep, Glob, Agent, AskUserQuestion]
 ---
 
 # Design Interface
@@ -33,7 +35,7 @@ Use the codebase to answer as many of these as possible before asking the user.
 
 ### 2. Explore Existing Patterns
 
-Launch an Explore agent (`subagent_type: "Explore"`) to find:
+Launch an Explore agent (`subagent_type: "Explore"`, `model: "opus"`) to find:
 - Similar systems in the codebase (same problem domain or similar shape)
 - The dominant caller pattern for this kind of system (how do existing callers invoke similar APIs?)
 - Relevant conventions (naming, parameter ordering, `gp*` usage, workbuffer patterns)
@@ -42,7 +44,7 @@ Record these findings — they get passed to every design agent in the next step
 
 ### 3. Generate Designs (Parallel Sub-Agents)
 
-Spawn exactly 3 Plan agents (`subagent_type: "Plan"`) in parallel using the Agent tool. Each agent's prompt must include:
+Spawn exactly 3 Plan agents (`subagent_type: "Plan"`, `model: "opus"`) in parallel using the Agent tool. The `Plan` and `Explore` subagent types are custom agents defined in this environment — if they are unavailable, fall back to `subagent_type: "general-purpose"` with the role ("plan designer" / "explorer") embedded at the top of the prompt. Each agent's prompt must include:
 - The requirements gathered in step 1
 - The existing patterns and caller conventions found in step 2
 - One of the design constraints below
@@ -85,6 +87,10 @@ After the user picks, output a final synthesized interface:
 1. A C++ header-style code block with the complete interface (types, methods, params)
 2. Brief usage examples at key call sites
 3. Notes on any elements incorporated from other designs
+
+### 6. Handoff
+
+Suggest running `/external-grill-plan` next to resolve determinism / client-server / memory / threading / frame-phase decisions on the synthesized design before implementation. For new Collection systems, also remind the caller that `/add-collection` owns the mechanical wiring steps once the shape is fixed.
 
 ### Anti-Patterns
 - Each agent prompt specifies a fundamentally different optimization axis — do not soften or merge the constraints, as the value comes from contrast between divergent designs

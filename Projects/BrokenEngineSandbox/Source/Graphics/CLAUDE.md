@@ -1,28 +1,27 @@
 # Graphics - Game Camera
 
-Game-specific camera controller for BrokenEngineSandbox. Client-only (`BT_CLIENT`).
+Game-specific camera controller for BrokenEngineSandbox. Client-only (`BT_CLIENT`). Global: `gpCamera`.
 
 ## Overview
 
-Extends `engine::CameraBase` with game-specific behavior: smooth player tracking during gameplay, a static main menu camera position, camera shake with controller vibration feedback, and a day/night cycle driven by sun angle progression. Shake intensity (`mfShake`) and sun angle (`mfSunAngle`) are defined in `CameraBase`; `Camera` overrides `SunAngle()` to apply time-of-day modulation and exposes `RawSunAngle()` for direct access to the raw stored value.
-
-**Global**: `gpCamera`
+Extends `engine::CameraBase` with smooth player tracking, static main menu positioning, damage-driven camera shake with controller vibration, and day/night cycle via sun angle modulation.
 
 ## Architecture Notes
 
-**Hybrid Timing**: Camera position blending and shake decay use a fixed display-rate delta time to match FIFO presentation cadence. Sun angle updates use frame delta time from `FrameInterpolate` for deterministic day/night cycle progression.
+**Hybrid Timing**: Position blend, shake decay, and internal timers advance on a display-rate accumulator (FIFO cadence). Sun angle alone advances on deterministic frame dt so day/night survives variable render rates.
 
-**Long-Distance Jump Easing**: When the camera target changes by a large distance, the camera switches from exponential blending to smoothstep easing over a fixed duration, producing a deliberate ease-in/ease-out pan. If the target changes again mid-pan, the ease restarts from the current position. If the tracked entity is destroyed during a pan, the jump is cancelled and normal blending resumes.
+**Sun Angle**: Piecewise speed with slow band around noon and sin-eased faster band through night; wraps at `2*PI`; paused in main menu. UI sliders and debug ImGui can override the live value.
 
-**Game/Frame Boundary**: Camera shake intensity is set by Game (which detects armor damage on the human player), not by Frame code. During gameplay, the camera resolves the focused player's position by calling `gpGame->HumanPlayerIndex()` with the `FramePostRender` players collection — the lookup matches by `global_id_t` rather than a fixed index, so it is stable across spawns and cross-cell transfers.
+**Long-Distance Jump Easing**: Fixed-duration smoothstep ease triggered by distance-to-target or mid-jump target-shift exceeding threshold; re-anchors from current position without cancelling; ends on proximity or duration force-snap.
 
-**Reconciliation Visual Smoothing**: When network reconciliation produces an abrupt position correction for the human player, the camera target incorporates a decaying visual error offset from `gpGame->mVecVisualErrorOffset`. The simulation position is always authoritative; only the camera target smoothly absorbs the correction over roughly 200ms. The offset is captured by `ClientReconciler` at writeback, decayed by `GameBase::Render()`, and cleared on reset or if the accumulated magnitude exceeds a clamping threshold.
+**Game/Frame Boundary**: Shake is driven by Game (armor damage on human player), not Frame. Focus resolves via the client's grid cell and player index against `PlayersPostRender`, surviving spawns and cross-cell transfers. Resolution failures rate-limit diagnostic logs and fall through to extrapolation.
 
-**Velocity Extrapolation**: When the human player is not found in the current frame (e.g., during cross-cell grid transfers), the camera extrapolates from the last known position using a derived velocity. Both velocity derivation and elapsed-time calculation use `mfTime` (monotonically increasing real time) rather than tick indices, so extrapolation remains smooth under high latency.
+**Reconciliation Visual Smoothing**: Network corrections for the human player produce a decaying visual offset applied to the camera target only; simulation stays authoritative. See [Documents/Architecture/GameReconciliation.md](../../../../Documents/Architecture/GameReconciliation.md).
 
-**Async Rendering**: Two `Update` overloads support both standard Frame-based updates and direct `FrameInterpolate` updates for the async rendering pipeline.
+**Velocity Extrapolation**: When the focused player is absent (cross-cell transfer, late snapshot), camera extrapolates last-known position along derived velocity, clamped to a short window.
+
+**Async Rendering**: Supports both standard Frame-based updates and direct `FrameInterpolate` updates.
 
 ## See Also
 
-- [Frame/Collections/CLAUDE.md](../Frame/Collections/CLAUDE.md) - Dynamic pipeline creation for game entities
-- [Engine Graphics](../../../Engine/Source/Graphics/CLAUDE.md) - Engine graphics architecture
+- [Engine Graphics](../../../../Engine/Source/Graphics/CLAUDE.md)

@@ -73,7 +73,7 @@ void main()
 	{
 		vec3 f3RockNormalSum = SampleNormal(globalLayout, rockNormalsSampler0, f3InPosition.xy + f3InPosition.z, globalLayout.fTerrainRockNormalsSizeOne, 0.0f, vec2(0.0f, 0.0f)) + SampleNormal(globalLayout, rockNormalsSampler1, f3InPosition.xy + f3InPosition.z, globalLayout.fTerrainRockNormalsSizeTwo, 0.0f, vec2(0.0f, 0.0f)) + SampleNormal(globalLayout, rockNormalsSampler2, f3InPosition.xy + f3InPosition.z, globalLayout.fTerrainRockNormalsSizeThree, 0.0f, vec2(0.0f, 0.0f));
 		vec3 f3RockNormal = normalize(f3RockNormalSum);
-		f3Normal = normalize(f3Normal + globalLayout.fTerrainRockNormalsBlend * fRockPercent * dot(f3RockNormal, f3Normal));
+		f3Normal = normalize(f3Normal + globalLayout.fTerrainRockNormalsBlend * fRockPercent * f3RockNormal);
 
 		f3Color = mix(f3Color, texture(rockSampler, globalLayout.fTerrainRockSize * f3InPosition.xy).xyz, globalLayout.fTerrainRockBlend * fRockPercent);
 	}
@@ -82,16 +82,10 @@ void main()
 
 	if (fBeachPercent > 0.001f)
 	{
-	#if 1
 		vec3 f3BeachNormalSum = 2.0f * SampleNormal(globalLayout, sandNormalsSampler0, f3InPosition.xy, globalLayout.fTerrainBeachNormalsSizeOne, 0.0f, vec2(0.0f, 0.0f)) +
 		                        0.5f * SampleNormal(globalLayout, sandNormalsSampler1, f3InPosition.yx, globalLayout.fTerrainBeachNormalsSizeTwo, 0.0f, vec2(0.0f, 0.0f)) +
 								1.0f * SampleNormal(globalLayout, sandNormalsSampler2, f3InPosition.yx, globalLayout.fTerrainBeachNormalsSizeThree, 0.0f, vec2(0.0f, 0.0f));
-	#else
-		vec3 f3BeachNormalSum = 2.0f * SampleNormal(globalLayout, sandNormalsSampler0, 5.0f * f3InPosition.xy, globalLayout.fTerrainBeachNormalsSizeOne, 0.0f, vec2(0.0f, 0.0f)) +
-		                        0.25f * SampleNormal(globalLayout, sandNormalsSampler1, 10.0f * f3InPosition.yx, globalLayout.fTerrainBeachNormalsSizeTwo, 0.0f, vec2(0.0f, 0.0f)) +
-								1.0f * SampleNormal(globalLayout, sandNormalsSampler2, 5.0f * f3InPosition.yx, globalLayout.fTerrainBeachNormalsSizeThree, 0.0f, vec2(0.0f, 0.0f));
-	#endif
-		vec3 f3BeachNormal = normalize(f3BeachNormalSum);
+		vec3 f3BeachNormal = f3BeachNormalSum;
 		f3BeachNormal.z = 0.0f;
 		f3Normal = normalize(f3Normal + globalLayout.fTerrainBeachNormalsBlend * fBeachPercent * f3BeachNormal);
 

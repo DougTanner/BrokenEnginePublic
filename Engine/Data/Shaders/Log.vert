@@ -30,10 +30,10 @@ layout (location = 1) out vec2 f2OutTexcoord;
 
 void main()
 {
-	if (f2InQuadVertex == vec2(0.0f, 0.0f))
+	if (gl_VertexIndex == 0)
 	{
 		debugPrintfEXT("Log.vert Frame: %d Render: %d", mainLayout.iFrameNumber, mainLayout.iRenderNumber);
 	}
 
-	gl_Position = vec4(f2InQuadVertex, 0.0f, 0.0f);
+	gl_Position = vec4(-1.0f + 2.0f * f2InQuadVertex.x, 1.0f - 2.0f * f2InQuadVertex.y, 0.0f, 1.0f);
 }

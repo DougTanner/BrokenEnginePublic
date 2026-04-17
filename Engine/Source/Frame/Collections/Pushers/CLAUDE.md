@@ -1,23 +1,15 @@
-# /Engine/Source/Frame/Collections/Pushers/
+# Pushers - Physics Force Fields
 
-Physics force fields with zone-based spatial acceleration for push queries with flag-based filtering. Compiles in both client and server builds using the Sync pattern. Render methods are present in the header but guarded with `#ifdef BT_CLIENT`.
+Physics force fields with zone-based spatial acceleration. Compiles in both builds; render path is client-only profile-counter tracking (no draw calls).
 
-## File Structure
+## Unique Aspects
 
-The implementation is split across two `.cpp` files:
-- **Pushers.cpp** - Registration, lifecycle (allocate/copy, spawn, transfer, destroy), `LogDifferences()`, render counter tracking (`#ifdef BT_CLIENT`)
-- **PushersUpdate.cpp** - Update, sync, add/remove, zone setup, push application, collision phases
-
-## Architecture Notes
-
-- Zone acceleration uses `thread_local` globals so each Dispatch worker has its own copy for safe parallel physics execution
-- `Update()` bulk-copies all SOA arrays from previous frame; `Sync()` then overwrites the entry for a specific ID each frame
-- `SetupZones()` is called from `FramePostRenderBase::Update()` and rebuilds the spatial grid each frame centered on the player position; `ApplyPush()` queries a single zone cell with flag-based include/exclude filtering
-- Render methods only track a profile counter (no GPU draw calls)
-
-## ApplyClampedPush Utility
-
-`engine::ApplyClampedPush(vecVelocity, vecPushDirection, fPushStrength, fMaxPushVelocity)` is an inline utility in `Pushers.h` implementing terrain-push-style clamped impulse: it caps the velocity component in the push direction to `fMaxPushVelocity`, preventing stacking of repeated pushes beyond the cap. Each caller passes its own cap (e.g., `kfPlayerMaxPusherPushVelocity`, `kfSpaceshipMaxPusherPushVelocity`), derived from half the entity's max speed.
+- **Owner-driven lifetime**: Pushers have no self-driven simulation — PostRender phase hooks are intentionally empty and owners mint/sync/release. Parent transfers owned pushers.
+- **Zone acceleration**: Per-frame spatial grid centered on player 0, stored `thread_local` for Dispatch-worker isolation. Arena 400m / 8m zones / cap 512 per zone (overflow `DEBUG_BREAK`); out-of-arena pushers silently skipped.
+- **Push falloff**: `(1 - d²/r²)^power * intensity`, directed pusher-to-query. Include/exclude masks on `PusherFlags_t` (default include `kTypeDefault`, exclude `kTypeMines`) — new pusher types opt in/out via a new `PusherFlags` enum value.
+- **ApplyClampedPush** (`Pushers.h`): inline impulse that caps the velocity component in push direction, preventing stacking beyond caller-supplied max.
 
 ## See Also
-- Parent collections: [../CLAUDE.md](../CLAUDE.md)
+- [../CLAUDE.md](../CLAUDE.md) - Collection<T>, SOA, Sync pattern, file splitting
+</content>
+</invoke>

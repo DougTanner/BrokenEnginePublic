@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Reviews C++ code changes for bugs, implementation correctness, and simplification opportunities. Use this skill after making code changes as part of the C++ code change workflow (step 5).
+description: Reviews C++ code changes for bugs, implementation correctness, and simplification opportunities. Use this skill after making C++ code changes to catch logic errors and correctness issues.
 allowed-tools: [Read, Grep, Glob]
 ---
 
@@ -29,6 +29,14 @@ Check each modified section for common issues. Note: the project assumes paramet
 - **Type mismatches** - Are conversions between types correct? Watch for narrowing conversions.
 - **Math errors** - Are calculations correct? Watch for integer division, floating point precision, and sign issues.
 
+### 2b. Memory & Allocation Discipline (Broken Engine specific)
+
+The main loop runs under an allocation tracker that `DEBUG_BREAK()`s on heap allocations. Flag:
+
+- **Local `std::vector` / `std::string` in hot paths** — must use `gpThreadLocal->mWorkbuffer` instead (see `Common/CLAUDE.md`).
+- **Heap allocation in main loop without `ScopedSuppressAllocationTracking`** — any unavoidable heap use needs the guard plus a `// Heap:` comment justifying it (see `Engine/Source/Memory/CLAUDE.md`).
+- **Standard-library header placement** — new `#include <std>` in a `.h`/`.cpp` should move to `Common/ExternalHeaders.h`.
+
 ### 3. Verify Broken Engine Patterns
 
 #### Collection Integrity
@@ -54,6 +62,20 @@ If modifying or adding managers:
 - Global pointers use `gp*` naming convention (e.g., `gpGraphics`, `gpAudioManager`)
 - Managers created in correct initialization order (check `Main.cpp`)
 - No circular dependencies between managers
+
+#### Engine → Game Access
+
+Engine code must access game functionality through `game::gpGame` (the game-derived singleton), never through Base-class globals or direct game-type references. Flag direct use of game-specific enums, collections, or types from inside `Engine/Source/**`.
+
+#### Client/Server Guard Scope
+
+- Flag file-wide `#if defined(BT_CLIENT)` / `BT_SERVER` wrappers where a single function or block guard would suffice. Narrow is better.
+- For collections with client-only fields, verify the `SharedMembers()` + `ClientMembers()` + `std::tuple_cat` pattern is used. Server build's `Members()` returns `SharedMembers()` only.
+- If a file becomes fully wrapped in a `BT_` guard that it wasn't before, it must be removed from the opposite vcxproj (see §4 below).
+
+#### Flags over Multiple Booleans
+
+If a struct or function grew to 2+ `bool` members/parameters in this change, flag it — use `common::Flags<EnumType>` instead (see `Common/CLAUDE.md`). This is a hard flag, not a suggestion.
 
 #### Frame Phase Separation
 
@@ -94,6 +116,8 @@ If the code affects game state that participates in replay:
 - Use `common::RandomEngine` for RNG (never `rand()`, `std::rand()`, or unseeded `std::mt19937`)
 - No platform-specific operations in replay code path
 - No wall-clock time dependencies (use frame delta time instead)
+- **Multithreading**: inside `gpMultithreading->Dispatch()` lambdas, no write to shared state without per-thread accumulators + reduce. Floating-point reductions must preserve order.
+- **Phase ordering**: reads in Update phase must not depend on values written later in PostRender. Interpolate↔PostRender boundaries enforce this at the collection level — verify any new field lives in the correct phase.
 
 ### 6. Check Common Library Usage
 
@@ -135,15 +159,9 @@ Evaluate the changes holistically:
 - **Completeness** - Does the implementation fully address the user's request?
 - **Integration** - Were all callers, related systems, and edge cases updated?
 - **Minimality** - No unnecessary refactoring, extra features, error handling, or cosmetic changes beyond what was requested.
-- **Simplification** - Could any duplicated code be extracted, over-complicated algorithms be simplified, or unnecessary intermediate variables be removed?
+- **Function size**: Aim for 50-100 lines max per function. Soft guideline — some functions are legitimately large. If a modified function has grown past this, flag with "function does too much" and recommend a split only if a natural responsibility boundary exists.
 
-### 9. Function Size and Nesting
-
-Check modified functions for size and nesting as related code smells — deeply nested code often signals a function doing too much:
-- **Function size**: Aim for 50-100 lines max per function. Soft guideline — some functions are legitimately large
-- **Nesting depth**: Flag functions where nesting depth makes the logic hard to follow
-- Recommend **inversion** (early return / guard clauses) as the preferred fix: flip conditions and return/continue early for error or edge cases, keeping the happy path at the lowest indentation
-- Only recommend **extraction** when there is a natural split — the extracted block must represent a genuinely independent responsibility. Do NOT recommend extracting small blocks just to reduce indentation; this trades visible nesting for call-stack nesting, which is equally hard to follow
+For micro-simplification opportunities (duplicated snippets, unnecessary intermediate variables, over-complicated expressions), recommend running `/simplify` on the changed files rather than listing them here — that skill owns surface-level simplification. For nesting-depth / style complaints, `/code-style-review` owns those.
 
 ## Output Format
 
@@ -163,9 +181,6 @@ Only include sections where issues were found. For sections with no issues, omit
 
 ### File Size Warnings
 - file (N lines) - [RECOMMEND / REQUIRED] `/reduce-file <path>`
-
-### Function Size / Nesting Issues
-- file:line - Description of issue and suggested inversion or extraction
 
 ### Implementation Issues
 - [Description of completeness, integration, minimality, or simplification concern]

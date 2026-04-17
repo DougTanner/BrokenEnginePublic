@@ -1,31 +1,20 @@
 # /Projects/BrokenEngineSandbox/Source/Frame/Collections/Spaceships/
 
-AI-controlled enemy spaceships with health, weapons, behavior flags, freeze time, and per-instance skeletal animation. Compiles in both client and server builds. Each spaceship owns a pusher and target, plus client-only wind trail and animation time. Hit flash effects spawn controlled point lights at collision contact points (client-only). `Register()` also registers the enemy blaster type (with a camera-aligned point light) used when spaceships fire.
+AI-controlled enemy spaceships with health, weapons, freeze time, and per-instance skeletal animation. `Register()` also registers the enemy blaster type (camera-aligned point light) fired by spaceships.
 
-## Sizing
+## Game-Specific Behavior
 
-`kfSpaceshipRadius` (defined in `Spaceships.h`) is the single source of truth for spaceship body size. All body-size-dependent values — pusher radius, explosion sizes/jitter/trail/lighting, blaster size, target size, hit flash areas, terrain collision displacement, and model visual scale — derive from it via ratio multipliers. Adjust `kfSpaceshipRadius` to proportionally rescale all spaceship-related sizes at once.
+- **Sizing**: `kfSpaceshipRadius` is the single source of truth for body size; pusher, explosions, blaster, target, hit-flash, terrain displacement, and model scale all derive from it.
+- **AI targeting hierarchy**: Return-to-origin > flee-from-player (with hysteresis) > chase nearest alive player. Steering uses two-stage exponential decay, clamped to max turn rate after terrain bounce and terrain avoidance.
+- **Freeze time**: While frozen, `Interpolate::Update` skips velocity integration; Render emits an additive warm-red color ramped by remaining freeze duration.
+- **Destroyed-time sentinel**: `-1.0f` alive, `> 0.0f` counting through death animation, `== 0.0f` Destroy-eligible.
+- **Static PostRender fields**: Damage directions and alignments are `memcpy`'d in `AllocateAndCopy` and written only at state transitions (exempt from unconditional-store rule).
 
-## AI Behavior
+## Render Pipeline (client)
 
-- **Behavior flags**: Flee (when near player, with hysteresis), return to island center (when far from origin, with hysteresis), exploding (health depleted)
-- **Targeting hierarchy**: Return to origin > flee from player > chase nearest alive player
-- **Lighting**: Hit flash and death explosion effects use game-side `LightingWrappers` globals for wrapper-scaled keyframes and area light render-time overrides
-- **Rotation**: Exponential decay smoothing with different rates for fleeing vs pursuing, clamped to `kfSpaceshipMaxTurnRate`
-- **Health regen**: Gradual regen when alive and player is far enough away
-- Targets are removed on death so homing missiles stop tracking
-- Pusher overlap response uses `engine::ApplyClampedPush()` to apply a clamped impulse (velocity capped at `kfSpaceshipMaxPusherPushVelocity`, derived from `kfSpaceshipMaxSpeed * 0.5f`)
-- Arriving spaceships receive an arrival grace period that makes them invisible to player targeting scans for a short window; the timer is carried in `TransferData`. See [Arrival Grace Period](../CLAUDE.md) in the Collections CLAUDE.md.
-
-## File Structure
-
-The implementation is split by subsystem across four `.cpp` files sharing `Spaceships.h`:
-- **Spaceships.cpp** - Registration, lifecycle (Spawn/Transfer/Destroy), client object hydration, `SpaceshipsInterpolate::Update`, and the `SpaceshipsPostRender::Update` orchestrator that loads per-entity state and calls into Navigation/Combat helpers
-- **SpaceshipsNavigation.cpp** - Per-iter nav helpers (`ComputeSteering`, `ApplyMovement`, `ApplyTerrainBounce`), the separate `AvoidTerrain` pass, and navigation constants (all prefixed `kfSpaceship*`). `ApplyMovement` delegates to `engine::ApplyMovement<true>()` for airplane-like steering with decoupled drag/acceleration/max speed. `ComputeSteering` uses `ExponentialDecay` for direction smoothing
-- **SpaceshipsCombat.cpp** - Collision phases (`PreCollision`/`PostCollision`/`AreaDamage`), `BeginExplosion`, per-iter helpers (`RegenerateHealth`, `ApplyDeathKnockback`), collision layer `thread_local` arrays, and combat constants (death sounds, health regen, knockback speed)
-- **SpaceshipsRender.cpp** - GPU model pipeline, skeletal animation, and draw submission (`#ifdef BT_CLIENT` only)
-
-The per-iter helpers are declared `private:` on `SpaceshipsPostRender` in `Spaceships.h` and called from the single orchestrator loop — matching the Players collection's pattern.
+- **Cross-coord accumulator** `siRendered` is file-static (not `thread_local`): assumes per-frame `Render` calls run sequentially on the render thread across active coords; parallelizing coord renders would race.
+- **Two-pass render**: Pass 1 (main thread) culls and packs a compacted visible-indices list into the workbuffer, then reserves mesh-data and joint-matrix slabs covering all visible ships. Pass 2 dispatches workers writing deterministic non-overlapping slabs (lock-free).
+- **Model swap site**: `kSpaceshipModel` in `SpaceshipsRender.cpp` is `#if 1`/`#if 0`-gated with a paired scale. `Spaceships.cpp` forward-declares it (client-only) for the animation-duration lookup.
 
 ## See Also
 - Parent collections: [../CLAUDE.md](../CLAUDE.md)

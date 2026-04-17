@@ -72,7 +72,7 @@ void main()
 
 		float fDot = dot(f3OutNormal, pHexShields[i].pf4Directions[j].xyz);
 		float fWave = sin(mainLayout.fHexShieldWaveDotMultiplier * fDot + mainLayout.fHexShieldWaveIntensityMultiplier * pow(pHexShields[i].pfVertIntensities[j], mainLayout.fHexShieldWaveIntensityPower));
-		float fFalloff = 0.5f * max(pow(0.5f + 0.5f * fDot, mainLayout.fHexShieldWaveFalloffPower), 0.0f);
+		float fFalloff = 0.5f * pow(max(0.5f + 0.5f * fDot, 0.0f), mainLayout.fHexShieldWaveFalloffPower);
 		f3OutPosition += f3OutNormal * mainLayout.fHexShieldWaveMultiplier * pHexShields[i].pfVertIntensities[j] * fWave * fFalloff;
 	}
 

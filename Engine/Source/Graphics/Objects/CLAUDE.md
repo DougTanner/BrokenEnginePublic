@@ -2,30 +2,35 @@
 
 ## Overview
 
-Low-level Vulkan resource wrappers providing RAII semantics for GPU resources. All classes encapsulate Vulkan handles with automatic lifecycle management, move semantics, and VMA-based GPU memory allocation. Each object type is created and owned by its corresponding manager in `Managers/`.
+Low-level Vulkan resource wrappers with automatic lifecycle management, move semantics, and VMA-based GPU memory allocation. Each object type is owned by its corresponding manager in `Managers/`.
 
-## Key Classes
+## Descriptor Model
 
-- **Buffer** - GPU memory buffer (vertex, index, uniform, storage) with dual-buffer staging architecture for CPU-to-GPU transfer. Supports batched pipeline barriers via `RecordBarriers()`
-- **CommandBuffers** - Per-framebuffer command buffer allocation with semaphore (GPU-GPU) and fence (CPU-GPU) synchronization. Creates Global, Main, and ImGui primary command buffers per swap chain image
-- **Pipeline** - Complete Vulkan pipeline state for graphics and compute. Combines shaders, vertex input, render state, and descriptor bindings. `PipelineInfo::iColorAttachmentCount` controls MRT blend state expansion (default 1; set to 3 for R/G/B blur pipelines). `kLineList` flag enables `VK_PRIMITIVE_TOPOLOGY_LINE_LIST` for wireframe line rendering. `kNoColorWrite` suppresses all color output (used by depth-only pre-pass pipelines). Split across three files by responsibility:
-  - `Pipeline.cpp` - Core lifecycle, command recording, indirect buffer writes
-  - `PipelineCreator.cpp` - Vulkan pipeline/layout object creation
-  - `PipelineDescriptorWriter.cpp` - Descriptor set allocation and writes. `UpdateStorageImageDescriptor()` updates a single storage image binding in place (used by lighting blur pipelines to point at per-texture intermediate and result images)
-- **ModelPipeline** - Multi-material pipeline wrapper that creates a Pipeline per material with per-material descriptor sets and indirect draw buffers. Supports two-pass transparency rendering (opaque/transparent). Defines `kModelPipelineBindingMeshData` and `kModelPipelineBindingJointMatrix` binding index constants used by `BufferManager` when updating descriptors after buffer growth
-- **Shader** - SPIR-V shader module wrapper with zero-copy pointers into chunk data for descriptor bindings, set indices, and vertex attributes
-- **Texture** - Image resource and render target management with mipmaps, texture arrays, and lazy loading. Supports deferred loading via placeholder swap, render target auto-creation, and layout transitions with synchronization. `RecordBeginRenderPass` accepts a `RenderPassFlags_t` (combining `kDepth`, `kMultisampling`, `kClear`) instead of individual booleans
+- Pipeline descriptor arrays terminate at the first empty entry; bindings sequential unless explicit. Bindings 15/16 reserved for mesh-data / joint-matrix storage buffers (joint matrices split separately to avoid an NVIDIA driver hang).
+- Model descriptor auto-appends follow-on descriptors (lighting, shadow blur, smoke, mesh, joints); caller must leave those slots empty.
+- Three-set layout for model pipelines: Set 0 global (TextureManager), Set 1 shared, Set 2 per-material. Multi-set mode binds Set 0/1 once then rebinds pipeline + Set 2 per material; inner materials share the first material's Set 1 layout.
+- Descriptor writer drops Set 0 (global handles them) and routes the rest by shader-reflected set indices. CRC registrations for lazy/deferred updates occur only on framebuffer 0.
+- Bindless texture arrays exported with `UINT32_MAX` sentinel, rewritten to actual count at layout creation.
 
-## Architecture Notes
+## Buffer Staging Modes
 
-- Per-framebuffer descriptor sets prevent GPU conflicts across frames in flight
-- Three-set descriptor layout for model pipelines: Set 0 (global/TextureManager), Set 1 (shared), Set 2 (per-material). In the `kMultiSet` path, `ModelPipeline::RecordDrawIndirect` binds Set 0, Set 1, and the vertex buffer once before the material loop; each `Pipeline::RecordDrawIndirectSet2` call then only rebinds the pipeline and Set 2
-- Lazy texture loading uses placeholder images until background upload completes, then atomically adopts GPU resources
-- Pipelines support update-after-bind for runtime descriptor updates without command buffer re-recording
-- Indirect rendering supports both host-visible (CPU-written) and device-local (GPU compute-written) buffer types
-- Descriptor-info list drives both layout bindings and per-frame writes; `PipelineManager` builds this list at two sites and missing entries in either produce VUID-vkCmdDrawIndexed-None-08114. See [../Managers/CLAUDE.md](../Managers/CLAUDE.md)
+Three mutually-exclusive modes: persistent host-mapped (CPU-written each frame), device-local (one-shot staging copy at create), and copy-every-frame (both buffers retained, barriers bracket the copy). Indirect buffers force host-visible/coherent with no transfer fallback because the GPU reads them directly; indirect slot count is `max(framebufferCount, 3)` for resize robustness.
+
+## Pipeline Creation
+
+- Viewport uses negative height (`VK_KHR_maintenance1`) to flip Y to DirectX convention; front face is therefore counter-clockwise.
+- Single-attachment pipelines using the lighting render pass auto-upgrade to 3 color attachments with replicated blend state.
+- See [../Managers/CLAUDE.md](../Managers/CLAUDE.md) for the dual pipeline-creation-site invariant affecting descriptor writes.
+
+## Texture Lifecycle
+
+- Layout transitions driven by a single `kLayoutMappings` table mapping enum to `(layout, access, stage)` — the sole source of truth.
+- Lazy path borrows a placeholder view with null image; destroy early-returns in that state so the borrowed view is never freed. Real GPU image swapped in post-upload.
+- Transfer-queue to graphics-queue ownership transfer has a fast path when the device reports it optional.
+- Transparent material detection drives auto alpha-blend in `ModelPipeline` for non-shadow passes.
+- Demand-loading: non-indirect pipelines request textures immediately at create; indirect pipelines defer until first non-empty indirect write (latched).
 
 ## See Also
 
-- [../Managers/CLAUDE.md](../Managers/CLAUDE.md) - Manager implementations that own these objects
+- [../Managers/CLAUDE.md](../Managers/CLAUDE.md) - Managers that own these objects
 - [Graphics Pipeline diagram](../../../../Documents/Architecture/GraphicsPipeline.md)

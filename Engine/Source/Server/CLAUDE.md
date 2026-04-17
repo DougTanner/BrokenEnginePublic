@@ -1,13 +1,9 @@
 # `/Engine/Source/Server/` - Server Display
 
-GDI-based monitoring window for the headless server build (`BT_SERVER` only). Renders simulation stats, memory usage, and a visual grid map directly onto the server's Win32 window using WM_PAINT handling, with no GPU or Vulkan dependency.
-
-## Key Systems
-
-- **ServerUpdateDisplayStats()** - Aggregates entity counts (Players, Spaceships, Blasters, Missiles, Targets, Explosions) and mimalloc memory statistics into profile counters each tick; also calls `SmoothCpuTimers()` so CPU profiling data is current for the Profile tab
-- **PaintServerDisplay()** - Paints a fixed-width stats panel on the left (tick, time, client count, FPS, potential FPS, entity counts, memory) and a tabbed panel on the right with a "Map" tab (centered grid map highlighting cells with connected clients and active coord subscriptions) and a "Profile" tab (CPU timers, counters, and mimalloc memory stats)
-- **HandleServerTabClick()** - Handles tab switching in the right panel in response to mouse clicks
+GDI-based monitoring window for the headless server build (`BT_SERVER` only). Renders simulation stats, memory usage, and a visual grid map via `WM_PAINT` — no GPU or Vulkan dependency.
 
 ## Architecture Notes
 
-The display refreshes every tick via `InvalidateRect()` from the Main.cpp server loop. Uses GDI double buffering (`CreateCompatibleDC`/`BitBlt`) with `WM_ERASEBKGND` suppression to eliminate flicker. The grid map auto-scales cell size and centers within available space with 1-cell padding around active coordinates. `WM_LBUTTONDOWN` is handled in `Main.cpp` to route tab click events to `HandleServerTabClick()`. GDI allocations are wrapped in `ScopedSuppressAllocationTracking`.
+Main loop invalidates the window per tick. GDI double-buffering with `WM_ERASEBKGND` suppressed eliminates flicker. Layout: fixed stats panel plus tabbed right panel (Map, Profile). Map cells are colored by client ownership / activity drawn from `gpServer->GetClients()`; the grid auto-scales to active coords. Tab state and hit-rects are file-static — one window per process.
+
+Profile-tab text is formatted through `gpThreadLocal->mWorkbuffer` (matched `View()`/`Pop()`) and also appended to a file-static `std::string` cache so the Copy button can push to clipboard on the next click. That `std::string` mutation plus GDI object allocations are the reason paint paths are wrapped in `ScopedSuppressAllocationTracking`.

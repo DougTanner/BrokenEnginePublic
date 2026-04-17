@@ -1,20 +1,14 @@
 # /Engine/Source/Frame/Collections/WindTrails/
 
-Client-only directional wind simulation input quads rendered from previous-to-current position, using the Sync pattern. Uses the render-only state pattern with globally-keyed position history.
+Client-only directional wind-simulation quads rendered from previous-to-current position.
 
-## File Structure
+## Unique Aspects
 
-The implementation is split across three `.cpp` files:
-- **WindTrails.cpp** - Registration, lifecycle (allocate/copy, spawn, transfer, destroy)
-- **WindTrailsUpdate.cpp** - Update, sync, add/remove, collision phases
-- **WindTrailsRender.cpp** - GPU resources, render-only state management, draw submission (`#ifdef BT_CLIENT` only)
-
-## Architecture Notes
-
-- `BeginRender()` calls `EraseStaleRenderState()` (from `Collection.h`) to prune previous-position entries for trails no longer present in any active frame, keyed by `wind_trail_t`
-- Each trail renders an oriented quad from base-height-projected previous position to current position, scaled by `fLengthMultiplier`; direction encodes wind velocity for the shader
-- `Render()` takes an extra `uiFrameId` parameter (excluded from `InterpolateRenderTypes` and called separately in the render pipeline)
-- `ResetRenderState()` clears cached positions for world reset (e.g., reconnect)
+- Previous-position history lives in file-scope statics keyed by trail ID (render-only, out of dual-buffered frame data)
+- Each trail renders an oriented quad from base-height-projected previous position to current; perpendicular is `cross(dir, worldZ)` so quads lie flat in XY at base height
+- A/B ping-pong wind-deposit pipelines share one dynamic quad buffer; indirect draw count written only to the side matching the active wind texture, the other receives 0
+- `Render()` takes an extra `uiFrameId` parameter (excluded from `InterpolateRenderTypes`, invoked separately in the render pipeline)
+- Early-outs when wind setting disabled
 
 ## See Also
-- Parent collections: [../CLAUDE.md](../CLAUDE.md)
+- [../CLAUDE.md](../CLAUDE.md) - Collection framework, Sync/render-state patterns

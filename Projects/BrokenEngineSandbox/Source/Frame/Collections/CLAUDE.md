@@ -4,6 +4,8 @@
 
 SOA collections managing dynamic game entities (projectiles, enemies, players) using phase-separated memory with the engine's `Collection<T>` template. All collections compile in both client and server builds, with render methods and visual fields gated by `#ifdef BT_CLIENT`. Each collection lives in its own subdirectory.
 
+See also: [Engine collections hub](../../../../../Engine/Source/Frame/Collections/CLAUDE.md) for the Collection\<T\> framework, Sync/Controller patterns, CRC architecture, and shared conventions — not duplicated here.
+
 ## Key Classes/Systems
 
 - **[Blasters](Blasters/CLAUDE.md)** - Fast-moving energy projectiles with terrain impact effects and swept sphere collision

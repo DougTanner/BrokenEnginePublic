@@ -37,21 +37,22 @@ void main()
 
 	// Color
     vec3 f3IncidentNormal = normalize(f3InPosition - mainLayout.f4EyePosition.xyz);
-    vec3 f3ReflectedNormal = normalize(reflect(f3IncidentNormal, f3InCenterNormal));
+    vec3 f3ReflectedNormal = normalize(reflect(f3IncidentNormal, normalize(f3InCenterNormal)));
     vec3 f3SkyboxColor = texture(skyboxSampler, f3ReflectedNormal).xyz;
 
 	f4OutColor.xyz = mix(f3SkyboxColor, pHexShields[i].f4Color.xyz, pHexShields[i].fColorMix);
 
 	// Direction
 	f4OutColor.a = pHexShields[i].fMinimumIntensity;
+	vec3 f3Normal = normalize(f3InNormal);
 	for (int32_t j = 0; j < kiHexShieldDirections; ++j)
 	{
-		float fDot = dot(f3InNormal, pHexShields[i].pf4Directions[j].xyz);
+		float fDot = dot(f3Normal, pHexShields[i].pf4Directions[j].xyz);
 		float fFalloff = max(pow(0.6f + 0.4f * fDot, mainLayout.fHexShieldDirectionFalloffPower), 0.0f);
 		f4OutColor.a += mainLayout.fHexShieldDirectionMultiplier * pHexShields[i].pfFragIntensities[j] * fFalloff;
 	}
 
 	// Edge
-	float fEdgeMultiplier = mainLayout.fHexShieldEdgeMultiplier * pow(length(f3InOriginalPosition) - mainLayout.fHexShieldEdgeDistance, mainLayout.fHexShieldEdgePower);
+	float fEdgeMultiplier = mainLayout.fHexShieldEdgeMultiplier * pow(max(length(f3InOriginalPosition) - mainLayout.fHexShieldEdgeDistance, 0.0f), mainLayout.fHexShieldEdgePower);
 	f4OutColor.a *= pHexShields[i].f4Color.a * fEdgeMultiplier;
 }

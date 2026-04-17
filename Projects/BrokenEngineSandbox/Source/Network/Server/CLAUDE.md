@@ -2,24 +2,26 @@
 
 ## Overview
 
-Server-side networking: thin tick-pipeline orchestration via `ServerSession` plus four focused manager classes for fleet lifecycle, cross-cell transfers, frame broadcasting, and client connect/disconnect. All classes are `#ifdef BT_SERVER` only.
+Server-side game networking (`BT_SERVER`). `ServerSession` is a thin orchestrator over four domain managers (fleet, transfer, broadcaster, client) accessed via `gpServerSession`. Per-tick flow: inbound packet parse and request queuing, active-set recompute, frame tick with transfer harvesting, then broadcast of delta plus full-snapshot status changes.
 
-## Key Classes
+## Invariants
 
-- **ServerSession** - Inherits `engine::ServerSessionBase`. Drives the server tick pipeline: active set computation, tick broadcasting, resync handling, subscription updates, and game packet parsing. Owns the four managers via `unique_ptr`; managers access each other through `gpServerSession`. Exposes `mClientOwnedPlayerIds` as shared state for subscription validation
-- **ServerFleetManager** - Fleet lifecycle: create/spawn/respawn/death, flagship shift on death or transfer, fleet sync packets to clients, and save/load serialization. Also owns fleet-level navigation via `TickFleetTimers()`, which runs each tick to advance `Fleet::fFrameChangeTimer`, pick a new `wantedCoord` when the timer expires, and broadcast `kUpdateFleet` StatusChange events to all fleet members with `uiPendingFleetWantedCoordTicks` initialized to `kiTickRate` (countdown activation — see Frame/CLAUDE.md). `LookupFleetWantedCoord()` returns a `FleetLookupResult` carrying `bIsFlagship`, `fleetWantedCoord`, and `uiPendingFleetWantedCoordTicks` for spawn initialization. Navigation delay is per-fleet and configurable via `UpdateFleetNavigationDelay()`. Fleets are keyed by persistent `ClientGuid` in a single map — game state operations work identically whether the owning client is connected or not. Client connection status is only consulted for network sends
-- **ServerTransferManager** - Cross-cell transfer harvesting each tick: collects entities crossing coord boundaries, spawns into destination coords, and queues subscription updates for affected clients
-- **ServerBroadcaster** - Per-tick frame input building, status change broadcasting to subscribed clients, and update-player-request processing. Behavior-changing StatusChanges (`kUpdatePlayer`) initialize `puiPendingWeaponModeTicks` to `kiTickRate` (countdown activation — see Frame/CLAUDE.md)
-- **ServerClientManager** - Client connect/disconnect lifecycle, spawn request queuing and fulfillment, player death detection, and pre-spawn snapshot management. Players persist on disconnect; reconnecting clients are re-linked by GUID
+- **Parallel-vector invariant**: `ServerSession::mClientOwnedPlayerIds[iClientId]` and `ClientConnection::authorizedCoords` are index-aligned; every spawn / transfer / death / relink must mutate both in lockstep.
+- **Active set**: rebuilt each tick from client subscriptions plus any coord with players plus pending destroy coords; `kOriginCoord` always included.
+- **Client-dead gating**: a client is only marked dead when all owned players are gone; clients mid-transfer are skipped to avoid false positives while a player crosses a coord boundary.
+- **Fleet ownership by `ClientGuid`**: fleets are keyed by persistent GUID so they survive disconnect/reconnect; a separate reap pass handles AI-managed disconnected fleets.
+- **Flagship timer**: only advances when the flagship is alive, at its wanted coord, and not navigating a cell edge; direction changes emit as `kUpdateFleet` status changes via the countdown-activation pattern (see [Frame/CLAUDE.md](../../Frame/CLAUDE.md)).
+- **Reconnect / load relink**: matching `pClientGuids[i]` across frames are sorted by global ID to preserve creation order before rebuilding parallel vectors. Load additionally resets all managers and ring buffers but preserves pending flagship updates since fleet restoration enqueues into it.
+- **Allocation suppression**: every public manager entry point wraps its body in `ScopedSuppressAllocationTracking`.
 
-## Architecture Notes
+## Notes
 
-- `ServerSession` is a thin orchestrator; domain concerns are fully delegated to the four managers
-- Manager interdependencies are resolved through `gpServerSession` rather than direct cross-manager references
-- `SubscriptionUpdate` (in `ServerSession.h`) is the shared struct used to queue coord updates between managers
+- Game packet payloads have the type byte stripped before dispatch; size checks are post-strip. Out-of-band requests use the reliable channel.
+- Disconnect clears `kPaused` and restores `mTimeStep` to 1/1 once no clients remain.
+- Pending-request queues are cleared at the start of each tick and drained in fixed order; requests for vanished clients are silently dropped.
 
 ## See Also
 
-- [../CLAUDE.md](../CLAUDE.md) - Network root (shared packet types and serialization)
-- Engine base: `Engine/Source/Network/Server/ServerSessionBase.h`
+- [../CLAUDE.md](../CLAUDE.md)
+- [Engine/Source/Network/CLAUDE.md](../../../../../Engine/Source/Network/CLAUDE.md)
 - [Network Architecture](../../../../../Documents/Architecture/Network.md)

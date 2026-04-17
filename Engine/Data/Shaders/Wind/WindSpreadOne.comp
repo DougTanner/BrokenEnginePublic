@@ -72,7 +72,7 @@ void main()
 	}
 
 	// Mark output tile in occupancy for next pass
-	if (dot(f2Result, f2Result) > 0.0f)
+	if (dot(f2Result, f2Result) > 1e-10f)
 		atomicOr(suHasWind, 1u);
 	barrier();
 

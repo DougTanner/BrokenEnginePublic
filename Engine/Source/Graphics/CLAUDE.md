@@ -2,36 +2,47 @@
 
 ## Overview
 
-Multi-pass deferred Vulkan renderer with lighting, shadows, GPU particles, and post-processing. Entirely client-only (`#ifdef BT_CLIENT`). Managers are initialized in strict dependency order and accessed via global pointers (e.g., `gpGraphics`, `gpTextureManager`).
-
-## Key Classes
-
-- **Graphics** (`gpGraphics`) - Central orchestrator owning all managers and coordinating the three-submission render loop (Global, Main, ImGui). Handles swapchain recreation and device-lost recovery via ordered resource cascade
-- **CameraBase** - Abstract base for view/projection matrices and visible-area culling. Holds engine-level camera state (eye position/normal, shake intensity, frame counter, sun angle) and exposes a virtual `SunAngle()` for game-specific overrides. Games inherit and provide their own camera (e.g., `game::gpCamera`)
-- **Islands** (`gpIslands`) - GPU terrain quad rendering via storage buffer, synchronized with the active multi-frame grid. Terrain collision queries are in `/Frame/IslandTerrain` (shared by both builds)
-- **AnimationData** - Runtime skeletal animation with zero-copy pack file loading, topological-order world matrix evaluation, and step/linear/cubicspline keyframe interpolation
-- **OneShotCommandBuffer** - Immediate-mode GPU command utility with fence synchronization for one-time operations
-- **Screenshot** - `SaveScreenshot` free function for async JPEG capture from the swapchain
-- **GraphicsUtils** - Vulkan error handling (`CHECK_VK`), debug naming (`VkName`), `DeviceLostException`, and shared collection rendering helpers (visibility testing, projection, quad building)
+Multi-pass deferred Vulkan renderer with lighting, shadows, GPU particles, and post-processing. Entirely client-only. `gpGraphics` owns all managers and coordinates a three-submission render loop (Global, Main, ImGui).
 
 ## Architecture Notes
 
-- Managers are created in strict dependency order: InstanceManager, DeviceManager, SwapchainManager, CommandBufferManager, BufferManager, Islands, TextureManager, TextManager, PipelineManager, ParticleManager, ImGuiManager
-- Three GPU submissions per frame synchronized via semaphores, with the fence signaled by the final submission
 - Record-once command buffers resubmitted every frame; re-recorded only on resize or settings change
 - Per-framebuffer descriptor sets prevent GPU conflicts across frames in flight
-- Resource recreation uses cascading `DestroyType` levels (each includes all lower levels): `kCommandBuffers` → `kSamplers` → `kPipelines` → `kSwapchain` → `kSurface`. Fine-grained per-subsystem recreation uses `DestroyFlags_t` bitmask (terrain, shadows, lighting, smoke, water, etc.)
-- All GPU memory allocated through VMA (VmaAllocator in DeviceManager)
-- Lazy texture loading: white placeholder at startup, background disk load, transfer queue upload, deferred descriptor update
-- `Render/` subdirectory contains GPU uniform buffer population split by subsystem (global, main, lighting, smoke, wind)
+- All GPU memory allocated through VMA
+- Lazy texture loading: white placeholder at startup, background disk load via transfer queue, deferred descriptor update
+- Camera snaps render visible-area to the terrain/water quad grid — never render off-grid
+- Terrain collision queries live in `/Frame/IslandTerrain` (shared); `Islands` here is client-only GPU rendering
+- Frame boundary sits between Main-submit and the next Acquire, not at loop top
 
-## Logging
+## Destroy / Refresh Pipeline
 
-Graphics subsystem logging uses the `kGraphics` category. Use `kVerbose` for per-frame events, `kWarning` for recoverable issues, and `kError` for failures.
+Settings-change detector escalates a destroy tier (`DestroyType`) monotonically via `std::max`, with fine-grained resource subsets in a flags bitmask. `Destroy()` drains all in-flight submissions and `vkDeviceWaitIdle`s before touching resources. Selective pipeline recreation avoids full rebuilds when only pipeline-affecting cvars changed; partial destroy preserves texture/buffer managers and stashes the old swapchain for seamless recreation.
+
+## Error / Debug Helpers
+
+- `CheckVkFailed` auto-escalates swapchain/surface-loss results into destroy tiers; `DEVICE_LOST` throws `DeviceLostException` (caught by main loop to recreate Graphics in place)
+- `CHECK_VK` macro adds `DEBUG_BREAK()` at the call site
+- Debug-name strings interned because Vulkan retains the `c_str()`; insertion wrapped in `ScopedSuppressAllocationTracking`
+- `OneShotCommandBuffer` — RAII wrapper for init/transfer work on the graphics queue
+
+## AnimationData
+
+- Zero-copy: node/channel/keyframe/material pointers index directly into eagerly-loaded pack memory
+- Matrix convention: DirectXMath row-major storage reinterpreted by GLSL as column-major is already the transpose — never `XMMatrixTranspose` before upload
+- Topological node order invariant (`iParentIndex < i`) enables single-pass world-matrix build
+- CUBICSPLINE path uses glTF-spec Hermite tangents scaled by delta; STEP/LINEAR uses a compact keyframe
+- Temp TRS/world-matrix arrays come from `gpThreadLocal->mWorkbuffer`, never heap
+
+## Islands / Screenshot / Resolution Helpers
+
+- `Islands` bridges island state into a host-visible storage buffer; growth doubles capacity and forces command-buffer re-record. Inactive slots are zero-width quads (GPU-culled)
+- Screenshot save waits the target framebuffer's fence, copies present image to host memory, then `std::async`-saves JPG with its own `ThreadLocal` (runs off the engine worker pool); a static future serializes overlapping saves
+- Render-target size aligns to shadow-block boundaries expanded past framebuffer extent; smoke-sim resolution scales relative to a 3840-px reference width
 
 ## See Also
 
-- [Managers/CLAUDE.md](Managers/CLAUDE.md) - Individual manager implementations and Vulkan patterns
+- [Managers/CLAUDE.md](Managers/CLAUDE.md) - Vulkan manager singletons and initialization order
 - [Objects/CLAUDE.md](Objects/CLAUDE.md) - RAII wrappers for Vulkan resources
-- [Render/CLAUDE.md](Render/CLAUDE.md) - Per-subsystem GPU uniform buffer population
-- [Debug/CLAUDE.md](Debug/CLAUDE.md) - Wireframe debug visualization system (BT_DEBUG only)
+- [Render/CLAUDE.md](Render/CLAUDE.md) - Per-subsystem uniform buffer population
+- [Debug/CLAUDE.md](Debug/CLAUDE.md) - Wireframe debug visualization (BT_DEBUG only)
+- [Graphics Pipeline diagram](../../../Documents/Architecture/GraphicsPipeline.md)

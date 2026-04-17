@@ -23,6 +23,7 @@ layout (location = 0) out vec4 f4OutColor;
 
 void main()
 {
+	f4OutColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	int iIndex = int(globalLayout.fDebugTextureIndex);
 	int iFormat = int(globalLayout.fDebugTextureFormat);
 	vec4 f4Sample = texture(debugTextures[iIndex], f2InTexcoord);
@@ -44,12 +45,12 @@ void main()
 		float l0 = ((P - m) * l) / a;
 		float S0 = m + l0;
 		float S1 = m + a * l0;
-		float C2 = (a * P) / (P - S1);
+		float C2 = (a * P) / max(P - S1, 1e-6f);
 		float CP = -C2 / P;
 		vec4 f4W0 = vec4(1.0f) - smoothstep(vec4(0.0f), vec4(m), f4Scaled);
 		vec4 f4W2 = step(vec4(S0), f4Scaled);
 		vec4 f4W1 = vec4(1.0f) - f4W0 - f4W2;
-		f4Scaled = (m * pow(f4Scaled / m, vec4(c)) + b) * f4W0 + (m + a * (f4Scaled - m)) * f4W1 + (P - (P - S1) * exp(CP * (f4Scaled - S0))) * f4W2;
+		f4Scaled = (m * pow(max(f4Scaled, 0.0f) / m, vec4(c)) + b) * f4W0 + (m + a * (f4Scaled - m)) * f4W1 + (P - (P - S1) * exp(CP * (f4Scaled - S0))) * f4W2;
 		float fTotal = f4Scaled.r + f4Scaled.g + f4Scaled.b + f4Scaled.a;
 		float fIntensity = min(fTotal, 1.0f);
 		float fEastWest = fTotal > 0.0f ? (f4Scaled.r - f4Scaled.g) / fTotal * 0.5f + 0.5f : 0.0f;

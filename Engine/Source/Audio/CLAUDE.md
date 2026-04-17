@@ -1,19 +1,32 @@
 # `/Engine/Source/Audio/`
 
-3D spatial audio system using DirectXTK AudioEngine (XAudio2 wrapper). Entirely client-only (`#if defined(BT_CLIENT)`).
-
-**Global**: `gpAudioManager`
+3D spatial audio via DirectXTK `AudioEngine` (XAudio2 wrapper). Entirely client-only (`#if defined(BT_CLIENT)`). Global: `gpAudioManager`.
 
 ## Key Classes
 
-- **AudioManager** - Orchestrator: XAudio2 device lifecycle, focus handling (`Suspend`/`Resume`), and the `IVoiceNotify` interface for device reset. Delegates all playback to `mStaticVoices` and `mStreamingVoices`; public API is unchanged from callers' perspective.
-- **StaticVoices** - 3D spatial audio manager: one-shot fire-and-forget playback and persistent frame-driven voices. Voices are capped, synced from frame sound data each tick, and faded out on removal. X3DAudio provides distance attenuation, Doppler, and speaker panning. One-shot calls are thread-safe via a recursive mutex. Uses XAudio2 voice pooling: removed voices are stopped and pooled by CRC, then reused when the same sound is needed again, avoiding costly `DestroyVoice`/`CreateSourceVoice` round-trips. Supports a skip-invalidation flag to suppress transient voice churn during reconciliation replay.
-- **StreamingVoices** - Music streaming manager: triple-buffered playback with crossfade transitions. Buffer submission stays on the main thread; XAudio2 callbacks only increment an atomic counter. Destruction is deferred past mutex release to avoid `DestroyVoice` deadlocks.
-- **StaticVoice** / **StreamingVoice** - Per-voice data structs owned by their respective managers. `StaticVoice` stores its audio CRC; its destructor and move-assignment assert `mpVoice == nullptr` since `StaticVoices` manages the XAudio2 voice lifecycle (pooling or destruction).
+- **AudioManager** - XAudio2 device lifecycle, focus/suspend, device-reset callbacks. Delegates to static and streaming voice subsystems.
+- **StaticVoices** - 3D spatial one-shots + frame-driven looping voices. Hard-capped CRC-keyed voice pool avoids `DestroyVoice`/`CreateSourceVoice` churn. Recursive mutex (3D path re-enters 2D path). 3D sources asserted mono.
+- **StreamingVoices** - Music streaming with triple-buffered crossfade. Buffer refill on main thread; XAudio2 callback only bumps an atomic counter so file I/O stays off the callback thread.
 
-## Architecture Notes
+## Frame-Phase Invariants
 
-- `DestroyXAudio2SourceVoice` (free function in `AudioManager.h`) handles safe teardown and logs a warning if `DestroyVoice` takes unexpectedly long.
-- Callback-based playlist decoupling: game logic supplies the next-track callback; `StreamingVoices` drives transitions when remaining time crosses a threshold.
-- Silent failure points (voice cap reached, stream errors) emit `Log(kAudio, ...)`. `kAudio` is off by default — enable it when debugging audio.
-- XAudio2 callbacks are minimal (atomic increment only); all I/O and buffer submission happen on the main thread.
+- `AudioManager::Update` runs post-render on the main thread and owns all XAudio2 pumps and buffer submission.
+- One-shot emit and static voice lifecycle both assert post-render phase and early-out during reconciliation replay — replay ticks must not mutate audio state in either direction.
+- Static voice lifecycle reads post-render sound ids against the interpolation SOA; listener position comes from the client player row.
+
+## Voice Lifetime
+
+- Two teardown modes: XAudio2-already-destroyed (post-reset/device-loss — just null pointers) vs. we-still-own-the-voices (explicit `DestroyVoice` with >100ms teardown warning).
+- `Suspend` stops the XAudio2 processing thread *first* so `DestroyVoice` returns instantly. `Resume` lets normal flow recreate voices on demand.
+- Faded-out streaming voices are parked in a deferred-destruction list drained *after* the mutex releases — `DestroyVoice` must wait for `OnBufferEnd` without deadlocking the callback.
+
+## Volume & 3D
+
+- Combined volume squared for a perceptual curve; sfx and music use separate global sliders.
+- 3D mix layers X3DAudio (matrix / Doppler / LPF) with a manual piecewise distance fade as a hard override past the physical attenuation floor.
+
+## Device Reset
+
+- Lost-device detection in `Update` calls `AudioEngine::Reset`, re-caches mastering voice channel count, then clears all voices.
+- Device-reset callbacks defer static-voice clear via an atomic flag consumed at the top of the next `Update`; streaming state clears inline.
+- `kAudio` log channel is off by default.

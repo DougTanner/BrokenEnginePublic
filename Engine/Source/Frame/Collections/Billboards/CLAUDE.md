@@ -1,18 +1,14 @@
 # /Engine/Source/Frame/Collections/Billboards/
 
-Client-only screen-space UI indicators with offscreen arrow handling, using the Sync pattern for parent-provided positional data.
+Client-only screen-space UI indicators with offscreen-arrow handling.
 
-## File Structure
+## Unique Aspects
 
-The implementation is split across three `.cpp` files:
-- **Billboards.cpp** - Registration, lifecycle (allocate/copy, spawn, transfer, destroy)
-- **BillboardsUpdate.cpp** - Update, sync, add/remove, collision phases
-- **BillboardsRender.cpp** - GPU resources and draw submission (`#ifdef BT_CLIENT` only)
-
-## Architecture Notes
-
-- `BillboardFlags` control offscreen behavior: `kOffscreenOnly` renders only when the world position is outside the viewport, `kOffscreenRotate` auto-rotates the billboard to point toward the offscreen target
-- `Render()` projects world positions to clip space, clamps offscreen indicators to screen edges, and resolves texture indices via `gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc)`
+- Offscreen behavior: flags select whether the indicator renders only when its world position falls outside the viewport, and whether it rotates to point at the offscreen target. NDC margin for the offscreen visibility test is carried in the per-element extra slot
+- Orientation math for offscreen-rotated billboards runs in the render phase (not update) because it depends on the live view/projection matrices
+- Positional state is pushed by owners each frame; the update/post-render phase bodies are intentionally empty
+- Transfer across coord boundaries is a no-op: owned billboards follow their parent entity, which re-adds on the destination frame
+- `Add` rvalue-id overload is deleted to force callers to bind a persistent lvalue handle
 
 ## See Also
-- Parent collections: [../CLAUDE.md](../CLAUDE.md)
+- [../CLAUDE.md](../CLAUDE.md) - Collection framework, Sync/Controller/render-state patterns

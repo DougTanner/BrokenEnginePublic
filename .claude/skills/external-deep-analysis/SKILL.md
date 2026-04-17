@@ -1,23 +1,23 @@
 ---
 name: external-deep-analysis
-description: Runs a full three-phase code analysis pipeline on a directory — tech-debt scan, architecture review, and refactoring analysis — in that order. Each phase produces actionable plan files, and items needing further investigation feed into the next phase. A final verification pass ensures all plans are correct and beneficial. Only invoke when the user explicitly requests it (e.g., "/external-deep-analysis", "run a deep analysis", "full code analysis"). Never trigger autonomously from general code questions or during routine code changes.
-allowed-tools: [Read, Write, Grep, Glob, Task, Agent, Bash, Skill]
+description: Runs a two-phase code analysis pipeline on a directory — architecture review (shape) then refactor-clean (in-function mechanics) — then scores, prioritizes, and verifies all plan files. Produces actionable plan files per phase and a tiered `Order.md` priority matrix. Only invoke when the user explicitly requests it (e.g., "/external-deep-analysis", "run a deep analysis", "full code analysis"). Never trigger autonomously from general code questions or during routine code changes.
+disable-model-invocation: true
+allowed-tools: [Read, Write, Edit, Grep, Glob, Agent, Bash, Skill]
 ---
 
 # Deep Analysis Pipeline
 
-Runs three analysis skills in sequence (broad → specific), producing actionable plan files at each stage and feeding items that need further investigation into the next phase.
+Runs two analysis skills in sequence (shape → in-function), then scores and verifies all output. Replaces the former three-leaf pipeline (the old `external-tech-debt` skill has been removed; its tier/effort/debt-score rubric is now owned by this orchestrator's Phase 3).
 
-**Order** (from CLAUDE.md):
-1. `/external-tech-debt` — Broad scan, prioritizes debt across 8 categories
-2. `/external-architecture-review` — Analyzes dependencies, pattern compliance, coupling
-3. `/external-refactor-clean` — Actionable refactoring recommendations for specific files
+**Pipeline order:**
+1. `/external-architecture-review` — Shape: dependency structure, deep-modules (Ousterhout), coupling/cohesion, determinism, frame-phase, thread-model, shader/CPU consistency
+2. `/external-refactor-clean` — In-function mechanics: complexity, hot-path allocation, bool-proliferation, `Float4A`, narrow `#ifdef`, header placement. Hands off oversized files to `/reduce-file`.
 
 ## Arguments
 
 The user provides a target path (file or directory) to analyze. If no path is given, ask for one.
 
-**Recursion**: By default, only analyze code files directly in the specified directory (non-recursive). Only recurse into sub-directories if the user explicitly requests it (e.g., "recurse", "recursive", "include subdirectories"). Pass this recursion preference to each sub-skill invocation by appending the instruction to the skill arguments (e.g., `/external-tech-debt Engine/Source/Frame — non-recursive, only files directly in this directory`).
+**Recursion**: By default, only analyze code files directly in the specified directory (non-recursive). Only recurse into sub-directories if the user explicitly requests it (e.g., "recurse", "recursive", "include subdirectories"). Pass this recursion preference to each sub-skill invocation by appending the instruction to the skill arguments (e.g., `/external-architecture-review Engine/Source/Frame — non-recursive, only files directly in this directory`).
 
 ## Instructions
 
@@ -32,60 +32,22 @@ Derive a plan output directory from the target path by extracting the relative p
 
 Create the output directory if it doesn't exist.
 
-### 1. Phase 1: Tech Debt Scan
+### 1. Phase 1: Architecture Review
 
-Invoke the `/external-tech-debt` skill on the target directory, passing the recursion preference.
+Invoke the `/external-architecture-review` skill on the target directory, passing the recursion preference.
 
-When the report completes, analyze its findings and split them into two groups:
+When the report completes, split findings into two groups:
 
-- **Actionable items**: Findings with clear fix steps (dead code removal, unused includes, quick wins, medium-effort items with specific file:line locations). Write each group as a plan file.
-- **Investigation items**: Findings that are architectural, vague, or need deeper analysis (collection restructuring, manager decoupling, systemic issues). Collect these into a structured list for Phase 2 handoff:
+- **Actionable items**: Findings with clear fix steps and specific file:line locations. Write each logical group as a plan file: `Documents/Plans/<relative-path>/Architecture_<GroupName>.md`.
+- **Investigation items**: Findings that are line-level or need the in-function lens. Collect these as a structured list for Phase 2 handoff:
   ```
   Investigation Items from Phase 1:
-  - <file path> — <one-line description of what needs deeper analysis>
-  - <file path> — <one-line description>
+  - <file path> — <one-line description of what needs depth>
   ```
 
 #### Writing Plan Files
 
-For each actionable group, write a plan file to the output directory:
-
-```
-Documents/Plans/<relative-path>/TechDebt_<GroupName>.md
-```
-
 Plan file format (matches what plan mode produces):
-
-```
-# Tech Debt: <Group Name>
-
-Source: /external-tech-debt on <target path>
-
-## Changes
-
-### <File Path>
-- <Specific change to make with line numbers> [~Xm]
-
-### <File Path>
-- <Specific change to make with line numbers> [~Xm]
-```
-
-Include a rough effort estimate per item: `[~5m]`, `[~15m]`, `[~30m]`, `[~1h]`. This helps with session planning.
-
-Keep plans focused — one plan per logical group of changes (e.g., `TechDebt_DeadCode.md`, `TechDebt_UnusedIncludes.md`, `TechDebt_DuplicationFixes.md`). Only create a plan if there are concrete changes to make. If a plan would exceed 15 items, split it by subdirectory or file group (e.g., `TechDebt_DeadCode_Frame.md`, `TechDebt_DeadCode_Audio.md`).
-
-### 2. Phase 2: Architecture Review
-
-Invoke the `/external-architecture-review` skill, passing the recursion preference. Target both:
-- The original target directory (for full coverage)
-- Any specific paths flagged as investigation items from Phase 1
-
-When the report completes, split findings the same way:
-
-- **Actionable items** → Write plan files as `Architecture_<GroupName>.md`
-- **Investigation items** → Collect paths and descriptions into a structured list (file path + one-line description per item) for the Phase 3 handoff
-
-Plan file format:
 
 ```
 # Architecture: <Group Name>
@@ -95,18 +57,22 @@ Source: /external-architecture-review on <target path>
 ## Changes
 
 ### <File Path>
-- <Specific change to make>
+- <Specific change to make with line numbers> [~Xm]
 ```
 
-### 3. Phase 3: Refactoring Analysis
+Include a rough effort estimate per item: `[~5m]`, `[~15m]`, `[~30m]`, `[~1h]`. This helps with session planning.
 
-**Skip this phase entirely if Phase 2 produced no investigation items.** Only run Phase 3 when there are specific items that Phases 1-2 flagged but could not fully resolve.
+Keep plans focused — one plan per logical group (e.g., `Architecture_IncludeGraph.md`, `Architecture_LayerViolations.md`, `Architecture_CollectionCohesion.md`). Only create a plan if there are concrete changes to make. If a plan would exceed 15 items, split it by subdirectory or file group.
 
-Invoke the `/external-refactor-clean` skill, passing the recursion preference, on the specific files/paths flagged as investigation items from Phase 2.
+### 2. Phase 2: Refactor-Clean
 
-**Deduplication**: Before writing plan files, check all existing plan files from Phases 1-2. If a finding is already covered by an existing plan (even under a different category), skip it. Do not re-categorize items that are already planned.
+Invoke the `/external-refactor-clean` skill, passing the recursion preference. Target both:
+- The original target directory (for full coverage of in-function mechanics)
+- Any specific paths flagged as investigation items from Phase 1
 
-Write all new actionable findings as plan files: `Refactor_<GroupName>.md`
+**Deduplication**: Before writing plan files, check existing Phase-1 plan files. If a finding is already covered by an existing plan (even under a different category), skip it.
+
+Write all new actionable findings as plan files: `Refactor_<GroupName>.md`.
 
 Plan file format:
 
@@ -118,14 +84,40 @@ Source: /external-refactor-clean on <target path>
 ## Changes
 
 ### <File Path>
-- <Specific change to make with line numbers>
+- <Specific change to make with line numbers> [~Xm]
 ```
 
-### 4. Verification Pass
+### 3. Phase 3: Scoring, Tiering & Debt Summary
 
-After all three phases complete and plan files are written, launch an Opus subagent to perform a final verification:
+For each plan file produced in Phases 1–2, assign:
 
-The verification agent should read every plan file created during this run and check:
+**Tier** (inherited from the former `external-tech-debt` rubric):
+- **Quick Win** (< 15 min each) — Dead code removal, unused include cleanup, simple pattern fixes
+- **Medium Effort** (15 min – 2 hours) — Extract duplicated code, split oversized functions, fix layer violations
+- **Architectural** (> 2 hours) — Collection restructuring, manager decoupling, major refactors
+
+**Axes** (1–10 scale):
+- **Effort** (1=trivial deletion, 10=massive cross-file rewrite)
+- **Impact** (1=cosmetic, 10=fixes critical bugs or prevents future breakage)
+- **Risks** (1=safe pure deletion, 10=high chance of introducing new bugs)
+
+**Priority Score** = Effort - Impact + Risks (lower = higher priority).
+
+**Rating guidance:**
+- Pure dead code removal: Effort 1-2, Impact 2-3, Risks 1
+- Thread-safety / correctness fixes: Effort 1-3, Impact 6-8, Risks 1-2
+- Deprecated API replacement: Effort 3-4, Impact 5-7, Risks 3-5
+- Mechanical refactors (dedup, extract helper): Effort 2-4, Impact 3-5, Risks 2
+- Cross-file moves / file splits: Effort 4-6, Impact 3-5, Risks 2-4
+- Architectural restructuring: Effort 5-7, Impact 3-5, Risks 3-5
+
+**Debt Score** for the target area as a whole (single label): **LOW / MODERATE / HIGH / CRITICAL**, with one-sentence justification. Use the distribution of tiers as the primary signal (all Quick Wins → LOW; several Architectural → HIGH/CRITICAL).
+
+### 4. Phase 4: Verification Pass
+
+After scoring, launch a verification subagent with `subagent_type: "general-purpose"` and `model: "opus"`. The subagent prompt must explicitly grant `Read`, `Write`, `Edit`, `Grep`, `Glob` so it can delete or rewrite plan files — this skill's `allowed-tools` already includes `Write`/`Edit` so the subagent inherits them, but state the expected mutations up front in the prompt.
+
+The verification agent reads every plan file created during this run and checks:
 
 1. **Correctness**: Do the file paths and line numbers referenced actually exist? Are the suggested changes consistent with how the codebase actually works? Read the referenced source files to verify.
 2. **Benefit**: Would each change actually improve the codebase? Filter out changes that are:
@@ -140,33 +132,21 @@ For any plan file that fails verification:
 - If entirely invalid: delete it
 - Add a `## Verification Notes` section at the bottom of each surviving plan file with any caveats
 
-### 5. Prioritization
+### 5. Phase 5: Write `Order.md`
 
 After verification, create or update `Documents/Plans/Order.md`. All plans across all target paths are intermingled in a single table sorted by priority score.
-
-Rate each plan on three axes (1-10 scale):
-- **Effort** (1=trivial deletion, 10=massive cross-file rewrite)
-- **Impact** (1=cosmetic, 10=fixes critical bugs or prevents future breakage)
-- **Risks** (1=safe pure deletion, 10=high chance of introducing new bugs)
-
-**Priority Score** = Effort - Impact + Risks (lower = higher priority). Sort the table ascending by score.
-
-**Rating guidance:**
-- Pure dead code removal: Effort 1-2, Impact 2-3, Risks 1
-- Thread-safety / correctness fixes: Effort 1-3, Impact 6-8, Risks 1-2
-- Deprecated API replacement: Effort 3-4, Impact 5-7, Risks 3-5
-- Mechanical refactors (dedup, extract helper): Effort 2-4, Impact 3-5, Risks 2
-- Cross-file moves / file splits: Effort 4-6, Impact 3-5, Risks 2-4
-- Architectural restructuring: Effort 5-7, Impact 3-5, Risks 3-5
 
 ```markdown
 # Plan Execution Order
 
 Score = Effort - Impact + Risks (lower = higher priority)
 
-| # | Plan | Effort | Impact | Risks | Score | Items | Notes |
-|---|------|--------|--------|-------|-------|-------|-------|
-| 1 | `Path/PlanName.md` | X | X | X | X | N | One-line summary |
+## Debt Score (this run): [LOW / MODERATE / HIGH / CRITICAL]
+[One-sentence justification]
+
+| # | Plan | Tier | Effort | Impact | Risks | Score | Items | Notes |
+|---|------|------|--------|--------|-------|-------|-------|-------|
+| 1 | `Path/PlanName.md` | Quick Win | X | X | X | X | N | One-line summary |
 ```
 
 After the table, add two sections:
@@ -187,10 +167,11 @@ Plans that touch the same files and should be done in a single session:
 
 If `Order.md` already exists from a previous run, merge new entries into the existing table (add new rows, update changed rows, preserve unchanged rows). Re-sort the entire table by score after merging.
 
-### 6. Summary
+### 6. Phase 6: Summary
 
-After the prioritization matrix is written, output a summary listing:
+Output a summary listing:
 - All plan files created (with paths)
 - Number of actionable items per plan
-- Any items that were removed during verification and why
+- Debt Score for this run
+- Any items removed during verification and why
 - The prioritization matrix (so the user sees it inline too)

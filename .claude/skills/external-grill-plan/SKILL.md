@@ -2,11 +2,11 @@
 name: external-grill-plan
 description: >-
   Interview the user about a loaded plan to resolve ambiguities and gather missing
-  information before implementation begins. Use this skill after a plan is loaded as
-  part of the C++ code change workflow (step 0.5). Walks each branch of the decision
-  tree, asking engine-specific questions about determinism, client/server, memory,
-  threading, and frame phases. For each question, provides a recommended answer based
-  on codebase exploration.
+  information before implementation begins. Use this skill after a plan is loaded
+  and before implementation starts. Walks each branch of the decision tree, asking
+  engine-specific questions about determinism, client/server, memory, threading,
+  and frame phases. For each question, provides a recommended answer based on
+  codebase exploration.
 allowed-tools: [Read, Grep, Glob, Agent, AskUserQuestion]
 ---
 
@@ -26,7 +26,10 @@ Interview the user about every aspect of this plan until reaching shared underst
 1. Read the plan file from the current conversation context
 2. Identify all decision points, ambiguities, and unstated assumptions
 3. Walk each branch of the decision tree, resolving dependencies one-by-one
-4. When all branches are resolved, summarize the decisions made and update the plan file with the resolved details
+4. When all branches are resolved, silently update the plan file with the resolved details, then immediately return control to the calling context to begin implementation — no summary, no "ready to proceed?" prompt, no stop. CLAUDE.md step 1 mandates this: "DO NOT stop or summarize — immediately continue to step 2 in the same turn."
+
+## Role Boundary
+This skill fills gaps in an existing plan. **Do not re-design** the interface — that is `/external-design-interface`'s job. If the plan's interface shape is itself unclear, stop and recommend running `/external-design-interface` first.
 
 ## Engine-Specific Interrogation Branches
 
@@ -44,5 +47,10 @@ Always probe these areas if the plan touches them:
   _e.g., "The plan reads position data during Update, but positions aren't finalized until PostRender. Should this move to PostRender?"_
 - **Collection integrity**: Does this maintain SOA alignment? Are all member arrays updated consistently across AllocateAndCopy, LogDifferences, Spawn, Transfer?
   _e.g., "You're adding a new member to Blasters — have you accounted for it in AllocateAndCopy and LogDifferences?"_
+- **CRC / LogDifferences**: Does the new member participate in CRC (i.e., lives in `SharedMembers()` or `SharedCrcMembers()`)? Does it need a `LogDifferences` entry for desync debugging?
+  _e.g., "This field lives in SharedMembers — it will be CRC'd. Is that intended? If yes, does LogDifferences need to log it?"_
+- **Interpolation vs snap**: Does this field need between-frame interpolation (PostRender+Interpolate paired collection), or does it snap on state changes?
+  _e.g., "Position interpolates, but this new ID field doesn't — should it live in PostRender only?"_
+- **Build wiring**: Any new files? Which vcxproj filters get updated (client AND server for game collections — four files total)? Any new `#include <std>` that should move to `Common/ExternalHeaders.h`?
 - **Layer compliance**: Does engine code access game-layer through `game::gpGame`? Any new cross-layer dependencies?
   _e.g., "This engine code references a game-specific enum directly. Should it go through `game::gpGame` instead?"_

@@ -1,20 +1,25 @@
 # `/Engine/Source/Ui/` - User Interface
 
-Runtime-adjustable parameter wrappers and ImGui-based screen classes for UI rendering.
+Runtime-adjustable parameter wrappers and ImGui-based screen classes.
 
 ## Key Systems
 
-- **Wrapper** (`WrapperBase.h/.cpp`) - Type-safe value container for UI-bound settings. Stores current/previous values with min/max bounds, supports float, bool, and discrete enum types. Change detection via `Changed()` method. Supports percent-based get/set for normalized slider control, toggle for booleans, and index-based access for discrete allowed-value lists
-- **NetworkUiControl** (`NetworkUiControl.h`) - Templated helper that tracks pending state for network-confirmed UI controls (toggles, dropdowns, sliders). Disables a control while awaiting server confirmation, then resets when the confirmed value arrives
+- **Wrapper** - Type-safe value container for UI-bound settings with change detection. Supports float, bool, and discrete enum types.
+- **CurveData / CurveWidget** (client-only) - Monotone cubic Hermite (Fritsch-Carlson) curve with Photoshop-style ImGui editor. Capped at 16 control points; endpoints locked; interior points clamp between neighbors.
+- **NetworkUiControl** - Templated helper that disables a control while awaiting server confirmation and resets when the confirmed value arrives.
 
 ## Architecture Notes
 
-Wrapper globals are declared in `WrapperBase.h` and defined in `WrapperBase.cpp` as `engine::` namespace globals. They expose runtime-adjustable parameters consumed by shaders, audio, and rendering code throughout the engine. Lighting globals span the full pipeline: pre-blur, deposit, radial spread (start and end interpolation targets, plus height-aware attenuation), combine (Uchimura tone curve: max brightness, contrast, linear start/length, toe, black tightness, hue preserve), directional/ambient intensities and powers for terrain and objects (with multiplicative/additive blend modes, power mode 0–1 blending luminance-based vs average-based hue-preserving scalar pow, below-base-height attenuation multiplier and power, and separate day/night final multipliers lerped by `fDayPercent` into the `fLightingTimeOfDayMultiplier` uniform), water specular highlights, and water skybox reflections. `gOpaqueUi` (bool) toggles the depth pre-pass that culls scene fragments behind registered opaque UI windows. `gUiOpacity` (float, 0–1) controls ImGui window background alpha globally, applied in `ImGuiManager::Prepare()`. Game-specific globals (hex shield, wind deposits) live in `game::Wrapper.h/.cpp`, not in `WrapperBase`.
+Engine-scope wrappers live here; game-specific wrappers live in `game::Wrapper.h/.cpp`. Curve types are `BT_CLIENT`-guarded because `ImVec2` is server-unavailable.
 
-**Ordering convention**: Wrapper global declaration order in `WrapperBase.h` and definition order in `WrapperBase.cpp` must match the tweaks screen UI layout (e.g., `TweaksScreenLighting.cpp` for lighting globals).
+**Wrapper invariants**: Storage is always `float` internally. `operator=` is deleted — callers must use the setter API. `Changed<T>()` self-advances previous-value tracking, making it a single-consumer contract per frame. Discrete-enum construction takes the allowed-value set and `DEBUG_BREAK`s on out-of-set values.
 
-**Virtual extension points**: `RenderLightingEffectsTab()` is a virtual method on `TweaksScreenBase` allowing the game layer to inject an Effects tab into the Lighting Tweaks section for game-specific lighting wrapper controls.
+**NetworkUiControl invariants**: Update must be called every frame with authoritative state. While pending, a diverged state auto-clears the flag; otherwise the baseline is continually re-cached so the next pending-snapshot is fresh.
+
+**CurveData change detection**: Size + scalar-hash compare, self-advancing (same single-consumer contract as `Wrapper`).
+
+**Cross-system coupling**: `gWorldDetail`'s largest divisor must match `Graphics::WorldDetail()`. Wrapper declaration order must match the tweaks screen UI layout.
 
 ## See Also
 
-- [Screens/CLAUDE.md](Screens/CLAUDE.md) - ImGui-based debug overlays (TweaksScreenBase)
+- [Screens/CLAUDE.md](Screens/CLAUDE.md) - ImGui-based debug overlays

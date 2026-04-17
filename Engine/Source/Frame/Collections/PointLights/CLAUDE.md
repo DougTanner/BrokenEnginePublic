@@ -1,24 +1,19 @@
-# /Engine/Source/Frame/Collections/PointLights/
+# PointLights - Circular Point Lights
 
-Client-only circular point lights with optional keyframe animation, using the Sync and Controller patterns. Produces two GPU outputs per light: an axis-aligned lighting quad (base-height projected) and a visible-light sprite quad (world-space).
+Client-only circular point lights with synced (parent-owned) and controlled (fire-and-forget) lifecycles. Each active light emits two GPU quads per frame: a base-height-projected lighting deposit and a visible-light sprite.
 
-The visible-light quad has two modes controlled by `PointLightsType::bCameraAligned`:
-- **`false` (default)**: World-space axis-aligned quad — corners offset along world X/Y axes. Suitable for ground-plane effects like fire or pools of light.
-- **`true`**: Camera-aligned billboard — corners computed from the camera's right and up vectors so the quad always faces the viewer. Suitable for volumetric or floating light sources.
+## Unique Aspects
 
-## File Structure
+- **Dual pipeline ownership**: owns both the axis-aligned lighting deposit pipeline and the visible-lights sprite pipeline. Two dynamic buffers sized in lockstep from a single capacity-accumulation pass.
+- **Base-height projection**: deposit position projects onto the ocean plane; visible sprite keeps original world Y. Both quads gated by point-visibility culling.
+- **Camera-aligned toggle**: a Type-level flag flips the visible sprite between world-axis-aligned (ground effects) and camera-facing billboard (volumetric sources). Deposit quad is always world-axis-aligned.
+- **Texture sampling split**: deposit uses the blurred texture index; visible sprite uses the unblurred index.
+- **Minimum lighting area clamp**: area floored against detail-texel size scaled by the deposit multiplier to prevent sub-texel flicker.
 
-The implementation is split across three `.cpp` files:
-- **PointLights.cpp** - Registration, lifecycle (allocate/copy, spawn, transfer, destroy with auto-expiry of controlled lights)
-- **PointLightsUpdate.cpp** - Update, sync, add/remove/addControlled, collision phases
-- **PointLightsRender.cpp** - GPU resources and draw submission (`#ifdef BT_CLIENT` only)
+## Controller vs. Sync Divergence
 
-## Architecture Notes
+Per-keyframe `Wrapper*` scales (visible/lighting area and intensity) apply only on the controlled path — at add-time seeding and during per-frame interpolation. Synced writes bypass them. Type-level wrappers exist for external default tuning but are not read here; there is no visible-area wrapper at the Type level.
 
-- Deposit quads sample the pre-blurred texture via `CrcToBlurredIndex()`; visible light sprites use the original unblurred texture via `CrcToIndex()`
-- Supports both synced lights (parent-managed) and controlled lights (fire-and-forget with keyframe animation that auto-destroys on expiry)
-- Controlled lights use `InterpolateKeyframes()` each frame to drive visible area, intensity, lighting area, and rotation. Per-keyframe `Wrapper*` arrays on `ControllerType` enable wrapper-scaled normalized keyframes for live tweaking
-- Lighting deposit quads enforce a minimum world-space size derived from the deposit texture resolution to prevent sub-texel flickering
+## Phase Usage
 
-## See Also
-- Parent collections: [../CLAUDE.md](../CLAUDE.md)
+Only `Destroy` is active (removes expired controlled lights). `Transfer` is a no-op — the owning entity handles transfer. `Register()` is empty; types are registered externally.

@@ -1,25 +1,19 @@
 # Input - Game-Specific Input Processing
 
-## Overview
-
-Converts raw hardware input into game and menu commands. Client-only (`#ifdef BT_CLIENT`); wraps the engine's `RawInputManager`. Server builds run AI-driven player behavior without external input. Supports simultaneous keyboard/mouse and gamepad control with automatic mode detection.
+Client-only (`BT_CLIENT`) conversion of raw hardware input into game and menu commands. Wraps the engine's `RawInputManager`. Server builds use AI-driven behavior and do not compile this code.
 
 **Global**: `gpInput`
 
-## Key Classes/Systems
-
-- **Input** - Polls `RawInputManager` and produces `MenuInput` flags with toggle detection via previous-state tracking. Automatically switches between keyboard/mouse and gamepad modes each frame based on which device is active. When menus are visible, also forwards gamepad state to ImGui
-- **MenuInput** - Flags struct for UI navigation and system commands (pause, fullscreen, quit). Debug commands (quicksave/load, replay, time scaling, debug texture toggle/cycle) compile in via `if constexpr` when `kbDebugInput` is true
-- **FrameInput** - Per-coordinate input carrying only status changes (spawn, respawn, transfer, destroy). Serializable for deterministic replay. Exposes `Crc()` for full-state CRC used by replay recording
-- **StatusChange / TransferData** - Defined in `Frame/StatusChange.h`. One-shot game state events with full entity state for cross-cell migration
-
 ## Architecture Notes
 
-- **Two-tier input**: Menu input runs every frame for responsive UI; frame input (status changes) is consumed during the physics tick pipeline
-- **Input flow**: `Main.cpp` calls `GameBase::ProcessInput()` which calls `Input::UpdateMenuInput()` then `GameBase::ProcessMenuInput()`. Frame input is built separately during `Game::BuildFrameInputs()`
-- Transfer status changes flow through the human's grid coordinate for replay determinism
+- **Two-tier input**: Menu input polls every display frame for responsive UI; per-tick `FrameInput` (a list of `StatusChange`s) is built separately and consumed during the physics tick pipeline. Its serialized layout is versioned — bump `kiVersion` on any on-disk change (replays/saves depend on it).
+- **Debug-gated bindings**: Debug/profile/screenshot keys compile in via `if constexpr` on `kbDebugInput` / `kbProfiling` / `kbScreenshots`; new debug-only keys belong inside those blocks.
+- **Mode auto-switch**: gamepad engages when `|thumbstick| > 0.1f`; mouse movement or a key in the KBM whitelist (WASD, arrows, numpad 1/2/3/5, LMB/RMB) flips back. New movement keys must extend the whitelist or mode detection misses them.
+- **Toggle-detect ordering**: previous-frame menu input is captured after all `*Pressed()` calls for the frame; moving that assignment earlier silently breaks edge detection for the rest of the function.
+- **Transfer determinism**: Transfer status changes route through the human's grid coordinate so replay order is deterministic.
+- **Variant read**: Reading a `StatusChange` must seat the correct `std::variant` alternative (via `DefaultDataForType`) before `common::Read` runs — `std::visit` assumes the active alternative already matches the type tag.
 
 ## See Also
 
-- Engine raw input: [Engine/Source/Input/CLAUDE.md](../../../../Engine/Source/Input/CLAUDE.md)
-- Game reconciliation architecture: [Documents/Architecture/GameReconciliation.md](../../../../Documents/Architecture/GameReconciliation.md)
+- Engine raw input: [../../../../Engine/Source/Input/CLAUDE.md](../../../../Engine/Source/Input/CLAUDE.md)
+- [Documents/Architecture/GameReconciliation.md](../../../../Documents/Architecture/GameReconciliation.md)

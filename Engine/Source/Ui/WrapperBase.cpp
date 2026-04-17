@@ -128,20 +128,20 @@ Wrapper gLightingDepositThreshold(0.0f, 0.0f, 4.0f);
 Wrapper gLightingDepositCompress(0.0f, 0.0f, 4.0f);
 
 // Lighting Spread
-Wrapper gSpreadPassCount(32.0f, 1.0f, static_cast<float>(shaders::kiMaxSpreadPasses));
+Wrapper gSpreadPassCount(32.0f, 1.0f, static_cast<float>(shaders::kiMaxSpreadPasses)); // min >= 1.0f load-bearing: keeps pow(fPassCount, -fCombineExposurePassScale) base positive in LightCombine.comp:79 / DebugTexture.frag:35.
 Wrapper gSpreadDecay(1.0f, 0.0f, 1.0f);
-Wrapper gSpreadAccumulationDecay(0.3f, 0.0f, 1.0f);
+Wrapper gSpreadAccumulationDecay(0.35f, 0.0f, 1.0f);
 
 // Lighting Spread Start
 Wrapper gSpreadTextureMultiplierStart(0.2f, 0.05f, 0.2f);
-Wrapper gSpreadDirectionality(0.35f, 0.0f, 1.0f);
+Wrapper gSpreadDirectionality(0.3f, 0.0f, 1.0f);
 Wrapper gSpreadDirectionCount(18.0f, 4.0f, 32.0f);
 Wrapper gSpreadDistance(1.0f, 0.0f, 10.0f);
 Wrapper gSpreadRingCount(4.0f, 1.0f, 24.0f);
 Wrapper gSpreadJitter(0.0f, 0.0f, 1.0f);
-Wrapper gSpreadDistanceFalloff(0.9f, 0.0f, 1.0f);
+Wrapper gSpreadDistanceFalloff(1.0f, 0.0f, 1.0f);
 Wrapper gSpreadOutputThreshold(0.0f, 0.0f, 4.0f);
-Wrapper gSpreadOutputCompress(3.5f, 0.0f, 4.0f);
+Wrapper gSpreadOutputCompress(3.0f, 0.0f, 4.0f);
 
 // Lighting Spread End
 Wrapper gSpreadTextureMultiplierEnd(0.01f, 0.01f, 0.1f);
@@ -150,32 +150,29 @@ Wrapper gSpreadDirectionCountEnd(8.0f, 4.0f, 16.0f);
 Wrapper gSpreadDistanceEnd(9.0f, 1.0f, 40.0f);
 Wrapper gSpreadRingCountEnd(5.0f, 1.0f, 16.0f);
 Wrapper gSpreadJitterEnd(0.874f, 0.0f, 1.0f);
-Wrapper gSpreadDistanceFalloffEnd(0.7f, 0.0f, 1.0f);
+Wrapper gSpreadDistanceFalloffEnd(0.8f, 0.0f, 1.0f);
 Wrapper gSpreadOutputThresholdEnd(0.0f, 0.0f, 4.0f);
 Wrapper gSpreadOutputCompressEnd(1.0f, 0.0f, 4.0f);
 
-// Lighting Spread Height Start
-Wrapper gSpreadHeightDistance(3.1f, 0.0f, 8.0f);
-Wrapper gSpreadHeightIntensity(0.0f, 0.0f, 1.0f);
-Wrapper gSpreadHeightIntensityTarget(20.0f, 1.0f, 20.0f);
-
-// Lighting Spread Height End
-Wrapper gSpreadHeightDistanceEnd(1.2f, 0.0f, 8.0f);
-Wrapper gSpreadHeightIntensityEnd(0.1f, 0.0f, 1.0f);
-Wrapper gSpreadHeightIntensityTargetEnd(11.5f, 1.0f, 20.0f);
+// Lighting Spread Height Fade
+Wrapper gSpreadHeightMultiplier(0.1f, 0.0f, 0.2f);
+Wrapper gSpreadHeightEndHeight(2.0f, 0.1f, 10.0f);
+Wrapper gSpreadHeightPower(3.0f, 0.1f, 8.0f);
 
 // Lighting Combine (Uchimura tone curve)
 Wrapper gCombineMaxBrightness(1.3f, 0.1f, 4.0f);
-Wrapper gCombineContrast(1.3f, 0.1f, 2.0f);
+Wrapper gCombineContrast(1.3f, 0.1f, 2.0f); // min > 0 load-bearing: prevents divide-by-zero through `a` in LightCombine.comp:67 / DebugTexture.frag:44.
 Wrapper gCombineLinearStart(0.25f, 0.01f, 0.5f);
 Wrapper gCombineLinearLength(0.5f, 0.01f, 0.8f);
-Wrapper gCombineToe(2.0f, 1.3f, 4.0f);
+Wrapper gCombineToe(3.0f, 1.3f, 6.0f);
 Wrapper gCombineBlackTightness(0.0f, 0.0f, 0.5f);
 Wrapper gCombinePassNormalize(0.7f, 0.0f, 1.0f);
-Wrapper gCombineExposurePassScale(0.0f, 0.0f, 1.0f);
+Wrapper gCombineExposurePassScale(0.0f, 0.0f, 1.0f); // Paired with gSpreadPassCount min=1.0f: pow(fPassCount, -scale) stays finite (base>=1, exponent in [-1,0]).
 Wrapper gCombineHuePreserve(0.0f, 0.0f, 1.0f);
 #if defined(BT_CLIENT)
-CurveData gCombineCurve({ImVec2(0.0000f, 32.0000f), ImVec2(0.3490f, 28.9185f), ImVec2(0.6745f, 0.0000f), ImVec2(1.0000f, 8.2074f)}, 0.0000f, 32.0000f);
+CurveData gCombineCurveOld({ImVec2(0.0000f, 32.0000f), ImVec2(0.3880f, 25.9852f), ImVec2(0.5766f, 0.9778f), ImVec2(1.0000f, 8.4444f)}, 0.0000f, 32.0000f);
+CurveData gCombineCurveNew({ImVec2(0.0000f, 32.0000f), ImVec2(0.3880f, 25.9852f), ImVec2(0.5766f, 0.9778f), ImVec2(1.0000f, 8.4444f)}, 0.0000f, 32.0000f);
+bool gbUseCombineCurveNew = true;
 #endif
 
 Wrapper gLightingSampledNormalsSize(0.3f, 0.05f, 0.5f);
@@ -185,8 +182,8 @@ Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
 Wrapper gLightingNewDirectional(0.7f, 0.0f, 2.0f);
 Wrapper gLightingNewDirectionalPower(0.7f, 0.5f, 2.0f);
 Wrapper gLightingDirectionalPowerMode(1.0f, 0.0f, 1.0f);
-Wrapper gLightingNewAmbient(110.0f, 0.0f, 200.0f);
-Wrapper gLightingNewAmbientPower(5.0f, 0.1f, 6.0f);
+Wrapper gLightingNewAmbient(50.0f, 0.0f, 200.0f);
+Wrapper gLightingNewAmbientPower(4.5f, 0.1f, 6.0f);
 Wrapper gLightingAmbientPowerMode(1.0f, 0.0f, 1.0f);
 Wrapper gLightingTerrain(1.0f, 0.0f, 2.0f);
 Wrapper gLightingAddTerrain(0.25f, 0.0f, 0.5f);
@@ -202,14 +199,14 @@ Wrapper gMoonBrightness(0.1f, 0.0f, 1.0f);
 Wrapper gLightingWaterAmbientPower(0.7f, 0.1f, 6.0f);
 Wrapper gLightingWaterAmbientPowerMode(1.0f, 0.0f, 1.0f);
 Wrapper gLightingWaterNormalSoften(0.5f, 0.0f, 1.0f);
-Wrapper gLightingWaterNormalBlendWave(0.25f, 0.0f, 1.0f);
-Wrapper gLightingWaterIntensity(0.14f, 0.0f, 0.3f);
+Wrapper gLightingWaterNormalBlendWave(0.2f, 0.0f, 0.4f);
+Wrapper gLightingWaterIntensity(0.035f, 0.0f, 0.1f);
 Wrapper gLightingWaterAdd(0.9f, 0.0f, 1.0f);
-Wrapper gLightingWaterOne(12.0f, 0.0f, 40.0f);
+Wrapper gLightingWaterOne(32.0f, 0.0f, 40.0f);
 Wrapper gLightingWaterOnePower(2.0f, 1.0f, 5.0f);
-Wrapper gLightingWaterTwo(2.5f, 0.0f, 10.0f);
+Wrapper gLightingWaterTwo(4.0f, 0.0f, 10.0f);
 Wrapper gLightingWaterTwoPower(0.9f, 0.75f, 2.0f);
-Wrapper gLightingWaterThree(1.6f, 0.0f, 15.0f);
+Wrapper gLightingWaterThree(3.0f, 0.0f, 15.0f);
 Wrapper gLightingWaterThreePower(0.7f, 0.5f, 1.0f);
 Wrapper gLightingWaterPowerMode(1.0f, 0.0f, 1.0f);
 
@@ -270,8 +267,8 @@ Wrapper gWindSwirlSpeedHigh(2.0f, 0.0f, 10.0f);
 Wrapper gWindSwirlSpeedLow(5.0f, 0.0f, 10.0f);
 Wrapper gWindVorticityConfinementHigh(2.0f, 0.0f, 4.0f);
 Wrapper gWindVorticityConfinementLow(0.5f, 0.0f, 1.0f);
-Wrapper gWindDecayHigh(0.99f, 0.5f, 0.999f);
-Wrapper gWindDecayLow(0.2f, 0.0f, 0.9f);
+Wrapper gWindDecayHigh(0.99f, 0.5f, 0.999f); // max < 1.0f load-bearing: keeps fDecayRate = 1 - mix(low, high, t) > 0 in WindSpreadCommon.h:70.
+Wrapper gWindDecayLow(0.2f, 0.0f, 0.9f); // max < 1.0f load-bearing: keeps fDecayRate = 1 - mix(low, high, t) > 0 in WindSpreadCommon.h:70.
 Wrapper gWindMomentumHigh(0.6f, 0.0f, 1.0f);
 Wrapper gWindMomentumLow(0.75f, 0.0f, 1.0f);
 Wrapper gWindDiffusionHigh(0.0f, 0.0f, 100.0f);

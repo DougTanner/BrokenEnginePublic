@@ -2,21 +2,34 @@
 
 ## Overview
 
-Game-level networking sessions that inherit from engine base classes and encapsulate all multiplayer orchestration. `ClientSession` and `ServerSession` are conditionally compiled (`BT_CLIENT` / `BT_SERVER`) and owned by `Game` via `unique_ptr`. Shared packet definitions and serialization live at the root.
+Game-layer multiplayer orchestration. `ClientSession` and `ServerSession` extend their engine base classes and are conditionally compiled (`BT_CLIENT` / `BT_SERVER`), owned by `Game` via `unique_ptr`. Shared packet identifiers and `StatusChange` serialization live at the root. Engine-level networking conventions (channel math, send path, ACK model, ENet tuning) are documented in [Engine/Source/Network/CLAUDE.md](../../../../Engine/Source/Network/CLAUDE.md) — not restated here.
 
-## Key Classes
+## Hub Conventions (children do not re-document these)
 
-- **GamePacketType** (`GamePacketType.h`) - Game-layer enum extending `engine::PacketType` at `kGamePacketStart`. Defines all game-specific packet identifiers (assign player, player state, player settings, fleet operations, fleet sync, and fleet navigation delay)
-- **PlayerEvents** (`PlayerEvents.h/.cpp`) - Parses raw game packets into typed `PlayerEventType` events. Defines `PlayerStateWireType` for wire encoding and `ReceivedPlayerEvent` (carrying `global_id_t`). `ParseFleetSync()` decodes fleet sync packets into a `vector<Fleet>`
-- **NetworkSerialization** (`NetworkSerialization.cpp`) - Game-layer implementation of `engine::NetworkSerialization.h`. Binary serialization of `StatusChange` batches with type-grouped encoding and LZ4 compress/decompress variants
+- **Packet-type extension**: `GamePacketType` extends `engine::PacketType` starting at `kGamePacketStart`. Engine forwards these as opaque bytes.
+- **Parse dispatch**: Parsers strip the packet-type byte before decoding payload. Short/truncated payloads are silently skipped (`continue`) — never thrown.
+- **Raw-packet ownership**: `ParsePlayerEvents` leaves `rRawPackets` untouched; `ParseFleetSync` **erases** consumed entries. Callers must tolerate mutation by fleet sync.
+- **Wire-order contract**: Enum-to-wire mappings (e.g., `PlayerStateWireType`) are send-order-sensitive; server send order and client decode order must move together.
+
+## StatusChange Batch Format
+
+- Indices sorted by `StatusChangeType`; each group prefixed with type byte + count.
+- LZ4 envelope wraps an int32 uncompressed-size prefix; scratch borrowed via `Workbuffer::Push`/`Pop`.
+- `kiMaxBytesPerItem` is `static_assert`ed against the largest serialization — bump it when `TransferData` grows.
+- Client-only fields (e.g., missile smoke-trail id) are still written/read on server to preserve identical wire size; server discards on read via `BT_CLIENT` gating.
+- LZ4 failures log at `kNetwork`/`kWarning`; mid-group truncation logs at `kVerbose`.
+
+## Adding a StatusChangeType
+
+Update both switches in `SerializeGroup` and `DeserializeStatusChangeBatch`, extend `DefaultDataForType`, and re-check `kiMaxBytesPerItem` covers the new payload.
 
 ## Subdirectories
 
-- [Client/CLAUDE.md](Client/CLAUDE.md) - `ClientSession` and reconciliation pipeline (`ClientDataReceiver`, `ClientDesyncManager`, `ClientReconciler`, `ReconcileReplay`)
-- [Server/CLAUDE.md](Server/CLAUDE.md) - `ServerSession` and its four manager classes (`ServerFleetManager`, `ServerTransferManager`, `ServerBroadcaster`, `ServerClientManager`)
+- [Client/CLAUDE.md](Client/CLAUDE.md) - `ClientSession` + reconciliation pipeline
+- [Server/CLAUDE.md](Server/CLAUDE.md) - `ServerSession` + fleet/transfer/broadcast/client managers
 
 ## See Also
 
-- Engine network subsystem: [Engine/Source/Network/CLAUDE.md](../../../../Engine/Source/Network/CLAUDE.md)
-- [Game Reconciliation](../../../../Documents/Architecture/GameReconciliation.md)
+- [Engine/Source/Network/CLAUDE.md](../../../../Engine/Source/Network/CLAUDE.md) - Engine hub (shared patterns)
 - [Network Architecture](../../../../Documents/Architecture/Network.md)
+- [Game Reconciliation](../../../../Documents/Architecture/GameReconciliation.md)

@@ -1,34 +1,35 @@
 # `/Engine/Source/Profile/`
 
-Performance profiling system providing CPU timing, GPU timing via Vulkan timestamp queries, boot-time measurements, and an in-game overlay. Uses Base/Derived inheritance for engine-game extension.
-
-**Global**: `game::gpProfileManager` (always instantiated, points to game-derived ProfileManager)
+CPU/GPU performance profiling, boot-time measurement, and in-game overlay. Engine Base / game Derived pattern; global is `game::gpProfileManager`.
 
 ## Architecture
 
-**Base/Derived Pattern**: `engine::ProfileManagerBase` owns engine-level counters and timers as member arrays. `game::ProfileManager` inherits from it, adding game-specific arrays. Virtual dispatch on `GetCpuCounter()`/`GetCpuTimer()` routes to the correct array based on index. Game enums encode the engine offset directly so profiling calls need no additional calculation.
+Base holds engine-level counter/timer arrays; game derived adds project-specific arrays. Virtual dispatch routes by index, with game enums encoding the engine offset so call sites need no arithmetic.
 
-**Compile-Time Elimination**: All profiling methods guard with `if constexpr (kbProfiling)` for zero overhead when disabled.
+All entry points are wrapped in `if constexpr (kbProfiling)` for zero overhead when disabled.
 
-**GPU Queries** (client-only): Uses a single `VkQueryPool` with per-command-buffer query sets. Results are read without blocking to prevent hangs at low framerates; unavailable results retain previous smoothed values. Integrates with Vulkan debug utils for external profiler labeling (RenderDoc, etc.).
+GPU timing, the `VkQueryPool`, and the overlay renderer are client-only; CPU timers, counters, boot timers, and text formatting compile in both builds so the server can use them.
 
-**Client/Server Split**: GPU methods, `VkQueryPool`, and the client profile overlay are gated behind `BT_CLIENT`. CPU timers, counters, boot timers, and CPU text formatting functions compile in both builds.
+## GPU Queries
+
+Single `VkQueryPool` with start/stop pairs per timer per in-flight command buffer. Reads are non-blocking — `VK_NOT_READY` skips silently so low framerates never stall; stale frames keep the last smoothed value. If the graphics queue reports `timestampValidBits == 0`, the pool stays null and every GPU method early-outs. Timed regions are wrapped in `vkCmdBegin/EndDebugUtilsLabelEXT` for RenderDoc.
 
 ## Thread Safety
 
-CPU profiling is thread-safe via per-thread timer state stored in a mutex-protected map keyed by `std::thread::id`. Timestamps are captured before acquiring the lock. This allows dispatch worker threads to contribute profiling data.
+CPU timer state is a mutex-protected map keyed by `std::thread::id` so dispatch workers can contribute. Timestamps are captured before acquiring the lock. Map resize wraps in `ScopedSuppressAllocationTracking` so profiling never pollutes its own counts. Cross-thread Start/Stop is supported via an explicit flag that scans the per-thread map.
 
-## Usage
+Each CPU timer reports the heap allocations that occurred inside its scope by diffing `giAllocationsThisFrame`.
 
-- **`ScopedCpuProfile`**: RAII scope-based CPU timing; also tracks per-timer heap allocation counts
-- **`ScopedBootTimer`**: RAII one-time initialization measurement
-- **Direct API**: `CpuStart()`/`CpuStop()`, `GpuStart()`/`GpuStop()`, `SetCount()`, `SmoothCpuTimers()` (updates smoothed CPU timer values; available in both builds so the server can call it independently of the client overlay)
-- **Overlay**: Cycles through `ProfileScreen` modes (Off, Cpu, Gpu, Frames, Network) via `ToggleProfileText()`. CPU screen shows timers, counters, memory stats, and allocations. GPU screen shows graphics info, GPU timers, and VMA GPU memory statistics (allocated/used/unused bytes, allocation and block counts, and per-heap budget and usage via `vmaGetHeapBudgets` when `mbMemoryBudgetAvailable`). Frames screen shows active grid visualization. Network screen is organized into sections (Transport, Sync, Prediction, Clock, Reconciliation) and displays packet loss percent, interarrival jitter, and the active simulation level. When simulation is enabled, stats exceeding their `NetworkSimulationBounds` thresholds are flagged with `!`. All overlay text is built using the workbuffer to avoid per-frame heap allocations. The virtual `RenderImPlotGraphs()` hook (client-only) is called by `ImGuiManager::Submit()` after screen text; game-derived classes override it to render ImPlot time-series graphs alongside the text overlay.
+## Overlay
 
-## File Organization
+`ToggleProfileText()` cycles through fixed screens (off / CPU / GPU / Frames / Network); each transition clears all profile text slots to prevent stale content. FPS header and memory screens render in CPU/GPU modes only; Frames/Network are game-owned via a `FormatGameScreens` override. Client-only ImPlot graphs render alongside the text overlay.
 
-Screen formatting logic is split into `ProfileScreens.cpp` to keep `ProfileManagerBase.cpp` under 500 lines. CPU timer and counter text formatting functions in `ProfileScreens.cpp` are shared (not client-gated) so the server can reuse them; the client-only `FormatCpuScreen()` calls these shared helpers. Game-specific screens (Frames, Network) are implemented by overriding `FormatGameScreens()` in the derived class.
+Display hysteresis: CPU timers, CPU counters, and GPU timers hide themselves ~1s after dropping below threshold.
+
+## Cross-Layer Dependency
+
+`FormatFpsHeader` reads a game-specific CPU timer enum directly — the engine base depends on the game enum defining the first game-specific CPU timer slot by convention.
 
 ## Extension
 
-Game projects inherit from `ProfileManagerBase`, adding game-specific counter and timer arrays and overriding `FormatGameScreens()` to add game-specific overlay screens. See [game ProfileManager](../../../Projects/BrokenEngineSandbox/Source/Profile/CLAUDE.md).
+Game projects inherit from `ProfileManagerBase` to add counters, timers, and overlay screens. See [game ProfileManager](../../../Projects/BrokenEngineSandbox/Source/Profile/CLAUDE.md).

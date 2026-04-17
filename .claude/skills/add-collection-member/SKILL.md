@@ -40,7 +40,11 @@ auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiSounds); }
 
 **`SharedCrcMembers()` — CRC subset:** Some collections (e.g., Players) have a `SharedCrcMembers()` that is a subset of `SharedMembers()`, excluding fields like server-side bookkeeping (`pClientGuids`, `pGlobalPlayerIds`) or client-only animation state. If the collection has `SharedCrcMembers()`, decide whether the new member should participate in CRC validation and add it there too (or explicitly exclude it).
 
-**`kiVersion` bump:** If the collection has a `static constexpr int64_t kiVersion`, bump it when adding a new shared member that changes the serialization layout.
+**`kiVersion` bump (important — do not skip):** If the collection has a `static constexpr int64_t kiVersion`, bump it when adding a new shared member that changes the serialization layout. Save files written with the old version will fail to load otherwise. Also bump the parent `Frame::kiVersion` in `Frame.h` for game collections, and the per-collection `kiVersion` for engine collections.
+
+**Indexable collections (`CollectionFlags::kIdToIndex`):** If the collection has this flag, the `idToIndexMap` is rebuilt by `engine::RemoveIndexableElement` (`CollectionMemory.h:382-396`) on every swap-and-pop. No extra work is needed for a new member — but if the member changes identity semantics (e.g., becomes part of a compound key), the map rebuild site needs updating.
+
+**Server-side zero-init warning:** `ServerCollectionRead()` (`Collection.h:666-667`) reads only `SharedMembers()`, then allocates the full `Members()` zero-initialized. A new shared member added without a corresponding server-side write path will arrive zero-initialized on clients — which may be undefined game state. When adding a shared member, confirm the server writes it.
 
 **Why this matters:** `Members()` (which combines `SharedMembers()` + `ClientMembers()` via `std::tuple_cat`) drives all automatic operations:
 - `CollectionCrc()` / `SharedCollectionCrc()` — deterministic CRC validation (Players overrides this with `SharedCrcMembers()` directly)
@@ -113,7 +117,8 @@ void BlastersPostRender::Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo)
 }
 ```
 
-If the spawn uses a `SpawnInfo` struct, add the new field there too.
+- **If the spawn uses a `SpawnInfo` struct, add the new field there too.** Callers of `Spawn()` pass a `SpawnInfo` to provide per-element parameters; omitting the field means callers cannot initialize the new member at spawn time.
+- **Paired collections**: if this is a PostRender collection with a matching Interpolate collection (or vice versa), check whether the mirror struct also needs the new member. Paired collections grow in lockstep via `engine::GrowPairedCollections()`.
 
 For engine collections with Add/Remove (e.g., AreaLights, Sounds, Pushers), initialize the member in the `Add()` method instead. **Sync-pattern collections** (where the owner calls `Sync()` each Interpolate phase) must zero-initialize all Interpolate fields in `Add()` — `Sync()` doesn't run until the next Interpolate phase, and CRC is computed after PostRender, so stale memory in the new Interpolate slot causes client/server desync.
 
@@ -137,8 +142,9 @@ Not all members need this — some are only set at spawn and copied via `Allocat
 
 ## Step 6: Add to Transfer (CPP) — If the Collection Supports Transfers
 
-If the collection has a `Transfer()` method that builds `TransferRequest`s for cross-cell entity migration, add the new member to the `TransferData` struct (or equivalent) so it survives the transfer:
+If the collection has a `Transfer()` method that builds `TransferRequest`s for cross-cell entity migration, add the new member to the `TransferData` struct (or equivalent) so it survives the transfer. Both sides of the transfer must be updated:
 
+**Sending side** — build the request with the new field:
 ```cpp
 TransferRequest request
 {
@@ -148,6 +154,8 @@ TransferRequest request
     },
 };
 ```
+
+**Receiving side** — the cell that accepts the transfer unpacks the data back into its own collection. Follow the existing unpack code (usually alongside `Spawn` or a dedicated `Receive` helper) and assign the new member from `rData.fSpeed` into `rCurrentPostRender.pfSpeed[iIndex]`. A missed receive means the member arrives with whatever default the sending cell's swap-and-pop left behind.
 
 ## Step 7: Add to ClientInit (CPP) — Client-Only Owned Objects
 
@@ -178,7 +186,6 @@ void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 - **`SharedMembers()` drives server CRC**: `SharedCollectionCrc()` uses `SharedMembers()` (when available) to exclude client-only fields. Players overrides this by calling `CollectionCrc()` directly with `SharedCrcMembers()` in Frame.cpp. `ServerCollectionRead()` reads only `SharedMembers()` from the server stream, then allocates full `Members()` zero-initialized so client-only pointers are valid but empty.
 - **`AllocateAndCopyIds` helper**: For engine PostRender collections whose only persistent member is `puiIds`, `engine::AllocateAndCopyIds<T>()` handles the entire AllocateAndCopy in one call.
 - **Destroy needs no changes**: `engine::DestroyElement()` and `engine::SwapElement()` operate on the `Members()` tuple automatically — swap-and-pop removal handles the new member as long as it's in the tuple (Step 1).
-- **LogDifferences logs all shared fields**: This includes fields excluded from CRC via `SharedCrcMembers()` — LogDifferences has broader scope than CRC for desync diagnosis. Client-only fields are excluded.
 - **`extern template`**: Collection headers declare `extern template struct Collection<T>` with explicit instantiation in the corresponding .cpp. No changes needed when adding members.
 
 ## See Also

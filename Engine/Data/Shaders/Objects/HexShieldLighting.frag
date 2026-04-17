@@ -43,15 +43,18 @@ void main()
 
 	// Hex shield direction
 	float fDirection = pHexShields[i].fMinimumIntensity;
+	vec3 f3Normal = normalize(f3InNormal);
 	for (int32_t j = 0; j < kiHexShieldDirections; ++j)
 	{
-		float fDot = dot(f3InNormal, pHexShields[i].pf4Directions[j].xyz);
-		float fFalloff = max(pow(0.5f + 0.5f * fDot, mainLayout.fHexShieldDirectionFalloffPower), 0.0f);
+		float fDot = dot(f3Normal, pHexShields[i].pf4Directions[j].xyz);
+		float fFalloff = pow(max(0.5f + 0.5f * fDot, 0.0f), mainLayout.fHexShieldDirectionFalloffPower);
 		fDirection += mainLayout.fHexShieldDirectionMultiplier * pHexShields[i].pfFragIntensities[j] * fFalloff;
 	}
 
 	// Lighting direction
-	vec2 f2Direction = normalize(f3InCenterNormal.xy);
+	vec2 f2CenterXY = f3InCenterNormal.xy;
+	float fCenterLen = length(f2CenterXY);
+	vec2 f2Direction = fCenterLen > 1e-6f ? f2CenterXY / fCenterLen : vec2(0.0f);
 	vec4 f4Direction = vec4(f2Direction.x > 0.0f ? f2Direction.x : 0.0f, f2Direction.x < 0.0f ? -f2Direction.x : 0.0f, f2Direction.y < 0.0f ? -f2Direction.y : 0.0f, f2Direction.y > 0.0f ? f2Direction.y : 0.0f);
 
 	// Compute all color channels simultaneously

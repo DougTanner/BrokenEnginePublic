@@ -16,7 +16,7 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		// Test
 		{"Test One", &gTestOne},
 		{"Test Two", &gTestTwo},
-			{"Debug Texture Range", &gDebugTextureLinearRange},
+		{"Debug Texture Range", &gDebugTextureLinearRange},
 		// Pbr - Tone Mapping
 		{"Exposure", &gPbrExposure},
 		{"Gamma", &gPbrGamma},
@@ -145,12 +145,9 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Spread Distance Falloff End", &gSpreadDistanceFalloffEnd},
 		{"Spread Output Threshold End", &gSpreadOutputThresholdEnd},
 		{"Spread Output Compress End", &gSpreadOutputCompressEnd},
-		{"Spread Height Distance", &gSpreadHeightDistance},
-		{"Spread Height Intensity", &gSpreadHeightIntensity},
-		{"Spread Height Intensity Target", &gSpreadHeightIntensityTarget},
-		{"Spread Height Distance End", &gSpreadHeightDistanceEnd},
-		{"Spread Height Intensity End", &gSpreadHeightIntensityEnd},
-		{"Spread Height Intensity Target End", &gSpreadHeightIntensityTargetEnd},
+		{"Spread Height Multiplier", &gSpreadHeightMultiplier},
+		{"Spread Height End Height", &gSpreadHeightEndHeight},
+		{"Spread Height Power", &gSpreadHeightPower},
 		{"Lighting Blur Sigma", &gLightingBlurSigma},
 		{"Lighting Blur Sample Count", &gLightingBlurSampleCount},
 		{"Lighting Blur Edge Falloff", &gLightingBlurEdgeFalloff},
@@ -282,4 +279,4 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 
 } // namespace engine
 
-#endif // BT_CLIENT
+#endif // defined(BT_CLIENT)

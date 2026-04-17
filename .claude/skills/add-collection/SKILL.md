@@ -114,11 +114,17 @@ extern template struct Collection<game::NewCollectionPostRender>;
 ### Members Pattern (Client/Server)
 
 Collections always use the three-method pattern for client/server support:
-- `SharedMembers()` — fields needed by both client and server (serialized in server streams)
+- `SharedMembers()` — fields needed by both client and server (serialized in server streams, participate in CRC)
 - `ClientMembers()` — client-only fields gated by `#ifdef BT_CLIENT` (visual references like area lights, sounds, wind trails)
 - `Members()` — combines both via `std::tuple_cat` (client) or returns just `SharedMembers()` (server)
 
-If a collection has no client-only fields, `ClientMembers()` can return an empty `std::tie()` or be omitted (with `Members()` just returning `SharedMembers()`).
+If a collection has no client-only fields, `ClientMembers()` returns an empty `std::tie()` — keep the method and the `std::tuple_cat` in `Members()` so the client/server pattern stays uniform across collections.
+
+**Discipline:** keep client-only pointers OUT of `SharedMembers()`. `ServerCollectionRead()` reads only `SharedMembers()` from the server stream — a client-only pointer leaked into `SharedMembers()` will read stream bytes as garbage into a client-owned object handle.
+
+### `extern template` is required
+
+The `extern template struct Collection<…>` declarations in the header are **required**, not optional. The corresponding `.cpp` does `template struct engine::Collection<…>;` (explicit instantiation). Without the `extern template` in the header, callers trigger implicit instantiation, which causes link conflicts or ODR violations.
 
 ## Engine Collection Steps
 
@@ -171,6 +177,10 @@ All other operations (phase dispatch, serialization, CRC, AllocateAndCopy) are a
 ### Step 4: Add files to vcxproj
 
 Add the new `.h` and `.cpp` files to the engine `.vcxproj` and `.vcxproj.filters`. The filter path must mirror the on-disk directory (e.g., `Engine/Source/Frame/Collections/NewCollection/` -> filter `Engine\Frame\Collections\NewCollection`). Create a new `<Filter>` definition with a GUID if the filter doesn't exist yet.
+
+### Step 5: Bump `kiVersion` if the shared layout changed
+
+If the new collection adds fields to `SharedMembers()` that participate in CRC or server streams, bump the per-collection `static constexpr int64_t kiVersion` (if the collection has one) AND any parent-frame `kiVersion`. For pure client-only additions (`ClientMembers()` only), no bump is needed — server build does not see them.
 
 ## Game Collection Steps
 
@@ -238,9 +248,16 @@ bEqual &= pNewCollections->LogDifferences(*rOther.pNewCollections);
 
 In `Frame.h`, increment `Frame::kiVersion` for save file compatibility.
 
-### Step 6: Add files to vcxproj
+### Step 6: Add files to vcxproj (FOUR files for game collections)
 
-Add the new `.h` and `.cpp` files to the game `.vcxproj` and `.vcxproj.filters`. The filter path must mirror the on-disk directory (e.g., `Source/Frame/Collections/NewCollection/` -> filter `Game\Frame\Collections\NewCollection`). Create a new `<Filter>` definition with a GUID if the filter doesn't exist yet.
+Game projects ship as a client AND server executable from a shared source tree, so every new file must be added to **four** files:
+
+- `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.vcxproj`
+- `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.vcxproj.filters`
+- `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandboxServer.vcxproj`
+- `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandboxServer.vcxproj.filters`
+
+The filter path must mirror the on-disk directory (e.g., `Source/Frame/Collections/NewCollection/` -> filter `Game\Frame\Collections\NewCollection`). Create a new `<Filter>` definition with a GUID if the filter doesn't exist yet. Files fully wrapped in `#if defined(BT_CLIENT)` go in the client project only; `#if defined(BT_SERVER)`-only files go in the server project only. Shared files go in both.
 
 ### What's Automatic for Game Collections
 

@@ -1,18 +1,10 @@
-# /Engine/Source/Frame/Collections/WindRadials/
+## Unique Aspects
 
-Client-only radial wind simulation input quads with animated expansion, using the Controller pattern.
-
-## File Structure
-
-The implementation is split across three `.cpp` files:
-- **WindRadials.cpp** - Registration, lifecycle (allocate/copy, spawn, transfer, destroy with auto-expiry of controlled radials)
-- **WindRadialsUpdate.cpp** - Update, add/addControlled, collision phases
-- **WindRadialsRender.cpp** - GPU resources and draw submission (`#ifdef BT_CLIENT` only)
-
-## Architecture Notes
-
-- Uses custom `WindRadialKeyframe` / `WindRadialControllerType` (intensity, size) instead of the default `ControllerType`/`ControllerKeyframe`, registered via `ControllerTypeRegistry<WindRadialsInterpolate, WindRadialControllerType>`
-- `WindRadialsPostRender::Members()` returns an empty tuple -- there are no PostRender SOA arrays
+- Custom controller type (intensity, size) instead of default; radials are stationary so Update animates only magnitude, not position
+- Ping-pong dual pipeline sharing one main buffer; indirect draw count written to only the pipeline matching the current wind-texture index, driving alternating-frame accumulation
+- Emits axis-aligned quads with a radial flag in `params.w` to distinguish from trail quads on the shared deposit pipeline; positions projected to base height and visibility-culled
+- All render phases and Update early-out when the wind UI toggle is off
+- PostRender is a lifetime-only shell (empty phase methods); only Destroy runs
 
 ## See Also
-- Parent collections: [../CLAUDE.md](../CLAUDE.md)
+- [../CLAUDE.md](../CLAUDE.md) - Collection framework, Controller pattern, three-phase render

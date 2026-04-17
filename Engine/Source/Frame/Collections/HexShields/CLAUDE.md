@@ -1,19 +1,15 @@
-# /Engine/Source/Frame/Collections/HexShields/
+# HexShields - Geodesic Shield Meshes
 
-Client-only geodesic shield meshes with directional damage visualization, using the Sync pattern.
+Client-only geodesic shield meshes with directional damage visualization. Fully owner-driven — no autonomous simulation.
 
-## File Structure
+## Unique Aspects
 
-The implementation is split across three `.cpp` files:
-- **HexShields.cpp** - Registration, lifecycle (allocate/copy, spawn, transfer, destroy)
-- **HexShieldsUpdate.cpp** - Update, sync, add/remove, collision phases
-- **HexShieldsRender.cpp** - GPU resources and draw submission (`#ifdef BT_CLIENT` only)
-
-## Architecture Notes
-
-- `SyncData` carries position, size, color mix, glow intensity, decomposed 3-row transform and normal matrices, and 16-direction damage channels with separate vertex-stage and fragment-stage intensities
-- Directional damage enables multi-directional hit visualization with up to 16 simultaneous impact directions
-- Supports color mixing between base and lighting colors, plus configurable shield glow intensity
+- **Owner-driven lifecycle**: all `PostRender` phase hooks and `Transfer` are no-ops; owners drive everything via per-frame add/remove/sync.
+- **Directional damage channels**: pointer-array cardinality matches the shader-side direction constant — keep header in sync. Independent vertex-stage and fragment-stage intensities per direction.
+- **Asymmetric propagation**: owner-synced scalar fields memcpy forward; transforms and directional intensities propagate via previous-frame copy (no lerp) then get overwritten by sync. Last values persist on frames where sync has not yet run.
+- **Dual pipeline, shared buffer**: main and lighting pipelines share one dynamic storage buffer; both rebind on resize and both receive the indirect-buffer write in `EndRender`.
+- **Culled-packed GPU buffer**: per-element visibility test with margin; culled elements do not advance the write cursor, keeping the buffer tightly packed.
+- **Packed ABGR type colors**: uint32 ABGR decoded to float4 inside the render loop.
 
 ## See Also
-- Parent collections: [../CLAUDE.md](../CLAUDE.md)
+- [../CLAUDE.md](../CLAUDE.md) - Collection<T>, SOA, Sync pattern, file splitting conventions

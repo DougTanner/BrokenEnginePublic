@@ -29,7 +29,7 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 		float fT = (shaders::kiMaxSpreadPasses > 1)
 			? static_cast<float>(i) / static_cast<float>(shaders::kiMaxSpreadPasses - 1)
 			: 0.5f;
-		rGlobalLayout.pfCombineCurvePoints[i] = gCombineCurve.Evaluate(fT);
+		rGlobalLayout.pfCombineCurvePoints[i] = (gbUseCombineCurveNew ? gCombineCurveNew : gCombineCurveOld).Evaluate(fT);
 	}
 	rGlobalLayout.fLightingTerrain = gLightingTerrain.Get();
 	rGlobalLayout.fLightingObjects = gLightingObjects.Get();
@@ -60,15 +60,10 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSpreadOutputThresholdEnd = gSpreadOutputThresholdEnd.Get();
 	rGlobalLayout.fSpreadOutputCompressEnd = gSpreadOutputCompressEnd.Get();
 
-	// Spread Height Start
-	rGlobalLayout.fSpreadHeightDistanceStart = gSpreadHeightDistance.Get();
-	rGlobalLayout.fSpreadHeightIntensityStart = gSpreadHeightIntensity.Get();
-	rGlobalLayout.fSpreadHeightIntensityTargetStart = gSpreadHeightIntensityTarget.Get();
-
-	// Spread Height End
-	rGlobalLayout.fSpreadHeightDistanceEnd = gSpreadHeightDistanceEnd.Get();
-	rGlobalLayout.fSpreadHeightIntensityEnd = gSpreadHeightIntensityEnd.Get();
-	rGlobalLayout.fSpreadHeightIntensityTargetEnd = gSpreadHeightIntensityTargetEnd.Get();
+	// Spread Height Fade
+	rGlobalLayout.fSpreadHeightMultiplier = gSpreadHeightMultiplier.Get();
+	rGlobalLayout.fSpreadHeightEndHeight = gSpreadHeightEndHeight.Get();
+	rGlobalLayout.fSpreadHeightPower = gSpreadHeightPower.Get();
 
 	// Per-ring rotation angles: jitter slider sets the seed; the shader scales by interpolated jitter
 	// Each ring uses its own seed for uncorrelated rotations

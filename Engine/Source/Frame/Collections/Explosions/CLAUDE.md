@@ -1,20 +1,17 @@
-# /Engine/Source/Frame/Collections/Explosions/
+# Explosions - Composite Effects
 
-Composite explosion effects that spawn lights, puffs, smoke trails, wind radials, and GPU particles. Compiles in both client and server builds, with visual spawning client-only. Game code registers custom explosion types.
+Composite explosion effects spawning lights, puffs, smoke trails, wind radials, and GPU particles. Compiles in both builds; visual spawning is client-only. Game code registers custom explosion types.
 
-## File Structure
+## Unique Aspects
 
-The implementation is split across three `.cpp` files:
-- **Explosions.cpp** - Registration, type registry, lifecycle (transfer, `Destroy()` with trail cleanup and expiry), `LogDifferences()`, render counter tracking
-- **ExplosionsSpawn.cpp** - `Spawn()` with fire-and-forget child effects
-- **ExplosionsUpdate.cpp** - `Update()` (copies explosion state, syncs trail positions with gravity), collision phases (all empty)
-
-## Architecture Notes
-
-- `Spawn()` spawns primary/secondary PointLights, Puffs, SmokeTrails, WindRadials, and GPU particles; random engine calls are unconditional to keep client/server in sync. Keyframe values are normalized multipliers; game-side `Wrapper` globals supply base magnitudes via per-keyframe wrapper arrays on controller types
-- Per-instance scaling percentages gate visual effect intensity (light, size, smoke, time)
-- Trail management: up to 8 SmokeTrails per explosion with gravity-affected interpolation and auto-cleanup. `Explosions.h` forward-declares `SmokeTrailsInterpolate` and `smoke_trails_t` (client-only) rather than including `SmokeTrails.h`, keeping the header dependency-light
-- Uses `SharedMembers()`/`ClientMembers()`/`Members()` three-method pattern for shared CRC compatibility
+- **State lives in Interpolate, not PostRender**: atypical for a Collection — PostRender exists solely to host phase statics and the public `Spawn(SpawnInfo)` API
+- **Flags gate ownership**: `kDestroysSelf` controls auto-removal; without it the caller owns the row and only expired trails are reaped. Color flags tint GPU particles via channel bit-ORs
+- **No own GPU pipeline**: all visible output comes from registered child collections (PointLights, Puffs, SmokeTrails, WindRadials) and `ParticleManager`
+- **Determinism in fire-and-forget spawns**: all `common::Random*` calls run unconditionally on both builds (unused results `[[maybe_unused]]` on server) so the random stream stays in sync when client-only visual spawns are skipped
+- **Reconciliation guard**: `ParticleManager::Spawn` is skipped when `FrameFlags::kRecalculated` is set, preventing double-spawn during client reconcile
+- **Per-explosion trail ring-buffer**: fixed slot count per row; slots beyond active count zero-initialized each Update. Cleanup runs every frame (not only on parent expiry)
+- **Normalized keyframes + Wrappers**: keyframe values are multipliers; game-side `Wrapper` globals supply base magnitudes. `Register()` is idempotent
+- **Type registry shared across builds**: particle fields carried on server (unused there) for CRC parity
 
 ## See Also
-- Parent collections: [../CLAUDE.md](../CLAUDE.md)
+- [../CLAUDE.md](../CLAUDE.md) - Collection\<T\>, SOA, Controller pattern, file-splitting convention

@@ -52,9 +52,9 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSlider("Ring Count", kiSection, 1.0f, "Spread Ring Count");
 				WrapperSlider("Jitter", kiSection, 1.0f, "Spread Jitter");
 				WrapperSlider("Distance Falloff", kiSection, 1.0f, "Spread Distance Falloff");
-				WrapperSlider("Height Distance", kiSection, 1.0f, "Spread Height Distance");
-				WrapperSlider("Height Intensity", kiSection, 1.0f, "Spread Height Intensity");
-				WrapperSlider("Height Intensity Target", kiSection, 1.0f, "Spread Height Intensity Target");
+				WrapperSlider("Height Multiplier", kiSection, 1.0f, "Spread Height Multiplier");
+				WrapperSlider("Height End Height", kiSection, 1.0f, "Spread Height End Height");
+				WrapperSlider("Height Power", kiSection, 1.0f, "Spread Height Power");
 				WrapperSlider("Output Threshold", kiSection, 1.0f, "Spread Output Threshold");
 				WrapperSlider("Output Compress", kiSection, 1.0f, "Spread Output Compress");
 
@@ -70,9 +70,6 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSlider("Ring Count", kiSection, 1.0f, "Spread Ring Count End");
 				WrapperSlider("Jitter", kiSection, 1.0f, "Spread Jitter End");
 				WrapperSlider("Distance Falloff", kiSection, 1.0f, "Spread Distance Falloff End");
-				WrapperSlider("Height Distance", kiSection, 1.0f, "Spread Height Distance End");
-				WrapperSlider("Height Intensity", kiSection, 1.0f, "Spread Height Intensity End");
-				WrapperSlider("Height Intensity Target", kiSection, 1.0f, "Spread Height Intensity Target End");
 				WrapperSlider("Output Threshold", kiSection, 1.0f, "Spread Output Threshold End");
 				WrapperSlider("Output Compress", kiSection, 1.0f, "Spread Output Compress End");
 
@@ -107,7 +104,13 @@ void TweaksScreenBase::RenderLightingSection()
 
 				ImGui::TableNextColumn();
 
-				if (CurveWidget("Pass Contribution Curve", gCombineCurve))
+				if (ImGui::Button(gbUseCombineCurveNew ? "Using: New Curve" : "Using: Old Curve"))
+				{
+					gbUseCombineCurveNew = !gbUseCombineCurveNew;
+				}
+
+				CurveData& rActiveCurve = gbUseCombineCurveNew ? gCombineCurveNew : gCombineCurveOld;
+				if (CurveWidget("Pass Contribution Curve", rActiveCurve))
 				{
 					mActiveSlider = "Combine Curve";
 					miActiveSliderSection = kiSection;
@@ -116,13 +119,14 @@ void TweaksScreenBase::RenderLightingSection()
 				if (ImGui::Button("Copy Curve To Clipboard"))
 				{
 					char pBuffer[2048];
-					int iOffset = std::snprintf(pBuffer, sizeof(pBuffer), "CurveData gCombineCurve({");
-					for (int i = 0; i < gCombineCurve.GetPointCount(); ++i)
+					const char* pName = gbUseCombineCurveNew ? "gCombineCurveNew" : "gCombineCurveOld";
+					int iOffset = std::snprintf(pBuffer, sizeof(pBuffer), "CurveData %s({", pName);
+					for (int i = 0; i < rActiveCurve.GetPointCount(); ++i)
 					{
-						const ImVec2& rPoint = gCombineCurve.GetPoint(i);
+						const ImVec2& rPoint = rActiveCurve.GetPoint(i);
 						iOffset += std::snprintf(pBuffer + iOffset, sizeof(pBuffer) - iOffset, "%sImVec2(%.4ff, %.4ff)", i == 0 ? "" : ", ", rPoint.x, rPoint.y);
 					}
-					std::snprintf(pBuffer + iOffset, sizeof(pBuffer) - iOffset, "}, %.4ff, %.4ff);", gCombineCurve.GetYMin(), gCombineCurve.GetYMax());
+					std::snprintf(pBuffer + iOffset, sizeof(pBuffer) - iOffset, "}, %.4ff, %.4ff);", rActiveCurve.GetYMin(), rActiveCurve.GetYMax());
 					ImGui::SetClipboardText(pBuffer);
 					LOG(kGraphics, kInfo, "{}", pBuffer);
 				}
@@ -203,4 +207,4 @@ void TweaksScreenBase::RenderLightingSection()
 
 } // namespace engine
 
-#endif // BT_CLIENT
+#endif // defined(BT_CLIENT)

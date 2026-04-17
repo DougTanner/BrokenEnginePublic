@@ -1,17 +1,14 @@
-# `/Engine/Source/Memory/`
-
-Global memory allocator and allocation tracking system.
+# `/Engine/Source/Memory/` - Global Allocator & Allocation Tracking
 
 ## Overview
 
-Replaces the default C++ allocator with mimalloc (or optionally the CRT debug heap) and provides per-frame allocation tracking that catches unexpected heap allocations during gameplay. All heap allocations in the process route through custom `operator new`/`operator delete` overloads.
-
-## Key Systems
-
-- **MemoryManager** - Dual-mode allocator selected at compile time: mimalloc (default) pre-reserves a large arena at startup to eliminate OS memory calls and page faults during gameplay; CRT debug heap mode (`ENABLE_CRT_DEBUG_HEAP`) enables leak detection with allocation-number breakpoints. Every allocation increments a per-frame counter for profiling and optionally triggers a debug break to catch unintended heap usage in the main loop.
-
-- **ScopedSuppressAllocationTracking** - RAII guard that suppresses allocation tracking debug breaks for code regions where heap allocation is intentional. Usage pattern documented in root CLAUDE.md under "Allocation tracking".
+Replaces the default C++ allocator with mimalloc (or optionally the CRT debug heap) via `operator new`/`delete` overloads, and tracks per-frame heap allocations to catch unintended main-loop allocations.
 
 ## Architecture Notes
 
-A static initializer constructed before `main()` configures the allocator for the entire process lifetime. In debug builds (mimalloc mode), mimalloc output is routed to the VS Output window and a `SIGABRT` handler calls `engine::HandleException()` to write a crash report with callstack on mimalloc assertions and other CRT aborts. At shutdown, peak heap usage stats are reported to the VS Output window (mimalloc mode only). Allocation tracking only activates on threads with initialized `ThreadLocal`, so background threads without thread-local storage are naturally excluded.
+- Static initializer configures the allocator before `main()`; mimalloc pre-reserves a multi-GiB arena with eager commit to eliminate OS calls and soft page faults during gameplay. CRT debug heap is a compile-time alternative for leak detection.
+- Per-frame allocation counter is atomic-relaxed, profiling-only; the tracking debug break is armed globally around the main loop so startup/teardown allocate freely. RAII suppression is thread-local — other threads still trip.
+- Only threads with initialized `ThreadLocal` participate in tracking; background threads are naturally excluded.
+- Debug builds route mimalloc output to VS Output and hook `SIGABRT` into `engine::HandleException` for crash reports. Shutdown reports peak heap and trips `DEBUG_BREAK` if committed memory exceeded the reserve (arena undersized).
+
+See parent [Engine/Source/CLAUDE.md](../CLAUDE.md) "Allocation discipline" for usage rules.

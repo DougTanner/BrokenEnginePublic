@@ -1,19 +1,19 @@
 # `/Engine/Source/Input/`
 
-Engine-level hardware input polling for keyboard, mouse, and gamepad. The `RawInput` struct and button enums compile in both builds; the `RawInputManager` class and `gpRawInputManager` global exist only in `BT_CLIENT` builds.
+Hardware input polling (client-only manager; `RawInput` struct compiles in both builds so shared code can reference the snapshot shape).
 
 ## Architecture
 
-**RawInputManager** polls all input devices each frame and populates a `RawInput` struct with current-frame state. Keyboard capture uses Win32 Raw Input API (event-driven via `HandleRawInput`); mouse and gamepad use DirectXTK (polled). Mouse position is normalized against framebuffer dimensions.
+`RawInputManager` aggregates a frame-coherent `RawInput` snapshot. Keyboard uses Win32 Raw Input (event-driven, `RIDEV_NOLEGACY` suppresses WM_KEY*); mouse/gamepad use DirectXTK polling.
 
-**RawInput** is a flat struct aggregating keyboard, mouse, and gamepad state for a single frame. Consumed by game-level input processing which compares consecutive frames to detect press/release transitions.
+**Two-phase update**: `HandleRawInput` fires from WndProc per event and writes a scratch keyboard array only. `Update` runs once per frame, polls mouse/gamepad, then copies the scratch into the snapshot — decouples event timing from frame timing. Snapshot is state-only; game layer diffs consecutive frames for press/release, keeping input deterministic.
 
-## Key Behaviors
+## Non-obvious Behaviors
 
-- **State-only tracking**: Records current button state, not transitions. Game-layer input classes diff consecutive frames to detect press/release — this ensures deterministic frame input since transition detection is deferred to the game layer
-- **Focus-aware**: Registers/unregisters raw input devices on window focus changes; clears keyboard state on focus gain to prevent stuck keys; suspends gamepad polling when unfocused
-- **Cursor trapping**: Constrains cursor to window bounds during gameplay, driven by `game::gpGame->ShouldTrapCursor()`
-- **Logging**: Input device lifecycle and error messages use the `kInput` log category
+- Focus GAIN clears the keyboard scratch (stuck-key guard); focus LOSS freezes the snapshot rather than clearing — consumers keep last-known state. Gamepad suspend/resume mirrors focus.
+- Mouse position is normalized against `gpGraphics->mFramebufferExtent2D`, not the client rect. Scroll wheel is DirectXTK's accumulator, not a per-frame delta.
+- Gamepad construction is try/catch — DirectXTK may throw; all code paths must guard on a null pointer. On disconnect, thumbsticks/buttons clear but triggers/dpad retain stale values.
+- Cursor trap is driven by `game::gpGame->ShouldTrapCursor()` each frame and forced off on focus loss regardless of game setting.
 
 ## See Also
 - Game-level input: [Projects/BrokenEngineSandbox/Source/Input/CLAUDE.md](../../../Projects/BrokenEngineSandbox/Source/Input/CLAUDE.md)

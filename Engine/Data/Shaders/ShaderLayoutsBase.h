@@ -267,15 +267,10 @@ struct GlobalLayout
 	float fSpreadOutputThresholdEnd INIT;
 	float fSpreadOutputCompressEnd INIT;
 
-	// Spread Height Start
-	float fSpreadHeightDistanceStart INIT;
-	float fSpreadHeightIntensityStart INIT;
-	float fSpreadHeightIntensityTargetStart INIT;
-
-	// Spread Height End
-	float fSpreadHeightDistanceEnd INIT;
-	float fSpreadHeightIntensityEnd INIT;
-	float fSpreadHeightIntensityTargetEnd INIT;
+	// Spread Height Fade
+	float fSpreadHeightMultiplier INIT;
+	float fSpreadHeightEndHeight INIT;
+	float fSpreadHeightPower INIT;
 
 	// Shadow
 	float fShadowWidthScale INIT;

@@ -4,19 +4,19 @@ Vertex-animated ocean surface with Gerstner wave simulation, Fresnel-based skybo
 
 ## Overview
 
-Renders the ocean surface as a tessellated quad covering the visible area. The vertex shader displaces vertices using summed Gerstner waves at two frequency bands, while the fragment shader composites depth-based color, skybox reflections, directional lighting, shadows, and specular highlights. Normal map and noise UV computation uses camera-relative positions with CPU-side double-precision reduction to avoid floating-point precision loss far from the world origin.
-
-## Shaders
-
-- **Water.vert** - Gerstner wave vertex animation with terrain-aware amplitude damping near shorelines and early culling for off-screen vertices.
-- **Water.frag** - Water surface shading: depth LUT color blended with noise-modulated water color, directional sunlight and moonlight color, ambient color, height-darken attenuation, skybox cubemap reflection via `Specular()` with Fresnel and sun bias, shadow and smoke-shadow, hue-preserving EWNS pre-pow (per-direction luminance/average scalar ratio controlled by `fWaterAmbientPowerMode`), `WaterLighting()` sampling the radial spread lighting texture at both the world position and base-height projected position with a power mode param for luminance-vs-average blend, and additive smoke blending via `BlendSmoke()`.
+Tessellated quad covering the visible area. Vertex shader sums Gerstner waves at two frequency bands; fragment shader composites depth-LUT color, skybox reflection, directional lighting, shadows, specular, and additive smoke. Normal and noise UVs use camera-relative positions combined with CPU-reduced double-precision origins to survive far-from-origin floating-point precision.
 
 ## Architecture Notes
 
-- Wave parameters are split between `GlobalLayout` (counts, steepness, debug offsets) and `MainLayout` (per-wave direction, frequency, amplitude, speed), set per-frame from `Render.cpp`
-- Beach directional fade blends wave direction toward shore-perpendicular as terrain elevation increases, creating natural wave behavior near shorelines
-- Lighting and base-height texture lookups use the undisplaced grid position rather than the wave-displaced world position, ensuring stable lighting that does not swim with wave animation
-- The vertex shader outputs a camera-relative position (vertex minus camera center) used for UV computation in the fragment shader; world position is reconstructed where needed
-- `GlobalLayout` exposes five scalar debug offset fields (low wave, medium wave, normal one, normal two, noise) used to shift texture/wave sampling coordinates independently, allowing precision testing at large world coordinates
-- Normal map and noise texture UV sampling use camera-relative coordinates combined with CPU-computed double-precision reduced offsets passed as uniforms, eliminating precision artifacts at large world coordinates
-- `fLightingTimeOfDayMultiplier` is applied as a linear scalar on the final `f3WaterLightingScaled` result, after `WaterLighting()`'s pow() calls, so time-of-day intensity scales linearly rather than being subject to exponentiation. The CPU populates this uniform by lerping `gLightingDayFinalMultiplier` and `gLightingNightFinalMultiplier` by `fDayPercent`
+- **Shore-fade asymmetry**: amplitude fade from terrain elevation is applied only to low-frequency waves; medium waves run at full amplitude everywhere.
+- **Z flattening near shore**: once terrain elevation exceeds the negative water-terrain threshold, displaced Z is rescaled toward zero so waves taper against the beach rather than clipping through terrain.
+- **Early-out divergence**: vertex shader emits a degenerate clip-space position to kill culled verts; fragment shader writes zero when its own (looser) elevation threshold is exceeded. Thresholds and mechanisms are intentionally different.
+- **Varying conventions**: camera-relative initial position drives normal/noise UV math; fully-displaced world position drives lighting/shadow/smoke world-space lookups; a separate visible-area texcoord drives elevation, shadow, and object-shadow sampling.
+- **Precision-safe normal sampling**: `textureGrad` with derivatives of the camera-relative position and `fract()`-wrapped UVs — derivatives are taken before per-octave scaling so mip selection stays stable across summed octaves.
+- **Decoupled normal blends**: wave-vs-sampled normal blend for lighting and for skybox reflection sampling are independent, letting the two use different smoothness.
+- Fresnel uses a `(1 - cosθ)^4` falloff (not Schlick's canonical `^5`) — intentional visual tuning.
+- Base-height projection projects the undisplaced world position down to the lighting plane for both EWNS lighting sampling and the smoke texcoord, keeping lighting stable under wave animation.
+- Hue-preserving pow on base-height lighting samples blends luminance-based and average-based exponents via a mode uniform, applied before lighting.
+- Time-of-day multiplier applies linearly after lighting's internal pow, scaling output without re-exponentiation.
+- Output alpha encodes water transparency from terrain elevation, clamped to a minimum to keep deep water opaque.
+- Ambient floor clamps output below by a fraction of ambient * skybox so fully-shadowed pixels never go black.
