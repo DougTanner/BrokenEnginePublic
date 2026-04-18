@@ -6,14 +6,16 @@ namespace game
 {
 
 // Explosions - Primary puff
-extern engine::Wrapper gExpPrimaryPuffAreaStart;
-extern engine::Wrapper gExpPrimaryPuffAreaEnd;
-extern engine::Wrapper gExpPrimaryPuffIntensity;
+extern engine::Wrapper gExplosionPrimaryPuffAreaOne;
+extern engine::Wrapper gExplosionPrimaryPuffAreaTwo;
+extern engine::Wrapper gExplosionPrimaryPuffIntensityOne;
+extern engine::Wrapper gExplosionPrimaryPuffIntensityTwo;
 
 // Explosions - Secondary puff
-extern engine::Wrapper gExpSecondaryPuffAreaStart;
-extern engine::Wrapper gExpSecondaryPuffAreaEnd;
-extern engine::Wrapper gExpSecondaryPuffIntensity;
+extern engine::Wrapper gExplosionSecondaryPuffAreaOne;
+extern engine::Wrapper gExplosionSecondaryPuffAreaTwo;
+extern engine::Wrapper gExplosionSecondaryPuffIntensityOne;
+extern engine::Wrapper gExplosionSecondaryPuffIntensityTwo;
 
 // Blasters - Terrain puff
 extern engine::Wrapper gBlasterPuffAreaStart;
@@ -22,9 +24,10 @@ extern engine::Wrapper gBlasterPuffIntensityStart;
 extern engine::Wrapper gBlasterPuffIntensityEnd;
 
 // Players - Impact puff
-extern engine::Wrapper gPlayerImpactPuffAreaStart;
-extern engine::Wrapper gPlayerImpactPuffAreaEnd;
-extern engine::Wrapper gPlayerImpactPuffIntensityStart;
+extern engine::Wrapper gPlayerImpactPuffAreaOne;
+extern engine::Wrapper gPlayerImpactPuffAreaTwo;
+extern engine::Wrapper gPlayerImpactPuffIntensityOne;
+extern engine::Wrapper gPlayerImpactPuffIntensityTwo;
 
 // Missiles - Trail
 extern engine::Wrapper gMissileTrailIntensity;

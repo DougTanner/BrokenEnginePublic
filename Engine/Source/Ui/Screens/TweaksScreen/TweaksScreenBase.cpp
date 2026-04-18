@@ -262,18 +262,20 @@ void TweaksScreenBase::WrapperSeparatorText(std::string_view label)
 	}
 }
 
-void TweaksScreenBase::SaveState(bool* pSectionVisible, ImVec2* pWindowPositions, int8_t* pActiveSubtab) const
+void TweaksScreenBase::SaveState(bool* pSectionVisible, ImVec2* pWindowPositions, int8_t* pActiveSubtab, bool* pSectionCollapsed) const
 {
 	std::memcpy(pSectionVisible, mSectionVisible, sizeof(mSectionVisible));
 	std::memcpy(pWindowPositions, mWindowPositions, sizeof(mWindowPositions));
 	std::memcpy(pActiveSubtab, mActiveSubtab, sizeof(mActiveSubtab));
+	std::memcpy(pSectionCollapsed, mSectionCollapsed, sizeof(mSectionCollapsed));
 }
 
-void TweaksScreenBase::LoadState(const bool* pSectionVisible, const ImVec2* pWindowPositions, const int8_t* pActiveSubtab)
+void TweaksScreenBase::LoadState(const bool* pSectionVisible, const ImVec2* pWindowPositions, const int8_t* pActiveSubtab, const bool* pSectionCollapsed)
 {
 	std::memcpy(mSectionVisible, pSectionVisible, sizeof(mSectionVisible));
 	std::memcpy(mWindowPositions, pWindowPositions, sizeof(mWindowPositions));
 	std::memcpy(mActiveSubtab, pActiveSubtab, sizeof(mActiveSubtab));
+	std::memcpy(mSectionCollapsed, pSectionCollapsed, sizeof(mSectionCollapsed));
 	std::fill(std::begin(mApplySubtab), std::end(mApplySubtab), true);
 }
 
@@ -294,9 +296,11 @@ void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)
 	constexpr float kfStartX = 10.0f;
 	ImVec2 f2InitialPosition = (mWindowPositions[iSection].y > 0.0f) ? mWindowPositions[iSection] : ImVec2 {kfStartX, mfToggleBarBottom};
 	ImGui::SetNextWindowPos(f2InitialPosition, ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowCollapsed(mSectionCollapsed[iSection], ImGuiCond_FirstUseEver);
 	ImGui::Begin(kpcSectionNames[iSection], bHasActiveSlider ? nullptr : &mSectionVisible[iSection], ImGuiWindowFlags_AlwaysAutoResize);
 	ImGui::SetWindowFontScale(kfUiScale);
 	mWindowPositions[iSection] = ImGui::GetWindowPos();
+	mSectionCollapsed[iSection] = ImGui::IsWindowCollapsed();
 
 	(this->*kRenderSectionFunctions[iSection])();
 

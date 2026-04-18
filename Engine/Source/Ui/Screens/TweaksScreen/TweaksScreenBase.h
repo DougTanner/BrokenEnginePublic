@@ -31,8 +31,8 @@ public:
 	TweaksScreenBase();
 	virtual ~TweaksScreenBase() = default;
 
-	void SaveState(bool* pSectionVisible, ImVec2* pWindowPositions, int8_t* pActiveSubtab) const;
-	void LoadState(const bool* pSectionVisible, const ImVec2* pWindowPositions, const int8_t* pActiveSubtab);
+	void SaveState(bool* pSectionVisible, ImVec2* pWindowPositions, int8_t* pActiveSubtab, bool* pSectionCollapsed) const;
+	void LoadState(const bool* pSectionVisible, const ImVec2* pWindowPositions, const int8_t* pActiveSubtab, const bool* pSectionCollapsed);
 
 	void Render();
 
@@ -47,7 +47,8 @@ public:
 	void RenderWaterMediumSection();
 	void RenderWaterDebugSection();
 	void RenderLightingSection();
-	virtual void RenderLightingEffectsTab() {}
+	virtual void RenderLightingEffectsVisibleTab() {}
+	virtual void RenderLightingEffectsLightingTab() {}
 	void RenderShadowSection();
 	void RenderMiscSection();
 	virtual void RenderHexShieldSection() = 0;
@@ -66,6 +67,7 @@ public:
 	ImVec2 mWindowPositions[static_cast<size_t>(TweakSection::kCount)];
 	int8_t mActiveSubtab[static_cast<size_t>(TweakSection::kCount)] {};
 	bool mApplySubtab[static_cast<size_t>(TweakSection::kCount)] {};
+	bool mSectionCollapsed[static_cast<size_t>(TweakSection::kCount)] {};
 	float mfToggleBarBottom = 0.0f;
 };
 

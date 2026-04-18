@@ -82,12 +82,12 @@ void RegisterBlasterTerrainEffects()
 			{.fVisibleArea = 1.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
 			{.fVisibleArea = 1.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
 			{.fVisibleArea = 1.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
-			{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
+			{.fVisibleArea = 1.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
 		},
-		.ppVisibleAreaScales = {&gCraterVisibleAreaStart, &gCraterVisibleAreaStart, &gCraterVisibleAreaEnd, nullptr},
-		.ppVisibleIntensityScales = {&gCraterVisibleIntensityStart, &gCraterVisibleIntensityStart, &gCraterVisibleIntensityEnd, nullptr},
-		.ppLightingAreaScales = {&gCraterLightingArea, &gCraterLightingArea, &gCraterLightingArea, nullptr},
-		.ppLightingIntensityScales = {&gCraterLightingIntensityStart, &gCraterLightingIntensityMid, &gCraterLightingIntensityEnd, nullptr},
+		.ppVisibleAreaScales = {&gCraterVisibleAreaOne, &gCraterVisibleAreaTwo, &gCraterVisibleAreaThree, &gCraterVisibleAreaFour},
+		.ppVisibleIntensityScales = {&gCraterVisibleIntensityOne, &gCraterVisibleIntensityTwo, &gCraterVisibleIntensityThree, &gCraterVisibleIntensityFour},
+		.ppLightingAreaScales = {&gCraterLightingAreaOne, &gCraterLightingAreaTwo, &gCraterLightingAreaThree, &gCraterLightingAreaFour},
+		.ppLightingIntensityScales = {&gCraterLightingIntensityOne, &gCraterLightingIntensityTwo, &gCraterLightingIntensityThree, &gCraterLightingIntensityFour},
 	});
 
 	// Terrain impact smoke puff effect

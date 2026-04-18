@@ -36,7 +36,7 @@ constexpr float kfArmorHitSoundVolumeScale = 0.5f;
 constexpr float kfBlasterFireInterval = 0.05f;
 constexpr float kfBlastersSpeed = 150.0f;
 constexpr float kfBlastersSpawnBarrelOffset = kfPlayerRadius * 0.4667f;
-constexpr float kfBlastersSpawnPreMove = kfPlayerRadius * 0.5f;
+constexpr float kfBlastersSpawnPreMove = 0.0f;
 constexpr float kfBlasterAngleJitter = 0.03f;
 
 // Missile spawn

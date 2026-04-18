@@ -124,14 +124,14 @@ void PlayersInterpolate::Register()
 		.keyframes =
 		{
 			{.fVisibleArea = 1.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
-			{.fVisibleArea = 0.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 0.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
+			{.fVisibleArea = 1.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
 			{},
 			{},
 		},
-		.ppVisibleAreaScales = {&gPlayerImpactVisibleArea, nullptr, nullptr, nullptr},
-		.ppVisibleIntensityScales = {&gPlayerImpactStartVisibleIntensity, &gPlayerImpactEndVisibleIntensity, nullptr, nullptr},
-		.ppLightingAreaScales = {&gPlayerImpactLightingArea, nullptr, nullptr, nullptr},
-		.ppLightingIntensityScales = {&gPlayerImpactStartLightingIntensity, &gPlayerImpactEndLightingIntensity, nullptr, nullptr},
+		.ppVisibleAreaScales = {&gPlayerImpactVisibleAreaOne, &gPlayerImpactVisibleAreaTwo, nullptr, nullptr},
+		.ppVisibleIntensityScales = {&gPlayerImpactVisibleIntensityOne, &gPlayerImpactVisibleIntensityTwo, nullptr, nullptr},
+		.ppLightingAreaScales = {&gPlayerImpactLightingAreaOne, &gPlayerImpactLightingAreaTwo, nullptr, nullptr},
+		.ppLightingIntensityScales = {&gPlayerImpactLightingIntensityOne, &gPlayerImpactLightingIntensityTwo, nullptr, nullptr},
 	});
 
 	// Register impact puff type and controller (smoke puff when hit)
@@ -150,12 +150,12 @@ void PlayersInterpolate::Register()
 		.keyframes =
 		{
 			{.fArea = 1.0f, .fIntensity = 1.0f, .fRotation = 0.0f},
-			{.fArea = 1.0f, .fIntensity = 0.0f, .fRotation = 0.0f},
+			{.fArea = 1.0f, .fIntensity = 1.0f, .fRotation = 0.0f},
 			{},
 			{},
 		},
-		.ppAreaScales = {&gPlayerImpactPuffAreaStart, &gPlayerImpactPuffAreaEnd, nullptr, nullptr},
-		.ppIntensityScales = {&gPlayerImpactPuffIntensityStart, nullptr, nullptr, nullptr},
+		.ppAreaScales = {&gPlayerImpactPuffAreaOne, &gPlayerImpactPuffAreaTwo, nullptr, nullptr},
+		.ppIntensityScales = {&gPlayerImpactPuffIntensityOne, &gPlayerImpactPuffIntensityTwo, nullptr, nullptr},
 	});
 
 	// Register hex shield type for player

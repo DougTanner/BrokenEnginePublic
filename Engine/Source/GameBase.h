@@ -221,13 +221,14 @@ protected:
 	MenuFlags_t mMenuFlags {MenuFlags::kMouseVisible};
 
 #if defined(BT_CLIENT)
-	// Render-side sim clock. Advances at wall rate, clamped to [T_prevTail, T_prevTail+kfDeltaTime]
-	// so fDeltaTime in [0, kfDeltaTime] maps to a true interpolation window (prevTail -> tail) —
-	// never extrapolation past tail velocity. Sim commits and render frames share the same wall
-	// clock, so no rate compensation is needed; mfRenderTime simply integrates real elapsed seconds
-	// and the clamps absorb sub-tick jitter. Single-tick commits don't rebase: T advances +kfDt
-	// while mfRenderTime stays continuous, so fDt drops by kfDt and the Update(N, kfDt) ≡
-	// Update(N+1, 0) invariant makes the handoff pixel-identical.
+	// Render-side sim clock. Advances at sim rate (wall × current time ratio), clamped to
+	// [T_prevTail, T_prevTail+kfDeltaTime] so fDeltaTime in [0, kfDeltaTime] maps to a true
+	// interpolation window (prevTail -> tail) — never extrapolation past tail velocity. Sim
+	// commits and render integration share the same time-ratio-scaled clock, so no separate
+	// servo is needed; mfRenderTime simply integrates sim seconds and the clamps absorb
+	// sub-tick jitter. Single-tick commits don't rebase: T advances +kfDt while mfRenderTime
+	// stays continuous, so fDt drops by kfDt and the Update(N, kfDt) ≡ Update(N+1, 0)
+	// invariant makes the handoff pixel-identical.
 	float mfRenderTime = 0.0f;
 	bool mbRenderClockSeeded = false;
 	common::Timer mRenderTimer;

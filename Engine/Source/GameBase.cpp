@@ -288,14 +288,14 @@ void GameBase::Render()
 		gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
 		gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
 
-		// Render-side sim clock: advance mfRenderTime by raw wall delta, clamped to [T, T + kfDt].
-		// Sim commits and render frames share the same wall clock (QueryPerformanceCounter), so
-		// there is no rate to servo against — a multiplier has no stable attractor here and was
-		// biasing downward on cap saturation. Phase is set once via a one-shot seed at the window
-		// midpoint; after that, integration preserves it automatically. On a single-tick commit,
-		// T advances +kfDt while mfRenderTime stays continuous, so fDt drops by kfDt and the
-		// Update(N, kfDt) ≡ Update(N+1, 0) invariant makes the handoff pixel-identical.
-		float realDeltaSeconds = common::NanosecondsToFloatSeconds<float>(mRenderTimer.GetDeltaNs(true));
+		// Render-side sim clock: advance mfRenderTime by sim delta (wall × current time ratio),
+		// clamped to [T, T + kfDt]. Render integrates in the same units as T (sim seconds, not
+		// wall seconds), so phase is preserved at any time ratio without an explicit servo.
+		// Phase is set once via a one-shot seed at the window midpoint; after that, integration
+		// preserves it automatically. On a single-tick commit, T advances +kfDt while mfRenderTime
+		// stays continuous, so fDt drops by kfDt and the Update(N, kfDt) ≡ Update(N+1, 0)
+		// invariant makes the handoff pixel-identical.
+		float fSimDeltaSeconds = common::NanosecondsToFloatSeconds<float>(mTimeStep.WallToSim(mRenderTimer.GetDeltaNs(true)));
 		const CoordFrames& rCameraFrames = mCoordFrames.at(cameraCoord);
 		bool bHaveInterpolationWindow = (rCameraFrames.iSnapshotCount >= kiRenderBehindTicks + 1);
 		// RenderFrame already returns prev-tail when count>=2, else tail. Either way, its fCurrentTime
@@ -339,7 +339,7 @@ void GameBase::Render()
 				mfRenderTime = T + 0.5f * game::kfDeltaTime;
 			}
 
-			mfRenderTime += realDeltaSeconds;
+			mfRenderTime += fSimDeltaSeconds;
 			mfRenderTime = std::clamp(mfRenderTime, T, T + game::kfDeltaTime);
 			fDeltaTime = mfRenderTime - T;
 		}

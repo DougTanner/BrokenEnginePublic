@@ -188,7 +188,7 @@ void TweaksScreenBase::RenderLightingSection()
 
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Effects", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 3) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Visible", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 3) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
 			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 3)
 			{
@@ -198,7 +198,20 @@ void TweaksScreenBase::RenderLightingSection()
 			{
 				mActiveSubtab[kiSection] = 3;
 			}
-			RenderLightingEffectsTab();
+			RenderLightingEffectsVisibleTab();
+			ImGui::EndTabItem();
+		}
+		if (ImGui::BeginTabItem("Lighting", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 4) ? ImGuiTabItemFlags_SetSelected : 0))
+		{
+			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 4)
+			{
+				mApplySubtab[kiSection] = false;
+			}
+			if (!mApplySubtab[kiSection])
+			{
+				mActiveSubtab[kiSection] = 4;
+			}
+			RenderLightingEffectsLightingTab();
 			ImGui::EndTabItem();
 		}
 		ImGui::EndTabBar();

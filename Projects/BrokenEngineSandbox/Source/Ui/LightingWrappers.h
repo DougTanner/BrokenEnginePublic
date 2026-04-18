@@ -6,30 +6,54 @@ namespace game
 {
 
 // Explosions - Primary light
-extern engine::Wrapper gExplosionPrimaryVisibleArea;
-extern engine::Wrapper gExplosionPrimaryVisibleIntensity;
-extern engine::Wrapper gExplosionPrimaryLightingArea;
-extern engine::Wrapper gExplosionPrimaryLightingIntensity;
+extern engine::Wrapper gExplosionPrimaryVisibleAreaOne;
+extern engine::Wrapper gExplosionPrimaryVisibleAreaTwo;
+extern engine::Wrapper gExplosionPrimaryVisibleAreaThree;
+extern engine::Wrapper gExplosionPrimaryVisibleIntensityOne;
+extern engine::Wrapper gExplosionPrimaryVisibleIntensityTwo;
+extern engine::Wrapper gExplosionPrimaryVisibleIntensityThree;
+extern engine::Wrapper gExplosionPrimaryLightingAreaOne;
+extern engine::Wrapper gExplosionPrimaryLightingAreaTwo;
+extern engine::Wrapper gExplosionPrimaryLightingAreaThree;
+extern engine::Wrapper gExplosionPrimaryLightingIntensityOne;
+extern engine::Wrapper gExplosionPrimaryLightingIntensityTwo;
+extern engine::Wrapper gExplosionPrimaryLightingIntensityThree;
 
 // Explosions - Secondary light
-extern engine::Wrapper gExplosionSecondaryVisibleArea;
-extern engine::Wrapper gExplosionSecondaryVisibleIntensity;
-extern engine::Wrapper gExplosionSecondaryLightingArea;
-extern engine::Wrapper gExplosionSecondaryLightingIntensity;
+extern engine::Wrapper gExplosionSecondaryVisibleAreaOne;
+extern engine::Wrapper gExplosionSecondaryVisibleAreaTwo;
+extern engine::Wrapper gExplosionSecondaryVisibleAreaThree;
+extern engine::Wrapper gExplosionSecondaryVisibleIntensityOne;
+extern engine::Wrapper gExplosionSecondaryVisibleIntensityTwo;
+extern engine::Wrapper gExplosionSecondaryVisibleIntensityThree;
+extern engine::Wrapper gExplosionSecondaryLightingAreaOne;
+extern engine::Wrapper gExplosionSecondaryLightingAreaTwo;
+extern engine::Wrapper gExplosionSecondaryLightingAreaThree;
+extern engine::Wrapper gExplosionSecondaryLightingIntensityOne;
+extern engine::Wrapper gExplosionSecondaryLightingIntensityTwo;
+extern engine::Wrapper gExplosionSecondaryLightingIntensityThree;
 
 // Explosions - Particle
 extern engine::Wrapper gExplosionParticleLightingArea;
 extern engine::Wrapper gExplosionParticleLightingIntensity;
 
 // Blasters - Terrain crater
-extern engine::Wrapper gCraterVisibleAreaStart;
-extern engine::Wrapper gCraterVisibleAreaEnd;
-extern engine::Wrapper gCraterVisibleIntensityStart;
-extern engine::Wrapper gCraterVisibleIntensityEnd;
-extern engine::Wrapper gCraterLightingArea;
-extern engine::Wrapper gCraterLightingIntensityStart;
-extern engine::Wrapper gCraterLightingIntensityMid;
-extern engine::Wrapper gCraterLightingIntensityEnd;
+extern engine::Wrapper gCraterVisibleAreaOne;
+extern engine::Wrapper gCraterVisibleAreaTwo;
+extern engine::Wrapper gCraterVisibleAreaThree;
+extern engine::Wrapper gCraterVisibleAreaFour;
+extern engine::Wrapper gCraterVisibleIntensityOne;
+extern engine::Wrapper gCraterVisibleIntensityTwo;
+extern engine::Wrapper gCraterVisibleIntensityThree;
+extern engine::Wrapper gCraterVisibleIntensityFour;
+extern engine::Wrapper gCraterLightingAreaOne;
+extern engine::Wrapper gCraterLightingAreaTwo;
+extern engine::Wrapper gCraterLightingAreaThree;
+extern engine::Wrapper gCraterLightingAreaFour;
+extern engine::Wrapper gCraterLightingIntensityOne;
+extern engine::Wrapper gCraterLightingIntensityTwo;
+extern engine::Wrapper gCraterLightingIntensityThree;
+extern engine::Wrapper gCraterLightingIntensityFour;
 
 // Players - Area light
 extern engine::Wrapper gPlayerAreaLightVisibleIntensity;
@@ -37,12 +61,14 @@ extern engine::Wrapper gPlayersBlasterLightingArea;
 extern engine::Wrapper gPlayersBlasterLightingIntensity;
 
 // Players - Impact point light
-extern engine::Wrapper gPlayerImpactVisibleArea;
-extern engine::Wrapper gPlayerImpactStartVisibleIntensity;
-extern engine::Wrapper gPlayerImpactLightingArea;
-extern engine::Wrapper gPlayerImpactStartLightingIntensity;
-extern engine::Wrapper gPlayerImpactEndVisibleIntensity;
-extern engine::Wrapper gPlayerImpactEndLightingIntensity;
+extern engine::Wrapper gPlayerImpactVisibleAreaOne;
+extern engine::Wrapper gPlayerImpactVisibleAreaTwo;
+extern engine::Wrapper gPlayerImpactVisibleIntensityOne;
+extern engine::Wrapper gPlayerImpactVisibleIntensityTwo;
+extern engine::Wrapper gPlayerImpactLightingAreaOne;
+extern engine::Wrapper gPlayerImpactLightingAreaTwo;
+extern engine::Wrapper gPlayerImpactLightingIntensityOne;
+extern engine::Wrapper gPlayerImpactLightingIntensityTwo;
 
 // Players - Hex shield
 extern engine::Wrapper gHexShieldIntensityDecay;
@@ -64,9 +90,13 @@ extern engine::Wrapper gEnemyBlasterLightingArea;
 extern engine::Wrapper gEnemyBlasterLightingIntensity;
 
 // Spaceships - Hit flash
-extern engine::Wrapper gHitFlashVisibleArea;
-extern engine::Wrapper gHitFlashVisibleIntensity;
-extern engine::Wrapper gHitFlashLightingArea;
-extern engine::Wrapper gHitFlashLightingIntensity;
+extern engine::Wrapper gHitFlashVisibleAreaOne;
+extern engine::Wrapper gHitFlashVisibleAreaTwo;
+extern engine::Wrapper gHitFlashVisibleIntensityOne;
+extern engine::Wrapper gHitFlashVisibleIntensityTwo;
+extern engine::Wrapper gHitFlashLightingAreaOne;
+extern engine::Wrapper gHitFlashLightingAreaTwo;
+extern engine::Wrapper gHitFlashLightingIntensityOne;
+extern engine::Wrapper gHitFlashLightingIntensityTwo;
 
 } // namespace game

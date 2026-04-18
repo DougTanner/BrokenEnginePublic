@@ -239,14 +239,14 @@ static void RegisterSpaceshipHitFlashEffect()
 			.keyframes =
 			{
 				{.fVisibleArea = 1.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
-				{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
+				{.fVisibleArea = 1.0f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1.0f, .fRotation = 0.0f},
 				{},
 				{},
 			},
-			.ppVisibleAreaScales = {&gHitFlashVisibleArea, nullptr, nullptr, nullptr},
-			.ppVisibleIntensityScales = {&gHitFlashVisibleIntensity, nullptr, nullptr, nullptr},
-			.ppLightingAreaScales = {&gHitFlashLightingArea, nullptr, nullptr, nullptr},
-			.ppLightingIntensityScales = {&gHitFlashLightingIntensity, nullptr, nullptr, nullptr},
+			.ppVisibleAreaScales = {&gHitFlashVisibleAreaOne, &gHitFlashVisibleAreaTwo, nullptr, nullptr},
+			.ppVisibleIntensityScales = {&gHitFlashVisibleIntensityOne, &gHitFlashVisibleIntensityTwo, nullptr, nullptr},
+			.ppLightingAreaScales = {&gHitFlashLightingAreaOne, &gHitFlashLightingAreaTwo, nullptr, nullptr},
+			.ppLightingIntensityScales = {&gHitFlashLightingIntensityOne, &gHitFlashLightingIntensityTwo, nullptr, nullptr},
 		});
 	}
 }

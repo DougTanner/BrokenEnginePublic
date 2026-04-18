@@ -31,7 +31,7 @@ int64_t TimeStep::TickRealtime()
 	}
 
 	// Accumulate time with scaling
-	mTickRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
+	mTickRemainderNs += WallToSim(realDeltaNs);
 
 	// Death spiral prevention: detect excessive updates and auto-reduce time scale
 	if constexpr (kbDebugInput)

@@ -88,7 +88,7 @@ void ServerSession::SendResends(int64_t iTick)
 
 void ServerSession::WaitForTick(engine::TimeStep& rTimeStep)
 {
-	std::chrono::nanoseconds scaledTickNs = (kTickNs * rTimeStep.miTimeDivide) / rTimeStep.miTimeMultiply;
+	std::chrono::nanoseconds scaledTickNs = rTimeStep.SimToWall(kTickNs);
 	ServerSessionBase::WaitForTick(rTimeStep, scaledTickNs);
 }
 

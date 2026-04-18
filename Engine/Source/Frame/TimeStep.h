@@ -31,6 +31,21 @@ public:
 	// Get current time multiplier
 	int64_t GetTimeMultiplier() const { return miTimeMultiply; }
 
+	// Convert a wall-clock duration into sim-clock duration using the current time ratio.
+	// Same formula as TickRealtime's accumulator step — keep the two in sync.
+	std::chrono::nanoseconds WallToSim(std::chrono::nanoseconds wallNs) const
+	{
+		return (wallNs * miTimeMultiply) / miTimeDivide;
+	}
+
+	// Inverse of WallToSim: convert a sim-clock duration into the wall-clock duration it occupies
+	// at the current time ratio. Use for waiters/sleepers (e.g. ServerSession::WaitForTick) that
+	// need real-time pacing for a fixed amount of sim time.
+	std::chrono::nanoseconds SimToWall(std::chrono::nanoseconds simNs) const
+	{
+		return (simNs * miTimeDivide) / miTimeMultiply;
+	}
+
 	// Set time scale (multiply/divide)
 	void SetTimeScale(int64_t iMultiply, int64_t iDivide);
 
