@@ -449,7 +449,9 @@ static void ApplyCoordWriteback(CoordWork& rWork)
 	{
 		rFrames.iConfirmedTick = rScratch.iNewConfirmedTick;
 		rFrames.iSnapshotHead = rScratch.iNewConfirmedOffset;
-		rFrames.iConfirmedOffset = 0;
+		// iNewConfirmedInnerOffset is nonzero only when the fast-path retained frames before
+		// confirmed for render-behind; replay/rollback paths leave it 0 (head == confirmed).
+		rFrames.iConfirmedOffset = rScratch.iNewConfirmedInnerOffset;
 		rFrames.iSnapshotCount = rScratch.iOutputCount;
 		ASSERT(rFrames.iSnapshotCount >= 0 && rFrames.iSnapshotCount <= engine::kiNetworkBufferSize);
 	}
@@ -498,7 +500,12 @@ void ReconcileCoord(CoordWork& rWork, const ReconcileInputs& rInputs)
 	{
 		if (rScratch.iNewConfirmedTick >= 0)
 		{
-			rScratch.iOutputCount = rFrames.iSnapshotCount - rFrames.iConfirmedOffset;
+			// rFrames.iConfirmedOffset was mutated by CrcValidateCoord to iHighestMatchIndex
+			// (offset from OLD head to confirmed). Retention shifts the new head back by
+			// kiRenderBehindTicks slots so the renderer retains a prev-tail — iOutputCount
+			// must count from the retained head, not from confirmed.
+			int64_t iHeadAdvance = std::max<int64_t>(0, rFrames.iConfirmedOffset - engine::kiRenderBehindTicks);
+			rScratch.iOutputCount = rFrames.iSnapshotCount - iHeadAdvance;
 			ApplyCoordWriteback(rWork);
 		}
 		ReconcileFastPathCatchUp(rWork, rInputs.iTargetTick);
@@ -612,7 +619,10 @@ void ReconcileCoord(CoordWork& rWork, const ReconcileInputs& rInputs)
 		{
 			if (rScratch.iNewConfirmedTick >= 0)
 			{
-				rScratch.iOutputCount = rFrames.iSnapshotCount - rFrames.iConfirmedOffset;
+				// See the matching block above: retention shifts the head back by
+				// kiRenderBehindTicks slots. iOutputCount must count from retained head.
+				int64_t iHeadAdvance = std::max<int64_t>(0, rFrames.iConfirmedOffset - engine::kiRenderBehindTicks);
+				rScratch.iOutputCount = rFrames.iSnapshotCount - iHeadAdvance;
 				ApplyCoordWriteback(rWork);
 			}
 			ReconcileFastPathCatchUp(rWork, rInputs.iTargetTick);

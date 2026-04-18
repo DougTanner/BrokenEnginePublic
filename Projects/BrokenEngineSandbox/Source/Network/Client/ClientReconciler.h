@@ -45,7 +45,8 @@ struct CoordScratch
 	int64_t iReplayWriteCount = 0;
 	int64_t iLastValidatedIndex = -1;
 	int64_t iNewConfirmedTick = -1;
-	int64_t iNewConfirmedOffset = -1;
+	int64_t iNewConfirmedOffset = -1;       // physical ring index of the new head (NOT necessarily confirmed)
+	int64_t iNewConfirmedInnerOffset = 0;   // offset from new head to the confirmed frame; equals kiRenderBehindTicks when render-retention is applied
 	int64_t iOutputCount = 0;
 	bool bCrcFastPath = false;
 	bool bReplayed = false;

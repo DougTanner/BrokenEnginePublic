@@ -97,6 +97,7 @@ void ClientDataReceiver::ApplyReceivedFullStates()
 				constexpr int64_t iInitialTargetBehind = (engine::kiJitterSafetyUs + iTickTimeUs - 1) / iTickTimeUs;
 				gpGame->SetTickCounter(iTick - iInitialTargetBehind);
 				gpGame->SetCurrentTime(fFullStateTime - static_cast<float>(iInitialTargetBehind) * kfDeltaTime);
+				gpGame->ResetRenderClock();
 			}
 
 			ConfirmedClientState confirmedState;

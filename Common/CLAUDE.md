@@ -7,7 +7,7 @@ Foundation layer (`namespace common`) with no dependencies outside the codebase.
 ## Key Systems
 
 - **DataFile.h** - `.pack` binary format: 16-byte aligned chunks, type-tagged headers. `DataHeader::kiVersion` incorporates `sizeof(ChunkHeader)` so any header layout change bumps the version automatically.
-- **Workbuffer** - Push/pop stack allocator via `gpThreadLocal->mWorkbuffer`, with RAII scope guards and `std::formatter` integration for `LOG()`. **Invariant**: growth path calls `DEBUG_BREAK()` — buffers must be sized correctly up front.
+- **Workbuffer** - Push/pop stack allocator via `gpThreadLocal->mWorkbuffer`, with RAII scope guards and `std::formatter` integration for `LOG()`. Per-argument formatter wrappers handle precision-formatted floats / vectors inside `LOG(...)` without heap; `ScopedWorkbufferBuilder` covers loop- or lambda-driven content. **Invariant**: growth path calls `DEBUG_BREAK()` — buffers must be sized correctly up front.
 - **Flags\<EnumType\>** - Type-safe bitfield wrapper; serializable and CRC-hashable. Underlying type must be unsigned.
 - **Multithreading / PersistentWorker** - `gpMultithreading->Dispatch` worker pool. Workers run at `THREAD_PRIORITY_TIME_CRITICAL`, own a private `ThreadLocal`, forward exceptions across wake/wait via `std::exception_ptr`.
 - **ThreadLocal** - Per-thread storage (log buffer, Workbuffer, tick/indent context). Ctor sets MXCSR and installs exception handlers (see Determinism / Exception Handling below).

@@ -116,9 +116,7 @@ void RegisterBlasterTerrainEffects()
 }
 
 // Helper to sync owned objects for a blaster
-static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight,
-	engine::point_lights_t uiPointLight, engine::sound_t uiSound,
-	FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, float fPitch)
+static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::point_lights_t uiPointLight, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, float fPitch)
 {
 	const BlastersType& rType = BlastersInterpolate::GetType(uiTypeIndex);
 
@@ -176,10 +174,9 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 	{
 		// Load (type index copied in AllocateAndCopy)
 		[[maybe_unused]] uint8_t uiTypeIndex = rCurrent.puiTypeIndices[i];
-
-		// Update position based on velocity and delta time
-		XMVECTOR vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], rPrevious.pVecPositions[i]);
 		XMVECTOR vecVelocity = rPreviousPostRender.pVecVelocities[i];
+
+		XMVECTOR vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), vecVelocity, rPrevious.pVecPositions[i]);
 
 		// Direction from velocity
 		XMVECTOR vecDirection = XMVector3Normalize(vecVelocity);
@@ -205,7 +202,6 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		}
 #endif // BT_CLIENT
 	}
-
 }
 
 void BlastersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)

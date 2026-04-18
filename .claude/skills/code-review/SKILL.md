@@ -35,6 +35,7 @@ The main loop runs under an allocation tracker that `DEBUG_BREAK()`s on heap all
 
 - **Local `std::vector` / `std::string` in hot paths** — must use `gpThreadLocal->mWorkbuffer` instead (see `Common/CLAUDE.md`).
 - **Heap allocation in main loop without `ScopedSuppressAllocationTracking`** — any unavoidable heap use needs the guard plus a `// Heap:` comment justifying it (see `Engine/Source/Memory/CLAUDE.md`).
+- **Allocating `LOG` format specs** — flag any `LOG(...)` containing a float format spec such as `{:.Nf}`, `{:e}`, `{:g}`, width/precision like `{:>10}`, `{:#x}`, or `std::format`/`std::format_to`/`std::to_string`/`std::ostringstream` anywhere. These go through heap-allocating `std::format` paths and trip the allocation tracker. Require pre-building via `common::ScopedWorkbufferBuilder` on `gpThreadLocal->mWorkbuffer` (`Append` / `AppendFloat`) and emitting with `LOG(cat, lvl, "{}", builder)`. Plain `{}` on integers and the named formatters in `Common/LogFormatters.h` (XMVECTOR, Flags, chrono durations, paths, etc.) are safe.
 - **Standard-library header placement** — new `#include <std>` in a `.h`/`.cpp` should move to `Common/ExternalHeaders.h`.
 
 ### 3. Verify Broken Engine Patterns

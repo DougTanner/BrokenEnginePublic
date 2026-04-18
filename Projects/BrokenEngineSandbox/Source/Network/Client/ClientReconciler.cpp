@@ -86,6 +86,7 @@ ReconcileDesyncInfo ClientReconciler::Run()
 		rScratch.iLastValidatedIndex = -1;
 		rScratch.iNewConfirmedTick = -1;
 		rScratch.iNewConfirmedOffset = -1;
+		rScratch.iNewConfirmedInnerOffset = 0;
 		rScratch.iOutputCount = 0;
 		rScratch.bCrcFastPath = false;
 		rScratch.bReplayed = false;

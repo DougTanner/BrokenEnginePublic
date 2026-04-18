@@ -147,6 +147,28 @@ private:
 	Workbuffer& mWorkbuffer;
 };
 
+// Per-argument workbuffer-aware float wrapper for use inside LOG(...).
+// Each {} placeholder Push/Pops a workbuffer frame inside its formatter,
+// so multiple Wb/WbV2 wrappers in one LOG call are safe.
+struct Wb
+{
+	Wb(float fValue, int iPrecision)
+	: fValue(fValue), iPrecision(iPrecision) {}
+
+	float fValue;
+	int   iPrecision;
+};
+
+// 2D XMVECTOR formatted as "(x,y)" with shared precision.
+struct WbV2
+{
+	WbV2(DirectX::XMVECTOR vec, int iPrecision)
+	: vec(vec), iPrecision(iPrecision) {}
+
+	DirectX::XMVECTOR vec;
+	int               iPrecision;
+};
+
 } // namespace common
 
 template <>
@@ -166,5 +188,39 @@ struct std::formatter<common::ScopedWorkbufferBuilder> : std::formatter<std::str
 	auto format(const common::ScopedWorkbufferBuilder& rValue, CONTEXT& rContext) const
 	{
 		return std::formatter<std::string_view>::format(rValue.View(), rContext);
+	}
+};
+
+template <>
+struct std::formatter<common::Wb> : std::formatter<std::string_view>
+{
+	template <typename CONTEXT>
+	auto format(const common::Wb& rValue, CONTEXT& rContext) const
+	{
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+		rWorkbuffer.Push();
+		rWorkbuffer.AppendFloat(rValue.fValue, rValue.iPrecision);
+		auto result = std::formatter<std::string_view>::format(rWorkbuffer.View(), rContext);
+		rWorkbuffer.Pop();
+		return result;
+	}
+};
+
+template <>
+struct std::formatter<common::WbV2> : std::formatter<std::string_view>
+{
+	template <typename CONTEXT>
+	auto format(const common::WbV2& rValue, CONTEXT& rContext) const
+	{
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+		rWorkbuffer.Push();
+		rWorkbuffer.Append(std::string_view("("));
+		rWorkbuffer.AppendFloat(DirectX::XMVectorGetX(rValue.vec), rValue.iPrecision);
+		rWorkbuffer.Append(std::string_view(","));
+		rWorkbuffer.AppendFloat(DirectX::XMVectorGetY(rValue.vec), rValue.iPrecision);
+		rWorkbuffer.Append(std::string_view(")"));
+		auto result = std::formatter<std::string_view>::format(rWorkbuffer.View(), rContext);
+		rWorkbuffer.Pop();
+		return result;
 	}
 };

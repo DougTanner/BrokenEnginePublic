@@ -119,6 +119,7 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 	{
 		LOG(kDefault, kWarning, "ServerUpdate FullTicks: {} (expected 1)", iFullTicks);
 	}
+
 	PrepareActiveSet();
 
 	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
@@ -242,12 +243,25 @@ void GameBase::FinalizeFrameTick(const std::vector<GridCoord>& rActiveCoords)
 #if defined(BT_CLIENT)
 game::Frame& GameBase::RenderFrame(GridCoord coord) const
 {
-	// Caller must ensure iSnapshotCount > 0 (enforced by ComputeActiveSet for active coords).
+	// Returns the frame kiRenderBehindTicks slots behind tail when possible so the render window
+	// spans (source -> tail) — a true interpolation between two committed ticks, never
+	// extrapolating past tail with its velocity. When the ring hasn't populated that many slots
+	// yet (cold start or a replay/rollback that didn't apply retention), fall back to the oldest
+	// available; callers force fDeltaTime = 0 for that coord so no extrapolation occurs.
 	const CoordFrames& rFrames = mCoordFrames.at(coord);
 	ASSERT(rFrames.iSnapshotCount > 0);
-	int64_t iTailPhysical = SnapshotIndex(rFrames.iSnapshotHead, rFrames.iSnapshotCount - 1);
-	ASSERT(rFrames.snapshots[iTailPhysical] != nullptr);
-	return *rFrames.snapshots[iTailPhysical];
+	int64_t iDesiredLogical = rFrames.iSnapshotCount - 1 - kiRenderBehindTicks;
+	int64_t iLogical = std::max<int64_t>(0, iDesiredLogical);
+	int64_t iPhysical = SnapshotIndex(rFrames.iSnapshotHead, iLogical);
+	ASSERT(rFrames.snapshots[iPhysical] != nullptr);
+	return *rFrames.snapshots[iPhysical];
+}
+
+void GameBase::ResetRenderClock()
+{
+	mfRenderTime = 0.0f;
+	mbRenderClockSeeded = false;
+	mRenderTimer.Reset();
 }
 
 void GameBase::Render()
@@ -273,7 +287,62 @@ void GameBase::Render()
 	{
 		gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
 		gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
-		float fDeltaTime = std::max(0.0f, common::NanosecondsToFloatSeconds<float>(mTimeStep.mTickRemainderNs));
+
+		// Render-side sim clock: advance mfRenderTime by raw wall delta, clamped to [T, T + kfDt].
+		// Sim commits and render frames share the same wall clock (QueryPerformanceCounter), so
+		// there is no rate to servo against — a multiplier has no stable attractor here and was
+		// biasing downward on cap saturation. Phase is set once via a one-shot seed at the window
+		// midpoint; after that, integration preserves it automatically. On a single-tick commit,
+		// T advances +kfDt while mfRenderTime stays continuous, so fDt drops by kfDt and the
+		// Update(N, kfDt) ≡ Update(N+1, 0) invariant makes the handoff pixel-identical.
+		float realDeltaSeconds = common::NanosecondsToFloatSeconds<float>(mRenderTimer.GetDeltaNs(true));
+		const CoordFrames& rCameraFrames = mCoordFrames.at(cameraCoord);
+		bool bHaveInterpolationWindow = (rCameraFrames.iSnapshotCount >= kiRenderBehindTicks + 1);
+		// RenderFrame already returns prev-tail when count>=2, else tail. Either way, its fCurrentTime
+		// is the START of the current render window.
+		const game::Frame& rSourceFrame = RenderFrame(cameraCoord);
+		float T = rSourceFrame.interpolate.fCurrentTime;
+
+		float fDeltaTime = 0.0f;
+		bool bPaused = (mGameFlags & GameFlags::kPaused) != 0;
+
+		if (bPaused)
+		{
+			// Freeze. Don't advance mfRenderTime; rendered scene stays static until unpause.
+			fDeltaTime = std::clamp(mfRenderTime - T, 0.0f, game::kfDeltaTime);
+		}
+		else if (!bHaveInterpolationWindow)
+		{
+			// Cold start / single-snapshot coord: no prev-tail to interpolate from. Force fDt=0 so
+			// rendering stays pinned to the only available frame — never extrapolating past tail
+			// velocity. Reset the seed flag so the next steady-state entry re-seeds at midpoint.
+			mfRenderTime = T;
+			mbRenderClockSeeded = false;
+			fDeltaTime = 0.0f;
+		}
+		else
+		{
+			// One-shot seed at window midpoint so jitter has symmetric headroom before hitting
+			// either clamp. After seeding, wall-rate integration preserves phase.
+			if (!mbRenderClockSeeded)
+			{
+				mbRenderClockSeeded = true;
+				mfRenderTime = T + 0.5f * game::kfDeltaTime;
+			}
+
+			// Rebase only on multi-tick T regression (reconcile snap, full-state seed). Tolerance
+			// widens to [T - kfDt, T + 2*kfDt] so a single-tick commit — which leaves mfRenderTime
+			// anywhere from slightly below new T to slightly below new T+kfDt — never triggers a
+			// rebase. Rebasing on every commit was the 32 Hz vibration signature.
+			if (mfRenderTime < T - game::kfDeltaTime || mfRenderTime > T + 2.0f * game::kfDeltaTime)
+			{
+				mfRenderTime = T + 0.5f * game::kfDeltaTime;
+			}
+
+			mfRenderTime += realDeltaSeconds;
+			mfRenderTime = std::clamp(mfRenderTime, T, T + game::kfDeltaTime);
+			fDeltaTime = mfRenderTime - T;
+		}
 		{
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
@@ -284,7 +353,11 @@ void GameBase::Render()
 				return !std::ranges::contains(rActiveCoords, rPair.first);
 			});
 
-			// AllocateAndCopy + Update each active frame's render interpolate (camera frame first)
+			// AllocateAndCopy + Update each active frame's render interpolate (camera frame first).
+			// Per-coord fDt override: a coord with only one snapshot has no prev-tail to interpolate
+			// from, so force fDt=0 for that coord regardless of the camera-anchored global fDeltaTime.
+			// This prevents a transient single-snapshot coord (post-fast-path shrink) from rendering
+			// extrapolated-from-tail state.
 			auto interpolateFrame = [&](const GridCoord& rCoord)
 			{
 				const game::Frame& rFrame = RenderFrame(rCoord);
@@ -297,8 +370,9 @@ void GameBase::Render()
 				}
 				rSub.iLastRenderedTick = rFrame.interpolate.iTick;
 				rSub.fLastRenderedTime = rFrame.interpolate.fCurrentTime;
+				float fCoordDeltaTime = (rSub.iSnapshotCount >= kiRenderBehindTicks + 1) ? fDeltaTime : 0.0f;
 				game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates.try_emplace(rCoord).first->second, rFrame.interpolate);
-				game::FrameInterpolate::Update(gpGraphics->mRenderInterpolates.at(rCoord), rFrame, fDeltaTime);
+				game::FrameInterpolate::Update(gpGraphics->mRenderInterpolates.at(rCoord), rFrame, fCoordDeltaTime);
 			};
 			interpolateFrame(cameraCoord);
 			for (const GridCoord& rCoord : rActiveCoords)

@@ -29,7 +29,11 @@ static std::optional<engine::global_id_t> FindMatchingPlayerInCoord(std::span<co
 		}
 		else if (rDestScratch.bCrcFastPath && rDestScratch.iNewConfirmedOffset >= 0)
 		{
-			pDestFrame = rDestFrames.snapshots[rDestScratch.iNewConfirmedOffset].get();
+			// iNewConfirmedOffset is the new HEAD (may sit kiRenderBehindTicks slots before the
+			// confirmed frame when render-behind retention is active); iNewConfirmedInnerOffset
+			// is the delta from that head to the confirmed frame.
+			int64_t iConfirmedPhysical = SnapshotIndex(rDestScratch.iNewConfirmedOffset, rDestScratch.iNewConfirmedInnerOffset);
+			pDestFrame = rDestFrames.snapshots[iConfirmedPhysical].get();
 		}
 		if (pDestFrame == nullptr)
 		{
@@ -72,9 +76,10 @@ void ReconcileUpdateClientState(std::span<const CoordWork> works, const Reconcil
 		}
 		else
 		{
-			// Human coord fast-pathed: read time from confirmed snapshot
+			// Human coord fast-pathed: read time from confirmed snapshot.
+			// iNewConfirmedOffset is the new HEAD; iNewConfirmedInnerOffset is the delta to confirmed.
 			int64_t iPhysical = (rScratch.iNewConfirmedOffset >= 0)
-				? rScratch.iNewConfirmedOffset
+				? SnapshotIndex(rScratch.iNewConfirmedOffset, rScratch.iNewConfirmedInnerOffset)
 				: SnapshotIndex(rFrames.iSnapshotHead, rFrames.iConfirmedOffset);
 			if (rFrames.snapshots[iPhysical] != nullptr)
 			{

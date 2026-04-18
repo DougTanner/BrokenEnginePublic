@@ -294,34 +294,38 @@ void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
 			continue;
 		}
 
-		// Calculate base blaster direction and barrel offset normal
+		// Base direction and left-normal for barrel offset
 		XMVECTOR vecBaseDirection = rCurrentInterpolate.pVecDirections[i];
 		XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(vecBaseDirection, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
 
-		// Decrement timer and spawn multiple blasters if needed
+		// Decrement fire timer and spawn as many blasters as fit
 		rCurrentPostRender.pfNextBlasterFireTimes[i] -= fDeltaTime;
 
 		while (rCurrentPostRender.pfNextBlasterFireTimes[i] <= 0.0f)
 		{
-			// Inter-frame time: how much time has elapsed since this blaster should have spawned
+			// Timer went negative by this amount when it crossed zero inside this tick, which equals
+			// the elapsed time from the fire moment to the end of the tick (kfDeltaTime - fire_offset).
 			float fInterFrameTime = -rCurrentPostRender.pfNextBlasterFireTimes[i];
 
-			// Interpolate player position backwards to where they were when this blaster spawned
+			// Rewind player to where they were at the fire moment (end_of_tick_pos - elapsed*vel).
 			XMVECTOR vecPlayerPositionAtSpawn = rCurrentInterpolate.pVecPositions[i] - fInterFrameTime * rCurrentPostRender.pVecVelocities[i];
 
-			// Alternate barrels
+			// Alternate barrels: left vs right of player forward
 			rCurrentPostRender.pFlags[i].Toggle(kBlasterSpawnLeft);
 			float fBarrelOffset = (rCurrentPostRender.pFlags[i] & kBlasterSpawnLeft) ? kfBlastersSpawnBarrelOffset : -kfBlastersSpawnBarrelOffset;
 
-			// Apply random angle jitter to this blaster's direction
 			XMVECTOR vecJitteredDirection = common::RandomAngleJitter(vecBaseDirection, kfBlasterAngleJitter, rFrame.postRender.randomEngine);
-			XMVECTOR vecBlasterVelocity = kfBlastersSpeed * vecJitteredDirection;
+			XMVECTOR vecBlasterVelocity = XMVectorScale(vecJitteredDirection, kfBlastersSpeed);
 
-			// Calculate spawn position: player position at spawn time + barrel offset + pre-move along velocity
-			XMVECTOR vecSpawnPosition = vecPlayerPositionAtSpawn + fBarrelOffset * vecLeftNormal;
-			XMVECTOR vecFinalPosition = vecSpawnPosition + kfBlastersSpawnPreMove * vecJitteredDirection + fInterFrameTime * vecBlasterVelocity;
+			// Muzzle point in world: player at fire time + barrel offset + constant pre-move along velocity
+			XMVECTOR vecSpawnPosition = vecPlayerPositionAtSpawn + fBarrelOffset * vecLeftNormal + kfBlastersSpawnPreMove * vecJitteredDirection;
 
-			// Spawn blaster with calculated position and velocity
+			// Forward step by fInterFrameTime (the blaster's age by end-of-tick) so stored matches
+			// rNext.fCurrentTime — the reference time of every other position in this frame. Then
+			// the next sim Update's `stored + kfDeltaTime * vel` lands on the physically correct
+			// position, and successive blasters fired at different sub-tick times stay evenly spaced.
+			XMVECTOR vecFinalPosition = XMVectorAdd(vecSpawnPosition, XMVectorScale(vecBlasterVelocity, fInterFrameTime));
+
 			BlastersPostRender::Spawn(rFrame,
 			{
 				.vecPosition = vecFinalPosition,

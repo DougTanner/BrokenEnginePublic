@@ -66,6 +66,7 @@ Rules:
 - **Engine -> Game**: Engine code includes `Game.h` and accesses game functionality via `game::gpGame` (not GameBase directly). Never create globals for Base classes - always use the game-derived version
 - **Workbuffer**: Use `gpThreadLocal->mWorkbuffer` for temp allocations instead of local `std::vector`/`std::string`. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Allocation tracking**: Heap allocations in the main loop trigger `DEBUG_BREAK()`. When unavoidable, wrap with `ScopedSuppressAllocationTracking` + `// Heap:` comment. See [Memory/CLAUDE.md](Engine/Source/Memory/CLAUDE.md)
+- **LOG formatting**: Float specs (`{:.Nf}`, etc.) allocate. For flat field lists, wrap each float/vector argument with the per-argument workbuffer formatters (`common::Wb` for floats, `common::WbV2` for `XMVECTOR`) directly inside `LOG(...)`. For loop- or lambda-driven content, pre-build via `common::ScopedWorkbufferBuilder` and emit as `LOG(cat, lvl, "{}", builder)`.
 - **Standard library headers**: `#include <header>` additions go in `Common/ExternalHeaders.h`, not in individual source files
 - **Flags over booleans**: Use `common::Flags<EnumType>` instead of multiple `bool` variables. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/CLAUDE.md](Common/CLAUDE.md)

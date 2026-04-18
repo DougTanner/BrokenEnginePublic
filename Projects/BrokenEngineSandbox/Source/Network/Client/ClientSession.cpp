@@ -202,6 +202,7 @@ void ClientSession::Reconcile()
 			LOG(kNetwork, kWarning, "ClientSession::Reconcile Clock snap OldTick: {} NewTick: {} LatestServerTick: {} TargetBehind: {}", iCurrentTick, iSnapTick, miLatestServerTick, miCurrentTargetBehind);
 			gpGame->SetTickCounter(iSnapTick);
 			gpGame->mTimeStep.ClearAccumulator();
+			gpGame->ResetRenderClock();
 			mbClockErrorDisconnect = false;
 			miConsecutiveClockErrorFrames = 0;
 			miClockError = 0;
@@ -322,6 +323,7 @@ void ClientSession::ResetForServerLoad()
 	gpGame->SetTickCounter(0);
 	gpGame->mTimeStep.ClearAccumulator();
 	gpGame->mTimeStep.mRealTime.Reset();
+	gpGame->ResetRenderClock();
 
 	// Reset clock correction state
 	miLatestServerTick = -1;

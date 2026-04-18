@@ -132,6 +132,14 @@ inline int64_t SnapshotIndex(int64_t iHead, int64_t iLogical)
 {
 	return (iHead + iLogical) % kiNetworkBufferSize;
 }
+
+// Number of committed ticks the renderer stays behind the ring tail. Render interpolates across
+// a closed window of kiRenderBehindTicks committed ticks (e.g. 1 = [tail-1, tail]), so every
+// rendered position lies between two already-simulated ticks and velocity changes never require
+// extrapolation. Raise this to absorb more jitter at the cost of visual latency (31.25 ms per
+// tick at 32 Hz). Drives the retention floor in ReconcileReplayCrc's fast-path and the source
+// index in GameBase::RenderFrame — change here and the reconcile/render pair move together.
+inline constexpr int64_t kiRenderBehindTicks = 1;
 #endif // BT_CLIENT
 
 class GameBase
@@ -157,6 +165,7 @@ public:
 	void ClientUpdate();
 	void Render();
 	game::Frame& RenderFrame(GridCoord coord) const;
+	void ResetRenderClock();
 #endif // BT_CLIENT
 #if defined(BT_SERVER)
 	void ServerUpdate(const game::MenuInput& rMenuInput);
@@ -210,6 +219,19 @@ protected:
 	int64_t miNextGlobalId = 1;
 
 	MenuFlags_t mMenuFlags {MenuFlags::kMouseVisible};
+
+#if defined(BT_CLIENT)
+	// Render-side sim clock. Advances at wall rate, clamped to [T_prevTail, T_prevTail+kfDeltaTime]
+	// so fDeltaTime in [0, kfDeltaTime] maps to a true interpolation window (prevTail -> tail) —
+	// never extrapolation past tail velocity. Sim commits and render frames share the same wall
+	// clock, so no rate compensation is needed; mfRenderTime simply integrates real elapsed seconds
+	// and the clamps absorb sub-tick jitter. Single-tick commits don't rebase: T advances +kfDt
+	// while mfRenderTime stays continuous, so fDt drops by kfDt and the Update(N, kfDt) ≡
+	// Update(N+1, 0) invariant makes the handoff pixel-identical.
+	float mfRenderTime = 0.0f;
+	bool mbRenderClockSeeded = false;
+	common::Timer mRenderTimer;
+#endif // BT_CLIENT
 };
 
 } // namespace engine

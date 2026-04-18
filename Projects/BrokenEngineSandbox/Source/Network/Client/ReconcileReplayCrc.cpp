@@ -154,8 +154,14 @@ static void CrcApplyMatchResult(CoordWork& rWork, int64_t iHighestMatch, int64_t
 	rScratch.iNewConfirmedTick = iHighestMatch;
 	rScratch.profiling.iCrcValidatedFrameTicks += iHighestMatch - rFrames.iConfirmedTick;
 
-	rScratch.iNewConfirmedOffset = SnapshotIndex(rFrames.iSnapshotHead, iHighestMatchIndex);
-	rScratch.iOutputCount = rFrames.iSnapshotCount - iHighestMatchIndex;
+	// Retain kiRenderBehindTicks frames BEFORE the confirmed match so the renderer always has
+	// a prev-tail (or N prev-tails) available for interpolation. Head stays kiRenderBehindTicks
+	// slots behind confirmed; iConfirmedInnerOffset tracks that delta. Clamped by
+	// iHighestMatchIndex itself so cold-start (confirmed at head=0) doesn't produce a negative.
+	int64_t iHeadAdvance = std::max<int64_t>(0, iHighestMatchIndex - engine::kiRenderBehindTicks);
+	rScratch.iNewConfirmedInnerOffset = iHighestMatchIndex - iHeadAdvance;
+	rScratch.iNewConfirmedOffset = SnapshotIndex(rFrames.iSnapshotHead, iHeadAdvance);
+	rScratch.iOutputCount = rFrames.iSnapshotCount - iHeadAdvance;
 
 	// Drop validated entries — fast-path advances iConfirmedTick in place, so anything
 	// at or below it is now consumed and would otherwise accumulate in serverUpdates.
