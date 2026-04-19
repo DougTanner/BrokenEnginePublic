@@ -117,7 +117,7 @@ inline XMVECTOR XM_CALLCONV ComputeFrameArea(FXMVECTOR vecBaseArea, engine::Grid
 	return XMVectorAdd(vecBaseArea, vecOffset);
 }
 
-inline constexpr size_t kuiInitialTransferCapacity = 256;
+inline constexpr size_t kuiInitialTransferCapacity = 32;
 
 inline bool XM_CALLCONV IsOutOfBounds(const FrameBounds& rBounds, FXMVECTOR vecPosition)
 {

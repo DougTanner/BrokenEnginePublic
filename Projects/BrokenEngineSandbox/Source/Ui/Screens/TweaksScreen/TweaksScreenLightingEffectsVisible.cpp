@@ -29,6 +29,9 @@ void TweaksScreen::RenderLightingEffectsVisibleTab()
 		WrapperSlider("Visible Int Two", kiSection, 1.0f, "Explosion Secondary Visible Intensity Two");
 		WrapperSlider("Visible Int Three", kiSection, 1.0f, "Explosion Secondary Visible Intensity Three");
 
+		WrapperSeparatorText("Explosions - Particle");
+		WrapperSlider("Visible Intensity", kiSection, 1.0f, "Explosion Particle Visible Intensity");
+
 		WrapperSeparatorText("Explosions - Primary Puff");
 		WrapperSlider("Area One", kiSection, 1.0f, "Explosion Primary Puff Area One");
 		WrapperSlider("Area Two", kiSection, 1.0f, "Explosion Primary Puff Area Two");

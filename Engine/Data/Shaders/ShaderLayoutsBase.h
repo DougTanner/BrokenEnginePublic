@@ -633,6 +633,7 @@ struct ParticleLayout
 {
 	int32_t iColor INIT;
 	int32_t iCookie INIT;
+	int32_t iLightingCookie INIT;
 	int32_t iLightingIntensity INIT;
 
 	float fVelocityDecay INIT;

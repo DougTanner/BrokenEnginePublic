@@ -185,7 +185,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 
 		[[maybe_unused]] float fParticleIntensity = rType.fParticleIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleIntensityRandom;
 #if defined(BT_CLIENT)
-		fParticleIntensity *= game::gExplosionParticleLightingIntensity.Get();
+		fParticleIntensity *= game::gExplosionParticleVisibleIntensity.Get();
 #endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
@@ -194,11 +194,11 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 			ParticleManager::Spawn(gpParticleManager->mLongParticlesSpawnLayout,
 			{
 				.iColor = static_cast<int32_t>(uiParticleColor),
-				.iLightingIntensity = static_cast<int32_t>(rType.fParticleLightingIntensity),
+				.iLightingIntensity = static_cast<int32_t>(rType.fParticleLightingIntensity * game::gExplosionParticleLightingIntensity.Get()),
 				.fVelocityDecay = rType.fParticleVelocityDecay,
 				.fGravity = rType.fParticleGravity,
 				.fIntensityDecay = rType.fParticleIntensityDecay,
-				.fLightingSize = rType.fParticleLightingSize,
+				.fLightingSize = rType.fParticleLightingSize * game::gExplosionParticleLightingArea.Get(),
 				.fSize = rType.fParticleWidth,
 				.fLength = rType.fParticleLength,
 				.fIntensity = fParticleIntensity,

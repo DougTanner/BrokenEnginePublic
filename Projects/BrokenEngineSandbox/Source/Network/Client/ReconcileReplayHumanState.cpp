@@ -125,6 +125,16 @@ void ReconcileUpdateClientState(std::span<const CoordWork> works, const Reconcil
 						continue;
 					}
 
+					if (std::abs(rRequest.iDeltaX) > 1 || std::abs(rRequest.iDeltaY) > 1) [[unlikely]]
+					{
+						LOG(kDefault, kError,
+							"ReconcileUpdateClientState Transfer delta spans more than one grid cell Tick: {} Source: ({},{}) Delta: ({},{}) GlobalPlayerId: {}",
+							rFrame.interpolate.iTick,
+							rWork.coord.x, rWork.coord.y,
+							static_cast<int32_t>(rRequest.iDeltaX), static_cast<int32_t>(rRequest.iDeltaY),
+							clientState.clientGlobalPlayerId);
+						DEBUG_BREAK();
+					}
 					engine::GridCoord destination {rWork.coord.x + rRequest.iDeltaX, rWork.coord.y + rRequest.iDeltaY};
 					LOG(kNetwork, kVerbose, "ReconcileUpdateClientState TransferPlayer GlobalPlayerId: {} Source: ({},{}) Dest: ({},{})", clientState.clientGlobalPlayerId, rWork.coord.x, rWork.coord.y, destination.x, destination.y);
 					clientState.clientGridCoord = destination;

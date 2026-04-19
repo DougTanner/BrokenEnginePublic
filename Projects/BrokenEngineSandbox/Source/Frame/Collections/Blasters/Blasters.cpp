@@ -250,9 +250,24 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[m
 		};
 		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
 
-		// Heap realloc warning: capacity exceeded during burst transfers (e.g. network stall recovery). Increase kuiInitialTransferCapacity in Frame.h
+		// Heap realloc warning: capacity exceeded during burst transfers. Expected max ~1-2/tick
+		// per source frame — anything higher suggests entities are re-flagging kTransfer across
+		// iterations, DestroyElement isn't removing them, or there's an unexpected push path.
 		if (rFrame.postRender.transferRequests.size() == rFrame.postRender.transferRequests.capacity()) [[unlikely]]
 		{
+			LOG(kDefault, kError,
+				"Blaster Transfer capacity hit Tick: {} Source: ({},{}) Index: {} Position: {} Velocity: {} Delta: ({},{}) TypeIndex: {} Alignment: {} SourceCount: {} Pushed: {} Capacity: {}",
+				rFrame.interpolate.iTick,
+				rStaticData.coord.x, rStaticData.coord.y,
+				i,
+				common::WbV2(vecPosition, 1),
+				common::WbV2(rCurrentPostRender.pVecVelocities[i], 1),
+				static_cast<int32_t>(request.iDeltaX), static_cast<int32_t>(request.iDeltaY),
+				static_cast<int32_t>(rCurrentInterpolate.puiTypeIndices[i]),
+				rCurrentPostRender.pAlignments[i],
+				rCurrentInterpolate.iCount,
+				rFrame.postRender.transferRequests.size(),
+				rFrame.postRender.transferRequests.capacity());
 			DEBUG_BREAK();
 		}
 		rFrame.postRender.transferRequests.push_back(request);

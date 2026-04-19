@@ -45,7 +45,8 @@ void main()
 	float fIntensity = particles.pParticles[i].fIntensity;
 
 	vec4 f4Color = unpackUnorm4x8(particles.pParticles[i].iColor).abgr;
-	float fCookie = texture(sampler2D(pTextures[nonuniformEXT(particles.pParticles[i].iCookie)], particleSampler), f2InTexcoord).x;
+	// Sample pre-blurred cookie (CrcToBlurredIndex) at mip 0 — matches the area/point-light deposit pattern and gives a soft falloff without depending on source-PNG shape or auto-LOD behavior.
+	float fCookie = textureLod(sampler2D(pTextures[nonuniformEXT(particles.pParticles[i].iLightingCookie)], particleSampler), f2InTexcoord, 0.0f).x;
 	f4Color = vec4(fCookie * fIntensity * f4Color.w * f4Color.xyz, 0.0f);
 
 	// Compute all color channels simultaneously

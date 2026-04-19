@@ -151,7 +151,7 @@ void PipelineManager::CreateLightingPipelines()
 	{
 		.name = "LightingParticlesLong",
 		.flags = {kRenderTarget, kPushConstants, kIndirectDeviceLocal, kMax, kUpdateAfterBind},
-		.ppShaders = {&mShaders.at(data::kShadersParticlesLightingParticlesRendervertCrc), &mShaders.at(data::kShadersParticlesLightingParticlesRenderfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersParticlesLongLightingParticlesRendervertCrc), &mShaders.at(data::kShadersParticlesLightingParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mLightingVkRenderPass,
 		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent,

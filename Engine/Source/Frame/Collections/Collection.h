@@ -421,6 +421,17 @@ struct TypeRegistry
 #endif
 			}
 		}
+
+		if constexpr (requires { rType.particleCrc; })
+		{
+			if (rType.particleCrc != 0)
+			{
+				RequestTextureChunkLoad(rType.particleCrc);
+#if defined(BT_CLIENT)
+				RegisterLightingTextureCrc(rType.particleCrc);
+#endif
+			}
+		}
 	}
 
 	static const TType& GetType(uint8_t uiIndex)

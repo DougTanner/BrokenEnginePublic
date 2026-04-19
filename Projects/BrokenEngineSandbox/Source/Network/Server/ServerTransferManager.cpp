@@ -27,6 +27,32 @@ static engine::ClientGuid TransferDataClientGuid(const TransferData& rData)
 	return {rData.uiClientGuidHigh, rData.uiClientGuidLow};
 }
 
+// A destination is "live" if it has a committed player or any client actively subscribes to it.
+// Deliberately does not consult mActiveCoords: ComputeActiveSet force-adds kOriginCoord (0,0)
+// every tick as an initial-fleet-spawn bootstrap, so membership there doesn't imply anyone is
+// watching. This check is used to decide whether non-Player transfers should be dropped instead
+// of materializing ghost entities that clients can't see.
+static bool IsDestinationLive(engine::GridCoord destination)
+{
+	auto dit = gpGame->mCoordFrames.find(destination);
+	if (dit != gpGame->mCoordFrames.end() && dit->second.pCurrent != nullptr &&
+		dit->second.pCurrent->postRender.pPlayers->iCount > 0)
+	{
+		return true;
+	}
+	for (const engine::ClientConnection& rClient : engine::gpServer->GetClients())
+	{
+		for (const auto& rSub : rClient.coordSubscriptions)
+		{
+			if (rSub.bActive && rSub.coord == destination)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 void ServerTransferManager::CollectTransfers(std::vector<ClientTransferInfo>& rClientTransfers)
 {
 	for (const engine::GridCoord& rCoord : gpGame->mActiveCoords)
@@ -39,7 +65,43 @@ void ServerTransferManager::CollectTransfers(std::vector<ClientTransferInfo>& rC
 
 		for (const TransferRequest& rRequest : rNextFrame.postRender.transferRequests)
 		{
+			// Transfer destinations must be adjacent (±1 in each axis — Chebyshev distance ≤ 1).
+			// A delta outside that range means either ComputeTransferDelta produced a bad value
+			// or the TransferRequest was corrupted after it was built — both are bugs that would
+			// teleport entities. Specifically catches any "transfer into (0,0) from further than
+			// one grid coord away" — Source + Delta = Dest in the log makes the landing coord
+			// obvious without mental arithmetic.
+			if (std::abs(rRequest.iDeltaX) > 1 || std::abs(rRequest.iDeltaY) > 1) [[unlikely]]
+			{
+				LOG(kDefault, kError,
+					"Transfer delta spans more than one grid cell Tick: {} Source: ({},{}) Delta: ({},{}) Dest: ({},{}) Type: {} Position: {} Velocity: {}",
+					rNextFrame.interpolate.iTick,
+					rCoord.x, rCoord.y,
+					static_cast<int32_t>(rRequest.iDeltaX), static_cast<int32_t>(rRequest.iDeltaY),
+					rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY,
+					StatusChangeTypeName(rRequest.eType),
+					common::WbV2(rRequest.data.vecPosition, 1),
+					common::WbV2(rRequest.data.vecVelocity, 1));
+				DEBUG_BREAK();
+			}
+
 			engine::GridCoord destination {rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY};
+
+			// Drop non-Player transfers (spaceships, blasters, missiles) whose destination is not
+			// live. kTransferPlayer is always allowed — the player's arrival IS the subscription.
+			// Sibling-subscribed empty cells (client watching but no player present) remain live
+			// and receive transfers normally so clients don't see entities vanish at cell
+			// boundaries.
+			if (rRequest.eType != StatusChangeType::kTransferPlayer && !IsDestinationLive(destination))
+			{
+				LOG(kNetwork, kVerbose,
+					"Dropping transfer to unsubscribed Frame Tick: {} Source: ({},{}) Dest: ({},{}) Type: {}",
+					rNextFrame.interpolate.iTick,
+					rCoord.x, rCoord.y,
+					destination.x, destination.y,
+					StatusChangeTypeName(rRequest.eType));
+				continue;
+			}
 
 			auto it = gpGame->mCoordFrames.find(destination);
 			if (it == gpGame->mCoordFrames.end() || it->second.pNext == nullptr)
@@ -86,6 +148,20 @@ void ServerTransferManager::SpawnTransfers()
 		Frame& rDestFrame = *gpGame->mCoordFrames.at(rCoord).pNext;
 		for (const StatusChange& rTransfer : rTransfers)
 		{
+			// Sanity: CollectTransfers should have already dropped any non-Player transfer whose
+			// destination is not live. If one reaches here (e.g. the bug where kOriginCoord
+			// received phantom spaceships because mActiveCoords force-included it), the skip
+			// filter has regressed and entities will pile up in a dead cell.
+			if (rTransfer.eType != StatusChangeType::kTransferPlayer && !IsDestinationLive(rCoord)) [[unlikely]]
+			{
+				LOG(kDefault, kError,
+					"Non-Player transfer reached Spawn for dead Frame (skip filter regression) Tick: {} Dest: ({},{}) Type: {}",
+					rDestFrame.interpolate.iTick,
+					rCoord.x, rCoord.y,
+					StatusChangeTypeName(rTransfer.eType));
+				DEBUG_BREAK();
+			}
+
 			TransferData data = std::get<TransferData>(rTransfer.data);
 			SpawnTransfer(rDestFrame, rTransfer.eType, data, gpGame->PlayerAlignment());
 		}

@@ -230,19 +230,24 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	{
 		LOG(kGraphics, kInfo, "renderDocHmodule: {}", reinterpret_cast<uint64_t>(renderDocHmodule));
 
-		// Some extensions are not compatible with RenderDoc
+		// RenderDoc doesn't ship VK_LAYER_KHRONOS_validation, so VK_EXT_layer_settings is unavailable. Keep first 4 entries of kppcInstanceExtensionNames (surface, win32 surface, portability enumeration, debug utils). pNext must be cleared because VkLayerSettingsCreateInfoEXT requires the layer settings extension we just dropped. VUID-VkInstanceCreateInfo-flags-06559 holds because VK_KHR_portability_enumeration is retained.
+		vkInstanceCreateInfo.pNext = nullptr;
 		vkInstanceCreateInfo.enabledLayerCount = 0;
-		vkInstanceCreateInfo.enabledExtensionCount = 2;
+		vkInstanceCreateInfo.ppEnabledLayerNames = nullptr;
+		vkInstanceCreateInfo.enabledExtensionCount = 4;
 	}
 
 	VkResult vkResultCreateInstance = vkCreateInstance(&vkInstanceCreateInfo, nullptr, &mVkInstance);
 
 	if (vkResultCreateInstance != VK_SUCCESS)
 	{
-		// If the Vulkan SDK is not installed, validation layers will fail
-		LOG(kGraphics, kWarning, "vkCreateInstance returned {}, re-trying with only 2 extensions", vkResultCreateInstance);
+		// Clean-machine fallback: no Vulkan SDK => no validation layer. Drop pNext (layer settings), clear portability flag (its extension is also dropped), keep only surface + win32 surface.
+		LOG(kGraphics, kWarning, "vkCreateInstance returned {}, re-trying with minimal configuration", vkResultCreateInstance);
 
+		vkInstanceCreateInfo.pNext = nullptr;
+		vkInstanceCreateInfo.flags = 0;
 		vkInstanceCreateInfo.enabledLayerCount = 0;
+		vkInstanceCreateInfo.ppEnabledLayerNames = nullptr;
 		vkInstanceCreateInfo.enabledExtensionCount = 2;
 		vkResultCreateInstance = vkCreateInstance(&vkInstanceCreateInfo, nullptr, &mVkInstance);
 	}

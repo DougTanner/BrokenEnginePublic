@@ -75,6 +75,7 @@ TweaksScreen::TweaksScreen()
 		{"Explosion Secondary Lighting Intensity Two", &gExplosionSecondaryLightingIntensityTwo},
 		{"Explosion Secondary Lighting Intensity Three", &gExplosionSecondaryLightingIntensityThree},
 		// Lighting Effects - Explosions Particle
+		{"Explosion Particle Visible Intensity", &gExplosionParticleVisibleIntensity},
 		{"Explosion Particle Lighting Area", &gExplosionParticleLightingArea},
 		{"Explosion Particle Lighting Intensity", &gExplosionParticleLightingIntensity},
 		// Lighting Effects - Explosion Puffs
@@ -133,8 +134,6 @@ TweaksScreen::TweaksScreen()
 		{"Missile Trail Intensity", &gMissileTrailIntensity},
 		// Lighting Effects - Spaceships
 		{"Spaceship Explosion Intensity", &gSpaceshipExplosionLightingIntensity},
-		{"Spaceship Explosion Particle Lighting Size", &gSpaceshipExplosionParticleLightingArea},
-		{"Spaceship Explosion Particle Lighting Intensity", &gSpaceshipExplosionParticleLightingIntensity},
 		{"Enemy Blaster Visible Intensity", &gEnemyBlasterVisibleIntensity},
 		{"Enemy Blaster Lighting Area", &gEnemyBlasterLightingArea},
 		{"Enemy Blaster Lighting Intensity", &gEnemyBlasterLightingIntensity},

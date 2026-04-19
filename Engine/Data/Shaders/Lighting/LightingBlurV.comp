@@ -36,7 +36,7 @@ void main()
 		float fA = float(j) / fInvSigma;
 		float fWeight = exp(-0.5f * fA * fA);
 		vec2 vUv = vec2(float(uiX) + 0.5f, float(int(uiY) + j) + 0.5f) / vec2(float(iWidth), float(iHeight));
-		f4Total += fWeight * texture(intermediateSampler, vUv);
+		f4Total += fWeight * textureLod(intermediateSampler, vUv, 0.0f);
 		fWeightSum += fWeight;
 	}
 

@@ -48,6 +48,7 @@ void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout
 	}
 
 	layout.iCookie = gpParticleManager->GetOrAssignTextureIndex(textureCrc);
+	layout.iLightingCookie = static_cast<int32_t>(gpTextureManager->mTextureDescriptors.CrcToBlurredIndex(textureCrc));
 	rParticlesSpawnLayout.pParticles[rParticlesSpawnLayout.iCount] = layout;
 	++rParticlesSpawnLayout.iCount;
 }
