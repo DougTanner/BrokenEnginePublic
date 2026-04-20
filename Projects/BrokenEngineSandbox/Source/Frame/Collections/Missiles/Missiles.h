@@ -146,10 +146,10 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	// SpawnInfo for spawn parameters
 	struct SpawnInfo
 	{
-		XMVECTOR vecPosition;
-		XMVECTOR vecDirection;
-		XMVECTOR vecVelocity;
-		XMVECTOR vecStoredDirection;
+		XMVECTOR vecPosition = DirectX::XMVectorZero();
+		XMVECTOR vecDirection = DirectX::XMVectorZero();
+		XMVECTOR vecVelocity = DirectX::XMVectorZero();
+		XMVECTOR vecStoredDirection = DirectX::XMVectorZero();
 		target_t uiTarget;
 		float fAcceleration;
 		MissileFlags_t flags;

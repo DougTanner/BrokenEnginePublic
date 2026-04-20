@@ -2,7 +2,7 @@
 
 #include "ExternalHeaders.h"
 
-inline constexpr bool kbDesyncRecovery = false; // DT: TEMP true;
+inline constexpr bool kbDesyncRecovery = false; // DT: TODO Need to properly test true;
 inline constexpr bool kbFrameDispatch = true;
 inline constexpr bool kbLogging = true;
 inline constexpr bool kbQuadrantNeighborSubscriptions = true;
@@ -13,7 +13,9 @@ inline constexpr bool kbAlsoLogToPrintf = false;
 inline constexpr bool kbFramebufferClearColor = false;
 inline constexpr bool kbGpuAssistedValidation = false;
 inline constexpr bool kbRecording = false;
+inline constexpr bool kbRenderDocAttach = true; // DT: TEMP  false;
 inline constexpr bool kbScreenshots = false;
+inline constexpr bool kbVulkanPipelineCache = false; // DT: TODO Need Crc and/or fallback if corrupt true;
 inline constexpr bool kbWireframe = false;
 
 #if defined(BT_SERVER)

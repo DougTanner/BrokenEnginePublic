@@ -15,7 +15,7 @@ Tessellated quad covering the visible area. Vertex shader sums Gerstner waves at
 - **Precision-safe normal sampling**: `textureGrad` with derivatives of the camera-relative position and `fract()`-wrapped UVs — derivatives are taken before per-octave scaling so mip selection stays stable across summed octaves.
 - **Decoupled normal blends**: wave-vs-sampled normal blend for lighting and for skybox reflection sampling are independent, letting the two use different smoothness.
 - Fresnel uses a `(1 - cosθ)^4` falloff (not Schlick's canonical `^5`) — intentional visual tuning.
-- Base-height projection projects the undisplaced world position down to the lighting plane for both EWNS lighting sampling and the smoke texcoord, keeping lighting stable under wave animation.
+- Base-height projection projects the undisplaced world position down to the lighting plane for both EWNS lighting sampling and the smoke texcoord, keeping lighting stable under wave animation. EWNS sampling optionally blends in a reflected projection — the eye→water ray reflected about the water normal, projected to the same base-height plane — to suggest sky/sun light bouncing off the surface; smoke sampling always uses the unreflected projection.
 - Hue-preserving pow on base-height lighting samples blends luminance-based and average-based exponents via a mode uniform, applied before lighting.
 - Time-of-day multiplier applies linearly after lighting's internal pow, scaling output without re-exponentiation.
 - Output alpha encodes water transparency from terrain elevation, clamped to a minimum to keep deep water opaque.

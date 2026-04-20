@@ -225,6 +225,50 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		.ppEnabledExtensionNames = kppcInstanceExtensionNames,
 	};
 
+	// Opt-in force-load: lets RenderDoc's "Attach to running instance" find us without launching through RenderDoc. Triggers the layer-disable branch below, so it's guarded by kbRenderDocAttach to avoid sacrificing validation in normal debug runs.
+	if constexpr (kbRenderDocAttach)
+	{
+		if (GetModuleHandle("renderdoc.dll") == nullptr)
+		{
+			// Default RenderDoc installer doesn't add itself to PATH, so plain LoadLibrary("renderdoc.dll") fails. Read the install dir from the Vulkan loader's implicit-layer JSON registration — renderdoc.dll lives in the same folder.
+			HKEY hKey = nullptr;
+			if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Khronos\\Vulkan\\ImplicitLayers", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+			{
+				char valueName[MAX_PATH];
+				for (DWORD i = 0; ; ++i)
+				{
+					DWORD cchValueName = MAX_PATH;
+					if (RegEnumValue(hKey, i, valueName, &cchValueName, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS)
+					{
+						break;
+					}
+					if (strstr(valueName, "renderdoc.json") != nullptr)
+					{
+						char* lastSep = strrchr(valueName, '\\');
+						if (lastSep != nullptr)
+						{
+							strcpy_s(lastSep + 1, MAX_PATH - (lastSep + 1 - valueName), "renderdoc.dll");
+							LoadLibrary(valueName);
+						}
+						break;
+					}
+				}
+				RegCloseKey(hKey);
+			}
+
+			// PATH-relative fallback for users who manually added RenderDoc to PATH
+			if (GetModuleHandle("renderdoc.dll") == nullptr)
+			{
+				LoadLibrary("renderdoc.dll");
+			}
+
+			if (GetModuleHandle("renderdoc.dll") == nullptr)
+			{
+				LOG(kGraphics, kWarning, "kbRenderDocAttach=true but renderdoc.dll could not be loaded. Confirm RenderDoc is installed and registered in HKLM\\SOFTWARE\\Khronos\\Vulkan\\ImplicitLayers.");
+			}
+		}
+	}
+
 	HMODULE renderDocHmodule = GetModuleHandle("renderdoc.dll");
 	if (renderDocHmodule != nullptr)
 	{
@@ -235,6 +279,16 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		vkInstanceCreateInfo.enabledLayerCount = 0;
 		vkInstanceCreateInfo.ppEnabledLayerNames = nullptr;
 		vkInstanceCreateInfo.enabledExtensionCount = 4;
+
+		if constexpr (kbRenderDocAttach)
+		{
+			auto pfnGetApi = reinterpret_cast<pRENDERDOC_GetAPI>(GetProcAddress(renderDocHmodule, "RENDERDOC_GetAPI"));
+			if (pfnGetApi != nullptr)
+			{
+				pfnGetApi(eRENDERDOC_API_Version_1_6_0, reinterpret_cast<void**>(&mpRenderDocApi));
+				LOG(kGraphics, kInfo, "RenderDoc API initialized: {}", reinterpret_cast<uint64_t>(mpRenderDocApi));
+			}
+		}
 	}
 
 	VkResult vkResultCreateInstance = vkCreateInstance(&vkInstanceCreateInfo, nullptr, &mVkInstance);

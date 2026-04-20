@@ -190,6 +190,14 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Water Three", &gLightingWaterThree},
 		{"Water Three Power", &gLightingWaterThreePower},
 		{"Water Power Mode", &gLightingWaterPowerMode},
+		// Water Lighting - Reflected
+		{"Water Reflected Amount", &gLightingWaterReflectedAmount},
+		{"Water Reflected Normal Blend Wave", &gLightingWaterReflectedNormalBlendWave},
+		{"Water Reflected Distortion", &gLightingWaterReflectedDistortion},
+		{"Water Reflected Falloff Start", &gLightingWaterReflectedFalloffStart},
+		{"Water Reflected Falloff Power", &gLightingWaterReflectedFalloffPower},
+		{"Water Reflected Fresnel", &gLightingWaterReflectedFresnel},
+		{"Water Reflected Intensity", &gLightingWaterReflectedIntensity},
 		// Shadow - Feather
 		{"Feather Noon", &gShadowFeatherNoon},
 		{"Feather Noon Offset", &gShadowFeatherNoonOffset},

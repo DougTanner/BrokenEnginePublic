@@ -158,7 +158,37 @@ void main()
 
 	// Sample lighting texture at projected base-height x/y
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, vec3(f2WorldInitialPosition, 0.0f));
-	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
+
+	// Reflected base-height sample: reflect the eye ray about the water normal and
+	// project the reflected ray to fBaseHeight. Distortion scales the normal's XY
+	// before renormalization so wave tilt (not the slow eye-to-point gradient) is
+	// the dominant contributor to the reflected sample position.
+	vec3 f3ReflectedNormal = mix(f3SampledNormal, f3InNormal, mainLayout.fLightingWaterReflectedNormalBlendWave);
+	f3ReflectedNormal = normalize(vec3(f3ReflectedNormal.xy * mainLayout.fLightingWaterReflectedDistortion, f3ReflectedNormal.z));
+	vec3 f3WaterWorld = vec3(f2WorldInitialPosition, 0.0f);
+	vec3 f3EyeToPoint = normalize(f3WaterWorld - mainLayout.f4EyePosition.xyz);
+	vec3 f3ReflectedRay = reflect(f3EyeToPoint, f3ReflectedNormal);
+	// Guard grazing-normal divide: clamp z away from zero so fReflectedMult can't overflow to +Inf
+	float fReflectedMult = (globalLayout.fBaseHeight - f3WaterWorld.z) / max(f3ReflectedRay.z, 1e-4f);
+	vec2 f2PositionAtBaseHeightReflected = (f3WaterWorld + max(fReflectedMult, 0.0f) * f3ReflectedRay).xy;
+
+	// Power-curve compression on the XY offset above FalloffStart so heavily-bent
+	// normals don't sample hundreds of world units away. Power=1 is passthrough.
+	vec2 f2ReflectedOffset = f2PositionAtBaseHeightReflected - f3WaterWorld.xy;
+	float fOffsetDistance = length(f2ReflectedOffset);
+	float fFalloffStart = mainLayout.fLightingWaterReflectedFalloffStart;
+	if (fOffsetDistance > fFalloffStart)
+	{
+		float fNewDistance = fFalloffStart + pow(fOffsetDistance - fFalloffStart, mainLayout.fLightingWaterReflectedFalloffPower);
+		f2PositionAtBaseHeightReflected = f3WaterWorld.xy + f2ReflectedOffset * (fNewDistance / fOffsetDistance);
+		fOffsetDistance = fNewDistance;
+	}
+
+	float fReflectedFresnel = mix(1.0f, Fresnel(mainLayout.f4EyePosition.xyz, f3WaterWorld, f3ReflectedNormal, 1.0f), mainLayout.fLightingWaterReflectedFresnel);
+	float fReflectedAmount = clamp(mainLayout.fLightingWaterReflectedAmount * mainLayout.fLightingWaterReflectedIntensity * fReflectedFresnel, 0.0f, 1.0f);
+	vec2 f2PositionAtBaseHeightFinal = mix(f2PositionAtBaseHeight, f2PositionAtBaseHeightReflected, fReflectedAmount);
+
+	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeightFinal, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4LightingBaseHeight[3] = {texture(pLightingSamplers[0], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[1], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[2], f2LightingTexcoordBaseHeight)};
 
 	// Scale base-height lighting (hue-preserving: pow applied to per-direction luminance/average scalar)
@@ -182,13 +212,15 @@ void main()
 	vec3 f3WaterLighting = WaterLighting(pf4LightingBaseHeight, f3LightingNormal, mainLayout.fLightingWaterNormalSoften, mainLayout.fLightingWaterOne, mainLayout.fLightingWaterOnePower, mainLayout.fLightingWaterTwo, mainLayout.fLightingWaterTwoPower, mainLayout.fLightingWaterThree, mainLayout.fLightingWaterThreePower, mainLayout.fLightingWaterPowerMode);
 	float fDepthAttenuation = clamp(-fTerrainElevation / globalLayout.fWaterDepthReflectionFeather, 0.0f, 1.0f);
 	vec3 f3WaterLightingScaled = fDepthAttenuation * globalLayout.fLightingTimeOfDayMultiplier * mainLayout.fLightingWaterIntensity * f3WaterLighting;
+	// Mix between water-tinted lighting (Add=0) and pure lighting color (Add=1).
+	// Total contribution magnitude is conserved across the mix.
 	float fWaterLightingAdd = mainLayout.fLightingWaterAdd;
-	vec3 f3WaterLightingColor = f3WaterLightingScaled * mix(f3PreLightingColor, vec3(1.0f), fWaterLightingAdd);
-	f4OutColor.xyz += fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * f3WaterLightingColor;
+	vec3 f3WaterLightingMults = fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * f3WaterLightingScaled;
+	f4OutColor.xyz += (1.0f - fWaterLightingAdd) * f3PreLightingColor * f3WaterLightingMults + fWaterLightingAdd * f3WaterLightingMults;
 
 	// DT: TEMP — show only lighting texture contributions (with normals and base color)
 #ifdef DT_LIGHTING_ONLY
-	f4OutColor.xyz = fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * f3WaterLightingColor;
+	f4OutColor.xyz = (1.0f - fWaterLightingAdd) * f3PreLightingColor * f3WaterLightingMults + fWaterLightingAdd * f3WaterLightingMults;
 	return;
 #endif
 

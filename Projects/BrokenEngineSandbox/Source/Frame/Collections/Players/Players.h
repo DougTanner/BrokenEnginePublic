@@ -300,9 +300,9 @@ public:
 	// SpawnInfo for spawn parameters
 	struct SpawnInfo
 	{
-		XMVECTOR vecPosition {};
-		XMVECTOR vecDirection {};
-		XMVECTOR vecVelocity {};
+		XMVECTOR vecPosition = DirectX::XMVectorZero();
+		XMVECTOR vecDirection = DirectX::XMVectorZero();
+		XMVECTOR vecVelocity = DirectX::XMVectorZero();
 		engine::alignment_t alignment {};
 		float fArmor = 0.0f;
 		float fShield = 0.0f;

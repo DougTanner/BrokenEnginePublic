@@ -377,6 +377,7 @@ void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[m
 				.smokeTrailId = rCurrentInterpolate.puiSmokeTrails[i],
 #endif
 			},
+			.iPushedTick = rFrame.interpolate.iTick,
 		};
 		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
 

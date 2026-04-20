@@ -58,6 +58,8 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		if (!(flags & kExploding)) [[likely]]
 		{
 			vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
+			// Positions must always have W=1.0 — prevents W-lane drift via MultiplyAdd.
+			vecPosition = XMVectorSetW(vecPosition, 1.0f);
 
 			// Add delta rotation to direction (delay percentage already applied in PostRender::Update)
 			vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * rPreviousPostRender.pfDeltaRotations[i])));

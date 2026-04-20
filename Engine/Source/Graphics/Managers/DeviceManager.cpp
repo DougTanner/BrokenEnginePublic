@@ -274,44 +274,70 @@ DeviceManager::DeviceManager()
 	CHECK_VK(vmaCreateAllocator(&allocatorCreateInfo, &mpAllocator));
 
 	// Pipeline cache
-	VkPipelineCacheCreateInfo vkPipelineCacheCreateInfo
+	if constexpr (kbVulkanPipelineCache)
 	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
-		.pNext = nullptr,
-		.flags = 0,
-		.initialDataSize = 0,
-		.pInitialData = nullptr,
-	};
-	std::vector<uint8_t> cacheData;
-	if (gpFileManager->Exists({FileFlags::kAppDataDirectory}, "pipeline.cache"))
-	{
-		std::fstream fileStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, "pipeline.cache");
-		fileStream.seekg(0, std::ios::end);
-		int64_t iSize = fileStream.tellg();
-		fileStream.seekg(0, std::ios::beg);
-		cacheData.resize(iSize);
-		fileStream.read(reinterpret_cast<char*>(cacheData.data()), iSize);
+		VkPipelineCacheCreateInfo vkPipelineCacheCreateInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
+			.pNext = nullptr,
+			.flags = 0,
+			.initialDataSize = 0,
+			.pInitialData = nullptr,
+		};
+		std::vector<uint8_t> cacheData;
+		if (gpFileManager->Exists({FileFlags::kAppDataDirectory}, "pipeline.cache"))
+		{
+			std::fstream fileStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, "pipeline.cache");
+			fileStream.seekg(0, std::ios::end);
+			int64_t iSize = fileStream.tellg();
+			fileStream.seekg(0, std::ios::beg);
+			cacheData.resize(iSize);
+			fileStream.read(reinterpret_cast<char*>(cacheData.data()), iSize);
 
-		// Driver validates cache data and silently discards if incompatible
-		vkPipelineCacheCreateInfo.initialDataSize = cacheData.size();
-		vkPipelineCacheCreateInfo.pInitialData = cacheData.data();
-		LOG(kGraphics, kDebug, "Loaded pipeline cache ({} bytes)", iSize);
+			// Pre-validate header — NVIDIA logs a warning instead of silently discarding incompatible entries
+			bool bCompatible = false;
+			if (cacheData.size() >= sizeof(VkPipelineCacheHeaderVersionOne))
+			{
+				VkPipelineCacheHeaderVersionOne header;
+				std::memcpy(&header, cacheData.data(), sizeof(header));
+				const VkPhysicalDeviceProperties& rProps = gpInstanceManager->mVkPhysicalDeviceProperties;
+				bCompatible = header.headerSize == sizeof(VkPipelineCacheHeaderVersionOne)
+					&& header.headerVersion == VK_PIPELINE_CACHE_HEADER_VERSION_ONE
+					&& header.vendorID == rProps.vendorID
+					&& header.deviceID == rProps.deviceID
+					&& std::memcmp(header.pipelineCacheUUID, rProps.pipelineCacheUUID, VK_UUID_SIZE) == 0;
+			}
+
+			if (bCompatible)
+			{
+				vkPipelineCacheCreateInfo.initialDataSize = cacheData.size();
+				vkPipelineCacheCreateInfo.pInitialData = cacheData.data();
+				LOG(kGraphics, kDebug, "Loaded pipeline cache ({} bytes)", iSize);
+			}
+			else
+			{
+				LOG(kGraphics, kDebug, "Discarded incompatible pipeline cache ({} bytes)", iSize);
+			}
+		}
+		CHECK_VK(vkCreatePipelineCache(mVkDevice, &vkPipelineCacheCreateInfo, nullptr, &mVkPipelineCache));
 	}
-	CHECK_VK(vkCreatePipelineCache(mVkDevice, &vkPipelineCacheCreateInfo, nullptr, &mVkPipelineCache));
 }
 
 DeviceManager::~DeviceManager()
 {
 	// Save pipeline cache to disk
-	size_t uiDataSize = 0;
-	vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &uiDataSize, nullptr);
-	std::vector<uint8_t> cacheData(uiDataSize);
-	vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &uiDataSize, cacheData.data());
-	gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "pipeline.cache");
-	std::fstream fileStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, "pipeline.cache");
-	fileStream.write(reinterpret_cast<const char*>(cacheData.data()), static_cast<std::streamsize>(uiDataSize));
-	LOG(kGraphics, kDebug, "Saved pipeline cache ({} bytes)", uiDataSize);
-	vkDestroyPipelineCache(mVkDevice, mVkPipelineCache, nullptr);
+	if constexpr (kbVulkanPipelineCache)
+	{
+		size_t uiDataSize = 0;
+		vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &uiDataSize, nullptr);
+		std::vector<uint8_t> cacheData(uiDataSize);
+		vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &uiDataSize, cacheData.data());
+		gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "pipeline.cache");
+		std::fstream fileStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, "pipeline.cache");
+		fileStream.write(reinterpret_cast<const char*>(cacheData.data()), static_cast<std::streamsize>(uiDataSize));
+		LOG(kGraphics, kDebug, "Saved pipeline cache ({} bytes)", uiDataSize);
+		vkDestroyPipelineCache(mVkDevice, mVkPipelineCache, nullptr);
+	}
 
 	vmaDestroyAllocator(mpAllocator);
 	mpAllocator = nullptr;

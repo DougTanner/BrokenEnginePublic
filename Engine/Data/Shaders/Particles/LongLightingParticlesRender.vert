@@ -25,6 +25,8 @@ layout (location = 0) in vec2 f2InQuadVertex;
 // Output
 layout (location = 0) out flat int32_t iOutInstanceIndex;
 layout (location = 1) out vec2 f2OutTexcoord;
+layout (location = 2) out vec2 f2OutWorldPosition;
+layout (location = 3) out flat vec2 f2OutWorldCenter;
 
 void main()
 {
@@ -69,4 +71,6 @@ void main()
 					    1.0f);
 
 	f2OutTexcoord = f2InQuadVertex;
+	f2OutWorldPosition = vec2(fWorldX, fWorldY);
+	f2OutWorldCenter = f4Center.xy;
 }

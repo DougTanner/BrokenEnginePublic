@@ -135,8 +135,8 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 	// SpawnInfo for spawn parameters
 	struct SpawnInfo
 	{
-		XMVECTOR vecPosition;
-		XMVECTOR vecVelocity;
+		XMVECTOR vecPosition = DirectX::XMVectorZero();
+		XMVECTOR vecVelocity = DirectX::XMVectorZero();
 		uint8_t uiTypeIndex;
 		BlasterFlags_t flags {};
 		engine::alignment_t alignment {};

@@ -247,6 +247,7 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[m
 				.fWindTrailLengthMultiplier = rCurrentInterpolate.pfWindTrailLengthMultipliers[i],
 #endif
 			},
+			.iPushedTick = rFrame.interpolate.iTick,
 		};
 		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
 

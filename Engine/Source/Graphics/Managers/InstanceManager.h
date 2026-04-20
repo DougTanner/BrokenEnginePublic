@@ -1,5 +1,7 @@
 #pragma once
 
+#include "renderdoc_app.h"
+
 namespace engine
 {
 
@@ -54,6 +56,8 @@ public:
 	std::vector<const char*> mValidationLayers;
 	bool mbFoundKhronosValidation = false;
 	VkDebugUtilsMessengerEXT mVkDebugUtilsMessengerEXT = nullptr;
+
+	RENDERDOC_API_1_6_0* mpRenderDocApi = nullptr;
 
 private:
 

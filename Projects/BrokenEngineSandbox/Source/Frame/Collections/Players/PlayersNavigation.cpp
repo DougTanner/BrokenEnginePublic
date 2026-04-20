@@ -61,6 +61,7 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[ma
 				.fNavigationDelay = rCurrentPostRender.pfNavigationDelays[i],
 			},
 			.iEntityId = rCurrentPostRender.puiIds[i].ToUuid().Value(),
+			.iPushedTick = rFrame.interpolate.iTick,
 		};
 		request.data.globalPlayerId = rCurrentPostRender.pGlobalPlayerIds[i];
 		request.data.fleetWantedCoord = rCurrentPostRender.pFleetWantedCoords[i];

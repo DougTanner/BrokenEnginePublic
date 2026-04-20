@@ -148,9 +148,9 @@ public:
 	// SpawnInfo for spawn parameters
 	struct SpawnInfo
 	{
-		XMVECTOR vecPosition {};
-		XMVECTOR vecDirection {};
-		XMVECTOR vecVelocity {};
+		XMVECTOR vecPosition = DirectX::XMVectorZero();
+		XMVECTOR vecDirection = DirectX::XMVectorZero();
+		XMVECTOR vecVelocity = DirectX::XMVectorZero();
 		engine::alignment_t alignment {};
 		float fHealth = 0.0f;
 		float fNextBlasterSpawnTime = 0.0f;

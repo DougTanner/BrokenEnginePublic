@@ -427,6 +427,14 @@ struct MainLayout
 	float fLightingWaterSkyboxThreePower INIT;
 	float fLightingWaterSkyboxLod INIT;
 
+	float fLightingWaterReflectedAmount INIT;
+	float fLightingWaterReflectedNormalBlendWave INIT;
+	float fLightingWaterReflectedDistortion INIT;
+	float fLightingWaterReflectedFalloffStart INIT;
+	float fLightingWaterReflectedFalloffPower INIT;
+	float fLightingWaterReflectedFresnel INIT;
+	float fLightingWaterReflectedIntensity INIT;
+
 	float fLightingWaterNormalSoften INIT;
 	float fLightingWaterNormalBlendWave INIT;
 	float fLightingWaterIntensity INIT;

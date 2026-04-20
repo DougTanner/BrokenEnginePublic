@@ -407,6 +407,15 @@ extern Wrapper gLightingWaterThree;
 extern Wrapper gLightingWaterThreePower;
 extern Wrapper gLightingWaterPowerMode;
 
+// Water reflected
+extern Wrapper gLightingWaterReflectedAmount;
+extern Wrapper gLightingWaterReflectedNormalBlendWave;
+extern Wrapper gLightingWaterReflectedDistortion;
+extern Wrapper gLightingWaterReflectedFalloffStart;
+extern Wrapper gLightingWaterReflectedFalloffPower;
+extern Wrapper gLightingWaterReflectedFresnel;
+extern Wrapper gLightingWaterReflectedIntensity;
+
 // Water skybox
 extern Wrapper gLightingWaterSkyboxSunBias;
 extern Wrapper gLightingWaterSkyboxNormalSoften;

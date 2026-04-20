@@ -97,6 +97,14 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fLightingWaterSkyboxThreePower = gLightingWaterSkyboxThreePower.Get();
 	rMainLayout.fLightingWaterSkyboxLod = gLightingWaterSkyboxLod.Get();
 
+	rMainLayout.fLightingWaterReflectedAmount = gLightingWaterReflectedAmount.Get();
+	rMainLayout.fLightingWaterReflectedNormalBlendWave = gLightingWaterReflectedNormalBlendWave.Get();
+	rMainLayout.fLightingWaterReflectedDistortion = gLightingWaterReflectedDistortion.Get();
+	rMainLayout.fLightingWaterReflectedFalloffStart = gLightingWaterReflectedFalloffStart.Get();
+	rMainLayout.fLightingWaterReflectedFalloffPower = gLightingWaterReflectedFalloffPower.Get();
+	rMainLayout.fLightingWaterReflectedFresnel = gLightingWaterReflectedFresnel.Get();
+	rMainLayout.fLightingWaterReflectedIntensity = gLightingWaterReflectedIntensity.Get();
+
 	rMainLayout.fLightingWaterNormalSoften = gLightingWaterNormalSoften.Get();
 	rMainLayout.fLightingWaterNormalBlendWave = gLightingWaterNormalBlendWave.Get();
 	rMainLayout.fLightingWaterIntensity = gLightingWaterIntensity.Get();

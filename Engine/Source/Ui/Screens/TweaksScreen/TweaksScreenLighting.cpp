@@ -183,6 +183,15 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSlider("Three Power", kiSection, 1.0f, "Water Three Power");
 				WrapperSlider("Power Mode", kiSection, 1.0f, "Water Power Mode");
 
+				WrapperSeparatorText("Water Reflected");
+				WrapperSlider("Reflected Amount", kiSection, 1.0f, "Water Reflected Amount");
+				WrapperSlider("Reflected Normal Blend Wave", kiSection, 1.0f, "Water Reflected Normal Blend Wave");
+				WrapperSlider("Reflected Distortion", kiSection, 1.0f, "Water Reflected Distortion");
+				WrapperSlider("Reflected Falloff Start", kiSection, 1.0f, "Water Reflected Falloff Start");
+				WrapperSlider("Reflected Falloff Power", kiSection, 1.0f, "Water Reflected Falloff Power");
+				WrapperSlider("Reflected Fresnel", kiSection, 1.0f, "Water Reflected Fresnel");
+				WrapperSlider("Reflected Intensity", kiSection, 1.0f, "Water Reflected Intensity");
+
 				ImGui::EndTable();
 			}
 

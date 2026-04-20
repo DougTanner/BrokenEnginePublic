@@ -65,12 +65,9 @@ void ServerTransferManager::CollectTransfers(std::vector<ClientTransferInfo>& rC
 
 		for (const TransferRequest& rRequest : rNextFrame.postRender.transferRequests)
 		{
-			// Transfer destinations must be adjacent (±1 in each axis — Chebyshev distance ≤ 1).
-			// A delta outside that range means either ComputeTransferDelta produced a bad value
-			// or the TransferRequest was corrupted after it was built — both are bugs that would
-			// teleport entities. Specifically catches any "transfer into (0,0) from further than
-			// one grid coord away" — Source + Delta = Dest in the log makes the landing coord
-			// obvious without mental arithmetic.
+			// Transfer destinations must be adjacent (±1 in each axis — Chebyshev distance ≤ 1);
+			// anything larger would teleport the entity. Log carries Source + Delta + Dest so the
+			// landing coord reads off directly without mental arithmetic.
 			if (std::abs(rRequest.iDeltaX) > 1 || std::abs(rRequest.iDeltaY) > 1) [[unlikely]]
 			{
 				LOG(kDefault, kError,
@@ -148,14 +145,15 @@ void ServerTransferManager::SpawnTransfers()
 		Frame& rDestFrame = *gpGame->mCoordFrames.at(rCoord).pNext;
 		for (const StatusChange& rTransfer : rTransfers)
 		{
-			// Sanity: CollectTransfers should have already dropped any non-Player transfer whose
-			// destination is not live. If one reaches here (e.g. the bug where kOriginCoord
-			// received phantom spaceships because mActiveCoords force-included it), the skip
-			// filter has regressed and entities will pile up in a dead cell.
+			// Invariant: only kTransferPlayer may spawn into a non-live destination. CollectTransfers
+			// drops all other types whose destination fails IsDestinationLive, so reaching here with
+			// a non-Player transfer means CollectTransfers and SpawnTransfers disagree on liveness
+			// (e.g. a subscription was dropped or a player destroyed between the two phases) and
+			// entities would pile up in a cell no client can observe.
 			if (rTransfer.eType != StatusChangeType::kTransferPlayer && !IsDestinationLive(rCoord)) [[unlikely]]
 			{
 				LOG(kDefault, kError,
-					"Non-Player transfer reached Spawn for dead Frame (skip filter regression) Tick: {} Dest: ({},{}) Type: {}",
+					"Non-Player transfer reached Spawn for non-live Frame Tick: {} Dest: ({},{}) Type: {}",
 					rDestFrame.interpolate.iTick,
 					rCoord.x, rCoord.y,
 					StatusChangeTypeName(rTransfer.eType));

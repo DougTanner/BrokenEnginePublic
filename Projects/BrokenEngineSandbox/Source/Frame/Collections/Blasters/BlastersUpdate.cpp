@@ -177,6 +177,8 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		XMVECTOR vecVelocity = rPreviousPostRender.pVecVelocities[i];
 
 		XMVECTOR vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), vecVelocity, rPrevious.pVecPositions[i]);
+		// Positions must always have W=1.0 — prevents W-lane drift via MultiplyAdd.
+		vecPosition = XMVectorSetW(vecPosition, 1.0f);
 
 		// Direction from velocity
 		XMVECTOR vecDirection = XMVector3Normalize(vecVelocity);
