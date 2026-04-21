@@ -211,13 +211,13 @@ Wrapper gLightingWaterThreePower(0.5f, 0.25f, 1.0f);
 Wrapper gLightingWaterPowerMode(0.8f, 0.0f, 1.0f);
 
 // Water reflected
-Wrapper gLightingWaterReflectedAmount(0.4f, 0.0f, 1.0f);
-Wrapper gLightingWaterReflectedNormalBlendWave(0.3f, 0.0f, 0.4f);
-Wrapper gLightingWaterReflectedDistortion(8.0f, 0.0f, 10.0f);
-Wrapper gLightingWaterReflectedFalloffStart(60.0f, 0.0f, 100.0f);
-Wrapper gLightingWaterReflectedFalloffPower(0.4f, 0.1f, 1.0f);
-Wrapper gLightingWaterReflectedFresnel(0.4f, 0.0f, 1.0f);
-Wrapper gLightingWaterReflectedIntensity(0.4f, 0.0f, 5.0f);
+Wrapper gLightingWaterReflectedAmount(0.16f, 0.0f, 1.0f);
+Wrapper gLightingWaterReflectedNormalBlendWave(0.2f, 0.0f, 0.4f);
+Wrapper gLightingWaterReflectedDistortion(20.0f, 0.0f, 40.0f);
+Wrapper gLightingWaterReflectedFalloffStart(0.0f, 0.0f, 100.0f);
+Wrapper gLightingWaterReflectedFalloffPower(0.6f, 0.1f, 1.0f);
+Wrapper gLightingWaterReflectedFresnel(0.9f, 0.0f, 1.0f);
+Wrapper gLightingWaterReflectedIntensity(0.3f, 0.0f, 5.0f);
 
 // Water skybox
 Wrapper gLightingWaterSkyboxSunBias(1.3f, 0.0f, 4.0f);

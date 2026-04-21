@@ -329,7 +329,7 @@ XMVECTOR Game::GetClientPlayerPosition() const
 		}
 	}
 	XMVECTOR vecArea = rFrames.staticData.vecArea;
-	return XMVectorSet((XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f, (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f, 0.0f, 0.0f);
+	return XMVectorSet((XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f, (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f, 0.0f, 1.0f);
 }
 #endif // BT_CLIENT
 

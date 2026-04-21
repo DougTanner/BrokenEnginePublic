@@ -59,15 +59,14 @@ Rules:
 - Collections with client-only fields use `SharedMembers()` + `ClientMembers()` (client-only, `#ifdef BT_CLIENT`) combined by `Members()` via `std::tuple_cat`; server `Members()` returns `SharedMembers()` only.
 
 ## Key Patterns
-- **Managers**: Singletons via `gp*` globals (`gpGraphics`, `gpAudioManager`)
+- **Log levels**: `kVerbose` — per-frame / high-frequency. `kDebug` — one-time (startup, connect). `kInfo` — state transitions, important one-shots (default threshold). `kWarning` — investigate (timeouts, desync); may spam. `kError` — failures; always logged- **Managers**: Singletons via `gp*` globals (`gpGraphics`, `gpAudioManager`)
 - **Memory**: RAII everywhere, no manual memory management
 - **DirectX Math**: Prefer aligned versions (`Float4A` not `Float4`)
-- **Base classes**: Use game versions, not Base versions (e.g., `Camera.h` not `CameraBase.h`)
-- **Engine -> Game**: Engine code includes `Game.h` and accesses game functionality via `game::gpGame` (not GameBase directly). Never create globals for Base classes - always use the game-derived version
+	- **XMVECTOR W invariant**: Positions W=1.0; directions / velocities / normals / offsets W=0.0; color alpha defaults 1.0 (opaque)
+- **Base classes**: Include/use game versions, not Base versions (`Camera.h` not `CameraBase.h`) `game::gpGame` (not GameBase directly)
 - **Workbuffer**: Use `gpThreadLocal->mWorkbuffer` for temp allocations instead of local `std::vector`/`std::string`. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Allocation tracking**: Heap allocations in the main loop trigger `DEBUG_BREAK()`. When unavoidable, wrap with `ScopedSuppressAllocationTracking` + `// Heap:` comment. See [Memory/CLAUDE.md](Engine/Source/Memory/CLAUDE.md)
 - **LOG formatting**: Float specs (`{:.Nf}`, etc.) allocate. For flat field lists, wrap each float/vector argument with the per-argument workbuffer formatters (`common::Wb` for floats, `common::WbV2` for `XMVECTOR`) directly inside `LOG(...)`. For loop- or lambda-driven content, pre-build via `common::ScopedWorkbufferBuilder` and emit as `LOG(cat, lvl, "{}", builder)`.
 - **Standard library headers**: `#include <header>` additions go in `Common/ExternalHeaders.h`, not in individual source files
 - **Flags over booleans**: Use `common::Flags<EnumType>` instead of multiple `bool` variables. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/CLAUDE.md](Common/CLAUDE.md)
-- **Log levels**: `kVerbose` — per-frame / high-frequency. `kDebug` — one-time (startup, connect). `kInfo` — state transitions, important one-shots (default threshold). `kWarning` — investigate (timeouts, desync); may spam. `kError` — failures; always logged

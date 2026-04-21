@@ -34,6 +34,7 @@
     <ClCompile Include="..\..\Source\ExportJobs\ExportRaw.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportShader.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportTexture.cpp" />
+    <ClCompile Include="..\..\Source\BakeIslandIntermediates.cpp" />
     <ClCompile Include="..\..\Source\FileManager.cpp" />
     <ClCompile Include="..\..\Source\Main.cpp" />
     <ClCompile Include="..\..\Source\Pch.cpp">
@@ -73,6 +74,7 @@
     <ClInclude Include="..\..\Source\ExportJobs\ExportRaw.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportShader.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportTexture.h" />
+    <ClInclude Include="..\..\Source\BakeIslandIntermediates.h" />
     <ClInclude Include="..\..\Source\FileManager.h" />
     <ClInclude Include="..\..\Source\Pch.h" />
     <ClInclude Include="..\..\Source\Texture.h" />
@@ -81,7 +83,7 @@
     <VCProjectVersion>16.0</VCProjectVersion>
     <ProjectGuid>{D5EBBF67-C8FC-4602-BCE6-0CC55278F498}</ProjectGuid>
     <RootNamespace>DataPacker</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.22621.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">

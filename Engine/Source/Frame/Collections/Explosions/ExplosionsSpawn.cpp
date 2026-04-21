@@ -27,6 +27,9 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	ExplosionsInterpolate& rInterpolate = rFrame.interpolate.explosions;
 	ExplosionsPostRender& rPostRender = rFrame.postRender.explosions;
 
+	common::ValidateVector<true >(rInfo.vecPosition);
+	common::ValidateVector<false>(rInfo.vecDirection);
+
 	const ExplosionType& rType = ExplosionsInterpolate::sTypes.at(rInfo.uiTypeIndex);
 
 	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
@@ -36,7 +39,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	rInterpolate.puiTypeIndices[iSpawnIndex] = rInfo.uiTypeIndex;
 	rInterpolate.pFlags[iSpawnIndex] = rInfo.flags;
 	rInterpolate.pfStartTimes[iSpawnIndex] = fCurrentTime;
-	rInterpolate.pVecPositions[iSpawnIndex] = XMVectorSetW(rInfo.vecPosition, 1.0f);
+	rInterpolate.pVecPositions[iSpawnIndex] = rInfo.vecPosition;
 	rInterpolate.pVecDirections[iSpawnIndex] = rInfo.vecDirection;
 
 #if defined(BT_CLIENT)

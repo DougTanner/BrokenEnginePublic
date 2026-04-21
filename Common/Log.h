@@ -3,7 +3,6 @@
 #include "LogTypes.h"
 #include "LogFormatters.h"
 #include "ThreadLocal.h"
-#include "DiagnosticLog.h" // DT: TEMP
 
 namespace common
 {
@@ -92,10 +91,6 @@ void Log(LogCategory eCategory, std::format_string<const TUV&...> format, const 
 	}
 
 	pWrite = std::format_to(pWrite, format, parameters...);
-
-	// DT: TEMP - mirror to FILE_LOG so RenderDoc crash leaves a flushed log on disk
-	*pWrite = 0;
-	FILE_LOG(0, "{}", pLogBuffer);
 
 	*(pWrite++) = '\n';
 	*(pWrite++) = 0;

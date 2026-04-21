@@ -86,6 +86,19 @@ If modifying frame update code:
 - `AllocateAndCopy()` must be called before `Update()` logic accesses current frame data
 - Verify modifications happen in the correct phase
 
+#### XMVECTOR W Invariant
+
+Every constructed or returned `XMVECTOR` must carry the right W lane for its role (core rule in root `CLAUDE.md` → Key Patterns → "XMVECTOR W invariant"). Failure is silent: `XMVector3Normalize` divides all four lanes by the 3D length, `XMVectorMultiplyAdd` propagates all four lanes, `XMVectorSetZ` leaves W untouched — a stray W survives every "3D" op and accumulates across ticks. Flag these as **bugs**, not style:
+
+- **`XMVectorSet(x, y, z, W)` with wrong W for the value's role.** Position → `1.0f`. Direction / velocity / normal / axis / offset-added-to-position / color-alpha-meant-to-be-transparent → `0.0f`. Opaque color alpha → `1.0f`.
+- **Function return or out-param with wrong W.** Inspect every `XMVECTOR`-returning function and every `XMVECTOR*` out-param added/modified: does *every* code path (including early returns, A*-miss, empty-input) write a correct-W value? Out-params should be initialized at function entry with a valid-W default so no path leaks an uninitialized or wrong-W value.
+- **Consumer-side `XMVectorSetW(..., 1.0f)` laundering a producer bug.** If you see a consumer defensively stamping W right after reading a function's return or out-param, flag the **producer** — that's the real bug. Defensive stamps are anti-patterns; the only legitimate `SetW` is the `W=1.0` clamp after a `MultiplyAdd`-based position integration.
+- **Subtract-then-normalize where operands have mismatched W.** `XMVector3Normalize(XMVectorSetZ(XMVectorSubtract(a, b), 0.0f))`: if `a` and `b` are both positions (`W=1`), the difference has `W=0` naturally. If one has `W=0` and the other has `W=1`, the difference has `W=±1`, and `Normalize` scales it to `W ≈ ±1/|xyz|` which poisons downstream consumers. Trace both operands' W origins.
+- **Inheriting W from input via `XMVectorGetW(input)` in a return value.** Silent propagation of whatever W the caller passed. Emit an explicit literal matching the output's role.
+- **Offset constants added to positions built with `W=1.0`.** Offsets added via `XMVectorAdd` to a W=1 position must themselves be W=0; a W=1 offset produces a W=2 result.
+
+If `common::ValidateVector<IS_POSITION>()` was added, removed, or moved, verify it's present at every Collection spawn / transfer boundary touched by the change.
+
 #### RAII Compliance
 
 - No manual `delete` or `free` calls anywhere

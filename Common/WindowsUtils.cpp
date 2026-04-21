@@ -124,17 +124,34 @@ ExecutableResult RunExecutable(const std::filesystem::path& rExecutableFile, std
 	HANDLE hStdOutPipeWrite = nullptr;
 	VERIFY_SUCCESS(CreatePipe(&hStdInPipeRead, &hStdInPipeWrite, &securityAttributes, 0));
 	VERIFY_SUCCESS(CreatePipe(&hStdOutPipeRead, &hStdOutPipeWrite, &securityAttributes, 0));
+	// Strip inheritance from parent-side pipe ends; the attribute list below only applies to the child-side two.
+	VERIFY_SUCCESS(SetHandleInformation(hStdInPipeWrite, HANDLE_FLAG_INHERIT, 0));
+	VERIFY_SUCCESS(SetHandleInformation(hStdOutPipeRead, HANDLE_FLAG_INHERIT, 0));
 
-	STARTUPINFOW startupinfow
-	{
-		.cb = sizeof(STARTUPINFOW),
-		.dwFlags = STARTF_USESTDHANDLES,
-		.hStdInput = hStdInPipeRead,
-		.hStdOutput = hStdOutPipeWrite,
-		.hStdError = hStdOutPipeWrite,
-	};
+	// STARTUPINFOEX + PROC_THREAD_ATTRIBUTE_HANDLE_LIST whitelists exactly the two pipe ends the child needs.
+	// Without this, the child inherits every HANDLE_FLAG_INHERIT=1 handle in the parent (log files, random
+	// framework handles, etc.) — harmless for native C children like glslc, but .NET children like Gaea.Swarm
+	// inspect inherited stdio handles during runtime startup and FailFast when they find unexpected extras.
+	SIZE_T uiAttributeListSize = 0;
+	InitializeProcThreadAttributeList(nullptr, 1, 0, &uiAttributeListSize);
+	auto attributeListBuffer = std::make_unique<uint8_t[]>(uiAttributeListSize);
+	LPPROC_THREAD_ATTRIBUTE_LIST pAttributeList = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attributeListBuffer.get());
+	_Analysis_assume_(pAttributeList != nullptr);
+	VERIFY_SUCCESS(InitializeProcThreadAttributeList(pAttributeList, 1, 0, &uiAttributeListSize));
+	HANDLE inheritHandles[] = { hStdInPipeRead, hStdOutPipeWrite };
+	VERIFY_SUCCESS(UpdateProcThreadAttribute(pAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, inheritHandles, sizeof(inheritHandles), nullptr, nullptr));
+
+	STARTUPINFOEXW startupinfoex {};
+	startupinfoex.StartupInfo.cb = sizeof(STARTUPINFOEXW);
+	startupinfoex.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+	startupinfoex.StartupInfo.hStdInput = hStdInPipeRead;
+	startupinfoex.StartupInfo.hStdOutput = hStdOutPipeWrite;
+	startupinfoex.StartupInfo.hStdError = hStdOutPipeWrite;
+	startupinfoex.lpAttributeList = pAttributeList;
+
 	PROCESS_INFORMATION processInformation {};
-	VERIFY_SUCCESS(CreateProcessW(rExecutableFile.native().c_str(), rCommandLine.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &startupinfow, &processInformation));
+	VERIFY_SUCCESS(CreateProcessW(rExecutableFile.native().c_str(), rCommandLine.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT, nullptr, nullptr, &startupinfoex.StartupInfo, &processInformation));
+	DeleteProcThreadAttributeList(pAttributeList);
 
 	CloseHandle(hStdOutPipeWrite);
 	CloseHandle(hStdInPipeRead);

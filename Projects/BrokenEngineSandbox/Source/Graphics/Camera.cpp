@@ -188,7 +188,9 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 
 	// Calculate eye position relative to camera position
 	auto vecQuaternionEye = XMQuaternionRotationNormal(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), mfCameraEyeRotation);
-	auto vecEyePositionRelative = XMVectorSet(0.0f, -mfCameraEyeHeight, 0.0f, 1.0f);
+	// W=0 — this is an eye-local offset, not a homogeneous point. Normalized into mVecToEyeNormal
+	// (direction must have W=0) and added to mVecPosition (W=1 + W=0 = W=1 — preserves position).
+	auto vecEyePositionRelative = XMVectorSet(0.0f, -mfCameraEyeHeight, 0.0f, 0.0f);
 	vecEyePositionRelative = XMVector3Rotate(vecEyePositionRelative, vecQuaternionEye);
 	mVecToEyeNormal = XMVector3Normalize(vecEyePositionRelative);
 

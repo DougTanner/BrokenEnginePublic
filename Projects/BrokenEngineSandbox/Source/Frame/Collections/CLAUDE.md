@@ -20,7 +20,7 @@ See also: [Engine collections hub](../../../../../Engine/Source/Frame/Collection
 
 **Client Object Hydration**: Collections with client-only owned objects (area lights, wind trails, sounds) provide `ClientInit()` and `ClientInitAll()` to create visual/audio objects after receiving server state, since server streams exclude client-only fields.
 
-**Cross-Cell Transfer**: All collections use a two-phase approach: PostCollision flags out-of-bounds entities with `kTransfer`, then a dedicated Transfer phase generates `TransferRequest`s and destroys the entity. This separation ensures AreaDamage can skip transferring entities.
+**Cross-Cell Transfer**: All collections use a two-phase approach: PostCollision flags out-of-bounds entities with `kTransfer`, then a dedicated Transfer phase generates `TransferRequest`s and destroys the entity. This separation ensures AreaDamage can skip transferring entities. Spawn and Transfer sites validate position/velocity XMVECTORs via `common::ValidateVector<IS_POSITION>()` to catch W-lane corruption at grid-boundary handoff.
 
 **LogDifferences**: All collections provide `LogDifferences()` for desync diagnosis, logging each mismatched shared (non-client-only) field via `common::LogDifference`.
 

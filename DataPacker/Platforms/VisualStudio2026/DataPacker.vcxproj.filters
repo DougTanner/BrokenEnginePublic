@@ -18,6 +18,9 @@
     <ClCompile Include="..\..\Source\FileManager.cpp">
       <Filter>DataPacker</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\BakeIslandIntermediates.cpp">
+      <Filter>DataPacker</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\Pch.cpp">
       <Filter>DataPacker</Filter>
     </ClCompile>
@@ -96,6 +99,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Source\FileManager.h">
+      <Filter>DataPacker</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\BakeIslandIntermediates.h">
       <Filter>DataPacker</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Pch.h">

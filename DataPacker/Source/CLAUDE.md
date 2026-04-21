@@ -4,7 +4,7 @@ Asset preprocessing tool that converts raw assets (textures, models, shaders, au
 
 ## Architecture
 
-Main.cpp orchestrates a multi-phase pipeline: pre-export (Scene, Islands) generates intermediates, offline IBL cubemap convolution runs next, main export processes asset types in parallel, then header generation and ThirdParty attribution collection. Single-instance guard is a named Win32 mutex. Outside the debugger, top-level `try/catch` shows a MessageBox; under the debugger it runs unwrapped so exceptions break in.
+Main.cpp orchestrates a multi-phase pipeline: pre-export (Scene, then a Gaea bake of island intermediates, then Islands) generates intermediates, offline IBL cubemap convolution runs next, main export processes asset types in parallel, then header generation and ThirdParty attribution collection. The Gaea bake is a separate step (not an `ExportJob`) that shells out to `Gaea.Swarm.exe` — all Gaea-version-specific logic is confined to that one translation unit for easier migration. Single-instance guard is a named Win32 mutex. Outside the debugger, top-level `try/catch` shows a MessageBox; under the debugger it runs unwrapped so exceptions break in.
 
 FileManager (`gpFileManager`) owns input/output/temp directories and the Vulkan SDK path (`VK_SDK_PATH` + `Bin/` required for glslc / glslangValidator / spirv-opt). CLI accepts zero args (sandbox defaults) or exactly three (engine-data, project-data, output-dir).
 

@@ -15,6 +15,22 @@ struct AreaVertices
 	bool operator==(const AreaVertices& rOther) const = default;
 };
 
+// Validate an XMVECTOR at a spawn / transfer invariant boundary: all 4 lanes finite, and
+// W == 1.0 for positions (IS_POSITION=true) or W == 0.0 for directions and direction-like
+// vectors, e.g. velocities (IS_POSITION=false). `XMVectorMultiplyAdd` propagates all 4 lanes,
+// so velocity.W != 0 would drift into position.W; `XMVector3Normalize` divides by 3D length
+// only, so a W-lane NaN survives and silently poisons downstream 4D consumers.
+template<bool IS_POSITION>
+inline void XM_CALLCONV ValidateVector(FXMVECTOR vec)
+{
+	ASSERT(std::isfinite(XMVectorGetX(vec))
+		&& std::isfinite(XMVectorGetY(vec))
+		&& std::isfinite(XMVectorGetZ(vec))
+		&& std::isfinite(XMVectorGetW(vec)));
+	if constexpr (IS_POSITION) { ASSERT(XMVectorGetW(vec) == 1.0f); }
+	else                       { ASSERT(XMVectorGetW(vec) == 0.0f); }
+}
+
 // Converts packed RGBA uint32_t to XMVECTOR with normalized [0.0, 1.0] components
 // Parameters: uiColor - Packed RGBA color (0xRRGGBBAA)
 // Returns: XMVECTOR with RGBA components in [0.0, 1.0] range

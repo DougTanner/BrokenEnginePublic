@@ -5,29 +5,6 @@
 #include "Game.h"
 #include "Profile/ProfileManager.h"
 
-// DT: TEMP - raw-WinAPI sentinel writer, no CRT dependency. Tells us if a given point was reached.
-static void DtTempSentinel(const char* pcFilename, const char* pcMessage)
-{
-	char pcPath[MAX_PATH] {};
-	lstrcpyA(pcPath, "C:\\Users\\dougt\\Documents\\BrokenEnginePublic\\Projects\\BrokenEngineSandbox\\Platforms\\VisualStudio2026\\Output\\");
-	lstrcatA(pcPath, pcFilename);
-	HANDLE hFile = CreateFileA(pcPath, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-	if (hFile != INVALID_HANDLE_VALUE)
-	{
-		DWORD dwWritten = 0;
-		WriteFile(hFile, pcMessage, lstrlenA(pcMessage), &dwWritten, nullptr);
-		FlushFileBuffers(hFile);
-		CloseHandle(hFile);
-	}
-}
-
-// DT: TEMP - global ctor fires during static init, before wWinMain
-struct DtTempStaticInitProbe
-{
-	DtTempStaticInitProbe() { DtTempSentinel("DT_SentinelStaticInit.txt", "static init reached\r\n"); }
-};
-static DtTempStaticInitProbe sDtTempStaticInitProbe;
-
 namespace engine
 {
 
@@ -59,9 +36,7 @@ bool ProcessMessages();
 
 void MainThread(HINSTANCE hinstance)
 {
-	LOG(kTemp, kInfo, "MainThread: before ThreadLocal"); // DT: TEMP
 	common::ThreadLocal threadLocal(10 * 1024 * 1024);
-	LOG(kTemp, kInfo, "MainThread: ThreadLocal constructed"); // DT: TEMP
 
 	LOG(kDefault, kInfo, "\nGame name: {}", game::kGameName);
 	LOG(kDefault, kInfo, "Game version: {}", game::kiGameVersion);
@@ -86,7 +61,6 @@ void MainThread(HINSTANCE hinstance)
 	{
 		throw std::runtime_error("SetProcessDPIAware failed");
 	}
-	LOG(kTemp, kInfo, "MainThread: CPU/FMA/DPI checks passed"); // DT: TEMP
 
 #if defined(BT_CLIENT)
 	// Cursor
@@ -97,7 +71,6 @@ void MainThread(HINSTANCE hinstance)
 		DestroyCursor(sHcursorArrow);
 		DestroyCursor(sHcursorCrosshair);
 	});
-	LOG(kTemp, kInfo, "MainThread: cursors loaded"); // DT: TEMP
 #endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
@@ -108,11 +81,9 @@ void MainThread(HINSTANCE hinstance)
 	int64_t iBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1);
 #endif
 	auto pMultithreading = std::make_unique<common::Multithreading>(iBackgroundThreadCount);
-	LOG(kTemp, kInfo, "MainThread: Multithreading constructed ({} workers)", iBackgroundThreadCount); // DT: TEMP
 
 	// Profile
 	auto pProfileManager = std::make_unique<game::ProfileManager>();
-	LOG(kTemp, kInfo, "MainThread: ProfileManager constructed"); // DT: TEMP
 
 	// Start DxDiag reading in the background
 	std::future<void> readDxDiag;
@@ -127,16 +98,13 @@ void MainThread(HINSTANCE hinstance)
 #if defined(BT_CLIENT)
 	// Input
 	auto pRawInputManager = std::make_unique<RawInputManager>();
-	LOG(kTemp, kInfo, "MainThread: RawInputManager constructed"); // DT: TEMP
 
 	// Audio
 	auto pAudioManager = std::make_unique<AudioManager>();
-	LOG(kTemp, kInfo, "MainThread: AudioManager constructed"); // DT: TEMP
 #endif
 
 	// Network
 	auto pNetworkManager = std::make_unique<NetworkManager>();
-	LOG(kTemp, kInfo, "MainThread: NetworkManager constructed"); // DT: TEMP
 
 	// Register class
 	WNDCLASSEX wndClassEx
@@ -159,7 +127,6 @@ void MainThread(HINSTANCE hinstance)
 	{
 		throw std::runtime_error("RegisterClassEx failed");
 	}
-	LOG(kTemp, kInfo, "MainThread: window class registered"); // DT: TEMP
 	common::ScopedLambda unregisterClass([&hinstance]()
 	{
 		LOG(kDefault, kDebug, "Unregister class");
@@ -168,11 +135,8 @@ void MainThread(HINSTANCE hinstance)
 
 	// Setup window rect & matrices
 #if defined(BT_CLIENT)
-	LOG(kTemp, kInfo, "MainThread: calling LoadGraphicsSettings"); // DT: TEMP
 	bool bLoadedGraphicsSettings = game::Game::LoadGraphicsSettings();
-	LOG(kTemp, kInfo, "MainThread: LoadGraphicsSettings returned {}", bLoadedGraphicsSettings); // DT: TEMP
 	gWantedFramebufferExtent2D = SetupWindow(gFullscreen.Get<bool>(), sWindowStyle, sWindowRect);
-	LOG(kTemp, kInfo, "MainThread: SetupWindow complete"); // DT: TEMP
 
 	if (!bLoadedGraphicsSettings)
 	{
@@ -204,7 +168,6 @@ void MainThread(HINSTANCE hinstance)
 	{
 		throw std::runtime_error("CreateWindow failed");
 	}
-	LOG(kTemp, kInfo, "MainThread: CreateWindow OK, hwnd={}", static_cast<void*>(sHwnd)); // DT: TEMP
 	common::ScopedLambda destroyWindow([]()
 	{
 		ProcessMessages();
@@ -220,46 +183,35 @@ void MainThread(HINSTANCE hinstance)
 #if defined(BT_CLIENT)
 	// Load settings
 	game::Game::LoadSoundSettings();
-	LOG(kTemp, kInfo, "MainThread: LoadSoundSettings complete"); // DT: TEMP
 
 	// Create terrain collision data (before Graphics, which creates Islands that reads beach elevation)
 	auto pIslandTerrain = std::make_unique<IslandTerrain>();
-	LOG(kTemp, kInfo, "MainThread: IslandTerrain constructed"); // DT: TEMP
 
 	// Initialize graphics
 	gpProfileManager->BootStart(kBootTimerVulkan);
-	LOG(kTemp, kInfo, "MainThread: BEFORE Graphics ctor (Vulkan init)"); // DT: TEMP
 	auto pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
-	LOG(kTemp, kInfo, "MainThread: AFTER Graphics ctor"); // DT: TEMP
 
 	// Wait for islands to load and initialize heightmaps
 	gpProfileManager->BootStart(kBootTimerWaitForIslands);
 	gpIslandTerrain->WaitForElevationMaps(gBaseHeight.Get() - game::kfPlayerRadius - game::kfPushMargin);
 	gpProfileManager->BootStop(kBootTimerWaitForIslands);
-	LOG(kTemp, kInfo, "MainThread: WaitForElevationMaps complete"); // DT: TEMP
 
 	// Load game
 	auto pCamera = std::make_unique<game::Camera>();
-	LOG(kTemp, kInfo, "MainThread: Camera constructed"); // DT: TEMP
 	auto pGame = std::make_unique<game::Game>();
-	LOG(kTemp, kInfo, "MainThread: Game constructed"); // DT: TEMP
 
 	// Input
 	auto pInput = std::make_unique<game::Input>();
 	game::gpInput = pInput.get();
-	LOG(kTemp, kInfo, "MainThread: Input constructed"); // DT: TEMP
 
 	// Load tweaks settings (requires both Game and ImGuiManager)
 	game::Game::LoadTweaksSettings();
-	LOG(kTemp, kInfo, "MainThread: LoadTweaksSettings complete"); // DT: TEMP
 
 	gpProfileManager->BootStop(kBootTimerVulkan);
 
 	// Ensure priority textures are ready
 	gpProfileManager->BootStart(kBootTimerWaitForPriorityTextures);
-	LOG(kTemp, kInfo, "MainThread: BEFORE WaitForTextures"); // DT: TEMP
 	gpTextureManager->WaitForTextures(TextureManager::smPriorityTextures);
-	LOG(kTemp, kInfo, "MainThread: AFTER WaitForTextures"); // DT: TEMP
 	gpProfileManager->BootStop(kBootTimerWaitForPriorityTextures);
 
 	// Populate boot-time render interpolate for the single origin frame
@@ -269,23 +221,18 @@ void MainThread(HINSTANCE hinstance)
 		game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates.try_emplace(kOriginCoord).first->second, pGame->RenderFrame(pGame->mClientGridCoord).interpolate);
 	}
 	game::gpCamera->Update(gpGraphics->mRenderInterpolates.at(kOriginCoord));
-	LOG(kTemp, kInfo, "MainThread: boot interpolate populated"); // DT: TEMP
 
 	// Render and present all framebuffers, then show window
 	gpProfileManager->BootStart(kBootTimerRenderPresent);
-	LOG(kTemp, kInfo, "MainThread: BEFORE boot render loop ({} framebuffers)", gpCommandBufferManager->mPerFramebufferCommandBuffers.size()); // DT: TEMP
 	std::vector<GridCoord> bootActiveCoords = {kOriginCoord};
 	for (int64_t i = 0; i < static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size()); ++i)
 	{
-		LOG(kTemp, kInfo, "MainThread: boot render iter {}", i); // DT: TEMP
 		gpGraphics->RenderGlobal(pGame->RenderFrame(pGame->mClientGridCoord).interpolate.fCurrentTime);
 		gpGraphics->RenderMainPresentAcquire(gpSwapchainManager->miFramebufferIndex, gpGraphics->mRenderInterpolates, bootActiveCoords, kOriginCoord);
 	}
-	LOG(kTemp, kInfo, "MainThread: AFTER boot render loop"); // DT: TEMP
 	gpProfileManager->BootStop(kBootTimerRenderPresent);
 
 	ShowWindow(sHwnd, SW_SHOWDEFAULT);
-	LOG(kTemp, kInfo, "MainThread: ShowWindow done"); // DT: TEMP
 #else
 	// Server: create terrain collision data (no Graphics)
 	auto pIslandTerrain = std::make_unique<IslandTerrain>();
@@ -673,13 +620,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANCE hPrevInstance, [[maybe_unused]] _In_ LPWSTR lpCmdLine, [[maybe_unused]] _In_ int nShowCmd)
 {
-	::DtTempSentinel("DT_SentinelWWinMain.txt", "wWinMain reached\r\n"); // DT: TEMP
-
-	// DT: TEMP - mirror LOG() to disk for RenderDoc crash debugging
-	FILE_LOG_INIT(0, "C:\\Users\\dougt\\Documents\\BrokenEnginePublic\\Projects\\BrokenEngineSandbox\\Platforms\\VisualStudio2026\\Output\\ClientLog.txt");
-	::DtTempSentinel("DT_SentinelAfterFileLogInit.txt", "FILE_LOG_INIT returned\r\n"); // DT: TEMP
-	LOG(kTemp, kInfo, "wWinMain entry"); // DT: TEMP
-
 	// Prevent multiple instances from running simultaneously
 	std::unique_ptr<void, decltype(&CloseHandle)> pMutex(nullptr, &CloseHandle);
 	if constexpr (kbSingleInstance)
@@ -695,7 +635,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANC
 
 	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-	LOG(kTemp, kInfo, "wWinMain: priorities set"); // DT: TEMP
 
 #if defined(BT_CLIENT)
 	// Windows::Foundation::Initialize is required for XAudio2 (and possibly gamepads as well)
@@ -705,15 +644,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANC
 		MessageBox(nullptr, common::HresultToString(hresult).data(), "Windows::Foundation::Initialize", MB_OK | MB_SYSTEMMODAL);
 		return 0;
 	}
-	LOG(kTemp, kInfo, "wWinMain: Windows::Foundation::Initialize OK"); // DT: TEMP
 #endif
 
 #if defined(BT_CLIENT)
 	auto pTextureUploadManager = std::make_unique<engine::TextureUploadManager>();
-	LOG(kTemp, kInfo, "wWinMain: TextureUploadManager constructed"); // DT: TEMP
 #endif
 	auto pFileManager = std::make_unique<engine::FileManager>();
-	LOG(kTemp, kInfo, "wWinMain: FileManager constructed, entering MainThread"); // DT: TEMP
 
 	if (IsDebuggerPresent()) [[unlikely]]
 	{

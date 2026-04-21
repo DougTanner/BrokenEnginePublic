@@ -22,6 +22,7 @@ Foundation layer (`namespace common`) with no dependencies outside the codebase.
 - **MXCSR**: Every thread's `ThreadLocal` ctor sets flush-denormals + round-to-nearest for cross-thread FP consistency.
 - **Equality**: Deterministic bitwise `operator==` for `XMFLOAT2/3/4` / `XMVECTOR` in `ExternalHeaders.h` (not epsilon).
 - **CRC**: `Crc()` is constexpr; `XMVECTOR` hashing round-trips via `XMFLOAT4` for consistent layout. Two-target overload XORs into both full + shared CRCs for collection `Crcs()` / `CrcsShared()`.
+- **ValidateVector\<IS_POSITION\>**: `MathUtils.h` helper asserting all 4 lanes finite plus the W invariant (positions W=1.0, directions/velocities W=0.0). Called at collection Spawn/Transfer boundaries to catch W-lane corruption before it poisons downstream `XMVectorMultiplyAdd` / `XMVector3Normalize` consumers. See root [CLAUDE.md](../CLAUDE.md) "XMVECTOR W invariant".
 - **Math helpers**: `ExponentialDecay` / `ExponentialInterpolant` use Padé (1,1) rational approximation — no transcendentals, frame-rate independent, never overshoot. Prefer over `std::exp`-based lerps.
 
 ### Binary Serialization

@@ -7,4 +7,4 @@ Client-only 3D spatial audio source data. Pure data carrier — no playback here
 - **Owner-driven lifecycle**: All phase functions are no-ops. Owners call `Add`/`Remove` and push state each frame via `Sync`; `Transfer` is empty because owners handle cross-coord transfer.
 - **Visual UUID counter**: uses `GenerateSoundUuid()` so client-side sound churn never perturbs the shared entity UUID sequence.
 - **No TypeRegistry registration**: `Register()` is empty despite a `crc` field — sounds are never rendered, so no pre-blur texture hookup.
-- **Position W=1 in Sync**: stored as points, not directions — load-bearing for spatialization math downstream.
+- **Position W=1 in Sync**: stored as points, not directions — load-bearing for spatialization math downstream. See root [CLAUDE.md](../../../../../CLAUDE.md) Key Patterns "XMVECTOR W invariant".

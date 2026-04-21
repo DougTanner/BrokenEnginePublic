@@ -309,27 +309,16 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		float fAnimationTime = rPrevious.pfAnimationTimes[i];
 #endif
 
-		// Trap: direction loaded from previous tick — all 4 lanes must be finite.
-		// W-lane matters: XMVector3Normalize's 3D length ignores W, so NaN in W survives (NaN/len = NaN)
-		// and poisons downstream code that reads W (or anything that eventually does a 4D op on this vector).
-		ASSERT(std::isfinite(XMVectorGetX(vecDirection)) && std::isfinite(XMVectorGetY(vecDirection)) && std::isfinite(XMVectorGetZ(vecDirection)) && std::isfinite(XMVectorGetW(vecDirection)));
-		ASSERT(XMVectorGetX(XMVector3LengthSq(vecDirection)) > 0.0f);
-		// Trap: delta rotation carried forward must be finite (feeds RotationZ matrix below)
-		ASSERT(std::isfinite(fDeltaRotation));
-
 		// Add velocity to position (unless frozen)
 		if (fFreezeTime <= 0.0f)
 		{
 			vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
 		}
-		// Positions must always have W=1.0 — prevents W-lane drift via MultiplyAdd.
-		// Z is asserted to remain at BaseHeight; W must be forced identically.
+		// Enforce W=1.0 — prevents drift via MultiplyAdd's 4-lane propagation.
 		vecPosition = XMVectorSetW(vecPosition, 1.0f);
 
 		// Add delta rotation to direction
 		vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * fDeltaRotation)));
-		// Trap: catches Normalize(zero-length rotated direction) → NaN, AND W-lane NaN survival
-		ASSERT(std::isfinite(XMVectorGetX(vecDirection)) && std::isfinite(XMVectorGetY(vecDirection)) && std::isfinite(XMVectorGetZ(vecDirection)) && std::isfinite(XMVectorGetW(vecDirection)));
 
 		// Decay destroyed time (only when exploding, i.e., > 0.0f; sentinel -1.0f stays unchanged)
 		if (fDestroyedTime > 0.0f)
@@ -348,9 +337,6 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 			}
 		}
 #endif // BT_CLIENT
-
-		// Trap: spaceships must stay at BaseHeight
-		ASSERT(XMVectorGetZ(vecPosition) == engine::gBaseHeight.Get());
 
 		// Save
 		rCurrent.pVecPositions[i] = vecPosition;
@@ -476,47 +462,11 @@ void SpaceshipsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [
 				rCurrentInterpolate.iCount,
 				rFrame.postRender.transferRequests.size(),
 				rFrame.postRender.transferRequests.capacity());
-
-			common::ScopedWorkbufferBuilder builder(common::gpThreadLocal->mWorkbuffer);
-			for (int64_t iIndex = 0; const TransferRequest& rDumpRequest : rFrame.postRender.transferRequests)
-			{
-				if (iIndex > 0)
-				{
-					builder.Append("\n");
-				}
-				builder.Append("  [");
-				builder.Append(iIndex);
-				builder.Append("] Tick=");
-				builder.Append(rDumpRequest.iPushedTick);
-				builder.Append(" Type=");
-				builder.Append(StatusChangeTypeName(rDumpRequest.eType));
-				builder.Append(" EntityId=");
-				builder.Append(rDumpRequest.iEntityId);
-				builder.Append(" Delta=(");
-				builder.Append(static_cast<int64_t>(rDumpRequest.iDeltaX));
-				builder.Append(",");
-				builder.Append(static_cast<int64_t>(rDumpRequest.iDeltaY));
-				builder.Append(") Pos=(");
-				builder.AppendFloat(DirectX::XMVectorGetX(rDumpRequest.data.vecPosition), 1);
-				builder.Append(",");
-				builder.AppendFloat(DirectX::XMVectorGetY(rDumpRequest.data.vecPosition), 1);
-				builder.Append(") Vel=(");
-				builder.AppendFloat(DirectX::XMVectorGetX(rDumpRequest.data.vecVelocity), 1);
-				builder.Append(",");
-				builder.AppendFloat(DirectX::XMVectorGetY(rDumpRequest.data.vecVelocity), 1);
-				builder.Append(") Health=");
-				builder.AppendFloat(rDumpRequest.data.fHealth, 1);
-				builder.Append(" Alignment=");
-				builder.Append(static_cast<int64_t>(rDumpRequest.data.alignment.Value()));
-				++iIndex;
-			}
-			LOG(kDefault, kError, "Transfer queue contents ({} entries, currentTick={}):\n{}",
-				rFrame.postRender.transferRequests.size(),
-				rFrame.interpolate.iTick,
-				builder);
-
 			DEBUG_BREAK();
 		}
+		common::ValidateVector<true >(request.data.vecPosition);
+		common::ValidateVector<false>(request.data.vecDirection);
+		common::ValidateVector<false>(request.data.vecVelocity);
 		rFrame.postRender.transferRequests.push_back(request);
 
 		RemoveOwnedObjects(rFrame, rCurrentInterpolate, i, true);
@@ -646,18 +596,15 @@ void SpaceshipsPostRender::Spawn(Frame& __restrict rFrame, const SpawnInfo& rInf
 	SpaceshipsInterpolate& rCurrentInterpolate = *rFrame.interpolate.pSpaceships;
 	SpaceshipsPostRender& rCurrentPostRender = *rFrame.postRender.pSpaceships;
 
+	common::ValidateVector<true >(rInfo.vecPosition);
+	common::ValidateVector<false>(rInfo.vecDirection);
+	common::ValidateVector<false>(rInfo.vecVelocity);
+
 	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
 
-	// Trap: spawn caller must place spaceship at BaseHeight
-	ASSERT(XMVectorGetZ(rInfo.vecPosition) == engine::gBaseHeight.Get());
-	// Trap: spawn caller must supply a finite, non-zero direction in ALL 4 lanes (W included;
-	// a NaN W persists through Normalize 3D and eventually blows up 4D ops downstream).
-	ASSERT(std::isfinite(XMVectorGetX(rInfo.vecDirection)) && std::isfinite(XMVectorGetY(rInfo.vecDirection)) && std::isfinite(XMVectorGetZ(rInfo.vecDirection)) && std::isfinite(XMVectorGetW(rInfo.vecDirection)));
-	ASSERT(XMVectorGetX(XMVector3LengthSq(rInfo.vecDirection)) > 0.0f);
-
 	// Initialize interpolate state
-	rCurrentInterpolate.pVecPositions[iIndex] = XMVectorSetW(rInfo.vecPosition, 1.0f);
+	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 	rCurrentInterpolate.pfDeltaRotations[iIndex] = 0.0f;
@@ -688,7 +635,6 @@ void SpaceshipsPostRender::Spawn(Frame& __restrict rFrame, const SpawnInfo& rInf
 	}
 
 	// Initialize post-render state
-	ASSERT(std::isfinite(XMVectorGetX(rInfo.vecVelocity)) && std::isfinite(XMVectorGetY(rInfo.vecVelocity)) && std::isfinite(XMVectorGetZ(rInfo.vecVelocity)));
 	rCurrentPostRender.pFlags[iIndex] = {};
 	rCurrentPostRender.pVecVelocities[iIndex] = rInfo.vecVelocity;
 	rCurrentPostRender.pVecDamageDirections[iIndex] = XMVectorZero();
@@ -719,7 +665,6 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		// Load from PostRender (static fields copied via memcpy in AllocateAndCopy)
 		SpaceshipFlags_t flags = rPrevious.pFlags[i];
 		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
-		ASSERT(std::isfinite(XMVectorGetX(vecVelocity)) && std::isfinite(XMVectorGetY(vecVelocity)) && std::isfinite(XMVectorGetZ(vecVelocity)));
 		float fHealth = rPrevious.pfHealths[i];
 		float fDestroyedExplosionTime = rPrevious.pfDestroyedExplosionTimes[i] - fDeltaTime;
 		float fNextBlasterSpawnTime = rPrevious.pfNextBlasterSpawnTimes[i] - fDeltaTime;
@@ -744,39 +689,15 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 
 		if (!(flags & kExploding)) [[likely]]
 		{
-			ComputeSteering(rCurrentInterpolate.pVecPositions[i], rCurrentInterpolate.pVecDirections[i], bPlayerAlive, vecNearestPlayer, fDeltaTime, flags, fDeltaRotation);
+			ComputeSteering(rStaticData, rCurrentInterpolate.pVecPositions[i], rCurrentInterpolate.pVecDirections[i], bPlayerAlive, vecNearestPlayer, fDeltaTime, flags, fDeltaRotation);
 			ApplyMovement(rFrame, rCurrentInterpolate, i, flags, fDeltaTime, vecVelocity);
-			ASSERT(std::isfinite(XMVectorGetX(vecVelocity)) && std::isfinite(XMVectorGetY(vecVelocity)) && std::isfinite(XMVectorGetZ(vecVelocity)));
 		}
 		else
 		{
 			ApplyDeathKnockback(rPrevious.pVecDamageDirections[i], vecVelocity);
-			ASSERT(std::isfinite(XMVectorGetX(vecVelocity)) && std::isfinite(XMVectorGetY(vecVelocity)) && std::isfinite(XMVectorGetZ(vecVelocity)));
-		}
-
-		// Diagnostic: ApplyTerrainBounce normalizes a horizontal gradient and produces NaN when
-		// gradient is zero (flat terrain). Root-cause hunt: log upstream context whenever a
-		// spaceship's Z has dropped into terrain so we can see how it got there.
-		const float fDiagnosticTerrainElevation = engine::gpIslandTerrain->GlobalElevation(rCurrentInterpolate.pVecPositions[i]);
-		if (fDiagnosticTerrainElevation >= XMVectorGetZ(rCurrentInterpolate.pVecPositions[i])) [[unlikely]]
-		{
-			LOG(kDefault, kError,
-				"Spaceship below terrain Tick: {} Index: {} Pos: {} PosZ: {} Vel: {} VelZ: {} Elevation: {} Flags: {} Alignment: {} ArrivalGrace: {} Health: {}",
-				rFrame.interpolate.iTick,
-				i,
-				common::WbV2(rCurrentInterpolate.pVecPositions[i], 2),
-				common::Wb(XMVectorGetZ(rCurrentInterpolate.pVecPositions[i]), 2),
-				common::WbV2(vecVelocity, 2),
-				common::Wb(XMVectorGetZ(vecVelocity), 2),
-				common::Wb(fDiagnosticTerrainElevation, 2),
-				flags,
-				rCurrent.pAlignments[i],
-				common::Wb(fArrivalGracePeriod, 2),
-				common::Wb(fHealth, 1));
 		}
 
 		ApplyTerrainBounce(rCurrentInterpolate, i, fDeltaTime, fDeltaRotation, vecVelocity);
-		ASSERT(std::isfinite(XMVectorGetX(vecVelocity)) && std::isfinite(XMVectorGetY(vecVelocity)) && std::isfinite(XMVectorGetZ(vecVelocity)));
 
 		// Clamp delta rotation
 		fDeltaRotation = common::MinAbs(fDeltaRotation, kfSpaceshipMaxTurnRate);

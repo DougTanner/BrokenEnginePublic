@@ -400,18 +400,15 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
 	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
 
+	common::ValidateVector<true >(rInfo.vecPosition);
+	common::ValidateVector<false>(rInfo.vecDirection);
+	common::ValidateVector<false>(rInfo.vecVelocity);
+
 	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	auto [iIndex, newId] = engine::AddIndexableElement(rCurrentInterpolate, rCurrentPostRender, rFrame.postRender);
 
-	// Trap: spawn caller must supply finite vectors in ALL 4 lanes.
-	// The position gets its W forced to 1.0 below, but direction/velocity are copied unchanged —
-	// a NaN in any lane here silently propagates for the lifetime of the player.
-	ASSERT(std::isfinite(XMVectorGetX(rInfo.vecPosition)) && std::isfinite(XMVectorGetY(rInfo.vecPosition)) && std::isfinite(XMVectorGetZ(rInfo.vecPosition)));
-	ASSERT(std::isfinite(XMVectorGetX(rInfo.vecDirection)) && std::isfinite(XMVectorGetY(rInfo.vecDirection)) && std::isfinite(XMVectorGetZ(rInfo.vecDirection)) && std::isfinite(XMVectorGetW(rInfo.vecDirection)));
-	ASSERT(std::isfinite(XMVectorGetX(rInfo.vecVelocity)) && std::isfinite(XMVectorGetY(rInfo.vecVelocity)) && std::isfinite(XMVectorGetZ(rInfo.vecVelocity)) && std::isfinite(XMVectorGetW(rInfo.vecVelocity)));
-
 	// Initialize interpolate state
-	rCurrentInterpolate.pVecPositions[iIndex] = XMVectorSetW(rInfo.vecPosition, 1.0f);
+	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = 0.0f;
 	rCurrentInterpolate.pfAnimationTimes[iIndex] = rInfo.fAnimationTime;
@@ -482,26 +479,13 @@ void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rF
 		float fDestroyedTime = rPrevious.pfDestroyedTimes[i];
 		float fAnimationTime = rPrevious.pfAnimationTimes[i];
 
-		// Trap: position loaded from previous tick must be finite in all 4 lanes.
-		// A NaN in W silently poisons downstream consumers (SpawnSpaceshipGroup reads player
-		// positions and feeds them into MultiplyAdd / Subtract / Normalize, all of which
-		// pass W through unchanged).
-		ASSERT(std::isfinite(XMVectorGetX(vecPosition)) && std::isfinite(XMVectorGetY(vecPosition)) && std::isfinite(XMVectorGetZ(vecPosition)) && std::isfinite(XMVectorGetW(vecPosition)));
-
-		// Trap: velocity used in position integration must also be finite across all 4 lanes
-		// (W especially — MultiplyAdd propagates it straight into position.W next save).
-		const XMVECTOR vecPlayerVelocity = rPreviousPostRender.pVecVelocities[i];
-		ASSERT(std::isfinite(XMVectorGetX(vecPlayerVelocity)) && std::isfinite(XMVectorGetY(vecPlayerVelocity)) && std::isfinite(XMVectorGetZ(vecPlayerVelocity)) && std::isfinite(XMVectorGetW(vecPlayerVelocity)));
-
 		// Position
 		if (!(rPreviousPostRender.pFlags[i] & kExploding)) [[likely]]
 		{
-			vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), vecPlayerVelocity, vecPosition);
+			vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
 		}
 		vecPosition = XMVectorSetZ(vecPosition, engine::gBaseHeight.Get());
-		// Positions must always have W=1.0 — enforced here to prevent W-lane drift from
-		// accumulating via MultiplyAdd (pos.W += dt * vel.W). Once corrupted, W contaminates
-		// any downstream Subtract/Normalize (XMVector3Normalize divides ALL 4 lanes by 3D length).
+		// Enforce W=1.0 — prevents drift via MultiplyAdd's 4-lane propagation (pos.W += dt * vel.W).
 		vecPosition = XMVectorSetW(vecPosition, 1.0f);
 
 		// Direction
@@ -512,11 +496,6 @@ void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rF
 		{
 			fDestroyedTime = std::max(fDestroyedTime - fDeltaTime, 0.0f);
 		}
-
-		// Trap: save-side integration output must be finite in all 4 lanes.
-		// Catches any NaN that leaked in via velocity or RotateTowardsPercent.
-		ASSERT(std::isfinite(XMVectorGetX(vecPosition)) && std::isfinite(XMVectorGetY(vecPosition)) && std::isfinite(XMVectorGetZ(vecPosition)) && std::isfinite(XMVectorGetW(vecPosition)));
-		ASSERT(std::isfinite(XMVectorGetX(vecDirection)) && std::isfinite(XMVectorGetY(vecDirection)) && std::isfinite(XMVectorGetZ(vecDirection)) && std::isfinite(XMVectorGetW(vecDirection)));
 
 		// Save
 		rCurrent.pVecPositions[i] = vecPosition;
@@ -706,7 +685,9 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 
 	// Frame area and center
 	XMVECTOR vecArea = rStaticData.vecArea;
-	XMVECTOR vecFrameCenter = XMVectorSet((XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f, (XMVectorGetW(vecArea) + XMVectorGetY(vecArea)) * 0.5f, engine::gBaseHeight.Get(), 0.0f);
+	// W=1.0 keeps this a proper position — every downstream (frameCenter - vecPosition) and cardinal offset add stays W-clean,
+	// so normalize fallbacks don't leak W into the AI direction and on into velocity.
+	XMVECTOR vecFrameCenter = XMVectorSet((XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f, (XMVectorGetW(vecArea) + XMVectorGetY(vecArea)) * 0.5f, engine::gBaseHeight.Get(), 1.0f);
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -782,11 +763,6 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		RegenerateShield(fDeltaTime, fShieldCooldown, fShield);
 		ApplyTerrainPush(vecPosition, vecVelocity);
 		ApplyPusherPush(rFrame, rPreviousFrame, i, vecPosition, vecVelocity);
-
-		// Trap: PostRender save-side — velocity and wanted-direction both feed next tick's integration.
-		// All 4 lanes finite (W especially — it's what silently propagated into spaceship SpawnInfo).
-		ASSERT(std::isfinite(XMVectorGetX(vecVelocity)) && std::isfinite(XMVectorGetY(vecVelocity)) && std::isfinite(XMVectorGetZ(vecVelocity)) && std::isfinite(XMVectorGetW(vecVelocity)));
-		ASSERT(std::isfinite(XMVectorGetX(vecWantedDirection)) && std::isfinite(XMVectorGetY(vecWantedDirection)) && std::isfinite(XMVectorGetZ(vecWantedDirection)) && std::isfinite(XMVectorGetW(vecWantedDirection)));
 
 		// Save
 		SetNavDirection(flags, iNavDirection);

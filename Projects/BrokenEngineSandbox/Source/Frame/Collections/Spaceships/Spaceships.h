@@ -122,7 +122,7 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 private:
 	// Per-spaceship Update helpers (called from SpaceshipsPostRender::Update orchestrator)
 	// Defined in SpaceshipsNavigation.cpp:
-	static void XM_CALLCONV ComputeSteering(FXMVECTOR vecPosition, FXMVECTOR vecDirection, bool bPlayerAlive, FXMVECTOR vecNearestPlayer, float fDeltaTime, SpaceshipFlags_t& rFlags, float& rfDeltaRotation);
+	static void XM_CALLCONV ComputeSteering(const engine::FrameStaticData& rStaticData, FXMVECTOR vecPosition, FXMVECTOR vecDirection, bool bPlayerAlive, FXMVECTOR vecNearestPlayer, float fDeltaTime, SpaceshipFlags_t& rFlags, float& rfDeltaRotation);
 	static void XM_CALLCONV ApplyMovement(Frame& __restrict rFrame, const SpaceshipsInterpolate& __restrict rCurrentInterpolate, int64_t i, SpaceshipFlags_t flags, float fDeltaTime, XMVECTOR& rVecVelocity);
 	static void ApplyTerrainBounce(SpaceshipsInterpolate& __restrict rCurrentInterpolate, int64_t i, float fDeltaTime, float& rfDeltaRotation, XMVECTOR& rVecVelocity);
 

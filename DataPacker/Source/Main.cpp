@@ -1,5 +1,6 @@
 #include "FileManager.h"
 
+#include "BakeIslandIntermediates.h"
 #include "Texture.h"
 #include "ExportJobs/ExportAudio.h"
 #include "ExportJobs/ExportFont.h"
@@ -193,6 +194,7 @@ bool MainThread(int argc, char* argv[])
 
 	// Scene and Island need to be first as they can create new textures and models
 	bSuccess &= RunExportJobs<ExportScene>();
+	BakeIslandIntermediates();
 	bSuccess &= RunExportJobs<ExportIsland>();
 
 	GenerateIrradianceCubemaps();

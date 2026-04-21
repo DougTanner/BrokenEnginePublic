@@ -169,11 +169,14 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;
 	BlastersPostRender& rCurrentPostRender = *rFrame.postRender.pBlasters;
 
+	common::ValidateVector<true >(rInfo.vecPosition);
+	common::ValidateVector<false>(rInfo.vecVelocity);
+
 	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
 
 	// Initialize interpolate state
-	rCurrentInterpolate.pVecPositions[iIndex] = XMVectorSetW(rInfo.vecPosition, 1.0f);
+	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = XMVector3Normalize(rInfo.vecVelocity);
 	rCurrentInterpolate.puiTypeIndices[iIndex] = rInfo.uiTypeIndex;
 #if defined(BT_CLIENT)
@@ -271,6 +274,9 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[m
 				rFrame.postRender.transferRequests.capacity());
 			DEBUG_BREAK();
 		}
+		common::ValidateVector<true >(request.data.vecPosition);
+		common::ValidateVector<false>(request.data.vecDirection);
+		common::ValidateVector<false>(request.data.vecVelocity);
 		rFrame.postRender.transferRequests.push_back(request);
 
 		RemoveOwnedObjects(rFrame, rCurrentInterpolate, rCurrentPostRender, i);

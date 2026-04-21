@@ -400,6 +400,9 @@ void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[m
 				rFrame.postRender.transferRequests.capacity());
 			DEBUG_BREAK();
 		}
+		common::ValidateVector<true >(request.data.vecPosition);
+		common::ValidateVector<false>(request.data.vecDirection);
+		common::ValidateVector<false>(request.data.vecVelocity);
 		rFrame.postRender.transferRequests.push_back(request);
 
 		RemoveOwnedObjects(rFrame, rCurrentInterpolate, rCurrentPostRender, i);
@@ -429,14 +432,6 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[ma
 
 void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
-	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
-	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;
-
-	// Spawn staggered explosions during death animation - handled in Update
-	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
-	{
-		[[maybe_unused]] MissileFlags_t flags = rCurrentPostRender.pFlags[i];
-	}
 }
 
 void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
@@ -444,11 +439,16 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
 	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;
 
+	common::ValidateVector<true >(rInfo.vecPosition);
+	common::ValidateVector<false>(rInfo.vecDirection);
+	common::ValidateVector<false>(rInfo.vecVelocity);
+	common::ValidateVector<false>(rInfo.vecStoredDirection);
+
 	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
 
 	// Initialize interpolate state
-	rCurrentInterpolate.pVecPositions[iIndex] = XMVectorSetW(rInfo.vecPosition, 1.0f);
+	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
 	rCurrentPostRender.pFlags[iIndex] = rInfo.flags;
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding

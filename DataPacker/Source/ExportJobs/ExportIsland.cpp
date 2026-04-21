@@ -6,7 +6,15 @@ using enum common::ChunkFlags;
 
 std::optional<common::ChunkFlags_t> ExportIsland::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 {
-	return rDirectoryEntry.is_directory() && rDirectoryEntry.path().parent_path().filename() == "Islands" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kIsland) : std::nullopt;
+	if (!rDirectoryEntry.is_directory() || rDirectoryEntry.path().parent_path().filename() != "Islands")
+	{
+		return std::nullopt;
+	}
+
+	// Elevation is required for the beach-elevation computation; skip folders that haven't been baked yet (e.g., pre-Gaea work-in-progress).
+	const std::filesystem::path& rPath = rDirectoryEntry.path();
+	bool bHasElevation = std::filesystem::exists(rPath / "Elevation.r32") || std::filesystem::exists(rPath / kpcIslandElevation);
+	return bHasElevation ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kIsland) : std::nullopt;
 }
 
 void ExportIsland::Export()

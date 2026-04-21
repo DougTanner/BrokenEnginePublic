@@ -91,6 +91,9 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[ma
 				rFrame.postRender.transferRequests.capacity());
 			DEBUG_BREAK();
 		}
+		common::ValidateVector<true >(request.data.vecPosition);
+		common::ValidateVector<false>(request.data.vecDirection);
+		common::ValidateVector<false>(request.data.vecVelocity);
 		rFrame.postRender.transferRequests.push_back(request);
 
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
@@ -226,7 +229,7 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 #if defined(BT_CLIENT)
 		if constexpr (kbDebugRender)
 		{
-			rCurrent.pVecDebugNavWaypoints[i] = XMVectorSetW(vecDebugWaypoint, 1.0f);
+			rCurrent.pVecDebugNavWaypoints[i] = vecDebugWaypoint;
 		}
 #endif // BT_CLIENT
 	}
@@ -246,7 +249,6 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 
 			// Snap to navigable area if inside an obstacle
 			rVecIslandDestination = engine::NavQuerySnapToNavigable(rVecIslandDestination, rStaticData.navData);
-			rVecIslandDestination = XMVectorSetW(rVecIslandDestination, 1.0f);
 			LOG(kNavData, kVerbose, "Player {} NavSwitch: island dest generated pos={} dest={}", i, vecPosition, rVecIslandDestination);
 		}
 
@@ -277,7 +279,7 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 #if defined(BT_CLIENT)
 		if constexpr (kbDebugRender)
 		{
-			rCurrent.pVecDebugNavWaypoints[i] = XMVectorSetW(vecDebugWaypoint, 1.0f);
+			rCurrent.pVecDebugNavWaypoints[i] = vecDebugWaypoint;
 		}
 #endif // BT_CLIENT
 	}
@@ -321,7 +323,7 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 #if defined(BT_CLIENT)
 		if constexpr (kbDebugRender)
 		{
-			rCurrent.pVecDebugNavWaypoints[i] = XMVectorSetW(vecDebugWaypoint, 1.0f);
+			rCurrent.pVecDebugNavWaypoints[i] = vecDebugWaypoint;
 		}
 #endif // BT_CLIENT
 	}
