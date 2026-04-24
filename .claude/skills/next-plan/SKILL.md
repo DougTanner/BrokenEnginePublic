@@ -9,7 +9,7 @@ allowed-tools: [Read, Grep, Glob, Agent, ExitPlanMode]
 
 # Next Plan
 
-Walks the `## Plans` table in `Documents/Plans/Order.md`, picks the top-priority unblocked **active** plan, verifies it still describes a real problem in the current code, refreshes stale line numbers or paths, and hands a ready-to-execute plan to the user through the plan-mode approval flow.
+Walks the `## Plans` table in `Documents/Plans/Order.md`, picks the top-priority unblocked plan, verifies it still describes a real problem in the current code, refreshes stale line numbers or paths, and hands a ready-to-execute plan to the user through the plan-mode approval flow.
 
 ## Preconditions
 
@@ -18,14 +18,10 @@ Walks the `## Plans` table in `Documents/Plans/Order.md`, picks the top-priority
 
 ## Order.md structure reference
 
-Order.md has a single `## Plans` table at roughly line 21. Columns are: `# | Plan | Tier | Effort | Impact | Risks | Score | Notes`. Rows are sorted by Score ascending (lowest = highest priority).
+Order.md has a single `## Plans` table at roughly line 21. Columns are: `# | Plan | Tier | Effort | Impact | Risks | Score | Notes`. Rows are sorted by Score ascending (lowest = highest priority). Every row in the table is executable; rows are deleted from the table when the plan is done. Plan cells should be markdown links (`[path](path)`) for clickable navigation.
 
-- **Active rows**: the `Plan` cell is a markdown link, e.g. `[Audio/GateVoiceLifecycleDuringReplay.txt](Audio/GateVoiceLifecycleDuringReplay.txt)`. These are executable.
-- **Future rows**: the `Plan` cell is plain text (no link). These describe ideas not yet scheduled — **skip them**.
 - **`### Reference / Index Documents` subsection**: a separate table below the main one, listing meta/overview docs that are never executed as plans. **Ignore this subsection entirely.**
 - **`## Dependencies` section**: prose bullets expressing ordering constraints between plans.
-
-This skill only ever selects an **active** row.
 
 ## Workflow
 
@@ -34,8 +30,8 @@ Execute these steps in order. Steps 1 through 5 are pure research (Read / Grep /
 ### Step 1. Resolve dependencies
 
   a. Read `Documents/Plans/Order.md`.
-  b. If the user passed an argument (`$1` / `$ARGUMENTS` non-empty), normalize it to the repo-relative plan-file form (e.g., `Audio/GateVoiceLifecycleDuringReplay.txt` — strip any leading `./` or `Documents/Plans/`, trim backticks) and use that as the **candidate**. Otherwise, walk the `## Plans` table top-down and take the first row whose `Plan` cell is a markdown link — that row's link target is the candidate.
-  c. Reject ineligible candidates up front. A plan is ineligible if the `## Dependencies` section marks it as `is subsumed` or `is an index/meta document, not an executable plan`. If the user passed such a path, stop and tell them it isn't executable; if it turned up as the top active row, skip it and continue walking down.
+  b. If the user passed an argument (`$1` / `$ARGUMENTS` non-empty), normalize it to the repo-relative plan-file form (e.g., `Audio/GateVoiceLifecycleDuringReplay.txt` — strip any leading `./` or `Documents/Plans/`, trim backticks) and use that as the **candidate**. Otherwise, walk the `## Plans` table top-down and take the first row. Extract the plan-file path from its Plan cell (handles both `[path](path)` link form and bare-path form, for backwards compatibility during the normalization rollout).
+  c. Reject ineligible candidates up front. A plan is ineligible if the `## Dependencies` section marks it as `is subsumed` or `is an index/meta document, not an executable plan`. If the user passed such a path, stop and tell them it isn't executable; if it turned up as the top row, skip it and continue walking down.
   d. Scan the `## Dependencies` section. Each bullet expresses a directional constraint between one or more plans. Normalize every relevant bullet to the canonical form "X depends on Y" (X cannot run until Y is done) using these patterns:
 
        - `X depends on Y` → X depends on Y
@@ -53,8 +49,8 @@ Execute these steps in order. Steps 1 through 5 are pure research (Read / Grep /
      Direction matters: in "Y must precede X", the candidate being checked is the prerequisite (Y) in half the bullets and the dependent (X) in the other half. Match on the candidate's plan-file path appearing on either side, then use the verb to decide which side points at the prerequisite.
 
   e. Collect the prerequisite set for the current candidate (the Ys where the candidate is X in the normalized form). For each prerequisite:
-       - If the prerequisite is still an **active row** in the `## Plans` table (link cell, not plain text) → unfinished; recurse from Step 1 with the prerequisite as the new candidate. (Exception: if the row is still present as a link but its plan file is missing from disk, that's a bookkeeping anomaly — see the "plan file missing from disk" edge case; report it rather than recursing.)
-       - If the prerequisite is not present as an active row in the table → treat as satisfied; it was either already executed or hand-cleaned. Whether the file itself remains on disk doesn't matter at this point.
+       - If the prerequisite is still a row in the `## Plans` table → unfinished; recurse from Step 1 with the prerequisite as the new candidate. (Exception: if the row is present but its plan file is missing from disk, that's a bookkeeping anomaly — see the "plan file missing from disk" edge case; report it rather than recursing.)
+       - If the prerequisite is not present in the table → treat as satisfied; it was either already executed or hand-cleaned. Whether the file itself remains on disk doesn't matter at this point.
 
   f. When a candidate has no unmet prerequisites, it is the **target plan**. Record its path, all row fields (Tier / Effort / Impact / Risks / Score / Notes), and the row's line number in `Order.md`.
 
@@ -147,15 +143,13 @@ After `ExitPlanMode` returns and the user approves, follow the standard C++ Code
 
 ## Edge cases
 
-- **No active rows** (`## Plans` table has only plain-text Plan cells): report "Order.md has no active plans" and stop.
-- **Top active row is marked subsumed or index/meta in Dependencies**: Step 1c filters it; fall through to the next active row.
-- **Plan file missing from disk** but row still in `## Plans` as a link: the plan was likely hand-deleted without cleaning up Order.md. Report this, recommend removing the stale row, and fall through to the next candidate.
+- **Empty table** (`## Plans` table has no rows): report "Order.md has no plans" and stop.
+- **Top row is marked subsumed or index/meta in Dependencies**: Step 1c filters it; fall through to the next row.
+- **Plan file missing from disk** but row still in `## Plans`: the plan was likely hand-deleted without cleaning up Order.md. Report this, recommend removing the stale row, and fall through to the next candidate.
 - **User provided a plan name as an argument**: Step 1b handles this — normalize and use as the candidate; the dependency walk still runs from it downward.
-- **Argument names a future row** (plain-text Plan cell, not a link): tell the user the row is scheduled as Future and has not been promoted to Active; do not proceed.
-- **Prerequisite missing from both active rows and disk**: Step 1e already treats this as satisfied. No extra handling needed.
+- **Prerequisite missing from both the table and disk**: Step 1e already treats this as satisfied. No extra handling needed.
 
 ## What this skill does not do
 
 - Does not execute the plan — that happens after `ExitPlanMode` approval, and follows the main `CLAUDE.md` C++ Code Change Process.
 - Does not re-prioritize the `## Plans` table. Changing priorities is a separate concern — if Step 4 surfaces that the score is stale, surface it to the user rather than silently re-ranking.
-- Does not promote Future rows (plain-text Plan cells) to Active. That is a user decision.
