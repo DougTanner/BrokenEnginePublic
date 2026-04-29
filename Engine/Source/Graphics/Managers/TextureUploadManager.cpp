@@ -301,12 +301,13 @@ void TextureUploadManager::UploadThread()
 				}
 				else
 				{
-					// Partial mip: fit whole block-rows
-					int64_t iBytesPerBlockRow = common::SizeInBytes(vkFormat, uiMipWidth, uiBlockHeight);
-					int64_t iBlockRowsThatFit = static_cast<int64_t>(vkRemainingStaging) / iBytesPerBlockRow;
-					if (iBlockRowsThatFit == 0) break;
+					// Partial mip: chunk by max(block, transfer-queue granularity) so imageOffset.y / imageExtent.height stay spec-compliant on dedicated transfer queues with non-(1,1,1) granularity (VUID-vkCmdCopyBufferToImage-imageOffset-07738).
+					uint32_t uiChunkHeight = std::max(uiBlockHeight, gpInstanceManager->mTransferImageGranularity.height);
+					int64_t iBytesPerChunk = common::SizeInBytes(vkFormat, uiMipWidth, uiChunkHeight);
+					int64_t iChunksThatFit = static_cast<int64_t>(vkRemainingStaging) / iBytesPerChunk;
+					if (iChunksThatFit == 0) break;
 
-					uint32_t uiCopyHeight = std::min(static_cast<uint32_t>(iBlockRowsThatFit * uiBlockHeight), uiRemainingHeight);
+					uint32_t uiCopyHeight = static_cast<uint32_t>(iChunksThatFit * uiChunkHeight);
 					int64_t iCopyBytes = common::SizeInBytes(vkFormat, uiMipWidth, uiCopyHeight);
 
 					memcpy(static_cast<std::byte*>(mStagingMappedData) + vkStagingUsed, pData + mCurrentDataOffset, iCopyBytes);

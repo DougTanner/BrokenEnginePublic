@@ -34,10 +34,13 @@ int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight)
 	int64_t iPixels = iWidth * iHeight;
 	switch (vkFormat)
 	{
+		// BC formats are stored as 4x4 blocks. Round dims up to block size so sub-block mips report the true on-disk size (e.g. 2x2 BC4 is one 8-byte block, not 2 bytes). Identical to the legacy `iPixels / [2|1]` formulas for any (w, h) that's a multiple of 4 (which is what the DataPacker currently emits — see `MakeMipmaps` 4x4 cap), so this is a strict superset.
 		case VK_FORMAT_BC4_UNORM_BLOCK:
-			return iPixels / 2;
+			return ((iWidth + 3) / 4) * ((iHeight + 3) / 4) * 8;
 
 		case VK_FORMAT_BC7_UNORM_BLOCK:
+			return ((iWidth + 3) / 4) * ((iHeight + 3) / 4) * 16;
+
 		case VK_FORMAT_R8_UNORM:
 			return iPixels;
 

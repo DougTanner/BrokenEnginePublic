@@ -35,13 +35,6 @@ struct CharInfo
 	uint8_t chnl;
 };
 
-struct KerningPair
-{
-	DWORD first;
-	DWORD second;
-	short amount;
-};
-
 #pragma pack(pop)
 
 std::optional<common::ChunkFlags_t> ExportFont::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
@@ -103,14 +96,7 @@ void ExportFont::Export()
 				break;
 			}
 			case 5:
-			{
-				std::span<KerningPair> pKerningPairs(reinterpret_cast<KerningPair*>(&fntData.at(iPos)), iBlockSize / sizeof(KerningPair));
-				for ([[maybe_unused]] const KerningPair& rKerningPair : pKerningPairs)
-				{
-					// LOG(kDefault, kDebug, "  KerningPair {} {} {}", rKerningPair.first, rKerningPair.second, rKerningPair.amount);
-				}
 				break;
-			}
 			default:
 				ASSERT(false);
 		}

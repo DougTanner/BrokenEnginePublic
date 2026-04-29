@@ -10,6 +10,7 @@ Server-side game networking (`BT_SERVER`). `ServerSession` is a thin orchestrato
 - **Active set**: rebuilt each tick from client subscriptions plus any coord with players plus pending destroy coords; `kOriginCoord` always included.
 - **Client-dead gating**: a client is only marked dead when all owned players are gone; clients mid-transfer are skipped to avoid false positives while a player crosses a coord boundary.
 - **Fleet ownership by `ClientGuid`**: fleets are keyed by persistent GUID so they survive disconnect/reconnect; a separate reap pass handles AI-managed disconnected fleets.
+- **Fleet RNG lifecycle**: the fleet manager's `RandomEngine` is `TimeSeed()`ed once at construction and persists across all `ResetState()` calls; save/load round-trips its state at the tail of the fleet block. Never re-seed on session reset, quickload, or replay-load — replay determinism depends on it.
 - **Flagship timer**: only advances when the flagship is alive, at its wanted coord, and not navigating a cell edge; direction changes emit as `kUpdateFleet` status changes via the countdown-activation pattern (see [Frame/CLAUDE.md](../../Frame/CLAUDE.md)).
 - **Reconnect / load relink**: matching `pClientGuids[i]` across frames are sorted by global ID to preserve creation order before rebuilding parallel vectors. Load additionally resets all managers and ring buffers but preserves pending flagship updates since fleet restoration enqueues into it.
 - **Allocation suppression**: every public manager entry point wraps its body in `ScopedSuppressAllocationTracking`.

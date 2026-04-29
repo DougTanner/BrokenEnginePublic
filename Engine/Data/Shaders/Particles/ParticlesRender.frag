@@ -32,7 +32,7 @@ layout (location = 0) out vec4 f4OutColor;
 void main()
 {
 	int i = iInInstanceIndex;
-	float fIntensity = render.pParticles[i].fIntensity;
+	float fIntensity = render.pParticles[i].fVisibleIntensity;
 	fIntensity = pow(fIntensity, render.pParticles[i].fIntensityPower);
 
 	vec4 f4Color = unpackUnorm4x8(render.pParticles[i].iColor).abgr;

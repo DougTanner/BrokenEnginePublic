@@ -39,3 +39,19 @@ The game Kinetic Storm runs on Broken Engine and is currently available on Steam
 	    - The first time you compile, a pre-build event will build the Data Packer at BrokenEnginePublic/DataPacker/Platforms/VisualStudio2026/Output/DataPacker.exe
 	    - Any time data is changed, a pre-build event will run the Data Packer to export and package the data to BrokenEngineSandbox/Platforms/VisualStudio2026/Output/Data.bin
 	- Run with Visual Studio (Debug -> Start Debugging)
+
+## Smart App Control (Windows 11)
+
+Windows 11's [Smart App Control](https://support.microsoft.com/en-us/windows/smart-app-control-has-blocked-part-of-this-app-0729fff1-48bf-4b25-aa97-632fe55ccca2) (SAC) blocks unsigned binaries that lack reputation in Microsoft's Intelligent Security Graph. Fresh local builds qualify, so SAC will block Client / Server / DataPacker until they are signed.
+
+The PostBuildEvent in each `.vcxproj` invokes `Common/Signing/Sign-Output.ps1` to handle this:
+
+- **First build after clone**: a Yes/No dialog asks whether to enable signing with a self-signed local dev certificate (`CN=BrokenEngine Local Dev`).
+	- Choose **Yes** to allow the binaries to run under SAC. Windows will then pop its own one-time security warning when adding the cert to your `Root` store; click Yes there as well.
+	- Choose **No** to skip signing. Builds still succeed; binaries simply remain blocked by SAC until you re-prompt.
+- **Choice is remembered** in `%LOCALAPPDATA%\BrokenEngine\signing-consent.txt` (literal text `granted` or `declined`). Delete the file to be re-prompted, or hand-edit it to flip the answer.
+- **CI / non-interactive sessions**: signing is auto-skipped (the script detects `[Environment]::UserInteractive == false` and common CI env vars `CI` / `GITHUB_ACTIONS` / `TF_BUILD` / `BUILD_BUILDID`). CI builds produce unsigned binaries, which is fine since CI runners don't run under SAC.
+- **If the .exe is running while you build** (game still launched), the post-build sees the file lock, prints a warning, and exits 0 - the build does not fail. Matches the existing project ethos that LNK errors on running binaries are ignorable.
+- **To remove the cert later**:
+	- `Get-ChildItem Cert:\CurrentUser\My,Cert:\CurrentUser\TrustedPublisher,Cert:\CurrentUser\Root | Where-Object { $_.Subject -eq 'CN=BrokenEngine Local Dev' } | Remove-Item`
+- **Distribution**: this self-signed cert is trusted only on the developer's machine that created it. Shipping binaries to other users requires a publicly trusted code-signing certificate (e.g., Microsoft Trusted Signing).

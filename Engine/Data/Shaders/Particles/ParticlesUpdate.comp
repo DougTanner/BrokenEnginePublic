@@ -76,7 +76,8 @@ void main()
 	particles.pParticles[i].f4Velocity.xy += fDeltaTime * globalLayout.fParticlesWindStrength * f2Wind;
 
 	// Intensity decay
-	particles.pParticles[i].fIntensity *= (1.0f - fDeltaTime * fIntensityDecay);
+	particles.pParticles[i].fVisibleIntensity *= (1.0f - fDeltaTime * fIntensityDecay);
+	particles.pParticles[i].fLightingIntensity *= (1.0f - fDeltaTime * fIntensityDecay);
 		
 	// Size decay
 	float fSizeMultiplier = 1.0f - fDeltaTime * fSizeDecay;
@@ -94,7 +95,7 @@ void main()
 	const float fIntensityEpsilon = 0.5f;
 	if (f4Position.z < 0.0f ||
 	    particles.pParticles[i].fSize < fSizeEpsilon ||
-		particles.pParticles[i].fIntensity < fIntensityEpsilon)
+		particles.pParticles[i].fVisibleIntensity < fIntensityEpsilon)
 	{
 	#if defined(ENABLE_32_BIT_BOOL)
 		particles.puiAllocated[i / 32] &= ~(1 << (i % 32));

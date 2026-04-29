@@ -45,6 +45,8 @@ class ServerFleetManager
 {
 public:
 
+	ServerFleetManager();
+
 	void ProcessCreateFleetRequests();
 	void ProcessDeleteFleetRequests();
 	void ProcessSpawnIntoFleetRequests();

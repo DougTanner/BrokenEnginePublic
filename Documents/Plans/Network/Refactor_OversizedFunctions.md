@@ -16,8 +16,8 @@ Several functions exceed the project's ~100-line guideline. Each has natural sub
 ### Projects/BrokenEngineSandbox/Source/Network/Client/ClientSession.cpp — `PollNetwork` (lines 54-152, 99 lines)
 - Extract per-event switch at 86-132 into `ApplyPlayerEvent(const ReceivedPlayerEvent& rEvent, engine::GridCoord preEventClientCoord, auto updatePlayerCoord)`. [~45m]
 
-### Projects/BrokenEngineSandbox/Source/Network/Server/ServerFleetManager.cpp — Save/Load symmetry (lines 682-773)
-- `WriteFleetData` and `ReadFleetData` are symmetric ~45-line giants with manual field-by-field I/O. Extract `WriteFleet(Fleet&)` / `ReadFleet(Fleet&)` helpers that each handle a single fleet's fields; outer functions become thin loops over `mFleets`. [~1h]
+### Projects/BrokenEngineSandbox/Source/Network/Server/ServerFleetManager.cpp — Save/Load symmetry
+- `WriteFleetData` and `ReadFleetData` are symmetric ~45-line giants with manual field-by-field I/O. Extract `WriteFleet(Fleet&)` / `ReadFleet(Fleet&)` helpers that each handle a single fleet's fields; outer functions become thin loops over `mFleets`. The trailing `mRandomEngine.uiState` write/read (last statement of each outer function) must stay in the outer function — it is per-manager state, not per-fleet. [~1h]
 
 ### Engine/Source/Network/Server/ServerSend.cpp — `SendResends` (lines 217-317, 101 lines)
 - Extract resend-log hysteresis at 299-316 into `UpdateResendLogState(ClientConnection& rClient, int64_t iSlot, int iSlotResendCount, GridCoord coord)`. [~30m]
@@ -39,7 +39,6 @@ Several functions exceed the project's ~100-line guideline. Each has natural sub
 
 ## Verification
 - Each extraction is behavior-preserving; rebuild + local session after each.
-- For the RNG-sensitive path (`ReconcileCoord`): run the replay determinism check from `Architecture_FleetRngDeterminism.md` after this refactor lands too.
 
 ## Verification Notes
 Verified at commit d08678d3:

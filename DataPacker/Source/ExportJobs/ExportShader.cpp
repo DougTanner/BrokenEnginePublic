@@ -10,7 +10,7 @@
 
 #include "FileManager.h"
 
-#define OPTIMIZE_SHADERS
+constexpr bool kbOptimizeShaders = true;
 
 using enum common::ChunkFlags;
 
@@ -124,12 +124,15 @@ void ExportShader::Export()
 	std::filesystem::remove(preProcessedFile);
 
 	std::wstring commandLineParameters(L"");
-#if defined(OPTIMIZE_SHADERS)
-	commandLineParameters += L" -O";      // Enable optimization
-#else
-	commandLineParameters += L" -O0";     // Disable optimization
-	commandLineParameters += L" -g";      // Add debug info
-#endif
+	if constexpr (kbOptimizeShaders)
+	{
+		commandLineParameters += L" -O";      // Enable optimization
+	}
+	else
+	{
+		commandLineParameters += L" -O0";     // Disable optimization
+		commandLineParameters += L" -g";      // Add debug info
+	}
 	commandLineParameters += L" -E";      // Pre-process only
 	commandLineParameters += L" -Werror"; // Treat warnings as errors
 	std::filesystem::path dependencyFile = gpFileManager->mTempDirectory / mRelativeDirectory / (mInputPath.filename().native() + L".d");
@@ -170,13 +173,16 @@ void ExportShader::Export()
 	std::filesystem::remove(spirvFile);
 
 	commandLineParameters = L"";
-#if defined(OPTIMIZE_SHADERS)
-	// Optimization is enabled by default
-	commandLineParameters += L" -g0"; // Strip debug info
-#else
-	commandLineParameters += L" -Od"; // Disable optimization
-	commandLineParameters += L" -g";  // Add debug info
-#endif
+	if constexpr (kbOptimizeShaders)
+	{
+		// Optimization is enabled by default
+		commandLineParameters += L" -g0"; // Strip debug info
+	}
+	else
+	{
+		commandLineParameters += L" -Od"; // Disable optimization
+		commandLineParameters += L" -g";  // Add debug info
+	}
 	commandLineParameters += L" -V";      // Generate binary
 	commandLineParameters += L" --target-env vulkan1.2"; // Also update VK_API_VERSION_1_2 in engine
 	// commandLineParameters += L" -t";   // Multi-threaded
@@ -202,42 +208,43 @@ void ExportShader::Export()
 
 	mIntermediateFiles.push_back(spirvFile);
 
-#if defined(OPTIMIZE_SHADERS)
-	// Run spirv-opt on the compiled SPIR-V
-	std::filesystem::path spirvOptExecutable(gpFileManager->mVulkanSdkBinariesDirectory);
-	spirvOptExecutable.append("spirv-opt.exe");
-
-	std::filesystem::path optimizedSpirvFile(spirvFile);
-	optimizedSpirvFile += ".opt.spv";
-	std::filesystem::remove(optimizedSpirvFile);
-
-	std::wstring spirvOptCommandLineParameters = L"";
-	spirvOptCommandLineParameters += L" -O";
-	spirvOptCommandLineParameters += L" --target-env=vulkan1.2";
-	spirvOptCommandLineParameters += L" --scalar-block-layout";
-	spirvOptCommandLineParameters += L" -o \"" + optimizedSpirvFile.native() + L"\"";
-	spirvOptCommandLineParameters += L" \"" + spirvFile.native() + L"\"";
-
-	log = std::to_wstring(common::gpThreadLocal->miThreadId.value());
-	log += L": ";
-	log += spirvOptExecutable.native();
-	log += spirvOptCommandLineParameters;
-	log += L"\n";
-	OutputDebugStringW(log.c_str());
-
-	result = common::RunExecutable(spirvOptExecutable, spirvOptCommandLineParameters);
-	if (result.miExitCode != 0 || !std::filesystem::exists(optimizedSpirvFile))
+	if constexpr (kbOptimizeShaders)
 	{
-		throw std::runtime_error(std::format("spirv-opt.exe error: {}", result.mOutput));
-	}
-	if (!result.mOutput.empty())
-	{
-		LOG(kDefault, kWarning, "spirv-opt.exe output: {}", result.mOutput);
-	}
+		// Run spirv-opt on the compiled SPIR-V
+		std::filesystem::path spirvOptExecutable(gpFileManager->mVulkanSdkBinariesDirectory);
+		spirvOptExecutable.append("spirv-opt.exe");
 
-	spirvFile = optimizedSpirvFile;
-	mIntermediateFiles.push_back(optimizedSpirvFile);
-#endif
+		std::filesystem::path optimizedSpirvFile(spirvFile);
+		optimizedSpirvFile += ".opt.spv";
+		std::filesystem::remove(optimizedSpirvFile);
+
+		std::wstring spirvOptCommandLineParameters = L"";
+		spirvOptCommandLineParameters += L" -O";
+		spirvOptCommandLineParameters += L" --target-env=vulkan1.2";
+		spirvOptCommandLineParameters += L" --scalar-block-layout";
+		spirvOptCommandLineParameters += L" -o \"" + optimizedSpirvFile.native() + L"\"";
+		spirvOptCommandLineParameters += L" \"" + spirvFile.native() + L"\"";
+
+		log = std::to_wstring(common::gpThreadLocal->miThreadId.value());
+		log += L": ";
+		log += spirvOptExecutable.native();
+		log += spirvOptCommandLineParameters;
+		log += L"\n";
+		OutputDebugStringW(log.c_str());
+
+		result = common::RunExecutable(spirvOptExecutable, spirvOptCommandLineParameters);
+		if (result.miExitCode != 0 || !std::filesystem::exists(optimizedSpirvFile))
+		{
+			throw std::runtime_error(std::format("spirv-opt.exe error: {}", result.mOutput));
+		}
+		if (!result.mOutput.empty())
+		{
+			LOG(kDefault, kWarning, "spirv-opt.exe output: {}", result.mOutput);
+		}
+
+		spirvFile = optimizedSpirvFile;
+		mIntermediateFiles.push_back(optimizedSpirvFile);
+	}
 
 	// Read SPIR-V into temporary buffer for reflection
 	int64_t iSpirvFileBytes = std::filesystem::file_size(spirvFile);

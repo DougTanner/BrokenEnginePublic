@@ -24,8 +24,8 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 6. Use a Opus subagent to invoke the update-claude-docs skill
 7. Any new files created should be added to the appropriate filter in any relevant .vcproj files
 8. Build the affected projects and verify there are no errors (see Build section below)
-9. After all previous steps have completed, have an Opus subagent do a full audit/review of all the files changed in this session
-10. Inform the user if the subagent in the previous step found any problems and how severe they were (interrogate user about what to fix and how)
+9. After all previous steps have completed, have Opus subagents do a full audit/review of all the files changed in this session. If possible spread files over multiple subagents if there are logical groupings.
+10. Inform the user if the subagents in the previous step found any problems and how severe they were (interrogate user about what to fix and how)
 
 ## IMPORTANT Directives
 - Follow KISS, YAGNI, DRY at all times

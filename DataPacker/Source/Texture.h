@@ -17,8 +17,6 @@ public:
 	Texture(const std::filesystem::path& rPath, FileType eFileType, bool bFromGamma, int64_t iWidth = 0, int64_t iHeight = 0);
 	Texture(const std::byte* puiPixels, int64_t iWidth, int64_t iHeight, int64_t iStride);
 
-	~Texture() = default;
-
 	void MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel, bool bUseBoxFilter, int64_t iPreviousLevel, int64_t iPreviousWidth, int64_t iPreviousHeight);
 
 	void MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel = 32, bool bUseBoxFilter = false)

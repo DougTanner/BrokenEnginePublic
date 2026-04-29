@@ -42,7 +42,7 @@ void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout
 		return;
 	}
 
-	if (layout.fIntensity <= 0.0f)
+	if (layout.fVisibleIntensity <= 0.0f)
 	{
 		return;
 	}

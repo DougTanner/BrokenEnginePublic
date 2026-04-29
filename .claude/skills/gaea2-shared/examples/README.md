@@ -1,0 +1,60 @@
+# Gaea 2 Example Files (Not Bundled)
+
+This directory intentionally contains no `.terrain` files. It previously held a 28-file working set used to validate the `gaea2-load` / `gaea2-modify` / `gaea2-save` round-trip; those files are not committed because they're shipped by QuadSpinner with Gaea and redistributing them would conflict with the Gaea EULA.
+
+## Source
+
+```
+C:\Program Files\QuadSpinner\Gaea 2\Examples\
+```
+
+If you have Gaea 2 installed, the originals are there. Copy any of them into this directory to exercise the round-trip validation harness (`Temp/verify_roundtrip.py`). The skills themselves operate on whatever `.terrain` path you give them — the bundled corpus is only for tooling validation, not runtime.
+
+## Why these 28 (selection rationale)
+
+Selected via **greedy set-cover over node types**, with the goal of getting the smallest corpus that exercises every unique node type appearing anywhere in `C:\Program Files\QuadSpinner\Gaea 2\Examples\`. At the time of selection, the full Examples library uses 120 unique node types; these 28 files cover all 120.
+
+The greedy algorithm:
+
+1. Parse every `.terrain` in the source directory. From each node, extract its `$type` FQN and strip the namespace prefix `QuadSpinner.Gaea.Nodes.` (so `Erosion2`, `Combine`, `Hill`, etc.).
+2. Build a `file → set(node_types)` map.
+3. Iteratively pick the file whose unused types best cover the still-uncovered set; mark its types covered; add it to the working set. Repeat until every type is covered.
+
+If a new Gaea release introduces new node types, rerun this procedure against the updated `Examples/` directory to refresh the corpus.
+
+## The 28-file working set
+
+| # | File |
+|---|------|
+| 1 | Canyon River with Sea.terrain |
+| 2 | Cartography - 3D Map.terrain |
+| 3 | Cartography - 3D Mountain Map.terrain |
+| 4 | Complex Scene - Debris.terrain |
+| 5 | Crater - Rocky Crust.terrain |
+| 6 | Creative - Gabor Noise.terrain |
+| 7 | Detailed Snow Peak.terrain |
+| 8 | Devils Tower.terrain |
+| 9 | Distressed Rock.terrain |
+| 10 | Glacier - Complex Setup.terrain |
+| 11 | High Altitude Landscape.terrain |
+| 12 | Hill Outcrops.terrain |
+| 13 | Mesa.terrain |
+| 14 | Project Arenal.terrain |
+| 15 | Reducing Size of Rock Patterns Externally.terrain |
+| 16 | Rocky Surface.terrain |
+| 17 | Sandstone Butte.terrain |
+| 18 | Structure - Blocky Rocks.terrain |
+| 19 | Structure - Cubic Butte.terrain |
+| 20 | Structure - Custom Mountain Range.terrain |
+| 21 | Structure - Rocky Mountain.terrain |
+| 22 | Structure - Shattered Plains.terrain |
+| 23 | Supercolor.terrain |
+| 24 | Technical - Using Loops.terrain |
+| 25 | Technical - Using Routing.terrain |
+| 26 | Technical - Using Switch.terrain |
+| 27 | Trees - Multiple Ecotopes.terrain |
+| 28 | Using Compare.terrain |
+
+## License note
+
+The example `.terrain` files are © QuadSpinner and covered by the Gaea EULA (`C:\Program Files\QuadSpinner\Gaea 2\EULA.txt`). Section 1 prohibits redistributing the Software or copies thereof; Section 2 confirms QuadSpinner retains all IP rights to bundled content (the user-owned-Assets carve-out applies only to assets the user *generates*, not to shipped examples). Don't commit them to a public repository.

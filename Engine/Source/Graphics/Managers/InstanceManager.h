@@ -47,6 +47,9 @@ public:
 	int64_t miTransferQueueFamilyIndex = UINT32_MAX;
 	std::vector<VkQueueFamilyProperties> mVkQueueFamilyProperties;
 
+	// minImageTransferGranularity for the chosen transfer queue family. (1,1,1) for graphics-capable queues; dedicated DMA queues (e.g. NVIDIA) typically report (16,16,8). Consumers must satisfy VUID-vkCmdCopyBufferToImage-imageOffset-07738 against this.
+	VkExtent3D mTransferImageGranularity {1, 1, 1};
+
 	VkSurfaceKHR mVkSurfaceKHR = VK_NULL_HANDLE;
 	VkSampleCountFlagBits meMaxMultisampleCount = VK_SAMPLE_COUNT_1_BIT;
 	VkFormat mFramebufferVkFormat = VK_FORMAT_UNDEFINED;

@@ -56,12 +56,6 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	std::filesystem::create_directories(mTempDirectory);
 	LOG(kDefault, kDebug, "Temp directory: \"{}\"", gpFileManager->mTempDirectory.string());
 
-	// Output file and directory
-	if (!std::filesystem::exists(mOutputDirectory))
-	{
-		MessageBox(nullptr, mOutputDirectory.string().c_str(), "Output directory will be created", MB_OK | MB_SYSTEMMODAL);
-		std::filesystem::create_directories(mOutputDirectory);
-	}
 	LOG(kDefault, kDebug, "Output directory: \"{}\"", mOutputDirectory.string());
 }
 

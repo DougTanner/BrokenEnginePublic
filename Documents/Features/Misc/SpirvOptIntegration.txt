@@ -21,9 +21,10 @@ Changes (1 file)
 1. DataPacker/Source/ExportJobs/ExportShader.cpp
    After the glslangValidator compile block (after line 238, the mIntermediateFiles.push_back(spirvFile) call)
    and before the "Read SPIR-V into temporary buffer" block (line 240), insert a spirv-opt invocation
-   gated by #if defined(OPTIMIZE_SHADERS):
+   gated by `if constexpr (kbOptimizeShaders)`:
 
-     #if defined(OPTIMIZE_SHADERS)
+     if constexpr (kbOptimizeShaders)
+     {
          // Run spirv-opt on the compiled SPIR-V
          std::filesystem::path spirvOptExecutable(gpFileManager->mVulkanSdkBinariesDirectory);
          spirvOptExecutable.append("spirv-opt.exe");
@@ -56,7 +57,7 @@ Changes (1 file)
              spirvFile = optimizedSpirvFile;
              mIntermediateFiles.push_back(optimizedSpirvFile);
          }
-     #endif
+     }
 
    The existing code after this point already reads spirvFile for reflection and packing,
    so it will naturally pick up the optimized file when available.
@@ -74,5 +75,5 @@ Notes
 - If spirv-opt fails or the optimized file is missing, the pipeline falls through to the
   original spirvFile, keeping the build robust
 - spirv-opt non-error output (e.g. warnings) is logged the same way as glslangValidator output
-- The #if defined(OPTIMIZE_SHADERS) guard matches the existing pattern used for glslc and
-  glslangValidator optimization flags, so debug builds skip this step
+- The `if constexpr (kbOptimizeShaders)` guard matches the existing pattern used for glslc and
+  glslangValidator optimization flags; flip the constexpr to false to skip this step

@@ -555,6 +555,9 @@ void InstanceManager::SelectQueueFamilies()
 
 	ASSERT(miGraphicsQueueFamilyIndex != UINT32_MAX && miPresentQueueFamilyIndex != UINT32_MAX);
 	LOG(kGraphics, kInfo, "Selected queue families: graphics {}, present {}, transfer {}", miGraphicsQueueFamilyIndex, miPresentQueueFamilyIndex, miTransferQueueFamilyIndex);
+
+	mTransferImageGranularity = mVkQueueFamilyProperties.at(miTransferQueueFamilyIndex).minImageTransferGranularity;
+	LOG(kGraphics, kDebug, "Transfer queue minImageTransferGranularity: ({}, {}, {})", mTransferImageGranularity.width, mTransferImageGranularity.height, mTransferImageGranularity.depth);
 }
 
 void InstanceManager::SelectSurfaceFormat()

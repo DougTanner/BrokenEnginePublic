@@ -14,6 +14,11 @@ namespace game
 
 #if defined(BT_SERVER)
 
+ServerFleetManager::ServerFleetManager()
+{
+	mRandomEngine.TimeSeed();
+}
+
 engine::ClientGuid ServerFleetManager::FindGuidForClient(int64_t iClientId) const
 {
 	for (const auto& [rGuid, iId] : mGuidToClientId)
@@ -710,6 +715,8 @@ void ServerFleetManager::WriteFleetData(std::fstream& rFileStream) const
 			}
 		}
 	}
+
+	common::Write(rFileStream, mRandomEngine.uiState);
 }
 
 void ServerFleetManager::ReadFleetData(std::fstream& rFileStream)
@@ -770,6 +777,8 @@ void ServerFleetManager::ReadFleetData(std::fstream& rFileStream)
 		// All loaded fleets start as disconnected
 		mGuidToClientId.insert_or_assign(guid, static_cast<int64_t>(0));
 	}
+
+	common::Read(rFileStream, mRandomEngine.uiState);
 }
 
 void ServerFleetManager::UpdateFleetNavigationDelay(const engine::ClientGuid& rGuid, int64_t iFleetIndex, float fDelay)
@@ -793,6 +802,7 @@ void ServerFleetManager::UpdateFleetNavigationDelay(const engine::ClientGuid& rG
 
 void ServerFleetManager::ResetState()
 {
+	// mRandomEngine intentionally not re-seeded: constructor TimeSeeds once; ReadFleetData restores from save for replay determinism.
 	mPendingCreateFleetRequests.clear();
 	mPendingDeleteFleetRequests.clear();
 	mPendingSpawnIntoFleetRequests.clear();
@@ -800,7 +810,6 @@ void ServerFleetManager::ResetState()
 	mFleets.clear();
 	mPlayerToGuid.clear();
 	mGuidToClientId.clear();
-	mRandomEngine.TimeSeed();
 }
 
 #endif // BT_SERVER

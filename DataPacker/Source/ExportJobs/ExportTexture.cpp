@@ -429,7 +429,7 @@ void ExportTexture::Export()
 					break;
 				}
 			}
-				if (bFontAtlas)
+			if (bFontAtlas)
 			{
 				break;
 			}
