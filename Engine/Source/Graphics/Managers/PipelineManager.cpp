@@ -147,44 +147,6 @@ PipelineManager::~PipelineManager()
 
 void PipelineManager::CreateLightingPipelines()
 {
-	mpPipelines[kPipelineLongParticlesLighting].Create(
-	{
-		.name = "LightingParticlesLong",
-		.flags = {kRenderTarget, kPushConstants, kIndirectDeviceLocal, kMax, kUpdateAfterBind},
-		.ppShaders = {&mShaders.at(data::kShadersParticlesLongLightingParticlesRendervertCrc), &mShaders.at(data::kShadersParticlesLightingParticlesRenderfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mLightingVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mLongParticlesStorageBuffer},
-			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mLightOccupancyVkBuffers[0]},
-			{.flags = kSamplerClamp},
-			{.flags = kTextures},
-		},
-	});
-
-	mpPipelines[kPipelineSquareParticlesLighting].Create(
-	{
-		.name = "LightingParticlesSquare",
-		.flags = {kRenderTarget, kPushConstants, kIndirectDeviceLocal, kMax, kUpdateAfterBind},
-		.ppShaders = {&mShaders.at(data::kShadersParticlesLightingParticlesRendervertCrc), &mShaders.at(data::kShadersParticlesLightingParticlesRenderfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mLightingVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mSquareParticlesStorageBuffer},
-			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mLightOccupancyVkBuffers[0]},
-			{.flags = kSamplerClamp},
-			{.flags = kTextures},
-		},
-	});
-
 	RenderTargetTextures& rTextures = gpTextureManager->mRenderTargetTextures;
 
 	// Spread pipelines (radial directional spread, fragment shader with MRT)
@@ -592,8 +554,6 @@ void PipelineManager::CreateParticlePipelines()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mLongParticlesStorageBuffer},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
-			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mWindTextureOne},
-			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mWindTextureTwo},
 		},
 	});
 
@@ -626,7 +586,6 @@ void PipelineManager::CreateParticlePipelines()
 			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mLongParticlesStorageBuffer},
 			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineLongParticlesUpdate].mIndirectVkBuffer},
 			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineLongParticlesRender].mIndirectVkBuffer},
-			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineLongParticlesLighting].mIndirectVkBuffer},
 		},
 	});
 
@@ -640,8 +599,6 @@ void PipelineManager::CreateParticlePipelines()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mSquareParticlesStorageBuffer},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
-			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mWindTextureOne},
-			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mWindTextureTwo},
 		},
 	});
 
@@ -674,7 +631,6 @@ void PipelineManager::CreateParticlePipelines()
 			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mSquareParticlesStorageBuffer},
 			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineSquareParticlesUpdate].mIndirectVkBuffer},
 			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineSquareParticlesRender].mIndirectVkBuffer},
-			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineSquareParticlesLighting].mIndirectVkBuffer},
 		},
 	});
 }

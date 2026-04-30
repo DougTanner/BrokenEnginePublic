@@ -265,6 +265,7 @@ void MissilesInterpolate::Register()
 		.pParticleVerticalVelocitySpreadScale = &gMissileExplosionParticleVerticalVelocitySpread,
 		.pParticleVelocityDecayScale = &gMissileExplosionParticleVelocityDecay,
 		.pParticleGravityScale = &gMissileExplosionParticleGravity,
+		.pParticleVisibleIntensityScale = &gMissileExplosionParticleVisibleIntensity,
 		.pParticleIntensitySpreadScale = &gMissileExplosionParticleIntensitySpread,
 		.pParticleIntensityDecayScale = &gMissileExplosionParticleIntensityDecay,
 		.pParticleIntensityPowerScale = &gMissileExplosionParticleIntensityPower,

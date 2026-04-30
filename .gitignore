@@ -14,11 +14,3 @@ Plans/Temp
 
 # Games
 Projects/KineticStorm/
-
-# Certificate material (defense-in-depth; signing flow keeps keys in user cert store, not on disk)
-*.pfx
-*.key
-*.crt
-*.cer
-*.snk
-*.p12

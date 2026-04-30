@@ -145,9 +145,9 @@ Wrapper gSpreadOutputCompress(3.0f, 0.0f, 4.0f);
 
 // Lighting Spread End
 Wrapper gSpreadTextureMultiplierEnd(0.01f, 0.01f, 0.1f);
-Wrapper gSpreadDirectionalityEnd(0.8f, 0.0f, 1.0f);
+Wrapper gSpreadDirectionalityEnd(0.5f, 0.0f, 1.0f);
 Wrapper gSpreadDirectionCountEnd(8.0f, 4.0f, 16.0f);
-Wrapper gSpreadDistanceEnd(9.0f, 1.0f, 40.0f);
+Wrapper gSpreadDistanceEnd(8.0f, 1.0f, 40.0f);
 Wrapper gSpreadRingCountEnd(5.0f, 1.0f, 16.0f);
 Wrapper gSpreadJitterEnd(0.874f, 0.0f, 1.0f);
 Wrapper gSpreadDistanceFalloffEnd(0.9f, 0.0f, 1.0f);
@@ -187,9 +187,9 @@ Wrapper gLightingNewAmbientPower(2.5f, 0.1f, 5.0f);
 Wrapper gLightingAmbientPowerMode(1.0f, 0.0f, 1.0f);
 Wrapper gLightingTerrain(0.5f, 0.0f, 2.0f);
 Wrapper gLightingAddTerrain(0.25f, 0.0f, 0.5f);
-Wrapper gLightingTerrainBelowBaseMultiplier(0.8f, 0.0f, 1.0f);
+Wrapper gLightingTerrainBelowBaseMultiplier(0.7f, 0.0f, 1.0f);
 Wrapper gLightingTerrainBelowBasePower(0.3f, 0.1f, 1.0f);
-Wrapper gLightingObjects(1.0f, 0.0f, 8.0f);
+Wrapper gLightingObjects(4.0f, 0.0f, 8.0f);
 Wrapper gLightingObjectsAdd(0.2f, 0.0f, 1.0f);
 Wrapper gLightingDayFinalMultiplier(1.0f, 0.0f, 1.0f);
 Wrapper gLightingNightFinalMultiplier(1.0f, 0.0f, 1.0f);
@@ -358,7 +358,6 @@ Wrapper gObjectShadowsBlurSigma(5.0f, 1.0f, 20.0f);
 Wrapper gSmokeShadowIntensity(0.5f, 0.0f, 1.0f);
 
 // Particles
-Wrapper gParticlesWindStrength(2000.0f, 0.0f, 5000.0f);
 
 // Opaque UI
 Wrapper gOpaqueUi(false);

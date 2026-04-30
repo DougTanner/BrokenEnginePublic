@@ -29,10 +29,6 @@ void TweaksScreen::RenderLightingEffectsLightingTab()
 		WrapperSlider("Lighting Int Two", kiSection, 1.0f, "Explosion Secondary Lighting Intensity Two");
 		WrapperSlider("Lighting Int Three", kiSection, 1.0f, "Explosion Secondary Lighting Intensity Three");
 
-		WrapperSeparatorText("Explosions - Particle");
-		WrapperSlider("Lighting Area", kiSection, 1.0f, "Explosion Particle Lighting Area");
-		WrapperSlider("Lighting Intensity", kiSection, 1.0f, "Explosion Particle Lighting Intensity");
-
 		WrapperSeparatorText("Blasters - Terrain Crater");
 		WrapperSlider("Lighting Area One", kiSection, 1.0f, "Crater Lighting Area One");
 		WrapperSlider("Lighting Area Two", kiSection, 1.0f, "Crater Lighting Area Two");

@@ -82,13 +82,17 @@ void main()
 	// World position
 	f3OutPosition += pHexShields[i].f4Position.xyz;
 
-	if (int(pushConstantsLayout.f4Pipeline.y) == 0)
+	if (int(pushConstantsLayout.f4Pipeline.x) == 0)
 	{
 		gl_Position = Transform(vec4(f3OutPosition, 1.0f), mainLayout.f4x4ViewProjection);
 	}
 	else
 	{
-		vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3OutPosition, globalLayout.f4LightingArea);
+		// Eye-line / base-height intersection (mirrors CPU ToBaseHeight; unclamped, unlike BaseHeightPosition which is no-op for z > base)
+		vec3 f3ToEye = mainLayout.f4EyePosition.xyz - f3OutPosition;
+		float fT = (globalLayout.fBaseHeight - f3OutPosition.z) / f3ToEye.z;
+		vec3 f3BasePosition = f3OutPosition + fT * f3ToEye;
+		vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3BasePosition, globalLayout.f4LightingArea);
 		gl_Position = vec4(vec2(-1.0f + 2.0f * f2VisibleAreaPosition.x, 1.0f - 2.0f * f2VisibleAreaPosition.y), 0.0f, 1.0f);
 	}
 }

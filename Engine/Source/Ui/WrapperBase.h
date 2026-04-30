@@ -554,7 +554,6 @@ extern Wrapper gObjectShadowsBlurSigma;
 extern Wrapper gSmokeShadowIntensity;
 
 // Particles
-extern Wrapper gParticlesWindStrength;
 
 // Opaque UI
 extern Wrapper gOpaqueUi;

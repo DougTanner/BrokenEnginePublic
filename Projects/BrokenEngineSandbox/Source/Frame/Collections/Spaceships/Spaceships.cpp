@@ -144,6 +144,7 @@ void SpaceshipsInterpolate::Register()
 		.pParticleVerticalVelocitySpreadScale = &gSpaceshipExplosionParticleVerticalVelocitySpread,
 		.pParticleVelocityDecayScale = &gSpaceshipExplosionParticleVelocityDecay,
 		.pParticleGravityScale = &gSpaceshipExplosionParticleGravity,
+		.pParticleVisibleIntensityScale = &gSpaceshipExplosionParticleVisibleIntensity,
 		.pParticleIntensitySpreadScale = &gSpaceshipExplosionParticleIntensitySpread,
 		.pParticleIntensityDecayScale = &gSpaceshipExplosionParticleIntensityDecay,
 		.pParticleIntensityPowerScale = &gSpaceshipExplosionParticleIntensityPower,

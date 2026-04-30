@@ -282,8 +282,6 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Wind Momentum Low", &gWindMomentumLow},
 		{"Wind Diffusion High", &gWindDiffusionHigh},
 		{"Wind Diffusion Low", &gWindDiffusionLow},
-		// Wind - Particles
-		{"Particles Wind Strength", &gParticlesWindStrength},
 	};
 	return sSliderMap;
 }

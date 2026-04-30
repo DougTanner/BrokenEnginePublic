@@ -23,10 +23,6 @@ engine::Wrapper gExplosionSecondaryLightingIntensityOne(2.0f, 0.0f, 8.0f);
 engine::Wrapper gExplosionSecondaryLightingIntensityTwo(0.5f, 0.0f, 2.0f);
 engine::Wrapper gExplosionSecondaryLightingIntensityThree(0.0f, 0.0f, 2.0f);
 
-// Explosions - Particle (GPU spark/debris)
-engine::Wrapper gExplosionParticleLightingArea(1.0f, 0.0f, 4.0f);
-engine::Wrapper gExplosionParticleLightingIntensity(0.0f, 0.0f, 2.0f);
-
 // Blasters - Terrain crater
 engine::Wrapper gCraterLightingAreaOne(8.0f, 1.0f, 16.0f);
 engine::Wrapper gCraterLightingAreaTwo(2.0f, 1.0f, 4.0f);
@@ -48,11 +44,11 @@ engine::Wrapper gPlayerImpactLightingIntensityOne(0.0f, 0.0f, 2.0f);
 engine::Wrapper gPlayerImpactLightingIntensityTwo(0.0f, 0.0f, 2.0f);
 
 // Players - Hex shield
-engine::Wrapper gHexShieldLightingIntensity(0.0f, 0.0f, 2.0f);
+engine::Wrapper gHexShieldLightingIntensity(4.0f, 0.0f, 8.0f);
 
 // Missiles - Exhaust
-engine::Wrapper gMissileExhaustLightingArea(2.0f, 1.0f, 4.0f);
-engine::Wrapper gMissileExhaustLightingIntensity(0.0f, 0.0f, 2.0f);
+engine::Wrapper gMissileExhaustLightingArea(1.5f, 1.0f, 4.0f);
+engine::Wrapper gMissileExhaustLightingIntensity(2.0f, 0.0f, 4.0f);
 
 // Spaceships - Explosion
 engine::Wrapper gSpaceshipExplosionLightingIntensity(0.0f, 0.0f, 2.0f);

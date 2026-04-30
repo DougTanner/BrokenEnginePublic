@@ -60,8 +60,6 @@ struct ExplosionType
 	float fParticleIntensityRandom = 2.0f;
 	float fParticleIntensityDecay = 2.4f;
 	float fParticleIntensityPower = 2.5f;
-	float fParticleLightingSize = 10.0f;
-	float fParticleLightingIntensity = 400.0f;
 
 	// Timing
 	float fPrimaryTime = 0.075f;
@@ -95,6 +93,7 @@ struct ExplosionType
 	Wrapper* pParticleVerticalVelocitySpreadScale = nullptr;
 	Wrapper* pParticleVelocityDecayScale = nullptr;
 	Wrapper* pParticleGravityScale = nullptr;
+	Wrapper* pParticleVisibleIntensityScale = nullptr;
 	Wrapper* pParticleIntensitySpreadScale = nullptr;
 	Wrapper* pParticleIntensityDecayScale = nullptr;
 	Wrapper* pParticleIntensityPowerScale = nullptr;

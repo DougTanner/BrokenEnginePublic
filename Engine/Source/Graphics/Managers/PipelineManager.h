@@ -18,8 +18,6 @@ enum Pipelines
 	kPipelineShadowBlurV,
 	kPipelineShadowElevation,
 
-	kPipelineLongParticlesLighting,
-	kPipelineSquareParticlesLighting,
 	kPipelineTerrainElevation,
 	kPipelineTerrainColor,
 	kPipelineTerrainNormal,

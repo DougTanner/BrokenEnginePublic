@@ -117,7 +117,6 @@ struct VkDispatchIndirectCommand
 
 CONSTEXPR float fPi = 3.141592654f;
 
-CONSTEXPR int kiLightingCookieCount = 9;
 CONSTEXPR int kiLightingTextures = 11;
 CONSTEXPR int kiBillboardTexturesCount = 3;
 
@@ -348,7 +347,6 @@ struct GlobalLayout
 	float fParticlesStretchVelocityStart INIT;
 	float fParticlesStretchVelocityEnd INIT;
 	float fParticlesStretchVelocityMultiplier INIT;
-	float fParticlesWindStrength INIT;
 
 	// Shadow
 	float fShadowTextureSizeWidth INIT;
@@ -644,13 +642,10 @@ struct ParticleLayout
 {
 	int32_t iColor INIT;
 	int32_t iCookie INIT;
-	int32_t iLightingCookie INIT;
-	float fLightingIntensity INIT;
 
 	float fVelocityDecay INIT;
 	float fGravity INIT;
 	float fIntensityDecay INIT;
-	float fLightingSize INIT;
 
 	float fSize INIT;
 	float fLength INIT;

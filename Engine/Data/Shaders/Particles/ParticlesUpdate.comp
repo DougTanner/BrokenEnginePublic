@@ -16,8 +16,6 @@ layout (scalar, binding = 1) buffer particlesUniform
 };
 
 layout (binding = 2) uniform sampler2D elevationTextureSampler;
-layout (binding = 3) uniform sampler2D windTextureSamplerOne;
-layout (binding = 4) uniform sampler2D windTextureSamplerTwo;
 
 void main()
 {
@@ -68,17 +66,9 @@ void main()
 	// Velocity decay
 	particles.pParticles[i].f4Velocity *= (1.0f - fDeltaTime * fVelocity);
 
-	// Wind force
-	vec2 f2SmokeTexcoord = WorldToVisibleArea(f4Position.xyz, globalLayout.f4SmokeArea);
-	vec2 f2Wind = globalLayout.fWindTextureIndex < 0.5
-		? texture(windTextureSamplerOne, f2SmokeTexcoord).rg
-		: texture(windTextureSamplerTwo, f2SmokeTexcoord).rg;
-	particles.pParticles[i].f4Velocity.xy += fDeltaTime * globalLayout.fParticlesWindStrength * f2Wind;
-
 	// Intensity decay
 	particles.pParticles[i].fVisibleIntensity *= (1.0f - fDeltaTime * fIntensityDecay);
-	particles.pParticles[i].fLightingIntensity *= (1.0f - fDeltaTime * fIntensityDecay);
-		
+
 	// Size decay
 	float fSizeMultiplier = 1.0f - fDeltaTime * fSizeDecay;
 	particles.pParticles[i].fSize *= fSizeMultiplier;

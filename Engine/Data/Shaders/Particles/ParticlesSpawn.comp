@@ -30,11 +30,6 @@ layout (scalar, binding = 4) buffer drawIndirectCommandUniform
 	VkDrawIndexedIndirectCommand vkDrawIndexedIndirectCommand;
 };
 
-layout (scalar, binding = 5) buffer drawIndirectCommandUniformLighting
-{
-	VkDrawIndexedIndirectCommand vkDrawIndexedIndirectCommandLighting;
-};
-
 void main()
 {
 	// Reset?
@@ -61,12 +56,6 @@ void main()
 		vkDrawIndexedIndirectCommand.firstIndex = 0;
 		vkDrawIndexedIndirectCommand.vertexOffset = 0;
 		vkDrawIndexedIndirectCommand.firstInstance = 0;
-
-		vkDrawIndexedIndirectCommandLighting.indexCount = 0;
-		vkDrawIndexedIndirectCommandLighting.instanceCount = 0;
-		vkDrawIndexedIndirectCommandLighting.firstIndex = 0;
-		vkDrawIndexedIndirectCommandLighting.vertexOffset = 0;
-		vkDrawIndexedIndirectCommandLighting.firstInstance = 0;
 
 		return;
 	}
@@ -140,11 +129,4 @@ void main()
 	vkDrawIndexedIndirectCommand.firstIndex = 0;
 	vkDrawIndexedIndirectCommand.vertexOffset = 0;
 	vkDrawIndexedIndirectCommand.firstInstance = 0;
-
-	vkDrawIndexedIndirectCommandLighting.indexCount = 6;
-	vkDrawIndexedIndirectCommandLighting.instanceCount = particles.iLastCount;
-	vkDrawIndexedIndirectCommandLighting.firstIndex = 0;
-	vkDrawIndexedIndirectCommandLighting.vertexOffset = 0;
-	vkDrawIndexedIndirectCommandLighting.firstInstance = 0;
-
 }

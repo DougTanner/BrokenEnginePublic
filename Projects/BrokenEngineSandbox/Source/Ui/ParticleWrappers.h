@@ -9,10 +9,6 @@ namespace game
 // Default 1.0f leaves base ExplosionType values unchanged.
 // Declaration order must match slider order in TweaksScreenParticles.cpp.
 
-// Explosions - Particle visible intensity (shared across all explosion types,
-// re-rendered in each per-type sub-tab via mapKey)
-extern engine::Wrapper gExplosionParticleVisibleIntensity;
-
 // Missile explosion particles
 extern engine::Wrapper gMissileExplosionParticleWidth;
 extern engine::Wrapper gMissileExplosionParticleLength;
@@ -24,6 +20,7 @@ extern engine::Wrapper gMissileExplosionParticleVerticalVelocityBase;
 extern engine::Wrapper gMissileExplosionParticleVerticalVelocitySpread;
 extern engine::Wrapper gMissileExplosionParticleVelocityDecay;
 extern engine::Wrapper gMissileExplosionParticleGravity;
+extern engine::Wrapper gMissileExplosionParticleVisibleIntensity;
 extern engine::Wrapper gMissileExplosionParticleIntensitySpread;
 extern engine::Wrapper gMissileExplosionParticleIntensityDecay;
 extern engine::Wrapper gMissileExplosionParticleIntensityPower;
@@ -39,6 +36,7 @@ extern engine::Wrapper gPlayerExplosionParticleVerticalVelocityBase;
 extern engine::Wrapper gPlayerExplosionParticleVerticalVelocitySpread;
 extern engine::Wrapper gPlayerExplosionParticleVelocityDecay;
 extern engine::Wrapper gPlayerExplosionParticleGravity;
+extern engine::Wrapper gPlayerExplosionParticleVisibleIntensity;
 extern engine::Wrapper gPlayerExplosionParticleIntensitySpread;
 extern engine::Wrapper gPlayerExplosionParticleIntensityDecay;
 extern engine::Wrapper gPlayerExplosionParticleIntensityPower;
@@ -54,6 +52,7 @@ extern engine::Wrapper gSpaceshipExplosionParticleVerticalVelocityBase;
 extern engine::Wrapper gSpaceshipExplosionParticleVerticalVelocitySpread;
 extern engine::Wrapper gSpaceshipExplosionParticleVelocityDecay;
 extern engine::Wrapper gSpaceshipExplosionParticleGravity;
+extern engine::Wrapper gSpaceshipExplosionParticleVisibleIntensity;
 extern engine::Wrapper gSpaceshipExplosionParticleIntensitySpread;
 extern engine::Wrapper gSpaceshipExplosionParticleIntensityDecay;
 extern engine::Wrapper gSpaceshipExplosionParticleIntensityPower;

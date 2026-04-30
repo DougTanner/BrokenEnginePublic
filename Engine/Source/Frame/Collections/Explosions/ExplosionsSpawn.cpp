@@ -174,6 +174,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	const float fVerticalVelocityBaseScale   = Scale(rType.pParticleVerticalVelocityBaseScale);
 	const float fVerticalVelocitySpreadScale = Scale(rType.pParticleVerticalVelocitySpreadScale);
 	const float fIntensitySpreadScale        = Scale(rType.pParticleIntensitySpreadScale);
+	[[maybe_unused]] const float fVisibleIntensityScale = Scale(rType.pParticleVisibleIntensityScale);
 	[[maybe_unused]] const float fWidthScale          = Scale(rType.pParticleWidthScale);
 	[[maybe_unused]] const float fLengthScale         = Scale(rType.pParticleLengthScale);
 	[[maybe_unused]] const float fLengthSpreadScale   = Scale(rType.pParticleLengthSpreadScale);
@@ -206,10 +207,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 			uiParticleColor |= ((50 + common::Random(25u, rFrame.postRender.randomEngine)) << 16) | ((common::Random(25u, rFrame.postRender.randomEngine)) << 8);
 		}
 
-		[[maybe_unused]] float fParticleIntensity = rType.fParticleIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleIntensityRandom * fIntensitySpreadScale;
-#if defined(BT_CLIENT)
-		fParticleIntensity *= game::gExplosionParticleVisibleIntensity.Get();
-#endif // BT_CLIENT
+		[[maybe_unused]] float fParticleIntensity = (rType.fParticleIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleIntensityRandom * fIntensitySpreadScale) * fVisibleIntensityScale;
 
 		// Per-particle length jitter — multiplicative spread driven by LengthSpread wrapper.
 		// Random consumed unconditionally to keep stream in sync across builds.
@@ -221,11 +219,9 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 			ParticleManager::Spawn(gpParticleManager->mLongParticlesSpawnLayout,
 			{
 				.iColor = static_cast<int32_t>(uiParticleColor),
-				.fLightingIntensity = rType.fParticleLightingIntensity * game::gExplosionParticleLightingIntensity.Get(),
 				.fVelocityDecay = rType.fParticleVelocityDecay * fVelocityDecayScale,
 				.fGravity = rType.fParticleGravity * fGravityScale,
 				.fIntensityDecay = rType.fParticleIntensityDecay * fIntensityDecayScale,
-				.fLightingSize = rType.fParticleLightingSize * game::gExplosionParticleLightingArea.Get(),
 				.fSize = rType.fParticleWidth * fWidthScale,
 				.fLength = rType.fParticleLength * fLengthScale * (1.0f + fLengthJitter * fLengthSpreadScale),
 				.fVisibleIntensity = fParticleIntensity,

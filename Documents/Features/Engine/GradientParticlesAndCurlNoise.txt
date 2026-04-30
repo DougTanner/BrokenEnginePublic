@@ -13,7 +13,7 @@ Why
 - Curl noise produces divergence-free turbulent displacement that looks organic and never compresses/expands the smoke field unrealistically
 - Both features are referenced in the Engine.txt notes (HDR bloom + gradient color, wobble smoke with swirl noise)
 
-Changes (8 files)
+Changes (7 files)
 -----------------
 
 1. Engine/Data/Shaders/ShaderLayoutsBase.h
@@ -56,28 +56,19 @@ Changes (8 files)
      float fLifetimeFraction = (fLifetime > 0.0f) ? clamp(fAge / fLifetime, 0.0f, 1.0f) : 0.0f;
      f4Color = mix(f4Color, f4ColorEnd, fLifetimeFraction);
 
-4. Engine/Data/Shaders/Particles/LightingParticlesRender.frag
-   Same gradient interpolation as ParticlesRender.frag.
-   After unpacking iColor (line 42), add the same lifetime gradient lerp:
-     vec4 f4ColorEnd = unpackUnorm4x8(particles.pParticles[i].iColorEnd).abgr;
-     float fLifetime = particles.pParticles[i].fLifetime;
-     float fAge = globalLayout.fElapsedTime - particles.pParticles[i].fSpawnTime;
-     float fLifetimeFraction = (fLifetime > 0.0f) ? clamp(fAge / fLifetime, 0.0f, 1.0f) : 0.0f;
-     f4Color = mix(f4Color, f4ColorEnd, fLifetimeFraction);
-
-5. Engine/Source/Graphics/Managers/ParticleManager.cpp
+4. Engine/Source/Graphics/Managers/ParticleManager.cpp
    In ParticleManager::Spawn(), after setting layout.iCookie and before writing to the spawn buffer,
    stamp the spawn time from the global elapsed time:
      layout.fSpawnTime = gpBufferManager->GetElapsedTime();
    (Or pass elapsed time from the caller -- whichever pattern the engine uses for current time access in the spawn path.)
 
-6. Engine/Source/Graphics/Render/SmokeUniforms.cpp
+5. Engine/Source/Graphics/Render/SmokeUniforms.cpp
    After existing smoke tunable writes (around line 29), add curl noise uniforms:
      rGlobalLayout.fSmokeCurlNoiseScale = gSmokeCurlNoiseScale.Get();
      rGlobalLayout.fSmokeCurlNoiseStrength = gSmokeCurlNoiseStrength.Get();
      rGlobalLayout.fSmokeCurlNoiseSpeed = gSmokeCurlNoiseSpeed.Get();
 
-7. Engine/Source/Ui/WrapperBase.h and WrapperBase.cpp
+6. Engine/Source/Ui/WrapperBase.h and WrapperBase.cpp
    Declare and define three new Wrapper tunables for curl noise:
      In .h (after smoke wrappers section):
        extern Wrapper gSmokeCurlNoiseScale;
@@ -88,7 +79,7 @@ Changes (8 files)
        Wrapper gSmokeCurlNoiseStrength(0.003f, 0.0f, 0.02f);
        Wrapper gSmokeCurlNoiseSpeed(0.5f, 0.0f, 2.0f);
 
-8. Engine/Source/Ui/Screens/TweaksScreen/TweaksSliderMap.cpp
+7. Engine/Source/Ui/Screens/TweaksScreen/TweaksSliderMap.cpp
    Add the three curl noise sliders to the tweaks slider map (after existing smoke entries):
      {"Smoke Curl Noise Scale", &gSmokeCurlNoiseScale},
      {"Smoke Curl Noise Strength", &gSmokeCurlNoiseStrength},

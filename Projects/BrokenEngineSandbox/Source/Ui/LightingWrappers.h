@@ -33,10 +33,6 @@ extern engine::Wrapper gExplosionSecondaryLightingIntensityOne;
 extern engine::Wrapper gExplosionSecondaryLightingIntensityTwo;
 extern engine::Wrapper gExplosionSecondaryLightingIntensityThree;
 
-// Explosions - Particle lighting (visible intensity moved to ParticleWrappers)
-extern engine::Wrapper gExplosionParticleLightingArea;
-extern engine::Wrapper gExplosionParticleLightingIntensity;
-
 // Blasters - Terrain crater
 extern engine::Wrapper gCraterVisibleAreaOne;
 extern engine::Wrapper gCraterVisibleAreaTwo;

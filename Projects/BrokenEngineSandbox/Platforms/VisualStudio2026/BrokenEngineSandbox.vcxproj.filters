@@ -1343,12 +1343,6 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\VisibleLight.vert">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Particles\LightingParticlesRender.vert">
-      <Filter>Engine\Data\Shaders\Particles</Filter>
-    </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Particles\LightingParticlesRender.frag">
-      <Filter>Engine\Data\Shaders\Particles</Filter>
-    </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Objects\HexShield.frag">
       <Filter>Engine\Data\Shaders\Objects</Filter>
     </None>

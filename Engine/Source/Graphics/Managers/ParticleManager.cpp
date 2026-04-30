@@ -4,8 +4,6 @@
 
 #include "Profile/ProfileManager.h"
 
-#include "Ui/WrapperBase.h"
-
 namespace engine
 {
 
@@ -48,7 +46,6 @@ void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout
 	}
 
 	layout.iCookie = gpParticleManager->GetOrAssignTextureIndex(textureCrc);
-	layout.iLightingCookie = static_cast<int32_t>(gpTextureManager->mTextureDescriptors.CrcToBlurredIndex(textureCrc));
 	rParticlesSpawnLayout.pParticles[rParticlesSpawnLayout.iCount] = layout;
 	++rParticlesSpawnLayout.iCount;
 }
@@ -62,7 +59,6 @@ void ParticleManager::RenderGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fParticlesStretchVelocityStart = 1.0f;
 	rGlobalLayout.fParticlesStretchVelocityEnd = 10.0f;
 	rGlobalLayout.fParticlesStretchVelocityMultiplier = 2.0f;
-	rGlobalLayout.fParticlesWindStrength = gParticlesWindStrength.Get();
 
 	// Spawn
 	rLongParticlesSpawnLayout.iCount = mLongParticlesSpawnLayout.iCount;

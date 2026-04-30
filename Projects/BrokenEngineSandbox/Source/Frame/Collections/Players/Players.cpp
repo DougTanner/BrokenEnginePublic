@@ -116,6 +116,7 @@ void PlayersInterpolate::Register()
 		.pParticleVerticalVelocitySpreadScale = &gPlayerExplosionParticleVerticalVelocitySpread,
 		.pParticleVelocityDecayScale = &gPlayerExplosionParticleVelocityDecay,
 		.pParticleGravityScale = &gPlayerExplosionParticleGravity,
+		.pParticleVisibleIntensityScale = &gPlayerExplosionParticleVisibleIntensity,
 		.pParticleIntensitySpreadScale = &gPlayerExplosionParticleIntensitySpread,
 		.pParticleIntensityDecayScale = &gPlayerExplosionParticleIntensityDecay,
 		.pParticleIntensityPowerScale = &gPlayerExplosionParticleIntensityPower,

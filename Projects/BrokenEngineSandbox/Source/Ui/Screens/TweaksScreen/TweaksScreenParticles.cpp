@@ -36,12 +36,8 @@ void TweaksScreen::RenderParticlesSection()
 			WrapperSlider("Velocity Decay",           kiSection, 1.0f, "Missile Particle Velocity Decay");
 			WrapperSlider("Gravity",                  kiSection, 1.0f, "Missile Particle Gravity");
 
-			WrapperSeparatorText("Lighting");
-			WrapperSlider("Lighting Area",      kiSection, 1.0f, "Explosion Particle Lighting Area");
-			WrapperSlider("Lighting Intensity", kiSection, 1.0f, "Explosion Particle Lighting Intensity");
-
 			WrapperSeparatorText("Visible");
-			WrapperSlider("Visible Intensity", kiSection, 1.0f, "Explosion Particle Visible Intensity");
+			WrapperSlider("Visible Intensity", kiSection, 1.0f, "Missile Particle Visible Intensity");
 			WrapperSlider("Intensity Spread",  kiSection, 1.0f, "Missile Particle Intensity Spread");
 			WrapperSlider("Intensity Decay",   kiSection, 1.0f, "Missile Particle Intensity Decay");
 			WrapperSlider("Intensity Power",   kiSection, 1.0f, "Missile Particle Intensity Power");
@@ -74,12 +70,8 @@ void TweaksScreen::RenderParticlesSection()
 			WrapperSlider("Velocity Decay",           kiSection, 1.0f, "Player Particle Velocity Decay");
 			WrapperSlider("Gravity",                  kiSection, 1.0f, "Player Particle Gravity");
 
-			WrapperSeparatorText("Lighting");
-			WrapperSlider("Lighting Area",      kiSection, 1.0f, "Explosion Particle Lighting Area");
-			WrapperSlider("Lighting Intensity", kiSection, 1.0f, "Explosion Particle Lighting Intensity");
-
 			WrapperSeparatorText("Visible");
-			WrapperSlider("Visible Intensity", kiSection, 1.0f, "Explosion Particle Visible Intensity");
+			WrapperSlider("Visible Intensity", kiSection, 1.0f, "Player Particle Visible Intensity");
 			WrapperSlider("Intensity Spread",  kiSection, 1.0f, "Player Particle Intensity Spread");
 			WrapperSlider("Intensity Decay",   kiSection, 1.0f, "Player Particle Intensity Decay");
 			WrapperSlider("Intensity Power",   kiSection, 1.0f, "Player Particle Intensity Power");
@@ -112,12 +104,8 @@ void TweaksScreen::RenderParticlesSection()
 			WrapperSlider("Velocity Decay",           kiSection, 1.0f, "Spaceship Particle Velocity Decay");
 			WrapperSlider("Gravity",                  kiSection, 1.0f, "Spaceship Particle Gravity");
 
-			WrapperSeparatorText("Lighting");
-			WrapperSlider("Lighting Area",      kiSection, 1.0f, "Explosion Particle Lighting Area");
-			WrapperSlider("Lighting Intensity", kiSection, 1.0f, "Explosion Particle Lighting Intensity");
-
 			WrapperSeparatorText("Visible");
-			WrapperSlider("Visible Intensity", kiSection, 1.0f, "Explosion Particle Visible Intensity");
+			WrapperSlider("Visible Intensity", kiSection, 1.0f, "Spaceship Particle Visible Intensity");
 			WrapperSlider("Intensity Spread",  kiSection, 1.0f, "Spaceship Particle Intensity Spread");
 			WrapperSlider("Intensity Decay",   kiSection, 1.0f, "Spaceship Particle Intensity Decay");
 			WrapperSlider("Intensity Power",   kiSection, 1.0f, "Spaceship Particle Intensity Power");

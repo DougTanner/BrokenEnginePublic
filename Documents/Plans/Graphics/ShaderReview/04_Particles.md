@@ -1,13 +1,11 @@
 # Shader Review — Particles
 
-Files: `Billboards.vert`, `LongParticlesRender.vert`, `SquareParticlesRender.vert`, `LightingParticlesRender.vert`, `Billboards.frag`, `ParticlesRender.frag`, `LightingParticlesRender.frag`, `ParticlesSpawn.comp`, `ParticlesUpdate.comp`
+Files: `Billboards.vert`, `LongParticlesRender.vert`, `SquareParticlesRender.vert`, `Billboards.frag`, `ParticlesRender.frag`, `ParticlesSpawn.comp`, `ParticlesUpdate.comp`
 
 ## PASS
 
 - `Engine/Data/Shaders/Particles/Billboards.vert` — scalar-layout SSBO, correct descriptor discipline, uses shared `Rotate` helper.
-- `Engine/Data/Shaders/Particles/LightingParticlesRender.vert` — scalar layout, correct sets, `flat` instance index, correct Vulkan Y-flip.
 - `Engine/Data/Shaders/Particles/Billboards.frag` — correct bindless `nonuniformEXT`, scalar layout.
-- `Engine/Data/Shaders/Particles/LightingParticlesRender.frag` — atomic tile-occupancy marking is race-safe; `LightingDepositEdgeFade` used correctly.
 
 ## NEEDS FIXES
 
