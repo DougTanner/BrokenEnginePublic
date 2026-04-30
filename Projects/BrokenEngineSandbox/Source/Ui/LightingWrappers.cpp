@@ -9,37 +9,37 @@ namespace game
 
 // Explosions - Primary light
 engine::Wrapper gExplosionPrimaryLightingAreaOne(16.0f, 1.0f, 16.0f);
-engine::Wrapper gExplosionPrimaryLightingAreaTwo(2.0f, 1.0f, 4.0f);
+engine::Wrapper gExplosionPrimaryLightingAreaTwo(4.0f, 1.0f, 4.0f);
 engine::Wrapper gExplosionPrimaryLightingAreaThree(0.0f, 0.0f, 4.0f);
-engine::Wrapper gExplosionPrimaryLightingIntensityOne(4.0f, 0.0f, 8.0f);
-engine::Wrapper gExplosionPrimaryLightingIntensityTwo(0.2f, 0.0f, 2.0f);
+engine::Wrapper gExplosionPrimaryLightingIntensityOne(0.5f, 0.0f, 8.0f);
+engine::Wrapper gExplosionPrimaryLightingIntensityTwo(0.25f, 0.0f, 2.0f);
 engine::Wrapper gExplosionPrimaryLightingIntensityThree(0.0f, 0.0f, 2.0f);
 
 // Explosions - Secondary light
-engine::Wrapper gExplosionSecondaryLightingAreaOne(2.0f, 0.0f, 16.0f);
+engine::Wrapper gExplosionSecondaryLightingAreaOne(8.0f, 0.0f, 16.0f);
 engine::Wrapper gExplosionSecondaryLightingAreaTwo(2.0f, 1.0f, 4.0f);
 engine::Wrapper gExplosionSecondaryLightingAreaThree(0.0f, 0.0f, 4.0f);
-engine::Wrapper gExplosionSecondaryLightingIntensityOne(4.0f, 0.0f, 8.0f);
-engine::Wrapper gExplosionSecondaryLightingIntensityTwo(0.2f, 0.0f, 2.0f);
+engine::Wrapper gExplosionSecondaryLightingIntensityOne(2.0f, 0.0f, 8.0f);
+engine::Wrapper gExplosionSecondaryLightingIntensityTwo(0.5f, 0.0f, 2.0f);
 engine::Wrapper gExplosionSecondaryLightingIntensityThree(0.0f, 0.0f, 2.0f);
 
 // Explosions - Particle (GPU spark/debris)
-engine::Wrapper gExplosionParticleLightingArea(1.0f, 0.0f, 16.0f);
-engine::Wrapper gExplosionParticleLightingIntensity(1.0f, 0.0f, 8.0f);
+engine::Wrapper gExplosionParticleLightingArea(1.0f, 0.0f, 4.0f);
+engine::Wrapper gExplosionParticleLightingIntensity(0.0f, 0.0f, 2.0f);
 
 // Blasters - Terrain crater
-engine::Wrapper gCraterLightingAreaOne(16.0f, 1.0f, 16.0f);
-engine::Wrapper gCraterLightingAreaTwo(1.0f, 1.0f, 4.0f);
+engine::Wrapper gCraterLightingAreaOne(8.0f, 1.0f, 16.0f);
+engine::Wrapper gCraterLightingAreaTwo(2.0f, 1.0f, 4.0f);
 engine::Wrapper gCraterLightingAreaThree(1.0f, 1.0f, 4.0f);
 engine::Wrapper gCraterLightingAreaFour(0.0f, 0.0f, 4.0f);
 engine::Wrapper gCraterLightingIntensityOne(0.3f, 0.0f, 1.0f);
-engine::Wrapper gCraterLightingIntensityTwo(0.2f, 0.0f, 2.0f);
-engine::Wrapper gCraterLightingIntensityThree(0.2f, 0.0f, 2.0f);
+engine::Wrapper gCraterLightingIntensityTwo(0.1f, 0.0f, 2.0f);
+engine::Wrapper gCraterLightingIntensityThree(0.05f, 0.0f, 2.0f);
 engine::Wrapper gCraterLightingIntensityFour(0.0f, 0.0f, 2.0f);
 
 // Players - Area light
 engine::Wrapper gPlayersBlasterLightingArea(3.0f, 1.0f, 8.0f);
-engine::Wrapper gPlayersBlasterLightingIntensity(2.0f, 0.0f, 4.0f);
+engine::Wrapper gPlayersBlasterLightingIntensity(2.0f, 0.0f, 6.0f);
 
 // Players - Impact point light
 engine::Wrapper gPlayerImpactLightingAreaOne(2.0f, 1.0f, 4.0f);
@@ -58,8 +58,8 @@ engine::Wrapper gMissileExhaustLightingIntensity(0.0f, 0.0f, 2.0f);
 engine::Wrapper gSpaceshipExplosionLightingIntensity(0.0f, 0.0f, 2.0f);
 
 // Spaceships - Enemy blaster
-engine::Wrapper gEnemyBlasterLightingArea(2.0f, 1.0f, 4.0f);
-engine::Wrapper gEnemyBlasterLightingIntensity(0.0f, 0.0f, 2.0f);
+engine::Wrapper gEnemyBlasterLightingArea(1.0f, 0.5f, 2.0f);
+engine::Wrapper gEnemyBlasterLightingIntensity(0.2f, 0.0f, 1.0f);
 
 // Spaceships - Hit flash
 engine::Wrapper gHitFlashLightingAreaOne(2.0f, 1.0f, 4.0f);
@@ -72,27 +72,24 @@ engine::Wrapper gHitFlashLightingIntensityTwo(0.0f, 0.0f, 2.0f);
 // ============================================================================
 
 // Explosions - Primary light
-engine::Wrapper gExplosionPrimaryVisibleAreaOne(2.0f, 0.1f, 5.0f);
+engine::Wrapper gExplosionPrimaryVisibleAreaOne(5.0f, 0.1f, 5.0f);
 engine::Wrapper gExplosionPrimaryVisibleAreaTwo(2.0f, 0.1f, 5.0f);
-engine::Wrapper gExplosionPrimaryVisibleAreaThree(2.0f, 0.1f, 5.0f);
-engine::Wrapper gExplosionPrimaryVisibleIntensityOne(0.6f, 0.05f, 3.0f);
-engine::Wrapper gExplosionPrimaryVisibleIntensityTwo(0.6f, 0.05f, 3.0f);
+engine::Wrapper gExplosionPrimaryVisibleAreaThree(0.0f, 0.0f, 5.0f);
+engine::Wrapper gExplosionPrimaryVisibleIntensityOne(3.0f, 0.0f, 3.0f);
+engine::Wrapper gExplosionPrimaryVisibleIntensityTwo(1.0f, 0.0f, 3.0f);
 engine::Wrapper gExplosionPrimaryVisibleIntensityThree(0.0f, 0.0f, 3.0f);
 
 // Explosions - Secondary light
-engine::Wrapper gExplosionSecondaryVisibleAreaOne(0.0f, 0.0f, 4.0f);
-engine::Wrapper gExplosionSecondaryVisibleAreaTwo(2.0f, 0.1f, 4.0f);
+engine::Wrapper gExplosionSecondaryVisibleAreaOne(2.0f, 0.0f, 4.0f);
+engine::Wrapper gExplosionSecondaryVisibleAreaTwo(0.5f, 0.1f, 4.0f);
 engine::Wrapper gExplosionSecondaryVisibleAreaThree(0.0f, 0.0f, 4.0f);
-engine::Wrapper gExplosionSecondaryVisibleIntensityOne(0.0f, 0.0f, 3.0f);
-engine::Wrapper gExplosionSecondaryVisibleIntensityTwo(0.6f, 0.05f, 3.0f);
+engine::Wrapper gExplosionSecondaryVisibleIntensityOne(0.5f, 0.0f, 3.0f);
+engine::Wrapper gExplosionSecondaryVisibleIntensityTwo(0.25f, 0.0f, 3.0f);
 engine::Wrapper gExplosionSecondaryVisibleIntensityThree(0.0f, 0.0f, 3.0f);
 
-// Explosions - Particle
-engine::Wrapper gExplosionParticleVisibleIntensity(1.0f, 0.0f, 4.0f);
-
 // Blasters - Terrain crater
-engine::Wrapper gCraterVisibleAreaOne(0.35f, 0.05f, 2.0f);
-engine::Wrapper gCraterVisibleAreaTwo(0.35f, 0.05f, 2.0f);
+engine::Wrapper gCraterVisibleAreaOne(0.35f, 0.0f, 2.0f);
+engine::Wrapper gCraterVisibleAreaTwo(0.35f, 0.0f, 2.0f);
 engine::Wrapper gCraterVisibleAreaThree(0.25f, 0.03f, 1.5f);
 engine::Wrapper gCraterVisibleAreaFour(0.0f, 0.0f, 1.5f);
 engine::Wrapper gCraterVisibleIntensityOne(2.0f, 0.2f, 10.0f);
@@ -107,7 +104,7 @@ engine::Wrapper gPlayerAreaLightVisibleIntensity(1.0f, 0.1f, 1.0f);
 engine::Wrapper gPlayerImpactVisibleAreaOne(0.675f, 0.07f, 3.5f);
 engine::Wrapper gPlayerImpactVisibleAreaTwo(0.0f, 0.0f, 3.5f);
 engine::Wrapper gPlayerImpactVisibleIntensityOne(1.0f, 0.1f, 5.0f);
-engine::Wrapper gPlayerImpactVisibleIntensityTwo(0.5f, 0.05f, 2.5f);
+engine::Wrapper gPlayerImpactVisibleIntensityTwo(0.5f, 0.0f, 2.5f);
 
 // Players - Hex shield
 engine::Wrapper gHexShieldIntensityDecay(1.25f, 0.1f, 6.0f);

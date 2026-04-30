@@ -2,7 +2,7 @@
 
 **Global**: `gpCommandBufferManager`
 
-Records and submits Vulkan command buffers using a record-once, submit-many pattern. Re-recorded only on resize, device loss, or settings changes.
+Records and submits Vulkan command buffers using a record-once, submit-many pattern. Re-recorded only on resize, device loss, or settings changes. The manager itself owns the record/submit entry points; per-pass recording bodies live in `CommandBufferRecordGlobal` / `CommandBufferRecordMain` helper structs (each exposes a single static `Record(iFramebuffer)`).
 
 ## Command Buffer Types
 

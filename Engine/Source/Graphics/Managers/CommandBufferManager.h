@@ -3,8 +3,6 @@
 namespace engine
 {
 
-struct RenderFrame;
-
 class CommandBufferManager
 {
 public:
@@ -14,8 +12,6 @@ public:
 
 	void RecordCommandBuffers();
 	void RecordCommandBuffer(int64_t iFramebuffer);
-	void RecordGlobalCommandBuffer(int64_t iFramebuffer);
-	void RecordMainCommandBuffer(int64_t iFramebuffer);
 
 	void SubmitGlobalCommandBuffer(int64_t iFramebufferIndex);
 	void SubmitMainCommandBuffer(int64_t iFramebufferIndex, bool bSignalFence);
@@ -34,12 +30,6 @@ public:
 	bool mbSaveScreenshot = false;
 
 private:
-
-	void RecordTerrainPasses(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, Pipeline* pPipelines);
-	void RecordWindSpreadPipeline(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, uint32_t uiWindWidth, Pipeline* pPipelines);
-	void RecordSmokeSpreadPipeline(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, uint32_t uiSmokeTilesX, Pipeline* pPipelines);
-	void RecordParticleUpdatePasses(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, Pipeline* pPipelines);
-	void RecordLightingSpreadPipeline(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer);
 
 	void SubmitGlobalToQueue(int64_t iFramebufferIndex);
 	void SubmitMainToQueue(int64_t iFramebufferIndex, bool bSignalFence);

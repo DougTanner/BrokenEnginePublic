@@ -376,6 +376,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\Source\Ui\Localization.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\DeathMenuScreen.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\MenuUtils.h" />
+    <ClInclude Include="..\..\Source\Ui\ParticleWrappers.h" />
     <ClInclude Include="..\..\Source\Ui\Wrapper.h" />
     <ClInclude Include="Output\Data\Audio.h" />
     <ClInclude Include="Output\Data\Data.h" />
@@ -435,6 +436,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileScreens.cpp" />
     <ClCompile Include="..\..\Source\Profile\ProfileManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\WrapperBase.cpp" />
+    <ClCompile Include="..\..\Source\Ui\ParticleWrappers.cpp" />
     <ClCompile Include="..\..\Source\Ui\Wrapper.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters\Blasters.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters\BlastersUpdate.cpp" />

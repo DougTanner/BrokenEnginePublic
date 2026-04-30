@@ -125,7 +125,7 @@ Wrapper gLightingBlurEdgeFalloff(0.4f, 0.01f, 0.6f);
 // Lighting Deposit
 Wrapper gLightingDepositTextureMultiplier(0.5f, 0.1f, 1.0f);
 Wrapper gLightingDepositThreshold(0.0f, 0.0f, 4.0f);
-Wrapper gLightingDepositCompress(0.0f, 0.0f, 4.0f);
+Wrapper gLightingDepositCompress(4.0f, 0.0f, 16.0f);
 
 // Lighting Spread
 Wrapper gSpreadPassCount(32.0f, 1.0f, static_cast<float>(shaders::kiMaxSpreadPasses)); // min >= 1.0f load-bearing: keeps pow(fPassCount, -fCombineExposurePassScale) base positive in LightCombine.comp:79 / DebugTexture.frag:35.
@@ -136,7 +136,7 @@ Wrapper gSpreadAccumulationDecay(0.35f, 0.0f, 1.0f);
 Wrapper gSpreadTextureMultiplierStart(0.2f, 0.05f, 0.2f);
 Wrapper gSpreadDirectionality(0.3f, 0.0f, 1.0f);
 Wrapper gSpreadDirectionCount(18.0f, 4.0f, 32.0f);
-Wrapper gSpreadDistance(1.0f, 0.0f, 10.0f);
+Wrapper gSpreadDistance(0.5f, 0.0f, 10.0f);
 Wrapper gSpreadRingCount(4.0f, 1.0f, 24.0f);
 Wrapper gSpreadJitter(0.0f, 0.0f, 1.0f);
 Wrapper gSpreadDistanceFalloff(1.0f, 0.0f, 1.0f);
@@ -145,24 +145,24 @@ Wrapper gSpreadOutputCompress(3.0f, 0.0f, 4.0f);
 
 // Lighting Spread End
 Wrapper gSpreadTextureMultiplierEnd(0.01f, 0.01f, 0.1f);
-Wrapper gSpreadDirectionalityEnd(0.6f, 0.0f, 1.0f);
+Wrapper gSpreadDirectionalityEnd(0.8f, 0.0f, 1.0f);
 Wrapper gSpreadDirectionCountEnd(8.0f, 4.0f, 16.0f);
 Wrapper gSpreadDistanceEnd(9.0f, 1.0f, 40.0f);
 Wrapper gSpreadRingCountEnd(5.0f, 1.0f, 16.0f);
 Wrapper gSpreadJitterEnd(0.874f, 0.0f, 1.0f);
-Wrapper gSpreadDistanceFalloffEnd(0.8f, 0.0f, 1.0f);
+Wrapper gSpreadDistanceFalloffEnd(0.9f, 0.0f, 1.0f);
 Wrapper gSpreadOutputThresholdEnd(0.0f, 0.0f, 4.0f);
 Wrapper gSpreadOutputCompressEnd(1.0f, 0.0f, 4.0f);
 
 // Lighting Spread Height Fade
-Wrapper gSpreadHeightMultiplier(0.1f, 0.0f, 0.2f);
-Wrapper gSpreadHeightEndHeight(2.0f, 0.1f, 10.0f);
+Wrapper gSpreadHeightMultiplier(0.125f, 0.0f, 0.2f);
+Wrapper gSpreadHeightEndHeight(3.0f, 0.1f, 10.0f);
 Wrapper gSpreadHeightPower(3.0f, 0.1f, 8.0f);
 
 // Lighting Combine (Uchimura tone curve)
 Wrapper gCombineMaxBrightness(1.3f, 0.1f, 4.0f);
 Wrapper gCombineContrast(1.3f, 0.1f, 2.0f); // min > 0 load-bearing: prevents divide-by-zero through `a` in LightCombine.comp:67 / DebugTexture.frag:44.
-Wrapper gCombineLinearStart(0.25f, 0.01f, 0.5f);
+Wrapper gCombineLinearStart(0.15f, 0.01f, 0.5f);
 Wrapper gCombineLinearLength(0.5f, 0.01f, 0.8f);
 Wrapper gCombineToe(3.0f, 1.3f, 6.0f);
 Wrapper gCombineBlackTightness(0.0f, 0.0f, 0.5f);
@@ -179,15 +179,15 @@ Wrapper gLightingSampledNormalsSize(0.3f, 0.05f, 0.5f);
 Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
 
 // New Lighting
-Wrapper gLightingNewDirectional(0.7f, 0.0f, 2.0f);
-Wrapper gLightingNewDirectionalPower(0.7f, 0.5f, 2.0f);
-Wrapper gLightingDirectionalPowerMode(1.0f, 0.0f, 1.0f);
-Wrapper gLightingNewAmbient(50.0f, 0.0f, 200.0f);
-Wrapper gLightingNewAmbientPower(4.5f, 0.1f, 6.0f);
+Wrapper gLightingNewDirectional(0.6f, 0.0f, 2.0f);
+Wrapper gLightingNewDirectionalPower(0.6f, 0.5f, 2.0f);
+Wrapper gLightingDirectionalPowerMode(0.0f, 0.0f, 1.0f);
+Wrapper gLightingNewAmbient(7.0f, 0.0f, 10.0f);
+Wrapper gLightingNewAmbientPower(2.5f, 0.1f, 5.0f);
 Wrapper gLightingAmbientPowerMode(1.0f, 0.0f, 1.0f);
-Wrapper gLightingTerrain(1.0f, 0.0f, 2.0f);
+Wrapper gLightingTerrain(0.5f, 0.0f, 2.0f);
 Wrapper gLightingAddTerrain(0.25f, 0.0f, 0.5f);
-Wrapper gLightingTerrainBelowBaseMultiplier(0.4f, 0.0f, 0.5f);
+Wrapper gLightingTerrainBelowBaseMultiplier(0.8f, 0.0f, 1.0f);
 Wrapper gLightingTerrainBelowBasePower(0.3f, 0.1f, 1.0f);
 Wrapper gLightingObjects(1.0f, 0.0f, 8.0f);
 Wrapper gLightingObjectsAdd(0.2f, 0.0f, 1.0f);
@@ -198,9 +198,12 @@ Wrapper gMoonBrightness(0.1f, 0.0f, 1.0f);
 // Water specular lighting
 Wrapper gLightingWaterAmbientPower(0.6f, 0.1f, 6.0f);
 Wrapper gLightingWaterAmbientPowerMode(0.6f, 0.0f, 1.0f);
+Wrapper gLightingWaterNewAmbient(1.5f, 0.0f, 10.0f);
+Wrapper gLightingWaterNewAmbientPower(2.5f, 0.1f, 5.0f);
+Wrapper gLightingWaterNewAmbientPowerMode(1.0f, 0.0f, 1.0f);
 Wrapper gLightingWaterNormalSoften(0.4f, 0.0f, 1.0f);
 Wrapper gLightingWaterNormalBlendWave(0.25f, 0.0f, 0.4f);
-Wrapper gLightingWaterIntensity(0.04f, 0.0f, 0.1f);
+Wrapper gLightingWaterIntensity(0.035f, 0.0f, 0.1f);
 Wrapper gLightingWaterAdd(0.9f, 0.0f, 1.0f);
 Wrapper gLightingWaterOne(30.0f, 0.0f, 40.0f);
 Wrapper gLightingWaterOnePower(2.5f, 1.0f, 5.0f);
@@ -211,13 +214,13 @@ Wrapper gLightingWaterThreePower(0.5f, 0.25f, 1.0f);
 Wrapper gLightingWaterPowerMode(0.8f, 0.0f, 1.0f);
 
 // Water reflected
-Wrapper gLightingWaterReflectedAmount(0.16f, 0.0f, 1.0f);
+Wrapper gLightingWaterReflectedAmount(0.1f, 0.0f, 1.0f);
 Wrapper gLightingWaterReflectedNormalBlendWave(0.2f, 0.0f, 0.4f);
-Wrapper gLightingWaterReflectedDistortion(20.0f, 0.0f, 40.0f);
+Wrapper gLightingWaterReflectedDistortion(23.0f, 0.0f, 40.0f);
 Wrapper gLightingWaterReflectedFalloffStart(0.0f, 0.0f, 100.0f);
 Wrapper gLightingWaterReflectedFalloffPower(0.6f, 0.1f, 1.0f);
 Wrapper gLightingWaterReflectedFresnel(0.9f, 0.0f, 1.0f);
-Wrapper gLightingWaterReflectedIntensity(0.3f, 0.0f, 5.0f);
+Wrapper gLightingWaterReflectedIntensity(0.4f, 0.0f, 5.0f);
 
 // Water skybox
 Wrapper gLightingWaterSkyboxSunBias(1.3f, 0.0f, 4.0f);

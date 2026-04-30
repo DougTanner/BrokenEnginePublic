@@ -13,6 +13,7 @@
 #include "Frame/Collections/Pushers/Pushers.h"
 #include "Frame/Collections/Targets/Targets.h"
 
+#include "Ui/ParticleWrappers.h"
 #if defined(BT_CLIENT)
 #include "Data/Scene.h"
 #include "Frame/Collections/PointLights/PointLights.h"
@@ -61,7 +62,6 @@ constexpr float kfSpaceshipExplosionParticleVelocityRandom = 9.0f;
 constexpr float kfSpaceshipExplosionParticleVerticalVelocityMin = -5.0f;
 constexpr float kfSpaceshipExplosionParticleVerticalVelocityRandom = 10.0f;
 constexpr float kfSpaceshipExplosionParticleIntensityDecay = 2.4f;
-// Particle lighting now in LightingWrappers (gSpaceshipExplosionParticle*)
 constexpr float kfSpaceshipExplosionTrailLengthRandom = kfSpaceshipRadius * 1.25f;
 constexpr uint32_t kuiSpaceshipExplosionSecondaryCount = 1;
 
@@ -134,6 +134,19 @@ void SpaceshipsInterpolate::Register()
 		.fParticleIntensityDecay = kfSpaceshipExplosionParticleIntensityDecay,
 		.fTrailLengthRandom = kfSpaceshipExplosionTrailLengthRandom,
 		.uiSecondaryExplosionCount = kuiSpaceshipExplosionSecondaryCount,
+		.pParticleWidthScale = &gSpaceshipExplosionParticleWidth,
+		.pParticleLengthScale = &gSpaceshipExplosionParticleLength,
+		.pParticleLengthSpreadScale = &gSpaceshipExplosionParticleLengthSpread,
+		.pParticlePositionJitterScale = &gSpaceshipExplosionParticlePositionJitter,
+		.pParticleVelocityBaseScale = &gSpaceshipExplosionParticleVelocityBase,
+		.pParticleVelocitySpreadScale = &gSpaceshipExplosionParticleVelocitySpread,
+		.pParticleVerticalVelocityBaseScale = &gSpaceshipExplosionParticleVerticalVelocityBase,
+		.pParticleVerticalVelocitySpreadScale = &gSpaceshipExplosionParticleVerticalVelocitySpread,
+		.pParticleVelocityDecayScale = &gSpaceshipExplosionParticleVelocityDecay,
+		.pParticleGravityScale = &gSpaceshipExplosionParticleGravity,
+		.pParticleIntensitySpreadScale = &gSpaceshipExplosionParticleIntensitySpread,
+		.pParticleIntensityDecayScale = &gSpaceshipExplosionParticleIntensityDecay,
+		.pParticleIntensityPowerScale = &gSpaceshipExplosionParticleIntensityPower,
 	});
 
 	RegisterSpaceshipTargetType();

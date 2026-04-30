@@ -276,6 +276,9 @@
     <ClInclude Include="..\..\Source\Frame\Collections\Spaceships\Spaceships.h">
       <Filter>Game\Frame\Collections\Spaceships</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\ParticleWrappers.h">
+      <Filter>Game\Ui</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Ui\Wrapper.h">
       <Filter>Game\Ui</Filter>
     </ClInclude>

@@ -1,5 +1,7 @@
 #include "Explosions.h"
 
+#include "Ui/WrapperBase.h"
+
 #if defined(BT_CLIENT)
 #include "Data/Texture.h"
 #include "Graphics/Managers/ParticleManager.h"
@@ -8,6 +10,7 @@
 #include "Frame/Collections/SmokeTrails/SmokeTrails.h"
 #include "Frame/Collections/WindRadials/WindRadials.h"
 #include "Ui/LightingWrappers.h"
+#include "Ui/ParticleWrappers.h"
 #endif // BT_CLIENT
 
 namespace engine
@@ -162,16 +165,33 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 
 	// Spawn GPU particles
 	uint32_t uiTotalParticles = rInfo.uiParticleCount + rType.uiBaseParticleCount;
+
+	// Per-type tweak multipliers (Particles tab). Null on server, optional on client.
+	auto Scale = [](const Wrapper* pWrapper) { return pWrapper != nullptr ? pWrapper->Get() : 1.0f; };
+	const float fPositionJitterScale         = Scale(rType.pParticlePositionJitterScale);
+	const float fVelocityBaseScale           = Scale(rType.pParticleVelocityBaseScale);
+	const float fVelocitySpreadScale         = Scale(rType.pParticleVelocitySpreadScale);
+	const float fVerticalVelocityBaseScale   = Scale(rType.pParticleVerticalVelocityBaseScale);
+	const float fVerticalVelocitySpreadScale = Scale(rType.pParticleVerticalVelocitySpreadScale);
+	const float fIntensitySpreadScale        = Scale(rType.pParticleIntensitySpreadScale);
+	[[maybe_unused]] const float fWidthScale          = Scale(rType.pParticleWidthScale);
+	[[maybe_unused]] const float fLengthScale         = Scale(rType.pParticleLengthScale);
+	[[maybe_unused]] const float fLengthSpreadScale   = Scale(rType.pParticleLengthSpreadScale);
+	[[maybe_unused]] const float fVelocityDecayScale  = Scale(rType.pParticleVelocityDecayScale);
+	[[maybe_unused]] const float fGravityScale        = Scale(rType.pParticleGravityScale);
+	[[maybe_unused]] const float fIntensityDecayScale = Scale(rType.pParticleIntensityDecayScale);
+	[[maybe_unused]] const float fIntensityPowerScale = Scale(rType.pParticleIntensityPowerScale);
+
 	for (uint32_t p = 0; p < uiTotalParticles; ++p)
 	{
 		XMFLOAT4A f4Position {};
-		XMVECTOR vecParticlePosition = common::RandomPositionJitter(rInfo.vecPosition, rType.fParticlePositionJitter, rFrame.postRender.randomEngine);
+		XMVECTOR vecParticlePosition = common::RandomPositionJitter(rInfo.vecPosition, rType.fParticlePositionJitter * fPositionJitterScale, rFrame.postRender.randomEngine);
 		XMStoreFloat4A(&f4Position, vecParticlePosition);
 
-		float fVelocityMag = rType.fParticleVelocityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleVelocityRandom;
+		float fVelocityMag = rType.fParticleVelocityMin * fVelocityBaseScale + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleVelocityRandom * fVelocitySpreadScale;
 		XMVECTOR vecVelocity = XMVectorMultiply(XMVectorReplicate(fVelocityMag), vecDirection2dNormal);
 		vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, -0.5f * rInfo.fParticleAngle + rInfo.fParticleAngle * common::Random(rFrame.postRender.randomEngine)));
-		vecVelocity = XMVectorSetZ(vecVelocity, rType.fParticleVerticalVelocityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleVerticalVelocityRandom);
+		vecVelocity = XMVectorSetZ(vecVelocity, rType.fParticleVerticalVelocityMin * fVerticalVelocityBaseScale + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleVerticalVelocityRandom * fVerticalVelocitySpreadScale);
 		XMFLOAT4A f4Velocity {};
 		XMStoreFloat4A(&f4Velocity, vecVelocity);
 
@@ -186,10 +206,14 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 			uiParticleColor |= ((50 + common::Random(25u, rFrame.postRender.randomEngine)) << 16) | ((common::Random(25u, rFrame.postRender.randomEngine)) << 8);
 		}
 
-		[[maybe_unused]] float fParticleIntensity = rType.fParticleIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleIntensityRandom;
+		[[maybe_unused]] float fParticleIntensity = rType.fParticleIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleIntensityRandom * fIntensitySpreadScale;
 #if defined(BT_CLIENT)
 		fParticleIntensity *= game::gExplosionParticleVisibleIntensity.Get();
 #endif // BT_CLIENT
+
+		// Per-particle length jitter — multiplicative spread driven by LengthSpread wrapper.
+		// Random consumed unconditionally to keep stream in sync across builds.
+		[[maybe_unused]] const float fLengthJitter = common::Random<1.0f>(rFrame.postRender.randomEngine);
 
 #if defined(BT_CLIENT)
 		if (!(rFrame.interpolate.frameFlags & FrameFlags::kRecalculated))
@@ -198,14 +222,14 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 			{
 				.iColor = static_cast<int32_t>(uiParticleColor),
 				.fLightingIntensity = rType.fParticleLightingIntensity * game::gExplosionParticleLightingIntensity.Get(),
-				.fVelocityDecay = rType.fParticleVelocityDecay,
-				.fGravity = rType.fParticleGravity,
-				.fIntensityDecay = rType.fParticleIntensityDecay,
+				.fVelocityDecay = rType.fParticleVelocityDecay * fVelocityDecayScale,
+				.fGravity = rType.fParticleGravity * fGravityScale,
+				.fIntensityDecay = rType.fParticleIntensityDecay * fIntensityDecayScale,
 				.fLightingSize = rType.fParticleLightingSize * game::gExplosionParticleLightingArea.Get(),
-				.fSize = rType.fParticleWidth,
-				.fLength = rType.fParticleLength,
+				.fSize = rType.fParticleWidth * fWidthScale,
+				.fLength = rType.fParticleLength * fLengthScale * (1.0f + fLengthJitter * fLengthSpreadScale),
 				.fVisibleIntensity = fParticleIntensity,
-				.fIntensityPower = rType.fParticleIntensityPower,
+				.fIntensityPower = rType.fParticleIntensityPower * fIntensityPowerScale,
 				.f4Position = f4Position,
 				.f4Velocity = f4Velocity,
 			}, rType.particleCrc);

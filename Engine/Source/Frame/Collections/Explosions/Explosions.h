@@ -13,6 +13,7 @@ namespace engine
 {
 
 struct FrameStaticData;
+class Wrapper;
 
 #if defined(BT_CLIENT)
 struct SmokeTrailsInterpolate;
@@ -82,6 +83,21 @@ struct ExplosionType
 	// Secondary explosion configuration
 	float fSecondaryPositionMin = 0.25f;
 	float fSecondaryPositionJitter = 1.0f;
+
+	// Per-type runtime tweak multipliers (Particles tab). Null on server, optional on client.
+	Wrapper* pParticleWidthScale = nullptr;
+	Wrapper* pParticleLengthScale = nullptr;
+	Wrapper* pParticleLengthSpreadScale = nullptr;
+	Wrapper* pParticlePositionJitterScale = nullptr;
+	Wrapper* pParticleVelocityBaseScale = nullptr;
+	Wrapper* pParticleVelocitySpreadScale = nullptr;
+	Wrapper* pParticleVerticalVelocityBaseScale = nullptr;
+	Wrapper* pParticleVerticalVelocitySpreadScale = nullptr;
+	Wrapper* pParticleVelocityDecayScale = nullptr;
+	Wrapper* pParticleGravityScale = nullptr;
+	Wrapper* pParticleIntensitySpreadScale = nullptr;
+	Wrapper* pParticleIntensityDecayScale = nullptr;
+	Wrapper* pParticleIntensityPowerScale = nullptr;
 
 	bool operator==(const ExplosionType& rOther) const = default;
 };

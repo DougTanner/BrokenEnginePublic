@@ -24,6 +24,7 @@ layout (set = 1, binding = 8) uniform sampler2D normalmapOneTextureSampler;
 layout (set = 1, binding = 9) uniform sampler2D normalmapTwoTextureSampler;
 layout (set = 1, binding = 10) uniform sampler2D depthLutSampler;
 layout (set = 1, binding = 11) uniform sampler2D smokeSampler;
+layout (set = 1, binding = 12) uniform sampler2D ambientLightingSampler;
 
 // Input
 layout (location = 0) in vec2 f2InInitialPosition;
@@ -191,6 +192,11 @@ void main()
 	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeightFinal, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4LightingBaseHeight[3] = {texture(pLightingSamplers[0], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[1], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[2], f2LightingTexcoordBaseHeight)};
 
+	// Ambient sample — straight-down base-height projection, no reflection offset.
+	// Uses the precomputed direction-averaged ambient texture (single fetch replaces three EWNS samples).
+	vec2 f2LightingTexcoordBaseHeightAmbient = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
+	vec3 f3AmbientSum = texture(ambientLightingSampler, f2LightingTexcoordBaseHeightAmbient).xyz;
+
 	// Scale base-height lighting (hue-preserving: pow applied to per-direction luminance/average scalar)
 	float fWaterAmbientPowerMode = mainLayout.fLightingWaterAmbientPowerMode;
 	for (int i = 0; i < 4; i++)
@@ -218,9 +224,13 @@ void main()
 	vec3 f3WaterLightingMults = fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * f3WaterLightingScaled;
 	f4OutColor.xyz += (1.0f - fWaterLightingAdd) * f3PreLightingColor * f3WaterLightingMults + fWaterLightingAdd * f3WaterLightingMults;
 
+	// Water new ambient (terrain-style, sampled without reflection offset)
+	vec3 f3WaterNewAmbient = globalLayout.fLightingTimeOfDayMultiplier * AmbientLightingPrecomputed(f3AmbientSum, mainLayout.fLightingWaterNewAmbient, mainLayout.fLightingWaterNewAmbientPower, mainLayout.fLightingWaterNewAmbientPowerMode);
+	f4OutColor.xyz += f3WaterNewAmbient;
+
 	// DT: TEMP — show only lighting texture contributions (with normals and base color)
 #ifdef DT_LIGHTING_ONLY
-	f4OutColor.xyz = (1.0f - fWaterLightingAdd) * f3PreLightingColor * f3WaterLightingMults + fWaterLightingAdd * f3WaterLightingMults;
+	f4OutColor.xyz = (1.0f - fWaterLightingAdd) * f3PreLightingColor * f3WaterLightingMults + fWaterLightingAdd * f3WaterLightingMults + f3WaterNewAmbient;
 	return;
 #endif
 

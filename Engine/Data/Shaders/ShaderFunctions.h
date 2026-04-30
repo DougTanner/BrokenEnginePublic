@@ -137,12 +137,9 @@ vec3 WaterLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fSoften, float fOne
 	return mix(f3LumResult, f3AvgResult, fPowerMode);
 }
 
-vec3 AmbientLighting(vec4 pf4Lighting[3], float fIntensity, float fPower, float fPowerMode)
+// Operates on a precomputed direction-averaged sum (e.g. mAmbientCombineTexture sample).
+vec3 AmbientLightingPrecomputed(vec3 f3Result, float fIntensity, float fPower, float fPowerMode)
 {
-	vec3 f3Result = 0.25f * vec3(pf4Lighting[0].x + pf4Lighting[0].y + pf4Lighting[0].z + pf4Lighting[0].w,
-		                         pf4Lighting[1].x + pf4Lighting[1].y + pf4Lighting[1].z + pf4Lighting[1].w,
-		                         pf4Lighting[2].x + pf4Lighting[2].y + pf4Lighting[2].z + pf4Lighting[2].w);
-
 	float fLuminance = dot(f3Result, vec3(0.2126f, 0.7152f, 0.0722f));
 	vec3 f3LumDir = f3Result / max(fLuminance, 0.001f);
 	vec3 f3LumResult = fIntensity * pow(fLuminance, fPower) * f3LumDir;
@@ -152,6 +149,14 @@ vec3 AmbientLighting(vec4 pf4Lighting[3], float fIntensity, float fPower, float 
 	vec3 f3AvgResult = fIntensity * pow(fAverage, fPower) * f3AvgDir;
 
 	return mix(f3LumResult, f3AvgResult, fPowerMode);
+}
+
+vec3 AmbientLighting(vec4 pf4Lighting[3], float fIntensity, float fPower, float fPowerMode)
+{
+	vec3 f3Result = 0.25f * vec3(pf4Lighting[0].x + pf4Lighting[0].y + pf4Lighting[0].z + pf4Lighting[0].w,
+		                         pf4Lighting[1].x + pf4Lighting[1].y + pf4Lighting[1].z + pf4Lighting[1].w,
+		                         pf4Lighting[2].x + pf4Lighting[2].y + pf4Lighting[2].z + pf4Lighting[2].w);
+	return AmbientLightingPrecomputed(f3Result, fIntensity, fPower, fPowerMode);
 }
 
 vec2 WorldToSmokeTexcoord(vec4 f4SmokeArea, vec2 f2Position)
@@ -194,6 +199,16 @@ vec3 BlendSmoke(vec3 f3Color, float fSmokePow, vec4 pf4Lighting[3], GlobalLayout
 	float fGreen = IntensityLighting(pf4Lighting[1]);
 	float fBlue = IntensityLighting(pf4Lighting[2]);
 	vec3 f3SmokeLighting = vec3(fRed, fGreen, fBlue) * globalLayout.fSmokeLightingMultiplier * globalLayout.fLightingTimeOfDayMultiplier;
+	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunMoonColor.xyz + globalLayout.f4AmbientColor.xyz);
+	f3SmokeLighting = min(vec3(1.0f), f3SmokeLighting);
+	return (1.0f - fSmokePow) * f3Color + fSmokePow * f3SmokeLighting * min(vec3(1.25f), vec3(fSmokeDensity));
+}
+
+// Caller passes 4.0 * mAmbientCombineTexture sample (recovers IntensityLighting magnitude — the texture stores 0.25*sum).
+vec3 BlendSmokePrecomputed(vec3 f3Color, float fSmokePow, vec3 f3LightingSum, GlobalLayout globalLayout)
+{
+	float fSmokeDensity = globalLayout.fSmokeColorMin + globalLayout.fSmokeColorMultiplier * fSmokePow;
+	vec3 f3SmokeLighting = f3LightingSum * globalLayout.fSmokeLightingMultiplier * globalLayout.fLightingTimeOfDayMultiplier;
 	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunMoonColor.xyz + globalLayout.f4AmbientColor.xyz);
 	f3SmokeLighting = min(vec3(1.0f), f3SmokeLighting);
 	return (1.0f - fSmokePow) * f3Color + fSmokePow * f3SmokeLighting * min(vec3(1.25f), vec3(fSmokeDensity));

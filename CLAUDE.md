@@ -25,9 +25,9 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 7. Any new files created should be added to the appropriate filter in any relevant .vcproj files
 8. Build the affected projects and verify there are no errors (see Build section below)
 9. After all previous steps have completed, have Opus subagents do a full audit/review of all the files changed in this session. If possible spread files over multiple subagents if there are logical groupings.
-10. Inform the user if the subagents in the previous step found any problems and how severe they were (interrogate user about what to fix and how)
+10. If the subagents in the previous step found any problems that were not automatically fixed, such as architecrual decisions or larger problems out-of-scope of the current plan, have an Opus subagent create plan files in @Documents/Plans
 
-## IMPORTANT Directives
+## IMPORTANT directives
 - Follow KISS, YAGNI, DRY at all times
 - Ambiguity: see `Resolving Ambiguity` above
 - DO NOT run any Git commands
@@ -44,8 +44,8 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 - `/Documents/` - Style guide (`C++StyleGuide.txt`) and architecture overview (`Overview.txt`)
 
 ## Build
-Use the `/compile` skill for build commands and details. Always use `timeout: 600000` (10 minutes) on all build invocations.
-Linker errors (LNK errors) can be ignored — the client or server executable may be running, which locks the file and prevents linking.
+Use the `/compile` skill for build commands and details.
+Linker errors (LNK errors) can be ignored — the executable may be running (locking the file and preventing linking).
 
 ## Client/Server Builds
 

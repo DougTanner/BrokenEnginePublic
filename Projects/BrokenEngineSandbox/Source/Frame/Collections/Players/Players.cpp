@@ -7,6 +7,7 @@
 #include "Frame/Collections/Explosions/Explosions.h"
 #include "Frame/Collections/Pushers/Pushers.h"
 
+#include "Ui/ParticleWrappers.h"
 #if defined(BT_CLIENT)
 #include "Data/Scene.h"
 #include "Frame/Collections/PointLights/PointLights.h"
@@ -105,6 +106,19 @@ void PlayersInterpolate::Register()
 		.fParticleVerticalVelocityMin = kfExplosionParticleVerticalVelocityMin,
 		.fParticleVerticalVelocityRandom = kfExplosionParticleVerticalVelocityRandom,
 		.fParticleIntensityDecay = kfExplosionParticleIntensityDecay,
+		.pParticleWidthScale = &gPlayerExplosionParticleWidth,
+		.pParticleLengthScale = &gPlayerExplosionParticleLength,
+		.pParticleLengthSpreadScale = &gPlayerExplosionParticleLengthSpread,
+		.pParticlePositionJitterScale = &gPlayerExplosionParticlePositionJitter,
+		.pParticleVelocityBaseScale = &gPlayerExplosionParticleVelocityBase,
+		.pParticleVelocitySpreadScale = &gPlayerExplosionParticleVelocitySpread,
+		.pParticleVerticalVelocityBaseScale = &gPlayerExplosionParticleVerticalVelocityBase,
+		.pParticleVerticalVelocitySpreadScale = &gPlayerExplosionParticleVerticalVelocitySpread,
+		.pParticleVelocityDecayScale = &gPlayerExplosionParticleVelocityDecay,
+		.pParticleGravityScale = &gPlayerExplosionParticleGravity,
+		.pParticleIntensitySpreadScale = &gPlayerExplosionParticleIntensitySpread,
+		.pParticleIntensityDecayScale = &gPlayerExplosionParticleIntensityDecay,
+		.pParticleIntensityPowerScale = &gPlayerExplosionParticleIntensityPower,
 	});
 
 #if defined(BT_CLIENT)

@@ -171,6 +171,9 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSeparatorText("Water Lighting");
 				WrapperSlider("Water Ambient Power", kiSection, 1.0f);
 				WrapperSlider("Water Ambient Power Mode", kiSection, 1.0f);
+				WrapperSlider("Water New Ambient", kiSection, 1.0f);
+				WrapperSlider("Water New Ambient Power", kiSection, 1.0f);
+				WrapperSlider("Water New Ambient Power Mode", kiSection, 1.0f);
 				WrapperSlider("Normal Soften", kiSection, 1.0f, "Water Normal Soften");
 				WrapperSlider("Normal Blend Wave", kiSection, 1.0f, "Water Normal Blend Wave");
 				WrapperSlider("Intensity", kiSection, 1.0f, "Water Intensity");

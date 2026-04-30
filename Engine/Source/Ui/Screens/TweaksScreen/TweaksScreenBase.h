@@ -21,6 +21,7 @@ enum class TweakSection : int
 	kSmoke,
 	kWind,
 	kWindDeposits,
+	kParticles,
 	kCount
 };
 
@@ -55,6 +56,7 @@ public:
 	void RenderSmokeSection();
 	void RenderWindSection();
 	virtual void RenderWindDepositsSection() = 0;
+	virtual void RenderParticlesSection() = 0;
 
 	void RenderWaveCountRadioButtons(Wrapper& rCountWrapper);
 	void WrapperSlider(std::string_view label, int64_t iSection, float fWidthMultiplier = 2.0f, std::string_view mapKey = {});

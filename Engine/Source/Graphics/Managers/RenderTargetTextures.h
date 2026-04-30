@@ -47,6 +47,10 @@ struct RenderTargetTextures
 	Texture mpCombineTextures[3];
 	Texture* mppLightingFinalTextures[3] {};
 
+	// Direction-averaged 0.25*(E+W+N+S) of the tone-mapped per-direction values.
+	// Sampled by Terrain/Water in the ambient path to replace three EWNS samples with one.
+	Texture mAmbientCombineTexture;
+
 	// Debug texture array (channels A/B/C used by formats needing 3 textures per slot, e.g., spread direction combined)
 	int64_t miDebugTextureCount = 0;
 	Texture* mppDebugTextures[shaders::kiMaxDebugTextures] {};

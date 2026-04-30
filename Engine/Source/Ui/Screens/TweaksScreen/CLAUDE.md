@@ -12,7 +12,7 @@ Data-driven: a slider map plus a parallel function-pointer table drive section r
 
 **Slider map lifetime**: `TweaksSliderMap::Get()` returns a function-local static `std::unordered_map` wrapped in `ScopedSuppressAllocationTracking` (STL hash buckets heap-allocate; workbuffer unusable because lifetime is program-wide). Game `TweaksScreen` inserts game-specific entries into this same map.
 
-**Extension hooks**: Pure virtuals for game-only sections (hex shield, wind deposits); virtual hook for the Effects tab default-empty in base.
+**Extension hooks**: Pure virtuals for game-only sections (hex shield, wind deposits, particles); virtual hook for the Effects tab default-empty in base.
 
 **Ordering convention**: Slider order in each per-section `.cpp` is the source of truth; Wrapper global order in `WrapperBase.h/.cpp` (and `game::Wrapper.h/.cpp`) must match.
 

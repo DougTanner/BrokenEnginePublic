@@ -15,6 +15,7 @@ layout (binding = 3) uniform sampler2D sourcesB[kiMaxSpreadPasses];
 layout (binding = 4, rgba8) uniform writeonly image2D combineImageR;
 layout (binding = 5, rgba8) uniform writeonly image2D combineImageG;
 layout (binding = 6, rgba8) uniform writeonly image2D combineImageB;
+layout (binding = 7, rgba8) uniform writeonly image2D combineImageAmbient;
 
 layout (push_constant) uniform PushConstants
 {
@@ -99,12 +100,15 @@ void main()
 	float c = globalLayout.fCombineToe;
 	float b = globalLayout.fCombineBlackTightness;
 
+	vec4 f4FinalR;
+	vec4 f4FinalG;
+	vec4 f4FinalB;
 	float fHuePreserve = globalLayout.fCombineHuePreserve;
 	if (fHuePreserve < 0.001f)
 	{
-		imageStore(combineImageR, i2Coord, Uchimura(f4R, P, a, m, l, c, b));
-		imageStore(combineImageG, i2Coord, Uchimura(f4G, P, a, m, l, c, b));
-		imageStore(combineImageB, i2Coord, Uchimura(f4B, P, a, m, l, c, b));
+		f4FinalR = Uchimura(f4R, P, a, m, l, c, b);
+		f4FinalG = Uchimura(f4G, P, a, m, l, c, b);
+		f4FinalB = Uchimura(f4B, P, a, m, l, c, b);
 	}
 	else
 	{
@@ -126,8 +130,13 @@ void main()
 			f4HueB[i] = f4B[i] * fRatio;
 		}
 
-		imageStore(combineImageR, i2Coord, mix(f4OutR, f4HueR, fHuePreserve));
-		imageStore(combineImageG, i2Coord, mix(f4OutG, f4HueG, fHuePreserve));
-		imageStore(combineImageB, i2Coord, mix(f4OutB, f4HueB, fHuePreserve));
+		f4FinalR = mix(f4OutR, f4HueR, fHuePreserve);
+		f4FinalG = mix(f4OutG, f4HueG, fHuePreserve);
+		f4FinalB = mix(f4OutB, f4HueB, fHuePreserve);
 	}
+
+	imageStore(combineImageR, i2Coord, f4FinalR);
+	imageStore(combineImageG, i2Coord, f4FinalG);
+	imageStore(combineImageB, i2Coord, f4FinalB);
+	imageStore(combineImageAmbient, i2Coord, vec4(dot(f4FinalR, vec4(0.25f)), dot(f4FinalG, vec4(0.25f)), dot(f4FinalB, vec4(0.25f)), 1.0f));
 }

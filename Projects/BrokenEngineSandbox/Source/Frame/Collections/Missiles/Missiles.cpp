@@ -7,6 +7,7 @@
 #include "Data/Audio.h"
 #include "Frame/HealthDamage.h"
 #include "Profile/ProfileManager.h"
+#include "Ui/ParticleWrappers.h"
 #if defined(BT_CLIENT)
 #include "Ui/WrapperBase.h"
 #include "Ui/LightingWrappers.h"
@@ -254,6 +255,19 @@ void MissilesInterpolate::Register()
 		.fParticleVerticalVelocityRandom = kfMissileExplosionParticleVerticalVelocityRandom,
 		.fParticleIntensityDecay = kfMissileExplosionParticleIntensityDecay,
 		.fSecondaryPositionJitter = 0.8f,
+		.pParticleWidthScale = &gMissileExplosionParticleWidth,
+		.pParticleLengthScale = &gMissileExplosionParticleLength,
+		.pParticleLengthSpreadScale = &gMissileExplosionParticleLengthSpread,
+		.pParticlePositionJitterScale = &gMissileExplosionParticlePositionJitter,
+		.pParticleVelocityBaseScale = &gMissileExplosionParticleVelocityBase,
+		.pParticleVelocitySpreadScale = &gMissileExplosionParticleVelocitySpread,
+		.pParticleVerticalVelocityBaseScale = &gMissileExplosionParticleVerticalVelocityBase,
+		.pParticleVerticalVelocitySpreadScale = &gMissileExplosionParticleVerticalVelocitySpread,
+		.pParticleVelocityDecayScale = &gMissileExplosionParticleVelocityDecay,
+		.pParticleGravityScale = &gMissileExplosionParticleGravity,
+		.pParticleIntensitySpreadScale = &gMissileExplosionParticleIntensitySpread,
+		.pParticleIntensityDecayScale = &gMissileExplosionParticleIntensityDecay,
+		.pParticleIntensityPowerScale = &gMissileExplosionParticleIntensityPower,
 	});
 }
 

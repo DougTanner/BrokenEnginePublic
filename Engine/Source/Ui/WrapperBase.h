@@ -382,8 +382,6 @@ extern Wrapper gLightingDirectionalPowerMode;
 extern Wrapper gLightingNewAmbient;
 extern Wrapper gLightingNewAmbientPower;
 extern Wrapper gLightingAmbientPowerMode;
-extern Wrapper gLightingWaterAmbientPower;
-extern Wrapper gLightingWaterAmbientPowerMode;
 extern Wrapper gLightingTerrain;
 extern Wrapper gLightingAddTerrain;
 extern Wrapper gLightingTerrainBelowBaseMultiplier;
@@ -395,6 +393,11 @@ extern Wrapper gLightingNightFinalMultiplier;
 extern Wrapper gMoonBrightness;
 
 // Water specular lighting
+extern Wrapper gLightingWaterAmbientPower;
+extern Wrapper gLightingWaterAmbientPowerMode;
+extern Wrapper gLightingWaterNewAmbient;
+extern Wrapper gLightingWaterNewAmbientPower;
+extern Wrapper gLightingWaterNewAmbientPowerMode;
 extern Wrapper gLightingWaterNormalSoften;
 extern Wrapper gLightingWaterNormalBlendWave;
 extern Wrapper gLightingWaterIntensity;

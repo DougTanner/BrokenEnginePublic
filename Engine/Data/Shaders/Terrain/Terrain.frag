@@ -30,6 +30,7 @@ layout (set = 1, binding = 14) uniform sampler2D sandSampler;
 layout (set = 1, binding = 15) uniform sampler2D rockNormalsSampler0;
 layout (set = 1, binding = 16) uniform sampler2D rockNormalsSampler1;
 layout (set = 1, binding = 17) uniform sampler2D rockNormalsSampler2;
+layout (set = 1, binding = 18) uniform sampler2D ambientLightingSampler;
 
 // Input
 layout (location = 0) in vec2 f2InVisibleAreaTexcoord;
@@ -99,11 +100,12 @@ void main()
 	vec4 pf4Lighting[3] = {texture(pLightingSamplers[0], f2LightingTexcoord), texture(pLightingSamplers[1], f2LightingTexcoord), texture(pLightingSamplers[2], f2LightingTexcoord)};
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
 	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
-	vec4 pf4LightingBaseHeight[3] = {texture(pLightingSamplers[0], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[1], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[2], f2LightingTexcoordBaseHeight)};
+	// Direction-averaged base-height lighting (single fetch replaces three EWNS samples — feeds both ambient and BlendSmoke).
+	vec3 f3AmbientSum = texture(ambientLightingSampler, f2LightingTexcoordBaseHeight).xyz;
 
 	// Apply directional and ambient lighting
 	vec3 f3Directional = DirectionalLighting(pf4Lighting, f3Normal, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower, mainLayout.fLightingDirectionalPowerMode);
-	vec3 f3Ambient = AmbientLighting(pf4LightingBaseHeight, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower, mainLayout.fLightingAmbientPowerMode);
+	vec3 f3Ambient = AmbientLightingPrecomputed(f3AmbientSum, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower, mainLayout.fLightingAmbientPowerMode);
 	vec3 f3Lighting = globalLayout.fLightingTerrain * globalLayout.fLightingTimeOfDayMultiplier * (f3Directional + f3Ambient);
 	float fHeightRatio = clamp(f3InPosition.z / max(globalLayout.fBaseHeight, 0.001), 0.0, 1.0);
 	f3Lighting *= mix(mainLayout.fLightingTerrainBelowBaseMultiplier, 1.0, pow(fHeightRatio, mainLayout.fLightingTerrainBelowBasePower));
@@ -123,5 +125,5 @@ void main()
 	vec2 f2SmokeTexcoord = WorldToSmokeTexcoord(globalLayout.f4SmokeArea, f2PositionAtBaseHeight);
 	float fSmokeRaw = globalLayout.fSmokeMax * texture(smokeSampler, f2SmokeTexcoord).x;
 	float fSmokePow = clamp(pow(fSmokeRaw, globalLayout.fSmokePower), 0.0f, 1.0f);
-	f4OutColor.xyz = BlendSmoke(f4OutColor.xyz, fSmokePow, pf4LightingBaseHeight, globalLayout);
+	f4OutColor.xyz = BlendSmokePrecomputed(f4OutColor.xyz, fSmokePow, 4.0f * f3AmbientSum, globalLayout);
 }

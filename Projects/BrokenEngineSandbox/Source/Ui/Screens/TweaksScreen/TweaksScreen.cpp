@@ -2,6 +2,7 @@
 
 #include "Game.h"
 #include "Ui/LightingWrappers.h"
+#include "Ui/ParticleWrappers.h"
 #include "Ui/SmokeWrappers.h"
 
 #if defined(BT_CLIENT)
@@ -145,6 +146,48 @@ TweaksScreen::TweaksScreen()
 		{"Hit Flash Lighting Area Two", &gHitFlashLightingAreaTwo},
 		{"Hit Flash Lighting Intensity One", &gHitFlashLightingIntensityOne},
 		{"Hit Flash Lighting Intensity Two", &gHitFlashLightingIntensityTwo},
+		// Particles - Missile
+		{"Missile Particle Width", &gMissileExplosionParticleWidth},
+		{"Missile Particle Length", &gMissileExplosionParticleLength},
+		{"Missile Particle Length Spread", &gMissileExplosionParticleLengthSpread},
+		{"Missile Particle Position Jitter", &gMissileExplosionParticlePositionJitter},
+		{"Missile Particle Velocity Base", &gMissileExplosionParticleVelocityBase},
+		{"Missile Particle Velocity Spread", &gMissileExplosionParticleVelocitySpread},
+		{"Missile Particle Vertical Velocity Base", &gMissileExplosionParticleVerticalVelocityBase},
+		{"Missile Particle Vertical Velocity Spread", &gMissileExplosionParticleVerticalVelocitySpread},
+		{"Missile Particle Velocity Decay", &gMissileExplosionParticleVelocityDecay},
+		{"Missile Particle Gravity", &gMissileExplosionParticleGravity},
+		{"Missile Particle Intensity Spread", &gMissileExplosionParticleIntensitySpread},
+		{"Missile Particle Intensity Decay", &gMissileExplosionParticleIntensityDecay},
+		{"Missile Particle Intensity Power", &gMissileExplosionParticleIntensityPower},
+		// Particles - Player
+		{"Player Particle Width", &gPlayerExplosionParticleWidth},
+		{"Player Particle Length", &gPlayerExplosionParticleLength},
+		{"Player Particle Length Spread", &gPlayerExplosionParticleLengthSpread},
+		{"Player Particle Position Jitter", &gPlayerExplosionParticlePositionJitter},
+		{"Player Particle Velocity Base", &gPlayerExplosionParticleVelocityBase},
+		{"Player Particle Velocity Spread", &gPlayerExplosionParticleVelocitySpread},
+		{"Player Particle Vertical Velocity Base", &gPlayerExplosionParticleVerticalVelocityBase},
+		{"Player Particle Vertical Velocity Spread", &gPlayerExplosionParticleVerticalVelocitySpread},
+		{"Player Particle Velocity Decay", &gPlayerExplosionParticleVelocityDecay},
+		{"Player Particle Gravity", &gPlayerExplosionParticleGravity},
+		{"Player Particle Intensity Spread", &gPlayerExplosionParticleIntensitySpread},
+		{"Player Particle Intensity Decay", &gPlayerExplosionParticleIntensityDecay},
+		{"Player Particle Intensity Power", &gPlayerExplosionParticleIntensityPower},
+		// Particles - Spaceship
+		{"Spaceship Particle Width", &gSpaceshipExplosionParticleWidth},
+		{"Spaceship Particle Length", &gSpaceshipExplosionParticleLength},
+		{"Spaceship Particle Length Spread", &gSpaceshipExplosionParticleLengthSpread},
+		{"Spaceship Particle Position Jitter", &gSpaceshipExplosionParticlePositionJitter},
+		{"Spaceship Particle Velocity Base", &gSpaceshipExplosionParticleVelocityBase},
+		{"Spaceship Particle Velocity Spread", &gSpaceshipExplosionParticleVelocitySpread},
+		{"Spaceship Particle Vertical Velocity Base", &gSpaceshipExplosionParticleVerticalVelocityBase},
+		{"Spaceship Particle Vertical Velocity Spread", &gSpaceshipExplosionParticleVerticalVelocitySpread},
+		{"Spaceship Particle Velocity Decay", &gSpaceshipExplosionParticleVelocityDecay},
+		{"Spaceship Particle Gravity", &gSpaceshipExplosionParticleGravity},
+		{"Spaceship Particle Intensity Spread", &gSpaceshipExplosionParticleIntensitySpread},
+		{"Spaceship Particle Intensity Decay", &gSpaceshipExplosionParticleIntensityDecay},
+		{"Spaceship Particle Intensity Power", &gSpaceshipExplosionParticleIntensityPower},
 	});
 }
 

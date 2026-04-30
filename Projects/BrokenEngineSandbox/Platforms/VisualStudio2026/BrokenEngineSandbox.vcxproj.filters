@@ -234,6 +234,12 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferRecordGlobal.h">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferRecordMain.h">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\DeviceManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
@@ -439,6 +445,9 @@
       <Filter>Game\Frame\Collections\Spaceships</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Ui\LightingWrappers.h">
+      <Filter>Game\Ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\ParticleWrappers.h">
       <Filter>Game\Ui</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Ui\SmokeWrappers.h">
@@ -690,6 +699,12 @@
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferManager.cpp">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferRecordGlobal.cpp">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferRecordMain.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\DeviceManager.cpp">

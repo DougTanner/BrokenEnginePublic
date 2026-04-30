@@ -455,6 +455,9 @@ struct MainLayout
 	float fLightingAmbientPowerMode INIT;
 	float fLightingWaterAmbientPower INIT;
 	float fLightingWaterAmbientPowerMode INIT;
+	float fLightingWaterNewAmbient INIT;
+	float fLightingWaterNewAmbientPower INIT;
+	float fLightingWaterNewAmbientPowerMode INIT;
 	float fLightingTerrainBelowBaseMultiplier INIT;
 	float fLightingTerrainBelowBasePower INIT;
 

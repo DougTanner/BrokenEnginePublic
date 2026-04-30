@@ -18,6 +18,7 @@ void RenderTargetTextures::DestroyLightingTextures()
 	{
 		mpCombineTextures[i].Destroy();
 	}
+	mAmbientCombineTexture.Destroy();
 
 	for (int64_t iPass = 0; iPass < shaders::kiMaxSpreadPasses; ++iPass)
 	{
@@ -329,6 +330,21 @@ void RenderTargetTextures::CreateLightingTextures()
 			.eTextureLayout = kShaderReadOnly,
 		});
 	}
+	mAmbientCombineTexture.Create(TextureInfo
+	{
+		.textureFlags = {},
+		.name = "CombineAmbient",
+		.flags = 0,
+		.format = VK_FORMAT_R8G8B8A8_UNORM,
+		.extent = VkExtent3D {static_cast<uint32_t>(iCombineX), static_cast<uint32_t>(iCombineY), 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	});
 
 	// Final output points to combine textures (tone-mapped UNORM)
 	for (int64_t i = 0; i < 3; ++i)

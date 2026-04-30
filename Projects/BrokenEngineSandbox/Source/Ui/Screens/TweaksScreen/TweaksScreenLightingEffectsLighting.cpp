@@ -66,7 +66,7 @@ void TweaksScreen::RenderLightingEffectsLightingTab()
 		WrapperSlider("Intensity", kiSection, 1.0f, "Spaceship Explosion Intensity");
 
 		WrapperSeparatorText("Spaceships - Enemy Blaster");
-		WrapperSlider("Lighting Size", kiSection, 1.0f, "Enemy Blaster Lighting Size");
+		WrapperSlider("Lighting Area", kiSection, 1.0f, "Enemy Blaster Lighting Area");
 		WrapperSlider("Lighting Intensity", kiSection, 1.0f, "Enemy Blaster Lighting Intensity");
 
 		WrapperSeparatorText("Spaceships - Hit Flash");
