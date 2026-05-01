@@ -54,6 +54,16 @@ void TweaksScreenBase::RenderSmokeSection()
 		WrapperSlider("Smoke Intensity Falloff", kiSection, 1.0f);
 		WrapperSlider("Smoke Trails Follow", kiSection, 1.0f);
 
+		WrapperSeparatorText("Puff Deposit Intensities");
+		WrapperSlider("Explosion Primary Intensity One", kiSection, 1.0f, "Explosion Primary Puff Intensity One");
+		WrapperSlider("Explosion Primary Intensity Two", kiSection, 1.0f, "Explosion Primary Puff Intensity Two");
+		WrapperSlider("Explosion Secondary Intensity One", kiSection, 1.0f, "Explosion Secondary Puff Intensity One");
+		WrapperSlider("Explosion Secondary Intensity Two", kiSection, 1.0f, "Explosion Secondary Puff Intensity Two");
+		WrapperSlider("Blaster Intensity Start", kiSection, 1.0f, "Blaster Puff Intensity Start");
+		WrapperSlider("Blaster Intensity End", kiSection, 1.0f, "Blaster Puff Intensity End");
+		WrapperSlider("Player Impact Intensity One", kiSection, 1.0f, "Player Impact Puff Intensity One");
+		WrapperSlider("Player Impact Intensity Two", kiSection, 1.0f, "Player Impact Puff Intensity Two");
+
 		ImGui::EndTable();
 	}
 }

@@ -20,7 +20,6 @@ enum class TweakSection : int
 	kHexShield,
 	kSmoke,
 	kWind,
-	kWindDeposits,
 	kParticles,
 	kCount
 };
@@ -55,7 +54,7 @@ public:
 	virtual void RenderHexShieldSection() = 0;
 	void RenderSmokeSection();
 	void RenderWindSection();
-	virtual void RenderWindDepositsSection() = 0;
+	virtual void RenderWindDepositsTab() {}
 	virtual void RenderParticlesSection() = 0;
 
 	void RenderWaveCountRadioButtons(Wrapper& rCountWrapper);

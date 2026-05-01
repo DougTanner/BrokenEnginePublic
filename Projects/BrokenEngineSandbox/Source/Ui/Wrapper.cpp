@@ -4,8 +4,8 @@ namespace game
 {
 
 // Wind - Per-entity deposits
-engine::Wrapper gWindDepositExplosionsWidth(12.0f, 4.0f, 20.0f);
-engine::Wrapper gWindDepositExplosionsIntensity(0.01f, 0.0f, 0.02f);
+engine::Wrapper gWindDepositExplosionsWidth(6.0f, 4.0f, 20.0f);
+engine::Wrapper gWindDepositExplosionsIntensity(0.02f, 0.0f, 0.05f);
 
 engine::Wrapper gWindDepositPlayerBlastersWidth(1.0f, 0.1f, 2.0f);
 engine::Wrapper gWindDepositPlayerBlastersIntensity(0.05f, 0.0f, 0.2f);
@@ -19,7 +19,7 @@ engine::Wrapper gWindDepositSpaceshipsWidth(2.0f, 0.1f, 5.0f);
 engine::Wrapper gWindDepositSpaceshipsIntensity(0.03f, 0.0f, 0.1f);
 engine::Wrapper gWindDepositSpaceshipsLengthMultiplier(3.0f, 0.5f, 5.0f);
 
-engine::Wrapper gWindDepositSpaceshipsBlastersWidth(3.0f, 0.1f, 5.0f);
+engine::Wrapper gWindDepositSpaceshipsBlastersWidth(1.0f, 0.1f, 5.0f);
 engine::Wrapper gWindDepositSpaceshipsBlastersIntensity(0.05f, 0.0f, 0.1f);
 engine::Wrapper gWindDepositSpaceshipsBlastersLengthMultiplier(2.0f, 0.5f, 3.0f);
 

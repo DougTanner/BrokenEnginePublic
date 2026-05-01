@@ -22,7 +22,6 @@ static constexpr const char* kpcSectionNames[] =
 	"Hex Shield",
 	"Smoke",
 	"Wind",
-	"Wind Deposits",
 	"Particles",
 };
 static_assert(std::size(kpcSectionNames) == static_cast<size_t>(TweakSection::kCount));
@@ -43,7 +42,6 @@ static constexpr RenderSectionFunc kRenderSectionFunctions[] =
 	&TweaksScreenBase::RenderHexShieldSection,
 	&TweaksScreenBase::RenderSmokeSection,
 	&TweaksScreenBase::RenderWindSection,
-	&TweaksScreenBase::RenderWindDepositsSection,
 	&TweaksScreenBase::RenderParticlesSection,
 };
 static_assert(std::size(kRenderSectionFunctions) == static_cast<size_t>(TweakSection::kCount));

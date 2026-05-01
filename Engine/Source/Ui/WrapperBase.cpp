@@ -135,7 +135,7 @@ Wrapper gSpreadAccumulationDecay(0.35f, 0.0f, 1.0f);
 // Lighting Spread Start
 Wrapper gSpreadTextureMultiplierStart(0.2f, 0.05f, 0.2f);
 Wrapper gSpreadDirectionality(0.3f, 0.0f, 1.0f);
-Wrapper gSpreadDirectionCount(18.0f, 4.0f, 32.0f);
+Wrapper gSpreadDirectionCount(4.0f, 4.0f, 32.0f);
 Wrapper gSpreadDistance(0.5f, 0.0f, 10.0f);
 Wrapper gSpreadRingCount(4.0f, 1.0f, 24.0f);
 Wrapper gSpreadJitter(0.0f, 0.0f, 1.0f);
@@ -146,9 +146,9 @@ Wrapper gSpreadOutputCompress(3.0f, 0.0f, 4.0f);
 // Lighting Spread End
 Wrapper gSpreadTextureMultiplierEnd(0.01f, 0.01f, 0.1f);
 Wrapper gSpreadDirectionalityEnd(0.5f, 0.0f, 1.0f);
-Wrapper gSpreadDirectionCountEnd(8.0f, 4.0f, 16.0f);
+Wrapper gSpreadDirectionCountEnd(4.0f, 4.0f, 16.0f);
 Wrapper gSpreadDistanceEnd(8.0f, 1.0f, 40.0f);
-Wrapper gSpreadRingCountEnd(5.0f, 1.0f, 16.0f);
+Wrapper gSpreadRingCountEnd(3.0f, 1.0f, 16.0f);
 Wrapper gSpreadJitterEnd(0.874f, 0.0f, 1.0f);
 Wrapper gSpreadDistanceFalloffEnd(0.9f, 0.0f, 1.0f);
 Wrapper gSpreadOutputThresholdEnd(0.0f, 0.0f, 4.0f);
@@ -228,12 +228,12 @@ Wrapper gLightingWaterSkyboxNormalSoften(0.5f, 0.0f, 1.0f);
 Wrapper gLightingWaterSkyboxNormalBlendWave(0.2f, 0.0f, 0.4f);
 Wrapper gLightingWaterSkyboxIntensity(0.001f, 0.0005f, 0.004f);
 Wrapper gLightingWaterSkyboxAdd(0.9f, 0.0f, 2.0f);
-Wrapper gLightingWaterSkyboxOne(650.0f, 0.0f, 3000.0f);
+Wrapper gLightingWaterSkyboxOne(1100.0f, 0.0f, 3000.0f);
 Wrapper gLightingWaterSkyboxOnePower(190.0f, 50.0f, 400.0f);
-Wrapper gLightingWaterSkyboxTwo(170.0f, 0.0f, 400.0f);
+Wrapper gLightingWaterSkyboxTwo(150.0f, 0.0f, 400.0f);
 Wrapper gLightingWaterSkyboxTwoPower(6.0f, 2.0f, 10.0f);
-Wrapper gLightingWaterSkyboxThree(300.0f, 1.0f, 800.0f);
-Wrapper gLightingWaterSkyboxThreePower(1.0f, 0.01f, 2.0f);
+Wrapper gLightingWaterSkyboxThree(200.0f, 1.0f, 800.0f);
+Wrapper gLightingWaterSkyboxThreePower(1.5f, 0.01f, 2.0f);
 Wrapper gLightingWaterSkyboxLod(6.0f, 0.0f, 10.0f);
 
 // Smoke
@@ -256,35 +256,35 @@ Wrapper gSmokeNoiseQuantity(0.000055f, 0.00001f, 0.0002f);
 Wrapper gSmokeNoiseInfluence(0.0f, 0.0f, 1000.0f);
 Wrapper gSmokeMax(0.2f, 0.0f, 1.0f);
 Wrapper gSmokePower(0.18f, 0.1f, 1.0f);
-Wrapper gSmokeColorMin(0.6f, 0.0f, 1.0f);
+Wrapper gSmokeColorMin(0.2f, 0.0f, 1.0f);
 Wrapper gSmokeColorMultiplier(2.0f, 0.1f, 4.0f);
-Wrapper gSmokeLightingMultiplier(0.6f, 0.0f, 2.0f);
+Wrapper gSmokeLightingMultiplier(1.0f, 0.0f, 2.0f);
 Wrapper gSmokeTrailPower(1.0f, 0.1f, 10.0f);
 Wrapper gSmokeTrailAlpha(0.8f, 0.0f, 1.0f);
 Wrapper gSmokeObjectHeight(10.0f, 0.5f, 40.0f);
 
 // Wind - Time & Global
 Wrapper gWind(true);
-Wrapper gWindTimeScale(0.25f, 0.005f, 0.5f);
+Wrapper gWindTimeScale(0.35f, 0.005f, 0.5f);
 Wrapper gWindThresholdLow(0.02f, 0.0f, 0.05f);
 Wrapper gWindThresholdHigh(0.05f, 0.05f, 0.1f);
 // Wind - Propagation
-Wrapper gWindAdvectionScaleHigh(2.0f, 0.5f, 5.0f);
-Wrapper gWindAdvectionScaleLow(0.0f, 0.0f, 1.0f);
-Wrapper gWindSwirlScaleHigh(3.0f, 0.5f, 4.0f);
-Wrapper gWindSwirlScaleLow(1.5f, 0.5f, 3.0f);
-Wrapper gWindSwirlAmountHigh(150.0f, 0.0f, 500.0f);
-Wrapper gWindSwirlAmountLow(0.0f, 0.0f, 100.0f);
+Wrapper gWindAdvectionScaleHigh(5.0f, 0.5f, 5.0f);
+Wrapper gWindAdvectionScaleLow(1.0f, 0.0f, 1.0f);
+Wrapper gWindSwirlScaleHigh(0.5f, 0.5f, 4.0f);
+Wrapper gWindSwirlScaleLow(1.0f, 0.5f, 3.0f);
+Wrapper gWindSwirlAmountHigh(110.0f, 0.0f, 500.0f);
+Wrapper gWindSwirlAmountLow(90.0f, 0.0f, 100.0f);
 Wrapper gWindSwirlSpeedHigh(2.0f, 0.0f, 10.0f);
 Wrapper gWindSwirlSpeedLow(5.0f, 0.0f, 10.0f);
-Wrapper gWindVorticityConfinementHigh(2.0f, 0.0f, 4.0f);
+Wrapper gWindVorticityConfinementHigh(4.0f, 0.0f, 4.0f);
 Wrapper gWindVorticityConfinementLow(0.5f, 0.0f, 1.0f);
 Wrapper gWindDecayHigh(0.99f, 0.5f, 0.999f); // max < 1.0f load-bearing: keeps fDecayRate = 1 - mix(low, high, t) > 0 in WindSpreadCommon.h:70.
-Wrapper gWindDecayLow(0.2f, 0.0f, 0.9f); // max < 1.0f load-bearing: keeps fDecayRate = 1 - mix(low, high, t) > 0 in WindSpreadCommon.h:70.
+Wrapper gWindDecayLow(0.25f, 0.0f, 0.9f); // max < 1.0f load-bearing: keeps fDecayRate = 1 - mix(low, high, t) > 0 in WindSpreadCommon.h:70.
 Wrapper gWindMomentumHigh(0.6f, 0.0f, 1.0f);
 Wrapper gWindMomentumLow(0.75f, 0.0f, 1.0f);
 Wrapper gWindDiffusionHigh(0.0f, 0.0f, 100.0f);
-Wrapper gWindDiffusionLow(10.0f, 0.0f, 100.0f);
+Wrapper gWindDiffusionLow(100.0f, 0.0f, 100.0f);
 // Wind - Integration
 Wrapper gWindToSmokeStrength(0.003f, 0.0f, 0.01f);
 Wrapper gWindSmokeRetention(0.6f, 0.0f, 1.0f);

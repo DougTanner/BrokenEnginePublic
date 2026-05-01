@@ -14,6 +14,8 @@ GPU timing, the `VkQueryPool`, and the overlay renderer are client-only; CPU tim
 
 Single `VkQueryPool` with start/stop pairs per timer per in-flight command buffer. Reads are non-blocking — `VK_NOT_READY` skips silently so low framerates never stall; stale frames keep the last smoothed value. If the graphics queue reports `timestampValidBits == 0`, the pool stays null and every GPU method early-outs. Timed regions are wrapped in `vkCmdBegin/EndDebugUtilsLabelEXT` for RenderDoc.
 
+Both start and stop timestamps use `VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT` so each endpoint waits for all preceding pipeline work to complete — required for accurate per-region timing when multiple regions share a single render pass.
+
 ## Thread Safety
 
 CPU timer state is a mutex-protected map keyed by `std::thread::id` so dispatch workers can contribute. Timestamps are captured before acquiring the lock. Map resize wraps in `ScopedSuppressAllocationTracking` so profiling never pollutes its own counts. Cross-thread Start/Stop is supported via an explicit flag that scans the per-thread map.

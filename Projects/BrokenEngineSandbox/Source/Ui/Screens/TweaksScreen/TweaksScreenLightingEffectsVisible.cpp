@@ -32,14 +32,10 @@ void TweaksScreen::RenderLightingEffectsVisibleTab()
 		WrapperSeparatorText("Explosions - Primary Puff");
 		WrapperSlider("Area One", kiSection, 1.0f, "Explosion Primary Puff Area One");
 		WrapperSlider("Area Two", kiSection, 1.0f, "Explosion Primary Puff Area Two");
-		WrapperSlider("Intensity One", kiSection, 1.0f, "Explosion Primary Puff Intensity One");
-		WrapperSlider("Intensity Two", kiSection, 1.0f, "Explosion Primary Puff Intensity Two");
 
 		WrapperSeparatorText("Explosions - Secondary Puff");
 		WrapperSlider("Area One", kiSection, 1.0f, "Explosion Secondary Puff Area One");
 		WrapperSlider("Area Two", kiSection, 1.0f, "Explosion Secondary Puff Area Two");
-		WrapperSlider("Intensity One", kiSection, 1.0f, "Explosion Secondary Puff Intensity One");
-		WrapperSlider("Intensity Two", kiSection, 1.0f, "Explosion Secondary Puff Intensity Two");
 
 		WrapperSeparatorText("Blasters - Terrain Crater");
 		WrapperSlider("Visible Area One", kiSection, 1.0f, "Crater Visible Area One");
@@ -54,8 +50,6 @@ void TweaksScreen::RenderLightingEffectsVisibleTab()
 		WrapperSeparatorText("Blasters - Terrain Puff");
 		WrapperSlider("Area Start", kiSection, 1.0f, "Blaster Puff Area Start");
 		WrapperSlider("Area End", kiSection, 1.0f, "Blaster Puff Area End");
-		WrapperSlider("Intensity Start", kiSection, 1.0f, "Blaster Puff Intensity Start");
-		WrapperSlider("Intensity End", kiSection, 1.0f, "Blaster Puff Intensity End");
 
 		ImGui::TableNextColumn();
 
@@ -71,8 +65,6 @@ void TweaksScreen::RenderLightingEffectsVisibleTab()
 		WrapperSeparatorText("Players - Impact Puff");
 		WrapperSlider("Area One", kiSection, 1.0f, "Player Impact Puff Area One");
 		WrapperSlider("Area Two", kiSection, 1.0f, "Player Impact Puff Area Two");
-		WrapperSlider("Intensity One", kiSection, 1.0f, "Player Impact Puff Intensity One");
-		WrapperSlider("Intensity Two", kiSection, 1.0f, "Player Impact Puff Intensity Two");
 
 		WrapperSeparatorText("Players - Hex Shield");
 		WrapperSlider("Intensity Decay", kiSection, 1.0f, "Hex Shield Intensity Decay");

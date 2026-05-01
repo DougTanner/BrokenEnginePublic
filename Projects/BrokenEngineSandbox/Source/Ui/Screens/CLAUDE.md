@@ -17,7 +17,7 @@ Children do not re-document these:
 
 ## Screens
 
-- **TweaksScreen** - Game override of `engine::TweaksScreenBase`; implements the hex-shield, wind-deposit, and per-explosion-type Particles tabs (3 sub-tabs: Missile / Player / Spaceship), and overrides lighting-effects. Split into per-tab files. See subdirectory.
+- **TweaksScreen** - Game override of `engine::TweaksScreenBase`; implements the hex-shield section and per-explosion-type Particles tabs (3 sub-tabs: Missile / Player / Spaceship), and provides game tabs hosted inside engine sections (Deposits inside Wind; Visible/Lighting inside Lighting Effects). Split into per-tab files. See subdirectory.
 - **HudScreen** - In-game overlay: centered shield/armor, left fleet panel, right focused-player controls.
 - **MainMenuScreen** - Local/remote server selection, settings, quit, language. Compile-time `Pch.h` toggles gate auto-launch/auto-connect.
 - **ModalScreen** - Centered modal for connection-rejection and desync messages.

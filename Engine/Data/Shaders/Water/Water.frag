@@ -234,9 +234,9 @@ void main()
 	return;
 #endif
 
-	// Additive smoke
+	// Additive smoke (precomputed direction-averaged ambient — matches Terrain.frag, decouples smoke from wave normals)
 	vec2 f2SmokeTexcoord = WorldToSmokeTexcoord(globalLayout.f4SmokeArea, f2PositionAtBaseHeight);
 	float fSmokeRaw = globalLayout.fSmokeMax * texture(smokeSampler, f2SmokeTexcoord).x;
 	float fSmokePow = clamp(pow(fSmokeRaw, globalLayout.fSmokePower), 0.0f, 1.0f);
-	f4OutColor.xyz = BlendSmoke(f4OutColor.xyz, fSmokePow, pf4LightingBaseHeight, globalLayout);
+	f4OutColor.xyz = BlendSmokePrecomputed(f4OutColor.xyz, fSmokePow, 4.0f * f3AmbientSum, globalLayout);
 }

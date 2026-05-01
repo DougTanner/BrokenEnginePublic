@@ -19,8 +19,8 @@ engine::Wrapper gExplosionPrimaryLightingIntensityThree(0.0f, 0.0f, 2.0f);
 engine::Wrapper gExplosionSecondaryLightingAreaOne(8.0f, 0.0f, 16.0f);
 engine::Wrapper gExplosionSecondaryLightingAreaTwo(2.0f, 1.0f, 4.0f);
 engine::Wrapper gExplosionSecondaryLightingAreaThree(0.0f, 0.0f, 4.0f);
-engine::Wrapper gExplosionSecondaryLightingIntensityOne(2.0f, 0.0f, 8.0f);
-engine::Wrapper gExplosionSecondaryLightingIntensityTwo(0.5f, 0.0f, 2.0f);
+engine::Wrapper gExplosionSecondaryLightingIntensityOne(0.5f, 0.0f, 8.0f);
+engine::Wrapper gExplosionSecondaryLightingIntensityTwo(0.125f, 0.0f, 2.0f);
 engine::Wrapper gExplosionSecondaryLightingIntensityThree(0.0f, 0.0f, 2.0f);
 
 // Blasters - Terrain crater
@@ -68,7 +68,7 @@ engine::Wrapper gHitFlashLightingIntensityTwo(0.0f, 0.0f, 2.0f);
 // ============================================================================
 
 // Explosions - Primary light
-engine::Wrapper gExplosionPrimaryVisibleAreaOne(5.0f, 0.1f, 5.0f);
+engine::Wrapper gExplosionPrimaryVisibleAreaOne(4.0f, 0.1f, 5.0f);
 engine::Wrapper gExplosionPrimaryVisibleAreaTwo(2.0f, 0.1f, 5.0f);
 engine::Wrapper gExplosionPrimaryVisibleAreaThree(0.0f, 0.0f, 5.0f);
 engine::Wrapper gExplosionPrimaryVisibleIntensityOne(3.0f, 0.0f, 3.0f);

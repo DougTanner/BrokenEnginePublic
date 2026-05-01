@@ -4,16 +4,16 @@ namespace game
 {
 
 // Explosions - Primary puff
-engine::Wrapper gExplosionPrimaryPuffAreaOne(0.175f, 0.02f, 1.0f);
-engine::Wrapper gExplosionPrimaryPuffAreaTwo(1.05f, 0.1f, 5.0f);
-engine::Wrapper gExplosionPrimaryPuffIntensityOne(2.5f, 0.25f, 12.0f);
-engine::Wrapper gExplosionPrimaryPuffIntensityTwo(2.5f, 0.25f, 12.0f);
+engine::Wrapper gExplosionPrimaryPuffAreaOne(0.5f, 0.02f, 1.0f);
+engine::Wrapper gExplosionPrimaryPuffAreaTwo(1.0f, 0.1f, 5.0f);
+engine::Wrapper gExplosionPrimaryPuffIntensityOne(3.0f, 0.25f, 12.0f);
+engine::Wrapper gExplosionPrimaryPuffIntensityTwo(1.0f, 0.25f, 12.0f);
 
 // Explosions - Secondary puff
-engine::Wrapper gExplosionSecondaryPuffAreaOne(0.175f, 0.02f, 1.0f);
-engine::Wrapper gExplosionSecondaryPuffAreaTwo(0.6f, 0.06f, 3.0f);
-engine::Wrapper gExplosionSecondaryPuffIntensityOne(0.5f, 0.05f, 2.5f);
-engine::Wrapper gExplosionSecondaryPuffIntensityTwo(0.5f, 0.05f, 2.5f);
+engine::Wrapper gExplosionSecondaryPuffAreaOne(0.5f, 0.02f, 1.0f);
+engine::Wrapper gExplosionSecondaryPuffAreaTwo(1.0f, 0.06f, 3.0f);
+engine::Wrapper gExplosionSecondaryPuffIntensityOne(1.5f, 0.05f, 2.5f);
+engine::Wrapper gExplosionSecondaryPuffIntensityTwo(0.75f, 0.05f, 2.5f);
 
 // Blasters - Terrain puff
 engine::Wrapper gBlasterPuffAreaStart(0.25f, 0.03f, 1.25f);

@@ -5,9 +5,9 @@
 namespace game
 {
 
-void TweaksScreen::RenderWindDepositsSection()
+void TweaksScreen::RenderWindDepositsTab()
 {
-	static constexpr int kiSection = static_cast<int>(engine::TweakSection::kWindDeposits);
+	static constexpr int64_t kiSection = static_cast<int64_t>(engine::TweakSection::kWind);
 
 	WrapperSeparatorText("Player");
 	WrapperSlider("Player Deposit Width", kiSection);
