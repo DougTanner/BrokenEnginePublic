@@ -17,9 +17,9 @@ engine::Wrapper gExplosionSecondaryPuffIntensityTwo(0.75f, 0.05f, 2.5f);
 
 // Blasters - Terrain puff
 engine::Wrapper gBlasterPuffAreaStart(0.25f, 0.03f, 1.25f);
-engine::Wrapper gBlasterPuffAreaEnd(0.75f, 0.08f, 3.75f);
-engine::Wrapper gBlasterPuffIntensityStart(6.0f, 0.6f, 30.0f);
-engine::Wrapper gBlasterPuffIntensityEnd(0.5f, 0.05f, 2.5f);
+engine::Wrapper gBlasterPuffAreaEnd(1.0f, 0.08f, 3.75f);
+engine::Wrapper gBlasterPuffIntensityStart(4.0f, 0.6f, 30.0f);
+engine::Wrapper gBlasterPuffIntensityEnd(1.0f, 0.05f, 2.5f);
 
 // Players - Impact puff
 engine::Wrapper gPlayerImpactPuffAreaOne(0.135f, 0.01f, 0.7f);

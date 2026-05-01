@@ -54,7 +54,7 @@ public:
 
 protected:
 
-	float mfSunAngle = 1.15f;
+	float mfSunAngle = 1.55f;
 
 	void CalculateMatricesAndVisibleArea();
 };
