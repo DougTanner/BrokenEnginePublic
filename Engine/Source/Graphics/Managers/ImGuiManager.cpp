@@ -131,22 +131,10 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	mpSoundMenuScreen = std::make_unique<game::SoundMenuScreen>();
 	mpDeathMenuScreen = std::make_unique<game::DeathMenuScreen>();
 	mpHudScreen = std::make_unique<game::HudScreen>();
-
-	// Initialize game screens after ImGui backend is ready
-	mpHudScreen->Initialize();
-}
-
-void ImGuiManager::RecreateSamplerDependencies()
-{
-	mpHudScreen->Shutdown();
-	mpHudScreen->Initialize();
 }
 
 ImGuiManager::~ImGuiManager()
 {
-	// Shutdown game screens before ImGui backend is destroyed
-	mpHudScreen->Shutdown();
-
 	ImGui_ImplVulkan_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	ImPlot::DestroyContext();

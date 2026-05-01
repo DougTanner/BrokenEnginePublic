@@ -47,8 +47,8 @@ engine::Wrapper gSpaceshipExplosionParticleVerticalVelocitySpread(3.0f, 0.0f, 3.
 engine::Wrapper gSpaceshipExplosionParticleVelocityDecay(5.0f, 0.0f, 6.0f);
 engine::Wrapper gSpaceshipExplosionParticleGravity(2.0f, 0.0f, 5.0f);
 engine::Wrapper gSpaceshipExplosionParticleVisibleIntensity(1.0f, 0.0f, 6.0f);
-engine::Wrapper gSpaceshipExplosionParticleIntensitySpread(6.0f, 0.0f, 6.0f);
-engine::Wrapper gSpaceshipExplosionParticleIntensityDecay(3.0f, 0.0f, 5.0f);
+engine::Wrapper gSpaceshipExplosionParticleIntensitySpread(5.0f, 0.0f, 6.0f);
+engine::Wrapper gSpaceshipExplosionParticleIntensityDecay(1.5f, 0.0f, 5.0f);
 engine::Wrapper gSpaceshipExplosionParticleIntensityPower(0.75f, 0.0f, 5.0f);
 
 } // namespace game

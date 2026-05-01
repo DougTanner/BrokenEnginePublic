@@ -11,6 +11,7 @@
 #include "Frame/Collections/WindRadials/WindRadials.h"
 #include "Ui/LightingWrappers.h"
 #include "Ui/ParticleWrappers.h"
+#include "Ui/SmokeWrappers.h"
 #endif // BT_CLIENT
 
 namespace engine
@@ -144,11 +145,22 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 
 		XMVECTOR vecTrailStart = XMVectorMultiplyAdd(vecTrailDirection, XMVectorReplicate(rType.fTrailStart), rInfo.vecPosition);
 		float fTrailLength = rType.fTrailLengthMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fTrailLengthRandom;
-		XMVECTOR vecTrailEnd = XMVectorMultiplyAdd(vecTrailDirection, XMVectorReplicate(fTrailLength), rInfo.vecPosition);
 
 		rInterpolate.pfTrailTimes[j][iSpawnIndex] = fTrailTime;
 
 #if defined(BT_CLIENT)
+		// j == 0 is the central trail along the explosion direction; j > 0 are angle-jittered side trails
+		const bool bPrimary = (j == 0);
+		const float fLengthMul = bPrimary ? game::gExplosionPrimaryTrailLength.Get() : game::gExplosionSecondaryTrailLength.Get();
+		const float fDurationMul = bPrimary ? game::gExplosionPrimaryTrailDuration.Get() : game::gExplosionSecondaryTrailDuration.Get();
+		fTrailIntensity *= bPrimary ? game::gExplosionPrimaryTrailIntensity.Get() : game::gExplosionSecondaryTrailIntensity.Get();
+		// Scaling the head's travel distance by Duration keeps head speed constant when Update later scales
+		// pfTrailTimes by the same Duration multiplier — so increasing Duration extends both space and time
+		// in lockstep rather than slowing the head into the engine's smoke-decay window.
+		fTrailLength *= fLengthMul * fDurationMul;
+
+		XMVECTOR vecTrailEnd = XMVectorMultiplyAdd(vecTrailDirection, XMVectorReplicate(fTrailLength), rInfo.vecPosition);
+
 		// Create trail in SmokeTrails collection (start at full intensity, will fade over time in Sync)
 		smoke_trails_t trailId;
 		SmokeTrailsPostRender::Add(rFrame, trailId, ExplosionsInterpolate::GetTrailTypeIndex());

@@ -4,16 +4,26 @@ namespace game
 {
 
 // Explosions - Primary puff
-engine::Wrapper gExplosionPrimaryPuffAreaOne(0.5f, 0.02f, 1.0f);
+engine::Wrapper gExplosionPrimaryPuffAreaOne(0.2f, 0.02f, 1.0f);
 engine::Wrapper gExplosionPrimaryPuffAreaTwo(1.0f, 0.1f, 5.0f);
-engine::Wrapper gExplosionPrimaryPuffIntensityOne(3.0f, 0.25f, 12.0f);
+engine::Wrapper gExplosionPrimaryPuffIntensityOne(2.0f, 0.25f, 12.0f);
 engine::Wrapper gExplosionPrimaryPuffIntensityTwo(1.0f, 0.25f, 12.0f);
 
 // Explosions - Secondary puff
-engine::Wrapper gExplosionSecondaryPuffAreaOne(0.5f, 0.02f, 1.0f);
-engine::Wrapper gExplosionSecondaryPuffAreaTwo(1.0f, 0.06f, 3.0f);
-engine::Wrapper gExplosionSecondaryPuffIntensityOne(1.5f, 0.05f, 2.5f);
-engine::Wrapper gExplosionSecondaryPuffIntensityTwo(0.75f, 0.05f, 2.5f);
+engine::Wrapper gExplosionSecondaryPuffAreaOne(0.1f, 0.02f, 1.0f);
+engine::Wrapper gExplosionSecondaryPuffAreaTwo(0.5f, 0.06f, 3.0f);
+engine::Wrapper gExplosionSecondaryPuffIntensityOne(2.0f, 0.05f, 2.5f);
+engine::Wrapper gExplosionSecondaryPuffIntensityTwo(1.0f, 0.05f, 2.5f);
+
+// Explosions - Primary trail
+engine::Wrapper gExplosionPrimaryTrailIntensity(20.0f, 0.05f, 50.0f);
+engine::Wrapper gExplosionPrimaryTrailLength(1.5f, 0.1f, 4.0f);
+engine::Wrapper gExplosionPrimaryTrailDuration(3.0f, 0.1f, 4.0f);
+
+// Explosions - Secondary trail
+engine::Wrapper gExplosionSecondaryTrailIntensity(10.0f, 0.05f, 50.0f);
+engine::Wrapper gExplosionSecondaryTrailLength(1.0f, 0.1f, 4.0f);
+engine::Wrapper gExplosionSecondaryTrailDuration(1.0f, 0.1f, 8.0f);
 
 // Blasters - Terrain puff
 engine::Wrapper gBlasterPuffAreaStart(0.25f, 0.03f, 1.25f);

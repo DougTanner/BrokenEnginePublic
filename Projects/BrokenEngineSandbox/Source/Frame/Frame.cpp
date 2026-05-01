@@ -8,7 +8,7 @@ namespace game
 
 using enum GameFlags;
 
-const int64_t Frame::kiVersion = 80 + engine::kiNavDataVersion + BlastersInterpolate::kiVersion + BlastersPostRender::kiVersion + MissilesInterpolate::kiVersion + MissilesPostRender::kiVersion + PlayersInterpolate::kiVersion + PlayersPostRender::kiVersion + SpaceshipsInterpolate::kiVersion + SpaceshipsPostRender::kiVersion + TargetsInterpolate::kiVersion + TargetsPostRender::kiVersion;
+const int64_t Frame::kiVersion = 82 + engine::kiNavDataVersion + BlastersInterpolate::kiVersion + BlastersPostRender::kiVersion + MissilesInterpolate::kiVersion + MissilesPostRender::kiVersion + PlayersInterpolate::kiVersion + PlayersPostRender::kiVersion + SpaceshipsInterpolate::kiVersion + SpaceshipsPostRender::kiVersion + TargetsInterpolate::kiVersion + TargetsPostRender::kiVersion;
 
 // FrameInterpolate
 FrameInterpolate::FrameInterpolate()
@@ -176,9 +176,10 @@ static void SpawnSpaceshipGroup(Frame& __restrict rFrame, const engine::FrameSta
 {
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
-	constexpr float kfSpawnRadius = 100.0f;
-	constexpr float kfMaxSpawnRadius = 200.0f;
-	constexpr float kfTerrainMargin = 1.0f;
+	constexpr float kfSpawnRadius = 120.0f;
+	constexpr float kfMaxSpawnRadius = 250.0f;
+	constexpr float kfTerrainClearance = kfSpaceshipRadius * 2.0f;
+	constexpr float kfMinPlayerDistance = 120.0f;
 	constexpr float kfAngularSpacing = kfSpaceshipRadius * 3.0f / kfSpawnRadius;
 	constexpr float kfChevronStagger = kfSpaceshipRadius * 2.0f;
 
@@ -207,18 +208,50 @@ static void SpawnSpaceshipGroup(Frame& __restrict rFrame, const engine::FrameSta
 	float fBaseAngle = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
 	float fCenterOffset = static_cast<float>(iSpawnCount - 1) * 0.5f;
 
-	// Expand radius until all positions are below base height
+	// Chevron position with Z pinned to gBaseHeight — the actual point that will spawn (validated and placed both go through this)
+	auto ComputeChevronPosition = [&](int64_t iIndex, float fRadius) -> XMVECTOR
+	{
+		float fAngle = fBaseAngle + (static_cast<float>(iIndex) - fCenterOffset) * kfAngularSpacing;
+		float fShipRadius = fRadius + std::abs(static_cast<float>(iIndex) - fCenterOffset) * kfChevronStagger;
+		auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
+		auto vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fShipRadius), vecDirection, vecPlayerPosition);
+		return XMVectorSetZ(vecPosition, engine::gBaseHeight.Get());
+	};
+
+	// Reject positions outside the cell, inside terrain (with full body clearance), or within visible range of any alive player
+	auto IsSpawnPositionValid = [&](FXMVECTOR vecPosition) -> bool
+	{
+		if (!common::InsideArea(vecPosition, rStaticData.vecArea))
+		{
+			return false;
+		}
+		if (engine::gpIslandTerrain->GlobalElevation(vecPosition) > engine::gBaseHeight.Get() - kfTerrainClearance)
+		{
+			return false;
+		}
+		for (int64_t j = 0; j < rInterpolate.pPlayers->iCount; ++j)
+		{
+			if (rFrame.postRender.pPlayers->pFlags[j] & PlayerFlags::kExploding)
+			{
+				continue;
+			}
+			XMVECTOR vecDelta = XMVectorSubtract(vecPosition, rInterpolate.pPlayers->pVecPositions[j]);
+			if (XMVectorGetX(XMVector3LengthSq(vecDelta)) < kfMinPlayerDistance * kfMinPlayerDistance)
+			{
+				return false;
+			}
+		}
+		return true;
+	};
+
+	// Expand radius until every chevron position satisfies the validity predicate
 	float fCurrentRadius = kfSpawnRadius;
 	for (; fCurrentRadius <= kfMaxSpawnRadius; fCurrentRadius += 1.0f)
 	{
 		bool bAllClear = true;
 		for (int64_t i = 0; i < iSpawnCount; ++i)
 		{
-			float fAngle = fBaseAngle + (static_cast<float>(i) - fCenterOffset) * kfAngularSpacing;
-			float fShipRadius = fCurrentRadius + std::abs(static_cast<float>(i) - fCenterOffset) * kfChevronStagger;
-			auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
-			auto vecPos = XMVectorMultiplyAdd(XMVectorReplicate(fShipRadius), vecDirection, vecPlayerPosition);
-			if (engine::gpIslandTerrain->GlobalElevation(vecPos) > engine::gBaseHeight.Get() - kfTerrainMargin)
+			if (!IsSpawnPositionValid(ComputeChevronPosition(i, fCurrentRadius)))
 			{
 				bAllClear = false;
 				break;
@@ -235,20 +268,10 @@ static void SpawnSpaceshipGroup(Frame& __restrict rFrame, const engine::FrameSta
 		return;
 	}
 
-	// Spawn each spaceship
+	// Spawn each spaceship at the chosen radius — search has validated every chevron position
 	for (int64_t i = 0; i < iSpawnCount; ++i)
 	{
-		float fAngle = fBaseAngle + (static_cast<float>(i) - fCenterOffset) * kfAngularSpacing;
-		float fShipRadius = fCurrentRadius + std::abs(static_cast<float>(i) - fCenterOffset) * kfChevronStagger;
-		auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
-		auto vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fShipRadius), vecDirection, vecPlayerPosition);
-
-		// If spawn position is outside bounds, spawn on opposite side of player (toward center)
-		if (!common::InsideArea(vecSpawnPosition, rStaticData.vecArea))
-		{
-			vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(-kfSpawnRadius), vecDirection, vecPlayerPosition);
-		}
-
+		auto vecSpawnPosition = ComputeChevronPosition(i, fCurrentRadius);
 		auto vecDirectionToPlayer = XMVector3Normalize(XMVectorSubtract(vecPlayerPosition, vecSpawnPosition));
 		SpaceshipsPostRender::Spawn(rFrame,
 		{

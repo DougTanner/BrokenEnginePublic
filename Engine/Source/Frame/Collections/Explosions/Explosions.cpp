@@ -261,7 +261,10 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame, [[maybe_unuse
 		int32_t iTrailCount = rInterpolate.piTrailCounts[i];
 
 #if defined(BT_CLIENT)
-		// Remove expired trails (cleanup happens every frame, not just at explosion expiration)
+		// Remove expired trails (cleanup happens every frame, not just at explosion expiration).
+		// Cleanup uses unmultiplied pfTrailTimes so it fires in lockstep with the shared explosion-entry
+		// destruction below — applying the client-only Duration multiplier here would let the entry be
+		// destroyed before the cleanup fires, orphaning the SmokeTrail and leaking it indefinitely.
 		for (int32_t j = 0; j < iTrailCount; ++j)
 		{
 			smoke_trails_t& trailId = rInterpolate.pTrails[j][i];

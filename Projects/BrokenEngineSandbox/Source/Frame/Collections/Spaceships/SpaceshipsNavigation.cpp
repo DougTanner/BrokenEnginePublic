@@ -16,7 +16,7 @@ constexpr float kfSpaceshipFleeAcceleration = 6.0f;
 constexpr float kfSpaceshipReturnAcceleration = kfSpaceshipAcceleration;
 
 // Steering
-constexpr float kfSpaceshipSteeringSmoothing = 3.0f;
+constexpr float kfSpaceshipSteeringSmoothing = 0.064f;
 constexpr float kfSpaceshipSteeringDecay = 6.0f;
 constexpr float kfSpaceshipChaseTurnRate = 32.0f;
 constexpr float kfSpaceshipFleeTurnRate = 32.0f;

@@ -333,10 +333,6 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.iWaterLowCount = static_cast<int>(std::min(gLowCount.Get<int64_t>(), static_cast<int64_t>(gLowMax.Get())));
 	rGlobalLayout.iWaterMediumCount = static_cast<int>(gMediumCount.Get<int64_t>());
 
-	// Water debug offsets (wave offsets are raw; normal/noise offsets are double-precision reduced)
-	rGlobalLayout.fWaterDebugLowWaveOffset = gWaterDebugLowWaveOffset.Get();
-	rGlobalLayout.fWaterDebugMediumWaveOffset = gWaterDebugMediumWaveOffset.Get();
-
 	// Water precision: camera-relative UV reduction (double precision on CPU)
 	// Normal map mod uses 10.0 (not 1.0) because the shader multiplies reducedOrigin by non-integer
 	// sizeMult values (0.2, 1.1, 2.5, etc.). With mod 1.0, wraps produce non-integer UV jumps that
@@ -356,18 +352,9 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterReducedNormalOriginY = static_cast<float>(std::fmod(dSizeBase * dCameraY, 10.0));
 	rGlobalLayout.fWaterReducedNormalTime = static_cast<float>(std::fmod(dSizeBase * dSpeed * dTime, 10.0));
 
-	// Normal/noise debug offsets reduced alongside camera origin
-	double dDebugNormalOne = static_cast<double>(gWaterDebugNormalOneOffset.Get());
-	double dDebugNormalTwo = static_cast<double>(gWaterDebugNormalTwoOffset.Get());
-	rGlobalLayout.fWaterDebugNormalOneOffset = static_cast<float>(std::fmod(dSizeBase * dDebugNormalOne, 10.0));
-	rGlobalLayout.fWaterDebugNormalTwoOffset = static_cast<float>(std::fmod(dSizeBase * dDebugNormalTwo, 10.0));
-
 	double dNoiseFreq = static_cast<double>(gWaterColorNoiseFrequency.Get());
 	rGlobalLayout.fWaterReducedNoiseOriginX = static_cast<float>(std::fmod(dNoiseFreq * dCameraX, 1.0));
 	rGlobalLayout.fWaterReducedNoiseOriginY = static_cast<float>(std::fmod(dNoiseFreq * dCameraY, 1.0));
-
-	double dDebugNoise = static_cast<double>(gWaterDebugNoiseOffset.Get());
-	rGlobalLayout.fWaterDebugNoiseOffset = static_cast<float>(std::fmod(dNoiseFreq * dDebugNoise, 1.0));
 }
 
 void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick)

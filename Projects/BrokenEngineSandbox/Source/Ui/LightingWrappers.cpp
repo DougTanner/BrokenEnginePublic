@@ -11,16 +11,16 @@ namespace game
 engine::Wrapper gExplosionPrimaryLightingAreaOne(16.0f, 1.0f, 16.0f);
 engine::Wrapper gExplosionPrimaryLightingAreaTwo(4.0f, 1.0f, 4.0f);
 engine::Wrapper gExplosionPrimaryLightingAreaThree(0.0f, 0.0f, 4.0f);
-engine::Wrapper gExplosionPrimaryLightingIntensityOne(0.5f, 0.0f, 8.0f);
-engine::Wrapper gExplosionPrimaryLightingIntensityTwo(0.25f, 0.0f, 2.0f);
+engine::Wrapper gExplosionPrimaryLightingIntensityOne(0.4f, 0.0f, 8.0f);
+engine::Wrapper gExplosionPrimaryLightingIntensityTwo(0.2f, 0.0f, 2.0f);
 engine::Wrapper gExplosionPrimaryLightingIntensityThree(0.0f, 0.0f, 2.0f);
 
 // Explosions - Secondary light
 engine::Wrapper gExplosionSecondaryLightingAreaOne(8.0f, 0.0f, 16.0f);
 engine::Wrapper gExplosionSecondaryLightingAreaTwo(2.0f, 1.0f, 4.0f);
 engine::Wrapper gExplosionSecondaryLightingAreaThree(0.0f, 0.0f, 4.0f);
-engine::Wrapper gExplosionSecondaryLightingIntensityOne(0.5f, 0.0f, 8.0f);
-engine::Wrapper gExplosionSecondaryLightingIntensityTwo(0.125f, 0.0f, 2.0f);
+engine::Wrapper gExplosionSecondaryLightingIntensityOne(0.3f, 0.0f, 8.0f);
+engine::Wrapper gExplosionSecondaryLightingIntensityTwo(0.15f, 0.0f, 2.0f);
 engine::Wrapper gExplosionSecondaryLightingIntensityThree(0.0f, 0.0f, 2.0f);
 
 // Blasters - Terrain crater
@@ -47,8 +47,8 @@ engine::Wrapper gPlayerImpactLightingIntensityTwo(0.0f, 0.0f, 2.0f);
 engine::Wrapper gHexShieldLightingIntensity(4.0f, 0.0f, 8.0f);
 
 // Missiles - Exhaust
-engine::Wrapper gMissileExhaustLightingArea(1.5f, 1.0f, 4.0f);
-engine::Wrapper gMissileExhaustLightingIntensity(2.0f, 0.0f, 4.0f);
+engine::Wrapper gMissileExhaustLightingArea(2.0f, 1.0f, 4.0f);
+engine::Wrapper gMissileExhaustLightingIntensity(3.0f, 0.0f, 4.0f);
 
 // Spaceships - Explosion
 engine::Wrapper gSpaceshipExplosionLightingIntensity(0.0f, 0.0f, 2.0f);

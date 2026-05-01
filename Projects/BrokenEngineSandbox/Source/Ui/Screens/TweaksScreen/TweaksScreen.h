@@ -14,6 +14,7 @@ public:
 	void Render();
 
 	void RenderHexShieldSection() override;
+	void RenderSmokeDepositsTab() override;
 	void RenderWindDepositsTab() override;
 	void RenderParticlesSection() override;
 	void RenderLightingEffectsVisibleTab() override;

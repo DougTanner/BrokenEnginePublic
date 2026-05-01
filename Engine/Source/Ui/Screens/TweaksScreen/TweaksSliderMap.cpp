@@ -102,12 +102,6 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		// Water Low - Beach Fade
 		{"Beach Fade Top", &gBeachFadeTop},
 		{"Beach Fade Bottom", &gBeachFadeBottom},
-		// Water Debug
-		{"Water Debug Low Wave Offset", &gWaterDebugLowWaveOffset},
-		{"Water Debug Medium Wave Offset", &gWaterDebugMediumWaveOffset},
-		{"Water Debug Normal One Offset", &gWaterDebugNormalOneOffset},
-		{"Water Debug Normal Two Offset", &gWaterDebugNormalTwoOffset},
-		{"Water Debug Noise Offset", &gWaterDebugNoiseOffset},
 		// Water Medium - Wave
 		{"Medium Wavelength", &gMediumWavelength},
 		{"Medium Amplitude", &gMediumAmplitude},
@@ -227,10 +221,10 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Minimum Ambient", &gMinimumAmbient},
 		// Misc
 		{"Misc Island Height", &gIslandHeight},
+		// Water - Depth
 		{"Water Depth", &gWaterDepth},
 		{"Water Terrain Height", &gWaterTerrainHeight},
 		{"Water Terrain Fade", &gWaterTerrainFade},
-		{"Misc Depth Reflection Feather", &gWaterDepthReflectionFeather},
 		// Smoke - Decay
 		{"Smoke Max", &gSmokeMax},
 		{"Smoke Power", &gSmokePower},

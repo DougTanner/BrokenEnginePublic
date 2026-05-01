@@ -84,6 +84,13 @@ TweaksScreen::TweaksScreen()
 		{"Explosion Secondary Puff Area Two", &gExplosionSecondaryPuffAreaTwo},
 		{"Explosion Secondary Puff Intensity One", &gExplosionSecondaryPuffIntensityOne},
 		{"Explosion Secondary Puff Intensity Two", &gExplosionSecondaryPuffIntensityTwo},
+		// Lighting Effects - Explosion Trails
+		{"Explosion Primary Trail Intensity", &gExplosionPrimaryTrailIntensity},
+		{"Explosion Primary Trail Length", &gExplosionPrimaryTrailLength},
+		{"Explosion Primary Trail Duration", &gExplosionPrimaryTrailDuration},
+		{"Explosion Secondary Trail Intensity", &gExplosionSecondaryTrailIntensity},
+		{"Explosion Secondary Trail Length", &gExplosionSecondaryTrailLength},
+		{"Explosion Secondary Trail Duration", &gExplosionSecondaryTrailDuration},
 		// Lighting Effects - Crater
 		{"Crater Visible Area One", &gCraterVisibleAreaOne},
 		{"Crater Visible Area Two", &gCraterVisibleAreaTwo},

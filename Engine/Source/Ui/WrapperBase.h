@@ -523,13 +523,6 @@ extern Wrapper gHighScaleTwo;
 extern Wrapper gBeachFadeTop;
 extern Wrapper gBeachFadeBottom;
 
-// Water Debug
-extern Wrapper gWaterDebugLowWaveOffset;
-extern Wrapper gWaterDebugMediumWaveOffset;
-extern Wrapper gWaterDebugNormalOneOffset;
-extern Wrapper gWaterDebugNormalTwoOffset;
-extern Wrapper gWaterDebugNoiseOffset;
-
 // Shadow
 extern Wrapper gShadowFeatherNoon;
 extern Wrapper gShadowFeatherNoonOffset;

@@ -34,6 +34,7 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 - DO NOT add error handling or validation - assume parameters to functions are valid
 - DO NOT add unit tests
 - **Response style**: Stay concise — no pleasantries, hedging, or restating the request. But when the user (or output style) asks for explanation, provide the information fully. Concise ≠ omitting requested content. In code and commit messages: drop articles where natural, fragments fine, technical terms unchanged. Pattern: [thing] [action] [reason]
+- **System-state automation**: Build/setup automation that mutates state outside the repo (cert stores, registry, security settings, install locations, hosts file, system services, global PATH, package-manager-globals) requires (a) explicit consent prompt explaining what+why, (b) persisted answer at a documented location (e.g., `%LOCALAPPDATA%\<App>\…`) so it does not re-prompt every build, (c) decline-safe path that exits 0 and skips the action with no half-completed state, (d) failure exit only on consented-then-action-failed, (e) silent auto-decline in non-interactive contexts (`[Environment]::UserInteractive` or equivalent). Does not apply to repo- or build-output-local files.
 
 ## Directory Structure
 - `/Common/` - Shared utilities (`common::` namespace); `Common.h` is the single aggregation header (included by `Pch.h`) - [CLAUDE.md](Common/CLAUDE.md)

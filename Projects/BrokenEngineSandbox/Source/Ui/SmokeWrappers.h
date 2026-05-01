@@ -17,6 +17,16 @@ extern engine::Wrapper gExplosionSecondaryPuffAreaTwo;
 extern engine::Wrapper gExplosionSecondaryPuffIntensityOne;
 extern engine::Wrapper gExplosionSecondaryPuffIntensityTwo;
 
+// Explosions - Primary trail
+extern engine::Wrapper gExplosionPrimaryTrailIntensity;
+extern engine::Wrapper gExplosionPrimaryTrailLength;
+extern engine::Wrapper gExplosionPrimaryTrailDuration;
+
+// Explosions - Secondary trail
+extern engine::Wrapper gExplosionSecondaryTrailIntensity;
+extern engine::Wrapper gExplosionSecondaryTrailLength;
+extern engine::Wrapper gExplosionSecondaryTrailDuration;
+
 // Blasters - Terrain puff
 extern engine::Wrapper gBlasterPuffAreaStart;
 extern engine::Wrapper gBlasterPuffAreaEnd;

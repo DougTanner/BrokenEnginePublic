@@ -42,7 +42,7 @@ void Gertsner(vec2 f2LocalPosition, float fTerrainElevation)
 
 		float fWA = fOmega * fAmplitude;
 		float fReducedPhiTime = mainLayout.pf4LowWavesTwo[i].w;
-		float fRadians = dot(f2Direction, f2LocalPosition + globalLayout.fWaterDebugLowWaveOffset) * fOmega + fReducedPhiTime;
+		float fRadians = dot(f2Direction, f2LocalPosition) * fOmega + fReducedPhiTime;
 		float fSin = sin(fRadians);
 		float fCos = cos(fRadians);
 
@@ -63,7 +63,7 @@ void Gertsner(vec2 f2LocalPosition, float fTerrainElevation)
 
 		float fWA = fOmega * fAmplitude;
 		float fReducedPhiTime = mainLayout.pf4MediumWavesTwo[i].w;
-		float fRadians = dot(f2Direction, f2LocalPosition + globalLayout.fWaterDebugMediumWaveOffset) * fOmega + fReducedPhiTime;
+		float fRadians = dot(f2Direction, f2LocalPosition) * fOmega + fReducedPhiTime;
 		float fSin = sin(fRadians);
 		float fCos = cos(fRadians);
 

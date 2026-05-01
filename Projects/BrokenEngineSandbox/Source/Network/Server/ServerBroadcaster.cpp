@@ -67,9 +67,16 @@ void ServerBroadcaster::BuildFrameInputs()
 	// Inject weapon mode toggle StatusChanges
 	ProcessUpdatePlayerRequests();
 
-	// Tick fleet timers and inject fleet coord updates
-	gpServerSession->mpFleetManager->TickFleetTimers();
-	gpServerSession->mpFleetManager->ProcessFlagshipUpdates();
+	// Tick fleet timers and inject fleet coord updates.
+	// Pause gate: BuildFrameInputs runs every ServerUpdate even when iFullTicks==0 (paused), but the
+	// per-tick loop that consumes statusChanges does not. Letting fFrameChangeTimer advance here would
+	// queue a kUpdateFleet that the next BuildFrameInputs wipes via mFrameInputs.clear() before any
+	// player frame applies it — leaving Fleet::wantedCoord ahead of pFleetWantedCoords forever.
+	if (!(gpGame->mGameFlags & engine::GameFlags::kPaused))
+	{
+		gpServerSession->mpFleetManager->TickFleetTimers();
+		gpServerSession->mpFleetManager->ProcessFlagshipUpdates();
+	}
 
 	// Save StatusChanges for broadcasting (spawns only, transfers handled separately in HarvestTransfers)
 	for (const auto& [rCoord, rFrameInput] : gpGame->mFrameInputs)

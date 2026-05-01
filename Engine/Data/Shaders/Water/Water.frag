@@ -78,41 +78,39 @@ void main()
 	vec2 f2LocalDx = dFdx(f2InInitialPosition);
 	vec2 f2LocalDy = dFdy(f2InInitialPosition);
 
-	#define SAMPLE_NORMAL_PRECISE(sampler, reducedOriginWithDebug, sizeMult, speedMult, offset) \
+	#define SAMPLE_NORMAL_PRECISE(sampler, reducedOrigin, sizeMult, speedMult, offset) \
 	{ \
 		float fCallSize = sizeMult * fSize; \
 		vec2 f2UV = offset \
 			+ fCallSize * f2InInitialPosition \
-			+ sizeMult * reducedOriginWithDebug \
+			+ sizeMult * reducedOrigin \
 			+ speedMult * vec2(fReducedTime); \
 		vec2 f2Dx = fCallSize * f2LocalDx; \
 		vec2 f2Dy = fCallSize * f2LocalDy; \
 		f3Accum += DecodeNormal(textureGrad(sampler, fract(f2UV), f2Dx, f2Dy).xyz); \
 	}
 
-	// Normal map one (3 octaves, debug offset pre-reduced on CPU)
-	vec2 f2NormalOneOrigin = f2ReducedOrigin + vec2(globalLayout.fWaterDebugNormalOneOffset);
+	// Normal map one (3 octaves)
 	vec3 f3Accum = vec3(0.0f);
-	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, f2NormalOneOrigin, 0.2f, 1.1f, vec2(0.1f, 0.2f))
-	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, f2NormalOneOrigin, 1.1f, 1.2f, vec2(0.2f, 0.3f))
-	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, f2NormalOneOrigin, 2.5f, 1.3f, vec2(0.3f, 0.4f))
+	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, f2ReducedOrigin, 0.2f, 1.1f, vec2(0.1f, 0.2f))
+	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, f2ReducedOrigin, 1.1f, 1.2f, vec2(0.2f, 0.3f))
+	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, f2ReducedOrigin, 2.5f, 1.3f, vec2(0.3f, 0.4f))
 	vec3 f3SampledNormalOne = f3Accum;
 
-	// Normal map two (3 octaves, debug offset pre-reduced on CPU)
-	vec2 f2NormalTwoOrigin = f2ReducedOrigin + vec2(globalLayout.fWaterDebugNormalTwoOffset);
+	// Normal map two (3 octaves)
 	f3Accum = vec3(0.0f);
-	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, f2NormalTwoOrigin, 0.3f, 1.4f, vec2(0.4f, 0.5f))
-	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, f2NormalTwoOrigin, 1.2f, 1.5f, vec2(0.6f, 0.7f))
-	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, f2NormalTwoOrigin, 3.0f, 1.6f, vec2(0.8f, 0.9f))
+	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, f2ReducedOrigin, 0.3f, 1.4f, vec2(0.4f, 0.5f))
+	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, f2ReducedOrigin, 1.2f, 1.5f, vec2(0.6f, 0.7f))
+	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, f2ReducedOrigin, 3.0f, 1.6f, vec2(0.8f, 0.9f))
 	vec3 f3SampledNormalTwo = f3Accum;
 
 	#undef SAMPLE_NORMAL_PRECISE
 
 	vec3 f3SampledNormal = normalize(f3SampledNormalOne + f3SampledNormalTwo);
 
-	// Color (noise with precision-safe UV, debug offset pre-reduced on CPU)
+	// Color (noise with precision-safe UV)
 	vec2 f2LocalDisplacedPos = f3InPosition.xy - f2WaterOrigin;
-	vec2 f2ReducedNoiseOrigin = vec2(globalLayout.fWaterReducedNoiseOriginX, globalLayout.fWaterReducedNoiseOriginY) + vec2(globalLayout.fWaterDebugNoiseOffset);
+	vec2 f2ReducedNoiseOrigin = vec2(globalLayout.fWaterReducedNoiseOriginX, globalLayout.fWaterReducedNoiseOriginY);
 	float fNoiseColorOne = clamp(globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, 2.0f * globalLayout.fWaterColorNoiseFrequency * f2LocalDisplacedPos + 2.0f * f2ReducedNoiseOrigin).x, 0.0f, 1.0f);
 	float fNoiseColorTwo = clamp(globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, globalLayout.fWaterColorNoiseFrequency * -f2LocalDisplacedPos - f2ReducedNoiseOrigin).x, 0.0f, 1.0f);
 	vec3 f3WaterColor = mix(1.0f * vec3(0.0f, 15.0f / 100.0f, 25.0f / 100.0f), 1.5f * vec3(15.0f / 100.0f, 30.0f / 100.0f, 50.0f / 100.0f), clamp(fNoiseColorOne - fNoiseColorTwo + (f3InPosition.z * globalLayout.fWaterColorHeightInv + globalLayout.fWaterColorBottom), 0.0f, 1.0f));

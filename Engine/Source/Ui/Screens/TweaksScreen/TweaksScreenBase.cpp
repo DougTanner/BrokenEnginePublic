@@ -9,13 +9,9 @@ namespace engine
 
 static constexpr const char* kpcSectionNames[] =
 {
-	"Test",
 	"Pbr",
 	"Terrain",
-	"Water Specular",
-	"Water Low",
-	"Water Medium",
-	"Water Debug",
+	"Water",
 	"Lighting",
 	"Shadow",
 	"Misc",
@@ -29,13 +25,9 @@ static_assert(std::size(kpcSectionNames) == static_cast<size_t>(TweakSection::kC
 using RenderSectionFunc = void (TweaksScreenBase::*)();
 static constexpr RenderSectionFunc kRenderSectionFunctions[] =
 {
-	&TweaksScreenBase::RenderTestSection,
 	&TweaksScreenBase::RenderPbrSection,
 	&TweaksScreenBase::RenderTerrainSection,
-	&TweaksScreenBase::RenderWaterSpecularSection,
-	&TweaksScreenBase::RenderWaterLowSection,
-	&TweaksScreenBase::RenderWaterMediumSection,
-	&TweaksScreenBase::RenderWaterDebugSection,
+	&TweaksScreenBase::RenderWaterSection,
 	&TweaksScreenBase::RenderLightingSection,
 	&TweaksScreenBase::RenderShadowSection,
 	&TweaksScreenBase::RenderMiscSection,

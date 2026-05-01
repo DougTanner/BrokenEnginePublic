@@ -7,13 +7,9 @@ namespace engine
 
 enum class TweakSection : int
 {
-	kTest = 0,
-	kModel,
+	kModel = 0,
 	kTerrain,
-	kWaterSpecular,
-	kWaterLow,
-	kWaterMedium,
-	kWaterDebug,
+	kWater,
 	kLighting,
 	kShadow,
 	kMisc,
@@ -39,13 +35,9 @@ public:
 	void RenderToggleBar();
 	void RenderSectionWindow(TweakSection eSection);
 
-	void RenderTestSection();
 	void RenderPbrSection();
 	void RenderTerrainSection();
-	void RenderWaterSpecularSection();
-	void RenderWaterLowSection();
-	void RenderWaterMediumSection();
-	void RenderWaterDebugSection();
+	void RenderWaterSection();
 	void RenderLightingSection();
 	virtual void RenderLightingEffectsVisibleTab() {}
 	virtual void RenderLightingEffectsLightingTab() {}
@@ -53,6 +45,7 @@ public:
 	void RenderMiscSection();
 	virtual void RenderHexShieldSection() = 0;
 	void RenderSmokeSection();
+	virtual void RenderSmokeDepositsTab() {}
 	void RenderWindSection();
 	virtual void RenderWindDepositsTab() {}
 	virtual void RenderParticlesSection() = 0;

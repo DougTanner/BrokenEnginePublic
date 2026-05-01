@@ -71,7 +71,7 @@ Wrapper gSoundVolume(1.0f, 0.0f, 1.0f);
 Wrapper gVisibleAreaExtraTop(0.046f, 0.0f, 1.0f);
 Wrapper gVisibleAreaExtraBottom(0.16f, 0.0f, 1.0f);
 Wrapper gIslandHeight(30.0f, 10.0f, 50.0f);
-Wrapper gWaterDepth(3.5f, 1.0f, 20.0f);
+Wrapper gWaterDepth(4.4f, 1.0f, 20.0f);
 Wrapper gIslandAmbientOcclusion(0.6f, 0.0f, 1.0f);
 
 Wrapper gTerrainEarlyOut(-0.1f, -1.0f, 0.0f);
@@ -179,13 +179,13 @@ Wrapper gLightingSampledNormalsSize(0.3f, 0.05f, 0.5f);
 Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
 
 // New Lighting
-Wrapper gLightingNewDirectional(0.6f, 0.0f, 2.0f);
-Wrapper gLightingNewDirectionalPower(0.6f, 0.5f, 2.0f);
+Wrapper gLightingNewDirectional(0.8f, 0.0f, 2.0f);
+Wrapper gLightingNewDirectionalPower(0.85f, 0.5f, 2.0f);
 Wrapper gLightingDirectionalPowerMode(0.0f, 0.0f, 1.0f);
 Wrapper gLightingNewAmbient(7.0f, 0.0f, 10.0f);
 Wrapper gLightingNewAmbientPower(2.5f, 0.1f, 5.0f);
 Wrapper gLightingAmbientPowerMode(1.0f, 0.0f, 1.0f);
-Wrapper gLightingTerrain(0.5f, 0.0f, 2.0f);
+Wrapper gLightingTerrain(0.8f, 0.0f, 2.0f);
 Wrapper gLightingAddTerrain(0.25f, 0.0f, 0.5f);
 Wrapper gLightingTerrainBelowBaseMultiplier(0.7f, 0.0f, 1.0f);
 Wrapper gLightingTerrainBelowBasePower(0.3f, 0.1f, 1.0f);
@@ -223,17 +223,18 @@ Wrapper gLightingWaterReflectedFresnel(0.9f, 0.0f, 1.0f);
 Wrapper gLightingWaterReflectedIntensity(0.4f, 0.0f, 5.0f);
 
 // Water skybox
-Wrapper gLightingWaterSkyboxSunBias(1.3f, 0.0f, 4.0f);
-Wrapper gLightingWaterSkyboxNormalSoften(0.5f, 0.0f, 1.0f);
-Wrapper gLightingWaterSkyboxNormalBlendWave(0.2f, 0.0f, 0.4f);
+Wrapper gLightingWaterSkyboxSunBias(3.0f, 0.0f, 4.0f);
+Wrapper gLightingWaterSkyboxNormalSoften(0.6f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxNormalBlendWave(0.15f, 0.0f, 0.4f);
 Wrapper gLightingWaterSkyboxIntensity(0.001f, 0.0005f, 0.004f);
-Wrapper gLightingWaterSkyboxAdd(0.9f, 0.0f, 2.0f);
-Wrapper gLightingWaterSkyboxOne(1200.0f, 0.0f, 3000.0f);
-Wrapper gLightingWaterSkyboxOnePower(190.0f, 50.0f, 400.0f);
-Wrapper gLightingWaterSkyboxTwo(250.0f, 0.0f, 400.0f);
-Wrapper gLightingWaterSkyboxTwoPower(6.0f, 2.0f, 10.0f);
-Wrapper gLightingWaterSkyboxThree(110.0f, 1.0f, 800.0f);
-Wrapper gLightingWaterSkyboxThreePower(1.5f, 0.01f, 2.0f);
+Wrapper gLightingWaterSkyboxAdd(0.2f, 0.0f, 2.0f);
+
+Wrapper gLightingWaterSkyboxOne(1000.0f, 0.0f, 3000.0f);
+Wrapper gLightingWaterSkyboxOnePower(150.0f, 50.0f, 400.0f);
+Wrapper gLightingWaterSkyboxTwo(280.0f, 0.0f, 400.0f);
+Wrapper gLightingWaterSkyboxTwoPower(4.0f, 2.0f, 10.0f);
+Wrapper gLightingWaterSkyboxThree(200.0f, 1.0f, 800.0f);
+Wrapper gLightingWaterSkyboxThreePower(2.0f, 0.01f, 2.0f);
 Wrapper gLightingWaterSkyboxLod(6.0f, 0.0f, 10.0f);
 
 // Smoke
@@ -280,7 +281,7 @@ Wrapper gWindSwirlSpeedLow(5.0f, 0.0f, 10.0f);
 Wrapper gWindVorticityConfinementHigh(4.0f, 0.0f, 4.0f);
 Wrapper gWindVorticityConfinementLow(0.5f, 0.0f, 1.0f);
 Wrapper gWindDecayHigh(0.99f, 0.5f, 0.999f); // max < 1.0f load-bearing: keeps fDecayRate = 1 - mix(low, high, t) > 0 in WindSpreadCommon.h:70.
-Wrapper gWindDecayLow(0.25f, 0.0f, 0.9f); // max < 1.0f load-bearing: keeps fDecayRate = 1 - mix(low, high, t) > 0 in WindSpreadCommon.h:70.
+Wrapper gWindDecayLow(0.4f, 0.0f, 0.9f); // max < 1.0f load-bearing: keeps fDecayRate = 1 - mix(low, high, t) > 0 in WindSpreadCommon.h:70.
 Wrapper gWindMomentumHigh(0.6f, 0.0f, 1.0f);
 Wrapper gWindMomentumLow(0.75f, 0.0f, 1.0f);
 Wrapper gWindDiffusionHigh(0.0f, 0.0f, 100.0f);
@@ -297,13 +298,13 @@ Wrapper gWindSmokeAdvection(0.5f, 0.0f, 2.0f);
 Wrapper gLowCount(15i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
 Wrapper gLowMax(150.0f, 0.0f, 255.0f);
 Wrapper gLowAngle(4.95f, 0.0f, XM_2PI);
-Wrapper gLowWavelength(2.4f, 1.0f, 20.0f);
-Wrapper gLowAmplitude(0.06f, 0.0f, 0.1f);
+Wrapper gLowWavelength(2.2f, 1.0f, 20.0f);
+Wrapper gLowAmplitude(0.05f, 0.0f, 0.1f);
 Wrapper gLowSpeed(0.2f, 0.0f, 1.0f);
 Wrapper gLowSteepness(1.0f, 0.0f, 2.0f);
 
 Wrapper gLowAngleAdjust(0.239f, 0.0f, 2.0f);
-Wrapper gLowWavelengthAdjust(-0.7f, -2.0f, 0.0f);
+Wrapper gLowWavelengthAdjust(-0.6f, -2.0f, 0.0f);
 Wrapper gLowAmplitudeAdjust(2.0f, 0.0f, 4.0f);
 Wrapper gLowSpeedAdjust(1.0f, 0.0f, 4.0f);
 
@@ -326,13 +327,6 @@ Wrapper gHighScaleTwo(1.2f, 0.0f, 2.0f);
 
 Wrapper gBeachFadeTop(-0.06f, -0.1f, 0.0f);
 Wrapper gBeachFadeBottom(-0.14f, -0.2f, -0.07f);
-
-// Water Debug
-Wrapper gWaterDebugLowWaveOffset(0.0f, 0.0f, 100000.0f);
-Wrapper gWaterDebugMediumWaveOffset(0.0f, 0.0f, 100000.0f);
-Wrapper gWaterDebugNormalOneOffset(0.0f, 0.0f, 100000.0f);
-Wrapper gWaterDebugNormalTwoOffset(0.0f, 0.0f, 100000.0f);
-Wrapper gWaterDebugNoiseOffset(0.0f, 0.0f, 100000.0f);
 
 // Shadow
 Wrapper gShadowFeatherNoon(2.5f, 0.0f, 8.0f);

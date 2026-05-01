@@ -1107,25 +1107,13 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreen.cpp">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenTest.cpp">
-      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenPbr.cpp">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenTerrain.cpp">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterSpecular.cpp">
-      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterLow.cpp">
-      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterMedium.cpp">
-      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterDebug.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWater.cpp">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenLighting.cpp">

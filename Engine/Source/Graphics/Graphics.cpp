@@ -595,10 +595,6 @@ bool Graphics::Destroy()
 				gpTextureManager->mTextureDescriptors.RewriteSamplerDescriptors();
 			}
 		}
-		if (gpImGuiManager != nullptr)
-		{
-			gpImGuiManager->RecreateSamplerDependencies();
-		}
 	}
 
 	if (meDestroyType >= DestroyType::kCommandBuffers)

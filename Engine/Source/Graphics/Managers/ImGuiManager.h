@@ -24,7 +24,6 @@ public:
 
 	void Prepare(int64_t iFramebuffer);
 	void Submit(int64_t iFramebuffer);
-	void RecreateSamplerDependencies();
 	void RegisterOpaqueRect(const ImVec2& pos, const ImVec2& size);
 
 	static constexpr int64_t kiMaxUiRects = 32;

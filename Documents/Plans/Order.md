@@ -24,7 +24,6 @@ Distribution: 7 Quick Win + 6 Medium + 2 Architectural across 15 plans. Network 
 
 | # | Plan | Tier | Effort | Impact | Risks | Score | Notes |
 |---|------|------|--------|--------|-------|-------|-------|
-| 1 | [Graphics/ReverseZDepth.txt](Graphics/ReverseZDepth.txt) | Small | 2 | 4 | 1 | -1 | Flip min/max depth, GREATER_EQUAL compare, clear to 0. Eliminates z-fighting. Contained change. |
 | 2 | [Network/Architecture_FleetReloadStateOrdering.md](Network/Architecture_FleetReloadStateOrdering.md) | Medium | 2 | 4 | 2 | 0 | Investigate whether `ResetState`'s `mFleets`/`mPlayerToGuid`/`mGuidToClientId` clears wipe just-loaded fleet data after `ReadFleetData`/`OnResetForLoad`. Trace one Quickload, decide intentional pattern vs bug, fix if needed |
 | 3 | [Network/Refactor_DeadCode.md](Network/Refactor_DeadCode.md) | Quick Win | 1 | 2 | 1 | 0 | Delete dead `Client.cpp` ctor locals, `PollLANDiscovery` bool→void, `[[maybe_unused]] spawnCoord` audit |
 | 4 | [Network/Refactor_WorkbufferRaii.md](Network/Refactor_WorkbufferRaii.md) | Medium | 2 | 3 | 1 | 0 | Add `common::ScopedWorkbufferFrame` RAII + migrate 26 manual Push/Pop pairs (precursor to SendBoilerplate) |

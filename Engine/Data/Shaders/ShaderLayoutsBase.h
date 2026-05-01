@@ -330,17 +330,12 @@ struct GlobalLayout
 	float fWaterColorBottom INIT;
 	float fWaterColorHeightInv INIT;
 	float fWaterColorNoiseAmount INIT;
-	float fWaterDebugLowWaveOffset INIT;
-	float fWaterDebugMediumWaveOffset INIT;
-	float fWaterDebugNormalOneOffset INIT;
 	float fWaterDirectional INIT;
 	float fWaterFresnel2 INIT;
 	float fBeachFadeTop INIT;
 	float fBeachFadeInvRange INIT;
 	float fWaterLowSteepness INIT;
 	float fWaterMediumSteepness INIT;
-	float fWaterDebugNormalTwoOffset INIT;
-	float fWaterDebugNoiseOffset INIT;
 	float fWaterReducedNormalTime INIT;
 
 	// Particles

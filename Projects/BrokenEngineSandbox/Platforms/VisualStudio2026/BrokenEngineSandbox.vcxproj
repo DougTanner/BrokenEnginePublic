@@ -569,13 +569,9 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\Source\Profile\NetworkGraphs.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksSliderMap.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenTest.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenPbr.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenTerrain.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterSpecular.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterLow.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterMedium.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterDebug.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWater.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenLighting.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenShadow.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenMisc.cpp" />
@@ -592,6 +588,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenLightingEffectsVisible.cpp" />
     <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenLightingEffectsLighting.cpp" />
     <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenParticles.cpp" />
+    <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenSmokeDeposits.cpp" />
     <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenWindDeposits.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters\Blasters.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters\BlastersRender.cpp" />
