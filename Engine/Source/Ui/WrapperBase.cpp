@@ -204,6 +204,7 @@ Wrapper gLightingWaterNewAmbientPowerMode(1.0f, 0.0f, 1.0f);
 Wrapper gLightingWaterNormalSoften(0.4f, 0.0f, 1.0f);
 Wrapper gLightingWaterNormalBlendWave(0.25f, 0.0f, 0.4f);
 Wrapper gLightingWaterIntensity(0.035f, 0.0f, 0.1f);
+Wrapper gLightingWaterMoonTint(1.0f, 0.0f, 1.0f);
 Wrapper gLightingWaterAdd(0.9f, 0.0f, 1.0f);
 Wrapper gLightingWaterOne(30.0f, 0.0f, 40.0f);
 Wrapper gLightingWaterOnePower(2.5f, 1.0f, 5.0f);

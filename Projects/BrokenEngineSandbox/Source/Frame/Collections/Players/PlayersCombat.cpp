@@ -34,7 +34,6 @@ constexpr float kfArmorHitSoundVolumeScale = 0.5f;
 
 // Blaster spawn
 constexpr float kfBlasterFireInterval = 0.05f;
-constexpr float kfBlastersSpeed = 150.0f;
 constexpr float kfBlastersSpawnBarrelOffset = kfPlayerRadius * 0.4667f;
 constexpr float kfBlastersSpawnPreMove = 0.0f;
 constexpr float kfBlasterAngleJitter = 0.03f;
@@ -58,6 +57,36 @@ constexpr float kfExplosionSmoke = 0.25f;
 constexpr float kfDeathRadialPower = 0.3f;
 constexpr uint32_t kuiDeathTrailCount = 2;
 
+// Shared by AcquireTarget (previous-frame data) and SpawnMissiles (current-frame data) so missile
+// aim resolves to the same spaceship the player is shooting at without duplicating the filter logic.
+static int64_t XM_CALLCONV FindTargetSpaceshipIndex(const SpaceshipsInterpolate& __restrict rSpaceshipsInterpolate, const SpaceshipsPostRender& __restrict rSpaceshipsPostRender, FXMVECTOR vecPlayerPosition)
+{
+	float fClosestDistance = kfTargetRange;
+	int64_t iClosestSpaceship = -1;
+	for (int64_t j = 0; j < rSpaceshipsPostRender.iCount; ++j)
+	{
+		if (rSpaceshipsInterpolate.pfDestroyedTimes[j] != -1.0f)
+		{
+			continue;
+		}
+		if (rSpaceshipsPostRender.pfArrivalGracePeriods[j] > 0.0f)
+		{
+			continue;
+		}
+		if (!FrameInterpolate::IsVisible(vecPlayerPosition, rSpaceshipsInterpolate.pVecPositions[j]))
+		{
+			continue;
+		}
+		float fDistance = common::Distance(vecPlayerPosition, rSpaceshipsInterpolate.pVecPositions[j]);
+		if (fDistance < fClosestDistance)
+		{
+			fClosestDistance = fDistance;
+			iClosestSpaceship = j;
+		}
+	}
+	return iClosestSpaceship;
+}
+
 // =============================================================================
 // Per-player Update helpers
 // =============================================================================
@@ -68,39 +97,12 @@ void XM_CALLCONV PlayersPostRender::AcquireTarget(const Frame& __restrict rPrevi
 	const SpaceshipsPostRender& rSpaceshipsPostRender = *rPreviousFrame.postRender.pSpaceships;
 	int64_t iSpaceshipCount = rSpaceshipsPostRender.iCount;
 
-	// Find nearest alive spaceship
-	float fClosestDistance = kfTargetRange;
-	int64_t iClosestSpaceship = -1;
-
-	for (int64_t j = 0; j < iSpaceshipCount; ++j)
-	{
-		if (rSpaceshipsInterpolate.pfDestroyedTimes[j] != -1.0f)
-		{
-			continue;
-		}
-
-		if (rSpaceshipsPostRender.pfArrivalGracePeriods[j] > 0.0f)
-		{
-			continue;
-		}
-
-		if (!FrameInterpolate::IsVisible(vecPosition, rSpaceshipsInterpolate.pVecPositions[j]))
-		{
-			continue;
-		}
-
-		float fDistance = common::Distance(vecPosition, rSpaceshipsInterpolate.pVecPositions[j]);
-		if (fDistance < fClosestDistance)
-		{
-			fClosestDistance = fDistance;
-			iClosestSpaceship = j;
-		}
-	}
+	int64_t iClosestSpaceship = FindTargetSpaceshipIndex(rSpaceshipsInterpolate, rSpaceshipsPostRender, vecPosition);
 
 	// Lead the target: aim at where the spaceship will be when the blaster reaches it.
 	bool bTargetFound = (iClosestSpaceship >= 0);
 	XMVECTOR vecClosestPosition = bTargetFound
-		? common::ComputeLeadPosition(vecPosition, rSpaceshipsInterpolate.pVecPositions[iClosestSpaceship], rSpaceshipsPostRender.pVecVelocities[iClosestSpaceship], kfBlastersSpeed)
+		? common::ComputeLeadPosition(vecPosition, rSpaceshipsInterpolate.pVecPositions[iClosestSpaceship], rSpaceshipsPostRender.pVecVelocities[iClosestSpaceship], kfPlayerBlastersSpeed)
 		: XMVectorZero();
 
 	// Fallback: if no in-range target, find nearest alive spaceship for look direction
@@ -319,7 +321,7 @@ void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
 			float fBarrelOffset = (rCurrentPostRender.pFlags[i] & kBlasterSpawnLeft) ? kfBlastersSpawnBarrelOffset : -kfBlastersSpawnBarrelOffset;
 
 			XMVECTOR vecJitteredDirection = common::RandomAngleJitter(vecBaseDirection, kfBlasterAngleJitter, rFrame.postRender.randomEngine);
-			XMVECTOR vecBlasterVelocity = XMVectorScale(vecJitteredDirection, kfBlastersSpeed);
+			XMVECTOR vecBlasterVelocity = XMVectorScale(vecJitteredDirection, kfPlayerBlastersSpeed);
 
 			// Muzzle point in world: player at fire time + barrel offset + constant pre-move along velocity
 			XMVECTOR vecSpawnPosition = vecPlayerPositionAtSpawn + fBarrelOffset * vecLeftNormal + kfBlastersSpawnPreMove * vecJitteredDirection;
@@ -379,31 +381,35 @@ void PlayersPostRender::SpawnMissiles([[maybe_unused]] Frame& __restrict rFrame)
 		rCurrentPostRender.pFlags[i].Toggle(kMissileSpawnLeft);
 		bool bLeftSide = rCurrentPostRender.pFlags[i] & kMissileSpawnLeft;
 
-		// Base direction is player's smoothed visual direction
-		XMVECTOR vecBaseDirection = rCurrentInterpolate.pVecDirections[i];
-
-		// Calculate barrel offset normal (perpendicular to facing direction)
-		XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(vecBaseDirection, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
+		// Hull direction drives the barrel-offset normal: missiles spawn from the visible left/right
+		// barrel positions on the ship even when the hull is rotated toward the lead point.
+		XMVECTOR vecHullDirection = rCurrentInterpolate.pVecDirections[i];
+		XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(vecHullDirection, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
 		float fBarrelOffset = bLeftSide ? kfMissileSpawnBarrelOffset : -kfMissileSpawnBarrelOffset;
 
-		// Calculate angled firing direction with jitter (angles outward from center)
+		// Aim direction targets the spaceship's CURRENT position — only blasters lead.
+		// Re-find the same spaceship AcquireTarget identified; fall back to hull if it's gone.
+		int64_t iTargetSpaceship = FindTargetSpaceshipIndex(*rFrame.interpolate.pSpaceships, *rFrame.postRender.pSpaceships, rCurrentInterpolate.pVecPositions[i]);
+		XMVECTOR vecAimDirection = (iTargetSpaceship >= 0)
+			? common::DirectionTo(rCurrentInterpolate.pVecPositions[i], rFrame.interpolate.pSpaceships->pVecPositions[iTargetSpaceship])
+			: vecHullDirection;
+
+		// Angle outward from center, jitter, and feed into spawn velocity
 		float fAngleOffset = bLeftSide ? -kfMissileSpawnAngle : kfMissileSpawnAngle;
-		XMVECTOR vecAngledDirection = XMVector3TransformNormal(vecBaseDirection, XMMatrixRotationZ(fAngleOffset));
+		XMVECTOR vecAngledDirection = XMVector3TransformNormal(vecAimDirection, XMMatrixRotationZ(fAngleOffset));
 		XMVECTOR vecJitteredDirection = common::RandomAngleJitter(vecAngledDirection, kfMissileAngleJitter, rFrame.postRender.randomEngine);
 
-		// Calculate spawn position: barrel offset + pre-move along jittered direction
 		XMVECTOR vecSpawnPosition = rCurrentInterpolate.pVecPositions[i] + fBarrelOffset * vecLeftNormal;
 		XMVECTOR vecMissilePosition = vecSpawnPosition + kfMissileSpawnPreMove * vecJitteredDirection;
 		XMVECTOR vecMissileVelocity = XMVectorReplicate(kfMissileInitialVelocity) * vecJitteredDirection;
 
-		// Spawn with stored direction = player's wanted direction (for untargeted orientation)
 		MissilesPostRender::Spawn(rFrame,
 		{
 			.vecPosition = vecMissilePosition,
 			.vecDirection = vecJitteredDirection,
 			.vecVelocity = vecMissileVelocity,
-			.vecStoredDirection = vecBaseDirection,
-			.uiTarget = Frame::GetMissileTarget(rFrame, vecMissilePosition, vecBaseDirection, rCurrentPostRender.pAlignments[i]),
+			.vecStoredDirection = vecAimDirection,
+			.uiTarget = Frame::GetMissileTarget(rFrame, vecMissilePosition, vecAimDirection, rCurrentPostRender.pAlignments[i]),
 			.fAcceleration = kfMissileAcceleration,
 			.flags = MissileFlags::kTargetEnemy,
 			.alignment = rCurrentPostRender.pAlignments[i],

@@ -13,8 +13,9 @@ Analysis Found No Need
 - MissilesPostRender has target vs untargeted fields, but the waste is ~24 bytes per missile
   (one target_t + one XMVECTOR). With typical counts of dozens to low hundreds, this is kilobytes.
   The code handles the variant cleanly with a simple IsValid() branch.
-- PlayersPostRender AI fields are used by ALL players (human player's AI is overridden by input
-  at the Game level, not the Frame level).
+- PlayersPostRender AI fields are used uniformly by ALL players — no per-index override
+  (the Frame does not privilege any player; the flagship/follower distinction lives at the Game
+  level).
 - No collections are near-copies of each other with small additions.
 - #ifdef BT_CLIENT + SharedMembers/ClientMembers/Members already handles build-time variants.
 - TypeRegistry handles per-type configuration (e.g., different blaster types, explosion types).

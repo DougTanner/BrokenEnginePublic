@@ -278,7 +278,7 @@ void GameBase::Render()
 	// Interpolate elapsed time with the sub-step remainder for smooth rendering
 	float fCurrentTime = mfCurrentTime + std::max(0.0f, common::NanosecondsToFloatSeconds<float>(mTimeStep.mTickRemainderNs));
 
-	// Camera coord fallback: use human coord if available, else first active coord
+	// Camera coord fallback: use client coord if available, else first active coord
 	GridCoord cameraCoord = game::gpGame->mClientGridCoord;
 	{
 		auto it = mCoordFrames.find(cameraCoord);

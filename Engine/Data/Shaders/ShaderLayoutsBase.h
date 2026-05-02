@@ -431,6 +431,7 @@ struct MainLayout
 	float fLightingWaterNormalSoften INIT;
 	float fLightingWaterNormalBlendWave INIT;
 	float fLightingWaterIntensity INIT;
+	float fLightingWaterMoonTint INIT;
 	float fLightingWaterAdd INIT;
 	float fLightingWaterOne INIT;
 	float fLightingWaterOnePower INIT;

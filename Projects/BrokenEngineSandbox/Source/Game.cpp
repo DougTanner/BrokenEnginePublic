@@ -511,7 +511,7 @@ void Game::BuildFrameInputs()
 		std::optional<int64_t> oIdx = ClientPlayerIndex(rPlayersPostRender);
 		if (oIdx)
 		{
-			// Camera shake: detect armor damage on human player
+			// Camera shake: detect armor damage on flagship player
 			float fCurrentArmor = rPlayersPostRender.pfArmors[*oIdx];
 			if (fCurrentArmor < mfPreviousClientArmor)
 			{

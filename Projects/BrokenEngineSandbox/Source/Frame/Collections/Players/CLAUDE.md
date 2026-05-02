@@ -1,6 +1,6 @@
 # /Projects/BrokenEngineSandbox/Source/Frame/Collections/Players/
 
-Player spaceships (1 human + AI wingmen). Uses `CollectionFlags::kIdToIndex` for stable ID-based lookup. All players share the same update logic — no index is privileged as "human".
+Player spaceships (one flagship + follower wingmen, all AI-driven). Uses `CollectionFlags::kIdToIndex` for stable ID-based lookup. All players share the same update logic — no index is privileged as the flagship.
 
 ## Non-Obvious Invariants
 

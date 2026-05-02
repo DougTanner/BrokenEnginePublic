@@ -737,7 +737,7 @@
     <ClCompile Include="..\..\Source\Network\Client\ReconcileReplayCrc.cpp">
       <Filter>Game\Network\Client</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Network\Client\ReconcileReplayHumanState.cpp">
+    <ClCompile Include="..\..\Source\Network\Client\ReconcileReplayClientState.cpp">
       <Filter>Game\Network\Client</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp">

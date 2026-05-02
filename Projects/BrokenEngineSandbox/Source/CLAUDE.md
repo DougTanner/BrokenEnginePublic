@@ -6,7 +6,7 @@ Space combat game demonstrating the Broken Engine's client/server architecture. 
 
 ## IMPORTANT: Frame Purity Constraint
 
-Frame code is purely functional. Frame updates must only rely on explicit function parameters — Frame code must NEVER query Game (`gpGame`) for anything. The Frame does not know which player is human vs AI. Human identity, camera shake, death transitions, and respawn orchestration are Game-level responsibilities.
+Frame code is purely functional. Frame updates must only rely on explicit function parameters — Frame code must NEVER query Game (`gpGame`) for anything. The Frame does not privilege any player index — all players are AI-driven; one is the **flagship** that others follow. Flagship-tracking responsibilities (camera shake, death transitions, respawn orchestration) are Game-level, not Frame.
 
 ## Key Classes/Systems
 

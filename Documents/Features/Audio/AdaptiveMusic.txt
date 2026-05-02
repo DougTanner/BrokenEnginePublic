@@ -15,7 +15,7 @@ S31-OnPatrol (exploration), S31-TheGearsofProgress (building/ambient), S31-HighA
 AudioManager already supports mid-track transitions via PlayMusic() with crossfade.
 The game layer can query frame state: spaceship counts, player health/armor/shields,
 blaster/missile counts, and player proximity to enemies -- all available from the
-RenderFrame at the human player's grid coord.
+RenderFrame at the client's grid coord (`mClientGridCoord`).
 
 Why
 ---
@@ -52,8 +52,8 @@ Changes (3 files)
 
    Update() evaluates game state each frame to compute a desired intensity:
    - Count alive spaceships (iCount minus those with kExploding flag) from
-     SpaceshipsPostRender in the human player's render frame
-   - Check human player armor/shields from PlayersPostRender
+     SpaceshipsPostRender in the flagship player's render frame
+   - Check flagship player armor/shields from PlayersPostRender
    - Count active blasters and missiles from the interpolate collections
    - Compare player position to nearest spaceship positions for proximity
 
@@ -77,11 +77,11 @@ Changes (3 files)
    Implementation of AdaptiveMusic::Update() and GetTrack():
 
    Update():
-   - Early-out if the human player's frame is not available
+   - Early-out if the flagship player's frame is not available
    - Get SpaceshipsPostRender from the frame, count alive enemies (skip kExploding)
-   - Get PlayersPostRender, find human player index, read armor and shields
+   - Get PlayersPostRender, find flagship player index, read armor and shields
    - Get BlastersInterpolate and MissilesInterpolate counts for projectile activity
-   - Use Game::PreviousHumanArmor() to detect recent damage (armor decreased)
+   - Use Game::PreviousClientArmor() to detect recent damage (armor decreased)
    - Compute desired MusicIntensity from the above signals
    - Apply hysteresis: track how long the desired intensity has been sustained
    - If sustained long enough and cooldown has elapsed, update meCurrentIntensity
@@ -112,9 +112,9 @@ Changes (3 files)
      is complete, guarded by #ifdef BT_CLIENT and !InMainMenu():
 
        #if defined(BT_CLIENT)
-       if (!InMainMenu() && mCoordFrames.contains(mHumanGridCoord))
+       if (!InMainMenu() && mCoordFrames.contains(mClientGridCoord))
        {
-           const Frame& rFrame = RenderFrame(mHumanGridCoord);
+           const Frame& rFrame = RenderFrame(mClientGridCoord);
            float fDeltaTime = /* real-time delta from AudioManager's timer or similar */;
            mAdaptiveMusic.Update(fDeltaTime, rFrame);
        }

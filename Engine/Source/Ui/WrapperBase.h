@@ -401,6 +401,7 @@ extern Wrapper gLightingWaterNewAmbientPowerMode;
 extern Wrapper gLightingWaterNormalSoften;
 extern Wrapper gLightingWaterNormalBlendWave;
 extern Wrapper gLightingWaterIntensity;
+extern Wrapper gLightingWaterMoonTint;
 extern Wrapper gLightingWaterAdd;
 extern Wrapper gLightingWaterOne;
 extern Wrapper gLightingWaterOnePower;

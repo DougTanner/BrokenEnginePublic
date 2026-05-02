@@ -51,9 +51,9 @@ flowchart TD
 
     CATCHUP --> NEXTCOORD{"More coords?"}
     NEXTCOORD -->|"Yes"| COORD
-    NEXTCOORD -->|"No"| HUMAN["ReconcileUpdateHumanState()<br/>update time and track<br/>human migration"]:::state
+    NEXTCOORD -->|"No"| CLIENTSTATE["ReconcileUpdateClientState()<br/>update time and track<br/>client migration"]:::state
 
-    HUMAN --> DONE["Writeback applied in-place<br/>on engine::CoordFrames"]
+    CLIENTSTATE --> DONE["Writeback applied in-place<br/>on engine::CoordFrames"]
     FASTDONE --> NEXTCOORD
 ```
 

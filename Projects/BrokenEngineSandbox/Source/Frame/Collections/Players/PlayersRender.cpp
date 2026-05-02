@@ -173,6 +173,7 @@ void PlayersInterpolate::DebugRender(const FrameInterpolate& __restrict rFrameIn
 	const PlayersInterpolate& rPlayers = *rFrameInterpolate.pPlayers;
 	const SpaceshipsInterpolate& rSpaceships = *rFrameInterpolate.pSpaceships;
 	const PlayersPostRender& rPostRender = *gpGame->RenderFrame(coord).postRender.pPlayers;
+	const SpaceshipsPostRender& rSpaceshipsPostRender = *gpGame->RenderFrame(coord).postRender.pSpaceships;
 
 	int64_t iCount = (rFrameInterpolate.gameFlags & GameFlags::kMainMenu) ? 0 : rPlayers.iCount;
 
@@ -183,7 +184,7 @@ void PlayersInterpolate::DebugRender(const FrameInterpolate& __restrict rFrameIn
 		// Red line to nearest alive spaceship
 		float fClosestDistanceSq = std::numeric_limits<float>::max();
 		XMVECTOR vecClosestPosition = XMVectorZero();
-		bool bFound = false;
+		int64_t iClosestSpaceship = -1;
 
 		for (int64_t j = 0; j < rSpaceships.iCount; ++j)
 		{
@@ -197,16 +198,27 @@ void PlayersInterpolate::DebugRender(const FrameInterpolate& __restrict rFrameIn
 			{
 				fClosestDistanceSq = fDistanceSq;
 				vecClosestPosition = rSpaceships.pVecPositions[j];
-				bFound = true;
+				iClosestSpaceship = j;
 			}
 		}
 
-		if (bFound)
+		if (iClosestSpaceship >= 0)
 		{
+			// Yellow reticle at the lead-intercept point: where the player must aim so blasters land on the moving spaceship
+			XMVECTOR vecLead = common::ComputeLeadPosition(vecPosition, vecClosestPosition, rSpaceshipsPostRender.pVecVelocities[iClosestSpaceship], kfPlayerBlastersSpeed);
+			XMFLOAT3A f3Lead {};
+			XMStoreFloat3A(&f3Lead, vecLead);
+			engine::DebugRender::Circle(f3Lead, kfPlayerRadius * 0.5f, {1.0f, 1.0f, 0.0f, 1.0f});
+
+			// Red line shows the player's wanted-aim direction scaled to the lead distance. When lead targeting is
+			// working the line endpoint coincides with the yellow reticle; if it points elsewhere the wanted
+			// direction has not caught up yet (smoothing lag) or there is a bug upstream of UpdateFacing.
+			float fDistanceToLead = common::Distance(vecPosition, vecLead);
+			XMVECTOR vecLineEnd = XMVectorAdd(vecPosition, XMVectorScale(rPostRender.pVecWantedDirections[i], fDistanceToLead));
 			XMFLOAT3A f3Start {};
 			XMFLOAT3A f3End {};
 			XMStoreFloat3A(&f3Start, vecPosition);
-			XMStoreFloat3A(&f3End, vecClosestPosition);
+			XMStoreFloat3A(&f3End, vecLineEnd);
 			engine::DebugRender::Line(f3Start, f3End, {1.0f, 0.0f, 0.0f, 1.0f});
 		}
 

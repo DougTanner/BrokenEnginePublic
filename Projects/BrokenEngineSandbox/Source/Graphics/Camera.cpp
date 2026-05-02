@@ -180,11 +180,34 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 
 	if (!mbJumping)
 	{
-		float fBlend = std::clamp(fDeltaTime * kfCameraPositionBlend, 0.0f, 1.0f);
+		// Tighten chase as eye descends so close-up tracking doesn't show pixel-space stutter
+		static constexpr float kfCameraEyeHeightDefault = 150.0f;
+		float fAdaptiveBlend = kfCameraPositionBlend * std::max(1.0f, kfCameraEyeHeightDefault / mfCameraEyeHeight);
+		float fBlend = std::clamp(fDeltaTime * fAdaptiveBlend, 0.0f, 1.0f);
 		mVecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fBlend), vecTargetPosition, XMVectorMultiply(XMVectorReplicate(1.0f - fBlend), mVecPosition));
 	}
 
 	mVecPreviousTargetPosition = vecTargetPosition;
+
+	// Mouse-wheel zoom: per-frame scroll delta nudges target height; current eases toward target
+	static constexpr float kfEyeHeightPerWheelTick = 0.1f;
+	static constexpr float kfEyeHeightBlend = 12.0f;
+	static constexpr float kfEyeHeightMin = 50.0f;
+	static constexpr float kfEyeHeightMax = 400.0f;
+
+	int iScrollNow = engine::gpRawInputManager->mRawInput.iScrollWheelValue;
+	if (!mbScrollWheelInitialized)
+	{
+		miPreviousScrollWheelValue = iScrollNow;
+		mbScrollWheelInitialized = true;
+	}
+	int iScrollDelta = iScrollNow - miPreviousScrollWheelValue;
+	miPreviousScrollWheelValue = iScrollNow;
+
+	mfCameraEyeHeightTarget = std::clamp(mfCameraEyeHeightTarget - static_cast<float>(iScrollDelta) * kfEyeHeightPerWheelTick, kfEyeHeightMin, kfEyeHeightMax);
+
+	float fEyeBlend = std::clamp(fDeltaTime * kfEyeHeightBlend, 0.0f, 1.0f);
+	mfCameraEyeHeight += (mfCameraEyeHeightTarget - mfCameraEyeHeight) * fEyeBlend;
 
 	// Calculate eye position relative to camera position
 	auto vecQuaternionEye = XMQuaternionRotationNormal(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), mfCameraEyeRotation);

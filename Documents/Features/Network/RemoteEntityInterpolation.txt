@@ -3,7 +3,7 @@ Remote Entity Snapshot Interpolation
 
 PROBLEM
 -------
-Remote entities (non-human coords) render from the latest extrapolated state.
+Remote entities (non-client coords) render from the latest extrapolated state.
 When server updates are delayed or lost, entities freeze then teleport to the
 corrected position. This is visually jarring.
 
@@ -17,8 +17,9 @@ At 32 Hz (kiTickRate=32), each tick = 31.25ms.
 - 2-frame buffer (~62ms delay): survives 1 lost packet
 - 3-frame buffer (~94ms delay): survives 2 lost packets
 
-The human player's coord is EXCLUDED -- it uses prediction + visual smoothing
-via Camera (Camera.cpp:78-87, velocity extrapolation from position delta).
+The client coord (the cell the local client follows) is EXCLUDED -- it uses
+prediction + visual smoothing via Camera (Camera.cpp:78-87, velocity extrapolation
+from position delta).
 
 SCOPE
 -----
@@ -75,7 +76,7 @@ FILE: Projects/BrokenEngineSandbox/Source/Network/ClientReconciler.cpp
 
 After reconciliation writes back confirmed state to CoordFrames (in
 ClientReconciler::ApplyCoordWriteback, called from ApplyResult), record an
-interpolation snapshot for each non-human coord.
+interpolation snapshot for each non-client coord.
 
 Specifically, after the writeback updates iConfirmedTick (line ~ApplyCoordWriteback),
 add a call to a new helper:
@@ -132,18 +133,18 @@ FILE: Engine/Source/GameBase.cpp
 In GameBase::Render() (line 244), after computing fCurrentTime (line 249) and
 before the per-frame interpolate loop (line 276 interpolateFrame lambda):
 
-Add a new step that, for each non-human active coord, computes interpolated
+Add a new step that, for each non-client active coord, computes interpolated
 positions and overwrites the FrameInterpolate data in mRenderInterpolates.
 
   float fRenderTime = fCurrentTime;  // already computed at line 249
   static constexpr float kfInterpolationDelay = 2.0f * game::kfDeltaTime; // 2 ticks
 
 After interpolateFrame() runs for each coord (after line 289), apply
-interpolation overrides for non-human coords:
+interpolation overrides for non-client coords:
 
   for (const GridCoord& rCoord : rActiveCoords)
   {
-      if (rCoord == cameraCoord) continue;  // human coord uses prediction
+      if (rCoord == cameraCoord) continue;  // client coord uses prediction
 
       auto subIt = mCoordFrames.find(rCoord);
       if (subIt == mCoordFrames.end()) continue;
@@ -292,12 +293,12 @@ FILES MODIFIED
 
 2. Engine/Source/GameBase.cpp (lines 244-311, Render function)
    - After the interpolateFrame loop, add snapshot interpolation override
-     for non-human coords
+     for non-client coords
    - Add ApplySnapshotInterpolation implementation
 
 3. Projects/BrokenEngineSandbox/Source/Network/ClientReconciler.cpp
    - In ApplyCoordWriteback or ApplyResult, call RecordInterpolationSnapshot
-     for each non-human coord after confirmed state updates
+     for each non-client coord after confirmed state updates
    - Add RecordInterpolationSnapshot helper function
 
 4. Engine/Source/GameBase.h (CoordFrames::ResetClientState)

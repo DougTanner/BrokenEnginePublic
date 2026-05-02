@@ -179,6 +179,7 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Water Normal Soften", &gLightingWaterNormalSoften},
 		{"Water Normal Blend Wave", &gLightingWaterNormalBlendWave},
 		{"Water Intensity", &gLightingWaterIntensity},
+		{"Water Moon Tint", &gLightingWaterMoonTint},
 		{"Water Add", &gLightingWaterAdd},
 		{"Water One", &gLightingWaterOne},
 		{"Water One Power", &gLightingWaterOnePower},

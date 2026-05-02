@@ -30,11 +30,14 @@ void CameraBase::CalculateMatricesAndVisibleArea()
 	mMatView = XMMatrixLookAtRH(mVecEyePosition, mVecPosition, vecUp);
 
 	static constexpr float kfNearClip = 1.0f;
-	static constexpr float kfFarClip = 400.0f;
+	static constexpr float kfMinFarClip = 400.0f;
+	static constexpr float kfFarClipPerEyeDistance = 2.667f;
+	float fEyeDistance = XMVectorGetX(XMVector3Length(XMVectorSubtract(mVecEyePosition, mVecPosition)));
+	float fFarClip = std::max(kfMinFarClip, fEyeDistance * kfFarClipPerEyeDistance);
 	float fViewportWidth = static_cast<float>(gpGraphics->mFramebufferExtent2D.width);
 	float fViewportHeight = static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
 	float fAspectRatio = gpSwapchainManager->mfAspectRatio;
-	mMatPerspective = XMMatrixPerspectiveFovRH(XMConvertToRadians(gFov.Get() / fAspectRatio), fAspectRatio, kfNearClip, kfFarClip);
+	mMatPerspective = XMMatrixPerspectiveFovRH(XMConvertToRadians(gFov.Get() / fAspectRatio), fAspectRatio, kfNearClip, fFarClip);
 
 	// Create plane at Z=0 for projecting screen corners to world space
 	XMVECTOR vecPlane = XMPlaneFromPointNormal(XMVectorZero(), XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f));

@@ -10,7 +10,7 @@ Client-only (`BT_CLIENT`) conversion of raw hardware input into game and menu co
 - **Debug-gated bindings**: Debug/profile/screenshot/debug-render keys compile in via `if constexpr` on `kbDebugInput` / `kbProfiling` / `kbScreenshots` / `kbDebugRender`; new debug-only keys belong inside those blocks.
 - **Mode auto-switch**: gamepad engages when `|thumbstick| > 0.1f`; mouse movement or a key in the KBM whitelist (WASD, arrows, numpad 1/2/3/5, LMB/RMB) flips back. New movement keys must extend the whitelist or mode detection misses them.
 - **Toggle-detect ordering**: previous-frame menu input is captured after all `*Pressed()` calls for the frame; moving that assignment earlier silently breaks edge detection for the rest of the function.
-- **Transfer determinism**: Transfer status changes route through the human's grid coordinate so replay order is deterministic.
+- **Transfer determinism**: Transfer status changes route through the client's grid coordinate (`mClientGridCoord`) so replay order is deterministic.
 - **Variant read**: Reading a `StatusChange` must seat the correct `std::variant` alternative (via `DefaultDataForType`) before `common::Read` runs — `std::visit` assumes the active alternative already matches the type tag.
 
 ## See Also

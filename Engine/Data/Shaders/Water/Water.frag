@@ -216,14 +216,16 @@ void main()
 	vec3 f3WaterLighting = WaterLighting(pf4LightingBaseHeight, f3LightingNormal, mainLayout.fLightingWaterNormalSoften, mainLayout.fLightingWaterOne, mainLayout.fLightingWaterOnePower, mainLayout.fLightingWaterTwo, mainLayout.fLightingWaterTwoPower, mainLayout.fLightingWaterThree, mainLayout.fLightingWaterThreePower, mainLayout.fLightingWaterPowerMode);
 	float fDepthAttenuation = clamp(-fTerrainElevation / globalLayout.fWaterDepthReflectionFeather, 0.0f, 1.0f);
 	vec3 f3WaterLightingScaled = fDepthAttenuation * globalLayout.fLightingTimeOfDayMultiplier * mainLayout.fLightingWaterIntensity * f3WaterLighting;
+	// Sun/moon tint applied to dominant water lighting paths so gMoonBrightness drives water at night the same way SunLighting() drives terrain.
+	vec3 f3MoonTint = mix(vec3(1.0f), globalLayout.f4SunMoonColor.xyz, mainLayout.fLightingWaterMoonTint);
 	// Mix between water-tinted lighting (Add=0) and pure lighting color (Add=1).
 	// Total contribution magnitude is conserved across the mix.
 	float fWaterLightingAdd = mainLayout.fLightingWaterAdd;
-	vec3 f3WaterLightingMults = fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * f3WaterLightingScaled;
+	vec3 f3WaterLightingMults = fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * f3WaterLightingScaled * f3MoonTint;
 	f4OutColor.xyz += (1.0f - fWaterLightingAdd) * f3PreLightingColor * f3WaterLightingMults + fWaterLightingAdd * f3WaterLightingMults;
 
 	// Water new ambient (terrain-style, sampled without reflection offset)
-	vec3 f3WaterNewAmbient = globalLayout.fLightingTimeOfDayMultiplier * AmbientLightingPrecomputed(f3AmbientSum, mainLayout.fLightingWaterNewAmbient, mainLayout.fLightingWaterNewAmbientPower, mainLayout.fLightingWaterNewAmbientPowerMode);
+	vec3 f3WaterNewAmbient = globalLayout.fLightingTimeOfDayMultiplier * AmbientLightingPrecomputed(f3AmbientSum, mainLayout.fLightingWaterNewAmbient, mainLayout.fLightingWaterNewAmbientPower, mainLayout.fLightingWaterNewAmbientPowerMode) * f3MoonTint;
 	f4OutColor.xyz += f3WaterNewAmbient;
 
 	// DT: TEMP — show only lighting texture contributions (with normals and base color)

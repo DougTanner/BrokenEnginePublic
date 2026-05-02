@@ -108,6 +108,7 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fLightingWaterNormalSoften = gLightingWaterNormalSoften.Get();
 	rMainLayout.fLightingWaterNormalBlendWave = gLightingWaterNormalBlendWave.Get();
 	rMainLayout.fLightingWaterIntensity = gLightingWaterIntensity.Get();
+	rMainLayout.fLightingWaterMoonTint = gLightingWaterMoonTint.Get();
 	rMainLayout.fLightingWaterAdd = gLightingWaterAdd.Get();
 	rMainLayout.fLightingWaterOne = gLightingWaterOne.Get();
 	rMainLayout.fLightingWaterOnePower = gLightingWaterOnePower.Get();

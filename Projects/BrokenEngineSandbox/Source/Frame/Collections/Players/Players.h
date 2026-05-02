@@ -18,6 +18,7 @@ namespace game
 // Shared constants (used across Players*.cpp files)
 inline constexpr float kfDestroyTime = 0.7f;
 inline constexpr float kfDestroyExplosionInterval = 0.005f;
+inline constexpr float kfPlayerBlastersSpeed = 150.0f;
 
 // Collision
 inline constexpr float kfPlayerRadius = 1.1f;

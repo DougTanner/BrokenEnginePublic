@@ -58,7 +58,7 @@ void ReconcileUpdateClientState(std::span<const CoordWork> works, const Reconcil
 {
 	ConfirmedClientState clientState = rInOutState;
 
-	// Advance fCurrentTime based on human coord's reconciliation result
+	// Advance fCurrentTime based on client coord's reconciliation result
 	for (const CoordWork& rWork : works)
 	{
 		if (rWork.coord != clientState.clientGridCoord)
@@ -71,12 +71,12 @@ void ReconcileUpdateClientState(std::span<const CoordWork> works, const Reconcil
 
 		if (!rScratch.bCrcFastPath && rScratch.iReplayStackCount > 0)
 		{
-			// Human coord did full replay: use replay tip's fCurrentTime
+			// Client coord did full replay: use replay tip's fCurrentTime
 			clientState.fCurrentTime = rScratch.replayStack[rScratch.iReplayStackCount - 1]->interpolate.fCurrentTime;
 		}
 		else
 		{
-			// Human coord fast-pathed: read time from confirmed snapshot.
+			// Client coord fast-pathed: read time from confirmed snapshot.
 			// iNewConfirmedOffset is the new HEAD; iNewConfirmedInnerOffset is the delta to confirmed.
 			int64_t iPhysical = (rScratch.iNewConfirmedOffset >= 0)
 				? SnapshotIndex(rScratch.iNewConfirmedOffset, rScratch.iNewConfirmedInnerOffset)
@@ -97,7 +97,7 @@ void ReconcileUpdateClientState(std::span<const CoordWork> works, const Reconcil
 
 	if (bAnyFullReplay)
 	{
-		// Scan full-replay coords for human migration via transfer requests
+		// Scan full-replay coords for client migration via transfer requests
 		for (const CoordWork& rWork : works)
 		{
 			const CoordScratch& rScratch = rWork.scratch;

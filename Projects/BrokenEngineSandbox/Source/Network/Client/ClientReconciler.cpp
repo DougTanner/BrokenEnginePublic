@@ -37,7 +37,7 @@ ReconcileDesyncInfo ClientReconciler::Run()
 	// Heap: Frame allocation during replay, map operations on serverUpdates, and scratch resize
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	// Re-sync human identity from main thread
+	// Re-sync client identity from main thread
 	mConfirmedClientState.clientGridCoord = gpGame->mClientGridCoord;
 	mConfirmedClientState.clientGlobalPlayerId = gpGame->ClientPlayerId();
 	mConfirmedClientState.fPreviousClientArmor = gpGame->PreviousClientArmor();
@@ -109,7 +109,7 @@ ReconcileDesyncInfo ClientReconciler::Run()
 		return {};
 	}
 
-	// Capture human pre-writeback position for visual error smoothing
+	// Capture client pre-writeback position for visual error smoothing
 	XMVECTOR vecPreWritebackPosition {};
 	bool bCapturedPrePosition = GetClientSnapshotPosition(vecPreWritebackPosition);
 
@@ -145,7 +145,7 @@ ReconcileDesyncInfo ClientReconciler::Run()
 			pDesyncWork = &rWork;
 		}
 
-		// Audio voice invalidation skip is gated on the human coord experiencing a full replay.
+		// Audio voice invalidation skip is gated on the client coord experiencing a full replay.
 		if (rScratch.bReplayed && rWork.coord == mConfirmedClientState.clientGridCoord)
 		{
 			bAnyFullReplay = true;
@@ -178,11 +178,11 @@ ReconcileDesyncInfo ClientReconciler::Run()
 		return desyncInfo;
 	}
 
-	// Compute new confirmed client state (human coord time advance + transfer migration)
+	// Compute new confirmed client state (client coord time advance + transfer migration)
 	ConfirmedClientState newConfirmedClientState = mConfirmedClientState;
 	ReconcileUpdateClientState(activeWorks, inputs, bAnyFullReplay, newConfirmedClientState);
 
-	// Visual error offset: pre/post human position delta accumulated into gpGame
+	// Visual error offset: pre/post client position delta accumulated into gpGame
 	if (bCapturedPrePosition && bAnyFullReplay)
 	{
 		XMVECTOR vecPostWritebackPosition {};
