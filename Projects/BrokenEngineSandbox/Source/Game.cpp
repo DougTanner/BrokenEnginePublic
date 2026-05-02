@@ -870,6 +870,16 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		}
 	}
 
+#if defined(BT_CLIENT)
+	if constexpr (kbDebugRender)
+	{
+		if (rMenuInput.flags & MenuInputFlags::kToggleDebugRender)
+		{
+			engine::DebugRender::Toggle();
+		}
+	}
+#endif
+
 	ProcessDebugInput(rMenuInput);
 
 #if defined(BT_CLIENT)

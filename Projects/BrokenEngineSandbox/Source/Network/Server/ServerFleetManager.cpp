@@ -184,12 +184,34 @@ void ServerFleetManager::TickFleetTimers()
 				continue;
 			}
 
-			// Only tick timer when flagship is in the wanted cell and roaming
-			if (!(rFlagship.coord == rFleet.wantedCoord))
+			// Post-arrival countdown: the timer drains only while the flagship sits at the previously
+			// picked wantedCoord. That makes fNavigationDelay an actual idle-at-destination delay
+			// (cycle = transit + fNavigationDelay) rather than a wall-clock timer that overlaps with
+			// transit and would let the next fire happen the instant the flagship arrives. Cardinal
+			// mode is intentionally NOT gated here: if the flagship arrives mid-cardinal (heading
+			// toward an edge), draining keeps going so that as soon as nav mode flips out of cardinal
+			// the (likely already-negative) timer fires immediately — that's the un-freeze property.
+			// Using mfLastDeltaTime (= iFullTicks * kfDeltaTime, set by GameBase::ServerUpdate after
+			// the pause / time-scale resolution) keeps the timer in lockstep with frame-tick
+			// progression: zero during pause, scaled by mTimeStep under fast-forward / slow-mo.
+			if (rFlagship.coord == rFleet.wantedCoord)
+			{
+				rFleet.fFrameChangeTimer -= gpGame->mfLastDeltaTime;
+			}
+
+			if (rFleet.fFrameChangeTimer > 0.0f)
 			{
 				continue;
 			}
 
+			// Fire preconditions: timer expiring is necessary but not sufficient — re-verify coord
+			// match (drain implies coord==wantedCoord at last tick, but a cardinal-eject between
+			// ticks could move the flagship), the cell is locally available, and the flagship isn't
+			// already mid-cardinal toward an edge.
+			if (!(rFlagship.coord == rFleet.wantedCoord))
+			{
+				continue;
+			}
 			if (!gpGame->mCoordFrames.contains(rFlagship.coord))
 			{
 				continue;
@@ -207,27 +229,21 @@ void ServerFleetManager::TickFleetTimers()
 					break;
 				}
 			}
-
-			// Skip if flagship not found in frame (mid-transfer) or actively navigating to cell edge
 			if (!bFoundFlagship || (iFlagshipNavDirection >= 0 && iFlagshipNavDirection <= 3))
 			{
 				continue;
 			}
 
-			rFleet.fFrameChangeTimer -= kfDeltaTime;
-			if (rFleet.fFrameChangeTimer <= 0.0f)
-			{
-				// Pick random cardinal direction
-				int8_t iDirection = static_cast<int8_t>(common::Random(3u, mRandomEngine));
-				engine::GridCoord offset = NavDirectionOffset(iDirection);
-				engine::GridCoord destination {rFlagship.coord.x + offset.x, rFlagship.coord.y + offset.y};
-				uint8_t uiPendingTicks = static_cast<uint8_t>(engine::kiTickRate);
-				rFleet.wantedCoord = destination;
-				rFleet.uiPendingFleetWantedCoordTicks = uiPendingTicks;
-				rFleet.fFrameChangeTimer = rFleet.fNavigationDelay;
-				mPendingFlagshipUpdates.push_back({rGuid, iFleet, destination, uiPendingTicks});
-				LOG(kNetwork, kVerbose, "ServerFleetManager::TickFleetTimers Guid: ({},{}) Fleet: {} Direction: {} WantedCoord: ({},{})", rGuid.uiHigh, rGuid.uiLow, iFleet, iDirection, destination.x, destination.y);
-			}
+			// Pick random cardinal direction and reset timer.
+			int8_t iDirection = static_cast<int8_t>(common::Random(3u, mRandomEngine));
+			engine::GridCoord offset = NavDirectionOffset(iDirection);
+			engine::GridCoord destination {rFlagship.coord.x + offset.x, rFlagship.coord.y + offset.y};
+			uint8_t uiPendingTicks = static_cast<uint8_t>(engine::kiTickRate);
+			rFleet.wantedCoord = destination;
+			rFleet.uiPendingFleetWantedCoordTicks = uiPendingTicks;
+			rFleet.fFrameChangeTimer = rFleet.fNavigationDelay;
+			mPendingFlagshipUpdates.push_back({rGuid, iFleet, destination, uiPendingTicks});
+			LOG(kNetwork, kVerbose, "ServerFleetManager::TickFleetTimers Guid: ({},{}) Fleet: {} Direction: {} WantedCoord: ({},{})", rGuid.uiHigh, rGuid.uiLow, iFleet, iDirection, destination.x, destination.y);
 		}
 	}
 }

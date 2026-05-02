@@ -11,8 +11,8 @@ public:
 
 private:
 
-	void RenderFleetPanel();
-	void RenderFocusedPlayerPanel();
+	void RenderFleetPanel(bool bForceOpen, float fMouseTarget);
+	void RenderFocusedPlayerPanel(float fLeftMouseTarget);
 
 #if defined(BT_CLIENT)
 	engine::NetworkUiControl<int64_t> mCreateFleetToggle {};
@@ -24,7 +24,8 @@ private:
 		float fOpenness = 0.0f;
 		ImVec2 vLastSize {};
 	};
-	static float UpdateSlideAndGetOffsetX(SlidePanelState& rState, ImVec2 vAnchor, float fPivotX, float fSidePivotSign);
+	static float ComputeMouseOpennessTarget(ImVec2 vLastSize, ImVec2 vAnchor, float fPivotX);
+	static float UpdateSlideAndGetOffsetX(SlidePanelState& rState, ImVec2 vAnchor, float fSidePivotSign, float fTarget);
 	SlidePanelState mFleetSlide {};
 	SlidePanelState mFocusedPlayerSlide {};
 #endif

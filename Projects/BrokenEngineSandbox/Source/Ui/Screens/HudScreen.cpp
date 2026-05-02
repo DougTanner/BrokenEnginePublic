@@ -5,6 +5,7 @@
 #include "Fleet.h"
 #include "Game.h"
 #include "Frame/Collections/Players/Players.h"
+#include "Frame/Collections/Spaceships/Spaceships.h"
 #include "MenuUtils.h"
 
 namespace
@@ -19,7 +20,27 @@ constexpr float kfEdgeMarginPixels = 8.0f;
 namespace game
 {
 
-float HudScreen::UpdateSlideAndGetOffsetX(SlidePanelState& rState, ImVec2 vAnchor, float fPivotX, float fSidePivotSign)
+float HudScreen::ComputeMouseOpennessTarget(ImVec2 vLastSize, ImVec2 vAnchor, float fPivotX)
+{
+	if (vLastSize.x <= 0.0f)
+	{
+		return 0.0f;
+	}
+
+	const float fRectMinX = vAnchor.x - fPivotX * vLastSize.x;
+	const float fRectMaxX = fRectMinX + vLastSize.x;
+	const float fRectMinY = vAnchor.y;
+	const float fRectMaxY = vAnchor.y + vLastSize.y;
+
+	const ImVec2 vMouse = ImGui::GetIO().MousePos;
+	const float fDx = std::max({fRectMinX - vMouse.x, 0.0f, vMouse.x - fRectMaxX});
+	const float fDy = std::max({fRectMinY - vMouse.y, 0.0f, vMouse.y - fRectMaxY});
+	const float fDistance = std::sqrt(fDx * fDx + fDy * fDy);
+
+	return 1.0f - std::clamp(fDistance / kfActivationDistancePixels, 0.0f, 1.0f);
+}
+
+float HudScreen::UpdateSlideAndGetOffsetX(SlidePanelState& rState, ImVec2 vAnchor, float fSidePivotSign, float fTarget)
 {
 	ImGuiIO& rIo = ImGui::GetIO();
 
@@ -30,17 +51,6 @@ float HudScreen::UpdateSlideAndGetOffsetX(SlidePanelState& rState, ImVec2 vAncho
 		return fSidePivotSign * 2.0f * rIo.DisplaySize.x;
 	}
 
-	const float fRectMinX = vAnchor.x - fPivotX * rState.vLastSize.x;
-	const float fRectMaxX = fRectMinX + rState.vLastSize.x;
-	const float fRectMinY = vAnchor.y;
-	const float fRectMaxY = vAnchor.y + rState.vLastSize.y;
-
-	const ImVec2 vMouse = rIo.MousePos;
-	const float fDx = std::max({fRectMinX - vMouse.x, 0.0f, vMouse.x - fRectMaxX});
-	const float fDy = std::max({fRectMinY - vMouse.y, 0.0f, vMouse.y - fRectMaxY});
-	const float fDistance = std::sqrt(fDx * fDx + fDy * fDy);
-
-	const float fTarget = 1.0f - std::clamp(fDistance / kfActivationDistancePixels, 0.0f, 1.0f);
 	rState.fOpenness += (fTarget - rState.fOpenness) * common::ExponentialInterpolant(kfSlideRate, rIo.DeltaTime);
 
 	// Slide distance must cover both the panel's own width AND the gap from the anchor to the screen edge
@@ -56,17 +66,33 @@ void HudScreen::Render()
 		return;
 	}
 
-	RenderFleetPanel();
-	RenderFocusedPlayerPanel();
+	bool bForceLeftOpen = !gpGame->ClientPlayerId().IsValid();
+	if (!bForceLeftOpen)
+	{
+		auto it = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
+		if (it != gpGame->mCoordFrames.end() && it->second.iSnapshotCount > 0)
+		{
+			bForceLeftOpen = (gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pSpaceships->iCount == 0);
+		}
+	}
+
+	// Compute left mouse target before rendering so right panel can couple to it (one-way: left mouse-over → right slides in).
+	ImGuiIO& rIo = ImGui::GetIO();
+	const ImVec2 vLeftAnchor(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.42f);
+	const float fLeftMouseTarget = ComputeMouseOpennessTarget(mFleetSlide.vLastSize, vLeftAnchor, 0.0f);
+
+	RenderFleetPanel(bForceLeftOpen, fLeftMouseTarget);
+	RenderFocusedPlayerPanel(fLeftMouseTarget);
 }
 
-void HudScreen::RenderFleetPanel()
+void HudScreen::RenderFleetPanel(bool bForceOpen, float fMouseTarget)
 {
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
 	const ImVec2 vAnchor(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.42f);
-	const float fOffsetX = UpdateSlideAndGetOffsetX(mFleetSlide, vAnchor, 0.0f, -1.0f);
+	const float fTarget = bForceOpen ? 1.0f : fMouseTarget;
+	const float fOffsetX = UpdateSlideAndGetOffsetX(mFleetSlide, vAnchor, -1.0f, fTarget);
 	ImGui::SetNextWindowPos(ImVec2(vAnchor.x + fOffsetX, vAnchor.y), ImGuiCond_Always);
 	ImGui::Begin("FleetPanel", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 	ImGui::SetWindowFontScale(kfMenuUiScale);
@@ -209,18 +235,18 @@ void HudScreen::RenderFleetPanel()
 		ImGui::Separator();
 		gpGame->mNavigationDelayControl.Update(pFleet->fNavigationDelay);
 		ImGui::BeginDisabled(gpGame->mNavigationDelayControl.IsPending());
-		static float sNavDelayEditValue = 0.0f;
+		static float sfNavigationDelayEditValue = 0.0f;
 		float fSliderValue = pFleet->fNavigationDelay;
 		if (ImGui::SliderFloat("Nav Delay", &fSliderValue, 0.0f, 10.0f))
 		{
-			sNavDelayEditValue = fSliderValue;
+			sfNavigationDelayEditValue = fSliderValue;
 		}
 		if (ImGui::IsItemDeactivatedAfterEdit())
 		{
 			if (gpClientSession != nullptr)
 			{
 				gpGame->mNavigationDelayControl.SetPending();
-				gpClientSession->SendFleetNavigationDelayRequest(gpGame->FocusedFleetIndex(), sNavDelayEditValue);
+				gpClientSession->SendFleetNavigationDelayRequest(gpGame->FocusedFleetIndex(), sfNavigationDelayEditValue);
 			}
 		}
 		ImGui::EndDisabled();
@@ -229,31 +255,33 @@ void HudScreen::RenderFleetPanel()
 	ImGui::End();
 }
 
-void HudScreen::RenderFocusedPlayerPanel()
+void HudScreen::RenderFocusedPlayerPanel(float fLeftMouseTarget)
 {
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
 	const ImVec2 vAnchor(rIo.DisplaySize.x * 0.95f, rIo.DisplaySize.y * 0.42f);
-	const float fOffsetX = UpdateSlideAndGetOffsetX(mFocusedPlayerSlide, vAnchor, 1.0f, 1.0f);
+	const float fOwnMouseTarget = ComputeMouseOpennessTarget(mFocusedPlayerSlide.vLastSize, vAnchor, 1.0f);
+	const float fTarget = std::max(fOwnMouseTarget, fLeftMouseTarget);
+	const float fOffsetX = UpdateSlideAndGetOffsetX(mFocusedPlayerSlide, vAnchor, 1.0f, fTarget);
 	ImGui::SetNextWindowPos(ImVec2(vAnchor.x + fOffsetX, vAnchor.y), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
 	ImGui::Begin("FocusedPlayerPanel", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 	ImGui::SetWindowFontScale(kfMenuUiScale);
 	mFocusedPlayerSlide.vLastSize = ImGui::GetWindowSize();
 	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
 
-	std::optional<int64_t> playerIndex = std::nullopt;
+	std::optional<int64_t> oPlayerIndex = std::nullopt;
 	{
 		auto it = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
 		if (it != gpGame->mCoordFrames.end() && it->second.iSnapshotCount > 0)
 		{
-			playerIndex = gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers);
+			oPlayerIndex = gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers);
 		}
 	}
-	if (playerIndex)
+	if (oPlayerIndex.has_value())
 	{
 		PlayersPostRender& rPlayers = *gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers;
-		bool bUseMissiles = static_cast<bool>(rPlayers.pFlags[*playerIndex] & PlayerFlags::kUseMissiles);
+		bool bUseMissiles = static_cast<bool>(rPlayers.pFlags[*oPlayerIndex] & PlayerFlags::kUseMissiles);
 		gpGame->mWeaponModeToggle.Update(bUseMissiles);
 
 		const char* pLabel = bUseMissiles ? "[Q] Missiles" : "[Q] Blasters";
@@ -263,7 +291,7 @@ void HudScreen::RenderFocusedPlayerPanel()
 			if (gpClientSession != nullptr && gpGame->ClientPlayerId().IsValid())
 			{
 				gpGame->mWeaponModeToggle.SetPending();
-				float fNavigationDelay = rPlayers.pfNavigationDelays[*playerIndex];
+				float fNavigationDelay = rPlayers.pfNavigationDelays[*oPlayerIndex];
 				gpClientSession->SendUpdatePlayerRequest(gpGame->ClientPlayerId().iValue, !bUseMissiles, fNavigationDelay);
 			}
 		}

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Wireframe primitive rendering (boxes, spheres, circles, lines) for development visualization. Gated by a debug-render constexpr (`BT_DEBUG` only) so calls compile to no-ops in non-debug builds.
+Wireframe primitive rendering (boxes, spheres, circles, lines) for development visualization. Gated by a debug-render constexpr (`BT_DEBUG` only) so calls compile to no-ops in non-debug builds; additionally gated at runtime by a file-scope flag (off by default) toggled from the game-layer hotkey, so submission helpers early-out when the user has not enabled visualization.
 
 ## Architecture Notes
 

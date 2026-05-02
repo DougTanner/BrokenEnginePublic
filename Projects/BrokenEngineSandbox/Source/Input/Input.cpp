@@ -44,6 +44,10 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 	{
 		rMenuInput.flags.Set(kToggleProfileText, KeyboardPressed('P', rRawInput));
 	}
+	if constexpr (kbDebugRender)
+	{
+		rMenuInput.flags.Set(kToggleDebugRender, KeyboardPressed('D', rRawInput));
+	}
 	if constexpr (kbDebugInput)
 	{
 		rMenuInput.flags.Set(kQuit, KeyboardPressed(VK_F4, rRawInput));

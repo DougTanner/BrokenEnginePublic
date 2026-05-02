@@ -8,7 +8,7 @@ namespace game
 
 using enum GameFlags;
 
-const int64_t Frame::kiVersion = 82 + engine::kiNavDataVersion + BlastersInterpolate::kiVersion + BlastersPostRender::kiVersion + MissilesInterpolate::kiVersion + MissilesPostRender::kiVersion + PlayersInterpolate::kiVersion + PlayersPostRender::kiVersion + SpaceshipsInterpolate::kiVersion + SpaceshipsPostRender::kiVersion + TargetsInterpolate::kiVersion + TargetsPostRender::kiVersion;
+const int64_t Frame::kiVersion = 83 + engine::kiNavDataVersion + BlastersInterpolate::kiVersion + BlastersPostRender::kiVersion + MissilesInterpolate::kiVersion + MissilesPostRender::kiVersion + PlayersInterpolate::kiVersion + PlayersPostRender::kiVersion + SpaceshipsInterpolate::kiVersion + SpaceshipsPostRender::kiVersion + TargetsInterpolate::kiVersion + TargetsPostRender::kiVersion;
 
 // FrameInterpolate
 FrameInterpolate::FrameInterpolate()
@@ -176,12 +176,13 @@ static void SpawnSpaceshipGroup(Frame& __restrict rFrame, const engine::FrameSta
 {
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
-	constexpr float kfSpawnRadius = 120.0f;
-	constexpr float kfMaxSpawnRadius = 250.0f;
+	constexpr int64_t kiGridDim = 20;
+	constexpr int64_t kiMaxFleetSize = 16;
 	constexpr float kfTerrainClearance = kfSpaceshipRadius * 2.0f;
 	constexpr float kfMinPlayerDistance = 120.0f;
-	constexpr float kfAngularSpacing = kfSpaceshipRadius * 3.0f / kfSpawnRadius;
+	constexpr float kfDesiredAnchorDistance = 150.0f;
 	constexpr float kfChevronStagger = kfSpaceshipRadius * 2.0f;
+	constexpr float kfShipSideSpacing = kfSpaceshipRadius * 3.0f;
 
 	// Count non-exploding players, use first as spawn center
 	int64_t iSpawnCount = 0;
@@ -203,20 +204,7 @@ static void SpawnSpaceshipGroup(Frame& __restrict rFrame, const engine::FrameSta
 	{
 		return;
 	}
-
-	// Single random base angle for the group
-	float fBaseAngle = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
-	float fCenterOffset = static_cast<float>(iSpawnCount - 1) * 0.5f;
-
-	// Chevron position with Z pinned to gBaseHeight — the actual point that will spawn (validated and placed both go through this)
-	auto ComputeChevronPosition = [&](int64_t iIndex, float fRadius) -> XMVECTOR
-	{
-		float fAngle = fBaseAngle + (static_cast<float>(iIndex) - fCenterOffset) * kfAngularSpacing;
-		float fShipRadius = fRadius + std::abs(static_cast<float>(iIndex) - fCenterOffset) * kfChevronStagger;
-		auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
-		auto vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fShipRadius), vecDirection, vecPlayerPosition);
-		return XMVectorSetZ(vecPosition, engine::gBaseHeight.Get());
-	};
+	int64_t iShipCount = std::min(iSpawnCount, kiMaxFleetSize);
 
 	// Reject positions outside the cell, inside terrain (with full body clearance), or within visible range of any alive player
 	auto IsSpawnPositionValid = [&](FXMVECTOR vecPosition) -> bool
@@ -244,34 +232,116 @@ static void SpawnSpaceshipGroup(Frame& __restrict rFrame, const engine::FrameSta
 		return true;
 	};
 
-	// Expand radius until every chevron position satisfies the validity predicate
-	float fCurrentRadius = kfSpawnRadius;
-	for (; fCurrentRadius <= kfMaxSpawnRadius; fCurrentRadius += 1.0f)
+	// Cell-area extents and grid pitch (vecArea layout: x=minX, y=maxY, z=maxX, w=minY — see common::InsideArea)
+	XMFLOAT4A f4Area;
+	XMStoreFloat4A(&f4Area, rStaticData.vecArea);
+	float fAreaMinX = f4Area.x;
+	float fAreaMinY = f4Area.w;
+	float fPitchX = (f4Area.z - f4Area.x) / static_cast<float>(kiGridDim);
+	float fPitchY = (f4Area.y - f4Area.w) / static_cast<float>(kiGridDim);
+
+	// Step 1: rasterize cell into a validity grid sampled at cell centers
+	bool aValidGrid[kiGridDim * kiGridDim];
+	for (int64_t iGridY = 0; iGridY < kiGridDim; ++iGridY)
 	{
-		bool bAllClear = true;
-		for (int64_t i = 0; i < iSpawnCount; ++i)
+		for (int64_t iGridX = 0; iGridX < kiGridDim; ++iGridX)
 		{
-			if (!IsSpawnPositionValid(ComputeChevronPosition(i, fCurrentRadius)))
-			{
-				bAllClear = false;
-				break;
-			}
-		}
-		if (bAllClear)
-		{
-			break;
+			auto vecGridCell = XMVectorSet(fAreaMinX + (static_cast<float>(iGridX) + 0.5f) * fPitchX, fAreaMinY + (static_cast<float>(iGridY) + 0.5f) * fPitchY, engine::gBaseHeight.Get(), 1.0f);
+			aValidGrid[iGridY * kiGridDim + iGridX] = IsSpawnPositionValid(vecGridCell);
 		}
 	}
-	if (fCurrentRadius > kfMaxSpawnRadius)
+
+	// Step 2: chevron template — anchor at front, ships fan back-and-side in local frame (forward = +x)
+	float fCenterOffset = static_cast<float>(iShipCount - 1) * 0.5f;
+	XMFLOAT2 aLocalOffsets[kiMaxFleetSize];
+	for (int64_t i = 0; i < iShipCount; ++i)
 	{
-		DEBUG_BREAK();
+		float fOffset = static_cast<float>(i) - fCenterOffset;
+		aLocalOffsets[i].x = -std::abs(fOffset) * kfChevronStagger;
+		aLocalOffsets[i].y = fOffset * kfShipSideSpacing;
+	}
+
+	// Step 3: score every grid cell as a candidate anchor; pick best-fit
+	int64_t iBestScore = 0;
+	float fBestDistanceCost = std::numeric_limits<float>::max();
+	int64_t iBestAnchorIndex = -1;
+	float fBestFacingCos = 1.0f;
+	float fBestFacingSin = 0.0f;
+	for (int64_t iGridY = 0; iGridY < kiGridDim; ++iGridY)
+	{
+		for (int64_t iGridX = 0; iGridX < kiGridDim; ++iGridX)
+		{
+			float fAnchorX = fAreaMinX + (static_cast<float>(iGridX) + 0.5f) * fPitchX;
+			float fAnchorY = fAreaMinY + (static_cast<float>(iGridY) + 0.5f) * fPitchY;
+
+			// Facing direction: anchor -> spawn-center player (XY only)
+			float fToPlayerX = XMVectorGetX(vecPlayerPosition) - fAnchorX;
+			float fToPlayerY = XMVectorGetY(vecPlayerPosition) - fAnchorY;
+			float fDistance = std::sqrt(fToPlayerX * fToPlayerX + fToPlayerY * fToPlayerY);
+			if (fDistance < kfMinPlayerDistance)
+			{
+				continue;
+			}
+			float fFacingCos = fToPlayerX / fDistance;
+			float fFacingSin = fToPlayerY / fDistance;
+
+			// Score: count chevron ships landing on valid grid cells
+			int64_t iScore = 0;
+			for (int64_t i = 0; i < iShipCount; ++i)
+			{
+				float fLocalForward = aLocalOffsets[i].x;
+				float fLocalSide = aLocalOffsets[i].y;
+				float fWorldX = fAnchorX + fFacingCos * fLocalForward - fFacingSin * fLocalSide;
+				float fWorldY = fAnchorY + fFacingSin * fLocalForward + fFacingCos * fLocalSide;
+				int64_t iShipGridX = static_cast<int64_t>(std::floor((fWorldX - fAreaMinX) / fPitchX));
+				int64_t iShipGridY = static_cast<int64_t>(std::floor((fWorldY - fAreaMinY) / fPitchY));
+				if (iShipGridX < 0 || iShipGridX >= kiGridDim || iShipGridY < 0 || iShipGridY >= kiGridDim)
+				{
+					continue;
+				}
+				if (aValidGrid[iShipGridY * kiGridDim + iShipGridX])
+				{
+					++iScore;
+				}
+			}
+			if (iScore == 0)
+			{
+				continue;
+			}
+
+			float fDistanceCost = std::abs(fDistance - kfDesiredAnchorDistance);
+			if (iScore > iBestScore || (iScore == iBestScore && fDistanceCost < fBestDistanceCost))
+			{
+				iBestScore = iScore;
+				fBestDistanceCost = fDistanceCost;
+				iBestAnchorIndex = iGridY * kiGridDim + iGridX;
+				fBestFacingCos = fFacingCos;
+				fBestFacingSin = fFacingSin;
+			}
+		}
+	}
+	if (iBestAnchorIndex < 0)
+	{
 		return;
 	}
 
-	// Spawn each spaceship at the chosen radius — search has validated every chevron position
-	for (int64_t i = 0; i < iSpawnCount; ++i)
+	// Step 4: place ships at the chosen anchor (subset fallback — skip ships whose exact position fails the precise validity check)
+	int64_t iBestGridX = iBestAnchorIndex % kiGridDim;
+	int64_t iBestGridY = iBestAnchorIndex / kiGridDim;
+	float fBestAnchorX = fAreaMinX + (static_cast<float>(iBestGridX) + 0.5f) * fPitchX;
+	float fBestAnchorY = fAreaMinY + (static_cast<float>(iBestGridY) + 0.5f) * fPitchY;
+	for (int64_t i = 0; i < iShipCount; ++i)
 	{
-		auto vecSpawnPosition = ComputeChevronPosition(i, fCurrentRadius);
+		float fLocalForward = aLocalOffsets[i].x;
+		float fLocalSide = aLocalOffsets[i].y;
+		float fWorldX = fBestAnchorX + fBestFacingCos * fLocalForward - fBestFacingSin * fLocalSide;
+		float fWorldY = fBestAnchorY + fBestFacingSin * fLocalForward + fBestFacingCos * fLocalSide;
+		auto vecSpawnPosition = XMVectorSet(fWorldX, fWorldY, engine::gBaseHeight.Get(), 1.0f);
+		if (!IsSpawnPositionValid(vecSpawnPosition))
+		{
+			continue;
+		}
+
 		auto vecDirectionToPlayer = XMVector3Normalize(XMVectorSubtract(vecPlayerPosition, vecSpawnPosition));
 		SpaceshipsPostRender::Spawn(rFrame,
 		{

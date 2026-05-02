@@ -32,6 +32,7 @@ enum class MenuInputFlags : uint64_t
 	kMenuDebugTexture  = 0x00200000,
 	kDebugTextureNext  = 0x00400000,
 	kDebugTexturePrev  = 0x00800000,
+	kToggleDebugRender = 0x01000000,
 };
 using MenuInputFlags_t = common::Flags<MenuInputFlags>;
 

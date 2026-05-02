@@ -72,6 +72,12 @@ void GameBase::ClientUpdate()
 		}
 	}
 
+	// Set after the ceiling clamp so mfLastDeltaTime reflects the sim seconds actually applied this
+	// iteration (kept in lockstep with miTickCounter / mfCurrentTime below). No client-side consumer
+	// reads mfLastDeltaTime from inside PrepareActiveSet today; if one is added, move this earlier
+	// and accept that it represents pre-clamp intent rather than executed work.
+	mfLastDeltaTime = static_cast<float>(iFullTicks) * game::kfDeltaTime;
+
 	miTickCounter += iFullTicks;
 	mfCurrentTime += static_cast<float>(iFullTicks) * game::kfDeltaTime;
 
@@ -119,6 +125,7 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 	{
 		LOG(kDefault, kWarning, "ServerUpdate FullTicks: {} (expected 1)", iFullTicks);
 	}
+	mfLastDeltaTime = static_cast<float>(iFullTicks) * game::kfDeltaTime;
 
 	PrepareActiveSet();
 

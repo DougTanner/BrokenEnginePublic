@@ -61,6 +61,9 @@
 // Render
 #include "Graphics/Render/Render.h"
 
+// Graphics debug
+#include "Graphics/Debug/DebugRender.h"
+
 // Audio (voices before managers: AudioManager uses StaticVoices and StreamingVoices)
 #include "Audio/StaticVoice.h"
 #include "Audio/StreamingVoice.h"

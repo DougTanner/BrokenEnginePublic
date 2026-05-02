@@ -14,6 +14,8 @@ public:
 	static void Circle(const XMFLOAT3A& f3Center, float fRadius, const XMFLOAT4A& f4Color);
 	static void Line(const XMFLOAT3A& f3Start, const XMFLOAT3A& f3End, const XMFLOAT4A& f4Color);
 
+	static void Toggle();
+
 	static void BeginRender(int64_t iCommandBuffer);
 	static void EndRender(int64_t iCommandBuffer);
 };

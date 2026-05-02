@@ -28,6 +28,8 @@ static constexpr int64_t kiSphere = 1;
 static constexpr int64_t kiCircle = 2;
 static constexpr int64_t kiLine = 3;
 
+static bool sbEnabled = false;
+
 static void AddLayout(int64_t iType, const XMFLOAT4A& f4Row0, const XMFLOAT4A& f4Row1, const XMFLOAT4A& f4Row2, const XMFLOAT4A& f4Color)
 {
 	if constexpr (kbDebugRender)
@@ -48,6 +50,7 @@ void DebugRender::Box(const XMFLOAT3A& f3Position, const XMFLOAT3A& f3Scale, con
 {
 	if constexpr (kbDebugRender)
 	{
+		if (!sbEnabled) { return; }
 		// Row-major 3x4: scale on diagonal, translation in w
 		AddLayout(kiBox,
 			{f3Scale.x, 0.0f, 0.0f, f3Position.x},
@@ -61,6 +64,7 @@ void DebugRender::Sphere(const XMFLOAT3A& f3Center, float fRadius, const XMFLOAT
 {
 	if constexpr (kbDebugRender)
 	{
+		if (!sbEnabled) { return; }
 		AddLayout(kiSphere,
 			{fRadius, 0.0f, 0.0f, f3Center.x},
 			{0.0f, fRadius, 0.0f, f3Center.y},
@@ -73,6 +77,7 @@ void DebugRender::Circle(const XMFLOAT3A& f3Center, float fRadius, const XMFLOAT
 {
 	if constexpr (kbDebugRender)
 	{
+		if (!sbEnabled) { return; }
 		AddLayout(kiCircle,
 			{fRadius, 0.0f, 0.0f, f3Center.x},
 			{0.0f, fRadius, 0.0f, f3Center.y},
@@ -85,6 +90,7 @@ void DebugRender::Line(const XMFLOAT3A& f3Start, const XMFLOAT3A& f3End, const X
 {
 	if constexpr (kbDebugRender)
 	{
+		if (!sbEnabled) { return; }
 		// Line mesh is (0,0,0) to (1,0,0) along +X
 		// Transform: X axis = direction, translation = start
 		float fDx = f3End.x - f3Start.x;
@@ -96,6 +102,14 @@ void DebugRender::Line(const XMFLOAT3A& f3Start, const XMFLOAT3A& f3End, const X
 			{fDy, 0.0f, 0.0f, f3Start.y},
 			{fDz, 0.0f, 0.0f, f3Start.z},
 			f4Color);
+	}
+}
+
+void DebugRender::Toggle()
+{
+	if constexpr (kbDebugRender)
+	{
+		sbEnabled = !sbEnabled;
 	}
 }
 
@@ -116,7 +130,7 @@ void DebugRender::BeginRender(int64_t iCommandBuffer)
 			}
 
 			auto [pLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::DebugRenderLayout>(rType.crc, kBufferMain, iCommandBuffer);
-			memcpy(pLayouts, rType.pLayouts, rType.iCount * sizeof(shaders::DebugRenderLayout));
+			std::memcpy(pLayouts, rType.pLayouts, rType.iCount * sizeof(shaders::DebugRenderLayout));
 		}
 	}
 }

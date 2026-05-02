@@ -7,7 +7,7 @@ Client-only (`BT_CLIENT`) conversion of raw hardware input into game and menu co
 ## Architecture Notes
 
 - **Two-tier input**: Menu input polls every display frame for responsive UI; per-tick `FrameInput` (a list of `StatusChange`s) is built separately and consumed during the physics tick pipeline. Its serialized layout is versioned — bump `kiVersion` on any on-disk change (replays/saves depend on it).
-- **Debug-gated bindings**: Debug/profile/screenshot keys compile in via `if constexpr` on `kbDebugInput` / `kbProfiling` / `kbScreenshots`; new debug-only keys belong inside those blocks.
+- **Debug-gated bindings**: Debug/profile/screenshot/debug-render keys compile in via `if constexpr` on `kbDebugInput` / `kbProfiling` / `kbScreenshots` / `kbDebugRender`; new debug-only keys belong inside those blocks.
 - **Mode auto-switch**: gamepad engages when `|thumbstick| > 0.1f`; mouse movement or a key in the KBM whitelist (WASD, arrows, numpad 1/2/3/5, LMB/RMB) flips back. New movement keys must extend the whitelist or mode detection misses them.
 - **Toggle-detect ordering**: previous-frame menu input is captured after all `*Pressed()` calls for the frame; moving that assignment earlier silently breaks edge detection for the rest of the function.
 - **Transfer determinism**: Transfer status changes route through the human's grid coordinate so replay order is deterministic.
