@@ -70,8 +70,7 @@ void XM_CALLCONV PlayersPostRender::AcquireTarget(const Frame& __restrict rPrevi
 
 	// Find nearest alive spaceship
 	float fClosestDistance = kfTargetRange;
-	XMVECTOR vecClosestPosition = XMVectorZero();
-	bool bTargetFound = false;
+	int64_t iClosestSpaceship = -1;
 
 	for (int64_t j = 0; j < iSpaceshipCount; ++j)
 	{
@@ -94,10 +93,15 @@ void XM_CALLCONV PlayersPostRender::AcquireTarget(const Frame& __restrict rPrevi
 		if (fDistance < fClosestDistance)
 		{
 			fClosestDistance = fDistance;
-			vecClosestPosition = rSpaceshipsInterpolate.pVecPositions[j];
-			bTargetFound = true;
+			iClosestSpaceship = j;
 		}
 	}
+
+	// Lead the target: aim at where the spaceship will be when the blaster reaches it.
+	bool bTargetFound = (iClosestSpaceship >= 0);
+	XMVECTOR vecClosestPosition = bTargetFound
+		? common::ComputeLeadPosition(vecPosition, rSpaceshipsInterpolate.pVecPositions[iClosestSpaceship], rSpaceshipsPostRender.pVecVelocities[iClosestSpaceship], kfBlastersSpeed)
+		: XMVectorZero();
 
 	// Fallback: if no in-range target, find nearest alive spaceship for look direction
 	rVecLookPosition = vecClosestPosition;

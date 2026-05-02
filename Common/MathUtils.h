@@ -94,6 +94,12 @@ float XM_CALLCONV Distance(FXMVECTOR vecOne, FXMVECTOR vecTwo);
 
 XMVECTOR XM_CALLCONV DirectionTo(FXMVECTOR vecFrom, FXMVECTOR vecTo);
 
+// Compute lead position to intercept a moving target with a constant-speed projectile.
+// Solves the quadratic ||(T - S) + Vt*t|| = vp*t for the smallest positive t and returns T + Vt*t.
+// Falls back to vecTargetPosition when no positive intercept exists (target outruns projectile,
+// degenerate, etc.). Assumes the projectile does NOT inherit shooter velocity.
+XMVECTOR XM_CALLCONV ComputeLeadPosition(FXMVECTOR vecShooterPosition, FXMVECTOR vecTargetPosition, FXMVECTOR vecTargetVelocity, float fProjectileSpeed);
+
 template<std::integral T>
 constexpr inline T RoundUp(T iToRound, T iMultiple)
 {

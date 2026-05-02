@@ -14,9 +14,19 @@ Organized by area: `DataPacker/`, `Engine/`, `Frame/`, `Graphics/` (includes `Sh
 
 ## Rules
 
-- Any new refactor/bugfix plan added to this directory **must** be added to `Order.md`.
-- When a plan is executed, **remove it** from `Order.md` and **delete the plan file** from disk.
+- Any new refactor/bugfix plan added to this directory **must** be added to `Order.md` **in the same edit session that creates the plan file**, with the full table row populated: `Tier`, `Effort`, `Impact`, `Risks`, computed `Score`, and `Notes`. Use the scoring anchors in [`../CLAUDE.md`](../CLAUDE.md). Do not leave scoring "for the user to fill in later" — that abdication has caused plans to land outside the priority queue. If the change is genuinely too speculative to score, the plan does not belong here yet.
+- Insert the new row at its score-correct sorted position (lowest score first), and renumber the leftmost `#` column for all rows below the insertion point so the column remains a contiguous 1-based ordinal. If the plan touches files already listed in the `## File Groups` or `## Dependencies` sections, add it to the relevant entry there too.
+- When a plan is executed, **remove it** from `Order.md` and **delete the plan file** from disk. Renumber the `#` column to close the gap.
 - If a plan turns out to be a new capability rather than a refactor, move it to `Documents/Features/` and update both `Order.md` files.
+
+### Required `Order.md` row format
+
+```
+| # | Plan | Tier | Effort | Impact | Risks | Score | Notes |
+| <ord> | [<area>/<File>.md](<area>/<File>.md) | <Quick Win\|Small\|Medium\|Large\|Architectural> | <1-5> | <1-5> | <0-4> | <Effort − Impact + Risks> | <one-line summary of what lands> |
+```
+
+`Tier` is an informal size/risk descriptor and does not affect score or ordering — it exists for readers scanning the table.
 
 ## Plan File Authoring
 

@@ -140,15 +140,13 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 			// Generate new random exhaust length every frame
 			fExhaustLength = kfMissileExhaustLength + common::Random<kfMissileExhaustLengthRandom>(rFrame.postRender.randomEngine);
 
-			// Track target or orient toward stored direction
+			// Validate existing target: clear uiTarget if its source row or kDestination flag is gone
 			if (uiTarget.IsValid())
 			{
 				const TargetsInterpolate& rTargets = *rPreviousFrame.interpolate.pTargets;
 
-				// Check if target was force-removed (spaceship died)
 				if (!rTargets.idToIndexMap.contains(uiTarget))
 				{
-					// Target no longer exists - clear our reference
 					uiTarget = {};
 					vecStoredDirection = rCurrentInterpolate.pVecDirections[i];
 				}
@@ -157,41 +155,50 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 					const TargetsPostRender& rTargetsPostRender = *rPreviousFrame.postRender.pTargets;
 					int64_t iTargetIndex = rTargets.IdToIndex(uiTarget);
 
-					// Check if target still has a destination (spaceship owner)
 					if (!(rTargetsPostRender.pFlags[iTargetIndex] & TargetFlags::kDestination))
 					{
-						// Target's source was destroyed - release subscription and capture current direction
 						TargetsPostRender::Remove(rFrame, uiTarget, {});
 						uiTarget = {};
 						vecStoredDirection = rCurrentInterpolate.pVecDirections[i];
 					}
-					else
-					{
-						fDeltaRotationDelay -= fDeltaTime;
-
-						XMVECTOR vecTargetPosition = rTargets.pVecPositions[iTargetIndex];
-						XMVECTOR vecToTargetNormal = XMVector3Normalize(XMVectorSubtract(vecTargetPosition, rCurrentInterpolate.pVecPositions[i]));
-						float fDirectionDestinationCrossZ = XMVectorGetZ(XMVector3Cross(rCurrentInterpolate.pVecDirections[i], vecToTargetNormal));
-						float fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? kfDeltaRotationTowardsTarget : -kfDeltaRotationTowardsTarget;
-
-						// Apply delay percentage so rotation ramps up gradually
-						float fDelayPercent = std::clamp(1.0f - fDeltaRotationDelay / kfMissileDeltaRotationDelay, 0.0f, 1.0f);
-						fWantedDeltaRotation *= fDelayPercent;
-
-						fDeltaRotation = kfDeltaRotationChange * fDeltaRotation + (1.0f - kfDeltaRotationChange) * fWantedDeltaRotation;
-					}
 				}
+			}
+
+			// Re-acquire every Tick when targetless (alignment-aware Targets scan, same path used at spawn)
+			bool bAcquiredThisTick = false;
+			if (!uiTarget.IsValid())
+			{
+				uiTarget = Frame::GetMissileTarget(rFrame, rCurrentInterpolate.pVecPositions[i], rCurrentInterpolate.pVecDirections[i], rCurrent.pAlignments[i]);
+				bAcquiredThisTick = uiTarget.IsValid();
+			}
+
+			// Home only on a target that was already valid coming into this tick; freshly-acquired targets
+			// engage homing next tick (matches engine's read-previous / write-current pattern)
+			if (uiTarget.IsValid() && !bAcquiredThisTick)
+			{
+				const TargetsInterpolate& rTargets = *rPreviousFrame.interpolate.pTargets;
+				int64_t iTargetIndex = rTargets.IdToIndex(uiTarget);
+
+				fDeltaRotationDelay -= fDeltaTime;
+
+				XMVECTOR vecTargetPosition = rTargets.pVecPositions[iTargetIndex];
+				XMVECTOR vecToTargetNormal = XMVector3Normalize(XMVectorSubtract(vecTargetPosition, rCurrentInterpolate.pVecPositions[i]));
+				float fDirectionDestinationCrossZ = XMVectorGetZ(XMVector3Cross(rCurrentInterpolate.pVecDirections[i], vecToTargetNormal));
+				float fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? kfDeltaRotationTowardsTarget : -kfDeltaRotationTowardsTarget;
+
+				float fDelayPercent = std::clamp(1.0f - fDeltaRotationDelay / kfMissileDeltaRotationDelay, 0.0f, 1.0f);
+				fWantedDeltaRotation *= fDelayPercent;
+
+				fDeltaRotation = kfDeltaRotationChange * fDeltaRotation + (1.0f - kfDeltaRotationChange) * fWantedDeltaRotation;
 			}
 			else
 			{
 				fDeltaRotationDelay -= fDeltaTime;
 
-				// For untargeted missiles, gradually orient toward stored direction
 				XMVECTOR vecCurrentDirection = rCurrentInterpolate.pVecDirections[i];
 				float fDirectionCrossZ = XMVectorGetZ(XMVector3Cross(vecCurrentDirection, vecStoredDirection));
 				float fWantedDeltaRotation = fDirectionCrossZ > 0.0f ? kfDeltaRotationTowardsStored : -kfDeltaRotationTowardsStored;
 
-				// Apply delay percentage so rotation ramps up gradually
 				float fDelayPercent = std::clamp(1.0f - fDeltaRotationDelay / kfMissileDeltaRotationDelay, 0.0f, 1.0f);
 				fWantedDeltaRotation *= fDelayPercent;
 

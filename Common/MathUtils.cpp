@@ -82,6 +82,54 @@ XMVECTOR XM_CALLCONV DirectionTo(FXMVECTOR vecFrom, FXMVECTOR vecTo)
 	return XMVector3Normalize(XMVectorSubtract(vecTo, vecFrom));
 }
 
+XMVECTOR XM_CALLCONV ComputeLeadPosition(FXMVECTOR vecShooterPosition, FXMVECTOR vecTargetPosition, FXMVECTOR vecTargetVelocity, float fProjectileSpeed)
+{
+	XMVECTOR vecOffset = XMVectorSubtract(vecTargetPosition, vecShooterPosition);
+	float fA = XMVectorGetX(XMVector3Dot(vecTargetVelocity, vecTargetVelocity)) - fProjectileSpeed * fProjectileSpeed;
+	float fB = 2.0f * XMVectorGetX(XMVector3Dot(vecOffset, vecTargetVelocity));
+	float fC = XMVectorGetX(XMVector3Dot(vecOffset, vecOffset));
+
+	float fT = -1.0f;
+	if (std::abs(fA) < 1.0e-6f)
+	{
+		// Target speed approximately equals projectile speed: linear fallback
+		if (std::abs(fB) > 1.0e-6f)
+		{
+			fT = -fC / fB;
+		}
+	}
+	else
+	{
+		float fDiscriminant = fB * fB - 4.0f * fA * fC;
+		if (fDiscriminant >= 0.0f)
+		{
+			float fSqrt = std::sqrt(fDiscriminant);
+			float fInv2A = 0.5f / fA;
+			float fT0 = (-fB - fSqrt) * fInv2A;
+			float fT1 = (-fB + fSqrt) * fInv2A;
+			// Smallest positive root
+			if (fT0 > 0.0f && fT1 > 0.0f)
+			{
+				fT = std::min(fT0, fT1);
+			}
+			else if (fT0 > 0.0f)
+			{
+				fT = fT0;
+			}
+			else if (fT1 > 0.0f)
+			{
+				fT = fT1;
+			}
+		}
+	}
+
+	if (fT <= 0.0f)
+	{
+		return vecTargetPosition;
+	}
+	return XMVectorMultiplyAdd(vecTargetVelocity, XMVectorReplicate(fT), vecTargetPosition);
+}
+
 float FromGamma(float fGamma)
 {
 	return std::pow(std::max(0.0f, fGamma), 1.0f / 2.2f);

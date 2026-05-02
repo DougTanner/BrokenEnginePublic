@@ -14,6 +14,7 @@ namespace
 constexpr float kfActivationDistancePixels = 350.0f;
 constexpr float kfSlideRate = 8.0f;
 constexpr float kfEdgeMarginPixels = 8.0f;
+constexpr float kfForceOpenGracePeriodSeconds = 2.0f;
 
 } // namespace
 
@@ -66,15 +67,28 @@ void HudScreen::Render()
 		return;
 	}
 
-	bool bForceLeftOpen = !gpGame->ClientPlayerId().IsValid();
-	if (!bForceLeftOpen)
+	bool bWantsForceOpen = !gpGame->ClientPlayerId().IsValid();
+	if (!bWantsForceOpen)
 	{
 		auto it = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
 		if (it != gpGame->mCoordFrames.end() && it->second.iSnapshotCount > 0)
 		{
-			bForceLeftOpen = (gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pSpaceships->iCount == 0);
+			bWantsForceOpen = (gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pSpaceships->iCount == 0);
 		}
 	}
+
+	// Grace period: only force-open once the want-state has been sustained. Avoids flickering during brief frame transitions
+	// where ClientPlayerId or the focused-cell spaceship count momentarily drops out.
+	if (bWantsForceOpen)
+	{
+		mfTimeWantingForceOpen += ImGui::GetIO().DeltaTime;
+	}
+	else
+	{
+		mfTimeWantingForceOpen = 0.0f;
+	}
+
+	const bool bForceLeftOpen = (mfTimeWantingForceOpen >= kfForceOpenGracePeriodSeconds);
 
 	// Compute left mouse target before rendering so right panel can couple to it (one-way: left mouse-over → right slides in).
 	ImGuiIO& rIo = ImGui::GetIO();
@@ -237,7 +251,7 @@ void HudScreen::RenderFleetPanel(bool bForceOpen, float fMouseTarget)
 		ImGui::BeginDisabled(gpGame->mNavigationDelayControl.IsPending());
 		static float sfNavigationDelayEditValue = 0.0f;
 		float fSliderValue = pFleet->fNavigationDelay;
-		if (ImGui::SliderFloat("Nav Delay", &fSliderValue, 0.0f, 10.0f))
+		if (ImGui::SliderFloat("Nav Delay", &fSliderValue, 0.0f, 60.0f))
 		{
 			sfNavigationDelayEditValue = fSliderValue;
 		}

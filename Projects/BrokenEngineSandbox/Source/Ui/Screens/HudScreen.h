@@ -28,6 +28,7 @@ private:
 	static float UpdateSlideAndGetOffsetX(SlidePanelState& rState, ImVec2 vAnchor, float fSidePivotSign, float fTarget);
 	SlidePanelState mFleetSlide {};
 	SlidePanelState mFocusedPlayerSlide {};
+	float mfTimeWantingForceOpen = 0.0f;
 #endif
 };
 
