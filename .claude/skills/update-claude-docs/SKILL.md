@@ -127,6 +127,20 @@ After user approval, apply edits following the sync-mode content rules (§Conten
 
 ## Content Guidelines (both modes)
 
+### Vocabulary and Pattern Consistency Across the CLAUDE.md Tree
+
+The CLAUDE.md tree (root → subsystem hubs → leaves) is this codebase's authoritative glossary. Editing a leaf without checking the parents leaves the tree internally inconsistent — different leaves invent synonyms for the same concept, or the leaf silently overrides a pattern documented at the hub.
+
+Two rules apply on every edit:
+
+1. **Use established vocabulary.** When the doc you're writing names a concept that's already defined upstream (root `CLAUDE.md`, the nearest hub like `Engine/Source/CLAUDE.md`, or a sibling subsystem doc), use the same term. Examples that already have a fixed term in this codebase: *Collection*, *Frame*, *Members() / SharedMembers() / ClientMembers()*, *Update / PostRender / Interpolate phases*, *workbuffer*, *gp\* singleton*, *SOA*, *EWNS*, *deterministic CRC*. Don't introduce "component," "entity manager," "tick stage," "scratch buffer," or other near-synonyms — they fragment the glossary. If you find yourself inventing a term, first grep the existing CLAUDE.md tree for what the codebase already calls the thing.
+
+2. **Flag conflicts; don't silently override.** If a code change you're documenting *contradicts* a pattern already stated in a parent or sibling CLAUDE.md, do not just overwrite the leaf with the new behaviour. Surface the contradiction in the output:
+
+   > _Note: this change contradicts the "all engine code accesses game through `game::gpGame`" rule in `Engine/Source/CLAUDE.md`. The contradiction may be intentional (new exception) or accidental (rule still holds and the change should be revisited)._
+
+   Then ask the user which it is. The cost of silently overriding is high: the next reader sees two CLAUDE.md files describing the same area with conflicting rules and has to guess which is current. The parent doc and the change are both now under suspicion, not just the change.
+
 ### DO: Focus on Purpose and Architecture
 - Document what classes/systems DO, not what members they HAVE
 - Explain design patterns and relationships between components

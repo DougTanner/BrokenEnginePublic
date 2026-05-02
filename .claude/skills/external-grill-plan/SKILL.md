@@ -31,6 +31,18 @@ Interview the user about every aspect of this plan until reaching shared underst
 ## Role Boundary
 This skill fills gaps in an existing plan. **Do not re-design** the interface — that is `/external-design-interface`'s job. If the plan's interface shape is itself unclear, stop and recommend running `/external-design-interface` first.
 
+## Bug-Fix Pre-Step (Hypothesis Ranking)
+
+When the loaded plan is a bug fix or regression diagnosis (filename starts with `Bugfix_`, plan describes a broken behavior, or the user invoked the skill on a `diagnose` workflow), prepend the following to the workflow above — **before** walking the engine-specific branches:
+
+1. From the plan's symptom description, generate **3–5 ranked falsifiable hypotheses** for the cause. Each hypothesis must state a prediction:
+   > "If `<X>` is the cause, then changing `<Y>` will make the bug disappear / changing `<Z>` will make it worse."
+2. If a hypothesis cannot be stated as a prediction, it's a vibe — discard or sharpen it.
+3. **Present the ranked list to the user before grilling implementation details.** The user often has context that instantly re-ranks ("we just changed #3 yesterday") or rules out hypotheses already disproven. Cheap checkpoint, big time saver.
+4. Once the user confirms or re-ranks, proceed to the standard engine-specific interrogation branches with the leading hypothesis as the working assumption.
+
+Skip this pre-step for refactor / debt / capability plans — those have no "cause" to hypothesise about; the standard interrogation branches cover them directly.
+
 ## Engine-Specific Interrogation Branches
 
 Always probe these areas if the plan touches them:

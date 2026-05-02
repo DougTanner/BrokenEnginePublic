@@ -42,6 +42,12 @@ These rules are mechanical and grep-able. For each, search the modified ranges a
 
 For any rule not in this list, defer to the style guide text.
 
+### 3b. Project Conventions Beyond the Style Guide
+
+These are project-wide conventions that complement `Documents/C++StyleGuide.txt`. Apply mechanically, same as the rule checklist above:
+
+- **Debug instrumentation must be tag-prefixed.** Any temporary `LOG(...)`, `printf`, `DEBUG_BREAK()` cluster, or `assert(false)` left in the code as part of investigating a bug must use a unique tag prefix in the form `[DEBUG-<short-id>]` (e.g., `[DEBUG-a4f2]`, `[DEBUG-w-leak]`). The tag lets cleanup happen by single grep at the end of the session — untagged debug logs survive into commits, tagged ones die. If a modified file in this session contains an untagged `LOG(.*kDebug.*)` or commented-out `// FIXME` / `// HACK` that was clearly added during the session (recently authored, near the change site), flag it and either add a `[DEBUG-<tag>]` prefix or remove the line. Do not flag pre-existing `kDebug` logs that predate the session — those are intentional one-time logs per the LOG-level convention in the root `CLAUDE.md`.
+
 ### 4. Fix Policy
 
 - Fix violations directly without asking permission — auto-apply within changed files.
