@@ -30,9 +30,21 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSmokeNoiseInfluence = gSmokeNoiseInfluence.Get();
 
 	uint32_t uiTextureOneWidth = gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.width;
+	uint32_t uiTextureOneHeight = gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.height;
 	uint32_t uiMaxWidth = std::max(uiTextureOneWidth, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.width);
+	uint32_t uiMaxHeight = std::max(uiTextureOneHeight, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.height);
 	rGlobalLayout.uiSmokeTilesX = (uiMaxWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	rGlobalLayout.uiSmokeTilesY = (uiMaxHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
 	rGlobalLayout.fSmokeDepositTileScale = static_cast<float>(uiMaxWidth) / static_cast<float>(uiTextureOneWidth);
+
+	// World-area follows the visible area each frame: aspect inherits from the framebuffer,
+	// size grows with camera zoom-out. gSmokeSimulationArea acts as a margin multiplier.
+	const XMFLOAT4& rVisible = game::gpCamera->f4RenderVisibleArea;
+	float fCenterX = 0.5f * (rVisible.x + rVisible.z);
+	float fCenterY = 0.5f * (rVisible.y + rVisible.w);
+	float fHalfWidth = 0.5f * (rVisible.z - rVisible.x) * gSmokeSimulationArea.Get();
+	float fHalfHeight = 0.5f * (rVisible.y - rVisible.w) * gSmokeSimulationArea.Get();
+	XMFLOAT4 f4CurrentSmokeArea {fCenterX - fHalfWidth, fCenterY + fHalfHeight, fCenterX + fHalfWidth, fCenterY - fHalfHeight};
 
 	static bool sbSmoke = false;
 	if (sbSmoke != gSmoke.Get<bool>())
@@ -41,9 +53,23 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 		gbSmokeClear = true;
 	}
 
+	// Persisted across frames so the next frame's spread starts with previous == current
+	// after a clear/disabled span — avoids divide-by-zero in WorldToSmokeTexcoord(zero, ...)
+	static bool sbPreviousAreaInitialized = false;
+	static XMFLOAT4 sf4PreviousSmokeArea {};
+	if (!sbPreviousAreaInitialized)
+	{
+		sf4PreviousSmokeArea = f4CurrentSmokeArea;
+		sbPreviousAreaInitialized = true;
+	}
+
 	if (gbSmokeClear)
 	{
 		gbSmokeClear = false;
+
+		rGlobalLayout.f4SmokeArea = f4CurrentSmokeArea;
+		rGlobalLayout.f4PreviousSmokeArea = f4CurrentSmokeArea;
+		sf4PreviousSmokeArea = f4CurrentSmokeArea;
 
 		gpPipelineManager->mpPipelines[kPipelineSmokeClearA].WriteIndirectBuffer(iCommandBuffer, 1);
 		gpPipelineManager->mpPipelines[kPipelineSmokeClearB].WriteIndirectBuffer(iCommandBuffer, 1);
@@ -51,10 +77,10 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 		return;
 	}
 
-	static XMFLOAT4 sf4PreviousSmokeArea {};
 	if (!gSmoke.Get<bool>())
 	{
 		rGlobalLayout.f4SmokeArea = sf4PreviousSmokeArea;
+		rGlobalLayout.f4PreviousSmokeArea = sf4PreviousSmokeArea;
 
 		gpPipelineManager->mpPipelines[kPipelineSmokeClearA].WriteIndirectBuffer(iCommandBuffer, 0);
 		gpPipelineManager->mpPipelines[kPipelineSmokeClearB].WriteIndirectBuffer(iCommandBuffer, 0);
@@ -62,15 +88,9 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 		return;
 	}
 
-	XMFLOAT4A f4PlayerPosition {};
-	XMStoreFloat4A(&f4PlayerPosition, game::gpCamera->mVecPosition);
-	float fAreaX = 0.5f * (0.025f * 8000.0f * gSmokeSimulationArea.Get());
-	float fAreaY = 0.5f * (0.025f * 8000.0f * gSmokeSimulationArea.Get());
-	rGlobalLayout.f4SmokeArea = {f4PlayerPosition.x - fAreaX, f4PlayerPosition.y + fAreaY, f4PlayerPosition.x + fAreaX, f4PlayerPosition.y - fAreaY};
-
-	shaders::AxisAlignedQuadLayout& rQuad = *reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mSmokeSpreadStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	WriteSpreadQuad(sf4PreviousSmokeArea, rGlobalLayout.f4SmokeArea, rQuad);
-	sf4PreviousSmokeArea = rGlobalLayout.f4SmokeArea;
+	rGlobalLayout.f4SmokeArea = f4CurrentSmokeArea;
+	rGlobalLayout.f4PreviousSmokeArea = sf4PreviousSmokeArea;
+	sf4PreviousSmokeArea = f4CurrentSmokeArea;
 
 	gpPipelineManager->mpPipelines[kPipelineSmokeClearA].WriteIndirectBuffer(iCommandBuffer, 0);
 	gpPipelineManager->mpPipelines[kPipelineSmokeClearB].WriteIndirectBuffer(iCommandBuffer, 0);

@@ -53,6 +53,7 @@ inline VkExtent2D gWantedFramebufferExtent2D {};
 
 std::tuple<int64_t, int64_t> FullDetail();
 float SmokeSimulationPixels();
+float SmokeSimulationPixelsY();
 
 class Graphics
 {

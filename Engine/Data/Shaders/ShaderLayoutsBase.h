@@ -171,6 +171,7 @@ struct GlobalLayout
 
 	// Smoke
 	vec4 f4SmokeArea INIT;
+	vec4 f4PreviousSmokeArea INIT;
 	float fSmokeMax INIT;
 	float fSmokePower INIT;
 	float fSmokeDecay INIT;
@@ -187,6 +188,7 @@ struct GlobalLayout
 	float fSmokeEdgeDecayDistanceInv INIT;
 	float fSmokeNoiseInfluence INIT;
 	uint32_t uiSmokeTilesX INIT;
+	uint32_t uiSmokeTilesY INIT;
 	float fSmokeDepositTileScale INIT;
 	float fWindDisplacementNoiseScale INIT;
 	float fWindSmokeAdvection INIT;
@@ -217,6 +219,7 @@ struct GlobalLayout
 	float fWindDiffusionLow INIT;
 	float fWindTextureIndex INIT; // Blend factor: 0.0 = TextureOne, 1.0 = TextureTwo (continuous for interpolation)
 	uint32_t uiWindTilesX INIT;
+	uint32_t uiWindTilesY INIT;
 
 	// Lighting
 	float fLightingObjectsAdd INIT;
@@ -306,6 +309,8 @@ struct GlobalLayout
 	float fTerrainSunBrightness INIT;
 	float fWaterReducedNormalOriginX INIT;
 	float fWaterReducedNormalOriginY INIT;
+	float fWaterReducedNormalOriginRotatedX INIT;
+	float fWaterReducedNormalOriginRotatedY INIT;
 
 	// Water
 	int32_t iWaterLowCount INIT;
@@ -337,6 +342,7 @@ struct GlobalLayout
 	float fWaterLowSteepness INIT;
 	float fWaterMediumSteepness INIT;
 	float fWaterReducedNormalTime INIT;
+	float fWaterReducedNormalTimeRotated INIT;
 
 	// Particles
 	float fParticlesStretchVelocityStart INIT;
@@ -376,6 +382,7 @@ struct GlobalLayout
 	// Time of day
 	float fLightingTimeOfDayMultiplier INIT;
 	float fLightingNightMultiplier INIT;
+	float fLightingWaterMoonBrightness INIT;
 	float fLightingWaterSkyboxOne INIT;
 
 	// Debug
@@ -401,9 +408,13 @@ struct MainLayout
 	vec4 pf4MediumWavesTwo[256] INIT;
 
 	// Lighting
-	float fLightingSampledNormalsSize INIT;
+	float fLightingSampledNormalsOneSize INIT;
 	float fMainPadA INIT;
-	float fLightingSampledNormalsSpeed INIT;
+	float fLightingSampledNormalsOneMultiplier INIT;
+	float fLightingSampledNormalsOneIntensity INIT;
+	float fLightingSampledNormalsTwoSize INIT;
+	float fLightingSampledNormalsTwoMultiplier INIT;
+	float fLightingSampledNormalsTwoIntensity INIT;
 	float fWaterHeightDarkenTop INIT;
 	float fWaterHeightDarkenBottom INIT;
 	float fWaterHeightDarkenClamp INIT;
@@ -431,7 +442,6 @@ struct MainLayout
 	float fLightingWaterNormalSoften INIT;
 	float fLightingWaterNormalBlendWave INIT;
 	float fLightingWaterIntensity INIT;
-	float fLightingWaterMoonTint INIT;
 	float fLightingWaterAdd INIT;
 	float fLightingWaterOne INIT;
 	float fLightingWaterOnePower INIT;

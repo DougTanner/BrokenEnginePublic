@@ -24,10 +24,20 @@ layout (binding = 2) buffer activeTileBuffer
 	uint activeTiles[];
 };
 
+// First-pass dilate (used before SmokeSpreadComputeB).
+//
+// SmokeSpreadComputeB samples TextureOne at the OUTPUT tile's UV directly (no cross-frame
+// remap), so ComputeB at current-frame tile (X, Y) produces nonzero iff prev-frame ComputeA
+// wrote nonzero at tile index (X, Y). That makes this a plain direct lookup with Manhattan-2
+// dilation — no f4PreviousSmokeArea / f4SmokeArea math is needed here.
+//
+// ComputeA's input (TextureTwo) DOES need a scale-aware lookup; that's done by the separate
+// SmokeOccupancyDilateRemap.comp run before SmokeSpreadComputeA.
 void main()
 {
 	uint uiTilesX = globalLayout.uiSmokeTilesX;
-	uint uiTotalTiles = uiTilesX * uiTilesX; // Square texture assumption (both dimensions use uiSmokeTilesX for max)
+	uint uiTilesY = globalLayout.uiSmokeTilesY;
+	uint uiTotalTiles = uiTilesX * uiTilesY;
 	uint uiTileIndex = gl_GlobalInvocationID.x;
 	if (uiTileIndex >= uiTotalTiles)
 		return;
@@ -35,7 +45,6 @@ void main()
 	uint uiTileY = uiTileIndex / uiTilesX;
 	uint uiTileX = uiTileIndex - uiTileY * uiTilesX;
 
-	// Check this tile and neighbors within Manhattan distance 2
 	bool bActive = false;
 	for (int iDy = -2; iDy <= 2 && !bActive; ++iDy)
 	{
@@ -43,7 +52,7 @@ void main()
 		{
 			int iNx = int(uiTileX) + iDx;
 			int iNy = int(uiTileY) + iDy;
-			if (iNx < 0 || iNy < 0 || uint(iNx) >= uiTilesX || uint(iNy) >= uiTilesX)
+			if (iNx < 0 || iNy < 0 || uint(iNx) >= uiTilesX || uint(iNy) >= uiTilesY)
 				continue;
 
 			uint uiNeighborIndex = uint(iNy) * uiTilesX + uint(iNx);

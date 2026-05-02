@@ -60,9 +60,6 @@ public:
 	std::vector<Buffer> mTextStorageBuffers;
 	std::vector<Buffer> mUiRectStorageBuffers;
 
-	std::vector<Buffer> mSmokeSpreadStorageBuffers;
-	std::vector<Buffer> mWindSpreadStorageBuffers;
-
 	// Smoke hierarchical dispatch buffers (device-local, single instance)
 	VkBuffer mSmokeOccupancyVkBuffer = VK_NULL_HANDLE;
 	VmaAllocation mSmokeOccupancyVmaAllocation = VK_NULL_HANDLE;

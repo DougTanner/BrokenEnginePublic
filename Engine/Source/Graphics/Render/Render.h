@@ -28,16 +28,6 @@ inline bool gbSmokeClear = true;
 
 void RenderSmokeGlobal(int64_t iCommandBuffer);
 
-// Shared spread quad helper (smoke/wind)
-inline void WriteSpreadQuad(const XMFLOAT4& rPreviousArea, const XMFLOAT4& rCurrentArea, shaders::AxisAlignedQuadLayout& rQuad)
-{
-	float fXOffset = (rPreviousArea.x - rCurrentArea.x) / (rPreviousArea.z - rCurrentArea.x);
-	float fYOffset = (rPreviousArea.y - rCurrentArea.y) / (rPreviousArea.w - rCurrentArea.y);
-	rQuad.f4VertexRect = {-1.0f + 2.0f * fXOffset, 1.0f - 2.0f * fYOffset, 2.0f, -2.0f};
-	rQuad.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
-	rQuad.f4Params = {};
-}
-
 // Wind
 inline bool gbWindClear = false;
 inline int64_t giWindTextureIndex = 0; // 0 = write TextureOne, 1 = write TextureTwo

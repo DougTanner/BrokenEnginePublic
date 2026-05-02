@@ -1,21 +1,19 @@
-vec2 WindSpread(GlobalLayout globalLayout, sampler2D windTextureSampler, sampler2D noiseTextureSampler, vec2 f2Texcoord)
+// f2InputTexcoord: UV in the previous-frame wind texture's coord system (= previous-area UV).
+// f2WorldPosition: world position of this output texel (computed from current area + output UV).
+// Decoupling these two lets the wind world-area shift AND scale per frame between calls.
+vec2 WindSpread(GlobalLayout globalLayout, sampler2D windTextureSampler, sampler2D noiseTextureSampler, vec2 f2InputTexcoord, vec2 f2WorldPosition)
 {
 	float fTexelSize = globalLayout.fWindTexelSize;
 	float fTimeScale = globalLayout.fWindTimeScale;
 
-	// World position for noise sampling
-	vec2 f2WorldPosition = vec2(
-		(1.0f - f2Texcoord.x) * globalLayout.f4SmokeArea.x + f2Texcoord.x * globalLayout.f4SmokeArea.z,
-		(1.0f - f2Texcoord.y) * globalLayout.f4SmokeArea.y + f2Texcoord.y * globalLayout.f4SmokeArea.w);
-
 	// Semi-Lagrangian advection: trace back along wind direction to find source
-	vec2 f2Wind = textureLod(windTextureSampler, f2Texcoord, 0.0f).rg;
+	vec2 f2Wind = textureLod(windTextureSampler, f2InputTexcoord, 0.0f).rg;
 
 	// Neighbor reads (shared by vorticity and diffusion)
-	vec2 f2Right = textureLod(windTextureSampler, f2Texcoord + vec2(fTexelSize, 0.0f), 0.0f).rg;
-	vec2 f2Left  = textureLod(windTextureSampler, f2Texcoord - vec2(fTexelSize, 0.0f), 0.0f).rg;
-	vec2 f2Up    = textureLod(windTextureSampler, f2Texcoord + vec2(0.0f, fTexelSize), 0.0f).rg;
-	vec2 f2Down  = textureLod(windTextureSampler, f2Texcoord - vec2(0.0f, fTexelSize), 0.0f).rg;
+	vec2 f2Right = textureLod(windTextureSampler, f2InputTexcoord + vec2(fTexelSize, 0.0f), 0.0f).rg;
+	vec2 f2Left  = textureLod(windTextureSampler, f2InputTexcoord - vec2(fTexelSize, 0.0f), 0.0f).rg;
+	vec2 f2Up    = textureLod(windTextureSampler, f2InputTexcoord + vec2(0.0f, fTexelSize), 0.0f).rg;
+	vec2 f2Down  = textureLod(windTextureSampler, f2InputTexcoord - vec2(0.0f, fTexelSize), 0.0f).rg;
 
 	// Magnitude-dependent behavior: weak wind is laminar, strong wind is turbulent
 	float fMag = length(f2Wind);
@@ -31,10 +29,10 @@ vec2 WindSpread(GlobalLayout globalLayout, sampler2D windTextureSampler, sampler
 	{
 		f2Displacement *= fMaxStep / fDispLen;
 	}
-	vec2 f2SourceUV = f2Texcoord - f2Displacement;
+	vec2 f2SourceUV = f2InputTexcoord - f2Displacement;
 	vec2 f2AdvectedWind = textureLod(windTextureSampler, f2SourceUV, 0.0f).rg;
 
-	// Swirl: perpendicular perturbation via noise
+	// Swirl: perpendicular perturbation via noise (sampled by world position so it stays put under camera motion)
 	float fSwirlScale = mix(globalLayout.fWindSwirlScaleLow, globalLayout.fWindSwirlScaleHigh, fMagFactor);
 	float fSwirlSpeed = mix(globalLayout.fWindSwirlSpeedLow, globalLayout.fWindSwirlSpeedHigh, fMagFactor);
 	float fSwirlAmount = mix(globalLayout.fWindSwirlAmountLow, globalLayout.fWindSwirlAmountHigh, fMagFactor);

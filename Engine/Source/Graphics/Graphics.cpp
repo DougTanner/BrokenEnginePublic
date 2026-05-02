@@ -44,6 +44,15 @@ float SmokeSimulationPixels()
 	return (fPixels / kfReferencePixels) * 8192.0f * gSmokeSimulationPixels.Get();
 }
 
+float SmokeSimulationPixelsY()
+{
+	// Floor to a multiple of kiComputeTileSize so uiSmokeTilesY divides evenly
+	float fWidth = static_cast<float>(gpGraphics->mFramebufferExtent2D.width);
+	float fHeight = static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
+	float fY = SmokeSimulationPixels() * (fHeight / fWidth);
+	return std::floor(fY / static_cast<float>(shaders::kiComputeTileSize)) * static_cast<float>(shaders::kiComputeTileSize);
+}
+
 static void CheckVulkan12Support()
 {
 	// vkEnumerateInstanceVersion was added in Vulkan 1.1

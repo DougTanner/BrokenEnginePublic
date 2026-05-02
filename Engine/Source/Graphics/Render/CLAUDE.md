@@ -7,7 +7,7 @@ Per-subsystem files populate host-visible uniform buffers each frame before comm
 ## Ordering Contract
 
 - Global pass before main pass: main reads `fElapsedTime` from the populated GlobalLayout.
-- Within global: Smoke before Wind (wind reads shared spread-quad coordinates).
+- Within global: Smoke before Wind (wind shares smoke's dynamic world-area / previous-area state).
 - Main pass: camera coord rendered first so it lands at index 0; debug render gated by `if constexpr (kbDebugRender)`.
 
 ## Camera-Relative Double Precision
@@ -19,3 +19,4 @@ CPU computes phase / UV origins in `double`, `std::fmod` reduces to a small modu
 - Uniform layouts accessed via `reinterpret_cast` over persistent-mapped, per-command-buffer indexed buffers. Scalar block layout — no padding.
 - Compute dispatches gated by writing `1` or `0` into indirect-dispatch buffers via `PipelineManager::WriteIndirectBuffer`.
 - Ping-pong / clear-latch state lives in `Render.h` (shared) or function-local statics (per-file edge detectors) — do not promote the latter to globals.
+- Smoke/wind spread is scale-aware: shaders reconstruct world position from the current world-area uniform and remap to the previous-frame texcoord, so no per-command-buffer spread-quad storage buffer is needed.

@@ -67,14 +67,46 @@ void HudScreen::Render()
 		return;
 	}
 
-	bool bWantsForceOpen = !gpGame->ClientPlayerId().IsValid();
-	if (!bWantsForceOpen)
+	bool bWantsForceOpen = false;
+	const char* pcWantReason = "none";
+	int64_t iSpaceshipCount = -1;
+	if (!gpGame->ClientPlayerId().IsValid())
+	{
+		bWantsForceOpen = true;
+		pcWantReason = "ClientPlayerId invalid";
+	}
+	else
 	{
 		auto it = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
-		if (it != gpGame->mCoordFrames.end() && it->second.iSnapshotCount > 0)
+		if (it == gpGame->mCoordFrames.end())
 		{
-			bWantsForceOpen = (gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pSpaceships->iCount == 0);
+			pcWantReason = "no coord entry";
 		}
+		else if (it->second.iSnapshotCount == 0)
+		{
+			pcWantReason = "no snapshot";
+		}
+		else
+		{
+			iSpaceshipCount = gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pSpaceships->iCount;
+			if (iSpaceshipCount == 0)
+			{
+				bWantsForceOpen = true;
+				pcWantReason = "no spaceships in focused cell";
+			}
+			else
+			{
+				pcWantReason = "spaceships present";
+			}
+		}
+	}
+
+	// TEMP diagnostic: log transitions of the "want force-open" state.
+	if (bWantsForceOpen != mbPreviousWantsForceOpen)
+	{
+		LOG(kTemp, kInfo, "HUD WantForceOpen: {} reason: {} coord: ({},{}) spaceships: {}",
+			bWantsForceOpen, pcWantReason, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, iSpaceshipCount);
+		mbPreviousWantsForceOpen = bWantsForceOpen;
 	}
 
 	// Grace period: only force-open once the want-state has been sustained. Avoids flickering during brief frame transitions
@@ -89,6 +121,14 @@ void HudScreen::Render()
 	}
 
 	const bool bForceLeftOpen = (mfTimeWantingForceOpen >= kfForceOpenGracePeriodSeconds);
+
+	// TEMP diagnostic: log transitions of the actual force-open trigger.
+	if (bForceLeftOpen != mbPreviousForceLeftOpen)
+	{
+		LOG(kTemp, kInfo, "HUD ForceLeftOpen: {} timer: {} reason: {} coord: ({},{}) spaceships: {}",
+			bForceLeftOpen, common::Wb(mfTimeWantingForceOpen, 2), pcWantReason, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, iSpaceshipCount);
+		mbPreviousForceLeftOpen = bForceLeftOpen;
+	}
 
 	// Compute left mouse target before rendering so right panel can couple to it (one-way: left mouse-over → right slides in).
 	ImGuiIO& rIo = ImGui::GetIO();

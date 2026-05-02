@@ -24,10 +24,18 @@ layout (binding = 2) buffer activeTileBuffer
 	uint activeTiles[];
 };
 
+// Second-pass dilate (used before SmokeSpreadComputeA).
+//
+// SmokeSpreadComputeA does a scale-aware sample: at output current-frame tile (X, Y),
+// it samples TextureTwo at WorldToSmokeTexcoord(prev, SmokeWorldPosition(curr, output_uv)).
+// That sample lands at floor(prev_uv * tileCount) — possibly several tiles away from (X, Y)
+// when the world area zooms between frames. We need to check occupancy (= where ComputeB
+// just wrote) at that remapped index, not at (X, Y), or zoom drops smoke at edges where
+// the remap displacement exceeds the Manhattan-2 dilation radius.
 void main()
 {
-	uint uiTilesX = globalLayout.uiWindTilesX;
-	uint uiTilesY = globalLayout.uiWindTilesY;
+	uint uiTilesX = globalLayout.uiSmokeTilesX;
+	uint uiTilesY = globalLayout.uiSmokeTilesY;
 	uint uiTotalTiles = uiTilesX * uiTilesY;
 	uint uiTileIndex = gl_GlobalInvocationID.x;
 	if (uiTileIndex >= uiTotalTiles)
@@ -36,9 +44,7 @@ void main()
 	uint uiTileY = uiTileIndex / uiTilesX;
 	uint uiTileX = uiTileIndex - uiTileY * uiTilesX;
 
-	// Occupancy is recorded in previous-frame texture-grid space, but the world area can shift
-	// AND scale between frames. Remap this tile's center world position into the previous-frame
-	// tile grid so the dilation finds the cells where wind actually was last frame.
+	// Output tile center -> current-area world position -> previous-area UV -> previous-area tile
 	vec2 f2OutputUV = (vec2(uiTileX, uiTileY) + vec2(0.5f)) / vec2(uiTilesX, uiTilesY);
 	vec2 f2WorldPosition = vec2(
 		(1.0f - f2OutputUV.x) * globalLayout.f4SmokeArea.x + f2OutputUV.x * globalLayout.f4SmokeArea.z,
@@ -50,7 +56,6 @@ void main()
 	int iPrevTileX = int(floor(f2PrevUV.x * float(uiTilesX)));
 	int iPrevTileY = int(floor(f2PrevUV.y * float(uiTilesY)));
 
-	// Check the corresponding previous-frame tile and its Manhattan-2 neighbors
 	bool bActive = false;
 	for (int iDy = -2; iDy <= 2 && !bActive; ++iDy)
 	{

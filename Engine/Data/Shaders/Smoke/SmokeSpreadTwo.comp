@@ -57,11 +57,13 @@ void main()
 	vec4 f4Result = vec4(0.0f);
 	if (bInBounds)
 	{
+		// Pass-Two refines Pass-One's output in current-area coords (no cross-frame import),
+		// so input texcoord == output texcoord and world position uses current f4SmokeArea
 		vec2 f2WorldPosition = SmokeWorldPosition(globalLayout.f4SmokeArea, f2Texcoord);
 		vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(vec3(f2WorldPosition, 0.0f), globalLayout.f4VisibleArea);
 		float fElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x;
 
-		f4Result = SmokeSpread(globalLayout, textureSampler, noiseTextureSampler, windTextureSamplerOne, windTextureSamplerTwo, f2Texcoord, globalLayout.fSmokeNoiseScaleTwo);
+		f4Result = SmokeSpread(globalLayout, textureSampler, noiseTextureSampler, windTextureSamplerOne, windTextureSamplerTwo, f2Texcoord, f2WorldPosition, f2Texcoord, globalLayout.fSmokeNoiseScaleTwo);
 
 		// Extra decay over terrain
 		if (fElevation > 0.0f)

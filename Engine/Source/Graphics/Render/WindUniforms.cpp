@@ -55,23 +55,24 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fWindSmokeAdvection = gWindSmokeAdvection.Get();
 
 	uint32_t uiWindWidth = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.width;
+	uint32_t uiWindHeight = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.height;
 	rGlobalLayout.uiWindTilesX = (uiWindWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	rGlobalLayout.uiWindTilesY = (uiWindHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
 
 	// Toggle ping-pong index
 	giWindTextureIndex = 1 - giWindTextureIndex;
 
 	rGlobalLayout.fWindTextureIndex = static_cast<float>(giWindTextureIndex);
 
-	// Compute wind spread quad offset (shares smoke area coordinate space)
-	static XMFLOAT4 sf4PreviousWindArea {};
+	// Wind shares smoke's f4SmokeArea / f4PreviousSmokeArea (already populated by
+	// RenderSmokeGlobal earlier in the frame per the global-pass ordering contract).
+	// Wind clear relies on the decay/soft-clamp path inside WindSpread() to zero
+	// stale content over a few frames — same behavior as before the WriteSpreadQuad
+	// removal (the previous out-of-bounds sampler trick was equally weak).
 	if (gbWindClear)
 	{
 		gbWindClear = false;
-		sf4PreviousWindArea = {};
 	}
-	shaders::AxisAlignedQuadLayout& rQuad = *reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mWindSpreadStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	WriteSpreadQuad(sf4PreviousWindArea, rGlobalLayout.f4SmokeArea, rQuad);
-	sf4PreviousWindArea = rGlobalLayout.f4SmokeArea;
 }
 
 } // namespace engine

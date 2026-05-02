@@ -29,6 +29,8 @@ private:
 	SlidePanelState mFleetSlide {};
 	SlidePanelState mFocusedPlayerSlide {};
 	float mfTimeWantingForceOpen = 0.0f;
+	bool mbPreviousWantsForceOpen = false;
+	bool mbPreviousForceLeftOpen = false;
 #endif
 };
 

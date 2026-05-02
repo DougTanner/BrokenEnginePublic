@@ -26,8 +26,14 @@ void TweaksScreenBase::RenderWaterSection()
 				ImGui::TableNextColumn();
 
 				WrapperSeparatorText("Normals");
-				WrapperSlider("Sampled Normals Size", kiSection, 1.0f);
-				WrapperSlider("Sampled Normals Speed", kiSection, 1.0f);
+				WrapperSlider("Sampled Normals One Size", kiSection, 1.0f);
+				WrapperSlider("Sampled Normals One Speed", kiSection, 1.0f);
+				WrapperSlider("Sampled Normals One Multiplier", kiSection, 1.0f);
+				WrapperSlider("Sampled Normals One Intensity", kiSection, 1.0f);
+				WrapperSlider("Sampled Normals Two Size", kiSection, 1.0f);
+				WrapperSlider("Sampled Normals Two Speed", kiSection, 1.0f);
+				WrapperSlider("Sampled Normals Two Multiplier", kiSection, 1.0f);
+				WrapperSlider("Sampled Normals Two Intensity", kiSection, 1.0f);
 				WrapperSlider("Depth Reflection Feather", kiSection, 1.0f);
 
 				WrapperSeparatorText("Skybox");

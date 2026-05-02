@@ -232,8 +232,6 @@ void BufferManager::DestroySwapchainDependentBuffers()
 	mMainLayoutUniformBuffers.clear();
 	mTextStorageBuffers.clear();
 	mUiRectStorageBuffers.clear();
-	mSmokeSpreadStorageBuffers.clear();
-	mWindSpreadStorageBuffers.clear();
 	mLongParticlesSpawnStorageBuffers.clear();
 	mSquareParticlesSpawnStorageBuffers.clear();
 	mMeshDataStorageBuffers.clear();
@@ -277,8 +275,6 @@ void BufferManager::InitializePerCommandBufferBuffers(int64_t iCommandBufferCoun
 	mMainLayoutUniformBuffers.resize(iCommandBufferCount);
 	mTextStorageBuffers.resize(iCommandBufferCount);
 	mUiRectStorageBuffers.resize(iCommandBufferCount);
-	mSmokeSpreadStorageBuffers.resize(iCommandBufferCount);
-	mWindSpreadStorageBuffers.resize(iCommandBufferCount);
 	mLongParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
 	mSquareParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
 
@@ -310,20 +306,6 @@ void BufferManager::InitializePerCommandBufferBuffers(int64_t iCommandBufferCoun
 			.name = "UiRects",
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = ImGuiManager::kiMaxUiRects * sizeof(XMFLOAT4),
-		});
-
-		mSmokeSpreadStorageBuffers.at(i).Create(
-		{
-			.name = "SmokeSpread",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = sizeof(shaders::AxisAlignedQuadLayout),
-		});
-
-		mWindSpreadStorageBuffers.at(i).Create(
-		{
-			.name = "WindSpread",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = sizeof(shaders::AxisAlignedQuadLayout),
 		});
 
 		mLongParticlesSpawnStorageBuffers.at(i).Create(
@@ -590,8 +572,10 @@ void BufferManager::CreateWindHierarchicalBuffers()
 	DestroyWindHierarchicalBuffers();
 
 	uint32_t uiWidth = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.width;
+	uint32_t uiHeight = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.height;
 	uint32_t uiTilesX = (uiWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-	uint32_t uiTotalTiles = uiTilesX * uiTilesX;
+	uint32_t uiTilesY = (uiHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	uint32_t uiTotalTiles = uiTilesX * uiTilesY;
 
 	// Bit-packed occupancy: 1 bit per tile, packed into uint32s
 	uint32_t uiOccupancyUints = (uiTotalTiles + 31) / 32;

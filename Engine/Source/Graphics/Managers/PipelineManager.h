@@ -33,6 +33,7 @@ enum Pipelines
 	kPipelineSmokeSpreadComputeA,
 	kPipelineSmokeSpreadComputeB,
 	kPipelineSmokeOccupancyDilate,
+	kPipelineSmokeOccupancyDilateRemap,
 
 	kPipelineWindOccupancyDilateA,
 	kPipelineWindOccupancyDilateB,

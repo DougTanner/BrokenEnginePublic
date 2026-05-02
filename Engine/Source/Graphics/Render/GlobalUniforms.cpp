@@ -242,6 +242,8 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 	rGlobalLayout.fTerrainSunBrightness = std::max(0.25f, std::pow(fDayPercent, 0.25f));
 	rGlobalLayout.fWaterReducedNormalOriginX = 0.0f;
 	rGlobalLayout.fWaterReducedNormalOriginY = 0.0f;
+	rGlobalLayout.fWaterReducedNormalOriginRotatedX = 0.0f;
+	rGlobalLayout.fWaterReducedNormalOriginRotatedY = 0.0f;
 
 	// Normal flip is now per-island in TerrainNormal pass
 	rGlobalLayout.fTerrainNormalXMultiplier = 1.0f;
@@ -268,6 +270,10 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 	// Time of day
 	rGlobalLayout.fLightingTimeOfDayMultiplier = fDayPercent * gLightingDayFinalMultiplier.Get() + (1.0f - fDayPercent) * gLightingNightFinalMultiplier.Get();
 	rGlobalLayout.fLightingNightMultiplier = std::pow(fDayPercent, 0.5f);
+	// Night amount: 0.0 throughout day, 1.0 throughout night, smooth in narrow sunrise/sunset windows.
+	// Derived from fShadowMoonMultiplier (1.0 day -> 0.2 night) so the moon-brightness gate stays in lockstep with the shadow night-gate.
+	float fNightAmount = (1.0f - rGlobalLayout.fShadowMoonMultiplier) / 0.8f;
+	rGlobalLayout.fLightingWaterMoonBrightness = std::lerp(1.0f, gLightingWaterMoonBrightness.Get(), fNightAmount);
 	rGlobalLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - fDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
 }
 
@@ -342,15 +348,26 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterOriginX = f4CameraPos.x;
 	rGlobalLayout.fWaterOriginY = f4CameraPos.y;
 
-	double dSizeBase = static_cast<double>(gLightingSampledNormalsSize.Get());
-	double dSpeed = static_cast<double>(gLightingSampledNormalsSpeed.Get());
+	double dSizeBaseOne = static_cast<double>(gLightingSampledNormalsOneSize.Get());
+	double dSpeedOne = static_cast<double>(gLightingSampledNormalsOneSpeed.Get());
+	double dSizeBaseTwo = static_cast<double>(gLightingSampledNormalsTwoSize.Get());
+	double dSpeedTwo = static_cast<double>(gLightingSampledNormalsTwoSpeed.Get());
 	double dTime = static_cast<double>(rGlobalLayout.fElapsedTime);
 	double dCameraX = static_cast<double>(f4CameraPos.x);
 	double dCameraY = static_cast<double>(f4CameraPos.y);
 
-	rGlobalLayout.fWaterReducedNormalOriginX = static_cast<float>(std::fmod(dSizeBase * dCameraX, 10.0));
-	rGlobalLayout.fWaterReducedNormalOriginY = static_cast<float>(std::fmod(dSizeBase * dCameraY, 10.0));
-	rGlobalLayout.fWaterReducedNormalTime = static_cast<float>(std::fmod(dSizeBase * dSpeed * dTime, 10.0));
+	rGlobalLayout.fWaterReducedNormalOriginX = static_cast<float>(std::fmod(dSizeBaseOne * dCameraX, 10.0));
+	rGlobalLayout.fWaterReducedNormalOriginY = static_cast<float>(std::fmod(dSizeBaseOne * dCameraY, 10.0));
+	rGlobalLayout.fWaterReducedNormalTime = static_cast<float>(std::fmod(dSizeBaseOne * dSpeedOne * dTime, 10.0));
+
+	// Rotated camera origin for NormalmapTwo octaves: Water.frag rotates that sampler's UVs by ~33° to break the shared world-axis grid that all six octaves would otherwise inherit. Reduction must happen in the rotated frame to keep texels anchored to world space (else NormalmapTwo would swim sub-texel as the camera pans across 10-unit boundaries).
+	static constexpr double kdRotateTwoCos = 0.8386705679454239;
+	static constexpr double kdRotateTwoSin = 0.5446390350150272;
+	double dRotatedCameraX = kdRotateTwoCos * dCameraX - kdRotateTwoSin * dCameraY;
+	double dRotatedCameraY = kdRotateTwoSin * dCameraX + kdRotateTwoCos * dCameraY;
+	rGlobalLayout.fWaterReducedNormalOriginRotatedX = static_cast<float>(std::fmod(dSizeBaseTwo * dRotatedCameraX, 10.0));
+	rGlobalLayout.fWaterReducedNormalOriginRotatedY = static_cast<float>(std::fmod(dSizeBaseTwo * dRotatedCameraY, 10.0));
+	rGlobalLayout.fWaterReducedNormalTimeRotated = static_cast<float>(std::fmod(dSizeBaseTwo * dSpeedTwo * dTime, 10.0));
 
 	double dNoiseFreq = static_cast<double>(gWaterColorNoiseFrequency.Get());
 	rGlobalLayout.fWaterReducedNoiseOriginX = static_cast<float>(std::fmod(dNoiseFreq * dCameraX, 1.0));

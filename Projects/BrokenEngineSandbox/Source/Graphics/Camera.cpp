@@ -181,7 +181,6 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	if (!mbJumping)
 	{
 		// Tighten chase as eye descends so close-up tracking doesn't show pixel-space stutter
-		static constexpr float kfCameraEyeHeightDefault = 150.0f;
 		float fAdaptiveBlend = kfCameraPositionBlend * std::max(1.0f, kfCameraEyeHeightDefault / mfCameraEyeHeight);
 		float fBlend = std::clamp(fDeltaTime * fAdaptiveBlend, 0.0f, 1.0f);
 		mVecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fBlend), vecTargetPosition, XMVectorMultiply(XMVectorReplicate(1.0f - fBlend), mVecPosition));

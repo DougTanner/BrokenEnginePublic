@@ -16,6 +16,7 @@ void TweaksScreenBase::RenderMiscSection()
 
 	WrapperSeparatorText("Moon");
 	WrapperSlider("Moon Brightness", kiSection);
+	WrapperSlider("Water Moon Brightness", kiSection);
 	WrapperSlider("Minimum Ambient", kiSection);
 
 	WrapperSeparatorText("Misc");

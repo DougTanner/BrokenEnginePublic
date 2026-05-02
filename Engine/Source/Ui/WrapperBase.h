@@ -372,8 +372,14 @@ extern CurveData gCombineCurveOld;
 extern CurveData gCombineCurveNew;
 extern bool gbUseCombineCurveNew;
 #endif
-extern Wrapper gLightingSampledNormalsSize;
-extern Wrapper gLightingSampledNormalsSpeed;
+extern Wrapper gLightingSampledNormalsOneSize;
+extern Wrapper gLightingSampledNormalsOneSpeed;
+extern Wrapper gLightingSampledNormalsOneMultiplier;
+extern Wrapper gLightingSampledNormalsOneIntensity;
+extern Wrapper gLightingSampledNormalsTwoSize;
+extern Wrapper gLightingSampledNormalsTwoSpeed;
+extern Wrapper gLightingSampledNormalsTwoMultiplier;
+extern Wrapper gLightingSampledNormalsTwoIntensity;
 
 // New Lighting
 extern Wrapper gLightingNewDirectional;
@@ -391,6 +397,7 @@ extern Wrapper gLightingObjectsAdd;
 extern Wrapper gLightingDayFinalMultiplier;
 extern Wrapper gLightingNightFinalMultiplier;
 extern Wrapper gMoonBrightness;
+extern Wrapper gLightingWaterMoonBrightness;
 
 // Water specular lighting
 extern Wrapper gLightingWaterAmbientPower;
@@ -401,7 +408,6 @@ extern Wrapper gLightingWaterNewAmbientPowerMode;
 extern Wrapper gLightingWaterNormalSoften;
 extern Wrapper gLightingWaterNormalBlendWave;
 extern Wrapper gLightingWaterIntensity;
-extern Wrapper gLightingWaterMoonTint;
 extern Wrapper gLightingWaterAdd;
 extern Wrapper gLightingWaterOne;
 extern Wrapper gLightingWaterOnePower;

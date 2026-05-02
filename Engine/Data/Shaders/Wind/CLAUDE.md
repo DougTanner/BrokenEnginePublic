@@ -6,6 +6,8 @@ GPU-driven 2D wind field simulation using a hierarchical indirect compute dispat
 
 The wind system maintains a 2D velocity field (stored as RG channels) that advects over time. Objects deposit wind via quads in two modes: directional trail-shaped quads for moving objects and radial axis-aligned quads for explosions. The field simulates once per frame via compute shaders dispatched only over active tiles. The resulting wind velocity feeds back into the smoke simulation and affects visual elements like vegetation.
 
+Wind shares smoke's dynamic world-area (`f4SmokeArea` / `f4PreviousSmokeArea`) and non-square aspect, so wind textures use independent X/Y tile counts.
+
 ## Architecture: Hierarchical Indirect Dispatch
 
 Wind simulation uses two buffer pairs (A/B) matching the ping-pong texture index. Each pair consists of an occupancy buffer (bit-packed, one bit per 8x8 tile) and an active tile list buffer (indirect dispatch args + packed tile indices). This enables record-once command buffers: both spread pipelines (A and B) are always dispatched indirectly, but each checks `fWindTextureIndex` at runtime and returns early if inactive.
@@ -16,8 +18,8 @@ Each frame the active-tile pipeline (`WindOccupancyDilate.comp`) reads the previ
 
 - **WindDeposit.frag** - Fragment shader writing wind velocity into the wind texture from per-object quads. Supports radial (explosions) and directional (motion trails) modes with falloff and magnitude scaling. Also writes to the occupancy buffer.
 - **WindSpreadCommon.h** - Shared GLSL header containing the full `WindSpread()` function with advection, swirl, vorticity confinement, diffusion, and decay logic. Included by both spread compute shaders.
-- **WindSpreadOne.comp** - Compute spread pass for ping-pong index 0 (writes TextureOne). Uses tile-list lookup with camera offset from axis-aligned quad storage buffer. Returns early when index 1 is active.
-- **WindSpreadTwo.comp** - Compute spread pass for ping-pong index 1 (writes TextureTwo). Uses tile-list lookup with camera offset from axis-aligned quad storage buffer. Returns early when index 0 is active.
+- **WindSpreadOne.comp** - Compute spread pass for ping-pong index 0 (writes TextureOne). Reconstructs world position from current `f4SmokeArea` and remaps to previous-frame texcoord via `f4PreviousSmokeArea` so sampling survives camera translation and zoom. Returns early when index 1 is active.
+- **WindSpreadTwo.comp** - Compute spread pass for ping-pong index 1 (writes TextureTwo). Same scale-aware texcoord remapping as pass one. Returns early when index 0 is active.
 - **WindOccupancyDilate.comp** - Dilates occupancy from previous frame and compacts into active tile list for indirect dispatch.
 
 ## See Also

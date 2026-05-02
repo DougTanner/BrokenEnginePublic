@@ -67,8 +67,14 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Rock Normals Size 3", &gTerrainRockNormalsSizeThree},
 		{"Rock Normals Blend", &gTerrainRockNormalsBlend},
 		// Water Specular - Normals
-		{"Sampled Normals Size", &gLightingSampledNormalsSize},
-		{"Sampled Normals Speed", &gLightingSampledNormalsSpeed},
+		{"Sampled Normals One Size", &gLightingSampledNormalsOneSize},
+		{"Sampled Normals One Speed", &gLightingSampledNormalsOneSpeed},
+		{"Sampled Normals One Multiplier", &gLightingSampledNormalsOneMultiplier},
+		{"Sampled Normals One Intensity", &gLightingSampledNormalsOneIntensity},
+		{"Sampled Normals Two Size", &gLightingSampledNormalsTwoSize},
+		{"Sampled Normals Two Speed", &gLightingSampledNormalsTwoSpeed},
+		{"Sampled Normals Two Multiplier", &gLightingSampledNormalsTwoMultiplier},
+		{"Sampled Normals Two Intensity", &gLightingSampledNormalsTwoIntensity},
 		{"Depth Reflection Feather", &gWaterDepthReflectionFeather},
 		// Water Specular - Skybox
 		{"Sun Bias", &gLightingWaterSkyboxSunBias},
@@ -179,7 +185,6 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Water Normal Soften", &gLightingWaterNormalSoften},
 		{"Water Normal Blend Wave", &gLightingWaterNormalBlendWave},
 		{"Water Intensity", &gLightingWaterIntensity},
-		{"Water Moon Tint", &gLightingWaterMoonTint},
 		{"Water Add", &gLightingWaterAdd},
 		{"Water One", &gLightingWaterOne},
 		{"Water One Power", &gLightingWaterOnePower},
@@ -219,6 +224,7 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Smoke Shadow Intensity", &gSmokeShadowIntensity},
 		// Moon
 		{"Moon Brightness", &gMoonBrightness},
+		{"Water Moon Brightness", &gLightingWaterMoonBrightness},
 		{"Minimum Ambient", &gMinimumAmbient},
 		// Misc
 		{"Misc Island Height", &gIslandHeight},

@@ -56,10 +56,16 @@ void CommandBufferRecordGlobal::Record(int64_t iFramebuffer)
 	RecordTerrainPasses(vkCommandBuffer, iCommandBuffer, pPipelines);
 
 	uint32_t uiWindWidth = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.width;
-	RecordWindSpreadPipeline(vkCommandBuffer, iCommandBuffer, uiWindWidth, pPipelines);
+	uint32_t uiWindHeight = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.height;
+	uint32_t uiWindTilesX = (uiWindWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	uint32_t uiWindTilesY = (uiWindHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	RecordWindSpreadPipeline(vkCommandBuffer, iCommandBuffer, uiWindTilesX, uiWindTilesY, pPipelines);
 
-	uint32_t uiSmokeTilesX = (std::max(gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.width, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.width) + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-	RecordSmokeSpreadPipeline(vkCommandBuffer, iCommandBuffer, uiSmokeTilesX, pPipelines);
+	uint32_t uiSmokeMaxWidth = std::max(gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.width, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.width);
+	uint32_t uiSmokeMaxHeight = std::max(gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.height, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.height);
+	uint32_t uiSmokeTilesX = (uiSmokeMaxWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	uint32_t uiSmokeTilesY = (uiSmokeMaxHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	RecordSmokeSpreadPipeline(vkCommandBuffer, iCommandBuffer, uiSmokeTilesX, uiSmokeTilesY, pPipelines);
 
 	RecordParticleUpdatePasses(vkCommandBuffer, iCommandBuffer, pPipelines);
 
@@ -97,12 +103,11 @@ void CommandBufferRecordGlobal::RecordTerrainPasses(VkCommandBuffer vkCommandBuf
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainAmbientOcclusion);
 }
 
-void CommandBufferRecordGlobal::RecordWindSpreadPipeline(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, uint32_t uiWindWidth, Pipeline* pPipelines)
+void CommandBufferRecordGlobal::RecordWindSpreadPipeline(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, uint32_t uiWindTilesX, uint32_t uiWindTilesY, Pipeline* pPipelines)
 {
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWindSpread);
 
-	uint32_t uiWindTilesX = (uiWindWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-	uint32_t uiWindDilateGroups = (uiWindTilesX * uiWindTilesX + shaders::kiOccupancyDilateGroupSize - 1) / shaders::kiOccupancyDilateGroupSize;
+	uint32_t uiWindDilateGroups = (uiWindTilesX * uiWindTilesY + shaders::kiOccupancyDilateGroupSize - 1) / shaders::kiOccupancyDilateGroupSize;
 
 	// Reset both active tile buffers: {0, 1, 1}
 	uint32_t pWindResetCmd[3] {0, 1, 1};
@@ -246,11 +251,11 @@ void CommandBufferRecordGlobal::RecordWindSpreadPipeline(VkCommandBuffer vkComma
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWindSpread);
 }
 
-void CommandBufferRecordGlobal::RecordSmokeSpreadPipeline(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, uint32_t uiSmokeTilesX, Pipeline* pPipelines)
+void CommandBufferRecordGlobal::RecordSmokeSpreadPipeline(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, uint32_t uiSmokeTilesX, uint32_t uiSmokeTilesY, Pipeline* pPipelines)
 {
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeSpread);
 
-	uint32_t uiTotalTiles = uiSmokeTilesX * uiSmokeTilesX;
+	uint32_t uiTotalTiles = uiSmokeTilesX * uiSmokeTilesY;
 	uint32_t uiDilateGroups = (uiTotalTiles + shaders::kiOccupancyDilateGroupSize - 1) / shaders::kiOccupancyDilateGroupSize;
 
 	// === Dilate + Compact for SpreadB ===
@@ -369,8 +374,11 @@ void CommandBufferRecordGlobal::RecordSmokeSpreadPipeline(VkCommandBuffer vkComm
 	vkCmdUpdateBuffer(vkCommandBuffer, gpBufferManager->mSmokeActiveTileVkBuffer, 0, sizeof(pResetCmd), pResetCmd);
 	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &vkActiveTileResetBarrier, 0, nullptr);
 
-	// Dilate: read SpreadB's occupancy, write active tile list for SpreadA
-	pPipelines[kPipelineSmokeOccupancyDilate].RecordCompute(iCommandBuffer, vkCommandBuffer, uiDilateGroups);
+	// Dilate: read SpreadB's occupancy, write active tile list for SpreadA. SpreadA does
+	// a scale-aware sample (current-area UV -> world -> previous-area UV), so the active
+	// list must be built with the matching world-coord remap or zoom drops smoke whose
+	// remapped sample-tile lies more than ~2 tiles from the output tile.
+	pPipelines[kPipelineSmokeOccupancyDilateRemap].RecordCompute(iCommandBuffer, vkCommandBuffer, uiDilateGroups);
 
 	// Barrier: dilate compute → indirect read + compute read (active tile), compute read → transfer write (occupancy)
 	VkBufferMemoryBarrier pDilateBarriersA[]

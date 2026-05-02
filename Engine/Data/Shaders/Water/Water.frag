@@ -72,41 +72,75 @@ void main()
 	f3ToEyeNormal = normalize(mix(f3ToEyeNormal, mainLayout.f4ToEyeNormal.xyz, mainLayout.fLightingWaterSkyboxNormalSoften));
 
 	// Normal map sampling with precision-safe UV computation
-	float fSize = mainLayout.fLightingSampledNormalsSize;
+	float fSizeOne = mainLayout.fLightingSampledNormalsOneSize;
+	float fSizeTwo = mainLayout.fLightingSampledNormalsTwoSize;
 	vec2 f2ReducedOrigin = vec2(globalLayout.fWaterReducedNormalOriginX, globalLayout.fWaterReducedNormalOriginY);
-	float fReducedTime = globalLayout.fWaterReducedNormalTime;
+	float fReducedTimeOne = globalLayout.fWaterReducedNormalTime;
+	float fReducedTimeTwo = globalLayout.fWaterReducedNormalTimeRotated;
 	vec2 f2LocalDx = dFdx(f2InInitialPosition);
 	vec2 f2LocalDy = dFdy(f2InInitialPosition);
 
-	#define SAMPLE_NORMAL_PRECISE(sampler, reducedOrigin, sizeMult, speedMult, offset) \
+	// NormalmapTwo samples on UV axes rotated by ~33° from world XY so its tile grid does not align with NormalmapOne's. CPU sends a separately-reduced origin computed in the rotated camera frame so the texture stays anchored to world space when the camera pans (rotating after fmod would drift sub-texel per 10-unit camera step).
+	const float kfRotateTwoCos = 0.83867056794542395f;
+	const float kfRotateTwoSin = 0.54463903501502708f;
+	const mat2 kmRotateTwo = mat2(kfRotateTwoCos, kfRotateTwoSin, -kfRotateTwoSin, kfRotateTwoCos);
+	vec2 f2InInitialPositionTwo = kmRotateTwo * f2InInitialPosition;
+	vec2 f2LocalDxTwo = kmRotateTwo * f2LocalDx;
+	vec2 f2LocalDyTwo = kmRotateTwo * f2LocalDy;
+	vec2 f2ReducedOriginTwo = vec2(globalLayout.fWaterReducedNormalOriginRotatedX, globalLayout.fWaterReducedNormalOriginRotatedY);
+
+	float fOneMultiplier = mainLayout.fLightingSampledNormalsOneMultiplier;
+	float fTwoMultiplier = mainLayout.fLightingSampledNormalsTwoMultiplier;
+
+	// Specialized per-sampler so each can have an independent base size and reduced-time. sizeMult / speedMult / offset still vary per octave within a sampler.
+	#define SAMPLE_NORMAL_ONE(sizeMult, speedMult, offset) \
 	{ \
-		float fCallSize = sizeMult * fSize; \
+		float fCallSize = sizeMult * fSizeOne; \
 		vec2 f2UV = offset \
 			+ fCallSize * f2InInitialPosition \
-			+ sizeMult * reducedOrigin \
-			+ speedMult * vec2(fReducedTime); \
+			+ sizeMult * f2ReducedOrigin \
+			+ speedMult * vec2(fReducedTimeOne); \
 		vec2 f2Dx = fCallSize * f2LocalDx; \
 		vec2 f2Dy = fCallSize * f2LocalDy; \
-		f3Accum += DecodeNormal(textureGrad(sampler, fract(f2UV), f2Dx, f2Dy).xyz); \
+		vec3 f3Normal = DecodeNormal(textureGrad(normalmapOneTextureSampler, fract(f2UV), f2Dx, f2Dy).xyz); \
+		f3Normal.xy *= fOneMultiplier; \
+		f3Accum += f3Normal; \
 	}
 
-	// Normal map one (3 octaves)
+	#define SAMPLE_NORMAL_TWO(sizeMult, speedMult, offset) \
+	{ \
+		float fCallSize = sizeMult * fSizeTwo; \
+		vec2 f2UV = offset \
+			+ fCallSize * f2InInitialPositionTwo \
+			+ sizeMult * f2ReducedOriginTwo \
+			+ speedMult * vec2(fReducedTimeTwo); \
+		vec2 f2Dx = fCallSize * f2LocalDxTwo; \
+		vec2 f2Dy = fCallSize * f2LocalDyTwo; \
+		vec3 f3Normal = DecodeNormal(textureGrad(normalmapTwoTextureSampler, fract(f2UV), f2Dx, f2Dy).xyz); \
+		f3Normal.xy *= fTwoMultiplier; \
+		f3Accum += f3Normal; \
+	}
+
+	// Normal map one (3 octaves, world-axis aligned)
 	vec3 f3Accum = vec3(0.0f);
-	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, f2ReducedOrigin, 0.2f, 1.1f, vec2(0.1f, 0.2f))
-	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, f2ReducedOrigin, 1.1f, 1.2f, vec2(0.2f, 0.3f))
-	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, f2ReducedOrigin, 2.5f, 1.3f, vec2(0.3f, 0.4f))
-	vec3 f3SampledNormalOne = f3Accum;
+	SAMPLE_NORMAL_ONE(0.2f, 1.1f, vec2(0.1f, 0.2f))
+	SAMPLE_NORMAL_ONE(1.1f, 1.2f, vec2(0.2f, 0.3f))
+	SAMPLE_NORMAL_ONE(2.5f, 1.3f, vec2(0.3f, 0.4f))
+	vec3 f3SampledNormalOne = mainLayout.fLightingSampledNormalsOneIntensity * f3Accum;
 
-	// Normal map two (3 octaves)
+	// Normal map two (3 octaves, axes rotated by kmRotateTwo to break grid alignment with One)
 	f3Accum = vec3(0.0f);
-	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, f2ReducedOrigin, 0.3f, 1.4f, vec2(0.4f, 0.5f))
-	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, f2ReducedOrigin, 1.2f, 1.5f, vec2(0.6f, 0.7f))
-	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, f2ReducedOrigin, 3.0f, 1.6f, vec2(0.8f, 0.9f))
-	vec3 f3SampledNormalTwo = f3Accum;
+	SAMPLE_NORMAL_TWO(0.3f, 1.4f, vec2(0.4f, 0.5f))
+	SAMPLE_NORMAL_TWO(1.2f, 1.5f, vec2(0.6f, 0.7f))
+	SAMPLE_NORMAL_TWO(3.0f, 1.6f, vec2(0.8f, 0.9f))
+	vec3 f3SampledNormalTwo = mainLayout.fLightingSampledNormalsTwoIntensity * f3Accum;
 
-	#undef SAMPLE_NORMAL_PRECISE
+	#undef SAMPLE_NORMAL_ONE
+	#undef SAMPLE_NORMAL_TWO
 
-	vec3 f3SampledNormal = normalize(f3SampledNormalOne + f3SampledNormalTwo);
+	// Guarded normalize: both intensity sliders reach 0 (CVar min=0), and a zero sum would NaN-poison every downstream lighting/reflection term that consumes f3SampledNormal.
+	vec3 f3SampledNormalSum = f3SampledNormalOne + f3SampledNormalTwo;
+	vec3 f3SampledNormal = f3SampledNormalSum / max(length(f3SampledNormalSum), 1e-6f);
 
 	// Color (noise with precision-safe UV)
 	vec2 f2LocalDisplacedPos = f3InPosition.xy - f2WaterOrigin;
@@ -146,6 +180,7 @@ void main()
 	float fReflectionHeightMultiplier2 = clamp((f3InPosition.z - mainLayout.fWaterHeightDarkenBottom) / (mainLayout.fWaterHeightDarkenTop - mainLayout.fWaterHeightDarkenBottom), mainLayout.fWaterHeightDarkenClamp, 1.0f);
 	f3LightingColor *= fReflectionHeightMultiplier2;
 	f3LightingColor *= fSunlight;
+	f3LightingColor *= globalLayout.fLightingWaterMoonBrightness;
 
 	// Shadow with smoke at world position
 	float fShadow = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
@@ -216,16 +251,14 @@ void main()
 	vec3 f3WaterLighting = WaterLighting(pf4LightingBaseHeight, f3LightingNormal, mainLayout.fLightingWaterNormalSoften, mainLayout.fLightingWaterOne, mainLayout.fLightingWaterOnePower, mainLayout.fLightingWaterTwo, mainLayout.fLightingWaterTwoPower, mainLayout.fLightingWaterThree, mainLayout.fLightingWaterThreePower, mainLayout.fLightingWaterPowerMode);
 	float fDepthAttenuation = clamp(-fTerrainElevation / globalLayout.fWaterDepthReflectionFeather, 0.0f, 1.0f);
 	vec3 f3WaterLightingScaled = fDepthAttenuation * globalLayout.fLightingTimeOfDayMultiplier * mainLayout.fLightingWaterIntensity * f3WaterLighting;
-	// Sun/moon tint applied to dominant water lighting paths so gMoonBrightness drives water at night the same way SunLighting() drives terrain.
-	vec3 f3MoonTint = mix(vec3(1.0f), globalLayout.f4SunMoonColor.xyz, mainLayout.fLightingWaterMoonTint);
 	// Mix between water-tinted lighting (Add=0) and pure lighting color (Add=1).
 	// Total contribution magnitude is conserved across the mix.
 	float fWaterLightingAdd = mainLayout.fLightingWaterAdd;
-	vec3 f3WaterLightingMults = fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * f3WaterLightingScaled * f3MoonTint;
+	vec3 f3WaterLightingMults = fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * f3WaterLightingScaled;
 	f4OutColor.xyz += (1.0f - fWaterLightingAdd) * f3PreLightingColor * f3WaterLightingMults + fWaterLightingAdd * f3WaterLightingMults;
 
 	// Water new ambient (terrain-style, sampled without reflection offset)
-	vec3 f3WaterNewAmbient = globalLayout.fLightingTimeOfDayMultiplier * AmbientLightingPrecomputed(f3AmbientSum, mainLayout.fLightingWaterNewAmbient, mainLayout.fLightingWaterNewAmbientPower, mainLayout.fLightingWaterNewAmbientPowerMode) * f3MoonTint;
+	vec3 f3WaterNewAmbient = globalLayout.fLightingTimeOfDayMultiplier * AmbientLightingPrecomputed(f3AmbientSum, mainLayout.fLightingWaterNewAmbient, mainLayout.fLightingWaterNewAmbientPower, mainLayout.fLightingWaterNewAmbientPowerMode);
 	f4OutColor.xyz += f3WaterNewAmbient;
 
 	// DT: TEMP — show only lighting texture contributions (with normals and base color)

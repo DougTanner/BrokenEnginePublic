@@ -79,8 +79,12 @@ void RenderLightingMain(int64_t iCommandBuffer)
 {
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
-	rMainLayout.fLightingSampledNormalsSize = gLightingSampledNormalsSize.Get();
-	rMainLayout.fLightingSampledNormalsSpeed = gLightingSampledNormalsSpeed.Get();
+	rMainLayout.fLightingSampledNormalsOneSize = gLightingSampledNormalsOneSize.Get();
+	rMainLayout.fLightingSampledNormalsOneMultiplier = gLightingSampledNormalsOneMultiplier.Get();
+	rMainLayout.fLightingSampledNormalsOneIntensity = gLightingSampledNormalsOneIntensity.Get();
+	rMainLayout.fLightingSampledNormalsTwoSize = gLightingSampledNormalsTwoSize.Get();
+	rMainLayout.fLightingSampledNormalsTwoMultiplier = gLightingSampledNormalsTwoMultiplier.Get();
+	rMainLayout.fLightingSampledNormalsTwoIntensity = gLightingSampledNormalsTwoIntensity.Get();
 	rMainLayout.fWaterHeightDarkenTop = gWaterHeightDarkenTop.Get();
 	rMainLayout.fWaterHeightDarkenBottom = gWaterHeightDarkenBottom.Get();
 	rMainLayout.fWaterHeightDarkenClamp = gWaterHeightDarkenClamp.Get();
@@ -108,7 +112,6 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fLightingWaterNormalSoften = gLightingWaterNormalSoften.Get();
 	rMainLayout.fLightingWaterNormalBlendWave = gLightingWaterNormalBlendWave.Get();
 	rMainLayout.fLightingWaterIntensity = gLightingWaterIntensity.Get();
-	rMainLayout.fLightingWaterMoonTint = gLightingWaterMoonTint.Get();
 	rMainLayout.fLightingWaterAdd = gLightingWaterAdd.Get();
 	rMainLayout.fLightingWaterOne = gLightingWaterOne.Get();
 	rMainLayout.fLightingWaterOnePower = gLightingWaterOnePower.Get();

@@ -12,19 +12,14 @@ layout (binding = 0) uniform globalUniform
 	GlobalLayout globalLayout;
 };
 
-layout (binding = 1) buffer smokeSpreadBuffer
-{
-	AxisAlignedQuadLayout smokeSpreadQuad;
-};
-
-layout (binding = 2) uniform sampler2D textureSampler;
-layout (binding = 3) uniform sampler2D noiseTextureSampler;
-layout (binding = 4) uniform sampler2D windTextureSamplerOne;
-layout (binding = 5) uniform sampler2D windTextureSamplerTwo;
-layout (binding = 6, r32f) uniform image2D outputImage;
+layout (binding = 1) uniform sampler2D textureSampler;
+layout (binding = 2) uniform sampler2D noiseTextureSampler;
+layout (binding = 3) uniform sampler2D windTextureSamplerOne;
+layout (binding = 4) uniform sampler2D windTextureSamplerTwo;
+layout (binding = 5, r32f) uniform image2D outputImage;
 
 // Active tile list: [VkDispatchIndirectCommand (3 uint32s)] [packed tile indices...]
-layout (binding = 7) buffer activeTileBuffer
+layout (binding = 6) buffer activeTileBuffer
 {
 	uint uiDispatchX;
 	uint uiDispatchY;
@@ -32,7 +27,7 @@ layout (binding = 7) buffer activeTileBuffer
 	uint activeTiles[];
 };
 
-layout (binding = 8) buffer occupancyBuffer
+layout (binding = 7) buffer occupancyBuffer
 {
 	uint occupancy[];
 };
@@ -52,12 +47,11 @@ void main()
 	ivec2 i2Size = imageSize(outputImage);
 	bool bInBounds = uiX < i2Size.x && uiY < i2Size.y;
 
-	vec2 f2Texcoord = (vec2(uiX, uiY) + vec2(0.5f)) / vec2(i2Size);
-
-	// Apply camera offset
-	float fXOffset = (smokeSpreadQuad.f4VertexRect.x + 1.0f) * 0.5f;
-	float fYOffset = (1.0f - smokeSpreadQuad.f4VertexRect.y) * 0.5f;
-	f2Texcoord -= vec2(fXOffset, fYOffset);
+	// Output texcoord (current-area UV) -> world position -> input texcoord (previous-area UV).
+	// Scale-aware: handles both translation AND zoom-driven area-size change.
+	vec2 f2OutputTexcoord = (vec2(uiX, uiY) + vec2(0.5f)) / vec2(i2Size);
+	vec2 f2WorldPosition  = SmokeWorldPosition(globalLayout.f4SmokeArea, f2OutputTexcoord);
+	vec2 f2InputTexcoord  = WorldToSmokeTexcoord(globalLayout.f4PreviousSmokeArea, f2WorldPosition);
 
 	if (gl_LocalInvocationIndex == 0)
 		suHasSmoke = 0;
@@ -66,7 +60,7 @@ void main()
 	vec4 f4Result = vec4(0.0f);
 	if (bInBounds)
 	{
-		f4Result = SmokeSpread(globalLayout, textureSampler, noiseTextureSampler, windTextureSamplerOne, windTextureSamplerTwo, f2Texcoord, globalLayout.fSmokeNoiseScaleOne);
+		f4Result = SmokeSpread(globalLayout, textureSampler, noiseTextureSampler, windTextureSamplerOne, windTextureSamplerTwo, f2InputTexcoord, f2WorldPosition, f2OutputTexcoord, globalLayout.fSmokeNoiseScaleOne);
 		imageStore(outputImage, ivec2(uiX, uiY), f4Result);
 	}
 

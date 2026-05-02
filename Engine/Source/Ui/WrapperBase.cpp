@@ -175,8 +175,14 @@ CurveData gCombineCurveNew({ImVec2(0.0000f, 32.0000f), ImVec2(0.3880f, 25.9852f)
 bool gbUseCombineCurveNew = true;
 #endif
 
-Wrapper gLightingSampledNormalsSize(0.3f, 0.05f, 0.5f);
-Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
+Wrapper gLightingSampledNormalsOneSize(0.35f, 0.05f, 0.5f);
+Wrapper gLightingSampledNormalsOneSpeed(0.03f, 0.0f, 0.05f);
+Wrapper gLightingSampledNormalsOneMultiplier(2.4f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsOneIntensity(0.3f, 0.0f, 2.0f);
+Wrapper gLightingSampledNormalsTwoSize(0.3f, 0.05f, 0.5f);
+Wrapper gLightingSampledNormalsTwoSpeed(0.03f, 0.0f, 0.05f);
+Wrapper gLightingSampledNormalsTwoMultiplier(0.8f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsTwoIntensity(0.7f, 0.0f, 2.0f);
 
 // New Lighting
 Wrapper gLightingNewDirectional(0.8f, 0.0f, 2.0f);
@@ -194,6 +200,7 @@ Wrapper gLightingObjectsAdd(0.2f, 0.0f, 1.0f);
 Wrapper gLightingDayFinalMultiplier(1.0f, 0.0f, 1.0f);
 Wrapper gLightingNightFinalMultiplier(1.0f, 0.0f, 1.0f);
 Wrapper gMoonBrightness(0.1f, 0.0f, 1.0f);
+Wrapper gLightingWaterMoonBrightness(8.0f, 0.5f, 32.0f);
 
 // Water specular lighting
 Wrapper gLightingWaterAmbientPower(0.6f, 0.1f, 6.0f);
@@ -204,7 +211,6 @@ Wrapper gLightingWaterNewAmbientPowerMode(1.0f, 0.0f, 1.0f);
 Wrapper gLightingWaterNormalSoften(0.4f, 0.0f, 1.0f);
 Wrapper gLightingWaterNormalBlendWave(0.25f, 0.0f, 0.4f);
 Wrapper gLightingWaterIntensity(0.035f, 0.0f, 0.1f);
-Wrapper gLightingWaterMoonTint(1.0f, 0.0f, 1.0f);
 Wrapper gLightingWaterAdd(0.9f, 0.0f, 1.0f);
 Wrapper gLightingWaterOne(30.0f, 0.0f, 40.0f);
 Wrapper gLightingWaterOnePower(2.5f, 1.0f, 5.0f);
