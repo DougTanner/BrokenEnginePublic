@@ -321,10 +321,23 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 		.pScissors = &scissorVkRect2D,
 	};
 
+	VkPipelineRasterizationLineStateCreateInfoEXT vkPipelineRasterizationLineStateCreateInfoEXT
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_LINE_STATE_CREATE_INFO_EXT,
+		.pNext = nullptr,
+		.lineRasterizationMode = VK_LINE_RASTERIZATION_MODE_RECTANGULAR_SMOOTH_EXT,
+		.stippledLineEnable = VK_FALSE,
+		.lineStippleFactor = 0,
+		.lineStipplePattern = 0,
+	};
+
+	const bool bSmoothLines = (rPipelineInfo.flags & PipelineFlags::kLineList) && gpDeviceManager->mbSmoothLinesEnabled;
+	const bool bWideLines = (rPipelineInfo.flags & PipelineFlags::kLineList) && gpDeviceManager->mbWideLinesEnabled;
+
 	VkPipelineRasterizationStateCreateInfo vkPipelineRasterizationStateCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-		.pNext = nullptr,
+		.pNext = bSmoothLines ? &vkPipelineRasterizationLineStateCreateInfoEXT : nullptr,
 		.flags = 0,
 		.depthClampEnable = VK_FALSE,
 		.rasterizerDiscardEnable = VK_FALSE,
@@ -335,7 +348,7 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 		// .depthBiasConstantFactor
 		// .depthBiasClamp
 		// .depthBiasSlopeFactor
-		.lineWidth = 1.0f,
+		.lineWidth = bWideLines ? 2.0f : 1.0f,
 	};
 
 	VkPipelineMultisampleStateCreateInfo vkPipelineMultisampleStateCreateInfo

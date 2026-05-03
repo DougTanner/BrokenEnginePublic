@@ -48,8 +48,11 @@ vec2 BaseHeightPosition(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f
 
 vec3 SampleNormal(GlobalLayout globalLayout, sampler2D normalSampler, vec2 f2Position, float fSize, float fSpeed, vec2 f2Offset)
 {
-	vec3 f3SampledNormal = texture(normalSampler, f2Offset + fSize * f2Position + fSpeed * vec2(globalLayout.fElapsedTime, globalLayout.fElapsedTime)).xyz;
-	return vec3(1.0f - 2.0f * f3SampledNormal.x, 1.0f - 2.0f * f3SampledNormal.y, f3SampledNormal.z);
+	// BC5 normal map: only RG stored. Sign-inverted decode is intentional, preserved from the BC7 path.
+	vec2 f2RG = texture(normalSampler, f2Offset + fSize * f2Position + fSpeed * vec2(globalLayout.fElapsedTime, globalLayout.fElapsedTime)).rg;
+	vec2 f2XY = vec2(1.0f - 2.0f * f2RG.x, 1.0f - 2.0f * f2RG.y);
+	float fZ = sqrt(clamp(1.0f - dot(f2XY, f2XY), 0.0f, 1.0f));
+	return vec3(f2XY, fZ);
 }
 
 vec3 SunLighting(vec3 f3MaterialColor, GlobalLayout globalLayout, vec4 f4Position, vec3 f3Normal, float fShadow, float fAmbientOcclusion)

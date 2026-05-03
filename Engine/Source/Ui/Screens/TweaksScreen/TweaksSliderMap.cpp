@@ -66,11 +66,17 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Rock Normals Size 2", &gTerrainRockNormalsSizeTwo},
 		{"Rock Normals Size 3", &gTerrainRockNormalsSizeThree},
 		{"Rock Normals Blend", &gTerrainRockNormalsBlend},
-		// Water Specular - Normals
-		{"Sampled Normals One Size", &gLightingSampledNormalsOneSize},
-		{"Sampled Normals Two Size", &gLightingSampledNormalsTwoSize},
+		// Water Specular - Normals (per-sample row layout: chevron | size | weight-min | weight-max)
+		{"Size 1", &gLightingSampledNormalsOneSize},
+		{"Size 2", &gLightingSampledNormalsTwoSize},
+		{"Size 3", &gLightingSampledNormalsThreeSize},
 		{"Sampled Normals Speed", &gLightingSampledNormalsSpeed},
-		{"Sampled Normals Blend", &gLightingSampledNormalsBlend},
+		{"Weight Min 1", &gLightingSampledNormalsWeightOneMin},
+		{"Weight Max 1", &gLightingSampledNormalsWeightOneMax},
+		{"Weight Min 2", &gLightingSampledNormalsWeightTwoMin},
+		{"Weight Max 2", &gLightingSampledNormalsWeightTwoMax},
+		{"Weight Min 3", &gLightingSampledNormalsWeightThreeMin},
+		{"Weight Max 3", &gLightingSampledNormalsWeightThreeMax},
 		{"Depth Reflection Feather", &gWaterDepthReflectionFeather},
 		// Water Specular - Skybox
 		{"Sun Bias", &gLightingWaterSkyboxSunBias},
@@ -222,10 +228,24 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Blur Distance Sunset", &gObjectShadowsBlurDistanceSunset},
 		{"Object Blur Sigma", &gObjectShadowsBlurSigma},
 		{"Smoke Shadow Intensity", &gSmokeShadowIntensity},
-		// Moon
+		// Sun/Moon - Color Phase Boundaries
+		{"Morning Start", &gSunMoonMorning},
+		{"Noon Start", &gSunMoonNoonStart},
+		{"Noon End", &gSunMoonNoonEnd},
+		{"Evening Start", &gSunMoonEvening},
+		{"Night Start", &gSunMoonNightStart},
+		// Sun/Moon - Moon
 		{"Moon Brightness", &gMoonBrightness},
+		{"Moon Blue Tint", &gSunMoonMoonBlueTint},
 		{"Water Moon Brightness", &gLightingWaterMoonBrightness},
+		// Sun/Moon - Ambient
 		{"Minimum Ambient", &gMinimumAmbient},
+		// Sun/Moon - Shadow Night-Gate
+		{"Shadow Night Multiplier", &gSunMoonShadowNightMultiplier},
+		{"Shadow Sunset Start", &gSunMoonShadowSunsetStart},
+		{"Shadow Sunset End", &gSunMoonShadowSunsetEnd},
+		{"Shadow Sunrise Start", &gSunMoonShadowSunriseStart},
+		{"Shadow Sunrise End", &gSunMoonShadowSunriseEnd},
 		// Misc
 		{"Misc Island Height", &gIslandHeight},
 		// Water - Depth

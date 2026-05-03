@@ -27,6 +27,19 @@ Wrapper gSmokeSimulationArea(1.0f, 0.8f, 1.2f);
 Wrapper gSunAngleOverride(1.15f, 0.0f, XM_2PI);
 Wrapper gMinimumAmbient(0.0f, 0.0f, 0.1f);
 
+// Sun/Moon - rise/set transition timing & values
+Wrapper gSunMoonMorning(XM_PIDIV16, 0.0f, XM_PIDIV4);
+Wrapper gSunMoonNoonStart(XM_PIDIV8, 0.0f, XM_PIDIV2);
+Wrapper gSunMoonNoonEnd(XM_PIDIV2 + XM_PIDIV8, XM_PIDIV2, XM_PI - XM_PIDIV16);
+Wrapper gSunMoonEvening(XM_PI - XM_PIDIV16, XM_PIDIV2, XM_PI);
+Wrapper gSunMoonNightStart(XM_PI, XM_PIDIV2, XM_PI + XM_PIDIV2);
+Wrapper gSunMoonMoonBlueTint(2.0f, 1.0f, 4.0f);
+Wrapper gSunMoonShadowNightMultiplier(0.2f, 0.0f, 1.0f);
+Wrapper gSunMoonShadowSunsetStart(XM_PI - XM_PIDIV32, XM_PIDIV2, XM_PI);
+Wrapper gSunMoonShadowSunsetEnd(XM_PI - XM_PIDIV128, XM_PIDIV2, XM_PI);
+Wrapper gSunMoonShadowSunriseStart(XM_PIDIV128, 0.0f, XM_PIDIV2);
+Wrapper gSunMoonShadowSunriseEnd(XM_PIDIV32, 0.0f, XM_PIDIV2);
+
 Wrapper gBaseHeight(6.0f, 0.0f, 20.0f);
 
 // Pbr - Engine Variables
@@ -179,10 +192,23 @@ CurveData gCombineCurveNew({ImVec2(0.0000f, 32.0000f), ImVec2(0.3880f, 25.9852f)
 bool gbUseCombineCurveNew = true;
 #endif
 
-Wrapper gLightingSampledNormalsOneSize(0.5f, 0.05f, 1.0f);
-Wrapper gLightingSampledNormalsTwoSize(0.12f, 0.05f, 0.5f);
-Wrapper gLightingSampledNormalsSpeed(0.03f, 0.0f, 0.05f);
-Wrapper gLightingSampledNormalsBlend(0.4f, 0.0f, 1.0f);
+// Water normal map atlas: 3 weighted samples each indexed into TextureManager::kpWaterNormalCrcs.
+// Order matches the per-sample row UI in TweaksScreenWater.cpp (see Ui/CLAUDE.md ordering convention).
+// Index defaults: One=0 (texture "0"), Two=1 (texture "3"), Three=11 (SeaWaves) — must match TextureManager::kiWaterNormalSeaWavesIndex.
+Wrapper gWaterNormalIndexOne(int64_t {11}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
+Wrapper gLightingSampledNormalsOneSize(0.3f, 0.05f, 1.0f);
+Wrapper gLightingSampledNormalsWeightOneMin(2.0f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsWeightOneMax(0.5f, 0.0f, 4.0f);
+Wrapper gWaterNormalIndexTwo(int64_t {12}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
+Wrapper gLightingSampledNormalsTwoSize(0.06f, 0.025f, 1.0f);
+Wrapper gLightingSampledNormalsWeightTwoMin(0.5f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsWeightTwoMax(0.8f, 0.0f, 4.0f);
+Wrapper gWaterNormalIndexThree(int64_t {9}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
+Wrapper gLightingSampledNormalsThreeSize(0.1f, 0.025f, 1.0f);
+Wrapper gLightingSampledNormalsWeightThreeMin(0.5f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsWeightThreeMax(1.0f, 0.0f, 4.0f);
+
+Wrapper gLightingSampledNormalsSpeed(0.05f, 0.0f, 0.1f);
 
 // New Lighting
 Wrapper gLightingNewDirectional(0.7f, 0.0f, 2.0f);
@@ -208,8 +234,8 @@ Wrapper gLightingWaterAmbientPowerMode(0.6f, 0.0f, 1.0f);
 Wrapper gLightingWaterNewAmbient(1.5f, 0.0f, 10.0f);
 Wrapper gLightingWaterNewAmbientPower(2.5f, 0.1f, 5.0f);
 Wrapper gLightingWaterNewAmbientPowerMode(1.0f, 0.0f, 1.0f);
-Wrapper gLightingWaterNormalSoften(0.4f, 0.0f, 1.0f);
-Wrapper gLightingWaterNormalBlendWave(0.25f, 0.0f, 0.4f);
+Wrapper gLightingWaterNormalSoften(0.81f, 0.5f, 1.0f);
+Wrapper gLightingWaterNormalBlendWave(0.15f, 0.0f, 0.4f);
 Wrapper gLightingWaterIntensity(0.05f, 0.0f, 0.1f);
 Wrapper gLightingWaterAdd(0.9f, 0.0f, 1.0f);
 Wrapper gLightingWaterOne(30.0f, 0.0f, 40.0f);
@@ -236,7 +262,7 @@ Wrapper gLightingWaterSkyboxNormalBlendWave(0.15f, 0.0f, 0.4f);
 Wrapper gLightingWaterSkyboxIntensity(0.001f, 0.0005f, 0.004f);
 Wrapper gLightingWaterSkyboxAdd(0.2f, 0.0f, 2.0f);
 
-Wrapper gLightingWaterSkyboxOne(1000.0f, 0.0f, 3000.0f);
+Wrapper gLightingWaterSkyboxOne(1200.0f, 0.0f, 3000.0f);
 Wrapper gLightingWaterSkyboxOnePower(150.0f, 50.0f, 400.0f);
 Wrapper gLightingWaterSkyboxTwo(280.0f, 0.0f, 400.0f);
 Wrapper gLightingWaterSkyboxTwoPower(4.0f, 2.0f, 10.0f);
@@ -306,7 +332,7 @@ Wrapper gLowCount(15i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}))
 Wrapper gLowMax(150.0f, 0.0f, 255.0f);
 Wrapper gLowAngle(4.95f, 0.0f, XM_2PI);
 Wrapper gLowWavelength(2.2f, 1.0f, 20.0f);
-Wrapper gLowAmplitude(0.05f, 0.0f, 0.1f);
+Wrapper gLowAmplitude(0.07f, 0.0f, 0.1f);
 Wrapper gLowSpeed(0.2f, 0.0f, 1.0f);
 Wrapper gLowSteepness(1.0f, 0.0f, 2.0f);
 

@@ -36,22 +36,68 @@ public:
 	void WaitForTextures(std::span<const common::crc_t> crcs);
 	void WaitForTextures(std::span<Texture* const> textures);
 
+	// Water normal map atlas: ordered alphabetically by stripped display name; index used by Wrapper indices and shader.
+	static inline constexpr int64_t kiWaterNormalCount = 17;
+	static inline constexpr common::crc_t kpWaterNormalCrcs[kiWaterNormalCount]
+	{
+		data::kTexturesWaterBC50pngCrc,                  // 0
+		data::kTexturesWaterBC53jpgCrc,                  // 3
+		data::kTexturesWaterBC5FoamjpgCrc,               // Foam
+		data::kTexturesWaterBC5FoamBjpgCrc,              // FoamB
+		data::kTexturesWaterBC5GreenCalmjpgCrc,          // GreenCalm
+		data::kTexturesWaterBC5GreenSeajpgCrc,           // GreenSea
+		data::kTexturesWaterBC5GreenSeaBjpgCrc,          // GreenSeaB
+		data::kTexturesWaterBC5LakejpgCrc,               // Lake
+		data::kTexturesWaterBC5PondSedimentjpgCrc,       // PondSediment
+		data::kTexturesWaterBC5PooljpgCrc,               // Pool
+		data::kTexturesWaterBC5SeaDistantjpgCrc,         // SeaDistant
+		data::kTexturesWaterBC5SeaWavesjpgCrc,           // SeaWaves
+		data::kTexturesWaterBC5SeaWavesBjpgCrc,          // SeaWavesB
+		data::kTexturesWaterBC5SlimyWaterjpgCrc,         // SlimyWater
+		data::kTexturesWaterBC5SlimyWaterBjpgCrc,        // SlimyWaterB
+		data::kTexturesWaterBC5StonesAndRipplesjpgCrc,   // StonesAndRipples
+		data::kTexturesWaterBC5WaterFalljpgCrc,          // WaterFall
+	};
+	static inline constexpr std::string_view kpWaterNormalNames[kiWaterNormalCount]
+	{
+		"0", "3", "Foam", "FoamB", "GreenCalm", "GreenSea", "GreenSeaB", "Lake",
+		"PondSediment", "Pool", "SeaDistant", "SeaWaves", "SeaWavesB", "SlimyWater",
+		"SlimyWaterB", "StonesAndRipples", "WaterFall",
+	};
+	static inline constexpr int64_t kiWaterNormalSeaWavesIndex = 11;
+
 	static inline std::vector<common::crc_t> smPriorityTextures
 	{
 		data::kTexturesUiBC4NotoSansRegularpngCrc,
 		data::kTexturesUiBC4NotoSansSCLightpngCrc,
 		data::kTexturesWaterDepthLutpngCrc,
 		data::kTexturesWaterBC4NoisepngCrc,
-		data::kTexturesWaterBC70pngCrc,
-		data::kTexturesWaterBC73jpgCrc,
+		// All 17 BC5 water normals (mirror of kpWaterNormalCrcs) so chevron switches never show a placeholder frame.
+		data::kTexturesWaterBC50pngCrc,
+		data::kTexturesWaterBC53jpgCrc,
+		data::kTexturesWaterBC5FoamjpgCrc,
+		data::kTexturesWaterBC5FoamBjpgCrc,
+		data::kTexturesWaterBC5GreenCalmjpgCrc,
+		data::kTexturesWaterBC5GreenSeajpgCrc,
+		data::kTexturesWaterBC5GreenSeaBjpgCrc,
+		data::kTexturesWaterBC5LakejpgCrc,
+		data::kTexturesWaterBC5PondSedimentjpgCrc,
+		data::kTexturesWaterBC5PooljpgCrc,
+		data::kTexturesWaterBC5SeaDistantjpgCrc,
+		data::kTexturesWaterBC5SeaWavesjpgCrc,
+		data::kTexturesWaterBC5SeaWavesBjpgCrc,
+		data::kTexturesWaterBC5SlimyWaterjpgCrc,
+		data::kTexturesWaterBC5SlimyWaterBjpgCrc,
+		data::kTexturesWaterBC5StonesAndRipplesjpgCrc,
+		data::kTexturesWaterBC5WaterFalljpgCrc,
 		data::kTexturesTerrainBC7Rock0jpgCrc,
-		data::kTexturesTerrainBC7RockNormal1jpgCrc,
-		data::kTexturesTerrainBC7RockNormal2jpgCrc,
-		data::kTexturesTerrainBC7RockNormal4jpgCrc,
+		data::kTexturesTerrainBC5RockNormal1jpgCrc,
+		data::kTexturesTerrainBC5RockNormal2jpgCrc,
+		data::kTexturesTerrainBC5RockNormal4jpgCrc,
 		data::kTexturesTerrainBC7SandpngCrc,
-		data::kTexturesTerrainBC7SandNormal0jpgCrc,
-		data::kTexturesTerrainBC7SandNormal1pngCrc,
-		data::kTexturesTerrainBC7SandNormal2pngCrc,
+		data::kTexturesTerrainBC5SandNormal0jpgCrc,
+		data::kTexturesTerrainBC5SandNormal1pngCrc,
+		data::kTexturesTerrainBC5SandNormal2pngCrc,
 	};
 
 	RenderTargetTextures mRenderTargetTextures;

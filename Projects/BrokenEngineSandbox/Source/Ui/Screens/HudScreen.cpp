@@ -69,7 +69,7 @@ void HudScreen::Render()
 
 	bool bWantsForceOpen = false;
 	const char* pcWantReason = "none";
-	int64_t iSpaceshipCount = -1;
+	int64_t iPlayerCount = -1;
 	if (!gpGame->ClientPlayerId().IsValid())
 	{
 		bWantsForceOpen = true;
@@ -88,15 +88,15 @@ void HudScreen::Render()
 		}
 		else
 		{
-			iSpaceshipCount = gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pSpaceships->iCount;
-			if (iSpaceshipCount == 0)
+			iPlayerCount = gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers->iCount;
+			if (iPlayerCount == 0)
 			{
 				bWantsForceOpen = true;
-				pcWantReason = "no spaceships in focused cell";
+				pcWantReason = "no players in focused cell";
 			}
 			else
 			{
-				pcWantReason = "spaceships present";
+				pcWantReason = "players present";
 			}
 		}
 	}
@@ -104,13 +104,13 @@ void HudScreen::Render()
 	// TEMP diagnostic: log transitions of the "want force-open" state.
 	if (bWantsForceOpen != mbPreviousWantsForceOpen)
 	{
-		LOG(kTemp, kInfo, "HUD WantForceOpen: {} reason: {} coord: ({},{}) spaceships: {}",
-			bWantsForceOpen, pcWantReason, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, iSpaceshipCount);
+		LOG(kTemp, kInfo, "HUD WantForceOpen: {} reason: {} coord: ({},{}) players: {}",
+			bWantsForceOpen, pcWantReason, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, iPlayerCount);
 		mbPreviousWantsForceOpen = bWantsForceOpen;
 	}
 
 	// Grace period: only force-open once the want-state has been sustained. Avoids flickering during brief frame transitions
-	// where ClientPlayerId or the focused-cell spaceship count momentarily drops out.
+	// where ClientPlayerId or the focused-cell player count momentarily drops out.
 	if (bWantsForceOpen)
 	{
 		mfTimeWantingForceOpen += ImGui::GetIO().DeltaTime;
@@ -125,8 +125,8 @@ void HudScreen::Render()
 	// TEMP diagnostic: log transitions of the actual force-open trigger.
 	if (bForceLeftOpen != mbPreviousForceLeftOpen)
 	{
-		LOG(kTemp, kInfo, "HUD ForceLeftOpen: {} timer: {} reason: {} coord: ({},{}) spaceships: {}",
-			bForceLeftOpen, common::Wb(mfTimeWantingForceOpen, 2), pcWantReason, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, iSpaceshipCount);
+		LOG(kTemp, kInfo, "HUD ForceLeftOpen: {} timer: {} reason: {} coord: ({},{}) players: {}",
+			bForceLeftOpen, common::Wb(mfTimeWantingForceOpen, 2), pcWantReason, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, iPlayerCount);
 		mbPreviousForceLeftOpen = bForceLeftOpen;
 	}
 
@@ -351,6 +351,47 @@ void HudScreen::RenderFocusedPlayerPanel(float fLeftMouseTarget)
 		}
 		ImGui::EndDisabled();
 	}
+
+	ImGui::End();
+}
+
+// DT: TEMP - sun/moon lighting debug overlay. Draggable; rendered unconditionally so it stays visible
+// when Tweaks is open and while a Tweaks slider is being dragged.
+void HudScreen::RenderSunMoonDebugOverlay()
+{
+	const ImGuiIO& rIo = ImGui::GetIO();
+	const ImVec2 vCenter(rIo.DisplaySize.x * 0.5f, rIo.DisplaySize.y * 0.5f);
+	ImGui::SetNextWindowPos(vCenter, ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
+	ImGui::SetNextWindowBgAlpha(0.65f);
+	ImGui::Begin("Sun/Moon Debug", nullptr,
+		ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
+
+	const float fAngle = engine::gDebugSunMoonAngle;
+	const float fAngleDeg = fAngle * (180.0f / XM_PI);
+	const float fDayFraction = fAngle / XM_2PI;
+	const char* pcPhase =
+		(fAngle < engine::gSunMoonMorning.Get())     ? "pre-dawn"  :
+		(fAngle < engine::gSunMoonNoonStart.Get())   ? "morning"   :
+		(fAngle < engine::gSunMoonNoonEnd.Get())     ? "noon"      :
+		(fAngle < engine::gSunMoonEvening.Get())     ? "afternoon" :
+		(fAngle < engine::gSunMoonNightStart.Get())  ? "evening"   :
+		                                               "night";
+	const float fNightAmount = (1.0f - engine::gDebugSunMoonShadowMoonMultiplier) / std::max(0.001f, 1.0f - engine::gSunMoonShadowNightMultiplier.Get());
+
+	ImGui::Text("phase:        %s", pcPhase);
+	ImGui::Text("sunAngle:     %.3f rad  %.1f deg  (%.1f%% of day)", fAngle, fAngleDeg, fDayFraction * 100.0f);
+	ImGui::Text("sunMoonNormal: %.3f %.3f %.3f", engine::gDebugSunMoonNormal.x, engine::gDebugSunMoonNormal.y, engine::gDebugSunMoonNormal.z);
+	ImGui::Text("sunMoonColor: %.3f %.3f %.3f", engine::gDebugSunMoonColor.x, engine::gDebugSunMoonColor.y, engine::gDebugSunMoonColor.z);
+	ImGui::Text("ambientColor: %.3f %.3f %.3f", engine::gDebugAmbientColor.x, engine::gDebugAmbientColor.y, engine::gDebugAmbientColor.z);
+	ImGui::Separator();
+	ImGui::Text("dayPercent:        %.3f", engine::gDebugSunMoonDayPercent);
+	ImGui::Text("noonPercent:       %.3f", engine::gDebugSunMoonNoonPercent);
+	ImGui::Text("shadowMoonMult:    %.3f", engine::gDebugSunMoonShadowMoonMultiplier);
+	ImGui::Text("nightAmount:       %.3f", fNightAmount);
+	ImGui::Text("waterMoonBright:   %.3f", engine::gDebugSunMoonLightingWaterMoonBrightness);
+	ImGui::Text("waterSunVisible:   %.3f", engine::gDebugSunMoonWaterSunVisibility);
+	ImGui::Text("waterDirectional:  %.3f", engine::gDebugSunMoonWaterDirectional);
+	ImGui::Text("terrainSunBright:  %.3f", engine::gDebugSunMoonTerrainSunBrightness);
 
 	ImGui::End();
 }

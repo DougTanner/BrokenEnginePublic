@@ -34,6 +34,19 @@ inline int64_t giWindTextureIndex = 0; // 0 = write TextureOne, 1 = write Textur
 
 void RenderWindGlobal(int64_t iCommandBuffer);
 
+// DT: TEMP - sun/moon lighting debug snapshot, captured each frame in RenderFrameGlobal, displayed by HudScreen.
+inline float gDebugSunMoonAngle = 0.0f;
+inline XMFLOAT4 gDebugSunMoonNormal {};
+inline XMFLOAT4 gDebugSunMoonColor {};
+inline XMFLOAT4 gDebugAmbientColor {};
+inline float gDebugSunMoonDayPercent = 0.0f;
+inline float gDebugSunMoonNoonPercent = 0.0f;
+inline float gDebugSunMoonShadowMoonMultiplier = 1.0f;
+inline float gDebugSunMoonLightingWaterMoonBrightness = 1.0f;
+inline float gDebugSunMoonWaterSunVisibility = 0.0f;
+inline float gDebugSunMoonWaterDirectional = 0.0f;
+inline float gDebugSunMoonTerrainSunBrightness = 0.0f;
+
 } // namespace engine
 
 #endif // defined(BT_CLIENT)

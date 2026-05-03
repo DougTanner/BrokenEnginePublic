@@ -1,5 +1,7 @@
 #include "TweaksScreenBase.h"
 
+#include "Graphics/Managers/TextureManager.h"
+
 #if defined(BT_CLIENT)
 
 namespace engine
@@ -26,10 +28,22 @@ void TweaksScreenBase::RenderWaterSection()
 				ImGui::TableNextColumn();
 
 				WrapperSeparatorText("Normals");
-				WrapperSlider("Sampled Normals One Size", kiSection, 1.0f);
-				WrapperSlider("Sampled Normals Two Size", kiSection, 1.0f);
+				ChevronIndexSelector("Sample 1", gWaterNormalIndexOne, TextureManager::kpWaterNormalNames, TextureManager::kiWaterNormalCount);
+				WrapperSlider("Size 1", kiSection, 1.0f);
+				WrapperSlider("Weight Min 1", kiSection, 1.0f);
+				WrapperSlider("Weight Max 1", kiSection, 1.0f);
+
+				ChevronIndexSelector("Sample 2", gWaterNormalIndexTwo, TextureManager::kpWaterNormalNames, TextureManager::kiWaterNormalCount);
+				WrapperSlider("Size 2", kiSection, 1.0f);
+				WrapperSlider("Weight Min 2", kiSection, 1.0f);
+				WrapperSlider("Weight Max 2", kiSection, 1.0f);
+
+				ChevronIndexSelector("Sample 3", gWaterNormalIndexThree, TextureManager::kpWaterNormalNames, TextureManager::kiWaterNormalCount);
+				WrapperSlider("Size 3", kiSection, 1.0f);
+				WrapperSlider("Weight Min 3", kiSection, 1.0f);
+				WrapperSlider("Weight Max 3", kiSection, 1.0f);
+
 				WrapperSlider("Sampled Normals Speed", kiSection, 1.0f);
-				WrapperSlider("Sampled Normals Blend", kiSection, 1.0f);
 				WrapperSlider("Depth Reflection Feather", kiSection, 1.0f);
 
 				WrapperSeparatorText("Skybox");

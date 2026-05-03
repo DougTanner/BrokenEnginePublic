@@ -25,6 +25,8 @@ public:
 
 	bool mbMemoryBudgetAvailable = false;
 	bool mbTransferQueueFamilyOwnershipTransferOptional = false;
+	bool mbSmoothLinesEnabled = false;
+	bool mbWideLinesEnabled = false;
 
 	VkCommandPool mOneShotVkCommandPool = VK_NULL_HANDLE;
 	VkFence mOneShotVkFence = VK_NULL_HANDLE;

@@ -14,6 +14,7 @@ static constexpr const char* kpcSectionNames[] =
 	"Water",
 	"Lighting",
 	"Shadow",
+	"Sun/Moon",
 	"Misc",
 	"Hex Shield",
 	"Smoke",
@@ -30,6 +31,7 @@ static constexpr RenderSectionFunc kRenderSectionFunctions[] =
 	&TweaksScreenBase::RenderWaterSection,
 	&TweaksScreenBase::RenderLightingSection,
 	&TweaksScreenBase::RenderShadowSection,
+	&TweaksScreenBase::RenderSunMoonSection,
 	&TweaksScreenBase::RenderMiscSection,
 	&TweaksScreenBase::RenderHexShieldSection,
 	&TweaksScreenBase::RenderSmokeSection,
@@ -69,6 +71,40 @@ void TweaksScreenBase::RenderWaveCountRadioButtons(Wrapper& rCountWrapper)
 			ImGui::SameLine();
 		}
 		ImGui::NewLine();
+	}
+}
+
+void TweaksScreenBase::ChevronIndexSelector(std::string_view label, Wrapper& rWrapper, const std::string_view* pNames, int64_t iCount)
+{
+	// Match WrapperSlider's alpha-fade-while-dragging behavior so this widget keeps its layout slot when another slider is active.
+	const bool bAnotherSliderActive = !mActiveSlider.empty();
+	if (bAnotherSliderActive)
+	{
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.0f);
+	}
+
+	int64_t iIndex = std::clamp(rWrapper.GetIndex(), int64_t {0}, iCount - 1);
+
+	// Render << and >> adjacent first, then the label — keeps button positions fixed when the displayed name changes width.
+	char pId[128];
+	std::snprintf(pId, sizeof(pId), "<<##%.*s_prev", static_cast<int>(label.size()), label.data());
+	if (ImGui::Button(pId) && !bAnotherSliderActive)
+	{
+		rWrapper.SetIndex((iIndex + iCount - 1) % iCount);
+	}
+	ImGui::SameLine();
+	std::snprintf(pId, sizeof(pId), ">>##%.*s_next", static_cast<int>(label.size()), label.data());
+	if (ImGui::Button(pId) && !bAnotherSliderActive)
+	{
+		rWrapper.SetIndex((iIndex + 1) % iCount);
+	}
+	ImGui::SameLine();
+	const std::string_view name = pNames[iIndex];
+	ImGui::Text("%.*s [%lld/%lld] %.*s", static_cast<int>(label.size()), label.data(), iIndex + 1, iCount, static_cast<int>(name.size()), name.data());
+
+	if (bAnotherSliderActive)
+	{
+		ImGui::PopStyleVar();
 	}
 }
 

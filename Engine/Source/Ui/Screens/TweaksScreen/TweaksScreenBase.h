@@ -12,6 +12,7 @@ enum class TweakSection : int
 	kWater,
 	kLighting,
 	kShadow,
+	kSunMoon,
 	kMisc,
 	kHexShield,
 	kSmoke,
@@ -42,6 +43,7 @@ public:
 	virtual void RenderLightingEffectsVisibleTab() {}
 	virtual void RenderLightingEffectsLightingTab() {}
 	void RenderShadowSection();
+	void RenderSunMoonSection();
 	void RenderMiscSection();
 	virtual void RenderHexShieldSection() = 0;
 	void RenderSmokeSection();
@@ -53,6 +55,8 @@ public:
 	void RenderWaveCountRadioButtons(Wrapper& rCountWrapper);
 	void WrapperSlider(std::string_view label, int64_t iSection, float fWidthMultiplier = 2.0f, std::string_view mapKey = {});
 	void WrapperSeparatorText(std::string_view label);
+	// Chevron-style discrete index selector: << [name] >> with wrap-around. iCount must equal the wrapper's allowed-value count.
+	void ChevronIndexSelector(std::string_view label, Wrapper& rWrapper, const std::string_view* pNames, int64_t iCount);
 
 	std::string_view mActiveSlider;
 	int64_t miActiveSliderSection = -1; // -1 for toggle bar, 0+ for sections

@@ -1125,6 +1125,9 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenShadow.cpp">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenSunMoon.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenMisc.cpp">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>

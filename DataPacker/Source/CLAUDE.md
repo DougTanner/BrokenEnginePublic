@@ -8,7 +8,7 @@ Main.cpp orchestrates a multi-phase pipeline: pre-export (Scene, then a Gaea bak
 
 FileManager (`gpFileManager`) owns input/output/temp directories and the Vulkan SDK path (`VK_SDK_PATH` + `Bin/` required for glslc / glslangValidator / spirv-opt). CLI accepts zero args (sandbox defaults) or exactly three (engine-data, project-data, output-dir).
 
-Texture utilities keep internal pixels as RGBA float at 0–255 scale (not 0..1). BC4/BC7 mip chains terminate once width or height drops below 4 or stops being divisible by 4.
+Texture utilities keep internal pixels as RGBA float at 0–255 scale (not 0..1). BC4/BC5/BC7 mip chains terminate once width or height drops below 4 or stops being divisible by 4.
 
 Pch.h sets `kbIsDataPacker = true` (distinct from engine/game PCH); log categories default to `kVerbose`.
 

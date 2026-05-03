@@ -199,7 +199,7 @@ void TextureUploadManager::UploadThread()
 			uint32_t uiArrayLayers = bCubemap ? 6u : 1u;
 			uint32_t uiMipLevels = static_cast<uint32_t>(rLazyChunk.header.textureHeader.iMipLevels);
 			VkFormat vkFormat = rLazyChunk.header.textureHeader.vkFormat;
-			bool bCompressed = (vkFormat == VK_FORMAT_BC4_UNORM_BLOCK || vkFormat == VK_FORMAT_BC7_UNORM_BLOCK);
+			bool bCompressed = (vkFormat == VK_FORMAT_BC4_UNORM_BLOCK || vkFormat == VK_FORMAT_BC5_UNORM_BLOCK || vkFormat == VK_FORMAT_BC7_UNORM_BLOCK);
 			uint32_t uiBlockHeight = bCompressed ? 4u : 1u;
 			uint32_t uiBaseWidth = static_cast<uint32_t>(rLazyChunk.header.textureHeader.iTextureWidth);
 			uint32_t uiBaseHeight = static_cast<uint32_t>(rLazyChunk.header.textureHeader.iTextureHeight);

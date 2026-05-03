@@ -56,6 +56,7 @@ constexpr float kfShieldRotationSpeed = 4.0f;
 // Hex shield rendering
 constexpr float kfHexShieldSizeScale = kfPlayerRadius * 0.0667f;
 constexpr float kfHexShieldColorMix = 0.85f;
+constexpr float kfHexShieldFadeThreshold = 0.25f;
 
 // Player model (defined in PlayersRender.cpp)
 extern const common::crc_t kPlayerModel;
@@ -615,12 +616,15 @@ void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rF
 				.fColorMix = kfHexShieldColorMix,
 			};
 
-			// Copy direction arrays
+			// Copy direction arrays (per-slot smoothstep tail so fade-out eases to zero)
 			for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
 			{
+				const float fFragIntensity = rCurrent.pHexShieldFragIntensities[i].data[j];
+				const float fFade = std::clamp(fFragIntensity / kfHexShieldFadeThreshold, 0.0f, 1.0f);
+				const float fSmoothFade = fFade * fFade * (3.0f - 2.0f * fFade);
 				syncData.pf4Directions[j] = rCurrent.pHexShieldDirections[i].data[j];
-				syncData.pfVertIntensities[j] = rCurrent.pHexShieldVertIntensities[i].data[j];
-				syncData.pfFragIntensities[j] = rCurrent.pHexShieldFragIntensities[i].data[j];
+				syncData.pfVertIntensities[j] = rCurrent.pHexShieldVertIntensities[i].data[j] * fSmoothFade;
+				syncData.pfFragIntensities[j] = fFragIntensity * fSmoothFade;
 			}
 
 			engine::HexShieldsInterpolate::Sync(rFrameInterpolate, rCurrent.pHexShields[i], syncData);

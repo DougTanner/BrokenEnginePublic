@@ -38,6 +38,7 @@ int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight)
 		case VK_FORMAT_BC4_UNORM_BLOCK:
 			return ((iWidth + 3) / 4) * ((iHeight + 3) / 4) * 8;
 
+		case VK_FORMAT_BC5_UNORM_BLOCK:
 		case VK_FORMAT_BC7_UNORM_BLOCK:
 			return ((iWidth + 3) / 4) * ((iHeight + 3) / 4) * 16;
 

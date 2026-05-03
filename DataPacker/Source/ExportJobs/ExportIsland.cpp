@@ -2,6 +2,8 @@
 
 #include "Texture.h"
 
+#include "bc7enc_rdo/bc7decomp.h"
+
 using enum common::ChunkFlags;
 
 std::optional<common::ChunkFlags_t> ExportIsland::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
@@ -126,9 +128,60 @@ void ExportIsland::Export()
 
 		std::filesystem::path path(mInputPath);
 		path /= kpcIslandNormals;
-		texture.Save(path, VK_FORMAT_BC7_UNORM_BLOCK, false);
+		texture.Save(path, VK_FORMAT_BC5_UNORM_BLOCK, false);
 
 		std::filesystem::remove(normalsExrFile);
+	}
+	else
+	{
+		// One-time migration: pre-baked islands shipped before BC5 support carry "Normals.BC7_UNORM_BLOCK".
+		// Decode mip 0, drop the BC7 file, and re-encode through the standard BC5 mip pipeline.
+		std::filesystem::path bc5NormalsFile(mInputPath);
+		bc5NormalsFile /= kpcIslandNormals;
+		std::filesystem::path bc7NormalsFile(mInputPath);
+		bc7NormalsFile /= "Normals.BC7_UNORM_BLOCK";
+		if (!std::filesystem::exists(bc5NormalsFile) && std::filesystem::exists(bc7NormalsFile))
+		{
+			std::fstream fileIn(bc7NormalsFile, std::ios::in | std::ios::binary);
+			int64_t iWidth = 0;
+			int64_t iHeight = 0;
+			int64_t iMipMaps = 0;
+			fileIn.read(reinterpret_cast<char*>(&iWidth), sizeof(iWidth));
+			fileIn.read(reinterpret_cast<char*>(&iHeight), sizeof(iHeight));
+			fileIn.read(reinterpret_cast<char*>(&iMipMaps), sizeof(iMipMaps));
+			int64_t iMip0Size = common::SizeInBytes(VK_FORMAT_BC7_UNORM_BLOCK, iWidth, iHeight);
+			std::vector<uint8_t> bc7Data(iMip0Size);
+			fileIn.read(reinterpret_cast<char*>(bc7Data.data()), iMip0Size);
+			fileIn.close();
+
+			std::vector<uint8_t> rgbaData(iWidth * iHeight * 4);
+			int64_t iBlocksX = iWidth / 4;
+			int64_t iBlocksY = iHeight / 4;
+			for (int64_t iBy = 0; iBy < iBlocksY; ++iBy)
+			{
+				for (int64_t iBx = 0; iBx < iBlocksX; ++iBx)
+				{
+					bc7decomp::color_rgba pixels[16];
+					bc7decomp::unpack_bc7(bc7Data.data() + 16 * (iBy * iBlocksX + iBx), pixels);
+					for (int64_t iPy = 0; iPy < 4; ++iPy)
+					{
+						for (int64_t iPx = 0; iPx < 4; ++iPx)
+						{
+							int64_t iDstX = iBx * 4 + iPx;
+							int64_t iDstY = iBy * 4 + iPy;
+							std::memcpy(&rgbaData.at(4 * (iDstY * iWidth + iDstX)), pixels[iPy * 4 + iPx].m_comps, 4);
+						}
+					}
+				}
+			}
+
+			Texture texture(reinterpret_cast<const std::byte*>(rgbaData.data()), iWidth, iHeight, 4);
+			texture.MakeMipmaps(VK_FORMAT_BC5_UNORM_BLOCK);
+			texture.Save(bc5NormalsFile, VK_FORMAT_BC5_UNORM_BLOCK, false);
+
+			std::filesystem::remove(bc7NormalsFile);
+			LOG(kDefault, kInfo, "Migrated island normals BC7 -> BC5: {}", bc5NormalsFile.string());
+		}
 	}
 
 	// Beach elevation

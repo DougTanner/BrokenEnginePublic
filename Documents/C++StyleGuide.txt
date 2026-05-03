@@ -189,7 +189,7 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 
 48. Don't add extra curly brackets for scope to force close std::fstream, instead use .close() when no longer needed: fileStream.close();
 
-49. Don't use getters and setters to access class members, make the members public instead
+49. Default to "public:" for class members. "protected:" and "private:" are reserved for the specific case where modifying one member always (or sometimes) requires modifying another at the same time — in that case, hide both members and expose a single setter function that mutates them together to keep the invariant. Do not use getters/setters as a default access pattern; expose the member directly instead.
 
 50. if () statements compare booleans they don't take pointers:
 

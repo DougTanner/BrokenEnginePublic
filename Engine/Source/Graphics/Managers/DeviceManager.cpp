@@ -29,6 +29,7 @@ DeviceManager::DeviceManager()
 		deviceExtensions.push_back(VK_KHR_SHADER_CLOCK_EXTENSION_NAME);
 	}
 	bool bMaintenance9Available = false;
+	bool bLineRasterizationAvailable = false;
 	for (const VkExtensionProperties& rExtension : availableExtensions)
 	{
 		if (strcmp(rExtension.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0)
@@ -43,7 +44,48 @@ DeviceManager::DeviceManager()
 			bMaintenance9Available = true;
 			LOG(kGraphics, kInfo, "VK_KHR_maintenance9 extension available");
 		}
+		else if (strcmp(rExtension.extensionName, VK_EXT_LINE_RASTERIZATION_EXTENSION_NAME) == 0)
+		{
+			bLineRasterizationAvailable = true;
+			LOG(kGraphics, kInfo, "VK_EXT_line_rasterization extension available");
+		}
 	}
+
+	// Probe for smoothLines / rectangularLines support before deciding to enable the extension
+	VkPhysicalDeviceLineRasterizationFeaturesEXT vkPhysicalDeviceLineRasterizationFeaturesEXT =
+	{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LINE_RASTERIZATION_FEATURES_EXT,
+		.pNext = nullptr,
+	};
+	if (bLineRasterizationAvailable)
+	{
+		VkPhysicalDeviceFeatures2 vkPhysicalDeviceFeatures2Probe =
+		{
+			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+			.pNext = &vkPhysicalDeviceLineRasterizationFeaturesEXT,
+		};
+		vkGetPhysicalDeviceFeatures2(gpInstanceManager->mVkPhysicalDevice, &vkPhysicalDeviceFeatures2Probe);
+
+		mbSmoothLinesEnabled = (vkPhysicalDeviceLineRasterizationFeaturesEXT.smoothLines == VK_TRUE)
+		                    && (vkPhysicalDeviceLineRasterizationFeaturesEXT.rectangularLines == VK_TRUE);
+
+		// Strip the smoothLines feature struct of probe-only flags; only the bits we want enabled remain
+		vkPhysicalDeviceLineRasterizationFeaturesEXT = VkPhysicalDeviceLineRasterizationFeaturesEXT
+		{
+			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LINE_RASTERIZATION_FEATURES_EXT,
+			.pNext = nullptr,
+			.rectangularLines = mbSmoothLinesEnabled ? VK_TRUE : VK_FALSE,
+			.smoothLines = mbSmoothLinesEnabled ? VK_TRUE : VK_FALSE,
+		};
+
+		if (mbSmoothLinesEnabled)
+		{
+			deviceExtensions.push_back(VK_EXT_LINE_RASTERIZATION_EXTENSION_NAME);
+			LOG(kGraphics, kInfo, "VK_EXT_line_rasterization smooth lines enabled");
+		}
+	}
+
+	mbWideLinesEnabled = gpInstanceManager->mVkPhysicalDeviceFeatures2.features.wideLines == VK_TRUE;
 
 	VkPhysicalDeviceMaintenance9FeaturesKHR vkPhysicalDeviceMaintenance9FeaturesKHR =
 	{
@@ -59,7 +101,7 @@ DeviceManager::DeviceManager()
 		.shaderDeviceClock = VK_TRUE,
 	};
 
-	// Build feature pNext chain tail: maintenance9 (if available) -> shader clock (if enabled)
+	// Build feature pNext chain tail: maintenance9 (if available) -> shader clock (if enabled) -> line rasterization (if smooth lines enabled)
 	void* pFeatureChainTail = nullptr;
 	if constexpr (kbShaderRealtimeClock)
 	{
@@ -69,6 +111,11 @@ DeviceManager::DeviceManager()
 	{
 		vkPhysicalDeviceMaintenance9FeaturesKHR.pNext = pFeatureChainTail;
 		pFeatureChainTail = &vkPhysicalDeviceMaintenance9FeaturesKHR;
+	}
+	if (mbSmoothLinesEnabled)
+	{
+		vkPhysicalDeviceLineRasterizationFeaturesEXT.pNext = pFeatureChainTail;
+		pFeatureChainTail = &vkPhysicalDeviceLineRasterizationFeaturesEXT;
 	}
 
 	VkPhysicalDevice16BitStorageFeatures vkPhysicalDevice16BitStorageFeatures =
@@ -141,6 +188,10 @@ DeviceManager::DeviceManager()
 	#endif
 	};
 	vkPhysicalDeviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
+	if (mbWideLinesEnabled)
+	{
+		vkPhysicalDeviceFeatures.wideLines = VK_TRUE;
+	}
 	if constexpr (kbWireframe)
 	{
 		vkPhysicalDeviceFeatures.fillModeNonSolid = VK_TRUE;

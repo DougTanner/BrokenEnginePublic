@@ -83,6 +83,11 @@ public:
 
 	Pipeline mpPipelines[kPipelineCount];
 
+	// Texture* array for the kPipelineWater normal map atlas binding (sized sampler array).
+	// Populated at the top of CreateLightingShadowDependentPipelines() before kPipelineWater is built.
+	// Size must match TextureManager::kiWaterNormalCount (literal here because TextureManager.h is included after PipelineManager.h via Engine.h).
+	Texture* mppWaterNormalTextures[17] {};
+
 	// Spread pipelines [pass]: radial directional spread, fragment shader with MRT
 	Pipeline mSpreadPipelines[shaders::kiMaxSpreadPasses];
 

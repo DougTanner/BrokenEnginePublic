@@ -8,7 +8,7 @@ inline constexpr int64_t kiElevationDivisor = 4;
 inline constexpr char kpcIslandAmbientOcclusion[] = "AmbientOcclusion.BC4_UNORM_BLOCK";
 inline constexpr char kpcIslandColor[] = "Color.BC7_UNORM_BLOCK";
 inline constexpr char kpcIslandElevation[] = "Elevation.R16_UNORM";
-inline constexpr char kpcIslandNormals[] = "Normals.BC7_UNORM_BLOCK";
+inline constexpr char kpcIslandNormals[] = "Normals.BC5_UNORM_BLOCK";
 
 class ExportIsland : public ExportJob
 {
@@ -25,7 +25,7 @@ public:
 
 	virtual ~ExportIsland() = default;
 
-	virtual int64_t GetVersion() const override { return 4 + sizeof(common::ChunkHeader); }
+	virtual int64_t GetVersion() const override { return 6 + sizeof(common::ChunkHeader); }
 
 protected:
 

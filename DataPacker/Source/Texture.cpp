@@ -208,7 +208,7 @@ void Texture::MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel, bool bUseBoxFilt
 		int64_t iDstWidth = std::max(iSrcWidth / 2, 1ll);
 		int64_t iDstHeight = std::max(iSrcHeight / 2, 1ll);
 
-		if (vkFormat == VK_FORMAT_BC4_UNORM_BLOCK || vkFormat == VK_FORMAT_BC7_UNORM_BLOCK)
+		if (vkFormat == VK_FORMAT_BC4_UNORM_BLOCK || vkFormat == VK_FORMAT_BC5_UNORM_BLOCK || vkFormat == VK_FORMAT_BC7_UNORM_BLOCK)
 		{
 			if (iDstWidth < 4 || iDstHeight < 4)
 			{
@@ -217,7 +217,7 @@ void Texture::MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel, bool bUseBoxFilt
 
 			if ((iDstWidth % 4) != 0 || (iDstHeight % 4) != 0)
 			{
-				LOG(kDefault, kVerbose, "BC4/BC7 early out {} x {}", iDstWidth, iDstHeight);
+				LOG(kDefault, kVerbose, "BC4/BC5/BC7 early out {} x {}", iDstWidth, iDstHeight);
 				return;
 			}
 		}
@@ -284,6 +284,36 @@ void Texture::ToBc4(std::byte* puiOut, const std::vector<float>& rIn, int64_t iW
 
 			rgbcx::encode_bc4_hq(&puiOut[iCurrentPosition], puiBlock, 1);
 			iCurrentPosition += 8;
+		}
+	}
+}
+
+void Texture::ToBc5(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight)
+{
+	int64_t iCurrentPosition = 0;
+	int64_t iBlocksX = iWidth / 4;
+	int64_t iBlocksY = iHeight / 4;
+	for (int64_t j = 0; j < iBlocksY; ++j)
+	{
+		for (int64_t i = 0; i < iBlocksX; ++i)
+		{
+			uint8_t puiBlockR[16] {};
+			uint8_t puiBlockG[16] {};
+			for (int64_t k = 0; k < 4; ++k)
+			{
+				puiBlockR[4 * k + 0] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 0) + 0));
+				puiBlockR[4 * k + 1] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 1) + 0));
+				puiBlockR[4 * k + 2] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 2) + 0));
+				puiBlockR[4 * k + 3] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 3) + 0));
+				puiBlockG[4 * k + 0] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 0) + 1));
+				puiBlockG[4 * k + 1] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 1) + 1));
+				puiBlockG[4 * k + 2] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 2) + 1));
+				puiBlockG[4 * k + 3] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 3) + 1));
+			}
+
+			rgbcx::encode_bc4_hq(&puiOut[iCurrentPosition + 0], puiBlockR, 1);
+			rgbcx::encode_bc4_hq(&puiOut[iCurrentPosition + 8], puiBlockG, 1);
+			iCurrentPosition += 16;
 		}
 	}
 }
@@ -383,6 +413,10 @@ void Texture::Export(std::vector<std::byte>& rData, VkFormat vkFormat, bool bVer
 		{
 			case VK_FORMAT_BC4_UNORM_BLOCK:
 				ToBc4(puiCurrentPosition, rMipLevel, iMipWidth, iMipHeight);
+				break;
+
+			case VK_FORMAT_BC5_UNORM_BLOCK:
+				ToBc5(puiCurrentPosition, rMipLevel, iMipWidth, iMipHeight);
 				break;
 
 			case VK_FORMAT_BC7_UNORM_BLOCK:

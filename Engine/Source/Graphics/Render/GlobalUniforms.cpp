@@ -29,47 +29,47 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	XMVECTOR vecMidnight = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 	XMVECTOR vecAmbientMidnight = XMVectorSet(fAmbientNight, fAmbientNight, fAmbientNight, 1.0f);
 	float fMoonBrightness = gMoonBrightness.Get();
-	XMVECTOR vecMoonFloor = XMVectorSet(fMoonBrightness, fMoonBrightness, fMoonBrightness * 1.33f, 0.0f);
+	XMVECTOR vecMoonFloor = XMVectorSet(fMoonBrightness, fMoonBrightness, fMoonBrightness * gSunMoonMoonBlueTint.Get(), 0.0f);
 
 	XMVECTOR vecSunMoon = vecMidnight;
 	XMVECTOR vecAmbient = vecAmbientMidnight;
 
-	static constexpr float kfNoonStart = XM_PIDIV8;
-	static constexpr float kfNoonEnd = XM_PIDIV2 + XM_PIDIV8;
-	static constexpr float kfEvening = XM_PI - XM_PIDIV16;
-	static constexpr float kfNightStart = XM_PI;
-	static constexpr float kfMorning = XM_PIDIV16;
+	const float fMorning = gSunMoonMorning.Get();
+	const float fNoonStart = gSunMoonNoonStart.Get();
+	const float fNoonEnd = gSunMoonNoonEnd.Get();
+	const float fEvening = gSunMoonEvening.Get();
+	const float fNightStart = gSunMoonNightStart.Get();
 
-	if (fSunAngle >= kfMorning && fSunAngle < kfNoonStart)
+	if (fSunAngle >= fMorning && fSunAngle < fNoonStart)
 	{
-		float fLerp = (fSunAngle - kfMorning) / (kfNoonStart - kfMorning);
+		float fLerp = (fSunAngle - fMorning) / (fNoonStart - fMorning);
 		vecSunMoon = XMVectorLerp(vecSunMorning, vecSunNoon, fLerp);
 		vecAmbient = XMVectorLerp(vecAmbientMorning, vecAmbientNoon, fLerp);
 	}
-	else if (fSunAngle >= kfNoonStart && fSunAngle < kfNoonEnd)
+	else if (fSunAngle >= fNoonStart && fSunAngle < fNoonEnd)
 	{
 		vecSunMoon = vecSunNoon;
 		vecAmbient = vecAmbientNoon;
 	}
-	else if (fSunAngle >= kfNoonEnd && fSunAngle < kfEvening)
+	else if (fSunAngle >= fNoonEnd && fSunAngle < fEvening)
 	{
-		float fLerp = (fSunAngle - kfNoonEnd) / (kfEvening - kfNoonEnd);
+		float fLerp = (fSunAngle - fNoonEnd) / (fEvening - fNoonEnd);
 		vecSunMoon = XMVectorLerp(vecSunNoon, vecSunEvening, fLerp);
 		vecAmbient = XMVectorLerp(vecAmbientNoon, vecAmbientEvening, fLerp);
 	}
-	else if (fSunAngle >= kfEvening && fSunAngle < kfNightStart)
+	else if (fSunAngle >= fEvening && fSunAngle < fNightStart)
 	{
-		float fLerp = (fSunAngle - kfEvening) / (kfNightStart - kfEvening);
+		float fLerp = (fSunAngle - fEvening) / (fNightStart - fEvening);
 		vecSunMoon = XMVectorLerp(vecSunEvening, vecMidnight, fLerp);
 		vecAmbient = XMVectorLerp(vecAmbientEvening, vecAmbientMidnight, fLerp);
 	}
-	else if (fSunAngle >= kfNightStart)
+	else if (fSunAngle >= fNightStart)
 	{
 		vecAmbient = vecAmbientMidnight;
 	}
 	else if (fSunAngle >= 0.0f)
 	{
-		float fLerp = fSunAngle / kfMorning;
+		float fLerp = fSunAngle / fMorning;
 		vecSunMoon = XMVectorLerp(vecMidnight, vecSunMorning, fLerp);
 		vecAmbient = XMVectorLerp(vecAmbientMidnight, vecAmbientMorning, fLerp);
 	}
@@ -206,26 +206,26 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 		rGlobalLayout.iShadowStartOffset = static_cast<int>(fShadowTextureSizeWidth / 2.0f); // Start offset
 	}
 
-	// Shadow multiplier: 1.0 during day, kfNightMultiplier at night
-	static constexpr float kfNightMultiplier = 0.2f;
-	static constexpr float kfSunsetStart = XM_PI - XM_PIDIV32;
-	static constexpr float kfSunsetEnd = XM_PI - XM_PIDIV128;
-	static constexpr float kfSunriseStart = XM_PIDIV128;
-	static constexpr float kfSunriseEnd = XM_PIDIV32;
+	// Shadow multiplier: 1.0 during day, fNightMultiplier at night
+	const float fNightMultiplier = gSunMoonShadowNightMultiplier.Get();
+	const float fSunsetStart = gSunMoonShadowSunsetStart.Get();
+	const float fSunsetEnd = gSunMoonShadowSunsetEnd.Get();
+	const float fSunriseStart = gSunMoonShadowSunriseStart.Get();
+	const float fSunriseEnd = gSunMoonShadowSunriseEnd.Get();
 	float fMoonMultiplier = 1.0f;
-	if (fSunAngle >= kfSunsetStart && fSunAngle <= kfSunsetEnd)
+	if (fSunAngle >= fSunsetStart && fSunAngle <= fSunsetEnd)
 	{
-		float fLerp = (fSunAngle - kfSunsetStart) / (kfSunsetEnd - kfSunsetStart);
-		fMoonMultiplier = std::lerp(1.0f, kfNightMultiplier, fLerp);
+		float fLerp = (fSunAngle - fSunsetStart) / (fSunsetEnd - fSunsetStart);
+		fMoonMultiplier = std::lerp(1.0f, fNightMultiplier, fLerp);
 	}
-	else if (fSunAngle > kfSunsetEnd || fSunAngle <= kfSunriseStart)
+	else if (fSunAngle > fSunsetEnd || fSunAngle <= fSunriseStart)
 	{
-		fMoonMultiplier = kfNightMultiplier;
+		fMoonMultiplier = fNightMultiplier;
 	}
-	else if (fSunAngle >= kfSunriseStart && fSunAngle <= kfSunriseEnd)
+	else if (fSunAngle >= fSunriseStart && fSunAngle <= fSunriseEnd)
 	{
-		float fLerp = (fSunAngle - kfSunriseStart) / (kfSunriseEnd - kfSunriseStart);
-		fMoonMultiplier = std::lerp(kfNightMultiplier, 1.0f, fLerp);
+		float fLerp = (fSunAngle - fSunriseStart) / (fSunriseEnd - fSunriseStart);
+		fMoonMultiplier = std::lerp(fNightMultiplier, 1.0f, fLerp);
 	}
 	rGlobalLayout.fShadowMoonMultiplier = fMoonMultiplier;
 }
@@ -271,8 +271,8 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 	rGlobalLayout.fLightingTimeOfDayMultiplier = fDayPercent * gLightingDayFinalMultiplier.Get() + (1.0f - fDayPercent) * gLightingNightFinalMultiplier.Get();
 	rGlobalLayout.fLightingNightMultiplier = std::pow(fDayPercent, 0.5f);
 	// Night amount: 0.0 throughout day, 1.0 throughout night, smooth in narrow sunrise/sunset windows.
-	// Derived from fShadowMoonMultiplier (1.0 day -> 0.2 night) so the moon-brightness gate stays in lockstep with the shadow night-gate.
-	float fNightAmount = (1.0f - rGlobalLayout.fShadowMoonMultiplier) / 0.8f;
+	// Derived from fShadowMoonMultiplier (1.0 day -> gSunMoonShadowNightMultiplier at night) so the moon-brightness gate stays in lockstep with the shadow night-gate.
+	float fNightAmount = (1.0f - rGlobalLayout.fShadowMoonMultiplier) / std::max(0.001f, 1.0f - gSunMoonShadowNightMultiplier.Get());
 	rGlobalLayout.fLightingWaterMoonBrightness = std::lerp(1.0f, gLightingWaterMoonBrightness.Get(), fNightAmount);
 	rGlobalLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - fDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
 }
@@ -350,6 +350,7 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 
 	double dSizeBaseOne = static_cast<double>(gLightingSampledNormalsOneSize.Get());
 	double dSizeBaseTwo = static_cast<double>(gLightingSampledNormalsTwoSize.Get());
+	double dSizeBaseThree = static_cast<double>(gLightingSampledNormalsThreeSize.Get());
 	double dSpeed = static_cast<double>(gLightingSampledNormalsSpeed.Get());
 	double dTime = static_cast<double>(rGlobalLayout.fElapsedTime);
 	double dCameraX = static_cast<double>(f4CameraPos.x);
@@ -361,6 +362,9 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterReducedNormalOriginTwoX = static_cast<float>(std::fmod(dSizeBaseTwo * dCameraX, 10.0));
 	rGlobalLayout.fWaterReducedNormalOriginTwoY = static_cast<float>(std::fmod(dSizeBaseTwo * dCameraY, 10.0));
 	rGlobalLayout.fWaterReducedNormalTimeTwo = static_cast<float>(std::fmod(dSizeBaseTwo * dSpeed * dTime, 10.0));
+	rGlobalLayout.fWaterReducedNormalOriginThreeX = static_cast<float>(std::fmod(dSizeBaseThree * dCameraX, 10.0));
+	rGlobalLayout.fWaterReducedNormalOriginThreeY = static_cast<float>(std::fmod(dSizeBaseThree * dCameraY, 10.0));
+	rGlobalLayout.fWaterReducedNormalTimeThree = static_cast<float>(std::fmod(dSizeBaseThree * dSpeed * dTime, 10.0));
 
 	double dNoiseFreq = static_cast<double>(gWaterColorNoiseFrequency.Get());
 	rGlobalLayout.fWaterReducedNoiseOriginX = static_cast<float>(std::fmod(dNoiseFreq * dCameraX, 1.0));
@@ -440,6 +444,19 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	rGlobalLayout.fDebugTextureIndex = gDebugTextureIndex.Get();
 	rGlobalLayout.fDebugTextureFormat = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpDebugTextureFormats[static_cast<int64_t>(gDebugTextureIndex.Get())]);
 	rGlobalLayout.fDebugTextureLinearRange = gDebugTextureLinearRange.Get();
+
+	// DT: TEMP - capture sun/moon snapshot for HUD debug overlay.
+	gDebugSunMoonAngle = fSunAngle;
+	gDebugSunMoonNormal = rGlobalLayout.f4SunMoonNormal;
+	gDebugSunMoonColor = rGlobalLayout.f4SunMoonColor;
+	gDebugAmbientColor = rGlobalLayout.f4AmbientColor;
+	gDebugSunMoonDayPercent = fDayPercent;
+	gDebugSunMoonNoonPercent = fNoonPercent;
+	gDebugSunMoonShadowMoonMultiplier = rGlobalLayout.fShadowMoonMultiplier;
+	gDebugSunMoonLightingWaterMoonBrightness = rGlobalLayout.fLightingWaterMoonBrightness;
+	gDebugSunMoonWaterSunVisibility = rGlobalLayout.fWaterSunVisibility;
+	gDebugSunMoonWaterDirectional = rGlobalLayout.fWaterDirectional;
+	gDebugSunMoonTerrainSunBrightness = rGlobalLayout.fTerrainSunBrightness;
 }
 
 } // namespace engine

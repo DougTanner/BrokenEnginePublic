@@ -395,3 +395,8 @@ bool IsOcclusion(int64_t iIndex, const tinygltf::Material& rMaterial)
 
 	return bOcclusion;
 }
+
+bool IsNormal(int64_t iIndex, const tinygltf::Material& rMaterial)
+{
+	return rMaterial.additionalValues.find("normalTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("normalTexture").TextureIndex() == iIndex;
+}

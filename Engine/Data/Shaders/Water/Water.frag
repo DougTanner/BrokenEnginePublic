@@ -20,11 +20,10 @@ layout (set = 1, binding = 4) uniform sampler2D objectShadowsTextureSampler;
 layout (set = 1, binding = 5) uniform sampler2D elevationTextureSampler;
 layout (set = 1, binding = 6) uniform samplerCube skyboxSampler;
 layout (set = 1, binding = 7) uniform sampler2D noiseTextureSampler;
-layout (set = 1, binding = 8) uniform sampler2D normalmapOneTextureSampler;
-layout (set = 1, binding = 9) uniform sampler2D normalmapTwoTextureSampler;
-layout (set = 1, binding = 10) uniform sampler2D depthLutSampler;
-layout (set = 1, binding = 11) uniform sampler2D smokeSampler;
-layout (set = 1, binding = 12) uniform sampler2D ambientLightingSampler;
+layout (set = 1, binding = 8) uniform sampler2D pWaterNormalSamplers[17];
+layout (set = 1, binding = 9) uniform sampler2D depthLutSampler;
+layout (set = 1, binding = 10) uniform sampler2D smokeSampler;
+layout (set = 1, binding = 11) uniform sampler2D ambientLightingSampler;
 
 // Input
 layout (location = 0) in vec2 f2InInitialPosition;
@@ -35,9 +34,11 @@ layout (location = 3) in vec3 f3InNormal;
 // Output
 layout (location = 0) out vec4 f4OutColor;
 
-vec3 DecodeNormal(vec3 f3Encoded)
+// BC5 normal map: only XY stored, reconstruct Z = sqrt(1 - X^2 - Y^2). Sign-inverted XY decode is intentional (matches per-island flip convention upstream).
+vec3 DecodeNormal(vec2 f2Encoded)
 {
-	return vec3(1.0f - 2.0f * f3Encoded.x, 1.0f - 2.0f * f3Encoded.y, f3Encoded.z);
+	vec2 f2XY = vec2(1.0f - 2.0f * f2Encoded.x, 1.0f - 2.0f * f2Encoded.y);
+	return vec3(f2XY, sqrt(clamp(1.0f - dot(f2XY, f2XY), 0.0f, 1.0f)));
 }
 
 float Fresnel(vec3 f3CameraPosition, vec3 f3Position, vec3 f3InNormal, float fReduction)
@@ -74,10 +75,13 @@ void main()
 	// Normal map sampling with precision-safe UV computation
 	float fSizeOne = mainLayout.fLightingSampledNormalsOneSize;
 	float fSizeTwo = mainLayout.fLightingSampledNormalsTwoSize;
+	float fSizeThree = mainLayout.fLightingSampledNormalsThreeSize;
 	vec2 f2ReducedOrigin = vec2(globalLayout.fWaterReducedNormalOriginX, globalLayout.fWaterReducedNormalOriginY);
 	vec2 f2ReducedOriginTwo = vec2(globalLayout.fWaterReducedNormalOriginTwoX, globalLayout.fWaterReducedNormalOriginTwoY);
+	vec2 f2ReducedOriginThree = vec2(globalLayout.fWaterReducedNormalOriginThreeX, globalLayout.fWaterReducedNormalOriginThreeY);
 	float fReducedTime = globalLayout.fWaterReducedNormalTime;
 	float fReducedTimeTwo = globalLayout.fWaterReducedNormalTimeTwo;
+	float fReducedTimeThree = globalLayout.fWaterReducedNormalTimeThree;
 	vec2 f2LocalDx = dFdx(f2InInitialPosition);
 	vec2 f2LocalDy = dFdy(f2InInitialPosition);
 
@@ -90,27 +94,40 @@ void main()
 			+ speedMult * vec2(reducedTime); \
 		vec2 f2Dx = fCallSize * f2LocalDx; \
 		vec2 f2Dy = fCallSize * f2LocalDy; \
-		f3Accum += DecodeNormal(textureGrad(sampler, fract(f2UV), f2Dx, f2Dy).xyz); \
+		f3Accum += DecodeNormal(textureGrad(sampler, fract(f2UV), f2Dx, f2Dy).rg); \
 	}
 
-	// Normal map one (3 octaves)
+	// Sample One (3 octaves) — atlas index selected at runtime via uiWaterNormalIndexOne.
 	vec3 f3Accum = vec3(0.0f);
-	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, fSizeOne, f2ReducedOrigin, fReducedTime, 0.2f, 1.1f, vec2(0.1f, 0.2f))
-	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, fSizeOne, f2ReducedOrigin, fReducedTime, 1.1f, 1.2f, vec2(0.2f, 0.3f))
-	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, fSizeOne, f2ReducedOrigin, fReducedTime, 2.5f, 1.3f, vec2(0.3f, 0.4f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, fReducedTime, 0.2f, 1.1f, vec2(0.1f, 0.2f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, fReducedTime, 1.1f, 1.2f, vec2(0.2f, 0.3f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, fReducedTime, 2.5f, 1.3f, vec2(0.3f, 0.4f))
 	vec3 f3SampledNormalOne = f3Accum;
 
-	// Normal map two (3 octaves)
+	// Sample Two (3 octaves)
 	f3Accum = vec3(0.0f);
-	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, 0.3f, 1.4f, vec2(0.4f, 0.5f))
-	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, 1.2f, 1.5f, vec2(0.6f, 0.7f))
-	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, 3.0f, 1.6f, vec2(0.8f, 0.9f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, 0.3f, 1.4f, vec2(0.4f, 0.5f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, 1.2f, 1.5f, vec2(0.6f, 0.7f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, 3.0f, 1.6f, vec2(0.8f, 0.9f))
 	vec3 f3SampledNormalTwo = f3Accum;
+
+	// Sample Three (3 octaves) — extends the One/Two octave pattern linearly.
+	f3Accum = vec3(0.0f);
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, fReducedTimeThree, 0.4f, 1.7f, vec2(1.0f, 1.1f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, fReducedTimeThree, 1.3f, 1.8f, vec2(1.2f, 1.3f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, fReducedTimeThree, 3.5f, 1.9f, vec2(1.4f, 1.5f))
+	vec3 f3SampledNormalThree = f3Accum;
 
 	#undef SAMPLE_NORMAL_PRECISE
 
-	// Blend slider: 0 = all NormalmapOne, 1 = all NormalmapTwo, 0.5 = equal mix (matches old summed-then-normalized behavior since normalize is scale-invariant).
-	vec3 f3SampledNormal = normalize(mix(f3SampledNormalOne, f3SampledNormalTwo, mainLayout.fLightingSampledNormalsBlend));
+	// Per-sample weights interpolated by camera zoom (0 = closest, 1 = farthest), then weighted-sum-then-normalize.
+	// normalize() is scale-invariant so absolute weight magnitudes don't matter; only ratios do. Weight 0 disables a sample.
+	float fWeightOne = mix(mainLayout.fWaterNormalWeightOneMin, mainLayout.fWaterNormalWeightOneMax, mainLayout.fCameraHeightZoomFactor);
+	float fWeightTwo = mix(mainLayout.fWaterNormalWeightTwoMin, mainLayout.fWaterNormalWeightTwoMax, mainLayout.fCameraHeightZoomFactor);
+	float fWeightThree = mix(mainLayout.fWaterNormalWeightThreeMin, mainLayout.fWaterNormalWeightThreeMax, mainLayout.fCameraHeightZoomFactor);
+	// Guard against NaN: if all three weight sliders resolve to 0 the sum is the zero vector and normalize() returns NaN.
+	vec3 f3WeightedSum = fWeightOne * f3SampledNormalOne + fWeightTwo * f3SampledNormalTwo + fWeightThree * f3SampledNormalThree;
+	vec3 f3SampledNormal = f3WeightedSum / max(length(f3WeightedSum), 1e-6f);
 
 	// Color (noise with precision-safe UV)
 	vec2 f2LocalDisplacedPos = f3InPosition.xy - f2WaterOrigin;

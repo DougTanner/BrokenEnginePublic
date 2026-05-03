@@ -95,24 +95,29 @@ VkSamplerAddressMode ToVkSamplerAddressMode(int iWrapMode)
 	}
 }
 
-std::vector<bool> ComputeOcclusionFlags(const tinygltf::Model& rModel)
+std::vector<VkFormat> ComputeTextureFormats(const tinygltf::Model& rModel)
 {
-	std::vector<bool> occlusionFlags;
-	occlusionFlags.reserve(rModel.textures.size());
+	std::vector<VkFormat> textureFormats;
+	textureFormats.reserve(rModel.textures.size());
 	for (const tinygltf::Texture& rTexture : rModel.textures)
 	{
-		bool bOcclusion = false;
+		VkFormat vkFormat = VK_FORMAT_BC7_UNORM_BLOCK;
 		for (const tinygltf::Material& rMaterial : rModel.materials)
 		{
 			if (IsOcclusion(rTexture.source, rMaterial))
 			{
-				bOcclusion = true;
+				vkFormat = VK_FORMAT_BC4_UNORM_BLOCK;
+				break;
+			}
+			if (IsNormal(rTexture.source, rMaterial))
+			{
+				vkFormat = VK_FORMAT_BC5_UNORM_BLOCK;
 				break;
 			}
 		}
-		occlusionFlags.push_back(bOcclusion);
+		textureFormats.push_back(vkFormat);
 	}
-	return occlusionFlags;
+	return textureFormats;
 }
 
 std::filesystem::path ExportScene::GetPreExportMarkerPath() const
@@ -122,12 +127,26 @@ std::filesystem::path ExportScene::GetPreExportMarkerPath() const
 	return path;
 }
 
-std::filesystem::path ExportScene::GetTextureIntermediatePath(int64_t iTextureIndex, bool bOcclusion) const
+std::filesystem::path ExportScene::GetTextureIntermediatePath(int64_t iTextureIndex, VkFormat vkFormat) const
 {
 	std::filesystem::path path(mInputPath);
 	path += ".Texture";
 	path += std::to_string(iTextureIndex);
-	path += bOcclusion ? ".BC4_UNORM_BLOCK" : ".BC7_UNORM_BLOCK";
+	switch (vkFormat)
+	{
+		case VK_FORMAT_BC4_UNORM_BLOCK:
+			path += ".BC4_UNORM_BLOCK";
+			break;
+		case VK_FORMAT_BC5_UNORM_BLOCK:
+			path += ".BC5_UNORM_BLOCK";
+			break;
+		case VK_FORMAT_BC7_UNORM_BLOCK:
+			path += ".BC7_UNORM_BLOCK";
+			break;
+		default:
+			DEBUG_BREAK();
+			break;
+	}
 	return path;
 }
 
@@ -185,20 +204,19 @@ void ExportScene::PreExport(tinygltf::Model& rGltfModel)
 	ASSERT(rGltfModel.textures.size() <= common::SceneHeader::kiMaxTextures);
 	LOG(kDefault, kDebug, "Pre-processing {} textures", rGltfModel.textures.size());
 
-	std::vector<bool> occlusionFlags = ComputeOcclusionFlags(rGltfModel);
+	std::vector<VkFormat> textureFormats = ComputeTextureFormats(rGltfModel);
 
 	// Launch async texture processing tasks
 	std::vector<std::future<void>> futures;
 	futures.reserve(rGltfModel.textures.size());
 	for (size_t i = 0; i < rGltfModel.textures.size(); ++i)
 	{
-		bool bOcclusion = occlusionFlags.at(i);
+		VkFormat vkFormat = textureFormats.at(i);
 		const tinygltf::Image& rImage = rGltfModel.images.at(rGltfModel.textures.at(i).source);
-		std::filesystem::path path = GetTextureIntermediatePath(rGltfModel.textures.at(i).source, bOcclusion);
+		std::filesystem::path path = GetTextureIntermediatePath(rGltfModel.textures.at(i).source, vkFormat);
 
-		futures.push_back(std::async(std::launch::async, [bOcclusion, &rImage, path]()
+		futures.push_back(std::async(std::launch::async, [vkFormat, &rImage, path]()
 		{
-			VkFormat vkFormat = bOcclusion ? VK_FORMAT_BC4_UNORM_BLOCK : VK_FORMAT_BC7_UNORM_BLOCK;
 			Texture texture(reinterpret_cast<const std::byte*>(rImage.image.data()), rImage.width, rImage.height, rImage.component);
 			texture.MakeMipmaps(vkFormat);
 			texture.Save(path, vkFormat, false);
@@ -211,7 +229,7 @@ void ExportScene::PreExport(tinygltf::Model& rGltfModel)
 	{
 		futures.at(i).get();
 		const tinygltf::Image& rImage = rGltfModel.images.at(rGltfModel.textures.at(i).source);
-		std::filesystem::path path = GetTextureIntermediatePath(rGltfModel.textures.at(i).source, occlusionFlags.at(i));
+		std::filesystem::path path = GetTextureIntermediatePath(rGltfModel.textures.at(i).source, textureFormats.at(i));
 		mIntermediateFiles.push_back(path);
 		LOG(kDefault, kVerbose, "  {}: Texture {} -> {}", iTextureIndex++, rImage.uri, path.filename().native());
 	}
@@ -465,7 +483,7 @@ void ExportScene::MainExport(tinygltf::Model& rGltfModel)
 	common::MaterialShaderData* pMaterialShaderDatas = reinterpret_cast<common::MaterialShaderData*>(dataSpan.data() + iSceneArraysSize);
 
 	LOG(kDefault, kDebug, "Textures: {}", rGltfModel.textures.size());
-	std::vector<bool> occlusionFlags = ComputeOcclusionFlags(rGltfModel);
+	std::vector<VkFormat> textureFormats = ComputeTextureFormats(rGltfModel);
 	pHeader->sceneHeader.uiTextureCount = 0;
 	for (size_t i = 0; i < rGltfModel.textures.size(); ++i)
 	{
@@ -474,7 +492,21 @@ void ExportScene::MainExport(tinygltf::Model& rGltfModel)
 		relativeFile /= mInputPath.filename();
 		relativeFile += ".Texture";
 		relativeFile += std::to_string(rTexture.source);
-		relativeFile += occlusionFlags.at(i) ? ".BC4_UNORM_BLOCK" : ".BC7_UNORM_BLOCK";
+		switch (textureFormats.at(i))
+		{
+			case VK_FORMAT_BC4_UNORM_BLOCK:
+				relativeFile += ".BC4_UNORM_BLOCK";
+				break;
+			case VK_FORMAT_BC5_UNORM_BLOCK:
+				relativeFile += ".BC5_UNORM_BLOCK";
+				break;
+			case VK_FORMAT_BC7_UNORM_BLOCK:
+				relativeFile += ".BC7_UNORM_BLOCK";
+				break;
+			default:
+				DEBUG_BREAK();
+				break;
+		}
 		pTextureCrcs[pHeader->sceneHeader.uiTextureCount++] = common::Crc(relativeFile.string());
 	}
 

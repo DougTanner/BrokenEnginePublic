@@ -316,6 +316,8 @@ struct GlobalLayout
 	float fWaterReducedNormalOriginY INIT;
 	float fWaterReducedNormalOriginTwoX INIT;
 	float fWaterReducedNormalOriginTwoY INIT;
+	float fWaterReducedNormalOriginThreeX INIT;
+	float fWaterReducedNormalOriginThreeY INIT;
 
 	// Water
 	int32_t iWaterLowCount INIT;
@@ -348,6 +350,7 @@ struct GlobalLayout
 	float fWaterMediumSteepness INIT;
 	float fWaterReducedNormalTime INIT;
 	float fWaterReducedNormalTimeTwo INIT;
+	float fWaterReducedNormalTimeThree INIT;
 
 	// Particles
 	float fParticlesStretchVelocityStart INIT;
@@ -412,12 +415,21 @@ struct MainLayout
 	vec4 pf4MediumWavesOne[256] INIT;
 	vec4 pf4MediumWavesTwo[256] INIT;
 
-	// Lighting
+	// Lighting — water normal map atlas (3 weighted samples)
 	float fLightingSampledNormalsOneSize INIT;
 	float fLightingSampledNormalsTwoSize INIT;
-	float fLightingSampledNormalsBlend INIT;
-	float fMainPadA INIT;
+	float fLightingSampledNormalsThreeSize INIT;
 	float fLightingSampledNormalsSpeed INIT;
+	uint32_t uiWaterNormalIndexOne INIT;
+	uint32_t uiWaterNormalIndexTwo INIT;
+	uint32_t uiWaterNormalIndexThree INIT;
+	float fWaterNormalWeightOneMin INIT;
+	float fWaterNormalWeightOneMax INIT;
+	float fWaterNormalWeightTwoMin INIT;
+	float fWaterNormalWeightTwoMax INIT;
+	float fWaterNormalWeightThreeMin INIT;
+	float fWaterNormalWeightThreeMax INIT;
+	float fCameraHeightZoomFactor INIT;
 	float fWaterHeightDarkenTop INIT;
 	float fWaterHeightDarkenBottom INIT;
 	float fWaterHeightDarkenClamp INIT;

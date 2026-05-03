@@ -224,6 +224,19 @@ extern Wrapper gSmokeSimulationArea;
 extern Wrapper gSunAngleOverride;
 extern Wrapper gMinimumAmbient;
 
+// Sun/Moon - rise/set transition timing & values
+extern Wrapper gSunMoonMorning;       // sun angle where morning lerp begins (default XM_PIDIV16)
+extern Wrapper gSunMoonNoonStart;     // sun angle where noon plateau begins (default XM_PIDIV8)
+extern Wrapper gSunMoonNoonEnd;       // sun angle where noon plateau ends (default XM_PIDIV2 + XM_PIDIV8)
+extern Wrapper gSunMoonEvening;       // sun angle where evening lerp begins (default XM_PI - XM_PIDIV16)
+extern Wrapper gSunMoonNightStart;    // sun angle where full night begins (default XM_PI)
+extern Wrapper gSunMoonMoonBlueTint;  // moon-floor B-channel multiplier (default 1.33)
+extern Wrapper gSunMoonShadowNightMultiplier; // shadow strength at night (default 0.2)
+extern Wrapper gSunMoonShadowSunsetStart;     // sun angle where shadow night-gate begins to engage (default XM_PI - XM_PIDIV32)
+extern Wrapper gSunMoonShadowSunsetEnd;       // sun angle where shadow night-gate fully engaged (default XM_PI - XM_PIDIV128)
+extern Wrapper gSunMoonShadowSunriseStart;    // sun angle where shadow night-gate begins to disengage (default XM_PIDIV128)
+extern Wrapper gSunMoonShadowSunriseEnd;      // sun angle where shadow night-gate fully disengaged (default XM_PIDIV32)
+
 extern Wrapper gBaseHeight;
 
 // Pbr - Engine Variables
@@ -376,10 +389,20 @@ extern CurveData gCombineCurveOld;
 extern CurveData gCombineCurveNew;
 extern bool gbUseCombineCurveNew;
 #endif
+// Water normal map atlas wrappers — order matches per-sample row UI layout.
+extern Wrapper gWaterNormalIndexOne;
 extern Wrapper gLightingSampledNormalsOneSize;
+extern Wrapper gLightingSampledNormalsWeightOneMin;
+extern Wrapper gLightingSampledNormalsWeightOneMax;
+extern Wrapper gWaterNormalIndexTwo;
 extern Wrapper gLightingSampledNormalsTwoSize;
+extern Wrapper gLightingSampledNormalsWeightTwoMin;
+extern Wrapper gLightingSampledNormalsWeightTwoMax;
+extern Wrapper gWaterNormalIndexThree;
+extern Wrapper gLightingSampledNormalsThreeSize;
+extern Wrapper gLightingSampledNormalsWeightThreeMin;
+extern Wrapper gLightingSampledNormalsWeightThreeMax;
 extern Wrapper gLightingSampledNormalsSpeed;
-extern Wrapper gLightingSampledNormalsBlend;
 
 // New Lighting
 extern Wrapper gLightingNewDirectional;

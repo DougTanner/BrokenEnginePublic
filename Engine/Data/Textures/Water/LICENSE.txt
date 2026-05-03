@@ -1,0 +1,28 @@
+Water Normal Map Textures
+=========================
+
+Source:  https://opengameart.org/content/water-batch-of-15-seamless-textures-with-normalmaps
+Author:  Keith333
+License: Creative Commons Attribution 3.0 (CC-BY 3.0)
+         https://creativecommons.org/licenses/by/3.0/
+
+Files (normal maps only, originally suffixed _N.jpg in source):
+  [BC5]Foam.jpg
+  [BC5]FoamB.jpg
+  [BC5]GreenCalm.jpg
+  [BC5]GreenSea.jpg
+  [BC5]GreenSeaB.jpg
+  [BC5]Lake.jpg
+  [BC5]PondSediment.jpg
+  [BC5]Pool.jpg
+  [BC5]SeaDistant.jpg
+  [BC5]SeaWaves.jpg
+  [BC5]SeaWavesB.jpg
+  [BC5]SlimyWater.jpg
+  [BC5]SlimyWaterB.jpg
+  [BC5]StonesAndRipples.jpg
+  [BC5]WaterFall.jpg
+
+Modifications: Resized from original 2048xN dimensions to 1024x1024 square
+(bicubic resampling, JPEG quality 92). Diffuse / specular companions (_S.jpg)
+not included; only the normal maps (_N.jpg) were imported.

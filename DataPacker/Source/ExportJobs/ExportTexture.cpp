@@ -312,7 +312,7 @@ std::optional<common::ChunkFlags_t> ExportTexture::Handles(const std::filesystem
 		return common::ChunkFlags_t({common::ChunkFlags::kTexture, common::ChunkFlags::kCubemap});
 	}
 
-	std::unordered_set<std::string> extensionSet = {".png", ".tga", ".jpg", ".ktx", ".BC4_UNORM_BLOCK", ".BC7_UNORM_BLOCK", ".R8_UNORM", ".R8G8B8A8_UNORM", ".R16_UNORM", ".R16G16_UNORM", ".R32_SFLOAT", ".R16G16B16A16_SFLOAT"};
+	std::unordered_set<std::string> extensionSet = {".png", ".tga", ".jpg", ".ktx", ".BC4_UNORM_BLOCK", ".BC5_UNORM_BLOCK", ".BC7_UNORM_BLOCK", ".R8_UNORM", ".R8G8B8A8_UNORM", ".R16_UNORM", ".R16G16_UNORM", ".R32_SFLOAT", ".R16G16B16A16_SFLOAT"};
 	return extensionSet.contains(rDirectoryEntry.path().extension().string()) ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kTexture) : std::nullopt;
 }
 
@@ -331,6 +331,10 @@ void ExportTexture::Export()
 	{
 		vkFormat = VK_FORMAT_BC4_UNORM_BLOCK;
 	}
+	else if (mInputPath.native().find(L"[BC5]") != std::wstring::npos || mInputPath.native().find(L".BC5_UNORM_BLOCK") != std::wstring::npos)
+	{
+		vkFormat = VK_FORMAT_BC5_UNORM_BLOCK;
+	}
 	else if (mInputPath.native().find(L".R16G16B16A16_SFLOAT") != std::wstring::npos)
 	{
 		vkFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -340,7 +344,7 @@ void ExportTexture::Export()
 		vkFormat = VK_FORMAT_BC7_UNORM_BLOCK;
 	}
 
-	bool bRawTexture = mInputPath.native().find(L".R16_UNORM") != std::wstring::npos || mInputPath.native().find(L".BC4_UNORM_BLOCK") != std::wstring::npos || mInputPath.native().find(L".BC7_UNORM_BLOCK") != std::wstring::npos || mInputPath.native().find(L".R16G16B16A16_SFLOAT") != std::wstring::npos;
+	bool bRawTexture = mInputPath.native().find(L".R16_UNORM") != std::wstring::npos || mInputPath.native().find(L".BC4_UNORM_BLOCK") != std::wstring::npos || mInputPath.native().find(L".BC5_UNORM_BLOCK") != std::wstring::npos || mInputPath.native().find(L".BC7_UNORM_BLOCK") != std::wstring::npos || mInputPath.native().find(L".R16G16B16A16_SFLOAT") != std::wstring::npos;
 
 	if (mInputPath.native().find(L".ktx") != std::wstring::npos)
 	{

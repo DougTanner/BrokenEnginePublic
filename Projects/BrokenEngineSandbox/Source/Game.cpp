@@ -1078,7 +1078,7 @@ void Game::ResetGraphicsSettings()
 
 struct TweaksSettings
 {
-	static constexpr int64_t kiVersion = 9;
+	static constexpr int64_t kiVersion = 10;
 
 	bool bShowImGui = false;
 	bool bSectionVisible[static_cast<size_t>(engine::TweakSection::kCount)] {};

@@ -14,11 +14,6 @@ void TweaksScreenBase::RenderMiscSection()
 	WrapperSlider("Test Two", kiSection);
 	WrapperSlider("Debug Texture Range", kiSection);
 
-	WrapperSeparatorText("Moon");
-	WrapperSlider("Moon Brightness", kiSection);
-	WrapperSlider("Water Moon Brightness", kiSection);
-	WrapperSlider("Minimum Ambient", kiSection);
-
 	WrapperSeparatorText("Misc");
 	WrapperSlider("Misc Island Height", kiSection);
 	WrapperSlider("Misc0", kiSection);

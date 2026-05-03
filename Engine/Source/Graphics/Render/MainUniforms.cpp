@@ -8,6 +8,37 @@
 namespace engine
 {
 
+static void DebugRenderFrameEdges(const std::vector<GridCoord>& rActiveCoords)
+{
+	if constexpr (!kbDebugRender) return;
+
+	float fZ = gBaseHeight.Get();
+	constexpr XMFLOAT4A kf4EdgeColor = {0.0f, 1.0f, 1.0f, 1.0f};
+
+	for (const GridCoord& rCoord : rActiveCoords)
+	{
+		auto it = game::gpGame->mCoordFrames.find(rCoord);
+		if (it == game::gpGame->mCoordFrames.end()) continue;
+
+		// vecArea packing: x=minX, y=maxY, z=maxX, w=minY
+		XMVECTOR vecArea = it->second.staticData.vecArea;
+		float fMinX = XMVectorGetX(vecArea);
+		float fMaxY = XMVectorGetY(vecArea);
+		float fMaxX = XMVectorGetZ(vecArea);
+		float fMinY = XMVectorGetW(vecArea);
+
+		XMFLOAT3A f3MinMin = {fMinX, fMinY, fZ};
+		XMFLOAT3A f3MaxMin = {fMaxX, fMinY, fZ};
+		XMFLOAT3A f3MaxMax = {fMaxX, fMaxY, fZ};
+		XMFLOAT3A f3MinMax = {fMinX, fMaxY, fZ};
+
+		DebugRender::Line(f3MinMin, f3MaxMin, kf4EdgeColor);
+		DebugRender::Line(f3MaxMin, f3MaxMax, kf4EdgeColor);
+		DebugRender::Line(f3MaxMax, f3MinMax, kf4EdgeColor);
+		DebugRender::Line(f3MinMax, f3MinMin, kf4EdgeColor);
+	}
+}
+
 static void DebugRenderNavData(const std::vector<GridCoord>& rActiveCoords)
 {
 	if constexpr (!kbDebugRender) return;
@@ -98,6 +129,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	}
 
 	DebugRenderNavData(rActiveCoords);
+	DebugRenderFrameEdges(rActiveCoords);
 
 	DebugRender::BeginRender(iCommandBuffer);
 	DebugRender::EndRender(iCommandBuffer);

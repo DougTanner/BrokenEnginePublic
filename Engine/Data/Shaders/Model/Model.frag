@@ -172,7 +172,9 @@ vec3 GetNormal(PbrMaterialLayout material)
 	vec3 B = normalize(cross(N, T));
 	mat3 TBN = mat3(T, B, N);
 
-	vec3 tangentNormal = texture(sampler2D(pTextures[nonuniformEXT(int(material.fNormalTextureIndex))], samplerRepeat), getUV(material.iNormalTextureSet)).xyz * 2.0 - 1.0;
+	// BC5 normal map: only XY stored, reconstruct Z = sqrt(1 - X^2 - Y^2).
+	vec2 nXY = texture(sampler2D(pTextures[nonuniformEXT(int(material.fNormalTextureIndex))], samplerRepeat), getUV(material.iNormalTextureSet)).rg * 2.0 - 1.0;
+	vec3 tangentNormal = vec3(nXY, sqrt(clamp(1.0 - dot(nXY, nXY), 0.0, 1.0)));
 	return normalize(TBN * tangentNormal);
 }
 
