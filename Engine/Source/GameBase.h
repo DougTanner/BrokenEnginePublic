@@ -204,6 +204,13 @@ public:
 	// (e.g. ServerFleetManager::TickFleetTimers), use this so they pause cleanly and respect
 	// time-scaling without each one re-deriving the delta.
 	float mfLastDeltaTime = 0.0f;
+#if defined(BT_CLIENT)
+	// Wall-clock seconds elapsed since the previous render frame. Cached here so display-rate consumers
+	// (Camera blend / shake decay / mfTime) drive off the same wall-clock measurement that the player
+	// interpolation alpha uses — otherwise a vsync miss makes the player advance by 2x the wall delta
+	// while the camera advances by a fixed 1/refreshRate, producing visible relative stutter at high zoom.
+	double mfLastRenderFrameSeconds = 0.0;
+#endif // BT_CLIENT
 #if defined(BT_SERVER)
 	GameSaveLoad mGameSaveLoad;
 #endif // BT_SERVER
@@ -236,7 +243,7 @@ protected:
 	// sub-tick jitter. Single-tick commits don't rebase: T advances +kfDt while mfRenderTime
 	// stays continuous, so fDt drops by kfDt and the Update(N, kfDt) ≡ Update(N+1, 0)
 	// invariant makes the handoff pixel-identical.
-	float mfRenderTime = 0.0f;
+	double mfRenderTime = 0.0;
 	bool mbRenderClockSeeded = false;
 	common::Timer mRenderTimer;
 #endif // BT_CLIENT

@@ -8,7 +8,7 @@ Fragment and vertex shaders for rendering dynamic lights, plus compute shaders f
 
 - **AreaLight.frag / PointLight.frag** - MRT deposit of oriented (area) and axis-aligned (point) lights with cos^2 EWNS lobe weighting from world-offset to light center (epsilon fallback near center)
 - **VisibleLight.vert/.frag** - Instanced billboards for visible light effects with terrain intersection fading
-- **LightingSpread.frag** - Radial MRT spread pass. Rings with increasing direction counts and per-ring angular jitter; EWNS weighting, distance falloff, decay, and terrain-elevation height attenuation. Runs N passes (runtime slider); each pass reads the previous
+- **LightingSpread.frag** - Radial MRT spread pass. Rings with increasing direction counts, per-ring angular jitter, and per-fragment XY texture-sample jitter; EWNS weighting, distance falloff, decay, and terrain-elevation height attenuation. Runs N passes (runtime slider); each pass reads the previous
 - **LightCombine.comp** - Sums spread pass outputs across all three channels and tone maps float16 → UNORM8 using Uchimura curve. `fCombineHuePreserve` blends per-channel vs luminance-preserving modes. Also writes a precomputed ambient texture (`mAmbientCombineTexture`, RGBA8 UNORM, `0.25 * (E+W+N+S)` of the tone-mapped per-direction values) sampled by Terrain/Water in the ambient path to replace three EWNS samples with one
 - **LightingBlurH.comp / LightingBlurV.comp** - Separable Gaussian pre-blur of light type textures; vertical pass applies a box vignette using packed sample-count/falloff push constants
 

@@ -51,6 +51,8 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSlider("Distance", kiSection, 1.0f, "Spread Distance");
 				WrapperSlider("Ring Count", kiSection, 1.0f, "Spread Ring Count");
 				WrapperSlider("Jitter", kiSection, 1.0f, "Spread Jitter");
+				WrapperSlider("Sample Jitter Range", kiSection, 1.0f, "Spread Sample Jitter Range Start");
+				WrapperSlider("Sample Jitter Clustering", kiSection, 1.0f, "Spread Sample Jitter Clustering Start");
 				WrapperSlider("Distance Falloff", kiSection, 1.0f, "Spread Distance Falloff");
 				WrapperSlider("Height Multiplier", kiSection, 1.0f, "Spread Height Multiplier");
 				WrapperSlider("Height End Height", kiSection, 1.0f, "Spread Height End Height");
@@ -69,6 +71,8 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSlider("Distance", kiSection, 1.0f, "Spread Distance End");
 				WrapperSlider("Ring Count", kiSection, 1.0f, "Spread Ring Count End");
 				WrapperSlider("Jitter", kiSection, 1.0f, "Spread Jitter End");
+				WrapperSlider("Sample Jitter Range", kiSection, 1.0f, "Spread Sample Jitter Range End");
+				WrapperSlider("Sample Jitter Clustering", kiSection, 1.0f, "Spread Sample Jitter Clustering End");
 				WrapperSlider("Distance Falloff", kiSection, 1.0f, "Spread Distance Falloff End");
 				WrapperSlider("Output Threshold", kiSection, 1.0f, "Spread Output Threshold End");
 				WrapperSlider("Output Compress", kiSection, 1.0f, "Spread Output Compress End");

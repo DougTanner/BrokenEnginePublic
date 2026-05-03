@@ -114,13 +114,19 @@ void CameraBase::CalculateMatricesAndVisibleArea()
 		f4RenderVisibleArea = f4LargeVisibleArea;
 	}
 
-	// Adjust visible area in world space to align with terrain and water polygon grid
+	// Adjust visible area in world space to align with terrain and water polygon grid.
+	// Snap quantum scales with viewport so the per-frame snap step stays sub-pixel at any zoom;
+	// the original 0.01f world-space floor was visible as a 1-2 pixel terrain step at min eye height.
 	auto [iTerrainQuadX, iTerrainQuadY] = gpTextureManager->DetailTextureSize(gWorldDetail.Get());
 	float fQuadsX = static_cast<float>(iTerrainQuadX);
 	float fQuadsY = static_cast<float>(iTerrainQuadY);
 
-	f2VisibleAreaQuadSize.x = common::RoundDown((f4RenderVisibleArea.z - f4RenderVisibleArea.x) / fQuadsX + 0.01f, 0.01f);
-	f2VisibleAreaQuadSize.y = common::RoundDown((f4RenderVisibleArea.y - f4RenderVisibleArea.w) / fQuadsY + 0.01f, 0.01f);
+	constexpr float kfSnapQuantumPixels = 0.25f;
+	float fWorldUnitsPerPixel = (f4RenderVisibleArea.z - f4RenderVisibleArea.x) / static_cast<float>(gpGraphics->mFramebufferExtent2D.width);
+	float fSnapQuantum = fWorldUnitsPerPixel * kfSnapQuantumPixels;
+
+	f2VisibleAreaQuadSize.x = common::RoundDown((f4RenderVisibleArea.z - f4RenderVisibleArea.x) / fQuadsX + fSnapQuantum, fSnapQuantum);
+	f2VisibleAreaQuadSize.y = common::RoundDown((f4RenderVisibleArea.y - f4RenderVisibleArea.w) / fQuadsY + fSnapQuantum, fSnapQuantum);
 	f4RenderVisibleArea.x = common::RoundDown(f4RenderVisibleArea.x, f2VisibleAreaQuadSize.x);
 	f4RenderVisibleArea.y = common::RoundDown(f4RenderVisibleArea.y + f2VisibleAreaQuadSize.y, f2VisibleAreaQuadSize.y);
 	f4RenderVisibleArea.z = f4RenderVisibleArea.x + fQuadsX * f2VisibleAreaQuadSize.x;

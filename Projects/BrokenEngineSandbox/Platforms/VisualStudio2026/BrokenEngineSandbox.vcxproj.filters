@@ -414,6 +414,9 @@
     <ClInclude Include="..\..\..\..\Engine\Data\Shaders\ShaderFunctions.h">
       <Filter>Engine\Data\Shaders</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Data\Shaders\ShaderRandom.h">
+      <Filter>Engine\Data\Shaders</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Data\Shaders\ShaderLayoutsBase.h">
       <Filter>Engine\Data\Shaders</Filter>
     </ClInclude>

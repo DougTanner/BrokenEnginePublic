@@ -337,6 +337,8 @@ extern Wrapper gSpreadDirectionCount;
 extern Wrapper gSpreadDistance;
 extern Wrapper gSpreadRingCount;
 extern Wrapper gSpreadJitter;
+extern Wrapper gSpreadSampleJitterRangeStart;
+extern Wrapper gSpreadSampleJitterClusteringStart;
 extern Wrapper gSpreadDistanceFalloff;
 extern Wrapper gSpreadOutputThreshold;
 extern Wrapper gSpreadOutputCompress;
@@ -348,6 +350,8 @@ extern Wrapper gSpreadDirectionCountEnd;
 extern Wrapper gSpreadDistanceEnd;
 extern Wrapper gSpreadRingCountEnd;
 extern Wrapper gSpreadJitterEnd;
+extern Wrapper gSpreadSampleJitterRangeEnd;
+extern Wrapper gSpreadSampleJitterClusteringEnd;
 extern Wrapper gSpreadDistanceFalloffEnd;
 extern Wrapper gSpreadOutputThresholdEnd;
 extern Wrapper gSpreadOutputCompressEnd;
@@ -373,13 +377,9 @@ extern CurveData gCombineCurveNew;
 extern bool gbUseCombineCurveNew;
 #endif
 extern Wrapper gLightingSampledNormalsOneSize;
-extern Wrapper gLightingSampledNormalsOneSpeed;
-extern Wrapper gLightingSampledNormalsOneMultiplier;
-extern Wrapper gLightingSampledNormalsOneIntensity;
 extern Wrapper gLightingSampledNormalsTwoSize;
-extern Wrapper gLightingSampledNormalsTwoSpeed;
-extern Wrapper gLightingSampledNormalsTwoMultiplier;
-extern Wrapper gLightingSampledNormalsTwoIntensity;
+extern Wrapper gLightingSampledNormalsSpeed;
+extern Wrapper gLightingSampledNormalsBlend;
 
 // New Lighting
 extern Wrapper gLightingNewDirectional;

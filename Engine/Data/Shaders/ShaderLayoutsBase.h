@@ -122,7 +122,7 @@ CONSTEXPR int kiBillboardTexturesCount = 3;
 
 CONSTEXPR int kiMaxIslands = 64;
 
-CONSTEXPR int kiMaxSpreadPasses = 32;
+CONSTEXPR int kiMaxSpreadPasses = 40;
 CONSTEXPR int kiMaxDebugTextures = 3 + kiMaxSpreadPasses;
 
 CONSTEXPR int kiDebugTextureFormatFloat16LightingDirectional = 0;
@@ -155,6 +155,7 @@ struct GlobalLayout
 	int32_t iCommandBuffer INIT;
 	int32_t iCameraFrame INIT;
 	int32_t iTickCounter INIT;
+	uint32_t uiRandomSeed INIT;
 
 	float fElapsedTime INIT;
 	float fBaseHeight INIT;
@@ -249,6 +250,8 @@ struct GlobalLayout
 	float fSpreadDistanceStart INIT;
 	float fSpreadRingCountStart INIT;
 	float fSpreadJitterStart INIT;
+	float fSpreadSampleJitterRangeStart INIT;
+	float fSpreadSampleJitterClusteringStart INIT;
 	float fSpreadDecayStart INIT;
 	float fSpreadAccumulationDecayStart INIT;
 	float fSpreadDistanceFalloffStart INIT;
@@ -263,6 +266,8 @@ struct GlobalLayout
 	float fSpreadDistanceEnd INIT;
 	float fSpreadRingCountEnd INIT;
 	float fSpreadJitterEnd INIT;
+	float fSpreadSampleJitterRangeEnd INIT;
+	float fSpreadSampleJitterClusteringEnd INIT;
 	float fSpreadDecayEnd INIT;
 	float fSpreadAccumulationDecayEnd INIT;
 	float fSpreadDistanceFalloffEnd INIT;
@@ -309,8 +314,8 @@ struct GlobalLayout
 	float fTerrainSunBrightness INIT;
 	float fWaterReducedNormalOriginX INIT;
 	float fWaterReducedNormalOriginY INIT;
-	float fWaterReducedNormalOriginRotatedX INIT;
-	float fWaterReducedNormalOriginRotatedY INIT;
+	float fWaterReducedNormalOriginTwoX INIT;
+	float fWaterReducedNormalOriginTwoY INIT;
 
 	// Water
 	int32_t iWaterLowCount INIT;
@@ -342,7 +347,7 @@ struct GlobalLayout
 	float fWaterLowSteepness INIT;
 	float fWaterMediumSteepness INIT;
 	float fWaterReducedNormalTime INIT;
-	float fWaterReducedNormalTimeRotated INIT;
+	float fWaterReducedNormalTimeTwo INIT;
 
 	// Particles
 	float fParticlesStretchVelocityStart INIT;
@@ -409,12 +414,10 @@ struct MainLayout
 
 	// Lighting
 	float fLightingSampledNormalsOneSize INIT;
-	float fMainPadA INIT;
-	float fLightingSampledNormalsOneMultiplier INIT;
-	float fLightingSampledNormalsOneIntensity INIT;
 	float fLightingSampledNormalsTwoSize INIT;
-	float fLightingSampledNormalsTwoMultiplier INIT;
-	float fLightingSampledNormalsTwoIntensity INIT;
+	float fLightingSampledNormalsBlend INIT;
+	float fMainPadA INIT;
+	float fLightingSampledNormalsSpeed INIT;
 	float fWaterHeightDarkenTop INIT;
 	float fWaterHeightDarkenBottom INIT;
 	float fWaterHeightDarkenClamp INIT;

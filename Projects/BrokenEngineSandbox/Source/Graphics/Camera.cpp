@@ -6,6 +6,13 @@
 #include "Frame/Frame.h"
 #include "Frame/Collections/Players/Players.h"
 
+namespace
+{
+	// TEMP zoom-stutter diagnostic — remove once root cause is identified
+	common::DiagnosticLog gZoomStutterDiag(0, "Temp/ZoomStutterDiag.log");
+	bool gbZoomStutterHeaderWritten = false;
+}
+
 namespace game
 {
 
@@ -39,9 +46,19 @@ void Camera::Update(const Frame& rFrame)
 
 void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 {
-	// Use display-rate dt: in FIFO mode each render frame is displayed for exactly 1/refreshRate
-	float fDeltaTime = 1.0f / static_cast<float>(engine::gpGraphics->miMonitorRefreshRate);
+	// Use the wall-clock dt the engine just measured for player interpolation. Driving camera blend,
+	// shake decay, and mfTime off the same source keeps the camera in sync with the interpolated player
+	// across vsync misses — otherwise the player advances by the actual wall delta while the camera
+	// advances by a fixed 1/refreshRate, producing visible relative stutter at high zoom.
+	float fDeltaTime = static_cast<float>(gpGame->mfLastRenderFrameSeconds);
 	mfTime += fDeltaTime;
+
+	// TEMP zoom-stutter diagnostic — capture state across all branches
+	XMVECTOR vecPlayerPosLogged {};
+	bool bHasPlayerLogged = false;
+	float fAdaptiveBlendLogged = 0.0f;
+	float fBlendLogged = 0.0f;
+	float fJumpTLogged = 0.0f;
 
 	// Decay camera shake using real-time
 	mfShake = std::max(mfShake - fDeltaTime * 2.0f, 0.0f);
@@ -107,6 +124,10 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 			mVecLastKnownPlayerPosition = vecPlayerPos;
 			mfLastKnownPlayerTime = mfTime;
 			vecTargetPosition = XMVectorAdd(vecPlayerPos, gpGame->mVecVisualErrorOffset);
+
+			// TEMP zoom-stutter diagnostic
+			vecPlayerPosLogged = vecPlayerPos;
+			bHasPlayerLogged = true;
 		}
 		else
 		{
@@ -174,6 +195,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 			{
 				float fT = Smoothstep(fElapsed / kfJumpDuration);
 				mVecPosition = XMVectorLerp(mVecJumpStartPosition, vecTargetPosition, fT);
+				fJumpTLogged = fT; // TEMP zoom-stutter diagnostic
 			}
 		}
 	}
@@ -184,6 +206,9 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		float fAdaptiveBlend = kfCameraPositionBlend * std::max(1.0f, kfCameraEyeHeightDefault / mfCameraEyeHeight);
 		float fBlend = std::clamp(fDeltaTime * fAdaptiveBlend, 0.0f, 1.0f);
 		mVecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fBlend), vecTargetPosition, XMVectorMultiply(XMVectorReplicate(1.0f - fBlend), mVecPosition));
+		// TEMP zoom-stutter diagnostic
+		fAdaptiveBlendLogged = fAdaptiveBlend;
+		fBlendLogged = fBlend;
 	}
 
 	mVecPreviousTargetPosition = vecTargetPosition;
@@ -232,6 +257,26 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 
 	// Calculate matrices and visible area
 	CalculateMatricesAndVisibleArea();
+
+	// TEMP zoom-stutter diagnostic — emit one CSV row per frame to Temp/ZoomStutterDiag.log
+	if (!gbZoomStutterHeaderWritten)
+	{
+		FILE_LOG(0, "frame,tick,mfTime,interpDt,eyeHeight,hasPlayer,playerX,playerY,errOffX,errOffY,tgtX,tgtY,camX,camY,jumping,jumpT,adaptiveBlend,blend,visAreaX,visAreaY,visAreaZ,visAreaW,quadX,quadY");
+		gbZoomStutterHeaderWritten = true;
+	}
+	static int siZoomStutterFrame = 0;
+	FILE_LOG(0, "{},{},{:.6f},{:.6f},{:.3f},{},{:.6f},{:.6f},{:.6f},{:.6f},{:.6f},{:.6f},{:.6f},{:.6f},{},{:.4f},{:.4f},{:.4f},{:.6f},{:.6f},{:.6f},{:.6f},{:.6f},{:.6f}",
+		siZoomStutterFrame, miFrame, mfTime, rFrameInterpolate.fDeltaTime, mfCameraEyeHeight,
+		bHasPlayerLogged ? 1 : 0,
+		XMVectorGetX(vecPlayerPosLogged), XMVectorGetY(vecPlayerPosLogged),
+		XMVectorGetX(gpGame->mVecVisualErrorOffset), XMVectorGetY(gpGame->mVecVisualErrorOffset),
+		XMVectorGetX(vecTargetPosition), XMVectorGetY(vecTargetPosition),
+		XMVectorGetX(mVecPosition), XMVectorGetY(mVecPosition),
+		mbJumping ? 1 : 0, fJumpTLogged,
+		fAdaptiveBlendLogged, fBlendLogged,
+		f4RenderVisibleArea.x, f4RenderVisibleArea.y, f4RenderVisibleArea.z, f4RenderVisibleArea.w,
+		f2VisibleAreaQuadSize.x, f2VisibleAreaQuadSize.y);
+	++siZoomStutterFrame;
 }
 
 // Return sun angle, applying UI slider override when in Graphics or ImGui mode

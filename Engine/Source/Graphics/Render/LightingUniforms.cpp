@@ -11,6 +11,15 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 {
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
+	// Generate run-unique seed once and reuse every frame: stable noise pattern across the run, no temporal flicker.
+	static const uint32_t skuiRandomSeed = []
+	{
+		common::RandomEngine randomEngine;
+		randomEngine.TimeSeed();
+		return static_cast<uint32_t>(common::RandomNext(randomEngine) >> 32);
+	}();
+	rGlobalLayout.uiRandomSeed = skuiRandomSeed;
+
 	rGlobalLayout.fLightingObjectsAdd = gLightingObjectsAdd.Get();
 	rGlobalLayout.fLightingDepositThreshold = gLightingDepositThreshold.Get();
 	rGlobalLayout.fLightingDepositCompress = gLightingDepositCompress.Get();
@@ -41,6 +50,8 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSpreadDistanceStart = gSpreadDistance.Get();
 	rGlobalLayout.fSpreadRingCountStart = gSpreadRingCount.Get();
 	rGlobalLayout.fSpreadJitterStart = gSpreadJitter.Get();
+	rGlobalLayout.fSpreadSampleJitterRangeStart = gSpreadSampleJitterRangeStart.Get();
+	rGlobalLayout.fSpreadSampleJitterClusteringStart = gSpreadSampleJitterClusteringStart.Get();
 	rGlobalLayout.fSpreadDecayStart = gSpreadDecay.Get();
 	rGlobalLayout.fSpreadAccumulationDecayStart = gSpreadAccumulationDecay.Get();
 	rGlobalLayout.fSpreadDistanceFalloffStart = gSpreadDistanceFalloff.Get();
@@ -54,6 +65,8 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSpreadDistanceEnd = gSpreadDistanceEnd.Get();
 	rGlobalLayout.fSpreadRingCountEnd = gSpreadRingCountEnd.Get();
 	rGlobalLayout.fSpreadJitterEnd = gSpreadJitterEnd.Get();
+	rGlobalLayout.fSpreadSampleJitterRangeEnd = gSpreadSampleJitterRangeEnd.Get();
+	rGlobalLayout.fSpreadSampleJitterClusteringEnd = gSpreadSampleJitterClusteringEnd.Get();
 	rGlobalLayout.fSpreadDecayEnd = gSpreadDecay.Get();
 	rGlobalLayout.fSpreadAccumulationDecayEnd = gSpreadAccumulationDecay.Get();
 	rGlobalLayout.fSpreadDistanceFalloffEnd = gSpreadDistanceFalloffEnd.Get();
@@ -80,11 +93,9 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	rMainLayout.fLightingSampledNormalsOneSize = gLightingSampledNormalsOneSize.Get();
-	rMainLayout.fLightingSampledNormalsOneMultiplier = gLightingSampledNormalsOneMultiplier.Get();
-	rMainLayout.fLightingSampledNormalsOneIntensity = gLightingSampledNormalsOneIntensity.Get();
 	rMainLayout.fLightingSampledNormalsTwoSize = gLightingSampledNormalsTwoSize.Get();
-	rMainLayout.fLightingSampledNormalsTwoMultiplier = gLightingSampledNormalsTwoMultiplier.Get();
-	rMainLayout.fLightingSampledNormalsTwoIntensity = gLightingSampledNormalsTwoIntensity.Get();
+	rMainLayout.fLightingSampledNormalsBlend = gLightingSampledNormalsBlend.Get();
+	rMainLayout.fLightingSampledNormalsSpeed = gLightingSampledNormalsSpeed.Get();
 	rMainLayout.fWaterHeightDarkenTop = gWaterHeightDarkenTop.Get();
 	rMainLayout.fWaterHeightDarkenBottom = gWaterHeightDarkenBottom.Get();
 	rMainLayout.fWaterHeightDarkenClamp = gWaterHeightDarkenClamp.Get();

@@ -75,72 +75,42 @@ void main()
 	float fSizeOne = mainLayout.fLightingSampledNormalsOneSize;
 	float fSizeTwo = mainLayout.fLightingSampledNormalsTwoSize;
 	vec2 f2ReducedOrigin = vec2(globalLayout.fWaterReducedNormalOriginX, globalLayout.fWaterReducedNormalOriginY);
-	float fReducedTimeOne = globalLayout.fWaterReducedNormalTime;
-	float fReducedTimeTwo = globalLayout.fWaterReducedNormalTimeRotated;
+	vec2 f2ReducedOriginTwo = vec2(globalLayout.fWaterReducedNormalOriginTwoX, globalLayout.fWaterReducedNormalOriginTwoY);
+	float fReducedTime = globalLayout.fWaterReducedNormalTime;
+	float fReducedTimeTwo = globalLayout.fWaterReducedNormalTimeTwo;
 	vec2 f2LocalDx = dFdx(f2InInitialPosition);
 	vec2 f2LocalDy = dFdy(f2InInitialPosition);
 
-	// NormalmapTwo samples on UV axes rotated by ~33° from world XY so its tile grid does not align with NormalmapOne's. CPU sends a separately-reduced origin computed in the rotated camera frame so the texture stays anchored to world space when the camera pans (rotating after fmod would drift sub-texel per 10-unit camera step).
-	const float kfRotateTwoCos = 0.83867056794542395f;
-	const float kfRotateTwoSin = 0.54463903501502708f;
-	const mat2 kmRotateTwo = mat2(kfRotateTwoCos, kfRotateTwoSin, -kfRotateTwoSin, kfRotateTwoCos);
-	vec2 f2InInitialPositionTwo = kmRotateTwo * f2InInitialPosition;
-	vec2 f2LocalDxTwo = kmRotateTwo * f2LocalDx;
-	vec2 f2LocalDyTwo = kmRotateTwo * f2LocalDy;
-	vec2 f2ReducedOriginTwo = vec2(globalLayout.fWaterReducedNormalOriginRotatedX, globalLayout.fWaterReducedNormalOriginRotatedY);
-
-	float fOneMultiplier = mainLayout.fLightingSampledNormalsOneMultiplier;
-	float fTwoMultiplier = mainLayout.fLightingSampledNormalsTwoMultiplier;
-
-	// Specialized per-sampler so each can have an independent base size and reduced-time. sizeMult / speedMult / offset still vary per octave within a sampler.
-	#define SAMPLE_NORMAL_ONE(sizeMult, speedMult, offset) \
+	#define SAMPLE_NORMAL_PRECISE(sampler, size, reducedOrigin, reducedTime, sizeMult, speedMult, offset) \
 	{ \
-		float fCallSize = sizeMult * fSizeOne; \
+		float fCallSize = sizeMult * size; \
 		vec2 f2UV = offset \
 			+ fCallSize * f2InInitialPosition \
-			+ sizeMult * f2ReducedOrigin \
-			+ speedMult * vec2(fReducedTimeOne); \
+			+ sizeMult * reducedOrigin \
+			+ speedMult * vec2(reducedTime); \
 		vec2 f2Dx = fCallSize * f2LocalDx; \
 		vec2 f2Dy = fCallSize * f2LocalDy; \
-		vec3 f3Normal = DecodeNormal(textureGrad(normalmapOneTextureSampler, fract(f2UV), f2Dx, f2Dy).xyz); \
-		f3Normal.xy *= fOneMultiplier; \
-		f3Accum += f3Normal; \
+		f3Accum += DecodeNormal(textureGrad(sampler, fract(f2UV), f2Dx, f2Dy).xyz); \
 	}
 
-	#define SAMPLE_NORMAL_TWO(sizeMult, speedMult, offset) \
-	{ \
-		float fCallSize = sizeMult * fSizeTwo; \
-		vec2 f2UV = offset \
-			+ fCallSize * f2InInitialPositionTwo \
-			+ sizeMult * f2ReducedOriginTwo \
-			+ speedMult * vec2(fReducedTimeTwo); \
-		vec2 f2Dx = fCallSize * f2LocalDxTwo; \
-		vec2 f2Dy = fCallSize * f2LocalDyTwo; \
-		vec3 f3Normal = DecodeNormal(textureGrad(normalmapTwoTextureSampler, fract(f2UV), f2Dx, f2Dy).xyz); \
-		f3Normal.xy *= fTwoMultiplier; \
-		f3Accum += f3Normal; \
-	}
-
-	// Normal map one (3 octaves, world-axis aligned)
+	// Normal map one (3 octaves)
 	vec3 f3Accum = vec3(0.0f);
-	SAMPLE_NORMAL_ONE(0.2f, 1.1f, vec2(0.1f, 0.2f))
-	SAMPLE_NORMAL_ONE(1.1f, 1.2f, vec2(0.2f, 0.3f))
-	SAMPLE_NORMAL_ONE(2.5f, 1.3f, vec2(0.3f, 0.4f))
-	vec3 f3SampledNormalOne = mainLayout.fLightingSampledNormalsOneIntensity * f3Accum;
+	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, fSizeOne, f2ReducedOrigin, fReducedTime, 0.2f, 1.1f, vec2(0.1f, 0.2f))
+	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, fSizeOne, f2ReducedOrigin, fReducedTime, 1.1f, 1.2f, vec2(0.2f, 0.3f))
+	SAMPLE_NORMAL_PRECISE(normalmapOneTextureSampler, fSizeOne, f2ReducedOrigin, fReducedTime, 2.5f, 1.3f, vec2(0.3f, 0.4f))
+	vec3 f3SampledNormalOne = f3Accum;
 
-	// Normal map two (3 octaves, axes rotated by kmRotateTwo to break grid alignment with One)
+	// Normal map two (3 octaves)
 	f3Accum = vec3(0.0f);
-	SAMPLE_NORMAL_TWO(0.3f, 1.4f, vec2(0.4f, 0.5f))
-	SAMPLE_NORMAL_TWO(1.2f, 1.5f, vec2(0.6f, 0.7f))
-	SAMPLE_NORMAL_TWO(3.0f, 1.6f, vec2(0.8f, 0.9f))
-	vec3 f3SampledNormalTwo = mainLayout.fLightingSampledNormalsTwoIntensity * f3Accum;
+	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, 0.3f, 1.4f, vec2(0.4f, 0.5f))
+	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, 1.2f, 1.5f, vec2(0.6f, 0.7f))
+	SAMPLE_NORMAL_PRECISE(normalmapTwoTextureSampler, fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, 3.0f, 1.6f, vec2(0.8f, 0.9f))
+	vec3 f3SampledNormalTwo = f3Accum;
 
-	#undef SAMPLE_NORMAL_ONE
-	#undef SAMPLE_NORMAL_TWO
+	#undef SAMPLE_NORMAL_PRECISE
 
-	// Guarded normalize: both intensity sliders reach 0 (CVar min=0), and a zero sum would NaN-poison every downstream lighting/reflection term that consumes f3SampledNormal.
-	vec3 f3SampledNormalSum = f3SampledNormalOne + f3SampledNormalTwo;
-	vec3 f3SampledNormal = f3SampledNormalSum / max(length(f3SampledNormalSum), 1e-6f);
+	// Blend slider: 0 = all NormalmapOne, 1 = all NormalmapTwo, 0.5 = equal mix (matches old summed-then-normalized behavior since normalize is scale-invariant).
+	vec3 f3SampledNormal = normalize(mix(f3SampledNormalOne, f3SampledNormalTwo, mainLayout.fLightingSampledNormalsBlend));
 
 	// Color (noise with precision-safe UV)
 	vec2 f2LocalDisplacedPos = f3InPosition.xy - f2WaterOrigin;

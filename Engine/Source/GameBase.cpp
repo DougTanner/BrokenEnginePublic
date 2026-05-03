@@ -266,7 +266,7 @@ game::Frame& GameBase::RenderFrame(GridCoord coord) const
 
 void GameBase::ResetRenderClock()
 {
-	mfRenderTime = 0.0f;
+	mfRenderTime = 0.0;
 	mbRenderClockSeeded = false;
 	mRenderTimer.Reset();
 }
@@ -302,13 +302,16 @@ void GameBase::Render()
 		// preserves it automatically. On a single-tick commit, T advances +kfDt while mfRenderTime
 		// stays continuous, so fDt drops by kfDt and the Update(N, kfDt) ≡ Update(N+1, 0)
 		// invariant makes the handoff pixel-identical.
-		float fSimDeltaSeconds = common::NanosecondsToFloatSeconds<float>(mTimeStep.WallToSim(mRenderTimer.GetDeltaNs(true)));
+		double dSimDeltaSeconds = common::NanosecondsToFloatSeconds<double>(mTimeStep.WallToSim(mRenderTimer.GetDeltaNs(true)));
+		mfLastRenderFrameSeconds = dSimDeltaSeconds;
 		const CoordFrames& rCameraFrames = mCoordFrames.at(cameraCoord);
 		bool bHaveInterpolationWindow = (rCameraFrames.iSnapshotCount >= kiRenderBehindTicks + 1);
 		// RenderFrame already returns prev-tail when count>=2, else tail. Either way, its fCurrentTime
-		// is the START of the current render window.
+		// is the START of the current render window. Promoted to double so mfRenderTime - dT keeps
+		// nanosecond precision even after hours of accumulated game time (float ULP at ~16384s is 2ms,
+		// which would otherwise quantize the alpha and visibly stutter at high zoom).
 		const game::Frame& rSourceFrame = RenderFrame(cameraCoord);
-		float T = rSourceFrame.interpolate.fCurrentTime;
+		double dT = rSourceFrame.interpolate.fCurrentTime;
 
 		float fDeltaTime = 0.0f;
 		bool bPaused = (mGameFlags & GameFlags::kPaused) != 0;
@@ -316,14 +319,14 @@ void GameBase::Render()
 		if (bPaused)
 		{
 			// Freeze. Don't advance mfRenderTime; rendered scene stays static until unpause.
-			fDeltaTime = std::clamp(mfRenderTime - T, 0.0f, game::kfDeltaTime);
+			fDeltaTime = static_cast<float>(std::clamp(mfRenderTime - dT, 0.0, static_cast<double>(game::kfDeltaTime)));
 		}
 		else if (!bHaveInterpolationWindow)
 		{
 			// Cold start / single-snapshot coord: no prev-tail to interpolate from. Force fDt=0 so
 			// rendering stays pinned to the only available frame — never extrapolating past tail
 			// velocity. Reset the seed flag so the next steady-state entry re-seeds at midpoint.
-			mfRenderTime = T;
+			mfRenderTime = dT;
 			mbRenderClockSeeded = false;
 			fDeltaTime = 0.0f;
 		}
@@ -334,21 +337,21 @@ void GameBase::Render()
 			if (!mbRenderClockSeeded)
 			{
 				mbRenderClockSeeded = true;
-				mfRenderTime = T + 0.5f * game::kfDeltaTime;
+				mfRenderTime = dT + 0.5 * game::kfDeltaTime;
 			}
 
 			// Rebase only on multi-tick T regression (reconcile snap, full-state seed). Tolerance
 			// widens to [T - kfDt, T + 2*kfDt] so a single-tick commit — which leaves mfRenderTime
 			// anywhere from slightly below new T to slightly below new T+kfDt — never triggers a
 			// rebase. Rebasing on every commit was the 32 Hz vibration signature.
-			if (mfRenderTime < T - game::kfDeltaTime || mfRenderTime > T + 2.0f * game::kfDeltaTime)
+			if (mfRenderTime < dT - game::kfDeltaTime || mfRenderTime > dT + 2.0 * game::kfDeltaTime)
 			{
-				mfRenderTime = T + 0.5f * game::kfDeltaTime;
+				mfRenderTime = dT + 0.5 * game::kfDeltaTime;
 			}
 
-			mfRenderTime += fSimDeltaSeconds;
-			mfRenderTime = std::clamp(mfRenderTime, T, T + game::kfDeltaTime);
-			fDeltaTime = mfRenderTime - T;
+			mfRenderTime += dSimDeltaSeconds;
+			mfRenderTime = std::clamp(mfRenderTime, dT, dT + static_cast<double>(game::kfDeltaTime));
+			fDeltaTime = static_cast<float>(mfRenderTime - dT);
 		}
 		{
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
