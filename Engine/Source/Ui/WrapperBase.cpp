@@ -175,14 +175,14 @@ CurveData gCombineCurveNew({ImVec2(0.0000f, 32.0000f), ImVec2(0.3880f, 25.9852f)
 bool gbUseCombineCurveNew = true;
 #endif
 
-Wrapper gLightingSampledNormalsOneSize(0.35f, 0.05f, 0.5f);
-Wrapper gLightingSampledNormalsOneSpeed(0.03f, 0.0f, 0.05f);
-Wrapper gLightingSampledNormalsOneMultiplier(2.4f, 0.0f, 4.0f);
-Wrapper gLightingSampledNormalsOneIntensity(0.3f, 0.0f, 2.0f);
-Wrapper gLightingSampledNormalsTwoSize(0.3f, 0.05f, 0.5f);
-Wrapper gLightingSampledNormalsTwoSpeed(0.03f, 0.0f, 0.05f);
-Wrapper gLightingSampledNormalsTwoMultiplier(0.8f, 0.0f, 4.0f);
-Wrapper gLightingSampledNormalsTwoIntensity(0.7f, 0.0f, 2.0f);
+Wrapper gLightingSampledNormalsOneSize(0.30f, 0.05f, 0.5f);
+Wrapper gLightingSampledNormalsOneSpeed(0.03f, 0.0f, 0.1f);
+Wrapper gLightingSampledNormalsOneMultiplier(1.1f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsOneIntensity(0.5f, 0.0f, 2.0f);
+Wrapper gLightingSampledNormalsTwoSize(0.2f, 0.05f, 0.5f);
+Wrapper gLightingSampledNormalsTwoSpeed(0.05f, 0.0f, 0.1f);
+Wrapper gLightingSampledNormalsTwoMultiplier(0.5f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsTwoIntensity(0.9f, 0.0f, 2.0f);
 
 // New Lighting
 Wrapper gLightingNewDirectional(0.8f, 0.0f, 2.0f);

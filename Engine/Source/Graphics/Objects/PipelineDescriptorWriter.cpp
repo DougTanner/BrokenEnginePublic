@@ -49,7 +49,7 @@ bool BindingIsInSet0(const Pipeline& rPipeline, const PipelineInfo& rPipelineInf
 	return false;
 }
 
-constexpr int64_t kiMaxImageInfos = 128;
+constexpr int64_t kiMaxImageInfos = 256;
 
 void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo, const DescriptorInfo& rDescriptorInfo, int64_t iFramebuffer,
 	VkWriteDescriptorSet& rVkWriteDescriptorSet, VkWriteDescriptorSet* pVkWriteDescriptorSets, int64_t& riDescriptorCount,

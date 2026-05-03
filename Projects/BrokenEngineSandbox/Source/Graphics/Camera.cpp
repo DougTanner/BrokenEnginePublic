@@ -192,7 +192,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	static constexpr float kfEyeHeightPerWheelTick = 0.1f;
 	static constexpr float kfEyeHeightBlend = 12.0f;
 	static constexpr float kfEyeHeightMin = 50.0f;
-	static constexpr float kfEyeHeightMax = 400.0f;
+	static constexpr float kfEyeHeightMax = 300.0f;
 
 	int iScrollNow = engine::gpRawInputManager->mRawInput.iScrollWheelValue;
 	if (!mbScrollWheelInitialized)
@@ -207,6 +207,14 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 
 	float fEyeBlend = std::clamp(fDeltaTime * kfEyeHeightBlend, 0.0f, 1.0f);
 	mfCameraEyeHeight += (mfCameraEyeHeightTarget - mfCameraEyeHeight) * fEyeBlend;
+
+	// Pitch reverts toward straight-down (eye directly above target along +Z) as the camera ascends. Endpoints match the wave-amplitude fade in MainUniforms.cpp.
+	static constexpr float kfPitchAngled = -1.2f;
+	static constexpr float kfPitchStraightDown = -XM_PIDIV2;
+	static constexpr float kfPitchFadeStart = kfCameraEyeHeightDefault;
+	static constexpr float kfPitchFadeEnd = 2.0f * kfCameraEyeHeightDefault;
+	float fPitchT = std::clamp((mfCameraEyeHeight - kfPitchFadeStart) / (kfPitchFadeEnd - kfPitchFadeStart), 0.0f, 1.0f);
+	mfCameraEyeRotation = std::lerp(kfPitchAngled, kfPitchStraightDown, fPitchT);
 
 	// Calculate eye position relative to camera position
 	auto vecQuaternionEye = XMQuaternionRotationNormal(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), mfCameraEyeRotation);

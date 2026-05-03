@@ -19,7 +19,8 @@ namespace game
 using enum PlayerFlags;
 
 // Targeting / facing
-constexpr float kfTargetRange = 80.0f;
+constexpr float kfBlasterTargetRange = 120.0f;
+constexpr float kfMissileTargetRange = 160.0f;
 constexpr float kfWantedDirectionSpeed = 15.0f;
 
 // Damage response
@@ -59,9 +60,9 @@ constexpr uint32_t kuiDeathTrailCount = 2;
 
 // Shared by AcquireTarget (previous-frame data) and SpawnMissiles (current-frame data) so missile
 // aim resolves to the same spaceship the player is shooting at without duplicating the filter logic.
-static int64_t XM_CALLCONV FindTargetSpaceshipIndex(const SpaceshipsInterpolate& __restrict rSpaceshipsInterpolate, const SpaceshipsPostRender& __restrict rSpaceshipsPostRender, FXMVECTOR vecPlayerPosition)
+static int64_t XM_CALLCONV FindTargetSpaceshipIndex(const SpaceshipsInterpolate& __restrict rSpaceshipsInterpolate, const SpaceshipsPostRender& __restrict rSpaceshipsPostRender, FXMVECTOR vecPlayerPosition, float fMaxRange)
 {
-	float fClosestDistance = kfTargetRange;
+	float fClosestDistance = fMaxRange;
 	int64_t iClosestSpaceship = -1;
 	for (int64_t j = 0; j < rSpaceshipsPostRender.iCount; ++j)
 	{
@@ -97,7 +98,7 @@ void XM_CALLCONV PlayersPostRender::AcquireTarget(const Frame& __restrict rPrevi
 	const SpaceshipsPostRender& rSpaceshipsPostRender = *rPreviousFrame.postRender.pSpaceships;
 	int64_t iSpaceshipCount = rSpaceshipsPostRender.iCount;
 
-	int64_t iClosestSpaceship = FindTargetSpaceshipIndex(rSpaceshipsInterpolate, rSpaceshipsPostRender, vecPosition);
+	int64_t iClosestSpaceship = FindTargetSpaceshipIndex(rSpaceshipsInterpolate, rSpaceshipsPostRender, vecPosition, kfMissileTargetRange);
 
 	// Lead the target: aim at where the spaceship will be when the blaster reaches it.
 	bool bTargetFound = (iClosestSpaceship >= 0);
@@ -128,11 +129,16 @@ void XM_CALLCONV PlayersPostRender::AcquireTarget(const Frame& __restrict rPrevi
 		}
 	}
 
-	// Fire flags: fire continuously at in-range targets (rate limited by weapon spawn timers)
+	// Fire flags: fire continuously at in-range targets (rate limited by weapon spawn timers).
+	// Missile fire is gated on kfMissileTargetRange (the range used for the search above);
+	// blaster fire is gated on the shorter kfBlasterTargetRange so blasters only fire when in reach.
 	if (bTargetFound)
 	{
-		rFlags.Set(kFireBlaster);
 		rFlags.Set(kFireMissile);
+		if (common::Distance(vecPosition, rSpaceshipsInterpolate.pVecPositions[iClosestSpaceship]) <= kfBlasterTargetRange)
+		{
+			rFlags.Set(kFireBlaster);
+		}
 	}
 }
 
@@ -389,7 +395,7 @@ void PlayersPostRender::SpawnMissiles([[maybe_unused]] Frame& __restrict rFrame)
 
 		// Aim direction targets the spaceship's CURRENT position — only blasters lead.
 		// Re-find the same spaceship AcquireTarget identified; fall back to hull if it's gone.
-		int64_t iTargetSpaceship = FindTargetSpaceshipIndex(*rFrame.interpolate.pSpaceships, *rFrame.postRender.pSpaceships, rCurrentInterpolate.pVecPositions[i]);
+		int64_t iTargetSpaceship = FindTargetSpaceshipIndex(*rFrame.interpolate.pSpaceships, *rFrame.postRender.pSpaceships, rCurrentInterpolate.pVecPositions[i], kfMissileTargetRange);
 		XMVECTOR vecAimDirection = (iTargetSpaceship >= 0)
 			? common::DirectionTo(rCurrentInterpolate.pVecPositions[i], rFrame.interpolate.pSpaceships->pVecPositions[iTargetSpaceship])
 			: vecHullDirection;

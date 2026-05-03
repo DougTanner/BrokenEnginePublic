@@ -20,7 +20,7 @@ Extends `engine::CameraBase` with smooth player tracking, static main menu posit
 
 **Velocity Extrapolation**: When the focused player is absent (cross-cell transfer, late snapshot), camera extrapolates last-known position along derived velocity, clamped to a short window.
 
-**Mouse-Wheel Zoom**: Wheel input drives a clamped eye-height target (wheel-up = zoom in); current eye height eases toward target. Per-frame scroll delta is derived from the input accumulator — see [Input](../../../../Engine/Source/Input/CLAUDE.md).
+**Mouse-Wheel Zoom**: Wheel input drives a clamped eye-height target (wheel-up = zoom in); current eye height eases toward target. Per-frame scroll delta is derived from the input accumulator — see [Input](../../../../Engine/Source/Input/CLAUDE.md). Pitch is coupled to eye height: linearly tilts from oblique at default height to straight-down at 2x default.
 
 **Async Rendering**: Supports both standard Frame-based updates and direct `FrameInterpolate` updates.
 
