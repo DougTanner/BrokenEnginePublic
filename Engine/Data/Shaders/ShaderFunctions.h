@@ -55,11 +55,18 @@ vec3 SampleNormal(GlobalLayout globalLayout, sampler2D normalSampler, vec2 f2Pos
 	return vec3(f2XY, fZ);
 }
 
-vec3 SunLighting(vec3 f3MaterialColor, GlobalLayout globalLayout, vec4 f4Position, vec3 f3Normal, float fShadow, float fAmbientOcclusion)
+// fShadowSun gates the sun's directional contribution; fShadowMoon gates the moon's directional
+// contribution. Callers compute fShadowMoon to bypass the terrain ray-march shadow (per the
+// sun/moon split design) so moonlight is unaffected by landform self-shadowing while object/smoke
+// shadows still apply to both lights. Ambient stays gated by fShadowSun (it's an approximation of
+// indirect daylight; moon ambient uplift lives in gMinimumAmbient).
+vec3 SunLighting(vec3 f3MaterialColor, GlobalLayout globalLayout, vec4 f4Position, vec3 f3Normal, float fShadowSun, float fShadowMoon, float fAmbientOcclusion)
 {
-	vec3 f3SunLight = fShadow * max(0.0f, dot(normalize(f3Normal), globalLayout.f4SunMoonNormal.xyz)) * globalLayout.f4SunMoonColor.xyz;
+	float fNdotL = max(0.0f, dot(normalize(f3Normal), globalLayout.f4SunMoonNormal.xyz));
+	vec3 f3SunLight  = fShadowSun  * fNdotL * globalLayout.f4SunColor.xyz;
+	vec3 f3MoonLight = fShadowMoon * fNdotL * globalLayout.f4MoonColor.xyz;
 	float fShadowAffectAmbient = globalLayout.fShadowAffectAmbient;
-	return f3MaterialColor * fAmbientOcclusion * (f3SunLight + (1.0f - fShadowAffectAmbient) * globalLayout.f4AmbientColor.xyz + fShadowAffectAmbient * fShadow * globalLayout.f4AmbientColor.xyz);
+	return f3MaterialColor * fAmbientOcclusion * (f3SunLight + f3MoonLight + (1.0f - fShadowAffectAmbient) * globalLayout.f4AmbientColor.xyz + fShadowAffectAmbient * fShadowSun * globalLayout.f4AmbientColor.xyz);
 }
 
 float Specular(vec3 f3ToEyeNormal, vec3 f3LightNormal, vec3 f3Normal, float fSpecularOne, float fSpecularOnePower, float fSpecularTwo, float fSpecularTwoPower, float fSpecularThree, float fSpecularThreePower)
@@ -189,7 +196,7 @@ vec3 AddSmoke(GlobalLayout globalLayout, vec3 f3InColor, vec2 f2InPosition, samp
 	float fBlue = IntensityLighting(pf4Lighting[2]);
 	vec3 f3Final = vec3(fRed, fGreen, fBlue) * globalLayout.fSmokeLightingMultiplier * globalLayout.fLightingTimeOfDayMultiplier;
 
-	f3Final += max(vec3(0.1f, 0.1f, 0.1f), globalLayout.f4SunMoonColor.xyz + globalLayout.f4AmbientColor.xyz);
+	f3Final += max(vec3(0.1f, 0.1f, 0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4MoonColor.xyz + globalLayout.f4AmbientColor.xyz);
 
 	f3Final = min(vec3(1.0f, 1.0f, 1.0f), f3Final);
 	return (1.0f - fSmoke) * f3InColor + fSmoke * f3Final * min(vec3(1.25f, 1.25f, 1.25f), vec3(fDensity, fDensity, fDensity));
@@ -202,7 +209,7 @@ vec3 BlendSmoke(vec3 f3Color, float fSmokePow, vec4 pf4Lighting[3], GlobalLayout
 	float fGreen = IntensityLighting(pf4Lighting[1]);
 	float fBlue = IntensityLighting(pf4Lighting[2]);
 	vec3 f3SmokeLighting = vec3(fRed, fGreen, fBlue) * globalLayout.fSmokeLightingMultiplier * globalLayout.fLightingTimeOfDayMultiplier;
-	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunMoonColor.xyz + globalLayout.f4AmbientColor.xyz);
+	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4MoonColor.xyz + globalLayout.f4AmbientColor.xyz);
 	f3SmokeLighting = min(vec3(1.0f), f3SmokeLighting);
 	return (1.0f - fSmokePow) * f3Color + fSmokePow * f3SmokeLighting * min(vec3(1.25f), vec3(fSmokeDensity));
 }
@@ -212,7 +219,7 @@ vec3 BlendSmokePrecomputed(vec3 f3Color, float fSmokePow, vec3 f3LightingSum, Gl
 {
 	float fSmokeDensity = globalLayout.fSmokeColorMin + globalLayout.fSmokeColorMultiplier * fSmokePow;
 	vec3 f3SmokeLighting = f3LightingSum * globalLayout.fSmokeLightingMultiplier * globalLayout.fLightingTimeOfDayMultiplier;
-	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunMoonColor.xyz + globalLayout.f4AmbientColor.xyz);
+	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4MoonColor.xyz + globalLayout.f4AmbientColor.xyz);
 	f3SmokeLighting = min(vec3(1.0f), f3SmokeLighting);
 	return (1.0f - fSmokePow) * f3Color + fSmokePow * f3SmokeLighting * min(vec3(1.25f), vec3(fSmokeDensity));
 }

@@ -7,6 +7,30 @@
 namespace engine
 {
 
+// 0.0 throughout day, 1.0 throughout night, smooth in narrow sunrise/sunset windows.
+// Single source of truth for the night-gate envelope used by the sun/moon split, the shadow
+// moon multiplier, and the water moon-brightness lerp.
+static float ComputeNightAmount(float fSunAngle)
+{
+	const float fSunsetStart = gSunMoonShadowSunsetStart.Get();
+	const float fSunsetEnd = gSunMoonShadowSunsetEnd.Get();
+	const float fSunriseStart = gSunMoonShadowSunriseStart.Get();
+	const float fSunriseEnd = gSunMoonShadowSunriseEnd.Get();
+	if (fSunAngle >= fSunsetStart && fSunAngle <= fSunsetEnd)
+	{
+		return (fSunAngle - fSunsetStart) / (fSunsetEnd - fSunsetStart);
+	}
+	if (fSunAngle > fSunsetEnd || fSunAngle <= fSunriseStart)
+	{
+		return 1.0f;
+	}
+	if (fSunAngle >= fSunriseStart && fSunAngle <= fSunriseEnd)
+	{
+		return 1.0f - (fSunAngle - fSunriseStart) / (fSunriseEnd - fSunriseStart);
+	}
+	return 0.0f;
+}
+
 static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float& rfDayPercent, float& rfNoonPercent)
 {
 	// Sun/Moon direction: night reverses across the sky from sunset back to sunrise
@@ -78,8 +102,15 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 		DEBUG_BREAK();
 	}
 
-	vecSunMoon = XMVectorMax(vecSunMoon, vecMoonFloor);
-	XMStoreFloat4(&rGlobalLayout.f4SunMoonColor, vecSunMoon);
+	// Sun: piecewise lerp goes naturally to (0,0,0) at midnight; no moon-floor clamp here.
+	XMVECTOR vecSun = vecSunMoon * gSunMoonSunIntensity.Get();
+	XMStoreFloat4(&rGlobalLayout.f4SunColor, vecSun);
+
+	// Moon: floor color modulated by night-amount envelope and intensity slider.
+	float fNightAmount = ComputeNightAmount(fSunAngle);
+	XMVECTOR vecMoon = vecMoonFloor * (fNightAmount * gSunMoonMoonIntensity.Get());
+	XMStoreFloat4(&rGlobalLayout.f4MoonColor, vecMoon);
+
 	XMStoreFloat4(&rGlobalLayout.f4AmbientColor, vecAmbient);
 
 	static constexpr float kfNoonFeatherEnd = XM_PIDIV8;
@@ -206,31 +237,13 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 		rGlobalLayout.iShadowStartOffset = static_cast<int>(fShadowTextureSizeWidth / 2.0f); // Start offset
 	}
 
-	// Shadow multiplier: 1.0 during day, fNightMultiplier at night
-	const float fNightMultiplier = gSunMoonShadowNightMultiplier.Get();
-	const float fSunsetStart = gSunMoonShadowSunsetStart.Get();
-	const float fSunsetEnd = gSunMoonShadowSunsetEnd.Get();
-	const float fSunriseStart = gSunMoonShadowSunriseStart.Get();
-	const float fSunriseEnd = gSunMoonShadowSunriseEnd.Get();
-	float fMoonMultiplier = 1.0f;
-	if (fSunAngle >= fSunsetStart && fSunAngle <= fSunsetEnd)
-	{
-		float fLerp = (fSunAngle - fSunsetStart) / (fSunsetEnd - fSunsetStart);
-		fMoonMultiplier = std::lerp(1.0f, fNightMultiplier, fLerp);
-	}
-	else if (fSunAngle > fSunsetEnd || fSunAngle <= fSunriseStart)
-	{
-		fMoonMultiplier = fNightMultiplier;
-	}
-	else if (fSunAngle >= fSunriseStart && fSunAngle <= fSunriseEnd)
-	{
-		float fLerp = (fSunAngle - fSunriseStart) / (fSunriseEnd - fSunriseStart);
-		fMoonMultiplier = std::lerp(fNightMultiplier, 1.0f, fLerp);
-	}
-	rGlobalLayout.fShadowMoonMultiplier = fMoonMultiplier;
+	// Shadow multiplier: 1.0 during day, gSunMoonShadowNightMultiplier at night.
+	// Derived from the shared night-amount envelope so the sun/moon split and the shadow
+	// night-gate stay in lockstep.
+	rGlobalLayout.fShadowMoonMultiplier = std::lerp(1.0f, gSunMoonShadowNightMultiplier.Get(), ComputeNightAmount(fSunAngle));
 }
 
-static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, float fDayPercent, float fNoonPercent)
+static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fDayPercent, float fNoonPercent)
 {
 	// Terrain
 	rGlobalLayout.fIslandHeight = gIslandHeight.Get();
@@ -270,10 +283,8 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 	// Time of day
 	rGlobalLayout.fLightingTimeOfDayMultiplier = fDayPercent * gLightingDayFinalMultiplier.Get() + (1.0f - fDayPercent) * gLightingNightFinalMultiplier.Get();
 	rGlobalLayout.fLightingNightMultiplier = std::pow(fDayPercent, 0.5f);
-	// Night amount: 0.0 throughout day, 1.0 throughout night, smooth in narrow sunrise/sunset windows.
-	// Derived from fShadowMoonMultiplier (1.0 day -> gSunMoonShadowNightMultiplier at night) so the moon-brightness gate stays in lockstep with the shadow night-gate.
-	float fNightAmount = (1.0f - rGlobalLayout.fShadowMoonMultiplier) / std::max(0.001f, 1.0f - gSunMoonShadowNightMultiplier.Get());
-	rGlobalLayout.fLightingWaterMoonBrightness = std::lerp(1.0f, gLightingWaterMoonBrightness.Get(), fNightAmount);
+	// Water moon brightness gates on the same night-amount envelope as the sun/moon split and shadow night-gate.
+	rGlobalLayout.fLightingWaterMoonBrightness = std::lerp(1.0f, gLightingWaterMoonBrightness.Get(), ComputeNightAmount(fSunAngle));
 	rGlobalLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - fDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
 }
 
@@ -437,7 +448,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	float fNoonPercent = 0.0f;
 	PopulateSunAndLighting(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent);
 	PopulateShadowParameters(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent);
-	PopulateTerrainParameters(rGlobalLayout, fDayPercent, fNoonPercent);
+	PopulateTerrainParameters(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent);
 	PopulateWaterParameters(rGlobalLayout, fSunAngle, fDayPercent);
 
 	// Debug
@@ -448,7 +459,8 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	// DT: TEMP - capture sun/moon snapshot for HUD debug overlay.
 	gDebugSunMoonAngle = fSunAngle;
 	gDebugSunMoonNormal = rGlobalLayout.f4SunMoonNormal;
-	gDebugSunMoonColor = rGlobalLayout.f4SunMoonColor;
+	gDebugSunColor = rGlobalLayout.f4SunColor;
+	gDebugMoonColor = rGlobalLayout.f4MoonColor;
 	gDebugAmbientColor = rGlobalLayout.f4AmbientColor;
 	gDebugSunMoonDayPercent = fDayPercent;
 	gDebugSunMoonNoonPercent = fNoonPercent;

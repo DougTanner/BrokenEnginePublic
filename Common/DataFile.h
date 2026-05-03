@@ -47,6 +47,7 @@ enum class ChunkFlags : uint64_t
 
 	kChunkAudio      = 0x00020000,
 	kRaw             = 0x00040000,
+	kZlibCompressed  = 0x00080000,
 };
 using ChunkFlags_t = Flags<ChunkFlags>;
 
@@ -264,6 +265,7 @@ struct ChunkHeader
 	crc_t crc = 0;
 	char pcPath[MAX_PATH] {};
 	int64_t iSize = 0;
+	int64_t iUncompressedSize = 0;
 
 	union
 	{

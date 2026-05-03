@@ -381,7 +381,8 @@ void HudScreen::RenderSunMoonDebugOverlay()
 	ImGui::Text("phase:        %s", pcPhase);
 	ImGui::Text("sunAngle:     %.3f rad  %.1f deg  (%.1f%% of day)", fAngle, fAngleDeg, fDayFraction * 100.0f);
 	ImGui::Text("sunMoonNormal: %.3f %.3f %.3f", engine::gDebugSunMoonNormal.x, engine::gDebugSunMoonNormal.y, engine::gDebugSunMoonNormal.z);
-	ImGui::Text("sunMoonColor: %.3f %.3f %.3f", engine::gDebugSunMoonColor.x, engine::gDebugSunMoonColor.y, engine::gDebugSunMoonColor.z);
+	ImGui::Text("sunColor:     %.3f %.3f %.3f", engine::gDebugSunColor.x, engine::gDebugSunColor.y, engine::gDebugSunColor.z);
+	ImGui::Text("moonColor:    %.3f %.3f %.3f", engine::gDebugMoonColor.x, engine::gDebugMoonColor.y, engine::gDebugMoonColor.z);
 	ImGui::Text("ambientColor: %.3f %.3f %.3f", engine::gDebugAmbientColor.x, engine::gDebugAmbientColor.y, engine::gDebugAmbientColor.z);
 	ImGui::Separator();
 	ImGui::Text("dayPercent:        %.3f", engine::gDebugSunMoonDayPercent);

@@ -41,7 +41,7 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 - `/DataPacker/` - Asset preprocessor producing `.pack`/`.manifest` files - [CLAUDE.md](DataPacker/Source/CLAUDE.md)
 - `/Engine/` - Runtime: graphics, audio, input, frame state (`engine::` namespace); `Engine.h` is the single aggregation header (included by `Pch.h`) with `#ifdef BT_CLIENT`/`BT_SERVER` guards - [CLAUDE.md](Engine/Source/CLAUDE.md)
 - `/Projects/` - Game implementations (`game::` namespace) - [CLAUDE.md](Projects/BrokenEngineSandbox/Source/CLAUDE.md)
-- `/ThirdParty/` - External libraries (DO NOT modify)
+- `/ThirdParty/` - External libraries (DO NOT modify) - [CLAUDE.md](ThirdParty/CLAUDE.md)
 - `/Documents/` - Style guide (`C++StyleGuide.txt`) and architecture overview (`Overview.txt`)
 
 ## Build

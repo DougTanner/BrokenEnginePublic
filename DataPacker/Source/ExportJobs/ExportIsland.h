@@ -25,7 +25,7 @@ public:
 
 	virtual ~ExportIsland() = default;
 
-	virtual int64_t GetVersion() const override { return 6 + sizeof(common::ChunkHeader); }
+	virtual int64_t GetVersion() const override { return 9 + sizeof(common::ChunkHeader); }
 
 protected:
 

@@ -16,6 +16,10 @@ void TweaksScreenBase::RenderSunMoonSection()
 	WrapperSlider("Evening Start", kiSection);
 	WrapperSlider("Night Start", kiSection);
 
+	WrapperSeparatorText("Intensity");
+	WrapperSlider("Sun Intensity", kiSection);
+	WrapperSlider("Moon Intensity", kiSection);
+
 	WrapperSeparatorText("Moon");
 	WrapperSlider("Moon Brightness", kiSection);
 	WrapperSlider("Moon Blue Tint", kiSection);

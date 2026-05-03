@@ -18,9 +18,11 @@ Background thread services a priority queue. Unbuffered disk I/O (`FILE_FLAG_NO_
 
 Chunk state is an atomic acquire/release machine; textures traverse the full CPU+GPU chain via `TextureUploadManager`, non-texture chunks short-circuit to ready after disk load. Queue insertion wraps `ScopedSuppressAllocationTracking` — items must outlive frame scope. `WaitForChunks` auto-promotes to realtime priority.
 
+Texture chunks flagged zlib-compressed read into a dedicated decompress scratch (sized at boot to the largest compressed chunk on disk) using regular `memcpy` instead of the streaming-store path — keeps bytes hot for `uncompress`, which writes into the lazy-pool slot. Non-texture and uncompressed chunks retain the cache-bypass fast path.
+
 ### Lazy Memory Pool Invariant
 
-Single `VirtualAlloc` (`MEM_RESERVE | MEM_COMMIT`), sized by cumulative `RoundUp` over the full lazy chunk map. Per-chunk `pData` is assigned by walking the same map in the same order. **Any reset routine must iterate the entire map** (not a subset) to preserve the cumulative offset contract — hashmap iteration order *is* the layout.
+Single `VirtualAlloc` (`MEM_RESERVE | MEM_COMMIT`), sized by cumulative `RoundUp` over the full lazy chunk map. Per-chunk `pData` is assigned by walking the same map in the same order. **Any reset routine must iterate the entire map** (not a subset) to preserve the cumulative offset contract — hashmap iteration order *is* the layout. Compressed chunks contribute their **uncompressed** size to the cumulative offset; `LazyChunk.iDataSize` is the consumer-visible (post-decompression) byte count, not the on-disk size.
 
 ### Device-Loss Recovery
 

@@ -262,9 +262,12 @@ void main()
 		ao = texture(sampler2D(pTextures[nonuniformEXT(int(material.fOcclusionTextureIndex))], samplerRepeat), getUV(material.iOcclusionTextureSet)).r;
 	}
 
-	// Engine-specific lighting variables
-	vec3 f3SunColor = mainLayout.fPbrSun * globalLayout.f4SunMoonColor.rgb;
-	float fSunIntensity = mainLayout.fPbrSun * (f3SunColor.r + f3SunColor.g + f3SunColor.b) / mainLayout.fPbrDayBrightness;
+	// Engine-specific lighting variables. Sun and moon split: moon bypasses shadow attenuation
+	// (Model.frag samples only the terrain shadow texture), sun still receives it.
+	vec3 f3SunColor  = mainLayout.fPbrSun * globalLayout.f4SunColor.rgb;
+	vec3 f3MoonColor = mainLayout.fPbrSun * globalLayout.f4MoonColor.rgb;
+	float fSunIntensity  = mainLayout.fPbrSun * (f3SunColor.r  + f3SunColor.g  + f3SunColor.b)  / mainLayout.fPbrDayBrightness;
+	float fMoonIntensity = mainLayout.fPbrSun * (f3MoonColor.r + f3MoonColor.g + f3MoonColor.b) / mainLayout.fPbrDayBrightness;
 	float fSunDot = max(0.0, dot(f3InNormal, globalLayout.f4SunMoonNormal.xyz));
 
 	vec3 f3AmbientColor = globalLayout.f4AmbientColor.rgb;
@@ -272,6 +275,7 @@ void main()
 	vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4VisibleArea);
 	vec2 f2LightingPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
 	float fShadow = max(mainLayout.fPbrShadowFloor, texture(shadowTextureSampler, f2VisibleAreaPosition).r);
+	const float fShadowMoon = 1.0; // moon bypasses terrain shadow; Model.frag has no other shadow inputs
 
 	// Accumulate lighting
 	vec3 color = vec3(0.0);
@@ -290,7 +294,7 @@ void main()
 	vec3 diffuseResult = pow(mainLayout.fPbrBrdfDiffuse * diffuseContrib, vec3(mainLayout.fPbrBrdfDiffusePower));
 	vec3 specularResult = pow(mainLayout.fPbrBrdfSpecular * specularContrib, vec3(mainLayout.fPbrBrdfSpecularPower));
 	vec3 brdf = NdotL * (diffuseResult + specularResult);
-	color += f3SunColor * fShadow * fShadow * brdf;
+	color += (f3SunColor * fShadow * fShadow + f3MoonColor * fShadowMoon * fShadowMoon) * brdf;
 #endif
 
 	// Image based lighting
@@ -299,7 +303,7 @@ void main()
 	vec3 f3IblSpecular;
 	GetIBLContribution(NdotV, perceptualRoughness, diffuseColor, specularColor, n, reflection, f3IblDiffuse, f3IblSpecular);
 	f3IblDiffuse *= mainLayout.fPbrAmbient * mix(vec3(1.0), f3AmbientColor, mainLayout.fPbrIblAmbientColorBlend) * mix(1.0, fShadow, mainLayout.fPbrIblShadowBlend);
-	f3IblSpecular *= fSunIntensity * f3SunColor * fShadow;
+	f3IblSpecular *= fSunIntensity * f3SunColor * fShadow + fMoonIntensity * f3MoonColor * fShadowMoon;
 	vec3 f3IblDiffuseResult = pow(mainLayout.fPbrIblDiffuse * f3IblDiffuse, vec3(mainLayout.fPbrIblDiffusePower));
 	vec3 f3IblSpecularResult = pow(mainLayout.fPbrIblSpecular * f3IblSpecular, vec3(mainLayout.fPbrIblSpecularPower));
 	color += f3IblDiffuseResult + f3IblSpecularResult;

@@ -116,9 +116,11 @@ void main()
 	return;
 #endif
 
-	// Shadow with smoke at world position
-	float fShadow = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
-	f4OutColor = vec4(SunLighting(f3Color, globalLayout, vec4(f3InPosition, 1.0f), f3SunNormal, fShadow, 1.0f - texture(ambientOcclusionTextureSampler, f2InVisibleAreaTexcoord).x), 1.0f);
+	// Shadow with smoke at world position. Moon bypasses the terrain ray-march shadow only;
+	// object shadows and smoke volumetric attenuation still apply to both lights.
+	float fShadowMoon = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
+	float fShadowSun  = fShadowMoon * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x);
+	f4OutColor = vec4(SunLighting(f3Color, globalLayout, vec4(f3InPosition, 1.0f), f3SunNormal, fShadowSun, fShadowMoon, 1.0f - texture(ambientOcclusionTextureSampler, f2InVisibleAreaTexcoord).x), 1.0f);
 	f4OutColor.xyz += f3Lighting * mix(f3Color, vec3(1.0f), globalLayout.fLightingAddTerrain);
 
 	// Sample smoke at base-height projected position, affected by lighting at base-height projected position

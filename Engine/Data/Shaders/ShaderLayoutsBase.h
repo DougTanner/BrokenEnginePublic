@@ -167,7 +167,8 @@ struct GlobalLayout
 	vec4 f4VisibleAreaShadowsExtra INIT;
 
 	vec4 f4SunMoonNormal INIT;
-	vec4 f4SunMoonColor INIT;
+	vec4 f4SunColor INIT;
+	vec4 f4MoonColor INIT;
 	vec4 f4AmbientColor INIT;
 
 	// Smoke

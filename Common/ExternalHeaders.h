@@ -216,6 +216,9 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 	#include "lz4/lib/lz4.h"
 #endif
 
+// zlib
+#include "zlib/zlib.h"
+
 // ENet
 #if defined(BT_ENGINE)
 	#include "enet/enet.h"

@@ -231,6 +231,8 @@ extern Wrapper gSunMoonNoonEnd;       // sun angle where noon plateau ends (defa
 extern Wrapper gSunMoonEvening;       // sun angle where evening lerp begins (default XM_PI - XM_PIDIV16)
 extern Wrapper gSunMoonNightStart;    // sun angle where full night begins (default XM_PI)
 extern Wrapper gSunMoonMoonBlueTint;  // moon-floor B-channel multiplier (default 1.33)
+extern Wrapper gSunMoonSunIntensity;  // overall scalar on f4SunColor RGB (default 1.0)
+extern Wrapper gSunMoonMoonIntensity; // overall scalar on f4MoonColor RGB (default 1.0)
 extern Wrapper gSunMoonShadowNightMultiplier; // shadow strength at night (default 0.2)
 extern Wrapper gSunMoonShadowSunsetStart;     // sun angle where shadow night-gate begins to engage (default XM_PI - XM_PIDIV32)
 extern Wrapper gSunMoonShadowSunsetEnd;       // sun angle where shadow night-gate fully engaged (default XM_PI - XM_PIDIV128)

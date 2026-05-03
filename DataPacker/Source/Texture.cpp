@@ -1,10 +1,36 @@
 #include "Texture.h"
 
+#include <codeanalysis/warnings.h>
 #pragma warning(push, 0)
-#pragma warning(disable : 6297 26495)
-#include "bc7enc_rdo/bc7enc.h"
-#include "bc7enc_rdo/rgbcx.h"
+#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+#include "bc7enc_rdo/rdo_bc_encoder.h"
 #pragma warning(pop)
+
+// Aggressive lambda — well above bc7enc_rdo author's typical 0.5–1.0 examples. Full-grid
+// sweeps on 2K (Ship_baseColor) + 8K (island Color) showed lambda=4.0 strictly dominates
+// lower lambdas on BOTH speed and compression: the per-block RDO search converges sooner at
+// higher rate-bias and produces more LZ-friendly output. PSNR drop ~2-3 dB vs lambda=1.0,
+// invisible at top-down RTS camera distances on organic terrain / PBR content.
+inline constexpr float kfRdoLambdaBc4 = 4.0f;
+inline constexpr float kfRdoLambdaBc5 = 4.0f;
+inline constexpr float kfRdoLambdaBc7 = 4.0f;
+// 1024 B (64 BC7 blocks). ERT's inner loop is O(blocks × window) so this directly caps
+// encode time. Far smaller than deflate's 32 KB window, but at lambda=4.0 the speed/size
+// Pareto frontier collapses onto the smallest lookback — bigger windows buy proportionally
+// less compression for steeply-rising encode time, especially at 8K where they cross the
+// L3-cache cliff hard.
+inline constexpr uint32_t kuiRdoLookbackWindowSize = 1024;
+// bc7enc per-block search depth (default BC7ENC_MAX_UBER_LEVEL=6). 4 produced identical
+// output and timing to 6 in the OAT sweep at moderate lambdas; pinned explicitly so future
+// bc7enc upstream tuning changes don't silently shift our encoder behavior.
+inline constexpr int kiBc7UberLevel = 4;
+inline constexpr int kiZlibLevel = Z_BEST_COMPRESSION;
+
+std::mutex Texture::sEncodeMutex;
+
+// Tracks how many threads are inside EncodeWithRdo at once. The caller-held sEncodeMutex must
+// keep this at 0 or 1 — anything higher means a call site forgot to take the lock.
+static std::atomic<int> sActiveEncodeCount {0};
 
 #pragma warning(push, 0)
 #pragma warning(disable : 4201)
@@ -264,90 +290,89 @@ uint32_t Texture::PixelToUint32(const std::vector<float>& rIn, int64_t iWidth, i
 	       static_cast<uint32_t>(rIn.at(4 * (iY * iWidth + iX) + 0));
 }
 
-void Texture::ToBc4(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, int64_t iIndex)
+static utils::image_u8 ToImageU8(const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight)
 {
-	int64_t iCurrentPosition = 0;
-	int64_t iBlocksX = iWidth / 4;
-	int64_t iBlocksY = iHeight / 4;
-	for (int64_t j = 0; j < iBlocksY; ++j)
+	utils::image_u8 image(static_cast<uint32_t>(iWidth), static_cast<uint32_t>(iHeight));
+	utils::color_quad_u8* pDst = image.get_pixels().data();
+	const float* pfSrc = rIn.data();
+	int64_t iPixelCount = iWidth * iHeight;
+	for (int64_t i = 0; i < iPixelCount; ++i)
 	{
-		for (int64_t i = 0; i < iBlocksX; ++i)
-		{
-			uint8_t puiBlock[16] {};
-			for (int64_t k = 0; k < 4; ++k)
-			{
-				puiBlock[4 * k + 0] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 0) + iIndex));
-				puiBlock[4 * k + 1] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 1) + iIndex));
-				puiBlock[4 * k + 2] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 2) + iIndex));
-				puiBlock[4 * k + 3] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 3) + iIndex));
-			}
-
-			rgbcx::encode_bc4_hq(&puiOut[iCurrentPosition], puiBlock, 1);
-			iCurrentPosition += 8;
-		}
+		pDst[i].set(static_cast<uint8_t>(std::clamp(pfSrc[0], 0.0f, 255.0f)),
+		            static_cast<uint8_t>(std::clamp(pfSrc[1], 0.0f, 255.0f)),
+		            static_cast<uint8_t>(std::clamp(pfSrc[2], 0.0f, 255.0f)),
+		            static_cast<uint8_t>(std::clamp(pfSrc[3], 0.0f, 255.0f)));
+		pfSrc += 4;
 	}
+	return image;
+}
+
+void Texture::EncodeWithRdo(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, VkFormat vkFormat, float fLambda, uint32_t uiLookbackWindowSize, int iBc7UberLevel, bool bVerifyNoAlpha)
+{
+	// Callers must hold Texture::sEncodeMutex — this function trusts the caller's lock.
+	int iActiveEncodes = sActiveEncodeCount.fetch_add(1, std::memory_order_relaxed) + 1;
+	common::ScopedLambda decrementActive([]()
+	{
+		sActiveEncodeCount.fetch_sub(1, std::memory_order_relaxed);
+	});
+	ASSERT(iActiveEncodes == 1);
+	LOG(kDefault, kVerbose, "RDO encode: {}x{} (concurrent={})", iWidth, iHeight, iActiveEncodes);
+
+	rdo_bc::rdo_bc_params params;
+	params.m_rdo_lambda = fLambda;
+	params.m_rdo_multithreading = true;
+	// Use physical-core-count - 2: leaves two physical cores idle (thermal headroom + OS responsiveness)
+	params.m_rdo_max_threads = static_cast<int>(std::max<int64_t>(1, common::HardwareCoreCount() - 2));
+	params.m_status_output = false;
+	params.m_use_bc7e = false;
+	params.m_lookback_window_size = uiLookbackWindowSize;
+	params.m_custom_lookback_window_size = true;
+	params.m_bc7_uber_level = iBc7UberLevel;
+
+	switch (vkFormat)
+	{
+		case VK_FORMAT_BC4_UNORM_BLOCK:
+			params.m_dxgi_format = DXGI_FORMAT_BC4_UNORM;
+			break;
+		case VK_FORMAT_BC5_UNORM_BLOCK:
+			params.m_dxgi_format = DXGI_FORMAT_BC5_UNORM;
+			break;
+		case VK_FORMAT_BC7_UNORM_BLOCK:
+			params.m_dxgi_format = DXGI_FORMAT_BC7_UNORM;
+			break;
+		default:
+			ASSERT(false);
+			return;
+	}
+
+	utils::image_u8 image = ToImageU8(rIn, iWidth, iHeight);
+	rdo_bc::rdo_bc_encoder encoder;
+	bool bInit = encoder.init(image, params);
+	ASSERT(bInit);
+	bool bEncoded = encoder.encode();
+	ASSERT(bEncoded);
+
+	std::memcpy(puiOut, encoder.get_blocks(), encoder.get_total_blocks_size_in_bytes());
+
+	if (bVerifyNoAlpha && vkFormat == VK_FORMAT_BC7_UNORM_BLOCK)
+	{
+		ASSERT(!encoder.get_has_alpha());
+	}
+}
+
+void Texture::ToBc4(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight)
+{
+	EncodeWithRdo(puiOut, rIn, iWidth, iHeight, VK_FORMAT_BC4_UNORM_BLOCK, kfRdoLambdaBc4, kuiRdoLookbackWindowSize, kiBc7UberLevel, false);
 }
 
 void Texture::ToBc5(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight)
 {
-	int64_t iCurrentPosition = 0;
-	int64_t iBlocksX = iWidth / 4;
-	int64_t iBlocksY = iHeight / 4;
-	for (int64_t j = 0; j < iBlocksY; ++j)
-	{
-		for (int64_t i = 0; i < iBlocksX; ++i)
-		{
-			uint8_t puiBlockR[16] {};
-			uint8_t puiBlockG[16] {};
-			for (int64_t k = 0; k < 4; ++k)
-			{
-				puiBlockR[4 * k + 0] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 0) + 0));
-				puiBlockR[4 * k + 1] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 1) + 0));
-				puiBlockR[4 * k + 2] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 2) + 0));
-				puiBlockR[4 * k + 3] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 3) + 0));
-				puiBlockG[4 * k + 0] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 0) + 1));
-				puiBlockG[4 * k + 1] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 1) + 1));
-				puiBlockG[4 * k + 2] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 2) + 1));
-				puiBlockG[4 * k + 3] = static_cast<uint8_t>(rIn.at(4 * (j * 4 * iWidth + i * 4 + k * iWidth + 3) + 1));
-			}
-
-			rgbcx::encode_bc4_hq(&puiOut[iCurrentPosition + 0], puiBlockR, 1);
-			rgbcx::encode_bc4_hq(&puiOut[iCurrentPosition + 8], puiBlockG, 1);
-			iCurrentPosition += 16;
-		}
-	}
+	EncodeWithRdo(puiOut, rIn, iWidth, iHeight, VK_FORMAT_BC5_UNORM_BLOCK, kfRdoLambdaBc5, kuiRdoLookbackWindowSize, kiBc7UberLevel, false);
 }
 
 void Texture::ToBc7(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, bool bVerifyNoAlpha)
 {
-	bc7enc_compress_block_params bc7encCompressBlockParams {};
-	bc7enc_compress_block_params_init(&bc7encCompressBlockParams);
-
-	int64_t iCurrentPosition = 0;
-	int64_t iBlocksX = iWidth / 4;
-	int64_t iBlocksY = iHeight / 4;
-	for (int64_t j = 0; j < iBlocksY; ++j)
-	{
-		for (int64_t i = 0; i < iBlocksX; ++i)
-		{
-			uint32_t puiBlock[16] {};
-			for (int64_t k = 0; k < 4; ++k)
-			{
-				puiBlock[4 * k + 0] = PixelToUint32(rIn, iWidth, 4 * i + 0, 4 * j + k);
-				puiBlock[4 * k + 1] = PixelToUint32(rIn, iWidth, 4 * i + 1, 4 * j + k);
-				puiBlock[4 * k + 2] = PixelToUint32(rIn, iWidth, 4 * i + 2, 4 * j + k);
-				puiBlock[4 * k + 3] = PixelToUint32(rIn, iWidth, 4 * i + 3, 4 * j + k);
-			}
-
-			bool bAlpha = bc7enc_compress_block(&puiOut[iCurrentPosition], puiBlock, &bc7encCompressBlockParams);
-			iCurrentPosition += 16;
-
-			if (bVerifyNoAlpha)
-			{
-				ASSERT(!bAlpha);
-			}
-		}
-	}
+	EncodeWithRdo(puiOut, rIn, iWidth, iHeight, VK_FORMAT_BC7_UNORM_BLOCK, kfRdoLambdaBc7, kuiRdoLookbackWindowSize, kiBc7UberLevel, bVerifyNoAlpha);
 }
 
 void Texture::ToR8G8B8A8(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight)
@@ -444,13 +469,21 @@ void Texture::Save(const std::filesystem::path& rPath, VkFormat vkFormat, bool b
 {
 	std::vector<std::byte> data = Export(vkFormat, bVerifyNoAlpha);
 
+	uLongf uiBound = compressBound(static_cast<uLong>(data.size()));
+	std::vector<std::byte> compressed(uiBound);
+	uLongf uiCompressedSize = uiBound;
+	int iZlibResult = compress2(reinterpret_cast<Bytef*>(compressed.data()), &uiCompressedSize, reinterpret_cast<const Bytef*>(data.data()), static_cast<uLong>(data.size()), kiZlibLevel);
+	ASSERT(iZlibResult == Z_OK);
+
 	std::filesystem::remove(rPath);
 	std::fstream fileStreamOut(rPath, std::ios::out | std::ios::binary);
+	int64_t iMagic = kiTextureIntermediateMagic;
+	fileStreamOut.write(reinterpret_cast<const char*>(&iMagic), sizeof(iMagic));
 	fileStreamOut.write(reinterpret_cast<const char*>(&miWidth), sizeof(miWidth));
 	fileStreamOut.write(reinterpret_cast<const char*>(&miHeight), sizeof(miHeight));
 	int64_t iMipMaps = static_cast<int64_t>(mData.size());
 	fileStreamOut.write(reinterpret_cast<const char*>(&iMipMaps), sizeof(iMipMaps));
-	fileStreamOut.write(reinterpret_cast<const char*>(data.data()), data.size());
+	fileStreamOut.write(reinterpret_cast<const char*>(compressed.data()), static_cast<std::streamsize>(uiCompressedSize));
 	fileStreamOut.flush();
 	fileStreamOut.close();
 }

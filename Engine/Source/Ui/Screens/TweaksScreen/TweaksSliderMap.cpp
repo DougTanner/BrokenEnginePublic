@@ -234,6 +234,9 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Noon End", &gSunMoonNoonEnd},
 		{"Evening Start", &gSunMoonEvening},
 		{"Night Start", &gSunMoonNightStart},
+		// Sun/Moon - Intensity
+		{"Sun Intensity", &gSunMoonSunIntensity},
+		{"Moon Intensity", &gSunMoonMoonIntensity},
 		// Sun/Moon - Moon
 		{"Moon Brightness", &gMoonBrightness},
 		{"Moon Blue Tint", &gSunMoonMoonBlueTint},

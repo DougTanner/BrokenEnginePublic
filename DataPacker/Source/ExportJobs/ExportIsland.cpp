@@ -6,6 +6,50 @@
 
 using enum common::ChunkFlags;
 
+// Decompress a Texture::Save'd intermediate file. Current format: 8-byte magic + 3x int64 header
+// + zlib stream of all mips concatenated. Legacy format: same minus the magic (the migration in
+// Main.cpp updates pre-magic files in place, but this reader stays tolerant for safety).
+static std::vector<std::byte> LoadIntermediate(const std::filesystem::path& rPath, int64_t& riWidth, int64_t& riHeight, int64_t& riMipMaps, VkFormat vkFormat)
+{
+	std::fstream fileStream(rPath, std::ios::in | std::ios::binary);
+	int64_t iFileSize = std::filesystem::file_size(rPath);
+	int64_t iFirstQword = 0;
+	fileStream.read(reinterpret_cast<char*>(&iFirstQword), sizeof(iFirstQword));
+	int64_t iHeaderSize = 0;
+	if (iFirstQword == kiTextureIntermediateMagic)
+	{
+		fileStream.read(reinterpret_cast<char*>(&riWidth), sizeof(riWidth));
+		iHeaderSize = 4 * static_cast<int64_t>(sizeof(int64_t));
+	}
+	else
+	{
+		riWidth = iFirstQword;
+		iHeaderSize = 3 * static_cast<int64_t>(sizeof(int64_t));
+	}
+	fileStream.read(reinterpret_cast<char*>(&riHeight), sizeof(riHeight));
+	fileStream.read(reinterpret_cast<char*>(&riMipMaps), sizeof(riMipMaps));
+	int64_t iCompressedSize = iFileSize - iHeaderSize;
+	std::vector<std::byte> compressed(iCompressedSize);
+	fileStream.read(reinterpret_cast<char*>(compressed.data()), iCompressedSize);
+	fileStream.close();
+
+	int64_t iUncompressedSize = 0;
+	int64_t iMipWidth = riWidth;
+	int64_t iMipHeight = riHeight;
+	for (int64_t i = 0; i < riMipMaps; ++i)
+	{
+		iUncompressedSize += common::SizeInBytes(vkFormat, iMipWidth, iMipHeight);
+		iMipWidth /= 2;
+		iMipHeight /= 2;
+	}
+
+	std::vector<std::byte> data(iUncompressedSize);
+	uLongf uiUncompressedSize = static_cast<uLongf>(iUncompressedSize);
+	int iZlibResult = uncompress(reinterpret_cast<Bytef*>(data.data()), &uiUncompressedSize, reinterpret_cast<const Bytef*>(compressed.data()), static_cast<uLong>(iCompressedSize));
+	ASSERT(iZlibResult == Z_OK);
+	return data;
+}
+
 std::optional<common::ChunkFlags_t> ExportIsland::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 {
 	if (!rDirectoryEntry.is_directory() || rDirectoryEntry.path().parent_path().filename() != "Islands")
@@ -25,6 +69,7 @@ void ExportIsland::Export()
 	ambientOcclusionFloat32File /= "AmbientOcclusion.r32";
 	if (std::filesystem::exists(ambientOcclusionFloat32File))
 	{
+		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 		Texture texture(ambientOcclusionFloat32File, FileType::kFloat32, true, kiIslandSize, kiIslandSize);
 		texture.Downsize(1);
 
@@ -39,6 +84,7 @@ void ExportIsland::Export()
 	colorExrFile /= "Color.exr";
 	if (std::filesystem::exists(colorExrFile))
 	{
+		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 		Texture texture(colorExrFile, FileType::kExr, true);
 		std::filesystem::path path(mInputPath);
 		path /= kpcIslandColor;
@@ -73,6 +119,7 @@ void ExportIsland::Export()
 
 		// GPU texture export - downsample and convert to R16_UNORM
 		{
+			std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 			Texture gpuTexture(elevationFloat32File, FileType::kFloat32, false, iSourceSize, iSourceSize);
 			gpuTexture.Downsize(2);
 
@@ -92,27 +139,19 @@ void ExportIsland::Export()
 
 		if (std::filesystem::exists(elevationR16File))
 		{
-			std::fstream fileStream(elevationR16File, std::ios::in | std::ios::binary);
-
-			// Read file header
 			int64_t iWidth = 0;
 			int64_t iHeight = 0;
 			int64_t iMipMaps = 0;
-			fileStream.read(reinterpret_cast<char*>(&iWidth), sizeof(iWidth));
-			fileStream.read(reinterpret_cast<char*>(&iHeight), sizeof(iHeight));
-			fileStream.read(reinterpret_cast<char*>(&iMipMaps), sizeof(iMipMaps));
+			std::vector<std::byte> data = LoadIntermediate(elevationR16File, iWidth, iHeight, iMipMaps, VK_FORMAT_R16_UNORM);
 
-			// Read R16_UNORM pixel data
 			int64_t iPixelCount = iWidth * iHeight;
-			std::vector<uint16_t> r16Data(iPixelCount);
-			fileStream.read(reinterpret_cast<char*>(r16Data.data()), iPixelCount * sizeof(uint16_t));
-			fileStream.close();
+			const uint16_t* puiR16 = reinterpret_cast<const uint16_t*>(data.data());
 
 			// Convert to float
 			cpuHeightmapData.resize(iPixelCount);
 			for (int64_t i = 0; i < iPixelCount; ++i)
 			{
-				cpuHeightmapData.at(i) = common::UnormToFloat<uint16_t>(r16Data.at(i));
+				cpuHeightmapData.at(i) = common::UnormToFloat<uint16_t>(puiR16[i]);
 			}
 
 			iHeightmapWidth = static_cast<int32_t>(iWidth);
@@ -124,6 +163,7 @@ void ExportIsland::Export()
 	normalsExrFile /= "Normals.exr";
 	if (std::filesystem::exists(normalsExrFile))
 	{
+		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 		Texture texture(normalsExrFile, FileType::kExr, true);
 
 		std::filesystem::path path(mInputPath);
@@ -175,6 +215,7 @@ void ExportIsland::Export()
 				}
 			}
 
+			std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 			Texture texture(reinterpret_cast<const std::byte*>(rgbaData.data()), iWidth, iHeight, 4);
 			texture.MakeMipmaps(VK_FORMAT_BC5_UNORM_BLOCK);
 			texture.Save(bc5NormalsFile, VK_FORMAT_BC5_UNORM_BLOCK, false);
@@ -187,13 +228,12 @@ void ExportIsland::Export()
 	// Beach elevation
 	std::filesystem::path elevationU16File(mInputPath);
 	elevationU16File /= kpcIslandElevation;
-	std::fstream fileStreamU16(elevationU16File, std::ios::in | std::ios::binary);
-	std::vector<std::byte> dataU16(std::filesystem::file_size(elevationU16File));
-	fileStreamU16.read(reinterpret_cast<char*>(dataU16.data()), dataU16.size());
-	fileStreamU16.close();
+	int64_t iElevationWidth = 0;
+	int64_t iElevationHeight = 0;
+	int64_t iElevationMipMaps = 0;
+	std::vector<std::byte> dataU16 = LoadIntermediate(elevationU16File, iElevationWidth, iElevationHeight, iElevationMipMaps, VK_FORMAT_R16_UNORM);
 
-	constexpr int64_t kiHeaderSize = 3 * sizeof(int64_t);
-	uint16_t* puiPixels = reinterpret_cast<uint16_t*>(dataU16.data() + kiHeaderSize);
+	uint16_t* puiPixels = reinterpret_cast<uint16_t*>(dataU16.data());
 	std::unordered_map<uint16_t, int64_t> map;
 	int64_t iElevationSize = kiIslandSize / kiElevationDivisor;
 	for (int64_t i = 0; i < iElevationSize * iElevationSize; ++i)

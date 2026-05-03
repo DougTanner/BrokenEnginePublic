@@ -172,6 +172,11 @@ private:
 	std::byte* mpLazyPool = nullptr;
 	int64_t miLazyPoolSize = 0;
 
+	// Scratch buffer used by the loading thread for zlib-compressed chunks.
+	// Sized at boot to the largest compressed chunk on disk; reused per chunk.
+	std::byte* mpDecompressScratch = nullptr;
+	int64_t miDecompressScratchSize = 0;
+
 	// Sub-read size for chunked disk reads (256KB balances NVMe throughput vs L3 cache pressure)
 	static constexpr int64_t kiSubReadSize = 256 * 1024;
 };

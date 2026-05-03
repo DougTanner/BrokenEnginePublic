@@ -20,7 +20,7 @@ public:
 
 	virtual ~ExportScene() = default;
 
-	virtual int64_t GetVersion() const override { return 51 + sizeof(common::ChunkHeader); }
+	virtual int64_t GetVersion() const override { return 53 + sizeof(common::ChunkHeader); }
 
 	virtual bool CheckDirty(const std::filesystem::path& rPackFile) override;
 

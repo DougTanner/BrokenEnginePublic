@@ -37,7 +37,8 @@ void RenderWindGlobal(int64_t iCommandBuffer);
 // DT: TEMP - sun/moon lighting debug snapshot, captured each frame in RenderFrameGlobal, displayed by HudScreen.
 inline float gDebugSunMoonAngle = 0.0f;
 inline XMFLOAT4 gDebugSunMoonNormal {};
-inline XMFLOAT4 gDebugSunMoonColor {};
+inline XMFLOAT4 gDebugSunColor {};
+inline XMFLOAT4 gDebugMoonColor {};
 inline XMFLOAT4 gDebugAmbientColor {};
 inline float gDebugSunMoonDayPercent = 0.0f;
 inline float gDebugSunMoonNoonPercent = 0.0f;

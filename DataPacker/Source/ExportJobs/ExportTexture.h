@@ -19,7 +19,7 @@ public:
 
 	virtual ~ExportTexture() = default;
 
-	virtual int64_t GetVersion() const override { return 4 + sizeof(common::ChunkHeader); }
+	virtual int64_t GetVersion() const override { return 9 + sizeof(common::ChunkHeader); }
 
 protected:
 

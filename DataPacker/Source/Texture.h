@@ -7,9 +7,20 @@ enum class FileType
 	kImage,
 };
 
+// Sentinel placed at byte 0 of every Texture::Save'd intermediate file. Reads as "BC7E DA7A"
+// in a hex dump. A file lacking this magic is legacy-format and must be migrated through
+// MigrateLegacyIntermediates() (in Main.cpp) before any reader (LoadIntermediate, raw-passthrough)
+// touches it.
+inline constexpr int64_t kiTextureIntermediateMagic = 0x00000000BC7EDA7A;
+
 class Texture
 {
 public:
+
+	// Callers must hold this mutex around any Texture construction + MakeMipmaps + Save/Export
+	// chain that goes through RDO encoding. The encoder uses all hardware threads internally;
+	// the mutex bounds memory by ensuring only one texture's source pixels exist at a time.
+	static std::mutex sEncodeMutex;
 
 	static void StaticInit();
 
@@ -28,11 +39,14 @@ public:
 	void Downsize(int64_t iLevels);
 
 	static uint32_t PixelToUint32(const std::vector<float>& rIn, int64_t iWidth, int64_t iX, int64_t iY);
-	static void ToBc4(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, int64_t iIndex = 0);
+	static void ToBc4(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight);
 	static void ToBc5(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight);
 	static void ToBc7(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, bool bVerifyNoAlpha);
 	static void ToR8G8B8A8(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight);
 	static void ToR16(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight);
+
+	// Sweep-mode entry point: callers pass the RDO knobs explicitly. Production callers go through ToBc{4,5,7}.
+	static void EncodeWithRdo(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, VkFormat vkFormat, float fLambda, uint32_t uiLookbackWindowSize, int iBc7UberLevel, bool bVerifyNoAlpha);
 
 	void Export(std::vector<std::byte>& rData, VkFormat vkFormat, bool bVerifyNoAlpha);
 

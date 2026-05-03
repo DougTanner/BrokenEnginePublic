@@ -144,7 +144,8 @@ void main()
 	float fDirectionalLighting = max(1.0f - globalLayout.fWaterDirectional, dot(f3InNormal, globalLayout.f4SunMoonNormal.xyz));
 	vec3 f3DirectionalLighting = f3PreLightingColor * max(fDirectionalLighting, 0.3f);
 	vec3 f3LightingColor = mix(f3PreLightingColor, f3DirectionalLighting, 0.75f);
-	vec3 f3Sunlight = globalLayout.f4SunMoonColor.xyz + globalLayout.f4AmbientColor.xyz;
+	vec3 f3SunPlusMoon = globalLayout.f4SunColor.xyz + globalLayout.f4MoonColor.xyz;
+	vec3 f3Sunlight = f3SunPlusMoon + globalLayout.f4AmbientColor.xyz;
 	float fSunlight = (f3Sunlight.x + f3Sunlight.y + f3Sunlight.z) / 3.0f;
 	f3LightingColor *= fSunlight;
 
@@ -152,7 +153,7 @@ void main()
 	const float fSkyboxNormalBlendWave = mainLayout.fLightingWaterSkyboxNormalBlendWave;
 	vec3 f3SkyboxWaveNormal = normalize((1.0f - fSkyboxNormalBlendWave) * f3SampledNormal + fSkyboxNormalBlendWave * f3InNormal);
 	vec3 f3SkyboxColor = textureLod(skyboxSampler, -normalize(reflect(f3ToEyeNormal, f3SkyboxWaveNormal)), mainLayout.fLightingWaterSkyboxLod).xyz;
-	vec3 f3SkyboxColorSun = f3SkyboxColor * globalLayout.f4SunMoonColor.xyz;
+	vec3 f3SkyboxColorSun = f3SkyboxColor * f3SunPlusMoon;
 
 	float fReferenceHeight = 0.05f;
 	float fReflectionHeightMultiplier = clamp((f3InPosition.z + fReferenceHeight) / (2.0f * fReferenceHeight), 0.5f, 1.0f);
@@ -169,9 +170,17 @@ void main()
 	f3LightingColor *= fSunlight;
 	f3LightingColor *= globalLayout.fLightingWaterMoonBrightness;
 
-	// Shadow with smoke at world position
-	float fShadow = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
-	f4OutColor.xyz = fShadow * f3LightingColor;
+	// Shadow with smoke at world position. Moon bypasses the terrain ray-march shadow only;
+	// object shadows + smoke volumetric attenuation still apply to both lights. Use a scalar
+	// luminance-weighted blend of the two shadow values rather than a per-channel split: the
+	// f3SkyboxColor mix above breaks pure linearity in (Sun + Moon), so a per-channel divide
+	// would zero entire channels when Sun.c + Moon.c happens to be ~0 (e.g. morning sun has B=0).
+	float fShadowMoon = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
+	float fShadowSun  = fShadowMoon * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x);
+	float fSunWeight  = dot(globalLayout.f4SunColor.xyz,  vec3(0.299f, 0.587f, 0.114f));
+	float fMoonWeight = dot(globalLayout.f4MoonColor.xyz, vec3(0.299f, 0.587f, 0.114f));
+	float fEffectiveShadow = (fShadowSun * fSunWeight + fShadowMoon * fMoonWeight) / max(0.001f, fSunWeight + fMoonWeight);
+	f4OutColor.xyz = fEffectiveShadow * f3LightingColor;
 	f4OutColor.xyz = max(f4OutColor.xyz, 0.5f * globalLayout.f4AmbientColor.xyz * f3SkyboxColor);
 
 	// Terrain elevation (for water transparency)

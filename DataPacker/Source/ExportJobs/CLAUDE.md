@@ -29,6 +29,10 @@ Scene and Islands run a pre-export phase emitting intermediates consumed by the 
 
 `ExportTexture` routes on filename tags (`[C]`, `[BC4]`, `[BC5]`, `[BC7]`) and explicit format extensions (passthrough, no mip generation). Font-atlas detection strips `[...]` prefixes and cross-references `Fonts/**/*.fnt`; matches use a box-filter mipmap chain.
 
+## Texture Chunk Format
+
+Texture intermediates start with an 8-byte magic sentinel (`kiTextureIntermediateMagic = 0x00000000_BC7E_DA7A`, "BC7E DATA") followed by 3× `int64_t` width/height/mipcount and a zlib stream of all mips concatenated. The magic distinguishes "produced by the current `Texture::Save`" from legacy (pre-magic and/or pre-zlib) files; readers (`LoadIntermediate`, `ExportTexture` raw-passthrough) tolerate both shapes. `MigrateLegacyIntermediates()` in `Main.cpp` upgrades legacy files in place at startup — for BCn it decodes mip 0 and re-encodes with current RDO knobs (one generation of BC7-roundtrip quality loss for islands whose source `.exr` is gone), for R16 it just zlib-wraps. BCn block bytes are RDO-tuned with a small lookback window (4 KB, 256 BC7 blocks) so the byte stream is LZ-friendly without making ERT's O(blocks × window) inner loop blow past the L3-cache cliff on 2K² mips; deflate's own 32 KB window catches longer-range matches. `ChunkHeader` carries the compressed-on-disk size and an uncompressed-size sibling; the runtime `FileManager` decompresses payloads at chunk-load (see [Engine/Source/File/CLAUDE.md](../../../Engine/Source/File/CLAUDE.md)). `.R16G16B16A16_SFLOAT` cubemap intermediates from the IBL convolution path stay in the legacy pre-magic shape — that writer is a separate code path.
+
 ## Shader Dirty Tracking
 
 `ExportShader::CheckDirty` parses Makefile-style `.d` depfiles from `glslc -MD` and re-exports when any transitively `#include`'d header is newer than the cached chunk.

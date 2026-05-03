@@ -217,6 +217,7 @@ void ExportScene::PreExport(tinygltf::Model& rGltfModel)
 
 		futures.push_back(std::async(std::launch::async, [vkFormat, &rImage, path]()
 		{
+			std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 			Texture texture(reinterpret_cast<const std::byte*>(rImage.image.data()), rImage.width, rImage.height, rImage.component);
 			texture.MakeMipmaps(vkFormat);
 			texture.Save(path, vkFormat, false);

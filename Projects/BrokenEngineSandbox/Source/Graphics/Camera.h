@@ -13,7 +13,7 @@ class Camera : public engine::CameraBase
 public:
 
 	static constexpr XMVECTOR kVecMainMenuPosition {20.4f, -76.3f, 0.0f, 1.0f};
-	static constexpr float kfDefaultSunAngle = 1.15f;
+	static constexpr float kfDefaultSunAngle = 1.8f;
 	static constexpr float kfCameraEyeHeightDefault = 150.0f;
 
 	Camera();

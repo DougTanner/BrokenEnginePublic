@@ -63,6 +63,10 @@ FileManager::~FileManager()
 	}
 	_aligned_free(mpReadBuffer);
 	VirtualFree(mpLazyPool, 0, MEM_RELEASE);
+	if (mpDecompressScratch != nullptr)
+	{
+		VirtualFree(mpDecompressScratch, 0, MEM_RELEASE);
+	}
 
 	gpFileManager = nullptr;
 }
@@ -185,13 +189,23 @@ void FileManager::LoadPackFiles()
 			packStream.seekg(rChunkLocation.uiOffset);
 			packStream.read(reinterpret_cast<char*>(&chunkHeader), sizeof(chunkHeader));
 
-			// Add to lazy chunk map
-			int64_t iDataSize = rChunkLocation.uiSize - common::kiChunkDataOffset;
+			// Add to lazy chunk map. iDataSize is the size of the data in pData after any decompression
+			// (i.e., what consumers see). For zlib-compressed chunks, that's the uncompressed size; otherwise
+			// it's the on-disk chunk-data size. The on-disk size is always recoverable from `location.uiSize`.
+			int64_t iOnDiskSize = rChunkLocation.uiSize - common::kiChunkDataOffset;
+			bool bCompressed = chunkHeader.flags & common::ChunkFlags::kZlibCompressed;
+			int64_t iDataSize = bCompressed ? chunkHeader.iUncompressedSize : iOnDiskSize;
 			auto [it, bInserted] = mLazyChunkMap.try_emplace(rChunkLocation.crc, LazyChunk {.location = rChunkLocation, .header = chunkHeader, .iDataSize = iDataSize});
 			if (!bInserted)
 			{
 				LOG(kLoading, kDebug, "Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
 				DEBUG_BREAK();
+			}
+
+			// Track largest compressed-chunk on-disk size for the loading-thread scratch buffer.
+			if (bCompressed && iOnDiskSize > miDecompressScratchSize)
+			{
+				miDecompressScratchSize = iOnDiskSize;
 			}
 		}
 	}
@@ -211,6 +225,12 @@ void FileManager::LoadPackFiles()
 	{
 		rLazyChunk.pData = mpLazyPool + iPoolOffset;
 		iPoolOffset += common::RoundUp<int64_t, common::kiAlignmentBytes>(rLazyChunk.iDataSize);
+	}
+
+	// Decompress scratch (sized to largest compressed chunk on disk; only allocated if any chunks are compressed)
+	if (miDecompressScratchSize > 0)
+	{
+		mpDecompressScratch = static_cast<std::byte*>(VirtualAlloc(nullptr, miDecompressScratchSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
 	}
 
 	// Query disk sector size for FILE_FLAG_NO_BUFFERING alignment requirements
@@ -417,53 +437,78 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 {
 	LazyChunk& rLazyChunk = mLazyChunkMap.at(rRequest.crc);
 
+	bool bCompressed = rLazyChunk.header.flags & common::ChunkFlags::kZlibCompressed;
+
 	// Calculate sector-aligned read parameters for unbuffered I/O
 	int64_t iFileOffset = rLazyChunk.location.uiOffset + common::kiChunkDataOffset;
-	int64_t iDataSize = rLazyChunk.location.uiSize - common::kiChunkDataOffset;
+	int64_t iOnDiskSize = rLazyChunk.location.uiSize - common::kiChunkDataOffset;
 	int64_t iAlignedOffset = common::RoundDown(iFileOffset, miSectorSize);
 	int64_t iPrefix = iFileOffset - iAlignedOffset;
+
+	// Compressed chunks read into the scratch and decompress into pData; uncompressed chunks read directly into pData.
+	std::byte* pReadDst = bCompressed ? mpDecompressScratch : rLazyChunk.pData;
 
 	// Read in sub-chunks, yielding between each to reduce main-thread scheduling latency
 	HANDLE hFile = mLazyPackFileHandles[DataTypeFromFlags(rLazyChunk.header.flags)];
 	int64_t iFilePos = iAlignedOffset;
 	int64_t iDataCopied = 0;
 
-	while (iDataCopied < iDataSize)
+	while (iDataCopied < iOnDiskSize)
 	{
 		// Read one sector-aligned sub-chunk from disk
 		int64_t iSrcOffset = (iDataCopied == 0) ? iPrefix : 0;
-		DWORD uiReadSize = static_cast<DWORD>(common::RoundUp(std::min(kiSubReadSize, iDataSize - iDataCopied) + iSrcOffset, miSectorSize));
+		DWORD uiReadSize = static_cast<DWORD>(common::RoundUp(std::min(kiSubReadSize, iOnDiskSize - iDataCopied) + iSrcOffset, miSectorSize));
 		LARGE_INTEGER seekPos {};
 		seekPos.QuadPart = iFilePos;
 		SetFilePointerEx(hFile, seekPos, nullptr, FILE_BEGIN);
 		DWORD uiBytesRead = 0;
 		static_cast<void>(ReadFile(hFile, mpReadBuffer, uiReadSize, &uiBytesRead, nullptr));
 
-		// Non-temporal copy: bypass L3 cache for destination writes
-		int64_t iCopySize = std::min(static_cast<int64_t>(uiBytesRead) - iSrcOffset, iDataSize - iDataCopied);
+		int64_t iCopySize = std::min(static_cast<int64_t>(uiBytesRead) - iSrcOffset, iOnDiskSize - iDataCopied);
 		std::byte* pSrc = mpReadBuffer + iSrcOffset;
-		std::byte* pDst = rLazyChunk.pData + iDataCopied;
-		bool bAligned = (reinterpret_cast<uintptr_t>(pSrc) % 16 == 0) && (reinterpret_cast<uintptr_t>(pDst) % 16 == 0);
-		if (bAligned)
+		std::byte* pDst = pReadDst + iDataCopied;
+
+		if (bCompressed)
 		{
-			int64_t iStreamBytes = iCopySize & ~15LL;
-			for (int64_t i = 0; i < iStreamBytes; i += 16)
-			{
-				_mm_stream_si128(reinterpret_cast<__m128i*>(pDst + i), _mm_loadu_si128(reinterpret_cast<const __m128i*>(pSrc + i)));
-			}
-			if (iCopySize > iStreamBytes)
-			{
-				memcpy(pDst + iStreamBytes, pSrc + iStreamBytes, iCopySize - iStreamBytes);
-			}
+			// Compressed reads land in scratch; the decompress pass below will pull them back through cache anyway,
+			// so use a regular memcpy (not _mm_stream_si128) so the bytes stay hot for inflate().
+			memcpy(pDst, pSrc, iCopySize);
 		}
 		else
 		{
-			memcpy(pDst, pSrc, iCopySize);
+			// Non-temporal copy: bypass L3 cache for destination writes (consumed later by upload thread)
+			bool bAligned = (reinterpret_cast<uintptr_t>(pSrc) % 16 == 0) && (reinterpret_cast<uintptr_t>(pDst) % 16 == 0);
+			if (bAligned)
+			{
+				int64_t iStreamBytes = iCopySize & ~15LL;
+				for (int64_t i = 0; i < iStreamBytes; i += 16)
+				{
+					_mm_stream_si128(reinterpret_cast<__m128i*>(pDst + i), _mm_loadu_si128(reinterpret_cast<const __m128i*>(pSrc + i)));
+				}
+				if (iCopySize > iStreamBytes)
+				{
+					memcpy(pDst + iStreamBytes, pSrc + iStreamBytes, iCopySize - iStreamBytes);
+				}
+			}
+			else
+			{
+				memcpy(pDst, pSrc, iCopySize);
+			}
+			_mm_sfence();
 		}
 
-		_mm_sfence();
 		iDataCopied += iCopySize;
 		iFilePos += uiBytesRead;
+	}
+
+	if (bCompressed)
+	{
+		uLongf uiUncompressedSize = static_cast<uLongf>(rLazyChunk.iDataSize);
+		int iZlibResult = uncompress(reinterpret_cast<Bytef*>(rLazyChunk.pData), &uiUncompressedSize, reinterpret_cast<const Bytef*>(mpDecompressScratch), static_cast<uLong>(iOnDiskSize));
+		// External-data trust boundary: a corrupted .pack or producer/runtime contract drift
+		// (e.g. raw payload tagged kZlibCompressed) will silently produce garbage texels
+		// without this check. Catch it deterministically at chunk-load instead of via visual inspection.
+		ASSERT(iZlibResult == Z_OK && static_cast<int64_t>(uiUncompressedSize) == rLazyChunk.iDataSize);
 	}
 
 	LOG(kLoading, kDebug, "Lazy chunk {} \"{}\" size {}", rRequest.crc, std::string_view(rLazyChunk.header.pcPath), rLazyChunk.location.uiSize);
@@ -502,7 +547,9 @@ void FileManager::ResetTextureChunkStates()
 	int64_t iPoolOffset = 0;
 	for (auto& [crc, rLazyChunk] : mLazyChunkMap)
 	{
-		rLazyChunk.iDataSize = rLazyChunk.location.uiSize - common::kiChunkDataOffset;
+		bool bCompressed = rLazyChunk.header.flags & common::ChunkFlags::kZlibCompressed;
+		int64_t iOnDiskSize = rLazyChunk.location.uiSize - common::kiChunkDataOffset;
+		rLazyChunk.iDataSize = bCompressed ? rLazyChunk.header.iUncompressedSize : iOnDiskSize;
 		rLazyChunk.pData = mpLazyPool + iPoolOffset;
 		iPoolOffset += common::RoundUp<int64_t, common::kiAlignmentBytes>(rLazyChunk.iDataSize);
 
