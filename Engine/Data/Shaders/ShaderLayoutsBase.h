@@ -420,7 +420,8 @@ struct MainLayout
 	float fLightingSampledNormalsOneSize INIT;
 	float fLightingSampledNormalsTwoSize INIT;
 	float fLightingSampledNormalsThreeSize INIT;
-	float fLightingSampledNormalsSpeed INIT;
+	float fLightingSampledNormalsSpeedMin INIT;
+	float fLightingSampledNormalsSpeedMax INIT;
 	uint32_t uiWaterNormalIndexOne INIT;
 	uint32_t uiWaterNormalIndexTwo INIT;
 	uint32_t uiWaterNormalIndexThree INIT;
@@ -430,6 +431,9 @@ struct MainLayout
 	float fWaterNormalWeightTwoMax INIT;
 	float fWaterNormalWeightThreeMin INIT;
 	float fWaterNormalWeightThreeMax INIT;
+	float fWaterNormalRotationOne INIT;
+	float fWaterNormalRotationTwo INIT;
+	float fWaterNormalRotationThree INIT;
 	float fCameraHeightZoomFactor INIT;
 	float fWaterHeightDarkenTop INIT;
 	float fWaterHeightDarkenBottom INIT;

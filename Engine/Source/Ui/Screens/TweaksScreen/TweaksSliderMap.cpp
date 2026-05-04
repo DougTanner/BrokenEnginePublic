@@ -66,17 +66,21 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Rock Normals Size 2", &gTerrainRockNormalsSizeTwo},
 		{"Rock Normals Size 3", &gTerrainRockNormalsSizeThree},
 		{"Rock Normals Blend", &gTerrainRockNormalsBlend},
-		// Water Specular - Normals (per-sample row layout: chevron | size | weight-min | weight-max)
+		// Water Specular - Normals (per-sample row layout: chevron | size | weight-min | weight-max | rotation)
 		{"Size 1", &gLightingSampledNormalsOneSize},
 		{"Size 2", &gLightingSampledNormalsTwoSize},
 		{"Size 3", &gLightingSampledNormalsThreeSize},
-		{"Sampled Normals Speed", &gLightingSampledNormalsSpeed},
+		{"Speed Min", &gLightingSampledNormalsSpeedMin},
+		{"Speed Max", &gLightingSampledNormalsSpeedMax},
 		{"Weight Min 1", &gLightingSampledNormalsWeightOneMin},
 		{"Weight Max 1", &gLightingSampledNormalsWeightOneMax},
 		{"Weight Min 2", &gLightingSampledNormalsWeightTwoMin},
 		{"Weight Max 2", &gLightingSampledNormalsWeightTwoMax},
 		{"Weight Min 3", &gLightingSampledNormalsWeightThreeMin},
 		{"Weight Max 3", &gLightingSampledNormalsWeightThreeMax},
+		{"Rotation 1", &gWaterNormalRotationOne},
+		{"Rotation 2", &gWaterNormalRotationTwo},
+		{"Rotation 3", &gWaterNormalRotationThree},
 		{"Depth Reflection Feather", &gWaterDepthReflectionFeather},
 		// Water Specular - Skybox
 		{"Sun Bias", &gLightingWaterSkyboxSunBias},
@@ -241,8 +245,14 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Moon Brightness", &gMoonBrightness},
 		{"Moon Blue Tint", &gSunMoonMoonBlueTint},
 		{"Water Moon Brightness", &gLightingWaterMoonBrightness},
+		// Sun/Moon - Moon Timing
+		{"Moonrise Start", &gSunMoonMoonriseStart},
+		{"Moonrise End", &gSunMoonMoonriseEnd},
+		{"Moonset Start", &gSunMoonMoonsetStart},
+		{"Moonset End", &gSunMoonMoonsetEnd},
 		// Sun/Moon - Ambient
 		{"Minimum Ambient", &gMinimumAmbient},
+		{"Ambient Multiplier", &gSunMoonAmbientMultiplier},
 		// Sun/Moon - Shadow Night-Gate
 		{"Shadow Night Multiplier", &gSunMoonShadowNightMultiplier},
 		{"Shadow Sunset Start", &gSunMoonShadowSunsetStart},

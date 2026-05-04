@@ -25,8 +25,15 @@ void TweaksScreenBase::RenderSunMoonSection()
 	WrapperSlider("Moon Blue Tint", kiSection);
 	WrapperSlider("Water Moon Brightness", kiSection);
 
+	WrapperSeparatorText("Moon Timing (radians)");
+	WrapperSlider("Moonrise Start", kiSection);
+	WrapperSlider("Moonrise End", kiSection);
+	WrapperSlider("Moonset Start", kiSection);
+	WrapperSlider("Moonset End", kiSection);
+
 	WrapperSeparatorText("Ambient");
 	WrapperSlider("Minimum Ambient", kiSection);
+	WrapperSlider("Ambient Multiplier", kiSection);
 
 	WrapperSeparatorText("Shadow Night-Gate (radians)");
 	WrapperSlider("Shadow Night Multiplier", kiSection);

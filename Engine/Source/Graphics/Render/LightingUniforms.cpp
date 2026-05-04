@@ -95,7 +95,8 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fLightingSampledNormalsOneSize = gLightingSampledNormalsOneSize.Get();
 	rMainLayout.fLightingSampledNormalsTwoSize = gLightingSampledNormalsTwoSize.Get();
 	rMainLayout.fLightingSampledNormalsThreeSize = gLightingSampledNormalsThreeSize.Get();
-	rMainLayout.fLightingSampledNormalsSpeed = gLightingSampledNormalsSpeed.Get();
+	rMainLayout.fLightingSampledNormalsSpeedMin = gLightingSampledNormalsSpeedMin.Get();
+	rMainLayout.fLightingSampledNormalsSpeedMax = gLightingSampledNormalsSpeedMax.Get();
 	rMainLayout.uiWaterNormalIndexOne = static_cast<uint32_t>(gWaterNormalIndexOne.Get<int64_t>());
 	rMainLayout.uiWaterNormalIndexTwo = static_cast<uint32_t>(gWaterNormalIndexTwo.Get<int64_t>());
 	rMainLayout.uiWaterNormalIndexThree = static_cast<uint32_t>(gWaterNormalIndexThree.Get<int64_t>());
@@ -105,6 +106,9 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fWaterNormalWeightTwoMax = gLightingSampledNormalsWeightTwoMax.Get();
 	rMainLayout.fWaterNormalWeightThreeMin = gLightingSampledNormalsWeightThreeMin.Get();
 	rMainLayout.fWaterNormalWeightThreeMax = gLightingSampledNormalsWeightThreeMax.Get();
+	rMainLayout.fWaterNormalRotationOne = gWaterNormalRotationOne.Get();
+	rMainLayout.fWaterNormalRotationTwo = gWaterNormalRotationTwo.Get();
+	rMainLayout.fWaterNormalRotationThree = gWaterNormalRotationThree.Get();
 	// Camera zoom factor: 0 = closest (default eye height), 1 = farthest (2x default). Matches the wave-fade range in MainUniforms.cpp.
 	static constexpr float kfWaveFadeEnd = 2.0f * game::Camera::kfCameraEyeHeightDefault;
 	float fWaveAmplitudeScale = std::clamp((kfWaveFadeEnd - game::gpCamera->mfCameraEyeHeight) / (kfWaveFadeEnd - game::Camera::kfCameraEyeHeightDefault), 0.0f, 1.0f);

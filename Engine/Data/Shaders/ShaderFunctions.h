@@ -58,15 +58,21 @@ vec3 SampleNormal(GlobalLayout globalLayout, sampler2D normalSampler, vec2 f2Pos
 // fShadowSun gates the sun's directional contribution; fShadowMoon gates the moon's directional
 // contribution. Callers compute fShadowMoon to bypass the terrain ray-march shadow (per the
 // sun/moon split design) so moonlight is unaffected by landform self-shadowing while object/smoke
-// shadows still apply to both lights. Ambient stays gated by fShadowSun (it's an approximation of
-// indirect daylight; moon ambient uplift lives in gMinimumAmbient).
+// shadows still apply to both lights. Ambient gating tracks the dominant light's shadow via a
+// Rec.601 luma-weighted blend: at noon by sun-shadow, at midnight by moon-shadow (which excludes
+// the terrain ray-march), with a smooth transition in twilight. Without this weighting, terrain
+// in self-shadow visibly darkens during sunset/sunrise even though the moon is filling those
+// regions.
 vec3 SunLighting(vec3 f3MaterialColor, GlobalLayout globalLayout, vec4 f4Position, vec3 f3Normal, float fShadowSun, float fShadowMoon, float fAmbientOcclusion)
 {
 	float fNdotL = max(0.0f, dot(normalize(f3Normal), globalLayout.f4SunMoonNormal.xyz));
 	vec3 f3SunLight  = fShadowSun  * fNdotL * globalLayout.f4SunColor.xyz;
 	vec3 f3MoonLight = fShadowMoon * fNdotL * globalLayout.f4MoonColor.xyz;
 	float fShadowAffectAmbient = globalLayout.fShadowAffectAmbient;
-	return f3MaterialColor * fAmbientOcclusion * (f3SunLight + f3MoonLight + (1.0f - fShadowAffectAmbient) * globalLayout.f4AmbientColor.xyz + fShadowAffectAmbient * fShadowSun * globalLayout.f4AmbientColor.xyz);
+	float fSunMag  = dot(globalLayout.f4SunColor.xyz,  vec3(0.299f, 0.587f, 0.114f));
+	float fMoonMag = dot(globalLayout.f4MoonColor.xyz, vec3(0.299f, 0.587f, 0.114f));
+	float fAmbientShadow = (fSunMag * fShadowSun + fMoonMag * fShadowMoon) / max(fSunMag + fMoonMag, 0.001f);
+	return f3MaterialColor * fAmbientOcclusion * (max(f3SunLight, f3MoonLight) + (1.0f - fShadowAffectAmbient) * globalLayout.f4AmbientColor.xyz + fShadowAffectAmbient * fAmbientShadow * globalLayout.f4AmbientColor.xyz);
 }
 
 float Specular(vec3 f3ToEyeNormal, vec3 f3LightNormal, vec3 f3Normal, float fSpecularOne, float fSpecularOnePower, float fSpecularTwo, float fSpecularTwoPower, float fSpecularThree, float fSpecularThreePower)
@@ -196,7 +202,7 @@ vec3 AddSmoke(GlobalLayout globalLayout, vec3 f3InColor, vec2 f2InPosition, samp
 	float fBlue = IntensityLighting(pf4Lighting[2]);
 	vec3 f3Final = vec3(fRed, fGreen, fBlue) * globalLayout.fSmokeLightingMultiplier * globalLayout.fLightingTimeOfDayMultiplier;
 
-	f3Final += max(vec3(0.1f, 0.1f, 0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4MoonColor.xyz + globalLayout.f4AmbientColor.xyz);
+	f3Final += max(vec3(0.1f, 0.1f, 0.1f), max(globalLayout.f4SunColor.xyz, globalLayout.f4MoonColor.xyz) + globalLayout.f4AmbientColor.xyz);
 
 	f3Final = min(vec3(1.0f, 1.0f, 1.0f), f3Final);
 	return (1.0f - fSmoke) * f3InColor + fSmoke * f3Final * min(vec3(1.25f, 1.25f, 1.25f), vec3(fDensity, fDensity, fDensity));
@@ -209,7 +215,7 @@ vec3 BlendSmoke(vec3 f3Color, float fSmokePow, vec4 pf4Lighting[3], GlobalLayout
 	float fGreen = IntensityLighting(pf4Lighting[1]);
 	float fBlue = IntensityLighting(pf4Lighting[2]);
 	vec3 f3SmokeLighting = vec3(fRed, fGreen, fBlue) * globalLayout.fSmokeLightingMultiplier * globalLayout.fLightingTimeOfDayMultiplier;
-	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4MoonColor.xyz + globalLayout.f4AmbientColor.xyz);
+	f3SmokeLighting += max(vec3(0.1f), max(globalLayout.f4SunColor.xyz, globalLayout.f4MoonColor.xyz) + globalLayout.f4AmbientColor.xyz);
 	f3SmokeLighting = min(vec3(1.0f), f3SmokeLighting);
 	return (1.0f - fSmokePow) * f3Color + fSmokePow * f3SmokeLighting * min(vec3(1.25f), vec3(fSmokeDensity));
 }
@@ -219,7 +225,7 @@ vec3 BlendSmokePrecomputed(vec3 f3Color, float fSmokePow, vec3 f3LightingSum, Gl
 {
 	float fSmokeDensity = globalLayout.fSmokeColorMin + globalLayout.fSmokeColorMultiplier * fSmokePow;
 	vec3 f3SmokeLighting = f3LightingSum * globalLayout.fSmokeLightingMultiplier * globalLayout.fLightingTimeOfDayMultiplier;
-	f3SmokeLighting += max(vec3(0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4MoonColor.xyz + globalLayout.f4AmbientColor.xyz);
+	f3SmokeLighting += max(vec3(0.1f), max(globalLayout.f4SunColor.xyz, globalLayout.f4MoonColor.xyz) + globalLayout.f4AmbientColor.xyz);
 	f3SmokeLighting = min(vec3(1.0f), f3SmokeLighting);
 	return (1.0f - fSmokePow) * f3Color + fSmokePow * f3SmokeLighting * min(vec3(1.25f), vec3(fSmokeDensity));
 }

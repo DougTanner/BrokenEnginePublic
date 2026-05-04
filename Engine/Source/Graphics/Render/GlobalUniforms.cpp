@@ -7,28 +7,38 @@
 namespace engine
 {
 
-// 0.0 throughout day, 1.0 throughout night, smooth in narrow sunrise/sunset windows.
-// Single source of truth for the night-gate envelope used by the sun/moon split, the shadow
-// moon multiplier, and the water moon-brightness lerp.
-static float ComputeNightAmount(float fSunAngle)
+// 0.0 outside the rise/set window (day side), 1.0 inside (night side), smooth lerps in the
+// rise and set transition windows. Shape parameters are 4 sun-angle boundaries: rise opens at
+// fRiseStart and finishes at fRiseEnd (transition from day to night side), set opens at
+// fSetStart and finishes at fSetEnd (transition back).
+static float ComputeNightEnvelope(float fSunAngle, float fRiseStart, float fRiseEnd, float fSetStart, float fSetEnd)
 {
-	const float fSunsetStart = gSunMoonShadowSunsetStart.Get();
-	const float fSunsetEnd = gSunMoonShadowSunsetEnd.Get();
-	const float fSunriseStart = gSunMoonShadowSunriseStart.Get();
-	const float fSunriseEnd = gSunMoonShadowSunriseEnd.Get();
-	if (fSunAngle >= fSunsetStart && fSunAngle <= fSunsetEnd)
+	if (fSunAngle >= fRiseStart && fSunAngle <= fRiseEnd)
 	{
-		return (fSunAngle - fSunsetStart) / (fSunsetEnd - fSunsetStart);
+		return (fSunAngle - fRiseStart) / (fRiseEnd - fRiseStart);
 	}
-	if (fSunAngle > fSunsetEnd || fSunAngle <= fSunriseStart)
+	if (fSunAngle > fRiseEnd || fSunAngle <= fSetStart)
 	{
 		return 1.0f;
 	}
-	if (fSunAngle >= fSunriseStart && fSunAngle <= fSunriseEnd)
+	if (fSunAngle >= fSetStart && fSunAngle <= fSetEnd)
 	{
-		return 1.0f - (fSunAngle - fSunriseStart) / (fSunriseEnd - fSunriseStart);
+		return 1.0f - (fSunAngle - fSetStart) / (fSetEnd - fSetStart);
 	}
 	return 0.0f;
+}
+
+// Shadow night-gate envelope — drives fShadowMoonMultiplier (Shadow.comp output scaling).
+static float ComputeNightAmount(float fSunAngle)
+{
+	return ComputeNightEnvelope(fSunAngle, gSunMoonShadowSunsetStart.Get(), gSunMoonShadowSunsetEnd.Get(), gSunMoonShadowSunriseStart.Get(), gSunMoonShadowSunriseEnd.Get());
+}
+
+// Moon-color envelope — drives the moon-floor scaling in PopulateSunAndLighting. Independent
+// from the shadow night-gate so the moon can rise/set on its own schedule.
+static float ComputeMoonAmount(float fSunAngle)
+{
+	return ComputeNightEnvelope(fSunAngle, gSunMoonMoonriseStart.Get(), gSunMoonMoonriseEnd.Get(), gSunMoonMoonsetStart.Get(), gSunMoonMoonsetEnd.Get());
 }
 
 static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float& rfDayPercent, float& rfNoonPercent)
@@ -106,11 +116,12 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	XMVECTOR vecSun = vecSunMoon * gSunMoonSunIntensity.Get();
 	XMStoreFloat4(&rGlobalLayout.f4SunColor, vecSun);
 
-	// Moon: floor color modulated by night-amount envelope and intensity slider.
-	float fNightAmount = ComputeNightAmount(fSunAngle);
-	XMVECTOR vecMoon = vecMoonFloor * (fNightAmount * gSunMoonMoonIntensity.Get());
+	// Moon: floor color modulated by the moonrise/moonset envelope and intensity slider.
+	float fMoonAmount = ComputeMoonAmount(fSunAngle);
+	XMVECTOR vecMoon = vecMoonFloor * (fMoonAmount * gSunMoonMoonIntensity.Get());
 	XMStoreFloat4(&rGlobalLayout.f4MoonColor, vecMoon);
 
+	vecAmbient = XMVectorSetW(vecAmbient * gSunMoonAmbientMultiplier.Get(), 1.0f);
 	XMStoreFloat4(&rGlobalLayout.f4AmbientColor, vecAmbient);
 
 	static constexpr float kfNoonFeatherEnd = XM_PIDIV8;
@@ -243,7 +254,7 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	rGlobalLayout.fShadowMoonMultiplier = std::lerp(1.0f, gSunMoonShadowNightMultiplier.Get(), ComputeNightAmount(fSunAngle));
 }
 
-static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fDayPercent, float fNoonPercent)
+static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, float fDayPercent, float fNoonPercent)
 {
 	// Terrain
 	rGlobalLayout.fIslandHeight = gIslandHeight.Get();
@@ -283,8 +294,10 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 	// Time of day
 	rGlobalLayout.fLightingTimeOfDayMultiplier = fDayPercent * gLightingDayFinalMultiplier.Get() + (1.0f - fDayPercent) * gLightingNightFinalMultiplier.Get();
 	rGlobalLayout.fLightingNightMultiplier = std::pow(fDayPercent, 0.5f);
-	// Water moon brightness gates on the same night-amount envelope as the sun/moon split and shadow night-gate.
-	rGlobalLayout.fLightingWaterMoonBrightness = std::lerp(1.0f, gLightingWaterMoonBrightness.Get(), ComputeNightAmount(fSunAngle));
+	// Water-moon-brightness target value. The shader gates this by the moon's Rec.601 luma fraction
+	// of (sun + moon), so the multiplier collapses to 1.0 at noon and engages naturally at night
+	// without needing a separate sun-angle envelope on the CPU side.
+	rGlobalLayout.fLightingWaterMoonBrightness = gLightingWaterMoonBrightness.Get();
 	rGlobalLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - fDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
 }
 
@@ -362,20 +375,57 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	double dSizeBaseOne = static_cast<double>(gLightingSampledNormalsOneSize.Get());
 	double dSizeBaseTwo = static_cast<double>(gLightingSampledNormalsTwoSize.Get());
 	double dSizeBaseThree = static_cast<double>(gLightingSampledNormalsThreeSize.Get());
-	double dSpeed = static_cast<double>(gLightingSampledNormalsSpeed.Get());
-	double dTime = static_cast<double>(rGlobalLayout.fElapsedTime);
+	// Camera-height-driven speed lerp matches the same factor as LightingUniforms.cpp.
+	static constexpr float kfWaveFadeEnd = 2.0f * game::Camera::kfCameraEyeHeightDefault;
+	float fWaveAmplitudeScale = std::clamp((kfWaveFadeEnd - game::gpCamera->mfCameraEyeHeight) / (kfWaveFadeEnd - game::Camera::kfCameraEyeHeightDefault), 0.0f, 1.0f);
+	float fCameraHeightZoomFactor = 1.0f - fWaveAmplitudeScale;
+	double dSpeed = static_cast<double>(std::lerp(gLightingSampledNormalsSpeedMin.Get(), gLightingSampledNormalsSpeedMax.Get(), fCameraHeightZoomFactor));
+	// Per-sample reduced-time accumulators: integrate (size * speed * dt) per frame and fmod 10.0
+	// rather than recomputing fmod(size * speed * t, 10.0). Per-frame integration keeps the UV
+	// phase continuous when size or speed slide smoothly (e.g. zoom-driven speed lerp); the old
+	// formulation produced a per-frame jump proportional to (deltaSpeed * t) that grew with playtime.
+	static double sdReducedTimeOne = 0.0;
+	static double sdReducedTimeTwo = 0.0;
+	static double sdReducedTimeThree = 0.0;
+	static float sfPrevElapsedTime = 0.0f;
+	float fDeltaTime = std::max(0.0f, rGlobalLayout.fElapsedTime - sfPrevElapsedTime);
+	sfPrevElapsedTime = rGlobalLayout.fElapsedTime;
+	double dDeltaTime = static_cast<double>(fDeltaTime);
+	sdReducedTimeOne   = std::fmod(sdReducedTimeOne   + dSizeBaseOne   * dSpeed * dDeltaTime, 10.0);
+	sdReducedTimeTwo   = std::fmod(sdReducedTimeTwo   + dSizeBaseTwo   * dSpeed * dDeltaTime, 10.0);
+	sdReducedTimeThree = std::fmod(sdReducedTimeThree + dSizeBaseThree * dSpeed * dDeltaTime, 10.0);
 	double dCameraX = static_cast<double>(f4CameraPos.x);
 	double dCameraY = static_cast<double>(f4CameraPos.y);
 
-	rGlobalLayout.fWaterReducedNormalOriginX = static_cast<float>(std::fmod(dSizeBaseOne * dCameraX, 10.0));
-	rGlobalLayout.fWaterReducedNormalOriginY = static_cast<float>(std::fmod(dSizeBaseOne * dCameraY, 10.0));
-	rGlobalLayout.fWaterReducedNormalTime = static_cast<float>(std::fmod(dSizeBaseOne * dSpeed * dTime, 10.0));
-	rGlobalLayout.fWaterReducedNormalOriginTwoX = static_cast<float>(std::fmod(dSizeBaseTwo * dCameraX, 10.0));
-	rGlobalLayout.fWaterReducedNormalOriginTwoY = static_cast<float>(std::fmod(dSizeBaseTwo * dCameraY, 10.0));
-	rGlobalLayout.fWaterReducedNormalTimeTwo = static_cast<float>(std::fmod(dSizeBaseTwo * dSpeed * dTime, 10.0));
-	rGlobalLayout.fWaterReducedNormalOriginThreeX = static_cast<float>(std::fmod(dSizeBaseThree * dCameraX, 10.0));
-	rGlobalLayout.fWaterReducedNormalOriginThreeY = static_cast<float>(std::fmod(dSizeBaseThree * dCameraY, 10.0));
-	rGlobalLayout.fWaterReducedNormalTimeThree = static_cast<float>(std::fmod(dSizeBaseThree * dSpeed * dTime, 10.0));
+	// Per-sample reduced origin: rotate cameraXY on the CPU by the same R(-θ) the shader uses,
+	// THEN fmod. This keeps the precision invariant under rotation: the reducedOrigin already
+	// encodes the rotation, so the shader-side wrap shift is sizeMult*10 = integer (cleanly
+	// absorbed by fract). If we instead let the shader rotate reducedOrigin, the wrap shift
+	// becomes R*(sizeMult*10, 0) — non-integer for any θ that isn't a multiple of π/2 — and
+	// produces a visible normal-pattern jump every time size*cameraXY crosses a multiple of 10.
+	auto RotatedCamera = [&](float fRotation, double& rdOutX, double& rdOutY)
+	{
+		double dCos = static_cast<double>(std::cos(fRotation));
+		double dSin = static_cast<double>(std::sin(fRotation));
+		rdOutX = dCos * dCameraX + dSin * dCameraY;
+		rdOutY = -dSin * dCameraX + dCos * dCameraY;
+	};
+	double dRotCameraXOne, dRotCameraYOne;
+	double dRotCameraXTwo, dRotCameraYTwo;
+	double dRotCameraXThree, dRotCameraYThree;
+	RotatedCamera(gWaterNormalRotationOne.Get(),   dRotCameraXOne,   dRotCameraYOne);
+	RotatedCamera(gWaterNormalRotationTwo.Get(),   dRotCameraXTwo,   dRotCameraYTwo);
+	RotatedCamera(gWaterNormalRotationThree.Get(), dRotCameraXThree, dRotCameraYThree);
+
+	rGlobalLayout.fWaterReducedNormalOriginX = static_cast<float>(std::fmod(dSizeBaseOne * dRotCameraXOne, 10.0));
+	rGlobalLayout.fWaterReducedNormalOriginY = static_cast<float>(std::fmod(dSizeBaseOne * dRotCameraYOne, 10.0));
+	rGlobalLayout.fWaterReducedNormalTime = static_cast<float>(sdReducedTimeOne);
+	rGlobalLayout.fWaterReducedNormalOriginTwoX = static_cast<float>(std::fmod(dSizeBaseTwo * dRotCameraXTwo, 10.0));
+	rGlobalLayout.fWaterReducedNormalOriginTwoY = static_cast<float>(std::fmod(dSizeBaseTwo * dRotCameraYTwo, 10.0));
+	rGlobalLayout.fWaterReducedNormalTimeTwo = static_cast<float>(sdReducedTimeTwo);
+	rGlobalLayout.fWaterReducedNormalOriginThreeX = static_cast<float>(std::fmod(dSizeBaseThree * dRotCameraXThree, 10.0));
+	rGlobalLayout.fWaterReducedNormalOriginThreeY = static_cast<float>(std::fmod(dSizeBaseThree * dRotCameraYThree, 10.0));
+	rGlobalLayout.fWaterReducedNormalTimeThree = static_cast<float>(sdReducedTimeThree);
 
 	double dNoiseFreq = static_cast<double>(gWaterColorNoiseFrequency.Get());
 	rGlobalLayout.fWaterReducedNoiseOriginX = static_cast<float>(std::fmod(dNoiseFreq * dCameraX, 1.0));
@@ -448,7 +498,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	float fNoonPercent = 0.0f;
 	PopulateSunAndLighting(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent);
 	PopulateShadowParameters(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent);
-	PopulateTerrainParameters(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent);
+	PopulateTerrainParameters(rGlobalLayout, fDayPercent, fNoonPercent);
 	PopulateWaterParameters(rGlobalLayout, fSunAngle, fDayPercent);
 
 	// Debug

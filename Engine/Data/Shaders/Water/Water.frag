@@ -85,38 +85,61 @@ void main()
 	vec2 f2LocalDx = dFdx(f2InInitialPosition);
 	vec2 f2LocalDy = dFdy(f2InInitialPosition);
 
-	#define SAMPLE_NORMAL_PRECISE(sampler, size, reducedOrigin, reducedTime, sizeMult, speedMult, offset) \
+	// Per-sample rotation: m2UvRotX = R(-θ) rotates worldUV → texUV (texture pattern appears CCW-rotated by θ in world).
+	// m2NormalRotX = R(+θ) is its inverse, applied to the sampled tangent-space normal.xy to bring it back into world frame.
+	float fCosOne = cos(mainLayout.fWaterNormalRotationOne);
+	float fSinOne = sin(mainLayout.fWaterNormalRotationOne);
+	mat2 m2UvRotOne = mat2(fCosOne, -fSinOne, fSinOne, fCosOne);
+	mat2 m2NormalRotOne = mat2(fCosOne, fSinOne, -fSinOne, fCosOne);
+	float fCosTwo = cos(mainLayout.fWaterNormalRotationTwo);
+	float fSinTwo = sin(mainLayout.fWaterNormalRotationTwo);
+	mat2 m2UvRotTwo = mat2(fCosTwo, -fSinTwo, fSinTwo, fCosTwo);
+	mat2 m2NormalRotTwo = mat2(fCosTwo, fSinTwo, -fSinTwo, fCosTwo);
+	float fCosThree = cos(mainLayout.fWaterNormalRotationThree);
+	float fSinThree = sin(mainLayout.fWaterNormalRotationThree);
+	mat2 m2UvRotThree = mat2(fCosThree, -fSinThree, fSinThree, fCosThree);
+	mat2 m2NormalRotThree = mat2(fCosThree, fSinThree, -fSinThree, fCosThree);
+
+	// Note: reducedOrigin is already rotated on the CPU (GlobalUniforms.cpp uses the same per-sample
+	// rotation angle to rotate cameraXY before fmod). Rotating it again here would double-rotate
+	// AND break precision: the wrap shift sizeMult*10 must be integer for fract() to absorb it,
+	// but R*(sizeMult*10, 0) is non-integer for arbitrary θ. So m2UvRot is applied to the
+	// camera-relative position and derivatives only — the reducedOrigin stays as-is.
+	#define SAMPLE_NORMAL_PRECISE(sampler, size, reducedOrigin, reducedTime, m2UvRot, sizeMult, speedMult, offset) \
 	{ \
 		float fCallSize = sizeMult * size; \
 		vec2 f2UV = offset \
-			+ fCallSize * f2InInitialPosition \
+			+ fCallSize * (m2UvRot * f2InInitialPosition) \
 			+ sizeMult * reducedOrigin \
 			+ speedMult * vec2(reducedTime); \
-		vec2 f2Dx = fCallSize * f2LocalDx; \
-		vec2 f2Dy = fCallSize * f2LocalDy; \
+		vec2 f2Dx = fCallSize * (m2UvRot * f2LocalDx); \
+		vec2 f2Dy = fCallSize * (m2UvRot * f2LocalDy); \
 		f3Accum += DecodeNormal(textureGrad(sampler, fract(f2UV), f2Dx, f2Dy).rg); \
 	}
 
 	// Sample One (3 octaves) — atlas index selected at runtime via uiWaterNormalIndexOne.
 	vec3 f3Accum = vec3(0.0f);
-	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, fReducedTime, 0.2f, 1.1f, vec2(0.1f, 0.2f))
-	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, fReducedTime, 1.1f, 1.2f, vec2(0.2f, 0.3f))
-	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, fReducedTime, 2.5f, 1.3f, vec2(0.3f, 0.4f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, fReducedTime, m2UvRotOne, 0.2f, 1.1f, vec2(0.1f, 0.2f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, fReducedTime, m2UvRotOne, 1.1f, 1.2f, vec2(0.2f, 0.3f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, fReducedTime, m2UvRotOne, 2.5f, 1.3f, vec2(0.3f, 0.4f))
 	vec3 f3SampledNormalOne = f3Accum;
+	f3SampledNormalOne.xy = m2NormalRotOne * f3SampledNormalOne.xy;
 
 	// Sample Two (3 octaves)
 	f3Accum = vec3(0.0f);
-	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, 0.3f, 1.4f, vec2(0.4f, 0.5f))
-	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, 1.2f, 1.5f, vec2(0.6f, 0.7f))
-	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, 3.0f, 1.6f, vec2(0.8f, 0.9f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, m2UvRotTwo, 0.3f, 1.4f, vec2(0.4f, 0.5f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, m2UvRotTwo, 1.2f, 1.5f, vec2(0.6f, 0.7f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, m2UvRotTwo, 3.0f, 1.6f, vec2(0.8f, 0.9f))
 	vec3 f3SampledNormalTwo = f3Accum;
+	f3SampledNormalTwo.xy = m2NormalRotTwo * f3SampledNormalTwo.xy;
 
 	// Sample Three (3 octaves) — extends the One/Two octave pattern linearly.
 	f3Accum = vec3(0.0f);
-	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, fReducedTimeThree, 0.4f, 1.7f, vec2(1.0f, 1.1f))
-	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, fReducedTimeThree, 1.3f, 1.8f, vec2(1.2f, 1.3f))
-	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, fReducedTimeThree, 3.5f, 1.9f, vec2(1.4f, 1.5f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, fReducedTimeThree, m2UvRotThree, 0.4f, 1.7f, vec2(1.0f, 1.1f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, fReducedTimeThree, m2UvRotThree, 1.3f, 1.8f, vec2(1.2f, 1.3f))
+	SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, fReducedTimeThree, m2UvRotThree, 3.5f, 1.9f, vec2(1.4f, 1.5f))
 	vec3 f3SampledNormalThree = f3Accum;
+	f3SampledNormalThree.xy = m2NormalRotThree * f3SampledNormalThree.xy;
 
 	#undef SAMPLE_NORMAL_PRECISE
 
@@ -144,8 +167,8 @@ void main()
 	float fDirectionalLighting = max(1.0f - globalLayout.fWaterDirectional, dot(f3InNormal, globalLayout.f4SunMoonNormal.xyz));
 	vec3 f3DirectionalLighting = f3PreLightingColor * max(fDirectionalLighting, 0.3f);
 	vec3 f3LightingColor = mix(f3PreLightingColor, f3DirectionalLighting, 0.75f);
-	vec3 f3SunPlusMoon = globalLayout.f4SunColor.xyz + globalLayout.f4MoonColor.xyz;
-	vec3 f3Sunlight = f3SunPlusMoon + globalLayout.f4AmbientColor.xyz;
+	vec3 f3SunOrMoon = max(globalLayout.f4SunColor.xyz, globalLayout.f4MoonColor.xyz);
+	vec3 f3Sunlight = f3SunOrMoon + globalLayout.f4AmbientColor.xyz;
 	float fSunlight = (f3Sunlight.x + f3Sunlight.y + f3Sunlight.z) / 3.0f;
 	f3LightingColor *= fSunlight;
 
@@ -153,7 +176,7 @@ void main()
 	const float fSkyboxNormalBlendWave = mainLayout.fLightingWaterSkyboxNormalBlendWave;
 	vec3 f3SkyboxWaveNormal = normalize((1.0f - fSkyboxNormalBlendWave) * f3SampledNormal + fSkyboxNormalBlendWave * f3InNormal);
 	vec3 f3SkyboxColor = textureLod(skyboxSampler, -normalize(reflect(f3ToEyeNormal, f3SkyboxWaveNormal)), mainLayout.fLightingWaterSkyboxLod).xyz;
-	vec3 f3SkyboxColorSun = f3SkyboxColor * f3SunPlusMoon;
+	vec3 f3SkyboxColorSun = f3SkyboxColor * f3SunOrMoon;
 
 	float fReferenceHeight = 0.05f;
 	float fReflectionHeightMultiplier = clamp((f3InPosition.z + fReferenceHeight) / (2.0f * fReferenceHeight), 0.5f, 1.0f);
@@ -167,8 +190,16 @@ void main()
 
 	float fReflectionHeightMultiplier2 = clamp((f3InPosition.z - mainLayout.fWaterHeightDarkenBottom) / (mainLayout.fWaterHeightDarkenTop - mainLayout.fWaterHeightDarkenBottom), mainLayout.fWaterHeightDarkenClamp, 1.0f);
 	f3LightingColor *= fReflectionHeightMultiplier2;
-	f3LightingColor *= fSunlight;
-	f3LightingColor *= globalLayout.fLightingWaterMoonBrightness;
+	// fSunlight is already applied above (line 173) to the water-diffuse path before the skybox
+	// mix, and the skybox path is independently tinted by f3SunOrMoon (vec3). A second *= fSunlight
+	// here would double-scale the water (fSunlight²) and erroneously dim the already-tinted skybox.
+	// Moon-brightness must scale only the moon's contribution. Weighting by Rec.601 luma ratio
+	// collapses to 1.0 at noon (moon=0) and to the slider value at midnight (sun=0), with a
+	// smooth transition driven by actual color magnitudes — no separate angle envelope needed.
+	float fSunMag  = dot(globalLayout.f4SunColor.xyz,  vec3(0.299f, 0.587f, 0.114f));
+	float fMoonMag = dot(globalLayout.f4MoonColor.xyz, vec3(0.299f, 0.587f, 0.114f));
+	float fMoonFraction = fMoonMag / max(fSunMag + fMoonMag, 0.001f);
+	f3LightingColor *= mix(1.0f, globalLayout.fLightingWaterMoonBrightness, fMoonFraction);
 
 	// Shadow with smoke at world position. Moon bypasses the terrain ray-march shadow only;
 	// object shadows + smoke volumetric attenuation still apply to both lights. Use a scalar

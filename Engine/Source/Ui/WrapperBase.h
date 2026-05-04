@@ -223,6 +223,7 @@ extern Wrapper gSmokeSimulationArea;
 
 extern Wrapper gSunAngleOverride;
 extern Wrapper gMinimumAmbient;
+extern Wrapper gSunMoonAmbientMultiplier; // overall scalar on f4AmbientColor RGB (default 1.0)
 
 // Sun/Moon - rise/set transition timing & values
 extern Wrapper gSunMoonMorning;       // sun angle where morning lerp begins (default XM_PIDIV16)
@@ -233,6 +234,10 @@ extern Wrapper gSunMoonNightStart;    // sun angle where full night begins (defa
 extern Wrapper gSunMoonMoonBlueTint;  // moon-floor B-channel multiplier (default 1.33)
 extern Wrapper gSunMoonSunIntensity;  // overall scalar on f4SunColor RGB (default 1.0)
 extern Wrapper gSunMoonMoonIntensity; // overall scalar on f4MoonColor RGB (default 1.0)
+extern Wrapper gSunMoonMoonriseStart;         // sun angle where moon color begins to ramp in (default XM_PI - XM_PIDIV32)
+extern Wrapper gSunMoonMoonriseEnd;           // sun angle where moon color is fully ramped in (default XM_PI - XM_PIDIV128)
+extern Wrapper gSunMoonMoonsetStart;          // sun angle where moon color begins to ramp out (default XM_PIDIV128)
+extern Wrapper gSunMoonMoonsetEnd;            // sun angle where moon color is fully ramped out (default XM_PIDIV32)
 extern Wrapper gSunMoonShadowNightMultiplier; // shadow strength at night (default 0.2)
 extern Wrapper gSunMoonShadowSunsetStart;     // sun angle where shadow night-gate begins to engage (default XM_PI - XM_PIDIV32)
 extern Wrapper gSunMoonShadowSunsetEnd;       // sun angle where shadow night-gate fully engaged (default XM_PI - XM_PIDIV128)
@@ -396,15 +401,19 @@ extern Wrapper gWaterNormalIndexOne;
 extern Wrapper gLightingSampledNormalsOneSize;
 extern Wrapper gLightingSampledNormalsWeightOneMin;
 extern Wrapper gLightingSampledNormalsWeightOneMax;
+extern Wrapper gWaterNormalRotationOne;
 extern Wrapper gWaterNormalIndexTwo;
 extern Wrapper gLightingSampledNormalsTwoSize;
 extern Wrapper gLightingSampledNormalsWeightTwoMin;
 extern Wrapper gLightingSampledNormalsWeightTwoMax;
+extern Wrapper gWaterNormalRotationTwo;
 extern Wrapper gWaterNormalIndexThree;
 extern Wrapper gLightingSampledNormalsThreeSize;
 extern Wrapper gLightingSampledNormalsWeightThreeMin;
 extern Wrapper gLightingSampledNormalsWeightThreeMax;
-extern Wrapper gLightingSampledNormalsSpeed;
+extern Wrapper gWaterNormalRotationThree;
+extern Wrapper gLightingSampledNormalsSpeedMin;
+extern Wrapper gLightingSampledNormalsSpeedMax;
 
 // New Lighting
 extern Wrapper gLightingNewDirectional;

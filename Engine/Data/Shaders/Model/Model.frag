@@ -294,7 +294,7 @@ void main()
 	vec3 diffuseResult = pow(mainLayout.fPbrBrdfDiffuse * diffuseContrib, vec3(mainLayout.fPbrBrdfDiffusePower));
 	vec3 specularResult = pow(mainLayout.fPbrBrdfSpecular * specularContrib, vec3(mainLayout.fPbrBrdfSpecularPower));
 	vec3 brdf = NdotL * (diffuseResult + specularResult);
-	color += (f3SunColor * fShadow * fShadow + f3MoonColor * fShadowMoon * fShadowMoon) * brdf;
+	color += max(f3SunColor * fShadow * fShadow, f3MoonColor * fShadowMoon * fShadowMoon) * brdf;
 #endif
 
 	// Image based lighting
@@ -303,7 +303,7 @@ void main()
 	vec3 f3IblSpecular;
 	GetIBLContribution(NdotV, perceptualRoughness, diffuseColor, specularColor, n, reflection, f3IblDiffuse, f3IblSpecular);
 	f3IblDiffuse *= mainLayout.fPbrAmbient * mix(vec3(1.0), f3AmbientColor, mainLayout.fPbrIblAmbientColorBlend) * mix(1.0, fShadow, mainLayout.fPbrIblShadowBlend);
-	f3IblSpecular *= fSunIntensity * f3SunColor * fShadow + fMoonIntensity * f3MoonColor * fShadowMoon;
+	f3IblSpecular *= max(fSunIntensity * f3SunColor * fShadow, fMoonIntensity * f3MoonColor * fShadowMoon);
 	vec3 f3IblDiffuseResult = pow(mainLayout.fPbrIblDiffuse * f3IblDiffuse, vec3(mainLayout.fPbrIblDiffusePower));
 	vec3 f3IblSpecularResult = pow(mainLayout.fPbrIblSpecular * f3IblSpecular, vec3(mainLayout.fPbrIblSpecularPower));
 	color += f3IblDiffuseResult + f3IblSpecularResult;

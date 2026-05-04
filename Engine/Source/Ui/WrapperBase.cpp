@@ -26,6 +26,7 @@ Wrapper gSmokeSimulationArea(1.0f, 0.8f, 1.2f);
 
 Wrapper gSunAngleOverride(1.15f, 0.0f, XM_2PI);
 Wrapper gMinimumAmbient(0.0f, 0.0f, 0.1f);
+Wrapper gSunMoonAmbientMultiplier(1.0f, 0.0f, 4.0f);
 
 // Sun/Moon - rise/set transition timing & values
 Wrapper gSunMoonMorning(XM_PIDIV16, 0.0f, XM_PIDIV4);
@@ -36,6 +37,10 @@ Wrapper gSunMoonNightStart(XM_PI, XM_PIDIV2, XM_PI + XM_PIDIV2);
 Wrapper gSunMoonMoonBlueTint(2.0f, 1.0f, 4.0f);
 Wrapper gSunMoonSunIntensity(1.0f, 0.0f, 4.0f);
 Wrapper gSunMoonMoonIntensity(1.0f, 0.0f, 4.0f);
+Wrapper gSunMoonMoonriseStart(3.05f, XM_PIDIV2, XM_2PI);
+Wrapper gSunMoonMoonriseEnd(3.1f, XM_PIDIV2, XM_2PI);
+Wrapper gSunMoonMoonsetStart(XM_PIDIV128, 0.0f, XM_PIDIV2);
+Wrapper gSunMoonMoonsetEnd(XM_PIDIV32, 0.0f, XM_PIDIV2);
 Wrapper gSunMoonShadowNightMultiplier(0.2f, 0.0f, 1.0f);
 Wrapper gSunMoonShadowSunsetStart(XM_PI - XM_PIDIV32, XM_PIDIV2, XM_PI);
 Wrapper gSunMoonShadowSunsetEnd(XM_PI - XM_PIDIV128, XM_PIDIV2, XM_PI);
@@ -198,19 +203,25 @@ bool gbUseCombineCurveNew = true;
 // Order matches the per-sample row UI in TweaksScreenWater.cpp (see Ui/CLAUDE.md ordering convention).
 // Index defaults: One=0 (texture "0"), Two=1 (texture "3"), Three=11 (SeaWaves) — must match TextureManager::kiWaterNormalSeaWavesIndex.
 Wrapper gWaterNormalIndexOne(int64_t {11}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
-Wrapper gLightingSampledNormalsOneSize(0.3f, 0.05f, 1.0f);
+Wrapper gLightingSampledNormalsOneSize(0.4f, 0.05f, 1.0f);
 Wrapper gLightingSampledNormalsWeightOneMin(2.0f, 0.0f, 4.0f);
 Wrapper gLightingSampledNormalsWeightOneMax(0.5f, 0.0f, 4.0f);
+Wrapper gWaterNormalRotationOne(0.3f, -XM_PI, XM_PI);
+// 4 GreenCalm 0.04
+// 12 SeaWaves 0.06
 Wrapper gWaterNormalIndexTwo(int64_t {12}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
-Wrapper gLightingSampledNormalsTwoSize(0.05f, 0.025f, 0.1f);
-Wrapper gLightingSampledNormalsWeightTwoMin(0.5f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsTwoSize(0.06f, 0.025f, 0.1f);
+Wrapper gLightingSampledNormalsWeightTwoMin(1.0f, 0.0f, 4.0f);
 Wrapper gLightingSampledNormalsWeightTwoMax(2.0f, 0.0f, 4.0f);
-Wrapper gWaterNormalIndexThree(int64_t {9}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
-Wrapper gLightingSampledNormalsThreeSize(0.05f, 0.025f, 0.1f);
-Wrapper gLightingSampledNormalsWeightThreeMin(0.5f, 0.0f, 4.0f);
-Wrapper gLightingSampledNormalsWeightThreeMax(1.0f, 0.0f, 4.0f);
+Wrapper gWaterNormalRotationTwo(0.16f, -XM_PI, XM_PI);
+Wrapper gWaterNormalIndexThree(int64_t {3}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
+Wrapper gLightingSampledNormalsThreeSize(0.04f, 0.025f, 0.1f);
+Wrapper gLightingSampledNormalsWeightThreeMin(0.25f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsWeightThreeMax(1.5f, 0.0f, 4.0f);
+Wrapper gWaterNormalRotationThree(-0.3f, -XM_PI, XM_PI);
 
-Wrapper gLightingSampledNormalsSpeed(0.05f, 0.0f, 0.1f);
+Wrapper gLightingSampledNormalsSpeedMin(0.025f, 0.0f, 0.1f);
+Wrapper gLightingSampledNormalsSpeedMax(0.05f, 0.0f, 0.1f);
 
 // New Lighting
 Wrapper gLightingNewDirectional(0.7f, 0.0f, 2.0f);
@@ -227,8 +238,8 @@ Wrapper gLightingObjects(4.0f, 0.0f, 8.0f);
 Wrapper gLightingObjectsAdd(0.2f, 0.0f, 1.0f);
 Wrapper gLightingDayFinalMultiplier(0.7f, 0.0f, 1.0f);
 Wrapper gLightingNightFinalMultiplier(1.0f, 0.0f, 1.0f);
-Wrapper gMoonBrightness(0.1f, 0.0f, 1.0f);
-Wrapper gLightingWaterMoonBrightness(8.0f, 0.5f, 32.0f);
+Wrapper gMoonBrightness(0.03f, 0.0f, 0.1f);
+Wrapper gLightingWaterMoonBrightness(22.0f, 0.5f, 30.0f);
 
 // Water specular lighting
 Wrapper gLightingWaterAmbientPower(1.0f, 0.1f, 6.0f);
