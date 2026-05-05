@@ -1,3 +1,3 @@
 #pragma once
 
-constexpr int64_t kiGameVersion = 7;
+constexpr int64_t kiGameVersion = 9;

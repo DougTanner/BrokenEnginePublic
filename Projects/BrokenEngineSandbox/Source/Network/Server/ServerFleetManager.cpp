@@ -54,9 +54,11 @@ void ServerFleetManager::ProcessCreateFleetRequests()
 		}
 
 		engine::ClientGuid guid = pClient->clientGuid;
-		mFleets.try_emplace(guid).first->second.emplace_back();
+		Fleet& rNewFleet = mFleets.try_emplace(guid).first->second.emplace_back();
+		rNewFleet.guid.uiHigh = common::RandomNext(mRandomEngine);
+		rNewFleet.guid.uiLow = common::RandomNext(mRandomEngine);
 		mGuidToClientId.insert_or_assign(guid, rRequest.iClientId);
-		LOG(kNetwork, kDebug, "ServerFleetManager::ProcessCreateFleetRequests Client: {} FleetCount: {}", rRequest.iClientId, mFleets.at(guid).size());
+		LOG(kNetwork, kDebug, "ServerFleetManager::ProcessCreateFleetRequests Client: {} FleetCount: {} FleetGuid: ({},{})", rRequest.iClientId, mFleets.at(guid).size(), rNewFleet.guid.uiHigh, rNewFleet.guid.uiLow);
 		SendFleetSyncToClient(rRequest.iClientId);
 	}
 }
@@ -347,11 +349,13 @@ void ServerFleetManager::SendFleetSync(int64_t iClientId, const std::vector<Flee
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
 
-	// [1B type][8B fleetCount] per fleet: [8B memberCount][8B iFlagshipIndex][4B navigationDelay] per member: [8B globalPlayerId][1B bAlive]
+	// [1B type][8B fleetCount] per fleet: [8B guid.uiHigh][8B guid.uiLow][8B memberCount][8B iFlagshipIndex][4B navigationDelay] per member: [8B globalPlayerId][1B bAlive]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kServerFleetSync));
 	rWorkbuffer.PushBack<int64_t>(std::ssize(rFleets));
 	for (const Fleet& rFleet : rFleets)
 	{
+		rWorkbuffer.PushBack<uint64_t>(rFleet.guid.uiHigh);
+		rWorkbuffer.PushBack<uint64_t>(rFleet.guid.uiLow);
 		rWorkbuffer.PushBack<int64_t>(std::ssize(rFleet.members));
 		rWorkbuffer.PushBack<int64_t>(rFleet.iFlagshipIndex);
 		rWorkbuffer.PushBack<float>(rFleet.fNavigationDelay);
@@ -713,6 +717,8 @@ void ServerFleetManager::WriteFleetData(std::fstream& rFileStream) const
 		common::Write(rFileStream, iFleetCount);
 		for (const Fleet& rFleet : rFleets)
 		{
+			common::Write(rFileStream, rFleet.guid.uiHigh);
+			common::Write(rFileStream, rFleet.guid.uiLow);
 			int64_t iMemberCount = std::ssize(rFleet.members);
 			common::Write(rFileStream, iMemberCount);
 			common::Write(rFileStream, rFleet.iFlagshipIndex);
@@ -757,9 +763,11 @@ void ServerFleetManager::ReadFleetData(std::fstream& rFileStream)
 		std::vector<Fleet> fleets(static_cast<size_t>(iFleetCount));
 		for (int64_t j = 0; j < iFleetCount; ++j)
 		{
+			Fleet& rFleet = fleets.at(static_cast<size_t>(j));
+			common::Read(rFileStream, rFleet.guid.uiHigh);
+			common::Read(rFileStream, rFleet.guid.uiLow);
 			int64_t iMemberCount = 0;
 			common::Read(rFileStream, iMemberCount);
-			Fleet& rFleet = fleets.at(static_cast<size_t>(j));
 			common::Read(rFileStream, rFleet.iFlagshipIndex);
 			int32_t iWantedX = 0;
 			int32_t iWantedY = 0;

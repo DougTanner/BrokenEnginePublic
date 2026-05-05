@@ -37,7 +37,7 @@ Camera::Camera()
 {
 	gpCamera = this;
 
-	mVecPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(0.0f, 0.0f, engine::gBaseHeight.Get(), 0.0f));
+	mVecPosition = XMVectorAdd(XMVectorAdd(kVecMenuIslandCenter, kVecMenuCameraOffset), XMVectorSet(0.0f, 0.0f, engine::gBaseHeight.Get(), 0.0f));
 }
 
 Camera::~Camera()
@@ -102,7 +102,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	XMVECTOR vecTargetPosition {};
 	if (rFrameInterpolate.gameFlags & GameFlags::kMainMenu)
 	{
-		vecTargetPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(0.0f, 0.0f, engine::gBaseHeight.Get(), 0.0f));
+		vecTargetPosition = XMVectorAdd(XMVectorAdd(kVecMenuIslandCenter, kVecMenuCameraOffset), XMVectorSet(0.0f, 0.0f, engine::gBaseHeight.Get(), 0.0f));
 	}
 	else if (gpGame->ClientPlayerId().IsValid())
 	{
@@ -165,7 +165,9 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	}
 	else
 	{
-		vecTargetPosition = mVecPosition;
+		// No fleet found for this client — fall back to the canonical menu pose so we don't strand
+		// the camera at whatever stale gameplay position last set mVecPosition.
+		vecTargetPosition = XMVectorAdd(XMVectorAdd(kVecMenuIslandCenter, kVecMenuCameraOffset), XMVectorSet(0.0f, 0.0f, engine::gBaseHeight.Get(), 0.0f));
 	}
 
 	// Detect target switch during jump: target jumped far from where it was last frame
@@ -277,6 +279,9 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		f4RenderVisibleArea.x, f4RenderVisibleArea.y, f4RenderVisibleArea.z, f4RenderVisibleArea.w,
 		f2VisibleAreaQuadSize.x, f2VisibleAreaQuadSize.y);
 	++siZoomStutterFrame;
+
+	// Persist zoom-target changes (and any focus changes that came through unhooked paths). Diff-checked, so no-op on most frames.
+	gpGame->CaptureClientStateAndSaveIfChanged();
 }
 
 // Return sun angle, applying UI slider override when in Graphics or ImGui mode

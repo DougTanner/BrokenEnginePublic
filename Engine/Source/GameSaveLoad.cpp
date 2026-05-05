@@ -4,6 +4,7 @@
 
 #include "GameBase.h"
 #include "Game.h"
+#include "Network/Server/ServerFleetManager.h"
 #include "Network/Server/ServerSession.h"
 #include "Profile/ProfileManager.h"
 
@@ -67,6 +68,9 @@ void GameSaveLoad::ServerReset()
 	game::gpGame->CreateNewFrame(game::GameFlags::kGame);
 	mrGameBase.miNextGlobalId = 1;
 	mrGameBase.Reset();
+	// Fresh-game wipe of fleet manager state. Load path leaves mFleets populated by ReadFleetData;
+	// fresh-game has no save to restore from, so explicitly clear before ResetClientsForLoad runs.
+	game::gpServerSession->mpFleetManager->ResetState();
 	game::gpServerSession->ResetClientsForLoad();
 	game::gpServerSession->ComputeActiveSet();
 }
@@ -127,6 +131,12 @@ bool GameSaveLoad::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 				game::gpGame->mClientGridCoord = loadedClientGridCoord;
 				ASSERT(mrGameBase.mCoordFrames.contains(game::gpGame->mClientGridCoord));
 				game::gpServerSession->ResetClientsForLoad();
+			}
+			else
+			{
+				// Fresh-game (kResetFrame without kQuickload) wipe of fleet manager state. No ReadFleetData ran,
+				// so mFleets must be cleared explicitly before any reconnect re-walks it.
+				game::gpServerSession->mpFleetManager->ResetState();
 			}
 
 			return true;
@@ -329,37 +339,40 @@ void GameSaveLoad::SyncReplayTick()
 
 void GameSaveLoad::WriteGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord clientGridCoord)
 {
-	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
-	int64_t iVersion = game::Frame::kiVersion;
-	common::Write(fileStream, iVersion);
-	int64_t iSize = 0;
-	common::Write(fileStream, iSize);
-
 	int64_t iFrameCount = static_cast<int64_t>(mrGameBase.mCoordFrames.size());
-	common::Write(fileStream, iFrameCount);
-	clientGridCoord.Write(fileStream);
-	common::Write(fileStream, mrGameBase.miNextGlobalId);
+	int64_t iVersion = game::Frame::kiVersion;
 
-	game::gpServerSession->WriteFleetData(fileStream);
-
-	// Sort by coord key for deterministic output
-	std::vector<uint64_t> keys;
-	keys.reserve(mrGameBase.mCoordFrames.size());
-	for (const auto& [rCoord, rFrames] : mrGameBase.mCoordFrames)
+	bool bWritten = gpFileManager->WriteFileAtomically(rFlags, rFilename, [&](std::fstream& fileStream)
 	{
-		keys.push_back(rCoord.ToKey());
-	}
-	std::sort(keys.begin(), keys.end());
+		common::Write(fileStream, iVersion);
+		int64_t iSize = 0;
+		common::Write(fileStream, iSize);
 
-	for (uint64_t uiKey : keys)
-	{
-		GridCoord coord = GridCoord::FromKey(uiKey);
-		coord.Write(fileStream);
-		mrGameBase.mCoordFrames.at(coord).staticData.Write(fileStream);
-		fileStream << *mrGameBase.mCoordFrames.at(coord).pCurrent;
-	}
+		common::Write(fileStream, iFrameCount);
+		clientGridCoord.Write(fileStream);
+		common::Write(fileStream, mrGameBase.miNextGlobalId);
 
-	LOG(kDefault, kDebug, "WriteGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
+		game::gpServerSession->WriteFleetData(fileStream);
+
+		// Sort by coord key for deterministic output
+		std::vector<uint64_t> keys;
+		keys.reserve(mrGameBase.mCoordFrames.size());
+		for (const auto& [rCoord, rFrames] : mrGameBase.mCoordFrames)
+		{
+			keys.push_back(rCoord.ToKey());
+		}
+		std::sort(keys.begin(), keys.end());
+
+		for (uint64_t uiKey : keys)
+		{
+			GridCoord coord = GridCoord::FromKey(uiKey);
+			coord.Write(fileStream);
+			mrGameBase.mCoordFrames.at(coord).staticData.Write(fileStream);
+			fileStream << *mrGameBase.mCoordFrames.at(coord).pCurrent;
+		}
+	});
+
+	LOG(kDefault, kDebug, "WriteGrid {} iVersion: {} iFrameCount: {} Committed: {}", rFilename, iVersion, iFrameCount, bWritten);
 }
 
 bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord& rClientGridCoord)

@@ -62,8 +62,8 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	XMVECTOR vecAmbientEvening = XMVectorSet(fAmbientMorning, fAmbientMorning, fAmbientMorning, 1.0f);
 	XMVECTOR vecMidnight = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 	XMVECTOR vecAmbientMidnight = XMVectorSet(fAmbientNight, fAmbientNight, fAmbientNight, 1.0f);
-	float fMoonBrightness = gMoonBrightness.Get();
-	XMVECTOR vecMoonFloor = XMVectorSet(fMoonBrightness, fMoonBrightness, fMoonBrightness * gSunMoonMoonBlueTint.Get(), 0.0f);
+	// Moon floor color is unit-magnitude; per-target moon intensity sliders scale at shader read sites.
+	XMVECTOR vecMoonFloor = XMVectorSet(1.0f, 1.0f, gSunMoonMoonBlueTint.Get(), 0.0f);
 
 	XMVECTOR vecSunMoon = vecMidnight;
 	XMVECTOR vecAmbient = vecAmbientMidnight;
@@ -113,13 +113,23 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	}
 
 	// Sun: piecewise lerp goes naturally to (0,0,0) at midnight; no moon-floor clamp here.
-	XMVECTOR vecSun = vecSunMoon * gSunMoonSunIntensity.Get();
-	XMStoreFloat4(&rGlobalLayout.f4SunColor, vecSun);
+	// Per-target sun intensity sliders scale at shader read sites, not here.
+	XMStoreFloat4(&rGlobalLayout.f4SunColor, vecSunMoon);
 
-	// Moon: floor color modulated by the moonrise/moonset envelope and intensity slider.
+	// Moon: floor color modulated by the moonrise/moonset envelope. Per-target moon intensity
+	// sliders scale at shader read sites, not here.
 	float fMoonAmount = ComputeMoonAmount(fSunAngle);
-	XMVECTOR vecMoon = vecMoonFloor * (fMoonAmount * gSunMoonMoonIntensity.Get());
+	XMVECTOR vecMoon = vecMoonFloor * fMoonAmount;
 	XMStoreFloat4(&rGlobalLayout.f4MoonColor, vecMoon);
+
+	rGlobalLayout.fSunIntensityTerrain  = gSunMoonSunIntensityTerrain.Get();
+	rGlobalLayout.fSunIntensityWater    = gSunMoonSunIntensityWater.Get();
+	rGlobalLayout.fSunIntensityObjects  = gSunMoonSunIntensityObjects.Get();
+	rGlobalLayout.fSunIntensitySmoke    = gSunMoonSunIntensitySmoke.Get();
+	rGlobalLayout.fMoonIntensityTerrain = gSunMoonMoonIntensityTerrain.Get();
+	rGlobalLayout.fMoonIntensityWater   = gSunMoonMoonIntensityWater.Get();
+	rGlobalLayout.fMoonIntensityObjects = gSunMoonMoonIntensityObjects.Get();
+	rGlobalLayout.fMoonIntensitySmoke   = gSunMoonMoonIntensitySmoke.Get();
 
 	vecAmbient = XMVectorSetW(vecAmbient * gSunMoonAmbientMultiplier.Get(), 1.0f);
 	XMStoreFloat4(&rGlobalLayout.f4AmbientColor, vecAmbient);
@@ -294,10 +304,6 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 	// Time of day
 	rGlobalLayout.fLightingTimeOfDayMultiplier = fDayPercent * gLightingDayFinalMultiplier.Get() + (1.0f - fDayPercent) * gLightingNightFinalMultiplier.Get();
 	rGlobalLayout.fLightingNightMultiplier = std::pow(fDayPercent, 0.5f);
-	// Water-moon-brightness target value. The shader gates this by the moon's Rec.601 luma fraction
-	// of (sun + moon), so the multiplier collapses to 1.0 at noon and engages naturally at night
-	// without needing a separate sun-angle envelope on the CPU side.
-	rGlobalLayout.fLightingWaterMoonBrightness = gMoonWaterBrightness.Get();
 	rGlobalLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - fDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
 }
 
@@ -431,9 +437,15 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterReducedNormalOriginThreeY = static_cast<float>(std::fmod(dSizeBaseThree * dRotCameraYThree, 10.0));
 	rGlobalLayout.fWaterReducedNormalTimeThree = static_cast<float>(sdReducedTimeThree);
 
+	// Modulus 10.0 (not 1.0) so the shader's per-sample multipliers fWaterColorNoiseMultiplierOne/Two
+	// produce integer UV wraps for the calibrated defaults (0.2 * 10 = 2, 1.0 * 10 = 10) — fract()
+	// then absorbs the wrap. Modulus 1.0 produced a sudden seam at the wrap radius because mult * 1.0
+	// is non-integer for those defaults. Tuning gotcha: the sliders allow non-integer-tenths values
+	// (e.g. 0.15) which break the integer-product property and the seam returns. Same constraint that
+	// governs fWaterReducedNormalOrigin* above (where the per-octave multipliers are pinned).
 	double dNoiseFreq = static_cast<double>(gWaterColorNoiseFrequency.Get());
-	rGlobalLayout.fWaterReducedNoiseOriginX = static_cast<float>(std::fmod(dNoiseFreq * dCameraX, 1.0));
-	rGlobalLayout.fWaterReducedNoiseOriginY = static_cast<float>(std::fmod(dNoiseFreq * dCameraY, 1.0));
+	rGlobalLayout.fWaterReducedNoiseOriginX = static_cast<float>(std::fmod(dNoiseFreq * dCameraX, 10.0));
+	rGlobalLayout.fWaterReducedNoiseOriginY = static_cast<float>(std::fmod(dNoiseFreq * dCameraY, 10.0));
 }
 
 void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick)

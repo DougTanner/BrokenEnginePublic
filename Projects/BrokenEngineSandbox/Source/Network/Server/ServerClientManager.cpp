@@ -77,6 +77,33 @@ void ServerClientManager::NewClients()
 			continue;
 		}
 
+		// Diagnostic: dump connecting GUID, server-side fleet roster, and per-coord player GUIDs so we can see whether reconnect should re-link
+		{
+			LOG(kNetwork, kInfo, "ServerClientManager::NewClients Connecting Client: {} Guid: ({},{}) Empty: {}",
+				rClient.iClientId, rClient.clientGuid.uiHigh, rClient.clientGuid.uiLow, rClient.clientGuid.IsEmpty());
+			LOG(kNetwork, kInfo, "  FleetGuids: {}", gpServerSession->mpFleetManager->mFleets.size());
+			for (const auto& [rExistingGuid, rExistingFleets] : gpServerSession->mpFleetManager->mFleets)
+			{
+				LOG(kNetwork, kInfo, "    Guid: ({},{}) FleetCount: {} Match: {}",
+					rExistingGuid.uiHigh, rExistingGuid.uiLow, rExistingFleets.size(), rExistingGuid == rClient.clientGuid);
+			}
+			for (const auto& [rCoord, rFrames] : gpGame->mCoordFrames)
+			{
+				const PlayersPostRender& rPlayers = *rFrames.pCurrent->postRender.pPlayers;
+				if (rPlayers.iCount == 0)
+				{
+					continue;
+				}
+				LOG(kNetwork, kInfo, "  Coord: ({},{}) PlayerCount: {}", rCoord.x, rCoord.y, rPlayers.iCount);
+				for (int64_t i = 0; i < rPlayers.iCount; ++i)
+				{
+					LOG(kNetwork, kInfo, "    Global: {} Guid: ({},{}) Match: {}",
+						rPlayers.pGlobalPlayerIds[i].iValue, rPlayers.pClientGuids[i].uiHigh, rPlayers.pClientGuids[i].uiLow,
+						rPlayers.pClientGuids[i] == rClient.clientGuid);
+				}
+			}
+		}
+
 		// Re-link with existing players by matching ClientGuid (sorted by global ID to preserve creation order)
 		if (!rClient.clientGuid.IsEmpty())
 		{

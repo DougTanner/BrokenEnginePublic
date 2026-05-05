@@ -11,7 +11,7 @@ Frame code is purely functional. Frame updates must only rely on explicit functi
 ## Key Classes/Systems
 
 - **Game** (`Game.h`/`Game.cpp`) - Central coordinator inheriting from `engine::GameBase`, accessed via `gpGame`. Owns lifecycle, fleet selection, multi-frame grid orchestration, cross-grid entity transfers, persisted settings, and the `ClientSession`/`ServerSession`.
-- **Fleet** (`Fleet.h`) - Client-side grouping of player entities for focus/selection and shared navigation intent. Drives which grid cell the camera follows.
+- **Fleet** (`Fleet.h`) - Client-side grouping of player entities for focus/selection and shared navigation intent. Drives which grid cell the camera follows. Each fleet carries a server-minted random 128-bit identifier that is stable across disconnect/reconnect/save-load and used by clients to refer to fleets persistently.
 - **ClientSession** / **ServerSession** - Per-side networking orchestration owned by `Game`. See [Network/CLAUDE.md](Network/CLAUDE.md).
 
 ## Architecture Notes
@@ -20,7 +20,7 @@ Frame code is purely functional. Frame updates must only rely on explicit functi
 - **Client-driven subscriptions**: Client computes its own active set (current cell + up to three quadrant neighbors) using per-axis hysteresis; server only sees the resulting subscription list. Local-only frames outside the active set are evicted; confirmed frames are kept.
 - **Cross-grid transfers**: Entity hand-off between grid cells is expressed as transfer `StatusChange`s carrying fully-serialized spawn state, dispatched per collection type and stripped from `FrameInput` before the normal Spawn phase.
 - **Alignments**: `playerAlignment` / `enemyAlignment` are owned by `Game` and copied onto each new `Frame::postRender`. Frame code reads them from `postRender`, never from `gpGame`.
-- **Versioned persisted settings**: Sound/graphics/tweaks settings are client-only POD structs with an embedded `kiVersion`, round-tripped through `engine::{Write,Read}VersionedFile` into `kAppDataDirectory`. Bump the struct version on layout change.
+- **Versioned persisted settings**: Sound/graphics/tweaks settings plus per-client UI/session state (focused fleet identifier, focused ship global ID, camera zoom target) are client-only POD structs with an embedded `kiVersion`, round-tripped through `engine::{Write,Read}VersionedFile` into `kAppDataDirectory`. Bump the struct version on layout change. Session state is captured each frame and re-persisted only when the diff against the last-written copy changes.
 - **Save-format version**: `Version.h` holds a single `kGameVersion` constant included inside the `game` namespace; bump on save/replay/protocol-incompatible changes.
 - **Compile-time toggles**: `Pch.h` holds `inline constexpr` flags for frame dispatch parallelism, quadrant subscriptions, desync recovery, render thread, network simulation, and per-configuration debug/profile knobs. It also defines per-category log-level overrides before including `Common.h`.
 - Detailed networking flow: [Game Reconciliation](../../../Documents/Architecture/GameReconciliation.md), [Network Architecture](../../../Documents/Architecture/Network.md).

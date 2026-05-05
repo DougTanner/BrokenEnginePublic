@@ -774,7 +774,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 
 			if (bLookTargetFound)
 			{
-				UpdateFacing(vecPosition, vecLookPosition, fDeltaTime, vecWantedDirection);
+				UpdateFacing(vecPosition, vecLookPosition, vecWantedDirection);
 			}
 		}
 

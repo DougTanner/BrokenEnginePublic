@@ -446,8 +446,11 @@ void ServerSession::ResetClientsForLoad()
 	mpClientManager->ResetState();
 	mpTransferManager->ResetState();
 	mpBroadcaster->ResetState();
-	mpFleetManager->ResetState();
-	// mPendingFlagshipUpdates intentionally NOT cleared — fleet restoration above may queue updates
+	// Fleet manager: only drop pending request queues. mFleets / mPlayerToGuid / mGuidToClientId
+	// were just authoritatively restored by ReadFleetData + per-client OnResetForLoad above;
+	// a full ResetState() here would annihilate that restoration.
+	mpFleetManager->ClearPendingRequests();
+	// mPendingFlagshipUpdates was cleared at the start of this function (line 396); fleet restoration above re-queued entries — do NOT clear again here.
 
 	// Clear stale ring buffers and pending events
 	engine::gpServer->ClearBufferedFrames();

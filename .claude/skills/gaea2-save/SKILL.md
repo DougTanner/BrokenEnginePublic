@@ -1,8 +1,9 @@
 ---
 name: gaea2-save
-description: Save edits made to a Gaea 2 Markdown view back to a .terrain JSON file. Use this skill whenever the user is finished editing a loaded terrain and wants to write it back out — phrases like "save this terrain", "write back to .terrain", "export the gaea file", or invoking `/gaea2-save`. Reconstitutes the Newtonsoft $id/$ref object graph; pairs with /gaea2-load and /gaea2-modify.
+description: Save edits from a Gaea 2 Markdown view back to a .terrain JSON file. Reconstitutes the Newtonsoft $id/$ref object graph; pairs with /gaea2-load and /gaea2-modify.
 argument-hint: <name-or-Temp/path.md> [--output <path.terrain>]
 allowed-tools: [Read, Write, Bash, PowerShell]
+disable-model-invocation: true
 ---
 
 # gaea2-save

@@ -342,15 +342,21 @@ void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 			mClientGuid.uiLow = ReadUint64(pCursor);
 			LOG(kNetwork, kInfo, "Client GUID assigned: {} {}", mClientGuid.uiHigh, mClientGuid.uiLow);
 
-			// Persist to disk
+			// Persist to disk atomically — a mid-write crash here would otherwise empty the file and orphan all server-side fleets/players for this client on next connect.
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			std::fstream guidStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("ClientGuid.bin"));
-			int64_t iGuidVersion = 1;
-			common::Write(guidStream, iGuidVersion);
-			int64_t iGuidSize = 0;
-			common::Write(guidStream, iGuidSize);
-			common::Write(guidStream, mClientGuid.uiHigh);
-			common::Write(guidStream, mClientGuid.uiLow);
+			bool bWritten = gpFileManager->WriteFileAtomically({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("ClientGuid.bin"), [&](std::fstream& guidStream)
+			{
+				int64_t iGuidVersion = 1;
+				common::Write(guidStream, iGuidVersion);
+				int64_t iGuidSize = 0;
+				common::Write(guidStream, iGuidSize);
+				common::Write(guidStream, mClientGuid.uiHigh);
+				common::Write(guidStream, mClientGuid.uiLow);
+			});
+			if (!bWritten)
+			{
+				LOG(kNetwork, kError, "Failed to persist ClientGuid.bin — next session will re-handshake as a new client");
+			}
 		}
 
 		// Seed smoothed pipeline RTT from game-layer handshake measurement so the value flows through the network sim

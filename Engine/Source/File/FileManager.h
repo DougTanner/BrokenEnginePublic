@@ -104,6 +104,11 @@ public:
 	std::fstream OpenFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 	void RemoveFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 
+	// Crash-safe write: opens "<rFilename>.tmp" for write, runs fnWrite(stream), closes, then atomically renames to rFilename.
+	// On stream failure or rename failure the previous good file remains intact and the .tmp is removed. Returns false on any failure.
+	template <typename FN>
+	[[nodiscard]] bool WriteFileAtomically(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, FN&& fnWrite);
+
 	const std::unordered_map<common::crc_t, EagerChunk>& GetEagerChunkMap() const;
 	const std::unordered_map<common::crc_t, LazyChunk>& GetLazyChunkMap() const;
 	
@@ -132,6 +137,7 @@ public:
 private:
 
 	std::filesystem::path GetFilePath(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
+	bool CommitAtomicWrite(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, bool bWriteSucceeded);
 
 	void LoadPackFiles();
 	void LoadingThread();
@@ -208,24 +214,46 @@ struct has_binary_stream_operators
 template <typename T>
 inline constexpr bool has_binary_stream_operators_v = has_binary_stream_operators<T>::value;
 
-template <typename STRUCT_TYPE>
-void WriteVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, STRUCT_TYPE& rStructure)
+template <typename FN>
+bool FileManager::WriteFileAtomically(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, FN&& fnWrite)
 {
-	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
-	int64_t iVersion = STRUCT_TYPE::kiVersion;
-	common::Write(fileStream, iVersion);
-	int64_t iSize = std::is_trivially_copyable_v<STRUCT_TYPE> ? sizeof(STRUCT_TYPE) : 0;
-	common::Write(fileStream, iSize);
-	LOG(kLoading, kDebug, "WriteVersionedFile {} iVersion: {} iSize: {}", rFilename, iVersion, iSize);
+	std::filesystem::path tmpFilename = rFilename;
+	tmpFilename += ".tmp";
 
-	if constexpr (has_binary_stream_operators_v<STRUCT_TYPE>)
+	std::fstream stream = OpenFile(rFlags, tmpFilename);
+	if (!stream.is_open())
 	{
-		fileStream << rStructure;
+		LOG(kLoading, kError, "WriteFileAtomically failed to open \"{}.tmp\"", rFilename.string());
+		return false;
 	}
-	else
+
+	fnWrite(stream);
+	bool bGood = stream.good();
+	stream.close();
+
+	return CommitAtomicWrite(rFlags, rFilename, bGood);
+}
+
+template <typename STRUCT_TYPE>
+bool WriteVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, STRUCT_TYPE& rStructure)
+{
+	return gpFileManager->WriteFileAtomically(rFlags, rFilename, [&](std::fstream& rFileStream)
 	{
-		common::Write(fileStream, rStructure);
-	}
+		int64_t iVersion = STRUCT_TYPE::kiVersion;
+		common::Write(rFileStream, iVersion);
+		int64_t iSize = std::is_trivially_copyable_v<STRUCT_TYPE> ? sizeof(STRUCT_TYPE) : 0;
+		common::Write(rFileStream, iSize);
+		LOG(kLoading, kDebug, "WriteVersionedFile {} iVersion: {} iSize: {}", rFilename, iVersion, iSize);
+
+		if constexpr (has_binary_stream_operators_v<STRUCT_TYPE>)
+		{
+			rFileStream << rStructure;
+		}
+		else
+		{
+			common::Write(rFileStream, rStructure);
+		}
+	});
 }
 
 template <typename STRUCT_TYPE>

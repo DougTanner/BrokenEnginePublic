@@ -210,9 +210,9 @@ void PlayersInterpolate::DebugRender(const FrameInterpolate& __restrict rFrameIn
 			XMStoreFloat3A(&f3Lead, vecLead);
 			engine::DebugRender::Circle(f3Lead, kfPlayerRadius * 0.5f, {1.0f, 1.0f, 0.0f, 1.0f});
 
-			// Red line shows the player's wanted-aim direction scaled to the lead distance. When lead targeting is
-			// working the line endpoint coincides with the yellow reticle; if it points elsewhere the wanted
-			// direction has not caught up yet (smoothing lag) or there is a bug upstream of UpdateFacing.
+			// Red line shows the player's wanted-aim direction scaled to the lead distance. The wanted
+			// direction is set directly to the lead-intercept direction in UpdateFacing, so the line
+			// endpoint should always coincide with the yellow reticle; divergence means a bug upstream.
 			float fDistanceToLead = common::Distance(vecPosition, vecLead);
 			XMVECTOR vecLineEnd = XMVectorAdd(vecPosition, XMVectorScale(rPostRender.pVecWantedDirections[i], fDistanceToLead));
 			XMFLOAT3A f3Start {};

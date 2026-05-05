@@ -85,6 +85,9 @@ public:
 
 	void DetectDisconnectedPlayerDeaths();
 
+	// Destructive wipe of all fleet state (mFleets, mPlayerToGuid, mGuidToClientId, pending requests).
+	// Use ONLY for fresh-game flows (ServerReset, kResetFrame). Do NOT call from the load path —
+	// ReadFleetData is authoritative there; use ClearPendingRequests() instead.
 	void ResetState();
 
 	engine::ClientGuid FindGuidForClient(int64_t iClientId) const;

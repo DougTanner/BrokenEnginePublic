@@ -152,16 +152,24 @@ void main()
 	vec3 f3WeightedSum = fWeightOne * f3SampledNormalOne + fWeightTwo * f3SampledNormalTwo + fWeightThree * f3SampledNormalThree;
 	vec3 f3SampledNormal = f3WeightedSum / max(length(f3WeightedSum), 1e-6f);
 
-	// Color (noise with precision-safe UV)
-	// Per-sample weight & texcoord multiplier: each multiplier scales BOTH the position term
-	// and the reducedOrigin term by the same factor — preserves the CPU/shader precision pact
-	// (sub-integer multipliers will let UVs drift slowly far from origin; acceptable for tuning).
+	// Color (noise with precision-safe UV — same pact as SAMPLE_NORMAL_PRECISE above).
+	// CPU stores fmod(freq*camera, 10.0) so mult * 10 is integer for the calibrated defaults
+	// (0.2*10=2, 1.0*10=10); fract() then absorbs the wrap. Derivatives taken from the un-scaled
+	// local position and scaled the same way as the UV keep mip selection stable across the wrap
+	// (plain texture() pops at the seam). Sliders allow values that break the integer-product
+	// property (e.g. 0.15 * 10 = 1.5) — the seam will return at those tunings.
 	vec2 f2LocalDisplacedPos = f3InPosition.xy - f2WaterOrigin;
 	vec2 f2ReducedNoiseOrigin = vec2(globalLayout.fWaterReducedNoiseOriginX, globalLayout.fWaterReducedNoiseOriginY);
 	float fMultOne = globalLayout.fWaterColorNoiseMultiplierOne;
 	float fMultTwo = globalLayout.fWaterColorNoiseMultiplierTwo;
-	float fNoiseColorOne = clamp(globalLayout.fWaterColorNoiseWeightOne * globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, fMultOne * globalLayout.fWaterColorNoiseFrequency * f2LocalDisplacedPos + fMultOne * f2ReducedNoiseOrigin).x, -1.0f, 1.0f);
-	float fNoiseColorTwo = clamp(globalLayout.fWaterColorNoiseWeightTwo * globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, fMultTwo * globalLayout.fWaterColorNoiseFrequency * f2LocalDisplacedPos + fMultTwo * f2ReducedNoiseOrigin).x, -1.0f, 1.0f);
+	vec2 f2NoiseLocalDx = dFdx(f2LocalDisplacedPos);
+	vec2 f2NoiseLocalDy = dFdy(f2LocalDisplacedPos);
+	float fScaleOne = fMultOne * globalLayout.fWaterColorNoiseFrequency;
+	vec2 f2NoiseUvOne = fScaleOne * f2LocalDisplacedPos + fMultOne * f2ReducedNoiseOrigin;
+	float fNoiseColorOne = clamp(globalLayout.fWaterColorNoiseWeightOne * globalLayout.fWaterColorNoiseAmount * textureGrad(noiseTextureSampler, fract(f2NoiseUvOne), fScaleOne * f2NoiseLocalDx, fScaleOne * f2NoiseLocalDy).x, -1.0f, 1.0f);
+	float fScaleTwo = fMultTwo * globalLayout.fWaterColorNoiseFrequency;
+	vec2 f2NoiseUvTwo = fScaleTwo * f2LocalDisplacedPos + fMultTwo * f2ReducedNoiseOrigin;
+	float fNoiseColorTwo = clamp(globalLayout.fWaterColorNoiseWeightTwo * globalLayout.fWaterColorNoiseAmount * textureGrad(noiseTextureSampler, fract(f2NoiseUvTwo), fScaleTwo * f2NoiseLocalDx, fScaleTwo * f2NoiseLocalDy).x, -1.0f, 1.0f);
 	vec3 f3WaterColor = mix(1.0f * vec3(0.0f, 15.0f / 100.0f, 25.0f / 100.0f), 1.5f * vec3(15.0f / 100.0f, 30.0f / 100.0f, 50.0f / 100.0f), clamp(fNoiseColorOne + fNoiseColorTwo + (f3InPosition.z * globalLayout.fWaterColorHeightInv + globalLayout.fWaterColorBottom), 0.0f, 1.0f));
 
 	vec3 f3DepthColor = texture(depthLutSampler, vec2(globalLayout.fWaterDepthLutFeather * -fTerrainElevation, 0.0f)).xyz;
@@ -172,7 +180,11 @@ void main()
 	float fDirectionalLighting = max(1.0f - globalLayout.fWaterDirectional, dot(f3InNormal, globalLayout.f4SunMoonNormal.xyz));
 	vec3 f3DirectionalLighting = f3PreLightingColor * max(fDirectionalLighting, 0.3f);
 	vec3 f3LightingColor = mix(f3PreLightingColor, f3DirectionalLighting, 0.75f);
-	vec3 f3SunOrMoon = max(globalLayout.f4SunColor.xyz, globalLayout.f4MoonColor.xyz);
+	// Per-target water sun/moon intensity scales the sun and moon contributions before the max-combine.
+	// Folds in the previous moon-brightness gating: at noon f4MoonColor is ~0 (moonrise envelope) so any moon multiplier yields 0; at night the multiplier dominates.
+	vec3 f3WaterSun  = globalLayout.fSunIntensityWater  * globalLayout.f4SunColor.xyz;
+	vec3 f3WaterMoon = globalLayout.fMoonIntensityWater * globalLayout.f4MoonColor.xyz;
+	vec3 f3SunOrMoon = max(f3WaterSun, f3WaterMoon);
 	vec3 f3Sunlight = f3SunOrMoon + globalLayout.f4AmbientColor.xyz;
 	float fSunlight = (f3Sunlight.x + f3Sunlight.y + f3Sunlight.z) / 3.0f;
 	f3LightingColor *= fSunlight;
@@ -195,16 +207,6 @@ void main()
 
 	float fReflectionHeightMultiplier2 = clamp((f3InPosition.z - mainLayout.fWaterHeightDarkenBottom) / (mainLayout.fWaterHeightDarkenTop - mainLayout.fWaterHeightDarkenBottom), mainLayout.fWaterHeightDarkenClamp, 1.0f);
 	f3LightingColor *= fReflectionHeightMultiplier2;
-	// fSunlight is already applied above (line 173) to the water-diffuse path before the skybox
-	// mix, and the skybox path is independently tinted by f3SunOrMoon (vec3). A second *= fSunlight
-	// here would double-scale the water (fSunlight²) and erroneously dim the already-tinted skybox.
-	// Moon-brightness must scale only the moon's contribution. Weighting by Rec.601 luma ratio
-	// collapses to 1.0 at noon (moon=0) and to the slider value at midnight (sun=0), with a
-	// smooth transition driven by actual color magnitudes — no separate angle envelope needed.
-	float fSunMag  = dot(globalLayout.f4SunColor.xyz,  vec3(0.299f, 0.587f, 0.114f));
-	float fMoonMag = dot(globalLayout.f4MoonColor.xyz, vec3(0.299f, 0.587f, 0.114f));
-	float fMoonFraction = fMoonMag / max(fSunMag + fMoonMag, 0.001f);
-	f3LightingColor *= mix(1.0f, globalLayout.fLightingWaterMoonBrightness, fMoonFraction);
 
 	// Shadow with smoke at world position. Moon bypasses the terrain ray-march shadow only;
 	// object shadows + smoke volumetric attenuation still apply to both lights. Use a scalar
@@ -213,8 +215,8 @@ void main()
 	// would zero entire channels when Sun.c + Moon.c happens to be ~0 (e.g. morning sun has B=0).
 	float fShadowMoon = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
 	float fShadowSun  = fShadowMoon * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x);
-	float fSunWeight  = dot(globalLayout.f4SunColor.xyz,  vec3(0.299f, 0.587f, 0.114f));
-	float fMoonWeight = dot(globalLayout.f4MoonColor.xyz, vec3(0.299f, 0.587f, 0.114f));
+	float fSunWeight  = dot(f3WaterSun,  vec3(0.299f, 0.587f, 0.114f));
+	float fMoonWeight = dot(f3WaterMoon, vec3(0.299f, 0.587f, 0.114f));
 	float fEffectiveShadow = (fShadowSun * fSunWeight + fShadowMoon * fMoonWeight) / max(0.001f, fSunWeight + fMoonWeight);
 	f4OutColor.xyz = fEffectiveShadow * f3LightingColor;
 	f4OutColor.xyz = max(f4OutColor.xyz, 0.5f * globalLayout.f4AmbientColor.xyz * f3SkyboxColor);

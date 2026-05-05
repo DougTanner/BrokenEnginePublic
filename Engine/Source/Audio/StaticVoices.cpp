@@ -271,6 +271,18 @@ void StaticVoices::UpdateListenerPosition(const game::Frame& rFrame)
 	mX3dAudioListener.OrientTop = {0.0f, -1.0f, 0.0f};
 	mX3dAudioListener.Position = f3Position;
 	mX3dAudioListener.Velocity = f3Velocity;
+
+	float fEyeHeight = game::gpCamera->mfCameraEyeHeight;
+	const XMFLOAT4& rArea = game::gpCamera->f4RenderVisibleArea;
+	float fVisibleWidth = rArea.z - rArea.x;
+	if (mfReferenceVisibleWidth == 0.0f && fVisibleWidth > 0.0f)
+	{
+		mfReferenceVisibleWidth = fVisibleWidth;
+	}
+	mfChannelBleedT = std::clamp((fEyeHeight - game::Camera::kfCameraEyeHeightDefault) / game::Camera::kfCameraEyeHeightDefault, 0.0f, 1.0f);
+	float fScale = (mfReferenceVisibleWidth > 0.0f) ? (fVisibleWidth / mfReferenceVisibleWidth) : 1.0f;
+	static constexpr float kfAudibleDistanceMultiplier = 2.0f;
+	mfEffectiveFadeEnd = kfAudibleDistanceMultiplier * mfManualFadeEnd * std::max(1.0f, fScale);
 }
 
 void StaticVoices::UpdateVolumes()
@@ -345,20 +357,34 @@ void XM_CALLCONV StaticVoices::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 	X3DAUDIO_HANDLE& rX3dAudioHandle = mpAudioEngine->Get3DHandle();
 	X3DAudioCalculate(rX3dAudioHandle, &mX3dAudioListener, &x3dAudioEmitter, X3DAUDIO_CALCULATE_MATRIX | X3DAUDIO_CALCULATE_LPF_DIRECT | X3DAUDIO_CALCULATE_DOPPLER, &x3dAudioDspSettings);
 
+	if (iMasteringVoiceChannels >= 2 && mfChannelBleedT > 0.0f)
+	{
+		// 0.5 cap would collapse L and R to identical (L+R)/2 — full mono. Stay below that.
+		static constexpr float kfMaxChannelBleedFactor = 0.25f;
+		float fBleedFactor = kfMaxChannelBleedFactor * mfChannelBleedT;
+		float fLeft = pfMatrixCoefficients[0];
+		float fRight = pfMatrixCoefficients[1];
+		pfMatrixCoefficients[0] = (1.0f - fBleedFactor) * fLeft + fBleedFactor * fRight;
+		pfMatrixCoefficients[1] = (1.0f - fBleedFactor) * fRight + fBleedFactor * fLeft;
+	}
+
 	CHECK_HRESULT(pVoice->SetOutputMatrix(mpAudioEngine->GetMasterVoice(), 1, static_cast<UINT32>(iMasteringVoiceChannels), x3dAudioDspSettings.pMatrixCoefficients));
 
 	// Apply custom volume with distance-based attenuation
 	float fDistance = common::Distance(vecPosition, mVecListenerPosition);
 	float fDistanceVolume = fVolume;
-	if (fDistance >= mfManualFadeEnd)
+	if (fDistance >= mfEffectiveFadeEnd)
 	{
 		fDistanceVolume = mfManualFadeVolume;
 	}
 	else if (fDistance >= mfManualFadeStart)
 	{
-		float fPercent = std::clamp((fDistance - mfManualFadeStart) / (mfManualFadeEnd - mfManualFadeStart), 0.0f, 1.0f);
+		float fPercent = std::clamp((fDistance - mfManualFadeStart) / (mfEffectiveFadeEnd - mfManualFadeStart), 0.0f, 1.0f);
 		fDistanceVolume = (1.0f - fPercent) * fVolume + fPercent * mfManualFadeVolume;
 	}
+
+	static constexpr float kfMinHeightVolumeScale = 0.75f;
+	fDistanceVolume *= std::lerp(1.0f, kfMinHeightVolumeScale, mfChannelBleedT);
 
 	CHECK_HRESULT(pVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume)));
 	CHECK_HRESULT(pVoice->SetFrequencyRatio(x3dAudioDspSettings.DopplerFactor * fPitch));

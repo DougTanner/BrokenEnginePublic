@@ -1,7 +1,7 @@
 ---
 name: glsl-review
 description: Reviews GLSL shader changes (.vert .frag .comp and related stages) for correctness, performance, and Broken Engine conventions. Use this skill after editing shader source under Engine/Data/Shaders/ or Projects/*/Data/Shaders/ to catch NaN/Inf hazards, divergent branching, early-Z regressions, descriptor-set mistakes, scalar-block-layout violations, and the NVIDIA `inverse()` compiler-hang bug. ALSO use proactively when the user asks to review, audit, or verify shader code.
-allowed-tools: [Read, Grep, Glob]
+allowed-tools: [Read, Grep, Glob, WebFetch]
 paths: ["**/*.vert", "**/*.frag", "**/*.comp", "**/*.geom", "**/*.tesc", "**/*.tese", "**/*.mesh", "**/*.task", "**/*.rgen", "**/*.rmiss", "**/*.rchit", "**/*.rahit", "**/*.rint", "**/*.rcall", "**/*.glsl", "**/Data/Shaders/**/*.h"]
 ---
 
@@ -204,6 +204,23 @@ In addition to §4:
 
 - Shaders over ~500 lines: flag as `RECOMMEND` splitting into multiple stages via `#include`d helpers. The repo's convention is one shader per file with shared logic in `ShaderFunctions.h` or subdirectory `*Common.h`.
 - Functions over ~100 lines inside a fragment shader: flag if a natural split exists (lighting term, material evaluation, tone mapping).
+
+---
+
+### 9. API Verification
+
+For non-obvious GLSL/Vulkan calls — extension intrinsics, recent SPIR-V opcodes, GLSL features beyond `#version 460`, subgroup ops, ray-tracing intrinsics, image-format-specific atomics — WebFetch the official spec before accepting the call. Cite the URL or section in the review note.
+
+- Khronos GLSL spec (4.60): https://registry.khronos.org/OpenGL/specs/gl/GLSLangSpec.4.60.html
+- Vulkan 1.2 spec: https://registry.khronos.org/vulkan/specs/1.2-extensions/man/html/
+- SPIR-V Extended Instructions for GLSL: https://registry.khronos.org/SPIR-V/specs/unified1/GLSL.std.450.html
+- Khronos GLSL extensions: https://github.com/KhronosGroup/GLSL/tree/main/extensions
+
+Skip verification for `texture()`/`texelFetch`-class staples, basic intrinsics (`mix`/`smoothstep`/`clamp`), and patterns already used at multiple shader sites. Training data lags Vulkan extension churn; an extension may have been promoted to core, deprecated, or had its semantics tightened.
+
+If WebFetch turns up nothing authoritative, mark the finding:
+
+> UNVERIFIED: I could not find official documentation for this pattern. This is based on training data and may be outdated. Verify before using in production.
 
 ---
 

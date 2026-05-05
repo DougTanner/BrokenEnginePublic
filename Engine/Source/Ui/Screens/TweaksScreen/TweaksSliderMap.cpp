@@ -238,13 +238,17 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Noon End", &gSunMoonNoonEnd},
 		{"Evening Start", &gSunMoonEvening},
 		{"Night Start", &gSunMoonNightStart},
-		// Sun/Moon - Intensity
-		{"Sun Intensity", &gSunMoonSunIntensity},
-		{"Moon Intensity", &gSunMoonMoonIntensity},
-		// Sun/Moon - Moon
-		{"Moon Brightness", &gMoonBrightness},
+		// Sun/Moon - Sun Intensity (per target)
+		{"Sun Terrain", &gSunMoonSunIntensityTerrain},
+		{"Sun Water", &gSunMoonSunIntensityWater},
+		{"Sun Objects", &gSunMoonSunIntensityObjects},
+		{"Sun Smoke", &gSunMoonSunIntensitySmoke},
+		// Sun/Moon - Moon Intensity (per target) + Blue Tint
+		{"Moon Terrain", &gSunMoonMoonIntensityTerrain},
+		{"Moon Water", &gSunMoonMoonIntensityWater},
+		{"Moon Objects", &gSunMoonMoonIntensityObjects},
+		{"Moon Smoke", &gSunMoonMoonIntensitySmoke},
 		{"Moon Blue Tint", &gSunMoonMoonBlueTint},
-		{"Water Moon Brightness", &gMoonWaterBrightness},
 		// Sun/Moon - Moon Timing
 		{"Moonrise Start", &gSunMoonMoonriseStart},
 		{"Moonrise End", &gSunMoonMoonriseEnd},

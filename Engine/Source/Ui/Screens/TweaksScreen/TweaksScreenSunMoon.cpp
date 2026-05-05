@@ -16,14 +16,18 @@ void TweaksScreenBase::RenderSunMoonSection()
 	WrapperSlider("Evening Start", kiSection);
 	WrapperSlider("Night Start", kiSection);
 
-	WrapperSeparatorText("Intensity");
-	WrapperSlider("Sun Intensity", kiSection);
-	WrapperSlider("Moon Intensity", kiSection);
+	WrapperSeparatorText("Sun Intensity");
+	WrapperSlider("Sun Terrain", kiSection);
+	WrapperSlider("Sun Water", kiSection);
+	WrapperSlider("Sun Objects", kiSection);
+	WrapperSlider("Sun Smoke", kiSection);
 
-	WrapperSeparatorText("Moon");
-	WrapperSlider("Moon Brightness", kiSection);
+	WrapperSeparatorText("Moon Intensity");
+	WrapperSlider("Moon Terrain", kiSection);
+	WrapperSlider("Moon Water", kiSection);
+	WrapperSlider("Moon Objects", kiSection);
+	WrapperSlider("Moon Smoke", kiSection);
 	WrapperSlider("Moon Blue Tint", kiSection);
-	WrapperSlider("Water Moon Brightness", kiSection);
 
 	WrapperSeparatorText("Moon Timing (radians)");
 	WrapperSlider("Moonrise Start", kiSection);

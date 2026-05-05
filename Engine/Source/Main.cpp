@@ -207,6 +207,9 @@ void MainThread(HINSTANCE hinstance)
 	// Load tweaks settings (requires both Game and ImGuiManager)
 	game::Game::LoadTweaksSettings();
 
+	// Load persistent client state (focused fleet/ship + zoom). Requires gpCamera and gpGame; both exist by here.
+	game::Game::LoadClientState();
+
 	gpProfileManager->BootStop(kBootTimerVulkan);
 
 	// Ensure priority textures are ready

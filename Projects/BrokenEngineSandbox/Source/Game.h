@@ -43,7 +43,7 @@ enum class UiState
 
 struct ReplayMeta
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
 	engine::GridCoord clientGridCoord {};
 	int64_t iClientPlayerIdValue = 0;
 	float fPreviousClientArmor = 0.0f;
@@ -127,6 +127,10 @@ public:
 
 	static void SaveTweaksSettings();
 	static void LoadTweaksSettings();
+
+	static void SaveClientState();
+	static void LoadClientState();
+	void CaptureClientStateAndSaveIfChanged();
 #endif
 
 #if defined(BT_CLIENT)
@@ -142,6 +146,11 @@ public:
 	std::vector<Fleet> mClientFleets;
 	int64_t miFocusedFleetIndex = -1;
 	int64_t miFocusedPlayerInFleetIndex = -1;
+
+	// In-memory mirror of ClientState.bin; loaded at startup, written through whenever any tracked field changes.
+	game::FleetGuid mRememberedFleetGuid {};
+	engine::global_id_t mRememberedFocusedShipId {};
+	float mfRememberedCameraEyeHeightTarget = 198.0f; // matches Camera::kfCameraEyeHeightInitial
 
 	static constexpr float kfVisualErrorDecayRate = 15.0f;
 	static constexpr float kfVisualErrorMaxDistance = 5.0f;

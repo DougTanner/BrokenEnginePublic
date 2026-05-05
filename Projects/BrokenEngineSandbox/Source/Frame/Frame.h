@@ -227,8 +227,15 @@ inline uint32_t SeedFromGridCoord(engine::GridCoord coord, uint64_t uiMultiplier
 // uniformly within the rotation-shrunk valid range; range collapses to a point if the rotated
 // bbox equals the cell, which is a design boundary (200x200 island in 300x300 cell rotated to 45
 // degrees has bbox 283x283, leaving ~17px play in each axis).
+// kOriginCoord is forced cell-centered so the main-menu island center pins to world origin
+// (paired with ComputeIslandRotation's kOriginCoord = 0). Camera.h relies on this anchor.
 inline XMFLOAT2 ComputeIslandOffset(engine::GridCoord coord, float fAngle)
 {
+	if (coord == engine::kOriginCoord)
+	{
+		return {0.5f * (Frame::kfCellWidth - Frame::kfIslandWidth), 0.5f * (Frame::kfCellHeight - Frame::kfIslandHeight)};
+	}
+
 	float fAbsCos = std::abs(std::cos(fAngle));
 	float fAbsSin = std::abs(std::sin(fAngle));
 	float fRotHalfW = 0.5f * (Frame::kfIslandWidth * fAbsCos + Frame::kfIslandHeight * fAbsSin);
@@ -249,8 +256,14 @@ inline XMFLOAT2 ComputeIslandOffset(engine::GridCoord coord, float fAngle)
 }
 
 // Deterministic island rotation [0, 2pi), computed from grid coordinate hash. Distinct multiplier from ComputeIslandOffset.
+// kOriginCoord is forced axis-aligned so the main-menu island has a fixed, recognizable layout — and so collision,
+// rendering, and navmesh all agree at (0,0) without each consumer needing its own override.
 inline float ComputeIslandRotation(engine::GridCoord coord)
 {
+	if (coord == engine::kOriginCoord)
+	{
+		return 0.0f;
+	}
 	common::RandomEngine random(SeedFromGridCoord(coord, 0x94D049BB133111EBull));
 	return common::Random(2.0f * DirectX::XM_PI, random);
 }

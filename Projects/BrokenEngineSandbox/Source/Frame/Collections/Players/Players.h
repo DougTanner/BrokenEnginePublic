@@ -208,7 +208,7 @@ private:
 
 	// Defined in PlayersCombat.cpp:
 	static void XM_CALLCONV AcquireTarget(const Frame& __restrict rPreviousFrame, FXMVECTOR vecPosition, PlayerFlags_t& rFlags, bool& rbLookTargetFound, XMVECTOR& rVecLookPosition);
-	static void XM_CALLCONV UpdateFacing(FXMVECTOR vecPosition, FXMVECTOR vecLookPosition, float fDeltaTime, XMVECTOR& rVecWantedDirection);
+	static void XM_CALLCONV UpdateFacing(FXMVECTOR vecPosition, FXMVECTOR vecLookPosition, XMVECTOR& rVecWantedDirection);
 	static void RegenerateShield(float fDeltaTime, float fShieldCooldown, float& rfShield);
 
 	// Weapon and death-explosion spawn helpers (called from PlayersPostRender::Spawn). Defined in PlayersCombat.cpp.

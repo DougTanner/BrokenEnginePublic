@@ -171,6 +171,16 @@ struct GlobalLayout
 	vec4 f4MoonColor INIT;
 	vec4 f4AmbientColor INIT;
 
+	// Per-target sun/moon intensity multipliers (applied at shader read sites)
+	float fSunIntensityTerrain INIT;
+	float fSunIntensityWater INIT;
+	float fSunIntensityObjects INIT;
+	float fSunIntensitySmoke INIT;
+	float fMoonIntensityTerrain INIT;
+	float fMoonIntensityWater INIT;
+	float fMoonIntensityObjects INIT;
+	float fMoonIntensitySmoke INIT;
+
 	// Smoke
 	vec4 f4SmokeArea INIT;
 	vec4 f4PreviousSmokeArea INIT;
@@ -395,7 +405,6 @@ struct GlobalLayout
 	// Time of day
 	float fLightingTimeOfDayMultiplier INIT;
 	float fLightingNightMultiplier INIT;
-	float fLightingWaterMoonBrightness INIT;
 	float fLightingWaterSkyboxOne INIT;
 
 	// Debug

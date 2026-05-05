@@ -74,6 +74,10 @@ private:
 	float mfManualFadeStart = 0.0f;
 	float mfManualFadeEnd = 150.0f;
 	float mfManualFadeVolume = 0.05f;
+
+	float mfReferenceVisibleWidth = 0.0f;
+	float mfChannelBleedT = 0.0f;
+	float mfEffectiveFadeEnd = 150.0f;
 };
 
 } // namespace engine

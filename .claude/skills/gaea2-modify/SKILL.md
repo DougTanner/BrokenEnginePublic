@@ -1,8 +1,9 @@
 ---
 name: gaea2-modify
-description: Edit a Gaea 2 terrain that was loaded by /gaea2-load. Use this skill whenever the user wants to add/remove/move/rewire nodes or change node properties on a loaded Gaea terrain — phrases like "add an erosion node", "wire X to Y", "move that node", "increase the seed", "rename this node", "delete the snow node", or invoking `/gaea2-modify`. Operates on the Markdown file in Temp/ produced by /gaea2-load.
+description: Edit a Gaea 2 terrain previously loaded by /gaea2-load — add/remove/move/rewire nodes or change node properties. Operates on the Markdown file in Temp/ produced by /gaea2-load.
 argument-hint: <name-or-Temp/path.md>
 allowed-tools: [Read, Edit, Write, Glob]
+disable-model-invocation: true
 ---
 
 # gaea2-modify

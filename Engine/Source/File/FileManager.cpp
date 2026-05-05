@@ -126,6 +126,35 @@ void FileManager::RemoveFile(const FileFlags_t& rFlags, const std::filesystem::p
 	std::filesystem::remove(file);
 }
 
+bool FileManager::CommitAtomicWrite(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, bool bWriteSucceeded)
+{
+	std::filesystem::path tmpFilename = rFilename;
+	tmpFilename += ".tmp";
+	std::filesystem::path tmpPath = GetFilePath(rFlags, tmpFilename);
+	std::filesystem::path destPath = GetFilePath(rFlags, rFilename);
+
+	if (!bWriteSucceeded)
+	{
+		LOG(kLoading, kError, "WriteFileAtomically stream bad after lambda for \"{}\"", rFilename.string());
+		std::error_code removeEc;
+		std::filesystem::remove(tmpPath, removeEc);
+		return false;
+	}
+
+	std::error_code renameEc;
+	std::filesystem::rename(tmpPath, destPath, renameEc);
+	if (renameEc)
+	{
+		LOG(kLoading, kError, "WriteFileAtomically rename failed for \"{}\": {}", rFilename.string(), renameEc.message());
+		std::error_code removeEc;
+		std::filesystem::remove(tmpPath, removeEc);
+		return false;
+	}
+
+	LOG(kLoading, kDebug, "WriteFileAtomically committed \"{}\"", rFilename.string());
+	return true;
+}
+
 // Build full path to a data file (pack or manifest) for the given data type
 std::filesystem::path FileManager::GetDataFilePath(data::DataTypes eDataType, std::string_view extension) const
 {

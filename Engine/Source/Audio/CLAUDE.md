@@ -24,6 +24,8 @@
 
 - Combined volume squared for a perceptual curve; sfx and music use separate global sliders.
 - 3D mix layers X3DAudio (matrix / Doppler / LPF) with a manual piecewise distance fade as a hard override past the physical attenuation floor.
+- Camera-zoom couples into the 3D mix: audible distance scales with current visible area vs. a per-listener-update reference width (then doubled so visible-edge sounds sit mid-fade-band, not at the floor), stereo channels cross-bleed (capped at 25% to preserve some directionality — a 50% cap would collapse to pure mono), and a global per-voice volume scale lerps from 1.0 at default eye height down to 0.75 at 2x default and beyond. All three factors share the same height-derived 0..1 parameter and recompute once per `UpdateListenerPosition`.
+- Audio reads `game::gpCamera` directly for eye height / visible area — established cross-layer pattern in `Engine/Source/`, not a `game::gpGame` violation.
 
 ## Device Reset
 

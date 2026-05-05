@@ -163,6 +163,7 @@ void Game::FocusNextFleet()
 	{
 		++miFocusedFleetIndex;
 		AutoSelectFirstAliveMember();
+		CaptureClientStateAndSaveIfChanged();
 	}
 }
 
@@ -172,6 +173,7 @@ void Game::FocusPrevFleet()
 	{
 		--miFocusedFleetIndex;
 		AutoSelectFirstAliveMember();
+		CaptureClientStateAndSaveIfChanged();
 	}
 }
 
@@ -214,10 +216,12 @@ void Game::SelectPlayerInFleet(int64_t iPlayerIndex)
 			if (mClientPlayerIds.at(i) == rMember.globalPlayerId)
 			{
 				mClientGridCoord = mClientPlayerCoords.at(i);
-				return;
+				break;
 			}
 		}
 	}
+
+	CaptureClientStateAndSaveIfChanged();
 }
 
 int64_t Game::FocusedPlayerInFleetIndex() const
@@ -239,18 +243,61 @@ void Game::SyncFleets(std::vector<Fleet>&& fleets)
 	}
 	mClientFleets = std::move(fleets);
 
-	// Clamp fleet index
-	if (miFocusedFleetIndex >= std::ssize(mClientFleets))
+	// Restore from disk-persisted client state on the first sync after a reconnect-style clear.
+	// The remembered FleetGuid identifies which fleet to focus; a missing or destroyed ship falls back to the fleet's current flagship.
+	bool bRestoredRemembered = false;
+	if (iPrevFleetCount == 0 && mRememberedFleetGuid.IsValid())
 	{
-		miFocusedFleetIndex = std::ssize(mClientFleets) - 1;
+		for (int64_t i = 0; i < std::ssize(mClientFleets); ++i)
+		{
+			const Fleet& rFleet = mClientFleets.at(static_cast<size_t>(i));
+			if (rFleet.guid != mRememberedFleetGuid)
+			{
+				continue;
+			}
+
+			miFocusedFleetIndex = i;
+			miFocusedPlayerInFleetIndex = -1;
+			if (mRememberedFocusedShipId.IsValid())
+			{
+				for (int64_t j = 0; j < std::ssize(rFleet.members); ++j)
+				{
+					const FleetMember& rMember = rFleet.members.at(static_cast<size_t>(j));
+					if (rMember.globalPlayerId == mRememberedFocusedShipId && rMember.bAlive)
+					{
+						miFocusedPlayerInFleetIndex = j;
+						break;
+					}
+				}
+			}
+			if (miFocusedPlayerInFleetIndex < 0
+				&& rFleet.iFlagshipIndex >= 0
+				&& rFleet.iFlagshipIndex < std::ssize(rFleet.members))
+			{
+				miFocusedPlayerInFleetIndex = rFleet.iFlagshipIndex;
+			}
+			// Suppress the auto-newest-fleet / auto-newest-member branches below.
+			iPrevFocusedFleetMemberCount = std::ssize(rFleet.members);
+			bRestoredRemembered = true;
+			break;
+		}
 	}
 
-	// Auto-activate newly created fleet
-	if (iPrevFleetCount < std::ssize(mClientFleets))
+	if (!bRestoredRemembered)
 	{
-		miFocusedFleetIndex = std::ssize(mClientFleets) - 1;
-		miFocusedPlayerInFleetIndex = -1;
-		iPrevFocusedFleetMemberCount = 0;
+		// Clamp fleet index
+		if (miFocusedFleetIndex >= std::ssize(mClientFleets))
+		{
+			miFocusedFleetIndex = std::ssize(mClientFleets) - 1;
+		}
+
+		// Auto-activate newly created fleet
+		if (iPrevFleetCount < std::ssize(mClientFleets))
+		{
+			miFocusedFleetIndex = std::ssize(mClientFleets) - 1;
+			miFocusedPlayerInFleetIndex = -1;
+			iPrevFocusedFleetMemberCount = 0;
+		}
 	}
 
 	// Clamp or auto-select member index
@@ -293,6 +340,7 @@ void Game::SyncFleets(std::vector<Fleet>&& fleets)
 
 	// Update mClientGridCoord based on current selection
 	engine::global_id_t focusedId = ClientPlayerId();
+	bool bGridCoordResolved = false;
 	if (focusedId.IsValid())
 	{
 		for (int64_t i = 0; i < std::ssize(mClientPlayerIds); ++i)
@@ -300,13 +348,20 @@ void Game::SyncFleets(std::vector<Fleet>&& fleets)
 			if (mClientPlayerIds.at(i) == focusedId)
 			{
 				mClientGridCoord = mClientPlayerCoords.at(i);
-				return;
+				bGridCoordResolved = true;
+				break;
 			}
 		}
 	}
 
 	// No valid selection — camera to origin
-	mClientGridCoord = {};
+	if (!bGridCoordResolved)
+	{
+		mClientGridCoord = {};
+	}
+
+	// Persist whatever final focus state SyncFleets settled on (covers server-driven changes the user didn't trigger directly).
+	CaptureClientStateAndSaveIfChanged();
 }
 
 #endif // BT_CLIENT
@@ -928,7 +983,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 #if defined(BT_CLIENT)
 struct SoundSettings
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
 
 	float fMasterVolume = 0.0f;
 	float fMusicVolume = 0.0f;
@@ -976,7 +1031,7 @@ void Game::ResetSoundSettings()
 
 struct GraphicsSettings
 {
-	static constexpr int64_t kiVersion = 3;
+	static constexpr int64_t kiVersion = 4;
 
 	bool bFullscreen = false;
 	VkPresentModeKHR ePresentMode = VK_PRESENT_MODE_FIFO_KHR;
@@ -1085,7 +1140,7 @@ void Game::ResetGraphicsSettings()
 
 struct TweaksSettings
 {
-	static constexpr int64_t kiVersion = 10;
+	static constexpr int64_t kiVersion = 11;
 
 	bool bShowImGui = false;
 	bool bSectionVisible[static_cast<size_t>(engine::TweakSection::kCount)] {};
@@ -1151,6 +1206,80 @@ void Game::LoadTweaksSettings()
 	{
 		LOG(kDefault, kWarning, "LoadTweaks FAILED to read file");
 	}
+}
+
+struct ClientStateSettings
+{
+	static constexpr int64_t kiVersion = 3;
+
+	game::FleetGuid fleetGuid {};
+	int64_t iFocusedShipId = 0;
+	float fCameraEyeHeightTarget = 198.0f; // matches Camera::kfCameraEyeHeightInitial
+};
+static constexpr char kpcClientStatePath[] = "ClientState.bin";
+
+void Game::SaveClientState()
+{
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+	ClientStateSettings settings
+	{
+		.fleetGuid              = gpGame->mRememberedFleetGuid,
+		.iFocusedShipId         = gpGame->mRememberedFocusedShipId.iValue,
+		.fCameraEyeHeightTarget = gpGame->mfRememberedCameraEyeHeightTarget,
+	};
+	engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, kpcClientStatePath, settings);
+}
+
+void Game::LoadClientState()
+{
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+	ClientStateSettings settings {};
+	if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, kpcClientStatePath, settings))
+	{
+		return;
+	}
+
+	gpGame->mRememberedFleetGuid              = settings.fleetGuid;
+	gpGame->mRememberedFocusedShipId          = engine::global_id_t {settings.iFocusedShipId};
+	gpGame->mfRememberedCameraEyeHeightTarget = settings.fCameraEyeHeightTarget;
+
+	// Apply zoom directly so the camera starts AT the saved zoom rather than easing from the default.
+	gpCamera->mfCameraEyeHeight       = settings.fCameraEyeHeightTarget;
+	gpCamera->mfCameraEyeHeightTarget = settings.fCameraEyeHeightTarget;
+}
+
+void Game::CaptureClientStateAndSaveIfChanged()
+{
+	// When no fleet is focused (boot before first sync, or post-disconnect cleared fleets), preserve the remembered fleet/ship —
+	// don't overwrite the just-loaded saved state with zeros. The next valid focus (user click or post-sync auto-activate) updates it.
+	game::FleetGuid newFleetGuid = mRememberedFleetGuid;
+	engine::global_id_t newShipId = mRememberedFocusedShipId;
+	if (miFocusedFleetIndex >= 0 && miFocusedFleetIndex < std::ssize(mClientFleets))
+	{
+		const Fleet& rFleet = mClientFleets.at(static_cast<size_t>(miFocusedFleetIndex));
+		newFleetGuid = rFleet.guid;
+		newShipId = {};
+		if (miFocusedPlayerInFleetIndex >= 0 && miFocusedPlayerInFleetIndex < std::ssize(rFleet.members))
+		{
+			newShipId = rFleet.members.at(static_cast<size_t>(miFocusedPlayerInFleetIndex)).globalPlayerId;
+		}
+	}
+
+	const float fNewCameraEyeHeightTarget = gpCamera->mfCameraEyeHeightTarget;
+
+	if (newFleetGuid == mRememberedFleetGuid
+		&& newShipId == mRememberedFocusedShipId
+		&& fNewCameraEyeHeightTarget == mfRememberedCameraEyeHeightTarget)
+	{
+		return;
+	}
+
+	mRememberedFleetGuid              = newFleetGuid;
+	mRememberedFocusedShipId          = newShipId;
+	mfRememberedCameraEyeHeightTarget = fNewCameraEyeHeightTarget;
+	SaveClientState();
 }
 #endif // BT_CLIENT
 

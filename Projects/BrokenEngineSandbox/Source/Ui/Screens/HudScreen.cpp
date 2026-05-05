@@ -314,16 +314,6 @@ void HudScreen::RenderFocusedPlayerPanel(float fLeftMouseTarget)
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
-	const ImVec2 vAnchor(rIo.DisplaySize.x * 0.95f, rIo.DisplaySize.y * 0.42f);
-	const float fOwnMouseTarget = ComputeMouseOpennessTarget(mFocusedPlayerSlide.vLastSize, vAnchor, 1.0f);
-	const float fTarget = std::max(fOwnMouseTarget, fLeftMouseTarget);
-	const float fOffsetX = UpdateSlideAndGetOffsetX(mFocusedPlayerSlide, vAnchor, 1.0f, fTarget);
-	ImGui::SetNextWindowPos(ImVec2(vAnchor.x + fOffsetX, vAnchor.y), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
-	ImGui::Begin("FocusedPlayerPanel", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
-	ImGui::SetWindowFontScale(kfMenuUiScale);
-	mFocusedPlayerSlide.vLastSize = ImGui::GetWindowSize();
-	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
-
 	std::optional<int64_t> oPlayerIndex = std::nullopt;
 	{
 		auto it = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
@@ -332,6 +322,18 @@ void HudScreen::RenderFocusedPlayerPanel(float fLeftMouseTarget)
 			oPlayerIndex = gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers);
 		}
 	}
+
+	const ImVec2 vAnchor(rIo.DisplaySize.x * 0.95f, rIo.DisplaySize.y * 0.42f);
+	const float fOwnMouseTarget = ComputeMouseOpennessTarget(mFocusedPlayerSlide.vLastSize, vAnchor, 1.0f);
+	// Global override: never show the right panel when there's nothing to focus on. Gates both triggers (own mouse-over, left-panel coupling).
+	const float fTarget = oPlayerIndex.has_value() ? std::max(fOwnMouseTarget, fLeftMouseTarget) : 0.0f;
+	const float fOffsetX = UpdateSlideAndGetOffsetX(mFocusedPlayerSlide, vAnchor, 1.0f, fTarget);
+	ImGui::SetNextWindowPos(ImVec2(vAnchor.x + fOffsetX, vAnchor.y), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+	ImGui::Begin("FocusedPlayerPanel", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+	ImGui::SetWindowFontScale(kfMenuUiScale);
+	mFocusedPlayerSlide.vLastSize = ImGui::GetWindowSize();
+	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
+
 	if (oPlayerIndex.has_value())
 	{
 		PlayersPostRender& rPlayers = *gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers;
@@ -347,6 +349,7 @@ void HudScreen::RenderFocusedPlayerPanel(float fLeftMouseTarget)
 				gpGame->mWeaponModeToggle.SetPending();
 				float fNavigationDelay = rPlayers.pfNavigationDelays[*oPlayerIndex];
 				gpClientSession->SendUpdatePlayerRequest(gpGame->ClientPlayerId().iValue, !bUseMissiles, fNavigationDelay);
+				engine::gpAudioManager->PlayOneShot(gpGame->RenderFrame(gpGame->mClientGridCoord), data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc, false, 1.0f);
 			}
 		}
 		ImGui::EndDisabled();

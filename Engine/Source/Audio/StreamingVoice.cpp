@@ -15,32 +15,41 @@ StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLa
 
 	CHECK_HRESULT(mpVoice->SetVolume(0.0f));
 
-	// Fill and submit the first buffer
-	bool bLastBuffer = false;
-	int64_t iBytesRead = 0;
-	if (FillBuffer(mBuffers[miActiveBuffer], iBytesRead, bLastBuffer))
+	// Pre-queue all buffers: main-thread refill latency exceeds single-buffer playback time, so a queue depth of 1 underruns.
+	for (int64_t i = 0; i < kiBufferCount; ++i)
 	{
-		// Submit the first buffer
-		XAUDIO2_BUFFER xaudio2Buffer
+		bool bLastBuffer = false;
+		int64_t iBytesRead = 0;
+		if (FillBuffer(mBuffers[i], iBytesRead, bLastBuffer))
 		{
-			.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
-			.AudioBytes = static_cast<UINT32>(iBytesRead),
-			.pAudioData = mBuffers[miActiveBuffer],
-			.PlayBegin = 0,
-			.PlayLength = 0,
-			.LoopBegin = 0,
-			.LoopLength = 0,
-			.LoopCount = 0,
-			.pContext = this,
-		};
-		CHECK_HRESULT(mpVoice->SubmitSourceBuffer(&xaudio2Buffer));
-		mFlags.Set(kLastBufferSubmitted, bLastBuffer);
+			XAUDIO2_BUFFER xaudio2Buffer
+			{
+				.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
+				.AudioBytes = static_cast<UINT32>(iBytesRead),
+				.pAudioData = mBuffers[i],
+				.PlayBegin = 0,
+				.PlayLength = 0,
+				.LoopBegin = 0,
+				.LoopLength = 0,
+				.LoopCount = 0,
+				.pContext = this,
+			};
+			CHECK_HRESULT(mpVoice->SubmitSourceBuffer(&xaudio2Buffer));
+			miActiveBuffer = i;
+			mFlags.Set(kLastBufferSubmitted, bLastBuffer);
 
-		LOG(kAudio, kDebug, "Music streaming: Submitted initial buffer [0] with {} bytes, last buffer: {}", iBytesRead, bLastBuffer);
-	}
-	else
-	{
-		mFlags.Set(kLastBufferSubmitted);
+			LOG(kAudio, kDebug, "Music streaming: Submitted initial buffer [{}] with {} bytes, last buffer: {}", i, iBytesRead, bLastBuffer);
+
+			if (bLastBuffer)
+			{
+				break;
+			}
+		}
+		else
+		{
+			mFlags.Set(kLastBufferSubmitted);
+			break;
+		}
 	}
 
 	CHECK_HRESULT(mpVoice->Start());

@@ -91,12 +91,15 @@ void ClientDataReceiver::ApplyReceivedFullStates()
 			// Offset sim tick back by the jitter-safety floor so sim starts BEHIND latestServerTick, matching
 			// the steady-state target computed by ComputeClockCorrectionNs. Avoids a ~150 ms freeze while the
 			// ceiling clamp waits for latest to catch up and drains the spurious +targetBehind error.
+			// Clamp the offset at iTick so a fresh post-load server (iTick < jitter-safety floor) does
+			// not produce a negative sim tick.
 			if (bInitialSetup && gpGame->TickCounter() < iTick)
 			{
-				constexpr int64_t iTickTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(kTickNs).count();
-				constexpr int64_t iInitialTargetBehind = (engine::kiJitterSafetyUs + iTickTimeUs - 1) / iTickTimeUs;
-				gpGame->SetTickCounter(iTick - iInitialTargetBehind);
-				gpGame->SetCurrentTime(fFullStateTime - static_cast<float>(iInitialTargetBehind) * kfDeltaTime);
+				static constexpr int64_t kiTickTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(kTickNs).count();
+				static constexpr int64_t kiInitialTargetBehind = (engine::kiJitterSafetyUs + kiTickTimeUs - 1) / kiTickTimeUs;
+				const int64_t iAppliedBehind = std::min<int64_t>(kiInitialTargetBehind, iTick);
+				gpGame->SetTickCounter(iTick - iAppliedBehind);
+				gpGame->SetCurrentTime(fFullStateTime - static_cast<float>(iAppliedBehind) * kfDeltaTime);
 				gpGame->ResetRenderClock();
 			}
 

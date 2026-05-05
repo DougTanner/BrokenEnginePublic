@@ -264,6 +264,9 @@ void main()
 
 	// Engine-specific lighting variables. Sun and moon split: moon bypasses shadow attenuation
 	// (Model.frag samples only the terrain shadow texture), sun still receives it.
+	// Per-target Objects sun/moon intensity sliders are applied at the BRDF/IBL use sites below
+	// so they affect both paths linearly (baking them into f3SunColor would make IBL quadratic
+	// because fSunIntensity is derived from f3SunColor).
 	vec3 f3SunColor  = mainLayout.fPbrSun * globalLayout.f4SunColor.rgb;
 	vec3 f3MoonColor = mainLayout.fPbrSun * globalLayout.f4MoonColor.rgb;
 	float fSunIntensity  = mainLayout.fPbrSun * (f3SunColor.r  + f3SunColor.g  + f3SunColor.b)  / mainLayout.fPbrDayBrightness;
@@ -294,7 +297,8 @@ void main()
 	vec3 diffuseResult = pow(mainLayout.fPbrBrdfDiffuse * diffuseContrib, vec3(mainLayout.fPbrBrdfDiffusePower));
 	vec3 specularResult = pow(mainLayout.fPbrBrdfSpecular * specularContrib, vec3(mainLayout.fPbrBrdfSpecularPower));
 	vec3 brdf = NdotL * (diffuseResult + specularResult);
-	color += max(f3SunColor * fShadow * fShadow, f3MoonColor * fShadowMoon * fShadowMoon) * brdf;
+	color += max(globalLayout.fSunIntensityObjects  * f3SunColor  * fShadow * fShadow,
+	             globalLayout.fMoonIntensityObjects * f3MoonColor * fShadowMoon * fShadowMoon) * brdf;
 #endif
 
 	// Image based lighting
@@ -303,7 +307,8 @@ void main()
 	vec3 f3IblSpecular;
 	GetIBLContribution(NdotV, perceptualRoughness, diffuseColor, specularColor, n, reflection, f3IblDiffuse, f3IblSpecular);
 	f3IblDiffuse *= mainLayout.fPbrAmbient * mix(vec3(1.0), f3AmbientColor, mainLayout.fPbrIblAmbientColorBlend) * mix(1.0, fShadow, mainLayout.fPbrIblShadowBlend);
-	f3IblSpecular *= max(fSunIntensity * f3SunColor * fShadow, fMoonIntensity * f3MoonColor * fShadowMoon);
+	f3IblSpecular *= max(globalLayout.fSunIntensityObjects  * fSunIntensity  * f3SunColor  * fShadow,
+	                     globalLayout.fMoonIntensityObjects * fMoonIntensity * f3MoonColor * fShadowMoon);
 	vec3 f3IblDiffuseResult = pow(mainLayout.fPbrIblDiffuse * f3IblDiffuse, vec3(mainLayout.fPbrIblDiffusePower));
 	vec3 f3IblSpecularResult = pow(mainLayout.fPbrIblSpecular * f3IblSpecular, vec3(mainLayout.fPbrIblSpecularPower));
 	color += f3IblDiffuseResult + f3IblSpecularResult;

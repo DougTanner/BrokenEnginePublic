@@ -19,7 +19,7 @@ Client-side networking: connection lifecycle, server data ingestion, rollback-an
 - Sticky subscriptions: unwanted coords remain active briefly to avoid flicker during transitions.
 - Soft desync recovery: CRC mismatch triggers resync; repeated desyncs within a short window escalate to disconnect.
 - Visual error offset accumulates on `gpGame` after full replay, resetting to zero if it exceeds `Game::kfVisualErrorMaxDistance` rather than accumulating unboundedly.
-- Initial full state sets `gpGame` tick behind `latestServerTick` by a jitter-safety floor so sim starts at the steady-state clock target — avoids startup freeze.
+- Initial full state sets `gpGame` tick behind `latestServerTick` by a jitter-safety floor so sim starts at the steady-state clock target — avoids startup freeze. Offset is clamped at the server's current tick so a fresh-from-save server (tick below the floor) doesn't drive the client tick negative.
 - Hard clock snap (bypassing gradual correction) triggers on large clock error or explicit disconnect flag.
 
 ## Invariants & Parallelism

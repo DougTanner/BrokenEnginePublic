@@ -1,7 +1,8 @@
 ---
 name: external-skill-creator
-description: Create new skills and improve existing skills following best practices. Use when users want to create a skill from scratch, edit or revise an existing skill, review a skill for quality, or need guidance on skill structure, frontmatter, descriptions, writing patterns, or progressive disclosure. Only invoke when the user explicitly requests it (e.g., "/external-skill-creator", "create a skill", "audit this skill") or when another skill explicitly instructs it. Never trigger autonomously from general code questions or during routine code changes.
+description: Create new skills and improve existing skills following best practices. Use when users want to create a skill from scratch, edit or revise an existing skill, review a skill for quality, or need guidance on skill structure, frontmatter, descriptions, writing patterns, or progressive disclosure. Invoked via /external-skill-creator or chained from skills that need to author/audit a sibling skill.
 allowed-tools: [Read, Write, Edit, Glob, Grep, Agent]
+disable-model-invocation: true
 ---
 
 # Skill Creator
@@ -14,10 +15,9 @@ Your job is to help the user create or improve a skill. Understand what they wan
 
 Sibling skills in this repo follow these conventions — match them when creating a new skill:
 
-- **`external-` prefix** marks explicit-invocation-only skills (e.g., `external-grill-plan`, `external-design-interface`, `external-deep-analysis`). These set `disable-model-invocation: true` OR have a description that clearly states "Only invoke when the user explicitly requests it". Unprefixed skills (e.g., `add-collection`, `code-review`, `compile`) are proactive and auto-trigger on matching contexts.
+- **`external-` prefix** marks explicit-invocation-only skills (e.g., `external-grill-plan`, `external-design-interface`, `external-deep-analysis`). These **must** set `disable-model-invocation: true` in frontmatter — a description-level guard like "Only invoke when the user explicitly requests it" is *not* sufficient on its own (the description still loads into the auto-trigger listing and burns context budget). The same applies to user-only skills without the prefix (e.g., `gaea2-load`, `reduce-file`). Unprefixed proactive skills (e.g., `add-collection`, `code-review`, `compile`) auto-trigger on matching contexts.
 - **Directory layout**: each skill lives at `.claude/skills/<name>/SKILL.md` with optional `references/`, `scripts/`, `assets/` sidecars.
 - **Frontmatter style**: `allowed-tools:` uses YAML array syntax `[Read, Edit, Write]` in this repo (the skill schema also accepts space-separated strings, but the repo is consistent on arrays).
-- **Self-consistency note for this skill**: `external-skill-creator` intentionally relies on its description-level guard ("Only invoke when the user explicitly requests it") rather than `disable-model-invocation: true`, because it is occasionally delegated from other skills via the Skill tool and those call paths need the description to be discoverable in context. If you spawn a new creator/audit-style skill that never needs programmatic invocation, prefer `disable-model-invocation: true`.
 
 ## Creating a Skill
 
@@ -74,7 +74,7 @@ All fields are optional. Only `description` is recommended so Claude can decide 
 - `when_to_use`: Additional trigger phrases or example requests. Appended to `description` in the listing; shares the 1,536-char cap.
 
 **Invocation control**
-- `disable-model-invocation: true` — Claude cannot auto-invoke; only the user can trigger with `/name`. Use for workflows with side effects (commits, deploys) or that must be user-initiated. When set, the description is not loaded into context.
+- `disable-model-invocation: true` — Claude cannot auto-invoke; only the user can trigger with `/name` (chained programmatic invocation from another skill still works). Use for workflows with side effects (commits, deploys) or that must be user-initiated. When set, the description is **not loaded into context** — the budget cost is zero, so you can keep a long, human-readable description for `/help` and source-tree readers without competing for the per-session description budget.
 - `user-invocable: false` — hide from the `/` menu. Use for background-knowledge skills Claude should load automatically but users shouldn't type by hand. **Note**: this controls menu visibility only, not Skill-tool access — Claude can still invoke the skill programmatically. To block programmatic invocation, use `disable-model-invocation: true`.
 - `paths`: Comma-separated string or YAML list of glob patterns. When set, Claude auto-loads the skill only when working with matching files.
 - `argument-hint`: Autocomplete hint, e.g. `[issue-number]`.
@@ -143,7 +143,11 @@ The description field is the primary mechanism that determines whether Claude in
 - Aim for 100-200 words — concise but comprehensive.
 - If trigger phrases are long or numerous, move them into `when_to_use` so the primary `description` stays scannable.
 
-**Prefer the frontmatter mechanism over prompt-level guards.** If a skill should only be invoked manually, set `disable-model-invocation: true` in frontmatter — this is a hard guarantee, not a prompt hedge. Description language like "Never trigger autonomously" helps as a fallback and for repo conventions, but `disable-model-invocation: true` is the authoritative mechanism. Trade-off: when set, the description is not loaded into Claude's context, so discovery via natural-language phrasing is lost and the user must type `/skill-name` directly.
+**Prefer the frontmatter mechanism over prompt-level guards.** If a skill should only be invoked manually, set `disable-model-invocation: true` in frontmatter — this is a hard guarantee, not a prompt hedge. Description language like "Never trigger autonomously" is **not a substitute**: the description still loads, still consumes the per-session budget, and Claude can still match against it. Treat the two as decoupled: the flag controls invocation, the description is for human readers.
+
+A frequent misconfiguration in this repo's history was descriptions that self-declared manual-only ("Only invoke when the user explicitly requests it") without the flag set — wasting context budget and failing to guarantee non-invocation. When auditing or revising, treat that combination as a Critical finding.
+
+The natural-language-discovery loss is real but usually intentional: skills that genuinely need to be user-invoked (because they have side effects, are expensive, or must be explicit) shouldn't be auto-triggered by phrase-matching anyway. If you find yourself wanting both auto-trigger AND manual-only behavior, the requirement is contradictory — pick one.
 
 **Triggering behavior:** Claude only consults skills for tasks it can't easily handle on its own. Simple, one-step queries may not trigger a skill even if the description matches perfectly. Complex, multi-step, or specialized queries reliably trigger skills when the description matches.
 
@@ -206,10 +210,11 @@ When the user asks to review, audit, or evaluate an existing skill, walk this ch
 - No stale fields: `compatibility`, `license`, `metadata` are not part of the current schema — remove if present
 
 **Invocation discipline**
-- If the skill must be manual-only, `disable-model-invocation: true` is set in frontmatter (hard guarantee). A description-level "Never trigger autonomously" guard is a softer fallback — acceptable for repo conventions but not a substitute
+- If the skill must be manual-only, `disable-model-invocation: true` is set in frontmatter — this is the only hard guarantee
+- **Misalignment check (Critical)**: if `description:` self-declares manual-only ("Only invoke when the user explicitly requests it", "Never trigger autonomously", "/external-…"), `disable-model-invocation: true` **must** also be set. Description-only guards waste the per-session budget *and* fail to actually prevent auto-invocation. Search the listing for skills whose description claims manual-only but lack the flag — that is a bug, not a stylistic choice
 - If the skill is proactive, description uses pushy language ("ALSO use proactively when…") with concrete detection cues
 - If the skill should scope to specific file types, `paths:` globs are set rather than relying on description matching
-- `user-invocable: false` is set only for background-knowledge skills the user shouldn't type directly
+- `user-invocable: false` is set only for background-knowledge skills the user shouldn't type directly (note: this controls `/` menu visibility, not Skill-tool access — use `disable-model-invocation: true` to actually block model invocation)
 
 **Body quality**
 - SKILL.md body under 500 lines; if longer, detail has been moved to `references/` with clear pointers

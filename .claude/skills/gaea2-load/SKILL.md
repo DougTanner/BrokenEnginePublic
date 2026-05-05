@@ -1,8 +1,9 @@
 ---
 name: gaea2-load
-description: Load a Gaea 2 .terrain file and convert it to an editable Markdown view (Mermaid topology + per-node property blocks) under Temp/. Use this skill whenever the user wants to read, inspect, or prepare to edit a Gaea 2 .terrain file — phrases like "load this terrain", "convert .terrain to markdown", "let me see this terrain graph", "open the gaea file", or invoking `/gaea2-load`. Pairs with /gaea2-modify and /gaea2-save for round-trip editing.
+description: Load a Gaea 2 .terrain file into an editable Markdown view (Mermaid topology + per-node properties) under Temp/. Pairs with /gaea2-modify and /gaea2-save for round-trip editing.
 argument-hint: <path-to-.terrain>
 allowed-tools: [Read, Write, Bash, PowerShell]
+disable-model-invocation: true
 ---
 
 # gaea2-load

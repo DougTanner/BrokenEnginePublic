@@ -1,7 +1,8 @@
 ---
 name: reduce-file
-description: Analyzes a C++ file that exceeds size guidelines and produces a plan for refactoring or splitting it into smaller files. Use when a .h/.cpp file exceeds 500-1000 lines. Only invoke when the user explicitly requests it (e.g., "/reduce-file", "this file is too big", "split this file") or when another skill explicitly instructs it. Never trigger autonomously from general code questions or during routine code changes.
+description: Analyzes a C++ file that exceeds size guidelines and produces a plan for refactoring or splitting it into smaller files. Use when a .h/.cpp file exceeds 500-1000 lines. Invoked via /reduce-file or chained from /code-review.
 allowed-tools: [Read, Grep, Glob, Bash]
+disable-model-invocation: true
 user-invocable: true
 ---
 

@@ -231,9 +231,15 @@ extern Wrapper gSunMoonNoonStart;     // sun angle where noon plateau begins (de
 extern Wrapper gSunMoonNoonEnd;       // sun angle where noon plateau ends (default XM_PIDIV2 + XM_PIDIV8)
 extern Wrapper gSunMoonEvening;       // sun angle where evening lerp begins (default XM_PI - XM_PIDIV16)
 extern Wrapper gSunMoonNightStart;    // sun angle where full night begins (default XM_PI)
-extern Wrapper gSunMoonMoonBlueTint;  // moon-floor B-channel multiplier (default 1.33)
-extern Wrapper gSunMoonSunIntensity;  // overall scalar on f4SunColor RGB (default 1.0)
-extern Wrapper gSunMoonMoonIntensity; // overall scalar on f4MoonColor RGB (default 1.0)
+extern Wrapper gSunMoonSunIntensityTerrain;  // per-target sun multiplier on f4SunColor RGB (default 1.0)
+extern Wrapper gSunMoonSunIntensityWater;
+extern Wrapper gSunMoonSunIntensityObjects;
+extern Wrapper gSunMoonSunIntensitySmoke;
+extern Wrapper gSunMoonMoonIntensityTerrain; // per-target moon multiplier on f4MoonColor RGB (default 0.05)
+extern Wrapper gSunMoonMoonIntensityWater;
+extern Wrapper gSunMoonMoonIntensityObjects;
+extern Wrapper gSunMoonMoonIntensitySmoke;
+extern Wrapper gSunMoonMoonBlueTint;  // moon-floor B-channel multiplier (default 2.0)
 extern Wrapper gSunMoonMoonriseStart;         // sun angle where moon color begins to ramp in (default XM_PI - XM_PIDIV32)
 extern Wrapper gSunMoonMoonriseEnd;           // sun angle where moon color is fully ramped in (default XM_PI - XM_PIDIV128)
 extern Wrapper gSunMoonMoonsetStart;          // sun angle where moon color begins to ramp out (default XM_PIDIV128)
@@ -434,8 +440,6 @@ extern Wrapper gLightingObjects;
 extern Wrapper gLightingObjectsAdd;
 extern Wrapper gLightingDayFinalMultiplier;
 extern Wrapper gLightingNightFinalMultiplier;
-extern Wrapper gMoonBrightness;
-extern Wrapper gMoonWaterBrightness;
 
 // Water specular lighting
 extern Wrapper gLightingWaterAmbientPower;

@@ -30,7 +30,7 @@ Single `VirtualAlloc` (`MEM_RESERVE | MEM_COMMIT`), sized by cumulative `RoundUp
 
 ### Versioned I/O
 
-`WriteVersionedFile<T>` / `ReadVersionedFile<T>` prefix version + size. The `has_binary_stream_operators_v` trait routes trivially-copyable types through byte copy and non-trivial types through `operator<<` / `operator>>`. Matching version with mismatched size triggers `DEBUG_BREAK` (likely missing sub-version bump).
+`WriteVersionedFile<T>` / `ReadVersionedFile<T>` prefix version + size. The `has_binary_stream_operators_v` trait routes trivially-copyable types through byte copy and non-trivial types through `operator<<` / `operator>>`. Matching version with mismatched size triggers `DEBUG_BREAK` (likely missing sub-version bump). Writes are atomic by default — staged through a temp sibling and `MoveFileExW`-replaced — and return success; readers never observe a torn file even on crash mid-write.
 
 ## DifferenceStream
 

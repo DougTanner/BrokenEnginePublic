@@ -79,6 +79,8 @@ void ParseFleetSync(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawP
 		rOutFleets.resize(static_cast<size_t>(iFleetCount));
 		for (int64_t i = 0; i < iFleetCount; ++i)
 		{
+			rOutFleets.at(static_cast<size_t>(i)).guid.uiHigh = engine::ReadUint64(pCursor);
+			rOutFleets.at(static_cast<size_t>(i)).guid.uiLow = engine::ReadUint64(pCursor);
 			int64_t iMemberCount = engine::ReadInt64(pCursor);
 			rOutFleets.at(static_cast<size_t>(i)).iFlagshipIndex = engine::ReadInt64(pCursor);
 			rOutFleets.at(static_cast<size_t>(i)).fNavigationDelay = engine::ReadFloat(pCursor);

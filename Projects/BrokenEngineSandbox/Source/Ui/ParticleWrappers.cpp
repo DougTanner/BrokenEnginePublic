@@ -5,7 +5,7 @@ namespace game
 
 // Missile explosion particles
 engine::Wrapper gMissileExplosionParticleWidth(0.75f, 0.0f, 3.0f);
-engine::Wrapper gMissileExplosionParticleLength(0.5f, 0.0f, 3.0f);
+engine::Wrapper gMissileExplosionParticleLength(2.0f, 0.0f, 3.0f);
 engine::Wrapper gMissileExplosionParticleLengthSpread(2.0f, 0.0f, 6.0f);
 engine::Wrapper gMissileExplosionParticlePositionJitter(0.5f, 0.0f, 10.0f);
 engine::Wrapper gMissileExplosionParticleVelocityBase(4.0f, 0.0f, 10.0f);
@@ -15,8 +15,8 @@ engine::Wrapper gMissileExplosionParticleVerticalVelocitySpread(3.0f, 0.0f, 3.0f
 engine::Wrapper gMissileExplosionParticleVelocityDecay(5.0f, 0.0f, 6.0f);
 engine::Wrapper gMissileExplosionParticleGravity(2.0f, 0.0f, 5.0f);
 engine::Wrapper gMissileExplosionParticleVisibleIntensity(1.0f, 0.0f, 6.0f);
-engine::Wrapper gMissileExplosionParticleIntensitySpread(6.0f, 0.0f, 6.0f);
-engine::Wrapper gMissileExplosionParticleIntensityDecay(3.0f, 0.0f, 5.0f);
+engine::Wrapper gMissileExplosionParticleIntensitySpread(5.0f, 0.0f, 6.0f);
+engine::Wrapper gMissileExplosionParticleIntensityDecay(2.5f, 0.0f, 5.0f);
 engine::Wrapper gMissileExplosionParticleIntensityPower(0.75f, 0.0f, 5.0f);
 
 // Player explosion particles

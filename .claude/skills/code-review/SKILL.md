@@ -1,7 +1,7 @@
 ---
 name: code-review
 description: Reviews C++ code changes for bugs, implementation correctness, and simplification opportunities. Use this skill after making C++ code changes to catch logic errors and correctness issues.
-allowed-tools: [Read, Grep, Glob]
+allowed-tools: [Read, Grep, Glob, WebFetch]
 ---
 
 # Code Review
@@ -176,6 +176,38 @@ Evaluate the changes holistically:
 - **Function size**: Aim for 50-100 lines max per function. Soft guideline — some functions are legitimately large. If a modified function has grown past this, flag with "function does too much" and recommend a split only if a natural responsibility boundary exists.
 
 For micro-simplification opportunities (duplicated snippets, unnecessary intermediate variables, over-complicated expressions), recommend running `/simplify` on the changed files rather than listing them here — that skill owns surface-level simplification. For nesting-depth / style complaints, `/code-style-review` owns those.
+
+### 9. Severity Prefixes
+
+Use these prefixes on findings so the author knows what blocks the change vs what is optional. Items without a prefix are **required** (must address):
+
+- *(no prefix)* — Required change. Must address.
+- **Critical:** — Blocks the change. Security vulnerability, data loss, broken functionality, determinism break, allocation tracker violation.
+- **Nit:** — Minor, optional. Author may ignore — naming preferences, micro-style.
+- **Optional:** / **Consider:** — Suggestion worth considering but not required.
+
+Reconciliation with existing markers: the `✗` glyph in Engine Pattern Issues is equivalent to no-prefix (required). File-size `[REQUIRED]` is no-prefix; file-size `[RECOMMEND]` is **Optional:**. Pick one scheme per finding rather than layering both.
+
+### 10. Honesty (Anti-Sycophancy)
+
+- **Don't rubber-stamp.** "LGTM" without evidence of review helps no one.
+- **Don't soften real issues.** "This might be a minor concern" when it's a bug that will hit production is dishonest.
+- **Quantify problems when possible.** "This will allocate ~200 bytes per frame and trip the allocation tracker" beats "this could be slow."
+- **Push back on approaches with clear problems.** Sycophancy is a failure mode in reviews.
+
+### 11. API Verification
+
+For non-obvious API calls — Vulkan 1.2 entry points (especially extensions), DirectXMath alignment-sensitive ops, C++23 features new to the project, third-party library calls used at fewer than ~3 existing call sites — WebFetch the official spec before accepting the call. Cite the URL or section in the review note.
+
+- Vulkan 1.2 spec: https://registry.khronos.org/vulkan/specs/1.2-extensions/man/html/
+- DirectXMath: https://learn.microsoft.com/en-us/windows/win32/dxmath/ovw-xnamath-reference
+- C++23 / STL: https://en.cppreference.com/
+
+Skip verification for STL basics, `XMVector3Normalize`-class staples, and patterns already used at multiple call sites in the engine — those are battle-tested. Training data contains outdated patterns that look correct but break against current versions.
+
+If WebFetch turns up nothing authoritative, mark the finding:
+
+> UNVERIFIED: I could not find official documentation for this pattern. This is based on training data and may be outdated. Verify before using in production.
 
 ## Output Format
 
