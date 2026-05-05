@@ -89,6 +89,22 @@ public:
 	void DestroyLightingSpreadBuffers();
 
 	Buffer mQuadsVertexBuffer;
+
+	// Visible-area mesh LOD: each LOD divides total quad count by 4 (each dim by 2). LOD k starts at
+	// eyeDistance >= kfMinEyeHeight * 4^k. All LODs concatenated into mTerrainMeshBuffer / mWaterMeshBuffer
+	// so the pipeline binds once and switches LODs by writing per-frame indirect-draw params (firstIndex,
+	// indexCount, vertexOffset) — no command-buffer re-record on LOD change.
+	static constexpr int kiVisibleAreaLodCount = 4;
+	struct VisibleAreaMeshLod
+	{
+		int64_t iIndexOffset;   // First index for this LOD inside the concat index region
+		int64_t iIndexCount;
+		int64_t iVertexOffset;  // Vertex base added by vkCmdDrawIndexedIndirect's vertexOffset
+		int64_t iQuadCountX;    // For visible-area snap math
+		int64_t iQuadCountY;
+	};
+	std::array<VisibleAreaMeshLod, kiVisibleAreaLodCount> mTerrainMeshLods {};
+	std::array<VisibleAreaMeshLod, kiVisibleAreaLodCount> mWaterMeshLods {};
 	Buffer mTerrainMeshBuffer;
 	Buffer mWaterMeshBuffer;
 

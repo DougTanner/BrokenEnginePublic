@@ -6,7 +6,7 @@ namespace engine
 void FrameStaticData::Write(std::ostream& rStream) const
 {
 	common::Write(rStream, vecArea);
-	common::Write(rStream, eIslandsFlip);
+	common::Write(rStream, fIslandRotation);
 	common::Write(rStream, f2IslandOffset);
 	navData.Write(rStream);
 }
@@ -14,7 +14,7 @@ void FrameStaticData::Write(std::ostream& rStream) const
 void FrameStaticData::Read(std::istream& rStream)
 {
 	common::Read(rStream, vecArea);
-	common::Read(rStream, eIslandsFlip);
+	common::Read(rStream, fIslandRotation);
 	common::Read(rStream, f2IslandOffset);
 	navData.Read(rStream);
 }

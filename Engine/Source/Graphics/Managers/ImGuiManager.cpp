@@ -275,10 +275,6 @@ void ImGuiManager::Prepare(int64_t iFramebuffer)
 
 	mpTweaksScreen->Render();
 
-	// DT: TEMP - sun/moon debug overlay rendered unconditionally so it stays visible while Tweaks is open
-	// and while a Tweaks slider is being dragged.
-	mpHudScreen->RenderSunMoonDebugOverlay();
-
 	gpProfileManager->RenderImPlotGraphs();
 
 	ImGui::Render();

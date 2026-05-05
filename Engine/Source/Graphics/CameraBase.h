@@ -28,6 +28,11 @@ public:
 	float mfShake = 0.0f;
 	int64_t miFrame = 0;
 
+	// Visible-area LOD (read by renderer to pick which mesh-LOD region to draw). Equation:
+	// floor(log4(eyeDistance / kfMinEyeHeight)) clamped to BufferManager::kiVisibleAreaLodCount-1.
+	// Higher LOD = fewer mesh quads (each dim halved per LOD; total quads /4 per LOD).
+	int miVisibleAreaLod = 0;
+
 	CameraBase() = default;
 	virtual ~CameraBase() = default;
 
@@ -57,6 +62,15 @@ protected:
 	float mfSunAngle = 1.4f;
 
 	void CalculateMatricesAndVisibleArea();
+
+private:
+
+	XMFLOAT2 mf2LatchedQuadSize {};
+	// 0 is unreachable as a real bucket (eye distance always >= kfEyeHeightMin = 150), so the
+	// first-frame change-detect always fires. Using INT_MIN here would cause signed-integer
+	// overflow when the hysteresis check evaluates `miVisibleAreaZoomBucket - 1`.
+	int miVisibleAreaZoomBucket = 0;
+	uint32_t muiVisibleAreaLatchKey = 0;
 };
 
 } // namespace engine

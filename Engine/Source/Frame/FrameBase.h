@@ -19,7 +19,6 @@
 #include "Frame/Collections/WindTrails/WindTrails.h"
 #endif
 #include "Frame/FrameUtils.h"
-#include "Graphics/IslandsFlip.h"
 
 namespace game
 {

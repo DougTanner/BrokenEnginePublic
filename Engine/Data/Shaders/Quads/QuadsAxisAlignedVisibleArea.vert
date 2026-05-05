@@ -29,6 +29,7 @@ layout (location = 1) out vec4 f4OutParams;
 layout (location = 2) out vec2 f2OutTexcoord;
 layout (location = 4) out vec2 f2OutWorldPosition;
 layout (location = 5) out flat vec2 f2OutWorldCenter;
+layout (location = 6) out flat vec2 f2OutRotationCosSin;
 
 void main()
 {
@@ -56,14 +57,23 @@ void main()
 		f4VisibleArea = globalLayout.f4LightingArea;
 	}
 
-	float fWorldX = pQuads[gl_InstanceIndex].f4VertexRect.x + f2InQuadVertex.x * pQuads[gl_InstanceIndex].f4VertexRect.z;
-	float fWorldY = pQuads[gl_InstanceIndex].f4VertexRect.y + f2InQuadVertex.y * pQuads[gl_InstanceIndex].f4VertexRect.w;
+	// fRotation is per-quad angle in radians; 0 (default) = identity (no rotation).
+	float fCos = cos(pQuads[gl_InstanceIndex].fRotation);
+	float fSin = sin(pQuads[gl_InstanceIndex].fRotation);
+	float fLocalX = (f2InQuadVertex.x - 0.5f) * pQuads[gl_InstanceIndex].f4VertexRect.z;
+	float fLocalY = (f2InQuadVertex.y - 0.5f) * pQuads[gl_InstanceIndex].f4VertexRect.w;
+	float fRotX = fLocalX * fCos - fLocalY * fSin;
+	float fRotY = fLocalX * fSin + fLocalY * fCos;
+	float fCenterX = pQuads[gl_InstanceIndex].f4VertexRect.x + pQuads[gl_InstanceIndex].f4VertexRect.z * 0.5f;
+	float fCenterY = pQuads[gl_InstanceIndex].f4VertexRect.y + pQuads[gl_InstanceIndex].f4VertexRect.w * 0.5f;
+	float fWorldX = fCenterX + fRotX;
+	float fWorldY = fCenterY + fRotY;
 	gl_Position = vec4(-1.0f + 2.0f * (fWorldX - f4VisibleArea.x) / (f4VisibleArea.z - f4VisibleArea.x),
 	                    1.0f - 2.0f * (fWorldY - f4VisibleArea.y) / (f4VisibleArea.w - f4VisibleArea.y),
 	                    0.0f,
 	                    1.0f);
 
 	f2OutWorldPosition = vec2(fWorldX, fWorldY);
-	f2OutWorldCenter = vec2(pQuads[gl_InstanceIndex].f4VertexRect.x + pQuads[gl_InstanceIndex].f4VertexRect.z * 0.5f,
-	                        pQuads[gl_InstanceIndex].f4VertexRect.y + pQuads[gl_InstanceIndex].f4VertexRect.w * 0.5f);
+	f2OutWorldCenter = vec2(fCenterX, fCenterY);
+	f2OutRotationCosSin = vec2(fCos, fSin);
 }

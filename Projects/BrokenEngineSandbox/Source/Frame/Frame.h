@@ -212,15 +212,47 @@ struct Frame
 std::ostream& operator<<(std::ostream& rStream, const Frame& rCurrent);
 std::istream& operator>>(std::istream& rStream, Frame& rCurrent);
 
-// Deterministic island offset within a grid cell, computed from grid coordinate hash
-inline XMFLOAT2 ComputeIslandOffset(engine::GridCoord coord)
+// Pre-mix coord.ToKey() into a 32-bit seed where both x and y bits influence the result.
+// Required because ToKey() packs x into bits 32-63: a naive `static_cast<uint32_t>(key)` would
+// drop x entirely. The 64-bit multiply spreads every input bit through the upper half of the
+// product, and the distinct multiplier per use case decorrelates offset and rotation streams.
+// RandomEngine's constructor then runs full splitmix64 on the 32-bit seed to produce its state.
+inline uint32_t SeedFromGridCoord(engine::GridCoord coord, uint64_t uiMultiplier)
 {
-	uint64_t uiKey = coord.ToKey() ^ 0x9E3779B97F4A7C15ull;
-	uint32_t uiHashX = static_cast<uint32_t>((uiKey * 2'654'435'761ull) >> 16);
-	uint32_t uiHashY = static_cast<uint32_t>((uiKey * 2'246'822'519ull) >> 16);
-	float fOffsetX = Frame::kfMaxIslandOffsetX * static_cast<float>(uiHashX % 1024) / 1023.0f;
-	float fOffsetY = Frame::kfMaxIslandOffsetY * static_cast<float>(uiHashY % 1024) / 1023.0f;
+	return static_cast<uint32_t>((coord.ToKey() * uiMultiplier) >> 32);
+}
+
+// Deterministic island offset (top-left of UNROTATED island bounding box, relative to cell top-left)
+// such that the ROTATED axis-aligned bounding box still fits inside the cell. Offset is sampled
+// uniformly within the rotation-shrunk valid range; range collapses to a point if the rotated
+// bbox equals the cell, which is a design boundary (200x200 island in 300x300 cell rotated to 45
+// degrees has bbox 283x283, leaving ~17px play in each axis).
+inline XMFLOAT2 ComputeIslandOffset(engine::GridCoord coord, float fAngle)
+{
+	float fAbsCos = std::abs(std::cos(fAngle));
+	float fAbsSin = std::abs(std::sin(fAngle));
+	float fRotHalfW = 0.5f * (Frame::kfIslandWidth * fAbsCos + Frame::kfIslandHeight * fAbsSin);
+	float fRotHalfH = 0.5f * (Frame::kfIslandWidth * fAbsSin + Frame::kfIslandHeight * fAbsCos);
+
+	// Range for top-left of unrotated bbox so the rotated AABB stays inside the cell.
+	float fMinOffsetX = fRotHalfW - 0.5f * Frame::kfIslandWidth;
+	float fMaxOffsetX = Frame::kfCellWidth - 0.5f * Frame::kfIslandWidth - fRotHalfW;
+	float fMinOffsetY = fRotHalfH - 0.5f * Frame::kfIslandHeight;
+	float fMaxOffsetY = Frame::kfCellHeight - 0.5f * Frame::kfIslandHeight - fRotHalfH;
+	float fRangeX = std::max(0.0f, fMaxOffsetX - fMinOffsetX);
+	float fRangeY = std::max(0.0f, fMaxOffsetY - fMinOffsetY);
+
+	common::RandomEngine random(SeedFromGridCoord(coord, 0xBF58476D1CE4E5B9ull));
+	float fOffsetX = fMinOffsetX + common::Random(fRangeX, random);
+	float fOffsetY = fMinOffsetY + common::Random(fRangeY, random);
 	return {fOffsetX, fOffsetY};
+}
+
+// Deterministic island rotation [0, 2pi), computed from grid coordinate hash. Distinct multiplier from ComputeIslandOffset.
+inline float ComputeIslandRotation(engine::GridCoord coord)
+{
+	common::RandomEngine random(SeedFromGridCoord(coord, 0x94D049BB133111EBull));
+	return common::Random(2.0f * DirectX::XM_PI, random);
 }
 
 } // namespace game

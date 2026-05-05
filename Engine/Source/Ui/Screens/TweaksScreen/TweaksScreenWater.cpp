@@ -149,6 +149,12 @@ void TweaksScreenBase::RenderWaterSection()
 			WrapperSlider("Water Terrain Height", kiSection);
 			WrapperSlider("Water Terrain Fade", kiSection);
 
+			WrapperSeparatorText("Color Noise");
+			WrapperSlider("Water Color Noise Weight One", kiSection);
+			WrapperSlider("Water Color Noise Multiplier One", kiSection);
+			WrapperSlider("Water Color Noise Weight Two", kiSection);
+			WrapperSlider("Water Color Noise Multiplier Two", kiSection);
+
 			ImGui::EndTabItem();
 		}
 		ImGui::EndTabBar();

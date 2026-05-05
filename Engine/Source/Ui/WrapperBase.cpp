@@ -124,6 +124,10 @@ Wrapper gWaterNoiseFrequency(0.007f, 0.0f, 0.02f);
 Wrapper gWaterNoiseAmount(1.4f, 0.0f, 2.0f);
 Wrapper gWaterColorNoiseFrequency(0.0013f, 0.0f, 0.01f);
 Wrapper gWaterColorNoiseAmount(0.1f, 0.0f, 0.2f);
+Wrapper gWaterColorNoiseWeightOne(-1.5f, -2.0f, 2.0f);
+Wrapper gWaterColorNoiseWeightTwo(0.5f, -2.0f, 2.0f);
+Wrapper gWaterColorNoiseMultiplierOne(0.2f, 0.0f, 1.0f);
+Wrapper gWaterColorNoiseMultiplierTwo(1.5f, 0.0f, 4.0f);
 
 Wrapper gWaterDepthLutFeather(4.0f, 0.01f, 10.0f);
 Wrapper gWaterDepthColorFeather(5.2f, 0.1f, 20.0f);
@@ -202,23 +206,29 @@ bool gbUseCombineCurveNew = true;
 // Water normal map atlas: 3 weighted samples each indexed into TextureManager::kpWaterNormalCrcs.
 // Order matches the per-sample row UI in TweaksScreenWater.cpp (see Ui/CLAUDE.md ordering convention).
 // Index defaults: One=0 (texture "0"), Two=1 (texture "3"), Three=11 (SeaWaves) — must match TextureManager::kiWaterNormalSeaWavesIndex.
-Wrapper gWaterNormalIndexOne(int64_t {11}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
-Wrapper gLightingSampledNormalsOneSize(0.4f, 0.05f, 1.0f);
+// 11 Sea Waves 0.25
+// 3 FoamB 0.25
+Wrapper gWaterNormalIndexOne(int64_t {3}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
+Wrapper gLightingSampledNormalsOneSize(0.25f, 0.05f, 1.0f);
 Wrapper gLightingSampledNormalsWeightOneMin(2.0f, 0.0f, 4.0f);
-Wrapper gLightingSampledNormalsWeightOneMax(0.5f, 0.0f, 4.0f);
-Wrapper gWaterNormalRotationOne(0.3f, -XM_PI, XM_PI);
+Wrapper gLightingSampledNormalsWeightOneMax(2.0f, 0.0f, 4.0f);
+Wrapper gWaterNormalRotationOne(0.0f, -XM_PI, XM_PI);
 // 4 GreenCalm 0.04
-// 12 SeaWaves 0.06
-Wrapper gWaterNormalIndexTwo(int64_t {12}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
-Wrapper gLightingSampledNormalsTwoSize(0.06f, 0.025f, 0.1f);
-Wrapper gLightingSampledNormalsWeightTwoMin(1.0f, 0.0f, 4.0f);
-Wrapper gLightingSampledNormalsWeightTwoMax(2.0f, 0.0f, 4.0f);
-Wrapper gWaterNormalRotationTwo(0.16f, -XM_PI, XM_PI);
-Wrapper gWaterNormalIndexThree(int64_t {3}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
+// 12 SeaWaves 0.02
+// 16 WaterFall 0.04
+// 2 Foam 0.03
+// 7 Lake 0.06
+Wrapper gWaterNormalIndexTwo(int64_t {4}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
+Wrapper gLightingSampledNormalsTwoSize(0.03f, 0.025f, 0.1f);
+Wrapper gLightingSampledNormalsWeightTwoMin(0.5f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsWeightTwoMax(1.0f, 0.0f, 4.0f);
+Wrapper gWaterNormalRotationTwo(-0.1f, -XM_PI, XM_PI);
+// 12 SeaWavesB 0.03
+Wrapper gWaterNormalIndexThree(int64_t {12}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
 Wrapper gLightingSampledNormalsThreeSize(0.04f, 0.025f, 0.1f);
-Wrapper gLightingSampledNormalsWeightThreeMin(0.25f, 0.0f, 4.0f);
-Wrapper gLightingSampledNormalsWeightThreeMax(1.5f, 0.0f, 4.0f);
-Wrapper gWaterNormalRotationThree(-0.3f, -XM_PI, XM_PI);
+Wrapper gLightingSampledNormalsWeightThreeMin(0.75f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsWeightThreeMax(2.0f, 0.0f, 4.0f);
+Wrapper gWaterNormalRotationThree(0.2f, -XM_PI, XM_PI);
 
 Wrapper gLightingSampledNormalsSpeedMin(0.025f, 0.0f, 0.1f);
 Wrapper gLightingSampledNormalsSpeedMax(0.05f, 0.0f, 0.1f);
@@ -237,9 +247,9 @@ Wrapper gLightingTerrainBelowBasePower(0.3f, 0.1f, 1.0f);
 Wrapper gLightingObjects(4.0f, 0.0f, 8.0f);
 Wrapper gLightingObjectsAdd(0.2f, 0.0f, 1.0f);
 Wrapper gLightingDayFinalMultiplier(0.7f, 0.0f, 1.0f);
-Wrapper gLightingNightFinalMultiplier(1.0f, 0.0f, 1.0f);
-Wrapper gMoonBrightness(0.03f, 0.0f, 0.1f);
-Wrapper gLightingWaterMoonBrightness(22.0f, 0.5f, 30.0f);
+Wrapper gLightingNightFinalMultiplier(0.9f, 0.0f, 1.0f);
+Wrapper gMoonBrightness(0.05f, 0.0f, 0.1f);
+Wrapper gMoonWaterBrightness(1.0f, 0.5f, 10.0f);
 
 // Water specular lighting
 Wrapper gLightingWaterAmbientPower(1.0f, 0.1f, 6.0f);
@@ -269,18 +279,18 @@ Wrapper gLightingWaterReflectedFresnel(0.9f, 0.0f, 1.0f);
 Wrapper gLightingWaterReflectedIntensity(0.4f, 0.0f, 5.0f);
 
 // Water skybox
-Wrapper gLightingWaterSkyboxSunBias(3.0f, 0.0f, 4.0f);
-Wrapper gLightingWaterSkyboxNormalSoften(0.6f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxSunBias(3.3f, 0.0f, 4.0f);
+Wrapper gLightingWaterSkyboxNormalSoften(0.69f, 0.0f, 1.0f);
 Wrapper gLightingWaterSkyboxNormalBlendWave(0.15f, 0.0f, 0.4f);
 Wrapper gLightingWaterSkyboxIntensity(0.001f, 0.0005f, 0.004f);
 Wrapper gLightingWaterSkyboxAdd(0.2f, 0.0f, 2.0f);
 
-Wrapper gLightingWaterSkyboxOne(1200.0f, 0.0f, 3000.0f);
+Wrapper gLightingWaterSkyboxOne(1400.0f, 0.0f, 3000.0f);
 Wrapper gLightingWaterSkyboxOnePower(150.0f, 50.0f, 400.0f);
-Wrapper gLightingWaterSkyboxTwo(280.0f, 0.0f, 400.0f);
-Wrapper gLightingWaterSkyboxTwoPower(4.0f, 2.0f, 10.0f);
-Wrapper gLightingWaterSkyboxThree(200.0f, 1.0f, 800.0f);
-Wrapper gLightingWaterSkyboxThreePower(2.0f, 0.01f, 2.0f);
+Wrapper gLightingWaterSkyboxTwo(200.0f, 0.0f, 400.0f);
+Wrapper gLightingWaterSkyboxTwoPower(2.0f, 1.0f, 10.0f);
+Wrapper gLightingWaterSkyboxThree(300.0f, 1.0f, 800.0f);
+Wrapper gLightingWaterSkyboxThreePower(0.01f, 0.001f, 1.0f);
 Wrapper gLightingWaterSkyboxLod(6.0f, 0.0f, 10.0f);
 
 // Smoke
@@ -377,10 +387,10 @@ Wrapper gBeachFadeBottom(-0.14f, -0.2f, -0.07f);
 // Shadow
 Wrapper gShadowFeatherNoon(2.5f, 0.0f, 8.0f);
 Wrapper gShadowFeatherNoonOffset(0.92f, 0.0f, 5.0f);
-Wrapper gShadowFeatherSunset(0.05f, 0.0f, 0.5f);
+Wrapper gShadowFeatherSunset(0.3f, 0.0f, 0.5f);
 Wrapper gShadowFeatherSunsetOffset(-0.1f, -0.5f, 0.1f);
-Wrapper gShadowFeatherPower(1.7f, 0.1f, 10.0f);
-Wrapper gShadowDistanceFallof(120.0f, 10.0f, 400.0f);
+Wrapper gShadowFeatherPower(1.3f, 0.1f, 10.0f);
+Wrapper gShadowDistanceFallof(200.0f, 10.0f, 400.0f);
 Wrapper gShadowBlurSigma(9.0f, 1.0f, 20.0f);
 Wrapper gShadowAffectAmbient(0.75f, 0.0f, 1.0f);
 Wrapper gShadowHeightFadeTop(4.0f, 0.0f, 20.0f);

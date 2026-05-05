@@ -8,7 +8,6 @@ class HudScreen
 public:
 
 	void Render();
-	void RenderSunMoonDebugOverlay(); // DT: TEMP
 
 private:
 

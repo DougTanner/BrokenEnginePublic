@@ -16,6 +16,12 @@ namespace
 namespace game
 {
 
+// Mouse-wheel zoom: per-frame scroll delta nudges target height; current eases toward target
+constexpr float kfEyeHeightPerWheelTick = 0.1f;
+constexpr float kfEyeHeightBlend = 12.0f;
+constexpr float kfEyeHeightMin = 150.0f;
+constexpr float kfEyeHeightMax = 600.0f;
+
 constexpr float kfCameraPositionBlend = 8.0f;
 constexpr float kfJumpDistanceThreshold = 50.0f;
 constexpr float kfJumpDuration = 2.0f;
@@ -212,12 +218,6 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	}
 
 	mVecPreviousTargetPosition = vecTargetPosition;
-
-	// Mouse-wheel zoom: per-frame scroll delta nudges target height; current eases toward target
-	static constexpr float kfEyeHeightPerWheelTick = 0.1f;
-	static constexpr float kfEyeHeightBlend = 12.0f;
-	static constexpr float kfEyeHeightMin = 50.0f;
-	static constexpr float kfEyeHeightMax = 300.0f;
 
 	int iScrollNow = engine::gpRawInputManager->mRawInput.iScrollWheelValue;
 	if (!mbScrollWheelInitialized)

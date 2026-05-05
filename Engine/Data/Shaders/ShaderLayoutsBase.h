@@ -343,6 +343,10 @@ struct GlobalLayout
 	float fWaterColorBottom INIT;
 	float fWaterColorHeightInv INIT;
 	float fWaterColorNoiseAmount INIT;
+	float fWaterColorNoiseWeightOne INIT;
+	float fWaterColorNoiseWeightTwo INIT;
+	float fWaterColorNoiseMultiplierOne INIT;
+	float fWaterColorNoiseMultiplierTwo INIT;
 	float fWaterDirectional INIT;
 	float fWaterFresnel2 INIT;
 	float fBeachFadeTop INIT;
@@ -541,6 +545,7 @@ struct AxisAlignedQuadLayout
 	vec4 f4VertexRect INIT;
 	vec4 f4TextureRect INIT;
 	vec4 f4Params INIT;
+	float fRotation INIT; // radians; 0 = identity (no rotation). Vertex shader rotates corners around quad center.
 	uint32_t uiColor INIT;
 };
 

@@ -549,11 +549,18 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	XMVECTOR vecBaseArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	rStaticData.vecArea = ComputeFrameArea(vecBaseArea, coord);
 	rStaticData.coord = coord;
-	bool bFlipX = (std::abs(coord.x) % 2) == 1;
-	bool bFlipY = (std::abs(coord.y) % 2) == 1;
-	rStaticData.eIslandsFlip = static_cast<engine::IslandsFlip>((bFlipX ? engine::kFlipX : 0) | (bFlipY ? engine::kFlipY : 0));
-	rStaticData.f2IslandOffset = ComputeIslandOffset(coord);
-	engine::BuildCellNavData(rStaticData.navData, engine::gpIslandTerrain->mNavContour, rStaticData.vecArea, rStaticData.eIslandsFlip, rStaticData.f2IslandOffset, Frame::kfIslandWidth, Frame::kfIslandHeight);
+	rStaticData.fIslandRotation = ComputeIslandRotation(coord);
+	rStaticData.f2IslandOffset = ComputeIslandOffset(coord, rStaticData.fIslandRotation);
+	engine::BuildCellNavData(rStaticData.navData, engine::gpIslandTerrain->mNavContour, rStaticData.vecArea, rStaticData.fIslandRotation, rStaticData.f2IslandOffset, Frame::kfIslandWidth, Frame::kfIslandHeight);
+
+#if defined(BT_SERVER)
+	LOG(kTemp, kInfo, "Server CreateFrame coord=({}, {}) rotation={} rad ({} deg) offset=({}, {})",
+		coord.x, coord.y,
+		common::Wb(rStaticData.fIslandRotation, 4),
+		common::Wb(rStaticData.fIslandRotation * (180.0f / DirectX::XM_PI), 1),
+		common::Wb(rStaticData.f2IslandOffset.x, 2),
+		common::Wb(rStaticData.f2IslandOffset.y, 2));
+#endif
 }
 
 void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rData, engine::alignment_t playerAlignment)
@@ -760,9 +767,9 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	engine::FrameStaticData& rStaticData = rFrames.staticData;
 	rStaticData.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	rStaticData.coord = engine::kOriginCoord;
-	rStaticData.eIslandsFlip = engine::kFlipNone;
-	rStaticData.f2IslandOffset = ComputeIslandOffset(engine::kOriginCoord);
-	engine::BuildCellNavData(rStaticData.navData, engine::gpIslandTerrain->mNavContour, rStaticData.vecArea, rStaticData.eIslandsFlip, rStaticData.f2IslandOffset, Frame::kfIslandWidth, Frame::kfIslandHeight);
+	rStaticData.fIslandRotation = 0.0f; // forced axis-aligned for main menu
+	rStaticData.f2IslandOffset = ComputeIslandOffset(engine::kOriginCoord, rStaticData.fIslandRotation);
+	engine::BuildCellNavData(rStaticData.navData, engine::gpIslandTerrain->mNavContour, rStaticData.vecArea, rStaticData.fIslandRotation, rStaticData.f2IslandOffset, Frame::kfIslandWidth, Frame::kfIslandHeight);
 
 #if defined(BT_SERVER)
 	rFrames.pNext = std::make_unique<Frame>();

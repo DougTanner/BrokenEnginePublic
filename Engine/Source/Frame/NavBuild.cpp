@@ -1124,7 +1124,7 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 	LOG(kNavData, kDebug, "NavBuild: visibility graph edges={}", rContour.visEdgeA.size());
 }
 
-void XM_CALLCONV BuildCellNavData(NavData& rNavData, const NavContour& rContour, FXMVECTOR vecArea, IslandsFlip eFlip, XMFLOAT2 f2IslandOffset, float fIslandWidth, float fIslandHeight)
+void XM_CALLCONV BuildCellNavData(NavData& rNavData, const NavContour& rContour, FXMVECTOR vecArea, float fAngle, XMFLOAT2 f2IslandOffset, float fIslandWidth, float fIslandHeight)
 {
 	int32_t iVertexCount = static_cast<int32_t>(rContour.vertices.size());
 	if (iVertexCount == 0)
@@ -1132,11 +1132,14 @@ void XM_CALLCONV BuildCellNavData(NavData& rNavData, const NavContour& rContour,
 		return;
 	}
 
-	// Transform canonical UV vertices to world space
+	// Rotate canonical UV vertices around island center, then place in world space.
+	// Local axes: +U = +world.x, +V = -world.y (V is world-Y inverted).
 	float fIslandMinX = XMVectorGetX(vecArea) + f2IslandOffset.x;
 	float fIslandMaxY = XMVectorGetY(vecArea) - f2IslandOffset.y;
-	bool bFlipU = (eFlip & kFlipX) != 0;
-	bool bFlipV = (eFlip & kFlipY) != 0;
+	float fCenterX = fIslandMinX + 0.5f * fIslandWidth;
+	float fCenterY = fIslandMaxY - 0.5f * fIslandHeight;
+	float fCos = std::cos(fAngle);
+	float fSin = std::sin(fAngle);
 
 	rNavData.vertices.resize(iVertexCount);
 	for (int32_t i = 0; i < iVertexCount; ++i)
@@ -1144,19 +1147,16 @@ void XM_CALLCONV BuildCellNavData(NavData& rNavData, const NavContour& rContour,
 		float fU = rContour.vertices.at(i).x;
 		float fV = rContour.vertices.at(i).y;
 
-		if (bFlipU)
-		{
-			fU = 1.0f - fU;
-		}
-		if (bFlipV)
-		{
-			fV = 1.0f - fV;
-		}
+		float fLocalX = (fU - 0.5f) * fIslandWidth;
+		float fLocalY = (0.5f - fV) * fIslandHeight;
 
-		rNavData.vertices.at(i) = {fIslandMinX + fU * fIslandWidth, fIslandMaxY - fV * fIslandHeight};
+		float fRotX = fLocalX * fCos - fLocalY * fSin;
+		float fRotY = fLocalX * fSin + fLocalY * fCos;
+
+		rNavData.vertices.at(i) = {fCenterX + fRotX, fCenterY + fRotY};
 	}
 
-	// Copy topology (preserved across flips)
+	// Copy topology (preserved across rotation)
 	rNavData.polygonOffsets = rContour.polygonOffsets;
 	rNavData.visEdgeA = rContour.visEdgeA;
 	rNavData.visEdgeB = rContour.visEdgeB;

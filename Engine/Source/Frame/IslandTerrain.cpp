@@ -79,35 +79,34 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 	float fCellOriginX = fCellMinX + static_cast<float>(iGridX) * fCellWidth;
 	float fCellOriginMaxY = fCellMaxY + static_cast<float>(iGridY) * fCellHeight;
 
-	// Island offset within cell (deterministic from grid coord)
-	XMFLOAT2 f2Offset = game::ComputeIslandOffset({iGridX, iGridY});
+	// Rotation and offset are deterministic from grid coord. Offset depends on rotation
+	// because the rotated AABB must fit within the cell, which shrinks the valid range.
+	float fAngle = game::ComputeIslandRotation({iGridX, iGridY});
+	XMFLOAT2 f2Offset = game::ComputeIslandOffset({iGridX, iGridY}, fAngle);
 
-	// Island bounds
+	// Island center
 	float fIslandMinX = fCellOriginX + f2Offset.x;
 	float fIslandMaxY = fCellOriginMaxY - f2Offset.y;
-	float fIslandMaxX = fIslandMinX + fIslandWidth;
-	float fIslandMinY = fIslandMaxY - fIslandHeight;
+	float fCenterX = fIslandMinX + 0.5f * fIslandWidth;
+	float fCenterY = fIslandMaxY - 0.5f * fIslandHeight;
 
-	// Ocean gap: position is outside island bounds
-	if (f4Position.x < fIslandMinX || f4Position.x > fIslandMaxX ||
-		f4Position.y < fIslandMinY || f4Position.y > fIslandMaxY)
+	// Inverse-rotate world point into island-local frame
+	float fCos = std::cos(-fAngle);
+	float fSin = std::sin(-fAngle);
+	float fDx = f4Position.x - fCenterX;
+	float fDy = f4Position.y - fCenterY;
+	float fLocalX = fDx * fCos - fDy * fSin;
+	float fLocalY = fDx * fSin + fDy * fCos;
+
+	// Ocean gap: rotated point outside island AABB in local frame
+	if (std::abs(fLocalX) > 0.5f * fIslandWidth || std::abs(fLocalY) > 0.5f * fIslandHeight)
 	{
 		return mfSeaFloorElevation;
 	}
 
-	// UV within island
-	float fU = (f4Position.x - fIslandMinX) / fIslandWidth;
-	float fV = (fIslandMaxY - f4Position.y) / fIslandHeight;
-
-	// Flip from grid coord parity (same logic as CreateFrameAtCoord)
-	if ((std::abs(iGridX) % 2) == 1)
-	{
-		fU = 1.0f - fU;
-	}
-	if ((std::abs(iGridY) % 2) == 1)
-	{
-		fV = 1.0f - fV;
-	}
+	// UV from local frame; V axis is world-Y inverted
+	float fU = fLocalX / fIslandWidth + 0.5f;
+	float fV = 0.5f - fLocalY / fIslandHeight;
 
 	// Sample heightmap
 	int64_t iX = static_cast<int64_t>(fU * static_cast<float>(miHeightmapWidth - 1));

@@ -89,6 +89,16 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	RenderLightingMain(iCommandBuffer);
 	gpBufferManager->ResetSkinningAllocations(iCommandBuffer);
 
+	// Per-frame visible-area LOD draw params for terrain and water. The pipelines bind a
+	// single concat mesh buffer holding all LODs; per-frame we tell vkCmdDrawIndexedIndirect
+	// which LOD's index range and vertex base to draw. CameraBase computes miVisibleAreaLod
+	// from eye distance with 4× hysteresis bands; mesh density and snap-grid are in lockstep.
+	int iLod = std::clamp(game::gpCamera->miVisibleAreaLod, 0, BufferManager::kiVisibleAreaLodCount - 1);
+	const auto& rTerrainLod = gpBufferManager->mTerrainMeshLods[iLod];
+	const auto& rWaterLod   = gpBufferManager->mWaterMeshLods[iLod];
+	gpPipelineManager->mpPipelines[kPipelineTerrain].WriteIndirectBuffer(iCommandBuffer, 1, rTerrainLod.iIndexCount, rTerrainLod.iIndexOffset, rTerrainLod.iVertexOffset);
+	gpPipelineManager->mpPipelines[kPipelineWater].WriteIndirectBuffer(iCommandBuffer, 1, rWaterLod.iIndexCount, rWaterLod.iIndexOffset, rWaterLod.iVertexOffset);
+
 	// Phase 1: BeginRender — compute total capacities, resize GPU buffers, reset counters
 	game::FrameInterpolate::BeginRender(iCommandBuffer, rRenderInterpolates, rActiveCoords);
 

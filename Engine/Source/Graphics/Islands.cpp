@@ -11,8 +11,8 @@ Islands::Islands()
 
 	mIslands.resize(kiDefaultIslandCapacity);
 
-	// Fill initial quads from base island template at origin
-	XMFLOAT2 f2OriginOffset = game::ComputeIslandOffset(engine::kOriginCoord);
+	// Fill initial quads from base island template at origin (axis-aligned, rotation 0)
+	XMFLOAT2 f2OriginOffset = game::ComputeIslandOffset(engine::kOriginCoord, 0.0f);
 	for (size_t i = 0; i < mIslands.size(); ++i)
 	{
 		if (i == 0)
@@ -39,7 +39,7 @@ Islands::Islands()
 	mf4GlobalArea.z = game::Frame::kfBaseAreaMaxX;
 	mf4GlobalArea.w = game::Frame::kfBaseAreaMinY;
 
-	// Set beach elevation on all island slots
+	// Beach elevation default on all slots; UpdateActiveIslands fills active slots. fRotation defaults to 0 (identity).
 	for (Island& rIsland : mIslands)
 	{
 		rIsland.quad.f4Params.x = gpIslandTerrain->mfBeachElevation;
@@ -84,7 +84,7 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 		iNewCapacity = std::min(iNewCapacity, static_cast<int64_t>(shaders::kiMaxIslands));
 		mIslands.resize(static_cast<size_t>(iNewCapacity));
 
-		// Initialize new slots with beach elevation
+		// Initialize new slots with beach elevation; fRotation defaults to 0 (identity).
 		for (size_t i = static_cast<size_t>(iActiveCount); i < mIslands.size(); ++i)
 		{
 			mIslands[i].quad.f4Params.x = gpIslandTerrain->mfBeachElevation;
@@ -116,12 +116,9 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 		}
 
 		const FrameStaticData& rStaticData = it->second.staticData;
-		IslandsFlip eFlip = rStaticData.eIslandsFlip;
 		XMFLOAT2 f2Offset = rStaticData.f2IslandOffset;
 
 		Island& rIsland = mIslands[static_cast<size_t>(i)];
-		bool bFlipX = eFlip == kFlipX || eFlip == kFlipXY;
-		bool bFlipY = eFlip == kFlipY || eFlip == kFlipXY;
 
 		// Position island quad within grid cell using baked offset
 		float fCellOriginX = game::Frame::kfBaseAreaMinX + static_cast<float>(rCoord.x) * game::Frame::kfCellWidth;
@@ -131,16 +128,14 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 		rIsland.quad.f4VertexRect.z = game::Frame::kfIslandWidth;
 		rIsland.quad.f4VertexRect.w = -game::Frame::kfIslandHeight;
 
-		// Texture coords from flip state
-		rIsland.quad.f4TextureRect.x = bFlipX ? 1.0f : 0.0f;
-		rIsland.quad.f4TextureRect.z = bFlipX ? 0.0f : 1.0f;
-		rIsland.quad.f4TextureRect.y = bFlipY ? 1.0f : 0.0f;
-		rIsland.quad.f4TextureRect.w = bFlipY ? 0.0f : 1.0f;
+		// Texture rect always [0,1]^2; rotation handled in vertex shader via fRotation
+		rIsland.quad.f4TextureRect.x = 0.0f;
+		rIsland.quad.f4TextureRect.z = 1.0f;
+		rIsland.quad.f4TextureRect.y = 0.0f;
+		rIsland.quad.f4TextureRect.w = 1.0f;
 
-		// Params: beach elevation, flipX, flipY
 		rIsland.quad.f4Params.x = gpIslandTerrain->mfBeachElevation;
-		rIsland.quad.f4Params.y = bFlipX ? 1.0f : 0.0f;
-		rIsland.quad.f4Params.z = bFlipY ? 1.0f : 0.0f;
+		rIsland.quad.fRotation = rStaticData.fIslandRotation;
 	}
 
 	// Zero remaining slots (zero-width quads -> GPU culled)
@@ -149,7 +144,8 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 		mIslands[i].quad.f4VertexRect = {};
 	}
 
-	// Recompute global area from active islands
+	// Recompute global area from active islands. Each island's rotated rectangle expands its
+	// axis-aligned bound to half-extents (|w|*|cos|+|h|*|sin|, |w|*|sin|+|h|*|cos|) about its center.
 	mf4GlobalArea.x = std::numeric_limits<float>::max();
 	mf4GlobalArea.y = std::numeric_limits<float>::lowest();
 	mf4GlobalArea.z = std::numeric_limits<float>::lowest();
@@ -157,10 +153,18 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 	for (int64_t i = 0; i < iActiveCount; ++i)
 	{
 		const Island& rIsland = mIslands[static_cast<size_t>(i)];
-		mf4GlobalArea.x = std::min(mf4GlobalArea.x, rIsland.quad.f4VertexRect.x);
-		mf4GlobalArea.y = std::max(mf4GlobalArea.y, rIsland.quad.f4VertexRect.y);
-		mf4GlobalArea.z = std::max(mf4GlobalArea.z, rIsland.quad.f4VertexRect.x + rIsland.quad.f4VertexRect.z);
-		mf4GlobalArea.w = std::min(mf4GlobalArea.w, rIsland.quad.f4VertexRect.y + rIsland.quad.f4VertexRect.w);
+		float fHalfW = 0.5f * std::abs(rIsland.quad.f4VertexRect.z);
+		float fHalfH = 0.5f * std::abs(rIsland.quad.f4VertexRect.w);
+		float fAbsCos = std::abs(std::cos(rIsland.quad.fRotation));
+		float fAbsSin = std::abs(std::sin(rIsland.quad.fRotation));
+		float fRotHalfW = fHalfW * fAbsCos + fHalfH * fAbsSin;
+		float fRotHalfH = fHalfW * fAbsSin + fHalfH * fAbsCos;
+		float fCenterX = rIsland.quad.f4VertexRect.x + 0.5f * rIsland.quad.f4VertexRect.z;
+		float fCenterY = rIsland.quad.f4VertexRect.y + 0.5f * rIsland.quad.f4VertexRect.w; // w negative
+		mf4GlobalArea.x = std::min(mf4GlobalArea.x, fCenterX - fRotHalfW);
+		mf4GlobalArea.y = std::max(mf4GlobalArea.y, fCenterY + fRotHalfH);
+		mf4GlobalArea.z = std::max(mf4GlobalArea.z, fCenterX + fRotHalfW);
+		mf4GlobalArea.w = std::min(mf4GlobalArea.w, fCenterY - fRotHalfH);
 	}
 
 	// Upload all quads to storage buffer

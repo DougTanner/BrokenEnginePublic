@@ -244,7 +244,7 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		// Sun/Moon - Moon
 		{"Moon Brightness", &gMoonBrightness},
 		{"Moon Blue Tint", &gSunMoonMoonBlueTint},
-		{"Water Moon Brightness", &gLightingWaterMoonBrightness},
+		{"Water Moon Brightness", &gMoonWaterBrightness},
 		// Sun/Moon - Moon Timing
 		{"Moonrise Start", &gSunMoonMoonriseStart},
 		{"Moonrise End", &gSunMoonMoonriseEnd},
@@ -265,6 +265,10 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 		{"Water Depth", &gWaterDepth},
 		{"Water Terrain Height", &gWaterTerrainHeight},
 		{"Water Terrain Fade", &gWaterTerrainFade},
+		{"Water Color Noise Weight One", &gWaterColorNoiseWeightOne},
+		{"Water Color Noise Multiplier One", &gWaterColorNoiseMultiplierOne},
+		{"Water Color Noise Weight Two", &gWaterColorNoiseWeightTwo},
+		{"Water Color Noise Multiplier Two", &gWaterColorNoiseMultiplierTwo},
 		// Smoke - Decay
 		{"Smoke Max", &gSmokeMax},
 		{"Smoke Power", &gSmokePower},

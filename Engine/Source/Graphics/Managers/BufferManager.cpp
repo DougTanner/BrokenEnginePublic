@@ -689,25 +689,75 @@ void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<uint32_t>
 	}
 }
 
+// Build N LODs of the visible-area mesh into one concat (indices then vertices) byte stream and
+// populate per-LOD draw params. LOD k has each-dim quad count / 2^k (total / 4^k). Each LOD's
+// indices reference vertex indices starting from 0 within its own LOD; the per-LOD `iVertexOffset`
+// is supplied to vkCmdDrawIndexedIndirect via the indirect command's `vertexOffset` field at draw time.
+static void BuildLodConcatMesh(int64_t iLod0QuadX, int64_t iLod0QuadY,
+                               std::array<BufferManager::VisibleAreaMeshLod, BufferManager::kiVisibleAreaLodCount>& rLods,
+                               std::vector<uint32_t>& rIndices, std::vector<std::byte>& rVertices)
+{
+	int64_t iTotalIndices = 0;
+	int64_t iTotalVertices = 0;
+	for (int iLod = 0; iLod < BufferManager::kiVisibleAreaLodCount; ++iLod)
+	{
+		int64_t iQuadX = std::max<int64_t>(1, iLod0QuadX >> iLod);
+		int64_t iQuadY = std::max<int64_t>(1, iLod0QuadY >> iLod);
+		iTotalIndices  += 6 * iQuadX * iQuadY;
+		iTotalVertices += (iQuadX + 1) * (iQuadY + 1);
+	}
+
+	rIndices.resize(iTotalIndices);
+	rVertices.resize(2 * sizeof(float) * iTotalVertices);
+
+	int64_t iIndexCursor = 0;
+	int64_t iVertexCursor = 0;
+	for (int iLod = 0; iLod < BufferManager::kiVisibleAreaLodCount; ++iLod)
+	{
+		int64_t iQuadX = std::max<int64_t>(1, iLod0QuadX >> iLod);
+		int64_t iQuadY = std::max<int64_t>(1, iLod0QuadY >> iLod);
+		int64_t iIdxCount  = 6 * iQuadX * iQuadY;
+		int64_t iVertCount = (iQuadX + 1) * (iQuadY + 1);
+
+		std::vector<uint32_t> lodIndices(iIdxCount);
+		std::vector<std::byte> lodVertices(2 * sizeof(float) * iVertCount);
+		CreateVisibleAreaMesh(iQuadX + 1, iQuadY + 1, lodIndices, lodVertices);
+
+		std::memcpy(rIndices.data() + iIndexCursor, lodIndices.data(), iIdxCount * sizeof(uint32_t));
+		std::memcpy(rVertices.data() + iVertexCursor * 2 * sizeof(float), lodVertices.data(), lodVertices.size());
+
+		rLods[iLod] =
+		{
+			.iIndexOffset  = iIndexCursor,
+			.iIndexCount   = iIdxCount,
+			.iVertexOffset = iVertexCursor,
+			.iQuadCountX   = iQuadX,
+			.iQuadCountY   = iQuadY,
+		};
+
+		iIndexCursor  += iIdxCount;
+		iVertexCursor += iVertCount;
+	}
+}
+
 void BufferManager::CreateTerrainMesh()
 {
 	// Adding 1 to match fQuadWidth exactly in visible area
-	auto [iTerrainQuadX, iTerrainQuadY] = gpTextureManager->DetailTextureSize(gWorldDetail.Get());
-	iTerrainQuadX -= 1;
-	iTerrainQuadY -= 1;
-	LOG(kGraphics, kDebug, "iTerrainQuad: {} x {}", iTerrainQuadX, iTerrainQuadY);
+	auto [iFullX, iFullY] = gpTextureManager->DetailTextureSize(gWorldDetail.Get());
+	int64_t iLod0QuadX = iFullX - 1;
+	int64_t iLod0QuadY = iFullY - 1;
+	LOG(kGraphics, kDebug, "iTerrainQuad LOD0: {} x {}", iLod0QuadX, iLod0QuadY);
 
-	int64_t iIndexCount = 6 * iTerrainQuadX * iTerrainQuadY;
-	std::vector<uint32_t> indices(iIndexCount);
-	std::vector<std::byte> vertices(2 * sizeof(float) * (iTerrainQuadX + 1) * (iTerrainQuadY + 1));
-	CreateVisibleAreaMesh(iTerrainQuadX + 1, iTerrainQuadY + 1, indices, vertices);
+	std::vector<uint32_t> indices;
+	std::vector<std::byte> vertices;
+	BuildLodConcatMesh(iLod0QuadX, iLod0QuadY, mTerrainMeshLods, indices, vertices);
 
 	mTerrainMeshBuffer.Destroy();
 	mTerrainMeshBuffer.Create(
 	{
 		.name = "TerrainMesh",
 		.flags = {kIndexVertex, kDeviceLocal},
-		.iCount = iIndexCount,
+		.iCount = static_cast<int64_t>(indices.size()),
 		.vkIndexType = VK_INDEX_TYPE_UINT32,
 		.iVertexStride = sizeof(float) * 2,
 		.dataVkDeviceSize = sizeof(uint32_t) * indices.size() + vertices.size(),
@@ -721,21 +771,20 @@ void BufferManager::CreateTerrainMesh()
 
 void BufferManager::CreateWaterMesh()
 {
-	auto [iWaterQuadX, iWaterQuadY] = gpTextureManager->DetailTextureSize(gWorldDetail.Get());
-	iWaterQuadX -= 1;
-	iWaterQuadY -= 1;
+	auto [iFullX, iFullY] = gpTextureManager->DetailTextureSize(gWorldDetail.Get());
+	int64_t iLod0QuadX = iFullX - 1;
+	int64_t iLod0QuadY = iFullY - 1;
 
-	int64_t iIndexCount = 6 * iWaterQuadX * iWaterQuadY;
-	std::vector<uint32_t> indices(iIndexCount);
-	std::vector<std::byte> vertices(2 * sizeof(float) * (iWaterQuadX + 1) * (iWaterQuadY + 1));
-	CreateVisibleAreaMesh(iWaterQuadX + 1, iWaterQuadY + 1, indices, vertices);
+	std::vector<uint32_t> indices;
+	std::vector<std::byte> vertices;
+	BuildLodConcatMesh(iLod0QuadX, iLod0QuadY, mWaterMeshLods, indices, vertices);
 
 	mWaterMeshBuffer.Destroy();
 	mWaterMeshBuffer.Create(
 	{
 		.name = "WaterMesh",
 		.flags = {kIndexVertex, kDeviceLocal},
-		.iCount = iIndexCount,
+		.iCount = static_cast<int64_t>(indices.size()),
 		.vkIndexType = VK_INDEX_TYPE_UINT32,
 		.iVertexStride = sizeof(float) * 2,
 		.dataVkDeviceSize = sizeof(uint32_t) * indices.size() + vertices.size(),

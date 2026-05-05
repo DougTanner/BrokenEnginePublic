@@ -153,11 +153,16 @@ void main()
 	vec3 f3SampledNormal = f3WeightedSum / max(length(f3WeightedSum), 1e-6f);
 
 	// Color (noise with precision-safe UV)
+	// Per-sample weight & texcoord multiplier: each multiplier scales BOTH the position term
+	// and the reducedOrigin term by the same factor — preserves the CPU/shader precision pact
+	// (sub-integer multipliers will let UVs drift slowly far from origin; acceptable for tuning).
 	vec2 f2LocalDisplacedPos = f3InPosition.xy - f2WaterOrigin;
 	vec2 f2ReducedNoiseOrigin = vec2(globalLayout.fWaterReducedNoiseOriginX, globalLayout.fWaterReducedNoiseOriginY);
-	float fNoiseColorOne = clamp(globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, 2.0f * globalLayout.fWaterColorNoiseFrequency * f2LocalDisplacedPos + 2.0f * f2ReducedNoiseOrigin).x, 0.0f, 1.0f);
-	float fNoiseColorTwo = clamp(globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, globalLayout.fWaterColorNoiseFrequency * -f2LocalDisplacedPos - f2ReducedNoiseOrigin).x, 0.0f, 1.0f);
-	vec3 f3WaterColor = mix(1.0f * vec3(0.0f, 15.0f / 100.0f, 25.0f / 100.0f), 1.5f * vec3(15.0f / 100.0f, 30.0f / 100.0f, 50.0f / 100.0f), clamp(fNoiseColorOne - fNoiseColorTwo + (f3InPosition.z * globalLayout.fWaterColorHeightInv + globalLayout.fWaterColorBottom), 0.0f, 1.0f));
+	float fMultOne = globalLayout.fWaterColorNoiseMultiplierOne;
+	float fMultTwo = globalLayout.fWaterColorNoiseMultiplierTwo;
+	float fNoiseColorOne = clamp(globalLayout.fWaterColorNoiseWeightOne * globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, fMultOne * globalLayout.fWaterColorNoiseFrequency * f2LocalDisplacedPos + fMultOne * f2ReducedNoiseOrigin).x, -1.0f, 1.0f);
+	float fNoiseColorTwo = clamp(globalLayout.fWaterColorNoiseWeightTwo * globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, fMultTwo * globalLayout.fWaterColorNoiseFrequency * f2LocalDisplacedPos + fMultTwo * f2ReducedNoiseOrigin).x, -1.0f, 1.0f);
+	vec3 f3WaterColor = mix(1.0f * vec3(0.0f, 15.0f / 100.0f, 25.0f / 100.0f), 1.5f * vec3(15.0f / 100.0f, 30.0f / 100.0f, 50.0f / 100.0f), clamp(fNoiseColorOne + fNoiseColorTwo + (f3InPosition.z * globalLayout.fWaterColorHeightInv + globalLayout.fWaterColorBottom), 0.0f, 1.0f));
 
 	vec3 f3DepthColor = texture(depthLutSampler, vec2(globalLayout.fWaterDepthLutFeather * -fTerrainElevation, 0.0f)).xyz;
 

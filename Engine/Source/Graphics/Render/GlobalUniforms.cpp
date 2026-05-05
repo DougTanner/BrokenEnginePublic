@@ -297,7 +297,7 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 	// Water-moon-brightness target value. The shader gates this by the moon's Rec.601 luma fraction
 	// of (sun + moon), so the multiplier collapses to 1.0 at noon and engages naturally at night
 	// without needing a separate sun-angle envelope on the CPU side.
-	rGlobalLayout.fLightingWaterMoonBrightness = gLightingWaterMoonBrightness.Get();
+	rGlobalLayout.fLightingWaterMoonBrightness = gMoonWaterBrightness.Get();
 	rGlobalLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - fDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
 }
 
@@ -338,6 +338,10 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterColorBottom = gWaterColorBottom.Get();
 	rGlobalLayout.fWaterColorHeightInv = 1.0f / gWaterColorHeight.Get();
 	rGlobalLayout.fWaterColorNoiseAmount = gWaterColorNoiseAmount.Get();
+	rGlobalLayout.fWaterColorNoiseWeightOne = gWaterColorNoiseWeightOne.Get();
+	rGlobalLayout.fWaterColorNoiseWeightTwo = gWaterColorNoiseWeightTwo.Get();
+	rGlobalLayout.fWaterColorNoiseMultiplierOne = gWaterColorNoiseMultiplierOne.Get();
+	rGlobalLayout.fWaterColorNoiseMultiplierTwo = gWaterColorNoiseMultiplierTwo.Get();
 
 	if (fSunAngle >= 0.0f && fSunAngle < XM_PIDIV2)
 	{
@@ -505,20 +509,6 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	rGlobalLayout.fDebugTextureIndex = gDebugTextureIndex.Get();
 	rGlobalLayout.fDebugTextureFormat = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpDebugTextureFormats[static_cast<int64_t>(gDebugTextureIndex.Get())]);
 	rGlobalLayout.fDebugTextureLinearRange = gDebugTextureLinearRange.Get();
-
-	// DT: TEMP - capture sun/moon snapshot for HUD debug overlay.
-	gDebugSunMoonAngle = fSunAngle;
-	gDebugSunMoonNormal = rGlobalLayout.f4SunMoonNormal;
-	gDebugSunColor = rGlobalLayout.f4SunColor;
-	gDebugMoonColor = rGlobalLayout.f4MoonColor;
-	gDebugAmbientColor = rGlobalLayout.f4AmbientColor;
-	gDebugSunMoonDayPercent = fDayPercent;
-	gDebugSunMoonNoonPercent = fNoonPercent;
-	gDebugSunMoonShadowMoonMultiplier = rGlobalLayout.fShadowMoonMultiplier;
-	gDebugSunMoonLightingWaterMoonBrightness = rGlobalLayout.fLightingWaterMoonBrightness;
-	gDebugSunMoonWaterSunVisibility = rGlobalLayout.fWaterSunVisibility;
-	gDebugSunMoonWaterDirectional = rGlobalLayout.fWaterDirectional;
-	gDebugSunMoonTerrainSunBrightness = rGlobalLayout.fTerrainSunBrightness;
 }
 
 } // namespace engine

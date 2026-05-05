@@ -287,7 +287,7 @@ void Pipeline::RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkC
 	vkCmdDispatchIndirect(vkCommandBuffer, mIndirectVkBuffer, vkDispatchOffset);
 }
 
-void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCount, int64_t iIndexCount, int64_t iFirstIndex)
+void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCount, int64_t iIndexCount, int64_t iFirstIndex, int64_t iVertexOffset)
 {
 	ASSERT(!(mInfo.flags & kCompute));
 
@@ -309,7 +309,7 @@ void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCoun
 	rCommand.indexCount = static_cast<uint32_t>(iIndexCount == 0 ? static_cast<uint32_t>(mInfo.pVertexBuffer->mInfo.iCount) : iIndexCount);
 	rCommand.instanceCount = static_cast<uint32_t>(iInstanceCount);
 	rCommand.firstIndex = static_cast<uint32_t>(iFirstIndex);
-	rCommand.vertexOffset = 0;
+	rCommand.vertexOffset = static_cast<int32_t>(iVertexOffset);
 	rCommand.firstInstance = 0;
 }
 

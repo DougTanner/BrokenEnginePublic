@@ -12,7 +12,7 @@ Renders terrain as a visible-area-covering mesh with elevation displacement. A s
 - **Terrain.vert** - Shared vertex shader for all G-buffer passes
 - **TerrainColor.frag** - Per-island color texture sampling
 - **TerrainElevation.frag** - Heightmap to world-space elevation conversion
-- **TerrainNormal.frag** - Per-island normal map sampling with flip support; BC5 source, Z reconstructed as `sqrt(saturate(1 - x*x - y*y))`
+- **TerrainNormal.frag** - Per-island normal map sampling; BC5 source, Z reconstructed as `sqrt(saturate(1 - x*x - y*y))`. Tangent (X,Y) is rotated by the per-island `(cos, sin)` forwarded from the quad vertex shader (Z is rotation-invariant)
 - **TerrainAmbientOcclusion.frag** - Per-island AO texture sampling
 
 ### Final Compositing

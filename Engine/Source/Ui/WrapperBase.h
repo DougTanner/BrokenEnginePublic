@@ -321,6 +321,10 @@ extern Wrapper gWaterNoiseFrequency;
 extern Wrapper gWaterNoiseAmount;
 extern Wrapper gWaterColorNoiseFrequency;
 extern Wrapper gWaterColorNoiseAmount;
+extern Wrapper gWaterColorNoiseWeightOne;
+extern Wrapper gWaterColorNoiseWeightTwo;
+extern Wrapper gWaterColorNoiseMultiplierOne;
+extern Wrapper gWaterColorNoiseMultiplierTwo;
 
 extern Wrapper gWaterDepthLutFeather;
 extern Wrapper gWaterDepthColorFeather;
@@ -431,7 +435,7 @@ extern Wrapper gLightingObjectsAdd;
 extern Wrapper gLightingDayFinalMultiplier;
 extern Wrapper gLightingNightFinalMultiplier;
 extern Wrapper gMoonBrightness;
-extern Wrapper gLightingWaterMoonBrightness;
+extern Wrapper gMoonWaterBrightness;
 
 // Water specular lighting
 extern Wrapper gLightingWaterAmbientPower;

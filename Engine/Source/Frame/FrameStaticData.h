@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Frame/NavBuild.h"
-#include "Graphics/IslandsFlip.h"
 
 namespace engine
 {
@@ -10,7 +9,7 @@ struct FrameStaticData
 {
 	XMVECTOR vecArea {};
 	GridCoord coord {};
-	IslandsFlip eIslandsFlip = kFlipNone;
+	float fIslandRotation = 0.0f;
 	XMFLOAT2 f2IslandOffset {};
 	NavData navData;
 
