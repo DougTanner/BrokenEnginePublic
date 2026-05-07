@@ -231,12 +231,6 @@ void AudioManager::Update(const game::Frame* pFrame)
 {
 	ScopedCpuProfile scopedCpuProfile(kCpuTimerAudio);
 
-	int64_t iEntryNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-	static int64_t siLastEntryNs = 0;
-	int64_t iDeltaNs = (siLastEntryNs > 0) ? (iEntryNs - siLastEntryNs) : 0;
-	siLastEntryNs = iEntryNs;
-	LOG(kTemp, kInfo, "AudioManager::Update entry entryNs={} deltaNs={}", iEntryNs, iDeltaNs);
-
 	// Heap: Voice map emplace/erase, make_unique<StreamingVoice> for track transitions, and
 	// XAudio2 internal allocations (AllocateVoice, Update). Not controllable or pre-allocatable.
 	ScopedSuppressAllocationTracking suppressAllocationTracking;

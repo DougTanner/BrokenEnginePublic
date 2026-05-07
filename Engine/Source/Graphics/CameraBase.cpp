@@ -182,55 +182,6 @@ void CameraBase::CalculateMatricesAndVisibleArea()
 	f4RenderVisibleArea.y = common::RoundDown(f4RenderVisibleArea.y + f2VisibleAreaQuadSize.y, f2VisibleAreaQuadSize.y);
 	f4RenderVisibleArea.z = f4RenderVisibleArea.x + fQuadsX * f2VisibleAreaQuadSize.x;
 	f4RenderVisibleArea.w = f4RenderVisibleArea.y - fQuadsY * f2VisibleAreaQuadSize.y;
-
-	// kTemp: diagnose water-vertex flicker when camera looks still. Log whenever the snapped
-	// visible area changes by less than one quad — that's the regime the snap is supposed to absorb.
-	{
-		static XMFLOAT4A sf4PrevPos {};
-		static XMFLOAT4A sf4PrevEye {};
-		static XMFLOAT4 sf4PrevRaw {};
-		static XMFLOAT4 sf4PrevSnapped {};
-		static XMFLOAT2 sf2PrevQuad {};
-		static bool sbInit = false;
-		XMFLOAT4A f4Pos {};
-		XMFLOAT4A f4Eye {};
-		XMStoreFloat4A(&f4Pos, mVecPosition);
-		XMStoreFloat4A(&f4Eye, mVecEyePosition);
-		if (sbInit)
-		{
-			float fPosDelta = std::sqrt((f4Pos.x - sf4PrevPos.x) * (f4Pos.x - sf4PrevPos.x) + (f4Pos.y - sf4PrevPos.y) * (f4Pos.y - sf4PrevPos.y));
-			float fEyeDelta = std::sqrt((f4Eye.x - sf4PrevEye.x) * (f4Eye.x - sf4PrevEye.x)
-			                          + (f4Eye.y - sf4PrevEye.y) * (f4Eye.y - sf4PrevEye.y)
-			                          + (f4Eye.z - sf4PrevEye.z) * (f4Eye.z - sf4PrevEye.z));
-			float fRawXDelta = f4RawAreaIn.x - sf4PrevRaw.x;
-			float fRawYDelta = f4RawAreaIn.y - sf4PrevRaw.y;
-			float fRawWidthDelta = (f4RawAreaIn.z - f4RawAreaIn.x) - (sf4PrevRaw.z - sf4PrevRaw.x);
-			float fSnapXDelta = f4RenderVisibleArea.x - sf4PrevSnapped.x;
-			float fSnapYDelta = f4RenderVisibleArea.y - sf4PrevSnapped.y;
-			float fQuadXDelta = f2VisibleAreaQuadSize.x - sf2PrevQuad.x;
-			float fQuadYDelta = f2VisibleAreaQuadSize.y - sf2PrevQuad.y;
-			bool bCameraStill = fPosDelta < 0.01f && fEyeDelta < 0.01f;
-			bool bSnapMoved = fSnapXDelta != 0.0f || fSnapYDelta != 0.0f || fQuadXDelta != 0.0f || fQuadYDelta != 0.0f;
-			if (bCameraStill && bSnapMoved)
-			{
-				LOG(kTemp, kInfo,
-				    "VisibleAreaFlicker posD={} eyeD={} rawXD={} rawYD={} rawWD={} quadXD={} quadYD={} snapXD={} snapYD={} quadX={} snapX={} rawX={}",
-				    common::Wb(fPosDelta, 6), common::Wb(fEyeDelta, 6),
-				    common::Wb(fRawXDelta, 8), common::Wb(fRawYDelta, 8), common::Wb(fRawWidthDelta, 8),
-				    common::Wb(fQuadXDelta, 8), common::Wb(fQuadYDelta, 8),
-				    common::Wb(fSnapXDelta, 6), common::Wb(fSnapYDelta, 6),
-				    common::Wb(f2VisibleAreaQuadSize.x, 6),
-				    common::Wb(f4RenderVisibleArea.x, 4),
-				    common::Wb(f4RawAreaIn.x, 4));
-			}
-		}
-		sf4PrevPos = f4Pos;
-		sf4PrevEye = f4Eye;
-		sf4PrevRaw = f4RawAreaIn;
-		sf4PrevSnapped = f4RenderVisibleArea;
-		sf2PrevQuad = f2VisibleAreaQuadSize;
-		sbInit = true;
-	}
 }
 
 } // namespace engine

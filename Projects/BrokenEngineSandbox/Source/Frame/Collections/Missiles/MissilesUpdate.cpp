@@ -302,8 +302,6 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		// Check collision results - missiles explode on hit
 		if (engine::Collision::HasCollision(suiCollisionLayerIndex, i))
 		{
-			int64_t iPostCollisionNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-			LOG(kTemp, kInfo, "Missile PostCollision->Explode tick={} i={} pos={} ns={} reason=collision", rFrame.interpolate.iTick, i, common::WbV2(rCurrentInterpolate.pVecPositions[i], 1), iPostCollisionNs);
 			Explode(rFrame, i, false);
 			continue;
 		}
@@ -312,8 +310,6 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		float fElevationFinal = engine::gpIslandTerrain->GlobalElevation(rCurrentInterpolate.pVecPositions[i]);
 		if (XMVectorGetZ(rCurrentInterpolate.pVecPositions[i]) <= fElevationFinal)
 		{
-			int64_t iPostCollisionNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-			LOG(kTemp, kInfo, "Missile PostCollision->Explode tick={} i={} pos={} ns={} reason=terrain", rFrame.interpolate.iTick, i, common::WbV2(rCurrentInterpolate.pVecPositions[i], 1), iPostCollisionNs);
 			Explode(rFrame, i, true);
 		}
 	}

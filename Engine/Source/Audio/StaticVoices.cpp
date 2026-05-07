@@ -22,18 +22,13 @@ IXAudio2SourceVoice* StaticVoices::PlayOneShot([[maybe_unused]] const game::Fram
 {
 	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
 
-	int64_t iEntryNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-	LOG(kTemp, kInfo, "PlayOneShot entry crc={} b3d={} vol={} pitch={} entryNs={}", uiAudioCrc, b3d, common::Wb(fVolume, 3), common::Wb(fPitch, 2), iEntryNs);
-
 	if (rFrame.interpolate.frameFlags & FrameFlags::kRecalculated)
 	{
-		LOG(kTemp, kInfo, "PlayOneShot skipped: kRecalculated");
 		return nullptr;
 	}
 
 	if (mbSuspended.load(std::memory_order_acquire))
 	{
-		LOG(kTemp, kInfo, "PlayOneShot skipped: suspended");
 		return nullptr;
 	}
 
@@ -45,14 +40,12 @@ IXAudio2SourceVoice* StaticVoices::PlayOneShot([[maybe_unused]] const game::Fram
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
-		LOG(kTemp, kInfo, "PlayOneShot skipped: no audio device");
 		return nullptr;
 	}
 
 	IXAudio2SourceVoice* pIXAudio2SourceVoice = nullptr;
 	if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pIXAudio2SourceVoice, uiAudioCrc, true, b3d))
 	{
-		LOG(kTemp, kInfo, "PlayOneShot skipped: LoadXAudio2SourceVoice failed");
 		return nullptr;
 	}
 
@@ -66,9 +59,7 @@ IXAudio2SourceVoice* StaticVoices::PlayOneShot([[maybe_unused]] const game::Fram
 		CHECK_HRESULT(pIXAudio2SourceVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fVolume)));
 	}
 	CHECK_HRESULT(pIXAudio2SourceVoice->SetFrequencyRatio(fPitch));
-	int64_t iStartNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 	CHECK_HRESULT(pIXAudio2SourceVoice->Start(0, XAUDIO2_COMMIT_NOW));
-	LOG(kTemp, kInfo, "PlayOneShot Start() crc={} startNs={} elapsedNs={}", uiAudioCrc, iStartNs, iStartNs - iEntryNs);
 	return pIXAudio2SourceVoice;
 }
 
@@ -76,12 +67,8 @@ void XM_CALLCONV StaticVoices::PlayOneShot3d([[maybe_unused]] const game::Frame&
 {
 	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
 
-	int64_t iEntryNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-	LOG(kTemp, kInfo, "PlayOneShot3d entry crc={} pos={} vol={} listenerPos={} dist={} entryNs={}", uiAudioCrc, common::WbV2(vecPosition, 1), common::Wb(fVolume, 3), common::WbV2(mVecListenerPosition, 1), common::Wb(common::Distance(vecPosition, mVecListenerPosition), 2), iEntryNs);
-
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
-		LOG(kTemp, kInfo, "PlayOneShot3d skipped: no audio device");
 		return;
 	}
 
@@ -358,21 +345,18 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 				continue;
 			}
 
-			float fDistanceAtCreate = common::Distance(vecPosition, mVecListenerPosition);
 			common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[iIndex];
 			IXAudio2SourceVoice* pVoice = AcquireVoiceFromPool(uiCrc);
 			if (pVoice == nullptr)
 			{
 				if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, false, true))
 				{
-					LOG(kTemp, kInfo, "UpdateLifecycle LoadXAudio2SourceVoice failed crc={}", uiCrc);
 					continue;
 				}
 			}
 			float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
 			mVoices.push_back(StaticVoice(pVoice, id, fSoundVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity, uiCrc));
 			pActivatedIds[iActivatedCount++] = id;
-			LOG(kTemp, kInfo, "UpdateLifecycle voice CREATED id={} crc={} vol={} pos={} dist={} listenerPos={}", id, uiCrc, common::Wb(fSoundVolume, 3), common::WbV2(vecPosition, 1), common::Wb(fDistanceAtCreate, 2), common::WbV2(mVecListenerPosition, 1));
 		}
 	}
 
@@ -618,14 +602,6 @@ void XM_CALLCONV StaticVoices::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 	X3DAUDIO_HANDLE& rX3dAudioHandle = mpAudioEngine->Get3DHandle();
 	X3DAudioCalculate(rX3dAudioHandle, &mX3dAudioListener, &x3dAudioEmitter, X3DAUDIO_CALCULATE_MATRIX | X3DAUDIO_CALCULATE_LPF_DIRECT | X3DAUDIO_CALCULATE_DOPPLER, &x3dAudioDspSettings);
 
-	float fDistanceForLog = common::Distance(vecPosition, mVecListenerPosition);
-	if (fDistanceForLog < 5.0f)
-	{
-		LOG(kTemp, kInfo, "Apply3dVolume near-listener dist={} pos={} listener={} matrix0={} matrix1={}",
-			common::Wb(fDistanceForLog, 3), common::WbV2(vecPosition, 1), common::WbV2(mVecListenerPosition, 1),
-			common::Wb(pfMatrixCoefficients[0], 4), common::Wb(iMasteringVoiceChannels >= 2 ? pfMatrixCoefficients[1] : 0.0f, 4));
-	}
-
 	if (iMasteringVoiceChannels >= 2 && mfChannelBleedT > 0.0f)
 	{
 		// 0.5 cap would collapse L and R to identical (L+R)/2 — full mono. Stay below that.
@@ -667,12 +643,6 @@ void XM_CALLCONV StaticVoices::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 #endif
 
 	float fFinalPower = VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume);
-	if (fDistanceForLog < 50.0f)
-	{
-		LOG(kTemp, kInfo, "Apply3dVolume final dist={} fadeStart={} effectiveFadeEnd={} channelBleedT={} fVolumeIn={} fDistanceVolume={} fFinalPower={}",
-			common::Wb(fDistanceForLog, 2), common::Wb(mfManualFadeStart, 2), common::Wb(mfEffectiveFadeEnd, 2),
-			common::Wb(mfChannelBleedT, 3), common::Wb(fVolume, 3), common::Wb(fDistanceVolume, 4), common::Wb(fFinalPower, 4));
-	}
 	CHECK_HRESULT(pVoice->SetVolume(fFinalPower));
 	CHECK_HRESULT(pVoice->SetFrequencyRatio(x3dAudioDspSettings.DopplerFactor * fPitch));
 }

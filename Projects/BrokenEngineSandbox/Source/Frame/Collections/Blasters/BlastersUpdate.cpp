@@ -116,7 +116,7 @@ void RegisterBlasterTerrainEffects()
 }
 
 // Helper to sync owned objects for a blaster
-static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::point_lights_t uiPointLight, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, float fPitch)
+static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::point_lights_t uiPointLight, [[maybe_unused]] engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, [[maybe_unused]] float fPitch)
 {
 	const BlastersType& rType = BlastersInterpolate::GetType(uiTypeIndex);
 
@@ -151,15 +151,16 @@ static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine:
 	}
 
 	// Sync sound
-	engine::SoundsInterpolate::Sync(rFrameInterpolate, uiSound,
-	{
-		.vecPosition = vecPosition,
-		.vecVelocity = vecVelocity,
-		.uiCrc = data::kAudioBlasterNew609840__eminyildirim__spacedroneambience7variation_0wavCrc,
-		.fVolume = kfBlasterVolume,
-		.fPitch = fPitch,
-		.fFadeOutTime = kfBlasterFadeOutTime,
-	});
+	// DT: TEMP kAudioBlasterNew609840__eminyildirim__spacedroneambience7variation_0wavCrc sounds bad
+	// engine::SoundsInterpolate::Sync(rFrameInterpolate, uiSound,
+	// {
+	// 	.vecPosition = vecPosition,
+	// 	.vecVelocity = vecVelocity,
+	// 	.uiCrc = data::kAudioBlasterNew609840__eminyildirim__spacedroneambience7variation_0wavCrc,
+	// 	.fVolume = kfBlasterVolume,
+	// 	.fPitch = fPitch,
+	// 	.fFadeOutTime = kfBlasterFadeOutTime,
+	// });
 }
 #endif // BT_CLIENT
 

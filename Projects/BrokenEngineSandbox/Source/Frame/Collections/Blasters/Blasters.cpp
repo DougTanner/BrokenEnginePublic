@@ -92,7 +92,6 @@ void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 
 	rPostRender.puiSounds[iIndex] = {};
 	engine::SoundsPostRender::Add(rFrame, rPostRender.puiSounds[iIndex]);
-	LOG(kTemp, kInfo, "Blaster::ClientInit Sounds::Add iIndex={} alignment={} pos={} soundId={}", iIndex, rPostRender.pAlignments[iIndex], common::WbV2(rBlasters.pVecPositions[iIndex], 1), rPostRender.puiSounds[iIndex]);
 
 	// Sync wind trail
 	if (rBlasters.pfWindTrailIntensities[iIndex] > 0.0f)
@@ -137,16 +136,16 @@ void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 	}
 
 	// Sync sound
-	LOG(kTemp, kInfo, "Blaster::ClientInit Sounds::Sync (initial) iIndex={} soundId={} pos={} vel={} vol={}", iIndex, rPostRender.puiSounds[iIndex], common::WbV2(rBlasters.pVecPositions[iIndex], 1), common::WbV2(rPostRender.pVecVelocities[iIndex], 1), common::Wb(kfBlasterVolume, 3));
-	engine::SoundsInterpolate::Sync(rFrame.interpolate, rPostRender.puiSounds[iIndex],
-	{
-		.vecPosition = rBlasters.pVecPositions[iIndex],
-		.vecVelocity = rPostRender.pVecVelocities[iIndex],
-		.uiCrc = data::kAudioBlasterNew609840__eminyildirim__spacedroneambience7variation_0wavCrc,
-		.fVolume = kfBlasterVolume,
-		.fPitch = rPostRender.pfPitches[iIndex],
-		.fFadeOutTime = kfBlasterFadeOutTime,
-	});
+	// DT: TEMP kAudioBlasterNew609840__eminyildirim__spacedroneambience7variation_0wavCrc sounds bad
+	// engine::SoundsInterpolate::Sync(rFrame.interpolate, rPostRender.puiSounds[iIndex],
+	// {
+	// 	.vecPosition = rBlasters.pVecPositions[iIndex],
+	// 	.vecVelocity = rPostRender.pVecVelocities[iIndex],
+	// 	.uiCrc = data::kAudioBlasterNew609840__eminyildirim__spacedroneambience7variation_0wavCrc,
+	// 	.fVolume = kfBlasterVolume,
+	// 	.fPitch = rPostRender.pfPitches[iIndex],
+	// 	.fFadeOutTime = kfBlasterFadeOutTime,
+	// });
 }
 
 void BlastersInterpolate::ClientInitAll(Frame& rFrame)

@@ -175,24 +175,14 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	rCurrent.fDeltaTime = fDeltaTime;
 
 #if defined(BT_CLIENT)
+	// kRecalculated propagates through the rPrevious chain: Reconcile pre-stamps it on each
+	// replay pNext (ReconcileReplay.cpp), and clears it on validated/catch-up snapshots so
+	// normal-tick rPrevious never carries the bit. Reading rCurrent.frameFlags here would
+	// surface stale ring-memory from a prior replay use of the slot — silencing audio.
 	const FrameInterpolateBase& rPrevious = rPreviousFrame.interpolate;
-
-	// Load
 	FrameFlags_t frameFlags = rPrevious.frameFlags;
-
-	// Update
 	frameFlags.Clear({FrameFlags::kInterpolate, FrameFlags::kPostRender});
 	frameFlags.Set(FrameFlags::kInterpolate);
-
-	// kRecalculated is set externally on rCurrent before RunFrameTick (reconcile path,
-	// ReconcileReplay.cpp). Carry it through so PostRender phases (audio in particular)
-	// can suppress side effects during replay ticks running on Dispatch worker threads.
-	if (rCurrent.frameFlags & FrameFlags::kRecalculated)
-	{
-		frameFlags.Set(FrameFlags::kRecalculated);
-	}
-
-	// Save
 	rCurrent.frameFlags = frameFlags;
 #endif
 

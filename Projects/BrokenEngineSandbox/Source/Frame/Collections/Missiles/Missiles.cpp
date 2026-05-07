@@ -507,8 +507,6 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	}
 
 #if defined(BT_CLIENT)
-	int64_t iExplodeNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-	LOG(kTemp, kInfo, "Missile::Explode->PlayOneShot3d tick={} i={} pos={} vol={} ns={}", rFrame.interpolate.iTick, i, common::WbV2(rCurrentInterpolate.pVecPositions[i], 1), common::Wb(kfExplosionSoundVolume, 3), iExplodeNs);
 	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], kfExplosionSoundVolume);
 #endif
 

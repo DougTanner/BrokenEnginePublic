@@ -105,22 +105,6 @@ void XM_CALLCONV PlayersPostRender::AcquireTarget(const Frame& __restrict rPrevi
 		? common::ComputeLeadPosition(vecPosition, rSpaceshipsInterpolate.pVecPositions[iClosestSpaceship], rSpaceshipsPostRender.pVecVelocities[iClosestSpaceship], kfPlayerBlastersSpeed)
 		: XMVectorZero();
 
-	// kTemp: diagnose blaster-vs-reticle aim divergence. Logs angle from player to (a) actual spaceship
-	// position and (b) lead-intercept point that the reticle is drawn at. SpawnBlasters logs the actual
-	// fire angle below; comparing the three reveals whether the firing direction matches the reticle.
-	if (bTargetFound)
-	{
-		XMVECTOR vecSpaceshipPos = rSpaceshipsInterpolate.pVecPositions[iClosestSpaceship];
-		XMVECTOR vecToSpaceship = XMVector3Normalize(XMVectorSubtract(vecSpaceshipPos, vecPosition));
-		XMVECTOR vecToReticle = XMVector3Normalize(XMVectorSubtract(vecClosestPosition, vecPosition));
-		float fAngleSpaceship = atan2f(XMVectorGetY(vecToSpaceship), XMVectorGetX(vecToSpaceship)) * (180.0f / XM_PI);
-		float fAngleReticle = atan2f(XMVectorGetY(vecToReticle), XMVectorGetX(vecToReticle)) * (180.0f / XM_PI);
-		LOG(kTemp, kInfo, "BlasterAim AcquireTarget: angle-to-spaceship={} deg, angle-to-reticle={} deg, lead-offset={} units",
-			common::Wb(fAngleSpaceship, 2),
-			common::Wb(fAngleReticle, 2),
-			common::Wb(common::Distance(vecSpaceshipPos, vecClosestPosition), 2));
-	}
-
 	// Fallback: if no in-range target, find nearest alive spaceship for look direction
 	rVecLookPosition = vecClosestPosition;
 	rbLookTargetFound = bTargetFound;
@@ -345,22 +329,6 @@ void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
 
 			XMVECTOR vecJitteredDirection = common::RandomAngleJitter(vecBaseDirection, kfBlasterAngleJitter, rFrame.postRender.randomEngine);
 			XMVECTOR vecBlasterVelocity = XMVectorScale(vecJitteredDirection, kfPlayerBlastersSpeed);
-
-			// kTemp: hull angle = pVecDirections (what blasters inherit), wanted angle = pVecWantedDirections
-			// (what the reticle's red line draws), fire angle = post-jitter actual blaster direction.
-			// Compare against AcquireTarget's angle-to-spaceship / angle-to-reticle to see which one the
-			// blasters track. If hull-angle ≈ angle-to-spaceship and wanted-angle ≈ angle-to-reticle, the
-			// blasters are following the hull rather than the lead aim.
-			{
-				float fHullAngle = atan2f(XMVectorGetY(vecBaseDirection), XMVectorGetX(vecBaseDirection)) * (180.0f / XM_PI);
-				float fWantedAngle = atan2f(XMVectorGetY(rCurrentPostRender.pVecWantedDirections[i]), XMVectorGetX(rCurrentPostRender.pVecWantedDirections[i])) * (180.0f / XM_PI);
-				float fFireAngle = atan2f(XMVectorGetY(vecJitteredDirection), XMVectorGetX(vecJitteredDirection)) * (180.0f / XM_PI);
-				LOG(kTemp, kInfo, "BlasterAim SpawnBlaster[player={}]: hull-angle={} deg, wanted-angle={} deg, fire-angle={} deg",
-					i,
-					common::Wb(fHullAngle, 2),
-					common::Wb(fWantedAngle, 2),
-					common::Wb(fFireAngle, 2));
-			}
 
 			// Muzzle point in world: player at fire time + barrel offset + constant pre-move along velocity
 			XMVECTOR vecSpawnPosition = vecPlayerPositionAtSpawn + fBarrelOffset * vecLeftNormal + kfBlastersSpawnPreMove * vecJitteredDirection;
