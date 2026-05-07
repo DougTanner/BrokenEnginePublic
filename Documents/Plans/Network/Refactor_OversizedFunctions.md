@@ -14,7 +14,7 @@ Several functions exceed the project's ~100-line guideline. Each has natural sub
 - Extract transfer-logging block at 146-165 into `LogTransferSummary(const CoordWork& rWork, int64_t iTick, ...)`. [~30m]
 
 ### Projects/BrokenEngineSandbox/Source/Network/Client/ClientSession.cpp — `PollNetwork` (lines 54-152, 99 lines)
-- Extract per-event switch at 86-132 into `ApplyPlayerEvent(const ReceivedPlayerEvent& rEvent, engine::GridCoord preEventClientCoord, auto updatePlayerCoord)`. [~45m]
+- Extract per-event switch at 86-132 into `ApplyPlayerEvent(const ReceivedPlayerEvent& rEvent, auto updatePlayerCoord)`. [~45m]
 
 ### Projects/BrokenEngineSandbox/Source/Network/Server/ServerFleetManager.cpp — Save/Load symmetry
 - `WriteFleetData` and `ReadFleetData` are symmetric ~45-line giants with manual field-by-field I/O. Extract `WriteFleet(Fleet&)` / `ReadFleet(Fleet&)` helpers that each handle a single fleet's fields; outer functions become thin loops over `mFleets`. The trailing `mRandomEngine.uiState` write/read (last statement of each outer function) must stay in the outer function — it is per-manager state, not per-fleet. [~1h]

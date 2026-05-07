@@ -51,7 +51,7 @@ Game::Game()
 	// Start music
 #if defined(BT_CLIENT)
 	StartMenuMusic();
-	engine::gpAudioManager->Set3dSettings(10.0f, 0.0f, 150.0f, 0.05f);
+	engine::gpAudioManager->Set3dSettings(10.0f, 0.0f, 300.0f, 0.05f);
 	engine::gpAudioManager->SetNextMusicTrackCallback([this]()
 	{
 		return GetNextMusicTrack();
@@ -132,7 +132,7 @@ std::optional<int64_t> Game::ClientPlayerIndex(const PlayersPostRender& rPlayers
 void Game::AutoSelectFirstAliveMember()
 {
 	miFocusedPlayerInFleetIndex = -1;
-	mClientGridCoord = {};
+	SetClientGridCoord({});
 	const Fleet* pFleet = FocusedFleet();
 	if (pFleet != nullptr)
 	{
@@ -215,7 +215,7 @@ void Game::SelectPlayerInFleet(int64_t iPlayerIndex)
 		{
 			if (mClientPlayerIds.at(i) == rMember.globalPlayerId)
 			{
-				mClientGridCoord = mClientPlayerCoords.at(i);
+				SetClientGridCoord(mClientPlayerCoords.at(i));
 				break;
 			}
 		}
@@ -347,7 +347,7 @@ void Game::SyncFleets(std::vector<Fleet>&& fleets)
 		{
 			if (mClientPlayerIds.at(i) == focusedId)
 			{
-				mClientGridCoord = mClientPlayerCoords.at(i);
+				SetClientGridCoord(mClientPlayerCoords.at(i));
 				bGridCoordResolved = true;
 				break;
 			}
@@ -357,7 +357,7 @@ void Game::SyncFleets(std::vector<Fleet>&& fleets)
 	// No valid selection — camera to origin
 	if (!bGridCoordResolved)
 	{
-		mClientGridCoord = {};
+		SetClientGridCoord({});
 	}
 
 	// Persist whatever final focus state SyncFleets settled on (covers server-driven changes the user didn't trigger directly).
@@ -419,47 +419,16 @@ void Game::ComputeActiveSet()
 			}
 		}
 
-		if constexpr (kbQuadrantNeighborSubscriptions)
+		miVisibleNeighborCount = 0;
+		if (ClientPlayerId().IsValid())
 		{
-			const Frame& rFrame = RenderFrame(mClientGridCoord);
-			std::optional<int64_t> oPlayerIdx = ClientPlayerIndex(*rFrame.postRender.pPlayers);
-			if (oPlayerIdx)
-			{
-				XMVECTOR vecPos = rFrame.interpolate.pPlayers->pVecPositions[*oPlayerIdx];
-				XMVECTOR vecArea = mCoordFrames.at(mClientGridCoord).staticData.vecArea;
-				float fCenterX = (XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f;
-				float fCenterY = (XMVectorGetY(vecArea) + XMVectorGetW(vecArea)) * 0.5f;
-				float fHalfWidth = (XMVectorGetZ(vecArea) - XMVectorGetX(vecArea)) * 0.5f;
-				float fHalfHeight = (XMVectorGetY(vecArea) - XMVectorGetW(vecArea)) * 0.5f;
-
-				static constexpr float kfHysteresis = 2.0f;
-				float fZoneX = fHalfWidth / 3.0f;
-				float fZoneY = fHalfHeight / 3.0f;
-				float fDeltaX = XMVectorGetX(vecPos) - fCenterX;
-				float fDeltaY = XMVectorGetY(vecPos) - fCenterY;
-
-				// X axis: 3-state transition (edge → center → edge)
-				if (miQuadrantDirX == 0)
-				{
-					if (fDeltaX > fZoneX + kfHysteresis) miQuadrantDirX = 1;
-					else if (fDeltaX < -(fZoneX + kfHysteresis)) miQuadrantDirX = -1;
-				}
-				else if (fDeltaX * static_cast<float>(miQuadrantDirX) < fZoneX - kfHysteresis)
-				{
-					miQuadrantDirX = 0;
-				}
-
-				// Y axis: 3-state transition (edge → center → edge)
-				if (miQuadrantDirY == 0)
-				{
-					if (fDeltaY > fZoneY + kfHysteresis) miQuadrantDirY = 1;
-					else if (fDeltaY < -(fZoneY + kfHysteresis)) miQuadrantDirY = -1;
-				}
-				else if (fDeltaY * static_cast<float>(miQuadrantDirY) < fZoneY - kfHysteresis)
-				{
-					miQuadrantDirY = 0;
-				}
-			}
+			// Camera-zoom-dependent VisibleArea: f4LargeVisibleArea packs (minX, maxY, maxX, minY).
+			const XMFLOAT4& f4Visible = mCamera.f4LargeVisibleArea;
+			XMVECTOR vecArea = mCoordFrames.at(mClientGridCoord).staticData.vecArea;
+			float fCellMinX = XMVectorGetX(vecArea);
+			float fCellMaxY = XMVectorGetY(vecArea);
+			float fCellMaxX = XMVectorGetZ(vecArea);
+			float fCellMinY = XMVectorGetW(vecArea);
 
 			auto ensureNeighbor = [&](engine::GridCoord neighbor)
 			{
@@ -474,12 +443,31 @@ void Game::ComputeActiveSet()
 				}
 			};
 
-			if (miQuadrantDirX != 0)
-				ensureNeighbor({.x = mClientGridCoord.x + miQuadrantDirX, .y = mClientGridCoord.y});
-			if (miQuadrantDirY != 0)
-				ensureNeighbor({.x = mClientGridCoord.x, .y = mClientGridCoord.y + miQuadrantDirY});
-			if (miQuadrantDirX != 0 && miQuadrantDirY != 0)
-				ensureNeighbor({.x = mClientGridCoord.x + miQuadrantDirX, .y = mClientGridCoord.y + miQuadrantDirY});
+			// Adjacent-only clamp: at wide zoom the VisibleArea may extend past the 3x3 ring;
+			// only the immediate ring is ever subscribed regardless.
+			for (int32_t i = -1; i <= 1; ++i)
+			{
+				for (int32_t j = -1; j <= 1; ++j)
+				{
+					if (i == 0 && j == 0)
+					{
+						continue;
+					}
+					float fOffsetX = static_cast<float>(i) * Frame::kfCellWidth;
+					float fOffsetY = static_cast<float>(j) * Frame::kfCellHeight;
+					float fNeighborMinX = fCellMinX + fOffsetX;
+					float fNeighborMaxX = fCellMaxX + fOffsetX;
+					float fNeighborMinY = fCellMinY + fOffsetY;
+					float fNeighborMaxY = fCellMaxY + fOffsetY;
+					if (f4Visible.x < fNeighborMaxX && f4Visible.z > fNeighborMinX
+					 && f4Visible.w < fNeighborMaxY && f4Visible.y > fNeighborMinY)
+					{
+						engine::GridCoord neighbor {.x = mClientGridCoord.x + i, .y = mClientGridCoord.y + j};
+						mVisibleNeighbors[miVisibleNeighborCount++] = neighbor;
+						ensureNeighbor(neighbor);
+					}
+				}
+			}
 		}
 	}
 	else
@@ -497,7 +485,7 @@ void Game::ComputeActiveSet()
 	ASSERT(std::ranges::count_if(mCoordFrames, [](const std::pair<const engine::GridCoord, engine::CoordFrames>& rPair)
 	{
 		return rPair.second.iConfirmedTick < 0;
-	}) <= 4);
+	}) <= 9);
 
 	// Update island rendering only for subscribed frames (confirmed server data)
 	std::vector<engine::GridCoord> subscribedCoords;
@@ -791,9 +779,7 @@ void Game::Reset()
 	miFocusedPlayerInFleetIndex = -1;
 #endif
 	mfPreviousClientArmor = 0.0f;
-	mClientGridCoord = engine::kOriginCoord;
-	miQuadrantDirX = 0;
-	miQuadrantDirY = 0;
+	SetClientGridCoord(engine::kOriginCoord);
 	mActiveCoords.clear();
 	mActiveCoords.push_back(mClientGridCoord);
 }
@@ -1404,7 +1390,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 			}
 			else
 			{
-				common::gpThreadLocal->mWorkbuffer.Push();
+				common::ScopedWorkbufferArena scopedWorkbufferArena = common::gpThreadLocal->mWorkbuffer.Push();
 				if (mTimeStep.miTimeMultiply > 1)
 				{
 					common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
@@ -1420,7 +1406,6 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 #if defined(BT_CLIENT)
 				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
 #endif
-				common::gpThreadLocal->mWorkbuffer.Pop();
 			}
 		}
 
@@ -1463,7 +1448,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 
 void Game::RestoreReplayMeta(const ReplayMeta& rMeta)
 {
-	mClientGridCoord = rMeta.clientGridCoord;
+	SetClientGridCoord(rMeta.clientGridCoord);
 	if (rMeta.iClientPlayerIdValue != 0)
 	{
 		engine::global_id_t globalId {rMeta.iClientPlayerIdValue};

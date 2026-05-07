@@ -26,7 +26,7 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 ## CoordFrames Invariants
 
 - Client ring indexing always via `SnapshotIndex(iHead, iLogical)` — never raw `%`.
-- Monotonic guards trip `DEBUG_BREAK` on regression: validated-tick high-water (reconcile) and last-rendered tick/time (renderer must never step backward).
+- Monotonic guards trip `DEBUG_BREAK` on regression: validated-tick high-water (reconcile) and last-rendered tick/time (renderer must never step backward). Tick counter itself is asserted non-negative on assignment — callers performing clock corrections must clamp at zero.
 - `ResetClientState()` is the canonical session-reset point; any new per-coord counter MUST reset there or state leaks across sessions.
 - Server dual-buffer: `SwapFrames()` per tick; post-swap `pNext` holds stale data reused by the next `EnsureNextFrames()`.
 - ID minting is server-authoritative (frame IDs wrap uint16, global IDs monotonic int64). Clients receive both via serialization — never mint locally.

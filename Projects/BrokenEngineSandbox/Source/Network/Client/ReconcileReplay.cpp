@@ -194,7 +194,7 @@ static bool ReconcileValidateCrcCoord(CoordWork& rWork, int64_t iTick, const eng
 			char acSharedCrc[20] {}, acClientCrc[20] {};
 			common::ToHex(std::span<char, 20>(acSharedCrc), rUpdate.sharedCrc);
 			common::ToHex(std::span<char, 20>(acClientCrc), clientCrc);
-			LOG(kNetwork, kVerbose, "ReconcileValidateCrcCoord Desync Coord: ({},{}) ForTick: {} ServerCrc: {} ClientCrc: {} ServerStatusChanges: {} ClientStatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, rUpdate.statusChanges.size(), rFrameInput.statusChanges.size());
+			LOG(kNetwork, kError, "ReconcileValidateCrcCoord Desync Coord: ({},{}) ForTick: {} ServerCrc: {} ClientCrc: {} ServerStatusChanges: {} ClientStatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, rUpdate.statusChanges.size(), rFrameInput.statusChanges.size());
 		}
 
 		rScratch.iDesyncTick = iTick;
@@ -586,7 +586,7 @@ void ReconcileCoord(CoordWork& rWork, const ReconcileInputs& rInputs)
 	{
 		if (!rScratch.bSuppressRepeatLogs)
 		{
-			LOG(kNetwork, kVerbose, "ReconcileCoord Shrunk rollback failed Coord: ({},{}) DesyncTick: {} — falling back to full rollback", rWork.coord.x, rWork.coord.y, rScratch.iDesyncTick);
+			LOG(kNetwork, kError, "ReconcileCoord Shrunk rollback failed Coord: ({},{}) DesyncTick: {} — falling back to full rollback", rWork.coord.x, rWork.coord.y, rScratch.iDesyncTick);
 		}
 		rScratch.iDesyncTick = -1;
 		rScratch.desyncExpectedCrc = 0;
@@ -663,9 +663,7 @@ void ReconcileCoord(CoordWork& rWork, const ReconcileInputs& rInputs)
 	rScratch.iOutputCount = std::min(rScratch.iOutputCount, static_cast<int64_t>(engine::kiNetworkBufferSize));
 	ASSERT(rScratch.iOutputCount >= 0 && rScratch.iOutputCount <= engine::kiNetworkBufferSize);
 
-	rScratch.iTickCounter = rInputs.iTargetTick;
 	ASSERT(rScratch.replayStack[rScratch.iReplayStackCount - 1]->interpolate.iTick <= rInputs.iTargetTick);
-	rScratch.fCurrentTime = fTime;
 
 	ApplyCoordWriteback(rWork);
 }

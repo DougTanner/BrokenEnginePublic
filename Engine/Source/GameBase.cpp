@@ -170,7 +170,7 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 	const int64_t iActiveCount = static_cast<int64_t>(rActiveCoords.size());
 
 	// Pre-resolve frame references to avoid repeated map lookups across all phases
-	common::gpThreadLocal->mWorkbuffer.Push();
+	common::ScopedWorkbufferArena scopedWorkbufferArena = common::gpThreadLocal->mWorkbuffer.Push();
 	for (int64_t j = 0; j < iActiveCount; ++j)
 	{
 		const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
@@ -212,8 +212,6 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 
 	gpProfileManager->CpuStop(game::kCpuTimerFramePostRender, false);
 	gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
-
-	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 void GameBase::FinalizeFrameTick(const std::vector<GridCoord>& rActiveCoords)

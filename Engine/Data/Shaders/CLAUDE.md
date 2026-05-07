@@ -7,7 +7,7 @@ GLSL shader source for the Vulkan 1.2 pipeline, compiled to SPIR-V by the DataPa
 ## Architecture Notes
 
 - **Scalar block layout**: All uniform and storage buffers use `GL_EXT_scalar_block_layout` with a global `layout(scalar) uniform;` directive. Struct members are tightly packed with C++ alignment rules (no std140 padding), keeping CPU/GPU layouts in sync. DataPacker passes `--scalar-block-layout` to spirv-opt. Plain `float[]` arrays are 4-byte stride, not 16-byte.
-- **Dual-language headers**: `ShaderLayoutsBase.h` preprocessor-switches between DirectXMath (C++) and GLSL vec types so the same struct definition serves both sides.
+- **Dual-language headers**: `ShaderLayoutsBase.h` preprocessor-switches between DirectXMath (C++) and GLSL vec types so the same struct definition serves both sides. Shader-wide scalar constants live here too; naming follows `kf` for floats, `ki` for ints, `ke` for enum-like / format constants, `kb` for bools.
 - **Bindless textures**: Unsized `texture2D[]` arrays with separate samplers and `nonuniformEXT()` dynamic indexing.
 - **Multi-set descriptors**: Set 0 = global (UBOs, samplers, bindless textures), Set 1 = per-pipeline (SSBOs, combined image samplers), Set 2 = per-material (models only).
 - **Push-constant render modes**: Vertex shaders select camera/visible-area/shadow projection without separate pipeline permutations.

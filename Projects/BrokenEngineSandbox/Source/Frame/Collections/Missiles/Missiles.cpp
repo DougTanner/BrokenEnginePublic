@@ -60,13 +60,10 @@ constexpr float kfExplosionTrailCountMin = 2.0f;
 constexpr float kfExplosionTrailCountRandom = 2.0f;
 
 // Missile sound
-constexpr float kfMissileSoundVolume = 0.175f;
 constexpr float kfMissileSoundFadeOutTime = 0.04f;
-constexpr float kfPitchMin = 0.75f;
-constexpr float kfPitchRandom = 0.5f;
 
 // Explosion sound
-constexpr float kfExplosionSoundVolume = 0.5f;
+constexpr float kfExplosionSoundVolume = 0.75f;
 
 // Missile spawn
 constexpr float kfDeltaRotationLimitMin = 2.0f;
@@ -128,15 +125,15 @@ void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_l
 		});
 	}
 
-	// Sync sound position
+	// Sync sound position (looping engine sound)
 	if (uiSound.IsValid() && !(flags & kExploding))
 	{
 		engine::SoundsInterpolate::Sync(rFrameInterpolate, uiSound,
 		{
 			.vecPosition = vecPosition,
 			.vecVelocity = vecVelocity,
-			.uiCrc = data::kAudioMissile182794__qubodup__rocketlaunchwavCrc,
-			.fVolume = kfMissileSoundVolume,
+			.uiCrc = data::kAudioMissile182794__qubodup__rocketlaunch_loopwavCrc,
+			.fVolume = kfMissileSoundVolumeLoop,
 			.fPitch = fPitch,
 			.fFadeOutTime = kfMissileSoundFadeOutTime,
 		});
@@ -489,7 +486,7 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentPostRender.pfAccelerations[iIndex] = rInfo.fAcceleration;
 
 	// Create sound with random pitch variation
-	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
+	float fPitch = kfMissilePitchMin + common::Random<kfMissilePitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 
@@ -510,6 +507,8 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	}
 
 #if defined(BT_CLIENT)
+	int64_t iExplodeNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+	LOG(kTemp, kInfo, "Missile::Explode->PlayOneShot3d tick={} i={} pos={} vol={} ns={}", rFrame.interpolate.iTick, i, common::WbV2(rCurrentInterpolate.pVecPositions[i], 1), common::Wb(kfExplosionSoundVolume, 3), iExplodeNs);
 	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], kfExplosionSoundVolume);
 #endif
 

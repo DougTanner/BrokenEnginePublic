@@ -5,7 +5,6 @@
 inline constexpr bool kbDesyncRecovery = false; // DT: TODO Need to properly test true;
 inline constexpr bool kbFrameDispatch = true;
 inline constexpr bool kbLogging = true;
-inline constexpr bool kbQuadrantNeighborSubscriptions = true;
 inline constexpr bool kbInvincibility = true;
 inline constexpr bool kbRenderThread = true;
 
@@ -74,14 +73,14 @@ inline constexpr bool kbShowProfileTextByDefault = false;
 
 #include "LogTypes.h"
 
-inline constexpr LogLevel keLogLevelDefault  = kWarning;
 inline constexpr LogLevel keLogLevelTemp     = kVerbose;
 
+inline constexpr LogLevel keLogLevelDefault = kWarning;
 inline constexpr LogLevel keLogLevelAudio    = keLogLevelDefault;
 inline constexpr LogLevel keLogLevelGraphics = keLogLevelDefault;
 inline constexpr LogLevel keLogLevelLoading  = keLogLevelDefault;
 inline constexpr LogLevel keLogLevelNavData  = keLogLevelDefault;
-inline constexpr LogLevel keLogLevelNetwork  = kVerbose;
+inline constexpr LogLevel keLogLevelNetwork  = kVerbose; //  keLogLevelDefault;
 inline constexpr LogLevel keLogLevelInput    = keLogLevelDefault;
 
 #include "Common.h"

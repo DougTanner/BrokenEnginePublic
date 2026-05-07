@@ -22,6 +22,10 @@ inline constexpr float kfMissileDestroyTime = 0.35f;
 inline constexpr float kfMissileDeltaRotationDelay = 0.5f;
 inline constexpr float kfMissileExhaustLength = 1.25f;
 inline constexpr float kfMissileExhaustLengthRandom = 1.0f;
+inline constexpr float kfMissileSoundVolumeStart = 0.4f;
+inline constexpr float kfMissileSoundVolumeLoop = 0.0f;
+inline constexpr float kfMissilePitchMin = 0.75f;
+inline constexpr float kfMissilePitchRandom = 0.5f;
 struct Frame;
 struct FrameInterpolate;
 
@@ -91,7 +95,7 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 
 struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 {
-	static constexpr int64_t kiVersion = 4;
+	static constexpr int64_t kiVersion = 5;
 
 	// Allocate and copy
 	static void AllocateAndCopy(MissilesPostRender& rCurrent, const MissilesPostRender& rPrevious);

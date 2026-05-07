@@ -308,7 +308,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 	if (vkResultCreateInstance != VK_SUCCESS)
 	{
-		common::ScopedWorkbufferPop pcResult = gEnumToString.Convert(vkResultCreateInstance, common::gpThreadLocal->mWorkbuffer);
+		common::ScopedWorkbufferAllocation<const char*> pcResult = gEnumToString.Convert(vkResultCreateInstance, common::gpThreadLocal->mWorkbuffer);
 		LOG(kDefault, kError, "vkCreateInstance failed with {}, Vulkan 1.2 is required", pcResult);
 		std::string errorMessage = "Failed to create Vulkan instance.\n\nVulkan 1.2 or higher is required.\n\nError: ";
 		errorMessage += static_cast<const char*>(pcResult);
@@ -572,8 +572,8 @@ void InstanceManager::SelectSurfaceFormat()
 	LOG(kGraphics, kInfo, "Surface formats ({}):", physicalDeviceSurfaceFormats.size());
 	for ([[maybe_unused]] const VkSurfaceFormatKHR& rVkSurfaceFormatKHR : physicalDeviceSurfaceFormats)
 	{
-		common::ScopedWorkbufferPop pcFormat = gEnumToString.Convert(rVkSurfaceFormatKHR.format, rWorkbuffer);
-		common::ScopedWorkbufferPop pcColorSpace = gEnumToString.Convert(rVkSurfaceFormatKHR.colorSpace, rWorkbuffer);
+		common::ScopedWorkbufferAllocation<const char*> pcFormat = gEnumToString.Convert(rVkSurfaceFormatKHR.format, rWorkbuffer);
+		common::ScopedWorkbufferAllocation<const char*> pcColorSpace = gEnumToString.Convert(rVkSurfaceFormatKHR.colorSpace, rWorkbuffer);
 		LOG(kGraphics, kInfo, "  {} ({})", pcFormat, pcColorSpace);
 	}
 	LOG(kGraphics, kInfo, "");
@@ -583,8 +583,8 @@ void InstanceManager::SelectSurfaceFormat()
 	{
 		mFramebufferVkFormat = VK_FORMAT_B8G8R8A8_UNORM;
 		{
-			common::ScopedWorkbufferPop pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
-			common::ScopedWorkbufferPop pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
+			common::ScopedWorkbufferAllocation<const char*> pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
+			common::ScopedWorkbufferAllocation<const char*> pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
 			LOG(kGraphics, kInfo, "Selected framebuffer format: {} with color space: {} (no preferred format)\n", pcFormat, pcColorSpace);
 		}
 	}
@@ -599,8 +599,8 @@ void InstanceManager::SelectSurfaceFormat()
 				mFramebufferVkColorSpace = rVkSurfaceFormatKHR.colorSpace;
 				bFoundPreferredFormat = true;
 				{
-					common::ScopedWorkbufferPop pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
-					common::ScopedWorkbufferPop pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
+					common::ScopedWorkbufferAllocation<const char*> pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
+					common::ScopedWorkbufferAllocation<const char*> pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
 					LOG(kGraphics, kInfo, "Selected framebuffer format: {} with color space: {}\n", pcFormat, pcColorSpace);
 				}
 				break;
@@ -613,8 +613,8 @@ void InstanceManager::SelectSurfaceFormat()
 			mFramebufferVkFormat = physicalDeviceSurfaceFormats.at(0).format;
 			mFramebufferVkColorSpace = physicalDeviceSurfaceFormats.at(0).colorSpace;
 			{
-				common::ScopedWorkbufferPop pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
-				common::ScopedWorkbufferPop pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
+				common::ScopedWorkbufferAllocation<const char*> pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
+				common::ScopedWorkbufferAllocation<const char*> pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
 				LOG(kGraphics, kInfo, "Using fallback surface format: {} with color space: {} (preferred formats not available)\n", pcFormat, pcColorSpace);
 			}
 		}

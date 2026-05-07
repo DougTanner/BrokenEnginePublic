@@ -54,8 +54,6 @@ struct CoordScratch
 	bool bReSimOccurred = false;
 	bool bSuppressRepeatLogs = false;
 	int64_t iPreReconcileTailTick = -1;
-	int64_t iTickCounter = 0;
-	float fCurrentTime = 0.0f;
 	ReconcileProfiling profiling;
 
 	int64_t iDesyncTick = -1;

@@ -65,7 +65,7 @@ void Buffer::CreateBuffer([[maybe_unused]] std::string_view name, VkDeviceSize v
 void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, const BarrierInfo* pBarriers, int64_t iBarrierCount)
 {
 	// Build barrier array and accumulate stage masks
-	common::gpThreadLocal->mWorkbuffer.Push();
+	common::ScopedWorkbufferArena scopedWorkbufferArena = common::gpThreadLocal->mWorkbuffer.Push();
 	VkPipelineStageFlags combinedSrcStage = 0;
 	VkPipelineStageFlags combinedDstStage = 0;
 
@@ -131,7 +131,6 @@ void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, const BarrierInfo* 
 
 	auto vkBufferBarriers = common::gpThreadLocal->mWorkbuffer.Span<VkBufferMemoryBarrier>();
 	vkCmdPipelineBarrier(vkCommandBuffer, combinedSrcStage, combinedDstStage, 0, 0, nullptr, static_cast<uint32_t>(vkBufferBarriers.size()), vkBufferBarriers.data(), 0, nullptr);
-	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 Buffer::Buffer(const BufferInfo& rInfo, std::function<void(void*)> dataFunction)

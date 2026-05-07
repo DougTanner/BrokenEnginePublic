@@ -54,7 +54,7 @@ bool GameSaveLoad::ServerLoad()
 	}
 
 	mrGameBase.Reset();
-	game::gpGame->mClientGridCoord = loadedClientGridCoord;
+	game::gpGame->SetClientGridCoord(loadedClientGridCoord);
 	game::gpServerSession->ResetClientsForLoad();
 	game::gpServerSession->ComputeActiveSet();
 
@@ -91,7 +91,7 @@ bool GameSaveLoad::Autoload()
 		return false;
 	}
 
-	game::gpGame->mClientGridCoord = loadedClientGridCoord;
+	game::gpGame->SetClientGridCoord(loadedClientGridCoord);
 	return true;
 }
 
@@ -128,7 +128,7 @@ bool GameSaveLoad::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 
 			if (bQuickloaded)
 			{
-				game::gpGame->mClientGridCoord = loadedClientGridCoord;
+				game::gpGame->SetClientGridCoord(loadedClientGridCoord);
 				ASSERT(mrGameBase.mCoordFrames.contains(game::gpGame->mClientGridCoord));
 				game::gpServerSession->ResetClientsForLoad();
 			}

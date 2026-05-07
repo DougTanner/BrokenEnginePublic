@@ -220,6 +220,7 @@ void ServerClientManager::FinalizeNewClients([[maybe_unused]] int64_t iTick)
 
 void ServerClientManager::Disconnects()
 {
+	// Heap: drain disconnect events; per-client owned-id map mutations and fleet-manager bookkeeping
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	for (const engine::PendingDisconnect& rDisconnect : engine::gpServer->DrainPendingDisconnects())
@@ -273,6 +274,7 @@ void ServerClientManager::DetectPlayerDeaths()
 			continue;
 		}
 
+		// Heap: per-frame death scan may erase from owned-id vector and authorizedCoords
 		ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 		// Check each owned player for death (reverse iterate for safe removal)

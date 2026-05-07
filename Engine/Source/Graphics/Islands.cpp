@@ -55,13 +55,12 @@ Islands::Islands()
 	});
 
 	// Copy island quads to storage buffer for GPU rendering
-	auto* pQuads = common::gpThreadLocal->mWorkbuffer.PushBuffer<shaders::AxisAlignedQuadLayout*>(mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
+	auto pQuads = common::gpThreadLocal->mWorkbuffer.PushBuffer<shaders::AxisAlignedQuadLayout*>(mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
 	for (size_t i = 0; i < mIslands.size(); ++i)
 	{
 		pQuads[i] = mIslands[i].quad;
 	}
 	memcpy(mIslandsStorageBuffer.mpMappedMemory, pQuads, mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
-	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 Islands::~Islands()
@@ -168,13 +167,12 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 	}
 
 	// Upload all quads to storage buffer
-	auto* pQuads = common::gpThreadLocal->mWorkbuffer.PushBuffer<shaders::AxisAlignedQuadLayout*>(mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
+	auto pQuads = common::gpThreadLocal->mWorkbuffer.PushBuffer<shaders::AxisAlignedQuadLayout*>(mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
 	for (size_t i = 0; i < mIslands.size(); ++i)
 	{
 		pQuads[i] = mIslands[i].quad;
 	}
 	memcpy(mIslandsStorageBuffer.mpMappedMemory, pQuads, mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
-	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 } // namespace engine

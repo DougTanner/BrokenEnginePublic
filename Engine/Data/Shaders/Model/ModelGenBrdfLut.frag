@@ -72,7 +72,9 @@ void main()
 			float VdotH = max(dot(V, H), 0.0);
 			float G = SmithG(NdotV, NdotL, roughness);
 			float visibility = (G * VdotH) / max(NdotH * NdotV, 0.001);
-			float Fc = pow(1.0 - VdotH, 5.0);
+			float x = 1.0 - VdotH;
+			float x2 = x * x;
+			float Fc = x2 * x2 * x;
 			result += vec2((1.0 - Fc) * visibility, Fc * visibility);
 		}
 	}

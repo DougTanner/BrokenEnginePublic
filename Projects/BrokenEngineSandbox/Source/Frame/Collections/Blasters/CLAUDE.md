@@ -14,5 +14,7 @@ Fast-moving energy projectiles with shared `BlasterType` configuration. Terrain 
 
 Two overloads exist. The phase-dispatched `Spawn(Frame, FrameStaticData)` is intentionally empty — blasters have no server-driven spawner. New blasters come only from the `Spawn(Frame, SpawnInfo&)` overload invoked by weapon code. Do not add server-driven spawn logic to the phase entry point.
 
+The fire-and-forget muzzle one-shot is emitted at the weapon firing site (Players/Spaceships combat code), NOT inside `Spawn(SpawnInfo&)`. This is deliberate: cross-cell `TransferRequest` re-spawns route through the same `SpawnInfo&` overload, and triggering audio there would retrigger the muzzle cue on every cell handoff. The per-blaster synced sound managed by `SoundsInterpolate::Sync` is unrelated and remains driven from `ClientInit`.
+
 ## See Also
 - Parent collections: [../CLAUDE.md](../CLAUDE.md)

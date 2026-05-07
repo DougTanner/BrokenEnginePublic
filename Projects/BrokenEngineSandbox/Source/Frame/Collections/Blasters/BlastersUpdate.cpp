@@ -155,7 +155,7 @@ static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine:
 	{
 		.vecPosition = vecPosition,
 		.vecVelocity = vecVelocity,
-		.uiCrc = data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc,
+		.uiCrc = data::kAudioBlasterNew609840__eminyildirim__spacedroneambience7variation_0wavCrc,
 		.fVolume = kfBlasterVolume,
 		.fPitch = fPitch,
 		.fFadeOutTime = kfBlasterFadeOutTime,

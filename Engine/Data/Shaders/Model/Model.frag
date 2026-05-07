@@ -121,13 +121,15 @@ float D_GGX(float NdotH, float alphaRoughness)
 {
 	float a2 = alphaRoughness * alphaRoughness;
 	float f = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
-	return a2 / (fPi * f * f);
+	return a2 / (kfPi * f * f);
 }
 
 // Schlick Fresnel approximation
 vec3 F_Schlick(float VdotH, vec3 F0, vec3 F90)
 {
-	return F0 + (F90 - F0) * pow(clamp(1.0 - VdotH, 0.0, 1.0), 5.0);
+	float x = clamp(1.0 - VdotH, 0.0, 1.0);
+	float x2 = x * x;
+	return F0 + (F90 - F0) * (x2 * x2 * x);
 }
 
 // Smith-GGX geometry visibility function (separable form)
@@ -143,7 +145,7 @@ float V_SmithGGXCorrelated(float NdotL, float NdotV, float alphaRoughness)
 // Lambertian diffuse BRDF
 vec3 DiffuseLambert(vec3 diffuseColor)
 {
-	return diffuseColor / fPi;
+	return diffuseColor / kfPi;
 }
 
 // Compute perturbed normal from normal map using screen-space derivatives
@@ -168,7 +170,12 @@ vec3 GetNormal(PbrMaterialLayout material)
 	}
 
 	vec3 T = (tex_dy.t * pos_dx - tex_dx.t * pos_dy) / det;
-	T = normalize(T - N * dot(N, T));
+	vec3 Tperp = T - N * dot(N, T);
+	if (dot(Tperp, Tperp) < kfEpsilon * kfEpsilon)
+	{
+		return N;
+	}
+	T = normalize(Tperp);
 	vec3 B = normalize(cross(N, T));
 	mat3 TBN = mat3(T, B, N);
 
@@ -271,7 +278,6 @@ void main()
 	vec3 f3MoonColor = mainLayout.fPbrSun * globalLayout.f4MoonColor.rgb;
 	float fSunIntensity  = mainLayout.fPbrSun * (f3SunColor.r  + f3SunColor.g  + f3SunColor.b)  / mainLayout.fPbrDayBrightness;
 	float fMoonIntensity = mainLayout.fPbrSun * (f3MoonColor.r + f3MoonColor.g + f3MoonColor.b) / mainLayout.fPbrDayBrightness;
-	float fSunDot = max(0.0, dot(f3InNormal, globalLayout.f4SunMoonNormal.xyz));
 
 	vec3 f3AmbientColor = globalLayout.f4AmbientColor.rgb;
 
@@ -323,7 +329,8 @@ void main()
 	#if 1
 	// Sample lighting texture at world x/y (very close to base-height already)
 	vec2 f2LightingTexcoord = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
-	vec4 pf4Lighting[3] = {texture(pLightingSamplers[0], f2LightingTexcoord), texture(pLightingSamplers[1], f2LightingTexcoord), texture(pLightingSamplers[2], f2LightingTexcoord)};
+	vec4 pf4Lighting[3];
+	ReadLighting(pf4Lighting, pLightingSamplers, f2LightingTexcoord);
 
 	// Apply directional lighting
 	vec3 f3Directional = DirectionalLighting(pf4Lighting, n, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower, mainLayout.fLightingDirectionalPowerMode);

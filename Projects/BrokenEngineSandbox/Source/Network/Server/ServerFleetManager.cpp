@@ -43,6 +43,7 @@ int64_t ServerFleetManager::FindClientIdForGuid(const engine::ClientGuid& rGuid)
 
 void ServerFleetManager::ProcessCreateFleetRequests()
 {
+	// Heap: mFleets map and fleet-list grow on create; SendFleetSyncToClient allocates packet
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	for (const PendingCreateFleetRequest& rRequest : mPendingCreateFleetRequests)
@@ -65,6 +66,7 @@ void ServerFleetManager::ProcessCreateFleetRequests()
 
 void ServerFleetManager::ProcessDeleteFleetRequests()
 {
+	// Heap: SendFleetSyncToClient allocates packet on fleet delete
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	for (const PendingDeleteFleetRequest& rRequest : mPendingDeleteFleetRequests)
@@ -96,6 +98,7 @@ void ServerFleetManager::ProcessDeleteFleetRequests()
 
 void ServerFleetManager::ProcessSpawnIntoFleetRequests()
 {
+	// Heap: QueueSpawnForClient appends to spawn queue
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	for (const PendingSpawnIntoFleetRequest& rRequest : mPendingSpawnIntoFleetRequests)
@@ -120,6 +123,7 @@ void ServerFleetManager::ProcessSpawnIntoFleetRequests()
 
 void ServerFleetManager::ProcessRespawnInFleetRequests()
 {
+	// Heap: QueueSpawnForClient appends to spawn queue on respawn
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	for (const PendingRespawnInFleetRequest& rRequest : mPendingRespawnInFleetRequests)
@@ -168,6 +172,7 @@ static engine::GridCoord NavDirectionOffset(int8_t iNavDirection)
 
 void ServerFleetManager::TickFleetTimers()
 {
+	// Heap: mPendingFlagshipUpdates vector grows when flagship picks new direction
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	for (auto& [rGuid, rFleets] : mFleets)
@@ -252,6 +257,7 @@ void ServerFleetManager::TickFleetTimers()
 
 void ServerFleetManager::ProcessFlagshipUpdates()
 {
+	// Heap: per-member statusChanges vector grows on flagship update broadcast
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	for (const PendingFlagshipUpdate& rUpdate : mPendingFlagshipUpdates)
@@ -347,7 +353,7 @@ void ServerFleetManager::SendFleetSync(int64_t iClientId, const std::vector<Flee
 	LOG(kNetwork, kVerbose, "ServerFleetManager::SendFleetSync Client: {} Fleets: {}", iClientId, rFleets.size());
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	rWorkbuffer.Push();
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 
 	// [1B type][8B fleetCount] per fleet: [8B guid.uiHigh][8B guid.uiLow][8B memberCount][8B iFlagshipIndex][4B navigationDelay] per member: [8B globalPlayerId][1B bAlive]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kServerFleetSync));
@@ -367,8 +373,6 @@ void ServerFleetManager::SendFleetSync(int64_t iClientId, const std::vector<Flee
 	}
 
 	engine::NetworkManager::SendPacket(pClient->pPeer, engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-
-	rWorkbuffer.Pop();
 }
 
 void ServerFleetManager::QueueCreateRequest(const PendingCreateFleetRequest& rRequest)
@@ -463,6 +467,7 @@ void ServerFleetManager::OnPlayerSpawned(int64_t iClientId, const ClientSpawnInf
 		return;
 	}
 
+	// Heap: try_emplace fleet entry, fleet members vector grows, pending flagship update
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	engine::ClientGuid guid = FindGuidForClient(iClientId);
@@ -528,6 +533,7 @@ void ServerFleetManager::OnPlayerTransferred(const engine::ClientGuid& rGuid, en
 
 void ServerFleetManager::OnClientConnected(int64_t iClientId, const engine::ClientGuid& rClientGuid)
 {
+	// Heap: insert_or_assign mGuidToClientId, try_emplace owned-id vector, SendFleetSync packet
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	mGuidToClientId.insert_or_assign(rClientGuid, iClientId);
@@ -574,6 +580,7 @@ void ServerFleetManager::OnClientDisconnected([[maybe_unused]] int64_t iClientId
 
 void ServerFleetManager::OnResetForLoad(int64_t iClientId, const engine::ClientGuid& rClientGuid)
 {
+	// Heap: try_emplace owned-id, mPlayerToGuid rebuild, pending flagship updates after load
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	const std::vector<engine::global_id_t>& rOwnedIds = gpServerSession->mClientOwnedPlayerIds.try_emplace(iClientId).first->second;
@@ -635,7 +642,7 @@ void ServerFleetManager::OnResetForLoad(int64_t iClientId, const engine::ClientG
 	SendFleetSyncToClient(iClientId);
 }
 
-ServerFleetManager::FleetLookupResult ServerFleetManager::LookupFleetWantedCoord(int64_t iClientId, int64_t iFleetIndex, int64_t iMemberIndex, [[maybe_unused]] engine::GridCoord spawnCoord)
+ServerFleetManager::FleetLookupResult ServerFleetManager::LookupFleetWantedCoord(int64_t iClientId, int64_t iFleetIndex, int64_t iMemberIndex)
 {
 	engine::ClientGuid guid = FindGuidForClient(iClientId);
 	auto fleetIt = mFleets.find(guid);
@@ -653,6 +660,7 @@ ServerFleetManager::FleetLookupResult ServerFleetManager::LookupFleetWantedCoord
 
 void ServerFleetManager::DetectDisconnectedPlayerDeaths()
 {
+	// Heap: ShiftFlagshipAfterDeath may push pending-flagship-update entries
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	for (auto& [rGuid, rFleets] : mFleets)
@@ -743,6 +751,7 @@ void ServerFleetManager::WriteFleetData(std::fstream& rFileStream) const
 
 void ServerFleetManager::ReadFleetData(std::fstream& rFileStream)
 {
+	// Heap: rebuild mFleets/mPlayerToGuid/mGuidToClientId from save stream
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	mFleets.clear();

@@ -101,6 +101,7 @@ public:
 	std::unique_ptr<ReceivedDebugFrame> DrainReceivedDebugFrame() { return std::move(mpReceivedDebugFrame); }
 
 	bool IsConnected() const { return mbConnected; }
+	bool CanSend() const { return mbConnected && mpServerPeer != nullptr; }
 	bool IsConnectionAccepted() const { return mbConnectionAccepted; }
 	const char* GetRejectionReason() const { return mpcRejectionReason[0] != '\0' ? mpcRejectionReason : nullptr; }
 	bool WasDisconnected() const { return mbDisconnectedEvent; }

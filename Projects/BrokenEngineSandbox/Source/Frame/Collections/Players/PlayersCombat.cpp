@@ -382,6 +382,10 @@ void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
 				.fWindTrailLengthMultiplier = game::gWindDepositBlastersLengthMultiplier.Get(),
 			});
 
+#if defined(BT_CLIENT)
+			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc, vecFinalPosition, kfBlasterVolume, kfBlasterPitchMin, kfBlasterPitchRandom);
+#endif
+
 			rCurrentPostRender.pfNextBlasterFireTimes[i] += kfBlasterFireInterval;
 		}
 	}
@@ -453,6 +457,12 @@ void PlayersPostRender::SpawnMissiles([[maybe_unused]] Frame& __restrict rFrame)
 			.flags = MissileFlags::kTargetEnemy,
 			.alignment = rCurrentPostRender.pAlignments[i],
 		});
+
+#if defined(BT_CLIENT)
+		engine::gpAudioManager->PlayOneShot3d(rFrame,
+			data::kAudioMissile182794__qubodup__rocketlaunch_start_0wavCrc,
+			vecMissilePosition, kfMissileSoundVolumeStart, kfMissilePitchMin, kfMissilePitchRandom);
+#endif
 	}
 }
 

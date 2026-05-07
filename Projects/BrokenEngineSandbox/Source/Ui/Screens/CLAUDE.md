@@ -17,7 +17,7 @@ Children do not re-document these:
 ## Screens
 
 - **TweaksScreen** - Game override of `engine::TweaksScreenBase`; implements the hex-shield section and per-explosion-type Particles tabs (3 sub-tabs: Missile / Player / Spaceship), and provides game tabs hosted inside engine sections (Deposits inside Wind; Visible/Lighting inside Lighting Effects). Split into per-tab files. See subdirectory.
-- **HudScreen** - In-game overlay: left fleet panel, right focused-player controls. Both panels slide off-screen when the mouse is far away; left-panel mouse proximity also slides the right panel in (one-way coupling). Left panel is force-opened when the camera has no follow target or the focused grid cell has no players.
+- **HudScreen** - In-game overlay: left fleet panel, right focused-player controls. Both panels slide off-screen when the mouse is far away; left-panel mouse proximity also slides the right panel in (one-way coupling). Left panel is force-opened when the camera has no follow target or the focused fleet has no presence in any subscribed frame.
 - **MainMenuScreen** - Local/remote server selection, settings, quit, language. Compile-time `Pch.h` toggles gate auto-launch/auto-connect.
 - **ModalScreen** - Centered modal for connection-rejection and desync messages.
 - **PauseMenuScreen** - In-game pause overlay.

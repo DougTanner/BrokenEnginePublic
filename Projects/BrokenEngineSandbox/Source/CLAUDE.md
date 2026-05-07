@@ -17,12 +17,12 @@ Frame code is purely functional. Frame updates must only rely on explicit functi
 ## Architecture Notes
 
 - **Deterministic floating-point**: `/fp:strict` in vcxproj ensures cross-hardware determinism for CRC-based reconciliation. See [Documents/FloatingPointDeterminism.txt](../../../Documents/FloatingPointDeterminism.txt).
-- **Client-driven subscriptions**: Client computes its own active set (current cell + up to three quadrant neighbors) using per-axis hysteresis; server only sees the resulting subscription list. Local-only frames outside the active set are evicted; confirmed frames are kept.
+- **Client-driven subscriptions**: Client computes its own active set (current cell + any cells in the immediate 3x3 ring whose footprint overlaps the camera's zoom-dependent `f4LargeVisibleArea`); server only sees the resulting subscription list. Local-only frames outside the active set are evicted; confirmed frames are kept. The 3x3 clamp is explicit — at extreme zoom-out the VisibleArea can extend beyond the ring and would otherwise add cells the server doesn't authorize.
 - **Cross-grid transfers**: Entity hand-off between grid cells is expressed as transfer `StatusChange`s carrying fully-serialized spawn state, dispatched per collection type and stripped from `FrameInput` before the normal Spawn phase.
 - **Alignments**: `playerAlignment` / `enemyAlignment` are owned by `Game` and copied onto each new `Frame::postRender`. Frame code reads them from `postRender`, never from `gpGame`.
 - **Versioned persisted settings**: Sound/graphics/tweaks settings plus per-client UI/session state (focused fleet identifier, focused ship global ID, camera zoom target) are client-only POD structs with an embedded `kiVersion`, round-tripped through `engine::{Write,Read}VersionedFile` into `kAppDataDirectory`. Bump the struct version on layout change. Session state is captured each frame and re-persisted only when the diff against the last-written copy changes.
 - **Save-format version**: `Version.h` holds a single `kGameVersion` constant included inside the `game` namespace; bump on save/replay/protocol-incompatible changes.
-- **Compile-time toggles**: `Pch.h` holds `inline constexpr` flags for frame dispatch parallelism, quadrant subscriptions, desync recovery, render thread, network simulation, and per-configuration debug/profile knobs. It also defines per-category log-level overrides before including `Common.h`.
+- **Compile-time toggles**: `Pch.h` holds `inline constexpr` flags for frame dispatch parallelism, desync recovery, render thread, network simulation, and per-configuration debug/profile knobs. It also defines per-category log-level overrides before including `Common.h`.
 - Detailed networking flow: [Game Reconciliation](../../../Documents/Architecture/GameReconciliation.md), [Network Architecture](../../../Documents/Architecture/Network.md).
 
 ## Subdirectories

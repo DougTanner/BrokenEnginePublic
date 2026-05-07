@@ -14,7 +14,7 @@ void ClientSession::UpdateDesiredCoords(SubscriptionChangeReason eReason)
 	if (common::gpThreadLocal->miLogTickCounter < 0)
 		optionalTickScope.emplace(gpGame->TickCounter());
 
-	static constexpr int64_t kiMaxDesiredCoords = 8;
+	static constexpr int64_t kiMaxDesiredCoords = 9;
 	engine::GridCoord desiredCoords[kiMaxDesiredCoords] {};
 	int64_t iDesiredCount = 0;
 
@@ -28,14 +28,9 @@ void ClientSession::UpdateDesiredCoords(SubscriptionChangeReason eReason)
 	{
 		pushCoord(gpGame->mClientGridCoord);
 
-		if constexpr (kbQuadrantNeighborSubscriptions)
+		for (int64_t i = 0; i < gpGame->miVisibleNeighborCount; ++i)
 		{
-			if (gpGame->miQuadrantDirX != 0)
-				pushCoord({.x = gpGame->mClientGridCoord.x + gpGame->miQuadrantDirX, .y = gpGame->mClientGridCoord.y});
-			if (gpGame->miQuadrantDirY != 0)
-				pushCoord({.x = gpGame->mClientGridCoord.x, .y = gpGame->mClientGridCoord.y + gpGame->miQuadrantDirY});
-			if (gpGame->miQuadrantDirX != 0 && gpGame->miQuadrantDirY != 0)
-				pushCoord({.x = gpGame->mClientGridCoord.x + gpGame->miQuadrantDirX, .y = gpGame->mClientGridCoord.y + gpGame->miQuadrantDirY});
+			pushCoord(gpGame->mVisibleNeighbors[i]);
 		}
 	}
 	else
@@ -63,9 +58,9 @@ void ClientSession::UpdateDesiredCoords(SubscriptionChangeReason eReason)
 	if (bChanged)
 	{
 		// Heap: mDesiredCoords.assign and mUnwantedTimestamps may allocate on subscription changes
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-		common::ScopedWorkbufferBuilder message(common::gpThreadLocal->mWorkbuffer);
+		common::ScopedWorkbufferArena message = common::gpThreadLocal->mWorkbuffer.Push();
 		message.Append("Desired subscriptions changed Reason: ");
 		message.Append(ToString(eReason));
 		message.Append(" Removed: [");

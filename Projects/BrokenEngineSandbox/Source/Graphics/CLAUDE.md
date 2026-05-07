@@ -10,7 +10,7 @@ Extends `engine::CameraBase` with smooth player tracking, static main menu posit
 
 **Hybrid Timing**: Position blend, shake decay, and internal timers advance on a display-rate accumulator (FIFO cadence). Sun angle alone advances on deterministic frame dt so day/night survives variable render rates.
 
-**Sun Angle**: Piecewise speed with slow band around noon and sin-eased faster band through night; wraps at `2*PI`; paused in main menu. UI sliders and debug ImGui can override the live value.
+**Sun Angle**: Piecewise speed with a faster band around noon to push past midday quickly; default rate elsewhere; wraps at `2*PI`; paused in main menu. UI sliders and debug ImGui can override the live value.
 
 **Long-Distance Jump Easing**: Fixed-duration smoothstep ease triggered by distance-to-target or mid-jump target-shift exceeding threshold; re-anchors from current position without cancelling; ends on proximity or duration force-snap.
 

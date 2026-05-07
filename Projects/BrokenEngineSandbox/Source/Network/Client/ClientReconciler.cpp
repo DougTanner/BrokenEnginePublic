@@ -94,8 +94,6 @@ ReconcileDesyncInfo ClientReconciler::Run()
 		rScratch.bReSimOccurred = false;
 		rScratch.bSuppressRepeatLogs = false;
 		rScratch.iPreReconcileTailTick = -1;
-		rScratch.iTickCounter = 0;
-		rScratch.fCurrentTime = 0.0f;
 		rScratch.profiling = {};
 		rScratch.iDesyncTick = -1;
 		rScratch.desyncExpectedCrc = 0;
@@ -119,7 +117,8 @@ ReconcileDesyncInfo ClientReconciler::Run()
 	const int64_t iCount = static_cast<int64_t>(iActiveCount);
 	auto processRange = [&](int64_t iBegin, int64_t iEnd)
 	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		// Heap: ReconcileCoord may grow per-coord scratch (frames, replay buffers) on dispatch
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
 		for (int64_t i = iBegin; i < iEnd; ++i)
 		{
 			ReconcileCoord(activeWorks[i], inputs);
@@ -156,7 +155,14 @@ ReconcileDesyncInfo ClientReconciler::Run()
 			bool bLogThis = !rScratch.bSuppressRepeatLogs || (rWork.pFrames->iStuckFrameCount % engine::CoordFrames::kiStuckLogInterval == 0);
 			if (bLogThis)
 			{
-				LOG(kNetwork, kDebug, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} Validated: {}/{} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iLastValidatedIndex + 1, rScratch.iReplayStackCount, rScratch.bCrcFastPath, rScratch.bReplayed, rScratch.bShrunkRollback, rScratch.iDesyncTick);
+				if (rScratch.iDesyncTick >= 0)
+				{
+					LOG(kNetwork, kError, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} Validated: {}/{} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iLastValidatedIndex + 1, rScratch.iReplayStackCount, rScratch.bCrcFastPath, rScratch.bReplayed, rScratch.bShrunkRollback, rScratch.iDesyncTick);
+				}
+				else
+				{
+					LOG(kNetwork, kDebug, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} Validated: {}/{} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iLastValidatedIndex + 1, rScratch.iReplayStackCount, rScratch.bCrcFastPath, rScratch.bReplayed, rScratch.bShrunkRollback, rScratch.iDesyncTick);
+				}
 			}
 		}
 	}
@@ -166,7 +172,7 @@ ReconcileDesyncInfo ClientReconciler::Run()
 		char acExpected[20] {}, acActual[20] {};
 		common::ToHex(std::span<char, 20>(acExpected), pDesyncWork->scratch.desyncExpectedCrc);
 		common::ToHex(std::span<char, 20>(acActual), pDesyncWork->scratch.desyncActualCrc);
-		LOG(kNetwork, kVerbose, "Reconcile Desync Summary Coord: ({},{}) DesyncTick: {} ExpectedCrc: {} ActualCrc: {} ReplayTicks: {} NewConfirmed: {}", pDesyncWork->coord.x, pDesyncWork->coord.y, pDesyncWork->scratch.iDesyncTick, acExpected, acActual, pDesyncWork->scratch.iReplayStackCount, pDesyncWork->scratch.iNewConfirmedTick);
+		LOG(kNetwork, kError, "Reconcile Desync Summary Coord: ({},{}) DesyncTick: {} ExpectedCrc: {} ActualCrc: {} ReplayTicks: {} NewConfirmed: {}", pDesyncWork->coord.x, pDesyncWork->coord.y, pDesyncWork->scratch.iDesyncTick, acExpected, acActual, pDesyncWork->scratch.iReplayStackCount, pDesyncWork->scratch.iNewConfirmedTick);
 
 		ReconcileDesyncInfo desyncInfo;
 		desyncInfo.bDesync = true;

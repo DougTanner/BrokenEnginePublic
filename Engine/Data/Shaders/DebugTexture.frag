@@ -45,7 +45,7 @@ void main()
 		float l0 = ((P - m) * l) / a;
 		float S0 = m + l0;
 		float S1 = m + a * l0;
-		float C2 = (a * P) / max(P - S1, 1e-6f);
+		float C2 = (a * P) / max(P - S1, kfEpsilon);
 		float CP = -C2 / P;
 		vec4 f4W0 = vec4(1.0f) - smoothstep(vec4(0.0f), vec4(m), f4Scaled);
 		vec4 f4W2 = step(vec4(S0), f4Scaled);

@@ -17,8 +17,10 @@ namespace game
 {
 
 // Shared constants (used across Blasters*.cpp files)
-inline constexpr float kfBlasterVolume = 0.25f;
+inline constexpr float kfBlasterVolume = 0.7f;
 inline constexpr float kfBlasterFadeOutTime = 0.1f;
+inline constexpr float kfBlasterPitchMin = 0.75f;
+inline constexpr float kfBlasterPitchRandom = 0.5f;
 
 struct BlastersType
 {

@@ -14,8 +14,8 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	ClientConnection* pClient = FindHandshakenClient(iClientId);
+	if (pClient == nullptr)
 	{
 		return;
 	}
@@ -107,8 +107,8 @@ void Server::ClientSpawnRequest(const uint8_t* pData, size_t iSize, int64_t iCli
 		return;
 	}
 
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	ClientConnection* pClient = FindHandshakenClient(iClientId);
+	if (pClient == nullptr)
 	{
 		return;
 	}
@@ -121,13 +121,19 @@ void Server::ClientSpawnRequest(const uint8_t* pData, size_t iSize, int64_t iCli
 
 	LOG(kNetwork, kDebug, "Server::ClientSpawnRequest Client: {} Spawn: {} Respawn: {}", iClientId, static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
 
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	// Heap: spawn request vector grows on request
 	mPendingSpawnRequests.push_back({iClientId, flags});
 }
 
-void Server::ClientDesyncReport(const uint8_t* pData, size_t iSize)
+void Server::ClientDesyncReport(const uint8_t* pData, size_t iSize, int64_t iClientId)
 {
+	ClientConnection* pClient = FindHandshakenClient(iClientId);
+	if (pClient == nullptr)
+	{
+		return;
+	}
+
 	// 1B type + 8B tick + 4B gridX + 4B gridY + 8B expectedCrc + 8B actualCrc = 33 fixed bytes
 	if (iSize < 33)
 	{
@@ -143,11 +149,17 @@ void Server::ClientDesyncReport(const uint8_t* pData, size_t iSize)
 
 	char pcExpected[20] {};
 	char pcActual[20] {};
-	LOG(kNetwork, kDebug, "Server::ClientDesyncReport Frame: {} Grid: ({},{}) Expected: {} Actual: {}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), uiExpectedCrc), common::ToHex(std::span(pcActual), uiActualCrc));
+	LOG(kNetwork, kError, "Server::ClientDesyncReport Frame: {} Grid: ({},{}) Expected: {} Actual: {}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), uiExpectedCrc), common::ToHex(std::span(pcActual), uiActualCrc));
 }
 
-void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
+void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
 {
+	ClientConnection* pClient = FindHandshakenClient(iClientId);
+	if (pClient == nullptr)
+	{
+		return;
+	}
+
 	// 1B type + 8B tick + 4B gridX + 4B gridY = 17 fixed bytes
 	if (iSize < 17)
 	{
@@ -159,7 +171,7 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPee
 	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
 
-	LOG(kNetwork, kDebug, "Server::ClientDebugFrameRequest Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
+	LOG(kNetwork, kError, "Server::ClientDebugFrameRequest Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
 	ScopedLogIndent scopedLogIndent;
 
 	// Find the frame in the ring buffer
@@ -175,26 +187,27 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPee
 
 	if (pBuffered == nullptr)
 	{
-		LOG(kNetwork, kWarning, "Server::ClientDebugFrameRequest Frame {} not found in buffer", iTick);
+		LOG(kNetwork, kError, "Server::ClientDebugFrameRequest Frame {} not found in buffer", iTick);
 		return;
 	}
 
 	auto it = pBuffered->serializedFrames.find(coord);
 	if (it == pBuffered->serializedFrames.end())
 	{
-		LOG(kNetwork, kWarning, "Server::ClientDebugFrameRequest Frame: {} Coord: ({},{}) not found", iTick, coord.x, coord.y);
+		LOG(kNetwork, kError, "Server::ClientDebugFrameRequest Frame: {} Coord: ({},{}) not found", iTick, coord.x, coord.y);
 		return;
 	}
 
 	const std::string& rFrameData = it->second;
 
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	// Heap: compression buffer may grow when LZ4 expansion bound exceeds current capacity
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	// LZ4 compress (reuse persistent compression buffer)
 	int iCompressedSize = CompressToBuffer(rFrameData.data(), static_cast<int>(rFrameData.size()));
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	rWorkbuffer.Push();
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 
 	// [1B type][8B frame][4B gridX][4B gridY][4B uncompressedSize][4B compressedSize][...LZ4 data]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerDebugFrame));
@@ -205,8 +218,6 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPee
 	rWorkbuffer.Append(std::string_view(reinterpret_cast<const char*>(mCompressionBuffer.data()), iCompressedSize));
 
 	NetworkManager::SendPacket(pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-
-	rWorkbuffer.Pop();
 }
 
 void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
@@ -313,8 +324,8 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 
 	GridCoord coord = ReadGridCoord(pCursor);
 
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	ClientConnection* pClient = FindHandshakenClient(iClientId);
+	if (pClient == nullptr)
 	{
 		return;
 	}
@@ -362,7 +373,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 
 	SendSubscribeAccept(*pClient, iSlot, coord);
 
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	// Heap: pending subscription entry
 	mPendingNewSubscriptions.push_back({iClientId, iSlot, coord});
 }
@@ -400,15 +411,16 @@ void Server::ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClie
 
 void Server::ClientResyncRequest([[maybe_unused]] const uint8_t* pData, int64_t iClientId)
 {
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	ClientConnection* pClient = FindHandshakenClient(iClientId);
+	if (pClient == nullptr)
 	{
 		return;
 	}
 
-	LOG(kNetwork, kDebug, "Server::ClientResyncRequest Client: {}", iClientId);
+	LOG(kNetwork, kError, "Server::ClientResyncRequest Client: {}", iClientId);
 
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	// Heap: pending resync client-id vector grows on request
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	mPendingResyncClientIds.push_back(iClientId);
 }
 
@@ -420,8 +432,8 @@ void Server::ClientPauseRequest(const uint8_t* pData, size_t iSize, int64_t iCli
 		return;
 	}
 
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	ClientConnection* pClient = FindHandshakenClient(iClientId);
+	if (pClient == nullptr)
 	{
 		return;
 	}
@@ -441,8 +453,8 @@ void Server::ClientTimespeedRequest(const uint8_t* pData, size_t iSize, int64_t 
 		return;
 	}
 
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	ClientConnection* pClient = FindHandshakenClient(iClientId);
+	if (pClient == nullptr)
 	{
 		return;
 	}
@@ -463,15 +475,10 @@ void Server::ClientTimespeedRequest(const uint8_t* pData, size_t iSize, int64_t 
 }
 
 #if defined(BT_SERVER)
-void Server::ClientSaveRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
+void Server::ClientSaveRequest([[maybe_unused]] const uint8_t* pData, [[maybe_unused]] size_t iSize, int64_t iClientId)
 {
-	if (iSize < 1)
-	{
-		return;
-	}
-
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	ClientConnection* pClient = FindHandshakenClient(iClientId);
+	if (pClient == nullptr)
 	{
 		return;
 	}
@@ -480,15 +487,10 @@ void Server::ClientSaveRequest([[maybe_unused]] const uint8_t* pData, size_t iSi
 	game::gpGame->mGameSaveLoad.ServerSave();
 }
 
-void Server::ClientLoadRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
+void Server::ClientLoadRequest([[maybe_unused]] const uint8_t* pData, [[maybe_unused]] size_t iSize, int64_t iClientId)
 {
-	if (iSize < 1)
-	{
-		return;
-	}
-
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	ClientConnection* pClient = FindHandshakenClient(iClientId);
+	if (pClient == nullptr)
 	{
 		return;
 	}
@@ -497,15 +499,10 @@ void Server::ClientLoadRequest([[maybe_unused]] const uint8_t* pData, size_t iSi
 	game::gpGame->mGameSaveLoad.ServerLoad();
 }
 
-void Server::ClientReplayRecordRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
+void Server::ClientReplayRecordRequest([[maybe_unused]] const uint8_t* pData, [[maybe_unused]] size_t iSize, int64_t iClientId)
 {
-	if (iSize < 1)
-	{
-		return;
-	}
-
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	ClientConnection* pClient = FindHandshakenClient(iClientId);
+	if (pClient == nullptr)
 	{
 		return;
 	}
@@ -514,15 +511,10 @@ void Server::ClientReplayRecordRequest([[maybe_unused]] const uint8_t* pData, si
 	game::gpGame->mGameFlags.Set(GameFlags::kSaveReplay);
 }
 
-void Server::ClientReplayPlaybackRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
+void Server::ClientReplayPlaybackRequest([[maybe_unused]] const uint8_t* pData, [[maybe_unused]] size_t iSize, int64_t iClientId)
 {
-	if (iSize < 1)
-	{
-		return;
-	}
-
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	ClientConnection* pClient = FindHandshakenClient(iClientId);
+	if (pClient == nullptr)
 	{
 		return;
 	}
@@ -531,15 +523,10 @@ void Server::ClientReplayPlaybackRequest([[maybe_unused]] const uint8_t* pData, 
 	game::gpGame->mGameFlags.Set(GameFlags::kLoadReplay);
 }
 
-void Server::ClientResetRequest([[maybe_unused]] const uint8_t* pData, size_t iSize, int64_t iClientId)
+void Server::ClientResetRequest([[maybe_unused]] const uint8_t* pData, [[maybe_unused]] size_t iSize, int64_t iClientId)
 {
-	if (iSize < 1)
-	{
-		return;
-	}
-
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr || !pClient->bHandshakeComplete)
+	ClientConnection* pClient = FindHandshakenClient(iClientId);
+	if (pClient == nullptr)
 	{
 		return;
 	}

@@ -2,6 +2,14 @@
 
 #if defined(BT_CLIENT)
 
+// Temporary feature gate: set to 0 to restore pre-feature behaviour
+// (first-come-first-served voice allocation, no out-of-range exclusion,
+// no priority sort, original Apply3dVolume lerp-to-floor mix, original
+// AudioManager call order). Override via -DBT_AUDIO_PRIORITY_CULL=0.
+#ifndef BT_AUDIO_PRIORITY_CULL
+#define BT_AUDIO_PRIORITY_CULL 0
+#endif
+
 namespace DirectX
 {
 class AudioEngine;
@@ -18,6 +26,12 @@ namespace engine
 {
 
 inline constexpr int64_t kiMaxStaticVoices = 128;
+
+// Below this attenuated-volume threshold a sound is considered inaudible and is
+// culled (one-shots: never spawned; persistent: voice released, entry kept).
+// Hysteresis: candidacy floor is 0.8 * kfCullVolume so a sound right at the
+// boundary doesn't thrash between active and inactive each frame.
+inline constexpr float kfCullVolume = 0.01f;
 
 class StaticVoices
 {
@@ -46,6 +60,14 @@ private:
 
 	void XM_CALLCONV Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch);
 
+	float ComputeAttenuatedVolume(float fDistance, float fSoundVolume) const;
+
+	struct PooledVoice
+	{
+		common::crc_t mAudioCrc;
+		IXAudio2SourceVoice* mpVoice;
+	};
+
 	void ReturnVoiceToPool(common::crc_t audioCrc, IXAudio2SourceVoice* pVoice);
 	IXAudio2SourceVoice* AcquireVoiceFromPool(common::crc_t audioCrc);
 	void ClearPool();
@@ -59,7 +81,7 @@ private:
 
 	bool mbSkipNextInvalidation = false;
 	std::vector<StaticVoice> mVoices;
-	std::vector<std::pair<common::crc_t, IXAudio2SourceVoice*>> mPooledVoices;
+	std::vector<PooledVoice> mPooledVoices;
 
 	XMVECTOR mVecListenerPosition {};
 	X3DAUDIO_LISTENER mX3dAudioListener

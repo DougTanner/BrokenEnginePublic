@@ -67,50 +67,77 @@ void HudScreen::Render()
 		return;
 	}
 
+	// Force-open the fleet panel when the focused fleet has no presence in any subscribed frame.
+	// Iterating all subscribed frames (not just mClientGridCoord) tolerates cell-boundary crossings,
+	// where the player's snapshot has migrated to a neighbor before mClientGridCoord catches up.
 	bool bWantsForceOpen = false;
 	const char* pcWantReason = "none";
-	int64_t iPlayerCount = -1;
+	engine::GridCoord foundCoord {};
+	bool bFoundAny = false;
+	int iSubscribedFrameCount = 0;
+
 	if (!gpGame->ClientPlayerId().IsValid())
 	{
 		bWantsForceOpen = true;
 		pcWantReason = "ClientPlayerId invalid";
 	}
+	else if (const Fleet* pFleet = gpGame->FocusedFleet(); pFleet == nullptr)
+	{
+		bWantsForceOpen = true;
+		pcWantReason = "no focused fleet";
+	}
 	else
 	{
-		auto it = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
-		if (it == gpGame->mCoordFrames.end())
+		for (const auto& [coord, frames] : gpGame->mCoordFrames)
 		{
-			pcWantReason = "no coord entry";
+			if (frames.iSnapshotCount == 0)
+			{
+				continue;
+			}
+			++iSubscribedFrameCount;
+			const auto& rPlayers = *gpGame->RenderFrame(coord).postRender.pPlayers;
+			for (int64_t i = 0; i < rPlayers.iCount && !bFoundAny; ++i)
+			{
+				const engine::global_id_t globalPlayerId = rPlayers.pGlobalPlayerIds[i];
+				for (const FleetMember& rMember : pFleet->members)
+				{
+					if (rMember.globalPlayerId == globalPlayerId)
+					{
+						bFoundAny = true;
+						foundCoord = coord;
+						break;
+					}
+				}
+			}
+			if (bFoundAny)
+			{
+				break;
+			}
 		}
-		else if (it->second.iSnapshotCount == 0)
+		if (!bFoundAny)
 		{
-			pcWantReason = "no snapshot";
+			bWantsForceOpen = true;
+			pcWantReason = (iSubscribedFrameCount == 0)
+				? "no subscribed snapshots"
+				: "no fleet members in any subscribed frame";
 		}
 		else
 		{
-			iPlayerCount = gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers->iCount;
-			if (iPlayerCount == 0)
-			{
-				bWantsForceOpen = true;
-				pcWantReason = "no players in focused cell";
-			}
-			else
-			{
-				pcWantReason = "players present";
-			}
+			pcWantReason = "fleet member present";
 		}
 	}
 
 	// TEMP diagnostic: log transitions of the "want force-open" state.
 	if (bWantsForceOpen != mbPreviousWantsForceOpen)
 	{
-		LOG(kTemp, kInfo, "HUD WantForceOpen: {} reason: {} coord: ({},{}) players: {}",
-			bWantsForceOpen, pcWantReason, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, iPlayerCount);
+		LOG(kTemp, kInfo, "HUD WantForceOpen: {} reason: {} coord: ({},{}) found: ({},{}) frames: {}",
+			bWantsForceOpen, pcWantReason, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y,
+			foundCoord.x, foundCoord.y, iSubscribedFrameCount);
 		mbPreviousWantsForceOpen = bWantsForceOpen;
 	}
 
-	// Grace period: only force-open once the want-state has been sustained. Avoids flickering during brief frame transitions
-	// where ClientPlayerId or the focused-cell player count momentarily drops out.
+	// Grace period: only force-open once the want-state has been sustained. Absorbs the brief gap during cell-boundary
+	// hand-offs when the player snapshot is momentarily absent from every subscribed frame, plus ClientPlayerId blips.
 	if (bWantsForceOpen)
 	{
 		mfTimeWantingForceOpen += ImGui::GetIO().DeltaTime;
@@ -125,8 +152,10 @@ void HudScreen::Render()
 	// TEMP diagnostic: log transitions of the actual force-open trigger.
 	if (bForceLeftOpen != mbPreviousForceLeftOpen)
 	{
-		LOG(kTemp, kInfo, "HUD ForceLeftOpen: {} timer: {} reason: {} coord: ({},{}) players: {}",
-			bForceLeftOpen, common::Wb(mfTimeWantingForceOpen, 2), pcWantReason, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, iPlayerCount);
+		LOG(kTemp, kInfo, "HUD ForceLeftOpen: {} timer: {} reason: {} coord: ({},{}) found: ({},{}) frames: {}",
+			bForceLeftOpen, common::Wb(mfTimeWantingForceOpen, 2), pcWantReason,
+			gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y,
+			foundCoord.x, foundCoord.y, iSubscribedFrameCount);
 		mbPreviousForceLeftOpen = bForceLeftOpen;
 	}
 

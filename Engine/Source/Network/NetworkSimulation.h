@@ -156,7 +156,7 @@ inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const Netw
 			enet_packet_destroy(rEvent.packet);
 			return;
 		}
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
 		// Heap: delay queue copies packet data for deferred processing
 		DelayedPacket delayed {};
 		delayed.releaseTime = std::chrono::steady_clock::now() + RandomOneWayDelay(rSimConfig);

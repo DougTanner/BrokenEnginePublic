@@ -443,7 +443,7 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 	int64_t iAStarBytes = ComputeAStarMemorySize(iTotalNodes, iVertexCount);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	std::byte* pMemory = rWorkbuffer.PushBuffer<std::byte*>(iAStarBytes);
+	auto pMemory = rWorkbuffer.PushBuffer<std::byte*>(iAStarBytes);
 	AStarMemory aStarMemory = PartitionAStarMemory(pMemory, iTotalNodes, iVertexCount);
 
 	const XMFLOAT2* pVertices = rNavData.vertices.data();
@@ -469,7 +469,6 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 			{
 				*pOutNextWaypoint = XMVectorSet(f2SnapPoint.x, f2SnapPoint.y, fBaseHeight, 1.0f);
 			}
-			rWorkbuffer.Pop();
 			return XMVector3Normalize(vecEscape);
 		}
 		f2Position = f2SnapPoint;
@@ -527,7 +526,6 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 		}
 	}
 
-	rWorkbuffer.Pop();
 	return vecResult;
 }
 

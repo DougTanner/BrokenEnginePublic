@@ -81,7 +81,7 @@ static CrcValidateResult CrcValidateLoop(CoordWork& rWork, int64_t iTargetTick, 
 				common::ToHex(std::span<char, 20>(acClientCrc), rClientFrame.postRender.sharedCrc);
 
 				// Collapse StatusChange types into counted format
-				common::ScopedWorkbufferBuilder builder(common::gpThreadLocal->mWorkbuffer);
+				common::ScopedWorkbufferArena builder = common::gpThreadLocal->mWorkbuffer.Push();
 				if (!it->second.statusChanges.empty())
 				{
 					int64_t counts[static_cast<int64_t>(StatusChangeType::kCount)] {};
@@ -109,7 +109,7 @@ static CrcValidateResult CrcValidateLoop(CoordWork& rWork, int64_t iTargetTick, 
 					}
 				}
 
-				LOG(kNetwork, kDebug, "CrcValidateLoop sharedCrc mismatch Coord: ({},{}) ForTick: {} ServerCrc: {} ClientCrc: {} StatusChanges: {} [{}] TicksSinceFullState: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, it->second.statusChanges.size(), builder.View(), (rFrames.iLastFullStateTick >= 0) ? (iTick - rFrames.iLastFullStateTick) : int64_t{-1});
+				LOG(kNetwork, kError, "CrcValidateLoop sharedCrc mismatch Coord: ({},{}) ForTick: {} ServerCrc: {} ClientCrc: {} StatusChanges: {} [{}] TicksSinceFullState: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, it->second.statusChanges.size(), builder.View(), (rFrames.iLastFullStateTick >= 0) ? (iTick - rFrames.iLastFullStateTick) : int64_t{-1});
 			}
 			++iMismatchCount;
 			if (iMismatchCount > 1)

@@ -17,7 +17,7 @@ using enum SpaceshipFlags;
 // Death sounds
 constexpr float kfSpaceshipDeathPitchMin = 0.75f;
 constexpr float kfSpaceshipDeathPitchRandom = 0.5f;
-constexpr float kfSpaceshipDeathExplosionVolume = 0.4f;
+constexpr float kfSpaceshipDeathExplosionVolume = 0.5f;
 constexpr float kfSpaceshipHitSoundVolume = 0.2f;
 
 // Ai / combat

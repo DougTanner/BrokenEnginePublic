@@ -14,7 +14,7 @@ Depends on `Refactor_WorkbufferRaii.md`.
   template <typename... TArgs>
   void SendSimplePacket(engine::PacketType eType, uint8_t uiChannel, uint32_t uiPacketFlags, TArgs&&... args);
   ```
-- Add `bool CanSend() const { return mbConnected && mpServerPeer != nullptr; }` (the gate the helper and existing methods share). [~15m]
+- (`bool CanSend() const` already exists on `Client` as of `Refactor_GuardConsolidation.md` — reuse it inside the helper template.)
 
 ### Engine/Source/Network/Client/ClientSend.cpp — compress these 12 methods:
 - `SendSpawnRequest` (56-76) → 3-line body. [~5m]

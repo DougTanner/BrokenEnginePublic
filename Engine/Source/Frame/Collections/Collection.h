@@ -501,7 +501,8 @@ struct OptionalIdToIndex<T, FLAGS>
 		checksum ^= common::Crc(static_cast<int64_t>(idToIndexMap.size()));
 
 		int64_t iKeyCount = static_cast<int64_t>(idToIndexMap.size());
-		id_t* pKeys = common::gpThreadLocal->mWorkbuffer.PushBuffer<id_t*>(iKeyCount * sizeof(id_t));
+		auto pKeysAlloc = common::gpThreadLocal->mWorkbuffer.PushBuffer<id_t*>(iKeyCount * sizeof(id_t));
+		id_t* pKeys = static_cast<id_t*>(pKeysAlloc);
 		int64_t i = 0;
 		for (const auto& [key, value] : idToIndexMap)
 		{
@@ -514,7 +515,6 @@ struct OptionalIdToIndex<T, FLAGS>
 			checksum ^= common::Crc(pKeys[j].ToUuid().Value());
 			checksum ^= common::Crc(idToIndexMap.at(pKeys[j]));
 		}
-		common::gpThreadLocal->mWorkbuffer.Pop();
 
 		return checksum;
 	}

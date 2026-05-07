@@ -47,7 +47,7 @@ vec2 WindSpread(GlobalLayout globalLayout, sampler2D windTextureSampler, sampler
 		float fOmega = f2Right.y - f2Left.y + f2Up.x - f2Down.x;
 
 		float fAdvectedMag = length(f2AdvectedWind);
-		if (fAdvectedMag > 1e-6f)
+		if (fAdvectedMag > kfEpsilon)
 		{
 			vec2 f2Dir = f2AdvectedWind / fAdvectedMag;
 			vec2 f2PerpConfinement = vec2(-f2Dir.y, f2Dir.x);

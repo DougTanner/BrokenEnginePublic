@@ -28,7 +28,7 @@ public:
 	static inline void SendPacket(ENetPeer* pPeer, uint8_t uiChannel, common::Workbuffer& rWorkbuffer, uint32_t uiFlags)
 	{
 		std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
 		// Heap: ENet allocates packet data internally
 		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), uiFlags);
 		enet_peer_send(pPeer, uiChannel, pPacket);

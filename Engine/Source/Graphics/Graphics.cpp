@@ -304,8 +304,8 @@ void Graphics::Refresh()
 	if (bPresentModeChanged) [[unlikely]]
 	{
 		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-		common::ScopedWorkbufferPop pcPreviousPresentMode = gEnumToString.Convert(ePreviousPresentMode, rWorkbuffer);
-		common::ScopedWorkbufferPop pcPresentMode = gEnumToString.Convert(ePresentMode, rWorkbuffer);
+		common::ScopedWorkbufferAllocation<const char*> pcPreviousPresentMode = gEnumToString.Convert(ePreviousPresentMode, rWorkbuffer);
+		common::ScopedWorkbufferAllocation<const char*> pcPresentMode = gEnumToString.Convert(ePresentMode, rWorkbuffer);
 		LOG(kGraphics, kDebug, "{} -> {}", pcPreviousPresentMode, pcPresentMode);
 		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
 	}

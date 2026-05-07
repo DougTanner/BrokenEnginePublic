@@ -8,9 +8,12 @@ class EnumToString
 public:
 
 	template <typename T>
-	common::ScopedWorkbufferPop Convert(T eVkEnum, common::Workbuffer& rWorkbuffer)
+	common::ScopedWorkbufferAllocation<const char*> Convert(T eVkEnum, common::Workbuffer& rWorkbuffer)
 	{
-		char* pcResult = rWorkbuffer.PushBuffer<char*>(32);
+		// 32-byte scratch is a frame placeholder used only by the non-logging path's std::to_chars.
+		// In the logging path the returned pointer is a map-data pointer; the scratch is unused but
+		// the frame keeps Push/Pop balanced via the returned allocation's RAII.
+		auto pcBuf = rWorkbuffer.PushBuffer<char*>(32);
 
 		if constexpr (kbLogging)
 		{
@@ -18,7 +21,7 @@ public:
 			{
 				if (auto it = mVkColorSpaceKHRMap.find(eVkEnum); it != mVkColorSpaceKHRMap.end())
 				{
-					return {rWorkbuffer, it->second.data()};
+					return std::move(pcBuf).template Adopt<const char*>(it->second.data());
 				}
 			}
 
@@ -26,7 +29,7 @@ public:
 			{
 				if (auto it = mVkFormatMap.find(eVkEnum); it != mVkFormatMap.end())
 				{
-					return {rWorkbuffer, it->second.data()};
+					return std::move(pcBuf).template Adopt<const char*>(it->second.data());
 				}
 			}
 
@@ -34,7 +37,7 @@ public:
 			{
 				if (auto it = mVkObjectTypeMap.find(eVkEnum); it != mVkObjectTypeMap.end())
 				{
-					return {rWorkbuffer, it->second.data()};
+					return std::move(pcBuf).template Adopt<const char*>(it->second.data());
 				}
 			}
 
@@ -42,7 +45,7 @@ public:
 			{
 				if (auto it = mVkPresentModeKHRMap.find(eVkEnum); it != mVkPresentModeKHRMap.end())
 				{
-					return {rWorkbuffer, it->second.data()};
+					return std::move(pcBuf).template Adopt<const char*>(it->second.data());
 				}
 			}
 
@@ -50,19 +53,20 @@ public:
 			{
 				if (auto it = mVkResultMap.find(eVkEnum); it != mVkResultMap.end())
 				{
-					return {rWorkbuffer, it->second.data()};
+					return std::move(pcBuf).template Adopt<const char*>(it->second.data());
 				}
 			}
 
 			DEBUG_BREAK();
-			return {rWorkbuffer, "UNKNOWN_VK_ENUM"};
+			return std::move(pcBuf).template Adopt<const char*>("UNKNOWN_VK_ENUM");
 		}
 		else
 		{
-			char* pcEnd = std::to_chars(pcResult, pcResult + 31, eVkEnum).ptr;
+			char* pcMutable = static_cast<char*>(pcBuf);
+			char* pcEnd = std::to_chars(pcMutable, pcMutable + 31, eVkEnum).ptr;
 			*pcEnd = '\0';
-			rWorkbuffer.ShrinkLastPushBuffer(static_cast<int64_t>(pcEnd - pcResult + 1));
-			return {rWorkbuffer, pcResult};
+			rWorkbuffer.ShrinkLastPushBuffer(static_cast<int64_t>(pcEnd - pcMutable + 1));
+			return std::move(pcBuf).template Adopt<const char*>(pcMutable);
 		}
 	}
 
@@ -392,7 +396,7 @@ struct std::formatter<VkResult> : std::formatter<std::string_view>
 	template <typename CONTEXT>
 	auto format(const VkResult vkResult, CONTEXT& rContext) const
 	{
-		auto pcVkResult = engine::gEnumToString.Convert(vkResult, common::gpThreadLocal->mWorkbuffer);
+		common::ScopedWorkbufferAllocation<const char*> pcVkResult = engine::gEnumToString.Convert(vkResult, common::gpThreadLocal->mWorkbuffer);
 		return std::formatter<std::string_view>::format(static_cast<const char*>(pcVkResult), rContext);
 	}
 };

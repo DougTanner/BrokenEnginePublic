@@ -568,6 +568,10 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[ma
 				.fWindTrailWidth = game::gWindDepositSpaceshipsBlastersWidth.Get(),
 				.fWindTrailLengthMultiplier = game::gWindDepositSpaceshipsBlastersLengthMultiplier.Get(),
 			});
+
+#if defined(BT_CLIENT)
+			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc, vecPosition, kfBlasterVolume, kfBlasterPitchMin, kfBlasterPitchRandom);
+#endif
 		}
 	}
 }

@@ -74,7 +74,7 @@ void TextManager::RenderMain(int64_t iCommandBuffer)
 
 	for (const TextArea& rTextArea : gpTextAreas)
 	{
-		common::gpThreadLocal->mWorkbuffer.Push();
+		common::ScopedWorkbufferArena scopedWorkbufferArena = common::gpThreadLocal->mWorkbuffer.Push();
 		common::gpThreadLocal->mWorkbuffer.PushBack(rTextArea.fX);
 
 		int64_t iStartPos = iPos;
@@ -98,7 +98,6 @@ void TextManager::RenderMain(int64_t iCommandBuffer)
 			pQuads[iStartPos + i].uiColor = 0xFF000000;
 		}
 
-		common::gpThreadLocal->mWorkbuffer.Pop();
 	}
 
 	gpPipelineManager->mpPipelines[kPipelineProfileText].WriteIndirectBuffer(iCommandBuffer, iPos);

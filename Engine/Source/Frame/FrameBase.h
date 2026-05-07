@@ -64,7 +64,11 @@ struct FrameInterpolateBase
 	static void EndRender(int64_t iCommandBuffer);
 #endif
 
+#if defined(BT_CLIENT)
+	// Client-only: phase markers (kInterpolate/kPostRender) and the replay marker (kRecalculated).
+	// Excluded from CRC, serialization, and LogDifferences — server never reads or sets them.
 	FrameFlags_t frameFlags {FrameFlags::kPostRender};
+#endif
 	int64_t iTick = 0;
 	float fCurrentTime = 0.0f;
 	float fDeltaTime = 0.0f;

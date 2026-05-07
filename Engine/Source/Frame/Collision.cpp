@@ -282,7 +282,7 @@ void Collision::Collide(const Alignments& rAlignments, FXMVECTOR vecArea)
 	SetupZones(vecArea);
 
 	// Collect pending collision results into workbuffer
-	common::gpThreadLocal->mWorkbuffer.Push();
+	common::ScopedWorkbufferArena scopedWorkbufferArena = common::gpThreadLocal->mWorkbuffer.Push();
 
 	// Process all layer pair zones
 	for (int64_t i = 0; i < siLayerPairCount; ++i)
@@ -342,8 +342,6 @@ void Collision::Collide(const Alignments& rAlignments, FXMVECTOR vecArea)
 		++rSpan.iCount;
 	}
 
-	// Release pending buffer
-	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 void Collision::AllocateResultStorage()

@@ -52,11 +52,11 @@ void ClientSessionBase::StartServerDiscovery()
 	mpDiscoveryScanner->StartScan();
 }
 
-bool ClientSessionBase::PollLANDiscovery()
+void ClientSessionBase::PollLANDiscovery()
 {
 	if (mpDiscoveryScanner == nullptr)
 	{
-		return false;
+		return;
 	}
 
 	mpDiscoveryScanner->Poll();
@@ -66,7 +66,7 @@ bool ClientSessionBase::PollLANDiscovery()
 		snprintf(mcDiscoveredAddress, sizeof(mcDiscoveredAddress), "%s", mpDiscoveryScanner->GetFoundAddress());
 		mpDiscoveryScanner.reset();
 		mbServerDiscovered = true;
-		return true;
+		return;
 	}
 	else if (!mpDiscoveryScanner->IsScanning())
 	{
@@ -75,7 +75,6 @@ bool ClientSessionBase::PollLANDiscovery()
 		mpDiscoveryScanner.reset();
 		StartServerDiscovery();
 	}
-	return false;
 }
 
 // Subscription mechanics

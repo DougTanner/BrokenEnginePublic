@@ -94,7 +94,7 @@ int64_t AnimationData::SkinnedMaterialCount(uint32_t uiMaterialCount) const
 void AnimationData::EvaluateAnimation(int64_t iAnimationIndex, float fTime, uint32_t uiMaterialCount, common::MeshData* pMeshData, common::JointMatrix* pJointMatrices, int64_t iJointMatrixOffset) const
 {
 	static constexpr int64_t kiMaxNodes = common::Skeleton::kiMaxNodes;
-	XMMATRIX* pWorldMatrices = common::gpThreadLocal->mWorkbuffer.PushBuffer<XMMATRIX*>(kiMaxNodes * static_cast<int64_t>(sizeof(XMMATRIX)));
+	auto pWorldMatrices = common::gpThreadLocal->mWorkbuffer.PushBuffer<XMMATRIX*>(kiMaxNodes * static_cast<int64_t>(sizeof(XMMATRIX)));
 	EvaluateWorldMatrices(iAnimationIndex, fTime, pWorldMatrices);
 
 	for (uint32_t uiMaterialIndex = 0; uiMaterialIndex < uiMaterialCount; ++uiMaterialIndex)
@@ -107,8 +107,6 @@ void AnimationData::EvaluateAnimation(int64_t iAnimationIndex, float fTime, uint
 			iJointMatrixOffset += mHeader.skeleton.uiSkinJointCount;
 		}
 	}
-
-	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 int64_t AnimationData::FindAnimation(std::string_view name) const
@@ -258,7 +256,8 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 	constexpr int64_t kiVecSize = kiMaxNodes * static_cast<int64_t>(sizeof(XMVECTOR));
 	constexpr int64_t kiTotalSize = 3 * kiVecSize;
 
-	std::byte* pBuffer = common::gpThreadLocal->mWorkbuffer.PushBuffer<std::byte*>(kiTotalSize);
+	auto pBufferAlloc = common::gpThreadLocal->mWorkbuffer.PushBuffer<std::byte*>(kiTotalSize);
+	std::byte* pBuffer = static_cast<std::byte*>(pBufferAlloc);
 	XMVECTOR* pTranslations = reinterpret_cast<XMVECTOR*>(pBuffer);
 	XMVECTOR* pRotations    = reinterpret_cast<XMVECTOR*>(pBuffer + kiVecSize);
 	XMVECTOR* pScales       = reinterpret_cast<XMVECTOR*>(pBuffer + 2 * kiVecSize);
@@ -322,8 +321,6 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 		int16_t iParent = mpNodes[i].iParentIndex;
 		pWorldMatrices[i] = iParent >= 0 ? matLocal * pWorldMatrices[iParent] : matLocal;
 	}
-
-	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 void AnimationData::EvaluateMaterial(int64_t iMaterialIndex, const XMMATRIX* pWorldMatrices, common::MeshData* pMeshData, common::JointMatrix* pJointMatrices, int64_t iJointMatrixOffset) const

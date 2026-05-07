@@ -73,7 +73,7 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 {
 	if (meProfileScreen == engine::ProfileScreen::kFrames)
 	{
-		rWorkbuffer.Push();
+		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 		rWorkbuffer.Append("Frames: ");
 		rWorkbuffer.Append(static_cast<int64_t>(gpGame->mActiveCoords.size()));
 		rWorkbuffer.Append(" [");
@@ -130,12 +130,11 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 			rWorkbuffer.Append("s");
 		}
 		engine::gpTextManager->UpdateTextArea(engine::kTextProfileFrameStats, rWorkbuffer.View());
-		rWorkbuffer.Pop();
 	}
 
 	if (meProfileScreen == engine::ProfileScreen::kNetwork)
 	{
-		rWorkbuffer.Push();
+		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 
 		// Header with simulation level info
 		if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
@@ -348,7 +347,6 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 		}
 
 		engine::gpTextManager->UpdateTextArea(engine::kTextProfileFps, rWorkbuffer.View());
-		rWorkbuffer.Pop();
 	}
 }
 

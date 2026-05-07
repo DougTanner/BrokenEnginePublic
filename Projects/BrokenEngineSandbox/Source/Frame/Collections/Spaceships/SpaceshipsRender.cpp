@@ -88,7 +88,7 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 	}
 
 	// Pass 1: Visibility cull (main thread) — build compacted visible index list
-	int64_t* pVisibleIndices = common::gpThreadLocal->mWorkbuffer.PushBuffer<int64_t*>(rCurrent.iCount * static_cast<int64_t>(sizeof(int64_t)));
+	auto pVisibleIndices = common::gpThreadLocal->mWorkbuffer.PushBuffer<int64_t*>(rCurrent.iCount * static_cast<int64_t>(sizeof(int64_t)));
 	int64_t iVisibleCount = 0;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
@@ -181,8 +181,6 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 	common::gpMultithreading->Dispatch(iVisibleCount, processRange);
 
 	siRendered += iVisibleCount;
-
-	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 void SpaceshipsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)

@@ -17,7 +17,7 @@ Two files exceed the project's 500-line header / 1000-line implementation soft t
 ### Deferred (re-measure after other refactors)
 - `Projects/BrokenEngineSandbox/Source/Network/Client/ClientSession.cpp` (537 lines) — expected ~390 after `Refactor_SendBoilerplate.md`. Do not split.
 - `Engine/Source/Network/Client/ClientReceive.cpp` (501 lines) — expected ~425 after `Refactor_ClientReceiveStateMachine.md`. Do not split.
-- `Engine/Source/Network/Server/ServerReceive.cpp` (552 lines) — expected ~500 after `Refactor_GuardConsolidation.md` removes the 11 duplicate gates. Do not split.
+- `Engine/Source/Network/Server/ServerReceive.cpp` — re-measure (`Refactor_GuardConsolidation.md` removed 11 duplicate gates and added 2 new ones; net file shrinkage roughly matches the pre-Guard projection but should be confirmed before deciding to split).
 
 ## Verification
 - After `/reduce-file` lands for each target: rebuild both configs; confirm no behavior change.

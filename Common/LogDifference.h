@@ -28,7 +28,7 @@ inline bool LogDifference(const T& rOne, const T& rTwo)
 
 	if (!bEqual) [[unlikely]]
 	{
-		LOG(kDefault, kDebug, "LogDifferences {} {} Client: {} Server: {}", gpLogDifferenceContext, static_cast<const char*>(NAME), rOne, rTwo);
+		LOG(kNetwork, kError, "LogDifferences {} {} Client: {} Server: {}", gpLogDifferenceContext, static_cast<const char*>(NAME), rOne, rTwo);
 	}
 
 	return bEqual;
@@ -50,7 +50,7 @@ inline bool LogDifference(int64_t iIndex, const T& rOne, const T& rTwo)
 
 	if (!bEqual) [[unlikely]]
 	{
-		LOG(kNetwork, kDebug, "LogDifferences {} {}[{}] Client: {} Server: {}", gpLogDifferenceContext, static_cast<const char*>(NAME), iIndex, rOne, rTwo);
+		LOG(kNetwork, kError, "LogDifferences {} {}[{}] Client: {} Server: {}", gpLogDifferenceContext, static_cast<const char*>(NAME), iIndex, rOne, rTwo);
 	}
 
 	return bEqual;

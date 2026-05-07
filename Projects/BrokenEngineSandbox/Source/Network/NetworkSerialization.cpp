@@ -238,7 +238,7 @@ int64_t SerializeStatusChangeBatch(const game::StatusChange* pChanges, int64_t i
 
 	// Group indices by type using workbuffer
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	rWorkbuffer.Push();
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
@@ -256,8 +256,6 @@ int64_t SerializeStatusChangeBatch(const game::StatusChange* pChanges, int64_t i
 	{
 		SerializeGroup(pCursor, static_cast<game::StatusChangeType>(t), pChanges, pSorted + piOffsets[t], piGroupCounts[t]);
 	}
-
-	rWorkbuffer.Pop();
 
 	return pCursor - static_cast<uint8_t*>(pDest);
 }
@@ -360,7 +358,7 @@ int64_t CompressStatusChangeBatch(const game::StatusChange* pChanges, int64_t iC
 	int64_t iMaxSerializedSize = kiMaxGroupHeaders + iCount * kiMaxBytesPerItem;
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	rWorkbuffer.Push();
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 
 	// Reserve space in workbuffer
 	int64_t iChunks = (iMaxSerializedSize + static_cast<int64_t>(sizeof(int64_t)) - 1) / static_cast<int64_t>(sizeof(int64_t));
@@ -380,8 +378,6 @@ int64_t CompressStatusChangeBatch(const game::StatusChange* pChanges, int64_t iC
 
 	int iCompressedSize = LZ4_compress_default(reinterpret_cast<const char*>(pSerialized), reinterpret_cast<char*>(pOutput + sizeof(int32_t)), static_cast<int>(iSerializedSize), static_cast<int>(iDestCapacity - sizeof(int32_t)));
 
-	rWorkbuffer.Pop();
-
 	return sizeof(int32_t) + iCompressedSize;
 }
 
@@ -399,7 +395,7 @@ int64_t DecompressStatusChangeBatch(const void* pSource, int64_t iSourceSize, ga
 
 	// Decompress into workbuffer
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	rWorkbuffer.Push();
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 
 	int64_t iChunks = (iUncompressedSize + static_cast<int64_t>(sizeof(int64_t)) - 1) / static_cast<int64_t>(sizeof(int64_t));
 	for (int64_t i = 0; i < iChunks; ++i)
@@ -414,13 +410,10 @@ int64_t DecompressStatusChangeBatch(const void* pSource, int64_t iSourceSize, ga
 	if (iResult <= 0)
 	{
 		LOG(kNetwork, kWarning, "DecompressStatusChangeBatch: LZ4 decompression failed (error {})", iResult);
-		rWorkbuffer.Pop();
 		return 0;
 	}
 
 	int64_t iCount = DeserializeStatusChangeBatch(pDecompressed, iResult, pDest, iMaxCount);
-
-	rWorkbuffer.Pop();
 
 	return iCount;
 }

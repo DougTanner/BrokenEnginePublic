@@ -3,6 +3,10 @@
 namespace common
 {
 
+class Workbuffer;
+class ScopedWorkbufferArena;
+template<typename T> class ScopedWorkbufferAllocation;
+
 class Workbuffer
 {
 public:
@@ -13,47 +17,13 @@ public:
 		mSavedBase.resize(8);
 	}
 
-	// Raw pointer access to the underlying buffer
+	// Scope marker. Returns an RAII handle that pops the frame on scope exit.
+	[[nodiscard]] ScopedWorkbufferArena Push();
+
+	// Typed reservation. Opens a frame and reserves iSizeInBytes; returns an RAII handle
+	// carrying the typed pointer (implicit-convertible to T) that pops on scope exit.
 	template<typename T>
-	T PushBuffer(int64_t iSizeInBytes)
-	{
-		if (miDepth == static_cast<int64_t>(mSavedBase.size())) [[unlikely]]
-		{
-			mSavedBase.resize(mSavedBase.size() * 2);
-		}
-		mSavedBase[miDepth] = miBase;
-		++miDepth;
-		miBase = miSize;
-		int64_t iNeeded = miBase + iSizeInBytes;
-		if (iNeeded > static_cast<int64_t>(mBuffer.size())) [[unlikely]]
-		{
-			Grow(iNeeded);
-		}
-		miSize = iNeeded;
-		miLastPushBufferSize = iSizeInBytes;
-		void* pData = mBuffer.data() + miBase;
-		return static_cast<T>(pData);
-	}
-
-	// Tracked-size operations
-	void Push()
-	{
-		if (miDepth == static_cast<int64_t>(mSavedBase.size())) [[unlikely]]
-		{
-			mSavedBase.resize(mSavedBase.size() * 2);
-		}
-		mSavedBase[miDepth] = miBase;
-		++miDepth;
-		miBase = miSize;
-	}
-
-	void Pop()
-	{
-		ASSERT(miDepth > 0);
-		--miDepth;
-		miSize = miBase;
-		miBase = mSavedBase[miDepth];
-	}
+	[[nodiscard]] ScopedWorkbufferAllocation<T> PushBuffer(int64_t iSizeInBytes);
 
 	// String building
 	void Append(std::string_view text);
@@ -74,6 +44,8 @@ public:
 		miSize += static_cast<int64_t>(sizeof(T));
 	}
 
+	// Shrinks the most recent PushBuffer reservation to iActualSize bytes.
+	// Operates on the last PushBuffer call only — Push frames don't update the tracked size.
 	void ShrinkLastPushBuffer(int64_t iActualSize)
 	{
 		miSize -= (miLastPushBufferSize - iActualSize);
@@ -88,6 +60,46 @@ public:
 
 private:
 
+	void RawPush()
+	{
+		if (miDepth == static_cast<int64_t>(mSavedBase.size())) [[unlikely]]
+		{
+			mSavedBase.resize(mSavedBase.size() * 2);
+		}
+		mSavedBase[miDepth] = miBase;
+		++miDepth;
+		miBase = miSize;
+	}
+
+	template<typename T>
+	T RawPushBuffer(int64_t iSizeInBytes)
+	{
+		if (miDepth == static_cast<int64_t>(mSavedBase.size())) [[unlikely]]
+		{
+			mSavedBase.resize(mSavedBase.size() * 2);
+		}
+		mSavedBase[miDepth] = miBase;
+		++miDepth;
+		miBase = miSize;
+		int64_t iNeeded = miBase + iSizeInBytes;
+		if (iNeeded > static_cast<int64_t>(mBuffer.size())) [[unlikely]]
+		{
+			Grow(iNeeded);
+		}
+		miSize = iNeeded;
+		miLastPushBufferSize = iSizeInBytes;
+		void* pData = mBuffer.data() + miBase;
+		return static_cast<T>(pData);
+	}
+
+	void Pop()
+	{
+		ASSERT(miDepth > 0);
+		--miDepth;
+		miSize = miBase;
+		miBase = mSavedBase[miDepth];
+	}
+
 	void Grow(int64_t iNeededCapacity);
 
 	std::vector<std::byte>& mBuffer;
@@ -96,56 +108,103 @@ private:
 	int64_t miDepth = 0;
 	int64_t miLastPushBufferSize = 0;
 	std::vector<int64_t> mSavedBase;
+
+	friend class ScopedWorkbufferArena;
+	template<typename> friend class ScopedWorkbufferAllocation;
 };
 
-class ScopedWorkbufferPop
+class [[nodiscard]] ScopedWorkbufferArena
 {
 public:
 
-	ScopedWorkbufferPop(Workbuffer& rWorkbuffer, const char* pcData)
-	: mWorkbuffer(rWorkbuffer)
-	, mpcData(pcData)
+	explicit ScopedWorkbufferArena(Workbuffer& rBuffer)
+	: mBuffer(rBuffer)
 	{
+		mBuffer.RawPush();
 	}
 
-	~ScopedWorkbufferPop() { mWorkbuffer.Pop(); }
+	~ScopedWorkbufferArena() { mBuffer.Pop(); }
 
-	ScopedWorkbufferPop(const ScopedWorkbufferPop&) = delete;
-	ScopedWorkbufferPop& operator=(const ScopedWorkbufferPop&) = delete;
+	ScopedWorkbufferArena(const ScopedWorkbufferArena&) = delete;
+	ScopedWorkbufferArena& operator=(const ScopedWorkbufferArena&) = delete;
 
-	operator const char*() const { return mpcData; }
+	void Append(std::string_view text)              { mBuffer.Append(text); }
+	void Append(int64_t iValue)                     { mBuffer.Append(iValue); }
+	void AppendFloat(float fValue, int iPrecision)  { mBuffer.AppendFloat(fValue, iPrecision); }
+	template<typename T> void PushBack(const T& rValue) { mBuffer.PushBack(rValue); }
+	std::string_view View() const                   { return mBuffer.View(); }
+	template<typename T> std::span<const T> Span() const { return mBuffer.Span<T>(); }
+	void ShrinkLastPushBuffer(int64_t iActualSize)  { mBuffer.ShrinkLastPushBuffer(iActualSize); }
 
 private:
 
-	Workbuffer& mWorkbuffer;
-	const char* mpcData;
+	Workbuffer& mBuffer;
 };
 
-class ScopedWorkbufferBuilder
+template<typename T>
+class [[nodiscard]] ScopedWorkbufferAllocation
 {
 public:
 
-	explicit ScopedWorkbufferBuilder(Workbuffer& rWorkbuffer)
-	: mWorkbuffer(rWorkbuffer)
+	~ScopedWorkbufferAllocation()
 	{
-		mWorkbuffer.Push();
+		if (mpBuffer != nullptr) [[likely]]
+		{
+			mpBuffer->Pop();
+		}
 	}
 
-	~ScopedWorkbufferBuilder() { mWorkbuffer.Pop(); }
+	ScopedWorkbufferAllocation(const ScopedWorkbufferAllocation&) = delete;
+	ScopedWorkbufferAllocation& operator=(const ScopedWorkbufferAllocation&) = delete;
+	ScopedWorkbufferAllocation& operator=(ScopedWorkbufferAllocation&&) = delete;
 
-	ScopedWorkbufferBuilder(const ScopedWorkbufferBuilder&) = delete;
-	ScopedWorkbufferBuilder& operator=(const ScopedWorkbufferBuilder&) = delete;
+	// Move ctor: transfer frame ownership; source becomes inert.
+	ScopedWorkbufferAllocation(ScopedWorkbufferAllocation&& rOther) noexcept
+	: mpBuffer(rOther.mpBuffer)
+	, mpData(rOther.mpData)
+	{
+		rOther.mpBuffer = nullptr;
+	}
 
-	void Append(std::string_view text) { mWorkbuffer.Append(text); }
-	void Append(int64_t iValue) { mWorkbuffer.Append(iValue); }
-	void AppendFloat(float fValue, int iPrecision) { mWorkbuffer.AppendFloat(fValue, iPrecision); }
+	// Reinterpret the pointer type while transferring frame ownership. Lets a function that
+	// allocated a typed buffer return an allocation typed against a different pointer (e.g.,
+	// `EnumToString::Convert` allocates a char* scratch but returns a const char* map pointer).
+	template<typename U>
+	[[nodiscard]] ScopedWorkbufferAllocation<U> Adopt(U pData) && noexcept
+	{
+		Workbuffer& rBuffer = *mpBuffer;
+		mpBuffer = nullptr;
+		return ScopedWorkbufferAllocation<U>(rBuffer, pData);
+	}
 
-	std::string_view View() const { return mWorkbuffer.View(); }
+	operator T() const { return mpData; }
+	T operator->() const { return mpData; }
 
 private:
 
-	Workbuffer& mWorkbuffer;
+	ScopedWorkbufferAllocation(Workbuffer& rBuffer, T pData)
+	: mpBuffer(&rBuffer)
+	, mpData(pData)
+	{
+	}
+
+	Workbuffer* mpBuffer;
+	T mpData;
+
+	friend class Workbuffer;
+	template<typename> friend class ScopedWorkbufferAllocation;
 };
+
+inline ScopedWorkbufferArena Workbuffer::Push()
+{
+	return ScopedWorkbufferArena(*this);
+}
+
+template<typename T>
+ScopedWorkbufferAllocation<T> Workbuffer::PushBuffer(int64_t iSizeInBytes)
+{
+	return ScopedWorkbufferAllocation<T>(*this, RawPushBuffer<T>(iSizeInBytes));
+}
 
 // Per-argument workbuffer-aware float wrapper for use inside LOG(...).
 // Each {} placeholder Push/Pops a workbuffer frame inside its formatter,
@@ -172,22 +231,22 @@ struct WbV2
 } // namespace common
 
 template <>
-struct std::formatter<common::ScopedWorkbufferPop> : std::formatter<std::string_view>
+struct std::formatter<common::ScopedWorkbufferArena> : std::formatter<std::string_view>
 {
 	template <typename CONTEXT>
-	auto format(const common::ScopedWorkbufferPop& rValue, CONTEXT& rContext) const
+	auto format(const common::ScopedWorkbufferArena& rValue, CONTEXT& rContext) const
 	{
-		return std::formatter<std::string_view>::format(static_cast<const char*>(rValue), rContext);
+		return std::formatter<std::string_view>::format(rValue.View(), rContext);
 	}
 };
 
 template <>
-struct std::formatter<common::ScopedWorkbufferBuilder> : std::formatter<std::string_view>
+struct std::formatter<common::ScopedWorkbufferAllocation<const char*>> : std::formatter<std::string_view>
 {
 	template <typename CONTEXT>
-	auto format(const common::ScopedWorkbufferBuilder& rValue, CONTEXT& rContext) const
+	auto format(const common::ScopedWorkbufferAllocation<const char*>& rValue, CONTEXT& rContext) const
 	{
-		return std::formatter<std::string_view>::format(rValue.View(), rContext);
+		return std::formatter<std::string_view>::format(static_cast<const char*>(rValue), rContext);
 	}
 };
 
@@ -198,11 +257,9 @@ struct std::formatter<common::Wb> : std::formatter<std::string_view>
 	auto format(const common::Wb& rValue, CONTEXT& rContext) const
 	{
 		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-		rWorkbuffer.Push();
-		rWorkbuffer.AppendFloat(rValue.fValue, rValue.iPrecision);
-		auto result = std::formatter<std::string_view>::format(rWorkbuffer.View(), rContext);
-		rWorkbuffer.Pop();
-		return result;
+		common::ScopedWorkbufferArena arena = rWorkbuffer.Push();
+		arena.AppendFloat(rValue.fValue, rValue.iPrecision);
+		return std::formatter<std::string_view>::format(arena.View(), rContext);
 	}
 };
 
@@ -213,14 +270,12 @@ struct std::formatter<common::WbV2> : std::formatter<std::string_view>
 	auto format(const common::WbV2& rValue, CONTEXT& rContext) const
 	{
 		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-		rWorkbuffer.Push();
-		rWorkbuffer.Append(std::string_view("("));
-		rWorkbuffer.AppendFloat(DirectX::XMVectorGetX(rValue.vec), rValue.iPrecision);
-		rWorkbuffer.Append(std::string_view(","));
-		rWorkbuffer.AppendFloat(DirectX::XMVectorGetY(rValue.vec), rValue.iPrecision);
-		rWorkbuffer.Append(std::string_view(")"));
-		auto result = std::formatter<std::string_view>::format(rWorkbuffer.View(), rContext);
-		rWorkbuffer.Pop();
-		return result;
+		common::ScopedWorkbufferArena arena = rWorkbuffer.Push();
+		arena.Append(std::string_view("("));
+		arena.AppendFloat(DirectX::XMVectorGetX(rValue.vec), rValue.iPrecision);
+		arena.Append(std::string_view(","));
+		arena.AppendFloat(DirectX::XMVectorGetY(rValue.vec), rValue.iPrecision);
+		arena.Append(std::string_view(")"));
+		return std::formatter<std::string_view>::format(arena.View(), rContext);
 	}
 };

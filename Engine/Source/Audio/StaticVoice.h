@@ -15,6 +15,7 @@ inline constexpr float VolumeToPower(float fMasterVolume, float fSoundVolume, fl
 enum class StaticVoiceFlags : uint8_t
 {
 	kFadingOut = 0x01,
+	kInactive  = 0x02,
 };
 using StaticVoiceFlags_t = common::Flags<StaticVoiceFlags>;
 

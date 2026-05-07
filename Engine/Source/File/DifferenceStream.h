@@ -302,7 +302,7 @@ public:
 					savedFrame.LogDifferences(rSavedCurrent);
 				}
 			}
-			LOG(kNetwork, kDebug, "LogDifferences CRC Client: {} Server: {}", currentChecksum, savedChecksum);
+			LOG(kNetwork, kError, "LogDifferences CRC Client: {} Server: {}", currentChecksum, savedChecksum);
 		}
 	}
 

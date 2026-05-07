@@ -331,22 +331,26 @@ static void PaintProfilePanel(HDC hdcBuffer, int iLeft, int iTop, [[maybe_unused
 	iTextY += iLineHeight + 4;
 
 	// CPU timers
-	FormatCpuTimersText(rWorkbuffer, *gpProfileManager);
-	std::string_view svTimers = rWorkbuffer.View();
-	SetTextColor(hdcBuffer, RGB(220, 220, 220));
-	PaintWorkbufferText(hdcBuffer, svTimers, iTextX, iTextY, iLineHeight);
-	sProfileText += svTimers;
-	rWorkbuffer.Pop();
+	{
+		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+		FormatCpuTimersText(rWorkbuffer, *gpProfileManager);
+		std::string_view svTimers = rWorkbuffer.View();
+		SetTextColor(hdcBuffer, RGB(220, 220, 220));
+		PaintWorkbufferText(hdcBuffer, svTimers, iTextX, iTextY, iLineHeight);
+		sProfileText += svTimers;
+	}
 
 	iTextY += 4;
 
 	// CPU counters
-	FormatCpuCountersText(rWorkbuffer, *gpProfileManager);
-	std::string_view svCounters = rWorkbuffer.View();
-	SetTextColor(hdcBuffer, RGB(150, 220, 150));
-	PaintWorkbufferText(hdcBuffer, svCounters, iTextX, iTextY, iLineHeight);
-	sProfileText += svCounters;
-	rWorkbuffer.Pop();
+	{
+		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+		FormatCpuCountersText(rWorkbuffer, *gpProfileManager);
+		std::string_view svCounters = rWorkbuffer.View();
+		SetTextColor(hdcBuffer, RGB(150, 220, 150));
+		PaintWorkbufferText(hdcBuffer, svCounters, iTextX, iTextY, iLineHeight);
+		sProfileText += svCounters;
+	}
 
 #if !defined(ENABLE_CRT_DEBUG_HEAP)
 	// Memory stats

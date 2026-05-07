@@ -7,7 +7,6 @@ common::crc_t FrameInterpolateBase::Crcs() const
 {
 	common::crc_t sharedCrc = 0;
 
-	sharedCrc ^= common::Crc(frameFlags);
 	sharedCrc ^= common::Crc(iTick);
 	sharedCrc ^= common::Crc(fCurrentTime);
 	sharedCrc ^= common::Crc(fDeltaTime);
@@ -24,7 +23,6 @@ bool FrameInterpolateBase::LogDifferences(const FrameInterpolateBase& rOther) co
 {
 	common::ScopedLogDifferenceContext context("FrameInterpolate");
 	bool bEqual = true;
-	bEqual &= common::LogDifference<"frameFlags">(frameFlags, rOther.frameFlags);
 	bEqual &= common::LogDifference<"iTick">(iTick, rOther.iTick);
 	bEqual &= common::LogDifference<"fCurrentTime">(fCurrentTime, rOther.fCurrentTime);
 	bEqual &= common::LogDifference<"fDeltaTime">(fDeltaTime, rOther.fDeltaTime);
@@ -35,7 +33,6 @@ bool FrameInterpolateBase::LogDifferences(const FrameInterpolateBase& rOther) co
 
 void FrameInterpolateBase::Write(std::ostream& rStream) const
 {
-	common::Write(rStream, frameFlags);
 	common::Write(rStream, iTick);
 	common::Write(rStream, fCurrentTime);
 	common::Write(rStream, fDeltaTime);
@@ -48,7 +45,6 @@ void FrameInterpolateBase::Write(std::ostream& rStream) const
 
 void FrameInterpolateBase::Read(std::istream& rStream)
 {
-	common::Read(rStream, frameFlags);
 	common::Read(rStream, iTick);
 	common::Read(rStream, fCurrentTime);
 	common::Read(rStream, fDeltaTime);
@@ -61,7 +57,6 @@ void FrameInterpolateBase::Read(std::istream& rStream)
 
 void FrameInterpolateBase::ServerRead(std::istream& rStream)
 {
-	common::Read(rStream, frameFlags);
 	common::Read(rStream, iTick);
 	common::Read(rStream, fCurrentTime);
 	common::Read(rStream, fDeltaTime);
@@ -100,7 +95,7 @@ bool FramePostRenderBase::LogDifferences(const FramePostRenderBase& rOther) cons
 	if (!(alignments == rOther.alignments))
 	{
 		bEqual = false;
-		LOG(kNetwork, kVerbose, "LogDifferences {} alignments differ", common::gpLogDifferenceContext);
+		LOG(kNetwork, kError, "LogDifferences {} alignments differ", common::gpLogDifferenceContext);
 	}
 	bEqual &= explosions.LogDifferences(rOther.explosions);
 	bEqual &= pushers.LogDifferences(rOther.pushers);
@@ -176,10 +171,11 @@ void FrameInterpolateBase::AllocateAndCopy([[maybe_unused]] game::FrameInterpola
 
 void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	const FrameInterpolateBase& rPrevious = rPreviousFrame.interpolate;
-
 	// Store delta time in frame
 	rCurrent.fDeltaTime = fDeltaTime;
+
+#if defined(BT_CLIENT)
+	const FrameInterpolateBase& rPrevious = rPreviousFrame.interpolate;
 
 	// Load
 	FrameFlags_t frameFlags = rPrevious.frameFlags;
@@ -188,8 +184,17 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	frameFlags.Clear({FrameFlags::kInterpolate, FrameFlags::kPostRender});
 	frameFlags.Set(FrameFlags::kInterpolate);
 
+	// kRecalculated is set externally on rCurrent before RunFrameTick (reconcile path,
+	// ReconcileReplay.cpp). Carry it through so PostRender phases (audio in particular)
+	// can suppress side effects during replay ticks running on Dispatch worker threads.
+	if (rCurrent.frameFlags & FrameFlags::kRecalculated)
+	{
+		frameFlags.Set(FrameFlags::kRecalculated);
+	}
+
 	// Save
 	rCurrent.frameFlags = frameFlags;
+#endif
 
 	ForEachInterpolateUpdate(InterpolateTypes{}, rCurrent, rPreviousFrame);
 }
@@ -206,8 +211,10 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	game::FramePostRender& rCurrent = rFrame.postRender;
 	const game::FramePostRender& rPrevious = rPreviousFrame.postRender;
 
+#if defined(BT_CLIENT)
 	rFrame.interpolate.frameFlags.Clear({FrameFlags::kInterpolate, FrameFlags::kPostRender});
 	rFrame.interpolate.frameFlags.Set(FrameFlags::kPostRender);
+#endif
 
 	// Carry persistent state forward from the previous frame
 	rCurrent.randomEngine = rPrevious.randomEngine;

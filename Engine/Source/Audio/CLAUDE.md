@@ -4,8 +4,8 @@
 
 ## Key Classes
 
-- **AudioManager** - XAudio2 device lifecycle, focus/suspend, device-reset callbacks. Delegates to static and streaming voice subsystems.
-- **StaticVoices** - 3D spatial one-shots + frame-driven looping voices. Hard-capped CRC-keyed voice pool avoids `DestroyVoice`/`CreateSourceVoice` churn. Recursive mutex (3D path re-enters 2D path). 3D sources asserted mono.
+- **AudioManager** - XAudio2 device lifecycle, focus/suspend, device-reset callbacks. Delegates to static and streaming voice subsystems. `Update` refreshes the listener position before driving voice lifecycle so the priority pass sees current-frame listener and fade state.
+- **StaticVoices** - 3D spatial one-shots + frame-driven looping voices. Hard-capped voice pool keyed by `crc`. Recursive mutex (3D path re-enters 2D path). 3D sources asserted mono.
 - **StreamingVoices** - Music streaming with triple-buffered crossfade. Buffer refill on main thread; XAudio2 callback only bumps an atomic counter so file I/O stays off the callback thread.
 
 ## Frame-Phase Invariants
@@ -23,9 +23,15 @@
 ## Volume & 3D
 
 - Combined volume squared for a perceptual curve; sfx and music use separate global sliders.
-- 3D mix layers X3DAudio (matrix / Doppler / LPF) with a manual piecewise distance fade as a hard override past the physical attenuation floor.
+- 3D mix layers X3DAudio (matrix / Doppler / LPF) with a manual piecewise distance fade as a hard override past the physical attenuation floor. The natural attenuation curve drives the priority pass; the audible-floor only clamps the final mix after prioritization, so it never makes a distant sound look loud to the prioritizer.
 - Camera-zoom couples into the 3D mix: audible distance scales with current visible area vs. a per-listener-update reference width (then doubled so visible-edge sounds sit mid-fade-band, not at the floor), stereo channels cross-bleed (capped at 25% to preserve some directionality — a 50% cap would collapse to pure mono), and a global per-voice volume scale lerps from 1.0 at default eye height down to 0.75 at 2x default and beyond. All three factors share the same height-derived 0..1 parameter and recompute once per `UpdateListenerPosition`.
 - Audio reads `game::gpCamera` directly for eye height / visible area — established cross-layer pattern in `Engine/Source/`, not a `game::gpGame` violation.
+
+## Voice Prioritization
+
+- Static voice slots are scarce; allocation is closest/loudest-wins, not first-come. Per-frame priority pass scores entries by attenuated volume and reclaims XAudio2 voices from the lowest-scoring sounds when over budget.
+- One-shots are hard-culled at submission when their attenuated volume falls below the cull threshold — they never enter the pool.
+- Looping/persistent entries out of audible range release their XAudio2 voice but keep the bookkeeping entry (inactive state); they re-acquire a voice and fade in via the existing fade-volume on re-entry. Activation/deactivation use a hysteresis band around the cull threshold to prevent flicker at the boundary.
 
 ## Device Reset
 

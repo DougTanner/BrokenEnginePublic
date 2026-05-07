@@ -16,7 +16,7 @@ Server::Server(uint16_t uiPort)
 	address.host = ENET_HOST_ANY;
 	address.port = uiPort;
 
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	// Heap: one-time compression scratch buffer
 	mCompressionBuffer.resize(kiMaxPacketSize);
 	// Heap: ENet allocates host data internally
@@ -35,7 +35,8 @@ Server::~Server()
 {
 	if (mpHost != nullptr)
 	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		// Heap: ENet destroys host data internally
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
 		enet_host_destroy(mpHost);
 	}
 
@@ -121,7 +122,7 @@ void Server::Poll()
 
 void Server::Connect(ENetEvent& rEvent)
 {
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	ClientConnection connection {};
 	connection.pPeer = rEvent.peer;
@@ -185,10 +186,10 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 			ClientSpawnRequest(pData, iSize, iClientId);
 			break;
 		case PacketType::kClientDesyncReport:
-			ClientDesyncReport(pData, iSize);
+			ClientDesyncReport(pData, iSize, iClientId);
 			break;
 		case PacketType::kClientDebugFrameRequest:
-			ClientDebugFrameRequest(pData, iSize, pPeer);
+			ClientDebugFrameRequest(pData, iSize, pPeer, iClientId);
 			break;
 		case PacketType::kClientHello:
 			ClientHello(pData, iSize, pPeer, iClientId);
@@ -228,12 +229,12 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 		default:
 			if (static_cast<uint8_t>(eType) >= static_cast<uint8_t>(PacketType::kGamePacketStart))
 			{
-				ClientConnection* pClient = FindClient(iClientId);
-				if (pClient == nullptr || !pClient->bHandshakeComplete)
+				ClientConnection* pClient = FindHandshakenClient(iClientId);
+				if (pClient == nullptr)
 				{
 					break;
 				}
-				ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+				ScopedSuppressAllocationTracking suppressAllocationTracking;
 				// Heap: raw game packet buffer grows on game-specific packets
 				mReceivedGamePackets.push_back({iClientId, pData[0], std::vector<uint8_t>(pData + 1, pData + iSize)});
 			}
@@ -248,7 +249,7 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 void Server::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates)
 {
 	miLatestBufferedTick = iTick;
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	std::unordered_set<GridCoord> activeCoords;
 	activeCoords.reserve(rGridUpdates.size());
@@ -287,7 +288,7 @@ void Server::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, G
 
 void Server::BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames)
 {
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	// Heap: ring buffer grows until steady state
 	BufferedFullFrame buffered {};
@@ -376,6 +377,12 @@ const ClientConnection* Server::FindClient(int64_t iClientId) const
 		}
 	}
 	return nullptr;
+}
+
+ClientConnection* Server::FindHandshakenClient(int64_t iClientId)
+{
+	ClientConnection* pClient = FindClient(iClientId);
+	return (pClient != nullptr && pClient->bHandshakeComplete) ? pClient : nullptr;
 }
 
 } // namespace engine

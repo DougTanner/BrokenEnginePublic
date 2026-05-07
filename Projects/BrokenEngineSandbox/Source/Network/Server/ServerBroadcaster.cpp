@@ -38,7 +38,7 @@ void ServerBroadcaster::BuildFrameInputs()
 		uint8_t spawnPendingFleetTicks = 0;
 		if (rInfo.iFleetIndex >= 0)
 		{
-			ServerFleetManager::FleetLookupResult result = gpServerSession->mpFleetManager->LookupFleetWantedCoord(rInfo.iClientId, rInfo.iFleetIndex, rInfo.iMemberIndex, rInfo.spawnCoord);
+			ServerFleetManager::FleetLookupResult result = gpServerSession->mpFleetManager->LookupFleetWantedCoord(rInfo.iClientId, rInfo.iFleetIndex, rInfo.iMemberIndex);
 			bIsFlagship = result.bIsFlagship;
 			spawnFleetWantedCoord = result.fleetWantedCoord;
 			spawnPendingFleetTicks = result.uiPendingFleetWantedCoordTicks;
@@ -168,6 +168,7 @@ void ServerBroadcaster::BroadcastStatusChanges(int64_t iTick)
 
 void ServerBroadcaster::ProcessUpdatePlayerRequests()
 {
+	// Heap: try_emplace inserts client-owned-id vector entry on first request per client
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	for (const PendingUpdatePlayerRequest& rRequest : mPendingUpdatePlayerRequests)

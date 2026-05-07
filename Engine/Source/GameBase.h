@@ -174,7 +174,7 @@ public:
 	uint16_t GenerateFrameId() { return muiNextFrameId++; }
 	int64_t TickCounter() const { return miTickCounter; }
 	float CurrentTime() const { return mfCurrentTime; }
-	void SetTickCounter(int64_t iTickCounter) { miTickCounter = iTickCounter; }
+	void SetTickCounter(int64_t iTickCounter) { ASSERT(iTickCounter >= 0); miTickCounter = iTickCounter; }
 	void SetCurrentTime(float fCurrentTime) { mfCurrentTime = fCurrentTime; }
 	uint16_t NextFrameId() const { return muiNextFrameId; }
 	void SetNextFrameId(uint16_t uiNextFrameId) { muiNextFrameId = uiNextFrameId; }

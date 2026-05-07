@@ -570,14 +570,13 @@ void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
 
 void TextureManager::WaitForTextures(std::span<Texture* const> textures)
 {
-	common::gpThreadLocal->mWorkbuffer.Push();
+	common::ScopedWorkbufferArena scopedWorkbufferArena = common::gpThreadLocal->mWorkbuffer.Push();
 	for (Texture* pTexture : textures)
 	{
 		common::gpThreadLocal->mWorkbuffer.PushBack<common::crc_t>(pTexture->mInfo.crc);
 	}
 
 	WaitForTextures(common::gpThreadLocal->mWorkbuffer.Span<common::crc_t>());
-	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 void RegisterLightingTextureCrc(common::crc_t crc)

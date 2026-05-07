@@ -6,7 +6,7 @@ Vulkan enum-to-string conversion for logging and error messages. Client-only; in
 
 Compile-time type dispatch via `std::is_same_v` selects the lookup map per Vulkan enum type. Scratch storage uses the shared workbuffer (`PushBuffer`), not `thread_local`.
 
-**Lifetime contract**: conversion returns a `common::ScopedWorkbufferPop` owning the scratch allocation; the yielded `const char*` is valid only while that scoped object lives. Callers must keep the return value on the stack across any use of the string.
+**Lifetime contract**: conversion returns a `common::ScopedWorkbufferAllocation<const char*>` owning the scratch frame. The yielded `const char*` is valid only while that scoped object lives — its dtor pops the workbuffer frame regardless of whether the pointer aims at static map data (logging path) or the scratch itself (`std::to_chars` fallback path), via the RAII `Adopt<U>` cross-type ownership transfer. Callers must keep the return value on the stack across any use of the string.
 
 **Non-logging builds**: with `kbLogging` false, lookup tables drop out and conversion falls back to `std::to_chars` returning the numeric enum. Call sites always receive a valid C-string regardless of build flavor.
 

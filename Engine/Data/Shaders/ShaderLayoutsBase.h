@@ -115,7 +115,8 @@ struct VkDispatchIndirectCommand
 
 #endif // BT_ENGINE
 
-CONSTEXPR float fPi = 3.141592654f;
+CONSTEXPR float kfPi = 3.141592654f;
+CONSTEXPR float kfEpsilon = 1e-6f;
 
 CONSTEXPR int kiLightingTextures = 11;
 CONSTEXPR int kiBillboardTexturesCount = 3;

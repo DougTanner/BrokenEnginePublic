@@ -19,7 +19,7 @@ Irradiance and pre-filtered radiance cubemaps are generated offline by DataPacke
 ## Architecture Notes
 
 - **Descriptor layout**: Extends the engine's multi-set layout with Set 2 for per-material data. Per-material texture indices reference the global bindless texture array
-- **Tangent-free normal mapping**: Tangent space computed from screen-space derivatives, avoiding per-vertex tangent storage
+- **Tangent-free normal mapping**: Tangent space computed from screen-space derivatives, avoiding per-vertex tangent storage. Falls back to the geometric normal when the Gram-Schmidt-orthogonalized tangent collapses (degenerate UV gradients), so the normal mapper degrades to flat shading instead of producing NaNs
 - **Compact joint matrices**: 3-row format blended in the vertex shader and reconstructed to mat4 for skinning
 - **Tone mapping**: ACES filmic with configurable exposure and gamma
 

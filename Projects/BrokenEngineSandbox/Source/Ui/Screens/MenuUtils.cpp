@@ -5,7 +5,7 @@ namespace game
 
 const char* AppendUtf8(common::Workbuffer& rWorkbuffer, std::u32string_view u32str)
 {
-	rWorkbuffer.Push();
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 	for (char32_t c : u32str)
 	{
 		if (c < 0x80)
@@ -33,7 +33,6 @@ const char* AppendUtf8(common::Workbuffer& rWorkbuffer, std::u32string_view u32s
 	}
 	rWorkbuffer.PushBack<char>('\0');
 	const char* pcResult = rWorkbuffer.View().data();
-	rWorkbuffer.Pop();
 	return pcResult;
 }
 

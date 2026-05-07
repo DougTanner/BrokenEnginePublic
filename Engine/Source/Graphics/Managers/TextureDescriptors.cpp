@@ -135,7 +135,7 @@ void TextureDescriptors::UpdateTextureArrayDescriptors()
 void TextureDescriptors::WriteArrayBindingDescriptors(const TextureBinding& rBinding, VkSampler vkSampler)
 {
 	int64_t iTextureCount = static_cast<int64_t>(rBinding.textures.size());
-	VkDescriptorImageInfo* pImageInfos = common::gpThreadLocal->mWorkbuffer.PushBuffer<VkDescriptorImageInfo*>(iTextureCount * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
+	auto pImageInfos = common::gpThreadLocal->mWorkbuffer.PushBuffer<VkDescriptorImageInfo*>(iTextureCount * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
 	for (int64_t i = 0; i < iTextureCount; ++i)
 	{
 		pImageInfos[i].sampler = vkSampler;
@@ -160,7 +160,6 @@ void TextureDescriptors::WriteArrayBindingDescriptors(const TextureBinding& rBin
 		};
 		vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
 	}
-	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 void TextureDescriptors::RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags, Texture* pTexture, Texture** ppTextures, int64_t iCount)

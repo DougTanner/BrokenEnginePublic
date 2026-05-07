@@ -150,7 +150,7 @@ void main()
 	float fWeightThree = mix(mainLayout.fWaterNormalWeightThreeMin, mainLayout.fWaterNormalWeightThreeMax, mainLayout.fCameraHeightZoomFactor);
 	// Guard against NaN: if all three weight sliders resolve to 0 the sum is the zero vector and normalize() returns NaN.
 	vec3 f3WeightedSum = fWeightOne * f3SampledNormalOne + fWeightTwo * f3SampledNormalTwo + fWeightThree * f3SampledNormalThree;
-	vec3 f3SampledNormal = f3WeightedSum / max(length(f3WeightedSum), 1e-6f);
+	vec3 f3SampledNormal = f3WeightedSum / max(length(f3WeightedSum), kfEpsilon);
 
 	// Color (noise with precision-safe UV — same pact as SAMPLE_NORMAL_PRECISE above).
 	// CPU stores fmod(freq*camera, 10.0) so mult * 10 is integer for the calibrated defaults

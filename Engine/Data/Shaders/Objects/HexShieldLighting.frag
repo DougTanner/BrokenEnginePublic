@@ -54,7 +54,7 @@ void main()
 	// Lighting direction
 	vec2 f2CenterXY = f3InCenterNormal.xy;
 	float fCenterLen = length(f2CenterXY);
-	vec2 f2Direction = fCenterLen > 1e-6f ? f2CenterXY / fCenterLen : vec2(0.0f);
+	vec2 f2Direction = fCenterLen > kfEpsilon ? f2CenterXY / fCenterLen : vec2(0.0f);
 	vec4 f4Direction = vec4(f2Direction.x > 0.0f ? f2Direction.x : 0.0f, f2Direction.x < 0.0f ? -f2Direction.x : 0.0f, f2Direction.y < 0.0f ? -f2Direction.y : 0.0f, f2Direction.y > 0.0f ? f2Direction.y : 0.0f);
 
 	// Compute all color channels simultaneously

@@ -153,10 +153,12 @@ private:
 	void Receive(ENetEvent& rEvent);
 	void Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer);
 
+	ClientConnection* FindHandshakenClient(int64_t iClientId);
+
 	void ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void ClientSpawnRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
-	void ClientDesyncReport(const uint8_t* pData, size_t iSize);
-	void ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPeer* pPeer);
+	void ClientDesyncReport(const uint8_t* pData, size_t iSize, int64_t iClientId);
+	void ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId);
 	void ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId);
 	void ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId);

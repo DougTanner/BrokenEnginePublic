@@ -19,7 +19,7 @@ public:
 	void ConnectToServer(std::string_view serverAddress, uint16_t uiPort, int64_t iCoordSlots);
 	void DisconnectFromServerBase();
 	void StartServerDiscovery();
-	bool PollLANDiscovery();
+	void PollLANDiscovery();
 
 	// Subscription mechanics
 	void TrySubscribeNext();

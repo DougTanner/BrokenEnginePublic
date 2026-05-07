@@ -94,7 +94,7 @@ void main()
 		float fDirectionCount = fDirectionCountBase + float(j);
 		const uint32_t uiDirectionCount = uint32_t(fDirectionCount);
 		fDirectionCount = float(uiDirectionCount);
-		const float fDirectionStep = (2.0f * fPi) / fDirectionCount;
+		const float fDirectionStep = (2.0f * kfPi) / fDirectionCount;
 		fTotalSamples += fDirectionCount * fRingFalloff;
 		for (uint32_t i = 0; i < uiDirectionCount; ++i)
 		{
@@ -109,7 +109,7 @@ void main()
 
 			// Per-sample x/y jitter — does NOT touch fAngle / f2Direction. clustering > 1 clusters near origin, < 1 pushes to rim.
 			float fSampleJitterR = pow(Random01(prng), fSampleJitterClustering);
-			float fSampleJitterAngle = Random01(prng) * (2.0f * fPi);
+			float fSampleJitterAngle = Random01(prng) * (2.0f * kfPi);
 			vec2 f2SampleJitterOff = fSampleJitterR * vec2(cos(fSampleJitterAngle), sin(fSampleJitterAngle)) * vec2(fAspectRatioX, fAspectRatioY) * fSampleJitterRange;
 
 			// Ring distance: total reach = fSpreadDistance, more rings = denser sampling (not wider spread)

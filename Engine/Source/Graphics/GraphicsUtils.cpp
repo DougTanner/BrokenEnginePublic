@@ -13,29 +13,24 @@ namespace engine
 void CheckVkFailed(VkResult vkResult, std::string_view expression, std::source_location loc)
 {
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferPop pcResult = gEnumToString.Convert(vkResult, rWorkbuffer);
+	common::ScopedWorkbufferAllocation<const char*> pcResult = gEnumToString.Convert(vkResult, rWorkbuffer);
 	LOG(kDefault, kError, "CheckVk failed: {} - \"{}\" at {}:{} in {}", pcResult, expression, loc.file_name(), loc.line(), loc.function_name());
 
 	// Format exception message with call site information
-	char* pcException = rWorkbuffer.PushBuffer<char*>(1024);
+	auto pcException = rWorkbuffer.PushBuffer<char*>(1024);
 	snprintf(pcException, 1023, "CheckVk failed: \"%.*s\" at %s:%u in %s\nVkResult: %s", static_cast<int>(expression.size()), expression.data(), loc.file_name(), loc.line(), loc.function_name(), static_cast<const char*>(pcResult));
 
 	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
 	{
 		gpGraphics->meDestroyType = DestroyType::kSwapchain;
-		rWorkbuffer.Pop();
 		return;
 	}
 
 	if (vkResult == VK_ERROR_SURFACE_LOST_KHR)
 	{
 		gpGraphics->meDestroyType = DestroyType::kSurface;
-		rWorkbuffer.Pop();
 		return;
 	}
-
-	// Pop exception buffer before throw — data survives in workbuffer memory until next write
-	rWorkbuffer.Pop();
 
 	if (vkResult == VK_ERROR_DEVICE_LOST)
 	{
@@ -53,9 +48,9 @@ void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t ha
 		if (vkSetDebugUtilsObjectNameEXT != nullptr)
 		{
 			common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-			common::ScopedWorkbufferPop pcFullName = gEnumToString.Convert(type, rWorkbuffer);
+			common::ScopedWorkbufferAllocation<const char*> pcFullName = gEnumToString.Convert(type, rWorkbuffer);
 			const char* pcPrefix = static_cast<const char*>(pcFullName) + std::char_traits<char>::length("VK_OBJECT_TYPE_");
-			rWorkbuffer.Push();
+			common::ScopedWorkbufferArena innerArena = rWorkbuffer.Push();
 			rWorkbuffer.Append(pcPrefix);
 			rWorkbuffer.Append(" ");
 			rWorkbuffer.Append(name);
@@ -65,7 +60,6 @@ void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t ha
 			ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 			auto [it, bInserted] = gpGraphics->mDebugNames.emplace(rWorkbuffer.View());
-			rWorkbuffer.Pop();
 			VkDebugUtilsObjectNameInfoEXT vkDebugUtilsObjectNameInfoEXT =
 			{
 				.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,

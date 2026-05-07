@@ -27,7 +27,7 @@ inline constexpr std::string_view kGameName = "Broken Engine Sandbox";
 #else
 inline constexpr std::string_view kGameName = "Broken Engine Sandbox Server";
 #endif
-inline constexpr int64_t kiDesiredCoordSlots = 8; // 4 subscriptions + 3 sticky + 1 spare for grid transitions
+inline constexpr int64_t kiDesiredCoordSlots = 16; // 9 subscriptions (1 current + 8 ring) + 6 sticky + 1 spare
 
 enum class UiState
 {
@@ -163,9 +163,16 @@ public:
 	bool mbShowImGui = false;
 
 	engine::GridCoord mClientGridCoord {};
-	int32_t miQuadrantDirX = 0;
-	int32_t miQuadrantDirY = 0;
+	engine::GridCoord mVisibleNeighbors[8] {};
+	int64_t miVisibleNeighborCount = 0;
 	std::vector<engine::GridCoord> mActiveCoords;
+
+	// Cache stores absolute coords keyed off mClientGridCoord; any write must invalidate.
+	void SetClientGridCoord(engine::GridCoord coord)
+	{
+		mClientGridCoord = coord;
+		miVisibleNeighborCount = 0;
+	}
 	std::unordered_map<engine::GridCoord, FrameInput> mFrameInputs;
 
 private:

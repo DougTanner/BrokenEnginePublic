@@ -83,7 +83,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	LOG(kNetwork, kVerbose, "Client::ServerCoordFullState Frame: {} Slot: {} Coord: ({},{})", iTick, uiSlotIndex, coord.x, coord.y);
 	ScopedLogIndent scopedLogIndent;
 
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor, iSize - 20);
 	if (pFrame == nullptr)
@@ -193,7 +193,7 @@ void Client::ServerCoordStaticData(const uint8_t* pData, size_t iSize)
 		return;
 	}
 
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	std::string staticBytes(reinterpret_cast<const char*>(pCursor), iSize32);
 	std::istringstream staticStream(std::move(staticBytes), std::ios::binary);
@@ -266,7 +266,7 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 		return;
 	}
 
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	ReceivedCoordUpdate update {};
 	update.iTick = iTick;
@@ -302,15 +302,16 @@ void Client::ServerDebugFrame(const uint8_t* pData, size_t iSize)
 
 	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
-	LOG(kNetwork, kDebug, "Client::ServerDebugFrame Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
+	LOG(kNetwork, kError, "Client::ServerDebugFrame Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
 	ScopedLogIndent scopedLogIndent;
 
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	// Heap: LZ4 decompresses debug frame; Frame allocated on heap
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor, iSize - 17);
 	if (pFrame == nullptr)
 	{
-		LOG(kNetwork, kWarning, "Client::ServerDebugFrame LZ4 decompression failed Frame: {}", iTick);
+		LOG(kNetwork, kError, "Client::ServerDebugFrame LZ4 decompression failed Frame: {}", iTick);
 		return;
 	}
 
@@ -343,7 +344,8 @@ void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 			LOG(kNetwork, kInfo, "Client GUID assigned: {} {}", mClientGuid.uiHigh, mClientGuid.uiLow);
 
 			// Persist to disk atomically — a mid-write crash here would otherwise empty the file and orphan all server-side fleets/players for this client on next connect.
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			// Heap: filesystem path and fstream operations for GUID persistence
+			ScopedSuppressAllocationTracking suppressAllocationTracking;
 			bool bWritten = gpFileManager->WriteFileAtomically({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("ClientGuid.bin"), [&](std::fstream& guidStream)
 			{
 				int64_t iGuidVersion = 1;

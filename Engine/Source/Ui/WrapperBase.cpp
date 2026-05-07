@@ -34,15 +34,15 @@ Wrapper gSunMoonNoonStart(XM_PIDIV8, 0.0f, XM_PIDIV2);
 Wrapper gSunMoonNoonEnd(XM_PIDIV2 + XM_PIDIV8, XM_PIDIV2, XM_PI - XM_PIDIV16);
 Wrapper gSunMoonEvening(XM_PI - XM_PIDIV16, XM_PIDIV2, XM_PI);
 Wrapper gSunMoonNightStart(XM_PI, XM_PIDIV2, XM_PI + XM_PIDIV2);
-Wrapper gSunMoonSunIntensityTerrain(1.0f, 0.0f, 4.0f);
-Wrapper gSunMoonSunIntensityWater(0.7f, 0.0f, 4.0f);
+Wrapper gSunMoonSunIntensityTerrain(1.2f, 0.0f, 4.0f);
+Wrapper gSunMoonSunIntensityWater(0.6f, 0.0f, 4.0f);
 Wrapper gSunMoonSunIntensityObjects(1.0f, 0.0f, 4.0f);
 Wrapper gSunMoonSunIntensitySmoke(1.0f, 0.0f, 4.0f);
 Wrapper gSunMoonMoonIntensityTerrain(0.05f, 0.0f, 1.0f);
 Wrapper gSunMoonMoonIntensityWater(0.03f, 0.0f, 1.0f);
 Wrapper gSunMoonMoonIntensityObjects(0.05f, 0.0f, 1.0f);
 Wrapper gSunMoonMoonIntensitySmoke(0.05f, 0.0f, 1.0f);
-Wrapper gSunMoonMoonBlueTint(2.0f, 1.0f, 4.0f);
+Wrapper gSunMoonMoonBlueTint(1.8f, 1.0f, 4.0f);
 Wrapper gSunMoonMoonriseStart(3.05f, XM_PIDIV2, XM_2PI);
 Wrapper gSunMoonMoonriseEnd(3.1f, XM_PIDIV2, XM_2PI);
 Wrapper gSunMoonMoonsetStart(XM_PIDIV128, 0.0f, XM_PIDIV2);
@@ -214,8 +214,9 @@ bool gbUseCombineCurveNew = true;
 // Index defaults: One=0 (texture "0"), Two=1 (texture "3"), Three=11 (SeaWaves) — must match TextureManager::kiWaterNormalSeaWavesIndex.
 // 11 Sea Waves 0.25
 // 3 FoamB 0.25
-Wrapper gWaterNormalIndexOne(int64_t {3}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
-Wrapper gLightingSampledNormalsOneSize(0.25f, 0.05f, 1.0f);
+// 6 GeenSeaB 0.15
+Wrapper gWaterNormalIndexOne(int64_t {6}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
+Wrapper gLightingSampledNormalsOneSize(0.2f, 0.05f, 1.0f);
 Wrapper gLightingSampledNormalsWeightOneMin(2.0f, 0.0f, 4.0f);
 Wrapper gLightingSampledNormalsWeightOneMax(1.0f, 0.0f, 4.0f);
 Wrapper gWaterNormalRotationOne(0.0f, -XM_PI, XM_PI);
@@ -232,11 +233,11 @@ Wrapper gWaterNormalRotationTwo(-0.15f, -XM_PI, XM_PI);
 // 12 SeaWavesB 0.03
 Wrapper gWaterNormalIndexThree(int64_t {12}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
 Wrapper gLightingSampledNormalsThreeSize(0.04f, 0.025f, 0.1f);
-Wrapper gLightingSampledNormalsWeightThreeMin(0.25f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsWeightThreeMin(0.5f, 0.0f, 4.0f);
 Wrapper gLightingSampledNormalsWeightThreeMax(2.0f, 0.0f, 4.0f);
 Wrapper gWaterNormalRotationThree(0.2f, -XM_PI, XM_PI);
 
-Wrapper gLightingSampledNormalsSpeedMin(0.025f, 0.0f, 0.1f);
+Wrapper gLightingSampledNormalsSpeedMin(0.02f, 0.0f, 0.1f);
 Wrapper gLightingSampledNormalsSpeedMax(0.05f, 0.0f, 0.1f);
 
 // New Lighting
@@ -252,8 +253,8 @@ Wrapper gLightingTerrainBelowBaseMultiplier(0.7f, 0.0f, 1.0f);
 Wrapper gLightingTerrainBelowBasePower(0.3f, 0.1f, 1.0f);
 Wrapper gLightingObjects(4.0f, 0.0f, 8.0f);
 Wrapper gLightingObjectsAdd(0.2f, 0.0f, 1.0f);
-Wrapper gLightingDayFinalMultiplier(0.7f, 0.0f, 1.0f);
-Wrapper gLightingNightFinalMultiplier(0.9f, 0.0f, 1.0f);
+Wrapper gLightingDayFinalMultiplier(1.0f, 0.0f, 1.0f);
+Wrapper gLightingNightFinalMultiplier(0.45f, 0.0f, 1.0f);
 
 // Water specular lighting
 Wrapper gLightingWaterAmbientPower(1.0f, 0.1f, 6.0f);
@@ -284,17 +285,17 @@ Wrapper gLightingWaterReflectedIntensity(0.4f, 0.0f, 5.0f);
 
 // Water skybox
 Wrapper gLightingWaterSkyboxSunBias(3.3f, 0.0f, 4.0f);
-Wrapper gLightingWaterSkyboxNormalSoften(0.69f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxNormalSoften(0.8f, 0.0f, 1.0f);
 Wrapper gLightingWaterSkyboxNormalBlendWave(0.15f, 0.0f, 0.4f);
-Wrapper gLightingWaterSkyboxIntensity(0.0009f, 0.0005f, 0.004f);
-Wrapper gLightingWaterSkyboxAdd(0.2f, 0.0f, 2.0f);
+Wrapper gLightingWaterSkyboxIntensity(0.0005f, 0.0001f, 0.002f);
+Wrapper gLightingWaterSkyboxAdd(2.0f, 0.0f, 4.0f);
 
-Wrapper gLightingWaterSkyboxOne(1800.0f, 0.0f, 3000.0f);
-Wrapper gLightingWaterSkyboxOnePower(100.0f, 50.0f, 400.0f);
-Wrapper gLightingWaterSkyboxTwo(300.0f, 0.0f, 400.0f);
-Wrapper gLightingWaterSkyboxTwoPower(5.0f, 1.0f, 10.0f);
-Wrapper gLightingWaterSkyboxThree(450.0f, 1.0f, 800.0f);
-Wrapper gLightingWaterSkyboxThreePower(0.01f, 0.001f, 1.0f);
+Wrapper gLightingWaterSkyboxOne(2800.0f, 0.0f, 5000.0f);
+Wrapper gLightingWaterSkyboxOnePower(250.0f, 50.0f, 400.0f);
+Wrapper gLightingWaterSkyboxTwo(100.0f, 0.0f, 400.0f);
+Wrapper gLightingWaterSkyboxTwoPower(10.0f, 1.0f, 20.0f);
+Wrapper gLightingWaterSkyboxThree(550.0f, 1.0f, 800.0f);
+Wrapper gLightingWaterSkyboxThreePower(0.6f, 0.001f, 1.0f);
 Wrapper gLightingWaterSkyboxLod(6.0f, 0.0f, 10.0f);
 
 // Smoke
@@ -358,8 +359,8 @@ Wrapper gWindSmokeAdvection(0.5f, 0.0f, 2.0f);
 Wrapper gLowCount(31i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
 Wrapper gLowMax(150.0f, 0.0f, 255.0f);
 Wrapper gLowAngle(4.87f, 0.0f, XM_2PI);
-Wrapper gLowWavelength(2.1f, 1.0f, 20.0f);
-Wrapper gLowAmplitude(0.04f, 0.0f, 0.1f);
+Wrapper gLowWavelength(2.2f, 1.0f, 20.0f);
+Wrapper gLowAmplitude(0.07f, 0.0f, 0.1f);
 Wrapper gLowSpeed(0.2f, 0.0f, 1.0f);
 Wrapper gLowSteepness(1.0f, 0.0f, 2.0f);
 

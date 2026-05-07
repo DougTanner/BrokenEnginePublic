@@ -17,10 +17,6 @@ namespace game
 
 using enum BlasterFlags;
 
-// Blaster pitch
-constexpr float kfPitchMin = 0.75f;
-constexpr float kfPitchRandom = 0.5f;
-
 #if defined(BT_CLIENT)
 // Defined in BlastersUpdate.cpp
 void RegisterBlasterTerrainEffects();
@@ -96,6 +92,7 @@ void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 
 	rPostRender.puiSounds[iIndex] = {};
 	engine::SoundsPostRender::Add(rFrame, rPostRender.puiSounds[iIndex]);
+	LOG(kTemp, kInfo, "Blaster::ClientInit Sounds::Add iIndex={} alignment={} pos={} soundId={}", iIndex, rPostRender.pAlignments[iIndex], common::WbV2(rBlasters.pVecPositions[iIndex], 1), rPostRender.puiSounds[iIndex]);
 
 	// Sync wind trail
 	if (rBlasters.pfWindTrailIntensities[iIndex] > 0.0f)
@@ -140,11 +137,12 @@ void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 	}
 
 	// Sync sound
+	LOG(kTemp, kInfo, "Blaster::ClientInit Sounds::Sync (initial) iIndex={} soundId={} pos={} vel={} vol={}", iIndex, rPostRender.puiSounds[iIndex], common::WbV2(rBlasters.pVecPositions[iIndex], 1), common::WbV2(rPostRender.pVecVelocities[iIndex], 1), common::Wb(kfBlasterVolume, 3));
 	engine::SoundsInterpolate::Sync(rFrame.interpolate, rPostRender.puiSounds[iIndex],
 	{
 		.vecPosition = rBlasters.pVecPositions[iIndex],
 		.vecVelocity = rPostRender.pVecVelocities[iIndex],
-		.uiCrc = data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc,
+		.uiCrc = data::kAudioBlasterNew609840__eminyildirim__spacedroneambience7variation_0wavCrc,
 		.fVolume = kfBlasterVolume,
 		.fPitch = rPostRender.pfPitches[iIndex],
 		.fFadeOutTime = kfBlasterFadeOutTime,
@@ -191,7 +189,7 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 
 	// Create sound with random pitch variation
-	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
+	float fPitch = kfBlasterPitchMin + common::Random<kfBlasterPitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
 
 #if defined(BT_CLIENT)
