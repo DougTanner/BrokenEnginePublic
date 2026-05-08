@@ -469,6 +469,7 @@ void Game::ComputeActiveSet()
 				}
 			}
 		}
+
 	}
 	else
 	{

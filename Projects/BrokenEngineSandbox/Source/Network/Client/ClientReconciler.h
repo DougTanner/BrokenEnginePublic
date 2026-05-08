@@ -37,6 +37,15 @@ struct ReconcileInputs
 	engine::Alignments alignments;
 };
 
+enum class ReconcileScratchFlags : uint8_t
+{
+	kCrcFastPath        = 0x01,
+	kReplayed           = 0x02,
+	kShrunkRollback     = 0x04,
+	kReSimOccurred      = 0x08,
+	kSuppressRepeatLogs = 0x10,
+};
+
 struct CoordScratch
 {
 	std::vector<Frame*> replayStack;
@@ -48,11 +57,7 @@ struct CoordScratch
 	int64_t iNewConfirmedOffset = -1;       // physical ring index of the new head (NOT necessarily confirmed)
 	int64_t iNewConfirmedInnerOffset = 0;   // offset from new head to the confirmed frame; equals kiRenderBehindTicks when render-retention is applied
 	int64_t iOutputCount = 0;
-	bool bCrcFastPath = false;
-	bool bReplayed = false;
-	bool bShrunkRollback = false;
-	bool bReSimOccurred = false;
-	bool bSuppressRepeatLogs = false;
+	common::Flags<ReconcileScratchFlags> flags;
 	int64_t iPreReconcileTailTick = -1;
 	ReconcileProfiling profiling;
 
@@ -60,6 +65,27 @@ struct CoordScratch
 	common::crc_t desyncExpectedCrc = 0;
 	common::crc_t desyncActualCrc = 0;
 	std::unique_ptr<Frame> pDesyncClientFrame;
+
+	// Reset every field to its declared default while preserving replayStack's allocated capacity.
+	void Reset()
+	{
+		replayStack.clear();
+		iReplayStackCount = 0;
+		iReplayWriteHead = 0;
+		iReplayWriteCount = 0;
+		iLastValidatedIndex = -1;
+		iNewConfirmedTick = -1;
+		iNewConfirmedOffset = -1;
+		iNewConfirmedInnerOffset = 0;
+		iOutputCount = 0;
+		flags.ClearAll();
+		iPreReconcileTailTick = -1;
+		profiling = {};
+		iDesyncTick = -1;
+		desyncExpectedCrc = 0;
+		desyncActualCrc = 0;
+		pDesyncClientFrame.reset();
+	}
 };
 
 struct CoordWork

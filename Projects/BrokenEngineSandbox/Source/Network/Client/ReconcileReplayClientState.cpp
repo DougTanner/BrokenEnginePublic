@@ -27,7 +27,7 @@ static std::optional<engine::global_id_t> FindMatchingPlayerInCoord(std::span<co
 		{
 			pDestFrame = rDestScratch.replayStack[rDestScratch.iReplayStackCount - 1];
 		}
-		else if (rDestScratch.bCrcFastPath && rDestScratch.iNewConfirmedOffset >= 0)
+		else if ((rDestScratch.flags & ReconcileScratchFlags::kCrcFastPath) && rDestScratch.iNewConfirmedOffset >= 0)
 		{
 			// iNewConfirmedOffset is the new HEAD (may sit kiRenderBehindTicks slots before the
 			// confirmed frame when render-behind retention is active); iNewConfirmedInnerOffset
@@ -69,7 +69,7 @@ void ReconcileUpdateClientState(std::span<const CoordWork> works, const Reconcil
 		const engine::CoordFrames& rFrames = *rWork.pFrames;
 		const CoordScratch& rScratch = rWork.scratch;
 
-		if (!rScratch.bCrcFastPath && rScratch.iReplayStackCount > 0)
+		if (!(rScratch.flags & ReconcileScratchFlags::kCrcFastPath) && rScratch.iReplayStackCount > 0)
 		{
 			// Client coord did full replay: use replay tip's fCurrentTime
 			clientState.fCurrentTime = rScratch.replayStack[rScratch.iReplayStackCount - 1]->interpolate.fCurrentTime;
@@ -101,7 +101,7 @@ void ReconcileUpdateClientState(std::span<const CoordWork> works, const Reconcil
 		for (const CoordWork& rWork : works)
 		{
 			const CoordScratch& rScratch = rWork.scratch;
-			if (rScratch.bCrcFastPath)
+			if (rScratch.flags & ReconcileScratchFlags::kCrcFastPath)
 			{
 				continue;
 			}

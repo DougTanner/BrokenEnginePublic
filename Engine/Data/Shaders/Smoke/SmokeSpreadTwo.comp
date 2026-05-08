@@ -68,10 +68,12 @@ void main()
 		// Extra decay over terrain
 		if (fElevation > 0.0f)
 		{
+			// gSmokeDecay slider min 0.990 keeps pow() base > 0 -> always defined.
 			f4Result.x *= pow(globalLayout.fSmokeDecay, max(1.0f, fElevation - 5.0f));
 		}
 
-		// Extra decay at edge of simulation area
+		// Extra decay at edge of simulation area.
+		// f2Texcoord is in [0, 1] by construction (texel center / imageSize) so the inner min(...) is non-negative; outer min clamps to 1.
 		f4Result.x *= min(1.0f, globalLayout.fSmokeEdgeDecayDistanceInv * min(f2Texcoord.x, min(1.0f - f2Texcoord.x, min(f2Texcoord.y, 1.0f - f2Texcoord.y))));
 
 		// Constant subtraction + threshold zeroing to kill low-density smoke faster

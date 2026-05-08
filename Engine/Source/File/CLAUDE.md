@@ -10,7 +10,7 @@ Manages file operations and asset loading with platform directory access (AppDat
 
 ### Eager vs Lazy
 
-Split determined by `IsEagerChunk(DataTypes)`: Font/Scene/Model/Shader/Raw are eager (client-only, entire pack mmap'd at boot for zero-copy access); Audio/Islands/Texture are lazy. Server skips eager types entirely. Eager parse runs async; first consumer blocks on the future.
+Split determined by `IsEagerChunk(DataTypes)`: Font/Scene/Model/Shader/Raw are eager (client-only, entire pack mmap'd at boot for zero-copy access); Audio/Islands/Texture are lazy. Server skips eager types entirely and additionally restricts lazy opens to types matching `IsServerChunk(DataTypes)` (currently `kDataTypeIslands` only) — Audio/Texture packs are never opened server-side, so DataPacker can rewrite them while the server runs (the prior `FILE_SHARE_READ` handle blocked rewrites). Eager parse runs async; first consumer blocks on the future.
 
 ### Lazy Loading
 

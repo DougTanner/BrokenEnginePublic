@@ -121,7 +121,7 @@ void main()
 	else if (iFormat == kiDebugTextureFormatFloat16SpreadDirectionCombined)
 	{
 		// Combined direction across 3 spread textures for this pass, no tone mapping
-		vec4 f4R = texture(debugTextures[iIndex], f2InTexcoord);
+		vec4 f4R = f4Sample;
 		vec4 f4G = texture(pDebugTexturesB[iIndex], f2InTexcoord);
 		vec4 f4B = texture(pDebugTexturesC[iIndex], f2InTexcoord);
 		float fEastWest = (f4R.r - f4R.g) + (f4G.r - f4G.g) + (f4B.r - f4B.g);

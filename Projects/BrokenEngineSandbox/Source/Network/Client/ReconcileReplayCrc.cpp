@@ -150,7 +150,7 @@ static void CrcApplyMatchResult(CoordWork& rWork, int64_t iHighestMatch, int64_t
 	engine::CoordFrames& rFrames = *rWork.pFrames;
 	CoordScratch& rScratch = rWork.scratch;
 
-	rScratch.bCrcFastPath = true;
+	rScratch.flags.Set(ReconcileScratchFlags::kCrcFastPath);
 	rScratch.iNewConfirmedTick = iHighestMatch;
 	rScratch.profiling.iCrcValidatedFrameTicks += iHighestMatch - rFrames.iConfirmedTick;
 
@@ -206,7 +206,7 @@ CrcFastPathCoordResult CrcFastPathProcessCoord(CoordWork& rWork, int64_t iTarget
 	if (bSameState)
 	{
 		++rFrames.iStuckFrameCount;
-		rWork.scratch.bSuppressRepeatLogs = true;
+		rWork.scratch.flags.Set(ReconcileScratchFlags::kSuppressRepeatLogs);
 		if ((rFrames.iStuckFrameCount % engine::CoordFrames::kiStuckLogInterval) == 0)
 		{
 			LOG(kNetwork, kVerbose, "CrcValidateLoop still stuck Coord: ({},{}) ConfirmedTick: {} FirstMismatch: {} StuckFrames: {}", rWork.coord.x, rWork.coord.y, rFrames.iConfirmedTick, rFrames.iLastLoggedFirstMismatch, rFrames.iStuckFrameCount);
@@ -223,7 +223,7 @@ CrcFastPathCoordResult CrcFastPathProcessCoord(CoordWork& rWork, int64_t iTarget
 		}
 		else
 		{
-			rWork.scratch.bSuppressRepeatLogs = true;
+			rWork.scratch.flags.Set(ReconcileScratchFlags::kSuppressRepeatLogs);
 		}
 	}
 
@@ -254,7 +254,7 @@ CrcFastPathCoordResult CrcFastPathProcessCoord(CoordWork& rWork, int64_t iTarget
 		{
 			result.bHandled = false;
 			result.iLowestUnresolvedMismatch = validateResult.iLowestUnresolvedMismatch;
-			if (!rWork.scratch.bSuppressRepeatLogs)
+			if (!(rWork.scratch.flags & ReconcileScratchFlags::kSuppressRepeatLogs))
 			{
 				LOG(kNetwork, kVerbose, "CrcFastPathProcessCoord Matched with unresolved mismatch Coord: ({},{}) HighestMatch: {} LowestMismatch: {}", rWork.coord.x, rWork.coord.y, validateResult.iHighestMatch, validateResult.iLowestUnresolvedMismatch);
 			}
@@ -264,7 +264,7 @@ CrcFastPathCoordResult CrcFastPathProcessCoord(CoordWork& rWork, int64_t iTarget
 	{
 		result.bHandled = false;
 		result.iLowestUnresolvedMismatch = validateResult.iLowestUnresolvedMismatch;
-		if (!rWork.scratch.bSuppressRepeatLogs)
+		if (!(rWork.scratch.flags & ReconcileScratchFlags::kSuppressRepeatLogs))
 		{
 			LOG(kNetwork, kVerbose, "CrcFastPathProcessCoord No snapshot match, deferring to replay Coord: ({},{}) FirstMismatchTick: {}", rWork.coord.x, rWork.coord.y, validateResult.iLowestUnresolvedMismatch);
 		}

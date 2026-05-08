@@ -14,6 +14,22 @@ void ClientSession::UpdateDesiredCoords(SubscriptionChangeReason eReason)
 	if (common::gpThreadLocal->miLogTickCounter < 0)
 		optionalTickScope.emplace(gpGame->TickCounter());
 
+	// Heap: mDesiredCoords.assign, mUnwantedTimestamps map ops, and the kNetwork delta log build allocate.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	auto appendCoordSv = [](common::ScopedWorkbufferArena& rArena, engine::GridCoord coord, bool bLeadingComma)
+	{
+		if (bLeadingComma)
+		{
+			rArena.Append(std::string_view(","));
+		}
+		rArena.Append(std::string_view("("));
+		rArena.Append(static_cast<int64_t>(coord.x));
+		rArena.Append(std::string_view(","));
+		rArena.Append(static_cast<int64_t>(coord.y));
+		rArena.Append(std::string_view(")"));
+	};
+
 	static constexpr int64_t kiMaxDesiredCoords = 9;
 	engine::GridCoord desiredCoords[kiMaxDesiredCoords] {};
 	int64_t iDesiredCount = 0;
@@ -55,57 +71,69 @@ void ClientSession::UpdateDesiredCoords(SubscriptionChangeReason eReason)
 		}
 	}
 
+	// Build removed/added arenas now (independent of bChanged) so the kTemp Exit log always has them.
+	// Arenas remain on the workbuffer stack until end of function — kept above any nested arenas.
+	// CRITICAL: ScopedWorkbufferArena::View() reads the workbuffer's CURRENT top frame, not the arena's
+	// own saved frame. Capture the string_view while each arena is still the top frame; the captured
+	// pointer+length stay stable because Grow() DEBUG_BREAKs (buffer is pre-sized) and bytes below the
+	// current top are preserved across subsequent pushes/appends.
+	common::ScopedWorkbufferArena removedArena = common::gpThreadLocal->mWorkbuffer.Push();
+	{
+		bool bFirst = true;
+		for (const engine::GridCoord& rCoord : mDesiredCoords)
+		{
+			if (!std::ranges::contains(desiredSpan, rCoord))
+			{
+				appendCoordSv(removedArena, rCoord, !bFirst);
+				bFirst = false;
+			}
+		}
+	}
+	const std::string_view svRemoved = removedArena.View();
+
+	common::ScopedWorkbufferArena addedArena = common::gpThreadLocal->mWorkbuffer.Push();
+	{
+		bool bFirst = true;
+		for (const engine::GridCoord& rCoord : desiredSpan)
+		{
+			if (!std::ranges::contains(mDesiredCoords, rCoord))
+			{
+				appendCoordSv(addedArena, rCoord, !bFirst);
+				bFirst = false;
+			}
+		}
+	}
+	const std::string_view svAdded = addedArena.View();
+
 	if (bChanged)
 	{
-		// Heap: mDesiredCoords.assign and mUnwantedTimestamps may allocate on subscription changes
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
-
-		common::ScopedWorkbufferArena message = common::gpThreadLocal->mWorkbuffer.Push();
-		message.Append("Desired subscriptions changed Reason: ");
-		message.Append(ToString(eReason));
-		message.Append(" Removed: [");
-
-		auto appendCoord = [&message](bool& rbFirst, engine::GridCoord coord)
-		{
-			if (!rbFirst)
-			{
-				message.Append(",");
-			}
-			rbFirst = false;
-			message.Append("(");
-			message.Append(static_cast<int64_t>(coord.x));
-			message.Append(",");
-			message.Append(static_cast<int64_t>(coord.y));
-			message.Append(")");
-		};
-
-		// Track when coords become unwanted for sticky subscriptions; build removed list
+		// Track when coords become unwanted for sticky subscriptions; clear sticky timestamps for
+		// re-wanted coords. Iteration mirrors the removed/added build above.
 		std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-		bool bFirstRemoved = true;
 		for (const engine::GridCoord& rCoord : mDesiredCoords)
 		{
 			if (!std::ranges::contains(desiredSpan, rCoord))
 			{
 				mUnwantedTimestamps.try_emplace(rCoord, now);
-				appendCoord(bFirstRemoved, rCoord);
 			}
 		}
-		message.Append("] Added: [");
-		// Build added list; clear sticky timestamps for re-wanted coords
-		bool bFirstAdded = true;
 		for (const engine::GridCoord& rCoord : desiredSpan)
 		{
-			if (!std::ranges::contains(mDesiredCoords, rCoord))
-			{
-				appendCoord(bFirstAdded, rCoord);
-			}
 			mUnwantedTimestamps.erase(rCoord);
 		}
-		message.Append("] Tick: ");
-		message.Append(gpGame->TickCounter());
 
-		if (!bFirstRemoved || !bFirstAdded)
+		const bool bAnyDelta = !svRemoved.empty() || !svAdded.empty();
+		if (bAnyDelta)
 		{
+			common::ScopedWorkbufferArena message = common::gpThreadLocal->mWorkbuffer.Push();
+			message.Append(std::string_view("Desired subscriptions changed Reason: "));
+			message.Append(std::string_view(ToString(eReason)));
+			message.Append(std::string_view(" Removed: ["));
+			message.Append(svRemoved);
+			message.Append(std::string_view("] Added: ["));
+			message.Append(svAdded);
+			message.Append(std::string_view("] Tick: "));
+			message.Append(gpGame->TickCounter());
 			LOG(kNetwork, kVerbose, "{}", message);
 		}
 

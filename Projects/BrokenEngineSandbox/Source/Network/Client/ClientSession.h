@@ -85,7 +85,6 @@ private:
 	std::vector<engine::GridCoord> mDesiredCoords;
 	std::unordered_map<engine::GridCoord, std::chrono::steady_clock::time_point> mUnwantedTimestamps;
 	static constexpr std::chrono::seconds kStickySubscriptionDuration {2};
-
 };
 
 inline ClientSession* gpClientSession = nullptr;

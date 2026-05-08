@@ -77,28 +77,7 @@ ReconcileDesyncInfo ClientReconciler::Run()
 		CoordWork& rWork = mWorks[iSlot++];
 		rWork.coord = rCoord;
 		rWork.pFrames = &rFrames;
-		// Reset scratch fields but preserve replayStack capacity
-		CoordScratch& rScratch = rWork.scratch;
-		rScratch.replayStack.clear();
-		rScratch.iReplayStackCount = 0;
-		rScratch.iReplayWriteHead = 0;
-		rScratch.iReplayWriteCount = 0;
-		rScratch.iLastValidatedIndex = -1;
-		rScratch.iNewConfirmedTick = -1;
-		rScratch.iNewConfirmedOffset = -1;
-		rScratch.iNewConfirmedInnerOffset = 0;
-		rScratch.iOutputCount = 0;
-		rScratch.bCrcFastPath = false;
-		rScratch.bReplayed = false;
-		rScratch.bShrunkRollback = false;
-		rScratch.bReSimOccurred = false;
-		rScratch.bSuppressRepeatLogs = false;
-		rScratch.iPreReconcileTailTick = -1;
-		rScratch.profiling = {};
-		rScratch.iDesyncTick = -1;
-		rScratch.desyncExpectedCrc = 0;
-		rScratch.desyncActualCrc = 0;
-		rScratch.pDesyncClientFrame.reset();
+		rWork.scratch.Reset();
 	}
 	const size_t iActiveCount = iSlot;
 
@@ -144,24 +123,26 @@ ReconcileDesyncInfo ClientReconciler::Run()
 			pDesyncWork = &rWork;
 		}
 
+		using enum ReconcileScratchFlags;
+
 		// Audio voice invalidation skip is gated on the client coord experiencing a full replay.
-		if (rScratch.bReplayed && rWork.coord == mConfirmedClientState.clientGridCoord)
+		if ((rScratch.flags & kReplayed) && rWork.coord == mConfirmedClientState.clientGridCoord)
 		{
 			bAnyFullReplay = true;
 		}
 
-		if (rScratch.iDesyncTick >= 0 || (rScratch.bReplayed && rScratch.bReSimOccurred))
+		if (rScratch.iDesyncTick >= 0 || ((rScratch.flags & kReplayed) && (rScratch.flags & kReSimOccurred)))
 		{
-			bool bLogThis = !rScratch.bSuppressRepeatLogs || (rWork.pFrames->iStuckFrameCount % engine::CoordFrames::kiStuckLogInterval == 0);
+			bool bLogThis = !(rScratch.flags & kSuppressRepeatLogs) || (rWork.pFrames->iStuckFrameCount % engine::CoordFrames::kiStuckLogInterval == 0);
 			if (bLogThis)
 			{
 				if (rScratch.iDesyncTick >= 0)
 				{
-					LOG(kNetwork, kError, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} Validated: {}/{} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iLastValidatedIndex + 1, rScratch.iReplayStackCount, rScratch.bCrcFastPath, rScratch.bReplayed, rScratch.bShrunkRollback, rScratch.iDesyncTick);
+					LOG(kNetwork, kError, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} Validated: {}/{} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iLastValidatedIndex + 1, rScratch.iReplayStackCount, static_cast<bool>(rScratch.flags & kCrcFastPath), static_cast<bool>(rScratch.flags & kReplayed), static_cast<bool>(rScratch.flags & kShrunkRollback), rScratch.iDesyncTick);
 				}
 				else
 				{
-					LOG(kNetwork, kDebug, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} Validated: {}/{} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iLastValidatedIndex + 1, rScratch.iReplayStackCount, rScratch.bCrcFastPath, rScratch.bReplayed, rScratch.bShrunkRollback, rScratch.iDesyncTick);
+					LOG(kNetwork, kDebug, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} Validated: {}/{} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iLastValidatedIndex + 1, rScratch.iReplayStackCount, static_cast<bool>(rScratch.flags & kCrcFastPath), static_cast<bool>(rScratch.flags & kReplayed), static_cast<bool>(rScratch.flags & kShrunkRollback), rScratch.iDesyncTick);
 				}
 			}
 		}

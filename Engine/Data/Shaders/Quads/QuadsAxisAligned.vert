@@ -18,15 +18,11 @@ layout (scalar, set = 1, binding = 1) buffer readonly quadsUniform
 layout (location = 0) in vec2 f2InQuadVertex;
 
 // Output
-layout (location = 0) out flat int iOutInstanceIndex;
-layout (location = 1) out vec4 f4OutParams;
-layout (location = 2) out vec2 f2OutTexcoord;
-layout (location = 3) out flat uint uiOutColor;
+layout (location = 0) out vec2 f2OutTexcoord;
+layout (location = 1) out flat uint uiOutColor;
 
 void main()
 {
-	iOutInstanceIndex = gl_InstanceIndex;
-	f4OutParams = pQuads[gl_InstanceIndex].f4Params;
 	uiOutColor = pQuads[gl_InstanceIndex].uiColor;
 
 	f2OutTexcoord = vec2((1.0f - f2InQuadVertex.x) * pQuads[gl_InstanceIndex].f4TextureRect.x + f2InQuadVertex.x * pQuads[gl_InstanceIndex].f4TextureRect.z,

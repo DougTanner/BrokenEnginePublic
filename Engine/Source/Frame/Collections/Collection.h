@@ -415,8 +415,8 @@ struct TypeRegistry
 		{
 			if (rType.crc != 0)
 			{
-				RequestTextureChunkLoad(rType.crc);
 #if defined(BT_CLIENT)
+				RequestTextureChunkLoad(rType.crc);
 				RegisterLightingTextureCrc(rType.crc);
 #endif
 			}
@@ -426,8 +426,8 @@ struct TypeRegistry
 		{
 			if (rType.particleCrc != 0)
 			{
-				RequestTextureChunkLoad(rType.particleCrc);
 #if defined(BT_CLIENT)
+				RequestTextureChunkLoad(rType.particleCrc);
 				RegisterLightingTextureCrc(rType.particleCrc);
 #endif
 			}

@@ -73,15 +73,15 @@ inline constexpr bool kbShowProfileTextByDefault = false;
 
 #include "LogTypes.h"
 
-inline constexpr LogLevel keLogLevelTemp     = kVerbose;
+inline constexpr LogLevel keLogLevelTemp = kVerbose;
 
 inline constexpr LogLevel keLogLevelDefault = kWarning;
-inline constexpr LogLevel keLogLevelAudio    = keLogLevelDefault;
+inline constexpr LogLevel keLogLevelAudio = keLogLevelDefault;
 inline constexpr LogLevel keLogLevelGraphics = keLogLevelDefault;
-inline constexpr LogLevel keLogLevelLoading  = keLogLevelDefault;
-inline constexpr LogLevel keLogLevelNavData  = keLogLevelDefault;
-inline constexpr LogLevel keLogLevelNetwork  = kVerbose; //  keLogLevelDefault;
-inline constexpr LogLevel keLogLevelInput    = keLogLevelDefault;
+inline constexpr LogLevel keLogLevelLoading = keLogLevelDefault;
+inline constexpr LogLevel keLogLevelNavData = keLogLevelDefault;
+inline constexpr LogLevel keLogLevelNetwork = kVerbose; //  keLogLevelDefault;
+inline constexpr LogLevel keLogLevelInput = keLogLevelDefault;
 
 #include "Common.h"
 #include "Shaders/ShaderLayouts.h"

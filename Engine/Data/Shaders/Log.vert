@@ -35,5 +35,8 @@ void main()
 		debugPrintfEXT("Log.vert Frame: %d Render: %d", mainLayout.iFrameNumber, mainLayout.iRenderNumber);
 	}
 
+	iOutInstanceIndex = gl_InstanceIndex;
+	f2OutTexcoord = f2InQuadVertex;
+
 	gl_Position = vec4(-1.0f + 2.0f * f2InQuadVertex.x, 1.0f - 2.0f * f2InQuadVertex.y, 0.0f, 1.0f);
 }

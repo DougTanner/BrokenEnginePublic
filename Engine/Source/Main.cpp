@@ -135,20 +135,8 @@ void MainThread(HINSTANCE hinstance)
 
 	// Setup window rect & matrices
 #if defined(BT_CLIENT)
-	bool bLoadedGraphicsSettings = game::Game::LoadGraphicsSettings();
+	game::Game::LoadGraphicsSettings();
 	gWantedFramebufferExtent2D = SetupWindow(gFullscreen.Get<bool>(), sWindowStyle, sWindowRect);
-
-	if (!bLoadedGraphicsSettings)
-	{
-		if (gWantedFramebufferExtent2D.width >= 3840 && gWantedFramebufferExtent2D.height >= 2160)
-		{
-			gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_2_BIT);
-		}
-		else if (gWantedFramebufferExtent2D.height < 2160)
-		{
-			gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_4_BIT);
-		}
-	}
 #else
 	LONG iWindowStyle = WS_POPUP;
 	RECT windowRect {};

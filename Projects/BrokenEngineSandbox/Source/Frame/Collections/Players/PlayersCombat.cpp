@@ -428,7 +428,7 @@ void PlayersPostRender::SpawnMissiles([[maybe_unused]] Frame& __restrict rFrame)
 
 #if defined(BT_CLIENT)
 		engine::gpAudioManager->PlayOneShot3d(rFrame,
-			data::kAudioMissile182794__qubodup__rocketlaunch_start_0wavCrc,
+			data::kAudioMissile182794__qubodup__rocketlaunch_start_1wavCrc,
 			vecMissilePosition, kfMissileSoundVolumeStart, kfMissilePitchMin, kfMissilePitchRandom);
 #endif
 	}

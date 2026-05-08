@@ -9,7 +9,7 @@ layout(push_constant) uniform pushConstants
 	PushConstantsLayout pushConstantsLayout;
 };
 
-// Input
+// Input — declared (not used) so VS-out interface matches paired vertex shaders (Log.vert, QuadsFullscreen.vert) and Vulkan validation does not raise WARNING-Shader-OutputNotConsumed
 layout (location = 0) in flat int iInInstanceIndex;
 layout (location = 1) in vec2 f2InTexcoord;
 

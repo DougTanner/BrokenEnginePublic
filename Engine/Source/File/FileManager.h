@@ -92,6 +92,9 @@ struct MemoryStats
 };
 
 constexpr bool IsEagerChunk(data::DataTypes eDataType);
+// Server-only predicate: which lazy data types the headless server actually consumes.
+// Used to skip opening (and locking) pack files the server never reads — Audio, Texture, etc.
+constexpr bool IsServerChunk(data::DataTypes eDataType);
 
 class FileManager
 {

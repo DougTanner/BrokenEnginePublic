@@ -13,7 +13,6 @@ namespace
 
 constexpr float kfActivationDistancePixels = 350.0f;
 constexpr float kfSlideRate = 8.0f;
-constexpr float kfEdgeMarginPixels = 8.0f;
 constexpr float kfForceOpenGracePeriodSeconds = 2.0f;
 
 } // namespace
@@ -41,27 +40,36 @@ float HudScreen::ComputeMouseOpennessTarget(ImVec2 vLastSize, ImVec2 vAnchor, fl
 	return 1.0f - std::clamp(fDistance / kfActivationDistancePixels, 0.0f, 1.0f);
 }
 
-float HudScreen::UpdateSlideAndGetOffsetX(SlidePanelState& rState, ImVec2 vAnchor, float fSidePivotSign, float fTarget)
+float HudScreen::UpdateSlideAndGetEdgeX(SlidePanelState& rState, ImVec2 vAnchor, float fSidePivotSign, float fTarget)
 {
 	ImGuiIO& rIo = ImGui::GetIO();
 
-	// First-frame guard: no real size cached yet. Push by 2x display width so the panel is fully off-screen
-	// regardless of the auto-sized width ImGui chooses this frame.
+	// Caller must set SetNextWindowPos pivot so the returned x IS the panel's off-screen edge:
+	//   right panel (fSidePivotSign > 0): pivot (0.0, 0) — returned x is the left edge
+	//   left  panel (fSidePivotSign < 0): pivot (1.0, 0) — returned x is the right edge
+	// At openness=0 the off-screen edge is fixed at exactly 1 pixel beyond the screen boundary,
+	// width-independent — ImGui auto-resize cannot pull the window back onscreen.
+	const float fOffscreenX = (fSidePivotSign > 0.0f) ? rIo.DisplaySize.x + 1.0f : -1.0f;
+
 	if (rState.vLastSize.x <= 0.0f)
 	{
-		return fSidePivotSign * 2.0f * rIo.DisplaySize.x;
+		return fOffscreenX;
 	}
 
 	rState.fOpenness += (fTarget - rState.fOpenness) * common::ExponentialInterpolant(kfSlideRate, rIo.DeltaTime);
 
-	// Slide distance must cover both the panel's own width AND the gap from the anchor to the screen edge
-	// (panels are anchored at 5%/95%, so 5% of the screen would otherwise still show at openness=0).
-	const float fGapToEdge = (fSidePivotSign < 0.0f) ? vAnchor.x : (rIo.DisplaySize.x - vAnchor.x);
-	return fSidePivotSign * (1.0f - rState.fOpenness) * (fGapToEdge + rState.vLastSize.x + kfEdgeMarginPixels);
+	// At openness=1 the on-screen anchor edge sits at vAnchor.x (offset by size to flip pivot side).
+	const float fOnscreenX = (fSidePivotSign > 0.0f) ? (vAnchor.x - rState.vLastSize.x) : (vAnchor.x + rState.vLastSize.x);
+	return std::lerp(fOffscreenX, fOnscreenX, rState.fOpenness);
 }
 
 void HudScreen::Render()
 {
+	// Ensure tick prefix for the auto-unhide log — Render() runs outside ClientUpdate's LogTickScope.
+	std::optional<common::LogTickScope> optionalTickScope;
+	if (common::gpThreadLocal->miLogTickCounter < 0)
+		optionalTickScope.emplace(gpGame->TickCounter());
+
 	if (gpGame->meUiState != UiState::kNone)
 	{
 		return;
@@ -71,9 +79,7 @@ void HudScreen::Render()
 	// Iterating all subscribed frames (not just mClientGridCoord) tolerates cell-boundary crossings,
 	// where the player's snapshot has migrated to a neighbor before mClientGridCoord catches up.
 	bool bWantsForceOpen = false;
-	const char* pcWantReason = "none";
-	engine::GridCoord foundCoord {};
-	bool bFoundAny = false;
+	const char* pcWantReason = "fleet member present";
 	int iSubscribedFrameCount = 0;
 
 	if (!gpGame->ClientPlayerId().IsValid())
@@ -88,6 +94,7 @@ void HudScreen::Render()
 	}
 	else
 	{
+		bool bFoundAny = false;
 		for (const auto& [coord, frames] : gpGame->mCoordFrames)
 		{
 			if (frames.iSnapshotCount == 0)
@@ -95,7 +102,7 @@ void HudScreen::Render()
 				continue;
 			}
 			++iSubscribedFrameCount;
-			const auto& rPlayers = *gpGame->RenderFrame(coord).postRender.pPlayers;
+			const PlayersPostRender& rPlayers = *gpGame->RenderFrame(coord).postRender.pPlayers;
 			for (int64_t i = 0; i < rPlayers.iCount && !bFoundAny; ++i)
 			{
 				const engine::global_id_t globalPlayerId = rPlayers.pGlobalPlayerIds[i];
@@ -104,7 +111,6 @@ void HudScreen::Render()
 					if (rMember.globalPlayerId == globalPlayerId)
 					{
 						bFoundAny = true;
-						foundCoord = coord;
 						break;
 					}
 				}
@@ -121,62 +127,66 @@ void HudScreen::Render()
 				? "no subscribed snapshots"
 				: "no fleet members in any subscribed frame";
 		}
-		else
-		{
-			pcWantReason = "fleet member present";
-		}
-	}
-
-	// TEMP diagnostic: log transitions of the "want force-open" state.
-	if (bWantsForceOpen != mbPreviousWantsForceOpen)
-	{
-		LOG(kTemp, kInfo, "HUD WantForceOpen: {} reason: {} coord: ({},{}) found: ({},{}) frames: {}",
-			bWantsForceOpen, pcWantReason, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y,
-			foundCoord.x, foundCoord.y, iSubscribedFrameCount);
-		mbPreviousWantsForceOpen = bWantsForceOpen;
 	}
 
 	// Grace period: only force-open once the want-state has been sustained. Absorbs the brief gap during cell-boundary
 	// hand-offs when the player snapshot is momentarily absent from every subscribed frame, plus ClientPlayerId blips.
+	ImGuiIO& rIo = ImGui::GetIO();
 	if (bWantsForceOpen)
 	{
-		mfTimeWantingForceOpen += ImGui::GetIO().DeltaTime;
+		mfTimeWantingForceOpen += rIo.DeltaTime;
 	}
 	else
 	{
 		mfTimeWantingForceOpen = 0.0f;
 	}
+	const bool bForceOpen = (mfTimeWantingForceOpen >= kfForceOpenGracePeriodSeconds);
 
-	const bool bForceLeftOpen = (mfTimeWantingForceOpen >= kfForceOpenGracePeriodSeconds);
-
-	// TEMP diagnostic: log transitions of the actual force-open trigger.
-	if (bForceLeftOpen != mbPreviousForceLeftOpen)
+	// Durable log on rising edge of the genuine auto-un-hide trigger — fires once per recovery event.
+	// kWarning so the keLogLevelDefault threshold (kWarning) lets it through.
+	if (bForceOpen && !mbPreviousForceOpen)
 	{
-		LOG(kTemp, kInfo, "HUD ForceLeftOpen: {} timer: {} reason: {} coord: ({},{}) found: ({},{}) frames: {}",
-			bForceLeftOpen, common::Wb(mfTimeWantingForceOpen, 2), pcWantReason,
-			gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y,
-			foundCoord.x, foundCoord.y, iSubscribedFrameCount);
-		mbPreviousForceLeftOpen = bForceLeftOpen;
+		LOG(kDefault, kWarning, "HUD auto-unhide reason: {} coord: ({},{}) frames: {}",
+			pcWantReason, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, iSubscribedFrameCount);
 	}
+	mbPreviousForceOpen = bForceOpen;
 
-	// Compute left mouse target before rendering so right panel can couple to it (one-way: left mouse-over → right slides in).
-	ImGuiIO& rIo = ImGui::GetIO();
+	// Right panel content gate: it has nothing useful to show without a focused player in current snapshot.
+	std::optional<int64_t> oPlayerIndex;
+	{
+		auto it = gpGame->mCoordFrames.find(gpGame->mClientGridCoord);
+		if (it != gpGame->mCoordFrames.end() && it->second.iSnapshotCount > 0)
+		{
+			oPlayerIndex = gpGame->ClientPlayerIndex(*gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers);
+		}
+	}
+	const bool bRightHasContent = oPlayerIndex.has_value();
+
+	// Mouse proximity to either anchor opens both panels (strict sync for the mouse path).
 	const ImVec2 vLeftAnchor(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.42f);
-	const float fLeftMouseTarget = ComputeMouseOpennessTarget(mFleetSlide.vLastSize, vLeftAnchor, 0.0f);
+	const ImVec2 vRightAnchor(rIo.DisplaySize.x * 0.95f, rIo.DisplaySize.y * 0.42f);
+	const float fMouseLeft = ComputeMouseOpennessTarget(mFleetSlide.vLastSize, vLeftAnchor, 0.0f);
+	const float fMouseRight = ComputeMouseOpennessTarget(mFocusedPlayerSlide.vLastSize, vRightAnchor, 1.0f);
+	const float fMouseTarget = std::max(fMouseLeft, fMouseRight);
 
-	RenderFleetPanel(bForceLeftOpen, fLeftMouseTarget);
-	RenderFocusedPlayerPanel(fLeftMouseTarget);
+	// Final shared targets. When right has content: both panels see max(force, mouse) — strict sync.
+	// When right has no content: left can still auto-un-hide (force only), right stays hidden.
+	const float fForceTarget = bForceOpen ? 1.0f : 0.0f;
+	const float fLeftTarget = bRightHasContent ? std::max(fForceTarget, fMouseTarget) : fForceTarget;
+	const float fRightTarget = bRightHasContent ? std::max(fForceTarget, fMouseTarget) : 0.0f;
+
+	RenderFleetPanel(fLeftTarget);
+	RenderFocusedPlayerPanel(fRightTarget);
 }
 
-void HudScreen::RenderFleetPanel(bool bForceOpen, float fMouseTarget)
+void HudScreen::RenderFleetPanel(float fTarget)
 {
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
 	const ImVec2 vAnchor(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.42f);
-	const float fTarget = bForceOpen ? 1.0f : fMouseTarget;
-	const float fOffsetX = UpdateSlideAndGetOffsetX(mFleetSlide, vAnchor, -1.0f, fTarget);
-	ImGui::SetNextWindowPos(ImVec2(vAnchor.x + fOffsetX, vAnchor.y), ImGuiCond_Always);
+	const float fEdgeX = UpdateSlideAndGetEdgeX(mFleetSlide, vAnchor, -1.0f, fTarget);
+	ImGui::SetNextWindowPos(ImVec2(fEdgeX, vAnchor.y), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
 	ImGui::Begin("FleetPanel", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 	ImGui::SetWindowFontScale(kfMenuUiScale);
 	mFleetSlide.vLastSize = ImGui::GetWindowSize();
@@ -338,7 +348,7 @@ void HudScreen::RenderFleetPanel(bool bForceOpen, float fMouseTarget)
 	ImGui::End();
 }
 
-void HudScreen::RenderFocusedPlayerPanel(float fLeftMouseTarget)
+void HudScreen::RenderFocusedPlayerPanel(float fTarget)
 {
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
@@ -353,11 +363,8 @@ void HudScreen::RenderFocusedPlayerPanel(float fLeftMouseTarget)
 	}
 
 	const ImVec2 vAnchor(rIo.DisplaySize.x * 0.95f, rIo.DisplaySize.y * 0.42f);
-	const float fOwnMouseTarget = ComputeMouseOpennessTarget(mFocusedPlayerSlide.vLastSize, vAnchor, 1.0f);
-	// Global override: never show the right panel when there's nothing to focus on. Gates both triggers (own mouse-over, left-panel coupling).
-	const float fTarget = oPlayerIndex.has_value() ? std::max(fOwnMouseTarget, fLeftMouseTarget) : 0.0f;
-	const float fOffsetX = UpdateSlideAndGetOffsetX(mFocusedPlayerSlide, vAnchor, 1.0f, fTarget);
-	ImGui::SetNextWindowPos(ImVec2(vAnchor.x + fOffsetX, vAnchor.y), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+	const float fEdgeX = UpdateSlideAndGetEdgeX(mFocusedPlayerSlide, vAnchor, 1.0f, fTarget);
+	ImGui::SetNextWindowPos(ImVec2(fEdgeX, vAnchor.y), ImGuiCond_Always, ImVec2(0.0f, 0.0f));
 	ImGui::Begin("FocusedPlayerPanel", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 	ImGui::SetWindowFontScale(kfMenuUiScale);
 	mFocusedPlayerSlide.vLastSize = ImGui::GetWindowSize();

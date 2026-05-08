@@ -166,6 +166,12 @@ constexpr bool IsEagerChunk(data::DataTypes eDataType)
 	return eDataType == data::kDataTypeFont || eDataType == data::kDataTypeScene || eDataType == data::kDataTypeModel || eDataType == data::kDataTypeShader || eDataType == data::kDataTypeRaw;
 }
 
+constexpr bool IsServerChunk(data::DataTypes eDataType)
+{
+	// Server simulates terrain/physics from Islands only; Audio + Texture are client-only consumers.
+	return eDataType == data::kDataTypeIslands;
+}
+
 // Derive data type from chunk flags for pack file handle lookup
 constexpr data::DataTypes DataTypeFromFlags(const common::ChunkFlags_t& rFlags)
 {
@@ -185,7 +191,9 @@ void FileManager::LoadPackFiles()
 	for (int64_t i = 0; i < data::kDataTypeCount; ++i)
 	{
 #if defined(BT_SERVER)
-		if (IsEagerChunk(static_cast<data::DataTypes>(i)))
+		// Server consumes only Islands among lazy chunks; skipping the rest keeps Audio.pack/Texture.pack
+		// unopened (and therefore unlocked) so DataPacker can rewrite them while the server is running.
+		if (!IsServerChunk(static_cast<data::DataTypes>(i)))
 		{
 			continue;
 		}
@@ -274,6 +282,12 @@ void FileManager::LoadPackFiles()
 		{
 			continue;
 		}
+#if defined(BT_SERVER)
+		if (!IsServerChunk(static_cast<data::DataTypes>(i)))
+		{
+			continue;
+		}
+#endif
 
 		mLazyPackFileHandles[i] = CreateFileW(mPackFilePaths[i].c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_NO_BUFFERING | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
 	}

@@ -189,7 +189,7 @@ static bool ReconcileValidateCrcCoord(CoordWork& rWork, int64_t iTick, const eng
 
 	if (clientCrc != rUpdate.sharedCrc)
 	{
-		if (!rScratch.bSuppressRepeatLogs)
+		if (!(rScratch.flags & ReconcileScratchFlags::kSuppressRepeatLogs))
 		{
 			char acSharedCrc[20] {}, acClientCrc[20] {};
 			common::ToHex(std::span<char, 20>(acSharedCrc), rUpdate.sharedCrc);
@@ -268,7 +268,7 @@ static void ReconcileReplayCoord(CoordWork& rWork, const ReconcileInputs& rInput
 
 		if (iTick <= rScratch.iPreReconcileTailTick)
 		{
-			rScratch.bReSimOccurred = true;
+			rScratch.flags.Set(ReconcileScratchFlags::kReSimOccurred);
 		}
 
 		FrameInput frameInput;
@@ -488,7 +488,7 @@ void ReconcileCoord(CoordWork& rWork, const ReconcileInputs& rInputs)
 	// preserve those as the floor result. If full replay validates further, ReconcileValidateCrcCoord
 	// and ReconcileReplayCoord will overwrite them. iOutputCount must be recomputed from scratch
 	// because walk's count included old speculative frames that replay will overwrite.
-	rScratch.bCrcFastPath = false;
+	rScratch.flags.Clear(ReconcileScratchFlags::kCrcFastPath);
 	rScratch.iOutputCount = 0;
 
 	// No server data at the first tick past confirmed — replay cannot start.
@@ -509,7 +509,7 @@ void ReconcileCoord(CoordWork& rWork, const ReconcileInputs& rInputs)
 		return;
 	}
 
-	rScratch.bReplayed = true;
+	rScratch.flags.Set(ReconcileScratchFlags::kReplayed);
 
 	// Invariant: full replay must not repeat identical work. If iConfirmedTick and serverUpdates
 	// are unchanged since the last full replay attempt, the result would be the same.
@@ -552,7 +552,7 @@ void ReconcileCoord(CoordWork& rWork, const ReconcileInputs& rInputs)
 				iRollbackTick = iShrunkTick;
 				iRollbackOffset = iShrunkIndex;
 				bShrunkRollback = true;
-				rScratch.bShrunkRollback = true;
+				rScratch.flags.Set(ReconcileScratchFlags::kShrunkRollback);
 			}
 		}
 	}
@@ -584,7 +584,7 @@ void ReconcileCoord(CoordWork& rWork, const ReconcileInputs& rInputs)
 	// with a full rollback to iConfirmedTick.
 	if (rScratch.iDesyncTick >= 0 && bShrunkRollback && rScratch.iDesyncTick == iReplayStart)
 	{
-		if (!rScratch.bSuppressRepeatLogs)
+		if (!(rScratch.flags & ReconcileScratchFlags::kSuppressRepeatLogs))
 		{
 			LOG(kNetwork, kError, "ReconcileCoord Shrunk rollback failed Coord: ({},{}) DesyncTick: {} — falling back to full rollback", rWork.coord.x, rWork.coord.y, rScratch.iDesyncTick);
 		}
@@ -597,7 +597,7 @@ void ReconcileCoord(CoordWork& rWork, const ReconcileInputs& rInputs)
 		iRollbackTick = rFrames.iConfirmedTick;
 		iRollbackOffset = rFrames.iConfirmedOffset;
 		bShrunkRollback = false;
-		rScratch.bShrunkRollback = false;
+		rScratch.flags.Clear(ReconcileScratchFlags::kShrunkRollback);
 
 		ReconcileRollbackCoord(rWork, iRollbackOffset);
 		fTime = rScratch.replayStack[0]->interpolate.fCurrentTime;

@@ -94,7 +94,6 @@ void ClientSession::PollNetwork()
 				UpdateDesiredCoords(SubscriptionChangeReason::kAssigned);
 				break;
 			case PlayerEventType::kSpawned:
-			{
 				updatePlayerCoord(rEvent.globalPlayerId, rEvent.coord);
 				if (rEvent.globalPlayerId == gpGame->ClientPlayerId())
 				{
@@ -102,9 +101,7 @@ void ClientSession::PollNetwork()
 				}
 				UpdateDesiredCoords(SubscriptionChangeReason::kSpawned);
 				break;
-			}
 			case PlayerEventType::kChangedFrame:
-			{
 				updatePlayerCoord(rEvent.globalPlayerId, rEvent.coord);
 				if (rEvent.globalPlayerId == gpGame->ClientPlayerId())
 				{
@@ -112,7 +109,6 @@ void ClientSession::PollNetwork()
 				}
 				UpdateDesiredCoords(SubscriptionChangeReason::kChangedFrame);
 				break;
-			}
 			case PlayerEventType::kDied:
 				gpGame->RemoveClientPlayer(rEvent.globalPlayerId);
 				UpdateDesiredCoords(SubscriptionChangeReason::kDied);
