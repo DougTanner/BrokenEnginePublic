@@ -5,8 +5,6 @@
 namespace engine
 {
 
-class DeviceManager;
-
 enum Pipelines
 {
 	kPipelineLog,

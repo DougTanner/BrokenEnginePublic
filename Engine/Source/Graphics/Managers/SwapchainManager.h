@@ -3,10 +3,6 @@
 namespace engine
 {
 
-struct UiState;
-
-class DeviceManager;
-
 struct Framebuffer
 {
 	VkImage presentVkImage = VK_NULL_HANDLE;

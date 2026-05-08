@@ -3,9 +3,6 @@
 namespace engine
 {
 
-class DeviceManager;
-struct RenderFrame;
-
 enum DynamicBufferType
 {
 	kBufferMain,

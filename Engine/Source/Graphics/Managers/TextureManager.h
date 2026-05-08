@@ -9,8 +9,6 @@
 namespace engine
 {
 
-struct LazyChunk;
-
 class TextureManager
 {
 public:
