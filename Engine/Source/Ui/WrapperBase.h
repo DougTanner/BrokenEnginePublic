@@ -200,417 +200,52 @@ private:
 	std::vector<float> mAllowed;
 };
 
-extern Wrapper gFullscreen;
-extern Wrapper gPresentMode;
-extern Wrapper gMultisampling;
-extern Wrapper gSampleCount;
-extern Wrapper gAnisotropy;
-extern Wrapper gMaxAnisotropy;
-extern Wrapper gSampleShading;
-extern Wrapper gMinSampleShading;
-extern Wrapper gMipLodBias;
+// Internal-only wrappers (not bound to any UI: not Tweaks, not GraphicsMenuScreen, not SoundMenuScreen).
 extern Wrapper gFov;
 extern Wrapper gWireframe;
-
-extern Wrapper gWorldDetail;
-extern Wrapper gTerrainElevationTextureMultiplier;
-extern Wrapper gTerrainColorTextureMultiplier;
-extern Wrapper gTerrainNormalTextureMultiplier;
-extern Wrapper gTerrainAmbientOcclusionTextureMultiplier;
-extern Wrapper gSmoke;
-extern Wrapper gSmokeSimulationPixels;
-extern Wrapper gSmokeSimulationArea;
-
-extern Wrapper gSunAngleOverride;
-extern Wrapper gMinimumAmbient;
-extern Wrapper gSunMoonAmbientMultiplier; // overall scalar on f4AmbientColor RGB (default 1.0)
-
-// Sun/Moon - rise/set transition timing & values
-extern Wrapper gSunMoonMorning;       // sun angle where morning lerp begins (default XM_PIDIV16)
-extern Wrapper gSunMoonNoonStart;     // sun angle where noon plateau begins (default XM_PIDIV8)
-extern Wrapper gSunMoonNoonEnd;       // sun angle where noon plateau ends (default XM_PIDIV2 + XM_PIDIV8)
-extern Wrapper gSunMoonEvening;       // sun angle where evening lerp begins (default XM_PI - XM_PIDIV16)
-extern Wrapper gSunMoonNightStart;    // sun angle where full night begins (default XM_PI)
-extern Wrapper gSunMoonSunIntensityTerrain;  // per-target sun multiplier on f4SunColor RGB (default 1.0)
-extern Wrapper gSunMoonSunIntensityWater;
-extern Wrapper gSunMoonSunIntensityObjects;
-extern Wrapper gSunMoonSunIntensitySmoke;
-extern Wrapper gSunMoonMoonIntensityTerrain; // per-target moon multiplier on f4MoonColor RGB (default 0.05)
-extern Wrapper gSunMoonMoonIntensityWater;
-extern Wrapper gSunMoonMoonIntensityObjects;
-extern Wrapper gSunMoonMoonIntensitySmoke;
-extern Wrapper gSunMoonMoonBlueTint;  // moon-floor B-channel multiplier (default 2.0)
-extern Wrapper gSunMoonMoonriseStart;         // sun angle where moon color begins to ramp in (default XM_PI - XM_PIDIV32)
-extern Wrapper gSunMoonMoonriseEnd;           // sun angle where moon color is fully ramped in (default XM_PI - XM_PIDIV128)
-extern Wrapper gSunMoonMoonsetStart;          // sun angle where moon color begins to ramp out (default XM_PIDIV128)
-extern Wrapper gSunMoonMoonsetEnd;            // sun angle where moon color is fully ramped out (default XM_PIDIV32)
-extern Wrapper gSunMoonShadowNightMultiplier; // shadow strength at night (default 0.2)
-extern Wrapper gSunMoonShadowSunsetStart;     // sun angle where shadow night-gate begins to engage (default XM_PI - XM_PIDIV32)
-extern Wrapper gSunMoonShadowSunsetEnd;       // sun angle where shadow night-gate fully engaged (default XM_PI - XM_PIDIV128)
-extern Wrapper gSunMoonShadowSunriseStart;    // sun angle where shadow night-gate begins to disengage (default XM_PIDIV128)
-extern Wrapper gSunMoonShadowSunriseEnd;      // sun angle where shadow night-gate fully disengaged (default XM_PIDIV32)
-
 extern Wrapper gBaseHeight;
-
-// Pbr - Engine Variables
-extern Wrapper gPbrDayBrightness;
-extern Wrapper gPbrSun;
-extern Wrapper gPbrSunPower;
-// Pbr - BRDF
-extern Wrapper gPbrBrdfDiffuse;
-extern Wrapper gPbrBrdfDiffusePower;
-extern Wrapper gPbrBrdfSpecular;
-extern Wrapper gPbrBrdfSpecularPower;
-// Pbr - Tone Mapping
-extern Wrapper gPbrExposure;
-extern Wrapper gPbrGamma;
-// Pbr - IBL
-extern Wrapper gPbrIblAmbient;
-extern Wrapper gPbrIblDiffuse;
-extern Wrapper gPbrIblDiffusePower;
-extern Wrapper gPbrIblSpecular;
-extern Wrapper gPbrIblSpecularPower;
-extern Wrapper gPbrIblShadowBlend;
-extern Wrapper gPbrIblAmbientColorBlend;
-extern Wrapper gPbrCubemapLodPower;
-extern Wrapper gPbrCubemapLodOffset;
-extern Wrapper gPbrShadowFloor;
-// Pbr - Post Lighting
-extern Wrapper gPbrLightingSpecular;
-extern Wrapper gPbrLightingSpecularPower;
-extern Wrapper gPbrLighting;
-extern Wrapper gPbrLightingPower;
-// Pbr - Smoke
-extern Wrapper gPbrSmoke;
-// Pbr - Emissive
-extern Wrapper gPbrEmissive;
-
-// Sound
-extern Wrapper gMasterVolume;
-extern Wrapper gMusicVolume;
-extern Wrapper gSoundVolume;
 
 // Islands & terrain
 extern Wrapper gVisibleAreaExtraTop;
 extern Wrapper gVisibleAreaExtraBottom;
-extern Wrapper gIslandHeight;
-extern Wrapper gWaterDepth;
 extern Wrapper gIslandAmbientOcclusion;
-
 extern Wrapper gTerrainEarlyOut;
 extern Wrapper gWaterEarlyOut;
-
-extern Wrapper gTerrainRockMultiplier;
-extern Wrapper gTerrainRockSize;
-extern Wrapper gTerrainRockBlend;
-extern Wrapper gTerrainRockNormalsSizeOne;
-extern Wrapper gTerrainRockNormalsSizeTwo;
-extern Wrapper gTerrainRockNormalsSizeThree;
-extern Wrapper gTerrainRockNormalsBlend;
-
-extern Wrapper gTerrainSnowMultiplier;
-
-extern Wrapper gTerrainBeachHeight;
-extern Wrapper gTerrainBeachSandSize;
-extern Wrapper gTerrainBeachSandBlend;
-extern Wrapper gTerrainBeachNormalsSizeOne;
-extern Wrapper gTerrainBeachNormalsSizeTwo;
-extern Wrapper gTerrainBeachNormalsSizeThree;
-extern Wrapper gTerrainBeachNormalsBlend;
+extern Wrapper gTerrainElevationTextureMultiplier;
+extern Wrapper gTerrainColorTextureMultiplier;
+extern Wrapper gTerrainNormalTextureMultiplier;
+extern Wrapper gTerrainAmbientOcclusionTextureMultiplier;
 
 // Water
 extern Wrapper gWaterHeight;
-extern Wrapper gWaterTerrainHeight;
-extern Wrapper gWaterTerrainFade;
 extern Wrapper gWaterTerrainFadeClamp;
 extern Wrapper gWaterNoiseFrequency;
 extern Wrapper gWaterNoiseAmount;
 extern Wrapper gWaterColorNoiseFrequency;
 extern Wrapper gWaterColorNoiseAmount;
-extern Wrapper gWaterColorNoiseWeightOne;
-extern Wrapper gWaterColorNoiseWeightTwo;
-extern Wrapper gWaterColorNoiseMultiplierOne;
-extern Wrapper gWaterColorNoiseMultiplierTwo;
-
 extern Wrapper gWaterDepthLutFeather;
 extern Wrapper gWaterDepthColorFeather;
-extern Wrapper gWaterDepthReflectionFeather;
 extern Wrapper gWaterFresnel;
 extern Wrapper gWaterFresnel2;
 extern Wrapper gWaterColorBottom;
 extern Wrapper gWaterColorHeight;
 
-extern Wrapper gWaterHeightDarkenTop;
-extern Wrapper gWaterHeightDarkenBottom;
-extern Wrapper gWaterHeightDarkenClamp;
-
-// Lighting (section order matches tweaks screen layout)
-// Pre-Blur
-extern Wrapper gLightingBlurSigma;
-extern Wrapper gLightingBlurSampleCount;
-extern Wrapper gLightingBlurEdgeFalloff;
-
-// Deposit
-extern Wrapper gLightingDepositTextureMultiplier;
-extern Wrapper gLightingDepositThreshold;
-extern Wrapper gLightingDepositCompress;
-
-// Spread
-extern Wrapper gSpreadPassCount;
-extern Wrapper gSpreadDecay;
-extern Wrapper gSpreadAccumulationDecay;
-
-// Spread Start
-extern Wrapper gSpreadTextureMultiplierStart;
-extern Wrapper gSpreadDirectionality;
-extern Wrapper gSpreadDirectionCount;
-extern Wrapper gSpreadDistance;
-extern Wrapper gSpreadRingCount;
-extern Wrapper gSpreadJitter;
-extern Wrapper gSpreadSampleJitterRangeStart;
-extern Wrapper gSpreadSampleJitterClusteringStart;
-extern Wrapper gSpreadDistanceFalloff;
-extern Wrapper gSpreadOutputThreshold;
-extern Wrapper gSpreadOutputCompress;
-
-// Spread End (interpolation targets for last spread pass)
-extern Wrapper gSpreadTextureMultiplierEnd;
-extern Wrapper gSpreadDirectionalityEnd;
-extern Wrapper gSpreadDirectionCountEnd;
-extern Wrapper gSpreadDistanceEnd;
-extern Wrapper gSpreadRingCountEnd;
-extern Wrapper gSpreadJitterEnd;
-extern Wrapper gSpreadSampleJitterRangeEnd;
-extern Wrapper gSpreadSampleJitterClusteringEnd;
-extern Wrapper gSpreadDistanceFalloffEnd;
-extern Wrapper gSpreadOutputThresholdEnd;
-extern Wrapper gSpreadOutputCompressEnd;
-
-// Spread Height Fade
-extern Wrapper gSpreadHeightMultiplier;
-extern Wrapper gSpreadHeightEndHeight;
-extern Wrapper gSpreadHeightPower;
-
-// Combine (Uchimura tone curve)
-extern Wrapper gCombineMaxBrightness;
-extern Wrapper gCombineContrast;
-extern Wrapper gCombineLinearStart;
-extern Wrapper gCombineLinearLength;
-extern Wrapper gCombineToe;
-extern Wrapper gCombineBlackTightness;
-extern Wrapper gCombinePassNormalize;
-extern Wrapper gCombineExposurePassScale;
-extern Wrapper gCombineHuePreserve;
-#if defined(BT_CLIENT)
-extern CurveData gCombineCurveOld;
-extern CurveData gCombineCurveNew;
-extern bool gbUseCombineCurveNew;
-#endif
-// Water normal map atlas wrappers — order matches per-sample row UI layout.
-extern Wrapper gWaterNormalIndexOne;
-extern Wrapper gLightingSampledNormalsOneSize;
-extern Wrapper gLightingSampledNormalsWeightOneMin;
-extern Wrapper gLightingSampledNormalsWeightOneMax;
-extern Wrapper gWaterNormalRotationOne;
-extern Wrapper gWaterNormalIndexTwo;
-extern Wrapper gLightingSampledNormalsTwoSize;
-extern Wrapper gLightingSampledNormalsWeightTwoMin;
-extern Wrapper gLightingSampledNormalsWeightTwoMax;
-extern Wrapper gWaterNormalRotationTwo;
-extern Wrapper gWaterNormalIndexThree;
-extern Wrapper gLightingSampledNormalsThreeSize;
-extern Wrapper gLightingSampledNormalsWeightThreeMin;
-extern Wrapper gLightingSampledNormalsWeightThreeMax;
-extern Wrapper gWaterNormalRotationThree;
-extern Wrapper gLightingSampledNormalsSpeedMin;
-extern Wrapper gLightingSampledNormalsSpeedMax;
-
-// New Lighting
-extern Wrapper gLightingNewDirectional;
-extern Wrapper gLightingNewDirectionalPower;
-extern Wrapper gLightingDirectionalPowerMode;
-extern Wrapper gLightingNewAmbient;
-extern Wrapper gLightingNewAmbientPower;
-extern Wrapper gLightingAmbientPowerMode;
-extern Wrapper gLightingTerrain;
-extern Wrapper gLightingAddTerrain;
-extern Wrapper gLightingTerrainBelowBaseMultiplier;
-extern Wrapper gLightingTerrainBelowBasePower;
-extern Wrapper gLightingObjects;
-extern Wrapper gLightingObjectsAdd;
-extern Wrapper gLightingDayFinalMultiplier;
-extern Wrapper gLightingNightFinalMultiplier;
-
-// Water specular lighting
-extern Wrapper gLightingWaterAmbientPower;
-extern Wrapper gLightingWaterAmbientPowerMode;
-extern Wrapper gLightingWaterNewAmbient;
-extern Wrapper gLightingWaterNewAmbientPower;
-extern Wrapper gLightingWaterNewAmbientPowerMode;
-extern Wrapper gLightingWaterNormalSoften;
-extern Wrapper gLightingWaterNormalBlendWave;
-extern Wrapper gLightingWaterIntensity;
-extern Wrapper gLightingWaterAdd;
-extern Wrapper gLightingWaterOne;
-extern Wrapper gLightingWaterOnePower;
-extern Wrapper gLightingWaterTwo;
-extern Wrapper gLightingWaterTwoPower;
-extern Wrapper gLightingWaterThree;
-extern Wrapper gLightingWaterThreePower;
-extern Wrapper gLightingWaterPowerMode;
-
-// Water reflected
-extern Wrapper gLightingWaterReflectedAmount;
-extern Wrapper gLightingWaterReflectedNormalBlendWave;
-extern Wrapper gLightingWaterReflectedDistortion;
-extern Wrapper gLightingWaterReflectedFalloffStart;
-extern Wrapper gLightingWaterReflectedFalloffPower;
-extern Wrapper gLightingWaterReflectedFresnel;
-extern Wrapper gLightingWaterReflectedIntensity;
-
-// Water skybox
-extern Wrapper gLightingWaterSkyboxSunBias;
-extern Wrapper gLightingWaterSkyboxNormalSoften;
-extern Wrapper gLightingWaterSkyboxNormalBlendWave;
-extern Wrapper gLightingWaterSkyboxIntensity;
-extern Wrapper gLightingWaterSkyboxAdd;
-extern Wrapper gLightingWaterSkyboxOne;
-extern Wrapper gLightingWaterSkyboxOnePower;
-extern Wrapper gLightingWaterSkyboxTwo;
-extern Wrapper gLightingWaterSkyboxTwoPower;
-extern Wrapper gLightingWaterSkyboxThree;
-extern Wrapper gLightingWaterSkyboxThreePower;
-extern Wrapper gLightingWaterSkyboxLod;
+// Water - Low/Medium count + High frequency waves (radio-button-bound but not via slider map; pure-internal High*)
+extern Wrapper gWaterLowCount;
+extern Wrapper gWaterMediumCount;
+extern Wrapper gWaterHighMultiplier;
+extern Wrapper gWaterHighScaleOne;
+extern Wrapper gWaterHighScaleTwo;
 
 // Smoke
-extern Wrapper gSmokeDecay;
-extern Wrapper gSmokeEdgeDecayDistance;
-extern Wrapper gSmokeTrailsQuantity;
-extern Wrapper gSmokeTrailsWidthCurrent;
-extern Wrapper gSmokeTrailsWidthPrevious;
-extern Wrapper gSmokeTrailsLength;
-extern Wrapper gSmokeTrailsLengthJitter;
-extern Wrapper gSmokeTrailsSideJitter;
-extern Wrapper gSmokeIntensityFalloff;
-extern Wrapper gSmokeTrailsFollow;
-
-extern Wrapper gSmokeWindNoiseScale;
-extern Wrapper gSmokeWindNoiseQuantity;
-extern Wrapper gSmokeNoiseScaleOne;
-extern Wrapper gSmokeNoiseScaleTwo;
-extern Wrapper gSmokeNoiseQuantity;
 extern Wrapper gSmokeNoiseInfluence;
-extern Wrapper gSmokeMax;
-extern Wrapper gSmokePower;
-extern Wrapper gSmokeColorMin;
-extern Wrapper gSmokeColorMultiplier;
-extern Wrapper gSmokeLightingMultiplier;
 extern Wrapper gSmokeTrailPower;
 extern Wrapper gSmokeTrailAlpha;
-extern Wrapper gSmokeObjectHeight;
-
-// Wind - Time & Global
-extern Wrapper gWind;
-extern Wrapper gWindTimeScale;
-extern Wrapper gWindThresholdLow;
-extern Wrapper gWindThresholdHigh;
-// Wind - Propagation
-extern Wrapper gWindAdvectionScaleHigh;
-extern Wrapper gWindAdvectionScaleLow;
-extern Wrapper gWindSwirlScaleHigh;
-extern Wrapper gWindSwirlScaleLow;
-extern Wrapper gWindSwirlAmountHigh;
-extern Wrapper gWindSwirlAmountLow;
-extern Wrapper gWindSwirlSpeedHigh;
-extern Wrapper gWindSwirlSpeedLow;
-extern Wrapper gWindVorticityConfinementHigh;
-extern Wrapper gWindVorticityConfinementLow;
-extern Wrapper gWindDecayHigh;
-extern Wrapper gWindDecayLow;
-extern Wrapper gWindMomentumHigh;
-extern Wrapper gWindMomentumLow;
-extern Wrapper gWindDiffusionHigh;
-extern Wrapper gWindDiffusionLow;
-// Wind - Integration
-extern Wrapper gWindToSmokeStrength;
-extern Wrapper gWindSmokeRetention;
-extern Wrapper gWindToSmokePower;
-// Wind - Displacement
-extern Wrapper gWindDisplacementNoiseScale;
-extern Wrapper gWindSmokeAdvection;
-// Low frequency waves
-extern Wrapper gLowCount;
-extern Wrapper gLowMax;
-extern Wrapper gLowAngle;
-extern Wrapper gLowWavelength;
-extern Wrapper gLowAmplitude;
-extern Wrapper gLowSpeed;
-extern Wrapper gLowSteepness;
-
-extern Wrapper gLowAngleAdjust;
-extern Wrapper gLowWavelengthAdjust;
-extern Wrapper gLowAmplitudeAdjust;
-extern Wrapper gLowSpeedAdjust;
-
-// Medium frequency waves
-extern Wrapper gMediumCount;
-extern Wrapper gMediumWavelength;
-extern Wrapper gMediumAmplitude;
-extern Wrapper gMediumSpeed;
-extern Wrapper gMediumSteepness;
-
-extern Wrapper gMediumAngleAdjust;
-extern Wrapper gMediumWavelengthAdjust;
-extern Wrapper gMediumAmplitudeAdjust;
-extern Wrapper gMediumSpeedAdjust;
-
-// High frequency waves & Water
-extern Wrapper gHighMultiplier;
-extern Wrapper gHighScaleOne;
-extern Wrapper gHighScaleTwo;
-
-extern Wrapper gBeachFadeTop;
-extern Wrapper gBeachFadeBottom;
-
-// Shadow
-extern Wrapper gShadowFeatherNoon;
-extern Wrapper gShadowFeatherNoonOffset;
-extern Wrapper gShadowFeatherSunset;
-extern Wrapper gShadowFeatherSunsetOffset;
-extern Wrapper gShadowFeatherPower;
-extern Wrapper gShadowDistanceFallof;
-extern Wrapper gShadowBlurSigma;
-extern Wrapper gShadowAffectAmbient;
-extern Wrapper gShadowHeightFadeTop;
-extern Wrapper gShadowHeightFadeBottom;
-
-extern Wrapper gObjectShadowsRenderMultiplier;
-extern Wrapper gObjectShadowsBlurMultiplier;
-extern Wrapper gObjectShadowsNoon;
-extern Wrapper gObjectShadowsSunset;
-extern Wrapper gObjectShadowsSunsetStretch;
-extern Wrapper gObjectShadowsBlurDistanceNoon;
-extern Wrapper gObjectShadowsBlurDistanceSunset;
-extern Wrapper gObjectShadowsBlurSigma;
-
-extern Wrapper gSmokeShadowIntensity;
 
 // Particles
-
-// Opaque UI
-extern Wrapper gOpaqueUi;
-extern Wrapper gUiOpacity;
-
-// Font Scale
-extern Wrapper gUiFontScale;
 
 // Debug
 extern Wrapper gDebugTexture;
 extern Wrapper gDebugTextureIndex;
-extern Wrapper gDebugTextureLinearRange;
-
-// Test
-extern Wrapper gTestOne;
-extern Wrapper gTestTwo;
 
 } // namespace engine

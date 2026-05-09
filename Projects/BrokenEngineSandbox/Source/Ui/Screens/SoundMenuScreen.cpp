@@ -5,6 +5,7 @@
 #include "Game.h"
 #include "MenuUtils.h"
 #include "Ui/Localization.h"
+#include "Ui/SoundSettingsWrappersBase.h"
 
 namespace game
 {

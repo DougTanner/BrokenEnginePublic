@@ -3,6 +3,10 @@
 #include "Render.h"
 
 #include "Game.h"
+#include "Ui/LightingWrappersBase.h"
+#include "Ui/PbrWrappersBase.h"
+#include "Ui/ShadowWrappersBase.h"
+#include "Ui/WaterWrappersBase.h"
 
 namespace engine
 {

@@ -120,6 +120,7 @@
     <TargetName>$(ProjectName).$(Configuration)</TargetName>
     <LinkIncremental>false</LinkIncremental>
     <CodeAnalysisRuleSet>NativeRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <EnableClangTidyCodeAnalysis>true</EnableClangTidyCodeAnalysis>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(ProjectDir)\Output\</OutDir>
@@ -128,6 +129,7 @@
     <LinkIncremental>false</LinkIncremental>
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
     <RunCodeAnalysis>false</RunCodeAnalysis>
+    <EnableClangTidyCodeAnalysis>true</EnableClangTidyCodeAnalysis>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -136,7 +138,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>false</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include\Volk;$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\..\Common;$(ProjectDir)\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\ThirdParty\DirectXTK\Src;$(ProjectDir)\..\..\..\ThirdParty\glm;$(ProjectDir)\..\..\..\ThirdParty\zlib;$(ProjectDir)\..\..\..\ThirdParty\Prebuilts\Source\DataPacker\openexr;$(ProjectDir)\..\..\..\ThirdParty\cmft\include;$(ProjectDir)\..\..\..\ThirdParty\cmft\dependency;$(ProjectDir)\..\..\..\ThirdParty\meshoptimizer\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include\Volk;$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\..\Common;$(ProjectDir)\..\..\..\Common\ClangTidyShims;$(ProjectDir)\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\ThirdParty\DirectXTK\Src;$(ProjectDir)\..\..\..\ThirdParty\glm;$(ProjectDir)\..\..\..\ThirdParty\zlib;$(ProjectDir)\..\..\..\ThirdParty\Prebuilts\Source\DataPacker\openexr;$(ProjectDir)\..\..\..\ThirdParty\cmft\include;$(ProjectDir)\..\..\..\ThirdParty\cmft\dependency;$(ProjectDir)\..\..\..\ThirdParty\meshoptimizer\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>false</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <PreprocessorDefinitions>BT_DATA_PACKER;BT_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -170,7 +172,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>false</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include\Volk;$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\..\Common;$(ProjectDir)\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\ThirdParty\DirectXTK\Src;$(ProjectDir)\..\..\..\ThirdParty\glm;$(ProjectDir)\..\..\..\ThirdParty\zlib;$(ProjectDir)\..\..\..\ThirdParty\Prebuilts\Source\DataPacker\openexr;$(ProjectDir)\..\..\..\ThirdParty\cmft\include;$(ProjectDir)\..\..\..\ThirdParty\cmft\dependency;$(ProjectDir)\..\..\..\ThirdParty\meshoptimizer\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include\Volk;$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\..\Common;$(ProjectDir)\..\..\..\Common\ClangTidyShims;$(ProjectDir)\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\ThirdParty\DirectXTK\Src;$(ProjectDir)\..\..\..\ThirdParty\glm;$(ProjectDir)\..\..\..\ThirdParty\zlib;$(ProjectDir)\..\..\..\ThirdParty\Prebuilts\Source\DataPacker\openexr;$(ProjectDir)\..\..\..\ThirdParty\cmft\include;$(ProjectDir)\..\..\..\ThirdParty\cmft\dependency;$(ProjectDir)\..\..\..\ThirdParty\meshoptimizer\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <PreprocessorDefinitions>BT_DATA_PACKER;BT_RELEASE;%(PreprocessorDefinitions)</PreprocessorDefinitions>

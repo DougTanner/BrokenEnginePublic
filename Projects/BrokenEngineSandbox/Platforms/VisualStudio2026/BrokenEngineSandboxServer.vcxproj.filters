@@ -261,6 +261,39 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\WrapperBase.h">
       <Filter>Engine\Ui</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\PbrWrappersBase.h">
+      <Filter>Engine\Ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\TerrainWrappersBase.h">
+      <Filter>Engine\Ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\WaterWrappersBase.h">
+      <Filter>Engine\Ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\LightingWrappersBase.h">
+      <Filter>Engine\Ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\ShadowWrappersBase.h">
+      <Filter>Engine\Ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\SunMoonWrappersBase.h">
+      <Filter>Engine\Ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\MiscWrappersBase.h">
+      <Filter>Engine\Ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\SmokeWrappersBase.h">
+      <Filter>Engine\Ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\WindWrappersBase.h">
+      <Filter>Engine\Ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\GraphicsSettingsWrappersBase.h">
+      <Filter>Engine\Ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\SoundSettingsWrappersBase.h">
+      <Filter>Engine\Ui</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Frame\Frame.h">
       <Filter>Game\Frame</Filter>
     </ClInclude>
@@ -285,7 +318,10 @@
     <ClInclude Include="..\..\Source\Ui\ParticleWrappers.h">
       <Filter>Game\Ui</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Ui\Wrapper.h">
+    <ClInclude Include="..\..\Source\Ui\HexShieldWrappers.h">
+      <Filter>Game\Ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\WindDepositsWrappers.h">
       <Filter>Game\Ui</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Common\LogDifference.h">
@@ -615,16 +651,52 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\WrapperBase.cpp">
       <Filter>Engine\Ui</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\PbrWrappersBase.cpp">
+      <Filter>Engine\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\TerrainWrappersBase.cpp">
+      <Filter>Engine\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\WaterWrappersBase.cpp">
+      <Filter>Engine\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\LightingWrappersBase.cpp">
+      <Filter>Engine\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\ShadowWrappersBase.cpp">
+      <Filter>Engine\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\SunMoonWrappersBase.cpp">
+      <Filter>Engine\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\MiscWrappersBase.cpp">
+      <Filter>Engine\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\SmokeWrappersBase.cpp">
+      <Filter>Engine\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\WindWrappersBase.cpp">
+      <Filter>Engine\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\GraphicsSettingsWrappersBase.cpp">
+      <Filter>Engine\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\SoundSettingsWrappersBase.cpp">
+      <Filter>Engine\Ui</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\Ui\Screens\DeathMenuScreen.cpp">
       <Filter>Game\Ui\Screens</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Ui\Screens\MenuUtils.cpp">
       <Filter>Game\Ui\Screens</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Ui\Wrapper.cpp">
+    <ClCompile Include="..\..\Source\Ui\ParticleWrappers.cpp">
       <Filter>Game\Ui</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Ui\ParticleWrappers.cpp">
+    <ClCompile Include="..\..\Source\Ui\HexShieldWrappers.cpp">
+      <Filter>Game\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\WindDepositsWrappers.cpp">
       <Filter>Game\Ui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Alignments.cpp">

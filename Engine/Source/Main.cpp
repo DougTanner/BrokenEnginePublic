@@ -4,6 +4,7 @@
 #include "Frame/Collections/Players/Players.h"
 #include "Game.h"
 #include "Profile/ProfileManager.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
 
 namespace engine
 {

@@ -75,11 +75,11 @@ void PlayersInterpolate::Register()
 		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
 		.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
 		.fVisibleIntensity = gPlayerAreaLightVisibleIntensity.Get(),
-		.fLightingSize = gPlayersBlasterLightingArea.Get(),
-		.fLightingIntensity = gPlayersBlasterLightingIntensity.Get(),
+		.fLightingSize = gPlayerBlasterLightingArea.Get(),
+		.fLightingIntensity = gPlayerBlasterLightingIntensity.Get(),
 		.pVisibleIntensityWrapper = &gPlayerAreaLightVisibleIntensity,
-		.pLightingSizeWrapper = &gPlayersBlasterLightingArea,
-		.pLightingIntensityWrapper = &gPlayersBlasterLightingIntensity,
+		.pLightingSizeWrapper = &gPlayerBlasterLightingArea,
+		.pLightingIntensityWrapper = &gPlayerBlasterLightingIntensity,
 	});
 #endif // BT_CLIENT
 

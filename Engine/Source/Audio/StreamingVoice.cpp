@@ -2,6 +2,8 @@
 
 #if defined(BT_CLIENT)
 
+#include "Ui/SoundSettingsWrappersBase.h"
+
 namespace engine
 {
 

@@ -2,6 +2,7 @@
 
 #if defined(BT_CLIENT)
 
+#include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/WrapperBase.h"
 
 namespace engine
@@ -31,7 +32,7 @@ void WindTrailsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer,
 {
 	siRendered = 0;
 
-	if (!gWind.Get<bool>())
+	if (!gWindEnabled.Get<bool>())
 	{
 		return;
 	}
@@ -58,7 +59,7 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 {
 	const WindTrailsInterpolate& rCurrent = rFrameInterpolate.windTrails;
 
-	if (!gWind.Get<bool>() || rCurrent.iCount == 0)
+	if (!gWindEnabled.Get<bool>() || rCurrent.iCount == 0)
 	{
 		return;
 	}

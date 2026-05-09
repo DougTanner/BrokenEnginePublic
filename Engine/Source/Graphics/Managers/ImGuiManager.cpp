@@ -1,5 +1,6 @@
 #include "ImGuiManager.h"
 
+#include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/Screens/DeathMenuScreen.h"
 #include "Ui/Screens/GraphicsMenuScreen.h"
 #include "Ui/Screens/HudScreen.h"

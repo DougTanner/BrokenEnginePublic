@@ -1,9 +1,40 @@
 #include "TweaksScreenBase.h"
 
+#include "TweaksSliderMap.h"
+#include "Ui/ShadowWrappersBase.h"
+
 #if defined(BT_CLIENT)
 
 namespace engine
 {
+
+namespace
+{
+const TweaksSliderMapRegistrar gShadowRegistrar
+{
+	// Feather
+	{"Feather Noon", &gShadowFeatherNoon},
+	{"Feather Noon Offset", &gShadowFeatherNoonOffset},
+	{"Feather Sunset", &gShadowFeatherSunset},
+	{"Feather Sunset Offset", &gShadowFeatherSunsetOffset},
+	{"Feather Power", &gShadowFeatherPower},
+	{"Distance Falloff", &gShadowDistanceFalloff},
+	{"Blur Sigma", &gShadowBlurSigma},
+	{"Affect Ambient", &gShadowAffectAmbient},
+	{"Height Fade Top", &gShadowHeightFadeTop},
+	{"Height Fade Bottom", &gShadowHeightFadeBottom},
+	// Object Shadows
+	{"Render Multiplier", &gObjectShadowsRenderMultiplier},
+	{"Blur Multiplier", &gObjectShadowsBlurMultiplier},
+	{"Shadow Noon", &gObjectShadowsNoon},
+	{"Shadow Sunset", &gObjectShadowsSunset},
+	{"Sunset Stretch", &gObjectShadowsSunsetStretch},
+	{"Blur Distance Noon", &gObjectShadowsBlurDistanceNoon},
+	{"Blur Distance Sunset", &gObjectShadowsBlurDistanceSunset},
+	{"Object Blur Sigma", &gObjectShadowsBlurSigma},
+	{"Smoke Shadow Intensity", &gSmokeShadowIntensity},
+};
+}
 
 void TweaksScreenBase::RenderShadowSection()
 {

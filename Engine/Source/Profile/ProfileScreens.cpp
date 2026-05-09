@@ -3,6 +3,7 @@
 #include "ProfileManagerBase.h"
 
 #include "Memory/MemoryManager.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
 
 namespace engine
 {

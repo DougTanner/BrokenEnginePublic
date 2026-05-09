@@ -3,6 +3,9 @@
 #include "Render.h"
 
 #include "Game.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
+#include "Ui/SmokeWrappersBase.h"
+#include "Ui/WindWrappersBase.h"
 
 namespace engine
 {
@@ -17,9 +20,9 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 
 	// Handle wind enable/disable toggle
 	static bool sbWind = false;
-	if (sbWind != gWind.Get<bool>())
+	if (sbWind != gWindEnabled.Get<bool>())
 	{
-		sbWind = gWind.Get<bool>();
+		sbWind = gWindEnabled.Get<bool>();
 		gbWindClear = true;
 	}
 

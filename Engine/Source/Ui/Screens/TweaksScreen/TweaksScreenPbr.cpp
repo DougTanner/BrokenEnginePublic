@@ -1,13 +1,55 @@
 #include "TweaksScreenBase.h"
 
+#include "TweaksSliderMap.h"
+#include "Ui/PbrWrappersBase.h"
+
 #if defined(BT_CLIENT)
 
 namespace engine
 {
 
+namespace
+{
+const TweaksSliderMapRegistrar gPbrRegistrar
+{
+	// Engine Variables
+	{"Sun", &gPbrSun},
+	{"Sun Power", &gPbrSunPower},
+	{"Day Brightness", &gPbrDayBrightness},
+	// BRDF
+	{"BRDF Diffuse", &gPbrBrdfDiffuse},
+	{"BRDF Diffuse Power", &gPbrBrdfDiffusePower},
+	{"BRDF Specular", &gPbrBrdfSpecular},
+	{"BRDF Specular Power", &gPbrBrdfSpecularPower},
+	// Tone Mapping
+	{"Exposure", &gPbrExposure},
+	{"Gamma", &gPbrGamma},
+	// Post Lighting
+	{"Lighting Specular", &gPbrLightingSpecular},
+	{"Lighting Specular Power", &gPbrLightingSpecularPower},
+	{"Lighting", &gPbrLighting},
+	{"Lighting Power", &gPbrLightingPower},
+	// IBL
+	{"IBL Ambient", &gPbrIblAmbient},
+	{"IBL Diffuse", &gPbrIblDiffuse},
+	{"IBL Diffuse Power", &gPbrIblDiffusePower},
+	{"IBL Specular", &gPbrIblSpecular},
+	{"IBL Specular Power", &gPbrIblSpecularPower},
+	{"IBL Shadow Blend", &gPbrIblShadowBlend},
+	{"IBL Ambient Color Blend", &gPbrIblAmbientColorBlend},
+	{"Cubemap Lod Power", &gPbrCubemapLodPower},
+	{"Cubemap Lod Offset", &gPbrCubemapLodOffset},
+	{"Shadow Floor", &gPbrShadowFloor},
+	// Smoke
+	{"Smoke", &gPbrSmoke},
+	// Emissive
+	{"Emissive", &gPbrEmissive},
+};
+}
+
 void TweaksScreenBase::RenderPbrSection()
 {
-	static constexpr int kiSection = static_cast<int>(TweakSection::kModel);
+	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kModel);
 
 	if (ImGui::BeginTable("PbrColumns", 2))
 	{

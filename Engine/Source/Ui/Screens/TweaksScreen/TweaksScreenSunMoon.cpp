@@ -1,9 +1,50 @@
 #include "TweaksScreenBase.h"
 
+#include "TweaksSliderMap.h"
+#include "Ui/SunMoonWrappersBase.h"
+
 #if defined(BT_CLIENT)
 
 namespace engine
 {
+
+namespace
+{
+const TweaksSliderMapRegistrar gSunMoonRegistrar
+{
+	// Color Phase Boundaries (radians)
+	{"Morning Start", &gSunMoonMorning},
+	{"Noon Start", &gSunMoonNoonStart},
+	{"Noon End", &gSunMoonNoonEnd},
+	{"Evening Start", &gSunMoonEvening},
+	{"Night Start", &gSunMoonNightStart},
+	// Sun Intensity
+	{"Sun Terrain", &gSunMoonSunIntensityTerrain},
+	{"Sun Water", &gSunMoonSunIntensityWater},
+	{"Sun Objects", &gSunMoonSunIntensityObjects},
+	{"Sun Smoke", &gSunMoonSunIntensitySmoke},
+	// Moon Intensity + Blue Tint
+	{"Moon Terrain", &gSunMoonMoonIntensityTerrain},
+	{"Moon Water", &gSunMoonMoonIntensityWater},
+	{"Moon Objects", &gSunMoonMoonIntensityObjects},
+	{"Moon Smoke", &gSunMoonMoonIntensitySmoke},
+	{"Moon Blue Tint", &gSunMoonMoonBlueTint},
+	// Moon Timing
+	{"Moonrise Start", &gSunMoonMoonriseStart},
+	{"Moonrise End", &gSunMoonMoonriseEnd},
+	{"Moonset Start", &gSunMoonMoonsetStart},
+	{"Moonset End", &gSunMoonMoonsetEnd},
+	// Ambient
+	{"Minimum Ambient", &gSunMoonMinimumAmbient},
+	{"Ambient Multiplier", &gSunMoonAmbientMultiplier},
+	// Shadow Night-Gate
+	{"Shadow Night Multiplier", &gSunMoonShadowNightMultiplier},
+	{"Shadow Sunset Start", &gSunMoonShadowSunsetStart},
+	{"Shadow Sunset End", &gSunMoonShadowSunsetEnd},
+	{"Shadow Sunrise Start", &gSunMoonShadowSunriseStart},
+	{"Shadow Sunrise End", &gSunMoonShadowSunriseEnd},
+};
+}
 
 void TweaksScreenBase::RenderSunMoonSection()
 {

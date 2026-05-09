@@ -9,8 +9,6 @@ class TweaksScreen : public engine::TweaksScreenBase
 {
 public:
 
-	TweaksScreen();
-
 	void Render();
 
 	void RenderHexShieldSection() override;

@@ -5,6 +5,7 @@
 #include "Game.h"
 #include "Frame/Frame.h"
 #include "Frame/Collections/Players/Players.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
 
 namespace
 {

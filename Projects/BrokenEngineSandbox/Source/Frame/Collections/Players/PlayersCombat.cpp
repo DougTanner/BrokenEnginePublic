@@ -369,7 +369,7 @@ void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
 				.alignment = rCurrentPostRender.pAlignments[i],
 				.fWindTrailIntensity = game::gWindDepositPlayerBlastersIntensity.Get(),
 				.fWindTrailWidth = game::gWindDepositPlayerBlastersWidth.Get(),
-				.fWindTrailLengthMultiplier = game::gWindDepositBlastersLengthMultiplier.Get(),
+				.fWindTrailLengthMultiplier = game::gWindDepositPlayerBlastersLengthMultiplier.Get(),
 			});
 
 #if defined(BT_CLIENT)

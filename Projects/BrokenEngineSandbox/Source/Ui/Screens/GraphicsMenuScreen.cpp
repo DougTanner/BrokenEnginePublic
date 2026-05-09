@@ -4,6 +4,8 @@
 
 #include "Game.h"
 #include "MenuUtils.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
+#include "Ui/SunMoonWrappersBase.h"
 
 namespace game
 {
@@ -40,7 +42,7 @@ void GraphicsMenuScreen::Render()
 		WrapperSlider("Time of Day", &engine::gSunAngleOverride);
 	}
 
-	WrapperSlider("Minimum Ambient", &engine::gMinimumAmbient);
+	WrapperSlider("Minimum Ambient", &engine::gSunMoonMinimumAmbient);
 
 	ImGui::Separator();
 
@@ -115,14 +117,14 @@ void GraphicsMenuScreen::Render()
 
 	ImGui::Separator();
 
-	WrapperToggle("Smoke", &engine::gSmoke);
-	if (engine::gSmoke.Get<bool>())
+	WrapperToggle("Smoke", &engine::gSmokeEnabled);
+	if (engine::gSmokeEnabled.Get<bool>())
 	{
 		WrapperSlider("Smoke Pixels", &engine::gSmokeSimulationPixels);
 		WrapperSlider("Smoke Area", &engine::gSmokeSimulationArea);
 	}
 
-	WrapperToggle("Wind", &engine::gWind);
+	WrapperToggle("Wind", &engine::gWindEnabled);
 
 	ImGui::Separator();
 

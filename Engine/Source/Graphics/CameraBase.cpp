@@ -3,6 +3,7 @@
 #if defined(BT_CLIENT)
 
 #include "Graphics/Camera.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
 
 namespace engine
 {

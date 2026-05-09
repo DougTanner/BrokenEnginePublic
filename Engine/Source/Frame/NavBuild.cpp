@@ -1,5 +1,8 @@
 #include "NavBuild.h"
 
+#include "Ui/TerrainWrappersBase.h"
+#include "Ui/WaterWrappersBase.h"
+
 namespace engine
 {
 
@@ -18,7 +21,7 @@ float HeightmapToWorldElevation(float fNormalized, float fBeachElevation)
 	float fRelative = fNormalized - fBeachElevation;
 	if (fRelative >= 0.0f)
 	{
-		return gIslandHeight.Get() * fRelative;
+		return gTerrainIslandHeight.Get() * fRelative;
 	}
 	return gWaterDepth.Get() * fRelative;
 }

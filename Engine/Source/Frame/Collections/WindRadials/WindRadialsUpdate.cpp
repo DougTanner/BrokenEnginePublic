@@ -2,6 +2,7 @@
 
 #if defined(BT_CLIENT)
 
+#include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/WrapperBase.h"
 
 namespace engine
@@ -9,7 +10,7 @@ namespace engine
 
 void WindRadialsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
-	if (!gWind.Get<bool>())
+	if (!gWindEnabled.Get<bool>())
 	{
 		return;
 	}

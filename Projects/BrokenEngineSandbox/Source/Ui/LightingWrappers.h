@@ -53,8 +53,8 @@ extern engine::Wrapper gCraterLightingIntensityFour;
 
 // Players - Area light
 extern engine::Wrapper gPlayerAreaLightVisibleIntensity;
-extern engine::Wrapper gPlayersBlasterLightingArea;
-extern engine::Wrapper gPlayersBlasterLightingIntensity;
+extern engine::Wrapper gPlayerBlasterLightingArea;
+extern engine::Wrapper gPlayerBlasterLightingIntensity;
 
 // Players - Impact point light
 extern engine::Wrapper gPlayerImpactVisibleAreaOne;

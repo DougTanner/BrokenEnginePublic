@@ -10,7 +10,7 @@ Runtime-adjustable parameter wrappers and ImGui-based screen classes.
 
 ## Architecture Notes
 
-Engine-scope wrappers live here; game-specific wrappers live in `game::Wrapper.h/.cpp`. Curve types are `BT_CLIENT`-guarded because `ImVec2` is server-unavailable.
+Engine-scope wrappers split per Tweaks tab into `<Tab>WrappersBase.{h,cpp}` pairs (Pbr, Terrain, Water, Lighting, Shadow, SunMoon, Misc, Smoke, Wind, GraphicsSettings, SoundSettings). `WrapperBase.{h,cpp}` retains the `Wrapper` class itself plus internal-only globals not bound to any UI surface. Game-specific wrappers live in the game `Ui/` directory under matching per-tab pairs. Curve types are `BT_CLIENT`-guarded because `ImVec2` is server-unavailable.
 
 **Wrapper invariants**: Storage is always `float` internally. `operator=` is deleted — callers must use the setter API. `Changed<T>()` self-advances previous-value tracking, making it a single-consumer contract per frame. Discrete-enum construction takes the allowed-value set and `DEBUG_BREAK`s on out-of-set values.
 
@@ -18,7 +18,7 @@ Engine-scope wrappers live here; game-specific wrappers live in `game::Wrapper.h
 
 **CurveData change detection**: Size + scalar-hash compare, self-advancing (same single-consumer contract as `Wrapper`).
 
-**Cross-system coupling**: `gWorldDetail`'s largest divisor must match `Graphics::WorldDetail()`. Wrapper declaration order must match the tweaks screen UI layout.
+**Cross-system coupling**: `gWorldDetail`'s largest divisor must match `Graphics::WorldDetail()`. Within each per-tab `<Tab>WrappersBase` pair, declaration order must match the matching `TweaksScreen<Tab>.cpp` slider order.
 
 ## See Also
 

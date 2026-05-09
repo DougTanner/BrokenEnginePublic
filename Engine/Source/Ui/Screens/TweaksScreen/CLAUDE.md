@@ -10,11 +10,11 @@ Data-driven: a slider map plus a parallel function-pointer table drive section r
 
 **Toggle bar**: full-width bar hosts section show/hide selectables plus a special-cased full-width Sun Angle slider not in the main slider map.
 
-**Slider map lifetime**: `TweaksSliderMap::Get()` returns a function-local static `std::unordered_map` wrapped in `ScopedSuppressAllocationTracking` (STL hash buckets heap-allocate; workbuffer unusable because lifetime is program-wide). Game `TweaksScreen` inserts game-specific entries into this same map.
+**Slider map lifetime**: `TweaksSliderMap::Get()` returns a function-local static `std::unordered_map` wrapped in `ScopedSuppressAllocationTracking` (STL hash buckets heap-allocate; workbuffer unusable because lifetime is program-wide). Engine and game per-section `.cpp` files populate it at static-init time via anonymous-namespace `TweaksSliderMapRegistrar` instances co-located with the matching `Render*` function — each registrar owns exactly the labels its section consumes.
 
 **Extension hooks**: Pure virtuals for game-only sections (hex shield, particles); default-empty virtual hooks for game-only tabs hosted inside an engine section (e.g., the Wind window's Deposits tab, the Lighting Effects window's Visible/Lighting tabs).
 
-**Ordering convention**: Slider order in each per-section `.cpp` is the source of truth; Wrapper global order in `WrapperBase.h/.cpp` (and `game::Wrapper.h/.cpp`) must match.
+**Ordering convention**: Slider order in each per-section `.cpp` is the source of truth; Wrapper global order in the matching engine `<Tab>WrappersBase.{h,cpp}` (and the game-side per-tab wrapper pair) must match.
 
 **Label disambiguation**: `WrapperSlider`'s `mapKey` parameter lets display labels drop redundant prefixes while preserving unique ImGui IDs via `"label##mapKey"` when keys collide.
 

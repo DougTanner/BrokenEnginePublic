@@ -1,9 +1,36 @@
 #include "TweaksScreen.h"
 
+#include "Ui/WindDepositsWrappers.h"
+
 #if defined(BT_CLIENT)
 
 namespace game
 {
+
+namespace
+{
+const engine::TweaksSliderMapRegistrar gWindDepositsRegistrar
+{
+	// Player
+	{"Player Deposit Width", &gWindDepositPlayerWidth},
+	{"Player Deposit Intensity", &gWindDepositPlayerIntensity},
+	{"Player Deposit Length Multiplier", &gWindDepositPlayerLengthMultiplier},
+	// Spaceships
+	{"Spaceships Deposit Width", &gWindDepositSpaceshipsWidth},
+	{"Spaceships Deposit Intensity", &gWindDepositSpaceshipsIntensity},
+	{"Spaceships Deposit Length Multiplier", &gWindDepositSpaceshipsLengthMultiplier},
+	// Player Blasters
+	{"Player Blasters Deposit Width", &gWindDepositPlayerBlastersWidth},
+	{"Player Blasters Deposit Intensity", &gWindDepositPlayerBlastersIntensity},
+	{"Blasters Deposit Length Multiplier", &gWindDepositPlayerBlastersLengthMultiplier},
+	// Spaceships Blasters
+	{"Spaceships Blasters Deposit Width", &gWindDepositSpaceshipsBlastersWidth},
+	{"Spaceships Blasters Deposit Intensity", &gWindDepositSpaceshipsBlastersIntensity},
+	// Explosions
+	{"Explosions Deposit Width", &gWindDepositExplosionsWidth},
+	{"Explosions Deposit Intensity", &gWindDepositExplosionsIntensity},
+};
+}
 
 void TweaksScreen::RenderWindDepositsTab()
 {

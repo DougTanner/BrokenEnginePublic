@@ -3,6 +3,8 @@
 #include "Render.h"
 
 #include "Game.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
+#include "Ui/SmokeWrappersBase.h"
 
 namespace engine
 {
@@ -47,9 +49,9 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	XMFLOAT4 f4CurrentSmokeArea {fCenterX - fHalfWidth, fCenterY + fHalfHeight, fCenterX + fHalfWidth, fCenterY - fHalfHeight};
 
 	static bool sbSmoke = false;
-	if (sbSmoke != gSmoke.Get<bool>())
+	if (sbSmoke != gSmokeEnabled.Get<bool>())
 	{
-		sbSmoke = gSmoke.Get<bool>();
+		sbSmoke = gSmokeEnabled.Get<bool>();
 		gbSmokeClear = true;
 	}
 
@@ -77,7 +79,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 		return;
 	}
 
-	if (!gSmoke.Get<bool>())
+	if (!gSmokeEnabled.Get<bool>())
 	{
 		rGlobalLayout.f4SmokeArea = sf4PreviousSmokeArea;
 		rGlobalLayout.f4PreviousSmokeArea = sf4PreviousSmokeArea;

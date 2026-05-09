@@ -1,11 +1,109 @@
 #include "TweaksScreenBase.h"
 
+#include "TweaksSliderMap.h"
 #include "Ui/CurveWidget.h"
+#include "Ui/LightingWrappersBase.h"
 
 #if defined(BT_CLIENT)
 
 namespace engine
 {
+
+namespace
+{
+const TweaksSliderMapRegistrar gLightingRegistrar
+{
+	// Write - Pre-Blur
+	{"Lighting Blur Sigma", &gLightingBlurSigma},
+	{"Lighting Blur Sample Count", &gLightingBlurSampleCount},
+	{"Lighting Blur Edge Falloff", &gLightingBlurEdgeFalloff},
+	// Write - Deposit
+	{"Deposit Texture Multiplier", &gLightingDepositTextureMultiplier},
+	{"Deposit Threshold", &gLightingDepositThreshold},
+	{"Deposit Compress", &gLightingDepositCompress},
+	// Write - Spread
+	{"Spread Pass Count", &gSpreadPassCount},
+	{"Spread Decay", &gSpreadDecay},
+	{"Spread Accumulation Decay", &gSpreadAccumulationDecay},
+	// Write - Spread Start
+	{"Spread Texture Multiplier Start", &gSpreadTextureMultiplierStart},
+	{"Spread Directionality", &gSpreadDirectionality},
+	{"Spread Direction Count", &gSpreadDirectionCount},
+	{"Spread Distance", &gSpreadDistance},
+	{"Spread Ring Count", &gSpreadRingCount},
+	{"Spread Jitter", &gSpreadJitter},
+	{"Spread Sample Jitter Range Start", &gSpreadSampleJitterRangeStart},
+	{"Spread Sample Jitter Clustering Start", &gSpreadSampleJitterClusteringStart},
+	{"Spread Distance Falloff", &gSpreadDistanceFalloff},
+	{"Spread Height Multiplier", &gSpreadHeightMultiplier},
+	{"Spread Height End Height", &gSpreadHeightEndHeight},
+	{"Spread Height Power", &gSpreadHeightPower},
+	{"Spread Output Threshold", &gSpreadOutputThreshold},
+	{"Spread Output Compress", &gSpreadOutputCompress},
+	// Write - Spread End
+	{"Spread Texture Multiplier End", &gSpreadTextureMultiplierEnd},
+	{"Spread Directionality End", &gSpreadDirectionalityEnd},
+	{"Spread Direction Count End", &gSpreadDirectionCountEnd},
+	{"Spread Distance End", &gSpreadDistanceEnd},
+	{"Spread Ring Count End", &gSpreadRingCountEnd},
+	{"Spread Jitter End", &gSpreadJitterEnd},
+	{"Spread Sample Jitter Range End", &gSpreadSampleJitterRangeEnd},
+	{"Spread Sample Jitter Clustering End", &gSpreadSampleJitterClusteringEnd},
+	{"Spread Distance Falloff End", &gSpreadDistanceFalloffEnd},
+	{"Spread Output Threshold End", &gSpreadOutputThresholdEnd},
+	{"Spread Output Compress End", &gSpreadOutputCompressEnd},
+	// Combine
+	{"Combine Max Brightness", &gCombineMaxBrightness},
+	{"Combine Contrast", &gCombineContrast},
+	{"Combine Linear Start", &gCombineLinearStart},
+	{"Combine Linear Length", &gCombineLinearLength},
+	{"Combine Toe", &gCombineToe},
+	{"Combine Black Tightness", &gCombineBlackTightness},
+	{"Combine Pass Normalize", &gCombinePassNormalize},
+	{"Combine Exposure Pass Scale", &gCombineExposurePassScale},
+	{"Combine Hue Preserve", &gCombineHuePreserve},
+	// Read - Terrain Lighting
+	{"New Directional", &gLightingNewDirectional},
+	{"New Directional Power", &gLightingNewDirectionalPower},
+	{"Directional Power Mode", &gLightingDirectionalPowerMode},
+	{"New Ambient", &gLightingNewAmbient},
+	{"New Ambient Power", &gLightingNewAmbientPower},
+	{"Ambient Power Mode", &gLightingAmbientPowerMode},
+	{"Terrain", &gLightingTerrain},
+	{"Terrain Add", &gLightingAddTerrain},
+	{"Terrain Below Base Multiplier", &gLightingTerrainBelowBaseMultiplier},
+	{"Terrain Below Base Power", &gLightingTerrainBelowBasePower},
+	{"Objects", &gLightingObjects},
+	{"Objects Add", &gLightingObjectsAdd},
+	{"Day Final Multiplier", &gLightingDayFinalMultiplier},
+	{"Night Final Multiplier", &gLightingNightFinalMultiplier},
+	// Read - Water Lighting
+	{"Water Ambient Power", &gLightingWaterAmbientPower},
+	{"Water Ambient Power Mode", &gLightingWaterAmbientPowerMode},
+	{"Water New Ambient", &gLightingWaterNewAmbient},
+	{"Water New Ambient Power", &gLightingWaterNewAmbientPower},
+	{"Water New Ambient Power Mode", &gLightingWaterNewAmbientPowerMode},
+	{"Water Normal Soften", &gLightingWaterNormalSoften},
+	{"Water Normal Blend Wave", &gLightingWaterNormalBlendWave},
+	{"Water Intensity", &gLightingWaterIntensity},
+	{"Water Add", &gLightingWaterAdd},
+	{"Water One", &gLightingWaterOne},
+	{"Water One Power", &gLightingWaterOnePower},
+	{"Water Two", &gLightingWaterTwo},
+	{"Water Two Power", &gLightingWaterTwoPower},
+	{"Water Three", &gLightingWaterThree},
+	{"Water Three Power", &gLightingWaterThreePower},
+	{"Water Power Mode", &gLightingWaterPowerMode},
+	// Read - Water Reflected
+	{"Water Reflected Amount", &gLightingWaterReflectedAmount},
+	{"Water Reflected Normal Blend Wave", &gLightingWaterReflectedNormalBlendWave},
+	{"Water Reflected Distortion", &gLightingWaterReflectedDistortion},
+	{"Water Reflected Falloff Start", &gLightingWaterReflectedFalloffStart},
+	{"Water Reflected Falloff Power", &gLightingWaterReflectedFalloffPower},
+	{"Water Reflected Fresnel", &gLightingWaterReflectedFresnel},
+	{"Water Reflected Intensity", &gLightingWaterReflectedIntensity},
+};
+}
 
 void TweaksScreenBase::RenderLightingSection()
 {

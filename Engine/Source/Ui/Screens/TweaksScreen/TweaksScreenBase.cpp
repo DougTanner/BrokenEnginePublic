@@ -3,6 +3,7 @@
 #if defined(BT_CLIENT)
 
 #include "TweaksSliderMap.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
 
 namespace engine
 {

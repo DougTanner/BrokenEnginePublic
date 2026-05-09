@@ -1,9 +1,57 @@
 #include "TweaksScreen.h"
 
+#include "Ui/LightingWrappers.h"
+
 #if defined(BT_CLIENT)
 
 namespace game
 {
+
+namespace
+{
+const engine::TweaksSliderMapRegistrar gLightingEffectsVisibleRegistrar
+{
+	// Explosion Primary Visible
+	{"Explosion Primary Visible Area One", &gExplosionPrimaryVisibleAreaOne},
+	{"Explosion Primary Visible Area Two", &gExplosionPrimaryVisibleAreaTwo},
+	{"Explosion Primary Visible Area Three", &gExplosionPrimaryVisibleAreaThree},
+	{"Explosion Primary Visible Intensity One", &gExplosionPrimaryVisibleIntensityOne},
+	{"Explosion Primary Visible Intensity Two", &gExplosionPrimaryVisibleIntensityTwo},
+	{"Explosion Primary Visible Intensity Three", &gExplosionPrimaryVisibleIntensityThree},
+	// Explosion Secondary Visible
+	{"Explosion Secondary Visible Area One", &gExplosionSecondaryVisibleAreaOne},
+	{"Explosion Secondary Visible Area Two", &gExplosionSecondaryVisibleAreaTwo},
+	{"Explosion Secondary Visible Area Three", &gExplosionSecondaryVisibleAreaThree},
+	{"Explosion Secondary Visible Intensity One", &gExplosionSecondaryVisibleIntensityOne},
+	{"Explosion Secondary Visible Intensity Two", &gExplosionSecondaryVisibleIntensityTwo},
+	{"Explosion Secondary Visible Intensity Three", &gExplosionSecondaryVisibleIntensityThree},
+	// Crater Visible
+	{"Crater Visible Area One", &gCraterVisibleAreaOne},
+	{"Crater Visible Area Two", &gCraterVisibleAreaTwo},
+	{"Crater Visible Area Three", &gCraterVisibleAreaThree},
+	{"Crater Visible Area Four", &gCraterVisibleAreaFour},
+	{"Crater Visible Intensity One", &gCraterVisibleIntensityOne},
+	{"Crater Visible Intensity Two", &gCraterVisibleIntensityTwo},
+	{"Crater Visible Intensity Three", &gCraterVisibleIntensityThree},
+	{"Crater Visible Intensity Four", &gCraterVisibleIntensityFour},
+	// Players
+	{"Player Area Light Visible Intensity", &gPlayerAreaLightVisibleIntensity},
+	{"Player Impact Visible Area One", &gPlayerImpactVisibleAreaOne},
+	{"Player Impact Visible Area Two", &gPlayerImpactVisibleAreaTwo},
+	{"Player Impact Visible Intensity One", &gPlayerImpactVisibleIntensityOne},
+	{"Player Impact Visible Intensity Two", &gPlayerImpactVisibleIntensityTwo},
+	// Hex Shield
+	{"Hex Shield Intensity Decay", &gHexShieldIntensityDecay},
+	// Missiles
+	{"Missile Exhaust Visible Intensity", &gMissileExhaustVisibleIntensity},
+	// Spaceships
+	{"Enemy Blaster Visible Intensity", &gEnemyBlasterVisibleIntensity},
+	{"Hit Flash Visible Area One", &gHitFlashVisibleAreaOne},
+	{"Hit Flash Visible Area Two", &gHitFlashVisibleAreaTwo},
+	{"Hit Flash Visible Intensity One", &gHitFlashVisibleIntensityOne},
+	{"Hit Flash Visible Intensity Two", &gHitFlashVisibleIntensityTwo},
+};
+}
 
 void TweaksScreen::RenderLightingEffectsVisibleTab()
 {

@@ -7,7 +7,11 @@
 #include "Network/Server/ServerBroadcaster.h"
 #include "Network/Server/ServerTransferManager.h"
 #include "Profile/ProfileManager.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/Localization.h"
+#include "Ui/MiscWrappersBase.h"
+#include "Ui/SoundSettingsWrappersBase.h"
+#include "Ui/SunMoonWrappersBase.h"
 #include "Ui/Screens/TweaksScreen/TweaksScreen.h"
 
 namespace game
@@ -1051,11 +1055,11 @@ void Game::SaveGraphicsSettings()
 		.fMinSampleShading = engine::gMinSampleShading.Get(),
 		.fMipLodBias = engine::gMipLodBias.Get(),
 		.fWorldDetail = engine::gWorldDetail.Get(),
-		.bSmoke = engine::gSmoke.Get<bool>(),
+		.bSmoke = engine::gSmokeEnabled.Get<bool>(),
 		.fSmokeSimulationPixels = engine::gSmokeSimulationPixels.Get(),
 		.fSmokeSimulationArea = engine::gSmokeSimulationArea.Get(),
-		.fMinimumAmbient = engine::gMinimumAmbient.Get(),
-		.bWind = engine::gWind.Get<bool>(),
+		.fMinimumAmbient = engine::gSunMoonMinimumAmbient.Get(),
+		.bWind = engine::gWindEnabled.Get<bool>(),
 		.bOpaqueUi = engine::gOpaqueUi.Get<bool>(),
 		.fUiOpacity = engine::gUiOpacity.Get(),
 		.fUiFontScale = engine::gUiFontScale.Get(),
@@ -1080,11 +1084,11 @@ bool Game::LoadGraphicsSettings()
 		engine::gMinSampleShading.Set(graphicsSettings.fMinSampleShading);
 		engine::gMipLodBias.Set(graphicsSettings.fMipLodBias);
 		engine::gWorldDetail.Set(graphicsSettings.fWorldDetail);
-		engine::gSmoke.Set(graphicsSettings.bSmoke);
+		engine::gSmokeEnabled.Set(graphicsSettings.bSmoke);
 		engine::gSmokeSimulationPixels.Set(graphicsSettings.fSmokeSimulationPixels);
 		engine::gSmokeSimulationArea.Set(graphicsSettings.fSmokeSimulationArea);
-		engine::gMinimumAmbient.Set(graphicsSettings.fMinimumAmbient);
-		engine::gWind.Set(graphicsSettings.bWind);
+		engine::gSunMoonMinimumAmbient.Set(graphicsSettings.fMinimumAmbient);
+		engine::gWindEnabled.Set(graphicsSettings.bWind);
 		engine::gOpaqueUi.Set(graphicsSettings.bOpaqueUi);
 		engine::gUiOpacity.Set(graphicsSettings.fUiOpacity);
 		engine::gUiFontScale.Set(graphicsSettings.fUiFontScale);
@@ -1106,11 +1110,11 @@ void Game::ResetGraphicsSettings()
 	engine::gMinSampleShading.ResetToDefault();
 	engine::gMipLodBias.ResetToDefault();
 	engine::gWorldDetail.ResetToDefault();
-	engine::gSmoke.ResetToDefault();
+	engine::gSmokeEnabled.ResetToDefault();
 	engine::gSmokeSimulationPixels.ResetToDefault();
 	engine::gSmokeSimulationArea.ResetToDefault();
-	engine::gMinimumAmbient.ResetToDefault();
-	engine::gWind.ResetToDefault();
+	engine::gSunMoonMinimumAmbient.ResetToDefault();
+	engine::gWindEnabled.ResetToDefault();
 	engine::gOpaqueUi.ResetToDefault();
 	engine::gUiOpacity.ResetToDefault();
 	engine::gUiFontScale.ResetToDefault();

@@ -1,11 +1,86 @@
 #include "TweaksScreenBase.h"
 
+#include "TweaksSliderMap.h"
+#include "Ui/WaterWrappersBase.h"
 #include "Graphics/Managers/TextureManager.h"
 
 #if defined(BT_CLIENT)
 
 namespace engine
 {
+
+namespace
+{
+const TweaksSliderMapRegistrar gWaterRegistrar
+{
+	// Specular - Normals (per-sample row layout: chevron | size | weight-min | weight-max | rotation)
+	{"Size 1", &gLightingSampledNormalsOneSize},
+	{"Weight Min 1", &gLightingSampledNormalsWeightOneMin},
+	{"Weight Max 1", &gLightingSampledNormalsWeightOneMax},
+	{"Rotation 1", &gWaterNormalRotationOne},
+	{"Size 2", &gLightingSampledNormalsTwoSize},
+	{"Weight Min 2", &gLightingSampledNormalsWeightTwoMin},
+	{"Weight Max 2", &gLightingSampledNormalsWeightTwoMax},
+	{"Rotation 2", &gWaterNormalRotationTwo},
+	{"Size 3", &gLightingSampledNormalsThreeSize},
+	{"Weight Min 3", &gLightingSampledNormalsWeightThreeMin},
+	{"Weight Max 3", &gLightingSampledNormalsWeightThreeMax},
+	{"Rotation 3", &gWaterNormalRotationThree},
+	{"Speed Min", &gLightingSampledNormalsSpeedMin},
+	{"Speed Max", &gLightingSampledNormalsSpeedMax},
+	{"Depth Reflection Feather", &gWaterDepthReflectionFeather},
+	// Specular - Skybox
+	{"Sun Bias", &gLightingWaterSkyboxSunBias},
+	{"Normal Soften", &gLightingWaterSkyboxNormalSoften},
+	{"Normal Blend Wave", &gLightingWaterSkyboxNormalBlendWave},
+	{"Intensity", &gLightingWaterSkyboxIntensity},
+	{"Add", &gLightingWaterSkyboxAdd},
+	{"Skybox 1", &gLightingWaterSkyboxOne},
+	{"Skybox 1 Power", &gLightingWaterSkyboxOnePower},
+	{"Skybox 2", &gLightingWaterSkyboxTwo},
+	{"Skybox 2 Power", &gLightingWaterSkyboxTwoPower},
+	{"Skybox 3", &gLightingWaterSkyboxThree},
+	{"Skybox 3 Power", &gLightingWaterSkyboxThreePower},
+	{"Skybox Lod", &gLightingWaterSkyboxLod},
+	// Specular - Height Darken
+	{"Height Darken Top", &gWaterHeightDarkenTop},
+	{"Height Darken Bottom", &gWaterHeightDarkenBottom},
+	{"Height Darken Clamp", &gWaterHeightDarkenClamp},
+	// Low - Wave
+	{"Low Max", &gWaterLowMax},
+	{"Angle", &gWaterLowAngle},
+	{"Wavelength", &gWaterLowWavelength},
+	{"Amplitude", &gWaterLowAmplitude},
+	{"Speed", &gWaterLowSpeed},
+	{"Steepness", &gWaterLowSteepness},
+	// Low - Adjustments
+	{"Angle Adjust", &gWaterLowAngleAdjust},
+	{"Wavelength Adjust", &gWaterLowWavelengthAdjust},
+	{"Amplitude Adjust", &gWaterLowAmplitudeAdjust},
+	{"Speed Adjust", &gWaterLowSpeedAdjust},
+	// Low - Beach Fade
+	{"Beach Fade Top", &gWaterBeachFadeTop},
+	{"Beach Fade Bottom", &gWaterBeachFadeBottom},
+	// Medium - Wave
+	{"Medium Wavelength", &gWaterMediumWavelength},
+	{"Medium Amplitude", &gWaterMediumAmplitude},
+	{"Medium Speed", &gWaterMediumSpeed},
+	{"Medium Steepness", &gWaterMediumSteepness},
+	// Medium - Adjustments
+	{"Medium Angle Adjust", &gWaterMediumAngleAdjust},
+	{"Medium Wavelength Adjust", &gWaterMediumWavelengthAdjust},
+	{"Medium Amplitude Adjust", &gWaterMediumAmplitudeAdjust},
+	{"Medium Speed Adjust", &gWaterMediumSpeedAdjust},
+	// Depth
+	{"Water Depth", &gWaterDepth},
+	{"Water Terrain Height", &gWaterTerrainHeight},
+	{"Water Terrain Fade", &gWaterTerrainFade},
+	{"Water Color Noise Weight One", &gWaterColorNoiseWeightOne},
+	{"Water Color Noise Multiplier One", &gWaterColorNoiseMultiplierOne},
+	{"Water Color Noise Weight Two", &gWaterColorNoiseWeightTwo},
+	{"Water Color Noise Multiplier Two", &gWaterColorNoiseMultiplierTwo},
+};
+}
 
 void TweaksScreenBase::RenderWaterSection()
 {
@@ -87,7 +162,7 @@ void TweaksScreenBase::RenderWaterSection()
 			{
 				mActiveSubtab[kiSection] = 1;
 			}
-			RenderWaveCountRadioButtons(gLowCount);
+			RenderWaveCountRadioButtons(gWaterLowCount);
 
 			WrapperSeparatorText("Wave");
 			WrapperSlider("Low Max", kiSection);
@@ -119,7 +194,7 @@ void TweaksScreenBase::RenderWaterSection()
 			{
 				mActiveSubtab[kiSection] = 2;
 			}
-			RenderWaveCountRadioButtons(gMediumCount);
+			RenderWaveCountRadioButtons(gWaterMediumCount);
 
 			WrapperSeparatorText("Wave");
 			WrapperSlider("Medium Wavelength", kiSection);

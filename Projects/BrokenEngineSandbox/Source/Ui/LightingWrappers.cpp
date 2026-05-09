@@ -34,8 +34,8 @@ engine::Wrapper gCraterLightingIntensityThree(0.05f, 0.0f, 2.0f);
 engine::Wrapper gCraterLightingIntensityFour(0.0f, 0.0f, 2.0f);
 
 // Players - Area light
-engine::Wrapper gPlayersBlasterLightingArea(3.0f, 1.0f, 8.0f);
-engine::Wrapper gPlayersBlasterLightingIntensity(2.0f, 0.0f, 6.0f);
+engine::Wrapper gPlayerBlasterLightingArea(3.0f, 1.0f, 8.0f);
+engine::Wrapper gPlayerBlasterLightingIntensity(2.0f, 0.0f, 6.0f);
 
 // Players - Impact point light
 engine::Wrapper gPlayerImpactLightingAreaOne(2.0f, 1.0f, 4.0f);

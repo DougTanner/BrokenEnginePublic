@@ -1,9 +1,32 @@
 #include "TweaksScreen.h"
 
+#include "Ui/HexShieldWrappers.h"
+
 #if defined(BT_CLIENT)
 
 namespace game
 {
+
+namespace
+{
+const engine::TweaksSliderMapRegistrar gHexShieldRegistrar
+{
+	// Edge
+	{"Grow", &gHexShieldGrow},
+	{"Edge Distance", &gHexShieldEdgeDistance},
+	{"Edge Power", &gHexShieldEdgePower},
+	{"Edge Multiplier", &gHexShieldEdgeMultiplier},
+	// Wave
+	{"Wave Multiplier", &gHexShieldWaveMultiplier},
+	{"Wave Dot", &gHexShieldWaveDotMultiplier},
+	{"Wave Intensity", &gHexShieldWaveIntensityMultiplier},
+	{"Wave Intensity Power", &gHexShieldWaveIntensityPower},
+	{"Wave Falloff Power", &gHexShieldWaveFalloffPower},
+	// Direction
+	{"Direction Falloff Power", &gHexShieldDirectionFalloffPower},
+	{"Direction Multiplier", &gHexShieldDirectionMultiplier},
+};
+}
 
 void TweaksScreen::RenderHexShieldSection()
 {

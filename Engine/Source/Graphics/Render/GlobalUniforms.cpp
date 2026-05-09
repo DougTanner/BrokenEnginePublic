@@ -3,6 +3,14 @@
 #include "Render.h"
 
 #include "Game.h"
+#include "Ui/LightingWrappersBase.h"
+#include "Ui/MiscWrappersBase.h"
+#include "Ui/ShadowWrappersBase.h"
+#include "Ui/SmokeWrappersBase.h"
+#include "Ui/SunMoonWrappersBase.h"
+#include "Ui/TerrainWrappersBase.h"
+#include "Ui/WaterWrappersBase.h"
+#include "Ui/WindWrappersBase.h"
 
 namespace engine
 {
@@ -52,8 +60,8 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	rGlobalLayout.f4SunMoonNormal.w = fSunAngle;
 
 	// Sun/Moon color
-	float fAmbientNight = gMinimumAmbient.Get();
-	float fAmbientMorning = std::max(0.075f, gMinimumAmbient.Get());
+	float fAmbientNight = gSunMoonMinimumAmbient.Get();
+	float fAmbientMorning = std::max(0.075f, gSunMoonMinimumAmbient.Get());
 	XMVECTOR vecSunMorning = 0.5f * XMVectorSet(1.0f, 219.0f / 255.0f, 0.0f, 1.0f);
 	XMVECTOR vecAmbientMorning = XMVectorSet(fAmbientMorning, fAmbientMorning, fAmbientMorning, 1.0f);
 	XMVECTOR vecSunNoon = XMVectorSet(0.8f, 0.8f, 0.8f, 1.0f);
@@ -169,7 +177,7 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 
 	rGlobalLayout.fShadowFeather = 1.0f / (fShadowNoon * gShadowFeatherNoon.Get() + fShadowEvening * gShadowFeatherSunset.Get());
 	rGlobalLayout.fShadowNoonOffset = fOffsetNoon * gShadowFeatherNoonOffset.Get();
-	rGlobalLayout.fShadowDistanceFalloff = gShadowDistanceFallof.Get();
+	rGlobalLayout.fShadowDistanceFalloff = gShadowDistanceFalloff.Get();
 	rGlobalLayout.fShadowBlurSigma = gShadowBlurSigma.Get();
 
 	rGlobalLayout.fObjectShadowsBlurDistance = fDayPercent * gObjectShadowsBlurDistanceNoon.Get() + (1.0f - fDayPercent) * gObjectShadowsBlurDistanceSunset.Get();
@@ -267,7 +275,7 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, float fDayPercent, float fNoonPercent)
 {
 	// Terrain
-	rGlobalLayout.fIslandHeight = gIslandHeight.Get();
+	rGlobalLayout.fIslandHeight = gTerrainIslandHeight.Get();
 	rGlobalLayout.fIslandAmbientOcclusion = fNoonPercent * gIslandAmbientOcclusion.Get();
 	rGlobalLayout.fTerrainEarlyOut = gTerrainEarlyOut.Get();
 	rGlobalLayout.fWaterEarlyOut = gWaterEarlyOut.Get();
@@ -322,9 +330,9 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterDepthReflectionFeather = fDayPercent * gWaterDepthReflectionFeather.Get();
 	rGlobalLayout.fWaterColorNoiseFrequency = gWaterColorNoiseFrequency.Get();
 
-	rGlobalLayout.fWaterHighMultiplier = gHighMultiplier.Get();
-	rGlobalLayout.fWaterHighScaleOne = gHighScaleOne.Get();
-	rGlobalLayout.fWaterHighScaleTwo = gHighScaleTwo.Get();
+	rGlobalLayout.fWaterHighMultiplier = gWaterHighMultiplier.Get();
+	rGlobalLayout.fWaterHighScaleOne = gWaterHighScaleOne.Get();
+	rGlobalLayout.fWaterHighScaleTwo = gWaterHighScaleTwo.Get();
 
 	if (fSunAngle >= XM_PIDIV16 && fSunAngle < XM_PIDIV2)
 	{
@@ -364,14 +372,14 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterDirectional = std::pow(rGlobalLayout.fWaterDirectional, 2.0f);
 
 	rGlobalLayout.fWaterFresnel2 = std::pow(fDayPercent, 0.5f) * gWaterFresnel2.Get();
-	rGlobalLayout.fBeachFadeTop = gBeachFadeTop.Get();
-	rGlobalLayout.fBeachFadeInvRange = 1.0f / (gBeachFadeBottom.Get() - gBeachFadeTop.Get());
-	rGlobalLayout.fWaterLowSteepness = gLowSteepness.Get();
+	rGlobalLayout.fBeachFadeTop = gWaterBeachFadeTop.Get();
+	rGlobalLayout.fBeachFadeInvRange = 1.0f / (gWaterBeachFadeBottom.Get() - gWaterBeachFadeTop.Get());
+	rGlobalLayout.fWaterLowSteepness = gWaterLowSteepness.Get();
 
-	rGlobalLayout.fWaterMediumSteepness = gMediumSteepness.Get();
+	rGlobalLayout.fWaterMediumSteepness = gWaterMediumSteepness.Get();
 
-	rGlobalLayout.iWaterLowCount = static_cast<int>(std::min(gLowCount.Get<int64_t>(), static_cast<int64_t>(gLowMax.Get())));
-	rGlobalLayout.iWaterMediumCount = static_cast<int>(gMediumCount.Get<int64_t>());
+	rGlobalLayout.iWaterLowCount = static_cast<int>(std::min(gWaterLowCount.Get<int64_t>(), static_cast<int64_t>(gWaterLowMax.Get())));
+	rGlobalLayout.iWaterMediumCount = static_cast<int>(gWaterMediumCount.Get<int64_t>());
 
 	// Water precision: camera-relative UV reduction (double precision on CPU)
 	// Normal map mod uses 10.0 (not 1.0) because the shader multiplies reducedOrigin by non-integer
@@ -520,7 +528,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	// Debug
 	rGlobalLayout.fDebugTextureIndex = gDebugTextureIndex.Get();
 	rGlobalLayout.fDebugTextureFormat = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpDebugTextureFormats[static_cast<int64_t>(gDebugTextureIndex.Get())]);
-	rGlobalLayout.fDebugTextureLinearRange = gDebugTextureLinearRange.Get();
+	rGlobalLayout.fDebugTextureLinearRange = gMiscDebugTextureLinearRange.Get();
 }
 
 } // namespace engine

@@ -2,6 +2,9 @@
 
 #include "CommandBufferManager.h"
 #include "Profile/ProfileManager.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
+#include "Ui/LightingWrappersBase.h"
+#include "Ui/ShadowWrappersBase.h"
 
 namespace engine
 {

@@ -6,6 +6,7 @@
 
 #include "Game.h"
 #include "Frame/Collections/Players/Players.h"
+#include "Ui/SoundSettingsWrappersBase.h"
 
 namespace engine
 {

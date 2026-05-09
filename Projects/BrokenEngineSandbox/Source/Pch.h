@@ -85,7 +85,8 @@ inline constexpr LogLevel keLogLevelInput = keLogLevelDefault;
 
 #include "Common.h"
 #include "Shaders/ShaderLayouts.h"
-#include "Ui/Wrapper.h"
+#include "Ui/HexShieldWrappers.h"
+#include "Ui/WindDepositsWrappers.h"
 #include "Frame/Frame.h"
 #include "Engine.h"
 

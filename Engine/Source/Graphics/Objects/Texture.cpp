@@ -1,5 +1,7 @@
 #include "Texture.h"
 
+#include "Ui/GraphicsSettingsWrappersBase.h"
+
 namespace engine
 {
 

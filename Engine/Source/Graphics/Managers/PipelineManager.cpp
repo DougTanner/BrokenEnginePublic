@@ -3,6 +3,7 @@
 #include "Graphics/Managers/PipelineManager.h"
 
 #include "Profile/ProfileManager.h"
+#include "Ui/LightingWrappersBase.h"
 
 #include "Data/Shader.h"
 #include "Data/Texture.h"

@@ -4,6 +4,10 @@
 
 #include "Game.h"
 #include "Graphics/Debug/DebugRender.h"
+#include "Ui/LightingWrappersBase.h"
+#include "Ui/PbrWrappersBase.h"
+#include "Ui/SunMoonWrappersBase.h"
+#include "Ui/WaterWrappersBase.h"
 
 namespace engine
 {
@@ -182,9 +186,9 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 
 	// Water low frequency
 	{
-		int64_t iCount = gLowCount.Get<int64_t>();
+		int64_t iCount = gWaterLowCount.Get<int64_t>();
 
-		auto vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(gLowAngle.Get()));
+		auto vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(gWaterLowAngle.Get()));
 		rMainLayout.pf4LowWavesOne[0].x = XMVectorGetX(vecDirection);
 		rMainLayout.pf4LowWavesOne[0].y = XMVectorGetY(vecDirection);
 
@@ -192,9 +196,9 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 		rMainLayout.pf4LowWavesOne[0].z = XMVectorGetX(vecDirection);
 		rMainLayout.pf4LowWavesOne[0].w = XMVectorGetY(vecDirection);
 
-		rMainLayout.pf4LowWavesTwo[0].x = (2.0f * XM_PI) / (gLowWavelength.Get()); // Omega
-		rMainLayout.pf4LowWavesTwo[0].y = gLowAmplitude.Get() * fWaveAmplitudeScale;
-		rMainLayout.pf4LowWavesTwo[0].z = gLowSpeed.Get() * rMainLayout.pf4LowWavesTwo[0].x; // Phi
+		rMainLayout.pf4LowWavesTwo[0].x = (2.0f * XM_PI) / (gWaterLowWavelength.Get()); // Omega
+		rMainLayout.pf4LowWavesTwo[0].y = gWaterLowAmplitude.Get() * fWaveAmplitudeScale;
+		rMainLayout.pf4LowWavesTwo[0].z = gWaterLowSpeed.Get() * rMainLayout.pf4LowWavesTwo[0].x; // Phi
 		{
 			double dDirX = static_cast<double>(rMainLayout.pf4LowWavesOne[0].x);
 			double dDirY = static_cast<double>(rMainLayout.pf4LowWavesOne[0].y);
@@ -206,8 +210,8 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 		common::RandomEngine randomEngine {};
 		for (int64_t i = 1; i < iCount; ++i)
 		{
-			float fAngleAdjust = ((i % 2) == 0 ? 1.0f : -1.0f) * gLowAngleAdjust.Get() * common::Random(randomEngine);
-			vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(gLowAngle.Get() + fAngleAdjust));
+			float fAngleAdjust = ((i % 2) == 0 ? 1.0f : -1.0f) * gWaterLowAngleAdjust.Get() * common::Random(randomEngine);
+			vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(gWaterLowAngle.Get() + fAngleAdjust));
 			rMainLayout.pf4LowWavesOne[i].x = XMVectorGetX(vecDirection);
 			rMainLayout.pf4LowWavesOne[i].y = XMVectorGetY(vecDirection);
 
@@ -216,14 +220,14 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 			rMainLayout.pf4LowWavesOne[i].w = XMVectorGetY(vecDirection);
 
 			float fAdjust = common::Random(randomEngine);
-			float fWavelengthAdjust = fAdjust * gLowWavelengthAdjust.Get();
-			float fAmplitudeAdjust = (1.0f - fAdjust) * std::abs(gLowAmplitudeAdjust.Get()) * common::Random(randomEngine);
-			float fSpeedAdjust = fAdjust * gLowSpeedAdjust.Get();
-			rMainLayout.pf4LowWavesTwo[i].x = std::abs((2.0f * XM_PI) / (gLowWavelength.Get() + fWavelengthAdjust * gLowWavelength.Get())); // Omega
-			rMainLayout.pf4LowWavesTwo[i].y = std::abs(gLowAmplitude.Get() - fAmplitudeAdjust * gLowAmplitude.Get());
+			float fWavelengthAdjust = fAdjust * gWaterLowWavelengthAdjust.Get();
+			float fAmplitudeAdjust = (1.0f - fAdjust) * std::abs(gWaterLowAmplitudeAdjust.Get()) * common::Random(randomEngine);
+			float fSpeedAdjust = fAdjust * gWaterLowSpeedAdjust.Get();
+			rMainLayout.pf4LowWavesTwo[i].x = std::abs((2.0f * XM_PI) / (gWaterLowWavelength.Get() + fWavelengthAdjust * gWaterLowWavelength.Get())); // Omega
+			rMainLayout.pf4LowWavesTwo[i].y = std::abs(gWaterLowAmplitude.Get() - fAmplitudeAdjust * gWaterLowAmplitude.Get());
 			rMainLayout.pf4LowWavesTwo[i].y = std::min(rMainLayout.pf4LowWavesTwo[i].y, 0.1f * (1.0f / rMainLayout.pf4LowWavesTwo[i].x));
 			rMainLayout.pf4LowWavesTwo[i].y *= fWaveAmplitudeScale;
-			rMainLayout.pf4LowWavesTwo[i].z = (gLowSpeed.Get() + gLowSpeed.Get() * fSpeedAdjust * common::Random(randomEngine)) * rMainLayout.pf4LowWavesTwo[i].x; // Phi
+			rMainLayout.pf4LowWavesTwo[i].z = (gWaterLowSpeed.Get() + gWaterLowSpeed.Get() * fSpeedAdjust * common::Random(randomEngine)) * rMainLayout.pf4LowWavesTwo[i].x; // Phi
 			{
 				double dDirX = static_cast<double>(rMainLayout.pf4LowWavesOne[i].x);
 				double dDirY = static_cast<double>(rMainLayout.pf4LowWavesOne[i].y);
@@ -241,24 +245,24 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 
 	// Water medium frequency
 	{
-		int64_t iCount = gMediumCount.Get<int64_t>();
+		int64_t iCount = gWaterMediumCount.Get<int64_t>();
 
 		common::RandomEngine randomEngine {};
 		for (int64_t i = 0; i < iCount; ++i)
 		{
-			float fAngleAdjust = gMediumAngleAdjust.Get() * common::Random(randomEngine);
+			float fAngleAdjust = gWaterMediumAngleAdjust.Get() * common::Random(randomEngine);
 			auto vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngleAdjust));
 			rMainLayout.pf4MediumWavesOne[i].x = XMVectorGetX(vecDirection);
 			rMainLayout.pf4MediumWavesOne[i].y = XMVectorGetY(vecDirection);
 
-			float fWavelengthAdjust = -gMediumWavelengthAdjust.Get() + 2.0f * gMediumWavelengthAdjust.Get() * common::Random(randomEngine);
-			float fAmplitudeAdjust = -gMediumAmplitudeAdjust.Get() + 2.0f * gMediumAmplitudeAdjust.Get() * common::Random(randomEngine);
-			float fSpeedAdjust = -gMediumSpeedAdjust.Get() + 2.0f * gMediumSpeedAdjust.Get() * common::Random(randomEngine);
-			rMainLayout.pf4MediumWavesTwo[i].x = std::abs((2.0f * XM_PI) / (gMediumWavelength.Get() + fWavelengthAdjust * gMediumWavelength.Get())); // Omega
-			rMainLayout.pf4MediumWavesTwo[i].y = std::abs(gMediumAmplitude.Get() + fAmplitudeAdjust * gMediumAmplitude.Get());
+			float fWavelengthAdjust = -gWaterMediumWavelengthAdjust.Get() + 2.0f * gWaterMediumWavelengthAdjust.Get() * common::Random(randomEngine);
+			float fAmplitudeAdjust = -gWaterMediumAmplitudeAdjust.Get() + 2.0f * gWaterMediumAmplitudeAdjust.Get() * common::Random(randomEngine);
+			float fSpeedAdjust = -gWaterMediumSpeedAdjust.Get() + 2.0f * gWaterMediumSpeedAdjust.Get() * common::Random(randomEngine);
+			rMainLayout.pf4MediumWavesTwo[i].x = std::abs((2.0f * XM_PI) / (gWaterMediumWavelength.Get() + fWavelengthAdjust * gWaterMediumWavelength.Get())); // Omega
+			rMainLayout.pf4MediumWavesTwo[i].y = std::abs(gWaterMediumAmplitude.Get() + fAmplitudeAdjust * gWaterMediumAmplitude.Get());
 			rMainLayout.pf4MediumWavesTwo[i].y = std::min(rMainLayout.pf4MediumWavesTwo[i].y, 0.1f * (1.0f / rMainLayout.pf4MediumWavesTwo[i].x));
 			rMainLayout.pf4MediumWavesTwo[i].y *= fWaveAmplitudeScale;
-			rMainLayout.pf4MediumWavesTwo[i].z = (gMediumSpeed.Get() + fSpeedAdjust * gMediumSpeed.Get()) * rMainLayout.pf4MediumWavesTwo[i].x; // Phi
+			rMainLayout.pf4MediumWavesTwo[i].z = (gWaterMediumSpeed.Get() + fSpeedAdjust * gWaterMediumSpeed.Get()) * rMainLayout.pf4MediumWavesTwo[i].x; // Phi
 			double dDirX = static_cast<double>(rMainLayout.pf4MediumWavesOne[i].x);
 			double dDirY = static_cast<double>(rMainLayout.pf4MediumWavesOne[i].y);
 			double dOmega = static_cast<double>(rMainLayout.pf4MediumWavesTwo[i].x);

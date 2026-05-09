@@ -1,9 +1,37 @@
 #include "TweaksScreenBase.h"
 
+#include "TweaksSliderMap.h"
+#include "Ui/TerrainWrappersBase.h"
+
 #if defined(BT_CLIENT)
 
 namespace engine
 {
+
+namespace
+{
+const TweaksSliderMapRegistrar gTerrainRegistrar
+{
+	// Beach
+	{"Snow Multiplier", &gTerrainSnowMultiplier},
+	{"Beach Height", &gTerrainBeachHeight},
+	{"Beach Sand Size", &gTerrainBeachSandSize},
+	{"Beach Sand Blend", &gTerrainBeachSandBlend},
+	{"Beach Normals Size 1", &gTerrainBeachNormalsSizeOne},
+	{"Beach Normals Size 2", &gTerrainBeachNormalsSizeTwo},
+	{"Beach Normals Size 3", &gTerrainBeachNormalsSizeThree},
+	{"Beach Normals Blend", &gTerrainBeachNormalsBlend},
+	// Rock
+	{"Island Height", &gTerrainIslandHeight},
+	{"Rock Multiplier", &gTerrainRockMultiplier},
+	{"Rock Size", &gTerrainRockSize},
+	{"Rock Blend", &gTerrainRockBlend},
+	{"Rock Normals Size 1", &gTerrainRockNormalsSizeOne},
+	{"Rock Normals Size 2", &gTerrainRockNormalsSizeTwo},
+	{"Rock Normals Size 3", &gTerrainRockNormalsSizeThree},
+	{"Rock Normals Blend", &gTerrainRockNormalsBlend},
+};
+}
 
 void TweaksScreenBase::RenderTerrainSection()
 {

@@ -2,6 +2,8 @@
 
 #include "Pipeline.h"
 
+#include "Ui/GraphicsSettingsWrappersBase.h"
+
 namespace engine
 {
 

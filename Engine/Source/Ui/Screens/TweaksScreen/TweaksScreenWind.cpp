@@ -1,9 +1,40 @@
 #include "TweaksScreenBase.h"
 
+#include "TweaksSliderMap.h"
+#include "Ui/WindWrappersBase.h"
+
 #if defined(BT_CLIENT)
 
 namespace engine
 {
+
+namespace
+{
+const TweaksSliderMapRegistrar gWindRegistrar
+{
+	// Time & Global
+	{"Wind Time Scale", &gWindTimeScale},
+	{"Wind Threshold Low", &gWindThresholdLow},
+	{"Wind Threshold High", &gWindThresholdHigh},
+	// Propagation
+	{"Wind Advection Scale High", &gWindAdvectionScaleHigh},
+	{"Wind Advection Scale Low", &gWindAdvectionScaleLow},
+	{"Wind Swirl Scale High", &gWindSwirlScaleHigh},
+	{"Wind Swirl Scale Low", &gWindSwirlScaleLow},
+	{"Wind Swirl Amount High", &gWindSwirlAmountHigh},
+	{"Wind Swirl Amount Low", &gWindSwirlAmountLow},
+	{"Wind Swirl Speed High", &gWindSwirlSpeedHigh},
+	{"Wind Swirl Speed Low", &gWindSwirlSpeedLow},
+	{"Wind Vorticity Confinement High", &gWindVorticityConfinementHigh},
+	{"Wind Vorticity Confinement Low", &gWindVorticityConfinementLow},
+	{"Wind Decay High", &gWindDecayHigh},
+	{"Wind Decay Low", &gWindDecayLow},
+	{"Wind Momentum High", &gWindMomentumHigh},
+	{"Wind Momentum Low", &gWindMomentumLow},
+	{"Wind Diffusion High", &gWindDiffusionHigh},
+	{"Wind Diffusion Low", &gWindDiffusionLow},
+};
+}
 
 void TweaksScreenBase::RenderWindSection()
 {

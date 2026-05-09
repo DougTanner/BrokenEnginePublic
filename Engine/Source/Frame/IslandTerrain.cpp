@@ -1,5 +1,8 @@
 #include "IslandTerrain.h"
 
+#include "Ui/TerrainWrappersBase.h"
+#include "Ui/WaterWrappersBase.h"
+
 namespace engine
 {
 
@@ -118,7 +121,7 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 	float fRelativeElevation = fNormalizedElevation - mfBeachElevation;
 	if (fRelativeElevation >= 0.0f)
 	{
-		return gIslandHeight.Get() * fRelativeElevation;
+		return gTerrainIslandHeight.Get() * fRelativeElevation;
 	}
 	else
 	{

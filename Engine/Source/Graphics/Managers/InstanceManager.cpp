@@ -1,6 +1,7 @@
 #include "InstanceManager.h"
 
 #include "Profile/ProfileManager.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
 
 #include "Game.h"
 

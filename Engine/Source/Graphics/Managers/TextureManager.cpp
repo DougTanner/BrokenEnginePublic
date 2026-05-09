@@ -3,6 +3,8 @@
 #include "TextureManager.h"
 
 #include "Profile/ProfileManager.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
+#include "Ui/LightingWrappersBase.h"
 
 #include "Data/Data.h"
 

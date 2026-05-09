@@ -1,6 +1,8 @@
 #include "BufferManager.h"
 
 #include "Profile/ProfileManager.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
+#include "Ui/LightingWrappersBase.h"
 
 namespace engine
 {

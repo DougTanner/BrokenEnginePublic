@@ -1,9 +1,63 @@
 #include "TweaksScreen.h"
 
+#include "Ui/ParticleWrappers.h"
+
 #if defined(BT_CLIENT)
 
 namespace game
 {
+
+namespace
+{
+const engine::TweaksSliderMapRegistrar gParticlesRegistrar
+{
+	// Missile
+	{"Missile Particle Width", &gMissileExplosionParticleWidth},
+	{"Missile Particle Length", &gMissileExplosionParticleLength},
+	{"Missile Particle Length Spread", &gMissileExplosionParticleLengthSpread},
+	{"Missile Particle Position Jitter", &gMissileExplosionParticlePositionJitter},
+	{"Missile Particle Velocity Base", &gMissileExplosionParticleVelocityBase},
+	{"Missile Particle Velocity Spread", &gMissileExplosionParticleVelocitySpread},
+	{"Missile Particle Vertical Velocity Base", &gMissileExplosionParticleVerticalVelocityBase},
+	{"Missile Particle Vertical Velocity Spread", &gMissileExplosionParticleVerticalVelocitySpread},
+	{"Missile Particle Velocity Decay", &gMissileExplosionParticleVelocityDecay},
+	{"Missile Particle Gravity", &gMissileExplosionParticleGravity},
+	{"Missile Particle Visible Intensity", &gMissileExplosionParticleVisibleIntensity},
+	{"Missile Particle Intensity Spread", &gMissileExplosionParticleIntensitySpread},
+	{"Missile Particle Intensity Decay", &gMissileExplosionParticleIntensityDecay},
+	{"Missile Particle Intensity Power", &gMissileExplosionParticleIntensityPower},
+	// Player
+	{"Player Particle Width", &gPlayerExplosionParticleWidth},
+	{"Player Particle Length", &gPlayerExplosionParticleLength},
+	{"Player Particle Length Spread", &gPlayerExplosionParticleLengthSpread},
+	{"Player Particle Position Jitter", &gPlayerExplosionParticlePositionJitter},
+	{"Player Particle Velocity Base", &gPlayerExplosionParticleVelocityBase},
+	{"Player Particle Velocity Spread", &gPlayerExplosionParticleVelocitySpread},
+	{"Player Particle Vertical Velocity Base", &gPlayerExplosionParticleVerticalVelocityBase},
+	{"Player Particle Vertical Velocity Spread", &gPlayerExplosionParticleVerticalVelocitySpread},
+	{"Player Particle Velocity Decay", &gPlayerExplosionParticleVelocityDecay},
+	{"Player Particle Gravity", &gPlayerExplosionParticleGravity},
+	{"Player Particle Visible Intensity", &gPlayerExplosionParticleVisibleIntensity},
+	{"Player Particle Intensity Spread", &gPlayerExplosionParticleIntensitySpread},
+	{"Player Particle Intensity Decay", &gPlayerExplosionParticleIntensityDecay},
+	{"Player Particle Intensity Power", &gPlayerExplosionParticleIntensityPower},
+	// Spaceship
+	{"Spaceship Particle Width", &gSpaceshipExplosionParticleWidth},
+	{"Spaceship Particle Length", &gSpaceshipExplosionParticleLength},
+	{"Spaceship Particle Length Spread", &gSpaceshipExplosionParticleLengthSpread},
+	{"Spaceship Particle Position Jitter", &gSpaceshipExplosionParticlePositionJitter},
+	{"Spaceship Particle Velocity Base", &gSpaceshipExplosionParticleVelocityBase},
+	{"Spaceship Particle Velocity Spread", &gSpaceshipExplosionParticleVelocitySpread},
+	{"Spaceship Particle Vertical Velocity Base", &gSpaceshipExplosionParticleVerticalVelocityBase},
+	{"Spaceship Particle Vertical Velocity Spread", &gSpaceshipExplosionParticleVerticalVelocitySpread},
+	{"Spaceship Particle Velocity Decay", &gSpaceshipExplosionParticleVelocityDecay},
+	{"Spaceship Particle Gravity", &gSpaceshipExplosionParticleGravity},
+	{"Spaceship Particle Visible Intensity", &gSpaceshipExplosionParticleVisibleIntensity},
+	{"Spaceship Particle Intensity Spread", &gSpaceshipExplosionParticleIntensitySpread},
+	{"Spaceship Particle Intensity Decay", &gSpaceshipExplosionParticleIntensityDecay},
+	{"Spaceship Particle Intensity Power", &gSpaceshipExplosionParticleIntensityPower},
+};
+}
 
 void TweaksScreen::RenderParticlesSection()
 {

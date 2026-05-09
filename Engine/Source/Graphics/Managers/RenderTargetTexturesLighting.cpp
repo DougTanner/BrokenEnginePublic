@@ -3,6 +3,7 @@
 #include "RenderTargetTextures.h"
 
 #include "TextureManager.h"
+#include "Ui/LightingWrappersBase.h"
 
 namespace engine
 {

@@ -36,12 +36,16 @@ Checks: >
   performance-for-range-copy,
   performance-unnecessary-copy-initialization,
   performance-unnecessary-value-param,
-  readability-implicit-bool-conversion,
-  readability-uppercase-literal-suffix
+  readability-implicit-bool-conversion
 
 WarningsAsErrors: ''
 HeaderFilterRegex: '(Common|Engine|DataPacker|Projects)/.*\.(h|hpp)$'
 FormatStyle: none
+
+# VS 2026 ships clang-tidy.exe without its LLVM resource-dir headers, so DirectXMath's
+# `#include <cpuid.h>` (taken via the __clang__ branch) fails to resolve. Each project
+# adds Common/ClangTidyShims to AdditionalIncludeDirectories; the empty stub there is
+# picked up by clang-tidy. MSVC ignores it (the cpuid.h #include is gated on __clang__).
 
 CheckOptions:
   readability-implicit-bool-conversion.AllowIntegerConditions: false
