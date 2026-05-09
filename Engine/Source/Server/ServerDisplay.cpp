@@ -314,7 +314,7 @@ static void PaintProfilePanel(HDC hdcBuffer, int iLeft, int iTop, [[maybe_unused
 	int64_t iLineHeight = 32;
 
 	// Heap: std::string operations for clipboard cache
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	sProfileText.clear();
 
 	// FPS header

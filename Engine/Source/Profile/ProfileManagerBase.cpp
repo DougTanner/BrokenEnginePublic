@@ -101,7 +101,8 @@ void ProfileManagerBase::CpuStart(int64_t iCpuTimer, int64_t iThreads)
 
 		std::lock_guard lock(mCpuTimerMutex);
 
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		// Heap: try_emplace into mPerThreadTimerStates + vector::resize to kCpuTimerCount
+		ScopedSuppressAllocationTracking suppress;
 
 		std::vector<CpuTimerThreadState>& rThreadStates = mPerThreadTimerStates.try_emplace(std::this_thread::get_id()).first->second;
 		if (rThreadStates.size() < static_cast<size_t>(GetCpuTimerCount()))
@@ -147,7 +148,8 @@ void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCross
 			std::vector<CpuTimerThreadState>& rThreadStates = mPerThreadTimerStates.try_emplace(std::this_thread::get_id()).first->second;
 			if (rThreadStates.size() < static_cast<size_t>(GetCpuTimerCount()))
 			{
-				ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+				// Heap: vector::resize to kCpuTimerCount
+				ScopedSuppressAllocationTracking suppress;
 				rThreadStates.resize(static_cast<size_t>(GetCpuTimerCount()));
 			}
 			pState = &rThreadStates[static_cast<size_t>(iCpuTimer)];

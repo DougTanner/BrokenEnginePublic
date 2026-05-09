@@ -58,7 +58,7 @@ void MainMenuScreen::Render()
 		{
 			sbServerLaunched = true;
 			// Heap: std::filesystem::path allocates; one-time server launch path
-			ScopedSuppressAllocationTracking suppressAllocationTracking;
+			ScopedSuppressAllocationTracking suppress;
 			char pcPath[MAX_PATH] {};
 			GetModuleFileName(nullptr, pcPath, static_cast<DWORD>(std::size(pcPath) - 1));
 			std::filesystem::path serverPath = pcPath;

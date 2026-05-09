@@ -16,7 +16,7 @@ public:
 	template <typename... TUV>
 	void Write(std::format_string<const TUV&...> format, const TUV&... parameters)
 	{
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 
 		char pcBuffer[2048] {};
 		std::format_to_n_result<char*> result = std::format_to_n(pcBuffer, sizeof(pcBuffer) - 2, format, parameters...);

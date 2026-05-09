@@ -133,4 +133,18 @@ inline void WriteGridCoord(common::Workbuffer& rWorkbuffer, GridCoord coord)
 	rWorkbuffer.PushBack<int32_t>(coord.y);
 }
 
+template <typename T>
+inline void PushSimplePacketArg(common::Workbuffer& rWorkbuffer, const T& arg)
+{
+	if constexpr (std::is_same_v<T, GridCoord>)
+	{
+		WriteGridCoord(rWorkbuffer, arg);
+	}
+	else
+	{
+		static_assert(std::is_arithmetic_v<T>, "SendSimplePacket only supports arithmetic types and GridCoord; unwrap enums/ids/flags at the call site");
+		rWorkbuffer.PushBack<T>(arg);
+	}
+}
+
 } // namespace engine

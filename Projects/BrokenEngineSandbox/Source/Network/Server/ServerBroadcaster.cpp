@@ -17,7 +17,7 @@ namespace game
 void ServerBroadcaster::BuildFrameInputs()
 {
 	// Heap: unordered_map clear/insert, vector resize for statusChanges
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	gpGame->mFrameInputs.clear();
 	mSpawns.clear();
@@ -100,7 +100,7 @@ void ServerBroadcaster::BuildFrameInputs()
 void ServerBroadcaster::BroadcastStatusChanges(int64_t iTick)
 {
 	// Heap: vector construction for grid updates
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	const std::unordered_map<engine::GridCoord, std::vector<StatusChange>>& rTransfers = gpServerSession->mpTransferManager->mTransfers;
 
@@ -169,7 +169,7 @@ void ServerBroadcaster::BroadcastStatusChanges(int64_t iTick)
 void ServerBroadcaster::ProcessUpdatePlayerRequests()
 {
 	// Heap: try_emplace inserts client-owned-id vector entry on first request per client
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	for (const PendingUpdatePlayerRequest& rRequest : mPendingUpdatePlayerRequests)
 	{

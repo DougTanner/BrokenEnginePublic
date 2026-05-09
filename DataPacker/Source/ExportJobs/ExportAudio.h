@@ -17,7 +17,7 @@ public:
 
 	~ExportAudio() override = default;
 
-	int64_t GetVersion() const override { return 28 + sizeof(common::ChunkHeader); }
+	int64_t GetVersion() const override { return Version(28); }
 
 protected:
 

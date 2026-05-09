@@ -16,7 +16,7 @@ Server::Server(uint16_t uiPort)
 	address.host = ENET_HOST_ANY;
 	address.port = uiPort;
 
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	// Heap: one-time compression scratch buffer
 	mCompressionBuffer.resize(kiMaxPacketSize);
 	// Heap: ENet allocates host data internally
@@ -36,7 +36,7 @@ Server::~Server()
 	if (mpHost != nullptr)
 	{
 		// Heap: ENet destroys host data internally
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		enet_host_destroy(mpHost);
 	}
 
@@ -122,7 +122,7 @@ void Server::Poll()
 
 void Server::Connect(ENetEvent& rEvent)
 {
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	ClientConnection connection {};
 	connection.pPeer = rEvent.peer;
@@ -234,7 +234,7 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 				{
 					break;
 				}
-				ScopedSuppressAllocationTracking suppressAllocationTracking;
+				ScopedSuppressAllocationTracking suppress;
 				// Heap: raw game packet buffer grows on game-specific packets
 				mReceivedGamePackets.push_back({iClientId, pData[0], std::vector<uint8_t>(pData + 1, pData + iSize)});
 			}
@@ -249,7 +249,7 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 void Server::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates)
 {
 	miLatestBufferedTick = iTick;
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	std::unordered_set<GridCoord> activeCoords;
 	activeCoords.reserve(rGridUpdates.size());
@@ -288,7 +288,7 @@ void Server::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, G
 
 void Server::BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames)
 {
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	// Heap: ring buffer grows until steady state
 	BufferedFullFrame buffered {};

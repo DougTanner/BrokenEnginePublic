@@ -352,7 +352,7 @@ void GameBase::Render()
 			fDeltaTime = static_cast<float>(mfRenderTime - dT);
 		}
 		{
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			ScopedSuppressAllocationTracking suppress;
 
 			// Heap: std::erase_if may rehash, operator[] may insert — suppressed like the old MergeFramesForRender
 			// Remove render interpolates for deactivated coords
@@ -433,7 +433,7 @@ void GameBase::PrepareActiveSet()
 	{
 		// During replay, all recorded coords are active
 		// Heap: vector clear/push_back, unordered_map insertion + make_unique<Frame>
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		game::gpGame->mActiveCoords.clear();
 		for (const auto& [rCoord, rpReader] : mGameSaveLoad.GetReplayReaders())
 		{
@@ -474,7 +474,7 @@ void GameBase::SwapFrames()
 		&& mCoordFrames.at(game::gpGame->mClientGridCoord).pNext == nullptr)
 	{
 		// Heap: make_unique<Frame> for replay target coordinate
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		mCoordFrames.at(game::gpGame->mClientGridCoord).pNext = std::make_unique<game::Frame>();
 	}
 }

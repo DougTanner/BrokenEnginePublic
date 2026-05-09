@@ -15,7 +15,7 @@ void AreaDamage::Add(const AreaDamageSource& rSource)
 	if (sAreaDamageSources.empty())
 	{
 		// Heap: one-time per-thread pre-allocation (thread_local vectors start empty to avoid allocating during mi_process_init)
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		sAreaDamageSources.resize(kiAreaDamageSourcePreallocate);
 	}
 

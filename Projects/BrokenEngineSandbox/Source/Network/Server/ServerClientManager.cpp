@@ -24,7 +24,7 @@ void ServerClientManager::QueueSpawnForClient(int64_t iClientId, engine::GridCoo
 void ServerClientManager::ProcessSpawnRequests()
 {
 	// Heap: vector push_back for spawn StatusChanges
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	for (const engine::PendingSpawnRequest& rRequest : engine::gpServer->DrainPendingSpawnRequests())
 	{
@@ -50,7 +50,7 @@ void ServerClientManager::ProcessSpawnRequests()
 void ServerClientManager::NewClients()
 {
 	// Heap: vector push_back for waiting clients
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
 	for (engine::ClientConnection& rClient : rClients)
@@ -163,7 +163,7 @@ void ServerClientManager::FinalizeNewClients([[maybe_unused]] int64_t iTick)
 	}
 
 	// Heap: vector operations
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	// Find newly spawned player IDs (present now but not in pre-spawn snapshot)
 	const PlayersPostRender& rPlayers = *gpGame->CurrentFrame(engine::kOriginCoord).postRender.pPlayers;
@@ -221,7 +221,7 @@ void ServerClientManager::FinalizeNewClients([[maybe_unused]] int64_t iTick)
 void ServerClientManager::Disconnects()
 {
 	// Heap: drain disconnect events; per-client owned-id map mutations and fleet-manager bookkeeping
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	for (const engine::PendingDisconnect& rDisconnect : engine::gpServer->DrainPendingDisconnects())
 	{
@@ -275,7 +275,7 @@ void ServerClientManager::DetectPlayerDeaths()
 		}
 
 		// Heap: per-frame death scan may erase from owned-id vector and authorizedCoords
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 
 		// Check each owned player for death (reverse iterate for safe removal)
 		for (int64_t i = std::ssize(rDeathOwnedIds) - 1; i >= 0; --i)

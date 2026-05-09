@@ -13,7 +13,7 @@ namespace game
 TweaksScreen::TweaksScreen()
 {
 	// Heap: inserting game-specific entries into the slider map once
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	engine::TweaksSliderMap::Get().insert(
 	{

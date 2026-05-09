@@ -10,7 +10,7 @@ Client-side networking: connection lifecycle, server data ingestion, rollback-an
 - **ClientDataReceiver** - Applies incoming static data, full states, and per-tick updates into `CoordFrames`.
 - **ClientReconciler** - Single-pass rollback-and-replay per `ClientUpdate()`. Per-coord work runs in parallel via `common::gpMultithreading` on `CoordFrames` entries directly (no marshaling layer).
 - **ClientDesyncManager** - Desync detection, debug-frame capture, resync coordination, and frequency-based escalation to disconnect.
-- **ReconcileReplay** - Stateless pipeline helpers for the rollback path.
+- **ReconcileReplay** - Stateless pipeline helpers for the rollback path. Split across two siblings: `ReconcileReplay.cpp` holds coord-level entry points (pending-full-state injection, coord-result writeback, top-level coord reconcile); `ReconcileReplayTick.cpp` holds the tick-level primitives (rollback, replay-range scan, per-tick run + CRC validation, forward-step catch-up, fast-path catch-up).
 
 ## Architecture Notes
 
@@ -26,7 +26,7 @@ Client-side networking: connection lifecycle, server data ingestion, rollback-an
 
 - **No cross-coord writes**: per-coord workers touch only their own `CoordFrames` entry; first-wins desync selection and replay-flag aggregation run on the main thread post-dispatch. `mWorks.resize()` (never `clear()`) preserves scratch capacity.
 - **Validated ticks are frozen**: a tick whose client CRC matched the server must never re-simulate; re-sim attempts trip `DEBUG_BREAK()`.
-- **Stalled short-circuit**: while a debug frame is outstanding, poll/reconcile return early; `CanSend()` additionally gates sends on a live ENet peer.
+- **Stalled short-circuit**: while a debug frame is outstanding, poll/reconcile return early.
 - High-frequency logs (mismatch, throttle, clock error) use hysteresis / periodic emission.
 
 ## See Also

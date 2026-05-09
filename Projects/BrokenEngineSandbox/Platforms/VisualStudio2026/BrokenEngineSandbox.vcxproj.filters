@@ -196,6 +196,9 @@
     <Filter Include="Game\Ui\Screens">
       <UniqueIdentifier>{212658d4-68e3-46eb-b66e-07fd431eb65e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Game\Ui\Screens\TweaksScreen">
+      <UniqueIdentifier>{c6f9c4a8-4aa3-46fe-969d-6ef9398ec1be}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Engine\Source\Debug\EnumToString.h">
@@ -282,7 +285,7 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkCursor.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkDiscovery.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkDiscoveryScanner.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkManager.h">
@@ -627,8 +630,14 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\ImGuiManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreen.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenBase.h">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksSliderMap.h">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreen.h">
+      <Filter>Game\Ui\Screens\TweaksScreen</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Ui\Screens\DeathMenuScreen.h">
       <Filter>Game\Ui\Screens</Filter>
@@ -740,6 +749,9 @@
     <ClCompile Include="..\..\Source\Network\Client\ReconcileReplayClientState.cpp">
       <Filter>Game\Network\Client</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\Network\Client\ReconcileReplayTick.cpp">
+      <Filter>Game\Network\Client</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp">
       <Filter>Game\Network</Filter>
     </ClCompile>
@@ -761,7 +773,7 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Client\ClientSessionBase.cpp">
       <Filter>Engine\Network\Client</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkDiscovery.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkDiscoveryScanner.cpp">
       <Filter>Engine\Network</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkManager.cpp">
@@ -1104,7 +1116,13 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\ImGuiManager.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreen.cpp">
+    <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreen.cpp">
+      <Filter>Game\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenBase.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksSliderMap.cpp">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenPbr.cpp">
@@ -1128,8 +1146,8 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenMisc.cpp">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenHexShield.cpp">
-      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenHexShield.cpp">
+      <Filter>Game\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenSmoke.cpp">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
@@ -1137,8 +1155,32 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWind.cpp">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWindDeposits.cpp">
-      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenWindDeposits.cpp">
+      <Filter>Game\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenLightingEffectsVisible.cpp">
+      <Filter>Game\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenLightingEffectsLighting.cpp">
+      <Filter>Game\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenParticles.cpp">
+      <Filter>Game\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenSmokeDeposits.cpp">
+      <Filter>Game\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Wrapper.cpp">
+      <Filter>Game\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\LightingWrappers.cpp">
+      <Filter>Game\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\ParticleWrappers.cpp">
+      <Filter>Game\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\SmokeWrappers.cpp">
+      <Filter>Game\Ui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\CurveWidget.cpp">
       <Filter>Engine\Ui</Filter>

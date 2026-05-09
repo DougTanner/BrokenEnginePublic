@@ -1,12 +1,5 @@
 #pragma once
 
-namespace utils
-{
-
-struct ChunkHeader;
-
-} // namespace utils
-
 class ExportJob
 {
 public:
@@ -14,9 +7,12 @@ public:
 	// Version magic number for export format validation
 	static constexpr int64_t kiMagic = 0xDA7ACCCC;
 
+	// Folds in the chunk-header size so a header-layout change auto-invalidates every cache.
+	static constexpr int64_t Version(int64_t iRaw) { return iRaw + sizeof(common::ChunkHeader); }
+
 	ExportJob(common::ChunkFlags_t rChunkFlags, const std::filesystem::path& rFile);
-	ExportJob(ExportJob&& rToMove) noexcept;
-	ExportJob& operator=(ExportJob&& rToMove) noexcept;
+	ExportJob(ExportJob&& rToMove) noexcept = default;
+	ExportJob& operator=(ExportJob&& rToMove) noexcept = default;
 	virtual ~ExportJob() = default;
 
 	ExportJob() = delete;
@@ -52,3 +48,15 @@ protected:
 
 	std::vector<std::byte> mHeaderAndData;
 };
+
+template <typename T>
+concept IsExportJob =
+	std::derived_from<T, ExportJob> &&
+	requires
+	{
+		{ T::kName } -> std::convertible_to<std::string_view>;
+	} &&
+	requires (const std::filesystem::directory_entry& rEntry)
+	{
+		{ T::Handles(rEntry) } -> std::same_as<std::optional<common::ChunkFlags_t>>;
+	};

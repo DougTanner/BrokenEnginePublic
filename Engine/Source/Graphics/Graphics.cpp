@@ -197,7 +197,7 @@ void Graphics::Create()
 {
 	// Heap: make_unique for each manager (~12 objects that live for the app's lifetime or until device loss).
 	// Can't use workbuffer (temporary) or pre-allocate (managers have complex internal state built in constructors)
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	Refresh();
 	Destroy();

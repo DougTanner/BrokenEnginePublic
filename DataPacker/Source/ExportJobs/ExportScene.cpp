@@ -1,8 +1,10 @@
 #include "ExportScene.h"
 
-#include "ExportSceneAnimation.h"
-#include "ExportSceneSkeleton.h"
-#include "ExportSceneVertices.h"
+#include "tinygltf/tiny_gltf.h"
+
+#include "Scene/SceneAnimationLoader.h"
+#include "Scene/SceneSkeletonLoader.h"
+#include "Scene/SceneVerticesLoader.h"
 #include "Texture.h"
 
 #include "meshoptimizer.h"

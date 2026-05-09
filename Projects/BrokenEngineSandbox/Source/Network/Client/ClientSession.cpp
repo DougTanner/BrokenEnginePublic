@@ -54,7 +54,7 @@ std::chrono::nanoseconds ClientSession::ComputeClockCorrectionNs(int64_t iPreRec
 void ClientSession::PollNetwork()
 {
 	// Heap: ENet polling allocates packets, DrainReceived* moves vectors, stringstream serialization
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	if (!PollConnection())
 	{
@@ -140,14 +140,14 @@ void ClientSession::Poll()
 	// Poll network and send ACK before reconciliation so server gets acknowledgement ASAP
 	{
 		// Heap: ENet polling
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		PollNetwork();
 	}
 
 	gpProfileManager->CpuStart(engine::kCpuTimerNetworkSend);
 	{
 		// Heap: SendAck constructs ACK packet, Flush emits queued ENet sends
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		if (mpClientNetwork != nullptr)
 		{
 			mpClientNetwork->SendAck();
@@ -167,7 +167,7 @@ void ClientSession::Reconcile()
 	gpProfileManager->CpuStart(engine::kCpuTimerNetworkPollReconcile);
 	{
 		// Heap: reconciliation deserialization and map operations
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		int64_t iCurrentTick = gpGame->TickCounter();
 		if (mpClientNetwork != nullptr && !IsStalled())
 		{
@@ -218,7 +218,7 @@ void ClientSession::ConnectToDiscoveredServer()
 void ClientSession::DisconnectFromServer()
 {
 	// Heap: ClientNetwork destructor triggers ENet disconnect and cleanup
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	mpReconciler->Reset();
 	DisconnectFromServerBase();
@@ -382,16 +382,9 @@ void ClientSession::SendUpdatePlayerRequest(int64_t iGlobalPlayerId, bool bUseMi
 		optionalTickScope.emplace(gpGame->TickCounter());
 	}
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kClientUpdatePlayerRequest));
-	rWorkbuffer.PushBack<int64_t>(iGlobalPlayerId);
-	rWorkbuffer.PushBack<uint8_t>(bUseMissiles ? 1 : 0);
-	rWorkbuffer.PushBack<float>(fNavigationDelay);
-
-	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 	LOG(kNetwork, kVerbose, "ClientSession::SendUpdatePlayerRequest GlobalPlayer: {} Missiles: {} NavDelay: {}", iGlobalPlayerId, bUseMissiles, fNavigationDelay);
+
+	mpClientNetwork->SendSimplePacket(GamePacketType::kClientUpdatePlayerRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iGlobalPlayerId, static_cast<uint8_t>(bUseMissiles ? 1 : 0), fNavigationDelay);
 }
 
 void ClientSession::SendCreateFleetRequest()
@@ -407,14 +400,9 @@ void ClientSession::SendCreateFleetRequest()
 		optionalTickScope.emplace(gpGame->TickCounter());
 	}
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kClientCreateFleetRequest));
-
-	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 	LOG(kNetwork, kDebug, "ClientSession::SendCreateFleetRequest");
 
+	mpClientNetwork->SendSimplePacket(GamePacketType::kClientCreateFleetRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
 }
 
 void ClientSession::SendDeleteFleetRequest(int64_t iFleetIndex)
@@ -430,15 +418,9 @@ void ClientSession::SendDeleteFleetRequest(int64_t iFleetIndex)
 		optionalTickScope.emplace(gpGame->TickCounter());
 	}
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kClientDeleteFleetRequest));
-	rWorkbuffer.PushBack<int64_t>(iFleetIndex);
-
-	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 	LOG(kNetwork, kDebug, "ClientSession::SendDeleteFleetRequest Fleet: {}", iFleetIndex);
 
+	mpClientNetwork->SendSimplePacket(GamePacketType::kClientDeleteFleetRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iFleetIndex);
 }
 
 void ClientSession::SendSpawnIntoFleetRequest(int64_t iFleetIndex)
@@ -454,15 +436,9 @@ void ClientSession::SendSpawnIntoFleetRequest(int64_t iFleetIndex)
 		optionalTickScope.emplace(gpGame->TickCounter());
 	}
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kClientSpawnIntoFleetRequest));
-	rWorkbuffer.PushBack<int64_t>(iFleetIndex);
-
-	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 	LOG(kNetwork, kDebug, "ClientSession::SendSpawnIntoFleetRequest Fleet: {}", iFleetIndex);
 
+	mpClientNetwork->SendSimplePacket(GamePacketType::kClientSpawnIntoFleetRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iFleetIndex);
 }
 
 void ClientSession::SendRespawnInFleetRequest(int64_t iFleetIndex, int64_t iMemberIndex)
@@ -478,16 +454,9 @@ void ClientSession::SendRespawnInFleetRequest(int64_t iFleetIndex, int64_t iMemb
 		optionalTickScope.emplace(gpGame->TickCounter());
 	}
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kClientRespawnInFleetRequest));
-	rWorkbuffer.PushBack<int64_t>(iFleetIndex);
-	rWorkbuffer.PushBack<int64_t>(iMemberIndex);
-
-	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 	LOG(kNetwork, kDebug, "ClientSession::SendRespawnInFleetRequest Fleet: {} Member: {}", iFleetIndex, iMemberIndex);
 
+	mpClientNetwork->SendSimplePacket(GamePacketType::kClientRespawnInFleetRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iFleetIndex, iMemberIndex);
 }
 
 void ClientSession::SendFleetNavigationDelayRequest(int64_t iFleetIndex, float fDelay)
@@ -503,15 +472,9 @@ void ClientSession::SendFleetNavigationDelayRequest(int64_t iFleetIndex, float f
 		optionalTickScope.emplace(gpGame->TickCounter());
 	}
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kClientFleetNavigationDelay));
-	rWorkbuffer.PushBack<int64_t>(iFleetIndex);
-	rWorkbuffer.PushBack<float>(fDelay);
-
-	engine::NetworkManager::SendPacket(mpClientNetwork->GetServerPeer(), engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 	LOG(kNetwork, kDebug, "ClientSession::SendFleetNavigationDelayRequest Fleet: {} Delay: {}", iFleetIndex, fDelay);
+
+	mpClientNetwork->SendSimplePacket(GamePacketType::kClientFleetNavigationDelay, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iFleetIndex, fDelay);
 }
 
 #endif // BT_CLIENT

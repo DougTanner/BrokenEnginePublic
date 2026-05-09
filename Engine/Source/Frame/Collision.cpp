@@ -39,7 +39,7 @@ size_t Collision::AddLayer(const CollisionLayer& rLayer)
 	if (sLayers.empty())
 	{
 		// Heap: one-time per-thread pre-allocation (thread_local vectors start empty to avoid allocating during mi_process_init)
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		sLayers.resize(kiCollisionLayerPreallocate);
 	}
 
@@ -180,7 +180,7 @@ void Collision::SetupZones(FXMVECTOR vecArea)
 	if (sLayerPairZones.empty())
 	{
 		// Heap: one-time per-thread pre-allocation (thread_local vectors start empty to avoid allocating during mi_process_init)
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		sLayerPairZones.resize(kiCollisionLayerPairPreallocate);
 	}
 
@@ -321,13 +321,13 @@ void Collision::Collide(const Alignments& rAlignments, FXMVECTOR vecArea)
 		if (sResultEntries.empty())
 		{
 			// Heap: one-time per-thread pre-allocation (thread_local vectors start empty to avoid allocating during mi_process_init)
-			ScopedSuppressAllocationTracking suppressAllocationTracking;
+			ScopedSuppressAllocationTracking suppress;
 			sResultEntries.resize(std::max(kiCollisionResultPreallocate, iTotalResults));
 		}
 		else if (iTotalResults > static_cast<int64_t>(sResultEntries.size()))
 		{
 			// Heap: rare growth when collision count exceeds pre-allocation
-			ScopedSuppressAllocationTracking suppressAllocationTracking;
+			ScopedSuppressAllocationTracking suppress;
 			sResultEntries.resize(iTotalResults);
 		}
 	}
@@ -359,13 +359,13 @@ void Collision::AllocateResultStorage()
 	if (sResultSpans.empty())
 	{
 		// Heap: one-time per-thread pre-allocation (thread_local vectors start empty to avoid allocating during mi_process_init)
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		sResultSpans.resize(std::max(kiCollisionResultSpanPreallocate, iTotal));
 	}
 	else if (iTotal > static_cast<int64_t>(sResultSpans.size()))
 	{
 		// Heap: rare growth when total object count exceeds pre-allocation
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		sResultSpans.resize(iTotal);
 	}
 
@@ -390,7 +390,7 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 	if (rLayerB.iCount > static_cast<int64_t>(sTestedBGeneration.size()))
 	{
 		// Heap: one-time per-thread growth (thread_local vectors start empty to avoid allocating during mi_process_init)
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		sTestedBGeneration.resize(static_cast<size_t>(rLayerB.iCount));
 		memset(sTestedBGeneration.data(), 0, sTestedBGeneration.size() * sizeof(uint32_t));
 	}

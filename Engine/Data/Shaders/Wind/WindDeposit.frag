@@ -44,7 +44,7 @@ void main()
 	// Mark occupancy for deposited tiles (seeds hierarchical dispatch)
 	if (dot(f4OutColor.rg, f4OutColor.rg) > 0.0f)
 	{
-		ivec2 i2TileCoord = ivec2(gl_FragCoord.xy) / 8;
+		ivec2 i2TileCoord = ivec2(gl_FragCoord.xy) / kiComputeTileSize;
 		uint uiTileIndex = i2TileCoord.y * globalLayout.uiWindTilesX + i2TileCoord.x;
 		atomicOr(occupancy[uiTileIndex >> 5], 1u << (uiTileIndex & 31));
 	}

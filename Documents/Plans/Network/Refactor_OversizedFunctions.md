@@ -6,12 +6,12 @@ Several functions exceed the project's ~100-line guideline. Each has natural sub
 
 ## Changes
 
-### Projects/BrokenEngineSandbox/Source/Network/Client/ReconcileReplay.cpp — `ReconcileCoord` (lines 458-664, 207 lines)
-- Existing comment boundaries: "Aggressive CRC walk" (477-506), "Determine rollback base" (522-554), "Primary replay" (556-577), "Two-tier fallback" (581-623), "Output layout" (632-663). Extract each into a static helper taking `CoordWork&` and the shared scratch. [~2h]
-- Target: 207 → ~80 line orchestrator body + 5 helpers averaging ~25 lines. [~included]
+### Projects/BrokenEngineSandbox/Source/Network/Client/ReconcileReplay.cpp — `ReconcileCoord`
+- Existing comment boundaries: "Aggressive CRC walk", "Determine rollback base", "Primary replay", "Two-tier fallback", "Output layout". Extract each into a static helper taking `CoordWork&` and the shared scratch. [~2h]
+- Target: ~80 line orchestrator body + 5 helpers averaging ~25 lines. [~included]
 
-### Projects/BrokenEngineSandbox/Source/Network/Client/ReconcileReplay.cpp — `ReconcileRunTickCoord` (lines 79-182, 104 lines)
-- Extract transfer-logging block at 146-165 into `LogTransferSummary(const CoordWork& rWork, int64_t iTick, ...)`. [~30m]
+### Projects/BrokenEngineSandbox/Source/Network/Client/ReconcileReplayTick.cpp — `ReconcileRunTickCoord`
+- Extract transfer-logging block into `LogTransferSummary(const CoordWork& rWork, int64_t iTick, ...)`. [~30m]
 
 ### Projects/BrokenEngineSandbox/Source/Network/Client/ClientSession.cpp — `PollNetwork` (lines 54-152, 99 lines)
 - Extract per-event switch at 86-132 into `ApplyPlayerEvent(const ReceivedPlayerEvent& rEvent, auto updatePlayerCoord)`. [~45m]

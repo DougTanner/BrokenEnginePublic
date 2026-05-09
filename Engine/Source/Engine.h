@@ -13,7 +13,6 @@
 #include "File/DifferenceStream.h"
 
 // Network (shared)
-#include "Network/NetworkDiscovery.h"
 #include "Network/NetworkManager.h"
 #include "Network/NetworkProtocol.h"
 #include "Network/NetworkSerialization.h"
@@ -75,6 +74,7 @@
 #include "Input/RawInputManager.h"
 
 // Network client
+#include "Network/NetworkDiscoveryScanner.h"
 #include "Network/Client/Client.h"
 #include "Network/Client/ClientSessionBase.h"
 
@@ -87,6 +87,7 @@
 #include "Frame/IslandTerrain.h"
 
 #if defined(BT_SERVER)
+#include "Network/NetworkDiscoveryResponder.h"
 #include "Network/Server/Server.h"
 #include "Network/Server/ServerSessionBase.h"
 #include "Server/ServerDisplay.h"

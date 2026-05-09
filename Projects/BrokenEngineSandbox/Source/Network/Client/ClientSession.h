@@ -50,7 +50,7 @@ public:
 	// Queries
 	int64_t GetDesyncTick() const { return mpDesyncManager->GetDesyncTick(); }
 	bool IsStalled() const { return mpDesyncManager->IsStalled(); }
-	bool CanSend() const { return mpClientNetwork != nullptr && mpClientNetwork->IsConnected() && mpClientNetwork->GetServerPeer() != nullptr; }
+	bool CanSend() const { return mpClientNetwork != nullptr && mpClientNetwork->CanSend(); }
 
 	// Clock correction
 	std::chrono::nanoseconds ComputeClockCorrectionNs(int64_t iPreReconcileTick);

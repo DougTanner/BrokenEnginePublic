@@ -10,7 +10,7 @@ layout (binding = 0) uniform globalUniform
 	GlobalLayout globalLayout;
 };
 
-layout (binding = 1) buffer occupancyBuffer
+layout (binding = 1) readonly buffer occupancyBuffer
 {
 	uint occupancy[];
 };

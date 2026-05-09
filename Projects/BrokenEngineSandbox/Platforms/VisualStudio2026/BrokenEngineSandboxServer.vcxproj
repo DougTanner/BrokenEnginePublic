@@ -330,7 +330,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\..\..\Engine\Source\GameSaveLoad.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Memory\MemoryManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkCursor.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkDiscovery.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkDiscoveryResponder.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkProtocol.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSerialization.h" />
@@ -357,6 +357,8 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\Source\Network\PlayerEvents.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerSession.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerFleetManager.h" />
+    <ClInclude Include="..\..\Source\Network\Server\ServerFleetManagerUtils.h" />
+    <ClInclude Include="..\..\Source\Network\Server\FleetNavigationController.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerTransferManager.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerBroadcaster.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerClientManager.h" />
@@ -415,7 +417,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\CrashReport.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Main.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkDiscovery.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkDiscoveryResponder.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkManager.cpp" />
     <ClCompile Include="..\..\Source\Network\NetworkSerialization.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\Server.cpp" />
@@ -448,6 +450,8 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerSession.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerFleetManager.cpp" />
+    <ClCompile Include="..\..\Source\Network\Server\ServerFleetManagerUtils.cpp" />
+    <ClCompile Include="..\..\Source\Network\Server\FleetNavigationController.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerTransferManager.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerBroadcaster.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerClientManager.cpp" />

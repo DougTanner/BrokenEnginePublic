@@ -672,9 +672,6 @@ struct HexShieldLayout
 	float fMinimumIntensity INIT;
 };
 
-CONSTEXPR float kFalloffThreshold = 0.45f;
-CONSTEXPR float kFalloffThresholdInv = 1.0f / kFalloffThreshold;
-
 // Particles
 CONSTEXPR int kiMaxParticlesSpawn = 8 * 1024;
 CONSTEXPR int kiMaxParticles = 16 * 1024;

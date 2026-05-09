@@ -36,7 +36,7 @@ IXAudio2SourceVoice* StaticVoices::PlayOneShot([[maybe_unused]] const game::Fram
 
 	// Heap: AllocateVoice creates an XAudio2 source voice that persists until playback ends.
 	// XAudio2 owns the allocation internally, so workbuffer and pre-allocation are not possible.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{

@@ -233,7 +233,7 @@ void AudioManager::Update(const game::Frame* pFrame)
 
 	// Heap: Voice map emplace/erase, make_unique<StreamingVoice> for track transitions, and
 	// XAudio2 internal allocations (AllocateVoice, Update). Not controllable or pre-allocatable.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	if (mbSuspended.load(std::memory_order_acquire))
 	{

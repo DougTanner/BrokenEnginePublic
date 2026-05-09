@@ -9,7 +9,7 @@ std::unordered_map<std::string_view, Wrapper*>& TweaksSliderMap::Get()
 {
 	// Heap: static unordered_map built once on first call, lives forever. Can't use workbuffer (data lost on Pop)
 	// and can't pre-allocate (STL map manages its own hash buckets internally)
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	static std::unordered_map<std::string_view, Wrapper*> sSliderMap =
 	{

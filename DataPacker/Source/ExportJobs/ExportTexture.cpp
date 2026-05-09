@@ -316,10 +316,6 @@ std::optional<common::ChunkFlags_t> ExportTexture::Handles(const std::filesystem
 	return extensionSet.contains(rDirectoryEntry.path().extension().string()) ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kTexture) : std::nullopt;
 }
 
-void ExportTexture::AddToHeader(std::fstream& /*headerFileStream*/, const std::vector<std::unique_ptr<ExportTexture>>& /*rExportJobs*/)
-{
-}
-
 static std::vector<std::byte> ZlibCompress(const std::byte* puiSource, int64_t iSourceSize)
 {
 	uLongf uiBound = compressBound(static_cast<uLong>(iSourceSize));

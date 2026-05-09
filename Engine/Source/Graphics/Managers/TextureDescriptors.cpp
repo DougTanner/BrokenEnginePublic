@@ -263,7 +263,7 @@ float TextureDescriptors::CrcToIndex(common::crc_t crc)
 
 	// Heap: unordered_map emplace may allocate. Entries map CRC->index permanently for the texture array,
 	//   so a workbuffer (frame-scoped) can't own them, and we can't pre-populate without knowing all CRCs
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	int64_t iIndex = miNextTextureIndex++;
 	ASSERT(iIndex < static_cast<int64_t>(mImageInfos.size()));

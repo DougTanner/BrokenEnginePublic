@@ -1,9 +1,8 @@
 #pragma once
 
-#include "tinygltf/tiny_gltf.h"
+namespace tinygltf { class Model; }
 
 #include "ExportJob.h"
-#include "ExportSceneSkeleton.h"
 
 class ExportScene : public ExportJob
 {
@@ -20,7 +19,7 @@ public:
 
 	virtual ~ExportScene() = default;
 
-	virtual int64_t GetVersion() const override { return 53 + sizeof(common::ChunkHeader); }
+	virtual int64_t GetVersion() const override { return Version(53); }
 
 	virtual bool CheckDirty(const std::filesystem::path& rPackFile) override;
 

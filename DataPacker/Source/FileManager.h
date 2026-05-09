@@ -7,10 +7,6 @@ public:
 	FileManager(std::span<char*> argvSpan);
 	~FileManager();
 
-	void CopyThirdPartyLicenses();
-
-	std::filesystem::path mVulkanSdkBinariesDirectory;
-
 	std::filesystem::path mpInputDirectories[2];
 	std::filesystem::path mTempDirectory;
 	std::filesystem::path mOutputDirectory;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tinygltf/tiny_gltf.h"
+namespace tinygltf { class Model; }
 
 // Determine whether to use skeletal or node-based animation.
 // Returns true for skeletal (all channels target skin joints), false for node-based.

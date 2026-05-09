@@ -1,4 +1,6 @@
-#include "ExportSceneSkeleton.h"
+#include "SceneSkeletonLoader.h"
+
+#include "tinygltf/tiny_gltf.h"
 
 std::unordered_map<int, int> BuildNodeParentMap(const tinygltf::Model& rModel)
 {

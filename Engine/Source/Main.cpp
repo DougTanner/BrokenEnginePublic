@@ -208,7 +208,7 @@ void MainThread(HINSTANCE hinstance)
 	// Populate boot-time render interpolate for the single origin frame
 	{
 		// Heap: operator[] may insert default element
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates.try_emplace(kOriginCoord).first->second, pGame->RenderFrame(pGame->mClientGridCoord).interpolate);
 	}
 	game::gpCamera->Update(gpGraphics->mRenderInterpolates.at(kOriginCoord));
@@ -301,7 +301,7 @@ void MainThread(HINSTANCE hinstance)
 #else
 		{
 			// Heap: Win32 InvalidateRect may trigger internal GDI allocations
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			ScopedSuppressAllocationTracking suppress;
 			ServerUpdateDisplayStats();
 			InvalidateRect(sHwnd, nullptr, FALSE);
 		}
@@ -484,7 +484,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case WM_PAINT:
 		{
 			// Heap: GDI painting creates/destroys kernel objects that may trigger CRT allocations
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			ScopedSuppressAllocationTracking suppress;
 			PaintServerDisplay(hWnd);
 			return 0;
 		}

@@ -464,7 +464,7 @@ struct OptionalIdToIndex<T, FLAGS>
 	{
 		// Heap: GetSortedKeys() builds a temporary vector of all map keys for deterministic write ordering.
 		// Could use workbuffer, but save/replay is infrequent so the simplicity of std::vector wins here.
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		int64_t iSize = idToIndexMap.size();
 		common::Write(rStream, iSize);
 
@@ -480,7 +480,7 @@ struct OptionalIdToIndex<T, FLAGS>
 	{
 		// Heap: unordered_map::reserve and operator[] allocate buckets and nodes to rebuild the map from file.
 		// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		int64_t iSize = 0;
 		common::Read(rStream, iSize);
 		idToIndexMap.clear();
@@ -723,7 +723,7 @@ template <typename TMapType, typename TAccessor>
 void EraseStaleRenderState(TMapType& rRenderStateMap, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, TAccessor accessor)
 {
 	// Heap: unordered_map erase for stale render state entries
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	std::erase_if(rRenderStateMap, [&rRenderInterpolates, &rActiveCoords, &accessor](const auto& pair)
 	{
 		for (const GridCoord& rCoord : rActiveCoords)

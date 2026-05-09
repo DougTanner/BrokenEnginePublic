@@ -14,7 +14,7 @@ namespace engine
 void ClientSessionBase::ConnectToServer(std::string_view serverAddress, uint16_t uiPort, int64_t iCoordSlots)
 {
 	// Heap: ClientNetwork allocates ENet host and peer
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	miCoordSlots = iCoordSlots;
 	mpClientNetwork = std::make_unique<Client>(serverAddress.data(), uiPort, iCoordSlots);
 }
@@ -22,7 +22,7 @@ void ClientSessionBase::ConnectToServer(std::string_view serverAddress, uint16_t
 void ClientSessionBase::DisconnectFromServerBase()
 {
 	// Heap: ClientNetwork destructor triggers ENet disconnect and cleanup
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	miLatestServerTick = -1;
 	mpClientNetwork.reset();
@@ -47,7 +47,7 @@ void ClientSessionBase::DisconnectFromServerBase()
 void ClientSessionBase::StartServerDiscovery()
 {
 	// Heap: NetworkDiscoveryScanner creates a UDP socket
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	mpDiscoveryScanner = std::make_unique<NetworkDiscoveryScanner>();
 	mpDiscoveryScanner->StartScan();
 }
@@ -200,7 +200,7 @@ void ClientSessionBase::BuildSubscriptionQueue(const std::vector<GridCoord>& rDe
 bool ClientSessionBase::ApplyReceivedUpdatesBase()
 {
 	// Heap: map insertion for per-frame server updates
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	bool bHasNewData = false;
 	const std::vector<ClientCoordSlot>& rCoordSlots = mpClientNetwork->GetCoordSlots();

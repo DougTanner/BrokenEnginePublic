@@ -1,6 +1,6 @@
 ---
 name: next-plan
-description: Pull the highest-priority plan from `Documents/Plans/Order.md`, follow any unfinished prerequisites, validate it against the current codebase, refresh stale details, and present a ready-to-execute plan for approval. Removes the Order.md row immediately on selection and auto-deletes the source plan file once the final actionable plan has been created. Use when the user invokes `/next-plan`.
+description: Pull the highest-priority plan from `Documents/Plans/Order.md`, follow any unfinished prerequisites, validate it against the current codebase, refresh stale details, scan the codebase for similar changes the plan may have missed, and present a ready-to-execute plan for approval. Removes the Order.md row immediately on selection and auto-deletes the source plan file once the final actionable plan has been created. Use when the user invokes `/next-plan`.
 disable-model-invocation: true
 user-invocable: true
 argument-hint: "[plan-file-path]"
@@ -9,7 +9,7 @@ allowed-tools: [Read, Grep, Glob, Agent, Edit, Bash, AskUserQuestion]
 
 # Next Plan
 
-Walks the `## Plans` table in `Documents/Plans/Order.md`, picks the top-priority unblocked plan, verifies it still describes a real problem in the current code, refreshes stale line numbers or paths, and presents a ready-to-execute plan for explicit user approval.
+Walks the `## Plans` table in `Documents/Plans/Order.md`, picks the top-priority unblocked plan, verifies it still describes a real problem in the current code, refreshes stale line numbers or paths, scans the codebase for similar changes the plan may have missed, and presents a ready-to-execute plan for explicit user approval.
 
 ## Preconditions
 
@@ -26,7 +26,7 @@ Order.md has a single `## Plans` table at roughly line 21. Columns are: `# | Pla
 
 ## Workflow
 
-Execute these steps in order. Step 1 is pure research (Read / Grep / Glob / Agent) and resolves which plan to work on. Step 2 is the first mutation — the Order.md row is removed as soon as the target is selected. Steps 3 through 6 are research and synthesis against the surviving on-disk plan file. Step 7 is the second mutation — the plan file is deleted automatically once the final actionable plan has been produced. Step 8 presents the final plan to the user via `AskUserQuestion` for explicit approval.
+Execute these steps in order. Step 1 is pure research (Read / Grep / Glob / Agent) and resolves which plan to work on. Step 2 is the first mutation — the Order.md row is removed as soon as the target is selected. Steps 3 through 7 are research and synthesis against the surviving on-disk plan file. Step 8 is the second mutation — the plan file is deleted automatically once the final actionable plan has been produced. Step 9 presents the final plan to the user via `AskUserQuestion` for explicit approval.
 
 ### Step 1. Resolve dependencies
 
@@ -64,7 +64,7 @@ As soon as Step 1 has settled on a target plan (no unmet prerequisites, no unres
 Important sequencing rules:
 
 - Step 1 must be fully resolved before this edit. Any cycle/ambiguity prompts to the user happen inside Step 1; Step 2 only runs once a single target has been selected.
-- Do **not** delete the plan file in this step. The file is still needed for Steps 3–5 (relevance / validity / refresh).
+- Do **not** delete the plan file in this step. The file is still needed for Steps 3–7 (relevance / validity / refresh / similar-pattern search / synthesis).
 - If the row deletion fails (e.g., the row text is not unique or has changed), stop and report the failure. Do not proceed to deletion of the plan file.
 
 ### Step 3. Relevance check — does the code still exist?
@@ -81,8 +81,8 @@ Classify the plan into one of four buckets:
 
 - **Fully relevant** — every reference resolves; plan proceeds as-is.
 - **Partially relevant** — some references moved, got renamed, or shifted by a few lines; plan proceeds with refreshed references (Step 5).
-- **Obsolete** — the bug is already fixed, the file was deleted, or the code was rewritten in a way that invalidates the plan's premise. The Order.md row is already gone (Step 2). Skip ahead to Step 7 and delete the plan file too, then report the obsolescence to the user and stop. Both cleanup mutations have happened automatically; the user can re-invoke `/next-plan` to pick the next candidate.
-- **Ambiguous** — the original intent is unclear given current code. Ask the user before proceeding. If the user decides to abandon the plan, perform the Step 7 deletion of the plan file and stop (the Order.md row is already gone).
+- **Obsolete** — the bug is already fixed, the file was deleted, or the code was rewritten in a way that invalidates the plan's premise. The Order.md row is already gone (Step 2). Skip ahead to Step 8 and delete the plan file too, then report the obsolescence to the user and stop. Both cleanup mutations have happened automatically; the user can re-invoke `/next-plan` to pick the next candidate.
+- **Ambiguous** — the original intent is unclear given current code. Ask the user before proceeding. If the user decides to abandon the plan, perform the Step 8 deletion of the plan file and stop (the Order.md row is already gone).
 
 ### Step 4. Validity check — is it still worth doing?
 
@@ -94,7 +94,7 @@ Relevance is necessary but not sufficient. A plan can still describe real code y
 - Has the surrounding subsystem been refactored in a way that made the concern moot (e.g., the hot path the plan optimizes is no longer hot)?
 - Is the Effort / Impact / Risks scoring in the Order.md row still reasonable given current code? If the plan has grown significantly (e.g., a refactor that touched 5 files now touches 15), the score is stale — flag this to the user and ask whether to proceed, re-score, or skip.
 
-If the plan no longer clears a "worth doing" bar, stop and ask the user. Note that the Order.md row is already gone (Step 2) — the choice is between "delete the plan file too and abandon" (proceed to Step 7 then stop) or "keep the plan file on disk and re-add the row to Order.md manually later" (stop without Step 7). Surface both options to the user.
+If the plan no longer clears a "worth doing" bar, stop and ask the user. Note that the Order.md row is already gone (Step 2) — the choice is between "delete the plan file too and abandon" (proceed to Step 8 then stop) or "keep the plan file on disk and re-add the row to Order.md manually later" (stop without Step 8). Surface both options to the user.
 
 For Architectural-tier plans, dispatch an Opus subagent via the `Agent` tool to audit the plan independently against the current code — it gives a second opinion uncoloured by the plan's own framing. Inline the research for Quick Win and Medium tiers.
 
@@ -108,11 +108,33 @@ For plans classified as Fully or Partially relevant, rewrite the plan so every r
 - **Surrounding context**: if a cited function now has additional callers, more branches, or interacts with newly added state, note the change and adjust the plan's approach accordingly.
 - **New blockers**: if the refresh surfaces a new prerequisite (a sibling function the plan also needs to touch, a shared helper added since the plan was written), incorporate it.
 
-Do not pad the plan with unrelated cleanup the original plan did not call for. The goal is a faithful, executable version of the same intent, not a scope expansion.
+Do not pad the plan with unrelated cleanup the original plan did not call for. The goal is a faithful, executable version of the same intent, not a scope expansion. (Sibling instances of the same pattern — places the plan should arguably touch but doesn't — are surfaced separately in Step 6 rather than silently folded in here.)
 
-### Step 6. Synthesize the final actionable plan
+### Step 6. Search the codebase for similar changes the plan may have missed
 
-Assemble — **in memory**, do not write it to a file — a single markdown document matching the template below. This is the artifact the user will be asked to approve in Step 8.
+Dispatch an Opus subagent via the `Agent` tool to scan the codebase for additional locations that fit the plan's intent — places the original plan author overlooked, or that appeared in the codebase after the plan was written. The plan describes a specific transformation (a determinism fix in one file, a refactor of one collection, an allocation removed from one hot path); the subagent's job is to find sibling instances of the same pattern that would benefit from the same change.
+
+Brief the subagent with:
+
+- The full text of the target plan (refreshed in Step 5).
+- The transformation pattern the plan implements, extracted from its execution steps: what it changes, where, and why. State this explicitly — "find every other place that does X" — rather than handing the subagent the raw plan and hoping it infers the pattern.
+- Pointers into the codebase: `Documents/Overview.txt`, the relevant subsystem `CLAUDE.md` files (`Engine/Source/CLAUDE.md`, `Common/CLAUDE.md`, `Projects/BrokenEngineSandbox/Source/CLAUDE.md`, etc.), and `Pch.h` aggregation headers for the affected namespace.
+- An instruction to search BOTH directions: (a) **oversights** — code that already existed when the plan was written but was missed, and (b) **drift** — code added since the plan was written that exhibits the same pattern. The plan's age (commit history of the plan file or Order.md row) is useful context for distinguishing the two.
+
+Ask the subagent to return:
+
+- A list of candidate locations, each with `path:line`, the matching pattern, and a one-line justification for why the same change applies.
+- For each candidate, a label: **Oversight** (was probably present when the plan was written) or **Drift** (likely added since).
+- A confidence rating per candidate (high / medium / low) so the user can triage quickly.
+- An explicit "no additional candidates" answer if the sweep finds nothing — the absence is informative and should still be recorded in Step 7's synthesized plan.
+
+Inline the subagent's findings into the Step 7 synthesized plan under a new `## Additional candidate locations` section. Do **not** silently expand the plan's `## Execution steps` to include them — surface each candidate separately and let the user decide in Step 9 whether to fold them in, defer them to a follow-up plan, or ignore them.
+
+If the subagent returns more than ~10 candidates, the plan likely describes a pattern broad enough to warrant a dedicated systematic sweep rather than a one-off fix. Note that observation in the synthesized plan and surface it to the user in Step 9 — do not bury dozens of candidates under an unrelated plan.
+
+### Step 7. Synthesize the final actionable plan
+
+Assemble — **in memory**, do not write it to a file — a single markdown document matching the template below. This is the artifact the user will be asked to approve in Step 9.
 
 For the title, use the target plan file's top-level `# ` heading if one exists. Many plans are plain-text `.txt` files with no H1 — for those, fall back to the `Plan` cell stem from Order.md: strip the directory prefix and the extension but **preserve the original casing** (don't re-PascalCase kebab-case or vice-versa).
 
@@ -124,8 +146,13 @@ Examples:
 ```
 # <Plan title — H1 from plan file, or Order.md Plan-cell stem>
 
+## Summary
+**What this plan does:** <2-4 sentences in plain prose describing the change in concrete terms. Name the subsystems / files touched and the user- or engine-visible behavior change. Avoid restating the title; avoid step-by-step detail (that lives in Execution steps).>
+
+**Why it's good for the codebase:** <2-4 sentences naming the concrete benefit. Pick from: correctness bug fixed, determinism hazard closed, measurable perf win, debt removed that unblocks <named follow-up>, simplification that deletes <N> lines / removes <named abstraction>, hot-path allocation eliminated, etc. Be specific — "improves code quality" is not acceptable; "removes the per-frame heap allocation in `BlasterPostRender::Update` flagged by allocation tracking" is.>
+
 ## Context
-- Source: <relative path to the plan file> (deleted by this skill in Step 7)
+- Source: <relative path to the plan file> (deleted by this skill in Step 8)
 - Order.md row: Tier <T> / Effort <E> / Impact <I> / Risks <R> / Score <S> (already removed from Order.md in Step 2)
 - Notes: <the row's Notes cell, verbatim>
 - Relevance: <Fully | Partially> — <one-line justification>
@@ -135,27 +162,36 @@ Examples:
 ## Execution steps
 1. <Refreshed implementation steps from the plan, with current `path:line` citations.>
 2. ...
+
+## Additional candidate locations
+<Findings from the Step 6 codebase sweep — sibling instances of the same pattern the plan may have missed. One bullet per candidate, with `path:line`, label (**Oversight** | **Drift**), confidence (high/medium/low), and a one-line justification. If the sweep returned nothing, write "No additional candidates found." If it returned more than ~10 candidates, note that the pattern likely warrants a dedicated systematic sweep rather than expanding this plan.>
 ```
 
-Keep the execution steps in the order the plan originally specified, with citations pointing at current code. Do not add scope the plan did not originally include. The execution steps describe **only** the implementation work — Order.md row removal and plan file deletion are not in this list because they have already happened (Step 2) or are about to happen automatically (Step 7).
+Authoring the **Summary** section is mandatory and must come from synthesis, not boilerplate. Source the **What** from the plan's body (its goal statement, top-level description, or the union of its execution steps if no narrative exists) and the **Why** from a combination of the plan file's stated rationale and the Order.md row's `Impact` / `Notes` cells. If the plan file contains no rationale at all, infer the Why from the code drift uncovered during Steps 3-5 and prefix the sentence with "Inferred:" so the user knows it isn't author-supplied. Never write a generic Why like "improves quality" or "cleans up the codebase" — if you cannot name a concrete benefit, surface that gap to the user in Step 9 instead of papering over it.
 
-### Step 7. Delete the plan file from disk
+Keep the execution steps in the order the plan originally specified, with citations pointing at current code. Do not add scope the plan did not originally include — anything new the codebase sweep surfaced lives in `## Additional candidate locations`, not `## Execution steps`. Order.md row removal and plan file deletion are not in the execution list because they have already happened (Step 2) or are about to happen automatically (Step 8).
 
-Once the Step 6 markdown has been fully composed, delete the source plan file using `Bash` (`rm -f "<path>"`). This happens unconditionally, without confirming with the user — the synthesized plan in Step 6 is now the canonical record of intent, and the source file is no longer needed.
+### Step 8. Delete the plan file from disk
+
+Once the Step 7 markdown has been fully composed, delete the source plan file using `Bash` (`rm -f "<path>"`). This happens unconditionally, without confirming with the user — the synthesized plan in Step 7 is now the canonical record of intent, and the source file is no longer needed.
 
 Sequencing notes:
 
-- This step **must** run after Step 6 is complete (the plan must exist before the file is deleted) and **before** Step 8 (the user is approving the synthesized plan, not the original file).
-- If the file is already missing (rare — would imply the user removed it during the run), treat that as success and continue to Step 8.
+- This step **must** run after Step 7 is complete (the plan must exist before the file is deleted) and **before** Step 9 (the user is approving the synthesized plan, not the original file).
+- If the file is already missing (rare — would imply the user removed it during the run), treat that as success and continue to Step 9.
 
-### Step 8. Present the final plan and request approval
+### Step 9. Present the final plan and request approval
 
-Output the Step 6 markdown to the user as a normal text response so they can read the plan in full, then call `AskUserQuestion` with a single question along the lines of:
+Output the Step 7 markdown to the user as a normal text response so they can read the plan in full, then call `AskUserQuestion` with a single question along the lines of:
 
 - **question**: "Approve this plan and proceed with implementation?"
 - **options**: `Approve` (proceed to the C++ Code Change Process), `Reject` (abandon — Order.md row and plan file are already gone, the user takes the markdown above as their record if they want to recover later)
 
-If the user picks `Approve`, follow the standard C++ Code Change Process defined in the top-level `CLAUDE.md` (grill → implement → subagent searches → code review → style review → docs → vcxproj updates → build → final audit). The grill (`/external-grill-plan`) is the next concrete action.
+If the `## Additional candidate locations` section contains entries, also ask the user whether to fold any of them into the execution scope, defer them to a follow-up plan, or ignore them. Use a separate `AskUserQuestion` call (or a multi-select question) so the approval decision and the scope-expansion decision are tracked independently.
+
+If the user picks `Approve`, follow the standard C++ Code Change Process defined in the top-level `CLAUDE.md` (grill → implement → subagent searches → code review → style review → docs → vcxproj updates → build → final audit). The grill (`/external-grill-plan`) is the next concrete action. Carry the user's decisions on additional candidates into the grill so the implementation reflects the agreed scope.
+
+**Do not stop after the grill returns.** The grill's contract is to interrogate the plan and silently update it when it has questions; if it walks every branch and finds no decision points needing user input (common for trivial single-line refactors and dead-code deletions), it returns control with nothing to summarise. That return is **not** a checkpoint — it is the handoff into Step 2 of the C++ Code Change Process (make the code changes). Proceed to the edit immediately in the same turn. The only legitimate reasons to pause after the grill are (a) the grill itself asked the user a question that is still open, or (b) the grill explicitly recommended running `/external-design-interface` first per its role-boundary clause. Otherwise, edit.
 
 If the user picks `Reject`, stop. Do not attempt to restore the Order.md row or recreate the plan file — those mutations were committed unconditionally per the design of this skill, and the user is aware of that contract from the description and approval prompt.
 
@@ -166,10 +202,12 @@ If the user picks `Reject`, stop. Do not attempt to restore the Order.md row or 
 - **Plan file missing from disk** but row still in `## Plans`: the plan was likely hand-deleted without cleaning up Order.md. Step 1 detects this before committing; report the bookkeeping anomaly, ask the user whether to remove the stale row, and fall through to the next candidate. Do not commit Step 2 against a candidate whose plan file is already missing — the row removal would silently succeed but Step 3 would have nothing to read.
 - **User provided a plan name as an argument**: Step 1b handles this — normalize and use as the candidate; the dependency walk still runs from it downward.
 - **Prerequisite missing from both the table and disk**: Step 1e already treats this as satisfied. No extra handling needed.
-- **User rejects in Step 8 approval**: per the contract, Order.md row and plan file are already gone. Do not attempt restoration. The synthesized plan markdown printed in Step 8 is the only remaining record.
+- **User rejects in Step 9 approval**: per the contract, Order.md row and plan file are already gone. Do not attempt restoration. The synthesized plan markdown printed in Step 9 is the only remaining record.
+- **Step 6 sweep finds an obviously-superseding plan**: if the codebase sweep finds that the plan is one instance of a much larger pattern that has its own existing plan in `Order.md`, surface that to the user in Step 9 so they can decide whether to abandon the current plan in favor of the broader one.
 
 ## What this skill does not do
 
-- Does not execute the plan — that happens after Step 8 approval, and follows the main `CLAUDE.md` C++ Code Change Process.
+- Does not execute the plan — that happens after Step 9 approval, and follows the main `CLAUDE.md` C++ Code Change Process.
 - Does not re-prioritize the `## Plans` table. Changing priorities is a separate concern — if Step 4 surfaces that the score is stale, surface it to the user rather than silently re-ranking.
-- Does not preserve the source plan file or Order.md row on rejection. Cleanup is unconditional once Step 2 fires (row) and once Step 6 completes (file). This is the deliberate trade-off of running outside plan mode.
+- Does not preserve the source plan file or Order.md row on rejection. Cleanup is unconditional once Step 2 fires (row) and once Step 7 completes (file). This is the deliberate trade-off of running outside plan mode.
+- Does not silently expand plan scope from the Step 6 sweep. New candidate locations are surfaced for explicit user decision in Step 9; they are never folded into `## Execution steps` automatically.

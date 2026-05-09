@@ -48,6 +48,10 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 Use the `/compile` skill for build commands and details.
 Linker errors (LNK errors) can be ignored — the executable may be running (locking the file and preventing linking).
 
+## Static Analysis
+- `.editorconfig` (repo root) — formatting (Allman, tabs, spacing, include sort). VS applies on save / Ctrl+K, Ctrl+D.
+- `.clang-tidy` (repo root) — 19 enforced checks mapped to `Documents/C++StyleGuide.txt`. Opt-in per project: *Properties → Code Analysis → Enable Clang-Tidy*. `WarningsAsErrors` is empty; pre-existing code may produce warnings. `misc-const-correctness` and `readability-identifier-naming` are deferred — see comment block at the top of the file.
+
 ## Client/Server Builds
 
 Same source, two executables:

@@ -19,7 +19,7 @@ void Server::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick,
 	LOG(kNetwork, kDebug, "Server::SendCoordFullState Client: {} Frame: {} Slot: {} Coord: ({},{})", iClientId, iTick, iSlot, coord.x, coord.y);
 
 	// Serialize frame to a temporary stringstream
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	// Heap: stringstream allocates for frame serialization
 	std::ostringstream frameStream(std::ios::binary);
 	frameStream << *pFrame;
@@ -55,7 +55,7 @@ void Server::SendCoordStaticData(int64_t iClientId, int64_t iSlot, GridCoord coo
 	LOG(kNetwork, kDebug, "Server::SendCoordStaticData Client: {} Slot: {} Coord: ({},{})", iClientId, iSlot, coord.x, coord.y);
 
 	// Heap: stringstream allocates for static data serialization
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	std::ostringstream staticStream(std::ios::binary);
 	rStaticData.Write(staticStream);
 	std::string staticData = staticStream.str();
@@ -96,44 +96,17 @@ void Server::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char*
 
 void Server::SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord)
 {
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
 	// [1B type][1B slotIndex][2B epoch][4B coord.x][4B coord.y]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerSubscribeAccept));
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
 	uint16_t uiEpoch = (iSlot < std::ssize(rClient.coordSubscriptions)) ? rClient.coordAckStates.at(iSlot).uiEpoch : 0;
-	rWorkbuffer.PushBack<uint16_t>(uiEpoch);
-	WriteGridCoord(rWorkbuffer, coord);
-
-	NetworkManager::SendPacket(rClient.pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-}
-
-void Server::SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot)
-{
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	// [1B type][1B slotIndex]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerUnsubscribeAck));
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
-
-	NetworkManager::SendPacket(rClient.pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	SendSimplePacket(rClient.pPeer, PacketType::kServerSubscribeAccept, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(iSlot), uiEpoch, coord);
 }
 
 void Server::SendTimespeedUpdate(ENetPeer* pPeer, int64_t iMultiply, int64_t iDivide)
 {
 	LOG(kNetwork, kDebug, "Server::SendTimespeedUpdate Multiply: {} Divide: {}", iMultiply, iDivide);
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
 	// [1B type][8B multiply][8B divide]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerTimespeedUpdate));
-	rWorkbuffer.PushBack<int64_t>(iMultiply);
-	rWorkbuffer.PushBack<int64_t>(iDivide);
-
-	NetworkManager::SendPacket(pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	SendSimplePacket(pPeer, PacketType::kServerTimespeedUpdate, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iMultiply, iDivide);
 }
 
 void Server::BroadcastTimespeedUpdate(int64_t iMultiply, int64_t iDivide)
@@ -169,7 +142,7 @@ void Server::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, PacketTyp
 void Server::SendUpdate(ClientConnection& rClient, int64_t iTick)
 {
 	// Heap: workbuffer Push (per-slot scope) and ENet packet creation in SendPacket
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	// Send one packet per active subscription slot
 	for (int64_t iSlot = 0; iSlot < std::ssize(rClient.coordSubscriptions); ++iSlot)
@@ -204,7 +177,7 @@ void Server::SendUpdate(ClientConnection& rClient, int64_t iTick)
 void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 {
 	// Heap: workbuffer Push and ENet packet creation per resend frame
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	// Iterate per-slot: each active subscription has its own ACK state and coord ring buffer
 	for (int64_t iSlot = 0; iSlot < std::ssize(rClient.coordSubscriptions); ++iSlot)
@@ -313,12 +286,7 @@ void Server::BroadcastLoadNotification()
 			continue;
 		}
 
-		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-		rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerLoadNotification));
-
-		NetworkManager::SendPacket(rClient.pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+		SendSimplePacket(rClient.pPeer, PacketType::kServerLoadNotification, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
 	}
 }
 

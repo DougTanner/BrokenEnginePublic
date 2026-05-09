@@ -47,7 +47,7 @@ void ServerSession::PrepareTick()
 	// Recompute active set each tick so new client subscriptions
 	// (set by FinalizeNewClients on the previous frame) are picked up immediately
 	// Heap: ComputeActiveSet/EnsureNextFrames may grow mActiveCoords and CoordFrames maps
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	ComputeActiveSet();
 	gpGame->EnsureNextFrames();
@@ -65,7 +65,7 @@ void ServerSession::PrepareTick()
 void ServerSession::BroadcastTick(int64_t iTick)
 {
 	// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	HandleResyncRequests(iTick);
 	mpClientManager->FinalizeNewClients(iTick);
@@ -80,7 +80,7 @@ void ServerSession::BroadcastTick(int64_t iTick)
 void ServerSession::SendResends(int64_t iTick)
 {
 	// Heap: ENet packet creation per resend in engine::Server::SendResends
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
 	for (engine::ClientConnection& rClient : rClients)
 	{
@@ -184,7 +184,7 @@ void ServerSession::ParseReceivedGamePackets()
 void ServerSession::PreTickNetwork()
 {
 	// Heap: ENet polling and game server methods allocate vectors for inputs, spawns, and status changes
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	mpBroadcaster->ClearPendingRequests();
 	mpFleetManager->ClearPendingRequests();
 	PollNetworkBase();
@@ -263,7 +263,7 @@ void ServerSession::SyncActiveFrames()
 void ServerSession::ComputeActiveSet()
 {
 	// Heap: mActiveCoords vector clear/push_back may allocate. Persists as Game member across frame updates
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	gpGame->mActiveCoords.clear();
 	AddSubscribedCoords();
@@ -286,15 +286,8 @@ void ServerSession::SendAssignPlayer(int64_t iClientId, engine::global_id_t glob
 		return;
 	}
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
 	// [1B type][8B global player ID][GridCoord]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kServerAssignPlayer));
-	rWorkbuffer.PushBack<int64_t>(globalId.iValue);
-	engine::WriteGridCoord(rWorkbuffer, coord);
-
-	engine::NetworkManager::SendPacket(pClient->pPeer, engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	engine::gpServer->SendSimplePacket(pClient->pPeer, GamePacketType::kServerAssignPlayer, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, globalId.iValue, coord);
 }
 
 void ServerSession::SendPlayerState(int64_t iClientId, PlayerStateWireType eWireType, int64_t iGlobalPlayerId, engine::GridCoord coord)
@@ -313,16 +306,8 @@ void ServerSession::SendPlayerState(int64_t iClientId, PlayerStateWireType eWire
 	};
 	LOG(kNetwork, kInfo, "ServerSession::SendPlayerState State: {} Client: {} GlobalPlayer: {} Grid: ({},{})", kpStateNames[static_cast<size_t>(eWireType)], iClientId, iGlobalPlayerId, coord.x, coord.y);
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
 	// [1B type][1B state][8B global player ID][4B coord.x][4B coord.y]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kServerPlayerState));
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(eWireType));
-	rWorkbuffer.PushBack<int64_t>(iGlobalPlayerId);
-	engine::WriteGridCoord(rWorkbuffer, coord);
-
-	engine::NetworkManager::SendPacket(pClient->pPeer, engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	engine::gpServer->SendSimplePacket(pClient->pPeer, GamePacketType::kServerPlayerState, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(eWireType), iGlobalPlayerId, coord);
 }
 
 void ServerSession::SubscriptionUpdates([[maybe_unused]] int64_t iTick)
@@ -354,7 +339,7 @@ void ServerSession::HandleResyncRequests([[maybe_unused]] int64_t iTick)
 	}
 
 	// Heap: per-resync per-slot SendCoordFullState allocates serialization buffers
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	for (int64_t iClientId : rResyncClientIds)
 	{
@@ -389,11 +374,11 @@ void ServerSession::ResetClientsForLoad()
 {
 	LOG(kDefault, kDebug, "ServerSession::ResetClientsForLoad");
 	// Heap: re-link rebuilds owned-id vectors and authorizedCoords; pending state cleared across managers
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	engine::gpServer->BroadcastLoadNotification();
 
-	mpFleetManager->mPendingFlagshipUpdates.clear();
+	mpFleetManager->mNavigation.ClearPendingFlagshipUpdates();
 	std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
 
 	// Try to re-link each client to their players by GUID
@@ -450,7 +435,7 @@ void ServerSession::ResetClientsForLoad()
 	// were just authoritatively restored by ReadFleetData + per-client OnResetForLoad above;
 	// a full ResetState() here would annihilate that restoration.
 	mpFleetManager->ClearPendingRequests();
-	// mPendingFlagshipUpdates was cleared at the start of this function (line 396); fleet restoration above re-queued entries — do NOT clear again here.
+	// Pending flagship updates were cleared at the start of this function via mNavigation.ClearPendingFlagshipUpdates(); fleet restoration above re-queued entries — do NOT clear again here.
 
 	// Clear stale ring buffers and pending events
 	engine::gpServer->ClearBufferedFrames();

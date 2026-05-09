@@ -1,4 +1,6 @@
-#include "ExportSceneVertices.h"
+#include "SceneVerticesLoader.h"
+
+#include "tinygltf/tiny_gltf.h"
 
 XMMATRIX ComputeNodeWorldTransform(int iNodeIndex, const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeParentMap)
 {

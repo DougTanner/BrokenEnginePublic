@@ -15,7 +15,7 @@ void ClientSession::UpdateDesiredCoords(SubscriptionChangeReason eReason)
 		optionalTickScope.emplace(gpGame->TickCounter());
 
 	// Heap: mDesiredCoords.assign, mUnwantedTimestamps map ops, and the kNetwork delta log build allocate.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	auto appendCoordSv = [](common::ScopedWorkbufferArena& rArena, engine::GridCoord coord, bool bLeadingComma)
 	{
@@ -149,7 +149,7 @@ void ClientSession::UpdateSubscriptions()
 	}
 
 	// Heap: vector operations for subscription queue
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	// Build effective desired list: fresh desired + unexpired sticky coords
 	std::vector<engine::GridCoord> effectiveDesired = mDesiredCoords;

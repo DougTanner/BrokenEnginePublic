@@ -19,7 +19,7 @@ void StreamingVoices::Play(common::crc_t uiAudioCrc)
 
 	// Heap: make_unique<StreamingVoice> (with triple buffers) and vector push_back for crossfade list.
 	// These outlive the call (persist until fade-out completes), so workbuffer/pre-alloc won't work.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	// Move current stream to previous list for fade out
 	if (mpCurrentStream != nullptr)
@@ -70,7 +70,7 @@ void StreamingVoices::Update(float fDeltaTime)
 {
 	// Heap: Member vector collects faded-out streams for deferred destruction outside the mutex.
 	// Allocation reused across frames. Suppression covers potential growth and destructor calls.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	// Collect streams to destroy outside the lock to prevent deadlock with XAudio2 callbacks
 	{

@@ -29,7 +29,7 @@ public:
 
 	virtual ~ExportShader() = default;
 
-	virtual int64_t GetVersion() const override { return 14 + sizeof(common::ChunkHeader) + VK_HEADER_VERSION; }
+	virtual int64_t GetVersion() const override { return Version(14 + VK_HEADER_VERSION); }
 
 	bool CheckDirty(const std::filesystem::path& rPackFile) override;
 

@@ -86,7 +86,8 @@ bool Game::IsClientPlayer(engine::global_id_t id) const
 
 void Game::AddClientPlayer(engine::global_id_t id, engine::GridCoord coord)
 {
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	// Heap: mClientPlayerIds / mClientPlayerCoords push_back may grow vectors
+	ScopedSuppressAllocationTracking suppress;
 	mClientPlayerIds.push_back(id);
 	mClientPlayerCoords.push_back(coord);
 }
@@ -231,7 +232,8 @@ int64_t Game::FocusedPlayerInFleetIndex() const
 
 void Game::SyncFleets(std::vector<Fleet>&& fleets)
 {
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	// Heap: mClientFleets rebuild + LOG argument formatting allocations
+	ScopedSuppressAllocationTracking suppress;
 
 	LOG(kNetwork, kVerbose, "SyncFleets Fleets: {} Members: {} FocusedFleet: {} FocusedMember: {}", std::ssize(fleets), !fleets.empty() ? std::ssize(fleets.at(0).members) : 0, miFocusedFleetIndex, miFocusedPlayerInFleetIndex);
 
@@ -394,7 +396,7 @@ void Game::ComputeActiveSet()
 	gpServerSession->ComputeActiveSet();
 #else
 	// Heap: mActiveCoords vector clear/push_back may allocate. Persists as Game member across frame updates
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	if (!InMainMenu())
 	{
@@ -507,7 +509,7 @@ void Game::ComputeActiveSet()
 void Game::EnsureNextFrames()
 {
 	// Heap: unordered_map insertion + make_unique<Frame>. Frames persist in mNextFrames across game lifetime
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	for (const engine::GridCoord& rCoord : mActiveCoords)
 	{
@@ -525,7 +527,7 @@ void Game::BuildFrameInputs()
 	gpServerSession->mpBroadcaster->BuildFrameInputs();
 #else
 	// Heap: unordered_map clear/insert for per-coordinate FrameInputs. Map persists as Game member
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	mFrameInputs.clear();
 
@@ -570,7 +572,7 @@ void Game::BuildFrameInputs()
 void Game::CreateFrameAtCoord(engine::GridCoord coord)
 {
 	// Heap: unordered_map insertion + make_unique<Frame>. Frame persists across game lifetime
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	engine::CoordFrames& rFrames = mCoordFrames.try_emplace(coord).first->second;
 #if defined(BT_CLIENT)
@@ -699,7 +701,7 @@ void Game::HarvestTransfers()
 void Game::ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput)
 {
 	// Heap: Spawns into frame may grow SOA buffers
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
 	{
@@ -780,7 +782,7 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 {
 	// Heap: make_unique<Frame> with all its SOA collections. Frame persists across the entire
 	// game state lifetime, so workbuffer (lost on Pop) can't hold it.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	mCoordFrames.clear();
 	engine::CoordFrames& rFrames = mCoordFrames.try_emplace(engine::kOriginCoord).first->second;
@@ -1035,7 +1037,7 @@ static constexpr char kpcGraphicsSettingsPath[] = "GraphicsSettings.bin";
 void Game::SaveGraphicsSettings()
 {
 	// Heap: file I/O allocates
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	GraphicsSettings graphicsSettings
 	{
@@ -1198,7 +1200,8 @@ static constexpr char kpcClientStatePath[] = "ClientState.bin";
 
 void Game::SaveClientState()
 {
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	// Heap: engine::WriteVersionedFile file I/O
+	ScopedSuppressAllocationTracking suppress;
 
 	ClientStateSettings settings
 	{
@@ -1211,7 +1214,8 @@ void Game::SaveClientState()
 
 void Game::LoadClientState()
 {
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	// Heap: engine::ReadVersionedFile file I/O
+	ScopedSuppressAllocationTracking suppress;
 
 	ClientStateSettings settings {};
 	if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, kpcClientStatePath, settings))
@@ -1295,23 +1299,23 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 		{
 			if (rMenuInput.flags & MenuInputFlags::kQuicksave)
 			{
-				engine::gpClient->SendSaveRequest();
+				engine::gpClient->SendSimplePacket(engine::PacketType::kClientSaveRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
 			}
 			if (rMenuInput.flags & MenuInputFlags::kQuickload)
 			{
-				engine::gpClient->SendLoadRequest();
+				engine::gpClient->SendSimplePacket(engine::PacketType::kClientLoadRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
 			}
 			if (rMenuInput.flags & MenuInputFlags::kSaveReplay)
 			{
-				engine::gpClient->SendReplayRecordRequest();
+				engine::gpClient->SendSimplePacket(engine::PacketType::kClientReplayRecordRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
 			}
 			if (rMenuInput.flags & MenuInputFlags::kLoadReplay)
 			{
-				engine::gpClient->SendReplayPlaybackRequest();
+				engine::gpClient->SendSimplePacket(engine::PacketType::kClientReplayPlaybackRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
 			}
 			if (rMenuInput.flags & MenuInputFlags::kResetFrame)
 			{
-				engine::gpClient->SendResetRequest();
+				engine::gpClient->SendSimplePacket(engine::PacketType::kClientResetRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
 			}
 		}
 #endif // defined(BT_CLIENT)
@@ -1351,7 +1355,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 #if defined(BT_CLIENT)
 			if (engine::gpClient != nullptr)
 			{
-				engine::gpClient->SendTimespeedRequest(0);
+				engine::gpClient->SendSimplePacket(engine::PacketType::kClientTimespeedRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(0));
 			}
 #else
 			mTimeStep.DecreaseTimeScale();
@@ -1362,7 +1366,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 #if defined(BT_CLIENT)
 			if (engine::gpClient != nullptr)
 			{
-				engine::gpClient->SendTimespeedRequest(1);
+				engine::gpClient->SendSimplePacket(engine::PacketType::kClientTimespeedRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(1));
 			}
 #else
 			mTimeStep.IncreaseTimeScale();
@@ -1407,7 +1411,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 #if defined(BT_CLIENT)
 			if (engine::gpClient != nullptr)
 			{
-				engine::gpClient->SendPauseRequest(static_cast<bool>(mGameFlags & engine::GameFlags::kPaused));
+				engine::gpClient->SendSimplePacket(engine::PacketType::kClientPauseRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>((mGameFlags & engine::GameFlags::kPaused) ? 1 : 0));
 			}
 			if (mGameFlags & engine::GameFlags::kPaused)
 			{

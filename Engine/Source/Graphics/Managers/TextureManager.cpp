@@ -587,14 +587,14 @@ void RegisterLightingTextureCrc(common::crc_t crc)
 void TextureManager::RegisterLightingTextureCrc(common::crc_t crc)
 {
 	// Heap: unordered_set insert during startup registration
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	mLightingTextureCrcs.insert(crc);
 }
 
 void TextureManager::BlurLightingTexture(common::crc_t crc, bool bNeedAcquireBarrier)
 {
 	// Heap: GPU textures for pre-blurred lighting
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	Texture& rSource = mTextureMap.at(crc);
 	uint32_t uiWidth = rSource.mInfo.extent.width * 2;

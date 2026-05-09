@@ -65,6 +65,77 @@ void Client::ClearSubscribingPlaceholder(GridCoord coord)
 	}
 }
 
+Client::FullStateFlags_t Client::ClassifyFullState(uint8_t uiSlotIndex, uint16_t uiEpoch, GridCoord coord)
+{
+	const ClientCoordSlot& rSlot = mCoordSlots.at(uiSlotIndex);
+
+	// Full state arrived before SubscribeAccept (different ENet channels)
+	if (rSlot.eState == CoordSubscriptionState::kUnsubscribed)
+	{
+		return { FullStateFlags::kClearPlaceholder, FullStateFlags::kCommit };
+	}
+
+	if (rSlot.eState == CoordSubscriptionState::kWaitingFullState
+		|| rSlot.eState == CoordSubscriptionState::kSubscribing)
+	{
+		// Stale full-state from a previous subscription to a different coord
+		if (rSlot.coord != coord)
+		{
+			return FullStateFlags::kRejectAsGhost;
+		}
+		// Epoch guard: SubscribeAccept set the epoch; stale full-state on the same coord/slot is dropped
+		if (rSlot.eState == CoordSubscriptionState::kWaitingFullState && uiEpoch != rSlot.ackState.uiEpoch)
+		{
+			return {};
+		}
+		return FullStateFlags::kCommit;
+	}
+
+	// kActive or kUnsubscribing — silent reject
+	return {};
+}
+
+Client::CoordUpdateFlags_t Client::ClassifyCoordUpdate(uint8_t uiSlotIndex, uint16_t uiEpoch)
+{
+	const ClientCoordSlot& rSlot = mCoordSlots.at(uiSlotIndex);
+
+	if (rSlot.eState == CoordSubscriptionState::kWaitingFullState && uiEpoch == rSlot.ackState.uiEpoch)
+	{
+		// Pre-full-state buffering: accept but do not advance the per-slot tick counter
+		return CoordUpdateFlags::kCommit;
+	}
+	if (rSlot.eState == CoordSubscriptionState::kActive && uiEpoch == rSlot.ackState.uiEpoch)
+	{
+		return { CoordUpdateFlags::kCommit, CoordUpdateFlags::kTrackTick };
+	}
+	return {};
+}
+
+Client::SubscribeAcceptFlags_t Client::ClassifySubscribeAccept(uint8_t uiSlotIndex, GridCoord coord)
+{
+	const ClientCoordSlot& rSlot = mCoordSlots.at(uiSlotIndex);
+	bool bTargetIsPlaceholder = rSlot.eState == CoordSubscriptionState::kSubscribing && rSlot.coord == coord;
+
+	// Re-subscription whose stale predecessor data already activated the slot — heal in place
+	if (rSlot.eState == CoordSubscriptionState::kActive && rSlot.coord == coord)
+	{
+		return { SubscribeAcceptFlags::kHealEpoch, SubscribeAcceptFlags::kClearPlaceholder };
+	}
+
+	// State mismatch (and not active-coord-match) — ghost reject
+	if (rSlot.eState != CoordSubscriptionState::kUnsubscribed && !bTargetIsPlaceholder)
+	{
+		return SubscribeAcceptFlags::kRejectGhost;
+	}
+
+	// Commit-init: target slot is either kUnsubscribed or already the kSubscribing placeholder
+	if (bTargetIsPlaceholder)
+	{
+		return SubscribeAcceptFlags::kCommitInit;
+	}
+	return { SubscribeAcceptFlags::kClearPlaceholder, SubscribeAcceptFlags::kCommitInit };
+}
+
 void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 {
 	// 1B type + 1B slot + 2B epoch + 8B tick + 4B gridX + 4B gridY = 20 fixed bytes
@@ -83,7 +154,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	LOG(kNetwork, kVerbose, "Client::ServerCoordFullState Frame: {} Slot: {} Coord: ({},{})", iTick, uiSlotIndex, coord.x, coord.y);
 	ScopedLogIndent scopedLogIndent;
 
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor, iSize - 20);
 	if (pFrame == nullptr)
@@ -92,47 +163,37 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 		return;
 	}
 
-	// Validate slot before pushing full state
 	if (uiSlotIndex >= std::ssize(mCoordSlots))
 	{
 		return;
 	}
 
 	ClientCoordSlot& rSlot = mCoordSlots.at(uiSlotIndex);
+	FullStateFlags_t actions = ClassifyFullState(uiSlotIndex, uiEpoch, coord);
 
-	// Full state can arrive before subscribe accept (different ENet channels)
-	// If the slot is kUnsubscribed, the full state arrived first — clear the kSubscribing placeholder
-	if (rSlot.eState == CoordSubscriptionState::kUnsubscribed)
+	if (actions & FullStateFlags::kRejectAsGhost)
 	{
-		ClearSubscribingPlaceholder(coord);
-		rSlot.coord = coord;
+		RemoveCancelledSubscription(coord);
+		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex);
+		LOG(kNetwork, kVerbose, "Client::ServerCoordFullState coord mismatch, sent unsubscribe for ghost Slot: {} Coord: ({},{}) SlotCoord: ({},{})", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y);
+		return;
 	}
-	else if (rSlot.eState == CoordSubscriptionState::kWaitingFullState || rSlot.eState == CoordSubscriptionState::kSubscribing)
-	{
-		// Validate coord matches to prevent stale full state from a previous subscription
-		if (rSlot.coord != coord)
-		{
-			RemoveCancelledSubscription(coord);
-			SendUnsubscribeOnly(uiSlotIndex);
-			LOG(kNetwork, kVerbose, "Client::ServerCoordFullState coord mismatch, sent unsubscribe for ghost Slot: {} Coord: ({},{}) SlotCoord: ({},{})", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y);
-			return;
-		}
-		// Validate epoch for kWaitingFullState (epoch is set by SubscribeAccept)
-		// Guards against stale full-state from a previous subscription to the same coord/slot
-		if (rSlot.eState == CoordSubscriptionState::kWaitingFullState && uiEpoch != rSlot.ackState.uiEpoch)
-		{
-			return;
-		}
-	}
-	else
+
+	if (!(actions & FullStateFlags::kCommit))
 	{
 		return;
 	}
 
-	// If this coord was cancelled while kSubscribing, reject the full state
+	if (actions & FullStateFlags::kClearPlaceholder)
+	{
+		ClearSubscribingPlaceholder(coord);
+		rSlot.coord = coord;
+	}
+
+	// Late cancellation: the kSubscribing slot was dropped between subscribe and full-state arrival
 	if (RemoveCancelledSubscription(coord))
 	{
-		SendUnsubscribeOnly(uiSlotIndex);
+		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex);
 		LOG(kNetwork, kVerbose, "Client::ServerCoordFullState cancelled, sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		rSlot = {};
 		return;
@@ -193,7 +254,7 @@ void Client::ServerCoordStaticData(const uint8_t* pData, size_t iSize)
 		return;
 	}
 
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	std::string staticBytes(reinterpret_cast<const char*>(pCursor), iSize32);
 	std::istringstream staticStream(std::move(staticBytes), std::ios::binary);
@@ -251,9 +312,8 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 	{
 		return;
 	}
-	ClientCoordSlot& rSlot = mCoordSlots.at(uiSlotIndex);
-	bool bWaitingFullState = rSlot.eState == CoordSubscriptionState::kWaitingFullState && uiEpoch == rSlot.ackState.uiEpoch;
-	if (!bWaitingFullState && (rSlot.eState != CoordSubscriptionState::kActive || uiEpoch != rSlot.ackState.uiEpoch))
+	CoordUpdateFlags_t actions = ClassifyCoordUpdate(uiSlotIndex, uiEpoch);
+	if (!(actions & CoordUpdateFlags::kCommit))
 	{
 		return;
 	}
@@ -266,7 +326,7 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 		return;
 	}
 
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	ReceivedCoordUpdate update {};
 	update.iTick = iTick;
@@ -283,11 +343,10 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 
 	// Heap: received updates vector grows each tick
 	mReceivedCoordUpdates.at(uiSlotIndex).push_back(std::move(update));
-	if (!bWaitingFullState)
+	if (actions & CoordUpdateFlags::kTrackTick)
 	{
 		TrackReceivedTick(uiSlotIndex, iTick);
 	}
-
 }
 
 void Client::ServerDebugFrame(const uint8_t* pData, size_t iSize)
@@ -306,7 +365,7 @@ void Client::ServerDebugFrame(const uint8_t* pData, size_t iSize)
 	ScopedLogIndent scopedLogIndent;
 
 	// Heap: LZ4 decompresses debug frame; Frame allocated on heap
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor, iSize - 17);
 	if (pFrame == nullptr)
@@ -345,7 +404,7 @@ void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 
 			// Persist to disk atomically — a mid-write crash here would otherwise empty the file and orphan all server-side fleets/players for this client on next connect.
 			// Heap: filesystem path and fstream operations for GUID persistence
-			ScopedSuppressAllocationTracking suppressAllocationTracking;
+			ScopedSuppressAllocationTracking suppress;
 			bool bWritten = gpFileManager->WriteFileAtomically({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("ClientGuid.bin"), [&](std::fstream& guidStream)
 			{
 				int64_t iGuidVersion = 1;
@@ -402,53 +461,52 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 		return;
 	}
 
-	// Validate target slot FIRST (before clearing placeholder)
 	ClientCoordSlot& rSlot = mCoordSlots.at(uiSlotIndex);
-	bool bTargetIsPlaceholder = (rSlot.eState == CoordSubscriptionState::kSubscribing && rSlot.coord == coord);
-	if (rSlot.eState != CoordSubscriptionState::kUnsubscribed && !bTargetIsPlaceholder)
-	{
-		// If the slot is already active for the same coord, the accept is from a re-subscription
-		// whose stale predecessor data already activated the slot. Update the epoch instead of ghost-killing it.
-		if (rSlot.eState == CoordSubscriptionState::kActive && rSlot.coord == coord)
-		{
-			rSlot.ackState.uiEpoch = uiEpoch;
-			ClearSubscribingPlaceholder(coord);
-			if (RemoveCancelledSubscription(coord))
-			{
-				LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Healed then cancelled Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
-				SendUnsubscribe(uiSlotIndex);
-				return;
-			}
-			LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Healed active slot Slot: {} Coord: ({},{}) Epoch: {}", uiSlotIndex, coord.x, coord.y, uiEpoch);
-			return;
-		}
+	SubscribeAcceptFlags_t actions = ClassifySubscribeAccept(uiSlotIndex, coord);
 
+	if (actions & SubscribeAcceptFlags::kRejectGhost)
+	{
 		LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Ignoring Slot: {} Coord: ({},{}) SlotCoord: ({},{}) State: {}", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y, static_cast<int>(rSlot.eState));
-		SendUnsubscribeOnly(uiSlotIndex);
+		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex);
 		RemoveCancelledSubscription(coord);
 		LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		return;
 	}
 
-	// Clear the client-side kSubscribing placeholder (may be at a different slot index than the server assigned)
-	if (!bTargetIsPlaceholder)
+	if (actions & SubscribeAcceptFlags::kClearPlaceholder)
 	{
 		ClearSubscribingPlaceholder(coord);
 	}
 
-	rSlot.coord = coord;
-	rSlot.eState = CoordSubscriptionState::kWaitingFullState;
-	rSlot.ackState.iAckFloor = -1;
-	rSlot.ackState.uiReceivedBitfieldLow = 0;
-	rSlot.ackState.uiReceivedBitfieldHigh = 0;
-	rSlot.ackState.uiEpoch = uiEpoch;
-
-	// If this coord was cancelled while kSubscribing, immediately unsubscribe
-	if (RemoveCancelledSubscription(coord))
+	if (actions & SubscribeAcceptFlags::kHealEpoch)
 	{
-		LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Cancelled Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
-		SendUnsubscribe(uiSlotIndex);
+		rSlot.ackState.uiEpoch = uiEpoch;
+		if (RemoveCancelledSubscription(coord))
+		{
+			LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Healed then cancelled Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+			SendUnsubscribe(uiSlotIndex);
+		}
+		else
+		{
+			LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Healed active slot Slot: {} Coord: ({},{}) Epoch: {}", uiSlotIndex, coord.x, coord.y, uiEpoch);
+		}
 		return;
+	}
+
+	if (actions & SubscribeAcceptFlags::kCommitInit)
+	{
+		rSlot.coord = coord;
+		rSlot.eState = CoordSubscriptionState::kWaitingFullState;
+		rSlot.ackState.iAckFloor = -1;
+		rSlot.ackState.uiReceivedBitfieldLow = 0;
+		rSlot.ackState.uiReceivedBitfieldHigh = 0;
+		rSlot.ackState.uiEpoch = uiEpoch;
+
+		if (RemoveCancelledSubscription(coord))
+		{
+			LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Cancelled Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+			SendUnsubscribe(uiSlotIndex);
+		}
 	}
 }
 

@@ -133,7 +133,7 @@ inline constexpr float XM_PIDIV64 = XM_PI / 64.0f;
 inline constexpr float XM_PIDIV128 = XM_PI / 128.0f;
 
 }
-using namespace DirectX;
+using namespace DirectX; // NOLINT(google-build-using-namespace) -- C++StyleGuide rule 41 exception
 
 inline constexpr float kfEpsilon = 1.192092896e-7f; // g_XMEpsilon
 

@@ -35,7 +35,7 @@ static bool GetClientSnapshotPosition(XMVECTOR& rOut)
 ReconcileDesyncInfo ClientReconciler::Run()
 {
 	// Heap: Frame allocation during replay, map operations on serverUpdates, and scratch resize
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	// Re-sync client identity from main thread
 	mConfirmedClientState.clientGridCoord = gpGame->mClientGridCoord;
@@ -97,7 +97,7 @@ ReconcileDesyncInfo ClientReconciler::Run()
 	auto processRange = [&](int64_t iBegin, int64_t iEnd)
 	{
 		// Heap: ReconcileCoord may grow per-coord scratch (frames, replay buffers) on dispatch
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		for (int64_t i = iBegin; i < iEnd; ++i)
 		{
 			ReconcileCoord(activeWorks[i], inputs);

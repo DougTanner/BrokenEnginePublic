@@ -133,7 +133,7 @@ void TextureUploadManager::RequestUpload(common::crc_t crc, LoadPriority ePriori
 
 		// Heap: priority_queue insertion may allocate. Items must persist until the upload thread pops them,
 		//   so a workbuffer (frame-scoped) can't own them, and the queue grows/shrinks unpredictably
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 
 		mUploadQueue.push({crc, ePriority});
 	}

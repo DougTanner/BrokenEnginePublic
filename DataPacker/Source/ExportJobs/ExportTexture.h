@@ -10,8 +10,6 @@ public:
 
 	static std::optional<common::ChunkFlags_t> Handles(const std::filesystem::directory_entry& rDirectoryEntry);
 
-	static void AddToHeader(std::fstream& headerFileStream, const std::vector<std::unique_ptr<ExportTexture>>& rExportJobs);
-
 	ExportTexture(common::ChunkFlags_t rChunkFlags, const std::filesystem::path& rFile)
 	: ExportJob(rChunkFlags, rFile)
 	{
@@ -19,7 +17,7 @@ public:
 
 	virtual ~ExportTexture() = default;
 
-	virtual int64_t GetVersion() const override { return 9 + sizeof(common::ChunkHeader); }
+	virtual int64_t GetVersion() const override { return Version(9); }
 
 protected:
 

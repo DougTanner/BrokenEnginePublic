@@ -1,4 +1,6 @@
-#include "ExportSceneAnimation.h"
+#include "SceneAnimationLoader.h"
+
+#include "tinygltf/tiny_gltf.h"
 
 bool DetermineAnimationPath(const tinygltf::Model& rGltfModel)
 {

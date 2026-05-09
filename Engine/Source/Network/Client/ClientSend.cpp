@@ -58,17 +58,12 @@ void Client::SendSpawnRequest(ClientRequestFlags_t flags)
 		return;
 	}
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientSpawnRequest));
 	uint8_t uiFlags = 0;
 	std::memcpy(&uiFlags, &flags, sizeof(uint8_t));
-	rWorkbuffer.PushBack<uint8_t>(uiFlags);
 
 	LOG(kNetwork, kDebug, "Client::SendSpawnRequest Spawn: {} Respawn: {}", static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
 
-	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	SendSimplePacket(PacketType::kClientSpawnRequest, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiFlags);
 }
 
 void Client::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expected, common::crc_t actual)
@@ -78,20 +73,11 @@ void Client::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expe
 		return;
 	}
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientDesyncReport));
-	rWorkbuffer.PushBack<int64_t>(iTick);
-	WriteGridCoord(rWorkbuffer, coord);
-	rWorkbuffer.PushBack<uint64_t>(expected);
-	rWorkbuffer.PushBack<uint64_t>(actual);
-
 	char pcExpected[20] {};
 	char pcActual[20] {};
 	LOG(kNetwork, kError, "Client::SendDesyncReport Frame: {} Grid: ({},{}) Expected: {} Actual: {}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), expected), common::ToHex(std::span(pcActual), actual));
 
-	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	SendSimplePacket(PacketType::kClientDesyncReport, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iTick, coord, static_cast<uint64_t>(expected), static_cast<uint64_t>(actual));
 }
 
 void Client::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
@@ -101,17 +87,10 @@ void Client::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 		return;
 	}
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	// [1B type][8B frame][4B gridX][4B gridY]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientDebugFrameRequest));
-	rWorkbuffer.PushBack<int64_t>(iTick);
-	WriteGridCoord(rWorkbuffer, coord);
-
 	LOG(kNetwork, kError, "Client::SendDebugFrameRequest Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
 
-	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	// [1B type][8B frame][4B gridX][4B gridY]
+	SendSimplePacket(PacketType::kClientDebugFrameRequest, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iTick, coord);
 }
 
 bool Client::SendSubscribe(GridCoord coord)
@@ -155,14 +134,8 @@ bool Client::SendSubscribe(GridCoord coord)
 		return false;
 	}
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
 	// [1B type][4B coord.x][4B coord.y]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientSubscribe));
-	WriteGridCoord(rWorkbuffer, coord);
-
-	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	SendSimplePacket(PacketType::kClientSubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, coord);
 
 	return true;
 }
@@ -170,24 +143,7 @@ bool Client::SendSubscribe(GridCoord coord)
 void Client::SendUnsubscribe(int64_t iSlot)
 {
 	mCoordSlots.at(iSlot).eState = CoordSubscriptionState::kUnsubscribing;
-	SendUnsubscribeOnly(iSlot);
-}
-
-void Client::SendUnsubscribeOnly(int64_t iSlot)
-{
-	if (!CanSend())
-	{
-		return;
-	}
-
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	// [1B type][1B slotIndex]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientUnsubscribe));
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
-
-	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(iSlot));
 }
 
 void Client::SendResyncRequest()
@@ -197,129 +153,15 @@ void Client::SendResyncRequest()
 		return;
 	}
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientResyncRequest));
-
 	LOG(kNetwork, kError, "Client::SendResyncRequest");
 
-	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-}
-
-void Client::SendPauseRequest(bool bPaused)
-{
-	if (!CanSend())
-	{
-		return;
-	}
-
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	// [1B type][1B paused]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientPauseRequest));
-	rWorkbuffer.PushBack<uint8_t>(bPaused ? 1 : 0);
-
-	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-}
-
-void Client::SendTimespeedRequest(uint8_t uiDirection)
-{
-	if (!CanSend())
-	{
-		return;
-	}
-
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	// [1B type][1B direction]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientTimespeedRequest));
-	rWorkbuffer.PushBack<uint8_t>(uiDirection);
-
-	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-}
-
-void Client::SendSaveRequest()
-{
-	if (!CanSend())
-	{
-		return;
-	}
-
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientSaveRequest));
-
-	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-}
-
-void Client::SendLoadRequest()
-{
-	if (!CanSend())
-	{
-		return;
-	}
-
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientLoadRequest));
-
-	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-}
-
-void Client::SendResetRequest()
-{
-	if (!CanSend())
-	{
-		return;
-	}
-
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientResetRequest));
-
-	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-}
-
-void Client::SendReplayRecordRequest()
-{
-	if (!CanSend())
-	{
-		return;
-	}
-
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientReplayRecordRequest));
-
-	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-}
-
-void Client::SendReplayPlaybackRequest()
-{
-	if (!CanSend())
-	{
-		return;
-	}
-
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientReplayPlaybackRequest));
-
-	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
+	SendSimplePacket(PacketType::kClientResyncRequest, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
 }
 
 void Client::SendHello()
 {
 	// Heap: std::fstream and std::filesystem::path allocate for GUID file I/O
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	// Load GUID from disk if we don't have one yet
 	if (mClientGuid.IsEmpty())

@@ -67,7 +67,7 @@ void Alignments::CopyFrom(const Alignments& rOther)
 	{
 		// Heap: vector copy-assign may realloc when pair count changed (new alliance/faction added or removed).
 		//   Can't use workbuffer (persists as member for collision filtering) or pre-alloc (pair count varies at runtime)
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		alignmentPairs = rOther.alignmentPairs;
 	}
 }

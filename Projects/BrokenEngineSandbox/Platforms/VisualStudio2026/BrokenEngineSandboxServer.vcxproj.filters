@@ -147,6 +147,12 @@
     <ClInclude Include="..\..\Source\Network\Server\ServerFleetManager.h">
       <Filter>Game\Network\Server</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Network\Server\ServerFleetManagerUtils.h">
+      <Filter>Game\Network\Server</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Network\Server\FleetNavigationController.h">
+      <Filter>Game\Network\Server</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Network\Server\ServerTransferManager.h">
       <Filter>Game\Network\Server</Filter>
     </ClInclude>
@@ -165,7 +171,7 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkCursor.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkDiscovery.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkDiscoveryResponder.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkManager.h">
@@ -419,6 +425,12 @@
     <ClCompile Include="..\..\Source\Network\Server\ServerFleetManager.cpp">
       <Filter>Game\Network\Server</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\Network\Server\ServerFleetManagerUtils.cpp">
+      <Filter>Game\Network\Server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Network\Server\FleetNavigationController.cpp">
+      <Filter>Game\Network\Server</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\Network\Server\ServerTransferManager.cpp">
       <Filter>Game\Network\Server</Filter>
     </ClCompile>
@@ -431,7 +443,7 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Pch.cpp">
       <Filter>Engine</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkDiscovery.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkDiscoveryResponder.cpp">
       <Filter>Engine\Network</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkManager.cpp">
@@ -608,6 +620,12 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\Ui\Screens\MenuUtils.cpp">
       <Filter>Game\Ui\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Wrapper.cpp">
+      <Filter>Game\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\ParticleWrappers.cpp">
+      <Filter>Game\Ui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Alignments.cpp">
       <Filter>Engine\Frame</Filter>

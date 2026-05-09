@@ -14,6 +14,30 @@ constexpr bool kbOptimizeShaders = true;
 
 using enum common::ChunkFlags;
 
+namespace
+{
+
+const std::filesystem::path& GetVulkanSdkBinariesDirectory()
+{
+	static const std::filesystem::path sPath = []()
+	{
+		char pcDirectory[MAX_PATH] {};
+		DWORD uiResult = GetEnvironmentVariable("VK_SDK_PATH", pcDirectory, static_cast<DWORD>(std::size(pcDirectory) - 1));
+		if (uiResult == 0)
+		{
+			throw std::runtime_error("VK_SDK_PATH environment variable not found");
+		}
+		std::filesystem::path path(pcDirectory);
+		VERIFY_SUCCESS(std::filesystem::exists(path));
+		path.append("Bin");
+		LOG(kDefault, kDebug, "Vulkan binaries directory: \"{}\"", path.string());
+		return path;
+	}();
+	return sPath;
+}
+
+}
+
 static std::vector<std::filesystem::path> ParseDependencyFile(const std::filesystem::path& rDependencyFilePath)
 {
 	std::vector<std::filesystem::path> dependencies;
@@ -115,7 +139,7 @@ void ExportShader::Export()
 	// glslc.exe is glslangValidator.exe but with support for #include
 	// We're only going to use it to pre-process the shader to bake in include files
 	// We'll use glslangValidator.exe to actually compile it because glslc.exe often fails silently on compile errors
-	std::filesystem::path glslcExecutable(gpFileManager->mVulkanSdkBinariesDirectory);
+	std::filesystem::path glslcExecutable(GetVulkanSdkBinariesDirectory());
 	glslcExecutable.append("glslc.exe");
 
 	std::filesystem::path preProcessedFile(gpFileManager->mTempDirectory);
@@ -165,7 +189,7 @@ void ExportShader::Export()
 	VERIFY_SUCCESS(std::filesystem::exists(preProcessedFile));
 
 	// Compile the pre-processed file to Spirv
-	std::filesystem::path glslangValidatorExecutable(gpFileManager->mVulkanSdkBinariesDirectory);
+	std::filesystem::path glslangValidatorExecutable(GetVulkanSdkBinariesDirectory());
 	glslangValidatorExecutable.append("glslangValidator.exe");
 
 	std::filesystem::path spirvFile(preProcessedFile);
@@ -211,7 +235,7 @@ void ExportShader::Export()
 	if constexpr (kbOptimizeShaders)
 	{
 		// Run spirv-opt on the compiled SPIR-V
-		std::filesystem::path spirvOptExecutable(gpFileManager->mVulkanSdkBinariesDirectory);
+		std::filesystem::path spirvOptExecutable(GetVulkanSdkBinariesDirectory());
 		spirvOptExecutable.append("spirv-opt.exe");
 
 		std::filesystem::path optimizedSpirvFile(spirvFile);

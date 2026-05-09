@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tinygltf/tiny_gltf.h"
+namespace tinygltf { class Model; class Node; struct Material; }
 
 // Hash function for std::pair<int, int> to use with std::unordered_map
 struct PairHash

@@ -14,7 +14,7 @@ Client::Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots)
 {
 	gpClient = this;
 
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	mReceivedCoordUpdates.resize(iCoordSlots);
 	mCoordSlots.resize(iCoordSlots);
@@ -46,7 +46,7 @@ Client::~Client()
 		// Allow time for disconnect to be sent
 		ENetEvent event {};
 		// Heap: ENet service polls and may allocate event packets during disconnect drain
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		while (enet_host_service(mpHost, &event, 100) > 0)
 		{
 			if (event.type == ENET_EVENT_TYPE_DISCONNECT)
@@ -63,7 +63,7 @@ Client::~Client()
 	if (mpHost != nullptr)
 	{
 		// Heap: ENet destroys host data internally
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		enet_host_destroy(mpHost);
 	}
 
@@ -206,7 +206,7 @@ void Client::Receive(const uint8_t* pData, size_t iSize)
 		default:
 			if (static_cast<uint8_t>(eType) >= static_cast<uint8_t>(PacketType::kGamePacketStart))
 			{
-				ScopedSuppressAllocationTracking suppressAllocationTracking;
+				ScopedSuppressAllocationTracking suppress;
 				// Heap: raw game packet buffer grows on game-specific packets
 				mReceivedGamePackets.emplace_back(pData[0], std::vector<uint8_t>(pData + 1, pData + iSize));
 			}
@@ -291,7 +291,7 @@ void Client::Disconnect()
 	if (mpServerPeer != nullptr && mbConnected)
 	{
 		// Heap: ENet may queue a peer disconnect packet
-		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 		enet_peer_disconnect(mpServerPeer, 0);
 		mbConnected = false;
 	}

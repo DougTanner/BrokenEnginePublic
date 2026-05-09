@@ -39,7 +39,7 @@ void SoundsPostRender::Add(game::Frame& __restrict rFrame, sound_t& rId)
 
 	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 	// Heap: idToIndexMap[] may allocate a new node for the ID-to-index entry
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
 	sound_t newId {uuid_t{rFrame.postRender.GenerateSoundUuid()}};
 	rInterpolate.idToIndexMap.insert_or_assign(newId, iSpawnIndex);

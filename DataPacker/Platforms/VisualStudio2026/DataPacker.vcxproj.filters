@@ -7,6 +7,9 @@
     <Filter Include="DataPacker\ExportJobs">
       <UniqueIdentifier>{c0f1dadd-29fb-48de-9fdc-f0c5624d6e75}</UniqueIdentifier>
     </Filter>
+    <Filter Include="DataPacker\ExportJobs\Scene">
+      <UniqueIdentifier>{7a3eb9d2-5c4f-4b1e-9d8a-e1f2b3c4d5e6}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Common">
       <UniqueIdentifier>{1216d243-22f5-4761-9444-e281d11da6d7}</UniqueIdentifier>
     </Filter>
@@ -16,6 +19,9 @@
       <Filter>DataPacker</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\FileManager.cpp">
+      <Filter>DataPacker</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Attribution.cpp">
       <Filter>DataPacker</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\BakeIslandIntermediates.cpp">
@@ -51,14 +57,14 @@
     <ClCompile Include="..\..\Source\ExportJobs\ExportScene.cpp">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\ExportJobs\ExportSceneVertices.cpp">
-      <Filter>DataPacker\ExportJobs</Filter>
+    <ClCompile Include="..\..\Source\ExportJobs\Scene\SceneVerticesLoader.cpp">
+      <Filter>DataPacker\ExportJobs\Scene</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\ExportJobs\ExportSceneSkeleton.cpp">
-      <Filter>DataPacker\ExportJobs</Filter>
+    <ClCompile Include="..\..\Source\ExportJobs\Scene\SceneSkeletonLoader.cpp">
+      <Filter>DataPacker\ExportJobs\Scene</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\ExportJobs\ExportSceneAnimation.cpp">
-      <Filter>DataPacker\ExportJobs</Filter>
+    <ClCompile Include="..\..\Source\ExportJobs\Scene\SceneAnimationLoader.cpp">
+      <Filter>DataPacker\ExportJobs\Scene</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\ExportJobs\ExportRaw.cpp">
       <Filter>DataPacker\ExportJobs</Filter>
@@ -98,6 +104,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Source\Attribution.h">
+      <Filter>DataPacker</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\FileManager.h">
       <Filter>DataPacker</Filter>
     </ClInclude>
@@ -179,14 +188,14 @@
     <ClInclude Include="..\..\Source\ExportJobs\ExportScene.h">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\ExportJobs\ExportSceneVertices.h">
-      <Filter>DataPacker\ExportJobs</Filter>
+    <ClInclude Include="..\..\Source\ExportJobs\Scene\SceneVerticesLoader.h">
+      <Filter>DataPacker\ExportJobs\Scene</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\ExportJobs\ExportSceneSkeleton.h">
-      <Filter>DataPacker\ExportJobs</Filter>
+    <ClInclude Include="..\..\Source\ExportJobs\Scene\SceneSkeletonLoader.h">
+      <Filter>DataPacker\ExportJobs\Scene</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\ExportJobs\ExportSceneAnimation.h">
-      <Filter>DataPacker\ExportJobs</Filter>
+    <ClInclude Include="..\..\Source\ExportJobs\Scene\SceneAnimationLoader.h">
+      <Filter>DataPacker\ExportJobs\Scene</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\Common\LogDifference.h">
       <Filter>Common</Filter>

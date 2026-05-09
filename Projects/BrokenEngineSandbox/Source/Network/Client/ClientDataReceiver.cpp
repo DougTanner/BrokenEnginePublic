@@ -14,7 +14,7 @@ namespace game
 void ClientDataReceiver::ApplyReceivedStaticData()
 {
 	// Heap: try_emplace may insert new CoordFrames, NavData vectors moved into staticData
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	std::vector<engine::ReceivedStaticData>& rStaticDataList = gpClientSession->mpClientNetwork->DrainReceivedStaticData();
 	for (engine::ReceivedStaticData& rReceived : rStaticDataList)
@@ -28,7 +28,7 @@ void ClientDataReceiver::ApplyReceivedStaticData()
 void ClientDataReceiver::ApplyReceivedFullStates()
 {
 	// Heap: try_emplace may insert new CoordFrames; full state is moved directly into snapshot ring slot 0
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	std::vector<engine::ReceivedCoordFullState>& rFullStates = gpClientSession->mpClientNetwork->DrainReceivedFullStates();
 	if (rFullStates.empty())

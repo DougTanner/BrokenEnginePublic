@@ -122,7 +122,7 @@ void AllocateAndAssign(TStruct& rStruct, int64_t iCapacity, TTuple&& members)
 
 	// Heap: MakeAligned allocates the SOA data buffer, which must persist across frames and can be arbitrarily
 	// large depending on entity count. Workbuffer is temporary (lost on Pop) and can't hold cross-frame state.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	std::apply([&](auto&... memberPtrRefs)
 	{
 		int64_t iBufferSize = 0;
@@ -181,7 +181,7 @@ bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TT
 {
 	// Heap: MakeAligned for the SOA buffer and unordered_map copy for idToIndexMap. Both persist across frames
 	// with sizes that vary at runtime based on entity count, so neither workbuffer nor static arrays work.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	rCurrent.iCount = rPrevious.iCount;
 
 	// Copy indexable state if applicable
@@ -224,7 +224,7 @@ void Allocate(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 {
 	// Heap: MakeAligned for the SOA buffer and unordered_map copy for idToIndexMap. Both persist across frames
 	// with sizes that vary at runtime based on entity count, so neither workbuffer nor static arrays work.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	rCurrent.iCount = rPrevious.iCount;
 
 	// Copy indexable state if applicable
@@ -277,7 +277,7 @@ void GrowCapacityWithCopy(TStruct& rStruct, int64_t iNewCapacity, int64_t iCurre
 {
 	// Heap: MakeAligned for a larger SOA buffer that replaces the old one. The buffer persists across frames
 	// and grows with entity count, so workbuffer (lost on Pop) and static arrays (fixed size) don't work.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	std::apply([&](auto&... memberPtrRefs)
 	{
 		int64_t iBufferSize = 0;
@@ -335,7 +335,7 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolat
 {
 	// Heap: unordered_map::operator[] may allocate a new bucket or node for the ID-to-index entry.
 	// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
 
 	using id_t = typename TInterpolate::id_t;
@@ -353,7 +353,7 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddVisualIndexableElement(TInte
 {
 	// Heap: unordered_map::operator[] may allocate a new bucket or node for the ID-to-index entry.
 	// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
 
 	using id_t = typename TInterpolate::id_t;
@@ -372,7 +372,7 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElementWithId(TInte
 {
 	// Heap: unordered_map::operator[] may allocate a new bucket or node for the ID-to-index entry.
 	// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
 	rInterpolate.idToIndexMap.insert_or_assign(existingId, iSpawnIndex);
 	return {iSpawnIndex, existingId};

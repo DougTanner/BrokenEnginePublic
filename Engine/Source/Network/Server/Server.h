@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Network/NetworkCursor.h"
 #include "Network/Server/ServerTypes.h"
 
 namespace engine
@@ -125,6 +126,20 @@ public:
 
 	void Poll();
 
+	template <typename TType, typename... TArgs>
+	void SendSimplePacket(ENetPeer* pPeer, TType eType, uint8_t uiChannel, uint32_t uiPacketFlags, const TArgs&... args)
+	{
+		static_assert(std::is_enum_v<TType>, "SendSimplePacket type tag must be an enum (engine::PacketType or game::GamePacketType)");
+
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+
+		rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(eType));
+		(PushSimplePacketArg(rWorkbuffer, args), ...);
+
+		NetworkManager::SendPacket(pPeer, uiChannel, rWorkbuffer, uiPacketFlags);
+	}
+
 	void SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick, GridCoord coord, const game::Frame* pFrame);
 	void SendCoordStaticData(int64_t iClientId, int64_t iSlot, GridCoord coord, const FrameStaticData& rStaticData);
 	void BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);
@@ -174,7 +189,6 @@ private:
 #endif // BT_SERVER
 	void SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage, const ClientGuid* pGuid);
 	void SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord);
-	void SendUnsubscribeAck(ClientConnection& rClient, int64_t iSlot);
 
 	void WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, PacketType eType, int64_t iSlot, uint16_t uiEpoch, const PerCoordBufferedFrame& rBuffered, int64_t iTimestampNs);
 	const PerCoordBufferedFrame* FindBufferedFrame(GridCoord coord, int64_t iTick) const;

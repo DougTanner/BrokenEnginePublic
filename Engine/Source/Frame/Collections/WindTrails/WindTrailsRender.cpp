@@ -68,7 +68,7 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 	{
 		// Heap: unordered_map insertions/lookups for per-trail previous positions
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		ScopedSuppressAllocationTracking suppress;
 
 		WindTrailsRenderState& rRenderState = sRenderState;
 

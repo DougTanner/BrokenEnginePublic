@@ -57,7 +57,7 @@ void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t ha
 
 			// Heap: emplace copies workbuffer string into a std::string in mDebugNames (unordered_set). Vulkan retains
 			// the c_str() pointer, so the string must outlive the object. Can't use workbuffer (gone after Pop)
-			ScopedSuppressAllocationTracking suppressAllocationTracking;
+			ScopedSuppressAllocationTracking suppress;
 
 			auto [it, bInserted] = gpGraphics->mDebugNames.emplace(rWorkbuffer.View());
 			VkDebugUtilsObjectNameInfoEXT vkDebugUtilsObjectNameInfoEXT =

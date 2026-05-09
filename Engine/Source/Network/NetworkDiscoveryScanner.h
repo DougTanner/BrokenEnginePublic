@@ -1,25 +1,10 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
-#if defined(BT_SERVER)
-class NetworkDiscoveryResponder
-{
-public:
-
-	NetworkDiscoveryResponder();
-	~NetworkDiscoveryResponder();
-
-	void Poll();
-
-private:
-
-	SOCKET mSocket = INVALID_SOCKET;
-};
-#endif // BT_SERVER
-
-#if defined(BT_CLIENT)
 class NetworkDiscoveryScanner
 {
 public:
@@ -42,6 +27,7 @@ private:
 	bool mbFound = false;
 	char mpcFoundAddress[16] {};
 };
-#endif // BT_CLIENT
 
 } // namespace engine
+
+#endif // BT_CLIENT

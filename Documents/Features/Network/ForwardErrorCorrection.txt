@@ -136,8 +136,8 @@ Add new methods at end of file (before the closing namespace brace, line 301):
 
         std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
-        ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
         // Heap: ENet allocates packet data internally
+        ScopedSuppressAllocationTracking suppress;
         ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), 0);
         enet_peer_send(rClient.pPeer, NetworkManager::CoordSlotUnreliable(iSlot), pPacket);
 

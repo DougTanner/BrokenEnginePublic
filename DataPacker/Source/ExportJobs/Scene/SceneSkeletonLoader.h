@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tinygltf/tiny_gltf.h"
+namespace tinygltf { class Model; }
 
 struct SkeletonData
 {

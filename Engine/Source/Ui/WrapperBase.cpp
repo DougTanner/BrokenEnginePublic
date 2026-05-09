@@ -39,7 +39,7 @@ Wrapper gSunMoonSunIntensityWater(0.6f, 0.0f, 4.0f);
 Wrapper gSunMoonSunIntensityObjects(1.0f, 0.0f, 4.0f);
 Wrapper gSunMoonSunIntensitySmoke(1.0f, 0.0f, 4.0f);
 Wrapper gSunMoonMoonIntensityTerrain(0.05f, 0.0f, 1.0f);
-Wrapper gSunMoonMoonIntensityWater(0.03f, 0.0f, 1.0f);
+Wrapper gSunMoonMoonIntensityWater(0.025f, 0.0f, 1.0f);
 Wrapper gSunMoonMoonIntensityObjects(0.05f, 0.0f, 1.0f);
 Wrapper gSunMoonMoonIntensitySmoke(0.05f, 0.0f, 1.0f);
 Wrapper gSunMoonMoonBlueTint(1.8f, 1.0f, 4.0f);

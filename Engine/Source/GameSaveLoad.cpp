@@ -26,7 +26,7 @@ void GameSaveLoad::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 {
 	// Heap: fstream and Frame serialization (stream must stay open across the full write so push/pop
 	//   lifecycle doesn't apply, and SOA collection data must persist in the Frame after deserialization)
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	if constexpr (kbDebugInput)
 	{
@@ -39,13 +39,13 @@ void GameSaveLoad::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 
 void GameSaveLoad::ServerSave()
 {
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite}, mrGameBase.QuicksaveFile(), game::gpGame->mClientGridCoord);
 }
 
 bool GameSaveLoad::ServerLoad()
 {
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	GridCoord loadedClientGridCoord {};
 	if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, mrGameBase.QuicksaveFile(), loadedClientGridCoord))
@@ -63,7 +63,7 @@ bool GameSaveLoad::ServerLoad()
 
 void GameSaveLoad::ServerReset()
 {
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	game::gpGame->CreateNewFrame(game::GameFlags::kGame);
 	mrGameBase.miNextGlobalId = 1;
@@ -77,13 +77,13 @@ void GameSaveLoad::ServerReset()
 
 void GameSaveLoad::Autosave()
 {
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("ServerAutosave.save"), game::gpGame->mClientGridCoord);
 }
 
 bool GameSaveLoad::Autoload()
 {
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	GridCoord loadedClientGridCoord {};
 	if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("ServerAutosave.save"), loadedClientGridCoord))
@@ -99,7 +99,7 @@ bool GameSaveLoad::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 {
 	// Heap: fstream and Frame deserialization allocate vectors for variable-size SOA collections.
 	//   Stream must stay open across the read, and collection data must persist in the Frame afterward
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	if constexpr (kbDebugInput)
 	{
@@ -153,7 +153,7 @@ void GameSaveLoad::SaveLoadReplay()
 		if (mrGameBase.mGameFlags & GameFlags::kLoadReplay)
 		{
 			// Heap: DifferenceStream reader + Frame deserialization + ReplayMeta file I/O
-			ScopedSuppressAllocationTracking suppressAllocationTracking;
+			ScopedSuppressAllocationTracking suppress;
 
 			mrGameBase.mGameFlags.Clear(GameFlags::kLoadReplay);
 
@@ -243,7 +243,7 @@ void GameSaveLoad::SyncReplayTick()
 {
 	// Heap: DifferenceStream reader/writer persist across frames, growing vectors for diffs and checksums.
 	//   Workbuffer is popped each frame so can't hold cross-frame state; size depends on recording length
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	if constexpr (kbDebugInput)
 	{

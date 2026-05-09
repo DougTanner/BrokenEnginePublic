@@ -1,5 +1,6 @@
 #include "FileManager.h"
 
+#include "Attribution.h"
 #include "BakeIslandIntermediates.h"
 #include "Texture.h"
 #include "ExportJobs/ExportAudio.h"
@@ -520,7 +521,7 @@ static int RunRdoSweepValidate(const std::filesystem::path& rPath)
 	return 0;
 }
 
-template <typename T>
+template <IsExportJob T>
 bool RunExportJobs()
 {
 	bool bDirty = gpFileManager->mbCleanExport;
@@ -633,11 +634,6 @@ bool RunExportJobs()
 			Quit(message.c_str(), "Data Packer - Export Failed");
 			bFailed = true;
 		}
-	}
-
-	if constexpr (std::is_same_v<T, ExportTexture>)
-	{
-		T::AddToHeader(temporaryHeaderFileStream, exportJobs);
 	}
 
 	temporaryHeaderFileStream << std::endl;
@@ -772,7 +768,7 @@ bool MainThread(int argc, char* argv[])
 	WriteIfChanged(dataHeaderString, dataHeaderPath, "Data.h");
 
 	// Copy license files from ThirdParty directories to Attribution directory in output
-	gpFileManager->CopyThirdPartyLicenses();
+	attribution::CopyThirdPartyLicenses(gpFileManager->mOutputDirectory);
 
 	LOG(kDefault, kDebug, "");
 
@@ -849,15 +845,6 @@ int main(int argc, char* argv[])
 	fflush(stdout);
 	return bSuccess ? 0 : 1;
 }
-
-// CRT debug memory leak tracking
-#if defined(DEBUG) || defined(_DEBUG)
-	#define _CRTDBG_MAP_ALLOC
-#endif
-
-#if defined(_CRTDBG_MAP_ALLOC)
-	#include <crtdbg.h>
-#endif
 
 #if defined(_CRTDBG_MAP_ALLOC)
 

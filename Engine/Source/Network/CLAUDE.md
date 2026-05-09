@@ -7,7 +7,7 @@ Client/server networking over ENet reliable UDP with slot-based coord subscripti
 ## Hub Conventions (children do not re-document these)
 
 - **Channel math**: channel 0 reliable control, channel 1 reserved unreliable, channels `2 + slot*2` (reliable) / `2 + slot*2 + 1` (unreliable) per coord slot. Always use `NetworkManager::CoordSlot*` / `ChannelToSlot` / `IsCoordChannel` / `IsUnreliableChannel` — never hardcode.
-- **Send path**: all sends (engine and game) go through `NetworkManager::SendPacket`; it wraps ENet's internal alloc with `ScopedSuppressAllocationTracking`.
+- **Send path**: all sends (engine and game) go through `NetworkManager::SendPacket`; it wraps ENet's internal alloc with `ScopedSuppressAllocationTracking`. For simple fixed-payload packets (type byte + arithmetic / `GridCoord` args), use the `SendSimplePacket` member template on `Client` / `Server` rather than recreating the workbuffer-push boilerplate; client variant gates on `CanSend()` internally, server variant requires a caller-validated `ENetPeer*`.
 - **Slot ACK model**: independent `AckState` per slot (int64 floor + 128-bit bitfield + uint16 epoch). Epoch mismatch silently drops stale packets; makes slot reuse across rapid (un)subscribe cycles safe.
 - **Game-layer opacity**: packet types `>= kGamePacketStart` are forwarded as raw bytes; engine never interprets them.
 - **ENet tuning** (both sides): peer throttle disabled so reconciliation stalls don't drop unreliable traffic; 1 MB socket send/recv buffers.
@@ -21,7 +21,7 @@ Client/server networking over ENet reliable UDP with slot-based coord subscripti
 - **NetworkProtocol** - Wire protocol header (inline constexpr): packet types, protocol/discovery constants, `ClientGuid`, `AckState`.
 - **NetworkSimulation** - Compile-time latency/loss injection with regional presets. Zero overhead when disabled via `if constexpr`. One-way delay per direction; delayed-packet queue is the only heap user (suppressed).
 - **ClientSessionBase** / **ServerSessionBase** - Engine-generic session bases inherited by game-layer sessions.
-- **NetworkDiscovery** - LAN responder/scanner. Raw Winsock UDP (not ENet), non-blocking, port `kuiDefaultPort+1`, 4-byte magic `"BRKN"`. Scanner pings loopback before broadcasting so a local server wins the race.
+- **NetworkDiscoveryResponder** (`BT_SERVER`) / **NetworkDiscoveryScanner** (`BT_CLIENT`) - LAN discovery split into platform-gated halves sharing wire format. Raw Winsock UDP (not ENet), non-blocking, port `kuiDefaultPort+1`, 4-byte magic `"BRKN"`. Scanner pings loopback before broadcasting so a local server wins the race.
 - **NetworkSerialization** - `StatusChange` batch (de)serializer; compressed form is `uint32` uncompressed-size prefix + LZ4 payload. Implementation lives in game layer.
 
 ## Architecture Notes

@@ -3,19 +3,12 @@
 #if defined(BT_SERVER)
 
 #include "Fleet.h"
+#include "Network/Server/FleetNavigationController.h"
 
 namespace game
 {
 
 struct ClientSpawnInfo;
-
-struct PendingFlagshipUpdate
-{
-	engine::ClientGuid clientGuid {};
-	int64_t iFleetIndex = 0;
-	engine::GridCoord newWantedCoord {};
-	uint8_t uiPendingFleetWantedCoordTicks = 0;
-};
 
 struct PendingCreateFleetRequest
 {
@@ -102,13 +95,11 @@ public:
 	// Connected client mapping: ClientGuid -> iClientId (0 = disconnected)
 	std::unordered_map<engine::ClientGuid, int64_t, engine::ClientGuidHash> mGuidToClientId;
 
-	std::vector<PendingFlagshipUpdate> mPendingFlagshipUpdates;
+	FleetNavigationController mNavigation;
 
 	common::RandomEngine mRandomEngine;
 
 private:
-
-	void ShiftFlagshipAfterDeath(const engine::ClientGuid& rGuid, int64_t iFleetIndex, Fleet& rFleet);
 
 	std::vector<PendingCreateFleetRequest> mPendingCreateFleetRequests;
 	std::vector<PendingDeleteFleetRequest> mPendingDeleteFleetRequests;

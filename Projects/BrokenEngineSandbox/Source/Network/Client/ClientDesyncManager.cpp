@@ -11,7 +11,7 @@ namespace game
 void ClientDesyncManager::OnDesyncDetected(ReconcileDesyncInfo&& rDesyncInfo)
 {
 	// Heap: Network sends for desync reporting
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	gpClientSession->mpClientNetwork->SendDesyncReport(rDesyncInfo.iDesyncTick, rDesyncInfo.desyncCoord, rDesyncInfo.desyncExpectedCrc, rDesyncInfo.desyncActualCrc);
 	gpClientSession->mpClientNetwork->SendDebugFrameRequest(rDesyncInfo.iDesyncTick, rDesyncInfo.desyncCoord);

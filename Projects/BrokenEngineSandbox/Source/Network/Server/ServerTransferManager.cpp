@@ -232,7 +232,7 @@ void ServerTransferManager::TrackClientTransfers(const std::vector<ClientTransfe
 void ServerTransferManager::HarvestTransfers()
 {
 	// Heap: Transfer spawns into destination frames, which may grow SOA buffers and update idToIndexMaps
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	mTransfers.clear();
 	std::vector<ClientTransferInfo> clientTransfers;

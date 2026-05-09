@@ -7,7 +7,7 @@ Asset-specific processors that convert raw files into cached binary chunks.
 Abstract base owns dirty-checking and cache I/O; derived classes only implement `Export()` (and sometimes `CheckDirty()` / `CleanupOnFailure()`).
 
 - **Cache layout**: `.chunk` = magic + version + `ChunkHeader` + aligned data. A sibling `.txt` stores the input's `last_write_time` so `CheckDirty` survives restores that preserve filesystem timestamps.
-- **Version convention**: `GetVersion()` returns `rawVersion + sizeof(common::ChunkHeader)` so header-layout changes auto-invalidate caches. `ExportShader` also folds in `VK_HEADER_VERSION` to force re-export on SDK upgrades.
+- **Version convention**: `GetVersion()` returns `ExportJob::Version(N)` (folds in `sizeof(common::ChunkHeader)`) so header-layout changes auto-invalidate caches. `ExportShader` passes `Version(14 + VK_HEADER_VERSION)` to force re-export on SDK upgrades.
 - **Allocation contract**: each `Export()` calls `AllocateHeaderAndData` exactly once; the base populates magic/crc/flags/path afterward.
 - **Clean path**: `RunExport()` skips `Export()` and streams cached bytes back when not dirty.
 - **Per-job workbuffer**: `RunExport()` constructs a `common::ThreadLocal` — jobs run on worker threads with isolated `gpThreadLocal->mWorkbuffer`.

@@ -6,7 +6,7 @@ Asset preprocessing tool that converts raw assets (textures, models, shaders, au
 
 Main.cpp orchestrates a multi-phase pipeline: a one-shot legacy-raw → zlib migration of `.BC[457]_UNORM_BLOCK` / `.R16_UNORM` intermediates (idempotent: skips files whose payload size doesn't match raw-size math), then pre-export (Scene, a Gaea bake of island intermediates, Islands) generates intermediates, offline IBL cubemap convolution runs next, main export processes asset types in parallel, then header generation and ThirdParty attribution collection. The Gaea bake is a separate step (not an `ExportJob`) that shells out to `Gaea.Swarm.exe` — all Gaea-version-specific logic is confined to that one translation unit for easier migration. Single-instance guard is a named Win32 mutex. Outside the debugger, top-level `try/catch` shows a MessageBox; under the debugger it runs unwrapped so exceptions break in.
 
-FileManager (`gpFileManager`) owns input/output/temp directories and the Vulkan SDK path (`VK_SDK_PATH` + `Bin/` required for glslc / glslangValidator / spirv-opt). CLI accepts zero args (sandbox defaults) or exactly three (engine-data, project-data, output-dir).
+FileManager (`gpFileManager`) owns input/output/temp directory resolution and CLI parsing only. CLI accepts zero args (sandbox defaults) or exactly three (engine-data, project-data, output-dir). Vulkan SDK path lookup (`VK_SDK_PATH` + `Bin/` required for glslc / glslangValidator / spirv-opt) is local to the shader exporter's TU. ThirdParty license collection is a free function called from `Main.cpp` post-export.
 
 Texture utilities keep internal pixels as RGBA float at 0–255 scale (not 0..1). BC4/BC5/BC7 mip chains terminate once width or height drops below 4 or stops being divisible by 4.
 
@@ -14,11 +14,10 @@ Pch.h sets `kbIsDataPacker = true` (distinct from engine/game PCH); log categori
 
 ## Design Patterns
 
-- **Template-based processing**: `RunExportJobs<T>()` provides type-safe job management with dirty checking. Parallelism is one `std::async` task per matched asset — no central thread pool. `T::Handles(entry)` returns `std::optional<ChunkFlags_t>` to accept-and-tag.
+- **Template-based processing**: `RunExportJobs<T>()` provides type-safe job management with dirty checking, constrained by the `IsExportJob` concept (requires `kName`, `Handles()`, and `ExportJob` derivation). Parallelism is one `std::async` task per matched asset — no central thread pool. `T::Handles(entry)` returns `std::optional<ChunkFlags_t>` to accept-and-tag.
 - **Atomic writes**: Outputs written to temp directory first, renamed on success. On any job failure, temp files removed and run returns non-zero without touching prior outputs.
 - **Content-based updates**: Generated headers only overwritten when content differs, preventing unnecessary recompilation.
 - **Deterministic output**: Assets sorted by relative path before processing for consistent chunk ordering.
-- **Per-type header hook**: Only `ExportTexture` contributes extra header content (selected via `if constexpr`). Adding another requires extending the template.
 
 ## Output Structure
 

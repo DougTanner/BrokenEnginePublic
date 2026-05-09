@@ -84,7 +84,7 @@ void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFram
 {
 	// Heap: static vectors resized each frame, only allocates on first call or when count grows (capacity retained).
 	// .data() pointers are passed to AddLayer and must survive until PostCollision, so workbuffer can't be used
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	SpaceshipsInterpolate& rCurrentInterpolate = *rFrame.interpolate.pSpaceships;
 	SpaceshipsPostRender& rCurrentPostRender = *rFrame.postRender.pSpaceships;

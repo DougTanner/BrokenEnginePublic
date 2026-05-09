@@ -121,7 +121,7 @@ void Server::ClientSpawnRequest(const uint8_t* pData, size_t iSize, int64_t iCli
 
 	LOG(kNetwork, kDebug, "Server::ClientSpawnRequest Client: {} Spawn: {} Respawn: {}", iClientId, static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
 
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	// Heap: spawn request vector grows on request
 	mPendingSpawnRequests.push_back({iClientId, flags});
 }
@@ -201,7 +201,7 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPee
 	const std::string& rFrameData = it->second;
 
 	// Heap: compression buffer may grow when LZ4 expansion bound exceeds current capacity
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 
 	// LZ4 compress (reuse persistent compression buffer)
 	int iCompressedSize = CompressToBuffer(rFrameData.data(), static_cast<int>(rFrameData.size()));
@@ -373,7 +373,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 
 	SendSubscribeAccept(*pClient, iSlot, coord);
 
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	// Heap: pending subscription entry
 	mPendingNewSubscriptions.push_back({iClientId, iSlot, coord});
 }
@@ -406,7 +406,7 @@ void Server::ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClie
 
 	LOG(kNetwork, kDebug, "Server::ClientUnsubscribe Client: {} Slot: {} Coord: ({},{})", iClientId, uiSlotIndex, coord.x, coord.y);
 
-	SendUnsubscribeAck(*pClient, uiSlotIndex);
+	SendSimplePacket(pClient->pPeer, PacketType::kServerUnsubscribeAck, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex);
 }
 
 void Server::ClientResyncRequest([[maybe_unused]] const uint8_t* pData, int64_t iClientId)
@@ -420,7 +420,7 @@ void Server::ClientResyncRequest([[maybe_unused]] const uint8_t* pData, int64_t 
 	LOG(kNetwork, kError, "Server::ClientResyncRequest Client: {}", iClientId);
 
 	// Heap: pending resync client-id vector grows on request
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	ScopedSuppressAllocationTracking suppress;
 	mPendingResyncClientIds.push_back(iClientId);
 }
 
