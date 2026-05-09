@@ -70,7 +70,7 @@ void HandleException(std::optional<const std::exception*> pException)
 
 void ReadDxDiag()
 {
-	if (IsDebuggerPresent())
+	if (IsDebuggerPresent() != 0)
 	{
 		return;
 	}
@@ -90,7 +90,7 @@ void ReadDxDiag()
 		{
 			.dwSize = sizeof(DXDIAG_INIT_PARAMS),
 			.dwDxDiagHeaderVersion = DXDIAG_DX9_SDK_VERSION,
-			.bAllowWHQLChecks = false,
+			.bAllowWHQLChecks = FALSE,
 			.pReserved = nullptr,
 		};
 		CHECK_HRESULT(pIdxDiagProvider->Initialize(&dxdiagInitParams));

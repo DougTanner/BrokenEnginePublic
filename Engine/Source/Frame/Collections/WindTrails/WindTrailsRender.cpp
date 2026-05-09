@@ -97,9 +97,9 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 			XMVECTOR vecBasePreviousPosition = ProjectToBaseHeight(vecPreviousPosition);
 
 			// Calculate direction from previous to current, scaled by length multiplier
-			XMVECTOR vecDirection = vecBasePosition - vecBasePreviousPosition;
-			vecDirection = vecDirection * fLengthMultiplier;
-			vecBasePreviousPosition = vecBasePosition - vecDirection;
+			XMVECTOR vecDirection = XMVectorSubtract(vecBasePosition, vecBasePreviousPosition);
+			vecDirection = XMVectorScale(vecDirection, fLengthMultiplier);
+			vecBasePreviousPosition = XMVectorSubtract(vecBasePosition, vecDirection);
 			float fDistance = XMVectorGetX(XMVector3Length(vecDirection));
 			if (fDistance <= 0.001f)
 			{
@@ -112,10 +112,10 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 			XMVECTOR vecPerpNormal = XMVector3Normalize(XMVector3Cross(vecDirNormal, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
 
 			// Build oriented quad: front (current) ± width, back (previous) ± width
-			XMVECTOR vecFrontLeft = vecBasePosition + fWidth * vecPerpNormal;
-			XMVECTOR vecFrontRight = vecBasePosition - fWidth * vecPerpNormal;
-			XMVECTOR vecBackLeft = vecBasePreviousPosition + fWidth * vecPerpNormal;
-			XMVECTOR vecBackRight = vecBasePreviousPosition - fWidth * vecPerpNormal;
+			XMVECTOR vecFrontLeft = XMVectorAdd(vecBasePosition, XMVectorScale(vecPerpNormal, fWidth));
+			XMVECTOR vecFrontRight = XMVectorSubtract(vecBasePosition, XMVectorScale(vecPerpNormal, fWidth));
+			XMVECTOR vecBackLeft = XMVectorAdd(vecBasePreviousPosition, XMVectorScale(vecPerpNormal, fWidth));
+			XMVECTOR vecBackRight = XMVectorSubtract(vecBasePreviousPosition, XMVectorScale(vecPerpNormal, fWidth));
 
 			// Wind direction from motion
 			float fWindDirX = XMVectorGetX(vecDirNormal);

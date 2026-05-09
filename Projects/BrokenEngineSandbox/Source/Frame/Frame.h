@@ -217,7 +217,7 @@ std::istream& operator>>(std::istream& rStream, Frame& rCurrent);
 // drop x entirely. The 64-bit multiply spreads every input bit through the upper half of the
 // product, and the distinct multiplier per use case decorrelates offset and rotation streams.
 // RandomEngine's constructor then runs full splitmix64 on the 32-bit seed to produce its state.
-inline uint32_t SeedFromGridCoord(engine::GridCoord coord, uint64_t uiMultiplier)
+inline constexpr uint32_t SeedFromGridCoord(engine::GridCoord coord, uint64_t uiMultiplier)
 {
 	return static_cast<uint32_t>((coord.ToKey() * uiMultiplier) >> 32);
 }

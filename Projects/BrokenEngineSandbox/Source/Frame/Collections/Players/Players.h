@@ -162,7 +162,7 @@ enum class PlayerFlags : uint16_t
 };
 using PlayerFlags_t = common::Flags<PlayerFlags>;
 
-inline int8_t GetNavDirection(PlayerFlags_t flags)
+inline constexpr int8_t GetNavDirection(PlayerFlags_t flags)
 {
 	return static_cast<int8_t>(((std::to_underlying(flags.meFlags) >> 8) & 0x7) - 1);
 }

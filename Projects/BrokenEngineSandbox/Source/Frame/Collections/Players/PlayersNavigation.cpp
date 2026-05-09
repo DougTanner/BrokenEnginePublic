@@ -135,6 +135,7 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 				case 1: bAlreadyValid = iDeltaY < 0; break;
 				case 2: bAlreadyValid = iDeltaX > 0; break;
 				case 3: bAlreadyValid = iDeltaX < 0; break;
+				default: break;
 			}
 		}
 
@@ -301,6 +302,8 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 				break;
 			case 3:
 				vecDestination = XMVectorAdd(vecFrameCenter, XMVectorSet(-Frame::kfCellWidth, 0.0f, 0.0f, 0.0f));
+				break;
+			default:
 				break;
 		}
 

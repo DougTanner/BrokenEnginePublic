@@ -108,10 +108,10 @@ AudioManager::AudioManager()
 			{
 				.TraceMask = XAUDIO2_LOG_ERRORS | XAUDIO2_LOG_WARNINGS,
 				.BreakMask = XAUDIO2_LOG_ERRORS,
-				.LogThreadID = true,
-				.LogFileline = true,
-				.LogFunctionName = true,
-				.LogTiming = false,
+				.LogThreadID = TRUE,
+				.LogFileline = TRUE,
+				.LogFunctionName = TRUE,
+				.LogTiming = FALSE,
 			};
 			pIXAudio2->SetDebugConfiguration(&debugConfiguration);
 
@@ -167,7 +167,7 @@ AudioManager::~AudioManager()
 
 void AudioManager::SetNextMusicTrackCallback(std::function<common::crc_t()> callback)
 {
-	mStreamingVoices.SetNextTrackCallback(callback);
+	mStreamingVoices.SetNextTrackCallback(std::move(callback));
 }
 
 void AudioManager::ClearVoices()

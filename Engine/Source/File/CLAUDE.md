@@ -34,4 +34,4 @@ Single `VirtualAlloc` (`MEM_RESERVE | MEM_COMMIT`), sized by cumulative `RoundUp
 
 ## DifferenceStream
 
-Template delta compression for deterministic state recording/replay. Records full state at boundaries and only changed states between frames; per-frame CRC stream enables validation. Optional full-frame debug stream is compile-time gated via `[[no_unique_address]] std::conditional_t` for zero cost when disabled. Template parameters must supply stream operators and a `Crc()` method returning `common::crc_t`.
+Template delta compression for deterministic state recording/replay. Records full state at boundaries and only changed states between frames; per-frame CRC stream enables validation. Optional full-frame debug stream gated by `if constexpr (kbReplayFullFrames)`; the stream/index members are present in all builds (avoids clang's parse-time non-dependent type checks inside `if constexpr` discarded branches) but stay empty when disabled. Template parameters must supply stream operators and a `Crc()` method returning `common::crc_t`.

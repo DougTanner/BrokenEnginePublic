@@ -90,7 +90,7 @@ void MainThread(HINSTANCE hinstance)
 	std::future<void> readDxDiag;
 	if constexpr (kbDxDiag)
 	{
-		if (!IsDebuggerPresent()) [[likely]]
+		if (IsDebuggerPresent() == 0) [[likely]]
 		{
 			readDxDiag = std::async(std::launch::async, ReadDxDiag);
 		}
@@ -448,9 +448,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		return TRUE;
 	}
 
-	if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
+	if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam) != 0)
 	{
-		return true;
+		return TRUE;
 	}
 
 	switch (message)
@@ -643,7 +643,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANC
 #endif
 	auto pFileManager = std::make_unique<engine::FileManager>();
 
-	if (IsDebuggerPresent()) [[unlikely]]
+	if (IsDebuggerPresent() != 0) [[unlikely]]
 	{
 		engine::MainThread(hInstance);
 	}

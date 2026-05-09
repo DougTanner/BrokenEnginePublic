@@ -2,7 +2,17 @@
 
 #include "Texture.h"
 
+#pragma warning(push, 0)
+#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+#ifdef __clang__
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Weverything"
+#endif
 #include "bc7enc_rdo/bc7decomp.h"
+#ifdef __clang__
+	#pragma clang diagnostic pop
+#endif
+#pragma warning(pop)
 
 using enum common::ChunkFlags;
 

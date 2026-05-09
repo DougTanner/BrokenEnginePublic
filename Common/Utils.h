@@ -3,10 +3,6 @@
 namespace common
 {
 
-// Empty struct for use with [[no_unique_address]] and std::conditional_t
-// Allows conditional member elimination at compile time with zero storage overhead
-struct Empty {};
-
 // Compile-time string wrapper for use as non-type template parameter (C++20 NTTP)
 // Enables passing string literals directly as template arguments
 // Template parameter: N - Size of the string including null terminator

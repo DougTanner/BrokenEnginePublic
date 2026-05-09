@@ -312,7 +312,7 @@ void GameBase::Render()
 		double dT = rSourceFrame.interpolate.fCurrentTime;
 
 		float fDeltaTime = 0.0f;
-		bool bPaused = (mGameFlags & GameFlags::kPaused) != 0;
+		bool bPaused = mGameFlags & GameFlags::kPaused;
 
 		if (bPaused)
 		{

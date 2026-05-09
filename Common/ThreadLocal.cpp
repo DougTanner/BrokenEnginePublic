@@ -118,7 +118,7 @@ void SetupExceptionHandling()
 					}
 					break;
 
-				case RPC_E_DISCONNECTED:
+				case static_cast<DWORD>(RPC_E_DISCONNECTED):
 					// Caused by gamepad library?
 					LOG(kDefault, kWarning, "RPC_E_DISCONNECTED: The object invoked has disconnected from its clients");
 					break;

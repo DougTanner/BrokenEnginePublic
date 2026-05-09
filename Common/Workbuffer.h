@@ -58,6 +58,12 @@ public:
 		return {reinterpret_cast<const T*>(mBuffer.data() + miBase), static_cast<size_t>(miSize - miBase) / sizeof(T)};
 	}
 
+	template<typename T>
+	std::span<T> Span()
+	{
+		return {reinterpret_cast<T*>(mBuffer.data() + miBase), static_cast<size_t>(miSize - miBase) / sizeof(T)};
+	}
+
 private:
 
 	void RawPush()
@@ -134,6 +140,7 @@ public:
 	template<typename T> void PushBack(const T& rValue) { mBuffer.PushBack(rValue); }
 	std::string_view View() const                   { return mBuffer.View(); }
 	template<typename T> std::span<const T> Span() const { return mBuffer.Span<T>(); }
+	template<typename T> std::span<T> Span()             { return mBuffer.Span<T>(); }
 	void ShrinkLastPushBuffer(int64_t iActualSize)  { mBuffer.ShrinkLastPushBuffer(iActualSize); }
 
 private:
@@ -247,35 +254,5 @@ struct std::formatter<common::ScopedWorkbufferAllocation<const char*>> : std::fo
 	auto format(const common::ScopedWorkbufferAllocation<const char*>& rValue, CONTEXT& rContext) const
 	{
 		return std::formatter<std::string_view>::format(static_cast<const char*>(rValue), rContext);
-	}
-};
-
-template <>
-struct std::formatter<common::Wb> : std::formatter<std::string_view>
-{
-	template <typename CONTEXT>
-	auto format(const common::Wb& rValue, CONTEXT& rContext) const
-	{
-		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-		common::ScopedWorkbufferArena arena = rWorkbuffer.Push();
-		arena.AppendFloat(rValue.fValue, rValue.iPrecision);
-		return std::formatter<std::string_view>::format(arena.View(), rContext);
-	}
-};
-
-template <>
-struct std::formatter<common::WbV2> : std::formatter<std::string_view>
-{
-	template <typename CONTEXT>
-	auto format(const common::WbV2& rValue, CONTEXT& rContext) const
-	{
-		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-		common::ScopedWorkbufferArena arena = rWorkbuffer.Push();
-		arena.Append(std::string_view("("));
-		arena.AppendFloat(DirectX::XMVectorGetX(rValue.vec), rValue.iPrecision);
-		arena.Append(std::string_view(","));
-		arena.AppendFloat(DirectX::XMVectorGetY(rValue.vec), rValue.iPrecision);
-		arena.Append(std::string_view(")"));
-		return std::formatter<std::string_view>::format(arena.View(), rContext);
 	}
 };

@@ -68,7 +68,7 @@ ZoneRange Collision::CalculateZoneRange(float fMinX, float fMaxX, float fMinY, f
 
 ZoneRange Collision::CalculateObjectZoneRange(const CollisionLayer& rLayer, int64_t iIndex)
 {
-	float fMinX, fMaxX, fMinY, fMaxY;
+	float fMinX = 0.0f, fMaxX = 0.0f, fMinY = 0.0f, fMaxY = 0.0f;
 	if (rLayer.bSweptTest && rLayer.pVecVelocities != nullptr)
 	{
 		XMVECTOR vecPos = rLayer.pVecPositions[iIndex];

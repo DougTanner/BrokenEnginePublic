@@ -51,12 +51,12 @@ struct HexShieldsInterpolate : public Collection<HexShieldsInterpolate, Collecti
 
 	// SOA arrays (decomposed from HexShieldLayout)
 	XMVECTOR* __restrict pVecPositions = nullptr;
-	XMFLOAT4* __restrict pf4Transforms[3] = {nullptr, nullptr, nullptr};
-	XMFLOAT4* __restrict pf4TransformNormals[3] = {nullptr, nullptr, nullptr};
+	XMFLOAT4* pf4Transforms[3] = {nullptr, nullptr, nullptr};
+	XMFLOAT4* pf4TransformNormals[3] = {nullptr, nullptr, nullptr};
 	uint8_t* __restrict puiTypeIndices = nullptr;
-	XMFLOAT4* __restrict pf4Directions[shaders::kiHexShieldDirections] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-	float* __restrict pfVertIntensities[shaders::kiHexShieldDirections] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-	float* __restrict pfFragIntensities[shaders::kiHexShieldDirections] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+	XMFLOAT4* pf4Directions[shaders::kiHexShieldDirections] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+	float* pfVertIntensities[shaders::kiHexShieldDirections] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+	float* pfFragIntensities[shaders::kiHexShieldDirections] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
 	float* __restrict pfLightingIntensities = nullptr;
 	float* __restrict pfSizes = nullptr;
 	float* __restrict pfColorMixes = nullptr;

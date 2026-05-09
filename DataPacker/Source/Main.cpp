@@ -12,8 +12,18 @@
 #include "ExportJobs/ExportShader.h"
 #include "ExportJobs/ExportTexture.h"
 
+#pragma warning(push, 0)
+#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+#ifdef __clang__
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Weverything"
+#endif
 #include "bc7enc_rdo/bc7decomp.h"
 #include "bc7enc_rdo/rgbcx.h"
+#ifdef __clang__
+	#pragma clang diagnostic pop
+#endif
+#pragma warning(pop)
 
 using enum common::ChunkFlags;
 
@@ -625,7 +635,7 @@ bool RunExportJobs()
 			temporaryPackFileStream.write(reinterpret_cast<char*>(rData.data()), rData.size());
 			common::AlignOutputStream(temporaryPackFileStream);
 
-			temporaryHeaderFileStream << "inline constexpr common::crc_t k" << common::PathToCppVariable(rpExportJob->mRelativeFile) << "Crc = " << rpExportJob->mCrc << ";" << std::endl;
+			temporaryHeaderFileStream << "inline constexpr common::crc_t k" << common::PathToCppVariable(rpExportJob->mRelativeFile) << "Crc = " << rpExportJob->mCrc << "ull;" << std::endl;
 		}
 		catch (const std::exception& rException)
 		{
@@ -848,12 +858,12 @@ int main(int argc, char* argv[])
 
 #if defined(_CRTDBG_MAP_ALLOC)
 
-[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new(std::size_t n) noexcept(false) { void* p = malloc(n); __assume(p); return p; }
-[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new[](std::size_t n) noexcept(false) { void* p = malloc(n); __assume(p); return p; }
+[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new(std::size_t n) noexcept(false) { void* p = malloc(n); __assume(p != nullptr); return p; }
+[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new[](std::size_t n) noexcept(false) { void* p = malloc(n); __assume(p != nullptr); return p; }
 [[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new  (std::size_t n, const std::nothrow_t&) noexcept { return malloc(n); }
 [[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new[](std::size_t n, const std::nothrow_t&) noexcept { return malloc(n); }
-[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new  (std::size_t n, std::align_val_t al) noexcept(false) { void* p = _aligned_malloc(n, static_cast<size_t>(al)); __assume(p); return p; }
-[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new[](std::size_t n, std::align_val_t al) noexcept(false) { void* p = _aligned_malloc(n, static_cast<size_t>(al)); __assume(p); return p; }
+[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new  (std::size_t n, std::align_val_t al) noexcept(false) { void* p = _aligned_malloc(n, static_cast<size_t>(al)); __assume(p != nullptr); return p; }
+[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new[](std::size_t n, std::align_val_t al) noexcept(false) { void* p = _aligned_malloc(n, static_cast<size_t>(al)); __assume(p != nullptr); return p; }
 [[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new  (std::size_t n, std::align_val_t al, const std::nothrow_t&) noexcept { return _aligned_malloc(n, static_cast<size_t>(al)); }
 [[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new[](std::size_t n, std::align_val_t al, const std::nothrow_t&) noexcept { return _aligned_malloc(n, static_cast<size_t>(al)); }
 

@@ -92,14 +92,14 @@ public:
 		, mVkRenderPass(std::exchange(rOther.mVkRenderPass, VK_NULL_HANDLE))
 		, mVkFramebuffer(std::exchange(rOther.mVkFramebuffer, VK_NULL_HANDLE))
 	{}
-	Texture(const TextureInfo& rInfo, std::function<void(void*, int64_t, int64_t)> dataFunction = nullptr);
+	Texture(const TextureInfo& rInfo, const std::function<void(void*, int64_t, int64_t)>& rDataFunction = nullptr);
 	~Texture();
 
-	void Create(const TextureInfo& rInfo, std::function<void(void*, int64_t, int64_t)> dataFunction = nullptr);
+	void Create(const TextureInfo& rInfo, const std::function<void(void*, int64_t, int64_t)>& rDataFunction = nullptr);
 	void InitDeferred(const TextureInfo& rInfo, VkImageView vkPlaceholderImageView);
 	void AdoptTransferredImage(VkImage& rVkImage, VmaAllocation& rVmaAllocation, VkDeviceMemory& rVkDeviceMemory);
 	void RecordAcquireBarrier(VkCommandBuffer vkCommandBuffer);
-	void UpdateData(std::function<void(void*, int64_t, int64_t)> dataFunction);
+	void UpdateData(const std::function<void(void*, int64_t, int64_t)>& rDataFunction);
 	void ReCreate();
 	void Destroy() noexcept;
 
@@ -110,7 +110,7 @@ public:
 
 private:
 
-	void UploadImageData(std::function<void(void*, int64_t, int64_t)> dataFunction, TextureLayout eOldLayout, TextureLayout eFinalLayout);
+	void UploadImageData(const std::function<void(void*, int64_t, int64_t)>& rDataFunction, TextureLayout eOldLayout, TextureLayout eFinalLayout);
 	void CreateRenderTarget();
 
 public:

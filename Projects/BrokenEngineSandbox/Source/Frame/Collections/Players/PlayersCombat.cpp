@@ -343,7 +343,7 @@ void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
 			float fInterFrameTime = -rCurrentPostRender.pfNextBlasterFireTimes[i];
 
 			// Rewind player to where they were at the fire moment (end_of_tick_pos - elapsed*vel).
-			XMVECTOR vecPlayerPositionAtSpawn = rCurrentInterpolate.pVecPositions[i] - fInterFrameTime * rCurrentPostRender.pVecVelocities[i];
+			XMVECTOR vecPlayerPositionAtSpawn = XMVectorSubtract(rCurrentInterpolate.pVecPositions[i], XMVectorScale(rCurrentPostRender.pVecVelocities[i], fInterFrameTime));
 
 			// Alternate barrels: left vs right of player forward
 			rCurrentPostRender.pFlags[i].Toggle(kBlasterSpawnLeft);
@@ -353,7 +353,7 @@ void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
 			XMVECTOR vecBlasterVelocity = XMVectorScale(vecJitteredDirection, kfPlayerBlastersSpeed);
 
 			// Muzzle point in world: player at fire time + barrel offset + constant pre-move along velocity
-			XMVECTOR vecSpawnPosition = vecPlayerPositionAtSpawn + fBarrelOffset * vecLeftNormal + kfBlastersSpawnPreMove * vecJitteredDirection;
+			XMVECTOR vecSpawnPosition = XMVectorAdd(XMVectorAdd(vecPlayerPositionAtSpawn, XMVectorScale(vecLeftNormal, fBarrelOffset)), XMVectorScale(vecJitteredDirection, kfBlastersSpawnPreMove));
 
 			// Forward step by fInterFrameTime (the blaster's age by end-of-tick) so stored matches
 			// rNext.fCurrentTime — the reference time of every other position in this frame. Then
@@ -432,9 +432,9 @@ void PlayersPostRender::SpawnMissiles([[maybe_unused]] Frame& __restrict rFrame)
 		XMVECTOR vecAngledDirection = XMVector3TransformNormal(vecAimDirection, XMMatrixRotationZ(fAngleOffset));
 		XMVECTOR vecJitteredDirection = common::RandomAngleJitter(vecAngledDirection, kfMissileAngleJitter, rFrame.postRender.randomEngine);
 
-		XMVECTOR vecSpawnPosition = rCurrentInterpolate.pVecPositions[i] + fBarrelOffset * vecLeftNormal;
-		XMVECTOR vecMissilePosition = vecSpawnPosition + kfMissileSpawnPreMove * vecJitteredDirection;
-		XMVECTOR vecMissileVelocity = XMVectorReplicate(kfMissileInitialVelocity) * vecJitteredDirection;
+		XMVECTOR vecSpawnPosition = XMVectorAdd(rCurrentInterpolate.pVecPositions[i], XMVectorScale(vecLeftNormal, fBarrelOffset));
+		XMVECTOR vecMissilePosition = XMVectorAdd(vecSpawnPosition, XMVectorScale(vecJitteredDirection, kfMissileSpawnPreMove));
+		XMVECTOR vecMissileVelocity = XMVectorScale(vecJitteredDirection, kfMissileInitialVelocity);
 
 		MissilesPostRender::Spawn(rFrame,
 		{

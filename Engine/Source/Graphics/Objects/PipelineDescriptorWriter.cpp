@@ -175,7 +175,7 @@ void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo
 			const common::crc_t* pTextureCrcs = reinterpret_cast<const common::crc_t*>(rChunk.pData);
 			const common::MaterialShaderData* pMaterialShaderData = reinterpret_cast<const common::MaterialShaderData*>(rChunk.pData + iArraysSize);
 			shaders::PbrMaterialLayout* pCurrent = static_cast<shaders::PbrMaterialLayout*>(pData);
-			constexpr int64_t kiOldMaterialSize = offsetof(shaders::PbrMaterialLayout, fColorTextureIndex);
+			const int64_t kiOldMaterialSize = offsetof(shaders::PbrMaterialLayout, fColorTextureIndex);
 			for (int64_t j = 0; j < rSceneHeader.uiMaterialCount; ++j)
 			{
 				memcpy(pCurrent, &pMaterialShaderData[j].f4BaseColorFactor, kiOldMaterialSize);

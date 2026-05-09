@@ -107,9 +107,9 @@ void Texture::RecordEndRenderPass(VkCommandBuffer vkCommandBuffer)
 	vkCmdEndRenderPass(vkCommandBuffer);
 }
 
-Texture::Texture(const TextureInfo& rInfo, std::function<void(void*, int64_t, int64_t)> dataFunction)
+Texture::Texture(const TextureInfo& rInfo, const std::function<void(void*, int64_t, int64_t)>& rDataFunction)
 {
-	Create(rInfo, dataFunction);
+	Create(rInfo, rDataFunction);
 }
 
 Texture::~Texture()
@@ -164,7 +164,7 @@ void Texture::ReCreate()
 	Create(mInfo, nullptr);
 }
 
-void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t, int64_t)> dataFunction)
+void Texture::Create(const TextureInfo& rInfo, const std::function<void(void*, int64_t, int64_t)>& rDataFunction)
 {
 	Destroy();
 
@@ -215,9 +215,9 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 
 	CreateImageView(mVkImage, mInfo, true, mVkImageView);
 
-	if (dataFunction != nullptr)
+	if (rDataFunction != nullptr)
 	{
-		UploadImageData(dataFunction, kUndefined, mInfo.eTextureLayout);
+		UploadImageData(rDataFunction, kUndefined, mInfo.eTextureLayout);
 	}
 
 	if (mInfo.textureFlags & kRenderPass)
@@ -225,8 +225,8 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 		CreateRenderTarget();
 	}
 
-	// Transition to final layout only if no dataFunction was provided (dataFunction case handles this above)
-	if (dataFunction == nullptr && mInfo.eTextureLayout != kUndefined)
+	// Transition to final layout only if no rDataFunction was provided (rDataFunction case handles this above)
+	if (rDataFunction == nullptr && mInfo.eTextureLayout != kUndefined)
 	{
 		OneShotCommandBuffer oneShotCommandBuffer;
 		TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kUndefined, mInfo.eTextureLayout);
@@ -234,13 +234,13 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 	}
 }
 
-void Texture::UpdateData(std::function<void(void*, int64_t, int64_t)> dataFunction)
+void Texture::UpdateData(const std::function<void(void*, int64_t, int64_t)>& rDataFunction)
 {
 	ASSERT(mVkImage != VK_NULL_HANDLE);
-	UploadImageData(dataFunction, kShaderReadOnly, kShaderReadOnly);
+	UploadImageData(rDataFunction, kShaderReadOnly, kShaderReadOnly);
 }
 
-void Texture::UploadImageData(std::function<void(void*, int64_t, int64_t)> dataFunction, TextureLayout eOldLayout, TextureLayout eFinalLayout)
+void Texture::UploadImageData(const std::function<void(void*, int64_t, int64_t)>& rDataFunction, TextureLayout eOldLayout, TextureLayout eFinalLayout)
 {
 	// Calculate total buffer size for all mip levels
 	VkDeviceSize vkDeviceSize = 0;
@@ -261,7 +261,7 @@ void Texture::UploadImageData(std::function<void(void*, int64_t, int64_t)> dataF
 	Buffer::CreateBuffer(mInfo.name, vkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory, stagingVmaAllocation, &stagingVmaAllocationInfo);
 
 	// Use VMA's pre-mapped pointer
-	dataFunction(stagingVmaAllocationInfo.pMappedData, 0, vkDeviceSize);
+	rDataFunction(stagingVmaAllocationInfo.pMappedData, 0, vkDeviceSize);
 
 	// Record all operations into a single command buffer
 	OneShotCommandBuffer oneShotCommandBuffer;

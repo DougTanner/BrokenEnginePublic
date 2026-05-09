@@ -21,7 +21,7 @@ struct LogBuffer
 	static constexpr int64_t kiLineCount = LINE_COUNT;
 
 	std::atomic<int64_t> miWritePosition {0};
-	char mLines[kiLineCount][kiLogBufferSize]; // last byte always 0
+	char mLines[kiLineCount][kiLogBufferSize] {}; // last byte always 0
 
 	char* AcquireLine()
 	{

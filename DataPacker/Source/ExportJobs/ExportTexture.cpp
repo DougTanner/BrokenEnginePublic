@@ -4,7 +4,11 @@
 #include "Texture.h"
 
 #pragma warning(push, 0)
-#pragma warning(disable : 4146 4701 4702 4706 6001 6011 6262 6308 6330 6386 6387 26051 26408 26409 26429 26432 26433 26434 26435 26438 26440 26443 26444 26447 26448 26451 26455 26456 26459 26460 26461 26466 26472 26475 26477 26481 26482 26485 26488 26498 26490 26493 26494 26495 26496 26497 26812 26814 26818 26819 28182 28020)
+#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+#ifdef __clang__
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Weverything"
+#endif
 #define GLM_STATIC_ASSERT static_assert
 #include "gli/gli/gli.hpp"
 #undef malloc
@@ -13,6 +17,9 @@
 #include <cmft/clcontext.h>
 #include <cmft/image.h>
 #include <cmft/cubemapfilter.h>
+#ifdef __clang__
+	#pragma clang diagnostic pop
+#endif
 #pragma warning(pop)
 
 using enum common::ChunkFlags;
@@ -35,7 +42,7 @@ KtxCubemapData LoadKtxCubemapAsFloat(const std::filesystem::path& rPath)
 	result.floatData.resize(uiPixelsPerFace * 6 * 4);
 	for (int64_t iFace = 0; iFace < 6; ++iFace)
 	{
-		const uint16_t* pSrcHalf = reinterpret_cast<const uint16_t*>(textureCube[iFace].data());
+		const uint16_t* pSrcHalf = static_cast<const uint16_t*>(textureCube[iFace].data());
 		float* pDstFloat = result.floatData.data() + iFace * uiPixelsPerFace * 4;
 		for (uint32_t uiPixel = 0; uiPixel < uiPixelsPerFace; ++uiPixel)
 		{
@@ -96,7 +103,7 @@ void GenerateIrradianceCubemaps()
 			uint32_t uiIrradianceTotalPixels = uiIrradiancePixelsPerFace * 6;
 			std::vector<uint16_t> halfData(uiIrradianceTotalPixels * 4);
 
-			const float* pSrcFloat = reinterpret_cast<const float*>(dstImage.m_data);
+			const float* pSrcFloat = static_cast<const float*>(dstImage.m_data);
 			for (uint32_t i = 0; i < uiIrradianceTotalPixels * 4; ++i)
 			{
 				halfData.at(i) = DirectX::PackedVector::XMConvertFloatToHalf(pSrcFloat[i]);
@@ -376,7 +383,7 @@ void ExportTexture::Export()
 		ASSERT(textureCube.format() == gli::FORMAT_RGBA16_SFLOAT_PACK16);
 
 		int64_t iUncompressedSize = static_cast<int64_t>(textureCube.size());
-		std::vector<std::byte> compressed = ZlibCompress(reinterpret_cast<const std::byte*>(textureCube.data()), iUncompressedSize);
+		std::vector<std::byte> compressed = ZlibCompress(static_cast<const std::byte*>(textureCube.data()), iUncompressedSize);
 		mChunkFlags.Set(kZlibCompressed);
 
 		auto [pHeader, dataSpan] = AllocateHeaderAndData(static_cast<int64_t>(compressed.size()));

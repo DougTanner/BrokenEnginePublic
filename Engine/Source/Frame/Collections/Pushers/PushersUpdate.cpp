@@ -12,8 +12,8 @@ constexpr int64_t kiPusherZones = static_cast<int64_t>(common::Ceil(kfPusherAren
 constexpr int64_t kiMaxPushersPerZone = 512;
 
 // Zone acceleration structure: thread_local so each Dispatch worker and reconcile thread gets its own copy
-thread_local alignas(64) uint16_t gppuiPushersPerZone[kiPusherZones][kiPusherZones] {};
-thread_local alignas(64) int16_t gpppuiPusherZones[kiPusherZones][kiPusherZones][kiMaxPushersPerZone] {};
+alignas(64) thread_local uint16_t gppuiPushersPerZone[kiPusherZones][kiPusherZones] {};
+alignas(64) thread_local int16_t gpppuiPusherZones[kiPusherZones][kiPusherZones][kiMaxPushersPerZone] {};
 
 thread_local float gfPusherArenaLeft = -0.5f * kfPusherArenaSize;
 thread_local float gfPusherArenaTop = 0.5f * kfPusherArenaSize;
@@ -143,13 +143,13 @@ XMVECTOR XM_CALLCONV PushersInterpolate::ApplyPush(const game::FrameInterpolate&
 		PusherFlags_t flags = rCurrent.pFlags[i];
 
 		// Skip if flags match exclude mask
-		if (flags & excludeFlags) [[unlikely]]
+		if ((flags & excludeFlags) != 0u) [[unlikely]]
 		{
 			continue;
 		}
 
 		// Skip if flags don't match include mask
-		if (!(flags & includeFlags)) [[unlikely]]
+		if ((flags & includeFlags) == 0u) [[unlikely]]
 		{
 			continue;
 		}

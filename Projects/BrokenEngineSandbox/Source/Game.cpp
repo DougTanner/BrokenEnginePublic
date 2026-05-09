@@ -735,7 +735,7 @@ Game::~Game()
 
 	if (!(mMenuFlags & engine::MenuFlags::kMouseVisible))
 	{
-		ShowCursor(true);
+		ShowCursor(TRUE);
 	}
 
 	gpGame = nullptr;
@@ -882,12 +882,12 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 
 	if (rMenuInput.bGamepad && mMenuFlags & engine::MenuFlags::kMouseVisible)
 	{
-		ShowCursor(false);
+		ShowCursor(FALSE);
 		mMenuFlags.Clear(engine::MenuFlags::kMouseVisible);
 	}
 	else if (!rMenuInput.bGamepad && !(mMenuFlags & engine::MenuFlags::kMouseVisible))
 	{
-		ShowCursor(true);
+		ShowCursor(TRUE);
 		mMenuFlags.Set(engine::MenuFlags::kMouseVisible);
 	}
 

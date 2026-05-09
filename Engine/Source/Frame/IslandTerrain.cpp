@@ -147,7 +147,7 @@ XMVECTOR XM_CALLCONV IslandTerrain::GlobalNormal(FXMVECTOR vecPosition) const
 	auto vecBottomRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, -fDistance, 0.0f, 0.0f));
 	vecBottomRight = XMVectorSetZ(vecBottomRight, GlobalElevation(vecBottomRight));
 
-	return XMVector3Normalize(XMVector3Cross(vecTopRight - vecBottomLeft, vecTopLeft - vecBottomRight));
+	return XMVector3Normalize(XMVector3Cross(XMVectorSubtract(vecTopRight, vecBottomLeft), XMVectorSubtract(vecTopLeft, vecBottomRight)));
 }
 
 } // namespace engine

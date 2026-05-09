@@ -18,7 +18,7 @@ enum class StatusChangeType : uint8_t
 	kCount,
 };
 
-inline bool IsTransferType(StatusChangeType eType)
+inline constexpr bool IsTransferType(StatusChangeType eType)
 {
 	return eType >= StatusChangeType::kTransferPlayer && eType <= StatusChangeType::kTransferMissile;
 }
@@ -36,6 +36,7 @@ inline const char* StatusChangeTypeName(StatusChangeType eType)
 		case StatusChangeType::kDestroyPlayer:     return "DestroyPlayer";
 		case StatusChangeType::kUpdatePlayer:      return "UpdatePlayer";
 		case StatusChangeType::kUpdateFleet:       return "UpdateFleet";
+		case StatusChangeType::kCount:             break;
 	}
 	return "Unknown";
 }
@@ -90,15 +91,6 @@ struct UpdateFleetData
 
 struct TransferData
 {
-	bool operator==(const TransferData& rOther) const
-	{
-		bool bEqual = SharedMembers() == rOther.SharedMembers();
-#if defined(BT_CLIENT)
-		bEqual = bEqual && smokeTrailId == rOther.smokeTrailId;
-#endif
-		return bEqual;
-	}
-
 	auto SharedMembers(this auto&& rSelf)
 	{
 		return std::tie(
@@ -117,6 +109,15 @@ struct TransferData
 			rSelf.fleetWantedCoord,
 			rSelf.uiPendingFleetWantedCoordTicks,
 			rSelf.uiPendingWeaponModeTicks);
+	}
+
+	bool operator==(const TransferData& rOther) const
+	{
+		bool bEqual = SharedMembers() == rOther.SharedMembers();
+#if defined(BT_CLIENT)
+		bEqual = bEqual && smokeTrailId == rOther.smokeTrailId;
+#endif
+		return bEqual;
 	}
 
 	XMVECTOR vecPosition = DirectX::XMVectorZero();

@@ -169,6 +169,8 @@ void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeight
 				case 14:
 					rEdges.push_back({f2Left, f2Bottom});
 					break;
+				default:
+					break;
 			}
 		}
 	}

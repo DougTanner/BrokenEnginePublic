@@ -25,10 +25,10 @@ void Buffer::CreateBuffer([[maybe_unused]] std::string_view name, VkDeviceSize v
 	VmaAllocationCreateInfo vmaAllocationCreateInfo = {};
 	vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-	if (vkMemoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+	if ((vkMemoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0u)
 	{
-		bool bIsReadbackBuffer = (vkBufferUsageFlags & VK_BUFFER_USAGE_TRANSFER_DST_BIT) && !(vkBufferUsageFlags & VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-		bool bIsIndirectBuffer = (vkBufferUsageFlags & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT) != 0;
+		bool bIsReadbackBuffer = (vkBufferUsageFlags & VK_BUFFER_USAGE_TRANSFER_DST_BIT) != 0u && (vkBufferUsageFlags & VK_BUFFER_USAGE_TRANSFER_SRC_BIT) == 0u;
+		bool bIsIndirectBuffer = (vkBufferUsageFlags & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT) != 0u;
 		if (bIsReadbackBuffer)
 		{
 			// Readback buffer (GPU→CPU): Must have mapped pointer for CPU reads
@@ -133,9 +133,9 @@ void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, const BarrierInfo* 
 	vkCmdPipelineBarrier(vkCommandBuffer, combinedSrcStage, combinedDstStage, 0, 0, nullptr, static_cast<uint32_t>(vkBufferBarriers.size()), vkBufferBarriers.data(), 0, nullptr);
 }
 
-Buffer::Buffer(const BufferInfo& rInfo, std::function<void(void*)> dataFunction)
+Buffer::Buffer(const BufferInfo& rInfo, const std::function<void(void*)>& rDataFunction)
 {
-	Create(rInfo, dataFunction);
+	Create(rInfo, rDataFunction);
 }
 
 Buffer::Buffer(Buffer&& rOther) noexcept
@@ -174,7 +174,7 @@ Buffer::~Buffer()
 	Destroy();
 }
 
-void Buffer::Create(const BufferInfo& rInfo, std::function<void(void*)> dataFunction)
+void Buffer::Create(const BufferInfo& rInfo, const std::function<void(void*)>& rDataFunction)
 {
 	Destroy();
 
@@ -203,10 +203,10 @@ void Buffer::Create(const BufferInfo& rInfo, std::function<void(void*)> dataFunc
 			// Use VMA's pre-mapped pointer (VMA_ALLOCATION_CREATE_MAPPED_BIT auto-maps the memory)
 			mpMappedMemory = static_cast<char*>(vmaAllocationInfo.pMappedData);
 
-			// Initialize host-visible buffer if dataFunction provided
-			if (dataFunction != nullptr && mpMappedMemory != nullptr)
+			// Initialize host-visible buffer if rDataFunction provided
+			if (rDataFunction != nullptr && mpMappedMemory != nullptr)
 			{
-				dataFunction(mpMappedMemory);
+				rDataFunction(mpMappedMemory);
 			}
 		}
 
@@ -231,7 +231,7 @@ void Buffer::Create(const BufferInfo& rInfo, std::function<void(void*)> dataFunc
 		CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkBuffer, vkDeviceMemory, vmaAllocation, &vmaAllocationInfo);
 
 		// Use VMA's pre-mapped pointer
-		dataFunction(vmaAllocationInfo.pMappedData);
+		rDataFunction(vmaAllocationInfo.pMappedData);
 
 		// Copy to device local memory
 		OneShotCommandBuffer oneShotCommandBuffer;
@@ -301,7 +301,7 @@ void Buffer::RecordCopy(VkCommandBuffer vkCommandBuffer, VkPipelineStageFlags st
 		.offset = 0,
 		.size = mInfo.dataVkDeviceSize,
 	};
-	vkCmdPipelineBarrier(vkCommandBuffer, stageFlags, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 1, &vkBufferMemoryBarrier, 0, nullptr);
+	vkCmdPipelineBarrier(vkCommandBuffer, stageFlags, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1, &vkBufferMemoryBarrier, 0, nullptr);
 
 	VkBufferCopy vkBufferCopy
 	{
@@ -324,7 +324,7 @@ void Buffer::RecordCopy(VkCommandBuffer vkCommandBuffer, VkPipelineStageFlags st
 		.offset = 0,
 		.size = mInfo.dataVkDeviceSize,
 	};
-	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, stageFlags, 0, 0, 0, 1, &vkBufferMemoryBarrier, 0, nullptr);
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, stageFlags, 0, 0, nullptr, 1, &vkBufferMemoryBarrier, 0, nullptr);
 }
 
 } // namespace engine

@@ -37,8 +37,8 @@ struct CpuTimer
 
 	int64_t iAllocationsThisFrame = 0;
 
-	common::Smoothed<int64_t> smoothedMicroseconds;
-	common::Smoothed<int64_t> smoothedAllocations;
+	common::Smoothed<int64_t> smoothedMicroseconds {};
+	common::Smoothed<int64_t> smoothedAllocations {};
 
 	std::chrono::steady_clock::time_point lastVisibleTime {};
 };
@@ -127,7 +127,7 @@ enum GpuTimers : int64_t
 struct GpuTimer
 {
 	std::string_view name;
-	common::Smoothed<int64_t> smoothedMicroseconds;
+	common::Smoothed<int64_t> smoothedMicroseconds {};
 	std::chrono::steady_clock::time_point lastVisibleTime {};
 };
 
@@ -161,8 +161,8 @@ struct BootTimer
 {
 	std::string_view name;
 
-	std::chrono::high_resolution_clock::time_point startTimePoint;
-	std::chrono::nanoseconds timeNs;
+	std::chrono::high_resolution_clock::time_point startTimePoint {};
+	std::chrono::nanoseconds timeNs {};
 };
 
 class ProfileManagerBase

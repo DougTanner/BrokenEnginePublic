@@ -1,6 +1,16 @@
 #include "SceneVerticesLoader.h"
 
+#pragma warning(push, 0)
+#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+#ifdef __clang__
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Weverything"
+#endif
 #include "tinygltf/tiny_gltf.h"
+#ifdef __clang__
+	#pragma clang diagnostic pop
+#endif
+#pragma warning(pop)
 
 XMMATRIX ComputeNodeWorldTransform(int iNodeIndex, const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeParentMap)
 {
@@ -178,7 +188,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 		const tinygltf::Accessor& rPositionAccessor = rModel.accessors[rPrimitive.attributes.find("POSITION")->second];
 		const tinygltf::BufferView& rPositionBufferView = rModel.bufferViews[rPositionAccessor.bufferView];
 		const float* pfPositions = reinterpret_cast<const float*>(&(rModel.buffers[rPositionBufferView.buffer].data[rPositionAccessor.byteOffset + rPositionBufferView.byteOffset]));
-		int iPositionStride = rPositionAccessor.ByteStride(rPositionBufferView) ? (rPositionAccessor.ByteStride(rPositionBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC3);
+		int iPositionStride = rPositionAccessor.ByteStride(rPositionBufferView) != 0 ? (rPositionAccessor.ByteStride(rPositionBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC3);
 
 		// Normal
 		const float* pfNormals = nullptr;
@@ -188,7 +198,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("NORMAL")->second];
 			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
 			pfNormals = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iNormalStride = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC3);
+			iNormalStride = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC3);
 		}
 
 		// Texcoord 0
@@ -199,7 +209,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("TEXCOORD_0")->second];
 			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
 			pfTexcoords0 = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iTexcoordStride0 = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
+			iTexcoordStride0 = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
 		}
 
 		// Texcoord 1
@@ -210,7 +220,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("TEXCOORD_1")->second];
 			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
 			pfTexcoords1 = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iTexcoordStride1 = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
+			iTexcoordStride1 = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
 		}
 
 		// Texcoord 2
@@ -221,7 +231,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("TEXCOORD_2")->second];
 			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
 			pfTexcoords2 = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iTexcoordStride2 = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
+			iTexcoordStride2 = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
 		}
 
 		// Texcoord 3
@@ -232,7 +242,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("TEXCOORD_3")->second];
 			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
 			pfTexcoords3 = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iTexcoordStride3 = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
+			iTexcoordStride3 = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
 		}
 
 		// Texcoord 4
@@ -243,7 +253,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("TEXCOORD_4")->second];
 			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
 			pfTexcoords4 = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iTexcoordStride4 = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
+			iTexcoordStride4 = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
 		}
 
 		// Joints
@@ -255,7 +265,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
 			ASSERT(rAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT);
 			puiJoints = reinterpret_cast<const uint16_t*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iJointsStride = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / tinygltf::GetComponentSizeInBytes(rAccessor.componentType)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC4);
+			iJointsStride = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / tinygltf::GetComponentSizeInBytes(rAccessor.componentType)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC4);
 		}
 
 		// Weights
@@ -266,7 +276,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("WEIGHTS_0")->second];
 			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
 			pfWeights = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iWeightsStride = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC4);
+			iWeightsStride = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC4);
 		}
 
 		// De-duplicate vertices using hash map for O(1) lookups
@@ -390,7 +400,7 @@ bool IsOcclusion(int64_t iIndex, const tinygltf::Material& rMaterial)
 	bool bOcclusion = rMaterial.additionalValues.find("occlusionTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("occlusionTexture").TextureIndex() == iIndex;
 
 	// Check if occlusion texture is shared with another texture type (if so, treat as non-occlusion)
-	if (bOcclusion && (rMaterial.values.find("baseColorTexture") != rMaterial.values.end() && rMaterial.values.at("baseColorTexture").TextureIndex() == iIndex || rMaterial.additionalValues.find("normalTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("normalTexture").TextureIndex() == iIndex || rMaterial.values.find("metallicRoughnessTexture") != rMaterial.values.end() && rMaterial.values.at("metallicRoughnessTexture").TextureIndex() == iIndex || rMaterial.additionalValues.find("emissiveTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("emissiveTexture").TextureIndex() == iIndex))
+	if (bOcclusion && ((rMaterial.values.find("baseColorTexture") != rMaterial.values.end() && rMaterial.values.at("baseColorTexture").TextureIndex() == iIndex) || (rMaterial.additionalValues.find("normalTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("normalTexture").TextureIndex() == iIndex) || (rMaterial.values.find("metallicRoughnessTexture") != rMaterial.values.end() && rMaterial.values.at("metallicRoughnessTexture").TextureIndex() == iIndex) || (rMaterial.additionalValues.find("emissiveTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("emissiveTexture").TextureIndex() == iIndex)))
 	{
 		bOcclusion = false;
 	}

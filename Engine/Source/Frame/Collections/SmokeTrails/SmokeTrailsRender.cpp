@@ -79,7 +79,7 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		XMVECTOR vecBaseSmoothedPosition = ProjectToBaseHeight(vecSmoothedPosition);
 
 		// Calculate direction from smoothed to current
-		XMVECTOR vecToSmoothed = vecBasePosition - vecBaseSmoothedPosition;
+		XMVECTOR vecToSmoothed = XMVectorSubtract(vecBasePosition, vecBaseSmoothedPosition);
 		float fLengthScale = XMVectorGetX(XMVector3Length(vecToSmoothed));
 		if (fLengthScale <= 0.01f)
 		{
@@ -91,8 +91,8 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(vecToSmoothedNormal, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
 
 		// Calculate quad corners
-		XMVECTOR vecPointOne = vecBasePosition + gSmokeTrailsWidthCurrent.Get() * fWidth * vecLeftNormal;
-		XMVECTOR vecPointTwo = vecBasePosition + gSmokeTrailsWidthCurrent.Get() * fWidth * -vecLeftNormal;
+		XMVECTOR vecPointOne = XMVectorAdd(vecBasePosition, XMVectorScale(vecLeftNormal, gSmokeTrailsWidthCurrent.Get() * fWidth));
+		XMVECTOR vecPointTwo = XMVectorAdd(vecBasePosition, XMVectorScale(vecLeftNormal, -gSmokeTrailsWidthCurrent.Get() * fWidth));
 
 		float fLength = gSmokeTrailsLength.Get() + gSmokeTrailsLengthJitter.Get() * common::Random(sRandomEngine);
 		if (rFrameInterpolate.fCurrentTime - fStartTime < 0.05f)
@@ -100,8 +100,8 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 			fLength = 0.0f;
 		}
 
-		XMVECTOR vecPointThree = vecBaseSmoothedPosition + gSmokeTrailsWidthPrevious.Get() * fJitterOne * vecLeftNormal - fLength * fLengthScale * vecToSmoothedNormal;
-		XMVECTOR vecPointFour = vecBaseSmoothedPosition + gSmokeTrailsWidthPrevious.Get() * fJitterTwo * -vecLeftNormal - fLength * fLengthScale * vecToSmoothedNormal;
+		XMVECTOR vecPointThree = XMVectorSubtract(XMVectorAdd(vecBaseSmoothedPosition, XMVectorScale(vecLeftNormal, gSmokeTrailsWidthPrevious.Get() * fJitterOne)), XMVectorScale(vecToSmoothedNormal, fLength * fLengthScale));
+		XMVECTOR vecPointFour = XMVectorSubtract(XMVectorAdd(vecBaseSmoothedPosition, XMVectorScale(vecLeftNormal, -gSmokeTrailsWidthPrevious.Get() * fJitterTwo)), XMVectorScale(vecToSmoothedNormal, fLength * fLengthScale));
 
 		// Build QuadLayout (4 vertices with texcoords)
 		XMStoreFloat4A(&f4Position, vecPointOne);

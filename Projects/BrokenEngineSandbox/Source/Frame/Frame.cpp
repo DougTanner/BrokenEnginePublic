@@ -241,7 +241,7 @@ static void SpawnSpaceshipGroup(Frame& __restrict rFrame, const engine::FrameSta
 	float fPitchY = (f4Area.y - f4Area.w) / static_cast<float>(kiGridDim);
 
 	// Step 1: rasterize cell into a validity grid sampled at cell centers
-	bool aValidGrid[kiGridDim * kiGridDim];
+	bool aValidGrid[kiGridDim * kiGridDim] {};
 	for (int64_t iGridY = 0; iGridY < kiGridDim; ++iGridY)
 	{
 		for (int64_t iGridX = 0; iGridX < kiGridDim; ++iGridX)
@@ -253,7 +253,7 @@ static void SpawnSpaceshipGroup(Frame& __restrict rFrame, const engine::FrameSta
 
 	// Step 2: chevron template — anchor at front, ships fan back-and-side in local frame (forward = +x)
 	float fCenterOffset = static_cast<float>(iShipCount - 1) * 0.5f;
-	XMFLOAT2 aLocalOffsets[kiMaxFleetSize];
+	XMFLOAT2 aLocalOffsets[kiMaxFleetSize] {};
 	for (int64_t i = 0; i < iShipCount; ++i)
 	{
 		float fOffset = static_cast<float>(i) - fCenterOffset;

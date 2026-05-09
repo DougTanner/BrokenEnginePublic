@@ -1,5 +1,8 @@
 #pragma once
 
+#include "Workbuffer.h"
+#include "ThreadLocal.h"
+
 template<>
 struct std::formatter<std::string> : std::formatter<std::string_view>
 {
@@ -180,5 +183,35 @@ struct std::formatter<common::RandomEngine> : std::formatter<std::string_view>
 	auto format(const common::RandomEngine& rEngine, CONTEXT& rContext) const
 	{
 		return std::format_to(rContext.out(), "{}", rEngine.uiState);
+	}
+};
+
+template <>
+struct std::formatter<common::Wb> : std::formatter<std::string_view>
+{
+	template <typename CONTEXT>
+	auto format(const common::Wb& rValue, CONTEXT& rContext) const
+	{
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+		common::ScopedWorkbufferArena arena = rWorkbuffer.Push();
+		arena.AppendFloat(rValue.fValue, rValue.iPrecision);
+		return std::formatter<std::string_view>::format(arena.View(), rContext);
+	}
+};
+
+template <>
+struct std::formatter<common::WbV2> : std::formatter<std::string_view>
+{
+	template <typename CONTEXT>
+	auto format(const common::WbV2& rValue, CONTEXT& rContext) const
+	{
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+		common::ScopedWorkbufferArena arena = rWorkbuffer.Push();
+		arena.Append(std::string_view("("));
+		arena.AppendFloat(DirectX::XMVectorGetX(rValue.vec), rValue.iPrecision);
+		arena.Append(std::string_view(","));
+		arena.AppendFloat(DirectX::XMVectorGetY(rValue.vec), rValue.iPrecision);
+		arena.Append(std::string_view(")"));
+		return std::formatter<std::string_view>::format(arena.View(), rContext);
 	}
 };

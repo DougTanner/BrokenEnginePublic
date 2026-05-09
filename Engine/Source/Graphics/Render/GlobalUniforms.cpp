@@ -62,11 +62,11 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	// Sun/Moon color
 	float fAmbientNight = gSunMoonMinimumAmbient.Get();
 	float fAmbientMorning = std::max(0.075f, gSunMoonMinimumAmbient.Get());
-	XMVECTOR vecSunMorning = 0.5f * XMVectorSet(1.0f, 219.0f / 255.0f, 0.0f, 1.0f);
+	XMVECTOR vecSunMorning = XMVectorScale(XMVectorSet(1.0f, 219.0f / 255.0f, 0.0f, 1.0f), 0.5f);
 	XMVECTOR vecAmbientMorning = XMVectorSet(fAmbientMorning, fAmbientMorning, fAmbientMorning, 1.0f);
 	XMVECTOR vecSunNoon = XMVectorSet(0.8f, 0.8f, 0.8f, 1.0f);
 	XMVECTOR vecAmbientNoon = XMVectorSet(0.2f, 0.2f, 0.2f, 1.0f);
-	XMVECTOR vecSunEvening = 0.75f * XMVectorSet(0.8f, 0.4f, 0.4f, 1.0f);
+	XMVECTOR vecSunEvening = XMVectorScale(XMVectorSet(0.8f, 0.4f, 0.4f, 1.0f), 0.75f);
 	XMVECTOR vecAmbientEvening = XMVectorSet(fAmbientMorning, fAmbientMorning, fAmbientMorning, 1.0f);
 	XMVECTOR vecMidnight = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 	XMVECTOR vecAmbientMidnight = XMVectorSet(fAmbientNight, fAmbientNight, fAmbientNight, 1.0f);
@@ -127,7 +127,7 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	// Moon: floor color modulated by the moonrise/moonset envelope. Per-target moon intensity
 	// sliders scale at shader read sites, not here.
 	float fMoonAmount = ComputeMoonAmount(fSunAngle);
-	XMVECTOR vecMoon = vecMoonFloor * fMoonAmount;
+	XMVECTOR vecMoon = XMVectorScale(vecMoonFloor, fMoonAmount);
 	XMStoreFloat4(&rGlobalLayout.f4MoonColor, vecMoon);
 
 	rGlobalLayout.fSunIntensityTerrain  = gSunMoonSunIntensityTerrain.Get();
@@ -139,7 +139,7 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	rGlobalLayout.fMoonIntensityObjects = gSunMoonMoonIntensityObjects.Get();
 	rGlobalLayout.fMoonIntensitySmoke   = gSunMoonMoonIntensitySmoke.Get();
 
-	vecAmbient = XMVectorSetW(vecAmbient * gSunMoonAmbientMultiplier.Get(), 1.0f);
+	vecAmbient = XMVectorSetW(XMVectorScale(vecAmbient, gSunMoonAmbientMultiplier.Get()), 1.0f);
 	XMStoreFloat4(&rGlobalLayout.f4AmbientColor, vecAmbient);
 
 	static constexpr float kfNoonFeatherEnd = XM_PIDIV8;

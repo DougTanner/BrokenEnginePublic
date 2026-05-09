@@ -3,7 +3,17 @@
 #if defined(_CRTDBG_MAP_ALLOC)
 	#undef free
 #endif
+#pragma warning(push, 0)
+#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+#ifdef __clang__
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Weverything"
+#endif
 #include "SPIRV-Cross/spirv_cross.hpp"
+#ifdef __clang__
+	#pragma clang diagnostic pop
+#endif
+#pragma warning(pop)
 #if defined(_CRTDBG_MAP_ALLOC)
 	#define free(p) _free_dbg(p, _NORMAL_BLOCK)
 #endif
@@ -167,7 +177,7 @@ void ExportShader::Export()
 	commandLineParameters += L" -o \"" + preProcessedFile.native() + L"\"";
 	commandLineParameters += L" \"" + mInputPath.native() + L"\"";
 
-	std::wstring log = std::to_wstring(common::gpThreadLocal->miThreadId.value());
+	std::wstring log = std::to_wstring(common::gpThreadLocal->miThreadId.value_or(0));
 	log += L": ";
 	log += glslcExecutable.native();
 	log += commandLineParameters;
@@ -213,7 +223,7 @@ void ExportShader::Export()
 	commandLineParameters += L" -o \"" + spirvFile.native() + L"\"";
 	commandLineParameters += L" \"" + preProcessedFile.native() + L"\"";
 
-	log = std::to_wstring(common::gpThreadLocal->miThreadId.value());
+	log = std::to_wstring(common::gpThreadLocal->miThreadId.value_or(0));
 	log += L": ";
 	log += glslangValidatorExecutable.native();
 	log += commandLineParameters;
@@ -249,7 +259,7 @@ void ExportShader::Export()
 		spirvOptCommandLineParameters += L" -o \"" + optimizedSpirvFile.native() + L"\"";
 		spirvOptCommandLineParameters += L" \"" + spirvFile.native() + L"\"";
 
-		log = std::to_wstring(common::gpThreadLocal->miThreadId.value());
+		log = std::to_wstring(common::gpThreadLocal->miThreadId.value_or(0));
 		log += L": ";
 		log += spirvOptExecutable.native();
 		log += spirvOptCommandLineParameters;

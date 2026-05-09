@@ -2,6 +2,10 @@
 #include <codeanalysis/warnings.h>
 #pragma warning(push, 0)
 #pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+#ifdef __clang__
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Weverything"
+#endif
 
 // Debug defines
 #if defined(BT_DEBUG)
@@ -133,7 +137,7 @@ inline constexpr float XM_PIDIV64 = XM_PI / 64.0f;
 inline constexpr float XM_PIDIV128 = XM_PI / 128.0f;
 
 }
-using namespace DirectX; // NOLINT(google-build-using-namespace) -- C++StyleGuide rule 41 exception
+using namespace DirectX;
 
 inline constexpr float kfEpsilon = 1.192092896e-7f; // g_XMEpsilon
 
@@ -176,12 +180,22 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 
 	#define IMGUI_DEFINE_MATH_OPERATORS
 	#define IMGUI_IMPL_VULKAN_USE_VOLK
-	#define IMGUI_IMPL_VULKAN_VOLK_FILENAME <volk/volk.h>
+	#define IMGUI_IMPL_VULKAN_VOLK_FILENAME <Volk/volk.h>
 
+	#pragma warning(push, 0)
+	#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+	#ifdef __clang__
+		#pragma clang diagnostic push
+		#pragma clang diagnostic ignored "-Weverything"
+	#endif
 	#include "imgui.h"
 	#include "backends/imgui_impl_win32.h"
 	#include "backends/imgui_impl_vulkan.h"
 	#include "implot.h"
+	#ifdef __clang__
+		#pragma clang diagnostic pop
+	#endif
+	#pragma warning(pop)
 
 	extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #endif
@@ -206,7 +220,7 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 // Vulkan - Using Volk meta-loader for direct driver access
 #define VK_NO_PROTOTYPES
 #define VK_USE_PLATFORM_WIN32_KHR
-#include <volk/volk.h>
+#include <Volk/volk.h>
 #include <vma/vk_mem_alloc.h>
 #undef VK_NULL_HANDLE
 #define VK_NULL_HANDLE nullptr
@@ -225,6 +239,9 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 #endif
 
 // Re-enable warnings after external headers
+#ifdef __clang__
+	#pragma clang diagnostic pop
+#endif
 #pragma warning(pop)
 
 // Sanity check to make sure DEBUG/NDEBUG/_DEBUG/_NDEBUG are defined correctly
@@ -259,6 +276,7 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 #pragma warning(disable : 26812) // The enum type is unscoped. Prefer 'enum class' over 'enum' (Enum.3). (DT: Can't selectively disable this, Vulkan enums are slipping through)
 #pragma warning(disable : 26821) // For '', consider using gsl::span instead of std::span to guarantee runtime bounds safety (gsl.view). (DT: I'm not using gsl classes)
 #pragma warning(disable : 26414) // Move, copy, reassign or reset a local smart pointer (r.5). (DT: Manager singletons in Main.cpp are created once and live for the program lifetime, intentionally simple ownership pattern)
+#pragma warning(disable : 26426) // Global initializer calls a non-constexpr function (i.22). (DT: Wrapper class globals hold std::vector for discrete enums, cannot be constexpr by design)
 #pragma warning(disable : 26447) // The function is declared 'noexcept' but calls function which may throw exceptions (f.6). (DT: Pairs with disabled 26440, destructors/cleanup functions calling internal engine code won't throw in practice)
 #pragma warning(disable : 26467) // Converting from floating point to unsigned integral types results in non-portable code if the double/float has a negative value (es.46). (DT: Would require gsl::narrow_cast or gsl::narrow, project doesn't use GSL)
 #pragma warning(disable : 26476) // Expression/symbol uses a naked union with multiple type pointers: Use variant instead (type.7). (DT: Windows VARIANT/PROPVARIANT types for COM interop cannot use std::variant)

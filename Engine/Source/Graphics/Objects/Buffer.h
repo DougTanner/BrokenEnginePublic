@@ -58,10 +58,10 @@ public:
 	Buffer& operator=(const Buffer&) = delete;
 	Buffer(Buffer&& rOther) noexcept;
 	Buffer& operator=(Buffer&& rOther) noexcept;
-	Buffer(const BufferInfo& rInfo, std::function<void(void*)> dataFunction = nullptr);
+	Buffer(const BufferInfo& rInfo, const std::function<void(void*)>& rDataFunction = nullptr);
 	~Buffer();
 
-	void Create(const BufferInfo& rInfo, std::function<void(void*)> dataFunction = nullptr);
+	void Create(const BufferInfo& rInfo, const std::function<void(void*)>& rDataFunction = nullptr);
 	void Destroy() noexcept;
 
 	VkBuffer GetBuffer();

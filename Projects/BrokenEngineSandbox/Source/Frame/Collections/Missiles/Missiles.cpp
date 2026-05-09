@@ -116,7 +116,7 @@ void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_l
 	{
 		float fTrailOffset = kfTrailOffset;
 		XMVECTOR vecTrailOffset = XMVectorMultiply(XMVectorReplicate(fTrailOffset), XMVector3Normalize(vecDirection));
-		XMVECTOR vecTrailPosition = vecPosition + ((flags & kExploding) ? XMVectorZero() : vecTrailOffset);
+		XMVECTOR vecTrailPosition = XMVectorAdd(vecPosition, (flags & kExploding) ? XMVectorZero() : vecTrailOffset);
 
 		engine::SmokeTrailsInterpolate::Sync(rFrameInterpolate, uiSmokeTrail,
 		{

@@ -40,7 +40,7 @@ void StreamingVoices::SetNextTrackCallback(std::function<common::crc_t()> callba
 {
 	std::lock_guard<std::mutex> lock(mMutex);
 
-	mGetNextTrack = callback;
+	mGetNextTrack = std::move(callback);
 }
 
 void StreamingVoices::CheckTrackTransition()

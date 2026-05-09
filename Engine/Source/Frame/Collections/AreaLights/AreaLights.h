@@ -52,7 +52,7 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
 	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
-	XMVECTOR* __restrict pVecVisiblePositions[4] = {nullptr, nullptr, nullptr, nullptr};
+	XMVECTOR* pVecVisiblePositions[4] = {nullptr, nullptr, nullptr, nullptr};
 	float* __restrict pfIntensityMultipliers = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecVisiblePositions, rSelf.pfIntensityMultipliers); }
 

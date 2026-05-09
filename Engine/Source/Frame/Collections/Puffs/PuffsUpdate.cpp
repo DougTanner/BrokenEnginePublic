@@ -35,8 +35,8 @@ void PuffsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restric
 			PuffControllerType scaled = rController;
 			for (int64_t j = 0; j < rController.uiKeyframeCount; ++j)
 			{
-				if (rController.ppAreaScales[j])      scaled.keyframes[j].fArea *= rController.ppAreaScales[j]->Get();
-				if (rController.ppIntensityScales[j]) scaled.keyframes[j].fIntensity *= rController.ppIntensityScales[j]->Get();
+				if (rController.ppAreaScales[j] != nullptr)      scaled.keyframes[j].fArea *= rController.ppAreaScales[j]->Get();
+				if (rController.ppIntensityScales[j] != nullptr) scaled.keyframes[j].fIntensity *= rController.ppIntensityScales[j]->Get();
 			}
 			PuffKeyframe interpolated = InterpolateKeyframes(scaled, fElapsedTime);
 
@@ -74,8 +74,8 @@ void XM_CALLCONV PuffsPostRender::AddControlled(game::Frame& __restrict rFrame, 
 	rInterpolate.puiTypeIndices[iSpawnIndex] = rController.uiBaseTypeIndex;
 
 	// Initialize per-instance values from first keyframe (apply wrapper scaling)
-	rInterpolate.pfAreas[iSpawnIndex] = rController.keyframes[0].fArea * (rController.ppAreaScales[0] ? rController.ppAreaScales[0]->Get() : 1.0f);
-	rInterpolate.pfIntensities[iSpawnIndex] = rController.keyframes[0].fIntensity * (rController.ppIntensityScales[0] ? rController.ppIntensityScales[0]->Get() : 1.0f);
+	rInterpolate.pfAreas[iSpawnIndex] = rController.keyframes[0].fArea * (rController.ppAreaScales[0] != nullptr ? rController.ppAreaScales[0]->Get() : 1.0f);
+	rInterpolate.pfIntensities[iSpawnIndex] = rController.keyframes[0].fIntensity * (rController.ppIntensityScales[0] != nullptr ? rController.ppIntensityScales[0]->Get() : 1.0f);
 	rInterpolate.pfRotations[iSpawnIndex] = rController.keyframes[0].fRotation;
 
 	// Set controller fields

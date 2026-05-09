@@ -18,6 +18,9 @@ void RunFrameTick(const ActiveFrameRef& rRef, int64_t iTickCounter, float fCurre
 	ASSERT(rRef.pNext != nullptr);
 	ASSERT(rRef.pCurrent != nullptr);
 	ASSERT(rRef.pStaticData != nullptr);
+	__analysis_assume(rRef.pNext != nullptr);
+	__analysis_assume(rRef.pCurrent != nullptr);
+	__analysis_assume(rRef.pStaticData != nullptr);
 	Frame& rNext = *rRef.pNext;
 	const Frame& rCurrent = *rRef.pCurrent;
 	const engine::FrameStaticData& rStaticData = *rRef.pStaticData;

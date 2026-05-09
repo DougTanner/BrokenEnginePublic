@@ -68,6 +68,7 @@ Rules:
 - **Memory**: RAII everywhere, no manual memory management
 - **DirectX Math**: Prefer aligned versions (`Float4A` not `Float4`)
 	- **XMVECTOR W invariant**: Positions W=1.0; directions / velocities / normals / offsets W=0.0; color alpha defaults 1.0 (opaque)
+	- **Function form, not operators**: `XMVectorAdd`/`Subtract`/`Multiply`/`Divide`/`Scale`/`Negate` — never `vec + vec`, `f * vec`, `-vec`.
 - **Base classes**: Include/use game versions, not Base versions (`Camera.h` not `CameraBase.h`) `game::gpGame` (not GameBase directly)
 - **Workbuffer**: Use `gpThreadLocal->mWorkbuffer` for temp allocations instead of local `std::vector`/`std::string`. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Allocation tracking**: Heap allocations in the main loop trigger `DEBUG_BREAK()`. When unavoidable, wrap with `ScopedSuppressAllocationTracking` + `// Heap:` comment. See [Memory/CLAUDE.md](Engine/Source/Memory/CLAUDE.md)

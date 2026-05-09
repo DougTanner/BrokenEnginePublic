@@ -76,14 +76,14 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		XMVECTOR vecVisiblePos3 = rCurrent.pVecVisiblePositions[3][i];
 
 		// Calculate center and get type configuration
-		XMVECTOR vecCenter = (vecVisiblePos0 + vecVisiblePos1 + vecVisiblePos2 + vecVisiblePos3) * 0.25f;
+		XMVECTOR vecCenter = XMVectorScale(XMVectorAdd(XMVectorAdd(vecVisiblePos0, vecVisiblePos1), XMVectorAdd(vecVisiblePos2, vecVisiblePos3)), 0.25f);
 		const AreaLightsType& rType = AreaLightsInterpolate::GetType(rCurrent.puiTypeIndices[i]);
 		float fTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc);
 		float fBlurredTextureIndex = gpTextureManager->mTextureDescriptors.CrcToBlurredIndex(rType.crc);
 		float fIntensityMultiplier = rCurrent.pfIntensityMultipliers[i];
-		float fVisibleIntensity = rType.pVisibleIntensityWrapper ? rType.pVisibleIntensityWrapper->Get() : rType.fVisibleIntensity;
-		float fLightingSize = std::max(rType.pLightingSizeWrapper ? rType.pLightingSizeWrapper->Get() : rType.fLightingSize, fMinLightingSize);
-		float fLightingIntensity = rType.pLightingIntensityWrapper ? rType.pLightingIntensityWrapper->Get() : rType.fLightingIntensity;
+		float fVisibleIntensity = rType.pVisibleIntensityWrapper != nullptr ? rType.pVisibleIntensityWrapper->Get() : rType.fVisibleIntensity;
+		float fLightingSize = std::max(rType.pLightingSizeWrapper != nullptr ? rType.pLightingSizeWrapper->Get() : rType.fLightingSize, fMinLightingSize);
+		float fLightingIntensity = rType.pLightingIntensityWrapper != nullptr ? rType.pLightingIntensityWrapper->Get() : rType.fLightingIntensity;
 
 		// Scale visible positions around center to create oriented lighting quad
 		XMVECTOR vecOffset0 = XMVectorSubtract(vecVisiblePos0, vecCenter);

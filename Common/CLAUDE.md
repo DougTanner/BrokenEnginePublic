@@ -46,7 +46,6 @@ Foundation layer (`namespace common`) with no dependencies outside the codebase.
 ### Compile-Time Utilities
 - `FixedString<N>` NTTP wrapper so string literals can be template args.
 - `ConstexprCrcArray<SIZE>` for compile-time CRC tables of numbered names.
-- `Empty` zero-storage tag for `[[no_unique_address]]` conditional members.
 - `ScopedLambda` RAII deferred callable for cleanup that doesn't fit other scope guards.
 
 ## See Also

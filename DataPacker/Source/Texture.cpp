@@ -3,7 +3,14 @@
 #include <codeanalysis/warnings.h>
 #pragma warning(push, 0)
 #pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+#ifdef __clang__
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Weverything"
+#endif
 #include "bc7enc_rdo/rdo_bc_encoder.h"
+#ifdef __clang__
+	#pragma clang diagnostic pop
+#endif
 #pragma warning(pop)
 
 // Aggressive lambda — well above bc7enc_rdo author's typical 0.5–1.0 examples. Full-grid
@@ -454,6 +461,10 @@ void Texture::Export(std::vector<std::byte>& rData, VkFormat vkFormat, bool bVer
 
 			case VK_FORMAT_R16_UNORM:
 				ToR16(puiCurrentPosition, rMipLevel, iMipWidth, iMipHeight);
+				break;
+
+			default:
+				ASSERT(false);
 				break;
 		}
 

@@ -180,7 +180,7 @@ struct AStarMemory
 	int32_t* pOpenSet = nullptr;
 };
 
-int64_t ComputeAStarMemorySize(int32_t iTotalNodes, int32_t iVertexCount)
+constexpr int64_t ComputeAStarMemorySize(int32_t iTotalNodes, int32_t iVertexCount)
 {
 	// Layout: all 4-byte types first (float, int32_t), then bool arrays last to avoid alignment issues
 	int64_t iSize = 0;

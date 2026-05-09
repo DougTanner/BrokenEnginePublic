@@ -153,13 +153,13 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	// Trail state (8 separate arrays - pTrails[j] is array of all explosions' j-th trail)
 	int32_t* __restrict piTrailCounts = nullptr;
 #if defined(BT_CLIENT)
-	smoke_trails_t* __restrict pTrails[kiMaxExplosionTrails] = {};
+	smoke_trails_t* pTrails[kiMaxExplosionTrails] = {};
 #endif
-	float* __restrict pfTrailTimes[kiMaxExplosionTrails] = {};
+	float* pfTrailTimes[kiMaxExplosionTrails] = {};
 #if defined(BT_CLIENT)
-	float* __restrict pfTrailIntensities[kiMaxExplosionTrails] = {};
-	XMVECTOR* __restrict pVecTrailStartPositions[kiMaxExplosionTrails] = {};
-	XMVECTOR* __restrict pVecTrailEndPositions[kiMaxExplosionTrails] = {};
+	float* pfTrailIntensities[kiMaxExplosionTrails] = {};
+	XMVECTOR* pVecTrailStartPositions[kiMaxExplosionTrails] = {};
+	XMVECTOR* pVecTrailEndPositions[kiMaxExplosionTrails] = {};
 #endif
 
 	auto SharedMembers(this auto&& rSelf)

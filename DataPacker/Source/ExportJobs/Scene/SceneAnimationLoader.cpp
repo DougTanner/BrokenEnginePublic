@@ -1,6 +1,16 @@
 #include "SceneAnimationLoader.h"
 
+#pragma warning(push, 0)
+#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+#ifdef __clang__
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Weverything"
+#endif
 #include "tinygltf/tiny_gltf.h"
+#ifdef __clang__
+	#pragma clang diagnostic pop
+#endif
+#pragma warning(pop)
 
 bool DetermineAnimationPath(const tinygltf::Model& rGltfModel)
 {
@@ -42,19 +52,15 @@ void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int,
 		animation.uiChannelCount = 0;
 		animation.fDuration = 0.0f;
 
-		int iFilteredCount = 0;
-		int iKeptCount = 0;
 		for (const tinygltf::AnimationChannel& rGltfChannel : rAnim.channels)
 		{
 			// Skip channels for nodes not in the node map
 			auto it = rNodeToNodeIndexMap.find(rGltfChannel.target_node);
 			if (it == rNodeToNodeIndexMap.end())
 			{
-				++iFilteredCount;
 				LOG(kDefault, kVerbose, "  FILTERED: channel targeting node {} (\"{}\") not in map", rGltfChannel.target_node, rGltfChannel.target_node >= 0 ? rModel.nodes[rGltfChannel.target_node].name : "invalid");
 				continue;
 			}
-			++iKeptCount;
 			LOG(kDefault, kVerbose, "  KEPT: channel targeting node {} (\"{}\") -> node index {}", rGltfChannel.target_node, rModel.nodes[rGltfChannel.target_node].name, it->second);
 
 			const tinygltf::AnimationSampler& rSampler = rAnim.samplers[rGltfChannel.sampler];

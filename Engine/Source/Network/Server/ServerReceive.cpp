@@ -290,7 +290,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	if (clientGuid.IsEmpty())
 	{
 		::UUID uuid;
-		UuidCreate(&uuid);
+		[[maybe_unused]] RPC_STATUS rpcStatus = UuidCreate(&uuid); // RPC_S_UUID_LOCAL_ONLY still yields a usable UUID
 		std::memcpy(&clientGuid.uiHigh, &uuid, 8);
 		std::memcpy(&clientGuid.uiLow, reinterpret_cast<const uint8_t*>(&uuid) + 8, 8);
 	}

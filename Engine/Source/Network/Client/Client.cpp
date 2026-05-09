@@ -261,11 +261,11 @@ void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 	mFramesReceived.Set(1);
 
 	int64_t iPreviousFloor = rAck.iAckFloor;
-	while (rAck.uiReceivedBitfieldLow & 1ULL)
+	while ((rAck.uiReceivedBitfieldLow & 1ULL) != 0u)
 	{
 		++rAck.iAckFloor;
 		rAck.uiReceivedBitfieldLow >>= 1;
-		if (rAck.uiReceivedBitfieldHigh & 1ULL)
+		if ((rAck.uiReceivedBitfieldHigh & 1ULL) != 0u)
 		{
 			rAck.uiReceivedBitfieldLow |= (1ULL << 63);
 		}

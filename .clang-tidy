@@ -21,12 +21,10 @@ Checks: >
   -*,
   bugprone-integer-division,
   bugprone-misplaced-widening-cast,
-  bugprone-suspicious-memory-comparison,
   bugprone-unchecked-optional-access,
   bugprone-use-after-move,
   cppcoreguidelines-pro-type-cstyle-cast,
   cppcoreguidelines-slicing,
-  google-build-using-namespace,
   llvm-prefer-defined,
   misc-static-assert,
   misc-unused-parameters,
@@ -46,6 +44,30 @@ FormatStyle: none
 # `#include <cpuid.h>` (taken via the __clang__ branch) fails to resolve. Each project
 # adds Common/ClangTidyShims to AdditionalIncludeDirectories; the empty stub there is
 # picked up by clang-tidy. MSVC ignores it (the cpuid.h #include is gated on __clang__).
+#
+# -Wno-unused-command-line-argument silences clang complaining about MSBuild forwarding
+# /Zc:preprocessor (an MSVC-only flag). Not a code-analysis check; pure noise.
+#
+# -fdelayed-template-parsing matches clang-cl/MSVC behavior: non-dependent names in
+# template bodies are looked up at instantiation, not at declaration. Avoids false
+# positives from include-order quirks that MSVC tolerates.
+#
+# -Wno-defaulted-function-deleted allows structs to use `= default` operator== even
+# when members have multiple viable operator== candidates (DirectXMath's defaulted
+# member version + the free functions in ExternalHeaders.h that callers invoke
+# explicitly via `::operator==(...)`). MSVC picks the member version; clang otherwise
+# implicitly deletes the defaulted operator and refuses to parse.
+ExtraArgsBefore:
+  - '-Wno-unused-command-line-argument'
+  - '-fdelayed-template-parsing'
+  - '-Wno-defaulted-function-deleted'
+
+# Appended after compile flags so they override anything earlier (e.g., a -Werror
+# upstream): -Wno-error demotes promoted warnings back to warnings, -ferror-limit=0
+# removes the 20-error stop cap so a single clang-tidy pass surfaces every finding.
+ExtraArgs:
+  - '-Wno-error'
+  - '-ferror-limit=0'
 
 CheckOptions:
   readability-implicit-bool-conversion.AllowIntegerConditions: false

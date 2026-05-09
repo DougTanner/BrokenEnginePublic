@@ -2,9 +2,17 @@
 
 #include "FileManager.h"
 
-#pragma warning(push)
-#pragma warning(disable : 5311) // nlohmann::json 3.10.4 uses the pre-C++20 literal-operator-id form 'operator "" _json'
+#pragma warning(push, 0)
+#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+#pragma warning(disable: 5311) // nlohmann::json 3.10.4 uses the pre-C++20 literal-operator-id form 'operator "" _json'
+#ifdef __clang__
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Weverything"
+#endif
 #include "tinygltf/json.hpp"
+#ifdef __clang__
+	#pragma clang diagnostic pop
+#endif
 #pragma warning(pop)
 
 namespace

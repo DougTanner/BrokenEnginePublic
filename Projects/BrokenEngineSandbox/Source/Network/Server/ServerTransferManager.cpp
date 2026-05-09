@@ -265,15 +265,32 @@ void ServerTransferManager::HarvestTransfers()
 
 		char acPlayerIds[192] {};
 		int64_t iPlayerIdCount = 0;
-		int64_t iPos = 0;
+		size_t iPos = 0;
 		for (const StatusChange& rTransfer : rTransfers)
 		{
-			if (rTransfer.eType == StatusChangeType::kTransferPlayer && iPlayerIdCount < 8)
+			if (rTransfer.eType != StatusChangeType::kTransferPlayer || iPlayerIdCount >= 8)
 			{
-				if (iPlayerIdCount > 0) { acPlayerIds[iPos++] = ','; acPlayerIds[iPos++] = ' '; }
-				iPos += snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", std::get<TransferData>(rTransfer.data).globalPlayerId.iValue);
-				++iPlayerIdCount;
+				continue;
 			}
+
+			constexpr size_t kiReserve = 24; // ", " + max 20-digit int64
+			if (iPos + kiReserve > sizeof(acPlayerIds))
+			{
+				break;
+			}
+
+			if (iPlayerIdCount > 0)
+			{
+				acPlayerIds[iPos++] = ',';
+				acPlayerIds[iPos++] = ' ';
+			}
+			int iWritten = snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", std::get<TransferData>(rTransfer.data).globalPlayerId.iValue);
+			if (iWritten <= 0)
+			{
+				break;
+			}
+			iPos += static_cast<size_t>(iWritten);
+			++iPlayerIdCount;
 		}
 
 		if (iPlayerIdCount > 0)

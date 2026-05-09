@@ -114,7 +114,7 @@ void RenderTargetTextures::CreateSmokeTextures()
 	},
 	[&](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
 	{
-		float fCenter = static_cast<float>(iGradientSize / 2);
+		float fCenter = static_cast<float>(iGradientSize) * 0.5f;
 		float fPower = gSmokeTrailPower.Get();
 		float fAlpha = gSmokeTrailAlpha.Get();
 

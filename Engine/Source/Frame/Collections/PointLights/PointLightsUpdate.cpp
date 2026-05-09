@@ -45,10 +45,10 @@ void PointLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __r
 			ControllerType scaled = rController;
 			for (int64_t j = 0; j < rController.uiKeyframeCount; ++j)
 			{
-				if (rController.ppVisibleAreaScales[j])       scaled.keyframes[j].fVisibleArea *= rController.ppVisibleAreaScales[j]->Get();
-				if (rController.ppVisibleIntensityScales[j])  scaled.keyframes[j].fVisibleIntensity *= rController.ppVisibleIntensityScales[j]->Get();
-				if (rController.ppLightingAreaScales[j])      scaled.keyframes[j].fLightingArea *= rController.ppLightingAreaScales[j]->Get();
-				if (rController.ppLightingIntensityScales[j]) scaled.keyframes[j].fLightingIntensity *= rController.ppLightingIntensityScales[j]->Get();
+				if (rController.ppVisibleAreaScales[j] != nullptr)       scaled.keyframes[j].fVisibleArea *= rController.ppVisibleAreaScales[j]->Get();
+				if (rController.ppVisibleIntensityScales[j] != nullptr)  scaled.keyframes[j].fVisibleIntensity *= rController.ppVisibleIntensityScales[j]->Get();
+				if (rController.ppLightingAreaScales[j] != nullptr)      scaled.keyframes[j].fLightingArea *= rController.ppLightingAreaScales[j]->Get();
+				if (rController.ppLightingIntensityScales[j] != nullptr) scaled.keyframes[j].fLightingIntensity *= rController.ppLightingIntensityScales[j]->Get();
 			}
 			ControllerKeyframe interpolated = InterpolateKeyframes(scaled, fElapsedTime);
 
@@ -146,10 +146,10 @@ void XM_CALLCONV PointLightsPostRender::AddControlled(game::Frame& __restrict rF
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = rController.uiBaseTypeIndex;
 
 	// Initialize per-instance values from first keyframe (apply wrapper scaling)
-	rInterpolate.pfVisibleAreas[uiSpawnIndex] = rController.keyframes[0].fVisibleArea * (rController.ppVisibleAreaScales[0] ? rController.ppVisibleAreaScales[0]->Get() : 1.0f);
-	rInterpolate.pfVisibleIntensities[uiSpawnIndex] = rController.keyframes[0].fVisibleIntensity * (rController.ppVisibleIntensityScales[0] ? rController.ppVisibleIntensityScales[0]->Get() : 1.0f);
-	rInterpolate.pfLightingAreas[uiSpawnIndex] = rController.keyframes[0].fLightingArea * (rController.ppLightingAreaScales[0] ? rController.ppLightingAreaScales[0]->Get() : 1.0f);
-	rInterpolate.pfLightingIntensities[uiSpawnIndex] = rController.keyframes[0].fLightingIntensity * (rController.ppLightingIntensityScales[0] ? rController.ppLightingIntensityScales[0]->Get() : 1.0f);
+	rInterpolate.pfVisibleAreas[uiSpawnIndex] = rController.keyframes[0].fVisibleArea * (rController.ppVisibleAreaScales[0] != nullptr ? rController.ppVisibleAreaScales[0]->Get() : 1.0f);
+	rInterpolate.pfVisibleIntensities[uiSpawnIndex] = rController.keyframes[0].fVisibleIntensity * (rController.ppVisibleIntensityScales[0] != nullptr ? rController.ppVisibleIntensityScales[0]->Get() : 1.0f);
+	rInterpolate.pfLightingAreas[uiSpawnIndex] = rController.keyframes[0].fLightingArea * (rController.ppLightingAreaScales[0] != nullptr ? rController.ppLightingAreaScales[0]->Get() : 1.0f);
+	rInterpolate.pfLightingIntensities[uiSpawnIndex] = rController.keyframes[0].fLightingIntensity * (rController.ppLightingIntensityScales[0] != nullptr ? rController.ppLightingIntensityScales[0]->Get() : 1.0f);
 	rInterpolate.pfRotations[uiSpawnIndex] = fRotation + rController.keyframes[0].fRotation;
 
 	// Set controller fields

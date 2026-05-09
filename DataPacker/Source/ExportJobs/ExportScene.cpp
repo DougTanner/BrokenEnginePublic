@@ -1,13 +1,33 @@
 #include "ExportScene.h"
 
+#pragma warning(push, 0)
+#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+#ifdef __clang__
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Weverything"
+#endif
 #include "tinygltf/tiny_gltf.h"
+#ifdef __clang__
+	#pragma clang diagnostic pop
+#endif
+#pragma warning(pop)
 
 #include "Scene/SceneAnimationLoader.h"
 #include "Scene/SceneSkeletonLoader.h"
 #include "Scene/SceneVerticesLoader.h"
 #include "Texture.h"
 
+#pragma warning(push, 0)
+#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+#ifdef __clang__
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Weverything"
+#endif
 #include "meshoptimizer.h"
+#ifdef __clang__
+	#pragma clang diagnostic pop
+#endif
+#pragma warning(pop)
 
 using enum common::ChunkFlags;
 
@@ -245,7 +265,6 @@ void ExportScene::PreExport(tinygltf::Model& rGltfModel)
 
 	// Build nodeToNodeIndexMap - identity mapping since we store all nodes
 	std::unordered_map<int, int> nodeToJointMap;
-	bool bNodeBasedAnimation = false;
 
 	bool bUseSkeletalAnimation = DetermineAnimationPath(rGltfModel);
 
@@ -256,7 +275,6 @@ void ExportScene::PreExport(tinygltf::Model& rGltfModel)
 	}
 	else if (rGltfModel.animations.size() > 0)
 	{
-		bNodeBasedAnimation = true;
 		SkeletonData tempSkeletonData = LoadSkeletonData(rGltfModel, nodeToJointMap);
 		LOG(kDefault, kDebug, "  Node-based animation detected: {} nodes in skeleton", tempSkeletonData.skeleton.uiNodeCount);
 	}
@@ -552,8 +570,8 @@ void ExportScene::MainExport(tinygltf::Model& rGltfModel)
 
 		if (rMaterial.values.find("baseColorFactor") != rMaterial.values.end())
 		{
-			const double* pfData = rMaterial.values.at("baseColorFactor").ColorFactor().data();
-			materialShaderData.f4BaseColorFactor = XMFLOAT4(static_cast<float>(pfData[0]), static_cast<float>(pfData[1]), static_cast<float>(pfData[2]), static_cast<float>(pfData[3]));
+			const auto& rColorFactor = rMaterial.values.at("baseColorFactor").ColorFactor();
+			materialShaderData.f4BaseColorFactor = XMFLOAT4(static_cast<float>(rColorFactor[0]), static_cast<float>(rColorFactor[1]), static_cast<float>(rColorFactor[2]), static_cast<float>(rColorFactor[3]));
 		}
 
 		if (rMaterial.values.find("baseColorTexture") != rMaterial.values.end())

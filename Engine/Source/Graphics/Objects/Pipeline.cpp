@@ -261,7 +261,7 @@ void Pipeline::RecordCompute(int64_t iCommandBuffer, VkCommandBuffer vkCommandBu
 
 	int64_t iDescriptorSetIndex = mbPerCommandBuffer ? iCommandBuffer : 0;
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mVkPipeline);
-	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mVkPipelineLayout, 0, 1, &mVkDescriptorSets[iDescriptorSetIndex], 0, 0);
+	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mVkPipelineLayout, 0, 1, &mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
 	vkCmdDispatch(vkCommandBuffer, static_cast<uint32_t>(iGroupCountX), static_cast<uint32_t>(iGroupCountY), static_cast<uint32_t>(iGroupCountZ));
 }
 
@@ -276,7 +276,7 @@ void Pipeline::RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkC
 
 	int64_t iDescriptorSetIndex = mbPerCommandBuffer ? iCommandBuffer : 0;
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mVkPipeline);
-	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mVkPipelineLayout, 0, 1, &mVkDescriptorSets[iDescriptorSetIndex], 0, 0);
+	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mVkPipelineLayout, 0, 1, &mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
 	VkDeviceSize vkDispatchOffset = mInfo.flags & kIndirectHostVisible ? iCommandBuffer * sizeof(VkDispatchIndirectCommand) : 0;
 
 	// Verify buffer is large enough for this command buffer index

@@ -50,7 +50,7 @@ int64_t HardwareCoreCount()
 	DWORD uiReturnLength = static_cast<DWORD>(buffer.size() * sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION));
 
 	BOOL bDone = FALSE;
-	while (!bDone)
+	while (bDone == FALSE)
 	{
 		BOOL bSuccess = glpi(buffer.data(), &uiReturnLength);
 
@@ -179,10 +179,8 @@ ExecutableResult RunExecutable(const std::filesystem::path& rExecutableFile, std
 
 void LaunchExecutable(const std::filesystem::path& rExecutableFile)
 {
-	STARTUPINFOW startupinfow
-	{
-		.cb = sizeof(STARTUPINFOW),
-	};
+	STARTUPINFOW startupinfow {};
+	startupinfow.cb = sizeof(STARTUPINFOW);
 	PROCESS_INFORMATION processInformation {};
 	std::wstring commandLine = rExecutableFile.native();
 	CreateProcessW(rExecutableFile.native().c_str(), commandLine.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startupinfow, &processInformation);

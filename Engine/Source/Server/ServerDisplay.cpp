@@ -162,7 +162,7 @@ static void PaintGridMap(HDC hdcBuffer, char* pcLine, size_t iLineSize, int iMap
 			}
 
 			// Fill cell
-			COLORREF uiFillColor;
+			COLORREF uiFillColor = 0;
 			if (iClientsInCell > 0)
 			{
 				uiFillColor = RGB(40, 60, 140);
@@ -263,18 +263,28 @@ static void CopyProfileToClipboard(HWND hWnd)
 		return;
 	}
 
-	if (!OpenClipboard(hWnd))
+	if (OpenClipboard(hWnd) == 0)
 	{
 		return;
 	}
 
 	EmptyClipboard();
 	HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, sProfileText.size() + 1);
-	char* pDest = static_cast<char*>(GlobalLock(hMem));
-	memcpy(pDest, sProfileText.data(), sProfileText.size());
-	pDest[sProfileText.size()] = '\0';
-	GlobalUnlock(hMem);
-	SetClipboardData(CF_TEXT, hMem);
+	if (hMem != nullptr)
+	{
+		char* pDest = static_cast<char*>(GlobalLock(hMem));
+		if (pDest != nullptr)
+		{
+			memcpy(pDest, sProfileText.data(), sProfileText.size());
+			pDest[sProfileText.size()] = '\0';
+			GlobalUnlock(hMem);
+			SetClipboardData(CF_TEXT, hMem);
+		}
+		else
+		{
+			GlobalFree(hMem);
+		}
+	}
 	CloseClipboard();
 }
 
@@ -299,7 +309,7 @@ void HandleServerClick(HWND hWnd, int64_t iX, int64_t iY)
 	if (seActiveTab == ServerTab::kProfile)
 	{
 		POINT pt {static_cast<LONG>(iX), static_cast<LONG>(iY)};
-		if (PtInRect(&sCopyButtonRect, pt))
+		if (PtInRect(&sCopyButtonRect, pt) != 0)
 		{
 			CopyProfileToClipboard(hWnd);
 		}

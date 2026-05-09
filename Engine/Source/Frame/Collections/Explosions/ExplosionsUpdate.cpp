@@ -116,7 +116,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 			XMVECTOR vecTrailEnd = rCurrent.pVecTrailEndPositions[j][i];
 			XMVECTOR vecGravityOffset = XMVectorSet(0.0f, 0.0f, fTrailPercent * rType.fTrailGravity, 0.0f);
 
-			XMVECTOR vecTrailPosition = XMVectorLerp(vecTrailStart, vecTrailEnd - vecGravityOffset, fTrailPercent);
+			XMVECTOR vecTrailPosition = XMVectorLerp(vecTrailStart, XMVectorSubtract(vecTrailEnd, vecGravityOffset), fTrailPercent);
 			float fTrailIntensity = (1.0f - fTrailPercent) * rCurrent.pfTrailIntensities[j][i];
 
 			// Sync trail

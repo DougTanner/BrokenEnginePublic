@@ -128,7 +128,7 @@
     <TargetName>$(ProjectName)</TargetName>
     <LinkIncremental>false</LinkIncremental>
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
-    <RunCodeAnalysis>false</RunCodeAnalysis>
+    <RunCodeAnalysis>true</RunCodeAnalysis>
     <EnableClangTidyCodeAnalysis>true</EnableClangTidyCodeAnalysis>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -150,7 +150,7 @@
       <AdditionalOptions>/Zc:__cplusplus /Zc:preprocessor /bigobj %(AdditionalOptions)</AdditionalOptions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <ExceptionHandling>Async</ExceptionHandling>
-      <DisableSpecificWarnings>28278;6385;6326;6340;6297</DisableSpecificWarnings>
+      <DisableSpecificWarnings>28278;6385;6326;6340;6297;26115;26135;26408;26445</DisableSpecificWarnings>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -193,7 +193,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <EnablePREfast>true</EnablePREfast>
       <ExceptionHandling>Async</ExceptionHandling>
-      <DisableSpecificWarnings>28278;6385;6326;6340;6297</DisableSpecificWarnings>
+      <DisableSpecificWarnings>28278;6385;6326;6340;6297;26115;26135;26408;26445</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

@@ -242,10 +242,10 @@ int64_t SerializeStatusChangeBatch(const game::StatusChange* pChanges, int64_t i
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		rWorkbuffer.PushBack(int64_t(0));
+		rWorkbuffer.PushBack(int64_t{0});
 	}
-	std::span<const int64_t> sortedSpan = rWorkbuffer.Span<int64_t>();
-	int64_t* pSorted = const_cast<int64_t*>(sortedSpan.data());
+	std::span<int64_t> sortedSpan = rWorkbuffer.Span<int64_t>();
+	int64_t* pSorted = sortedSpan.data();
 
 	int64_t piGroupCounts[kiTypeCount] = {};
 	int64_t piOffsets[kiTypeCount] = {};
@@ -366,8 +366,8 @@ int64_t CompressStatusChangeBatch(const game::StatusChange* pChanges, int64_t iC
 	{
 		rWorkbuffer.PushBack<int64_t>(0);
 	}
-	std::span<const uint8_t> serializedSpan = rWorkbuffer.Span<uint8_t>();
-	uint8_t* pSerialized = const_cast<uint8_t*>(serializedSpan.data());
+	std::span<uint8_t> serializedSpan = rWorkbuffer.Span<uint8_t>();
+	uint8_t* pSerialized = serializedSpan.data();
 
 	int64_t iSerializedSize = SerializeStatusChangeBatch(pChanges, iCount, pSerialized);
 
@@ -402,8 +402,8 @@ int64_t DecompressStatusChangeBatch(const void* pSource, int64_t iSourceSize, ga
 	{
 		rWorkbuffer.PushBack<int64_t>(0);
 	}
-	std::span<const uint8_t> decompressedSpan = rWorkbuffer.Span<uint8_t>();
-	uint8_t* pDecompressed = const_cast<uint8_t*>(decompressedSpan.data());
+	std::span<uint8_t> decompressedSpan = rWorkbuffer.Span<uint8_t>();
+	uint8_t* pDecompressed = decompressedSpan.data();
 
 	int iResult = LZ4_decompress_safe(reinterpret_cast<const char*>(pInput + sizeof(int32_t)), reinterpret_cast<char*>(pDecompressed), static_cast<int>(iSourceSize - sizeof(int32_t)), iUncompressedSize);
 

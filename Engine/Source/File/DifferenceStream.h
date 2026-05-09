@@ -132,7 +132,7 @@ private:
 	std::vector<common::crc_t> mChecksums;
 	int64_t miStartTick = 0;
 
-	[[no_unique_address]] std::conditional_t<kbReplayFullFrames, std::stringstream, common::Empty> mFullFramesStream;
+	std::stringstream mFullFramesStream;
 };
 
 template <typename SAVED_TYPE, typename DIFFERENCE_TYPE>
@@ -357,8 +357,8 @@ private:
 	std::vector<common::crc_t> mChecksums;
 	int64_t miStartTick = 0;
 
-	[[no_unique_address]] std::conditional_t<kbReplayFullFrames, std::stringstream, common::Empty> mFullFramesStream;
-	[[no_unique_address]] std::conditional_t<kbReplayFullFrames, int64_t, common::Empty> miFullFramesIndex = {};
+	std::stringstream mFullFramesStream;
+	int64_t miFullFramesIndex = 0;
 };
 
 } // namespace engine
