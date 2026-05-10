@@ -87,6 +87,7 @@ BufferManager::BufferManager()
 					case 0: pfVertices[iVertex] = fCos; pfVertices[iVertex + 1] = fSin; pfVertices[iVertex + 2] = 0.0f; break; // XY
 					case 1: pfVertices[iVertex] = fCos; pfVertices[iVertex + 1] = 0.0f; pfVertices[iVertex + 2] = fSin; break; // XZ
 					case 2: pfVertices[iVertex] = 0.0f; pfVertices[iVertex + 1] = fCos; pfVertices[iVertex + 2] = fSin; break; // YZ
+					default: break;
 					}
 					int64_t iIndex = (c * kiSegments + s) * 2;
 					puiIndices[iIndex] = static_cast<uint16_t>(c * kiSegments + s);

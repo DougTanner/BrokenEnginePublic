@@ -235,7 +235,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 			HKEY hKey = nullptr;
 			if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Khronos\\Vulkan\\ImplicitLayers", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
 			{
-				char valueName[MAX_PATH];
+				char valueName[MAX_PATH] {};
 				for (DWORD i = 0; ; ++i)
 				{
 					DWORD cchValueName = MAX_PATH;

@@ -468,7 +468,7 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 		XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
 		mVoices.push_back(StaticVoice(pVoice, id, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity, uiCrc));
 	}
-	(void)fDeltaTime; // unused in legacy path
+	std::ignore = fDeltaTime; // unused in legacy path
 #endif // BT_AUDIO_PRIORITY_CULL
 }
 

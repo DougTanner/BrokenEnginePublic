@@ -168,7 +168,7 @@ private:
 			rfMLeft = fScale * fAlpha * fDelta;
 			rfMRight = fScale * fBeta * fDelta;
 		}
-		(void)iCount;
+		std::ignore = iCount;
 	}
 
 	// Average of adjacent secant slopes (or the single adjacent secant at boundaries).

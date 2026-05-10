@@ -128,7 +128,7 @@ struct CoordFrames
 };
 
 #if defined(BT_CLIENT)
-inline int64_t SnapshotIndex(int64_t iHead, int64_t iLogical)
+constexpr int64_t SnapshotIndex(int64_t iHead, int64_t iLogical)
 {
 	return (iHead + iLogical) % kiNetworkBufferSize;
 }

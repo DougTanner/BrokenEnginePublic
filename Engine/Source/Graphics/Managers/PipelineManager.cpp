@@ -155,9 +155,10 @@ void PipelineManager::CreateLightingPipelines()
 	for (int64_t iPass = 0; iPass < shaders::kiMaxSpreadPasses; ++iPass)
 	{
 		mSpreadPipelines[iPass].Destroy();
+		std::string strName = std::format("LightingSpread{}", iPass);
 		mSpreadPipelines[iPass].Create(
 		{
-			.name = std::format("LightingSpread{}", iPass),
+			.name = strName,
 			.flags = {kRenderTarget, kPushConstants},
 			.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersLightingLightingSpreadfragCrc)},
 			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,

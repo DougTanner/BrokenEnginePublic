@@ -140,7 +140,7 @@ void TweaksScreenBase::WrapperSlider(std::string_view label, int64_t iSection, f
 	float fValue = pWrapper->Get();
 
 	// When mapKey differs from label, append ##mapKey for unique ImGui ID
-	char pImGuiLabel[128];
+	char pImGuiLabel[128] {};
 	if (mapKey != label)
 	{
 		std::snprintf(pImGuiLabel, sizeof(pImGuiLabel), "%.*s##%.*s", static_cast<int>(label.size()), label.data(), static_cast<int>(mapKey.size()), mapKey.data());

@@ -39,9 +39,11 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fCombineHuePreserve = gCombineHuePreserve.Get();
 	for (int64_t i = 0; i < _countof(rGlobalLayout.pfCombineCurvePoints); ++i)
 	{
-		float fT = (shaders::kiMaxSpreadPasses > 1)
-			? static_cast<float>(i) / static_cast<float>(shaders::kiMaxSpreadPasses - 1)
-			: 0.5f;
+		float fT = 0.5f;
+		if constexpr (shaders::kiMaxSpreadPasses > 1)
+		{
+			fT = static_cast<float>(i) / static_cast<float>(shaders::kiMaxSpreadPasses - 1);
+		}
 		rGlobalLayout.pfCombineCurvePoints[i] = (gbUseCombineCurveNew ? gCombineCurveNew : gCombineCurveOld).Evaluate(fT);
 	}
 	rGlobalLayout.fLightingTerrain = gLightingTerrain.Get();

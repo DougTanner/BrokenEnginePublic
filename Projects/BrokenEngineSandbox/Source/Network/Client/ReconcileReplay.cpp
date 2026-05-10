@@ -13,17 +13,22 @@ void ReconcileInjectPendingFullState(CoordWork& rWork)
 	engine::CoordFrames& rFrames = *rWork.pFrames;
 	CoordScratch& rScratch = rWork.scratch;
 
-	ASSERT(rFrames.pendingFullState->pFrame->interpolate.iTick == rFrames.pendingFullState->iTick);
+	if (!rFrames.pendingFullState)
+	{
+		return;
+	}
+	auto& rPending = *rFrames.pendingFullState;
+	ASSERT(rPending.pFrame->interpolate.iTick == rPending.iTick);
 	int64_t iSlot = SnapshotIndex(rScratch.iReplayWriteHead, rScratch.iReplayWriteCount);
-	rFrames.snapshots[iSlot] = std::move(rFrames.pendingFullState->pFrame);
+	rFrames.snapshots[iSlot] = std::move(rPending.pFrame);
 	rScratch.replayStack.clear();
 	rScratch.replayStack.push_back(rFrames.snapshots[iSlot].get());
 	rScratch.iReplayStackCount = 1;
 	rScratch.iReplayWriteHead = SnapshotIndex(iSlot, 1);
 	rScratch.iReplayWriteCount = 0;
 	// Full state replaces the timeline; a prior higher high-water mark was against a discarded timeline.
-	rFrames.iHighWaterValidatedTick = rFrames.pendingFullState->iTick;
-	rFrames.iLastFullStateTick = rFrames.pendingFullState->iTick;
+	rFrames.iHighWaterValidatedTick = rPending.iTick;
+	rFrames.iLastFullStateTick = rPending.iTick;
 	rFrames.pendingFullState.reset();
 }
 

@@ -37,6 +37,7 @@ void ClientSession::UpdateDesiredCoords(SubscriptionChangeReason eReason)
 	auto pushCoord = [&](engine::GridCoord coord)
 	{
 		ASSERT(iDesiredCount < kiMaxDesiredCoords);
+		__analysis_assume(iDesiredCount < kiMaxDesiredCoords);
 		desiredCoords[iDesiredCount++] = coord;
 	};
 

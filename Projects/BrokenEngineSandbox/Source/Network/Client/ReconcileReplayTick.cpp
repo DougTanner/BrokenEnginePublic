@@ -132,15 +132,19 @@ static bool ReconcileRunTickCoord(CoordWork& rWork, int64_t iTick, float fTime, 
 		{
 			int64_t iLogCount = std::min(iTransferPlayerCount, int64_t {8});
 			char acPlayerIds[192] {};
-			int64_t iPos = 0;
+			size_t iPos = 0;
 			for (int64_t i = 0; i < iLogCount; ++i)
 			{
+				constexpr size_t kiReserve = 24;
+				if (iPos + kiReserve > sizeof(acPlayerIds)) break;
 				if (i > 0)
 				{
 					acPlayerIds[iPos++] = ',';
 					acPlayerIds[iPos++] = ' ';
 				}
-				iPos += snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", transferPlayerIds[i].iValue);
+				int iWritten = snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", transferPlayerIds[i].iValue);
+				if (iWritten <= 0) break;
+				iPos += static_cast<size_t>(iWritten);
 			}
 			LOG(kNetwork, kVerbose, "ReconcileRunTickCoord SpawnTransfers Coord: ({},{}) ForTick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} PlayerIds: [{}]", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount, acPlayerIds);
 		}

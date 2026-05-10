@@ -84,6 +84,8 @@ static void SetupIndirectBuffer(Pipeline& rPipeline, const PipelineInfo& rPipeli
 		ASSERT((vkMemoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0);
 
 		rPipeline.mpIndirectMappedMemory = static_cast<VkDrawIndexedIndirectCommand*>(vmaAllocationInfo.pMappedData);
+		ASSERT(rPipeline.mpIndirectMappedMemory != nullptr);
+		__analysis_assume(rPipeline.mpIndirectMappedMemory != nullptr);
 
 		// Initialize all indirect buffer slots to zero
 		for (int64_t i = 0; i < iCommandBufferCount; ++i)

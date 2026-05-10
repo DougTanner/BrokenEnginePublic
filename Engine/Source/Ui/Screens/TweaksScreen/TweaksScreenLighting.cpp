@@ -220,7 +220,7 @@ void TweaksScreenBase::RenderLightingSection()
 
 				if (ImGui::Button("Copy Curve To Clipboard"))
 				{
-					char pBuffer[2048];
+					char pBuffer[2048] {};
 					const char* pName = gbUseCombineCurveNew ? "gCombineCurveNew" : "gCombineCurveOld";
 					int iOffset = std::snprintf(pBuffer, sizeof(pBuffer), "CurveData %s({", pName);
 					for (int i = 0; i < rActiveCurve.GetPointCount(); ++i)

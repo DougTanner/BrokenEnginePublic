@@ -87,9 +87,11 @@ bool CurveWidget(std::string_view label, CurveData& rCurve)
 	// Pass tick overlay — one faint vertical line per spread pass sample position
 	for (int i = 0; i < shaders::kiMaxSpreadPasses; ++i)
 	{
-		float fT = (shaders::kiMaxSpreadPasses > 1)
-			? static_cast<float>(i) / static_cast<float>(shaders::kiMaxSpreadPasses - 1)
-			: 0.5f;
+		float fT = 0.5f;
+		if constexpr (shaders::kiMaxSpreadPasses > 1)
+		{
+			fT = static_cast<float>(i) / static_cast<float>(shaders::kiMaxSpreadPasses - 1);
+		}
 		float fPx = min.x + fT * size.x;
 		pDrawList->AddLine(ImVec2(fPx, min.y), ImVec2(fPx, max.y), Rgba(1.0f, 1.0f, 1.0f, 0.08f), 1.0f);
 	}

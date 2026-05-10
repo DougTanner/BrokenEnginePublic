@@ -191,10 +191,11 @@ void RenderTargetTextures::CreateLightingTextures()
 		auto [iPassX, iPassY] = TextureManager::DetailTextureSize(fMult);
 		for (int64_t iColor = 0; iColor < 3; ++iColor)
 		{
+			std::string strSpreadName = std::format("Spread{}_{}", pColorNames[iColor], iPass);
 			mpSpreadTextures[iPass][iColor].Create(TextureInfo
 			{
 				.textureFlags = {},
-				.name = std::format("Spread{}_{}", pColorNames[iColor], iPass),
+				.name = strSpreadName,
 				.flags = 0,
 				.format = VK_FORMAT_R16G16B16A16_SFLOAT,
 				.extent = VkExtent3D {static_cast<uint32_t>(iPassX), static_cast<uint32_t>(iPassY), 1},
@@ -206,10 +207,11 @@ void RenderTargetTextures::CreateLightingTextures()
 				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 				.eTextureLayout = kShaderReadOnly,
 			});
+			std::string strSpreadOnlyName = std::format("SpreadOnly{}_{}", pColorNames[iColor], iPass);
 			mpSpreadOnlyTextures[iPass][iColor].Create(TextureInfo
 			{
 				.textureFlags = {},
-				.name = std::format("SpreadOnly{}_{}", pColorNames[iColor], iPass),
+				.name = strSpreadOnlyName,
 				.flags = 0,
 				.format = VK_FORMAT_R16G16B16A16_SFLOAT,
 				.extent = VkExtent3D {static_cast<uint32_t>(iPassX), static_cast<uint32_t>(iPassY), 1},
@@ -226,8 +228,8 @@ void RenderTargetTextures::CreateLightingTextures()
 
 	// Create spread MRT render pass (6 color attachments: 3 accumulated + 3 spread-only)
 	// Locations 0–2: accumulated (fed to next spread pass). Locations 3–5: spread-only (read by combine).
-	VkAttachmentDescription pSpreadAttachmentDescriptions[6];
-	VkAttachmentReference pSpreadAttachmentReferences[6];
+	VkAttachmentDescription pSpreadAttachmentDescriptions[6] {};
+	VkAttachmentReference pSpreadAttachmentReferences[6] {};
 	for (int64_t i = 0; i < 6; ++i)
 	{
 		pSpreadAttachmentDescriptions[i] = VkAttachmentDescription
