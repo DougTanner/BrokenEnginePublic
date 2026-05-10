@@ -65,8 +65,8 @@
     <CustomBuildAfterTargets>PreBuildEvent</CustomBuildAfterTargets>
     <LinkIncremental>false</LinkIncremental>
     <EnableMicrosoftCodeAnalysis>false</EnableMicrosoftCodeAnalysis>
-    <EnableClangTidyCodeAnalysis>true</EnableClangTidyCodeAnalysis>
-    <RunCodeAnalysis>true</RunCodeAnalysis>
+    <EnableClangTidyCodeAnalysis>false</EnableClangTidyCodeAnalysis>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">
     <OutDir>$(ProjectDir)\Output\</OutDir>
@@ -78,8 +78,8 @@
     <CodeAnalysisRuleSet>NativeMinimumRules.ruleset</CodeAnalysisRuleSet>
     <CustomBuildAfterTargets>PreBuildEvent</CustomBuildAfterTargets>
     <EnableMicrosoftCodeAnalysis>false</EnableMicrosoftCodeAnalysis>
-    <EnableClangTidyCodeAnalysis>true</EnableClangTidyCodeAnalysis>
-    <RunCodeAnalysis>true</RunCodeAnalysis>
+    <EnableClangTidyCodeAnalysis>false</EnableClangTidyCodeAnalysis>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(ProjectDir)\Output\</OutDir>

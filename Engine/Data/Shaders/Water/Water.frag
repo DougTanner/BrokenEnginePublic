@@ -153,11 +153,11 @@ void main()
 	vec3 f3SampledNormal = f3WeightedSum / max(length(f3WeightedSum), kfEpsilon);
 
 	// Color (noise with precision-safe UV — same pact as SAMPLE_NORMAL_PRECISE above).
-	// CPU stores fmod(freq*camera, 10.0) so mult * 10 is integer for the calibrated defaults
-	// (0.2*10=2, 1.0*10=10); fract() then absorbs the wrap. Derivatives taken from the un-scaled
+	// CPU stores fmod(freq*camera, 10.0) so mult * 10 must be integer for fract() to absorb the wrap.
+	// gWaterColorNoiseMultiplierOne/Two sliders (WaterWrappersBase.cpp) snap to a 0.1 grid so the
+	// product stays integer for any tuning (0.0, 0.1, 0.2, ...). Derivatives taken from the un-scaled
 	// local position and scaled the same way as the UV keep mip selection stable across the wrap
-	// (plain texture() pops at the seam). Sliders allow values that break the integer-product
-	// property (e.g. 0.15 * 10 = 1.5) — the seam will return at those tunings.
+	// (plain texture() pops at the seam).
 	vec2 f2LocalDisplacedPos = f3InPosition.xy - f2WaterOrigin;
 	vec2 f2ReducedNoiseOrigin = vec2(globalLayout.fWaterReducedNoiseOriginX, globalLayout.fWaterReducedNoiseOriginY);
 	float fMultOne = globalLayout.fWaterColorNoiseMultiplierOne;

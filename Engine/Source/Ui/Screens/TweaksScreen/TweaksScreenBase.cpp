@@ -116,6 +116,25 @@ void TweaksScreenBase::WrapperSlider(std::string_view label, int64_t iSection, f
 		mapKey = label;
 	}
 
+	if constexpr (kbDebugInput)
+	{
+		if (mbAuditMode)
+		{
+			// Heap: STL hash buckets allocate. Audit runs once per session at first tweaks-UI open; suppression mirrors TweaksSliderMap::Get().
+			ScopedSuppressAllocationTracking suppress;
+			std::unordered_map<std::string_view, Wrapper*>& rSliderMap = TweaksSliderMap::Get();
+			if (rSliderMap.contains(mapKey))
+			{
+				mAuditTouched.insert(mapKey);
+			}
+			else
+			{
+				mAuditMissed.insert(mapKey);
+			}
+			return;
+		}
+	}
+
 	std::unordered_map<std::string_view, Wrapper*>& rSliderMap = TweaksSliderMap::Get();
 	auto it = rSliderMap.find(mapKey);
 	if (it == rSliderMap.end())
@@ -184,6 +203,11 @@ void TweaksScreenBase::Render()
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(rStyle.ItemSpacing.x * kfUiScale, rStyle.ItemSpacing.y * kfUiScale));
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(rStyle.ItemInnerSpacing.x * kfUiScale, rStyle.ItemInnerSpacing.y * kfUiScale));
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(rStyle.WindowPadding.x * kfUiScale, rStyle.WindowPadding.y * kfUiScale));
+
+		if (miAuditFrame >= 0)
+		{
+			RunSliderAuditFrame();
+		}
 
 		RenderToggleBar();
 
@@ -338,6 +362,73 @@ void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)
 	if (bHasActiveSlider)
 	{
 		ImGui::PopStyleColor(4);
+	}
+}
+
+void TweaksScreenBase::RunSliderAuditFrame()
+{
+	if constexpr (kbDebugInput)
+	{
+		// Lighting has 5 subtabs (Write/Combine/Read/Visible/Lighting); cycle that many frames so every gated WrapperSlider call fires.
+		static constexpr int8_t kiAuditFrameCount = 5;
+
+		if (miAuditFrame == 0)
+		{
+			std::memcpy(mPreAuditSubtab, mActiveSubtab, sizeof(mActiveSubtab));
+			ScopedSuppressAllocationTracking suppress;
+			const size_t iSliderCount = TweaksSliderMap::Get().size();
+			mAuditTouched.reserve(iSliderCount);
+			mAuditMissed.reserve(8); // typical drift is small; reserve nominal to avoid 1-element bucket churn
+		}
+
+		// Force every section to expose its `miAuditFrame`-th subtab during the synthetic-render pass.
+		for (size_t i = 0; i < static_cast<size_t>(TweakSection::kCount); ++i)
+		{
+			mActiveSubtab[i] = miAuditFrame;
+			mApplySubtab[i] = true;
+		}
+
+		mbAuditMode = true;
+
+		// Synthetic offscreen window: BeginTabBar / WrapperSeparatorText / etc. need an active window, but we don't want anything visible or interactive.
+		ImGui::SetNextWindowPos(ImVec2(-10000.0f, -10000.0f));
+		ImGui::SetNextWindowSize(ImVec2(1.0f, 1.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.0f);
+		static constexpr ImGuiWindowFlags kAuditFlags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBringToFrontOnFocus;
+		if (ImGui::Begin("##slider-audit", nullptr, kAuditFlags))
+		{
+			for (size_t i = 0; i < static_cast<size_t>(TweakSection::kCount); ++i)
+			{
+				(this->*kRenderSectionFunctions[i])();
+			}
+		}
+		ImGui::End();
+		ImGui::PopStyleVar();
+
+		mbAuditMode = false;
+
+		// Restore EVERY frame (not just on completion): the actual UI render later in the same Render() call must draw the user's saved tab, not the audit-cycled one.
+		std::memcpy(mActiveSubtab, mPreAuditSubtab, sizeof(mActiveSubtab));
+		std::fill(std::begin(mApplySubtab), std::end(mApplySubtab), true);
+
+		++miAuditFrame;
+		if (miAuditFrame >= kiAuditFrameCount)
+		{
+			// Heap: TweaksSliderMap iteration touches its hash buckets; mirror the registration-side suppression.
+			ScopedSuppressAllocationTracking suppress;
+			for (const auto& [rKey, pWrapper] : TweaksSliderMap::Get())
+			{
+				if (!mAuditTouched.contains(rKey))
+				{
+					LOG(kDefault, kWarning, "TweaksSliderMap: orphan key '{}'", rKey);
+				}
+			}
+			for (std::string_view missedKey : mAuditMissed)
+			{
+				LOG(kDefault, kWarning, "TweaksSliderMap: missed key '{}'", missedKey);
+			}
+			miAuditFrame = -1; // sentinel: audit complete
+		}
 	}
 }
 

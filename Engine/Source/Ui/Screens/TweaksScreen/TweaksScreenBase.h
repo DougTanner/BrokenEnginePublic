@@ -58,6 +58,8 @@ public:
 	// Chevron-style discrete index selector: << [name] >> with wrap-around. iCount must equal the wrapper's allowed-value count.
 	void ChevronIndexSelector(std::string_view label, Wrapper& rWrapper, const std::string_view* pNames, int64_t iCount);
 
+	void RunSliderAuditFrame();
+
 	std::string_view mActiveSlider;
 	int64_t miActiveSliderSection = -1; // -1 for toggle bar, 0+ for sections
 
@@ -67,6 +69,14 @@ public:
 	bool mApplySubtab[static_cast<size_t>(TweakSection::kCount)] {};
 	bool mSectionCollapsed[static_cast<size_t>(TweakSection::kCount)] {};
 	float mfToggleBarBottom = 0.0f;
+
+	// One-shot first-open slider-map drift audit. Cycles mActiveSubtab[] across 5 frames so multi-tab sections (Lighting=5, Water=4, Wind/Smoke=2) are fully exercised.
+	// miAuditFrame: 0..(kiAuditFrameCount-1) = audit running, -1 = audit complete.
+	std::unordered_set<std::string_view> mAuditTouched;
+	std::unordered_set<std::string_view> mAuditMissed;
+	int8_t mPreAuditSubtab[static_cast<size_t>(TweakSection::kCount)] {};
+	int8_t miAuditFrame = 0;
+	bool mbAuditMode = false;
 };
 
 } // namespace engine

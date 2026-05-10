@@ -13,15 +13,17 @@ public:
 
 	Wrapper() = delete;
 
-	explicit Wrapper(float fValue, float fMin, float fMax)
-	: mfDefault(fValue)
-	, mfMin(fMin)
-	, mfMax(fMax)
+	explicit Wrapper(float fValue, float fMin, float fMax, float fStep = 0.0f)
+	: mfStep(fStep)
+	, mfDefault(Snap(fValue, fStep))
+	, mfMin(Snap(fMin, fStep))
+	, mfMax(Snap(fMax, fStep))
 	, mfCurrent(mfDefault)
 	, mfPrevious(mfCurrent)
 	{
+		ASSERT(fStep >= 0.0f);
 		ASSERT(mfMin != mfMax);
-		ASSERT(fValue >= fMin && fValue <= fMax);
+		ASSERT(mfDefault >= mfMin && mfDefault <= mfMax);
 	}
 
 	explicit Wrapper(bool bValue)
@@ -118,7 +120,7 @@ public:
 
 	void Set(float fValue)
 	{
-		mfCurrent = std::clamp(fValue, mfMin, mfMax);
+		mfCurrent = std::clamp(Snap(fValue, mfStep), mfMin, mfMax);
 	}
 
 	void Set(bool bValue)
@@ -140,7 +142,7 @@ public:
 
 	void Reset(float fValue)
 	{
-		mfCurrent = mfPrevious = fValue;
+		mfCurrent = mfPrevious = Snap(fValue, mfStep);
 	}
 
 	template <typename T>
@@ -191,6 +193,12 @@ public:
 
 private:
 
+	static float Snap(float fValue, float fStep)
+	{
+		return fStep > 0.0f ? std::round(fValue / fStep) * fStep : fValue;
+	}
+
+	float mfStep = 0.0f;
 	float mfDefault = 0.0f;
 	float mfMin = 0.0f;
 	float mfMax = 1.0f;

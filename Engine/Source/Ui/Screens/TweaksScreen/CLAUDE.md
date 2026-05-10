@@ -18,6 +18,8 @@ Data-driven: a slider map plus a parallel function-pointer table drive section r
 
 **Label disambiguation**: `WrapperSlider`'s `mapKey` parameter lets display labels drop redundant prefixes while preserving unique ImGui IDs via `"label##mapKey"` when keys collide.
 
+**First-open drift audit** (`kbDebugInput` only): on first open, a multi-frame pass force-rotates each section's active subtab so every slider call site executes; `WrapperSlider` records touched and missed map keys instead of drawing, then warns on orphan map entries and missed lookups. No effect outside debug builds.
+
 ## See Also
 
 - [Game override](../../../../../Projects/BrokenEngineSandbox/Source/Ui/Screens/TweaksScreen/) - `game::TweaksScreen`
