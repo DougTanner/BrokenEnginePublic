@@ -70,11 +70,11 @@ extern bool gbUseCombineCurveNew;
 #endif
 
 // Read - Terrain Lighting
-extern Wrapper gLightingNewDirectional;
-extern Wrapper gLightingNewDirectionalPower;
+extern Wrapper gLightingDirectionalIntensity;
+extern Wrapper gLightingDirectionalPower;
 extern Wrapper gLightingDirectionalPowerMode;
-extern Wrapper gLightingNewAmbient;
-extern Wrapper gLightingNewAmbientPower;
+extern Wrapper gLightingAmbientIntensity;
+extern Wrapper gLightingAmbientPower;
 extern Wrapper gLightingAmbientPowerMode;
 extern Wrapper gLightingTerrain;
 extern Wrapper gLightingAddTerrain;
@@ -86,11 +86,11 @@ extern Wrapper gLightingDayFinalMultiplier;
 extern Wrapper gLightingNightFinalMultiplier;
 
 // Read - Water Lighting
+extern Wrapper gLightingWaterEwnsPow;
+extern Wrapper gLightingWaterEwnsPowMode;
+extern Wrapper gLightingWaterAmbientIntensity;
 extern Wrapper gLightingWaterAmbientPower;
 extern Wrapper gLightingWaterAmbientPowerMode;
-extern Wrapper gLightingWaterNewAmbient;
-extern Wrapper gLightingWaterNewAmbientPower;
-extern Wrapper gLightingWaterNewAmbientPowerMode;
 extern Wrapper gLightingWaterNormalSoften;
 extern Wrapper gLightingWaterNormalBlendWave;
 extern Wrapper gLightingWaterIntensity;

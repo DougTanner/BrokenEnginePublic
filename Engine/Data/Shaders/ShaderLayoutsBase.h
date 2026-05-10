@@ -485,17 +485,17 @@ struct MainLayout
 	float fLightingWaterThreePower INIT;
 	float fLightingWaterPowerMode INIT;
 
-	float fLightingNewDirectional INIT;
-	float fLightingNewDirectionalPower INIT;
+	float fLightingDirectionalIntensity INIT;
+	float fLightingDirectionalPower INIT;
 	float fLightingDirectionalPowerMode INIT;
-	float fLightingNewAmbient INIT;
-	float fLightingNewAmbientPower INIT;
+	float fLightingAmbientIntensity INIT;
+	float fLightingAmbientPower INIT;
 	float fLightingAmbientPowerMode INIT;
+	float fLightingWaterEwnsPow INIT;
+	float fLightingWaterEwnsPowMode INIT;
+	float fLightingWaterAmbientIntensity INIT;
 	float fLightingWaterAmbientPower INIT;
 	float fLightingWaterAmbientPowerMode INIT;
-	float fLightingWaterNewAmbient INIT;
-	float fLightingWaterNewAmbientPower INIT;
-	float fLightingWaterNewAmbientPowerMode INIT;
 	float fLightingTerrainBelowBaseMultiplier INIT;
 	float fLightingTerrainBelowBasePower INIT;
 
@@ -519,7 +519,6 @@ struct MainLayout
 	float fPbrIblSpecular INIT;
 	float fPbrIblSpecularPower INIT;
 	float fPbrSun INIT;
-	float fPbrSunPower INIT;
 	float fPbrLighting INIT;
 	float fPbrLightingPower INIT;
 	float fPbrLightingSpecular INIT;

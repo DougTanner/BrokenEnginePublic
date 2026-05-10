@@ -10,9 +10,10 @@ enum class FileFlags : uint64_t
 	kAppDataDirectory = 0x01,
 	kTempDirectory    = 0x02,
 
-	kRead   = 0x08,
-	kWrite  = 0x10,
-	kBackup = 0x20,
+	kRead      = 0x08,
+	kWrite     = 0x10,
+	kBackup    = 0x20,
+	kStreaming = 0x40, // Required when calling OpenFile with kWrite. Opt-out of atomic write; one-shots use WriteFileAtomically.
 };
 using FileFlags_t = common::Flags<FileFlags>;
 
@@ -141,6 +142,7 @@ private:
 
 	std::filesystem::path GetFilePath(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 	bool CommitAtomicWrite(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, bool bWriteSucceeded);
+	void BackupExistingFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 
 	void LoadPackFiles();
 	void LoadingThread();
@@ -220,10 +222,21 @@ inline constexpr bool has_binary_stream_operators_v = has_binary_stream_operator
 template <typename FN>
 bool FileManager::WriteFileAtomically(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, FN&& fnWrite)
 {
+	if (rFlags & FileFlags::kBackup)
+	{
+		BackupExistingFile(rFlags, rFilename);
+	}
+
+	// OpenFile is called on the .tmp filename, which doesn't exist yet, so kBackup must be stripped to avoid a no-op second backup.
+	// kStreaming is added because WriteFileAtomically is the only legitimate kWrite-without-kStreaming caller.
+	FileFlags_t openFlags = rFlags;
+	openFlags.Clear(FileFlags::kBackup);
+	openFlags.Set(FileFlags::kStreaming);
+
 	std::filesystem::path tmpFilename = rFilename;
 	tmpFilename += ".tmp";
 
-	std::fstream stream = OpenFile(rFlags, tmpFilename);
+	std::fstream stream = OpenFile(openFlags, tmpFilename);
 	if (!stream.is_open())
 	{
 		LOG(kLoading, kError, "WriteFileAtomically failed to open \"{}.tmp\"", rFilename.string());

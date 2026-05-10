@@ -163,8 +163,9 @@ void HudScreen::Render()
 	const bool bRightHasContent = oPlayerIndex.has_value();
 
 	// Mouse proximity to either anchor opens both panels (strict sync for the mouse path).
-	const ImVec2 vLeftAnchor(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.42f);
-	const ImVec2 vRightAnchor(rIo.DisplaySize.x * 0.95f, rIo.DisplaySize.y * 0.42f);
+	// Y anchor centers a 75%-tall panel: top = (1 - 0.75) / 2 = 0.125.
+	const ImVec2 vLeftAnchor(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.125f);
+	const ImVec2 vRightAnchor(rIo.DisplaySize.x * 0.95f, rIo.DisplaySize.y * 0.125f);
 	const float fMouseLeft = ComputeMouseOpennessTarget(mFleetSlide.vLastSize, vLeftAnchor, 0.0f);
 	const float fMouseRight = ComputeMouseOpennessTarget(mFocusedPlayerSlide.vLastSize, vRightAnchor, 1.0f);
 	const float fMouseTarget = std::max(fMouseLeft, fMouseRight);
@@ -184,12 +185,26 @@ void HudScreen::RenderFleetPanel(float fTarget)
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
-	const ImVec2 vAnchor(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.42f);
+	const ImVec2 vAnchor(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.125f);
 	const float fEdgeX = UpdateSlideAndGetEdgeX(mFleetSlide, vAnchor, -1.0f, fTarget);
+	ImGuiWindowFlags eFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+	if (mfFixedPanelWidth > 0.0f)
+	{
+		ImGui::SetNextWindowSize(ImVec2(mfFixedPanelWidth, rIo.DisplaySize.y * 0.75f), ImGuiCond_Always);
+	}
+	else
+	{
+		// First frame baseline capture: auto-size to natural content width.
+		eFlags |= ImGuiWindowFlags_AlwaysAutoResize;
+	}
 	ImGui::SetNextWindowPos(ImVec2(fEdgeX, vAnchor.y), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
-	ImGui::Begin("FleetPanel", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+	ImGui::Begin("FleetPanel", nullptr, eFlags);
 	ImGui::SetWindowFontScale(kfMenuUiScale);
 	mFleetSlide.vLastSize = ImGui::GetWindowSize();
+	if (mfFixedPanelWidth <= 0.0f && mFleetSlide.vLastSize.x > 0.0f)
+	{
+		mfFixedPanelWidth = mFleetSlide.vLastSize.x * 7.2f;
+	}
 	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
 
 	int64_t iFleetCount = gpGame->FleetCount();
@@ -362,10 +377,20 @@ void HudScreen::RenderFocusedPlayerPanel(float fTarget)
 		}
 	}
 
-	const ImVec2 vAnchor(rIo.DisplaySize.x * 0.95f, rIo.DisplaySize.y * 0.42f);
+	const ImVec2 vAnchor(rIo.DisplaySize.x * 0.95f, rIo.DisplaySize.y * 0.125f);
 	const float fEdgeX = UpdateSlideAndGetEdgeX(mFocusedPlayerSlide, vAnchor, 1.0f, fTarget);
+	ImGuiWindowFlags eFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+	if (mfFixedPanelWidth > 0.0f)
+	{
+		ImGui::SetNextWindowSize(ImVec2(mfFixedPanelWidth, rIo.DisplaySize.y * 0.75f), ImGuiCond_Always);
+	}
+	else
+	{
+		// Left panel hasn't captured baseline yet — fall back to auto-size for one frame.
+		eFlags |= ImGuiWindowFlags_AlwaysAutoResize;
+	}
 	ImGui::SetNextWindowPos(ImVec2(fEdgeX, vAnchor.y), ImGuiCond_Always, ImVec2(0.0f, 0.0f));
-	ImGui::Begin("FocusedPlayerPanel", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+	ImGui::Begin("FocusedPlayerPanel", nullptr, eFlags);
 	ImGui::SetWindowFontScale(kfMenuUiScale);
 	mFocusedPlayerSlide.vLastSize = ImGui::GetWindowSize();
 	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
@@ -385,7 +410,6 @@ void HudScreen::RenderFocusedPlayerPanel(float fTarget)
 				gpGame->mWeaponModeToggle.SetPending();
 				float fNavigationDelay = rPlayers.pfNavigationDelays[*oPlayerIndex];
 				gpClientSession->SendUpdatePlayerRequest(gpGame->ClientPlayerId().iValue, !bUseMissiles, fNavigationDelay);
-				engine::gpAudioManager->PlayOneShot(gpGame->RenderFrame(gpGame->mClientGridCoord), data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc, false, 1.0f);
 			}
 		}
 		ImGui::EndDisabled();

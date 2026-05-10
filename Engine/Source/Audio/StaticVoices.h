@@ -2,14 +2,6 @@
 
 #if defined(BT_CLIENT)
 
-// Temporary feature gate: set to 0 to restore pre-feature behaviour
-// (first-come-first-served voice allocation, no out-of-range exclusion,
-// no priority sort, original Apply3dVolume lerp-to-floor mix, original
-// AudioManager call order). Override via -DBT_AUDIO_PRIORITY_CULL=0.
-#ifndef BT_AUDIO_PRIORITY_CULL
-#define BT_AUDIO_PRIORITY_CULL 0
-#endif
-
 namespace DirectX
 {
 class AudioEngine;
@@ -97,8 +89,8 @@ private:
 	float mfManualFadeEnd = 150.0f;
 	float mfManualFadeVolume = 0.05f;
 
-	float mfReferenceVisibleWidth = 0.0f;
 	float mfChannelBleedT = 0.0f;
+	float mfEffectiveFadeStart = 0.0f;
 	float mfEffectiveFadeEnd = 150.0f;
 };
 

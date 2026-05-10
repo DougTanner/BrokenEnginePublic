@@ -28,6 +28,7 @@ private:
 	static float UpdateSlideAndGetEdgeX(SlidePanelState& rState, ImVec2 vAnchor, float fSidePivotSign, float fTarget);
 	SlidePanelState mFleetSlide {};
 	SlidePanelState mFocusedPlayerSlide {};
+	float mfFixedPanelWidth = 0.0f;
 	float mfTimeWantingForceOpen = 0.0f;
 	bool mbPreviousForceOpen = false;
 #endif

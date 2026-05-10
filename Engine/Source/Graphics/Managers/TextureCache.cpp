@@ -263,12 +263,11 @@ void TextureCache::SaveTextureToCache(const std::filesystem::path& rCachePath, c
 	header.iDataSize = static_cast<int64_t>(data.size());
 
 	// Write cache file
-	gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, rCachePath);
-	std::fstream fileStreamOut = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, rCachePath);
-	common::Write(fileStreamOut, header);
-	common::Write(fileStreamOut, data);
-	fileStreamOut.flush();
-	fileStreamOut.close();
+	static_cast<void>(gpFileManager->WriteFileAtomically({FileFlags::kAppDataDirectory, FileFlags::kWrite}, rCachePath, [&](std::fstream& rStream)
+	{
+		common::Write(rStream, header);
+		common::Write(rStream, data);
+	}));
 
 	LOG(kGraphics, kDebug, "Saved texture cache to {}", rCachePath.string());
 }

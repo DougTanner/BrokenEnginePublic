@@ -99,24 +99,41 @@ std::filesystem::path FileManager::GetFilePath(const FileFlags_t& rFlags, const 
 
 std::fstream FileManager::OpenFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename)
 {
-	std::filesystem::path file = GetFilePath(rFlags, rFilename);
+	// kWrite must opt into raw streaming via kStreaming; one-shot writes use WriteFileAtomically.
+	ASSERT(!(rFlags & kWrite) || (rFlags & kStreaming));
 
-	if (rFlags & kBackup && std::filesystem::exists(file))
+	if (rFlags & kBackup)
 	{
-		ASSERT((rFlags & kWrite) != 0);
-		std::filesystem::path backupFile(file);
-		std::time_t time = std::time(nullptr);
-		std::tm timeStruct = *std::localtime(&time);
-		std::ostringstream timeStringStream;
-		timeStringStream << std::put_time(&timeStruct, ".%d-%m-%Y-%H-%M-%S");
-		std::string timeString = timeStringStream.str();
-		backupFile += timeString;
-		std::filesystem::copy_file(file, backupFile);
+		BackupExistingFile(rFlags, rFilename);
 	}
 
+	std::filesystem::path file = GetFilePath(rFlags, rFilename);
 	std::fstream fileStream(file, (rFlags & kRead ? std::ios::in : std::ios::out) | std::ios::binary);
 	LOG(kLoading, kDebug, "{} \"{}\" at \"{}\"", fileStream.is_open() ? (rFlags & kRead ? "Reading" : "Writing") : "Failed to open", rFilename.string(), file.string());
 	return fileStream;
+}
+
+void FileManager::BackupExistingFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename)
+{
+	ASSERT((rFlags & kWrite) != 0);
+
+	std::filesystem::path file = GetFilePath(rFlags, rFilename);
+	if (!std::filesystem::exists(file))
+	{
+		return;
+	}
+
+	std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+	std::time_t time = std::chrono::system_clock::to_time_t(now);
+	int64_t iEpochMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+	std::tm timeStruct = *std::localtime(&time);
+	std::ostringstream timeStringStream;
+	timeStringStream << "-" << std::put_time(&timeStruct, "%Y-%m-%d") << "-" << iEpochMs;
+	std::filesystem::path backupFile = file.parent_path() / (file.stem().string() + timeStringStream.str() + file.extension().string());
+
+	std::error_code copyEc;
+	std::filesystem::copy_file(file, backupFile, copyEc);
+	ASSERT(!copyEc);
 }
 
 void FileManager::RemoveFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename)

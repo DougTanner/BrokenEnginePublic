@@ -78,7 +78,22 @@ void GameSaveLoad::ServerReset()
 void GameSaveLoad::Autosave()
 {
 	ScopedSuppressAllocationTracking suppress;
-	WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("ServerAutosave.save"), game::gpGame->mClientGridCoord);
+	WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite, FileFlags::kBackup}, std::filesystem::path("ServerAutosave.save"), game::gpGame->mClientGridCoord);
+}
+
+void GameSaveLoad::TickAutosave()
+{
+	if (IsReplaying() || IsRecording())
+	{
+		return;
+	}
+
+	if (mAutosaveTimer.GetDeltaNs(false) >= kAutosaveInterval)
+	{
+		Autosave();
+		mAutosaveTimer.Reset();
+		LOG(kDefault, kInfo, "Autosave fired (interval {}s)", kAutosaveInterval.count());
+	}
 }
 
 bool GameSaveLoad::Autoload()
@@ -271,14 +286,19 @@ void GameSaveLoad::SyncReplayTick()
 			mrGameBase.mGameFlags.Clear(GameFlags::kSaveReplay);
 
 			// Write manifest listing all recorded coords
-			std::fstream manifestStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("F7.replay.manifest"));
-			int64_t iCoordCount = static_cast<int64_t>(mReplayWriters.size());
-			common::Write(manifestStream, iCoordCount);
+			static_cast<void>(gpFileManager->WriteFileAtomically({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("F7.replay.manifest"), [&](std::fstream& rManifestStream)
+			{
+				int64_t iCoordCount = static_cast<int64_t>(mReplayWriters.size());
+				common::Write(rManifestStream, iCoordCount);
+
+				for (const auto& [rCoord, rpWriter] : mReplayWriters)
+				{
+					rCoord.Write(rManifestStream);
+				}
+			}));
 
 			for (auto& [rCoord, rpWriter] : mReplayWriters)
 			{
-				rCoord.Write(manifestStream);
-
 				std::filesystem::path coordReplayPath = std::filesystem::path("F7.replay." + std::to_string(rCoord.ToKey()));
 				rpWriter->Save({FileFlags::kAppDataDirectory, FileFlags::kWrite, FileFlags::kBackup}, coordReplayPath, mrGameBase.CurrentFrame(rCoord));
 			}

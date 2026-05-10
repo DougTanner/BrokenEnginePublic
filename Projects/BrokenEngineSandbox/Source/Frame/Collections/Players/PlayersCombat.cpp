@@ -11,6 +11,7 @@
 #if defined(BT_CLIENT)
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
+#include "Ui/SoundWrappers.h"
 #endif
 
 namespace game
@@ -23,14 +24,9 @@ constexpr float kfBlasterTargetRange = 120.0f;
 constexpr float kfMissileTargetRange = 160.0f;
 
 // Damage response
-constexpr float kfShieldHitSoundVolumeBase = 0.1f;
-constexpr float kfShieldHitSoundVolumeScale = 0.1f;
 constexpr float kfShieldCooldown = 2.0f;
 constexpr float kfShieldDownSoundCooldown = 2.0f;
-constexpr float kfShieldDownSoundVolume = 0.1f;
 constexpr float kfArmorHitSoundDamageThreshold = 3.0f;
-constexpr float kfArmorHitSoundVolumeBase = 0.2f;
-constexpr float kfArmorHitSoundVolumeScale = 0.5f;
 
 // Blaster spawn
 constexpr float kfBlasterFireInterval = 0.05f;
@@ -194,7 +190,7 @@ static void XM_CALLCONV ApplyDamage([[maybe_unused]] const Frame& rFrame, [[mayb
 	{
 		// Play shield hit sound with pitch based on remaining shield
 #if defined(BT_CLIENT)
-		engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor465540__steaq__scifishieldhitwavwavCrc, vecDamagePosition, kfShieldHitSoundVolumeBase + kfShieldHitSoundVolumeScale * (1.0f - rPlayer.pfShields[i] / kfPlayerShield));
+		engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor465540__steaq__scifishieldhitwavwavCrc, vecDamagePosition, gShieldHitVolumeBase.Get() + gShieldHitVolumeScale.Get() * (1.0f - rPlayer.pfShields[i] / kfPlayerShield));
 #endif
 
 		// Update hex shield direction intensity
@@ -228,7 +224,7 @@ static void XM_CALLCONV ApplyDamage([[maybe_unused]] const Frame& rFrame, [[mayb
 			{
 				rPlayer.pfShieldDownSoundCooldowns[i] = kfShieldDownSoundCooldown;
 #if defined(BT_CLIENT)
-				engine::gpAudioManager->PlayOneShot(rFrame, data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, kfShieldDownSoundVolume);
+				engine::gpAudioManager->PlayOneShot(rFrame, data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, gShieldDownVolume.Get());
 #endif
 			}
 		}
@@ -241,7 +237,7 @@ static void XM_CALLCONV ApplyDamage([[maybe_unused]] const Frame& rFrame, [[mayb
 #if defined(BT_CLIENT)
 		if (fDamage > kfArmorHitSoundDamageThreshold)
 		{
-			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecDamagePosition, kfArmorHitSoundVolumeBase + kfArmorHitSoundVolumeScale * (1.0f - rPlayer.pfArmors[i] / kfPlayerArmor));
+			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecDamagePosition, gArmorHitVolumeBase.Get() + gArmorHitVolumeScale.Get() * (1.0f - rPlayer.pfArmors[i] / kfPlayerArmor));
 		}
 #endif
 
@@ -373,7 +369,7 @@ void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
 			});
 
 #if defined(BT_CLIENT)
-			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc, vecFinalPosition, kfBlasterVolume, kfBlasterPitchMin, kfBlasterPitchRandom);
+			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc, vecFinalPosition, gPlayerBlasterVolume.Get(), gPlayerBlasterPitchMin.Get(), gPlayerBlasterPitchRandom.Get());
 #endif
 
 			rCurrentPostRender.pfNextBlasterFireTimes[i] += kfBlasterFireInterval;
@@ -450,8 +446,8 @@ void PlayersPostRender::SpawnMissiles([[maybe_unused]] Frame& __restrict rFrame)
 
 #if defined(BT_CLIENT)
 		engine::gpAudioManager->PlayOneShot3d(rFrame,
-			data::kAudioMissile182794__qubodup__rocketlaunch_start_1wavCrc,
-			vecMissilePosition, kfMissileSoundVolumeStart, kfMissilePitchMin, kfMissilePitchRandom);
+			data::kAudioMissile182794__qubodup__rocketlaunch_start_2wavCrc,
+			vecMissilePosition, gMissileLaunchVolume.Get(), gMissilePitchMin.Get(), gMissilePitchRandom.Get());
 #endif
 	}
 }

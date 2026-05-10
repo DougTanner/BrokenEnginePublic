@@ -483,6 +483,9 @@
     <ClInclude Include="..\..\Source\Ui\LightingWrappers.h">
       <Filter>Game\Ui</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\SoundWrappers.h">
+      <Filter>Game\Ui</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Ui\ParticleWrappers.h">
       <Filter>Game\Ui</Filter>
     </ClInclude>
@@ -1182,6 +1185,9 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenMisc.cpp">
       <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenSound.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenHexShield.cpp">
       <Filter>Game\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
@@ -1206,7 +1212,13 @@
     <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenSmokeDeposits.cpp">
       <Filter>Game\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Screens\TweaksScreen\TweaksScreenSoundEffects.cpp">
+      <Filter>Game\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\Ui\LightingWrappers.cpp">
+      <Filter>Game\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\SoundWrappers.cpp">
       <Filter>Game\Ui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Ui\ParticleWrappers.cpp">

@@ -7,7 +7,6 @@ namespace engine
 
 // Pbr - Engine Variables
 extern Wrapper gPbrSun;
-extern Wrapper gPbrSunPower;
 extern Wrapper gPbrDayBrightness;
 // Pbr - BRDF
 extern Wrapper gPbrBrdfDiffuse;

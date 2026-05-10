@@ -17,8 +17,9 @@ namespace game
 {
 
 // Shared constants (used across Blasters*.cpp files)
-inline constexpr float kfBlasterVolume = 0.7f;
 inline constexpr float kfBlasterFadeOutTime = 0.1f;
+// Spawn-time pitch range MUST stay constexpr: pfPitches[i] is a shared CRC field, so the random draw must be
+// deterministic across client/server. Runtime-tweakable muzzle/launch cue pitch lives in SoundWrappers.h.
 inline constexpr float kfBlasterPitchMin = 0.75f;
 inline constexpr float kfBlasterPitchRandom = 0.5f;
 

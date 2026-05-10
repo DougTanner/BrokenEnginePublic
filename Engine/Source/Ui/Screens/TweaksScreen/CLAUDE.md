@@ -18,6 +18,8 @@ Data-driven: a slider map plus a parallel function-pointer table drive section r
 
 **Label disambiguation**: `WrapperSlider`'s `mapKey` parameter lets display labels drop redundant prefixes while preserving unique ImGui IDs via `"label##mapKey"` when keys collide.
 
+**Column layout**: At most one `ImGui::BeginTable("…", N)` per render path — never nest. A `BeginTable` inside a parent table cell inherits that cell's width, squeezing inner columns until the right ones get clipped off-screen. Concretely: if an engine `Render*Section()` calls a game virtual hook whose body opens its own `BeginTable`, the engine side MUST render its own sliders inline (no outer table wrap) and let the hook own the table at full window width. See `RenderLightingSection` → `RenderLightingEffectsVisibleTab` / `RenderLightingEffectsLightingTab` and `RenderSoundSection` → `RenderSoundEffects` for the canonical pattern.
+
 **First-open drift audit** (`kbDebugInput` only): on first open, a multi-frame pass force-rotates each section's active subtab so every slider call site executes; `WrapperSlider` records touched and missed map keys instead of drawing, then warns on orphan map entries and missed lookups. No effect outside debug builds.
 
 ## See Also

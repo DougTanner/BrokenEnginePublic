@@ -5,7 +5,6 @@ namespace engine
 
 // Pbr - Engine Variables
 Wrapper gPbrSun(0.8f, 0.5f, 1.0f);
-Wrapper gPbrSunPower(1.0f, 0.0f, 4.0f);
 Wrapper gPbrDayBrightness(3.0f, 1.0f, 4.0f);
 // Pbr - BRDF
 Wrapper gPbrBrdfDiffuse(10.0f, 0.0f, 20.0f);

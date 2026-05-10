@@ -1,6 +1,7 @@
 #version 460
 
 #include "ShaderLayouts.h"
+#include "ShaderFunctions.h"
 
 layout (local_size_x = kiComputeTileSize, local_size_y = kiComputeTileSize) in;
 
@@ -122,7 +123,7 @@ void main()
 		vec4 f4HueB = f4B;
 		for (int i = 0; i < 4; i++)
 		{
-			float fLum = 0.2126f * f4R[i] + 0.7152f * f4G[i] + 0.0722f * f4B[i];
+			float fLum = dot(vec3(f4R[i], f4G[i], f4B[i]), kRec709);
 			float fMappedLum = UchimuraScalar(fLum, P, a, m, l, c, b);
 			float fRatio = fMappedLum / max(fLum, 0.001f);
 			f4HueR[i] = f4R[i] * fRatio;

@@ -155,17 +155,17 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fLightingWaterThreePower = gLightingWaterThreePower.Get();
 	rMainLayout.fLightingWaterPowerMode = gLightingWaterPowerMode.Get();
 
-	rMainLayout.fLightingNewDirectional = gLightingNewDirectional.Get();
-	rMainLayout.fLightingNewDirectionalPower = gLightingNewDirectionalPower.Get();
+	rMainLayout.fLightingDirectionalIntensity = gLightingDirectionalIntensity.Get();
+	rMainLayout.fLightingDirectionalPower = gLightingDirectionalPower.Get();
 	rMainLayout.fLightingDirectionalPowerMode = gLightingDirectionalPowerMode.Get();
-	rMainLayout.fLightingNewAmbient = gLightingNewAmbient.Get();
-	rMainLayout.fLightingNewAmbientPower = gLightingNewAmbientPower.Get();
+	rMainLayout.fLightingAmbientIntensity = gLightingAmbientIntensity.Get();
+	rMainLayout.fLightingAmbientPower = gLightingAmbientPower.Get();
 	rMainLayout.fLightingAmbientPowerMode = gLightingAmbientPowerMode.Get();
+	rMainLayout.fLightingWaterEwnsPow = gLightingWaterEwnsPow.Get();
+	rMainLayout.fLightingWaterEwnsPowMode = gLightingWaterEwnsPowMode.Get();
+	rMainLayout.fLightingWaterAmbientIntensity = gLightingWaterAmbientIntensity.Get();
 	rMainLayout.fLightingWaterAmbientPower = gLightingWaterAmbientPower.Get();
 	rMainLayout.fLightingWaterAmbientPowerMode = gLightingWaterAmbientPowerMode.Get();
-	rMainLayout.fLightingWaterNewAmbient = gLightingWaterNewAmbient.Get();
-	rMainLayout.fLightingWaterNewAmbientPower = gLightingWaterNewAmbientPower.Get();
-	rMainLayout.fLightingWaterNewAmbientPowerMode = gLightingWaterNewAmbientPowerMode.Get();
 	rMainLayout.fLightingTerrainBelowBaseMultiplier = gLightingTerrainBelowBaseMultiplier.Get();
 	rMainLayout.fLightingTerrainBelowBasePower = gLightingTerrainBelowBasePower.Get();
 
@@ -189,7 +189,6 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fPbrIblSpecular = gPbrIblSpecular.Get();
 	rMainLayout.fPbrIblSpecularPower = gPbrIblSpecularPower.Get();
 	rMainLayout.fPbrSun = gPbrSun.Get();
-	rMainLayout.fPbrSunPower = gPbrSunPower.Get();
 	rMainLayout.fPbrLighting = gPbrLighting.Get();
 	rMainLayout.fPbrLightingPower = gPbrLightingPower.Get();
 	rMainLayout.fPbrLightingSpecular = gPbrLightingSpecular.Get();

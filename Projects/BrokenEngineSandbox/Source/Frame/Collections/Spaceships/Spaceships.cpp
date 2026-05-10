@@ -18,6 +18,7 @@
 #include "Data/Scene.h"
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Ui/LightingWrappers.h"
+#include "Ui/SoundWrappers.h"
 #endif
 
 namespace engine
@@ -570,7 +571,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[ma
 			});
 
 #if defined(BT_CLIENT)
-			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc, vecPosition, kfBlasterVolume, kfBlasterPitchMin, kfBlasterPitchRandom);
+			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc, vecPosition, gEnemyBlasterVolume.Get(), gEnemyBlasterPitchMin.Get(), gEnemyBlasterPitchRandom.Get());
 #endif
 		}
 	}

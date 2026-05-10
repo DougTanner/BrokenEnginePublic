@@ -274,10 +274,13 @@ void main()
 	// Per-target Objects sun/moon intensity sliders are applied at the BRDF/IBL use sites below
 	// so they affect both paths linearly (baking them into f3SunColor would make IBL quadratic
 	// because fSunIntensity is derived from f3SunColor).
+	// fSunIntensity / fMoonIntensity are Rec.709 luminance of the *unscaled* sun/moon color, so
+	// the IBL specular path stays linear in fPbrSun (matching direct BRDF). Computing luminance
+	// from the fPbrSun-scaled color would compound to fPbrSun^3 in the IBL consumer.
 	vec3 f3SunColor  = mainLayout.fPbrSun * globalLayout.f4SunColor.rgb;
 	vec3 f3MoonColor = mainLayout.fPbrSun * globalLayout.f4MoonColor.rgb;
-	float fSunIntensity  = mainLayout.fPbrSun * (f3SunColor.r  + f3SunColor.g  + f3SunColor.b)  / mainLayout.fPbrDayBrightness;
-	float fMoonIntensity = mainLayout.fPbrSun * (f3MoonColor.r + f3MoonColor.g + f3MoonColor.b) / mainLayout.fPbrDayBrightness;
+	float fSunIntensity  = dot(globalLayout.f4SunColor.rgb,  kRec709) / mainLayout.fPbrDayBrightness;
+	float fMoonIntensity = dot(globalLayout.f4MoonColor.rgb, kRec709) / mainLayout.fPbrDayBrightness;
 
 	vec3 f3AmbientColor = globalLayout.f4AmbientColor.rgb;
 
@@ -333,7 +336,7 @@ void main()
 	ReadLighting(pf4Lighting, pLightingSamplers, f2LightingTexcoord);
 
 	// Apply directional lighting
-	vec3 f3Directional = DirectionalLighting(pf4Lighting, n, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower, mainLayout.fLightingDirectionalPowerMode);
+	vec3 f3Directional = DirectionalLighting(pf4Lighting, n, mainLayout.fLightingDirectionalIntensity, mainLayout.fLightingDirectionalPower, mainLayout.fLightingDirectionalPowerMode);
 	vec3 f3Lighting = globalLayout.fLightingObjects * globalLayout.fLightingTimeOfDayMultiplier * f3Directional;
 	vec3 directionalLighting = f3Lighting * mix(baseColor.rgb, vec3(1.0f), globalLayout.fLightingObjectsAdd);
 	#else
@@ -341,16 +344,16 @@ void main()
 	vec2 f2DirectTexcoord = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
 	vec4 pf4DirectLighting[3];
 	ReadLighting(pf4DirectLighting, pLightingSamplers, f2DirectTexcoord);
-	vec3 f3Direct = DirectionalLighting(pf4DirectLighting, n, mainLayout.fLightingNewDirectional, mainLayout.fLightingNewDirectionalPower, mainLayout.fLightingDirectionalPowerMode);
+	vec3 f3Direct = DirectionalLighting(pf4DirectLighting, n, mainLayout.fLightingDirectionalIntensity, mainLayout.fLightingDirectionalPower, mainLayout.fLightingDirectionalPowerMode);
 
 	vec2 f2AmbientPosition = BaseHeightPosition(globalLayout, mainLayout, f3InWorldPosition);
 	vec2 f2AmbientTexcoord = WorldToVisibleArea(vec3(f2AmbientPosition, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4Lighting[3];
 	ReadLighting(pf4Lighting, pLightingSamplers, f2AmbientTexcoord);
-	vec3 f3Ambient = AmbientLighting(pf4Lighting, mainLayout.fLightingNewAmbient, mainLayout.fLightingNewAmbientPower, mainLayout.fLightingAmbientPowerMode);
-	pf4Lighting[0] *= mainLayout.fLightingNewAmbient;
-	pf4Lighting[1] *= mainLayout.fLightingNewAmbient;
-	pf4Lighting[2] *= mainLayout.fLightingNewAmbient;
+	vec3 f3Ambient = AmbientLighting(pf4Lighting, mainLayout.fLightingAmbientIntensity, mainLayout.fLightingAmbientPower, mainLayout.fLightingAmbientPowerMode);
+	pf4Lighting[0] *= mainLayout.fLightingAmbientIntensity;
+	pf4Lighting[1] *= mainLayout.fLightingAmbientIntensity;
+	pf4Lighting[2] *= mainLayout.fLightingAmbientIntensity;
 
 	vec3 f3NewLighting = (f3Direct + f3Ambient) * globalLayout.fLightingTimeOfDayMultiplier * globalLayout.fLightingObjects;
 	vec3 directionalLighting = globalLayout.fLightingObjectsAdd * f3NewLighting + (1.0f - globalLayout.fLightingObjectsAdd) * f3NewLighting * baseColor.rgb;

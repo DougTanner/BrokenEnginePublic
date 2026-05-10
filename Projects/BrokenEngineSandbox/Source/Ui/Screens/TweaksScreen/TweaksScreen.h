@@ -17,6 +17,7 @@ public:
 	void RenderParticlesSection() override;
 	void RenderLightingEffectsVisibleTab() override;
 	void RenderLightingEffectsLightingTab() override;
+	void RenderSoundEffects() override;
 };
 
 } // namespace game

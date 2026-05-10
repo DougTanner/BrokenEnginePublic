@@ -30,6 +30,6 @@ Correctness:
 
 Performance:
 - line 134 — `textureLod(skyboxSampler, -normalize(reflect(...)), lod)` — drop outer `normalize`.
-- lines 170-172 — four `pow()` calls per fragment × i (8 total) for hue-preserving scaling. `mix(...)` always evaluates both branches. Consider uniform branch on `fWaterAmbientPowerMode`.
+- lines 170-172 — four `pow()` calls per fragment × i (8 total) for hue-preserving scaling. `mix(...)` always evaluates both branches. Consider uniform branch on `fWaterEwnsPowMode`.
 - line 198 + line 152 — `SmokeShadow` (line 152) and the explicit `pow(fSmokeRaw, fSmokePower)` at 198 re-sample the same `smokeSampler`. Sample once.
 - line 162 — aggregate-initialized `vec4 pf4LightingBaseHeight[3] = {…}`; `ReadLighting()` helper exists in `ShaderFunctions.h` — prefer it.

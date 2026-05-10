@@ -12,6 +12,7 @@
 #include "Ui/WrapperBase.h"
 #include "Ui/LightingWrappers.h"
 #include "Ui/SmokeWrappers.h"
+#include "Ui/SoundWrappers.h"
 #endif
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Explosions/Explosions.h"
@@ -61,9 +62,6 @@ constexpr float kfExplosionTrailCountRandom = 2.0f;
 
 // Missile sound
 constexpr float kfMissileSoundFadeOutTime = 0.04f;
-
-// Explosion sound
-constexpr float kfExplosionSoundVolume = 0.75f;
 
 // Missile spawn
 constexpr float kfDeltaRotationLimitMin = 2.0f;
@@ -133,7 +131,7 @@ void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_l
 			.vecPosition = vecPosition,
 			.vecVelocity = vecVelocity,
 			.uiCrc = data::kAudioMissile182794__qubodup__rocketlaunch_loopwavCrc,
-			.fVolume = kfMissileSoundVolumeLoop,
+			.fVolume = gMissileLoopVolume.Get(),
 			.fPitch = fPitch,
 			.fFadeOutTime = kfMissileSoundFadeOutTime,
 		});
@@ -507,7 +505,7 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	}
 
 #if defined(BT_CLIENT)
-	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], kfExplosionSoundVolume);
+	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], gExplosionVolume.Get());
 #endif
 
 	rCurrentPostRender.pFlags[i].Set(kExploding);

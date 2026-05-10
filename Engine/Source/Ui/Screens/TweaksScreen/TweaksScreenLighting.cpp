@@ -63,11 +63,11 @@ const TweaksSliderMapRegistrar gLightingRegistrar
 	{"Combine Exposure Pass Scale", &gCombineExposurePassScale},
 	{"Combine Hue Preserve", &gCombineHuePreserve},
 	// Read - Terrain Lighting
-	{"New Directional", &gLightingNewDirectional},
-	{"New Directional Power", &gLightingNewDirectionalPower},
+	{"Directional Intensity", &gLightingDirectionalIntensity},
+	{"Directional Power", &gLightingDirectionalPower},
 	{"Directional Power Mode", &gLightingDirectionalPowerMode},
-	{"New Ambient", &gLightingNewAmbient},
-	{"New Ambient Power", &gLightingNewAmbientPower},
+	{"Ambient Intensity", &gLightingAmbientIntensity},
+	{"Ambient Power", &gLightingAmbientPower},
 	{"Ambient Power Mode", &gLightingAmbientPowerMode},
 	{"Terrain", &gLightingTerrain},
 	{"Terrain Add", &gLightingAddTerrain},
@@ -78,11 +78,11 @@ const TweaksSliderMapRegistrar gLightingRegistrar
 	{"Day Final Multiplier", &gLightingDayFinalMultiplier},
 	{"Night Final Multiplier", &gLightingNightFinalMultiplier},
 	// Read - Water Lighting
+	{"Water EWNS Pow", &gLightingWaterEwnsPow},
+	{"Water EWNS Pow Mode", &gLightingWaterEwnsPowMode},
+	{"Water Ambient Intensity", &gLightingWaterAmbientIntensity},
 	{"Water Ambient Power", &gLightingWaterAmbientPower},
 	{"Water Ambient Power Mode", &gLightingWaterAmbientPowerMode},
-	{"Water New Ambient", &gLightingWaterNewAmbient},
-	{"Water New Ambient Power", &gLightingWaterNewAmbientPower},
-	{"Water New Ambient Power Mode", &gLightingWaterNewAmbientPowerMode},
 	{"Water Normal Soften", &gLightingWaterNormalSoften},
 	{"Water Normal Blend Wave", &gLightingWaterNormalBlendWave},
 	{"Water Intensity", &gLightingWaterIntensity},
@@ -253,11 +253,11 @@ void TweaksScreenBase::RenderLightingSection()
 				ImGui::TableNextColumn();
 
 				WrapperSeparatorText("Terrain Lighting");
-				WrapperSlider("New Directional", kiSection, 1.0f);
-				WrapperSlider("New Directional Power", kiSection, 1.0f);
+				WrapperSlider("Directional Intensity", kiSection, 1.0f);
+				WrapperSlider("Directional Power", kiSection, 1.0f);
 				WrapperSlider("Directional Power Mode", kiSection, 1.0f);
-				WrapperSlider("New Ambient", kiSection, 1.0f);
-				WrapperSlider("New Ambient Power", kiSection, 1.0f);
+				WrapperSlider("Ambient Intensity", kiSection, 1.0f);
+				WrapperSlider("Ambient Power", kiSection, 1.0f);
 				WrapperSlider("Ambient Power Mode", kiSection, 1.0f);
 				WrapperSlider("Terrain", kiSection, 1.0f);
 				WrapperSlider("Terrain Add", kiSection, 1.0f);
@@ -271,11 +271,11 @@ void TweaksScreenBase::RenderLightingSection()
 				ImGui::TableNextColumn();
 
 				WrapperSeparatorText("Water Lighting");
+				WrapperSlider("Water EWNS Pow", kiSection, 1.0f);
+				WrapperSlider("Water EWNS Pow Mode", kiSection, 1.0f);
+				WrapperSlider("Water Ambient Intensity", kiSection, 1.0f);
 				WrapperSlider("Water Ambient Power", kiSection, 1.0f);
 				WrapperSlider("Water Ambient Power Mode", kiSection, 1.0f);
-				WrapperSlider("Water New Ambient", kiSection, 1.0f);
-				WrapperSlider("Water New Ambient Power", kiSection, 1.0f);
-				WrapperSlider("Water New Ambient Power Mode", kiSection, 1.0f);
 				WrapperSlider("Normal Soften", kiSection, 1.0f, "Water Normal Soften");
 				WrapperSlider("Normal Blend Wave", kiSection, 1.0f, "Water Normal Blend Wave");
 				WrapperSlider("Intensity", kiSection, 1.0f, "Water Intensity");

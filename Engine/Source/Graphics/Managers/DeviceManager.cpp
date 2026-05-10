@@ -383,9 +383,10 @@ DeviceManager::~DeviceManager()
 		vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &uiDataSize, nullptr);
 		std::vector<uint8_t> cacheData(uiDataSize);
 		vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &uiDataSize, cacheData.data());
-		gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "pipeline.cache");
-		std::fstream fileStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, "pipeline.cache");
-		fileStream.write(reinterpret_cast<const char*>(cacheData.data()), static_cast<std::streamsize>(uiDataSize));
+		static_cast<void>(gpFileManager->WriteFileAtomically({FileFlags::kAppDataDirectory, FileFlags::kWrite}, "pipeline.cache", [&](std::fstream& rStream)
+		{
+			rStream.write(reinterpret_cast<const char*>(cacheData.data()), static_cast<std::streamsize>(uiDataSize));
+		}));
 		LOG(kGraphics, kDebug, "Saved pipeline cache ({} bytes)", uiDataSize);
 		vkDestroyPipelineCache(mVkDevice, mVkPipelineCache, nullptr);
 	}

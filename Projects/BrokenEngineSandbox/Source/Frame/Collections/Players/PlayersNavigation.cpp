@@ -17,7 +17,7 @@ constexpr float kfMaxPushVelocity = 20.0f;
 
 // Flagship follow
 constexpr float kfFlagshipFollowDistanceSquared = 50.0f * 50.0f;
-constexpr float kfFlagshipCloseDistanceSquared = 25.0f * 25.0f;
+constexpr float kfFlagshipCloseDistanceSquared = 12.5f * 12.5f;
 
 void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {

@@ -160,6 +160,7 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 		gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullTicks);
 	}
 
+	mGameSaveLoad.TickAutosave();
 	mGameSaveLoad.Quicksave(rMenuInput);
 }
 #endif // BT_SERVER

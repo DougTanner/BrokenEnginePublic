@@ -14,6 +14,7 @@ enum class TweakSection : int
 	kShadow,
 	kSunMoon,
 	kMisc,
+	kSound,
 	kHexShield,
 	kSmoke,
 	kWind,
@@ -45,6 +46,8 @@ public:
 	void RenderShadowSection();
 	void RenderSunMoonSection();
 	void RenderMiscSection();
+	void RenderSoundSection();
+	virtual void RenderSoundEffects() {}
 	virtual void RenderHexShieldSection() = 0;
 	void RenderSmokeSection();
 	virtual void RenderSmokeDepositsTab() {}

@@ -64,11 +64,11 @@ bool gbUseCombineCurveNew = true;
 #endif
 
 // Read - Terrain Lighting
-Wrapper gLightingNewDirectional(0.7f, 0.0f, 2.0f);
-Wrapper gLightingNewDirectionalPower(0.85f, 0.5f, 2.0f);
+Wrapper gLightingDirectionalIntensity(0.7f, 0.0f, 2.0f);
+Wrapper gLightingDirectionalPower(0.85f, 0.5f, 2.0f);
 Wrapper gLightingDirectionalPowerMode(0.0f, 0.0f, 1.0f);
-Wrapper gLightingNewAmbient(11.0f, 0.0f, 20.0f);
-Wrapper gLightingNewAmbientPower(4.0f, 0.1f, 5.0f);
+Wrapper gLightingAmbientIntensity(11.0f, 0.0f, 20.0f);
+Wrapper gLightingAmbientPower(4.0f, 0.1f, 5.0f);
 Wrapper gLightingAmbientPowerMode(1.0f, 0.0f, 1.0f);
 Wrapper gLightingTerrain(1.0f, 0.0f, 2.0f);
 Wrapper gLightingAddTerrain(0.25f, 0.0f, 0.5f);
@@ -80,11 +80,11 @@ Wrapper gLightingDayFinalMultiplier(1.0f, 0.0f, 1.0f);
 Wrapper gLightingNightFinalMultiplier(0.45f, 0.0f, 1.0f);
 
 // Read - Water Lighting
-Wrapper gLightingWaterAmbientPower(1.0f, 0.1f, 6.0f);
-Wrapper gLightingWaterAmbientPowerMode(0.6f, 0.0f, 1.0f);
-Wrapper gLightingWaterNewAmbient(1.5f, 0.0f, 10.0f);
-Wrapper gLightingWaterNewAmbientPower(2.5f, 0.1f, 5.0f);
-Wrapper gLightingWaterNewAmbientPowerMode(1.0f, 0.0f, 1.0f);
+Wrapper gLightingWaterEwnsPow(1.0f, 0.1f, 6.0f);
+Wrapper gLightingWaterEwnsPowMode(0.6f, 0.0f, 1.0f);
+Wrapper gLightingWaterAmbientIntensity(1.5f, 0.0f, 10.0f);
+Wrapper gLightingWaterAmbientPower(2.5f, 0.1f, 5.0f);
+Wrapper gLightingWaterAmbientPowerMode(1.0f, 0.0f, 1.0f);
 Wrapper gLightingWaterNormalSoften(0.81f, 0.5f, 1.0f);
 Wrapper gLightingWaterNormalBlendWave(0.15f, 0.0f, 0.4f);
 Wrapper gLightingWaterIntensity(0.05f, 0.0f, 0.1f);

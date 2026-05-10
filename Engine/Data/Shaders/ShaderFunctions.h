@@ -1,3 +1,5 @@
+const vec3 kRec709 = vec3(0.2126f, 0.7152f, 0.0722f);
+
 vec2 Rotate(vec2 f2, float f)
 {
 	float fSin = sin(f);
@@ -120,7 +122,7 @@ vec3 DirectionalLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity, f
 		                 pf4Lighting[1].x * fWeightE + pf4Lighting[1].y * fWeightW + pf4Lighting[1].z * fWeightN + pf4Lighting[1].w * fWeightS,
 		                 pf4Lighting[2].x * fWeightE + pf4Lighting[2].y * fWeightW + pf4Lighting[2].z * fWeightN + pf4Lighting[2].w * fWeightS);
 
-	float fLuminance = dot(f3Result, vec3(0.2126f, 0.7152f, 0.0722f));
+	float fLuminance = dot(f3Result, kRec709);
 	vec3 f3LumDir = f3Result / max(fLuminance, 0.001f);
 	vec3 f3LumResult = fIntensity * pow(fLuminance, fPower) * f3LumDir;
 
@@ -143,7 +145,7 @@ vec3 WaterLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fSoften, float fOne
 		                 pf4Lighting[1].x * fWeightE + pf4Lighting[1].y * fWeightW + pf4Lighting[1].z * fWeightN + pf4Lighting[1].w * fWeightS,
 		                 pf4Lighting[2].x * fWeightE + pf4Lighting[2].y * fWeightW + pf4Lighting[2].z * fWeightN + pf4Lighting[2].w * fWeightS);
 
-	float fLuminance = dot(f3Result, vec3(0.2126f, 0.7152f, 0.0722f));
+	float fLuminance = dot(f3Result, kRec709);
 	vec3 f3LumDir = f3Result / max(fLuminance, 0.001f);
 	float fLumScalar = fOne * pow(fLuminance, fOnePower) + fTwo * pow(fLuminance, fTwoPower) + fThree * pow(fLuminance, fThreePower);
 	vec3 f3LumResult = fLumScalar * f3LumDir;
@@ -159,7 +161,7 @@ vec3 WaterLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fSoften, float fOne
 // Operates on a precomputed direction-averaged sum (e.g. mAmbientCombineTexture sample).
 vec3 AmbientLightingPrecomputed(vec3 f3Result, float fIntensity, float fPower, float fPowerMode)
 {
-	float fLuminance = dot(f3Result, vec3(0.2126f, 0.7152f, 0.0722f));
+	float fLuminance = dot(f3Result, kRec709);
 	vec3 f3LumDir = f3Result / max(fLuminance, 0.001f);
 	vec3 f3LumResult = fIntensity * pow(fLuminance, fPower) * f3LumDir;
 

@@ -55,7 +55,7 @@ Game::Game()
 	// Start music
 #if defined(BT_CLIENT)
 	StartMenuMusic();
-	engine::gpAudioManager->Set3dSettings(10.0f, 0.0f, 300.0f, 0.05f);
+	engine::gpAudioManager->Set3dSettings(10.0f, 0.0f, 300.0f, 0.15f);
 	engine::gpAudioManager->SetNextMusicTrackCallback([this]()
 	{
 		return GetNextMusicTrack();
@@ -1124,7 +1124,7 @@ void Game::ResetGraphicsSettings()
 
 struct TweaksSettings
 {
-	static constexpr int64_t kiVersion = 11;
+	static constexpr int64_t kiVersion = 12;
 
 	bool bShowImGui = false;
 	bool bSectionVisible[static_cast<size_t>(engine::TweakSection::kCount)] {};

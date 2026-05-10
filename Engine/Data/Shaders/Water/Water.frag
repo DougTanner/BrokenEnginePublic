@@ -265,15 +265,15 @@ void main()
 	vec3 f3AmbientSum = texture(ambientLightingSampler, f2LightingTexcoordBaseHeightAmbient).xyz;
 
 	// Scale base-height lighting (hue-preserving: pow applied to per-direction luminance/average scalar)
-	float fWaterAmbientPowerMode = mainLayout.fLightingWaterAmbientPowerMode;
+	float fWaterEwnsPowMode = mainLayout.fLightingWaterEwnsPowMode;
 	for (int i = 0; i < 4; i++)
 	{
 		vec3 f3Dir = vec3(pf4LightingBaseHeight[0][i], pf4LightingBaseHeight[1][i], pf4LightingBaseHeight[2][i]);
-		float fLum = dot(f3Dir, vec3(0.2126f, 0.7152f, 0.0722f));
-		float fLumRatio = pow(max(fLum, 0.001f), mainLayout.fLightingWaterAmbientPower) / max(fLum, 0.001f);
+		float fLum = dot(f3Dir, kRec709);
+		float fLumRatio = pow(max(fLum, 0.001f), mainLayout.fLightingWaterEwnsPow) / max(fLum, 0.001f);
 		float fAvg = (f3Dir.x + f3Dir.y + f3Dir.z) / 3.0f;
-		float fAvgRatio = pow(max(fAvg, 0.001f), mainLayout.fLightingWaterAmbientPower) / max(fAvg, 0.001f);
-		float fRatio = mix(fLumRatio, fAvgRatio, fWaterAmbientPowerMode);
+		float fAvgRatio = pow(max(fAvg, 0.001f), mainLayout.fLightingWaterEwnsPow) / max(fAvg, 0.001f);
+		float fRatio = mix(fLumRatio, fAvgRatio, fWaterEwnsPowMode);
 		pf4LightingBaseHeight[0][i] *= fRatio;
 		pf4LightingBaseHeight[1][i] *= fRatio;
 		pf4LightingBaseHeight[2][i] *= fRatio;
@@ -291,13 +291,13 @@ void main()
 	vec3 f3WaterLightingMults = fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * f3WaterLightingScaled;
 	f4OutColor.xyz += (1.0f - fWaterLightingAdd) * f3PreLightingColor * f3WaterLightingMults + fWaterLightingAdd * f3WaterLightingMults;
 
-	// Water new ambient (terrain-style, sampled without reflection offset)
-	vec3 f3WaterNewAmbient = globalLayout.fLightingTimeOfDayMultiplier * AmbientLightingPrecomputed(f3AmbientSum, mainLayout.fLightingWaterNewAmbient, mainLayout.fLightingWaterNewAmbientPower, mainLayout.fLightingWaterNewAmbientPowerMode);
-	f4OutColor.xyz += f3WaterNewAmbient;
+	// Water ambient (terrain-style, sampled without reflection offset)
+	vec3 f3WaterAmbient = globalLayout.fLightingTimeOfDayMultiplier * AmbientLightingPrecomputed(f3AmbientSum, mainLayout.fLightingWaterAmbientIntensity, mainLayout.fLightingWaterAmbientPower, mainLayout.fLightingWaterAmbientPowerMode);
+	f4OutColor.xyz += f3WaterAmbient;
 
 	// DT: TEMP — show only lighting texture contributions (with normals and base color)
 #ifdef DT_LIGHTING_ONLY
-	f4OutColor.xyz = (1.0f - fWaterLightingAdd) * f3PreLightingColor * f3WaterLightingMults + fWaterLightingAdd * f3WaterLightingMults + f3WaterNewAmbient;
+	f4OutColor.xyz = (1.0f - fWaterLightingAdd) * f3PreLightingColor * f3WaterLightingMults + fWaterLightingAdd * f3WaterLightingMults + f3WaterAmbient;
 	return;
 #endif
 

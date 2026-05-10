@@ -5,7 +5,6 @@
 #include "Memory/MemoryManager.h"
 
 #include "Game.h"
-#include "Frame/Collections/Players/Players.h"
 #include "Ui/SoundSettingsWrappersBase.h"
 
 namespace engine
@@ -29,6 +28,13 @@ IXAudio2SourceVoice* StaticVoices::PlayOneShot([[maybe_unused]] const game::Fram
 	}
 
 	if (mbSuspended.load(std::memory_order_acquire))
+	{
+		return nullptr;
+	}
+
+	// Silent one-shots cull at the door so they never burn a 128-cap voice slot,
+	// load a buffer, or take the recursive lock.
+	if (fVolume <= 0.0f)
 	{
 		return nullptr;
 	}
@@ -73,7 +79,13 @@ void XM_CALLCONV StaticVoices::PlayOneShot3d([[maybe_unused]] const game::Frame&
 		return;
 	}
 
-#if BT_AUDIO_PRIORITY_CULL
+	// Silent one-shots cull at the door — short-circuits before the Distance() call
+	// and the recursive-lock acquisitions on this path and the inner PlayOneShot path.
+	if (fVolume <= 0.0f)
+	{
+		return;
+	}
+
 	// Hard-cull inaudible one-shots before grabbing a voice slot. Uses the same curve
 	// as the persistent priority pass so behaviour is consistent across both paths.
 	float fCullDistance = common::Distance(vecPosition, mVecListenerPosition);
@@ -81,7 +93,6 @@ void XM_CALLCONV StaticVoices::PlayOneShot3d([[maybe_unused]] const game::Frame&
 	{
 		return;
 	}
-#endif
 
 	std::lock_guard<std::recursive_mutex> lock(mOneShotRecursiveMutex);
 
@@ -171,7 +182,6 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 			}
 
 			bool bDestroy = false;
-#if BT_AUDIO_PRIORITY_CULL
 			if (rVoice.mFlags & StaticVoiceFlags::kInactive)
 			{
 				// Inactive voices have mpVoice == nullptr — no audio to fade out, and
@@ -180,7 +190,6 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 				bDestroy = true;
 			}
 			else
-#endif
 			{
 				if (rVoice.mfVolume <= 0.0f)
 				{
@@ -221,11 +230,10 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 		}
 	}
 
-#if BT_AUDIO_PRIORITY_CULL
 	// Priority + cull pass: rank candidates by attenuated volume so the closest /
 	// loudest sounds win the kiMaxStaticVoices slots. Out-of-range candidates (below
 	// the hysteresis floor) are skipped entirely; matching active voices get
-	// deactivated below. Replaces the prior first-come-first-served add loop.
+	// deactivated below.
 	const int64_t iSoundCount = rSoundsPostRender.iCount;
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	// pActivatedIds is allocated unconditionally so the deactivation pass can run
@@ -415,107 +423,53 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 			rVoice.mfFadeOutVolume = std::min(1.0f, rVoice.mfFadeOutVolume + fDeltaTime / kfFadeInTime);
 		}
 	}
-#else // BT_AUDIO_PRIORITY_CULL
-	// Legacy add-loop: first-come-first-served, no priority sort, no cull,
-	// no deactivation. Drops new voices when the 128-cap is hit.
-	for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
-	{
-		sound_t id = rSoundsPostRender.puiIds[i];
-		int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
-		float fVolume = rSoundsInterpolate.pfVolumes[iIndex];
-
-		StaticVoice* pExistingVoice = nullptr;
-		for (StaticVoice& rExisting : mVoices)
-		{
-			if (rExisting.mId == id)
-			{
-				pExistingVoice = &rExisting;
-				break;
-			}
-		}
-
-		if (pExistingVoice != nullptr)
-		{
-			pExistingVoice->mfVolume = fVolume;
-			pExistingVoice->mfPitch = rSoundsInterpolate.pfPitches[iIndex];
-			pExistingVoice->mVecPosition = rSoundsInterpolate.pVecPositions[iIndex];
-			pExistingVoice->mVecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
-			continue;
-		}
-
-		if (fVolume <= 0.0f)
-		{
-			continue;
-		}
-		if (static_cast<int64_t>(mVoices.size()) >= kiMaxStaticVoices)
-		{
-			LOG(kAudio, kDebug, "Max static voices reached ({}), skipping", kiMaxStaticVoices);
-			continue;
-		}
-
-		common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[iIndex];
-		IXAudio2SourceVoice* pVoice = AcquireVoiceFromPool(uiCrc);
-		if (pVoice == nullptr)
-		{
-			if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, false, true))
-			{
-				continue;
-			}
-		}
-		float fPitch = rSoundsInterpolate.pfPitches[iIndex];
-		float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
-		XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[iIndex];
-		XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
-		mVoices.push_back(StaticVoice(pVoice, id, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity, uiCrc));
-	}
-	std::ignore = fDeltaTime; // unused in legacy path
-#endif // BT_AUDIO_PRIORITY_CULL
 }
 
-void StaticVoices::UpdateListenerPosition(const game::Frame& rFrame)
+void StaticVoices::UpdateListenerPosition([[maybe_unused]] const game::Frame& rFrame)
 {
-	XMVECTOR vecListenerPos = XMVectorZero();
-	XMVECTOR vecListenerVel = XMVectorZero();
-	std::optional<int64_t> oClientIndex = game::gpGame->ClientPlayerIndex(*rFrame.postRender.pPlayers);
-	if (oClientIndex.has_value())
-	{
-		int64_t iClientIndex = oClientIndex.value();
-		vecListenerPos = rFrame.interpolate.pPlayers->pVecPositions[iClientIndex];
-		vecListenerVel = rFrame.postRender.pPlayers->pVecVelocities[iClientIndex];
-	}
-	mVecListenerPosition = vecListenerPos;
-	XMFLOAT3A f3Position {};
-	XMStoreFloat3A(&f3Position, vecListenerPos);
-	XMFLOAT3A f3Velocity {};
-	XMStoreFloat3A(&f3Velocity, vecListenerVel);
+	// Two listener points, decoupled by purpose:
+	//   * mVecListenerPosition (camera eye, full XYZ) — drives the manual fade distance so
+	//     altitude inflates the listener-to-emitter distance.
+	//   * mX3dAudioListener.Position (camera look-at on the world plane at gBaseHeight) —
+	//     drives X3DAudio pan/Doppler. Pinning the X3DAudio listener to the world plane
+	//     keeps the listener-to-ground-emitter vector XY-only, so the pan azimuth reflects
+	//     'left-of-screen → left-ear' instead of being collapsed near-center by altitude.
+	// Velocity is zero — the RTS camera moves slowly enough that listener-motion Doppler is
+	// negligible, and zeroing it avoids artifacts during snap-to-unit / jump-easing.
+	mVecListenerPosition = game::gpCamera->mVecEyePosition;
+	XMVECTOR vecPanListener = XMVectorSetZ(game::gpCamera->mVecPosition, gBaseHeight.Get());
+	XMFLOAT3A f3PanPosition {};
+	XMStoreFloat3A(&f3PanPosition, vecPanListener);
 	mX3dAudioListener.OrientFront = {0.0f, 0.0f, -1.0f};
 	mX3dAudioListener.OrientTop = {0.0f, -1.0f, 0.0f};
-	mX3dAudioListener.Position = f3Position;
-	mX3dAudioListener.Velocity = f3Velocity;
+	mX3dAudioListener.Position = f3PanPosition;
+	mX3dAudioListener.Velocity = {0.0f, 0.0f, 0.0f};
 
 	float fEyeHeight = game::gpCamera->mfCameraEyeHeight;
 	const XMFLOAT4& rArea = game::gpCamera->f4RenderVisibleArea;
-	float fVisibleWidth = rArea.z - rArea.x;
-	if (mfReferenceVisibleWidth == 0.0f && fVisibleWidth > 0.0f)
-	{
-		mfReferenceVisibleWidth = fVisibleWidth;
-	}
+	float fVisibleHalfWidth = 0.5f * (rArea.z - rArea.x);
 	mfChannelBleedT = std::clamp((fEyeHeight - game::Camera::kfCameraEyeHeightDefault) / game::Camera::kfCameraEyeHeightDefault, 0.0f, 1.0f);
-	float fScale = (mfReferenceVisibleWidth > 0.0f) ? (fVisibleWidth / mfReferenceVisibleWidth) : 1.0f;
-	static constexpr float kfAudibleDistanceMultiplier = 2.0f;
-	mfEffectiveFadeEnd = kfAudibleDistanceMultiplier * mfManualFadeEnd * std::max(1.0f, fScale);
+	// Fade band shape: full voice volume inside the visible footprint, narrow fade beyond.
+	//   mfEffectiveFadeStart = listener-to-screen-edge distance = sqrt(halfWidth² + eyeHeight²).
+	//   mfEffectiveFadeEnd   = same with halfWidth scaled by kfFadeEndMultiplier so emitters
+	//                          past 1.5× off-screen sit at the audible floor (mfManualFadeVolume).
+	// Distances on the consumer side (Apply3dVolume / ComputeAttenuatedVolume) are 3D against
+	// mVecListenerPosition (camera eye), so altitude naturally pushes ground emitters into the
+	// fade band as the camera climbs.
+	static constexpr float kfFadeEndMultiplier = 1.5f;
+	float fOuterHalfWidth = kfFadeEndMultiplier * fVisibleHalfWidth;
+	mfEffectiveFadeStart = std::sqrt(fVisibleHalfWidth * fVisibleHalfWidth + fEyeHeight * fEyeHeight);
+	mfEffectiveFadeEnd = std::sqrt(fOuterHalfWidth * fOuterHalfWidth + fEyeHeight * fEyeHeight);
 }
 
 void StaticVoices::UpdateVolumes()
 {
 	for (const StaticVoice& rVoice : mVoices)
 	{
-#if BT_AUDIO_PRIORITY_CULL
 		if (rVoice.mFlags & StaticVoiceFlags::kInactive)
 		{
 			continue; // No XAudio2 voice attached — skip mix.
 		}
-#endif
 		Apply3dVolume(rVoice.mpVoice, rVoice.mVecPosition, rVoice.mVecVelocity, rVoice.mfFadeOutVolume * rVoice.mfVolume, rVoice.mfPitch);
 	}
 }
@@ -563,12 +517,16 @@ float StaticVoices::ComputeAttenuatedVolume(float fDistance, float fSoundVolume)
 	{
 		fDistanceVolume = 0.0f;
 	}
-	else if (fDistance >= mfManualFadeStart)
+	else if (fDistance >= mfEffectiveFadeStart)
 	{
-		float fPercent = std::clamp((fDistance - mfManualFadeStart) / (mfEffectiveFadeEnd - mfManualFadeStart), 0.0f, 1.0f);
+		float fBand = std::max(mfEffectiveFadeEnd - mfEffectiveFadeStart, 0.0001f);
+		float fPercent = std::clamp((fDistance - mfEffectiveFadeStart) / fBand, 0.0f, 1.0f);
 		fDistanceVolume = (1.0f - fPercent) * fSoundVolume;
 	}
-	static constexpr float kfMinHeightVolumeScale = 0.75f;
+	// Neutralized to 1.0 with the listener now at the camera eye — natural distance attenuation
+	// already reduces volume at altitude. If distant emitters feel too loud at extreme zoom in
+	// playtest, lower toward 0.75. Lerp kept so re-tuning is a one-line change.
+	static constexpr float kfMinHeightVolumeScale = 1.0f;
 	return fDistanceVolume * std::lerp(1.0f, kfMinHeightVolumeScale, mfChannelBleedT);
 }
 
@@ -605,8 +563,11 @@ void XM_CALLCONV StaticVoices::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 
 	if (iMasteringVoiceChannels >= 2 && mfChannelBleedT > 0.0f)
 	{
-		// 0.5 cap would collapse L and R to identical (L+R)/2 — full mono. Stay below that.
-		static constexpr float kfMaxChannelBleedFactor = 0.25f;
+		// Neutralized to 0.0 with the listener now at the camera eye — X3DAudio's natural pan
+		// should suffice. If high-altitude pan feels "pinned" in playtest, raise toward 0.25
+		// (0.5 would collapse L+R to mono — keep below that). Block kept so re-tuning is a
+		// one-line change.
+		static constexpr float kfMaxChannelBleedFactor = 0.0f;
 		float fBleedFactor = kfMaxChannelBleedFactor * mfChannelBleedT;
 		float fLeft = pfMatrixCoefficients[0];
 		float fRight = pfMatrixCoefficients[1];
@@ -616,32 +577,16 @@ void XM_CALLCONV StaticVoices::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 
 	CHECK_HRESULT(pVoice->SetOutputMatrix(mpAudioEngine->GetMasterVoice(), 1, static_cast<UINT32>(iMasteringVoiceChannels), x3dAudioDspSettings.pMatrixCoefficients));
 
-#if BT_AUDIO_PRIORITY_CULL
 	// Apply custom volume with distance-based attenuation. The natural curve goes to
-	// zero at fade-end (used for cull priority); the audible mix clamps to mfManualFadeVolume
-	// so in-range sounds never drop below an audible floor.
+	// zero at fade-end (used for cull priority); the audible mix clamps to a fVolume-
+	// relative floor so in-range sounds never drop below an audible floor while
+	// silent-in voices (fVolume=0) stay silent-out.
 	float fDistance = common::Distance(vecPosition, mVecListenerPosition);
 	float fAttenuated = ComputeAttenuatedVolume(fDistance, fVolume);
-	static constexpr float kfMinHeightVolumeScale = 0.75f;
-	float fAudibleFloor = mfManualFadeVolume * std::lerp(1.0f, kfMinHeightVolumeScale, mfChannelBleedT);
+	// Neutralized — see ComputeAttenuatedVolume for rationale.
+	static constexpr float kfMinHeightVolumeScale = 1.0f;
+	float fAudibleFloor = mfManualFadeVolume * fVolume * std::lerp(1.0f, kfMinHeightVolumeScale, mfChannelBleedT);
 	float fDistanceVolume = std::max(fAttenuated, fAudibleFloor);
-#else
-	// Legacy mix: lerp from fVolume toward mfManualFadeVolume across the fade band,
-	// flat-clamp to mfManualFadeVolume past fade-end. No cull contract.
-	float fDistance = common::Distance(vecPosition, mVecListenerPosition);
-	float fDistanceVolume = fVolume;
-	if (fDistance >= mfEffectiveFadeEnd)
-	{
-		fDistanceVolume = mfManualFadeVolume;
-	}
-	else if (fDistance >= mfManualFadeStart)
-	{
-		float fPercent = std::clamp((fDistance - mfManualFadeStart) / (mfEffectiveFadeEnd - mfManualFadeStart), 0.0f, 1.0f);
-		fDistanceVolume = (1.0f - fPercent) * fVolume + fPercent * mfManualFadeVolume;
-	}
-	static constexpr float kfMinHeightVolumeScale = 0.75f;
-	fDistanceVolume *= std::lerp(1.0f, kfMinHeightVolumeScale, mfChannelBleedT);
-#endif
 
 	float fFinalPower = VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume);
 	CHECK_HRESULT(pVoice->SetVolume(fFinalPower));

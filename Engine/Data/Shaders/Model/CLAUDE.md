@@ -22,6 +22,7 @@ Irradiance and pre-filtered radiance cubemaps are generated offline by DataPacke
 - **Tangent-free normal mapping**: Tangent space computed from screen-space derivatives, avoiding per-vertex tangent storage. Falls back to the geometric normal when the Gram-Schmidt-orthogonalized tangent collapses (degenerate UV gradients), so the normal mapper degrades to flat shading instead of producing NaNs
 - **Compact joint matrices**: 3-row format blended in the vertex shader and reconstructed to mat4 for skinning
 - **Tone mapping**: ACES filmic with configurable exposure and gamma
+- **Linear `fPbrSun` response on both BRDF and IBL paths**: `fSunIntensity` / `fMoonIntensity` are Rec.709 luminance of the *unscaled* `f4SunColor` / `f4MoonColor`. The IBL specular consumer (`fSunIntensity * f3SunColor`) compounds to a single `fPbrSun` factor, matching the direct BRDF term. Deriving the luminance scalars from `fPbrSun`-scaled colors instead would produce a cubic IBL response while the BRDF stayed linear.
 
 ## See Also
 

@@ -42,7 +42,7 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 
 - `GameSaveLoad.cpp` fully wrapped in `#if defined(BT_SERVER)`; header safe from shared code.
 - All public APIs wrap bodies in `ScopedSuppressAllocationTracking` — fstreams and SOA (de)serialization must allocate.
-- Quicksave/quickload gated on `kbDebugInput`; autosave unconditional.
+- Quicksave/quickload gated on `kbDebugInput`. Autosave fires on a fixed wall-clock interval before quicksave each tick and is skipped during replay or recording; the prior autosave file is timestamped via backup mode before being overwritten.
 - Grid writes sort by `ToKey()` for deterministic output; reads validate `game::Frame::kiVersion`. End-of-replay auto-loops by re-raising the load flag.
 - Fleet persistence is delegated to `ServerSession` — do not serialize fleet state here.
 

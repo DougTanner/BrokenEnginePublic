@@ -68,56 +68,63 @@ public:
 		int64_t iDifferenceCount = mDifferences.size();
 
 		// Write header with version info, start/end states and metadata
-		std::fstream headerStream = gpFileManager->OpenFile(fileFlags, rFilename);
+		static_cast<void>(gpFileManager->WriteFileAtomically(fileFlags, rFilename, [&](std::fstream& rHeaderStream)
+		{
+			// Write version headers (matches WriteVersionedFile pattern)
+			common::Write(rHeaderStream, static_cast<int64_t>(SAVED_TYPE::kiVersion));
+			common::Write(rHeaderStream, std::is_trivially_copyable_v<SAVED_TYPE> ? static_cast<int64_t>(sizeof(SAVED_TYPE)) : int64_t{0});
+			common::Write(rHeaderStream, static_cast<int64_t>(DIFFERENCE_TYPE::kiVersion));
+			common::Write(rHeaderStream, std::is_trivially_copyable_v<DIFFERENCE_TYPE> ? static_cast<int64_t>(sizeof(DIFFERENCE_TYPE)) : int64_t{0});
 
-		// Write version headers (matches WriteVersionedFile pattern)
-		common::Write(headerStream, static_cast<int64_t>(SAVED_TYPE::kiVersion));
-		common::Write(headerStream, std::is_trivially_copyable_v<SAVED_TYPE> ? static_cast<int64_t>(sizeof(SAVED_TYPE)) : int64_t{0});
-		common::Write(headerStream, static_cast<int64_t>(DIFFERENCE_TYPE::kiVersion));
-		common::Write(headerStream, std::is_trivially_copyable_v<DIFFERENCE_TYPE> ? static_cast<int64_t>(sizeof(DIFFERENCE_TYPE)) : int64_t{0});
-
-		headerStream << mSavedStart;
-		if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
-			common::Write(headerStream, mInitialDifference);
-		else
-			headerStream << mInitialDifference;
-		common::Write(headerStream, iDifferenceCount);
-		headerStream << rSavedEnd;
+			rHeaderStream << mSavedStart;
+			if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
+				common::Write(rHeaderStream, mInitialDifference);
+			else
+				rHeaderStream << mInitialDifference;
+			common::Write(rHeaderStream, iDifferenceCount);
+			rHeaderStream << rSavedEnd;
+		}));
 		LOG(kDefault, kVerbose, "DifferenceStreamWriter save at frame {}: Count {} Checksum {}", rSavedEnd.interpolate.iTick, iDifferenceCount, rSavedEnd.Crc());
 
 		// Write difference records
-		std::fstream fileStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".frames"));
-		if (!mDifferences.empty())
+		static_cast<void>(gpFileManager->WriteFileAtomically(fileFlags, std::filesystem::path(rFilename).concat(".frames"), [&](std::fstream& rFramesStream)
 		{
-			if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
+			if (!mDifferences.empty())
 			{
-				common::Write(fileStream, mDifferences);
-			}
-			else
-			{
-				for (const auto& [iTick, difference] : mDifferences)
+				if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
 				{
-					common::Write(fileStream, iTick);
-					fileStream << difference;
+					common::Write(rFramesStream, mDifferences);
+				}
+				else
+				{
+					for (const auto& [iTick, difference] : mDifferences)
+					{
+						common::Write(rFramesStream, iTick);
+						rFramesStream << difference;
+					}
 				}
 			}
-		}
+		}));
 
 		// Write checksums for validation
 		mChecksums.push_back(rSavedEnd.Crc());
 		LOG(kDefault, kVerbose, "Checksum DifferenceStreamWriter Save {}: {}", rSavedEnd.interpolate.iTick, *std::prev(mChecksums.end()));
-		std::fstream checksumStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".checksums"));
-		if (!mChecksums.empty())
+		static_cast<void>(gpFileManager->WriteFileAtomically(fileFlags, std::filesystem::path(rFilename).concat(".checksums"), [&](std::fstream& rChecksumStream)
 		{
-			common::Write(checksumStream, mChecksums);
-		}
+			if (!mChecksums.empty())
+			{
+				common::Write(rChecksumStream, mChecksums);
+			}
+		}));
 
 		if constexpr (kbReplayFullFrames)
 		{
 			// Write complete frame snapshots for debugging
 			mFullFramesStream << rSavedEnd;
-			std::fstream fullFramesStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".fullframes"));
-			fullFramesStream << mFullFramesStream.str();
+			static_cast<void>(gpFileManager->WriteFileAtomically(fileFlags, std::filesystem::path(rFilename).concat(".fullframes"), [&](std::fstream& rFullFramesStream)
+			{
+				rFullFramesStream << mFullFramesStream.str();
+			}));
 		}
 	}
 

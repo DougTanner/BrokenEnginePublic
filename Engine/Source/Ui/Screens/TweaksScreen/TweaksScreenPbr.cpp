@@ -14,7 +14,6 @@ const TweaksSliderMapRegistrar gPbrRegistrar
 {
 	// Engine Variables
 	{"Sun", &gPbrSun},
-	{"Sun Power", &gPbrSunPower},
 	{"Day Brightness", &gPbrDayBrightness},
 	// BRDF
 	{"BRDF Diffuse", &gPbrBrdfDiffuse},

@@ -10,6 +10,7 @@
 #include "Frame/Collections/Puffs/Puffs.h"
 #include "Ui/LightingWrappers.h"
 #include "Ui/SmokeWrappers.h"
+#include "Ui/SoundWrappers.h"
 #endif
 
 #include "Data/Audio.h"
@@ -34,7 +35,6 @@ constexpr float kfBlasterCollisionRadius = 0.5f;
 
 // Terrain impact
 constexpr float kfTerrainImpactJitter = 0.25f;
-constexpr float kfTerrainImpactVolume = 0.3f;
 
 // Terrain collision search
 constexpr int64_t kiTerrainSearchSteps = 32;
@@ -321,7 +321,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 
 			// Play terrain impact sound
 #if defined(BT_CLIENT)
-			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, kfTerrainImpactVolume);
+			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, gTerrainImpactVolume.Get());
 #endif
 		}
 	}

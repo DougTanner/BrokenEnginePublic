@@ -7,18 +7,13 @@
 
 #if defined(BT_CLIENT)
 #include "Frame/Collections/PointLights/PointLights.h"
+#include "Ui/SoundWrappers.h"
 #endif
 
 namespace game
 {
 
 using enum SpaceshipFlags;
-
-// Death sounds
-constexpr float kfSpaceshipDeathPitchMin = 0.75f;
-constexpr float kfSpaceshipDeathPitchRandom = 0.5f;
-constexpr float kfSpaceshipDeathExplosionVolume = 0.5f;
-constexpr float kfSpaceshipHitSoundVolume = 0.2f;
 
 // Ai / combat
 constexpr float kfHealthRegen = 0.1f;
@@ -60,7 +55,7 @@ static void XM_CALLCONV BeginExplosion(Frame& rFrame, int64_t i, FXMVECTOR vecDa
 
 	// Play explosion audio
 #if defined(BT_CLIENT)
-	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], kfSpaceshipDeathExplosionVolume, kfSpaceshipDeathPitchMin, kfSpaceshipDeathPitchRandom);
+	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], gSpaceshipDeathVolume.Get(), gSpaceshipDeathPitchMin.Get(), gSpaceshipDeathPitchRandom.Get());
 #endif
 
 	XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
@@ -161,7 +156,7 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 
 					// Play hit sound
 #if defined(BT_CLIENT)
-					engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster793907__cvltiv8r__snaresbycvltiv8r301wavCrc, rCurrentInterpolate.pVecPositions[i], kfSpaceshipHitSoundVolume);
+					engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster793907__cvltiv8r__snaresbycvltiv8r301wavCrc, rCurrentInterpolate.pVecPositions[i], gSpaceshipHitVolume.Get());
 #endif
 
 					// Spawn hit flash effect at collision point

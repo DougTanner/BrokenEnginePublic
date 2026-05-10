@@ -279,15 +279,10 @@ void AudioManager::Update(const game::Frame* pFrame)
 
 	if (pFrame != nullptr)
 	{
-#if BT_AUDIO_PRIORITY_CULL
 		// Listener position must update first — UpdateLifecycle's priority/cull pass
 		// reads mVecListenerPosition and mfEffectiveFadeEnd computed here.
 		mStaticVoices.UpdateListenerPosition(*pFrame);
 		mStaticVoices.UpdateLifecycle(*pFrame, fDeltaTime);
-#else
-		mStaticVoices.UpdateLifecycle(*pFrame, fDeltaTime);
-		mStaticVoices.UpdateListenerPosition(*pFrame);
-#endif
 	}
 
 	mStaticVoices.UpdateVolumes();

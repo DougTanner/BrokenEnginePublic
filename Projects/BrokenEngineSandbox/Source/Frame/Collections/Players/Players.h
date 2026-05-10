@@ -32,7 +32,7 @@ inline constexpr float kfPlayerCatchUpAcceleration = 100.0f;
 inline constexpr float kfPlayerDrag = 1.0f;
 inline constexpr float kfPlayerMaxSpeed = 33.33f;
 inline constexpr float kfPlayerCatchUpMaxSpeed = 33.33f;
-inline constexpr float kfPlayerJitterRange = 0.30f;
+inline constexpr float kfPlayerJitterRange = 0.60f;
 
 // Pusher
 inline constexpr float kfPlayerPusherRadius = kfPlayerRadius * 3.3333f;
