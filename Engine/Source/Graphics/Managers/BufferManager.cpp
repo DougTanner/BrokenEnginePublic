@@ -538,18 +538,12 @@ void BufferManager::CreateSmokeHierarchicalBuffers()
 	uint32_t uiOccupancyUints = (uiTotalTiles + 31) / 32;
 	mSmokeOccupancyBufferSize = static_cast<VkDeviceSize>(uiOccupancyUints) * sizeof(uint32_t);
 	VkDeviceMemory unusedMemory = VK_NULL_HANDLE;
-	Buffer::CreateBuffer("SmokeOccupancy", mSmokeOccupancyBufferSize,
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		mSmokeOccupancyVkBuffer, unusedMemory, mSmokeOccupancyVmaAllocation);
+	Buffer::CreateBuffer("SmokeOccupancy", mSmokeOccupancyBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mSmokeOccupancyVkBuffer, unusedMemory, mSmokeOccupancyVmaAllocation);
 
 	// Active tile list: VkDispatchIndirectCommand (12 bytes) + packed tile indices (4 bytes each)
 	mSmokeActiveTileBufferSize = sizeof(VkDispatchIndirectCommand) + static_cast<VkDeviceSize>(uiTotalTiles) * sizeof(uint32_t);
 	VkDeviceMemory unusedActiveTileMemory = VK_NULL_HANDLE;
-	Buffer::CreateBuffer("SmokeActiveTile", mSmokeActiveTileBufferSize,
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		mSmokeActiveTileVkBuffer, unusedActiveTileMemory, mSmokeActiveTileVmaAllocation);
+	Buffer::CreateBuffer("SmokeActiveTile", mSmokeActiveTileBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mSmokeActiveTileVkBuffer, unusedActiveTileMemory, mSmokeActiveTileVmaAllocation);
 }
 
 void BufferManager::DestroySmokeHierarchicalBuffers()
@@ -590,16 +584,10 @@ void BufferManager::CreateWindHierarchicalBuffers()
 	for (int64_t i = 0; i < 2; ++i)
 	{
 		VkDeviceMemory unusedMemoryOccupancy = VK_NULL_HANDLE;
-		Buffer::CreateBuffer(i == 0 ? "WindOccupancyA" : "WindOccupancyB", mWindOccupancyBufferSize,
-			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			mWindOccupancyVkBuffers[i], unusedMemoryOccupancy, mWindOccupancyVmaAllocations[i]);
+		Buffer::CreateBuffer(i == 0 ? "WindOccupancyA" : "WindOccupancyB", mWindOccupancyBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mWindOccupancyVkBuffers[i], unusedMemoryOccupancy, mWindOccupancyVmaAllocations[i]);
 
 		VkDeviceMemory unusedMemoryActive = VK_NULL_HANDLE;
-		Buffer::CreateBuffer(i == 0 ? "WindActiveTileA" : "WindActiveTileB", mWindActiveTileBufferSize,
-			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			mWindActiveTileVkBuffers[i], unusedMemoryActive, mWindActiveTileVmaAllocations[i]);
+		Buffer::CreateBuffer(i == 0 ? "WindActiveTileA" : "WindActiveTileB", mWindActiveTileBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mWindActiveTileVkBuffers[i], unusedMemoryActive, mWindActiveTileVmaAllocations[i]);
 	}
 }
 
@@ -639,10 +627,7 @@ void BufferManager::CreateLightingSpreadBuffers()
 	VkDeviceSize occupancySize = static_cast<VkDeviceSize>(uiOccupancyUints) * sizeof(uint32_t);
 	mLightOccupancyBufferSizes[0] = occupancySize;
 	VkDeviceMemory unusedOccupancyMemory = VK_NULL_HANDLE;
-	Buffer::CreateBuffer("LightOccupancy", occupancySize,
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		mLightOccupancyVkBuffers[0], unusedOccupancyMemory, mLightOccupancyVmaAllocations[0]);
+	Buffer::CreateBuffer("LightOccupancy", occupancySize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mLightOccupancyVkBuffers[0], unusedOccupancyMemory, mLightOccupancyVmaAllocations[0]);
 }
 
 void BufferManager::DestroyLightingSpreadBuffers()

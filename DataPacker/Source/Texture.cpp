@@ -305,10 +305,7 @@ static utils::image_u8 ToImageU8(const std::vector<float>& rIn, int64_t iWidth, 
 	int64_t iPixelCount = iWidth * iHeight;
 	for (int64_t i = 0; i < iPixelCount; ++i)
 	{
-		pDst[i].set(static_cast<uint8_t>(std::clamp(pfSrc[0], 0.0f, 255.0f)),
-		            static_cast<uint8_t>(std::clamp(pfSrc[1], 0.0f, 255.0f)),
-		            static_cast<uint8_t>(std::clamp(pfSrc[2], 0.0f, 255.0f)),
-		            static_cast<uint8_t>(std::clamp(pfSrc[3], 0.0f, 255.0f)));
+		pDst[i].set(static_cast<uint8_t>(std::clamp(pfSrc[0], 0.0f, 255.0f)), static_cast<uint8_t>(std::clamp(pfSrc[1], 0.0f, 255.0f)), static_cast<uint8_t>(std::clamp(pfSrc[2], 0.0f, 255.0f)), static_cast<uint8_t>(std::clamp(pfSrc[3], 0.0f, 255.0f)));
 		pfSrc += 4;
 	}
 	return image;

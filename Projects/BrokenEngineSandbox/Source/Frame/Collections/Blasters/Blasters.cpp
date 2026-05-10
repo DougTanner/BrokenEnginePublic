@@ -256,19 +256,7 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[m
 		// iterations, DestroyElement isn't removing them, or there's an unexpected push path.
 		if (rFrame.postRender.transferRequests.size() == rFrame.postRender.transferRequests.capacity()) [[unlikely]]
 		{
-			LOG(kDefault, kError,
-				"Blaster Transfer capacity hit Tick: {} Source: ({},{}) Index: {} Position: {} Velocity: {} Delta: ({},{}) TypeIndex: {} Alignment: {} SourceCount: {} Pushed: {} Capacity: {}",
-				rFrame.interpolate.iTick,
-				rStaticData.coord.x, rStaticData.coord.y,
-				i,
-				common::WbV2(vecPosition, 1),
-				common::WbV2(rCurrentPostRender.pVecVelocities[i], 1),
-				static_cast<int32_t>(request.iDeltaX), static_cast<int32_t>(request.iDeltaY),
-				static_cast<int32_t>(rCurrentInterpolate.puiTypeIndices[i]),
-				rCurrentPostRender.pAlignments[i],
-				rCurrentInterpolate.iCount,
-				rFrame.postRender.transferRequests.size(),
-				rFrame.postRender.transferRequests.capacity());
+			LOG(kDefault, kError, "Blaster Transfer capacity hit Tick: {} Source: ({},{}) Index: {} Position: {} Velocity: {} Delta: ({},{}) TypeIndex: {} Alignment: {} SourceCount: {} Pushed: {} Capacity: {}", rFrame.interpolate.iTick, rStaticData.coord.x, rStaticData.coord.y, i, common::WbV2(vecPosition, 1), common::WbV2(rCurrentPostRender.pVecVelocities[i], 1), static_cast<int32_t>(request.iDeltaX), static_cast<int32_t>(request.iDeltaY), static_cast<int32_t>(rCurrentInterpolate.puiTypeIndices[i]), rCurrentPostRender.pAlignments[i], rCurrentInterpolate.iCount, rFrame.postRender.transferRequests.size(), rFrame.postRender.transferRequests.capacity());
 			DEBUG_BREAK();
 		}
 		common::ValidateVector<true >(request.data.vecPosition);

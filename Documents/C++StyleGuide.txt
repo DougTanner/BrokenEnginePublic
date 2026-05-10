@@ -197,9 +197,24 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 	{
 	}
 
-51. Keep function parameters all on the same line, even if it would be a very long line. The only exception would be passing in lambdas or structs in which case next-line {} placement takes priority.
+51. Keep function parameters AND arguments all on the same line, regardless of line length. This applies to BOTH function declarations and function call sites. Never split a call's arguments across multiple lines just because the line is long — long is fine. The only exception is when an argument is itself a lambda or a struct/initializer-list literal, in which case the `{}` goes on the next line per rule 2 (and the other arguments still stay on the call line).
 
+	Declaration (good):
 	void CreateBuffer(std::string_view name, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkBuffer& rVkBuffer, VkDeviceMemory& rVkDeviceMemory);
+
+	Call (bad — arguments wrapped):
+	engine::gpAudioManager->PlayOneShot3d(rFrame,
+		data::kAudioMissileCrc,
+		vecMissilePosition, gMissileLaunchVolume.Get(), gMissilePitchMin.Get(), gMissilePitchRandom.Get());
+
+	Call (good — single line, however long):
+	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioMissileCrc, vecMissilePosition, gMissileLaunchVolume.Get(), gMissilePitchMin.Get(), gMissilePitchRandom.Get());
+
+	Lambda/struct exception (good):
+	common::gpMultithreading->Dispatch(iCount, [&](int64_t i)
+	{
+		// ...
+	});
 
 52. Put a space before "{}" universal initializers, ex: uuid_t uuid {}; XMFLOAT2 f2MousePosition {};
 

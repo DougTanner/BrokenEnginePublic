@@ -51,10 +51,7 @@ bool BindingIsInSet0(const Pipeline& rPipeline, const PipelineInfo& rPipelineInf
 
 constexpr int64_t kiMaxImageInfos = 256;
 
-void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo, const DescriptorInfo& rDescriptorInfo, int64_t iFramebuffer,
-	VkWriteDescriptorSet& rVkWriteDescriptorSet, VkWriteDescriptorSet* pVkWriteDescriptorSets, int64_t& riDescriptorCount,
-	VkDescriptorImageInfo* pVkDescriptorImageInfos, int64_t& riImageInfoCount,
-	VkDescriptorBufferInfo* pVkDescriptorBufferInfos, int64_t& riBufferInfoCount)
+void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo, const DescriptorInfo& rDescriptorInfo, int64_t iFramebuffer, VkWriteDescriptorSet& rVkWriteDescriptorSet, VkWriteDescriptorSet* pVkWriteDescriptorSets, int64_t& riDescriptorCount, VkDescriptorImageInfo* pVkDescriptorImageInfos, int64_t& riImageInfoCount, VkDescriptorBufferInfo* pVkDescriptorBufferInfos, int64_t& riBufferInfoCount)
 {
 	const EagerChunk& rChunk = gpFileManager->GetEagerChunkMap().at(rDescriptorInfo.crc);
 
@@ -349,10 +346,7 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline, const PipelineInfo& rP
 			bool bSampler = rDescriptorInfo.flags & kSamplerClamp || rDescriptorInfo.flags & kSamplerBorder || rDescriptorInfo.flags & kSamplerRepeat || rDescriptorInfo.flags & kSamplerMirroredRepeat || rDescriptorInfo.flags & kSamplerSmoke || rDescriptorInfo.flags & kSamplerWindClamp;
 			if (rDescriptorInfo.flags & kModel)
 			{
-				WriteModelDescriptor(rPipeline, rPipelineInfo, rDescriptorInfo, iFramebuffer,
-					vkWriteDescriptorSet, pVkWriteDescriptorSets, iDescriptorCount,
-					pVkDescriptorImageInfos, iImageInfoCount,
-					pVkDescriptorBufferInfos, iBufferInfoCount);
+				WriteModelDescriptor(rPipeline, rPipelineInfo, rDescriptorInfo, iFramebuffer, vkWriteDescriptorSet, pVkWriteDescriptorSets, iDescriptorCount, pVkDescriptorImageInfos, iImageInfoCount, pVkDescriptorBufferInfos, iBufferInfoCount);
 			}
 			else if (rDescriptorInfo.flags & kUniformBuffer || rDescriptorInfo.flags & kStorageBuffer || rDescriptorInfo.flags & kPerCommandBufferUniformBuffers || rDescriptorInfo.flags & kPerCommandBufferStorageBuffers)
 			{

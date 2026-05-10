@@ -70,15 +70,7 @@ void ServerTransferManager::CollectTransfers(std::vector<ClientTransferInfo>& rC
 			// landing coord reads off directly without mental arithmetic.
 			if (std::abs(rRequest.iDeltaX) > 1 || std::abs(rRequest.iDeltaY) > 1) [[unlikely]]
 			{
-				LOG(kDefault, kError,
-					"Transfer delta spans more than one grid cell Tick: {} Source: ({},{}) Delta: ({},{}) Dest: ({},{}) Type: {} Position: {} Velocity: {}",
-					rNextFrame.interpolate.iTick,
-					rCoord.x, rCoord.y,
-					static_cast<int32_t>(rRequest.iDeltaX), static_cast<int32_t>(rRequest.iDeltaY),
-					rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY,
-					StatusChangeTypeName(rRequest.eType),
-					common::WbV2(rRequest.data.vecPosition, 1),
-					common::WbV2(rRequest.data.vecVelocity, 1));
+				LOG(kDefault, kError, "Transfer delta spans more than one grid cell Tick: {} Source: ({},{}) Delta: ({},{}) Dest: ({},{}) Type: {} Position: {} Velocity: {}", rNextFrame.interpolate.iTick, rCoord.x, rCoord.y, static_cast<int32_t>(rRequest.iDeltaX), static_cast<int32_t>(rRequest.iDeltaY), rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY, StatusChangeTypeName(rRequest.eType), common::WbV2(rRequest.data.vecPosition, 1), common::WbV2(rRequest.data.vecVelocity, 1));
 				DEBUG_BREAK();
 			}
 
@@ -91,12 +83,7 @@ void ServerTransferManager::CollectTransfers(std::vector<ClientTransferInfo>& rC
 			// boundaries.
 			if (rRequest.eType != StatusChangeType::kTransferPlayer && !IsDestinationLive(destination))
 			{
-				LOG(kNetwork, kVerbose,
-					"Dropping transfer to unsubscribed Frame Tick: {} Source: ({},{}) Dest: ({},{}) Type: {}",
-					rNextFrame.interpolate.iTick,
-					rCoord.x, rCoord.y,
-					destination.x, destination.y,
-					StatusChangeTypeName(rRequest.eType));
+				LOG(kNetwork, kVerbose, "Dropping transfer to unsubscribed Frame Tick: {} Source: ({},{}) Dest: ({},{}) Type: {}", rNextFrame.interpolate.iTick, rCoord.x, rCoord.y, destination.x, destination.y, StatusChangeTypeName(rRequest.eType));
 				continue;
 			}
 
@@ -152,11 +139,7 @@ void ServerTransferManager::SpawnTransfers()
 			// entities would pile up in a cell no client can observe.
 			if (rTransfer.eType != StatusChangeType::kTransferPlayer && !IsDestinationLive(rCoord)) [[unlikely]]
 			{
-				LOG(kDefault, kError,
-					"Non-Player transfer reached Spawn for non-live Frame Tick: {} Dest: ({},{}) Type: {}",
-					rDestFrame.interpolate.iTick,
-					rCoord.x, rCoord.y,
-					StatusChangeTypeName(rTransfer.eType));
+				LOG(kDefault, kError, "Non-Player transfer reached Spawn for non-live Frame Tick: {} Dest: ({},{}) Type: {}", rDestFrame.interpolate.iTick, rCoord.x, rCoord.y, StatusChangeTypeName(rTransfer.eType));
 				DEBUG_BREAK();
 			}
 

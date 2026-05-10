@@ -203,8 +203,7 @@ static void MigrateLegacyIntermediate(const std::filesystem::path& rPath)
 	{
 		rawBytes.resize(iExpectedRawSize);
 		uLongf uiUncompressedSize = static_cast<uLongf>(iExpectedRawSize);
-		int iZlibResult = uncompress(reinterpret_cast<Bytef*>(rawBytes.data()), &uiUncompressedSize,
-		                             reinterpret_cast<const Bytef*>(payload.data()), static_cast<uLong>(iPayloadSize));
+		int iZlibResult = uncompress(reinterpret_cast<Bytef*>(rawBytes.data()), &uiUncompressedSize, reinterpret_cast<const Bytef*>(payload.data()), static_cast<uLong>(iPayloadSize));
 		if (iZlibResult != Z_OK || static_cast<int64_t>(uiUncompressedSize) != iExpectedRawSize)
 		{
 			return;
@@ -217,9 +216,7 @@ static void MigrateLegacyIntermediate(const std::filesystem::path& rPath)
 		uLongf uiCompressedBound = compressBound(static_cast<uLong>(iExpectedRawSize));
 		std::vector<std::byte> compressed(uiCompressedBound);
 		uLongf uiCompressedSize = uiCompressedBound;
-		int iZlibResult = compress2(reinterpret_cast<Bytef*>(compressed.data()), &uiCompressedSize,
-		                            reinterpret_cast<const Bytef*>(rawBytes.data()), static_cast<uLong>(iExpectedRawSize),
-		                            Z_BEST_COMPRESSION);
+		int iZlibResult = compress2(reinterpret_cast<Bytef*>(compressed.data()), &uiCompressedSize, reinterpret_cast<const Bytef*>(rawBytes.data()), static_cast<uLong>(iExpectedRawSize), Z_BEST_COMPRESSION);
 		ASSERT(iZlibResult == Z_OK);
 		compressed.resize(uiCompressedSize);
 
@@ -237,9 +234,7 @@ static void MigrateLegacyIntermediate(const std::filesystem::path& rPath)
 		auto tMigrateEnd = std::chrono::steady_clock::now();
 		double fMigrateSeconds = std::chrono::duration<double>(tMigrateEnd - tMigrateStart).count();
 		int64_t iSizeAfter = std::filesystem::file_size(rPath);
-		LOG(kDefault, kInfo, "Migrated R16 (zlib + magic): \"{}\" ({} -> {} bytes raw; {} -> {} bytes on-disk; {:.2f}s)",
-			rPath.string(), iExpectedRawSize, static_cast<int64_t>(uiCompressedSize),
-			iSizeBefore, iSizeAfter, fMigrateSeconds);
+		LOG(kDefault, kInfo, "Migrated R16 (zlib + magic): \"{}\" ({} -> {} bytes raw; {} -> {} bytes on-disk; {:.2f}s)", rPath.string(), iExpectedRawSize, static_cast<int64_t>(uiCompressedSize), iSizeBefore, iSizeAfter, fMigrateSeconds);
 		return;
 	}
 
@@ -255,8 +250,7 @@ static void MigrateLegacyIntermediate(const std::filesystem::path& rPath)
 	auto tMigrateEnd = std::chrono::steady_clock::now();
 	double fMigrateSeconds = std::chrono::duration<double>(tMigrateEnd - tMigrateStart).count();
 	int64_t iSizeAfter = std::filesystem::file_size(rPath);
-	LOG(kDefault, kInfo, "Migrated BCn (decode + re-encode with current knobs + magic): \"{}\" ({}x{}; {} -> {} bytes on-disk; {:.2f}s)",
-		rPath.string(), iWidth, iHeight, iSizeBefore, iSizeAfter, fMigrateSeconds);
+	LOG(kDefault, kInfo, "Migrated BCn (decode + re-encode with current knobs + magic): \"{}\" ({}x{}; {} -> {} bytes on-disk; {:.2f}s)", rPath.string(), iWidth, iHeight, iSizeBefore, iSizeAfter, fMigrateSeconds);
 }
 
 static void MigrateLegacyIntermediates()
@@ -297,9 +291,7 @@ static RdoSweepResult RunRdoSweepOne(const std::vector<float>& rPixels, int64_t 
 	uLongf uiCompressedBound = compressBound(static_cast<uLong>(iBc7Size));
 	std::vector<std::byte> deflated(uiCompressedBound);
 	uLongf uiDeflatedSize = uiCompressedBound;
-	int iZlibResult = compress2(reinterpret_cast<Bytef*>(deflated.data()), &uiDeflatedSize,
-	                            reinterpret_cast<const Bytef*>(bc7Output.data()), static_cast<uLong>(iBc7Size),
-	                            Z_BEST_COMPRESSION);
+	int iZlibResult = compress2(reinterpret_cast<Bytef*>(deflated.data()), &uiDeflatedSize, reinterpret_cast<const Bytef*>(bc7Output.data()), static_cast<uLong>(iBc7Size), Z_BEST_COMPRESSION);
 	ASSERT(iZlibResult == Z_OK);
 
 	return RdoSweepResult{
@@ -326,8 +318,7 @@ static int RunRdoSweep(const std::filesystem::path& rPath)
 
 	auto logResult = [](const RdoSweepResult& r)
 	{
-		LOG(kDefault, kInfo, "  lookback={:5} lambda={:4.2f} uber={} encode={:6.2f}s raw={:9} deflated={:9} saved={:5.1f}%",
-			r.uiLookback, r.fLambda, r.iUberLevel, r.fEncodeSeconds, r.iRawBc7Bytes, r.iDeflatedBytes, r.fDeflatePercentSaved);
+		LOG(kDefault, kInfo, "  lookback={:5} lambda={:4.2f} uber={} encode={:6.2f}s raw={:9} deflated={:9} saved={:5.1f}%", r.uiLookback, r.fLambda, r.iUberLevel, r.fEncodeSeconds, r.iRawBc7Bytes, r.iDeflatedBytes, r.fDeflatePercentSaved);
 	};
 
 	LOG(kDefault, kInfo, "--- Lookback sweep (lambda=0.5, uber=2) ---");
@@ -377,8 +368,7 @@ static int RunRdoSweepFull(const std::filesystem::path& rPath)
 		{
 			results.push_back(RunRdoSweepOne(rMip0, iWidth, iHeight, uiLookback, fLambda, kiUberLevel));
 			const RdoSweepResult& r = results.back();
-			LOG(kDefault, kInfo, "  lookback={:5} lambda={:4.2f} encode={:6.2f}s deflated={:9} saved={:5.1f}%",
-				r.uiLookback, r.fLambda, r.fEncodeSeconds, r.iDeflatedBytes, r.fDeflatePercentSaved);
+			LOG(kDefault, kInfo, "  lookback={:5} lambda={:4.2f} encode={:6.2f}s deflated={:9} saved={:5.1f}%", r.uiLookback, r.fLambda, r.fEncodeSeconds, r.iDeflatedBytes, r.fDeflatePercentSaved);
 		}
 	}
 	auto tGridEnd = std::chrono::steady_clock::now();
@@ -410,15 +400,13 @@ static int RunRdoSweepFull(const std::filesystem::path& rPath)
 		}
 	}
 
-	std::sort(pareto.begin(), pareto.end(),
-		[](const RdoSweepResult* pA, const RdoSweepResult* pB) { return pA->fEncodeSeconds < pB->fEncodeSeconds; });
+	std::sort(pareto.begin(), pareto.end(), [](const RdoSweepResult* pA, const RdoSweepResult* pB) { return pA->fEncodeSeconds < pB->fEncodeSeconds; });
 
 	LOG(kDefault, kInfo, "");
 	LOG(kDefault, kInfo, "Pareto frontier (faster-and-smaller dominators removed):");
 	for (const RdoSweepResult* pResult : pareto)
 	{
-		LOG(kDefault, kInfo, "  lookback={:5} lambda={:4.2f} encode={:6.2f}s deflated={:9} saved={:5.1f}%",
-			pResult->uiLookback, pResult->fLambda, pResult->fEncodeSeconds, pResult->iDeflatedBytes, pResult->fDeflatePercentSaved);
+		LOG(kDefault, kInfo, "  lookback={:5} lambda={:4.2f} encode={:6.2f}s deflated={:9} saved={:5.1f}%", pResult->uiLookback, pResult->fLambda, pResult->fEncodeSeconds, pResult->iDeflatedBytes, pResult->fDeflatePercentSaved);
 	}
 
 	return 0;
@@ -466,8 +454,7 @@ static std::vector<float> LoadBc7AsFloatPixelsMip0(const std::filesystem::path& 
 
 	std::vector<std::byte> bc7Bytes(iAllMipsSize);
 	uLongf uiUncompressedSize = static_cast<uLongf>(iAllMipsSize);
-	int iZlibResult = uncompress(reinterpret_cast<Bytef*>(bc7Bytes.data()), &uiUncompressedSize,
-	                             reinterpret_cast<const Bytef*>(compressed.data()), static_cast<uLong>(iCompressedSize));
+	int iZlibResult = uncompress(reinterpret_cast<Bytef*>(bc7Bytes.data()), &uiUncompressedSize, reinterpret_cast<const Bytef*>(compressed.data()), static_cast<uLong>(iCompressedSize));
 	ASSERT(iZlibResult == Z_OK);
 
 	int64_t iBlocksX = (riWidth + 3) / 4;
@@ -524,8 +511,7 @@ static int RunRdoSweepValidate(const std::filesystem::path& rPath)
 	for (const ConfigToTest& rConfig : kConfigs)
 	{
 		RdoSweepResult result = RunRdoSweepOne(pixels, iWidth, iHeight, rConfig.uiLookback, rConfig.fLambda, rConfig.iUberLevel);
-		LOG(kDefault, kInfo, "  lookback={:5} lambda={:4.2f} uber={} encode={:7.2f}s deflated={:10} saved={:5.1f}%",
-			result.uiLookback, result.fLambda, result.iUberLevel, result.fEncodeSeconds, result.iDeflatedBytes, result.fDeflatePercentSaved);
+		LOG(kDefault, kInfo, "  lookback={:5} lambda={:4.2f} uber={} encode={:7.2f}s deflated={:10} saved={:5.1f}%", result.uiLookback, result.fLambda, result.iUberLevel, result.fEncodeSeconds, result.iDeflatedBytes, result.fDeflatePercentSaved);
 	}
 
 	return 0;
