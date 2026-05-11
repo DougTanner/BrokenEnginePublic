@@ -20,6 +20,6 @@ Renders terrain as a visible-area-covering mesh with elevation displacement. A s
 
 ## Architecture Notes
 
-- G-buffer passes use bindless per-island texture arrays with `nonuniformEXT` dynamic indexing, decoupling per-island rendering from the lighting pipeline
+- G-buffer passes use bindless per-island texture arrays with `nonuniformEXT` dynamic indexing. The slot index is supplied per-instance through the axis-aligned quad layout (forwarded from the vertex shader), not derived from `gl_InstanceIndex`, so a single cell can mix island templates without per-instance pipeline state
 - Material boundaries (rock, sand, snow) are determined by elevation and color heuristics rather than explicit material maps
 - `Terrain.frag` applies sun lighting and shadows, then adds `DirectionalLighting()` (3-sample EWNS at world texcoord) and `AmbientLightingPrecomputed()` (single sample of `mAmbientCombineTexture` at the base-height-projected texcoord) results — both with hue-preserving pow via power mode — scaled by `fLightingTerrain` with a multiplicative/additive blend controlled by `fLightingAddTerrain`, finishing with additive smoke blending. `BlendSmokePrecomputed()` reuses the same single ambient sample (multiplied by 4 to recover the un-averaged sum), so the base-height lighting path is one fetch total

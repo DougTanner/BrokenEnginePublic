@@ -2,7 +2,7 @@
 
 ## Overview
 
-Game frame state extending engine `FrameBase` with collections for players, blasters, missiles, spaceships, and targets. Fixed timestep from `engine::kiTickRate`, phase-separated (FrameInterpolate, FramePostRender) for deterministic replay and shared-CRC validation. World-space cells are 300x300 with 200x200 islands placed deterministically (offset and rotation derived from `GridCoord` via deterministic hashes) so client and server agree on island layout without broadcast. `Frame::kiVersion` aggregates `engine::kiNavDataVersion` plus every collection's `kiVersion`; bumping any sub-version invalidates persisted frames.
+Game frame state extending engine `FrameBase` with collections for players, blasters, missiles, spaceships, and targets. Fixed timestep from `engine::kiTickRate`, phase-separated (FrameInterpolate, FramePostRender) for deterministic replay and shared-CRC validation. World-space cells are 300x300; each non-origin cell holds 1-4 deterministically-generated island placements (world position, rotation, island CRC) emitted by `engine::GenerateIslandPlacements` via rotated-AABB rejection sampling using per-template `mfQuadWidth/mfQuadHeight` from `engine::IslandTerrain`. `kOriginCoord` is forced to a single centered `kIslands01Crc` placement to anchor the main-menu camera. Placements live in each `FrameStaticData::islands` list, so client and server agree on island layout without broadcast. `Frame::kiVersion` aggregates `engine::kiNavDataVersion` plus every collection's `kiVersion`; bumping any sub-version invalidates persisted frames.
 
 Frame purity constraint is documented in the parent ([../CLAUDE.md](../CLAUDE.md)) and must be respected here.
 

@@ -30,11 +30,13 @@ layout (location = 2) out vec2 f2OutTexcoord;
 layout (location = 4) out vec2 f2OutWorldPosition;
 layout (location = 5) out flat vec2 f2OutWorldCenter;
 layout (location = 6) out flat vec2 f2OutRotationCosSin;
+layout (location = 7) out flat uint uiOutTextureSlot;
 
 void main()
 {
 	iOutInstanceIndex = gl_InstanceIndex;
 	f4OutParams = pQuads[gl_InstanceIndex].f4Params;
+	uiOutTextureSlot = pQuads[gl_InstanceIndex].uiTextureSlot;
 
 	f2OutTexcoord = vec2((1.0f - f2InQuadVertex.x) * pQuads[gl_InstanceIndex].f4TextureRect.x + f2InQuadVertex.x * pQuads[gl_InstanceIndex].f4TextureRect.z,
 	                     (1.0f - f2InQuadVertex.y) * pQuads[gl_InstanceIndex].f4TextureRect.y + f2InQuadVertex.y * pQuads[gl_InstanceIndex].f4TextureRect.w);

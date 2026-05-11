@@ -52,6 +52,17 @@ ExecutableResult RunExecutable(const std::filesystem::path& rExecutableFile, std
 // Thread-safety: Thread-safe - uses local resources and process isolation
 void LaunchExecutable(const std::filesystem::path& rExecutableFile);
 
+// Executes an external process attached to a fresh console window and waits for it to complete.
+// Used for tools like Gaea.Swarm.exe that throw "The handle is invalid" when stdin/stdout/stderr
+// are pipes or files rather than real console handles. Output is NOT captured — the child writes
+// to its own console — and the new console window flashes briefly during the bake.
+// Parameters:
+//   rExecutableFile - Full path to the executable to run
+//   rCommandLine - Command-line arguments (wide string). Modified by CreateProcessW so cannot be const
+// Returns: ExecutableResult; mOutput is always empty, miExitCode is the process exit code
+// Thread-safety: Thread-safe - uses local resources and process isolation
+ExecutableResult RunExecutableInNewConsole(const std::filesystem::path& rExecutableFile, std::wstring& rCommandLine);
+
 // Returns the number of logical CPU cores including hyperthreading
 // Uses std::thread::hardware_concurrency() to query the system
 // Returns: int64_t number of logical cores (minimum 1)

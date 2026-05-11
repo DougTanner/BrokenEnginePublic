@@ -1,7 +1,17 @@
 #include "IslandTerrain.h"
 
+#include "Frame/FrameStaticData.h"
+#include "Frame/IslandPlacement.h"
 #include "Ui/TerrainWrappersBase.h"
 #include "Ui/WaterWrappersBase.h"
+
+#if defined(BT_CLIENT)
+#include "Graphics/Managers/TextureManager.h"
+#endif
+
+#include "Game.h"
+
+#include "Data/Data.h"
 
 namespace engine
 {
@@ -9,29 +19,43 @@ namespace engine
 IslandTerrain::IslandTerrain()
 {
 	gpIslandTerrain = this;
-	smPriorityIslands.clear();
 
-	// Collect island CRCs and setup beach elevation
+	// Build a template entry for every kIsland chunk in the manifest. Header fields are
+	// available synchronously; heightmap pointer fills in WaitForElevationMaps once data
+	// is resident.
 	const std::unordered_map<common::crc_t, LazyChunk>& rChunkMap = gpFileManager->GetLazyChunkMap();
-	smPriorityIslands.reserve(rChunkMap.size());
-	for (auto& [rCrc, rChunk] : rChunkMap)
+	for (const auto& [rCrc, rLazyChunk] : rChunkMap)
 	{
-		if (!(rChunk.header.flags & common::ChunkFlags::kIsland))
+		if (!(rLazyChunk.header.flags & common::ChunkFlags::kIsland))
 		{
 			continue;
 		}
 
-		smPriorityIslands.push_back(rCrc);
+		IslandTemplate& rTemplate = mIslands.try_emplace(rCrc).first->second;
+		rTemplate.mIslandCrc = rCrc;
+		rTemplate.mfBeachElevation = common::UnormToFloat(rLazyChunk.header.islandHeader.uiBeachElevation);
+		rTemplate.mfWorldWidthMeters = rLazyChunk.header.islandHeader.fWorldWidthMeters;
+		rTemplate.mfWorldHeightMeters = rLazyChunk.header.islandHeader.fWorldHeightMeters;
 
-		uint16_t uiBeachElevation = rChunk.header.islandHeader.uiBeachElevation;
-		float fBeach = common::UnormToFloat(uiBeachElevation);
-		mfBeachElevation = fBeach;
-		mfSeaFloorElevation = gWaterDepth.Get() * -mfBeachElevation;
+		// Quad footprint in units. Legacy assets (no world.json) ship zero meters; fall back to
+		// the global default so behavior is unchanged for them. New assets get per-template size.
+		rTemplate.mfQuadWidth = rTemplate.mfWorldWidthMeters > 0.0f ? rTemplate.mfWorldWidthMeters * kfMetersToUnits : game::Frame::kfIslandWidth;
+		rTemplate.mfQuadHeight = rTemplate.mfWorldHeightMeters > 0.0f ? rTemplate.mfWorldHeightMeters * kfMetersToUnits : game::Frame::kfIslandHeight;
 	}
 
-	std::sort(smPriorityIslands.begin(), smPriorityIslands.end());
+	// Stable, deterministic iteration order for slot assignment (Phase 3).
+	mIslandCrcsSorted.reserve(mIslands.size());
+	for (const auto& [rCrc, rTemplate] : mIslands)
+	{
+		mIslandCrcsSorted.push_back(rCrc);
+	}
+	std::sort(mIslandCrcsSorted.begin(), mIslandCrcsSorted.end());
 
-	gpFileManager->RequestChunkLoad(smPriorityIslands, LoadPriority::kRealtime);
+	// Cache canonical pointer for hot-path queries. Sea floor derives from canonical beach.
+	mpCanonical = &mIslands.at(data::kIslands01Crc);
+	mfSeaFloorElevation = gWaterDepth.Get() * -mpCanonical->mfBeachElevation;
+
+	gpFileManager->RequestChunkLoad(mIslandCrcsSorted, LoadPriority::kRealtime);
 }
 
 IslandTerrain::~IslandTerrain()
@@ -41,22 +65,25 @@ IslandTerrain::~IslandTerrain()
 
 void IslandTerrain::WaitForElevationMaps([[maybe_unused]] float fNavThreshold)
 {
-	gpFileManager->WaitForChunks(smPriorityIslands);
+	gpFileManager->WaitForChunks(mIslandCrcsSorted);
 
 	const std::unordered_map<common::crc_t, LazyChunk>& rChunkMap = gpFileManager->GetLazyChunkMap();
-	for (size_t i = 0; i < smPriorityIslands.size(); ++i)
+	for (auto& [rCrc, rTemplate] : mIslands)
 	{
-		const LazyChunk& rChunk = rChunkMap.at(smPriorityIslands.at(i));
-
-		mpfHeightmapData = reinterpret_cast<const float*>(rChunk.pData);
-		miHeightmapWidth = rChunk.header.islandHeader.iHeightmapWidth;
-		miHeightmapHeight = rChunk.header.islandHeader.iHeightmapHeight;
+		const LazyChunk& rLazyChunk = rChunkMap.at(rCrc);
+		rTemplate.mpfHeightmapData = reinterpret_cast<const float*>(rLazyChunk.pData);
+		rTemplate.miHeightmapWidth = rLazyChunk.header.islandHeader.iHeightmapWidth;
+		rTemplate.miHeightmapHeight = rLazyChunk.header.islandHeader.iHeightmapHeight;
 	}
 
 #if defined(BT_SERVER)
-	if (mpfHeightmapData != nullptr)
+	// Phase 4: build NavContour for every template so multi-template cells produce correct nav data.
+	for (auto& [rCrc, rTemplate] : mIslands)
 	{
-		BuildNavContour(mNavContour, mpfHeightmapData, miHeightmapWidth, miHeightmapHeight, mfBeachElevation, fNavThreshold);
+		if (rTemplate.mpfHeightmapData != nullptr)
+		{
+			BuildNavContour(rTemplate.mNavContour, rTemplate.mpfHeightmapData, rTemplate.miHeightmapWidth, rTemplate.miHeightmapHeight, rTemplate.mfBeachElevation, fNavThreshold);
+		}
 	}
 #endif
 }
@@ -69,72 +96,97 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 	// Compute grid cell from world position
 	static constexpr float fCellWidth = game::Frame::kfCellWidth;
 	static constexpr float fCellHeight = game::Frame::kfCellHeight;
-	static constexpr float fIslandWidth = game::Frame::kfIslandWidth;
-	static constexpr float fIslandHeight = game::Frame::kfIslandHeight;
 	static constexpr float fCellMinX = game::Frame::kfBaseAreaMinX;
 	static constexpr float fCellMinY = game::Frame::kfBaseAreaMinY;
-	static constexpr float fCellMaxY = game::Frame::kfBaseAreaMaxY;
 
 	int32_t iGridX = static_cast<int32_t>(std::floor((f4Position.x - fCellMinX) / fCellWidth));
 	int32_t iGridY = static_cast<int32_t>(std::floor((f4Position.y - fCellMinY) / fCellHeight));
+	GridCoord coord {iGridX, iGridY};
 
-	// Cell origin
-	float fCellOriginX = fCellMinX + static_cast<float>(iGridX) * fCellWidth;
-	float fCellOriginMaxY = fCellMaxY + static_cast<float>(iGridY) * fCellHeight;
-
-	// Rotation and offset are deterministic from grid coord. Offset depends on rotation
-	// because the rotated AABB must fit within the cell, which shrinks the valid range.
-	float fAngle = game::ComputeIslandRotation({iGridX, iGridY});
-	XMFLOAT2 f2Offset = game::ComputeIslandOffset({iGridX, iGridY}, fAngle);
-
-	// Island center
-	float fIslandMinX = fCellOriginX + f2Offset.x;
-	float fIslandMaxY = fCellOriginMaxY - f2Offset.y;
-	float fCenterX = fIslandMinX + 0.5f * fIslandWidth;
-	float fCenterY = fIslandMaxY - 0.5f * fIslandHeight;
-
-	// Inverse-rotate world point into island-local frame
-	float fCos = std::cos(-fAngle);
-	float fSin = std::sin(-fAngle);
-	float fDx = f4Position.x - fCenterX;
-	float fDy = f4Position.y - fCenterY;
-	float fLocalX = fDx * fCos - fDy * fSin;
-	float fLocalY = fDx * fSin + fDy * fCos;
-
-	// Ocean gap: rotated point outside island AABB in local frame
-	if (std::abs(fLocalX) > 0.5f * fIslandWidth || std::abs(fLocalY) > 0.5f * fIslandHeight)
+	// Look up per-cell placements. Cells outside the simulated set fall through to sea floor.
+	auto it = game::gpGame->mCoordFrames.find(coord);
+	if (it == game::gpGame->mCoordFrames.end())
 	{
 		return mfSeaFloorElevation;
 	}
 
-	// UV from local frame; V axis is world-Y inverted
-	float fU = fLocalX / fIslandWidth + 0.5f;
-	float fV = 0.5f - fLocalY / fIslandHeight;
-
-	// Sample heightmap
-	int64_t iX = static_cast<int64_t>(fU * static_cast<float>(miHeightmapWidth - 1));
-	int64_t iY = static_cast<int64_t>(fV * static_cast<float>(miHeightmapHeight - 1));
-	iX = std::clamp(iX, static_cast<int64_t>(0), static_cast<int64_t>(miHeightmapWidth - 1));
-	iY = std::clamp(iY, static_cast<int64_t>(0), static_cast<int64_t>(miHeightmapHeight - 1));
-
-	float fNormalizedElevation = mpfHeightmapData[iY * miHeightmapWidth + iX];
-	float fRelativeElevation = fNormalizedElevation - mfBeachElevation;
-	if (fRelativeElevation >= 0.0f)
+	for (const IslandPlacement& rPlacement : it->second.staticData.islands)
 	{
-		return gTerrainIslandHeight.Get() * fRelativeElevation;
+		const IslandTemplate& rTemplate = mIslands.at(rPlacement.islandCrc);
+		float fIslandWidth = rTemplate.mfQuadWidth;
+		float fIslandHeight = rTemplate.mfQuadHeight;
+
+		// Inverse-rotate world point into island-local frame
+		float fCos = std::cos(-rPlacement.fRotation);
+		float fSin = std::sin(-rPlacement.fRotation);
+		float fDx = f4Position.x - rPlacement.f2WorldPos.x;
+		float fDy = f4Position.y - rPlacement.f2WorldPos.y;
+		float fLocalX = fDx * fCos - fDy * fSin;
+		float fLocalY = fDx * fSin + fDy * fCos;
+
+		if (std::abs(fLocalX) > 0.5f * fIslandWidth || std::abs(fLocalY) > 0.5f * fIslandHeight)
+		{
+			continue;
+		}
+
+		// UV from local frame; V axis is world-Y inverted
+		float fU = fLocalX / fIslandWidth + 0.5f;
+		float fV = 0.5f - fLocalY / fIslandHeight;
+
+		int64_t iX = static_cast<int64_t>(fU * static_cast<float>(rTemplate.miHeightmapWidth - 1));
+		int64_t iY = static_cast<int64_t>(fV * static_cast<float>(rTemplate.miHeightmapHeight - 1));
+		iX = std::clamp(iX, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapWidth - 1));
+		iY = std::clamp(iY, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapHeight - 1));
+
+		float fNormalizedElevation = rTemplate.mpfHeightmapData[iY * rTemplate.miHeightmapWidth + iX];
+		float fRelativeElevation = fNormalizedElevation - rTemplate.mfBeachElevation;
+		if (fRelativeElevation >= 0.0f)
+		{
+			return gTerrainIslandHeight.Get() * fRelativeElevation;
+		}
+		else
+		{
+			return gWaterDepth.Get() * fRelativeElevation;
+		}
 	}
-	else
-	{
-		return gWaterDepth.Get() * fRelativeElevation;
-	}
+
+	return mfSeaFloorElevation;
 }
+
+#if defined(BT_CLIENT)
+int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
+{
+	IslandTemplate& rTemplate = mIslands.at(islandCrc);
+	if (rTemplate.miTextureSlot >= 0)
+	{
+		return rTemplate.miTextureSlot;
+	}
+
+	int64_t iSlot = miNextTextureSlot++;
+	rTemplate.miTextureSlot = iSlot;
+
+	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(islandCrc);
+	gpTextureManager->mRenderTargetTextures.mElevationTextures[iSlot] = &gpTextureManager->mTextureMap.at(rLazyChunk.header.islandHeader.elevationCrc);
+	gpTextureManager->mRenderTargetTextures.mColorTextures[iSlot] = &gpTextureManager->mTextureMap.at(rLazyChunk.header.islandHeader.colorsCrc);
+	gpTextureManager->mRenderTargetTextures.mNormalsTextures[iSlot] = &gpTextureManager->mTextureMap.at(rLazyChunk.header.islandHeader.normalsCrc);
+	gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures[iSlot] = &gpTextureManager->mTextureMap.at(rLazyChunk.header.islandHeader.ambientOcclusionCrc);
+
+	if (gpGraphics != nullptr)
+	{
+		gpGraphics->meDestroyType = std::max(DestroyType::kPipelines, gpGraphics->meDestroyType);
+	}
+
+	return iSlot;
+}
+#endif
 
 XMVECTOR XM_CALLCONV IslandTerrain::GlobalNormal(FXMVECTOR vecPosition) const
 {
-	static constexpr float fIslandWidth = game::Frame::kfIslandWidth;
-	static constexpr float fIslandHeight = game::Frame::kfIslandHeight;
-	float fStepX = fIslandWidth / static_cast<float>(miHeightmapWidth);
-	float fStepY = fIslandHeight / static_cast<float>(miHeightmapHeight);
+	// Step is derived from the canonical template's quad size and heightmap resolution. Since
+	// GlobalNormal is a 4-tap finite-difference over GlobalElevation (which routes per-placement
+	// internally), the canonical step is a reasonable default sampling cadence.
+	float fStepX = mpCanonical->mfQuadWidth / static_cast<float>(mpCanonical->miHeightmapWidth);
+	float fStepY = mpCanonical->mfQuadHeight / static_cast<float>(mpCanonical->miHeightmapHeight);
 	float fDistance = 2.0f * std::max(fStepX, fStepY);
 
 	// Sample 4 surrounding points (seamless across grid cell boundaries)

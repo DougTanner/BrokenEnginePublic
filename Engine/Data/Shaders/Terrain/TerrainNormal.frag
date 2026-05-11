@@ -13,6 +13,7 @@ layout (location = 0) in flat int iInInstanceIndex;
 layout (location = 1) in vec4 f4InMisc;
 layout (location = 2) in vec2 f2InTexcoord;
 layout (location = 6) in flat vec2 f2InRotationCosSin;
+layout (location = 7) in flat uint uiInTextureSlot;
 
 // Output
 layout (location = 0) out vec4 f4OutColor;
@@ -22,7 +23,7 @@ void main()
 	// BC5 source: only RG stored. G-buffer write is asymmetric — RG passes through re-encoded
 	// (in `1 - 2x` sign-inverted form) so Terrain.frag's existing decode applies, while B carries
 	// the reconstructed Z magnitude in [0,1] since downstream uses it without decoding.
-	vec2 f2RG = texture(textureSampler[nonuniformEXT(iInInstanceIndex)], f2InTexcoord).rg;
+	vec2 f2RG = texture(textureSampler[nonuniformEXT(uiInTextureSlot)], f2InTexcoord).rg;
 
 	// Per-island normal rotation: rotate sampled tangent (X, Y) by (cos, sin) precomputed in vert shader.
 	// Z is rotation-invariant since rotation is around the surface up axis.

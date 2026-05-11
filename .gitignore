@@ -3,6 +3,7 @@
 *.local.json
 tmpclaude*
 Log.txt
+*.r16
 
 # Local-only directories
 .vs/

@@ -555,6 +555,7 @@ struct AxisAlignedQuadLayout
 	vec4 f4TextureRect INIT;
 	vec4 f4Params INIT;
 	float fRotation INIT; // radians; 0 = identity (no rotation). Vertex shader rotates corners around quad center.
+	uint32_t uiTextureSlot INIT; // per-instance bindless texture-array index; 0 for non-island quads (templates assign at AcquireTextureSlot).
 	uint32_t uiColor INIT;
 };
 

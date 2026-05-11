@@ -2,6 +2,9 @@
 
 #include "ExportJob.h"
 
+// Legacy island dimensions (pre-baked single-resolution islands like Islands/01/). The new
+// per-mip island layout (Islands/02/ and beyond) derives sizes per-island from the loaded
+// `mip<N>/Elevation.r16` files; these constants only govern the legacy ingest path.
 inline constexpr int64_t kiIslandSize = 2 * 4096;
 inline constexpr int64_t kiElevationDivisor = 4;
 
@@ -25,7 +28,7 @@ public:
 
 	virtual ~ExportIsland() = default;
 
-	virtual int64_t GetVersion() const override { return Version(9); }
+	virtual int64_t GetVersion() const override { return Version(10); }
 
 protected:
 

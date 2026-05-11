@@ -142,39 +142,28 @@ TextureManager::TextureManager()
 	static const size_t kuiInitialPriorityTextureCount = smPriorityTextures.size();
 	smPriorityTextures.resize(kuiInitialPriorityTextureCount);
 
-	// Collect island texture CRCs from the single island template, fill all slots with the same textures
-	for (int64_t iIndex = 0; common::crc_t islandCrc : IslandTerrain::smPriorityIslands)
+	// Both islands' textures resident so menu<->game swaps are instant.
+	for (common::crc_t islandCrc : {data::kIslands01Crc, data::kIslands02Crc})
 	{
-		if (iIndex >= game::Frame::kiIslandCount)
-		{
-			DEBUG_BREAK();
-			break;
-		}
-
 		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(islandCrc);
+		smPriorityTextures.push_back(rLazyChunk.header.islandHeader.elevationCrc);
+		smPriorityTextures.push_back(rLazyChunk.header.islandHeader.colorsCrc);
+		smPriorityTextures.push_back(rLazyChunk.header.islandHeader.normalsCrc);
+		smPriorityTextures.push_back(rLazyChunk.header.islandHeader.ambientOcclusionCrc);
+	}
 
-		Texture* pElevation = &mTextureMap.at(rLazyChunk.header.islandHeader.elevationCrc);
-		smPriorityTextures.push_back(pElevation->mInfo.crc);
+	// Deterministic slot bootstrap: 01 → slot 0, 02 → slot 1. Phase 3 handshake with IslandTerrain.
+	gpIslandTerrain->AcquireTextureSlot(data::kIslands01Crc);
+	gpIslandTerrain->AcquireTextureSlot(data::kIslands02Crc);
 
-		Texture* pColor = &mTextureMap.at(rLazyChunk.header.islandHeader.colorsCrc);
-		smPriorityTextures.push_back(pColor->mInfo.crc);
-
-		Texture* pNormals = &mTextureMap.at(rLazyChunk.header.islandHeader.normalsCrc);
-		smPriorityTextures.push_back(pNormals->mInfo.crc);
-
-		Texture* pAmbientOcclusion = &mTextureMap.at(rLazyChunk.header.islandHeader.ambientOcclusionCrc);
-		smPriorityTextures.push_back(pAmbientOcclusion->mInfo.crc);
-
-		// Fill all kiMaxIslands slots with the same single island's textures
-		for (int64_t j = 0; j < shaders::kiMaxIslands; ++j)
-		{
-			mRenderTargetTextures.mElevationTextures[j] = pElevation;
-			mRenderTargetTextures.mColorTextures[j] = pColor;
-			mRenderTargetTextures.mNormalsTextures[j] = pNormals;
-			mRenderTargetTextures.mAmbientOcclusionTextures[j] = pAmbientOcclusion;
-		}
-
-		++iIndex;
+	// Fill unused slots [2, kiMaxIslands) with the canonical (slot 0) pointers so the bindless
+	// terrain descriptor array never sees nulls. Later AcquireTextureSlot calls overwrite per slot.
+	for (int64_t i = 2; i < static_cast<int64_t>(shaders::kiMaxIslands); ++i)
+	{
+		mRenderTargetTextures.mElevationTextures[i] = mRenderTargetTextures.mElevationTextures[0];
+		mRenderTargetTextures.mColorTextures[i] = mRenderTargetTextures.mColorTextures[0];
+		mRenderTargetTextures.mNormalsTextures[i] = mRenderTargetTextures.mNormalsTextures[0];
+		mRenderTargetTextures.mAmbientOcclusionTextures[i] = mRenderTargetTextures.mAmbientOcclusionTextures[0];
 	}
 
 	gpProfileManager->BootStop(kBootTimerTextureUpload);

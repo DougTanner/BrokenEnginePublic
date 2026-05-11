@@ -91,6 +91,7 @@ void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT
 	rLayout.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
 	rLayout.f4Params = f4Params;
 	rLayout.fRotation = 0.0f; // non-island consumers render axis-aligned
+	rLayout.uiTextureSlot = 0; // non-island consumers don't sample the island texture array
 	rLayout.uiColor = uiColor;
 }
 

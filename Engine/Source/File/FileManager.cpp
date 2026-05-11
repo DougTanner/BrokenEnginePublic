@@ -380,9 +380,6 @@ void FileManager::LoadPackFiles()
 		// Start background loading thread
 		mLoadingThread = std::thread(&FileManager::LoadingThread, this);
 	});
-
-	// Queue up any priority loads already set (these vectors may be expanded later and RequestChunkLoad will be called again)
-	RequestChunkLoad(IslandTerrain::smPriorityIslands, LoadPriority::kRealtime);
 }
 
 const std::unordered_map<common::crc_t, EagerChunk>& FileManager::GetEagerChunkMap() const

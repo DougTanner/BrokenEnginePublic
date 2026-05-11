@@ -189,4 +189,29 @@ void LaunchExecutable(const std::filesystem::path& rExecutableFile)
 	CloseHandle(processInformation.hProcess);
 }
 
+ExecutableResult RunExecutableInNewConsole(const std::filesystem::path& rExecutableFile, std::wstring& rCommandLine)
+{
+	// CREATE_NEW_CONSOLE gives the child real console handles for stdin/stdout/stderr — required
+	// for tools like Gaea.Swarm.exe that throw IOException("The handle is invalid") when their
+	// console is a pipe or file. SW_HIDE keeps the new window off-screen so the bake doesn't
+	// flash UI during a build.
+	STARTUPINFOW startupinfow {};
+	startupinfow.cb = sizeof(STARTUPINFOW);
+	startupinfow.dwFlags = STARTF_USESHOWWINDOW;
+	startupinfow.wShowWindow = SW_HIDE;
+
+	PROCESS_INFORMATION processInformation {};
+	VERIFY_SUCCESS(CreateProcessW(rExecutableFile.native().c_str(), rCommandLine.data(), nullptr, nullptr, FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &startupinfow, &processInformation));
+
+	WaitForSingleObject(processInformation.hProcess, INFINITE);
+
+	DWORD uiExitCode = 0;
+	GetExitCodeProcess(processInformation.hProcess, &uiExitCode);
+
+	CloseHandle(processInformation.hThread);
+	CloseHandle(processInformation.hProcess);
+
+	return {.mOutput = std::string {}, .miExitCode = static_cast<int64_t>(uiExitCode)};
+}
+
 } // namespace common

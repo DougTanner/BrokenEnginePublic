@@ -122,6 +122,35 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 			}
 		}
 	}
+	else if (eFileType == FileType::kUint16Raw)
+	{
+		// Headerless linear unorm-16. Gaea's UshortRaw16 format. No gamma applies — source is
+		// already linear. Single-channel; R is populated, GBA left at 0 (matches kFloat32).
+		ASSERT(miWidth > 0 && miHeight > 0);
+		ASSERT(!bFromGamma);
+
+		std::fstream fileStream(rPath, std::ios::in | std::ios::binary);
+		std::vector<std::byte> data(std::filesystem::file_size(rPath));
+		fileStream.read(reinterpret_cast<char*>(data.data()), data.size());
+		fileStream.close();
+
+		const uint16_t* puiSrc = reinterpret_cast<const uint16_t*>(data.data());
+		std::vector<float>& rPixels = mData.emplace_back(4 * miWidth * miHeight);
+		float* pfDest = rPixels.data();
+		for (int64_t j = 0; j < miHeight; ++j)
+		{
+			for (int64_t i = 0; i < miWidth; ++i)
+			{
+				pfDest[0] = 255.0f * common::UnormToFloat<uint16_t>(puiSrc[0]);
+				pfDest[1] = 0.0f;
+				pfDest[2] = 0.0f;
+				pfDest[3] = 0.0f;
+
+				++puiSrc;
+				pfDest += 4;
+			}
+		}
+	}
 	else
 	{
 		exr_context_initializer_t exrContextInitializer = EXR_DEFAULT_CONTEXT_INITIALIZER;
@@ -222,7 +251,7 @@ Texture::Texture(const std::byte* puiPixels, int64_t iWidth, int64_t iHeight, in
 			pfDest[0] = static_cast<float>(std::to_integer<uint8_t>(puiPixels[0]));
 			pfDest[1] = static_cast<float>(std::to_integer<uint8_t>(puiPixels[1]));
 			pfDest[2] = static_cast<float>(std::to_integer<uint8_t>(puiPixels[2]));
-			pfDest[3] = static_cast<float>(std::to_integer<uint8_t>(iStride == 4 ? puiPixels[3] : std::byte{255}));
+			pfDest[3] = static_cast<float>(std::to_integer<uint8_t>(iStride == 4 ? puiPixels[3] : std::byte {255}));
 
 			puiPixels += iStride;
 			pfDest += 4;

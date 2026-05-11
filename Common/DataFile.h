@@ -222,6 +222,8 @@ struct IslandHeader
 	uint16_t uiBeachElevation = 0;
 	int32_t iHeightmapWidth = 0;
 	int32_t iHeightmapHeight = 0;
+	float fWorldWidthMeters = 0.0f;
+	float fWorldHeightMeters = 0.0f;
 };
 
 struct ModelHeader

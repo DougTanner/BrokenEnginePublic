@@ -17,13 +17,14 @@ layout (set = 1, binding = 2) uniform sampler2D textureSampler[kiMaxIslands];
 layout (location = 0) in flat int iInInstanceIndex;
 layout (location = 1) in vec4 f4InMisc;
 layout (location = 2) in vec2 f2InTexcoord;
+layout (location = 7) in flat uint uiInTextureSlot;
 
 // Output
 layout (location = 0) out float fOutElevation;
 
 void main()
 {
-    float fElevation = texture(textureSampler[nonuniformEXT(iInInstanceIndex)], f2InTexcoord).r - f4InMisc.x;
+    float fElevation = texture(textureSampler[nonuniformEXT(uiInTextureSlot)], f2InTexcoord).r - f4InMisc.x;
     if (fElevation >= 0.0f)
     {
         fOutElevation = globalLayout.fIslandHeight * fElevation;

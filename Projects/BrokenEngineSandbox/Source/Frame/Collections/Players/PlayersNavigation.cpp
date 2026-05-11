@@ -1,6 +1,7 @@
 #include "Players.h"
 
 #include "Frame/FrameStaticData.h"
+#include "Frame/IslandTerrain.h"
 #include "Frame/NavQuery.h"
 #include "Frame/TerrainUtils.h"
 #include "Profile/ProfileManager.h"
@@ -239,13 +240,15 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 		// Navigate to random island destination
 		if (XMVectorGetW(rVecIslandDestination) == 0.0f)
 		{
-			// Generate random point within island bounds
-			float fIslandMinX = XMVectorGetX(vecArea) + rStaticData.f2IslandOffset.x;
-			float fIslandMaxY = XMVectorGetY(vecArea) - rStaticData.f2IslandOffset.y;
-			float fIslandMinY = fIslandMaxY - Frame::kfIslandHeight;
+			// Pick a placement deterministically by player index; generate a random point inside
+			// its rotated AABB. RNG state advances by exactly 2 per Players/CLAUDE.md mode-5 invariant.
+			const engine::IslandPlacement& rPlacement = rStaticData.islands.at(static_cast<size_t>(i) % rStaticData.islands.size());
+			const engine::IslandTemplate& rTemplate = engine::gpIslandTerrain->mIslands.at(rPlacement.islandCrc);
+			float fIslandMinX = rPlacement.f2WorldPos.x - 0.5f * rTemplate.mfQuadWidth;
+			float fIslandMinY = rPlacement.f2WorldPos.y - 0.5f * rTemplate.mfQuadHeight;
 
-			float fX = fIslandMinX + common::Random<Frame::kfIslandWidth>(rFrame.postRender.randomEngine);
-			float fY = fIslandMinY + common::Random<Frame::kfIslandHeight>(rFrame.postRender.randomEngine);
+			float fX = fIslandMinX + common::Random(rTemplate.mfQuadWidth, rFrame.postRender.randomEngine);
+			float fY = fIslandMinY + common::Random(rTemplate.mfQuadHeight, rFrame.postRender.randomEngine);
 			rVecIslandDestination = XMVectorSet(fX, fY, engine::gBaseHeight.Get(), 1.0f);
 
 			// Snap to navigable area if inside an obstacle

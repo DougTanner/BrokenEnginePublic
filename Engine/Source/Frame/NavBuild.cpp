@@ -1,5 +1,7 @@
 #include "NavBuild.h"
 
+#include "Frame/IslandPlacement.h"
+#include "Frame/IslandTerrain.h"
 #include "Ui/TerrainWrappersBase.h"
 #include "Ui/WaterWrappersBase.h"
 
@@ -1129,66 +1131,85 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 	LOG(kNavData, kDebug, "NavBuild: visibility graph edges={}", rContour.visEdgeA.size());
 }
 
-void XM_CALLCONV BuildCellNavData(NavData& rNavData, const NavContour& rContour, FXMVECTOR vecArea, float fAngle, XMFLOAT2 f2IslandOffset, float fIslandWidth, float fIslandHeight)
+void BuildCellNavData(NavData& rNavData, const std::vector<IslandPlacement>& rPlacements)
 {
-	int32_t iVertexCount = static_cast<int32_t>(rContour.vertices.size());
-	if (iVertexCount == 0)
+	rNavData.vertices.clear();
+	rNavData.polygonOffsets.clear();
+	rNavData.visEdgeA.clear();
+	rNavData.visEdgeB.clear();
+
+	// Walk per-cell placements; each placement's template contour (UV-space) is rotated and
+	// world-positioned around the placement's center. Topology offsets are rebased per island.
+	for (const IslandPlacement& rPlacement : rPlacements)
 	{
-		return;
-	}
-
-	// Rotate canonical UV vertices around island center, then place in world space.
-	// Local axes: +U = +world.x, +V = -world.y (V is world-Y inverted).
-	float fIslandMinX = XMVectorGetX(vecArea) + f2IslandOffset.x;
-	float fIslandMaxY = XMVectorGetY(vecArea) - f2IslandOffset.y;
-	float fCenterX = fIslandMinX + 0.5f * fIslandWidth;
-	float fCenterY = fIslandMaxY - 0.5f * fIslandHeight;
-	float fCos = std::cos(fAngle);
-	float fSin = std::sin(fAngle);
-
-	rNavData.vertices.resize(iVertexCount);
-	for (int32_t i = 0; i < iVertexCount; ++i)
-	{
-		float fU = rContour.vertices.at(i).x;
-		float fV = rContour.vertices.at(i).y;
-
-		float fLocalX = (fU - 0.5f) * fIslandWidth;
-		float fLocalY = (0.5f - fV) * fIslandHeight;
-
-		float fRotX = fLocalX * fCos - fLocalY * fSin;
-		float fRotY = fLocalX * fSin + fLocalY * fCos;
-
-		rNavData.vertices.at(i) = {fCenterX + fRotX, fCenterY + fRotY};
-	}
-
-	// Copy topology (preserved across rotation)
-	rNavData.polygonOffsets = rContour.polygonOffsets;
-	rNavData.visEdgeA = rContour.visEdgeA;
-	rNavData.visEdgeB = rContour.visEdgeB;
-
-	// Log per-polygon vertex positions for density analysis
-	for (size_t iPoly = 0; iPoly < rNavData.polygonOffsets.size(); ++iPoly)
-	{
-		int32_t iStart = rNavData.polygonOffsets.at(iPoly);
-		int32_t iEnd = (iPoly + 1 < rNavData.polygonOffsets.size()) ? rNavData.polygonOffsets.at(iPoly + 1) : iVertexCount;
-		int32_t iCount = iEnd - iStart;
-
-		// Compute bounding box to detect tight clusters
-		float fMinX = std::numeric_limits<float>::max();
-		float fMaxX = std::numeric_limits<float>::lowest();
-		float fMinY = std::numeric_limits<float>::max();
-		float fMaxY = std::numeric_limits<float>::lowest();
-		for (int32_t i = iStart; i < iEnd; ++i)
+		const IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(rPlacement.islandCrc);
+		const NavContour& rContour = rTemplate.mNavContour;
+		int32_t iVertexCount = static_cast<int32_t>(rContour.vertices.size());
+		if (iVertexCount == 0)
 		{
-			fMinX = std::min(fMinX, rNavData.vertices.at(i).x);
-			fMaxX = std::max(fMaxX, rNavData.vertices.at(i).x);
-			fMinY = std::min(fMinY, rNavData.vertices.at(i).y);
-			fMaxY = std::max(fMaxY, rNavData.vertices.at(i).y);
+			continue;
 		}
-		float fBoundsWidth = fMaxX - fMinX;
-		float fBoundsHeight = fMaxY - fMinY;
 
-		LOG(kNavData, kVerbose, "NavCell: polygon {} verts={} bounds=({} {})..({} {}) size={}x{}", iPoly, iCount, fMinX, fMinY, fMaxX, fMaxY, fBoundsWidth, fBoundsHeight);
+		int32_t iVertexBase = static_cast<int32_t>(rNavData.vertices.size());
+
+		float fCos = std::cos(rPlacement.fRotation);
+		float fSin = std::sin(rPlacement.fRotation);
+		float fIslandWidth = rTemplate.mfQuadWidth;
+		float fIslandHeight = rTemplate.mfQuadHeight;
+
+		// Local axes: +U = +world.x, +V = -world.y (V is world-Y inverted).
+		for (int32_t i = 0; i < iVertexCount; ++i)
+		{
+			float fU = rContour.vertices.at(i).x;
+			float fV = rContour.vertices.at(i).y;
+
+			float fLocalX = (fU - 0.5f) * fIslandWidth;
+			float fLocalY = (0.5f - fV) * fIslandHeight;
+
+			float fRotX = fLocalX * fCos - fLocalY * fSin;
+			float fRotY = fLocalX * fSin + fLocalY * fCos;
+
+			rNavData.vertices.push_back({rPlacement.f2WorldPos.x + fRotX, rPlacement.f2WorldPos.y + fRotY});
+		}
+
+		for (int32_t iOffset : rContour.polygonOffsets)
+		{
+			rNavData.polygonOffsets.push_back(iVertexBase + iOffset);
+		}
+
+		for (int32_t iEdge : rContour.visEdgeA)
+		{
+			rNavData.visEdgeA.push_back(iVertexBase + iEdge);
+		}
+		for (int32_t iEdge : rContour.visEdgeB)
+		{
+			rNavData.visEdgeB.push_back(iVertexBase + iEdge);
+		}
+
+		// Log per-polygon vertex positions for density analysis
+		size_t iPolyBase = static_cast<size_t>(rNavData.polygonOffsets.size()) - rContour.polygonOffsets.size();
+		for (size_t iPoly = 0; iPoly < rContour.polygonOffsets.size(); ++iPoly)
+		{
+			int32_t iStart = rNavData.polygonOffsets.at(iPolyBase + iPoly);
+			int32_t iEnd = (iPoly + 1 < rContour.polygonOffsets.size()) ? rNavData.polygonOffsets.at(iPolyBase + iPoly + 1) : iVertexBase + iVertexCount;
+			int32_t iCount = iEnd - iStart;
+
+			float fMinX = std::numeric_limits<float>::max();
+			float fMaxX = std::numeric_limits<float>::lowest();
+			float fMinY = std::numeric_limits<float>::max();
+			float fMaxY = std::numeric_limits<float>::lowest();
+			for (int32_t i = iStart; i < iEnd; ++i)
+			{
+				fMinX = std::min(fMinX, rNavData.vertices.at(i).x);
+				fMaxX = std::max(fMaxX, rNavData.vertices.at(i).x);
+				fMinY = std::min(fMinY, rNavData.vertices.at(i).y);
+				fMaxY = std::max(fMaxY, rNavData.vertices.at(i).y);
+			}
+			float fBoundsWidth = fMaxX - fMinX;
+			float fBoundsHeight = fMaxY - fMinY;
+
+			LOG(kNavData, kVerbose, "NavCell: polygon {} verts={} bounds=({} {})..({} {}) size={}x{}", iPoly, iCount, fMinX, fMinY, fMaxX, fMaxY, fBoundsWidth, fBoundsHeight);
+		}
 	}
 }
 

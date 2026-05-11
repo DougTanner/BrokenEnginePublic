@@ -18,17 +18,23 @@
 namespace
 {
 
-constexpr int32_t kiGaeaResolution = 8192;
 constexpr const wchar_t* kpwcGaeaDefaultPath = L"C:\\Program Files\\QuadSpinner\\Gaea 2\\Gaea.Swarm.exe";
 constexpr const char* kpcGaeaEnvVar = "GAEA2_PATH";
 
+// Per-mip intermediates produced by each Gaea invocation. The .r16 entries are headerless
+// linear unorm-16 (Gaea's UshortRaw16 format), precision-matched to the engine's R16_UNORM /
+// BC4_UNORM destinations. Color/Normals stay multi-channel EXR.
 constexpr const char* kpcIntermediateFiles[] =
 {
-	"AmbientOcclusion.r32",
+	"AmbientOcclusion.r16",
 	"Color.exr",
-	"Elevation.r32",
+	"Elevation.r16",
 	"Normals.exr",
 };
+
+// Default mip chain when island.json omits a "mips" array. Powers of two terminating at the
+// BC4/BC5/BC7 alignment floor (each level must remain a multiple of 4).
+const std::vector<int32_t> kDefaultMips = {8192, 4096, 2048, 1024};
 
 std::filesystem::path ResolveGaeaExecutable()
 {
@@ -103,26 +109,61 @@ std::filesystem::path ResolveTerrain(const std::filesystem::path& rInputDirector
 	return matches.front();
 }
 
-bool IsBakeDirty(const std::filesystem::path& rIslandFolder, const std::filesystem::path& rIslandJsonFile, const std::filesystem::path& rArchetypeFile)
+bool IsBakeDirty(const std::filesystem::path& rIslandFolder, const std::filesystem::path& rIslandJsonFile, const std::filesystem::path& rArchetypeFile, const std::vector<int32_t>& rMips)
 {
-	for (const char* pcFile : kpcIntermediateFiles)
+	std::filesystem::path worldFile = rIslandFolder / "world.json";
+	if (!std::filesystem::exists(worldFile))
 	{
-		if (!std::filesystem::exists(rIslandFolder / pcFile))
+		return true;
+	}
+
+	for (size_t i = 0; i < rMips.size(); ++i)
+	{
+		std::filesystem::path mipDir = rIslandFolder / std::format("mip{}", i);
+		for (const char* pcFile : kpcIntermediateFiles)
 		{
-			return true;
+			if (!std::filesystem::exists(mipDir / pcFile))
+			{
+				return true;
+			}
 		}
 	}
 
 	std::filesystem::file_time_type inputNewest = std::max(std::filesystem::last_write_time(rIslandJsonFile), std::filesystem::last_write_time(rArchetypeFile));
-	for (const char* pcFile : kpcIntermediateFiles)
+	for (size_t i = 0; i < rMips.size(); ++i)
 	{
-		if (std::filesystem::last_write_time(rIslandFolder / pcFile) < inputNewest)
+		std::filesystem::path mipDir = rIslandFolder / std::format("mip{}", i);
+		for (const char* pcFile : kpcIntermediateFiles)
 		{
-			return true;
+			if (std::filesystem::last_write_time(mipDir / pcFile) < inputNewest)
+			{
+				return true;
+			}
 		}
 	}
 
 	return false;
+}
+
+struct WorldDimensions
+{
+	float fWidthMeters = 0.0f;
+	float fHeightMeters = 0.0f;
+};
+
+WorldDimensions ReadTerrainDimensions(const std::filesystem::path& rTerrainFile)
+{
+	std::ifstream terrainStream(rTerrainFile);
+	nlohmann::json terrainJson = nlohmann::json::parse(terrainStream);
+	terrainStream.close();
+
+	// Layout: Assets["$values"][0].Terrain.{Width, Height}. Verified against Island-1x1.terrain.
+	const nlohmann::json& rTerrain = terrainJson.at("Assets").at("$values").at(0).at("Terrain");
+	return WorldDimensions
+	{
+		.fWidthMeters = rTerrain.at("Width").get<float>(),
+		.fHeightMeters = rTerrain.at("Height").get<float>(),
+	};
 }
 
 void BakeOne(const std::filesystem::path& rGaeaExe, const std::filesystem::path& rInputDirectory, const std::filesystem::path& rIslandFolder)
@@ -139,59 +180,123 @@ void BakeOne(const std::filesystem::path& rGaeaExe, const std::filesystem::path&
 	}
 
 	int32_t iSeed = islandJson.value("seed", 0);
+	std::vector<int32_t> mips = islandJson.value("mips", kDefaultMips);
+
+	for (int32_t iResolution : mips)
+	{
+		if (iResolution < 4 || (iResolution % 4) != 0)
+		{
+			throw std::runtime_error(std::format("\"{}\" mips entry {} is invalid: each level must be >= 4 and a multiple of 4 for BC alignment.", islandJsonFile.string(), iResolution));
+		}
+	}
+
+	// Mip chain must strictly halve so ExportIsland's Texture::Export (which computes per-mip
+	// dimensions by halving from mip 0) stays consistent with the actual authored sizes.
+	for (size_t i = 1; i < mips.size(); ++i)
+	{
+		if (mips.at(i) != mips.at(i - 1) / 2)
+		{
+			throw std::runtime_error(std::format("\"{}\" mips array must strictly halve: mip{} is {} but mip{} is {} (expected {}).", islandJsonFile.string(), i, mips.at(i), i - 1, mips.at(i - 1), mips.at(i - 1) / 2));
+		}
+	}
 
 	std::filesystem::path archetypeFile = ResolveTerrain(rInputDirectory, rIslandFolder, islandJson);
 
-	if (!IsBakeDirty(rIslandFolder, islandJsonFile, archetypeFile))
+	if (!IsBakeDirty(rIslandFolder, islandJsonFile, archetypeFile, mips))
 	{
 		return;
 	}
 
-	LOG(kDefault, kDebug, "Baking island intermediates: \"{}\" (archetype: \"{}\", seed: {})", rIslandFolder.string(), archetypeFile.string(), iSeed);
+	WorldDimensions worldDimensions = ReadTerrainDimensions(archetypeFile);
+
+	LOG(kDefault, kDebug, "Baking island intermediates: \"{}\" (archetype: \"{}\", seed: {}, mips: {}, {:.1f}m x {:.1f}m)", rIslandFolder.string(), archetypeFile.string(), iSeed, mips.size(), worldDimensions.fWidthMeters, worldDimensions.fHeightMeters);
 
 	// Strip DataPacker-owned keys; remaining keys become Gaea variables.
 	nlohmann::json varsJson = islandJson;
 	varsJson.erase("archetype");
 	varsJson.erase("seed");
+	varsJson.erase("mips");
 
+	// Gaea.Swarm.exe trips on `--vars` pointing to an empty JSON object ("{}") with an opaque
+	// "System.IO.IOException: The handle is invalid" during variable load. Only emit the vars
+	// file and pass --vars when there are user variables left to forward.
+	bool bHasVars = !varsJson.empty();
 	std::filesystem::path varsFile = gpFileManager->mTempDirectory / (rIslandFolder.filename().string() + ".gaea-vars.json");
-	std::ofstream varsStream(varsFile);
-	varsStream << varsJson.dump();
-	varsStream.close();
-	common::ScopedLambda varsFileCleanup([&varsFile] { std::filesystem::remove(varsFile); });
-
-	// Launch via cmd.exe /c to isolate Gaea from DataPacker's in-process state (injected DLLs, CRT init quirks,
-	// debugger attach side effects). cmd's "double-quote the whole payload" convention: if /c's argument
-	// starts and ends with a quote, cmd strips those outer quotes and parses the middle as a normal command line.
-	std::filesystem::path cmdExe = L"C:\\Windows\\System32\\cmd.exe";
-	std::wstring commandLine;
-	commandLine += L"\"" + cmdExe.native() + L"\""; // argv[0]: quoted cmd.exe path
-	commandLine += L" /c \"";                       // /c + outer wrap open
-	commandLine += L"\"" + rGaeaExe.native() + L"\"";
-	commandLine += L" --silent";
-	commandLine += L" --Filename \"" + archetypeFile.native() + L"\"";
-	commandLine += L" --buildpath \"" + rIslandFolder.native() + L"\"";
-	commandLine += std::format(L" --resolution {}", kiGaeaResolution);
-	commandLine += std::format(L" --seed {}", iSeed);
-	commandLine += L" --vars \"" + varsFile.native() + L"\"";
-	commandLine += L"\"";                           // outer wrap close
-
-	LOG(kDefault, kDebug, "Running via cmd.exe /c: \"{}\" --silent --Filename \"{}\" --buildpath \"{}\" --resolution {} --seed {} --vars \"{}\"", rGaeaExe.string(), archetypeFile.string(), rIslandFolder.string(), kiGaeaResolution, iSeed, varsFile.string());
-
-	common::ExecutableResult result = common::RunExecutable(cmdExe, commandLine);
-
-	if (result.miExitCode != 0)
+	common::ScopedLambda varsFileCleanup([&varsFile, bHasVars]()
 	{
-		throw std::runtime_error(std::format("Gaea.Swarm.exe exited with code {} for \"{}\":\n{}", result.miExitCode, rIslandFolder.string(), result.mOutput));
+		if (bHasVars)
+		{
+			std::filesystem::remove(varsFile);
+		}
+	});
+	if (bHasVars)
+	{
+		std::ofstream varsStream(varsFile);
+		varsStream << varsJson.dump();
+		varsStream.close();
 	}
 
-	for (const char* pcFile : kpcIntermediateFiles)
+	// Prune stale mip<N>/ folders from a prior bake with a longer chain — otherwise
+	// ExportIsland::EnumerateMipDirs walks past mips.size() and ingests a too-long chain
+	// with non-halving sizes.
+	for (size_t i = mips.size(); ; ++i)
 	{
-		if (!std::filesystem::exists(rIslandFolder / pcFile))
+		std::filesystem::path staleMipDir = rIslandFolder / std::format("mip{}", i);
+		if (!std::filesystem::exists(staleMipDir))
 		{
-			throw std::runtime_error(std::format("Gaea bake for \"{}\" did not produce \"{}\". Verify the archetype graph has an Export node named \"{}\" writing to Build Folder with \"Remove Primary port name\" enabled. Gaea output:\n{}", rIslandFolder.string(), pcFile, std::filesystem::path(pcFile).stem().string(), result.mOutput));
+			break;
+		}
+		std::filesystem::remove_all(staleMipDir);
+		LOG(kDefault, kDebug, "Removed stale mip directory: \"{}\"", staleMipDir.string());
+	}
+
+	for (size_t i = 0; i < mips.size(); ++i)
+	{
+		std::filesystem::path mipDir = rIslandFolder / std::format("mip{}", i);
+		std::filesystem::create_directories(mipDir);
+
+		// Gaea.Swarm.exe requires a real console for stdin/stdout/stderr — invoke via the
+		// new-console helper rather than piped capture (the latter trips an IOException at
+		// Gaea startup). argv[0] is the executable's own path so cmdline starts with the
+		// quoted exe.
+		std::wstring commandLine;
+		commandLine += L"\"" + rGaeaExe.native() + L"\"";
+		commandLine += L" --silent";
+		commandLine += L" --Filename \"" + archetypeFile.native() + L"\"";
+		commandLine += L" --buildpath \"" + mipDir.native() + L"\"";
+		commandLine += std::format(L" --resolution {}", mips.at(i));
+		commandLine += std::format(L" --seed {}", iSeed);
+		if (bHasVars)
+		{
+			commandLine += L" --vars \"" + varsFile.native() + L"\"";
+		}
+
+		LOG(kDefault, kDebug, "Running: \"{}\" --silent --Filename \"{}\" --buildpath \"{}\" --resolution {} --seed {}{}{}", rGaeaExe.string(), archetypeFile.string(), mipDir.string(), mips.at(i), iSeed, bHasVars ? " --vars " : "", bHasVars ? varsFile.string() : "");
+
+		common::ExecutableResult result = common::RunExecutableInNewConsole(rGaeaExe, commandLine);
+
+		if (result.miExitCode != 0)
+		{
+			throw std::runtime_error(std::format("Gaea.Swarm.exe exited with code {} for \"{}\" (mip{}). Output isn't captured under the new-console invocation; re-run interactively to diagnose.", result.miExitCode, rIslandFolder.string(), i));
+		}
+
+		for (const char* pcFile : kpcIntermediateFiles)
+		{
+			if (!std::filesystem::exists(mipDir / pcFile))
+			{
+				throw std::runtime_error(std::format("Gaea bake for \"{}\" mip{} did not produce \"{}\". Verify the archetype graph has an Export node named \"{}\" writing to Build Folder, and that the AmbientOcclusion / Elevation Export nodes use the UshortRaw16 format.", rIslandFolder.string(), i, pcFile, std::filesystem::path(pcFile).stem().string()));
+			}
 		}
 	}
+
+	// Sidecar consumed by ExportIsland to stamp IslandHeader. Written after all mips succeed so a
+	// partial bake leaves the island dirty rather than half-described.
+	nlohmann::json worldJson;
+	worldJson["widthMeters"] = worldDimensions.fWidthMeters;
+	worldJson["heightMeters"] = worldDimensions.fHeightMeters;
+	std::ofstream worldStream(rIslandFolder / "world.json");
+	worldStream << worldJson.dump();
+	worldStream.close();
 
 	LOG(kDefault, kDebug, "Gaea bake succeeded for \"{}\"", rIslandFolder.string());
 }

@@ -184,7 +184,7 @@ struct Frame
 
 	static const int64_t kiVersion;
 
-	static constexpr int64_t kiIslandCount = 1;
+	static constexpr int64_t kiIslandCount = 2;
 
 	static constexpr float kfCellWidth = 300.0f;
 	static constexpr float kfCellHeight = 300.0f;

@@ -5,6 +5,7 @@ enum class FileType
 	kExr,
 	kFloat32,
 	kImage,
+	kUint16Raw,
 };
 
 // Sentinel placed at byte 0 of every Texture::Save'd intermediate file. Reads as "BC7E DA7A"

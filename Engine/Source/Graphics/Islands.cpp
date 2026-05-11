@@ -2,6 +2,9 @@
 
 #if defined(BT_CLIENT)
 
+#include "Frame/FrameStaticData.h"
+#include "Frame/IslandPlacement.h"
+
 namespace engine
 {
 
@@ -11,21 +14,28 @@ Islands::Islands()
 
 	mIslands.resize(kiDefaultIslandCapacity);
 
-	// Fill initial quads from base island template at origin (axis-aligned, rotation 0)
-	XMFLOAT2 f2OriginOffset = game::ComputeIslandOffset(engine::kOriginCoord, 0.0f);
+	// Fill initial quads from the origin cell's placement list. Texture-slot bootstrap is
+	// deferred to TextureManager (constructed after Islands); origin uses kIslands01Crc which
+	// TextureManager deterministically assigns to slot 0, so slot 0 is correct here.
+	std::vector<IslandPlacement> originPlacements;
+	GenerateIslandPlacements(kOriginCoord, originPlacements);
+	const IslandPlacement& rOrigin = originPlacements.at(0);
+	const IslandTemplate& rOriginTemplate = gpIslandTerrain->mIslands.at(rOrigin.islandCrc);
 	for (size_t i = 0; i < mIslands.size(); ++i)
 	{
 		if (i == 0)
 		{
-			mIslands[i].quad.f4VertexRect.x = game::Frame::kfBaseAreaMinX + f2OriginOffset.x;
-			mIslands[i].quad.f4VertexRect.y = game::Frame::kfBaseAreaMaxY - f2OriginOffset.y;
-			mIslands[i].quad.f4VertexRect.z = game::Frame::kfIslandWidth;
-			mIslands[i].quad.f4VertexRect.w = -game::Frame::kfIslandHeight;
+			mIslands[i].quad.f4VertexRect.x = rOrigin.f2WorldPos.x - 0.5f * rOriginTemplate.mfQuadWidth;
+			mIslands[i].quad.f4VertexRect.y = rOrigin.f2WorldPos.y + 0.5f * rOriginTemplate.mfQuadHeight;
+			mIslands[i].quad.f4VertexRect.z = rOriginTemplate.mfQuadWidth;
+			mIslands[i].quad.f4VertexRect.w = -rOriginTemplate.mfQuadHeight;
 		}
 		else
 		{
 			mIslands[i].quad.f4VertexRect = {};
 		}
+
+		mIslands[i].quad.uiTextureSlot = 0;
 
 		mIslands[i].quad.f4TextureRect.x = 0.0f;
 		mIslands[i].quad.f4TextureRect.z = 1.0f;
@@ -42,7 +52,7 @@ Islands::Islands()
 	// Beach elevation default on all slots; UpdateActiveIslands fills active slots. fRotation defaults to 0 (identity).
 	for (Island& rIsland : mIslands)
 	{
-		rIsland.quad.f4Params.x = gpIslandTerrain->mfBeachElevation;
+		rIsland.quad.f4Params.x = gpIslandTerrain->mpCanonical->mfBeachElevation;
 	}
 
 	mIslandsStorageBuffer.Create(
@@ -70,13 +80,23 @@ Islands::~Islands()
 
 void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrames>& rFrames, const std::vector<GridCoord>& rActiveCoords)
 {
-	int64_t iActiveCount = static_cast<int64_t>(rActiveCoords.size());
+	// Total instance count is sum of placements across all active coords (Phase 4 multi-emit).
+	int64_t iTotalPlacements = 0;
+	for (const GridCoord& rCoord : rActiveCoords)
+	{
+		auto itCount = rFrames.find(rCoord);
+		if (itCount != rFrames.end() && itCount->second.iSnapshotCount > 0)
+		{
+			iTotalPlacements += static_cast<int64_t>(itCount->second.staticData.islands.size());
+		}
+	}
+	iTotalPlacements = std::min(iTotalPlacements, static_cast<int64_t>(shaders::kiMaxIslands));
 
 	// Grow capacity if needed
-	if (iActiveCount > static_cast<int64_t>(mIslands.size()))
+	if (iTotalPlacements > static_cast<int64_t>(mIslands.size()))
 	{
 		int64_t iNewCapacity = static_cast<int64_t>(mIslands.size());
-		while (iNewCapacity < iActiveCount)
+		while (iNewCapacity < iTotalPlacements)
 		{
 			iNewCapacity *= 2;
 		}
@@ -84,9 +104,9 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 		mIslands.resize(static_cast<size_t>(iNewCapacity));
 
 		// Initialize new slots with beach elevation; fRotation defaults to 0 (identity).
-		for (size_t i = static_cast<size_t>(iActiveCount); i < mIslands.size(); ++i)
+		for (size_t i = static_cast<size_t>(iTotalPlacements); i < mIslands.size(); ++i)
 		{
-			mIslands[i].quad.f4Params.x = gpIslandTerrain->mfBeachElevation;
+			mIslands[i].quad.f4Params.x = gpIslandTerrain->mpCanonical->mfBeachElevation;
 		}
 
 		// Recreate storage buffer at new capacity
@@ -104,10 +124,10 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 		gpGraphics->meDestroyType = DestroyType::kCommandBuffers;
 	}
 
-	// Fill active island slots from frame data
-	for (int64_t i = 0; i < iActiveCount; ++i)
+	// Fan out per-cell placements into the flat storage buffer.
+	int64_t iEmitIndex = 0;
+	for (const GridCoord& rCoord : rActiveCoords)
 	{
-		const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(i)];
 		auto it = rFrames.find(rCoord);
 		if (it == rFrames.end() || it->second.iSnapshotCount == 0)
 		{
@@ -115,41 +135,50 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 		}
 
 		const FrameStaticData& rStaticData = it->second.staticData;
-		XMFLOAT2 f2Offset = rStaticData.f2IslandOffset;
+		for (const IslandPlacement& rPlacement : rStaticData.islands)
+		{
+			if (iEmitIndex >= static_cast<int64_t>(shaders::kiMaxIslands))
+			{
+				break;
+			}
 
-		Island& rIsland = mIslands[static_cast<size_t>(i)];
+			const IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(rPlacement.islandCrc);
+			Island& rIsland = mIslands[static_cast<size_t>(iEmitIndex)];
 
-		// Position island quad within grid cell using baked offset
-		float fCellOriginX = game::Frame::kfBaseAreaMinX + static_cast<float>(rCoord.x) * game::Frame::kfCellWidth;
-		float fCellOriginMaxY = game::Frame::kfBaseAreaMaxY + static_cast<float>(rCoord.y) * game::Frame::kfCellHeight;
-		rIsland.quad.f4VertexRect.x = fCellOriginX + f2Offset.x;
-		rIsland.quad.f4VertexRect.y = fCellOriginMaxY - f2Offset.y;
-		rIsland.quad.f4VertexRect.z = game::Frame::kfIslandWidth;
-		rIsland.quad.f4VertexRect.w = -game::Frame::kfIslandHeight;
+			rIsland.quad.f4VertexRect.x = rPlacement.f2WorldPos.x - 0.5f * rTemplate.mfQuadWidth;
+			rIsland.quad.f4VertexRect.y = rPlacement.f2WorldPos.y + 0.5f * rTemplate.mfQuadHeight;
+			rIsland.quad.f4VertexRect.z = rTemplate.mfQuadWidth;
+			rIsland.quad.f4VertexRect.w = -rTemplate.mfQuadHeight;
 
-		// Texture rect always [0,1]^2; rotation handled in vertex shader via fRotation
-		rIsland.quad.f4TextureRect.x = 0.0f;
-		rIsland.quad.f4TextureRect.z = 1.0f;
-		rIsland.quad.f4TextureRect.y = 0.0f;
-		rIsland.quad.f4TextureRect.w = 1.0f;
+			rIsland.quad.f4TextureRect.x = 0.0f;
+			rIsland.quad.f4TextureRect.z = 1.0f;
+			rIsland.quad.f4TextureRect.y = 0.0f;
+			rIsland.quad.f4TextureRect.w = 1.0f;
 
-		rIsland.quad.f4Params.x = gpIslandTerrain->mfBeachElevation;
-		rIsland.quad.fRotation = rStaticData.fIslandRotation;
+			rIsland.quad.f4Params.x = rTemplate.mfBeachElevation;
+			rIsland.quad.fRotation = rPlacement.fRotation;
+			rIsland.quad.uiTextureSlot = static_cast<uint32_t>(gpIslandTerrain->AcquireTextureSlot(rPlacement.islandCrc));
+			++iEmitIndex;
+		}
+		if (iEmitIndex >= static_cast<int64_t>(shaders::kiMaxIslands))
+		{
+			break;
+		}
 	}
 
 	// Zero remaining slots (zero-width quads -> GPU culled)
-	for (size_t i = static_cast<size_t>(iActiveCount); i < mIslands.size(); ++i)
+	for (size_t i = static_cast<size_t>(iEmitIndex); i < mIslands.size(); ++i)
 	{
 		mIslands[i].quad.f4VertexRect = {};
 	}
 
-	// Recompute global area from active islands. Each island's rotated rectangle expands its
+	// Recompute global area from emitted islands. Each island's rotated rectangle expands its
 	// axis-aligned bound to half-extents (|w|*|cos|+|h|*|sin|, |w|*|sin|+|h|*|cos|) about its center.
 	mf4GlobalArea.x = std::numeric_limits<float>::max();
 	mf4GlobalArea.y = std::numeric_limits<float>::lowest();
 	mf4GlobalArea.z = std::numeric_limits<float>::lowest();
 	mf4GlobalArea.w = std::numeric_limits<float>::max();
-	for (int64_t i = 0; i < iActiveCount; ++i)
+	for (int64_t i = 0; i < iEmitIndex; ++i)
 	{
 		const Island& rIsland = mIslands[static_cast<size_t>(i)];
 		float fHalfW = 0.5f * std::abs(rIsland.quad.f4VertexRect.z);

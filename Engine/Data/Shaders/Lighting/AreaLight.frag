@@ -36,6 +36,8 @@ layout (location = 1) in vec4 f4InParams;
 layout (location = 2) in vec2 f2InTexcoord;
 layout (location = 4) in vec2 f2InWorldPosition;
 layout (location = 5) in flat vec2 f2InWorldCenter;
+// Match QuadsVisibleArea.vert output so SPIR-V interface validation passes; not read here.
+layout (location = 7) in flat uint uiInTextureSlotUnused;
 
 // Output
 layout (location = 0) out vec4 f4OutColorRed;

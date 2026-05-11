@@ -29,10 +29,13 @@ layout (location = 1) out vec4 f4OutParams;
 layout (location = 2) out vec2 f2OutTexcoord;
 layout (location = 4) out vec2 f2OutWorldPosition;
 layout (location = 5) out flat vec2 f2OutWorldCenter;
+// Interface match with QuadsAxisAlignedVisibleArea.vert so frags that pair with both verts (Smoke, WindDeposit) declare a single location 7 input.
+layout (location = 7) out flat uint uiOutTextureSlot;
 
 void main()
 {
 	iOutInstanceIndex = gl_InstanceIndex;
+	uiOutTextureSlot = 0u;
 
 	int iIndex = 2 * int(f2InQuadVertex.y) + int(f2InQuadVertex.x);
 

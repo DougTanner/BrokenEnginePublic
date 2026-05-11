@@ -55,12 +55,19 @@ void XM_CALLCONV SpaceshipsPostRender::ComputeSteering(const engine::FrameStatic
 		rFlags.Clear(kFleePlayer);
 	}
 
-	// Per-cell island center: cell area origin + hashed island offset + island half-extents.
-	// Offset sign matches PlayersNavigation.cpp (island anchored from cell's top edge, so Y offset is subtracted).
-	XMVECTOR vecArea = rStaticData.vecArea;
-	float fIslandMinX = XMVectorGetX(vecArea) + rStaticData.f2IslandOffset.x;
-	float fIslandMaxY = XMVectorGetY(vecArea) - rStaticData.f2IslandOffset.y;
-	XMVECTOR vecIslandCenter = XMVectorSet(fIslandMinX + Frame::kfIslandWidth * 0.5f, fIslandMaxY - Frame::kfIslandHeight * 0.5f, engine::gBaseHeight.Get(), 1.0f);
+	// Per-cell island center: pick the nearest placement to this spaceship for return-to-island steering.
+	XMVECTOR vecIslandCenter = XMVectorSet(rStaticData.islands.at(0).f2WorldPos.x, rStaticData.islands.at(0).f2WorldPos.y, engine::gBaseHeight.Get(), 1.0f);
+	float fNearestDistanceSq = std::numeric_limits<float>::max();
+	for (const engine::IslandPlacement& rPlacement : rStaticData.islands)
+	{
+		XMVECTOR vecCandidate = XMVectorSet(rPlacement.f2WorldPos.x, rPlacement.f2WorldPos.y, engine::gBaseHeight.Get(), 1.0f);
+		float fDistSq = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(vecCandidate, vecPosition)));
+		if (fDistSq < fNearestDistanceSq)
+		{
+			fNearestDistanceSq = fDistSq;
+			vecIslandCenter = vecCandidate;
+		}
+	}
 	float fDistanceFromIslandCenter = common::Distance(vecPosition, vecIslandCenter);
 	if (fDistanceFromIslandCenter > kfSpaceshipReturnDistance)
 	{
