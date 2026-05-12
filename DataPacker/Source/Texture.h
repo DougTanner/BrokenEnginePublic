@@ -10,8 +10,7 @@ enum class FileType
 
 // Sentinel placed at byte 0 of every Texture::Save'd intermediate file. Reads as "BC7E DA7A"
 // in a hex dump. A file lacking this magic is legacy-format and must be migrated through
-// MigrateLegacyIntermediates() (in Main.cpp) before any reader (LoadIntermediate, raw-passthrough)
-// touches it.
+// MigrateLegacyIntermediates() (in Main.cpp) before any reader touches it.
 inline constexpr int64_t kiTextureIntermediateMagic = 0x00000000BC7EDA7A;
 
 class Texture
@@ -60,6 +59,14 @@ public:
 	}
 
 	void Save(const std::filesystem::path& rPath, VkFormat vkFormat, bool bVerifyNoAlpha);
+
+	// Debug visualizer: writes mData[0] to `rPath` as a JPEG so the bake input can be eyeballed
+	// alongside the BC-compressed output. `bGrayscale` replicates R to G/B (set for single-channel
+	// data like AO/elevation where G/B are zero); otherwise the RGB channels are used as-is.
+	// `bAutoNormalize` rescales the R channel from its actual [min, max] range to byte [0, 255]
+	// — required for elevation (raw internal = meters × 255 would saturate at 1 m). Color/normals/AO
+	// already live in [0, 255], so leave it off for those.
+	void SaveJpegSidecar(const std::filesystem::path& rPath, int iQuality, bool bGrayscale, bool bAutoNormalize = false);
 
 	int64_t miWidth = 0;
 	int64_t miHeight = 0;

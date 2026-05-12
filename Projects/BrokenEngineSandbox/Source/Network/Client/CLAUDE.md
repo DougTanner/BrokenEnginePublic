@@ -7,7 +7,7 @@ Client-side networking: connection lifecycle, server data ingestion, rollback-an
 ## Key Classes
 
 - **ClientSession** - Top-level orchestrator inheriting `engine::ClientSessionBase`. Drives connection, subscriptions, clock correction, and game-packet sends. Delegates to three owned managers below.
-- **ClientDataReceiver** - Applies incoming static data, full states, and per-tick updates into `CoordFrames`.
+- **ClientDataReceiver** - Applies incoming static data, full states, and per-tick updates into `CoordFrames`. Static-data application also drives lazy island-texture acquisition: each placement triggers a per-CRC texture-slot mint so terrain GPU residency follows subscription arrivals.
 - **ClientReconciler** - Single-pass rollback-and-replay per `ClientUpdate()`. Per-coord work runs in parallel via `common::gpMultithreading` on `CoordFrames` entries directly (no marshaling layer).
 - **ClientDesyncManager** - Desync detection, debug-frame capture, resync coordination, and frequency-based escalation to disconnect.
 - **ReconcileReplay** - Stateless pipeline helpers for the rollback path. Split across two siblings: `ReconcileReplay.cpp` holds coord-level entry points (pending-full-state injection, coord-result writeback, top-level coord reconcile); `ReconcileReplayTick.cpp` holds the tick-level primitives (rollback, replay-range scan, per-tick run + CRC validation, forward-step catch-up, fast-path catch-up).

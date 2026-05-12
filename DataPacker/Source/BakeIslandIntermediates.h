@@ -10,10 +10,9 @@ void BakeIslandIntermediates();
 struct WorldDimensions
 {
 	float fFootprintMeters = 0.0f;   // Isotropic horizontal extent (Gaea Terrain.Width)
-	float fElevationMeters = 0.0f;   // Total vertical span = kfOceanDepthMeters + max-above-water (Gaea Terrain.Height)
+	float fElevationMeters = 0.0f;   // Total vertical span in meters (Gaea Terrain.Height); below/above sea split is per-archetype via the Sea node's ShoreHeight
 };
 
-// Resolves the world-space dimensions for an island. Reads Island.json's optional
-// widthMeters/elevationMeters override; falls back to the archetype `.terrain` file's intrinsic
-// dimensions. Throws if Island.json is missing or the archetype can't be resolved.
+// Reads world-space dimensions from Island.json's required widthMeters/elevationMeters fields.
+// Throws if Island.json is missing or either key is absent.
 WorldDimensions GetIslandDimensions(const std::filesystem::path& rIslandFolder);

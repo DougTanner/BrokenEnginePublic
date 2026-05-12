@@ -14,33 +14,17 @@ Islands::Islands()
 
 	mIslands.resize(kiDefaultIslandCapacity);
 
-	// Fill initial quads from the origin cell's placement list. Texture-slot bootstrap is
-	// deferred to TextureManager (constructed after Islands); origin uses kIslands01Crc which
-	// TextureManager deterministically assigns to slot 0, so slot 0 is correct here.
-	std::vector<IslandPlacement> originPlacements;
-	GenerateIslandPlacements(kOriginCoord, originPlacements);
-	const IslandPlacement& rOrigin = originPlacements.at(0);
-	const IslandTemplate& rOriginTemplate = gpIslandTerrain->mIslands.at(rOrigin.islandCrc);
-	for (size_t i = 0; i < mIslands.size(); ++i)
+	// Initial state: all quads zero-width (GPU-culled). UpdateActiveIslands populates real geometry
+	// once ApplyReceivedStaticData lands placements from network subscriptions. Slot 0 is the
+	// neutral placeholder anchor, never sampled while quads are zero-width.
+	for (Island& rIsland : mIslands)
 	{
-		if (i == 0)
-		{
-			mIslands[i].quad.f4VertexRect.x = rOrigin.f2WorldPos.x - 0.5f * rOriginTemplate.mfQuadFootprint;
-			mIslands[i].quad.f4VertexRect.y = rOrigin.f2WorldPos.y + 0.5f * rOriginTemplate.mfQuadFootprint;
-			mIslands[i].quad.f4VertexRect.z = rOriginTemplate.mfQuadFootprint;
-			mIslands[i].quad.f4VertexRect.w = -rOriginTemplate.mfQuadFootprint;
-		}
-		else
-		{
-			mIslands[i].quad.f4VertexRect = {};
-		}
-
-		mIslands[i].quad.uiTextureSlot = 0;
-
-		mIslands[i].quad.f4TextureRect.x = 0.0f;
-		mIslands[i].quad.f4TextureRect.z = 1.0f;
-		mIslands[i].quad.f4TextureRect.y = 0.0f;
-		mIslands[i].quad.f4TextureRect.w = 1.0f;
+		rIsland.quad.f4VertexRect = {};
+		rIsland.quad.uiTextureSlot = 0;
+		rIsland.quad.f4TextureRect.x = 0.0f;
+		rIsland.quad.f4TextureRect.z = 1.0f;
+		rIsland.quad.f4TextureRect.y = 0.0f;
+		rIsland.quad.f4TextureRect.w = 1.0f;
 	}
 
 	// Calculate global area bounds from the base cell

@@ -142,7 +142,7 @@ void Graphics::RenderGlobal(float fCurrentTime)
 	// Phase 5 LRU eviction sweeps bracket ProcessPendingTextures inside the descriptor-patch
 	// safety window (post-fence-wait, pre-cmd-buffer-recording). EvictionSweep frees GPU
 	// resources for templates whose grace period elapsed; RestorationSweep patches per-channel
-	// from canonical fallback back to real Texture* as each chunk reaches kReady.
+	// from slot-0 fallback back to real Texture* as each chunk reaches kReady.
 	gpIslandTerrain->EvictionSweep();
 
 	// Process pending texture loads after fence wait when it's safe to update GPU resources

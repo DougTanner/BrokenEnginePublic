@@ -3,8 +3,8 @@
 namespace engine
 {
 
-// One placed island instance inside a cell. Phase 2 emits exactly one per cell;
-// later phases extend the list to N per cell.
+// One placed island instance inside a cell. Generator emits 1-4 per cell via
+// rotated-AABB rejection sampling against per-template footprint.
 struct IslandPlacement
 {
 	common::crc_t islandCrc = 0;

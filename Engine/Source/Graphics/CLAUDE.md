@@ -9,7 +9,7 @@ Multi-pass deferred Vulkan renderer with lighting, shadows, GPU particles, and p
 - Record-once command buffers resubmitted every frame; re-recorded only on resize or settings change
 - Per-framebuffer descriptor sets prevent GPU conflicts across frames in flight
 - All GPU memory allocated through VMA
-- Lazy texture loading: white placeholder at startup, background disk load via transfer queue, deferred descriptor update
+- Lazy texture loading: generic textures use a white placeholder at startup; islands use a permanent neutral programmatic placeholder at slot 0 (format-matched, never adopted by a real island), with background disk load via transfer queue and deferred descriptor update. Frame 0 renders no islands — visible terrain appears only as subscriptions arrive and mint slots
 - Camera snaps render visible-area to the terrain/water quad grid — never render off-grid
 - Terrain collision queries live in `/Frame/IslandTerrain` (shared); `Islands` here is client-only GPU rendering
 - Frame boundary sits between Main-submit and the next Acquire, not at loop top

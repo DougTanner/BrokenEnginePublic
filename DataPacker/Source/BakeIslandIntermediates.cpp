@@ -1,17 +1,17 @@
 #include "BakeIslandIntermediates.h"
 
-#include "ExportJobs/ExportIsland.h"
 #include "FileManager.h"
+#include "ExportJobs/ExportIsland.h"
 
 #pragma warning(push, 0)
 #pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
 #pragma warning(disable: 5311) // nlohmann::json 3.10.4 uses the pre-C++20 literal-operator-id form 'operator "" _json'
-#ifdef __clang__
+#if defined(__clang__)
 	#pragma clang diagnostic push
 	#pragma clang diagnostic ignored "-Weverything"
 #endif
 #include "tinygltf/json.hpp"
-#ifdef __clang__
+#if defined(__clang__)
 	#pragma clang diagnostic pop
 #endif
 #pragma warning(pop)
@@ -22,10 +22,14 @@ namespace
 constexpr const wchar_t* kpwcGaeaDefaultPath = L"C:\\Program Files\\QuadSpinner\\Gaea 2\\Gaea.Swarm.exe";
 constexpr const char* kpcGaeaEnvVar = "GAEA2_PATH";
 
-// Per-mip intermediates produced by each Gaea invocation. Elevation.r32 is headerless IEEE-754
-// float (Gaea's FloatRaw32 format), absolute meters with 0 at ocean bottom — DataPacker offsets
-// by common::kfOceanDepthMeters at ingest. AmbientOcclusion.r16 stays UshortRaw16 (precision-
-// matched to BC4_UNORM). Color/Normals stay multi-channel EXR.
+// Single intermediates folder per island (folder name kpcIslandIntermediatesDir, see
+// ExportIsland.h). One Gaea bake produces all four files at texturePixels resolution; the
+// elevation is then downsampled in-process to texturePixels / kiElevationDivisor and rewritten
+// in place. Elevation.r32 is headerless IEEE-754 float (Gaea's FloatRaw32 format), normalized
+// [0,1] at bake time — DataPacker reads the Sea node's ShoreHeight from the .terrain archetype,
+// then converts to engine-meters as ((1 - pixel) - ShoreHeight) * elevationMeters so beach = 0
+// and the sea floor sits at -(ShoreHeight × elevationMeters). AmbientOcclusion.r16 stays
+// UshortRaw16 (precision-matched to BC4_UNORM). Color/Normals stay multi-channel EXR.
 constexpr const char* kpcIntermediateFiles[] =
 {
 	"AmbientOcclusion.r16",
@@ -34,9 +38,15 @@ constexpr const char* kpcIntermediateFiles[] =
 	"Normals.exr",
 };
 
-// Default mip chain when Island.json omits a "mips" array. Powers of two terminating at the
-// BC4/BC5/BC7 alignment floor (each level must remain a multiple of 4).
-const std::vector<int32_t> kDefaultMips = {8192, 4096, 2048, 1024};
+// Bake formula/algorithm version. Bump whenever BakeOne's elevation transform, downsample, or
+// any other code-only behavior of the bake changes (i.e., anything not captured by Island.json
+// or archetype mtimes). IsBakeDirty reads `Intermediates/BakeVersion.txt` and forces a re-bake
+// if the recorded version doesn't match; the bake writes the current version on success.
+// History:
+//   2 - Un-invert Gaea FloatRaw32+Mask pixels via (1 - pixel) before applying ShoreHeight offset.
+//   1 - Initial scale+offset+downsample (legacy; never written to disk, treated as "missing").
+constexpr int32_t kiBakeVersion = 2;
+constexpr const char* kpcBakeVersionFile = "BakeVersion.txt";
 
 std::filesystem::path ResolveGaeaExecutable()
 {
@@ -67,114 +77,70 @@ std::filesystem::path ResolveTerrain(const std::filesystem::path& rIslandFolder,
 	// Named archetype: two-tier lookup — any input dir's shared Islands/ folder, then sibling in
 	// the island folder. Iterates all input directories so archetypes can live anywhere on the
 	// search path.
-	if (rIslandJson.contains("archetype") && rIslandJson["archetype"].is_string())
+	std::string archetype = rIslandJson.at("archetype").get<std::string>();
+
+	for (const std::filesystem::path& rInputDirectory : gpFileManager->mpInputDirectories)
 	{
-		std::string archetype = rIslandJson["archetype"].get<std::string>();
-
-		for (const std::filesystem::path& rInputDirectory : gpFileManager->mpInputDirectories)
+		std::filesystem::path sharedPath = rInputDirectory / "Islands" / (archetype + ".terrain");
+		if (std::filesystem::exists(sharedPath))
 		{
-			std::filesystem::path sharedPath = rInputDirectory / "Islands" / (archetype + ".terrain");
-			if (std::filesystem::exists(sharedPath))
-			{
-				return sharedPath;
-			}
-		}
-
-		std::filesystem::path siblingPath = rIslandFolder / (archetype + ".terrain");
-		if (std::filesystem::exists(siblingPath))
-		{
-			return siblingPath;
-		}
-
-		throw std::runtime_error(std::format("Archetype '{}' not found in any input directory's Islands/ folder or as a sibling of \"{}\".", archetype, rIslandFolder.string()));
-	}
-
-	// No archetype key: auto-discover a single sibling .terrain file in the island folder.
-	std::vector<std::filesystem::path> matches;
-	for (const std::filesystem::directory_entry& rEntry : std::filesystem::directory_iterator(rIslandFolder))
-	{
-		if (rEntry.is_regular_file() && rEntry.path().extension() == ".terrain")
-		{
-			matches.push_back(rEntry.path());
+			return sharedPath;
 		}
 	}
 
-	if (matches.empty())
+	std::filesystem::path siblingPath = rIslandFolder / (archetype + ".terrain");
+	if (std::filesystem::exists(siblingPath))
 	{
-		throw std::runtime_error(std::format("No .terrain file found in \"{}\". Add one to this folder or set an \"archetype\" key in Island.json pointing at a shared archetype in Islands/.", rIslandFolder.string()));
-	}
-	if (matches.size() > 1)
-	{
-		std::string list;
-		for (const std::filesystem::path& rPath : matches)
-		{
-			list += std::format("\n  {}", rPath.filename().string());
-		}
-		throw std::runtime_error(std::format("Multiple .terrain files found in \"{}\":{}\nSet an \"archetype\" key in Island.json to choose one, or leave only one .terrain in the folder.", rIslandFolder.string(), list));
+		return siblingPath;
 	}
 
-	return matches.front();
+	throw std::runtime_error(std::format("Archetype '{}' not found in any input directory's Islands/ folder or as a sibling of \"{}\".", archetype, rIslandFolder.string()));
 }
 
-// Elevation is only baked from `iElevationStart` onward (mips[0..start) carry color/AO/normals
-// only — see kiElevationDivisor). Existence + timestamp checks must skip Elevation.r32 below that
-// index, otherwise the dirty check would forever re-trigger.
-bool IsBakeDirty(const std::filesystem::path& rIslandFolder, const std::filesystem::path& rIslandJsonFile, const std::filesystem::path& rArchetypeFile, const std::vector<int32_t>& rMips, size_t iElevationStart)
+bool IsBakeDirty(const std::filesystem::path& rIslandFolder, const std::filesystem::path& rIslandJsonFile, const std::filesystem::path& rArchetypeFile)
 {
-	for (size_t i = 0; i < rMips.size(); ++i)
+	std::filesystem::path intermediatesDir = rIslandFolder / kpcIslandIntermediatesDir;
+	for (const char* pcFile : kpcIntermediateFiles)
 	{
-		std::filesystem::path mipDir = rIslandFolder / std::format("mip{}", i);
-		for (const char* pcFile : kpcIntermediateFiles)
+		if (!std::filesystem::exists(intermediatesDir / pcFile))
 		{
-			if (i < iElevationStart && std::string_view(pcFile) == "Elevation.r32")
-			{
-				continue;
-			}
-			if (!std::filesystem::exists(mipDir / pcFile))
-			{
-				return true;
-			}
+			return true;
 		}
+	}
+
+	// Bake-version sentinel: catches code-only changes to the bake formula (e.g., the Gaea
+	// pixel-inversion fix) that don't bump Island.json/archetype mtimes. Missing file or
+	// version mismatch forces a re-bake.
+	std::filesystem::path versionFile = intermediatesDir / kpcBakeVersionFile;
+	if (!std::filesystem::exists(versionFile))
+	{
+		return true;
+	}
+	int32_t iFileVersion = 0;
+	{
+		std::ifstream versionStream(versionFile);
+		versionStream >> iFileVersion;
+	}
+	if (iFileVersion != kiBakeVersion)
+	{
+		return true;
 	}
 
 	std::filesystem::file_time_type inputNewest = std::max(std::filesystem::last_write_time(rIslandJsonFile), std::filesystem::last_write_time(rArchetypeFile));
-	for (size_t i = 0; i < rMips.size(); ++i)
+	for (const char* pcFile : kpcIntermediateFiles)
 	{
-		std::filesystem::path mipDir = rIslandFolder / std::format("mip{}", i);
-		for (const char* pcFile : kpcIntermediateFiles)
+		if (std::filesystem::last_write_time(intermediatesDir / pcFile) < inputNewest)
 		{
-			if (i < iElevationStart && std::string_view(pcFile) == "Elevation.r32")
-			{
-				continue;
-			}
-			if (std::filesystem::last_write_time(mipDir / pcFile) < inputNewest)
-			{
-				return true;
-			}
+			return true;
 		}
 	}
 
 	return false;
 }
 
-WorldDimensions ReadTerrainDimensions(const std::filesystem::path& rTerrainFile)
-{
-	std::ifstream terrainStream(rTerrainFile);
-	nlohmann::json terrainJson = nlohmann::json::parse(terrainStream);
-	terrainStream.close();
-
-	// Layout: Assets["$values"][0].Terrain.{Width, Height}. Verified against Island-1x1.terrain.
-	const nlohmann::json& rTerrain = terrainJson.at("Assets").at("$values").at(0).at("Terrain");
-	return WorldDimensions
-	{
-		.fFootprintMeters = rTerrain.at("Width").get<float>(),
-		.fElevationMeters = rTerrain.at("Height").get<float>(),
-	};
-}
-
 // Serializes patch+bake+restore against the shared archetype .terrain. Bakes are sequential today,
 // so this is defense-in-depth — but a partially-patched archetype visible to a concurrent reader
-// would silently produce wrong-sized heightmaps.
+// would silently produce wrong-sized heightmaps or wrong-seed terrain.
 std::mutex gArchetypeMutex;
 
 std::string ReadFileBytes(const std::filesystem::path& rFile)
@@ -197,17 +163,79 @@ void WriteFileBytes(const std::filesystem::path& rFile, const std::string& rByte
 	std::filesystem::rename(tempFile, rFile);
 }
 
-void PatchTerrainDimensions(const std::filesystem::path& rTerrainFile, const WorldDimensions& rDimensions)
+// Recursive walker: every object whose key is exactly "Seed" with a numeric value is overwritten
+// with iSeed. Gaea's `--seed` CLI flag only mixes a global seed into per-node randomness; it
+// doesn't override the per-node "Seed" fields baked into the .terrain JSON. Patching them
+// directly is the only way to make Island.json's seed value fully determine the bake.
+void PatchArchetypeSeeds(nlohmann::json& rJson, int32_t iSeed)
+{
+	if (rJson.is_object())
+	{
+		for (auto& [rKey, rValue] : rJson.items())
+		{
+			if (rKey == "Seed" && rValue.is_number())
+			{
+				rValue = iSeed;
+			}
+			else
+			{
+				PatchArchetypeSeeds(rValue, iSeed);
+			}
+		}
+	}
+	else if (rJson.is_array())
+	{
+		for (nlohmann::json& rChild : rJson)
+		{
+			PatchArchetypeSeeds(rChild, iSeed);
+		}
+	}
+}
+
+// Walks Terrain.Nodes for the Sea node and returns its normalized ShoreHeight (the beach line in
+// Gaea's [0,1] elevation space). DataPacker uses this to position the engine-meters zero point at
+// the beach line per-island: `pixel_meters = (pixel_normalized - shoreHeight) * elevationMeters`.
+// Nodes is a dict keyed by node ID, so we scan values for the one whose $type starts with the
+// Gaea Sea node prefix.
+float ReadShoreHeight(const nlohmann::json& rTerrainJson)
+{
+	const nlohmann::json& rNodes = rTerrainJson.at("Assets").at("$values").at(0).at("Terrain").at("Nodes");
+	for (const auto& [rKey, rNode] : rNodes.items())
+	{
+		if (!rNode.is_object() || !rNode.contains("$type"))
+		{
+			continue;
+		}
+		std::string type = rNode.at("$type").get<std::string>();
+		if (type.starts_with("QuadSpinner.Gaea.Nodes.Sea"))
+		{
+			return rNode.at("ShoreHeight").get<float>();
+		}
+	}
+	throw std::runtime_error("Archetype has no Sea node — DataPacker derives the beach line from its ShoreHeight to position the engine-meters zero. Add a Sea node to the graph or extend BakeIslandIntermediates to handle sea-less archetypes.");
+}
+
+// Patches the archetype in place (Width/Height + every per-node Seed) and returns the Sea node's
+// ShoreHeight in one parse so the caller can use it for the elevation offset without re-reading
+// the file.
+float PatchArchetype(const std::filesystem::path& rTerrainFile, const WorldDimensions& rDimensions, int32_t iSeed)
 {
 	std::ifstream readStream(rTerrainFile);
 	nlohmann::json terrainJson = nlohmann::json::parse(readStream);
 	readStream.close();
 
+	// Layout: Assets["$values"][0].Terrain.{Width, Height}. Verified against Island-1x1.terrain.
 	nlohmann::json& rTerrain = terrainJson.at("Assets").at("$values").at(0).at("Terrain");
 	rTerrain.at("Width") = rDimensions.fFootprintMeters;
 	rTerrain.at("Height") = rDimensions.fElevationMeters;
 
+	PatchArchetypeSeeds(terrainJson, iSeed);
+
+	float fShoreHeight = ReadShoreHeight(terrainJson);
+
 	WriteFileBytes(rTerrainFile, terrainJson.dump(2));
+
+	return fShoreHeight;
 }
 
 void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem::path& rIslandFolder)
@@ -223,73 +251,63 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 		throw std::runtime_error(std::format("\"{}\" must be a JSON object", islandJsonFile.string()));
 	}
 
-	int32_t iSeed = islandJson.value("seed", 0);
-	std::vector<int32_t> mips = islandJson.value("mips", kDefaultMips);
+	// Single source of truth for required Island.json keys. Drives both the strict-presence check
+	// and the varsJson strip pass below (which forwards remaining keys to Gaea as graph variables).
+	// Adding a new DataPacker-owned key means appending here only.
+	constexpr const char* kpcRequiredIslandJsonKeys[] = {"archetype", "seed", "widthMeters", "elevationMeters", "texturePixels"};
 
-	for (int32_t iResolution : mips)
+	// All schema fields are strictly required. Catches stale configs (e.g., legacy "mips" key)
+	// and avoids silent implicit-zero seeds or unscaled archetype dimensions.
+	for (const char* pcRequired : kpcRequiredIslandJsonKeys)
 	{
-		if (iResolution < 4 || (iResolution % 4) != 0)
+		if (!islandJson.contains(pcRequired))
 		{
-			throw std::runtime_error(std::format("\"{}\" mips entry {} is invalid: each level must be >= 4 and a multiple of 4 for BC alignment.", islandJsonFile.string(), iResolution));
+			throw std::runtime_error(std::format("\"{}\" is missing required key \"{}\". Schema is: archetype (string), seed (int), widthMeters (float), elevationMeters (float), texturePixels (int).", islandJsonFile.string(), pcRequired));
 		}
 	}
 
-	// Mip chain must strictly halve so ExportIsland's Texture::Export (which computes per-mip
-	// dimensions by halving from mip 0) stays consistent with the actual authored sizes.
-	for (size_t i = 1; i < mips.size(); ++i)
+	if (islandJson.contains("mips"))
 	{
-		if (mips.at(i) != mips.at(i - 1) / 2)
-		{
-			throw std::runtime_error(std::format("\"{}\" mips array must strictly halve: mip{} is {} but mip{} is {} (expected {}).", islandJsonFile.string(), i, mips.at(i), i - 1, mips.at(i - 1), mips.at(i - 1) / 2));
-		}
+		throw std::runtime_error(std::format("\"{}\" has legacy \"mips\" key. Islands no longer use mip chains: remove \"mips\" and use \"texturePixels\" instead (single resolution; elevation auto-downsamples to texturePixels / {}).", islandJsonFile.string(), kiElevationDivisor));
 	}
 
-	size_t iElevationStart = IslandElevationStartIndex(mips);
-	if (iElevationStart >= mips.size())
+	int32_t iSeed = islandJson.at("seed").get<int32_t>();
+	int64_t iTexturePixels = islandJson.at("texturePixels").get<int64_t>();
+	WorldDimensions dimensions
 	{
-		throw std::runtime_error(std::format("\"{}\" mips array has no level <= mips[0] / {} ({}): elevation needs at least one mip at the reduced resolution.", islandJsonFile.string(), kiElevationDivisor, mips.at(0) / static_cast<int32_t>(kiElevationDivisor)));
+		.fFootprintMeters = islandJson.at("widthMeters").get<float>(),
+		.fElevationMeters = islandJson.at("elevationMeters").get<float>(),
+	};
+
+	// texturePixels drives BOTH the bake (full res) and the elevation downsample (texturePixels /
+	// kiElevationDivisor). Constraint ensures both dimensions remain multiples of 4 for BC4/5/7
+	// block alignment.
+	int64_t iAlignmentRequirement = 4 * kiElevationDivisor;
+	if (iTexturePixels < iAlignmentRequirement || (iTexturePixels % iAlignmentRequirement) != 0)
+	{
+		throw std::runtime_error(std::format("\"{}\" texturePixels {} is invalid: must be >= {} and a multiple of {} so that both texturePixels and texturePixels / {} are multiples of 4 for BC alignment.", islandJsonFile.string(), iTexturePixels, iAlignmentRequirement, iAlignmentRequirement, kiElevationDivisor));
 	}
+
+	int64_t iElevationResolution = iTexturePixels / kiElevationDivisor;
 
 	std::filesystem::path archetypeFile = ResolveTerrain(rIslandFolder, islandJson);
 
-	// Migrate caches baked before the elevation/color ratio existed: drop Elevation.r16 from mips
-	// below iElevationStart so IsBakeDirty / EnumerateMipDirs don't see stale full-resolution data.
-	for (size_t i = 0; i < iElevationStart && i < mips.size(); ++i)
-	{
-		std::filesystem::path staleElevation = rIslandFolder / std::format("mip{}", i) / "Elevation.r32";
-		if (std::filesystem::exists(staleElevation))
-		{
-			std::filesystem::remove(staleElevation);
-			LOG(kDefault, kDebug, "Removed stale elevation intermediate: \"{}\"", staleElevation.string());
-		}
-	}
-
-	// One-time migration: previous bakes emitted a `world.json` sidecar carrying width / height.
-	// ExportIsland now reads those from Island.json (or .terrain) directly; the sidecar is stale
-	// and confusing. Remove it whenever encountered.
-	std::filesystem::path staleWorldJson = rIslandFolder / "world.json";
-	if (std::filesystem::exists(staleWorldJson))
-	{
-		std::filesystem::remove(staleWorldJson);
-		LOG(kDefault, kDebug, "Removed stale world.json sidecar: \"{}\"", staleWorldJson.string());
-	}
-
-	if (!IsBakeDirty(rIslandFolder, islandJsonFile, archetypeFile, mips, iElevationStart))
+	if (!IsBakeDirty(rIslandFolder, islandJsonFile, archetypeFile))
 	{
 		return;
 	}
 
-	LOG(kDefault, kDebug, "Baking island intermediates: \"{}\" (archetype: \"{}\", seed: {}, mips: {})", rIslandFolder.string(), archetypeFile.string(), iSeed, mips.size());
+	LOG(kDefault, kDebug, "Baking island intermediates: \"{}\" (archetype: \"{}\", seed: {}, texturePixels: {})", rIslandFolder.string(), archetypeFile.string(), iSeed, iTexturePixels);
 
 	// Strip DataPacker-owned keys; remaining keys become Gaea variables. widthMeters /
-	// elevationMeters drive the archetype patch directly (Gaea's --vars can't reach
-	// Terrain.{Width,Height}), so stripping them keeps the vars JSON to true graph variables.
+	// elevationMeters / seed drive the archetype patch directly (Gaea's --vars can't reach
+	// Terrain.{Width,Height} or per-node Seed fields), so stripping them keeps the vars JSON to
+	// true graph variables. texturePixels drives Gaea's --resolution flag; not a graph variable.
 	nlohmann::json varsJson = islandJson;
-	varsJson.erase("archetype");
-	varsJson.erase("seed");
-	varsJson.erase("mips");
-	varsJson.erase("widthMeters");
-	varsJson.erase("elevationMeters");
+	for (const char* pcKey : kpcRequiredIslandJsonKeys)
+	{
+		varsJson.erase(pcKey);
+	}
 
 	// Gaea.Swarm.exe trips on `--vars` pointing to an empty JSON object ("{}") with an opaque
 	// "System.IO.IOException: The handle is invalid" during variable load. Only emit the vars
@@ -310,10 +328,10 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 		varsStream.close();
 	}
 
-	// Prune stale mip<N>/ folders from a prior bake with a longer chain — otherwise
-	// ExportIsland::EnumerateMipDirs walks past mips.size() and ingests a too-long chain
-	// with non-halving sizes.
-	for (size_t i = mips.size(); ; ++i)
+	// Prune legacy per-mip folders from earlier bake layouts (mip0/, mip1/, ...) so a fresh pull
+	// onto an old tree doesn't leave stale intermediates around. Also handles the case where a
+	// previous run was interrupted mid-bake.
+	for (int64_t i = 0; ; ++i)
 	{
 		std::filesystem::path staleMipDir = rIslandFolder / std::format("mip{}", i);
 		if (!std::filesystem::exists(staleMipDir))
@@ -324,109 +342,120 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 		LOG(kDefault, kDebug, "Removed stale mip directory: \"{}\"", staleMipDir.string());
 	}
 
-	// Gaea's --vars only injects values into named graph variable nodes; the archetype's intrinsic
-	// Terrain.{Width,Height} aren't overridable that way. Patch the .terrain JSON in place around
-	// the bake so Island.json widthMeters/elevationMeters actually drive the heightmap output. Lock
-	// covers concurrent bakes (sequential today; future-proof) and the ScopedLambda restores raw
-	// bytes + mtime so a successful bake is invisible to git and to IsBakeDirty.
+	// Patch the archetype's intrinsic Terrain.{Width,Height} AND every per-node "Seed" field
+	// in-place around the bake, then restore byte-and-mtime-identical state on scope exit. Lock
+	// covers concurrent bakes (sequential today; future-proof) and the ScopedLambda restore
+	// guarantees a successful or failed bake leaves the archetype invisible to git and to
+	// IsBakeDirty's mtime check.
 	std::lock_guard<std::mutex> archetypeLock(gArchetypeMutex);
 
-	std::optional<std::string> originalArchetypeBytes;
-	std::optional<std::filesystem::file_time_type> originalArchetypeModificationTime;
-	if (islandJson.contains("widthMeters") && islandJson.contains("elevationMeters"))
-	{
-		originalArchetypeBytes = ReadFileBytes(archetypeFile);
-		originalArchetypeModificationTime = std::filesystem::last_write_time(archetypeFile);
-		WorldDimensions overrideDimensions
-		{
-			.fFootprintMeters = islandJson.at("widthMeters").get<float>(),
-			.fElevationMeters = islandJson.at("elevationMeters").get<float>(),
-		};
-		PatchTerrainDimensions(archetypeFile, overrideDimensions);
-	}
+	std::string originalArchetypeBytes = ReadFileBytes(archetypeFile);
+	std::filesystem::file_time_type originalArchetypeModificationTime = std::filesystem::last_write_time(archetypeFile);
 	common::ScopedLambda restoreArchetype([&archetypeFile, &originalArchetypeBytes, &originalArchetypeModificationTime]()
 	{
-		if (originalArchetypeBytes)
-		{
-			WriteFileBytes(archetypeFile, *originalArchetypeBytes);
-			std::filesystem::last_write_time(archetypeFile, *originalArchetypeModificationTime);
-		}
+		WriteFileBytes(archetypeFile, originalArchetypeBytes);
+		std::filesystem::last_write_time(archetypeFile, originalArchetypeModificationTime);
 	});
 
-	// Read the archetype's current dimensions — post-patch if an override applied, otherwise the
-	// intrinsic Terrain.{Width,Height}. fElevationMeters drives the per-pixel scale below: Gaea's
-	// FloatRaw32 output is normalized [0,1] regardless of format, so we re-scale to absolute meters
-	// using the same Terrain.Height that Gaea sees this bake.
-	WorldDimensions effectiveDimensions = ReadTerrainDimensions(archetypeFile);
+	float fShoreHeight = PatchArchetype(archetypeFile, dimensions, iSeed);
+	float fBeachOffsetMeters = fShoreHeight * dimensions.fElevationMeters;
 
-	for (size_t i = 0; i < mips.size(); ++i)
+	std::filesystem::path intermediatesDir = rIslandFolder / kpcIslandIntermediatesDir;
+	std::filesystem::create_directories(intermediatesDir);
+
+	// Gaea.Swarm.exe requires a real console for stdin/stdout/stderr — invoke via the
+	// new-console helper rather than piped capture (the latter trips an IOException at
+	// Gaea startup). argv[0] is the executable's own path so cmdline starts with the
+	// quoted exe. --seed is dropped: per-node seeds were patched into the archetype above.
+	std::wstring commandLine;
+	commandLine += L"\"" + rGaeaExecutable.native() + L"\"";
+	commandLine += L" --silent";
+	commandLine += L" --Filename \"" + archetypeFile.native() + L"\"";
+	commandLine += L" --buildpath \"" + intermediatesDir.native() + L"\"";
+	commandLine += std::format(L" --resolution {}", iTexturePixels);
+	if (bHasVars)
 	{
-		std::filesystem::path mipDir = rIslandFolder / std::format("mip{}", i);
-		std::filesystem::create_directories(mipDir);
+		commandLine += L" --vars \"" + varsFile.native() + L"\"";
+	}
 
-		// Gaea.Swarm.exe requires a real console for stdin/stdout/stderr — invoke via the
-		// new-console helper rather than piped capture (the latter trips an IOException at
-		// Gaea startup). argv[0] is the executable's own path so cmdline starts with the
-		// quoted exe.
-		std::wstring commandLine;
-		commandLine += L"\"" + rGaeaExecutable.native() + L"\"";
-		commandLine += L" --silent";
-		commandLine += L" --Filename \"" + archetypeFile.native() + L"\"";
-		commandLine += L" --buildpath \"" + mipDir.native() + L"\"";
-		commandLine += std::format(L" --resolution {}", mips.at(i));
-		commandLine += std::format(L" --seed {}", iSeed);
-		if (bHasVars)
+	LOG(kDefault, kDebug, "Running: \"{}\" --silent --Filename \"{}\" --buildpath \"{}\" --resolution {}{}{}", rGaeaExecutable.string(), archetypeFile.string(), intermediatesDir.string(), iTexturePixels, bHasVars ? " --vars " : "", bHasVars ? varsFile.string() : "");
+
+	common::ExecutableResult result = common::RunExecutableInNewConsole(rGaeaExecutable, commandLine);
+
+	if (result.miExitCode != 0)
+	{
+		throw std::runtime_error(std::format("Gaea.Swarm.exe exited with code {} for \"{}\". Output isn't captured under the new-console invocation; re-run interactively to diagnose.", result.miExitCode, rIslandFolder.string()));
+	}
+
+	for (const char* pcFile : kpcIntermediateFiles)
+	{
+		if (!std::filesystem::exists(intermediatesDir / pcFile))
 		{
-			commandLine += L" --vars \"" + varsFile.native() + L"\"";
+			throw std::runtime_error(std::format("Gaea bake for \"{}\" did not produce \"{}\". Verify the archetype graph has an Export node named \"{}\" writing to Build Folder, and that the Elevation Export node uses the FloatRaw32 format and AmbientOcclusion uses UshortRaw16.", rIslandFolder.string(), pcFile, std::filesystem::path(pcFile).stem().string()));
 		}
+	}
 
-		LOG(kDefault, kDebug, "Running: \"{}\" --silent --Filename \"{}\" --buildpath \"{}\" --resolution {} --seed {}{}{}", rGaeaExecutable.string(), archetypeFile.string(), mipDir.string(), mips.at(i), iSeed, bHasVars ? " --vars " : "", bHasVars ? varsFile.string() : "");
-
-		common::ExecutableResult result = common::RunExecutableInNewConsole(rGaeaExecutable, commandLine);
-
-		if (result.miExitCode != 0)
-		{
-			throw std::runtime_error(std::format("Gaea.Swarm.exe exited with code {} for \"{}\" (mip{}). Output isn't captured under the new-console invocation; re-run interactively to diagnose.", result.miExitCode, rIslandFolder.string(), i));
-		}
-
-		for (const char* pcFile : kpcIntermediateFiles)
-		{
-			if (!std::filesystem::exists(mipDir / pcFile))
-			{
-				throw std::runtime_error(std::format("Gaea bake for \"{}\" mip{} did not produce \"{}\". Verify the archetype graph has an Export node named \"{}\" writing to Build Folder, and that the Elevation Export node uses the FloatRaw32 format and AmbientOcclusion uses UshortRaw16.", rIslandFolder.string(), i, pcFile, std::filesystem::path(pcFile).stem().string()));
-			}
-		}
-
-		// Drop Elevation.r32 at unused mips. Gaea still bakes it (archetype emits all four outputs
-		// per resolution); the only way to skip in Gaea proper is to gate the Elevation Export node
-		// in the archetype graph on a resolution variable. Disk savings now; CPU savings would
-		// need that archetype change.
-		if (i < iElevationStart)
-		{
-			std::filesystem::remove(mipDir / "Elevation.r32");
-			continue;
-		}
-
-		// Gaea's FloatRaw32 export is normalized [0,1] (the format choice gives float precision but
-		// not absolute meters). Scale by Terrain.Height to recover meters [0, Terrain.Height] with
-		// 0 at ocean bottom, then subtract kfOceanDepthMeters so on-disk bytes are engine-ready
-		// (beach = 0, ocean = negative). Single ingest point keeps the file the source of truth
-		// for both CPU heightmap reads and GPU texture passthrough. NaN/Inf scrubbed because
-		// R32_SFLOAT is unbounded (R16_UNORM previously guaranteed [0,1]) — any stray non-finite
-		// pixel would poison the elevation G-buffer and vertex displacement.
-		std::filesystem::path elevationFile = mipDir / "Elevation.r32";
-		std::vector<float> pixels(static_cast<size_t>(mips.at(i)) * static_cast<size_t>(mips.at(i)));
+	// Gaea's FloatRaw32 export with the Elevation node set to "Mask" render intent is normalized
+	// [0,1] but inverted vs. conventional heightmap orientation: high float == low elevation,
+	// low float == high elevation (verified by Elevation.jpg sidecar: white pixels at sea floor,
+	// black at peaks). Un-invert with (1 - pixel), then apply the per-island beach offset so the
+	// math reduces to ((1 - pixel) - ShoreHeight) × elevationMeters. On-disk bytes are
+	// engine-ready: beach = 0 (at Gaea-normalized 1 - ShoreHeight), ocean = negative (down to
+	// -fBeachOffsetMeters at Gaea-normalized 1.0), land = positive (up to (1 - ShoreHeight) ×
+	// elevationMeters at Gaea-normalized 0.0). ShoreHeight itself is read from the Sea node in
+	// conventional space (small value = near low end / sea level), so the un-invert only applies
+	// to the pixel data, not to ShoreHeight. NaN/Inf scrubbed because R32_SFLOAT is unbounded —
+	// any stray non-finite pixel would poison the elevation G-buffer and vertex displacement;
+	// non-finite maps to the island's sea floor.
+	// Then box-filter downsample 4x4 -> 1 to iElevationResolution (texturePixels / kiElevationDivisor)
+	// and rewrite Elevation.r32 in place: elevation is sampled by a vertex grid in Terrain.vert
+	// and doesn't need color-level resolution; this is the primary disk-size lever for islands.
+	std::filesystem::path elevationFile = intermediatesDir / "Elevation.r32";
+	std::vector<float> sourcePixels(static_cast<size_t>(iTexturePixels) * static_cast<size_t>(iTexturePixels));
+	int64_t iExpectedBytes = static_cast<int64_t>(sourcePixels.size() * sizeof(float));
+	int64_t iActualBytes = static_cast<int64_t>(std::filesystem::file_size(elevationFile));
+	if (iActualBytes != iExpectedBytes)
+	{
+		throw std::runtime_error(std::format("Gaea produced \"{}\" at {} bytes; expected {} bytes ({}x{} float32). Verify the archetype's Elevation Export node uses FloatRaw32 format and is unconstrained by an internal resolution override.", elevationFile.string(), iActualBytes, iExpectedBytes, iTexturePixels, iTexturePixels));
+	}
+	{
 		std::ifstream readStream(elevationFile, std::ios::binary);
-		readStream.read(reinterpret_cast<char*>(pixels.data()), pixels.size() * sizeof(float));
-		readStream.close();
-		for (float& rfPixel : pixels)
+		readStream.read(reinterpret_cast<char*>(sourcePixels.data()), iExpectedBytes);
+	}
+	for (float& rfPixel : sourcePixels)
+	{
+		rfPixel = std::isfinite(rfPixel) ? (1.0f - rfPixel) * dimensions.fElevationMeters - fBeachOffsetMeters : -fBeachOffsetMeters;
+	}
+
+	float fOneOverBoxSize = 1.0f / static_cast<float>(kiElevationDivisor * kiElevationDivisor);
+	std::vector<float> downsampledPixels(static_cast<size_t>(iElevationResolution) * static_cast<size_t>(iElevationResolution));
+	for (int64_t iOutY = 0; iOutY < iElevationResolution; ++iOutY)
+	{
+		for (int64_t iOutX = 0; iOutX < iElevationResolution; ++iOutX)
 		{
-			float fScaled = std::isfinite(rfPixel) ? rfPixel * effectiveDimensions.fElevationMeters - common::kfOceanDepthMeters : -common::kfOceanDepthMeters;
-			rfPixel = fScaled;
+			float fSum = 0.0f;
+			for (int64_t iDy = 0; iDy < kiElevationDivisor; ++iDy)
+			{
+				const float* pfRow = &sourcePixels.at(static_cast<size_t>((iOutY * kiElevationDivisor + iDy)) * static_cast<size_t>(iTexturePixels) + static_cast<size_t>(iOutX * kiElevationDivisor));
+				for (int64_t iDx = 0; iDx < kiElevationDivisor; ++iDx)
+				{
+					fSum += pfRow[iDx];
+				}
+			}
+			downsampledPixels.at(static_cast<size_t>(iOutY) * static_cast<size_t>(iElevationResolution) + static_cast<size_t>(iOutX)) = fSum * fOneOverBoxSize;
 		}
+	}
+
+	{
 		std::ofstream writeStream(elevationFile, std::ios::binary | std::ios::trunc);
-		writeStream.write(reinterpret_cast<const char*>(pixels.data()), pixels.size() * sizeof(float));
-		writeStream.close();
+		writeStream.write(reinterpret_cast<const char*>(downsampledPixels.data()), downsampledPixels.size() * sizeof(float));
+	}
+
+	// Stamp the bake-version sentinel last, after every intermediate is written. A crash mid-bake
+	// leaves the sentinel absent (or with the previous version), so IsBakeDirty will retry.
+	{
+		std::ofstream versionStream(intermediatesDir / kpcBakeVersionFile);
+		versionStream << kiBakeVersion;
 	}
 
 	LOG(kDefault, kDebug, "Gaea bake succeeded for \"{}\"", rIslandFolder.string());
@@ -441,19 +470,11 @@ WorldDimensions GetIslandDimensions(const std::filesystem::path& rIslandFolder)
 	nlohmann::json islandJson = nlohmann::json::parse(islandStream);
 	islandStream.close();
 
-	// Island.json override path: both keys present → return as-is, no .terrain read needed.
-	if (islandJson.contains("widthMeters") && islandJson.contains("elevationMeters"))
+	return WorldDimensions
 	{
-		return WorldDimensions
-		{
-			.fFootprintMeters = islandJson.at("widthMeters").get<float>(),
-			.fElevationMeters = islandJson.at("elevationMeters").get<float>(),
-		};
-	}
-
-	// Fall back to the archetype .terrain's intrinsic dimensions.
-	std::filesystem::path archetypeFile = ResolveTerrain(rIslandFolder, islandJson);
-	return ReadTerrainDimensions(archetypeFile);
+		.fFootprintMeters = islandJson.at("widthMeters").get<float>(),
+		.fElevationMeters = islandJson.at("elevationMeters").get<float>(),
+	};
 }
 
 void BakeIslandIntermediates()

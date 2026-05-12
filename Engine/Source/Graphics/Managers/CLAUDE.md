@@ -17,7 +17,7 @@ Singleton managers for the Vulkan renderer, each accessed via a `gp*` global. Cr
 - **SwapchainManager** - Swapchain, framebuffers, main render pass, async presentation worker
 - **CommandBufferManager** - Record-once primary buffers (Global/Main/ImGui), submission workers, cross-queue semaphore sync
 - **BufferManager** - GPU buffer lifecycle, auto-resize dynamic storage, per-frame skinning, hierarchical dispatch
-- **TextureManager / TextureUploadManager** - Texture lifecycle, samplers, bindless descriptors, render targets; uploads run on the dedicated transfer queue with a fixed-byte staging budget and graphics-queue ownership acquire
+- **TextureManager / TextureUploadManager** - Texture lifecycle, samplers, bindless descriptors, render targets; uploads run on the dedicated transfer queue with a fixed-byte staging budget and graphics-queue ownership acquire. Owns a permanent neutral programmatic placeholder bound at island slot 0 (format-matched uncompressed textures used as the fallback for every island mint and for evicted templates)
 - **PipelineManager** - SPIR-V load and pipeline creation. Fixed `kPipeline*` enum for engine-owned passes; CRC-keyed per-collection pipelines live in `DynamicPipelines` and register at collection init
 - **ParticleManager** - GPU particle compute
 - **TextManager** - Font rendering and layout

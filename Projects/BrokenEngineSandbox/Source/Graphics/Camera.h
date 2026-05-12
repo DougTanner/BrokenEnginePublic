@@ -12,9 +12,8 @@ class Camera : public engine::CameraBase
 {
 public:
 
-	// Origin-coord island center in world space. Pinned to (0, 0) by the kOriginCoord overrides
-	// in ComputeIslandOffset / ComputeIslandRotation (Frame.h) — centered offset + zero rotation.
-	// Held as a named anchor so any future change to the menu-island position auto-moves the camera.
+	// Origin-coord anchor used by main-menu camera math. Origin is sampled like any other cell,
+	// so this is just the (0, 0) cell center; the camera converges on the focused player anyway.
 	static constexpr XMVECTOR kVecMenuIslandCenter {0.0f, 0.0f, 0.0f, 1.0f};
 
 	// Main-menu camera target, as world-space XY offset from the menu island center.

@@ -8,10 +8,10 @@ namespace common
 
 inline constexpr int64_t kiAlignmentBytes = 16;
 
-// Offset between Gaea-meters (heightmap value 0 = ocean bottom) and engine-meters (beach = 0,
-// ocean bottom = -kfOceanDepthMeters). DataPacker subtracts this from each elevation pixel at
-// bake time so the engine reads engine-meters directly. Archetype authors set Terrain.Base = 0
-// and Terrain.Height = kfOceanDepthMeters + max-above-water-mountains.
+// Open-ocean floor elevation used by the engine for cells with no island placement. Island
+// heightmaps are NOT offset by this constant — DataPacker offsets them per-island by the
+// archetype's Sea node `ShoreHeight × elevationMeters`, so on-disk pixels are beach-relative
+// (0 = shoreline, negative = underwater, positive = land).
 inline constexpr float kfOceanDepthMeters = 500.0f;
 
 inline void AlignOutputStream(std::fstream& rFileStream)

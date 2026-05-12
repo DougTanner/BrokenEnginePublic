@@ -38,9 +38,8 @@ Counterpart: `Documents/Plans/Order.md` holds refactor/bugfix plans. See `Docume
 | 24 | [Engine/GrassRendering.txt](Engine/GrassRendering.txt) | Large | 4 | 3 | 2 | 3 | Instanced grass patches, vertex shader height, noise textures for dryness/height. New collection + shaders. |
 | 25 | [Engine/TreePlacementAndRendering.txt](Engine/TreePlacementAndRendering.txt) | Large | 4 | 3 | 2 | 3 | Tree/bush placement with LOD. New collection and instanced rendering. |
 | 26 | [Frame/Future_SharedBehaviorTraits.txt](Frame/Future_SharedBehaviorTraits.txt) | Large | 4 | 3 | 2 | 3 | Reusable SOA trait structs composed into collections via tuple_cat with shared logic functions. Revisit at 20-25 collections. |
-| 27 | [Graphics/IslandTemplateLRUEviction.md](Graphics/IslandTemplateLRUEviction.md) | Large | 4 | 3 | 3 | 4 | Phase 5 of 5 of per-frame multi-island system. Add `Texture::FreeGpuResources` + route re-upload through existing `ResetTextureChunkStates`+`RequestChunkLoad` path (no new `ReuploadFromCpu` method needed — `pData` already pool-resident). Eviction sweep lives in `RenderGlobal` post-fence-wait. Pin `kIslands01Crc`+`kIslands02Crc` so menu↔game stays instant. Depends on Phases 1+2+3. |
-| 28 | [Audio/ReplaceDirectXTKAudioWithMiniaudio.txt](Audio/ReplaceDirectXTKAudioWithMiniaudio.txt) | Large | 5 | 3 | 2 | 4 | Replace audio engine with miniaudio. Enables cross-platform (Linux/macOS/iOS/Android). |
-| 29 | [Frame/Future_CollectionVariants.txt](Frame/Future_CollectionVariants.txt) | Large | 4 | 2 | 2 | 4 | Optional sparse SOA extensions for subset-only fields. No evidence of need currently. |
+| 27 | [Audio/ReplaceDirectXTKAudioWithMiniaudio.txt](Audio/ReplaceDirectXTKAudioWithMiniaudio.txt) | Large | 5 | 3 | 2 | 4 | Replace audio engine with miniaudio. Enables cross-platform (Linux/macOS/iOS/Android). |
+| 28 | [Frame/Future_CollectionVariants.txt](Frame/Future_CollectionVariants.txt) | Large | 4 | 2 | 2 | 4 | Optional sparse SOA extensions for subset-only fields. No evidence of need currently. |
 
 ### Reference / Index Documents (not independently scheduled)
 
@@ -58,7 +57,7 @@ Counterpart: `Documents/Plans/Order.md` holds refactor/bugfix plans. See `Docume
 ### Cross-directory dependencies (plans in `Documents/Plans/`)
 
 - `Graphics/ocean-phase-{1,2,3,4,5,6,7}` touch `Water.frag`, which is also touched by the defensive-fix plan `Documents/Plans/Graphics/ShaderReview/02_Water.md`. Land `02_Water.md` first so ocean-phase diffs focus on new shading terms rather than rebasing onto defensive cleanups.
-- **Per-frame multi-island system (5 phases, chained):** Phases 1, 2 (Plans/), 3 (`IslandPerInstanceTextureSlot`), and 4 (`MultipleIslandsPerCell`) **LANDED**. Remaining (optional, see plan notes): `Graphics/IslandTemplateLRUEviction.md` (Phase 5).
+- **Per-frame multi-island system (5 phases, chained):** all 5 phases **LANDED**. Phase 5 (LRU eviction + dynamic subscription-driven loading + neutral slot-0 placeholder) landed in this session; see `Engine/Source/Frame/CLAUDE.md` for the current architecture description.
 
 ## File Groups
 

@@ -22,6 +22,14 @@ void ClientDataReceiver::ApplyReceivedStaticData()
 		engine::CoordFrames& rFrames = gpGame->mCoordFrames.try_emplace(rReceived.coord).first->second;
 		rFrames.staticData = std::move(rReceived.staticData);
 		rFrames.staticData.coord = rReceived.coord;
+
+		// Subscription-driven island texture loading. AcquireTextureSlot is idempotent; duplicate
+		// CRCs across placements short-circuit on the hot path. Slot mint + chunk-load request
+		// happens here so the data is in-flight before UpdateActiveIslands references the slot.
+		for (const engine::IslandPlacement& rPlacement : rFrames.staticData.islands)
+		{
+			engine::gpIslandTerrain->AcquireTextureSlot(rPlacement.islandCrc);
+		}
 	}
 }
 

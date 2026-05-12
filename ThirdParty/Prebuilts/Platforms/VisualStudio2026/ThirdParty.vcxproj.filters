@@ -117,5 +117,6 @@
     <ClCompile Include="..\..\..\zlib\zutil.c">
       <Filter>DataPacker\zlib</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\DataPacker\cmft.cpp" />
   </ItemGroup>
 </Project>

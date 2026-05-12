@@ -1,7 +1,0 @@
-{
-	"archetype": "Island-1x1",
-	"seed": 42,
-	"mips": [ 8192, 4096, 2048, 1024 ],
-	"elevationMeters": 4000.0,
-	"widthMeters": 1000.0
-}

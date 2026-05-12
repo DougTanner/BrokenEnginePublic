@@ -19,7 +19,7 @@ public:
 	void WriteGlobalDescriptorSets();
 	void UpdateTextureArrayDescriptors();
 
-	void RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags, Texture* pTexture = nullptr, Texture** ppTextures = nullptr, int64_t iCount = 0);
+	void RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags, Texture* pTexture = nullptr, Texture** ppTextures = nullptr, int64_t iCount = 0, int64_t iArrayIndex = -1);
 	void RegisterStandaloneSamplerBinding(Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags);
 	void UpdateDescriptorsForTexture(common::crc_t crc);
 	void RewriteSamplerDescriptors();
@@ -39,8 +39,12 @@ public:
 		int64_t iBinding = -1;
 		DescriptorFlags_t samplerFlags;
 		Texture* pTexture = nullptr;
-		// Owned copy of texture pointers for array bindings (islands, lighting blur)
+		// Owned copy of texture pointers for array bindings (water normals, island channels).
+		// iArrayIndex < 0: descriptor write covers the full array. iArrayIndex >= 0: write a single
+		// element at that index (used by per-island-slot bindings so out-of-order chunk-ready writes
+		// don't clobber other slots whose snapshots have stale placeholder pointers).
 		std::vector<Texture*> textures;
+		int64_t iArrayIndex = -1;
 	};
 
 	// Standalone sampler binding tracking for sampler recreation

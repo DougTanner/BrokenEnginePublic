@@ -801,7 +801,7 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	rFrame.interpolate.gameFlags.Set(gameFlags.meFlags);
 	InitFramePostRender(rFrame);
 
-	// Populate static data for origin coord (main menu: centered island)
+	// Populate static data for origin coord (used as the main-menu cell)
 	engine::FrameStaticData& rStaticData = rFrames.staticData;
 	rStaticData.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	rStaticData.coord = engine::kOriginCoord;

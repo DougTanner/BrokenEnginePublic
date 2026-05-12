@@ -94,6 +94,89 @@ TextureManager::TextureManager()
 		}
 	});
 
+	// Slot-0 island placeholders. Format-matched to the bindless arrays; values chosen so
+	// sampling slot 0 has no visible effect (sea-level elevation hidden by water rendering,
+	// mid-gray color, up-vector normals, full-bright AO).
+	mIslandPlaceholderElevation.Create(
+	{
+		.textureFlags = {},
+		.name = "IslandPlaceholderElevation",
+		.flags = 0,
+		.format = VK_FORMAT_R32_SFLOAT,
+		.extent = VkExtent3D {1, 1, 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	},
+	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
+	{
+		*static_cast<float*>(pData) = 0.0f;
+	});
+
+	mIslandPlaceholderColor.Create(
+	{
+		.textureFlags = {},
+		.name = "IslandPlaceholderColor",
+		.flags = 0,
+		.format = VK_FORMAT_R8G8B8A8_UNORM,
+		.extent = VkExtent3D {1, 1, 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	},
+	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
+	{
+		*static_cast<uint32_t*>(pData) = 0xFF808080u;
+	});
+
+	mIslandPlaceholderNormals.Create(
+	{
+		.textureFlags = {},
+		.name = "IslandPlaceholderNormals",
+		.flags = 0,
+		.format = VK_FORMAT_R8G8_UNORM,
+		.extent = VkExtent3D {1, 1, 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	},
+	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
+	{
+		*static_cast<uint16_t*>(pData) = 0x8080u;
+	});
+
+	mIslandPlaceholderAmbientOcclusion.Create(
+	{
+		.textureFlags = {},
+		.name = "IslandPlaceholderAmbientOcclusion",
+		.flags = 0,
+		.format = VK_FORMAT_R8_UNORM,
+		.extent = VkExtent3D {1, 1, 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	},
+	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
+	{
+		*static_cast<uint8_t*>(pData) = 0xFFu;
+	});
+
 	// Create deferred textures from ChunkHeader metadata for all texture chunks (real GPU resources allocated when data arrives)
 	for (auto& [rCrc, rLazyChunk] : gpFileManager->GetLazyChunkMap())
 	{
@@ -138,32 +221,15 @@ TextureManager::TextureManager()
 	mRenderTargetTextures.mNormalsTextures.resize(shaders::kiMaxIslands);
 	mRenderTargetTextures.mAmbientOcclusionTextures.resize(shaders::kiMaxIslands);
 
-	// Reset to initial priority textures (remove island CRCs appended by previous construction)
-	static const size_t kuiInitialPriorityTextureCount = smPriorityTextures.size();
-	smPriorityTextures.resize(kuiInitialPriorityTextureCount);
-
-	// Both islands' textures resident so menu<->game swaps are instant.
-	for (common::crc_t islandCrc : {data::kIslands01Crc, data::kIslands02Crc})
+	// Island textures load dynamically per ClientDataReceiver::ApplyReceivedStaticData. Slot 0 is
+	// a permanent neutral placeholder; higher slots alias slot 0 until AcquireTextureSlot binds a
+	// real Texture* and RestorationSweep adopts the loaded chunks.
+	for (int64_t i = 0; i < static_cast<int64_t>(shaders::kiMaxIslands); ++i)
 	{
-		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(islandCrc);
-		smPriorityTextures.push_back(rLazyChunk.header.islandHeader.elevationCrc);
-		smPriorityTextures.push_back(rLazyChunk.header.islandHeader.colorsCrc);
-		smPriorityTextures.push_back(rLazyChunk.header.islandHeader.normalsCrc);
-		smPriorityTextures.push_back(rLazyChunk.header.islandHeader.ambientOcclusionCrc);
-	}
-
-	// Deterministic slot bootstrap: 01 → slot 0, 02 → slot 1. Phase 3 handshake with IslandTerrain.
-	gpIslandTerrain->AcquireTextureSlot(data::kIslands01Crc);
-	gpIslandTerrain->AcquireTextureSlot(data::kIslands02Crc);
-
-	// Fill unused slots [2, kiMaxIslands) with the canonical (slot 0) pointers so the bindless
-	// terrain descriptor array never sees nulls. Later AcquireTextureSlot calls overwrite per slot.
-	for (int64_t i = 2; i < static_cast<int64_t>(shaders::kiMaxIslands); ++i)
-	{
-		mRenderTargetTextures.mElevationTextures[i] = mRenderTargetTextures.mElevationTextures[0];
-		mRenderTargetTextures.mColorTextures[i] = mRenderTargetTextures.mColorTextures[0];
-		mRenderTargetTextures.mNormalsTextures[i] = mRenderTargetTextures.mNormalsTextures[0];
-		mRenderTargetTextures.mAmbientOcclusionTextures[i] = mRenderTargetTextures.mAmbientOcclusionTextures[0];
+		mRenderTargetTextures.mElevationTextures[i] = &mIslandPlaceholderElevation;
+		mRenderTargetTextures.mColorTextures[i] = &mIslandPlaceholderColor;
+		mRenderTargetTextures.mNormalsTextures[i] = &mIslandPlaceholderNormals;
+		mRenderTargetTextures.mAmbientOcclusionTextures[i] = &mIslandPlaceholderAmbientOcclusion;
 	}
 
 	gpProfileManager->BootStop(kBootTimerTextureUpload);

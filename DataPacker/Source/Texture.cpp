@@ -47,6 +47,7 @@ static std::atomic<int> sActiveEncodeCount {0};
 
 #include "stb/stb_image.h"
 #include "stb/stb_image_resize2.h"
+#include "stb/stb_image_write.h"
 
 void Texture::StaticInit()
 {
@@ -518,6 +519,55 @@ void Texture::Export(std::vector<std::byte>& rData, VkFormat vkFormat, bool bVer
 	}
 
 	rData.insert(rData.end(), data.begin(), data.end());
+}
+
+void Texture::SaveJpegSidecar(const std::filesystem::path& rPath, int iQuality, bool bGrayscale, bool bAutoNormalize)
+{
+	ASSERT(!mData.empty());
+	const std::vector<float>& rPixels = mData.at(0);
+	int64_t iPixelCount = miWidth * miHeight;
+
+	// First pass (auto-normalize only): scan R for min/max so meters/HDR/etc. fit [0, 255].
+	float fMin = 0.0f;
+	float fRange = 255.0f;
+	if (bAutoNormalize)
+	{
+		fMin = std::numeric_limits<float>::infinity();
+		float fMax = -std::numeric_limits<float>::infinity();
+		const float* pfScan = rPixels.data();
+		for (int64_t i = 0; i < iPixelCount; ++i)
+		{
+			fMin = std::min(fMin, pfScan[0]);
+			fMax = std::max(fMax, pfScan[0]);
+			pfScan += 4;
+		}
+		fRange = (fMax > fMin) ? (fMax - fMin) : 1.0f;
+	}
+	float fScale = 255.0f / fRange;
+
+	std::vector<uint8_t> bytes(static_cast<size_t>(3 * miWidth * miHeight));
+	const float* pfSrc = rPixels.data();
+	uint8_t* puiDst = bytes.data();
+	for (int64_t i = 0; i < iPixelCount; ++i)
+	{
+		uint8_t uiR = static_cast<uint8_t>(std::clamp((pfSrc[0] - fMin) * fScale, 0.0f, 255.0f));
+		if (bGrayscale)
+		{
+			puiDst[0] = uiR;
+			puiDst[1] = uiR;
+			puiDst[2] = uiR;
+		}
+		else
+		{
+			puiDst[0] = uiR;
+			puiDst[1] = static_cast<uint8_t>(std::clamp(pfSrc[1], 0.0f, 255.0f));
+			puiDst[2] = static_cast<uint8_t>(std::clamp(pfSrc[2], 0.0f, 255.0f));
+		}
+		pfSrc += 4;
+		puiDst += 3;
+	}
+	int iResult = stbi_write_jpg(rPath.string().c_str(), static_cast<int>(miWidth), static_cast<int>(miHeight), 3, bytes.data(), iQuality);
+	ASSERT(iResult != 0);
 }
 
 void Texture::Save(const std::filesystem::path& rPath, VkFormat vkFormat, bool bVerifyNoAlpha)

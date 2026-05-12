@@ -111,6 +111,15 @@ public:
 	Texture mWhiteTexture;
 	Texture mWhiteCubeTexture;
 
+	// Slot-0 island bindless-array anchor. Programmatic 1x1 textures with neutral per-channel
+	// values: sea-level elevation, mid-gray color, up-vector normals, no-AO. Never adopted by a
+	// real island (miNextTextureSlot starts at 1); higher slots alias these until their real
+	// chunks reach kReady via RestorationSweep.
+	Texture mIslandPlaceholderElevation;
+	Texture mIslandPlaceholderColor;
+	Texture mIslandPlaceholderNormals;
+	Texture mIslandPlaceholderAmbientOcclusion;
+
 	std::unordered_map<common::crc_t, Texture> mTextureMap;
 
 	// Pre-blur lighting textures

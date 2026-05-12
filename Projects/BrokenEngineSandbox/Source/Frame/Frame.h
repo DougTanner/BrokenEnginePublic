@@ -184,13 +184,8 @@ struct Frame
 
 	static const int64_t kiVersion;
 
-	static constexpr int64_t kiIslandCount = 2;
-
-	static constexpr float kfCellWidth = 300.0f;
-	static constexpr float kfCellHeight = 300.0f;
-	static constexpr float kfIslandWidth = 200.0f;
-	static constexpr float kfMaxIslandOffsetX = kfCellWidth - kfIslandWidth;
-	static constexpr float kfMaxIslandOffsetY = kfCellHeight - kfIslandWidth;
+	static constexpr float kfCellWidth = 600.0f;
+	static constexpr float kfCellHeight = 600.0f;
 
 	static constexpr float kfBaseAreaMinX = -kfCellWidth / 2.0f;
 	static constexpr float kfBaseAreaMaxY = kfCellHeight / 2.0f;
@@ -219,52 +214,6 @@ std::istream& operator>>(std::istream& rStream, Frame& rCurrent);
 inline constexpr uint32_t SeedFromGridCoord(engine::GridCoord coord, uint64_t uiMultiplier)
 {
 	return static_cast<uint32_t>((coord.ToKey() * uiMultiplier) >> 32);
-}
-
-// Deterministic island offset (top-left of UNROTATED island bounding box, relative to cell top-left)
-// such that the ROTATED axis-aligned bounding box still fits inside the cell. Offset is sampled
-// uniformly within the rotation-shrunk valid range; range collapses to a point if the rotated
-// bbox equals the cell, which is a design boundary (200x200 island in 300x300 cell rotated to 45
-// degrees has bbox 283x283, leaving ~17px play in each axis).
-// kOriginCoord is forced cell-centered so the main-menu island center pins to world origin
-// (paired with ComputeIslandRotation's kOriginCoord = 0). Camera.h relies on this anchor.
-inline XMFLOAT2 ComputeIslandOffset(engine::GridCoord coord, float fAngle)
-{
-	if (coord == engine::kOriginCoord)
-	{
-		return {0.5f * (Frame::kfCellWidth - Frame::kfIslandWidth), 0.5f * (Frame::kfCellHeight - Frame::kfIslandWidth)};
-	}
-
-	float fAbsCos = std::abs(std::cos(fAngle));
-	float fAbsSin = std::abs(std::sin(fAngle));
-	float fRotHalfW = 0.5f * (Frame::kfIslandWidth * fAbsCos + Frame::kfIslandWidth * fAbsSin);
-	float fRotHalfH = 0.5f * (Frame::kfIslandWidth * fAbsSin + Frame::kfIslandWidth * fAbsCos);
-
-	// Range for top-left of unrotated bbox so the rotated AABB stays inside the cell.
-	float fMinOffsetX = fRotHalfW - 0.5f * Frame::kfIslandWidth;
-	float fMaxOffsetX = Frame::kfCellWidth - 0.5f * Frame::kfIslandWidth - fRotHalfW;
-	float fMinOffsetY = fRotHalfH - 0.5f * Frame::kfIslandWidth;
-	float fMaxOffsetY = Frame::kfCellHeight - 0.5f * Frame::kfIslandWidth - fRotHalfH;
-	float fRangeX = std::max(0.0f, fMaxOffsetX - fMinOffsetX);
-	float fRangeY = std::max(0.0f, fMaxOffsetY - fMinOffsetY);
-
-	common::RandomEngine random(SeedFromGridCoord(coord, 0xBF58476D1CE4E5B9ull));
-	float fOffsetX = fMinOffsetX + common::Random(fRangeX, random);
-	float fOffsetY = fMinOffsetY + common::Random(fRangeY, random);
-	return {fOffsetX, fOffsetY};
-}
-
-// Deterministic island rotation [0, 2pi), computed from grid coordinate hash. Distinct multiplier from ComputeIslandOffset.
-// kOriginCoord is forced axis-aligned so the main-menu island has a fixed, recognizable layout — and so collision,
-// rendering, and navmesh all agree at (0,0) without each consumer needing its own override.
-inline float ComputeIslandRotation(engine::GridCoord coord)
-{
-	if (coord == engine::kOriginCoord)
-	{
-		return 0.0f;
-	}
-	common::RandomEngine random(SeedFromGridCoord(coord, 0x94D049BB133111EBull));
-	return common::Random(2.0f * DirectX::XM_PI, random);
 }
 
 } // namespace game

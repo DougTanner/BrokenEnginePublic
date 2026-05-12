@@ -53,20 +53,6 @@ void GenerateIslandPlacements(GridCoord coord, std::vector<IslandPlacement>& rOu
 	float fCellMaxX = fCellOriginX + game::Frame::kfCellWidth;
 	float fCellMinY = fCellOriginMaxY - game::Frame::kfCellHeight;
 
-	// kOriginCoord: preserve Phase 2 invariant — exactly one centered, axis-aligned kIslands01Crc placement.
-	if (coord == kOriginCoord)
-	{
-		// Match Phase 1/2 lineage: ComputeIslandRotation(origin) is 0, ComputeIslandOffset returns a
-		// cell-centered offset. Reuse those helpers so any seed-consumption side effects (none today
-		// for origin, but cheap insurance) stay identical.
-		float fRotation = game::ComputeIslandRotation(coord);
-		XMFLOAT2 f2Offset = game::ComputeIslandOffset(coord, fRotation);
-		float fCenterX = fCellOriginX + f2Offset.x + 0.5f * game::Frame::kfIslandWidth;
-		float fCenterY = fCellOriginMaxY - f2Offset.y - 0.5f * game::Frame::kfIslandWidth;
-		rOut.push_back({.islandCrc = data::kIslands01Crc, .f2WorldPos = {fCenterX, fCenterY}, .fRotation = fRotation});
-		return;
-	}
-
 	common::RandomEngine countRandom(game::SeedFromGridCoord(coord, kCountSeedMultiplier));
 	int32_t iCount = kMinIslandsPerCell + static_cast<int32_t>(common::Random(static_cast<uint32_t>(kMaxIslandsPerCell - kMinIslandsPerCell), countRandom));
 
@@ -78,7 +64,8 @@ void GenerateIslandPlacements(GridCoord coord, std::vector<IslandPlacement>& rOu
 
 	for (int32_t i = 0; i < iCount; ++i)
 	{
-		common::crc_t islandCrc = (common::Random(1u, crcRandom) == 1u) ? data::kIslands02Crc : data::kIslands01Crc;
+		// common::Random(N, ...) is inclusive on N — pass size-1 as the max index.
+		common::crc_t islandCrc = gpIslandTerrain->mIslandCrcsSorted.at(common::Random(static_cast<uint32_t>(gpIslandTerrain->mIslandCrcsSorted.size() - 1u), crcRandom));
 		const IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(islandCrc);
 		float fQuadW = rTemplate.mfQuadFootprint;
 		float fQuadH = rTemplate.mfQuadFootprint;
@@ -126,8 +113,12 @@ void GenerateIslandPlacements(GridCoord coord, std::vector<IslandPlacement>& rOu
 			placedAabbs.push_back(candidate);
 			bAccepted = true;
 		}
-		// On cap-hit, accept the fewer-island result rather than infinite-loop (per plan).
+		// On cap-hit, accept the fewer-island result rather than infinite-loop. The first placement
+		// is mathematically guaranteed to fit (empty placedAabbs + rotated bbox < cell width), so
+		// the assert below catches scale-knock-on bugs where the geometry contract is broken.
 	}
+
+	ASSERT(!rOut.empty());
 }
 
 } // namespace engine

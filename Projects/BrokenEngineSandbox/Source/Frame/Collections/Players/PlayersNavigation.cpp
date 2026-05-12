@@ -209,10 +209,14 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 
 	if (riNavDirection == 5)
 	{
-		// Following flagship via NavQuery pathfinding
-		// Consume randoms for determinism (mode 4 would consume these for destination generation)
-		common::Random<Frame::kfIslandWidth>(rFrame.postRender.randomEngine);
-		common::Random<Frame::kfIslandWidth>(rFrame.postRender.randomEngine);
+		// Following flagship via NavQuery pathfinding.
+		// Mirror mode 4's per-tick RNG consumption (same placement selection + two Random draws
+		// bounded by the chosen template's mfQuadFootprint) so flipping between modes 4 and 5 does
+		// not desync the random stream. See mode 4 below for the corresponding draws.
+		const engine::IslandPlacement& rRngPlacement = rStaticData.islands.at(static_cast<size_t>(i) % rStaticData.islands.size());
+		const engine::IslandTemplate& rRngTemplate = engine::gpIslandTerrain->mIslands.at(rRngPlacement.islandCrc);
+		common::Random(rRngTemplate.mfQuadFootprint, rFrame.postRender.randomEngine);
+		common::Random(rRngTemplate.mfQuadFootprint, rFrame.postRender.randomEngine);
 
 		XMVECTOR vecDebugWaypoint = XMVectorZero();
 		XMVECTOR vecNavDirection = XMVectorZero();
@@ -241,7 +245,8 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 		if (XMVectorGetW(rVecIslandDestination) == 0.0f)
 		{
 			// Pick a placement deterministically by player index; generate a random point inside
-			// its rotated AABB. RNG state advances by exactly 2 per Players/CLAUDE.md mode-5 invariant.
+			// its quad-footprint AABB. Consumes exactly 2 randoms — mode 5's per-tick mirror above
+			// matches this count so mode flips do not desync the shared random stream.
 			const engine::IslandPlacement& rPlacement = rStaticData.islands.at(static_cast<size_t>(i) % rStaticData.islands.size());
 			const engine::IslandTemplate& rTemplate = engine::gpIslandTerrain->mIslands.at(rPlacement.islandCrc);
 			float fIslandMinX = rPlacement.f2WorldPos.x - 0.5f * rTemplate.mfQuadFootprint;

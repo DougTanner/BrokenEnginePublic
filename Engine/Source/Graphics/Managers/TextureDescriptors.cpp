@@ -134,6 +134,37 @@ void TextureDescriptors::UpdateTextureArrayDescriptors()
 
 void TextureDescriptors::WriteArrayBindingDescriptors(const TextureBinding& rBinding, VkSampler vkSampler)
 {
+	// Single-element write (per-island-slot bindings): touch only iArrayIndex so other slots'
+	// descriptors are not clobbered by stale snapshot pointers.
+	if (rBinding.iArrayIndex >= 0)
+	{
+		Texture* pTexture = rBinding.textures.at(rBinding.iArrayIndex);
+		VkDescriptorImageInfo imageInfo
+		{
+			.sampler = vkSampler,
+			.imageView = pTexture != nullptr ? pTexture->mVkImageView : mrTextureManager.mWhiteTexture.mVkImageView,
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		};
+		for (VkDescriptorSet& rVkDescriptorSet : rBinding.pPipeline->mVkDescriptorSets)
+		{
+			VkWriteDescriptorSet vkWriteDescriptorSet
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.pNext = nullptr,
+				.dstSet = rVkDescriptorSet,
+				.dstBinding = static_cast<uint32_t>(rBinding.iBinding),
+				.dstArrayElement = static_cast<uint32_t>(rBinding.iArrayIndex),
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &imageInfo,
+				.pBufferInfo = nullptr,
+				.pTexelBufferView = nullptr,
+			};
+			vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
+		}
+		return;
+	}
+
 	int64_t iTextureCount = static_cast<int64_t>(rBinding.textures.size());
 	auto pImageInfos = common::gpThreadLocal->mWorkbuffer.PushBuffer<VkDescriptorImageInfo*>(iTextureCount * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
 	for (int64_t i = 0; i < iTextureCount; ++i)
@@ -162,14 +193,14 @@ void TextureDescriptors::WriteArrayBindingDescriptors(const TextureBinding& rBin
 	}
 }
 
-void TextureDescriptors::RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags, Texture* pTexture, Texture** ppTextures, int64_t iCount)
+void TextureDescriptors::RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags, Texture* pTexture, Texture** ppTextures, int64_t iCount, int64_t iArrayIndex)
 {
 	std::vector<Texture*> textures;
 	if (ppTextures != nullptr)
 	{
 		textures.assign(ppTextures, ppTextures + iCount);
 	}
-	mTextureBindings.try_emplace(crc).first->second.push_back({pPipeline, iBinding, samplerFlags, pTexture, std::move(textures)});
+	mTextureBindings.try_emplace(crc).first->second.push_back({pPipeline, iBinding, samplerFlags, pTexture, std::move(textures), iArrayIndex});
 }
 
 void TextureDescriptors::RegisterStandaloneSamplerBinding(Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags)

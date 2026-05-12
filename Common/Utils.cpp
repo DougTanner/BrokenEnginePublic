@@ -45,6 +45,7 @@ int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight)
 		case VK_FORMAT_R8_UNORM:
 			return iPixels;
 
+		case VK_FORMAT_R8G8_UNORM:
 		case VK_FORMAT_R16_UNORM:
 		case VK_FORMAT_R16_SFLOAT:
 			return 2 * iPixels;
