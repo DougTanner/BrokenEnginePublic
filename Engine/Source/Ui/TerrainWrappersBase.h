@@ -16,7 +16,6 @@ extern Wrapper gTerrainBeachNormalsSizeThree;
 extern Wrapper gTerrainBeachNormalsBlend;
 
 // Rock
-extern Wrapper gTerrainIslandHeight; // also rendered as "Misc Island Height" in Misc tab
 extern Wrapper gTerrainRockMultiplier;
 extern Wrapper gTerrainRockSize;
 extern Wrapper gTerrainRockBlend;

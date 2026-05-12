@@ -129,6 +129,7 @@ public:
 	LazyChunk& GetLazyChunk(common::crc_t crc);
 
 	void ResetTextureChunkStates();
+	void ResetTextureChunkStates(std::span<const common::crc_t> targetCrcs);
 
 	// Memory profiling
 	MemoryStats GetEagerStats() const;

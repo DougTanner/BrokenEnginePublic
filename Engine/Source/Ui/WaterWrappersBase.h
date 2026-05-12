@@ -69,7 +69,6 @@ extern Wrapper gWaterMediumAmplitudeAdjust;
 extern Wrapper gWaterMediumSpeedAdjust;
 
 // Depth
-extern Wrapper gWaterDepth;
 extern Wrapper gWaterTerrainHeight;
 extern Wrapper gWaterTerrainFade;
 extern Wrapper gWaterColorNoiseWeightOne;

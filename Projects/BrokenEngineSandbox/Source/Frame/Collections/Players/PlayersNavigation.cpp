@@ -212,7 +212,7 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 		// Following flagship via NavQuery pathfinding
 		// Consume randoms for determinism (mode 4 would consume these for destination generation)
 		common::Random<Frame::kfIslandWidth>(rFrame.postRender.randomEngine);
-		common::Random<Frame::kfIslandHeight>(rFrame.postRender.randomEngine);
+		common::Random<Frame::kfIslandWidth>(rFrame.postRender.randomEngine);
 
 		XMVECTOR vecDebugWaypoint = XMVectorZero();
 		XMVECTOR vecNavDirection = XMVectorZero();
@@ -244,11 +244,11 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 			// its rotated AABB. RNG state advances by exactly 2 per Players/CLAUDE.md mode-5 invariant.
 			const engine::IslandPlacement& rPlacement = rStaticData.islands.at(static_cast<size_t>(i) % rStaticData.islands.size());
 			const engine::IslandTemplate& rTemplate = engine::gpIslandTerrain->mIslands.at(rPlacement.islandCrc);
-			float fIslandMinX = rPlacement.f2WorldPos.x - 0.5f * rTemplate.mfQuadWidth;
-			float fIslandMinY = rPlacement.f2WorldPos.y - 0.5f * rTemplate.mfQuadHeight;
+			float fIslandMinX = rPlacement.f2WorldPos.x - 0.5f * rTemplate.mfQuadFootprint;
+			float fIslandMinY = rPlacement.f2WorldPos.y - 0.5f * rTemplate.mfQuadFootprint;
 
-			float fX = fIslandMinX + common::Random(rTemplate.mfQuadWidth, rFrame.postRender.randomEngine);
-			float fY = fIslandMinY + common::Random(rTemplate.mfQuadHeight, rFrame.postRender.randomEngine);
+			float fX = fIslandMinX + common::Random(rTemplate.mfQuadFootprint, rFrame.postRender.randomEngine);
+			float fY = fIslandMinY + common::Random(rTemplate.mfQuadFootprint, rFrame.postRender.randomEngine);
 			rVecIslandDestination = XMVectorSet(fX, fY, engine::gBaseHeight.Get(), 1.0f);
 
 			// Snap to navigable area if inside an obstacle

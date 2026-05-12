@@ -14,7 +14,7 @@ struct NavContour
 	std::vector<int32_t> visEdgeB;
 };
 
-inline constexpr int64_t kiNavDataVersion = 7;
+inline constexpr int64_t kiNavDataVersion = 8;
 
 // Per-cell navigation data in world space, stored in FrameStaticData
 struct NavData
@@ -28,7 +28,7 @@ struct NavData
 	void Read(std::istream& rStream);
 };
 
-void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapWidth, int32_t iHeightmapHeight, float fBeachElevation, float fWorldThreshold);
+void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapSize, float fWorldThreshold);
 void BuildCellNavData(NavData& rNavData, const std::vector<IslandPlacement>& rPlacements);
 
 } // namespace engine

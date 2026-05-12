@@ -13,6 +13,8 @@ Multi-pass deferred Vulkan renderer with lighting, shadows, GPU particles, and p
 - Camera snaps render visible-area to the terrain/water quad grid — never render off-grid
 - Terrain collision queries live in `/Frame/IslandTerrain` (shared); `Islands` here is client-only GPU rendering
 - Frame boundary sits between Main-submit and the next Acquire, not at loop top
+- `RenderGlobal` post-fence-wait is the descriptor-patch safety window: island LRU eviction runs immediately before `TextureManager::ProcessPendingTextures` and restoration runs immediately after, so descriptor rewrites happen while no frame-in-flight references the slots
+- `muiFrameCounter` increments unconditionally each frame (not gated by `VK_EXT_memory_budget` polling); the island LRU grace clock depends on monotonic advance on every device
 
 ## Destroy / Refresh Pipeline
 

@@ -2,8 +2,6 @@
 
 #include "Frame/IslandPlacement.h"
 #include "Frame/IslandTerrain.h"
-#include "Ui/TerrainWrappersBase.h"
-#include "Ui/WaterWrappersBase.h"
 
 namespace engine
 {
@@ -17,32 +15,20 @@ struct ContourEdge
 	XMFLOAT2 f2B {};
 };
 
-// Convert a normalized heightmap sample to world-space elevation
-float HeightmapToWorldElevation(float fNormalized, float fBeachElevation)
+// Marching squares: extract isocontour edges at the given world-space elevation threshold.
+// Heightmap pixels are engine-meters relative to beach (0 == sea level) — sampled directly.
+void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeightmapData, int32_t iSize, float fWorldThreshold)
 {
-	float fRelative = fNormalized - fBeachElevation;
-	if (fRelative >= 0.0f)
-	{
-		return gTerrainIslandHeight.Get() * fRelative;
-	}
-	return gWaterDepth.Get() * fRelative;
-}
+	float fScale = 1.0f / static_cast<float>(iSize - 1);
 
-// Marching squares: extract isocontour edges at the given world-space elevation threshold
-void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeightmapData, int32_t iWidth, int32_t iHeight, float fBeachElevation, float fWorldThreshold)
-{
-	float fWidthScale = 1.0f / static_cast<float>(iWidth - 1);
-	float fHeightScale = 1.0f / static_cast<float>(iHeight - 1);
-
-	for (int32_t iY = 0; iY < iHeight - 1; ++iY)
+	for (int32_t iY = 0; iY < iSize - 1; ++iY)
 	{
-		for (int32_t iX = 0; iX < iWidth - 1; ++iX)
+		for (int32_t iX = 0; iX < iSize - 1; ++iX)
 		{
-			// Corner values converted to world-space elevation
-			float fTL = HeightmapToWorldElevation(pfHeightmapData[iY * iWidth + iX], fBeachElevation);
-			float fTR = HeightmapToWorldElevation(pfHeightmapData[iY * iWidth + iX + 1], fBeachElevation);
-			float fBR = HeightmapToWorldElevation(pfHeightmapData[(iY + 1) * iWidth + iX + 1], fBeachElevation);
-			float fBL = HeightmapToWorldElevation(pfHeightmapData[(iY + 1) * iWidth + iX], fBeachElevation);
+			float fTL = pfHeightmapData[iY * iSize + iX];
+			float fTR = pfHeightmapData[iY * iSize + iX + 1];
+			float fBR = pfHeightmapData[(iY + 1) * iSize + iX + 1];
+			float fBL = pfHeightmapData[(iY + 1) * iSize + iX];
 
 			// Classification: 1 = above threshold (obstacle), 0 = below (navigable)
 			int32_t iCase = 0;
@@ -69,10 +55,10 @@ void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeight
 			}
 
 			// Interpolation helper: find the UV position where the contour crosses an edge
-			float fCellU = static_cast<float>(iX) * fWidthScale;
-			float fCellV = static_cast<float>(iY) * fHeightScale;
-			float fStepU = fWidthScale;
-			float fStepV = fHeightScale;
+			float fCellU = static_cast<float>(iX) * fScale;
+			float fCellV = static_cast<float>(iY) * fScale;
+			float fStepU = fScale;
+			float fStepV = fScale;
 
 			// Edge midpoints via linear interpolation
 			auto Lerp = [](float fA, float fB, float fThresholdValue) -> float
@@ -1055,14 +1041,14 @@ void BuildVisibilityGraph(NavContour& rContour)
 
 } // anonymous namespace
 
-void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapWidth, int32_t iHeightmapHeight, float fBeachElevation, float fWorldThreshold)
+void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapSize, float fWorldThreshold)
 {
-	LOG(kNavData, kDebug, "NavBuild: heightmap {}x{} beachElev={} worldThreshold={}", iHeightmapWidth, iHeightmapHeight, fBeachElevation, fWorldThreshold);
+	LOG(kNavData, kDebug, "NavBuild: heightmap {}x{} worldThreshold={}", iHeightmapSize, iHeightmapSize, fWorldThreshold);
 
 	// Step 1: Extract contour edges via marching squares
 	std::vector<ContourEdge> contourEdges;
-	contourEdges.reserve(static_cast<size_t>(iHeightmapWidth) * static_cast<size_t>(iHeightmapHeight));
-	ExtractContourEdges(contourEdges, pfHeightmapData, iHeightmapWidth, iHeightmapHeight, fBeachElevation, fWorldThreshold);
+	contourEdges.reserve(static_cast<size_t>(iHeightmapSize) * static_cast<size_t>(iHeightmapSize));
+	ExtractContourEdges(contourEdges, pfHeightmapData, iHeightmapSize, fWorldThreshold);
 
 	LOG(kNavData, kDebug, "NavBuild: extracted {} contour edges", contourEdges.size());
 
@@ -1154,8 +1140,7 @@ void BuildCellNavData(NavData& rNavData, const std::vector<IslandPlacement>& rPl
 
 		float fCos = std::cos(rPlacement.fRotation);
 		float fSin = std::sin(rPlacement.fRotation);
-		float fIslandWidth = rTemplate.mfQuadWidth;
-		float fIslandHeight = rTemplate.mfQuadHeight;
+		float fIslandFootprint = rTemplate.mfQuadFootprint;
 
 		// Local axes: +U = +world.x, +V = -world.y (V is world-Y inverted).
 		for (int32_t i = 0; i < iVertexCount; ++i)
@@ -1163,8 +1148,8 @@ void BuildCellNavData(NavData& rNavData, const std::vector<IslandPlacement>& rPl
 			float fU = rContour.vertices.at(i).x;
 			float fV = rContour.vertices.at(i).y;
 
-			float fLocalX = (fU - 0.5f) * fIslandWidth;
-			float fLocalY = (0.5f - fV) * fIslandHeight;
+			float fLocalX = (fU - 0.5f) * fIslandFootprint;
+			float fLocalY = (0.5f - fV) * fIslandFootprint;
 
 			float fRotX = fLocalX * fCos - fLocalY * fSin;
 			float fRotY = fLocalX * fSin + fLocalY * fCos;

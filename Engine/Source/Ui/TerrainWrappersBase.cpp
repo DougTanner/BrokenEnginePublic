@@ -14,7 +14,6 @@ Wrapper gTerrainBeachNormalsSizeThree(0.05f, 0.01f, 0.2f);
 Wrapper gTerrainBeachNormalsBlend(0.2f, 0.0f, 0.5f);
 
 // Rock
-Wrapper gTerrainIslandHeight(30.0f, 10.0f, 50.0f);
 Wrapper gTerrainRockMultiplier(3.0f, 1.0f, 20.0f);
 Wrapper gTerrainRockSize(0.15f, 0.01f, 0.4f);
 Wrapper gTerrainRockBlend(0.6f, 0.0f, 1.0f);

@@ -24,9 +24,9 @@ Texture chunks flagged zlib-compressed read into a dedicated decompress scratch 
 
 Single `VirtualAlloc` (`MEM_RESERVE | MEM_COMMIT`), sized by cumulative `RoundUp` over the full lazy chunk map. Per-chunk `pData` is assigned by walking the same map in the same order. **Any reset routine must iterate the entire map** (not a subset) to preserve the cumulative offset contract — hashmap iteration order *is* the layout. Compressed chunks contribute their **uncompressed** size to the cumulative offset; `LazyChunk.iDataSize` is the consumer-visible (post-decompression) byte count, not the on-disk size.
 
-### Device-Loss Recovery
+### Texture Chunk State Reset
 
-`ResetTextureChunkStates` clears GPU handles and transitions based on CPU residency: ready chunks drop to not-loaded (full reload); upload-in-flight chunks drop to disk-loaded (re-upload only).
+Resetting texture chunks clears GPU handles and transitions based on CPU residency: ready chunks drop to not-loaded (full reload); upload-in-flight chunks drop to disk-loaded (re-upload only). Two callers: a whole-pool variant for device-loss recovery, and a scoped variant taking a span of island CRCs for per-island LRU eviction. Both share the same per-chunk transition logic — keep them in sync if state machine changes.
 
 ### Versioned I/O
 

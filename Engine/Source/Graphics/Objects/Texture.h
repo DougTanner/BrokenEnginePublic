@@ -102,6 +102,7 @@ public:
 	void UpdateData(const std::function<void(void*, int64_t, int64_t)>& rDataFunction);
 	void ReCreate();
 	void Destroy() noexcept;
+	void FreeGpuResources() noexcept;
 
 	void TransitionImageLayout(VkCommandBuffer vkCommandBuffer, TextureLayout eOldLayout, TextureLayout eNewLayout);
 	void RecordBeginRenderPass(VkCommandBuffer vkCommandBuffer);

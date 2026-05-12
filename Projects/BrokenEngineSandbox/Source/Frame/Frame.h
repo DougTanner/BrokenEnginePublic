@@ -189,9 +189,8 @@ struct Frame
 	static constexpr float kfCellWidth = 300.0f;
 	static constexpr float kfCellHeight = 300.0f;
 	static constexpr float kfIslandWidth = 200.0f;
-	static constexpr float kfIslandHeight = 200.0f;
 	static constexpr float kfMaxIslandOffsetX = kfCellWidth - kfIslandWidth;
-	static constexpr float kfMaxIslandOffsetY = kfCellHeight - kfIslandHeight;
+	static constexpr float kfMaxIslandOffsetY = kfCellHeight - kfIslandWidth;
 
 	static constexpr float kfBaseAreaMinX = -kfCellWidth / 2.0f;
 	static constexpr float kfBaseAreaMaxY = kfCellHeight / 2.0f;
@@ -233,19 +232,19 @@ inline XMFLOAT2 ComputeIslandOffset(engine::GridCoord coord, float fAngle)
 {
 	if (coord == engine::kOriginCoord)
 	{
-		return {0.5f * (Frame::kfCellWidth - Frame::kfIslandWidth), 0.5f * (Frame::kfCellHeight - Frame::kfIslandHeight)};
+		return {0.5f * (Frame::kfCellWidth - Frame::kfIslandWidth), 0.5f * (Frame::kfCellHeight - Frame::kfIslandWidth)};
 	}
 
 	float fAbsCos = std::abs(std::cos(fAngle));
 	float fAbsSin = std::abs(std::sin(fAngle));
-	float fRotHalfW = 0.5f * (Frame::kfIslandWidth * fAbsCos + Frame::kfIslandHeight * fAbsSin);
-	float fRotHalfH = 0.5f * (Frame::kfIslandWidth * fAbsSin + Frame::kfIslandHeight * fAbsCos);
+	float fRotHalfW = 0.5f * (Frame::kfIslandWidth * fAbsCos + Frame::kfIslandWidth * fAbsSin);
+	float fRotHalfH = 0.5f * (Frame::kfIslandWidth * fAbsSin + Frame::kfIslandWidth * fAbsCos);
 
 	// Range for top-left of unrotated bbox so the rotated AABB stays inside the cell.
 	float fMinOffsetX = fRotHalfW - 0.5f * Frame::kfIslandWidth;
 	float fMaxOffsetX = Frame::kfCellWidth - 0.5f * Frame::kfIslandWidth - fRotHalfW;
-	float fMinOffsetY = fRotHalfH - 0.5f * Frame::kfIslandHeight;
-	float fMaxOffsetY = Frame::kfCellHeight - 0.5f * Frame::kfIslandHeight - fRotHalfH;
+	float fMinOffsetY = fRotHalfH - 0.5f * Frame::kfIslandWidth;
+	float fMaxOffsetY = Frame::kfCellHeight - 0.5f * Frame::kfIslandWidth - fRotHalfH;
 	float fRangeX = std::max(0.0f, fMaxOffsetX - fMinOffsetX);
 	float fRangeY = std::max(0.0f, fMaxOffsetY - fMinOffsetY);
 

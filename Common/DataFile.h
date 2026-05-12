@@ -8,6 +8,12 @@ namespace common
 
 inline constexpr int64_t kiAlignmentBytes = 16;
 
+// Offset between Gaea-meters (heightmap value 0 = ocean bottom) and engine-meters (beach = 0,
+// ocean bottom = -kfOceanDepthMeters). DataPacker subtracts this from each elevation pixel at
+// bake time so the engine reads engine-meters directly. Archetype authors set Terrain.Base = 0
+// and Terrain.Height = kfOceanDepthMeters + max-above-water-mountains.
+inline constexpr float kfOceanDepthMeters = 500.0f;
+
 inline void AlignOutputStream(std::fstream& rFileStream)
 {
 	static constexpr char kpcPadding[kiAlignmentBytes] {};
@@ -219,11 +225,9 @@ struct IslandHeader
 	common::crc_t colorsCrc = 0;
 	common::crc_t elevationCrc = 0;
 	common::crc_t normalsCrc = 0;
-	uint16_t uiBeachElevation = 0;
-	int32_t iHeightmapWidth = 0;
-	int32_t iHeightmapHeight = 0;
-	float fWorldWidthMeters = 0.0f;
-	float fWorldHeightMeters = 0.0f;
+	int32_t iHeightmapSize = 0;
+	float fWorldFootprintMeters = 0.0f;
+	float fWorldElevationMeters = 0.0f;
 };
 
 struct ModelHeader

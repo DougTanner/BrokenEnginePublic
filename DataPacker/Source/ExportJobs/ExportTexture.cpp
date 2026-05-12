@@ -355,6 +355,10 @@ void ExportTexture::Export()
 	{
 		vkFormat = VK_FORMAT_R16_UNORM;
 	}
+	else if (mInputPath.native().find(L".R32_SFLOAT") != std::wstring::npos)
+	{
+		vkFormat = VK_FORMAT_R32_SFLOAT;
+	}
 	else if (mInputPath.native().find(L"[BC4]") != std::wstring::npos || mInputPath.native().find(L".BC4_UNORM_BLOCK") != std::wstring::npos)
 	{
 		vkFormat = VK_FORMAT_BC4_UNORM_BLOCK;
@@ -372,7 +376,7 @@ void ExportTexture::Export()
 		vkFormat = VK_FORMAT_BC7_UNORM_BLOCK;
 	}
 
-	bool bRawTexture = mInputPath.native().find(L".R16_UNORM") != std::wstring::npos || mInputPath.native().find(L".BC4_UNORM_BLOCK") != std::wstring::npos || mInputPath.native().find(L".BC5_UNORM_BLOCK") != std::wstring::npos || mInputPath.native().find(L".BC7_UNORM_BLOCK") != std::wstring::npos || mInputPath.native().find(L".R16G16B16A16_SFLOAT") != std::wstring::npos;
+	bool bRawTexture = mInputPath.native().find(L".R16_UNORM") != std::wstring::npos || mInputPath.native().find(L".R32_SFLOAT") != std::wstring::npos || mInputPath.native().find(L".BC4_UNORM_BLOCK") != std::wstring::npos || mInputPath.native().find(L".BC5_UNORM_BLOCK") != std::wstring::npos || mInputPath.native().find(L".BC7_UNORM_BLOCK") != std::wstring::npos || mInputPath.native().find(L".R16G16B16A16_SFLOAT") != std::wstring::npos;
 
 	if (mInputPath.native().find(L".ktx") != std::wstring::npos)
 	{

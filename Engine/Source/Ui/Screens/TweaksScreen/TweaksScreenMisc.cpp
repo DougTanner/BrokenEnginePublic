@@ -17,8 +17,6 @@ const TweaksSliderMapRegistrar gMiscRegistrar
 	{"Test One", &gMiscTestOne},
 	{"Test Two", &gMiscTestTwo},
 	{"Debug Texture Range", &gMiscDebugTextureLinearRange},
-	// Misc - cross-tab: gTerrainIslandHeight lives in TerrainWrappersBase.cpp
-	{"Misc Island Height", &gTerrainIslandHeight},
 };
 }
 
@@ -32,7 +30,6 @@ void TweaksScreenBase::RenderMiscSection()
 	WrapperSlider("Debug Texture Range", kiSection);
 
 	WrapperSeparatorText("Misc");
-	WrapperSlider("Misc Island Height", kiSection);
 	WrapperSlider("Misc0", kiSection);
 }
 

@@ -449,6 +449,20 @@ void Texture::ToR16(std::byte* puiOut, const std::vector<float>& rIn, int64_t iW
 	}
 }
 
+// R32_SFLOAT carries raw float meters (elevation), not RGB color. The kFloat32 / kUint16Raw
+// constructors store source values scaled by 255 in the R channel; divide back here so the
+// emitted bytes are the original meters (e.g., 50.0m source → 12750.0 internal → 50.0 emitted).
+void Texture::ToR32Sfloat(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight)
+{
+	for (int64_t j = 0; j < iHeight; ++j)
+	{
+		for (int64_t i = 0; i < iWidth; ++i)
+		{
+			reinterpret_cast<float*>(puiOut)[j * iWidth + i] = rIn.at(4 * (j * iWidth + i)) / 255.0f;
+		}
+	}
+}
+
 void Texture::Export(std::vector<std::byte>& rData, VkFormat vkFormat, bool bVerifyNoAlpha)
 {
 	int64_t iMipWidth = miWidth;
@@ -487,6 +501,10 @@ void Texture::Export(std::vector<std::byte>& rData, VkFormat vkFormat, bool bVer
 
 			case VK_FORMAT_R16_UNORM:
 				ToR16(puiCurrentPosition, rMipLevel, iMipWidth, iMipHeight);
+				break;
+
+			case VK_FORMAT_R32_SFLOAT:
+				ToR32Sfloat(puiCurrentPosition, rMipLevel, iMipWidth, iMipHeight);
 				break;
 
 			default:

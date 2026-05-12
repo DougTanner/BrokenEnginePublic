@@ -11,7 +11,7 @@ Renders terrain as a visible-area-covering mesh with elevation displacement. A s
 ### G-Buffer Generation (per-island bindless textures)
 - **Terrain.vert** - Shared vertex shader for all G-buffer passes
 - **TerrainColor.frag** - Per-island color texture sampling
-- **TerrainElevation.frag** - Heightmap to world-space elevation conversion
+- **TerrainElevation.frag** - Samples the R32_SFLOAT heightmap directly into the world-space elevation G-buffer. DataPacker has pre-scaled and offset Gaea's output so pixel 0 == sea level / beach, negative == water, positive == land; the shader does no further conversion.
 - **TerrainNormal.frag** - Per-island normal map sampling; BC5 source, Z reconstructed as `sqrt(saturate(1 - x*x - y*y))`. Tangent (X,Y) is rotated by the per-island `(cos, sin)` forwarded from the quad vertex shader (Z is rotation-invariant)
 - **TerrainAmbientOcclusion.frag** - Per-island AO texture sampling
 

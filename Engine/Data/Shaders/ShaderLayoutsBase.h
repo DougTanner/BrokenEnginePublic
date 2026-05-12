@@ -317,12 +317,11 @@ struct GlobalLayout
 	int32_t iObjectShadowTextureWidth INIT;
 	int32_t iObjectShadowTextureHeight INIT;
 
-	// Terrain
-	float fIslandHeight INIT;
+	// Terrain. Heightmap pixels carry absolute meters directly — fIslandHeight / fWaterDepth
+	// scale factors retired with the meters-everywhere refactor.
 	float fIslandAmbientOcclusion INIT;
 	float fTerrainEarlyOut INIT;
 	float fWaterEarlyOut INIT;
-	float fWaterDepth INIT;
 	float fTerrainSunBrightness INIT;
 	float fWaterReducedNormalOriginX INIT;
 	float fWaterReducedNormalOriginY INIT;

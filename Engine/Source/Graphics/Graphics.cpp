@@ -139,14 +139,24 @@ void Graphics::RenderGlobal(float fCurrentTime)
 
 	miRenderFrameDeltaNs = mRenderFrameTimer.GetDeltaNs(true).count();
 
+	// Phase 5 LRU eviction sweeps bracket ProcessPendingTextures inside the descriptor-patch
+	// safety window (post-fence-wait, pre-cmd-buffer-recording). EvictionSweep frees GPU
+	// resources for templates whose grace period elapsed; RestorationSweep patches per-channel
+	// from canonical fallback back to real Texture* as each chunk reaches kReady.
+	gpIslandTerrain->EvictionSweep();
+
 	// Process pending texture loads after fence wait when it's safe to update GPU resources
 	gpTextureManager->ProcessPendingTextures(iCommandBuffer);
 
-	// Update VMA frame index for memory budget tracking
+	gpIslandTerrain->RestorationSweep();
+
+	// Update VMA frame index for memory budget tracking. muiFrameCounter must advance every frame
+	// (independent of the budget extension) because Phase 5 LRU grace uses it as a monotonic clock.
 	if (gpDeviceManager->mbMemoryBudgetAvailable)
 	{
-		vmaSetCurrentFrameIndex(gpDeviceManager->mpAllocator, static_cast<uint32_t>(muiFrameCounter++));
+		vmaSetCurrentFrameIndex(gpDeviceManager->mpAllocator, static_cast<uint32_t>(muiFrameCounter));
 	}
+	++muiFrameCounter;
 
 	if (rCommandBuffers.mFlags & CommandBufferFlags::kExecuted)
 	{

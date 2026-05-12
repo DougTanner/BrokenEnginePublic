@@ -599,8 +599,18 @@ LazyChunk& FileManager::GetLazyChunk(common::crc_t crc)
 
 void FileManager::ResetTextureChunkStates()
 {
+	// Wholesale reset for device-loss recovery: restores pool pointers + resets state for every texture chunk.
+	ResetTextureChunkStates({});
+}
+
+void FileManager::ResetTextureChunkStates(std::span<const common::crc_t> targetCrcs)
+{
 	// Restore pool pointers for all lazy chunks (ProcessPendingTextures clears pData/iDataSize for adopted textures)
-	// Must iterate ALL chunks (not just textures) because pool offsets are cumulative
+	// Must iterate ALL chunks (not just textures) because pool offsets are cumulative.
+	// When targetCrcs is non-empty, only texture chunks in the span get state/handle reset; pool-pointer
+	// restoration is idempotent for chunks already pointing at the correct offset, so it is safe to apply
+	// to everything. This per-chunk path is used by Phase 5 LRU eviction.
+	bool bResetAll = targetCrcs.empty();
 	int64_t iPoolOffset = 0;
 	for (auto& [crc, rLazyChunk] : mLazyChunkMap)
 	{
@@ -611,6 +621,11 @@ void FileManager::ResetTextureChunkStates()
 		iPoolOffset += common::RoundUp<int64_t, common::kiAlignmentBytes>(rLazyChunk.iDataSize);
 
 		if (!(rLazyChunk.header.flags & common::ChunkFlags::kTexture))
+		{
+			continue;
+		}
+
+		if (!bResetAll && std::find(targetCrcs.begin(), targetCrcs.end(), crc) == targetCrcs.end())
 		{
 			continue;
 		}

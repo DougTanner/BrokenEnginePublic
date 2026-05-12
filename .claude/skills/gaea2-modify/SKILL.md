@@ -35,7 +35,7 @@ Edit the `position:` line: `position: 27225.0, 26250.0`. Two floats, comma-separ
 Edit the `name: ...` line under the node's heading. If no `name:` line exists (the loader omits it when name == type), add one.
 
 ### Add a node
-1. Pick a free integer ID. Scan all `### n<ID>:` headings — pick `max(IDs) + 1` (or any unused integer).
+1. Pick a free integer ID **in the range 100-998**. Scan all `### n<ID>:` headings — pick `max(IDs) + 1`, but **never use an ID below 100**. Gaea 2 silently deactivates any node with `Id < 100` (verified across 602 nodes in 56 shipping example files — every Id is in 100-998). If you're translating from a legacy format (e.g. Gaea 1) whose IDs start at 0, offset all of them by +100.
 2. Append a new node section at the bottom of `## Nodes`:
    ```
    ### n<NEW_ID>: <Type>
@@ -45,6 +45,62 @@ Edit the `name: ...` line under the node's heading. If no `name:` line exists (t
    ```
 3. Add `n<NEW_ID>["<Type>"]` to the Mermaid block (between `flowchart TD` and the edges).
 4. **The save step needs port info for new nodes**, which lives only in `.passthrough.json`. Tell the user: "I added <Type> as node n<NEW_ID>, but its port catalogue isn't in passthrough yet — saving will use a default In/Out pair. If <Type> needs more ports (e.g. Erosion2's Flow/Wear/Deposits, Combine's secondary input), you'll need to copy the port block from another file of the same type." Offer to find a matching example in `.claude/skills/gaea2-shared/examples/` and quote the port catalogue from its passthrough.
+5. **Check the per-type requirements in "Gaea 2 conventions when adding new nodes" below.** Several node types need specific fields (e.g. `Version: 2`) or valid enum values, otherwise Gaea silently loads them as deactivated. The skill doesn't validate these — you must.
+
+## Gaea 2 conventions when adding new nodes
+
+Gaea 2 silently rejects (loads as **deactivated, dashed-border node**) any node that's missing a required field, has an invalid enum value, or has an Id below 100. The .terrain file still parses as JSON, but the node won't compute. Things to check whenever you add a node type:
+
+### Id must be ≥ 100
+
+The single most common cause of "node loads but is deactivated." Verified across 602 nodes in 56 shipping example files — every Id is in 100-998. Never assign an Id of 0-99. If translating from a legacy format whose IDs start at 0, offset all of them (e.g. +100) before writing the markdown.
+
+### Types that require `Version: 2`
+
+Surveyed across 56 shipping `.terrain` examples — these types **always** have `Version: 2` and are deactivated without it:
+
+- `Mixer` (7/7 examples) — also requires `PortCount` and at least `Layer1` JSON object
+- `TextureBase` (22/22)
+- `Trees` (6/6)
+- `Cellular3D`, `Debris`, `ThermalShaper` (less common, same rule)
+- `Erosion2` — Version is optional in the example data (7/68) but emit it for safety
+
+Emit as a top-level property on the node, e.g. `Version: 2` in the markdown.
+
+### Required input ports must be wired
+
+Most non-primitive nodes have a port whose `Type` is `PrimaryIn, Required` (visible in passthrough.json). If that `In` port isn't wired in the Mermaid block, the node loads as deactivated even if all parameters are valid.
+
+Primitives without a required input: `Mountain`, `Ridge`, `Constant`, `Sandstone`, `Noise`, `RadialGradient`, `Dunes` (if present), and most under the `Primitive` category.
+
+Filter/processing nodes that **do** require an input: `Slope`, `Height`, `SatMap`, `TextureBase`, `HSL`, `Tint`, `Curve`, `Clamp`, `Autolevel`, `Adjust`, `Combine`, `Mixer`, `Transform`, `Erosion2`, `Thermal2`, `Sea`, `Coast`, `Snowfield`, `Snow`, `Warp`, `LightX`, `Normals`, `AO`, `Export`, etc.
+
+### Nodes must reach an Export (or be Marked) to bake
+
+A node that has no downstream path to an `Export` node (or a node explicitly marked for save) doesn't get computed during `F5`/Build, and the UI shows it dashed/inactive. Dead-end mini-chains (e.g. `Constant → Noise → Autolevel` with nothing consuming the Autolevel) won't bake. Either wire them to something or drop them.
+
+### Per-type enum constraints
+
+Invalid enum string values cause silent deactivation. Verified valid values (from shipping examples):
+
+- `Mountain.Style`: `Strata`, `Alpine`, `Eroded` (case-sensitive; common defaults like `Basic` are rejected)
+- `Combine.Mode`: `Add`, `Subtract`, `Multiply`, `Max`, `Min`, `Screen`, `Difference`, `GrainMerge`, `Overlay`, `HardLight`
+- `Snowfield.Direction`: `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, `NW`
+- `Export.Format`: `UshortRaw16`, `Png16`, `Exr`, `Tiff16` (and others — copy from a shipping example)
+- `Export.RenderIntentOverride`: `Mask`, `Color`, etc.
+
+When unsure, grep the shipping `.terrain` files in `C:\Program Files\QuadSpinner\Gaea 2\Examples\` for `"<Type>"` and inspect the enum value used.
+
+### `PortCount` is required on dynamic-port nodes
+
+- `Combine`: `PortCount: N` controls how many input ports exist. `PortCount: 2` → `[In, Out, Input2, Mask]`. `PortCount: 3` → adds `Input3`. Higher values (4+) work but are untested in shipping examples.
+- `Mixer`: `PortCount: N` along with `Layer1`, `Layer2`, ... JSON objects defining each layer.
+
+Without `PortCount`, dynamic-port nodes default to a minimal port set and any wired extra inputs silently drop.
+
+### Mountain (and other primitives) need at least `Height` and `Seed`
+
+Shipping Mountains always have all three of: `Height` (float, typical 1.0..3.0), `Style` (enum, see above), `Seed` (int). Missing one may cause deactivation depending on the binary's version.
 
 ### Remove a node
 1. Delete the entire `### n<ID>: ...` section (heading + its property lines).
@@ -71,6 +127,7 @@ Plain `key: value` lines under `## Variables`. Replace `(none)` with one or more
 - Every edge endpoint refers to a node that exists.
 - Property values parse as their original type (don't put a string where a float was).
 - For any newly-added node, surface the port-catalogue limitation to the user (the saver will use a default In/Out pair until passthrough is updated) so they can decide whether to copy a port block from a sibling example.
+- For any newly-added node, check the "Gaea 2 conventions when adding new nodes" section above: required `Version: 2`, valid enum values, required In wiring, reaches an Export.
 
 If any check fails, fix it before reporting done.
 

@@ -22,7 +22,6 @@ const TweaksSliderMapRegistrar gTerrainRegistrar
 	{"Beach Normals Size 3", &gTerrainBeachNormalsSizeThree},
 	{"Beach Normals Blend", &gTerrainBeachNormalsBlend},
 	// Rock
-	{"Island Height", &gTerrainIslandHeight},
 	{"Rock Multiplier", &gTerrainRockMultiplier},
 	{"Rock Size", &gTerrainRockSize},
 	{"Rock Blend", &gTerrainRockBlend},
@@ -48,7 +47,6 @@ void TweaksScreenBase::RenderTerrainSection()
 	WrapperSlider("Beach Normals Blend", kiSection);
 
 	WrapperSeparatorText("Rock");
-	WrapperSlider("Island Height", kiSection);
 	WrapperSlider("Rock Multiplier", kiSection);
 	WrapperSlider("Rock Size", kiSection);
 	WrapperSlider("Rock Blend", kiSection);

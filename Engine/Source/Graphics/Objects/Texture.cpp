@@ -453,6 +453,14 @@ void Texture::Destroy() noexcept
 	}
 }
 
+void Texture::FreeGpuResources() noexcept
+{
+	// Tears down image + view but preserves mInfo so AdoptTransferredImage can re-attach fresh
+	// GPU resources later. Terrain textures have no render-pass / framebuffer, so Destroy() is
+	// equivalent here; the named alias documents intent at the call site (LRU eviction).
+	Destroy();
+}
+
 void Texture::TransitionImageLayout(VkCommandBuffer vkCommandBuffer, TextureLayout eOldLayout, TextureLayout eNewLayout)
 {
 	const LayoutMapping& rSrc = kLayoutMappings[static_cast<int>(eOldLayout)];

@@ -72,7 +72,6 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Medium Amplitude Adjust", &gWaterMediumAmplitudeAdjust},
 	{"Medium Speed Adjust", &gWaterMediumSpeedAdjust},
 	// Depth
-	{"Water Depth", &gWaterDepth},
 	{"Water Terrain Height", &gWaterTerrainHeight},
 	{"Water Terrain Fade", &gWaterTerrainFade},
 	{"Water Color Noise Weight One", &gWaterColorNoiseWeightOne},
@@ -220,7 +219,6 @@ void TweaksScreenBase::RenderWaterSection()
 			{
 				mActiveSubtab[kiSection] = 3;
 			}
-			WrapperSlider("Water Depth", kiSection);
 			WrapperSlider("Water Terrain Height", kiSection);
 			WrapperSlider("Water Terrain Fade", kiSection);
 

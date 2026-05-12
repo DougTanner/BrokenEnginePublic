@@ -62,7 +62,7 @@ void GenerateIslandPlacements(GridCoord coord, std::vector<IslandPlacement>& rOu
 		float fRotation = game::ComputeIslandRotation(coord);
 		XMFLOAT2 f2Offset = game::ComputeIslandOffset(coord, fRotation);
 		float fCenterX = fCellOriginX + f2Offset.x + 0.5f * game::Frame::kfIslandWidth;
-		float fCenterY = fCellOriginMaxY - f2Offset.y - 0.5f * game::Frame::kfIslandHeight;
+		float fCenterY = fCellOriginMaxY - f2Offset.y - 0.5f * game::Frame::kfIslandWidth;
 		rOut.push_back({.islandCrc = data::kIslands01Crc, .f2WorldPos = {fCenterX, fCenterY}, .fRotation = fRotation});
 		return;
 	}
@@ -80,8 +80,8 @@ void GenerateIslandPlacements(GridCoord coord, std::vector<IslandPlacement>& rOu
 	{
 		common::crc_t islandCrc = (common::Random(1u, crcRandom) == 1u) ? data::kIslands02Crc : data::kIslands01Crc;
 		const IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(islandCrc);
-		float fQuadW = rTemplate.mfQuadWidth;
-		float fQuadH = rTemplate.mfQuadHeight;
+		float fQuadW = rTemplate.mfQuadFootprint;
+		float fQuadH = rTemplate.mfQuadFootprint;
 
 		bool bAccepted = false;
 		for (int32_t iAttempt = 0; iAttempt < kMaxRejectAttempts && !bAccepted; ++iAttempt)

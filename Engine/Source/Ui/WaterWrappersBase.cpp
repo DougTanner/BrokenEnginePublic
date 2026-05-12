@@ -78,7 +78,6 @@ Wrapper gWaterMediumAmplitudeAdjust(1.0f, 0.0f, 5.0f);
 Wrapper gWaterMediumSpeedAdjust(0.6f, 0.0f, 5.0f);
 
 // Depth
-Wrapper gWaterDepth(4.4f, 1.0f, 20.0f);
 Wrapper gWaterTerrainHeight(3.5f, 1.0f, 8.0f);
 Wrapper gWaterTerrainFade(0.025f, 0.001f, 0.04f);
 Wrapper gWaterColorNoiseWeightOne(-1.5f, -2.0f, 2.0f);

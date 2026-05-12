@@ -1,5 +1,7 @@
 #include "ExportIsland.h"
 
+#include "BakeIslandIntermediates.h"
+#include "FileManager.h"
 #include "Texture.h"
 
 #pragma warning(push, 0)
@@ -17,6 +19,18 @@
 #pragma warning(pop)
 
 using enum common::ChunkFlags;
+
+namespace
+{
+
+// Total vertical span assumed for legacy prebaked islands (no Island.json / .terrain source).
+// Their R16_UNORM normalized heightmaps get scaled by this then offset by kfOceanDepthMeters to
+// produce engine-meters. Picked to match the new-pipeline archetype's default Terrain.Height —
+// if a legacy island's original Gaea bake used a different elevation span, physical heights
+// will be off by that factor.
+constexpr float kfLegacyIslandElevationMeters = 1000.0f;
+
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Legacy helpers (pre-mip islands: Islands/01/ and similar pre-baked content)
@@ -70,7 +84,9 @@ static std::vector<std::byte> LoadIntermediate(const std::filesystem::path& rPat
 // New helpers (per-mip islands: Islands/02/ and beyond)
 // ---------------------------------------------------------------------------
 
-// Mip 0 size derived from `Elevation.r16` byte count (headerless uint16 square texture).
+// Mip size derived from headerless uint16 square texture byte count. AmbientOcclusion.r16 is the
+// sentinel rather than Elevation.r32 because elevation is omitted at mips below iElevationStart
+// (see kiElevationDivisor in ExportIsland.h).
 static int64_t DeriveMipSize(const std::filesystem::path& rRawFile)
 {
 	int64_t iFileSize = std::filesystem::file_size(rRawFile);
@@ -82,17 +98,17 @@ static int64_t DeriveMipSize(const std::filesystem::path& rRawFile)
 
 static std::vector<std::filesystem::path> EnumerateMipDirs(const std::filesystem::path& rIslandFolder)
 {
-	std::vector<std::filesystem::path> dirs;
+	std::vector<std::filesystem::path> directories;
 	for (size_t i = 0; ; ++i)
 	{
 		std::filesystem::path mipDir = rIslandFolder / std::format("mip{}", i);
-		if (!std::filesystem::exists(mipDir / "Elevation.r16"))
+		if (!std::filesystem::exists(mipDir / "AmbientOcclusion.r16"))
 		{
 			break;
 		}
-		dirs.push_back(mipDir);
+		directories.push_back(mipDir);
 	}
-	return dirs;
+	return directories;
 }
 
 // Construct a multi-mip Texture by loading each mip's source into a temp and stealing its mData.
@@ -118,7 +134,7 @@ static Texture BuildMipChain(const std::vector<std::filesystem::path>& rMipDirs,
 // Ingest paths
 // ---------------------------------------------------------------------------
 
-static void ExportLegacy(const std::filesystem::path& rInputPath, std::vector<float>& rCpuHeightmapData, int32_t& riHeightmapWidth, int32_t& riHeightmapHeight, uint16_t& ruiBeachElevation)
+static void ExportLegacy(const std::filesystem::path& rInputPath, std::vector<float>& rCpuHeightmapData, int32_t& riHeightmapSize)
 {
 	std::filesystem::path ambientOcclusionFloat32File(rInputPath);
 	ambientOcclusionFloat32File /= "AmbientOcclusion.r32";
@@ -148,60 +164,81 @@ static void ExportLegacy(const std::filesystem::path& rInputPath, std::vector<fl
 		std::filesystem::remove(colorExrFile);
 	}
 
-	std::filesystem::path elevationFloat32File(rInputPath);
-	elevationFloat32File /= "Elevation.r32";
-	if (std::filesystem::exists(elevationFloat32File))
+	// One-time migration: pre-baked R16_UNORM normalized [0,1] heightmap → R32_SFLOAT meters.
+	// Legacy islands have no Island.json / .terrain source carrying real elevation; assume
+	// kfLegacyIslandElevationMeters total vertical span. Per-mip temp .r32 files feed Texture's
+	// kFloat32 ingest so the existing multi-mip Save pipeline emits the new chunk.
+	std::filesystem::path elevationR16File(rInputPath);
+	elevationR16File /= "Elevation.R16_UNORM";
+	if (std::filesystem::exists(elevationR16File))
 	{
-		int64_t iElevationFileSize = std::filesystem::file_size(elevationFloat32File);
-		int64_t iSourceSize = static_cast<int64_t>(std::sqrt(static_cast<double>(iElevationFileSize) / sizeof(float)));
-		ASSERT(iSourceSize * iSourceSize * static_cast<int64_t>(sizeof(float)) == iElevationFileSize);
+		LOG(kDefault, kWarning, "Legacy island \"{}\": migrating R16_UNORM normalized [0,1] heightmap to R32_SFLOAT meters with hardcoded {}m elevation span. Physical heights will be wrong if the original Gaea bake used a different Terrain.Height.", rInputPath.filename().string(), kfLegacyIslandElevationMeters);
 
+		int64_t iWidth = 0;
+		int64_t iHeight = 0;
+		int64_t iMipMaps = 0;
+		std::vector<std::byte> r16Data = LoadIntermediate(elevationR16File, iWidth, iHeight, iMipMaps, VK_FORMAT_R16_UNORM);
+
+		std::vector<std::filesystem::path> tempFiles;
+		tempFiles.reserve(static_cast<size_t>(iMipMaps));
+		common::ScopedLambda tempCleanup([&tempFiles]()
 		{
-			Texture cpuTexture(elevationFloat32File, FileType::kFloat32, false, iSourceSize, iSourceSize);
-			cpuTexture.Downsize(2);
+			for (const std::filesystem::path& rTempFile : tempFiles)
+			{
+				if (std::filesystem::exists(rTempFile))
+				{
+					std::filesystem::remove(rTempFile);
+				}
+			}
+		});
 
-			riHeightmapWidth = static_cast<int32_t>(cpuTexture.miWidth);
-			riHeightmapHeight = static_cast<int32_t>(cpuTexture.miHeight);
-			rCpuHeightmapData = cpuTexture.mData.at(0);
+		const uint16_t* puiR16 = reinterpret_cast<const uint16_t*>(r16Data.data());
+		int64_t iMipWidth = iWidth;
+		int64_t iMipHeight = iHeight;
+		for (int64_t iMip = 0; iMip < iMipMaps; ++iMip)
+		{
+			std::filesystem::path tempPath = gpFileManager->mTempDirectory / std::format("{}-legacy-elev-mip{}.r32", rInputPath.filename().string(), iMip);
+			tempFiles.push_back(tempPath);
+
+			std::vector<float> floats(iMipWidth * iMipHeight);
+			for (int64_t i = 0; i < iMipWidth * iMipHeight; ++i)
+			{
+				float fNormalized = common::UnormToFloat<uint16_t>(puiR16[i]);
+				floats.at(i) = fNormalized * kfLegacyIslandElevationMeters - common::kfOceanDepthMeters;
+			}
+
+			std::ofstream stream(tempPath, std::ios::binary);
+			stream.write(reinterpret_cast<const char*>(floats.data()), floats.size() * sizeof(float));
+			stream.close();
+
+			// Mip 0 → CPU heightmap (full resolution). Matches legacy ingest behavior.
+			if (iMip == 0)
+			{
+				rCpuHeightmapData = std::move(floats);
+				riHeightmapSize = static_cast<int32_t>(iMipWidth);
+			}
+
+			puiR16 += iMipWidth * iMipHeight;
+			iMipWidth /= 2;
+			iMipHeight /= 2;
 		}
 
 		{
 			std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-			Texture gpuTexture(elevationFloat32File, FileType::kFloat32, false, iSourceSize, iSourceSize);
-			gpuTexture.Downsize(2);
+			Texture master(tempFiles.at(0), FileType::kFloat32, false, iWidth, iHeight);
+			int64_t iMasterMipWidth = iWidth / 2;
+			int64_t iMasterMipHeight = iHeight / 2;
+			for (int64_t iMip = 1; iMip < iMipMaps; ++iMip)
+			{
+				Texture temp(tempFiles.at(iMip), FileType::kFloat32, false, iMasterMipWidth, iMasterMipHeight);
+				master.mData.push_back(std::move(temp.mData.front()));
+				iMasterMipWidth /= 2;
+				iMasterMipHeight /= 2;
+			}
 
 			std::filesystem::path path(rInputPath);
 			path /= kpcIslandElevation;
-			gpuTexture.Save(path, VK_FORMAT_R16_UNORM, false);
-		}
-
-		std::filesystem::remove(elevationFloat32File);
-	}
-
-	// Fallback: load already-processed R16_UNORM if r32 didn't exist (pre-baked islands).
-	if (rCpuHeightmapData.empty())
-	{
-		std::filesystem::path elevationR16File(rInputPath);
-		elevationR16File /= kpcIslandElevation;
-
-		if (std::filesystem::exists(elevationR16File))
-		{
-			int64_t iWidth = 0;
-			int64_t iHeight = 0;
-			int64_t iMipMaps = 0;
-			std::vector<std::byte> data = LoadIntermediate(elevationR16File, iWidth, iHeight, iMipMaps, VK_FORMAT_R16_UNORM);
-
-			int64_t iPixelCount = iWidth * iHeight;
-			const uint16_t* puiR16 = reinterpret_cast<const uint16_t*>(data.data());
-
-			rCpuHeightmapData.resize(iPixelCount);
-			for (int64_t i = 0; i < iPixelCount; ++i)
-			{
-				rCpuHeightmapData.at(i) = common::UnormToFloat<uint16_t>(puiR16[i]);
-			}
-
-			riHeightmapWidth = static_cast<int32_t>(iWidth);
-			riHeightmapHeight = static_cast<int32_t>(iHeight);
+			master.Save(path, VK_FORMAT_R32_SFLOAT, false);
 		}
 	}
 
@@ -270,36 +307,9 @@ static void ExportLegacy(const std::filesystem::path& rInputPath, std::vector<fl
 			LOG(kDefault, kInfo, "Migrated island normals BC7 -> BC5: {}", bc5NormalsFile.string());
 		}
 	}
-
-	// Beach elevation
-	std::filesystem::path elevationU16File(rInputPath);
-	elevationU16File /= kpcIslandElevation;
-	int64_t iElevationWidth = 0;
-	int64_t iElevationHeight = 0;
-	int64_t iElevationMipMaps = 0;
-	std::vector<std::byte> dataU16 = LoadIntermediate(elevationU16File, iElevationWidth, iElevationHeight, iElevationMipMaps, VK_FORMAT_R16_UNORM);
-
-	uint16_t* puiPixels = reinterpret_cast<uint16_t*>(dataU16.data());
-	std::unordered_map<uint16_t, int64_t> map;
-	int64_t iElevationSize = kiIslandSize / kiElevationDivisor;
-	for (int64_t i = 0; i < iElevationSize * iElevationSize; ++i)
-	{
-		map[puiPixels[i]]++;
-	}
-
-	int64_t iMaxCount = 0;
-	for (const auto& [ruiElevation, riCount] : map)
-	{
-		if (ruiElevation != 0 && riCount > iMaxCount)
-		{
-			iMaxCount = riCount;
-			ruiBeachElevation = ruiElevation;
-		}
-	}
-	LOG(kDefault, kDebug, "Beach elevation (legacy): {} {} ({} times)", ruiBeachElevation, common::UnormToFloat(ruiBeachElevation), iMaxCount);
 }
 
-static void ExportNew(const std::filesystem::path& rInputPath, std::vector<float>& rCpuHeightmapData, int32_t& riHeightmapWidth, int32_t& riHeightmapHeight, uint16_t& ruiBeachElevation, float& rfWorldWidthMeters, float& rfWorldHeightMeters)
+static void ExportNew(const std::filesystem::path& rInputPath, std::vector<float>& rCpuHeightmapData, int32_t& riHeightmapSize, float& rfWorldFootprintMeters, float& rfWorldElevationMeters)
 {
 	std::vector<std::filesystem::path> mipDirs = EnumerateMipDirs(rInputPath);
 	ASSERT(!mipDirs.empty());
@@ -308,16 +318,22 @@ static void ExportNew(const std::filesystem::path& rInputPath, std::vector<float
 	mipSizes.reserve(mipDirs.size());
 	for (const std::filesystem::path& rMipDir : mipDirs)
 	{
-		mipSizes.push_back(DeriveMipSize(rMipDir / "Elevation.r16"));
+		mipSizes.push_back(DeriveMipSize(rMipDir / "AmbientOcclusion.r16"));
 	}
 
-	// World dimensions emitted by BakeIslandIntermediates after a successful Gaea bake.
-	std::filesystem::path worldFile = rInputPath / "world.json";
-	std::ifstream worldStream(worldFile);
-	nlohmann::json worldJson = nlohmann::json::parse(worldStream);
-	worldStream.close();
-	rfWorldWidthMeters = worldJson.at("widthMeters").get<float>();
-	rfWorldHeightMeters = worldJson.at("heightMeters").get<float>();
+	// Elevation sub-chain: starts at the first mip whose dimension is <= mips[0] / kiElevationDivisor
+	// (see comment on kiElevationDivisor in ExportIsland.h). BakeIslandIntermediates is responsible
+	// for deleting Elevation.r32 at lower mips, so we mirror the same start-index math here.
+	size_t iElevationStart = IslandElevationStartIndex(mipSizes);
+	ASSERT(iElevationStart < mipDirs.size());
+
+	std::vector<std::filesystem::path> elevationMipDirs(mipDirs.begin() + iElevationStart, mipDirs.end());
+	std::vector<int64_t> elevationMipSizes(mipSizes.begin() + iElevationStart, mipSizes.end());
+
+	// World dimensions: Island.json override if present, else read from archetype .terrain.
+	WorldDimensions worldDimensions = GetIslandDimensions(rInputPath);
+	rfWorldFootprintMeters = worldDimensions.fFootprintMeters;
+	rfWorldElevationMeters = worldDimensions.fElevationMeters;
 
 	// Encode each intermediate as a multi-mip texture in turn. sEncodeMutex serializes the BC
 	// encoder across textures (it uses all hardware threads internally; mutex bounds memory).
@@ -335,8 +351,8 @@ static void ExportNew(const std::filesystem::path& rInputPath, std::vector<float
 
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture = BuildMipChain(mipDirs, mipSizes, "Elevation.r16", FileType::kUint16Raw, false);
-		texture.Save(rInputPath / kpcIslandElevation, VK_FORMAT_R16_UNORM, false);
+		Texture texture = BuildMipChain(elevationMipDirs, elevationMipSizes, "Elevation.r32", FileType::kFloat32, false);
+		texture.Save(rInputPath / kpcIslandElevation, VK_FORMAT_R32_SFLOAT, false);
 	}
 
 	{
@@ -346,51 +362,17 @@ static void ExportNew(const std::filesystem::path& rInputPath, std::vector<float
 	}
 
 	// CPU heightmap: float copy of one mip's elevation, packed into the chunk data payload for
-	// runtime nav / world-Z queries. Pick mip 2 to match the legacy 8192/4 = 2048 sampling
-	// resolution; fall back to the smallest mip if the chain has fewer levels.
-	size_t iCpuMipIndex = std::min<size_t>(2, mipDirs.size() - 1);
-	int64_t iCpuMipSize = mipSizes.at(iCpuMipIndex);
-	std::vector<uint16_t> cpuMipU16(iCpuMipSize * iCpuMipSize);
-	{
-		std::fstream rawStream(mipDirs.at(iCpuMipIndex) / "Elevation.r16", std::ios::in | std::ios::binary);
-		rawStream.read(reinterpret_cast<char*>(cpuMipU16.data()), cpuMipU16.size() * sizeof(uint16_t));
-		rawStream.close();
-	}
-
+	// runtime nav / world-Z queries. Source is the same Elevation.r32 BakeIslandIntermediates
+	// pre-offset by kfOceanDepthMeters so values are engine-meters (beach = 0, ocean = negative).
+	int64_t iCpuMipSize = mipSizes.at(iElevationStart);
 	rCpuHeightmapData.resize(iCpuMipSize * iCpuMipSize);
-	for (int64_t i = 0; i < iCpuMipSize * iCpuMipSize; ++i)
 	{
-		rCpuHeightmapData.at(i) = common::UnormToFloat<uint16_t>(cpuMipU16.at(i));
-	}
-
-	riHeightmapWidth = static_cast<int32_t>(iCpuMipSize);
-	riHeightmapHeight = static_cast<int32_t>(iCpuMipSize);
-
-	// Beach elevation: mode of nonzero uint16 values across mip 0's full elevation.
-	int64_t iMip0Size = mipSizes.at(0);
-	std::vector<uint16_t> mip0U16(iMip0Size * iMip0Size);
-	{
-		std::fstream rawStream(mipDirs.at(0) / "Elevation.r16", std::ios::in | std::ios::binary);
-		rawStream.read(reinterpret_cast<char*>(mip0U16.data()), mip0U16.size() * sizeof(uint16_t));
+		std::fstream rawStream(mipDirs.at(iElevationStart) / "Elevation.r32", std::ios::in | std::ios::binary);
+		rawStream.read(reinterpret_cast<char*>(rCpuHeightmapData.data()), rCpuHeightmapData.size() * sizeof(float));
 		rawStream.close();
 	}
 
-	std::unordered_map<uint16_t, int64_t> histogram;
-	for (uint16_t uiValue : mip0U16)
-	{
-		++histogram[uiValue];
-	}
-
-	int64_t iMaxCount = 0;
-	for (const auto& [ruiElevation, riCount] : histogram)
-	{
-		if (ruiElevation != 0 && riCount > iMaxCount)
-		{
-			iMaxCount = riCount;
-			ruiBeachElevation = ruiElevation;
-		}
-	}
-	LOG(kDefault, kDebug, "Beach elevation (new): {} {} ({} times)", ruiBeachElevation, common::UnormToFloat(ruiBeachElevation), iMaxCount);
+	riHeightmapSize = static_cast<int32_t>(iCpuMipSize);
 }
 
 // ---------------------------------------------------------------------------
@@ -405,27 +387,30 @@ std::optional<common::ChunkFlags_t> ExportIsland::Handles(const std::filesystem:
 	}
 
 	const std::filesystem::path& rPath = rDirectoryEntry.path();
-	bool bHasNewLayout = std::filesystem::exists(rPath / "mip0" / "Elevation.r16");
-	bool bHasLegacyLayout = std::filesystem::exists(rPath / "Elevation.r32") || std::filesystem::exists(rPath / kpcIslandElevation);
+	// AmbientOcclusion.r16 is the per-mip sentinel: Elevation.r32 is dropped at mips above
+	// `mips[0] / kiElevationDivisor` so it can't gate detection. Legacy prebaked islands carry
+	// Elevation.R16_UNORM at the root (no mip dirs).
+	bool bHasNewLayout = std::filesystem::exists(rPath / "mip0" / "AmbientOcclusion.r16");
+	bool bHasLegacyLayout = std::filesystem::exists(rPath / "Elevation.R16_UNORM");
 	return (bHasNewLayout || bHasLegacyLayout) ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kIsland) : std::nullopt;
 }
 
 void ExportIsland::Export()
 {
 	std::vector<float> cpuHeightmapData;
-	int32_t iHeightmapWidth = 0;
-	int32_t iHeightmapHeight = 0;
-	uint16_t uiBeachElevation = 0;
-	float fWorldWidthMeters = 0.0f;
-	float fWorldHeightMeters = 0.0f;
+	int32_t iHeightmapSize = 0;
+	float fWorldFootprintMeters = 0.0f;
+	float fWorldElevationMeters = 0.0f;
 
-	if (std::filesystem::exists(mInputPath / "mip0" / "Elevation.r16"))
+	// Mirror Handles(): AmbientOcclusion.r16 is the per-mip sentinel since Elevation.r32 is
+	// dropped at mip 0 for islands where mips[0] > mips[0] / kiElevationDivisor (the common case).
+	if (std::filesystem::exists(mInputPath / "mip0" / "AmbientOcclusion.r16"))
 	{
-		ExportNew(mInputPath, cpuHeightmapData, iHeightmapWidth, iHeightmapHeight, uiBeachElevation, fWorldWidthMeters, fWorldHeightMeters);
+		ExportNew(mInputPath, cpuHeightmapData, iHeightmapSize, fWorldFootprintMeters, fWorldElevationMeters);
 	}
 	else
 	{
-		ExportLegacy(mInputPath, cpuHeightmapData, iHeightmapWidth, iHeightmapHeight, uiBeachElevation);
+		ExportLegacy(mInputPath, cpuHeightmapData, iHeightmapSize);
 	}
 
 	std::filesystem::path relativeFile = mRelativeDirectory;
@@ -450,11 +435,9 @@ void ExportIsland::Export()
 	normalsFile /= kpcIslandNormals;
 	pHeader->islandHeader.normalsCrc = common::Crc(normalsFile.string());
 
-	pHeader->islandHeader.uiBeachElevation = uiBeachElevation;
-	pHeader->islandHeader.iHeightmapWidth = iHeightmapWidth;
-	pHeader->islandHeader.iHeightmapHeight = iHeightmapHeight;
-	pHeader->islandHeader.fWorldWidthMeters = fWorldWidthMeters;
-	pHeader->islandHeader.fWorldHeightMeters = fWorldHeightMeters;
+	pHeader->islandHeader.iHeightmapSize = iHeightmapSize;
+	pHeader->islandHeader.fWorldFootprintMeters = fWorldFootprintMeters;
+	pHeader->islandHeader.fWorldElevationMeters = fWorldElevationMeters;
 
 	std::memcpy(dataSpan.data(), cpuHeightmapData.data(), iHeightmapDataSize);
 }
