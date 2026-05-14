@@ -27,13 +27,23 @@ Convert a Gaea 2 `.terrain` JSON into:
      ```
      Then re-run the bootstrap.
 
-3. **Run the loader using the detected Python path.** Quote it (the path may contain spaces):
+3. **Probe Gaea 2 version drift.** Gaea's accepted enum values, required fields, and port catalogues can shift between releases. Catch this before it bites by running:
+   ```
+   "<python-exe-path>" .claude/skills/gaea2-shared/scripts/check_gaea_version.py
+   ```
+   The script reads the current Gaea version from the latest session log (or, as a fallback, from `Gaea.exe`'s `ProductVersion`) and compares it against a cached value at `.claude/skills/gaea2-shared/cache/gaea-version.txt`.
+   - **Exit 0** — version unchanged, proceed silently.
+   - **Exit 1** — version changed. The script prints a structural diff (new node types, new enum values, dropped properties) to stderr. Surface this to the user in your final report as a one- or two-line note ("Gaea moved 2.3.0.0 → 2.4.0.0; SatMap.Library gained 'Volcanic'"). Suggest they check `gaea2-modify/SKILL.md`'s per-type constraints aren't stale.
+   - **Exit 2** — first run on this machine; baseline cached silently, proceed.
+   - **Exit 3** — could not detect a Gaea install. Note it in the report but continue — this is just an information probe, not a gate.
+   The cache also stores a sample-structure fingerprint so the diff includes *what* changed, not just the version string. Cache files are gitignored; first run on a fresh checkout is always exit 2.
+4. **Run the loader using the detected Python path.** Quote it (the path may contain spaces):
    ```
    "<python-exe-path>" .claude/skills/gaea2-shared/scripts/load_terrain.py "<input.terrain>"
    ```
    The script writes `Temp/<basename>.md` and `Temp/<basename>.passthrough.json`.
 
-4. **Report what was loaded.** Read the resulting `.md` file's frontmatter and the Mermaid block, then show the user a brief summary: number of nodes, number of edges, build resolution, the Mermaid topology rendered inline. The user can now use `/gaea2-modify` to edit, then `/gaea2-save` to write back.
+5. **Report what was loaded.** Read the resulting `.md` file's frontmatter and the Mermaid block, then show the user a brief summary: number of nodes, number of edges, build resolution, the Mermaid topology rendered inline. Include any version-drift note from Step 3. The user can now use `/gaea2-modify` to edit, then `/gaea2-save` to write back. If something fails when they open the result in Gaea 2, point them at `/gaea2-diagnose`.
 
 ## Notes on the output format
 

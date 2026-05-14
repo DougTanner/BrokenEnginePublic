@@ -31,6 +31,8 @@ public:
 
 	virtual int64_t GetVersion() const override { return Version(16); }
 
+	virtual bool CheckDirty(const std::filesystem::path& rPackFile) override;
+
 protected:
 
 	virtual void Export() override;

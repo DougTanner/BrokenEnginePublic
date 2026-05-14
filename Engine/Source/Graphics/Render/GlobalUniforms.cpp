@@ -528,6 +528,17 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	rGlobalLayout.fDebugTextureIndex = gDebugTextureIndex.Get();
 	rGlobalLayout.fDebugTextureFormat = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpDebugTextureFormats[static_cast<int64_t>(gDebugTextureIndex.Get())]);
 	rGlobalLayout.fDebugTextureLinearRange = gMiscDebugTextureLinearRange.Get();
+
+	rGlobalLayout.fDebugTerrainElevationLow = gpIslandTerrain->mfSeaFloorElevation;
+	float fHigh = 0.0f;
+	for (const auto& [rCrc, rIsland] : gpIslandTerrain->mIslands)
+	{
+		if (rIsland.mbGpuResident)
+		{
+			fHigh = std::max(fHigh, rIsland.mfWorldElevationMeters);
+		}
+	}
+	rGlobalLayout.fDebugTerrainElevationHigh = fHigh;
 }
 
 } // namespace engine

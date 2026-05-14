@@ -50,9 +50,9 @@ vec2 BaseHeightPosition(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f
 
 vec3 SampleNormal(GlobalLayout globalLayout, sampler2D normalSampler, vec2 f2Position, float fSize, float fSpeed, vec2 f2Offset)
 {
-	// BC5 normal map: only RG stored. Sign-inverted decode is intentional, preserved from the BC7 path.
+	// BC5 normal map: only RG stored, standard convention (encoded=0.5 -> 0, encoded=1 -> +1).
 	vec2 f2RG = texture(normalSampler, f2Offset + fSize * f2Position + fSpeed * vec2(globalLayout.fElapsedTime, globalLayout.fElapsedTime)).rg;
-	vec2 f2XY = vec2(1.0f - 2.0f * f2RG.x, 1.0f - 2.0f * f2RG.y);
+	vec2 f2XY = 2.0f * f2RG - 1.0f;
 	float fZ = sqrt(clamp(1.0f - dot(f2XY, f2XY), 0.0f, 1.0f));
 	return vec3(f2XY, fZ);
 }
@@ -113,8 +113,8 @@ float Sum(vec4 pf4Lighting[3])
 vec3 DirectionalLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity, float fPower, float fPowerMode)
 {
 	vec2 f2Normal = normalize(f3Normal.xy);
-	float fWeightE = max(0.0f, -f2Normal.x);
-	float fWeightW = max(0.0f, f2Normal.x);
+	float fWeightE = max(0.0f, f2Normal.x);
+	float fWeightW = max(0.0f, -f2Normal.x);
 	float fWeightN = max(0.0f, f2Normal.y);
 	float fWeightS = max(0.0f, -f2Normal.y);
 
@@ -136,8 +136,8 @@ vec3 DirectionalLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity, f
 vec3 WaterLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fSoften, float fOne, float fOnePower, float fTwo, float fTwoPower, float fThree, float fThreePower, float fPowerMode)
 {
 	vec2 f2Normal = normalize(f3Normal.xy);
-	float fWeightE = mix(max(0.0f, -f2Normal.x), 0.25f, fSoften);
-	float fWeightW = mix(max(0.0f, f2Normal.x), 0.25f, fSoften);
+	float fWeightE = mix(max(0.0f, f2Normal.x), 0.25f, fSoften);
+	float fWeightW = mix(max(0.0f, -f2Normal.x), 0.25f, fSoften);
 	float fWeightN = mix(max(0.0f, f2Normal.y), 0.25f, fSoften);
 	float fWeightS = mix(max(0.0f, -f2Normal.y), 0.25f, fSoften);
 

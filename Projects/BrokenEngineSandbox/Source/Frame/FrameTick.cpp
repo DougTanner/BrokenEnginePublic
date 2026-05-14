@@ -1,6 +1,8 @@
 #include "FrameTick.h"
 
 #include "Frame/FrameStaticData.h"
+#include "Frame/IslandTerrain.h"
+#include "Frame/NavBuild.h"
 
 #include "Frame/FrameCollections.h"
 
@@ -24,6 +26,18 @@ void RunFrameTick(const ActiveFrameRef& rRef, int64_t iTickCounter, float fCurre
 	Frame& rNext = *rRef.pNext;
 	const Frame& rCurrent = *rRef.pCurrent;
 	const engine::FrameStaticData& rStaticData = *rRef.pStaticData;
+
+#if defined(BT_SERVER)
+	// NavData is derived from placements + per-template NavContour. Build it here on the
+	// per-coord dispatch thread (naturally parallel across coords) on the first tick after
+	// a coord is created or reloaded from save. Client receives prebuilt navData over the
+	// wire and never enters this branch (server-only NavContour).
+	if (rStaticData.navData.vertices.empty() && !rStaticData.islands.empty())
+	{
+		ScopedSuppressAllocationTracking suppress;
+		engine::BuildCellNavData(rStaticData.navData, rStaticData.islands);
+	}
+#endif
 
 	// Phase 1: Interpolate
 	FrameInterpolate::AllocateAndCopy(rNext.interpolate, rCurrent.interpolate);

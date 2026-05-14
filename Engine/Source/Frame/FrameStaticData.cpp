@@ -3,7 +3,7 @@
 namespace engine
 {
 
-void FrameStaticData::Write(std::ostream& rStream) const
+void FrameStaticData::Write(std::ostream& rStream, bool bIncludeNavData) const
 {
 	common::Write(rStream, vecArea);
 	common::Write(rStream, static_cast<int32_t>(islands.size()));
@@ -13,10 +13,13 @@ void FrameStaticData::Write(std::ostream& rStream) const
 		common::Write(rStream, rPlacement.f2WorldPos);
 		common::Write(rStream, rPlacement.fRotation);
 	}
-	navData.Write(rStream);
+	if (bIncludeNavData)
+	{
+		navData.Write(rStream);
+	}
 }
 
-void FrameStaticData::Read(std::istream& rStream)
+void FrameStaticData::Read(std::istream& rStream, bool bIncludeNavData)
 {
 	common::Read(rStream, vecArea);
 	int32_t iCount = 0;
@@ -28,7 +31,14 @@ void FrameStaticData::Read(std::istream& rStream)
 		common::Read(rStream, islands.at(i).f2WorldPos);
 		common::Read(rStream, islands.at(i).fRotation);
 	}
-	navData.Read(rStream);
+	if (bIncludeNavData)
+	{
+		navData.Read(rStream);
+	}
+	else
+	{
+		navData = {};
+	}
 }
 
 } // namespace engine

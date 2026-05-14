@@ -27,7 +27,7 @@ constexpr const char* kpcGaeaEnvVar = "GAEA2_PATH";
 // elevation is then downsampled in-process to texturePixels / kiElevationDivisor and rewritten
 // in place. Elevation.r32 is headerless IEEE-754 float (Gaea's FloatRaw32 format), normalized
 // [0,1] at bake time — DataPacker reads the Sea node's ShoreHeight from the .terrain archetype,
-// then converts to engine-meters as ((1 - pixel) - ShoreHeight) * elevationMeters so beach = 0
+// then converts to engine-meters as (pixel - ShoreHeight) * elevationMeters so beach = 0
 // and the sea floor sits at -(ShoreHeight × elevationMeters). AmbientOcclusion.r16 stays
 // UshortRaw16 (precision-matched to BC4_UNORM). Color/Normals stay multi-channel EXR.
 constexpr const char* kpcIntermediateFiles[] =
@@ -43,9 +43,10 @@ constexpr const char* kpcIntermediateFiles[] =
 // or archetype mtimes). IsBakeDirty reads `Intermediates/BakeVersion.txt` and forces a re-bake
 // if the recorded version doesn't match; the bake writes the current version on success.
 // History:
+//   3 - Gaea Elevation export now emits conventional orientation (0 = low, 1 = peak); drop (1 - pixel).
 //   2 - Un-invert Gaea FloatRaw32+Mask pixels via (1 - pixel) before applying ShoreHeight offset.
 //   1 - Initial scale+offset+downsample (legacy; never written to disk, treated as "missing").
-constexpr int32_t kiBakeVersion = 2;
+constexpr int32_t kiBakeVersion = 3;
 constexpr const char* kpcBakeVersionFile = "BakeVersion.txt";
 
 std::filesystem::path ResolveGaeaExecutable()
@@ -294,6 +295,8 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 
 	if (!IsBakeDirty(rIslandFolder, islandJsonFile, archetypeFile))
 	{
+		auto [date, time] = common::FileTimeString(std::filesystem::last_write_time(archetypeFile));
+		LOG(kDefault, kDebug, "Skipping island bake (clean): \"{}\" (archetype \"{}\" mtime: {} {})", rIslandFolder.string(), archetypeFile.filename().string(), date, time);
 		return;
 	}
 
@@ -384,7 +387,7 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 
 	if (result.miExitCode != 0)
 	{
-		throw std::runtime_error(std::format("Gaea.Swarm.exe exited with code {} for \"{}\". Output isn't captured under the new-console invocation; re-run interactively to diagnose.", result.miExitCode, rIslandFolder.string()));
+		throw std::runtime_error(std::format("Gaea.Swarm.exe exited with code {} for \"{}\". Use /gaea2-diagnose to examine the log file for failures.", result.miExitCode, rIslandFolder.string()));
 	}
 
 	for (const char* pcFile : kpcIntermediateFiles)
@@ -395,18 +398,13 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 		}
 	}
 
-	// Gaea's FloatRaw32 export with the Elevation node set to "Mask" render intent is normalized
-	// [0,1] but inverted vs. conventional heightmap orientation: high float == low elevation,
-	// low float == high elevation (verified by Elevation.jpg sidecar: white pixels at sea floor,
-	// black at peaks). Un-invert with (1 - pixel), then apply the per-island beach offset so the
-	// math reduces to ((1 - pixel) - ShoreHeight) × elevationMeters. On-disk bytes are
-	// engine-ready: beach = 0 (at Gaea-normalized 1 - ShoreHeight), ocean = negative (down to
-	// -fBeachOffsetMeters at Gaea-normalized 1.0), land = positive (up to (1 - ShoreHeight) ×
-	// elevationMeters at Gaea-normalized 0.0). ShoreHeight itself is read from the Sea node in
-	// conventional space (small value = near low end / sea level), so the un-invert only applies
-	// to the pixel data, not to ShoreHeight. NaN/Inf scrubbed because R32_SFLOAT is unbounded —
-	// any stray non-finite pixel would poison the elevation G-buffer and vertex displacement;
-	// non-finite maps to the island's sea floor.
+	// Gaea's FloatRaw32 export is normalized [0,1] in conventional heightmap orientation: 0 = low
+	// elevation, 1 = peak. Apply the per-island beach offset so the math reduces to
+	// (pixel - ShoreHeight) × elevationMeters. On-disk bytes are engine-ready: beach = 0 (at
+	// Gaea-normalized ShoreHeight), ocean = negative (down to -fBeachOffsetMeters at Gaea-normalized
+	// 0.0), land = positive (up to (1 - ShoreHeight) × elevationMeters at Gaea-normalized 1.0).
+	// NaN/Inf scrubbed because R32_SFLOAT is unbounded — any stray non-finite pixel would poison
+	// the elevation G-buffer and vertex displacement; non-finite maps to the island's sea floor.
 	// Then box-filter downsample 4x4 -> 1 to iElevationResolution (texturePixels / kiElevationDivisor)
 	// and rewrite Elevation.r32 in place: elevation is sampled by a vertex grid in Terrain.vert
 	// and doesn't need color-level resolution; this is the primary disk-size lever for islands.
@@ -424,7 +422,7 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 	}
 	for (float& rfPixel : sourcePixels)
 	{
-		rfPixel = std::isfinite(rfPixel) ? (1.0f - rfPixel) * dimensions.fElevationMeters - fBeachOffsetMeters : -fBeachOffsetMeters;
+		rfPixel = std::isfinite(rfPixel) ? rfPixel * dimensions.fElevationMeters - fBeachOffsetMeters : -fBeachOffsetMeters;
 	}
 
 	float fOneOverBoxSize = 1.0f / static_cast<float>(kiElevationDivisor * kiElevationDivisor);

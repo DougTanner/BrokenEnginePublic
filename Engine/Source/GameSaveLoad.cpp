@@ -387,7 +387,8 @@ void GameSaveLoad::WriteGrid(const FileFlags_t& rFlags, const std::filesystem::p
 		{
 			GridCoord coord = GridCoord::FromKey(uiKey);
 			coord.Write(fileStream);
-			mrGameBase.mCoordFrames.at(coord).staticData.Write(fileStream);
+			// NavData is rebuilt lazily on first RunFrameTick — don't persist it (see Frame/CLAUDE.md).
+			mrGameBase.mCoordFrames.at(coord).staticData.Write(fileStream, /*bIncludeNavData=*/false);
 			fileStream << *mrGameBase.mCoordFrames.at(coord).pCurrent;
 		}
 	});
@@ -424,7 +425,7 @@ bool GameSaveLoad::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::pa
 		GridCoord coord;
 		coord.Read(fileStream);
 		CoordFrames& rSub = mrGameBase.mCoordFrames.try_emplace(coord).first->second;
-		rSub.staticData.Read(fileStream);
+		rSub.staticData.Read(fileStream, /*bIncludeNavData=*/false);
 		rSub.staticData.coord = coord;
 		auto pFrame = std::make_unique<game::Frame>();
 		fileStream >> *pFrame;

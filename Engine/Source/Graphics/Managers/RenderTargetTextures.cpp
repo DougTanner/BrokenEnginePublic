@@ -328,7 +328,7 @@ void RenderTargetTextures::CreateTerrainTextures()
 		.textureFlags = {kRenderPass},
 		.name = "Normal",
 		.flags = 0,
-		.format = VK_FORMAT_R8G8B8A8_UNORM,
+		.format = VK_FORMAT_R16G16B16A16_SFLOAT,
 		.extent = VkExtent3D {static_cast<uint32_t>(iTerrainNormalTextureX), static_cast<uint32_t>(iTerrainNormalTextureY), 1},
 		.mipLevels = 1,
 		.arrayLayers = 1,

@@ -600,7 +600,7 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	rStaticData.vecArea = ComputeFrameArea(vecBaseArea, coord);
 	rStaticData.coord = coord;
 	engine::GenerateIslandPlacements(coord, rStaticData.islands);
-	engine::BuildCellNavData(rStaticData.navData, rStaticData.islands);
+	// navData stays empty; RunFrameTick builds it lazily on the per-coord dispatch thread.
 }
 
 void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rData, engine::alignment_t playerAlignment)
@@ -806,7 +806,7 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	rStaticData.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	rStaticData.coord = engine::kOriginCoord;
 	engine::GenerateIslandPlacements(engine::kOriginCoord, rStaticData.islands);
-	engine::BuildCellNavData(rStaticData.navData, rStaticData.islands);
+	// navData stays empty; RunFrameTick builds it lazily on the per-coord dispatch thread.
 
 #if defined(BT_SERVER)
 	rFrames.pNext = std::make_unique<Frame>();

@@ -93,6 +93,33 @@ std::optional<common::ChunkFlags_t> ExportIsland::Handles(const std::filesystem:
 	return bHasIslandData ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kIsland) : std::nullopt;
 }
 
+bool ExportIsland::CheckDirty(const std::filesystem::path& rPackFile)
+{
+	if (ExportJob::CheckDirty(rPackFile))
+	{
+		return true;
+	}
+
+	// Base CheckDirty compares against the island directory's mtime, which does NOT propagate from
+	// edits inside Intermediates/ (where the Gaea pre-pass writes its outputs). Re-run the export
+	// whenever any intermediate is newer than the chunk file so a fresh bake actually reaches the
+	// .pack / .jpg sidecars.
+	std::filesystem::file_time_type chunkFileLastWriteTime = std::filesystem::last_write_time(mChunkFile);
+	std::filesystem::path intermediatesDir = mInputPath / kpcIslandIntermediatesDir;
+	for (const std::filesystem::directory_entry& rEntry : std::filesystem::directory_iterator(intermediatesDir))
+	{
+		if (rEntry.is_regular_file() && std::filesystem::last_write_time(rEntry.path()) > chunkFileLastWriteTime)
+		{
+			auto [date, time] = common::FileTimeString(std::filesystem::last_write_time(rEntry.path()));
+			LOG(kDefault, kDebug, "Intermediate \"{}\" is newer than chunk \"{}\": {} {}", rEntry.path().string(), mChunkFile.string(), date, time);
+			mbDirty = true;
+			return mbDirty;
+		}
+	}
+
+	return false;
+}
+
 void ExportIsland::Export()
 {
 	std::vector<float> cpuHeightmapData;

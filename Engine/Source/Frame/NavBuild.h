@@ -14,7 +14,7 @@ struct NavContour
 	std::vector<int32_t> visEdgeB;
 };
 
-inline constexpr int64_t kiNavDataVersion = 9;
+inline constexpr int64_t kiNavDataVersion = 10;
 
 // Per-cell navigation data in world space, stored in FrameStaticData
 struct NavData

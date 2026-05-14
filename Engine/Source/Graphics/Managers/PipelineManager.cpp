@@ -721,9 +721,15 @@ void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
 				rpPipeline->Create(rpPipeline->mInfo);
 			}
 		}
+	}
 
-		// Debug texture pipeline references all lighting debug textures
-		if constexpr (kbDebugInput)
+	// Debug texture pipeline references both lighting outputs (deposit/spread/combine) and the
+	// terrain G-buffer textures (color/elevation/AO/normal at slots 0-3). Descriptor sets cache
+	// VkImageView at write time, so any underlying ReCreate of those textures invalidates them.
+	if constexpr (kbDebugInput)
+	{
+		if ((flags & kLightingTextures) || (flags & kTerrainElevation)
+			|| (flags & kTerrainColor) || (flags & kTerrainNormal) || (flags & kTerrainAO))
 		{
 			RenderTargetTextures& rTextures = gpTextureManager->mRenderTargetTextures;
 			mpPipelines[kPipelineDebugTexture].Create(

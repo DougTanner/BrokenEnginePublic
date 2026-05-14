@@ -132,4 +132,20 @@ void main()
 		float fNS = fTotal > 0.0f ? fNorthSouth / fTotal * 0.5f + 0.5f : 0.5f;
 		f4OutColor = vec4(fEW * fIntensity, fNS * fIntensity, 0.0f, 1.0f);
 	}
+	else if (iFormat == kiDebugTextureFormatRgb)
+	{
+		f4OutColor = vec4(f4Sample.rgb, 1.0f);
+	}
+	else if (iFormat == kiDebugTextureFormatGrayscaleR)
+	{
+		f4OutColor = vec4(f4Sample.rrr, 1.0f);
+	}
+	else if (iFormat == kiDebugTextureFormatTerrainElevation)
+	{
+		float fLow = globalLayout.fDebugTerrainElevationLow;
+		float fHigh = globalLayout.fDebugTerrainElevationHigh;
+		float fRange = max(fHigh - fLow, kfEpsilon);
+		float fValue = clamp((f4Sample.r - fLow) / fRange, 0.0f, 1.0f);
+		f4OutColor = vec4(fValue, fValue, fValue, 1.0f);
+	}
 }

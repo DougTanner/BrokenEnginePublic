@@ -3,7 +3,9 @@
 *.local.json
 tmpclaude*
 Log.txt
-*.r16
+
+Engine/Data/Islands/*/*.jpg
+Engine/Data/Islands/*/Intermediates
 
 # Local-only directories
 .vs/
@@ -12,6 +14,7 @@ DiagnosticLogs/
 Output/
 Temp
 Plans/Temp
+.claude/skills/gaea2-shared/cache/
 
 # Games
 Projects/KineticStorm/

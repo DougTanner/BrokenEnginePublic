@@ -262,7 +262,7 @@ void Client::ServerCoordStaticData(const uint8_t* pData, size_t iSize)
 	ReceivedStaticData received {};
 	received.iSlot = uiSlotIndex;
 	received.coord = coord;
-	received.staticData.Read(staticStream);
+	received.staticData.Read(staticStream, /*bIncludeNavData=*/true);
 
 	// Heap: received static data vector grows on new subscription
 	mReceivedStaticData.push_back(std::move(received));

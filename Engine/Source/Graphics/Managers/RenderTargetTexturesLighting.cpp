@@ -356,21 +356,32 @@ void RenderTargetTextures::CreateLightingTextures()
 		mppLightingDepositTextures[i] = &mpLightingTextures[i];
 	}
 
-	// Debug textures: deposit RGB (visible area), deposit combined direction, spread pass 0..N combined direction, combine red
-	mppDebugTextures[0] = &mpLightingTextures[0];
-	mpDebugTextureFormats[0] = shaders::kiDebugTextureFormatFloat16LinearVisibleArea;
-	mppDebugTextures[1] = &mpLightingTextures[0];
-	mpDebugTextureFormats[1] = shaders::kiDebugTextureFormatFloat16DepositDirectionCombined;
+	// Debug textures: terrain G-buffer (color/elevation/AO/normal), then deposit RGB (visible area),
+	// deposit combined direction, spread pass 0..N combined direction, combine red
+	static constexpr int64_t kiTerrainDebugSlotCount = 4;
+	mppDebugTextures[0] = &mTerrainColorTexture;
+	mpDebugTextureFormats[0] = shaders::kiDebugTextureFormatRgb;
+	mppDebugTextures[1] = &mTerrainElevationTexture;
+	mpDebugTextureFormats[1] = shaders::kiDebugTextureFormatTerrainElevation;
+	mppDebugTextures[2] = &mTerrainAmbientOcclusionTexture;
+	mpDebugTextureFormats[2] = shaders::kiDebugTextureFormatGrayscaleR;
+	mppDebugTextures[3] = &mTerrainNormalTexture;
+	mpDebugTextureFormats[3] = shaders::kiDebugTextureFormatRgb;
+
+	mppDebugTextures[kiTerrainDebugSlotCount + 0] = &mpLightingTextures[0];
+	mpDebugTextureFormats[kiTerrainDebugSlotCount + 0] = shaders::kiDebugTextureFormatFloat16LinearVisibleArea;
+	mppDebugTextures[kiTerrainDebugSlotCount + 1] = &mpLightingTextures[0];
+	mpDebugTextureFormats[kiTerrainDebugSlotCount + 1] = shaders::kiDebugTextureFormatFloat16DepositDirectionCombined;
 	for (int64_t i = 0; i < iPassCount; ++i)
 	{
-		mppDebugTextures[2 + i] = &mpSpreadTextures[i][0];
-		mppDebugTexturesB[2 + i] = &mpSpreadTextures[i][1];
-		mppDebugTexturesC[2 + i] = &mpSpreadTextures[i][2];
-		mpDebugTextureFormats[2 + i] = shaders::kiDebugTextureFormatFloat16SpreadDirectionCombined;
+		mppDebugTextures[kiTerrainDebugSlotCount + 2 + i] = &mpSpreadTextures[i][0];
+		mppDebugTexturesB[kiTerrainDebugSlotCount + 2 + i] = &mpSpreadTextures[i][1];
+		mppDebugTexturesC[kiTerrainDebugSlotCount + 2 + i] = &mpSpreadTextures[i][2];
+		mpDebugTextureFormats[kiTerrainDebugSlotCount + 2 + i] = shaders::kiDebugTextureFormatFloat16SpreadDirectionCombined;
 	}
-	mppDebugTextures[2 + iPassCount] = &mpCombineTextures[0];
-	mpDebugTextureFormats[2 + iPassCount] = shaders::kiDebugTextureFormatUnormLightingDirectional;
-	miDebugTextureCount = 3 + iPassCount;
+	mppDebugTextures[kiTerrainDebugSlotCount + 2 + iPassCount] = &mpCombineTextures[0];
+	mpDebugTextureFormats[kiTerrainDebugSlotCount + 2 + iPassCount] = shaders::kiDebugTextureFormatUnormLightingDirectional;
+	miDebugTextureCount = kiTerrainDebugSlotCount + 3 + iPassCount;
 
 	// Fill unused B/C slots with primary texture so descriptor writes remain valid
 	for (int64_t i = 0; i < shaders::kiMaxDebugTextures; ++i)

@@ -57,7 +57,7 @@ void Server::SendCoordStaticData(int64_t iClientId, int64_t iSlot, GridCoord coo
 	// Heap: stringstream allocates for static data serialization
 	ScopedSuppressAllocationTracking suppress;
 	std::ostringstream staticStream(std::ios::binary);
-	rStaticData.Write(staticStream);
+	rStaticData.Write(staticStream, /*bIncludeNavData=*/true);
 	std::string staticData = staticStream.str();
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;

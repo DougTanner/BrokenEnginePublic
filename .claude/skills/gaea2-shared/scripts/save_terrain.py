@@ -491,11 +491,30 @@ def build_terrain(md_path, passthrough_path, output_path):
         overlay = fm_metadata_overlay.get(k)
         root_metadata[k] = overlay if overlay is not None else v
 
+    # Build root respecting the captured key order from passthrough (shipping
+    # examples use Assets, Id, Branch, Metadata; UI-saved files may also include
+    # Macros). Gaea rejects mismatched root shape with "File is corrupt or
+    # missing additional data", so any key that was in the source must come back.
+    handled = OrderedDict([
+        ("Assets",   OrderedDict([("$values", [asset])])),
+        ("Id",       fm.get("file_id", "")),
+        ("Branch",   fm.get("branch", 1)),
+        ("Metadata", root_metadata),
+    ])
+    root_extras = pt.get("root_extras") or OrderedDict()
+    root_key_order = pt.get("root_key_order") or ["Assets", "Id", "Branch", "Metadata"]
+
     root = OrderedDict()
-    root["Assets"] = OrderedDict([("$values", [asset])])
-    root["Id"] = fm.get("file_id", "")
-    root["Branch"] = fm.get("branch", 1)
-    root["Metadata"] = root_metadata
+    for k in root_key_order:
+        if k in handled:
+            root[k] = handled[k]
+        elif k in root_extras:
+            root[k] = root_extras[k]
+    # Any handled key the source somehow omitted still has to be emitted, or
+    # Gaea will choke. Append at the end.
+    for k, v in handled.items():
+        if k not in root:
+            root[k] = v
 
     # ---- Renumber $id throughout, then fix Parent backrefs and any $ref values ----
     ig = IdGenerator()
