@@ -11,9 +11,9 @@ Wrapper gShadowFeatherSunsetOffset(-0.1f, -0.5f, 0.1f);
 Wrapper gShadowFeatherPower(1.3f, 0.1f, 10.0f);
 Wrapper gShadowDistanceFalloff(200.0f, 10.0f, 400.0f);
 Wrapper gShadowBlurSigma(9.0f, 1.0f, 20.0f);
-Wrapper gShadowAffectAmbient(0.75f, 0.0f, 1.0f);
+Wrapper gShadowAffectAmbient(0.3f, 0.0f, 1.0f);
 Wrapper gShadowHeightFadeTop(4.0f, 0.0f, 20.0f);
-Wrapper gShadowHeightFadeBottom(0.0f, -20.0f, 0.0f);
+Wrapper gShadowHeightFadeBottom(-6.0f, -30.0f, 0.0f);
 
 // Object Shadows
 Wrapper gObjectShadowsRenderMultiplier(2.0f, 0.25f, 4.0f);

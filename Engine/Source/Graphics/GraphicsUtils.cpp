@@ -95,6 +95,13 @@ void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT
 	rLayout.uiColor = uiColor;
 }
 
+bool SupportsLinearFilter(VkFormat vkFormat)
+{
+	VkFormatProperties vkFormatProperties {};
+	vkGetPhysicalDeviceFormatProperties(gpInstanceManager->mVkPhysicalDevice, vkFormat, &vkFormatProperties);
+	return (vkFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0;
+}
+
 } // namespace engine
 
 #endif // BT_CLIENT

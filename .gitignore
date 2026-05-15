@@ -6,6 +6,7 @@ Log.txt
 
 Engine/Data/Islands/*/*.jpg
 Engine/Data/Islands/*/Intermediates
+*.terrain.lock
 
 # Local-only directories
 .vs/

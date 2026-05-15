@@ -57,7 +57,7 @@ constexpr const char* kpcDerivedIntermediateFiles[] =
 // any other code-only behavior of the bake changes (i.e., anything not captured by Island.json
 // or archetype mtimes). IsBakeDirty reads `Intermediates/BakeVersion.txt` and forces a re-bake
 // if the recorded version doesn't match; the bake writes the current version on success.
-constexpr int32_t kiBakeVersion = 17;
+constexpr int32_t kiBakeVersion = 22;
 
 // Constant beach altitude (engine-meters). Sea surface and "beach line" are the same height for
 // every island; sea floor sits at -kfBeachHeightMeters below the beach. Per-island elevationMeters
@@ -77,8 +77,8 @@ constexpr float kfBeachHeightMeters = 5.0f;
 // [kfBeachSubdivisionMinMeters, kfBeachSubdivisionMaxMeters] in absolute engine-meters densify,
 // so both shallow water and just-above-beach terrain are covered. Independent of elevationMeters;
 // set the two bounds asymmetrically to widen the underwater or above-water side independently.
-constexpr float kfBeachSubdivisionMinMeters = -0.5f;
-constexpr float kfBeachSubdivisionMaxMeters = 1.0f;
+constexpr float kfBeachSubdivisionMinMeters = -0.25f;
+constexpr float kfBeachSubdivisionMaxMeters = 0.5f;
 constexpr float kfBeachSubdivisionMaxEdgeMeters = 1.0f;
 constexpr int32_t kiBeachSubdivisionMaxDepth = 12;
 
@@ -188,10 +188,48 @@ bool IsBakeDirty(const std::filesystem::path& rIslandFolder, const std::filesyst
 	return false;
 }
 
-// Serializes patch+bake+restore against the shared archetype .terrain. Bakes are sequential today,
-// so this is defense-in-depth — but a partially-patched archetype visible to a concurrent reader
-// would silently produce wrong-sized heightmaps or wrong-seed terrain.
-std::mutex gArchetypeMutex;
+// Cross-process file lock around patch+bake+restore. Win32 named mutexes (Main.cpp:783) are
+// per-machine kernel objects and cannot synchronize across separate Windows hosts hitting an
+// archetype on a shared SMB drive. LockFileEx grants an advisory byte-range lock that the SMB
+// server enforces across clients — the only Win32 mechanism that actually serializes cross-host
+// writers to the same archetype .terrain file. The lock file is a persistent sibling
+// "<archetype>.lock" matched by the *.terrain.lock rule in .gitignore so it never gets committed.
+class ArchetypeLock
+{
+public:
+	explicit ArchetypeLock(const std::filesystem::path& rArchetypeFile)
+	{
+		std::filesystem::path lockFile = std::filesystem::weakly_canonical(rArchetypeFile);
+		lockFile += L".lock";
+
+		mhLock = CreateFileW(lockFile.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+		__assume(mhLock != INVALID_HANDLE_VALUE);
+
+		OVERLAPPED overlapped {};
+		while (!LockFileEx(mhLock, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0, MAXDWORD, MAXDWORD, &overlapped))
+		{
+			// Another process (typically a peer DataPacker on a different host via SMB) holds the lock.
+			// Log once per interval to make the wait visible, then re-poll until acquired.
+			LOG(kDefault, kInfo, "Waiting on cross-process archetype lock: \"{}\"", lockFile.string());
+			Sleep(10000);
+		}
+	}
+
+	~ArchetypeLock()
+	{
+		OVERLAPPED overlapped {};
+		UnlockFileEx(mhLock, 0, MAXDWORD, MAXDWORD, &overlapped);
+		CloseHandle(mhLock);
+	}
+
+	ArchetypeLock(const ArchetypeLock&) = delete;
+	ArchetypeLock& operator=(const ArchetypeLock&) = delete;
+	ArchetypeLock(ArchetypeLock&&) = delete;
+	ArchetypeLock& operator=(ArchetypeLock&&) = delete;
+
+private:
+	HANDLE mhLock = INVALID_HANDLE_VALUE;
+};
 
 std::string ReadFileBytes(const std::filesystem::path& rFile)
 {
@@ -204,8 +242,10 @@ std::string ReadFileBytes(const std::filesystem::path& rFile)
 void WriteFileBytes(const std::filesystem::path& rFile, const std::string& rBytes)
 {
 	// Atomic replace: partial write on crash leaves a stray .tmp, not a half-written archetype.
+	// PID suffix so concurrent crashes from peer DataPacker processes leave distinct orphan
+	// .<pid>.tmp files instead of clobbering each other's in-flight writes.
 	std::filesystem::path tempFile = rFile;
-	tempFile += L".tmp";
+	tempFile += L"." + std::to_wstring(GetCurrentProcessId()) + L".tmp";
 	{
 		std::ofstream stream(tempFile, std::ios::binary);
 		stream.write(rBytes.data(), rBytes.size());
@@ -465,11 +505,14 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 	}
 
 	// Patch the archetype's intrinsic Terrain.{Width,Height} AND every per-node "Seed" field
-	// in-place around the bake, then restore byte-and-mtime-identical state on scope exit. Lock
-	// covers concurrent bakes (sequential today; future-proof) and the ScopedLambda restore
-	// guarantees a successful or failed bake leaves the archetype invisible to git and to
-	// IsBakeDirty's mtime check.
-	std::lock_guard<std::mutex> archetypeLock(gArchetypeMutex);
+	// in-place around the bake, then restore byte-and-mtime-identical state on scope exit. The
+	// cross-process file lock covers concurrent DataPacker instances on this host (Main.cpp:783
+	// already serializes those, but defense-in-depth) and on other Windows hosts hitting the
+	// same archetype over SMB. The ScopedLambda restore destroys before archetypeLock (LIFO),
+	// so the lock is still held while the upstream bytes/mtime are written back, guaranteeing
+	// a successful or failed bake leaves the archetype invisible to git and to IsBakeDirty's
+	// mtime check.
+	ArchetypeLock archetypeLock(archetypeFile);
 
 	std::string originalArchetypeBytes = ReadFileBytes(archetypeFile);
 	std::filesystem::file_time_type originalArchetypeModificationTime = std::filesystem::last_write_time(archetypeFile);
@@ -1144,6 +1187,87 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 			LOG(kDefault, kWarning, "Mesh \"{}\": beach subdivision hit depth cap ({}) on {} triangle(s); largest input triangles may still exceed {:.2f}m edge target AND the mesh may contain T-junction cracks where capped absorption-needing triangles were skipped (raise kiBeachSubdivisionMaxDepth or split it into separate in-band / absorption caps if observed)", rIslandFolder.string(), kiBeachSubdivisionMaxDepth, iDepthCapHits, kfBeachSubdivisionMaxEdgeMeters);
 		}
 		LOG(kDefault, kDebug, "Mesh \"{}\": {} -> {} vertices, {} -> {} triangles after beach subdivision (band Z=[{:.2f}, {:.2f}]m, edge target {:.2f}m)", rIslandFolder.string(), iInitialVertexCount, iVertexCount, iInitialTriangleCount, iIndexCount / 3, fBandMinZ, fBandMaxZ, kfBeachSubdivisionMaxEdgeMeters);
+
+		// Crop the mesh to the heightmap's cropped bbox and re-center mesh-local origin on the post-crop
+		// center. Gaea emits the Mesher mesh at the full pre-crop archetype footprint (fFootprintMeters
+		// square, centered at origin), but the heightmap is auto-cropped to its tight land bbox plus halo
+		// padding -- the per-island quad.f4VertexRect at runtime is sized to the post-crop dimensions
+		// (IslandHeader::fWorldFootprintXMeters/YMeters). Without this pass, mesh vertices outside the
+		// crop project to world XY outside f4VertexRect, and Terrain.vert derives visible-area UV from
+		// world XY -- so those vertices sample G-buffer regions belonging to neighbouring islands or
+		// empty texture space. The bbox is computed in engine-meters: iCropX/iCropWidth map directly to
+		// engine X (Gaea X-east, no flip); iCropY/iCropHeight map to engine Y with a sign flip because
+		// engine Y is north-positive (engine_y = -gltf.z) and heightmap row 0 is the north edge.
+		// Discard any triangle whose three vertices are all outside the bbox; keep partial-cross
+		// triangles to preserve silhouette quality. After the index buffer is compacted, repack the
+		// vertex buffer to drop orphans, then re-center XY of every surviving vertex on the post-crop
+		// center.
+		int64_t iDiscardedTriangles = 0;
+		{
+			const double dPixelsToMeters = static_cast<double>(dimensions.fFootprintMeters) / static_cast<double>(iTexturePixels);
+			const float fCropMinX_m = static_cast<float>(static_cast<double>(iCropX)                          * dPixelsToMeters - 0.5 * dimensions.fFootprintMeters);
+			const float fCropMaxX_m = static_cast<float>(static_cast<double>(iCropX + iCropWidth)             * dPixelsToMeters - 0.5 * dimensions.fFootprintMeters);
+			const float fCropMaxY_m = static_cast<float>(0.5 * dimensions.fFootprintMeters - static_cast<double>(iCropY)               * dPixelsToMeters);
+			const float fCropMinY_m = static_cast<float>(0.5 * dimensions.fFootprintMeters - static_cast<double>(iCropY + iCropHeight) * dPixelsToMeters);
+			const float fCropCenterX_m = 0.5f * (fCropMinX_m + fCropMaxX_m);
+			const float fCropCenterY_m = 0.5f * (fCropMinY_m + fCropMaxY_m);
+
+			auto VertexOutside = [&meshPositions, fCropMinX_m, fCropMaxX_m, fCropMinY_m, fCropMaxY_m](uint32_t iV) -> bool
+			{
+				float fX = meshPositions[static_cast<size_t>(iV) * 3 + 0];
+				float fY = meshPositions[static_cast<size_t>(iV) * 3 + 1];
+				return fX < fCropMinX_m || fX > fCropMaxX_m || fY < fCropMinY_m || fY > fCropMaxY_m;
+			};
+
+			std::vector<uint32_t> survivingIndices;
+			survivingIndices.reserve(meshIndices.size());
+			for (size_t i = 0; i + 2 < meshIndices.size(); i += 3)
+			{
+				uint32_t iA = meshIndices[i + 0];
+				uint32_t iB = meshIndices[i + 1];
+				uint32_t iC = meshIndices[i + 2];
+				if (VertexOutside(iA) && VertexOutside(iB) && VertexOutside(iC))
+				{
+					++iDiscardedTriangles;
+					continue;
+				}
+				survivingIndices.push_back(iA);
+				survivingIndices.push_back(iB);
+				survivingIndices.push_back(iC);
+			}
+			meshIndices = std::move(survivingIndices);
+
+			// Repack vertex buffer: walk indices to mark used vertices, then compact and remap.
+			const int64_t iOldVertexCount = static_cast<int64_t>(meshPositions.size() / 3);
+			std::vector<uint32_t> oldToNew(static_cast<size_t>(iOldVertexCount), UINT32_MAX);
+			std::vector<float> packedPositions;
+			packedPositions.reserve(meshPositions.size());
+			for (uint32_t& riIndex : meshIndices)
+			{
+				uint32_t& riRemap = oldToNew[riIndex];
+				if (riRemap == UINT32_MAX)
+				{
+					riRemap = static_cast<uint32_t>(packedPositions.size() / 3);
+					packedPositions.push_back(meshPositions[static_cast<size_t>(riIndex) * 3 + 0]);
+					packedPositions.push_back(meshPositions[static_cast<size_t>(riIndex) * 3 + 1]);
+					packedPositions.push_back(meshPositions[static_cast<size_t>(riIndex) * 3 + 2]);
+				}
+				riIndex = riRemap;
+			}
+			meshPositions = std::move(packedPositions);
+
+			// Re-center XY of every surviving vertex on the post-crop center. Z is unchanged
+			// (Z=0 is sea level globally, independent of horizontal crop).
+			for (size_t iV = 0; iV < meshPositions.size() / 3; ++iV)
+			{
+				meshPositions[iV * 3 + 0] -= fCropCenterX_m;
+				meshPositions[iV * 3 + 1] -= fCropCenterY_m;
+			}
+
+			iVertexCount = static_cast<int64_t>(meshPositions.size() / 3);
+			iIndexCount = static_cast<int64_t>(meshIndices.size());
+			LOG(kDefault, kDebug, "Mesh \"{}\": cropped {} triangles outside heightmap bbox, re-centered XY by ({:.2f}, {:.2f})m, {} -> {} vertices", rIslandFolder.string(), iDiscardedTriangles, fCropCenterX_m, fCropCenterY_m, iOldVertexCount, iVertexCount);
+		}
 
 		std::filesystem::path meshProcessedFile = intermediatesDir / "MeshProcessed.bin";
 		std::ofstream meshOut(meshProcessedFile, std::ios::binary | std::ios::trunc);

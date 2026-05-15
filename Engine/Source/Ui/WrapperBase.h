@@ -218,32 +218,10 @@ extern Wrapper gVisibleAreaExtraTop;
 extern Wrapper gVisibleAreaExtraBottom;
 extern Wrapper gIslandAmbientOcclusion;
 extern Wrapper gTerrainEarlyOut;
-extern Wrapper gWaterEarlyOut;
 extern Wrapper gTerrainElevationTextureMultiplier;
 extern Wrapper gTerrainColorTextureMultiplier;
 extern Wrapper gTerrainNormalTextureMultiplier;
 extern Wrapper gTerrainAmbientOcclusionTextureMultiplier;
-
-// Water
-extern Wrapper gWaterHeight;
-extern Wrapper gWaterTerrainFadeClamp;
-extern Wrapper gWaterNoiseFrequency;
-extern Wrapper gWaterNoiseAmount;
-extern Wrapper gWaterColorNoiseFrequency;
-extern Wrapper gWaterColorNoiseAmount;
-extern Wrapper gWaterDepthLutFeather;
-extern Wrapper gWaterDepthColorFeather;
-extern Wrapper gWaterFresnel;
-extern Wrapper gWaterFresnel2;
-extern Wrapper gWaterColorBottom;
-extern Wrapper gWaterColorHeight;
-
-// Water - Low/Medium count + High frequency waves (radio-button-bound but not via slider map; pure-internal High*)
-extern Wrapper gWaterLowCount;
-extern Wrapper gWaterMediumCount;
-extern Wrapper gWaterHighMultiplier;
-extern Wrapper gWaterHighScaleOne;
-extern Wrapper gWaterHighScaleTwo;
 
 // Smoke
 extern Wrapper gSmokeNoiseInfluence;

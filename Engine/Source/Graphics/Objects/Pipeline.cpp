@@ -81,7 +81,8 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 		mInfo.pDescriptorInfos[i + 2].iCount = 1;
 		mInfo.pDescriptorInfos[i + 2].pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture;
 
-		mInfo.pDescriptorInfos[i + 3].flags = {kCombinedSamplers, kSamplerBorder};
+		// mVkSamplerSmoke is the format-aware sampler for R32_SFLOAT smoke ping-pong textures (LINEAR/NEAREST per device capability — see TextureManager::CreateSamplers). Same CLAMP_TO_BORDER + INT_TRANSPARENT_BLACK as mVkSamplerBorder; aniso/lodbias are no-ops at mipLevels = 1.
+		mInfo.pDescriptorInfos[i + 3].flags = {kCombinedSamplers, kSamplerSmoke};
 		mInfo.pDescriptorInfos[i + 3].iCount = 1;
 		mInfo.pDescriptorInfos[i + 3].pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne;
 

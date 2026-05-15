@@ -20,6 +20,8 @@ Data-driven: a slider map plus a parallel function-pointer table drive section r
 
 **Column layout**: At most one `ImGui::BeginTable("…", N)` per render path — never nest. A `BeginTable` inside a parent table cell inherits that cell's width, squeezing inner columns until the right ones get clipped off-screen. Concretely: if an engine `Render*Section()` calls a game virtual hook whose body opens its own `BeginTable`, the engine side MUST render its own sliders inline (no outer table wrap) and let the hook own the table at full window width. See `RenderLightingSection` → `RenderLightingEffectsVisibleTab` / `RenderLightingEffectsLightingTab` and `RenderSoundSection` → `RenderSoundEffects` for the canonical pattern.
 
+**Slider width inside tables**: `WrapperSlider`'s `fWidthMultiplier` defaults to `2.0f`, sized for single-column tabs that take the full window width. Inside a multi-column `BeginTable` each cell is already narrower, so callers MUST pass `1.0f` — otherwise the slider asks for double its cell width, stretching the column off-screen. Canonical: `RenderWaterSection` Specular and Depth tabs.
+
 **First-open drift audit** (`kbDebugInput` only): on first open, a multi-frame pass force-rotates each section's active subtab so every slider call site executes; `WrapperSlider` records touched and missed map keys instead of drawing, then warns on orphan map entries and missed lookups. No effect outside debug builds.
 
 ## See Also

@@ -218,9 +218,14 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	double dWaveCameraY = static_cast<double>(f4WaveCameraPos.y);
 	constexpr double kdTwoPi = 2.0 * 3.14159265358979323846;
 
-	// Fade geometric wave amplitude as the camera zooms out: 1.0 at default eye height, 0.0 at 2x default
-	static constexpr float kfWaveFadeEnd = 2.0f * game::Camera::kfCameraEyeHeightDefault;
-	float fWaveAmplitudeScale = std::clamp((kfWaveFadeEnd - game::gpCamera->mfCameraEyeHeight) / (kfWaveFadeEnd - game::Camera::kfCameraEyeHeightDefault), 0.0f, 1.0f);
+	// Fade geometric wave amplitudes by camera eye height — per-stack Start/End sliders (1.0 at ≤ Start, 0.0 at ≥ End, linear between).
+	float fCameraEyeHeight = game::gpCamera->mfCameraEyeHeight;
+	float fLowFadeStart = gWaterLowAmplitudeFadeStart.Get();
+	float fLowFadeEnd = gWaterLowAmplitudeFadeEnd.Get();
+	float fLowAmplitudeScale = std::clamp((fLowFadeEnd - fCameraEyeHeight) / std::max(fLowFadeEnd - fLowFadeStart, 1e-3f), 0.0f, 1.0f);
+	float fMediumFadeStart = gWaterMediumAmplitudeFadeStart.Get();
+	float fMediumFadeEnd = gWaterMediumAmplitudeFadeEnd.Get();
+	float fMediumAmplitudeScale = std::clamp((fMediumFadeEnd - fCameraEyeHeight) / std::max(fMediumFadeEnd - fMediumFadeStart, 1e-3f), 0.0f, 1.0f);
 
 	// Water low frequency
 	{
@@ -235,7 +240,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 		rMainLayout.pf4LowWavesOne[0].w = XMVectorGetY(vecDirection);
 
 		rMainLayout.pf4LowWavesTwo[0].x = (2.0f * XM_PI) / (gWaterLowWavelength.Get()); // Omega
-		rMainLayout.pf4LowWavesTwo[0].y = gWaterLowAmplitude.Get() * fWaveAmplitudeScale;
+		rMainLayout.pf4LowWavesTwo[0].y = gWaterLowAmplitude.Get() * fLowAmplitudeScale;
 		rMainLayout.pf4LowWavesTwo[0].z = gWaterLowSpeed.Get() * rMainLayout.pf4LowWavesTwo[0].x; // Phi
 		{
 			double dDirX = static_cast<double>(rMainLayout.pf4LowWavesOne[0].x);
@@ -264,7 +269,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 			rMainLayout.pf4LowWavesTwo[i].x = std::abs((2.0f * XM_PI) / (gWaterLowWavelength.Get() + fWavelengthAdjust * gWaterLowWavelength.Get())); // Omega
 			rMainLayout.pf4LowWavesTwo[i].y = std::abs(gWaterLowAmplitude.Get() - fAmplitudeAdjust * gWaterLowAmplitude.Get());
 			rMainLayout.pf4LowWavesTwo[i].y = std::min(rMainLayout.pf4LowWavesTwo[i].y, 0.1f * (1.0f / rMainLayout.pf4LowWavesTwo[i].x));
-			rMainLayout.pf4LowWavesTwo[i].y *= fWaveAmplitudeScale;
+			rMainLayout.pf4LowWavesTwo[i].y *= fLowAmplitudeScale;
 			rMainLayout.pf4LowWavesTwo[i].z = (gWaterLowSpeed.Get() + gWaterLowSpeed.Get() * fSpeedAdjust * common::Random(randomEngine)) * rMainLayout.pf4LowWavesTwo[i].x; // Phi
 			{
 				double dDirX = static_cast<double>(rMainLayout.pf4LowWavesOne[i].x);
@@ -299,7 +304,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 			rMainLayout.pf4MediumWavesTwo[i].x = std::abs((2.0f * XM_PI) / (gWaterMediumWavelength.Get() + fWavelengthAdjust * gWaterMediumWavelength.Get())); // Omega
 			rMainLayout.pf4MediumWavesTwo[i].y = std::abs(gWaterMediumAmplitude.Get() + fAmplitudeAdjust * gWaterMediumAmplitude.Get());
 			rMainLayout.pf4MediumWavesTwo[i].y = std::min(rMainLayout.pf4MediumWavesTwo[i].y, 0.1f * (1.0f / rMainLayout.pf4MediumWavesTwo[i].x));
-			rMainLayout.pf4MediumWavesTwo[i].y *= fWaveAmplitudeScale;
+			rMainLayout.pf4MediumWavesTwo[i].y *= fMediumAmplitudeScale;
 			rMainLayout.pf4MediumWavesTwo[i].z = (gWaterMediumSpeed.Get() + fSpeedAdjust * gWaterMediumSpeed.Get()) * rMainLayout.pf4MediumWavesTwo[i].x; // Phi
 			double dDirX = static_cast<double>(rMainLayout.pf4MediumWavesOne[i].x);
 			double dDirY = static_cast<double>(rMainLayout.pf4MediumWavesOne[i].y);

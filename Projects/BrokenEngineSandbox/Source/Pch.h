@@ -14,7 +14,7 @@ inline constexpr bool kbRecording = false;
 inline constexpr bool kbRenderDocAttach = false;
 inline constexpr bool kbScreenshots = false;
 inline constexpr bool kbVulkanPipelineCache = false; // DT: TODO Need Crc and/or fallback if corrupt true;
-inline constexpr bool kbVulkanWireframe = true; // DT: TEMP  false;
+inline constexpr bool kbVulkanWireframe = false;
 inline constexpr bool kbFramebufferClearColor = kbVulkanWireframe;
 
 #if defined(BT_SERVER)

@@ -310,11 +310,9 @@ struct GlobalLayout
 	float fShadowSunriseStretch INIT;
 	float fShadowSunsetStretch INIT;
 	float fShadowAffectAmbient INIT;
-	float fWaterReducedNoiseOriginX INIT;
 	int32_t iShadowElevationSize INIT;
 	int32_t iShadowIncrement INIT;
 	int32_t iShadowStartOffset INIT;
-	float fWaterReducedNoiseOriginY INIT;
 	int32_t iShadowTextureWidth INIT;
 	int32_t iShadowTextureHeight INIT;
 	int32_t iObjectShadowTextureWidth INIT;
@@ -338,7 +336,6 @@ struct GlobalLayout
 	int32_t iWaterMediumCount INIT;
 	float fWaterOriginX INIT;
 	float fWaterOriginY INIT;
-	float fWaterHeight INIT;
 	float fWaterTerrainHeight INIT;
 	float fWaterTerrainFade INIT;
 	float fWaterTerrainFadeClamp INIT;
@@ -347,25 +344,20 @@ struct GlobalLayout
 	float fWaterDepthLutFeather INIT;
 	float fWaterDepthColorFeather INIT;
 	float fWaterDepthReflectionFeather INIT;
-	float fWaterColorNoiseFrequency INIT;
 	float fWaterHighMultiplier INIT;
 	float fWaterHighScaleOne INIT;
 	float fWaterHighScaleTwo INIT;
 	float fWaterSunVisibility INIT;
 	float fWaterFresnel INIT;
-	float fWaterColorBottom INIT;
-	float fWaterColorHeightInv INIT;
-	float fWaterColorNoiseAmount INIT;
-	float fWaterColorNoiseWeightOne INIT;
-	float fWaterColorNoiseWeightTwo INIT;
-	float fWaterColorNoiseMultiplierOne INIT;
-	float fWaterColorNoiseMultiplierTwo INIT;
 	float fWaterDirectional INIT;
 	float fWaterFresnel2 INIT;
 	float fBeachFadeTop INIT;
 	float fBeachFadeInvRange INIT;
 	float fWaterLowSteepness INIT;
 	float fWaterMediumSteepness INIT;
+	float fWaterWaveNormalBlend INIT;
+	float fWaterGlobalAmplitudeFade INIT;
+	float fWaterZOffsetTemp INIT; // DT: TEMP
 	float fWaterReducedNormalTime INIT;
 	float fWaterReducedNormalTimeTwo INIT;
 	float fWaterReducedNormalTimeThree INIT;
@@ -453,9 +445,6 @@ struct MainLayout
 	float fWaterNormalRotationTwo INIT;
 	float fWaterNormalRotationThree INIT;
 	float fCameraHeightZoomFactor INIT;
-	float fWaterHeightDarkenTop INIT;
-	float fWaterHeightDarkenBottom INIT;
-	float fWaterHeightDarkenClamp INIT;
 
 	float fLightingWaterSkyboxSunBias INIT;
 	float fLightingWaterSkyboxNormalSoften INIT;

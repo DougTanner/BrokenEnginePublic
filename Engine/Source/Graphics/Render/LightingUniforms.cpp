@@ -119,9 +119,6 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	static constexpr float kfWaveFadeEnd = 2.0f * game::Camera::kfCameraEyeHeightDefault;
 	float fWaveAmplitudeScale = std::clamp((kfWaveFadeEnd - game::gpCamera->mfCameraEyeHeight) / (kfWaveFadeEnd - game::Camera::kfCameraEyeHeightDefault), 0.0f, 1.0f);
 	rMainLayout.fCameraHeightZoomFactor = 1.0f - fWaveAmplitudeScale;
-	rMainLayout.fWaterHeightDarkenTop = gWaterHeightDarkenTop.Get();
-	rMainLayout.fWaterHeightDarkenBottom = gWaterHeightDarkenBottom.Get();
-	rMainLayout.fWaterHeightDarkenClamp = gWaterHeightDarkenClamp.Get();
 
 	rMainLayout.fLightingWaterSkyboxSunBias = gLightingWaterSkyboxSunBias.Get();
 	rMainLayout.fLightingWaterSkyboxNormalSoften = gLightingWaterSkyboxNormalSoften.Get();

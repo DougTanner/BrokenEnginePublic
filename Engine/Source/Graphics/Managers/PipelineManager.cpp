@@ -221,7 +221,8 @@ void PipelineManager::CreatePipelineShadows()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mElevationTextures.data()},
+			// kSamplerElevation: bindless source is R32_SFLOAT; sampler chooses LINEAR or NEAREST per device capability (see TextureManager::CreateSamplers).
+			{.flags = {kCombinedSamplers, kSamplerElevation}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mElevationTextures.data()},
 		},
 	});
 
@@ -326,7 +327,7 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainColorTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture},
-			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne},
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC7Rock0jpgCrc},
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC5SandNormal0jpgCrc},
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC5SandNormal1pngCrc},
@@ -362,7 +363,7 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC4NoisepngCrc},
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = TextureManager::kiWaterNormalCount, .ppTextures = mppWaterNormalTextures},
 			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesWaterDepthLutpngCrc},
-			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mAmbientCombineTexture},
 		},
 	});
@@ -377,14 +378,17 @@ void PipelineManager::CreateTerrainDataPipelines()
 		common::crc_t fragmentShaderCrc;
 		Texture& rTargetTexture;
 		Texture** ppSourceTextures;
+		// kSamplerElevation for R32_SFLOAT bindless heightmap (LINEAR/NEAREST per device capability),
+		// kSamplerClamp for spec-mandated color/normal/AO formats. See TextureManager::CreateSamplers.
+		DescriptorFlags eSourceSamplerFlag;
 	};
 
 	TerrainDataPipelineDesc pDescs[]
 	{
-		{.ePipeline = kPipelineTerrainElevation, .pcName = "TerrainElevation", .fragmentShaderCrc = data::kShadersTerrainTerrainElevationfragCrc, .rTargetTexture = gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture, .ppSourceTextures = gpTextureManager->mRenderTargetTextures.mElevationTextures.data()},
-		{.ePipeline = kPipelineTerrainColor, .pcName = "TerrainColor", .fragmentShaderCrc = data::kShadersTerrainTerrainColorfragCrc, .rTargetTexture = gpTextureManager->mRenderTargetTextures.mTerrainColorTexture, .ppSourceTextures = gpTextureManager->mRenderTargetTextures.mColorTextures.data()},
-		{.ePipeline = kPipelineTerrainNormal, .pcName = "TerrainNormal", .fragmentShaderCrc = data::kShadersTerrainTerrainNormalfragCrc, .rTargetTexture = gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture, .ppSourceTextures = gpTextureManager->mRenderTargetTextures.mNormalsTextures.data()},
-		{.ePipeline = kPipelineTerrainAmbientOcclusion, .pcName = "TerrainAmbientOcclusion", .fragmentShaderCrc = data::kShadersTerrainTerrainAmbientOcclusionfragCrc, .rTargetTexture = gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture, .ppSourceTextures = gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.data()},
+		{.ePipeline = kPipelineTerrainElevation, .pcName = "TerrainElevation", .fragmentShaderCrc = data::kShadersTerrainTerrainElevationfragCrc, .rTargetTexture = gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture, .ppSourceTextures = gpTextureManager->mRenderTargetTextures.mElevationTextures.data(), .eSourceSamplerFlag = kSamplerElevation},
+		{.ePipeline = kPipelineTerrainColor, .pcName = "TerrainColor", .fragmentShaderCrc = data::kShadersTerrainTerrainColorfragCrc, .rTargetTexture = gpTextureManager->mRenderTargetTextures.mTerrainColorTexture, .ppSourceTextures = gpTextureManager->mRenderTargetTextures.mColorTextures.data(), .eSourceSamplerFlag = kSamplerClamp},
+		{.ePipeline = kPipelineTerrainNormal, .pcName = "TerrainNormal", .fragmentShaderCrc = data::kShadersTerrainTerrainNormalfragCrc, .rTargetTexture = gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture, .ppSourceTextures = gpTextureManager->mRenderTargetTextures.mNormalsTextures.data(), .eSourceSamplerFlag = kSamplerClamp},
+		{.ePipeline = kPipelineTerrainAmbientOcclusion, .pcName = "TerrainAmbientOcclusion", .fragmentShaderCrc = data::kShadersTerrainTerrainAmbientOcclusionfragCrc, .rTargetTexture = gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture, .ppSourceTextures = gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.data(), .eSourceSamplerFlag = kSamplerClamp},
 	};
 
 	for (const TerrainDataPipelineDesc& rDesc : pDescs)
@@ -401,7 +405,7 @@ void PipelineManager::CreateTerrainDataPipelines()
 			{
 				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 				{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-				{.flags = kCombinedSamplers, .iCount = shaders::kiMaxIslands, .ppTextures = rDesc.ppSourceTextures},
+				{.flags = {kCombinedSamplers, rDesc.eSourceSamplerFlag}, .iCount = shaders::kiMaxIslands, .ppTextures = rDesc.ppSourceTextures},
 			},
 		});
 	}
@@ -592,7 +596,7 @@ void PipelineManager::CreateParticlePipelines()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mLongParticlesStorageBuffer},
-			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne},
 			{.flags = kSamplerClamp},
 			{.flags = kTextures},
 		},
@@ -637,7 +641,7 @@ void PipelineManager::CreateParticlePipelines()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mSquareParticlesStorageBuffer},
-			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne},
 			{.flags = kSamplerClamp},
 			{.flags = kTextures},
 		},

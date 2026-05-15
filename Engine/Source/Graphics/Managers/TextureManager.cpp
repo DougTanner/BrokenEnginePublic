@@ -336,6 +336,8 @@ void TextureManager::DestroySamplers()
 	mVkSamplerBorder = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerClamp, nullptr);
 	mVkSamplerClamp = VK_NULL_HANDLE;
+	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerElevation, nullptr);
+	mVkSamplerElevation = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerRepeat, nullptr);
 	mVkSamplerRepeat = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerMirroredRepeat, nullptr);
@@ -358,13 +360,29 @@ void TextureManager::CreateSamplers()
 		gMipLodBias.Reset(gpInstanceManager->mVkPhysicalDeviceProperties.limits.maxSamplerLodBias);
 	}
 
+	// Vulkan spec only mandates SAMPLED_IMAGE_FILTER_LINEAR_BIT for the 16-bit-float family. R32_SFLOAT
+	// (used by smoke ping-pong and the per-island elevation heightmap) is optional; on devices without
+	// the bit, sampling a R32_SFLOAT image with VK_FILTER_LINEAR is undefined per spec — silently aliased
+	// or corrupted output with no validation message. Query once and downgrade the affected samplers to
+	// VK_FILTER_NEAREST so the engine still boots; the warning surfaces in the launch log.
+	const bool bR32SFloatLinearSupported = SupportsLinearFilter(VK_FORMAT_R32_SFLOAT);
+
+	const VkFilter eSmokeFilter = bR32SFloatLinearSupported ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+	// One-shot — CreateSamplers re-runs on anisotropy/lod-bias setting changes and device-lost recovery.
+	static bool sbWarnedR32SFloatLinear = false;
+	if (!bR32SFloatLinearSupported && !sbWarnedR32SFloatLinear)
+	{
+		LOG(kGraphics, kWarning, "VK_FORMAT_R32_SFLOAT does not advertise VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT — falling back to VK_FILTER_NEAREST for the smoke ping-pong and island-heightmap samplers. Smoke and terrain edges will appear blocky.\n");
+		sbWarnedR32SFloatLinear = true;
+	}
+
 	VkSamplerCreateInfo smokeVkSamplerCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		.magFilter = VK_FILTER_LINEAR,
-		.minFilter = VK_FILTER_LINEAR,
+		.magFilter = eSmokeFilter,
+		.minFilter = eSmokeFilter,
 		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
 		.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
 		.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
@@ -415,6 +433,22 @@ void TextureManager::CreateSamplers()
 	};
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerClamp));
 	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerClamp, "Clamp");
+
+	// Dedicated sampler for the per-island R32_SFLOAT heightmap (IslandTerrain bindless elevation array).
+	// Mirrors mVkSamplerClamp settings but downgrades the filter to NEAREST when the device does not
+	// advertise SAMPLED_IMAGE_FILTER_LINEAR_BIT for R32_SFLOAT. mVkSamplerClamp stays LINEAR so the
+	// spec-mandated formats it also serves (BC7 color, BC5 normals, R8 AO) keep bilinear filtering.
+	if (!bR32SFloatLinearSupported)
+	{
+		vkSamplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+		vkSamplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+	}
+	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerElevation));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerElevation, "Elevation");
+	// Restore filters for subsequent Border/Repeat/MirroredRepeat samplers (they serve spec-mandated formats).
+	vkSamplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+	vkSamplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
@@ -434,7 +468,21 @@ void TextureManager::CreateSamplers()
 
 VkSampler TextureManager::GetSampler(DescriptorFlags_t flags)
 {
-	if (flags & DescriptorFlags::kSamplerClamp)
+	// Sampler flags are mutually exclusive — if a caller accidentally sets two, GetSampler's first-match order silently picks one and masks the bug.
+	const int64_t iSamplerFlagCount = (flags & DescriptorFlags::kSamplerClamp ? 1 : 0)
+		+ (flags & DescriptorFlags::kSamplerElevation ? 1 : 0)
+		+ (flags & DescriptorFlags::kSamplerBorder ? 1 : 0)
+		+ (flags & DescriptorFlags::kSamplerRepeat ? 1 : 0)
+		+ (flags & DescriptorFlags::kSamplerMirroredRepeat ? 1 : 0)
+		+ (flags & DescriptorFlags::kSamplerSmoke ? 1 : 0)
+		+ (flags & DescriptorFlags::kSamplerWindClamp ? 1 : 0);
+	ASSERT(iSamplerFlagCount <= 1);
+
+	if (flags & DescriptorFlags::kSamplerElevation)
+	{
+		return mVkSamplerElevation;
+	}
+	else if (flags & DescriptorFlags::kSamplerClamp)
 	{
 		return mVkSamplerClamp;
 	}

@@ -1,6 +1,6 @@
 # Broken Engine
 
-A C++23 Vulkan game engine client/server with data pre-packer, using data-oriented design. Top-down RTS-scale camera: kilometers above an ocean of islands, small units on screen.
+A C++23 Vulkan game engine client/server with data pre-packer, using data-oriented design. Top-down RTS-scale camera: kilometers above an ocean of islands, small units on screen. West is -x, East is +x, North is +y, South is -y, Up is +z, Down is -z.
 
 ## Environment
 - **IDE**: Visual Studio 2026

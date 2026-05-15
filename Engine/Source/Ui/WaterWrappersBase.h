@@ -24,6 +24,8 @@ extern Wrapper gWaterNormalRotationThree;
 extern Wrapper gLightingSampledNormalsSpeedMin;
 extern Wrapper gLightingSampledNormalsSpeedMax;
 extern Wrapper gWaterDepthReflectionFeather;
+extern Wrapper gWaterWaveNormalBlend;
+extern Wrapper gWaterGlobalAmplitudeFade;
 
 // Specular - Skybox
 extern Wrapper gLightingWaterSkyboxSunBias;
@@ -39,11 +41,6 @@ extern Wrapper gLightingWaterSkyboxThree;
 extern Wrapper gLightingWaterSkyboxThreePower;
 extern Wrapper gLightingWaterSkyboxLod;
 
-// Specular - Height Darken
-extern Wrapper gWaterHeightDarkenTop;
-extern Wrapper gWaterHeightDarkenBottom;
-extern Wrapper gWaterHeightDarkenClamp;
-
 // Low frequency waves
 extern Wrapper gWaterLowMax;
 extern Wrapper gWaterLowAngle;
@@ -57,6 +54,8 @@ extern Wrapper gWaterLowAmplitudeAdjust;
 extern Wrapper gWaterLowSpeedAdjust;
 extern Wrapper gWaterBeachFadeTop;
 extern Wrapper gWaterBeachFadeBottom;
+extern Wrapper gWaterLowAmplitudeFadeStart;
+extern Wrapper gWaterLowAmplitudeFadeEnd;
 
 // Medium frequency waves
 extern Wrapper gWaterMediumWavelength;
@@ -67,13 +66,27 @@ extern Wrapper gWaterMediumAngleAdjust;
 extern Wrapper gWaterMediumWavelengthAdjust;
 extern Wrapper gWaterMediumAmplitudeAdjust;
 extern Wrapper gWaterMediumSpeedAdjust;
+extern Wrapper gWaterMediumAmplitudeFadeStart;
+extern Wrapper gWaterMediumAmplitudeFadeEnd;
 
 // Depth
 extern Wrapper gWaterTerrainHeight;
+extern Wrapper gWaterZOffsetTemp; // DT: TEMP
 extern Wrapper gWaterTerrainFade;
-extern Wrapper gWaterColorNoiseWeightOne;
-extern Wrapper gWaterColorNoiseMultiplierOne;
-extern Wrapper gWaterColorNoiseWeightTwo;
-extern Wrapper gWaterColorNoiseMultiplierTwo;
+extern Wrapper gWaterTerrainFadeClamp;
+extern Wrapper gWaterEarlyOut;
+extern Wrapper gWaterDepthLutFeather;
+extern Wrapper gWaterDepthColorFeather;
+extern Wrapper gWaterFresnel;
+extern Wrapper gWaterFresnel2;
+extern Wrapper gWaterNoiseFrequency;
+extern Wrapper gWaterNoiseAmount;
+
+// Water - Low/Medium count + High frequency waves (radio-button-bound but not via slider map; pure-internal High*)
+extern Wrapper gWaterLowCount;
+extern Wrapper gWaterMediumCount;
+extern Wrapper gWaterHighMultiplier;
+extern Wrapper gWaterHighScaleOne;
+extern Wrapper gWaterHighScaleTwo;
 
 } // namespace engine

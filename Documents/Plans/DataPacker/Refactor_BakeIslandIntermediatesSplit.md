@@ -38,7 +38,7 @@ Name interfaces, not just paths: the call site is the inline-`{}` block immediat
 
 ## Out of scope
 
-- Splitting the elevation / AO / archetype-mutex blocks of `BakeOne` (separate plan if needed; estimate post-subdivision-extraction).
+- Splitting the elevation / AO / archetype-lock blocks of `BakeOne` (separate plan if needed; estimate post-subdivision-extraction).
 - Promoting subdivision into an `ExportJob` — it is not an asset-type processor, it is a stage of the island bake.
 - Adding tests for the subdivision pass — project rule forbids unit tests.
 - Adjusting the subdivision algorithm itself (depth cap semantics, T-junction handling) — those are tracked in the file's existing comment block and the warning log added in the parent session.

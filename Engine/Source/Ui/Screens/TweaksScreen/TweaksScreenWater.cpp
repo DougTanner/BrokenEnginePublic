@@ -29,6 +29,8 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Speed Min", &gLightingSampledNormalsSpeedMin},
 	{"Speed Max", &gLightingSampledNormalsSpeedMax},
 	{"Depth Reflection Feather", &gWaterDepthReflectionFeather},
+	{"Wave Normal Blend (Global)", &gWaterWaveNormalBlend},
+	{"Global Amplitude Fade", &gWaterGlobalAmplitudeFade},
 	// Specular - Skybox
 	{"Sun Bias", &gLightingWaterSkyboxSunBias},
 	{"Normal Soften", &gLightingWaterSkyboxNormalSoften},
@@ -42,10 +44,6 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Skybox 3", &gLightingWaterSkyboxThree},
 	{"Skybox 3 Power", &gLightingWaterSkyboxThreePower},
 	{"Skybox Lod", &gLightingWaterSkyboxLod},
-	// Specular - Height Darken
-	{"Height Darken Top", &gWaterHeightDarkenTop},
-	{"Height Darken Bottom", &gWaterHeightDarkenBottom},
-	{"Height Darken Clamp", &gWaterHeightDarkenClamp},
 	// Low - Wave
 	{"Low Max", &gWaterLowMax},
 	{"Angle", &gWaterLowAngle},
@@ -61,6 +59,9 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	// Low - Beach Fade
 	{"Beach Fade Top", &gWaterBeachFadeTop},
 	{"Beach Fade Bottom", &gWaterBeachFadeBottom},
+	// Low - Camera Fade
+	{"Low Camera Fade Start", &gWaterLowAmplitudeFadeStart},
+	{"Low Camera Fade End", &gWaterLowAmplitudeFadeEnd},
 	// Medium - Wave
 	{"Medium Wavelength", &gWaterMediumWavelength},
 	{"Medium Amplitude", &gWaterMediumAmplitude},
@@ -71,13 +72,21 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Medium Wavelength Adjust", &gWaterMediumWavelengthAdjust},
 	{"Medium Amplitude Adjust", &gWaterMediumAmplitudeAdjust},
 	{"Medium Speed Adjust", &gWaterMediumSpeedAdjust},
+	// Medium - Camera Fade
+	{"Medium Camera Fade Start", &gWaterMediumAmplitudeFadeStart},
+	{"Medium Camera Fade End", &gWaterMediumAmplitudeFadeEnd},
 	// Depth
 	{"Water Terrain Height", &gWaterTerrainHeight},
+	{"DT: TEMP Z Offset", &gWaterZOffsetTemp}, // DT: TEMP
 	{"Water Terrain Fade", &gWaterTerrainFade},
-	{"Water Color Noise Weight One", &gWaterColorNoiseWeightOne},
-	{"Water Color Noise Multiplier One", &gWaterColorNoiseMultiplierOne},
-	{"Water Color Noise Weight Two", &gWaterColorNoiseWeightTwo},
-	{"Water Color Noise Multiplier Two", &gWaterColorNoiseMultiplierTwo},
+	{"Water Terrain Fade Clamp", &gWaterTerrainFadeClamp},
+	{"Water Early Out", &gWaterEarlyOut},
+	{"Water Depth Lut Feather", &gWaterDepthLutFeather},
+	{"Water Depth Color Feather", &gWaterDepthColorFeather},
+	{"Water Fresnel", &gWaterFresnel},
+	{"Water Fresnel 2", &gWaterFresnel2},
+	{"Water Noise Frequency", &gWaterNoiseFrequency},
+	{"Water Noise Amount", &gWaterNoiseAmount},
 };
 }
 
@@ -123,6 +132,8 @@ void TweaksScreenBase::RenderWaterSection()
 				WrapperSlider("Speed Min", kiSection, 1.0f);
 				WrapperSlider("Speed Max", kiSection, 1.0f);
 				WrapperSlider("Depth Reflection Feather", kiSection, 1.0f);
+				WrapperSlider("Wave Normal Blend (Global)", kiSection, 1.0f);
+				WrapperSlider("Global Amplitude Fade", kiSection, 1.0f);
 
 				WrapperSeparatorText("Skybox");
 				WrapperSlider("Sun Bias", kiSection, 1.0f);
@@ -181,6 +192,10 @@ void TweaksScreenBase::RenderWaterSection()
 			WrapperSlider("Beach Fade Top", kiSection);
 			WrapperSlider("Beach Fade Bottom", kiSection);
 
+			WrapperSeparatorText("Camera Fade");
+			WrapperSlider("Low Camera Fade Start", kiSection);
+			WrapperSlider("Low Camera Fade End", kiSection);
+
 			ImGui::EndTabItem();
 		}
 		if (ImGui::BeginTabItem("Medium", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 2) ? ImGuiTabItemFlags_SetSelected : 0))
@@ -207,6 +222,10 @@ void TweaksScreenBase::RenderWaterSection()
 			WrapperSlider("Medium Amplitude Adjust", kiSection);
 			WrapperSlider("Medium Speed Adjust", kiSection);
 
+			WrapperSeparatorText("Camera Fade");
+			WrapperSlider("Medium Camera Fade Start", kiSection);
+			WrapperSlider("Medium Camera Fade End", kiSection);
+
 			ImGui::EndTabItem();
 		}
 		if (ImGui::BeginTabItem("Depth", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 3) ? ImGuiTabItemFlags_SetSelected : 0))
@@ -219,14 +238,26 @@ void TweaksScreenBase::RenderWaterSection()
 			{
 				mActiveSubtab[kiSection] = 3;
 			}
+			WrapperSeparatorText("Terrain Fade");
 			WrapperSlider("Water Terrain Height", kiSection);
+			WrapperSlider("DT: TEMP Z Offset", kiSection); // DT: TEMP
 			WrapperSlider("Water Terrain Fade", kiSection);
+			WrapperSlider("Water Terrain Fade Clamp", kiSection);
 
-			WrapperSeparatorText("Color Noise");
-			WrapperSlider("Water Color Noise Weight One", kiSection);
-			WrapperSlider("Water Color Noise Multiplier One", kiSection);
-			WrapperSlider("Water Color Noise Weight Two", kiSection);
-			WrapperSlider("Water Color Noise Multiplier Two", kiSection);
+			WrapperSeparatorText("Surface");
+			WrapperSlider("Water Early Out", kiSection);
+
+			WrapperSeparatorText("Depth Color");
+			WrapperSlider("Water Depth Lut Feather", kiSection);
+			WrapperSlider("Water Depth Color Feather", kiSection);
+
+			WrapperSeparatorText("Fresnel");
+			WrapperSlider("Water Fresnel", kiSection);
+			WrapperSlider("Water Fresnel 2", kiSection);
+
+			WrapperSeparatorText("Normal Noise");
+			WrapperSlider("Water Noise Frequency", kiSection);
+			WrapperSlider("Water Noise Amount", kiSection);
 
 			ImGui::EndTabItem();
 		}

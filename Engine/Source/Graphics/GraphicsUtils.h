@@ -38,6 +38,8 @@ bool IsPointVisible(XMVECTOR vecPosition, XMFLOAT4A& rOutPosition);
 XMVECTOR ProjectToBaseHeight(XMVECTOR vecPosition);
 void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT4A& f4Position, float fArea, const XMFLOAT4A& f4Params, uint32_t uiColor);
 
+bool SupportsLinearFilter(VkFormat vkFormat);
+
 } // namespace engine
 
 #define CHECK_VK(a) do { VkResult vkResultMacro = a; if (vkResultMacro != VK_SUCCESS) [[unlikely]] { DEBUG_BREAK(); CheckVk(vkResultMacro, #a); } } while (false);

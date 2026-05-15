@@ -235,22 +235,10 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	float fEyeBlend = std::clamp(fDeltaTime * kfEyeHeightBlend, 0.0f, 1.0f);
 	mfCameraEyeHeight += (mfCameraEyeHeightTarget - mfCameraEyeHeight) * fEyeBlend;
 
-	// Pitch reverts toward straight-down (eye directly above target along +Z) as the camera ascends. Endpoints match the wave-amplitude fade in MainUniforms.cpp.
-	static constexpr float kfPitchAngled = -1.2f;
-	static constexpr float kfPitchStraightDown = -XM_PIDIV2;
-	static constexpr float kfPitchFadeStart = kfCameraEyeHeightDefault;
-	static constexpr float kfPitchFadeEnd = 2.0f * kfCameraEyeHeightDefault;
-	float fPitchT = std::clamp((mfCameraEyeHeight - kfPitchFadeStart) / (kfPitchFadeEnd - kfPitchFadeStart), 0.0f, 1.0f);
-	mfCameraEyeRotation = std::lerp(kfPitchAngled, kfPitchStraightDown, fPitchT);
-
-	// Calculate eye position relative to camera position
-	auto vecQuaternionEye = XMQuaternionRotationNormal(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), mfCameraEyeRotation);
-	// W=0 — this is an eye-local offset, not a homogeneous point. Normalized into mVecToEyeNormal
-	// (direction must have W=0) and added to mVecPosition (W=1 + W=0 = W=1 — preserves position).
-	auto vecEyePositionRelative = XMVectorSet(0.0f, -mfCameraEyeHeight, 0.0f, 0.0f);
-	vecEyePositionRelative = XMVector3Rotate(vecEyePositionRelative, vecQuaternionEye);
-	mVecToEyeNormal = XMVector3Normalize(vecEyePositionRelative);
-
+	// Eye sits directly above target along +Z (straight-down view).
+	// W=0 — eye-local offset, not a homogeneous point; added to mVecPosition (W=1) preserves position.
+	auto vecEyePositionRelative = XMVectorSet(0.0f, 0.0f, mfCameraEyeHeight, 0.0f);
+	mVecToEyeNormal = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
 	mVecEyePosition = XMVectorAdd(mVecPosition, vecEyePositionRelative);
 
 	// Set controller vibration based on camera shake
