@@ -301,6 +301,25 @@ void Texture::MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel, bool bUseBoxFilt
 	}
 }
 
+void Texture::Crop(int64_t iX, int64_t iY, int64_t iWidth, int64_t iHeight)
+{
+	ASSERT(mData.size() == 1);
+	ASSERT(iX >= 0 && iY >= 0 && iWidth > 0 && iHeight > 0);
+	ASSERT(iX + iWidth <= miWidth && iY + iHeight <= miHeight);
+
+	const std::vector<float>& rSrc = mData.at(0);
+	std::vector<float> cropped(4 * static_cast<size_t>(iWidth) * static_cast<size_t>(iHeight));
+	for (int64_t iRow = 0; iRow < iHeight; ++iRow)
+	{
+		const float* pfSrc = &rSrc.at(4 * (static_cast<size_t>(iY + iRow) * static_cast<size_t>(miWidth) + static_cast<size_t>(iX)));
+		float* pfDst = &cropped.at(4 * static_cast<size_t>(iRow) * static_cast<size_t>(iWidth));
+		std::memcpy(pfDst, pfSrc, 4 * static_cast<size_t>(iWidth) * sizeof(float));
+	}
+	mData.at(0) = std::move(cropped);
+	miWidth = iWidth;
+	miHeight = iHeight;
+}
+
 void Texture::Downsize(int64_t iLevels)
 {
 	ASSERT(mData.size() == 1);

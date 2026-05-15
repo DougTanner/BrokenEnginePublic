@@ -9,13 +9,13 @@ inline constexpr bool kbInvincibility = true;
 inline constexpr bool kbRenderThread = true;
 
 inline constexpr bool kbAlsoLogToPrintf = false;
-inline constexpr bool kbFramebufferClearColor = false;
 inline constexpr bool kbGpuAssistedValidation = false;
 inline constexpr bool kbRecording = false;
 inline constexpr bool kbRenderDocAttach = false;
 inline constexpr bool kbScreenshots = false;
 inline constexpr bool kbVulkanPipelineCache = false; // DT: TODO Need Crc and/or fallback if corrupt true;
-inline constexpr bool kbWireframe = false;
+inline constexpr bool kbVulkanWireframe = true; // DT: TEMP  false;
+inline constexpr bool kbFramebufferClearColor = kbVulkanWireframe;
 
 #if defined(BT_SERVER)
 inline constexpr bool kbSingleInstance = true;

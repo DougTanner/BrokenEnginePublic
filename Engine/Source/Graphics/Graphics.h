@@ -36,7 +36,6 @@ enum DestroyType
 
 enum class DestroyFlags : uint16_t
 {
-	kTerrainMesh        = 0x0002,
 	kShadowTextures     = 0x0004,
 	kObjectShadows      = 0x0008,
 	kLightingTextures   = 0x0010,

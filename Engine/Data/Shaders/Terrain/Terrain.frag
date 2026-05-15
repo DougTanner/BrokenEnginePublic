@@ -47,11 +47,12 @@ void main()
 		texture(elevationTextureSampler, f2InVisibleAreaTexcoord).x
 	);
 
-	if (f3InPosition.z < globalLayout.fTerrainEarlyOut)
-	{
-		f4OutColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);
-		return;
-	}
+	// fTerrainEarlyOut discard removed: the old visible-area quad grid drew over open-ocean pixels
+	// outside any island; the discard hid those cleared-G-buffer regions. The new per-island Gaea
+	// Mesher mesh only draws where geometry exists (including the underwater skirt), so the
+	// discard now incorrectly black-outs valid underwater content. Fringe artifacts where the mesh
+	// extends past the cropped heightmap bbox are a separate follow-up (see
+	// Documents/Plans/Graphics/GaeaMeshCropToHeightmapBbox.md).
 
 	vec3 f3Color = texture(colorTextureSampler, f2InVisibleAreaTexcoord).xyz;
 

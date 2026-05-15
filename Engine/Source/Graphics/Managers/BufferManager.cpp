@@ -15,7 +15,6 @@ BufferManager::BufferManager()
 
 	ScopedBootTimer scopedBootTimer(kBootTimerBufferManager);
 
-	CreateTerrainMesh();
 	CreateWaterMesh();
 
 	uint16_t puiQuads[] = {0, 1, 3, 2, 3, 1};
@@ -726,35 +725,6 @@ static void BuildLodConcatMesh(int64_t iLod0QuadX, int64_t iLod0QuadY,
 		iIndexCursor  += iIdxCount;
 		iVertexCursor += iVertCount;
 	}
-}
-
-void BufferManager::CreateTerrainMesh()
-{
-	// Adding 1 to match fQuadWidth exactly in visible area
-	auto [iFullX, iFullY] = gpTextureManager->DetailTextureSize(gWorldDetail.Get());
-	int64_t iLod0QuadX = iFullX - 1;
-	int64_t iLod0QuadY = iFullY - 1;
-	LOG(kGraphics, kDebug, "iTerrainQuad LOD0: {} x {}", iLod0QuadX, iLod0QuadY);
-
-	std::vector<uint32_t> indices;
-	std::vector<std::byte> vertices;
-	BuildLodConcatMesh(iLod0QuadX, iLod0QuadY, mTerrainMeshLods, indices, vertices);
-
-	mTerrainMeshBuffer.Destroy();
-	mTerrainMeshBuffer.Create(
-	{
-		.name = "TerrainMesh",
-		.flags = {kIndexVertex, kDeviceLocal},
-		.iCount = static_cast<int64_t>(indices.size()),
-		.vkIndexType = VK_INDEX_TYPE_UINT32,
-		.iVertexStride = sizeof(float) * 2,
-		.dataVkDeviceSize = sizeof(uint32_t) * indices.size() + vertices.size(),
-	},
-	[&](void* pData)
-	{
-		memcpy(pData, indices.data(), sizeof(uint32_t) * indices.size());
-		memcpy(static_cast<char*>(pData) + sizeof(uint32_t) * indices.size(), vertices.data(), vertices.size());
-	});
 }
 
 void BufferManager::CreateWaterMesh()

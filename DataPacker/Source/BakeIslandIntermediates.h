@@ -10,9 +10,33 @@ void BakeIslandIntermediates();
 struct WorldDimensions
 {
 	float fFootprintMeters = 0.0f;   // Isotropic horizontal extent (Gaea Terrain.Width)
-	float fElevationMeters = 0.0f;   // Total vertical span in meters (Gaea Terrain.Height); below/above sea split is per-archetype via the Sea node's ShoreHeight
+	float fElevationMeters = 0.0f;   // Total vertical span in meters (Gaea Terrain.Height); the below/above sea split is fixed by the global kfBeachHeightMeters (sea floor sits at -kfBeachHeightMeters for every island)
 };
 
 // Reads world-space dimensions from Island.json's required widthMeters/elevationMeters fields.
 // Throws if Island.json is missing or either key is absent.
 WorldDimensions GetIslandDimensions(const std::filesystem::path& rIslandFolder);
+
+// Post-crop dimensions written into Intermediates/BakedDimensions.json by the Gaea bake.
+// `fWidthMeters` / `fHeightMeters` are anisotropic (cropped island extent in world meters);
+// `iCropX/Y/Width/Height` describe the sub-rect of the original `iFullTexturePixels`-square
+// Gaea bake that was kept. Used by ExportIsland to size AO / Elevation Texture ctors and to
+// crop in-memory the EXR-loaded Color / Normals before BC encoding.
+struct BakedDimensions
+{
+	float fWidthMeters = 0.0f;
+	float fHeightMeters = 0.0f;
+	float fElevationMeters = 0.0f;
+	int64_t iCropX = 0;
+	int64_t iCropY = 0;
+	int64_t iCropWidth = 0;
+	int64_t iCropHeight = 0;
+	int64_t iFullTexturePixels = 0;
+};
+
+inline constexpr char kpcBakedDimensionsFile[] = "BakedDimensions.json";
+
+// Reads Intermediates/BakedDimensions.json written by the Gaea bake. Throws if missing or
+// malformed; the bake-version sentinel is stamped only after this file is written so a clean
+// IsBakeDirty check implies the JSON exists.
+BakedDimensions ReadBakedDimensions(const std::filesystem::path& rIslandFolder);

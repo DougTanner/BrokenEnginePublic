@@ -301,8 +301,14 @@ void TextureUploadManager::UploadThread()
 				}
 				else
 				{
-					// Partial mip: chunk by max(block, transfer-queue granularity) so imageOffset.y / imageExtent.height stay spec-compliant on dedicated transfer queues with non-(1,1,1) granularity (VUID-vkCmdCopyBufferToImage-imageOffset-07738).
-					uint32_t uiChunkHeight = std::max(uiBlockHeight, gpInstanceManager->mTransferImageGranularity.height);
+					// Partial mip: chunk height must satisfy VUID-vkCmdCopyBufferToImage-imageOffset-07738.
+					// The Vulkan validator interprets minImageTransferGranularity as BLOCK-relative for
+					// compressed formats, so the chunk's BLOCK extent (chunk_pixels / blockHeight) must
+					// be a multiple of granularity.height. For uncompressed (blockHeight == 1) this
+					// degenerates to `granularity.height` pixels per chunk; for BCn (blockHeight == 4)
+					// it scales up to `granularity.height * 4 = 64` pixels per chunk on hardware that
+					// reports granularity.height == 16.
+					uint32_t uiChunkHeight = std::max(1u, gpInstanceManager->mTransferImageGranularity.height) * uiBlockHeight;
 					int64_t iBytesPerChunk = common::SizeInBytes(vkFormat, uiMipWidth, uiChunkHeight);
 					int64_t iChunksThatFit = static_cast<int64_t>(vkRemainingStaging) / iBytesPerChunk;
 					if (iChunksThatFit == 0) break;

@@ -149,7 +149,11 @@ void CameraBase::CalculateMatricesAndVisibleArea()
 		}
 	}
 
-	const auto& rLodMesh = gpBufferManager->mTerrainMeshLods[iLod];
+	// Quad counts for visible-area snap math come from the water mesh's LOD table; water still uses
+	// the concat quad-grid scheme and matches the historical terrain quad density per LOD. Terrain
+	// itself now uses per-island Gaea2 meshes (see CommandBufferRecordMain.cpp), but the visible-area
+	// composite G-buffer RTTs continue to be sized by this snap-grid.
+	const BufferManager::VisibleAreaMeshLod& rLodMesh = gpBufferManager->mWaterMeshLods[iLod];
 	float fQuadsX = static_cast<float>(rLodMesh.iQuadCountX);
 	float fQuadsY = static_cast<float>(rLodMesh.iQuadCountY);
 

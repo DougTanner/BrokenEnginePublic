@@ -6,7 +6,7 @@
 // Uniforms
 layout (set = 0, binding = 0) uniform globalUniform
 {
-    GlobalLayout globalLayout;
+	GlobalLayout globalLayout;
 };
 
 layout (set = 0, binding = 1) uniform mainUniform
@@ -14,24 +14,66 @@ layout (set = 0, binding = 1) uniform mainUniform
 	MainLayout mainLayout;
 };
 
+// Shared with Terrain.frag (set=1 binding=5) — same composite elevation G-buffer the frag samples.
+// Used here to optionally override the baked mesh Z below a runtime threshold so vertices conform
+// to the per-island heightmap (which Shadow.comp and Water.frag also key off of). Vert+frag sharing
+// a sampler binding mirrors Water.vert/Water.frag, which both declare elevationTextureSampler at
+// set=1 binding=5; PipelineCreator merges vert/frag stage flags by binding number.
 layout (set = 1, binding = 5) uniform sampler2D elevationTextureSampler;
 
-// Input
-layout (location = 0) in vec2 f2InTexcoord;
+// Per-island AxisAlignedQuadLayout instance buffer; same SSBO that QuadsAxisAlignedVisibleArea.vert
+// reads at set=1 binding=1. Here at binding=19 because the pipeline-creator merge in PipelineCreator.cpp
+// keys bindings by NUMBER across vert+frag (asserting same descriptor type when both shaders declare it),
+// and Terrain.frag occupies set=0/set=1 bindings 0..18. Picking the next free number (19) keeps the
+// SSBO disjoint from frag's samplers. gl_InstanceIndex is supplied per-island via firstInstance at
+// draw time (Vulkan 1.2 core).
+layout (scalar, set = 1, binding = 19) buffer readonly quadsBuffer
+{
+	AxisAlignedQuadLayout pQuads[];
+};
 
-// Output
+// Input: per-vertex island-local meters (origin at island center; Z=0 at sea level). DataPacker
+// re-centered XY and applied the beach offset to Z during BakeIslandIntermediates.
+layout (location = 0) in vec3 f3InPosition;
+
+// Output: visible-area UV for Terrain.frag to sample composite G-buffer textures.
 layout (location = 0) out vec2 f2OutTexcoord;
 
 void main()
 {
-	vec3 f3OutWorldPosition = vec3
-	(
-		(1.0f - f2InTexcoord.x) * globalLayout.f4VisibleArea.x + f2InTexcoord.x * globalLayout.f4VisibleArea.z,
-		(1.0f - f2InTexcoord.y) * globalLayout.f4VisibleArea.y + f2InTexcoord.y * globalLayout.f4VisibleArea.w,
-		texture(elevationTextureSampler, f2InTexcoord).r
+	// Direct SSBO field reads (no local struct copy): mirrors QuadsAxisAlignedVisibleArea.vert.
+	// glslang's struct-copy from a scalar-block-layout SSBO has been observed to drop trailing
+	// fields on some drivers (rotation read as 0); reading each field through pQuads[...] avoids it.
+	vec4 f4VertexRect = pQuads[gl_InstanceIndex].f4VertexRect;
+	float fRotation = pQuads[gl_InstanceIndex].fRotation;
+
+	// f4VertexRect.{x,y} is the rect's top-left corner (Islands.cpp:143-146 packs x = worldX - 0.5*w,
+	// y = worldY + 0.5*h, w = footprintX, h = -footprintY), so the island center is at corner + half-extent.
+	float fCenterX = f4VertexRect.x + 0.5f * f4VertexRect.z;
+	float fCenterY = f4VertexRect.y + 0.5f * f4VertexRect.w;
+
+	// Rotate island-local XY into world space; Z is rotation-invariant. Matches the per-instance
+	// rotation already applied by QuadsAxisAlignedVisibleArea.vert when populating the G-buffer RTTs.
+	float fCos = cos(fRotation);
+	float fSin = sin(fRotation);
+	float fWorldX = fCenterX + f3InPosition.x * fCos - f3InPosition.y * fSin;
+	float fWorldY = fCenterY + f3InPosition.x * fSin + f3InPosition.y * fCos;
+
+	// Visible-area UV used by Terrain.frag to sample composite G-buffer textures
+	// (mTerrainElevationTexture etc., rendered earlier this frame by the per-island G-buffer prepass).
+	// Convention matches the original Terrain.vert: u in [0,1] maps to [minX, maxX]; v in [0,1] maps
+	// to [maxY, minY] (image-space Y down). f4VisibleArea = {minX, maxY, maxX, minY}.
+	f2OutTexcoord = vec2(
+		(fWorldX - globalLayout.f4VisibleArea.x) / (globalLayout.f4VisibleArea.z - globalLayout.f4VisibleArea.x),
+		(fWorldY - globalLayout.f4VisibleArea.y) / (globalLayout.f4VisibleArea.w - globalLayout.f4VisibleArea.y)
 	);
 
-	f2OutTexcoord = f2InTexcoord;
+	// Vertex Z always comes from the composite elevation G-buffer (same per-island heightmap that
+	// Shadow.comp and Water.frag read). The Gaea mesh's role is purely tessellation: XY layout and
+	// triangulation density. Sampling Z from the same source as the water blend guarantees
+	// pixel-perfect alignment at the shoreline. textureLod required in vertex shaders (no implicit
+	// derivatives).
+	float fVertexZ = textureLod(elevationTextureSampler, f2OutTexcoord, 0.0f).x;
 
-	gl_Position = Transform(vec4(f3OutWorldPosition, 1.0f), mainLayout.f4x4ViewProjection);
+	gl_Position = Transform(vec4(fWorldX, fWorldY, fVertexZ, 1.0f), mainLayout.f4x4ViewProjection);
 }

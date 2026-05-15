@@ -24,10 +24,10 @@ layout (location = 0) out float fOutElevation;
 
 void main()
 {
-    // Heightmap texel is engine-meters relative to beach (DataPacker pre-offset per-island by
-    // the archetype Sea node's `ShoreHeight × elevationMeters`). Beach = 0; negative = water;
-    // positive = land. f4InMisc.x (was per-island beach threshold) is now unused — kept in the
-    // vertex layout for future per-island params and forced to 0 from Islands.cpp so the
-    // subtraction is a no-op.
+    // Heightmap texel is engine-meters relative to beach (DataPacker pre-offset by its global
+    // beach-height constant `kfBeachHeightMeters`). Beach = 0; negative = water; positive =
+    // land. f4InMisc.x (was per-island beach threshold) is now unused — kept in the vertex
+    // layout for future per-island params and forced to 0 from Islands.cpp so the subtraction
+    // is a no-op.
     fOutElevation = texture(textureSampler[nonuniformEXT(uiInTextureSlot)], f2InTexcoord).r - f4InMisc.x;
 }

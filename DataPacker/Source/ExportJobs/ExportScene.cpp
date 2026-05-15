@@ -33,7 +33,20 @@ using enum common::ChunkFlags;
 
 std::optional<common::ChunkFlags_t> ExportScene::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 {
-	return rDirectoryEntry.path().extension() == ".gltf" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kScene) : std::nullopt;
+	if (rDirectoryEntry.path().extension() != ".gltf")
+	{
+		return std::nullopt;
+	}
+	// Skip glTF files inside any Intermediates/ directory: those are bake artifacts (e.g., the
+	// Gaea Mesher's Mesh.gltf alongside Mesh.bin) consumed by ExportIsland, not standalone scenes.
+	for (const std::filesystem::path& rPart : rDirectoryEntry.path())
+	{
+		if (rPart == "Intermediates")
+		{
+			return std::nullopt;
+		}
+	}
+	return std::optional<common::ChunkFlags_t>(common::ChunkFlags::kScene);
 }
 
 bool ExportScene::CheckDirty(const std::filesystem::path& rPackFile)

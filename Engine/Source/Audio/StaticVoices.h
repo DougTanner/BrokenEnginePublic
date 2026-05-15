@@ -89,7 +89,6 @@ private:
 	float mfManualFadeEnd = 150.0f;
 	float mfManualFadeVolume = 0.05f;
 
-	float mfChannelBleedT = 0.0f;
 	float mfEffectiveFadeStart = 0.0f;
 	float mfEffectiveFadeEnd = 150.0f;
 };

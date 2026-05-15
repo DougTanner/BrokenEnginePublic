@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Frame/NavBuild.h"
+#if defined(BT_CLIENT)
+#include "Graphics/Objects/Buffer.h"
+#endif
 
 namespace engine
 {
@@ -26,17 +29,23 @@ struct IslandTemplate
 
 	// Heightmap pixel values are engine-meters relative to beach: 0 == sea level, negative ==
 	// below water, positive == above water. DataPacker offsets Gaea's [0,1] normalized output
-	// per-island by the archetype Sea node's `ShoreHeight × elevationMeters` at bake time, so
-	// no runtime conversion is required.
+	// by its global beach-height constant (`kfBeachHeightMeters` in BakeIslandIntermediates.cpp)
+	// at bake time, so no runtime conversion is required (sea floor sits at -kfBeachHeightMeters
+	// for every island). Heightmap is anisotropic: DataPacker auto-crops each island to its land
+	// bbox > 1 m, expanded to a multiple of 4 × kiElevationDivisor so BC encoding and elevation
+	// downsample alignment hold on both axes.
 	const float* mpfHeightmapData = nullptr;
-	int32_t miHeightmapSize = 0;
+	int32_t miHeightmapWidth = 0;
+	int32_t miHeightmapHeight = 0;
 
-	float mfWorldFootprintMeters = 0.0f;
+	float mfWorldFootprintXMeters = 0.0f;
+	float mfWorldFootprintYMeters = 0.0f;
 	float mfWorldElevationMeters = 0.0f;
 
-	// Isotropic square quad footprint in engine units; derived in ctor as
-	// mfWorldFootprintMeters * kfMetersToUnits.
-	float mfQuadFootprint = 0.0f;
+	// Anisotropic quad footprint in engine units; derived in ctor as
+	// mfWorldFootprint{X,Y}Meters * kfMetersToUnits.
+	float mfQuadFootprintX = 0.0f;
+	float mfQuadFootprintY = 0.0f;
 
 	NavContour mNavContour;
 
@@ -51,6 +60,17 @@ struct IslandTemplate
 	int64_t miRefCount = 0;
 	uint64_t muiLastUsedRenderFrame = 0;
 	bool mbGpuResident = false;
+
+	// Gaea Mesher-baked terrain mesh in island-local meters (XY centered, Z=0 at sea level).
+	// CPU pointers slice into the kIsland chunk's payload after the heightmap floats (set by
+	// WaitForElevationMaps). The GPU buffer combines indices and vertices: [uint32 indices,
+	// float3 positions], uploaded once on first AcquireTextureSlot and kept resident for the
+	// lifetime of the template (textures-only LRU eviction; mesh is small relative to texture VRAM).
+	const float* mpfMeshPositions = nullptr;
+	const uint32_t* mpuiMeshIndices = nullptr;
+	int32_t miMeshVertexCount = 0;
+	int32_t miMeshIndexCount = 0;
+	Buffer mMeshBuffer;
 #endif
 };
 
@@ -77,6 +97,12 @@ public:
 	// (descriptor-patch safety window), bracketing TextureManager::ProcessPendingTextures.
 	void EvictionSweep();
 	void RestorationSweep();
+
+	// Destroy per-template GPU buffers (mMeshBuffer) before Graphics tears down the VMA allocator.
+	// IslandTerrain is game-frame-owned and outlives Graphics, but mMeshBuffer was allocated
+	// through gpDeviceManager's allocator — must be released before mpDeviceManager.reset().
+	// Called from Graphics::Destroy() at the kSurface tier.
+	void ReleaseGpuResources();
 #endif
 
 	std::unordered_map<common::crc_t, IslandTemplate> mIslands;

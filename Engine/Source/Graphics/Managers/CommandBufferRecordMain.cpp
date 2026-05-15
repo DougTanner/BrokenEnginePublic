@@ -1,6 +1,8 @@
 #include "CommandBufferRecordMain.h"
 
 #include "CommandBufferManager.h"
+#include "Frame/IslandTerrain.h"
+#include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/LightingWrappersBase.h"
@@ -217,7 +219,27 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 		gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
 
 		gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
-		pPipelines[kPipelineTerrain].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+		// Per-island terrain draws: each active IslandTemplate owns a position+index mesh baked by
+		// Gaea2's Mesher node. Bind the pipeline + descriptors once, then iterate active islands
+		// binding each template's vertex/index buffer and issuing vkCmdDrawIndexed with
+		// firstInstance=i so Terrain.vert can read the per-island AxisAlignedQuadLayout (which
+		// carries world position + rotation + bindless texture slot) via gl_InstanceIndex.
+		pPipelines[kPipelineTerrain].RecordBindPipelineAndDescriptors(iCommandBuffer, vkCommandBuffer);
+		for (int64_t i = 0; i < gpIslands->miActiveCount; ++i)
+		{
+			Islands::Island& rIsland = gpIslands->mIslands[static_cast<size_t>(i)];
+			if (rIsland.quad.f4VertexRect.z == 0.0f)
+			{
+				continue;
+			}
+			IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(rIsland.islandCrc);
+			if (rTemplate.mMeshBuffer.mDeviceLocalVkBuffer == VK_NULL_HANDLE)
+			{
+				continue;
+			}
+			rTemplate.mMeshBuffer.RecordBindVertexBuffer(vkCommandBuffer);
+			vkCmdDrawIndexed(vkCommandBuffer, static_cast<uint32_t>(rTemplate.miMeshIndexCount), 1, 0, 0, static_cast<uint32_t>(i));
+		}
 		gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
 
 		gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWater);

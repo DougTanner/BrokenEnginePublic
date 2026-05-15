@@ -517,11 +517,14 @@ def build_terrain(md_path, passthrough_path, output_path):
             root[k] = v
 
     # ---- Renumber $id throughout, then fix Parent backrefs and any $ref values ----
+    # fixup_refs must run BEFORE fixup_port_parents: passthrough-embedded $ids (e.g.
+    # Range) seed the remap, and a Port.Parent $ref written to the node's new $id
+    # could collide with a remap key and get rewritten to point at the Range Float2.
     ig = IdGenerator()
     remap = {}
     reassign_ids(root, ig, remap)
-    fixup_port_parents(root)
     fixup_refs(root, remap)
+    fixup_port_parents(root)
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(root, f, indent=2, ensure_ascii=False)

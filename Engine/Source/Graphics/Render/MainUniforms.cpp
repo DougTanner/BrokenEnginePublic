@@ -43,6 +43,44 @@ static void DebugRenderFrameEdges(const std::vector<GridCoord>& rActiveCoords)
 	}
 }
 
+static void DebugRenderIslandBoundaries(const std::vector<GridCoord>& rActiveCoords)
+{
+	if constexpr (!kbDebugRender) return;
+
+	float fZ = gBaseHeight.Get();
+	constexpr XMFLOAT4A kf4BoundaryColor = {1.0f, 0.0f, 1.0f, 1.0f};
+
+	for (const GridCoord& rCoord : rActiveCoords)
+	{
+		auto it = game::gpGame->mCoordFrames.find(rCoord);
+		if (it == game::gpGame->mCoordFrames.end()) continue;
+
+		for (const IslandPlacement& rPlacement : it->second.staticData.islands)
+		{
+			const IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(rPlacement.islandCrc);
+			float fHalfX = 0.5f * rTemplate.mfQuadFootprintX;
+			float fHalfY = 0.5f * rTemplate.mfQuadFootprintY;
+			float fCos = std::cos(rPlacement.fRotation);
+			float fSin = std::sin(rPlacement.fRotation);
+
+			auto rotate = [&](float fLocalX, float fLocalY)
+			{
+				return XMFLOAT3A {rPlacement.f2WorldPos.x + fLocalX * fCos - fLocalY * fSin, rPlacement.f2WorldPos.y + fLocalX * fSin + fLocalY * fCos, fZ};
+			};
+
+			XMFLOAT3A f3C0 = rotate(-fHalfX, -fHalfY);
+			XMFLOAT3A f3C1 = rotate( fHalfX, -fHalfY);
+			XMFLOAT3A f3C2 = rotate( fHalfX,  fHalfY);
+			XMFLOAT3A f3C3 = rotate(-fHalfX,  fHalfY);
+
+			DebugRender::Line(f3C0, f3C1, kf4BoundaryColor);
+			DebugRender::Line(f3C1, f3C2, kf4BoundaryColor);
+			DebugRender::Line(f3C2, f3C3, kf4BoundaryColor);
+			DebugRender::Line(f3C3, f3C0, kf4BoundaryColor);
+		}
+	}
+}
+
 static void DebugRenderNavData(const std::vector<GridCoord>& rActiveCoords)
 {
 	if constexpr (!kbDebugRender) return;
@@ -93,14 +131,13 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	RenderLightingMain(iCommandBuffer);
 	gpBufferManager->ResetSkinningAllocations(iCommandBuffer);
 
-	// Per-frame visible-area LOD draw params for terrain and water. The pipelines bind a
-	// single concat mesh buffer holding all LODs; per-frame we tell vkCmdDrawIndexedIndirect
-	// which LOD's index range and vertex base to draw. CameraBase computes miVisibleAreaLod
-	// from eye distance with 4× hysteresis bands; mesh density and snap-grid are in lockstep.
+	// Per-frame visible-area LOD draw params for water. The water pipeline binds a single concat
+	// mesh buffer holding all LODs; per-frame we tell vkCmdDrawIndexedIndirect which LOD's index
+	// range and vertex base to draw. CameraBase computes miVisibleAreaLod from eye distance with 4×
+	// hysteresis bands; mesh density and snap-grid are in lockstep. Terrain no longer uses indirect
+	// draws — each active island contributes one vkCmdDrawIndexed in CommandBufferRecordMain.cpp.
 	int iLod = std::clamp(game::gpCamera->miVisibleAreaLod, 0, BufferManager::kiVisibleAreaLodCount - 1);
-	const auto& rTerrainLod = gpBufferManager->mTerrainMeshLods[iLod];
-	const auto& rWaterLod   = gpBufferManager->mWaterMeshLods[iLod];
-	gpPipelineManager->mpPipelines[kPipelineTerrain].WriteIndirectBuffer(iCommandBuffer, 1, rTerrainLod.iIndexCount, rTerrainLod.iIndexOffset, rTerrainLod.iVertexOffset);
+	const BufferManager::VisibleAreaMeshLod& rWaterLod = gpBufferManager->mWaterMeshLods[iLod];
 	gpPipelineManager->mpPipelines[kPipelineWater].WriteIndirectBuffer(iCommandBuffer, 1, rWaterLod.iIndexCount, rWaterLod.iIndexOffset, rWaterLod.iVertexOffset);
 
 	// Phase 1: BeginRender — compute total capacities, resize GPU buffers, reset counters
@@ -144,6 +181,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 
 	DebugRenderNavData(rActiveCoords);
 	DebugRenderFrameEdges(rActiveCoords);
+	DebugRenderIslandBoundaries(rActiveCoords);
 
 	DebugRender::BeginRender(iCommandBuffer);
 	DebugRender::EndRender(iCommandBuffer);

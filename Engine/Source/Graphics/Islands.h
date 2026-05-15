@@ -29,11 +29,13 @@ public:
 
 	struct Island
 	{
+		common::crc_t islandCrc = 0;
 		shaders::AxisAlignedQuadLayout quad;
 	};
 
 	XMFLOAT4 mf4GlobalArea {};
 	std::vector<Island> mIslands;
+	int64_t miActiveCount = 0;  // Count of non-zero-width slots at the front of mIslands; remaining slots are zero-width placeholders.
 	Buffer mIslandsStorageBuffer;
 };
 

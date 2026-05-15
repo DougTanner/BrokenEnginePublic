@@ -13,22 +13,42 @@ struct ContourEdge
 {
 	XMFLOAT2 f2A {};
 	XMFLOAT2 f2B {};
+	// Cell-edge identifiers for each endpoint. Each marching-squares midpoint lives on exactly one
+	// cell-edge (horizontal or vertical); two cells that share a cell-edge produce the same midpoint
+	// position and therefore the same identifier. Used as the chain-graph key in
+	// ChainEdgesIntoPolygons, replacing the older `XMFLOAT2 → quantized uint64` keying that suffered
+	// from single-precision float drift across the two sides of a shared edge.
+	uint64_t uiKeyA = 0;
+	uint64_t uiKeyB = 0;
 };
+
+// Encode (orientation, row, col) as a unique 64-bit cell-edge identifier. Horizontal edges have
+// orient=0 with row ∈ [0, iHeight] / col ∈ [0, iWidth-1]; vertical edges have orient=1 with
+// row ∈ [0, iHeight-1] / col ∈ [0, iWidth]. The 32+16+16 packing leaves comfortable headroom for
+// the heightmap sizes the engine builds (kiElevationDivisor = 4 caps heightmap dims at a few
+// thousand pixels).
+inline constexpr uint64_t EncodeEdgeKey(uint32_t uiOrient, int32_t iRow, int32_t iCol)
+{
+	return (static_cast<uint64_t>(uiOrient) << 32) | (static_cast<uint64_t>(static_cast<uint32_t>(iRow)) << 16) | static_cast<uint64_t>(static_cast<uint32_t>(iCol));
+}
 
 // Marching squares: extract isocontour edges at the given world-space elevation threshold.
 // Heightmap pixels are engine-meters relative to beach (0 == sea level) — sampled directly.
-void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeightmapData, int32_t iSize, float fWorldThreshold)
+// Heightmap is anisotropic (DataPacker auto-crop produces non-square dims); UV scale is per-axis
+// so the contour lives in [0, 1]² regardless of aspect ratio. Row stride is iWidth.
+void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeightmapData, int32_t iWidth, int32_t iHeight, float fWorldThreshold)
 {
-	float fScale = 1.0f / static_cast<float>(iSize - 1);
+	float fScaleU = 1.0f / static_cast<float>(iWidth - 1);
+	float fScaleV = 1.0f / static_cast<float>(iHeight - 1);
 
-	for (int32_t iY = 0; iY < iSize - 1; ++iY)
+	for (int32_t iY = 0; iY < iHeight - 1; ++iY)
 	{
-		for (int32_t iX = 0; iX < iSize - 1; ++iX)
+		for (int32_t iX = 0; iX < iWidth - 1; ++iX)
 		{
-			float fTL = pfHeightmapData[iY * iSize + iX];
-			float fTR = pfHeightmapData[iY * iSize + iX + 1];
-			float fBR = pfHeightmapData[(iY + 1) * iSize + iX + 1];
-			float fBL = pfHeightmapData[(iY + 1) * iSize + iX];
+			float fTL = pfHeightmapData[iY * iWidth + iX];
+			float fTR = pfHeightmapData[iY * iWidth + iX + 1];
+			float fBR = pfHeightmapData[(iY + 1) * iWidth + iX + 1];
+			float fBL = pfHeightmapData[(iY + 1) * iWidth + iX];
 
 			// Classification: 1 = above threshold (obstacle), 0 = below (navigable)
 			int32_t iCase = 0;
@@ -55,12 +75,14 @@ void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeight
 			}
 
 			// Interpolation helper: find the UV position where the contour crosses an edge
-			float fCellU = static_cast<float>(iX) * fScale;
-			float fCellV = static_cast<float>(iY) * fScale;
-			float fStepU = fScale;
-			float fStepV = fScale;
+			float fCellU = static_cast<float>(iX) * fScaleU;
+			float fCellV = static_cast<float>(iY) * fScaleV;
+			float fStepU = fScaleU;
+			float fStepV = fScaleV;
 
-			// Edge midpoints via linear interpolation
+			// Edge midpoints via linear interpolation. Result is the unbounded crossing fraction in
+			// [0, 1]; downstream chain keying uses the integer cell-edge identifier so float drift
+			// or corner-snap quantization can no longer split a shared midpoint across two keys.
 			auto Lerp = [](float fA, float fB, float fThresholdValue) -> float
 			{
 				float fDenom = fA - fB;
@@ -70,6 +92,11 @@ void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeight
 				}
 				return std::clamp((fA - fThresholdValue) / fDenom, 0.0f, 1.0f);
 			};
+
+			const uint64_t uiKeyTop = EncodeEdgeKey(0, iY, iX);
+			const uint64_t uiKeyRight = EncodeEdgeKey(1, iY, iX + 1);
+			const uint64_t uiKeyBottom = EncodeEdgeKey(0, iY + 1, iX);
+			const uint64_t uiKeyLeft = EncodeEdgeKey(1, iY, iX);
 
 			// Top edge (TL to TR)
 			float fTopT = Lerp(fTL, fTR, fWorldThreshold);
@@ -92,70 +119,70 @@ void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeight
 			switch (iCase)
 			{
 				case 1:
-					rEdges.push_back({f2Bottom, f2Left});
+					rEdges.push_back({f2Bottom, f2Left, uiKeyBottom, uiKeyLeft});
 					break;
 				case 2:
-					rEdges.push_back({f2Right, f2Bottom});
+					rEdges.push_back({f2Right, f2Bottom, uiKeyRight, uiKeyBottom});
 					break;
 				case 3:
-					rEdges.push_back({f2Right, f2Left});
+					rEdges.push_back({f2Right, f2Left, uiKeyRight, uiKeyLeft});
 					break;
 				case 4:
-					rEdges.push_back({f2Top, f2Right});
+					rEdges.push_back({f2Top, f2Right, uiKeyTop, uiKeyRight});
 					break;
 				case 5:
 				{
 					float fCenter = (fTL + fTR + fBR + fBL) * 0.25f;
 					if (fCenter >= fWorldThreshold)
 					{
-						rEdges.push_back({f2Top, f2Left});
-						rEdges.push_back({f2Bottom, f2Right});
+						rEdges.push_back({f2Top, f2Left, uiKeyTop, uiKeyLeft});
+						rEdges.push_back({f2Bottom, f2Right, uiKeyBottom, uiKeyRight});
 					}
 					else
 					{
-						rEdges.push_back({f2Top, f2Right});
-						rEdges.push_back({f2Bottom, f2Left});
+						rEdges.push_back({f2Top, f2Right, uiKeyTop, uiKeyRight});
+						rEdges.push_back({f2Bottom, f2Left, uiKeyBottom, uiKeyLeft});
 					}
 					break;
 				}
 				case 6:
-					rEdges.push_back({f2Top, f2Bottom});
+					rEdges.push_back({f2Top, f2Bottom, uiKeyTop, uiKeyBottom});
 					break;
 				case 7:
-					rEdges.push_back({f2Top, f2Left});
+					rEdges.push_back({f2Top, f2Left, uiKeyTop, uiKeyLeft});
 					break;
 				case 8:
-					rEdges.push_back({f2Left, f2Top});
+					rEdges.push_back({f2Left, f2Top, uiKeyLeft, uiKeyTop});
 					break;
 				case 9:
-					rEdges.push_back({f2Bottom, f2Top});
+					rEdges.push_back({f2Bottom, f2Top, uiKeyBottom, uiKeyTop});
 					break;
 				case 10:
 				{
 					float fCenter = (fTL + fTR + fBR + fBL) * 0.25f;
 					if (fCenter >= fWorldThreshold)
 					{
-						rEdges.push_back({f2Left, f2Bottom});
-						rEdges.push_back({f2Right, f2Top});
+						rEdges.push_back({f2Left, f2Bottom, uiKeyLeft, uiKeyBottom});
+						rEdges.push_back({f2Right, f2Top, uiKeyRight, uiKeyTop});
 					}
 					else
 					{
-						rEdges.push_back({f2Left, f2Top});
-						rEdges.push_back({f2Right, f2Bottom});
+						rEdges.push_back({f2Left, f2Top, uiKeyLeft, uiKeyTop});
+						rEdges.push_back({f2Right, f2Bottom, uiKeyRight, uiKeyBottom});
 					}
 					break;
 				}
 				case 11:
-					rEdges.push_back({f2Right, f2Top});
+					rEdges.push_back({f2Right, f2Top, uiKeyRight, uiKeyTop});
 					break;
 				case 12:
-					rEdges.push_back({f2Left, f2Right});
+					rEdges.push_back({f2Left, f2Right, uiKeyLeft, uiKeyRight});
 					break;
 				case 13:
-					rEdges.push_back({f2Bottom, f2Right});
+					rEdges.push_back({f2Bottom, f2Right, uiKeyBottom, uiKeyRight});
 					break;
 				case 14:
-					rEdges.push_back({f2Left, f2Bottom});
+					rEdges.push_back({f2Left, f2Bottom, uiKeyLeft, uiKeyBottom});
 					break;
 				default:
 					break;
@@ -167,37 +194,21 @@ void ExtractContourEdges(std::vector<ContourEdge>& rEdges, const float* pfHeight
 // Chain contour edges into closed polygons by matching endpoints
 void ChainEdgesIntoPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons, const std::vector<ContourEdge>& rEdges)
 {
-	static constexpr float kfEpsilonSq = 1e-10f;
-
-	auto DistanceSq = [](const XMFLOAT2& rA, const XMFLOAT2& rB) -> float
-	{
-		float fDx = rA.x - rB.x;
-		float fDy = rA.y - rB.y;
-		return fDx * fDx + fDy * fDy;
-	};
-
-	// Quantize vertex positions to grid keys for O(1) lookup
-	// Marching squares vertices land on half-pixel boundaries, so scale to integers
-	static constexpr float kfQuantizeScale = 100000.0f;
-	auto QuantizeKey = [](const XMFLOAT2& rPoint) -> uint64_t
-	{
-		int32_t iX = static_cast<int32_t>(rPoint.x * kfQuantizeScale + 0.5f);
-		int32_t iY = static_cast<int32_t>(rPoint.y * kfQuantizeScale + 0.5f);
-		return (static_cast<uint64_t>(static_cast<uint32_t>(iX)) << 32) | static_cast<uint64_t>(static_cast<uint32_t>(iY));
-	};
-
-	// Build adjacency: map from quantized vertex position to list of (edge index, which endpoint)
+	// Adjacency: each cell-edge identifier maps to the edges that touch it. Because each midpoint
+	// lives on exactly one cell-edge and is shared with exactly one neighbour cell, every key has
+	// exactly two entries (one per cell on either side of the edge) — no quantization-induced
+	// false T-junctions.
 	struct EdgeRef
 	{
 		size_t iEdgeIndex;
-		bool bIsEndpointB; // false = matched on f2A, true = matched on f2B
+		bool bIsEndpointB; // false = matched on f2A / uiKeyA, true = matched on f2B / uiKeyB
 	};
 	std::unordered_multimap<uint64_t, EdgeRef> vertexToEdge;
 	vertexToEdge.reserve(rEdges.size() * 2);
 	for (size_t i = 0; i < rEdges.size(); ++i)
 	{
-		vertexToEdge.insert({QuantizeKey(rEdges.at(i).f2A), {i, false}});
-		vertexToEdge.insert({QuantizeKey(rEdges.at(i).f2B), {i, true}});
+		vertexToEdge.insert({rEdges.at(i).uiKeyA, {i, false}});
+		vertexToEdge.insert({rEdges.at(i).uiKeyB, {i, true}});
 	}
 
 	std::vector<bool> used(rEdges.size(), false);
@@ -213,13 +224,13 @@ void ChainEdgesIntoPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons, const
 		polygon.push_back(rEdges.at(i).f2A);
 		polygon.push_back(rEdges.at(i).f2B);
 		used.at(i) = true;
+		const uint64_t uiHeadKey = rEdges.at(i).uiKeyA;
+		uint64_t uiTailKey = rEdges.at(i).uiKeyB;
 
 		bool bGrowing = true;
 		while (bGrowing)
 		{
 			bGrowing = false;
-			uint64_t uiTailKey = QuantizeKey(polygon.back());
-
 			auto range = vertexToEdge.equal_range(uiTailKey);
 			for (auto it = range.first; it != range.second; ++it)
 			{
@@ -232,10 +243,12 @@ void ChainEdgesIntoPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons, const
 				if (it->second.bIsEndpointB)
 				{
 					polygon.push_back(rEdges.at(j).f2A);
+					uiTailKey = rEdges.at(j).uiKeyA;
 				}
 				else
 				{
 					polygon.push_back(rEdges.at(j).f2B);
+					uiTailKey = rEdges.at(j).uiKeyB;
 				}
 				used.at(j) = true;
 				bGrowing = true;
@@ -243,8 +256,9 @@ void ChainEdgesIntoPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons, const
 			}
 		}
 
-		// Only keep closed polygons with enough vertices
-		if (polygon.size() >= 3 && DistanceSq(polygon.front(), polygon.back()) < kfEpsilonSq)
+		// Closed iff the chain returned to the head's cell-edge. Integer-exact compare — no
+		// epsilon needed, since cell-edge keys are derived from cell indices, not float positions.
+		if (polygon.size() >= 3 && uiTailKey == uiHeadKey)
 		{
 			polygon.pop_back();
 			rPolygons.push_back(std::move(polygon));
@@ -1041,14 +1055,14 @@ void BuildVisibilityGraph(NavContour& rContour)
 
 } // anonymous namespace
 
-void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapSize, float fWorldThreshold)
+void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapWidth, int32_t iHeightmapHeight, float fWorldThreshold)
 {
-	LOG(kNavData, kDebug, "NavBuild: heightmap {}x{} worldThreshold={}", iHeightmapSize, iHeightmapSize, fWorldThreshold);
+	LOG(kNavData, kDebug, "NavBuild: heightmap {}x{} worldThreshold={}", iHeightmapWidth, iHeightmapHeight, fWorldThreshold);
 
 	// Step 1: Extract contour edges via marching squares
 	std::vector<ContourEdge> contourEdges;
-	contourEdges.reserve(static_cast<size_t>(iHeightmapSize) * static_cast<size_t>(iHeightmapSize));
-	ExtractContourEdges(contourEdges, pfHeightmapData, iHeightmapSize, fWorldThreshold);
+	contourEdges.reserve(static_cast<size_t>(iHeightmapWidth) * static_cast<size_t>(iHeightmapHeight));
+	ExtractContourEdges(contourEdges, pfHeightmapData, iHeightmapWidth, iHeightmapHeight, fWorldThreshold);
 
 	LOG(kNavData, kDebug, "NavBuild: extracted {} contour edges", contourEdges.size());
 
@@ -1140,7 +1154,8 @@ void BuildCellNavData(NavData& rNavData, const std::vector<IslandPlacement>& rPl
 
 		float fCos = std::cos(rPlacement.fRotation);
 		float fSin = std::sin(rPlacement.fRotation);
-		float fIslandFootprint = rTemplate.mfQuadFootprint;
+		float fFootprintX = rTemplate.mfQuadFootprintX;
+		float fFootprintY = rTemplate.mfQuadFootprintY;
 
 		// Local axes: +U = +world.x, +V = -world.y (V is world-Y inverted).
 		for (int32_t i = 0; i < iVertexCount; ++i)
@@ -1148,8 +1163,8 @@ void BuildCellNavData(NavData& rNavData, const std::vector<IslandPlacement>& rPl
 			float fU = rContour.vertices.at(i).x;
 			float fV = rContour.vertices.at(i).y;
 
-			float fLocalX = (fU - 0.5f) * fIslandFootprint;
-			float fLocalY = (0.5f - fV) * fIslandFootprint;
+			float fLocalX = (fU - 0.5f) * fFootprintX;
+			float fLocalY = (0.5f - fV) * fFootprintY;
 
 			float fRotX = fLocalX * fCos - fLocalY * fSin;
 			float fRotY = fLocalX * fSin + fLocalY * fCos;

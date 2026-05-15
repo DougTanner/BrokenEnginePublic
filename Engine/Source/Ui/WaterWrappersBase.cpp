@@ -79,7 +79,7 @@ Wrapper gWaterMediumSpeedAdjust(0.6f, 0.0f, 5.0f);
 
 // Depth
 Wrapper gWaterTerrainHeight(3.5f, 1.0f, 8.0f);
-Wrapper gWaterTerrainFade(0.025f, 0.001f, 0.04f);
+Wrapper gWaterTerrainFade(0.025f, 0.001f, 1.0f);
 Wrapper gWaterColorNoiseWeightOne(-1.5f, -2.0f, 2.0f);
 // Step 0.1 keeps mult*10 integer for the Water.frag fract()-wrap precision pact (see Water.frag color-noise UV block).
 Wrapper gWaterColorNoiseMultiplierOne(0.2f, 0.0f, 1.0f, 0.1f);

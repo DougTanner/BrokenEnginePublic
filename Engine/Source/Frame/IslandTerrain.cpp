@@ -32,10 +32,13 @@ IslandTerrain::IslandTerrain()
 
 		IslandTemplate& rTemplate = mIslands.try_emplace(rCrc).first->second;
 		rTemplate.mIslandCrc = rCrc;
-		rTemplate.mfWorldFootprintMeters = rLazyChunk.header.islandHeader.fWorldFootprintMeters;
+		rTemplate.mfWorldFootprintXMeters = rLazyChunk.header.islandHeader.fWorldFootprintXMeters;
+		rTemplate.mfWorldFootprintYMeters = rLazyChunk.header.islandHeader.fWorldFootprintYMeters;
 		rTemplate.mfWorldElevationMeters = rLazyChunk.header.islandHeader.fWorldElevationMeters;
-		ASSERT(rTemplate.mfWorldFootprintMeters > 0.0f);
-		rTemplate.mfQuadFootprint = rTemplate.mfWorldFootprintMeters * kfMetersToUnits;
+		ASSERT(rTemplate.mfWorldFootprintXMeters > 0.0f);
+		ASSERT(rTemplate.mfWorldFootprintYMeters > 0.0f);
+		rTemplate.mfQuadFootprintX = rTemplate.mfWorldFootprintXMeters * kfMetersToUnits;
+		rTemplate.mfQuadFootprintY = rTemplate.mfWorldFootprintYMeters * kfMetersToUnits;
 	}
 
 	// Stable, deterministic iteration order for slot assignment (Phase 3).
@@ -71,7 +74,19 @@ void IslandTerrain::WaitForElevationMaps([[maybe_unused]] float fNavThreshold)
 	{
 		const LazyChunk& rLazyChunk = rChunkMap.at(rCrc);
 		rTemplate.mpfHeightmapData = reinterpret_cast<const float*>(rLazyChunk.pData);
-		rTemplate.miHeightmapSize = rLazyChunk.header.islandHeader.iHeightmapSize;
+		rTemplate.miHeightmapWidth = rLazyChunk.header.islandHeader.iHeightmapWidth;
+		rTemplate.miHeightmapHeight = rLazyChunk.header.islandHeader.iHeightmapHeight;
+
+#if defined(BT_CLIENT)
+		// Chunk payload layout (set by ExportIsland::Export): [heightmap floats][mesh positions][mesh indices].
+		int64_t iHeightmapBytes = static_cast<int64_t>(rTemplate.miHeightmapWidth) * static_cast<int64_t>(rTemplate.miHeightmapHeight) * static_cast<int64_t>(sizeof(float));
+		const std::byte* pAfterHeightmap = reinterpret_cast<const std::byte*>(rLazyChunk.pData) + iHeightmapBytes;
+		rTemplate.miMeshVertexCount = rLazyChunk.header.islandHeader.iMeshVertexCount;
+		rTemplate.miMeshIndexCount = rLazyChunk.header.islandHeader.iMeshIndexCount;
+		rTemplate.mpfMeshPositions = reinterpret_cast<const float*>(pAfterHeightmap);
+		int64_t iMeshPositionBytes = static_cast<int64_t>(rTemplate.miMeshVertexCount) * 3 * static_cast<int64_t>(sizeof(float));
+		rTemplate.mpuiMeshIndices = reinterpret_cast<const uint32_t*>(pAfterHeightmap + iMeshPositionBytes);
+#endif
 	}
 
 #if defined(BT_SERVER)
@@ -82,7 +97,7 @@ void IslandTerrain::WaitForElevationMaps([[maybe_unused]] float fNavThreshold)
 	{
 		if (rTemplate.mpfHeightmapData != nullptr)
 		{
-			BuildNavContour(rTemplate.mNavContour, rTemplate.mpfHeightmapData, rTemplate.miHeightmapSize, fNavThreshold);
+			BuildNavContour(rTemplate.mNavContour, rTemplate.mpfHeightmapData, rTemplate.miHeightmapWidth, rTemplate.miHeightmapHeight, fNavThreshold);
 		}
 	}
 #endif
@@ -113,7 +128,8 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 	for (const IslandPlacement& rPlacement : it->second.staticData.islands)
 	{
 		const IslandTemplate& rTemplate = mIslands.at(rPlacement.islandCrc);
-		float fIslandFootprint = rTemplate.mfQuadFootprint;
+		float fFootprintX = rTemplate.mfQuadFootprintX;
+		float fFootprintY = rTemplate.mfQuadFootprintY;
 
 		// Inverse-rotate world point into island-local frame
 		float fCos = std::cos(-rPlacement.fRotation);
@@ -123,24 +139,24 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 		float fLocalX = fDx * fCos - fDy * fSin;
 		float fLocalY = fDx * fSin + fDy * fCos;
 
-		if (std::abs(fLocalX) > 0.5f * fIslandFootprint || std::abs(fLocalY) > 0.5f * fIslandFootprint)
+		if (std::abs(fLocalX) > 0.5f * fFootprintX || std::abs(fLocalY) > 0.5f * fFootprintY)
 		{
 			continue;
 		}
 
 		// UV from local frame; V axis is world-Y inverted
-		float fU = fLocalX / fIslandFootprint + 0.5f;
-		float fV = 0.5f - fLocalY / fIslandFootprint;
+		float fU = fLocalX / fFootprintX + 0.5f;
+		float fV = 0.5f - fLocalY / fFootprintY;
 
-		int64_t iX = static_cast<int64_t>(fU * static_cast<float>(rTemplate.miHeightmapSize - 1));
-		int64_t iY = static_cast<int64_t>(fV * static_cast<float>(rTemplate.miHeightmapSize - 1));
-		iX = std::clamp(iX, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapSize - 1));
-		iY = std::clamp(iY, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapSize - 1));
+		int64_t iX = static_cast<int64_t>(fU * static_cast<float>(rTemplate.miHeightmapWidth - 1));
+		int64_t iY = static_cast<int64_t>(fV * static_cast<float>(rTemplate.miHeightmapHeight - 1));
+		iX = std::clamp(iX, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapWidth - 1));
+		iY = std::clamp(iY, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapHeight - 1));
 
-		// Heightmap value is already engine-meters (DataPacker offset per-island by the archetype
-		// Sea node's `ShoreHeight × elevationMeters`). Beach = 0; negative = water; positive =
-		// land. Return directly.
-		return rTemplate.mpfHeightmapData[iY * rTemplate.miHeightmapSize + iX];
+		// Heightmap value is already engine-meters (DataPacker offset by the global beach-height
+		// constant `kfBeachHeightMeters` defined in BakeIslandIntermediates.cpp). Beach = 0;
+		// negative = water; positive = land. Return directly.
+		return rTemplate.mpfHeightmapData[iY * rTemplate.miHeightmapWidth + iX];
 	}
 
 	return mfSeaFloorElevation;
@@ -198,6 +214,34 @@ int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
 			gpTextureManager->mTextureDescriptors.RegisterTextureBinding(textureCrcs[2], &gpPipelineManager->mpPipelines[kPipelineTerrainNormal], kiBindingIndex, DescriptorFlags::kSamplerClamp, nullptr, gpTextureManager->mRenderTargetTextures.mNormalsTextures.data(), shaders::kiMaxIslands, iSlot);
 			gpTextureManager->mTextureDescriptors.RegisterTextureBinding(textureCrcs[3], &gpPipelineManager->mpPipelines[kPipelineTerrainAmbientOcclusion], kiBindingIndex, DescriptorFlags::kSamplerClamp, nullptr, gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.data(), shaders::kiMaxIslands, iSlot);
 		}
+
+		// Upload the Mesher-baked terrain mesh exactly once per template. Layout: [uint32 indices,
+		// float3 positions] — indices first matches the existing terrain/water mesh buffer convention
+		// (BufferManager.cpp). Mesh data lives for the lifetime of the template (not LRU-evicted —
+		// textures dominate VRAM pressure, mesh is small and KISS).
+		ASSERT(rTemplate.miMeshVertexCount > 0);
+		ASSERT(rTemplate.miMeshIndexCount > 0);
+		// Defensive: if eviction is ever extended to mesh memory, Create() must not be called over a
+		// live buffer. Currently the miTextureSlot < 0 first-mint branch is the only path that uploads,
+		// so the buffer is guaranteed-null here.
+		ASSERT(rTemplate.mMeshBuffer.mDeviceLocalVkBuffer == VK_NULL_HANDLE);
+		int64_t iMeshIndexBytes = static_cast<int64_t>(rTemplate.miMeshIndexCount) * static_cast<int64_t>(sizeof(uint32_t));
+		int64_t iMeshPositionBytes = static_cast<int64_t>(rTemplate.miMeshVertexCount) * 3 * static_cast<int64_t>(sizeof(float));
+		rTemplate.mMeshBuffer.Create(
+		{
+			.name = "IslandMesh",
+			.flags = {BufferFlags::kIndexVertex, BufferFlags::kDeviceLocal},
+			.iCount = rTemplate.miMeshIndexCount,
+			.vkIndexType = VK_INDEX_TYPE_UINT32,
+			.iVertexStride = static_cast<int64_t>(3 * sizeof(float)),
+			.dataVkDeviceSize = static_cast<VkDeviceSize>(iMeshIndexBytes + iMeshPositionBytes),
+		},
+		[&rTemplate, iMeshIndexBytes, iMeshPositionBytes](void* pData)
+		{
+			std::memcpy(pData, rTemplate.mpuiMeshIndices, static_cast<size_t>(iMeshIndexBytes));
+			std::memcpy(static_cast<char*>(pData) + iMeshIndexBytes, rTemplate.mpfMeshPositions, static_cast<size_t>(iMeshPositionBytes));
+		});
+		LOG(kGraphics, kDebug, "Uploaded island mesh: crc={} vertices={} indices={}", islandCrc, rTemplate.miMeshVertexCount, rTemplate.miMeshIndexCount);
 
 		rTemplate.mbGpuResident = false;
 		gpFileManager->RequestChunkLoad(textureCrcs, LoadPriority::kRealtime);
@@ -341,5 +385,15 @@ XMVECTOR XM_CALLCONV IslandTerrain::GlobalNormal(FXMVECTOR vecPosition) const
 
 	return XMVector3Normalize(XMVector3Cross(XMVectorSubtract(vecTopRight, vecBottomLeft), XMVectorSubtract(vecTopLeft, vecBottomRight)));
 }
+
+#if defined(BT_CLIENT)
+void IslandTerrain::ReleaseGpuResources()
+{
+	for (auto& [rCrc, rTemplate] : mIslands)
+	{
+		rTemplate.mMeshBuffer.Destroy();
+	}
+}
+#endif
 
 } // namespace engine

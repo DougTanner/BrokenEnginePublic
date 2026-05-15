@@ -309,9 +309,12 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 	mpPipelines[kPipelineTerrain].Create(
 	{
 		.name = "Terrain",
-		.flags = {kDepthTest, kDepthWrite, kCullBack, kUpdateAfterBind, kIndirectHostVisible},
+		// kIndirect* flag dropped: terrain now draws via per-island vkCmdDrawIndexed in
+		// CommandBufferRecordMain (instead of a single visible-area indirect draw).
+		.flags = {kDepthTest, kDepthWrite, kCullBack, kUpdateAfterBind},
 		.ppShaders = {&mShaders.at(data::kShadersTerrainTerrainvertCrc), &mShaders.at(data::kShadersTerrainTerrainfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mTerrainMeshBuffer,
+		// pVertexBuffer is null: vertex buffer is per-island and bound at draw time. Vertex input
+		// stride and attribute layout come from shader reflection (Terrain.vert declares vec3 in).
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
@@ -333,6 +336,10 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC5RockNormal2jpgCrc},
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC5RockNormal4jpgCrc},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mAmbientCombineTexture},
+			// AxisAlignedQuadLayout instance buffer used by Terrain.vert to transform island-local
+			// mesh vertices into world space (set=1 binding=19). Mirrors kPipelineShadowElevation's
+			// SSBO usage; gl_InstanceIndex is supplied per-island via firstInstance at draw time.
+			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
 		},
 	});
 

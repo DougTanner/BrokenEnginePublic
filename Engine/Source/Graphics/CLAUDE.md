@@ -10,7 +10,7 @@ Multi-pass deferred Vulkan renderer with lighting, shadows, GPU particles, and p
 - Per-framebuffer descriptor sets prevent GPU conflicts across frames in flight
 - All GPU memory allocated through VMA
 - Lazy texture loading: generic textures use a white placeholder at startup; islands use a permanent neutral programmatic placeholder at slot 0 (format-matched, never adopted by a real island), with background disk load via transfer queue and deferred descriptor update. Frame 0 renders no islands — visible terrain appears only as subscriptions arrive and mint slots
-- Camera snaps render visible-area to the terrain/water quad grid — never render off-grid
+- Camera snaps render visible-area to the water quad grid — never render off-grid. Terrain uses per-island Gaea2-Mesher meshes; the visible-area composite G-buffer RTTs that terrain fragment shading samples are still sized by the same snap-grid (driven by `BufferManager::mWaterMeshLods`)
 - Terrain collision queries live in `/Frame/IslandTerrain` (shared); `Islands` here is client-only GPU rendering
 - Frame boundary sits between Main-submit and the next Acquire, not at loop top
 - `RenderGlobal` post-fence-wait is the descriptor-patch safety window: island LRU eviction runs immediately before `TextureManager::ProcessPendingTextures` and restoration runs immediately after, so descriptor rewrites happen while no frame-in-flight references the slots

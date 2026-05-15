@@ -4,7 +4,7 @@ Island terrain mesh rendering using a deferred G-buffer pipeline with final comp
 
 ## Overview
 
-Renders terrain as a visible-area-covering mesh with elevation displacement. A shared vertex shader (`Terrain.vert`) positions vertices across the visible area with heightmap-based displacement. Multiple G-buffer generation fragment shaders produce intermediate textures (color, normal, elevation, ambient occlusion) per island using bindless texture arrays. The final compositing shader (`Terrain.frag`) combines all G-buffer outputs with lighting, shadows, smoke, and detail textures into the final terrain color.
+Renders terrain in two stages: per-island G-buffer prepasses fill composite visible-area textures (color, normal, elevation, ambient occlusion) from bindless per-island heightmap/color/normal/AO assets, then a final compositing pass draws per-island Gaea2-Mesher-baked meshes and samples those composites for shading. `Terrain.vert` (compositing) transforms each island's local-meters mesh into world space via the per-instance `AxisAlignedQuadLayout` (center+rotation) and derives visible-area UV from world XY; `Terrain.frag` reads the composite G-buffers using that UV. `QuadsAxisAlignedVisibleArea.vert` still drives the four G-buffer prepasses (axis-aligned-rect blits into the composite RTTs).
 
 ## Shader Pipeline
 

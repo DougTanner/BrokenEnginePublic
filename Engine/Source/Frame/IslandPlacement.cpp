@@ -67,8 +67,8 @@ void GenerateIslandPlacements(GridCoord coord, std::vector<IslandPlacement>& rOu
 		// common::Random(N, ...) is inclusive on N — pass size-1 as the max index.
 		common::crc_t islandCrc = gpIslandTerrain->mIslandCrcsSorted.at(common::Random(static_cast<uint32_t>(gpIslandTerrain->mIslandCrcsSorted.size() - 1u), crcRandom));
 		const IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(islandCrc);
-		float fQuadW = rTemplate.mfQuadFootprint;
-		float fQuadH = rTemplate.mfQuadFootprint;
+		float fQuadW = rTemplate.mfQuadFootprintX;
+		float fQuadH = rTemplate.mfQuadFootprintY;
 
 		bool bAccepted = false;
 		for (int32_t iAttempt = 0; iAttempt < kMaxRejectAttempts && !bAccepted; ++iAttempt)

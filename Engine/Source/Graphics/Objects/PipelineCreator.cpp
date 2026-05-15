@@ -454,6 +454,15 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 		vkPipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputAttributeDescriptions);
 		vkPipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = pVertexShader->mInfo.pVertexAttributes;
 	}
+	else if (pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride > 0)
+	{
+		// Per-draw vertex buffer binding (e.g., per-island terrain meshes): no single canonical
+		// vertex buffer is owned by the pipeline. Stride and attributes come from shader reflection;
+		// the caller binds the actual buffer via vkCmdBindVertexBuffers at draw time.
+		vkVertexInputBindingDescription.stride = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride);
+		vkPipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputAttributeDescriptions);
+		vkPipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = pVertexShader->mInfo.pVertexAttributes;
+	}
 	else
 	{
 		vkPipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
@@ -501,7 +510,7 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 		vkPipelineColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 	}
 
-	if constexpr (kbWireframe)
+	if constexpr (kbVulkanWireframe)
 	{
 		bool bWireframe = gWireframe.Get<bool>();
 		if (rPipeline.mInfo.flags & kRenderTarget || rPipeline.mInfo.flags & kNoWireframe)

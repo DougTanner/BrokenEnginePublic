@@ -9,9 +9,10 @@ namespace common
 inline constexpr int64_t kiAlignmentBytes = 16;
 
 // Open-ocean floor elevation used by the engine for cells with no island placement. Island
-// heightmaps are NOT offset by this constant — DataPacker offsets them per-island by the
-// archetype's Sea node `ShoreHeight × elevationMeters`, so on-disk pixels are beach-relative
-// (0 = shoreline, negative = underwater, positive = land).
+// heightmaps are NOT offset by this constant — DataPacker offsets them by its own global beach
+// height constant (`kfBeachHeightMeters` in BakeIslandIntermediates.cpp) so on-disk pixels are
+// beach-relative (0 = shoreline, negative = underwater down to -kfBeachHeightMeters, positive =
+// land).
 inline constexpr float kfOceanDepthMeters = 500.0f;
 
 inline void AlignOutputStream(std::fstream& rFileStream)
@@ -225,9 +226,18 @@ struct IslandHeader
 	common::crc_t colorsCrc = 0;
 	common::crc_t elevationCrc = 0;
 	common::crc_t normalsCrc = 0;
-	int32_t iHeightmapSize = 0;
-	float fWorldFootprintMeters = 0.0f;
+	// Anisotropic: each island is auto-cropped at bake time to its land bbox > 1.0 m, expanded to
+	// a multiple of 4 * kiElevationDivisor (=16) so BC encoding and 4x elevation downsample stay
+	// block-aligned. Width/height meters are derived from the original isotropic widthMeters scaled
+	// by cropW/iTexturePixels and cropH/iTexturePixels respectively.
+	int32_t iHeightmapWidth = 0;
+	int32_t iHeightmapHeight = 0;
+	float fWorldFootprintXMeters = 0.0f;
+	float fWorldFootprintYMeters = 0.0f;
 	float fWorldElevationMeters = 0.0f;
+	// Mesh payload follows heightmap floats in the chunk data: [float3 positions[iMeshVertexCount]][uint32 indices[iMeshIndexCount]].
+	int32_t iMeshVertexCount = 0;
+	int32_t iMeshIndexCount = 0;
 };
 
 struct ModelHeader

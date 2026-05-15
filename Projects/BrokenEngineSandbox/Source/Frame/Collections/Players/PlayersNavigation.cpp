@@ -211,12 +211,13 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 	{
 		// Following flagship via NavQuery pathfinding.
 		// Mirror mode 4's per-tick RNG consumption (same placement selection + two Random draws
-		// bounded by the chosen template's mfQuadFootprint) so flipping between modes 4 and 5 does
-		// not desync the random stream. See mode 4 below for the corresponding draws.
+		// bounded by the chosen template's anisotropic footprint X then Y) so flipping between
+		// modes 4 and 5 does not desync the random stream. See mode 4 below for the corresponding
+		// draws.
 		const engine::IslandPlacement& rRngPlacement = rStaticData.islands.at(static_cast<size_t>(i) % rStaticData.islands.size());
 		const engine::IslandTemplate& rRngTemplate = engine::gpIslandTerrain->mIslands.at(rRngPlacement.islandCrc);
-		common::Random(rRngTemplate.mfQuadFootprint, rFrame.postRender.randomEngine);
-		common::Random(rRngTemplate.mfQuadFootprint, rFrame.postRender.randomEngine);
+		common::Random(rRngTemplate.mfQuadFootprintX, rFrame.postRender.randomEngine);
+		common::Random(rRngTemplate.mfQuadFootprintY, rFrame.postRender.randomEngine);
 
 		XMVECTOR vecDebugWaypoint = XMVectorZero();
 		XMVECTOR vecNavDirection = XMVectorZero();
@@ -249,11 +250,11 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 			// matches this count so mode flips do not desync the shared random stream.
 			const engine::IslandPlacement& rPlacement = rStaticData.islands.at(static_cast<size_t>(i) % rStaticData.islands.size());
 			const engine::IslandTemplate& rTemplate = engine::gpIslandTerrain->mIslands.at(rPlacement.islandCrc);
-			float fIslandMinX = rPlacement.f2WorldPos.x - 0.5f * rTemplate.mfQuadFootprint;
-			float fIslandMinY = rPlacement.f2WorldPos.y - 0.5f * rTemplate.mfQuadFootprint;
+			float fIslandMinX = rPlacement.f2WorldPos.x - 0.5f * rTemplate.mfQuadFootprintX;
+			float fIslandMinY = rPlacement.f2WorldPos.y - 0.5f * rTemplate.mfQuadFootprintY;
 
-			float fX = fIslandMinX + common::Random(rTemplate.mfQuadFootprint, rFrame.postRender.randomEngine);
-			float fY = fIslandMinY + common::Random(rTemplate.mfQuadFootprint, rFrame.postRender.randomEngine);
+			float fX = fIslandMinX + common::Random(rTemplate.mfQuadFootprintX, rFrame.postRender.randomEngine);
+			float fY = fIslandMinY + common::Random(rTemplate.mfQuadFootprintY, rFrame.postRender.randomEngine);
 			rVecIslandDestination = XMVectorSet(fX, fY, engine::gBaseHeight.Get(), 1.0f);
 
 			// Snap to navigable area if inside an obstacle

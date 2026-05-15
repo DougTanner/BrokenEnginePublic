@@ -140,10 +140,10 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 			rTemplate.muiLastUsedRenderFrame = gpGraphics->muiFrameCounter;
 			Island& rIsland = mIslands[static_cast<size_t>(iEmitIndex)];
 
-			rIsland.quad.f4VertexRect.x = rPlacement.f2WorldPos.x - 0.5f * rTemplate.mfQuadFootprint;
-			rIsland.quad.f4VertexRect.y = rPlacement.f2WorldPos.y + 0.5f * rTemplate.mfQuadFootprint;
-			rIsland.quad.f4VertexRect.z = rTemplate.mfQuadFootprint;
-			rIsland.quad.f4VertexRect.w = -rTemplate.mfQuadFootprint;
+			rIsland.quad.f4VertexRect.x = rPlacement.f2WorldPos.x - 0.5f * rTemplate.mfQuadFootprintX;
+			rIsland.quad.f4VertexRect.y = rPlacement.f2WorldPos.y + 0.5f * rTemplate.mfQuadFootprintY;
+			rIsland.quad.f4VertexRect.z = rTemplate.mfQuadFootprintX;
+			rIsland.quad.f4VertexRect.w = -rTemplate.mfQuadFootprintY;
 
 			rIsland.quad.f4TextureRect.x = 0.0f;
 			rIsland.quad.f4TextureRect.z = 1.0f;
@@ -153,6 +153,7 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 			rIsland.quad.f4Params.x = 0.0f;
 			rIsland.quad.fRotation = rPlacement.fRotation;
 			rIsland.quad.uiTextureSlot = static_cast<uint32_t>(gpIslandTerrain->AcquireTextureSlot(rPlacement.islandCrc));
+			rIsland.islandCrc = rPlacement.islandCrc;
 			++iEmitIndex;
 		}
 		if (iEmitIndex >= static_cast<int64_t>(shaders::kiMaxIslands))
@@ -160,6 +161,8 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 			break;
 		}
 	}
+
+	miActiveCount = iEmitIndex;
 
 	// Zero remaining slots (zero-width quads -> GPU culled)
 	for (size_t i = static_cast<size_t>(iEmitIndex); i < mIslands.size(); ++i)

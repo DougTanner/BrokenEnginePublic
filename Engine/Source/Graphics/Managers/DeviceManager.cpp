@@ -192,7 +192,7 @@ DeviceManager::DeviceManager()
 	{
 		vkPhysicalDeviceFeatures.wideLines = VK_TRUE;
 	}
-	if constexpr (kbWireframe)
+	if constexpr (kbVulkanWireframe)
 	{
 		vkPhysicalDeviceFeatures.fillModeNonSolid = VK_TRUE;
 	}

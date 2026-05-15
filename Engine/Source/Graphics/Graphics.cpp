@@ -387,7 +387,7 @@ void Graphics::Refresh()
 	{
 		LOG(kGraphics, kDebug, "World detail: {} -> {}", fPreviousWorldDetail, fWorldDetail);
 
-		mDestroyFlags.Set({DestroyFlags::kTerrainMesh, DestroyFlags::kShadowTextures, DestroyFlags::kObjectShadows, DestroyFlags::kLightingTextures, DestroyFlags::kWaterMesh});
+		mDestroyFlags.Set({DestroyFlags::kShadowTextures, DestroyFlags::kObjectShadows, DestroyFlags::kLightingTextures, DestroyFlags::kWaterMesh});
 
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
@@ -482,14 +482,6 @@ void Graphics::RecreateResources()
 	if (mDestroyFlags.Empty())
 	{
 		return;
-	}
-
-	if (mDestroyFlags & DestroyFlags::kTerrainMesh)
-	{
-		if (gpBufferManager != nullptr)
-		{
-			gpBufferManager->CreateTerrainMesh();
-		}
 	}
 
 	if (mDestroyFlags & DestroyFlags::kShadowTextures)
@@ -684,6 +676,13 @@ bool Graphics::Destroy()
 		gpTextureUploadManager->DestroyTransferResources();
 		// Reset lazy-loaded texture chunk states so they reload after device recreation
 		gpFileManager->ResetTextureChunkStates();
+		// IslandTerrain is game-frame-owned (outlives Graphics) but its IslandTemplate::mMeshBuffer
+		// allocations came from this allocator. Release them before mpDeviceManager.reset() to avoid
+		// the VMA "allocations not freed before destruction" assertion on shutdown.
+		if (gpIslandTerrain != nullptr)
+		{
+			gpIslandTerrain->ReleaseGpuResources();
+		}
 		mpDeviceManager.reset();
 		mpInstanceManager.reset();
 	}

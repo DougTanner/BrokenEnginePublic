@@ -5,33 +5,39 @@
 
 using enum common::ChunkFlags;
 
-// Derive a square texture's side length from a headerless raw file's byte count.
-template <typename T>
-static int64_t DeriveSquareSize(const std::filesystem::path& rRawFile)
-{
-	int64_t iFileSize = std::filesystem::file_size(rRawFile);
-	int64_t iSampleCount = iFileSize / static_cast<int64_t>(sizeof(T));
-	int64_t iSize = static_cast<int64_t>(std::sqrt(static_cast<double>(iSampleCount)));
-	ASSERT(iSize * iSize == iSampleCount);
-	return iSize;
-}
-
 // ---------------------------------------------------------------------------
 // Single-resolution island ingest
 // ---------------------------------------------------------------------------
 
-static void ExportIslandData(const std::filesystem::path& rInputPath, std::vector<float>& rCpuHeightmapData, int32_t& riHeightmapSize, float& rfWorldFootprintMeters, float& rfWorldElevationMeters)
+struct ExportedIsland
+{
+	std::vector<float> cpuHeightmapData;
+	std::vector<float> cpuMeshPositions;   // float3 triplets in island-local meters (origin at center, Z=0 at sea level)
+	std::vector<uint32_t> cpuMeshIndices;
+	int32_t iHeightmapWidth = 0;
+	int32_t iHeightmapHeight = 0;
+	int32_t iMeshVertexCount = 0;
+	int32_t iMeshIndexCount = 0;
+	float fWorldFootprintXMeters = 0.0f;
+	float fWorldFootprintYMeters = 0.0f;
+	float fWorldElevationMeters = 0.0f;
+};
+
+static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIsland& rOut)
 {
 	std::filesystem::path intermediatesDir = rInputPath / kpcIslandIntermediatesDir;
 
-	int64_t iBaseSize = DeriveSquareSize<uint16_t>(intermediatesDir / "AmbientOcclusion.r16");
-	int64_t iElevationSize = DeriveSquareSize<float>(intermediatesDir / "Elevation.r32");
-	ASSERT(iElevationSize == iBaseSize / kiElevationDivisor);
-
-	// World dimensions: read from Island.json's required widthMeters/elevationMeters.
-	WorldDimensions worldDimensions = GetIslandDimensions(rInputPath);
-	rfWorldFootprintMeters = worldDimensions.fFootprintMeters;
-	rfWorldElevationMeters = worldDimensions.fElevationMeters;
+	// BakedDimensions.json drives every downstream size. BakeIslandIntermediates writes it
+	// before stamping the bake-version sentinel, so its presence is guaranteed if Gaea succeeded.
+	// The AO file on disk is already cropped to (cropWidth × cropHeight); Color/Normals EXRs stay
+	// full-res on disk (OpenEXR core writer is absent) and are cropped in-memory below before
+	// BC encoding so the final outputs and JPG sidecars land at crop dims.
+	BakedDimensions baked = ReadBakedDimensions(rInputPath);
+	rOut.fWorldFootprintXMeters = baked.fWidthMeters;
+	rOut.fWorldFootprintYMeters = baked.fHeightMeters;
+	rOut.fWorldElevationMeters = baked.fElevationMeters;
+	int64_t iElevationWidth = baked.iCropWidth / kiElevationDivisor;
+	int64_t iElevationHeight = baked.iCropHeight / kiElevationDivisor;
 
 	// Encode each intermediate as a single-mip texture in turn. sEncodeMutex serializes the BC
 	// encoder across textures (it uses all hardware threads internally; mutex bounds memory). A
@@ -39,7 +45,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, std::vecto
 	constexpr int kiJpegSidecarQuality = 90;
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(intermediatesDir / "AmbientOcclusion.r16", FileType::kUint16Raw, false, iBaseSize, iBaseSize);
+		Texture texture(intermediatesDir / "AmbientOcclusion.r16", FileType::kUint16Raw, false, baked.iCropWidth, baked.iCropHeight);
 		texture.Save(rInputPath / kpcIslandAmbientOcclusion, VK_FORMAT_BC4_UNORM_BLOCK, false);
 		texture.SaveJpegSidecar(rInputPath / "AmbientOcclusion.jpg", kiJpegSidecarQuality, true);
 	}
@@ -47,13 +53,14 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, std::vecto
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 		Texture texture(intermediatesDir / "Color.exr", FileType::kExr, true);
+		texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
 		texture.Save(rInputPath / kpcIslandColor, VK_FORMAT_BC7_UNORM_BLOCK, true);
 		texture.SaveJpegSidecar(rInputPath / "Color.jpg", kiJpegSidecarQuality, false);
 	}
 
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(intermediatesDir / "Elevation.r32", FileType::kFloat32, false, iElevationSize, iElevationSize);
+		Texture texture(intermediatesDir / "Elevation.r32", FileType::kFloat32, false, iElevationWidth, iElevationHeight);
 		texture.Save(rInputPath / kpcIslandElevation, VK_FORMAT_R32_SFLOAT, false);
 		texture.SaveJpegSidecar(rInputPath / "Elevation.jpg", kiJpegSidecarQuality, true, true);
 	}
@@ -61,21 +68,37 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, std::vecto
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 		Texture texture(intermediatesDir / "Normals.exr", FileType::kExr, true);
+		texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
 		texture.Save(rInputPath / kpcIslandNormals, VK_FORMAT_BC5_UNORM_BLOCK, false);
 		texture.SaveJpegSidecar(rInputPath / "Normals.jpg", kiJpegSidecarQuality, false);
 	}
 
 	// CPU heightmap: float copy of the elevation pixels, packed into the chunk data payload for
 	// runtime nav / world-Z queries. Source is the same Elevation.r32 BakeIslandIntermediates
-	// pre-scaled to engine-meters using the archetype's Sea node ShoreHeight as the beach offset
-	// (beach = 0, ocean = negative down to -ShoreHeight × elevationMeters, land = positive).
-	rCpuHeightmapData.resize(iElevationSize * iElevationSize);
+	// pre-scaled to engine-meters using the global constant kfBeachHeightMeters as the beach offset
+	// (beach = 0, ocean = negative down to -kfBeachHeightMeters, land = positive).
+	rOut.cpuHeightmapData.resize(static_cast<size_t>(iElevationWidth) * static_cast<size_t>(iElevationHeight));
 	{
 		std::fstream rawStream(intermediatesDir / "Elevation.r32", std::ios::in | std::ios::binary);
-		rawStream.read(reinterpret_cast<char*>(rCpuHeightmapData.data()), rCpuHeightmapData.size() * sizeof(float));
+		rawStream.read(reinterpret_cast<char*>(rOut.cpuHeightmapData.data()), rOut.cpuHeightmapData.size() * sizeof(float));
 	}
 
-	riHeightmapSize = static_cast<int32_t>(iElevationSize);
+	rOut.iHeightmapWidth = static_cast<int32_t>(iElevationWidth);
+	rOut.iHeightmapHeight = static_cast<int32_t>(iElevationHeight);
+
+	// Per-island mesh: BakeIslandIntermediates wrote MeshProcessed.bin with [int32 vertexCount,
+	// int32 indexCount, float3 positions, uint32 indices]. Read it verbatim; ExportIsland packs it
+	// into the chunk payload after the heightmap floats (see Export() and IslandHeader in DataFile.h).
+	{
+		std::filesystem::path meshFile = intermediatesDir / "MeshProcessed.bin";
+		std::ifstream meshStream(meshFile, std::ios::binary);
+		meshStream.read(reinterpret_cast<char*>(&rOut.iMeshVertexCount), sizeof(int32_t));
+		meshStream.read(reinterpret_cast<char*>(&rOut.iMeshIndexCount), sizeof(int32_t));
+		rOut.cpuMeshPositions.resize(static_cast<size_t>(rOut.iMeshVertexCount) * 3);
+		rOut.cpuMeshIndices.resize(static_cast<size_t>(rOut.iMeshIndexCount));
+		meshStream.read(reinterpret_cast<char*>(rOut.cpuMeshPositions.data()), static_cast<std::streamsize>(rOut.cpuMeshPositions.size() * sizeof(float)));
+		meshStream.read(reinterpret_cast<char*>(rOut.cpuMeshIndices.data()), static_cast<std::streamsize>(rOut.cpuMeshIndices.size() * sizeof(uint32_t)));
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -122,18 +145,16 @@ bool ExportIsland::CheckDirty(const std::filesystem::path& rPackFile)
 
 void ExportIsland::Export()
 {
-	std::vector<float> cpuHeightmapData;
-	int32_t iHeightmapSize = 0;
-	float fWorldFootprintMeters = 0.0f;
-	float fWorldElevationMeters = 0.0f;
-
-	ExportIslandData(mInputPath, cpuHeightmapData, iHeightmapSize, fWorldFootprintMeters, fWorldElevationMeters);
+	ExportedIsland exported;
+	ExportIslandData(mInputPath, exported);
 
 	std::filesystem::path relativeFile = mRelativeDirectory;
 	relativeFile /= mInputPath.filename();
 
-	int64_t iHeightmapDataSize = static_cast<int64_t>(cpuHeightmapData.size() * sizeof(float));
-	auto [pHeader, dataSpan] = AllocateHeaderAndData(iHeightmapDataSize);
+	int64_t iHeightmapDataSize = static_cast<int64_t>(exported.cpuHeightmapData.size() * sizeof(float));
+	int64_t iMeshPositionBytes = static_cast<int64_t>(exported.cpuMeshPositions.size() * sizeof(float));
+	int64_t iMeshIndexBytes = static_cast<int64_t>(exported.cpuMeshIndices.size() * sizeof(uint32_t));
+	auto [pHeader, dataSpan] = AllocateHeaderAndData(iHeightmapDataSize + iMeshPositionBytes + iMeshIndexBytes);
 
 	std::filesystem::path ambientOcclusionFile(relativeFile);
 	ambientOcclusionFile /= kpcIslandAmbientOcclusion;
@@ -151,9 +172,18 @@ void ExportIsland::Export()
 	normalsFile /= kpcIslandNormals;
 	pHeader->islandHeader.normalsCrc = common::Crc(normalsFile.string());
 
-	pHeader->islandHeader.iHeightmapSize = iHeightmapSize;
-	pHeader->islandHeader.fWorldFootprintMeters = fWorldFootprintMeters;
-	pHeader->islandHeader.fWorldElevationMeters = fWorldElevationMeters;
+	pHeader->islandHeader.iHeightmapWidth = exported.iHeightmapWidth;
+	pHeader->islandHeader.iHeightmapHeight = exported.iHeightmapHeight;
+	pHeader->islandHeader.fWorldFootprintXMeters = exported.fWorldFootprintXMeters;
+	pHeader->islandHeader.fWorldFootprintYMeters = exported.fWorldFootprintYMeters;
+	pHeader->islandHeader.fWorldElevationMeters = exported.fWorldElevationMeters;
+	pHeader->islandHeader.iMeshVertexCount = exported.iMeshVertexCount;
+	pHeader->islandHeader.iMeshIndexCount = exported.iMeshIndexCount;
 
-	std::memcpy(dataSpan.data(), cpuHeightmapData.data(), iHeightmapDataSize);
+	// Chunk payload: [heightmap floats][mesh positions][mesh indices]. Runtime IslandTerrain slices
+	// these contiguously using IslandHeader's count fields.
+	std::byte* pData = reinterpret_cast<std::byte*>(dataSpan.data());
+	std::memcpy(pData, exported.cpuHeightmapData.data(), iHeightmapDataSize);
+	std::memcpy(pData + iHeightmapDataSize, exported.cpuMeshPositions.data(), iMeshPositionBytes);
+	std::memcpy(pData + iHeightmapDataSize + iMeshPositionBytes, exported.cpuMeshIndices.data(), iMeshIndexBytes);
 }

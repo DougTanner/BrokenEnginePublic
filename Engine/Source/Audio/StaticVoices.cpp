@@ -153,9 +153,12 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 {
 	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
 
-	// Skipping replay ticks also skips the consumption of mbSkipNextInvalidation below;
-	// that is intentional — if a device-reset callback raises the flag mid-storm we want
-	// the first real post-storm tick to still suppress invalidation of the cleared voices.
+	// Skipping replay ticks (kRecalculated) also skips the consumption of mbSkipNextInvalidation
+	// below; that is intentional. The flag is raised by game::ClientReconciler::Run after a
+	// bAnyFullReplay — a full network reconciliation replay can rewrite post-render sound IDs
+	// mid-tick, which would otherwise cause the invalidation pass to fade-out voices whose IDs
+	// no longer match the replayed state. By suppressing one tick of invalidation, UpdateVolumes
+	// can re-establish the replayed IDs before the next invalidation pass runs.
 	if (rFrame.interpolate.frameFlags & FrameFlags::kRecalculated)
 	{
 		return;
@@ -448,7 +451,6 @@ void StaticVoices::UpdateListenerPosition([[maybe_unused]] const game::Frame& rF
 	float fEyeHeight = game::gpCamera->mfCameraEyeHeight;
 	const XMFLOAT4& rArea = game::gpCamera->f4RenderVisibleArea;
 	float fVisibleHalfWidth = 0.5f * (rArea.z - rArea.x);
-	mfChannelBleedT = std::clamp((fEyeHeight - game::Camera::kfCameraEyeHeightDefault) / game::Camera::kfCameraEyeHeightDefault, 0.0f, 1.0f);
 	// Fade band shape: full voice volume inside the visible footprint, narrow fade beyond.
 	//   mfEffectiveFadeStart = listener-to-screen-edge distance = sqrt(halfWidth² + eyeHeight²).
 	//   mfEffectiveFadeEnd   = same with halfWidth scaled by kfFadeEndMultiplier so emitters
@@ -523,11 +525,7 @@ float StaticVoices::ComputeAttenuatedVolume(float fDistance, float fSoundVolume)
 		float fPercent = std::clamp((fDistance - mfEffectiveFadeStart) / fBand, 0.0f, 1.0f);
 		fDistanceVolume = (1.0f - fPercent) * fSoundVolume;
 	}
-	// Neutralized to 1.0 with the listener now at the camera eye — natural distance attenuation
-	// already reduces volume at altitude. If distant emitters feel too loud at extreme zoom in
-	// playtest, lower toward 0.75. Lerp kept so re-tuning is a one-line change.
-	static constexpr float kfMinHeightVolumeScale = 1.0f;
-	return fDistanceVolume * std::lerp(1.0f, kfMinHeightVolumeScale, mfChannelBleedT);
+	return fDistanceVolume;
 }
 
 void XM_CALLCONV StaticVoices::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch)
@@ -561,20 +559,6 @@ void XM_CALLCONV StaticVoices::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 	X3DAUDIO_HANDLE& rX3dAudioHandle = mpAudioEngine->Get3DHandle();
 	X3DAudioCalculate(rX3dAudioHandle, &mX3dAudioListener, &x3dAudioEmitter, X3DAUDIO_CALCULATE_MATRIX | X3DAUDIO_CALCULATE_LPF_DIRECT | X3DAUDIO_CALCULATE_DOPPLER, &x3dAudioDspSettings);
 
-	if (iMasteringVoiceChannels >= 2 && mfChannelBleedT > 0.0f)
-	{
-		// Neutralized to 0.0 with the listener now at the camera eye — X3DAudio's natural pan
-		// should suffice. If high-altitude pan feels "pinned" in playtest, raise toward 0.25
-		// (0.5 would collapse L+R to mono — keep below that). Block kept so re-tuning is a
-		// one-line change.
-		static constexpr float kfMaxChannelBleedFactor = 0.0f;
-		float fBleedFactor = kfMaxChannelBleedFactor * mfChannelBleedT;
-		float fLeft = pfMatrixCoefficients[0];
-		float fRight = pfMatrixCoefficients[1];
-		pfMatrixCoefficients[0] = (1.0f - fBleedFactor) * fLeft + fBleedFactor * fRight;
-		pfMatrixCoefficients[1] = (1.0f - fBleedFactor) * fRight + fBleedFactor * fLeft;
-	}
-
 	CHECK_HRESULT(pVoice->SetOutputMatrix(mpAudioEngine->GetMasterVoice(), 1, static_cast<UINT32>(iMasteringVoiceChannels), x3dAudioDspSettings.pMatrixCoefficients));
 
 	// Apply custom volume with distance-based attenuation. The natural curve goes to
@@ -583,9 +567,7 @@ void XM_CALLCONV StaticVoices::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 	// silent-in voices (fVolume=0) stay silent-out.
 	float fDistance = common::Distance(vecPosition, mVecListenerPosition);
 	float fAttenuated = ComputeAttenuatedVolume(fDistance, fVolume);
-	// Neutralized — see ComputeAttenuatedVolume for rationale.
-	static constexpr float kfMinHeightVolumeScale = 1.0f;
-	float fAudibleFloor = mfManualFadeVolume * fVolume * std::lerp(1.0f, kfMinHeightVolumeScale, mfChannelBleedT);
+	float fAudibleFloor = mfManualFadeVolume * fVolume;
 	float fDistanceVolume = std::max(fAttenuated, fAudibleFloor);
 
 	float fFinalPower = VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume);
