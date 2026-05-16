@@ -31,6 +31,24 @@ Interview the user about every aspect of this plan until reaching shared underst
 ## Role Boundary
 This skill fills gaps in an existing plan. **Do not re-design** the interface — that is `/external-design-interface`'s job. If the plan's interface shape is itself unclear, stop and recommend running `/external-design-interface` first.
 
+## Existing-Library Gate (Reinventing the Wheel?)
+
+Run this gate **first**, before any other interrogation, whenever the plan introduces or rewrites a non-trivial subsystem, algorithm, or data structure — anything where a mature open-source library plausibly already solves the problem. Examples: geometry / mesh processing, pathfinding / navmesh, physics, compression, serialization, networking transport, math primitives, image / texture codecs, audio DSP, JSON / config parsing, string formatting, ECS, scripting, profiling.
+
+Skip the gate for: bug fixes, refactors, tuning passes, content-only changes, engine-glue work, or anything tightly bound to internal types where no external library could realistically slot in.
+
+Steps:
+1. Form a one-sentence statement of the capability being built (e.g., "polygon offsetting", "navmesh generation from triangle soup", "Reed-Solomon erasure coding").
+2. Identify 1–3 candidate libraries that already implement this with a commercial-friendly license (MIT, BSD, Zlib, Apache-2.0, Boost, MPL-2.0). Reject GPL / AGPL / LGPL-static / "non-commercial" / "source-available".
+3. For each candidate, note in one line: license, maturity (last release / active commits), C++ compatibility (header-only? C++23 clean? Windows MSVC builds?), and integration cost vs. the plan's hand-rolled scope.
+4. Check `ThirdParty/` and `ThirdParty/Prebuilts/` — we may already vendor a library that covers this.
+5. **Present the candidates to the user with a recommendation** before grilling implementation details:
+   - "Use library X" (preferred if a mature commercial-friendly option exists and integration cost < hand-roll cost)
+   - "Hand-roll because <specific reason>" (e.g., need deterministic cross-platform output, license incompatibility, dependency bloat, library missing critical feature)
+   - "Wrap library X with thin adapter" (use upstream for the hard part, keep our API)
+6. If the user picks a library, **stop grilling the hand-rolled plan** and either close out (no further work needed) or pivot to a short integration plan covering: vendoring location, build wiring (`ThirdParty.vcxproj` + filters), namespace / header isolation, and which engine call sites swap over.
+7. If the user confirms hand-roll, record the rejection reason in the plan file ("Considered <lib>, rejected because <reason>") and continue to the standard branches.
+
 ## Bug-Fix Pre-Step (Hypothesis Ranking)
 
 When the loaded plan is a bug fix or regression diagnosis (filename starts with `Bugfix_`, plan describes a broken behavior, or the user invoked the skill on a `diagnose` workflow), prepend the following to the workflow above — **before** walking the engine-specific branches:

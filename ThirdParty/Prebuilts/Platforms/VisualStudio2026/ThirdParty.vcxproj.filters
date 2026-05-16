@@ -36,6 +36,9 @@
     <ClCompile Include="..\..\Source\Engine\Enet.cpp">
       <Filter>Engine</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\Engine\Clipper2.cpp">
+      <Filter>Engine</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\bc7enc_rdo\bc7enc.cpp">
       <Filter>DataPacker</Filter>
     </ClCompile>

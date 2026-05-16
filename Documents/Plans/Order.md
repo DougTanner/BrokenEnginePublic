@@ -82,3 +82,4 @@ Plans that touch the same files and should be done in a single session:
 - **`Network/Client/ReconcileReplay.cpp`**: `Refactor_OversizedFunctions.md`, `Refactor_FileSizeTriage.md`, `Refactor_AllocationTrackingAudit.md`
 - **`Network/Server/ServerSession.cpp` (game)**: `Refactor_OversizedFunctions.md`, `Refactor_AllocationTrackingAudit.md`
 - **`TweaksScreen.cpp`/`TweaksScreen<Tab>.cpp`**: `TweaksSliderMapDebugAudit.md`
+- **`Engine/Source/Frame/IslandTerrain.cpp`**: `Graphics/DynamicIslandLoadingFollowups.md`

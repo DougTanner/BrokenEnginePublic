@@ -163,6 +163,44 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 }
 
 #if defined(BT_CLIENT)
+namespace
+{
+	// Upload an island's heightmap into its mTextureMap[elevationCrc] Texture slot as an R32_SFLOAT
+	// image. Reused at first-mint and on device-loss re-Create. Descriptor patching is deferred to
+	// RestorationSweep so it lands inside RenderGlobal's post-fence-wait descriptor-patch window.
+	void CreateElevationTextureFromHeightmap(IslandTemplate& rTemplate, common::crc_t elevationCrc, std::string_view name)
+	{
+		// Boot ordering invariant: WaitForElevationMaps (called once at startup) is the only writer of
+		// mpfHeightmapData. AcquireTextureSlot must never run before it.
+		ASSERT(rTemplate.mpfHeightmapData != nullptr);
+		Texture& rElevation = gpTextureManager->mTextureMap.at(elevationCrc);
+		// Heap: Texture::Create allocates GPU resources and uses a OneShotCommandBuffer.
+		ScopedSuppressAllocationTracking suppress;
+		rElevation.Create(
+			TextureInfo
+			{
+				.name = name,
+				.crc = elevationCrc,
+				.format = VK_FORMAT_R32_SFLOAT,
+				.extent = {static_cast<uint32_t>(rTemplate.miHeightmapWidth), static_cast<uint32_t>(rTemplate.miHeightmapHeight), 1u},
+				.mipLevels = 1u,
+				.arrayLayers = 1u,
+				.samples = VK_SAMPLE_COUNT_1_BIT,
+				.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+				.viewType = VK_IMAGE_VIEW_TYPE_2D,
+				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+				.eTextureLayout = TextureLayout::kShaderReadOnly,
+			},
+			[&rTemplate](void* pData, int64_t iPosition, int64_t iSize)
+			{
+				std::memcpy(pData, reinterpret_cast<const std::byte*>(rTemplate.mpfHeightmapData) + iPosition, static_cast<size_t>(iSize));
+			});
+		// Flip chunk state to Ready so RestorationSweep counts elevation as loaded alongside the
+		// other 3 chunks. The chunk's pData stays untouched (load was never queued).
+		gpFileManager->GetLazyChunk(elevationCrc).eState.store(ChunkState::kReady, std::memory_order_release);
+	}
+}
+
 int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
 {
 	IslandTemplate& rTemplate = mIslands.at(islandCrc);
@@ -192,6 +230,17 @@ int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
 		// pattern as water normals / other bindless arrays).
 		int64_t iSlot = miNextTextureSlot++;
 		rTemplate.miTextureSlot = iSlot;
+
+		LOG(kTemp, kInfo, "Island first-mint islandCrc={} slot={} textureCrcs=[{},{},{},{}]", islandCrc, iSlot, textureCrcs[0], textureCrcs[1], textureCrcs[2], textureCrcs[3]);
+
+		// Elevation: short-circuit the lazy-texture-chunk pipeline. The kIsland chunk loaded at boot
+		// already contains the heightmap (mpfHeightmapData), and the standalone Elevation.R32_SFLOAT
+		// texture chunk holds the same pixels. Upload directly into the pre-existing mTextureMap entry
+		// (InitDeferred placeholder slot from TextureManager ctor) so descriptor wiring and array
+		// indexing stay identical to the other 3 channels — only the data path changes. Descriptor
+		// patching is deferred to RestorationSweep (safety window).
+		CreateElevationTextureFromHeightmap(rTemplate, textureCrcs[0], rLazyChunk.header.pcPath);
+		LOG(kTemp, kInfo, "Island elevation uploaded from heightmap islandCrc={} slot={} extent={}x{} bytes={}", islandCrc, iSlot, rTemplate.miHeightmapWidth, rTemplate.miHeightmapHeight, static_cast<int64_t>(rTemplate.miHeightmapWidth) * static_cast<int64_t>(rTemplate.miHeightmapHeight) * static_cast<int64_t>(sizeof(float)));
 
 		Texture* pElevation = &gpTextureManager->mTextureMap.at(textureCrcs[0]);
 		Texture* pColor = &gpTextureManager->mTextureMap.at(textureCrcs[1]);
@@ -242,9 +291,13 @@ int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
 			std::memcpy(static_cast<char*>(pData) + iMeshIndexBytes, rTemplate.mpfMeshPositions, static_cast<size_t>(iMeshPositionBytes));
 		});
 		LOG(kGraphics, kDebug, "Uploaded island mesh: crc={} vertices={} indices={}", islandCrc, rTemplate.miMeshVertexCount, rTemplate.miMeshIndexCount);
+		LOG(kTemp, kInfo, "Island mesh uploaded islandCrc={} vertices={} indices={}", islandCrc, rTemplate.miMeshVertexCount, rTemplate.miMeshIndexCount);
 
 		rTemplate.mbGpuResident = false;
-		gpFileManager->RequestChunkLoad(textureCrcs, LoadPriority::kRealtime);
+		// Skip elevation (textureCrcs[0]) — uploaded directly from the in-memory heightmap above.
+		// Only color/normals/AO need to be pulled from disk.
+		common::crc_t loadCrcs[3] = {textureCrcs[1], textureCrcs[2], textureCrcs[3]};
+		gpFileManager->RequestChunkLoad(loadCrcs, LoadPriority::kRealtime);
 		LOG(kGraphics, kVerbose, "First-mint slot={} islandCrc={}", iSlot, islandCrc);
 
 		if (gpGraphics != nullptr)
@@ -257,8 +310,18 @@ int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
 
 	// Slot already assigned but GPU resources evicted. Re-trigger loads; slot stays in
 	// slot-0 fallback (set during EvictionSweep) until RestorationSweep patches back.
-	gpFileManager->RequestChunkLoad(textureCrcs, LoadPriority::kRealtime);
+	// Skip elevation in the chunk-load request — it's not evicted by EvictionSweep. However on
+	// device-loss recovery the wholesale ResetTextureChunkStates wipes every Texture's GPU resources
+	// (including elevation's), so detect that here and re-Create from the in-memory heightmap.
+	// Descriptor patching is deferred to RestorationSweep (safety window).
+	if (gpTextureManager->mTextureMap.at(textureCrcs[0]).mVkImage == VK_NULL_HANDLE)
+	{
+		CreateElevationTextureFromHeightmap(rTemplate, textureCrcs[0], rLazyChunk.header.pcPath);
+	}
+	common::crc_t loadCrcs[3] = {textureCrcs[1], textureCrcs[2], textureCrcs[3]};
+	gpFileManager->RequestChunkLoad(loadCrcs, LoadPriority::kRealtime);
 	LOG(kLoading, kVerbose, "Re-acquire islandCrc={} slot={}, requesting chunk loads", islandCrc, rTemplate.miTextureSlot);
+	LOG(kTemp, kInfo, "Island re-acquire islandCrc={} slot={} textureCrcs=[{},{},{},{}]", islandCrc, rTemplate.miTextureSlot, textureCrcs[0], textureCrcs[1], textureCrcs[2], textureCrcs[3]);
 	return rTemplate.miTextureSlot;
 }
 
@@ -285,32 +348,34 @@ void IslandTerrain::EvictionSweep()
 		}
 
 		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(rCrc);
-		common::crc_t textureCrcs[4] =
+		// Elevation (textureCrcs[0]) is uploaded once from the in-memory heightmap and stays
+		// permanently resident (matches mMeshBuffer policy). Only color/normals/AO participate in
+		// eviction.
+		common::crc_t evictCrcs[3] =
 		{
-			rLazyChunk.header.islandHeader.elevationCrc,
 			rLazyChunk.header.islandHeader.colorsCrc,
 			rLazyChunk.header.islandHeader.normalsCrc,
 			rLazyChunk.header.islandHeader.ambientOcclusionCrc,
 		};
 
 		LOG(kGraphics, kVerbose, "Evicting islandCrc={} slot={} (refCount=0, framesSinceUse={})", rCrc, rTemplate.miTextureSlot, gpGraphics->muiFrameCounter - rTemplate.muiLastUsedRenderFrame);
+		LOG(kTemp, kInfo, "Island evict islandCrc={} slot={} framesSinceUse={}", rCrc, rTemplate.miTextureSlot, gpGraphics->muiFrameCounter - rTemplate.muiLastUsedRenderFrame);
 
-		for (common::crc_t textureCrc : textureCrcs)
+		for (common::crc_t textureCrc : evictCrcs)
 		{
 			gpTextureManager->mTextureMap.at(textureCrc).FreeGpuResources();
 		}
 
 		int64_t iSlot = rTemplate.miTextureSlot;
-		gpTextureManager->mRenderTargetTextures.mElevationTextures[iSlot] = gpTextureManager->mRenderTargetTextures.mElevationTextures[0];
 		gpTextureManager->mRenderTargetTextures.mColorTextures[iSlot] = gpTextureManager->mRenderTargetTextures.mColorTextures[0];
 		gpTextureManager->mRenderTargetTextures.mNormalsTextures[iSlot] = gpTextureManager->mRenderTargetTextures.mNormalsTextures[0];
 		gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures[iSlot] = gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures[0];
 
-		gpFileManager->ResetTextureChunkStates(textureCrcs);
+		gpFileManager->ResetTextureChunkStates(evictCrcs);
 		rTemplate.mbGpuResident = false;
 		bDirty = true;
 
-		LOG(kLoading, kVerbose, "Reset chunk states for evicted islandCrc={} textureCrcs=[{},{},{},{}]", rCrc, textureCrcs[0], textureCrcs[1], textureCrcs[2], textureCrcs[3]);
+		LOG(kLoading, kVerbose, "Reset chunk states for evicted islandCrc={} evictCrcs=[{},{},{}]", rCrc, evictCrcs[0], evictCrcs[1], evictCrcs[2]);
 	}
 
 	if (bDirty)
@@ -327,8 +392,10 @@ void IslandTerrain::RestorationSweep()
 	}
 
 	// Slot pointers are set at AcquireTextureSlot first-mint and never reassigned, so the only
-	// remaining work here is residency tracking. The descriptor writes themselves flow through
-	// ProcessPendingTextures' UpdateDescriptorsForTexture path as each chunk reaches kReady.
+	// remaining work here is residency tracking. Color/normals/AO descriptor writes flow through
+	// ProcessPendingTextures' UpdateDescriptorsForTexture path as each chunk reaches kReady;
+	// elevation is patched here on the resident transition because it bypassed that path.
+	bool bPatchedElevationDescriptor = false;
 	for (auto& [rCrc, rTemplate] : mIslands)
 	{
 		if (rTemplate.mbGpuResident || rTemplate.miTextureSlot < 0)
@@ -337,16 +404,17 @@ void IslandTerrain::RestorationSweep()
 		}
 
 		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(rCrc);
-		common::crc_t textureCrcs[4] =
+		// Elevation chunk state is forced to kReady at first-mint (uploaded directly from heightmap)
+		// and never reset by EvictionSweep, so residency is gated only on the other 3 channels.
+		common::crc_t residencyCrcs[3] =
 		{
-			rLazyChunk.header.islandHeader.elevationCrc,
 			rLazyChunk.header.islandHeader.colorsCrc,
 			rLazyChunk.header.islandHeader.normalsCrc,
 			rLazyChunk.header.islandHeader.ambientOcclusionCrc,
 		};
 
 		bool bAllReady = true;
-		for (common::crc_t textureCrc : textureCrcs)
+		for (common::crc_t textureCrc : residencyCrcs)
 		{
 			ChunkState eState = gpFileManager->GetLazyChunk(textureCrc).eState.load(std::memory_order_acquire);
 			if (eState < ChunkState::kReady)
@@ -358,8 +426,20 @@ void IslandTerrain::RestorationSweep()
 		if (bAllReady)
 		{
 			rTemplate.mbGpuResident = true;
+			// Patch the elevation descriptor inside the safety window (RestorationSweep runs in
+			// RenderGlobal post-fence-wait). The Texture's real VkImageView was created at first-mint
+			// but its descriptor entry is still the slot-0 placeholder until this write.
+			gpTextureManager->mTextureDescriptors.UpdateDescriptorsForTexture(rLazyChunk.header.islandHeader.elevationCrc);
+			bPatchedElevationDescriptor = true;
 			LOG(kGraphics, kVerbose, "Island resident islandCrc={} slot={}", rCrc, rTemplate.miTextureSlot);
+			LOG(kTemp, kInfo, "Island resident islandCrc={} slot={}", rCrc, rTemplate.miTextureSlot);
 		}
+	}
+	if (bPatchedElevationDescriptor)
+	{
+		// Flush bindless Set 0 binding 4 to GPU (UpdateDescriptorsForTexture updates the CPU-side
+		// mImageInfos but does not itself rewrite the global descriptor set).
+		gpTextureManager->mTextureDescriptors.UpdateTextureArrayDescriptors();
 	}
 }
 #endif

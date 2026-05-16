@@ -240,6 +240,12 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 	#include "enet/enet.h"
 #endif
 
+// Clipper2 - polygon clipping & offsetting (Boost Software License 1.0)
+#if defined(BT_ENGINE)
+	#include "clipper2/clipper.h"
+	#include "clipper2/clipper.offset.h"
+#endif
+
 // Re-enable warnings after external headers
 #ifdef __clang__
 	#pragma clang diagnostic pop

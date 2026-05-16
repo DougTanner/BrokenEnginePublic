@@ -14,7 +14,7 @@ Split determined by `IsEagerChunk(DataTypes)`: Font/Scene/Model/Shader/Raw are e
 
 ### Lazy Loading
 
-Background thread services a priority queue. Unbuffered disk I/O (`FILE_FLAG_NO_BUFFERING | FILE_FLAG_SEQUENTIAL_SCAN`) into a pre-faulted sector-aligned read buffer; sector size queried via `GetDiskFreeSpaceW` on the data drive root. Reads split into 256KB sub-chunks. Aligned 16B copy path uses `_mm_stream_si128` + `_mm_sfence` to bypass L3; tail/unaligned falls back to `memcpy`.
+Background thread services a priority queue. Thread runs at `THREAD_PRIORITY_BELOW_NORMAL` — NOT `THREAD_MODE_BACKGROUND_BEGIN`, whose `IoPriorityVeryLow` stalls large reads behind foreground I/O (Defender, indexing, OneDrive) for seconds during startup contention. Unbuffered disk I/O (`FILE_FLAG_NO_BUFFERING | FILE_FLAG_SEQUENTIAL_SCAN`) into a pre-faulted sector-aligned read buffer; sector size queried via `GetDiskFreeSpaceW` on the data drive root. Reads split into 256KB sub-chunks. Aligned 16B copy path uses `_mm_stream_si128` + `_mm_sfence` to bypass L3; tail/unaligned falls back to `memcpy`.
 
 Chunk state is an atomic acquire/release machine; textures traverse the full CPU+GPU chain via `TextureUploadManager`, non-texture chunks short-circuit to ready after disk load. Queue insertion wraps `ScopedSuppressAllocationTracking` — items must outlive frame scope. `WaitForChunks` auto-promotes to realtime priority.
 

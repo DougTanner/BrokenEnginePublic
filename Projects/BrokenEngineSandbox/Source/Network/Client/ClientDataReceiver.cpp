@@ -23,6 +23,8 @@ void ClientDataReceiver::ApplyReceivedStaticData()
 		rFrames.staticData = std::move(rReceived.staticData);
 		rFrames.staticData.coord = rReceived.coord;
 
+		LOG(kTemp, kInfo, "Static data received coord=({},{}) islandPlacements={}", rReceived.coord.x, rReceived.coord.y, static_cast<int64_t>(rFrames.staticData.islands.size()));
+
 		// Subscription-driven island texture loading. AcquireTextureSlot is idempotent; duplicate
 		// CRCs across placements short-circuit on the hot path. Slot mint + chunk-load request
 		// happens here so the data is in-flight before UpdateActiveIslands references the slot.

@@ -565,6 +565,7 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 			bAdoptedTextures = true;
 
 			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
+			LOG(kTemp, kInfo, "Texture adopted -> Ready crc={} \"{}\" fromTransferQueue={} adoptedThisFrame={}", rCrc, std::string_view(rLazyChunk.header.pcPath), bFromTransferQueue ? 1 : 0, iAdoptedCount + (bFromTransferQueue ? 1 : 0));
 
 			if (bIsLightingTexture)
 			{
@@ -573,6 +574,7 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 
 			if (bFromTransferQueue && ++iAdoptedCount >= kiMaxAdoptionsPerFrame)
 			{
+				LOG(kTemp, kInfo, "Texture adoption throttled at kiMaxAdoptionsPerFrame={} (deferring remaining GpuUploadComplete chunks one frame)", kiMaxAdoptionsPerFrame);
 				break;
 			}
 		}
@@ -587,6 +589,7 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 			bAdoptedTextures = true;
 
 			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
+			LOG(kTemp, kInfo, "Texture adopted (same-queue fallback) -> Ready crc={} \"{}\"", rCrc, std::string_view(rLazyChunk.header.pcPath));
 
 			if (mLightingTextureCrcs.contains(rCrc))
 			{

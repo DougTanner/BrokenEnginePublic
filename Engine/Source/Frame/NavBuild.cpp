@@ -266,279 +266,6 @@ void ChainEdgesIntoPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons, const
 	}
 }
 
-// Ramer-Douglas-Peucker simplification
-float PerpendicularDistanceSq(const XMFLOAT2& rPoint, const XMFLOAT2& rLineA, const XMFLOAT2& rLineB)
-{
-	float fDx = rLineB.x - rLineA.x;
-	float fDy = rLineB.y - rLineA.y;
-	float fLenSq = fDx * fDx + fDy * fDy;
-	if (fLenSq < 1e-12f)
-	{
-		float fPx = rPoint.x - rLineA.x;
-		float fPy = rPoint.y - rLineA.y;
-		return fPx * fPx + fPy * fPy;
-	}
-
-	float fCross = std::abs((rPoint.x - rLineA.x) * fDy - (rPoint.y - rLineA.y) * fDx);
-	return (fCross * fCross) / fLenSq;
-}
-
-void SimplifyRDP(std::vector<XMFLOAT2>& rResult, const std::vector<XMFLOAT2>& rPoints, size_t iStart, size_t iEnd, float fToleranceSq)
-{
-	float fMaxDistSq = 0.0f;
-	size_t iMaxIndex = iStart;
-
-	for (size_t i = iStart + 1; i < iEnd; ++i)
-	{
-		float fDistSq = PerpendicularDistanceSq(rPoints.at(i), rPoints.at(iStart), rPoints.at(iEnd));
-		if (fDistSq > fMaxDistSq)
-		{
-			fMaxDistSq = fDistSq;
-			iMaxIndex = i;
-		}
-	}
-
-	if (fMaxDistSq > fToleranceSq)
-	{
-		SimplifyRDP(rResult, rPoints, iStart, iMaxIndex, fToleranceSq);
-		SimplifyRDP(rResult, rPoints, iMaxIndex, iEnd, fToleranceSq);
-	}
-	else
-	{
-		rResult.push_back(rPoints.at(iEnd));
-	}
-}
-
-void SimplifyPolygon(std::vector<XMFLOAT2>& rPolygon, float fTolerance)
-{
-	if (rPolygon.size() < 4)
-	{
-		return;
-	}
-
-	float fToleranceSq = fTolerance * fTolerance;
-
-	// For closed polygons: simplify as a linear chain from first to last, then reconnect
-	// Duplicate first point at the end to handle the closing segment
-	std::vector<XMFLOAT2> open = rPolygon;
-	open.push_back(rPolygon.front());
-
-	std::vector<XMFLOAT2> simplified;
-	simplified.push_back(open.front());
-	SimplifyRDP(simplified, open, 0, open.size() - 1, fToleranceSq);
-
-	// Remove the duplicated closing point
-	if (simplified.size() > 1)
-	{
-		simplified.pop_back();
-	}
-
-	// Remove near-collinear vertices (angle ≈ 180°)
-	std::vector<XMFLOAT2> cleaned;
-	for (size_t i = 0; i < simplified.size(); ++i)
-	{
-		size_t iPrev = (i + simplified.size() - 1) % simplified.size();
-		size_t iNext = (i + 1) % simplified.size();
-
-		float fAxDiff = simplified.at(i).x - simplified.at(iPrev).x;
-		float fAyDiff = simplified.at(i).y - simplified.at(iPrev).y;
-		float fBxDiff = simplified.at(iNext).x - simplified.at(i).x;
-		float fByDiff = simplified.at(iNext).y - simplified.at(i).y;
-
-		float fCross = std::abs(fAxDiff * fByDiff - fAyDiff * fBxDiff);
-		if (fCross > 1e-8f)
-		{
-			cleaned.push_back(simplified.at(i));
-		}
-	}
-
-	if (cleaned.size() >= 3)
-	{
-		rPolygon = std::move(cleaned);
-	}
-}
-
-// Compute signed area to determine winding order (positive = CCW)
-float ComputeSignedArea(const std::vector<XMFLOAT2>& rPolygon)
-{
-	float fArea = 0.0f;
-	for (size_t i = 0; i < rPolygon.size(); ++i)
-	{
-		size_t iNext = (i + 1) % rPolygon.size();
-		fArea += rPolygon.at(i).x * rPolygon.at(iNext).y;
-		fArea -= rPolygon.at(iNext).x * rPolygon.at(i).y;
-	}
-	return fArea * 0.5f;
-}
-
-// Detect dense vertex clusters and push them outward to smooth jagged boundaries
-// Vertices with many non-adjacent neighbors within fClusterRadius get inflated by fExpansion along their outward normal
-void SmoothDenseClusters(std::vector<XMFLOAT2>& rPolygon, float fClusterRadius, int32_t iMinClusterVertices, float fExpansion)
-{
-	if (rPolygon.size() < 4)
-	{
-		return;
-	}
-
-	float fRadiusSq = fClusterRadius * fClusterRadius;
-	size_t iSize = rPolygon.size();
-
-	// Ensure CCW winding so outward normals point away from obstacle
-	float fSignedArea = ComputeSignedArea(rPolygon);
-	if (fSignedArea < 0.0f)
-	{
-		std::reverse(rPolygon.begin(), rPolygon.end());
-	}
-
-	// Snapshot original positions so reads are not affected by writes
-	std::vector<XMFLOAT2> original = rPolygon;
-
-	// For each vertex, count non-adjacent vertices within the cluster radius
-	for (size_t i = 0; i < iSize; ++i)
-	{
-		int32_t iNearbyCount = 0;
-		for (size_t j = 0; j < iSize; ++j)
-		{
-			// Skip self and immediate polygon neighbors (trivially close)
-			size_t iForward = (j + iSize - i) % iSize;
-			size_t iBackward = (i + iSize - j) % iSize;
-			size_t iSeparation = std::min(iForward, iBackward);
-			if (iSeparation <= 2)
-			{
-				continue;
-			}
-
-			float fDx = original.at(j).x - original.at(i).x;
-			float fDy = original.at(j).y - original.at(i).y;
-			if (fDx * fDx + fDy * fDy < fRadiusSq)
-			{
-				++iNearbyCount;
-			}
-		}
-
-		if (iNearbyCount < iMinClusterVertices)
-		{
-			continue;
-		}
-
-		// Push vertex outward along its vertex normal (same pattern as InflatePolygon)
-		size_t iPrev = (i + iSize - 1) % iSize;
-		size_t iNext = (i + 1) % iSize;
-
-		float fE1x = original.at(i).x - original.at(iPrev).x;
-		float fE1y = original.at(i).y - original.at(iPrev).y;
-		float fLen1 = std::sqrt(fE1x * fE1x + fE1y * fE1y);
-
-		float fE2x = original.at(iNext).x - original.at(i).x;
-		float fE2y = original.at(iNext).y - original.at(i).y;
-		float fLen2 = std::sqrt(fE2x * fE2x + fE2y * fE2y);
-
-		if (fLen1 < 1e-8f || fLen2 < 1e-8f)
-		{
-			continue;
-		}
-
-		// Outward normals for CCW polygon (rotate edge direction 90 degrees clockwise)
-		float fN1x = fE1y / fLen1;
-		float fN1y = -fE1x / fLen1;
-		float fN2x = fE2y / fLen2;
-		float fN2y = -fE2x / fLen2;
-
-		float fNx = fN1x + fN2x;
-		float fNy = fN1y + fN2y;
-		float fNLen = std::sqrt(fNx * fNx + fNy * fNy);
-		if (fNLen < 1e-8f)
-		{
-			continue;
-		}
-
-		fNx /= fNLen;
-		fNy /= fNLen;
-
-		rPolygon.at(i).x = original.at(i).x + fNx * fExpansion;
-		rPolygon.at(i).y = original.at(i).y + fNy * fExpansion;
-	}
-}
-
-// Inflate polygon outward by the given distance
-// Uses vertex normal offset; skips inflation at acute concavities to avoid self-intersection
-void InflatePolygon(std::vector<XMFLOAT2>& rPolygon, float fDistance)
-{
-	if (rPolygon.size() < 3)
-	{
-		return;
-	}
-
-	// Ensure CCW winding (positive signed area) so outward normals point away from obstacle
-	float fSignedArea = ComputeSignedArea(rPolygon);
-	if (fSignedArea < 0.0f)
-	{
-		std::reverse(rPolygon.begin(), rPolygon.end());
-	}
-
-	std::vector<XMFLOAT2> inflated;
-	inflated.reserve(rPolygon.size());
-
-	for (size_t i = 0; i < rPolygon.size(); ++i)
-	{
-		size_t iPrev = (i + rPolygon.size() - 1) % rPolygon.size();
-		size_t iNext = (i + 1) % rPolygon.size();
-
-		// Edge normals (outward for CCW polygon = rotate edge direction 90° clockwise)
-		float fE1x = rPolygon.at(i).x - rPolygon.at(iPrev).x;
-		float fE1y = rPolygon.at(i).y - rPolygon.at(iPrev).y;
-		float fLen1 = std::sqrt(fE1x * fE1x + fE1y * fE1y);
-
-		float fE2x = rPolygon.at(iNext).x - rPolygon.at(i).x;
-		float fE2y = rPolygon.at(iNext).y - rPolygon.at(i).y;
-		float fLen2 = std::sqrt(fE2x * fE2x + fE2y * fE2y);
-
-		if (fLen1 < 1e-8f || fLen2 < 1e-8f)
-		{
-			inflated.push_back(rPolygon.at(i));
-			continue;
-		}
-
-		// Outward normals for CCW polygon
-		float fN1x = fE1y / fLen1;
-		float fN1y = -fE1x / fLen1;
-		float fN2x = fE2y / fLen2;
-		float fN2y = -fE2x / fLen2;
-
-		// Average normal
-		float fNx = fN1x + fN2x;
-		float fNy = fN1y + fN2y;
-		float fNLen = std::sqrt(fNx * fNx + fNy * fNy);
-
-		if (fNLen < 1e-8f)
-		{
-			// Edges are nearly parallel in opposite directions, skip inflation
-			inflated.push_back(rPolygon.at(i));
-			continue;
-		}
-
-		fNx /= fNLen;
-		fNy /= fNLen;
-
-		// Check interior angle: dot product of averaged normal with either edge normal
-		// gives cos(half-angle). If the angle is too acute (concavity), limit inflation
-		float fDot = fNx * fN1x + fNy * fN1y;
-		float fScale = fDistance;
-		if (fDot > 0.01f)
-		{
-			// Scale offset to maintain constant distance from edges (miter joint)
-			fScale = fDistance / fDot;
-			// Cap miter to avoid spikes at sharp angles
-			static constexpr float kfMaxMiterScale = 3.0f;
-			fScale = std::min(fScale, fDistance * kfMaxMiterScale);
-		}
-
-		inflated.push_back({rPolygon.at(i).x + fNx * fScale, rPolygon.at(i).y + fNy * fScale});
-	}
-
-	rPolygon = std::move(inflated);
-}
-
 // Segment-segment intersection test
 // Returns true if segments (A1,A2) and (B1,B2) intersect (proper intersection only, not endpoint touching)
 bool SegmentsIntersect(XMFLOAT2 f2A1, XMFLOAT2 f2A2, XMFLOAT2 f2B1, XMFLOAT2 f2B2)
@@ -640,366 +367,6 @@ bool MidpointInsideObstacle(XMFLOAT2 f2A, XMFLOAT2 f2B, const std::vector<XMFLOA
 	return false;
 }
 
-// Segment intersection returning the intersection point and parameters along each segment
-struct IntersectionResult
-{
-	XMFLOAT2 f2Point {};
-	float fTA {};
-	float fTB {};
-};
-
-bool SegmentsIntersectAt(XMFLOAT2 f2A1, XMFLOAT2 f2A2, XMFLOAT2 f2B1, XMFLOAT2 f2B2, IntersectionResult& rResult)
-{
-	float fD1x = f2A2.x - f2A1.x;
-	float fD1y = f2A2.y - f2A1.y;
-	float fD2x = f2B2.x - f2B1.x;
-	float fD2y = f2B2.y - f2B1.y;
-
-	float fDenom = fD1x * fD2y - fD1y * fD2x;
-	if (std::abs(fDenom) < 1e-10f)
-	{
-		return false;
-	}
-
-	float fDiffX = f2B1.x - f2A1.x;
-	float fDiffY = f2B1.y - f2A1.y;
-
-	float fT = (fDiffX * fD2y - fDiffY * fD2x) / fDenom;
-	float fU = (fDiffX * fD1y - fDiffY * fD1x) / fDenom;
-
-	static constexpr float kfSegmentEpsilon = 1e-6f;
-	if (fT > kfSegmentEpsilon && fT < (1.0f - kfSegmentEpsilon) && fU > kfSegmentEpsilon && fU < (1.0f - kfSegmentEpsilon))
-	{
-		rResult.f2Point = {f2A1.x + fT * fD1x, f2A1.y + fT * fD1y};
-		rResult.fTA = fT;
-		rResult.fTB = fU;
-		return true;
-	}
-	return false;
-}
-
-// Per-edge intersection record for the augmented vertex list
-struct EdgeIntersection
-{
-	float fT {};
-	XMFLOAT2 f2Point {};
-	size_t iPartnerEdge {};  // Edge index on the other polygon
-	size_t iSharedId {}; // Unique ID shared between matching intersection pairs in A and B
-};
-
-// Compute the union of two intersecting CCW polygons via boundary walk
-std::vector<XMFLOAT2> ComputePolygonUnion(const std::vector<XMFLOAT2>& rPolyA, const std::vector<XMFLOAT2>& rPolyB)
-{
-	size_t iCountA = rPolyA.size();
-	size_t iCountB = rPolyB.size();
-
-	// Find all edge-edge intersection points
-	// intersectionsA[edgeIndex] = sorted list of intersections along that edge of A
-	std::vector<std::vector<EdgeIntersection>> intersectionsA(iCountA);
-	std::vector<std::vector<EdgeIntersection>> intersectionsB(iCountB);
-
-	for (size_t iA = 0; iA < iCountA; ++iA)
-	{
-		size_t iANext = (iA + 1) % iCountA;
-		for (size_t iB = 0; iB < iCountB; ++iB)
-		{
-			size_t iBNext = (iB + 1) % iCountB;
-			IntersectionResult result {};
-			if (SegmentsIntersectAt(rPolyA.at(iA), rPolyA.at(iANext), rPolyB.at(iB), rPolyB.at(iBNext), result))
-			{
-				intersectionsA.at(iA).push_back({.fT = result.fTA, .f2Point = result.f2Point, .iPartnerEdge = iB, .iSharedId = 0,});
-				intersectionsB.at(iB).push_back({.fT = result.fTB, .f2Point = result.f2Point, .iPartnerEdge = iA, .iSharedId = 0,});
-			}
-		}
-	}
-
-	// Sort intersections along each edge by parameter t
-	for (std::vector<EdgeIntersection>& rList : intersectionsA)
-	{
-		std::sort(rList.begin(), rList.end(), [](const EdgeIntersection& rA, const EdgeIntersection& rB) { return rA.fT < rB.fT; });
-	}
-	for (std::vector<EdgeIntersection>& rList : intersectionsB)
-	{
-		std::sort(rList.begin(), rList.end(), [](const EdgeIntersection& rA, const EdgeIntersection& rB) { return rA.fT < rB.fT; });
-	}
-
-	// Build augmented vertex lists: original vertices interleaved with intersection points
-	// Each entry is tagged: false = original vertex, true = intersection point
-	struct AugmentedVertex
-	{
-		XMFLOAT2 f2Pos {};
-		bool bIsIntersection {};
-		size_t iIntersectionId {}; // Unique ID shared between the matching pair in A and B lists
-	};
-
-	// Assign unique IDs by matching intersection pairs
-	// iSharedId == 0 means unassigned; valid IDs start at 1
-	size_t iNextId = 1;
-	for (size_t iA = 0; iA < iCountA; ++iA)
-	{
-		for (EdgeIntersection& rIntA : intersectionsA.at(iA))
-		{
-			if (rIntA.iSharedId != 0)
-			{
-				continue;
-			}
-			size_t iB = rIntA.iPartnerEdge;
-			for (EdgeIntersection& rIntB : intersectionsB.at(iB))
-			{
-				if (rIntB.iSharedId != 0)
-				{
-					continue;
-				}
-				if (rIntB.iPartnerEdge == iA)
-				{
-					float fDx = rIntA.f2Point.x - rIntB.f2Point.x;
-					float fDy = rIntA.f2Point.y - rIntB.f2Point.y;
-					if (fDx * fDx + fDy * fDy < 1e-10f)
-					{
-						size_t iId = iNextId++;
-						rIntA.iSharedId = iId;
-						rIntB.iSharedId = iId;
-						break;
-					}
-				}
-			}
-		}
-	}
-
-	// Count total entries for reserve
-	size_t iAugCountA = iCountA;
-	size_t iAugCountB = iCountB;
-	for (const std::vector<EdgeIntersection>& rList : intersectionsA)
-	{
-		iAugCountA += rList.size();
-	}
-	for (const std::vector<EdgeIntersection>& rList : intersectionsB)
-	{
-		iAugCountB += rList.size();
-	}
-
-	std::vector<AugmentedVertex> augmentedA;
-	std::vector<AugmentedVertex> augmentedB;
-	augmentedA.reserve(iAugCountA);
-	augmentedB.reserve(iAugCountB);
-
-	// Build augmented list for A
-	for (size_t i = 0; i < iCountA; ++i)
-	{
-		augmentedA.push_back({.f2Pos = rPolyA.at(i), .bIsIntersection = false, .iIntersectionId = 0,});
-		for (const EdgeIntersection& rInt : intersectionsA.at(i))
-		{
-			augmentedA.push_back({.f2Pos = rInt.f2Point, .bIsIntersection = true, .iIntersectionId = rInt.iSharedId,});
-		}
-	}
-
-	// Build augmented list for B
-	for (size_t i = 0; i < iCountB; ++i)
-	{
-		augmentedB.push_back({.f2Pos = rPolyB.at(i), .bIsIntersection = false, .iIntersectionId = 0,});
-		for (const EdgeIntersection& rInt : intersectionsB.at(i))
-		{
-			augmentedB.push_back({.f2Pos = rInt.f2Point, .bIsIntersection = true, .iIntersectionId = rInt.iSharedId,});
-		}
-	}
-
-	// Build lookup: intersection ID -> index in augmentedA / augmentedB
-	std::unordered_map<size_t, size_t> idToIndexA;
-	std::unordered_map<size_t, size_t> idToIndexB;
-	for (size_t i = 0; i < augmentedA.size(); ++i)
-	{
-		if (augmentedA.at(i).bIsIntersection)
-		{
-			idToIndexA.insert_or_assign(augmentedA.at(i).iIntersectionId, i);
-		}
-	}
-	for (size_t i = 0; i < augmentedB.size(); ++i)
-	{
-		if (augmentedB.at(i).bIsIntersection)
-		{
-			idToIndexB.insert_or_assign(augmentedB.at(i).iIntersectionId, i);
-		}
-	}
-
-	// Find starting vertex: leftmost vertex across both polygons (guaranteed on outer boundary)
-	size_t iStartIndex = 0;
-	bool bStartOnA = true;
-	float fMinX = augmentedA.at(0).f2Pos.x;
-
-	for (size_t i = 1; i < augmentedA.size(); ++i)
-	{
-		if (augmentedA.at(i).f2Pos.x < fMinX || (augmentedA.at(i).f2Pos.x == fMinX && augmentedA.at(i).f2Pos.y < augmentedA.at(iStartIndex).f2Pos.y))
-		{
-			fMinX = augmentedA.at(i).f2Pos.x;
-			iStartIndex = i;
-			bStartOnA = true;
-		}
-	}
-	for (size_t i = 0; i < augmentedB.size(); ++i)
-	{
-		if (augmentedB.at(i).f2Pos.x < fMinX || (augmentedB.at(i).f2Pos.x == fMinX && augmentedB.at(i).f2Pos.y < (bStartOnA ? augmentedA.at(iStartIndex).f2Pos.y : augmentedB.at(iStartIndex).f2Pos.y)))
-		{
-			fMinX = augmentedB.at(i).f2Pos.x;
-			iStartIndex = i;
-			bStartOnA = false;
-		}
-	}
-
-	// Boundary walk
-	std::vector<XMFLOAT2> result;
-	result.reserve(augmentedA.size() + augmentedB.size());
-	bool bOnA = bStartOnA;
-	size_t iCurrent = iStartIndex;
-	size_t iMaxSteps = augmentedA.size() + augmentedB.size() + 2;
-
-	// Test a point slightly past the intersection along the edge to avoid boundary-undefined PointInPolygon results
-	static constexpr float kfProbeOffset = 0.001f;
-	auto ProbePoint = [](const XMFLOAT2& rFrom, const XMFLOAT2& rTo) -> XMFLOAT2
-	{
-		return {rFrom.x + kfProbeOffset * (rTo.x - rFrom.x), rFrom.y + kfProbeOffset * (rTo.y - rFrom.y)};
-	};
-
-	for (size_t iStep = 0; iStep < iMaxSteps; ++iStep)
-	{
-		const std::vector<AugmentedVertex>& rAugmented = bOnA ? augmentedA : augmentedB;
-		result.push_back(rAugmented.at(iCurrent).f2Pos);
-
-		// Advance to next vertex in current polygon
-		size_t iNext = (iCurrent + 1) % rAugmented.size();
-
-		// If current vertex is an intersection, decide whether to switch polygons
-		if (rAugmented.at(iCurrent).bIsIntersection)
-		{
-			size_t iId = rAugmented.at(iCurrent).iIntersectionId;
-			XMFLOAT2 f2Current = rAugmented.at(iCurrent).f2Pos;
-			if (bOnA)
-			{
-				std::unordered_map<size_t, size_t>::iterator it = idToIndexB.find(iId);
-				if (it != idToIndexB.end())
-				{
-					// At a union boundary, follow the path that stays outside the other polygon
-					size_t iNextOnA = (iCurrent + 1) % augmentedA.size();
-					XMFLOAT2 f2Probe = ProbePoint(f2Current, augmentedA.at(iNextOnA).f2Pos);
-					bool bNextAInsideB = PointInPolygon(f2Probe, rPolyB.data(), static_cast<int32_t>(iCountB));
-					if (bNextAInsideB)
-					{
-						bOnA = false;
-						iCurrent = (it->second + 1) % augmentedB.size();
-						if (iCurrent == iStartIndex && bOnA == bStartOnA)
-						{
-							break;
-						}
-						continue;
-					}
-				}
-			}
-			else
-			{
-				std::unordered_map<size_t, size_t>::iterator it = idToIndexA.find(iId);
-				if (it != idToIndexA.end())
-				{
-					size_t iNextOnB = (iCurrent + 1) % augmentedB.size();
-					XMFLOAT2 f2Probe = ProbePoint(f2Current, augmentedB.at(iNextOnB).f2Pos);
-					bool bNextBInsideA = PointInPolygon(f2Probe, rPolyA.data(), static_cast<int32_t>(iCountA));
-					if (bNextBInsideA)
-					{
-						bOnA = true;
-						iCurrent = (it->second + 1) % augmentedA.size();
-						if (iCurrent == iStartIndex && bOnA == bStartOnA)
-						{
-							break;
-						}
-						continue;
-					}
-				}
-			}
-		}
-
-		iCurrent = iNext;
-		if (iCurrent == iStartIndex && bOnA == bStartOnA)
-		{
-			break;
-		}
-	}
-
-	if (result.size() >= iMaxSteps)
-	{
-		LOG(kNavData, kWarning, "NavBuild: boundary walk exhausted step limit ({} steps), result may be malformed", iMaxSteps);
-	}
-
-	// Ensure CCW winding
-	if (ComputeSignedArea(result) < 0.0f)
-	{
-		std::reverse(result.begin(), result.end());
-	}
-
-	return result;
-}
-
-// Merge overlapping polygons: combine intersecting pairs and remove contained polygons
-void MergeOverlappingPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons)
-{
-	bool bMerged = true;
-	while (bMerged)
-	{
-		bMerged = false;
-		for (size_t i = 0; i < rPolygons.size() && !bMerged; ++i)
-		{
-			for (size_t j = i + 1; j < rPolygons.size() && !bMerged; ++j)
-			{
-				const std::vector<XMFLOAT2>& rPolyA = rPolygons.at(i);
-				const std::vector<XMFLOAT2>& rPolyB = rPolygons.at(j);
-
-				// Check for edge-edge intersections
-				bool bIntersects = false;
-				for (size_t iA = 0; iA < rPolyA.size() && !bIntersects; ++iA)
-				{
-					size_t iANext = (iA + 1) % rPolyA.size();
-					for (size_t iB = 0; iB < rPolyB.size() && !bIntersects; ++iB)
-					{
-						size_t iBNext = (iB + 1) % rPolyB.size();
-						if (SegmentsIntersect(rPolyA.at(iA), rPolyA.at(iANext), rPolyB.at(iB), rPolyB.at(iBNext)))
-						{
-							bIntersects = true;
-						}
-					}
-				}
-
-				if (bIntersects)
-				{
-					std::vector<XMFLOAT2> merged = ComputePolygonUnion(rPolyA, rPolyB);
-					if (merged.size() >= 3)
-					{
-						LOG(kNavData, kDebug, "NavBuild: merged polygons {} ({} verts) and {} ({} verts) -> {} verts", i, rPolyA.size(), j, rPolyB.size(), merged.size());
-						rPolygons.at(i) = std::move(merged);
-						rPolygons.erase(rPolygons.begin() + static_cast<int64_t>(j));
-						bMerged = true;
-					}
-				}
-				else
-				{
-					bool bAInsideB = PointInPolygon(rPolyA.at(0), rPolyB.data(), static_cast<int32_t>(rPolyB.size()));
-					if (bAInsideB)
-					{
-						LOG(kNavData, kDebug, "NavBuild: polygon {} ({} verts) contained in polygon {} ({} verts), removing inner", i, rPolyA.size(), j, rPolyB.size());
-						rPolygons.erase(rPolygons.begin() + static_cast<int64_t>(i));
-						bMerged = true;
-					}
-					else
-					{
-						bool bBInsideA = PointInPolygon(rPolyB.at(0), rPolyA.data(), static_cast<int32_t>(rPolyA.size()));
-						if (bBInsideA)
-						{
-							LOG(kNavData, kDebug, "NavBuild: polygon {} ({} verts) contained in polygon {} ({} verts), removing inner", j, rPolyB.size(), i, rPolyA.size());
-							rPolygons.erase(rPolygons.begin() + static_cast<int64_t>(j));
-							bMerged = true;
-						}
-					}
-				}
-			}
-		}
-	}
-}
 
 void BuildVisibilityGraph(NavContour& rContour)
 {
@@ -1077,45 +444,67 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 
 	LOG(kNavData, kDebug, "NavBuild: chained into {} polygons", polygons.size());
 
-	// Step 3: Simplify, smooth dense clusters, and inflate each polygon
-	static constexpr float kfSimplifyTolerance = 0.01f;
-	static constexpr float kfClusterRadius = 0.05f;
-	static constexpr int32_t kiMinClusterVertices = 5;
-	static constexpr float kfClusterExpansion = 0.02f;
-	static constexpr float kfInflateDistance = 0.015f;
+	// Step 3: Hand raw chained polygons to Clipper2 — Union+Inflate+Simplify in UV space.
+	// Clipper2 is Vatti-based with integer-coordinate robustness; miter offsets fall back to
+	// bevel at concave corners that would otherwise self-intersect (the bowtie failure mode
+	// the previous custom miter offset suffered from).
+	static constexpr double kfInflateDelta = 0.015;
+	static constexpr double kfMiterLimit = 2.0;
+	static constexpr double kfSimplifyEpsilon = 0.005;
+	// Clipper2 PathsD quantizes doubles to int64 at 10^precision per unit. Default 2 gives a
+	// 0.01-UV grid (~1 world unit per cell) which snaps diagonals into right-angle staircases.
+	// 6 gives sub-micrometer UV granularity — plenty for the marching-squares input.
+	static constexpr int kiClipperPrecision = 6;
 
-	for (size_t iPoly = 0; iPoly < polygons.size(); ++iPoly)
+	Clipper2Lib::PathsD obstacles;
+	obstacles.reserve(polygons.size());
+	for (const std::vector<XMFLOAT2>& rPoly : polygons)
 	{
-		int64_t iPreSimplify = static_cast<int64_t>(polygons.at(iPoly).size());
-		SimplifyPolygon(polygons.at(iPoly), kfSimplifyTolerance);
-		SmoothDenseClusters(polygons.at(iPoly), kfClusterRadius, kiMinClusterVertices, kfClusterExpansion);
-		SimplifyPolygon(polygons.at(iPoly), kfSimplifyTolerance);
-		int64_t iPostSimplify = static_cast<int64_t>(polygons.at(iPoly).size());
-		InflatePolygon(polygons.at(iPoly), kfInflateDistance);
-		LOG(kNavData, kDebug, "NavBuild: polygon {} verts: {} -> {} (after simplify+smooth)", iPoly, iPreSimplify, iPostSimplify);
-	}
-
-	// Step 4: Merge overlapping polygons (inflation can cause nearby polygons to intersect)
-	size_t iPreMergeCount = polygons.size();
-	MergeOverlappingPolygons(polygons);
-	if (polygons.size() != iPreMergeCount)
-	{
-		LOG(kNavData, kDebug, "NavBuild: merged {} polygons -> {}", iPreMergeCount, polygons.size());
-	}
-
-	// Step 5: Pack polygons into flat arrays
-	for (const std::vector<XMFLOAT2>& rPolygon : polygons)
-	{
-		if (rPolygon.size() < 3)
+		if (rPoly.size() < 3)
 		{
+			continue;
+		}
+		Clipper2Lib::PathD path;
+		path.reserve(rPoly.size());
+		for (const XMFLOAT2& rVert : rPoly)
+		{
+			path.emplace_back(rVert.x, rVert.y);
+		}
+		obstacles.push_back(std::move(path));
+	}
+
+	// Union resolves overlaps; positive winding = outer obstacle, negative = enclosed hole.
+	Clipper2Lib::PathsD unioned = Clipper2Lib::Union(obstacles, Clipper2Lib::FillRule::NonZero, kiClipperPrecision);
+	// Outward miter offset; Clipper2 auto-bevels when miter would exceed limit.
+	Clipper2Lib::PathsD inflated = Clipper2Lib::InflatePaths(unioned, kfInflateDelta, Clipper2Lib::JoinType::Miter, Clipper2Lib::EndType::Polygon, kfMiterLimit, kiClipperPrecision);
+	// Topology-preserving simplification (does not introduce crossings).
+	Clipper2Lib::PathsD simplified = Clipper2Lib::SimplifyPaths(inflated, kfSimplifyEpsilon);
+
+	// Step 4: Pack outer obstacle loops into flat arrays. Discard holes (Area < 0): they sit
+	// inside obstacles and the visibility graph cannot route through obstacles regardless.
+	int32_t iDroppedHoles = 0;
+	for (const Clipper2Lib::PathD& rPath : simplified)
+	{
+		if (rPath.size() < 3)
+		{
+			continue;
+		}
+		if (Clipper2Lib::Area(rPath) <= 0.0)
+		{
+			++iDroppedHoles;
 			continue;
 		}
 
 		rContour.polygonOffsets.push_back(static_cast<int32_t>(rContour.vertices.size()));
-		for (const XMFLOAT2& rVertex : rPolygon)
+		for (const Clipper2Lib::PointD& rPt : rPath)
 		{
-			rContour.vertices.push_back(rVertex);
+			rContour.vertices.push_back({static_cast<float>(rPt.x), static_cast<float>(rPt.y)});
 		}
+	}
+
+	if (iDroppedHoles > 0)
+	{
+		LOG(kNavData, kDebug, "NavBuild: dropped {} interior holes", iDroppedHoles);
 	}
 
 	LOG(kNavData, kDebug, "NavBuild: total vertices={} polygons={}", rContour.vertices.size(), rContour.polygonOffsets.size());
@@ -1125,7 +514,7 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 		return;
 	}
 
-	// Step 6: Build visibility graph
+	// Step 5: Build visibility graph
 	BuildVisibilityGraph(rContour);
 
 	LOG(kNavData, kDebug, "NavBuild: visibility graph edges={}", rContour.visEdgeA.size());
@@ -1209,6 +598,56 @@ void BuildCellNavData(NavData& rNavData, const std::vector<IslandPlacement>& rPl
 			float fBoundsHeight = fMaxY - fMinY;
 
 			LOG(kNavData, kVerbose, "NavCell: polygon {} verts={} bounds=({} {})..({} {}) size={}x{}", iPoly, iCount, fMinX, fMinY, fMaxX, fMaxY, fBoundsWidth, fBoundsHeight);
+		}
+	}
+
+	// Detect crossing polygon edges (the yellow debug lines). Two non-adjacent polygon
+	// edges that properly intersect indicate self-intersecting contour or overlapping
+	// placements — either way the visibility graph + pathfinder will misbehave.
+	int32_t iVertexCount = static_cast<int32_t>(rNavData.vertices.size());
+	int32_t iPolygonCount = static_cast<int32_t>(rNavData.polygonOffsets.size());
+	for (int32_t iPolyA = 0; iPolyA < iPolygonCount; ++iPolyA)
+	{
+		int32_t iStartA = rNavData.polygonOffsets.at(iPolyA);
+		int32_t iEndA = (iPolyA + 1 < iPolygonCount) ? rNavData.polygonOffsets.at(iPolyA + 1) : iVertexCount;
+		int32_t iCountA = iEndA - iStartA;
+		if (iCountA < 2)
+		{
+			continue;
+		}
+
+		for (int32_t iEdgeA = 0; iEdgeA < iCountA; ++iEdgeA)
+		{
+			int32_t iA0 = iStartA + iEdgeA;
+			int32_t iA1 = iStartA + ((iEdgeA + 1) % iCountA);
+			XMFLOAT2 f2A0 = rNavData.vertices.at(iA0);
+			XMFLOAT2 f2A1 = rNavData.vertices.at(iA1);
+
+			for (int32_t iPolyB = iPolyA; iPolyB < iPolygonCount; ++iPolyB)
+			{
+				int32_t iStartB = rNavData.polygonOffsets.at(iPolyB);
+				int32_t iEndB = (iPolyB + 1 < iPolygonCount) ? rNavData.polygonOffsets.at(iPolyB + 1) : iVertexCount;
+				int32_t iCountB = iEndB - iStartB;
+				if (iCountB < 2)
+				{
+					continue;
+				}
+
+				int32_t iFirstEdgeB = (iPolyB == iPolyA) ? (iEdgeA + 1) : 0;
+				for (int32_t iEdgeB = iFirstEdgeB; iEdgeB < iCountB; ++iEdgeB)
+				{
+					int32_t iB0 = iStartB + iEdgeB;
+					int32_t iB1 = iStartB + ((iEdgeB + 1) % iCountB);
+					XMFLOAT2 f2B0 = rNavData.vertices.at(iB0);
+					XMFLOAT2 f2B1 = rNavData.vertices.at(iB1);
+
+					if (SegmentsIntersect(f2A0, f2A1, f2B0, f2B1))
+					{
+						LOG(kNavData, kError, "[DEBUG-nav-crossing] NavData crossing polygon edges: polyA={} edgeA=({}->{}) ({} {})-({} {}) | polyB={} edgeB=({}->{}) ({} {})-({} {})", iPolyA, iA0, iA1, common::Wb(f2A0.x, 4), common::Wb(f2A0.y, 4), common::Wb(f2A1.x, 4), common::Wb(f2A1.y, 4), iPolyB, iB0, iB1, common::Wb(f2B0.x, 4), common::Wb(f2B0.y, 4), common::Wb(f2B1.x, 4), common::Wb(f2B1.y, 4));
+						// [DEBUG-nav-crossing] DEBUG_BREAK();
+					}
+				}
+			}
 		}
 	}
 }
