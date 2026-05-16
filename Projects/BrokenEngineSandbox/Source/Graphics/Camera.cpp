@@ -19,7 +19,7 @@ namespace game
 
 // Mouse-wheel zoom: per-frame scroll delta nudges target height; current eases toward target
 constexpr float kfEyeHeightPerWheelTick = 0.1f;
-constexpr float kfEyeHeightBlend = 12.0f;
+constexpr float kfEyeHeightBlend = 4.0f;
 constexpr float kfEyeHeightMin = 150.0f;
 constexpr float kfEyeHeightMax = 600.0f;
 
@@ -98,9 +98,28 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		}
 	}
 
+	// Free camera: WASD in main menu (debug only). Bypasses target/blend; W=0 movement vector preserves position W=1.
+	bool bFreeCameraActive = false;
+	if constexpr (kbFreeCamera)
+	{
+		if (rFrameInterpolate.gameFlags & GameFlags::kMainMenu)
+		{
+			bFreeCameraActive = true;
+			XMVECTOR vecMove = XMVectorSet(gpInput->mCameraInput.f2Move.x, gpInput->mCameraInput.f2Move.y, 0.0f, 0.0f);
+			constexpr float kfFreeCameraSpeed = 200.0f;
+			mVecPosition = XMVectorAdd(mVecPosition, XMVectorScale(vecMove, kfFreeCameraSpeed * fDeltaTime));
+			mVecPreviousTargetPosition = mVecPosition;
+			mbJumping = false;
+		}
+	}
+
 	// Calculate target position based on menu or game mode
 	XMVECTOR vecTargetPosition {};
-	if (rFrameInterpolate.gameFlags & GameFlags::kMainMenu)
+	if (bFreeCameraActive)
+	{
+		vecTargetPosition = mVecPosition;
+	}
+	else if (rFrameInterpolate.gameFlags & GameFlags::kMainMenu)
 	{
 		vecTargetPosition = XMVectorAdd(XMVectorAdd(kVecMenuIslandCenter, kVecMenuCameraOffset), XMVectorSet(0.0f, 0.0f, engine::gBaseHeight.Get(), 0.0f));
 	}
@@ -221,19 +240,13 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 
 	mVecPreviousTargetPosition = vecTargetPosition;
 
-	int iScrollNow = engine::gpRawInputManager->mRawInput.iScrollWheelValue;
-	if (!mbScrollWheelInitialized)
-	{
-		miPreviousScrollWheelValue = iScrollNow;
-		mbScrollWheelInitialized = true;
-	}
-	int iScrollDelta = iScrollNow - miPreviousScrollWheelValue;
-	miPreviousScrollWheelValue = iScrollNow;
-
+	int iScrollDelta = gpInput->mCameraInput.iScrollDelta;
 	mfCameraEyeHeightTarget = std::clamp(mfCameraEyeHeightTarget - static_cast<float>(iScrollDelta) * kfEyeHeightPerWheelTick, kfEyeHeightMin, kfEyeHeightMax);
 
 	float fEyeBlend = std::clamp(fDeltaTime * kfEyeHeightBlend, 0.0f, 1.0f);
 	mfCameraEyeHeight += (mfCameraEyeHeightTarget - mfCameraEyeHeight) * fEyeBlend;
+	// DT: TEMP
+	// mfCameraEyeHeight = mfCameraEyeHeightTarget;
 
 	// Eye sits directly above target along +Z (straight-down view).
 	// W=0 — eye-local offset, not a homogeneous point; added to mVecPosition (W=1) preserves position.

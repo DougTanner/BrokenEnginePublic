@@ -26,7 +26,7 @@ layout (location = 1) out vec3 f3OutPosition;
 layout (location = 2) out vec2 f2OutTexcoord;
 layout (location = 3) out vec3 f3OutNormal;
 
-void Gertsner(vec2 f2LocalPosition, float fTerrainElevation)
+void Gerstner(vec2 f2LocalPosition, float fTerrainElevation)
 {
 	// Shore amplitude fade: 1.0 at/below bottom, 0.0 at/above top
 	float fShoreAmplitude = clamp((fTerrainElevation - globalLayout.fBeachFadeTop) * globalLayout.fBeachFadeInvRange, 0.0f, 1.0f);
@@ -115,15 +115,21 @@ void main()
 	// Camera-relative position for precision in fragment shader UV computation
 	f2OutInitialPosition = f2WorldPosition - vec2(globalLayout.fWaterOriginX, globalLayout.fWaterOriginY);
 
-	float fTerrainElevation = texture(elevationTextureSampler, WorldToVisibleArea(vec3(f2WorldPosition, 0.0f), globalLayout.f4VisibleArea)).x;
-	if (fTerrainElevation > 1.0f)
+	float fTerrainElevation = textureLod(elevationTextureSampler, WorldToVisibleArea(vec3(f2WorldPosition, 0.0f), globalLayout.f4VisibleArea), 0.0f).x - globalLayout.fWaterHeight;
+
+	if (fTerrainElevation >= 0.0f)
 	{
-		gl_Position = vec4(0.0f, 0.0f, -100.0f, 0.0f);
+		// Over land: skip Gerstner — the Z scale below would collapse to 0 anyway.
+		f3OutPosition = vec3(f2WorldPosition, globalLayout.fWaterZOffsetTemp);
+		f3OutNormal = vec3(0.0f, 0.0f, 1.0f);
+		f2OutTexcoord = WorldToVisibleArea(f3OutPosition, globalLayout.f4VisibleArea);
+		gl_Position = Transform(vec4(f3OutPosition, 1.0f), mainLayout.f4x4ViewProjection);
 		return;
 	}
 
-	Gertsner(f2OutInitialPosition, fTerrainElevation);
+	Gerstner(f2OutInitialPosition, fTerrainElevation);
 	f3OutPosition.xy += vec2(globalLayout.fWaterOriginX, globalLayout.fWaterOriginY);
+	f3OutPosition.z += globalLayout.fWaterHeight;
 
 	f2OutTexcoord = WorldToVisibleArea(f3OutPosition, globalLayout.f4VisibleArea);
 

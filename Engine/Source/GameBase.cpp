@@ -32,6 +32,7 @@ void GameBase::ProcessInput([[maybe_unused]] bool bLostFocus, game::MenuInput& r
 {
 #if defined(BT_CLIENT)
 	game::gpInput->UpdateMenuInput(bLostFocus, rMenuInput);
+	game::gpInput->UpdateCameraInput();
 #endif
 	ProcessMenuInput(rMenuInput);
 }

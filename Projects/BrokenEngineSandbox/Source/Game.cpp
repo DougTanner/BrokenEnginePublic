@@ -1225,12 +1225,12 @@ void Game::LoadClientState()
 		return;
 	}
 
-	gpGame->mRememberedFleetGuid              = settings.fleetGuid;
-	gpGame->mRememberedFocusedShipId          = engine::global_id_t {settings.iFocusedShipId};
+	gpGame->mRememberedFleetGuid = settings.fleetGuid;
+	gpGame->mRememberedFocusedShipId = engine::global_id_t {settings.iFocusedShipId};
 	gpGame->mfRememberedCameraEyeHeightTarget = settings.fCameraEyeHeightTarget;
 
 	// Apply zoom directly so the camera starts AT the saved zoom rather than easing from the default.
-	gpCamera->mfCameraEyeHeight       = settings.fCameraEyeHeightTarget;
+	gpCamera->mfCameraEyeHeight = settings.fCameraEyeHeightTarget;
 	gpCamera->mfCameraEyeHeightTarget = settings.fCameraEyeHeightTarget;
 }
 

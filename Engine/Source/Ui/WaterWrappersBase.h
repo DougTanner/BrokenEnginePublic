@@ -41,6 +41,13 @@ extern Wrapper gLightingWaterSkyboxThree;
 extern Wrapper gLightingWaterSkyboxThreePower;
 extern Wrapper gLightingWaterSkyboxLod;
 
+// Specular - Height Darken
+extern Wrapper gWaterHeightDarkenTop;
+extern Wrapper gWaterHeightDarkenBottom;
+extern Wrapper gWaterHeightDarkenTarget;
+extern Wrapper gWaterHeightDarkenSource;
+extern Wrapper gWaterHeightDarkenLighting;
+
 // Low frequency waves
 extern Wrapper gWaterLowMax;
 extern Wrapper gWaterLowAngle;
@@ -74,13 +81,22 @@ extern Wrapper gWaterTerrainHeight;
 extern Wrapper gWaterZOffsetTemp; // DT: TEMP
 extern Wrapper gWaterTerrainFade;
 extern Wrapper gWaterTerrainFadeClamp;
+extern Wrapper gWaterHeight;
 extern Wrapper gWaterEarlyOut;
 extern Wrapper gWaterDepthLutFeather;
 extern Wrapper gWaterDepthColorFeather;
+extern Wrapper gWaterColorBottom;
+extern Wrapper gWaterColorHeight;
 extern Wrapper gWaterFresnel;
 extern Wrapper gWaterFresnel2;
 extern Wrapper gWaterNoiseFrequency;
 extern Wrapper gWaterNoiseAmount;
+extern Wrapper gWaterColorNoiseFrequency;
+extern Wrapper gWaterColorNoiseAmount;
+extern Wrapper gWaterColorNoiseWeightOne;
+extern Wrapper gWaterColorNoiseMultiplierOne;
+extern Wrapper gWaterColorNoiseWeightTwo;
+extern Wrapper gWaterColorNoiseMultiplierTwo;
 
 // Water - Low/Medium count + High frequency waves (radio-button-bound but not via slider map; pure-internal High*)
 extern Wrapper gWaterLowCount;

@@ -57,7 +57,7 @@ void main()
 {
 	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4VisibleArea);
 
-	float fTerrainElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x;
+	float fTerrainElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x - globalLayout.fWaterHeight;
 	if (fTerrainElevation > globalLayout.fWaterEarlyOut)
 	{
 		f4OutColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -68,8 +68,13 @@ void main()
 	vec2 f2WaterOrigin = vec2(globalLayout.fWaterOriginX, globalLayout.fWaterOriginY);
 	vec2 f2WorldInitialPosition = f2InInitialPosition + f2WaterOrigin;
 
-	// Bias eye normal up a bit for skybox
-	vec3 f3ToEyeNormal = normalize(mainLayout.f4EyePosition.xyz - vec3(f2WorldInitialPosition, 0.0f));
+	// Bias eye normal up a bit for skybox. Compute eye-to-water in camera-relative space rather than
+	// reconstructing world position and subtracting f4EyePosition: at large camera coords, the world
+	// round-trip drops low bits from f2InInitialPosition (small + large then subtract large), and the
+	// lost bits shift with camera motion — visible as a velocity-correlated specular darkening at
+	// intermediate fLightingWaterSkyboxNormalSoften. Top-down camera: f4EyePosition.xy == fWaterOrigin
+	// by construction (Camera.cpp sets eye directly above target), so eye - waterWorld = -f2InInitial.
+	vec3 f3ToEyeNormal = normalize(vec3(-f2InInitialPosition, mainLayout.f4EyePosition.z));
 	f3ToEyeNormal = normalize(mix(f3ToEyeNormal, mainLayout.f4ToEyeNormal.xyz, mainLayout.fLightingWaterSkyboxNormalSoften));
 
 	// Normal map sampling with precision-safe UV computation
@@ -152,8 +157,25 @@ void main()
 	vec3 f3WeightedSum = fWeightOne * f3SampledNormalOne + fWeightTwo * f3SampledNormalTwo + fWeightThree * f3SampledNormalThree;
 	vec3 f3SampledNormal = f3WeightedSum / max(length(f3WeightedSum), kfEpsilon);
 
-	// Placeholder constant ocean color — hand-tuned depth color + color-noise mix removed; Beer-Lambert extinction will replace it.
-	vec3 f3WaterColor = vec3(0.0f, 15.0f / 100.0f, 25.0f / 100.0f);
+	// Color (noise with precision-safe UV — same pact as SAMPLE_NORMAL_PRECISE above).
+	// CPU stores fmod(freq*camera, 10.0) so mult * 10 must be integer for fract() to absorb the wrap.
+	// gWaterColorNoiseMultiplierOne/Two sliders (WaterWrappersBase.cpp) snap to a 0.1 grid so the
+	// product stays integer for any tuning (0.0, 0.1, 0.2, ...). Derivatives taken from the un-scaled
+	// local position and scaled the same way as the UV keep mip selection stable across the wrap
+	// (plain texture() pops at the seam).
+	vec2 f2LocalDisplacedPos = f3InPosition.xy - f2WaterOrigin;
+	vec2 f2ReducedNoiseOrigin = vec2(globalLayout.fWaterReducedNoiseOriginX, globalLayout.fWaterReducedNoiseOriginY);
+	float fMultOne = globalLayout.fWaterColorNoiseMultiplierOne;
+	float fMultTwo = globalLayout.fWaterColorNoiseMultiplierTwo;
+	vec2 f2NoiseLocalDx = dFdx(f2LocalDisplacedPos);
+	vec2 f2NoiseLocalDy = dFdy(f2LocalDisplacedPos);
+	float fScaleOne = fMultOne * globalLayout.fWaterColorNoiseFrequency;
+	vec2 f2NoiseUvOne = fScaleOne * f2LocalDisplacedPos + fMultOne * f2ReducedNoiseOrigin;
+	float fNoiseColorOne = clamp(globalLayout.fWaterColorNoiseWeightOne * globalLayout.fWaterColorNoiseAmount * textureGrad(noiseTextureSampler, fract(f2NoiseUvOne), fScaleOne * f2NoiseLocalDx, fScaleOne * f2NoiseLocalDy).x, -1.0f, 1.0f);
+	float fScaleTwo = fMultTwo * globalLayout.fWaterColorNoiseFrequency;
+	vec2 f2NoiseUvTwo = fScaleTwo * f2LocalDisplacedPos + fMultTwo * f2ReducedNoiseOrigin;
+	float fNoiseColorTwo = clamp(globalLayout.fWaterColorNoiseWeightTwo * globalLayout.fWaterColorNoiseAmount * textureGrad(noiseTextureSampler, fract(f2NoiseUvTwo), fScaleTwo * f2NoiseLocalDx, fScaleTwo * f2NoiseLocalDy).x, -1.0f, 1.0f);
+	vec3 f3WaterColor = mix(1.0f * vec3(0.0f, 15.0f / 100.0f, 25.0f / 100.0f), 1.5f * vec3(15.0f / 100.0f, 30.0f / 100.0f, 50.0f / 100.0f), clamp(fNoiseColorOne + fNoiseColorTwo + (f3InPosition.z * globalLayout.fWaterColorHeightInv + globalLayout.fWaterColorBottom), 0.0f, 1.0f));
 
 	vec3 f3DepthColor = texture(depthLutSampler, vec2(globalLayout.fWaterDepthLutFeather * -fTerrainElevation, 0.0f)).xyz;
 
@@ -175,16 +197,27 @@ void main()
 	// Skybox
 	const float fSkyboxNormalBlendWave = mainLayout.fLightingWaterSkyboxNormalBlendWave;
 	vec3 f3SkyboxWaveNormal = normalize((1.0f - fSkyboxNormalBlendWave) * f3SampledNormal + fSkyboxNormalBlendWave * f3InNormal);
-	vec3 f3SkyboxColor = textureLod(skyboxSampler, -normalize(reflect(f3ToEyeNormal, f3SkyboxWaveNormal)), mainLayout.fLightingWaterSkyboxLod).xyz;
+	vec3 f3SkyboxColor = textureLod(skyboxSampler, -reflect(f3ToEyeNormal, f3SkyboxWaveNormal), mainLayout.fLightingWaterSkyboxLod).xyz;
 	vec3 f3SkyboxColorSun = f3SkyboxColor * f3SunOrMoon;
 
 	float fReflectionTerrainMultiplier = clamp(-fTerrainElevation / globalLayout.fWaterDepthReflectionFeather, 0.0f, 1.0f);
 	vec3 f3BiasedSunNormal = normalize(vec3(0.0f, 0.0f, mainLayout.fLightingWaterSkyboxSunBias) + globalLayout.f4SunMoonNormal.xyz);
-	float fReflection = mainLayout.fLightingWaterSkyboxIntensity * fReflectionTerrainMultiplier * Specular(vec3(-1.0f, 1.0f, -1.0f) * f3ToEyeNormal, f3BiasedSunNormal, normalize(reflect(f3ToEyeNormal, f3SkyboxWaveNormal)), globalLayout.fLightingWaterSkyboxOne, mainLayout.fLightingWaterSkyboxOnePower, mainLayout.fLightingWaterSkyboxTwo, mainLayout.fLightingWaterSkyboxTwoPower, mainLayout.fLightingWaterSkyboxThree, mainLayout.fLightingWaterSkyboxThreePower);
+	float fReflection = mainLayout.fLightingWaterSkyboxIntensity * fReflectionTerrainMultiplier * Specular(vec3(-1.0f, 1.0f, -1.0f) * f3ToEyeNormal, f3BiasedSunNormal, reflect(f3ToEyeNormal, f3SkyboxWaveNormal), globalLayout.fLightingWaterSkyboxOne, mainLayout.fLightingWaterSkyboxOnePower, mainLayout.fLightingWaterSkyboxTwo, mainLayout.fLightingWaterSkyboxTwoPower, mainLayout.fLightingWaterSkyboxThree, mainLayout.fLightingWaterSkyboxThreePower);
 
+	// Factor the skybox combine so Height Darken can weight base color and skybox specular independently:
+	// mix(A, B, t) + add*t*B = (1-t)*A + (1+add)*t*B → base = (1-fReflection)*f3LightingColor, specular = (1+fSkyboxAdd)*fReflection*f3SkyboxColorSun.
 	float fSkyboxAdd = mainLayout.fLightingWaterSkyboxAdd;
-	f3LightingColor = mix(f3LightingColor, f3SkyboxColorSun, fReflection);
-	f3LightingColor += fSkyboxAdd * fReflection * f3SkyboxColorSun;
+	vec3 f3SkyboxSpecular = (1.0f + fSkyboxAdd) * fReflection * f3SkyboxColorSun;
+	f3LightingColor = (1.0f - fReflection) * f3LightingColor;
+
+	// Wave trough darken: at z >= Top no darkening (multiplier 1.0); at z <= Bottom max darkening (multiplier 1.0 - Target).
+	// Source/Lighting weights independently mix the per-path multiplier toward 1.0 so each contribution can opt in/out.
+	// Lighting also covers the skybox specular and the EWNS lighting deposit (applied at f3WaterLightingMults below).
+	float fHeightT = clamp((f3InPosition.z - mainLayout.fWaterHeightDarkenBottom) / (mainLayout.fWaterHeightDarkenTop - mainLayout.fWaterHeightDarkenBottom), 0.0f, 1.0f);
+	float fHeightDarken = mix(1.0f - mainLayout.fWaterHeightDarkenTarget, 1.0f, fHeightT);
+	float fHeightDarkenSource = mix(1.0f, fHeightDarken, mainLayout.fWaterHeightDarkenSource);
+	float fHeightDarkenLighting = mix(1.0f, fHeightDarken, mainLayout.fWaterHeightDarkenLighting);
+	f3LightingColor = fHeightDarkenSource * f3LightingColor + fHeightDarkenLighting * f3SkyboxSpecular;
 
 	// Shadow with smoke at world position. Moon bypasses the terrain ray-march shadow only;
 	// object shadows + smoke volumetric attenuation still apply to both lights. Use a scalar
@@ -235,7 +268,8 @@ void main()
 	vec2 f2PositionAtBaseHeightFinal = mix(f2PositionAtBaseHeight, f2PositionAtBaseHeightReflected, fReflectedAmount);
 
 	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeightFinal, 0.0f), globalLayout.f4LightingArea);
-	vec4 pf4LightingBaseHeight[3] = {texture(pLightingSamplers[0], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[1], f2LightingTexcoordBaseHeight), texture(pLightingSamplers[2], f2LightingTexcoordBaseHeight)};
+	vec4 pf4LightingBaseHeight[3];
+	ReadLighting(pf4LightingBaseHeight, pLightingSamplers, f2LightingTexcoordBaseHeight);
 
 	// Ambient sample — straight-down base-height projection, no reflection offset.
 	// Uses the precomputed direction-averaged ambient texture (single fetch replaces three EWNS samples).
@@ -266,7 +300,7 @@ void main()
 	// Mix between water-tinted lighting (Add=0) and pure lighting color (Add=1).
 	// Total contribution magnitude is conserved across the mix.
 	float fWaterLightingAdd = mainLayout.fLightingWaterAdd;
-	vec3 f3WaterLightingMults = fReflectionTerrainMultiplier * f3WaterLightingScaled;
+	vec3 f3WaterLightingMults = fHeightDarkenLighting * fReflectionTerrainMultiplier * f3WaterLightingScaled;
 	f4OutColor.xyz += (1.0f - fWaterLightingAdd) * f3PreLightingColor * f3WaterLightingMults + fWaterLightingAdd * f3WaterLightingMults;
 
 	// Water ambient (terrain-style, sampled without reflection offset)

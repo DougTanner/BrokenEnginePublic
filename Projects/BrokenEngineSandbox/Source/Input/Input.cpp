@@ -109,6 +109,33 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 #endif
 }
 
+void Input::UpdateCameraInput()
+{
+#if defined(BT_CLIENT)
+	const engine::RawInput& rRawInput = engine::gpRawInputManager->mRawInput;
+
+	XMFLOAT2 f2Move {};
+	if constexpr (kbFreeCamera)
+	{
+		constexpr float kfFreeCameraAxis = 0.5f;
+		if (rRawInput.pKeyboardKeys['W']) { f2Move.y += kfFreeCameraAxis; }
+		if (rRawInput.pKeyboardKeys['S']) { f2Move.y -= kfFreeCameraAxis; }
+		if (rRawInput.pKeyboardKeys['A']) { f2Move.x -= kfFreeCameraAxis; }
+		if (rRawInput.pKeyboardKeys['D']) { f2Move.x += kfFreeCameraAxis; }
+	}
+	mCameraInput.f2Move = f2Move;
+
+	int iScrollNow = rRawInput.iScrollWheelValue;
+	if (!mbScrollWheelInitialized)
+	{
+		miPreviousScrollWheelValue = iScrollNow;
+		mbScrollWheelInitialized = true;
+	}
+	mCameraInput.iScrollDelta = iScrollNow - miPreviousScrollWheelValue;
+	miPreviousScrollWheelValue = iScrollNow;
+#endif
+}
+
 common::crc_t FrameInput::Crc() const
 {
 	common::crc_t checksum = 0;

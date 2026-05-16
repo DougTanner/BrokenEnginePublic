@@ -44,6 +44,13 @@ struct MenuInput
 	XMFLOAT2 f2Gamepad {};
 };
 
+// Camera (display-rate, client-only, continuous)
+struct CameraInput
+{
+	XMFLOAT2 f2Move {};
+	int iScrollDelta = 0;
+};
+
 // Frame
 struct FrameInput
 {
@@ -65,12 +72,18 @@ class Input
 public:
 
 	void UpdateMenuInput(bool bLostFocus, MenuInput& rMenuInput);
+	void UpdateCameraInput();
 
 	bool GetGamepadMode() const { return mbGamepadMode; }
+
+	CameraInput mCameraInput {};
 
 private:
 
 	engine::RawInput mPreviousRawInputMenu {};
+
+	int miPreviousScrollWheelValue = 0;
+	bool mbScrollWheelInitialized = false;
 
 	bool mbGamepadMode = false;
 

@@ -218,6 +218,7 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	rGlobalLayout.fShadowSunriseStretch = fSunriseStretch * gObjectShadowsSunsetStretch.Get();
 	rGlobalLayout.fShadowSunsetStretch = fSunsetStretch * gObjectShadowsSunsetStretch.Get();
 	rGlobalLayout.fShadowAffectAmbient = std::pow(fDayPercent, 0.25f) * gShadowAffectAmbient.Get();
+	rGlobalLayout.fWaterReducedNoiseOriginX = 0.0f;
 
 	rGlobalLayout.fShadowTextureSizeWidth = fShadowTextureSizeWidth;
 	rGlobalLayout.fShadowTextureSizeHeight = fShadowTextureSizeHeight;
@@ -316,6 +317,7 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fDayPercent)
 {
 	// Water global
+	rGlobalLayout.fWaterHeight = gWaterHeight.Get();
 	rGlobalLayout.fWaterTerrainHeight = gWaterTerrainHeight.Get();
 	rGlobalLayout.fWaterTerrainFade = gWaterTerrainFade.Get();
 	rGlobalLayout.fWaterTerrainFadeClamp = gWaterTerrainFadeClamp.Get();
@@ -325,6 +327,7 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterDepthLutFeather = gWaterDepthLutFeather.Get();
 	rGlobalLayout.fWaterDepthColorFeather = gWaterDepthColorFeather.Get();
 	rGlobalLayout.fWaterDepthReflectionFeather = fDayPercent * gWaterDepthReflectionFeather.Get();
+	rGlobalLayout.fWaterColorNoiseFrequency = gWaterColorNoiseFrequency.Get();
 
 	rGlobalLayout.fWaterHighMultiplier = gWaterHighMultiplier.Get();
 	rGlobalLayout.fWaterHighScaleOne = gWaterHighScaleOne.Get();
@@ -345,6 +348,13 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterSunVisibility = std::pow(rGlobalLayout.fWaterSunVisibility, 2.0f);
 
 	rGlobalLayout.fWaterFresnel = std::pow(fDayPercent, 0.5f) * gWaterFresnel.Get();
+	rGlobalLayout.fWaterColorBottom = gWaterColorBottom.Get();
+	rGlobalLayout.fWaterColorHeightInv = 1.0f / gWaterColorHeight.Get();
+	rGlobalLayout.fWaterColorNoiseAmount = gWaterColorNoiseAmount.Get();
+	rGlobalLayout.fWaterColorNoiseWeightOne = gWaterColorNoiseWeightOne.Get();
+	rGlobalLayout.fWaterColorNoiseWeightTwo = gWaterColorNoiseWeightTwo.Get();
+	rGlobalLayout.fWaterColorNoiseMultiplierOne = gWaterColorNoiseMultiplierOne.Get();
+	rGlobalLayout.fWaterColorNoiseMultiplierTwo = gWaterColorNoiseMultiplierTwo.Get();
 
 	if (fSunAngle >= 0.0f && fSunAngle < XM_PIDIV2)
 	{
@@ -436,6 +446,16 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterReducedNormalOriginThreeX = static_cast<float>(std::fmod(dSizeBaseThree * dRotCameraXThree, 10.0));
 	rGlobalLayout.fWaterReducedNormalOriginThreeY = static_cast<float>(std::fmod(dSizeBaseThree * dRotCameraYThree, 10.0));
 	rGlobalLayout.fWaterReducedNormalTimeThree = static_cast<float>(sdReducedTimeThree);
+
+	// Modulus 10.0 (not 1.0) so the shader's per-sample multipliers fWaterColorNoiseMultiplierOne/Two
+	// produce integer UV wraps for the calibrated defaults (0.2 * 10 = 2, 1.0 * 10 = 10) — fract()
+	// then absorbs the wrap. Modulus 1.0 produced a sudden seam at the wrap radius because mult * 1.0
+	// is non-integer for those defaults. Tuning gotcha: the sliders allow non-integer-tenths values
+	// (e.g. 0.15) which break the integer-product property and the seam returns. Same constraint that
+	// governs fWaterReducedNormalOrigin* above (where the per-octave multipliers are pinned).
+	double dNoiseFreq = static_cast<double>(gWaterColorNoiseFrequency.Get());
+	rGlobalLayout.fWaterReducedNoiseOriginX = static_cast<float>(std::fmod(dNoiseFreq * dCameraX, 10.0));
+	rGlobalLayout.fWaterReducedNoiseOriginY = static_cast<float>(std::fmod(dNoiseFreq * dCameraY, 10.0));
 }
 
 void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick)

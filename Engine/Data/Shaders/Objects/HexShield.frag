@@ -37,7 +37,7 @@ void main()
 
 	// Color
     vec3 f3IncidentNormal = normalize(f3InPosition - mainLayout.f4EyePosition.xyz);
-    vec3 f3ReflectedNormal = normalize(reflect(f3IncidentNormal, normalize(f3InCenterNormal)));
+    vec3 f3ReflectedNormal = reflect(f3IncidentNormal, normalize(f3InCenterNormal));
     vec3 f3SkyboxColor = texture(skyboxSampler, f3ReflectedNormal).xyz;
 
 	f4OutColor.xyz = mix(f3SkyboxColor, pHexShields[i].f4Color.xyz, pHexShields[i].fColorMix);

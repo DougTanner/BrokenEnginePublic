@@ -68,7 +68,7 @@ Changes (8 files)
    a) Add a new output after f3OutNormal (location 3):
         layout (location = 4) out float fOutFoamFactor;
 
-   b) In the Gertsner function, accumulate the Jacobian of the
+   b) In the Gerstner function, accumulate the Jacobian of the
       horizontal displacement. For each wave i in both low and medium
       loops, track the partial derivatives of the XY displacement with
       respect to the original XY position. The Jacobian determinant of

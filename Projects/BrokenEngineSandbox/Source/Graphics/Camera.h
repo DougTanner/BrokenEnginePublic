@@ -40,8 +40,6 @@ public:
 	XMVECTOR mVecCameraOffsetSmoothed {};
 	float mfCameraEyeHeight = kfCameraEyeHeightInitial;
 	float mfCameraEyeHeightTarget = kfCameraEyeHeightInitial;
-	int miPreviousScrollWheelValue = 0;
-	bool mbScrollWheelInitialized = false;
 	XMVECTOR mVecLastKnownPlayerPosition {};
 	XMVECTOR mVecLastKnownPlayerVelocity {};
 	float mfLastKnownPlayerTime = 0.0f;

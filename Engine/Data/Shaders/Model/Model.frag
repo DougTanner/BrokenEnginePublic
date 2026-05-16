@@ -249,7 +249,7 @@ void main()
 	vec3 v = normalize(mainLayout.f4EyePosition.xyz - f3InWorldPosition);
 	vec3 l = normalize(globalLayout.f4SunMoonNormal.xyz);
 	vec3 h = normalize(l + v);
-	vec3 reflection = -normalize(reflect(v, n));
+	vec3 reflection = -reflect(v, n);
 	reflection.y *= -1.0;
 
 	// Compute dot products

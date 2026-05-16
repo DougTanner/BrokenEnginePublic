@@ -44,6 +44,12 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Skybox 3", &gLightingWaterSkyboxThree},
 	{"Skybox 3 Power", &gLightingWaterSkyboxThreePower},
 	{"Skybox Lod", &gLightingWaterSkyboxLod},
+	// Specular - Height Darken
+	{"Height Darken Top", &gWaterHeightDarkenTop},
+	{"Height Darken Bottom", &gWaterHeightDarkenBottom},
+	{"Height Darken Target", &gWaterHeightDarkenTarget},
+	{"Height Darken Source", &gWaterHeightDarkenSource},
+	{"Height Darken Lighting", &gWaterHeightDarkenLighting},
 	// Low - Wave
 	{"Low Max", &gWaterLowMax},
 	{"Angle", &gWaterLowAngle},
@@ -80,13 +86,22 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"DT: TEMP Z Offset", &gWaterZOffsetTemp}, // DT: TEMP
 	{"Water Terrain Fade", &gWaterTerrainFade},
 	{"Water Terrain Fade Clamp", &gWaterTerrainFadeClamp},
+	{"Water Height", &gWaterHeight},
 	{"Water Early Out", &gWaterEarlyOut},
 	{"Water Depth Lut Feather", &gWaterDepthLutFeather},
 	{"Water Depth Color Feather", &gWaterDepthColorFeather},
+	{"Water Color Bottom", &gWaterColorBottom},
+	{"Water Color Height", &gWaterColorHeight},
 	{"Water Fresnel", &gWaterFresnel},
 	{"Water Fresnel 2", &gWaterFresnel2},
 	{"Water Noise Frequency", &gWaterNoiseFrequency},
 	{"Water Noise Amount", &gWaterNoiseAmount},
+	{"Water Color Noise Frequency", &gWaterColorNoiseFrequency},
+	{"Water Color Noise Amount", &gWaterColorNoiseAmount},
+	{"Water Color Noise Weight One", &gWaterColorNoiseWeightOne},
+	{"Water Color Noise Multiplier One", &gWaterColorNoiseMultiplierOne},
+	{"Water Color Noise Weight Two", &gWaterColorNoiseWeightTwo},
+	{"Water Color Noise Multiplier Two", &gWaterColorNoiseMultiplierTwo},
 };
 }
 
@@ -156,7 +171,9 @@ void TweaksScreenBase::RenderWaterSection()
 				WrapperSeparatorText("Height Darken");
 				WrapperSlider("Height Darken Top", kiSection, 1.0f);
 				WrapperSlider("Height Darken Bottom", kiSection, 1.0f);
-				WrapperSlider("Height Darken Clamp", kiSection, 1.0f);
+				WrapperSlider("Height Darken Target", kiSection, 1.0f);
+				WrapperSlider("Height Darken Source", kiSection, 1.0f);
+				WrapperSlider("Height Darken Lighting", kiSection, 1.0f);
 
 				ImGui::EndTable();
 			}
@@ -245,11 +262,14 @@ void TweaksScreenBase::RenderWaterSection()
 			WrapperSlider("Water Terrain Fade Clamp", kiSection);
 
 			WrapperSeparatorText("Surface");
+			WrapperSlider("Water Height", kiSection);
 			WrapperSlider("Water Early Out", kiSection);
 
 			WrapperSeparatorText("Depth Color");
 			WrapperSlider("Water Depth Lut Feather", kiSection);
 			WrapperSlider("Water Depth Color Feather", kiSection);
+			WrapperSlider("Water Color Bottom", kiSection);
+			WrapperSlider("Water Color Height", kiSection);
 
 			WrapperSeparatorText("Fresnel");
 			WrapperSlider("Water Fresnel", kiSection);
@@ -258,6 +278,14 @@ void TweaksScreenBase::RenderWaterSection()
 			WrapperSeparatorText("Normal Noise");
 			WrapperSlider("Water Noise Frequency", kiSection);
 			WrapperSlider("Water Noise Amount", kiSection);
+
+			WrapperSeparatorText("Color Noise");
+			WrapperSlider("Water Color Noise Frequency", kiSection);
+			WrapperSlider("Water Color Noise Amount", kiSection);
+			WrapperSlider("Water Color Noise Weight One", kiSection);
+			WrapperSlider("Water Color Noise Multiplier One", kiSection);
+			WrapperSlider("Water Color Noise Weight Two", kiSection);
+			WrapperSlider("Water Color Noise Multiplier Two", kiSection);
 
 			ImGui::EndTabItem();
 		}
