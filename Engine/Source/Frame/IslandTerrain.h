@@ -3,6 +3,7 @@
 #include "Frame/NavBuild.h"
 #if defined(BT_CLIENT)
 #include "Graphics/Objects/Buffer.h"
+#include "Graphics/Objects/Texture.h"
 #endif
 
 namespace engine
@@ -51,6 +52,19 @@ struct IslandTemplate
 
 	int64_t miTextureSlot = -1;
 
+	// Fixed index into IslandTerrain::mIslandCrcsSorted, assigned in ctor right after the sort.
+	// Drives per-template SSBO range and indirect-cmd slot in Islands; never changes after boot.
+	// Decoupled from miTextureSlot (which mints lazily on first visit).
+	int64_t miTemplateArrayIndex = -1;
+
+	// Mesh vertex/index counts come from IslandHeader synchronously (manifest metadata is loaded
+	// before chunk data). Populated in IslandTerrain ctor so Islands ctor can bake indexCount
+	// into the per-template indirect commands at boot. CPU mesh data pointers (mpfMeshPositions /
+	// mpuiMeshIndices) are filled later in WaitForElevationMaps once the kIsland chunk's payload
+	// is resident.
+	int32_t miMeshVertexCount = 0;
+	int32_t miMeshIndexCount = 0;
+
 #if defined(BT_CLIENT)
 	// Phase 5 LRU eviction state. mbGpuResident means "slot points at this template's real
 	// Texture*s AND those Textures have live GPU resources". False while in slot-0 fallback
@@ -61,16 +75,23 @@ struct IslandTemplate
 	uint64_t muiLastUsedRenderFrame = 0;
 	bool mbGpuResident = false;
 
-	// Gaea Mesher-baked terrain mesh in island-local meters (XY centered, Z=0 at sea level).
+	// Gaea Mesher-baked terrain mesh in island-local meters (XY centered).
 	// CPU pointers slice into the kIsland chunk's payload after the heightmap floats (set by
 	// WaitForElevationMaps). The GPU buffer combines indices and vertices: [uint32 indices,
-	// float3 positions], uploaded once on first AcquireTextureSlot and kept resident for the
-	// lifetime of the template (textures-only LRU eviction; mesh is small relative to texture VRAM).
-	const float* mpfMeshPositions = nullptr;
+	// float2 positions (XY pairs)], uploaded once by CreateClientMeshBuffers at boot and kept
+	// resident for the lifetime of the template (textures-only LRU eviction; mesh is small
+	// relative to texture VRAM). Z is not stored — Terrain.vert re-derives it from the elevation
+	// sampler.
+	const float* mpfMeshPositions = nullptr;   // interleaved XY pairs (2 floats per vertex)
 	const uint32_t* mpuiMeshIndices = nullptr;
-	int32_t miMeshVertexCount = 0;
-	int32_t miMeshIndexCount = 0;
 	Buffer mMeshBuffer;
+
+	// Elevation R32_SFLOAT image uploaded once at first-mint from mpfHeightmapData. Permanently
+	// resident (matches mMeshBuffer policy — texture LRU evicts color/normals/AO only). Lives on
+	// the template (not in TextureManager::mTextureMap) because no standalone elevation chunk ships
+	// in the pack anymore — DataPacker stopped writing it after the lag-fix moved the data path to
+	// the kIsland chunk's heightmap payload.
+	Texture mElevationTexture;
 #endif
 };
 
@@ -87,6 +108,12 @@ public:
 	XMVECTOR XM_CALLCONV GlobalNormal(FXMVECTOR vecPosition) const;
 
 #if defined(BT_CLIENT)
+	// Create each template's GPU mesh buffer from the CPU pointers set by WaitForElevationMaps.
+	// Called from Islands ctor (after VMA exists, before terrain CB record). Per the record-once
+	// CB invariant, mesh buffers must exist at CB record time — they can't be created lazily on
+	// first visit.
+	void CreateClientMeshBuffers();
+
 	// Client-only: assign or retrieve the bindless texture-array slot for an island template.
 	// First call for a CRC binds its 4 textures into mRenderTargetTextures at the next free slot.
 	// Newly-minted templates start in slot-0 fallback (slot points at the neutral placeholder

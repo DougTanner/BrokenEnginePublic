@@ -32,9 +32,10 @@ layout (scalar, set = 1, binding = 19) buffer readonly quadsBuffer
 	AxisAlignedQuadLayout pQuads[];
 };
 
-// Input: per-vertex island-local meters (origin at island center; Z=0 at sea level). DataPacker
-// re-centered XY and applied the beach offset to Z during BakeIslandIntermediates.
-layout (location = 0) in vec3 f3InPosition;
+// Input: per-vertex island-local meters XY (origin at island center). DataPacker re-centered
+// XY during BakeIslandIntermediates and stripped Z at the ExportIsland write boundary — Z is
+// re-derived below from the composite elevation G-buffer (see fVertexZ below).
+layout (location = 0) in vec2 f2InPosition;
 
 // Output: visible-area UV for Terrain.frag to sample composite G-buffer textures.
 layout (location = 0) out vec2 f2OutTexcoord;
@@ -56,8 +57,8 @@ void main()
 	// rotation already applied by QuadsAxisAlignedVisibleArea.vert when populating the G-buffer RTTs.
 	float fCos = cos(fRotation);
 	float fSin = sin(fRotation);
-	float fWorldX = fCenterX + f3InPosition.x * fCos - f3InPosition.y * fSin;
-	float fWorldY = fCenterY + f3InPosition.x * fSin + f3InPosition.y * fCos;
+	float fWorldX = fCenterX + f2InPosition.x * fCos - f2InPosition.y * fSin;
+	float fWorldY = fCenterY + f2InPosition.x * fSin + f2InPosition.y * fCos;
 
 	// Visible-area UV used by Terrain.frag to sample composite G-buffer textures
 	// (mTerrainElevationTexture etc., rendered earlier this frame by the per-island G-buffer prepass).

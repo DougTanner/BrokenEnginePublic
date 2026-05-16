@@ -11,7 +11,6 @@ inline constexpr char kpcIslandIntermediatesDir[] = "Intermediates";
 
 inline constexpr char kpcIslandAmbientOcclusion[] = "AmbientOcclusion.BC4_UNORM_BLOCK";
 inline constexpr char kpcIslandColor[] = "Color.BC7_UNORM_BLOCK";
-inline constexpr char kpcIslandElevation[] = "Elevation.R32_SFLOAT";
 inline constexpr char kpcIslandNormals[] = "Normals.BC5_UNORM_BLOCK";
 
 class ExportIsland : public ExportJob
@@ -29,7 +28,7 @@ public:
 
 	virtual ~ExportIsland() = default;
 
-	virtual int64_t GetVersion() const override { return Version(22); }
+	virtual int64_t GetVersion() const override { return Version(23); }
 
 	virtual bool CheckDirty(const std::filesystem::path& rPackFile) override;
 

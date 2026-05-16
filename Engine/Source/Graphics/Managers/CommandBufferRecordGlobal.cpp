@@ -37,7 +37,7 @@ void CommandBufferRecordGlobal::Record(int64_t iFramebuffer)
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerShadow);
 	gpTextureManager->mRenderTargetTextures.mShadowElevationTexture.RecordBeginRenderPass(vkCommandBuffer);
-	pPipelines[kPipelineShadowElevation].RecordDraw(iCommandBuffer, vkCommandBuffer, static_cast<int64_t>(gpIslands->mIslands.size()), 0, {1.0f, 0.0f, 0.0f, 0.0f});
+	pPipelines[kPipelineShadowElevation].RecordDraw(iCommandBuffer, vkCommandBuffer, gpIslands->miTemplateCount * kiMaxPlacementsPerTemplate, 0, {1.0f, 0.0f, 0.0f, 0.0f});
 	gpTextureManager->mRenderTargetTextures.mShadowElevationTexture.RecordEndRenderPass(vkCommandBuffer);
 	uint32_t uiShadowWidth = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.width;
 	uint32_t uiShadowHeight = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.height;
@@ -76,7 +76,10 @@ void CommandBufferRecordGlobal::Record(int64_t iFramebuffer)
 
 void CommandBufferRecordGlobal::RecordTerrainPasses(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, Pipeline* pPipelines)
 {
-	int64_t iIslandCount = static_cast<int64_t>(gpIslands->mIslands.size());
+	// Total SSBO slot count = N_templates × kiMaxPlacementsPerTemplate, fixed at boot. Inactive
+	// slots are zero-width quads that QuadsAxisAlignedVisibleArea.vert culls via degenerate
+	// triangles (no real GPU cost).
+	int64_t iIslandCount = gpIslands->miTemplateCount * kiMaxPlacementsPerTemplate;
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainElevation);
 	gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture.RecordBeginRenderPass(vkCommandBuffer);

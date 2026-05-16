@@ -12,7 +12,7 @@ using enum common::ChunkFlags;
 struct ExportedIsland
 {
 	std::vector<float> cpuHeightmapData;
-	std::vector<float> cpuMeshPositions;   // float3 triplets in island-local meters (origin at center, Z=0 at sea level)
+	std::vector<float> cpuMeshPositions;   // float2 XY pairs in island-local meters (origin at center). Z is discarded — Terrain.vert re-derives it from the elevation sampler.
 	std::vector<uint32_t> cpuMeshIndices;
 	int32_t iHeightmapWidth = 0;
 	int32_t iHeightmapHeight = 0;
@@ -42,7 +42,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 	// Encode each intermediate as a single-mip texture in turn. sEncodeMutex serializes the BC
 	// encoder across textures (it uses all hardware threads internally; mutex bounds memory). A
 	// JPEG sidecar is written next to each output for visual diagnosis of the bake input.
-	constexpr int kiJpegSidecarQuality = 90;
+	static constexpr int kiJpegSidecarQuality = 90;
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 		Texture texture(intermediatesDir / "AmbientOcclusion.r16", FileType::kUint16Raw, false, baked.iCropWidth, baked.iCropHeight);
@@ -56,13 +56,6 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 		texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
 		texture.Save(rInputPath / kpcIslandColor, VK_FORMAT_BC7_UNORM_BLOCK, true);
 		texture.SaveJpegSidecar(rInputPath / "Color.jpg", kiJpegSidecarQuality, false);
-	}
-
-	{
-		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(intermediatesDir / "Elevation.r32", FileType::kFloat32, false, iElevationWidth, iElevationHeight);
-		texture.Save(rInputPath / kpcIslandElevation, VK_FORMAT_R32_SFLOAT, false);
-		texture.SaveJpegSidecar(rInputPath / "Elevation.jpg", kiJpegSidecarQuality, true, true);
 	}
 
 	{
@@ -87,17 +80,24 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 	rOut.iHeightmapHeight = static_cast<int32_t>(iElevationHeight);
 
 	// Per-island mesh: BakeIslandIntermediates wrote MeshProcessed.bin with [int32 vertexCount,
-	// int32 indexCount, float3 positions, uint32 indices]. Read it verbatim; ExportIsland packs it
-	// into the chunk payload after the heightmap floats (see Export() and IslandHeader in DataFile.h).
+	// int32 indexCount, float3 positions, uint32 indices]. Strip Z here — Terrain.vert re-derives
+	// it from the elevation sampler — and pack float2 XY pairs into the chunk payload after the
+	// heightmap floats (see Export() and IslandHeader in DataFile.h).
 	{
 		std::filesystem::path meshFile = intermediatesDir / "MeshProcessed.bin";
 		std::ifstream meshStream(meshFile, std::ios::binary);
 		meshStream.read(reinterpret_cast<char*>(&rOut.iMeshVertexCount), sizeof(int32_t));
 		meshStream.read(reinterpret_cast<char*>(&rOut.iMeshIndexCount), sizeof(int32_t));
-		rOut.cpuMeshPositions.resize(static_cast<size_t>(rOut.iMeshVertexCount) * 3);
+		std::vector<float> meshPositionsXYZ(static_cast<size_t>(rOut.iMeshVertexCount) * 3);
+		rOut.cpuMeshPositions.resize(static_cast<size_t>(rOut.iMeshVertexCount) * 2);
 		rOut.cpuMeshIndices.resize(static_cast<size_t>(rOut.iMeshIndexCount));
-		meshStream.read(reinterpret_cast<char*>(rOut.cpuMeshPositions.data()), static_cast<std::streamsize>(rOut.cpuMeshPositions.size() * sizeof(float)));
+		meshStream.read(reinterpret_cast<char*>(meshPositionsXYZ.data()), static_cast<std::streamsize>(meshPositionsXYZ.size() * sizeof(float)));
 		meshStream.read(reinterpret_cast<char*>(rOut.cpuMeshIndices.data()), static_cast<std::streamsize>(rOut.cpuMeshIndices.size() * sizeof(uint32_t)));
+		for (int32_t i = 0; i < rOut.iMeshVertexCount; ++i)
+		{
+			rOut.cpuMeshPositions.at(static_cast<size_t>(i) * 2)     = meshPositionsXYZ.at(static_cast<size_t>(i) * 3);
+			rOut.cpuMeshPositions.at(static_cast<size_t>(i) * 2 + 1) = meshPositionsXYZ.at(static_cast<size_t>(i) * 3 + 1);
+		}
 	}
 }
 
@@ -163,10 +163,6 @@ void ExportIsland::Export()
 	std::filesystem::path colorsFile(relativeFile);
 	colorsFile /= kpcIslandColor;
 	pHeader->islandHeader.colorsCrc = common::Crc(colorsFile.string());
-
-	std::filesystem::path elevationFile(relativeFile);
-	elevationFile /= kpcIslandElevation;
-	pHeader->islandHeader.elevationCrc = common::Crc(elevationFile.string());
 
 	std::filesystem::path normalsFile(relativeFile);
 	normalsFile /= kpcIslandNormals;

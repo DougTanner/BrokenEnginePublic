@@ -22,6 +22,11 @@ public:
 	void RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags, Texture* pTexture = nullptr, Texture** ppTextures = nullptr, int64_t iCount = 0, int64_t iArrayIndex = -1);
 	void RegisterStandaloneSamplerBinding(Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags);
 	void UpdateDescriptorsForTexture(common::crc_t crc);
+	// Array-binding-only descriptor refresh keyed on a binding map slot that has no mTextureMap entry
+	// (e.g. per-island elevation, whose Texture lives on IslandTemplate rather than in TextureManager).
+	// Writes per-pipeline array descriptors from the registered Texture** snapshot; skips the bindless
+	// Set 0 mImageInfos slot that UpdateDescriptorsForTexture would also touch.
+	void UpdateArrayBindingsForKey(common::crc_t bindingKey);
 	void RewriteSamplerDescriptors();
 	void ClearTextureBindings();
 

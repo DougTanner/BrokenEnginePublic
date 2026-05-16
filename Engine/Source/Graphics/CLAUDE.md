@@ -7,13 +7,14 @@ Multi-pass deferred Vulkan renderer with lighting, shadows, GPU particles, and p
 ## Architecture Notes
 
 - Record-once command buffers resubmitted every frame; re-recorded only on resize or settings change
+- **CB re-record is BANNED outside the swapchain / settings / device-loss recreate paths.** All per-frame state variation must flow through host-visible buffers: SSBOs (`mIslandsStorageBuffer`), per-frame uniforms (`mGlobalLayoutUniformBuffers`), or indirect-draw commands (`Pipeline::WriteIndirectBuffer` at `Engine/Source/Graphics/Objects/Pipeline.cpp:303-327`). The terrain pipeline is the cautionary example: an earlier version bound per-island mesh buffers and instance counts at C++ record time, then relied on capacity-grow re-records to refresh them. Within the default capacity (`kiDefaultIslandCapacity = 16`), the re-record never fired and new islands silently failed to draw despite their textures, mesh, and slot all being resident. The fix records one `vkCmdDrawIndexedIndirect` per template (template count fixed at boot from `gpIslandTerrain->mIslandCrcsSorted`); per-template `instanceCount` is rewritten each frame into a host-visible indirect buffer. For per-instance mesh selection that doesn't fit a single bound vertex buffer, mirror that pattern: one indirect draw per template, mesh bound at record time.
 - Per-framebuffer descriptor sets prevent GPU conflicts across frames in flight
 - All GPU memory allocated through VMA
 - Lazy texture loading: generic textures use a white placeholder at startup; islands use a permanent neutral programmatic placeholder at slot 0 (format-matched, never adopted by a real island), with background disk load via transfer queue and deferred descriptor update. Frame 0 renders no islands — visible terrain appears only as subscriptions arrive and mint slots
 - Camera snaps render visible-area to the water quad grid — never render off-grid. Terrain uses per-island Gaea2-Mesher meshes; the visible-area composite G-buffer RTTs that terrain fragment shading samples are still sized by the same snap-grid (driven by `BufferManager::mWaterMeshLods`)
 - Terrain collision queries live in `/Frame/IslandTerrain` (shared); `Islands` here is client-only GPU rendering
 - Frame boundary sits between Main-submit and the next Acquire, not at loop top
-- `RenderGlobal` post-fence-wait is the descriptor-patch safety window: island LRU eviction runs immediately before `TextureManager::ProcessPendingTextures` and restoration runs immediately after, so descriptor rewrites happen while no frame-in-flight references the slots. Elevation slots are patched inside `IslandTerrain::RestorationSweep` (not `ProcessPendingTextures`) because elevation is uploaded directly from the in-memory heightmap and bypasses the chunk-adoption flow
+- `RenderGlobal` post-fence-wait is the descriptor-patch safety window: island LRU eviction runs immediately before `TextureManager::ProcessPendingTextures` and restoration runs immediately after, so descriptor rewrites happen while no frame-in-flight references the slots. Elevation slots are patched inside `IslandTerrain::RestorationSweep` (not `ProcessPendingTextures`) via `TextureDescriptors::UpdateArrayBindingsForKey`, because elevation is uploaded directly from the in-memory heightmap and bypasses the chunk-adoption flow (the template owns the Texture; there is no `mTextureMap` entry to drive the CRC-keyed update)
 - `muiFrameCounter` increments unconditionally each frame (not gated by `VK_EXT_memory_budget` polling); the island LRU grace clock depends on monotonic advance on every device
 
 ## Destroy / Refresh Pipeline
@@ -37,7 +38,7 @@ Settings-change detector escalates a destroy tier (`DestroyType`) monotonically 
 
 ## Islands / Screenshot / Resolution Helpers
 
-- `Islands` bridges island state into a host-visible storage buffer; growth doubles capacity and forces command-buffer re-record. Inactive slots are zero-width quads (GPU-culled)
+- `Islands` bridges island state into a host-visible storage buffer sized for the boot-fixed template count × `kiMaxPlacementsPerTemplate`. Inactive slots are zero-width quads (GPU-culled). No capacity-grow path — template set is frozen at boot, see the CB re-record ban above
 - Screenshot save waits the target framebuffer's fence, copies present image to host memory, then `std::async`-saves JPG with its own `ThreadLocal` (runs off the engine worker pool); a static future serializes overlapping saves
 - Render-target size aligns to shadow-block boundaries expanded past framebuffer extent; smoke-sim resolution scales relative to a 3840-px reference width
 

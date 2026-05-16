@@ -29,6 +29,13 @@ TextureManager's placeholder, not the real island Texture. Result: after
 device-lost recovery, every island silently renders as the neutral placeholder
 (flat sea-level, mid-gray, up-normals, full AO) forever.
 
+**Cross-coupling with boot-time mesh creation (added post-record-once refactor):**
+`Islands` ctor now also calls `IslandTerrain::CreateClientMeshBuffers()` and
+re-binds every template's mesh buffer at recreate time. That side of the device-
+loss path already works (CPU mesh pointers survive device loss because they live
+in the kIsland chunk payload, not VMA). The fix below only needs to address
+texture-slot residency state — meshes are no longer in scope.
+
 **Fix:** reset the IslandTerrain slot-assignment state when TextureManager is
 recreated. Two viable shapes:
 

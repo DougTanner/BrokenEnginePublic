@@ -8,11 +8,11 @@ namespace game
 // ============================================================================
 
 // Explosions - Primary light
-engine::Wrapper gExplosionPrimaryLightingAreaOne(16.0f, 1.0f, 16.0f);
-engine::Wrapper gExplosionPrimaryLightingAreaTwo(4.0f, 1.0f, 4.0f);
+engine::Wrapper gExplosionPrimaryLightingAreaOne(16.0f, 1.0f, 32.0f);
+engine::Wrapper gExplosionPrimaryLightingAreaTwo(8.0f, 1.0f, 16.0f);
 engine::Wrapper gExplosionPrimaryLightingAreaThree(0.0f, 0.0f, 4.0f);
-engine::Wrapper gExplosionPrimaryLightingIntensityOne(0.3f, 0.0f, 8.0f);
-engine::Wrapper gExplosionPrimaryLightingIntensityTwo(0.15f, 0.0f, 2.0f);
+engine::Wrapper gExplosionPrimaryLightingIntensityOne(0.5f, 0.0f, 8.0f);
+engine::Wrapper gExplosionPrimaryLightingIntensityTwo(0.2f, 0.0f, 2.0f);
 engine::Wrapper gExplosionPrimaryLightingIntensityThree(0.0f, 0.0f, 2.0f);
 
 // Explosions - Secondary light
@@ -35,7 +35,7 @@ engine::Wrapper gCraterLightingIntensityFour(0.0f, 0.0f, 2.0f);
 
 // Players - Area light
 engine::Wrapper gPlayerBlasterLightingArea(3.0f, 1.0f, 8.0f);
-engine::Wrapper gPlayerBlasterLightingIntensity(2.0f, 0.0f, 6.0f);
+engine::Wrapper gPlayerBlasterLightingIntensity(1.5f, 0.0f, 6.0f);
 
 // Players - Impact point light
 engine::Wrapper gPlayerImpactLightingAreaOne(2.0f, 1.0f, 4.0f);

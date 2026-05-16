@@ -234,6 +234,21 @@ void TextureDescriptors::UpdateDescriptorsForTexture(common::crc_t crc)
 	mImageInfos.at(static_cast<int64_t>(CrcToIndex(crc))).imageView = vkImageView;
 }
 
+void TextureDescriptors::UpdateArrayBindingsForKey(common::crc_t bindingKey)
+{
+	auto it = mTextureBindings.find(bindingKey);
+	if (it == mTextureBindings.end())
+	{
+		return;
+	}
+	for (const TextureBinding& rBinding : it->second)
+	{
+		ASSERT(!rBinding.textures.empty());
+		VkSampler vkSampler = mrTextureManager.GetSampler(rBinding.samplerFlags);
+		WriteArrayBindingDescriptors(rBinding, vkSampler);
+	}
+}
+
 void TextureDescriptors::RewriteSamplerDescriptors()
 {
 	// Update standalone sampler descriptors in per-pipeline sets

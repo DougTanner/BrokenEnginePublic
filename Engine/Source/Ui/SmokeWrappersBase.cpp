@@ -6,7 +6,7 @@ namespace engine
 // Decay
 Wrapper gSmokeMax(0.2f, 0.0f, 1.0f);
 Wrapper gSmokePower(0.18f, 0.1f, 1.0f);
-Wrapper gSmokeDecay(0.996f, 0.990f, 1.0f);
+Wrapper gSmokeDecay(0.998f, 0.990f, 1.0f);
 Wrapper gSmokeEdgeDecayDistance(0.05f, 0.0f, 0.1f);
 
 // Color

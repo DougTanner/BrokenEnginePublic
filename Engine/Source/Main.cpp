@@ -176,14 +176,16 @@ void MainThread(HINSTANCE hinstance)
 	// Create terrain collision data (before Graphics, which creates Islands that reads beach elevation)
 	auto pIslandTerrain = std::make_unique<IslandTerrain>();
 
-	// Initialize graphics
-	gpProfileManager->BootStart(kBootTimerVulkan);
-	auto pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
-
-	// Wait for islands to load and initialize heightmaps
+	// Wait for islands to load and initialize heightmaps BEFORE Graphics ctor. Islands ctor (inside
+	// Graphics::Create) calls IslandTerrain::CreateClientMeshBuffers, which needs the CPU mesh
+	// pointers populated here. Required for the record-once terrain CB invariant.
 	gpProfileManager->BootStart(kBootTimerWaitForIslands);
 	gpIslandTerrain->WaitForElevationMaps(gBaseHeight.Get() - game::kfPlayerRadius - game::kfPushMargin);
 	gpProfileManager->BootStop(kBootTimerWaitForIslands);
+
+	// Initialize graphics
+	gpProfileManager->BootStart(kBootTimerVulkan);
+	auto pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
 
 	// Load game
 	auto pCamera = std::make_unique<game::Camera>();

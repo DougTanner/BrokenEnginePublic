@@ -50,7 +50,6 @@ enum class ChunkFlags : uint64_t
 
 	kTexture         = 0x00002000,
 		kCubemap     = 0x00008000,
-		kElevation   = 0x00010000,
 
 	kChunkAudio      = 0x00020000,
 	kRaw             = 0x00040000,
@@ -224,7 +223,6 @@ struct IslandHeader
 {
 	common::crc_t ambientOcclusionCrc = 0;
 	common::crc_t colorsCrc = 0;
-	common::crc_t elevationCrc = 0;
 	common::crc_t normalsCrc = 0;
 	// Anisotropic: each island is auto-cropped at bake time to its land bbox > 1.0 m, expanded to
 	// a multiple of 4 * kiElevationDivisor (=16) so BC encoding and 4x elevation downsample stay
@@ -235,7 +233,8 @@ struct IslandHeader
 	float fWorldFootprintXMeters = 0.0f;
 	float fWorldFootprintYMeters = 0.0f;
 	float fWorldElevationMeters = 0.0f;
-	// Mesh payload follows heightmap floats in the chunk data: [float3 positions[iMeshVertexCount]][uint32 indices[iMeshIndexCount]].
+	// Mesh payload follows heightmap floats in the chunk data: [float2 positions[iMeshVertexCount]][uint32 indices[iMeshIndexCount]].
+	// Z is omitted — Terrain.vert re-derives world Z from the composite elevation sampler.
 	int32_t iMeshVertexCount = 0;
 	int32_t iMeshIndexCount = 0;
 };

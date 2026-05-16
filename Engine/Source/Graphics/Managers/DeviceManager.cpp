@@ -180,6 +180,10 @@ DeviceManager::DeviceManager()
 	VkPhysicalDeviceFeatures vkPhysicalDeviceFeatures
 	{
 		.sampleRateShading = VK_TRUE,
+		// Per-template terrain indirect draws (Islands.cpp) bake firstInstance = iTemplate * kiMaxPlacementsPerTemplate
+		// into each VkDrawIndexedIndirectCommand. Vulkan spec requires this feature whenever firstInstance != 0
+		// in any VkDrawIndexedIndirectCommand (VUID-VkDrawIndexedIndirectCommand-firstInstance-00554).
+		.drawIndirectFirstInstance = VK_TRUE,
 		.samplerAnisotropy = VK_TRUE,
 		.textureCompressionBC = VK_TRUE,
 		.shaderInt64 = kbShaderRealtimeClock ? VK_TRUE : VK_FALSE,

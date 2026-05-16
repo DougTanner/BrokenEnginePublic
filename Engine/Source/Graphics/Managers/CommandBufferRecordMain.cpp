@@ -219,26 +219,21 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 		gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
 
 		gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
-		// Per-island terrain draws: each active IslandTemplate owns a position+index mesh baked by
-		// Gaea2's Mesher node. Bind the pipeline + descriptors once, then iterate active islands
-		// binding each template's vertex/index buffer and issuing vkCmdDrawIndexed with
-		// firstInstance=i so Terrain.vert can read the per-island AxisAlignedQuadLayout (which
-		// carries world position + rotation + bindless texture slot) via gl_InstanceIndex.
+		// Per-template terrain draws: one indirect draw per IslandTemplate (count fixed at boot
+		// from gpIslandTerrain->mIslandCrcsSorted). Each template's Gaea2 Mesher mesh is bound,
+		// and vkCmdDrawIndexedIndirect reads the per-template VkDrawIndexedIndirectCommand whose
+		// instanceCount is rewritten each frame in Islands::UpdateActiveIslands. firstInstance is
+		// baked at boot to iTemplate*kiMaxPlacementsPerTemplate so Terrain.vert's pQuads[gl_InstanceIndex]
+		// lookups land in the right per-template SSBO range. Inactive templates have
+		// instanceCount=0 → zero draws issued. Record-once: CB never needs re-record on
+		// subscription changes.
 		pPipelines[kPipelineTerrain].RecordBindPipelineAndDescriptors(iCommandBuffer, vkCommandBuffer);
-		for (int64_t i = 0; i < gpIslands->miActiveCount; ++i)
+		for (int64_t iTemplate = 0; iTemplate < gpIslands->miTemplateCount; ++iTemplate)
 		{
-			Islands::Island& rIsland = gpIslands->mIslands[static_cast<size_t>(i)];
-			if (rIsland.quad.f4VertexRect.z == 0.0f)
-			{
-				continue;
-			}
-			IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(rIsland.islandCrc);
-			if (rTemplate.mMeshBuffer.mDeviceLocalVkBuffer == VK_NULL_HANDLE)
-			{
-				continue;
-			}
+			IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(gpIslandTerrain->mIslandCrcsSorted[static_cast<size_t>(iTemplate)]);
+			ASSERT(rTemplate.mMeshBuffer.mDeviceLocalVkBuffer != VK_NULL_HANDLE);
 			rTemplate.mMeshBuffer.RecordBindVertexBuffer(vkCommandBuffer);
-			vkCmdDrawIndexed(vkCommandBuffer, static_cast<uint32_t>(rTemplate.miMeshIndexCount), 1, 0, 0, static_cast<uint32_t>(i));
+			vkCmdDrawIndexedIndirect(vkCommandBuffer, gpIslands->mIslandsIndirectVkBuffer, static_cast<VkDeviceSize>(iTemplate) * sizeof(VkDrawIndexedIndirectCommand), 1, sizeof(VkDrawIndexedIndirectCommand));
 		}
 		gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
 
