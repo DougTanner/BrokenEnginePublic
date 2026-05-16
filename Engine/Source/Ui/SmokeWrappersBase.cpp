@@ -35,7 +35,7 @@ Wrapper gSmokeObjectHeight(10.0f, 0.5f, 40.0f);
 Wrapper gSmokeTrailsQuantity(800.0f, 0.0f, 2000.0f);
 Wrapper gSmokeTrailsWidthCurrent(0.01f, 0.0f, 0.02f);
 Wrapper gSmokeTrailsWidthPrevious(0.01f, 0.0f, 0.02f);
-Wrapper gSmokeTrailsLength(2.5f, 0.0f, 10.0f);
+Wrapper gSmokeTrailsLength(3.5f, 0.0f, 10.0f);
 Wrapper gSmokeTrailsLengthJitter(0.0f, 0.0f, 10.0f);
 Wrapper gSmokeTrailsSideJitter(3.0f, 0.0f, 6.0f);
 Wrapper gSmokeIntensityFalloff(3.0f, 0.1f, 10.0f);

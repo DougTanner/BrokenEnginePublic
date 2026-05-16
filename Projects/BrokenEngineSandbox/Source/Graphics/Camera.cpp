@@ -85,7 +85,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		}
 		else if (mfSunAngle >= kfNightSpeedStart && mfSunAngle < kfNightSpeedEnd)
 		{
-			mfSunAngle = mfSunAngle + rFrameInterpolate.fDeltaTime * 0.025f;
+			mfSunAngle = mfSunAngle + rFrameInterpolate.fDeltaTime * 0.05f;
 		}
 		else
 		{

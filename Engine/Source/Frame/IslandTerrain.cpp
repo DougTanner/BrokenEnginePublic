@@ -303,9 +303,13 @@ int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
 		// Elevation registers against islandCrc (unique per template, no chunk CRC to share with);
 		// the other three use their per-chunk CRCs so ProcessPendingTextures' adoption flow still
 		// routes through UpdateDescriptorsForTexture as each chunk reaches kReady.
+		// kPipelineShadowElevation and kPipelineTerrainElevation share mElevationTextures but each
+		// owns its own set=1 binding=2 descriptor; both must be patched in lockstep by
+		// RestorationSweep's UpdateArrayBindingsForKey(islandCrc), so register both.
 		{
 			ScopedSuppressAllocationTracking suppress;
 			constexpr int64_t kiBindingIndex = 2;
+			gpTextureManager->mTextureDescriptors.RegisterTextureBinding(islandCrc, &gpPipelineManager->mpPipelines[kPipelineShadowElevation], kiBindingIndex, DescriptorFlags::kSamplerElevation, nullptr, gpTextureManager->mRenderTargetTextures.mElevationTextures.data(), shaders::kiMaxIslands, iSlot);
 			gpTextureManager->mTextureDescriptors.RegisterTextureBinding(islandCrc, &gpPipelineManager->mpPipelines[kPipelineTerrainElevation], kiBindingIndex, DescriptorFlags::kSamplerElevation, nullptr, gpTextureManager->mRenderTargetTextures.mElevationTextures.data(), shaders::kiMaxIslands, iSlot);
 			gpTextureManager->mTextureDescriptors.RegisterTextureBinding(textureCrcs[0], &gpPipelineManager->mpPipelines[kPipelineTerrainColor], kiBindingIndex, DescriptorFlags::kSamplerClamp, nullptr, gpTextureManager->mRenderTargetTextures.mColorTextures.data(), shaders::kiMaxIslands, iSlot);
 			gpTextureManager->mTextureDescriptors.RegisterTextureBinding(textureCrcs[1], &gpPipelineManager->mpPipelines[kPipelineTerrainNormal], kiBindingIndex, DescriptorFlags::kSamplerClamp, nullptr, gpTextureManager->mRenderTargetTextures.mNormalsTextures.data(), shaders::kiMaxIslands, iSlot);

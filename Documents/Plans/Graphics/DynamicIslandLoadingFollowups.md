@@ -1,12 +1,14 @@
-# Dynamic Island Loading — Three Follow-ups
+# Dynamic Island Loading — Follow-ups
 
 ## Context
 
 The Phase-5 dynamic subscription-driven island texture loading landed this
-session. Step-9 review surfaced three out-of-scope concerns around
+session. Step-9 review surfaced two out-of-scope concerns around
 `IslandTerrain::AcquireTextureSlot`, `TextureManager` lifecycle, and the
-hot-path allocation discipline. All three are narrow, related to slot lifecycle
-state, and worth resolving together.
+hot-path allocation discipline. Both are narrow, related to slot lifecycle
+state, and worth resolving together. (A third follow-up — investigating the
+`kPipelines` destroy-tier escalation in `AcquireTextureSlot` — was removed
+after commit `09fb128` deleted that escalation entirely.)
 
 ## Design
 
@@ -53,6 +55,19 @@ Verification: synthetic device-lost test (force `vkDeviceWaitIdle` failure or
 window-resize storm), confirm islands re-appear after the new Graphics tier
 finishes initializing.
 
+**Scope widened by shadow-elevation registration fix (this session).**
+`AcquireTextureSlot` first-mint now calls `RegisterTextureBinding` twice — once
+for `kPipelineTerrainElevation`, once for `kPipelineShadowElevation` — because
+both pipelines bind `mElevationTextures` and each owns its own descriptor that
+must be patched in lockstep by `UpdateArrayBindingsForKey(islandCrc)`. After
+device-loss the fresh `TextureDescriptors` ctor clears `mTextureBindings`, so
+the `miTextureSlot >= 0` early-return strands BOTH the terrain elevation and
+the shadow elevation pipelines on slot-0 placeholder. The recommended
+`ResetTextureSlots` fix must re-execute both `RegisterTextureBinding` calls
+(or — preferred — fully reset `miTextureSlot`/`mbGpuResident` so the natural
+re-mint cycle in `AcquireTextureSlot` re-registers both). Code-walk both call
+sites after the reset lands to confirm parity.
+
 ### Follow-up 2 — `Islands::UpdateActiveIslands` re-acquire path may trip allocation DEBUG_BREAK
 
 **Severity: IMPORTANT.**
@@ -80,43 +95,12 @@ Two paths to resolve:
 The `ClientDataReceiver::ApplyReceivedStaticData` hook is already wrapped in
 `ScopedSuppressAllocationTracking` and is therefore unaffected.
 
-### Follow-up 3 — `AcquireTextureSlot` first-mint kPipelines escalation may be unnecessary
-
-**Severity: NIT (performance).**
-
-`AcquireTextureSlot` sets
-`gpGraphics->meDestroyType = std::max(DestroyType::kPipelines, gpGraphics->meDestroyType)`
-on every first-mint. Under the old eager-load architecture this fired
-exclusively during boot (`gpGraphics == nullptr`), so the escalation was a
-no-op. Under the new subscription-driven design, first-mint happens at
-runtime whenever the player encounters a new island CRC — each one triggers a
-full pipeline rebuild.
-
-Today the game ships with one island manifest so this fires at most once. As
-soon as the content pipeline produces a second template, every traversal into
-a cell with the new template rebuilds all terrain pipelines.
-
-The bindless texture arrays are pre-initialized to the slot-0 placeholder at
-TextureManager construction, and runtime descriptor patches go through
-`UpdateTextureArrayDescriptors` (the canonical sink). Pipeline rebuild is
-probably not needed for a slot-pointer change. Verify by:
-
-- Reading why the `kPipelines` escalation exists at all in
-  `AcquireTextureSlot`. Is it for `mImageInfos` resize, for descriptor-set
-  layout changes, for shader specialization? Trace by removing the line and
-  observing whether anything actually breaks (specifically: validation
-  errors, pipeline-cache misses, descriptor mismatches).
-- If genuinely unnecessary, delete the escalation and the surrounding `if
-  (gpGraphics != nullptr)` block.
-- If needed for a real reason, narrow the trigger condition (e.g., only fire
-  when the slot count actually grows past a threshold, not on every mint) and
-  document the reason in a comment.
-
 ## Critical files
 
 - `Engine/Source/Frame/IslandTerrain.h` — add `ResetTextureSlots()` declaration
-- `Engine/Source/Frame/IslandTerrain.cpp` — implement reset; investigate
-  `kPipelines` escalation in `AcquireTextureSlot`
+- `Engine/Source/Frame/IslandTerrain.cpp` — implement reset (touches both
+  `kPipelineTerrainElevation` and `kPipelineShadowElevation` registration
+  paths via the natural re-mint cycle)
 - `Engine/Source/Graphics/Managers/TextureManager.cpp` — hook
   `gpIslandTerrain->ResetTextureSlots()` from ctor (or from
   `Graphics::Destroy(kSurface)`)
@@ -136,11 +120,12 @@ probably not needed for a slot-pointer change. Verify by:
 
 ## Notes
 
-- All three follow-ups are narrow and localized to the TextureManager /
+- Both follow-ups are narrow and localized to the TextureManager /
   IslandTerrain interaction. Land them in one session; the diffs share
-  context and reviewing them together is cheaper than three separate passes.
+  context and reviewing them together is cheaper than two separate passes.
 - Follow-up 1 is the only one with user-visible behavior (device-lost
   recovery rendering). Follow-up 2 is correctness-of-instrumentation.
-  Follow-up 3 is latency. Prioritize Follow-up 1.
+  Prioritize Follow-up 1.
 - Verification for Follow-up 1 needs a deliberate device-lost trigger; if no
-  reliable trigger exists, settle for code-walk confirmation of the reset path.
+  reliable trigger exists, settle for code-walk confirmation of the reset path
+  re-registers BOTH `kPipelineTerrainElevation` and `kPipelineShadowElevation`.

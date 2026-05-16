@@ -73,7 +73,7 @@ Wrapper gLightingDirectionalPowerMode(0.0f, 0.0f, 1.0f);
 Wrapper gLightingAmbientIntensity(11.0f, 0.0f, 20.0f);
 Wrapper gLightingAmbientPower(4.0f, 0.1f, 5.0f);
 Wrapper gLightingAmbientPowerMode(1.0f, 0.0f, 1.0f);
-Wrapper gLightingTerrain(2.0f, 0.0f, 3.0f);
+Wrapper gLightingTerrain(1.5f, 0.0f, 3.0f);
 Wrapper gLightingAddTerrain(0.25f, 0.0f, 0.5f);
 Wrapper gLightingTerrainBelowBaseMultiplier(0.7f, 0.0f, 1.0f);
 Wrapper gLightingTerrainBelowBasePower(0.3f, 0.1f, 1.0f);
