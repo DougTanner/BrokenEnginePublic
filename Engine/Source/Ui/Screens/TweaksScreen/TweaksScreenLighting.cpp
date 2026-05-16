@@ -44,7 +44,10 @@ const TweaksSliderMapRegistrar gLightingRegistrar
 	{"Spread Texture Multiplier End", &gSpreadTextureMultiplierEnd},
 	{"Spread Directionality End", &gSpreadDirectionalityEnd},
 	{"Spread Direction Count End", &gSpreadDirectionCountEnd},
-	{"Spread Distance End", &gSpreadDistanceEnd},
+	{"Spread Distance End Start Height", &gSpreadDistanceEndStartHeight},
+	{"Spread Distance End End Height", &gSpreadDistanceEndEndHeight},
+	{"Spread Distance End Low", &gSpreadDistanceEndLow},
+	{"Spread Distance End High", &gSpreadDistanceEndHigh},
 	{"Spread Ring Count End", &gSpreadRingCountEnd},
 	{"Spread Jitter End", &gSpreadJitterEnd},
 	{"Spread Sample Jitter Range End", &gSpreadSampleJitterRangeEnd},
@@ -166,7 +169,10 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSlider("Texture Multiplier End", kiSection, 1.0f, "Spread Texture Multiplier End");
 				WrapperSlider("Directionality", kiSection, 1.0f, "Spread Directionality End");
 				WrapperSlider("Direction Count", kiSection, 1.0f, "Spread Direction Count End");
-				WrapperSlider("Distance", kiSection, 1.0f, "Spread Distance End");
+				WrapperSlider("Distance Start Height", kiSection, 1.0f, "Spread Distance End Start Height");
+				WrapperSlider("Distance End Height", kiSection, 1.0f, "Spread Distance End End Height");
+				WrapperSlider("Distance Low", kiSection, 1.0f, "Spread Distance End Low");
+				WrapperSlider("Distance High", kiSection, 1.0f, "Spread Distance End High");
 				WrapperSlider("Ring Count", kiSection, 1.0f, "Spread Ring Count End");
 				WrapperSlider("Jitter", kiSection, 1.0f, "Spread Jitter End");
 				WrapperSlider("Sample Jitter Range", kiSection, 1.0f, "Spread Sample Jitter Range End");

@@ -16,6 +16,10 @@ Ownership exception: a downstream pass may zero a count field already written by
 
 CPU computes phase / UV origins in `double`, `std::fmod` reduces to a small modulus, then `static_cast<float>` — prevents precision loss kilometers from origin. Moduli chosen so shader-side size multipliers remain integer after reduction.
 
+## Camera-Height-Conditional Uniforms
+
+When a uniform field varies with camera eye height, lerp CPU-side and upload the single resolved float — do not pass start/end heights plus low/high targets to the shader. Canonical instances: the `kfWaveFadeEnd` block in `RenderLightingMain` and the spread-distance-end blend in `RenderLightingGlobal`. Author-facing controls are exposed as four Wrappers (`*StartHeight`, `*EndHeight`, `*Low`, `*High`) in the matching `<Tab>WrappersBase` pair.
+
 ## Buffer & Dispatch Patterns
 
 - Uniform layouts accessed via `reinterpret_cast` over persistent-mapped, per-command-buffer indexed buffers. Scalar block layout — no padding.

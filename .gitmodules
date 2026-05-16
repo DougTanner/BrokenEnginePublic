@@ -56,3 +56,6 @@
 [submodule "ThirdParty/meshoptimizer"]
 	path = ThirdParty/meshoptimizer
 	url = https://github.com/zeux/meshoptimizer.git
+[submodule "ThirdParty/Clipper2"]
+	path = ThirdParty/Clipper2
+	url = git@github.com:AngusJohnson/Clipper2.git

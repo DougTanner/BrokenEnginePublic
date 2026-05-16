@@ -68,7 +68,13 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	// Spread End (interpolation targets for last spread pass)
 	rGlobalLayout.fSpreadDirectionalityEnd = gSpreadDirectionalityEnd.Get();
 	rGlobalLayout.fSpreadDirectionCountEnd = gSpreadDirectionCountEnd.Get();
-	rGlobalLayout.fSpreadDistanceEnd = gSpreadDistanceEnd.Get();
+	{
+		const float fStartHeight = gSpreadDistanceEndStartHeight.Get();
+		const float fEndHeight = gSpreadDistanceEndEndHeight.Get();
+		const float fSpan = std::max(fEndHeight - fStartHeight, 0.001f);
+		const float fT = std::clamp((game::gpCamera->mfCameraEyeHeight - fStartHeight) / fSpan, 0.0f, 1.0f);
+		rGlobalLayout.fSpreadDistanceEnd = std::lerp(gSpreadDistanceEndLow.Get(), gSpreadDistanceEndHigh.Get(), fT);
+	}
 	rGlobalLayout.fSpreadRingCountEnd = gSpreadRingCountEnd.Get();
 	rGlobalLayout.fSpreadJitterEnd = gSpreadJitterEnd.Get();
 	rGlobalLayout.fSpreadSampleJitterRangeEnd = gSpreadSampleJitterRangeEnd.Get();
