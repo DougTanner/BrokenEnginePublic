@@ -4,6 +4,8 @@
 
 Per-subsystem files populate host-visible uniform buffers each frame before command buffer submission. Each file owns a region of `GlobalLayout` or `MainLayout`. Client-only.
 
+Ownership exception: a downstream pass may zero a count field already written by the upstream pass when its own amplitude-style scale clamps to zero and it has skipped writing the matching array region — this short-circuits the shader's per-element loop without uploading garbage. Both writes (count and per-element array) must be co-gated in the same file.
+
 ## Ordering Contract
 
 - Global pass before main pass: main reads `fElapsedTime` from the populated GlobalLayout.

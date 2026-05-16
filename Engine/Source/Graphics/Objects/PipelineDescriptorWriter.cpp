@@ -91,7 +91,7 @@ void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo
 	}
 
 	// Irradiance
-	Texture& rIrradianceTexture = gpTextureManager->mTextureMap.at(data::kTexturesCKloofendalPuresky_IrradianceR16G16B16A16_SFLOATCrc);
+	Texture& rIrradianceTexture = gpTextureManager->mTextureMap.at(TextureManager::kIrradianceCrc);
 	VkDescriptorImageInfo& rVkDescriptorImageInfoIrradiance = pVkDescriptorImageInfos[riImageInfoCount++];
 	ASSERT(riImageInfoCount < kiMaxImageInfos);
 	rVkDescriptorImageInfoIrradiance.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
@@ -109,11 +109,11 @@ void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo
 
 	if (iFramebuffer == 0 && BindingExistsInShaderLayout(rPipeline, rPipelineInfo, static_cast<uint32_t>(riDescriptorCount - 1)) && !BindingIsInSet0(rPipeline, rPipelineInfo, static_cast<uint32_t>(riDescriptorCount - 1)))
 	{
-		gpTextureManager->mTextureDescriptors.RegisterTextureBinding(data::kTexturesCKloofendalPuresky_IrradianceR16G16B16A16_SFLOATCrc, &rPipeline, riDescriptorCount - 1, kSamplerRepeat, &rIrradianceTexture);
+		gpTextureManager->mTextureDescriptors.RegisterTextureBinding(TextureManager::kIrradianceCrc, &rPipeline, riDescriptorCount - 1, kSamplerRepeat, &rIrradianceTexture);
 	}
 
 	// PreFiltered
-	Texture& rPreFilteredTexture = gpTextureManager->mTextureMap.at(data::kTexturesCKloofendalPuresky_PrefilteredR16G16B16A16_SFLOATCrc);
+	Texture& rPreFilteredTexture = gpTextureManager->mTextureMap.at(TextureManager::kPrefilteredCrc);
 	VkDescriptorImageInfo& rVkDescriptorImageInfoPreFiltered = pVkDescriptorImageInfos[riImageInfoCount++];
 	ASSERT(riImageInfoCount < kiMaxImageInfos);
 	rVkDescriptorImageInfoPreFiltered.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
@@ -131,7 +131,7 @@ void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo
 
 	if (iFramebuffer == 0 && BindingExistsInShaderLayout(rPipeline, rPipelineInfo, static_cast<uint32_t>(riDescriptorCount - 1)) && !BindingIsInSet0(rPipeline, rPipelineInfo, static_cast<uint32_t>(riDescriptorCount - 1)))
 	{
-		gpTextureManager->mTextureDescriptors.RegisterTextureBinding(data::kTexturesCKloofendalPuresky_PrefilteredR16G16B16A16_SFLOATCrc, &rPipeline, riDescriptorCount - 1, kSamplerRepeat, &rPreFilteredTexture);
+		gpTextureManager->mTextureDescriptors.RegisterTextureBinding(TextureManager::kPrefilteredCrc, &rPipeline, riDescriptorCount - 1, kSamplerRepeat, &rPreFilteredTexture);
 	}
 
 	// LutBrdf

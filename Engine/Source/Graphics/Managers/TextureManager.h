@@ -64,6 +64,11 @@ public:
 	};
 	static inline constexpr int64_t kiWaterNormalSeaWavesIndex = 11;
 
+	// IBL cubemap CRCs (loaded eagerly in ctor; referenced by Model and Water pipelines).
+	static inline constexpr common::crc_t kIrradianceCrc       = data::kTexturesCKloofendalPuresky_IrradianceR16G16B16A16_SFLOATCrc;
+	static inline constexpr common::crc_t kPrefilteredCrc      = data::kTexturesCKloofendalPuresky_PrefilteredR16G16B16A16_SFLOATCrc;
+	static inline constexpr common::crc_t kPrefilteredWaterCrc = data::kTexturesCRyfjallet_PrefilteredR16G16B16A16_SFLOATCrc;
+
 	static inline std::vector<common::crc_t> smPriorityTextures
 	{
 		data::kTexturesUiBC4NotoSansRegularpngCrc,
