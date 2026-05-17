@@ -245,6 +245,11 @@ void AudioManager::Update(const game::Frame* pFrame)
 		mStaticVoices.Clear(true);
 	}
 
+	if (mbClearStreamingVoicesRequested.exchange(false, std::memory_order_acquire))
+	{
+		mStreamingVoices.Clear(true);
+	}
+
 	if (mpAudioEngine != nullptr && !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
 		LOG(kAudio, kWarning, "Music streaming: Audio device not present, resetting audio engine");
@@ -306,14 +311,14 @@ void AudioManager::OnReset()
 {
 	LOG(kAudio, kDebug, "AudioManager::OnReset()");
 	mbClearVoicesRequested.store(true, std::memory_order_release);
-	mStreamingVoices.Clear(true);
+	mbClearStreamingVoicesRequested.store(true, std::memory_order_release);
 }
 
 void AudioManager::OnDestroyEngine() noexcept
 {
 	LOG(kAudio, kDebug, "AudioManager::OnDestroyEngine()");
 	mbClearVoicesRequested.store(true, std::memory_order_release);
-	mStreamingVoices.Clear(true);
+	mbClearStreamingVoicesRequested.store(true, std::memory_order_release);
 }
 
 void AudioManager::OnTrim()

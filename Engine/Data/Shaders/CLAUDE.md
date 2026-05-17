@@ -18,7 +18,7 @@ GLSL shader source for the Vulkan 1.2 pipeline, compiled to SPIR-V by the DataPa
 	- `Water/Water.frag:205` — specular reflection vector passed into `Specular(...)`.
 	- `Water/Water.frag:249` — `reflect(f3EyeToPoint, f3ReflectedNormal)` for the base-height reflected sample; `f3ReflectedNormal` normalized at `:246`, `f3EyeToPoint` at `:248`.
 	- `Objects/HexShield.frag:40` — `reflect(f3IncidentNormal, normalize(f3InCenterNormal))` for skybox sample; `f3IncidentNormal` normalized at `:39`.
-	- `Model/Model.frag:252` — `-reflect(v, n)` followed by `reflection.y *= -1.0` (single-axis sign flip); `v` normalized at `:249`, `n = GetNormal(...)` is unit on every return path (each ends in an explicit `normalize(...)`).
+	- `Model/Model.frag:252` — `-reflect(v, n)` fed into `GetIBLContribution`, which then swizzles via `ToCubemapCoord` for the Y-up Kloofendal IBL cubemaps; `v` normalized at `:249`, `n = GetNormal(...)` is unit on every return path (each ends in an explicit `normalize(...)`).
 	- `ShaderFunctions.h:85` — `reflect(f3LightNormal, f3Normal)` inside the `Specular(...)` helper; both parameters typed as direction normals and all callers pass pre-normalized vectors.
 
 ## Known Issues

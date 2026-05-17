@@ -43,7 +43,7 @@ Wrapper gWaterGlobalAmplitudeFade(1.0f, 0.0f, 1.0f);
 Wrapper gLightingWaterSkyboxSunBias(3.3f, 0.0f, 4.0f);
 Wrapper gLightingWaterSkyboxNormalSoften(0.8f, 0.0f, 1.0f);
 Wrapper gLightingWaterSkyboxNormalBlendWave(0.13f, 0.0f, 0.4f);
-Wrapper gLightingWaterSkyboxIntensity(0.0005f, 0.0001f, 0.002f);
+Wrapper gLightingWaterSkyboxIntensity(0.00045f, 0.0001f, 0.002f);
 Wrapper gLightingWaterSkyboxAdd(2.0f, 0.0f, 4.0f);
 Wrapper gLightingWaterSkyboxOne(2400.0f, 0.0f, 5000.0f);
 Wrapper gLightingWaterSkyboxOnePower(250.0f, 50.0f, 400.0f);

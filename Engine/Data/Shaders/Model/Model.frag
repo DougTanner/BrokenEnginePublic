@@ -250,7 +250,6 @@ void main()
 	vec3 l = normalize(globalLayout.f4SunMoonNormal.xyz);
 	vec3 h = normalize(l + v);
 	vec3 reflection = -reflect(v, n);
-	reflection.y *= -1.0;
 
 	// Compute dot products
 	float NdotL = clamp(dot(n, l), 0.001, 1.0);

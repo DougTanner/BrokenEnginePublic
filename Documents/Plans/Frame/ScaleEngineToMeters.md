@@ -59,8 +59,8 @@ behavior (camera zoom range, AI navigation distance feel, audio falloff).
 
 ### Audio
 
-- `Engine/Source/Audio/StaticVoices.h:87,89,94` — `mfCurveDistanceScaler = 10.0f` default, `mfManualFadeEnd = 150.0f` default
-- `Projects/BrokenEngineSandbox/Source/Game.cpp:58` — `Set3dSettings(10.0f, 0.0f, 300.0f, 0.15f)` — the `300.0f` manual fade matched the old cell width exactly; should now scale with `kfCellWidth` or become an explicit "meters" literal
+- `Engine/Source/Ui/SoundSettingsWrappersBase.cpp` — listener distance/curve defaults now live in `gListenerDistanceStart{StartHeight,EndHeight,Low,High}`, `gListenerDistanceEnd{...}`, `gListenerCurve{...}`. Defaults (heights 150/600, distance low/high 200/600, curve low/high 10/10) should scale with `kfCellWidth` or become explicit "meters" literals.
+- `Projects/BrokenEngineSandbox/Source/Game.cpp:58` — `Set3dSettings(10.0f, 0.0f, 300.0f, 0.15f)` — only the trailing `0.15f` (`mfManualFadeVolume`) still has effect under the height-lerp model; the other three arguments are immediately overridden each frame by `UpdateListenerPosition`. Future cleanup: collapse to a single-arg call or promote `mfManualFadeVolume` to a wrapper.
 
 ### Base height
 

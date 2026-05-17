@@ -38,7 +38,8 @@ void main()
 	// Color
     vec3 f3IncidentNormal = normalize(f3InPosition - mainLayout.f4EyePosition.xyz);
     vec3 f3ReflectedNormal = reflect(f3IncidentNormal, normalize(f3InCenterNormal));
-    vec3 f3SkyboxColor = texture(skyboxSampler, f3ReflectedNormal).xyz;
+    // [C]Skybox cubemap is standard Y-up convention; swizzle the engine-Z-up reflection vector to (x, z, y).
+    vec3 f3SkyboxColor = texture(skyboxSampler, vec3(f3ReflectedNormal.x, f3ReflectedNormal.z, f3ReflectedNormal.y)).xyz;
 
 	f4OutColor.xyz = mix(f3SkyboxColor, pHexShields[i].f4Color.xyz, pHexShields[i].fColorMix);
 

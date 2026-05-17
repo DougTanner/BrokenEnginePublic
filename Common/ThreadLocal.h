@@ -17,6 +17,7 @@ enum Threads
 	kThreadSubmitMain,
 	kThreadPresent,
 	kThreadScreenshot,
+	kThreadStreamingVoiceFill,
 	kThreadMultithreading,
 
 	kThreadCount

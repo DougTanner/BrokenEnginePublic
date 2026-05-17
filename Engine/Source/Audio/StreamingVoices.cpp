@@ -8,6 +8,13 @@
 namespace engine
 {
 
+StreamingVoices::~StreamingVoices()
+{
+	// Defensive: drain any in-flight worker fill before members tear down. ~AudioManager always calls Clear first
+	// (which Wait()s too), so this is belt-and-suspenders, but keeps the contract local to this class.
+	mFillWorker.Wait();
+}
+
 void StreamingVoices::Init(AudioEngine* pAudioEngine)
 {
 	mpAudioEngine = pAudioEngine;
@@ -15,13 +22,14 @@ void StreamingVoices::Init(AudioEngine* pAudioEngine)
 
 void StreamingVoices::Play(common::crc_t uiAudioCrc)
 {
+	mFillWorker.Wait();
+
 	std::lock_guard<std::mutex> lock(mMutex);
 
 	// Heap: make_unique<StreamingVoice> (with triple buffers) and vector push_back for crossfade list.
 	// These outlive the call (persist until fade-out completes), so workbuffer/pre-alloc won't work.
 	ScopedSuppressAllocationTracking suppress;
 
-	// Move current stream to previous list for fade out
 	if (mpCurrentStream != nullptr)
 	{
 		TransitionCurrentToPrevious();
@@ -32,7 +40,6 @@ void StreamingVoices::Play(common::crc_t uiAudioCrc)
 		return;
 	}
 
-	// Load new track as current
 	CreateStream(uiAudioCrc);
 }
 
@@ -45,9 +52,10 @@ void StreamingVoices::SetNextTrackCallback(std::function<common::crc_t()> callba
 
 void StreamingVoices::CheckTrackTransition()
 {
+	mFillWorker.Wait();
+
 	std::lock_guard<std::mutex> lock(mMutex);
 
-	// Check if current stream has ended (position >= size or last buffer submitted)
 	if (mpCurrentStream != nullptr)
 	{
 		float fRemaining = mpCurrentStream->GetRemainingTime();
@@ -57,10 +65,7 @@ void StreamingVoices::CheckTrackTransition()
 		{
 			common::crc_t uiNextTrackCrc = mGetNextTrack();
 
-			// Move current stream to previous list for fade out
 			TransitionCurrentToPrevious();
-
-			// Load next track as current
 			CreateStream(uiNextTrackCrc);
 		}
 	}
@@ -72,32 +77,30 @@ void StreamingVoices::Update(float fDeltaTime)
 	// Allocation reused across frames. Suppression covers potential growth and destructor calls.
 	ScopedSuppressAllocationTracking suppress;
 
-	// Collect streams to destroy outside the lock to prevent deadlock with XAudio2 callbacks
+	mFillWorker.Wait();
+
 	{
 		std::lock_guard<std::mutex> lock(mMutex);
 
-		// Submit pending streaming buffers (file I/O on main thread instead of XAudio2 callback)
+		// Consumer-only: drain consumed slots and submit any worker-filled slots. File I/O lives on mFillWorker.
 		if (mpCurrentStream != nullptr)
 		{
-			SubmitBuffers(*mpCurrentStream);
+			DrainConsumedAndSubmitReady(*mpCurrentStream);
 		}
 		for (const std::unique_ptr<StreamingVoice>& pStream : mPreviousStreams)
 		{
-			SubmitBuffers(*pStream);
+			DrainConsumedAndSubmitReady(*pStream);
 		}
 
-		// Update current stream volume (fade in)
 		if (mpCurrentStream != nullptr)
 		{
 			mpCurrentStream->UpdateVolume(fDeltaTime);
 		}
 
-		// Update previous streams (fade out) and remove completed ones
 		for (auto it = mPreviousStreams.begin(); it != mPreviousStreams.end();)
 		{
 			if ((*it)->UpdateVolume(fDeltaTime))
 			{
-				// Fade out complete, move to deferred destruction list
 				mStreamsToDestroy.push_back(std::move(*it));
 				it = mPreviousStreams.erase(it);
 			}
@@ -105,6 +108,12 @@ void StreamingVoices::Update(float fDeltaTime)
 			{
 				++it;
 			}
+		}
+
+		// Wake worker to refill any kEmpty slots before releasing the mutex; the worker will take it itself.
+		if (mpCurrentStream != nullptr || !mPreviousStreams.empty())
+		{
+			mFillWorker.Wake([this]() { FillReadyBuffers(); });
 		}
 	}
 
@@ -115,6 +124,8 @@ void StreamingVoices::Update(float fDeltaTime)
 
 void StreamingVoices::Clear(bool bNullVoicesBeforeDestroy)
 {
+	mFillWorker.Wait();
+
 	std::lock_guard<std::mutex> lock(mMutex);
 
 	if (bNullVoicesBeforeDestroy)
@@ -151,50 +162,105 @@ int64_t StreamingVoices::GetStreamCount() const
 	return (mpCurrentStream != nullptr ? 1 : 0) + static_cast<int64_t>(mPreviousStreams.size()) + static_cast<int64_t>(mStreamsToDestroy.size());
 }
 
-void StreamingVoices::SubmitBuffers(StreamingVoice& rStream)
+void StreamingVoices::DrainConsumedAndSubmitReady(StreamingVoice& rStream)
 {
 	int64_t iConsumed = rStream.miBuffersConsumed.exchange(0, std::memory_order_acquire);
-
 	for (int64_t i = 0; i < iConsumed; ++i)
 	{
-		if (rStream.mFlags & StreamingVoiceFlags::kLastBufferSubmitted)
+		rStream.mSlotStates[rStream.miNextConsume].store(static_cast<uint8_t>(SlotState::kEmpty), std::memory_order_release);
+		rStream.miNextConsume = (rStream.miNextConsume + 1) % kiBufferCount;
+	}
+
+	while (!(rStream.mFlags & StreamingVoiceFlags::kLastBufferSubmitted))
+	{
+		uint8_t uiState = rStream.mSlotStates[rStream.miNextSubmit].load(std::memory_order_acquire);
+		if (uiState != static_cast<uint8_t>(SlotState::kReady))
 		{
 			break;
 		}
 
-		int64_t iNextBuffer = (rStream.miActiveBuffer + 1) % kiBufferCount;
+		int64_t iBytesRead = rStream.mSlotBytesRead[rStream.miNextSubmit];
+		bool bLastBuffer = rStream.mbSlotLastBuffer[rStream.miNextSubmit];
 
-		bool bLastBuffer = false;
-		int64_t iBytesRead = 0;
-		if (rStream.FillBuffer(rStream.mBuffers[iNextBuffer], iBytesRead, bLastBuffer))
+		if (iBytesRead == 0)
 		{
-			XAUDIO2_BUFFER xaudio2Buffer
-			{
-				.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
-				.AudioBytes = static_cast<UINT32>(iBytesRead),
-				.pAudioData = rStream.mBuffers[iNextBuffer],
-				.PlayBegin = 0,
-				.PlayLength = 0,
-				.LoopBegin = 0,
-				.LoopLength = 0,
-				.LoopCount = 0,
-				.pContext = &rStream,
-			};
-			HRESULT hr = rStream.mpVoice->SubmitSourceBuffer(&xaudio2Buffer);
-			if (FAILED(hr))
-			{
-				LOG(kAudio, kWarning, "SubmitBuffers: Failed to submit buffer, HRESULT: 0x{:08X}", hr);
-				rStream.mFlags.Set(StreamingVoiceFlags::kLastBufferSubmitted);
-				break;
-			}
-			rStream.miActiveBuffer = iNextBuffer;
-			rStream.mFlags.Set(StreamingVoiceFlags::kLastBufferSubmitted, bLastBuffer);
-		}
-		else
-		{
-			LOG(kAudio, kDebug, "SubmitBuffers: stream reached end, marking as inactive");
+			// Worker hit EOF or read failure with nothing to submit; mark done and recycle the slot.
 			rStream.mFlags.Set(StreamingVoiceFlags::kLastBufferSubmitted);
+			rStream.mSlotStates[rStream.miNextSubmit].store(static_cast<uint8_t>(SlotState::kEmpty), std::memory_order_release);
+			rStream.miNextSubmit = (rStream.miNextSubmit + 1) % kiBufferCount;
+			break;
 		}
+
+		XAUDIO2_BUFFER xaudio2Buffer
+		{
+			.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
+			.AudioBytes = static_cast<UINT32>(iBytesRead),
+			.pAudioData = rStream.mBuffers[rStream.miNextSubmit],
+			.PlayBegin = 0,
+			.PlayLength = 0,
+			.LoopBegin = 0,
+			.LoopLength = 0,
+			.LoopCount = 0,
+			.pContext = &rStream,
+		};
+		HRESULT hr = rStream.mpVoice->SubmitSourceBuffer(&xaudio2Buffer);
+		if (FAILED(hr))
+		{
+			LOG(kAudio, kWarning, "SubmitSourceBuffer failed, HRESULT: 0x{:08X}", hr);
+			rStream.mFlags.Set(StreamingVoiceFlags::kLastBufferSubmitted);
+			break;
+		}
+
+		rStream.mSlotStates[rStream.miNextSubmit].store(static_cast<uint8_t>(SlotState::kSubmitted), std::memory_order_release);
+		rStream.miNextSubmit = (rStream.miNextSubmit + 1) % kiBufferCount;
+
+		if (!rStream.mbStarted)
+		{
+			CHECK_HRESULT(rStream.mpVoice->Start());
+			rStream.mbStarted = true;
+		}
+
+		if (bLastBuffer)
+		{
+			rStream.mFlags.Set(StreamingVoiceFlags::kLastBufferSubmitted);
+			break;
+		}
+	}
+}
+
+void StreamingVoices::FillReadyBuffers()
+{
+	std::lock_guard<std::mutex> lock(mMutex);
+
+	auto fillOne = [](StreamingVoice& rStream)
+	{
+		if (rStream.mbFillFailed.load(std::memory_order_acquire))
+		{
+			return;
+		}
+		for (int64_t iSlot = 0; iSlot < kiBufferCount; ++iSlot)
+		{
+			if (rStream.mSlotStates[iSlot].load(std::memory_order_acquire) != static_cast<uint8_t>(SlotState::kEmpty))
+			{
+				continue;
+			}
+			rStream.mSlotStates[iSlot].store(static_cast<uint8_t>(SlotState::kFilling), std::memory_order_relaxed);
+			rStream.FillSlot(iSlot);
+			rStream.mSlotStates[iSlot].store(static_cast<uint8_t>(SlotState::kReady), std::memory_order_release);
+			if (rStream.mbFillFailed.load(std::memory_order_acquire))
+			{
+				return;
+			}
+		}
+	};
+
+	if (mpCurrentStream != nullptr)
+	{
+		fillOne(*mpCurrentStream);
+	}
+	for (const std::unique_ptr<StreamingVoice>& pStream : mPreviousStreams)
+	{
+		fillOne(*pStream);
 	}
 }
 

@@ -17,6 +17,8 @@ class StreamingVoices
 {
 public:
 
+	~StreamingVoices();
+
 	void Init(AudioEngine* pAudioEngine);
 
 	void Play(common::crc_t uiAudioCrc);
@@ -30,7 +32,8 @@ public:
 
 private:
 
-	void SubmitBuffers(StreamingVoice& rStream);
+	void DrainConsumedAndSubmitReady(StreamingVoice& rStream);
+	void FillReadyBuffers();
 	void CreateStream(common::crc_t uiAudioCrc);
 	void TransitionCurrentToPrevious();
 
@@ -41,6 +44,9 @@ private:
 	std::vector<std::unique_ptr<StreamingVoice>> mPreviousStreams;
 	std::vector<std::unique_ptr<StreamingVoice>> mStreamsToDestroy;
 	std::function<common::crc_t()> mGetNextTrack;
+
+	// Declared last so it is destroyed first — guarantees no in-flight fill when streams are torn down.
+	common::PersistentWorker mFillWorker {common::kThreadStreamingVoiceFill};
 };
 
 } // namespace engine

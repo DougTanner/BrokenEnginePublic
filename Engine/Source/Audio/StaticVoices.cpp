@@ -448,20 +448,22 @@ void StaticVoices::UpdateListenerPosition([[maybe_unused]] const game::Frame& rF
 	mX3dAudioListener.Position = f3PanPosition;
 	mX3dAudioListener.Velocity = {0.0f, 0.0f, 0.0f};
 
-	float fEyeHeight = game::gpCamera->mfCameraEyeHeight;
-	const XMFLOAT4& rArea = game::gpCamera->f4RenderVisibleArea;
-	float fVisibleHalfWidth = 0.5f * (rArea.z - rArea.x);
-	// Fade band shape: full voice volume inside the visible footprint, narrow fade beyond.
-	//   mfEffectiveFadeStart = listener-to-screen-edge distance = sqrt(halfWidth² + eyeHeight²).
-	//   mfEffectiveFadeEnd   = same with halfWidth scaled by kfFadeEndMultiplier so emitters
-	//                          past 1.5× off-screen sit at the audible floor (mfManualFadeVolume).
-	// Distances on the consumer side (Apply3dVolume / ComputeAttenuatedVolume) are 3D against
-	// mVecListenerPosition (camera eye), so altitude naturally pushes ground emitters into the
-	// fade band as the camera climbs.
-	static constexpr float kfFadeEndMultiplier = 1.5f;
-	float fOuterHalfWidth = kfFadeEndMultiplier * fVisibleHalfWidth;
-	mfEffectiveFadeStart = std::sqrt(fVisibleHalfWidth * fVisibleHalfWidth + fEyeHeight * fEyeHeight);
-	mfEffectiveFadeEnd = std::sqrt(fOuterHalfWidth * fOuterHalfWidth + fEyeHeight * fEyeHeight);
+	// Fade band + X3DAudio curve are camera-height-lerped per the canonical "Camera-Height-
+	// Conditional Uniforms" pattern (see Engine/Source/Graphics/Render/CLAUDE.md). Each
+	// quantity owns four wrappers (StartHeight, EndHeight, Low, High) in SoundSettingsWrappersBase
+	// and is exposed in the Sound > Tweaks sub-tab. Distances on the consumer side
+	// (Apply3dVolume / ComputeAttenuatedVolume) are 3D against mVecListenerPosition (camera
+	// eye), so altitude naturally pushes ground emitters into the fade band as the camera climbs.
+	const float fEyeHeight = game::gpCamera->mfCameraEyeHeight;
+	auto LerpAtHeight = [fEyeHeight](float fStartHeight, float fEndHeight, float fLow, float fHigh)
+	{
+		const float fSpan = std::max(fEndHeight - fStartHeight, 0.001f);
+		const float fT = std::clamp((fEyeHeight - fStartHeight) / fSpan, 0.0f, 1.0f);
+		return std::lerp(fLow, fHigh, fT);
+	};
+	mfEffectiveFadeStart = LerpAtHeight(gListenerDistanceStartStartHeight.Get(), gListenerDistanceStartEndHeight.Get(), gListenerDistanceStartLow.Get(), gListenerDistanceStartHigh.Get());
+	mfEffectiveFadeEnd = LerpAtHeight(gListenerDistanceEndStartHeight.Get(), gListenerDistanceEndEndHeight.Get(), gListenerDistanceEndLow.Get(), gListenerDistanceEndHigh.Get());
+	mfCurveDistanceScaler = LerpAtHeight(gListenerCurveStartHeight.Get(), gListenerCurveEndHeight.Get(), gListenerCurveLow.Get(), gListenerCurveHigh.Get());
 }
 
 void StaticVoices::UpdateVolumes()

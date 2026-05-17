@@ -194,7 +194,8 @@ void main()
 	float fSunlight = (f3Sunlight.x + f3Sunlight.y + f3Sunlight.z) / 3.0f;
 	f3LightingColor *= fSunlight;
 
-	// Skybox
+	// Skybox. The Ryfjallet prefiltered cubemap bound here (kPrefilteredWaterCrc) is oriented to
+	// match engine Z-up, so the reflection vector is sampled directly with no Y-up swizzle.
 	const float fSkyboxNormalBlendWave = mainLayout.fLightingWaterSkyboxNormalBlendWave;
 	vec3 f3SkyboxWaveNormal = normalize((1.0f - fSkyboxNormalBlendWave) * f3SampledNormal + fSkyboxNormalBlendWave * f3InNormal);
 	vec3 f3SkyboxColor = textureLod(skyboxSampler, -reflect(f3ToEyeNormal, f3SkyboxWaveNormal), mainLayout.fLightingWaterSkyboxLod).xyz;

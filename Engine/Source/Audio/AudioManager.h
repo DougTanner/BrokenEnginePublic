@@ -59,6 +59,7 @@ private:
 
 	std::atomic<bool> mbSuspended = false;
 	std::atomic<bool> mbClearVoicesRequested = false;
+	std::atomic<bool> mbClearStreamingVoicesRequested = false;
 	int64_t miMasteringVoiceChannels = 0;
 };
 
