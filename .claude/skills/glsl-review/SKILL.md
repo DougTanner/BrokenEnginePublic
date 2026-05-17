@@ -141,6 +141,7 @@ Flag in fragment or inner compute loops:
 - Trig (`sin`/`cos`/`tan`/`asin`/`acos`/`atan`) inside per-fragment or inner-loop code where a polynomial approximation or LUT would do.
 - Per-fragment `length(v)` when `dot(v, v)` (squared) suffices for a comparison.
 - `normalize()` applied to a vector that's already normalized.
+- `normalize(reflect(I, N))` (and the wrappers `normalize(-reflect(I, N))`, `normalize(reflect(I, N) * vec3(±1, ±1, ±1))`) when both `I` and `N` are unit at the call site — `reflect(unit, unit)` is unit by identity. Conversely, flag *removal* of `normalize()` around `reflect(...)` when either input cannot be proven unit at the call site. See *Algorithmic / Math Mistakes → `reflect(unit, unit)` is already unit* in `references/shader-footguns.md`.
 
 #### 4b. Divergence and early-Z
 

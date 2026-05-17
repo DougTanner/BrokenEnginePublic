@@ -207,8 +207,6 @@ void TextureUploadManager::UploadThread()
 			// First chunk: create VkImage via VMA
 			if (bFirstChunk)
 			{
-				LOG(kTemp, kInfo, "Texture GPU upload start crc={} \"{}\" extent={}x{} mips={} layers={} bytes={}", mCurrentCrc, std::string_view(rLazyChunk.header.pcPath), uiBaseWidth, uiBaseHeight, uiMipLevels, uiArrayLayers, rLazyChunk.iDataSize);
-
 				VkImageCreateInfo vkImageCreateInfo
 				{
 					.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -404,7 +402,6 @@ void TextureUploadManager::UploadThread()
 				CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence, VK_TRUE, kFenceTimeoutNanoseconds.count()));
 
 				rLazyChunk.eState.store(ChunkState::kGpuUploadComplete, std::memory_order_release);
-				LOG(kTemp, kInfo, "Texture GPU upload done -> GpuUploadComplete crc={} \"{}\"", mCurrentCrc, std::string_view(rLazyChunk.header.pcPath));
 				gpFileManager->NotifyChunkCompletion();
 
 				mCurrentCrc = 0;

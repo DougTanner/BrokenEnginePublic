@@ -72,7 +72,7 @@ void ClientSession::UpdateDesiredCoords(SubscriptionChangeReason eReason)
 		}
 	}
 
-	// Build removed/added arenas now (independent of bChanged) so the kTemp Exit log always has them.
+	// Build removed/added arenas now (independent of bChanged) so the Exit log always has them.
 	// Arenas remain on the workbuffer stack until end of function — kept above any nested arenas.
 	// CRITICAL: ScopedWorkbufferArena::View() reads the workbuffer's CURRENT top frame, not the arena's
 	// own saved frame. Capture the string_view while each arena is still the top frame; the captured

@@ -13,6 +13,13 @@ GLSL shader source for the Vulkan 1.2 pipeline, compiled to SPIR-V by the DataPa
 - **Push-constant render modes**: Vertex shaders select camera/visible-area/shadow projection without separate pipeline permutations.
 - **Four-channel EWNS directional lighting**: RGB stored as separate render targets with EWNS directional weights. Rationale: directional and ambient EWNS samples are summed first, then passed together through the normal-weighted path so both contributions are normal-weighted consistently.
 - **World-space directional deposit**: Deposit shaders compute EWNS direction weights from the fragment's world-space offset to the light's center using cos^2 lobe weighting, with an epsilon fallback to omnidirectional near the center.
+- **`reflect(unit, unit)` is unit by identity**: GLSL `reflect(I, N) = I - 2*dot(N,I)*N` preserves unit length when both inputs are unit vectors (algebraic proof: `|reflect|^2 = |I|^2 - 4(N.I)^2 + 4(N.I)^2*|N|^2 = 1`). Callers that pre-normalize both inputs may consume the result directly as a direction with no outer `normalize()`. A leading sign flip (`-reflect(...)`) or a single-axis componentwise sign flip (`reflect(...) * vec3(+/-1, +/-1, +/-1)`, or `reflection.y *= -1.0`) preserves unit length too — these are sign changes, not magnitude changes. Removing the redundant `normalize()` saves one `rsqrt + 3 muls` per fragment per call site. Currently relied on at:
+	- `Water/Water.frag:200` — skybox sample `textureLod(skyboxSampler, -reflect(f3ToEyeNormal, f3SkyboxWaveNormal), ...)`; `f3SkyboxWaveNormal` normalized at `:199`.
+	- `Water/Water.frag:205` — specular reflection vector passed into `Specular(...)`.
+	- `Water/Water.frag:249` — `reflect(f3EyeToPoint, f3ReflectedNormal)` for the base-height reflected sample; `f3ReflectedNormal` normalized at `:246`, `f3EyeToPoint` at `:248`.
+	- `Objects/HexShield.frag:40` — `reflect(f3IncidentNormal, normalize(f3InCenterNormal))` for skybox sample; `f3IncidentNormal` normalized at `:39`.
+	- `Model/Model.frag:252` — `-reflect(v, n)` followed by `reflection.y *= -1.0` (single-axis sign flip); `v` normalized at `:249`, `n = GetNormal(...)` is unit on every return path (each ends in an explicit `normalize(...)`).
+	- `ShaderFunctions.h:85` — `reflect(f3LightNormal, f3Normal)` inside the `Specular(...)` helper; both parameters typed as direction normals and all callers pass pre-normalized vectors.
 
 ## Known Issues
 

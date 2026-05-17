@@ -430,11 +430,6 @@ void FileManager::RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPrio
 				mRequestQueue.push({crc, ePriority});
 				rLazyChunk.eState.store(ChunkState::kLoadRequested, std::memory_order_release);
 				bAddedAny = true;
-
-				if ((rLazyChunk.header.flags & common::ChunkFlags::kIsland) || (rLazyChunk.header.flags & common::ChunkFlags::kTexture))
-				{
-					LOG(kTemp, kInfo, "Chunk queued crc={} \"{}\" size={} priority={} queueDepth={}", crc, std::string_view(rLazyChunk.header.pcPath), rLazyChunk.location.uiSize, static_cast<int32_t>(ePriority), mRequestQueue.size());
-				}
 			}
 		}
 	}
@@ -504,11 +499,6 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	LazyChunk& rLazyChunk = mLazyChunkMap.at(rRequest.crc);
 
 	bool bCompressed = rLazyChunk.header.flags & common::ChunkFlags::kZlibCompressed;
-	bool bTrackedChunk = (rLazyChunk.header.flags & common::ChunkFlags::kIsland) || (rLazyChunk.header.flags & common::ChunkFlags::kTexture);
-	if (bTrackedChunk)
-	{
-		LOG(kTemp, kInfo, "Chunk disk-read start crc={} \"{}\" size={} compressed={}", rRequest.crc, std::string_view(rLazyChunk.header.pcPath), rLazyChunk.location.uiSize, bCompressed ? 1 : 0);
-	}
 
 	// Calculate sector-aligned read parameters for unbuffered I/O
 	int64_t iFileOffset = rLazyChunk.location.uiOffset + common::kiChunkDataOffset;
@@ -589,7 +579,6 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	{
 		// Request GPU upload on the dedicated upload thread (texture only)
 		rLazyChunk.eState.store(ChunkState::kUploading, std::memory_order_release);
-		LOG(kTemp, kInfo, "Chunk disk-read done -> Uploading crc={} \"{}\"", rRequest.crc, std::string_view(rLazyChunk.header.pcPath));
 		gpTextureUploadManager->RequestUpload(rRequest.crc, rRequest.ePriority);
 	}
 	else
@@ -597,10 +586,6 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	{
 		// Non-texture chunks are ready immediately after disk load
 		rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
-		if (bTrackedChunk)
-		{
-			LOG(kTemp, kInfo, "Chunk disk-read done -> Ready (non-texture) crc={} \"{}\"", rRequest.crc, std::string_view(rLazyChunk.header.pcPath));
-		}
 		NotifyChunkCompletion();
 	}
 }

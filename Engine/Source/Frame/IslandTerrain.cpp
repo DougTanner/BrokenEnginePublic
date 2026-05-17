@@ -281,12 +281,9 @@ int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
 		int64_t iSlot = miNextTextureSlot++;
 		rTemplate.miTextureSlot = iSlot;
 
-		LOG(kTemp, kInfo, "Island first-mint islandCrc={} slot={} textureCrcs=[{},{},{}]", islandCrc, iSlot, textureCrcs[0], textureCrcs[1], textureCrcs[2]);
-
 		// Elevation: uploaded directly from the in-memory heightmap into the template-owned
 		// mElevationTexture. Descriptor patching deferred to RestorationSweep (safety window).
 		CreateElevationTextureFromHeightmap(rTemplate, rLazyChunk.header.pcPath);
-		LOG(kTemp, kInfo, "Island elevation uploaded from heightmap islandCrc={} slot={} extent={}x{} bytes={}", islandCrc, iSlot, rTemplate.miHeightmapWidth, rTemplate.miHeightmapHeight, static_cast<int64_t>(rTemplate.miHeightmapWidth) * static_cast<int64_t>(rTemplate.miHeightmapHeight) * static_cast<int64_t>(sizeof(float)));
 
 		Texture* pColor = &gpTextureManager->mTextureMap.at(textureCrcs[0]);
 		Texture* pNormals = &gpTextureManager->mTextureMap.at(textureCrcs[1]);
@@ -338,7 +335,6 @@ int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
 	}
 	gpFileManager->RequestChunkLoad(textureCrcs, LoadPriority::kRealtime);
 	LOG(kLoading, kVerbose, "Re-acquire islandCrc={} slot={}, requesting chunk loads", islandCrc, rTemplate.miTextureSlot);
-	LOG(kTemp, kInfo, "Island re-acquire islandCrc={} slot={} textureCrcs=[{},{},{}]", islandCrc, rTemplate.miTextureSlot, textureCrcs[0], textureCrcs[1], textureCrcs[2]);
 	return rTemplate.miTextureSlot;
 }
 
@@ -376,7 +372,6 @@ void IslandTerrain::EvictionSweep()
 		};
 
 		LOG(kGraphics, kVerbose, "Evicting islandCrc={} slot={} (refCount=0, framesSinceUse={})", rCrc, rTemplate.miTextureSlot, gpGraphics->muiFrameCounter - rTemplate.muiLastUsedRenderFrame);
-		LOG(kTemp, kInfo, "Island evict islandCrc={} slot={} framesSinceUse={}", rCrc, rTemplate.miTextureSlot, gpGraphics->muiFrameCounter - rTemplate.muiLastUsedRenderFrame);
 
 		for (common::crc_t textureCrc : evictCrcs)
 		{
@@ -449,7 +444,6 @@ void IslandTerrain::RestorationSweep()
 			// template-owned mElevationTexture has no chunk CRC).
 			gpTextureManager->mTextureDescriptors.UpdateArrayBindingsForKey(rCrc);
 			LOG(kGraphics, kVerbose, "Island resident islandCrc={} slot={}", rCrc, rTemplate.miTextureSlot);
-			LOG(kTemp, kInfo, "Island resident islandCrc={} slot={}", rCrc, rTemplate.miTextureSlot);
 		}
 	}
 }

@@ -13,7 +13,7 @@ namespace engine
 Wrapper gWaterNormalIndexOne(int64_t {12}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
 Wrapper gLightingSampledNormalsOneSize(0.2f, 0.05f, 1.0f);
 Wrapper gLightingSampledNormalsWeightOneMin(0.0f, 0.0f, 4.0f);
-Wrapper gLightingSampledNormalsWeightOneMax(1.5f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsWeightOneMax(0.5f, 0.0f, 4.0f);
 Wrapper gWaterNormalRotationOne(0.0f, -XM_PI, XM_PI);
 // 4 GreenCalm 0.05
 // 12 SeaWaves 0.02
@@ -32,7 +32,7 @@ Wrapper gLightingSampledNormalsWeightThreeMin(1.0f, 0.0f, 4.0f);
 Wrapper gLightingSampledNormalsWeightThreeMax(1.5f, 0.0f, 4.0f);
 Wrapper gWaterNormalRotationThree(0.2f, -XM_PI, XM_PI);
 Wrapper gLightingSampledNormalsSpeedMin(0.02f, 0.0f, 0.1f);
-Wrapper gLightingSampledNormalsSpeedMax(0.05f, 0.0f, 0.1f);
+Wrapper gLightingSampledNormalsSpeedMax(0.075f, 0.0f, 0.1f);
 Wrapper gWaterDepthReflectionFeather(0.05f, 0.001f, 0.1f);
 // Source-side dampener for the Gerstner vertex normal — blends Water.vert's wave normal toward (0,0,1) before it reaches any downstream consumer.
 Wrapper gWaterWaveNormalBlend(1.0f, 0.0f, 1.0f);

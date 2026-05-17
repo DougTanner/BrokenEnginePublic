@@ -107,6 +107,15 @@ Vulkan's conventions differ from legacy OpenGL. If you're porting a shader, thes
 ### Lerp of unit vectors
 `mix(N0, N1, t)` denormalizes. Specular highlights become dim/wrong until `normalize()` is reapplied in the fragment shader. For truly smooth rotation of directions, slerp (spherical interpolation) is correct but rarely needed in a frag shader — renormalization is the standard fix. [Lighthouse3D normalization](https://www.lighthouse3d.com/tutorials/glsl-12-tutorial/normalization-issues/).
 
+### `reflect(unit, unit)` is already unit
+GLSL `reflect(I, N) = I - 2*dot(N, I)*N` returns a unit vector when both `I` and `N` are unit. Magnitude-preserving sign tweaks include a leading `-` (`-reflect(...)`), a componentwise multiply by `vec3(±1, ±1, ±1)`, and a post-assignment single-axis flip on a named result (`vec3 r = reflect(...); r.y *= -1.0;`). All three forms keep magnitude at `1`. Wrapping the result in `normalize()` costs one `rsqrt + 3 muls` per fragment for nothing.
+
+**Flag** `normalize(reflect(a, b))` (and the wrappers `normalize(-reflect(a, b))`, `normalize(reflect(a, b) * vec3(±1, ±1, ±1))`) when both `a` and `b` are demonstrably unit at the call site — the wrapper is a no-op. Also flag a `normalize()` applied to a named `reflect(...)` result that has only been sign-flipped (`r.x *= -1.0;` / `r.y *= -1.0;` / `r.z *= -1.0;`) since those flips are magnitude-preserving — see `Model.frag:252-253` for the canonical pattern.
+
+**Also flag** *removal* of `normalize()` around `reflect(I, N)` when either input cannot be proven unit at the call site (sampled normals before renormalize, interpolated-then-not-renormalized varyings, sums of unit vectors that were never renormalized).
+
+See `Engine/Data/Shaders/CLAUDE.md` `## Architecture Notes` for the convention bullet and the current relied-upon call sites (`Water.frag`, `Objects/HexShield.frag`, `Model.frag`, `ShaderFunctions.h`).
+
 ### Matrix multiplication order
 GLSL matrices are column-major by default. Post-multiply vectors: `vec4 clip = projectionMatrix * viewMatrix * worldPos;`. Swapping the order (`worldPos * matrix`) silently transposes the multiply and produces wrong results. `layout(row_major) mat4 M` flips the convention — use consistently across sharing sides.
 
