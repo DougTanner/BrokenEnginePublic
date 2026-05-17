@@ -27,8 +27,10 @@ Walk the catalog below in three groups so each batch is independently testable:
 2. **Gameplay tunables** — speeds, ranges, radii, spawn offsets, follow
    distances. Multiply by 5 × (the ratio of the cell-scale change). Recheck
    feel; tweak.
-3. **Audio falloff** — `Set3dSettings` distance and per-voice `mfManualFadeEnd`
-   defaults need to expand 5 ×. Curve-distance-scaler stays unitless.
+3. **Audio falloff** — listener distance defaults in
+   `SoundSettingsWrappersBase.cpp` (`gListenerDistanceStart*` /
+   `gListenerDistanceEnd*`) need to expand 5 ×. Curve-distance-scaler and
+   audible-floor multiplier stay unitless.
 
 After each batch, run the game in the sandbox and visually verify the affected
 behavior (camera zoom range, AI navigation distance feel, audio falloff).
@@ -59,8 +61,7 @@ behavior (camera zoom range, AI navigation distance feel, audio falloff).
 
 ### Audio
 
-- `Engine/Source/Ui/SoundSettingsWrappersBase.cpp` — listener distance/curve defaults now live in `gListenerDistanceStart{StartHeight,EndHeight,Low,High}`, `gListenerDistanceEnd{...}`, `gListenerCurve{...}`. Defaults (heights 150/600, distance low/high 200/600, curve low/high 10/10) should scale with `kfCellWidth` or become explicit "meters" literals.
-- `Projects/BrokenEngineSandbox/Source/Game.cpp:58` — `Set3dSettings(10.0f, 0.0f, 300.0f, 0.15f)` — only the trailing `0.15f` (`mfManualFadeVolume`) still has effect under the height-lerp model; the other three arguments are immediately overridden each frame by `UpdateListenerPosition`. Future cleanup: collapse to a single-arg call or promote `mfManualFadeVolume` to a wrapper.
+- `Engine/Source/Ui/SoundSettingsWrappersBase.cpp` — listener distance/curve/audible-floor defaults live in `gListenerDistanceStart{StartHeight,EndHeight,Low,High}`, `gListenerDistanceEnd{...}`, `gListenerCurve{...}`, `gListenerAudibleFloor{...}`. Distance defaults (heights 150/600, distance low/high 200/600) should scale with `kfCellWidth` or become explicit "meters" literals; curve and audible-floor stay unitless.
 
 ### Base height
 

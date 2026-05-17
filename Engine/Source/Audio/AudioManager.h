@@ -30,7 +30,6 @@ public:
 	void PlayMusic(common::crc_t uiAudioCrc);
 	void SetNextMusicTrackCallback(std::function<common::crc_t()> callback);
 
-	void Set3dSettings(float fCurveDistanceScaler, float fManualFadeStart, float fManualFadeEnd, float fManualFadeVolume);
 	void SkipNextStaticVoiceInvalidation() { mStaticVoices.SkipNextInvalidation(); }
 
 	void ClearVoices();

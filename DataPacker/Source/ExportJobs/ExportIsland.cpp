@@ -29,9 +29,9 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 
 	// BakedDimensions.json drives every downstream size. BakeIslandIntermediates writes it
 	// before stamping the bake-version sentinel, so its presence is guaranteed if Gaea succeeded.
-	// The AO file on disk is already cropped to (cropWidth × cropHeight); Color/Normals EXRs stay
-	// full-res on disk (OpenEXR core writer is absent) and are cropped in-memory below before
-	// BC encoding so the final outputs and JPG sidecars land at crop dims.
+	// The AO file on disk is already cropped to (cropWidth × cropHeight); Color (PNG8 sRGB) and
+	// Normals (EXR) stay full-res on disk (no writer in Texture.cpp for either) and are cropped
+	// in-memory below before BC encoding so the final outputs and JPG sidecars land at crop dims.
 	BakedDimensions baked = ReadBakedDimensions(rInputPath);
 	rOut.fWorldFootprintXMeters = baked.fWidthMeters;
 	rOut.fWorldFootprintYMeters = baked.fHeightMeters;
@@ -52,7 +52,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(intermediatesDir / "Color.exr", FileType::kExr, true);
+		Texture texture(intermediatesDir / "Color.png", FileType::kImage, false);
 		texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
 		texture.Save(rInputPath / kpcIslandColor, VK_FORMAT_BC7_UNORM_BLOCK, true);
 		texture.SaveJpegSidecar(rInputPath / "Color.jpg", kiJpegSidecarQuality, false);
@@ -60,7 +60,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(intermediatesDir / "Normals.exr", FileType::kExr, true);
+		Texture texture(intermediatesDir / "Normals.exr", FileType::kExr, false);
 		texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
 		texture.Save(rInputPath / kpcIslandNormals, VK_FORMAT_BC5_UNORM_BLOCK, false);
 		texture.SaveJpegSidecar(rInputPath / "Normals.jpg", kiJpegSidecarQuality, false);
@@ -68,8 +68,9 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 
 	// CPU heightmap: float copy of the elevation pixels, packed into the chunk data payload for
 	// runtime nav / world-Z queries. Source is the same Elevation.r32 BakeIslandIntermediates
-	// pre-scaled to engine-meters using the global constant kfBeachHeightMeters as the beach offset
-	// (beach = 0, ocean = negative down to -kfBeachHeightMeters, land = positive).
+	// pre-scaled to engine-meters using the per-island beach offset `Level × elevationMeters`
+	// read from the archetype Sea node (beach = 0, ocean = negative down to the per-island sea
+	// floor depth, land = positive).
 	rOut.cpuHeightmapData.resize(static_cast<size_t>(iElevationWidth) * static_cast<size_t>(iElevationHeight));
 	{
 		std::fstream rawStream(intermediatesDir / "Elevation.r32", std::ios::in | std::ios::binary);

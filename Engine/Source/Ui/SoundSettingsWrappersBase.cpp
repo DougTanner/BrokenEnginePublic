@@ -25,4 +25,10 @@ Wrapper gListenerCurveEndHeight(600.0f, 0.0f, 1000.0f);
 Wrapper gListenerCurveLow(10.0f, 1.0f, 100.0f);
 Wrapper gListenerCurveHigh(10.0f, 1.0f, 100.0f);
 
+// Listener Audible Floor (mfManualFadeVolume multiplier, height-lerped)
+Wrapper gListenerAudibleFloorStartHeight(150.0f, 0.0f, 1000.0f);
+Wrapper gListenerAudibleFloorEndHeight(600.0f, 0.0f, 1000.0f);
+Wrapper gListenerAudibleFloorLow(0.15f, 0.0f, 0.5f);
+Wrapper gListenerAudibleFloorHigh(0.15f, 0.0f, 0.5f);
+
 } // namespace engine

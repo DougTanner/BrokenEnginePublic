@@ -40,8 +40,8 @@ public:
 
 	// Reduce mData[0] to the sub-rect [iX, iX+iWidth) × [iY, iY+iHeight) and update miWidth/miHeight.
 	// Single-mip only (must be called before MakeMipmaps). Used by ExportIsland to crop full-res
-	// Color.exr / Normals.exr in-memory to the bake-time auto-crop bbox before BC encoding, since
-	// the OpenEXR core path in Texture.cpp is read-only.
+	// Color.png / Normals.exr in-memory to the bake-time auto-crop bbox before BC encoding, since
+	// no PNG / EXR writer is wired up in Texture.cpp (load-only paths).
 	void Crop(int64_t iX, int64_t iY, int64_t iWidth, int64_t iHeight);
 
 	static uint32_t PixelToUint32(const std::vector<float>& rIn, int64_t iWidth, int64_t iX, int64_t iY);

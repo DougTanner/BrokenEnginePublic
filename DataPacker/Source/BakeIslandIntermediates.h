@@ -2,15 +2,16 @@
 
 // Pre-pass invoked from Main.cpp between ExportScene and ExportIsland.
 // Drives Gaea 2 (Gaea.Swarm.exe) to bake per-island heightmap / color / AO / normal intermediates
-// from `Island.json` + a resolved `.terrain` archetype, writing .r32 / .exr files that ExportIsland
-// then consumes and block-compresses. Throws on any failure (caught by main()'s try/catch).
+// from `Island.json` + a resolved `.terrain` archetype, writing .r32 (elevation) / .r16 (AO) /
+// .png (sRGB color) / .exr (normals) files that ExportIsland then consumes and block-compresses.
+// Throws on any failure (caught by main()'s try/catch).
 // Everything Gaea-2-specific is isolated in BakeIslandIntermediates.cpp for eventual Gaea 3 migration.
 void BakeIslandIntermediates();
 
 struct WorldDimensions
 {
 	float fFootprintMeters = 0.0f;   // Isotropic horizontal extent (Gaea Terrain.Width)
-	float fElevationMeters = 0.0f;   // Total vertical span in meters (Gaea Terrain.Height); the below/above sea split is fixed by the global kfBeachHeightMeters (sea floor sits at -kfBeachHeightMeters for every island)
+	float fElevationMeters = 0.0f;   // Total vertical span in meters (Gaea Terrain.Height); per-island sea floor sits at -(Level × elevationMeters), where Level is read from the archetype's Sea node (fallback kfGaeaSeaLevelDefault if absent)
 };
 
 // Reads world-space dimensions from Island.json's required widthMeters/elevationMeters fields.
@@ -21,7 +22,7 @@ WorldDimensions GetIslandDimensions(const std::filesystem::path& rIslandFolder);
 // `fWidthMeters` / `fHeightMeters` are anisotropic (cropped island extent in world meters);
 // `iCropX/Y/Width/Height` describe the sub-rect of the original `iFullTexturePixels`-square
 // Gaea bake that was kept. Used by ExportIsland to size AO / Elevation Texture ctors and to
-// crop in-memory the EXR-loaded Color / Normals before BC encoding.
+// crop in-memory the PNG-loaded Color and EXR-loaded Normals before BC encoding.
 struct BakedDimensions
 {
 	float fWidthMeters = 0.0f;

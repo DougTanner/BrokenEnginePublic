@@ -6,12 +6,12 @@ namespace engine
 // Feather
 Wrapper gShadowFeatherNoon(2.5f, 0.0f, 8.0f);
 Wrapper gShadowFeatherNoonOffset(0.92f, 0.0f, 5.0f);
-Wrapper gShadowFeatherSunset(0.3f, 0.0f, 0.5f);
+Wrapper gShadowFeatherSunset(0.1f, 0.0f, 0.5f);
 Wrapper gShadowFeatherSunsetOffset(-0.1f, -0.5f, 0.1f);
 Wrapper gShadowFeatherPower(1.3f, 0.1f, 10.0f);
 Wrapper gShadowDistanceFalloff(200.0f, 10.0f, 400.0f);
 Wrapper gShadowBlurSigma(9.0f, 1.0f, 20.0f);
-Wrapper gShadowAffectAmbient(0.3f, 0.0f, 1.0f);
+Wrapper gShadowAffectAmbient(0.8f, 0.0f, 1.0f);
 Wrapper gShadowHeightFadeTop(4.0f, 0.0f, 20.0f);
 Wrapper gShadowHeightFadeBottom(-6.0f, -30.0f, 0.0f);
 

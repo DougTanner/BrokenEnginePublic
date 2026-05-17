@@ -190,9 +190,11 @@ void main()
 	vec3 f3WaterSun  = globalLayout.fSunIntensityWater  * globalLayout.f4SunColor.xyz;
 	vec3 f3WaterMoon = globalLayout.fMoonIntensityWater * globalLayout.f4MoonColor.xyz;
 	vec3 f3SunOrMoon = max(f3WaterSun, f3WaterMoon);
-	vec3 f3Sunlight = f3SunOrMoon + globalLayout.f4AmbientColor.xyz;
-	float fSunlight = (f3Sunlight.x + f3Sunlight.y + f3Sunlight.z) / 3.0f;
-	f3LightingColor *= fSunlight;
+	// Carry sun and ambient energy as separate scalars so fShadowAffectAmbient can apply the
+	// SunLighting() ambient-shadow relaxation (ShaderFunctions.h:76-80) to the f4AmbientColor
+	// half only; the multiply into f3LightingColor is deferred to the shadow-apply site.
+	float fSunScalar     = (f3SunOrMoon.x + f3SunOrMoon.y + f3SunOrMoon.z) / 3.0f;
+	float fAmbientScalar = (globalLayout.f4AmbientColor.x + globalLayout.f4AmbientColor.y + globalLayout.f4AmbientColor.z) / 3.0f;
 
 	// Skybox. The Ryfjallet prefiltered cubemap bound here (kPrefilteredWaterCrc) is oriented to
 	// match engine Z-up, so the reflection vector is sampled directly with no Y-up swizzle.
@@ -218,7 +220,8 @@ void main()
 	float fHeightDarken = mix(1.0f - mainLayout.fWaterHeightDarkenTarget, 1.0f, fHeightT);
 	float fHeightDarkenSource = mix(1.0f, fHeightDarken, mainLayout.fWaterHeightDarkenSource);
 	float fHeightDarkenLighting = mix(1.0f, fHeightDarken, mainLayout.fWaterHeightDarkenLighting);
-	f3LightingColor = fHeightDarkenSource * f3LightingColor + fHeightDarkenLighting * f3SkyboxSpecular;
+	vec3 f3BaseDarkened           = fHeightDarkenSource   * f3LightingColor;
+	vec3 f3SkyboxSpecularDarkened = fHeightDarkenLighting * f3SkyboxSpecular;
 
 	// Shadow with smoke at world position. Moon bypasses the terrain ray-march shadow only;
 	// object shadows + smoke volumetric attenuation still apply to both lights. Use a scalar
@@ -230,7 +233,12 @@ void main()
 	float fSunWeight  = dot(f3WaterSun,  vec3(0.299f, 0.587f, 0.114f));
 	float fMoonWeight = dot(f3WaterMoon, vec3(0.299f, 0.587f, 0.114f));
 	float fEffectiveShadow = (fShadowSun * fSunWeight + fShadowMoon * fMoonWeight) / max(0.001f, fSunWeight + fMoonWeight);
-	f4OutColor.xyz = fEffectiveShadow * f3LightingColor;
+	// fShadowAffectAmbient relaxes shadow on the sky-ambient half only; sun + skybox specular keep full shadow.
+	// Mirrors SunLighting() at ShaderFunctions.h:76-80, reusing fEffectiveShadow as its fAmbientShadow (identical Rec.601-weighted formula).
+	float fAmbientShadowApplied = mix(1.0f, fEffectiveShadow, globalLayout.fShadowAffectAmbient);
+	vec3 f3SunContribution     = fEffectiveShadow      * (fSunScalar     * f3BaseDarkened + f3SkyboxSpecularDarkened);
+	vec3 f3AmbientContribution = fAmbientShadowApplied *  fAmbientScalar * f3BaseDarkened;
+	f4OutColor.xyz = f3SunContribution + f3AmbientContribution;
 	f4OutColor.xyz = max(f4OutColor.xyz, 0.5f * globalLayout.f4AmbientColor.xyz * f3SkyboxColor);
 
 	// Terrain elevation (for water transparency)

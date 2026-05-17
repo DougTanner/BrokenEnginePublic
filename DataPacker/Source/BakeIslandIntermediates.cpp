@@ -27,17 +27,19 @@ constexpr const char* kpcGaeaEnvVar = "GAEA2_PATH";
 // ExportIsland.h). One Gaea bake produces all four files at texturePixels resolution; the
 // elevation is then downsampled in-process to texturePixels / kiElevationDivisor and rewritten
 // in place. Elevation.r32 is headerless IEEE-754 float (Gaea's FloatRaw32 format), normalized
-// [0,1] at bake time — DataPacker scales to meters by elevationMeters and subtracts the constant
-// kfBeachHeightMeters so beach = 0 and the sea floor sits at -kfBeachHeightMeters. (The archetype's
-// Sea node Level is patched to kfBeachHeightMeters / elevationMeters before each bake so Gaea
-// actually emits the water surface at that altitude.) AmbientOcclusion.r16 stays
-// UshortRaw16 (precision-matched to BC4_UNORM). Color/Normals stay multi-channel EXR.
-// Files written by Gaea directly. Used for both the post-Gaea existence verification and the
-// IsBakeDirty existence check.
+// [0,1] at bake time — DataPacker reads the Sea node Level from the archetype (fallback
+// kfGaeaSeaLevelDefault when absent), then scales to meters by elevationMeters and subtracts
+// `Level × elevationMeters` so beach = 0 in engine space and the sea floor sits at
+// -(Level × elevationMeters) per island. AmbientOcclusion.r16 stays UshortRaw16 (precision-matched
+// to BC4_UNORM). Color is 8-bit PNG (sRGB-encoded display data; downstream BC7 is 8-bit anyway, so
+// EXR's float precision was wasted and its color-space convention conflicts with Gaea writing
+// sRGB-encoded values into the EXR container). Normals stay multi-channel EXR. Files written by
+// Gaea directly. Used for both the post-Gaea existence verification and the IsBakeDirty existence
+// check.
 constexpr const char* kpcIntermediateFiles[] =
 {
 	"AmbientOcclusion.r16",
-	"Color.exr",
+	"Color.png",
 	"Elevation.r32",
 	"Normals.exr",
 	"Mesh.gltf",  // Gaea Mesher output: glTF JSON manifest (separate-format)
@@ -57,15 +59,15 @@ constexpr const char* kpcDerivedIntermediateFiles[] =
 // any other code-only behavior of the bake changes (i.e., anything not captured by Island.json
 // or archetype mtimes). IsBakeDirty reads `Intermediates/BakeVersion.txt` and forces a re-bake
 // if the recorded version doesn't match; the bake writes the current version on success.
-constexpr int32_t kiBakeVersion = 22;
+constexpr int32_t kiBakeVersion = 26;
 
-// Constant beach altitude (engine-meters). Sea surface and "beach line" are the same height for
-// every island; sea floor sits at -kfBeachHeightMeters below the beach. Per-island elevationMeters
-// only scales above-beach relief. The archetype Sea node's Level is patched to
-// kfBeachHeightMeters / elevationMeters before each Gaea bake (then restored), so Gaea emits
-// normalized [0,1] elevation with the water surface at that value; DataPacker subtracts
-// kfBeachHeightMeters during the bake (in BakeOne, post-Gaea) so beach = 0 in engine space.
-constexpr float kfBeachHeightMeters = 5.0f;
+// Fallback assumption for the Gaea Sea node's normalized `Level` field. Gaea omits the key
+// from .terrain JSON when it equals the editor default (~0.0995); we treat the missing case as
+// 0.1 so DataPacker matches what the Gaea editor preview shows. Archetypes that author Level
+// explicitly override this fallback. DataPacker never patches Level — it is read once per bake
+// in BakeOne via ReadArchetypeSeaLevel and multiplied by elevationMeters to derive the per-island
+// beach offset (engine-Z 0 == beach; sea floor sits at -(Level × elevationMeters)).
+constexpr float kfGaeaSeaLevelDefault = 0.1f;
 
 // Beach-band adaptive subdivision constants. After the Gaea Mesher mesh is parsed, every triangle
 // whose Z-range overlaps the beach band gets recursively split (1->4 midpoint) until its longest XY
@@ -85,9 +87,9 @@ constexpr int32_t kiBeachSubdivisionMaxDepth = 12;
 // Auto-crop epsilon, measured in meters ABOVE THE SEA FLOOR (NOT above the beach line). A pixel
 // is retained in the bbox when its elevation is strictly greater than `seaFloor + epsilon` —
 // i.e., we trim only the deepest `kfCropEpsilonAboveSeaFloorMeters` of the water column. Sea
-// floor is at -kfBeachHeightMeters (constant) so with kfBeachHeightMeters = 5 m, epsilon = 1.0 m
-// means the cut line lives at -4 m, keeping the entire above-water landmass plus a halo of
-// shallow water around the coastline.
+// floor is per-island at -(Level × elevationMeters), so for Level 0.1 + elevationMeters 100 m
+// the cut line lives at -9 m, keeping the entire above-water landmass plus a halo of shallow
+// water around the coastline.
 constexpr float kfCropEpsilonAboveSeaFloorMeters = 1.0f;
 constexpr const char* kpcBakeVersionFile = "BakeVersion.txt";
 
@@ -188,57 +190,6 @@ bool IsBakeDirty(const std::filesystem::path& rIslandFolder, const std::filesyst
 	return false;
 }
 
-// Cross-process file lock around patch+bake+restore. Win32 named mutexes (Main.cpp:783) are
-// per-machine kernel objects and cannot synchronize across separate Windows hosts hitting an
-// archetype on a shared SMB drive. LockFileEx grants an advisory byte-range lock that the SMB
-// server enforces across clients — the only Win32 mechanism that actually serializes cross-host
-// writers to the same archetype .terrain file. The lock file is a persistent sibling
-// "<archetype>.lock" matched by the *.terrain.lock rule in .gitignore so it never gets committed.
-class ArchetypeLock
-{
-public:
-	explicit ArchetypeLock(const std::filesystem::path& rArchetypeFile)
-	{
-		std::filesystem::path lockFile = std::filesystem::weakly_canonical(rArchetypeFile);
-		lockFile += L".lock";
-
-		mhLock = CreateFileW(lockFile.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-		__assume(mhLock != INVALID_HANDLE_VALUE);
-
-		OVERLAPPED overlapped {};
-		while (!LockFileEx(mhLock, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0, MAXDWORD, MAXDWORD, &overlapped))
-		{
-			// Another process (typically a peer DataPacker on a different host via SMB) holds the lock.
-			// Log once per interval to make the wait visible, then re-poll until acquired.
-			LOG(kDefault, kInfo, "Waiting on cross-process archetype lock: \"{}\"", lockFile.string());
-			Sleep(10000);
-		}
-	}
-
-	~ArchetypeLock()
-	{
-		OVERLAPPED overlapped {};
-		UnlockFileEx(mhLock, 0, MAXDWORD, MAXDWORD, &overlapped);
-		CloseHandle(mhLock);
-	}
-
-	ArchetypeLock(const ArchetypeLock&) = delete;
-	ArchetypeLock& operator=(const ArchetypeLock&) = delete;
-	ArchetypeLock(ArchetypeLock&&) = delete;
-	ArchetypeLock& operator=(ArchetypeLock&&) = delete;
-
-private:
-	HANDLE mhLock = INVALID_HANDLE_VALUE;
-};
-
-std::string ReadFileBytes(const std::filesystem::path& rFile)
-{
-	std::ifstream stream(rFile, std::ios::binary);
-	std::stringstream buffer;
-	buffer << stream.rdbuf();
-	return buffer.str();
-}
-
 void WriteFileBytes(const std::filesystem::path& rFile, const std::string& rBytes)
 {
 	// Atomic replace: partial write on crash leaves a stray .tmp, not a half-written archetype.
@@ -308,22 +259,20 @@ void PatchArchetypeMesherResolution(nlohmann::json& rJson, int64_t iVerticesPerS
 	}
 }
 
-// Walks Terrain.Nodes for the Sea node and sets its Level to kfBeachHeightMeters / elevationMeters.
-// Gaea's Level field is normalized [0,1]; with kfBeachHeightMeters = 5 m and elevationMeters = 100 m,
-// this writes 0.05 so the baked terrain has its water surface at the desired absolute altitude.
-// Throws if elevationMeters < kfBeachHeightMeters (Level would exceed 1.0, leaving Gaea behavior
-// undefined). Nodes is a dict keyed by node ID, so we scan values for the one whose $type starts
-// with the Gaea Sea node prefix. ShoreHeight is left as-is — it drives Gaea's shoreline visual
-// effects (sand band, erosion) and is a separate calculation from the elevation pipeline.
-void PatchArchetypeSeaLevel(nlohmann::json& rTerrainJson, float fElevationMeters)
+// Walks Terrain.Nodes for the Sea node and returns its Level (normalized [0,1] where Gaea places
+// the water surface within the [0,1] elevation range). Returns kfGaeaSeaLevelDefault when the
+// Level key is absent — Gaea omits it from the JSON at the editor default (~0.0995). Throws if no
+// Sea node exists in the graph at all, since downstream elevation math depends on a known beach
+// reference. Nodes is a dict keyed by node ID, so we scan values for the one whose $type starts
+// with the Gaea Sea node prefix.
+float ReadArchetypeSeaLevel(const std::filesystem::path& rTerrainFile)
 {
-	if (fElevationMeters < kfBeachHeightMeters)
-	{
-		throw std::runtime_error(std::format("Island.json elevationMeters ({:.2f}) is below the constant beach height ({:.2f} m). Raise elevationMeters so it is >= kfBeachHeightMeters, otherwise the Sea node Level patch would exceed Gaea's normalized [0,1] range.", fElevationMeters, kfBeachHeightMeters));
-	}
+	std::ifstream readStream(rTerrainFile);
+	nlohmann::json terrainJson = nlohmann::json::parse(readStream);
+	readStream.close();
 
-	nlohmann::json& rNodes = rTerrainJson.at("Assets").at("$values").at(0).at("Terrain").at("Nodes");
-	for (auto& [rKey, rNode] : rNodes.items())
+	const nlohmann::json& rNodes = terrainJson.at("Assets").at("$values").at(0).at("Terrain").at("Nodes");
+	for (const auto& [rKey, rNode] : rNodes.items())
 	{
 		if (!rNode.is_object() || !rNode.contains("$type"))
 		{
@@ -332,17 +281,20 @@ void PatchArchetypeSeaLevel(nlohmann::json& rTerrainJson, float fElevationMeters
 		std::string type = rNode.at("$type").get<std::string>();
 		if (type.starts_with("QuadSpinner.Gaea.Nodes.Sea"))
 		{
-			rNode.at("Level") = kfBeachHeightMeters / fElevationMeters;
-			return;
+			return rNode.value("Level", kfGaeaSeaLevelDefault);
 		}
 	}
-	throw std::runtime_error("Archetype has no Sea node — DataPacker patches its Level to position the water surface at the constant kfBeachHeightMeters. Add a Sea node to the graph or extend BakeIslandIntermediates to handle sea-less archetypes.");
+	throw std::runtime_error("Archetype has no Sea node — DataPacker reads its Level to derive the per-island beach offset. Add a Sea node to the graph or extend BakeIslandIntermediates to handle sea-less archetypes.");
 }
 
-// Patches the archetype in place: Terrain.{Width,Height}, every per-node Seed, optional
-// Mesher.VerticesPerSide, and the Sea node's Level (driven by kfBeachHeightMeters / elevationMeters
-// so the baked water surface lands at a constant absolute altitude). The pre-patch bytes/mtime are
-// restored on scope exit by the RAII guard in BakeOne, so this mutation is invisible to git.
+// Patches the archetype in place: Terrain.{Width,Height}, every per-node Seed (only when
+// iSeed != 0; iSeed == 0 is the "use the archetype's per-node Seed values as authored" sentinel
+// so you can A/B against Gaea's editor preview without DataPacker overwriting them), and
+// (optionally) Mesher.VerticesPerSide. The Sea node's Level is intentionally NOT patched — it
+// is read separately by ReadArchetypeSeaLevel and consumed by the post-bake elevation math so
+// the Gaea editor preview and the in-game terrain agree on the water surface position. The
+// pre-patch bytes/mtime are restored on scope exit by the RAII guard in BakeOne, so this
+// mutation is invisible to git.
 void PatchArchetype(const std::filesystem::path& rTerrainFile, const WorldDimensions& rDimensions, int32_t iSeed, std::optional<int64_t> oiMeshResolution)
 {
 	std::ifstream readStream(rTerrainFile);
@@ -354,14 +306,15 @@ void PatchArchetype(const std::filesystem::path& rTerrainFile, const WorldDimens
 	rTerrain.at("Width") = rDimensions.fFootprintMeters;
 	rTerrain.at("Height") = rDimensions.fElevationMeters;
 
-	PatchArchetypeSeeds(terrainJson, iSeed);
+	if (iSeed != 0)
+	{
+		PatchArchetypeSeeds(terrainJson, iSeed);
+	}
 
 	if (oiMeshResolution.has_value())
 	{
 		PatchArchetypeMesherResolution(terrainJson, *oiMeshResolution);
 	}
-
-	PatchArchetypeSeaLevel(terrainJson, rDimensions.fElevationMeters);
 
 	WriteFileBytes(rTerrainFile, terrainJson.dump(2));
 }
@@ -504,37 +457,37 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 		LOG(kDefault, kDebug, "Removed stale mip directory: \"{}\"", staleMipDir.string());
 	}
 
-	// Patch the archetype's intrinsic Terrain.{Width,Height} AND every per-node "Seed" field
-	// in-place around the bake, then restore byte-and-mtime-identical state on scope exit. The
-	// cross-process file lock covers concurrent DataPacker instances on this host (Main.cpp:783
-	// already serializes those, but defense-in-depth) and on other Windows hosts hitting the
-	// same archetype over SMB. The ScopedLambda restore destroys before archetypeLock (LIFO),
-	// so the lock is still held while the upstream bytes/mtime are written back, guaranteeing
-	// a successful or failed bake leaves the archetype invisible to git and to IsBakeDirty's
-	// mtime check.
-	ArchetypeLock archetypeLock(archetypeFile);
-
-	std::string originalArchetypeBytes = ReadFileBytes(archetypeFile);
-	std::filesystem::file_time_type originalArchetypeModificationTime = std::filesystem::last_write_time(archetypeFile);
-	common::ScopedLambda restoreArchetype([&archetypeFile, &originalArchetypeBytes, &originalArchetypeModificationTime]()
-	{
-		WriteFileBytes(archetypeFile, originalArchetypeBytes);
-		std::filesystem::last_write_time(archetypeFile, originalArchetypeModificationTime);
-	});
-
-	PatchArchetype(archetypeFile, dimensions, iSeed, oiMeshResolution);
-
 	std::filesystem::path intermediatesDir = rIslandFolder / kpcIslandIntermediatesDir;
 	std::filesystem::create_directories(intermediatesDir);
+
+	// Copy the original archetype into Intermediates/ and patch the copy — the on-disk source
+	// .terrain is never mutated, so there's no RAII restore, no cross-process lock, and no risk
+	// of leaving the source modified if the process dies mid-bake. Each island bakes its own copy
+	// in its own Intermediates/ dir, so sibling islands sharing an archetype don't contend.
+	// PatchedArchetype.terrain doubles as a debug artifact — open in Gaea to inspect exactly what
+	// was fed to Gaea.Swarm (dims, seeds, Mesher resolution). Overwritten on each bake.
+	std::filesystem::path patchedArchetypeFile = intermediatesDir / "PatchedArchetype.terrain";
+	std::filesystem::copy_file(archetypeFile, patchedArchetypeFile, std::filesystem::copy_options::overwrite_existing);
+
+	PatchArchetype(patchedArchetypeFile, dimensions, iSeed, oiMeshResolution);
+
+	// PatchArchetype doesn't touch the Sea node, so reading from the patched copy yields the
+	// authored Level (or kfGaeaSeaLevelDefault if absent). The per-island beach offset
+	// (engine-meters from Gaea-normalized 0 to the beach line) drives the post-bake elevation
+	// transform, the auto-crop cut line, and the mesh-Z scrub below.
+	float fSeaLevelNormalized = ReadArchetypeSeaLevel(patchedArchetypeFile);
+	float fBeachOffsetMeters = fSeaLevelNormalized * dimensions.fElevationMeters;
+	LOG(kDefault, kDebug, "Archetype Sea Level (read, not patched): {} → beach offset {} m for elevationMeters {} m", common::Wb(fSeaLevelNormalized, 4), common::Wb(fBeachOffsetMeters, 2), common::Wb(dimensions.fElevationMeters, 2));
 
 	// Gaea.Swarm.exe requires a real console for stdin/stdout/stderr — invoke via the
 	// new-console helper rather than piped capture (the latter trips an IOException at
 	// Gaea startup). argv[0] is the executable's own path so cmdline starts with the
 	// quoted exe. --seed is dropped: per-node seeds were patched into the archetype above.
+	// Gaea bakes the patched copy in Intermediates/, not the on-disk source.
 	std::wstring commandLine;
 	commandLine += L"\"" + rGaeaExecutable.native() + L"\"";
 	commandLine += L" --silent";
-	commandLine += L" --Filename \"" + archetypeFile.native() + L"\"";
+	commandLine += L" --Filename \"" + patchedArchetypeFile.native() + L"\"";
 	commandLine += L" --buildpath \"" + intermediatesDir.native() + L"\"";
 	commandLine += std::format(L" --resolution {}", iTexturePixels);
 	if (bHasVars)
@@ -542,7 +495,7 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 		commandLine += L" --vars \"" + varsFile.native() + L"\"";
 	}
 
-	LOG(kDefault, kDebug, "Running: \"{}\" --silent --Filename \"{}\" --buildpath \"{}\" --resolution {}{}{}", rGaeaExecutable.string(), archetypeFile.string(), intermediatesDir.string(), iTexturePixels, bHasVars ? " --vars " : "", bHasVars ? varsFile.string() : "");
+	LOG(kDefault, kDebug, "Running: \"{}\" --silent --Filename \"{}\" --buildpath \"{}\" --resolution {}{}{}", rGaeaExecutable.string(), patchedArchetypeFile.string(), intermediatesDir.string(), iTexturePixels, bHasVars ? " --vars " : "", bHasVars ? varsFile.string() : "");
 
 	common::ExecutableResult result = common::RunExecutableInNewConsole(rGaeaExecutable, commandLine);
 
@@ -555,19 +508,18 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 	{
 		if (!std::filesystem::exists(intermediatesDir / pcFile))
 		{
-			throw std::runtime_error(std::format("Gaea bake for \"{}\" did not produce \"{}\". Verify the archetype graph has an Export node named \"{}\" writing to Build Folder, and that the Elevation Export node uses the FloatRaw32 format and AmbientOcclusion uses UshortRaw16.", rIslandFolder.string(), pcFile, std::filesystem::path(pcFile).stem().string()));
+			throw std::runtime_error(std::format("Gaea bake for \"{}\" did not produce \"{}\". Verify the archetype graph has an Export node named \"{}\" writing to Build Folder, and that the Elevation Export node uses FloatRaw32, AmbientOcclusion uses UshortRaw16, Color uses PNG8, and Normals uses Exr.", rIslandFolder.string(), pcFile, std::filesystem::path(pcFile).stem().string()));
 		}
 	}
 
 	// Gaea's FloatRaw32 export is normalized [0,1] in conventional heightmap orientation: 0 = low
-	// elevation, 1 = peak. Scale to meters then subtract the constant beach offset, so the math
-	// reduces to (pixel * elevationMeters) - kfBeachHeightMeters. On-disk bytes are engine-ready:
-	// beach = 0 (where Gaea's water surface sits, since PatchArchetypeSeaLevel writes Level =
-	// kfBeachHeightMeters / elevationMeters), ocean = negative (down to -kfBeachHeightMeters at
-	// Gaea-normalized 0.0), land = positive (up to elevationMeters - kfBeachHeightMeters at
-	// Gaea-normalized 1.0). NaN/Inf scrubbed because R32_SFLOAT is unbounded — any stray non-finite
-	// pixel would poison the elevation G-buffer and vertex displacement; non-finite maps to the
-	// island's sea floor.
+	// elevation, 1 = peak. Shift the normalized origin to the beach (Gaea's Sea Level), then scale
+	// to engine-meters: pixel_m = (pixel_normalized - fSeaLevelNormalized) × elevationMeters.
+	// On-disk bytes are engine-ready: beach = 0 (at Gaea-normalized fSeaLevelNormalized), ocean =
+	// negative (down to -fBeachOffsetMeters at Gaea-normalized 0.0), land = positive (up to
+	// elevationMeters - fBeachOffsetMeters at Gaea-normalized 1.0). NaN/Inf scrubbed because
+	// R32_SFLOAT is unbounded — any stray non-finite pixel would poison the elevation G-buffer
+	// and vertex displacement; non-finite maps to the island's sea floor.
 	std::filesystem::path elevationFile = intermediatesDir / "Elevation.r32";
 	std::vector<float> sourcePixels(static_cast<size_t>(iTexturePixels) * static_cast<size_t>(iTexturePixels));
 	int64_t iExpectedBytes = static_cast<int64_t>(sourcePixels.size() * sizeof(float));
@@ -582,14 +534,14 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 	}
 	for (float& rfPixel : sourcePixels)
 	{
-		rfPixel = std::isfinite(rfPixel) ? rfPixel * dimensions.fElevationMeters - kfBeachHeightMeters : -kfBeachHeightMeters;
+		rfPixel = std::isfinite(rfPixel) ? (rfPixel - fSeaLevelNormalized) * dimensions.fElevationMeters : -fBeachOffsetMeters;
 	}
 
-	// Auto-crop to the bbox of pixels above the sea-floor cut line. Cut line = `-kfBeachHeightMeters
-	// + kfCropEpsilonAboveSeaFloorMeters`, i.e., epsilon meters up from the sea floor; everything
-	// at or below that depth is trim. Empty bbox is a configuration error: the archetype produced
-	// no terrain even one epsilon above the sea floor, so the island would be invisible.
-	float fCropCutLineMeters = -kfBeachHeightMeters + kfCropEpsilonAboveSeaFloorMeters;
+	// Auto-crop to the bbox of pixels above the sea-floor cut line. Cut line = `-fBeachOffsetMeters
+	// + kfCropEpsilonAboveSeaFloorMeters`, i.e., epsilon meters up from the per-island sea floor;
+	// everything at or below that depth is trim. Empty bbox is a configuration error: the archetype
+	// produced no terrain even one epsilon above the sea floor, so the island would be invisible.
+	float fCropCutLineMeters = -fBeachOffsetMeters + kfCropEpsilonAboveSeaFloorMeters;
 	int64_t iMinX = iTexturePixels;
 	int64_t iMinY = iTexturePixels;
 	int64_t iMaxX = -1;
@@ -622,7 +574,7 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 	}
 	if (iMaxX < 0)
 	{
-		throw std::runtime_error(std::format("Island \"{}\" has no pixels above the sea-floor cut line ({:.2f} m, = -kfBeachHeightMeters + {:.2f}): the archetype produced no terrain even {:.2f} m above the sea floor. Raise Island.json's elevationMeters, edit kfBeachHeightMeters in BakeIslandIntermediates.cpp and rebuild DataPacker, or pick a smaller kfCropEpsilonAboveSeaFloorMeters.", rIslandFolder.string(), fCropCutLineMeters, kfCropEpsilonAboveSeaFloorMeters, kfCropEpsilonAboveSeaFloorMeters));
+		throw std::runtime_error(std::format("Island \"{}\" has no pixels above the sea-floor cut line ({:.2f} m, = -{:.2f} + {:.2f}): the archetype produced no terrain even {:.2f} m above the sea floor. Raise Island.json's elevationMeters, raise the archetype Sea node's Level, or pick a smaller kfCropEpsilonAboveSeaFloorMeters.", rIslandFolder.string(), fCropCutLineMeters, fBeachOffsetMeters, kfCropEpsilonAboveSeaFloorMeters, kfCropEpsilonAboveSeaFloorMeters));
 	}
 
 	// Expand bbox symmetrically to a multiple of iAlignmentRequirement in each axis, clamped to the
@@ -691,8 +643,8 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 		writeStream.write(reinterpret_cast<const char*>(downsampledPixels.data()), downsampledPixels.size() * sizeof(float));
 	}
 
-	// Crop AmbientOcclusion.r16 in lockstep with the elevation bbox. Color.exr and Normals.exr
-	// stay full-res on disk (OpenEXR core in Texture.cpp is read-only); ExportIsland crops their
+	// Crop AmbientOcclusion.r16 in lockstep with the elevation bbox. Color.png and Normals.exr
+	// stay full-res on disk (no writer in Texture.cpp for either format); ExportIsland crops their
 	// pixel data in-memory after Texture loads them, so the final BC outputs and JPG sidecars
 	// land at the cropped dims.
 	std::filesystem::path ambientOcclusionFile = intermediatesDir / "AmbientOcclusion.r16";
@@ -728,8 +680,8 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 	// +1 (swap-then-negate = two odd ops = even composition), so handedness is preserved and
 	// triangle winding stays CCW-front in the engine frame. Gaea emits horizontal positions already
 	// centered around (0, 0) (range [-footprintMeters/2, +footprintMeters/2]); height gets the
-	// constant beach offset (kfBeachHeightMeters) subtracted so sea level = 0 (matches the elevation
-	// pipeline convention). UVs (TEXCOORD_0) are discarded — runtime derives visible-area UV from
+	// per-island beach offset (fBeachOffsetMeters = Level × elevationMeters) subtracted so sea
+	// level = 0 (matches the elevation pipeline convention). UVs (TEXCOORD_0) are discarded — runtime derives visible-area UV from
 	// world XY. Indices are upcast to uint32 for uniform handling. After the glTF is parsed, an
 	// adaptive beach-band subdivision pass densifies triangles whose Z-range overlaps the band
 	// [kfBeachSubdivisionMinMeters, kfBeachSubdivisionMaxMeters] (straddling beach Z=0) until
@@ -778,7 +730,7 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 				const float* pfXyz = reinterpret_cast<const float*>(pSrc + static_cast<size_t>(iVertex) * uiStride);
 				float fX = pfXyz[0];
 				float fY = -pfXyz[2];
-				float fZ = std::isfinite(pfXyz[1]) ? pfXyz[1] - kfBeachHeightMeters : -kfBeachHeightMeters;
+				float fZ = std::isfinite(pfXyz[1]) ? pfXyz[1] - fBeachOffsetMeters : -fBeachOffsetMeters;
 				meshPositions[static_cast<size_t>(iVertex) * 3 + 0] = fX;
 				meshPositions[static_cast<size_t>(iVertex) * 3 + 1] = fY;
 				meshPositions[static_cast<size_t>(iVertex) * 3 + 2] = fZ;
@@ -1281,7 +1233,8 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 
 	// Stamp BakedDimensions.json BEFORE the bake-version sentinel so the sentinel-last invariant
 	// holds: a clean version sentinel implies the dimensions sidecar (and all cropped intermediates)
-	// are valid. ExportIsland reads BakedDimensions.json to size Texture ctors and to crop EXRs.
+	// are valid. ExportIsland reads BakedDimensions.json to size Texture ctors and to crop the
+	// Color PNG and Normals EXR in-memory.
 	{
 		nlohmann::json bakedJson;
 		bakedJson["widthMeters"] = dimensions.fFootprintMeters * static_cast<float>(iCropWidth) / static_cast<float>(iTexturePixels);

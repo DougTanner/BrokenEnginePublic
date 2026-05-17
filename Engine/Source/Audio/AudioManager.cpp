@@ -222,11 +222,6 @@ void XM_CALLCONV AudioManager::PlayOneShot3d(const game::Frame& rFrame, common::
 	mStaticVoices.PlayOneShot3d(rFrame, uiAudioCrc, vecPosition, fVolume, fPitch, fPitchRange);
 }
 
-void AudioManager::Set3dSettings(float fCurveDistanceScaler, float fManualFadeStart, float fManualFadeEnd, float fManualFadeVolume)
-{
-	mStaticVoices.Set3dSettings(fCurveDistanceScaler, fManualFadeStart, fManualFadeEnd, fManualFadeVolume);
-}
-
 void AudioManager::Update(const game::Frame* pFrame)
 {
 	ScopedCpuProfile scopedCpuProfile(kCpuTimerAudio);

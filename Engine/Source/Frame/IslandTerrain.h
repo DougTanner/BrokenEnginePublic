@@ -29,12 +29,12 @@ struct IslandTemplate
 	common::crc_t mIslandCrc = 0;
 
 	// Heightmap pixel values are engine-meters relative to beach: 0 == sea level, negative ==
-	// below water, positive == above water. DataPacker offsets Gaea's [0,1] normalized output
-	// by its global beach-height constant (`kfBeachHeightMeters` in BakeIslandIntermediates.cpp)
-	// at bake time, so no runtime conversion is required (sea floor sits at -kfBeachHeightMeters
-	// for every island). Heightmap is anisotropic: DataPacker auto-crops each island to its land
-	// bbox > 1 m, expanded to a multiple of 4 × kiElevationDivisor so BC encoding and elevation
-	// downsample alignment hold on both axes.
+	// below water, positive == above water. DataPacker reads the archetype Sea node's normalized
+	// Level (fallback 0.1) and shifts Gaea's [0,1] normalized output by `Level × elevationMeters`
+	// at bake time, so no runtime conversion is required (sea floor sits at the per-island depth
+	// -(Level × elevationMeters)). Heightmap is anisotropic: DataPacker auto-crops each island
+	// to its land bbox > 1 m, expanded to a multiple of 4 × kiElevationDivisor so BC encoding
+	// and elevation downsample alignment hold on both axes.
 	const float* mpfHeightmapData = nullptr;
 	int32_t miHeightmapWidth = 0;
 	int32_t miHeightmapHeight = 0;

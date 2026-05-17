@@ -15,7 +15,7 @@ void StaticVoices::Init(AudioEngine* pAudioEngine, const int64_t* piMasteringVoi
 	mpAudioEngine = pAudioEngine;
 	mpiMasteringVoiceChannels = piMasteringVoiceChannels;
 	mRandomEngine.TimeSeed();
-	mVoices.reserve(kiMaxStaticVoices);
+	mVoices.reserve(kiMaxStaticVoices + kiMaxFadeOutPool);
 }
 
 IXAudio2SourceVoice* StaticVoices::PlayOneShot([[maybe_unused]] const game::Frame& rFrame, common::crc_t uiAudioCrc, bool b3d, float fVolume, float fPitch, float fPitchRange)
@@ -108,14 +108,6 @@ void XM_CALLCONV StaticVoices::PlayOneShot3d([[maybe_unused]] const game::Frame&
 	}
 }
 
-void StaticVoices::Set3dSettings(float fCurveDistanceScaler, float fManualFadeStart, float fManualFadeEnd, float fManualFadeVolume)
-{
-	mfCurveDistanceScaler = fCurveDistanceScaler;
-	mfManualFadeStart = fManualFadeStart;
-	mfManualFadeEnd = fManualFadeEnd;
-	mfManualFadeVolume = fManualFadeVolume;
-}
-
 void StaticVoices::ReturnVoiceToPool(common::crc_t audioCrc, IXAudio2SourceVoice* pVoice)
 {
 	pVoice->Stop(0, XAUDIO2_COMMIT_NOW);
@@ -170,7 +162,24 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 	bool bSkipInvalidation = mbSkipNextInvalidation;
 	mbSkipNextInvalidation = false;
 
-	// Fade out and stop invalid static voices
+	// Invalidation pass: an mVoices entry whose ID is no longer in the frame state
+	// transitions to fade-out (or erases outright if it's already silent / inactive).
+	// Fade advance and the kFadingOut → kInactive transition live in pass 4 so all
+	// three sources of fade (invalidation, range-deactivation, budget-eviction)
+	// share one ramp-and-cleanup path.
+	auto FadeOutCount = [this]() -> int64_t
+	{
+		int64_t iCount = 0;
+		for (const StaticVoice& rOther : mVoices)
+		{
+			if (rOther.mFlags & StaticVoiceFlags::kFadingOut)
+			{
+				++iCount;
+			}
+		}
+		return iCount;
+	};
+
 	if (!bSkipInvalidation)
 	{
 		for (int64_t i = 0; i < static_cast<int64_t>(mVoices.size());)
@@ -187,39 +196,36 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 			bool bDestroy = false;
 			if (rVoice.mFlags & StaticVoiceFlags::kInactive)
 			{
-				// Inactive voices have mpVoice == nullptr — no audio to fade out, and
-				// the pool already received the voice when we deactivated. Drop the
-				// entry directly without touching kFadingOut / mfFadeOutVolume.
+				// Inactive voices have mpVoice == nullptr. Drop the entry directly.
 				bDestroy = true;
 			}
-			else
+			else if (rVoice.mFlags & StaticVoiceFlags::kFadingOut)
 			{
-				if (rVoice.mfVolume <= 0.0f)
-				{
-					bDestroy = true;
-				}
-				if (rVoice.mFlags & StaticVoiceFlags::kFadingOut)
-				{
-					rVoice.mfFadeOutVolume -= fDeltaTime / rVoice.mfFadeOutTime;
-					if (rVoice.mfFadeOutVolume <= 0.0f)
-					{
-						bDestroy = true;
-					}
-				}
-				else
-				{
-					rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
-					rVoice.mfFadeOutVolume = 1.0f;
-				}
+				// Pass 4 advances the fade; next-frame invalidation erases once it transitions to kInactive.
 			}
-
-			if (bDestroy)
+			else if (rVoice.mfVolume <= 0.0f)
 			{
+				// Already silent; skip the fade and erase directly.
 				if (rVoice.mpVoice != nullptr)
 				{
 					ReturnVoiceToPool(rVoice.mAudioCrc, rVoice.mpVoice);
 					rVoice.mpVoice = nullptr;
 				}
+				bDestroy = true;
+			}
+			else if (FadeOutCount() >= kiMaxFadeOutPool)
+			{
+				// FadeOutPool saturated. Skip; next-frame invalidation retries once a slot frees.
+				DEBUG_BREAK();
+			}
+			else
+			{
+				rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
+				rVoice.mfFadeOutVolume = 1.0f;
+			}
+
+			if (bDestroy)
+			{
 				if (i < static_cast<int64_t>(mVoices.size()) - 1)
 				{
 					mVoices.at(i) = std::move(mVoices.back());
@@ -333,6 +339,14 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 					CHECK_HRESULT(pVoice->Start(0, XAUDIO2_COMMIT_NOW));
 					LOG(kAudio, kDebug, "voice REACTIVATED id={} dist={} atten={}", id, common::Wb(common::Distance(vecPosition, mVecListenerPosition), 2), common::Wb(fAttenuated, 4));
 				}
+				else if ((pExistingVoice->mFlags & StaticVoiceFlags::kFadingOut) && fAttenuated >= kfCullVolume)
+				{
+					// Cancel fade-out: voice is still playing. Clearing the flag lets the
+					// fade-in ramp below pick mfFadeOutVolume up from wherever it had reached
+					// and ramp it back to 1.0. No Start() / SetVolume(0) / click.
+					pExistingVoice->mFlags.Clear(StaticVoiceFlags::kFadingOut);
+					LOG(kAudio, kDebug, "voice FADE CANCELLED id={} fadeVol={}", id, common::Wb(pExistingVoice->mfFadeOutVolume, 2));
+				}
 
 				// Mark as activated only when the voice is genuinely audible this frame.
 				// An existing-active voice in the hysteresis band [kfDeactivateFloor, kfCullVolume)
@@ -351,7 +365,9 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 			{
 				continue;
 			}
-			if (static_cast<int64_t>(mVoices.size()) >= kiMaxStaticVoices)
+			// Active + kInactive entries count toward kiMaxStaticVoices; kFadingOut entries
+			// live in the FadeOutPool overflow capacity above the primary cap.
+			if (static_cast<int64_t>(mVoices.size()) - FadeOutCount() >= kiMaxStaticVoices)
 			{
 				LOG(kAudio, kDebug, "Max static voices reached ({}), deferring add", kiMaxStaticVoices);
 				continue;
@@ -373,10 +389,10 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 	}
 
 	// Deactivation pass: any active voice not given a slot this frame (past cap or
-	// below the activate threshold) releases its XAudio2 voice back to the pool. The
-	// mVoices entry stays so the next frame can reactivate when the listener moves
-	// closer. Runs unconditionally so iSoundCount==0 also drains stale voices.
-	// The owner-driven Remove path (kFadingOut) is handled in the invalidation block.
+	// below the activate threshold) enters fade-out. The XAudio2 voice keeps playing
+	// while mfFadeOutVolume ramps to zero (pass 4 below advances and finalizes), so
+	// the cut is graceful instead of a mid-sample Stop() click. Runs unconditionally
+	// so iSoundCount==0 also drains stale active voices.
 	for (StaticVoice& rVoice : mVoices)
 	{
 		if (rVoice.mFlags & StaticVoiceFlags::kInactive)
@@ -398,13 +414,41 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 		}
 		if (!bActivated)
 		{
-			rVoice.mFlags.Set(StaticVoiceFlags::kInactive);
+			if (FadeOutCount() >= kiMaxFadeOutPool)
+			{
+				// Pool saturated. Voice stays active; deactivation pass retries next
+				// frame once a slot frees. One extra frame of intended-gone audio,
+				// but no crackle and no over-budget pool occupancy.
+				DEBUG_BREAK();
+				continue;
+			}
+			rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
+			rVoice.mfFadeOutVolume = 1.0f;
+			LOG(kAudio, kDebug, "voice FADING id={} dist={}", rVoice.mId, common::Wb(common::Distance(rVoice.mVecPosition, mVecListenerPosition), 2));
+		}
+	}
+
+	// Pass 4: advance kFadingOut entries' mfFadeOutVolume. On completion, return the
+	// XAudio2 voice to the per-crc pool and transition to kInactive — the entry stays
+	// in mVoices so a re-entering sound can reactivate via the existing kInactive
+	// path. The invalidation pass erases owner-removed kInactive entries next frame.
+	for (StaticVoice& rVoice : mVoices)
+	{
+		if (!(rVoice.mFlags & StaticVoiceFlags::kFadingOut))
+		{
+			continue;
+		}
+		rVoice.mfFadeOutVolume -= fDeltaTime / rVoice.mfFadeOutTime;
+		if (rVoice.mfFadeOutVolume <= 0.0f)
+		{
 			if (rVoice.mpVoice != nullptr)
 			{
 				ReturnVoiceToPool(rVoice.mAudioCrc, rVoice.mpVoice);
 				rVoice.mpVoice = nullptr;
 			}
-			LOG(kAudio, kDebug, "voice DEACTIVATED id={} dist={}", rVoice.mId, common::Wb(common::Distance(rVoice.mVecPosition, mVecListenerPosition), 2));
+			rVoice.mFlags.Clear(StaticVoiceFlags::kFadingOut);
+			rVoice.mFlags.Set(StaticVoiceFlags::kInactive);
+			rVoice.mfFadeOutVolume = 0.0f;
 		}
 	}
 
@@ -464,6 +508,7 @@ void StaticVoices::UpdateListenerPosition([[maybe_unused]] const game::Frame& rF
 	mfEffectiveFadeStart = LerpAtHeight(gListenerDistanceStartStartHeight.Get(), gListenerDistanceStartEndHeight.Get(), gListenerDistanceStartLow.Get(), gListenerDistanceStartHigh.Get());
 	mfEffectiveFadeEnd = LerpAtHeight(gListenerDistanceEndStartHeight.Get(), gListenerDistanceEndEndHeight.Get(), gListenerDistanceEndLow.Get(), gListenerDistanceEndHigh.Get());
 	mfCurveDistanceScaler = LerpAtHeight(gListenerCurveStartHeight.Get(), gListenerCurveEndHeight.Get(), gListenerCurveLow.Get(), gListenerCurveHigh.Get());
+	mfManualFadeVolume = LerpAtHeight(gListenerAudibleFloorStartHeight.Get(), gListenerAudibleFloorEndHeight.Get(), gListenerAudibleFloorLow.Get(), gListenerAudibleFloorHigh.Get());
 }
 
 void StaticVoices::UpdateVolumes()

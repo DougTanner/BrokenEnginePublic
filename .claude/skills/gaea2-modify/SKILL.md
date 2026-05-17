@@ -86,7 +86,7 @@ Invalid enum string values cause silent deactivation. Verified valid values (fro
 - `Mountain.Style`: `Strata`, `Alpine`, `Eroded` (case-sensitive; common defaults like `Basic` are rejected)
 - `Combine.Mode`: `Add`, `Subtract`, `Multiply`, `Max`, `Min`, `Screen`, `Difference`, `GrainMerge`, `Overlay`, `HardLight`. When `Mode` is **absent** and `PortCount=2` with `Mask` wired, the node performs canonical mask-driven linear blend `lerp(In, Input2, Mask)` — that's the pattern shipping example `Project Arenal.terrain` uses for SatMap layer compositing.
 - `Snowfield.Direction`: `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, `NW`
-- `Export.Format`: `UshortRaw16`, `Png16`, `Exr`, `Tiff16` (and others — copy from a shipping example)
+- `Export.Format`: `UshortRaw16`, `FloatRaw32`, `PNG8`, `PNG16`, `Exr`, `Tiff16`, `GLTF` (case-sensitive — shipping examples use `PNG16` uppercase; the Broken Engine island archetype uses `PNG8` for color, `FloatRaw32` for elevation, `UshortRaw16` for AO, and `GLTF` for mesh). Others exist — copy from a shipping example when unsure.
 - `Export.RenderIntentOverride`: `Mask`, `Color`, etc.
 - `SatMap.Library` (the `CLUTLibrary` enum): `Green`, `Sand`, `Color` — and **absent = Rocky** (the default). The names `Sandy`/`Rocky`/`Colorful` you'll see in QuadSpinner's UI library browser are display labels; the JSON enum values are `Sand`/(absent)/`Color`. Writing `Library: Sandy` throws `JsonSerializationException: Error converting value "Sandy" to type 'QuadSpinner.Gaea.Nodes.CLUTLibrary'` and Gaea refuses to load the file.
 

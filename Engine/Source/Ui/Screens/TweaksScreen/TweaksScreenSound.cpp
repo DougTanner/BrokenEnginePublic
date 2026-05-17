@@ -30,6 +30,11 @@ const TweaksSliderMapRegistrar gSoundRegistrar
 	{"Listener Curve End Height", &gListenerCurveEndHeight},
 	{"Listener Curve Low", &gListenerCurveLow},
 	{"Listener Curve High", &gListenerCurveHigh},
+	// Listener Audible Floor
+	{"Listener Audible Floor Start Height", &gListenerAudibleFloorStartHeight},
+	{"Listener Audible Floor End Height", &gListenerAudibleFloorEndHeight},
+	{"Listener Audible Floor Low", &gListenerAudibleFloorLow},
+	{"Listener Audible Floor High", &gListenerAudibleFloorHigh},
 };
 }
 
@@ -88,6 +93,12 @@ void TweaksScreenBase::RenderSoundSection()
 			WrapperSlider("End Height", kiSection, 2.0f, "Listener Curve End Height");
 			WrapperSlider("Low", kiSection, 2.0f, "Listener Curve Low");
 			WrapperSlider("High", kiSection, 2.0f, "Listener Curve High");
+
+			WrapperSeparatorText("Listener Audible Floor");
+			WrapperSlider("Start Height", kiSection, 2.0f, "Listener Audible Floor Start Height");
+			WrapperSlider("End Height", kiSection, 2.0f, "Listener Audible Floor End Height");
+			WrapperSlider("Low", kiSection, 2.0f, "Listener Audible Floor Low");
+			WrapperSlider("High", kiSection, 2.0f, "Listener Audible Floor High");
 
 			ImGui::EndTabItem();
 		}

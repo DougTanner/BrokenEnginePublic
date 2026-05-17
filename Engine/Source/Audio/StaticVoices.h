@@ -19,6 +19,13 @@ namespace engine
 
 inline constexpr int64_t kiMaxStaticVoices = 128;
 
+// FadeOutPool: bonus capacity above kiMaxStaticVoices for voices ramping out
+// gracefully. Lets a budget-eviction free its primary slot to the new sound
+// immediately while the displaced voice keeps playing through a fade. When at
+// cap, mark attempts DEBUG_BREAK and skip; the deactivation pass retries the
+// next frame once a slot frees.
+inline constexpr int64_t kiMaxFadeOutPool = 32;
+
 // Below this attenuated-volume threshold a sound is considered inaudible and is
 // culled (one-shots: never spawned; persistent: voice released, entry kept).
 // Hysteresis: candidacy floor is 0.8 * kfCullVolume so a sound right at the
@@ -33,8 +40,6 @@ public:
 
 	IXAudio2SourceVoice* PlayOneShot(const game::Frame& rFrame, common::crc_t uiAudioCrc, bool b3d, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f);
 	void XM_CALLCONV PlayOneShot3d(const game::Frame& rFrame, common::crc_t uiAudioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f);
-
-	void Set3dSettings(float fCurveDistanceScaler, float fManualFadeStart, float fManualFadeEnd, float fManualFadeVolume);
 
 	void UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime);
 	void UpdateListenerPosition(const game::Frame& rFrame);
@@ -85,9 +90,7 @@ private:
 	};
 
 	float mfCurveDistanceScaler = 10.0f;
-	float mfManualFadeStart = 0.0f;
-	float mfManualFadeEnd = 150.0f;
-	float mfManualFadeVolume = 0.05f;
+	float mfManualFadeVolume = 0.15f;
 
 	float mfEffectiveFadeStart = 0.0f;
 	float mfEffectiveFadeEnd = 150.0f;

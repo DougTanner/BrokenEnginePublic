@@ -61,6 +61,8 @@ void main()
 	f3Normal.y = 2.0f * f3Normal.y - 1.0f;
 	f3Normal = normalize(f3Normal);
 
+	// DT: TEMP — Terrain Tweaks (rock/sand/snow blending) disabled; source color and normals pass through unchanged.
+#ifdef DT_TERRAIN_TWEAKS
 	vec3 f3SnowDiff = abs(f3Color - vec3(1.0f, 1.0f, 1.0f));
 	float fSnowPercent = 1.0f - clamp(globalLayout.fTerrainSnowMultiplier * (f3SnowDiff.x + f3SnowDiff.y + f3SnowDiff.z), 0.0f, 1.0f);
 
@@ -95,6 +97,9 @@ void main()
 	}
 
 	vec3 f3SunNormal = normalize(f3Normal + fSnowPercent * globalLayout.f4SunMoonNormal.xyz);
+#else
+	vec3 f3SunNormal = f3Normal;
+#endif
 
 	// Sample lighting texture, at world x/y and at projected base-height x/y
 	vec2 f2LightingTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4LightingArea);

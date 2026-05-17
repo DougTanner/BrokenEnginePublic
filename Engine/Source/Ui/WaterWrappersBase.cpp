@@ -73,7 +73,7 @@ Wrapper gWaterLowWavelength(4.0f, 1.0f, 20.0f);
 Wrapper gWaterLowAmplitude(0.01f, 0.0f, 0.05f);
 Wrapper gWaterLowSpeed(0.3f, 0.0f, 1.0f);
 Wrapper gWaterLowSteepness(0.5f, 0.0f, 2.0f);
-Wrapper gWaterLowAngleAdjust(0.1f, 0.0f, 0.5f);
+Wrapper gWaterLowAngleAdjust(0.11f, 0.0f, 0.5f);
 Wrapper gWaterLowWavelengthAdjust(-0.75f, -2.0f, 0.0f);
 Wrapper gWaterLowAmplitudeAdjust(1.0f, 0.0f, 4.0f);
 Wrapper gWaterLowSpeedAdjust(0.288f, 0.0f, 4.0f);
@@ -99,13 +99,13 @@ Wrapper gWaterMediumAmplitudeFadeEnd(300.0f, 0.0f, 1000.0f);
 
 // Depth
 Wrapper gWaterTerrainHeight(3.5f, 1.0f, 8.0f);
-Wrapper gWaterZOffsetTemp(0.0f, -2.0f, 2.0f); // DT: TEMP
+Wrapper gWaterZOffsetTemp(0.0f, -10.0f, 10.0f); // DT: TEMP
 Wrapper gWaterTerrainFade(0.14f, 0.001f, 1.0f);
 Wrapper gWaterTerrainFadeClamp(0.0f, 0.0f, 0.5f);
 Wrapper gWaterHeight(0.0f, -0.1f, 0.03f);
 Wrapper gWaterEarlyOut(0.0f, -0.1f, 0.1f);
 Wrapper gWaterDepthLutFeather(0.2f, 0.01f, 1.0f);
-Wrapper gWaterDepthColorFeather(0.25f, 0.1f, 2.0f);
+Wrapper gWaterDepthColorFeather(0.26f, 0.1f, 2.0f);
 Wrapper gWaterColorBottom(0.134f, -2.0f, 2.0f);
 Wrapper gWaterColorHeight(1.86f, 0.0f, 4.0f);
 Wrapper gWaterFresnel(0.07f, 0.0f, 0.2f); // DT: TEMP

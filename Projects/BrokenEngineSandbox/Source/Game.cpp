@@ -55,7 +55,6 @@ Game::Game()
 	// Start music
 #if defined(BT_CLIENT)
 	StartMenuMusic();
-	engine::gpAudioManager->Set3dSettings(10.0f, 0.0f, 300.0f, 0.15f);
 	engine::gpAudioManager->SetNextMusicTrackCallback([this]()
 	{
 		return GetNextMusicTrack();

@@ -169,9 +169,9 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 		iX = std::clamp(iX, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapWidth - 1));
 		iY = std::clamp(iY, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapHeight - 1));
 
-		// Heightmap value is already engine-meters (DataPacker offset by the global beach-height
-		// constant `kfBeachHeightMeters` defined in BakeIslandIntermediates.cpp). Beach = 0;
-		// negative = water; positive = land. Return directly.
+		// Heightmap value is already engine-meters (DataPacker shifted Gaea's [0,1] normalized
+		// output by the per-island beach offset `Level × elevationMeters` read from the archetype
+		// Sea node). Beach = 0; negative = water; positive = land. Return directly.
 		return rTemplate.mpfHeightmapData[iY * rTemplate.miHeightmapWidth + iX];
 	}
 

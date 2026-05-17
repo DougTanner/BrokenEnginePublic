@@ -27,4 +27,10 @@ extern Wrapper gListenerCurveEndHeight;
 extern Wrapper gListenerCurveLow;
 extern Wrapper gListenerCurveHigh;
 
+// Listener Audible Floor (mfManualFadeVolume multiplier, height-lerped)
+extern Wrapper gListenerAudibleFloorStartHeight;
+extern Wrapper gListenerAudibleFloorEndHeight;
+extern Wrapper gListenerAudibleFloorLow;
+extern Wrapper gListenerAudibleFloorHigh;
+
 } // namespace engine

@@ -9,10 +9,10 @@ namespace common
 inline constexpr int64_t kiAlignmentBytes = 16;
 
 // Open-ocean floor elevation used by the engine for cells with no island placement. Island
-// heightmaps are NOT offset by this constant — DataPacker offsets them by its own global beach
-// height constant (`kfBeachHeightMeters` in BakeIslandIntermediates.cpp) so on-disk pixels are
-// beach-relative (0 = shoreline, negative = underwater down to -kfBeachHeightMeters, positive =
-// land).
+// heightmaps are NOT offset by this constant — DataPacker shifts them per-island by
+// `Level × elevationMeters` (Level read from each archetype's Sea node, fallback 0.1) so
+// on-disk pixels are beach-relative (0 = shoreline, negative = underwater down to the
+// per-island sea floor depth, positive = land).
 inline constexpr float kfOceanDepthMeters = 500.0f;
 
 inline void AlignOutputStream(std::fstream& rFileStream)
