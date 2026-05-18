@@ -367,7 +367,8 @@ struct GlobalLayout
 	float fWaterLowSteepness INIT;
 	float fWaterMediumSteepness INIT;
 	float fWaterWaveNormalBlend INIT;
-	float fWaterGlobalAmplitudeFade INIT;
+	float fWaterLowAmplitude INIT;
+	float fWaterMediumAmplitude INIT;
 	float fWaterZOffsetTemp INIT; // DT: TEMP
 	float fWaterReducedNormalTime INIT;
 	float fWaterReducedNormalTimeTwo INIT;

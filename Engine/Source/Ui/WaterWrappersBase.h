@@ -25,7 +25,6 @@ extern Wrapper gLightingSampledNormalsSpeedMin;
 extern Wrapper gLightingSampledNormalsSpeedMax;
 extern Wrapper gWaterDepthReflectionFeather;
 extern Wrapper gWaterWaveNormalBlend;
-extern Wrapper gWaterGlobalAmplitudeFade;
 
 // Specular - Skybox
 extern Wrapper gLightingWaterSkyboxSunBias;

@@ -36,8 +36,6 @@ Wrapper gLightingSampledNormalsSpeedMax(0.075f, 0.0f, 0.1f);
 Wrapper gWaterDepthReflectionFeather(0.05f, 0.001f, 0.1f);
 // Source-side dampener for the Gerstner vertex normal — blends Water.vert's wave normal toward (0,0,1) before it reaches any downstream consumer.
 Wrapper gWaterWaveNormalBlend(1.0f, 0.0f, 1.0f);
-// Global Gerstner amplitude multiplier — applies inside Gerstner() to both low and medium waves. 0.0 = flat ocean, 1.0 = full waves. Lets the user dial down everything simultaneously when the math gets unstable at high steepness.
-Wrapper gWaterGlobalAmplitudeFade(1.0f, 0.0f, 1.0f);
 
 // Specular - Skybox
 Wrapper gLightingWaterSkyboxSunBias(3.3f, 0.0f, 4.0f);
@@ -86,7 +84,7 @@ Wrapper gWaterLowAmplitudeFadeEnd(600.0f, 0.0f, 1000.0f);
 // Medium frequency waves
 Wrapper gWaterMediumCount(255i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
 Wrapper gWaterMediumWavelength(2.0f, 0.01f, 10.0f);
-Wrapper gWaterMediumAmplitude(0.0015f, 0.0f, 0.01f);
+Wrapper gWaterMediumAmplitude(0.0f, 0.0f, 0.01f); // 0.002f when active
 Wrapper gWaterMediumSpeed(0.1f, 0.001f, 0.5f);
 Wrapper gWaterMediumSteepness(2.0f, 0.0f, 10.0f);
 Wrapper gWaterMediumAngleAdjust(5.5f, 0.0f, 20.0f);

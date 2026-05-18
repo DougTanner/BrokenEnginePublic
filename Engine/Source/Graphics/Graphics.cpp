@@ -398,6 +398,12 @@ void Graphics::Refresh()
 	auto [fSpreadPassCount, fSpreadPassCountPrevious, bSpreadPassCountChanged] = gSpreadPassCount.Changed<float>();
 	if ((bLightingMultiplierChanged || bSpreadTextureMultiplierStartChanged || bSpreadTextureMultiplierEndChanged || bSpreadPassCountChanged) && gpTextureManager != nullptr) [[unlikely]]
 	{
+		LOG(kTemp, kDebug, "Lighting cvar change: deposit {}->{}  spreadStart {}->{}  spreadEnd {}->{}  passCount {}->{}",
+			common::Wb(fLightingMultiplierPrevious, 4), common::Wb(fLightingMultiplier, 4),
+			common::Wb(fSpreadTextureMultiplierStartPrevious, 4), common::Wb(fSpreadTextureMultiplierStart, 4),
+			common::Wb(fSpreadTextureMultiplierEndPrevious, 4), common::Wb(fSpreadTextureMultiplierEnd, 4),
+			common::Wb(fSpreadPassCountPrevious, 1), common::Wb(fSpreadPassCount, 1));
+
 		mDestroyFlags.Set(DestroyFlags::kLightingTextures);
 
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
@@ -589,6 +595,9 @@ bool Graphics::Destroy()
 	// Save flags before RecreateResources() clears them (needed for selective pipeline recreation)
 	DestroyFlags_t savedFlags = mDestroyFlags;
 	bool bSelectiveRecreation = meDestroyType == DestroyType::kPipelines && !savedFlags.Empty() && !(savedFlags & DestroyFlags::kObjectShadows);
+
+	LOG(kTemp, kDebug, "Graphics::Destroy: frame={}  meDestroyType={}  savedFlags={}  bSelectiveRecreation={}",
+		muiFrameCounter, static_cast<int64_t>(meDestroyType), savedFlags, bSelectiveRecreation);
 
 	// Only recreate resources if we're doing partial recreation (not full shutdown)
 	RecreateResources();

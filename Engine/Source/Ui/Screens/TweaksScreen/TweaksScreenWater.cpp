@@ -30,7 +30,6 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Speed Max", &gLightingSampledNormalsSpeedMax},
 	{"Depth Reflection Feather", &gWaterDepthReflectionFeather},
 	{"Wave Normal Blend (Global)", &gWaterWaveNormalBlend},
-	{"Global Amplitude Fade", &gWaterGlobalAmplitudeFade},
 	// Specular - Skybox
 	{"Sun Bias", &gLightingWaterSkyboxSunBias},
 	{"Normal Soften", &gLightingWaterSkyboxNormalSoften},
@@ -148,7 +147,6 @@ void TweaksScreenBase::RenderWaterSection()
 				WrapperSlider("Speed Max", kiSection, 1.0f);
 				WrapperSlider("Depth Reflection Feather", kiSection, 1.0f);
 				WrapperSlider("Wave Normal Blend (Global)", kiSection, 1.0f);
-				WrapperSlider("Global Amplitude Fade", kiSection, 1.0f);
 
 				WrapperSeparatorText("Skybox");
 				WrapperSlider("Sun Bias", kiSection, 1.0f);

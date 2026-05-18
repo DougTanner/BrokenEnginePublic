@@ -26,36 +26,35 @@ layout (location = 1) out vec3 f3OutPosition;
 layout (location = 2) out vec2 f2OutTexcoord;
 layout (location = 3) out vec3 f3OutNormal;
 
-void Gerstner(vec2 f2LocalPosition, float fTerrainElevation)
+// Low- and medium-frequency Gerstner bands are split so main() can skip either
+// independently when its main amplitude slider (gWaterLowAmplitude / gWaterMediumAmplitude)
+// is zero. Both helpers accumulate into shared position/Jacobian state via inout params;
+// caller derives the final normal from `cross(T, B)` once both bands have contributed.
+//
+// Full Jacobian accumulators (proper T×B cross-product, not the simplified Tessendorf form).
+// Simplified `N.z = 1 - Σ Q·ω·A·sin` flips negative once the Finch invariant Σ Q·ω·A·sin > 1
+// and `normalize()` then produces a downward normal. The full Jacobian keeps Q² cross-terms
+// so N stays well-defined into the high-steepness regime.
+//   fA: Σ Q·ω·A · D.x² · sin
+//   fB: Σ Q·ω·A · D.x·D.y · sin
+//   fD: Σ Q·ω·A · D.y² · sin
+//   fG: Σ   ω·A · D.x · cos
+//   fE: Σ   ω·A · D.y · cos
+void GerstnerLow(vec2 f2LocalPosition, float fShoreAmplitude,
+	inout vec3 f3Total,
+	inout float fA, inout float fB, inout float fD,
+	inout float fG, inout float fE)
 {
-	// Shore amplitude fade: 1.0 at/below bottom, 0.0 at/above top
-	float fShoreAmplitude = clamp((fTerrainElevation - globalLayout.fBeachFadeTop) * globalLayout.fBeachFadeInvRange, 0.0f, 1.0f);
-	float fGlobalAmplitudeFade = globalLayout.fWaterGlobalAmplitudeFade;
-
-	if (fShoreAmplitude * fGlobalAmplitudeFade <= 0.0f)
+	if (fShoreAmplitude <= 0.0f)
 	{
-		f3OutPosition = vec3(f2LocalPosition, 0.0f);
-		f3OutNormal = vec3(0.0f, 0.0f, 1.0f);
 		return;
 	}
-
-	vec3 f3Total = vec3(f2LocalPosition, 0.0f);
-
-	// Full Jacobian accumulators (proper T×B cross-product, not the simplified Tessendorf form).
-	// Simplified `N.z = 1 - Σ Q·ω·A·sin` flips negative once the Finch invariant Σ Q·ω·A·sin > 1
-	// and `normalize()` then produces a downward normal. The full Jacobian keeps Q² cross-terms
-	// so N stays well-defined into the high-steepness regime.
-	float fA = 0.0f; // Σ Q·ω·A · D.x² · sin
-	float fB = 0.0f; // Σ Q·ω·A · D.x·D.y · sin
-	float fD = 0.0f; // Σ Q·ω·A · D.y² · sin
-	float fG = 0.0f; // Σ   ω·A · D.x · cos
-	float fE = 0.0f; // Σ   ω·A · D.y · cos
 
 	float fLowSteepness = globalLayout.fWaterLowSteepness;
 	for (int i = 0; i < globalLayout.iWaterLowCount; ++i)
 	{
 		float fOmega = mainLayout.pf4LowWavesTwo[i].x;
-		float fAmplitude = mainLayout.pf4LowWavesTwo[i].y * fShoreAmplitude * fGlobalAmplitudeFade;
+		float fAmplitude = mainLayout.pf4LowWavesTwo[i].y * fShoreAmplitude;
 		vec2 f2Direction = mainLayout.pf4LowWavesOne[i].xy;
 
 		float fReducedPhiTime = mainLayout.pf4LowWavesTwo[i].w;
@@ -75,12 +74,18 @@ void Gerstner(vec2 f2LocalPosition, float fTerrainElevation)
 		fG += fWACos * f2Direction.x;
 		fE += fWACos * f2Direction.y;
 	}
+}
 
+void GerstnerMedium(vec2 f2LocalPosition,
+	inout vec3 f3Total,
+	inout float fA, inout float fB, inout float fD,
+	inout float fG, inout float fE)
+{
 	float fMediumSteepness = globalLayout.fWaterMediumSteepness;
 	for (int i = 0; i < globalLayout.iWaterMediumCount; ++i)
 	{
 		float fOmega = mainLayout.pf4MediumWavesTwo[i].x;
-		float fAmplitude = mainLayout.pf4MediumWavesTwo[i].y * fGlobalAmplitudeFade;
+		float fAmplitude = mainLayout.pf4MediumWavesTwo[i].y;
 		vec2 f2Direction = mainLayout.pf4MediumWavesOne[i].xy;
 
 		float fReducedPhiTime = mainLayout.pf4MediumWavesTwo[i].w;
@@ -100,15 +105,6 @@ void Gerstner(vec2 f2LocalPosition, float fTerrainElevation)
 		fG += fWACos * f2Direction.x;
 		fE += fWACos * f2Direction.y;
 	}
-
-	f3OutPosition = f3Total;
-
-	// Tangent ∂P/∂u and bitangent ∂P/∂v of the summed Gerstner surface; normalize(cross) is the full Jacobian normal.
-	vec3 f3Tangent   = vec3(1.0f - fA, -fB, fG);
-	vec3 f3Bitangent = vec3(-fB, 1.0f - fD, fE);
-	vec3 f3WaveNormal = normalize(cross(f3Tangent, f3Bitangent));
-
-	f3OutNormal = normalize(mix(vec3(0.0f, 0.0f, 1.0f), f3WaveNormal, globalLayout.fWaterWaveNormalBlend));
 }
 
 void main()
@@ -122,11 +118,11 @@ void main()
 	// Camera-relative position for precision in fragment shader UV computation
 	f2OutInitialPosition = f2WorldPosition - vec2(globalLayout.fWaterOriginX, globalLayout.fWaterOriginY);
 
+	// Over land (or no amplitude): skip Gerstner — the Z scale below would collapse to 0 anyway.
 	float fTerrainElevation = textureLod(elevationTextureSampler, WorldToVisibleArea(vec3(f2WorldPosition, 0.0f), globalLayout.f4VisibleArea), 0.0f).x - globalLayout.fWaterHeight;
-
-	if (fTerrainElevation >= 0.0f)
+	float fGerstnerAmplitude = globalLayout.fWaterLowAmplitude + globalLayout.fWaterMediumAmplitude;
+	if (fTerrainElevation >= 0.0f || fGerstnerAmplitude <= 0.0f)
 	{
-		// Over land: skip Gerstner — the Z scale below would collapse to 0 anyway.
 		f3OutPosition = vec3(f2WorldPosition, globalLayout.fWaterZOffsetTemp);
 		f3OutNormal = vec3(0.0f, 0.0f, 1.0f);
 		f2OutTexcoord = WorldToVisibleArea(f3OutPosition, globalLayout.f4VisibleArea);
@@ -134,7 +130,35 @@ void main()
 		return;
 	}
 
-	Gerstner(f2OutInitialPosition, fTerrainElevation);
+	// Shore amplitude fade: 1.0 at/below bottom, 0.0 at/above top. Applied to low band only;
+	// medium band is unaffected and the Z-taper below scales its displacement toward 0 at the beach.
+	float fShoreAmplitude = clamp((fTerrainElevation - globalLayout.fBeachFadeTop) * globalLayout.fBeachFadeInvRange, 0.0f, 1.0f);
+
+	vec3 f3Total = vec3(f2OutInitialPosition, 0.0f);
+	float fA = 0.0f;
+	float fB = 0.0f;
+	float fD = 0.0f;
+	float fG = 0.0f;
+	float fE = 0.0f;
+
+	if (globalLayout.fWaterLowAmplitude > 0.0f)
+	{
+		GerstnerLow(f2OutInitialPosition, fShoreAmplitude, f3Total, fA, fB, fD, fG, fE);
+	}
+	if (globalLayout.fWaterMediumAmplitude > 0.0f)
+	{
+		GerstnerMedium(f2OutInitialPosition, f3Total, fA, fB, fD, fG, fE);
+	}
+
+	// Tangent ∂P/∂u and bitangent ∂P/∂v of the summed Gerstner surface; normalize(cross) is the full Jacobian normal.
+	// When both bands skipped, accumulators stay at zero → tangent (1,0,0), bitangent (0,1,0), normal (0,0,1).
+	vec3 f3Tangent   = vec3(1.0f - fA, -fB, fG);
+	vec3 f3Bitangent = vec3(-fB, 1.0f - fD, fE);
+	vec3 f3WaveNormal = normalize(cross(f3Tangent, f3Bitangent));
+
+	f3OutPosition = f3Total;
+	f3OutNormal = normalize(mix(vec3(0.0f, 0.0f, 1.0f), f3WaveNormal, globalLayout.fWaterWaveNormalBlend));
+
 	f3OutPosition.xy += vec2(globalLayout.fWaterOriginX, globalLayout.fWaterOriginY);
 	f3OutPosition.z += globalLayout.fWaterHeight;
 

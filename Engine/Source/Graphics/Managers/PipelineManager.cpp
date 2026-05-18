@@ -714,6 +714,17 @@ void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
 {
 	using enum DestroyFlags;
 
+	const bool bStage1Lighting     = (flags & kLightingTextures) || (flags & kTerrainElevation);
+	const bool bStageShadows       = (flags & kShadowTextures) || (flags & kObjectShadows);
+	const bool bStageTerrainWater  = (flags & kLightingTextures) || (flags & kShadowTextures) || (flags & kObjectShadows)
+		|| (flags & kTerrainElevation) || (flags & kTerrainColor) || (flags & kTerrainNormal) || (flags & kTerrainAO)
+		|| (flags & kSmokeTextures);
+	const bool bStageTerrainData   = (flags & kTerrainElevation) || (flags & kTerrainColor) || (flags & kTerrainNormal) || (flags & kTerrainAO);
+	const bool bStageSmokeWind     = (flags & kSmokeTextures) || (flags & kTerrainElevation);
+	const bool bStageParticles     = (flags & kSmokeTextures) || (flags & kTerrainElevation) || (flags & kLightingTextures);
+	LOG(kTemp, kDebug, "RecreatePipelineGroups: flags={}  stages: lighting={} shadows={} terrainWater={} terrainData={} smokeWind={} particles={}",
+		flags, bStage1Lighting, bStageShadows, bStageTerrainWater, bStageTerrainData, bStageSmokeWind, bStageParticles);
+
 	// Stage 1: Lighting pipelines (must come before terrain/water and particles)
 	if ((flags & kLightingTextures) || (flags & kTerrainElevation))
 	{
@@ -732,6 +743,22 @@ void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
 				rpPipeline->Create(rpPipeline->mInfo);
 			}
 		}
+
+		// Model pipelines auto-append mppLightingFinalTextures via the kModel descriptor flag
+		// (Pipeline.cpp:64-98). Their cached descriptor sets reference the lighting textures' old
+		// VkImageView handles, which CreateLightingTextures just destroyed — recreate so descriptors
+		// rebind to the new handles. Same dependency exists for mShadowBlurTexture / mSmokeTextureOne,
+		// so kShadowTextures / kSmokeTextures changes have the same bug (not fixed here).
+		int64_t iModelRecreateCount = 0;
+		for (DynamicModelPipelineType eType : {kDynamicModelPipelineModel, kDynamicModelPipelineModelShadow})
+		{
+			for (auto& [rCrc, rpModelPipeline] : mDynamicPipelines.mModelPipelineMaps[eType])
+			{
+				rpModelPipeline->Recreate();
+				++iModelRecreateCount;
+			}
+		}
+		LOG(kTemp, kDebug, "RecreatePipelineGroups: recreated {} model pipelines on kLightingTextures", iModelRecreateCount);
 	}
 
 	// Debug texture pipeline references both lighting outputs (deposit/spread/combine) and the

@@ -5,6 +5,13 @@ namespace engine
 
 void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipelineInfo, bool bAddModelDescriptors, bool bIsShadow)
 {
+	// Snapshot inputs so Recreate() can reproduce them. Must capture before any mutation (the kModel
+	// flag is appended into the local copy below — storing the post-mutation copy would trip the
+	// kEmpty ASSERT in Pipeline::Create on the second pass).
+	mInfoTemplate = rPipelineInfo;
+	mbAddModelDescriptors = bAddModelDescriptors;
+	mbIsShadow = bIsShadow;
+
 	PipelineInfo pipelineInfo = rPipelineInfo;
 
 	// Add Model flag to descriptors
@@ -77,6 +84,11 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 		mpiFirstIndices[i] = puiIndexStarts[i];
 		mpiIndexCounts[i] = (i + 1 == rSceneHeader.uiMaterialCount ? pipelineInfo.pVertexBuffer->mInfo.iCount : puiIndexStarts[i + 1]) - mpiFirstIndices[i];
 	}
+}
+
+void ModelPipeline::Recreate()
+{
+	Create(mSceneCrc, mInfoTemplate, mbAddModelDescriptors, mbIsShadow);
 }
 
 void ModelPipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& rf4PushConstants, ModelDrawPass ePass)
