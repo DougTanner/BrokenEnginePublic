@@ -32,6 +32,13 @@ void Gerstner(vec2 f2LocalPosition, float fTerrainElevation)
 	float fShoreAmplitude = clamp((fTerrainElevation - globalLayout.fBeachFadeTop) * globalLayout.fBeachFadeInvRange, 0.0f, 1.0f);
 	float fGlobalAmplitudeFade = globalLayout.fWaterGlobalAmplitudeFade;
 
+	if (fShoreAmplitude * fGlobalAmplitudeFade <= 0.0f)
+	{
+		f3OutPosition = vec3(f2LocalPosition, 0.0f);
+		f3OutNormal = vec3(0.0f, 0.0f, 1.0f);
+		return;
+	}
+
 	vec3 f3Total = vec3(f2LocalPosition, 0.0f);
 
 	// Full Jacobian accumulators (proper T×B cross-product, not the simplified Tessendorf form).
