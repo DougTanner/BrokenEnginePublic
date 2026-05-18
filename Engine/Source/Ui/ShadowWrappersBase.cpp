@@ -3,6 +3,9 @@
 namespace engine
 {
 
+// Quality
+Wrapper gShadowRenderMultiplier(0.1f, 0.1f, 1.0f);
+
 // Feather
 Wrapper gShadowFeatherNoon(2.5f, 0.0f, 8.0f);
 Wrapper gShadowFeatherNoonOffset(0.92f, 0.0f, 5.0f);

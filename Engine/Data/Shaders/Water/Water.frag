@@ -229,7 +229,7 @@ void main()
 	// f3SkyboxColor mix above breaks pure linearity in (Sun + Moon), so a per-channel divide
 	// would zero entire channels when Sun.c + Moon.c happens to be ~0 (e.g. morning sun has B=0).
 	float fShadowMoon = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
-	float fShadowSun  = fShadowMoon * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x);
+	float fShadowSun  = fShadowMoon * max(0.2f, texture(shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea)).x);
 	float fSunWeight  = dot(f3WaterSun,  vec3(0.299f, 0.587f, 0.114f));
 	float fMoonWeight = dot(f3WaterMoon, vec3(0.299f, 0.587f, 0.114f));
 	float fEffectiveShadow = (fShadowSun * fSunWeight + fShadowMoon * fMoonWeight) / max(0.001f, fSunWeight + fMoonWeight);

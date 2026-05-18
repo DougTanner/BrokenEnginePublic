@@ -221,6 +221,16 @@ TextureManager::TextureManager()
 	mRenderTargetTextures.mNormalsTextures.resize(shaders::kiMaxIslands);
 	mRenderTargetTextures.mAmbientOcclusionTextures.resize(shaders::kiMaxIslands);
 
+	// Device-lost recovery: clear per-template slot residency state so the next AcquireTextureSlot
+	// runs the first-mint path (re-points bindless arrays at real Textures, re-registers both
+	// kPipelineTerrainElevation and kPipelineShadowElevation bindings). Without this, every island
+	// would silently stay on the placeholder set up by the fan-out loop below — see
+	// Graphics/DynamicIslandLoadingFollowups.md Follow-up 1.
+	if (gpIslandTerrain != nullptr)
+	{
+		gpIslandTerrain->ResetTextureSlots();
+	}
+
 	// Island textures load dynamically per ClientDataReceiver::ApplyReceivedStaticData. Slot 0 is
 	// a permanent neutral placeholder; higher slots alias slot 0 until AcquireTextureSlot binds a
 	// real Texture* and RestorationSweep adopts the loaded chunks.

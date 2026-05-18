@@ -24,7 +24,7 @@ void RenderTargetTextures::Create()
 
 void RenderTargetTextures::CreateShadowTextures()
 {
-	auto [iShadowTextureX, iShadowTextureY] = TextureManager::DetailTextureSize(gWorldDetail.Get());
+	auto [iShadowTextureX, iShadowTextureY] = TextureManager::DetailTextureSize(gShadowRenderMultiplier.Get());
 	LOG(kGraphics, kDebug, "iShadowTexture: {} x {}", iShadowTextureX, iShadowTextureY);
 	mShadowElevationTexture.Create(
 	{

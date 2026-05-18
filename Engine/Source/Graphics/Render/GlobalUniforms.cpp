@@ -232,13 +232,45 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	rGlobalLayout.iObjectShadowTextureWidth = gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mInfo.extent.width; // X pixels
 	rGlobalLayout.iObjectShadowTextureHeight = gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mInfo.extent.height; // Y pixels
 
-	rGlobalLayout.f4VisibleAreaShadowsExtra = game::gpCamera->f4RenderVisibleArea;
-	float fQuads = (game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / game::gpCamera->f2VisibleAreaQuadSize.x;
+	// Shadow area: LOD-stable world size (mfLodStableShadow* latched in CameraBase, bit-stable
+	// within an iLod). Origin is camera-centered and snapped to integer shadow-texel boundaries.
+	// Two stability properties combine to eliminate shimmer:
+	//  - XY pan at constant zoom: width/height bit-stable, snap origin moves in integer-texel steps.
+	//  - Z motion within iLod: width/height bit-stable (it's the same LOD-latched value across every
+	//    zoom-bucket crossing), so fShadowTexelX is bit-stable. Without this, fVisibleWidth changed
+	//    per integer-meter zoom-bucket -> fShadowTexelX changed -> shadow content resampled at a new
+	//    scale every meter -> high-contrast edges flickered.
+	// One-frame texel-scale pop at LOD transitions (kfMinEyeHeight * 4^L, 5% hysteresis) is accepted.
+	float fShadowWorldWidth = game::gpCamera->mfLodStableShadowWidth;
+	float fShadowWorldHeight = game::gpCamera->mfLodStableShadowHeight;
+	float fShadowTexelX = 0.0f;
+	if (fShadowWorldWidth > 0.0f && fShadowWorldHeight > 0.0f)
+	{
+		fShadowTexelX = fShadowWorldWidth / fShadowTextureSizeWidth;
+		float fShadowTexelY = fShadowWorldHeight / fShadowTextureSizeHeight;
+		XMFLOAT4A f4CameraPosition {};
+		XMStoreFloat4A(&f4CameraPosition, game::gpCamera->mVecPosition);
+		int64_t iLeftTexel = static_cast<int64_t>(std::floor((f4CameraPosition.x - fShadowWorldWidth * 0.5f) / fShadowTexelX));
+		int64_t iTopTexel = static_cast<int64_t>(std::floor((f4CameraPosition.y + fShadowWorldHeight * 0.5f) / fShadowTexelY));
+		float fLeft = static_cast<float>(iLeftTexel) * fShadowTexelX;
+		float fTop = static_cast<float>(iTopTexel) * fShadowTexelY;
+		rGlobalLayout.f4ShadowArea = {fLeft, fTop, fLeft + fShadowWorldWidth, fTop - fShadowWorldHeight};
+	}
+	else
+	{
+		rGlobalLayout.f4ShadowArea = game::gpCamera->f4RenderVisibleArea;
+	}
+
+	// Sun-direction extension: extend by half the shadow-area width on the sun side. The elevation
+	// texture is 1.5x wider than the shadow texture and rasterizes f4ShadowAreaExtra; the extension
+	// fills exactly the extra half.
+	rGlobalLayout.f4ShadowAreaExtra = rGlobalLayout.f4ShadowArea;
+	float fHalfWidth = fShadowWorldWidth * 0.5f;
 	if (fSunAngle >= XM_PI + XM_PIDIV2 || fSunAngle < XM_PIDIV2)
 	{
-		rGlobalLayout.f4VisibleAreaShadowsExtra.z += (fQuads / 2.0f) * game::gpCamera->f2VisibleAreaQuadSize.x;
+		rGlobalLayout.f4ShadowAreaExtra.z += fHalfWidth;
 
-		rGlobalLayout.fShadowWidthScale = (game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / fShadowTextureSizeWidth;
+		rGlobalLayout.fShadowWidthScale = fShadowTexelX;
 		if (fSunAngle >= 0.0f && fSunAngle < XM_PIDIV2)
 		{
 			rGlobalLayout.fShadowSunAngle = fSunAngle;
@@ -255,9 +287,9 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	}
 	else
 	{
-		rGlobalLayout.f4VisibleAreaShadowsExtra.x -= (fQuads / 2.0f) * game::gpCamera->f2VisibleAreaQuadSize.x;
+		rGlobalLayout.f4ShadowAreaExtra.x -= fHalfWidth;
 
-		rGlobalLayout.fShadowWidthScale = -(game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / fShadowTextureSizeWidth;
+		rGlobalLayout.fShadowWidthScale = -fShadowTexelX;
 		rGlobalLayout.fShadowSunAngle = fSunAngle >= XM_PI ? fSunAngle - XM_PI : XM_PI - fSunAngle;
 		rGlobalLayout.fShadowDirectionMultiplier = -1.0f;
 

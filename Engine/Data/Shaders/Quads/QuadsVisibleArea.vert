@@ -50,7 +50,7 @@ void main()
 	}
 	else if (int(pushConstantsLayout.f4Pipeline.x) == 1)
 	{
-		f4VisibleArea = globalLayout.f4VisibleAreaShadowsExtra;
+		f4VisibleArea = globalLayout.f4ShadowAreaExtra;
 	}
 	else if (int(pushConstantsLayout.f4Pipeline.x) == 2)
 	{

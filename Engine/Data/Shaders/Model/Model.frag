@@ -285,7 +285,8 @@ void main()
 
 	vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4VisibleArea);
 	vec2 f2LightingPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
-	float fShadow = max(mainLayout.fPbrShadowFloor, texture(shadowTextureSampler, f2VisibleAreaPosition).r);
+	vec2 f2ShadowPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4ShadowArea);
+	float fShadow = max(mainLayout.fPbrShadowFloor, texture(shadowTextureSampler, f2ShadowPosition).r);
 	const float fShadowMoon = 1.0; // moon bypasses terrain shadow; Model.frag has no other shadow inputs
 
 	// Accumulate lighting

@@ -257,6 +257,11 @@ int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
 	// Hot path: slot assigned, GPU resources resident. Return early.
 	if (rTemplate.miTextureSlot >= 0 && rTemplate.mbGpuResident)
 	{
+		static int64_t siHotPathLogCount = 0;
+		if (++siHotPathLogCount <= 8)
+		{
+			LOG(kTemp, kDebug, "AcquireTextureSlot HOT: crc={} slot={} frame={}", islandCrc, rTemplate.miTextureSlot, gpGraphics != nullptr ? gpGraphics->muiFrameCounter : 0u);
+		}
 		return rTemplate.miTextureSlot;
 	}
 
@@ -320,6 +325,7 @@ int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
 		rTemplate.mbGpuResident = false;
 		gpFileManager->RequestChunkLoad(textureCrcs, LoadPriority::kRealtime);
 		LOG(kGraphics, kVerbose, "First-mint slot={} islandCrc={}", iSlot, islandCrc);
+		LOG(kTemp, kDebug, "AcquireTextureSlot FIRST-MINT: crc={} slot={} frame={}", islandCrc, iSlot, gpGraphics != nullptr ? gpGraphics->muiFrameCounter : 0u);
 
 		return iSlot;
 	}
@@ -335,6 +341,9 @@ int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
 	}
 	gpFileManager->RequestChunkLoad(textureCrcs, LoadPriority::kRealtime);
 	LOG(kLoading, kVerbose, "Re-acquire islandCrc={} slot={}, requesting chunk loads", islandCrc, rTemplate.miTextureSlot);
+	LOG(kTemp, kDebug, "AcquireTextureSlot RE-ACQUIRE: crc={} slot={} elevationVkImageNull={} frame={}",
+		islandCrc, rTemplate.miTextureSlot, rTemplate.mElevationTexture.mVkImage == VK_NULL_HANDLE,
+		gpGraphics != nullptr ? gpGraphics->muiFrameCounter : 0u);
 	return rTemplate.miTextureSlot;
 }
 
@@ -444,6 +453,10 @@ void IslandTerrain::RestorationSweep()
 			// template-owned mElevationTexture has no chunk CRC).
 			gpTextureManager->mTextureDescriptors.UpdateArrayBindingsForKey(rCrc);
 			LOG(kGraphics, kVerbose, "Island resident islandCrc={} slot={}", rCrc, rTemplate.miTextureSlot);
+			LOG(kTemp, kDebug, "RestorationSweep RESIDENT: crc={} slot={} elevationVkImageView={}  frame={}",
+				rCrc, rTemplate.miTextureSlot,
+				reinterpret_cast<uintptr_t>(rTemplate.mElevationTexture.mVkImageView),
+				gpGraphics->muiFrameCounter);
 		}
 	}
 }
@@ -482,11 +495,26 @@ void IslandTerrain::ReleaseGpuResources()
 		// detects mVkImage == VK_NULL_HANDLE and re-Creates from the resident in-memory heightmap.
 		rTemplate.mElevationTexture.FreeGpuResources();
 		// Clear residency so the hot-path early-return in AcquireTextureSlot doesn't short-circuit
-		// the elevation re-Create + chunk-reload branch. (Graphics/DynamicIslandLoadingFollowups.md
-		// owns the broader miTextureSlot reset that also fixes the dangling color/normals/AO
-		// mRenderTargetTextures pointers into the wiped TextureManager::mTextureMap.)
+		// the elevation re-Create + chunk-reload branch. The full miTextureSlot reset that re-points
+		// the dangling color/normals/AO mRenderTargetTextures slots happens in ResetTextureSlots,
+		// which TextureManager's ctor calls.
 		rTemplate.mbGpuResident = false;
 	}
+}
+
+void IslandTerrain::ResetTextureSlots()
+{
+	int64_t iCount = 0;
+	for (auto& [rCrc, rTemplate] : mIslands)
+	{
+		rTemplate.miTextureSlot = -1;
+		rTemplate.mbGpuResident = false;
+		rTemplate.miRefCount = 0;
+		rTemplate.muiLastUsedRenderFrame = 0;
+		++iCount;
+	}
+	miNextTextureSlot = 1;
+	LOG(kTemp, kDebug, "IslandTerrain::ResetTextureSlots: cleared {} templates", iCount);
 }
 #endif
 

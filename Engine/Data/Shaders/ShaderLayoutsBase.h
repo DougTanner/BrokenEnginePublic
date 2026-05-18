@@ -168,7 +168,8 @@ struct GlobalLayout
 
 	vec2 f2CameraPosition INIT;
 	vec4 f4VisibleArea INIT;
-	vec4 f4VisibleAreaShadowsExtra INIT;
+	vec4 f4ShadowArea INIT;
+	vec4 f4ShadowAreaExtra INIT;
 
 	vec4 f4SunMoonNormal INIT;
 	vec4 f4SunColor INIT;

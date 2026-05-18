@@ -387,7 +387,17 @@ void Graphics::Refresh()
 	{
 		LOG(kGraphics, kDebug, "World detail: {} -> {}", fPreviousWorldDetail, fWorldDetail);
 
-		mDestroyFlags.Set({DestroyFlags::kShadowTextures, DestroyFlags::kObjectShadows, DestroyFlags::kLightingTextures, DestroyFlags::kWaterMesh});
+		mDestroyFlags.Set({DestroyFlags::kObjectShadows, DestroyFlags::kLightingTextures, DestroyFlags::kWaterMesh});
+
+		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
+	}
+
+	auto [fShadowRenderMultiplier, fShadowRenderMultiplierPrevious, bShadowRenderMultiplierChanged] = gShadowRenderMultiplier.Changed<float>();
+	if (bShadowRenderMultiplierChanged && gpTextureManager != nullptr) [[unlikely]]
+	{
+		LOG(kGraphics, kDebug, "Shadow render multiplier: {} -> {}", common::Wb(fShadowRenderMultiplierPrevious, 3), common::Wb(fShadowRenderMultiplier, 3));
+
+		mDestroyFlags.Set(DestroyFlags::kShadowTextures);
 
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}

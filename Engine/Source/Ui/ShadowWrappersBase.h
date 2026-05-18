@@ -5,6 +5,9 @@
 namespace engine
 {
 
+// Quality / Perf
+extern Wrapper gShadowRenderMultiplier;
+
 // Feather
 extern Wrapper gShadowFeatherNoon;
 extern Wrapper gShadowFeatherNoonOffset;

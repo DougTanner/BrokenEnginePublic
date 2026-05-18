@@ -239,8 +239,12 @@ void TextureDescriptors::UpdateArrayBindingsForKey(common::crc_t bindingKey)
 	auto it = mTextureBindings.find(bindingKey);
 	if (it == mTextureBindings.end())
 	{
+		LOG(kTemp, kDebug, "UpdateArrayBindingsForKey: key={} NOT FOUND in mTextureBindings  frame={}",
+			bindingKey, gpGraphics != nullptr ? gpGraphics->muiFrameCounter : 0u);
 		return;
 	}
+	LOG(kTemp, kDebug, "UpdateArrayBindingsForKey: key={} bindings={}  frame={}",
+		bindingKey, it->second.size(), gpGraphics != nullptr ? gpGraphics->muiFrameCounter : 0u);
 	for (const TextureBinding& rBinding : it->second)
 	{
 		ASSERT(!rBinding.textures.empty());

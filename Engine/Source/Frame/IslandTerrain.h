@@ -130,6 +130,14 @@ public:
 	// through gpDeviceManager's allocator — must be released before mpDeviceManager.reset().
 	// Called from Graphics::Destroy() at the kSurface tier.
 	void ReleaseGpuResources();
+
+	// Reset per-template slot-assignment state so the next AcquireTextureSlot call runs the
+	// first-mint path (re-pointing bindless array slots from the new TextureManager's placeholders
+	// to real Textures, re-registering both kPipelineTerrainElevation and kPipelineShadowElevation
+	// bindings). Required after a kSurface-tier Graphics teardown destroys TextureManager — the
+	// stale miTextureSlot >= 0 would otherwise short-circuit AcquireTextureSlot's hot path and
+	// strand every island on the new placeholder forever. Called from TextureManager ctor.
+	void ResetTextureSlots();
 #endif
 
 	std::unordered_map<common::crc_t, IslandTemplate> mIslands;

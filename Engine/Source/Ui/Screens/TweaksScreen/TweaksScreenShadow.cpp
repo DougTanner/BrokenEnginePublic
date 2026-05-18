@@ -12,6 +12,8 @@ namespace
 {
 const TweaksSliderMapRegistrar gShadowRegistrar
 {
+	// Quality / Perf
+	{"Resolution", &gShadowRenderMultiplier},
 	// Feather
 	{"Feather Noon", &gShadowFeatherNoon},
 	{"Feather Noon Offset", &gShadowFeatherNoonOffset},
@@ -39,6 +41,9 @@ const TweaksSliderMapRegistrar gShadowRegistrar
 void TweaksScreenBase::RenderShadowSection()
 {
 	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kShadow);
+
+	WrapperSeparatorText("Quality / Perf");
+	WrapperSlider("Resolution", kiSection);
 
 	WrapperSeparatorText("Feather");
 	WrapperSlider("Feather Noon", kiSection);

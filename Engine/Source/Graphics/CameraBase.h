@@ -33,6 +33,15 @@ public:
 	// Higher LOD = fewer mesh quads (each dim halved per LOD; total quads /4 per LOD).
 	int miVisibleAreaLod = 0;
 
+	// LOD-stable shadow-region world size, latched once per LOD transition. Sized to the LOD upper
+	// bound (kfMinEyeHeight * 4^(iLod+1)) so it always covers the visible area at any eye distance
+	// within the LOD. Z-stable: bit-identical across all the per-integer-meter zoom-bucket crossings
+	// that re-latch f2VisibleAreaQuadSize. Used by shadow snap to eliminate texel-scale shimmer on
+	// Z motion (the shadow texel is fVisibleWidth/fTextureWidth — if fVisibleWidth jumps per meter,
+	// the shadow resamples at a different scale each frame and high-contrast edges flicker).
+	float mfLodStableShadowWidth = 0.0f;
+	float mfLodStableShadowHeight = 0.0f;
+
 	CameraBase() = default;
 	virtual ~CameraBase() = default;
 
