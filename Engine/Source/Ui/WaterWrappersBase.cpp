@@ -104,8 +104,8 @@ Wrapper gWaterTerrainFade(0.03f, 0.001f, 0.5f);
 Wrapper gWaterTerrainFadeClamp(0.0f, 0.0f, 0.5f);
 Wrapper gWaterHeight(0.0f, -0.1f, 0.03f);
 Wrapper gWaterEarlyOut(0.0f, -0.1f, 0.1f);
-Wrapper gWaterDepthLutFeather(0.01f, 0.001f, 1.0f);
-Wrapper gWaterDepthColorFeather(0.21f, 0.1f, 2.0f);
+Wrapper gWaterDepthLutFeather(0.02f, 0.001f, 1.0f);
+Wrapper gWaterDepthColorFeather(0.151f, 0.1f, 2.0f);
 Wrapper gWaterColorBottom(0.134f, -2.0f, 2.0f);
 Wrapper gWaterColorHeight(1.86f, 0.0f, 4.0f);
 Wrapper gWaterFresnel(0.07f, 0.0f, 0.2f); // DT: TEMP
