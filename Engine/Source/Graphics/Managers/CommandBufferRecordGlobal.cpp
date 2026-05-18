@@ -88,22 +88,6 @@ void CommandBufferRecordGlobal::RecordTerrainPasses(VkCommandBuffer vkCommandBuf
 	// triangles (no real GPU cost).
 	int64_t iIslandCount = gpIslands->miTemplateCount * kiMaxPlacementsPerTemplate;
 
-	if (iCommandBuffer == 0)
-	{
-		auto& rElev = gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture;
-		auto& rColor = gpTextureManager->mRenderTargetTextures.mTerrainColorTexture;
-		LOG(kTemp, kDebug, "RecordTerrainPasses: frame={} islandCount={} elevPipeline={} elevFb={} elevView={} elevExtent=({},{})  colorPipeline={} colorFb={} colorView={} colorExtent=({},{})",
-			gpGraphics->muiFrameCounter, iIslandCount,
-			reinterpret_cast<uintptr_t>(pPipelines[kPipelineTerrainElevation].mVkPipeline),
-			reinterpret_cast<uintptr_t>(rElev.mVkFramebuffer),
-			reinterpret_cast<uintptr_t>(rElev.mVkImageView),
-			rElev.mInfo.extent.width, rElev.mInfo.extent.height,
-			reinterpret_cast<uintptr_t>(pPipelines[kPipelineTerrainColor].mVkPipeline),
-			reinterpret_cast<uintptr_t>(rColor.mVkFramebuffer),
-			reinterpret_cast<uintptr_t>(rColor.mVkImageView),
-			rColor.mInfo.extent.width, rColor.mInfo.extent.height);
-	}
-
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainGen);
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainElevation);

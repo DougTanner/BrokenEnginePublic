@@ -18,4 +18,4 @@ Fragment and vertex shaders for rendering dynamic lights, plus compute shaders f
 
 **Pre-blur**: After light-type textures load, H/V blur produces 2x-size RGBA8 render targets registered in the bindless array under a salted CRC (`originalCrc ^ "BLUR"`). Deposit shaders sample the blurred version; visible light sprites keep the original. Parameter changes trigger re-blur.
 
-**Stable lighting area**: Dedicated area with ceil'd dimensions and a texel-grid-snapped origin (see `GlobalUniforms.cpp`), independent of visible area, eliminating sub-texel flicker.
+**Stable lighting area**: Dedicated area sized from the camera's LOD-stable width/height with a texel-grid-snapped origin (see `GlobalUniforms.cpp`), independent of visible area, eliminating sub-texel flicker on Z motion.

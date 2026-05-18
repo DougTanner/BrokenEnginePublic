@@ -13,12 +13,6 @@ using enum TextureLayout;
 
 void RenderTargetTextures::DestroyLightingTextures()
 {
-	LOG(kTemp, kDebug, "DestroyLightingTextures: frame={}  deposit=({},{})  spread0=({},{})  combine0=({},{})",
-		gpGraphics != nullptr ? gpGraphics->muiFrameCounter : 0u,
-		mpLightingTextures[0].mInfo.extent.width, mpLightingTextures[0].mInfo.extent.height,
-		mpSpreadTextures[0][0].mInfo.extent.width, mpSpreadTextures[0][0].mInfo.extent.height,
-		mpCombineTextures[0].mInfo.extent.width, mpCombineTextures[0].mInfo.extent.height);
-
 	miDebugTextureCount = 0;
 
 	for (int64_t i = 0; i < 3; ++i)
@@ -62,12 +56,6 @@ void RenderTargetTextures::CreateLightingTextures()
 	DestroyLightingTextures();
 
 	auto [iLightingTextureX, iLightingTextureY] = TextureManager::DetailTextureSize(gLightingDepositTextureMultiplier.Get());
-	LOG(kTemp, kDebug, "CreateLightingTextures: frame={}  deposit=({},{})  startMult={}  endMult={}  passCount={}",
-		gpGraphics != nullptr ? gpGraphics->muiFrameCounter : 0u,
-		iLightingTextureX, iLightingTextureY,
-		common::Wb(gSpreadTextureMultiplierStart.Get(), 4),
-		common::Wb(gSpreadTextureMultiplierEnd.Get(), 4),
-		static_cast<int64_t>(gSpreadPassCount.Get()));
 	// Create 3 lighting textures without individual render passes
 	TextureInfo lightingTextureInfo
 	{
@@ -201,7 +189,6 @@ void RenderTargetTextures::CreateLightingTextures()
 		float fT = (iPassCount > 1) ? static_cast<float>(iPass) / static_cast<float>(iPassCount - 1) : 0.0f;
 		float fMult = fSpreadMultStart + fT * (fSpreadMultEnd - fSpreadMultStart);
 		auto [iPassX, iPassY] = TextureManager::DetailTextureSize(fMult);
-		LOG(kTemp, kDebug, "Spread pass {}: t={}  mult={}  extent=({},{})", iPass, common::Wb(fT, 4), common::Wb(fMult, 4), iPassX, iPassY);
 		for (int64_t iColor = 0; iColor < 3; ++iColor)
 		{
 			std::string strSpreadName = std::format("Spread{}_{}", pColorNames[iColor], iPass);
@@ -327,7 +314,6 @@ void RenderTargetTextures::CreateLightingTextures()
 
 	// Create combine textures (UNORM tone-mapped output, sized to max of start/end)
 	auto [iCombineX, iCombineY] = TextureManager::DetailTextureSize(std::max(fSpreadMultStart, fSpreadMultEnd));
-	LOG(kTemp, kDebug, "CreateLightingTextures combine: extent=({},{})  maxMult={}", iCombineX, iCombineY, common::Wb(std::max(fSpreadMultStart, fSpreadMultEnd), 4));
 	static constexpr std::string_view pCombineNames[3] {"CombineRed", "CombineGreen", "CombineBlue"};
 	for (int64_t i = 0; i < 3; ++i)
 	{

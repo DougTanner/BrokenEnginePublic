@@ -219,15 +219,6 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 		gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
 
 		gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
-		if (iCommandBuffer == 0)
-		{
-			auto& rElev = gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture;
-			LOG(kTemp, kDebug, "RecordMainTerrain: frame={} terrainPipeline={} elevView={} elevImage={}",
-				gpGraphics->muiFrameCounter,
-				reinterpret_cast<uintptr_t>(pPipelines[kPipelineTerrain].mVkPipeline),
-				reinterpret_cast<uintptr_t>(rElev.mVkImageView),
-				reinterpret_cast<uintptr_t>(rElev.mVkImage));
-		}
 		// Per-template terrain draws: one indirect draw per IslandTemplate (count fixed at boot
 		// from gpIslandTerrain->mIslandCrcsSorted). Each template's Gaea2 Mesher mesh is bound,
 		// and vkCmdDrawIndexedIndirect reads the per-template VkDrawIndexedIndirectCommand whose

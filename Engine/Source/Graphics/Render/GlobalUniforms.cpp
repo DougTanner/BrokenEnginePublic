@@ -232,7 +232,7 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	rGlobalLayout.iObjectShadowTextureWidth = gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mInfo.extent.width; // X pixels
 	rGlobalLayout.iObjectShadowTextureHeight = gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mInfo.extent.height; // Y pixels
 
-	// Shadow area: LOD-stable world size (mfLodStableShadow* latched in CameraBase, bit-stable
+	// Shadow area: LOD-stable world size (mfLodStable* latched in CameraBase, bit-stable
 	// within an iLod). Origin is camera-centered and snapped to integer shadow-texel boundaries.
 	// Two stability properties combine to eliminate shimmer:
 	//  - XY pan at constant zoom: width/height bit-stable, snap origin moves in integer-texel steps.
@@ -241,8 +241,8 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	//    per integer-meter zoom-bucket -> fShadowTexelX changed -> shadow content resampled at a new
 	//    scale every meter -> high-contrast edges flickered.
 	// One-frame texel-scale pop at LOD transitions (kfMinEyeHeight * 4^L, 5% hysteresis) is accepted.
-	float fShadowWorldWidth = game::gpCamera->mfLodStableShadowWidth;
-	float fShadowWorldHeight = game::gpCamera->mfLodStableShadowHeight;
+	float fShadowWorldWidth = game::gpCamera->mfLodStableWidth;
+	float fShadowWorldHeight = game::gpCamera->mfLodStableHeight;
 	float fShadowTexelX = 0.0f;
 	if (fShadowWorldWidth > 0.0f && fShadowWorldHeight > 0.0f)
 	{
@@ -517,33 +517,32 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	rGlobalLayout.f2CameraPosition.y = f4CameraPosGlobal.y;
 	rGlobalLayout.f4VisibleArea = game::gpCamera->f4RenderVisibleArea;
 
-	// Lighting area: fixed world-space dimensions, origin shifts one texel at a time
-	float fVisibleWidth = rGlobalLayout.f4VisibleArea.z - rGlobalLayout.f4VisibleArea.x;
-	float fVisibleHeight = rGlobalLayout.f4VisibleArea.y - rGlobalLayout.f4VisibleArea.w;
-	if (fVisibleWidth > 0.0f && fVisibleHeight > 0.0f)
+	// Lighting area: LOD-stable world size (mfLodStable* latched in CameraBase, bit-stable within
+	// an iLod). Origin camera-centered, snapped to integer lighting-texel boundaries. Mirrors the
+	// shadow-area pattern: within an iLod fTexelSizeX is bit-stable so Z motion doesn't resample
+	// lighting-deposit content at a wobbling texel scale (high-contrast deposit edges — explosion
+	// flashes, point-light splat boundaries, lighting-spread propagation fronts — flickered every
+	// meter under the old fVisibleWidth-derived path).
+	float fLightingWorldWidth = game::gpCamera->mfLodStableWidth;
+	float fLightingWorldHeight = game::gpCamera->mfLodStableHeight;
+	if (fLightingWorldWidth > 0.0f && fLightingWorldHeight > 0.0f)
 	{
 		auto [iLightingTextureX, iLightingTextureY] = TextureManager::DetailTextureSize(gLightingDepositTextureMultiplier.Get());
 		float fTexelsX = static_cast<float>(iLightingTextureX);
 		float fTexelsY = static_cast<float>(iLightingTextureY);
 
-		// Texel size derived from deposit texture pixels and visible area
-		float fTexelSizeX = fVisibleWidth / fTexelsX;
-		float fTexelSizeY = fVisibleHeight / fTexelsY;
-
-		// Fixed dimensions: exactly texturePixels * texelSize
-		float fWidth = fTexelSizeX * fTexelsX;
-		float fHeight = fTexelSizeY * fTexelsY;
+		float fTexelSizeX = fLightingWorldWidth / fTexelsX;
+		float fTexelSizeY = fLightingWorldHeight / fTexelsY;
 
 		XMFLOAT4A f4CameraPos {};
 		XMStoreFloat4A(&f4CameraPos, game::gpCamera->mVecPosition);
 
-		// Integer texel math: compute origin as integer texel index * texelSize
-		int64_t iLeftTexel = static_cast<int64_t>(std::floor((f4CameraPos.x - fWidth * 0.5f) / fTexelSizeX));
-		int64_t iTopTexel = static_cast<int64_t>(std::floor((f4CameraPos.y + fHeight * 0.5f) / fTexelSizeY));
+		int64_t iLeftTexel = static_cast<int64_t>(std::floor((f4CameraPos.x - fLightingWorldWidth * 0.5f) / fTexelSizeX));
+		int64_t iTopTexel = static_cast<int64_t>(std::floor((f4CameraPos.y + fLightingWorldHeight * 0.5f) / fTexelSizeY));
 		float fLeft = static_cast<float>(iLeftTexel) * fTexelSizeX;
 		float fTop = static_cast<float>(iTopTexel) * fTexelSizeY;
 
-		rGlobalLayout.f4LightingArea = {fLeft, fTop, fLeft + fWidth, fTop - fHeight};
+		rGlobalLayout.f4LightingArea = {fLeft, fTop, fLeft + fLightingWorldWidth, fTop - fLightingWorldHeight};
 
 		rGlobalLayout.uiLightTilesX = std::max(1u, static_cast<uint32_t>(iLightingTextureX) / shaders::kiComputeTileSize);
 		rGlobalLayout.uiLightTilesY = std::max(1u, static_cast<uint32_t>(iLightingTextureY) / shaders::kiComputeTileSize);
