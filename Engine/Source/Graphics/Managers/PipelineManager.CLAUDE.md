@@ -20,6 +20,6 @@ Delegated to the `DynamicPipelines` sub-object (`DynamicPipelines.h/.cpp`), owne
 
 `ModelPipelineSpec` configures model pipeline creation with scene CRC, pipeline info, and flags for model descriptors and shadow mode. DynamicPipelines holds a reference to PipelineManager's shader map for shader lookups during pipeline creation. All Create* implementations are client-only (`#ifdef BT_CLIENT`).
 
-## Selective Recreation
+## Recreation
 
-`RecreatePipelineGroups()` rebuilds only pipeline groups affected by specific resource changes via DestroyFlags, respecting dependency ordering. Falls back to full rebuild when necessary.
+Pipeline-tier destroy events (`Graphics::Destroy` with `meDestroyType >= kPipelines`) call `mpPipelineManager.reset()` and re-run the constructor. Static pipelines rebuild directly; dynamic pipelines repopulate lazily as collections issue their per-frame render code (idempotent `mPipelineMaps[type].contains(crc)` checks). Texture recreation stays selective (driven by `DestroyFlags`); only pipeline recreation is unconditional. Descriptor staleness is caught at the top of `CommandBufferRecord*::Record` by `VerifyAllDescriptorGenerations()`.

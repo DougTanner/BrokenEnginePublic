@@ -6,7 +6,7 @@ The F2 debug-texture overlay currently wires slots through a hand-maintained sum
 
 - `kiMaxDebugTextures = kiMaxSpreadPasses + 16` in `Engine/Data/Shaders/ShaderLayoutsBase.h:127` — a magic constant chosen to fit the current contributors with slack.
 - `RenderTargetTexturesLighting.cpp::CreateLightingTextures` mid-function declares `static constexpr int64_t kiTerrainDebugSlotCount = 4` and computes lighting indices as `kiTerrainDebugSlotCount + 0`, `kiTerrainDebugSlotCount + 2 + i`, etc.
-- Adding a new debug-texture category requires: (a) bumping `kiMaxDebugTextures` by hand if the slack is consumed, (b) bumping the offset for every later category, (c) remembering to extend `RecreatePipelineGroups` flag-gating in `PipelineManager.cpp:707-731` to include the new category's destroy flag(s), and (d) adding a new format constant in `ShaderLayoutsBase.h` and a matching `else if` branch in `DebugTexture.frag`.
+- Adding a new debug-texture category requires: (a) bumping `kiMaxDebugTextures` by hand if the slack is consumed, (b) bumping the offset for every later category, and (c) adding a new format constant in `ShaderLayoutsBase.h` and a matching `else if` branch in `DebugTexture.frag`. Pipeline recreation no longer needs hand-authored flag-gating — `mpPipelineManager.reset()` rebuilds everything on any pipeline-tier destroy event.
 
 This is fragile. The next addition (e.g. shadow textures, smoke textures, water textures) will quietly break unless every step is followed.
 

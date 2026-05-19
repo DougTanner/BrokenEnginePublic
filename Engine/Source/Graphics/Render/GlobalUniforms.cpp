@@ -182,6 +182,8 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 
 	rGlobalLayout.fObjectShadowsBlurDistance = fDayPercent * gObjectShadowsBlurDistanceNoon.Get() + (1.0f - fDayPercent) * gObjectShadowsBlurDistanceSunset.Get();
 	rGlobalLayout.fObjectShadowsBlurSigma = gObjectShadowsBlurSigma.Get();
+	rGlobalLayout.iObjectShadowsBlurRadius = static_cast<int32_t>(gObjectShadowsBlurRadius.Get());
+	rGlobalLayout.fObjectShadowsGrow = gObjectShadowsGrow.Get();
 	rGlobalLayout.fObjectShadowsIntensity = fDayPercent * gObjectShadowsNoon.Get() + (1.0f - fDayPercent) * gObjectShadowsSunset.Get();
 	rGlobalLayout.fObjectShadowsIntensity *= std::pow(fDayPercent, 0.1f);
 	rGlobalLayout.fShadowSunsetOffset = fShadowEvening * gShadowFeatherSunsetOffset.Get();

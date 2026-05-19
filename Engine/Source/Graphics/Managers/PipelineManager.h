@@ -77,7 +77,11 @@ public:
 	void CreateSmokeWindPipelines();
 	void CreateParticlePipelines();
 	void CreateDebugRenderPipelines();
-	void RecreatePipelineGroups(DestroyFlags_t flags);
+
+	// Walks every TextureBinding entry and breaks if any cached snapshot generation diverges
+	// from the live Texture's muiGeneration. Catches descriptor staleness the Vulkan validation
+	// layer cannot detect (handles stay valid; only the semantic binding becomes wrong).
+	void VerifyAllDescriptorGenerations();
 
 	Pipeline mpPipelines[kPipelineCount];
 

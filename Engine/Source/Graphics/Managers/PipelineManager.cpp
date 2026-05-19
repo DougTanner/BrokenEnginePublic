@@ -710,155 +710,37 @@ void PipelineManager::CreateDebugRenderPipelines()
 	}
 }
 
-void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
+void PipelineManager::VerifyAllDescriptorGenerations()
 {
-	using enum DestroyFlags;
-
-	// Stage 1: Lighting pipelines (must come before terrain/water and particles)
-	if ((flags & kLightingTextures) || (flags & kTerrainElevation))
+	// muiGeneration == 0 means the Texture is still lazy (never Created — descriptor holds the
+	// placeholder view installed by InitDeferred). That's a valid pre-load state, not staleness.
+	// After Create, gen >= 1; mVkImage going null then means destroyed-without-recreate, which IS stale.
+	for (const auto& [rCrc, rBindings] : gpTextureManager->mTextureDescriptors.mTextureBindings)
 	{
-		gpBufferManager->CreateLightingSpreadBuffers();
-		CreateLightingPipelines();
-
-		// Dynamic lighting pipelines render to lighting textures
-		VkRenderPass vkLightingRenderPass = gpTextureManager->mRenderTargetTextures.mLightingVkRenderPass;
-		VkExtent3D vkLightingExtent = gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent;
-		for (DynamicPipelineType eType : {kDynamicPipelineLighting, kDynamicPipelineAxisAlignedLighting, kDynamicPipelineHexShieldsLighting})
+		for (const TextureDescriptors::TextureBinding& rBinding : rBindings)
 		{
-			for (auto& [rCrc, rpPipeline] : mDynamicPipelines.mPipelineMaps[eType])
+			if (rBinding.pTexture != nullptr && rBinding.pTexture->muiGeneration != 0
+				&& (rBinding.pTexture->muiGeneration != rBinding.uiTextureGeneration || rBinding.pTexture->mVkImage == VK_NULL_HANDLE))
 			{
-				rpPipeline->mInfo.vkRenderPass = vkLightingRenderPass;
-				rpPipeline->mInfo.vkExtent3D = vkLightingExtent;
-				rpPipeline->Create(rpPipeline->mInfo);
+				LOG(kGraphics, kError, "Descriptor staleness: pipeline={} binding={} crc={} texture={} snapshotGen={} currentGen={} vkImage={}", rBinding.pPipeline->mInfo.name, rBinding.iBinding, rCrc, reinterpret_cast<uintptr_t>(rBinding.pTexture), rBinding.uiTextureGeneration, rBinding.pTexture->muiGeneration, reinterpret_cast<uintptr_t>(rBinding.pTexture->mVkImage));
+				DEBUG_BREAK();
 			}
-		}
 
-		// Model pipelines auto-append mppLightingFinalTextures via the kModel descriptor flag
-		// (Pipeline.cpp:64-98). Their cached descriptor sets reference the lighting textures' old
-		// VkImageView handles, which CreateLightingTextures just destroyed — recreate so descriptors
-		// rebind to the new handles. Same dependency exists for mShadowBlurTexture / mSmokeTextureOne,
-		// so kShadowTextures / kSmokeTextures changes have the same bug (see
-		// Documents/Plans/Graphics/ExtendModelPipelineRecreateToShadowAndSmoke.md).
-		for (DynamicModelPipelineType eType : {kDynamicModelPipelineModel, kDynamicModelPipelineModelShadow})
-		{
-			for (auto& [rCrc, rpModelPipeline] : mDynamicPipelines.mModelPipelineMaps[eType])
+			int64_t iCount = static_cast<int64_t>(rBinding.textures.size());
+			ASSERT(static_cast<int64_t>(rBinding.uiTextureGenerations.size()) == iCount);
+			for (int64_t i = 0; i < iCount; ++i)
 			{
-				rpModelPipeline->Recreate();
-			}
-		}
-	}
-
-	// Debug texture pipeline references both lighting outputs (deposit/spread/combine) and the
-	// terrain G-buffer textures (color/elevation/AO/normal at slots 0-3). Descriptor sets cache
-	// VkImageView at write time, so any underlying ReCreate of those textures invalidates them.
-	if constexpr (kbDebugInput)
-	{
-		if ((flags & kLightingTextures) || (flags & kTerrainElevation)
-			|| (flags & kTerrainColor) || (flags & kTerrainNormal) || (flags & kTerrainAO))
-		{
-			RenderTargetTextures& rTextures = gpTextureManager->mRenderTargetTextures;
-			mpPipelines[kPipelineDebugTexture].Create(
-			{
-				.name = "DebugTexture",
-				.flags = {kNoWireframe},
-				.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersDebugTexturefragCrc)},
-				.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-				.pDescriptorInfos =
+				Texture* pTexture = rBinding.textures.at(i);
+				if (pTexture == nullptr || pTexture->muiGeneration == 0)
 				{
-					{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-					{.flags = kCombinedSamplers, .iCount = shaders::kiMaxDebugTextures, .ppTextures = rTextures.mppDebugTextures},
-					{.flags = kCombinedSamplers, .iCount = 3, .ppTextures = rTextures.mppLightingDepositTextures},
-					{.flags = kCombinedSamplers, .iCount = shaders::kiMaxDebugTextures, .ppTextures = rTextures.mppDebugTexturesB},
-					{.flags = kCombinedSamplers, .iCount = shaders::kiMaxDebugTextures, .ppTextures = rTextures.mppDebugTexturesC},
-				},
-			});
-		}
-	}
-
-	// Stage 2: Shadow pipelines
-	if ((flags & kShadowTextures) || (flags & kObjectShadows))
-	{
-		CreatePipelineShadows();
-	}
-
-	// Stage 3: Terrain and water (depend on lighting blur + shadow blur textures)
-	if ((flags & kLightingTextures) || (flags & kShadowTextures) || (flags & kObjectShadows)
-		|| (flags & kTerrainElevation) || (flags & kTerrainColor) || (flags & kTerrainNormal) || (flags & kTerrainAO)
-		|| (flags & kSmokeTextures))
-	{
-		CreateLightingShadowDependentPipelines();
-	}
-
-	// Terrain data pipelines (render TO terrain detail textures). kLightingTextures is included
-	// even though these pipelines don't sample lighting textures: the sibling lighting-pipeline
-	// recreates in Stage 1 mutate the descriptor pool in a way that silently invalidates the
-	// terrain-data pipelines' bindless mElevationTextures binding (no Vulkan validation error —
-	// the VkImageView handles stay live, but sampling yields zero). Reallocating the descriptor
-	// sets restores the binding. Same dependency class as the model-pipeline kModel auto-append.
-	if ((flags & kTerrainElevation) || (flags & kTerrainColor) || (flags & kTerrainNormal) || (flags & kTerrainAO) || (flags & kLightingTextures))
-	{
-		CreateTerrainDataPipelines();
-	}
-
-	// Smoke and wind pipelines
-	if ((flags & kSmokeTextures) || (flags & kTerrainElevation))
-	{
-		CreateSmokeWindPipelines();
-	}
-
-	// Particle pipelines (sample smoke, wind, and terrain elevation textures;
-	// spawn references update/render/lighting indirect buffers)
-	if ((flags & kSmokeTextures) || (flags & kTerrainElevation) || (flags & kLightingTextures))
-	{
-		CreateParticlePipelines();
-	}
-
-	// Dynamic smoke/wind deposit pipelines render to smoke/wind textures
-	if (flags & kSmokeTextures)
-	{
-		VkRenderPass vkSmokeRenderPass = gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mVkRenderPass;
-		VkExtent3D vkSmokeExtent = gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent;
-		for (DynamicPipelineType eType : {kDynamicPipelineSmokeAxisAligned, kDynamicPipelineSmoke})
-		{
-			for (auto& [rCrc, rpPipeline] : mDynamicPipelines.mPipelineMaps[eType])
-			{
-				rpPipeline->mInfo.vkRenderPass = vkSmokeRenderPass;
-				rpPipeline->mInfo.vkExtent3D = vkSmokeExtent;
-				rpPipeline->Create(rpPipeline->mInfo);
+					continue;
+				}
+				if (pTexture->muiGeneration != rBinding.uiTextureGenerations.at(i) || pTexture->mVkImage == VK_NULL_HANDLE)
+				{
+					LOG(kGraphics, kError, "Descriptor staleness (array): pipeline={} binding={} crc={} slot={} texture={} snapshotGen={} currentGen={} vkImage={}", rBinding.pPipeline->mInfo.name, rBinding.iBinding, rCrc, i, reinterpret_cast<uintptr_t>(pTexture), rBinding.uiTextureGenerations.at(i), pTexture->muiGeneration, reinterpret_cast<uintptr_t>(pTexture->mVkImage));
+					DEBUG_BREAK();
+				}
 			}
-		}
-
-		VkRenderPass vkWindOneRenderPass = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mVkRenderPass;
-		VkExtent3D vkWindOneExtent = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent;
-		for (DynamicPipelineType eType : {kDynamicPipelineWindDepositA, kDynamicPipelineWindDepositAxisAlignedA})
-		{
-			for (auto& [rCrc, rpPipeline] : mDynamicPipelines.mPipelineMaps[eType])
-			{
-				rpPipeline->mInfo.vkRenderPass = vkWindOneRenderPass;
-				rpPipeline->mInfo.vkExtent3D = vkWindOneExtent;
-				rpPipeline->Create(rpPipeline->mInfo);
-			}
-		}
-
-		VkRenderPass vkWindTwoRenderPass = gpTextureManager->mRenderTargetTextures.mWindTextureTwo.mVkRenderPass;
-		VkExtent3D vkWindTwoExtent = gpTextureManager->mRenderTargetTextures.mWindTextureTwo.mInfo.extent;
-		for (DynamicPipelineType eType : {kDynamicPipelineWindDepositB, kDynamicPipelineWindDepositAxisAlignedB})
-		{
-			for (auto& [rCrc, rpPipeline] : mDynamicPipelines.mPipelineMaps[eType])
-			{
-				rpPipeline->mInfo.vkRenderPass = vkWindTwoRenderPass;
-				rpPipeline->mInfo.vkExtent3D = vkWindTwoExtent;
-				rpPipeline->Create(rpPipeline->mInfo);
-			}
-		}
-	}
-
-	// Dynamic visible lights sample terrain elevation texture (no render target change)
-	if (flags & kTerrainElevation)
-	{
-		for (auto& [rCrc, rpPipeline] : mDynamicPipelines.mPipelineMaps[kDynamicPipelineVisibleLights])
-		{
-			rpPipeline->Create(rpPipeline->mInfo);
 		}
 	}
 }

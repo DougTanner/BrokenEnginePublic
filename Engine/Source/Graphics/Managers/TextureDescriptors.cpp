@@ -132,7 +132,7 @@ void TextureDescriptors::UpdateTextureArrayDescriptors()
 	}
 }
 
-void TextureDescriptors::WriteArrayBindingDescriptors(const TextureBinding& rBinding, VkSampler vkSampler)
+void TextureDescriptors::WriteArrayBindingDescriptors(TextureBinding& rBinding, VkSampler vkSampler)
 {
 	// Single-element write (per-island-slot bindings): touch only iArrayIndex so other slots'
 	// descriptors are not clobbered by stale snapshot pointers.
@@ -162,6 +162,7 @@ void TextureDescriptors::WriteArrayBindingDescriptors(const TextureBinding& rBin
 			};
 			vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
 		}
+		rBinding.uiTextureGenerations.at(rBinding.iArrayIndex) = pTexture != nullptr ? pTexture->muiGeneration : 0;
 		return;
 	}
 
@@ -191,16 +192,29 @@ void TextureDescriptors::WriteArrayBindingDescriptors(const TextureBinding& rBin
 		};
 		vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
 	}
+
+	rBinding.uiTextureGenerations.resize(iTextureCount);
+	for (int64_t i = 0; i < iTextureCount; ++i)
+	{
+		rBinding.uiTextureGenerations.at(i) = rBinding.textures.at(i) != nullptr ? rBinding.textures.at(i)->muiGeneration : 0;
+	}
 }
 
 void TextureDescriptors::RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags, Texture* pTexture, Texture** ppTextures, int64_t iCount, int64_t iArrayIndex)
 {
 	std::vector<Texture*> textures;
+	std::vector<uint64_t> uiTextureGenerations;
 	if (ppTextures != nullptr)
 	{
 		textures.assign(ppTextures, ppTextures + iCount);
+		uiTextureGenerations.resize(iCount);
+		for (int64_t i = 0; i < iCount; ++i)
+		{
+			uiTextureGenerations.at(i) = ppTextures[i] != nullptr ? ppTextures[i]->muiGeneration : 0;
+		}
 	}
-	mTextureBindings.try_emplace(crc).first->second.push_back({pPipeline, iBinding, samplerFlags, pTexture, std::move(textures), iArrayIndex});
+	uint64_t uiTextureGeneration = pTexture != nullptr ? pTexture->muiGeneration : 0;
+	mTextureBindings.try_emplace(crc).first->second.push_back({pPipeline, iBinding, samplerFlags, pTexture, std::move(textures), uiTextureGeneration, std::move(uiTextureGenerations), iArrayIndex});
 }
 
 void TextureDescriptors::RegisterStandaloneSamplerBinding(Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags)
@@ -210,13 +224,14 @@ void TextureDescriptors::RegisterStandaloneSamplerBinding(Pipeline* pPipeline, i
 
 void TextureDescriptors::UpdateDescriptorsForTexture(common::crc_t crc)
 {
-	VkImageView vkImageView = mrTextureManager.mTextureMap.at(crc).mVkImageView;
+	Texture& rTexture = mrTextureManager.mTextureMap.at(crc);
+	VkImageView vkImageView = rTexture.mVkImageView;
 
 	// Update individual combined image sampler bindings
 	auto it = mTextureBindings.find(crc);
 	if (it != mTextureBindings.end())
 	{
-		for (const TextureBinding& rBinding : it->second)
+		for (TextureBinding& rBinding : it->second)
 		{
 			VkSampler vkSampler = mrTextureManager.GetSampler(rBinding.samplerFlags);
 			if (!rBinding.textures.empty())
@@ -226,6 +241,7 @@ void TextureDescriptors::UpdateDescriptorsForTexture(common::crc_t crc)
 			else
 			{
 				rBinding.pPipeline->UpdateCombinedImageSamplerDescriptor(rBinding.iBinding, vkImageView, vkSampler);
+				rBinding.uiTextureGeneration = rTexture.muiGeneration;
 			}
 		}
 	}
@@ -241,7 +257,7 @@ void TextureDescriptors::UpdateArrayBindingsForKey(common::crc_t bindingKey)
 	{
 		return;
 	}
-	for (const TextureBinding& rBinding : it->second)
+	for (TextureBinding& rBinding : it->second)
 	{
 		ASSERT(!rBinding.textures.empty());
 		VkSampler vkSampler = mrTextureManager.GetSampler(rBinding.samplerFlags);
@@ -261,7 +277,7 @@ void TextureDescriptors::RewriteSamplerDescriptors()
 	// Update combined image sampler descriptors in per-pipeline sets
 	for (auto& [rCrc, rBindings] : mTextureBindings)
 	{
-		for (const TextureBinding& rBinding : rBindings)
+		for (TextureBinding& rBinding : rBindings)
 		{
 			VkSampler vkSampler = mrTextureManager.GetSampler(rBinding.samplerFlags);
 
@@ -272,9 +288,11 @@ void TextureDescriptors::RewriteSamplerDescriptors()
 			else
 			{
 				VkImageView vkImageView = VK_NULL_HANDLE;
+				uint64_t uiGeneration = 0;
 				if (rBinding.pTexture != nullptr)
 				{
 					vkImageView = rBinding.pTexture->mVkImageView;
+					uiGeneration = rBinding.pTexture->muiGeneration;
 				}
 				else
 				{
@@ -282,11 +300,13 @@ void TextureDescriptors::RewriteSamplerDescriptors()
 					if (it != mrTextureManager.mTextureMap.end())
 					{
 						vkImageView = it->second.mVkImageView;
+						uiGeneration = it->second.muiGeneration;
 					}
 				}
 				if (vkImageView != VK_NULL_HANDLE)
 				{
 					rBinding.pPipeline->UpdateCombinedImageSamplerDescriptor(rBinding.iBinding, vkImageView, vkSampler);
+					rBinding.uiTextureGeneration = uiGeneration;
 				}
 			}
 		}

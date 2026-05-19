@@ -19,7 +19,7 @@ Multi-pass deferred Vulkan renderer with lighting, shadows, GPU particles, and p
 
 ## Destroy / Refresh Pipeline
 
-Settings-change detector escalates a destroy tier (`DestroyType`) monotonically via `std::max`, with fine-grained resource subsets in a flags bitmask. `Destroy()` drains all in-flight submissions and `vkDeviceWaitIdle`s before touching resources. Selective pipeline recreation avoids full rebuilds when only pipeline-affecting cvars changed; partial destroy preserves texture/buffer managers and stashes the old swapchain for seamless recreation.
+Settings-change detector escalates a destroy tier (`DestroyType`) monotonically via `std::max`, with fine-grained resource subsets in a flags bitmask. `Destroy()` drains all in-flight submissions and `vkDeviceWaitIdle`s before touching resources. Texture recreation is selective (driven by `DestroyFlags`); pipeline-tier events drop and reconstruct the entire `PipelineManager` so descriptor sets are always freshly written against current texture handles. Partial destroy preserves texture/buffer managers and stashes the old swapchain for seamless recreation.
 
 ## Error / Debug Helpers
 

@@ -11,7 +11,7 @@ Wrapper gSunMoonEvening(XM_PI - XM_PIDIV16, XM_PIDIV2, XM_PI);
 Wrapper gSunMoonNightStart(XM_PI, XM_PIDIV2, XM_PI + XM_PIDIV2);
 
 // Sun Intensity (per target)
-Wrapper gSunMoonSunIntensityTerrain(1.2f, 0.0f, 4.0f);
+Wrapper gSunMoonSunIntensityTerrain(1.1f, 0.0f, 4.0f);
 Wrapper gSunMoonSunIntensityWater(0.6f, 0.0f, 4.0f);
 Wrapper gSunMoonSunIntensityObjects(1.0f, 0.0f, 4.0f);
 Wrapper gSunMoonSunIntensitySmoke(1.0f, 0.0f, 4.0f);

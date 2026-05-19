@@ -24,7 +24,7 @@ inline constexpr int64_t kiMaxStaticVoices = 128;
 // immediately while the displaced voice keeps playing through a fade. When at
 // cap, mark attempts DEBUG_BREAK and skip; the deactivation pass retries the
 // next frame once a slot frees.
-inline constexpr int64_t kiMaxFadeOutPool = 32;
+inline constexpr int64_t kiMaxFadeOutPool = 128;
 
 // Below this attenuated-volume threshold a sound is considered inaudible and is
 // culled (one-shots: never spawned; persistent: voice released, entry kept).

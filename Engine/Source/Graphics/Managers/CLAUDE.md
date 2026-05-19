@@ -28,7 +28,7 @@ Singleton managers for the Vulkan renderer, each accessed via a `gp*` global. Cr
 - Initialization order is strict; violations crash or trigger validation errors.
 - Single descriptor pool serves all pipelines; global Set 0 is shared, Sets 1/2 are per-pipeline. Texture slots are monotonic and descriptor writes are deferred until `UpdateTextureArrayDescriptors()`.
 - Semaphore chain: acquire -> Global -> Main -> ImGui -> present.
-- **Dual pipeline-creation-site invariant**: `PipelineManager.cpp` builds each pipeline's descriptor-info list in two places (constructor and `RecreatePipelineGroups`); edits must be mirrored or drift surfaces as VUID-vkCmdDrawIndexed-None-08114.
+- **Pipeline recreation invariant**: pipeline-tier destroy events (`meDestroyType >= kPipelines`) drop and reconstruct the entire `PipelineManager` via `mpPipelineManager.reset()`; the constructor is the single canonical pipeline-build site. Static pipelines rebuild in the constructor; dynamic pipelines repopulate lazily through collection per-frame render code. Descriptor staleness across recreate events is asserted at command-buffer record time by `PipelineManager::VerifyAllDescriptorGenerations` walking `TextureBindingEntry` snapshot generations.
 
 ## See Also
 

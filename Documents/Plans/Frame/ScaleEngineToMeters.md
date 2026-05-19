@@ -73,5 +73,5 @@ Once all the literals above are in meters, delete `engine::kfMetersToUnits` from
 `Engine/Source/Frame/IslandTerrain.h`. Touch points:
 
 - `Engine/Source/Frame/IslandTerrain.cpp:36` — `mfQuadFootprintX = mfWorldFootprintXMeters * kfMetersToUnits` and `mfQuadFootprintY = mfWorldFootprintYMeters * kfMetersToUnits` become `mfQuadFootprintX = mfWorldFootprintXMeters` and `mfQuadFootprintY = mfWorldFootprintYMeters` (post anisotropic-crop split)
-- `Engine/Source/Frame/IslandTerrain.cpp:50` — `mfSeaFloorElevation = -kfOceanDepthMeters * kfMetersToUnits` becomes `mfSeaFloorElevation = -kfOceanDepthMeters`
+- `Engine/Source/Frame/IslandTerrain.cpp:50` — `mfSeaFloorElevation = kfSeaBottomMeters * kfMetersToUnits` becomes `mfSeaFloorElevation = kfSeaBottomMeters`
 - `Engine/Source/Frame/IslandTerrain.cpp:345` — `fDistance = 2.0f * kfMetersToUnits` becomes `fDistance = 2.0f` (meters)

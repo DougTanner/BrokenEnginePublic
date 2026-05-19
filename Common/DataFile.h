@@ -8,12 +8,13 @@ namespace common
 
 inline constexpr int64_t kiAlignmentBytes = 16;
 
-// Open-ocean floor elevation used by the engine for cells with no island placement. Island
-// heightmaps are NOT offset by this constant — DataPacker shifts them per-island by
-// `Level × elevationMeters` (Level read from each archetype's Sea node, fallback 0.1) so
-// on-disk pixels are beach-relative (0 = shoreline, negative = underwater down to the
-// per-island sea floor depth, positive = land).
-inline constexpr float kfOceanDepthMeters = 500.0f;
+// Unified Sea-Bottom elevation in meters. Drives both the elevation render-target clear
+// (Engine/Source/Graphics/Managers/RenderTargetTextures.cpp main + shadow elevation RTTs)
+// and the CPU `GlobalElevation()` open-ocean fallback for cells with no island placement.
+// Matches Gaea2 convention: Level=0.1 × elevationMeters=100 m = 10 m beach offset → -10 m
+// sea floor. DataPacker (BakeIslandIntermediates.cpp) asserts each island's per-bake sea
+// floor matches this constant so divergence is caught at bake time.
+inline constexpr float kfSeaBottomMeters = -10.0f;
 
 inline void AlignOutputStream(std::fstream& rFileStream)
 {

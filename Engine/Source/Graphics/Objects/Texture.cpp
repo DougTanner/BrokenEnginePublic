@@ -134,6 +134,7 @@ void Texture::AdoptTransferredImage(VkImage& rVkImage, VmaAllocation& rVmaAlloca
 	mVkDeviceMemory = std::exchange(rVkDeviceMemory, VK_NULL_HANDLE);
 
 	CreateImageView(mVkImage, mInfo, false, mVkImageView);
+	++muiGeneration;
 }
 
 void Texture::RecordAcquireBarrier(VkCommandBuffer vkCommandBuffer)
@@ -214,6 +215,7 @@ void Texture::Create(const TextureInfo& rInfo, const std::function<void(void*, i
 	mVkDeviceMemory = vmaAllocationInfo.deviceMemory;
 
 	CreateImageView(mVkImage, mInfo, true, mVkImageView);
+	++muiGeneration;
 
 	if (rDataFunction != nullptr)
 	{

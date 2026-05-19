@@ -15,7 +15,7 @@ inline constexpr bool kbRenderDocAttach = false;
 inline constexpr bool kbScreenshots = false;
 inline constexpr bool kbVulkanPipelineCache = false; // DT: TODO Need Crc and/or fallback if corrupt true;
 inline constexpr bool kbVulkanWireframe = false;
-inline constexpr bool kbFramebufferClearColor = kbVulkanWireframe;
+inline constexpr bool kbFramebufferClearColor = true; // DT: TEMP kbVulkanWireframe;
 
 #if defined(BT_SERVER)
 inline constexpr bool kbSingleInstance = true;

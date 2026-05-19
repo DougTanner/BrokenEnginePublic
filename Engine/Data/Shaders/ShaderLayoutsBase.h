@@ -307,6 +307,8 @@ struct GlobalLayout
 	float fObjectShadowsBlurDistance INIT;
 	float fObjectShadowsBlurSigma INIT;
 	float fObjectShadowsIntensity INIT;
+	float fObjectShadowsGrow INIT;
+	int32_t iObjectShadowsBlurRadius INIT;
 	float fShadowSunsetOffset INIT;
 	float fShadowSunriseStretch INIT;
 	float fShadowSunsetStretch INIT;

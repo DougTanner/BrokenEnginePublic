@@ -20,7 +20,7 @@ Three mutually-exclusive modes: persistent host-mapped (CPU-written each frame),
 
 - Viewport uses negative height (`VK_KHR_maintenance1`) to flip Y to DirectX convention; front face is therefore counter-clockwise.
 - Single-attachment pipelines using the lighting render pass auto-upgrade to 3 color attachments with replicated blend state.
-- See [../Managers/CLAUDE.md](../Managers/CLAUDE.md) for the dual pipeline-creation-site invariant affecting descriptor writes.
+- See [../Managers/CLAUDE.md](../Managers/CLAUDE.md) for the pipeline recreation invariant affecting descriptor writes.
 
 ## Texture Lifecycle
 
@@ -29,6 +29,7 @@ Three mutually-exclusive modes: persistent host-mapped (CPU-written each frame),
 - Transfer-queue to graphics-queue ownership transfer has a fast path when the device reports it optional.
 - Transparent material detection drives auto alpha-blend in `ModelPipeline` for non-shadow passes.
 - Demand-loading: non-indirect pipelines request textures immediately at create; indirect pipelines defer until first non-empty indirect write (latched).
+- Generation counter: every handle swap (create, transfer-adopt) bumps a monotonic per-Texture generation; move-construct preserves it and destroy does NOT reset. Descriptor-binding sites snapshot the generation alongside the texture pointer so `PipelineManager` can assert at command-buffer record time that no cached binding still points at a recycled handle.
 
 ## See Also
 

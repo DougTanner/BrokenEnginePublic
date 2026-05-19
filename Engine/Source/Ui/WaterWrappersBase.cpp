@@ -31,8 +31,8 @@ Wrapper gLightingSampledNormalsThreeSize(0.04f, 0.025f, 0.1f);
 Wrapper gLightingSampledNormalsWeightThreeMin(1.0f, 0.0f, 4.0f);
 Wrapper gLightingSampledNormalsWeightThreeMax(1.5f, 0.0f, 4.0f);
 Wrapper gWaterNormalRotationThree(0.2f, -XM_PI, XM_PI);
-Wrapper gLightingSampledNormalsSpeedMin(0.02f, 0.0f, 0.1f);
-Wrapper gLightingSampledNormalsSpeedMax(0.075f, 0.0f, 0.1f);
+Wrapper gLightingSampledNormalsSpeedMin(0.025f, 0.0f, 0.1f);
+Wrapper gLightingSampledNormalsSpeedMax(0.05f, 0.0f, 0.1f);
 Wrapper gWaterDepthReflectionFeather(0.05f, 0.001f, 0.1f);
 // Source-side dampener for the Gerstner vertex normal — blends Water.vert's wave normal toward (0,0,1) before it reaches any downstream consumer.
 Wrapper gWaterWaveNormalBlend(1.0f, 0.0f, 1.0f);
@@ -46,10 +46,10 @@ Wrapper gLightingWaterSkyboxAdd(2.0f, 0.0f, 4.0f);
 Wrapper gLightingWaterSkyboxOne(2400.0f, 0.0f, 5000.0f);
 Wrapper gLightingWaterSkyboxOnePower(250.0f, 50.0f, 400.0f);
 Wrapper gLightingWaterSkyboxTwo(150.0f, 0.0f, 400.0f);
-Wrapper gLightingWaterSkyboxTwoPower(10.0f, 1.0f, 20.0f);
-Wrapper gLightingWaterSkyboxThree(400.0f, 1.0f, 800.0f);
-Wrapper gLightingWaterSkyboxThreePower(0.6f, 0.001f, 1.0f);
-Wrapper gLightingWaterSkyboxLod(5.0f, 0.0f, 10.0f);
+Wrapper gLightingWaterSkyboxTwoPower(6.0f, 1.0f, 20.0f);
+Wrapper gLightingWaterSkyboxThree(250.0f, 1.0f, 800.0f);
+Wrapper gLightingWaterSkyboxThreePower(0.001f, 0.001f, 1.0f);
+Wrapper gLightingWaterSkyboxLod(7.5f, 0.0f, 10.0f);
 
 // Water - Low/Medium count + High frequency waves
 Wrapper gWaterHighMultiplier(0.204f, 0.0f, 0.5f);
@@ -64,12 +64,12 @@ Wrapper gWaterHeightDarkenSource(0.2f, 0.0f, 1.0f);
 Wrapper gWaterHeightDarkenLighting(0.1f, 0.0f, 1.0f);
 
 // Low frequency waves
-Wrapper gWaterLowCount(255i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
+Wrapper gWaterLowCount(31i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
 Wrapper gWaterLowMax(255.0f, 0.0f, 255.0f);
 Wrapper gWaterLowAngle(4.87f, 0.0f, XM_2PI);
 Wrapper gWaterLowWavelength(4.0f, 1.0f, 20.0f);
-Wrapper gWaterLowAmplitude(0.013f, 0.0f, 0.05f);
-Wrapper gWaterLowSpeed(0.3f, 0.0f, 1.0f);
+Wrapper gWaterLowAmplitude(0.04f, 0.0f, 0.1f);
+Wrapper gWaterLowSpeed(0.25f, 0.0f, 1.0f);
 Wrapper gWaterLowSteepness(0.5f, 0.0f, 2.0f);
 Wrapper gWaterLowAngleAdjust(0.2f, 0.0f, 0.5f);
 Wrapper gWaterLowWavelengthAdjust(-0.8f, -2.0f, 0.0f);

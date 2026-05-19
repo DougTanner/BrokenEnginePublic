@@ -49,6 +49,11 @@ public:
 		// element at that index (used by per-island-slot bindings so out-of-order chunk-ready writes
 		// don't clobber other slots whose snapshots have stale placeholder pointers).
 		std::vector<Texture*> textures;
+		// pTexture->muiGeneration / textures[i]->muiGeneration snapshotted at descriptor-write time.
+		// PipelineManager::VerifyAllDescriptorGenerations breaks if the live texture's generation
+		// has drifted (texture destroyed/recreated since this descriptor was written).
+		uint64_t uiTextureGeneration = 0;
+		std::vector<uint64_t> uiTextureGenerations;
 		int64_t iArrayIndex = -1;
 	};
 
@@ -60,7 +65,7 @@ public:
 		DescriptorFlags_t samplerFlags;
 	};
 
-	void WriteArrayBindingDescriptors(const TextureBinding& rBinding, VkSampler vkSampler);
+	void WriteArrayBindingDescriptors(TextureBinding& rBinding, VkSampler vkSampler);
 
 	std::unordered_map<common::crc_t, std::vector<TextureBinding>> mTextureBindings;
 	std::vector<StandaloneSamplerBinding> mStandaloneSamplerBindings;

@@ -26,7 +26,9 @@ Wrapper gObjectShadowsSunset(0.4f, 0.01f, 1.0f);
 Wrapper gObjectShadowsSunsetStretch(2.5f, 0.0f, 10.0f);
 Wrapper gObjectShadowsBlurDistanceNoon(0.0001f, 0.00005f, 0.002f);
 Wrapper gObjectShadowsBlurDistanceSunset(0.0008f, 0.0001f, 0.004f);
-Wrapper gObjectShadowsBlurSigma(5.0f, 1.0f, 20.0f);
+Wrapper gObjectShadowsBlurSigma(8.0f, 1.0f, 40.0f);
+Wrapper gObjectShadowsBlurRadius(8.0f, 1.0f, 32.0f, 1.0f);
+Wrapper gObjectShadowsGrow(0.2f, 0.0f, 2.0f);
 Wrapper gSmokeShadowIntensity(0.5f, 0.0f, 1.0f);
 
 } // namespace engine

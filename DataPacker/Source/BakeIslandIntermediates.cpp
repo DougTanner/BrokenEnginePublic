@@ -479,6 +479,12 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 	float fBeachOffsetMeters = fSeaLevelNormalized * dimensions.fElevationMeters;
 	LOG(kDefault, kDebug, "Archetype Sea Level (read, not patched): {} → beach offset {} m for elevationMeters {} m", common::Wb(fSeaLevelNormalized, 4), common::Wb(fBeachOffsetMeters, 2), common::Wb(dimensions.fElevationMeters, 2));
 
+	// Per-island sea floor must match the engine-wide kfSeaBottomMeters so the elevation RTT clear
+	// (Engine/Source/Graphics/Managers/RenderTargetTextures.cpp) blends seamlessly with edge texels.
+	// Fires if a future archetype changes Gaea Sea Level or Island.json changes elevationMeters
+	// without raising kfSeaBottomMeters in lockstep.
+	ASSERT(std::abs(-fBeachOffsetMeters - common::kfSeaBottomMeters) < 0.01f);
+
 	// Gaea.Swarm.exe requires a real console for stdin/stdout/stderr — invoke via the
 	// new-console helper rather than piped capture (the latter trips an IOException at
 	// Gaea startup). argv[0] is the executable's own path so cmdline starts with the

@@ -22,7 +22,7 @@ void main()
 	if (uiX >= i2Size.x || uiY >= i2Size.y)
 		return;
 
-	const int iRadius = 5;
+	int iRadius = globalLayout.iObjectShadowsBlurRadius;
 	float fInvSigma = float(iRadius) / globalLayout.fObjectShadowsBlurSigma;
 
 	vec2 f2Uv = (vec2(uiX, uiY) + vec2(0.5f)) / vec2(i2Size);

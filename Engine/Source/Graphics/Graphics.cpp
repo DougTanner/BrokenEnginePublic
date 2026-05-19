@@ -596,10 +596,6 @@ bool Graphics::Destroy()
 		vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
 	}
 
-	// Save flags before RecreateResources() clears them (needed for selective pipeline recreation)
-	DestroyFlags_t savedFlags = mDestroyFlags;
-	bool bSelectiveRecreation = meDestroyType == DestroyType::kPipelines && !savedFlags.Empty() && !(savedFlags & DestroyFlags::kObjectShadows);
-
 	// Only recreate resources if we're doing partial recreation (not full shutdown)
 	RecreateResources();
 
@@ -614,7 +610,7 @@ bool Graphics::Destroy()
 			gpTextureManager->mTextureDescriptors.WriteGlobalDescriptorSets();
 
 			// Rewrite per-pipeline sampler descriptors unless all pipelines are being fully rebuilt
-			if (meDestroyType < DestroyType::kPipelines || bSelectiveRecreation)
+			if (meDestroyType < DestroyType::kPipelines)
 			{
 				gpTextureManager->mTextureDescriptors.RewriteSamplerDescriptors();
 			}
@@ -628,15 +624,7 @@ bool Graphics::Destroy()
 
 	if (meDestroyType >= DestroyType::kPipelines)
 	{
-		// Selectively recreate only affected pipeline groups when possible
-		if (bSelectiveRecreation)
-		{
-			gpPipelineManager->RecreatePipelineGroups(savedFlags);
-		}
-		else
-		{
-			mpPipelineManager.reset();
-		}
+		mpPipelineManager.reset();
 	}
 
 	if (meDestroyType >= DestroyType::kSwapchain)

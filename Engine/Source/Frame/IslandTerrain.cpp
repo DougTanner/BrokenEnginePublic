@@ -65,8 +65,10 @@ IslandTerrain::IslandTerrain()
 
 	// Open-ocean floor (outside any island) is a fixed depth below sea level. Heightmap pixel
 	// values inside islands already carry real negative depth, so this constant only fires for
-	// cells with no island placement.
-	mfSeaFloorElevation = -common::kfOceanDepthMeters * kfMetersToUnits;
+	// cells with no island placement. Unified with the elevation RTT clear value — keeping it
+	// near the per-island sea floor avoids dramatic bilinear blends at island edges in the
+	// elevation G-buffer (see Common/DataFile.h doc on kfSeaBottomMeters).
+	mfSeaFloorElevation = common::kfSeaBottomMeters * kfMetersToUnits;
 
 	gpFileManager->RequestChunkLoad(mIslandCrcsSorted, LoadPriority::kRealtime);
 }

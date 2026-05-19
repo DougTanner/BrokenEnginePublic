@@ -61,6 +61,7 @@ void main()
 	if (fTerrainElevation > globalLayout.fWaterEarlyOut)
 	{
 		f4OutColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);
+		discard;
 		return;
 	}
 

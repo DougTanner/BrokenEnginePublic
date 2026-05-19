@@ -10,6 +10,8 @@ using enum TextureLayout;
 
 void CommandBufferRecordGlobal::Record(int64_t iFramebuffer)
 {
+	gpPipelineManager->VerifyAllDescriptorGenerations();
+
 	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer);
 	Pipeline* pPipelines = gpPipelineManager->mpPipelines;
 	int64_t iCommandBuffer = iFramebuffer;

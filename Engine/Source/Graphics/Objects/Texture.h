@@ -88,6 +88,7 @@ public:
 		, mVmaAllocation(std::exchange(rOther.mVmaAllocation, VK_NULL_HANDLE))
 		, mVkImage(std::exchange(rOther.mVkImage, VK_NULL_HANDLE))
 		, mVkImageView(std::exchange(rOther.mVkImageView, VK_NULL_HANDLE))
+		, muiGeneration(rOther.muiGeneration)
 		, mpDepthTexture(std::move(rOther.mpDepthTexture))
 		, mVkRenderPass(std::exchange(rOther.mVkRenderPass, VK_NULL_HANDLE))
 		, mVkFramebuffer(std::exchange(rOther.mVkFramebuffer, VK_NULL_HANDLE))
@@ -121,6 +122,11 @@ public:
 	VmaAllocation mVmaAllocation = VK_NULL_HANDLE;
 	VkImage mVkImage = VK_NULL_HANDLE;
 	VkImageView mVkImageView = VK_NULL_HANDLE;
+
+	// Bumped on every handle swap (Create, AdoptTransferredImage). Snapshotted at descriptor-write
+	// time; PipelineManager::VerifyAllDescriptorGenerations breaks if a cached snapshot diverges,
+	// catching the silent semantic-staleness bug class Vulkan validation misses.
+	uint64_t muiGeneration = 0;
 
 	// Render target
 	std::unique_ptr<Texture> mpDepthTexture;

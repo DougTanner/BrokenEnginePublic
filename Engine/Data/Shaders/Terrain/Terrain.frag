@@ -62,7 +62,7 @@ void main()
 	f3Normal = normalize(f3Normal);
 
 	// DT: TEMP — Terrain Tweaks (rock/sand/snow blending) disabled; source color and normals pass through unchanged.
-#define DT_TERRAIN_TWEAKS
+// #define DT_TERRAIN_TWEAKS
 #ifdef DT_TERRAIN_TWEAKS
 	vec3 f3SnowDiff = abs(f3Color - vec3(1.0f, 1.0f, 1.0f));
 	float fSnowPercent = 1.0f - clamp(globalLayout.fTerrainSnowMultiplier * (f3SnowDiff.x + f3SnowDiff.y + f3SnowDiff.z), 0.0f, 1.0f);
