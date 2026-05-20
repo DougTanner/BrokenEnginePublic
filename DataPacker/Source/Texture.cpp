@@ -320,6 +320,33 @@ void Texture::Crop(int64_t iX, int64_t iY, int64_t iWidth, int64_t iHeight)
 	miHeight = iHeight;
 }
 
+void Texture::MaskByHeightmap(const std::vector<float>& rHeightmap, int64_t iHeightmapWidth, int64_t iHeightmapHeight, int64_t iHeightmapDivisor, float fThresholdMeters, const float pfFlatValue[4])
+{
+	ASSERT(mData.size() == 1);
+	ASSERT(iHeightmapDivisor > 0);
+	ASSERT(miWidth == iHeightmapWidth * iHeightmapDivisor);
+	ASSERT(miHeight == iHeightmapHeight * iHeightmapDivisor);
+	ASSERT(static_cast<int64_t>(rHeightmap.size()) == iHeightmapWidth * iHeightmapHeight);
+
+	std::vector<float>& rPixels = mData.at(0);
+	for (int64_t iY = 0; iY < miHeight; ++iY)
+	{
+		const float* pfHeightmapRow = &rHeightmap.at(static_cast<size_t>(iY / iHeightmapDivisor) * static_cast<size_t>(iHeightmapWidth));
+		float* pfPixel = &rPixels.at(4 * static_cast<size_t>(iY) * static_cast<size_t>(miWidth));
+		for (int64_t iX = 0; iX < miWidth; ++iX)
+		{
+			if (pfHeightmapRow[iX / iHeightmapDivisor] < fThresholdMeters)
+			{
+				pfPixel[0] = pfFlatValue[0];
+				pfPixel[1] = pfFlatValue[1];
+				pfPixel[2] = pfFlatValue[2];
+				pfPixel[3] = pfFlatValue[3];
+			}
+			pfPixel += 4;
+		}
+	}
+}
+
 void Texture::Downsize(int64_t iLevels)
 {
 	ASSERT(mData.size() == 1);

@@ -499,16 +499,10 @@ void StaticVoices::UpdateListenerPosition([[maybe_unused]] const game::Frame& rF
 	// (Apply3dVolume / ComputeAttenuatedVolume) are 3D against mVecListenerPosition (camera
 	// eye), so altitude naturally pushes ground emitters into the fade band as the camera climbs.
 	const float fEyeHeight = game::gpCamera->mfCameraEyeHeight;
-	auto LerpAtHeight = [fEyeHeight](float fStartHeight, float fEndHeight, float fLow, float fHigh)
-	{
-		const float fSpan = std::max(fEndHeight - fStartHeight, 0.001f);
-		const float fT = std::clamp((fEyeHeight - fStartHeight) / fSpan, 0.0f, 1.0f);
-		return std::lerp(fLow, fHigh, fT);
-	};
-	mfEffectiveFadeStart = LerpAtHeight(gListenerDistanceStartStartHeight.Get(), gListenerDistanceStartEndHeight.Get(), gListenerDistanceStartLow.Get(), gListenerDistanceStartHigh.Get());
-	mfEffectiveFadeEnd = LerpAtHeight(gListenerDistanceEndStartHeight.Get(), gListenerDistanceEndEndHeight.Get(), gListenerDistanceEndLow.Get(), gListenerDistanceEndHigh.Get());
-	mfCurveDistanceScaler = LerpAtHeight(gListenerCurveStartHeight.Get(), gListenerCurveEndHeight.Get(), gListenerCurveLow.Get(), gListenerCurveHigh.Get());
-	mfManualFadeVolume = LerpAtHeight(gListenerAudibleFloorStartHeight.Get(), gListenerAudibleFloorEndHeight.Get(), gListenerAudibleFloorLow.Get(), gListenerAudibleFloorHigh.Get());
+	mfEffectiveFadeStart = gListenerDistanceStart.Resolve(fEyeHeight);
+	mfEffectiveFadeEnd = gListenerDistanceEnd.Resolve(fEyeHeight);
+	mfCurveDistanceScaler = gListenerCurve.Resolve(fEyeHeight);
+	mfManualFadeVolume = gListenerAudibleFloor.Resolve(fEyeHeight);
 }
 
 void StaticVoices::UpdateVolumes()

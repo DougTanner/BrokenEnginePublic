@@ -177,6 +177,29 @@ TextureManager::TextureManager()
 		*static_cast<uint8_t*>(pData) = 0xFFu;
 	});
 
+	// All-zero RGBA: no rock/sand/snow/flow until the real BC7 mask chunk adopts. Bindless arrays
+	// don't require uniform format across slots, so R8G8B8A8 here while real masks are BC7 is OK
+	// (same precedent as mIslandPlaceholderColor above vs BC7 islands).
+	mIslandPlaceholderMasks.Create(
+	{
+		.textureFlags = {},
+		.name = "IslandPlaceholderMasks",
+		.flags = 0,
+		.format = VK_FORMAT_R8G8B8A8_UNORM,
+		.extent = VkExtent3D {1, 1, 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	},
+	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
+	{
+		*static_cast<uint32_t*>(pData) = 0x00000000u;
+	});
+
 	// Create deferred textures from ChunkHeader metadata for all texture chunks (real GPU resources allocated when data arrives)
 	for (auto& [rCrc, rLazyChunk] : gpFileManager->GetLazyChunkMap())
 	{
@@ -215,11 +238,15 @@ TextureManager::TextureManager()
 
 	mTextureDescriptors.Create();
 
-	// Initialize island texture pointers sized to kiMaxIslands for shader descriptor arrays
+	// Initialize island texture pointers sized to kiMaxIslands for shader descriptor arrays.
+	// .data() pointer-stability across this manager's lifetime is load-bearing: each array's .data()
+	// pointer is the map key in TextureDescriptors::mBindlessArrayConsumers. Do not re-resize these
+	// vectors after this point — a re-resize would dangle the registry keys.
 	mRenderTargetTextures.mElevationTextures.resize(shaders::kiMaxIslands);
 	mRenderTargetTextures.mColorTextures.resize(shaders::kiMaxIslands);
 	mRenderTargetTextures.mNormalsTextures.resize(shaders::kiMaxIslands);
 	mRenderTargetTextures.mAmbientOcclusionTextures.resize(shaders::kiMaxIslands);
+	mRenderTargetTextures.mMasksTextures.resize(shaders::kiMaxIslands);
 
 	// Device-lost recovery: clear per-template slot residency state so the next AcquireTextureSlot
 	// runs the first-mint path (re-points bindless arrays at real Textures, re-registers both
@@ -240,6 +267,7 @@ TextureManager::TextureManager()
 		mRenderTargetTextures.mColorTextures[i] = &mIslandPlaceholderColor;
 		mRenderTargetTextures.mNormalsTextures[i] = &mIslandPlaceholderNormals;
 		mRenderTargetTextures.mAmbientOcclusionTextures[i] = &mIslandPlaceholderAmbientOcclusion;
+		mRenderTargetTextures.mMasksTextures[i] = &mIslandPlaceholderMasks;
 	}
 
 	gpProfileManager->BootStop(kBootTimerTextureUpload);

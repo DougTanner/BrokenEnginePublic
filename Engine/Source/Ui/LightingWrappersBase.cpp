@@ -38,10 +38,13 @@ Wrapper gSpreadOutputCompress(3.5f, 0.0f, 5.0f);
 Wrapper gSpreadTextureMultiplierEnd(0.01f, 0.01f, 0.1f);
 Wrapper gSpreadDirectionalityEnd(0.8f, 0.0f, 1.0f);
 Wrapper gSpreadDirectionCountEnd(4.0f, 4.0f, 16.0f);
-Wrapper gSpreadDistanceEndStartHeight(150.0f, 0.0f, 1000.0f);
-Wrapper gSpreadDistanceEndEndHeight(600.0f, 0.0f, 1000.0f);
-Wrapper gSpreadDistanceEndLow(10.0f, 1.0f, 40.0f);
-Wrapper gSpreadDistanceEndHigh(26.0f, 1.0f, 40.0f);
+HeightLerpWrapperQuartet gSpreadDistanceEnd
+{
+	Wrapper(150.0f, 0.0f, 1000.0f),  // StartHeight
+	Wrapper(600.0f, 0.0f, 1000.0f),  // EndHeight
+	Wrapper(10.0f, 1.0f, 40.0f),     // Low
+	Wrapper(26.0f, 1.0f, 40.0f),     // High
+};
 Wrapper gSpreadRingCountEnd(3.0f, 1.0f, 16.0f);
 Wrapper gSpreadJitterEnd(0.874f, 0.0f, 1.0f);
 Wrapper gSpreadSampleJitterRangeEnd(0.0f, 0.0f, 10.0f);

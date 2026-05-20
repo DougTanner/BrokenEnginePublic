@@ -11,7 +11,7 @@ layout (binding = 0) uniform globalUniform
 };
 
 layout (binding = 1) uniform sampler2D objectShadowsBlurIntermediateSampler;
-layout (binding = 2, r16) uniform image2D objectShadowsBlurTexture;
+layout (binding = 2, r16) uniform writeonly image2D objectShadowsBlurTexture;
 
 void main()
 {
@@ -23,18 +23,19 @@ void main()
 		return;
 
 	int iRadius = globalLayout.iObjectShadowsBlurRadius;
-	float fInvSigma = float(iRadius) / globalLayout.fObjectShadowsBlurSigma;
+	float fRadiusOverSigma = float(iRadius) / max(globalLayout.fObjectShadowsBlurSigma, 1e-6f);
 
-	vec2 f2Uv = (vec2(uiX, uiY) + vec2(0.5f)) / vec2(i2Size);
+	vec2 f2InvSize = 1.0f / vec2(i2Size);
+	vec2 f2Uv = (vec2(uiX, uiY) + 0.5f) * f2InvSize;
 
 	float fTotal = 0.0f;
 	float fWeightSum = 0.0f;
 	for (int j = -iRadius; j <= iRadius; ++j)
 	{
-		float fA = float(j) / fInvSigma;
+		float fA = float(j) / fRadiusOverSigma;
 		float fWeight = exp(-0.5f * fA * fA);
-		vec2 f2Offset = vec2(0.0f, float(j)) / vec2(i2Size);
-		fTotal += fWeight * texture(objectShadowsBlurIntermediateSampler, f2Uv + f2Offset).x;
+		vec2 f2Offset = vec2(0.0f, float(j)) * f2InvSize;
+		fTotal += fWeight * textureLod(objectShadowsBlurIntermediateSampler, f2Uv + f2Offset, 0.0f).x;
 		fWeightSum += fWeight;
 	}
 

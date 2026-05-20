@@ -176,7 +176,8 @@ vec3 GetNormal(PbrMaterialLayout material)
 		return N;
 	}
 	T = normalize(Tperp);
-	vec3 B = normalize(cross(N, T));
+	// cross of two perpendicular unit vectors is already unit (N is unit; T is unit and Gram-Schmidt-orthogonalized to N above)
+	vec3 B = cross(N, T);
 	mat3 TBN = mat3(T, B, N);
 
 	// BC5 normal map: only XY stored, reconstruct Z = sqrt(1 - X^2 - Y^2).

@@ -20,9 +20,6 @@ struct RenderTargetTextures
 	Texture mLogTexture;
 
 	Texture mTerrainElevationTexture;
-	Texture mTerrainColorTexture;
-	Texture mTerrainNormalTexture;
-	Texture mTerrainAmbientOcclusionTexture;
 
 	Texture mSmokeGradientTexture;
 	Texture mSmokeTextureOne;
@@ -71,6 +68,7 @@ struct RenderTargetTextures
 	std::vector<Texture*> mColorTextures;
 	std::vector<Texture*> mNormalsTextures;
 	std::vector<Texture*> mAmbientOcclusionTextures;
+	std::vector<Texture*> mMasksTextures;
 };
 
 } // namespace engine

@@ -44,6 +44,14 @@ public:
 	// no PNG / EXR writer is wired up in Texture.cpp (load-only paths).
 	void Crop(int64_t iX, int64_t iY, int64_t iWidth, int64_t iHeight);
 
+	// Replace every mip-0 pixel whose corresponding heightmap sample is < fThresholdMeters with
+	// rFlatValue. Heightmap is at miWidth/iHeightmapDivisor × miHeight/iHeightmapDivisor (the
+	// 4×-downsampled engine-meter elevation), so each heightmap sample governs an iHeightmapDivisor²
+	// block of texture pixels. Single-mip only — call before MakeMipmaps so mips inherit the
+	// flattened regions naturally. Used by ExportIsland to zero out invisible underwater pixels
+	// before BC encoding, giving RDO + zlib large constant runs to compress.
+	void MaskByHeightmap(const std::vector<float>& rHeightmap, int64_t iHeightmapWidth, int64_t iHeightmapHeight, int64_t iHeightmapDivisor, float fThresholdMeters, const float pfFlatValue[4]);
+
 	static uint32_t PixelToUint32(const std::vector<float>& rIn, int64_t iWidth, int64_t iX, int64_t iY);
 	static void ToBc4(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight);
 	static void ToBc5(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight);

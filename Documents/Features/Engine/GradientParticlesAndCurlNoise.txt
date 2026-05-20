@@ -23,7 +23,7 @@ Changes (7 files)
      float fLifetime INIT;      // Total lifetime in seconds (0 = no gradient, use iColor only)
      float fParticlePad INIT;   // Padding to maintain 16-byte alignment
 
-   Add curl noise tunables to GlobalLayout (after fSmokeNoiseInfluence, before uiSmokeTilesX):
+   Add curl noise tunables to GlobalLayout (after fSmokeEdgeDecayDistanceInv, before uiSmokeTilesX -- fSmokeNoiseInfluence was deleted by the DeadUboFieldsSweep):
      float fSmokeCurlNoiseScale INIT;     // World-space frequency of curl noise
      float fSmokeCurlNoiseStrength INIT;   // Displacement magnitude
      float fSmokeCurlNoiseSpeed INIT;      // Time animation speed

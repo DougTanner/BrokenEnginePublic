@@ -222,7 +222,7 @@ void PipelineManager::CreatePipelineShadows()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
 			// kSamplerElevation: bindless source is R32_SFLOAT; sampler chooses LINEAR or NEAREST per device capability (see TextureManager::CreateSamplers).
-			{.flags = {kCombinedSamplers, kSamplerElevation}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mElevationTextures.data()},
+			{.flags = {kCombinedSamplers, kSamplerElevation, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mElevationTextures.data()}, // binding = TerrainPipelineBindings::kiElevation
 		},
 	});
 
@@ -324,9 +324,13 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainColorTexture},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture},
+			// Bindless per-island color / normal / AO arrays (was previously single composite RTTs).
+			// Compositing fragment shader indexes these with the per-instance `uiTextureSlot` forwarded
+			// from Terrain.vert; `kSamplerClamp` matches the per-slot RegisterTextureBinding flag in
+			// IslandTerrain.cpp so descriptor writes line up with the sampler descriptor layout.
+			{.flags = {kCombinedSamplers, kSamplerClamp, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mColorTextures.data()}, // binding = TerrainPipelineBindings::kiColor
+			{.flags = {kCombinedSamplers, kSamplerClamp, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mNormalsTextures.data()}, // binding = TerrainPipelineBindings::kiNormals
+			{.flags = {kCombinedSamplers, kSamplerClamp, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.data()}, // binding = TerrainPipelineBindings::kiAmbientOcclusion
 			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne},
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC7Rock0jpgCrc},
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC5SandNormal0jpgCrc},
@@ -341,6 +345,11 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 			// mesh vertices into world space (set=1 binding=19). Mirrors kPipelineShadowElevation's
 			// SSBO usage; gl_InstanceIndex is supplied per-island via firstInstance at draw time.
 			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
+			// Bindless per-island material masks (set=1 binding=20). Packed RGBA = Rock/Sand/Snow/Flow
+			// replacing the procedural fRockPercent / fBeachPercent / fSnowPercent heuristics in
+			// Terrain.frag. Appended after the SSBO so existing frag bindings 9..18 and the
+			// Terrain.vert SSBO at 19 stay put.
+			{.flags = {kCombinedSamplers, kSamplerClamp, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mMasksTextures.data()}, // binding = TerrainPipelineBindings::kiMasks
 		},
 	});
 
@@ -386,9 +395,6 @@ void PipelineManager::CreateTerrainDataPipelines()
 	TerrainDataPipelineDesc pDescs[]
 	{
 		{.ePipeline = kPipelineTerrainElevation, .pcName = "TerrainElevation", .fragmentShaderCrc = data::kShadersTerrainTerrainElevationfragCrc, .rTargetTexture = gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture, .ppSourceTextures = gpTextureManager->mRenderTargetTextures.mElevationTextures.data(), .eSourceSamplerFlag = kSamplerElevation},
-		{.ePipeline = kPipelineTerrainColor, .pcName = "TerrainColor", .fragmentShaderCrc = data::kShadersTerrainTerrainColorfragCrc, .rTargetTexture = gpTextureManager->mRenderTargetTextures.mTerrainColorTexture, .ppSourceTextures = gpTextureManager->mRenderTargetTextures.mColorTextures.data(), .eSourceSamplerFlag = kSamplerClamp},
-		{.ePipeline = kPipelineTerrainNormal, .pcName = "TerrainNormal", .fragmentShaderCrc = data::kShadersTerrainTerrainNormalfragCrc, .rTargetTexture = gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture, .ppSourceTextures = gpTextureManager->mRenderTargetTextures.mNormalsTextures.data(), .eSourceSamplerFlag = kSamplerClamp},
-		{.ePipeline = kPipelineTerrainAmbientOcclusion, .pcName = "TerrainAmbientOcclusion", .fragmentShaderCrc = data::kShadersTerrainTerrainAmbientOcclusionfragCrc, .rTargetTexture = gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture, .ppSourceTextures = gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.data(), .eSourceSamplerFlag = kSamplerClamp},
 	};
 
 	for (const TerrainDataPipelineDesc& rDesc : pDescs)
@@ -405,7 +411,7 @@ void PipelineManager::CreateTerrainDataPipelines()
 			{
 				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 				{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-				{.flags = {kCombinedSamplers, rDesc.eSourceSamplerFlag}, .iCount = shaders::kiMaxIslands, .ppTextures = rDesc.ppSourceTextures},
+				{.flags = {kCombinedSamplers, rDesc.eSourceSamplerFlag, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = rDesc.ppSourceTextures}, // binding = TerrainPipelineBindings::kiElevation (kPipelineTerrainElevation)
 			},
 		});
 	}

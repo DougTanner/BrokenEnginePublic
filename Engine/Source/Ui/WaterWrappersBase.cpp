@@ -12,40 +12,41 @@ namespace engine
 // 12 SeaWavesB 0.25
 Wrapper gWaterNormalIndexOne(int64_t {12}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
 Wrapper gLightingSampledNormalsOneSize(0.2f, 0.05f, 1.0f);
-Wrapper gLightingSampledNormalsWeightOneMin(0.0f, 0.0f, 4.0f);
-Wrapper gLightingSampledNormalsWeightOneMax(0.5f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsWeightOneMin(1.5f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsWeightOneMax(0.25f, 0.0f, 4.0f);
 Wrapper gWaterNormalRotationOne(0.0f, -XM_PI, XM_PI);
 // 4 GreenCalm 0.05
 // 12 SeaWaves 0.02
 // 16 WaterFall 0.04
 // 2 Foam 0.03
 // 7 Lake 0.06
-Wrapper gWaterNormalIndexTwo(int64_t {4}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
+// 15 Stone and Ripples 
+Wrapper gWaterNormalIndexTwo(int64_t {15}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
 Wrapper gLightingSampledNormalsTwoSize(0.05f, 0.025f, 0.1f);
-Wrapper gLightingSampledNormalsWeightTwoMin(1.0f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsWeightTwoMin(0.25f, 0.0f, 4.0f);
 Wrapper gLightingSampledNormalsWeightTwoMax(0.75f, 0.0f, 4.0f);
-Wrapper gWaterNormalRotationTwo(-0.15f, -XM_PI, XM_PI);
+Wrapper gWaterNormalRotationTwo(0.75f, -XM_PI, XM_PI);
 // 12 SeaWavesB 0.03
-Wrapper gWaterNormalIndexThree(int64_t {12}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
+// 2 Foam
+Wrapper gWaterNormalIndexThree(int64_t {2}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
 Wrapper gLightingSampledNormalsThreeSize(0.04f, 0.025f, 0.1f);
-Wrapper gLightingSampledNormalsWeightThreeMin(1.0f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsWeightThreeMin(0.5f, 0.0f, 4.0f);
 Wrapper gLightingSampledNormalsWeightThreeMax(1.5f, 0.0f, 4.0f);
 Wrapper gWaterNormalRotationThree(0.2f, -XM_PI, XM_PI);
-Wrapper gLightingSampledNormalsSpeedMin(0.025f, 0.0f, 0.1f);
-Wrapper gLightingSampledNormalsSpeedMax(0.05f, 0.0f, 0.1f);
+Wrapper gLightingSampledNormalsSpeedMin(0.02f, 0.0f, 0.1f);
+Wrapper gLightingSampledNormalsSpeedMax(0.03f, 0.0f, 0.1f);
 Wrapper gWaterDepthReflectionFeather(0.05f, 0.001f, 0.1f);
-// Source-side dampener for the Gerstner vertex normal — blends Water.vert's wave normal toward (0,0,1) before it reaches any downstream consumer.
-Wrapper gWaterWaveNormalBlend(1.0f, 0.0f, 1.0f);
+Wrapper gWaterWaveNormalBlend(0.8f, 0.0f, 1.0f);
 
 // Specular - Skybox
 Wrapper gLightingWaterSkyboxSunBias(3.3f, 0.0f, 4.0f);
-Wrapper gLightingWaterSkyboxNormalSoften(0.8f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxNormalSoften(0.75f, 0.0f, 1.0f);
 Wrapper gLightingWaterSkyboxNormalBlendWave(0.13f, 0.0f, 0.4f);
 Wrapper gLightingWaterSkyboxIntensity(0.00045f, 0.0001f, 0.002f);
 Wrapper gLightingWaterSkyboxAdd(2.0f, 0.0f, 4.0f);
 Wrapper gLightingWaterSkyboxOne(2400.0f, 0.0f, 5000.0f);
 Wrapper gLightingWaterSkyboxOnePower(250.0f, 50.0f, 400.0f);
-Wrapper gLightingWaterSkyboxTwo(150.0f, 0.0f, 400.0f);
+Wrapper gLightingWaterSkyboxTwo(200.0f, 0.0f, 400.0f);
 Wrapper gLightingWaterSkyboxTwoPower(6.0f, 1.0f, 20.0f);
 Wrapper gLightingWaterSkyboxThree(250.0f, 1.0f, 800.0f);
 Wrapper gLightingWaterSkyboxThreePower(0.001f, 0.001f, 1.0f);
@@ -107,7 +108,6 @@ Wrapper gWaterDepthColorFeather(0.151f, 0.1f, 2.0f);
 Wrapper gWaterColorBottom(0.134f, -2.0f, 2.0f);
 Wrapper gWaterColorHeight(1.86f, 0.0f, 4.0f);
 Wrapper gWaterFresnel(0.07f, 0.0f, 0.2f); // DT: TEMP
-Wrapper gWaterFresnel2(0.8f, 0.0f, 4.0f); // DT: TEMP
 Wrapper gWaterNoiseFrequency(0.007f, 0.0f, 0.02f); // DT: TEMP
 Wrapper gWaterNoiseAmount(1.4f, 0.0f, 2.0f); // DT: TEMP
 Wrapper gWaterColorNoiseFrequency(0.0013f, 0.0f, 0.01f);

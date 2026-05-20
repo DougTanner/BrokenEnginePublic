@@ -37,8 +37,25 @@ layout (scalar, set = 1, binding = 19) buffer readonly quadsBuffer
 // re-derived below from the composite elevation G-buffer (see fVertexZ below).
 layout (location = 0) in vec2 f2InPosition;
 
-// Output: visible-area UV for Terrain.frag to sample composite G-buffer textures.
+// Output 0: visible-area UV for Terrain.frag to sample the composite elevation G-buffer plus
+//           the shadow / object-shadow / lighting / smoke / ambient samplers that all live in
+//           that coordinate space. Color / normal / AO no longer use it — see location 1.
 layout (location = 0) out vec2 f2OutTexcoord;
+
+// Output 1: per-island texture UV used by Terrain.frag to directly sample the per-island
+//           color / normal / AO bindless arrays. Derived from the mesh's island-local XY
+//           (pre-rotation) and the full island footprint (`f4VertexRect.zw`). Rotation-
+//           independent by construction: the per-island textures are baked in island-local
+//           axes, so rotation only affects where the textured surface lands in world space.
+layout (location = 1) out vec2 f2OutIslandTexcoord;
+
+// Output 2: per-instance bindless texture-slot index for color / normal / AO arrays.
+//           Mirrors QuadsAxisAlignedVisibleArea.vert's location-7 forwarding pattern.
+layout (location = 2) out flat uint uiOutTextureSlot;
+
+// Output 3: per-instance rotation (cos, sin) so Terrain.frag can rotate the BC5 normal
+//           tangent in lockstep with how the deleted TerrainNormal.frag prepass used to.
+layout (location = 3) out flat vec2 f2OutRotationCosSin;
 
 void main()
 {
@@ -47,6 +64,7 @@ void main()
 	// fields on some drivers (rotation read as 0); reading each field through pQuads[...] avoids it.
 	vec4 f4VertexRect = pQuads[gl_InstanceIndex].f4VertexRect;
 	float fRotation = pQuads[gl_InstanceIndex].fRotation;
+	uiOutTextureSlot = pQuads[gl_InstanceIndex].uiTextureSlot;
 
 	// f4VertexRect.{x,y} is the rect's top-left corner (Islands.cpp:143-146 packs x = worldX - 0.5*w,
 	// y = worldY + 0.5*h, w = footprintX, h = -footprintY), so the island center is at corner + half-extent.
@@ -54,11 +72,19 @@ void main()
 	float fCenterY = f4VertexRect.y + 0.5f * f4VertexRect.w;
 
 	// Rotate island-local XY into world space; Z is rotation-invariant. Matches the per-instance
-	// rotation already applied by QuadsAxisAlignedVisibleArea.vert when populating the G-buffer RTTs.
+	// rotation that QuadsAxisAlignedVisibleArea.vert still applies for the elevation prepass.
 	float fCos = cos(fRotation);
 	float fSin = sin(fRotation);
+	f2OutRotationCosSin = vec2(fCos, fSin);
 	float fWorldX = fCenterX + f2InPosition.x * fCos - f2InPosition.y * fSin;
 	float fWorldY = fCenterY + f2InPosition.x * fSin + f2InPosition.y * fCos;
+
+	// Per-island texture UV from raw (pre-rotation) island-local mesh XY. Matches the prepass
+	// convention exactly: at f2InPosition == (-w/2, -|h|/2 with h<0 → +|h|/2) we hit (u, v) = (0, 0),
+	// and at (+w/2, +|h|/2 with h<0 → -|h|/2) we hit (1, 1). Texture content is in island-local
+	// axes, so rotation does not enter the UV.
+	f2OutIslandTexcoord = vec2(0.5f + f2InPosition.x / f4VertexRect.z,
+	                           0.5f + f2InPosition.y / f4VertexRect.w);
 
 	// Visible-area UV used by Terrain.frag to sample composite G-buffer textures
 	// (mTerrainElevationTexture etc., rendered earlier this frame by the per-island G-buffer prepass).

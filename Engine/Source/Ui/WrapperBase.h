@@ -216,15 +216,10 @@ extern Wrapper gBaseHeight;
 // Islands & terrain
 extern Wrapper gVisibleAreaExtraTop;
 extern Wrapper gVisibleAreaExtraBottom;
-extern Wrapper gIslandAmbientOcclusion;
 extern Wrapper gTerrainEarlyOut;
 extern Wrapper gTerrainElevationTextureMultiplier;
-extern Wrapper gTerrainColorTextureMultiplier;
-extern Wrapper gTerrainNormalTextureMultiplier;
-extern Wrapper gTerrainAmbientOcclusionTextureMultiplier;
 
 // Smoke
-extern Wrapper gSmokeNoiseInfluence;
 extern Wrapper gSmokeTrailPower;
 extern Wrapper gSmokeTrailAlpha;
 

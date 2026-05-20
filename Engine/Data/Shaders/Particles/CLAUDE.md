@@ -20,6 +20,9 @@ Compute shaders for GPU-driven particle spawning and physics simulation, plus ve
 
 - Spawn and update share the same particle storage buffer but use separate pipelines
 - Indirect dispatch/draw buffers written by the spawn shader eliminate CPU-GPU synchronization for particle counts
+- Billboard cross-product NaN guard: ternary-perturb world-up when `|forward.z| > 0.999` so the world-up/forward cross is never zero (mirrors `Debug/DebugRenderBillboard.vert:36`).
+- Snap-to-terrain bounce: terrain-collision branch snaps z to `fTerrainElevation` rather than re-integrating with flipped velocity. Death test uses captured pre-collision z so the "kill on water hit" semantic survives the snap mutation.
+- Allocation bitmap word `puiAllocated[i / 32]` is shared by 32 adjacent invocations — deallocations must use `atomicAnd`; only the spawn shader's `local_size_x = 1` is safe to write non-atomically.
 
 ## See Also
 

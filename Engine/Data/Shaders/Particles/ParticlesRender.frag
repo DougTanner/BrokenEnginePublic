@@ -32,11 +32,19 @@ layout (location = 0) out vec4 f4OutColor;
 void main()
 {
 	int i = iInInstanceIndex;
-	float fIntensity = render.pParticles[i].fVisibleIntensity;
-	fIntensity = pow(fIntensity, render.pParticles[i].fIntensityPower);
 
-	vec4 f4Color = unpackUnorm4x8(render.pParticles[i].iColor).abgr;
-	float fCookie = texture(sampler2D(pTextures[nonuniformEXT(render.pParticles[i].iCookie)], particleSampler), f2InTexcoord).x;
+	// Hoist SSBO reads (one access per field)
+	float fVisibleIntensity = render.pParticles[i].fVisibleIntensity;
+	float fIntensityPower = render.pParticles[i].fIntensityPower;
+	uint uiColor = render.pParticles[i].iColor;
+	int iCookie = render.pParticles[i].iCookie;
+
+	// Clamp pow base — fVisibleIntensity can briefly go negative under aggressive decay (1 - dt*decay < 0)
+	float fIntensity = pow(max(fVisibleIntensity, 0.0f), fIntensityPower);
+
+	vec4 f4Color = unpackUnorm4x8(uiColor).abgr;
+	float fCookie = texture(sampler2D(pTextures[nonuniformEXT(iCookie)], particleSampler), f2InTexcoord).x;
+	// Output alpha = 0 is correct under kAdd blend (VK_BLEND_FACTOR_ONE/ONE — alpha contribution discarded by additive sum)
 	f4OutColor = vec4(fCookie * fIntensity * f4Color.w * f4Color.xyz, 0.0f);
 
 	float fHeightFraction = clamp((f3InWorldPosition.z - globalLayout.fBaseHeight) * globalLayout.fSmokeObjectHeightInv, 0.0f, 1.0f);

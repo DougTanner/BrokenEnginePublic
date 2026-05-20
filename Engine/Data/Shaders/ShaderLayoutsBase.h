@@ -156,15 +156,11 @@ struct PushConstantsLayout
 
 struct GlobalLayout
 {
-	int32_t iCommandBuffer INIT;
-	int32_t iCameraFrame INIT;
-	int32_t iTickCounter INIT;
 	uint32_t uiRandomSeed INIT;
 
 	float fElapsedTime INIT;
 	float fBaseHeight INIT;
 	float fAspectRatio INIT;
-	float fDetailTextureAspectRatio INIT;
 
 	vec2 f2CameraPosition INIT;
 	vec4 f4VisibleArea INIT;
@@ -203,7 +199,6 @@ struct GlobalLayout
 	float fSmokeNoiseScaleTwo INIT;
 	float fSmokeObjectHeightInv INIT;
 	float fSmokeEdgeDecayDistanceInv INIT;
-	float fSmokeNoiseInfluence INIT;
 	uint32_t uiSmokeTilesX INIT;
 	uint32_t uiSmokeTilesY INIT;
 	float fSmokeDepositTileScale INIT;
@@ -304,7 +299,6 @@ struct GlobalLayout
 	float fShadowNoonOffset INIT;
 	float fShadowDistanceFalloff INIT;
 	float fShadowBlurSigma INIT;
-	float fObjectShadowsBlurDistance INIT;
 	float fObjectShadowsBlurSigma INIT;
 	float fObjectShadowsIntensity INIT;
 	float fObjectShadowsGrow INIT;
@@ -320,15 +314,12 @@ struct GlobalLayout
 	float fWaterReducedNoiseOriginY INIT;
 	int32_t iShadowTextureWidth INIT;
 	int32_t iShadowTextureHeight INIT;
-	int32_t iObjectShadowTextureWidth INIT;
-	int32_t iObjectShadowTextureHeight INIT;
 
 	// Terrain. Heightmap pixels carry absolute meters directly — fIslandHeight / fWaterDepth
 	// scale factors retired with the meters-everywhere refactor.
 	float fIslandAmbientOcclusion INIT;
 	float fTerrainEarlyOut INIT;
 	float fWaterEarlyOut INIT;
-	float fTerrainSunBrightness INIT;
 	float fWaterReducedNormalOriginX INIT;
 	float fWaterReducedNormalOriginY INIT;
 	float fWaterReducedNormalOriginTwoX INIT;
@@ -364,7 +355,6 @@ struct GlobalLayout
 	float fWaterColorNoiseMultiplierOne INIT;
 	float fWaterColorNoiseMultiplierTwo INIT;
 	float fWaterDirectional INIT;
-	float fWaterFresnel2 INIT;
 	float fBeachFadeTop INIT;
 	float fBeachFadeInvRange INIT;
 	float fWaterLowSteepness INIT;
@@ -391,12 +381,9 @@ struct GlobalLayout
 	float fShadowHeightFadeBottom INIT;
 
 	// Terrain
-	float fTerrainNormalXMultiplier INIT;
-	float fTerrainNormalYMultiplier INIT;
+	float fTerrainSnowBlend INIT;
+	float fTerrainSnowAmbientOcclusionExclusion INIT;
 
-	float fTerrainSnowMultiplier INIT;
-
-	float fTerrainRockMultiplier INIT;
 	float fTerrainRockSize INIT;
 	float fTerrainRockBlend INIT;
 	float fTerrainRockNormalsSizeOne INIT;
@@ -414,7 +401,6 @@ struct GlobalLayout
 
 	// Time of day
 	float fLightingTimeOfDayMultiplier INIT;
-	float fLightingNightMultiplier INIT;
 	float fLightingWaterSkyboxOne INIT;
 
 	// Debug
@@ -445,8 +431,6 @@ struct MainLayout
 	float fLightingSampledNormalsOneSize INIT;
 	float fLightingSampledNormalsTwoSize INIT;
 	float fLightingSampledNormalsThreeSize INIT;
-	float fLightingSampledNormalsSpeedMin INIT;
-	float fLightingSampledNormalsSpeedMax INIT;
 	uint32_t uiWaterNormalIndexOne INIT;
 	uint32_t uiWaterNormalIndexTwo INIT;
 	uint32_t uiWaterNormalIndexThree INIT;
@@ -520,8 +504,6 @@ struct MainLayout
 
 	float fPbrMipCount INIT;
 	float fPbrSmoke INIT;
-	float fPbrDebugViewInputs INIT;
-	float fPbrDebugViewEquation INIT;
 
 	float fPbrBrdfDiffuse INIT;
 	float fPbrBrdfDiffusePower INIT;

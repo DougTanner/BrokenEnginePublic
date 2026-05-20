@@ -27,6 +27,13 @@ enum class DescriptorFlags : uint64_t
 	kPerCommandBufferStorageBuffers = 0x4000,
 
 	kModel                          = 0x8000,
+
+	// Marks a bindless texture-array descriptor whose per-slot binding key is supplied lazily by the
+	// data subsystem (e.g., IslandTerrain) rather than derivable from ppTextures[k]->mInfo.crc.
+	// PipelineDescriptorWriter routes flagged entries into TextureDescriptors::mBindlessArrayConsumers;
+	// IslandTerrain::AcquireTextureSlot iterates that registry at first-mint and registers under the
+	// correct islandCrc / chunk-CRC key. See Documents/Plans/Graphics/CoLocatePerSlotDescriptorRegistration.md.
+	kBindlessArrayConsumer          = 0x40000,
 };
 using DescriptorFlags_t = common::Flags<DescriptorFlags>;
 

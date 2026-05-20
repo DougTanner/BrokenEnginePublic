@@ -5,6 +5,7 @@ Runtime-adjustable parameter wrappers and ImGui-based screen classes.
 ## Key Systems
 
 - **Wrapper** - Type-safe value container for UI-bound settings with change detection. Supports float, bool, and discrete enum types.
+- **HeightLerpWrapperQuartet** - Four `Wrapper`s grouped as a single eye-height-lerped scalar; `Resolve(fEyeHeight)` returns the lerped float. Canonical shape for camera-height-conditional uniforms — see `Engine/Source/Graphics/Render/CLAUDE.md`. A free `engine::LerpAtHeight(...)` in the same header serves hard-coded-endpoint variants that don't expose author controls.
 - **CurveData / CurveWidget** (client-only) - Monotone cubic Hermite (Fritsch-Carlson) curve with Photoshop-style ImGui editor. Capped at 16 control points; endpoints locked; interior points clamp between neighbors.
 - **NetworkUiControl** - Templated helper that disables a control while awaiting server confirmation and resets when the confirmed value arrives.
 

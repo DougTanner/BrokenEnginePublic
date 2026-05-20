@@ -32,7 +32,7 @@ void main()
 	int32_t i = int32_t(gl_InstanceIndex);
 	iOutInstanceIndex = i;
 #if defined(ENABLE_32_BIT_BOOL)
-	if ((particles.puiAllocated[i / 32] & (1 << (i % 32))) == 0)
+	if ((particles.puiAllocated[i / 32] & (1u << (uint(i) % 32u))) == 0u)
 #else
 	if (particles.pbAllocated[i] == 0)
 #endif
@@ -41,20 +41,35 @@ void main()
 		return;
 	}
 
-	vec3 f3Direction = normalize(particles.pParticles[i].f4Velocity.xyz);
+	vec4 f4Center = particles.pParticles[i].f4Position;
+	vec3 f3ToEyeNormal = normalize(mainLayout.f4EyePosition.xyz - f4Center.xyz);
+
+	// Direction from velocity; guard zero-velocity (newly-spawned / stalled) — fall back to eye-facing
+	vec3 f3Velocity = particles.pParticles[i].f4Velocity.xyz;
+	float fVelocitySquared = dot(f3Velocity, f3Velocity);
+	float fVelocityLength = sqrt(fVelocitySquared);
+	vec3 f3Direction = (fVelocitySquared > kfEpsilon * kfEpsilon) ? f3Velocity / fVelocityLength : f3ToEyeNormal;
+
 	float fWidth = particles.pParticles[i].fSize;
 	float fLength = particles.pParticles[i].fLength;
 
-	// Normal from particle center to eye position
-	vec4 f4Center = particles.pParticles[i].f4Position;
-	vec3 f3ToEyeNormal = normalize(mainLayout.f4EyePosition.xyz - f4Center.xyz);
-	
-	// Cross product front direction and eye to get left direction
-	vec3 f3LeftNormal = normalize(cross(f3ToEyeNormal, f3Direction));
-	
+	// Cross product front direction and eye to get left direction; guard view-parallel-velocity singularity (top-down RTS)
+	vec3 f3CrossCandidate = cross(f3ToEyeNormal, f3Direction);
+	float fCrossSquared = dot(f3CrossCandidate, f3CrossCandidate);
+	vec3 f3LeftNormal;
+	if (fCrossSquared > kfEpsilon * kfEpsilon)
+	{
+		f3LeftNormal = f3CrossCandidate * inversesqrt(fCrossSquared);
+	}
+	else
+	{
+		vec3 f3WorldUp = abs(f3ToEyeNormal.z) < 0.999f ? vec3(0.0f, 0.0f, 1.0f) : vec3(1.0f, 0.0f, 0.0f);
+		f3LeftNormal = normalize(cross(f3ToEyeNormal, f3WorldUp));
+	}
+
 	// Calculate length multiplier of particle based on velocity
-	float fVelocityLength = length(particles.pParticles[i].f4Velocity.xyz);
-	float fLengthMultiplier = 1.0f + globalLayout.fParticlesStretchVelocityMultiplier * clamp((fVelocityLength - globalLayout.fParticlesStretchVelocityStart) / (globalLayout.fParticlesStretchVelocityEnd - globalLayout.fParticlesStretchVelocityStart), 0.0f, 1.0f);
+	float fStretchRange = max(globalLayout.fParticlesStretchVelocityEnd - globalLayout.fParticlesStretchVelocityStart, kfEpsilon);
+	float fLengthMultiplier = 1.0f + globalLayout.fParticlesStretchVelocityMultiplier * clamp((fVelocityLength - globalLayout.fParticlesStretchVelocityStart) / fStretchRange, 0.0f, 1.0f);
 	
 	// Use the vertex texcoords to place the vertex at the correct corner
 	vec4 f4Position = f4Center;

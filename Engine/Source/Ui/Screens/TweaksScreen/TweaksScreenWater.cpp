@@ -92,7 +92,6 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Water Color Bottom", &gWaterColorBottom},
 	{"Water Color Height", &gWaterColorHeight},
 	{"Water Fresnel", &gWaterFresnel},
-	{"Water Fresnel 2", &gWaterFresnel2},
 	{"Water Noise Frequency", &gWaterNoiseFrequency},
 	{"Water Noise Amount", &gWaterNoiseAmount},
 	{"Water Color Noise Frequency", &gWaterColorNoiseFrequency},
@@ -271,7 +270,6 @@ void TweaksScreenBase::RenderWaterSection()
 
 			WrapperSeparatorText("Fresnel");
 			WrapperSlider("Water Fresnel", kiSection);
-			WrapperSlider("Water Fresnel 2", kiSection);
 
 			WrapperSeparatorText("Normal Noise");
 			WrapperSlider("Water Noise Frequency", kiSection);

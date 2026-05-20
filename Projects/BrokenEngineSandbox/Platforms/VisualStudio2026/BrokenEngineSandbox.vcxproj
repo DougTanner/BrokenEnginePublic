@@ -415,6 +415,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\SmokeWrappersBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\WindWrappersBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\GraphicsSettingsWrappersBase.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\HeightLerpWrapperQuartet.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\SoundSettingsWrappersBase.h" />
     <ClInclude Include="..\..\Data\Shaders\ShaderLayouts.h" />
     <ClInclude Include="..\..\Source\Frame\Collections\Blasters\Blasters.h" />
@@ -610,6 +611,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\SmokeWrappersBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\WindWrappersBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\GraphicsSettingsWrappersBase.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\HeightLerpWrapperQuartet.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\SoundSettingsWrappersBase.cpp" />
     <ClCompile Include="..\..\Source\Ui\LightingWrappers.cpp" />
     <ClCompile Include="..\..\Source\Ui\ParticleWrappers.cpp" />
@@ -717,10 +719,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <None Include="..\..\..\..\Engine\Data\Shaders\Particles\SquareParticlesRender.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\Terrain.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\Terrain.vert" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\TerrainAmbientOcclusion.frag" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\TerrainColor.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\TerrainElevation.frag" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\TerrainNormal.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\VisibleLight.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\VisibleLight.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\Model.frag" />

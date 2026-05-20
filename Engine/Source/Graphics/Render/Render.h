@@ -16,7 +16,7 @@ namespace engine
 
 enum CpuCounters;
 
-void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick);
+void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime);
 void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord);
 
 // Lighting

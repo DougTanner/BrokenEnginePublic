@@ -49,7 +49,11 @@ bool BindingIsInSet0(const Pipeline& rPipeline, const PipelineInfo& rPipelineInf
 	return false;
 }
 
-constexpr int64_t kiMaxImageInfos = 256;
+// kPipelineTerrain's image-info footprint: 4 bindless arrays × shaders::kiMaxIslands (= 64) per array
+// = 256, plus ~13 single-texture material samplers (rock, sand normals 0/1/2, sand, rock normals 0/1/2,
+// ambient combine, smoke, etc.) = ~269 entries. 384 leaves headroom for a fifth bindless array or more
+// per-material samplers before another bump is needed. Stack-allocated per Write() call (~9 KB).
+constexpr int64_t kiMaxImageInfos = 384;
 
 void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo, const DescriptorInfo& rDescriptorInfo, int64_t iFramebuffer, VkWriteDescriptorSet& rVkWriteDescriptorSet, VkWriteDescriptorSet* pVkWriteDescriptorSets, int64_t& riDescriptorCount, VkDescriptorImageInfo* pVkDescriptorImageInfos, int64_t& riImageInfoCount, VkDescriptorBufferInfo* pVkDescriptorBufferInfos, int64_t& riBufferInfoCount)
 {
@@ -326,6 +330,11 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline, const PipelineInfo& rP
 				break;
 			}
 
+			// kBindlessArrayConsumer routing lives inside the kCombinedSamplers + non-Set-0 branch
+			// at line ~435 — a flag without kCombinedSamplers would silently skip registration and
+			// trip IslandTerrain::AcquireTextureSlot's ASSERT at first-mint instead of failing here.
+			ASSERT(!(rDescriptorInfo.flags & kBindlessArrayConsumer) || (rDescriptorInfo.flags & kCombinedSamplers));
+
 			// Use explicit binding if specified, otherwise use sequential counter
 			uint32_t uiBinding = rDescriptorInfo.iExplicitBinding >= 0 ? static_cast<uint32_t>(rDescriptorInfo.iExplicitBinding) : static_cast<uint32_t>(iDescriptorCount);
 
@@ -442,14 +451,27 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline, const PipelineInfo& rP
 					}
 					else if (rDescriptorInfo.ppTextures != nullptr)
 					{
-						// Register per-CRC entries for lazy texture loading and sampler updates
-						for (int64_t k = 0; k < rDescriptorInfo.iCount; ++k)
+						if (rDescriptorInfo.flags & kBindlessArrayConsumer)
 						{
-							common::crc_t arrayCrc = rDescriptorInfo.ppTextures[k]->mInfo.crc;
-							if (arrayCrc != 0 && gpTextureManager->mTextureMap.contains(arrayCrc))
+							// Per-slot binding key is supplied lazily by the data subsystem (IslandTerrain
+							// first-mint). Append this pipeline to the per-array consumer list; the per-CRC
+							// loop is skipped because at create time every slot still points at the slot-0
+							// placeholder and a per-slot registration under the placeholder CRC would be dead
+							// weight (never patched post-boot).
+							gpTextureManager->mTextureDescriptors.mBindlessArrayConsumers.try_emplace(rDescriptorInfo.ppTextures).first->second.push_back(
+								{&rPipeline, iDescriptorCount, rDescriptorInfo.flags, rDescriptorInfo.iCount});
+						}
+						else
+						{
+							// Register per-CRC entries for lazy texture loading and sampler updates
+							for (int64_t k = 0; k < rDescriptorInfo.iCount; ++k)
 							{
-								gpTextureManager->mTextureDescriptors.RegisterTextureBinding(arrayCrc, &rPipeline, iDescriptorCount, rDescriptorInfo.flags, nullptr, rDescriptorInfo.ppTextures, rDescriptorInfo.iCount);
-								rPipeline.mTextureCrcs.push_back(arrayCrc);
+								common::crc_t arrayCrc = rDescriptorInfo.ppTextures[k]->mInfo.crc;
+								if (arrayCrc != 0 && gpTextureManager->mTextureMap.contains(arrayCrc))
+								{
+									gpTextureManager->mTextureDescriptors.RegisterTextureBinding(arrayCrc, &rPipeline, iDescriptorCount, rDescriptorInfo.flags, nullptr, rDescriptorInfo.ppTextures, rDescriptorInfo.iCount);
+									rPipeline.mTextureCrcs.push_back(arrayCrc);
+								}
 							}
 						}
 						// Register under CRC 0 for sampler recreation coverage (texture array is copied into TextureBinding)

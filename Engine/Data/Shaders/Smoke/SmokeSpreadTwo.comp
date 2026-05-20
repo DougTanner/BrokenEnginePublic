@@ -17,7 +17,7 @@ layout (binding = 2) uniform sampler2D noiseTextureSampler;
 layout (binding = 3) uniform sampler2D elevationTextureSampler;
 layout (binding = 4) uniform sampler2D windTextureSamplerOne;
 layout (binding = 5) uniform sampler2D windTextureSamplerTwo;
-layout (binding = 6, r32f) uniform image2D outputImage;
+layout (binding = 6, r32f) uniform writeonly image2D outputImage;
 
 // Active tile list: [VkDispatchIndirectCommand (3 uint32s)] [packed tile indices...]
 layout (binding = 7) buffer activeTileBuffer
@@ -61,7 +61,7 @@ void main()
 		// so input texcoord == output texcoord and world position uses current f4SmokeArea
 		vec2 f2WorldPosition = SmokeWorldPosition(globalLayout.f4SmokeArea, f2Texcoord);
 		vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(vec3(f2WorldPosition, 0.0f), globalLayout.f4VisibleArea);
-		float fElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x;
+		float fElevation = textureLod(elevationTextureSampler, f2VisibleAreaTexcoord, 0.0f).x;
 
 		f4Result = SmokeSpread(globalLayout, textureSampler, noiseTextureSampler, windTextureSamplerOne, windTextureSamplerTwo, f2Texcoord, f2WorldPosition, f2Texcoord, globalLayout.fSmokeNoiseScaleTwo);
 

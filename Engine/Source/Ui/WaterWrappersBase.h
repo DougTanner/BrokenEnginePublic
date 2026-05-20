@@ -87,7 +87,6 @@ extern Wrapper gWaterDepthColorFeather;
 extern Wrapper gWaterColorBottom;
 extern Wrapper gWaterColorHeight;
 extern Wrapper gWaterFresnel;
-extern Wrapper gWaterFresnel2;
 extern Wrapper gWaterNoiseFrequency;
 extern Wrapper gWaterNoiseAmount;
 extern Wrapper gWaterColorNoiseFrequency;

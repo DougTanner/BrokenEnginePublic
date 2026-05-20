@@ -316,6 +316,7 @@ void TextureDescriptors::RewriteSamplerDescriptors()
 void TextureDescriptors::ClearTextureBindings()
 {
 	mTextureBindings.clear();
+	mBindlessArrayConsumers.clear();
 	mStandaloneSamplerBindings.clear();
 }
 

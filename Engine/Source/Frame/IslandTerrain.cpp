@@ -263,13 +263,14 @@ int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
 	}
 
 	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(islandCrc);
-	// Color / Normals / AO ship as standalone lazy-texture chunks. Elevation lives on the template
+	// Color / Normals / AO / Masks ship as standalone lazy-texture chunks. Elevation lives on the template
 	// (mElevationTexture) and is uploaded directly from the in-memory heightmap — no chunk, no CRC.
-	common::crc_t textureCrcs[3] =
+	common::crc_t textureCrcs[4] =
 	{
 		rLazyChunk.header.islandHeader.colorsCrc,
 		rLazyChunk.header.islandHeader.normalsCrc,
 		rLazyChunk.header.islandHeader.ambientOcclusionCrc,
+		rLazyChunk.header.islandHeader.masksCrc,
 	};
 
 	if (rTemplate.miTextureSlot < 0)
@@ -290,29 +291,47 @@ int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
 		Texture* pColor = &gpTextureManager->mTextureMap.at(textureCrcs[0]);
 		Texture* pNormals = &gpTextureManager->mTextureMap.at(textureCrcs[1]);
 		Texture* pAmbientOcclusion = &gpTextureManager->mTextureMap.at(textureCrcs[2]);
+		Texture* pMasks = &gpTextureManager->mTextureMap.at(textureCrcs[3]);
 
 		gpTextureManager->mRenderTargetTextures.mElevationTextures.at(iSlot) = &rTemplate.mElevationTexture;
 		gpTextureManager->mRenderTargetTextures.mColorTextures.at(iSlot) = pColor;
 		gpTextureManager->mRenderTargetTextures.mNormalsTextures.at(iSlot) = pNormals;
 		gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.at(iSlot) = pAmbientOcclusion;
+		gpTextureManager->mRenderTargetTextures.mMasksTextures.at(iSlot) = pMasks;
 
 		// First-mint is infrequent (one per unique islandCrc) but RegisterTextureBinding inserts
-		// into the binding map, which can allocate. The kPipelineTerrain* binding index 2 is the
-		// kCombinedSamplers array of kiMaxIslands (PipelineManager.cpp CreateTerrainDataPipelines).
-		// Elevation registers against islandCrc (unique per template, no chunk CRC to share with);
-		// the other three use their per-chunk CRCs so ProcessPendingTextures' adoption flow still
-		// routes through UpdateDescriptorsForTexture as each chunk reaches kReady.
-		// kPipelineShadowElevation and kPipelineTerrainElevation share mElevationTextures but each
-		// owns its own set=1 binding=2 descriptor; both must be patched in lockstep by
-		// RestorationSweep's UpdateArrayBindingsForKey(islandCrc), so register both.
+		// into the binding map, which can allocate.
+		//
+		// Source of truth for the (array, consumer-pipelines, binding, sampler) tuple is the
+		// pipeline declarations in PipelineManager.cpp — each DescriptorInfo flagged with
+		// kBindlessArrayConsumer self-registers into TextureDescriptors::mBindlessArrayConsumers
+		// at pipeline-create time, keyed by ppTextures. Here we iterate the per-array consumer
+		// list and register each pipeline under the correct binding key:
+		//   * Elevation: islandCrc (template-owned Texture, no mTextureMap entry; patched by
+		//     RestorationSweep's UpdateArrayBindingsForKey).
+		//   * Color / Normals / AO / Masks: per-chunk CRCs (chunk Textures live in mTextureMap;
+		//     each is patched by UpdateDescriptorsForTexture when its chunk reaches kReady).
 		{
 			ScopedSuppressAllocationTracking suppress;
-			constexpr int64_t kiBindingIndex = 2;
-			gpTextureManager->mTextureDescriptors.RegisterTextureBinding(islandCrc, &gpPipelineManager->mpPipelines[kPipelineShadowElevation], kiBindingIndex, DescriptorFlags::kSamplerElevation, nullptr, gpTextureManager->mRenderTargetTextures.mElevationTextures.data(), shaders::kiMaxIslands, iSlot);
-			gpTextureManager->mTextureDescriptors.RegisterTextureBinding(islandCrc, &gpPipelineManager->mpPipelines[kPipelineTerrainElevation], kiBindingIndex, DescriptorFlags::kSamplerElevation, nullptr, gpTextureManager->mRenderTargetTextures.mElevationTextures.data(), shaders::kiMaxIslands, iSlot);
-			gpTextureManager->mTextureDescriptors.RegisterTextureBinding(textureCrcs[0], &gpPipelineManager->mpPipelines[kPipelineTerrainColor], kiBindingIndex, DescriptorFlags::kSamplerClamp, nullptr, gpTextureManager->mRenderTargetTextures.mColorTextures.data(), shaders::kiMaxIslands, iSlot);
-			gpTextureManager->mTextureDescriptors.RegisterTextureBinding(textureCrcs[1], &gpPipelineManager->mpPipelines[kPipelineTerrainNormal], kiBindingIndex, DescriptorFlags::kSamplerClamp, nullptr, gpTextureManager->mRenderTargetTextures.mNormalsTextures.data(), shaders::kiMaxIslands, iSlot);
-			gpTextureManager->mTextureDescriptors.RegisterTextureBinding(textureCrcs[2], &gpPipelineManager->mpPipelines[kPipelineTerrainAmbientOcclusion], kiBindingIndex, DescriptorFlags::kSamplerClamp, nullptr, gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.data(), shaders::kiMaxIslands, iSlot);
+			TextureDescriptors& rTextureDescriptors = gpTextureManager->mTextureDescriptors;
+			auto Register = [&](common::crc_t bindingKey, Texture** ppArray)
+			{
+				// find() + ASSERT instead of operator[]: a missing kBindlessArrayConsumer flag on the
+				// pipeline declaration would otherwise silently insert an empty vector here and drop
+				// the registration — precisely the bug class commit 09fb128 introduced and this design
+				// exists to prevent.
+				auto it = rTextureDescriptors.mBindlessArrayConsumers.find(ppArray);
+				ASSERT(it != rTextureDescriptors.mBindlessArrayConsumers.end());
+				for (const TextureDescriptors::BindlessArrayConsumer& rConsumer : it->second)
+				{
+					rTextureDescriptors.RegisterTextureBinding(bindingKey, rConsumer.pPipeline, rConsumer.iBinding, rConsumer.samplerFlags, nullptr, ppArray, rConsumer.iCount, iSlot);
+				}
+			};
+			Register(islandCrc,      gpTextureManager->mRenderTargetTextures.mElevationTextures.data());
+			Register(textureCrcs[0], gpTextureManager->mRenderTargetTextures.mColorTextures.data());
+			Register(textureCrcs[1], gpTextureManager->mRenderTargetTextures.mNormalsTextures.data());
+			Register(textureCrcs[2], gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.data());
+			Register(textureCrcs[3], gpTextureManager->mRenderTargetTextures.mMasksTextures.data());
 		}
 
 		// Mesh buffer was created at boot by CreateClientMeshBuffers (record-once CB invariant —
@@ -364,13 +383,14 @@ void IslandTerrain::EvictionSweep()
 
 		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(rCrc);
 		// Elevation (textureCrcs[0]) is uploaded once from the in-memory heightmap and stays
-		// permanently resident (matches mMeshBuffer policy). Only color/normals/AO participate in
-		// eviction.
-		common::crc_t evictCrcs[3] =
+		// permanently resident (matches mMeshBuffer policy). Only color/normals/AO/masks participate
+		// in eviction.
+		common::crc_t evictCrcs[4] =
 		{
 			rLazyChunk.header.islandHeader.colorsCrc,
 			rLazyChunk.header.islandHeader.normalsCrc,
 			rLazyChunk.header.islandHeader.ambientOcclusionCrc,
+			rLazyChunk.header.islandHeader.masksCrc,
 		};
 
 		LOG(kGraphics, kVerbose, "Evicting islandCrc={} slot={} (refCount=0, framesSinceUse={})", rCrc, rTemplate.miTextureSlot, gpGraphics->muiFrameCounter - rTemplate.muiLastUsedRenderFrame);
@@ -384,12 +404,13 @@ void IslandTerrain::EvictionSweep()
 		gpTextureManager->mRenderTargetTextures.mColorTextures.at(iSlot) = gpTextureManager->mRenderTargetTextures.mColorTextures.at(0);
 		gpTextureManager->mRenderTargetTextures.mNormalsTextures.at(iSlot) = gpTextureManager->mRenderTargetTextures.mNormalsTextures.at(0);
 		gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.at(iSlot) = gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.at(0);
+		gpTextureManager->mRenderTargetTextures.mMasksTextures.at(iSlot) = gpTextureManager->mRenderTargetTextures.mMasksTextures.at(0);
 
 		gpFileManager->ResetTextureChunkStates(evictCrcs);
 		rTemplate.mbGpuResident = false;
 		bDirty = true;
 
-		LOG(kLoading, kVerbose, "Reset chunk states for evicted islandCrc={} evictCrcs=[{},{},{}]", rCrc, evictCrcs[0], evictCrcs[1], evictCrcs[2]);
+		LOG(kLoading, kVerbose, "Reset chunk states for evicted islandCrc={} evictCrcs=[{},{},{},{}]", rCrc, evictCrcs[0], evictCrcs[1], evictCrcs[2], evictCrcs[3]);
 	}
 
 	if (bDirty)
@@ -418,12 +439,13 @@ void IslandTerrain::RestorationSweep()
 
 		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(rCrc);
 		// Elevation has no chunk state — it's template-owned and uploaded once at first-mint —
-		// so residency is gated only on the other 3 channels.
-		common::crc_t residencyCrcs[3] =
+		// so residency is gated only on the other 4 channels.
+		common::crc_t residencyCrcs[4] =
 		{
 			rLazyChunk.header.islandHeader.colorsCrc,
 			rLazyChunk.header.islandHeader.normalsCrc,
 			rLazyChunk.header.islandHeader.ambientOcclusionCrc,
+			rLazyChunk.header.islandHeader.masksCrc,
 		};
 
 		bool bAllReady = true;

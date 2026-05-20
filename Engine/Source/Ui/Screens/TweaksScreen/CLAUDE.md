@@ -14,7 +14,7 @@ Data-driven: a slider map plus a parallel function-pointer table drive section r
 
 **Extension hooks**: Pure virtuals for game-only sections (hex shield, particles); default-empty virtual hooks for game-only tabs hosted inside an engine section (e.g., the Wind window's Deposits tab, the Lighting Effects window's Visible/Lighting tabs).
 
-**Ordering convention**: Slider order in each per-section `.cpp` is the source of truth; Wrapper global order in the matching engine `<Tab>WrappersBase.{h,cpp}` (and the game-side per-tab wrapper pair) must match.
+**Ordering convention**: Slider order in each per-section `.cpp` is the source of truth; Wrapper global order in the matching engine `<Tab>WrappersBase.{h,cpp}` (and the game-side per-tab wrapper pair) must match. Composite globals (e.g., `HeightLerpWrapperQuartet`) contribute one slider per member — registrars reach through the struct (`gQuartet.StartHeight`, `gQuartet.EndHeight`, `gQuartet.Low`, `gQuartet.High`) and the four entries occupy adjacent slots in the slider order.
 
 **Label disambiguation**: `WrapperSlider`'s `mapKey` parameter lets display labels drop redundant prefixes while preserving unique ImGui IDs via `"label##mapKey"` when keys collide.
 

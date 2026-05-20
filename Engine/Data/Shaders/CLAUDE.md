@@ -20,6 +20,9 @@ GLSL shader source for the Vulkan 1.2 pipeline, compiled to SPIR-V by the DataPa
 	- `Objects/HexShield.frag:40` — `reflect(f3IncidentNormal, normalize(f3InCenterNormal))` for skybox sample; `f3IncidentNormal` normalized at `:39`.
 	- `Model/Model.frag:252` — `-reflect(v, n)` fed into `GetIBLContribution`, which then swizzles via `ToCubemapCoord` for the Y-up Kloofendal IBL cubemaps; `v` normalized at `:249`, `n = GetNormal(...)` is unit on every return path (each ends in an explicit `normalize(...)`).
 	- `ShaderFunctions.h:85` — `reflect(f3LightNormal, f3Normal)` inside the `Specular(...)` helper; both parameters typed as direction normals and all callers pass pre-normalized vectors.
+- **`cross(unit, unit)` of perpendicular unit vectors is unit**: `|cross(a, b)| = |a||b|sin(theta)`; when both inputs are unit and orthogonal, the result is unit. Removing the redundant outer `normalize()` saves one `rsqrt + 3 muls` per call site. Currently relied on at:
+	- `Particles/SquareParticlesRender.vert:58` — `f3UpNormal = cross(f3LeftNormal, f3ToEyeNormal)`; world-up is ternary-perturbed at `:55` when `|forward.z| > 0.999`, so `f3LeftNormal = normalize(cross(f3ToEyeNormal, f3WorldUp))` at `:56` is unit and orthogonal to `f3ToEyeNormal`.
+	- `Model/Model.frag:180` — `B = cross(N, T)` after Gram-Schmidt orthogonalisation at `:173-178`; `N` is unit on every return path and `T = normalize(Tperp)` at `:178` is unit and orthogonal to `N`.
 
 ## Known Issues
 

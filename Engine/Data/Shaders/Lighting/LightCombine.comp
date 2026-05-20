@@ -38,7 +38,8 @@ vec4 Uchimura(vec4 f4X, float P, float a, float m, float l, float c, float b)
 	vec4 f4W2 = step(vec4(S0), f4X);
 	vec4 f4W1 = vec4(1.0f) - f4W0 - f4W2;
 
-	vec4 f4T = m * pow(f4X / m, vec4(c)) + b;
+	// Clamp pow base — sum of float16 EWNS textures can have tiny negative residuals after bilinear filtering, mirroring DebugTexture.frag:53
+	vec4 f4T = m * pow(max(f4X, vec4(0.0f)) / m, vec4(c)) + b;
 	vec4 f4L = m + a * (f4X - m);
 	vec4 f4S = P - (P - S1) * exp(CP * (f4X - S0));
 
@@ -57,7 +58,7 @@ float UchimuraScalar(float fX, float P, float a, float m, float l, float c, floa
 	float fW2 = step(S0, fX);
 	float fW1 = 1.0f - fW0 - fW2;
 
-	float fT = m * pow(fX / m, c) + b;
+	float fT = m * pow(max(fX, 0.0f) / m, c) + b;
 	float fL = m + a * (fX - m);
 	float fS = P - (P - S1) * exp(CP * (fX - S0));
 

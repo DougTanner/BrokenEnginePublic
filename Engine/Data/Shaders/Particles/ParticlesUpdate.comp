@@ -28,7 +28,7 @@ void main()
 	}
 
 #if defined(ENABLE_32_BIT_BOOL)
-	if ((particles.puiAllocated[i / 32] & (1 << (i % 32))) == 0)
+	if ((particles.puiAllocated[i / 32] & (1u << (uint(i) % 32u))) == 0u)
 #else
 	if (particles.pbAllocated[i] == 0)
 #endif
@@ -37,60 +37,82 @@ void main()
 	}
 
 	float fDeltaTime = particles.fDeltaTime;
-	
+
+	// Hoist read-only / read-write fields into individual locals — field-by-field, not whole-struct copy
+	// (Terrain.vert:62-64 documents that glslang has been observed to drop trailing fields on scalar-block-layout SSBO struct copies)
 	const float fGravity = particles.pParticles[i].fGravity;
-	const float fVelocity = particles.pParticles[i].fVelocityDecay;
+	const float fVelocityDecay = particles.pParticles[i].fVelocityDecay;
 	const float fIntensityDecay = particles.pParticles[i].fIntensityDecay;
 	const float fSizeDecay = particles.pParticles[i].fSizeDecay;
 	const float fRotationDelta = particles.pParticles[i].fRotationDelta;
 	const float fRotationDeltaDecay = particles.pParticles[i].fRotationDeltaDecay;
 
-	// Position & collide terrain
-	vec4 f4Position = particles.pParticles[i].f4Position + fDeltaTime * particles.pParticles[i].f4Velocity;
-		
+	vec4 f4OriginalPosition = particles.pParticles[i].f4Position;
+	vec4 f4Velocity = particles.pParticles[i].f4Velocity;
+	float fVisibleIntensity = particles.pParticles[i].fVisibleIntensity;
+	float fSize = particles.pParticles[i].fSize;
+	float fLength = particles.pParticles[i].fLength;
+	float fRotation = particles.pParticles[i].fRotation;
+
+	// Position integration — xyz only so the W invariant (Position.w=1, Velocity.w=0) is preserved bit-exact
+	vec4 f4Position = vec4(f4OriginalPosition.xyz + fDeltaTime * f4Velocity.xyz, f4OriginalPosition.w);
+
+	// Capture pre-collision z for the "kill on water hit" death test — survives the snap-to-terrain mutation below
+	float fPreCollisionZ = f4Position.z;
+
 	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(f4Position.xyz, globalLayout.f4VisibleArea);
-	float fTerrainElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x;
+	float fTerrainElevation = textureLod(elevationTextureSampler, f2VisibleAreaTexcoord, 0.0f).x;
 	if (f4Position.z < fTerrainElevation)
 	{
-		particles.pParticles[i].f4Velocity.z = abs(particles.pParticles[i].f4Velocity.z);
-		particles.pParticles[i].f4Position = particles.pParticles[i].f4Position + fDeltaTime * particles.pParticles[i].f4Velocity;
+		// Snap z to terrain surface and flip z-velocity for next frame — avoids energy gain from re-integrating a full dt step
+		f4Velocity.z = abs(f4Velocity.z);
+		f4Position.z = fTerrainElevation;
 	}
 	else
 	{
-		particles.pParticles[i].f4Position = f4Position;
-
-		// Velocity
-		particles.pParticles[i].f4Velocity.z -= fDeltaTime * fGravity;
+		// Gravity
+		f4Velocity.z -= fDeltaTime * fGravity;
 	}
-		
+
 	// Velocity decay
-	particles.pParticles[i].f4Velocity *= (1.0f - fDeltaTime * fVelocity);
+	f4Velocity *= (1.0f - fDeltaTime * fVelocityDecay);
 
 	// Intensity decay
-	particles.pParticles[i].fVisibleIntensity *= (1.0f - fDeltaTime * fIntensityDecay);
+	fVisibleIntensity *= (1.0f - fDeltaTime * fIntensityDecay);
 
 	// Size decay
 	float fSizeMultiplier = 1.0f - fDeltaTime * fSizeDecay;
-	particles.pParticles[i].fSize *= fSizeMultiplier;
-	particles.pParticles[i].fLength *= fSizeMultiplier;
-		
+	fSize *= fSizeMultiplier;
+	fLength *= fSizeMultiplier;
+
 	// Rotation delta
-	particles.pParticles[i].fRotation += fDeltaTime * fRotationDelta;
+	fRotation += fDeltaTime * fRotationDelta;
 
 	// Rotation delta decay
-	particles.pParticles[i].fRotationDelta *= 1.0f - fDeltaTime * fRotationDeltaDecay;
-		
+	float fRotationDeltaNew = fRotationDelta * (1.0f - fDeltaTime * fRotationDeltaDecay);
+
+	// Write back modified fields
+	particles.pParticles[i].f4Position = f4Position;
+	particles.pParticles[i].f4Velocity = f4Velocity;
+	particles.pParticles[i].fVisibleIntensity = fVisibleIntensity;
+	particles.pParticles[i].fSize = fSize;
+	particles.pParticles[i].fLength = fLength;
+	particles.pParticles[i].fRotation = fRotation;
+	particles.pParticles[i].fRotationDelta = fRotationDeltaNew;
+
 	// If the particle hits the water or the intensity/size drops below epsilon, flag slot as free
 	const float fSizeEpsilon = 0.01f;
 	const float fIntensityEpsilon = 0.5f;
-	if (f4Position.z < 0.0f ||
-	    particles.pParticles[i].fSize < fSizeEpsilon ||
-		particles.pParticles[i].fVisibleIntensity < fIntensityEpsilon)
+	if (fPreCollisionZ < 0.0f ||
+	    fSize < fSizeEpsilon ||
+		fVisibleIntensity < fIntensityEpsilon)
 	{
 	#if defined(ENABLE_32_BIT_BOOL)
-		particles.puiAllocated[i / 32] &= ~(1 << (i % 32));
+		// Atomic — 32 neighbouring threads share this word, concurrent deallocations would race without it
+		atomicAnd(particles.puiAllocated[i / 32], ~(1u << (uint(i) % 32u)));
 	#else
-		particles.pbAllocated[i] = uint8_t(0);
+		// Header declares pbAllocated as uint16_t; dead branch under ENABLE_32_BIT_BOOL but keep types reconciled
+		particles.pbAllocated[i] = uint16_t(0);
 	#endif
 
 		// Update the lowest free index

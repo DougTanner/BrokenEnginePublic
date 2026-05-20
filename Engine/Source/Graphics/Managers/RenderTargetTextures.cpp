@@ -301,66 +301,6 @@ void RenderTargetTextures::CreateTerrainTextures()
 		.renderPassVkClearColorValue = {gpIslandTerrain->mfSeaFloorElevation, 0.0f, 0.0f, 1.0f},
 		.eTextureLayout = kShaderReadOnly,
 	});
-
-	auto [iTerrainColorTextureX, iTerrainColorTextureY] = TextureManager::DetailTextureSize(gTerrainColorTextureMultiplier.Get());
-	mTerrainColorTexture.Create(
-	{
-		.textureFlags = {kRenderPass},
-		.name = "TerrainColor",
-		.flags = 0,
-		.format = VK_FORMAT_R8G8B8A8_UNORM,
-		.extent = VkExtent3D {static_cast<uint32_t>(iTerrainColorTextureX), static_cast<uint32_t>(iTerrainColorTextureY), 1},
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		.renderPassVkClearColorValue = {shaders::kf4MudColor.x, shaders::kf4MudColor.y, shaders::kf4MudColor.z, shaders::kf4MudColor.w},
-		.eTextureLayout = kShaderReadOnly,
-	});
-
-	auto [iTerrainNormalTextureX, iTerrainNormalTextureY] = TextureManager::DetailTextureSize(gTerrainNormalTextureMultiplier.Get());
-	mTerrainNormalTexture.Create(
-	{
-		.textureFlags = {kRenderPass},
-		.name = "Normal",
-		.flags = 0,
-		.format = VK_FORMAT_R16G16B16A16_SFLOAT,
-		.extent = VkExtent3D {static_cast<uint32_t>(iTerrainNormalTextureX), static_cast<uint32_t>(iTerrainNormalTextureY), 1},
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		.renderPassVkClearColorValue = {0.0f, 0.0f, 0.0f, 0.0f},
-		.eTextureLayout = kShaderReadOnly,
-	});
-
-	auto [iTerrainAmbientOcclusionTextureX, iTerrainAmbientOcclusionTextureY] = TextureManager::DetailTextureSize(gTerrainAmbientOcclusionTextureMultiplier.Get());
-	mTerrainAmbientOcclusionTexture.Create(
-	{
-		.textureFlags = {kRenderPass},
-		.name = "Ambient Occlusion",
-		.flags = 0,
-		.format = VK_FORMAT_R8_UNORM,
-		.extent = VkExtent3D {static_cast<uint32_t>(iTerrainAmbientOcclusionTextureX), static_cast<uint32_t>(iTerrainAmbientOcclusionTextureY), 1},
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		.renderPassVkClearColorValue = {0.0f, 0.0f, 1.0f, 0.0f},
-		.eTextureLayout = kShaderReadOnly,
-	});
 }
 
 } // namespace engine

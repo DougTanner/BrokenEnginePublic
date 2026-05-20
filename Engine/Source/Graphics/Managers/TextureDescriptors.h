@@ -67,7 +67,21 @@ public:
 
 	void WriteArrayBindingDescriptors(TextureBinding& rBinding, VkSampler vkSampler);
 
+	// Consumer entry for a bindless texture array whose per-slot binding key is supplied lazily by
+	// the data subsystem (e.g., IslandTerrain). Populated by PipelineDescriptorWriter when it sees
+	// a DescriptorInfo flagged with kBindlessArrayConsumer. Map key is the array pointer
+	// (e.g., RenderTargetTextures::mElevationTextures.data()), so the per-entry array pointer is
+	// implicit in the map key and not duplicated here.
+	struct BindlessArrayConsumer
+	{
+		Pipeline* pPipeline = nullptr;
+		int64_t iBinding = -1;
+		DescriptorFlags_t samplerFlags;
+		int64_t iCount = 0;
+	};
+
 	std::unordered_map<common::crc_t, std::vector<TextureBinding>> mTextureBindings;
+	std::unordered_map<Texture**, std::vector<BindlessArrayConsumer>> mBindlessArrayConsumers;
 	std::vector<StandaloneSamplerBinding> mStandaloneSamplerBindings;
 
 	std::vector<VkDescriptorImageInfo> mImageInfos;

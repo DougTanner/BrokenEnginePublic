@@ -441,6 +441,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\GraphicsSettingsWrappersBase.h">
       <Filter>Engine\Ui</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\HeightLerpWrapperQuartet.h">
+      <Filter>Engine\Ui</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\SoundSettingsWrappersBase.h">
       <Filter>Engine\Ui</Filter>
     </ClInclude>
@@ -1275,6 +1278,9 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\GraphicsSettingsWrappersBase.cpp">
       <Filter>Engine\Ui</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\HeightLerpWrapperQuartet.cpp">
+      <Filter>Engine\Ui</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\SoundSettingsWrappersBase.cpp">
       <Filter>Engine\Ui</Filter>
     </ClCompile>
@@ -1322,16 +1328,7 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\Terrain.vert">
       <Filter>Engine\Data\Shaders\Terrain</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\TerrainAmbientOcclusion.frag">
-      <Filter>Engine\Data\Shaders\Terrain</Filter>
-    </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\TerrainColor.frag">
-      <Filter>Engine\Data\Shaders\Terrain</Filter>
-    </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\TerrainElevation.frag">
-      <Filter>Engine\Data\Shaders\Terrain</Filter>
-    </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\TerrainNormal.frag">
       <Filter>Engine\Data\Shaders\Terrain</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Water\Water.frag">

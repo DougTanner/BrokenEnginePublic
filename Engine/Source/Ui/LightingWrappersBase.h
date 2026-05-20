@@ -1,5 +1,6 @@
 #pragma once
 
+#include "HeightLerpWrapperQuartet.h"
 #include "WrapperBase.h"
 
 #if defined(BT_CLIENT)
@@ -44,10 +45,7 @@ extern Wrapper gSpreadOutputCompress;
 extern Wrapper gSpreadTextureMultiplierEnd;
 extern Wrapper gSpreadDirectionalityEnd;
 extern Wrapper gSpreadDirectionCountEnd;
-extern Wrapper gSpreadDistanceEndStartHeight;
-extern Wrapper gSpreadDistanceEndEndHeight;
-extern Wrapper gSpreadDistanceEndLow;
-extern Wrapper gSpreadDistanceEndHigh;
+extern HeightLerpWrapperQuartet gSpreadDistanceEnd;  // camera-height-lerped fSpreadDistanceEnd (Render/CLAUDE.md)
 extern Wrapper gSpreadRingCountEnd;
 extern Wrapper gSpreadJitterEnd;
 extern Wrapper gSpreadSampleJitterRangeEnd;

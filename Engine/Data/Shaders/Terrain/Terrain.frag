@@ -1,5 +1,7 @@
 #version 460
 
+#extension GL_EXT_nonuniform_qualifier : require
+
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 
@@ -18,9 +20,11 @@ layout (set = 1, binding = 2) uniform sampler2D pLightingSamplers[3];
 layout (set = 1, binding = 3) uniform sampler2D shadowTextureSampler;
 layout (set = 1, binding = 4) uniform sampler2D objectShadowsTextureSampler;
 layout (set = 1, binding = 5) uniform sampler2D elevationTextureSampler;
-layout (set = 1, binding = 6) uniform sampler2D colorTextureSampler;
-layout (set = 1, binding = 7) uniform sampler2D normalTextureSampler;
-layout (set = 1, binding = 8) uniform sampler2D ambientOcclusionTextureSampler;
+// Bindless per-island arrays (was previously single composite G-buffer RTTs); each is indexed
+// per-fragment by the flat-interpolated `uiInTextureSlot` forwarded from Terrain.vert.
+layout (set = 1, binding = 6) uniform sampler2D colorTextureSamplers[kiMaxIslands];
+layout (set = 1, binding = 7) uniform sampler2D normalTextureSamplers[kiMaxIslands];
+layout (set = 1, binding = 8) uniform sampler2D ambientOcclusionTextureSamplers[kiMaxIslands];
 layout (set = 1, binding = 9) uniform sampler2D smokeSampler;
 layout (set = 1, binding = 10) uniform sampler2D rockSampler;
 layout (set = 1, binding = 11) uniform sampler2D sandNormalsSampler0;
@@ -31,9 +35,17 @@ layout (set = 1, binding = 15) uniform sampler2D rockNormalsSampler0;
 layout (set = 1, binding = 16) uniform sampler2D rockNormalsSampler1;
 layout (set = 1, binding = 17) uniform sampler2D rockNormalsSampler2;
 layout (set = 1, binding = 18) uniform sampler2D ambientLightingSampler;
+// Per-island material masks (BC7 RGBA). R=Rock, G=Sand, B=Snow, A=Flow (reserved). Replaces the
+// procedural fRockPercent / fBeachPercent / fSnowPercent derivation that previously gated material
+// detail blending on color heuristics and elevation thresholds. Bound at binding 20 — the SSBO at
+// binding 19 is owned by Terrain.vert (AxisAlignedQuadLayout instance buffer).
+layout (set = 1, binding = 20) uniform sampler2D masksTextureSamplers[kiMaxIslands];
 
 // Input
 layout (location = 0) in vec2 f2InVisibleAreaTexcoord;
+layout (location = 1) in vec2 f2InIslandTexcoord;
+layout (location = 2) in flat uint uiInTextureSlot;
+layout (location = 3) in flat vec2 f2InRotationCosSin;
 
 // Output
 layout (location = 0) out vec4 f4OutColor;
@@ -54,25 +66,27 @@ void main()
 	// extends past the cropped heightmap bbox are a separate follow-up (see
 	// Documents/Plans/Graphics/GaeaMeshCropToHeightmapBbox.md).
 
-	vec3 f3Color = texture(colorTextureSampler, f2InVisibleAreaTexcoord).xyz;
+	vec3 f3Color = texture(colorTextureSamplers[nonuniformEXT(uiInTextureSlot)], f2InIslandTexcoord).xyz;
 
-	vec3 f3Normal = texture(normalTextureSampler, f2InVisibleAreaTexcoord).xyz;
-	f3Normal.x = 2.0f * f3Normal.x - 1.0f;
-	f3Normal.y = 2.0f * f3Normal.y - 1.0f;
-	f3Normal = normalize(f3Normal);
+	// BC5 normal: source stores RG (tangent X, Y) only. Decode `2x-1` to [-1, +1], rotate by the
+	// per-island (cos, sin), reconstruct Z. Matches the deleted TerrainNormal.frag prepass exactly.
+	vec2 f2NormalRG = texture(normalTextureSamplers[nonuniformEXT(uiInTextureSlot)], f2InIslandTexcoord).rg;
+	vec2 f2NormalXY = 2.0f * f2NormalRG - 1.0f;
+	float fNormalCos = f2InRotationCosSin.x;
+	float fNormalSin = f2InRotationCosSin.y;
+	vec2 f2NormalRot = vec2(f2NormalXY.x * fNormalCos - f2NormalXY.y * fNormalSin,
+	                        f2NormalXY.x * fNormalSin + f2NormalXY.y * fNormalCos);
+	float fNormalZ = sqrt(clamp(1.0f - dot(f2NormalRot, f2NormalRot), 0.0f, 1.0f));
+	vec3 f3Normal = normalize(vec3(f2NormalRot, fNormalZ));
 
-	// DT: TEMP — Terrain Tweaks (rock/sand/snow blending) disabled; source color and normals pass through unchanged.
-// #define DT_TERRAIN_TWEAKS
-#ifdef DT_TERRAIN_TWEAKS
-	vec3 f3SnowDiff = abs(f3Color - vec3(1.0f, 1.0f, 1.0f));
-	float fSnowPercent = 1.0f - clamp(globalLayout.fTerrainSnowMultiplier * (f3SnowDiff.x + f3SnowDiff.y + f3SnowDiff.z), 0.0f, 1.0f);
-
-	float fRockPercent = clamp(f3InPosition.z / globalLayout.fTerrainBeachHeight, 0.0f, 1.0f);
-	vec3 f3RockDiff = abs(f3Color - vec3(210.0f / 255.0f, 210.0f / 255.0f, 210.0f / 255.0f));
-	fRockPercent *= 1.0f - clamp(globalLayout.fTerrainRockMultiplier * (f3RockDiff.x + f3RockDiff.y + f3RockDiff.z), 0.0f, 1.0f);
-
-	float fBeachPercent = 1.0f - clamp(f3InPosition.z / globalLayout.fTerrainBeachHeight, 0.0f, 1.0f);
-	fBeachPercent *= 1.0f - clamp(2.0f * f3Color.g - f3Color.r - f3Color.b, 0.0f, 1.0f);
+	// Material masks: R=Rock, G=Sand, B=Snow, A=Flow (reserved). DataPacker packs four Gaea-authored
+	// grayscale masks into a single BC7 RGBA texture per island. Replaces the prior procedural
+	// derivation that gated material detail blending on color heuristics and elevation thresholds.
+	// Snow takes priority over rock/sand — snow-painted pixels suppress those blends proportionally.
+	vec4 f4Masks = texture(masksTextureSamplers[nonuniformEXT(uiInTextureSlot)], f2InIslandTexcoord);
+	float fSnowPercent  = f4Masks.b;
+	float fRockPercent  = f4Masks.r * (1.0f - fSnowPercent);
+	float fBeachPercent = f4Masks.g * (1.0f - fSnowPercent);
 
 	if (fRockPercent > 0.001f)
 	{
@@ -82,8 +96,6 @@ void main()
 
 		f3Color = mix(f3Color, texture(rockSampler, globalLayout.fTerrainRockSize * f3InPosition.xy).xyz, globalLayout.fTerrainRockBlend * fRockPercent);
 	}
-
-	vec3 f3LightingNormal = f3Normal;
 
 	if (fBeachPercent > 0.001f)
 	{
@@ -97,10 +109,7 @@ void main()
 		f3Color = mix(f3Color, texture(sandSampler, globalLayout.fTerrainBeachSandSize * f3InPosition.xy).xyz, globalLayout.fTerrainBeachSandBlend * fBeachPercent);
 	}
 
-	vec3 f3SunNormal = normalize(f3Normal + fSnowPercent * globalLayout.f4SunMoonNormal.xyz);
-#else
-	vec3 f3SunNormal = f3Normal;
-#endif
+	vec3 f3SunNormal = normalize(f3Normal + globalLayout.fTerrainSnowBlend * fSnowPercent * globalLayout.f4SunMoonNormal.xyz);
 
 	// Sample lighting texture, at world x/y and at projected base-height x/y
 	vec2 f2LightingTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4LightingArea);
@@ -127,7 +136,13 @@ void main()
 	// object shadows and smoke volumetric attenuation still apply to both lights.
 	float fShadowMoon = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
 	float fShadowSun  = fShadowMoon * max(0.2f, texture(shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea)).x);
-	f4OutColor = vec4(SunLighting(f3Color, globalLayout, vec4(f3InPosition, 1.0f), f3SunNormal, fShadowSun, fShadowMoon, 1.0f - texture(ambientOcclusionTextureSampler, f2InVisibleAreaTexcoord).x), 1.0f);
+	// AO: deleted TerrainAmbientOcclusion.frag wrote `globalLayout.fIslandAmbientOcclusion * (1 - raw)`
+	// into the composite RTT, then the original frag did `1 - composite`. Inlined here so the SunLighting
+	// occlusion factor is bit-equivalent (modulo the removed R8_UNORM round-trip).
+	float fAmbientOcclusionRaw = texture(ambientOcclusionTextureSamplers[nonuniformEXT(uiInTextureSlot)], f2InIslandTexcoord).x;
+	// Snow pixels skip AO darkening so accumulated snow looks fresh / bright rather than crevice-shaded.
+	float fAmbientOcclusionFactor = 1.0f - (1.0f - fSnowPercent * globalLayout.fTerrainSnowAmbientOcclusionExclusion) * globalLayout.fIslandAmbientOcclusion * (1.0f - fAmbientOcclusionRaw);
+	f4OutColor = vec4(SunLighting(f3Color, globalLayout, vec4(f3InPosition, 1.0f), f3SunNormal, fShadowSun, fShadowMoon, fAmbientOcclusionFactor), 1.0f);
 	f4OutColor.xyz += f3Lighting * mix(f3Color, vec3(1.0f), globalLayout.fLightingAddTerrain);
 
 	// Sample smoke at base-height projected position, affected by lighting at base-height projected position

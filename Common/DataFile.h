@@ -224,6 +224,7 @@ struct IslandHeader
 {
 	common::crc_t ambientOcclusionCrc = 0;
 	common::crc_t colorsCrc = 0;
+	common::crc_t masksCrc = 0;
 	common::crc_t normalsCrc = 0;
 	// Anisotropic: each island is auto-cropped at bake time to its land bbox > 1.0 m, expanded to
 	// a multiple of 4 * kiElevationDivisor (=16) so BC encoding and 4x elevation downsample stay

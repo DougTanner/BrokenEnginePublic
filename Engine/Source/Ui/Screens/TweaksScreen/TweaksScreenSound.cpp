@@ -16,25 +16,25 @@ const TweaksSliderMapRegistrar gSoundRegistrar
 	{"Music Volume", &gMusicVolume},
 	{"Sound Volume", &gSoundVolume},
 	// Listener Distance Start
-	{"Listener Distance Start Start Height", &gListenerDistanceStartStartHeight},
-	{"Listener Distance Start End Height", &gListenerDistanceStartEndHeight},
-	{"Listener Distance Start Low", &gListenerDistanceStartLow},
-	{"Listener Distance Start High", &gListenerDistanceStartHigh},
+	{"Listener Distance Start Start Height", &gListenerDistanceStart.StartHeight},
+	{"Listener Distance Start End Height", &gListenerDistanceStart.EndHeight},
+	{"Listener Distance Start Low", &gListenerDistanceStart.Low},
+	{"Listener Distance Start High", &gListenerDistanceStart.High},
 	// Listener Distance End
-	{"Listener Distance End Start Height", &gListenerDistanceEndStartHeight},
-	{"Listener Distance End End Height", &gListenerDistanceEndEndHeight},
-	{"Listener Distance End Low", &gListenerDistanceEndLow},
-	{"Listener Distance End High", &gListenerDistanceEndHigh},
+	{"Listener Distance End Start Height", &gListenerDistanceEnd.StartHeight},
+	{"Listener Distance End End Height", &gListenerDistanceEnd.EndHeight},
+	{"Listener Distance End Low", &gListenerDistanceEnd.Low},
+	{"Listener Distance End High", &gListenerDistanceEnd.High},
 	// Listener Curve
-	{"Listener Curve Start Height", &gListenerCurveStartHeight},
-	{"Listener Curve End Height", &gListenerCurveEndHeight},
-	{"Listener Curve Low", &gListenerCurveLow},
-	{"Listener Curve High", &gListenerCurveHigh},
+	{"Listener Curve Start Height", &gListenerCurve.StartHeight},
+	{"Listener Curve End Height", &gListenerCurve.EndHeight},
+	{"Listener Curve Low", &gListenerCurve.Low},
+	{"Listener Curve High", &gListenerCurve.High},
 	// Listener Audible Floor
-	{"Listener Audible Floor Start Height", &gListenerAudibleFloorStartHeight},
-	{"Listener Audible Floor End Height", &gListenerAudibleFloorEndHeight},
-	{"Listener Audible Floor Low", &gListenerAudibleFloorLow},
-	{"Listener Audible Floor High", &gListenerAudibleFloorHigh},
+	{"Listener Audible Floor Start Height", &gListenerAudibleFloor.StartHeight},
+	{"Listener Audible Floor End Height", &gListenerAudibleFloor.EndHeight},
+	{"Listener Audible Floor Low", &gListenerAudibleFloor.Low},
+	{"Listener Audible Floor High", &gListenerAudibleFloor.High},
 };
 }
 

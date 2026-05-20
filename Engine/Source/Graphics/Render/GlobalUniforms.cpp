@@ -180,7 +180,6 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	rGlobalLayout.fShadowDistanceFalloff = gShadowDistanceFalloff.Get();
 	rGlobalLayout.fShadowBlurSigma = gShadowBlurSigma.Get();
 
-	rGlobalLayout.fObjectShadowsBlurDistance = fDayPercent * gObjectShadowsBlurDistanceNoon.Get() + (1.0f - fDayPercent) * gObjectShadowsBlurDistanceSunset.Get();
 	rGlobalLayout.fObjectShadowsBlurSigma = gObjectShadowsBlurSigma.Get();
 	rGlobalLayout.iObjectShadowsBlurRadius = static_cast<int32_t>(gObjectShadowsBlurRadius.Get());
 	rGlobalLayout.fObjectShadowsGrow = gObjectShadowsGrow.Get();
@@ -231,8 +230,6 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 
 	rGlobalLayout.iShadowTextureWidth = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.width; // X pixels
 	rGlobalLayout.iShadowTextureHeight = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.height; // Y pixels
-	rGlobalLayout.iObjectShadowTextureWidth = gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mInfo.extent.width; // X pixels
-	rGlobalLayout.iObjectShadowTextureHeight = gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mInfo.extent.height; // Y pixels
 
 	// Shadow area: LOD-stable world size (mfLodStable* latched in CameraBase, bit-stable
 	// within an iLod). Origin is camera-centered and snapped to integer shadow-texel boundaries.
@@ -314,19 +311,14 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 	rGlobalLayout.fTerrainEarlyOut = gTerrainEarlyOut.Get();
 	rGlobalLayout.fWaterEarlyOut = gWaterEarlyOut.Get();
 
-	rGlobalLayout.fTerrainSunBrightness = std::max(0.25f, std::pow(fDayPercent, 0.25f));
 	rGlobalLayout.fWaterReducedNormalOriginX = 0.0f;
 	rGlobalLayout.fWaterReducedNormalOriginY = 0.0f;
 	rGlobalLayout.fWaterReducedNormalOriginTwoX = 0.0f;
 	rGlobalLayout.fWaterReducedNormalOriginTwoY = 0.0f;
 
-	// Normal flip is now per-island in TerrainNormal pass
-	rGlobalLayout.fTerrainNormalXMultiplier = 1.0f;
-	rGlobalLayout.fTerrainNormalYMultiplier = 1.0f;
+	rGlobalLayout.fTerrainSnowBlend = gTerrainSnowBlend.Get();
+	rGlobalLayout.fTerrainSnowAmbientOcclusionExclusion = gTerrainSnowAmbientOcclusionExclusion.Get();
 
-	rGlobalLayout.fTerrainSnowMultiplier = gTerrainSnowMultiplier.Get();
-
-	rGlobalLayout.fTerrainRockMultiplier = gTerrainRockMultiplier.Get();
 	rGlobalLayout.fTerrainRockSize = gTerrainRockSize.Get();
 	rGlobalLayout.fTerrainRockBlend = gTerrainRockBlend.Get();
 	rGlobalLayout.fTerrainRockNormalsSizeOne = gTerrainRockNormalsSizeOne.Get();
@@ -344,7 +336,6 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 
 	// Time of day
 	rGlobalLayout.fLightingTimeOfDayMultiplier = fDayPercent * gLightingDayFinalMultiplier.Get() + (1.0f - fDayPercent) * gLightingNightFinalMultiplier.Get();
-	rGlobalLayout.fLightingNightMultiplier = std::pow(fDayPercent, 0.5f);
 	rGlobalLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - fDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
 }
 
@@ -404,7 +395,6 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	}
 	rGlobalLayout.fWaterDirectional = std::pow(rGlobalLayout.fWaterDirectional, 2.0f);
 
-	rGlobalLayout.fWaterFresnel2 = std::pow(fDayPercent, 0.5f) * gWaterFresnel2.Get();
 	rGlobalLayout.fBeachFadeTop = gWaterBeachFadeTop.Get();
 	rGlobalLayout.fBeachFadeInvRange = 1.0f / (gWaterBeachFadeBottom.Get() - gWaterBeachFadeTop.Get());
 	rGlobalLayout.fWaterLowSteepness = gWaterLowSteepness.Get();
@@ -430,10 +420,9 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	double dSizeBaseOne = static_cast<double>(gLightingSampledNormalsOneSize.Get());
 	double dSizeBaseTwo = static_cast<double>(gLightingSampledNormalsTwoSize.Get());
 	double dSizeBaseThree = static_cast<double>(gLightingSampledNormalsThreeSize.Get());
-	// Camera-height-driven speed lerp matches the same factor as LightingUniforms.cpp.
+	// Camera-height-driven speed lerp — same factor as LightingUniforms.cpp.
 	static constexpr float kfWaveFadeEnd = 2.0f * game::Camera::kfCameraEyeHeightDefault;
-	float fWaveAmplitudeScale = std::clamp((kfWaveFadeEnd - game::gpCamera->mfCameraEyeHeight) / (kfWaveFadeEnd - game::Camera::kfCameraEyeHeightDefault), 0.0f, 1.0f);
-	float fCameraHeightZoomFactor = 1.0f - fWaveAmplitudeScale;
+	float fCameraHeightZoomFactor = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, kfWaveFadeEnd, 0.0f, 1.0f);
 	double dSpeed = static_cast<double>(std::lerp(gLightingSampledNormalsSpeedMin.Get(), gLightingSampledNormalsSpeedMax.Get(), fCameraHeightZoomFactor));
 	// Per-sample reduced-time accumulators: integrate (size * speed * dt) per frame and fmod 10.0
 	// rather than recomputing fmod(size * speed * t, 10.0). Per-frame integration keeps the UV
@@ -493,7 +482,7 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterReducedNoiseOriginY = static_cast<float>(std::fmod(dNoiseFreq * dCameraY, 10.0));
 }
 
-void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick)
+void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 {
 	RenderLightingGlobal(iCommandBuffer);
 	RenderSmokeGlobal(iCommandBuffer);
@@ -504,14 +493,9 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iTick
 	// Global data
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
-	rGlobalLayout.iCommandBuffer = static_cast<int>(iCommandBuffer);
-	rGlobalLayout.iCameraFrame = static_cast<int>(game::gpCamera->miFrame);
-	rGlobalLayout.iTickCounter = static_cast<int>(iTick);
-
 	rGlobalLayout.fElapsedTime = fCurrentTime;
 	rGlobalLayout.fBaseHeight = gBaseHeight.Get();
 	rGlobalLayout.fAspectRatio = gpSwapchainManager->mfAspectRatio;
-	rGlobalLayout.fDetailTextureAspectRatio = TextureManager::DetailTextureAspectRatio();
 
 	XMFLOAT4A f4CameraPosGlobal {};
 	XMStoreFloat4A(&f4CameraPosGlobal, game::gpCamera->mVecPosition);

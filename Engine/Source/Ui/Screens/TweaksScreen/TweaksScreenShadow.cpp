@@ -31,8 +31,6 @@ const TweaksSliderMapRegistrar gShadowRegistrar
 	{"Shadow Noon", &gObjectShadowsNoon},
 	{"Shadow Sunset", &gObjectShadowsSunset},
 	{"Sunset Stretch", &gObjectShadowsSunsetStretch},
-	{"Blur Distance Noon", &gObjectShadowsBlurDistanceNoon},
-	{"Blur Distance Sunset", &gObjectShadowsBlurDistanceSunset},
 	{"Object Blur Sigma", &gObjectShadowsBlurSigma},
 	{"Object Blur Radius", &gObjectShadowsBlurRadius},
 	{"Grow", &gObjectShadowsGrow},
@@ -65,8 +63,6 @@ void TweaksScreenBase::RenderShadowSection()
 	WrapperSlider("Shadow Noon", kiSection);
 	WrapperSlider("Shadow Sunset", kiSection);
 	WrapperSlider("Sunset Stretch", kiSection);
-	WrapperSlider("Blur Distance Noon", kiSection);
-	WrapperSlider("Blur Distance Sunset", kiSection);
 	WrapperSlider("Object Blur Sigma", kiSection);
 	WrapperSlider("Object Blur Radius", kiSection);
 	WrapperSlider("Grow", kiSection);

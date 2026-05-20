@@ -5,8 +5,12 @@
 namespace engine
 {
 
+// Ambient Occlusion
+extern Wrapper gIslandAmbientOcclusion;
+
 // Beach
-extern Wrapper gTerrainSnowMultiplier;
+extern Wrapper gTerrainSnowBlend;
+extern Wrapper gTerrainSnowAmbientOcclusionExclusion;
 extern Wrapper gTerrainBeachHeight;
 extern Wrapper gTerrainBeachSandSize;
 extern Wrapper gTerrainBeachSandBlend;
@@ -16,7 +20,6 @@ extern Wrapper gTerrainBeachNormalsSizeThree;
 extern Wrapper gTerrainBeachNormalsBlend;
 
 // Rock
-extern Wrapper gTerrainRockMultiplier;
 extern Wrapper gTerrainRockSize;
 extern Wrapper gTerrainRockBlend;
 extern Wrapper gTerrainRockNormalsSizeOne;

@@ -1,6 +1,30 @@
 Feature: Curvature-aware terrain snow rendering
 =================================================
 
+STALE -- needs refresh before execution
+---------------------------------------
+The Plans/Graphics/DeadUboFieldsSweep sweep deleted the snow assets this plan
+depended on. Specifically removed:
+
+  - GlobalLayout::fTerrainSnowMultiplier (ShaderLayoutsBase.h)
+  - rGlobalLayout.fTerrainSnowMultiplier write (GlobalUniforms.cpp)
+  - Wrapper gTerrainSnowMultiplier (TerrainWrappersBase.h/cpp)
+  - {"Snow Multiplier", &gTerrainSnowMultiplier} entry (TweaksScreenTerrain.cpp)
+  - WrapperSlider("Snow Multiplier", ...) call (TweaksScreenTerrain.cpp)
+
+The shader line at Terrain.frag:62-63 that this plan claims to "replace"
+already no longer references fTerrainSnowMultiplier -- that read was deleted
+upstream of the UBO-field sweep, which is why the field was orphaned. Verify
+the current Terrain.frag snow block before relying on the line numbers below.
+
+Before executing this plan, re-introduce:
+  - fTerrainSnowMultiplier UBO field
+  - gTerrainSnowMultiplier Wrapper (or skip if the curvature variant supersedes it)
+  - Snow Multiplier TweaksScreen entry + WrapperSlider call
+
+OR rewrite the plan to drop the multiplier dependency entirely and key snow
+entirely off fTerrainSnowCurvature.
+
 Context
 -------
 Snow detection in Terrain.frag (lines 62-63) is purely color-based:

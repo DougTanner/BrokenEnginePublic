@@ -125,6 +125,7 @@ public:
 	Texture mIslandPlaceholderColor;
 	Texture mIslandPlaceholderNormals;
 	Texture mIslandPlaceholderAmbientOcclusion;
+	Texture mIslandPlaceholderMasks;
 
 	std::unordered_map<common::crc_t, Texture> mTextureMap;
 

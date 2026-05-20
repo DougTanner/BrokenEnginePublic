@@ -356,17 +356,12 @@ void RenderTargetTextures::CreateLightingTextures()
 		mppLightingDepositTextures[i] = &mpLightingTextures[i];
 	}
 
-	// Debug textures: terrain G-buffer (color/elevation/AO/normal), then deposit RGB (visible area),
-	// deposit combined direction, spread pass 0..N combined direction, combine red
-	static constexpr int64_t kiTerrainDebugSlotCount = 4;
-	mppDebugTextures[0] = &mTerrainColorTexture;
-	mpDebugTextureFormats[0] = shaders::kiDebugTextureFormatRgb;
-	mppDebugTextures[1] = &mTerrainElevationTexture;
-	mpDebugTextureFormats[1] = shaders::kiDebugTextureFormatTerrainElevation;
-	mppDebugTextures[2] = &mTerrainAmbientOcclusionTexture;
-	mpDebugTextureFormats[2] = shaders::kiDebugTextureFormatGrayscaleR;
-	mppDebugTextures[3] = &mTerrainNormalTexture;
-	mpDebugTextureFormats[3] = shaders::kiDebugTextureFormatRgb;
+	// Debug textures: terrain G-buffer (elevation only — color/normal/AO composite RTTs were deleted
+	// when Terrain.frag switched to direct bindless per-island sampling), then deposit RGB (visible
+	// area), deposit combined direction, spread pass 0..N combined direction, combine red.
+	static constexpr int64_t kiTerrainDebugSlotCount = 1;
+	mppDebugTextures[0] = &mTerrainElevationTexture;
+	mpDebugTextureFormats[0] = shaders::kiDebugTextureFormatTerrainElevation;
 
 	mppDebugTextures[kiTerrainDebugSlotCount + 0] = &mpLightingTextures[0];
 	mpDebugTextureFormats[kiTerrainDebugSlotCount + 0] = shaders::kiDebugTextureFormatFloat16LinearVisibleArea;

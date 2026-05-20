@@ -17,9 +17,6 @@ enum Pipelines
 	kPipelineShadowElevation,
 
 	kPipelineTerrainElevation,
-	kPipelineTerrainColor,
-	kPipelineTerrainNormal,
-	kPipelineTerrainAmbientOcclusion,
 	kPipelineTerrain,
 
 	kPipelineProfileText,
@@ -59,6 +56,20 @@ enum Pipelines
 
 	kPipelineCount
 };
+
+// GLSL set=1 binding indices for the terrain pipeline group (kPipelineShadowElevation,
+// kPipelineTerrainElevation, kPipelineTerrain). The bindings are split across three sites:
+// the GLSL `layout(set = 1, binding = N)` declarations in Terrain*.frag, the implicit-by-position
+// DescriptorInfo tables in PipelineManager.cpp, and the bare-integer RegisterTextureBinding calls
+// in IslandTerrain::AcquireTextureSlot. Naming the indices keeps the three sites in lockstep.
+namespace TerrainPipelineBindings
+{
+	constexpr int64_t kiElevation = 2;
+	constexpr int64_t kiColor = 6;
+	constexpr int64_t kiNormals = 7;
+	constexpr int64_t kiAmbientOcclusion = 8;
+	constexpr int64_t kiMasks = 20;
+} // namespace TerrainPipelineBindings
 
 class PipelineManager
 {

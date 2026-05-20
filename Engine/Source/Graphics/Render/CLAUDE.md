@@ -16,9 +16,15 @@ Ownership exception: a downstream pass may zero a count field already written by
 
 CPU computes phase / UV origins in `double`, `std::fmod` reduces to a small modulus, then `static_cast<float>` — prevents precision loss kilometers from origin. Moduli chosen so shader-side size multipliers remain integer after reduction.
 
+## World-Area Uniforms
+
+`GlobalLayout` exposes several world-area extents consumed by fullscreen / RT passes:
+- `f4VisibleArea` — tracks the camera each frame; drives the water vertex grid and visible-area RT pixel-to-world mapping. Also anchors the water decomposition RTs (displacement, Gerstner normal, low-freq precompute color) since they sample at the same per-meter-snapped resolution as the visible grid.
+- `f4LightingArea` — LOD-stable + texel-snap anchor for the lighting / ambient composite RTs; pixel-to-world stays bit-identical within an `iLod`. This pattern is appropriate for low-frequency content (lighting) but does NOT suit the water decomposition RTs — see `Engine/Data/Shaders/Water/CLAUDE.md` for the selective-decomposition rationale.
+
 ## Camera-Height-Conditional Uniforms
 
-When a uniform field varies with camera eye height, lerp CPU-side and upload the single resolved float — do not pass start/end heights plus low/high targets to the shader. Canonical instances: the `kfWaveFadeEnd` block in `RenderLightingMain` and the spread-distance-end blend in `RenderLightingGlobal`. Author-facing controls are exposed as four Wrappers (`*StartHeight`, `*EndHeight`, `*Low`, `*High`) in the matching `<Tab>WrappersBase` pair.
+When a uniform field varies with camera eye height, lerp CPU-side and upload the single resolved float — do not pass start/end heights plus low/high targets to the shader. Author-facing controls are exposed as a `HeightLerpWrapperQuartet` (`StartHeight`, `EndHeight`, `Low`, `High` members; `Engine/Source/Ui/HeightLerpWrapperQuartet.h`) in the matching `<Tab>WrappersBase` pair, and the consumer calls `quartet.Resolve(fEyeHeight)` — that is the canonical implementation. Hard-coded-endpoint variants that don't expose author controls (e.g., the `kfWaveFadeEnd` block in `RenderLightingMain` and the speed-zoom factor in `GlobalUniforms.cpp`) call the free `engine::LerpAtHeight(fEyeHeight, fStart, fEnd, fLow, fHigh)` directly with `kfCameraEyeHeightDefault`-derived endpoints. Canonical wrapper-quartet instance: `gSpreadDistanceEnd` resolved in `RenderLightingGlobal`.
 
 ## Buffer & Dispatch Patterns
 

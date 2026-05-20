@@ -3,6 +3,7 @@
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 
+// Sequential free-list scan — single-threaded by design; parallel claim would require subgroup ballot
 layout (local_size_x = 1) in;
 
 layout (binding = 0) uniform globalUniform
@@ -38,12 +39,14 @@ void main()
 		particles.iLastCount = 0;
 		particles.iMinFreeIndex = 0;
 		particles.fLastUpdateTime = globalLayout.fElapsedTime;
+		// PERF: single-thread full-buffer clear; vkCmdFillBuffer or parallel clear dispatch would be faster
 		for (int i = 0; i < kiMaxParticles; ++i)
 		{
 		#if defined(ENABLE_32_BIT_BOOL)
-			particles.puiAllocated[i / 32] &= ~(1 << (i % 32));
+			particles.puiAllocated[i / 32] &= ~(1u << (uint(i) % 32u));
 		#else
-			particles.pbAllocated[i] = uint8_t(0);
+			// Header declares pbAllocated as uint16_t; dead branch under ENABLE_32_BIT_BOOL but keep types reconciled
+			particles.pbAllocated[i] = uint16_t(0);
 		#endif
 		}
 
@@ -70,7 +73,7 @@ void main()
 		for (int32_t i = particles.iMinFreeIndex; i < kiMaxParticles; ++i)
 		{
 		#if defined(ENABLE_32_BIT_BOOL)
-			if ((particles.puiAllocated[i / 32] & (1 << (i % 32))) == 0)
+			if ((particles.puiAllocated[i / 32] & (1u << (uint(i) % 32u))) == 0)
 		#else
 			if (particles.pbAllocated[i] == 0)
 		#endif
@@ -78,9 +81,9 @@ void main()
 				particles.iMinFreeIndex = i + 1;
 
 			#if defined(ENABLE_32_BIT_BOOL)
-				particles.puiAllocated[i / 32] |= 1 << (i % 32);
+				particles.puiAllocated[i / 32] |= 1u << (uint(i) % 32u);
 			#else
-				particles.pbAllocated[i] = uint8_t(1);
+				particles.pbAllocated[i] = uint16_t(1);
 			#endif
 				particles.pParticles[i] = spawn.pParticles[iSpawnIndex++];
 				particles.iLastCount = max(particles.iLastCount, i + 1);
@@ -106,7 +109,7 @@ void main()
 	for (int32_t i = particles.iLastCount - 1; i >= 0; --i)
 	{
 	#if defined(ENABLE_32_BIT_BOOL)
-		if ((particles.puiAllocated[i / 32] & (1 << (i % 32))) != 0)
+		if ((particles.puiAllocated[i / 32] & (1u << (uint(i) % 32u))) != 0)
 	#else
 		if (particles.pbAllocated[i] == 1)
 	#endif

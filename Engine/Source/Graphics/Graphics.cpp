@@ -164,7 +164,7 @@ void Graphics::RenderGlobal(float fCurrentTime)
 	}
 
 	gpProfileManager->CpuStart(kCpuTimerRenderGlobal);
-	RenderFrameGlobal(iCommandBuffer, fCurrentTime, game::gpGame->TickCounter());
+	RenderFrameGlobal(iCommandBuffer, fCurrentTime);
 	gpParticleManager->RenderGlobal(iCommandBuffer);
 	gpProfileManager->CpuStop(kCpuTimerRenderGlobal, false);
 
@@ -442,36 +442,6 @@ void Graphics::Refresh()
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 		}
 
-		auto [fTerrainColorTextureMultiplier, fPreviousTerrainColorTextureMultiplier, bTerrainColorTextureMultiplierChanged] = gTerrainColorTextureMultiplier.Changed<float>();
-		if (bTerrainColorTextureMultiplierChanged) [[unlikely]]
-		{
-			LOG(kGraphics, kDebug, "TerrainColorTexture multiplier: {} -> {}", fPreviousTerrainColorTextureMultiplier, fTerrainColorTextureMultiplier);
-
-			mDestroyFlags.Set(DestroyFlags::kTerrainColor);
-
-			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
-		}
-
-		auto [fTerrainNormalTextureMultiplier, fPreviousTerrainNormalTextureMultiplier, bTerrainNormalTextureMultiplierChanged] = gTerrainNormalTextureMultiplier.Changed<float>();
-		if (bTerrainNormalTextureMultiplierChanged) [[unlikely]]
-		{
-			LOG(kGraphics, kDebug, "TerrainNormalTexture multiplier: {} -> {}", fPreviousTerrainNormalTextureMultiplier, fTerrainNormalTextureMultiplier);
-
-			mDestroyFlags.Set(DestroyFlags::kTerrainNormal);
-
-			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
-		}
-
-		auto [fTerrainAmbientOcclusionTextureMultiplier, fPreviousTerrainAmbientOcclusionTextureMultiplier, bTerrainAmbientOcclusionTextureMultiplierChanged] = gTerrainAmbientOcclusionTextureMultiplier.Changed<float>();
-		if (bTerrainAmbientOcclusionTextureMultiplierChanged) [[unlikely]]
-		{
-			LOG(kGraphics, kDebug, "TerrainAmbientOcclusionTexture multiplier: {} -> {}", fPreviousTerrainAmbientOcclusionTextureMultiplier, fTerrainAmbientOcclusionTextureMultiplier);
-
-			mDestroyFlags.Set(DestroyFlags::kTerrainAO);
-
-			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
-		}
-
 		auto [fSmokeTrailPower, fSmokeTrailPowerPrevious, bSmokeTrailPowerChanged] = gSmokeTrailPower.Changed<float>();
 		auto [fSmokeTrailAlpha, fSmokeTrailAlphaPrevious, bSmokeTrailAlphaChanged] = gSmokeTrailAlpha.Changed<float>();
 		auto [fSmokeSimulationPixels, fPreviousSmokeSimulationPixels, bSmokeSimulationPixelsChanged] = gSmokeSimulationPixels.Changed<float>();
@@ -538,9 +508,6 @@ void Graphics::RecreateResources()
 		TerrainTextureRecreateDesc pTerrainDescs[]
 		{
 			{.eFlag = DestroyFlags::kTerrainElevation, .rMultiplierCvar = gTerrainElevationTextureMultiplier, .rTexture = gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
-			{.eFlag = DestroyFlags::kTerrainColor, .rMultiplierCvar = gTerrainColorTextureMultiplier, .rTexture = gpTextureManager->mRenderTargetTextures.mTerrainColorTexture},
-			{.eFlag = DestroyFlags::kTerrainNormal, .rMultiplierCvar = gTerrainNormalTextureMultiplier, .rTexture = gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture},
-			{.eFlag = DestroyFlags::kTerrainAO, .rMultiplierCvar = gTerrainAmbientOcclusionTextureMultiplier, .rTexture = gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture},
 		};
 
 		for (const TerrainTextureRecreateDesc& rDesc : pTerrainDescs)

@@ -12,8 +12,11 @@ namespace
 {
 const TweaksSliderMapRegistrar gTerrainRegistrar
 {
+	// Ambient Occlusion
+	{"Ambient Occlusion", &gIslandAmbientOcclusion},
 	// Beach
-	{"Snow Multiplier", &gTerrainSnowMultiplier},
+	{"Snow Blend", &gTerrainSnowBlend},
+	{"Snow AO Exclusion", &gTerrainSnowAmbientOcclusionExclusion},
 	{"Beach Height", &gTerrainBeachHeight},
 	{"Beach Sand Size", &gTerrainBeachSandSize},
 	{"Beach Sand Blend", &gTerrainBeachSandBlend},
@@ -22,7 +25,6 @@ const TweaksSliderMapRegistrar gTerrainRegistrar
 	{"Beach Normals Size 3", &gTerrainBeachNormalsSizeThree},
 	{"Beach Normals Blend", &gTerrainBeachNormalsBlend},
 	// Rock
-	{"Rock Multiplier", &gTerrainRockMultiplier},
 	{"Rock Size", &gTerrainRockSize},
 	{"Rock Blend", &gTerrainRockBlend},
 	{"Rock Normals Size 1", &gTerrainRockNormalsSizeOne},
@@ -36,8 +38,12 @@ void TweaksScreenBase::RenderTerrainSection()
 {
 	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kTerrain);
 
+	WrapperSeparatorText("Ambient Occlusion");
+	WrapperSlider("Ambient Occlusion", kiSection);
+
 	WrapperSeparatorText("Beach");
-	WrapperSlider("Snow Multiplier", kiSection);
+	WrapperSlider("Snow Blend", kiSection);
+	WrapperSlider("Snow AO Exclusion", kiSection);
 	WrapperSlider("Beach Height", kiSection);
 	WrapperSlider("Beach Sand Size", kiSection);
 	WrapperSlider("Beach Sand Blend", kiSection);
@@ -47,7 +53,6 @@ void TweaksScreenBase::RenderTerrainSection()
 	WrapperSlider("Beach Normals Blend", kiSection);
 
 	WrapperSeparatorText("Rock");
-	WrapperSlider("Rock Multiplier", kiSection);
 	WrapperSlider("Rock Size", kiSection);
 	WrapperSlider("Rock Blend", kiSection);
 	WrapperSlider("Rock Normals Size 1", kiSection);
