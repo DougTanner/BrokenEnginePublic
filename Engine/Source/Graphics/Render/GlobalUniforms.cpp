@@ -355,6 +355,7 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterDepthLutFeather = gWaterDepthLutFeather.Get();
 	rGlobalLayout.fWaterDepthColorFeather = gWaterDepthColorFeather.Get();
 	rGlobalLayout.fWaterDepthColorFloor = gWaterDepthColorFloor.Get();
+	rGlobalLayout.fWaterUnderseaCompression = gWaterUnderseaCompression.Get();
 	rGlobalLayout.fWaterDepthReflectionFeather = fDayPercent * gWaterDepthReflectionFeather.Get();
 	rGlobalLayout.fWaterColorNoiseFrequency = gWaterColorNoiseFrequency.Get();
 

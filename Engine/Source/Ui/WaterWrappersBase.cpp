@@ -48,7 +48,7 @@ Wrapper gLightingWaterSkyboxOne(2400.0f, 0.0f, 5000.0f);
 Wrapper gLightingWaterSkyboxOnePower(250.0f, 50.0f, 400.0f);
 Wrapper gLightingWaterSkyboxTwo(150.0f, 0.0f, 400.0f);
 Wrapper gLightingWaterSkyboxTwoPower(6.0f, 1.0f, 20.0f);
-Wrapper gLightingWaterSkyboxThree(250.0f, 1.0f, 800.0f);
+Wrapper gLightingWaterSkyboxThree(200.0f, 1.0f, 800.0f);
 Wrapper gLightingWaterSkyboxThreePower(0.001f, 0.001f, 1.0f);
 Wrapper gLightingWaterSkyboxLod(7.5f, 0.0f, 10.0f);
 // Resolution multiplier for the WaterSkyboxOne MSAA pre-pass (default 1.0 = framebuffer size).
@@ -81,8 +81,8 @@ Wrapper gWaterLowSpeedAdjust(0.288f, 0.0f, 4.0f);
 Wrapper gWaterBeachFadeTop(-0.06f, -0.1f, 0.0f);
 Wrapper gWaterBeachFadeBottom(-0.14f, -0.2f, -0.07f);
 // Camera-height fade for low-frequency wave amplitudes. At camera eye height ≤ Start, multiplier = 1.0 (full waves). At ≥ End, multiplier = 0.0 (no low waves). Linear in between. Defaults preserve the previous hardcoded 1× → 2× default-eye-height ramp.
-Wrapper gWaterLowAmplitudeFadeStart(100.0f, 0.0f, 1000.0f);
-Wrapper gWaterLowAmplitudeFadeEnd(600.0f, 0.0f, 1000.0f);
+Wrapper gWaterLowAmplitudeFadeStart(300.0f, 0.0f, 1000.0f);
+Wrapper gWaterLowAmplitudeFadeEnd(500.0f, 0.0f, 1000.0f);
 
 // Medium frequency waves
 Wrapper gWaterMediumCount(255i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
@@ -101,15 +101,16 @@ Wrapper gWaterMediumAmplitudeFadeEnd(300.0f, 0.0f, 1000.0f);
 // Depth
 Wrapper gWaterTerrainHeight(3.5f, 1.0f, 8.0f);
 Wrapper gWaterZOffsetTemp(0.0f, -10.0f, 10.0f); // DT: TEMP
-Wrapper gWaterTerrainFade(2.4f, 0.1f, 5.0f);
+Wrapper gWaterTerrainFade(0.8f, 0.1f, 5.0f);
 Wrapper gWaterTerrainFadeClamp(0.0f, 0.0f, 0.5f);
 Wrapper gWaterHeight(0.0f, -0.1f, 0.03f);
 Wrapper gWaterEarlyOut(0.0f, -0.1f, 0.1f);
-Wrapper gWaterDepthLutFeather(0.12f, 0.01f, 0.2f);
+Wrapper gWaterDepthLutFeather(0.09f, 0.01f, 0.2f);
 Wrapper gWaterDepthLutSunsetFadePower(10.0f, 0.1f, 10.0f);
 Wrapper gWaterDepthLutSunsetFadeIntensity(0.3f, 0.0f, 1.0f);
-Wrapper gWaterDepthColorFeather(0.15f, 0.01f, 0.2f);
+Wrapper gWaterDepthColorFeather(0.14f, 0.01f, 0.2f);
 Wrapper gWaterDepthColorFloor(0.2f, 0.0f, 1.0f);
+Wrapper gWaterUnderseaCompression(1.0f, 0.1f, 1.0f);
 Wrapper gWaterColorBottom(0.134f, -2.0f, 2.0f);
 Wrapper gWaterColorHeight(1.86f, 0.0f, 4.0f);
 Wrapper gWaterFresnel(0.07f, 0.0f, 0.2f); // DT: TEMP

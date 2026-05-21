@@ -13,7 +13,7 @@ Renders terrain in two stages:
 
 ### Elevation G-Buffer Prepass
 - **QuadsAxisAlignedVisibleArea.vert** - Shared vertex shader for the axis-aligned-rect blit into the composite elevation RTT.
-- **TerrainElevation.frag** - Samples the R32_SFLOAT heightmap directly into the world-space elevation G-buffer. DataPacker has pre-scaled and offset Gaea's output so pixel 0 == sea level / beach, negative == water, positive == land; the shader does no further conversion.
+- **TerrainElevation.frag** - Samples the R32_SFLOAT heightmap directly into the world-space elevation G-buffer. DataPacker has pre-scaled and offset Gaea's output so pixel 0 == sea level / beach, negative == water, positive == land. The shader applies a branchless `mix/step` scale to negative samples from a global undersea-depth compression uniform (1.0 = identity, smaller = compress sea floor toward sea level) — every downstream consumer of `mTerrainElevationTexture` (terrain composite, water frag, shadow comp, water vertex shore taper) inherits the compressed depth from this single upstream point.
 
 ### Final Compositing
 - **Terrain.vert** - Transforms per-vertex `vec2 f2InPosition` (island-local XY, post-DataPacker re-centering, Z stripped) into world space; re-derives world Z from the composite elevation G-buffer (`textureLod` at the world-XY-derived visible-area UV). Forwards three additional varyings for the frag: per-island texture UV (`location 1`, computed from `f2InPosition / f4VertexRect.zw + 0.5` — rotation-independent because the per-island textures live in island-local axes), bindless texture slot (`location 2`, `flat uint`), and per-instance rotation `(cos, sin)` (`location 3`, `flat vec2`).

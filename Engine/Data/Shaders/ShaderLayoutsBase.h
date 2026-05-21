@@ -343,6 +343,7 @@ struct GlobalLayout
 	float fWaterDepthLutFeather INIT;
 	float fWaterDepthColorFeather INIT;
 	float fWaterDepthColorFloor INIT;
+	float fWaterUnderseaCompression INIT;
 	float fWaterDepthReflectionFeather INIT;
 	float fWaterColorNoiseFrequency INIT;
 	float fWaterHighMultiplier INIT;

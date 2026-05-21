@@ -93,6 +93,7 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Water Depth Lut Sunset Fade Intensity", &gWaterDepthLutSunsetFadeIntensity},
 	{"Water Depth Color Feather", &gWaterDepthColorFeather},
 	{"Water Depth Color Floor", &gWaterDepthColorFloor},
+	{"Undersea Compression", &gWaterUnderseaCompression},
 	{"Water Color Bottom", &gWaterColorBottom},
 	{"Water Color Height", &gWaterColorHeight},
 	{"Water Fresnel", &gWaterFresnel},
@@ -272,6 +273,8 @@ void TweaksScreenBase::RenderWaterSection()
 			WrapperSlider("Water Depth Lut Sunset Fade Power", kiSection);
 			WrapperSlider("Water Depth Lut Sunset Fade Intensity", kiSection);
 			WrapperSlider("Water Depth Color Feather", kiSection);
+			WrapperSlider("Water Depth Color Floor", kiSection);
+			WrapperSlider("Undersea Compression", kiSection);
 			WrapperSlider("Water Color Bottom", kiSection);
 			WrapperSlider("Water Color Height", kiSection);
 

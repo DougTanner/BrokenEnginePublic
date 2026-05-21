@@ -88,6 +88,7 @@ extern Wrapper gWaterDepthLutSunsetFadePower;
 extern Wrapper gWaterDepthLutSunsetFadeIntensity;
 extern Wrapper gWaterDepthColorFeather;
 extern Wrapper gWaterDepthColorFloor;
+extern Wrapper gWaterUnderseaCompression;
 extern Wrapper gWaterColorBottom;
 extern Wrapper gWaterColorHeight;
 extern Wrapper gWaterFresnel;

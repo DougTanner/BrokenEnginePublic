@@ -30,7 +30,6 @@ void TweaksScreenBase::RenderMiscSection()
 	WrapperSlider("Debug Texture Range", kiSection);
 
 	WrapperSeparatorText("Misc");
-	WrapperSlider("Misc0", kiSection);
 }
 
 } // namespace engine

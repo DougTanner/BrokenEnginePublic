@@ -88,9 +88,6 @@ void TweaksScreenBase::RenderWindSection()
 				ImGui::EndTable();
 			}
 
-			WrapperSeparatorText("Particles");
-			WrapperSlider("Particles Wind Strength", kiSection);
-
 			ImGui::EndTabItem();
 		}
 		if (ImGui::BeginTabItem("Deposits", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
