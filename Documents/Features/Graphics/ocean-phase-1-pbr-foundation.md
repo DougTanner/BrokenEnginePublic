@@ -8,7 +8,7 @@ Replace the ad-hoc shading in Water.frag with a physically-based core: Beer-Lamb
 
 - Noise-based color mixing (lines 75-77): the `fNoiseColorOne/Two` dual-noise approach with hardcoded color constants
 - Depth LUT sampling (line 79): `depthLutSampler` lookup via `fWaterDepthLutFeather`
-- Depth color feather blend (line 82): the `fWaterDepthColorFeather` + `fWaterSunVisibility` mix
+- Depth color feather blend (line 82): the `fWaterDepthColorFeather` + `fWaterDepthLutSunsetFade` mix
 - Ad-hoc directional lighting (lines 84-89): the `fWaterDirectional` approach and double sunlight multiply
 - Multi-term Specular() call (line 101): replaced by Ward BRDF
 - The `Fresnel()` function (lines 37-47): replaced by inline Schlick with proper F0=0.02

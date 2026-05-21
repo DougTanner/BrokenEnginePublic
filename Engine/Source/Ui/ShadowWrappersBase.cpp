@@ -8,7 +8,7 @@ Wrapper gShadowRenderMultiplier(0.1f, 0.1f, 1.0f);
 
 // Feather
 Wrapper gShadowFeatherNoon(2.5f, 0.0f, 8.0f);
-Wrapper gShadowFeatherNoonOffset(0.92f, 0.0f, 5.0f);
+Wrapper gShadowFeatherNoonOffset(2.1f, 2.1f, 5.0f);
 Wrapper gShadowFeatherSunset(0.1f, 0.0f, 0.5f);
 Wrapper gShadowFeatherSunsetOffset(-0.1f, -0.5f, 0.1f);
 Wrapper gShadowFeatherPower(1.3f, 0.1f, 10.0f);

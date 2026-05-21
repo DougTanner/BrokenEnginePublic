@@ -740,6 +740,9 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\RenderTargetTexturesLighting.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\RenderTargetTexturesWaterSkyboxOne.cpp">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureCache.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
@@ -1335,6 +1338,12 @@
       <Filter>Engine\Data\Shaders\Water</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Water\Water.vert">
+      <Filter>Engine\Data\Shaders\Water</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Water\WaterDisplacement.comp">
+      <Filter>Engine\Data\Shaders\Water</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Water\WaterSkyboxOne.frag">
       <Filter>Engine\Data\Shaders\Water</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\Shadow.comp">

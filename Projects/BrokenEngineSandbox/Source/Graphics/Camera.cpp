@@ -19,7 +19,7 @@ namespace game
 
 // Mouse-wheel zoom: per-frame scroll delta nudges target height; current eases toward target
 constexpr float kfEyeHeightPerWheelTick = 0.1f;
-constexpr float kfEyeHeightBlend = 4.0f;
+constexpr float kfEyeBlendDuration = 0.35f;
 constexpr float kfEyeHeightMin = 150.0f;
 constexpr float kfEyeHeightMax = 600.0f;
 
@@ -229,8 +229,8 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 
 	if (!mbJumping)
 	{
-		// Tighten chase as eye descends so close-up tracking doesn't show pixel-space stutter
-		float fAdaptiveBlend = kfCameraPositionBlend * std::max(1.0f, kfCameraEyeHeightDefault / mfCameraEyeHeight);
+		// Scale chase rate linearly with eye height: slow/loose at low altitude (close-up view stays calm), fast/tight at altitude (zoomed-out stays responsive).
+		float fAdaptiveBlend = kfCameraPositionBlend * (mfCameraEyeHeight / kfCameraEyeHeightDefault);
 		float fBlend = std::clamp(fDeltaTime * fAdaptiveBlend, 0.0f, 1.0f);
 		mVecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fBlend), vecTargetPosition, XMVectorMultiply(XMVectorReplicate(1.0f - fBlend), mVecPosition));
 		// TEMP zoom-stutter diagnostic
@@ -241,12 +241,47 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	mVecPreviousTargetPosition = vecTargetPosition;
 
 	int iScrollDelta = gpInput->mCameraInput.iScrollDelta;
-	mfCameraEyeHeightTarget = std::clamp(mfCameraEyeHeightTarget - static_cast<float>(iScrollDelta) * kfEyeHeightPerWheelTick, kfEyeHeightMin, kfEyeHeightMax);
+	if (iScrollDelta != 0)
+	{
+		// Scale per-tick zoom delta with current eye height, bounded by sqrt so high altitudes don't get 4x ticks and over-build Hermite velocity that carries into low-altitude territory.
+		float fEyeHeightDelta = static_cast<float>(iScrollDelta) * kfEyeHeightPerWheelTick * std::sqrt(mfCameraEyeHeight / kfCameraEyeHeightDefault);
+		float fNewTarget = std::clamp(mfCameraEyeHeightTarget - fEyeHeightDelta, kfEyeHeightMin, kfEyeHeightMax);
+		if (fNewTarget != mfCameraEyeHeightTarget)
+		{
+			// Re-anchor every tick that actually moves the target. Snapshot current position AND velocity so the new Hermite curve picks up continuously, eliminating mid-flight stepping that an endpoint-shifted smoothstep would produce.
+			mfEyeStartHeight = mfCameraEyeHeight;
+			mfEyeStartVelocity = mfEyeVelocity;
+			mfEyeStartTime = mfTime;
+			mfCameraEyeHeightTarget = fNewTarget;
+			mbEyeZooming = true;
+		}
+	}
 
-	float fEyeBlend = std::clamp(fDeltaTime * kfEyeHeightBlend, 0.0f, 1.0f);
-	mfCameraEyeHeight += (mfCameraEyeHeightTarget - mfCameraEyeHeight) * fEyeBlend;
-	// DT: TEMP
-	// mfCameraEyeHeight = mfCameraEyeHeightTarget;
+	if (mbEyeZooming)
+	{
+		float fEyeElapsed = mfTime - mfEyeStartTime;
+		if (fEyeElapsed >= kfEyeBlendDuration)
+		{
+			mfCameraEyeHeight = mfCameraEyeHeightTarget;
+			mfEyeVelocity = 0.0f;
+			mbEyeZooming = false;
+		}
+		else
+		{
+			// Cubic Hermite from (mfEyeStartHeight, mfEyeStartVelocity) to (mfCameraEyeHeightTarget, 0) over kfEyeBlendDuration.
+			float fT = fEyeElapsed / kfEyeBlendDuration;
+			float fT2 = fT * fT;
+			float fT3 = fT2 * fT;
+			float fH00 = 2.0f * fT3 - 3.0f * fT2 + 1.0f;
+			float fH10 = fT3 - 2.0f * fT2 + fT;
+			float fH01 = -2.0f * fT3 + 3.0f * fT2;
+			mfCameraEyeHeight = fH00 * mfEyeStartHeight + fH10 * mfEyeStartVelocity * kfEyeBlendDuration + fH01 * mfCameraEyeHeightTarget;
+			float fDH00 = 6.0f * fT2 - 6.0f * fT;
+			float fDH10 = 3.0f * fT2 - 4.0f * fT + 1.0f;
+			float fDH01 = -6.0f * fT2 + 6.0f * fT;
+			mfEyeVelocity = (fDH00 * mfEyeStartHeight + fDH10 * mfEyeStartVelocity * kfEyeBlendDuration + fDH01 * mfCameraEyeHeightTarget) / kfEyeBlendDuration;
+		}
+	}
 
 	// Eye sits directly above target along +Z (straight-down view).
 	// W=0 — eye-local offset, not a homogeneous point; added to mVecPosition (W=1) preserves position.

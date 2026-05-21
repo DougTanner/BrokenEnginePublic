@@ -16,6 +16,9 @@ struct RenderTargetTextures
 	void CreateWindTextures();
 	void CreateObjectShadowsTextures();
 	void CreateTerrainTextures();
+	void DestroyWaterSkyboxOneTextures();
+	void CreateWaterSkyboxOneTextures();
+	void CreateWaterDisplacementTextures();
 
 	Texture mLogTexture;
 
@@ -63,6 +66,21 @@ struct RenderTargetTextures
 	Texture mObjectShadowsTexture;
 	Texture mObjectShadowsBlurTexture;
 	Texture mObjectShadowsBlurIntermediateTexture;
+
+	// WaterSkyboxOne: extracted skybox-specular One-lobe pre-pass at hardcoded 4x MSAA with full sample
+	// shading, resolved to a single-sample texture sampled in screen space by the main water pipeline.
+	// Sized at framebufferExtent * gWaterSkyboxOneRenderMultiplier. Render pass auto-resolves on end.
+	Texture mWaterSkyboxOneMsaaTexture;
+	Texture mWaterSkyboxOneResolveTexture;
+	VkRenderPass mWaterSkyboxOneVkRenderPass = VK_NULL_HANDLE;
+	VkFramebuffer mWaterSkyboxOneVkFramebuffer = VK_NULL_HANDLE;
+
+	// Per-frame compute output: Gerstner-wave displacement + Jacobian normal sampled by Water.vert
+	// (kPipelineWater + kPipelineWaterSkyboxOne) instead of recomputing the wave sum twice. Sized to
+	// the LOD0 water-mesh vertex grid; active LOD writes only the top-left iWaterActiveQuadX+1 by
+	// iWaterActiveQuadY+1 texel rectangle each frame.
+	Texture mWaterDisplacementTexture;
+	Texture mWaterDisplacementNormalTexture;
 
 	std::vector<Texture*> mElevationTextures;
 	std::vector<Texture*> mColorTextures;

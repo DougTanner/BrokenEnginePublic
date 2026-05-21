@@ -66,6 +66,7 @@ public:
 	};
 
 	void WriteArrayBindingDescriptors(TextureBinding& rBinding, VkSampler vkSampler);
+	void WriteFullArrayDescriptors(Pipeline& rPipeline, int64_t iBinding, Texture* const* ppArray, int64_t iCount, VkSampler vkSampler);
 
 	// Consumer entry for a bindless texture array whose per-slot binding key is supplied lazily by
 	// the data subsystem (e.g., IslandTerrain). Populated by PipelineDescriptorWriter when it sees

@@ -167,36 +167,41 @@ void TextureDescriptors::WriteArrayBindingDescriptors(TextureBinding& rBinding, 
 	}
 
 	int64_t iTextureCount = static_cast<int64_t>(rBinding.textures.size());
-	auto pImageInfos = common::gpThreadLocal->mWorkbuffer.PushBuffer<VkDescriptorImageInfo*>(iTextureCount * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
+	WriteFullArrayDescriptors(*rBinding.pPipeline, rBinding.iBinding, rBinding.textures.data(), iTextureCount, vkSampler);
+
+	rBinding.uiTextureGenerations.resize(iTextureCount);
 	for (int64_t i = 0; i < iTextureCount; ++i)
 	{
+		rBinding.uiTextureGenerations.at(i) = rBinding.textures.at(i) != nullptr ? rBinding.textures.at(i)->muiGeneration : 0;
+	}
+}
+
+void TextureDescriptors::WriteFullArrayDescriptors(Pipeline& rPipeline, int64_t iBinding, Texture* const* ppArray, int64_t iCount, VkSampler vkSampler)
+{
+	auto pImageInfos = common::gpThreadLocal->mWorkbuffer.PushBuffer<VkDescriptorImageInfo*>(iCount * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
+	for (int64_t i = 0; i < iCount; ++i)
+	{
 		pImageInfos[i].sampler = vkSampler;
-		pImageInfos[i].imageView = rBinding.textures.at(i) != nullptr ? rBinding.textures.at(i)->mVkImageView : mrTextureManager.mWhiteTexture.mVkImageView;
+		pImageInfos[i].imageView = ppArray[i] != nullptr ? ppArray[i]->mVkImageView : mrTextureManager.mWhiteTexture.mVkImageView;
 		pImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
-	for (VkDescriptorSet& rVkDescriptorSet : rBinding.pPipeline->mVkDescriptorSets)
+	for (VkDescriptorSet& rVkDescriptorSet : rPipeline.mVkDescriptorSets)
 	{
 		VkWriteDescriptorSet vkWriteDescriptorSet
 		{
 			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 			.pNext = nullptr,
 			.dstSet = rVkDescriptorSet,
-			.dstBinding = static_cast<uint32_t>(rBinding.iBinding),
+			.dstBinding = static_cast<uint32_t>(iBinding),
 			.dstArrayElement = 0,
-			.descriptorCount = static_cast<uint32_t>(iTextureCount),
+			.descriptorCount = static_cast<uint32_t>(iCount),
 			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 			.pImageInfo = pImageInfos,
 			.pBufferInfo = nullptr,
 			.pTexelBufferView = nullptr,
 		};
 		vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
-	}
-
-	rBinding.uiTextureGenerations.resize(iTextureCount);
-	for (int64_t i = 0; i < iTextureCount; ++i)
-	{
-		rBinding.uiTextureGenerations.at(i) = rBinding.textures.at(i) != nullptr ? rBinding.textures.at(i)->muiGeneration : 0;
 	}
 }
 
@@ -309,6 +314,20 @@ void TextureDescriptors::RewriteSamplerDescriptors()
 					rBinding.uiTextureGeneration = uiGeneration;
 				}
 			}
+		}
+	}
+
+	// Bindless arrays mutate in place after pipeline-create (IslandTerrain::AcquireTextureSlot patches
+	// per-slot Texture* pointers), so rewriting from a snapshot would clobber live slots with stale
+	// placeholder pointers. Read through the live array pointer (consumer map key) instead. Per-slot
+	// TextureBinding entries registered from AcquireTextureSlot also get refreshed by the loop above
+	// — the redundant write here is harmless (both sources resolve to the same live Texture*).
+	for (auto& [ppLiveArray, rConsumers] : mBindlessArrayConsumers)
+	{
+		for (const BindlessArrayConsumer& rConsumer : rConsumers)
+		{
+			VkSampler vkSampler = mrTextureManager.GetSampler(rConsumer.samplerFlags);
+			WriteFullArrayDescriptors(*rConsumer.pPipeline, rConsumer.iBinding, ppLiveArray, rConsumer.iCount, vkSampler);
 		}
 	}
 }

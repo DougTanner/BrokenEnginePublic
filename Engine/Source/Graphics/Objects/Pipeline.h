@@ -73,6 +73,11 @@ enum class PipelineFlags : uint64_t
 	kMultiSet                  = 0x20000,
 	kLineList                  = 0x40000,
 	kNoColorWrite              = 0x80000,
+	// Forces 4x MSAA + full sample-shading on this pipeline regardless of gMultisampling / gSampleShading
+	// settings, clamped to device max. Used by the WaterSkyboxOne pre-pass that bakes the One-lobe of
+	// the water skybox specular into its own MSAA-resolve RT so the main water pipeline can drop
+	// kSampleShading. See PipelineCreator.cpp for the branch.
+	kForceFullSampleShading4x  = 0x100000,
 };
 using PipelineFlags_t = common::Flags<PipelineFlags>;
 

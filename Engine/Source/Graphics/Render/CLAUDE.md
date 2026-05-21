@@ -19,8 +19,8 @@ CPU computes phase / UV origins in `double`, `std::fmod` reduces to a small modu
 ## World-Area Uniforms
 
 `GlobalLayout` exposes several world-area extents consumed by fullscreen / RT passes:
-- `f4VisibleArea` — tracks the camera each frame; drives the water vertex grid and visible-area RT pixel-to-world mapping. Also anchors the water decomposition RTs (displacement, Gerstner normal, low-freq precompute color) since they sample at the same per-meter-snapped resolution as the visible grid.
-- `f4LightingArea` — LOD-stable + texel-snap anchor for the lighting / ambient composite RTs; pixel-to-world stays bit-identical within an `iLod`. This pattern is appropriate for low-frequency content (lighting) but does NOT suit the water decomposition RTs — see `Engine/Data/Shaders/Water/CLAUDE.md` for the selective-decomposition rationale.
+- `f4VisibleArea` — tracks the camera each frame; drives the water vertex grid and visible-area RT pixel-to-world mapping. Also anchors the water displacement and Jacobian-normal textures (baked once per frame by the displacement compute pre-pass) since they sample at the same per-meter-snapped resolution as the visible grid. The active LOD's quad count is uploaded as a paired field consumed by both the compute dispatch and the vertex shader's `texelFetch`.
+- `f4LightingArea` — LOD-stable + texel-snap anchor for the lighting / ambient composite RTs; pixel-to-world stays bit-identical within an `iLod`. This pattern is appropriate for low-frequency content (lighting) but does NOT suit the water displacement / normal textures — those align to the visible grid, not a stable LOD anchor.
 
 ## Camera-Height-Conditional Uniforms
 

@@ -42,12 +42,14 @@ enum class DestroyFlags : uint16_t
 	kWaterMesh          = 0x0020,
 	kTerrainElevation   = 0x0040,
 	kSmokeTextures      = 0x0400,
+	kWaterSkyboxOne     = 0x0800,
 };
 using DestroyFlags_t = common::Flags<DestroyFlags>;
 
 inline VkExtent2D gWantedFramebufferExtent2D {};
 
 std::tuple<int64_t, int64_t> FullDetail();
+std::tuple<int64_t, int64_t> WaterFullDetail();
 float SmokeSimulationPixels();
 float SmokeSimulationPixelsY();
 

@@ -55,7 +55,10 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	float fDirectionAngle = fSunAngle < XM_PI ? fSunAngle : XM_2PI - fSunAngle;
 	XMVECTOR vecSunMoonNormal = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
 	XMMATRIX matSunRotation = XMMatrixRotationY(-fDirectionAngle);
-	vecSunMoonNormal = XMVector4Normalize(XMVector4Transform(vecSunMoonNormal, matSunRotation));
+	vecSunMoonNormal = XMVector4Transform(vecSunMoonNormal, matSunRotation);
+	// Normal-only pitch tilt around world X. Shadows derive from raw fSunAngle and are unaffected.
+	XMMATRIX matSunTilt = XMMatrixRotationX(gSunMoonNormalTilt.Get());
+	vecSunMoonNormal = XMVector4Normalize(XMVector4Transform(vecSunMoonNormal, matSunTilt));
 	XMStoreFloat4(&rGlobalLayout.f4SunMoonNormal, vecSunMoonNormal);
 	rGlobalLayout.f4SunMoonNormal.w = fSunAngle;
 
@@ -351,6 +354,7 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 
 	rGlobalLayout.fWaterDepthLutFeather = gWaterDepthLutFeather.Get();
 	rGlobalLayout.fWaterDepthColorFeather = gWaterDepthColorFeather.Get();
+	rGlobalLayout.fWaterDepthColorFloor = gWaterDepthColorFloor.Get();
 	rGlobalLayout.fWaterDepthReflectionFeather = fDayPercent * gWaterDepthReflectionFeather.Get();
 	rGlobalLayout.fWaterColorNoiseFrequency = gWaterColorNoiseFrequency.Get();
 
@@ -360,17 +364,17 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 
 	if (fSunAngle >= XM_PIDIV16 && fSunAngle < XM_PIDIV2)
 	{
-		rGlobalLayout.fWaterSunVisibility = 1.0f - (fSunAngle - XM_PIDIV16) / (XM_PIDIV2 - XM_PIDIV16);
+		rGlobalLayout.fWaterDepthLutSunsetFade = 1.0f - (fSunAngle - XM_PIDIV16) / (XM_PIDIV2 - XM_PIDIV16);
 	}
 	else if (fSunAngle >= XM_PIDIV2 && fSunAngle < XM_PI - XM_PIDIV16)
 	{
-		rGlobalLayout.fWaterSunVisibility = (fSunAngle - XM_PIDIV2) / (XM_PI - XM_PIDIV16 - XM_PIDIV2);
+		rGlobalLayout.fWaterDepthLutSunsetFade = (fSunAngle - XM_PIDIV2) / (XM_PI - XM_PIDIV16 - XM_PIDIV2);
 	}
 	else
 	{
-		rGlobalLayout.fWaterSunVisibility = 1.0f;
+		rGlobalLayout.fWaterDepthLutSunsetFade = 1.0f;
 	}
-	rGlobalLayout.fWaterSunVisibility = std::pow(rGlobalLayout.fWaterSunVisibility, 2.0f);
+	rGlobalLayout.fWaterDepthLutSunsetFade = gWaterDepthLutSunsetFadeIntensity.Get() * std::pow(rGlobalLayout.fWaterDepthLutSunsetFade, gWaterDepthLutSunsetFadePower.Get());
 
 	rGlobalLayout.fWaterFresnel = std::pow(fDayPercent, 0.5f) * gWaterFresnel.Get();
 	rGlobalLayout.fWaterColorBottom = gWaterColorBottom.Get();

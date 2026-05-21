@@ -43,6 +43,7 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Skybox 3", &gLightingWaterSkyboxThree},
 	{"Skybox 3 Power", &gLightingWaterSkyboxThreePower},
 	{"Skybox Lod", &gLightingWaterSkyboxLod},
+	{"Skybox One Resolution", &gWaterSkyboxOneRenderMultiplier},
 	// Specular - Height Darken
 	{"Height Darken Top", &gWaterHeightDarkenTop},
 	{"Height Darken Bottom", &gWaterHeightDarkenBottom},
@@ -88,7 +89,10 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Water Height", &gWaterHeight},
 	{"Water Early Out", &gWaterEarlyOut},
 	{"Water Depth Lut Feather", &gWaterDepthLutFeather},
+	{"Water Depth Lut Sunset Fade Power", &gWaterDepthLutSunsetFadePower},
+	{"Water Depth Lut Sunset Fade Intensity", &gWaterDepthLutSunsetFadeIntensity},
 	{"Water Depth Color Feather", &gWaterDepthColorFeather},
+	{"Water Depth Color Floor", &gWaterDepthColorFloor},
 	{"Water Color Bottom", &gWaterColorBottom},
 	{"Water Color Height", &gWaterColorHeight},
 	{"Water Fresnel", &gWaterFresnel},
@@ -164,6 +168,7 @@ void TweaksScreenBase::RenderWaterSection()
 				WrapperSlider("Skybox 3", kiSection, 1.0f);
 				WrapperSlider("Skybox 3 Power", kiSection, 1.0f);
 				WrapperSlider("Skybox Lod", kiSection, 1.0f);
+				WrapperSlider("Skybox One Resolution", kiSection, 1.0f);
 
 				WrapperSeparatorText("Height Darken");
 				WrapperSlider("Height Darken Top", kiSection, 1.0f);
@@ -264,6 +269,8 @@ void TweaksScreenBase::RenderWaterSection()
 
 			WrapperSeparatorText("Depth Color");
 			WrapperSlider("Water Depth Lut Feather", kiSection);
+			WrapperSlider("Water Depth Lut Sunset Fade Power", kiSection);
+			WrapperSlider("Water Depth Lut Sunset Fade Intensity", kiSection);
 			WrapperSlider("Water Depth Color Feather", kiSection);
 			WrapperSlider("Water Color Bottom", kiSection);
 			WrapperSlider("Water Color Height", kiSection);

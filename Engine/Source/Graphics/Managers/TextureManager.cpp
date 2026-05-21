@@ -30,6 +30,22 @@ std::tuple<int64_t, int64_t> TextureManager::DetailTextureSize(float fMultiplier
 	return std::make_tuple(iX, iY);
 }
 
+std::tuple<int64_t, int64_t> TextureManager::WaterDetailTextureSize(float fMultiplier)
+{
+	auto [iWorldDetailX, iWorldDetailY] = WaterFullDetail();
+
+	int64_t iX = static_cast<int64_t>(fMultiplier * static_cast<float>(iWorldDetailX));
+	int64_t iY = static_cast<int64_t>(fMultiplier * static_cast<float>(iWorldDetailY));
+
+	iX = std::max(iX, 128i64);
+	iY = std::max(iY, 64i64);
+
+	iX = std::min(iX, static_cast<int64_t>(gpInstanceManager->mVkPhysicalDeviceProperties.limits.maxImageDimension2D));
+	iY = std::min(iY, static_cast<int64_t>(gpInstanceManager->mVkPhysicalDeviceProperties.limits.maxImageDimension2D));
+
+	return std::make_tuple(iX, iY);
+}
+
 float TextureManager::DetailTextureAspectRatio()
 {
 	auto [iWorldDetailX, iWorldDetailY] = FullDetail();
@@ -318,6 +334,7 @@ TextureManager::~TextureManager()
 
 	DestroySamplers();
 	mRenderTargetTextures.DestroyLightingTextures();
+	mRenderTargetTextures.DestroyWaterSkyboxOneTextures();
 
 	gpTextureManager = nullptr;
 }
@@ -331,6 +348,7 @@ void TextureManager::DestroyScreenDependentResources()
 	mAcquireVkCommandBuffers.clear();
 
 	mRenderTargetTextures.DestroyLightingTextures();
+	mRenderTargetTextures.DestroyWaterSkyboxOneTextures();
 }
 
 void TextureManager::CreateScreenDependentResources()

@@ -135,7 +135,7 @@ void main()
 	// Shadow with smoke at world position. Moon bypasses the terrain ray-march shadow only;
 	// object shadows and smoke volumetric attenuation still apply to both lights.
 	float fShadowMoon = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
-	float fShadowSun  = fShadowMoon * max(0.2f, texture(shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea)).x);
+	float fShadowSun  = fShadowMoon * texture(shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea)).x;
 	// AO: deleted TerrainAmbientOcclusion.frag wrote `globalLayout.fIslandAmbientOcclusion * (1 - raw)`
 	// into the composite RTT, then the original frag did `1 - composite`. Inlined here so the SunLighting
 	// occlusion factor is bit-equivalent (modulo the removed R8_UNORM round-trip).

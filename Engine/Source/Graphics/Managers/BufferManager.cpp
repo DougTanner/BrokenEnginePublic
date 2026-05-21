@@ -729,7 +729,7 @@ static void BuildLodConcatMesh(int64_t iLod0QuadX, int64_t iLod0QuadY,
 
 void BufferManager::CreateWaterMesh()
 {
-	auto [iFullX, iFullY] = gpTextureManager->DetailTextureSize(gWorldDetail.Get());
+	auto [iFullX, iFullY] = gpTextureManager->WaterDetailTextureSize(gWaterShapeDetail.Get());
 	int64_t iLod0QuadX = iFullX - 1;
 	int64_t iLod0QuadY = iFullY - 1;
 

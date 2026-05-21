@@ -330,6 +330,8 @@ struct GlobalLayout
 	// Water
 	int32_t iWaterLowCount INIT;
 	int32_t iWaterMediumCount INIT;
+	int32_t iWaterActiveQuadX INIT;
+	int32_t iWaterActiveQuadY INIT;
 	float fWaterOriginX INIT;
 	float fWaterOriginY INIT;
 	float fWaterHeight INIT;
@@ -340,12 +342,13 @@ struct GlobalLayout
 	float fWaterNoiseAmount INIT;
 	float fWaterDepthLutFeather INIT;
 	float fWaterDepthColorFeather INIT;
+	float fWaterDepthColorFloor INIT;
 	float fWaterDepthReflectionFeather INIT;
 	float fWaterColorNoiseFrequency INIT;
 	float fWaterHighMultiplier INIT;
 	float fWaterHighScaleOne INIT;
 	float fWaterHighScaleTwo INIT;
-	float fWaterSunVisibility INIT;
+	float fWaterDepthLutSunsetFade INIT;
 	float fWaterFresnel INIT;
 	float fWaterColorBottom INIT;
 	float fWaterColorHeightInv INIT;
@@ -426,6 +429,10 @@ struct MainLayout
 
 	vec4 pf4MediumWavesOne[256] INIT;
 	vec4 pf4MediumWavesTwo[256] INIT;
+
+	// 1.0 / framebufferExtent. Used by Water.frag to compute the screen-space UV that samples the
+	// WaterSkyboxOne pre-baked-and-resolved skybox-specular One-lobe contribution.
+	vec2 f2InvFramebufferSize INIT;
 
 	// Lighting — water normal map atlas (3 weighted samples)
 	float fLightingSampledNormalsOneSize INIT;

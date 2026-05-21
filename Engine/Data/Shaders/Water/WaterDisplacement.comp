@@ -1,0 +1,127 @@
+#version 460
+
+#include "ShaderLayouts.h"
+#include "ShaderFunctions.h"
+
+layout (local_size_x = kiComputeTileSize, local_size_y = kiComputeTileSize) in;
+
+layout (binding = 0) uniform globalUniform
+{
+	GlobalLayout globalLayout;
+};
+
+layout (binding = 1) uniform mainUniform
+{
+	MainLayout mainLayout;
+};
+
+layout (binding = 2) uniform sampler2D elevationTextureSampler;
+layout (binding = 3, rgba16f) uniform writeonly image2D displacementImage;
+layout (binding = 4, rgba16f) uniform writeonly image2D normalImage;
+
+// Pre-computes the Gerstner wave displacement (Δx, Δy, Δz from camera-relative un-displaced position)
+// and Jacobian-derived flat-blended normal, so Water.vert can texelFetch a single sample per vertex
+// instead of summing iWaterLowCount + iWaterMediumCount waves twice (once for the WaterSkyboxOne
+// pre-pass, once for the main water pass). Math mirrors the former GerstnerLow / GerstnerMedium
+// helpers in Water.vert byte-for-byte. Shore-fade amplitude is baked into the low-band sum (the only
+// band that fades to shore); the Z-taper-near-shore and over-land early-out stay in Water.vert.
+//
+// Texel grid is in 1:1 alignment with the active water-mesh LOD vertex grid: only the top-left
+// (iWaterActiveQuadX + 1) by (iWaterActiveQuadY + 1) rectangle is written per frame. Texels beyond
+// that rectangle hold whatever the previous LOD wrote and are never sampled (Water.vert clamps via
+// f2InTexcoord scaled by the same iWaterActiveQuad*).
+void main()
+{
+	int iActiveX = globalLayout.iWaterActiveQuadX;
+	int iActiveY = globalLayout.iWaterActiveQuadY;
+	ivec2 i2Coord = ivec2(gl_GlobalInvocationID.xy);
+	if (i2Coord.x > iActiveX || i2Coord.y > iActiveY)
+	{
+		return;
+	}
+
+	vec2 f2Texcoord = vec2(i2Coord) / vec2(iActiveX, iActiveY);
+	vec2 f2WorldPosition = vec2
+	(
+		(1.0f - f2Texcoord.x) * globalLayout.f4VisibleArea.x + f2Texcoord.x * globalLayout.f4VisibleArea.z,
+		(1.0f - f2Texcoord.y) * globalLayout.f4VisibleArea.y + f2Texcoord.y * globalLayout.f4VisibleArea.w
+	);
+	vec2 f2LocalPosition = f2WorldPosition - vec2(globalLayout.fWaterOriginX, globalLayout.fWaterOriginY);
+
+	float fTerrainElevation = textureLod(elevationTextureSampler, WorldToVisibleArea(vec3(f2WorldPosition, 0.0f), globalLayout.f4VisibleArea), 0.0f).x - globalLayout.fWaterHeight;
+	// Shore amp fade: 1 deep, 0 at/above the top. Same formula as Water.vert previously.
+	float fShoreAmplitude = clamp((fTerrainElevation - globalLayout.fBeachFadeTop) * globalLayout.fBeachFadeInvRange, 0.0f, 1.0f);
+
+	vec3 f3Displacement = vec3(0.0f);
+	// Jacobian accumulators (cross-product form — preserves N into high-steepness regime; see Water/CLAUDE.md).
+	float fA = 0.0f;
+	float fB = 0.0f;
+	float fD = 0.0f;
+	float fG = 0.0f;
+	float fE = 0.0f;
+
+	if (globalLayout.fWaterLowAmplitude > 0.0f && fShoreAmplitude > 0.0f)
+	{
+		float fLowSteepness = globalLayout.fWaterLowSteepness;
+		for (int i = 0; i < globalLayout.iWaterLowCount; ++i)
+		{
+			float fOmega = mainLayout.pf4LowWavesTwo[i].x;
+			float fAmplitude = mainLayout.pf4LowWavesTwo[i].y * fShoreAmplitude;
+			vec2 f2Direction = mainLayout.pf4LowWavesOne[i].xy;
+
+			float fReducedPhiTime = mainLayout.pf4LowWavesTwo[i].w;
+			float fRadians = dot(f2Direction, f2LocalPosition) * fOmega + fReducedPhiTime;
+			float fSin = sin(fRadians);
+			float fCos = cos(fRadians);
+
+			float fWA = fOmega * fAmplitude;
+			float fQWASin = fLowSteepness * fWA * fSin;
+			float fWACos = fWA * fCos;
+
+			f3Displacement += vec3(fLowSteepness * fAmplitude * f2Direction * fCos, fAmplitude * fSin);
+
+			fA += fQWASin * f2Direction.x * f2Direction.x;
+			fB += fQWASin * f2Direction.x * f2Direction.y;
+			fD += fQWASin * f2Direction.y * f2Direction.y;
+			fG += fWACos * f2Direction.x;
+			fE += fWACos * f2Direction.y;
+		}
+	}
+
+	if (globalLayout.fWaterMediumAmplitude > 0.0f)
+	{
+		float fMediumSteepness = globalLayout.fWaterMediumSteepness;
+		for (int i = 0; i < globalLayout.iWaterMediumCount; ++i)
+		{
+			float fOmega = mainLayout.pf4MediumWavesTwo[i].x;
+			float fAmplitude = mainLayout.pf4MediumWavesTwo[i].y;
+			vec2 f2Direction = mainLayout.pf4MediumWavesOne[i].xy;
+
+			float fReducedPhiTime = mainLayout.pf4MediumWavesTwo[i].w;
+			float fRadians = dot(f2Direction, f2LocalPosition) * fOmega + fReducedPhiTime;
+			float fSin = sin(fRadians);
+			float fCos = cos(fRadians);
+
+			float fWA = fOmega * fAmplitude;
+			float fQWASin = fMediumSteepness * fWA * fSin;
+			float fWACos = fWA * fCos;
+
+			f3Displacement += vec3(fMediumSteepness * fAmplitude * f2Direction * fCos, fAmplitude * fSin);
+
+			fA += fQWASin * f2Direction.x * f2Direction.x;
+			fB += fQWASin * f2Direction.x * f2Direction.y;
+			fD += fQWASin * f2Direction.y * f2Direction.y;
+			fG += fWACos * f2Direction.x;
+			fE += fWACos * f2Direction.y;
+		}
+	}
+
+	// Both bands skipped → accumulators stay at identity, normal collapses to (0,0,1) — flat ocean.
+	vec3 f3Tangent   = vec3(1.0f - fA, -fB, fG);
+	vec3 f3Bitangent = vec3(-fB, 1.0f - fD, fE);
+	vec3 f3WaveNormal = normalize(cross(f3Tangent, f3Bitangent));
+	vec3 f3Normal = normalize(mix(vec3(0.0f, 0.0f, 1.0f), f3WaveNormal, globalLayout.fWaterWaveNormalBlend));
+
+	imageStore(displacementImage, i2Coord, vec4(f3Displacement, 0.0f));
+	imageStore(normalImage,       i2Coord, vec4(f3Normal,       0.0f));
+}

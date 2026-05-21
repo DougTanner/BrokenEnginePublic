@@ -19,7 +19,7 @@ Engine-scope wrappers split per Tweaks tab into `<Tab>WrappersBase.{h,cpp}` pair
 
 **CurveData change detection**: Size + scalar-hash compare, self-advancing (same single-consumer contract as `Wrapper`).
 
-**Cross-system coupling**: `gWorldDetail`'s largest divisor must match the full-detail size used by `TextureManager::DetailTextureSize`. Render-target sizes that scale with `gWorldDetail` are recreated via the destroy-flag pipeline in `Graphics::Update` — any new wrapper that drives a render-target dimension must register its own change-detector and destroy flag there (the shadow-texture resolution wrapper is the existing precedent). Within each per-tab `<Tab>WrappersBase` pair, declaration order must match the matching `TweaksScreen<Tab>.cpp` slider order.
+**Cross-system coupling**: `gWaterShapeDetail`'s largest value scales the full-detail size used by `TextureManager::DetailTextureSize`, driving the water mesh LOD0 quad grid. Render-target sizes that scale with their own multipliers are recreated via the destroy-flag pipeline in `Graphics::Update` — any new wrapper that drives a render-target dimension must register its own change-detector and destroy flag there (the shadow-texture resolution wrapper is the existing precedent). Within each per-tab `<Tab>WrappersBase` pair, declaration order must match the matching `TweaksScreen<Tab>.cpp` slider order.
 
 ## See Also
 

@@ -139,6 +139,18 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	int iLod = std::clamp(game::gpCamera->miVisibleAreaLod, 0, BufferManager::kiVisibleAreaLodCount - 1);
 	const BufferManager::VisibleAreaMeshLod& rWaterLod = gpBufferManager->mWaterMeshLods[iLod];
 	gpPipelineManager->mpPipelines[kPipelineWater].WriteIndirectBuffer(iCommandBuffer, 1, rWaterLod.iIndexCount, rWaterLod.iIndexOffset, rWaterLod.iVertexOffset);
+	// WaterSkyboxOne draws the same mesh as Water (same Water.vert) so screen-space alignment matches.
+	gpPipelineManager->mpPipelines[kPipelineWaterSkyboxOne].WriteIndirectBuffer(iCommandBuffer, 1, rWaterLod.iIndexCount, rWaterLod.iIndexOffset, rWaterLod.iVertexOffset);
+
+	// Active LOD's vertex-grid dims (iQuadCount* == iMeshX/Y - 1). Read by:
+	//   1) WaterDisplacement.comp — bounds-checks each thread, only writes the top-left rectangle.
+	//   2) Water.vert — scales f2InTexcoord to the matching texel index via texelFetch.
+	// Both shaders must read the SAME values; populating once here keeps them in lockstep.
+	{
+		shaders::GlobalLayout& rGlobalLayoutForLod = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
+		rGlobalLayoutForLod.iWaterActiveQuadX = static_cast<int32_t>(rWaterLod.iQuadCountX);
+		rGlobalLayoutForLod.iWaterActiveQuadY = static_cast<int32_t>(rWaterLod.iQuadCountY);
+	}
 
 	// Phase 1: BeginRender — compute total capacities, resize GPU buffers, reset counters
 	game::FrameInterpolate::BeginRender(iCommandBuffer, rRenderInterpolates, rActiveCoords);
@@ -209,9 +221,12 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	XMStoreFloat4(&rMainLayout.f4EyePosition, game::gpCamera->mVecEyePosition);
 	XMStoreFloat4(&rMainLayout.f4ToEyeNormal, game::gpCamera->mVecToEyeNormal);
 
+	rMainLayout.f2InvFramebufferSize.x = 1.0f / static_cast<float>(gpGraphics->mFramebufferExtent2D.width);
+	rMainLayout.f2InvFramebufferSize.y = 1.0f / static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
+
 	// Wave phase reduction: read elapsed time from already-populated global layout.
 	// Non-const: when a per-stack camera-eye-height fade clamps amplitude to zero, we also zero the
-	// matching iWater*Count below so the Water.vert Gerstner loop short-circuits to no work.
+	// matching iWater*Count below so the WaterDisplacement.comp Gerstner loop short-circuits to no work.
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 	double dWaveTime = static_cast<double>(rGlobalLayout.fElapsedTime);
 	XMFLOAT4A f4WaveCameraPos {};

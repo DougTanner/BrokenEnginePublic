@@ -39,6 +39,7 @@ extern Wrapper gLightingWaterSkyboxTwoPower;
 extern Wrapper gLightingWaterSkyboxThree;
 extern Wrapper gLightingWaterSkyboxThreePower;
 extern Wrapper gLightingWaterSkyboxLod;
+extern Wrapper gWaterSkyboxOneRenderMultiplier;
 
 // Specular - Height Darken
 extern Wrapper gWaterHeightDarkenTop;
@@ -83,7 +84,10 @@ extern Wrapper gWaterTerrainFadeClamp;
 extern Wrapper gWaterHeight;
 extern Wrapper gWaterEarlyOut;
 extern Wrapper gWaterDepthLutFeather;
+extern Wrapper gWaterDepthLutSunsetFadePower;
+extern Wrapper gWaterDepthLutSunsetFadeIntensity;
 extern Wrapper gWaterDepthColorFeather;
+extern Wrapper gWaterDepthColorFloor;
 extern Wrapper gWaterColorBottom;
 extern Wrapper gWaterColorHeight;
 extern Wrapper gWaterFresnel;

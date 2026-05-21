@@ -24,6 +24,9 @@ layout (set = 1, binding = 8) uniform sampler2D pWaterNormalSamplers[17];
 layout (set = 1, binding = 9) uniform sampler2D depthLutSampler;
 layout (set = 1, binding = 10) uniform sampler2D smokeSampler;
 layout (set = 1, binding = 11) uniform sampler2D ambientLightingSampler;
+// Pre-baked One-lobe of the skybox specular (rendered at 4x MSAA + full sample shading and resolved
+// in the WaterSkyboxOne pass). Sampled in screen space below to avoid running sample shading here.
+layout (set = 1, binding = 12) uniform sampler2D waterSkyboxOneSampler;
 
 // Input
 layout (location = 0) in vec2 f2InInitialPosition;
@@ -181,10 +184,10 @@ void main()
 	vec3 f3DepthColor = texture(depthLutSampler, vec2(globalLayout.fWaterDepthLutFeather * -fTerrainElevation, 0.0f)).xyz;
 
 	float fHeight = f3InPosition.z - fTerrainElevation;
-	vec3 f3PreLightingColor = mix(f3DepthColor, f3WaterColor, clamp(fHeight * globalLayout.fWaterDepthColorFeather + globalLayout.fWaterSunVisibility, 0.2f, 1.0f));
+	vec3 f3PreLightingColor = mix(f3DepthColor, f3WaterColor, clamp(fHeight * globalLayout.fWaterDepthColorFeather + globalLayout.fWaterDepthLutSunsetFade, globalLayout.fWaterDepthColorFloor, 1.0f));
 
 	float fDirectionalLighting = max(1.0f - globalLayout.fWaterDirectional, dot(f3InNormal, globalLayout.f4SunMoonNormal.xyz));
-	vec3 f3DirectionalLighting = f3PreLightingColor * max(fDirectionalLighting, 0.3f);
+	vec3 f3DirectionalLighting = f3PreLightingColor * fDirectionalLighting;
 	vec3 f3LightingColor = mix(f3PreLightingColor, f3DirectionalLighting, 0.75f);
 	// Per-target water sun/moon intensity scales the sun and moon contributions before the max-combine.
 	// Folds in the previous moon-brightness gating: at noon f4MoonColor is ~0 (moonrise envelope) so any moon multiplier yields 0; at night the multiplier dominates.
@@ -206,12 +209,33 @@ void main()
 
 	float fReflectionTerrainMultiplier = clamp(-fTerrainElevation / globalLayout.fWaterDepthReflectionFeather, 0.0f, 1.0f);
 	vec3 f3BiasedSunNormal = normalize(vec3(0.0f, 0.0f, mainLayout.fLightingWaterSkyboxSunBias) + globalLayout.f4SunMoonNormal.xyz);
-	float fReflection = mainLayout.fLightingWaterSkyboxIntensity * fReflectionTerrainMultiplier * Specular(vec3(-1.0f, 1.0f, -1.0f) * f3ToEyeNormal, f3BiasedSunNormal, reflect(f3ToEyeNormal, f3SkyboxWaveNormal), globalLayout.fLightingWaterSkyboxOne, mainLayout.fLightingWaterSkyboxOnePower, mainLayout.fLightingWaterSkyboxTwo, mainLayout.fLightingWaterSkyboxTwoPower, mainLayout.fLightingWaterSkyboxThree, mainLayout.fLightingWaterSkyboxThreePower);
+
+	// Specular() is inlined here so the high-power One lobe can be extracted into kPipelineWaterSkyboxOne
+	// (a 4x-MSAA + full-sample-shading pre-pass) and sampled back in screen space below — letting this
+	// pipeline drop kSampleShading. The Two/Three lobes have low enough power to alias acceptably without
+	// sample shading and stay inline here.
+	vec3 f3LightReflectionNormal = reflect(f3BiasedSunNormal, reflect(f3ToEyeNormal, f3SkyboxWaveNormal));
+	float fSpecularFactor = dot(vec3(-1.0f, 1.0f, -1.0f) * f3ToEyeNormal, f3LightReflectionNormal);
+	float fSpecularSum = 0.0f;
+	if (fSpecularFactor > 0.0f)
+	{
+		float fSpecularLog2 = log2(fSpecularFactor);
+		fSpecularSum =
+			mainLayout.fLightingWaterSkyboxTwo   * exp2(mainLayout.fLightingWaterSkyboxTwoPower   * fSpecularLog2) +
+			mainLayout.fLightingWaterSkyboxThree * exp2(mainLayout.fLightingWaterSkyboxThreePower * fSpecularLog2);
+	}
+	float fReflection = mainLayout.fLightingWaterSkyboxIntensity * fReflectionTerrainMultiplier * fSpecularSum;
 
 	// Factor the skybox combine so Height Darken can weight base color and skybox specular independently:
 	// mix(A, B, t) + add*t*B = (1-t)*A + (1+add)*t*B → base = (1-fReflection)*f3LightingColor, specular = (1+fSkyboxAdd)*fReflection*f3SkyboxColorSun.
+	// The base-color darken now subtracts only Two+Three lobe energy; the One lobe is purely additive from
+	// the resolved RT (negligible hue shift in practice — One values are well below 1.0 after all multipliers).
 	float fSkyboxAdd = mainLayout.fLightingWaterSkyboxAdd;
 	vec3 f3SkyboxSpecular = (1.0f + fSkyboxAdd) * fReflection * f3SkyboxColorSun;
+	// One-lobe contribution baked at full sample-shading and resolved — same chain
+	// (1+fSkyboxAdd) * fReflection_one * f3SkyboxColorSun already applied inside the pre-pass.
+	vec2 f2SkyboxOneUv = gl_FragCoord.xy * mainLayout.f2InvFramebufferSize;
+	f3SkyboxSpecular += texture(waterSkyboxOneSampler, f2SkyboxOneUv).rgb;
 	f3LightingColor = (1.0f - fReflection) * f3LightingColor;
 
 	// Wave trough darken: at z >= Top no darkening (multiplier 1.0); at z <= Bottom max darkening (multiplier 1.0 - Target).
@@ -230,7 +254,7 @@ void main()
 	// f3SkyboxColor mix above breaks pure linearity in (Sun + Moon), so a per-channel divide
 	// would zero entire channels when Sun.c + Moon.c happens to be ~0 (e.g. morning sun has B=0).
 	float fShadowMoon = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
-	float fShadowSun  = fShadowMoon * max(0.2f, texture(shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea)).x);
+	float fShadowSun  = fShadowMoon * texture(shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea)).x;
 	float fSunWeight  = dot(f3WaterSun,  vec3(0.299f, 0.587f, 0.114f));
 	float fMoonWeight = dot(f3WaterMoon, vec3(0.299f, 0.587f, 0.114f));
 	float fEffectiveShadow = (fShadowSun * fSunWeight + fShadowMoon * fMoonWeight) / max(0.001f, fSunWeight + fMoonWeight);
@@ -240,7 +264,6 @@ void main()
 	vec3 f3SunContribution     = fEffectiveShadow      * (fSunScalar     * f3BaseDarkened + f3SkyboxSpecularDarkened);
 	vec3 f3AmbientContribution = fAmbientShadowApplied *  fAmbientScalar * f3BaseDarkened;
 	f4OutColor.xyz = f3SunContribution + f3AmbientContribution;
-	f4OutColor.xyz = max(f4OutColor.xyz, 0.5f * globalLayout.f4AmbientColor.xyz * f3SkyboxColor);
 
 	// Terrain elevation (for water transparency)
 	f4OutColor.w = clamp(-fTerrainElevation / globalLayout.fWaterTerrainFade, globalLayout.fWaterTerrainFadeClamp, 1.0f);

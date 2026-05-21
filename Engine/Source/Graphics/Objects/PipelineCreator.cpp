@@ -542,9 +542,21 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 	vkPipelineDepthStencilStateCreateInfo.depthTestEnable = rPipelineInfo.flags & kDepthTest ? VK_TRUE : VK_FALSE;
 	vkPipelineDepthStencilStateCreateInfo.depthWriteEnable = rPipelineInfo.flags & kDepthWrite ? VK_TRUE : VK_FALSE;
 
-	vkPipelineMultisampleStateCreateInfo.rasterizationSamples = rPipeline.mInfo.flags & kRenderTarget ? VK_SAMPLE_COUNT_1_BIT : (gMultisampling.Get<bool>() ? gSampleCount.Get<VkSampleCountFlagBits>() : VK_SAMPLE_COUNT_1_BIT);
-	vkPipelineMultisampleStateCreateInfo.sampleShadingEnable = (rPipelineInfo.flags & kSampleShading && gSampleShading.Get<bool>()) ? VK_TRUE : VK_FALSE;
-	vkPipelineMultisampleStateCreateInfo.minSampleShading = gMinSampleShading.Get();
+	if (rPipelineInfo.flags & kForceFullSampleShading4x)
+	{
+		// Clamp 4x to device max so clients with hardware capped at 2x still produce a valid pipeline
+		// (the matching attachment in CreateWaterSkyboxOne applies the same clamp).
+		VkSampleCountFlagBits eClampedSamples = std::min(VK_SAMPLE_COUNT_4_BIT, gpInstanceManager->meMaxMultisampleCount);
+		vkPipelineMultisampleStateCreateInfo.rasterizationSamples = eClampedSamples;
+		vkPipelineMultisampleStateCreateInfo.sampleShadingEnable = eClampedSamples > VK_SAMPLE_COUNT_1_BIT ? VK_TRUE : VK_FALSE;
+		vkPipelineMultisampleStateCreateInfo.minSampleShading = 1.0f;
+	}
+	else
+	{
+		vkPipelineMultisampleStateCreateInfo.rasterizationSamples = rPipeline.mInfo.flags & kRenderTarget ? VK_SAMPLE_COUNT_1_BIT : (gMultisampling.Get<bool>() ? gSampleCount.Get<VkSampleCountFlagBits>() : VK_SAMPLE_COUNT_1_BIT);
+		vkPipelineMultisampleStateCreateInfo.sampleShadingEnable = (rPipelineInfo.flags & kSampleShading && gSampleShading.Get<bool>()) ? VK_TRUE : VK_FALSE;
+		vkPipelineMultisampleStateCreateInfo.minSampleShading = gMinSampleShading.Get();
+	}
 
 	vkGraphicsPipelineCreateInfo.layout = rPipeline.mVkPipelineLayout;
 	vkGraphicsPipelineCreateInfo.renderPass = rPipeline.mInfo.flags & kRenderTarget ? rPipelineInfo.vkRenderPass : gpSwapchainManager->mVkRenderPass;

@@ -50,6 +50,12 @@ public:
 	float mfJumpStartTime = 0.0f;
 	bool mbJumping = false;
 
+	float mfEyeStartHeight = 0.0f;
+	float mfEyeStartVelocity = 0.0f;
+	float mfEyeStartTime = 0.0f;
+	float mfEyeVelocity = 0.0f;
+	bool mbEyeZooming = false;
+
 };
 
 inline Camera* gpCamera = nullptr;

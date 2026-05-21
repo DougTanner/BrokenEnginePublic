@@ -7,6 +7,7 @@
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/LightingWrappersBase.h"
 #include "Ui/ShadowWrappersBase.h"
+#include "Ui/WaterWrappersBase.h"
 
 namespace engine
 {
@@ -35,6 +36,30 @@ std::tuple<int64_t, int64_t> FullDetail()
 		LOG(kGraphics, kDebug, "FullDetail: {} x {}", iX, iY);
 		siX = iX;
 		siY = iY;
+	}
+
+	return std::make_tuple(iX, iY);
+}
+
+std::tuple<int64_t, int64_t> WaterFullDetail()
+{
+	// Gerstner frequencies are fixed, so the water vertex grid must be fixed too — anchor to a
+	// reference 4K resolution instead of the live framebuffer extent. Block-snap matches FullDetail()
+	// so the snapped result is deterministic and divides cleanly for shadow-execution-aligned consumers.
+	constexpr int64_t kiReferenceWidth  = 3840;
+	constexpr int64_t kiReferenceHeight = 2160;
+	int64_t iBlockSize = 8 * static_cast<int64_t>(shaders::kiShadowTextureExecutionSize);
+
+	int64_t iX = iBlockSize;
+	while ((10 * iX) / 9 < kiReferenceWidth)
+	{
+		iX += iBlockSize;
+	}
+
+	int64_t iY = iBlockSize;
+	while ((10 * iY) / 9 < kiReferenceHeight)
+	{
+		iY += iBlockSize;
 	}
 
 	return std::make_tuple(iX, iY);
@@ -382,12 +407,12 @@ void Graphics::Refresh()
 		meDestroyType = std::max(DestroyType::kCommandBuffers, meDestroyType);
 	}
 
-	auto [fWorldDetail, fPreviousWorldDetail, bWorldDetailChanged] = gWorldDetail.Changed<float>();
-	if (bWorldDetailChanged && gpBufferManager != nullptr) [[unlikely]]
+	auto [fWaterShapeDetail, fPreviousWaterShapeDetail, bWaterShapeDetailChanged] = gWaterShapeDetail.Changed<float>();
+	if (bWaterShapeDetailChanged && gpBufferManager != nullptr) [[unlikely]]
 	{
-		LOG(kGraphics, kDebug, "World detail: {} -> {}", fPreviousWorldDetail, fWorldDetail);
+		LOG(kGraphics, kDebug, "Water shape detail: {} -> {}", fPreviousWaterShapeDetail, fWaterShapeDetail);
 
-		mDestroyFlags.Set({DestroyFlags::kObjectShadows, DestroyFlags::kLightingTextures, DestroyFlags::kWaterMesh});
+		mDestroyFlags.Set(DestroyFlags::kWaterMesh);
 
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
@@ -426,6 +451,16 @@ void Graphics::Refresh()
 	if ((bObjectShadowsRenderMultiplierChanged || bObjectShadowsBlurMultiplierChanged) && gpTextureManager != nullptr) [[unlikely]]
 	{
 		mDestroyFlags.Set(DestroyFlags::kObjectShadows);
+
+		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
+	}
+
+	auto [fWaterSkyboxOneRenderMultiplier, fWaterSkyboxOneRenderMultiplierPrevious, bWaterSkyboxOneRenderMultiplierChanged] = gWaterSkyboxOneRenderMultiplier.Changed<float>();
+	if (bWaterSkyboxOneRenderMultiplierChanged && gpTextureManager != nullptr) [[unlikely]]
+	{
+		LOG(kGraphics, kDebug, "WaterSkyboxOne render multiplier: {} -> {}", common::Wb(fWaterSkyboxOneRenderMultiplierPrevious, 3), common::Wb(fWaterSkyboxOneRenderMultiplier, 3));
+
+		mDestroyFlags.Set(DestroyFlags::kWaterSkyboxOne);
 
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
@@ -480,6 +515,14 @@ void Graphics::RecreateResources()
 		}
 	}
 
+	if (mDestroyFlags & DestroyFlags::kWaterSkyboxOne)
+	{
+		if (gpTextureManager != nullptr)
+		{
+			gpTextureManager->mRenderTargetTextures.CreateWaterSkyboxOneTextures();
+		}
+	}
+
 	if (mDestroyFlags & DestroyFlags::kLightingTextures)
 	{
 		if (gpTextureManager != nullptr)
@@ -493,6 +536,13 @@ void Graphics::RecreateResources()
 		if (gpBufferManager != nullptr)
 		{
 			gpBufferManager->CreateWaterMesh();
+		}
+		if (gpTextureManager != nullptr)
+		{
+			// Texel grid must match the water-mesh vertex grid (see RenderTargetTextures.h comment).
+			gpTextureManager->mRenderTargetTextures.mWaterDisplacementTexture.Destroy();
+			gpTextureManager->mRenderTargetTextures.mWaterDisplacementNormalTexture.Destroy();
+			gpTextureManager->mRenderTargetTextures.CreateWaterDisplacementTextures();
 		}
 	}
 

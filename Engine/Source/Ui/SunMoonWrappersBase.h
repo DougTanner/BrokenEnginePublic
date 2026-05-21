@@ -35,6 +35,9 @@ extern Wrapper gSunMoonMoonsetEnd;
 extern Wrapper gSunMoonMinimumAmbient;
 extern Wrapper gSunMoonAmbientMultiplier;
 
+// Normal Tilt (radians, applied to f4SunMoonNormal only — does not affect shadows)
+extern Wrapper gSunMoonNormalTilt;
+
 // Shadow Night-Gate (radians)
 extern Wrapper gSunMoonShadowNightMultiplier;
 extern Wrapper gSunMoonShadowSunsetStart;

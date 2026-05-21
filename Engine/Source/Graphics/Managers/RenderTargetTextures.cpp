@@ -20,6 +20,46 @@ void RenderTargetTextures::Create()
 	CreateWindTextures();
 	CreateObjectShadowsTextures();
 	CreateTerrainTextures();
+	CreateWaterSkyboxOneTextures();
+	CreateWaterDisplacementTextures();
+}
+
+void RenderTargetTextures::CreateWaterDisplacementTextures()
+{
+	// Pre-computed Gerstner displacement + normal sampled by Water.vert (both water pipelines)
+	// instead of re-evaluating the wave sum twice per frame. Texel grid is in 1:1 alignment with
+	// the LOD0 water-mesh vertex grid built in BufferManager::CreateWaterMesh — same WaterDetailTextureSize call.
+	auto [iWaterX, iWaterY] = gpTextureManager->WaterDetailTextureSize(gWaterShapeDetail.Get());
+	mWaterDisplacementTexture.Create(
+	{
+		.textureFlags = {},
+		.name = "WaterDisplacement",
+		.flags = 0,
+		.format = VK_FORMAT_R16G16B16A16_SFLOAT,
+		.extent = VkExtent3D {static_cast<uint32_t>(iWaterX), static_cast<uint32_t>(iWaterY), 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	});
+	mWaterDisplacementNormalTexture.Create(
+	{
+		.textureFlags = {},
+		.name = "WaterDisplacementNormal",
+		.flags = 0,
+		.format = VK_FORMAT_R16G16B16A16_SFLOAT,
+		.extent = VkExtent3D {static_cast<uint32_t>(iWaterX), static_cast<uint32_t>(iWaterY), 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	});
 }
 
 void RenderTargetTextures::CreateShadowTextures()

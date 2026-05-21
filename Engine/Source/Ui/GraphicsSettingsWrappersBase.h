@@ -14,7 +14,7 @@ extern Wrapper gMaxAnisotropy;
 extern Wrapper gSampleShading;
 extern Wrapper gMinSampleShading;
 extern Wrapper gMipLodBias;
-extern Wrapper gWorldDetail;
+extern Wrapper gWaterShapeDetail;
 extern Wrapper gSmokeSimulationPixels;
 extern Wrapper gSmokeSimulationArea;
 extern Wrapper gOpaqueUi;

@@ -102,18 +102,15 @@ void GraphicsMenuScreen::Render()
 
 	ImGui::Separator();
 
-	ImGui::Text("World Detail");
-	int64_t iWorldDetail = 0;
-	float fWorldDetail = engine::gWorldDetail.Get();
-	if (fWorldDetail == 0.0625f) iWorldDetail = 0;
-	else if (fWorldDetail == 0.125f) iWorldDetail = 1;
-	else if (fWorldDetail == 0.25f) iWorldDetail = 2;
+	ImGui::Text("Water Shape Detail");
+	int64_t iWaterShapeDetail = 0;
+	float fWaterShapeDetail = engine::gWaterShapeDetail.Get();
+	if (fWaterShapeDetail == 0.25f) iWaterShapeDetail = 0;
+	else if (fWaterShapeDetail == 0.5f) iWaterShapeDetail = 1;
 
-	if (ImGui::RadioButton("1/16", iWorldDetail == 0)) engine::gWorldDetail.Set(0.0625f);
+	if (ImGui::RadioButton("1/4", iWaterShapeDetail == 0)) engine::gWaterShapeDetail.Set(0.25f);
 	ImGui::SameLine();
-	if (ImGui::RadioButton("1/8", iWorldDetail == 1)) engine::gWorldDetail.Set(0.125f);
-	ImGui::SameLine();
-	if (ImGui::RadioButton("1/4", iWorldDetail == 2)) engine::gWorldDetail.Set(0.25f);
+	if (ImGui::RadioButton("1/2", iWaterShapeDetail == 1)) engine::gWaterShapeDetail.Set(0.5f);
 
 	ImGui::Separator();
 

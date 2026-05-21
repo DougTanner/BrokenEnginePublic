@@ -12,7 +12,7 @@ Wrapper gMaxAnisotropy(16.0f, 1.0f, 16.0f);
 Wrapper gSampleShading(true);
 Wrapper gMinSampleShading(0.6f, 0.0f, 1.0f);
 Wrapper gMipLodBias(1.0f, 0.0f, 2.0f);
-Wrapper gWorldDetail(1.0f / 8.0f, std::move(std::vector<float> {1.0f / 16.0f, 1.0f / 8.0f, 1.0f / 4.0f})); // Max divisor must match Graphics::WorldDetail()
+Wrapper gWaterShapeDetail(1.0f / 4.0f, std::move(std::vector<float> {1.0f / 4.0f, 1.0f / 2.0f})); // Largest value scales TextureManager::DetailTextureSize
 Wrapper gSmokeSimulationPixels(1.0f, 0.5f, 1.5f);
 Wrapper gSmokeSimulationArea(1.2f, 1.0f, 1.5f);
 Wrapper gOpaqueUi(false);

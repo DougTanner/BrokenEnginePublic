@@ -37,6 +37,8 @@ const TweaksSliderMapRegistrar gSunMoonRegistrar
 	// Ambient
 	{"Minimum Ambient", &gSunMoonMinimumAmbient},
 	{"Ambient Multiplier", &gSunMoonAmbientMultiplier},
+	// Normal Tilt
+	{"Normal Tilt", &gSunMoonNormalTilt},
 	// Shadow Night-Gate
 	{"Shadow Night Multiplier", &gSunMoonShadowNightMultiplier},
 	{"Shadow Sunset Start", &gSunMoonShadowSunsetStart},
@@ -79,6 +81,9 @@ void TweaksScreenBase::RenderSunMoonSection()
 	WrapperSeparatorText("Ambient");
 	WrapperSlider("Minimum Ambient", kiSection);
 	WrapperSlider("Ambient Multiplier", kiSection);
+
+	WrapperSeparatorText("Normal Tilt (radians)");
+	WrapperSlider("Normal Tilt", kiSection);
 
 	WrapperSeparatorText("Shadow Night-Gate (radians)");
 	WrapperSlider("Shadow Night Multiplier", kiSection);

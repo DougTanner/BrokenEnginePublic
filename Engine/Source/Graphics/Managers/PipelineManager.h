@@ -22,6 +22,8 @@ enum Pipelines
 	kPipelineProfileText,
 
 	kPipelineWater,
+	kPipelineWaterSkyboxOne,
+	kPipelineWaterDisplacement,
 
 	kPipelineSmokeClearA,
 	kPipelineSmokeClearB,

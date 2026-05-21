@@ -14,6 +14,7 @@ class TextureManager
 public:
 
 	static std::tuple<int64_t, int64_t> DetailTextureSize(float fMultiplier);
+	static std::tuple<int64_t, int64_t> WaterDetailTextureSize(float fMultiplier);
 	static float DetailTextureAspectRatio();
 
 	TextureManager();

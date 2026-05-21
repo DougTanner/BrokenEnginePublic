@@ -457,13 +457,19 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline, const PipelineInfo& rP
 							// first-mint). Append this pipeline to the per-array consumer list; the per-CRC
 							// loop is skipped because at create time every slot still points at the slot-0
 							// placeholder and a per-slot registration under the placeholder CRC would be dead
-							// weight (never patched post-boot).
+							// weight (never patched post-boot). Sampler recreation reads through the live
+							// array pointer (see TextureDescriptors::RewriteSamplerDescriptors), so no stale
+							// CRC-0 snapshot is recorded here.
 							gpTextureManager->mTextureDescriptors.mBindlessArrayConsumers.try_emplace(rDescriptorInfo.ppTextures).first->second.push_back(
 								{&rPipeline, iDescriptorCount, rDescriptorInfo.flags, rDescriptorInfo.iCount});
 						}
 						else
 						{
-							// Register per-CRC entries for lazy texture loading and sampler updates
+							// Register per-CRC entries for lazy texture loading and sampler updates.
+							// NOTE: ppTextures is snapshotted into TextureBinding.textures here — any future
+							// array consumer that mutates its backing storage in place after pipeline-create
+							// MUST use kBindlessArrayConsumer instead; otherwise sampler recreation rewrites
+							// the descriptor from the stale snapshot.
 							for (int64_t k = 0; k < rDescriptorInfo.iCount; ++k)
 							{
 								common::crc_t arrayCrc = rDescriptorInfo.ppTextures[k]->mInfo.crc;
@@ -473,9 +479,9 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline, const PipelineInfo& rP
 									rPipeline.mTextureCrcs.push_back(arrayCrc);
 								}
 							}
+							// Register under CRC 0 for sampler recreation coverage (texture array is copied into TextureBinding)
+							gpTextureManager->mTextureDescriptors.RegisterTextureBinding(0, &rPipeline, iDescriptorCount, rDescriptorInfo.flags, nullptr, rDescriptorInfo.ppTextures, rDescriptorInfo.iCount);
 						}
-						// Register under CRC 0 for sampler recreation coverage (texture array is copied into TextureBinding)
-						gpTextureManager->mTextureDescriptors.RegisterTextureBinding(0, &rPipeline, iDescriptorCount, rDescriptorInfo.flags, nullptr, rDescriptorInfo.ppTextures, rDescriptorInfo.iCount);
 					}
 				}
 

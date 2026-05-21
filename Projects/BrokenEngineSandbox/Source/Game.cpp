@@ -1012,7 +1012,7 @@ void Game::ResetSoundSettings()
 
 struct GraphicsSettings
 {
-	static constexpr int64_t kiVersion = 4;
+	static constexpr int64_t kiVersion = 6;
 
 	bool bFullscreen = false;
 	VkPresentModeKHR ePresentMode = VK_PRESENT_MODE_FIFO_KHR;
@@ -1023,7 +1023,7 @@ struct GraphicsSettings
 	bool bSampleShading = false;
 	float fMinSampleShading = 0.0f;
 	float fMipLodBias = 0.0f;
-	float fWorldDetail = 0.0f;
+	float fWaterShapeDetail = 0.0f;
 	bool bSmoke = false;
 	float fSmokeSimulationPixels = 0.0f;
 	float fSmokeSimulationArea = 0.0f;
@@ -1051,7 +1051,7 @@ void Game::SaveGraphicsSettings()
 		.bSampleShading = engine::gSampleShading.Get<bool>(),
 		.fMinSampleShading = engine::gMinSampleShading.Get(),
 		.fMipLodBias = engine::gMipLodBias.Get(),
-		.fWorldDetail = engine::gWorldDetail.Get(),
+		.fWaterShapeDetail = engine::gWaterShapeDetail.Get(),
 		.bSmoke = engine::gSmokeEnabled.Get<bool>(),
 		.fSmokeSimulationPixels = engine::gSmokeSimulationPixels.Get(),
 		.fSmokeSimulationArea = engine::gSmokeSimulationArea.Get(),
@@ -1080,7 +1080,7 @@ bool Game::LoadGraphicsSettings()
 		engine::gSampleShading.Set(graphicsSettings.bSampleShading);
 		engine::gMinSampleShading.Set(graphicsSettings.fMinSampleShading);
 		engine::gMipLodBias.Set(graphicsSettings.fMipLodBias);
-		engine::gWorldDetail.Set(graphicsSettings.fWorldDetail);
+		engine::gWaterShapeDetail.Set(graphicsSettings.fWaterShapeDetail);
 		engine::gSmokeEnabled.Set(graphicsSettings.bSmoke);
 		engine::gSmokeSimulationPixels.Set(graphicsSettings.fSmokeSimulationPixels);
 		engine::gSmokeSimulationArea.Set(graphicsSettings.fSmokeSimulationArea);
@@ -1106,7 +1106,7 @@ void Game::ResetGraphicsSettings()
 	engine::gSampleShading.ResetToDefault();
 	engine::gMinSampleShading.ResetToDefault();
 	engine::gMipLodBias.ResetToDefault();
-	engine::gWorldDetail.ResetToDefault();
+	engine::gWaterShapeDetail.ResetToDefault();
 	engine::gSmokeEnabled.ResetToDefault();
 	engine::gSmokeSimulationPixels.ResetToDefault();
 	engine::gSmokeSimulationArea.ResetToDefault();
