@@ -22,62 +22,78 @@ Islands::Islands()
 	ASSERT(miTemplateCount > 0);
 	ASSERT(miTemplateCount <= shaders::kiMaxIslands);
 
-	// Calculate global area bounds from the base cell
-	mf4GlobalArea.x = game::Frame::kfBaseAreaMinX;
-	mf4GlobalArea.y = game::Frame::kfBaseAreaMaxY;
-	mf4GlobalArea.z = game::Frame::kfBaseAreaMaxX;
-	mf4GlobalArea.w = game::Frame::kfBaseAreaMinY;
-
-	// SSBO: N_templates × kiMaxPlacementsPerTemplate slots. Zero-initialized — every slot is a
-	// zero-width quad until UpdateActiveIslands writes a real placement, which produces a
-	// degenerate triangle the vertex shader culls.
+	// SSBO + indirect buffers are triple-buffered: one instance per framebuffer index (kiMaxFramebuffers),
+	// all created once here and indexed by gpSwapchainManager->miFramebufferIndex thereafter. This keeps the
+	// per-frame host rewrite in UpdateActiveIslands off the memory an in-flight frame is still GPU-reading.
+	// All kiMaxFramebuffers instances are allocated regardless of the live framebuffer count so any index
+	// stays valid across a swapchain recreation that changes the count (mpIslands is not rebuilt then).
 	int64_t iSsboEntryCount = miTemplateCount * kiMaxPlacementsPerTemplate;
-	mIslandsStorageBuffer.Create(
-	{
-		.name = "Islands",
-		.flags = {BufferFlags::kStorage, BufferFlags::kHostVisible},
-		.iCount = iSsboEntryCount,
-		.iVertexStride = sizeof(shaders::AxisAlignedQuadLayout),
-		.dataVkDeviceSize = static_cast<VkDeviceSize>(iSsboEntryCount) * sizeof(shaders::AxisAlignedQuadLayout),
-	});
-	std::memset(mIslandsStorageBuffer.mpMappedMemory, 0, static_cast<size_t>(iSsboEntryCount) * sizeof(shaders::AxisAlignedQuadLayout));
-
-	// Per-template VkDrawIndexedIndirectCommand buffer. indexCount / firstIndex / vertexOffset /
-	// firstInstance baked here; instanceCount rewritten per frame from UpdateActiveIslands.
 	VkDeviceSize vkIndirectSize = static_cast<VkDeviceSize>(miTemplateCount) * sizeof(VkDrawIndexedIndirectCommand);
-	VmaAllocationInfo vmaAllocationInfo {};
-	VkDeviceMemory vkDeviceMemoryUnused = VK_NULL_HANDLE;
-	Buffer::CreateBuffer("IslandsIndirect", vkIndirectSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mIslandsIndirectVkBuffer, vkDeviceMemoryUnused, mIslandsIndirectVmaAllocation, &vmaAllocationInfo);
-	mpIslandsIndirectMappedMemory = static_cast<VkDrawIndexedIndirectCommand*>(vmaAllocationInfo.pMappedData);
 
-	for (int64_t iTemplate = 0; iTemplate < miTemplateCount; ++iTemplate)
+	for (int64_t iFramebuffer = 0; iFramebuffer < kiMaxFramebuffers; ++iFramebuffer)
 	{
-		const IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(gpIslandTerrain->mIslandCrcsSorted[static_cast<size_t>(iTemplate)]);
-		mpIslandsIndirectMappedMemory[iTemplate] = VkDrawIndexedIndirectCommand
+		// SSBO: N_templates × kiMaxPlacementsPerTemplate slots. Zero-initialized — every slot is a
+		// zero-width quad until UpdateActiveIslands writes a real placement, which produces a
+		// degenerate triangle the vertex shader culls.
+		mIslandsStorageBuffers.at(iFramebuffer).Create(
 		{
-			.indexCount = static_cast<uint32_t>(rTemplate.miMeshIndexCount),
-			.instanceCount = 0,
-			.firstIndex = 0,
-			.vertexOffset = 0,
-			.firstInstance = static_cast<uint32_t>(iTemplate * kiMaxPlacementsPerTemplate),
-		};
+			.name = "Islands",
+			.flags = {BufferFlags::kStorage, BufferFlags::kHostVisible},
+			.iCount = iSsboEntryCount,
+			.iVertexStride = sizeof(shaders::AxisAlignedQuadLayout),
+			.dataVkDeviceSize = static_cast<VkDeviceSize>(iSsboEntryCount) * sizeof(shaders::AxisAlignedQuadLayout),
+		});
+		std::memset(mIslandsStorageBuffers.at(iFramebuffer).mpMappedMemory, 0, static_cast<size_t>(iSsboEntryCount) * sizeof(shaders::AxisAlignedQuadLayout));
+
+		// Per-template VkDrawIndexedIndirectCommand buffer. indexCount / firstIndex / vertexOffset /
+		// firstInstance baked here; instanceCount rewritten per frame from UpdateActiveIslands.
+		VmaAllocationInfo vmaAllocationInfo {};
+		VkDeviceMemory vkDeviceMemoryUnused = VK_NULL_HANDLE;
+		Buffer::CreateBuffer("IslandsIndirect", vkIndirectSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mIslandsIndirectVkBuffers.at(iFramebuffer), vkDeviceMemoryUnused, mIslandsIndirectVmaAllocations.at(iFramebuffer), &vmaAllocationInfo);
+		mppIslandsIndirectMapped.at(iFramebuffer) = static_cast<VkDrawIndexedIndirectCommand*>(vmaAllocationInfo.pMappedData);
+
+		for (int64_t iTemplate = 0; iTemplate < miTemplateCount; ++iTemplate)
+		{
+			const IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(gpIslandTerrain->mIslandCrcsSorted[static_cast<size_t>(iTemplate)]);
+			mppIslandsIndirectMapped.at(iFramebuffer)[iTemplate] = VkDrawIndexedIndirectCommand
+			{
+				.indexCount = static_cast<uint32_t>(rTemplate.miMeshIndexCount),
+				.instanceCount = 0,
+				.firstIndex = 0,
+				.vertexOffset = 0,
+				.firstInstance = static_cast<uint32_t>(iTemplate * kiMaxPlacementsPerTemplate),
+			};
+		}
 	}
 }
 
 Islands::~Islands()
 {
-	if (mIslandsIndirectVkBuffer != VK_NULL_HANDLE)
+	// SSBO buffers (std::array<Buffer>) free via RAII; the manually-allocated indirect buffers do not.
+	for (int64_t iFramebuffer = 0; iFramebuffer < kiMaxFramebuffers; ++iFramebuffer)
 	{
-		vmaDestroyBuffer(gpDeviceManager->mpAllocator, mIslandsIndirectVkBuffer, mIslandsIndirectVmaAllocation);
-		mIslandsIndirectVkBuffer = VK_NULL_HANDLE;
-		mIslandsIndirectVmaAllocation = VK_NULL_HANDLE;
-		mpIslandsIndirectMappedMemory = nullptr;
+		if (mIslandsIndirectVkBuffers.at(iFramebuffer) != VK_NULL_HANDLE)
+		{
+			vmaDestroyBuffer(gpDeviceManager->mpAllocator, mIslandsIndirectVkBuffers.at(iFramebuffer), mIslandsIndirectVmaAllocations.at(iFramebuffer));
+			mIslandsIndirectVkBuffers.at(iFramebuffer) = VK_NULL_HANDLE;
+			mIslandsIndirectVmaAllocations.at(iFramebuffer) = VK_NULL_HANDLE;
+			mppIslandsIndirectMapped.at(iFramebuffer) = nullptr;
+		}
 	}
 	gpIslands = nullptr;
 }
 
 void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrames>& rFrames, const std::vector<GridCoord>& rActiveCoords)
 {
+	// Write only the framebuffer instance the current frame will consume. miFramebufferIndex was set by the
+	// trailing AcquireNextImage of the prior render (Graphics.cpp); it is the index RenderGlobal reads
+	// (Graphics.cpp:166) and the record-once CB for that framebuffer binds, and is stable across this
+	// ClientUpdate. Re-acquiring this image index implies the prior frame that used it has presented, so its
+	// GPU read of this instance has finished; this frame's render is not yet recorded — hence no host/GPU race.
+	int64_t iFramebuffer = gpSwapchainManager->miFramebufferIndex;
+	Buffer& rStorageBuffer = mIslandsStorageBuffers.at(iFramebuffer);
+	VkDrawIndexedIndirectCommand* pIndirect = mppIslandsIndirectMapped.at(iFramebuffer);
+
 	// Phase 5 LRU: recompute per-template ref counts from scratch each frame. Templates with ref
 	// count 0 for kuiGraceRenderFrames become eviction candidates in the next RenderGlobal
 	// pre-fence EvictionSweep.
@@ -86,26 +102,24 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 		rTemplate.miRefCount = 0;
 	}
 
-	// Zero every template's instanceCount. Each per-template SSBO entry that was active last frame
-	// stays in mIslandsStorageBuffer with stale data, but since the indirect cmd's instanceCount
-	// is zero the shader never reads it. Active entries below are overwritten before instanceCount
-	// is bumped — no stale reads possible.
+	// Zero every template's instanceCount so the indirect-gated terrain MESH pass skips inactive
+	// templates. That gate alone is NOT enough for the elevation and shadow-elevation prepasses,
+	// which draw the full fixed slot count (miTemplateCount * kiMaxPlacementsPerTemplate) and rely
+	// purely on zero-width-quad culling — so stale SSBO quad geometry left from a prior frame (e.g. a
+	// no-longer-active larger island) would keep rendering into the elevation RTT the water early-out
+	// samples. Clear the whole SSBO each frame; active entries below overwrite their own slots. The
+	// buffer is host-coherent (matches the boot memset), so no barrier / CB re-record is needed.
 	for (int64_t iTemplate = 0; iTemplate < miTemplateCount; ++iTemplate)
 	{
-		mpIslandsIndirectMappedMemory[iTemplate].instanceCount = 0;
+		pIndirect[iTemplate].instanceCount = 0;
 	}
+	std::memset(rStorageBuffer.mpMappedMemory, 0, static_cast<size_t>(miTemplateCount * kiMaxPlacementsPerTemplate) * sizeof(shaders::AxisAlignedQuadLayout));
 
 	// Per-template running emit counter — sized to miTemplateCount, lives in the workbuffer (no heap).
 	auto puiPerTemplateCount = common::gpThreadLocal->mWorkbuffer.PushBuffer<uint32_t*>(static_cast<size_t>(miTemplateCount) * sizeof(uint32_t));
 	std::memset(puiPerTemplateCount, 0, static_cast<size_t>(miTemplateCount) * sizeof(uint32_t));
 
-	auto pSsbo = reinterpret_cast<shaders::AxisAlignedQuadLayout*>(mIslandsStorageBuffer.mpMappedMemory);
-
-	float fMinX = std::numeric_limits<float>::max();
-	float fMaxY = std::numeric_limits<float>::lowest();
-	float fMaxX = std::numeric_limits<float>::lowest();
-	float fMinY = std::numeric_limits<float>::max();
-	bool bAnyActive = false;
+	auto pSsbo = reinterpret_cast<shaders::AxisAlignedQuadLayout*>(rStorageBuffer.mpMappedMemory);
 
 	for (const GridCoord& rCoord : rActiveCoords)
 	{
@@ -151,31 +165,8 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 			rQuad.uiTextureSlot = static_cast<uint32_t>(gpIslandTerrain->AcquireTextureSlot(rPlacement.islandCrc));
 
 			++puiPerTemplateCount[iTemplate];
-			mpIslandsIndirectMappedMemory[iTemplate].instanceCount = puiPerTemplateCount[iTemplate];
-
-			// Expand mf4GlobalArea by this rotated rect.
-			float fHalfW = 0.5f * std::abs(rQuad.f4VertexRect.z);
-			float fHalfH = 0.5f * std::abs(rQuad.f4VertexRect.w);
-			float fAbsCos = std::abs(std::cos(rQuad.fRotation));
-			float fAbsSin = std::abs(std::sin(rQuad.fRotation));
-			float fRotHalfW = fHalfW * fAbsCos + fHalfH * fAbsSin;
-			float fRotHalfH = fHalfW * fAbsSin + fHalfH * fAbsCos;
-			float fCenterX = rQuad.f4VertexRect.x + 0.5f * rQuad.f4VertexRect.z;
-			float fCenterY = rQuad.f4VertexRect.y + 0.5f * rQuad.f4VertexRect.w; // w negative
-			fMinX = std::min(fMinX, fCenterX - fRotHalfW);
-			fMaxY = std::max(fMaxY, fCenterY + fRotHalfH);
-			fMaxX = std::max(fMaxX, fCenterX + fRotHalfW);
-			fMinY = std::min(fMinY, fCenterY - fRotHalfH);
-			bAnyActive = true;
+			pIndirect[iTemplate].instanceCount = puiPerTemplateCount[iTemplate];
 		}
-	}
-
-	if (bAnyActive)
-	{
-		mf4GlobalArea.x = fMinX;
-		mf4GlobalArea.y = fMaxY;
-		mf4GlobalArea.z = fMaxX;
-		mf4GlobalArea.w = fMinY;
 	}
 }
 

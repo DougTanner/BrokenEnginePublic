@@ -1,5 +1,9 @@
 #pragma once
 
+// Declare-in-engine / implement-in-game pattern: these batch (de)serializers are declared in the engine
+// layer (so engine networking code can call them) but implemented in the game layer, because their wire
+// format is game-specific. The game type is forward-declared rather than included so this engine header
+// stays free of game dependencies; the game-side .cpp that defines these functions supplies the full type.
 namespace game { struct StatusChange; }
 
 namespace engine

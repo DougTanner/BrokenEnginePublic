@@ -5,6 +5,7 @@
 #include "TextureManager.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/ShadowWrappersBase.h"
+#include "Ui/WaterWrappersBase.h"
 
 namespace engine
 {

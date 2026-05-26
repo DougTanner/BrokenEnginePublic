@@ -5,18 +5,18 @@
 
 layout (local_size_x = kiComputeTileSize, local_size_y = kiComputeTileSize) in;
 
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
 
-layout (binding = 1) uniform sampler2D sourcesR[kiMaxSpreadPasses];
-layout (binding = 2) uniform sampler2D sourcesG[kiMaxSpreadPasses];
-layout (binding = 3) uniform sampler2D sourcesB[kiMaxSpreadPasses];
-layout (binding = 4, rgba8) uniform writeonly image2D combineImageR;
-layout (binding = 5, rgba8) uniform writeonly image2D combineImageG;
-layout (binding = 6, rgba8) uniform writeonly image2D combineImageB;
-layout (binding = 7, rgba8) uniform writeonly image2D combineImageAmbient;
+layout (set = 1, binding = 1) uniform sampler2D sourcesR[kiMaxSpreadPasses];
+layout (set = 1, binding = 2) uniform sampler2D sourcesG[kiMaxSpreadPasses];
+layout (set = 1, binding = 3) uniform sampler2D sourcesB[kiMaxSpreadPasses];
+layout (set = 1, binding = 4, rgba8) uniform writeonly image2D combineImageR;
+layout (set = 1, binding = 5, rgba8) uniform writeonly image2D combineImageG;
+layout (set = 1, binding = 6, rgba8) uniform writeonly image2D combineImageB;
+layout (set = 1, binding = 7, rgba8) uniform writeonly image2D combineImageAmbient;
 
 layout (push_constant) uniform PushConstants
 {

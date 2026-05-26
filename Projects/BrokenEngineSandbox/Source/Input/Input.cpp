@@ -46,7 +46,7 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 	}
 	if constexpr (kbDebugRender)
 	{
-		rMenuInput.flags.Set(kToggleDebugRender, KeyboardPressed('D', rRawInput));
+		rMenuInput.flags.Set(kToggleDebugRender, KeyboardPressed('Q', rRawInput));
 	}
 	if constexpr (kbDebugInput)
 	{
@@ -61,6 +61,7 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 		rMenuInput.flags.Set(kSlowTime, KeyboardPressed(VK_OEM_MINUS, rRawInput));
 		rMenuInput.flags.Set(kSpeedUpTime, KeyboardPressed(VK_OEM_PLUS, rRawInput));
 		rMenuInput.flags.Set(kSingleStep, KeyboardPressed(VK_TAB, rRawInput));
+		rMenuInput.flags.Set(kCycleMenuIsland, KeyboardPressed('E', rRawInput));
 	}
 	if constexpr (kbScreenshots)
 	{

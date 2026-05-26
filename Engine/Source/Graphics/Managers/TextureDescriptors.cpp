@@ -4,6 +4,8 @@
 
 #include "TextureManager.h"
 
+#include "Graphics/Objects/PipelineDescriptorWriter.h"
+
 namespace engine
 {
 
@@ -14,19 +16,19 @@ TextureDescriptors::TextureDescriptors(TextureManager& rTextureManager)
 
 void TextureDescriptors::Create()
 {
-	// Global Set 0 layout:
-	//   Binding 0:  globalUniform (UNIFORM_BUFFER, ALL_GRAPHICS)
-	//   Binding 1:  mainUniform   (UNIFORM_BUFFER, ALL_GRAPHICS)
-	//   Binding 3:  samplerRepeat (SAMPLER, FRAGMENT)
-	//   Binding 4:  pTextures[]   (SAMPLED_IMAGE, FRAGMENT, PARTIALLY_BOUND | UPDATE_AFTER_BIND)
-	//   Binding 12: samplerClamp  (SAMPLER, FRAGMENT)
+	// Global Set 0 layout (shared by graphics and compute pipelines):
+	//   Binding 0:  globalUniform (UNIFORM_BUFFER, VERTEX | FRAGMENT | COMPUTE)
+	//   Binding 1:  mainUniform   (UNIFORM_BUFFER, VERTEX | FRAGMENT | COMPUTE)
+	//   Binding 3:  samplerRepeat (SAMPLER, FRAGMENT | COMPUTE)
+	//   Binding 4:  pTextures[]   (SAMPLED_IMAGE, FRAGMENT | COMPUTE, PARTIALLY_BOUND | UPDATE_AFTER_BIND)
+	//   Binding 12: samplerClamp  (SAMPLER, FRAGMENT | COMPUTE)
 	VkDescriptorSetLayoutBinding pBindings[]
 	{
-		{.binding = 0,  .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT},
-		{.binding = 1,  .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT},
-		{.binding = 3,  .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT},
-		{.binding = 4,  .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = static_cast<uint32_t>(mImageInfos.size()), .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT},
-		{.binding = 12, .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT},
+		{.binding = 0,  .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT},
+		{.binding = 1,  .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT},
+		{.binding = 3,  .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT},
+		{.binding = 4,  .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = static_cast<uint32_t>(mImageInfos.size()), .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT},
+		{.binding = 12, .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT},
 	};
 
 	VkDescriptorBindingFlags pBindingFlags[]
@@ -205,8 +207,51 @@ void TextureDescriptors::WriteFullArrayDescriptors(Pipeline& rPipeline, int64_t 
 	}
 }
 
+void TextureDescriptors::WriteArrayElementFromLive(Texture** ppArray, int64_t iIndex)
+{
+	// find() + ASSERT (not operator[]): the array must already be registered as a bindless consumer at
+	// pipeline-create — same invariant guard as IslandTerrain::AcquireTextureSlot's Register lambda.
+	auto it = mBindlessArrayConsumers.find(ppArray);
+	ASSERT(it != mBindlessArrayConsumers.end());
+
+	Texture* pTexture = ppArray[iIndex];
+	VkImageView vkImageView = pTexture != nullptr ? pTexture->mVkImageView : mrTextureManager.mWhiteTexture.mVkImageView;
+	for (const BindlessArrayConsumer& rConsumer : it->second)
+	{
+		VkSampler vkSampler = mrTextureManager.GetSampler(rConsumer.samplerFlags);
+		VkDescriptorImageInfo imageInfo
+		{
+			.sampler = vkSampler,
+			.imageView = vkImageView,
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		};
+		for (VkDescriptorSet& rVkDescriptorSet : rConsumer.pPipeline->mVkDescriptorSets)
+		{
+			VkWriteDescriptorSet vkWriteDescriptorSet
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.pNext = nullptr,
+				.dstSet = rVkDescriptorSet,
+				.dstBinding = static_cast<uint32_t>(rConsumer.iBinding),
+				.dstArrayElement = static_cast<uint32_t>(iIndex),
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &imageInfo,
+				.pBufferInfo = nullptr,
+				.pTexelBufferView = nullptr,
+			};
+			vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
+		}
+	}
+}
+
 void TextureDescriptors::RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags, Texture* pTexture, Texture** ppTextures, int64_t iCount, int64_t iArrayIndex)
 {
+	// Validates at pipeline-create that iBinding actually exists in pPipeline's shader layout.
+	// Catches the iDescriptorCount/uiBinding confusion (VUID-00316 source) on frame 0 rather
+	// than on the first sampler-recreate.
+	ASSERT(PipelineDescriptorWriter::BindingExistsInShaderLayout(*pPipeline, static_cast<uint32_t>(iBinding)));
+
 	std::vector<Texture*> textures;
 	std::vector<uint64_t> uiTextureGenerations;
 	if (ppTextures != nullptr)
@@ -224,6 +269,8 @@ void TextureDescriptors::RegisterTextureBinding(common::crc_t crc, Pipeline* pPi
 
 void TextureDescriptors::RegisterStandaloneSamplerBinding(Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags)
 {
+	ASSERT(PipelineDescriptorWriter::BindingExistsInShaderLayout(*pPipeline, static_cast<uint32_t>(iBinding)));
+
 	mStandaloneSamplerBindings.push_back({pPipeline, iBinding, samplerFlags});
 }
 
@@ -268,6 +315,14 @@ void TextureDescriptors::UpdateArrayBindingsForKey(common::crc_t bindingKey)
 		VkSampler vkSampler = mrTextureManager.GetSampler(rBinding.samplerFlags);
 		WriteArrayBindingDescriptors(rBinding, vkSampler);
 	}
+}
+
+void TextureDescriptors::UnregisterBindingsForKey(common::crc_t bindingKey)
+{
+	// Heap: unordered_map::erase deallocates the bucket's vector<TextureBinding>; called from
+	// IslandTerrain::EvictionSweep inside RenderGlobal.
+	ScopedSuppressAllocationTracking suppress;
+	mTextureBindings.erase(bindingKey);
 }
 
 void TextureDescriptors::RewriteSamplerDescriptors()

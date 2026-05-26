@@ -12,7 +12,9 @@ void ClientSession::UpdateDesiredCoords(SubscriptionChangeReason eReason)
 	// Ensure tick prefix in log output even when called outside ClientUpdate (e.g., from UI)
 	std::optional<common::LogTickScope> optionalTickScope;
 	if (common::gpThreadLocal->miLogTickCounter < 0)
+	{
 		optionalTickScope.emplace(gpGame->TickCounter());
+	}
 
 	// Heap: mDesiredCoords.assign, mUnwantedTimestamps map ops, and the kNetwork delta log build allocate.
 	ScopedSuppressAllocationTracking suppress;
@@ -153,7 +155,11 @@ void ClientSession::UpdateSubscriptions()
 	ScopedSuppressAllocationTracking suppress;
 
 	// Build effective desired list: fresh desired + unexpired sticky coords
-	std::vector<engine::GridCoord> effectiveDesired = mDesiredCoords;
+	common::ScopedWorkbufferArena effectiveDesiredArena = common::gpThreadLocal->mWorkbuffer.Push();
+	for (const engine::GridCoord& rCoord : mDesiredCoords)
+	{
+		effectiveDesiredArena.PushBack(rCoord);
+	}
 	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 	std::erase_if(mUnwantedTimestamps, [&](const std::pair<const engine::GridCoord, std::chrono::steady_clock::time_point>& rPair)
 	{
@@ -162,10 +168,11 @@ void ClientSession::UpdateSubscriptions()
 			LOG(kNetwork, kVerbose, "Sticky subscription expired ({},{})", rPair.first.x, rPair.first.y);
 			return true;
 		}
-		effectiveDesired.push_back(rPair.first);
+		effectiveDesiredArena.PushBack(rPair.first);
 		return false;
 	});
 
+	std::span<const engine::GridCoord> effectiveDesired = effectiveDesiredArena.Span<const engine::GridCoord>();
 	UnsubscribeStaleCoords(effectiveDesired);
 	BuildSubscriptionQueue(effectiveDesired);
 	TrySubscribeNext();

@@ -31,6 +31,11 @@ public:
 	// Process newly loaded textures from lazy loading system
 	void ProcessPendingTextures(int64_t iFramebufferIndex);
 
+	// True when ProcessPendingTextures will adopt a chunk this frame (and thus write descriptor
+	// elements). Drives the RenderGlobal all-framebuffer-fence drain so those writes don't race an
+	// in-flight frame still sampling the slot.
+	bool AnyAdoptionPending() const;
+
 	// Wait for textures to be loaded and update their data
 	void WaitForTextures(std::span<const common::crc_t> crcs);
 	void WaitForTextures(std::span<Texture* const> textures);

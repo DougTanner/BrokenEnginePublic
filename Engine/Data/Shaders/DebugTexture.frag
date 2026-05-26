@@ -142,7 +142,7 @@ void main()
 	}
 	else if (iFormat == kiDebugTextureFormatTerrainElevation)
 	{
-		float fLow = globalLayout.fDebugTerrainElevationLow;
+		float fLow = globalLayout.fSeaFloorElevation;
 		float fHigh = globalLayout.fDebugTerrainElevationHigh;
 		float fRange = max(fHigh - fLow, kfEpsilon);
 		float fValue = clamp((f4Sample.r - fLow) / fRange, 0.0f, 1.0f);

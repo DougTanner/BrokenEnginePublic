@@ -615,6 +615,10 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 				rTexture.RecordAcquireBarrier(vkAcquireCommandBuffer);
 			}
 
+			// Race-free null of worker-thread-shared CPU-pool state: reaching kGpuUploadComplete means
+			// the transfer thread (UploadThread) finished this chunk and released ownership, so nulling
+			// pData here (on the main thread) cannot race the transfer thread — the same ordering
+			// invariant FileManager::ResetTextureChunkStates documents.
 			rLazyChunk.pData = nullptr;
 			rLazyChunk.iDataSize = 0;
 			mTextureDescriptors.UpdateDescriptorsForTexture(rCrc);
@@ -666,6 +670,25 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 		vkEndCommandBuffer(vkAcquireCommandBuffer);
 		mbHasPendingAcquireBarriers = true;
 	}
+}
+
+bool TextureManager::AnyAdoptionPending() const
+{
+	// Mirrors ProcessPendingTextures' two adoption conditions exactly: a chunk at kGpuUploadComplete
+	// (transfer-queue uploaded, awaiting adopt) or kDiskLoaded (same-queue-family fallback, adopted via
+	// Create). On such a frame ProcessPendingTextures writes descriptor elements (UpdateDescriptorsForTexture
+	// per-slot, the UpdateTextureArrayDescriptors flush, and the lighting-blur array write), so RenderGlobal's
+	// all-framebuffer-fence drain must fire first. kUploading (between the two states) is not adopted this
+	// frame, so this is an exact two-value test, not a >= range. Early-outs on the first pending chunk.
+	for (const auto& [rCrc, rTexture] : mTextureMap)
+	{
+		ChunkState eState = gpFileManager->GetLazyChunk(rCrc).eState.load(std::memory_order_acquire);
+		if (eState == ChunkState::kGpuUploadComplete || eState == ChunkState::kDiskLoaded)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)

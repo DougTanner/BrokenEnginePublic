@@ -23,6 +23,3 @@ protected:
 
 	virtual void Export() override;
 };
-
-void GenerateIrradianceCubemaps();
-void GeneratePreFilteredCubemaps();

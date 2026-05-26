@@ -220,7 +220,7 @@ void PipelineManager::CreatePipelineShadows()
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpIslands->mIslandsStorageBuffers.data()},
 			// kSamplerElevation: bindless source is R32_SFLOAT; sampler chooses LINEAR or NEAREST per device capability (see TextureManager::CreateSamplers).
 			{.flags = {kCombinedSamplers, kSamplerElevation, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mElevationTextures.data()}, // binding = TerrainPipelineBindings::kiElevation
 		},
@@ -364,7 +364,7 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 			// AxisAlignedQuadLayout instance buffer used by Terrain.vert to transform island-local
 			// mesh vertices into world space (set=1 binding=19). Mirrors kPipelineShadowElevation's
 			// SSBO usage; gl_InstanceIndex is supplied per-island via firstInstance at draw time.
-			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpIslands->mIslandsStorageBuffers.data()},
 			// Bindless per-island material masks (set=1 binding=20). Packed RGBA = Rock/Sand/Snow/Flow
 			// replacing the procedural fRockPercent / fBeachPercent / fSnowPercent heuristics in
 			// Terrain.frag. Appended after the SSBO so existing frag bindings 9..18 and the
@@ -480,7 +480,7 @@ void PipelineManager::CreateTerrainDataPipelines()
 			.pDescriptorInfos =
 			{
 				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-				{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
+				{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpIslands->mIslandsStorageBuffers.data()},
 				{.flags = {kCombinedSamplers, rDesc.eSourceSamplerFlag, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = rDesc.ppSourceTextures}, // binding = TerrainPipelineBindings::kiElevation (kPipelineTerrainElevation)
 			},
 		});

@@ -28,10 +28,14 @@ void main()
     // `Level × elevationMeters` read from the archetype Sea node). Beach = 0; negative = water;
     // positive = land. f4InMisc.x (was per-island beach threshold) is now unused — kept in the
     // vertex layout for future per-island params and forced to 0 from Islands.cpp so the
-    // subtraction is a no-op. Negative samples scale by globalLayout.fWaterUnderseaCompression
-    // (1.0 = identity, 0.1 = compress sea floor toward sea level); every downstream consumer of
-    // mTerrainElevationTexture inherits the compressed depth from this single upstream point.
+    // subtraction is a no-op. Underwater samples pass through a power curve anchored at sea floor:
+    // beach (t=0) and floor (t=1) are fixed points; shallow water is pulled up toward beach with
+    // strength controlled by globalLayout.fWaterUnderseaCompression (1.0 = identity, smaller =
+    // higher exponent = stronger upward pull on the upper undersea band). Every downstream
+    // consumer of mTerrainElevationTexture inherits the curved depth from this single upstream
+    // point.
     float fRaw = texture(textureSampler[nonuniformEXT(uiInTextureSlot)], f2InTexcoord).r - f4InMisc.x;
-    float fScale = mix(globalLayout.fWaterUnderseaCompression, 1.0, step(0.0, fRaw));
-    fOutElevation = fRaw * fScale;
+    float fT = clamp(fRaw / globalLayout.fSeaFloorElevation, 0.0, 1.0);
+    float fCurved = pow(fT, 1.0 / globalLayout.fWaterUnderseaCompression) * globalLayout.fSeaFloorElevation;
+    fOutElevation = mix(fCurved, fRaw, step(0.0, fRaw));
 }

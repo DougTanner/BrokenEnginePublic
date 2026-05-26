@@ -162,4 +162,10 @@ public:
 	bool mbTexturesRequested = false;
 };
 
+// Free-function helper for compute bind sites outside Pipeline.cpp (CommandBufferRecordGlobal /
+// CommandBufferRecordMain). Mirrors the anonymous-namespace graphics helper; the global Set 0 is
+// indexed per-framebuffer (iCommandBuffer), the per-pipeline Set 1 follows the pipeline's
+// mbPerCommandBuffer rule (iDescriptorSetIndex).
+void BindComputeDescriptorSets(VkCommandBuffer vkCommandBuffer, VkPipelineLayout vkPipelineLayout, VkDescriptorSetLayout vkExternalLayout, int64_t iCommandBuffer, int64_t iDescriptorSetIndex, const std::vector<VkDescriptorSet>& rDescriptorSets);
+
 } // namespace engine

@@ -555,7 +555,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 	rGlobalLayout.fDebugTextureFormat = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpDebugTextureFormats[static_cast<int64_t>(gDebugTextureIndex.Get())]);
 	rGlobalLayout.fDebugTextureLinearRange = gMiscDebugTextureLinearRange.Get();
 
-	rGlobalLayout.fDebugTerrainElevationLow = gpIslandTerrain->mfSeaFloorElevation;
+	rGlobalLayout.fSeaFloorElevation = gpIslandTerrain->mfSeaFloorElevation;
 	float fHigh = 0.0f;
 	for (const auto& [rCrc, rIsland] : gpIslandTerrain->mIslands)
 	{

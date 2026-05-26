@@ -63,6 +63,9 @@ public:
 	Graphics() = delete;
 
 	void RenderGlobal(float fCurrentTime);
+	// Wait on all in-flight per-framebuffer fences (not just the current one). Used to quiesce the
+	// graphics queue before island eviction/restoration frees images / rewrites descriptors.
+	void WaitAllFramebufferFencesIdle();
 	void RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord);
 	void Create();
 	void Refresh();

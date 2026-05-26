@@ -18,7 +18,7 @@ Wrapper gSunMoonSunIntensitySmoke(1.0f, 0.0f, 4.0f);
 
 // Moon Intensity (per target) + Blue Tint
 Wrapper gSunMoonMoonIntensityTerrain(0.045f, 0.0f, 0.1f);
-Wrapper gSunMoonMoonIntensityWater(0.016f, 0.0f, 0.1f);
+Wrapper gSunMoonMoonIntensityWater(0.014f, 0.0f, 0.1f);
 Wrapper gSunMoonMoonIntensityObjects(0.05f, 0.0f, 1.0f);
 Wrapper gSunMoonMoonIntensitySmoke(0.05f, 0.0f, 1.0f);
 Wrapper gSunMoonMoonBlueTint(1.8f, 1.0f, 4.0f);

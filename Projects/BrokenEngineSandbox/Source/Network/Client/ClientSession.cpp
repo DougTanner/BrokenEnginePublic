@@ -67,8 +67,9 @@ void ClientSession::PollNetwork()
 	}
 
 	// Parse and process player events from raw game packets
-	std::vector<ReceivedPlayerEvent> playerEvents;
-	ParsePlayerEvents(mpClientNetwork->DrainReceivedGamePackets(), playerEvents);
+	common::ScopedWorkbufferArena playerEventsArena = common::gpThreadLocal->mWorkbuffer.Push();
+	ParsePlayerEvents(mpClientNetwork->DrainReceivedGamePackets(), playerEventsArena);
+	std::span<const ReceivedPlayerEvent> playerEvents = playerEventsArena.Span<const ReceivedPlayerEvent>();
 	auto updatePlayerCoord = [](engine::global_id_t globalPlayerId, engine::GridCoord coord)
 	{
 		for (int64_t i = 0; i < gpGame->PlayerCount(); ++i)

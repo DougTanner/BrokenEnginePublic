@@ -155,6 +155,7 @@ public:
 	virtual bool ShouldTrapCursor() = 0;
 #if defined(BT_CLIENT)
 	virtual bool ShouldUseCrosshair() = 0;
+	virtual bool ShouldShowInGameUi() = 0;
 #endif
 	virtual std::filesystem::path QuicksaveFile() = 0;
 	virtual std::filesystem::path ReplayFile() = 0;

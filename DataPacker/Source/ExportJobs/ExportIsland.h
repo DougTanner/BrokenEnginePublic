@@ -36,7 +36,7 @@ public:
 
 	virtual ~ExportIsland() = default;
 
-	virtual int64_t GetVersion() const override { return Version(25); }
+	virtual int64_t GetVersion() const override { return Version(26); }
 
 	virtual bool CheckDirty(const std::filesystem::path& rPackFile) override;
 

@@ -60,6 +60,7 @@ public:
 	bool ShouldTrapCursor() override;
 #if defined(BT_CLIENT)
 	bool ShouldUseCrosshair() override;
+	bool ShouldShowInGameUi() override;
 #endif
 
 	void ChangeFrame(GameFlags_t gameFlags);
@@ -161,6 +162,9 @@ public:
 	char mModalMessage[256] = {};
 
 	bool mbShowImGui = false;
+
+	// Debug-only main-menu island browser index into engine::gpIslandTerrain->mIslandCrcsSorted; advanced by 'E'.
+	int64_t miMenuIslandIndex = 0;
 
 	engine::GridCoord mClientGridCoord {};
 	engine::GridCoord mVisibleNeighbors[8] {};

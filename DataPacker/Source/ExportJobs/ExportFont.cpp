@@ -44,10 +44,8 @@ std::optional<common::ChunkFlags_t> ExportFont::Handles(const std::filesystem::d
 
 void ExportFont::Export()
 {
-	int64_t iFntBytes = std::filesystem::file_size(mInputPath);
-	std::vector<std::byte> fntData(iFntBytes);
-	std::fstream fileStream(mInputPath, std::ios::in | std::ios::binary);
-	fileStream.read(reinterpret_cast<char*>(fntData.data()), fntData.size());
+	std::vector<std::byte> fntData = common::ReadEntireFile(mInputPath);
+	int64_t iFntBytes = static_cast<int64_t>(fntData.size());
 	ASSERT(fntData.at(0) == std::byte{'B'} && fntData.at(1) == std::byte{'M'} && fntData.at(2) == std::byte{'F'} && fntData.at(3) == std::byte{3});
 
 	common::FontHeader fontHeader {};

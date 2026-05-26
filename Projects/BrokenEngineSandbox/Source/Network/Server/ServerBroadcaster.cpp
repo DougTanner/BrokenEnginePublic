@@ -99,63 +99,64 @@ void ServerBroadcaster::BuildFrameInputs()
 
 void ServerBroadcaster::BroadcastStatusChanges(int64_t iTick)
 {
-	// Heap: vector construction for grid updates
-	ScopedSuppressAllocationTracking suppress;
-
 	const std::unordered_map<engine::GridCoord, std::vector<StatusChange>>& rTransfers = gpServerSession->mpTransferManager->mTransfers;
 
-	// Build unfiltered data: spawns + all transfers
-	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> allChanges;
-	for (const engine::GridCoord& rCoord : gpGame->mActiveCoords)
-	{
-		auto spawnIt = mSpawns.find(rCoord);
-		if (spawnIt != mSpawns.end())
-		{
-			allChanges.insert_or_assign(rCoord, spawnIt->second);
-		}
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	int64_t iActiveCoordCount = std::ssize(gpGame->mActiveCoords);
 
-		auto transferIt = rTransfers.find(rCoord);
-		if (transferIt != rTransfers.end())
+	// Buffer per-coord frame data into ring buffers. Each coord's status changes (spawns + transfers)
+	// are gathered into a contiguous workbuffer run; the per-coord GridUpdateData spans into it.
+	{
+		auto gridUpdatesAlloc = rWorkbuffer.PushBuffer<std::pair<engine::GridCoord, engine::GridUpdateData>*>(iActiveCoordCount * static_cast<int64_t>(sizeof(std::pair<engine::GridCoord, engine::GridUpdateData>)));
+		std::pair<engine::GridCoord, engine::GridUpdateData>* pGridUpdates = gridUpdatesAlloc;
+		int64_t iGridUpdateCount = 0;
+
+		common::ScopedWorkbufferArena statusChanges = rWorkbuffer.Push();
+		for (const engine::GridCoord& rCoord : gpGame->mActiveCoords)
 		{
-			for (const StatusChange& rTransfer : transferIt->second)
+			engine::GridUpdateData updateData {};
+			updateData.sharedCrc = gpGame->CurrentFrame(rCoord).postRender.sharedCrc;
+
+			int64_t iRunStart = std::ssize(statusChanges.Span<const StatusChange>());
+			auto spawnIt = mSpawns.find(rCoord);
+			if (spawnIt != mSpawns.end())
 			{
-				allChanges.try_emplace(rCoord).first->second.push_back(rTransfer);
+				for (const StatusChange& rSpawn : spawnIt->second)
+				{
+					statusChanges.PushBack(rSpawn);
+				}
 			}
+			auto transferIt = rTransfers.find(rCoord);
+			if (transferIt != rTransfers.end())
+			{
+				for (const StatusChange& rTransfer : transferIt->second)
+				{
+					statusChanges.PushBack(rTransfer);
+				}
+			}
+
+			int64_t iRunCount = std::ssize(statusChanges.Span<const StatusChange>()) - iRunStart;
+			if (iRunCount > 0)
+			{
+				updateData.statusChanges = statusChanges.Span<const StatusChange>().subspan(static_cast<size_t>(iRunStart), static_cast<size_t>(iRunCount));
+				LOG(kNetwork, kVerbose, "ServerBroadcaster::BroadcastStatusChanges Coord: ({},{}) Tick: {} StatusChanges: {}", rCoord.x, rCoord.y, iTick, updateData.statusChanges.size());
+			}
+
+			pGridUpdates[iGridUpdateCount++] = {rCoord, updateData};
 		}
+		engine::gpServer->BufferFrame(iTick, std::span<const std::pair<engine::GridCoord, engine::GridUpdateData>>(pGridUpdates, static_cast<size_t>(iGridUpdateCount)));
 	}
-
-	// Buffer per-coord frame data into ring buffers
-	std::vector<std::pair<engine::GridCoord, engine::GridUpdateData>> allGridUpdates;
-	allGridUpdates.reserve(gpGame->mActiveCoords.size());
-	for (const engine::GridCoord& rCoord : gpGame->mActiveCoords)
-	{
-		engine::GridUpdateData updateData {};
-		updateData.sharedCrc = gpGame->CurrentFrame(rCoord).postRender.sharedCrc;
-
-		auto it = allChanges.find(rCoord);
-		if (it != allChanges.end())
-		{
-			updateData.statusChanges = std::span<const StatusChange>(it->second);
-		}
-
-		allGridUpdates.push_back({rCoord, updateData});
-
-		if (!updateData.statusChanges.empty())
-		{
-			LOG(kNetwork, kVerbose, "ServerBroadcaster::BroadcastStatusChanges Coord: ({},{}) Tick: {} StatusChanges: {}", rCoord.x, rCoord.y, iTick, updateData.statusChanges.size());
-		}
-	}
-	engine::gpServer->BufferFrame(iTick, allGridUpdates);
 
 	// Buffer full frame snapshots for debug frame requests
 	{
-		std::vector<std::pair<engine::GridCoord, const game::Frame*>> fullFrames;
-		fullFrames.reserve(gpGame->mActiveCoords.size());
+		auto fullFramesAlloc = rWorkbuffer.PushBuffer<std::pair<engine::GridCoord, const game::Frame*>*>(iActiveCoordCount * static_cast<int64_t>(sizeof(std::pair<engine::GridCoord, const game::Frame*>)));
+		std::pair<engine::GridCoord, const game::Frame*>* pFullFrames = fullFramesAlloc;
+		int64_t iFullFrameCount = 0;
 		for (const engine::GridCoord& rCoord : gpGame->mActiveCoords)
 		{
-			fullFrames.push_back({rCoord, &gpGame->CurrentFrame(rCoord)});
+			pFullFrames[iFullFrameCount++] = {rCoord, &gpGame->CurrentFrame(rCoord)};
 		}
-		engine::gpServer->BufferFullFrame(iTick, fullFrames);
+		engine::gpServer->BufferFullFrame(iTick, std::span<const std::pair<engine::GridCoord, const game::Frame*>>(pFullFrames, static_cast<size_t>(iFullFrameCount)));
 	}
 
 	// Send per-client updates (server iterates each client's subscribed slots internally)

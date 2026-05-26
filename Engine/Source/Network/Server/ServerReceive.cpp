@@ -424,27 +424,6 @@ void Server::ClientResyncRequest([[maybe_unused]] const uint8_t* pData, int64_t 
 	mPendingResyncClientIds.push_back(iClientId);
 }
 
-void Server::ClientPauseRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
-{
-	// [1B type][1B paused]
-	if (iSize < 2)
-	{
-		return;
-	}
-
-	ClientConnection* pClient = FindHandshakenClient(iClientId);
-	if (pClient == nullptr)
-	{
-		return;
-	}
-
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-	uint8_t uiPaused = ReadUint8(pCursor);
-
-	game::gpGame->mGameFlags.Set(GameFlags::kPaused, uiPaused != 0);
-	LOG(kDefault, kDebug, "Server paused: {}", uiPaused != 0);
-}
-
 void Server::ClientTimespeedRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
 {
 	// [1B type][1B direction]
@@ -473,67 +452,5 @@ void Server::ClientTimespeedRequest(const uint8_t* pData, size_t iSize, int64_t 
 
 	BroadcastTimespeedUpdate(game::gpGame->mTimeStep.miTimeMultiply, game::gpGame->mTimeStep.miTimeDivide);
 }
-
-#if defined(BT_SERVER)
-void Server::ClientSaveRequest([[maybe_unused]] const uint8_t* pData, [[maybe_unused]] size_t iSize, int64_t iClientId)
-{
-	ClientConnection* pClient = FindHandshakenClient(iClientId);
-	if (pClient == nullptr)
-	{
-		return;
-	}
-
-	LOG(kDefault, kDebug, "Server::ClientSaveRequest Client: {}", iClientId);
-	game::gpGame->mGameSaveLoad.ServerSave();
-}
-
-void Server::ClientLoadRequest([[maybe_unused]] const uint8_t* pData, [[maybe_unused]] size_t iSize, int64_t iClientId)
-{
-	ClientConnection* pClient = FindHandshakenClient(iClientId);
-	if (pClient == nullptr)
-	{
-		return;
-	}
-
-	LOG(kDefault, kDebug, "Server::ClientLoadRequest Client: {}", iClientId);
-	game::gpGame->mGameSaveLoad.ServerLoad();
-}
-
-void Server::ClientReplayRecordRequest([[maybe_unused]] const uint8_t* pData, [[maybe_unused]] size_t iSize, int64_t iClientId)
-{
-	ClientConnection* pClient = FindHandshakenClient(iClientId);
-	if (pClient == nullptr)
-	{
-		return;
-	}
-
-	LOG(kDefault, kDebug, "Server::ClientReplayRecordRequest Client: {}", iClientId);
-	game::gpGame->mGameFlags.Set(GameFlags::kSaveReplay);
-}
-
-void Server::ClientReplayPlaybackRequest([[maybe_unused]] const uint8_t* pData, [[maybe_unused]] size_t iSize, int64_t iClientId)
-{
-	ClientConnection* pClient = FindHandshakenClient(iClientId);
-	if (pClient == nullptr)
-	{
-		return;
-	}
-
-	LOG(kDefault, kDebug, "Server::ClientReplayPlaybackRequest Client: {}", iClientId);
-	game::gpGame->mGameFlags.Set(GameFlags::kLoadReplay);
-}
-
-void Server::ClientResetRequest([[maybe_unused]] const uint8_t* pData, [[maybe_unused]] size_t iSize, int64_t iClientId)
-{
-	ClientConnection* pClient = FindHandshakenClient(iClientId);
-	if (pClient == nullptr)
-	{
-		return;
-	}
-
-	LOG(kDefault, kDebug, "Server::ClientResetRequest Client: {}", iClientId);
-	game::gpGame->mGameSaveLoad.ServerReset();
-}
-#endif // BT_SERVER
 
 } // namespace engine

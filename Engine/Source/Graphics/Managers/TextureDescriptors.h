@@ -27,6 +27,11 @@ public:
 	// Writes per-pipeline array descriptors from the registered Texture** snapshot; skips the bindless
 	// Set 0 mImageInfos slot that UpdateDescriptorsForTexture would also touch.
 	void UpdateArrayBindingsForKey(common::crc_t bindingKey);
+	// Erase all per-pipeline binding records registered under a key. Called by IslandTerrain eviction
+	// when a slot is reclaimed: the records snapshot Texture*s whose images are about to be freed, and
+	// PipelineManager::VerifyAllDescriptorGenerations would flag those stale (non-zero generation,
+	// null image) snapshots at CB-record time. Re-mint re-registers fresh records.
+	void UnregisterBindingsForKey(common::crc_t bindingKey);
 	void RewriteSamplerDescriptors();
 	void ClearTextureBindings();
 
@@ -67,6 +72,11 @@ public:
 
 	void WriteArrayBindingDescriptors(TextureBinding& rBinding, VkSampler vkSampler);
 	void WriteFullArrayDescriptors(Pipeline& rPipeline, int64_t iBinding, Texture* const* ppArray, int64_t iCount, VkSampler vkSampler);
+	// Rewrite the single per-pipeline descriptor element at iIndex for every consumer of a bindless
+	// array, reading the Texture* currently in the live array (ppArray[iIndex]). Used by
+	// IslandTerrain::EvictionSweep to point a freed slot at the slot-0 placeholder, so a recycled slot
+	// never samples the destroyed VkImageView the prior occupant left in the descriptor.
+	void WriteArrayElementFromLive(Texture** ppArray, int64_t iIndex);
 
 	// Consumer entry for a bindless texture array whose per-slot binding key is supplied lazily by
 	// the data subsystem (e.g., IslandTerrain). Populated by PipelineDescriptorWriter when it sees

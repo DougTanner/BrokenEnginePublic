@@ -22,7 +22,7 @@ layout (scalar, set = 1, binding = 1) buffer readonly quadsUniform
 	AxisAlignedQuadLayout pQuads[];
 };
 
-layout (set = 1, binding = 2) buffer lightOccupancyBuffer
+layout (scalar, set = 1, binding = 2) buffer lightOccupancyBuffer
 {
 	uint occupancy[];
 };

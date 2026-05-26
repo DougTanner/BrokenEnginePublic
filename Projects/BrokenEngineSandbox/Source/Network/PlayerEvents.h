@@ -28,7 +28,7 @@ struct ReceivedPlayerEvent
 	engine::GridCoord coord {};
 };
 
-void ParsePlayerEvents(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets, std::vector<ReceivedPlayerEvent>& rOutEvents);
+void ParsePlayerEvents(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets, common::ScopedWorkbufferArena& rOutEventsArena);
 
 void ParseFleetSync(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets, std::vector<Fleet>& rOutFleets);
 

@@ -5,19 +5,19 @@
 
 layout (local_size_x = kiComputeTileSize, local_size_y = kiComputeTileSize) in;
 
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
 
-layout (binding = 1) uniform mainUniform
+layout (set = 0, binding = 1) uniform mainUniform
 {
 	MainLayout mainLayout;
 };
 
-layout (binding = 2) uniform sampler2D elevationTextureSampler;
-layout (binding = 3, rgba16f) uniform writeonly image2D displacementImage;
-layout (binding = 4, rgba16f) uniform writeonly image2D normalImage;
+layout (set = 1, binding = 2) uniform sampler2D elevationTextureSampler;
+layout (set = 1, binding = 3, rgba16f) uniform writeonly image2D displacementImage;
+layout (set = 1, binding = 4, rgba16f) uniform writeonly image2D normalImage;
 
 // Pre-computes the Gerstner wave displacement (Δx, Δy, Δz from camera-relative un-displaced position)
 // and Jacobian-derived flat-blended normal, so Water.vert can texelFetch a single sample per vertex

@@ -12,6 +12,19 @@
 #endif
 #pragma warning(pop)
 
+namespace
+{
+
+// Returns a pointer to an accessor's tightly-packed float data (keyframe times / values).
+const float* AccessorFloats(const tinygltf::Model& rModel, int iAccessor)
+{
+	const tinygltf::Accessor& rAccessor = rModel.accessors[iAccessor];
+	const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
+	return reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
+}
+
+}
+
 bool DetermineAnimationPath(const tinygltf::Model& rGltfModel)
 {
 	if (rGltfModel.skins.empty())
@@ -100,15 +113,10 @@ void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int,
 				channel.uiInterpolation = 1; // LINEAR
 			}
 
-			// Load keyframe times from input accessor
+			// Keyframe times come from the input accessor (which also supplies the keyframe count); values from the output accessor
 			const tinygltf::Accessor& rInputAccessor = rModel.accessors[rSampler.input];
-			const tinygltf::BufferView& rInputBufferView = rModel.bufferViews[rInputAccessor.bufferView];
-			const float* pfTimes = reinterpret_cast<const float*>(&(rModel.buffers[rInputBufferView.buffer].data[rInputAccessor.byteOffset + rInputBufferView.byteOffset]));
-
-			// Load keyframe values from output accessor
-			const tinygltf::Accessor& rOutputAccessor = rModel.accessors[rSampler.output];
-			const tinygltf::BufferView& rOutputBufferView = rModel.bufferViews[rOutputAccessor.bufferView];
-			const float* pfValues = reinterpret_cast<const float*>(&(rModel.buffers[rOutputBufferView.buffer].data[rOutputAccessor.byteOffset + rOutputBufferView.byteOffset]));
+			const float* pfTimes = AccessorFloats(rModel, rSampler.input);
+			const float* pfValues = AccessorFloats(rModel, rSampler.output);
 
 			channel.uiKeyframeCount = static_cast<uint32_t>(rInputAccessor.count);
 

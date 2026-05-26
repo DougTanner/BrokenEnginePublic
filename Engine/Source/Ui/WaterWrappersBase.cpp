@@ -101,7 +101,7 @@ Wrapper gWaterMediumAmplitudeFadeEnd(300.0f, 0.0f, 1000.0f);
 // Depth
 Wrapper gWaterTerrainHeight(3.5f, 1.0f, 8.0f);
 Wrapper gWaterZOffsetTemp(0.0f, -10.0f, 10.0f); // DT: TEMP
-Wrapper gWaterTerrainFade(0.8f, 0.1f, 5.0f);
+Wrapper gWaterTerrainFade(0.3f, 0.1f, 5.0f);
 Wrapper gWaterTerrainFadeClamp(0.0f, 0.0f, 0.5f);
 Wrapper gWaterHeight(0.0f, -0.1f, 0.03f);
 Wrapper gWaterEarlyOut(0.0f, -0.1f, 0.1f);
@@ -110,7 +110,7 @@ Wrapper gWaterDepthLutSunsetFadePower(10.0f, 0.1f, 10.0f);
 Wrapper gWaterDepthLutSunsetFadeIntensity(0.3f, 0.0f, 1.0f);
 Wrapper gWaterDepthColorFeather(0.14f, 0.01f, 0.2f);
 Wrapper gWaterDepthColorFloor(0.2f, 0.0f, 1.0f);
-Wrapper gWaterUnderseaCompression(1.0f, 0.1f, 1.0f);
+Wrapper gWaterUnderseaCompression(0.8f, 0.1f, 1.0f);
 Wrapper gWaterColorBottom(0.134f, -2.0f, 2.0f);
 Wrapper gWaterColorHeight(1.86f, 0.0f, 4.0f);
 Wrapper gWaterFresnel(0.07f, 0.0f, 0.2f); // DT: TEMP

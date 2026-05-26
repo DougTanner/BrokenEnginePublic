@@ -144,6 +144,34 @@ void WriteBinding(VkDescriptorSetLayoutBinding* pBindings, uint32_t* pSetIndices
 	pSetIndices[iBinding] = uiSet;
 }
 
+// Enumerates one SPIRV-Cross resource category, writing a descriptor binding per resource.
+// countFn maps the reflected type to a descriptor count (constant for buffers/samplers, array-derived for images).
+template <typename COUNT_FN>
+void CollectBindings(const spirv_cross::SmallVector<spirv_cross::Resource>& rResources, const char* pcLabel, VkDescriptorType vkDescriptorType, spirv_cross::Compiler& rCompiler, VkDescriptorSetLayoutBinding* pBindings, uint32_t* pSetIndices, int64_t& riBindingCount, common::ChunkFlags_t chunkFlags, COUNT_FN&& countFn)
+{
+	if (rResources.empty())
+	{
+		return;
+	}
+
+	LOG(kDefault, kVerbose, "{}", pcLabel);
+	for (const spirv_cross::Resource& rResource : rResources)
+	{
+		int64_t iBinding = rCompiler.get_decoration(rResource.id, spv::DecorationBinding);
+		uint32_t uiSet = rCompiler.get_decoration(rResource.id, spv::DecorationDescriptorSet);
+		LOG(kDefault, kVerbose,"   {} {} {} set {} bound at {}", static_cast<uint32_t>(rResource.type_id), static_cast<uint32_t>(rResource.base_type_id), rResource.name, uiSet, iBinding);
+
+		const spirv_cross::SPIRType& rSpirvType = rCompiler.get_type(rResource.type_id);
+		if (!rSpirvType.array.empty())
+		{
+			LOG(kDefault, kVerbose,"   Array size: {}", rSpirvType.array[0]);
+		}
+
+		WriteBinding(pBindings, pSetIndices, iBinding, uiSet, vkDescriptorType, countFn(rSpirvType), chunkFlags);
+		riBindingCount = std::max(iBinding + 1, riBindingCount);
+	}
+}
+
 void ExportShader::Export()
 {
 	// glslc.exe is glslangValidator.exe but with support for #include
@@ -281,11 +309,8 @@ void ExportShader::Export()
 	}
 
 	// Read SPIR-V into temporary buffer for reflection
-	int64_t iSpirvFileBytes = std::filesystem::file_size(spirvFile);
-	std::vector<std::byte> spirvData(iSpirvFileBytes);
-	std::fstream spirvFileStream(spirvFile, std::ios::in | std::ios::binary);
-	spirvFileStream.read(reinterpret_cast<char*>(spirvData.data()), iSpirvFileBytes);
-	spirvFileStream.close();
+	std::vector<std::byte> spirvData = common::ReadEntireFile(spirvFile);
+	int64_t iSpirvFileBytes = static_cast<int64_t>(spirvData.size());
 
 	// Reflect into local stack arrays
 	VkDescriptorSetLayoutBinding tempBindings[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
@@ -298,31 +323,31 @@ void ExportShader::Export()
 	spirv_cross::Compiler spirvCrossCompiler(reinterpret_cast<uint32_t*>(spirvData.data()), iSpirvFileBytes / sizeof(uint32_t));
 	spirv_cross::ShaderResources shaderResources = spirvCrossCompiler.get_shader_resources();
 
-	for (int64_t i = 0; i < static_cast<int64_t>(shaderResources.stage_inputs.size()); ++i)
+	// stage_inputs can be reported out of order; sort by location once, then process ascending
+	std::vector<std::pair<int64_t, const spirv_cross::Resource*>> sortedStageInputs;
+	sortedStageInputs.reserve(shaderResources.stage_inputs.size());
+	for (const spirv_cross::Resource& rResource : shaderResources.stage_inputs)
 	{
-		for (const spirv_cross::Resource& rResource : shaderResources.stage_inputs)
-		{
-			int64_t iLocation = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationLocation);
+		sortedStageInputs.emplace_back(spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationLocation), &rResource);
+	}
+	std::sort(sortedStageInputs.begin(), sortedStageInputs.end(), [](const auto& rLhs, const auto& rRhs) { return rLhs.first < rRhs.first; });
 
-			// This is required because stage_inputs can be out of order
-			if (iLocation == i)
-			{
-				const spirv_cross::SPIRType& rSpirvType = spirvCrossCompiler.get_type(rResource.type_id);
-				LOG(kDefault, kVerbose,"   {} {} {} size {}", static_cast<uint32_t>(rResource.type_id), static_cast<uint32_t>(rResource.base_type_id), rResource.name, rSpirvType.vecsize);
+	for (const auto& [iLocation, pResource] : sortedStageInputs)
+	{
+		const spirv_cross::SPIRType& rSpirvType = spirvCrossCompiler.get_type(pResource->type_id);
+		LOG(kDefault, kVerbose,"   {} {} {} size {}", static_cast<uint32_t>(pResource->type_id), static_cast<uint32_t>(pResource->base_type_id), pResource->name, rSpirvType.vecsize);
 
-				ASSERT(iLocation < common::ShaderHeader::kiMaxVertexInputAttributeDescriptions);
-				VkVertexInputAttributeDescription& rVkVertexInputAttributeDescription = tempAttrs[iLocation];
-				rVkVertexInputAttributeDescription.location = static_cast<uint32_t>(iLocation);
-				rVkVertexInputAttributeDescription.binding = 0;
-				rVkVertexInputAttributeDescription.format = rSpirvType.vecsize == 2 ? VK_FORMAT_R32G32_SFLOAT : (rSpirvType.vecsize == 3 ? VK_FORMAT_R32G32B32_SFLOAT : VK_FORMAT_R32G32B32A32_SFLOAT);
-				rVkVertexInputAttributeDescription.offset = static_cast<uint32_t>(iVertexInputStride);
-				++iAttrCount;
+		ASSERT(iLocation < common::ShaderHeader::kiMaxVertexInputAttributeDescriptions);
+		VkVertexInputAttributeDescription& rVkVertexInputAttributeDescription = tempAttrs[iLocation];
+		rVkVertexInputAttributeDescription.location = static_cast<uint32_t>(iLocation);
+		rVkVertexInputAttributeDescription.binding = 0;
+		rVkVertexInputAttributeDescription.format = rSpirvType.vecsize == 2 ? VK_FORMAT_R32G32_SFLOAT : (rSpirvType.vecsize == 3 ? VK_FORMAT_R32G32B32_SFLOAT : VK_FORMAT_R32G32B32A32_SFLOAT);
+		rVkVertexInputAttributeDescription.offset = static_cast<uint32_t>(iVertexInputStride);
+		++iAttrCount;
 
-				LOG(kDefault, kVerbose,"       location {} binding {} format {} offset {}", rVkVertexInputAttributeDescription.location, rVkVertexInputAttributeDescription.binding, static_cast<int64_t>(rVkVertexInputAttributeDescription.format), rVkVertexInputAttributeDescription.offset);
+		LOG(kDefault, kVerbose,"       location {} binding {} format {} offset {}", rVkVertexInputAttributeDescription.location, rVkVertexInputAttributeDescription.binding, static_cast<int64_t>(rVkVertexInputAttributeDescription.format), rVkVertexInputAttributeDescription.offset);
 
-				iVertexInputStride += rSpirvType.vecsize * sizeof(float);
-			}
-		}
+		iVertexInputStride += rSpirvType.vecsize * sizeof(float);
 	}
 	LOG(kDefault, kVerbose, "   Descriptions: {} Input stride: {}", iAttrCount, iVertexInputStride);
 
@@ -336,115 +361,17 @@ void ExportShader::Export()
 		}
 	}
 
-	if (shaderResources.uniform_buffers.size() > 0)
-	{
-		LOG(kDefault, kVerbose,"Uniform buffers:");
-		for (const spirv_cross::Resource& rResource : shaderResources.uniform_buffers)
-		{
-			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
-			uint32_t uiSet = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationDescriptorSet);
-			LOG(kDefault, kVerbose,"   {} {} {} set {} bound at {}", static_cast<uint32_t>(rResource.type_id), static_cast<uint32_t>(rResource.base_type_id), rResource.name, uiSet, iBinding);
+	auto constantOne = [](const spirv_cross::SPIRType&) -> int64_t { return 1; };
+	auto arrayCount = [](const spirv_cross::SPIRType& rType) -> int64_t { return rType.array.empty() ? 1 : rType.array[0]; };
+	// Runtime-sized arrays (unsized) report array[0] == 0; use UINT32_MAX sentinel for pipeline to resolve
+	auto runtimeArrayCount = [](const spirv_cross::SPIRType& rType) -> int64_t { return rType.array.empty() ? 1 : (rType.array[0] == 0 ? std::numeric_limits<uint32_t>::max() : rType.array[0]); };
 
-			WriteBinding(tempBindings, tempSetIndices, iBinding, uiSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, mChunkFlags);
-			iBindingCount = std::max(iBinding + 1, iBindingCount);
-		}
-	}
-
-	if (shaderResources.storage_buffers.size() > 0)
-	{
-		LOG(kDefault, kVerbose,"Storage buffers:");
-		for (const spirv_cross::Resource& rResource : shaderResources.storage_buffers)
-		{
-			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
-			uint32_t uiSet = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationDescriptorSet);
-			LOG(kDefault, kVerbose,"   {} {} {} set {} bound at {}", static_cast<uint32_t>(rResource.type_id), static_cast<uint32_t>(rResource.base_type_id), rResource.name, uiSet, iBinding);
-
-			const spirv_cross::SPIRType& rSpirvType = spirvCrossCompiler.get_type(rResource.type_id);
-			if (!rSpirvType.array.empty())
-			{
-				LOG(kDefault, kVerbose,"   Array size: {}", rSpirvType.array[0]);
-			}
-
-			WriteBinding(tempBindings, tempSetIndices, iBinding, uiSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, rSpirvType.array.empty() ? 1 : rSpirvType.array[0], mChunkFlags);
-			iBindingCount = std::max(iBinding + 1, iBindingCount);
-		}
-	}
-
-	if (shaderResources.sampled_images.size() > 0)
-	{
-		LOG(kDefault, kVerbose,"Sampled images:");
-		for (const spirv_cross::Resource& rResource : shaderResources.sampled_images)
-		{
-			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
-			uint32_t uiSet = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationDescriptorSet);
-			LOG(kDefault, kVerbose,"   {} {} {} set {} bound at {}", static_cast<uint32_t>(rResource.type_id), static_cast<uint32_t>(rResource.base_type_id), rResource.name, uiSet, iBinding);
-
-			const spirv_cross::SPIRType& rSpirvType = spirvCrossCompiler.get_type(rResource.type_id);
-			if (!rSpirvType.array.empty())
-			{
-				LOG(kDefault, kVerbose,"   Array size: {}", rSpirvType.array[0]);
-			}
-
-			WriteBinding(tempBindings, tempSetIndices, iBinding, uiSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, rSpirvType.array.empty() ? 1 : rSpirvType.array[0], mChunkFlags);
-			iBindingCount = std::max(iBinding + 1, iBindingCount);
-		}
-	}
-
-	if (shaderResources.storage_images.size() > 0)
-	{
-		LOG(kDefault, kVerbose,"Storage images:");
-		for (const spirv_cross::Resource& rResource : shaderResources.storage_images)
-		{
-			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
-			uint32_t uiSet = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationDescriptorSet);
-			LOG(kDefault, kVerbose,"   {} {} {} set {} bound at {}", static_cast<uint32_t>(rResource.type_id), static_cast<uint32_t>(rResource.base_type_id), rResource.name, uiSet, iBinding);
-
-			const spirv_cross::SPIRType& rSpirvType = spirvCrossCompiler.get_type(rResource.type_id);
-			if (!rSpirvType.array.empty())
-			{
-				LOG(kDefault, kVerbose,"   Array size: {}", rSpirvType.array[0]);
-			}
-
-			WriteBinding(tempBindings, tempSetIndices, iBinding, uiSet, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, rSpirvType.array.empty() ? 1 : rSpirvType.array[0], mChunkFlags);
-			iBindingCount = std::max(iBinding + 1, iBindingCount);
-		}
-	}
-
-	if (shaderResources.separate_images.size() > 0)
-	{
-		LOG(kDefault, kVerbose,"Separate images:");
-		for (const spirv_cross::Resource& rResource : shaderResources.separate_images)
-		{
-			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
-			uint32_t uiSet = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationDescriptorSet);
-			LOG(kDefault, kVerbose,"   {} {} {} set {} bound at {}", static_cast<uint32_t>(rResource.type_id), static_cast<uint32_t>(rResource.base_type_id), rResource.name, uiSet, iBinding);
-
-			const spirv_cross::SPIRType& rSpirvType = spirvCrossCompiler.get_type(rResource.type_id);
-			if (!rSpirvType.array.empty())
-			{
-				LOG(kDefault, kVerbose,"   Array size: {}", rSpirvType.array[0]);
-			}
-
-			// Runtime-sized arrays (unsized) report array[0] == 0; use UINT32_MAX sentinel for pipeline to resolve
-			int64_t iArraySize = rSpirvType.array.empty() ? 1 : (rSpirvType.array[0] == 0 ? std::numeric_limits<uint32_t>::max() : rSpirvType.array[0]);
-			WriteBinding(tempBindings, tempSetIndices, iBinding, uiSet, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, iArraySize, mChunkFlags);
-			iBindingCount = std::max(iBinding + 1, iBindingCount);
-		}
-	}
-
-	if (shaderResources.separate_samplers.size() > 0)
-	{
-		LOG(kDefault, kVerbose,"Separate samplers:");
-		for (const spirv_cross::Resource& rResource : shaderResources.separate_samplers)
-		{
-			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
-			uint32_t uiSet = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationDescriptorSet);
-			LOG(kDefault, kVerbose,"   {} {} {} set {} bound at {}", static_cast<uint32_t>(rResource.type_id), static_cast<uint32_t>(rResource.base_type_id), rResource.name, uiSet, iBinding);
-
-			WriteBinding(tempBindings, tempSetIndices, iBinding, uiSet, VK_DESCRIPTOR_TYPE_SAMPLER, 1, mChunkFlags);
-			iBindingCount = std::max(iBinding + 1, iBindingCount);
-		}
-	}
+	CollectBindings(shaderResources.uniform_buffers, "Uniform buffers:", VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, spirvCrossCompiler, tempBindings, tempSetIndices, iBindingCount, mChunkFlags, constantOne);
+	CollectBindings(shaderResources.storage_buffers, "Storage buffers:", VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, spirvCrossCompiler, tempBindings, tempSetIndices, iBindingCount, mChunkFlags, arrayCount);
+	CollectBindings(shaderResources.sampled_images, "Sampled images:", VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, spirvCrossCompiler, tempBindings, tempSetIndices, iBindingCount, mChunkFlags, arrayCount);
+	CollectBindings(shaderResources.storage_images, "Storage images:", VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, spirvCrossCompiler, tempBindings, tempSetIndices, iBindingCount, mChunkFlags, arrayCount);
+	CollectBindings(shaderResources.separate_images, "Separate images:", VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, spirvCrossCompiler, tempBindings, tempSetIndices, iBindingCount, mChunkFlags, runtimeArrayCount);
+	CollectBindings(shaderResources.separate_samplers, "Separate samplers:", VK_DESCRIPTOR_TYPE_SAMPLER, spirvCrossCompiler, tempBindings, tempSetIndices, iBindingCount, mChunkFlags, constantOne);
 
 	// Allocate data span: [bindings ALIGN16] [setIndices ALIGN16] [attrs ALIGN16] [SPIR-V]
 	int64_t iBindingsBytes = common::RoundUp<int64_t, common::kiAlignmentBytes>(iBindingCount * static_cast<int64_t>(sizeof(VkDescriptorSetLayoutBinding)));

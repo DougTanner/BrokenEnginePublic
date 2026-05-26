@@ -27,14 +27,17 @@ struct ExportedIsland
 
 static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIsland& rOut)
 {
-	std::filesystem::path intermediatesDir = rInputPath / kpcIslandIntermediatesDir;
-
-	// BakedDimensions.json drives every downstream size. BakeIslandIntermediates writes it
-	// before stamping the bake-version sentinel, so its presence is guaranteed if Gaea succeeded.
-	// The AO file on disk is already cropped to (cropWidth × cropHeight); Color (PNG8 sRGB) and
-	// Normals (EXR) stay full-res on disk (no writer in Texture.cpp for either) and are cropped
-	// in-memory below before BC encoding so the final outputs and JPG sidecars land at crop dims.
+	// rInputPath is the chunk leaf folder (<island>/<route>/<index>). Per-chunk cropped geometry
+	// (Elevation.r32, AmbientOcclusion.r16, MeshProcessed.bin, BakedDimensions.json) lives in the
+	// leaf's own Intermediates/ folder; the route's chunks SHARE the full-res Color (PNG8 sRGB) /
+	// Normals (EXR) / mask PNG sources in textureSourceDir (the route Intermediates dir, resolved
+	// from baked.textureSourceDir = "../Intermediates"), cropped in-memory below via this leaf's crop
+	// rect so each chunk's outputs and JPG sidecars land at its own crop dims. BakedDimensions.json
+	// drives every downstream size; it is written last per leaf, so its presence is guaranteed if the
+	// bake succeeded. The committed BC outputs are saved to the leaf root (not Intermediates).
 	BakedDimensions baked = ReadBakedDimensions(rInputPath);
+	std::filesystem::path intermediatesDir = rInputPath / kpcIslandIntermediatesDir;
+	std::filesystem::path textureSourceDir = rInputPath / baked.textureSourceDir;
 	rOut.fWorldFootprintXMeters = baked.fWidthMeters;
 	rOut.fWorldFootprintYMeters = baked.fHeightMeters;
 	rOut.fWorldElevationMeters = baked.fElevationMeters;
@@ -71,7 +74,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(intermediatesDir / "Color.png", FileType::kImage, false);
+		Texture texture(textureSourceDir / "Color.png", FileType::kImage, false);
 		texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
 		// Flat alpha stays 255 so BC7 keeps its alpha-free mode and the bVerifyNoAlpha=true assert
 		// at Save still passes — RGB carries the underwater zero, alpha is invariant.
@@ -84,7 +87,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(intermediatesDir / "Normals.exr", FileType::kExr, false);
+		Texture texture(textureSourceDir / "Normals.exr", FileType::kExr, false);
 		texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
 		// Flat (127.5, 127.5) → shader 2x-1 → (0, 0) → reconstructed Z=1 → flat tangent normal (0,0,1).
 		const float pfFlatNormals[4] = {127.5f, 127.5f, 0.0f, 0.0f};
@@ -121,7 +124,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 			int iWidth = 0;
 			int iHeight = 0;
 			int iChannelsInFile = 0;
-			ppMaskPixels[i] = stbi_load((intermediatesDir / pcMaskNames[i]).string().c_str(), &iWidth, &iHeight, &iChannelsInFile, STBI_grey);
+			ppMaskPixels[i] = stbi_load((textureSourceDir / pcMaskNames[i]).string().c_str(), &iWidth, &iHeight, &iChannelsInFile, STBI_grey);
 			ASSERT(ppMaskPixels[i] != nullptr);
 			if (i == 0)
 			{
@@ -191,13 +194,32 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 
 std::optional<common::ChunkFlags_t> ExportIsland::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 {
-	if (!rDirectoryEntry.is_directory() || rDirectoryEntry.path().parent_path().filename() != "Islands")
+	// A chunk leaf is <Islands>/<island>/<route>/<index>: it carries Intermediates/BakedDimensions.json
+	// (written last per leaf by the bake). The route folder's own Intermediates/ holds the raw Gaea
+	// bake but NO BakedDimensions.json, so gating on that file claims exactly the leaves (one kIsland
+	// chunk each). The "Islands" ancestor guard keeps a stray match elsewhere from being mistaken for
+	// a chunk.
+	if (!rDirectoryEntry.is_directory() || !std::filesystem::exists(rDirectoryEntry.path() / kpcIslandIntermediatesDir / kpcBakedDimensionsFile))
 	{
 		return std::nullopt;
 	}
 
-	bool bHasIslandData = std::filesystem::exists(rDirectoryEntry.path() / kpcIslandIntermediatesDir / "AmbientOcclusion.r16");
-	return bHasIslandData ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kIsland) : std::nullopt;
+	bool bUnderIslands = false;
+	for (std::filesystem::path ancestor = rDirectoryEntry.path().parent_path(); !ancestor.empty(); )
+	{
+		if (ancestor.filename() == "Islands")
+		{
+			bUnderIslands = true;
+			break;
+		}
+		std::filesystem::path parent = ancestor.parent_path();
+		if (parent == ancestor)
+		{
+			break;
+		}
+		ancestor = parent;
+	}
+	return bUnderIslands ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kIsland) : std::nullopt;
 }
 
 bool ExportIsland::CheckDirty(const std::filesystem::path& rPackFile)
@@ -207,20 +229,28 @@ bool ExportIsland::CheckDirty(const std::filesystem::path& rPackFile)
 		return true;
 	}
 
-	// Base CheckDirty compares against the island directory's mtime, which does NOT propagate from
-	// edits inside Intermediates/ (where the Gaea pre-pass writes its outputs). Re-run the export
-	// whenever any intermediate is newer than the chunk file so a fresh bake actually reaches the
-	// .pack / .jpg sidecars.
+	// Base CheckDirty compares against the leaf directory's mtime, which does NOT propagate from
+	// edits to the files inside it or to the shared route-level textures. Re-run the export whenever
+	// any file in the leaf's own Intermediates/ (per-chunk geometry) OR the route's Intermediates/
+	// dir (shared Color / Normals / mask sources, one level up) is newer than the chunk file, so a
+	// fresh bake actually reaches the .pack / .jpg sidecars.
 	std::filesystem::file_time_type chunkFileLastWriteTime = std::filesystem::last_write_time(mChunkFile);
-	std::filesystem::path intermediatesDir = mInputPath / kpcIslandIntermediatesDir;
-	for (const std::filesystem::directory_entry& rEntry : std::filesystem::directory_iterator(intermediatesDir))
+	std::filesystem::path searchDirs[] = {mInputPath / kpcIslandIntermediatesDir, mInputPath.parent_path() / kpcIslandIntermediatesDir};
+	for (const std::filesystem::path& rSearchDir : searchDirs)
 	{
-		if (rEntry.is_regular_file() && std::filesystem::last_write_time(rEntry.path()) > chunkFileLastWriteTime)
+		if (!std::filesystem::exists(rSearchDir))
 		{
-			auto [date, time] = common::FileTimeString(std::filesystem::last_write_time(rEntry.path()));
-			LOG(kDefault, kDebug, "Intermediate \"{}\" is newer than chunk \"{}\": {} {}", rEntry.path().string(), mChunkFile.string(), date, time);
-			mbDirty = true;
-			return mbDirty;
+			continue;
+		}
+		for (const std::filesystem::directory_entry& rEntry : std::filesystem::directory_iterator(rSearchDir))
+		{
+			if (rEntry.is_regular_file() && std::filesystem::last_write_time(rEntry.path()) > chunkFileLastWriteTime)
+			{
+				auto [date, time] = common::FileTimeString(std::filesystem::last_write_time(rEntry.path()));
+				LOG(kDefault, kDebug, "Intermediate \"{}\" is newer than chunk \"{}\": {} {}", rEntry.path().string(), mChunkFile.string(), date, time);
+				mbDirty = true;
+				return mbDirty;
+			}
 		}
 	}
 

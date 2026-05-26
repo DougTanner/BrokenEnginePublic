@@ -10,7 +10,7 @@ enum class FileType
 
 // Sentinel placed at byte 0 of every Texture::Save'd intermediate file. Reads as "BC7E DA7A"
 // in a hex dump. A file lacking this magic is legacy-format and must be migrated through
-// MigrateLegacyIntermediates() (in Main.cpp) before any reader touches it.
+// MigrateLegacyIntermediates() before any reader touches it.
 inline constexpr int64_t kiTextureIntermediateMagic = 0x00000000BC7EDA7A;
 
 class Texture

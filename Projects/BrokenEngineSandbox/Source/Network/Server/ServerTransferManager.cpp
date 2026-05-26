@@ -15,13 +15,6 @@ namespace game
 
 #if defined(BT_SERVER)
 
-struct ClientTransferInfo
-{
-	engine::global_id_t globalPlayerId {};
-	engine::GridCoord destination {};
-	engine::ClientGuid clientGuid {};
-};
-
 static engine::ClientGuid TransferDataClientGuid(const TransferData& rData)
 {
 	return {rData.uiClientGuidHigh, rData.uiClientGuidLow};
@@ -34,17 +27,17 @@ static engine::ClientGuid TransferDataClientGuid(const TransferData& rData)
 // of materializing ghost entities that clients can't see.
 static bool IsDestinationLive(engine::GridCoord destination)
 {
-	auto dit = gpGame->mCoordFrames.find(destination);
-	if (dit != gpGame->mCoordFrames.end() && dit->second.pCurrent != nullptr &&
-		dit->second.pCurrent->postRender.pPlayers->iCount > 0)
+	auto destinationIt = gpGame->mCoordFrames.find(destination);
+	if (destinationIt != gpGame->mCoordFrames.end() && destinationIt->second.pCurrent != nullptr &&
+		destinationIt->second.pCurrent->postRender.pPlayers->iCount > 0)
 	{
 		return true;
 	}
 	for (const engine::ClientConnection& rClient : engine::gpServer->GetClients())
 	{
-		for (const auto& rSub : rClient.coordSubscriptions)
+		for (const engine::ClientCoordSubscription& rSubscription : rClient.coordSubscriptions)
 		{
-			if (rSub.bActive && rSub.coord == destination)
+			if (rSubscription.bActive && rSubscription.coord == destination)
 			{
 				return true;
 			}
@@ -53,7 +46,7 @@ static bool IsDestinationLive(engine::GridCoord destination)
 	return false;
 }
 
-void ServerTransferManager::CollectTransfers(std::vector<ClientTransferInfo>& rClientTransfers)
+void ServerTransferManager::CollectTransfers(common::ScopedWorkbufferArena& rTransfersArena)
 {
 	for (const engine::GridCoord& rCoord : gpGame->mActiveCoords)
 	{
@@ -104,7 +97,7 @@ void ServerTransferManager::CollectTransfers(std::vector<ClientTransferInfo>& rC
 
 			if (rRequest.eType == StatusChangeType::kTransferPlayer && rRequest.data.globalPlayerId.IsValid())
 			{
-				rClientTransfers.push_back({
+				rTransfersArena.PushBack(ClientTransferInfo{
 					.globalPlayerId = rRequest.data.globalPlayerId,
 					.destination = destination,
 					.clientGuid = TransferDataClientGuid(rRequest.data),
@@ -149,9 +142,9 @@ void ServerTransferManager::SpawnTransfers()
 	}
 }
 
-void ServerTransferManager::TrackClientTransfers(const std::vector<ClientTransferInfo>& rClientTransfers)
+void ServerTransferManager::TrackClientTransfers(std::span<const ClientTransferInfo> clientTransfers)
 {
-	for (const ClientTransferInfo& rClientTransfer : rClientTransfers)
+	for (const ClientTransferInfo& rClientTransfer : clientTransfers)
 	{
 		Frame& rDestFrame = *gpGame->mCoordFrames.at(rClientTransfer.destination).pNext;
 		PlayersPostRender& rDestPlayers = *rDestFrame.postRender.pPlayers;
@@ -218,32 +211,37 @@ void ServerTransferManager::HarvestTransfers()
 	ScopedSuppressAllocationTracking suppress;
 
 	mTransfers.clear();
-	std::vector<ClientTransferInfo> clientTransfers;
 
-	CollectTransfers(clientTransfers);
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	common::ScopedWorkbufferArena transfersArena = rWorkbuffer.Push();
+	CollectTransfers(transfersArena);
+	std::span<const ClientTransferInfo> clientTransfers = transfersArena.Span<const ClientTransferInfo>();
+
 	SortTransfersByType();
 
 	// Log 5: capture pre-transfer CRCs from frame state (populated by RunFrameTick
-	// before HarvestTransfers runs). Zero extra Crcs() calls - just read.
-	std::unordered_map<engine::GridCoord, common::crc_t> preCrcs;
-	preCrcs.reserve(mTransfers.size());
+	// before HarvestTransfers runs). Zero extra Crcs() calls - just read. preCrcs is indexed by
+	// mTransfers enumeration order, stable across SpawnTransfers (which only mutates frames, not the map).
+	auto pPreCrcs = rWorkbuffer.PushBuffer<common::crc_t*>(std::ssize(mTransfers) * static_cast<int64_t>(sizeof(common::crc_t)));
+	int64_t iPreCrcIndex = 0;
 	for (const auto& [rCoord, rTransfers] : mTransfers)
 	{
 		const Frame& rDestFrame = *gpGame->mCoordFrames.at(rCoord).pNext;
-		preCrcs.emplace(rCoord, rDestFrame.postRender.sharedCrc);
+		pPreCrcs[iPreCrcIndex++] = rDestFrame.postRender.sharedCrc;
 	}
 
 	SpawnTransfers();
 
 	// Recompute CRCs for destination frames after transfers modified them
 	// (RunFrameTick computed CRCs before HarvestTransfers spawned entities)
+	iPreCrcIndex = 0;
 	for (const auto& [rCoord, rTransfers] : mTransfers)
 	{
 		Frame& rDestFrame = *gpGame->mCoordFrames.at(rCoord).pNext;
 		rDestFrame.postRender.sharedCrc = rDestFrame.Crcs();
 
 		char acCrcPre[20] {}, acCrcPost[20] {};
-		common::ToHex(std::span<char, 20>(acCrcPre), preCrcs.at(rCoord));
+		common::ToHex(std::span<char, 20>(acCrcPre), pPreCrcs[iPreCrcIndex++]);
 		common::ToHex(std::span<char, 20>(acCrcPost), rDestFrame.postRender.sharedCrc);
 
 		char acPlayerIds[192] {};

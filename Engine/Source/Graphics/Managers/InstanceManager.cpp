@@ -52,6 +52,12 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebu
 			return VK_FALSE;
 		}
 
+		// GPU-AV defaults its ray-hit-object / mesh-shading sub-checks on; on hardware lacking rayTracingInvocationReorder / meshShader the layer auto-disables them at vkCreateDevice and logs this. We already opt those out in the layer settings above; this guards against any other benign setting auto-adjustment too.
+		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "WARNING-Setting-Limit-Adjusted") != nullptr)
+		{
+			return VK_FALSE;
+		}
+
 		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "DEBUG-PRINTF") != nullptr)
 		{
 			std::string message = std::string(pCallbackData->pMessage);
@@ -128,17 +134,8 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	// Configure validation layer settings using VK_EXT_layer_settings
 	[[maybe_unused]] VkBool32 vkTrue = VK_TRUE;
 	[[maybe_unused]] VkBool32 vkFalse = VK_FALSE;
-	const char* pcGpuBasedValue = nullptr;
-	if constexpr (kbGpuAssistedValidation)
-	{
-		pcGpuBasedValue = "GPU_BASED_GPU_ASSISTED";
-	}
-	else if constexpr (kbDebugPrintf)
-	{
-		pcGpuBasedValue = "GPU_BASED_DEBUG_PRINTF";
-	}
 
-	VkLayerSettingEXT layerSettings[4]
+	VkLayerSettingEXT layerSettings[7]
 	{
 		{
 			.pLayerName = kpcKhronosValidation,
@@ -160,14 +157,36 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	{
 		layerSettings[uiLayerSettingCount++] = {
 			.pLayerName = kpcKhronosValidation,
-			.pSettingName = "validate_gpu_based",
-			.type = VK_LAYER_SETTING_TYPE_STRING_EXT,
+			.pSettingName = "gpuav_enable",
+			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
 			.valueCount = 1,
-			.pValues = &pcGpuBasedValue,
+			.pValues = &vkTrue,
+		};
+		layerSettings[uiLayerSettingCount++] = {
+			.pLayerName = kpcKhronosValidation,
+			.pSettingName = "gpuav_shader_instrumentation",
+			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+			.valueCount = 1,
+			.pValues = &vkTrue,
 		};
 		layerSettings[uiLayerSettingCount++] = {
 			.pLayerName = kpcKhronosValidation,
 			.pSettingName = "gpuav_validate_ray_query",
+			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+			.valueCount = 1,
+			.pValues = &vkFalse,
+		};
+		// Disable GPU-AV sub-checks whose device features this hardware lacks (rayTracingInvocationReorder / meshShader). Otherwise GPU-AV defaults them on and the layer logs a WARNING-Setting-Limit-Adjusted at vkCreateDevice while auto-disabling them. gpuav_validate_ray_hit_object is a valid internal key (the layer prints it) but is absent from the JSON manifest.
+		layerSettings[uiLayerSettingCount++] = {
+			.pLayerName = kpcKhronosValidation,
+			.pSettingName = "gpuav_validate_ray_hit_object",
+			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+			.valueCount = 1,
+			.pValues = &vkFalse,
+		};
+		layerSettings[uiLayerSettingCount++] = {
+			.pLayerName = kpcKhronosValidation,
+			.pSettingName = "gpuav_mesh_shading",
 			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
 			.valueCount = 1,
 			.pValues = &vkFalse,
@@ -177,40 +196,17 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	{
 		layerSettings[uiLayerSettingCount++] = {
 			.pLayerName = kpcKhronosValidation,
-			.pSettingName = "validate_gpu_based",
-			.type = VK_LAYER_SETTING_TYPE_STRING_EXT,
+			.pSettingName = "printf_enable",
+			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
 			.valueCount = 1,
-			.pValues = &pcGpuBasedValue,
+			.pValues = &vkTrue,
 		};
 	}
 
-	[[maybe_unused]] VkValidationFeatureEnableEXT pVkValidationFeatureEnables[] =
-	{
-		VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
-		VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
-	};
-	[[maybe_unused]] VkValidationFeaturesEXT vkValidationFeaturesEXT =
-	{
-		.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
-		.pNext = nullptr,
-		.enabledValidationFeatureCount = static_cast<uint32_t>(std::size(pVkValidationFeatureEnables)),
-		.pEnabledValidationFeatures = pVkValidationFeatureEnables,
-		.disabledValidationFeatureCount = 0,
-		.pDisabledValidationFeatures = nullptr,
-	};
-	[[maybe_unused]] VkValidationFeatureEnableEXT vkValidationFeatureEnableEXT =
-	{
-		VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT,
-	};
-	if constexpr (kbDebugPrintf && !kbGpuAssistedValidation)
-	{
-		vkValidationFeaturesEXT.enabledValidationFeatureCount = 1;
-		vkValidationFeaturesEXT.pEnabledValidationFeatures = &vkValidationFeatureEnableEXT;
-	}
 	VkLayerSettingsCreateInfoEXT vkLayerSettingsCreateInfoEXT =
 	{
 		.sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
-		.pNext = (kbGpuAssistedValidation || kbDebugPrintf) ? &vkValidationFeaturesEXT : nullptr,
+		.pNext = nullptr,
 		.settingCount = uiLayerSettingCount,
 		.pSettings = layerSettings,
 	};

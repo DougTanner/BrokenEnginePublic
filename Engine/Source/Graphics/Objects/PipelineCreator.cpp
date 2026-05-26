@@ -33,6 +33,17 @@ static void ConfigureUpdateAfterBind(VkDescriptorSetLayoutCreateInfo& rLayoutCre
 				pBindings[i].descriptorType == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
 			{
 				pBindingFlags[i] = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+
+				// Array bindings (e.g. the island bindless terrain color/normals/AO/masks/elevation
+				// arrays) have lazily-minted and LRU-evicted slots that legitimately point at a freed
+				// image view until re-mint. Mark such arrays partially bound so a stale, not-
+				// dynamically-accessed slot (the evicted island's quad is zero-width-culled) is
+				// spec-legal. Harmless on fully-populated arrays — PARTIALLY_BOUND only relaxes the
+				// "every statically-used element must be valid" rule and never alters rendered output.
+				if (pBindings[i].descriptorCount > 1)
+				{
+					pBindingFlags[i] |= VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+				}
 			}
 		}
 		rLayoutCreateInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
@@ -617,6 +628,8 @@ void PipelineCreator::CreateComputePipeline(Pipeline& rPipeline, const PipelineI
 		Buffer::CreateBuffer(rPipelineInfo.name, sizeof(VkDispatchIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation);
 	}
 
+	ASSERT(!(rPipeline.mInfo.flags & kMultiSet)); // Set 2 / multi-material is graphics-only
+
 	Shader* pComputeShader = rPipelineInfo.ppShaders[0];
 
 	// Filter out empty entries to avoid duplicate binding 0 errors from zero-initialized gaps
@@ -632,7 +645,64 @@ void PipelineCreator::CreateComputePipeline(Pipeline& rPipeline, const PipelineI
 		}
 		pVkDescriptorSetLayoutBindings[iDescriptorCount++] = rBinding;
 	}
-	CreateSingleSetPipelineLayout(uniformTextureVkDescriptorSetLayoutCreateInfo, pVkDescriptorSetLayoutBindings, iDescriptorCount, rPipeline, vkPipelineLayoutCreateInfo, VK_SHADER_STAGE_COMPUTE_BIT);
+
+	// Partition bindings by shader-reflected set index. Bindings on set 1 become the per-pipeline
+	// descriptor set; bindings on set 0 are assumed to live on the global Set 0 (compatible types).
+	// A compute shader that hasn't been migrated yet declares all bindings without an explicit set,
+	// which SPIR-V reports as set 0 — but those bindings won't be type-compatible with the global
+	// Set 0 layout (UBO/sampler/sampled-image at fixed slots). For those shaders we keep the legacy
+	// single-set layout and detach the global set so binder + writer treat the pipeline as standalone.
+	VkDescriptorSetLayoutBinding pVkSet1Bindings[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
+	int64_t iSet1Count = 0;
+	for (int64_t i = 0; i < iDescriptorCount; ++i)
+	{
+		uint32_t uiBinding = pVkDescriptorSetLayoutBindings[i].binding;
+		uint32_t uiSet = 0;
+		if (uiBinding < static_cast<uint32_t>(pComputeShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings) && pComputeShader->mInfo.pDescriptorBindings[uiBinding].descriptorCount > 0)
+		{
+			uiSet = pComputeShader->mInfo.pDescriptorSetIndices[uiBinding];
+		}
+		if (uiSet == 1)
+		{
+			pVkSet1Bindings[iSet1Count++] = pVkDescriptorSetLayoutBindings[i];
+		}
+	}
+
+	if (rPipeline.mVkExternalDescriptorSetLayout != VK_NULL_HANDLE && iSet1Count > 0)
+	{
+		// Migrated compute pipeline: global Set 0 plus a per-pipeline Set 1.
+		uniformTextureVkDescriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iSet1Count);
+		uniformTextureVkDescriptorSetLayoutCreateInfo.pBindings = pVkSet1Bindings;
+		VkDescriptorBindingFlags pBindingFlagsSet1[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
+		VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfoSet1 {};
+		ConfigureUpdateAfterBind(uniformTextureVkDescriptorSetLayoutCreateInfo, pVkSet1Bindings, iSet1Count, pBindingFlagsSet1, bindingFlagsCreateInfoSet1, rPipeline.mInfo.flags & kUpdateAfterBind);
+		CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &uniformTextureVkDescriptorSetLayoutCreateInfo, nullptr, &rPipeline.mVkDescriptorSetLayout));
+		VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, rPipeline.mVkDescriptorSetLayout, rPipeline.mInfo.name.data());
+
+		VkDescriptorSetLayout pSetLayouts[2] =
+		{
+			rPipeline.mVkExternalDescriptorSetLayout,
+			rPipeline.mVkDescriptorSetLayout,
+		};
+		VkPushConstantRange vkPushConstantRange {};
+		vkPushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+		vkPushConstantRange.offset = 0;
+		vkPushConstantRange.size = rPipeline.mInfo.uiPushConstantSize;
+		vkPipelineLayoutCreateInfo.setLayoutCount = 2;
+		vkPipelineLayoutCreateInfo.pSetLayouts = pSetLayouts;
+		vkPipelineLayoutCreateInfo.pushConstantRangeCount = rPipeline.mInfo.flags & kPushConstants ? 1 : 0;
+		vkPipelineLayoutCreateInfo.pPushConstantRanges = rPipeline.mInfo.flags & kPushConstants ? &vkPushConstantRange : nullptr;
+		CHECK_VK(vkCreatePipelineLayout(gpDeviceManager->mVkDevice, &vkPipelineLayoutCreateInfo, nullptr, &rPipeline.mVkPipelineLayout));
+		VkName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, rPipeline.mVkPipelineLayout, rPipeline.mInfo.name.data());
+	}
+	else
+	{
+		// Unmigrated compute (or no global Set 0 available): single-set layout in which the shader's
+		// set-0 bindings ARE the per-pipeline set. Null the external-layout pointer so binder/writer
+		// treat this pipeline as standalone.
+		rPipeline.mVkExternalDescriptorSetLayout = VK_NULL_HANDLE;
+		CreateSingleSetPipelineLayout(uniformTextureVkDescriptorSetLayoutCreateInfo, pVkDescriptorSetLayoutBindings, iDescriptorCount, rPipeline, vkPipelineLayoutCreateInfo, VK_SHADER_STAGE_COMPUTE_BIT);
+	}
 
 	VkComputePipelineCreateInfo vkComputePipelineCreateInfo
 	{

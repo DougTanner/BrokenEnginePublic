@@ -38,8 +38,9 @@ Counterpart: `Documents/Plans/Order.md` holds refactor/bugfix plans. See `Docume
 | 24 | [Engine/GrassRendering.txt](Engine/GrassRendering.txt) | Large | 4 | 3 | 2 | 3 | Instanced grass patches, vertex shader height, noise textures for dryness/height. New collection + shaders. |
 | 25 | [Engine/TreePlacementAndRendering.txt](Engine/TreePlacementAndRendering.txt) | Large | 4 | 3 | 2 | 3 | Tree/bush placement with LOD. New collection and instanced rendering. |
 | 26 | [Frame/Future_SharedBehaviorTraits.txt](Frame/Future_SharedBehaviorTraits.txt) | Large | 4 | 3 | 2 | 3 | Reusable SOA trait structs composed into collections via tuple_cat with shared logic functions. Revisit at 20-25 collections. |
-| 27 | [Audio/ReplaceDirectXTKAudioWithMiniaudio.txt](Audio/ReplaceDirectXTKAudioWithMiniaudio.txt) | Large | 5 | 3 | 2 | 4 | Replace audio engine with miniaudio. Enables cross-platform (Linux/macOS/iOS/Android). |
-| 28 | [Frame/Future_CollectionVariants.txt](Frame/Future_CollectionVariants.txt) | Large | 4 | 2 | 2 | 4 | Optional sparse SOA extensions for subset-only fields. No evidence of need currently. |
+| 27 | [Frame/FrameRelativePositions.txt](Frame/FrameRelativePositions.txt) | Large | 5 | 5 | 3 | 3 | Convert world-absolute Frame positions to frame-relative + camera-frame-relative render merge (rebuild MergeFramesForRender/OffsetPositions). Fixes float precision degradation at distance (~1cm jitter at 140 frames from origin); enables larger maps. Requires save-format bump. |
+| 28 | [Audio/ReplaceDirectXTKAudioWithMiniaudio.txt](Audio/ReplaceDirectXTKAudioWithMiniaudio.txt) | Large | 5 | 3 | 2 | 4 | Replace audio engine with miniaudio. Enables cross-platform (Linux/macOS/iOS/Android). |
+| 29 | [Frame/Future_CollectionVariants.txt](Frame/Future_CollectionVariants.txt) | Large | 4 | 2 | 2 | 4 | Optional sparse SOA extensions for subset-only fields. No evidence of need currently. |
 
 ### Reference / Index Documents (not independently scheduled)
 

@@ -260,7 +260,7 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 			IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(gpIslandTerrain->mIslandCrcsSorted[static_cast<size_t>(iTemplate)]);
 			ASSERT(rTemplate.mMeshBuffer.mDeviceLocalVkBuffer != VK_NULL_HANDLE);
 			rTemplate.mMeshBuffer.RecordBindVertexBuffer(vkCommandBuffer);
-			vkCmdDrawIndexedIndirect(vkCommandBuffer, gpIslands->mIslandsIndirectVkBuffer, static_cast<VkDeviceSize>(iTemplate) * sizeof(VkDrawIndexedIndirectCommand), 1, sizeof(VkDrawIndexedIndirectCommand));
+			vkCmdDrawIndexedIndirect(vkCommandBuffer, gpIslands->mIslandsIndirectVkBuffers.at(iFramebuffer), static_cast<VkDeviceSize>(iTemplate) * sizeof(VkDrawIndexedIndirectCommand), 1, sizeof(VkDrawIndexedIndirectCommand));
 		}
 		gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
 
@@ -394,7 +394,7 @@ void CommandBufferRecordMain::RecordLightingSpreadPipeline(VkCommandBuffer vkCom
 		Pipeline& rCombinePipeline = gpPipelineManager->mCombinePipeline;
 		int64_t iDescriptorSetIndex = rCombinePipeline.mbPerCommandBuffer ? iCommandBuffer : 0;
 		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rCombinePipeline.mVkPipeline);
-		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rCombinePipeline.mVkPipelineLayout, 0, 1, &rCombinePipeline.mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
+		BindComputeDescriptorSets(vkCommandBuffer, rCombinePipeline.mVkPipelineLayout, rCombinePipeline.mVkExternalDescriptorSetLayout, iCommandBuffer, iDescriptorSetIndex, rCombinePipeline.mVkDescriptorSets);
 
 		uint32_t uiCombineWidth = rRenderTargetTextures.mpCombineTextures[0].mInfo.extent.width;
 		uint32_t uiCombineHeight = rRenderTargetTextures.mpCombineTextures[0].mInfo.extent.height;

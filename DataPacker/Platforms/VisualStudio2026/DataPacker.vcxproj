@@ -23,6 +23,7 @@
     <ClCompile Include="..\..\..\Common\Log.cpp" />
     <ClCompile Include="..\..\..\Common\Smoothed.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportAudio.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\ExportCubemapIbl.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportFont.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportScene.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\Scene\SceneVerticesLoader.cpp" />
@@ -38,6 +39,8 @@
     <ClCompile Include="..\..\Source\BakeIslandIntermediates.cpp" />
     <ClCompile Include="..\..\Source\FileManager.cpp" />
     <ClCompile Include="..\..\Source\Main.cpp" />
+    <ClCompile Include="..\..\Source\MigrateLegacyIntermediates.cpp" />
+    <ClCompile Include="..\..\Source\SubdivideBeachBand.cpp" />
     <ClCompile Include="..\..\Source\Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
@@ -64,6 +67,7 @@
     <ClInclude Include="..\..\..\Common\Utils.h" />
     <ClInclude Include="..\..\..\Common\WindowsUtils.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportAudio.h" />
+    <ClInclude Include="..\..\Source\ExportJobs\ExportCubemapIbl.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportFont.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportScene.h" />
     <ClInclude Include="..\..\Source\ExportJobs\Scene\SceneVerticesLoader.h" />
@@ -78,7 +82,9 @@
     <ClInclude Include="..\..\Source\Attribution.h" />
     <ClInclude Include="..\..\Source\BakeIslandIntermediates.h" />
     <ClInclude Include="..\..\Source\FileManager.h" />
+    <ClInclude Include="..\..\Source\MigrateLegacyIntermediates.h" />
     <ClInclude Include="..\..\Source\Pch.h" />
+    <ClInclude Include="..\..\Source\SubdivideBeachBand.h" />
     <ClInclude Include="..\..\Source\Texture.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

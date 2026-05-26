@@ -22,16 +22,10 @@ enum class PacketType : uint8_t
 	kClientResyncRequest,       // Client requests full state re-download after desync recovery
 	kServerSubscribeAccept,     // Server confirms subscription with assigned slot
 	kServerUnsubscribeAck,      // Server confirms unsubscription
-	kClientPauseRequest,        // Client requests server pause/unpause (debug only)
 	kClientTimespeedRequest,    // Client requests timescale change (debug only)
 	kServerTimespeedUpdate,     // Server broadcasts current timescale to all clients
-	kClientSaveRequest,         // Client requests server quicksave (debug only)
-	kClientLoadRequest,         // Client requests server quickload (debug only)
 	kServerLoadNotification,    // Server loaded a save, clients must reset state
-	kClientReplayRecordRequest, // Client requests server replay record start/stop (debug only)
-	kClientReplayPlaybackRequest, // Client requests server replay playback (debug only)
-	kClientResetRequest,          // Client requests server reset (debug only)
-	kGamePacketStart,             // All values >= this are game-layer packets forwarded as raw bytes
+	kGamePacketStart,           // All values >= this are game-layer packets forwarded as raw bytes
 };
 
 // Client request flags for spawn/respawn
@@ -46,10 +40,10 @@ inline constexpr const char* PacketTypeName(PacketType eType)
 {
 	switch (eType)
 	{
-		case PacketType::kServerCoordFullState:        return "kServerCoordFullState";
-		case PacketType::kServerCoordStaticData:       return "kServerCoordStaticData";
-		case PacketType::kServerCoordUpdate:           return "kServerCoordUpdate";
-		case PacketType::kServerCoordResend:           return "kServerCoordResend";
+		case PacketType::kServerCoordFullState:         return "kServerCoordFullState";
+		case PacketType::kServerCoordStaticData:        return "kServerCoordStaticData";
+		case PacketType::kServerCoordUpdate:            return "kServerCoordUpdate";
+		case PacketType::kServerCoordResend:            return "kServerCoordResend";
 		case PacketType::kClientSpawnRequest:           return "kClientSpawnRequest";
 		case PacketType::kServerDebugFrame:             return "kServerDebugFrame";
 		case PacketType::kClientDesyncReport:           return "kClientDesyncReport";
@@ -62,22 +56,16 @@ inline constexpr const char* PacketTypeName(PacketType eType)
 		case PacketType::kClientResyncRequest:          return "kClientResyncRequest";
 		case PacketType::kServerSubscribeAccept:        return "kServerSubscribeAccept";
 		case PacketType::kServerUnsubscribeAck:         return "kServerUnsubscribeAck";
-		case PacketType::kClientPauseRequest:           return "kClientPauseRequest";
 		case PacketType::kClientTimespeedRequest:       return "kClientTimespeedRequest";
 		case PacketType::kServerTimespeedUpdate:        return "kServerTimespeedUpdate";
-		case PacketType::kClientSaveRequest:            return "kClientSaveRequest";
-		case PacketType::kClientLoadRequest:            return "kClientLoadRequest";
 		case PacketType::kServerLoadNotification:       return "kServerLoadNotification";
-		case PacketType::kClientReplayRecordRequest:    return "kClientReplayRecordRequest";
-		case PacketType::kClientReplayPlaybackRequest:  return "kClientReplayPlaybackRequest";
-		case PacketType::kClientResetRequest:           return "kClientResetRequest";
 		case PacketType::kGamePacketStart:              return "kGamePacketStart";
 	}
 	return "Unknown";
 }
 
 // Protocol constants
-inline constexpr uint32_t kuiProtocolVersion = 3;
+inline constexpr uint32_t kuiProtocolVersion = 4;
 inline constexpr uint16_t kuiDefaultPort = 27015;
 inline constexpr int64_t kiMaxResendFrames = 8;
 inline constexpr int64_t kiFloorStallLogThreshold = 15;

@@ -203,29 +203,9 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 		case PacketType::kClientResyncRequest:
 			ClientResyncRequest(pData, iClientId);
 			break;
-		case PacketType::kClientPauseRequest:
-			ClientPauseRequest(pData, iSize, iClientId);
-			break;
 		case PacketType::kClientTimespeedRequest:
 			ClientTimespeedRequest(pData, iSize, iClientId);
 			break;
-#if defined(BT_SERVER)
-		case PacketType::kClientSaveRequest:
-			ClientSaveRequest(pData, iSize, iClientId);
-			break;
-		case PacketType::kClientLoadRequest:
-			ClientLoadRequest(pData, iSize, iClientId);
-			break;
-		case PacketType::kClientReplayRecordRequest:
-			ClientReplayRecordRequest(pData, iSize, iClientId);
-			break;
-		case PacketType::kClientReplayPlaybackRequest:
-			ClientReplayPlaybackRequest(pData, iSize, iClientId);
-			break;
-		case PacketType::kClientResetRequest:
-			ClientResetRequest(pData, iSize, iClientId);
-			break;
-#endif // BT_SERVER
 		default:
 			if (static_cast<uint8_t>(eType) >= static_cast<uint8_t>(PacketType::kGamePacketStart))
 			{
@@ -246,15 +226,15 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 	}
 }
 
-void Server::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates)
+void Server::BufferFrame(int64_t iTick, std::span<const std::pair<GridCoord, GridUpdateData>> gridUpdates)
 {
 	miLatestBufferedTick = iTick;
 	ScopedSuppressAllocationTracking suppress;
 
 	std::unordered_set<GridCoord> activeCoords;
-	activeCoords.reserve(rGridUpdates.size());
+	activeCoords.reserve(gridUpdates.size());
 
-	for (const std::pair<GridCoord, GridUpdateData>& rGridUpdate : rGridUpdates)
+	for (const std::pair<GridCoord, GridUpdateData>& rGridUpdate : gridUpdates)
 	{
 		const GridCoord& rCoord = rGridUpdate.first;
 		const GridUpdateData& rUpdateData = rGridUpdate.second;
@@ -286,7 +266,7 @@ void Server::BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, G
 	});
 }
 
-void Server::BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames)
+void Server::BufferFullFrame(int64_t iTick, std::span<const std::pair<GridCoord, const game::Frame*>> frames)
 {
 	ScopedSuppressAllocationTracking suppress;
 
@@ -294,7 +274,7 @@ void Server::BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoor
 	BufferedFullFrame buffered {};
 	buffered.iTick = iTick;
 
-	for (const std::pair<GridCoord, const game::Frame*>& rFrame : rFrames)
+	for (const std::pair<GridCoord, const game::Frame*>& rFrame : frames)
 	{
 		// Heap: stringstream allocates for frame serialization
 		std::ostringstream frameStream(std::ios::binary);

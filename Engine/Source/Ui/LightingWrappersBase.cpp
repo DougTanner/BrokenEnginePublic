@@ -23,7 +23,7 @@ Wrapper gSpreadTextureMultiplierStart(0.1f, 0.05f, 0.2f);
 Wrapper gSpreadDirectionality(0.1f, 0.0f, 1.0f);
 Wrapper gSpreadDirectionCount(4.0f, 4.0f, 32.0f);
 Wrapper gSpreadDistance(0.0f, 0.0f, 10.0f);
-Wrapper gSpreadRingCount(4.0f, 1.0f, 24.0f);
+Wrapper gSpreadRingCount(4.0f, 2.0f, 24.0f); // min >= 2.0f load-bearing: keeps fTotalSamples > 0 so the fNorm divide in LightingSpread.frag:146 can't hit 0/0 (single ring at fDistanceFalloff=1.0 zeroes the only ring).
 Wrapper gSpreadJitter(0.0f, 0.0f, 1.0f);
 Wrapper gSpreadSampleJitterRangeStart(4.0f, 0.0f, 20.0f);
 Wrapper gSpreadSampleJitterClusteringStart(4.0f, 0.25f, 16.0f);
@@ -45,7 +45,7 @@ HeightLerpWrapperQuartet gSpreadDistanceEnd
 	Wrapper(10.0f, 1.0f, 40.0f),     // Low
 	Wrapper(26.0f, 1.0f, 40.0f),     // High
 };
-Wrapper gSpreadRingCountEnd(3.0f, 1.0f, 16.0f);
+Wrapper gSpreadRingCountEnd(3.0f, 2.0f, 16.0f); // min >= 2.0f load-bearing: see gSpreadRingCount — interpolated ring count must also stay >= 2.
 Wrapper gSpreadJitterEnd(0.874f, 0.0f, 1.0f);
 Wrapper gSpreadSampleJitterRangeEnd(0.0f, 0.0f, 10.0f);
 Wrapper gSpreadSampleJitterClusteringEnd(4.0f, 0.25f, 16.0f);
@@ -83,7 +83,7 @@ Wrapper gLightingTerrainBelowBasePower(0.3f, 0.1f, 1.0f);
 Wrapper gLightingObjects(4.0f, 0.0f, 8.0f);
 Wrapper gLightingObjectsAdd(0.2f, 0.0f, 1.0f);
 Wrapper gLightingDayFinalMultiplier(1.0f, 0.0f, 1.0f);
-Wrapper gLightingNightFinalMultiplier(0.45f, 0.0f, 1.0f);
+Wrapper gLightingNightFinalMultiplier(0.4f, 0.0f, 1.0f);
 
 // Read - Water Lighting
 Wrapper gLightingWaterEwnsPow(1.0f, 0.1f, 6.0f);

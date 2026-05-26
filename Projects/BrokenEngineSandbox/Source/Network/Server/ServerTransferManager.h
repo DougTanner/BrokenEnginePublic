@@ -7,6 +7,13 @@ namespace game
 
 struct SubscriptionUpdate;
 
+struct ClientTransferInfo
+{
+	engine::global_id_t globalPlayerId {};
+	engine::GridCoord destination {};
+	engine::ClientGuid clientGuid {};
+};
+
 class ServerTransferManager
 {
 public:
@@ -21,10 +28,10 @@ public:
 
 private:
 
-	void CollectTransfers(std::vector<struct ClientTransferInfo>& rClientTransfers);
+	void CollectTransfers(common::ScopedWorkbufferArena& rTransfersArena);
 	void SortTransfersByType();
 	void SpawnTransfers();
-	void TrackClientTransfers(const std::vector<struct ClientTransferInfo>& rClientTransfers);
+	void TrackClientTransfers(std::span<const ClientTransferInfo> clientTransfers);
 };
 
 } // namespace game

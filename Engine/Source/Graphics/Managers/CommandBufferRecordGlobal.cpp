@@ -231,7 +231,7 @@ void CommandBufferRecordGlobal::RecordWindSpreadPipeline(VkCommandBuffer vkComma
 	{
 		int64_t iDescriptorSetIndex = pPipelines[kPipelineWindSpreadComputeB].mbPerCommandBuffer ? iCommandBuffer : 0;
 		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineWindSpreadComputeB].mVkPipeline);
-		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineWindSpreadComputeB].mVkPipelineLayout, 0, 1, &pPipelines[kPipelineWindSpreadComputeB].mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
+		BindComputeDescriptorSets(vkCommandBuffer, pPipelines[kPipelineWindSpreadComputeB].mVkPipelineLayout, pPipelines[kPipelineWindSpreadComputeB].mVkExternalDescriptorSetLayout, iCommandBuffer, iDescriptorSetIndex, pPipelines[kPipelineWindSpreadComputeB].mVkDescriptorSets);
 		vkCmdDispatchIndirect(vkCommandBuffer, gpBufferManager->mWindActiveTileVkBuffers[1], 0);
 	}
 	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
@@ -241,7 +241,7 @@ void CommandBufferRecordGlobal::RecordWindSpreadPipeline(VkCommandBuffer vkComma
 	{
 		int64_t iDescriptorSetIndex = pPipelines[kPipelineWindSpreadComputeA].mbPerCommandBuffer ? iCommandBuffer : 0;
 		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineWindSpreadComputeA].mVkPipeline);
-		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineWindSpreadComputeA].mVkPipelineLayout, 0, 1, &pPipelines[kPipelineWindSpreadComputeA].mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
+		BindComputeDescriptorSets(vkCommandBuffer, pPipelines[kPipelineWindSpreadComputeA].mVkPipelineLayout, pPipelines[kPipelineWindSpreadComputeA].mVkExternalDescriptorSetLayout, iCommandBuffer, iDescriptorSetIndex, pPipelines[kPipelineWindSpreadComputeA].mVkDescriptorSets);
 		vkCmdDispatchIndirect(vkCommandBuffer, gpBufferManager->mWindActiveTileVkBuffers[0], 0);
 	}
 	gpTextureManager->mRenderTargetTextures.mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
@@ -334,7 +334,7 @@ void CommandBufferRecordGlobal::RecordSmokeSpreadPipeline(VkCommandBuffer vkComm
 	{
 		int64_t iDescriptorSetIndex = pPipelines[kPipelineSmokeSpreadComputeB].mbPerCommandBuffer ? iCommandBuffer : 0;
 		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineSmokeSpreadComputeB].mVkPipeline);
-		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineSmokeSpreadComputeB].mVkPipelineLayout, 0, 1, &pPipelines[kPipelineSmokeSpreadComputeB].mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
+		BindComputeDescriptorSets(vkCommandBuffer, pPipelines[kPipelineSmokeSpreadComputeB].mVkPipelineLayout, pPipelines[kPipelineSmokeSpreadComputeB].mVkExternalDescriptorSetLayout, iCommandBuffer, iDescriptorSetIndex, pPipelines[kPipelineSmokeSpreadComputeB].mVkDescriptorSets);
 		vkCmdDispatchIndirect(vkCommandBuffer, gpBufferManager->mSmokeActiveTileVkBuffer, 0);
 	}
 	gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
@@ -419,7 +419,7 @@ void CommandBufferRecordGlobal::RecordSmokeSpreadPipeline(VkCommandBuffer vkComm
 	{
 		int64_t iDescriptorSetIndex = pPipelines[kPipelineSmokeSpreadComputeA].mbPerCommandBuffer ? iCommandBuffer : 0;
 		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineSmokeSpreadComputeA].mVkPipeline);
-		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineSmokeSpreadComputeA].mVkPipelineLayout, 0, 1, &pPipelines[kPipelineSmokeSpreadComputeA].mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
+		BindComputeDescriptorSets(vkCommandBuffer, pPipelines[kPipelineSmokeSpreadComputeA].mVkPipelineLayout, pPipelines[kPipelineSmokeSpreadComputeA].mVkExternalDescriptorSetLayout, iCommandBuffer, iDescriptorSetIndex, pPipelines[kPipelineSmokeSpreadComputeA].mVkDescriptorSets);
 		vkCmdDispatchIndirect(vkCommandBuffer, gpBufferManager->mSmokeActiveTileVkBuffer, 0);
 	}
 	gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);

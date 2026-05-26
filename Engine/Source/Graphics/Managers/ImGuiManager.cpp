@@ -262,12 +262,12 @@ void ImGuiManager::Prepare(int64_t iFramebuffer)
 
 	// Menu screens required to progress past the pre-game / rejection flows must render even
 	// with Tweaks open — otherwise a persisted-active Tweaks menu strands a fresh client with
-	// no way to reach Connect/Spawn. Each self-gates on gpGame->meUiState.
+	// no way to reach Connect/Spawn. Each self-gates internally on the game's UI state.
 	mpMainMenuScreen->Render();
 	mpModalScreen->Render();
 
 	// Hide in-game UI when Tweaks menu is active
-	if (!game::gpGame->mbShowImGui)
+	if (game::gpGame->ShouldShowInGameUi())
 	{
 		mpHudScreen->Render();
 		mpPauseMenuScreen->Render();

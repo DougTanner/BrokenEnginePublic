@@ -160,10 +160,18 @@ void CommandBufferManager::SubmitMainToQueue(int64_t iFramebufferIndex, bool bSi
 		.pSignalSemaphores = vkSignalSemaphores,
 	};
 	gpProfileManager->CpuStart(kCpuTimerSubmitImage);
+	// Fence reset/signal split: this resets mVkFence but submits with VK_NULL_HANDLE whenever bSignalFence
+	// is false — which is ALWAYS, from the sole caller SubmitMainCommandBuffer (Graphics.cpp passes false).
+	// The fence is (re-)signaled by the inseparable following UI submit (ImGuiManager::Submit submits with
+	// mVkFence); SubmitMainCommandBuffer is always followed by SubmitUiCommandBuffer (Graphics.cpp). Keep
+	// that pairing intact — Main resets the fence here, the following UI submit signals it.
 	CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
 	CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
 	gpProfileManager->CpuStop(kCpuTimerSubmitImage, false);
 
+	// mParticleSyncVkSemaphore (signaled above via vkSignalSemaphores) is waited by the NEXT frame's
+	// SubmitGlobalToQueue, gated on mbParticleSemaphoreSignaled — a cross-frame, cross-method pairing that
+	// holds only because a Main submit always precedes the next Global submit.
 	mbParticleSemaphoreSignaled = true;
 
 	if constexpr (kbScreenshots)

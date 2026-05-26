@@ -9,7 +9,7 @@ inline constexpr bool kbInvincibility = true;
 inline constexpr bool kbRenderThread = true;
 
 inline constexpr bool kbAlsoLogToPrintf = false;
-inline constexpr bool kbGpuAssistedValidation = false;
+inline constexpr bool kbGpuAssistedValidation = true; // DT: TEMP false;
 inline constexpr bool kbRecording = false;
 inline constexpr bool kbRenderDocAttach = false;
 inline constexpr bool kbScreenshots = false;

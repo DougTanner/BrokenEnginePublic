@@ -12,6 +12,30 @@
 #endif
 #pragma warning(pop)
 
+namespace
+{
+
+// Fetches a primitive vertex attribute as a typed pointer + element stride (in units of T).
+// Returns {nullptr, 0} when the attribute is absent. Stride falls back to the accessor's component
+// count when the buffer view is tightly packed.
+template <typename T>
+std::pair<const T*, int> FindAttribute(const tinygltf::Primitive& rPrimitive, const tinygltf::Model& rModel, const char* pcAttributeName)
+{
+	auto it = rPrimitive.attributes.find(pcAttributeName);
+	if (it == rPrimitive.attributes.end())
+	{
+		return {nullptr, 0};
+	}
+
+	const tinygltf::Accessor& rAccessor = rModel.accessors[it->second];
+	const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
+	const T* pData = reinterpret_cast<const T*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
+	int iStride = rAccessor.ByteStride(rBufferView) != 0 ? static_cast<int>(rAccessor.ByteStride(rBufferView) / sizeof(T)) : tinygltf::GetNumComponentsInType(rAccessor.type);
+	return {pData, iStride};
+}
+
+}
+
 XMMATRIX ComputeNodeWorldTransform(int iNodeIndex, const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeParentMap)
 {
 	XMMATRIX matWorld = XMMatrixIdentity();
@@ -184,100 +208,21 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			rMaterialNodeInfo.bHasSkinning = true;
 		}
 
-		// Position
+		// Position (required) - accessor also supplies the vertex count that drives the loop below
 		const tinygltf::Accessor& rPositionAccessor = rModel.accessors[rPrimitive.attributes.find("POSITION")->second];
-		const tinygltf::BufferView& rPositionBufferView = rModel.bufferViews[rPositionAccessor.bufferView];
-		const float* pfPositions = reinterpret_cast<const float*>(&(rModel.buffers[rPositionBufferView.buffer].data[rPositionAccessor.byteOffset + rPositionBufferView.byteOffset]));
-		int iPositionStride = rPositionAccessor.ByteStride(rPositionBufferView) != 0 ? (rPositionAccessor.ByteStride(rPositionBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC3);
+		auto [pfPositions, iPositionStride] = FindAttribute<float>(rPrimitive, rModel, "POSITION");
 
-		// Normal
-		const float* pfNormals = nullptr;
-		int iNormalStride = 0;
-		if (rPrimitive.attributes.find("NORMAL") != rPrimitive.attributes.end())
-		{
-			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("NORMAL")->second];
-			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
-			pfNormals = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iNormalStride = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC3);
-		}
+		auto [pfNormals, iNormalStride] = FindAttribute<float>(rPrimitive, rModel, "NORMAL");
+		auto [pfTexcoords0, iTexcoordStride0] = FindAttribute<float>(rPrimitive, rModel, "TEXCOORD_0");
+		auto [pfTexcoords1, iTexcoordStride1] = FindAttribute<float>(rPrimitive, rModel, "TEXCOORD_1");
+		auto [pfTexcoords2, iTexcoordStride2] = FindAttribute<float>(rPrimitive, rModel, "TEXCOORD_2");
+		auto [pfTexcoords3, iTexcoordStride3] = FindAttribute<float>(rPrimitive, rModel, "TEXCOORD_3");
+		auto [pfTexcoords4, iTexcoordStride4] = FindAttribute<float>(rPrimitive, rModel, "TEXCOORD_4");
+		auto [pfWeights, iWeightsStride] = FindAttribute<float>(rPrimitive, rModel, "WEIGHTS_0");
 
-		// Texcoord 0
-		const float* pfTexcoords0 = nullptr;
-		int iTexcoordStride0 = 0;
-		if (rPrimitive.attributes.find("TEXCOORD_0") != rPrimitive.attributes.end())
-		{
-			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("TEXCOORD_0")->second];
-			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
-			pfTexcoords0 = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iTexcoordStride0 = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
-		}
-
-		// Texcoord 1
-		const float* pfTexcoords1 = nullptr;
-		int iTexcoordStride1 = 0;
-		if (rPrimitive.attributes.find("TEXCOORD_1") != rPrimitive.attributes.end())
-		{
-			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("TEXCOORD_1")->second];
-			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
-			pfTexcoords1 = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iTexcoordStride1 = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
-		}
-
-		// Texcoord 2
-		const float* pfTexcoords2 = nullptr;
-		int iTexcoordStride2 = 0;
-		if (rPrimitive.attributes.find("TEXCOORD_2") != rPrimitive.attributes.end())
-		{
-			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("TEXCOORD_2")->second];
-			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
-			pfTexcoords2 = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iTexcoordStride2 = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
-		}
-
-		// Texcoord 3
-		const float* pfTexcoords3 = nullptr;
-		int iTexcoordStride3 = 0;
-		if (rPrimitive.attributes.find("TEXCOORD_3") != rPrimitive.attributes.end())
-		{
-			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("TEXCOORD_3")->second];
-			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
-			pfTexcoords3 = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iTexcoordStride3 = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
-		}
-
-		// Texcoord 4
-		const float* pfTexcoords4 = nullptr;
-		int iTexcoordStride4 = 0;
-		if (rPrimitive.attributes.find("TEXCOORD_4") != rPrimitive.attributes.end())
-		{
-			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("TEXCOORD_4")->second];
-			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
-			pfTexcoords4 = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iTexcoordStride4 = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
-		}
-
-		// Joints
-		const uint16_t* puiJoints = nullptr;
-		int iJointsStride = 0;
-		if (rPrimitive.attributes.find("JOINTS_0") != rPrimitive.attributes.end())
-		{
-			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("JOINTS_0")->second];
-			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
-			ASSERT(rAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT);
-			puiJoints = reinterpret_cast<const uint16_t*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iJointsStride = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / tinygltf::GetComponentSizeInBytes(rAccessor.componentType)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC4);
-		}
-
-		// Weights
-		const float* pfWeights = nullptr;
-		int iWeightsStride = 0;
-		if (rPrimitive.attributes.find("WEIGHTS_0") != rPrimitive.attributes.end())
-		{
-			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("WEIGHTS_0")->second];
-			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
-			pfWeights = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iWeightsStride = rAccessor.ByteStride(rBufferView) != 0 ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC4);
-		}
+		// Joints are read as uint16_t; the runtime skinning path requires that component type
+		auto [puiJoints, iJointsStride] = FindAttribute<uint16_t>(rPrimitive, rModel, "JOINTS_0");
+		ASSERT(puiJoints == nullptr || rModel.accessors[rPrimitive.attributes.at("JOINTS_0")].componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT);
 
 		// De-duplicate vertices using hash map for O(1) lookups
 		std::unordered_map<common::ModelVertex, uint32_t> vertexToIndex;

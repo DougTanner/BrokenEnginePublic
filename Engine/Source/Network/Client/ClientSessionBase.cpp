@@ -130,7 +130,7 @@ void ClientSessionBase::TrySubscribeNext()
 	}
 }
 
-void ClientSessionBase::UnsubscribeStaleCoords(const std::vector<GridCoord>& rDesiredCoords)
+void ClientSessionBase::UnsubscribeStaleCoords(std::span<const GridCoord> desiredCoords)
 {
 	std::vector<ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
 
@@ -141,7 +141,7 @@ void ClientSessionBase::UnsubscribeStaleCoords(const std::vector<GridCoord>& rDe
 			continue;
 		}
 
-		if (!std::ranges::contains(rDesiredCoords, rSlots.at(i).coord))
+		if (!std::ranges::contains(desiredCoords, rSlots.at(i).coord))
 		{
 			GridCoord unsubCoord = rSlots.at(i).coord;
 			if (rSlots.at(i).eState == CoordSubscriptionState::kSubscribing)
@@ -163,7 +163,7 @@ void ClientSessionBase::UnsubscribeStaleCoords(const std::vector<GridCoord>& rDe
 	}
 }
 
-void ClientSessionBase::BuildSubscriptionQueue(const std::vector<GridCoord>& rDesiredCoords)
+void ClientSessionBase::BuildSubscriptionQueue(std::span<const GridCoord> desiredCoords)
 {
 	const std::vector<ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
 
@@ -177,7 +177,7 @@ void ClientSessionBase::BuildSubscriptionQueue(const std::vector<GridCoord>& rDe
 			activeCoords[iActiveCount++] = rSlot.coord;
 		}
 	}
-	for (const GridCoord& rCoord : rDesiredCoords)
+	for (const GridCoord& rCoord : desiredCoords)
 	{
 		bool bAlreadyActive = false;
 		for (int64_t i = 0; i < iActiveCount; ++i)

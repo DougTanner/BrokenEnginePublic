@@ -411,7 +411,7 @@ struct GlobalLayout
 	float fDebugTextureIndex INIT;
 	float fDebugTextureFormat INIT;
 	float fDebugTextureLinearRange INIT;
-	float fDebugTerrainElevationLow INIT;
+	float fSeaFloorElevation INIT;
 	float fDebugTerrainElevationHigh INIT;
 };
 

@@ -362,6 +362,16 @@ inline void Read(std::istream& rStream, XMVECTOR& rVecValue)
 	rVecValue = XMLoadFloat4(&f4Temp);
 }
 
+// Reads an entire file into a freshly-allocated byte vector. Offline / tool-side use only — allocates.
+// Named ReadEntireFile (not ReadFile) to avoid colliding with the Win32 ReadFile API inside namespace common.
+inline std::vector<std::byte> ReadEntireFile(const std::filesystem::path& rPath)
+{
+	std::vector<std::byte> data(std::filesystem::file_size(rPath));
+	std::fstream fileStream(rPath, std::ios::in | std::ios::binary);
+	fileStream.read(reinterpret_cast<char*>(data.data()), data.size());
+	return data;
+}
+
 // Custom deleter for aligned memory allocated with _aligned_malloc
 // Automatically calls _aligned_free when std::unique_ptr is destroyed
 // Used with std::unique_ptr to provide RAII for aligned memory allocations

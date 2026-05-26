@@ -94,10 +94,7 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 	{
 		ASSERT(miWidth > 0 && miHeight > 0);
 
-		std::fstream fileStream(rPath, std::ios::in | std::ios::binary);
-		std::vector<std::byte> data(std::filesystem::file_size(rPath));
-		fileStream.read(reinterpret_cast<char*>(data.data()), data.size());
-		fileStream.close();
+		std::vector<std::byte> data = common::ReadEntireFile(rPath);
 
 		float* pfSrcR = reinterpret_cast<float*>(data.data());
 		std::vector<float>& rPixels = mData.emplace_back(4 * miWidth * miHeight);
@@ -130,10 +127,7 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 		ASSERT(miWidth > 0 && miHeight > 0);
 		ASSERT(!bFromGamma);
 
-		std::fstream fileStream(rPath, std::ios::in | std::ios::binary);
-		std::vector<std::byte> data(std::filesystem::file_size(rPath));
-		fileStream.read(reinterpret_cast<char*>(data.data()), data.size());
-		fileStream.close();
+		std::vector<std::byte> data = common::ReadEntireFile(rPath);
 
 		const uint16_t* puiSrc = reinterpret_cast<const uint16_t*>(data.data());
 		std::vector<float>& rPixels = mData.emplace_back(4 * miWidth * miHeight);

@@ -175,6 +175,49 @@ void ServerSession::ParseReceivedGamePackets()
 				}
 				break;
 			}
+			case GamePacketType::kClientSaveRequest:
+			{
+				LOG(kDefault, kDebug, "ServerSession::kClientSaveRequest Client: {}", rPacket.iClientId);
+				gpGame->mGameSaveLoad.ServerSave();
+				break;
+			}
+			case GamePacketType::kClientLoadRequest:
+			{
+				LOG(kDefault, kDebug, "ServerSession::kClientLoadRequest Client: {}", rPacket.iClientId);
+				gpGame->mGameSaveLoad.ServerLoad();
+				break;
+			}
+			case GamePacketType::kClientResetRequest:
+			{
+				LOG(kDefault, kDebug, "ServerSession::kClientResetRequest Client: {}", rPacket.iClientId);
+				gpGame->mGameSaveLoad.ServerReset();
+				break;
+			}
+			case GamePacketType::kClientReplayRecordRequest:
+			{
+				LOG(kDefault, kDebug, "ServerSession::kClientReplayRecordRequest Client: {}", rPacket.iClientId);
+				gpGame->mGameFlags.Set(engine::GameFlags::kSaveReplay);
+				break;
+			}
+			case GamePacketType::kClientReplayPlaybackRequest:
+			{
+				LOG(kDefault, kDebug, "ServerSession::kClientReplayPlaybackRequest Client: {}", rPacket.iClientId);
+				gpGame->mGameFlags.Set(engine::GameFlags::kLoadReplay);
+				break;
+			}
+			case GamePacketType::kClientPauseRequest:
+			{
+				// 1B paused (type byte already stripped)
+				if (rPacket.payload.size() < 1)
+				{
+					break;
+				}
+				const uint8_t* pCursor = rPacket.payload.data();
+				bool bPaused = engine::ReadUint8(pCursor) != 0;
+				gpGame->mGameFlags.Set(engine::GameFlags::kPaused, bPaused);
+				LOG(kDefault, kDebug, "Server paused: {}", bPaused);
+				break;
+			}
 			default:
 				break;
 		}

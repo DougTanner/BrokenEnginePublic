@@ -614,6 +614,17 @@ void FileManager::ResetTextureChunkStates(std::span<const common::crc_t> targetC
 	// When targetCrcs is non-empty, only texture chunks in the span get state/handle reset; pool-pointer
 	// restoration is idempotent for chunks already pointing at the correct offset, so it is safe to apply
 	// to everything. This per-chunk path is used by Phase 5 LRU eviction.
+	//
+	// Thread-safety precondition (relied upon, NOT enforced here): the transfer thread
+	// (TextureUploadManager::UploadThread) must not be concurrently uploading any chunk this nulls,
+	// because it writes rLazyChunk.vkImage during a kUploading chunk's vmaCreateImage. Both callers
+	// guarantee this by ordering, not by an in-code guard:
+	//   * Whole-pool variant (device-loss): runs at Graphics::Destroy after DestroyTransferResources()
+	//     has set mbShutdown and joined the transfer thread.
+	//   * Scoped per-island variant (LRU eviction): runs inside RenderGlobal's drained descriptor-patch
+	//     window, on already-resident (not uploading) chunks.
+	// No cheap idle check is reachable from here (mbShutdown is private to TextureUploadManager), so the
+	// guarantee is documented rather than asserted. Keep the two callers' transition logic in sync.
 	bool bResetAll = targetCrcs.empty();
 	int64_t iPoolOffset = 0;
 	for (auto& [crc, rLazyChunk] : mLazyChunkMap)

@@ -146,6 +146,21 @@ Graphics::~Graphics()
 	gpGraphics = nullptr;
 }
 
+void Graphics::WaitAllFramebufferFencesIdle()
+{
+	// Drain ALL in-flight framebuffer fences (RenderGlobal already waited only the current one). This
+	// is NOT vkDeviceWaitIdle — only graphics-queue work references the island slots being freed /
+	// re-patched, so the present and transfer queues need not stall. The kExecuted guard skips fences
+	// that were never submitted (early frames), which are not signalable.
+	for (CommandBuffers& rCommandBuffers : gpCommandBufferManager->mPerFramebufferCommandBuffers)
+	{
+		if (rCommandBuffers.mFlags & CommandBufferFlags::kExecuted)
+		{
+			CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNanoseconds.count()));
+		}
+	}
+}
+
 void Graphics::RenderGlobal(float fCurrentTime)
 {
 	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
@@ -168,6 +183,21 @@ void Graphics::RenderGlobal(float fCurrentTime)
 	// safety window (post-fence-wait, pre-cmd-buffer-recording). EvictionSweep frees GPU
 	// resources for templates whose grace period elapsed; RestorationSweep patches per-channel
 	// from slot-0 fallback back to real Texture* as each chunk reaches kReady.
+	//
+	// The single current-framebuffer fence wait above is insufficient for these sweeps: with triple
+	// buffering, OTHER in-flight frames may still reference the slots whose images/descriptors the
+	// sweeps free or rewrite. Drain all framebuffer fences first — but only on frames where a sweep
+	// will actually mutate (island-set churn), so steady-state frames pay no stall.
+	//
+	// ProcessPendingTextures (below) also writes descriptor elements on any frame it adopts a chunk —
+	// per-slot island writes, the array flush, and the lighting-blur array write — which race in-flight
+	// samplers the same way (UPDATE_AFTER_BIND makes the write spec-legal, not race-free). AnyAdoptionPending
+	// folds those adoption frames into the same drain; restoration's template-owned elevation array write
+	// has no mTextureMap chunk, so AnyRestorationPending stays a distinct, non-redundant predicate.
+	if (gpIslandTerrain->AnyEvictionPending() || gpIslandTerrain->AnyRestorationPending() || gpTextureManager->AnyAdoptionPending())
+	{
+		WaitAllFramebufferFencesIdle();
+	}
 	gpIslandTerrain->EvictionSweep();
 
 	// Process pending texture loads after fence wait when it's safe to update GPU resources
@@ -546,29 +576,11 @@ void Graphics::RecreateResources()
 		}
 	}
 
-	if (gpTextureManager != nullptr)
+	if (mDestroyFlags & DestroyFlags::kTerrainElevation)
 	{
-		struct TerrainTextureRecreateDesc
+		if (gpTextureManager != nullptr)
 		{
-			DestroyFlags eFlag;
-			Wrapper& rMultiplierCvar;
-			Texture& rTexture;
-		};
-
-		TerrainTextureRecreateDesc pTerrainDescs[]
-		{
-			{.eFlag = DestroyFlags::kTerrainElevation, .rMultiplierCvar = gTerrainElevationTextureMultiplier, .rTexture = gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
-		};
-
-		for (const TerrainTextureRecreateDesc& rDesc : pTerrainDescs)
-		{
-			if (mDestroyFlags & rDesc.eFlag)
-			{
-				auto [iX, iY] = gpTextureManager->DetailTextureSize(rDesc.rMultiplierCvar.Get());
-				rDesc.rTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
-				rDesc.rTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
-				rDesc.rTexture.ReCreate();
-			}
+			gpTextureManager->mRenderTargetTextures.CreateTerrainTextures();
 		}
 	}
 

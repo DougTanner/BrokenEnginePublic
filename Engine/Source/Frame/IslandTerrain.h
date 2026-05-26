@@ -86,11 +86,11 @@ struct IslandTemplate
 	const uint32_t* mpuiMeshIndices = nullptr;
 	Buffer mMeshBuffer;
 
-	// Elevation R32_SFLOAT image uploaded once at first-mint from mpfHeightmapData. Permanently
-	// resident (matches mMeshBuffer policy — texture LRU evicts color/normals/AO only). Lives on
-	// the template (not in TextureManager::mTextureMap) because no standalone elevation chunk ships
-	// in the pack anymore — DataPacker stopped writing it after the lag-fix moved the data path to
-	// the kIsland chunk's heightmap payload.
+	// Elevation R32_SFLOAT image uploaded at first-mint from mpfHeightmapData. Participates in LRU
+	// eviction alongside color/normals/AO/masks (freed in EvictionSweep, re-Created on the next
+	// AcquireTextureSlot first-mint). Lives on the template (not in TextureManager::mTextureMap)
+	// because no standalone elevation chunk ships in the pack — DataPacker moved the data path to the
+	// kIsland chunk's heightmap payload.
 	Texture mElevationTexture;
 #endif
 };
@@ -125,6 +125,12 @@ public:
 	void EvictionSweep();
 	void RestorationSweep();
 
+	// Cheap pre-scans: true iff EvictionSweep / RestorationSweep would actually free or patch GPU
+	// resources this frame. RenderGlobal uses these to drain all in-flight fences only on churn
+	// frames (the guard conditions mirror the in-sweep skip logic exactly).
+	bool AnyEvictionPending() const;
+	bool AnyRestorationPending() const;
+
 	// Destroy per-template GPU buffers (mMeshBuffer) before Graphics tears down the VMA allocator.
 	// IslandTerrain is game-frame-owned and outlives Graphics, but mMeshBuffer was allocated
 	// through gpDeviceManager's allocator — must be released before mpDeviceManager.reset().
@@ -149,6 +155,12 @@ public:
 	// Starts at 1: slot 0 is reserved as a permanent neutral placeholder anchor, never adopted
 	// by any real island. See TextureManager::mIslandPlaceholder* members.
 	int64_t miNextTextureSlot = 1;
+
+	// Slots reclaimed by EvictionSweep (full teardown sets the template's miTextureSlot = -1). Popped
+	// first by AcquireTextureSlot before bumping miNextTextureSlot, so a long browse / churn session
+	// reuses indices instead of marching toward the kiMaxIslands ceiling. Main-thread-only (RenderGlobal
+	// eviction and UpdateActiveIslands mint run on the same thread). Cleared in ResetTextureSlots.
+	std::vector<int64_t> mFreeTextureSlots;
 #endif
 };
 

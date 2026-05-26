@@ -19,13 +19,15 @@ Use the repo root as an absolute path — the harness provides the cwd as an abs
 
 ### 2. Build the Project
 
-**IMPORTANT: Build timeout** — MSBuild compiles 70+ C++ files and can exceed Claude Code's default 2-minute bash timeout. Always use `timeout: 600000` (10 minutes) on all build invocations. If MSBuild is killed mid-build it leaves an `unsuccessfulbuild` marker in the tlog directory, which forces a full rebuild next time — creating a cycle of never-completing builds.
+**IMPORTANT: Build duration** — Builds can run a long time. DataPacker's Island export, and any BrokenEngineSandbox build that triggers the DataPacker pre-build, can exceed the Bash tool's 10-minute hard timeout cap. If MSBuild is killed mid-build it leaves an `unsuccessfulbuild` marker in the tlog directory, which forces a full rebuild next time — creating a cycle of never-completing builds.
+
+**Always run these builds with `run_in_background: true`** (no time cap, harness notifies on completion). Do not poll, do not sleep, do not chain shorter timeouts — just wait for the completion notification. Treat the build as taking effectively infinite time.
 
 **IMPORTANT: clang-tidy disable** — every build command below passes `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`. The bundled VS2026 `clang-tidy.exe` crashes reproducibly with `0xC0000005` (access violation) on this codebase, blocking the actual C++ compile. Do not strip these flags.
 
 **ThirdParty** (only rebuild if a link error references a missing ThirdParty `.lib` or the user explicitly asks — normal workflow skips this; a full ThirdParty rebuild across three configurations can exceed 30 minutes):
 ```bash
-# timeout: 600000 for each invocation
+# run_in_background: true for each invocation
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/ThirdParty/Prebuilts/Platforms/VisualStudio2026/ThirdParty.sln" /p:Configuration=Debug /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/ThirdParty/Prebuilts/Platforms/VisualStudio2026/ThirdParty.sln" /p:Configuration=Profile /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/ThirdParty/Prebuilts/Platforms/VisualStudio2026/ThirdParty.sln" /p:Configuration=Release /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
@@ -33,7 +35,7 @@ bash "$ROOT/.claude/msbuild.sh" "$ROOT/ThirdParty/Prebuilts/Platforms/VisualStud
 
 **DataPacker** (Release only):
 ```bash
-# timeout: 600000
+# run_in_background: true
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/DataPacker/Platforms/VisualStudio2026/DataPacker.sln" /p:Configuration=Release /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 ```
 
@@ -41,13 +43,13 @@ bash "$ROOT/.claude/msbuild.sh" "$ROOT/DataPacker/Platforms/VisualStudio2026/Dat
 
 Client:
 ```bash
-# timeout: 600000
+# run_in_background: true
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.sln" /p:Configuration=Debug /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 ```
 
 Server:
 ```bash
-# timeout: 600000
+# run_in_background: true
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandboxServer.sln" /p:Configuration=Debug /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 ```
 
@@ -56,7 +58,7 @@ bash "$ROOT/.claude/msbuild.sh" "$ROOT/Projects/BrokenEngineSandbox/Platforms/Vi
 For fast-iteration on a small set of files, `msbuild.sh` supports a `--files` mode that deletes the targeted `.obj` files before invoking MSBuild, forcing just those files to recompile:
 
 ```bash
-# timeout: 600000. Configuration is required with --files.
+# run_in_background: true. Configuration is required with --files.
 bash "$ROOT/.claude/msbuild.sh" --files <path1.cpp> <path2.cpp> -- \
   "$ROOT/Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.vcxproj" \
   /p:Configuration=Debug /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal

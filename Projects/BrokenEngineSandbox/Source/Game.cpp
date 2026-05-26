@@ -4,6 +4,7 @@
 #include "Frame/Collections/Missiles/Missiles.h"
 #include "Frame/Collections/Players/Players.h"
 #include "Frame/Collections/Spaceships/Spaceships.h"
+#include "Network/GamePacketType.h"
 #include "Network/Server/ServerBroadcaster.h"
 #include "Network/Server/ServerTransferManager.h"
 #include "Profile/ProfileManager.h"
@@ -22,6 +23,17 @@ using enum UiState;
 // Camera shake
 static constexpr float kfCameraShakeAdd = 0.25f;
 static constexpr float kfCameraShakeMax = 1.0f;
+
+// Debug-only main-menu island browser: build the origin cell as a single island centered at (0,0),
+// selected by index into the boot-fixed sorted list of all packed islands. clear()+push_back reuses
+// the vector's capacity (grown once under ScopedSuppressAllocationTracking in CreateNewFrame), so the
+// cycle path never heap-allocates in the main loop.
+static void BuildMenuIslandPlacement(int64_t iIndex, std::vector<engine::IslandPlacement>& rOut)
+{
+	rOut.clear();
+	common::crc_t islandCrc = engine::gpIslandTerrain->mIslandCrcsSorted.at(static_cast<size_t>(iIndex));
+	rOut.push_back({.islandCrc = islandCrc, .f2WorldPos = {0.0f, 0.0f}, .fRotation = 0.0f});
+}
 
 Game::Game()
 {
@@ -804,7 +816,21 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	engine::FrameStaticData& rStaticData = rFrames.staticData;
 	rStaticData.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	rStaticData.coord = engine::kOriginCoord;
-	engine::GenerateIslandPlacements(engine::kOriginCoord, rStaticData.islands);
+	// Debug builds turn the main-menu cell into a single centered island browser ('E' cycles it);
+	// release builds keep the procedural 1-4 island scatter. Gameplay cells always use the scatter.
+	bool bMenuBrowse = false;
+	if constexpr (kbDebugInput)
+	{
+		bMenuBrowse = static_cast<bool>(gameFlags & GameFlags::kMainMenu);
+	}
+	if (bMenuBrowse)
+	{
+		BuildMenuIslandPlacement(miMenuIslandIndex, rStaticData.islands);
+	}
+	else
+	{
+		engine::GenerateIslandPlacements(engine::kOriginCoord, rStaticData.islands);
+	}
 	// navData stays empty; RunFrameTick builds it lazily on the per-coord dispatch thread.
 
 #if defined(BT_SERVER)
@@ -832,6 +858,11 @@ bool Game::ShouldUseCrosshair()
 		return false;
 	}
 	return pTail->interpolate.gameFlags & GameFlags::kGame && meUiState == kNone;
+}
+
+bool Game::ShouldShowInGameUi()
+{
+	return !mbShowImGui;
 }
 #endif // BT_CLIENT
 
@@ -1300,23 +1331,23 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 		{
 			if (rMenuInput.flags & MenuInputFlags::kQuicksave)
 			{
-				engine::gpClient->SendSimplePacket(engine::PacketType::kClientSaveRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
+				engine::gpClient->SendSimplePacket(GamePacketType::kClientSaveRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
 			}
 			if (rMenuInput.flags & MenuInputFlags::kQuickload)
 			{
-				engine::gpClient->SendSimplePacket(engine::PacketType::kClientLoadRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
+				engine::gpClient->SendSimplePacket(GamePacketType::kClientLoadRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
 			}
 			if (rMenuInput.flags & MenuInputFlags::kSaveReplay)
 			{
-				engine::gpClient->SendSimplePacket(engine::PacketType::kClientReplayRecordRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
+				engine::gpClient->SendSimplePacket(GamePacketType::kClientReplayRecordRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
 			}
 			if (rMenuInput.flags & MenuInputFlags::kLoadReplay)
 			{
-				engine::gpClient->SendSimplePacket(engine::PacketType::kClientReplayPlaybackRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
+				engine::gpClient->SendSimplePacket(GamePacketType::kClientReplayPlaybackRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
 			}
 			if (rMenuInput.flags & MenuInputFlags::kResetFrame)
 			{
-				engine::gpClient->SendSimplePacket(engine::PacketType::kClientResetRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
+				engine::gpClient->SendSimplePacket(GamePacketType::kClientResetRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
 			}
 		}
 #endif // defined(BT_CLIENT)
@@ -1412,7 +1443,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 #if defined(BT_CLIENT)
 			if (engine::gpClient != nullptr)
 			{
-				engine::gpClient->SendSimplePacket(engine::PacketType::kClientPauseRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>((mGameFlags & engine::GameFlags::kPaused) ? 1 : 0));
+				engine::gpClient->SendSimplePacket(GamePacketType::kClientPauseRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>((mGameFlags & engine::GameFlags::kPaused) ? 1 : 0));
 			}
 			if (mGameFlags & engine::GameFlags::kPaused)
 			{
@@ -1437,6 +1468,21 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 			else
 			{
 				gpClientSession->ConnectToServer("127.0.0.1");
+			}
+		}
+
+		if (rMenuInput.flags & MenuInputFlags::kCycleMenuIsland && InMainMenu())
+		{
+			miMenuIslandIndex = (miMenuIslandIndex + 1) % std::ssize(engine::gpIslandTerrain->mIslandCrcsSorted);
+			auto it = mCoordFrames.find(engine::kOriginCoord);
+			BuildMenuIslandPlacement(miMenuIslandIndex, it->second.staticData.islands);
+
+			// Pre-mint the texture slot now (mirrors ClientDataReceiver::ApplyReceivedStaticData) so the
+			// elevation upload and chunk loads are in-flight before UpdateActiveIslands references the
+			// slot this same frame. AcquireTextureSlot is idempotent (hot-path early return).
+			for (const engine::IslandPlacement& rPlacement : it->second.staticData.islands)
+			{
+				engine::gpIslandTerrain->AcquireTextureSlot(rPlacement.islandCrc);
 			}
 		}
 #endif

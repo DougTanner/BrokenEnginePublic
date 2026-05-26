@@ -18,11 +18,14 @@ struct WorldDimensions
 // Throws if Island.json is missing or either key is absent.
 WorldDimensions GetIslandDimensions(const std::filesystem::path& rIslandFolder);
 
-// Post-crop dimensions written into Intermediates/BakedDimensions.json by the Gaea bake.
-// `fWidthMeters` / `fHeightMeters` are anisotropic (cropped island extent in world meters);
+// Post-crop dimensions written into each chunk leaf's BakedDimensions.json by the Gaea bake.
+// `fWidthMeters` / `fHeightMeters` are anisotropic (cropped chunk extent in world meters);
 // `iCropX/Y/Width/Height` describe the sub-rect of the original `iFullTexturePixels`-square
-// Gaea bake that was kept. Used by ExportIsland to size AO / Elevation Texture ctors and to
-// crop in-memory the PNG-loaded Color and EXR-loaded Normals before BC encoding.
+// Gaea bake that this chunk kept (for a 2x1 route, the left/right half's crop). Used by
+// ExportIsland to size AO / Elevation Texture ctors and to crop in-memory the PNG-loaded Color
+// and EXR-loaded Normals before BC encoding. `textureSourceDir` is the leaf-relative path to the
+// route's Intermediates folder holding the shared full-res Color / Normals / mask sources (the
+// chunks of one route share them, cropped per-chunk via the rect above).
 struct BakedDimensions
 {
 	float fWidthMeters = 0.0f;
@@ -33,11 +36,12 @@ struct BakedDimensions
 	int64_t iCropWidth = 0;
 	int64_t iCropHeight = 0;
 	int64_t iFullTexturePixels = 0;
+	std::string textureSourceDir;
 };
 
 inline constexpr char kpcBakedDimensionsFile[] = "BakedDimensions.json";
 
-// Reads Intermediates/BakedDimensions.json written by the Gaea bake. Throws if missing or
-// malformed; the bake-version sentinel is stamped only after this file is written so a clean
-// IsBakeDirty check implies the JSON exists.
-BakedDimensions ReadBakedDimensions(const std::filesystem::path& rIslandFolder);
+// Reads a chunk leaf's BakedDimensions.json written by the Gaea bake. Throws if missing or
+// malformed; the route-level bake-version sentinel is stamped only after every leaf's JSON is
+// written so a clean route dirty-check implies the JSON exists.
+BakedDimensions ReadBakedDimensions(const std::filesystem::path& rLeafFolder);

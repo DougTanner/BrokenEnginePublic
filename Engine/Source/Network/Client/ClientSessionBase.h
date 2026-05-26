@@ -23,8 +23,8 @@ public:
 
 	// Subscription mechanics
 	void TrySubscribeNext();
-	void UnsubscribeStaleCoords(const std::vector<GridCoord>& rDesiredCoords);
-	void BuildSubscriptionQueue(const std::vector<GridCoord>& rDesiredCoords);
+	void UnsubscribeStaleCoords(std::span<const GridCoord> desiredCoords);
+	void BuildSubscriptionQueue(std::span<const GridCoord> desiredCoords);
 
 	// Update buffering
 	bool ApplyReceivedUpdatesBase();

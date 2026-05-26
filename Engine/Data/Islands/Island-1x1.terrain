@@ -173,10 +173,12 @@
             "381": {
               "$id": "28",
               "$type": "QuadSpinner.Gaea.Nodes.Mountain, Gaea.Nodes",
-              "Scale": 0.18374743,
+              "Scale": 0.33154118,
               "Height": 3.0,
               "Style": "Eroded",
               "Seed": 59758,
+              "X": 0.3335272,
+              "Y": 0.32120985,
               "Id": 381,
               "Name": "Mountain",
               "Position": {
@@ -215,16 +217,15 @@
             "395": {
               "$id": "34",
               "$type": "QuadSpinner.Gaea.Nodes.Adjust, Gaea.Nodes",
-              "Multiply": 1.0574517,
-              "Shaper": -0.15229069,
+              "Shaper": -0.13176173,
               "Autolevel": true,
               "Id": 395,
               "Name": "Adjust",
               "NodeSize": "Standard",
               "Position": {
                 "$id": "35",
-                "X": 21844.074,
-                "Y": 25478.814
+                "X": 21873.668,
+                "Y": 25477.703
               },
               "Ports": {
                 "$id": "36",
@@ -235,7 +236,7 @@
                     "Type": "PrimaryIn, Required",
                     "Record": {
                       "$id": "38",
-                      "From": 278,
+                      "From": 563,
                       "To": 395,
                       "FromPort": "Out",
                       "ToPort": "In",
@@ -312,7 +313,7 @@
             "469": {
               "$id": "48",
               "$type": "QuadSpinner.Gaea.Nodes.Gabor, Gaea.Nodes",
-              "Size": 0.6229856,
+              "Size": 0.39306122,
               "Entropy": 0.19598317,
               "Anisotropy": 0.7009957,
               "AnisotropyAzimuth": 111.20129,
@@ -613,11 +614,11 @@
             "704": {
               "$id": "91",
               "$type": "QuadSpinner.Gaea.Nodes.Gabor, Gaea.Nodes",
-              "Size": 0.13644917,
-              "Entropy": 0.22472371,
-              "Anisotropy": 0.8262223,
-              "AnisotropyAzimuth": 329.95792,
-              "Gain": 0.5060199,
+              "Size": 0.21856503,
+              "Entropy": 0.62709135,
+              "Anisotropy": 0.16313682,
+              "AnisotropyAzimuth": 316.65515,
+              "Gain": 0.47112417,
               "Seed": 41330,
               "Id": 704,
               "Name": "Gabor",
@@ -1072,8 +1073,10 @@
               "Intensity": 0.103602834,
               "SettleThaw": 0.21856503,
               "MeltType": "Directional",
-              "SnowLine": 0.63325006,
-              "SlipOffAngle": 80.82663,
+              "SnowLine": 0.4484894,
+              "SlipOffAngle": 61.611523,
+              "AdheredSnowMass": 12.592465,
+              "ModelScale": 2.8927703,
               "Seed": 12481,
               "Id": 895,
               "Name": "Snow",
@@ -1350,7 +1353,7 @@
             "382": {
               "$id": "193",
               "$type": "QuadSpinner.Gaea.Nodes.Edge, Gaea.Nodes",
-              "Size": 0.08717966,
+              "Size": 0.31915694,
               "Pixels": 133,
               "Softness": 1.0,
               "Id": 382,
@@ -1452,7 +1455,7 @@
             "553": {
               "$id": "208",
               "$type": "QuadSpinner.Gaea.Nodes.MathX, Gaea.Nodes",
-              "Expression": "a + b",
+              "Expression": "max(a, b)",
               "Id": 553,
               "Name": "Math",
               "NodeSize": "Standard",
@@ -1472,7 +1475,7 @@
                     "Type": "PrimaryIn",
                     "Record": {
                       "$id": "212",
-                      "From": 332,
+                      "From": 631,
                       "To": 553,
                       "FromPort": "Out",
                       "ToPort": "In",
@@ -1499,7 +1502,7 @@
                     "Type": "In",
                     "Record": {
                       "$id": "215",
-                      "From": 631,
+                      "From": 739,
                       "To": 553,
                       "FromPort": "Out",
                       "ToPort": "b",
@@ -1719,7 +1722,7 @@
               "NodeSize": "Standard",
               "Position": {
                 "$id": "244",
-                "X": 27532.676,
+                "X": 27531.938,
                 "Y": 26165.977
               },
               "RenderIntentOverride": "Color",
@@ -2260,15 +2263,13 @@
             "743": {
               "$id": "317",
               "$type": "QuadSpinner.Gaea.Nodes.Adjust, Gaea.Nodes",
-              "Shaper": 0.06942211,
-              "Autolevel": true,
               "Id": 743,
               "Name": "Adjust",
               "NodeSize": "Standard",
               "Position": {
                 "$id": "318",
-                "X": 23070.877,
-                "Y": 25364.168
+                "X": 23116.232,
+                "Y": 25416.58
               },
               "Ports": {
                 "$id": "319",
@@ -2473,8 +2474,7 @@
             "487": {
               "$id": "347",
               "$type": "QuadSpinner.Gaea.Nodes.EasyErosion, Gaea.Nodes",
-              "Style": "Withered",
-              "BiasAngle": "N",
+              "Influence": 0.52649945,
               "Id": 487,
               "Name": "EasyErosion",
               "Position": {
@@ -2721,20 +2721,20 @@
                 "$values": []
               }
             },
-            "332": {
+            "739": {
               "$id": "382",
               "$type": "QuadSpinner.Gaea.Nodes.Height, Gaea.Nodes",
               "Range": {
                 "$id": "383",
-                "Y": 0.11
+                "Y": 0.99
               },
               "Falloff": 0.0001,
-              "Id": 332,
+              "Id": 739,
               "Name": "Height",
               "Position": {
                 "$id": "384",
-                "X": 27531.938,
-                "Y": 25967.338
+                "X": 27523.953,
+                "Y": 25972.238
               },
               "Ports": {
                 "$id": "385",
@@ -2745,8 +2745,8 @@
                     "Type": "PrimaryIn, Required",
                     "Record": {
                       "$id": "387",
-                      "From": 180,
-                      "To": 332,
+                      "From": 706,
+                      "To": 739,
                       "FromPort": "Out",
                       "ToPort": "In",
                       "IsValid": true
@@ -2824,7 +2824,7 @@
             "247": {
               "$id": "397",
               "$type": "QuadSpinner.Gaea.Nodes.Transform, Gaea.Nodes",
-              "Scale": 2.5534775,
+              "Scale": 3.087882,
               "Edges": "Thin",
               "Id": 247,
               "Version": 2,
@@ -3128,7 +3128,7 @@
               "$type": "QuadSpinner.Gaea.Nodes.Stratify, Gaea.Nodes",
               "Spacing": 0.1779967,
               "Octaves": 10,
-              "Intensity": 0.48954734,
+              "Intensity": 0.46696547,
               "Shape": 0.8987922,
               "Seed": 22424,
               "TiltAmount": 0.9432374,
@@ -4167,12 +4167,12 @@
             "140": {
               "$id": "581",
               "$type": "QuadSpinner.Gaea.Nodes.Cone, Gaea.Nodes",
-              "Scale": 1.0713382,
+              "Scale": 1.4572827,
               "Id": 140,
               "Name": "Cone",
               "Position": {
                 "$id": "582",
-                "X": 22840.877,
+                "X": 22841.576,
                 "Y": 25308.652
               },
               "Ports": {
@@ -4214,7 +4214,7 @@
             "203": {
               "$id": "588",
               "$type": "QuadSpinner.Gaea.Nodes.Swirl, Gaea.Nodes",
-              "Size": 0.15697813,
+              "Size": 0.08102097,
               "Id": 203,
               "Name": "Swirl",
               "Position": {
@@ -4361,7 +4361,7 @@
               "Position": {
                 "$id": "607",
                 "X": 22344.3,
-                "Y": 26092.787
+                "Y": 26091.629
               },
               "Ports": {
                 "$id": "608",
@@ -4411,8 +4411,8 @@
               "Name": "Erosion2",
               "Position": {
                 "$id": "614",
-                "X": 22897.053,
-                "Y": 25119.451
+                "X": 22886.232,
+                "Y": 25087.143
               },
               "Ports": {
                 "$id": "615",
@@ -4723,6 +4723,7 @@
             "378": {
               "$id": "655",
               "$type": "QuadSpinner.Gaea.Nodes.Adjust, Gaea.Nodes",
+              "Shaper": 0.10226845,
               "Autolevel": true,
               "Id": 378,
               "Name": "Adjust",
@@ -4895,18 +4896,18 @@
             "934": {
               "$id": "679",
               "$type": "QuadSpinner.Gaea.Nodes.Mountain, Gaea.Nodes",
-              "Scale": 0.3500154,
-              "Height": 3.0,
+              "Scale": 0.24532816,
+              "Height": 2.2518892,
               "Style": "Eroded",
               "Seed": 59758,
-              "X": 0.32531565,
-              "Y": 0.38484964,
+              "X": 0.5942451,
+              "Y": 0.5983508,
               "Id": 934,
               "Name": "Mountain",
               "Position": {
                 "$id": "680",
                 "X": 20657.28,
-                "Y": 25004.26
+                "Y": 25001.459
               },
               "Ports": {
                 "$id": "681",
@@ -4939,12 +4940,12 @@
             "412": {
               "$id": "685",
               "$type": "QuadSpinner.Gaea.Nodes.Mountain, Gaea.Nodes",
-              "Scale": 0.29459274,
-              "Height": 3.0,
+              "Scale": 0.19606356,
+              "Height": 1.0722966,
               "Style": "Eroded",
               "Seed": 59758,
-              "X": 0.73794776,
-              "Y": 0.7482123,
+              "X": 0.772847,
+              "Y": 0.7790057,
               "Id": 412,
               "Name": "Mountain",
               "Position": {
@@ -5068,7 +5069,7 @@
               "$id": "702",
               "$type": "QuadSpinner.Gaea.Nodes.Mountain, Gaea.Nodes",
               "Scale": 0.26996043,
-              "Height": 3.0,
+              "Height": 1.903394,
               "Style": "Eroded",
               "Seed": 59758,
               "X": 0.27194032,
@@ -5112,11 +5113,11 @@
               "$id": "708",
               "$type": "QuadSpinner.Gaea.Nodes.Mountain, Gaea.Nodes",
               "Scale": 0.2576443,
-              "Height": 3.0,
+              "Height": 1.0450587,
               "Style": "Eroded",
               "Seed": 59758,
-              "X": 0.7482123,
-              "Y": 0.2904164,
+              "X": 0.7030485,
+              "Y": 0.32531562,
               "Id": 988,
               "Name": "Mountain",
               "Position": {
@@ -5248,8 +5249,7 @@
               "$id": "725",
               "$type": "QuadSpinner.Gaea.Nodes.Combine, Gaea.Nodes",
               "PortCount": 2,
-              "Ratio": 0.4977589,
-              "Mode": "Min",
+              "Ratio": 0.49498752,
               "Id": 278,
               "Name": "Combine",
               "NodeSize": "Compact",
@@ -5811,7 +5811,7 @@
             "723": {
               "$id": "801",
               "$type": "QuadSpinner.Gaea.Nodes.Swirl, Gaea.Nodes",
-              "Size": 0.08717966,
+              "Size": 0.0,
               "Id": 723,
               "Name": "Swirl",
               "Position": {
@@ -5858,7 +5858,7 @@
             "885": {
               "$id": "808",
               "$type": "QuadSpinner.Gaea.Nodes.Cone, Gaea.Nodes",
-              "Scale": 2.5658467,
+              "Scale": 2.0813632,
               "Id": 885,
               "Name": "Cone",
               "Position": {
@@ -5901,26 +5901,121 @@
                 "$id": "814",
                 "$values": []
               }
+            },
+            "563": {
+              "$id": "815",
+              "$type": "QuadSpinner.Gaea.Nodes.Cone, Gaea.Nodes",
+              "Scale": 1.9417661,
+              "Id": 563,
+              "Name": "Cone",
+              "Position": {
+                "$id": "816",
+                "X": 21643.668,
+                "Y": 25665.283
+              },
+              "Ports": {
+                "$id": "817",
+                "$values": [
+                  {
+                    "$id": "818",
+                    "Name": "In",
+                    "Type": "PrimaryIn",
+                    "Record": {
+                      "$id": "819",
+                      "From": 278,
+                      "To": 563,
+                      "FromPort": "Out",
+                      "ToPort": "In",
+                      "IsValid": true
+                    },
+                    "IsExporting": true,
+                    "Parent": {
+                      "$ref": "815"
+                    }
+                  },
+                  {
+                    "$id": "820",
+                    "Name": "Out",
+                    "Type": "PrimaryOut",
+                    "IsExporting": true,
+                    "Parent": {
+                      "$ref": "815"
+                    }
+                  }
+                ]
+              },
+              "Modifiers": {
+                "$id": "821",
+                "$values": []
+              }
+            },
+            "706": {
+              "$id": "822",
+              "$type": "QuadSpinner.Gaea.Nodes.Clip, Gaea.Nodes",
+              "Max": 0.1,
+              "Id": 706,
+              "Name": "Clip",
+              "NodeSize": "Standard",
+              "Position": {
+                "$id": "823",
+                "X": 27293.953,
+                "Y": 25972.238
+              },
+              "Ports": {
+                "$id": "824",
+                "$values": [
+                  {
+                    "$id": "825",
+                    "Name": "In",
+                    "Type": "PrimaryIn, Required",
+                    "Record": {
+                      "$id": "826",
+                      "From": 180,
+                      "To": 706,
+                      "FromPort": "Out",
+                      "ToPort": "In",
+                      "IsValid": true
+                    },
+                    "IsExporting": true,
+                    "Parent": {
+                      "$ref": "822"
+                    }
+                  },
+                  {
+                    "$id": "827",
+                    "Name": "Out",
+                    "Type": "PrimaryOut",
+                    "IsExporting": true,
+                    "Parent": {
+                      "$ref": "822"
+                    }
+                  }
+                ]
+              },
+              "Modifiers": {
+                "$id": "828",
+                "$values": []
+              }
             }
           },
           "Groups": {
-            "$id": "815"
+            "$id": "829"
           },
           "Notes": {
-            "$id": "816"
+            "$id": "830"
           },
           "GraphTabs": {
-            "$id": "817",
+            "$id": "831",
             "$values": [
               {
-                "$id": "818",
+                "$id": "832",
                 "Name": "Graph 1",
                 "Color": "Brass",
-                "ZoomFactor": 0.19842513149602511,
+                "ZoomFactor": 0.6299605249474372,
                 "ViewportLocation": {
-                  "$id": "819",
-                  "X": 22725.463,
-                  "Y": 24044.486
+                  "$id": "833",
+                  "X": 23996.996,
+                  "Y": 25377.771
                 }
               }
             ]
@@ -5929,25 +6024,25 @@
           "Height": 100.0,
           "Ratio": 0.25,
           "Regions": {
-            "$id": "820",
+            "$id": "834",
             "$values": []
           }
         },
         "Automation": {
-          "$id": "821",
+          "$id": "835",
           "Bindings": {
-            "$id": "822",
+            "$id": "836",
             "$values": []
           },
           "Expressions": {
-            "$id": "823"
+            "$id": "837"
           },
           "Variables": {
-            "$id": "824"
+            "$id": "838"
           }
         },
         "BuildDefinition": {
-          "$id": "825",
+          "$id": "839",
           "Type": "Standard",
           "Destination": "<Builds>\\[Filename]\\[+++]",
           "Resolution": 8192,
@@ -5964,23 +6059,23 @@
           "ColorSpace": "sRGB"
         },
         "State": {
-          "$id": "826",
+          "$id": "840",
           "BakeResolution": 2048,
           "PreviewResolution": 2048,
           "HDResolution": 4096,
-          "SelectedNode": 352,
+          "SelectedNode": 895,
           "NodeBookmarks": {
-            "$id": "827",
+            "$id": "841",
             "$values": []
           },
           "Viewport": {
-            "$id": "828",
+            "$id": "842",
             "CameraPosition": {
-              "$id": "829",
+              "$id": "843",
               "$values": []
             },
             "Camera": {
-              "$id": "830"
+              "$id": "844"
             },
             "RenderMode": "Realistic",
             "AmbientOcclusion": true,
@@ -5988,7 +6083,7 @@
           }
         },
         "BuildProfiles": {
-          "$id": "831"
+          "$id": "845"
         }
       }
     ]
@@ -5996,14 +6091,14 @@
   "Id": "a503ed5f",
   "Branch": 1,
   "Macros": {
-    "$id": "832",
+    "$id": "846",
     "$values": []
   },
   "Metadata": {
-    "$id": "833",
+    "$id": "847",
     "DateCreated": "",
     "DateLastBuilt": "",
-    "DateLastSaved": "2026-05-20 21:00:15Z",
+    "DateLastSaved": "2026-05-21 09:37:50Z",
     "Description": "",
     "Edition": "Professional",
     "ModifiedVersion": "2.3.0.1",

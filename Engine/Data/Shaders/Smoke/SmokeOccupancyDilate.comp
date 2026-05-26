@@ -5,18 +5,18 @@
 layout (local_size_x = kiOccupancyDilateGroupSize) in;
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
 
-layout (binding = 1) readonly buffer occupancyBuffer
+layout (set = 1, binding = 1) readonly buffer occupancyBuffer
 {
 	uint occupancy[];
 };
 
 // Active tile list: [VkDispatchIndirectCommand (3 uint32s)] [packed tile indices...]
-layout (binding = 2) buffer activeTileBuffer
+layout (set = 1, binding = 2) buffer activeTileBuffer
 {
 	uint uiDispatchX;
 	uint uiDispatchY;

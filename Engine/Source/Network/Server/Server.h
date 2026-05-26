@@ -142,8 +142,8 @@ public:
 
 	void SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick, GridCoord coord, const game::Frame* pFrame);
 	void SendCoordStaticData(int64_t iClientId, int64_t iSlot, GridCoord coord, const FrameStaticData& rStaticData);
-	void BufferFrame(int64_t iTick, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);
-	void BufferFullFrame(int64_t iTick, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames);
+	void BufferFrame(int64_t iTick, std::span<const std::pair<GridCoord, GridUpdateData>> gridUpdates);
+	void BufferFullFrame(int64_t iTick, std::span<const std::pair<GridCoord, const game::Frame*>> frames);
 	void SendUpdate(ClientConnection& rClient, int64_t iTick);
 	void SendResends(ClientConnection& rClient, int64_t iTick);
 	void Flush();
@@ -178,15 +178,7 @@ private:
 	void ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void ClientResyncRequest(const uint8_t* pData, int64_t iClientId);
-	void ClientPauseRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void ClientTimespeedRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
-#if defined(BT_SERVER)
-	void ClientSaveRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
-	void ClientLoadRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
-	void ClientReplayRecordRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
-	void ClientReplayPlaybackRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
-	void ClientResetRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
-#endif // BT_SERVER
 	void SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage, const ClientGuid* pGuid);
 	void SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord);
 
