@@ -163,7 +163,8 @@ public:
 
 	bool mbShowImGui = false;
 
-	// Debug-only main-menu island browser index into engine::gpIslandTerrain->mIslandCrcsSorted; advanced by 'E'.
+	// Debug-only main-menu island browser index into engine::gpIslandTerrain->mIslandCrcsByArea
+	// (largest footprint first); advanced by 'E'.
 	int64_t miMenuIslandIndex = 0;
 
 	engine::GridCoord mClientGridCoord {};

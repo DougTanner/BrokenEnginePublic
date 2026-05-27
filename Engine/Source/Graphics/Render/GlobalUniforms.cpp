@@ -556,6 +556,9 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 	rGlobalLayout.fDebugTextureLinearRange = gMiscDebugTextureLinearRange.Get();
 
 	rGlobalLayout.fSeaFloorElevation = gpIslandTerrain->mfSeaFloorElevation;
+	// Zero-out line Terrain.vert uses to sink each island's submerged verts to the sea floor. Single source
+	// of truth = the same constant DataPacker bakes the valid-area hull / texture masking from.
+	rGlobalLayout.fUnderwaterMaskThreshold = common::kfUnderwaterMaskThresholdMeters * kfMetersToUnits;
 	float fHigh = 0.0f;
 	for (const auto& [rCrc, rIsland] : gpIslandTerrain->mIslands)
 	{

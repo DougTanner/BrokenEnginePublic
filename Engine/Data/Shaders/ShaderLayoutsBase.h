@@ -121,7 +121,14 @@ CONSTEXPR float kfEpsilon = 1e-6f;
 CONSTEXPR int kiLightingTextures = 11;
 CONSTEXPR int kiBillboardTexturesCount = 3;
 
-CONSTEXPR int kiMaxIslands = 64;
+// Island bindless-slot ceiling: shared by C++ and the terrain shaders, it sizes the bindless
+// sampler arrays (Terrain.frag / TerrainElevation.frag), their descriptor counts (PipelineManager),
+// and the TextureManager render-target pointer vectors. Raised 64 -> 128 so island 01's 10 routes
+// (65 kIsland chunks) fit. Bumping this only grows descriptor-array capacity + pointer vectors, not
+// resident GPU textures (LRU-managed). Every kIsland template stays permanently resident (mesh +
+// heightmap) regardless of this cap or LRU; that memory scaling is tracked in
+// Documents/Plans/Graphics/IslandResidentMemoryScaling.md.
+CONSTEXPR int kiMaxIslands = 128;
 
 CONSTEXPR int kiMaxSpreadPasses = 40;
 CONSTEXPR int kiMaxDebugTextures = kiMaxSpreadPasses + 16;
@@ -412,6 +419,7 @@ struct GlobalLayout
 	float fDebugTextureFormat INIT;
 	float fDebugTextureLinearRange INIT;
 	float fSeaFloorElevation INIT;
+	float fUnderwaterMaskThreshold INIT;
 	float fDebugTerrainElevationHigh INIT;
 };
 

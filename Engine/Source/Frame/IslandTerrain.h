@@ -43,6 +43,10 @@ struct IslandTemplate
 	float mfWorldFootprintYMeters = 0.0f;
 	float mfWorldElevationMeters = 0.0f;
 
+	// Actual peak of the shipped heightmap in engine-meters above beach (vs mfWorldElevationMeters,
+	// the configured elevation range). Manifest metadata, populated in IslandTerrain ctor.
+	float mfMaxHeightMeters = 0.0f;
+
 	// Anisotropic quad footprint in engine units; derived in ctor as
 	// mfWorldFootprint{X,Y}Meters * kfMetersToUnits.
 	float mfQuadFootprintX = 0.0f;
@@ -64,6 +68,14 @@ struct IslandTemplate
 	// is resident.
 	int32_t miMeshVertexCount = 0;
 	int32_t miMeshIndexCount = 0;
+
+	// Per-island valid-area convex hull (CCW) in island-local meters, centered. Slices the kIsland
+	// chunk payload after the mesh indices (set by WaitForElevationMaps). Shared: the server packs
+	// island placements against the rotated hull (IslandChainPlacement) and the client also debug-
+	// renders it (MainUniforms DebugRenderIslandValidArea). A count < 3 (or null pointer) means no
+	// usable polygon.
+	const XMFLOAT2* mpf2ValidAreaVertices = nullptr;
+	int32_t miValidAreaVertexCount = 0;
 
 #if defined(BT_CLIENT)
 	// Phase 5 LRU eviction state. mbGpuResident means "slot points at this template's real
@@ -139,8 +151,9 @@ public:
 
 	// Reset per-template slot-assignment state so the next AcquireTextureSlot call runs the
 	// first-mint path (re-pointing bindless array slots from the new TextureManager's placeholders
-	// to real Textures, re-registering both kPipelineTerrainElevation and kPipelineShadowElevation
-	// bindings). Required after a kSurface-tier Graphics teardown destroys TextureManager — the
+	// to real Textures, re-registering the elevation array on all three of its consumers:
+	// kPipelineTerrainElevation, kPipelineShadowElevation, and kPipelineTerrain). Required after a
+	// kSurface-tier Graphics teardown destroys TextureManager — the
 	// stale miTextureSlot >= 0 would otherwise short-circuit AcquireTextureSlot's hot path and
 	// strand every island on the new placeholder forever. Called from TextureManager ctor.
 	void ResetTextureSlots();
@@ -148,6 +161,24 @@ public:
 
 	std::unordered_map<common::crc_t, IslandTemplate> mIslands;
 	std::vector<common::crc_t> mIslandCrcsSorted;
+
+	// Same CRCs as mIslandCrcsSorted, ordered by footprint area (mfWorldFootprintXMeters *
+	// mfWorldFootprintYMeters) descending, CRC ascending as a stable tiebreak. Drives only the
+	// debug main-menu island browser (Game::BuildMenuIslandPlacement) so it cycles largest-first.
+	// Kept separate from mIslandCrcsSorted, whose CRC order is load-bearing (template slot
+	// assignment + world-gen placement RNG) and must not change.
+	std::vector<common::crc_t> mIslandCrcsByArea;
+
+	// Templates bucketed into 4 size classes by footprint AREA (mfWorldFootprintX * mfWorldFootprintY
+	// meters), classified in the ctor from manifest metadata. Area, not larger dimension: the multi-island
+	// export tiles a master into 1x1 / 2x1 / 4x4 pieces, and a 2x1 strip shares its long edge with the 1x1
+	// master, so only area separates them. Same CRCs as mIslandCrcsSorted, each bucket in sorted-CRC order
+	// (deterministic, identical client + server). Drive IslandChainPlacement role selection; any bucket may
+	// be empty for a small asset set (placement falls back through related buckets to mIslandCrcsSorted).
+	std::vector<common::crc_t> mHugeCrcs;      // area >= kfHugeIslandAreaMeters   (1x1 full tiles, ~400x400)
+	std::vector<common::crc_t> mLargeCrcs;     // area >= kfLargeIslandAreaMeters  (2x1 / 3x1 strips)
+	std::vector<common::crc_t> mMediumCrcs;    // area >= kfMediumIslandAreaMeters (mid tiles)
+	std::vector<common::crc_t> mSmallCrcs;     // smaller                          (4x4 tiles, ~100x100)
 
 	float mfSeaFloorElevation = 0.0f;
 

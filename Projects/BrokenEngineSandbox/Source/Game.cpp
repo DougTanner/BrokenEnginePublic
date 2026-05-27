@@ -25,13 +25,14 @@ static constexpr float kfCameraShakeAdd = 0.25f;
 static constexpr float kfCameraShakeMax = 1.0f;
 
 // Debug-only main-menu island browser: build the origin cell as a single island centered at (0,0),
-// selected by index into the boot-fixed sorted list of all packed islands. clear()+push_back reuses
-// the vector's capacity (grown once under ScopedSuppressAllocationTracking in CreateNewFrame), so the
-// cycle path never heap-allocates in the main loop.
+// selected by index into the boot-fixed area-sorted list of all packed islands (largest footprint
+// first). clear()+push_back reuses the vector's capacity (grown once under
+// ScopedSuppressAllocationTracking in CreateNewFrame), so the cycle path never heap-allocates in the
+// main loop.
 static void BuildMenuIslandPlacement(int64_t iIndex, std::vector<engine::IslandPlacement>& rOut)
 {
 	rOut.clear();
-	common::crc_t islandCrc = engine::gpIslandTerrain->mIslandCrcsSorted.at(static_cast<size_t>(iIndex));
+	common::crc_t islandCrc = engine::gpIslandTerrain->mIslandCrcsByArea.at(static_cast<size_t>(iIndex));
 	rOut.push_back({.islandCrc = islandCrc, .f2WorldPos = {0.0f, 0.0f}, .fRotation = 0.0f});
 }
 
@@ -610,7 +611,7 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	XMVECTOR vecBaseArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	rStaticData.vecArea = ComputeFrameArea(vecBaseArea, coord);
 	rStaticData.coord = coord;
-	engine::GenerateIslandPlacements(coord, rStaticData.islands);
+	engine::IslandChainPlacement::Generate(coord, rStaticData.islands);
 	// navData stays empty; RunFrameTick builds it lazily on the per-coord dispatch thread.
 }
 
@@ -817,7 +818,7 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	rStaticData.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	rStaticData.coord = engine::kOriginCoord;
 	// Debug builds turn the main-menu cell into a single centered island browser ('E' cycles it);
-	// release builds keep the procedural 1-4 island scatter. Gameplay cells always use the scatter.
+	// release builds keep the procedural island chain. Gameplay cells always use the chain.
 	bool bMenuBrowse = false;
 	if constexpr (kbDebugInput)
 	{
@@ -829,7 +830,7 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	}
 	else
 	{
-		engine::GenerateIslandPlacements(engine::kOriginCoord, rStaticData.islands);
+		engine::IslandChainPlacement::Generate(engine::kOriginCoord, rStaticData.islands);
 	}
 	// navData stays empty; RunFrameTick builds it lazily on the per-coord dispatch thread.
 
@@ -1473,7 +1474,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 
 		if (rMenuInput.flags & MenuInputFlags::kCycleMenuIsland && InMainMenu())
 		{
-			miMenuIslandIndex = (miMenuIslandIndex + 1) % std::ssize(engine::gpIslandTerrain->mIslandCrcsSorted);
+			miMenuIslandIndex = (miMenuIslandIndex + 1) % std::ssize(engine::gpIslandTerrain->mIslandCrcsByArea);
 			auto it = mCoordFrames.find(engine::kOriginCoord);
 			BuildMenuIslandPlacement(miMenuIslandIndex, it->second.staticData.islands);
 

@@ -7,13 +7,6 @@
 // BakeIslandIntermediates downsamples Gaea's full-resolution elevation in-process to this ratio.
 inline constexpr int64_t kiElevationDivisor = 4;
 
-// Color / Normals / AO / Masks pixels whose corresponding downsampled heightmap sample sits below
-// this depth (engine-meters; beach = 0, sea floor = -10) are deemed never visible and replaced
-// with a per-format flat value before BC encoding so RDO + zlib gain large constant runs. 2.5 m
-// of water column is well past the camera's effective underwater visibility; the band [-2.5, 0]
-// is preserved so beach / shallow-water transitions stay artifact-free at the cut line.
-inline constexpr float kfUnderwaterMaskThresholdMeters = -2.5f;
-
 inline constexpr char kpcIslandIntermediatesDir[] = "Intermediates";
 
 inline constexpr char kpcIslandAmbientOcclusion[] = "AmbientOcclusion.BC4_UNORM_BLOCK";
@@ -36,7 +29,7 @@ public:
 
 	virtual ~ExportIsland() = default;
 
-	virtual int64_t GetVersion() const override { return Version(26); }
+	virtual int64_t GetVersion() const override { return Version(28); }
 
 	virtual bool CheckDirty(const std::filesystem::path& rPackFile) override;
 

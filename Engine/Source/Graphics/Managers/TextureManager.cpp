@@ -111,7 +111,7 @@ TextureManager::TextureManager()
 	});
 
 	// Slot-0 island placeholders. Format-matched to the bindless arrays; values chosen so
-	// sampling slot 0 has no visible effect (sea-level elevation hidden by water rendering,
+	// sampling slot 0 has no visible effect (ocean-bottom elevation submerged below the water,
 	// mid-gray color, up-vector normals, full-bright AO).
 	mIslandPlaceholderElevation.Create(
 	{
@@ -130,7 +130,12 @@ TextureManager::TextureManager()
 	},
 	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
 	{
-		*static_cast<float*>(pData) = 0.0f;
+		// Ocean-bottom, matching the elevation RTT clear (RenderTargetTextures.cpp) and the
+		// open-ocean CPU floor (IslandTerrain::mfSeaFloorElevation). Island slots that are not yet
+		// GPU-resident (startup, mid-load before RestorationSweep, evicted-slot grace window) alias
+		// this placeholder; ocean-bottom keeps their footprint submerged under the water instead of
+		// rendering a sea-level plane that pokes through the surface.
+		*static_cast<float*>(pData) = gpIslandTerrain->mfSeaFloorElevation;
 	});
 
 	mIslandPlaceholderColor.Create(
@@ -265,8 +270,9 @@ TextureManager::TextureManager()
 	mRenderTargetTextures.mMasksTextures.resize(shaders::kiMaxIslands);
 
 	// Device-lost recovery: clear per-template slot residency state so the next AcquireTextureSlot
-	// runs the first-mint path (re-points bindless arrays at real Textures, re-registers both
-	// kPipelineTerrainElevation and kPipelineShadowElevation bindings). Without this, every island
+	// runs the first-mint path (re-points bindless arrays at real Textures, re-registers the elevation
+	// array on all three of its consumers: kPipelineTerrainElevation, kPipelineShadowElevation, and
+	// kPipelineTerrain). Without this, every island
 	// would silently stay on the placeholder set up by the fan-out loop below — see
 	// Graphics/DynamicIslandLoadingFollowups.md Follow-up 1.
 	if (gpIslandTerrain != nullptr)

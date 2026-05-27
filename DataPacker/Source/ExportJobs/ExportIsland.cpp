@@ -16,14 +16,119 @@ struct ExportedIsland
 	std::vector<float> cpuHeightmapData;
 	std::vector<float> cpuMeshPositions;   // float2 XY pairs in island-local meters (origin at center). Z is discarded — Terrain.vert re-derives it from the elevation sampler.
 	std::vector<uint32_t> cpuMeshIndices;
+	std::vector<float> cpuValidAreaVertices;   // float2 XY pairs in island-local meters (origin at center) — CCW convex hull of pixels at or above the underwater mask threshold.
 	int32_t iHeightmapWidth = 0;
 	int32_t iHeightmapHeight = 0;
 	int32_t iMeshVertexCount = 0;
 	int32_t iMeshIndexCount = 0;
+	int32_t iValidAreaVertexCount = 0;
 	float fWorldFootprintXMeters = 0.0f;
 	float fWorldFootprintYMeters = 0.0f;
 	float fWorldElevationMeters = 0.0f;
+	float fMaxHeightMeters = 0.0f;
 };
+
+// Convex hull (Andrew's monotone chain) of the island's valid area — the pixels at or above
+// common::kfUnderwaterMaskThresholdMeters, the same cut line the texture masking uses. Per heightmap
+// row we keep only the leftmost and rightmost qualifying pixel: the hull of those row extremes equals
+// the hull of all qualifying pixels (any interior same-row pixel is a convex combination of its two
+// extremes), so candidates stay O(H) rather than O(W·H). Pixels map to island-local meters via
+// GlobalElevation's UV convention (origin at center, +Y north), matching cpuMeshPositions' frame.
+// Output (rOut.cpuValidAreaVertices) is a CCW hull as flat float XY pairs; fewer than 3 hull vertices
+// yields an empty hull.
+static void BuildValidAreaHull(ExportedIsland& rOut)
+{
+	int32_t iWidth = rOut.iHeightmapWidth;
+	int32_t iHeight = rOut.iHeightmapHeight;
+	float fFootprintX = rOut.fWorldFootprintXMeters;
+	float fFootprintY = rOut.fWorldFootprintYMeters;
+
+	auto PixelToLocal = [&](int32_t iX, int32_t iY)
+	{
+		float fLocalX = (static_cast<float>(iX) / static_cast<float>(iWidth - 1) - 0.5f) * fFootprintX;
+		float fLocalY = (0.5f - static_cast<float>(iY) / static_cast<float>(iHeight - 1)) * fFootprintY;
+		return XMFLOAT2 {fLocalX, fLocalY};
+	};
+
+	std::vector<XMFLOAT2> candidates;
+	candidates.reserve(static_cast<size_t>(iHeight) * 2);
+	for (int32_t iY = 0; iY < iHeight; ++iY)
+	{
+		int32_t iLeft = -1;
+		int32_t iRight = -1;
+		for (int32_t iX = 0; iX < iWidth; ++iX)
+		{
+			if (rOut.cpuHeightmapData[static_cast<size_t>(iY) * static_cast<size_t>(iWidth) + static_cast<size_t>(iX)] >= common::kfUnderwaterMaskThresholdMeters)
+			{
+				if (iLeft < 0)
+				{
+					iLeft = iX;
+				}
+				iRight = iX;
+			}
+		}
+		if (iLeft < 0)
+		{
+			continue;
+		}
+		candidates.push_back(PixelToLocal(iLeft, iY));
+		if (iRight != iLeft)
+		{
+			candidates.push_back(PixelToLocal(iRight, iY));
+		}
+	}
+
+	if (candidates.size() < 3)
+	{
+		return;
+	}
+
+	std::sort(candidates.begin(), candidates.end(), [](const XMFLOAT2& rA, const XMFLOAT2& rB)
+	{
+		return rA.x < rB.x || (rA.x == rB.x && rA.y < rB.y);
+	});
+
+	// Cross product of (rA-rO) x (rB-rO); <= 0 drops collinear points, yielding a CCW hull.
+	auto Cross = [](const XMFLOAT2& rO, const XMFLOAT2& rA, const XMFLOAT2& rB)
+	{
+		return (rA.x - rO.x) * (rB.y - rO.y) - (rA.y - rO.y) * (rB.x - rO.x);
+	};
+
+	int32_t iCount = static_cast<int32_t>(candidates.size());
+	std::vector<XMFLOAT2> hull(static_cast<size_t>(iCount) * 2);
+	int32_t iK = 0;
+	for (int32_t i = 0; i < iCount; ++i)
+	{
+		while (iK >= 2 && Cross(hull[static_cast<size_t>(iK) - 2], hull[static_cast<size_t>(iK) - 1], candidates[static_cast<size_t>(i)]) <= 0.0f)
+		{
+			--iK;
+		}
+		hull[static_cast<size_t>(iK++)] = candidates[static_cast<size_t>(i)];
+	}
+	for (int32_t i = iCount - 2, iLower = iK + 1; i >= 0; --i)
+	{
+		while (iK >= iLower && Cross(hull[static_cast<size_t>(iK) - 2], hull[static_cast<size_t>(iK) - 1], candidates[static_cast<size_t>(i)]) <= 0.0f)
+		{
+			--iK;
+		}
+		hull[static_cast<size_t>(iK++)] = candidates[static_cast<size_t>(i)];
+	}
+	// Last point repeats the first; drop it.
+	hull.resize(static_cast<size_t>(iK) - 1);
+
+	if (hull.size() < 3)
+	{
+		return;
+	}
+
+	rOut.iValidAreaVertexCount = static_cast<int32_t>(hull.size());
+	rOut.cpuValidAreaVertices.reserve(hull.size() * 2);
+	for (const XMFLOAT2& rVert : hull)
+	{
+		rOut.cpuValidAreaVertices.push_back(rVert.x);
+		rOut.cpuValidAreaVertices.push_back(rVert.y);
+	}
+}
 
 static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIsland& rOut)
 {
@@ -54,6 +159,14 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 	rOut.iHeightmapWidth = static_cast<int32_t>(iElevationWidth);
 	rOut.iHeightmapHeight = static_cast<int32_t>(iElevationHeight);
 
+	// Actual peak over the downsampled shipped heightmap — the exact data the runtime samples, so
+	// the value matches drawn geometry. Values are engine-meters above beach (finite, non-empty).
+	rOut.fMaxHeightMeters = *std::ranges::max_element(rOut.cpuHeightmapData);
+
+	// Convex hull of the valid (above-threshold) region — same heightmap + threshold as the texture
+	// masking. Packed into the chunk payload after the mesh (see Export()); debug render draws it.
+	BuildValidAreaHull(rOut);
+
 	// Encode each intermediate as a BC-compressed mip chain in turn (MakeMipmaps walks down to the
 	// BC 4-divisibility floor). sEncodeMutex serializes the BC encoder across textures (it uses all
 	// hardware threads internally; mutex bounds memory). A JPEG sidecar is written next to each
@@ -66,7 +179,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 		Texture texture(intermediatesDir / "AmbientOcclusion.r16", FileType::kUint16Raw, false, baked.iCropWidth, baked.iCropHeight);
 		const float pfFlatAmbientOcclusion[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-		texture.MaskByHeightmap(rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, kfUnderwaterMaskThresholdMeters, pfFlatAmbientOcclusion);
+		texture.MaskByHeightmap(rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, common::kfUnderwaterMaskThresholdMeters, pfFlatAmbientOcclusion);
 		texture.MakeMipmaps(VK_FORMAT_BC4_UNORM_BLOCK, 32, false);
 		texture.Save(rInputPath / kpcIslandAmbientOcclusion, VK_FORMAT_BC4_UNORM_BLOCK, false);
 		texture.SaveJpegSidecar(rInputPath / "AmbientOcclusion.jpg", kiJpegSidecarQuality, true);
@@ -79,7 +192,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 		// Flat alpha stays 255 so BC7 keeps its alpha-free mode and the bVerifyNoAlpha=true assert
 		// at Save still passes — RGB carries the underwater zero, alpha is invariant.
 		const float pfFlatColor[4] = {0.0f, 0.0f, 0.0f, 255.0f};
-		texture.MaskByHeightmap(rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, kfUnderwaterMaskThresholdMeters, pfFlatColor);
+		texture.MaskByHeightmap(rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, common::kfUnderwaterMaskThresholdMeters, pfFlatColor);
 		texture.MakeMipmaps(VK_FORMAT_BC7_UNORM_BLOCK, 32, false);
 		texture.Save(rInputPath / kpcIslandColor, VK_FORMAT_BC7_UNORM_BLOCK, true);
 		texture.SaveJpegSidecar(rInputPath / "Color.jpg", kiJpegSidecarQuality, false);
@@ -91,7 +204,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 		texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
 		// Flat (127.5, 127.5) → shader 2x-1 → (0, 0) → reconstructed Z=1 → flat tangent normal (0,0,1).
 		const float pfFlatNormals[4] = {127.5f, 127.5f, 0.0f, 0.0f};
-		texture.MaskByHeightmap(rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, kfUnderwaterMaskThresholdMeters, pfFlatNormals);
+		texture.MaskByHeightmap(rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, common::kfUnderwaterMaskThresholdMeters, pfFlatNormals);
 		texture.MakeMipmaps(VK_FORMAT_BC5_UNORM_BLOCK, 32, false);
 		texture.Save(rInputPath / kpcIslandNormals, VK_FORMAT_BC5_UNORM_BLOCK, false);
 		texture.SaveJpegSidecar(rInputPath / "Normals.jpg", kiJpegSidecarQuality, false);
@@ -155,7 +268,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 		// Post-Downsize dims (cropW/4 × cropH/4) match the heightmap exactly, so divisor = 1. All four
 		// mask channels go to zero underwater (no rock/sand/snow/flow override below the cut line).
 		const float pfFlatMasks[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-		texture.MaskByHeightmap(rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, 1, kfUnderwaterMaskThresholdMeters, pfFlatMasks);
+		texture.MaskByHeightmap(rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, 1, common::kfUnderwaterMaskThresholdMeters, pfFlatMasks);
 		texture.MakeMipmaps(VK_FORMAT_BC7_UNORM_BLOCK, 32, false);
 		// bVerifyNoAlpha=false: A channel carries real data (Flow mask).
 		texture.Save(rInputPath / kpcIslandMasks, VK_FORMAT_BC7_UNORM_BLOCK, false);
@@ -268,7 +381,8 @@ void ExportIsland::Export()
 	int64_t iHeightmapDataSize = static_cast<int64_t>(exported.cpuHeightmapData.size() * sizeof(float));
 	int64_t iMeshPositionBytes = static_cast<int64_t>(exported.cpuMeshPositions.size() * sizeof(float));
 	int64_t iMeshIndexBytes = static_cast<int64_t>(exported.cpuMeshIndices.size() * sizeof(uint32_t));
-	auto [pHeader, dataSpan] = AllocateHeaderAndData(iHeightmapDataSize + iMeshPositionBytes + iMeshIndexBytes);
+	int64_t iValidAreaBytes = static_cast<int64_t>(exported.cpuValidAreaVertices.size() * sizeof(float));
+	auto [pHeader, dataSpan] = AllocateHeaderAndData(iHeightmapDataSize + iMeshPositionBytes + iMeshIndexBytes + iValidAreaBytes);
 
 	std::filesystem::path ambientOcclusionFile(relativeFile);
 	ambientOcclusionFile /= kpcIslandAmbientOcclusion;
@@ -291,13 +405,16 @@ void ExportIsland::Export()
 	pHeader->islandHeader.fWorldFootprintXMeters = exported.fWorldFootprintXMeters;
 	pHeader->islandHeader.fWorldFootprintYMeters = exported.fWorldFootprintYMeters;
 	pHeader->islandHeader.fWorldElevationMeters = exported.fWorldElevationMeters;
+	pHeader->islandHeader.fMaxHeightMeters = exported.fMaxHeightMeters;
 	pHeader->islandHeader.iMeshVertexCount = exported.iMeshVertexCount;
 	pHeader->islandHeader.iMeshIndexCount = exported.iMeshIndexCount;
+	pHeader->islandHeader.iValidAreaVertexCount = exported.iValidAreaVertexCount;
 
-	// Chunk payload: [heightmap floats][mesh positions][mesh indices]. Runtime IslandTerrain slices
-	// these contiguously using IslandHeader's count fields.
+	// Chunk payload: [heightmap floats][mesh positions][mesh indices][valid-area hull verts]. Runtime
+	// IslandTerrain slices these contiguously using IslandHeader's count fields.
 	std::byte* pData = reinterpret_cast<std::byte*>(dataSpan.data());
 	std::memcpy(pData, exported.cpuHeightmapData.data(), iHeightmapDataSize);
 	std::memcpy(pData + iHeightmapDataSize, exported.cpuMeshPositions.data(), iMeshPositionBytes);
 	std::memcpy(pData + iHeightmapDataSize + iMeshPositionBytes, exported.cpuMeshIndices.data(), iMeshIndexBytes);
+	std::memcpy(pData + iHeightmapDataSize + iMeshPositionBytes + iMeshIndexBytes, exported.cpuValidAreaVertices.data(), iValidAreaBytes);
 }

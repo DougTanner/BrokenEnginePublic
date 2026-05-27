@@ -5,14 +5,14 @@
 namespace engine
 {
 
-static constexpr int64_t kiMaxDebugRender = 4096;
+static constexpr int64_t kiInitialDebugRender = 128 * 1024;
 
 struct DebugRenderType
 {
-	common::crc_t crc;
-	Pipelines ePipeline;
-	int64_t iCount;
-	shaders::DebugRenderLayout pLayouts[kiMaxDebugRender];
+	common::crc_t crc = 0;
+	Pipelines ePipeline = kPipelineCount;
+	int64_t iCount = 0;
+	std::vector<shaders::DebugRenderLayout> layouts;	// Grows on demand
 };
 
 static DebugRenderType sTypes[]
@@ -35,9 +35,22 @@ static void AddLayout(int64_t iType, const XMFLOAT4A& f4Row0, const XMFLOAT4A& f
 	if constexpr (kbDebugRender)
 	{
 		DebugRenderType& rType = sTypes[iType];
-		ASSERT(rType.iCount < kiMaxDebugRender);
 
-		shaders::DebugRenderLayout& rLayout = rType.pLayouts[rType.iCount];
+		if (rType.layouts.empty())
+		{
+			// Heap: one-time lazy pre-allocation of debug render staging (vector starts empty so nothing allocates until debug render is enabled)
+			ScopedSuppressAllocationTracking suppress;
+			rType.layouts.resize(kiInitialDebugRender);
+		}
+		else if (rType.iCount >= static_cast<int64_t>(rType.layouts.size()))
+		{
+			// Heap: rare growth when a frame submits more primitives than current capacity
+			ScopedSuppressAllocationTracking suppress;
+			LOG(kDefault, kVerbose, "DebugRender: growing staging for type {} ({} -> {})", iType, rType.layouts.size(), rType.layouts.size() * 2);
+			rType.layouts.resize(rType.layouts.size() * 2);
+		}
+
+		shaders::DebugRenderLayout& rLayout = rType.layouts[rType.iCount];
 		rLayout.f3x4Transform[0] = f4Row0;
 		rLayout.f3x4Transform[1] = f4Row1;
 		rLayout.f3x4Transform[2] = f4Row2;
@@ -130,7 +143,7 @@ void DebugRender::BeginRender(int64_t iCommandBuffer)
 			}
 
 			auto [pLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::DebugRenderLayout>(rType.crc, kBufferMain, iCommandBuffer);
-			std::memcpy(pLayouts, rType.pLayouts, rType.iCount * sizeof(shaders::DebugRenderLayout));
+			std::memcpy(pLayouts, rType.layouts.data(), rType.iCount * sizeof(shaders::DebugRenderLayout));
 		}
 	}
 }

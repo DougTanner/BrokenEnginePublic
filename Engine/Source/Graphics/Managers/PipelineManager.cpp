@@ -212,7 +212,11 @@ void PipelineManager::CreatePipelineShadows()
 	mpPipelines[kPipelineShadowElevation].Create(
 	{
 		.name = "ShadowElevation",
-		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
+		// kMax: islands' bounding rectangles may overlap (chain packs by hull); MAX-blend the per-island
+		// heightmaps so the tallest terrain wins per pixel instead of last-draw-wins. RTT clears to
+		// mfSeaFloorElevation (the shared ocean floor, the lowest any heightmap reaches), so single-island
+		// pixels are unchanged (max(floor, v) == v).
+		.flags = {kRenderTarget, kPushConstants, kMax, kUpdateAfterBind},
 		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(data::kShadersTerrainTerrainElevationfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mShadowElevationTexture.mVkRenderPass,
@@ -370,6 +374,12 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 			// Terrain.frag. Appended after the SSBO so existing frag bindings 9..18 and the
 			// Terrain.vert SSBO at 19 stay put.
 			{.flags = {kCombinedSamplers, kSamplerClamp, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mMasksTextures.data()}, // binding = TerrainPipelineBindings::kiMasks
+			// Per-island heightmap array (R32_SFLOAT), set=1 binding 21 (appended after masks at 20 so bindings
+			// 0..20 stay put). Terrain.vert samples it at the island-local UV to sink THIS island's submerged
+			// verts (own elevation < zero-out) to the flat sea floor, so an overlapping neighbor's MAX-composite
+			// height never lifts this island's underwater mesh. Same array pointer the prepasses consume, so the
+			// existing per-slot RegisterTextureBinding / eviction machinery patches this binding automatically.
+			{.flags = {kCombinedSamplers, kSamplerElevation, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mElevationTextures.data()}, // set=1 binding 21 (Terrain.vert own-heightmap sink)
 		},
 	});
 
@@ -472,7 +482,9 @@ void PipelineManager::CreateTerrainDataPipelines()
 		mpPipelines[rDesc.ePipeline].Create(
 		{
 			.name = rDesc.pcName,
-			.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
+			// kMax: see kPipelineShadowElevation — MAX-blend overlapping islands' heightmaps so the tallest
+			// terrain wins per pixel. RTT clears to mfSeaFloorElevation, so single-island pixels are unchanged.
+			.flags = {kRenderTarget, kPushConstants, kMax, kUpdateAfterBind},
 			.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(rDesc.fragmentShaderCrc)},
 			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 			.vkRenderPass = rDesc.rTargetTexture.mVkRenderPass,
@@ -804,7 +816,14 @@ void PipelineManager::VerifyAllDescriptorGenerations()
 
 			int64_t iCount = static_cast<int64_t>(rBinding.textures.size());
 			ASSERT(static_cast<int64_t>(rBinding.uiTextureGenerations.size()) == iCount);
-			for (int64_t i = 0; i < iCount; ++i)
+			// Per-island-slot bindings (iArrayIndex >= 0) own and keep current only element iArrayIndex;
+			// WriteArrayBindingDescriptors touches only that slot, leaving the rest of the snapshot frozen
+			// at registration time. Those frozen elements legitimately go stale as neighbouring slots evict
+			// (Texture::Destroy nulls mVkImage without bumping the generation), so verifying them is a false
+			// positive. Full-array bindings (iArrayIndex < 0, e.g. water normals) still verify every element.
+			int64_t iBegin = rBinding.iArrayIndex >= 0 ? rBinding.iArrayIndex : 0;
+			int64_t iEnd = rBinding.iArrayIndex >= 0 ? rBinding.iArrayIndex + 1 : iCount;
+			for (int64_t i = iBegin; i < iEnd; ++i)
 			{
 				Texture* pTexture = rBinding.textures.at(i);
 				if (pTexture == nullptr || pTexture->muiGeneration == 0)

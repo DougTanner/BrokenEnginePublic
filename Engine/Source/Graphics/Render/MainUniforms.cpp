@@ -81,6 +81,45 @@ static void DebugRenderIslandBoundaries(const std::vector<GridCoord>& rActiveCoo
 	}
 }
 
+static void DebugRenderIslandValidArea(const std::vector<GridCoord>& rActiveCoords)
+{
+	if constexpr (!kbDebugRender) return;
+
+	// Drawn at the underwater mask threshold depth (the depth that defines the hull boundary), below
+	// the magenta boundary rectangle / cyan frame edges at gBaseHeight. Debug lines are an overlay
+	// (no depth test), so the underwater Z is never occluded by terrain or water.
+	float fZ = common::kfUnderwaterMaskThresholdMeters * kfMetersToUnits;
+	constexpr XMFLOAT4A kf4ValidAreaColor = {0.0f, 1.0f, 0.0f, 1.0f};
+
+	for (const GridCoord& rCoord : rActiveCoords)
+	{
+		auto it = game::gpGame->mCoordFrames.find(rCoord);
+		if (it == game::gpGame->mCoordFrames.end()) continue;
+
+		for (const IslandPlacement& rPlacement : it->second.staticData.islands)
+		{
+			const IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(rPlacement.islandCrc);
+			if (rTemplate.mpf2ValidAreaVertices == nullptr || rTemplate.miValidAreaVertexCount < 3) continue;
+
+			float fCos = std::cos(rPlacement.fRotation);
+			float fSin = std::sin(rPlacement.fRotation);
+
+			auto rotate = [&](const XMFLOAT2& rVert)
+			{
+				return XMFLOAT3A {rPlacement.f2WorldPos.x + rVert.x * fCos - rVert.y * fSin, rPlacement.f2WorldPos.y + rVert.x * fSin + rVert.y * fCos, fZ};
+			};
+
+			int32_t iCount = rTemplate.miValidAreaVertexCount;
+			for (int32_t i = 0; i < iCount; ++i)
+			{
+				const XMFLOAT2& rA = rTemplate.mpf2ValidAreaVertices[i];
+				const XMFLOAT2& rB = rTemplate.mpf2ValidAreaVertices[(i + 1) % iCount];
+				DebugRender::Line(rotate(rA), rotate(rB), kf4ValidAreaColor);
+			}
+		}
+	}
+}
+
 static void DebugRenderNavData(const std::vector<GridCoord>& rActiveCoords)
 {
 	if constexpr (!kbDebugRender) return;
@@ -194,6 +233,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	DebugRenderNavData(rActiveCoords);
 	DebugRenderFrameEdges(rActiveCoords);
 	DebugRenderIslandBoundaries(rActiveCoords);
+	DebugRenderIslandValidArea(rActiveCoords);
 
 	DebugRender::BeginRender(iCommandBuffer);
 	DebugRender::EndRender(iCommandBuffer);

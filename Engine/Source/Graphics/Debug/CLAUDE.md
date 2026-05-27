@@ -6,7 +6,7 @@ Wireframe primitive rendering (boxes, spheres, circles, lines) for development v
 
 ## Architecture Notes
 
-- Stateless facade queues per-instance data into per-primitive-type file-scope static arrays (no heap, allocation-tracker friendly). Hard per-frame cap per type; overflow asserts.
+- Stateless facade queues per-instance data into per-primitive-type file-scope `std::vector` staging. Each vector starts empty and is lazily pre-allocated on first use (so nothing allocates until visualization is enabled), then silently doubles on overflow — no hard cap, no assert. Both grow paths wrap `ScopedSuppressAllocationTracking`.
 - Not thread-safe: statics mutated without synchronization. Submit only from the render/main thread.
 - Primitives drawn via indirect pipeline calls with pre-built unit meshes; game layer submits game-specific primitives (targeting, nav indicators), engine submits engine-level overlays from `Render/` during main-pass uniform population.
 

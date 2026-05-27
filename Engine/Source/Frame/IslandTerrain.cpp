@@ -1,7 +1,7 @@
 #include "IslandTerrain.h"
 
 #include "Frame/FrameStaticData.h"
-#include "Frame/IslandPlacement.h"
+#include "Frame/IslandChainPlacement.h"
 
 #if defined(BT_CLIENT)
 #include "Graphics/Managers/PipelineManager.h"
@@ -14,6 +14,14 @@
 
 namespace engine
 {
+
+// Footprint-AREA thresholds (engine m^2) for the IslandChainPlacement size buckets. The multi-island
+// export tiles a ~400 m master into 1x1 (400x400 Huge), 2x1/3x1 strips (Large), mid tiles (Medium), and
+// 4x4 (100x100 Small). Area separates them where the larger dimension cannot — a 2x1 strip (200x400) and
+// the 1x1 master (400x400) share the same long edge. Starting-point values; tune as the export settles.
+inline constexpr float kfHugeIslandAreaMeters = 120000.0f;   // 1x1     = 400x400 = 160k
+inline constexpr float kfLargeIslandAreaMeters = 48000.0f;   // 2x1/3x1 strips    = 53k-80k
+inline constexpr float kfMediumIslandAreaMeters = 16000.0f;  // mid tiles; 4x4 (10k) falls below -> Small
 
 IslandTerrain::IslandTerrain()
 {
@@ -35,6 +43,7 @@ IslandTerrain::IslandTerrain()
 		rTemplate.mfWorldFootprintXMeters = rLazyChunk.header.islandHeader.fWorldFootprintXMeters;
 		rTemplate.mfWorldFootprintYMeters = rLazyChunk.header.islandHeader.fWorldFootprintYMeters;
 		rTemplate.mfWorldElevationMeters = rLazyChunk.header.islandHeader.fWorldElevationMeters;
+		rTemplate.mfMaxHeightMeters = rLazyChunk.header.islandHeader.fMaxHeightMeters;
 		ASSERT(rTemplate.mfWorldFootprintXMeters > 0.0f);
 		ASSERT(rTemplate.mfWorldFootprintYMeters > 0.0f);
 		rTemplate.mfQuadFootprintX = rTemplate.mfWorldFootprintXMeters * kfMetersToUnits;
@@ -58,6 +67,47 @@ IslandTerrain::IslandTerrain()
 	for (int64_t i = 0; i < static_cast<int64_t>(mIslandCrcsSorted.size()); ++i)
 	{
 		mIslands.at(mIslandCrcsSorted[i]).miTemplateArrayIndex = i;
+	}
+
+	// Menu-browser order: largest footprint first (see header). Copy of the CRC-sorted list,
+	// re-sorted by area; CRC tiebreak keeps it stable. mIslandCrcsSorted order is untouched.
+	mIslandCrcsByArea = mIslandCrcsSorted;
+	std::sort(mIslandCrcsByArea.begin(), mIslandCrcsByArea.end(), [this](common::crc_t crcA, common::crc_t crcB)
+		{
+			const IslandTemplate& rTemplateA = mIslands.at(crcA);
+			const IslandTemplate& rTemplateB = mIslands.at(crcB);
+			float fAreaA = rTemplateA.mfWorldFootprintXMeters * rTemplateA.mfWorldFootprintYMeters;
+			float fAreaB = rTemplateB.mfWorldFootprintXMeters * rTemplateB.mfWorldFootprintYMeters;
+			if (fAreaA != fAreaB)
+			{
+				return fAreaA > fAreaB;
+			}
+			return crcA < crcB;
+		});
+
+	// Bucket templates into 4 size classes by footprint area for IslandChainPlacement role selection.
+	// Iterate the already-sorted CRC list so every bucket stays in deterministic CRC order (client + server).
+	for (common::crc_t islandCrc : mIslandCrcsSorted)
+	{
+		const IslandTemplate& rTemplate = mIslands.at(islandCrc);
+		float fAreaMeters = rTemplate.mfWorldFootprintXMeters * rTemplate.mfWorldFootprintYMeters;
+
+		if (fAreaMeters >= kfHugeIslandAreaMeters)
+		{
+			mHugeCrcs.push_back(islandCrc);
+		}
+		else if (fAreaMeters >= kfLargeIslandAreaMeters)
+		{
+			mLargeCrcs.push_back(islandCrc);
+		}
+		else if (fAreaMeters >= kfMediumIslandAreaMeters)
+		{
+			mMediumCrcs.push_back(islandCrc);
+		}
+		else
+		{
+			mSmallCrcs.push_back(islandCrc);
+		}
 	}
 
 #if defined(BT_CLIENT)
@@ -86,7 +136,7 @@ IslandTerrain::IslandTerrain()
 	}
 #endif
 
-	// Downstream (IslandPlacement, TextureManager slot-0 anchor) requires at least one island.
+	// Downstream (IslandChainPlacement, TextureManager slot-0 anchor) requires at least one island.
 	ASSERT(!mIslandCrcsSorted.empty());
 
 	// Open-ocean floor (outside any island) is a fixed depth below sea level. Heightmap pixel
@@ -116,19 +166,26 @@ void IslandTerrain::WaitForElevationMaps([[maybe_unused]] float fNavThreshold)
 		rTemplate.miHeightmapWidth = rLazyChunk.header.islandHeader.iHeightmapWidth;
 		rTemplate.miHeightmapHeight = rLazyChunk.header.islandHeader.iHeightmapHeight;
 
-#if defined(BT_CLIENT)
-		// Chunk payload layout (set by ExportIsland::Export): [heightmap floats][float2 mesh positions][uint32 mesh indices].
-		// miMeshVertexCount / miMeshIndexCount already populated in ctor from manifest header.
+		// Chunk payload layout (set by ExportIsland::Export): [heightmap floats][float2 mesh positions][uint32 mesh indices][float2 valid-area hull verts].
+		// miMeshVertexCount / miMeshIndexCount already populated in ctor from manifest header. The offset
+		// math + the valid-area hull are shared: the server packs island placements against the rotated
+		// hull (IslandChainPlacement); the client additionally uploads the mesh and debug-renders the hull.
 		int64_t iHeightmapBytes = static_cast<int64_t>(rTemplate.miHeightmapWidth) * static_cast<int64_t>(rTemplate.miHeightmapHeight) * static_cast<int64_t>(sizeof(float));
 		const std::byte* pAfterHeightmap = reinterpret_cast<const std::byte*>(rLazyChunk.pData) + iHeightmapBytes;
-		rTemplate.mpfMeshPositions = reinterpret_cast<const float*>(pAfterHeightmap);
 		int64_t iMeshPositionBytes = static_cast<int64_t>(rTemplate.miMeshVertexCount) * 2 * static_cast<int64_t>(sizeof(float));
 		int64_t iMeshIndexBytes = static_cast<int64_t>(rTemplate.miMeshIndexCount) * static_cast<int64_t>(sizeof(uint32_t));
+		rTemplate.miValidAreaVertexCount = rLazyChunk.header.islandHeader.iValidAreaVertexCount;
+		int64_t iValidAreaBytes = static_cast<int64_t>(rTemplate.miValidAreaVertexCount) * static_cast<int64_t>(sizeof(XMFLOAT2));
 		// Defensive: header.iSize is the unpadded chunk-data payload size set by
 		// ExportJob::AllocateHeaderAndData. A stale float3-mesh pack file (pre-StripMeshZ) would
 		// carry 1.5x the expected mesh-position payload, walking mpuiMeshIndices into garbage.
 		// (Uncompressed chunks only — iUncompressedSize is zlib-only and stays 0 for islands.)
-		ASSERT(rLazyChunk.header.iSize == iHeightmapBytes + iMeshPositionBytes + iMeshIndexBytes);
+		ASSERT(rLazyChunk.header.iSize == iHeightmapBytes + iMeshPositionBytes + iMeshIndexBytes + iValidAreaBytes);
+		rTemplate.mpf2ValidAreaVertices = reinterpret_cast<const XMFLOAT2*>(pAfterHeightmap + iMeshPositionBytes + iMeshIndexBytes);
+
+#if defined(BT_CLIENT)
+		// Mesh CPU pointers are client-only (feed the GPU mesh upload in CreateClientMeshBuffers).
+		rTemplate.mpfMeshPositions = reinterpret_cast<const float*>(pAfterHeightmap);
 		rTemplate.mpuiMeshIndices = reinterpret_cast<const uint32_t*>(pAfterHeightmap + iMeshPositionBytes);
 #endif
 	}
@@ -169,6 +226,10 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 		return mfSeaFloorElevation;
 	}
 
+	// MAX over every island whose footprint rectangle contains the point. Rectangles may overlap now (the
+	// chain packs by hull, not rectangle), so first-match would pick an arbitrary island; the highest terrain
+	// must win, matching the GPU elevation prepass. Commutative max → order-independent and deterministic.
+	float fMaxElevation = mfSeaFloorElevation;
 	for (const IslandPlacement& rPlacement : it->second.staticData.islands)
 	{
 		const IslandTemplate& rTemplate = mIslands.at(rPlacement.islandCrc);
@@ -199,11 +260,11 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 
 		// Heightmap value is already engine-meters (DataPacker shifted Gaea's [0,1] normalized
 		// output by the per-island beach offset `Level × elevationMeters` read from the archetype
-		// Sea node). Beach = 0; negative = water; positive = land. Return directly.
-		return rTemplate.mpfHeightmapData[iY * rTemplate.miHeightmapWidth + iX];
+		// Sea node). Beach = 0; negative = water; positive = land. Fold into the running max.
+		fMaxElevation = std::max(fMaxElevation, rTemplate.mpfHeightmapData[iY * rTemplate.miHeightmapWidth + iX]);
 	}
 
-	return mfSeaFloorElevation;
+	return fMaxElevation;
 }
 
 #if defined(BT_CLIENT)

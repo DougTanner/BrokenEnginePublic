@@ -184,8 +184,8 @@ struct Frame
 
 	static const int64_t kiVersion;
 
-	static constexpr float kfCellWidth = 600.0f;
-	static constexpr float kfCellHeight = 600.0f;
+	static constexpr float kfCellWidth = 900.0f;
+	static constexpr float kfCellHeight = 900.0f;
 
 	static constexpr float kfBaseAreaMinX = -kfCellWidth / 2.0f;
 	static constexpr float kfBaseAreaMaxY = kfCellHeight / 2.0f;

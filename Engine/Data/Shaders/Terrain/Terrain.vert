@@ -1,5 +1,7 @@
 #version 460
 
+#extension GL_EXT_nonuniform_qualifier : require
+
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 
@@ -31,6 +33,12 @@ layout (scalar, set = 1, binding = 19) buffer readonly quadsBuffer
 {
 	AxisAlignedQuadLayout pQuads[];
 };
+
+// Per-island heightmap bindless array (R32_SFLOAT), set=1 binding=21 (after the SSBO at 19 and Terrain.frag's
+// masks at 20). Sampled at the island-local UV to read THIS island's own elevation, so a vertex whose own
+// terrain is below the underwater zero-out drops to the flat sea floor instead of rising to an overlapping
+// neighbor's composite (MAX) height. nonuniformEXT: the slot index is per-instance, dynamically uniform.
+layout (set = 1, binding = 21) uniform sampler2D ownHeightmapSamplers[kiMaxIslands];
 
 // Input: per-vertex island-local meters XY (origin at island center). DataPacker re-centered
 // XY during BakeIslandIntermediates and stripped Z at the ExportIsland write boundary — Z is
@@ -95,12 +103,23 @@ void main()
 		(fWorldY - globalLayout.f4VisibleArea.y) / (globalLayout.f4VisibleArea.w - globalLayout.f4VisibleArea.y)
 	);
 
-	// Vertex Z always comes from the composite elevation G-buffer (same per-island heightmap that
-	// Shadow.comp and Water.frag read). The Gaea mesh's role is purely tessellation: XY layout and
+	// Vertex Z starts from the composite elevation G-buffer (same per-island heightmap that Shadow.comp
+	// and Water.frag read), then is sunk to the sea floor below the zero-out line (see below). The Gaea
+	// mesh's role is purely tessellation: XY layout and
 	// triangulation density. Sampling Z from the same source as the water blend guarantees
 	// pixel-perfect alignment at the shoreline. textureLod required in vertex shaders (no implicit
 	// derivatives).
 	float fVertexZ = textureLod(elevationTextureSampler, f2OutTexcoord, 0.0f).x;
+
+	// Sink this island's own submerged verts to the flat sea floor. fVertexZ above is the MAX composite across
+	// overlapping islands, so without this an island's underwater mesh would be lifted to a taller neighbor's
+	// land height and draw its baked-black ocean terrain there. The own heightmap stores raw meters relative
+	// to beach (no undersea curve), so compare the raw sample to the raw zero-out threshold.
+	float fOwnElevation = textureLod(ownHeightmapSamplers[nonuniformEXT(uiOutTextureSlot)], f2OutIslandTexcoord, 0.0f).x;
+	if (fOwnElevation < globalLayout.fUnderwaterMaskThreshold)
+	{
+		fVertexZ = globalLayout.fSeaFloorElevation;
+	}
 
 	gl_Position = Transform(vec4(fWorldX, fWorldY, fVertexZ, 1.0f), mainLayout.f4x4ViewProjection);
 }

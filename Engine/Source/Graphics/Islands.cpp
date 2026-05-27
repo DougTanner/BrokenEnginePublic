@@ -3,7 +3,7 @@
 #if defined(BT_CLIENT)
 
 #include "Frame/FrameStaticData.h"
-#include "Frame/IslandPlacement.h"
+#include "Frame/IslandChainPlacement.h"
 
 namespace engine
 {
@@ -20,7 +20,9 @@ Islands::Islands()
 
 	miTemplateCount = static_cast<int64_t>(gpIslandTerrain->mIslandCrcsSorted.size());
 	ASSERT(miTemplateCount > 0);
-	ASSERT(miTemplateCount <= shaders::kiMaxIslands);
+	// Slot 0 is the reserved neutral placeholder (miNextTextureSlot starts at 1), so the usable budget
+	// is kiMaxIslands - 1 real templates.
+	ASSERT(miTemplateCount < shaders::kiMaxIslands);
 
 	// SSBO + indirect buffers are triple-buffered: one instance per framebuffer index (kiMaxFramebuffers),
 	// all created once here and indexed by gpSwapchainManager->miFramebufferIndex thereafter. This keeps the

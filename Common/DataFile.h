@@ -16,6 +16,11 @@ inline constexpr int64_t kiAlignmentBytes = 16;
 // floor matches this constant so divergence is caught at bake time.
 inline constexpr float kfSeaBottomMeters = -10.0f;
 
+// Heightmap depth (engine-meters) below which island textures are zeroed out at bake time and
+// above which a pixel counts toward the island's valid-area convex polygon. Beach = 0, deeper =
+// negative. Shared by DataPacker (texture masking + valid-area hull) and the engine debug render.
+inline constexpr float kfUnderwaterMaskThresholdMeters = -2.5f;
+
 inline void AlignOutputStream(std::fstream& rFileStream)
 {
 	static constexpr char kpcPadding[kiAlignmentBytes] {};
@@ -235,10 +240,17 @@ struct IslandHeader
 	float fWorldFootprintXMeters = 0.0f;
 	float fWorldFootprintYMeters = 0.0f;
 	float fWorldElevationMeters = 0.0f;
-	// Mesh payload follows heightmap floats in the chunk data: [float2 positions[iMeshVertexCount]][uint32 indices[iMeshIndexCount]].
-	// Z is omitted — Terrain.vert re-derives world Z from the composite elevation sampler.
+	// Actual peak of the downsampled shipped heightmap (engine-meters above beach). Differs from
+	// fWorldElevationMeters, which is the configured elevation *range* from Island.json.
+	float fMaxHeightMeters = 0.0f;
+	// Chunk data payload follows the heightmap floats:
+	// [float2 positions[iMeshVertexCount]][uint32 indices[iMeshIndexCount]][float2 valid-area hull verts[iValidAreaVertexCount]].
+	// Mesh Z is omitted — Terrain.vert re-derives world Z from the composite elevation sampler. The
+	// valid-area hull is the CCW convex hull (island-local meters, centered) of pixels at or above
+	// kfUnderwaterMaskThresholdMeters; consumed client-only by debug render.
 	int32_t iMeshVertexCount = 0;
 	int32_t iMeshIndexCount = 0;
+	int32_t iValidAreaVertexCount = 0;
 };
 
 struct ModelHeader

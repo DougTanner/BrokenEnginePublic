@@ -16,10 +16,15 @@ class Texture;
 struct CoordFrames;
 struct GridCoord;
 
-// Per-template SSBO range size. Worst-case per-template placement count = 9 active cells × up to 4
-// placements per cell = 36, all hitting the same template — round to 64 for headroom. Total SSBO
-// memory = N_templates × 64 × sizeof(AxisAlignedQuadLayout); negligible.
-inline constexpr int64_t kiMaxPlacementsPerTemplate = 64;
+// Per-template SSBO range size. IslandChainPlacement draws each per-cell role (Huge anchor / Large+Medium
+// chain / Small surround) from a different size bucket, so the same template repeating across the whole
+// active ring is unlikely; but with only a handful of distinct small assets a single small template can
+// recur heavily. The surround rings every big island (~6) with perimeter-many smalls, so a cell can place
+// ~100 islands; if they all landed on one scarce small template that is ~100 x the 9-cell ring ~= 900
+// before overlap rejection trims it. 1024 covers that worst case, and Islands.cpp's overflow guard skips
+// (with an assert) any excess rather than corrupting neighbouring template ranges. Total SSBO memory =
+// N_templates × 1024 × sizeof(AxisAlignedQuadLayout); negligible.
+inline constexpr int64_t kiMaxPlacementsPerTemplate = 1024;
 
 // Max swapchain framebuffer count. The SSBO and indirect buffers are triple-buffered (one instance per
 // framebuffer index): UpdateActiveIslands (in ClientUpdate) writes only the instance for the framebuffer

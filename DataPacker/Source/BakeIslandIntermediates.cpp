@@ -66,7 +66,7 @@ constexpr const char* kpcIntermediateFiles[] =
 // split (incl. kRouteSubdivisions columns/rows) changes. AreLeavesDirty re-splits from the existing
 // raw on mismatch — no Gaea re-export.
 constexpr int32_t kiBakeVersion = 27;
-constexpr int32_t kiSplitVersion = 1;
+constexpr int32_t kiSplitVersion = 2;
 
 // Fallback assumption for the Gaea Sea node's normalized `Level` field. Gaea omits the key
 // from .terrain JSON when it equals the editor default (~0.0995); we treat the missing case as
@@ -105,15 +105,17 @@ constexpr const char* kpcPatchedArchetypeFile = "PatchedArchetype.terrain";
 // Crop dimensions must satisfy BC block alignment (4) AND Vulkan transfer-queue granularity
 // (block-relative for compressed formats; 16 blocks). The elevation path (downsampled by
 // kiElevationDivisor) needs kiElevationDivisor × 16. max(...) picks the tighter; both are 4 today
-// so this is 64. iTexturePixels (and, for split routes, iTexturePixels / columns) must be a
-// multiple of this so the worst-case bbox-near-edge expansion can't overflow the region.
+// so this is 64. iTexturePixels must be a multiple of this; the auto-crop expands each chunk's bbox
+// to a multiple of it, borrowing neighbour pixels across a split seam when the region edge isn't
+// aligned, so per-chunk split spans need not themselves be aligned.
 constexpr int64_t kiBcBlockSize = 4;
 constexpr int64_t kiTransferGranularityBlocks = 16;
 constexpr int64_t kiCropAlignment = (kiBcBlockSize > kiElevationDivisor ? kiBcBlockSize : kiElevationDivisor) * kiTransferGranularityBlocks;
 
 // Route → subdivision table (single source of truth). `pcLabel` is BOTH the Island.json "routes"
 // value AND the per-route sub-folder name. `iGaeaChoice` is patched into the archetype's single
-// Gaea Route node ("Choice"): 0 = 1x1 (single landmass), 1 = 2x1 (dual band), 2 = 2x2 (quad grid).
+// Gaea Route node ("Choice") = the 0-based input-port index: 0 = In (1x1, single landmass),
+// 1 = Input2 (2x1 dual band), 2 = Input3 (2x2 quad grid), 3 = Input4 (3x1) ... 9 = Input10 (4x4).
 // `iColumns`/`iRows` split the full square bake into that many chunks along X (east-west) /
 // Y (north-south); each chunk becomes an independent kIsland in the pack.
 //
@@ -121,9 +123,13 @@ constexpr int64_t kiCropAlignment = (kiBcBlockSize > kiElevationDivisor ? kiBcBl
 // two landmasses along Y (Route Input2 feeds two copies of the cone-edge offset by ±OffsetY), so it
 // splits along Y only (iRows = 2). The "2x2" quad grid offsets four copies by ±OffsetX AND ±OffsetY
 // into the four quadrant centers, so it splits along both axes (iColumns = iRows = 2) to cut BETWEEN
-// the landmasses rather than through them. The label names the route, not the pixel axis. Editing
-// iColumns/iRows is a post-Gaea split change: bump kiSplitVersion (NOT kiBakeVersion) so existing
-// Gaea bakes are reused and only the split re-runs.
+// the landmasses rather than through them. The label "RxC" reads ROWS-by-COLUMNS (R landmasses along
+// Y, C along X); the label names the route, not the pixel axis. Splits need NOT divide texturePixels
+// evenly: ProcessBakedRegion searches each natural (possibly uneven) region for its landmass, then
+// the per-axis crop borrows neighbour pixels at a non-64-aligned region edge to reach the crop
+// alignment, so a 3-way split of a power-of-two bake works. Editing iColumns/iRows is a post-Gaea
+// split change: bump kiSplitVersion (NOT kiBakeVersion) so existing Gaea bakes are reused and only
+// the split re-runs.
 struct RouteSubdivision
 {
 	const char* pcLabel;
@@ -137,6 +143,13 @@ constexpr RouteSubdivision kRouteSubdivisions[] =
 	{"1x1", 0, 1, 1},
 	{"2x1", 1, 1, 2},
 	{"2x2", 2, 2, 2},
+	{"3x1", 3, 1, 3},
+	{"3x2", 4, 2, 3},
+	{"3x3", 5, 3, 3},
+	{"3x4", 6, 4, 3},
+	{"4x1", 7, 1, 4},
+	{"4x2", 8, 2, 4},
+	{"4x4", 9, 4, 4},
 };
 
 const RouteSubdivision& LookupRouteSubdivision(const std::string& rLabel, const std::filesystem::path& rIslandJsonFile)
@@ -509,11 +522,14 @@ void ProcessBakedRegion(const std::vector<float>& rFullElevationMeters, const st
 		throw std::runtime_error(std::format("Island chunk \"{}\" region [{}..{}, {}..{}] has no pixels above the sea-floor cut line ({:.2f} m): the Route subdivision produced no terrain in this chunk. Check the archetype's Route shape or raise Island.json's elevationMeters.", rLeafDir.string(), iRegionStartX, iRegionEndX - 1, iRegionStartY, iRegionEndY - 1, fCropCutLineMeters));
 	}
 
-	// Expand bbox symmetrically to a multiple of kiCropAlignment per axis, clamped to the region.
-	// When clamping at a region edge consumes one side's padding, push the remainder onto the
-	// opposite side so the final dimension still meets the alignment. The region span is itself a
-	// multiple of kiCropAlignment (iTexturePixels is, and columns/rows divide it evenly), so the
-	// worst case fits without overflowing the region.
+	// Expand bbox symmetrically to a multiple of kiCropAlignment per axis, clamped to the FULL bake
+	// [0, iTexturePixels) -- NOT the region. When a region edge isn't 64-aligned (e.g. a 3-way split
+	// of a power-of-two bake), the alignment padding borrows neighbour pixels across the seam to reach
+	// the crop alignment; the borrowed strip is the inter-landmass gap (the bbox search already
+	// confined this chunk's landmass to its own region). When clamping at the bake edge consumes one
+	// side's padding, push the remainder onto the opposite side. iTexturePixels is itself a multiple of
+	// kiCropAlignment, so the worst case (a 1x1 island spanning the whole bake) needs no padding and
+	// never overflows.
 	auto ExpandSpan = [](int64_t iLo, int64_t iHi, int64_t iClampLo, int64_t iClampHi, int64_t& riStart, int64_t& riSize)
 	{
 		int64_t iSpan = iHi - iLo + 1;
@@ -541,8 +557,8 @@ void ProcessBakedRegion(const std::vector<float>& rFullElevationMeters, const st
 	int64_t iCropY = 0;
 	int64_t iCropWidth = 0;
 	int64_t iCropHeight = 0;
-	ExpandSpan(iMinX, iMaxX, iRegionStartX, iRegionEndX - 1, iCropX, iCropWidth);
-	ExpandSpan(iMinY, iMaxY, iRegionStartY, iRegionEndY - 1, iCropY, iCropHeight);
+	ExpandSpan(iMinX, iMaxX, 0, iTexturePixels - 1, iCropX, iCropWidth);
+	ExpandSpan(iMinY, iMaxY, 0, iTexturePixels - 1, iCropY, iCropHeight);
 	LOG(kDefault, kDebug, "Cropping island chunk \"{}\": bbox ({}..{},{}..{}) -> ({}+{},{}+{}) [aligned to {}]", rLeafDir.string(), iMinX, iMaxX, iMinY, iMaxY, iCropX, iCropWidth, iCropY, iCropHeight, kiCropAlignment);
 
 	// Crop elevation to iCropWidth × iCropHeight, then box-filter downsample by kiElevationDivisor
@@ -964,7 +980,8 @@ void BakeRoute(const std::filesystem::path& rGaeaExecutable, const std::filesyst
 	}
 
 	// Split into chunks (1 for 1x1, iColumns × iRows otherwise) and write each leaf. The X / Y
-	// region boundaries divide the full texture evenly; ProcessBakedRegion auto-crops within each.
+	// region boundaries partition the full texture (uneven when columns/rows don't divide it evenly);
+	// ProcessBakedRegion auto-crops within each, borrowing neighbour pixels across a seam for alignment.
 	// textureSourceDir is leaf-relative ("../Intermediates") so ExportIsland reads the shared
 	// full-res Color / Normals / mask sources from this route's Intermediates dir.
 	std::string textureSourceDirRelative = std::format("../{}", kpcIslandIntermediatesDir);
@@ -1061,15 +1078,15 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 			throw std::runtime_error(std::format("\"{}\" \"routes\" entries must be label strings (e.g. \"1x1\").", islandJsonFile.string()));
 		}
 		const RouteSubdivision& rRoute = LookupRouteSubdivision(rRouteJson.get<std::string>(), islandJsonFile);
-		// Each split axis must divide texturePixels into chunks whose per-chunk pixel span is itself a
-		// multiple of kiCropAlignment, so ProcessBakedRegion's per-region ExpandSpan never overflows
-		// the region and every BC crop stays block-aligned. `texturePixels % (divisions * alignment) == 0`
-		// is exactly "texturePixels / divisions is an integer multiple of alignment". (1x1 passes since
-		// texturePixels is already a multiple of alignment.)
-		if ((iTexturePixels % (rRoute.iColumns * kiCropAlignment)) != 0
-			|| (iTexturePixels % (rRoute.iRows * kiCropAlignment)) != 0)
+		// Splits need not divide texturePixels evenly: ProcessBakedRegion searches each natural
+		// (possibly uneven) region for its landmass, then the per-axis crop borrows neighbour pixels at
+		// a non-64-aligned region edge to reach kiCropAlignment. The only requirement is that every
+		// natural per-chunk span stays >= kiCropAlignment, so each region is large enough to hold an
+		// aligned crop (texturePixels is already a multiple of kiCropAlignment, so 1x1 always passes).
+		if ((iTexturePixels / rRoute.iColumns) < kiCropAlignment
+			|| (iTexturePixels / rRoute.iRows) < kiCropAlignment)
 		{
-			throw std::runtime_error(std::format("\"{}\" route \"{}\" splits texturePixels {} into {}x{} chunks, but a per-chunk pixel span would not be a multiple of the {}-pixel crop alignment. Raise texturePixels or choose a subdivision that divides it into {}-aligned chunks.", islandJsonFile.string(), rRoute.pcLabel, iTexturePixels, rRoute.iColumns, rRoute.iRows, kiCropAlignment, kiCropAlignment));
+			throw std::runtime_error(std::format("\"{}\" route \"{}\" splits texturePixels {} into {}x{} chunks, but a per-chunk pixel span ({}x{}) would be smaller than the {}-pixel crop alignment. Lower the subdivision or raise texturePixels.", islandJsonFile.string(), rRoute.pcLabel, iTexturePixels, rRoute.iColumns, rRoute.iRows, iTexturePixels / rRoute.iColumns, iTexturePixels / rRoute.iRows, kiCropAlignment));
 		}
 		routes.push_back(&rRoute);
 	}

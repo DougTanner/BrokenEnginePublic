@@ -369,7 +369,7 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameStaticData.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\IslandPlacement.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\IslandChainPlacement.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\IslandTerrain.h">
@@ -611,7 +611,7 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameStaticData.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\IslandPlacement.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\IslandChainPlacement.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\IslandTerrain.cpp">

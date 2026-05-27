@@ -1,0 +1,8 @@
+{
+	"archetype": "Island",
+	"seed": 43,
+	"widthMeters": 400.0,
+	"elevationMeters": 100.0,
+	"texturePixels": 8192,
+	"routes": ["1x1"]
+}

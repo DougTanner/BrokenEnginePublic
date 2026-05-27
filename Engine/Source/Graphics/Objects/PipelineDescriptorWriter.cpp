@@ -36,20 +36,20 @@ bool BindingIsInSet0(const Pipeline& rPipeline, const PipelineInfo& rPipelineInf
 	return false;
 }
 
-// kPipelineTerrain's image-info footprint: 4 bindless arrays × shaders::kiMaxIslands (= 64) per array
-// = 256, plus ~13 single-texture material samplers (rock, sand normals 0/1/2, sand, rock normals 0/1/2,
-// ambient combine, smoke, etc.) = ~269 entries. 384 leaves headroom for a fifth bindless array or more
-// per-material samplers before another bump is needed. Stack-allocated per Write() call (~9 KB).
-constexpr int64_t kiMaxImageInfos = 384;
+// WriteModelDescriptor pushes this many single-texture image-infos (sampler, irradiance, prefiltered,
+// lutbrdf); its bindless array reads gpTextureManager->mTextureDescriptors.mImageInfos.data() directly
+// and does not touch the per-Write() image-info buffer. Used as the per-descriptor floor when sizing
+// that buffer in Write() (see the iMaxImageInfos pre-scan).
+constexpr int64_t kiModelDescriptorImageInfos = 4;
 
-void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo, const DescriptorInfo& rDescriptorInfo, int64_t iFramebuffer, VkWriteDescriptorSet& rVkWriteDescriptorSet, VkWriteDescriptorSet* pVkWriteDescriptorSets, int64_t& riDescriptorCount, VkDescriptorImageInfo* pVkDescriptorImageInfos, int64_t& riImageInfoCount, VkDescriptorBufferInfo* pVkDescriptorBufferInfos, int64_t& riBufferInfoCount)
+void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo, const DescriptorInfo& rDescriptorInfo, int64_t iFramebuffer, VkWriteDescriptorSet& rVkWriteDescriptorSet, VkWriteDescriptorSet* pVkWriteDescriptorSets, int64_t& riDescriptorCount, VkDescriptorImageInfo* pVkDescriptorImageInfos, int64_t& riImageInfoCount, int64_t iMaxImageInfos, VkDescriptorBufferInfo* pVkDescriptorBufferInfos, int64_t& riBufferInfoCount)
 {
 	const EagerChunk& rChunk = gpFileManager->GetEagerChunkMap().at(rDescriptorInfo.crc);
 
 	// Sampler for bindless texture array
 	{
 		VkDescriptorImageInfo& rVkDescriptorImageInfo = pVkDescriptorImageInfos[riImageInfoCount++];
-		ASSERT(riImageInfoCount < kiMaxImageInfos);
+		ASSERT(riImageInfoCount <= iMaxImageInfos);
 		rVkDescriptorImageInfo.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
 		rVkDescriptorImageInfo.imageView = nullptr;
 		rVkDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -84,7 +84,7 @@ void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo
 	// Irradiance
 	Texture& rIrradianceTexture = gpTextureManager->mTextureMap.at(TextureManager::kIrradianceCrc);
 	VkDescriptorImageInfo& rVkDescriptorImageInfoIrradiance = pVkDescriptorImageInfos[riImageInfoCount++];
-	ASSERT(riImageInfoCount < kiMaxImageInfos);
+	ASSERT(riImageInfoCount <= iMaxImageInfos);
 	rVkDescriptorImageInfoIrradiance.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
 	rVkDescriptorImageInfoIrradiance.imageView = rIrradianceTexture.mVkImageView;
 	rVkDescriptorImageInfoIrradiance.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -106,7 +106,7 @@ void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo
 	// PreFiltered
 	Texture& rPreFilteredTexture = gpTextureManager->mTextureMap.at(TextureManager::kPrefilteredCrc);
 	VkDescriptorImageInfo& rVkDescriptorImageInfoPreFiltered = pVkDescriptorImageInfos[riImageInfoCount++];
-	ASSERT(riImageInfoCount < kiMaxImageInfos);
+	ASSERT(riImageInfoCount <= iMaxImageInfos);
 	rVkDescriptorImageInfoPreFiltered.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
 	rVkDescriptorImageInfoPreFiltered.imageView = rPreFilteredTexture.mVkImageView;
 	rVkDescriptorImageInfoPreFiltered.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -127,7 +127,7 @@ void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo
 
 	// LutBrdf
 	VkDescriptorImageInfo& rVkDescriptorImageInfoLutBrdf = pVkDescriptorImageInfos[riImageInfoCount++];
-	ASSERT(riImageInfoCount < kiMaxImageInfos);
+	ASSERT(riImageInfoCount <= iMaxImageInfos);
 	rVkDescriptorImageInfoLutBrdf.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
 	rVkDescriptorImageInfoLutBrdf.imageView = gpTextureManager->mTextureCache.mPbrLutBrdfTexture.mVkImageView;
 	rVkDescriptorImageInfoLutBrdf.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -283,6 +283,21 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline, const PipelineInfo& rP
 		rPipeline.mVkDescriptorSetsSet2.resize(iPerCommandBuffer);
 	}
 
+	// Upper bound on the image-infos this pipeline's descriptors push into the per-Write() buffer below.
+	// Safe over-estimate that reads only iCount: each Write branch pushes at most max(iCount, 4) per
+	// descriptor (model = 4, combined/storage = iCount, standalone sampler = 1, buffer/texture = 0).
+	// Scales with shaders::kiMaxIslands (4 bindless terrain arrays) without a hand-tuned constant.
+	int64_t iMaxImageInfos = 0;
+	for (int64_t i = 0; i < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings; ++i)
+	{
+		const DescriptorInfo& rDescriptorInfo = rPipelineInfo.pDescriptorInfos[i];
+		if (rDescriptorInfo.flags & kEmpty)
+		{
+			break;
+		}
+		iMaxImageInfos += std::max(rDescriptorInfo.iCount, kiModelDescriptorImageInfos);
+	}
+
 	for (int64_t iFramebuffer = 0; iFramebuffer < iPerCommandBuffer; ++iFramebuffer)
 	{
 		VkDescriptorPool vkDescriptorPool = gpDeviceManager->mVkDescriptorPool;
@@ -324,7 +339,13 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline, const PipelineInfo& rP
 		int64_t iDescriptorCount = 0;
 		VkWriteDescriptorSet pVkWriteDescriptorSets[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
 		int64_t iImageInfoCount = 0;
-		VkDescriptorImageInfo pVkDescriptorImageInfos[kiMaxImageInfos] {};
+		// Sized to the pipeline's actual need from the per-thread workbuffer (Write() runs only at
+		// startup / device-loss / settings recreate). The 10 MB main-thread workbuffer never grows for
+		// this; the pointer stays stable across nested workbuffer use in WriteModelDescriptor (Grow()
+		// DEBUG_BREAKs + reallocates, so a stable pointer is the documented contract). Only the entries
+		// Vulkan reads (bounded by descriptorCount) are referenced and all are fully written, so the
+		// buffer needs no zero-init. Mirrors TextureDescriptors::WriteFullArrayDescriptors.
+		auto pVkDescriptorImageInfos = common::gpThreadLocal->mWorkbuffer.PushBuffer<VkDescriptorImageInfo*>(iMaxImageInfos * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
 		int64_t iBufferInfoCount = 0;
 		VkDescriptorBufferInfo pVkDescriptorBufferInfos[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
 		for (int64_t i = 0; i < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings; ++i)
@@ -364,7 +385,7 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline, const PipelineInfo& rP
 			bool bSampler = rDescriptorInfo.flags & kSamplerClamp || rDescriptorInfo.flags & kSamplerElevation || rDescriptorInfo.flags & kSamplerBorder || rDescriptorInfo.flags & kSamplerRepeat || rDescriptorInfo.flags & kSamplerMirroredRepeat || rDescriptorInfo.flags & kSamplerSmoke || rDescriptorInfo.flags & kSamplerWindClamp;
 			if (rDescriptorInfo.flags & kModel)
 			{
-				WriteModelDescriptor(rPipeline, rPipelineInfo, rDescriptorInfo, iFramebuffer, vkWriteDescriptorSet, pVkWriteDescriptorSets, iDescriptorCount, pVkDescriptorImageInfos, iImageInfoCount, pVkDescriptorBufferInfos, iBufferInfoCount);
+				WriteModelDescriptor(rPipeline, rPipelineInfo, rDescriptorInfo, iFramebuffer, vkWriteDescriptorSet, pVkWriteDescriptorSets, iDescriptorCount, pVkDescriptorImageInfos, iImageInfoCount, iMaxImageInfos, pVkDescriptorBufferInfos, iBufferInfoCount);
 			}
 			else if (rDescriptorInfo.flags & kUniformBuffer || rDescriptorInfo.flags & kStorageBuffer || rDescriptorInfo.flags & kPerCommandBufferUniformBuffers || rDescriptorInfo.flags & kPerCommandBufferStorageBuffers)
 			{
@@ -393,7 +414,7 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline, const PipelineInfo& rP
 			else if (bSampler && !(rDescriptorInfo.flags & kCombinedSamplers))
 			{
 				VkDescriptorImageInfo& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
-				ASSERT(iImageInfoCount < kiMaxImageInfos);
+				ASSERT(iImageInfoCount <= iMaxImageInfos);
 				rVkDescriptorImageInfo.sampler = gpTextureManager->GetSampler(rDescriptorInfo.flags);
 				rVkDescriptorImageInfo.imageView = nullptr;
 				rVkDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -422,7 +443,7 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline, const PipelineInfo& rP
 				for (int64_t k = 0; k < rDescriptorInfo.iCount; ++k)
 				{
 					VkDescriptorImageInfo& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
-					ASSERT(iImageInfoCount < kiMaxImageInfos);
+					ASSERT(iImageInfoCount <= iMaxImageInfos);
 					rVkDescriptorImageInfo.sampler = rDescriptorInfo.flags & kCombinedSamplers ? gpTextureManager->GetSampler(rDescriptorInfo.flags) : nullptr;
 
 					if (rDescriptorInfo.textureCrc != 0)

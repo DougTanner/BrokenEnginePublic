@@ -21,7 +21,7 @@ namespace game
 constexpr float kfEyeHeightPerWheelTick = 0.1f;
 constexpr float kfEyeBlendDuration = 0.35f;
 constexpr float kfEyeHeightMin = 150.0f;
-constexpr float kfEyeHeightMax = 600.0f;
+constexpr float kfEyeHeightMax = 2000.0f; // DT: TEMP 600.0f;
 
 constexpr float kfCameraPositionBlend = 8.0f;
 constexpr float kfJumpDistanceThreshold = 50.0f;

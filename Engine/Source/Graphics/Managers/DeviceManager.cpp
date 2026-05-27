@@ -290,10 +290,14 @@ DeviceManager::DeviceManager()
 	VkDescriptorPoolSize pVkDescriptorPoolSizes[]
 	{
 		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 256},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 4096},
+		// Dominated by the per-island bindless arrays, each kiMaxIslands wide and allocated per-framebuffer:
+		// color/normals/AO/masks/elevation = 5 * 128 * up-to-kiMaxFramebuffers (4) = 2560, plus every other
+		// pipeline's samplers. Raised 4096 -> 8192 when the elevation array became a third kPipelineTerrain
+		// consumer (Terrain.vert submerged-vert sink) and tipped the old budget over.
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 8192},
 		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 1024},
 		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 8},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 2 * 1024},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 4 * 1024},
 		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .descriptorCount = 1024},
 	};
 	VkDescriptorPoolCreateInfo vkDescriptorPoolCreateInfo
