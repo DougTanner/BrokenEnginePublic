@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Frame/FrameStaticData.h"
-#include "GameSaveLoad.h"
 
 #if defined(BT_CLIENT)
 #include "Graphics/Camera.h"
@@ -144,8 +143,6 @@ inline constexpr int64_t kiRenderBehindTicks = 1;
 
 class GameBase
 {
-	friend class GameSaveLoad;
-
 public:
 
 	GameBase();
@@ -212,10 +209,6 @@ public:
 	// while the camera advances by a fixed 1/refreshRate, producing visible relative stutter at high zoom.
 	double mfLastRenderFrameSeconds = 0.0;
 #endif // BT_CLIENT
-#if defined(BT_SERVER)
-	GameSaveLoad mGameSaveLoad;
-#endif // BT_SERVER
-
 	std::unordered_map<GridCoord, CoordFrames> mCoordFrames;
 
 protected:

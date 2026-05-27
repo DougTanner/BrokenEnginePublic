@@ -40,11 +40,7 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 
 ## Save / Load / Replay (server-only)
 
-- `GameSaveLoad.cpp` fully wrapped in `#if defined(BT_SERVER)`; header safe from shared code.
-- All public APIs wrap bodies in `ScopedSuppressAllocationTracking` — fstreams and SOA (de)serialization must allocate.
-- Quicksave/quickload gated on `kbDebugInput`. Autosave fires on a fixed wall-clock interval before quicksave each tick and is skipped during replay or recording; the prior autosave file is timestamped via backup mode before being overwritten.
-- Grid writes sort by `ToKey()` for deterministic output; reads validate `game::Frame::kiVersion`. End-of-replay auto-loops by re-raising the load flag.
-- Fleet persistence is delegated to `ServerSession` — do not serialize fleet state here.
+Save/load/replay lives in the game layer (`game::GameSaveLoad`, owned by `game::Game` — see [Save/](../../Projects/BrokenEngineSandbox/Source/Save/) and the game [Source/CLAUDE.md](../../Projects/BrokenEngineSandbox/Source/CLAUDE.md)). The engine main loop only invokes it through the game object during the server tick. The subsystem is `BT_SERVER`-only, wraps its public bodies in `ScopedSuppressAllocationTracking`, sorts grid writes by `ToKey()` for deterministic output, validates `game::Frame::kiVersion` on read, and delegates fleet persistence to `ServerSession`.
 
 ## Crash Reporting
 
@@ -67,5 +63,4 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 - [Memory/CLAUDE.md](Memory/CLAUDE.md) - Global allocator, allocation tracking
 - [Network/CLAUDE.md](Network/CLAUDE.md) - ENet UDP networking, discovery
 - [Profile/CLAUDE.md](Profile/CLAUDE.md) - CPU/GPU performance profiling
-- [Server/CLAUDE.md](Server/CLAUDE.md) - GDI monitoring window (server-only)
 - [Ui/CLAUDE.md](Ui/CLAUDE.md) - Runtime-adjustable settings

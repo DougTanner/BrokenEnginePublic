@@ -1,6 +1,7 @@
 #include "BakeIslandIntermediates.h"
 
 #include "FileManager.h"
+#include "GaeaArchetype.h"
 #include "SubdivideBeachBand.h"
 #include "ExportJobs/ExportIsland.h"
 
@@ -20,9 +21,6 @@
 
 namespace
 {
-
-constexpr const wchar_t* kpwcGaeaDefaultPath = L"C:\\Program Files\\QuadSpinner\\Gaea 2\\Gaea.Swarm.exe";
-constexpr const char* kpcGaeaEnvVar = "GAEA2_PATH";
 
 // One Intermediates folder per route (folder name kpcIslandIntermediatesDir, see ExportIsland.h).
 // One Gaea bake per route produces all six files below at texturePixels resolution; the raw
@@ -65,16 +63,8 @@ constexpr const char* kpcIntermediateFiles[] =
 // kiSplitVersion (SplitVersion.txt): the post-Gaea split. Bump when ProcessBakedRegion or the chunk
 // split (incl. kRouteSubdivisions columns/rows) changes. AreLeavesDirty re-splits from the existing
 // raw on mismatch — no Gaea re-export.
-constexpr int32_t kiBakeVersion = 27;
-constexpr int32_t kiSplitVersion = 2;
-
-// Fallback assumption for the Gaea Sea node's normalized `Level` field. Gaea omits the key
-// from .terrain JSON when it equals the editor default (~0.0995); we treat the missing case as
-// 0.1 so DataPacker matches what the Gaea editor preview shows. Archetypes that author Level
-// explicitly override this fallback. DataPacker never patches Level — it is read once per bake
-// in BakeOne via ReadArchetypeSeaLevel and multiplied by elevationMeters to derive the per-island
-// beach offset (engine-Z 0 == beach; sea floor sits at -(Level × elevationMeters)).
-constexpr float kfGaeaSeaLevelDefault = 0.1f;
+constexpr int32_t kiBakeVersion = 28;
+constexpr int32_t kiSplitVersion = 3;
 
 // Beach-band adaptive subdivision constants. After the Gaea Mesher mesh is parsed, every triangle
 // whose Z-range overlaps the beach band gets recursively split (1->4 midpoint) until its longest XY
@@ -98,6 +88,13 @@ constexpr int32_t kiBeachSubdivisionMaxDepth = 12;
 // the cut line lives at -9 m, keeping the entire above-water landmass plus a halo of shallow
 // water around the coastline.
 constexpr float kfCropEpsilonAboveSeaFloorMeters = 1.0f;
+
+// Minimum max downsampled terrain height (engine-meters above beach) for a leaf to be exported.
+// Leaves peaking below this are very low / underwater nubs; ProcessBakedRegion deletes them so they
+// produce no kIsland chunk (and no orphan texture chunks). The shipping islands separate cleanly at
+// this value (nothing peaks in [4.44, 7.02) m anywhere; next-lowest kept leaf peaks ~7.02 m). Bump
+// kiSplitVersion when changed.
+constexpr float kfMinIslandMaxHeightMeters = 7.0f;
 constexpr const char* kpcBakeVersionFile = "BakeVersion.txt";    // Gaea-raw stage sentinel (kiBakeVersion)
 constexpr const char* kpcSplitVersionFile = "SplitVersion.txt";  // post-Gaea split stage sentinel (kiSplitVersion)
 constexpr const char* kpcPatchedArchetypeFile = "PatchedArchetype.terrain";
@@ -147,7 +144,7 @@ constexpr RouteSubdivision kRouteSubdivisions[] =
 	{"3x2", 4, 2, 3},
 	{"3x3", 5, 3, 3},
 	{"3x4", 6, 4, 3},
-	{"4x1", 7, 1, 4},
+	{"8x4", 7, 4, 8},
 	{"4x2", 8, 2, 4},
 	{"4x4", 9, 4, 4},
 };
@@ -172,30 +169,6 @@ const RouteSubdivision& LookupRouteSubdivision(const std::string& rLabel, const 
 		validLabels += rRoute.pcLabel;
 	}
 	throw std::runtime_error(std::format("\"{}\" lists unknown route \"{}\". Valid routes: {}.", rIslandJsonFile.string(), rLabel, validLabels));
-}
-
-std::filesystem::path ResolveGaeaExecutable()
-{
-	char* pcEnvValue = nullptr;
-	size_t uiEnvSize = 0;
-	_dupenv_s(&pcEnvValue, &uiEnvSize, kpcGaeaEnvVar);
-	if (pcEnvValue != nullptr)
-	{
-		std::filesystem::path envPath(pcEnvValue);
-		free(pcEnvValue);
-		if (std::filesystem::exists(envPath))
-		{
-			return envPath;
-		}
-	}
-
-	std::filesystem::path defaultPath(kpwcGaeaDefaultPath);
-	if (std::filesystem::exists(defaultPath))
-	{
-		return defaultPath;
-	}
-
-	throw std::runtime_error(std::format("Gaea.Swarm.exe not found. Set {} env var or install Gaea 2 to the default location ({}).", kpcGaeaEnvVar, std::filesystem::path(kpwcGaeaDefaultPath).string()));
 }
 
 std::filesystem::path ResolveTerrain(const std::filesystem::path& rIslandFolder, const nlohmann::json& rIslandJson)
@@ -291,7 +264,15 @@ bool AreLeavesDirty(const std::filesystem::path& rRouteDir, int64_t iLeafCount)
 
 	for (int64_t iLeaf = 0; iLeaf < iLeafCount; ++iLeaf)
 	{
-		std::filesystem::path leafIntermediatesDir = rRouteDir / std::to_string(iLeaf) / kpcIslandIntermediatesDir;
+		// An absent leaf folder is an intentionally-rejected (too-low) leaf, not a dirty one -- skip it.
+		// ProcessBakedRegion deletes rejected leaves, and the SplitVersion sentinel (checked above,
+		// stamped last) keeps a crash mid-split from looking clean. Existing folders must be complete.
+		std::filesystem::path leafDir = rRouteDir / std::to_string(iLeaf);
+		if (!std::filesystem::exists(leafDir))
+		{
+			continue;
+		}
+		std::filesystem::path leafIntermediatesDir = leafDir / kpcIslandIntermediatesDir;
 		if (!std::filesystem::exists(leafIntermediatesDir / kpcBakedDimensionsFile)
 			|| !std::filesystem::exists(leafIntermediatesDir / "MeshProcessed.bin")
 			|| !std::filesystem::exists(leafIntermediatesDir / "Elevation.r32")
@@ -302,173 +283,6 @@ bool AreLeavesDirty(const std::filesystem::path& rRouteDir, int64_t iLeafCount)
 	}
 
 	return false;
-}
-
-void WriteFileBytes(const std::filesystem::path& rFile, const std::string& rBytes)
-{
-	// Atomic replace: partial write on crash leaves a stray .tmp, not a half-written archetype.
-	// PID suffix so concurrent crashes from peer DataPacker processes leave distinct orphan
-	// .<pid>.tmp files instead of clobbering each other's in-flight writes.
-	std::filesystem::path tempFile = rFile;
-	tempFile += L"." + std::to_wstring(GetCurrentProcessId()) + L".tmp";
-	{
-		std::ofstream stream(tempFile, std::ios::binary);
-		stream.write(rBytes.data(), rBytes.size());
-	}
-	std::filesystem::rename(tempFile, rFile);
-}
-
-// Recursive walker: every object whose key is exactly "Seed" with a numeric value is overwritten
-// with iSeed. Gaea's `--seed` CLI flag only mixes a global seed into per-node randomness; it
-// doesn't override the per-node "Seed" fields baked into the .terrain JSON. Patching them
-// directly is the only way to make Island.json's seed value fully determine the bake.
-void PatchArchetypeSeeds(nlohmann::json& rJson, int32_t iSeed)
-{
-	if (rJson.is_object())
-	{
-		for (auto& [rKey, rValue] : rJson.items())
-		{
-			if (rKey == "Seed" && rValue.is_number())
-			{
-				rValue = iSeed;
-			}
-			else
-			{
-				PatchArchetypeSeeds(rValue, iSeed);
-			}
-		}
-	}
-	else if (rJson.is_array())
-	{
-		for (nlohmann::json& rChild : rJson)
-		{
-			PatchArchetypeSeeds(rChild, iSeed);
-		}
-	}
-}
-
-// Recursive walker: every node whose $type contains "Mesher" gets its VerticesPerSide set. Gaea's
-// default Mesher resolution is implicit (inherits BakeResolution) so the property may be absent
-// from the JSON — we create the key when missing. Restored via the standard archetype-bytes rollback.
-void PatchArchetypeMesherResolution(nlohmann::json& rJson, int64_t iVerticesPerSide)
-{
-	if (rJson.is_object())
-	{
-		auto it = rJson.find("$type");
-		if (it != rJson.end() && it->is_string() && it->get<std::string>().find("Mesher") != std::string::npos)
-		{
-			rJson["VerticesPerSide"] = iVerticesPerSide;
-		}
-		for (auto& [rKey, rValue] : rJson.items())
-		{
-			PatchArchetypeMesherResolution(rValue, iVerticesPerSide);
-		}
-	}
-	else if (rJson.is_array())
-	{
-		for (nlohmann::json& rChild : rJson)
-		{
-			PatchArchetypeMesherResolution(rChild, iVerticesPerSide);
-		}
-	}
-}
-
-// Recursive walker: finds the single node whose $type names a Gaea Route node and sets its
-// "Choice" (0 = 1x1 single landmass, 1 = 2x1 dual band, 2 = 2x2 quad grid — see
-// kRouteSubdivisions). The on-disk
-// archetype authors Choice at whatever the editor was last saved at; DataPacker always patches it
-// per route so the bake is deterministic. riRouteNodeCount accumulates matches so the caller can
-// assert exactly one Route node exists.
-void PatchArchetypeRoute(nlohmann::json& rJson, int32_t iChoice, int64_t& riRouteNodeCount)
-{
-	if (rJson.is_object())
-	{
-		auto it = rJson.find("$type");
-		if (it != rJson.end() && it->is_string() && it->get<std::string>().starts_with("QuadSpinner.Gaea.Nodes.Route,"))
-		{
-			rJson["Choice"] = iChoice;
-			++riRouteNodeCount;
-		}
-		for (auto& [rKey, rValue] : rJson.items())
-		{
-			PatchArchetypeRoute(rValue, iChoice, riRouteNodeCount);
-		}
-	}
-	else if (rJson.is_array())
-	{
-		for (nlohmann::json& rChild : rJson)
-		{
-			PatchArchetypeRoute(rChild, iChoice, riRouteNodeCount);
-		}
-	}
-}
-
-// Walks Terrain.Nodes for the Sea node and returns its Level (normalized [0,1] where Gaea places
-// the water surface within the [0,1] elevation range). Returns kfGaeaSeaLevelDefault when the
-// Level key is absent — Gaea omits it from the JSON at the editor default (~0.0995). Throws if no
-// Sea node exists in the graph at all, since downstream elevation math depends on a known beach
-// reference. Nodes is a dict keyed by node ID, so we scan values for the one whose $type starts
-// with the Gaea Sea node prefix.
-float ReadArchetypeSeaLevel(const std::filesystem::path& rTerrainFile)
-{
-	std::ifstream readStream(rTerrainFile);
-	nlohmann::json terrainJson = nlohmann::json::parse(readStream);
-	readStream.close();
-
-	const nlohmann::json& rNodes = terrainJson.at("Assets").at("$values").at(0).at("Terrain").at("Nodes");
-	for (const auto& [rKey, rNode] : rNodes.items())
-	{
-		if (!rNode.is_object() || !rNode.contains("$type"))
-		{
-			continue;
-		}
-		std::string type = rNode.at("$type").get<std::string>();
-		if (type.starts_with("QuadSpinner.Gaea.Nodes.Sea"))
-		{
-			return rNode.value("Level", kfGaeaSeaLevelDefault);
-		}
-	}
-	throw std::runtime_error("Archetype has no Sea node — DataPacker reads its Level to derive the per-island beach offset. Add a Sea node to the graph or extend BakeIslandIntermediates to handle sea-less archetypes.");
-}
-
-// Patches the per-route archetype copy: Terrain.{Width,Height}, the Gaea Route node's Choice (the
-// subdivision selector for this route), every per-node Seed (only when iSeed != 0; iSeed == 0 is
-// the "use the archetype's per-node Seed values as authored" sentinel so you can A/B against
-// Gaea's editor preview without DataPacker overwriting them), and (optionally)
-// Mesher.VerticesPerSide. The Sea node's Level is intentionally NOT patched — it is read
-// separately by ReadArchetypeSeaLevel and consumed by the post-bake elevation math so the Gaea
-// editor preview and the in-game terrain agree on the water surface position. Each route works on
-// its own Intermediates/PatchedArchetype.terrain copy, so the on-disk source archetype is never
-// mutated.
-void PatchArchetype(const std::filesystem::path& rTerrainFile, const WorldDimensions& rDimensions, int32_t iSeed, std::optional<int64_t> oiMeshResolution, int32_t iGaeaRouteChoice)
-{
-	std::ifstream readStream(rTerrainFile);
-	nlohmann::json terrainJson = nlohmann::json::parse(readStream);
-	readStream.close();
-
-	// Layout: Assets["$values"][0].Terrain.{Width, Height}. Verified against Island-1x1.terrain.
-	nlohmann::json& rTerrain = terrainJson.at("Assets").at("$values").at(0).at("Terrain");
-	rTerrain.at("Width") = rDimensions.fFootprintMeters;
-	rTerrain.at("Height") = rDimensions.fElevationMeters;
-
-	int64_t iRouteNodeCount = 0;
-	PatchArchetypeRoute(terrainJson, iGaeaRouteChoice, iRouteNodeCount);
-	if (iRouteNodeCount != 1)
-	{
-		throw std::runtime_error(std::format("Archetype \"{}\" has {} Gaea Route node(s); DataPacker expects exactly 1 to set the per-route subdivision Choice. Add a Route node to the graph (Choice 0 = 1x1, 1 = 2x1) or extend BakeIslandIntermediates for multi-Route archetypes.", rTerrainFile.string(), iRouteNodeCount));
-	}
-
-	if (iSeed != 0)
-	{
-		PatchArchetypeSeeds(terrainJson, iSeed);
-	}
-
-	if (oiMeshResolution.has_value())
-	{
-		PatchArchetypeMesherResolution(terrainJson, *oiMeshResolution);
-	}
-
-	WriteFileBytes(rTerrainFile, terrainJson.dump(2));
 }
 
 // Single source of truth for required Island.json keys. Drives both the strict-presence check in
@@ -489,10 +303,10 @@ constexpr const char* kpcRequiredIslandJsonKeys[] = {"archetype", "seed", "width
 // underwater re-coloring) once per chunk.
 // meshPositions / meshIndices are taken by value so each region mutates its own copy of the shared
 // post-subdivision mesh.
-void ProcessBakedRegion(const std::vector<float>& rFullElevationMeters, const std::vector<uint16_t>& rFullAmbientOcclusion, std::vector<float> meshPositions, std::vector<uint32_t> meshIndices, int64_t iTexturePixels, const WorldDimensions& rDimensions, int64_t iRegionStartX, int64_t iRegionEndX, int64_t iRegionStartY, int64_t iRegionEndY, float fBeachOffsetMeters, const std::filesystem::path& rLeafDir, const std::string& rTextureSourceDirRelative)
+// Returns true if the leaf was written, false if rejected (too low — see kfMinIslandMaxHeightMeters).
+bool ProcessBakedRegion(const std::vector<float>& rFullElevationMeters, const std::vector<uint16_t>& rFullAmbientOcclusion, std::vector<float> meshPositions, std::vector<uint32_t> meshIndices, int64_t iTexturePixels, const WorldDimensions& rDimensions, int64_t iRegionStartX, int64_t iRegionEndX, int64_t iRegionStartY, int64_t iRegionEndY, float fBeachOffsetMeters, const std::filesystem::path& rLeafDir, const std::string& rTextureSourceDirRelative)
 {
 	std::filesystem::path leafIntermediatesDir = rLeafDir / kpcIslandIntermediatesDir;
-	std::filesystem::create_directories(leafIntermediatesDir);
 
 	// Auto-crop to the bbox of pixels above the sea-floor cut line, restricted to this region so a
 	// 2x1 half never pulls land across the split seam. Cut line = -fBeachOffsetMeters +
@@ -584,6 +398,21 @@ void ProcessBakedRegion(const std::vector<float>& rFullElevationMeters, const st
 			downsampledPixels.at(static_cast<size_t>(iOutY) * static_cast<size_t>(iElevationWidth) + static_cast<size_t>(iOutX)) = fSum * fOneOverBoxSize;
 		}
 	}
+
+	// Reject very low / underwater leaves: the downsampled peak is the exact shipped data ExportIsland
+	// reports as fMaxHeightMeters. Below the threshold, delete any prior committed leaf (intermediates
+	// AND BC outputs) and write nothing, so no BakedDimensions.json is created -- ExportIsland::Handles
+	// never claims it, producing no kIsland chunk and no orphan texture chunks. AreLeavesDirty treats
+	// the now-absent leaf folder as intentionally skipped.
+	float fMaxHeightMeters = *std::ranges::max_element(downsampledPixels);
+	if (fMaxHeightMeters < kfMinIslandMaxHeightMeters)
+	{
+		std::filesystem::remove_all(rLeafDir);
+		LOG(kDefault, kDebug, "Rejected island leaf \"{}\": max height {}m below minimum {}m", rLeafDir.string(), common::Wb(fMaxHeightMeters, 2), common::Wb(kfMinIslandMaxHeightMeters, 2));
+		return false;
+	}
+
+	std::filesystem::create_directories(leafIntermediatesDir);
 	{
 		std::ofstream writeStream(leafIntermediatesDir / "Elevation.r32", std::ios::binary | std::ios::trunc);
 		writeStream.write(reinterpret_cast<const char*>(downsampledPixels.data()), downsampledPixels.size() * sizeof(float));
@@ -703,14 +532,17 @@ void ProcessBakedRegion(const std::vector<float>& rFullElevationMeters, const st
 		std::ofstream bakedStream(leafIntermediatesDir / kpcBakedDimensionsFile);
 		bakedStream << bakedJson.dump(4);
 	}
+
+	return true;
 }
 
 // Bakes one route of one island in two stages. STAGE 1 (Gaea raw, slow — only when IsGaeaRawDirty):
 // patch the route's Route Choice into a per-route archetype copy and run Gaea once at full
 // texturePixels into the route's Intermediates/. STAGE 2 (split, fast — when IsGaeaRawDirty OR
-// AreLeavesDirty): split the raw bake into iColumns × iRows chunk leaves via ProcessBakedRegion
-// (1 leaf for 1x1, 2 for 2x1, 4 for 2x2). A split-only change re-runs Stage 2 against the existing Stage-1
-// output — no Gaea re-export. Returns early when both stages are clean.
+// AreLeavesDirty): split the raw bake into UP TO iColumns × iRows chunk leaves via ProcessBakedRegion
+// (up to 1 for 1x1, 2 for 2x1, 4 for 2x2 — chunks peaking below kfMinIslandMaxHeightMeters are rejected
+// and produce no leaf, so indices can be sparse). A split-only change re-runs Stage 2 against the
+// existing Stage-1 output — no Gaea re-export. Returns early when both stages are clean.
 void BakeRoute(const std::filesystem::path& rGaeaExecutable, const std::filesystem::path& rIslandFolder, const std::filesystem::path& rArchetypeFile, const std::filesystem::path& rIslandJsonFile, const nlohmann::json& rIslandJson, const WorldDimensions& rDimensions, int32_t iSeed, int64_t iTexturePixels, std::optional<int64_t> oiMeshResolution, const RouteSubdivision& rRoute)
 {
 	std::filesystem::path routeDir = rIslandFolder / rRoute.pcLabel;
@@ -979,12 +811,14 @@ void BakeRoute(const std::filesystem::path& rGaeaExecutable, const std::filesyst
 		LOG(kDefault, kDebug, "Mesh \"{}\": {} -> {} vertices, {} -> {} triangles after beach subdivision (band Z=[{:.2f}, {:.2f}]m, edge target {:.2f}m)", routeDir.string(), iInitialVertexCount, iVertexCount, iInitialTriangleCount, iIndexCount / 3, fBandMinZ, fBandMaxZ, kfBeachSubdivisionMaxEdgeMeters);
 	}
 
-	// Split into chunks (1 for 1x1, iColumns × iRows otherwise) and write each leaf. The X / Y
+	// Split into chunks (up to 1 for 1x1, iColumns × iRows otherwise) and write each leaf that clears
+	// the minimum-height threshold (ProcessBakedRegion rejects too-low / underwater chunks). The X / Y
 	// region boundaries partition the full texture (uneven when columns/rows don't divide it evenly);
 	// ProcessBakedRegion auto-crops within each, borrowing neighbour pixels across a seam for alignment.
 	// textureSourceDir is leaf-relative ("../Intermediates") so ExportIsland reads the shared
 	// full-res Color / Normals / mask sources from this route's Intermediates dir.
 	std::string textureSourceDirRelative = std::format("../{}", kpcIslandIntermediatesDir);
+	int64_t iWrittenLeaves = 0;
 	for (int64_t iColumn = 0; iColumn < rRoute.iColumns; ++iColumn)
 	{
 		for (int64_t iRow = 0; iRow < rRoute.iRows; ++iRow)
@@ -995,7 +829,10 @@ void BakeRoute(const std::filesystem::path& rGaeaExecutable, const std::filesyst
 			int64_t iRegionStartY = iRow * iTexturePixels / rRoute.iRows;
 			int64_t iRegionEndY = (iRow + 1) * iTexturePixels / rRoute.iRows;
 			std::filesystem::path leafDir = routeDir / std::to_string(iChunkIndex);
-			ProcessBakedRegion(fullElevationMeters, fullAmbientOcclusion, meshPositions, meshIndices, iTexturePixels, rDimensions, iRegionStartX, iRegionEndX, iRegionStartY, iRegionEndY, fBeachOffsetMeters, leafDir, textureSourceDirRelative);
+			if (ProcessBakedRegion(fullElevationMeters, fullAmbientOcclusion, meshPositions, meshIndices, iTexturePixels, rDimensions, iRegionStartX, iRegionEndX, iRegionStartY, iRegionEndY, fBeachOffsetMeters, leafDir, textureSourceDirRelative))
+			{
+				++iWrittenLeaves;
+			}
 		}
 	}
 
@@ -1007,7 +844,7 @@ void BakeRoute(const std::filesystem::path& rGaeaExecutable, const std::filesyst
 		splitVersionStream << kiSplitVersion;
 	}
 
-	LOG(kDefault, kDebug, "Island route \"{}\" ready ({} chunk(s){})", routeDir.string(), iLeafCount, bGaeaDirty ? ", Gaea re-baked" : ", split-only reuse");
+	LOG(kDefault, kDebug, "Island route \"{}\" ready ({} of {} chunk(s) written, {} rejected as too low{})", routeDir.string(), iWrittenLeaves, iLeafCount, iLeafCount - iWrittenLeaves, bGaeaDirty ? ", Gaea re-baked" : ", split-only reuse");
 }
 
 void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem::path& rIslandFolder)
@@ -1134,20 +971,6 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 }
 
 } // namespace
-
-WorldDimensions GetIslandDimensions(const std::filesystem::path& rIslandFolder)
-{
-	std::filesystem::path islandJsonFile = rIslandFolder / "Island.json";
-	std::ifstream islandStream(islandJsonFile);
-	nlohmann::json islandJson = nlohmann::json::parse(islandStream);
-	islandStream.close();
-
-	return WorldDimensions
-	{
-		.fFootprintMeters = islandJson.at("widthMeters").get<float>(),
-		.fElevationMeters = islandJson.at("elevationMeters").get<float>(),
-	};
-}
 
 BakedDimensions ReadBakedDimensions(const std::filesystem::path& rLeafFolder)
 {

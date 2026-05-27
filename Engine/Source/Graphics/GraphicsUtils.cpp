@@ -102,6 +102,13 @@ bool SupportsLinearFilter(VkFormat vkFormat)
 	return (vkFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0;
 }
 
+bool SupportsColorAttachmentBlend(VkFormat vkFormat)
+{
+	VkFormatProperties vkFormatProperties {};
+	vkGetPhysicalDeviceFormatProperties(gpInstanceManager->mVkPhysicalDevice, vkFormat, &vkFormatProperties);
+	return (vkFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT) != 0;
+}
+
 } // namespace engine
 
 #endif // BT_CLIENT

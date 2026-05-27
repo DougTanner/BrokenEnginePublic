@@ -356,6 +356,21 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	SelectQueueFamilies();
 	SelectSurfaceFormat();
 	SelectDepthFormat();
+
+	// Fail loud if the device cannot blend the special-format color RTTs the elevation/lighting/smoke/wind
+	// prepasses MAX/ADD-blend into (kMax/kAdd pipeline flags set blendEnable=VK_TRUE). Blending a color
+	// attachment requires VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT for the format; absent it is silent UB
+	// at pipeline creation. Near-universal on desktop GPUs, but the dependency is real and otherwise unguarded.
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	const VkFormat pBlendedRenderTargetVkFormats[] {shaders::keElevationFormat, shaders::keLightingFormat, shaders::keSmokeFormat, shaders::keWindFormat};
+	for (const VkFormat& rVkFormat : pBlendedRenderTargetVkFormats)
+	{
+		if (!SupportsColorAttachmentBlend(rVkFormat))
+		{
+			LOG(kGraphics, kError, "Device does not advertise VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT for blended render-target format {}", gEnumToString.Convert(rVkFormat, rWorkbuffer));
+			ASSERT(false);
+		}
+	}
 }
 
 void InstanceManager::SelectPhysicalDevice()

@@ -380,7 +380,7 @@ bool RunExportJobs()
 	ScopedLogIndent scopedLogIndent;
 
 	// Sort by relative path to ensure chunks are in same order inside the file (for more efficient Steam patching)
-	std::sort(exportJobs.begin(), exportJobs.end(), [] (const std::unique_ptr<T>& rpA, const std::unique_ptr<T>& rpB) { return common::ToLower(rpA->mRelativeDirectory.string()) < common::ToLower(rpB->mRelativeDirectory.string()); });
+	std::sort(exportJobs.begin(), exportJobs.end(), [] (const std::unique_ptr<T>& rpA, const std::unique_ptr<T>& rpB) { return common::ToLower(rpA->mRelativeFile) < common::ToLower(rpB->mRelativeFile); });
 
 	// Run the jobs
 	for (std::unique_ptr<T>& rpExportJob : exportJobs)

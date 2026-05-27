@@ -127,9 +127,9 @@ By bake construction, `color RGB == (0,0,0)` ⇔ heightmap `< kfUnderwaterMaskTh
 ## Risks / notes
 - **R16_SFLOAT color-blend support**: `VK_BLEND_OP_MAX` on `mTerrainElevationTexture` / `mShadowElevationTexture`
   needs `VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT` for `keElevationFormat` (= R16_SFLOAT; R32_SFLOAT is only
-  the *sampled* per-island source, never blended). Near-universal on desktop GPUs; confirm via validation layers
-  at run. Audit confirmed this is currently UNGUARDED — routed to a follow-up plan
-  (`Documents/Plans/Graphics/ElevationMaxBlendFormatGuard.md`).
+  the *sampled* per-island source, never blended). Near-universal on desktop GPUs. **Guard landed**: a boot-time
+  `SupportsColorAttachmentBlend` probe in the `InstanceManager` ctor now ASSERTs + logs if absent, widened to all
+  four blended special-format RTT formats (elevation/lighting/smoke/wind).
 - **Eviction symmetry** (Part B): the elevation array is template-owned (no `mTextureMap` entry) and patched
   in `RestorationSweep`; ensure adding `kPipelineTerrain` as a consumer keeps both restoration and eviction
   rewrites correct for binding 21 — call out for review.

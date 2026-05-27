@@ -1,10 +1,13 @@
 #pragma once
 
+#include "ClientSettings.h"
 #include "Data/Audio.h"
 #include "Fleet.h"
+#include "FleetSelection.h"
 
 #if defined(BT_SERVER)
 #include "Network/Server/ServerSession.h"
+#include "Save/GameSaveLoad.h"
 #endif
 #if defined(BT_CLIENT)
 #include "Network/Client/ClientSession.h"
@@ -84,6 +87,7 @@ public:
 
 #if defined(BT_SERVER)
 	std::unique_ptr<ServerSession> mpServerSession;
+	GameSaveLoad mGameSaveLoad;
 #endif
 #if defined(BT_CLIENT)
 	std::unique_ptr<ClientSession> mpClientSession;
@@ -99,18 +103,19 @@ public:
 	void RestoreReplayMeta(const ReplayMeta& rMeta);
 	std::optional<int64_t> ClientPlayerIndex(const PlayersPostRender& rPlayers) const;
 
-	// Fleet navigation
-	int64_t FleetCount() const;
-	int64_t FocusedFleetIndex() const;
-	void FocusNextFleet();
-	void FocusPrevFleet();
-	bool CanFocusNextFleet() const;
-	bool CanFocusPrevFleet() const;
-	const Fleet* FocusedFleet() const;
-	void SelectPlayerInFleet(int64_t iPlayerIndex);
-	int64_t FocusedPlayerInFleetIndex() const;
-	void SyncFleets(std::vector<Fleet>&& fleets);
-	void AutoSelectFirstAliveMember();
+	// Fleet navigation — delegated to mFleetSelection (client-only)
+#if defined(BT_CLIENT)
+	int64_t FleetCount() const { return mFleetSelection.FleetCount(); }
+	int64_t FocusedFleetIndex() const { return mFleetSelection.FocusedFleetIndex(); }
+	void FocusNextFleet() { mFleetSelection.FocusNextFleet(); }
+	void FocusPrevFleet() { mFleetSelection.FocusPrevFleet(); }
+	bool CanFocusNextFleet() const { return mFleetSelection.CanFocusNextFleet(); }
+	bool CanFocusPrevFleet() const { return mFleetSelection.CanFocusPrevFleet(); }
+	const Fleet* FocusedFleet() const { return mFleetSelection.FocusedFleet(); }
+	void SelectPlayerInFleet(int64_t iPlayerIndex) { mFleetSelection.SelectPlayerInFleet(iPlayerIndex); }
+	int64_t FocusedPlayerInFleetIndex() const { return mFleetSelection.FocusedPlayerInFleetIndex(); }
+	void SyncFleets(std::vector<Fleet>&& fleets) { mFleetSelection.SyncFleets(std::move(fleets)); }
+#endif
 	void ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput);
 
 #if defined(BT_CLIENT)
@@ -118,19 +123,6 @@ public:
 #endif
 
 #if defined(BT_CLIENT)
-	static void SaveSoundSettings();
-	static void LoadSoundSettings();
-	static void ResetSoundSettings();
-
-	static void SaveGraphicsSettings();
-	static bool LoadGraphicsSettings();
-	static void ResetGraphicsSettings();
-
-	static void SaveTweaksSettings();
-	static void LoadTweaksSettings();
-
-	static void SaveClientState();
-	static void LoadClientState();
 	void CaptureClientStateAndSaveIfChanged();
 #endif
 
@@ -144,9 +136,7 @@ public:
 	engine::NetworkUiControl<bool> mWeaponModeToggle {};
 	engine::NetworkUiControl<float> mNavigationDelayControl {};
 
-	std::vector<Fleet> mClientFleets;
-	int64_t miFocusedFleetIndex = -1;
-	int64_t miFocusedPlayerInFleetIndex = -1;
+	FleetSelection mFleetSelection;
 
 	// In-memory mirror of ClientState.bin; loaded at startup, written through whenever any tracked field changes.
 	game::FleetGuid mRememberedFleetGuid {};
@@ -235,7 +225,5 @@ private:
 };
 
 inline Game* gpGame = nullptr;
-
-void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rData, engine::alignment_t playerAlignment);
 
 } // namespace game

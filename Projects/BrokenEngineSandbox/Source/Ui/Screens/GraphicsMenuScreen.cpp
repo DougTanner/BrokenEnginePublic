@@ -139,7 +139,7 @@ void GraphicsMenuScreen::Render()
 	ImGui::Separator();
 	if (ImGui::Button("Back"))
 	{
-		Game::SaveGraphicsSettings();
+		SaveGraphicsSettings();
 		gpGame->meUiState = UiState::kPause;
 	}
 

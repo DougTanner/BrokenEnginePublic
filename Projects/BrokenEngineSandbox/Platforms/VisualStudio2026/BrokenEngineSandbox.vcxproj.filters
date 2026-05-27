@@ -252,6 +252,15 @@
     <ClInclude Include="..\..\Source\Game.h">
       <Filter>Game</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\SpawnTransfer.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\ClientSettings.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\FleetSelection.h">
+      <Filter>Game</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Network\Client\ClientSession.h">
       <Filter>Game\Network\Client</Filter>
     </ClInclude>
@@ -771,6 +780,15 @@
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Game.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\SpawnTransfer.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ClientSettings.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\FleetSelection.cpp">
       <Filter>Game</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Network\Client\ClientSession.cpp">

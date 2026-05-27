@@ -46,8 +46,11 @@
     <Filter Include="Engine\Memory">
       <UniqueIdentifier>{a1b2c3d4-e5f6-7890-abcd-ef1234567890}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Server">
-      <UniqueIdentifier>{c2d3e4f5-a6b7-8901-cdef-234567890abc}</UniqueIdentifier>
+    <Filter Include="Game\Save">
+      <UniqueIdentifier>{7f3a1b2c-4d5e-4a6b-9c8d-0e1f2a3b4c5d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game\Server">
+      <UniqueIdentifier>{8a4b2c3d-5e6f-4b7c-8d9e-1f2a3b4c5d6e}</UniqueIdentifier>
     </Filter>
     <Filter Include="Game\Frame">
       <UniqueIdentifier>{0bce964a-aa76-4e39-b2da-686fc91624a0}</UniqueIdentifier>
@@ -136,6 +139,9 @@
       <Filter>Engine\File</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Game.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\SpawnTransfer.h">
       <Filter>Game</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Network\PlayerEvents.h">
@@ -354,8 +360,8 @@
     <ClInclude Include="..\..\..\..\Engine\Source\GameBase.h">
       <Filter>Engine</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\GameSaveLoad.h">
-      <Filter>Engine</Filter>
+    <ClInclude Include="..\..\Source\Save\GameSaveLoad.h">
+      <Filter>Game\Save</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Collection.h">
       <Filter>Engine\Frame\Collections</Filter>
@@ -447,8 +453,8 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\TerrainUtils.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Server\ServerDisplay.h">
-      <Filter>Engine\Server</Filter>
+    <ClInclude Include="..\..\Source\Server\ServerDisplay.h">
+      <Filter>Game\Server</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -456,6 +462,9 @@
       <Filter>Engine\File</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Game.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\SpawnTransfer.cpp">
       <Filter>Game</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp">
@@ -602,8 +611,8 @@
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp">
       <Filter>Engine</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\GameSaveLoad.cpp">
-      <Filter>Engine</Filter>
+    <ClCompile Include="..\..\Source\Save\GameSaveLoad.cpp">
+      <Filter>Game\Save</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameBase.cpp">
       <Filter>Engine\Frame</Filter>
@@ -714,8 +723,8 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Alignments.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Server\ServerDisplay.cpp">
-      <Filter>Engine\Server</Filter>
+    <ClCompile Include="..\..\Source\Server\ServerDisplay.cpp">
+      <Filter>Game\Server</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

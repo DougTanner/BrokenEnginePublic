@@ -335,7 +335,7 @@ void Graphics::Create()
 		{
 			if (game::gpGame != nullptr)
 			{
-				game::Game::LoadTweaksSettings();
+				game::LoadTweaksSettings();
 			}
 		}
 	}
@@ -691,7 +691,7 @@ bool Graphics::Destroy()
 		{
 			if (game::gpGame != nullptr)
 			{
-				game::Game::SaveTweaksSettings();
+				game::SaveTweaksSettings();
 			}
 		}
 		mpImGuiManager.reset();

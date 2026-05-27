@@ -13,7 +13,7 @@ Singleton managers for the Vulkan renderer, each accessed via a `gp*` global. Cr
 
 ## Managers
 
-- **InstanceManager / DeviceManager** - Instance, physical/logical device, queues, VMA, descriptor pool, pipeline cache. Enabled features include `drawIndirectFirstInstance` (terrain emits one indirect draw per island template, each with a distinct `firstInstance`).
+- **InstanceManager / DeviceManager** - Instance, physical/logical device, queues, VMA, descriptor pool, pipeline cache. Enabled features include `drawIndirectFirstInstance` (terrain emits one indirect draw per island template, each with a distinct `firstInstance`). Boot fails loud (ASSERT + error log) if the device does not advertise `COLOR_ATTACHMENT_BLEND_BIT` for the special-format RTTs the MAX/ADD-blended prepasses (elevation/lighting/smoke/wind) target — a hard device dependency, unlike the TextureManager linear-filter probe which downgrades gracefully. A new blended prepass on a novel format must extend that guard.
 - **SwapchainManager** - Swapchain, framebuffers, main render pass, async presentation worker
 - **CommandBufferManager** - Record-once primary buffers (Global/Main/ImGui), submission workers, cross-queue semaphore sync
 - **BufferManager** - GPU buffer lifecycle, auto-resize dynamic storage, per-frame skinning, hierarchical dispatch

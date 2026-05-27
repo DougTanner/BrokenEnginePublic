@@ -331,7 +331,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\..\..\Engine\Source\CrashReport.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Engine.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\GameBase.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\GameSaveLoad.h" />
+    <ClInclude Include="..\..\Source\Save\GameSaveLoad.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Memory\MemoryManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkCursor.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkDiscoveryResponder.h" />
@@ -341,7 +341,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSimulation.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\Server.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\ServerTypes.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Server\ServerDisplay.h" />
+    <ClInclude Include="..\..\Source\Server\ServerDisplay.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.h" />
     <ClInclude Include="..\..\Source\Profile\ProfileManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\NetworkUiControl.h" />
@@ -370,6 +370,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\Source\Frame\StatusChange.h" />
     <ClInclude Include="..\..\Source\Frame\Collections\Players\Players.h" />
     <ClInclude Include="..\..\Source\Game.h" />
+    <ClInclude Include="..\..\Source\SpawnTransfer.h" />
     <ClInclude Include="..\..\Source\Network\PlayerEvents.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerSession.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerFleetManager.h" />
@@ -426,7 +427,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\NavQuery.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\TimeStep.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\GameSaveLoad.cpp" />
+    <ClCompile Include="..\..\Source\Save\GameSaveLoad.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Memory\MemoryManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -442,7 +443,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerReceive.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSend.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionBase.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Server\ServerDisplay.cpp" />
+    <ClCompile Include="..\..\Source\Server\ServerDisplay.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileScreens.cpp" />
     <ClCompile Include="..\..\Source\Profile\ProfileManager.cpp" />
@@ -478,6 +479,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersNavigation.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersCombat.cpp" />
     <ClCompile Include="..\..\Source\Game.cpp" />
+    <ClCompile Include="..\..\Source\SpawnTransfer.cpp" />
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerSession.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerFleetManager.cpp" />

@@ -37,7 +37,7 @@ void SoundMenuScreen::Render()
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringDefaults))))
 	{
-		Game::ResetSoundSettings();
+		ResetSoundSettings();
 	}
 
 	ImGui::SameLine();

@@ -1,19 +1,13 @@
 #include "Game.h"
 
-#include "Frame/Collections/Blasters/Blasters.h"
-#include "Frame/Collections/Missiles/Missiles.h"
 #include "Frame/Collections/Players/Players.h"
-#include "Frame/Collections/Spaceships/Spaceships.h"
 #include "Network/GamePacketType.h"
 #include "Network/Server/ServerBroadcaster.h"
 #include "Network/Server/ServerTransferManager.h"
 #include "Profile/ProfileManager.h"
+#include "SpawnTransfer.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/Localization.h"
-#include "Ui/MiscWrappersBase.h"
-#include "Ui/SoundSettingsWrappersBase.h"
-#include "Ui/SunMoonWrappersBase.h"
-#include "Ui/Screens/TweaksScreen/TweaksScreen.h"
 
 namespace game
 {
@@ -37,6 +31,9 @@ static void BuildMenuIslandPlacement(int64_t iIndex, std::vector<engine::IslandP
 }
 
 Game::Game()
+#if defined(BT_SERVER)
+	: mGameSaveLoad(*this)
+#endif // BT_SERVER
 {
 	gpGame = this;
 
@@ -79,12 +76,13 @@ Game::Game()
 engine::global_id_t Game::ClientPlayerId() const
 {
 #if defined(BT_CLIENT)
-	if (miFocusedFleetIndex >= 0 && miFocusedFleetIndex < std::ssize(mClientFleets))
+	const Fleet* pFleet = mFleetSelection.FocusedFleet();
+	if (pFleet != nullptr)
 	{
-		const Fleet& rFleet = mClientFleets.at(static_cast<size_t>(miFocusedFleetIndex));
-		if (miFocusedPlayerInFleetIndex >= 0 && miFocusedPlayerInFleetIndex < std::ssize(rFleet.members))
+		int64_t iMember = mFleetSelection.FocusedPlayerInFleetIndex();
+		if (iMember >= 0 && iMember < std::ssize(pFleet->members))
 		{
-			const FleetMember& rMember = rFleet.members.at(static_cast<size_t>(miFocusedPlayerInFleetIndex));
+			const FleetMember& rMember = pFleet->members.at(static_cast<size_t>(iMember));
 			if (rMember.bAlive)
 			{
 				return rMember.globalPlayerId;
@@ -143,246 +141,6 @@ std::optional<int64_t> Game::ClientPlayerIndex(const PlayersPostRender& rPlayers
 
 	return std::nullopt;
 }
-
-#if defined(BT_CLIENT)
-
-void Game::AutoSelectFirstAliveMember()
-{
-	miFocusedPlayerInFleetIndex = -1;
-	SetClientGridCoord({});
-	const Fleet* pFleet = FocusedFleet();
-	if (pFleet != nullptr)
-	{
-		for (int64_t i = 0; i < std::ssize(pFleet->members); ++i)
-		{
-			if (pFleet->members.at(static_cast<size_t>(i)).bAlive)
-			{
-				SelectPlayerInFleet(i);
-				return;
-			}
-		}
-	}
-}
-
-int64_t Game::FleetCount() const
-{
-	return std::ssize(mClientFleets);
-}
-
-int64_t Game::FocusedFleetIndex() const
-{
-	return miFocusedFleetIndex;
-}
-
-void Game::FocusNextFleet()
-{
-	if (miFocusedFleetIndex < std::ssize(mClientFleets) - 1)
-	{
-		++miFocusedFleetIndex;
-		AutoSelectFirstAliveMember();
-		CaptureClientStateAndSaveIfChanged();
-	}
-}
-
-void Game::FocusPrevFleet()
-{
-	if (miFocusedFleetIndex > 0)
-	{
-		--miFocusedFleetIndex;
-		AutoSelectFirstAliveMember();
-		CaptureClientStateAndSaveIfChanged();
-	}
-}
-
-bool Game::CanFocusNextFleet() const
-{
-	return miFocusedFleetIndex < std::ssize(mClientFleets) - 1;
-}
-
-bool Game::CanFocusPrevFleet() const
-{
-	return miFocusedFleetIndex > 0;
-}
-
-const Fleet* Game::FocusedFleet() const
-{
-	if (miFocusedFleetIndex >= 0 && miFocusedFleetIndex < std::ssize(mClientFleets))
-	{
-		return &mClientFleets.at(static_cast<size_t>(miFocusedFleetIndex));
-	}
-	return nullptr;
-}
-
-void Game::SelectPlayerInFleet(int64_t iPlayerIndex)
-{
-	const Fleet* pFleet = FocusedFleet();
-	if (pFleet == nullptr || iPlayerIndex < 0 || iPlayerIndex >= std::ssize(pFleet->members))
-	{
-		return;
-	}
-
-	miFocusedPlayerInFleetIndex = iPlayerIndex;
-	mWeaponModeToggle.Reset();
-
-	// Update mClientGridCoord to match selected player's coord
-	const FleetMember& rMember = pFleet->members.at(static_cast<size_t>(iPlayerIndex));
-	if (rMember.bAlive)
-	{
-		for (int64_t i = 0; i < std::ssize(mClientPlayerIds); ++i)
-		{
-			if (mClientPlayerIds.at(i) == rMember.globalPlayerId)
-			{
-				SetClientGridCoord(mClientPlayerCoords.at(i));
-				break;
-			}
-		}
-	}
-
-	CaptureClientStateAndSaveIfChanged();
-}
-
-int64_t Game::FocusedPlayerInFleetIndex() const
-{
-	return miFocusedPlayerInFleetIndex;
-}
-
-void Game::SyncFleets(std::vector<Fleet>&& fleets)
-{
-	// Heap: mClientFleets rebuild + LOG argument formatting allocations
-	ScopedSuppressAllocationTracking suppress;
-
-	LOG(kNetwork, kVerbose, "SyncFleets Fleets: {} Members: {} FocusedFleet: {} FocusedMember: {}", std::ssize(fleets), !fleets.empty() ? std::ssize(fleets.at(0).members) : 0, miFocusedFleetIndex, miFocusedPlayerInFleetIndex);
-
-	int64_t iPrevFleetCount = std::ssize(mClientFleets);
-	int64_t iPrevFocusedFleetMemberCount = 0;
-	if (miFocusedFleetIndex >= 0 && miFocusedFleetIndex < iPrevFleetCount)
-	{
-		iPrevFocusedFleetMemberCount = std::ssize(mClientFleets.at(static_cast<size_t>(miFocusedFleetIndex)).members);
-	}
-	mClientFleets = std::move(fleets);
-
-	// Restore from disk-persisted client state on the first sync after a reconnect-style clear.
-	// The remembered FleetGuid identifies which fleet to focus; a missing or destroyed ship falls back to the fleet's current flagship.
-	bool bRestoredRemembered = false;
-	if (iPrevFleetCount == 0 && mRememberedFleetGuid.IsValid())
-	{
-		for (int64_t i = 0; i < std::ssize(mClientFleets); ++i)
-		{
-			const Fleet& rFleet = mClientFleets.at(static_cast<size_t>(i));
-			if (rFleet.guid != mRememberedFleetGuid)
-			{
-				continue;
-			}
-
-			miFocusedFleetIndex = i;
-			miFocusedPlayerInFleetIndex = -1;
-			if (mRememberedFocusedShipId.IsValid())
-			{
-				for (int64_t j = 0; j < std::ssize(rFleet.members); ++j)
-				{
-					const FleetMember& rMember = rFleet.members.at(static_cast<size_t>(j));
-					if (rMember.globalPlayerId == mRememberedFocusedShipId && rMember.bAlive)
-					{
-						miFocusedPlayerInFleetIndex = j;
-						break;
-					}
-				}
-			}
-			if (miFocusedPlayerInFleetIndex < 0
-				&& rFleet.iFlagshipIndex >= 0
-				&& rFleet.iFlagshipIndex < std::ssize(rFleet.members))
-			{
-				miFocusedPlayerInFleetIndex = rFleet.iFlagshipIndex;
-			}
-			// Suppress the auto-newest-fleet / auto-newest-member branches below.
-			iPrevFocusedFleetMemberCount = std::ssize(rFleet.members);
-			bRestoredRemembered = true;
-			break;
-		}
-	}
-
-	if (!bRestoredRemembered)
-	{
-		// Clamp fleet index
-		if (miFocusedFleetIndex >= std::ssize(mClientFleets))
-		{
-			miFocusedFleetIndex = std::ssize(mClientFleets) - 1;
-		}
-
-		// Auto-activate newly created fleet
-		if (iPrevFleetCount < std::ssize(mClientFleets))
-		{
-			miFocusedFleetIndex = std::ssize(mClientFleets) - 1;
-			miFocusedPlayerInFleetIndex = -1;
-			iPrevFocusedFleetMemberCount = 0;
-		}
-	}
-
-	// Clamp or auto-select member index
-	const Fleet* pFleet = FocusedFleet();
-	if (pFleet != nullptr)
-	{
-		if (miFocusedPlayerInFleetIndex >= std::ssize(pFleet->members))
-		{
-			miFocusedPlayerInFleetIndex = std::ssize(pFleet->members) - 1;
-		}
-
-		// Auto-focus newly added member (fleet member count grew)
-		if (std::ssize(pFleet->members) > iPrevFocusedFleetMemberCount)
-		{
-			miFocusedPlayerInFleetIndex = std::ssize(pFleet->members) - 1;
-		}
-		else if (miFocusedPlayerInFleetIndex < 0 && !pFleet->members.empty())
-		{
-			miFocusedPlayerInFleetIndex = std::ssize(pFleet->members) - 1;
-		}
-
-		// If focused member is dead, auto-fallback to first alive member
-		if (miFocusedPlayerInFleetIndex >= 0 && !pFleet->members.at(static_cast<size_t>(miFocusedPlayerInFleetIndex)).bAlive)
-		{
-			miFocusedPlayerInFleetIndex = -1;
-			for (int64_t i = 0; i < std::ssize(pFleet->members); ++i)
-			{
-				if (pFleet->members.at(static_cast<size_t>(i)).bAlive)
-				{
-					miFocusedPlayerInFleetIndex = i;
-					break;
-				}
-			}
-		}
-	}
-	else
-	{
-		miFocusedPlayerInFleetIndex = -1;
-	}
-
-	// Update mClientGridCoord based on current selection
-	engine::global_id_t focusedId = ClientPlayerId();
-	bool bGridCoordResolved = false;
-	if (focusedId.IsValid())
-	{
-		for (int64_t i = 0; i < std::ssize(mClientPlayerIds); ++i)
-		{
-			if (mClientPlayerIds.at(i) == focusedId)
-			{
-				SetClientGridCoord(mClientPlayerCoords.at(i));
-				bGridCoordResolved = true;
-				break;
-			}
-		}
-	}
-
-	// No valid selection — camera to origin
-	if (!bGridCoordResolved)
-	{
-		SetClientGridCoord({});
-	}
-
-	// Persist whatever final focus state SyncFleets settled on (covers server-driven changes the user didn't trigger directly).
-	CaptureClientStateAndSaveIfChanged();
-}
-
-#endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
 XMVECTOR Game::GetClientPlayerPosition() const
@@ -615,97 +373,6 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	// navData stays empty; RunFrameTick builds it lazily on the per-coord dispatch thread.
 }
 
-void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rData, engine::alignment_t playerAlignment)
-{
-	switch (eType)
-	{
-		case StatusChangeType::kTransferSpaceship:
-			SpaceshipsPostRender::Spawn(rFrame, {
-				.vecPosition = rData.vecPosition,
-				.vecDirection = rData.vecDirection,
-				.vecVelocity = rData.vecVelocity,
-				.alignment = rData.alignment,
-				.fHealth = rData.fHealth,
-				.fNextBlasterSpawnTime = rData.fNextBlasterSpawnTime,
-				.fArrivalGracePeriod = kfArrivalGracePeriod,
-			});
-			break;
-
-		case StatusChangeType::kTransferBlaster:
-			BlastersPostRender::Spawn(rFrame, {
-				.vecPosition = rData.vecPosition,
-				.vecVelocity = rData.vecVelocity,
-				.uiTypeIndex = rData.uiTypeIndex,
-				.alignment = rData.alignment,
-				.fWindTrailIntensity = rData.fWindTrailIntensity,
-				.fWindTrailWidth = rData.fWindTrailWidth,
-				.fWindTrailLengthMultiplier = rData.fWindTrailLengthMultiplier,
-			});
-			break;
-
-		case StatusChangeType::kTransferMissile:
-		{
-			MissileFlags_t missileFlags;
-			if (rData.alignment == playerAlignment)
-			{
-				missileFlags.Set(MissileFlags::kTargetEnemy);
-			}
-			else
-			{
-				missileFlags.Set(MissileFlags::kTargetPlayer);
-			}
-
-			MissilesPostRender::Spawn(rFrame, {
-				.vecPosition = rData.vecPosition,
-				.vecDirection = rData.vecDirection,
-				.vecVelocity = rData.vecVelocity,
-				.vecStoredDirection = rData.vecDirection,
-				.uiTarget = {},
-				.fAcceleration = rData.fAcceleration,
-				.flags = missileFlags,
-				.alignment = rData.alignment,
-				.fDeltaRotationDelay = rData.fDeltaRotationDelay,
-				.fTime = rData.fTime,
-				.fExhaustDelay = rData.fExhaustDelay,
-				.fNextJitter = rData.fNextJitter,
-#if defined(BT_CLIENT)
-				.smokeTrailId = rData.smokeTrailId,
-#endif
-			});
-			break;
-		}
-
-		case StatusChangeType::kTransferPlayer:
-			PlayersPostRender::Spawn(rFrame, {
-				.vecPosition = rData.vecPosition,
-				.vecDirection = rData.vecDirection,
-				.vecVelocity = rData.vecVelocity,
-				.alignment = rData.alignment,
-				.fArmor = rData.fHealth,
-				.fShield = rData.fShield,
-				.fNextBlasterFireTime = rData.fNextBlasterFireTime,
-				.fNextSecondarySpawnTime = rData.fNextSecondarySpawnTime,
-				.fShieldCooldown = rData.fShieldCooldown,
-				.fShieldDownSoundCooldown = rData.fShieldDownSoundCooldown,
-				.fAnimationTime = rData.fAnimationTime,
-				.fShieldRotation = rData.fShieldRotation,
-				.fShieldShrink = rData.fShieldShrink,
-				.flags = PlayerFlags_t {static_cast<PlayerFlags>(rData.uiPlayerFlags)},
-				.fTransferLockTimer = 1.0f,
-				.fArrivalGracePeriod = kfArrivalGracePeriod,
-				.fNavigationDelay = rData.fNavigationDelay,
-				.globalPlayerId = rData.globalPlayerId,
-				.fleetWantedCoord = rData.fleetWantedCoord,
-				.uiPendingFleetWantedCoordTicks = rData.uiPendingFleetWantedCoordTicks,
-				.uiPendingWeaponModeTicks = rData.uiPendingWeaponModeTicks,
-			});
-			break;
-
-		default:
-			break;
-	}
-}
-
 void Game::HarvestTransfers()
 {
 #if defined(BT_SERVER)
@@ -783,9 +450,7 @@ void Game::Reset()
 	mClientPlayerIds.clear();
 	mClientPlayerCoords.clear();
 #if defined(BT_CLIENT)
-	mClientFleets.clear();
-	miFocusedFleetIndex = -1;
-	miFocusedPlayerInFleetIndex = -1;
+	mFleetSelection.Clear();
 #endif
 	mfPreviousClientArmor = 0.0f;
 	SetClientGridCoord(engine::kOriginCoord);
@@ -994,291 +659,21 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 }
 
 #if defined(BT_CLIENT)
-struct SoundSettings
-{
-	static constexpr int64_t kiVersion = 2;
-
-	float fMasterVolume = 0.0f;
-	float fMusicVolume = 0.0f;
-	float fSoundVolume = 0.0f;
-};
-static constexpr char kpcSoundSettingsPath[] = "SoundSettings.bin";
-
-void Game::SaveSoundSettings()
-{
-	SoundSettings soundSettings
-	{
-		.fMasterVolume = engine::gMasterVolume.Get(),
-		.fMusicVolume = engine::gMusicVolume.Get(),
-		.fSoundVolume = engine::gSoundVolume.Get(),
-	};
-
-	engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, kpcSoundSettingsPath, soundSettings);
-}
-
-void Game::LoadSoundSettings()
-{
-	SoundSettings soundSettings {};
-
-	if (engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, kpcSoundSettingsPath, soundSettings))
-	{
-		engine::gMasterVolume.Set(soundSettings.fMasterVolume);
-		engine::gMusicVolume.Set(soundSettings.fMusicVolume);
-		engine::gSoundVolume.Set(soundSettings.fSoundVolume);
-	}
-
-	if constexpr (kbRecording)
-	{
-		engine::gMusicVolume.Set(0.0f);
-	}
-}
-
-void Game::ResetSoundSettings()
-{
-	engine::gMasterVolume.ResetToDefault();
-	engine::gMusicVolume.ResetToDefault();
-	engine::gSoundVolume.ResetToDefault();
-
-	SaveSoundSettings();
-}
-
-struct GraphicsSettings
-{
-	static constexpr int64_t kiVersion = 6;
-
-	bool bFullscreen = false;
-	VkPresentModeKHR ePresentMode = VK_PRESENT_MODE_FIFO_KHR;
-	bool bMultisampling = false;
-	VkSampleCountFlagBits eSampleCount = VK_SAMPLE_COUNT_4_BIT;
-	bool bAnisotropy = false;
-	float fMaxAnisotropy = 0.0f;
-	bool bSampleShading = false;
-	float fMinSampleShading = 0.0f;
-	float fMipLodBias = 0.0f;
-	float fWaterShapeDetail = 0.0f;
-	bool bSmoke = false;
-	float fSmokeSimulationPixels = 0.0f;
-	float fSmokeSimulationArea = 0.0f;
-	float fMinimumAmbient = 0.0f;
-	bool bWind = false;
-	bool bOpaqueUi = false;
-	float fUiOpacity = 0.9f;
-	float fUiFontScale = 1.0f;
-};
-static constexpr char kpcGraphicsSettingsPath[] = "GraphicsSettings.bin";
-
-void Game::SaveGraphicsSettings()
-{
-	// Heap: file I/O allocates
-	ScopedSuppressAllocationTracking suppress;
-
-	GraphicsSettings graphicsSettings
-	{
-		.bFullscreen = engine::gFullscreen.Get<bool>(),
-		.ePresentMode = engine::gPresentMode.Get<VkPresentModeKHR>(),
-		.bMultisampling = engine::gMultisampling.Get<bool>(),
-		.eSampleCount = engine::gSampleCount.Get<VkSampleCountFlagBits>(),
-		.bAnisotropy = engine::gAnisotropy.Get<bool>(),
-		.fMaxAnisotropy = engine::gMaxAnisotropy.Get(),
-		.bSampleShading = engine::gSampleShading.Get<bool>(),
-		.fMinSampleShading = engine::gMinSampleShading.Get(),
-		.fMipLodBias = engine::gMipLodBias.Get(),
-		.fWaterShapeDetail = engine::gWaterShapeDetail.Get(),
-		.bSmoke = engine::gSmokeEnabled.Get<bool>(),
-		.fSmokeSimulationPixels = engine::gSmokeSimulationPixels.Get(),
-		.fSmokeSimulationArea = engine::gSmokeSimulationArea.Get(),
-		.fMinimumAmbient = engine::gSunMoonMinimumAmbient.Get(),
-		.bWind = engine::gWindEnabled.Get<bool>(),
-		.bOpaqueUi = engine::gOpaqueUi.Get<bool>(),
-		.fUiOpacity = engine::gUiOpacity.Get(),
-		.fUiFontScale = engine::gUiFontScale.Get(),
-	};
-
-	engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, kpcGraphicsSettingsPath, graphicsSettings);
-}
-
-bool Game::LoadGraphicsSettings()
-{
-	GraphicsSettings graphicsSettings {};
-
-	if (engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, kpcGraphicsSettingsPath, graphicsSettings))
-	{
-		engine::gFullscreen.Set(graphicsSettings.bFullscreen);
-		engine::gPresentMode.Set<VkPresentModeKHR>(graphicsSettings.ePresentMode);
-		engine::gMultisampling.Set(graphicsSettings.bMultisampling);
-		engine::gSampleCount.Set<VkSampleCountFlagBits>(graphicsSettings.eSampleCount);
-		engine::gAnisotropy.Set(graphicsSettings.bAnisotropy);
-		engine::gMaxAnisotropy.Set(graphicsSettings.fMaxAnisotropy);
-		engine::gSampleShading.Set(graphicsSettings.bSampleShading);
-		engine::gMinSampleShading.Set(graphicsSettings.fMinSampleShading);
-		engine::gMipLodBias.Set(graphicsSettings.fMipLodBias);
-		engine::gWaterShapeDetail.Set(graphicsSettings.fWaterShapeDetail);
-		engine::gSmokeEnabled.Set(graphicsSettings.bSmoke);
-		engine::gSmokeSimulationPixels.Set(graphicsSettings.fSmokeSimulationPixels);
-		engine::gSmokeSimulationArea.Set(graphicsSettings.fSmokeSimulationArea);
-		engine::gSunMoonMinimumAmbient.Set(graphicsSettings.fMinimumAmbient);
-		engine::gWindEnabled.Set(graphicsSettings.bWind);
-		engine::gOpaqueUi.Set(graphicsSettings.bOpaqueUi);
-		engine::gUiOpacity.Set(graphicsSettings.fUiOpacity);
-		engine::gUiFontScale.Set(graphicsSettings.fUiFontScale);
-		return true;
-	}
-
-	return false;
-}
-
-void Game::ResetGraphicsSettings()
-{
-	engine::gFullscreen.ResetToDefault();
-	engine::gPresentMode.ResetToDefault();
-	engine::gMultisampling.ResetToDefault();
-	engine::gSampleCount.ResetToDefault();
-	engine::gAnisotropy.ResetToDefault();
-	engine::gMaxAnisotropy.ResetToDefault();
-	engine::gSampleShading.ResetToDefault();
-	engine::gMinSampleShading.ResetToDefault();
-	engine::gMipLodBias.ResetToDefault();
-	engine::gWaterShapeDetail.ResetToDefault();
-	engine::gSmokeEnabled.ResetToDefault();
-	engine::gSmokeSimulationPixels.ResetToDefault();
-	engine::gSmokeSimulationArea.ResetToDefault();
-	engine::gSunMoonMinimumAmbient.ResetToDefault();
-	engine::gWindEnabled.ResetToDefault();
-	engine::gOpaqueUi.ResetToDefault();
-	engine::gUiOpacity.ResetToDefault();
-	engine::gUiFontScale.ResetToDefault();
-
-	SaveGraphicsSettings();
-}
-
-struct TweaksSettings
-{
-	static constexpr int64_t kiVersion = 12;
-
-	bool bShowImGui = false;
-	bool bSectionVisible[static_cast<size_t>(engine::TweakSection::kCount)] {};
-	float fWindowPositionX[static_cast<size_t>(engine::TweakSection::kCount)] {};
-	float fWindowPositionY[static_cast<size_t>(engine::TweakSection::kCount)] {};
-	int8_t iActiveSubtab[static_cast<size_t>(engine::TweakSection::kCount)] {};
-	float fSunAngle = 1.15f;
-	bool bSectionCollapsed[static_cast<size_t>(engine::TweakSection::kCount)] {};
-};
-static constexpr char kpcTweaksSettingsPath[] = "TweaksSettings.bin";
-
-void Game::SaveTweaksSettings()
-{
-	if constexpr (!kbDebugInput)
-	{
-		return;
-	}
-
-	bool bSectionVisible[static_cast<size_t>(engine::TweakSection::kCount)] {};
-	ImVec2 f2WindowPositions[static_cast<size_t>(engine::TweakSection::kCount)] {};
-	int8_t iActiveSubtab[static_cast<size_t>(engine::TweakSection::kCount)] {};
-	bool bSectionCollapsed[static_cast<size_t>(engine::TweakSection::kCount)] {};
-	engine::gpImGuiManager->mpTweaksScreen->SaveState(bSectionVisible, f2WindowPositions, iActiveSubtab, bSectionCollapsed);
-
-	TweaksSettings settings {};
-	settings.bShowImGui = gpGame->mbShowImGui;
-	for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
-	{
-		settings.bSectionVisible[i] = bSectionVisible[i];
-		settings.fWindowPositionX[i] = f2WindowPositions[i].x;
-		settings.fWindowPositionY[i] = f2WindowPositions[i].y;
-		settings.iActiveSubtab[i] = iActiveSubtab[i];
-		settings.bSectionCollapsed[i] = bSectionCollapsed[i];
-	}
-	settings.fSunAngle = engine::gSunAngleOverride.Get();
-
-	engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, kpcTweaksSettingsPath, settings);
-}
-
-void Game::LoadTweaksSettings()
-{
-	if constexpr (!kbDebugInput)
-	{
-		return;
-	}
-
-	TweaksSettings settings {};
-	if (engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, kpcTweaksSettingsPath, settings))
-	{
-		gpGame->mbShowImGui = settings.bShowImGui;
-
-		ImVec2 f2WindowPositions[static_cast<size_t>(engine::TweakSection::kCount)] {};
-		for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
-		{
-			f2WindowPositions[i] = {settings.fWindowPositionX[i], settings.fWindowPositionY[i]};
-		}
-
-		engine::gpImGuiManager->mpTweaksScreen->LoadState(settings.bSectionVisible, f2WindowPositions, settings.iActiveSubtab, settings.bSectionCollapsed);
-
-		engine::gSunAngleOverride.Set(settings.fSunAngle);
-	}
-	else
-	{
-		LOG(kDefault, kWarning, "LoadTweaks FAILED to read file");
-	}
-}
-
-struct ClientStateSettings
-{
-	static constexpr int64_t kiVersion = 3;
-
-	game::FleetGuid fleetGuid {};
-	int64_t iFocusedShipId = 0;
-	float fCameraEyeHeightTarget = 198.0f; // matches Camera::kfCameraEyeHeightInitial
-};
-static constexpr char kpcClientStatePath[] = "ClientState.bin";
-
-void Game::SaveClientState()
-{
-	// Heap: engine::WriteVersionedFile file I/O
-	ScopedSuppressAllocationTracking suppress;
-
-	ClientStateSettings settings
-	{
-		.fleetGuid              = gpGame->mRememberedFleetGuid,
-		.iFocusedShipId         = gpGame->mRememberedFocusedShipId.iValue,
-		.fCameraEyeHeightTarget = gpGame->mfRememberedCameraEyeHeightTarget,
-	};
-	engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, kpcClientStatePath, settings);
-}
-
-void Game::LoadClientState()
-{
-	// Heap: engine::ReadVersionedFile file I/O
-	ScopedSuppressAllocationTracking suppress;
-
-	ClientStateSettings settings {};
-	if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, kpcClientStatePath, settings))
-	{
-		return;
-	}
-
-	gpGame->mRememberedFleetGuid = settings.fleetGuid;
-	gpGame->mRememberedFocusedShipId = engine::global_id_t {settings.iFocusedShipId};
-	gpGame->mfRememberedCameraEyeHeightTarget = settings.fCameraEyeHeightTarget;
-
-	// Apply zoom directly so the camera starts AT the saved zoom rather than easing from the default.
-	gpCamera->mfCameraEyeHeight = settings.fCameraEyeHeightTarget;
-	gpCamera->mfCameraEyeHeightTarget = settings.fCameraEyeHeightTarget;
-}
-
 void Game::CaptureClientStateAndSaveIfChanged()
 {
 	// When no fleet is focused (boot before first sync, or post-disconnect cleared fleets), preserve the remembered fleet/ship —
 	// don't overwrite the just-loaded saved state with zeros. The next valid focus (user click or post-sync auto-activate) updates it.
 	game::FleetGuid newFleetGuid = mRememberedFleetGuid;
 	engine::global_id_t newShipId = mRememberedFocusedShipId;
-	if (miFocusedFleetIndex >= 0 && miFocusedFleetIndex < std::ssize(mClientFleets))
+	const Fleet* pFleet = mFleetSelection.FocusedFleet();
+	if (pFleet != nullptr)
 	{
-		const Fleet& rFleet = mClientFleets.at(static_cast<size_t>(miFocusedFleetIndex));
-		newFleetGuid = rFleet.guid;
+		newFleetGuid = pFleet->guid;
 		newShipId = {};
-		if (miFocusedPlayerInFleetIndex >= 0 && miFocusedPlayerInFleetIndex < std::ssize(rFleet.members))
+		int64_t iMember = mFleetSelection.FocusedPlayerInFleetIndex();
+		if (iMember >= 0 && iMember < std::ssize(pFleet->members))
 		{
-			newShipId = rFleet.members.at(static_cast<size_t>(miFocusedPlayerInFleetIndex)).globalPlayerId;
+			newShipId = pFleet->members.at(static_cast<size_t>(iMember)).globalPlayerId;
 		}
 	}
 

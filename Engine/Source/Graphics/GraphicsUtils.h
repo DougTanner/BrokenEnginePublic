@@ -39,6 +39,7 @@ XMVECTOR ProjectToBaseHeight(XMVECTOR vecPosition);
 void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT4A& f4Position, float fArea, const XMFLOAT4A& f4Params, uint32_t uiColor);
 
 bool SupportsLinearFilter(VkFormat vkFormat);
+bool SupportsColorAttachmentBlend(VkFormat vkFormat);
 
 } // namespace engine
 

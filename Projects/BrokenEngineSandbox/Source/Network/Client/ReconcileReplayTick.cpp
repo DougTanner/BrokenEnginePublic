@@ -4,6 +4,7 @@
 #include "Frame/FrameTick.h"
 #include "Frame/StatusChange.h"
 #include "Network/Client/ClientReconciler.h"
+#include "SpawnTransfer.h"
 
 namespace game
 {

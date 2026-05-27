@@ -38,6 +38,7 @@
     <ClCompile Include="..\..\Source\Attribution.cpp" />
     <ClCompile Include="..\..\Source\BakeIslandIntermediates.cpp" />
     <ClCompile Include="..\..\Source\FileManager.cpp" />
+    <ClCompile Include="..\..\Source\GaeaArchetype.cpp" />
     <ClCompile Include="..\..\Source\Main.cpp" />
     <ClCompile Include="..\..\Source\MigrateLegacyIntermediates.cpp" />
     <ClCompile Include="..\..\Source\SubdivideBeachBand.cpp" />
@@ -82,6 +83,7 @@
     <ClInclude Include="..\..\Source\Attribution.h" />
     <ClInclude Include="..\..\Source\BakeIslandIntermediates.h" />
     <ClInclude Include="..\..\Source\FileManager.h" />
+    <ClInclude Include="..\..\Source\GaeaArchetype.h" />
     <ClInclude Include="..\..\Source\MigrateLegacyIntermediates.h" />
     <ClInclude Include="..\..\Source\Pch.h" />
     <ClInclude Include="..\..\Source\SubdivideBeachBand.h" />

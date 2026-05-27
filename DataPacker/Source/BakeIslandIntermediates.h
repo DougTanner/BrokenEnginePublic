@@ -5,7 +5,9 @@
 // from `Island.json` + a resolved `.terrain` archetype, writing .r32 (elevation) / .r16 (AO) /
 // .png (sRGB color) / .exr (normals) files that ExportIsland then consumes and block-compresses.
 // Throws on any failure (caught by main()'s try/catch).
-// Everything Gaea-2-specific is isolated in BakeIslandIntermediates.cpp for eventual Gaea 3 migration.
+// Gaea-2-version-specific logic (executable resolution, archetype patching, Sea-level read) is
+// isolated in GaeaArchetype.{h,cpp} for eventual Gaea 3 migration; this TU keeps the version-agnostic
+// bake/split orchestration.
 void BakeIslandIntermediates();
 
 struct WorldDimensions
@@ -13,10 +15,6 @@ struct WorldDimensions
 	float fFootprintMeters = 0.0f;   // Isotropic horizontal extent (Gaea Terrain.Width)
 	float fElevationMeters = 0.0f;   // Total vertical span in meters (Gaea Terrain.Height); per-island sea floor sits at -(Level × elevationMeters), where Level is read from the archetype's Sea node (fallback kfGaeaSeaLevelDefault if absent)
 };
-
-// Reads world-space dimensions from Island.json's required widthMeters/elevationMeters fields.
-// Throws if Island.json is missing or either key is absent.
-WorldDimensions GetIslandDimensions(const std::filesystem::path& rIslandFolder);
 
 // Post-crop dimensions written into each chunk leaf's BakedDimensions.json by the Gaea bake.
 // `fWidthMeters` / `fHeightMeters` are anisotropic (cropped chunk extent in world meters);

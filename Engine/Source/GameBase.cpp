@@ -17,9 +17,6 @@ namespace engine
 {
 
 GameBase::GameBase()
-#if defined(BT_SERVER)
-: mGameSaveLoad(*this)
-#endif // BT_SERVER
 {
 	game::FrameInterpolate::Register();
 }
@@ -100,13 +97,13 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 
 	game::gpServerSession->PreTickNetwork();
 
-	if (mGameSaveLoad.Quickload(rMenuInput)) [[unlikely]]
+	if (game::gpGame->mGameSaveLoad.Quickload(rMenuInput)) [[unlikely]]
 	{
 		game::gpGame->ComputeActiveSet();
 		return;
 	}
 
-	mGameSaveLoad.SaveLoadReplay();
+	game::gpGame->mGameSaveLoad.SaveLoadReplay();
 
 	game::gpServerSession->WaitForTick(mTimeStep);
 
@@ -142,9 +139,9 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 
 		game::gpServerSession->PrepareTick();
 
-		if (mGameSaveLoad.IsRecording() || mGameSaveLoad.IsReplaying()) [[unlikely]]
+		if (game::gpGame->mGameSaveLoad.IsRecording() || game::gpGame->mGameSaveLoad.IsReplaying()) [[unlikely]]
 		{
-			mGameSaveLoad.SyncReplayTick();
+			game::gpGame->mGameSaveLoad.SyncReplayTick();
 		}
 
 		BuildAndDispatchFrameTicks(rActiveCoords);
@@ -161,8 +158,8 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 		gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullTicks);
 	}
 
-	mGameSaveLoad.TickAutosave();
-	mGameSaveLoad.Quicksave(rMenuInput);
+	game::gpGame->mGameSaveLoad.TickAutosave();
+	game::gpGame->mGameSaveLoad.Quicksave(rMenuInput);
 }
 #endif // BT_SERVER
 
@@ -219,7 +216,7 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 void GameBase::FinalizeFrameTick(const std::vector<GridCoord>& rActiveCoords)
 {
 	// Transfer entities that crossed frame boundaries into destination frames
-	if (!mGameSaveLoad.IsReplaying())
+	if (!game::gpGame->mGameSaveLoad.IsReplaying())
 	{
 		game::gpGame->HarvestTransfers();
 	}
@@ -431,13 +428,13 @@ void GameBase::Render()
 void GameBase::PrepareActiveSet()
 {
 #if defined(BT_SERVER)
-	if (mGameSaveLoad.IsReplaying())
+	if (game::gpGame->mGameSaveLoad.IsReplaying())
 	{
 		// During replay, all recorded coords are active
 		// Heap: vector clear/push_back, unordered_map insertion + make_unique<Frame>
 		ScopedSuppressAllocationTracking suppress;
 		game::gpGame->mActiveCoords.clear();
-		for (const auto& [rCoord, rpReader] : mGameSaveLoad.GetReplayReaders())
+		for (const auto& [rCoord, rpReader] : game::gpGame->mGameSaveLoad.GetReplayReaders())
 		{
 			game::gpGame->mActiveCoords.push_back(rCoord);
 			CoordFrames& rSub = mCoordFrames.try_emplace(rCoord).first->second;
@@ -468,7 +465,7 @@ void GameBase::SwapFrames()
 
 	// After swap, .next holds old current frames (stale data, reusable memory).
 	// Ensure active entries exist for next iteration's AllocateAndCopy.
-	if (!mGameSaveLoad.IsReplaying())
+	if (!game::gpGame->mGameSaveLoad.IsReplaying())
 	{
 		game::gpGame->EnsureNextFrames();
 	}

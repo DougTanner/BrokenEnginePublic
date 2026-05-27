@@ -4,6 +4,7 @@
 #include "Frame/Collections/Players/Players.h"
 #include "Game.h"
 #include "Profile/ProfileManager.h"
+#include "Server/ServerDisplay.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 
 namespace engine
@@ -136,7 +137,7 @@ void MainThread(HINSTANCE hinstance)
 
 	// Setup window rect & matrices
 #if defined(BT_CLIENT)
-	game::Game::LoadGraphicsSettings();
+	game::LoadGraphicsSettings();
 	gWantedFramebufferExtent2D = SetupWindow(gFullscreen.Get<bool>(), sWindowStyle, sWindowRect);
 #else
 	LONG iWindowStyle = WS_POPUP;
@@ -171,7 +172,7 @@ void MainThread(HINSTANCE hinstance)
 
 #if defined(BT_CLIENT)
 	// Load settings
-	game::Game::LoadSoundSettings();
+	game::LoadSoundSettings();
 
 	// Create terrain collision data (before Graphics, which creates Islands that reads beach elevation)
 	auto pIslandTerrain = std::make_unique<IslandTerrain>();
@@ -196,10 +197,10 @@ void MainThread(HINSTANCE hinstance)
 	game::gpInput = pInput.get();
 
 	// Load tweaks settings (requires both Game and ImGuiManager)
-	game::Game::LoadTweaksSettings();
+	game::LoadTweaksSettings();
 
 	// Load persistent client state (focused fleet/ship + zoom). Requires gpCamera and gpGame; both exist by here.
-	game::Game::LoadClientState();
+	game::LoadClientState();
 
 	gpProfileManager->BootStop(kBootTimerVulkan);
 
@@ -305,7 +306,7 @@ void MainThread(HINSTANCE hinstance)
 		{
 			// Heap: Win32 InvalidateRect may trigger internal GDI allocations
 			ScopedSuppressAllocationTracking suppress;
-			ServerUpdateDisplayStats();
+			game::ServerUpdateDisplayStats();
 			InvalidateRect(sHwnd, nullptr, FALSE);
 		}
 #endif // BT_CLIENT
@@ -321,9 +322,9 @@ void MainThread(HINSTANCE hinstance)
 
 #if defined(BT_CLIENT)
 	// Save settings
-	game::Game::SaveTweaksSettings();
-	game::Game::SaveSoundSettings();
-	game::Game::SaveGraphicsSettings();
+	game::SaveTweaksSettings();
+	game::SaveSoundSettings();
+	game::SaveGraphicsSettings();
 #endif
 
 	PostQuitMessage(0);
@@ -488,7 +489,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			// Heap: GDI painting creates/destroys kernel objects that may trigger CRT allocations
 			ScopedSuppressAllocationTracking suppress;
-			PaintServerDisplay(hWnd);
+			game::PaintServerDisplay(hWnd);
 			return 0;
 		}
 
@@ -506,7 +507,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_LBUTTONDOWN:
 		{
-			HandleServerClick(hWnd, LOWORD(lParam), HIWORD(lParam));
+			game::HandleServerClick(hWnd, LOWORD(lParam), HIWORD(lParam));
 			InvalidateRect(hWnd, nullptr, FALSE);
 			return 0;
 		}

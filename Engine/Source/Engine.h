@@ -90,7 +90,6 @@
 #include "Network/NetworkDiscoveryResponder.h"
 #include "Network/Server/Server.h"
 #include "Network/Server/ServerSessionBase.h"
-#include "Server/ServerDisplay.h"
 #endif
 
 // Engine base

@@ -9,6 +9,7 @@
 #include "Game.h"
 #include "Network/Server/ServerFleetManager.h"
 #include "Network/Server/ServerSession.h"
+#include "SpawnTransfer.h"
 
 namespace game
 {

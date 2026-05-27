@@ -330,9 +330,7 @@ void ClientSession::ResetForServerLoad()
 	gpGame->mNavigationDelayControl.Reset();
 
 	// Clear fleet state — server will re-sync
-	gpGame->mClientFleets.clear();
-	gpGame->miFocusedFleetIndex = -1;
-	gpGame->miFocusedPlayerInFleetIndex = -1;
+	gpGame->mFleetSelection.Clear();
 
 	// Force-reset all client coord slots
 	std::vector<engine::ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();

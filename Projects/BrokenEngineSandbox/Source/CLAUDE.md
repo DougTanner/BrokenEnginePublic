@@ -10,8 +10,10 @@ Frame code is purely functional. Frame updates must only rely on explicit functi
 
 ## Key Classes/Systems
 
-- **Game** (`Game.h`/`Game.cpp`) - Central coordinator inheriting from `engine::GameBase`, accessed via `gpGame`. Owns lifecycle, fleet selection, multi-frame grid orchestration, cross-grid entity transfers, persisted settings, and the `ClientSession`/`ServerSession`.
-- **Fleet** (`Fleet.h`) - Client-side grouping of player entities for focus/selection and shared navigation intent. Drives which grid cell the camera follows. Each fleet carries a server-minted random 128-bit identifier that is stable across disconnect/reconnect/save-load and used by clients to refer to fleets persistently.
+- **Game** (`Game.h`/`Game.cpp`) - Central coordinator inheriting from `engine::GameBase`, accessed via `gpGame`. Owns lifecycle, multi-frame grid orchestration, cross-grid entity transfers, the `ClientSession`/`ServerSession`, and (server-only) the `GameSaveLoad` save/load/replay subsystem; holds a `FleetSelection` member and forwards its fleet-navigation API.
+- **FleetSelection** (`FleetSelection.h`/`.cpp`, client-only) - Owns the client fleet list and focus state; drives which grid cell the camera follows.
+- **Fleet** (`Fleet.h`) - Client-side grouping of player entities for focus/selection and shared navigation intent. Each fleet carries a server-minted random 128-bit identifier that is stable across disconnect/reconnect/save-load and used by clients to refer to fleets persistently.
+- **Settings/transfer free functions** - Client-only persisted-settings save/load/reset lives in `ClientSettings.{h,cpp}` (`game::` free functions); the shared spawn-side of cross-grid transfers is the `game::SpawnTransfer` free function in `SpawnTransfer.{h,cpp}`.
 - **ClientSession** / **ServerSession** - Per-side networking orchestration owned by `Game`. See [Network/CLAUDE.md](Network/CLAUDE.md).
 
 ## Architecture Notes
@@ -32,6 +34,8 @@ Frame code is purely functional. Frame updates must only rely on explicit functi
 - [Input/](Input/CLAUDE.md) - Keyboard/mouse and gamepad input pipeline
 - [Network/](Network/CLAUDE.md) - Sessions, packet types, serialization
 - [Profile/](Profile/CLAUDE.md) - Game CPU profiling counters
+- [Save/](Save/) - Save/load/replay (`game::GameSaveLoad`, server-only)
+- [Server/](Server/CLAUDE.md) - GDI monitoring window (server-only)
 - [Ui/](Ui/CLAUDE.md) - ImGui HUD, menus, settings
 
 ## See Also
