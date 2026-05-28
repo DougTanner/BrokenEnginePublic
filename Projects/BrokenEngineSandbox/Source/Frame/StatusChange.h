@@ -65,7 +65,7 @@ struct UpdatePlayerData
 {
 	int64_t iPlayerUuid = 0;
 	bool bUseMissiles = false;
-	float fNavigationDelay = 2.0f;
+	float fNavigationDelay = 60.0f;
 	uint8_t uiPendingWeaponModeTicks = 0;
 	bool operator==(const UpdatePlayerData&) const = default;
 
@@ -151,7 +151,7 @@ struct TransferData
 	float fArrivalGracePeriod = 0.0f;
 
 	// Navigation delay (player transfers only)
-	float fNavigationDelay = 2.0f;
+	float fNavigationDelay = 60.0f;
 
 	// Missile timers
 	float fDeltaRotationDelay = 0.0f;

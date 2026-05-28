@@ -83,7 +83,7 @@ void operator delete[](void* p, std::align_val_t al, const std::nothrow_t&) noex
 
 #endif
 
-constexpr int64_t kiMimallocArenaReserveMb = 4 * 1024;
+constexpr int64_t kiMimallocArenaReserveMb = 8 * 1024;
 
 struct MemoryInitializer
 {

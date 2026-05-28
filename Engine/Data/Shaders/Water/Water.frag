@@ -311,13 +311,16 @@ void main()
 
 	// Scale base-height lighting (hue-preserving: pow applied to per-direction luminance/average scalar)
 	float fWaterEwnsPowMode = mainLayout.fLightingWaterEwnsPowMode;
+	// Skip the pow for whichever ratio the mode discards at its extremes (mode is a uniform, so the branch is warp-coherent)
+	bool bNeedLumRatio = fWaterEwnsPowMode < 0.999f;
+	bool bNeedAvgRatio = fWaterEwnsPowMode > 0.001f;
 	for (int i = 0; i < 4; i++)
 	{
 		vec3 f3Dir = vec3(pf4LightingBaseHeight[0][i], pf4LightingBaseHeight[1][i], pf4LightingBaseHeight[2][i]);
 		float fLum = dot(f3Dir, kRec709);
-		float fLumRatio = pow(max(fLum, 0.001f), mainLayout.fLightingWaterEwnsPow) / max(fLum, 0.001f);
 		float fAvg = (f3Dir.x + f3Dir.y + f3Dir.z) / 3.0f;
-		float fAvgRatio = pow(max(fAvg, 0.001f), mainLayout.fLightingWaterEwnsPow) / max(fAvg, 0.001f);
+		float fLumRatio = bNeedLumRatio ? pow(max(fLum, 0.001f), mainLayout.fLightingWaterEwnsPow) / max(fLum, 0.001f) : 0.0f;
+		float fAvgRatio = bNeedAvgRatio ? pow(max(fAvg, 0.001f), mainLayout.fLightingWaterEwnsPow) / max(fAvg, 0.001f) : 0.0f;
 		float fRatio = mix(fLumRatio, fAvgRatio, fWaterEwnsPowMode);
 		pf4LightingBaseHeight[0][i] *= fRatio;
 		pf4LightingBaseHeight[1][i] *= fRatio;

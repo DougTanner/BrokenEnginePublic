@@ -114,10 +114,6 @@ void main()
 	}
 	else
 	{
-		vec4 f4OutR = Uchimura(f4R, P, a, m, l, c, b);
-		vec4 f4OutG = Uchimura(f4G, P, a, m, l, c, b);
-		vec4 f4OutB = Uchimura(f4B, P, a, m, l, c, b);
-
 		// Hue-preserving: per-EWNS-direction, tone-map luminance scalar, scale all channels by ratio
 		vec4 f4HueR = f4R;
 		vec4 f4HueG = f4G;
@@ -132,9 +128,20 @@ void main()
 			f4HueB[i] = f4B[i] * fRatio;
 		}
 
-		f4FinalR = mix(f4OutR, f4HueR, fHuePreserve);
-		f4FinalG = mix(f4OutG, f4HueG, fHuePreserve);
-		f4FinalB = mix(f4OutB, f4HueB, fHuePreserve);
+		if (fHuePreserve < 0.999f)
+		{
+			// Blend the per-channel Uchimura result toward the hue-preserving result (mirror of the < 0.001f fast path)
+			f4FinalR = mix(Uchimura(f4R, P, a, m, l, c, b), f4HueR, fHuePreserve);
+			f4FinalG = mix(Uchimura(f4G, P, a, m, l, c, b), f4HueG, fHuePreserve);
+			f4FinalB = mix(Uchimura(f4B, P, a, m, l, c, b), f4HueB, fHuePreserve);
+		}
+		else
+		{
+			// fHuePreserve ~= 1: the mix would return the hue-preserving result, so skip the three Uchimura calls
+			f4FinalR = f4HueR;
+			f4FinalG = f4HueG;
+			f4FinalB = f4HueB;
+		}
 	}
 
 	imageStore(combineImageR, i2Coord, f4FinalR);

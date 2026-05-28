@@ -463,6 +463,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	// Flagship navigates to island destination on enter; non-flagship starts roaming and follows flagship via proximity
 	PlayerFlags_t spawnFlags = rInfo.flags;
 	SetNavDirection(spawnFlags, (rInfo.flags & kIsFlagship) ? static_cast<int8_t>(4) : static_cast<int8_t>(-1));
+	SetNavWaypointIndex(spawnFlags, 0); // restart largest -> smallest -> random sequence in each new frame (incl. cross-frame transfers)
 	rCurrentPostRender.pFlags[iIndex] = spawnFlags;
 	rCurrentPostRender.pfNavigationDelays[iIndex] = rInfo.fNavigationDelay;
 	rCurrentPostRender.pVecIslandDestinations[iIndex] = XMVectorZero();
@@ -730,6 +731,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		uint8_t uiPendingFleetWantedCoordTicks = rPrevious.puiPendingFleetWantedCoordTicks[i];
 		uint8_t uiPendingWeaponModeTicks = rPrevious.puiPendingWeaponModeTicks[i];
 		int8_t iNavDirection = GetNavDirection(flags);
+		int8_t iNavWaypointIndex = GetNavWaypointIndex(flags);
 		XMVECTOR vecIslandDestination = rPrevious.pVecIslandDestinations[i];
 		XMVECTOR vecPosition = rPreviousInterpolate.pVecPositions[i];
 
@@ -762,7 +764,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		else
 		{
 			// AI block — see PlayersNavigation.cpp / PlayersCombat.cpp for the helpers
-			ComputeNavigation(rFrame, rPreviousFrame, rStaticData, i, vecPosition, vecFrameCenter, fleetWantedCoord, uiPendingFleetWantedCoordTicks, flags, fNavigationDelay, fDeltaTime, iNavDirection, vecAiDirection, vecIslandDestination, fFrameChangeTimer);
+			ComputeNavigation(rFrame, rPreviousFrame, rStaticData, i, vecPosition, vecFrameCenter, fleetWantedCoord, uiPendingFleetWantedCoordTicks, flags, fNavigationDelay, fDeltaTime, iNavDirection, iNavWaypointIndex, vecAiDirection, vecIslandDestination, fFrameChangeTimer);
 
 			bool bLookTargetFound = false;
 			XMVECTOR vecLookPosition = XMVectorZero();
@@ -785,6 +787,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 
 		// Save
 		SetNavDirection(flags, iNavDirection);
+		SetNavWaypointIndex(flags, iNavWaypointIndex);
 		rCurrent.pFlags[i] = flags;
 		rCurrent.pfNextBlasterFireTimes[i] = fNextBlasterFireTime;
 		rCurrent.pfNextSecondarySpawnTimes[i] = fNextSecondarySpawnTime;

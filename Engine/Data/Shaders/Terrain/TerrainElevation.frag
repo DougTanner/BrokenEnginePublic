@@ -35,7 +35,14 @@ void main()
     // consumer of mTerrainElevationTexture inherits the curved depth from this single upstream
     // point.
     float fRaw = texture(textureSampler[nonuniformEXT(uiInTextureSlot)], f2InTexcoord).r - f4InMisc.x;
-    float fT = clamp(fRaw / globalLayout.fSeaFloorElevation, 0.0, 1.0);
-    float fCurved = pow(fT, 1.0 / globalLayout.fWaterUnderseaCompression) * globalLayout.fSeaFloorElevation;
-    fOutElevation = mix(fCurved, fRaw, step(0.0, fRaw));
+    // Undersea depth compression only applies below sea level; land pixels (fRaw >= 0) pass through and skip the pow
+    if (fRaw < 0.0)
+    {
+        float fT = clamp(fRaw / globalLayout.fSeaFloorElevation, 0.0, 1.0);
+        fOutElevation = pow(fT, 1.0 / globalLayout.fWaterUnderseaCompression) * globalLayout.fSeaFloorElevation;
+    }
+    else
+    {
+        fOutElevation = fRaw;
+    }
 }

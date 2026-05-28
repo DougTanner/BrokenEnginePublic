@@ -29,11 +29,12 @@ void main()
 
 	vec4 f4Total = vec4(0.0f);
 	float fWeightSum = 0.0f;
+	vec2 vInvDim = 1.0f / vec2(float(iWidth), float(iHeight));
 	for (int i = -iRadius; i <= iRadius; ++i)
 	{
 		float fA = float(i) / fInvSigma;
 		float fWeight = exp(-0.5f * fA * fA);
-		vec2 vUv = vec2(float(int(uiX) + i) + 0.5f, float(uiY) + 0.5f) / vec2(float(iWidth), float(iHeight));
+		vec2 vUv = vec2(float(int(uiX) + i) + 0.5f, float(uiY) + 0.5f) * vInvDim;
 		f4Total += fWeight * textureLod(sourceSampler, vUv, 0.0f);
 		fWeightSum += fWeight;
 	}

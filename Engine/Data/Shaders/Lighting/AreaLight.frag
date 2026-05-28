@@ -46,10 +46,14 @@ layout (location = 2) out vec4 f4OutColorBlue;
 
 void main()
 {
-	vec4 f4Texture = texture(sampler2D(pTextures[nonuniformEXT(int32_t(f4InParams.x + 0.4f))], texturesSampler), f2InTexcoord);
-
 	// Compute all color channels simultaneously
 	vec4 f4Color = unpackUnorm4x8(pQuads[iInInstanceIndex].uiColor).abgr;
+
+	// Early-out before the bindless sample: a zero per-quad alpha forces fAlpha to 0 regardless of the texture
+	if (f4Color.a < 0.001f)
+		discard;
+
+	vec4 f4Texture = texture(sampler2D(pTextures[nonuniformEXT(int32_t(f4InParams.x + 0.4f))], texturesSampler), f2InTexcoord);
 	float fAlpha = f4Color.a * f4Texture.a;
 
 #if 1 // defined(ENABLE_DIRECTIONAL_DEPOSIT)

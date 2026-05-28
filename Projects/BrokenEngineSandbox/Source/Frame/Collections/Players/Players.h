@@ -159,6 +159,10 @@ enum class PlayerFlags : uint16_t
 
 	// Pending weapon mode (bit 11)
 	kPendingUseMissiles = 0x0800,
+
+	// Nav waypoint index in bits 12-13 (2 bits): 0 = largest island, 1 = smallest, 2 = random (saturates at 2)
+	kNavWaypointBit0 = 0x1000,
+	kNavWaypointBit1 = 0x2000,
 };
 using PlayerFlags_t = common::Flags<PlayerFlags>;
 
@@ -174,9 +178,21 @@ inline void SetNavDirection(PlayerFlags_t& rFlags, int8_t iDirection)
 	rFlags.meFlags = static_cast<PlayerFlags>(uiRaw);
 }
 
+inline constexpr int8_t GetNavWaypointIndex(PlayerFlags_t flags)
+{
+	return static_cast<int8_t>((std::to_underlying(flags.meFlags) >> 12) & 0x3);
+}
+
+inline void SetNavWaypointIndex(PlayerFlags_t& rFlags, int8_t iIndex)
+{
+	uint16_t uiRaw = std::to_underlying(rFlags.meFlags);
+	uiRaw = static_cast<uint16_t>((uiRaw & ~0x3000) | (static_cast<uint16_t>(iIndex) << 12));
+	rFlags.meFlags = static_cast<PlayerFlags>(uiRaw);
+}
+
 struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 {
-	static constexpr int64_t kiVersion = 17;
+	static constexpr int64_t kiVersion = 18;
 
 	// Collision layer (set each frame in PreCollision)
 	// thread_local: parallel per-Frame tick via Dispatch
@@ -201,7 +217,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 private:
 	// Per-player Update helpers (called from PlayersPostRender::Update orchestrator)
 	// Defined in PlayersNavigation.cpp:
-	static void XM_CALLCONV ComputeNavigation(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData, int64_t i, FXMVECTOR vecPosition, FXMVECTOR vecFrameCenter, engine::GridCoord fleetWantedCoord, uint8_t uiPendingFleetWantedCoordTicks, PlayerFlags_t flags, float fNavigationDelay, float fDeltaTime, int8_t& riNavDirection, XMVECTOR& rVecAiDirection, XMVECTOR& rVecIslandDestination, float& rfFrameChangeTimer);
+	static void XM_CALLCONV ComputeNavigation(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData, int64_t i, FXMVECTOR vecPosition, FXMVECTOR vecFrameCenter, engine::GridCoord fleetWantedCoord, uint8_t uiPendingFleetWantedCoordTicks, PlayerFlags_t flags, float fNavigationDelay, float fDeltaTime, int8_t& riNavDirection, int8_t& riNavWaypointIndex, XMVECTOR& rVecAiDirection, XMVECTOR& rVecIslandDestination, float& rfFrameChangeTimer);
 	static void XM_CALLCONV ApplyMovement(int8_t iNavDirection, FXMVECTOR vecAiDirection, float fDeltaTime, float fAccelMul, float fDecayMul, XMVECTOR& rVecVelocity);
 	static void XM_CALLCONV ApplyTerrainPush(FXMVECTOR vecPosition, XMVECTOR& rVecVelocity);
 	static void XM_CALLCONV ApplyPusherPush(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, int64_t i, FXMVECTOR vecPosition, XMVECTOR& rVecVelocity);
@@ -318,7 +334,7 @@ public:
 		float fTransferLockTimer = 0.0f;
 		float fArrivalGracePeriod = 0.0f;
 		float fFrameChangeTimer = 0.0f;
-		float fNavigationDelay = 2.0f;
+		float fNavigationDelay = 60.0f;
 		engine::global_id_t globalPlayerId {};
 		engine::GridCoord fleetWantedCoord {};
 		uint8_t uiPendingFleetWantedCoordTicks = 0;

@@ -650,6 +650,195 @@ void BuildCellNavData(NavData& rNavData, const std::vector<IslandPlacement>& rPl
 			}
 		}
 	}
+
+	BuildNavAcceleration(rNavData);
+}
+
+void BuildNavAcceleration(NavData& rNavData)
+{
+	rNavData.polygonMin.clear();
+	rNavData.polygonMax.clear();
+	rNavData.edgeA.clear();
+	rNavData.edgeB.clear();
+	rNavData.gridEdgeOffsets.clear();
+	rNavData.gridEdges.clear();
+	rNavData.adjOffsets.clear();
+	rNavData.adjNeighbors.clear();
+	rNavData.gridMin = {};
+	rNavData.gridMax = {};
+
+	int32_t iVertexCount = static_cast<int32_t>(rNavData.vertices.size());
+	if (iVertexCount == 0)
+	{
+		return;
+	}
+
+	int32_t iPolygonCount = static_cast<int32_t>(rNavData.polygonOffsets.size());
+
+	// --- Global vertex AABB (grid domain) ---
+	float fMinX = std::numeric_limits<float>::max();
+	float fMinY = std::numeric_limits<float>::max();
+	float fMaxX = std::numeric_limits<float>::lowest();
+	float fMaxY = std::numeric_limits<float>::lowest();
+	for (const XMFLOAT2& rVertex : rNavData.vertices)
+	{
+		fMinX = std::min(fMinX, rVertex.x);
+		fMinY = std::min(fMinY, rVertex.y);
+		fMaxX = std::max(fMaxX, rVertex.x);
+		fMaxY = std::max(fMaxY, rVertex.y);
+	}
+	rNavData.gridMin = {fMinX, fMinY};
+	rNavData.gridMax = {fMaxX, fMaxY};
+
+	// --- Per-polygon AABB + explicit perimeter edges ---
+	rNavData.polygonMin.resize(iPolygonCount);
+	rNavData.polygonMax.resize(iPolygonCount);
+	for (int32_t iPoly = 0; iPoly < iPolygonCount; ++iPoly)
+	{
+		int32_t iStart = rNavData.polygonOffsets.at(iPoly);
+		int32_t iEnd = (iPoly + 1 < iPolygonCount) ? rNavData.polygonOffsets.at(iPoly + 1) : iVertexCount;
+		int32_t iCount = iEnd - iStart;
+
+		float fPolyMinX = std::numeric_limits<float>::max();
+		float fPolyMinY = std::numeric_limits<float>::max();
+		float fPolyMaxX = std::numeric_limits<float>::lowest();
+		float fPolyMaxY = std::numeric_limits<float>::lowest();
+		for (int32_t i = 0; i < iCount; ++i)
+		{
+			const XMFLOAT2& rVertex = rNavData.vertices.at(iStart + i);
+			fPolyMinX = std::min(fPolyMinX, rVertex.x);
+			fPolyMinY = std::min(fPolyMinY, rVertex.y);
+			fPolyMaxX = std::max(fPolyMaxX, rVertex.x);
+			fPolyMaxY = std::max(fPolyMaxY, rVertex.y);
+
+			rNavData.edgeA.push_back(iStart + i);
+			rNavData.edgeB.push_back(iStart + ((i + 1) % iCount));
+		}
+		rNavData.polygonMin.at(iPoly) = {fPolyMinX, fPolyMinY};
+		rNavData.polygonMax.at(iPoly) = {fPolyMaxX, fPolyMaxY};
+	}
+
+	// --- Edge grid (CSR): bucket each edge into every cell its AABB overlaps (conservative) ---
+	int32_t iEdgeCount = static_cast<int32_t>(rNavData.edgeA.size());
+	int32_t iCellCount = kiNavZonesX * kiNavZonesY;
+
+	auto EdgeCellRange = [&](int32_t iEdge, int32_t& riCx0, int32_t& riCx1, int32_t& riCy0, int32_t& riCy1)
+	{
+		const XMFLOAT2& rA = rNavData.vertices.at(rNavData.edgeA.at(iEdge));
+		const XMFLOAT2& rB = rNavData.vertices.at(rNavData.edgeB.at(iEdge));
+		riCx0 = NavGridCell(std::min(rA.x, rB.x), fMinX, fMaxX, kiNavZonesX);
+		riCx1 = NavGridCell(std::max(rA.x, rB.x), fMinX, fMaxX, kiNavZonesX);
+		riCy0 = NavGridCell(std::min(rA.y, rB.y), fMinY, fMaxY, kiNavZonesY);
+		riCy1 = NavGridCell(std::max(rA.y, rB.y), fMinY, fMaxY, kiNavZonesY);
+	};
+
+	std::vector<int32_t> gridCounts(static_cast<size_t>(iCellCount), 0);
+	for (int32_t iEdge = 0; iEdge < iEdgeCount; ++iEdge)
+	{
+		int32_t iCx0 = 0;
+		int32_t iCx1 = 0;
+		int32_t iCy0 = 0;
+		int32_t iCy1 = 0;
+		EdgeCellRange(iEdge, iCx0, iCx1, iCy0, iCy1);
+		for (int32_t iCy = iCy0; iCy <= iCy1; ++iCy)
+		{
+			for (int32_t iCx = iCx0; iCx <= iCx1; ++iCx)
+			{
+				++gridCounts.at(static_cast<size_t>(iCy * kiNavZonesX + iCx));
+			}
+		}
+	}
+
+	rNavData.gridEdgeOffsets.resize(static_cast<size_t>(iCellCount + 1));
+	rNavData.gridEdgeOffsets.at(0) = 0;
+	for (int32_t iCell = 0; iCell < iCellCount; ++iCell)
+	{
+		rNavData.gridEdgeOffsets.at(static_cast<size_t>(iCell + 1)) = rNavData.gridEdgeOffsets.at(static_cast<size_t>(iCell)) + gridCounts.at(static_cast<size_t>(iCell));
+	}
+
+	rNavData.gridEdges.resize(static_cast<size_t>(rNavData.gridEdgeOffsets.at(static_cast<size_t>(iCellCount))));
+	std::vector<int32_t> gridCursor(rNavData.gridEdgeOffsets.begin(), rNavData.gridEdgeOffsets.end() - 1);
+	for (int32_t iEdge = 0; iEdge < iEdgeCount; ++iEdge)
+	{
+		int32_t iCx0 = 0;
+		int32_t iCx1 = 0;
+		int32_t iCy0 = 0;
+		int32_t iCy1 = 0;
+		EdgeCellRange(iEdge, iCx0, iCx1, iCy0, iCy1);
+		for (int32_t iCy = iCy0; iCy <= iCy1; ++iCy)
+		{
+			for (int32_t iCx = iCx0; iCx <= iCx1; ++iCx)
+			{
+				rNavData.gridEdges.at(static_cast<size_t>(gridCursor.at(static_cast<size_t>(iCy * kiNavZonesX + iCx))++)) = iEdge;
+			}
+		}
+	}
+
+	// --- Per-vertex adjacency CSR (visibility-graph neighbors + polygon prev/next) ---
+	int32_t iVisCount = static_cast<int32_t>(rNavData.visEdgeA.size());
+	std::vector<int32_t> adjCounts(static_cast<size_t>(iVertexCount), 0);
+	for (int32_t iVis = 0; iVis < iVisCount; ++iVis)
+	{
+		++adjCounts.at(static_cast<size_t>(rNavData.visEdgeA.at(iVis)));
+		++adjCounts.at(static_cast<size_t>(rNavData.visEdgeB.at(iVis)));
+	}
+	for (int32_t iPoly = 0; iPoly < iPolygonCount; ++iPoly)
+	{
+		int32_t iStart = rNavData.polygonOffsets.at(iPoly);
+		int32_t iEnd = (iPoly + 1 < iPolygonCount) ? rNavData.polygonOffsets.at(iPoly + 1) : iVertexCount;
+		if (iEnd - iStart < 2)
+		{
+			continue;
+		}
+		for (int32_t i = iStart; i < iEnd; ++i)
+		{
+			adjCounts.at(static_cast<size_t>(i)) += 2; // prev + next
+		}
+	}
+
+	rNavData.adjOffsets.resize(static_cast<size_t>(iVertexCount + 1));
+	rNavData.adjOffsets.at(0) = 0;
+	for (int32_t iVertex = 0; iVertex < iVertexCount; ++iVertex)
+	{
+		rNavData.adjOffsets.at(static_cast<size_t>(iVertex + 1)) = rNavData.adjOffsets.at(static_cast<size_t>(iVertex)) + adjCounts.at(static_cast<size_t>(iVertex));
+	}
+	rNavData.adjNeighbors.resize(static_cast<size_t>(rNavData.adjOffsets.at(static_cast<size_t>(iVertexCount))));
+	std::vector<int32_t> adjCursor(rNavData.adjOffsets.begin(), rNavData.adjOffsets.end() - 1);
+
+	auto AddNeighbor = [&](int32_t iVertex, int32_t iNeighbor)
+	{
+		rNavData.adjNeighbors.at(static_cast<size_t>(adjCursor.at(static_cast<size_t>(iVertex))++)) = iNeighbor;
+	};
+	for (int32_t iVis = 0; iVis < iVisCount; ++iVis)
+	{
+		int32_t iA = rNavData.visEdgeA.at(iVis);
+		int32_t iB = rNavData.visEdgeB.at(iVis);
+		AddNeighbor(iA, iB);
+		AddNeighbor(iB, iA);
+	}
+	for (int32_t iPoly = 0; iPoly < iPolygonCount; ++iPoly)
+	{
+		int32_t iStart = rNavData.polygonOffsets.at(iPoly);
+		int32_t iEnd = (iPoly + 1 < iPolygonCount) ? rNavData.polygonOffsets.at(iPoly + 1) : iVertexCount;
+		int32_t iCount = iEnd - iStart;
+		if (iCount < 2)
+		{
+			continue;
+		}
+		for (int32_t i = 0; i < iCount; ++i)
+		{
+			AddNeighbor(iStart + i, iStart + ((i + 1) % iCount));
+			AddNeighbor(iStart + i, iStart + ((i + iCount - 1) % iCount));
+		}
+	}
+
+	// Sort each vertex's neighbor span by index so A* neighbor iteration is order-stable.
+	for (int32_t iVertex = 0; iVertex < iVertexCount; ++iVertex)
+	{
+		int32_t iBegin = rNavData.adjOffsets.at(static_cast<size_t>(iVertex));
+		int32_t iStop = rNavData.adjOffsets.at(static_cast<size_t>(iVertex + 1));
+		std::sort(rNavData.adjNeighbors.begin() + iBegin, rNavData.adjNeighbors.begin() + iStop);
+	}
 }
 
 void NavData::Write(std::ostream& rStream) const
@@ -707,6 +896,10 @@ void NavData::Read(std::istream& rStream)
 	{
 		common::Read(rStream, visEdgeB.at(i));
 	}
+
+	// Derived broad-phase data is not serialized; rebuild it from the vertices just read so the client
+	// matches the server's BuildCellNavData result.
+	BuildNavAcceleration(*this);
 }
 
 } // namespace engine

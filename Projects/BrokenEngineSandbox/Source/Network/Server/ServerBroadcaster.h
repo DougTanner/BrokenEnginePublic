@@ -10,7 +10,7 @@ struct PendingUpdatePlayerRequest
 	int64_t iClientId = 0;
 	engine::global_id_t globalId {};
 	bool bUseMissiles = false;
-	float fNavigationDelay = 2.0f;
+	float fNavigationDelay = 60.0f;
 };
 
 class ServerBroadcaster
