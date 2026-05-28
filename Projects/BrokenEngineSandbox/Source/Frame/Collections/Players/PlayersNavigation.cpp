@@ -149,7 +149,6 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 	PlayersPostRender& __restrict rCurrent = *rFrame.postRender.pPlayers;
 	const PlayersPostRender& rPrevious = *rPreviousFrame.postRender.pPlayers;
 	const PlayersInterpolate& rPreviousInterpolate = *rPreviousFrame.interpolate.pPlayers;
-	XMVECTOR vecArea = rStaticData.vecArea;
 
 	// Throttle bookkeeping: capture mode before the fleet/flagship/timer blocks can change it, and note
 	// when the direction is re-seeded. Both force an immediate pathfind below (see bRecompute).
@@ -414,7 +413,7 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 	else
 	{
 		rVecIslandDestination = XMVectorZero();
-		auto [vecNewAiDirection] = ComputeAiSteering(vecPosition, rVecAiDirection, vecFrameCenter, fDeltaTime, i % 2 == 0);
+		auto [vecNewAiDirection] = ComputeAiSteering(rStaticData, vecPosition, rVecAiDirection, vecFrameCenter, fDeltaTime, i % 2 == 0);
 		rVecAiDirection = vecNewAiDirection;
 #if defined(BT_CLIENT)
 		if constexpr (kbDebugRender)
@@ -432,14 +431,14 @@ void XM_CALLCONV PlayersPostRender::ApplyMovement(int8_t iNavDirection, FXMVECTO
 	rVecVelocity = engine::ApplyMovement(rVecVelocity, vecAiDirection, fDeltaTime, fAcceleration, kfPlayerDrag * fDecayMul, fMaxSpeed);
 }
 
-void XM_CALLCONV PlayersPostRender::ApplyTerrainPush(FXMVECTOR vecPosition, XMVECTOR& rVecVelocity)
+void XM_CALLCONV PlayersPostRender::ApplyTerrainPush(const engine::FrameStaticData& rStaticData, FXMVECTOR vecPosition, XMVECTOR& rVecVelocity)
 {
 	// Terrain collision - add velocity away from terrain, gentle at first then ramping up
-	float fElevation = engine::gpIslandTerrain->GlobalElevation(vecPosition);
+	float fElevation = engine::gpIslandTerrain->FrameElevation(rStaticData, vecPosition);
 	float fPushHeight = engine::gBaseHeight.Get() - kfPlayerRadius - kfPushMargin;
 	if (fElevation >= fPushHeight) [[unlikely]]
 	{
-		XMVECTOR vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslandTerrain->GlobalNormal(vecPosition), 0.0f));
+		XMVECTOR vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslandTerrain->FrameNormal(rStaticData, vecPosition), 0.0f));
 		float fPenetration = fElevation - fPushHeight;
 		float fPushStrength = fPenetration * fPenetration * kfTerrainPushVelocity;
 		rVecVelocity = engine::ApplyClampedPush(rVecVelocity, vecTerrainNormal, fPushStrength, kfMaxPushVelocity);

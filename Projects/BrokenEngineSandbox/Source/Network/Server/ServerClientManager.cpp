@@ -77,82 +77,92 @@ void ServerClientManager::NewClients()
 			continue;
 		}
 
-		// Diagnostic: dump connecting GUID, server-side fleet roster, and per-coord player GUIDs so we can see whether reconnect should re-link
+		LogConnectingClientDiagnostic(rClient);
+
+		if (TryRelinkNewClient(rClient, rNewClientOwnedIds))
 		{
-			LOG(kNetwork, kInfo, "ServerClientManager::NewClients Connecting Client: {} Guid: ({},{}) Empty: {}",
-				rClient.iClientId, rClient.clientGuid.uiHigh, rClient.clientGuid.uiLow, rClient.clientGuid.IsEmpty());
-			LOG(kNetwork, kInfo, "  FleetGuids: {}", gpServerSession->mpFleetManager->mFleets.size());
-			for (const auto& [rExistingGuid, rExistingFleets] : gpServerSession->mpFleetManager->mFleets)
-			{
-				LOG(kNetwork, kInfo, "    Guid: ({},{}) FleetCount: {} Match: {}",
-					rExistingGuid.uiHigh, rExistingGuid.uiLow, rExistingFleets.size(), rExistingGuid == rClient.clientGuid);
-			}
-			for (const auto& [rCoord, rFrames] : gpGame->mCoordFrames)
-			{
-				const PlayersPostRender& rPlayers = *rFrames.pCurrent->postRender.pPlayers;
-				if (rPlayers.iCount == 0)
-				{
-					continue;
-				}
-				LOG(kNetwork, kInfo, "  Coord: ({},{}) PlayerCount: {}", rCoord.x, rCoord.y, rPlayers.iCount);
-				for (int64_t i = 0; i < rPlayers.iCount; ++i)
-				{
-					LOG(kNetwork, kInfo, "    Global: {} Guid: ({},{}) Match: {}",
-						rPlayers.pGlobalPlayerIds[i].iValue, rPlayers.pClientGuids[i].uiHigh, rPlayers.pClientGuids[i].uiLow,
-						rPlayers.pClientGuids[i] == rClient.clientGuid);
-				}
-			}
-		}
-
-		// Re-link with existing players by matching ClientGuid (sorted by global ID to preserve creation order)
-		if (!rClient.clientGuid.IsEmpty())
-		{
-			struct RelinkEntry
-			{
-				engine::global_id_t globalId {};
-				engine::GridCoord coord {};
-			};
-			std::vector<RelinkEntry> relinkEntries;
-
-			for (const auto& [rCoord, rFrames] : gpGame->mCoordFrames)
-			{
-				const PlayersPostRender& rPlayers = *rFrames.pCurrent->postRender.pPlayers;
-				for (int64_t i = 0; i < rPlayers.iCount; ++i)
-				{
-					if (rPlayers.pClientGuids[i] == rClient.clientGuid)
-					{
-						relinkEntries.push_back({rPlayers.pGlobalPlayerIds[i], rCoord});
-					}
-				}
-			}
-
-			std::ranges::sort(relinkEntries, [](const RelinkEntry& rLeft, const RelinkEntry& rRight)
-			{
-				return rLeft.globalId.iValue < rRight.globalId.iValue;
-			});
-
-			rNewClientOwnedIds.reserve(relinkEntries.size());
-			rClient.authorizedCoords.reserve(relinkEntries.size());
-			for (const RelinkEntry& rEntry : relinkEntries)
-			{
-				rNewClientOwnedIds.push_back(rEntry.globalId);
-				rClient.authorizedCoords.push_back(rEntry.coord);
-				gpServerSession->SendAssignPlayer(rClient.iClientId, rEntry.globalId, rEntry.coord);
-				gpServerSession->SendPlayerState(rClient.iClientId, PlayerStateWireType::kSpawned, rEntry.globalId.iValue, rEntry.coord);
-				LOG(kNetwork, kVerbose, "ServerClientManager::NewClients Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, rEntry.globalId, rEntry.coord.x, rEntry.coord.y);
-			}
-
-			if (!rNewClientOwnedIds.empty())
-			{
-				gpServerSession->mpFleetManager->OnClientConnected(rClient.iClientId, rClient.clientGuid);
-				continue;
-			}
+			gpServerSession->mpFleetManager->OnClientConnected(rClient.iClientId, rClient.clientGuid);
+			continue;
 		}
 
 		// Client connects with zero players — spawns happen via fleet creation requests
 		mProcessedClientIds.insert(rClient.iClientId);
 		LOG(kNetwork, kVerbose, "ServerClientManager::NewClients Client: {} connected with no players", rClient.iClientId);
 	}
+}
+
+void ServerClientManager::LogConnectingClientDiagnostic(const engine::ClientConnection& rClient)
+{
+	// Diagnostic: dump connecting GUID, server-side fleet roster, and per-coord player GUIDs so we can see whether reconnect should re-link
+	LOG(kNetwork, kInfo, "ServerClientManager::NewClients Connecting Client: {} Guid: ({},{}) Empty: {}",
+		rClient.iClientId, rClient.clientGuid.uiHigh, rClient.clientGuid.uiLow, rClient.clientGuid.IsEmpty());
+	LOG(kNetwork, kInfo, "  FleetGuids: {}", gpServerSession->mpFleetManager->mFleets.size());
+	for (const auto& [rExistingGuid, rExistingFleets] : gpServerSession->mpFleetManager->mFleets)
+	{
+		LOG(kNetwork, kInfo, "    Guid: ({},{}) FleetCount: {} Match: {}",
+			rExistingGuid.uiHigh, rExistingGuid.uiLow, rExistingFleets.size(), rExistingGuid == rClient.clientGuid);
+	}
+	for (const auto& [rCoord, rFrames] : gpGame->mCoordFrames)
+	{
+		const PlayersPostRender& rPlayers = *rFrames.pCurrent->postRender.pPlayers;
+		if (rPlayers.iCount == 0)
+		{
+			continue;
+		}
+		LOG(kNetwork, kInfo, "  Coord: ({},{}) PlayerCount: {}", rCoord.x, rCoord.y, rPlayers.iCount);
+		for (int64_t i = 0; i < rPlayers.iCount; ++i)
+		{
+			LOG(kNetwork, kInfo, "    Global: {} Guid: ({},{}) Match: {}",
+				rPlayers.pGlobalPlayerIds[i].iValue, rPlayers.pClientGuids[i].uiHigh, rPlayers.pClientGuids[i].uiLow,
+				rPlayers.pClientGuids[i] == rClient.clientGuid);
+		}
+	}
+}
+
+bool ServerClientManager::TryRelinkNewClient(engine::ClientConnection& rClient, std::vector<engine::global_id_t>& rNewClientOwnedIds)
+{
+	// Re-link with existing players by matching ClientGuid (sorted by global ID to preserve creation order)
+	if (rClient.clientGuid.IsEmpty())
+	{
+		return false;
+	}
+
+	struct RelinkEntry
+	{
+		engine::global_id_t globalId {};
+		engine::GridCoord coord {};
+	};
+	std::vector<RelinkEntry> relinkEntries;
+
+	for (const auto& [rCoord, rFrames] : gpGame->mCoordFrames)
+	{
+		const PlayersPostRender& rPlayers = *rFrames.pCurrent->postRender.pPlayers;
+		for (int64_t i = 0; i < rPlayers.iCount; ++i)
+		{
+			if (rPlayers.pClientGuids[i] == rClient.clientGuid)
+			{
+				relinkEntries.push_back({rPlayers.pGlobalPlayerIds[i], rCoord});
+			}
+		}
+	}
+
+	std::ranges::sort(relinkEntries, [](const RelinkEntry& rLeft, const RelinkEntry& rRight)
+	{
+		return rLeft.globalId.iValue < rRight.globalId.iValue;
+	});
+
+	rNewClientOwnedIds.reserve(relinkEntries.size());
+	rClient.authorizedCoords.reserve(relinkEntries.size());
+	for (const RelinkEntry& rEntry : relinkEntries)
+	{
+		rNewClientOwnedIds.push_back(rEntry.globalId);
+		rClient.authorizedCoords.push_back(rEntry.coord);
+		gpServerSession->SendAssignPlayer(rClient.iClientId, rEntry.globalId, rEntry.coord);
+		gpServerSession->SendPlayerState(rClient.iClientId, PlayerStateWireType::kSpawned, rEntry.globalId.iValue, rEntry.coord);
+		LOG(kNetwork, kVerbose, "ServerClientManager::NewClients Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, rEntry.globalId, rEntry.coord.x, rEntry.coord.y);
+	}
+
+	return !rNewClientOwnedIds.empty();
 }
 
 void ServerClientManager::FinalizeNewClients([[maybe_unused]] int64_t iTick)

@@ -39,6 +39,17 @@ void RunFrameTick(const ActiveFrameRef& rRef, int64_t iTickCounter, float fCurre
 	}
 #endif
 
+	// Per-cell elevation grid (purely derived from islands + shared heightmaps). Both client
+	// and server build their own bit-identical copy here — same deterministic placements, same
+	// shared heightmaps, /fp:strict math — so it stays out of the CRC and is never serialized.
+	// Builds before any sim phase below so every FrameElevation/FrameNormal caller this tick
+	// sees a populated grid.
+	if (rStaticData.elevationGrid.empty() && !rStaticData.islands.empty())
+	{
+		ScopedSuppressAllocationTracking suppress;
+		engine::gpIslandTerrain->BuildElevationGrid(rStaticData.coord, rStaticData.islands, rStaticData.elevationGrid);
+	}
+
 	// Phase 1: Interpolate
 	FrameInterpolate::AllocateAndCopy(rNext.interpolate, rCurrent.interpolate);
 	FrameInterpolate::Update(rNext.interpolate, rCurrent, kfDeltaTime);

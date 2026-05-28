@@ -298,15 +298,15 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		// Check collision results - missiles explode on hit
 		if (engine::Collision::HasCollision(suiCollisionLayerIndex, i))
 		{
-			Explode(rFrame, i, false);
+			Explode(rFrame, rStaticData, i, false);
 			continue;
 		}
 
 		// Collide terrain
-		float fElevationFinal = engine::gpIslandTerrain->GlobalElevation(rCurrentInterpolate.pVecPositions[i]);
+		float fElevationFinal = engine::gpIslandTerrain->FrameElevation(rStaticData, rCurrentInterpolate.pVecPositions[i]);
 		if (XMVectorGetZ(rCurrentInterpolate.pVecPositions[i]) <= fElevationFinal)
 		{
-			Explode(rFrame, i, true);
+			Explode(rFrame, rStaticData, i, true);
 		}
 	}
 }

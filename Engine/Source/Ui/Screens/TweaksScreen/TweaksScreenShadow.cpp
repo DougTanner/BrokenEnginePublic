@@ -14,6 +14,8 @@ const TweaksSliderMapRegistrar gShadowRegistrar
 {
 	// Quality / Perf
 	{"Resolution", &gShadowRenderMultiplier},
+	{"Texel Ramp Speed", &gShadowTexelRampMetersPerSec},
+	{"Temporal Blend", &gShadowTemporalBlend},
 	// Feather
 	{"Feather Noon", &gShadowFeatherNoon},
 	{"Feather Noon Offset", &gShadowFeatherNoonOffset},
@@ -44,6 +46,8 @@ void TweaksScreenBase::RenderShadowSection()
 
 	WrapperSeparatorText("Quality / Perf");
 	WrapperSlider("Resolution", kiSection);
+	WrapperSlider("Texel Ramp Speed", kiSection);
+	WrapperSlider("Temporal Blend", kiSection);
 
 	WrapperSeparatorText("Feather");
 	WrapperSlider("Feather Noon", kiSection);

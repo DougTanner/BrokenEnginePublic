@@ -22,4 +22,11 @@ public:
 protected:
 
 	virtual void Export() override;
+
+private:
+
+	void ProcessKtxCubemap(VkFormat vkFormat);
+	void ProcessRawTexture(VkFormat vkFormat);
+	void ProcessLiveCubemap(VkFormat vkFormat);
+	void ProcessRegularTexture(VkFormat vkFormat);
 };

@@ -37,6 +37,12 @@ public:
 	std::unordered_set<int64_t> mProcessedClientIds;
 	std::vector<player_t> mPreSpawnPlayerIds;
 	std::vector<PendingPlayerDestroy> mPendingPlayerDestroys;
+
+private:
+
+	// NewClients helpers
+	void LogConnectingClientDiagnostic(const engine::ClientConnection& rClient);
+	bool TryRelinkNewClient(engine::ClientConnection& rClient, std::vector<engine::global_id_t>& rNewClientOwnedIds);
 };
 
 } // namespace game

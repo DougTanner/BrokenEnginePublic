@@ -146,25 +146,10 @@ inline constexpr float kfEpsilon = 1.192092896e-7f; // g_XMEpsilon
 #define XMISNAN(x)  ((*reinterpret_cast<const uint32_t*>(&(x)) & 0x7F800000) == 0x7F800000 && (*reinterpret_cast<const uint32_t*>(&(x)) & 0x7FFFFF) != 0)
 #define XMISINF(x)  ((*reinterpret_cast<const uint32_t*>(&(x)) & 0x7FFFFFFF) == 0x7F800000)
 
-inline bool XM_CALLCONV operator==(FXMVECTOR rOne, FXMVECTOR rTwo)
-{
-	return XMVector4Equal(rOne, rTwo);
-}
-
-inline bool operator==(const XMFLOAT2& rOne, const XMFLOAT2& rTwo)
-{
-	return rOne.x == rTwo.x && rOne.y == rTwo.y;
-}
-
-inline bool operator==(const XMFLOAT3& rOne, const XMFLOAT3& rTwo)
-{
-	return rOne.x == rTwo.x && rOne.y == rTwo.y && rOne.z == rTwo.z;
-}
-
-inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
-{
-	return rOne.x == rTwo.x && rOne.y == rTwo.y && rOne.z == rTwo.z && rOne.w == rTwo.w;
-}
+// Deterministic bitwise operator== for XMVECTOR / XMFLOAT2/3/4 lives in Determinism.h (kept out of this
+// header so it can sit alongside the MXCSR + exception-handler setup). Included here, right after the
+// DirectXMath includes, so the operators stay globally visible for all downstream code.
+#include "Determinism.h"
 
 // DirectXTK
 #if defined(BT_CLIENT)

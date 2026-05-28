@@ -8,7 +8,7 @@ Client-only circular point lights with synced (parent-owned) and controlled (fir
 - **Base-height projection**: deposit position projects onto the ocean plane; visible sprite keeps original world Y. Both quads gated by point-visibility culling.
 - **Camera-aligned toggle**: a Type-level flag flips the visible sprite between world-axis-aligned (ground effects) and camera-facing billboard (volumetric sources). Deposit quad is always world-axis-aligned.
 - **Texture sampling split**: deposit uses the blurred texture index; visible sprite uses the unblurred index.
-- **Minimum lighting area clamp**: area floored against detail-texel size scaled by the deposit multiplier to prevent sub-texel flicker.
+- **Minimum lighting area clamp**: lighting area floored to 8 detail texels (texel size derived from the camera's render visible-area divided by the deposit-multiplier detail-texture size) to prevent sub-texel flicker.
 
 ## Controller vs. Sync Divergence
 
@@ -16,4 +16,4 @@ Per-keyframe `Wrapper*` scales (visible/lighting area and intensity) apply only 
 
 ## Phase Usage
 
-Only `Destroy` is active (removes expired controlled lights). `Transfer` is a no-op — the owning entity handles transfer. `Register()` is empty; types are registered externally.
+Interpolate `Update` runs per-frame controller keyframe animation (wrapper-scaled) for controlled lights; synced lights are written each frame by their owner via `IdToIndex`. Among PostRender phases only `Destroy` is active (removes expired controlled lights); the rest are empty stubs, including `Transfer` (the owning entity handles transfer). `Register()` is empty; types are registered externally.

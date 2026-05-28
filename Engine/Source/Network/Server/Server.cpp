@@ -77,25 +77,7 @@ void Server::Poll()
 				Disconnect(event);
 				break;
 			case ENET_EVENT_TYPE_RECEIVE:
-				if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
-				{
-					if (game::gpGame->mTimeStep.miTimeMultiply > 1)
-					{
-						Receive(event);
-						enet_packet_destroy(event.packet);
-					}
-					else
-					{
-						constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
-						NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, event,
-							[this](ENetEvent& rEvent) { Receive(rEvent); });
-					}
-				}
-				else
-				{
-					Receive(event);
-					enet_packet_destroy(event.packet);
-				}
+				DispatchIncoming(event);
 				break;
 			case ENET_EVENT_TYPE_NONE:
 				break;
@@ -117,6 +99,29 @@ void Server::Poll()
 		{
 			NetworkSimulation::ProcessDelayed(mDelayedPackets, handleDelayed);
 		}
+	}
+}
+
+void Server::DispatchIncoming(ENetEvent& rEvent)
+{
+	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
+	{
+		if (game::gpGame->mTimeStep.miTimeMultiply > 1)
+		{
+			Receive(rEvent);
+			enet_packet_destroy(rEvent.packet);
+		}
+		else
+		{
+			constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
+			NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, rEvent,
+				[this](ENetEvent& rInner) { Receive(rInner); });
+		}
+	}
+	else
+	{
+		Receive(rEvent);
+		enet_packet_destroy(rEvent.packet);
 	}
 }
 
@@ -202,9 +207,6 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 			break;
 		case PacketType::kClientResyncRequest:
 			ClientResyncRequest(pData, iClientId);
-			break;
-		case PacketType::kClientTimespeedRequest:
-			ClientTimespeedRequest(pData, iSize, iClientId);
 			break;
 		default:
 			if (static_cast<uint8_t>(eType) >= static_cast<uint8_t>(PacketType::kGamePacketStart))

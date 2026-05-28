@@ -1,6 +1,6 @@
 ---
 name: external-architecture-review
-description: Performs a multi-perspective architectural review of a codebase area, focusing on *shape* concerns — dependency structure, deep-modules (Ousterhout), coupling/cohesion, determinism, frame-phase and thread-model alignment, shader-CPU consistency. Line-level concerns (complexity, hot-path allocations, bool→Flags, file size) belong to `/external-refactor-clean`, which this skill hands off to. Only invoke when the user explicitly requests it (e.g., "/external-architecture-review", "run an architecture review") or when another skill explicitly instructs it. Never trigger autonomously from general code questions or during routine code changes.
+description: Performs a multi-perspective architectural review of a codebase area, focusing on *shape* concerns — dependency structure, deep-modules (Ousterhout), coupling/cohesion, determinism, frame-phase and thread-model alignment, shader-CPU consistency, and ThirdParty library-replacement opportunities. Line-level concerns (complexity, hot-path allocations, bool→Flags, file size) belong to `/external-refactor-clean`, which this skill hands off to. Only invoke when the user explicitly requests it (e.g., "/external-architecture-review", "run an architecture review") or when another skill explicitly instructs it. Never trigger autonomously from general code questions or during routine code changes.
 disable-model-invocation: true
 allowed-tools: [Read, Grep, Glob, Agent]
 ---
@@ -21,7 +21,7 @@ The user provides a target path (file or directory) to review. If no path is giv
 
 ### 1. Launch Parallel Analysis Agents
 
-Use the Agent tool to launch two subagents in parallel (`subagent_type: "Explore"`, `model: "opus"`). Each agent receives the target path (and any recursion constraint) and produces a focused report.
+Use the Agent tool to launch three subagents in parallel (`subagent_type: "Explore"`, `model: "opus"`). Each agent receives the target path (and any recursion constraint) and produces a focused report.
 
 #### Agent A: Dependency Structure (subagent_type: Explore)
 
@@ -50,6 +50,26 @@ Prompt the agent to evaluate:
 - **Frame-phase alignment** — are systems operating in the correct phase (Update vs PostRender vs Interpolate)? Any phase-boundary violations?
 - **Shader/CPU consistency** — shader constants or layouts that have diverged from their C++ counterparts; magic numbers in shaders that should reference shared definitions
 - **Cohesion (Ousterhout deep modules)** — where does understanding one concept require bouncing between many small files? Where are modules so shallow that the interface is nearly as complex as the implementation? Where do tightly-coupled modules create integration risk in the seams?
+
+#### Agent C: ThirdParty Library Replacement Opportunities (subagent_type: Explore)
+
+Goal: identify cohesive in-house code that could be deleted in favor of a permissively-licensed library dropped into `/ThirdParty/` — benefits are codebase shrinkage and access to a battle-tested implementation.
+
+Before scanning, read `ThirdParty/CLAUDE.md` for the **License Policy** and list current `/ThirdParty/` subdirectories (skip suggesting anything already imported; do suggest extending coverage of an already-imported library when the in-house code overlaps it).
+
+Prompt the agent to:
+- Find cohesive code clusters (single file, file group, or small subsystem) that implement a well-known reusable problem with no engine-specific reason to be in-house. Typical candidates: data structures, parsers/serializers, compression, math primitives, container utilities, string/path helpers, hashing/CRC, file-format readers, image/audio decoding, geometry/mesh utilities.
+- Skip code that is engine-specific by design (frame pipeline, collections, manager singletons, gameplay logic, Vulkan/shader integration glue).
+- For each candidate, propose a **specific** replacement library and verify its license is on the allow list (MIT / BSD-2 / BSD-3 / Apache-2.0 / zlib / ISC / Unlicense / CC0). Reject GPL / LGPL / AGPL / MPL / EPL / CDDL / SSPL / "source-available" / non-commercial-only.
+- Prefer libraries that are widely adopted in the C++ game-engine / graphics / systems space and actively maintained.
+- Be conservative: do NOT propose libraries that would require heavy build-system changes, drag in large transitive dependencies, or replace ≲50 lines of trivial code.
+
+Report per candidate:
+- **Module / cluster**: path(s) and approximate line range
+- **Lines removable**: rough LOC that would be deleted
+- **Proposed library**: name, license, one-line justification (battle-tested signal: adoption / maintenance status)
+- **Risks**: API mismatch, performance characteristics vs in-house, integration cost, transitive deps
+- **Confidence**: HIGH / MEDIUM / LOW
 
 ### 2. Consolidate Results
 
@@ -85,6 +105,11 @@ After deduplicating findings, provide an opinionated recommendation: what is the
 - Frame-phase alignment
 - Shader/CPU consistency
 - Deep-module cohesion notes
+
+### ThirdParty Library Replacement Opportunities
+[Consolidated findings from Agent C]
+- Per candidate: module/cluster, lines removable, proposed library (name + license), risks, confidence
+- License-rejected candidates (note any tempting libraries excluded for copyleft)
 
 ### Cross-Cutting Concerns
 [Systemic issues that span multiple categories]

@@ -6,19 +6,19 @@ Server-side ENet host and engine-generic session base. Game sessions inherit `Se
 
 ## Key Classes
 
-- **Server** (`gpServer`) - ENet host managing client connections, slot-based coord subscriptions, per-coord LZ4-compressed delta ring for resend, and full-frame ring for debug requests. GUID generation via `UuidCreate` (Rpcrt4).
-- **ServerSessionBase** - Fixed-rate tick timing via Windows waitable timer. Tick wait is hybrid: sleep until ~2ms before target, then spin to precision. Owns `NetworkDiscoveryResponder`.
+- **Server** (`gpServer`) - ENet host owning per-client `ClientConnection` records and two ring buffers: a per-coord LZ4-compressed delta ring for unreliable update/resend, and a full-frame serialized ring serving reliable debug-frame requests. Reuses one persistent compression scratch buffer across frames.
+- **ServerSessionBase** - Fixed-rate tick timing via a high-resolution waitable timer. Tick wait is hybrid: timer-sleep until ~2ms before target, then spin to precision (overshoot tracked, logged only under `kbProfilingFrameSpike`). Owns `NetworkDiscoveryResponder`; `PollNetworkBase` services both host and responder.
 
 ## Invariants
 
-- **Drain-per-poll**: `Poll()` clears all pending vectors at entry; game layer must drain them the same tick or data is lost.
-- **Handshake gate**: receive handlers reject packets from clients pre-`ClientHello`.
-- **Subscribe adjacency**: 3x3 of any authorized coord; `kOriginCoord` always allowed (initial fleet spawn). Authorized list maintained by game layer.
-- **Slot reuse**: `FreeSlot` preserves epoch; allocation increments it so stale in-flight packets are discarded by epoch mismatch.
-- **ACK floor** clamped to latest buffered tick (future ACKs rejected); 3 consecutive zero-advance ACKs mark slot floor-stalled.
-- **Ring pruning**: per-coord rings drop immediately when coord leaves the update set (simulation-boundary contraction).
-- **New-subscription race guard**: slot/coord revalidated before sending static + full-state.
-- **ENet tuning**: peer throttle disabled so unreliable channels don't drop during reconciliation stalls; 1MB socket buffers.
+- **Handshake gate**: handlers other than `ClientHello` reject packets from clients pre-handshake. Hello validates protocol version and `game::Frame::kiVersion` (mismatch rejects + disconnects), warns on build-config mismatch, and mints a `ClientGuid` (`UuidCreate`, Rpcrt4) only when the client sent an empty one.
+- **Subscribe adjacency**: 3x3 of any authorized coord; `kOriginCoord` always allowed (initial fleet spawn). Authorized list maintained by game layer. Rejected/no-free-slot subscribes reply with sentinel slot `0xFF`.
+- **Slot reuse**: `FreeSlot` preserves epoch; subscribe increments it so stale in-flight packets are discarded by epoch mismatch.
+- **ACK floor** clamped to latest buffered tick (future ACKs rejected); client timestamp echo is monotonic-guarded. 3 consecutive zero-advance ACKs mark a slot floor-stalled (peak tracked for resolve logging).
+- **Ring pruning**: per-coord delta rings drop immediately when a coord leaves the active update set (simulation-boundary contraction); both rings cap at `kiMaxBufferedFrames`.
+- **New-subscription race guard**: slot/coord revalidated before sending static + full-state (`SendNewSubscriptionFullStates`, driven by game layer post-tick).
+- **Resend logging is delta-only**: per-slot prev-count + cooldown suppress steady-state spam; only resend-state transitions log.
+- **Network simulation**: when enabled, incoming packets route through a delayed-packet queue keyed by release time; fast-forward (`miTimeMultiply > 1`) flushes the queue immediately, and disconnect purges that peer's pending packets.
 
 ## See Also
 

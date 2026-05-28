@@ -10,7 +10,7 @@ Counterpart: `Documents/Features/` holds brand-new additions (new render passes,
 
 ## Subdirectories
 
-Organized by area: `DataPacker/`, `Engine/`, `Frame/`, `Graphics/` (includes `ShaderReview/` for per-shader defensive fixes), `Misc/`, `Network/`.
+Organized by area: `DataPacker/`, `Engine/`, `Frame/`, `Graphics/` (includes `ShaderReview/` for per-shader defensive fixes). Add area folders as needed when a new area accrues plans. Plans live in an area subdirectory, not at the `Plans/` root.
 
 ## Rules
 

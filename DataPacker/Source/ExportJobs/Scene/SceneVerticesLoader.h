@@ -34,8 +34,18 @@ struct MaterialNodeInfo
 
 XMMATRIX ComputeNodeWorldTransform(int iNodeIndex, const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeParentMap);
 
+// Per-scene state threaded through every recursive LoadVertices call.
 // rMaterialNodeMap: tracks (originalMaterial, nodeIndex) -> effectiveMaterialIndex for handling primitives from different mesh nodes that share a material
-void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<common::ModelVertex>& rVertices, std::vector<Material>& rMaterials, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::unordered_map<std::pair<int, int>, int, PairHash>& rMaterialNodeMap);
+struct LoadVerticesContext
+{
+	std::vector<common::ModelVertex>& rVertices;
+	std::vector<Material>& rMaterials;
+	std::vector<MaterialNodeInfo>& rMaterialNodeInfos;
+	std::unordered_map<std::pair<int, int>, int, PairHash>& rMaterialNodeMap;
+	const std::unordered_map<int, int>& rNodeToJointMap;
+};
+
+void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, LoadVerticesContext& rContext);
 
 bool IsOcclusion(int64_t iIndex, const tinygltf::Material& rMaterial);
 bool IsNormal(int64_t iIndex, const tinygltf::Material& rMaterial);

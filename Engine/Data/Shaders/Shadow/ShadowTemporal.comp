@@ -1,0 +1,47 @@
+#version 460
+
+#include "ShaderLayouts.h"
+#include "ShaderFunctions.h"
+
+layout (local_size_x = kiComputeTileSize, local_size_y = kiComputeTileSize) in;
+
+// Uniforms
+layout (set = 0, binding = 0) uniform globalUniform
+{
+    GlobalLayout globalLayout;
+};
+
+layout (set = 1, binding = 1) uniform sampler2D shadowHistorySampler;
+layout (set = 1, binding = 2, r16) uniform image2D shadowBlurTexture;
+
+// Temporal accumulation: blend the freshly-blurred shadow (in place) with the previous frame's result,
+// reprojected into the current texel grid by world position. While the texel-ramp rescales the grid this
+// averages out the per-frame resample jitter (an exponential moving average) so high-contrast edges stop
+// flickering; at a settled grid history == current so it is a no-op.
+void main()
+{
+	uint uiX = gl_GlobalInvocationID.x;
+	uint uiY = gl_GlobalInvocationID.y;
+
+	// Only the visible window (+ blur margin) is sampled downstream; leave the rest as ShadowBlurV wrote it.
+	if (int(uiX) < globalLayout.iShadowVisibleMinX - kiShadowWindowMargin || int(uiX) >= globalLayout.iShadowVisibleMaxX + kiShadowWindowMargin ||
+	    int(uiY) < globalLayout.iShadowVisibleMinY - kiShadowWindowMargin || int(uiY) >= globalLayout.iShadowVisibleMaxY + kiShadowWindowMargin)
+		return;
+
+	float fCurrent = imageLoad(shadowBlurTexture, ivec2(uiX, uiY)).x;
+
+	// This texel's world position -> previous-frame UV. Reprojection makes the blend correct under pan/zoom
+	// (the grid moves frame-to-frame). Disocclusion (reprojected UV outside [0,1] = newly revealed): keep current.
+	vec2 f2Uv = (vec2(float(uiX), float(uiY)) + 0.5f) / vec2(float(globalLayout.iShadowTextureWidth), float(globalLayout.iShadowTextureHeight));
+	vec2 f2World = VisibleAreaToWorld(f2Uv, globalLayout.f4ShadowArea);
+	vec2 f2PreviousUv = WorldToVisibleArea(vec3(f2World, 0.0f), globalLayout.f4ShadowAreaPrevious);
+
+	float fBlended = fCurrent;
+	if (f2PreviousUv.x >= 0.0f && f2PreviousUv.x <= 1.0f && f2PreviousUv.y >= 0.0f && f2PreviousUv.y <= 1.0f)
+	{
+		float fHistory = textureLod(shadowHistorySampler, f2PreviousUv, 0.0f).x;
+		fBlended = mix(fHistory, fCurrent, globalLayout.fShadowTemporalBlend);
+	}
+
+	imageStore(shadowBlurTexture, ivec2(uiX, uiY), vec4(fBlended, 0.0f, 0.0f, 0.0f));
+}

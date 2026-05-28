@@ -18,6 +18,8 @@ Background thread services a priority queue. Thread runs at `THREAD_PRIORITY_BEL
 
 Chunk state is an atomic acquire/release machine; textures traverse the full CPU+GPU chain via `TextureUploadManager`, non-texture chunks short-circuit to ready after disk load. Queue insertion wraps `ScopedSuppressAllocationTracking` — items must outlive frame scope. `WaitForChunks` auto-promotes to realtime priority.
 
+A random-access read API serves an arbitrary offset+span within a chunk: it copies from the pool when the chunk is already loaded, otherwise reads directly from the pack file via a transient buffered stream (used to stream audio without resident-loading the whole chunk).
+
 Texture chunks flagged zlib-compressed read into a dedicated decompress scratch (sized at boot to the largest compressed chunk on disk) using regular `memcpy` instead of the streaming-store path — keeps bytes hot for `uncompress`, which writes into the lazy-pool slot. Non-texture and uncompressed chunks retain the cache-bypass fast path.
 
 ### Lazy Memory Pool Invariant
@@ -34,7 +36,7 @@ Resetting texture chunks clears GPU handles and transitions based on CPU residen
 
 ### Atomic Writes
 
-Writes are atomic by default — staged through a temp sibling and `MoveFileExW`-replaced — so readers never observe a torn file even on crash mid-write. Direct write opens via `OpenFile(kWrite, ...)` must opt out by also setting `kStreaming`; one-shot writers should use `WriteFileAtomically` instead. Backup mode timestamps and copies the existing file before opening for write, and asserts on copy failure.
+Writes are atomic by default — staged through a `.tmp` sibling then `std::filesystem::rename`-replaced — so readers never observe a torn file even on crash mid-write. Direct write opens via `OpenFile(kWrite, ...)` must opt out by also setting `kStreaming`; one-shot writers should use `WriteFileAtomically` instead. Backup mode timestamps and copies the existing file before opening for write, and asserts on copy failure.
 
 ## DifferenceStream
 

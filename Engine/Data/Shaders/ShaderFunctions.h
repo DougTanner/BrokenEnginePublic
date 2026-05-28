@@ -25,6 +25,13 @@ vec2 WorldToVisibleArea(vec3 f3WorldPosition, vec4 f4VisibleArea)
 	return vec2(fMultiplierX * (f3WorldPosition.x - f4VisibleArea.x), 1.0f - fMultiplierY * (f3WorldPosition.y - f4VisibleArea.w));
 }
 
+// Inverse of WorldToVisibleArea (incl. its Y-flip): a [0,1] texel UV back to world XY for the given area.
+vec2 VisibleAreaToWorld(vec2 f2Uv, vec4 f4VisibleArea)
+{
+	return vec2(f4VisibleArea.x + f2Uv.x * (f4VisibleArea.z - f4VisibleArea.x),
+	            f4VisibleArea.w + (1.0f - f2Uv.y) * (f4VisibleArea.y - f4VisibleArea.w));
+}
+
 vec4 ShadowStretchProjection(GlobalLayout globalLayout, vec3 f3WorldPosition, vec3 f3ObjectPosition)
 {
 	float fSunriseOffset = globalLayout.fShadowSunriseStretch;

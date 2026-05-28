@@ -386,38 +386,7 @@ void ServerFleetManager::OnResetForLoad(int64_t iClientId, const engine::ClientG
 	{
 		for (int64_t iFleet = 0; iFleet < std::ssize(fleetIt->second); ++iFleet)
 		{
-			Fleet& rFleet = fleetIt->second.at(static_cast<size_t>(iFleet));
-			for (FleetMember& rMember : rFleet.members)
-			{
-				rMember.bAlive = std::ranges::contains(rOwnedIds, rMember.globalPlayerId);
-				// Update coord from authorizedCoords if client is available
-				if (pClient != nullptr)
-				{
-					for (int64_t k = 0; k < std::ssize(rOwnedIds); ++k)
-					{
-						if (rOwnedIds.at(k) == rMember.globalPlayerId)
-						{
-							rMember.coord = pClient->authorizedCoords.at(k);
-							break;
-						}
-					}
-				}
-			}
-
-			// Shift flagship to next alive member if current flagship is dead
-			if (rFleet.iFlagshipIndex < std::ssize(rFleet.members) &&
-				!rFleet.members.at(static_cast<size_t>(rFleet.iFlagshipIndex)).bAlive)
-			{
-				mNavigation.ShiftFlagshipAfterDeath(rClientGuid, iFleet, rFleet);
-			}
-			else if (rFleet.iFlagshipIndex < std::ssize(rFleet.members) &&
-				rFleet.members.at(static_cast<size_t>(rFleet.iFlagshipIndex)).bAlive)
-			{
-				// Flagship still alive — set wantedCoord and queue update
-				rFleet.wantedCoord = rFleet.members.at(static_cast<size_t>(rFleet.iFlagshipIndex)).coord;
-				rFleet.fFrameChangeTimer = rFleet.fNavigationDelay;
-				mNavigation.QueueFlagshipUpdate({.clientGuid = rClientGuid, .iFleetIndex = iFleet, .newWantedCoord = rFleet.wantedCoord});
-			}
+			ResetFleetForLoad(fleetIt->second.at(static_cast<size_t>(iFleet)), rClientGuid, iFleet, rOwnedIds, pClient);
 		}
 
 		// Rebuild mPlayerToGuid for this fleet's members
@@ -433,6 +402,41 @@ void ServerFleetManager::OnResetForLoad(int64_t iClientId, const engine::ClientG
 		}
 	}
 	SendFleetSyncToClient(iClientId);
+}
+
+void ServerFleetManager::ResetFleetForLoad(Fleet& rFleet, const engine::ClientGuid& rClientGuid, int64_t iFleetIndex, const std::vector<engine::global_id_t>& rOwnedIds, const engine::ClientConnection* pClient)
+{
+	for (FleetMember& rMember : rFleet.members)
+	{
+		rMember.bAlive = std::ranges::contains(rOwnedIds, rMember.globalPlayerId);
+		// Update coord from authorizedCoords if client is available
+		if (pClient != nullptr)
+		{
+			for (int64_t k = 0; k < std::ssize(rOwnedIds); ++k)
+			{
+				if (rOwnedIds.at(k) == rMember.globalPlayerId)
+				{
+					rMember.coord = pClient->authorizedCoords.at(k);
+					break;
+				}
+			}
+		}
+	}
+
+	// Shift flagship to next alive member if current flagship is dead
+	if (rFleet.iFlagshipIndex < std::ssize(rFleet.members) &&
+		!rFleet.members.at(static_cast<size_t>(rFleet.iFlagshipIndex)).bAlive)
+	{
+		mNavigation.ShiftFlagshipAfterDeath(rClientGuid, iFleetIndex, rFleet);
+	}
+	else if (rFleet.iFlagshipIndex < std::ssize(rFleet.members) &&
+		rFleet.members.at(static_cast<size_t>(rFleet.iFlagshipIndex)).bAlive)
+	{
+		// Flagship still alive — set wantedCoord and queue update
+		rFleet.wantedCoord = rFleet.members.at(static_cast<size_t>(rFleet.iFlagshipIndex)).coord;
+		rFleet.fFrameChangeTimer = rFleet.fNavigationDelay;
+		mNavigation.QueueFlagshipUpdate({.clientGuid = rClientGuid, .iFleetIndex = iFleetIndex, .newWantedCoord = rFleet.wantedCoord});
+	}
 }
 
 ServerFleetManager::FleetLookupResult ServerFleetManager::LookupFleetWantedCoord(int64_t iClientId, int64_t iFleetIndex, int64_t iMemberIndex)

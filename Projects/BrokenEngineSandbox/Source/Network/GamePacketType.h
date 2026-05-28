@@ -21,6 +21,8 @@ enum class GamePacketType : uint8_t
 	kClientReplayRecordRequest,   // Client requests server replay record start/stop (debug only)
 	kClientReplayPlaybackRequest, // Client requests server replay playback (debug only)
 	kClientPauseRequest,          // Client requests server pause/unpause (debug only)
+	kClientTimespeedRequest,      // Client requests timescale change (debug only)
+	kServerTimespeedUpdate,       // Server broadcasts current timescale to all clients
 };
 
 } // namespace game

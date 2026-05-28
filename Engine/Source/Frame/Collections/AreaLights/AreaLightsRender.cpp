@@ -60,12 +60,12 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 	ASSERT(siRendered + rCurrent.iCount <= iAreaLightsBufferCapacity);
 
 	// Minimum lighting size: clamp to 8 texels to prevent flickering from sub-texel lights. Texel
-	// size derives from the LOD-stable lighting region (matches f4LightingArea population in
-	// GlobalUniforms.cpp). Using f4RenderVisibleArea here would under-estimate texel pitch by up to
-	// 4x at the LOD low edge and re-introduce sub-texel flicker.
+	// size derives from the same visible-area lighting region as the f4LightingArea population in
+	// GlobalUniforms.cpp (continuous, non-LOD-stable sizing); the ceil here only inflates the floor
+	// by a sub-texel amount.
 	auto [iLightingTextureX, iLightingTextureY] = TextureManager::DetailTextureSize(gLightingDepositTextureMultiplier.Get());
-	float fTexelSizeX = std::ceil(game::gpCamera->mfLodStableWidth) / static_cast<float>(iLightingTextureX);
-	float fTexelSizeY = std::ceil(game::gpCamera->mfLodStableHeight) / static_cast<float>(iLightingTextureY);
+	float fTexelSizeX = std::ceil(game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / static_cast<float>(iLightingTextureX);
+	float fTexelSizeY = std::ceil(game::gpCamera->f4RenderVisibleArea.y - game::gpCamera->f4RenderVisibleArea.w) / static_cast<float>(iLightingTextureY);
 	float fMinLightingSize = std::max(fTexelSizeX, fTexelSizeY) * 8.0f;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)

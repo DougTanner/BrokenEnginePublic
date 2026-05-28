@@ -39,6 +39,9 @@ void FrameStaticData::Read(std::istream& rStream, bool bIncludeNavData)
 	{
 		navData = {};
 	}
+	// Never serialized — purely local derived data. Clear so a network resend / save-load
+	// forces RunFrameTick to rebuild from the freshly-read placements.
+	elevationGrid = {};
 }
 
 } // namespace engine

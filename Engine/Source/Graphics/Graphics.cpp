@@ -399,7 +399,7 @@ void Graphics::Refresh()
 	auto [fMaxAnisotropy, fPreviousMaxAnisotropy, bMaxAnisotropyChanged] = gMaxAnisotropy.Changed<float>();
 	if (bMaxAnisotropyChanged) [[unlikely]]
 	{
-		LOG(kGraphics, kDebug, "Max anisotropy: {} -> {}", fPreviousMaxAnisotropy, fMaxAnisotropy);
+		LOG(kGraphics, kDebug, "Max anisotropy: {} -> {}", common::Wb(fPreviousMaxAnisotropy, 3), common::Wb(fMaxAnisotropy, 3));
 		meDestroyType = std::max(DestroyType::kSamplers, meDestroyType);
 	}
 
@@ -413,14 +413,14 @@ void Graphics::Refresh()
 	auto [fMinSampleShading, fPreviousMinSampleShading, bMinSampleShadingChanged] = gMinSampleShading.Changed<float>();
 	if (bMinSampleShadingChanged) [[unlikely]]
 	{
-		LOG(kGraphics, kDebug, "Min sample shading: {} -> {}", fPreviousMinSampleShading, fMinSampleShading);
+		LOG(kGraphics, kDebug, "Min sample shading: {} -> {}", common::Wb(fPreviousMinSampleShading, 3), common::Wb(fMinSampleShading, 3));
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
 
 	auto [fMipLodBias, fPreviousMipLodBias, bMipLodBiasChanged] = gMipLodBias.Changed<float>();
 	if (bMipLodBiasChanged) [[unlikely]]
 	{
-		LOG(kGraphics, kDebug, "Mip lod bias: {} -> {}", fPreviousMipLodBias, fMipLodBias);
+		LOG(kGraphics, kDebug, "Mip lod bias: {} -> {}", common::Wb(fPreviousMipLodBias, 3), common::Wb(fMipLodBias, 3));
 		meDestroyType = std::max(DestroyType::kSamplers, meDestroyType);
 	}
 
@@ -440,7 +440,7 @@ void Graphics::Refresh()
 	auto [fWaterShapeDetail, fPreviousWaterShapeDetail, bWaterShapeDetailChanged] = gWaterShapeDetail.Changed<float>();
 	if (bWaterShapeDetailChanged && gpBufferManager != nullptr) [[unlikely]]
 	{
-		LOG(kGraphics, kDebug, "Water shape detail: {} -> {}", fPreviousWaterShapeDetail, fWaterShapeDetail);
+		LOG(kGraphics, kDebug, "Water shape detail: {} -> {}", common::Wb(fPreviousWaterShapeDetail, 3), common::Wb(fWaterShapeDetail, 3));
 
 		mDestroyFlags.Set(DestroyFlags::kWaterMesh);
 
@@ -500,7 +500,7 @@ void Graphics::Refresh()
 		auto [fTerrainElevationTextureMultiplier, fPreviousTerrainElevationTextureMultiplier, bTerrainElevationTextureMultiplierChanged] = gTerrainElevationTextureMultiplier.Changed<float>();
 		if (bTerrainElevationTextureMultiplierChanged) [[unlikely]]
 		{
-			LOG(kGraphics, kDebug, "TerrainElevationTexture multiplier: {} -> {}", fPreviousTerrainElevationTextureMultiplier, fTerrainElevationTextureMultiplier);
+			LOG(kGraphics, kDebug, "TerrainElevationTexture multiplier: {} -> {}", common::Wb(fPreviousTerrainElevationTextureMultiplier, 3), common::Wb(fTerrainElevationTextureMultiplier, 3));
 
 			mDestroyFlags.Set(DestroyFlags::kTerrainElevation);
 
@@ -513,8 +513,8 @@ void Graphics::Refresh()
 		auto [fSmokeSimulationArea, fPreviousSmokeSimulationArea, bSmokeSimulationAreaChanged] = gSmokeSimulationArea.Changed<float>();
 		if (bSmokeTrailPowerChanged || bSmokeTrailAlphaChanged || bSmokeSimulationPixelsChanged || bSmokeSimulationAreaChanged) [[unlikely]]
 		{
-			LOG(kGraphics, kDebug, "SmokeSimulationPixels: {} -> {} ({} -> {})", fPreviousSmokeSimulationPixels, fSmokeSimulationPixels, gSmokeSimulationPixels.Get(), SmokeSimulationPixels());
-			LOG(kGraphics, kDebug, "SmokeSimulationArea: {} -> {}", fPreviousSmokeSimulationArea, fSmokeSimulationArea);
+			LOG(kGraphics, kDebug, "SmokeSimulationPixels: {} -> {} ({} -> {})", common::Wb(fPreviousSmokeSimulationPixels, 3), common::Wb(fSmokeSimulationPixels, 3), common::Wb(gSmokeSimulationPixels.Get(), 3), common::Wb(SmokeSimulationPixels(), 3));
+			LOG(kGraphics, kDebug, "SmokeSimulationArea: {} -> {}", common::Wb(fPreviousSmokeSimulationArea, 3), common::Wb(fSmokeSimulationArea, 3));
 
 			mDestroyFlags.Set(DestroyFlags::kSmokeTextures);
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);

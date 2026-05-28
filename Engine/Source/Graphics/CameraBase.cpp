@@ -175,32 +175,11 @@ void CameraBase::CalculateMatricesAndVisibleArea()
 
 	if (iZoomBucket != miVisibleAreaZoomBucket || uiLatchKey != muiVisibleAreaLatchKey || iLod != miVisibleAreaLod)
 	{
-		bool bLodChanged = (iLod != miVisibleAreaLod);
 		miVisibleAreaZoomBucket = iZoomBucket;
 		muiVisibleAreaLatchKey = uiLatchKey;
 		miVisibleAreaLod = iLod;
 		mf2LatchedQuadSize.x = (f4RenderVisibleArea.z - f4RenderVisibleArea.x) / fQuadsX;
 		mf2LatchedQuadSize.y = (f4RenderVisibleArea.y - f4RenderVisibleArea.w) / fQuadsY;
-
-		// LOD-stable snap-area size: scale current visible-width-per-eye-distance ratio (constant
-		// for a fixed FOV) to the LOD upper-bound eye distance. Within the LOD, mfLodStable*
-		// stays bit-stable across the per-integer-meter zoom-bucket re-latches that otherwise drive
-		// texel-scale shimmer on Z motion. Re-latches only when LOD itself transitions (rare, 5%
-		// hysteresis at 4^L boundaries). First-frame init via the zero-width guard. Shared by
-		// f4ShadowArea and f4LightingArea snap math in GlobalUniforms.cpp.
-		if (bLodChanged || mfLodStableWidth == 0.0f)
-		{
-			// Hysteresis-margin scale: the LOD upper boundary is held by kfLodHysteresisFraction past
-			// fLodMaxEyeDistance during zoom-out — within that 5% band, fEyeDistance > fLodMaxEyeDistance
-			// while iLod is still L, so a plain Lod-upper-bound width would be smaller than the current
-			// visible width and consumers outside that region would sample clamp UVs. Inflate by the same
-			// fraction to absorb the hysteresis band, plus the same factor on the top-LOD entry so cruise
-			// above kfMinEyeHeight*4^kiVisibleAreaLodCount doesn't immediately undersize.
-			float fSafeEyeDistance = std::max(fEyeDistance, kfMinEyeHeight);
-			float fLodMaxEyeDistance = kfMinEyeHeight * std::pow(4.0f, static_cast<float>(iLod + 1)) * (1.0f + kfLodHysteresisFraction);
-			mfLodStableWidth = (f4RenderVisibleArea.z - f4RenderVisibleArea.x) * fLodMaxEyeDistance / fSafeEyeDistance;
-			mfLodStableHeight = (f4RenderVisibleArea.y - f4RenderVisibleArea.w) * fLodMaxEyeDistance / fSafeEyeDistance;
-		}
 	}
 
 	f2VisibleAreaQuadSize = mf2LatchedQuadSize;

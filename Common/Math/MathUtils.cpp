@@ -130,11 +130,6 @@ XMVECTOR XM_CALLCONV ComputeLeadPosition(FXMVECTOR vecShooterPosition, FXMVECTOR
 	return XMVectorMultiplyAdd(vecTargetVelocity, XMVectorReplicate(fT), vecTargetPosition);
 }
 
-float FromGamma(float fGamma)
-{
-	return std::pow(std::max(0.0f, fGamma), 1.0f / 2.2f);
-}
-
 bool XM_CALLCONV AabbIntersectsArea(XMFLOAT4 f4Area, FXMVECTOR vecMin, FXMVECTOR vecMax)
 {
 	float fMinX = XMVectorGetX(vecMin);

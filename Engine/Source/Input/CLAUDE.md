@@ -4,9 +4,9 @@ Hardware input polling (client-only manager; `RawInput` struct compiles in both 
 
 ## Architecture
 
-`RawInputManager` aggregates a frame-coherent `RawInput` snapshot. Keyboard uses Win32 Raw Input (event-driven, `RIDEV_NOLEGACY` suppresses WM_KEY*); mouse/gamepad use DirectXTK polling.
+`RawInputManager` aggregates a frame-coherent `RawInput` snapshot. On focus gain it registers keyboard (`RIDEV_NOLEGACY` suppresses WM_KEY*) and mouse as Win32 Raw Input devices; keyboard events route to the manager via WndProc, mouse events feed DirectXTK's `Mouse`. Gamepad is pure DirectXTK polling. On focus loss both devices are unregistered.
 
-**Two-phase update**: `HandleRawInput` fires from WndProc per event and writes a scratch keyboard array only. `Update` runs once per frame, polls mouse/gamepad, then copies the scratch into the snapshot — decouples event timing from frame timing. Snapshot is state-only; game layer diffs consecutive frames for press/release, keeping input deterministic.
+**Two-phase update**: `HandleRawInput` fires from WndProc per event and writes a scratch keyboard array only. `Update` runs once per frame, polls mouse/gamepad via DirectXTK, then copies the scratch into the snapshot — decouples event timing from frame timing. Snapshot is state-only; game layer diffs consecutive frames for press/release, keeping input deterministic.
 
 ## Non-obvious Behaviors
 

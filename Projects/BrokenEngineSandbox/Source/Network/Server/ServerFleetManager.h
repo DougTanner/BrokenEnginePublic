@@ -101,6 +101,9 @@ public:
 
 private:
 
+	// OnResetForLoad helpers
+	void ResetFleetForLoad(Fleet& rFleet, const engine::ClientGuid& rClientGuid, int64_t iFleetIndex, const std::vector<engine::global_id_t>& rOwnedIds, const engine::ClientConnection* pClient);
+
 	std::vector<PendingCreateFleetRequest> mPendingCreateFleetRequests;
 	std::vector<PendingDeleteFleetRequest> mPendingDeleteFleetRequests;
 	std::vector<PendingSpawnIntoFleetRequest> mPendingSpawnIntoFleetRequests;

@@ -187,6 +187,11 @@ struct Frame
 	static constexpr float kfCellWidth = 900.0f;
 	static constexpr float kfCellHeight = 900.0f;
 
+	// Per-cell elevation grid resolution. 1024 × 1024 floats = 4 MB/cell at ~0.88-unit
+	// spacing across kfCellWidth — sub-meter, fine enough that quantizing FrameElevation
+	// queries to grid-cell centers is gameplay-invisible. See IslandTerrain::BuildElevationGrid.
+	static constexpr int64_t kiElevationGridDim = 1024;
+
 	static constexpr float kfBaseAreaMinX = -kfCellWidth / 2.0f;
 	static constexpr float kfBaseAreaMaxY = kfCellHeight / 2.0f;
 	static constexpr float kfBaseAreaMaxX = kfCellWidth / 2.0f;

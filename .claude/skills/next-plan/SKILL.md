@@ -1,6 +1,6 @@
 ---
 name: next-plan
-description: Pull the highest-priority plan from `Documents/Plans/Order.md`, follow any unfinished prerequisites, validate it against the current codebase, refresh stale details, scan the codebase for similar changes the plan may have missed, and present a ready-to-execute plan for approval. Removes the Order.md row immediately on selection and auto-deletes the source plan file once the final actionable plan has been created. Use when the user invokes `/next-plan`.
+description: First reconciles any orphaned plan files on disk that aren't referenced in `Documents/Plans/Order.md` by dispatching an Opus subagent to score them and inserting their rows. Then pulls the highest-priority plan, follows any unfinished prerequisites, validates it against the current codebase, refreshes stale details, scans the codebase for similar changes the plan may have missed, and presents a ready-to-execute plan for approval. Removes the Order.md row immediately on selection and auto-deletes the source plan file once the final actionable plan has been created. Use when the user invokes `/next-plan`.
 disable-model-invocation: true
 user-invocable: true
 argument-hint: "[plan-file-path]"
@@ -9,7 +9,7 @@ allowed-tools: [Read, Grep, Glob, Agent, Edit, Bash, AskUserQuestion]
 
 # Next Plan
 
-Walks the `## Plans` table in `Documents/Plans/Order.md`, picks the top-priority unblocked plan, verifies it still describes a real problem in the current code, refreshes stale line numbers or paths, scans the codebase for similar changes the plan may have missed, and presents a ready-to-execute plan for explicit user approval.
+Reconciles orphaned plan files on disk into `Documents/Plans/Order.md`, then walks the `## Plans` table, picks the top-priority unblocked plan, verifies it still describes a real problem in the current code, refreshes stale line numbers or paths, scans the codebase for similar changes the plan may have missed, and presents a ready-to-execute plan for explicit user approval.
 
 ## Preconditions
 
@@ -26,7 +26,40 @@ Order.md has a single `## Plans` table at roughly line 21. Columns are: `# | Pla
 
 ## Workflow
 
-Execute these steps in order. Step 1 is pure research (Read / Grep / Glob / Agent) and resolves which plan to work on. Step 2 is the first mutation — the Order.md row is removed as soon as the target is selected. Steps 3 through 7 are research and synthesis against the surviving on-disk plan file. Step 8 is the second mutation — the plan file is deleted automatically once the final actionable plan has been produced. Step 9 presents the final plan to the user via `AskUserQuestion` for explicit approval.
+Execute these steps in order. Step 0 is the orphan-reconciliation pre-phase — any plan files on disk that aren't in `Order.md` are scored by an Opus subagent and inserted before the priority walk begins. Step 1 is pure research (Read / Grep / Glob / Agent) and resolves which plan to work on. Step 2 is the first mutation point in the main flow — the Order.md row is removed as soon as the target is selected. Steps 3 through 7 are research and synthesis against the surviving on-disk plan file. Step 8 is the second mutation — the plan file is deleted automatically once the final actionable plan has been produced. Step 9 presents the final plan to the user via `AskUserQuestion` for explicit approval.
+
+### Step 0. Reconcile orphaned plan files into `Order.md`
+
+Before walking the priority queue, ensure every plan file on disk is represented in the `## Plans` table. Orphaned files — present on disk but missing from the table — would otherwise be invisible to the rest of the workflow.
+
+  a. **Enumerate plan files on disk.** Use `Glob` against `Documents/Plans/**/*.md` and `Documents/Plans/**/*.txt`. Normalize every hit to its repo-relative form (`<area>/<File>.<ext>`).
+
+  b. **Build the exclusion set.** Skip:
+       - `Documents/Plans/Order.md` itself and any `CLAUDE.md` under `Documents/Plans/`.
+       - Every path listed under the `### Reference / Index Documents` subsection of `Order.md` (meta/overview docs that are never executed).
+       - Every path referenced in the `## Plans` table's Plan cells (already in the queue). Extract paths from both link form (`[path](path)`) and bare-path form. Apply the same normalization as Step 1b.
+
+  c. **Compute the orphan set.** Files from (a) that aren't in (b). If empty, log "no orphans" and skip to Step 1.
+
+  d. **Dispatch a single Opus subagent via the `Agent` tool** to evaluate all orphans in one call. Brief it with:
+       - The full list of orphan paths.
+       - The scoring anchors from `Documents/CLAUDE.md` (Effort 1-5, Impact 1-5, Risks 0-4, Score = Effort − Impact + Risks; lower = higher priority).
+       - The required row format from `Documents/Plans/CLAUDE.md`:
+         `| # | [<area>/<File>.<ext>](<area>/<File>.<ext>) | <Tier> | <Effort> | <Impact> | <Risks> | <Score> | <one-line Notes> |`
+       - The current `## Plans` table contents so it can pick a score-correct insertion position and write Notes consistent with neighbouring rows.
+       - An instruction to read each orphan in full and spot-check the cited files/symbols in the codebase before scoring — a plan whose premise no longer exists should be flagged as "stale; recommend deletion" instead of getting a row.
+
+  e. **Ask the subagent to return**, for each orphan:
+       - The fully-populated table row (including final Score).
+       - A target insertion index in the existing table (the `#` value the row should take).
+       - A label: `add` (insert into table) or `stale` (recommend the user delete the file — do not insert).
+       - A one-paragraph justification for the scoring (kept out of `Order.md`, surfaced to the user in the post-Step-0 report).
+
+  f. **Apply the additions.** For every `add` row, use `Edit` to insert it into the `## Plans` table at the requested position, then renumber the `#` column so it remains a contiguous 1-based ordinal. Multiple inserts in a single Step 0 should be applied in descending-index order so earlier inserts don't shift later target indices. Do not insert `stale` entries.
+
+  g. **Report.** Output a brief summary to the user: which orphans were added (with score), which were flagged stale, and the subagent's justifications. Do not pause for confirmation — additions are unconditional, matching the skill's existing mutation contract. Stale flags are advisory only; the user can delete the files manually if they agree.
+
+  h. Continue to Step 1. The orphan-reconciliation mutations are independent of the Step 1/Step 2 target selection — if Step 1 ends up choosing one of the just-inserted rows as its top candidate, that's fine.
 
 ### Step 1. Resolve dependencies
 
@@ -197,6 +230,10 @@ If the user picks `Reject`, stop. Do not attempt to restore the Order.md row or 
 
 ## Edge cases
 
+- **No orphans found in Step 0**: skip the subagent dispatch entirely and proceed to Step 1. No mutations.
+- **Step 0 subagent flags every orphan as stale**: no rows inserted; report the stale list to the user and continue to Step 1 against the unchanged table.
+- **Orphan file lives under a subdirectory the table doesn't yet reference** (e.g., a new `Audio/` area): the row goes in at score-correct position regardless of subdirectory — the table is sorted by Score, not grouped by area.
+- **Orphan is itself a Reference / Index document** that wasn't added to the `### Reference / Index Documents` subsection: Step 0b only excludes paths already listed there, so a genuinely-meta doc would be misclassified as a plan. The Opus subagent should detect this from the document's content (no execution steps, no `## Critical files` section, narrative overview tone) and label it `stale` with a justification recommending the user move it to the reference subsection.
 - **Empty table** (`## Plans` table has no rows): report "Order.md has no plans" and stop. No mutations.
 - **Top row is marked subsumed or index/meta in Dependencies**: Step 1c filters it; fall through to the next row. No row removal happens for filtered rows — Step 2 only fires on the eventual selected target.
 - **Plan file missing from disk** but row still in `## Plans`: the plan was likely hand-deleted without cleaning up Order.md. Step 1 detects this before committing; report the bookkeeping anomaly, ask the user whether to remove the stale row, and fall through to the next candidate. Do not commit Step 2 against a candidate whose plan file is already missing — the row removal would silently succeed but Step 3 would have nothing to read.

@@ -6,23 +6,25 @@ GLSL shaders implementing Cook-Torrance microfacet BRDF for rendering models wit
 
 ### Main Rendering Pipeline
 - **ModelCommon.h** - Shared vertex I/O declarations, `MeshData` and `JointMatrix` struct definitions, and the `ModelVertexOutput` function handling camera, visible area, and shadow projection modes
-- **ModelStatic.vert** - Vertex shader for static (non-animated) models
-- **ModelSkinned.vert** - Vertex shader for animated models with skeletal skinning using offset-based indexing into a shared joint matrix buffer, with precomputed normal matrices from `MeshData`
-- **Model.frag** - Full PBR fragment shader combining Cook-Torrance direct sun/moon BRDF, IBL split-sum ambient, per-direction EWNS specular, engine directional/ambient lighting, emissive, and smoke. Individual contributions can be isolated via `ENABLE_*` preprocessor toggles
-- **ModelShadow.frag** - Minimal shadow pass for shadow map generation
+- **ModelStatic.vert** - Vertex shader for static (non-animated) models; transforms vertices directly with no per-mesh matrix
+- **ModelSkinned.vert** - Vertex shader for animated models; blends per-vertex joint weights against offset-indexed joint matrices, then applies the per-mesh transform and precomputed normal matrix from `MeshData`
+- **Model.frag** - Full PBR fragment shader combining Cook-Torrance direct sun/moon BRDF, IBL split-sum ambient, four-cardinal-direction EWNS specular, engine directional lighting, emissive, and smoke. Individual contributions can be isolated via `ENABLE_*` preprocessor toggles
+- **ModelShadow.frag** - Minimal shadow pass; writes a constant to a single-channel target so only depth/coverage is recorded
 
 ### IBL Precomputation
-- **ModelGenBrdfLut.vert / .frag** - Generates BRDF lookup texture via Monte Carlo integration over the GGX distribution
+- **ModelGenBrdfLut.vert / .frag** - Generates the split-sum BRDF lookup texture (scale/bias) via Hammersley-sequence Monte Carlo GGX importance sampling, with a Frisvad tangent frame and a specialization-constant sample count
 
 Irradiance and pre-filtered radiance cubemaps are generated offline by DataPacker and loaded from pack data at runtime.
 
 ## Architecture Notes
 
-- **Descriptor layout**: Extends the engine's multi-set layout with Set 2 for per-material data. Per-material texture indices reference the global bindless texture array
-- **Tangent-free normal mapping**: Tangent space computed from screen-space derivatives, avoiding per-vertex tangent storage. Falls back to the geometric normal when the Gram-Schmidt-orthogonalized tangent collapses (degenerate UV gradients), so the normal mapper degrades to flat shading instead of producing NaNs
-- **Compact joint matrices**: 3-row format blended in the vertex shader and reconstructed to mat4 for skinning
-- **Tone mapping**: ACES filmic with configurable exposure and gamma
-- **Linear `fPbrSun` response on both BRDF and IBL paths**: `fSunIntensity` / `fMoonIntensity` are Rec.709 luminance of the *unscaled* `f4SunColor` / `f4MoonColor`. The IBL specular consumer (`fSunIntensity * f3SunColor`) compounds to a single `fPbrSun` factor, matching the direct BRDF term. Deriving the luminance scalars from `fPbrSun`-scaled colors instead would produce a cubic IBL response while the BRDF stayed linear.
+- **Per-material data lives in Set 2** (the only consumer of Set 2 in the engine; see parent doc). Per-material texture indices index the global bindless array.
+- **Tangent-free normal mapping**: Tangent space is derived per-fragment from screen-space position/UV derivatives, avoiding per-vertex tangent storage. Falls back to the geometric normal when the UV gradient is degenerate or the Gram-Schmidt-orthogonalized tangent collapses, so the mapper degrades to flat shading instead of producing NaNs. Normal maps are BC5 (two channels); Z is reconstructed as `sqrt(1 - X^2 - Y^2)`.
+- **Compact joint matrices**: skinning matrices are stored as a 3-row (48-byte) form in a buffer separate from per-mesh data; the vertex shader weight-blends rows and reconstructs a mat4. Split out so the joint array never becomes a large `mat4[]` (triggers the NVIDIA `inverse()`/pipeline-creation hang — see parent doc).
+- **Skinned normal matrix is approximate**: the skinned path multiplies the precomputed mesh normal matrix by `mat3(skinMatrix)`, valid only for the near-rigid joint transforms the engine uses (no per-joint inverse-transpose).
+- **Tone mapping**: ACES filmic (Stephen Hill fit) with configurable exposure and gamma; IBL cubemap samples are tonemapped before linearization, and engine cubemaps are sampled in Y-up space (swizzled from Z-up world).
+- **Sun/moon split**: the direct and IBL paths take the per-fragment max of a sun term (terrain-shadow-attenuated, squared on the BRDF path) and a moon term (bypasses shadow — Model.frag has no shadow input besides the terrain texture). Per-target intensity sliders are applied at the use sites, not baked into the colors.
+- **Linear `fPbrSun` response on both BRDF and IBL paths**: `fSunIntensity` / `fMoonIntensity` are the Rec.709 luminance of the *unscaled* sun/moon color (divided by `fPbrDayBrightness`), so the IBL specular consumer compounds to a single `fPbrSun` factor matching the direct BRDF term. Deriving the luminance scalars from `fPbrSun`-scaled colors instead would make the IBL response cubic while the BRDF stayed linear.
 
 ## See Also
 

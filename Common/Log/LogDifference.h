@@ -56,7 +56,7 @@ inline bool LogDifference(int64_t iIndex, const T& rOne, const T& rTwo)
 	return bEqual;
 }
 
-// XMVECTOR overloads (declared here, defined in Utils.cpp)
+// XMVECTOR overloads (declared here, defined in LogDifference.cpp)
 bool XM_CALLCONV LogDifference_Vec(const char* pcName, FXMVECTOR rOne, FXMVECTOR rTwo);
 bool XM_CALLCONV LogDifference_Vec(const char* pcName, int64_t iIndex, FXMVECTOR rOne, FXMVECTOR rTwo);
 

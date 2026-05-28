@@ -52,6 +52,36 @@ int64_t ReconcileFindReplayRangeCoord(CoordWork& rWork, int64_t iReplayStart)
 	return iMaxConsecutive;
 }
 
+// Emit the per-tick spawn-transfer summary at kVerbose. Two formats: with-PlayerIds (when any
+// transferred player IDs are captured) or counts-only (when only non-player transfers occurred).
+static void LogTransferSummary(const CoordWork& rWork, int64_t iTick, int64_t iTransferPlayerCount, int64_t iTransferBlasterCount, int64_t iTransferSpaceshipCount, int64_t iTransferMissileCount, const engine::global_id_t* pTransferPlayerIds, int64_t iTransferPlayerIdCount)
+{
+	int64_t iTransferTotal = iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount;
+	if (iTransferPlayerCount > 0)
+	{
+		char acPlayerIds[192] {};
+		size_t iPos = 0;
+		for (int64_t i = 0; i < iTransferPlayerIdCount; ++i)
+		{
+			constexpr size_t kiReserve = 24;
+			if (iPos + kiReserve > sizeof(acPlayerIds)) break;
+			if (i > 0)
+			{
+				acPlayerIds[iPos++] = ',';
+				acPlayerIds[iPos++] = ' ';
+			}
+			int iWritten = snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", pTransferPlayerIds[i].iValue);
+			if (iWritten <= 0) break;
+			iPos += static_cast<size_t>(iWritten);
+		}
+		LOG(kNetwork, kVerbose, "ReconcileRunTickCoord SpawnTransfers Coord: ({},{}) ForTick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} PlayerIds: [{}]", rWork.coord.x, rWork.coord.y, iTick, iTransferTotal, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount, acPlayerIds);
+	}
+	else
+	{
+		LOG(kNetwork, kVerbose, "ReconcileRunTickCoord SpawnTransfers Coord: ({},{}) ForTick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {}", rWork.coord.x, rWork.coord.y, iTick, iTransferTotal, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount);
+	}
+}
+
 static bool ReconcileRunTickCoord(CoordWork& rWork, int64_t iTick, float fTime, FrameInput& rFrameInput, bool bIsReplay)
 {
 	engine::CoordFrames& rFrames = *rWork.pFrames;
@@ -129,30 +159,7 @@ static bool ReconcileRunTickCoord(CoordWork& rWork, int64_t iTick, float fTime, 
 	if (bHadTransfers && !bIsReplay && iTick > rWork.pFrames->iLastSpawnTransferLogTick)
 	{
 		rWork.pFrames->iLastSpawnTransferLogTick = iTick;
-		if (iTransferPlayerCount > 0)
-		{
-			int64_t iLogCount = std::min(iTransferPlayerCount, int64_t {8});
-			char acPlayerIds[192] {};
-			size_t iPos = 0;
-			for (int64_t i = 0; i < iLogCount; ++i)
-			{
-				constexpr size_t kiReserve = 24;
-				if (iPos + kiReserve > sizeof(acPlayerIds)) break;
-				if (i > 0)
-				{
-					acPlayerIds[iPos++] = ',';
-					acPlayerIds[iPos++] = ' ';
-				}
-				int iWritten = snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", transferPlayerIds[i].iValue);
-				if (iWritten <= 0) break;
-				iPos += static_cast<size_t>(iWritten);
-			}
-			LOG(kNetwork, kVerbose, "ReconcileRunTickCoord SpawnTransfers Coord: ({},{}) ForTick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} PlayerIds: [{}]", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount, acPlayerIds);
-		}
-		else
-		{
-			LOG(kNetwork, kVerbose, "ReconcileRunTickCoord SpawnTransfers Coord: ({},{}) ForTick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {}", rWork.coord.x, rWork.coord.y, iTick, iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount);
-		}
+		LogTransferSummary(rWork, iTick, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount, transferPlayerIds, std::min(iTransferPlayerCount, int64_t {8}));
 	}
 	std::erase_if(rFrameInput.statusChanges, [](const StatusChange& rStatusChange)
 	{

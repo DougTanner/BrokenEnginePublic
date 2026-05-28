@@ -31,6 +31,7 @@ inline constexpr bool kbAutoRunServer = false;
 inline constexpr bool kbAutoConnect = true;
 inline constexpr bool kbDebugBreak = true;
 inline constexpr bool kbDebugInput = true;
+inline constexpr bool kbDebugNavCrossingCheck = false;
 inline constexpr bool kbDebugRender = true;
 inline constexpr bool kbDxDiag = true;
 inline constexpr bool kbFreeCamera = true;
@@ -47,6 +48,7 @@ inline constexpr bool kbAutoRunServer = false;
 inline constexpr bool kbAutoConnect = true;
 inline constexpr bool kbDebugBreak = false;
 inline constexpr bool kbDebugInput = false;
+inline constexpr bool kbDebugNavCrossingCheck = false;
 inline constexpr bool kbDebugRender = false;
 inline constexpr bool kbDxDiag = false;
 inline constexpr bool kbFreeCamera = true;
@@ -63,6 +65,7 @@ inline constexpr bool kbAutoRunServer = false;
 inline constexpr bool kbAutoConnect = false;
 inline constexpr bool kbDebugBreak = false;
 inline constexpr bool kbDebugInput = false;
+inline constexpr bool kbDebugNavCrossingCheck = false;
 inline constexpr bool kbDebugRender = false;
 inline constexpr bool kbDxDiag = true;
 inline constexpr bool kbFreeCamera = false;
@@ -74,7 +77,7 @@ inline constexpr bool kbRandomlyInvalidatePbrCubemapCache = false;
 inline constexpr bool kbShowProfileTextByDefault = false;
 #endif
 
-#include "LogTypes.h"
+#include "Log/LogTypes.h"
 
 inline constexpr LogLevel keLogLevelTemp = kVerbose;
 

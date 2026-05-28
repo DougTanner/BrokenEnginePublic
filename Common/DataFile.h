@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Flags.h"
-#include "MathUtils.h"
+#include "Math/MathUtils.h"
 
 namespace common
 {

@@ -10,7 +10,7 @@ allowed-tools: [Read, Write, Edit, Grep, Glob, Agent, Bash, Skill]
 Runs two analysis skills in sequence (shape → in-function), then scores and verifies all output. Replaces the former three-leaf pipeline (the old `external-tech-debt` skill has been removed; its tier/effort/debt-score rubric is now owned by this orchestrator's Phase 3).
 
 **Pipeline order:**
-1. `/external-architecture-review` — Shape: dependency structure, deep-modules (Ousterhout), coupling/cohesion, determinism, frame-phase, thread-model, shader/CPU consistency
+1. `/external-architecture-review` — Shape: dependency structure, deep-modules (Ousterhout), coupling/cohesion, determinism, frame-phase, thread-model, shader/CPU consistency, ThirdParty library-replacement opportunities
 2. `/external-refactor-clean` — In-function mechanics: complexity, hot-path allocation, bool-proliferation, `Float4A`, narrow `#ifdef`, header placement. Hands off oversized files to `/reduce-file`.
 
 ## Arguments
@@ -62,7 +62,9 @@ Source: /external-architecture-review on <target path>
 
 Include a rough effort estimate per item: `[~5m]`, `[~15m]`, `[~30m]`, `[~1h]`. This helps with session planning.
 
-Keep plans focused — one plan per logical group (e.g., `Architecture_IncludeGraph.md`, `Architecture_LayerViolations.md`, `Architecture_CollectionCohesion.md`). Only create a plan if there are concrete changes to make. If a plan would exceed 15 items, split it by subdirectory or file group.
+Keep plans focused — one plan per logical group (e.g., `Architecture_IncludeGraph.md`, `Architecture_LayerViolations.md`, `Architecture_CollectionCohesion.md`, `Architecture_LibraryReplacement.md`). Only create a plan if there are concrete changes to make. If a plan would exceed 15 items, split it by subdirectory or file group.
+
+ThirdParty library-replacement candidates from the architecture review get their own plan file (`Architecture_LibraryReplacement.md`). Each item must include: candidate library name, license (allow-list only), approximate LOC removable, and risks. Phase 4 verification re-checks the license claim and confirms the library is not already in `/ThirdParty/`.
 
 ### 2. Phase 2: Refactor-Clean
 

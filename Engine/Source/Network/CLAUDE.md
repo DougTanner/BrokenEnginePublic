@@ -7,22 +7,22 @@ Client/server networking over ENet reliable UDP with slot-based coord subscripti
 ## Hub Conventions (children do not re-document these)
 
 - **Channel math**: channel 0 reliable control, channel 1 reserved unreliable, channels `2 + slot*2` (reliable) / `2 + slot*2 + 1` (unreliable) per coord slot. Always use `NetworkManager::CoordSlot*` / `ChannelToSlot` / `IsCoordChannel` / `IsUnreliableChannel` — never hardcode.
-- **Send path**: all sends (engine and game) go through `NetworkManager::SendPacket`; it wraps ENet's internal alloc with `ScopedSuppressAllocationTracking`. For simple fixed-payload packets (type byte + arithmetic / `GridCoord` args), use the `SendSimplePacket` member template on `Client` / `Server` rather than recreating the workbuffer-push boilerplate; client variant gates on `CanSend()` internally, server variant requires a caller-validated `ENetPeer*`.
+- **Send path**: all sends (engine and game) go through `NetworkManager::SendPacket`; it wraps ENet's internal alloc with `ScopedSuppressAllocationTracking`. For simple fixed-payload packets (type byte + arithmetic / `GridCoord` args), use the `SendSimplePacket` member template on `Client` / `Server` (see children) rather than recreating the workbuffer-push boilerplate; its per-arg serializer is the `PushSimplePacketArg` dispatcher in `NetworkCursor.h` (arithmetic and `GridCoord` only — unwrap enums/ids/flags at the call site).
+- **Serialization helpers**: `NetworkCursor.h` holds the shared cursor read/write primitives used by every `Network*.cpp`; they do no bounds checking, so callers own buffer sizing.
 - **Slot ACK model**: independent `AckState` per slot (int64 floor + 128-bit bitfield + uint16 epoch). Epoch mismatch silently drops stale packets; makes slot reuse across rapid (un)subscribe cycles safe.
 - **Game-layer opacity**: packet types `>= kGamePacketStart` are forwarded as raw bytes; engine never interprets them.
 - **ENet tuning** (both sides): peer throttle disabled so reconciliation stalls don't drop unreliable traffic; 1 MB socket send/recv buffers.
 - **Drain-per-poll**: `Poll()` on both sides clears all pending buffers at entry; game layer must consume within the tick or data is lost.
-- **Endianness**: `NetworkCursor` helpers `memcpy` directly — x64 little-endian only, no byte swap.
+- **Endianness**: cursor helpers `memcpy` directly — x64 little-endian only, no byte swap.
 - **Tick-rate independence**: `kiNetworkBufferSize=128` and `kiJitterSafetyUs` are wall-clock; they do not scale with physics rate.
 
 ## Key Classes
 
 - **NetworkManager** (`gpNetworkManager`) - Thin singleton: ENet init/deinit plus channel math and `SendPacket` helper. No runtime state.
-- **NetworkProtocol** - Wire protocol header (inline constexpr): packet types, protocol/discovery constants, `ClientGuid`, `AckState`.
-- **NetworkSimulation** - Compile-time latency/loss injection with regional presets. Zero overhead when disabled via `if constexpr`. One-way delay per direction; delayed-packet queue is the only heap user (suppressed).
-- **ClientSessionBase** / **ServerSessionBase** - Engine-generic session bases inherited by game-layer sessions.
+- **NetworkProtocol** - Wire protocol header (inline constexpr): packet types, spawn/respawn request flags, protocol/discovery/timing constants, `ClientGuid`, `AckState`.
+- **NetworkSimulation** - Compile-time latency/loss injection with regional presets. Zero overhead when disabled via `if constexpr`. One-way delay per direction; the delayed-packet queue is the only heap user (suppressed). Bursty loss model: a drop makes further consecutive drops on that channel more likely up to a cap. Per-region `NetworkSimulationBounds` supply the CRC/replay-depth tolerances the reconcile harness validates against.
 - **NetworkDiscoveryResponder** (`BT_SERVER`) / **NetworkDiscoveryScanner** (`BT_CLIENT`) - LAN discovery split into platform-gated halves sharing wire format. Raw Winsock UDP (not ENet), non-blocking, port `kuiDefaultPort+1`, 4-byte magic `"BRKN"`. Scanner pings loopback before broadcasting so a local server wins the race.
-- **NetworkSerialization** - `StatusChange` batch (de)serializer; compressed form is `uint32` uncompressed-size prefix + LZ4 payload. Implementation lives in game layer.
+- **NetworkSerialization** - `StatusChange` batch (de)serializer declared here, implemented in the game layer (wire format is game-specific). Compressed form is `uint32` uncompressed-size prefix + LZ4 payload.
 
 ## Architecture Notes
 

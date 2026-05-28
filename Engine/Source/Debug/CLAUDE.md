@@ -12,4 +12,4 @@ Compile-time type dispatch via `std::is_same_v` selects the lookup map per Vulka
 
 **`std::formatter<VkResult>`**: pulls scratch from `common::gpThreadLocal->mWorkbuffer` — only safe on threads with an initialized thread-local (see [Common/CLAUDE.md](../../../Common/CLAUDE.md)).
 
-Supported enum set is closed; unmapped values trip `DEBUG_BREAK()` to flag tables lagging the Vulkan SDK.
+Supported enum set is closed; any value absent from the map trips `DEBUG_BREAK()` (then returns `"UNKNOWN_VK_ENUM"`), flagging tables lagging the Vulkan SDK.

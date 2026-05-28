@@ -305,11 +305,9 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	LOG(kNetwork, kInfo, "Server::ClientHello Accepted Client: {} Config: {} GUID: {} {}", iClientId, pcClientConfig, clientGuid.uiHigh, clientGuid.uiLow);
 	SendConnectionResponse(pPeer, true, nullptr, &clientGuid);
 
-	// Send current timespeed so clients joining a non-1x server stay in sync
-	if (game::gpGame->mTimeStep.miTimeMultiply != 1 || game::gpGame->mTimeStep.miTimeDivide != 1)
-	{
-		SendTimespeedUpdate(pPeer, game::gpGame->mTimeStep.miTimeMultiply, game::gpGame->mTimeStep.miTimeDivide);
-	}
+#if defined(BT_SERVER)
+	game::gpServerSession->SendTimespeedToNewClient(pPeer);
+#endif
 }
 
 void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId)
@@ -422,35 +420,6 @@ void Server::ClientResyncRequest([[maybe_unused]] const uint8_t* pData, int64_t 
 	// Heap: pending resync client-id vector grows on request
 	ScopedSuppressAllocationTracking suppress;
 	mPendingResyncClientIds.push_back(iClientId);
-}
-
-void Server::ClientTimespeedRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
-{
-	// [1B type][1B direction]
-	if (iSize < 2)
-	{
-		return;
-	}
-
-	ClientConnection* pClient = FindHandshakenClient(iClientId);
-	if (pClient == nullptr)
-	{
-		return;
-	}
-
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-	uint8_t uiDirection = ReadUint8(pCursor);
-
-	if (uiDirection == 0)
-	{
-		game::gpGame->mTimeStep.DecreaseTimeScale();
-	}
-	else
-	{
-		game::gpGame->mTimeStep.IncreaseTimeScale();
-	}
-
-	BroadcastTimespeedUpdate(game::gpGame->mTimeStep.miTimeMultiply, game::gpGame->mTimeStep.miTimeDivide);
 }
 
 } // namespace engine

@@ -267,6 +267,145 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 	return fMaxElevation;
 }
 
+void XM_CALLCONV IslandTerrain::BuildElevationGrid(GridCoord coord, const std::vector<IslandPlacement>& rPlacements, std::vector<float>& rOutGrid) const
+{
+	static constexpr int64_t kiDim = game::Frame::kiElevationGridDim;
+	static constexpr float fCellWidth = game::Frame::kfCellWidth;
+	static constexpr float fCellHeight = game::Frame::kfCellHeight;
+	static constexpr float fCellMinX = game::Frame::kfBaseAreaMinX;
+	static constexpr float fCellMinY = game::Frame::kfBaseAreaMinY;
+	static constexpr float fGridPitchX = fCellWidth / static_cast<float>(kiDim);
+	static constexpr float fGridPitchY = fCellHeight / static_cast<float>(kiDim);
+
+	// Sea floor everywhere first; each placement then max-blends its footprint over the top
+	// (commutative max → splat order doesn't matter, matches GlobalElevation's per-point semantics).
+	rOutGrid.assign(static_cast<size_t>(kiDim * kiDim), mfSeaFloorElevation);
+
+	// World-space origin of this cell (south-west corner of grid texel 0,0)
+	float fCellOriginX = fCellMinX + static_cast<float>(coord.x) * fCellWidth;
+	float fCellOriginY = fCellMinY + static_cast<float>(coord.y) * fCellHeight;
+
+	for (const IslandPlacement& rPlacement : rPlacements)
+	{
+		const IslandTemplate& rTemplate = mIslands.at(rPlacement.islandCrc);
+		float fFootprintX = rTemplate.mfQuadFootprintX;
+		float fFootprintY = rTemplate.mfQuadFootprintY;
+		float fHalfX = 0.5f * fFootprintX;
+		float fHalfY = 0.5f * fFootprintY;
+
+		// Trig is constant per placement — hoist out of the per-texel loop (the old per-point
+		// GlobalElevation recomputed std::cos / std::sin on every call). Negated rotation
+		// matches the inverse-rotate world->local convention used by GlobalElevation.
+		float fCos = std::cos(-rPlacement.fRotation);
+		float fSin = std::sin(-rPlacement.fRotation);
+
+		// World-AABB of the rotated quad: the 4 corners of the rotated footprint, projected onto X/Y.
+		float fAbsCos = std::abs(fCos);
+		float fAbsSin = std::abs(fSin);
+		float fAabbHalfX = fAbsCos * fHalfX + fAbsSin * fHalfY;
+		float fAabbHalfY = fAbsSin * fHalfX + fAbsCos * fHalfY;
+		float fAabbMinX = rPlacement.f2WorldPos.x - fAabbHalfX;
+		float fAabbMaxX = rPlacement.f2WorldPos.x + fAabbHalfX;
+		float fAabbMinY = rPlacement.f2WorldPos.y - fAabbHalfY;
+		float fAabbMaxY = rPlacement.f2WorldPos.y + fAabbHalfY;
+
+		// Clamp AABB to this cell's grid index range. Texel center at (ix + 0.5) * pitch.
+		int64_t iMinGx = static_cast<int64_t>(std::floor((fAabbMinX - fCellOriginX) / fGridPitchX - 0.5f));
+		int64_t iMaxGx = static_cast<int64_t>(std::floor((fAabbMaxX - fCellOriginX) / fGridPitchX - 0.5f));
+		int64_t iMinGy = static_cast<int64_t>(std::floor((fAabbMinY - fCellOriginY) / fGridPitchY - 0.5f));
+		int64_t iMaxGy = static_cast<int64_t>(std::floor((fAabbMaxY - fCellOriginY) / fGridPitchY - 0.5f));
+		iMinGx = std::clamp(iMinGx, static_cast<int64_t>(0), kiDim - 1);
+		iMaxGx = std::clamp(iMaxGx, static_cast<int64_t>(0), kiDim - 1);
+		iMinGy = std::clamp(iMinGy, static_cast<int64_t>(0), kiDim - 1);
+		iMaxGy = std::clamp(iMaxGy, static_cast<int64_t>(0), kiDim - 1);
+
+		float fHeightmapMaxU = static_cast<float>(rTemplate.miHeightmapWidth - 1);
+		float fHeightmapMaxV = static_cast<float>(rTemplate.miHeightmapHeight - 1);
+		float fInvFootprintX = 1.0f / fFootprintX;
+		float fInvFootprintY = 1.0f / fFootprintY;
+
+		for (int64_t iGy = iMinGy; iGy <= iMaxGy; ++iGy)
+		{
+			float fWorldY = fCellOriginY + (static_cast<float>(iGy) + 0.5f) * fGridPitchY;
+			float fDy = fWorldY - rPlacement.f2WorldPos.y;
+			for (int64_t iGx = iMinGx; iGx <= iMaxGx; ++iGx)
+			{
+				float fWorldX = fCellOriginX + (static_cast<float>(iGx) + 0.5f) * fGridPitchX;
+				float fDx = fWorldX - rPlacement.f2WorldPos.x;
+				float fLocalX = fDx * fCos - fDy * fSin;
+				float fLocalY = fDx * fSin + fDy * fCos;
+
+				if (std::abs(fLocalX) > fHalfX || std::abs(fLocalY) > fHalfY)
+				{
+					continue;
+				}
+
+				float fU = fLocalX * fInvFootprintX + 0.5f;
+				float fV = 0.5f - fLocalY * fInvFootprintY;
+
+				int64_t iX = static_cast<int64_t>(fU * fHeightmapMaxU);
+				int64_t iY = static_cast<int64_t>(fV * fHeightmapMaxV);
+				iX = std::clamp(iX, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapWidth - 1));
+				iY = std::clamp(iY, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapHeight - 1));
+
+				float fSample = rTemplate.mpfHeightmapData[iY * rTemplate.miHeightmapWidth + iX];
+				float& rfCell = rOutGrid[static_cast<size_t>(iGy * kiDim + iGx)];
+				rfCell = std::max(rfCell, fSample);
+			}
+		}
+	}
+}
+
+float XM_CALLCONV IslandTerrain::FrameElevation(const FrameStaticData& rStaticData, FXMVECTOR vecPosition) const
+{
+	if (rStaticData.elevationGrid.empty())
+	{
+		return mfSeaFloorElevation;
+	}
+
+	static constexpr int64_t kiDim = game::Frame::kiElevationGridDim;
+	static constexpr float fCellWidth = game::Frame::kfCellWidth;
+	static constexpr float fCellHeight = game::Frame::kfCellHeight;
+	static constexpr float fCellMinX = game::Frame::kfBaseAreaMinX;
+	static constexpr float fCellMinY = game::Frame::kfBaseAreaMinY;
+	static constexpr float fGridPitchX = fCellWidth / static_cast<float>(kiDim);
+	static constexpr float fGridPitchY = fCellHeight / static_cast<float>(kiDim);
+
+	XMFLOAT4A f4Position {};
+	XMStoreFloat4A(&f4Position, vecPosition);
+
+	float fCellOriginX = fCellMinX + static_cast<float>(rStaticData.coord.x) * fCellWidth;
+	float fCellOriginY = fCellMinY + static_cast<float>(rStaticData.coord.y) * fCellHeight;
+	float fLocalX = f4Position.x - fCellOriginX;
+	float fLocalY = f4Position.y - fCellOriginY;
+	int64_t iGx = static_cast<int64_t>(std::floor(fLocalX / fGridPitchX));
+	int64_t iGy = static_cast<int64_t>(std::floor(fLocalY / fGridPitchY));
+	if (iGx < 0 || iGx >= kiDim || iGy < 0 || iGy >= kiDim)
+	{
+		return mfSeaFloorElevation;
+	}
+
+	return rStaticData.elevationGrid[static_cast<size_t>(iGy * kiDim + iGx)];
+}
+
+XMVECTOR XM_CALLCONV IslandTerrain::FrameNormal(const FrameStaticData& rStaticData, FXMVECTOR vecPosition) const
+{
+	// 4-tap finite-difference over FrameElevation. Same baseline as GlobalNormal so contour-following
+	// AI behaves identically — only the elevation source changes.
+	float fDistance = 2.0f * kfMetersToUnits;
+
+	auto vecTopLeft = XMVectorAdd(vecPosition, XMVectorSet(-fDistance, fDistance, 0.0f, 0.0f));
+	vecTopLeft = XMVectorSetZ(vecTopLeft, FrameElevation(rStaticData, vecTopLeft));
+	auto vecTopRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, fDistance, 0.0f, 0.0f));
+	vecTopRight = XMVectorSetZ(vecTopRight, FrameElevation(rStaticData, vecTopRight));
+	auto vecBottomLeft = XMVectorAdd(vecPosition, XMVectorSet(-fDistance, -fDistance, 0.0f, 0.0f));
+	vecBottomLeft = XMVectorSetZ(vecBottomLeft, FrameElevation(rStaticData, vecBottomLeft));
+	auto vecBottomRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, -fDistance, 0.0f, 0.0f));
+	vecBottomRight = XMVectorSetZ(vecBottomRight, FrameElevation(rStaticData, vecBottomRight));
+
+	return XMVector3Normalize(XMVector3Cross(XMVectorSubtract(vecTopRight, vecBottomLeft), XMVectorSubtract(vecTopLeft, vecBottomRight)));
+}
+
 #if defined(BT_CLIENT)
 void IslandTerrain::CreateClientMeshBuffers()
 {
@@ -304,6 +443,28 @@ void IslandTerrain::CreateClientMeshBuffers()
 		});
 		LOG(kGraphics, kDebug, "Uploaded island mesh: crc={} vertices={} indices={}", rCrc, rTemplate.miMeshVertexCount, rTemplate.miMeshIndexCount);
 	}
+
+	// Resident-memory footprint instrumentation (Documents/Plans/Graphics resident-memory scaling).
+	// meshCpu / heightmap / hull all slice into the kIsland chunk payload (FileManager-resident
+	// CPU RAM); meshGpu is the device-local VRAM buffer uploaded above.
+	int64_t iTotalMeshCpu = 0;
+	int64_t iTotalMeshGpu = 0;
+	int64_t iTotalHeightmap = 0;
+	int64_t iTotalHull = 0;
+	for (const auto& [rCrc, rTemplate] : mIslands)
+	{
+		int64_t iMeshCpu = static_cast<int64_t>(rTemplate.miMeshIndexCount) * static_cast<int64_t>(sizeof(uint32_t))
+			+ static_cast<int64_t>(rTemplate.miMeshVertexCount) * 2 * static_cast<int64_t>(sizeof(float));
+		int64_t iMeshGpu = iMeshCpu;
+		int64_t iHeightmap = static_cast<int64_t>(rTemplate.miHeightmapWidth) * static_cast<int64_t>(rTemplate.miHeightmapHeight) * static_cast<int64_t>(sizeof(float));
+		int64_t iHull = static_cast<int64_t>(rTemplate.miValidAreaVertexCount) * static_cast<int64_t>(sizeof(XMFLOAT2));
+		LOG(kGraphics, kDebug, "[DEBUG-resmem] Island residency: crc={} meshCpu={} meshGpu={} heightmap={} hull={}", rCrc, iMeshCpu, iMeshGpu, iHeightmap, iHull);
+		iTotalMeshCpu += iMeshCpu;
+		iTotalMeshGpu += iMeshGpu;
+		iTotalHeightmap += iHeightmap;
+		iTotalHull += iHull;
+	}
+	LOG(kGraphics, kDebug, "[DEBUG-resmem] Island residency aggregate: templates={} meshCpu={} meshGpu={} heightmap={} hull={}", static_cast<int64_t>(mIslands.size()), iTotalMeshCpu, iTotalMeshGpu, iTotalHeightmap, iTotalHull);
 }
 
 namespace

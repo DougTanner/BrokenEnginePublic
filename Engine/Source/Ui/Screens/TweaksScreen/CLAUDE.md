@@ -1,12 +1,14 @@
 # `/Engine/Source/Ui/Screens/TweaksScreen/` - Tweaks Parameter UI (Base)
 
-Multi-section ImGui runtime parameter adjustment screen base class, bound to Wrapper globals. `Render()` body is gated by `if constexpr (kbDebugInput)` (compile-time elision). Screen state (section visibility, window positions, active subtabs) persists across restarts via `SaveState()`/`LoadState()`; game layer handles disk I/O.
+Multi-section ImGui runtime parameter adjustment screen base class, bound to Wrapper globals. `Render()` body is gated by `if constexpr (kbDebugInput)` (compile-time elision). Screen state (section visibility, window positions, per-section active subtab, collapsed flag) persists across restarts via `SaveState()`/`LoadState()`; game layer handles disk I/O.
 
 ## Architecture Notes
 
 Data-driven: a slider map plus a parallel function-pointer table drive section rendering, indexed by `TweakSection` and guarded by `static_assert`. Adding a section requires updating the enum and both arrays in identical order.
 
-**Exclusive-render while dragging**: when a slider is active, only its owning section window renders; others fade to alpha 0 with layout preserved. A sentinel index denotes "slider owned by the toggle bar".
+**Exclusive-render while dragging**: when a slider is active, only its owning section window renders; others fade to alpha 0 with layout preserved. A sentinel index denotes "slider owned by the toggle bar". Non-slider widgets in a section (`ChevronIndexSelector` discrete-index picker, the wave-count radio row) honor the same convention — they push alpha 0 while another slider drags so their layout slot is preserved.
+
+**Subtab restore on load**: tabbed sections persist their active subtab. On load a one-shot apply flag per section drives `ImGuiTabItemFlags_SetSelected` to force-select the saved tab for one frame, then clears so the user can switch freely; while the flag is clear, the rendered tab writes itself back as the active subtab. New tabbed sections must replicate this apply-flag handshake in every `BeginTabItem`.
 
 **Toggle bar**: full-width bar hosts section show/hide selectables plus a special-cased full-width Sun Angle slider not in the main slider map.
 

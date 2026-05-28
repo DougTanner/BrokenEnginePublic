@@ -40,6 +40,15 @@
     <Filter Include="Common">
       <UniqueIdentifier>{e1fb165c-2138-41cf-ad28-2ff6586ba2c4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Common\Log">
+      <UniqueIdentifier>{92d5a332-d26a-42e0-9f8b-93512e672685}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common\Threading">
+      <UniqueIdentifier>{4515adf2-9811-4b76-94b9-b85c885351d9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common\Math">
+      <UniqueIdentifier>{37d71655-9435-464c-94b3-6b615553b994}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Engine\Ui">
       <UniqueIdentifier>{487b4166-02bb-4e13-9a24-61c4b80f1d1b}</UniqueIdentifier>
     </Filter>
@@ -216,22 +225,46 @@
     <ClInclude Include="..\..\..\..\Common\Flags.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Common\Log.h">
+    <ClInclude Include="..\..\..\..\Common\Log\Log.h">
+      <Filter>Common\Log</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\Log\LogTypes.h">
+      <Filter>Common\Log</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\Threading\Multithreading.h">
+      <Filter>Common\Threading</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\Threading\PersistentWorker.h">
+      <Filter>Common\Threading</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\Math\MathUtils.h">
+      <Filter>Common\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\Math\Random.h">
+      <Filter>Common\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\Math\ConvexHull.h">
+      <Filter>Common\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\AlignedMemory.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Common\LogTypes.h">
+    <ClInclude Include="..\..\..\..\Common\Crc.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Common\Multithreading.h">
+    <ClInclude Include="..\..\..\..\Common\Determinism.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Common\PersistentWorker.h">
+    <ClInclude Include="..\..\..\..\Common\FileUtils.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Common\MathUtils.h">
+    <ClInclude Include="..\..\..\..\Common\Serialization.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Common\Random.h">
+    <ClInclude Include="..\..\..\..\Common\StringUtils.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\TextureFormat.h">
       <Filter>Common</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Common\ScopedLambda.h">
@@ -243,17 +276,14 @@
     <ClInclude Include="..\..\..\..\Common\Workbuffer.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Common\ThreadLocal.h">
-      <Filter>Common</Filter>
+    <ClInclude Include="..\..\..\..\Common\Threading\ThreadLocal.h">
+      <Filter>Common\Threading</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Common\Timer.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Common\Utils.h">
-      <Filter>Common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Common\DiagnosticLog.h">
-      <Filter>Common</Filter>
+    <ClInclude Include="..\..\..\..\Common\Log\DiagnosticLog.h">
+      <Filter>Common\Log</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Common\WindowsUtils.h">
       <Filter>Common</Filter>
@@ -333,11 +363,11 @@
     <ClInclude Include="..\..\Source\Ui\WindDepositsWrappers.h">
       <Filter>Game\Ui</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Common\LogDifference.h">
-      <Filter>Common</Filter>
+    <ClInclude Include="..\..\..\..\Common\Log\LogDifference.h">
+      <Filter>Common\Log</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Common\LogFormatters.h">
-      <Filter>Common</Filter>
+    <ClInclude Include="..\..\..\..\Common\Log\LogFormatters.h">
+      <Filter>Common\Log</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Pch.h">
       <Filter>Game</Filter>
@@ -536,29 +566,38 @@
     <ClCompile Include="..\..\..\..\Common\Workbuffer.cpp">
       <Filter>Common</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Common\ThreadLocal.cpp">
+    <ClCompile Include="..\..\..\..\Common\Threading\ThreadLocal.cpp">
+      <Filter>Common\Threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Common\Determinism.cpp">
       <Filter>Common</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Common\Utils.cpp">
+    <ClCompile Include="..\..\..\..\Common\StringUtils.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Common\TextureFormat.cpp">
       <Filter>Common</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Common\WindowsUtils.cpp">
       <Filter>Common</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Common\Multithreading.cpp">
-      <Filter>Common</Filter>
+    <ClCompile Include="..\..\..\..\Common\Threading\Multithreading.cpp">
+      <Filter>Common\Threading</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Common\PersistentWorker.cpp">
-      <Filter>Common</Filter>
+    <ClCompile Include="..\..\..\..\Common\Threading\PersistentWorker.cpp">
+      <Filter>Common\Threading</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Common\Random.cpp">
-      <Filter>Common</Filter>
+    <ClCompile Include="..\..\..\..\Common\Math\Random.cpp">
+      <Filter>Common\Math</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Common\DiagnosticLog.cpp">
-      <Filter>Common</Filter>
+    <ClCompile Include="..\..\..\..\Common\Log\DiagnosticLog.cpp">
+      <Filter>Common\Log</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Common\Log.cpp">
-      <Filter>Common</Filter>
+    <ClCompile Include="..\..\..\..\Common\Log\Log.cpp">
+      <Filter>Common\Log</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Common\Log\LogDifference.cpp">
+      <Filter>Common\Log</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Common\Smoothed.cpp">
       <Filter>Common</Filter>
@@ -572,8 +611,8 @@
     <ClCompile Include="..\..\Source\Frame\TerrainUtils.cpp">
       <Filter>Game\Frame</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Common\MathUtils.cpp">
-      <Filter>Common</Filter>
+    <ClCompile Include="..\..\..\..\Common\Math\MathUtils.cpp">
+      <Filter>Common\Math</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Frame\Collections\Players\Players.cpp">
       <Filter>Game\Frame\Collections\Players</Filter>

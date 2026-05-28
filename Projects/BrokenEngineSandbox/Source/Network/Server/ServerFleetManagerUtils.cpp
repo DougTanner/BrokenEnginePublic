@@ -42,6 +42,64 @@ void SendFleetSync(int64_t iClientId, const std::vector<Fleet>& rFleets)
 	engine::NetworkManager::SendPacket(pClient->pPeer, engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }
 
+static void WriteFleet(std::fstream& rFileStream, const Fleet& rFleet)
+{
+	common::Write(rFileStream, rFleet.guid.uiHigh);
+	common::Write(rFileStream, rFleet.guid.uiLow);
+	int64_t iMemberCount = std::ssize(rFleet.members);
+	common::Write(rFileStream, iMemberCount);
+	common::Write(rFileStream, rFleet.iFlagshipIndex);
+	common::Write(rFileStream, rFleet.wantedCoord.x);
+	common::Write(rFileStream, rFleet.wantedCoord.y);
+	common::Write(rFileStream, rFleet.uiPendingFleetWantedCoordTicks);
+	common::Write(rFileStream, rFleet.fNavigationDelay);
+	common::Write(rFileStream, rFleet.fFrameChangeTimer);
+	for (const FleetMember& rMember : rFleet.members)
+	{
+		common::Write(rFileStream, rMember.globalPlayerId.iValue);
+		uint8_t uiAlive = rMember.bAlive ? 1 : 0;
+		common::Write(rFileStream, uiAlive);
+		common::Write(rFileStream, rMember.coord.x);
+		common::Write(rFileStream, rMember.coord.y);
+	}
+}
+
+static void ReadFleet(std::fstream& rFileStream, Fleet& rFleet, std::unordered_map<engine::global_id_t, engine::ClientGuid, engine::GlobalIdHash>& rPlayerToGuid, const engine::ClientGuid& rGuid)
+{
+	common::Read(rFileStream, rFleet.guid.uiHigh);
+	common::Read(rFileStream, rFleet.guid.uiLow);
+	int64_t iMemberCount = 0;
+	common::Read(rFileStream, iMemberCount);
+	common::Read(rFileStream, rFleet.iFlagshipIndex);
+	int32_t iWantedX = 0;
+	int32_t iWantedY = 0;
+	common::Read(rFileStream, iWantedX);
+	common::Read(rFileStream, iWantedY);
+	rFleet.wantedCoord = engine::GridCoord {iWantedX, iWantedY};
+	common::Read(rFileStream, rFleet.uiPendingFleetWantedCoordTicks);
+	common::Read(rFileStream, rFleet.fNavigationDelay);
+	common::Read(rFileStream, rFleet.fFrameChangeTimer);
+	rFleet.members.resize(static_cast<size_t>(iMemberCount));
+	for (int64_t k = 0; k < iMemberCount; ++k)
+	{
+		int64_t iGlobalPlayerId = 0;
+		common::Read(rFileStream, iGlobalPlayerId);
+		uint8_t uiAlive = 0;
+		common::Read(rFileStream, uiAlive);
+		int32_t iCoordX = 0;
+		int32_t iCoordY = 0;
+		common::Read(rFileStream, iCoordX);
+		common::Read(rFileStream, iCoordY);
+		rFleet.members.at(static_cast<size_t>(k)) = FleetMember {engine::global_id_t {iGlobalPlayerId}, uiAlive != 0, engine::GridCoord {iCoordX, iCoordY}};
+
+		// Rebuild reverse lookup
+		if (uiAlive != 0)
+		{
+			rPlayerToGuid.insert_or_assign(engine::global_id_t {iGlobalPlayerId}, rGuid);
+		}
+	}
+}
+
 void WriteFleetData(std::fstream& rFileStream, const std::unordered_map<engine::ClientGuid, std::vector<Fleet>, engine::ClientGuidHash>& rFleets, const common::RandomEngine& rRandom)
 {
 	int64_t iFleetOwnerCount = std::ssize(rFleets);
@@ -55,24 +113,7 @@ void WriteFleetData(std::fstream& rFileStream, const std::unordered_map<engine::
 		common::Write(rFileStream, iFleetCount);
 		for (const Fleet& rFleet : rFleetVec)
 		{
-			common::Write(rFileStream, rFleet.guid.uiHigh);
-			common::Write(rFileStream, rFleet.guid.uiLow);
-			int64_t iMemberCount = std::ssize(rFleet.members);
-			common::Write(rFileStream, iMemberCount);
-			common::Write(rFileStream, rFleet.iFlagshipIndex);
-			common::Write(rFileStream, rFleet.wantedCoord.x);
-			common::Write(rFileStream, rFleet.wantedCoord.y);
-			common::Write(rFileStream, rFleet.uiPendingFleetWantedCoordTicks);
-			common::Write(rFileStream, rFleet.fNavigationDelay);
-			common::Write(rFileStream, rFleet.fFrameChangeTimer);
-			for (const FleetMember& rMember : rFleet.members)
-			{
-				common::Write(rFileStream, rMember.globalPlayerId.iValue);
-				uint8_t uiAlive = rMember.bAlive ? 1 : 0;
-				common::Write(rFileStream, uiAlive);
-				common::Write(rFileStream, rMember.coord.x);
-				common::Write(rFileStream, rMember.coord.y);
-			}
+			WriteFleet(rFileStream, rFleet);
 		}
 	}
 
@@ -99,39 +140,7 @@ void ReadFleetData(std::fstream& rFileStream, std::unordered_map<engine::ClientG
 		std::vector<Fleet> fleets(static_cast<size_t>(iFleetCount));
 		for (int64_t j = 0; j < iFleetCount; ++j)
 		{
-			Fleet& rFleet = fleets.at(static_cast<size_t>(j));
-			common::Read(rFileStream, rFleet.guid.uiHigh);
-			common::Read(rFileStream, rFleet.guid.uiLow);
-			int64_t iMemberCount = 0;
-			common::Read(rFileStream, iMemberCount);
-			common::Read(rFileStream, rFleet.iFlagshipIndex);
-			int32_t iWantedX = 0;
-			int32_t iWantedY = 0;
-			common::Read(rFileStream, iWantedX);
-			common::Read(rFileStream, iWantedY);
-			rFleet.wantedCoord = engine::GridCoord {iWantedX, iWantedY};
-			common::Read(rFileStream, rFleet.uiPendingFleetWantedCoordTicks);
-			common::Read(rFileStream, rFleet.fNavigationDelay);
-			common::Read(rFileStream, rFleet.fFrameChangeTimer);
-			rFleet.members.resize(static_cast<size_t>(iMemberCount));
-			for (int64_t k = 0; k < iMemberCount; ++k)
-			{
-				int64_t iGlobalPlayerId = 0;
-				common::Read(rFileStream, iGlobalPlayerId);
-				uint8_t uiAlive = 0;
-				common::Read(rFileStream, uiAlive);
-				int32_t iCoordX = 0;
-				int32_t iCoordY = 0;
-				common::Read(rFileStream, iCoordX);
-				common::Read(rFileStream, iCoordY);
-				rFleet.members.at(static_cast<size_t>(k)) = FleetMember {engine::global_id_t {iGlobalPlayerId}, uiAlive != 0, engine::GridCoord {iCoordX, iCoordY}};
-
-				// Rebuild reverse lookup
-				if (uiAlive != 0)
-				{
-					rPlayerToGuid.insert_or_assign(engine::global_id_t {iGlobalPlayerId}, guid);
-				}
-			}
+			ReadFleet(rFileStream, fleets.at(static_cast<size_t>(j)), rPlayerToGuid, guid);
 		}
 		rFleets.insert_or_assign(guid, std::move(fleets));
 		// All loaded fleets start as disconnected

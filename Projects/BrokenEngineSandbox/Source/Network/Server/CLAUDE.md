@@ -2,7 +2,7 @@
 
 ## Overview
 
-Server-side game networking (`BT_SERVER`). `ServerSession` is a thin orchestrator over four domain managers (fleet, transfer, broadcaster, client) accessed via `gpServerSession`. Per-tick flow: inbound packet parse and request queuing, active-set recompute, frame tick with transfer harvesting, then broadcast of delta plus full-snapshot status changes.
+Server-side game networking (`BT_SERVER`). `ServerSession` (via `gpServerSession`) is a thin orchestrator over four domain managers — fleet, transfer, broadcaster, client — each owning a `Process*`/`Queue*`/`ResetState` request-queue lifecycle. The fleet manager further delegates flagship-direction logic and the pending-flagship-update queue to a `FleetNavigationController`. `GameBase::ServerUpdate` drives the per-tick sequence (`PreTickNetwork` parse+request-drain, `PrepareTick` active-set recompute, frame tick, transfer harvest, then `BroadcastTick`); the manager methods are the steps, not a single ServerSession flow.
 
 ## Invariants
 
@@ -18,8 +18,8 @@ Server-side game networking (`BT_SERVER`). `ServerSession` is a thin orchestrato
 
 ## Notes
 
-- Game packet payloads have the type byte stripped before dispatch; size checks are post-strip. Out-of-band requests use the reliable channel.
-- Debug server-control requests (save/load/reset/replay/pause) are game-layer packets handled in this dispatch, not by the engine. Timespeed remains an engine-level `PacketType`.
+- Out-of-band assign/state/fleet-sync/timespeed packets use the reliable channel; payload size checks are post-strip (see hub for type-byte stripping).
+- The debug-control packets the parent hub lists are decoded in `ParseReceivedGamePackets`. Timespeed broadcast is edge-triggered from `BroadcastTimespeedIfChanged` (called from engine `GameBase::ServerUpdate`); newly-handshaken clients are caught up via `SendTimespeedToNewClient` (called from engine `Server::ClientHello`).
 - Disconnect clears `kPaused` and restores `mTimeStep` to 1/1 once no clients remain.
 - Pending-request queues are cleared at the start of each tick and drained in fixed order; requests for vanished clients are silently dropped.
 

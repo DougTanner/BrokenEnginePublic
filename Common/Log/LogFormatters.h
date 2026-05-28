@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Workbuffer.h"
-#include "ThreadLocal.h"
+#include "Threading/ThreadLocal.h"
 
 template<>
 struct std::formatter<std::string> : std::formatter<std::string_view>

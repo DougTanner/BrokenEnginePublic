@@ -55,7 +55,7 @@ void Texture::StaticInit()
 	bc7enc_compress_block_init();
 }
 
-Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bFromGamma, int64_t iWidth, int64_t iHeight)
+Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, int64_t iWidth, int64_t iHeight)
 : miWidth(iWidth)
 , miHeight(iHeight)
 {
@@ -70,6 +70,7 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 			stbi_image_free(pPixels);
 		});
 		ASSERT(iStbiWidth != 0 && iStbiHeight != 0 && pPixels != nullptr);
+		__assume(pPixels != nullptr);
 		miWidth = iStbiWidth;
 		miHeight = iStbiHeight;
 
@@ -103,14 +104,7 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 		{
 			for (int64_t i = 0; i < miWidth; ++i)
 			{
-				if (bFromGamma)
-				{
-					pfDest[0] = 255.0f * common::FromGamma(pfSrcR[0]);
-				}
-				else
-				{
-					pfDest[0] = 255.0f * pfSrcR[0];
-				}
+				pfDest[0] = 255.0f * pfSrcR[0];
 				pfDest[1] = 0.0f;
 				pfDest[2] = 0.0f;
 				pfDest[3] = 0.0f;
@@ -125,7 +119,6 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 		// Headerless linear unorm-16. Gaea's UshortRaw16 format. No gamma applies — source is
 		// already linear. Single-channel; R is populated, GBA left at 0 (matches kFloat32).
 		ASSERT(miWidth > 0 && miHeight > 0);
-		ASSERT(!bFromGamma);
 
 		std::vector<std::byte> data = common::ReadEntireFile(rPath);
 
@@ -210,18 +203,9 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 		{
 			for (int64_t i = 0; i < miWidth; ++i)
 			{
-				if (bFromGamma)
-				{
-					pfDest[0] = 255.0f * common::FromGamma(pfSrcR[0]);
-					pfDest[1] = 255.0f * common::FromGamma(pfSrcG[0]);
-					pfDest[2] = 255.0f * common::FromGamma(pfSrcB[0]);
-				}
-				else
-				{
-					pfDest[0] = 255.0f * pfSrcR[0];
-					pfDest[1] = 255.0f * pfSrcG[0];
-					pfDest[2] = 255.0f * pfSrcB[0];
-				}
+				pfDest[0] = 255.0f * pfSrcR[0];
+				pfDest[1] = 255.0f * pfSrcG[0];
+				pfDest[2] = 255.0f * pfSrcB[0];
 				pfDest[3] = 255.0f;
 
 				++pfSrcR;
@@ -254,8 +238,9 @@ Texture::Texture(const std::byte* puiPixels, int64_t iWidth, int64_t iHeight, in
 	}
 }
 
-void Texture::MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel, bool bUseBoxFilter, int64_t iPreviousLevel, int64_t iPreviousWidth, int64_t iPreviousHeight)
+void Texture::MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel, TextureOptions_t options, int64_t iPreviousLevel, int64_t iPreviousWidth, int64_t iPreviousHeight)
 {
+	const bool bUseBoxFilter = options & TextureOptions::kUseBoxFilter;
 	int64_t iLevel = iPreviousLevel;
 	int64_t iSrcWidth = iPreviousWidth;
 	int64_t iSrcHeight = iPreviousHeight;
@@ -381,8 +366,9 @@ static utils::image_u8 ToImageU8(const std::vector<float>& rIn, int64_t iWidth, 
 	return image;
 }
 
-void Texture::EncodeWithRdo(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, VkFormat vkFormat, float fLambda, uint32_t uiLookbackWindowSize, int iBc7UberLevel, bool bVerifyNoAlpha)
+void Texture::EncodeWithRdo(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, VkFormat vkFormat, float fLambda, uint32_t uiLookbackWindowSize, int iBc7UberLevel, TextureOptions_t options)
 {
+	const bool bVerifyNoAlpha = options & TextureOptions::kVerifyNoAlpha;
 	// Callers must hold Texture::sEncodeMutex — this function trusts the caller's lock.
 	int iActiveEncodes = sActiveEncodeCount.fetch_add(1, std::memory_order_relaxed) + 1;
 	common::ScopedLambda decrementActive([]()
@@ -436,17 +422,17 @@ void Texture::EncodeWithRdo(std::byte* puiOut, const std::vector<float>& rIn, in
 
 void Texture::ToBc4(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight)
 {
-	EncodeWithRdo(puiOut, rIn, iWidth, iHeight, VK_FORMAT_BC4_UNORM_BLOCK, kfRdoLambdaBc4, kuiRdoLookbackWindowSize, kiBc7UberLevel, false);
+	EncodeWithRdo(puiOut, rIn, iWidth, iHeight, VK_FORMAT_BC4_UNORM_BLOCK, kfRdoLambdaBc4, kuiRdoLookbackWindowSize, kiBc7UberLevel, {});
 }
 
 void Texture::ToBc5(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight)
 {
-	EncodeWithRdo(puiOut, rIn, iWidth, iHeight, VK_FORMAT_BC5_UNORM_BLOCK, kfRdoLambdaBc5, kuiRdoLookbackWindowSize, kiBc7UberLevel, false);
+	EncodeWithRdo(puiOut, rIn, iWidth, iHeight, VK_FORMAT_BC5_UNORM_BLOCK, kfRdoLambdaBc5, kuiRdoLookbackWindowSize, kiBc7UberLevel, {});
 }
 
-void Texture::ToBc7(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, bool bVerifyNoAlpha)
+void Texture::ToBc7(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, TextureOptions_t options)
 {
-	EncodeWithRdo(puiOut, rIn, iWidth, iHeight, VK_FORMAT_BC7_UNORM_BLOCK, kfRdoLambdaBc7, kuiRdoLookbackWindowSize, kiBc7UberLevel, bVerifyNoAlpha);
+	EncodeWithRdo(puiOut, rIn, iWidth, iHeight, VK_FORMAT_BC7_UNORM_BLOCK, kfRdoLambdaBc7, kuiRdoLookbackWindowSize, kiBc7UberLevel, options);
 }
 
 void Texture::ToR8G8B8A8(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight)
@@ -504,7 +490,7 @@ void Texture::ToR32Sfloat(std::byte* puiOut, const std::vector<float>& rIn, int6
 	}
 }
 
-void Texture::Export(std::vector<std::byte>& rData, VkFormat vkFormat, bool bVerifyNoAlpha)
+void Texture::Export(std::vector<std::byte>& rData, VkFormat vkFormat, TextureOptions_t options)
 {
 	int64_t iMipWidth = miWidth;
 	int64_t iMipHeight = miHeight;
@@ -533,7 +519,7 @@ void Texture::Export(std::vector<std::byte>& rData, VkFormat vkFormat, bool bVer
 				break;
 
 			case VK_FORMAT_BC7_UNORM_BLOCK:
-				ToBc7(puiCurrentPosition, rMipLevel, iMipWidth, iMipHeight, bVerifyNoAlpha);
+				ToBc7(puiCurrentPosition, rMipLevel, iMipWidth, iMipHeight, options);
 				break;
 
 			case VK_FORMAT_R8G8B8A8_UNORM:
@@ -561,8 +547,10 @@ void Texture::Export(std::vector<std::byte>& rData, VkFormat vkFormat, bool bVer
 	rData.insert(rData.end(), data.begin(), data.end());
 }
 
-void Texture::SaveJpegSidecar(const std::filesystem::path& rPath, int iQuality, bool bGrayscale, bool bAutoNormalize)
+void Texture::SaveJpegSidecar(const std::filesystem::path& rPath, int iQuality, TextureOptions_t options)
 {
+	const bool bGrayscale = options & TextureOptions::kGrayscale;
+	const bool bAutoNormalize = options & TextureOptions::kAutoNormalize;
 	ASSERT(!mData.empty());
 	const std::vector<float>& rPixels = mData.at(0);
 	int64_t iPixelCount = miWidth * miHeight;
@@ -610,9 +598,9 @@ void Texture::SaveJpegSidecar(const std::filesystem::path& rPath, int iQuality, 
 	ASSERT(iResult != 0);
 }
 
-void Texture::Save(const std::filesystem::path& rPath, VkFormat vkFormat, bool bVerifyNoAlpha)
+void Texture::Save(const std::filesystem::path& rPath, VkFormat vkFormat, TextureOptions_t options)
 {
-	std::vector<std::byte> data = Export(vkFormat, bVerifyNoAlpha);
+	std::vector<std::byte> data = Export(vkFormat, options);
 
 	uLongf uiBound = compressBound(static_cast<uLong>(data.size()));
 	std::vector<std::byte> compressed(uiBound);

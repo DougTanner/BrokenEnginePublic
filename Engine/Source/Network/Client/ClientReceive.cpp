@@ -545,23 +545,6 @@ void Client::ServerUnsubscribeAck(const uint8_t* pData, size_t iSize)
 	rSlot = {};
 }
 
-void Client::ServerTimespeedUpdate(const uint8_t* pData, size_t iSize)
-{
-	// [1B type][8B multiply][8B divide]
-	if (iSize < 17)
-	{
-		return;
-	}
-
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
-	int64_t iMultiply = ReadInt64(pCursor);
-	int64_t iDivide = ReadInt64(pCursor);
-
-	LOG(kNetwork, kDebug, "Client::ServerTimespeedUpdate Multiply: {} Divide: {}", iMultiply, iDivide);
-	game::gpGame->mTimeStep.SetTimeScale(iMultiply, iDivide);
-}
-
 } // namespace engine
 
 #endif // BT_CLIENT

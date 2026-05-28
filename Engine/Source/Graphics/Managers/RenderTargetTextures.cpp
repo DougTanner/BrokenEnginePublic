@@ -7,6 +7,8 @@
 #include "Ui/ShadowWrappersBase.h"
 #include "Ui/WaterWrappersBase.h"
 
+#include "Game.h"
+
 namespace engine
 {
 
@@ -65,7 +67,17 @@ void RenderTargetTextures::CreateWaterDisplacementTextures()
 
 void RenderTargetTextures::CreateShadowTextures()
 {
-	auto [iShadowTextureX, iShadowTextureY] = TextureManager::DetailTextureSize(gShadowRenderMultiplier.Get());
+	// Fixed-world-size shadow texels: pre-size the texture to cover the visible area at the reference eye
+	// height so the texel scale is constant across zoom (no pop/shimmer); closer zoom uses a centered
+	// sub-window, farther crops. Clamp AFTER the multiply (DetailTextureSize clamps pre-multiply); cap the
+	// width at (limit/3)*2 so the 1.5x-wide elevation texture still fits maxImageDimension2D. Force the
+	// width even (below) so the 1.5x elevation width stays integer; dispatch ceil-divides so no block multiple.
+	auto [iBaseX, iBaseY] = TextureManager::DetailTextureSize(gShadowRenderMultiplier.Get());
+	int64_t iRefMult = std::lround(game::Camera::kfEyeHeightMaxReference / game::Camera::kfCameraEyeHeightDefault);
+	int64_t iLimit = static_cast<int64_t>(gpInstanceManager->mVkPhysicalDeviceProperties.limits.maxImageDimension2D);
+	int64_t iShadowTextureX = std::min(iBaseX * iRefMult, (iLimit / 3) * 2);
+	iShadowTextureX &= ~1ll;
+	int64_t iShadowTextureY = std::min(iBaseY * iRefMult, iLimit);
 	LOG(kGraphics, kDebug, "iShadowTexture: {} x {}", iShadowTextureX, iShadowTextureY);
 	mShadowElevationTexture.Create(
 	{
@@ -111,7 +123,7 @@ void RenderTargetTextures::CreateShadowTextures()
 		.mipLevels = 1,
 		.arrayLayers = 1,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, // TRANSFER_SRC: copied into mShadowHistoryTexture each frame
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		.eTextureLayout = kShaderReadOnly,
@@ -127,6 +139,21 @@ void RenderTargetTextures::CreateShadowTextures()
 		.arrayLayers = 1,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
 		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	});
+	mShadowHistoryTexture.Create(
+	{
+		.textureFlags = {},
+		.name = "ShadowHistory",
+		.flags = 0,
+		.format = VK_FORMAT_R16_UNORM,
+		.extent = VkExtent3D {static_cast<uint32_t>(iShadowTextureX), static_cast<uint32_t>(iShadowTextureY), 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, // TRANSFER_DST: receives the per-frame copy of mShadowBlurTexture
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		.eTextureLayout = kShaderReadOnly,

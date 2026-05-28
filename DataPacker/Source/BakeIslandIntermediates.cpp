@@ -64,7 +64,7 @@ constexpr const char* kpcIntermediateFiles[] =
 // split (incl. kRouteSubdivisions columns/rows) changes. AreLeavesDirty re-splits from the existing
 // raw on mismatch — no Gaea re-export.
 constexpr int32_t kiBakeVersion = 28;
-constexpr int32_t kiSplitVersion = 3;
+constexpr int32_t kiSplitVersion = 4;
 
 // Beach-band adaptive subdivision constants. After the Gaea Mesher mesh is parsed, every triangle
 // whose Z-range overlaps the beach band gets recursively split (1->4 midpoint) until its longest XY
@@ -290,6 +290,48 @@ bool AreLeavesDirty(const std::filesystem::path& rRouteDir, int64_t iLeafCount)
 // variables). Adding a new DataPacker-owned key means appending here only.
 constexpr const char* kpcRequiredIslandJsonKeys[] = {"archetype", "seed", "widthMeters", "elevationMeters", "texturePixels", "routes"};
 
+// Per-island bake context: everything constant for one Island.json across all of its routes.
+// Built once at the top of BakeOne and threaded into every BakeRoute / ProcessBakedRegion call.
+// All members are caller-owned references; the context outlives its consumers.
+struct IslandBakeContext
+{
+	const std::filesystem::path& rGaeaExecutable;
+	const std::filesystem::path& rIslandFolder;
+	const std::filesystem::path& rArchetypeFile;
+	const std::filesystem::path& rIslandJsonFile;
+	const nlohmann::json& rIslandJson;
+	const WorldDimensions& rDimensions;
+	int32_t iSeed;
+	int64_t iTexturePixels;
+	std::optional<int64_t> oiMeshResolution;
+};
+
+// Per-region bounds passed to ProcessBakedRegion. Half-open ranges in full-bake pixel coords.
+struct RegionBounds
+{
+	int64_t iStartX;
+	int64_t iEndX;
+	int64_t iStartY;
+	int64_t iEndY;
+};
+
+// Per-region output target. rLeafDir is the chunk leaf folder; rTextureSourceDirRelative is
+// the leaf-relative path to the route's shared full-res texture sources (Color / Normals / masks).
+struct LeafTarget
+{
+	const std::filesystem::path& rLeafDir;
+	const std::string& rTextureSourceDirRelative;
+};
+
+// Per-route bake outputs produced once after Gaea runs, then consumed by every per-region call.
+// All buffers are caller-owned; lifetime exceeds ProcessBakedRegion's call.
+struct BakeOutput
+{
+	const std::vector<float>& rFullElevationMeters;
+	const std::vector<uint16_t>& rFullAmbientOcclusion;
+	float fBeachOffsetMeters;
+};
+
 // Crops one chunk region [xStart,xEnd) x [yStart,yEnd) out of the full Gaea bake and writes the
 // chunk's per-region geometry (Elevation.r32, AmbientOcclusion.r16, MeshProcessed.bin,
 // BakedDimensions.json) into the leaf's own Intermediates/ folder (rLeafDir/Intermediates) — kept
@@ -304,8 +346,20 @@ constexpr const char* kpcRequiredIslandJsonKeys[] = {"archetype", "seed", "width
 // meshPositions / meshIndices are taken by value so each region mutates its own copy of the shared
 // post-subdivision mesh.
 // Returns true if the leaf was written, false if rejected (too low — see kfMinIslandMaxHeightMeters).
-bool ProcessBakedRegion(const std::vector<float>& rFullElevationMeters, const std::vector<uint16_t>& rFullAmbientOcclusion, std::vector<float> meshPositions, std::vector<uint32_t> meshIndices, int64_t iTexturePixels, const WorldDimensions& rDimensions, int64_t iRegionStartX, int64_t iRegionEndX, int64_t iRegionStartY, int64_t iRegionEndY, float fBeachOffsetMeters, const std::filesystem::path& rLeafDir, const std::string& rTextureSourceDirRelative)
+bool ProcessBakedRegion(const IslandBakeContext& rContext, const BakeOutput& rBakeOutput, const RegionBounds& rRegion, std::vector<float> meshPositions, std::vector<uint32_t> meshIndices, const LeafTarget& rLeaf)
 {
+	const int64_t iTexturePixels = rContext.iTexturePixels;
+	const WorldDimensions& rDimensions = rContext.rDimensions;
+	const std::vector<float>& rFullElevationMeters = rBakeOutput.rFullElevationMeters;
+	const std::vector<uint16_t>& rFullAmbientOcclusion = rBakeOutput.rFullAmbientOcclusion;
+	const float fBeachOffsetMeters = rBakeOutput.fBeachOffsetMeters;
+	const int64_t iRegionStartX = rRegion.iStartX;
+	const int64_t iRegionEndX = rRegion.iEndX;
+	const int64_t iRegionStartY = rRegion.iStartY;
+	const int64_t iRegionEndY = rRegion.iEndY;
+	const std::filesystem::path& rLeafDir = rLeaf.rLeafDir;
+	const std::string& rTextureSourceDirRelative = rLeaf.rTextureSourceDirRelative;
+
 	std::filesystem::path leafIntermediatesDir = rLeafDir / kpcIslandIntermediatesDir;
 
 	// Auto-crop to the bbox of pixels above the sea-floor cut line, restricted to this region so a
@@ -475,6 +529,15 @@ bool ProcessBakedRegion(const std::vector<float>& rFullElevationMeters, const st
 		}
 		meshIndices = std::move(survivingIndices);
 
+		// Defense-in-depth twin of the pixel-cut-line throw above: the pixel bbox guard catches the
+		// common case (no land in region), but a future Mesher with gaps could pass the pixel check
+		// and still emit no triangles inside the crop bbox. Catch the empty-mesh chunk here rather
+		// than silently shipping an invisible island.
+		if (meshIndices.empty())
+		{
+			throw std::runtime_error(std::format("Island chunk \"{}\" region [{}..{}, {}..{}] has zero surviving triangles after mesh crop ({} discarded): the Route subdivision produced no mesh inside this chunk's bbox. Check the archetype's Mesher resolution or Route shape.", rLeafDir.string(), iRegionStartX, iRegionEndX - 1, iRegionStartY, iRegionEndY - 1, iDiscardedTriangles));
+		}
+
 		// Repack vertex buffer: walk indices to mark used vertices, then compact and remap.
 		const int64_t iOldVertexCount = static_cast<int64_t>(meshPositions.size() / 3);
 		std::vector<uint32_t> oldToNew(static_cast<size_t>(iOldVertexCount), UINT32_MAX);
@@ -543,8 +606,18 @@ bool ProcessBakedRegion(const std::vector<float>& rFullElevationMeters, const st
 // (up to 1 for 1x1, 2 for 2x1, 4 for 2x2 — chunks peaking below kfMinIslandMaxHeightMeters are rejected
 // and produce no leaf, so indices can be sparse). A split-only change re-runs Stage 2 against the
 // existing Stage-1 output — no Gaea re-export. Returns early when both stages are clean.
-void BakeRoute(const std::filesystem::path& rGaeaExecutable, const std::filesystem::path& rIslandFolder, const std::filesystem::path& rArchetypeFile, const std::filesystem::path& rIslandJsonFile, const nlohmann::json& rIslandJson, const WorldDimensions& rDimensions, int32_t iSeed, int64_t iTexturePixels, std::optional<int64_t> oiMeshResolution, const RouteSubdivision& rRoute)
+void BakeRoute(const IslandBakeContext& rContext, const RouteSubdivision& rRoute)
 {
+	const std::filesystem::path& rGaeaExecutable = rContext.rGaeaExecutable;
+	const std::filesystem::path& rIslandFolder = rContext.rIslandFolder;
+	const std::filesystem::path& rArchetypeFile = rContext.rArchetypeFile;
+	const std::filesystem::path& rIslandJsonFile = rContext.rIslandJsonFile;
+	const nlohmann::json& rIslandJson = rContext.rIslandJson;
+	const WorldDimensions& rDimensions = rContext.rDimensions;
+	const int32_t iSeed = rContext.iSeed;
+	const int64_t iTexturePixels = rContext.iTexturePixels;
+	const std::optional<int64_t>& oiMeshResolution = rContext.oiMeshResolution;
+
 	std::filesystem::path routeDir = rIslandFolder / rRoute.pcLabel;
 	std::filesystem::path intermediatesDir = routeDir / kpcIslandIntermediatesDir;
 	int64_t iLeafCount = rRoute.iColumns * rRoute.iRows;
@@ -650,6 +723,15 @@ void BakeRoute(const std::filesystem::path& rGaeaExecutable, const std::filesyst
 	float fSeaLevelNormalized = ReadArchetypeSeaLevel(patchedArchetypeFile);
 	float fBeachOffsetMeters = fSeaLevelNormalized * rDimensions.fElevationMeters;
 	LOG(kDefault, kDebug, "Archetype Sea Level (read, not patched): {} → beach offset {} m for elevationMeters {} m", common::Wb(fSeaLevelNormalized, 4), common::Wb(fBeachOffsetMeters, 2), common::Wb(rDimensions.fElevationMeters, 2));
+
+	// Auto-crop cut line = -fBeachOffsetMeters + kfCropEpsilonAboveSeaFloorMeters. If the beach
+	// offset is at or below the epsilon, the cut line lands at or above sea level and silently
+	// strips the entire shoreline halo. Catch the authoring mistake here rather than shipping a
+	// halo-less island.
+	if (fBeachOffsetMeters <= kfCropEpsilonAboveSeaFloorMeters)
+	{
+		throw std::runtime_error(std::format("Island \"{}\" beach offset ({:.2f} m, = Sea Level {:.4f} × elevationMeters {:.2f} m) is at or below the crop epsilon ({:.2f} m): the auto-crop would land at or above sea level and strip the shoreline halo. Raise elevationMeters, raise the archetype Sea node's Level, or lower kfCropEpsilonAboveSeaFloorMeters.", rIslandFolder.string(), fBeachOffsetMeters, fSeaLevelNormalized, rDimensions.fElevationMeters, kfCropEpsilonAboveSeaFloorMeters));
+	}
 
 	// Per-island sea floor must match the engine-wide kfSeaBottomMeters so the elevation RTT clear
 	// (Engine/Source/Graphics/Managers/RenderTargetTextures.cpp) blends seamlessly with edge texels.
@@ -797,10 +879,15 @@ void BakeRoute(const std::filesystem::path& rGaeaExecutable, const std::filesyst
 		// Terrain.vert overrides Z from the heightmap at rasterization; mesh Z exists only for the
 		// in-band test, and an in-band split's children inherit Z values that are subsets of the
 		// parent's range. Runs once on the full mesh; chunk crops below reuse the densified mesh.
-		float fBandMinZ = kfBeachSubdivisionMinMeters;
-		float fBandMaxZ = kfBeachSubdivisionMaxMeters;
+		SubdivisionConfig subdivisionConfig
+		{
+			.fBandMinMeters = kfBeachSubdivisionMinMeters,
+			.fBandMaxMeters = kfBeachSubdivisionMaxMeters,
+			.fMaxEdgeMeters = kfBeachSubdivisionMaxEdgeMeters,
+			.iMaxDepth = kiBeachSubdivisionMaxDepth,
+		};
 		int64_t iDepthCapHits = 0;
-		SubdivideBeachBand(meshPositions, meshIndices, fBandMinZ, fBandMaxZ, kfBeachSubdivisionMaxEdgeMeters, kiBeachSubdivisionMaxDepth, iDepthCapHits);
+		SubdivideBeachBand(meshPositions, meshIndices, subdivisionConfig, iDepthCapHits);
 		iVertexCount = static_cast<int64_t>(meshPositions.size() / 3);
 		iIndexCount = static_cast<int64_t>(meshIndices.size());
 
@@ -808,7 +895,7 @@ void BakeRoute(const std::filesystem::path& rGaeaExecutable, const std::filesyst
 		{
 			LOG(kDefault, kWarning, "Mesh \"{}\": beach subdivision hit depth cap ({}) on {} triangle(s); largest input triangles may still exceed {:.2f}m edge target AND the mesh may contain T-junction cracks where capped absorption-needing triangles were skipped (raise kiBeachSubdivisionMaxDepth or split it into separate in-band / absorption caps if observed)", routeDir.string(), kiBeachSubdivisionMaxDepth, iDepthCapHits, kfBeachSubdivisionMaxEdgeMeters);
 		}
-		LOG(kDefault, kDebug, "Mesh \"{}\": {} -> {} vertices, {} -> {} triangles after beach subdivision (band Z=[{:.2f}, {:.2f}]m, edge target {:.2f}m)", routeDir.string(), iInitialVertexCount, iVertexCount, iInitialTriangleCount, iIndexCount / 3, fBandMinZ, fBandMaxZ, kfBeachSubdivisionMaxEdgeMeters);
+		LOG(kDefault, kDebug, "Mesh \"{}\": {} -> {} vertices, {} -> {} triangles after beach subdivision (band Z=[{:.2f}, {:.2f}]m, edge target {:.2f}m)", routeDir.string(), iInitialVertexCount, iVertexCount, iInitialTriangleCount, iIndexCount / 3, subdivisionConfig.fBandMinMeters, subdivisionConfig.fBandMaxMeters, kfBeachSubdivisionMaxEdgeMeters);
 	}
 
 	// Split into chunks (up to 1 for 1x1, iColumns × iRows otherwise) and write each leaf that clears
@@ -818,22 +905,32 @@ void BakeRoute(const std::filesystem::path& rGaeaExecutable, const std::filesyst
 	// textureSourceDir is leaf-relative ("../Intermediates") so ExportIsland reads the shared
 	// full-res Color / Normals / mask sources from this route's Intermediates dir.
 	std::string textureSourceDirRelative = std::format("../{}", kpcIslandIntermediatesDir);
+	BakeOutput bakeOutput {.rFullElevationMeters = fullElevationMeters, .rFullAmbientOcclusion = fullAmbientOcclusion, .fBeachOffsetMeters = fBeachOffsetMeters};
 	int64_t iWrittenLeaves = 0;
 	for (int64_t iColumn = 0; iColumn < rRoute.iColumns; ++iColumn)
 	{
 		for (int64_t iRow = 0; iRow < rRoute.iRows; ++iRow)
 		{
 			int64_t iChunkIndex = iColumn * rRoute.iRows + iRow;
-			int64_t iRegionStartX = iColumn * iTexturePixels / rRoute.iColumns;
-			int64_t iRegionEndX = (iColumn + 1) * iTexturePixels / rRoute.iColumns;
-			int64_t iRegionStartY = iRow * iTexturePixels / rRoute.iRows;
-			int64_t iRegionEndY = (iRow + 1) * iTexturePixels / rRoute.iRows;
+			RegionBounds region
+			{
+				.iStartX = iColumn * iTexturePixels / rRoute.iColumns,
+				.iEndX = (iColumn + 1) * iTexturePixels / rRoute.iColumns,
+				.iStartY = iRow * iTexturePixels / rRoute.iRows,
+				.iEndY = (iRow + 1) * iTexturePixels / rRoute.iRows,
+			};
 			std::filesystem::path leafDir = routeDir / std::to_string(iChunkIndex);
-			if (ProcessBakedRegion(fullElevationMeters, fullAmbientOcclusion, meshPositions, meshIndices, iTexturePixels, rDimensions, iRegionStartX, iRegionEndX, iRegionStartY, iRegionEndY, fBeachOffsetMeters, leafDir, textureSourceDirRelative))
+			LeafTarget leaf {.rLeafDir = leafDir, .rTextureSourceDirRelative = textureSourceDirRelative};
+			if (ProcessBakedRegion(rContext, bakeOutput, region, meshPositions, meshIndices, leaf))
 			{
 				++iWrittenLeaves;
 			}
 		}
+	}
+
+	if (iWrittenLeaves == 0)
+	{
+		throw std::runtime_error(std::format("Island route \"{}\": every one of {} chunk(s) was rejected as too low (peak < {:.2f} m). Raise Island.json's elevationMeters, lower kfMinIslandMaxHeightMeters, or remove this route from Island.json.", routeDir.string(), iLeafCount, kfMinIslandMaxHeightMeters));
 	}
 
 	// Stamp the split sentinel last, after every leaf is written. A crash mid-split leaves it absent
@@ -964,9 +1061,21 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 		LOG(kDefault, kDebug, "Removed stale island sub-folder: \"{}\"", rStaleSubFolder.string());
 	}
 
+	IslandBakeContext context
+	{
+		.rGaeaExecutable = rGaeaExecutable,
+		.rIslandFolder = rIslandFolder,
+		.rArchetypeFile = archetypeFile,
+		.rIslandJsonFile = islandJsonFile,
+		.rIslandJson = islandJson,
+		.rDimensions = dimensions,
+		.iSeed = iSeed,
+		.iTexturePixels = iTexturePixels,
+		.oiMeshResolution = oiMeshResolution,
+	};
 	for (const RouteSubdivision* pRoute : routes)
 	{
-		BakeRoute(rGaeaExecutable, rIslandFolder, archetypeFile, islandJsonFile, islandJson, dimensions, iSeed, iTexturePixels, oiMeshResolution, *pRoute);
+		BakeRoute(context, *pRoute);
 	}
 }
 

@@ -101,27 +101,6 @@ void Server::SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridC
 	SendSimplePacket(rClient.pPeer, PacketType::kServerSubscribeAccept, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(iSlot), uiEpoch, coord);
 }
 
-void Server::SendTimespeedUpdate(ENetPeer* pPeer, int64_t iMultiply, int64_t iDivide)
-{
-	LOG(kNetwork, kDebug, "Server::SendTimespeedUpdate Multiply: {} Divide: {}", iMultiply, iDivide);
-
-	// [1B type][8B multiply][8B divide]
-	SendSimplePacket(pPeer, PacketType::kServerTimespeedUpdate, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iMultiply, iDivide);
-}
-
-void Server::BroadcastTimespeedUpdate(int64_t iMultiply, int64_t iDivide)
-{
-	for (ClientConnection& rClient : mClients)
-	{
-		if (!rClient.bHandshakeComplete)
-		{
-			continue;
-		}
-
-		SendTimespeedUpdate(rClient.pPeer, iMultiply, iDivide);
-	}
-}
-
 void Server::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, PacketType eType, int64_t iSlot, uint16_t uiEpoch, const PerCoordBufferedFrame& rBuffered, int64_t iTimestampNs)
 {
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(eType));
@@ -255,24 +234,28 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 			++iSlotResendCount;
 		}
 
-		constexpr int64_t kiResendLogCooldownTicks = 64;
-
-		bool bWasResending = rClient.prevResendCounts.at(iSlot) > 0;
-		bool bIsResending = iSlotResendCount > 0;
-
-		if (rClient.resendLogCooldowns.at(iSlot) > 0)
-		{
-			--rClient.resendLogCooldowns.at(iSlot);
-		}
-
-		if (bWasResending != bIsResending && rClient.resendLogCooldowns.at(iSlot) <= 0)
-		{
-			LOG(kNetwork, kVerbose, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {}",
-				rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount);
-			rClient.resendLogCooldowns.at(iSlot) = kiResendLogCooldownTicks;
-		}
-		rClient.prevResendCounts.at(iSlot) = iSlotResendCount;
+		UpdateResendLogState(rClient, iSlot, iSlotResendCount, coord);
 	}
+}
+
+void Server::UpdateResendLogState(ClientConnection& rClient, int64_t iSlot, int64_t iSlotResendCount, GridCoord coord)
+{
+	constexpr int64_t kiResendLogCooldownTicks = 64;
+
+	bool bWasResending = rClient.prevResendCounts.at(iSlot) > 0;
+	bool bIsResending = iSlotResendCount > 0;
+
+	if (rClient.resendLogCooldowns.at(iSlot) > 0)
+	{
+		--rClient.resendLogCooldowns.at(iSlot);
+	}
+
+	if (bWasResending != bIsResending && rClient.resendLogCooldowns.at(iSlot) <= 0)
+	{
+		LOG(kNetwork, kVerbose, "Server::SendResends Client: {} Slot: {} Coord: ({},{}) Count: {}", rClient.iClientId, iSlot, coord.x, coord.y, iSlotResendCount);
+		rClient.resendLogCooldowns.at(iSlot) = kiResendLogCooldownTicks;
+	}
+	rClient.prevResendCounts.at(iSlot) = iSlotResendCount;
 }
 
 void Server::BroadcastLoadNotification()

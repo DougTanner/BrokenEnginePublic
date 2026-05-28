@@ -1,12 +1,14 @@
 # /Projects/BrokenEngineSandbox/Source/Profile/
 
-Game-specific profiling extending `engine::ProfileManagerBase` with game counters and timers.
+Game-specific profiling extending `engine::ProfileManagerBase` with game CPU counters and timers (no game GPU timers/counters).
 
 **Global**: `game::gpProfileManager`
 
 ## Architecture
 
-Game enums begin at `engine::kEngineCpuCounterCount` / `engine::kEngineCpuTimerCount` so indices compose into one contiguous space. Network overlay display and per-second rate counters live in the game-derived class (not the engine base) because they depend on game-side session state.
+Game enums begin at `engine::kEngineCpuCounterCount` / `engine::kEngineCpuTimerCount` so indices compose into one contiguous space; virtual dispatch routes by index. The CPU-timer hierarchy mirrors the frame phases (interpolate / post-render / render) and counters track per-collection populations and rendered subsets.
+
+The client-only overlay's Frames and Network screens (and the ImPlot trend graphs beside them) live here rather than in the engine base because they read game session and grid state — active grid footprint, reconciliation tick rates, and smoothed clock/RTT/rollback series fed in each frame by the client session.
 
 ## Invariants
 

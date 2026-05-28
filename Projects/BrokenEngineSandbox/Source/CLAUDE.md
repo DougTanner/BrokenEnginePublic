@@ -23,7 +23,7 @@ Frame code is purely functional. Frame updates must only rely on explicit functi
 - **Cross-grid transfers**: Entity hand-off between grid cells is expressed as transfer `StatusChange`s carrying fully-serialized spawn state, dispatched per collection type and stripped from `FrameInput` before the normal Spawn phase.
 - **Alignments**: `playerAlignment` / `enemyAlignment` are owned by `Game` and copied onto each new `Frame::postRender`. Frame code reads them from `postRender`, never from `gpGame`.
 - **Versioned persisted settings**: Sound/graphics/tweaks settings plus per-client UI/session state (focused fleet identifier, focused ship global ID, camera zoom target) are client-only POD structs with an embedded `kiVersion`, round-tripped through `engine::{Write,Read}VersionedFile` into `kAppDataDirectory`. Bump the struct version on layout change. Session state is captured each frame and re-persisted only when the diff against the last-written copy changes.
-- **Save-format version**: `Version.h` holds a single `kGameVersion` constant included inside the `game` namespace; bump on save/replay/protocol-incompatible changes.
+- **Save-format version**: `Version.h` holds a single `kiGameVersion` constant `#include`d inside the `game` namespace; bump on save/replay/protocol-incompatible changes.
 - **Compile-time toggles**: `Pch.h` holds `inline constexpr` flags for frame dispatch parallelism, desync recovery, render thread, network simulation, and per-configuration debug/profile knobs. It also defines per-category log-level overrides before including `Common.h`.
 - Detailed networking flow: [Game Reconciliation](../../../Documents/Architecture/GameReconciliation.md), [Network Architecture](../../../Documents/Architecture/Network.md).
 

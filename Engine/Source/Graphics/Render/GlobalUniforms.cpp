@@ -234,45 +234,72 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	rGlobalLayout.iShadowTextureWidth = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.width; // X pixels
 	rGlobalLayout.iShadowTextureHeight = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.height; // Y pixels
 
-	// Shadow area: LOD-stable world size (mfLodStable* latched in CameraBase, bit-stable
-	// within an iLod). Origin is camera-centered and snapped to integer shadow-texel boundaries.
-	// Two stability properties combine to eliminate shimmer:
-	//  - XY pan at constant zoom: width/height bit-stable, snap origin moves in integer-texel steps.
-	//  - Z motion within iLod: width/height bit-stable (it's the same LOD-latched value across every
-	//    zoom-bucket crossing), so fShadowTexelX is bit-stable. Without this, fVisibleWidth changed
-	//    per integer-meter zoom-bucket -> fShadowTexelX changed -> shadow content resampled at a new
-	//    scale every meter -> high-contrast edges flickered.
-	// One-frame texel-scale pop at LOD transitions (kfMinEyeHeight * 4^L, 5% hysteresis) is accepted.
-	float fShadowWorldWidth = game::gpCamera->mfLodStableWidth;
-	float fShadowWorldHeight = game::gpCamera->mfLodStableHeight;
-	float fShadowTexelX = 0.0f;
-	if (fShadowWorldWidth > 0.0f && fShadowWorldHeight > 0.0f)
+	// Shadow area: ramped-world-size texels. The texture is pre-sized (RenderTargetTextures) to cover the visible
+	// area at Camera::kfEyeHeightMaxReference. The texel world size is the reference texel scaled by the camera's
+	// rate-limited mfShadowTexelEyeHeight / kfCameraEyeHeightDefault, so it stays fixed at a settled height (the
+	// grid snaps cleanly under XY pan -> no shimmer) and only rescales while the ramp tracks a zoom. At the default
+	// height the scale is 1.0 (the reference texel), giving a centered sub-window of texW/4; the ramp returns the
+	// window toward that count when zoomed out (recovering ray-march cost) rather than ray-marching the full texture.
+	// f4ShadowArea is the full footprint, camera-centered and snapped to the current texel grid (integer-texel pan);
+	// farther-than-window content crops via the CLAMP sampler. The base texel derives from the analytic straight-down
+	// frustum width (gFov/aspect), never the snapped render-area width, so it stays bit-stable at a settled height.
+	float fAspect = gpSwapchainManager->mfAspectRatio;
+	float fTanHalfFov = std::tan(0.5f * XMConvertToRadians(gFov.Get() / fAspect));
+	float fTexelScale = game::gpCamera->mfShadowTexelEyeHeight / game::Camera::kfCameraEyeHeightDefault;
+	float fWorldTexelX = ((2.0f * game::Camera::kfEyeHeightMaxReference * fAspect * fTanHalfFov) / fShadowTextureSizeWidth) * fTexelScale;
+	float fWorldTexelY = ((2.0f * game::Camera::kfEyeHeightMaxReference * fTanHalfFov) / fShadowTextureSizeHeight) * fTexelScale;
+	float fFullWidth = fShadowTextureSizeWidth * fWorldTexelX;
+	float fFullHeight = fShadowTextureSizeHeight * fWorldTexelY;
+	XMFLOAT4A f4CameraPosition {};
+	XMStoreFloat4A(&f4CameraPosition, game::gpCamera->mVecPosition);
+	int64_t iLeftTexel = static_cast<int64_t>(std::floor((f4CameraPosition.x - fFullWidth * 0.5f) / fWorldTexelX));
+	int64_t iTopTexel = static_cast<int64_t>(std::floor((f4CameraPosition.y + fFullHeight * 0.5f) / fWorldTexelY));
+	float fLeft = static_cast<float>(iLeftTexel) * fWorldTexelX;
+	float fTop = static_cast<float>(iTopTexel) * fWorldTexelY;
+	rGlobalLayout.f4ShadowArea = {fLeft, fTop, fLeft + fFullWidth, fTop - fFullHeight};
+
+	// Temporal accumulation: feed the previous frame's shadow area so ShadowTemporal.comp can reproject the
+	// history into the current grid (mirrors the smoke/wind previous-area latch). First frame: previous ==
+	// current and blend forced to 1.0 (pure current) so the uninitialized history texture is never shown; that
+	// frame's copy seeds valid history. Once-per-frame latch (RenderFrameGlobal runs once per frame).
+	static bool sbPreviousShadowAreaInitialized = false;
+	static XMFLOAT4 sf4PreviousShadowArea {};
+	if (!sbPreviousShadowAreaInitialized)
 	{
-		fShadowTexelX = fShadowWorldWidth / fShadowTextureSizeWidth;
-		float fShadowTexelY = fShadowWorldHeight / fShadowTextureSizeHeight;
-		XMFLOAT4A f4CameraPosition {};
-		XMStoreFloat4A(&f4CameraPosition, game::gpCamera->mVecPosition);
-		int64_t iLeftTexel = static_cast<int64_t>(std::floor((f4CameraPosition.x - fShadowWorldWidth * 0.5f) / fShadowTexelX));
-		int64_t iTopTexel = static_cast<int64_t>(std::floor((f4CameraPosition.y + fShadowWorldHeight * 0.5f) / fShadowTexelY));
-		float fLeft = static_cast<float>(iLeftTexel) * fShadowTexelX;
-		float fTop = static_cast<float>(iTopTexel) * fShadowTexelY;
-		rGlobalLayout.f4ShadowArea = {fLeft, fTop, fLeft + fShadowWorldWidth, fTop - fShadowWorldHeight};
+		sf4PreviousShadowArea = rGlobalLayout.f4ShadowArea;
+		sbPreviousShadowAreaInitialized = true;
+		rGlobalLayout.fShadowTemporalBlend = 1.0f;
 	}
 	else
 	{
-		rGlobalLayout.f4ShadowArea = game::gpCamera->f4RenderVisibleArea;
+		rGlobalLayout.fShadowTemporalBlend = gShadowTemporalBlend.Get();
 	}
+	rGlobalLayout.f4ShadowAreaPrevious = sf4PreviousShadowArea;
+	sf4PreviousShadowArea = rGlobalLayout.f4ShadowArea;
+
+	// Centered visible window (texels) from the live eye height — only this region is ray-marched. min() against the
+	// texture extent both crops above the reference height and caps the transient when a fast zoom-out outruns the ramp.
+	float fVisibleWidthNow = 2.0f * game::gpCamera->mfCameraEyeHeight * fAspect * fTanHalfFov;
+	float fVisibleHeightNow = 2.0f * game::gpCamera->mfCameraEyeHeight * fTanHalfFov;
+	int iShadowSubWidth = std::min(static_cast<int>(std::lround(fVisibleWidthNow / fWorldTexelX)), static_cast<int>(fShadowTextureSizeWidth));
+	int iShadowSubHeight = std::min(static_cast<int>(std::lround(fVisibleHeightNow / fWorldTexelY)), static_cast<int>(fShadowTextureSizeHeight));
+	int iShadowMinX = (static_cast<int>(fShadowTextureSizeWidth) - iShadowSubWidth) / 2;
+	int iShadowMinY = (static_cast<int>(fShadowTextureSizeHeight) - iShadowSubHeight) / 2;
+	rGlobalLayout.iShadowVisibleMinX = iShadowMinX;
+	rGlobalLayout.iShadowVisibleMaxX = iShadowMinX + iShadowSubWidth;
+	rGlobalLayout.iShadowVisibleMinY = iShadowMinY;
+	rGlobalLayout.iShadowVisibleMaxY = iShadowMinY + iShadowSubHeight;
 
 	// Sun-direction extension: extend by half the shadow-area width on the sun side. The elevation
 	// texture is 1.5x wider than the shadow texture and rasterizes f4ShadowAreaExtra; the extension
 	// fills exactly the extra half.
 	rGlobalLayout.f4ShadowAreaExtra = rGlobalLayout.f4ShadowArea;
-	float fHalfWidth = fShadowWorldWidth * 0.5f;
+	float fHalfWidth = fFullWidth * 0.5f;
 	if (fSunAngle >= XM_PI + XM_PIDIV2 || fSunAngle < XM_PIDIV2)
 	{
 		rGlobalLayout.f4ShadowAreaExtra.z += fHalfWidth;
 
-		rGlobalLayout.fShadowWidthScale = fShadowTexelX;
+		rGlobalLayout.fShadowWidthScale = fWorldTexelX;
 		if (fSunAngle >= 0.0f && fSunAngle < XM_PIDIV2)
 		{
 			rGlobalLayout.fShadowSunAngle = fSunAngle;
@@ -291,7 +318,7 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	{
 		rGlobalLayout.f4ShadowAreaExtra.x -= fHalfWidth;
 
-		rGlobalLayout.fShadowWidthScale = -fShadowTexelX;
+		rGlobalLayout.fShadowWidthScale = -fWorldTexelX;
 		rGlobalLayout.fShadowSunAngle = fSunAngle >= XM_PI ? fSunAngle - XM_PI : XM_PI - fSunAngle;
 		rGlobalLayout.fShadowDirectionMultiplier = -1.0f;
 
@@ -508,14 +535,17 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 	rGlobalLayout.f2CameraPosition.y = f4CameraPosGlobal.y;
 	rGlobalLayout.f4VisibleArea = game::gpCamera->f4RenderVisibleArea;
 
-	// Lighting area: LOD-stable world size (mfLodStable* latched in CameraBase, bit-stable within
-	// an iLod). Origin camera-centered, snapped to integer lighting-texel boundaries. Mirrors the
-	// shadow-area pattern: within an iLod fTexelSizeX is bit-stable so Z motion doesn't resample
-	// lighting-deposit content at a wobbling texel scale (high-contrast deposit edges — explosion
-	// flashes, point-light splat boundaries, lighting-spread propagation fronts — flickered every
-	// meter under the old fVisibleWidth-derived path).
-	float fLightingWorldWidth = game::gpCamera->mfLodStableWidth;
-	float fLightingWorldHeight = game::gpCamera->mfLodStableHeight;
+	// Lighting area: continuous visible-area world size (differs from the shadow-area path above, which
+	// uses fixed-world-size texels in a pre-sized texture). f4RenderVisibleArea tracks
+	// the camera frustum footprint and its width/height is continuous across mesh-LOD boundaries
+	// (quad count halves but quad size doubles), so the lighting deposit/spread no longer pops 4x at
+	// the LOD transitions (kfMinEyeHeight * 4^L = 600/2400/9600m). Origin is still snapped to integer
+	// lighting-texel boundaries below, so XY pan stays shimmer-free (width is bit-stable within a
+	// zoom bucket -> texel size constant -> snap moves in integer-texel steps). Zoom re-latches the
+	// width once per integer-meter zoom bucket, a small accepted texel-scale step (vs. the old single
+	// large pop per LOD).
+	float fLightingWorldWidth = game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x;
+	float fLightingWorldHeight = game::gpCamera->f4RenderVisibleArea.y - game::gpCamera->f4RenderVisibleArea.w;
 	if (fLightingWorldWidth > 0.0f && fLightingWorldHeight > 0.0f)
 	{
 		auto [iLightingTextureX, iLightingTextureY] = TextureManager::DetailTextureSize(gLightingDepositTextureMultiplier.Get());

@@ -3,6 +3,8 @@
 namespace tinygltf { class Model; }
 
 #include "ExportJob.h"
+#include "Scene/SceneSkeletonLoader.h"
+#include "Scene/SceneVerticesLoader.h"
 
 class ExportScene : public ExportJob
 {
@@ -35,6 +37,16 @@ private:
 
 	void PreExport(tinygltf::Model& rGltfModel);
 	void MainExport(tinygltf::Model& rGltfModel);
+
+	void ProcessTextures(tinygltf::Model& rGltfModel);
+	void SetupSkeletonAndMaterials(tinygltf::Model& rGltfModel, std::unordered_map<int, int>& rNodeToJointMap);
+	void LoadVerticesAndOptimizeMeshes(tinygltf::Model& rGltfModel, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<Material>& rMaterials, std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::vector<common::ModelVertex>& rVertices);
+	void BuildMaterialInfos(tinygltf::Model& rGltfModel, const std::unordered_map<int, int>& rNodeToJointMap, const std::vector<Material>& rMaterials, const std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::vector<common::MaterialInfo>& rMaterialInfos);
+	void WriteModelFile(const std::vector<Material>& rMaterials, const std::vector<common::MaterialInfo>& rMaterialInfos, std::vector<common::ModelVertex>& rVertices);
+
+	void ReadMaterialInfosFromModel(const std::filesystem::path& rModelPath, size_t uiMaterialCount, uint32_t* puiIndexStarts, std::vector<common::MaterialInfo>& rMaterialInfos);
+	void FillMaterialShaderDatas(tinygltf::Model& rGltfModel, const std::vector<common::MaterialInfo>& rMaterialInfos, common::MaterialShaderData* pMaterialShaderDatas);
+	void WriteAnimationSection(tinygltf::Model& rGltfModel, const std::vector<common::MaterialInfo>& rMaterialInfos, common::ChunkHeader* pHeader, int64_t iSceneArraysSize);
 
 	void CleanupOnFailure() override;
 

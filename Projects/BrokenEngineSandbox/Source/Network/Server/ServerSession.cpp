@@ -218,6 +218,26 @@ void ServerSession::ParseReceivedGamePackets()
 				LOG(kDefault, kDebug, "Server paused: {}", bPaused);
 				break;
 			}
+			case GamePacketType::kClientTimespeedRequest:
+			{
+				// 1B direction (type byte already stripped); 0 = slower, 1 = faster
+				if (rPacket.payload.size() < 1)
+				{
+					break;
+				}
+				const uint8_t* pCursor = rPacket.payload.data();
+				uint8_t uiDirection = engine::ReadUint8(pCursor);
+				if (uiDirection == 0)
+				{
+					gpGame->mTimeStep.DecreaseTimeScale();
+				}
+				else
+				{
+					gpGame->mTimeStep.IncreaseTimeScale();
+				}
+				BroadcastTimespeedIfChanged();
+				break;
+			}
 			default:
 				break;
 		}
@@ -353,6 +373,39 @@ void ServerSession::SendPlayerState(int64_t iClientId, PlayerStateWireType eWire
 	engine::gpServer->SendSimplePacket(pClient->pPeer, GamePacketType::kServerPlayerState, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(eWireType), iGlobalPlayerId, coord);
 }
 
+void ServerSession::BroadcastTimespeedIfChanged()
+{
+	if (!gpGame->mTimeStep.mbTimeScaleChanged) [[likely]]
+	{
+		return;
+	}
+	gpGame->mTimeStep.mbTimeScaleChanged = false;
+
+	int64_t iMultiply = gpGame->mTimeStep.miTimeMultiply;
+	int64_t iDivide = gpGame->mTimeStep.miTimeDivide;
+	LOG(kNetwork, kDebug, "ServerSession::BroadcastTimespeedIfChanged Multiply: {} Divide: {}", iMultiply, iDivide);
+
+	for (engine::ClientConnection& rClient : engine::gpServer->GetClients())
+	{
+		if (!rClient.bHandshakeComplete)
+		{
+			continue;
+		}
+		// [1B type][8B multiply][8B divide]
+		engine::gpServer->SendSimplePacket(rClient.pPeer, GamePacketType::kServerTimespeedUpdate, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iMultiply, iDivide);
+	}
+}
+
+void ServerSession::SendTimespeedToNewClient(ENetPeer* pPeer)
+{
+	if (gpGame->mTimeStep.miTimeMultiply == 1 && gpGame->mTimeStep.miTimeDivide == 1)
+	{
+		return;
+	}
+	// [1B type][8B multiply][8B divide]
+	engine::gpServer->SendSimplePacket(pPeer, GamePacketType::kServerTimespeedUpdate, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, gpGame->mTimeStep.miTimeMultiply, gpGame->mTimeStep.miTimeDivide);
+}
+
 void ServerSession::SubscriptionUpdates([[maybe_unused]] int64_t iTick)
 {
 	SendNewSubscriptionFullStates(iTick);
@@ -441,28 +494,7 @@ void ServerSession::ResetClientsForLoad()
 		rLoadOwnedIds.clear();
 		rClient.authorizedCoords.clear();
 
-		if (!rClient.clientGuid.IsEmpty())
-		{
-			for (const auto& [rCoord, rFrames] : gpGame->mCoordFrames)
-			{
-				const PlayersPostRender& rPlayers = *rFrames.pCurrent->postRender.pPlayers;
-				for (int64_t i = 0; i < rPlayers.iCount; ++i)
-				{
-					if (rPlayers.pClientGuids[i] == rClient.clientGuid)
-					{
-						engine::global_id_t globalId = rPlayers.pGlobalPlayerIds[i];
-						rLoadOwnedIds.push_back(globalId);
-						rClient.authorizedCoords.push_back(rCoord);
-
-						SendAssignPlayer(rClient.iClientId, globalId, rCoord);
-						SendPlayerState(rClient.iClientId, PlayerStateWireType::kSpawned, globalId.iValue, rCoord);
-						LOG(kDefault, kDebug, "ServerSession::ResetClientsForLoad Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, globalId, rCoord.x, rCoord.y);
-					}
-				}
-			}
-		}
-
-		if (rLoadOwnedIds.empty())
+		if (!TryRelinkClientForLoad(rClient, rLoadOwnedIds))
 		{
 			LOG(kDefault, kDebug, "ServerSession::ResetClientsForLoad Client: {} no GUID match, will respawn", rClient.iClientId);
 		}
@@ -487,6 +519,35 @@ void ServerSession::ResetClientsForLoad()
 	engine::gpServer->DrainPendingResyncClientIds().clear();
 
 	engine::gpServer->Flush();
+}
+
+bool ServerSession::TryRelinkClientForLoad(engine::ClientConnection& rClient, std::vector<engine::global_id_t>& rLoadOwnedIds)
+{
+	if (rClient.clientGuid.IsEmpty())
+	{
+		return false;
+	}
+
+	bool bRelinked = false;
+	for (const auto& [rCoord, rFrames] : gpGame->mCoordFrames)
+	{
+		const PlayersPostRender& rPlayers = *rFrames.pCurrent->postRender.pPlayers;
+		for (int64_t i = 0; i < rPlayers.iCount; ++i)
+		{
+			if (rPlayers.pClientGuids[i] == rClient.clientGuid)
+			{
+				engine::global_id_t globalId = rPlayers.pGlobalPlayerIds[i];
+				rLoadOwnedIds.push_back(globalId);
+				rClient.authorizedCoords.push_back(rCoord);
+
+				SendAssignPlayer(rClient.iClientId, globalId, rCoord);
+				SendPlayerState(rClient.iClientId, PlayerStateWireType::kSpawned, globalId.iValue, rCoord);
+				LOG(kDefault, kDebug, "ServerSession::ResetClientsForLoad Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, globalId, rCoord.x, rCoord.y);
+				bRelinked = true;
+			}
+		}
+	}
+	return bRelinked;
 }
 
 void ServerSession::WriteFleetData(std::fstream& rFileStream) const

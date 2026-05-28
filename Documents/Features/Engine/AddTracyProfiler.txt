@@ -32,7 +32,7 @@ Changes
    - Add TRACY_ENABLE preprocessor define for Profile (and optionally Debug) configurations only
    - Add Tracy include path to additional include directories
 
-4. Common/Multithreading.cpp
+4. Common/Threading/Multithreading.cpp
    - Call BT_TRACY_THREAD_NAME() when worker threads are created
    - Name the main thread at startup in Main.cpp
 

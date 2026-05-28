@@ -492,6 +492,19 @@ void Texture::TransitionImageLayout(VkCommandBuffer vkCommandBuffer, TextureLayo
 	vkCmdPipelineBarrier(vkCommandBuffer, rSrc.stageFlags, rDst.stageFlags, 0, 0, nullptr, 0, nullptr, 1, &vkImageMemoryBarrier);
 }
 
+void Texture::RecordCopyImageFrom(VkCommandBuffer vkCommandBuffer, const Texture& rSource)
+{
+	VkImageCopy vkImageCopy
+	{
+		.srcSubresource = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .mipLevel = 0, .baseArrayLayer = 0, .layerCount = 1},
+		.srcOffset = {0, 0, 0},
+		.dstSubresource = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .mipLevel = 0, .baseArrayLayer = 0, .layerCount = 1},
+		.dstOffset = {0, 0, 0},
+		.extent = mInfo.extent,
+	};
+	vkCmdCopyImage(vkCommandBuffer, rSource.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkImageCopy);
+}
+
 void Texture::RecordBeginRenderPass(VkCommandBuffer vkCommandBuffer)
 {
 	RenderPassFlags_t renderPassFlags;

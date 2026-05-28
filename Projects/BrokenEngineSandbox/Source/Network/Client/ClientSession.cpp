@@ -70,51 +70,28 @@ void ClientSession::PollNetwork()
 	common::ScopedWorkbufferArena playerEventsArena = common::gpThreadLocal->mWorkbuffer.Push();
 	ParsePlayerEvents(mpClientNetwork->DrainReceivedGamePackets(), playerEventsArena);
 	std::span<const ReceivedPlayerEvent> playerEvents = playerEventsArena.Span<const ReceivedPlayerEvent>();
-	auto updatePlayerCoord = [](engine::global_id_t globalPlayerId, engine::GridCoord coord)
-	{
-		for (int64_t i = 0; i < gpGame->PlayerCount(); ++i)
-		{
-			if (gpGame->mClientPlayerIds.at(i) == globalPlayerId)
-			{
-				gpGame->mClientPlayerCoords.at(i) = coord;
-				break;
-			}
-		}
-	};
-
 	for (const ReceivedPlayerEvent& rEvent : playerEvents)
 	{
-		switch (rEvent.eType)
+		ApplyPlayerEvent(rEvent);
+	}
+
+	// Apply server timespeed updates from remaining game packets
+	for (const std::pair<uint8_t, std::vector<uint8_t>>& rPacket : mpClientNetwork->DrainReceivedGamePackets())
+	{
+		if (static_cast<GamePacketType>(rPacket.first) != GamePacketType::kServerTimespeedUpdate)
 		{
-			case PlayerEventType::kAssigned:
-				if (!gpGame->IsClientPlayer(rEvent.globalPlayerId))
-				{
-					LOG(kNetwork, kVerbose, "PlayerEvent kAssigned NewGlobalPlayerId: {} NewCoord: ({},{}) FocusedGlobalPlayerId: {} FocusedCoord: ({},{})", rEvent.globalPlayerId, rEvent.coord.x, rEvent.coord.y, gpGame->ClientPlayerId(), gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
-					gpGame->AddClientPlayer(rEvent.globalPlayerId, rEvent.coord);
-				}
-				UpdateDesiredCoords(SubscriptionChangeReason::kAssigned);
-				break;
-			case PlayerEventType::kSpawned:
-				updatePlayerCoord(rEvent.globalPlayerId, rEvent.coord);
-				if (rEvent.globalPlayerId == gpGame->ClientPlayerId())
-				{
-					gpGame->SetClientGridCoord(rEvent.coord);
-				}
-				UpdateDesiredCoords(SubscriptionChangeReason::kSpawned);
-				break;
-			case PlayerEventType::kChangedFrame:
-				updatePlayerCoord(rEvent.globalPlayerId, rEvent.coord);
-				if (rEvent.globalPlayerId == gpGame->ClientPlayerId())
-				{
-					gpGame->SetClientGridCoord(rEvent.coord);
-				}
-				UpdateDesiredCoords(SubscriptionChangeReason::kChangedFrame);
-				break;
-			case PlayerEventType::kDied:
-				gpGame->RemoveClientPlayer(rEvent.globalPlayerId);
-				UpdateDesiredCoords(SubscriptionChangeReason::kDied);
-				break;
+			continue;
 		}
+		// 8B multiply + 8B divide = 16 bytes (type byte already stripped)
+		if (rPacket.second.size() < 16)
+		{
+			continue;
+		}
+		const uint8_t* pCursor = rPacket.second.data();
+		int64_t iMultiply = engine::ReadInt64(pCursor);
+		int64_t iDivide = engine::ReadInt64(pCursor);
+		LOG(kNetwork, kDebug, "ClientSession::ServerTimespeedUpdate Multiply: {} Divide: {}", iMultiply, iDivide);
+		gpGame->mTimeStep.SetTimeScale(iMultiply, iDivide);
 	}
 
 	// Parse fleet sync from remaining game packets
@@ -134,6 +111,53 @@ void ClientSession::PollNetwork()
 	mpDataReceiver->ApplyReceivedFullStates();
 	UpdateSubscriptions();
 	mpDataReceiver->ApplyReceivedUpdates();
+}
+
+void ClientSession::ApplyPlayerEvent(const ReceivedPlayerEvent& rEvent)
+{
+	switch (rEvent.eType)
+	{
+		case PlayerEventType::kAssigned:
+			if (!gpGame->IsClientPlayer(rEvent.globalPlayerId))
+			{
+				LOG(kNetwork, kVerbose, "PlayerEvent kAssigned NewGlobalPlayerId: {} NewCoord: ({},{}) FocusedGlobalPlayerId: {} FocusedCoord: ({},{})", rEvent.globalPlayerId, rEvent.coord.x, rEvent.coord.y, gpGame->ClientPlayerId(), gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
+				gpGame->AddClientPlayer(rEvent.globalPlayerId, rEvent.coord);
+			}
+			UpdateDesiredCoords(SubscriptionChangeReason::kAssigned);
+			break;
+		case PlayerEventType::kSpawned:
+			UpdatePlayerCoord(rEvent.globalPlayerId, rEvent.coord);
+			if (rEvent.globalPlayerId == gpGame->ClientPlayerId())
+			{
+				gpGame->SetClientGridCoord(rEvent.coord);
+			}
+			UpdateDesiredCoords(SubscriptionChangeReason::kSpawned);
+			break;
+		case PlayerEventType::kChangedFrame:
+			UpdatePlayerCoord(rEvent.globalPlayerId, rEvent.coord);
+			if (rEvent.globalPlayerId == gpGame->ClientPlayerId())
+			{
+				gpGame->SetClientGridCoord(rEvent.coord);
+			}
+			UpdateDesiredCoords(SubscriptionChangeReason::kChangedFrame);
+			break;
+		case PlayerEventType::kDied:
+			gpGame->RemoveClientPlayer(rEvent.globalPlayerId);
+			UpdateDesiredCoords(SubscriptionChangeReason::kDied);
+			break;
+	}
+}
+
+void ClientSession::UpdatePlayerCoord(engine::global_id_t globalPlayerId, engine::GridCoord coord)
+{
+	for (int64_t i = 0; i < gpGame->PlayerCount(); ++i)
+	{
+		if (gpGame->mClientPlayerIds.at(i) == globalPlayerId)
+		{
+			gpGame->mClientPlayerCoords.at(i) = coord;
+			break;
+		}
+	}
 }
 
 void ClientSession::Poll()

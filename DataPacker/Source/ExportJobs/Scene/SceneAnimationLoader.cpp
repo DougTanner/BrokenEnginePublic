@@ -48,8 +48,13 @@ bool DetermineAnimationPath(const tinygltf::Model& rGltfModel)
 	return true;
 }
 
-void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeToNodeIndexMap, std::vector<common::AnimationClip>& rAnimations, std::vector<common::AnimationChannel>& rChannels, std::vector<common::AnimationKeyframe>& rKeyframes, std::vector<common::AnimationKeyframeCubic>& rCubicKeyframes)
+void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeToNodeIndexMap, AnimationOutput& rOut)
 {
+	std::vector<common::AnimationClip>& rAnimations = rOut.rAnimations;
+	std::vector<common::AnimationChannel>& rChannels = rOut.rChannels;
+	std::vector<common::AnimationKeyframe>& rKeyframes = rOut.rKeyframes;
+	std::vector<common::AnimationKeyframeCubic>& rCubicKeyframes = rOut.rCubicKeyframes;
+
 	LOG(kDefault, kDebug, "LoadAnimations: nodeToNodeIndexMap has {} entries", rNodeToNodeIndexMap.size());
 
 	for (const tinygltf::Animation& rAnim : rModel.animations)

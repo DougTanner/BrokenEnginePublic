@@ -293,6 +293,21 @@ void PipelineManager::CreatePipelineShadows()
 			},
 		});
 	}
+
+	// Temporal accumulation: gather the reprojected previous-frame shadow (mShadowHistoryTexture) and blend it
+	// in place into mShadowBlurTexture, which is then copied back into the history for the next frame.
+	mpPipelines[kPipelineShadowTemporal].Create(
+	{
+		.name = "ShadowTemporal",
+		.flags = {kCompute},
+		.ppShaders = {&mShaders.at(data::kShadersShadowShadowTemporalcompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowHistoryTexture},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
+		},
+	});
 }
 
 void PipelineManager::CreateLightingBlurPipelines()

@@ -167,6 +167,37 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 	// masking. Packed into the chunk payload after the mesh (see Export()); debug render draws it.
 	BuildValidAreaHull(rOut);
 
+	// Runtime SAT (common::ConvexHullsOverlap) requires both inputs to be convex and CCW; verify the
+	// producer here so a future change to BuildValidAreaHull (or a degenerate input) fails the bake
+	// instead of silently letting islands intersect at the waterline.
+	if (rOut.iValidAreaVertexCount >= 3)
+	{
+		float fSignedArea = 0.0f;
+		for (int32_t i = 0; i < rOut.iValidAreaVertexCount; ++i)
+		{
+			int32_t iNext = (i + 1) % rOut.iValidAreaVertexCount;
+			float fAx = rOut.cpuValidAreaVertices.at(static_cast<size_t>(i) * 2);
+			float fAy = rOut.cpuValidAreaVertices.at(static_cast<size_t>(i) * 2 + 1);
+			float fBx = rOut.cpuValidAreaVertices.at(static_cast<size_t>(iNext) * 2);
+			float fBy = rOut.cpuValidAreaVertices.at(static_cast<size_t>(iNext) * 2 + 1);
+			fSignedArea += fAx * fBy - fBx * fAy;
+		}
+		ASSERT(fSignedArea > 0.0f);
+		for (int32_t i = 0; i < rOut.iValidAreaVertexCount; ++i)
+		{
+			int32_t iPrev = (i + rOut.iValidAreaVertexCount - 1) % rOut.iValidAreaVertexCount;
+			int32_t iNext = (i + 1) % rOut.iValidAreaVertexCount;
+			float fPx = rOut.cpuValidAreaVertices.at(static_cast<size_t>(iPrev) * 2);
+			float fPy = rOut.cpuValidAreaVertices.at(static_cast<size_t>(iPrev) * 2 + 1);
+			float fCx = rOut.cpuValidAreaVertices.at(static_cast<size_t>(i) * 2);
+			float fCy = rOut.cpuValidAreaVertices.at(static_cast<size_t>(i) * 2 + 1);
+			float fNx = rOut.cpuValidAreaVertices.at(static_cast<size_t>(iNext) * 2);
+			float fNy = rOut.cpuValidAreaVertices.at(static_cast<size_t>(iNext) * 2 + 1);
+			float fCross = (fCx - fPx) * (fNy - fPy) - (fCy - fPy) * (fNx - fPx);
+			ASSERT(fCross > 0.0f);
+		}
+	}
+
 	// Encode each intermediate as a BC-compressed mip chain in turn (MakeMipmaps walks down to the
 	// BC 4-divisibility floor). sEncodeMutex serializes the BC encoder across textures (it uses all
 	// hardware threads internally; mutex bounds memory). A JPEG sidecar is written next to each
@@ -177,37 +208,37 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 	static constexpr int kiJpegSidecarQuality = 90;
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(intermediatesDir / "AmbientOcclusion.r16", FileType::kUint16Raw, false, baked.iCropWidth, baked.iCropHeight);
+		Texture texture(intermediatesDir / "AmbientOcclusion.r16", FileType::kUint16Raw, baked.iCropWidth, baked.iCropHeight);
 		const float pfFlatAmbientOcclusion[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 		texture.MaskByHeightmap(rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, common::kfUnderwaterMaskThresholdMeters, pfFlatAmbientOcclusion);
-		texture.MakeMipmaps(VK_FORMAT_BC4_UNORM_BLOCK, 32, false);
-		texture.Save(rInputPath / kpcIslandAmbientOcclusion, VK_FORMAT_BC4_UNORM_BLOCK, false);
-		texture.SaveJpegSidecar(rInputPath / "AmbientOcclusion.jpg", kiJpegSidecarQuality, true);
+		texture.MakeMipmaps(VK_FORMAT_BC4_UNORM_BLOCK, 32, {});
+		texture.Save(rInputPath / kpcIslandAmbientOcclusion, VK_FORMAT_BC4_UNORM_BLOCK, {});
+		texture.SaveJpegSidecar(rInputPath / "AmbientOcclusion.jpg", kiJpegSidecarQuality, TextureOptions::kGrayscale);
 	}
 
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(textureSourceDir / "Color.png", FileType::kImage, false);
+		Texture texture(textureSourceDir / "Color.png", FileType::kImage);
 		texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
-		// Flat alpha stays 255 so BC7 keeps its alpha-free mode and the bVerifyNoAlpha=true assert
+		// Flat alpha stays 255 so BC7 keeps its alpha-free mode and the kVerifyNoAlpha assert
 		// at Save still passes — RGB carries the underwater zero, alpha is invariant.
 		const float pfFlatColor[4] = {0.0f, 0.0f, 0.0f, 255.0f};
 		texture.MaskByHeightmap(rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, common::kfUnderwaterMaskThresholdMeters, pfFlatColor);
-		texture.MakeMipmaps(VK_FORMAT_BC7_UNORM_BLOCK, 32, false);
-		texture.Save(rInputPath / kpcIslandColor, VK_FORMAT_BC7_UNORM_BLOCK, true);
-		texture.SaveJpegSidecar(rInputPath / "Color.jpg", kiJpegSidecarQuality, false);
+		texture.MakeMipmaps(VK_FORMAT_BC7_UNORM_BLOCK, 32, {});
+		texture.Save(rInputPath / kpcIslandColor, VK_FORMAT_BC7_UNORM_BLOCK, TextureOptions::kVerifyNoAlpha);
+		texture.SaveJpegSidecar(rInputPath / "Color.jpg", kiJpegSidecarQuality, {});
 	}
 
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(textureSourceDir / "Normals.exr", FileType::kExr, false);
+		Texture texture(textureSourceDir / "Normals.exr", FileType::kExr);
 		texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
 		// Flat (127.5, 127.5) → shader 2x-1 → (0, 0) → reconstructed Z=1 → flat tangent normal (0,0,1).
 		const float pfFlatNormals[4] = {127.5f, 127.5f, 0.0f, 0.0f};
 		texture.MaskByHeightmap(rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, common::kfUnderwaterMaskThresholdMeters, pfFlatNormals);
-		texture.MakeMipmaps(VK_FORMAT_BC5_UNORM_BLOCK, 32, false);
-		texture.Save(rInputPath / kpcIslandNormals, VK_FORMAT_BC5_UNORM_BLOCK, false);
-		texture.SaveJpegSidecar(rInputPath / "Normals.jpg", kiJpegSidecarQuality, false);
+		texture.MakeMipmaps(VK_FORMAT_BC5_UNORM_BLOCK, 32, {});
+		texture.Save(rInputPath / kpcIslandNormals, VK_FORMAT_BC5_UNORM_BLOCK, {});
+		texture.SaveJpegSidecar(rInputPath / "Normals.jpg", kiJpegSidecarQuality, {});
 	}
 
 	// Material masks: pack Rock / Sand / Snow / Flow PNGs into a single BC7 RGBA texture cropped to
@@ -269,10 +300,10 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 		// mask channels go to zero underwater (no rock/sand/snow/flow override below the cut line).
 		const float pfFlatMasks[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 		texture.MaskByHeightmap(rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, 1, common::kfUnderwaterMaskThresholdMeters, pfFlatMasks);
-		texture.MakeMipmaps(VK_FORMAT_BC7_UNORM_BLOCK, 32, false);
-		// bVerifyNoAlpha=false: A channel carries real data (Flow mask).
-		texture.Save(rInputPath / kpcIslandMasks, VK_FORMAT_BC7_UNORM_BLOCK, false);
-		texture.SaveJpegSidecar(rInputPath / "Masks.jpg", kiJpegSidecarQuality, false);
+		texture.MakeMipmaps(VK_FORMAT_BC7_UNORM_BLOCK, 32, {});
+		// kVerifyNoAlpha omitted: A channel carries real data (Flow mask).
+		texture.Save(rInputPath / kpcIslandMasks, VK_FORMAT_BC7_UNORM_BLOCK, {});
+		texture.SaveJpegSidecar(rInputPath / "Masks.jpg", kiJpegSidecarQuality, {});
 	}
 
 	// cpuHeightmapData / iHeightmapWidth / iHeightmapHeight were populated at the top of this

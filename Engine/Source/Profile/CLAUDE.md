@@ -30,7 +30,7 @@ Display hysteresis: CPU timers, CPU counters, and GPU timers hide themselves ~1s
 
 ## Cross-Layer Dependency
 
-`FormatFpsHeader` reads a game-specific CPU timer enum directly — the engine base depends on the game enum defining the first game-specific CPU timer slot by convention.
+The FPS header reads a game-specific CPU timer enum by name to report total frame time. The contiguous index space (game enums starting at `kEngineCpuCounterCount` / `kEngineCpuTimerCount`) and the required position of that timer are documented game-side.
 
 ## Extension
 

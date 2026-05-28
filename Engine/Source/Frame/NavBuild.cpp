@@ -424,7 +424,7 @@ void BuildVisibilityGraph(NavContour& rContour)
 
 void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapWidth, int32_t iHeightmapHeight, float fWorldThreshold)
 {
-	LOG(kNavData, kDebug, "NavBuild: heightmap {}x{} worldThreshold={}", iHeightmapWidth, iHeightmapHeight, fWorldThreshold);
+	LOG(kNavData, kDebug, "NavBuild: heightmap {}x{} worldThreshold={}", iHeightmapWidth, iHeightmapHeight, common::Wb(fWorldThreshold, 4));
 
 	// Step 1: Extract contour edges via marching squares
 	std::vector<ContourEdge> contourEdges;
@@ -514,6 +514,30 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 		return;
 	}
 
+	// PointInPolygon's winding-number test assumes consistent CCW winding per polygon. Clipper2 filters
+	// by double-precision Area > 0 above; this verifies the float-cast vertices still satisfy the
+	// invariant so a near-degenerate truncation can't silently misclassify obstacle interiors.
+	int32_t iPolyCount = static_cast<int32_t>(rContour.polygonOffsets.size());
+	int32_t iVertexTotal = static_cast<int32_t>(rContour.vertices.size());
+	for (int32_t iPoly = 0; iPoly < iPolyCount; ++iPoly)
+	{
+		int32_t iStart = rContour.polygonOffsets.at(iPoly);
+		int32_t iEnd = (iPoly + 1 < iPolyCount) ? rContour.polygonOffsets.at(iPoly + 1) : iVertexTotal;
+		int32_t iCount = iEnd - iStart;
+		if (iCount < 3)
+		{
+			continue;
+		}
+		float fSignedArea = 0.0f;
+		for (int32_t i = 0; i < iCount; ++i)
+		{
+			XMFLOAT2 f2A = rContour.vertices.at(iStart + i);
+			XMFLOAT2 f2B = rContour.vertices.at(iStart + (i + 1) % iCount);
+			fSignedArea += f2A.x * f2B.y - f2B.x * f2A.y;
+		}
+		ASSERT(fSignedArea > 0.0f);
+	}
+
 	// Step 5: Build visibility graph
 	BuildVisibilityGraph(rContour);
 
@@ -597,54 +621,59 @@ void BuildCellNavData(NavData& rNavData, const std::vector<IslandPlacement>& rPl
 			float fBoundsWidth = fMaxX - fMinX;
 			float fBoundsHeight = fMaxY - fMinY;
 
-			LOG(kNavData, kVerbose, "NavCell: polygon {} verts={} bounds=({} {})..({} {}) size={}x{}", iPoly, iCount, fMinX, fMinY, fMaxX, fMaxY, fBoundsWidth, fBoundsHeight);
+			LOG(kNavData, kVerbose, "NavCell: polygon {} verts={} bounds=({} {})..({} {}) size={}x{}", iPoly, iCount, common::Wb(fMinX, 4), common::Wb(fMinY, 4), common::Wb(fMaxX, 4), common::Wb(fMaxY, 4), common::Wb(fBoundsWidth, 4), common::Wb(fBoundsHeight, 4));
 		}
 	}
 
 	// Detect crossing polygon edges (the yellow debug lines). Two non-adjacent polygon
 	// edges that properly intersect indicate self-intersecting contour or overlapping
 	// placements — either way the visibility graph + pathfinder will misbehave.
-	int32_t iVertexCount = static_cast<int32_t>(rNavData.vertices.size());
-	int32_t iPolygonCount = static_cast<int32_t>(rNavData.polygonOffsets.size());
-	for (int32_t iPolyA = 0; iPolyA < iPolygonCount; ++iPolyA)
+	// Pure diagnostic: O(edges^2) double loop, compiled out by default. Flip
+	// kbDebugNavCrossingCheck to true locally when investigating a suspected contour defect.
+	if constexpr (kbDebugNavCrossingCheck)
 	{
-		int32_t iStartA = rNavData.polygonOffsets.at(iPolyA);
-		int32_t iEndA = (iPolyA + 1 < iPolygonCount) ? rNavData.polygonOffsets.at(iPolyA + 1) : iVertexCount;
-		int32_t iCountA = iEndA - iStartA;
-		if (iCountA < 2)
+		int32_t iVertexCount = static_cast<int32_t>(rNavData.vertices.size());
+		int32_t iPolygonCount = static_cast<int32_t>(rNavData.polygonOffsets.size());
+		for (int32_t iPolyA = 0; iPolyA < iPolygonCount; ++iPolyA)
 		{
-			continue;
-		}
-
-		for (int32_t iEdgeA = 0; iEdgeA < iCountA; ++iEdgeA)
-		{
-			int32_t iA0 = iStartA + iEdgeA;
-			int32_t iA1 = iStartA + ((iEdgeA + 1) % iCountA);
-			XMFLOAT2 f2A0 = rNavData.vertices.at(iA0);
-			XMFLOAT2 f2A1 = rNavData.vertices.at(iA1);
-
-			for (int32_t iPolyB = iPolyA; iPolyB < iPolygonCount; ++iPolyB)
+			int32_t iStartA = rNavData.polygonOffsets.at(iPolyA);
+			int32_t iEndA = (iPolyA + 1 < iPolygonCount) ? rNavData.polygonOffsets.at(iPolyA + 1) : iVertexCount;
+			int32_t iCountA = iEndA - iStartA;
+			if (iCountA < 2)
 			{
-				int32_t iStartB = rNavData.polygonOffsets.at(iPolyB);
-				int32_t iEndB = (iPolyB + 1 < iPolygonCount) ? rNavData.polygonOffsets.at(iPolyB + 1) : iVertexCount;
-				int32_t iCountB = iEndB - iStartB;
-				if (iCountB < 2)
-				{
-					continue;
-				}
+				continue;
+			}
 
-				int32_t iFirstEdgeB = (iPolyB == iPolyA) ? (iEdgeA + 1) : 0;
-				for (int32_t iEdgeB = iFirstEdgeB; iEdgeB < iCountB; ++iEdgeB)
-				{
-					int32_t iB0 = iStartB + iEdgeB;
-					int32_t iB1 = iStartB + ((iEdgeB + 1) % iCountB);
-					XMFLOAT2 f2B0 = rNavData.vertices.at(iB0);
-					XMFLOAT2 f2B1 = rNavData.vertices.at(iB1);
+			for (int32_t iEdgeA = 0; iEdgeA < iCountA; ++iEdgeA)
+			{
+				int32_t iA0 = iStartA + iEdgeA;
+				int32_t iA1 = iStartA + ((iEdgeA + 1) % iCountA);
+				XMFLOAT2 f2A0 = rNavData.vertices.at(iA0);
+				XMFLOAT2 f2A1 = rNavData.vertices.at(iA1);
 
-					if (SegmentsIntersect(f2A0, f2A1, f2B0, f2B1))
+				for (int32_t iPolyB = iPolyA; iPolyB < iPolygonCount; ++iPolyB)
+				{
+					int32_t iStartB = rNavData.polygonOffsets.at(iPolyB);
+					int32_t iEndB = (iPolyB + 1 < iPolygonCount) ? rNavData.polygonOffsets.at(iPolyB + 1) : iVertexCount;
+					int32_t iCountB = iEndB - iStartB;
+					if (iCountB < 2)
 					{
-						LOG(kNavData, kError, "[DEBUG-nav-crossing] NavData crossing polygon edges: polyA={} edgeA=({}->{}) ({} {})-({} {}) | polyB={} edgeB=({}->{}) ({} {})-({} {})", iPolyA, iA0, iA1, common::Wb(f2A0.x, 4), common::Wb(f2A0.y, 4), common::Wb(f2A1.x, 4), common::Wb(f2A1.y, 4), iPolyB, iB0, iB1, common::Wb(f2B0.x, 4), common::Wb(f2B0.y, 4), common::Wb(f2B1.x, 4), common::Wb(f2B1.y, 4));
-						// [DEBUG-nav-crossing] DEBUG_BREAK();
+						continue;
+					}
+
+					int32_t iFirstEdgeB = (iPolyB == iPolyA) ? (iEdgeA + 1) : 0;
+					for (int32_t iEdgeB = iFirstEdgeB; iEdgeB < iCountB; ++iEdgeB)
+					{
+						int32_t iB0 = iStartB + iEdgeB;
+						int32_t iB1 = iStartB + ((iEdgeB + 1) % iCountB);
+						XMFLOAT2 f2B0 = rNavData.vertices.at(iB0);
+						XMFLOAT2 f2B1 = rNavData.vertices.at(iB1);
+
+						if (SegmentsIntersect(f2A0, f2A1, f2B0, f2B1))
+						{
+							LOG(kNavData, kError, "[DEBUG-nav-crossing] NavData crossing polygon edges: polyA={} edgeA=({}->{}) ({} {})-({} {}) | polyB={} edgeB=({}->{}) ({} {})-({} {})", iPolyA, iA0, iA1, common::Wb(f2A0.x, 4), common::Wb(f2A0.y, 4), common::Wb(f2A1.x, 4), common::Wb(f2A1.y, 4), iPolyB, iB0, iB1, common::Wb(f2B0.x, 4), common::Wb(f2B0.y, 4), common::Wb(f2B1.x, 4), common::Wb(f2B1.y, 4));
+							DEBUG_BREAK();
+						}
 					}
 				}
 			}

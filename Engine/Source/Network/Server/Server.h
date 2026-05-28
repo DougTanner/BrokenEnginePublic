@@ -156,8 +156,6 @@ public:
 	std::vector<ClientConnection>& GetClients() { return mClients; }
 	ClientConnection* FindClient(int64_t iClientId);
 	const ClientConnection* FindClient(int64_t iClientId) const;
-	void BroadcastTimespeedUpdate(int64_t iMultiply, int64_t iDivide);
-	void SendTimespeedUpdate(ENetPeer* pPeer, int64_t iMultiply, int64_t iDivide);
 	void BroadcastLoadNotification();
 	void ClearBufferedFrames();
 
@@ -165,6 +163,7 @@ private:
 
 	void Connect(ENetEvent& rEvent);
 	void Disconnect(ENetEvent& rEvent);
+	void DispatchIncoming(ENetEvent& rEvent);
 	void Receive(ENetEvent& rEvent);
 	void Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer);
 
@@ -178,7 +177,6 @@ private:
 	void ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void ClientResyncRequest(const uint8_t* pData, int64_t iClientId);
-	void ClientTimespeedRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage, const ClientGuid* pGuid);
 	void SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord);
 
@@ -186,6 +184,9 @@ private:
 	const PerCoordBufferedFrame* FindBufferedFrame(GridCoord coord, int64_t iTick) const;
 	int CompressToBuffer(const char* pData, int iSize);
 	void RemoveClient(int64_t iClientId);
+
+	// SendResends helpers
+	void UpdateResendLogState(ClientConnection& rClient, int64_t iSlot, int64_t iSlotResendCount, GridCoord coord);
 
 	ENetHost* mpHost = nullptr;
 	std::vector<ClientConnection> mClients;

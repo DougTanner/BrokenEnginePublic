@@ -17,7 +17,7 @@ int64_t TimeStep::TickRealtime()
 		float fDelta = common::NanosecondsToFloatSeconds<float>(realDeltaNs);
 		if (mAverageDelta.miCount > 200 && fDelta > 1.9f * mAverageDelta.Average())
 		{
-			LOG(kDefault, kWarning, "\n\n\n  deltaNs spike {} > {}", fDelta, mAverageDelta.Average());
+			LOG(kDefault, kWarning, "\n\n\n  deltaNs spike {} > {}", common::Wb(fDelta, 4), common::Wb(mAverageDelta.Average(), 4));
 			static bool sbOnce = false;
 			if (!sbOnce)
 			{

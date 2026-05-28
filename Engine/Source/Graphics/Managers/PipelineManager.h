@@ -14,6 +14,7 @@ enum Pipelines
 	kPipelineShadow,
 	kPipelineShadowBlurH,
 	kPipelineShadowBlurV,
+	kPipelineShadowTemporal,
 	kPipelineShadowElevation,
 
 	kPipelineTerrainElevation,

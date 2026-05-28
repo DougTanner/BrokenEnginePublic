@@ -7,6 +7,8 @@ namespace engine
 
 // Quality / Perf
 extern Wrapper gShadowRenderMultiplier;
+extern Wrapper gShadowTexelRampMetersPerSec;
+extern Wrapper gShadowTemporalBlend;
 
 // Feather
 extern Wrapper gShadowFeatherNoon;

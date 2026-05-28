@@ -27,7 +27,7 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 9. After all previous steps have completed, have Opus subagents do a full audit/review of all the files changed in this session. If possible spread files over multiple subagents if there are logical groupings.
 10. If the subagents in the previous step found any problems that were not automatically fixed, such as architecrual decisions or larger problems out-of-scope of the current plan, have an Opus subagent create plan files in @Documents/Plans
 
-## IMPORTANT directives
+## IMPORTANT Directives
 - Follow KISS, YAGNI, DRY at all times
 - Ambiguity: see `Resolving Ambiguity` above
 - DO NOT run any Git commands
@@ -36,7 +36,6 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 - DO NOT add unit tests
 - **NEVER use float format specs (`{:.Nf}`, `{:f}`, `{:e}`, etc.) in `LOG(...)` — they heap-allocate and trip the main-loop allocation tracker.** Wrap each float arg with `common::Wb(value, precision)` and each `XMVECTOR` arg with `common::WbV2(vec, precision)`; the placeholder stays `{}`. For loop/lambda-driven content, pre-build via `common::ScopedWorkbufferArena builder = rWorkbuffer.Push(); builder.Append(...)` and emit as `LOG(cat, lvl, "{}", builder)`.
 - **Response style**: Stay concise — no pleasantries, hedging, or restating the request. But when the user (or output style) asks for explanation, provide the information fully. Concise ≠ omitting requested content. In code and commit messages: drop articles where natural, fragments fine, technical terms unchanged. Pattern: [thing] [action] [reason]
-- **System-state automation**: Build/setup automation that mutates state outside the repo (cert stores, registry, security settings, install locations, hosts file, system services, global PATH, package-manager-globals) requires (a) explicit consent prompt explaining what+why, (b) persisted answer at a documented location (e.g., `%LOCALAPPDATA%\<App>\…`) so it does not re-prompt every build, (c) decline-safe path that exits 0 and skips the action with no half-completed state, (d) failure exit only on consented-then-action-failed, (e) silent auto-decline in non-interactive contexts (`[Environment]::UserInteractive` or equivalent). Does not apply to repo- or build-output-local files.
 
 ## Directory Structure
 - `/Common/` - Shared utilities (`common::` namespace); `Common.h` is the single aggregation header (included by `Pch.h`) - [CLAUDE.md](Common/CLAUDE.md)
@@ -66,15 +65,17 @@ Rules:
 - Collections with client-only fields use `SharedMembers()` + `ClientMembers()` (client-only, `#ifdef BT_CLIENT`) combined by `Members()` via `std::tuple_cat`; server `Members()` returns `SharedMembers()` only.
 
 ## Key Patterns
-- **Log levels**: `kVerbose` — per-frame / high-frequency. `kDebug` — one-time (startup, connect). `kInfo` — state transitions, important one-shots (default threshold). `kWarning` — investigate (timeouts, desync); may spam. `kError` — failures; always logged- **Managers**: Singletons via `gp*` globals (`gpGraphics`, `gpAudioManager`)
+- **Log levels**: `kVerbose` — per-frame / high-frequency. `kDebug` — one-time (startup, connect). `kInfo` — state transitions, important one-shots (default threshold). `kWarning` — investigate (timeouts, desync); may spam. `kError` — failures; always logged
+- **Managers**: Singletons via `gp*` globals (`gpGraphics`, `gpAudioManager`)
 - **Memory**: RAII everywhere, no manual memory management
 - **DirectX Math**: Prefer aligned versions (`Float4A` not `Float4`)
 	- **XMVECTOR W invariant**: Positions W=1.0; directions / velocities / normals / offsets W=0.0; color alpha defaults 1.0 (opaque)
 	- **Function form, not operators**: `XMVectorAdd`/`Subtract`/`Multiply`/`Divide`/`Scale`/`Negate` — never `vec + vec`, `f * vec`, `-vec`.
 - **Base classes**: Include/use game versions, not Base versions (`Camera.h` not `CameraBase.h`) `game::gpGame` (not GameBase directly)
+- **Engine reading `game::gp*` globals is by design, not a layer violation.** Engine code may dereference `game::gpCamera`/`gpGame`/etc. to read engine-base members; do not file plans to "inject" or "decouple". Real violations are engine *types* naming game concepts (e.g., `engine::PacketType` enumerator only the game uses, engine class `friend`-ed to a game class) — those are worth fixing.
 - **Workbuffer**: Use `gpThreadLocal->mWorkbuffer` for temp allocations instead of local `std::vector`/`std::string`. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Allocation tracking**: Heap allocations in the main loop trigger `DEBUG_BREAK()`. When unavoidable, wrap with `ScopedSuppressAllocationTracking` + `// Heap:` comment. See [Memory/CLAUDE.md](Engine/Source/Memory/CLAUDE.md)
-- **LOG formatting**: See the NEVER directive under *IMPORTANT directives* above. Arena-builder note: `common::ScopedWorkbufferArena` has its own `std::formatter` specialization that emits `View()` — so `LOG(cat, lvl, "{}", builder)` works directly without calling `builder.View()` at the call site.
+- **LOG formatting**: See the NEVER directive under *Directives* above. Arena-builder note: `common::ScopedWorkbufferArena` has its own `std::formatter` specialization that emits `View()` — so `LOG(cat, lvl, "{}", builder)` works directly without calling `builder.View()` at the call site.
 - **Standard library headers**: `#include <header>` additions go in `Common/ExternalHeaders.h`, not in individual source files
 - **Flags over booleans**: Use `common::Flags<EnumType>` instead of multiple `bool` variables. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/CLAUDE.md](Common/CLAUDE.md)

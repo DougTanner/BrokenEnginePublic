@@ -108,7 +108,7 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	static void Transfer(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 	static void Destroy(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 	static void Spawn(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
-	static void Explode(Frame& __restrict rFrame, int64_t i, bool bDirectional);
+	static void Explode(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData, int64_t i, bool bDirectional);
 
 	MissileFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;

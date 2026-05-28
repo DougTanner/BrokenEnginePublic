@@ -1,14 +1,13 @@
 # /Engine/Source/Frame/Collections/WindTrails/
 
-Client-only directional wind-simulation quads rendered from previous-to-current position.
+Client-only directional wind-deposit quads, each oriented from a trail's previous render position to its current one. Sync pattern (parent owns lifetime).
 
 ## Unique Aspects
 
-- Previous-position history lives in file-scope statics keyed by trail ID (render-only, out of dual-buffered frame data)
-- Each trail renders an oriented quad from base-height-projected previous position to current; perpendicular is `cross(dir, worldZ)` so quads lie flat in XY at base height
-- A/B ping-pong wind-deposit pipelines share one dynamic quad buffer; indirect draw count written only to the side matching the active wind texture, the other receives 0
-- `Render()` takes an extra `uiFrameId` parameter (excluded from `InterpolateRenderTypes`, invoked separately in the render pipeline)
-- Early-outs when wind setting disabled
+- Each trail builds one flat XY quad at base height spanning previous→current position; perpendicular for width is `cross(dir, worldZ)`. The previous→current vector is scaled by a per-trail length multiplier (shrinks/stretches the deposited streak), and trails with negligible motion or that fail visibility culling are skipped.
+- Quads write into a shared dynamic `shaders::QuadLayout` buffer feeding two ping-pong wind-deposit pipelines (A/B). `EndRender` writes the indirect draw count only to the side matching the active wind texture; the other side gets 0.
+- `Render()` carries an extra `uiFrameId` parameter so it is excluded from the auto-generated `InterpolateRenderTypes` walk.
+- Whole pipeline early-outs when the wind setting is disabled; `ResetRenderState()` clears cached previous positions on world reset.
 
 ## See Also
-- [../CLAUDE.md](../CLAUDE.md) - Collection framework, Sync/render-state patterns
+- [../CLAUDE.md](../CLAUDE.md) - Collection framework, Sync pattern, render-only previous-position statics, GPU three-phase render

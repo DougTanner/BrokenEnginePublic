@@ -5,7 +5,8 @@ AI-controlled enemy spaceships with health, weapons, freeze time, and per-instan
 ## Game-Specific Behavior
 
 - **Sizing**: `kfSpaceshipRadius` is the single source of truth for body size; pusher, explosions, blaster, target, hit-flash, terrain displacement, and model scale all derive from it.
-- **AI targeting hierarchy**: Return-to-island-center (per-cell) > flee-from-player (with hysteresis) > chase nearest alive player. Steering uses two-stage exponential decay, clamped to max turn rate after terrain bounce and terrain avoidance.
+- **AI targeting hierarchy**: Return-to-island-center > flee-from-player (with hysteresis) > chase nearest alive player. Island center is the *nearest* per-cell island placement, not a fixed point. Steering uses two-stage exponential decay, clamped to max turn rate after terrain bounce and terrain avoidance.
+- **Two damage paths**: Direct hits from player blasters land via the collision system (PreCollision registers a layer, PostCollision reads results); missile splash lands via the `AreaDamage` phase. Health regenerates while far from the nearest player. Reaching zero health begins a death sequence (knockback opposite the damage direction, staggered explosions over the destroyed-time countdown).
 - **Freeze time**: While frozen, `Interpolate::Update` skips velocity integration; Render emits an additive warm-red color ramped by remaining freeze duration.
 - **Destroyed-time sentinel**: `-1.0f` alive, `> 0.0f` counting through death animation, `== 0.0f` Destroy-eligible.
 - **Static PostRender fields**: Damage directions and alignments are `memcpy`'d in `AllocateAndCopy` and written only at state transitions (exempt from unconditional-store rule).

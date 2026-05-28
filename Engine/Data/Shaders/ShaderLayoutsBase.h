@@ -145,6 +145,14 @@ CONSTEXPR int kiDebugTextureFormatTerrainElevation = 8;
 
 CONSTEXPR int kiShadowTextureExecutionSize = 64;
 
+// Terrain-shadow visible-window margins. The shadow texture is pre-sized to cover the reference eye
+// height; only the centered visible window (+ margin) is ray-marched/blurred (Shadow.comp / ShadowBlur*).
+// kiShadowWindowMargin = 2*radius (two separable blur passes each read +/- radius) + 2 (the consumer's
+// bilinear footprint + texel-snap reach beyond the window edge), so the visible window samples only
+// current-frame, fully-blurred texels.
+CONSTEXPR int kiShadowBlurRadius = 5;
+CONSTEXPR int kiShadowWindowMargin = 2 * kiShadowBlurRadius + 2;
+
 CONSTEXPR int kiComputeTileSize = 8;
 CONSTEXPR int kiOccupancyDilateGroupSize = 256;
 CONSTEXPR int kiParticleUpdateGroupSize = 32;
@@ -173,6 +181,7 @@ struct GlobalLayout
 	vec4 f4VisibleArea INIT;
 	vec4 f4ShadowArea INIT;
 	vec4 f4ShadowAreaExtra INIT;
+	vec4 f4ShadowAreaPrevious INIT; // Previous-frame f4ShadowArea, for ShadowTemporal.comp reprojection
 
 	vec4 f4SunMoonNormal INIT;
 	vec4 f4SunColor INIT;
@@ -321,6 +330,11 @@ struct GlobalLayout
 	float fWaterReducedNoiseOriginY INIT;
 	int32_t iShadowTextureWidth INIT;
 	int32_t iShadowTextureHeight INIT;
+	int32_t iShadowVisibleMinX INIT;
+	int32_t iShadowVisibleMinY INIT;
+	int32_t iShadowVisibleMaxX INIT;
+	int32_t iShadowVisibleMaxY INIT;
+	float fShadowTemporalBlend INIT; // ShadowTemporal.comp: weight of the current frame (1.0 = no history)
 
 	// Terrain. Heightmap pixels carry absolute meters directly — fIslandHeight / fWaterDepth
 	// scale factors retired with the meters-everywhere refactor.

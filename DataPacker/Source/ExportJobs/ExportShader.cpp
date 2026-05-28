@@ -132,22 +132,32 @@ bool ExportShader::CheckDirty(const std::filesystem::path& rPackFile)
 	return mbDirty;
 }
 
-void WriteBinding(VkDescriptorSetLayoutBinding* pBindings, uint32_t* pSetIndices, int64_t iBinding, uint32_t uiSet, VkDescriptorType vkDescriptorType, int64_t iDescriptorCount, common::ChunkFlags_t chunkFlags)
+// In-progress binding-table state shared by every CollectBindings call for one shader.
+// All four members refer to caller-owned storage; riBindingCount is mutated as bindings land.
+struct BindingTable
+{
+	VkDescriptorSetLayoutBinding* pBindings;
+	uint32_t* pSetIndices;
+	int64_t& riBindingCount;
+	common::ChunkFlags_t chunkFlags;
+};
+
+void WriteBinding(BindingTable& rTable, int64_t iBinding, uint32_t uiSet, VkDescriptorType vkDescriptorType, int64_t iDescriptorCount)
 {
 	ASSERT(iBinding < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
-	VkDescriptorSetLayoutBinding& rVkDescriptorSetLayoutBinding = pBindings[iBinding];
+	VkDescriptorSetLayoutBinding& rVkDescriptorSetLayoutBinding = rTable.pBindings[iBinding];
 	rVkDescriptorSetLayoutBinding.binding = static_cast<uint32_t>(iBinding);
 	rVkDescriptorSetLayoutBinding.descriptorType = vkDescriptorType;
 	rVkDescriptorSetLayoutBinding.descriptorCount = static_cast<uint32_t>(iDescriptorCount);
-	rVkDescriptorSetLayoutBinding.stageFlags = chunkFlags & kCompute ? VK_SHADER_STAGE_COMPUTE_BIT : (chunkFlags & kFragment ? VK_SHADER_STAGE_FRAGMENT_BIT : VK_SHADER_STAGE_VERTEX_BIT);
+	rVkDescriptorSetLayoutBinding.stageFlags = rTable.chunkFlags & kCompute ? VK_SHADER_STAGE_COMPUTE_BIT : (rTable.chunkFlags & kFragment ? VK_SHADER_STAGE_FRAGMENT_BIT : VK_SHADER_STAGE_VERTEX_BIT);
 	rVkDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-	pSetIndices[iBinding] = uiSet;
+	rTable.pSetIndices[iBinding] = uiSet;
 }
 
 // Enumerates one SPIRV-Cross resource category, writing a descriptor binding per resource.
 // countFn maps the reflected type to a descriptor count (constant for buffers/samplers, array-derived for images).
 template <typename COUNT_FN>
-void CollectBindings(const spirv_cross::SmallVector<spirv_cross::Resource>& rResources, const char* pcLabel, VkDescriptorType vkDescriptorType, spirv_cross::Compiler& rCompiler, VkDescriptorSetLayoutBinding* pBindings, uint32_t* pSetIndices, int64_t& riBindingCount, common::ChunkFlags_t chunkFlags, COUNT_FN&& countFn)
+void CollectBindings(const spirv_cross::SmallVector<spirv_cross::Resource>& rResources, const char* pcLabel, VkDescriptorType vkDescriptorType, spirv_cross::Compiler& rCompiler, BindingTable& rTable, COUNT_FN&& countFn)
 {
 	if (rResources.empty())
 	{
@@ -167,12 +177,23 @@ void CollectBindings(const spirv_cross::SmallVector<spirv_cross::Resource>& rRes
 			LOG(kDefault, kVerbose,"   Array size: {}", rSpirvType.array[0]);
 		}
 
-		WriteBinding(pBindings, pSetIndices, iBinding, uiSet, vkDescriptorType, countFn(rSpirvType), chunkFlags);
-		riBindingCount = std::max(iBinding + 1, riBindingCount);
+		WriteBinding(rTable, iBinding, uiSet, vkDescriptorType, countFn(rSpirvType));
+		rTable.riBindingCount = std::max(iBinding + 1, rTable.riBindingCount);
 	}
 }
 
 void ExportShader::Export()
+{
+	std::filesystem::path preProcessedFile = PreprocessShader();
+	std::filesystem::path spirvFile = CompileShader(preProcessedFile);
+	if constexpr (kbOptimizeShaders)
+	{
+		spirvFile = OptimizeShader(spirvFile);
+	}
+	ReflectAndWriteShader(spirvFile);
+}
+
+std::filesystem::path ExportShader::PreprocessShader()
 {
 	// glslc.exe is glslangValidator.exe but with support for #include
 	// We're only going to use it to pre-process the shader to bake in include files
@@ -226,15 +247,19 @@ void ExportShader::Export()
 	mIntermediateFiles.push_back(preProcessedFile);
 	VERIFY_SUCCESS(std::filesystem::exists(preProcessedFile));
 
-	// Compile the pre-processed file to Spirv
+	return preProcessedFile;
+}
+
+std::filesystem::path ExportShader::CompileShader(const std::filesystem::path& rPreProcessedFile)
+{
 	std::filesystem::path glslangValidatorExecutable(GetVulkanSdkBinariesDirectory());
 	glslangValidatorExecutable.append("glslangValidator.exe");
 
-	std::filesystem::path spirvFile(preProcessedFile);
+	std::filesystem::path spirvFile(rPreProcessedFile);
 	spirvFile += ".spv";
 	std::filesystem::remove(spirvFile);
 
-	commandLineParameters = L"";
+	std::wstring commandLineParameters = L"";
 	if constexpr (kbOptimizeShaders)
 	{
 		// Optimization is enabled by default
@@ -249,16 +274,16 @@ void ExportShader::Export()
 	commandLineParameters += L" --target-env vulkan1.2"; // Also update VK_API_VERSION_1_2 in engine
 	// commandLineParameters += L" -t";   // Multi-threaded
 	commandLineParameters += L" -o \"" + spirvFile.native() + L"\"";
-	commandLineParameters += L" \"" + preProcessedFile.native() + L"\"";
+	commandLineParameters += L" \"" + rPreProcessedFile.native() + L"\"";
 
-	log = std::to_wstring(common::gpThreadLocal->miThreadId.value_or(0));
+	std::wstring log = std::to_wstring(common::gpThreadLocal->miThreadId.value_or(0));
 	log += L": ";
 	log += glslangValidatorExecutable.native();
 	log += commandLineParameters;
 	log += L"\n";
 	OutputDebugStringW(log.c_str());
 
-	result = common::RunExecutable(glslangValidatorExecutable, commandLineParameters);
+	common::ExecutableResult result = common::RunExecutable(glslangValidatorExecutable, commandLineParameters);
 	if (result.miExitCode != 0 || !std::filesystem::exists(spirvFile))
 	{
 		throw std::runtime_error(std::format("glslangValidator.exe error: {}", result.mOutput));
@@ -270,46 +295,52 @@ void ExportShader::Export()
 
 	mIntermediateFiles.push_back(spirvFile);
 
-	if constexpr (kbOptimizeShaders)
+	return spirvFile;
+}
+
+std::filesystem::path ExportShader::OptimizeShader(const std::filesystem::path& rSpirvFile)
+{
+	// Run spirv-opt on the compiled SPIR-V
+	std::filesystem::path spirvOptExecutable(GetVulkanSdkBinariesDirectory());
+	spirvOptExecutable.append("spirv-opt.exe");
+
+	std::filesystem::path optimizedSpirvFile(rSpirvFile);
+	optimizedSpirvFile += ".opt.spv";
+	std::filesystem::remove(optimizedSpirvFile);
+
+	std::wstring spirvOptCommandLineParameters = L"";
+	spirvOptCommandLineParameters += L" -O";
+	spirvOptCommandLineParameters += L" --target-env=vulkan1.2";
+	spirvOptCommandLineParameters += L" --scalar-block-layout";
+	spirvOptCommandLineParameters += L" -o \"" + optimizedSpirvFile.native() + L"\"";
+	spirvOptCommandLineParameters += L" \"" + rSpirvFile.native() + L"\"";
+
+	std::wstring log = std::to_wstring(common::gpThreadLocal->miThreadId.value_or(0));
+	log += L": ";
+	log += spirvOptExecutable.native();
+	log += spirvOptCommandLineParameters;
+	log += L"\n";
+	OutputDebugStringW(log.c_str());
+
+	common::ExecutableResult result = common::RunExecutable(spirvOptExecutable, spirvOptCommandLineParameters);
+	if (result.miExitCode != 0 || !std::filesystem::exists(optimizedSpirvFile))
 	{
-		// Run spirv-opt on the compiled SPIR-V
-		std::filesystem::path spirvOptExecutable(GetVulkanSdkBinariesDirectory());
-		spirvOptExecutable.append("spirv-opt.exe");
-
-		std::filesystem::path optimizedSpirvFile(spirvFile);
-		optimizedSpirvFile += ".opt.spv";
-		std::filesystem::remove(optimizedSpirvFile);
-
-		std::wstring spirvOptCommandLineParameters = L"";
-		spirvOptCommandLineParameters += L" -O";
-		spirvOptCommandLineParameters += L" --target-env=vulkan1.2";
-		spirvOptCommandLineParameters += L" --scalar-block-layout";
-		spirvOptCommandLineParameters += L" -o \"" + optimizedSpirvFile.native() + L"\"";
-		spirvOptCommandLineParameters += L" \"" + spirvFile.native() + L"\"";
-
-		log = std::to_wstring(common::gpThreadLocal->miThreadId.value_or(0));
-		log += L": ";
-		log += spirvOptExecutable.native();
-		log += spirvOptCommandLineParameters;
-		log += L"\n";
-		OutputDebugStringW(log.c_str());
-
-		result = common::RunExecutable(spirvOptExecutable, spirvOptCommandLineParameters);
-		if (result.miExitCode != 0 || !std::filesystem::exists(optimizedSpirvFile))
-		{
-			throw std::runtime_error(std::format("spirv-opt.exe error: {}", result.mOutput));
-		}
-		if (!result.mOutput.empty())
-		{
-			LOG(kDefault, kWarning, "spirv-opt.exe output: {}", result.mOutput);
-		}
-
-		spirvFile = optimizedSpirvFile;
-		mIntermediateFiles.push_back(optimizedSpirvFile);
+		throw std::runtime_error(std::format("spirv-opt.exe error: {}", result.mOutput));
+	}
+	if (!result.mOutput.empty())
+	{
+		LOG(kDefault, kWarning, "spirv-opt.exe output: {}", result.mOutput);
 	}
 
+	mIntermediateFiles.push_back(optimizedSpirvFile);
+
+	return optimizedSpirvFile;
+}
+
+void ExportShader::ReflectAndWriteShader(const std::filesystem::path& rSpirvFile)
+{
 	// Read SPIR-V into temporary buffer for reflection
-	std::vector<std::byte> spirvData = common::ReadEntireFile(spirvFile);
+	std::vector<std::byte> spirvData = common::ReadEntireFile(rSpirvFile);
 	int64_t iSpirvFileBytes = static_cast<int64_t>(spirvData.size());
 
 	// Reflect into local stack arrays
@@ -366,12 +397,13 @@ void ExportShader::Export()
 	// Runtime-sized arrays (unsized) report array[0] == 0; use UINT32_MAX sentinel for pipeline to resolve
 	auto runtimeArrayCount = [](const spirv_cross::SPIRType& rType) -> int64_t { return rType.array.empty() ? 1 : (rType.array[0] == 0 ? std::numeric_limits<uint32_t>::max() : rType.array[0]); };
 
-	CollectBindings(shaderResources.uniform_buffers, "Uniform buffers:", VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, spirvCrossCompiler, tempBindings, tempSetIndices, iBindingCount, mChunkFlags, constantOne);
-	CollectBindings(shaderResources.storage_buffers, "Storage buffers:", VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, spirvCrossCompiler, tempBindings, tempSetIndices, iBindingCount, mChunkFlags, arrayCount);
-	CollectBindings(shaderResources.sampled_images, "Sampled images:", VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, spirvCrossCompiler, tempBindings, tempSetIndices, iBindingCount, mChunkFlags, arrayCount);
-	CollectBindings(shaderResources.storage_images, "Storage images:", VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, spirvCrossCompiler, tempBindings, tempSetIndices, iBindingCount, mChunkFlags, arrayCount);
-	CollectBindings(shaderResources.separate_images, "Separate images:", VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, spirvCrossCompiler, tempBindings, tempSetIndices, iBindingCount, mChunkFlags, runtimeArrayCount);
-	CollectBindings(shaderResources.separate_samplers, "Separate samplers:", VK_DESCRIPTOR_TYPE_SAMPLER, spirvCrossCompiler, tempBindings, tempSetIndices, iBindingCount, mChunkFlags, constantOne);
+	BindingTable bindingTable {.pBindings = tempBindings, .pSetIndices = tempSetIndices, .riBindingCount = iBindingCount, .chunkFlags = mChunkFlags};
+	CollectBindings(shaderResources.uniform_buffers, "Uniform buffers:", VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, spirvCrossCompiler, bindingTable, constantOne);
+	CollectBindings(shaderResources.storage_buffers, "Storage buffers:", VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, spirvCrossCompiler, bindingTable, arrayCount);
+	CollectBindings(shaderResources.sampled_images, "Sampled images:", VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, spirvCrossCompiler, bindingTable, arrayCount);
+	CollectBindings(shaderResources.storage_images, "Storage images:", VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, spirvCrossCompiler, bindingTable, arrayCount);
+	CollectBindings(shaderResources.separate_images, "Separate images:", VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, spirvCrossCompiler, bindingTable, runtimeArrayCount);
+	CollectBindings(shaderResources.separate_samplers, "Separate samplers:", VK_DESCRIPTOR_TYPE_SAMPLER, spirvCrossCompiler, bindingTable, constantOne);
 
 	// Allocate data span: [bindings ALIGN16] [setIndices ALIGN16] [attrs ALIGN16] [SPIR-V]
 	int64_t iBindingsBytes = common::RoundUp<int64_t, common::kiAlignmentBytes>(iBindingCount * static_cast<int64_t>(sizeof(VkDescriptorSetLayoutBinding)));

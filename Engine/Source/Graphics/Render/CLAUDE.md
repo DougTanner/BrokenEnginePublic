@@ -2,15 +2,29 @@
 
 ## Overview
 
-Per-subsystem files populate host-visible uniform buffers each frame before command buffer submission. Each file owns a region of `GlobalLayout` or `MainLayout`. Client-only.
+Per-subsystem files populate the host-visible `GlobalLayout` / `MainLayout` uniform buffers each frame before command-buffer submission (the per-frame state path the parent's CB re-record ban mandates). Each file owns a region of one layout. `RenderFrameGlobal` / `RenderFrameMain` are the two entry points the render loop calls. Client-only.
+
+Author-facing tunables read through `g*` wrapper `Get()` accessors; almost all population is a flat copy of slider values, with the non-trivial work being day-cycle derivation, camera-relative precision reduction, and per-LOD draw setup described below.
 
 Ownership exception: a downstream pass may zero a count field already written by the upstream pass when its own amplitude-style scale clamps to zero and it has skipped writing the matching array region — this short-circuits the shader's per-element loop without uploading garbage. Both writes (count and per-element array) must be co-gated in the same file.
 
 ## Ordering Contract
 
-- Global pass before main pass: main reads `fElapsedTime` from the populated GlobalLayout.
-- Within global: Smoke before Wind (wind shares smoke's dynamic world-area / previous-area state).
+- Global pass before main pass: main reads `fElapsedTime` from the populated GlobalLayout (wave phase reduction).
+- Within global: Smoke before Wind. Wind reads (does not write) the smoke world-area / previous-area uniforms, so smoke must populate them first.
 - Main pass: camera coord rendered first so it lands at index 0; debug render gated by `if constexpr (kbDebugRender)`.
+
+## Main Pass Phases
+
+`RenderFrameMain` drives the collection draw pipeline in fixed order: `BeginRender` (compute capacities, resize GPU buffers, reset counters) → per-coord `Render` (camera first for index-0 stability) → `EndRender` (write indirect-draw counts) → debug overlays. It also selects the camera's visible-area LOD and writes the water / water-skybox indirect-draw ranges plus the paired active-quad dims consumed in lockstep by the displacement compute pre-pass and the water vertex shader's `texelFetch`. Camera matrices (with Perlin camera shake folded into the view-projection), Gerstner wave params, and hex-shield uniforms are written last.
+
+## Day Cycle
+
+The global pass resolves a single sun angle into the full lighting/shadow/water look CPU-side: a piecewise sun/moon color and ambient ramp across morning/noon/evening/night, independent night-gate envelopes for shadows vs. moon color, and shadow feather / stretch / direction terms. Only resolved floats reach the shader — no day-fraction logic lives shader-side.
+
+## Debug Overlays
+
+`kbDebugRender`-gated line/circle overlays for coord-frame edges, island placement boundaries, island valid-area hulls (drawn at the underwater mask depth so terrain never occludes them), and navigation polygon/vertex data; positions come from the fully-interpolated frame.
 
 ## Camera-Relative Double Precision
 
@@ -18,9 +32,10 @@ CPU computes phase / UV origins in `double`, `std::fmod` reduces to a small modu
 
 ## World-Area Uniforms
 
-`GlobalLayout` exposes several world-area extents consumed by fullscreen / RT passes:
-- `f4VisibleArea` — tracks the camera each frame; drives the water vertex grid and visible-area RT pixel-to-world mapping. Also anchors the water displacement and Jacobian-normal textures (baked once per frame by the displacement compute pre-pass) since they sample at the same per-meter-snapped resolution as the visible grid. The active LOD's quad count is uploaded as a paired field consumed by both the compute dispatch and the vertex shader's `texelFetch`.
-- `f4LightingArea` — LOD-stable + texel-snap anchor for the lighting / ambient composite RTs; pixel-to-world stays bit-identical within an `iLod`. This pattern is appropriate for low-frequency content (lighting) but does NOT suit the water displacement / normal textures — those align to the visible grid, not a stable LOD anchor.
+The global pass writes the three world-area extents the shaders sample against; the snap-grid / LOD-stability rationale behind them lives in the parent's CameraBase section, not here:
+- `f4VisibleArea` — the camera's snapped render-visible rectangle. Anchors the water vertex grid and the water displacement / Jacobian-normal textures, which sample at the same per-meter-snapped resolution.
+- `f4LightingArea` — texel-snapped origin over the *continuous* visible size for the lighting / ambient composite RTs. The displacement / normal textures align to the visible grid, not this composite anchor.
+- `f4ShadowArea` / `f4ShadowAreaExtra` — the camera-centered texel footprint, snapped to the shadow texel grid (integer-texel XY pan). Texel world size derives from the analytic straight-down frustum at `game::Camera::kfEyeHeightMaxReference` (the height the shadow texture is pre-sized for), then scaled by the camera's rate-limited shadow-texel reference height: at a **settled** eye height it is fixed, so the grid snaps cleanly under pan with no pop or shimmer; while a zoom is tracked the height ramps and the texels rescale on an imperceptibly slow crawl. Each frame also writes a centered visible sub-window in texels (`iShadowVisibleMinX/MinY/MaxX/MaxY`) — only that window (plus a `kiShadowWindowMargin` blur border) is ray-marched/blurred; when zoomed out and settled the coarser texels shrink that window back toward the default-height count (recovering GPU cost), while a fast zoom-out that outruns the ramp `std::min`-clamps the window to the texture so coverage is never lost. Beyond the reference height the coverage crops on screen. The `Extra` variant extends a half-width on the sun side to cover the 1.5x-wider elevation texture. The prior frame's footprint is also written (`f4ShadowAreaPrevious`) to feed the temporal-accumulation pass, which reprojects history into the current grid by world position to de-flicker the texel ramp (same previous-area pattern as smoke/wind).
 
 ## Camera-Height-Conditional Uniforms
 

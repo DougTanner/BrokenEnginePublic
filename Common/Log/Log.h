@@ -2,7 +2,7 @@
 
 #include "LogTypes.h"
 #include "LogFormatters.h"
-#include "ThreadLocal.h"
+#include "Threading/ThreadLocal.h"
 
 namespace common
 {

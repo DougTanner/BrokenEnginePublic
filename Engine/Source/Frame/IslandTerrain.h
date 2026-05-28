@@ -9,6 +9,8 @@
 namespace engine
 {
 
+struct FrameStaticData;
+
 // Islands adopt 1 m = 1 engine unit. The rest of the engine (player radius, base
 // flying height, cell-derived camera ranges, etc.) still runs in unit-less units;
 // a future pass converts the whole engine to meters and drops this constant.
@@ -116,8 +118,26 @@ public:
 
 	void WaitForElevationMaps(float fNavThreshold);
 
-	float XM_CALLCONV GlobalElevation(FXMVECTOR vecPosition) const;
-	XMVECTOR XM_CALLCONV GlobalNormal(FXMVECTOR vecPosition) const;
+	// Sim path (Frame-tick callers). Cell-local O(1) nearest-texel lookup into the cell's
+	// precomputed FrameStaticData::elevationGrid. Out-of-cell positions return mfSeaFloorElevation.
+	// Honors the Frame Purity Constraint: the caller hands its own static data in, so this never
+	// touches gpGame->mCoordFrames and never reads a neighbor cell. Builds happen at the top of
+	// RunFrameTick (see FrameTick.cpp), before any sim phase that would query.
+	[[nodiscard]] float XM_CALLCONV FrameElevation(const FrameStaticData& rStaticData, FXMVECTOR vecPosition) const;
+	[[nodiscard]] XMVECTOR XM_CALLCONV FrameNormal(const FrameStaticData& rStaticData, FXMVECTOR vecPosition) const;
+
+	// Build the cell's elevation grid by splatting each placement's heightmap into the per-cell
+	// float grid (max-blend across overlapping footprints, matching the per-point semantics of
+	// GlobalElevation). Allocates rOutGrid.assign(kDim*kDim, mfSeaFloorElevation) and then
+	// stamps each island. Called once per cell at the top of RunFrameTick when the grid is empty.
+	void XM_CALLCONV BuildElevationGrid(GridCoord coord, const std::vector<IslandPlacement>& rPlacements, std::vector<float>& rOutGrid) const;
+
+	// Render path (engine client — ProjectToBaseHeight). Position-based iteration over
+	// mCoordFrames' immutable islands list. Never touches the per-cell grid, so it never races
+	// the tick-time build. MUST NOT be called from Frame-tick code; use FrameElevation/FrameNormal
+	// from a Frame-tick context.
+	[[nodiscard]] float XM_CALLCONV GlobalElevation(FXMVECTOR vecPosition) const;
+	[[nodiscard]] XMVECTOR XM_CALLCONV GlobalNormal(FXMVECTOR vecPosition) const;
 
 #if defined(BT_CLIENT)
 	// Create each template's GPU mesh buffer from the CPU pointers set by WaitForElevationMaps.

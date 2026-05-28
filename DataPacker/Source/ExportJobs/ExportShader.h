@@ -38,5 +38,14 @@ protected:
 	void Export() override;
 	void CleanupOnFailure() override;
 
+private:
+
+	std::filesystem::path PreprocessShader();
+	std::filesystem::path CompileShader(const std::filesystem::path& rPreProcessedFile);
+	std::filesystem::path OptimizeShader(const std::filesystem::path& rSpirvFile);
+	void ReflectAndWriteShader(const std::filesystem::path& rSpirvFile);
+
+protected:
+
 	std::vector<std::filesystem::path> mIntermediateFiles;
 };

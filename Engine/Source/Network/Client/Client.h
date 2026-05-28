@@ -134,6 +134,7 @@ public:
 
 private:
 
+	void DispatchIncoming(ENetEvent& rEvent);
 	void Receive(ENetEvent& rEvent);
 	void Receive(const uint8_t* pData, size_t iSize);
 	void ServerCoordFullState(const uint8_t* pData, size_t iSize);
@@ -143,7 +144,6 @@ private:
 	void ServerConnectionResponse(const uint8_t* pData, size_t iSize);
 	void ServerSubscribeAccept(const uint8_t* pData, size_t iSize);
 	void ServerUnsubscribeAck(const uint8_t* pData, size_t iSize);
-	void ServerTimespeedUpdate(const uint8_t* pData, size_t iSize);
 	void SendHello();
 
 	enum class FullStateFlags : uint8_t

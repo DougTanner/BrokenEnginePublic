@@ -18,6 +18,15 @@ void main()
 	uint x = gl_GlobalInvocationID.x;
 	uint y = gl_GlobalInvocationID.y;
 
+	// Only the centered visible window (+ kiShadowWindowMargin) is ray-marched; outside writes the
+	// unshadowed lit value (same as an in-window unshadowed texel) so the blur reads consistent edges.
+	if (int(x) < globalLayout.iShadowVisibleMinX - kiShadowWindowMargin || int(x) >= globalLayout.iShadowVisibleMaxX + kiShadowWindowMargin ||
+	    int(y) < globalLayout.iShadowVisibleMinY - kiShadowWindowMargin || int(y) >= globalLayout.iShadowVisibleMaxY + kiShadowWindowMargin)
+	{
+		imageStore(shadowTexture, ivec2(x, y), vec4(globalLayout.fShadowMoonMultiplier, 0.0, 0.0, 0.0));
+		return;
+	}
+
 	vec2 f2InvElevationSize = 1.0f / vec2(globalLayout.fShadowElevationTextureSizeWidth, globalLayout.fShadowElevationTextureSizeHeight);
 
 	float fElevation = max(textureLod(elevationTextureSampler, vec2(float(x) + float(globalLayout.iShadowStartOffset), float(y)) * f2InvElevationSize, 0.0f).x, 0.0f);

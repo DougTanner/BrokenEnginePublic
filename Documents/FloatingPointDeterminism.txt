@@ -47,7 +47,7 @@ Every thread sets the MXCSR control register to:
 This happens in the ThreadLocal constructor, which runs on every
 thread: main, worker pool, reconcile, persistent workers.
 
-File: Common/ThreadLocal.cpp
+File: Common/Determinism.cpp  (ConfigureThreadFloatingPoint(), called from the ThreadLocal constructor)
   _controlfp_s(&uiCurrentState, _DN_FLUSH | _RC_NEAR, _MCW_DN | _MCW_RC);
 
 A debug assertion in RunFrameTick verifies MXCSR has not been
@@ -86,7 +86,7 @@ calculations, ensuring any divergence is immediately detected.
 
 No time-based or hardware-based seeding occurs in simulation paths.
 
-File: Common/Random.h
+File: Common/Math/Random.h
 
 
 7. Container Iteration Safety

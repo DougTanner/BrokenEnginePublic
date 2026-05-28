@@ -3,6 +3,16 @@
 namespace common
 {
 
+// Converts nanosecond durations to floating-point seconds
+// Used for delta time calculations in the game loop
+// Parameters: nanoseconds - Duration to convert, FLOAT_TYPE - Target floating-point type (float or double)
+// Returns: Time in seconds as specified floating-point type
+template<typename FLOAT_TYPE>
+constexpr FLOAT_TYPE NanosecondsToFloatSeconds(std::chrono::nanoseconds nanoseconds)
+{
+	return std::chrono::duration_cast<std::chrono::duration<FLOAT_TYPE, std::ratio<1, 1>>>(nanoseconds).count();
+}
+
 class Timer
 {
 	static_assert(std::chrono::high_resolution_clock::is_steady);

@@ -106,25 +106,7 @@ void Client::Poll()
 				LOG(kNetwork, kInfo, "ENET_EVENT_TYPE_DISCONNECT");
 				break;
 			case ENET_EVENT_TYPE_RECEIVE:
-				if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
-				{
-					if (game::gpGame->mTimeStep.miTimeMultiply > 1)
-					{
-						Receive(event);
-						enet_packet_destroy(event.packet);
-					}
-					else
-					{
-						constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
-						NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, event,
-							[this](ENetEvent& rEvent) { Receive(rEvent); });
-					}
-				}
-				else
-				{
-					Receive(event);
-					enet_packet_destroy(event.packet);
-				}
+				DispatchIncoming(event);
 				break;
 			case ENET_EVENT_TYPE_NONE:
 				break;
@@ -155,6 +137,29 @@ void Client::Poll()
 	mBytesOutPerSecond.Set(static_cast<int64_t>(uiSentData - muiPrevSentData));
 	muiPrevReceivedData = uiReceivedData;
 	muiPrevSentData = uiSentData;
+}
+
+void Client::DispatchIncoming(ENetEvent& rEvent)
+{
+	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
+	{
+		if (game::gpGame->mTimeStep.miTimeMultiply > 1)
+		{
+			Receive(rEvent);
+			enet_packet_destroy(rEvent.packet);
+		}
+		else
+		{
+			constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
+			NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, rEvent,
+				[this](ENetEvent& rInner) { Receive(rInner); });
+		}
+	}
+	else
+	{
+		Receive(rEvent);
+		enet_packet_destroy(rEvent.packet);
+	}
 }
 
 void Client::Receive(ENetEvent& rEvent)
@@ -196,9 +201,6 @@ void Client::Receive(const uint8_t* pData, size_t iSize)
 			break;
 		case PacketType::kServerUnsubscribeAck:
 			ServerUnsubscribeAck(pData, iSize);
-			break;
-		case PacketType::kServerTimespeedUpdate:
-			ServerTimespeedUpdate(pData, iSize);
 			break;
 		case PacketType::kServerLoadNotification:
 			mbLoadNotificationReceived = true;

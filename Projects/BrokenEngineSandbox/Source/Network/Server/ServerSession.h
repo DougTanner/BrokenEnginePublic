@@ -37,6 +37,8 @@ public:
 	void ParseReceivedGamePackets();
 	void SendAssignPlayer(int64_t iClientId, engine::global_id_t globalId, engine::GridCoord coord);
 	void SendPlayerState(int64_t iClientId, PlayerStateWireType eWireType, int64_t iGlobalPlayerId, engine::GridCoord coord);
+	void BroadcastTimespeedIfChanged();
+	void SendTimespeedToNewClient(ENetPeer* pPeer);
 	void SubscriptionUpdates(int64_t iTick);
 	void HandleResyncRequests(int64_t iTick);
 	void ResetClientsForLoad();
@@ -57,6 +59,9 @@ private:
 	void EnsurePlayerCoords();
 	void EnsureDestroyCoords();
 	void SyncActiveFrames();
+
+	// ResetClientsForLoad helpers
+	bool TryRelinkClientForLoad(engine::ClientConnection& rClient, std::vector<engine::global_id_t>& rLoadOwnedIds);
 };
 
 inline ServerSession* gpServerSession = nullptr;

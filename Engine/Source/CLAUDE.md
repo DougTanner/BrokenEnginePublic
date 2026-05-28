@@ -10,12 +10,13 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 
 - **Client/server split**: Files fully wrapped in `#if defined(BT_CLIENT)` / `BT_SERVER` live only in the matching vcxproj. Narrow `#ifdef` at the smallest practical scope; prefer `SharedMembers()` + `ClientMembers()` over duplicated collections.
 - **Base classes**: Engine code uses game-derived types via `game::gpGame` — never reference `*Base` directly outside the base file itself.
-- **Aggregation header**: Every subsystem exposes itself through `Engine.h` (included by `Pch.h`); include order there is load-bearing and commented inline. Platform-gated includes go inside the existing single `BT_CLIENT`/`BT_SERVER` spans.
+- **Aggregation header**: Every subsystem exposes itself through `Engine.h` (included by `Pch.h`); include order there is load-bearing and commented inline. Platform-gated includes go inside the existing single `BT_CLIENT`/`BT_SERVER` spans. `Engine.h` also hosts the `std::formatter` specializations for engine ID/alignment types (`uuid_t`, `id_t<T>`, `alignment_t`, `Alignments`) so `LogDifference` can print them.
 - **Allocation discipline**: Main-loop heap allocations trigger `DEBUG_BREAK`; unavoidable ones wrap with `ScopedSuppressAllocationTracking` + `// Heap:` comment. Startup/teardown allocate freely.
 - **Workbuffer**: Use `gpThreadLocal->mWorkbuffer` for temporaries across all subsystems.
 
 ## Startup & Main Loop
 
+- Single-instance mutex (gated by `kbSingleInstance`) blocks a second process at `wWinMain` entry.
 - Determinism: FMA3 disabled, SSE4.1 required — both load-bearing for cross-CPU CRC matching.
 - Process priority `HIGH_PRIORITY_CLASS`; main thread `TIME_CRITICAL`. Background worker count = cores − 2 (client) / − 1 (server).
 - DxDiag read asynchronously at `BELOW_NORMAL` priority, cached for crash reports, skipped under debugger.
@@ -30,11 +31,12 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 - `ResetClientState()` is the canonical session-reset point; any new per-coord counter MUST reset there or state leaks across sessions.
 - Server dual-buffer: `SwapFrames()` per tick; post-swap `pNext` holds stale data reused by the next `EnsureNextFrames()`.
 - ID minting is server-authoritative (frame IDs wrap uint16, global IDs monotonic int64). Clients receive both via serialization — never mint locally.
+- Client render-side sim clock (`mfRenderTime`) integrates sim seconds and is clamped to the closed `[source, tail]` window of `kiRenderBehindTicks` committed ticks, so every rendered frame interpolates between two simulated ticks — never extrapolates past tail velocity. Seeded once at the window midpoint; rebases only on multi-tick regression.
 
 ## Tick Flow
 
 - **Client**: single-pass poll / reconcile / advance. Clamps to `GetTargetSimTick()` via `AbsorbUnusedTicks()` so StatusChanges arrive before their tick simulates. Physics advances only inside reconcile — no separate client physics loop.
-- **Server**: pre-tick net → quickload (may early-return) → save/load replay → wait for tick → per tick prepare/sync/dispatch/finalize → resends → quicksave. Full-tick count ≠ 1 logs a warning.
+- **Server**: pre-tick net → quickload (may early-return) → save/load replay → wait for tick → timespeed broadcast → per tick prepare/sync/dispatch/finalize → resends → autosave/quicksave. Full-tick count ≠ 1 logs a warning.
 - **Finalize**: cross-frame transfer harvest (skipped during replay for deterministic reproduction) → swap → broadcast → clear status changes.
 - **Dispatch**: `ActiveFrameRef` pre-resolved into workbuffer, fanned out via `common::gpMultithreading->Dispatch()` when enabled, else sequential.
 

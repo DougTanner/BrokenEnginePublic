@@ -716,7 +716,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 			ApplyDeathKnockback(rPrevious.pVecDamageDirections[i], vecVelocity);
 		}
 
-		ApplyTerrainBounce(rCurrentInterpolate, i, fDeltaTime, fDeltaRotation, vecVelocity);
+		ApplyTerrainBounce(rStaticData, rCurrentInterpolate, i, fDeltaTime, fDeltaRotation, vecVelocity);
 
 		// Clamp delta rotation
 		fDeltaRotation = common::MinAbs(fDeltaRotation, kfSpaceshipMaxTurnRate);
@@ -734,7 +734,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		rCurrentInterpolate.pfFreezeTimes[i] = fFreezeTime;
 	}
 
-	SpaceshipsPostRender::AvoidTerrain(rFrame, rPreviousFrame, 0, rFrame.interpolate.pSpaceships->iCount);
+	SpaceshipsPostRender::AvoidTerrain(rFrame, rPreviousFrame, rStaticData, 0, rFrame.interpolate.pSpaceships->iCount);
 }
 
 bool SpaceshipsInterpolate::LogDifferences(const SpaceshipsInterpolate& rOther) const

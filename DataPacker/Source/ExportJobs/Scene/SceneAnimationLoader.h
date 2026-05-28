@@ -6,4 +6,13 @@ namespace tinygltf { class Model; }
 // Returns true for skeletal (all channels target skin joints), false for node-based.
 bool DetermineAnimationPath(const tinygltf::Model& rGltfModel);
 
-void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeToNodeIndexMap, std::vector<common::AnimationClip>& rAnimations, std::vector<common::AnimationChannel>& rChannels, std::vector<common::AnimationKeyframe>& rKeyframes, std::vector<common::AnimationKeyframeCubic>& rCubicKeyframes);
+// Bundle of LoadAnimations output buffers — appended to in place.
+struct AnimationOutput
+{
+	std::vector<common::AnimationClip>& rAnimations;
+	std::vector<common::AnimationChannel>& rChannels;
+	std::vector<common::AnimationKeyframe>& rKeyframes;
+	std::vector<common::AnimationKeyframeCubic>& rCubicKeyframes;
+};
+
+void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeToNodeIndexMap, AnimationOutput& rOut);

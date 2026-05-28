@@ -22,8 +22,6 @@ enum class PacketType : uint8_t
 	kClientResyncRequest,       // Client requests full state re-download after desync recovery
 	kServerSubscribeAccept,     // Server confirms subscription with assigned slot
 	kServerUnsubscribeAck,      // Server confirms unsubscription
-	kClientTimespeedRequest,    // Client requests timescale change (debug only)
-	kServerTimespeedUpdate,     // Server broadcasts current timescale to all clients
 	kServerLoadNotification,    // Server loaded a save, clients must reset state
 	kGamePacketStart,           // All values >= this are game-layer packets forwarded as raw bytes
 };
@@ -56,8 +54,6 @@ inline constexpr const char* PacketTypeName(PacketType eType)
 		case PacketType::kClientResyncRequest:          return "kClientResyncRequest";
 		case PacketType::kServerSubscribeAccept:        return "kServerSubscribeAccept";
 		case PacketType::kServerUnsubscribeAck:         return "kServerUnsubscribeAck";
-		case PacketType::kClientTimespeedRequest:       return "kClientTimespeedRequest";
-		case PacketType::kServerTimespeedUpdate:        return "kServerTimespeedUpdate";
 		case PacketType::kServerLoadNotification:       return "kServerLoadNotification";
 		case PacketType::kGamePacketStart:              return "kGamePacketStart";
 	}
@@ -65,7 +61,7 @@ inline constexpr const char* PacketTypeName(PacketType eType)
 }
 
 // Protocol constants
-inline constexpr uint32_t kuiProtocolVersion = 4;
+inline constexpr uint32_t kuiProtocolVersion = 5;
 inline constexpr uint16_t kuiDefaultPort = 27015;
 inline constexpr int64_t kiMaxResendFrames = 8;
 inline constexpr int64_t kiFloorStallLogThreshold = 15;

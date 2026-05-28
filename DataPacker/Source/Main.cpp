@@ -81,7 +81,7 @@ static RdoSweepResult RunRdoSweepOne(const std::vector<float>& rPixels, int64_t 
 	std::vector<std::byte> bc7Output(iBc7Size);
 
 	auto tStart = std::chrono::steady_clock::now();
-	Texture::EncodeWithRdo(bc7Output.data(), rPixels, iWidth, iHeight, VK_FORMAT_BC7_UNORM_BLOCK, fLambda, uiLookback, iUberLevel, false);
+	Texture::EncodeWithRdo(bc7Output.data(), rPixels, iWidth, iHeight, VK_FORMAT_BC7_UNORM_BLOCK, fLambda, uiLookback, iUberLevel, {});
 	auto tEnd = std::chrono::steady_clock::now();
 	double fEncodeSeconds = std::chrono::duration<double>(tEnd - tStart).count();
 
@@ -107,7 +107,7 @@ static int RunRdoSweep(const std::filesystem::path& rPath)
 	LOG(kDefault, kInfo, "RDO sweep input: \"{}\"", rPath.string());
 
 	std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-	Texture texture(rPath, FileType::kImage, false);
+	Texture texture(rPath, FileType::kImage);
 	int64_t iWidth = texture.miWidth;
 	int64_t iHeight = texture.miHeight;
 	LOG(kDefault, kInfo, "Source dimensions: {}x{}", iWidth, iHeight);
@@ -144,7 +144,7 @@ static int RunRdoSweepFull(const std::filesystem::path& rPath)
 	LOG(kDefault, kInfo, "RDO full-grid sweep input: \"{}\"", rPath.string());
 
 	std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-	Texture texture(rPath, FileType::kImage, false);
+	Texture texture(rPath, FileType::kImage);
 	int64_t iWidth = texture.miWidth;
 	int64_t iHeight = texture.miHeight;
 	LOG(kDefault, kInfo, "Source dimensions: {}x{}", iWidth, iHeight);

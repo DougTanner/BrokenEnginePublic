@@ -11,6 +11,7 @@ namespace game
 {
 
 struct Frame;
+struct ReceivedPlayerEvent;
 
 enum class SubscriptionChangeReason : uint8_t
 {
@@ -80,6 +81,10 @@ private:
 	bool PollConnectionStatus();
 	void TryEnterGame();
 	void ResetForServerLoad();
+
+	// PollNetwork helpers
+	void ApplyPlayerEvent(const ReceivedPlayerEvent& rEvent);
+	void UpdatePlayerCoord(engine::global_id_t globalPlayerId, engine::GridCoord coord);
 
 	// Subscription tracking
 	std::vector<engine::GridCoord> mDesiredCoords;

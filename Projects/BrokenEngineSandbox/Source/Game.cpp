@@ -439,6 +439,7 @@ void Game::Reset()
 	game::gpCamera->mVecPreviousTargetPosition = {};
 	game::gpCamera->mfJumpStartTime = 0.0f;
 	game::gpCamera->mbJumping = false;
+	game::gpCamera->mfShadowTexelEyeHeight = 0.0f; // Re-snap the shadow texel grid to the new session's zoom (no cross-session ramp)
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
 	engine::WindTrailsInterpolate::ResetRenderState();
@@ -783,7 +784,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 #if defined(BT_CLIENT)
 			if (engine::gpClient != nullptr)
 			{
-				engine::gpClient->SendSimplePacket(engine::PacketType::kClientTimespeedRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(0));
+				engine::gpClient->SendSimplePacket(GamePacketType::kClientTimespeedRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(0));
 			}
 #else
 			mTimeStep.DecreaseTimeScale();
@@ -794,7 +795,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 #if defined(BT_CLIENT)
 			if (engine::gpClient != nullptr)
 			{
-				engine::gpClient->SendSimplePacket(engine::PacketType::kClientTimespeedRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(1));
+				engine::gpClient->SendSimplePacket(GamePacketType::kClientTimespeedRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(1));
 			}
 #else
 			mTimeStep.IncreaseTimeScale();
@@ -872,6 +873,9 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 			miMenuIslandIndex = (miMenuIslandIndex + 1) % std::ssize(engine::gpIslandTerrain->mIslandCrcsByArea);
 			auto it = mCoordFrames.find(engine::kOriginCoord);
 			BuildMenuIslandPlacement(miMenuIslandIndex, it->second.staticData.islands);
+			// Cycling rewrites the placement list on an existing cell — drop the derived elevation grid
+			// so RunFrameTick rebuilds it from the new placements next tick.
+			it->second.staticData.elevationGrid = {};
 
 			// Pre-mint the texture slot now (mirrors ClientDataReceiver::ApplyReceivedStaticData) so the
 			// elevation upload and chunk loads are in-flight before UpdateActiveIslands references the

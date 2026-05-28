@@ -381,8 +381,8 @@ void BeachSubdivider::Run()
 
 } // namespace
 
-void SubdivideBeachBand(std::vector<float>& rMeshPositions, std::vector<uint32_t>& rMeshIndices, float fBandMinMeters, float fBandMaxMeters, float fMaxEdgeMeters, int32_t iMaxDepth, int64_t& riDepthCapHits)
+void SubdivideBeachBand(std::vector<float>& rMeshPositions, std::vector<uint32_t>& rMeshIndices, const SubdivisionConfig& rConfig, int64_t& riDepthCapHits)
 {
-	BeachSubdivider subdivider(rMeshPositions, rMeshIndices, fBandMinMeters, fBandMaxMeters, fMaxEdgeMeters, iMaxDepth, riDepthCapHits);
+	BeachSubdivider subdivider(rMeshPositions, rMeshIndices, rConfig.fBandMinMeters, rConfig.fBandMaxMeters, rConfig.fMaxEdgeMeters, rConfig.iMaxDepth, riDepthCapHits);
 	subdivider.Run();
 }

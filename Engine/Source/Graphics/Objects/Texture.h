@@ -106,6 +106,7 @@ public:
 	void FreeGpuResources() noexcept;
 
 	void TransitionImageLayout(VkCommandBuffer vkCommandBuffer, TextureLayout eOldLayout, TextureLayout eNewLayout);
+	void RecordCopyImageFrom(VkCommandBuffer vkCommandBuffer, const Texture& rSource); // Caller transitions source->kTransferSource, this->kTransferDestination first
 	void RecordBeginRenderPass(VkCommandBuffer vkCommandBuffer);
 
 	TextureInfo mInfo {};

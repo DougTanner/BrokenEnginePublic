@@ -4,11 +4,12 @@ Trackable world positions for missile guidance, referenced by stable ID.
 
 ## Game-Specific Behavior
 
-- **Passive collection**: All standard phase methods are intentional no-ops. State mutates only through an explicit Add/Remove/Subscribe/Sync API invoked by owning entities and missiles — no visual representation, no independent phase participation.
-- **Indexable by id**: Only sibling `kIdToIndex` collection; owners resolve their target via id each tick to write position. Positions live on Interpolate because owners drive them during Sync.
-- **Dual-ownership liveness**: Entry freed only when the owner has cleared its reference AND subscriber count is zero. `Remove` has two modes — owner-death tears down immediately; subscriber release decrements the count.
-- **Alignment filtering**: Missile target selection rejects entries whose alignments don't match enemy criteria.
-- **Custom type registration**: Types register directly into the interpolate collection's type registry, bypassing the standard `Register()` pathway.
+- **Passive collection**: `Register()`, render, and every phase method are intentional no-ops. State mutates only through an explicit Add/Remove/AddSubscriber/Sync API invoked by owning Spaceships and homing Missiles — no visual representation, no independent phase participation.
+- **Split storage**: Interpolate is the `kIdToIndex` side and holds the position + type index that owners drive each tick via `IdToIndex`; PostRender (paired, non-indexable) holds the liveness state — id, flags, subscriber count, alignment. Position lives on Interpolate because owners write it during Sync (W forced to 1.0).
+- **Dual-ownership liveness**: An entry is freed only when its owner has released its `kDestination` reference AND subscriber count is zero. `Remove` has two modes keyed by the passed flags — `kDestination` (owner death) tears down immediately regardless of subscribers; an empty-flags call is subscriber release, which decrements the count and frees only if the owner already cleared `kDestination`.
+- **Owner-set destination flag**: The owning Spaceship sets the entry's `kDestination` flag (deferred until its arrival grace period expires, so missiles don't home mid-arrival). Missiles validate a tracked target each tick by confirming its row still exists and still carries `kDestination`, releasing otherwise.
+- **Alignment filtering**: Missile target selection rejects entries whose alignment can't collide with the seeker's (same-team rejection).
+- **Custom type registration**: Target types push directly into the Interpolate collection's `TypeRegistry`, bypassing the standard `Register()` pathway.
 
 ## See Also
 - Parent collections: [../CLAUDE.md](../CLAUDE.md)

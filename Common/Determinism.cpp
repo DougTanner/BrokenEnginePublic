@@ -1,34 +1,15 @@
-#include "ThreadLocal.h"
+#include "Determinism.h"
 
 namespace common
 {
 
-void SetupExceptionHandling();
-
 static std::mutex sMutex;
 
-ThreadLocal::ThreadLocal(int64_t iWorkbufferSize, std::optional<int64_t> iThreadId, bool bSetupExceptionHandling)
-: miThreadId(iThreadId)
-, mLogBufferMemory(kiLogBufferSize)
-, mWorkbufferMemory(iWorkbufferSize)
-, mpLogBuffer(mLogBufferMemory.data())
-, mWorkbuffer(mWorkbufferMemory)
+void ConfigureThreadFloatingPoint()
 {
-	gpThreadLocal = this;
-
 	// Flush denormals for deterministic FP math across all threads
 	unsigned int uiCurrentState = 0;
 	_controlfp_s(&uiCurrentState, _DN_FLUSH | _RC_NEAR, _MCW_DN | _MCW_RC);
-
-	if (bSetupExceptionHandling)
-	{
-		SetupExceptionHandling();
-	}
-}
-
-ThreadLocal::~ThreadLocal()
-{
-	gpThreadLocal = nullptr;
 }
 
 void SetupExceptionHandling()
@@ -49,7 +30,7 @@ void SetupExceptionHandling()
 		}
 
 		LOG(kDefault, kError, "In _set_se_translator: {}", uiCode);
-	
+
 		DEBUG_BREAK();
 
 		if (uiCode == 0xC0000005)
@@ -71,7 +52,7 @@ void SetupExceptionHandling()
 		}
 
 		LOG(kDefault, kError, "In _set_invalid_parameter_handler");
-	
+
 		std::wstring description(L"_set_invalid_parameter_handler \"");
 		description += pcExpression ? pcExpression : L"nullptr";
 		description += L"\" Function: ";
@@ -80,7 +61,7 @@ void SetupExceptionHandling()
 		description += pcFile ? pcFile : L"nullptr";
 		description += L" Line: ";
 		description += std::to_wstring(uiLine);
-	
+
 		DEBUG_BREAK();
 
 		throw std::runtime_error(ToString(description).c_str());
@@ -103,7 +84,7 @@ void SetupExceptionHandling()
 			{
 				return EXCEPTION_CONTINUE_SEARCH;
 			}
-		
+
 			DWORD uiExceptionCode = pExceptionPointers->ExceptionRecord->ExceptionCode;
 			switch (uiExceptionCode)
 			{

@@ -85,8 +85,14 @@ XMMATRIX ComputeNodeWorldTransform(int iNodeIndex, const tinygltf::Model& rModel
 	return matWorld;
 }
 
-void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<common::ModelVertex>& rVertices, std::vector<Material>& rMaterials, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::unordered_map<std::pair<int, int>, int, PairHash>& rMaterialNodeMap)
+void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, LoadVerticesContext& rContext)
 {
+	std::vector<common::ModelVertex>& rVertices = rContext.rVertices;
+	std::vector<Material>& rMaterials = rContext.rMaterials;
+	std::vector<MaterialNodeInfo>& rMaterialNodeInfos = rContext.rMaterialNodeInfos;
+	std::unordered_map<std::pair<int, int>, int, PairHash>& rMaterialNodeMap = rContext.rMaterialNodeMap;
+	const std::unordered_map<int, int>& rNodeToJointMap = rContext.rNodeToJointMap;
+
 	XMMATRIX matNode = XMMatrixIdentity();
 	bool bHasTRS = rNode.translation.size() == 3 || rNode.rotation.size() == 4 || rNode.scale.size() == 3;
 	bool bHasMatrix = rNode.matrix.size() == 16;
@@ -126,7 +132,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 	for (size_t i = 0; i < rNode.children.size(); ++i)
 	{
 		Parent parent {pParent, matNode, iCurrentNodeIndex};
-		LoadVertices(&parent, rNode.children[i], rModel.nodes[rNode.children[i]], rModel, rVertices, rMaterials, rNodeToJointMap, rMaterialNodeInfos, rMaterialNodeMap);
+		LoadVertices(&parent, rNode.children[i], rModel.nodes[rNode.children[i]], rModel, rContext);
 	}
 
 	if (rNode.mesh < 0)

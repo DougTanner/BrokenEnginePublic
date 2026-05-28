@@ -18,19 +18,17 @@ void main()
 	uint uiX = gl_GlobalInvocationID.x;
 	uint uiY = gl_GlobalInvocationID.y;
 
-	uint uiWidth = globalLayout.iShadowTextureWidth;
-	uint uiHeight = globalLayout.iShadowTextureHeight;
-
-	if (uiX >= uiWidth || uiY >= uiHeight)
+	// Compute the visible window + kiShadowWindowMargin so the vertical pass and the consumer's bilinear
+	// edge reads land on current-frame, fully-blurred texels.
+	if (int(uiX) < globalLayout.iShadowVisibleMinX - kiShadowWindowMargin || int(uiX) >= globalLayout.iShadowVisibleMaxX + kiShadowWindowMargin ||
+	    int(uiY) < globalLayout.iShadowVisibleMinY - kiShadowWindowMargin || int(uiY) >= globalLayout.iShadowVisibleMaxY + kiShadowWindowMargin)
 		return;
 
 	float fSigma = max(globalLayout.fShadowBlurSigma, 1e-6f);
 	vec2 f2InvSize = 1.0f / vec2(globalLayout.fShadowTextureSizeWidth, globalLayout.fShadowTextureSizeHeight);
-
-	const int iRadius = 5;
 	float fTotal = 0.0f;
 	float fWeightSum = 0.0f;
-	for (int i = -iRadius; i <= iRadius; ++i)
+	for (int i = -kiShadowBlurRadius; i <= kiShadowBlurRadius; ++i)
 	{
 		float fA = float(i) / fSigma;
 		float fWeight = exp(-0.5f * fA * fA);

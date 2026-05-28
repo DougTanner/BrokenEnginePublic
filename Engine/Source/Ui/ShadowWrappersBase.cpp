@@ -5,6 +5,8 @@ namespace engine
 
 // Quality
 Wrapper gShadowRenderMultiplier(0.1f, 0.1f, 1.0f);
+Wrapper gShadowTexelRampMetersPerSec(150.0f, 10.0f, 2000.0f);
+Wrapper gShadowTemporalBlend(0.2f, 0.05f, 1.0f);
 
 // Feather
 Wrapper gShadowFeatherNoon(2.5f, 0.0f, 8.0f);

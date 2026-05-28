@@ -8,7 +8,7 @@ inline constexpr bool kbDebugBreak = true;
 inline constexpr bool kbLogging = true;
 inline constexpr bool kbIsDataPacker = true;
 
-#include "LogTypes.h"
+#include "Log/LogTypes.h"
 
 inline constexpr LogLevel keLogLevelDefault  = kVerbose;
 inline constexpr LogLevel keLogLevelTemp     = kVerbose;

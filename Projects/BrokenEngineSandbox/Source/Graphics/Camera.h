@@ -21,6 +21,10 @@ public:
 
 	static constexpr float kfDefaultSunAngle = 1.8f;
 	static constexpr float kfCameraEyeHeightDefault = 150.0f;
+	// Shadow textures are pre-allocated to cover the visible area at this reference eye height; the shadow
+	// texel world size is then fixed across zoom (no resample -> no pop/shimmer). Above this height the
+	// fixed coverage crops on screen. Release pins kfEyeHeightMax to this value (see Camera.cpp).
+	static constexpr float kfEyeHeightMaxReference = 600.0f;
 	// Initial zoom-target on construction. WHEEL_DELTA (120) * kfEyeHeightPerWheelTick (0.1) = 12 units per click;
 	// 4 clicks above kfCameraEyeHeightDefault gives a comfortable starting frame with zoom range either way.
 	static constexpr float kfCameraEyeHeightInitial = kfCameraEyeHeightDefault + 48.0f;
@@ -55,6 +59,10 @@ public:
 	float mfEyeStartTime = 0.0f;
 	float mfEyeVelocity = 0.0f;
 	bool mbEyeZooming = false;
+
+	// Eye height the shadow texel grid is currently sized for; ramps toward the live eye height (rate-limited)
+	// so the texel world size changes too slowly to perceive. 0 = uninitialized (snap to target on first frame).
+	float mfShadowTexelEyeHeight = 0.0f;
 
 };
 

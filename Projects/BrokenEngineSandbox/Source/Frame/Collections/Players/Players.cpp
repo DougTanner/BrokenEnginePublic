@@ -782,7 +782,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 
 		// Outside transfer-lock: always runs
 		RegenerateShield(fDeltaTime, fShieldCooldown, fShield);
-		ApplyTerrainPush(vecPosition, vecVelocity);
+		ApplyTerrainPush(rStaticData, vecPosition, vecVelocity);
 		ApplyPusherPush(rFrame, rPreviousFrame, i, vecPosition, vecVelocity);
 
 		// Save

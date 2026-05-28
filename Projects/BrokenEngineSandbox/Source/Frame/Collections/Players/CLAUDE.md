@@ -1,6 +1,6 @@
 # /Projects/BrokenEngineSandbox/Source/Frame/Collections/Players/
 
-Player spaceships (one flagship + follower wingmen, all AI-driven). Uses `CollectionFlags::kIdToIndex` for stable ID-based lookup. All players share the same update logic — no index is privileged as the flagship.
+Player spaceships (one flagship + follower wingmen, all AI-driven). Uses `CollectionFlags::kIdToIndex` for stable ID-based lookup. All players share the same update logic — flagship status is a `PlayerFlags::kIsFlagship` bit, never a privileged SOA index. The flagship spawns navigating to an island (nav mode 4); wingmen spawn roaming (mode -1) and switch to flagship-follow (mode 5) by proximity.
 
 ## Non-Obvious Invariants
 

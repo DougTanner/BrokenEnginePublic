@@ -220,7 +220,7 @@ static void MigrateLegacyIntermediate(const std::filesystem::path& rPath)
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 		Texture texture(reinterpret_cast<const std::byte*>(rgba8.data()), iWidth, iHeight, 4);
 		texture.MakeMipmaps(vkFormat);
-		texture.Save(rPath, vkFormat, false);
+		texture.Save(rPath, vkFormat, {});
 	}
 
 	auto tMigrateEnd = std::chrono::steady_clock::now();

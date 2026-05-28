@@ -12,15 +12,15 @@ Wind shares smoke's dynamic world-area (`f4SmokeArea` / `f4PreviousSmokeArea`) a
 
 Wind simulation uses two buffer pairs (A/B) matching the ping-pong texture index. Each pair consists of an occupancy buffer (bit-packed, one bit per 8x8 tile) and an active tile list buffer (indirect dispatch args + packed tile indices). This enables record-once command buffers: both spread pipelines (A and B) are always dispatched indirectly, but each checks `fWindTextureIndex` at runtime and returns early if inactive.
 
-Each frame the active-tile pipeline (`WindOccupancyDilate.comp`) reads the previous frame's occupancy, dilates by Manhattan distance 2 to include neighbors, and writes the new active tile list. The spread shaders then process only those tiles and write occupancy for the next frame.
+Each frame the active-tile pipeline (`WindOccupancyDilate.comp`) reads the previous frame's occupancy and writes the new active tile list. Because the world-area can shift and scale between frames, it first remaps each tile's center world position into the previous-frame tile grid, then dilates over a 5x5 box (radius 2) around that cell to catch wind that advected into neighbors. The spread shaders then process only the listed tiles and re-mark occupancy for next frame.
 
 ## Shaders
 
 - **WindDeposit.frag** - Fragment shader writing wind velocity into the wind texture from per-object quads. Supports radial (explosions) and directional (motion trails) modes with falloff and magnitude scaling. Also writes to the occupancy buffer.
 - **WindSpreadCommon.h** - Shared GLSL header containing the full `WindSpread()` function with advection, swirl, vorticity confinement, diffusion, and decay logic. Included by both spread compute shaders.
-- **WindSpreadOne.comp** - Compute spread pass for ping-pong index 0 (writes TextureOne). Reconstructs world position from current `f4SmokeArea` and remaps to previous-frame texcoord via `f4PreviousSmokeArea` so sampling survives camera translation and zoom. Returns early when index 1 is active.
-- **WindSpreadTwo.comp** - Compute spread pass for ping-pong index 1 (writes TextureTwo). Same scale-aware texcoord remapping as pass one. Returns early when index 0 is active.
-- **WindOccupancyDilate.comp** - Dilates occupancy from previous frame and compacts into active tile list for indirect dispatch.
+- **WindSpreadOne.comp** - Compute spread pass for ping-pong index 0 (writes TextureOne), 8x8 workgroups. Reconstructs world position from current `f4SmokeArea` and remaps to previous-frame texcoord via `f4PreviousSmokeArea` so sampling survives camera translation and zoom. A shared-memory reduction marks the output tile in occupancy once per workgroup when any texel produced non-zero wind. Returns early when index 1 is active.
+- **WindSpreadTwo.comp** - Compute spread pass for ping-pong index 1 (writes TextureTwo). Identical to pass one but mirrored ping-pong index; unlike smoke, both wind passes import previous-frame state from the other texture, so both use the scale-aware lookup. Returns early when index 0 is active.
+- **WindOccupancyDilate.comp** - Per-tile dilation + compaction into the active tile list for indirect dispatch (see Architecture above).
 
 ## See Also
 
