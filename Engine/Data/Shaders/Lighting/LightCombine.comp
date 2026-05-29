@@ -75,6 +75,22 @@ void main()
 	vec2 f2Uv = (vec2(uiX, uiY) + vec2(0.5f)) / vec2(uiWidth, uiHeight);
 	ivec2 i2Coord = ivec2(uiX, uiY);
 
+	// Window: combine textures are pre-sized to cover the visible area at the lighting headroom reference, but only
+	// the on-screen region feeds the final image. Skip texels outside the visible window (plus a 2-texel bilinear
+	// margin so edge consumers never sample a zeroed texel). Mirror of the spread-window early-out.
+	vec2 f2WorldPos = VisibleAreaToWorld(f2Uv, globalLayout.f4LightingArea);
+	vec2 f2VisibleUv = WorldToVisibleArea(vec3(f2WorldPos, 0.0f), globalLayout.f4VisibleArea);
+	float fMarginX = 2.0f * ((globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x) / float(uiWidth)) / (globalLayout.f4VisibleArea.z - globalLayout.f4VisibleArea.x);
+	float fMarginY = 2.0f * ((globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w) / float(uiHeight)) / (globalLayout.f4VisibleArea.y - globalLayout.f4VisibleArea.w);
+	if (f2VisibleUv.x < -fMarginX || f2VisibleUv.x > 1.0f + fMarginX || f2VisibleUv.y < -fMarginY || f2VisibleUv.y > 1.0f + fMarginY)
+	{
+		imageStore(combineImageR, i2Coord, vec4(0.0f));
+		imageStore(combineImageG, i2Coord, vec4(0.0f));
+		imageStore(combineImageB, i2Coord, vec4(0.0f));
+		imageStore(combineImageAmbient, i2Coord, vec4(0.0f));
+		return;
+	}
+
 	float fPassCount = globalLayout.fSpreadPassCount;
 	uint uiPassCount = uint(fPassCount);
 

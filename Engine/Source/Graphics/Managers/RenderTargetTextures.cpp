@@ -72,6 +72,11 @@ void RenderTargetTextures::CreateShadowTextures()
 	// sub-window, farther crops. Clamp AFTER the multiply (DetailTextureSize clamps pre-multiply); cap the
 	// width at (limit/3)*2 so the 1.5x-wide elevation texture still fits maxImageDimension2D. Force the
 	// width even (below) so the 1.5x elevation width stays integer; dispatch ceil-divides so no block multiple.
+
+	// Re-arm the temporal first-frame guard: mShadowHistoryTexture below is (re)created with undefined contents,
+	// so PopulateShadowParameters must blend pure-current for one frame before reusing history. Mirrors gbSmokeClear / gbWindClear.
+	gbShadowTemporalReset = true;
+
 	auto [iBaseX, iBaseY] = TextureManager::DetailTextureSize(gShadowRenderMultiplier.Get());
 	int64_t iRefMult = std::lround(game::Camera::kfEyeHeightMaxReference / game::Camera::kfCameraEyeHeightDefault);
 	int64_t iLimit = static_cast<int64_t>(gpInstanceManager->mVkPhysicalDeviceProperties.limits.maxImageDimension2D);

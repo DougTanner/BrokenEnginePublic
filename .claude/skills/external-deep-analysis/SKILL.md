@@ -7,7 +7,7 @@ allowed-tools: [Read, Write, Edit, Grep, Glob, Agent, Bash, Skill]
 
 # Deep Analysis Pipeline
 
-Runs two analysis skills in sequence (shape → in-function), then scores and verifies all output. Replaces the former three-leaf pipeline (the old `external-tech-debt` skill has been removed; its tier/effort/debt-score rubric is now owned by this orchestrator's Phase 3).
+Runs two analysis skills in sequence (shape → in-function), then scores and verifies all output.
 
 **Pipeline order:**
 1. `/external-architecture-review` — Shape: dependency structure, deep-modules (Ousterhout), coupling/cohesion, determinism, frame-phase, thread-model, shader/CPU consistency, ThirdParty library-replacement opportunities

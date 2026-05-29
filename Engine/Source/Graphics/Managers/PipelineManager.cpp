@@ -205,6 +205,28 @@ void PipelineManager::CreateLightingPipelines()
 			{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mAmbientCombineTexture},
 		},
 	});
+
+	// Temporal pass: 4 history samplers + the 4 combine outputs (read-write storage images), reprojected and
+	// EMA-blended in place. No push constants — the shader reads the combine extent via imageSize().
+	mLightingTemporalPipeline.Destroy();
+	mLightingTemporalPipeline.Create(
+	{
+		.name = "LightingTemporal",
+		.flags = {kCompute},
+		.ppShaders = {&mShaders.at(data::kShadersLightingLightingTemporalcompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mpLightingHistoryTextures[0]},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mpLightingHistoryTextures[1]},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mpLightingHistoryTextures[2]},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &rTextures.mAmbientHistoryTexture},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpCombineTextures[0]},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpCombineTextures[1]},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mpCombineTextures[2]},
+			{.flags = kStorageImages, .iCount = 1, .pTexture = &rTextures.mAmbientCombineTexture},
+		},
+	});
 }
 
 void PipelineManager::CreatePipelineShadows()

@@ -55,6 +55,9 @@ const TweaksSliderMapRegistrar gLightingRegistrar
 	{"Spread Distance Falloff End", &gSpreadDistanceFalloffEnd},
 	{"Spread Output Threshold End", &gSpreadOutputThresholdEnd},
 	{"Spread Output Compress End", &gSpreadOutputCompressEnd},
+	// Write - Temporal
+	{"Texel Ramp Speed", &gLightingTexelRampMetersPerSec},
+	{"Temporal Blend", &gLightingTemporalBlend},
 	// Combine
 	{"Combine Max Brightness", &gCombineMaxBrightness},
 	{"Combine Contrast", &gCombineContrast},
@@ -180,6 +183,10 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSlider("Distance Falloff", kiSection, 1.0f, "Spread Distance Falloff End");
 				WrapperSlider("Output Threshold", kiSection, 1.0f, "Spread Output Threshold End");
 				WrapperSlider("Output Compress", kiSection, 1.0f, "Spread Output Compress End");
+
+				WrapperSeparatorText("4. Temporal");
+				WrapperSlider("Texel Ramp Speed", kiSection, 1.0f, "Texel Ramp Speed");
+				WrapperSlider("Temporal Blend", kiSection, 1.0f, "Temporal Blend");
 
 				ImGui::EndTable();
 			}

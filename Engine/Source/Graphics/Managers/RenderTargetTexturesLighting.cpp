@@ -18,8 +18,10 @@ void RenderTargetTextures::DestroyLightingTextures()
 	for (int64_t i = 0; i < 3; ++i)
 	{
 		mpCombineTextures[i].Destroy();
+		mpLightingHistoryTextures[i].Destroy();
 	}
 	mAmbientCombineTexture.Destroy();
+	mAmbientHistoryTexture.Destroy();
 
 	for (int64_t iPass = 0; iPass < shaders::kiMaxSpreadPasses; ++iPass)
 	{
@@ -55,7 +57,11 @@ void RenderTargetTextures::CreateLightingTextures()
 {
 	DestroyLightingTextures();
 
-	auto [iLightingTextureX, iLightingTextureY] = TextureManager::DetailTextureSize(gLightingDepositTextureMultiplier.Get());
+	// This (re)create rebuilds the history textures (below) with undefined contents; re-arm the temporal first-frame
+	// guard so PopulateLightingParameters blends pure-current and re-seeds history next frame (mirror of CreateShadowTextures).
+	gbLightingTemporalReset = true;
+
+	auto [iLightingTextureX, iLightingTextureY] = TextureManager::LightingDetailTextureSize(gLightingDepositTextureMultiplier.Get());
 	// Create 3 lighting textures without individual render passes
 	TextureInfo lightingTextureInfo
 	{
@@ -188,7 +194,7 @@ void RenderTargetTextures::CreateLightingTextures()
 	{
 		float fT = (iPassCount > 1) ? static_cast<float>(iPass) / static_cast<float>(iPassCount - 1) : 0.0f;
 		float fMult = fSpreadMultStart + fT * (fSpreadMultEnd - fSpreadMultStart);
-		auto [iPassX, iPassY] = TextureManager::DetailTextureSize(fMult);
+		auto [iPassX, iPassY] = TextureManager::LightingDetailTextureSize(fMult);
 		for (int64_t iColor = 0; iColor < 3; ++iColor)
 		{
 			std::string strSpreadName = std::format("Spread{}_{}", pColorNames[iColor], iPass);
@@ -312,8 +318,9 @@ void RenderTargetTextures::CreateLightingTextures()
 		VkName(VK_OBJECT_TYPE_FRAMEBUFFER, mpSpreadVkFramebuffers[iPass], std::format("SpreadMRT_{}", iPass));
 	}
 
-	// Create combine textures (UNORM tone-mapped output, sized to max of start/end)
-	auto [iCombineX, iCombineY] = TextureManager::DetailTextureSize(std::max(fSpreadMultStart, fSpreadMultEnd));
+	// Create combine textures (UNORM tone-mapped output, sized to max of start/end). TRANSFER_SRC: LightingTemporal.comp
+	// blends the previous-frame history into these in place, then they are copied back to refresh history (vkCmdCopyImage).
+	auto [iCombineX, iCombineY] = TextureManager::LightingDetailTextureSize(std::max(fSpreadMultStart, fSpreadMultEnd));
 	static constexpr std::string_view pCombineNames[3] {"CombineRed", "CombineGreen", "CombineBlue"};
 	for (int64_t i = 0; i < 3; ++i)
 	{
@@ -327,7 +334,7 @@ void RenderTargetTextures::CreateLightingTextures()
 			.mipLevels = 1,
 			.arrayLayers = 1,
 			.samples = VK_SAMPLE_COUNT_1_BIT,
-			.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+			.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
 			.viewType = VK_IMAGE_VIEW_TYPE_2D,
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 			.eTextureLayout = kShaderReadOnly,
@@ -343,7 +350,45 @@ void RenderTargetTextures::CreateLightingTextures()
 		.mipLevels = 1,
 		.arrayLayers = 1,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	});
+
+	// History textures: previous-frame combine outputs reprojected + EMA-blended by LightingTemporal.comp.
+	// Clones of the combine textures (same bumped extent, RGBA8 UNORM); SAMPLED (read as history), STORAGE
+	// (descriptor-set compatibility with combine bindings), TRANSFER_DST (refreshed from combine each frame).
+	static constexpr std::string_view pHistoryNames[3] {"LightingHistoryRed", "LightingHistoryGreen", "LightingHistoryBlue"};
+	for (int64_t i = 0; i < 3; ++i)
+	{
+		mpLightingHistoryTextures[i].Create(TextureInfo
+		{
+			.textureFlags = {},
+			.name = pHistoryNames[i],
+			.flags = 0,
+			.format = VK_FORMAT_R8G8B8A8_UNORM,
+			.extent = VkExtent3D {static_cast<uint32_t>(iCombineX), static_cast<uint32_t>(iCombineY), 1},
+			.mipLevels = 1,
+			.arrayLayers = 1,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.eTextureLayout = kShaderReadOnly,
+		});
+	}
+	mAmbientHistoryTexture.Create(TextureInfo
+	{
+		.textureFlags = {},
+		.name = "LightingHistoryAmbient",
+		.flags = 0,
+		.format = VK_FORMAT_R8G8B8A8_UNORM,
+		.extent = VkExtent3D {static_cast<uint32_t>(iCombineX), static_cast<uint32_t>(iCombineY), 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		.eTextureLayout = kShaderReadOnly,

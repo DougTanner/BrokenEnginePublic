@@ -40,6 +40,8 @@
     <ClCompile Include="..\..\Source\ExportJobs\ExportTexture.cpp" />
     <ClCompile Include="..\..\Source\Attribution.cpp" />
     <ClCompile Include="..\..\Source\BakeIslandIntermediates.cpp" />
+    <ClCompile Include="..\..\Source\BakeRoute.cpp" />
+    <ClCompile Include="..\..\Source\ProcessBakedRegion.cpp" />
     <ClCompile Include="..\..\Source\FileManager.cpp" />
     <ClCompile Include="..\..\Source\GaeaArchetype.cpp" />
     <ClCompile Include="..\..\Source\Main.cpp" />
@@ -92,6 +94,7 @@
     <ClInclude Include="..\..\Source\ExportJobs\ExportTexture.h" />
     <ClInclude Include="..\..\Source\Attribution.h" />
     <ClInclude Include="..\..\Source\BakeIslandIntermediates.h" />
+    <ClInclude Include="..\..\Source\BakeIslandIntermediatesInternal.h" />
     <ClInclude Include="..\..\Source\FileManager.h" />
     <ClInclude Include="..\..\Source\GaeaArchetype.h" />
     <ClInclude Include="..\..\Source\MigrateLegacyIntermediates.h" />

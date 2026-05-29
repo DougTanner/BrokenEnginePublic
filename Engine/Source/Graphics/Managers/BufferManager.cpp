@@ -615,8 +615,8 @@ void BufferManager::CreateLightingSpreadBuffers()
 {
 	DestroyLightingSpreadBuffers();
 
-	// Occupancy grid: one tile per kiComputeTileSize pixels of deposit texture
-	auto [iDepositX, iDepositY] = TextureManager::DetailTextureSize(gLightingDepositTextureMultiplier.Get());
+	// Occupancy grid: one tile per kiComputeTileSize pixels of deposit texture (pre-sized by the lighting headroom)
+	auto [iDepositX, iDepositY] = TextureManager::LightingDetailTextureSize(gLightingDepositTextureMultiplier.Get());
 	uint32_t uiTilesX = std::max(1u, static_cast<uint32_t>(iDepositX) / shaders::kiComputeTileSize);
 	uint32_t uiTilesY = std::max(1u, static_cast<uint32_t>(iDepositY) / shaders::kiComputeTileSize);
 	uint32_t uiTotalTiles = uiTilesX * uiTilesY;

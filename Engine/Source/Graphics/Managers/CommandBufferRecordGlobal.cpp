@@ -47,6 +47,12 @@ void CommandBufferRecordGlobal::Record(int64_t iFramebuffer)
 	pPipelines[kPipelineShadowBlurV].RecordCompute(iCommandBuffer, vkCommandBuffer, (uiShadowWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, (uiShadowHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize);
 	// Temporal accumulation: blend the reprojected previous-frame shadow into mShadowBlurTexture in place, then
 	// copy the result into mShadowHistoryTexture for next frame. De-flickers the texel-ramp resample.
+	// Runs unconditionally every frame even when gShadowTemporalBlend == 1.0 (disabled): the mix() is then a no-op
+	// but the dispatch + full-texture copy still execute. Not gated by design — the recorded copy can't be indirect-gated
+	// (region fixed at record time; a fast zoom-out can grow the window to the full texture), and skipping the pass
+	// would need a destroy-tier CB re-record on the enable/disable edge (blend currently flows purely through the uniform).
+	// The fixed cost is small and accepted. The copy is also full-texture-extent so a post-recreate reset frame
+	// (gbShadowTemporalReset -> PopulateShadowParameters) reseeds the entire history in one frame, not just the window.
 	// Same-layout self-transition: barrier so ShadowBlurV's writes finish before ShadowTemporal reads them in place
 	// (the blur chain otherwise relies on the per-pass input layout change to carry this dependency; here the layout is unchanged).
 	gpTextureManager->mRenderTargetTextures.mShadowBlurTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kComputeReadWrite);

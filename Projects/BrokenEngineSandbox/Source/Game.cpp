@@ -440,6 +440,7 @@ void Game::Reset()
 	game::gpCamera->mfJumpStartTime = 0.0f;
 	game::gpCamera->mbJumping = false;
 	game::gpCamera->mfShadowTexelEyeHeight = 0.0f; // Re-snap the shadow texel grid to the new session's zoom (no cross-session ramp)
+	game::gpCamera->mfLightingTexelEyeHeight = 0.0f; // Re-snap the lighting texel grid to the new session's zoom (no cross-session ramp)
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
 	engine::WindTrailsInterpolate::ResetRenderState();

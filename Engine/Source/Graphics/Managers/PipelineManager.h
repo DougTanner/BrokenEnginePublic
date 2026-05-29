@@ -110,6 +110,9 @@ public:
 	// Combine pipeline (tone map accumulate → UNORM, all 3 colors in one dispatch)
 	Pipeline mCombinePipeline;
 
+	// Temporal-accumulation pass after combine: reprojects + EMA-blends the 4 combine outputs in place against history
+	Pipeline mLightingTemporalPipeline;
+
 	DynamicPipelines mDynamicPipelines;
 };
 

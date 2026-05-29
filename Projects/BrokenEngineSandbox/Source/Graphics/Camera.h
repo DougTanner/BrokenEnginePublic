@@ -25,6 +25,12 @@ public:
 	// texel world size is then fixed across zoom (no resample -> no pop/shimmer). Above this height the
 	// fixed coverage crops on screen. Release pins kfEyeHeightMax to this value (see Camera.cpp).
 	static constexpr float kfEyeHeightMaxReference = 600.0f;
+	// Lighting deposit/spread/combine textures are pre-allocated to cover the visible area at this reference eye
+	// height (headroom M = round(450/150) = 3), independent of shadow's. NOT a density knob: the lighting texel
+	// world size targets a constant on-screen density at any height (the reference cancels in the texel formula),
+	// so this only sets the allocation/headroom and the ramp-target clamp. On-screen crop ceiling = M^2 * default =
+	// 1350 m, so the whole Release range (<= kfEyeHeightMaxReference) is covered with margin; dev zoom past 1350 m crops.
+	static constexpr float kfLightingEyeHeightMaxReference = 450.0f;
 	// Initial zoom-target on construction. WHEEL_DELTA (120) * kfEyeHeightPerWheelTick (0.1) = 12 units per click;
 	// 4 clicks above kfCameraEyeHeightDefault gives a comfortable starting frame with zoom range either way.
 	static constexpr float kfCameraEyeHeightInitial = kfCameraEyeHeightDefault + 48.0f;
@@ -63,6 +69,10 @@ public:
 	// Eye height the shadow texel grid is currently sized for; ramps toward the live eye height (rate-limited)
 	// so the texel world size changes too slowly to perceive. 0 = uninitialized (snap to target on first frame).
 	float mfShadowTexelEyeHeight = 0.0f;
+
+	// Eye height the lighting texel grid is currently sized for; ramps toward the live eye height (rate-limited),
+	// independent of the shadow ramp. 0 = uninitialized (snap to target on first frame).
+	float mfLightingTexelEyeHeight = 0.0f;
 
 };
 

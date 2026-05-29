@@ -6,6 +6,7 @@
 #include "Frame/Frame.h"
 #include "Frame/Collections/Players/Players.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
+#include "Ui/LightingWrappersBase.h"
 #include "Ui/ShadowWrappersBase.h"
 
 namespace game
@@ -278,6 +279,19 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	{
 		float fMaxStep = engine::gShadowTexelRampMetersPerSec.Get() * fDeltaTime;
 		mfShadowTexelEyeHeight += std::clamp(fTexelTarget - mfShadowTexelEyeHeight, -fMaxStep, fMaxStep);
+	}
+
+	// Identical ramp for the lighting texel grid, independent of shadow's (its own meters-per-sec cap and its own
+	// coverage/headroom anchor kfLightingEyeHeightMaxReference, past which the lighting window crops on screen).
+	float fLightingTexelTarget = std::min(mfCameraEyeHeight, kfLightingEyeHeightMaxReference);
+	if (mfLightingTexelEyeHeight == 0.0f) // Uninitialized: snap (no startup ramp)
+	{
+		mfLightingTexelEyeHeight = fLightingTexelTarget;
+	}
+	else
+	{
+		float fMaxStep = engine::gLightingTexelRampMetersPerSec.Get() * fDeltaTime;
+		mfLightingTexelEyeHeight += std::clamp(fLightingTexelTarget - mfLightingTexelEyeHeight, -fMaxStep, fMaxStep);
 	}
 
 	// Eye sits directly above target along +Z (straight-down view).

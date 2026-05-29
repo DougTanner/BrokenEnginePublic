@@ -417,12 +417,47 @@ void CommandBufferRecordMain::RecordLightingSpreadPipeline(VkCommandBuffer vkCom
 		vkCmdDispatch(vkCommandBuffer, uiCombineGroupsX, uiCombineGroupsY, 1);
 	}
 
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
+
+	// Phase 4: Temporal accumulation — reproject + EMA-blend the previous frame's combine into the 4 combine outputs
+	// in place, then copy the blended result into the 4 history textures for next frame. De-flickers the texel-ramp
+	// resample (mirror of the shadow temporal pass). Runs unconditionally every frame even when gLightingTemporalBlend
+	// == 1.0 (disabled): the mix() is then a no-op but the dispatch + copies still execute (a recorded copy can't be
+	// indirect-gated — the region is fixed at record time — and gating would need a destroy-tier CB re-record on the
+	// enable/disable edge; blend flows purely through the uniform). Same-layout self-transition: barrier so combine's
+	// writes finish before temporal reads them in place.
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingTemporal);
 	for (int64_t iColor = 0; iColor < 3; ++iColor)
 	{
-		rRenderTargetTextures.mpCombineTextures[iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
+		rRenderTargetTextures.mpCombineTextures[iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kComputeReadWrite);
+		rRenderTargetTextures.mpLightingHistoryTextures[iColor].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadOnly);
 	}
-	rRenderTargetTextures.mAmbientCombineTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
-	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
+	rRenderTargetTextures.mAmbientCombineTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kComputeReadWrite);
+	rRenderTargetTextures.mAmbientHistoryTexture.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadOnly);
+
+	{
+		uint32_t uiCombineWidth = rRenderTargetTextures.mpCombineTextures[0].mInfo.extent.width;
+		uint32_t uiCombineHeight = rRenderTargetTextures.mpCombineTextures[0].mInfo.extent.height;
+		uint32_t uiTemporalGroupsX = (uiCombineWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+		uint32_t uiTemporalGroupsY = (uiCombineHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+		gpPipelineManager->mLightingTemporalPipeline.RecordCompute(iCommandBuffer, vkCommandBuffer, uiTemporalGroupsX, uiTemporalGroupsY);
+	}
+
+	// Copy the blended combine outputs into the history textures for next frame.
+	for (int64_t iColor = 0; iColor < 3; ++iColor)
+	{
+		rRenderTargetTextures.mpCombineTextures[iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kTransferSource);
+		rRenderTargetTextures.mpLightingHistoryTextures[iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadOnly, kTransferDestination);
+		rRenderTargetTextures.mpLightingHistoryTextures[iColor].RecordCopyImageFrom(vkCommandBuffer, rRenderTargetTextures.mpCombineTextures[iColor]);
+		rRenderTargetTextures.mpCombineTextures[iColor].TransitionImageLayout(vkCommandBuffer, kTransferSource, kShaderReadOnly);
+		rRenderTargetTextures.mpLightingHistoryTextures[iColor].TransitionImageLayout(vkCommandBuffer, kTransferDestination, kShaderReadOnly);
+	}
+	rRenderTargetTextures.mAmbientCombineTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kTransferSource);
+	rRenderTargetTextures.mAmbientHistoryTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadOnly, kTransferDestination);
+	rRenderTargetTextures.mAmbientHistoryTexture.RecordCopyImageFrom(vkCommandBuffer, rRenderTargetTextures.mAmbientCombineTexture);
+	rRenderTargetTextures.mAmbientCombineTexture.TransitionImageLayout(vkCommandBuffer, kTransferSource, kShaderReadOnly);
+	rRenderTargetTextures.mAmbientHistoryTexture.TransitionImageLayout(vkCommandBuffer, kTransferDestination, kShaderReadOnly);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingTemporal);
 
 	// Final barrier: compute → fragment (combine textures are now readable by fragment shaders)
 	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 1, &vkComputeBarrier, 0, nullptr, 0, nullptr);

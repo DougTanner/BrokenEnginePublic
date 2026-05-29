@@ -70,10 +70,50 @@ void main()
 	float fOutputThreshold = mix(globalLayout.fSpreadOutputThresholdStart, globalLayout.fSpreadOutputThresholdEnd, fT);
 	float fOutputCompress = mix(globalLayout.fSpreadOutputCompressStart, globalLayout.fSpreadOutputCompressEnd, fT);
 
-	// Height fade: attenuate spread above base height
-	vec2 f2WorldPos = vec2(globalLayout.f4LightingArea.x + f2InTexcoord.x * (globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x),
-		                   globalLayout.f4LightingArea.w + (1.0f - f2InTexcoord.y) * (globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w));
+	// World position of this spread texel and its on-screen (visible-area) UV — reused for the window early-out
+	// and the height-fade elevation sample.
+	vec2 f2WorldPos = VisibleAreaToWorld(f2InTexcoord, globalLayout.f4LightingArea);
 	vec2 f2ElevTexcoord = WorldToVisibleArea(vec3(f2WorldPos, 0.0f), globalLayout.f4VisibleArea);
+
+	// Window: the texture is pre-sized to cover the visible area at the lighting headroom reference, but only the
+	// on-screen region (plus a margin) feeds the final image. Skip texels whose accumulate output cannot reach the
+	// on-screen window through the remaining spread passes. Margin = remaining per-pass reach (closed-form sum of
+	// mix(Start,End,j/(N-1)) for j > this pass; height-fade ignored, so the reach is a conservative over-estimate),
+	// converted to visible-UV units. Always correct: the early-out is self-limiting (margin shrinks with pass index).
+	float fPassCount = globalLayout.fSpreadPassCount;
+	float fRemainingReach = 0.0f;
+	if (fPassCount > 1.0f)
+	{
+		float fStep = (globalLayout.fSpreadDistanceEnd - globalLayout.fSpreadDistanceStart) / (fPassCount - 1.0f);
+		float fFollowing = fPassCount - 1.0f - fPassIndex; // passes after this one
+		float fSumJ = (fPassIndex + fPassCount) * fFollowing * 0.5f; // sum of j from fPassIndex+1 to fPassCount-1
+		fRemainingReach = fFollowing * globalLayout.fSpreadDistanceStart + fStep * fSumJ;
+	}
+	float fMarginX = fRemainingReach / (globalLayout.f4VisibleArea.z - globalLayout.f4VisibleArea.x);
+	float fMarginY = fRemainingReach / (globalLayout.f4VisibleArea.y - globalLayout.f4VisibleArea.w);
+	if (f2ElevTexcoord.x < -fMarginX || f2ElevTexcoord.x > 1.0f + fMarginX || f2ElevTexcoord.y < -fMarginY || f2ElevTexcoord.y > 1.0f + fMarginY)
+	{
+		// Outside the window: carry the accumulation chain forward (raw deposit at pass 0, decayed previous after)
+		// and emit no combine snapshot.
+		if (fPassIndex > 0.0f)
+		{
+			f4OutRed = fAccumulationDecay * texture(redSampler, f2InTexcoord);
+			f4OutGreen = fAccumulationDecay * texture(greenSampler, f2InTexcoord);
+			f4OutBlue = fAccumulationDecay * texture(blueSampler, f2InTexcoord);
+		}
+		else
+		{
+			f4OutRed = texture(redSampler, f2InTexcoord);
+			f4OutGreen = texture(greenSampler, f2InTexcoord);
+			f4OutBlue = texture(blueSampler, f2InTexcoord);
+		}
+		f4OutRedSpread = vec4(0.0f);
+		f4OutGreenSpread = vec4(0.0f);
+		f4OutBlueSpread = vec4(0.0f);
+		return;
+	}
+
+	// Height fade: attenuate spread above base height
 	float fElevation = texture(elevationSampler, f2ElevTexcoord).x;
 	float fHeightT = clamp((fElevation - globalLayout.fBaseHeight) / max(globalLayout.fSpreadHeightEndHeight, 0.001f), 0.0f, 1.0f);
 	float fHeightFade = pow(fHeightT, globalLayout.fSpreadHeightPower) * globalLayout.fSpreadHeightMultiplier;

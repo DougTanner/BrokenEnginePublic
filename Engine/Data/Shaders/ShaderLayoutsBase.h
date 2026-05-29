@@ -269,6 +269,8 @@ struct GlobalLayout
 	float fLightingAddTerrain INIT;
 	float fSpreadDirectionalityStart INIT;
 	vec4 f4LightingArea INIT;
+	vec4 f4LightingAreaPrevious INIT; // Previous-frame f4LightingArea, for LightingTemporal.comp reprojection
+	float fLightingTemporalBlend INIT; // EMA weight toward current; 1.0 on the first frame so seeded history is never shown
 	uint32_t uiLightTilesX INIT;
 	uint32_t uiLightTilesY INIT;
 

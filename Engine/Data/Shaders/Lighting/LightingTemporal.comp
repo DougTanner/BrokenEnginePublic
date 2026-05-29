@@ -1,0 +1,60 @@
+#version 460
+
+#include "ShaderLayouts.h"
+#include "ShaderFunctions.h"
+
+layout (local_size_x = kiComputeTileSize, local_size_y = kiComputeTileSize) in;
+
+// Uniforms
+layout (set = 0, binding = 0) uniform globalUniform
+{
+	GlobalLayout globalLayout;
+};
+
+// 4 history samplers (previous-frame combine outputs) + 4 combine storage images (read-write, blended in place).
+layout (set = 1, binding = 1) uniform sampler2D historyR;
+layout (set = 1, binding = 2) uniform sampler2D historyG;
+layout (set = 1, binding = 3) uniform sampler2D historyB;
+layout (set = 1, binding = 4) uniform sampler2D historyAmbient;
+layout (set = 1, binding = 5, rgba8) uniform image2D combineImageR;
+layout (set = 1, binding = 6, rgba8) uniform image2D combineImageG;
+layout (set = 1, binding = 7, rgba8) uniform image2D combineImageB;
+layout (set = 1, binding = 8, rgba8) uniform image2D combineImageAmbient;
+
+// Temporal accumulation: blend the freshly-combined lighting (in place) with the previous frame's result,
+// reprojected into the current texel grid by world position. While the texel-ramp rescales the grid this
+// averages out the per-frame resample jitter (an exponential moving average) so it stops flickering; at a
+// settled grid history == current so it is a no-op. Mirror of ShadowTemporal.comp over the four combine outputs.
+void main()
+{
+	uint uiX = gl_GlobalInvocationID.x;
+	uint uiY = gl_GlobalInvocationID.y;
+
+	ivec2 i2Size = imageSize(combineImageR);
+	if (int(uiX) >= i2Size.x || int(uiY) >= i2Size.y)
+		return;
+
+	ivec2 i2Coord = ivec2(uiX, uiY);
+	vec2 f2Uv = (vec2(float(uiX), float(uiY)) + 0.5f) / vec2(i2Size);
+
+	// Window: only the on-screen region (+ 2-texel bilinear margin) feeds the final image — LightCombine left the
+	// rest untouched (zeroed), so skip it here too. Same test as the combine window so the blended set matches.
+	vec2 f2World = VisibleAreaToWorld(f2Uv, globalLayout.f4LightingArea);
+	vec2 f2VisibleUv = WorldToVisibleArea(vec3(f2World, 0.0f), globalLayout.f4VisibleArea);
+	float fMarginX = 2.0f * ((globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x) / float(i2Size.x)) / (globalLayout.f4VisibleArea.z - globalLayout.f4VisibleArea.x);
+	float fMarginY = 2.0f * ((globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w) / float(i2Size.y)) / (globalLayout.f4VisibleArea.y - globalLayout.f4VisibleArea.w);
+	if (f2VisibleUv.x < -fMarginX || f2VisibleUv.x > 1.0f + fMarginX || f2VisibleUv.y < -fMarginY || f2VisibleUv.y > 1.0f + fMarginY)
+		return;
+
+	// This texel's world position -> previous-frame UV. Disocclusion (reprojected UV outside [0,1] = newly
+	// revealed): keep current (the history fetch would be off-grid / stale).
+	vec2 f2PreviousUv = WorldToVisibleArea(vec3(f2World, 0.0f), globalLayout.f4LightingAreaPrevious);
+	if (f2PreviousUv.x < 0.0f || f2PreviousUv.x > 1.0f || f2PreviousUv.y < 0.0f || f2PreviousUv.y > 1.0f)
+		return;
+
+	float fBlend = globalLayout.fLightingTemporalBlend;
+	imageStore(combineImageR, i2Coord, mix(textureLod(historyR, f2PreviousUv, 0.0f), imageLoad(combineImageR, i2Coord), fBlend));
+	imageStore(combineImageG, i2Coord, mix(textureLod(historyG, f2PreviousUv, 0.0f), imageLoad(combineImageG, i2Coord), fBlend));
+	imageStore(combineImageB, i2Coord, mix(textureLod(historyB, f2PreviousUv, 0.0f), imageLoad(combineImageB, i2Coord), fBlend));
+	imageStore(combineImageAmbient, i2Coord, mix(textureLod(historyAmbient, f2PreviousUv, 0.0f), imageLoad(combineImageAmbient, i2Coord), fBlend));
+}

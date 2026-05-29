@@ -42,4 +42,4 @@ GPU-to-CPU image readback via `CopyImageToHostMemory()` (static). File-based tex
 
 ## RenderTargetTextures
 
-Owns all effect render target textures: MRT lighting (3 R/G/B textures + blur chains), shadow/shadow blur, smoke ping-pong, wind ping-pong, object shadow/blur, terrain (elevation, color, normal, ambient occlusion), and log texture. Created/destroyed during swapchain recreation.
+Owns all effect render target textures: MRT lighting (3 R/G/B textures + blur chains, plus directional/ambient temporal-history textures), shadow/shadow blur, smoke ping-pong, wind ping-pong, object shadow/blur, terrain (elevation, color, normal, ambient occlusion), and log texture. Created/destroyed during swapchain recreation. Lighting deposit/spread/combine targets (and the light-occupancy SSBO) are pre-sized for headroom via `TextureManager::LightingDetailTextureSize` (the lighting counterpart of `DetailTextureSize`/`WaterDetailTextureSize`), so the world-sized-texel grid has room to slide under pan / coarsen under zoom-out before cropping.

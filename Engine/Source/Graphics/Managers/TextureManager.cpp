@@ -7,6 +7,7 @@
 #include "Ui/LightingWrappersBase.h"
 
 #include "Data/Data.h"
+#include "Game.h"
 
 namespace engine
 {
@@ -27,6 +28,22 @@ std::tuple<int64_t, int64_t> TextureManager::DetailTextureSize(float fMultiplier
 	iX = std::min(iX, static_cast<int64_t>(gpInstanceManager->mVkPhysicalDeviceProperties.limits.maxImageDimension2D));
 	iY = std::min(iY, static_cast<int64_t>(gpInstanceManager->mVkPhysicalDeviceProperties.limits.maxImageDimension2D));
 
+	return std::make_tuple(iX, iY);
+}
+
+std::tuple<int64_t, int64_t> TextureManager::LightingDetailTextureSize(float fMultiplier)
+{
+	// Pre-size every lighting deposit/spread/combine texture by the lighting headroom multiplier so a constant
+	// on-screen-density texel grid (see Camera::kfLightingEyeHeightMaxReference) has room to slide under pan and
+	// coarsen under zoom-out before it runs off the texture and crops. Centralized so all lighting consumers stay
+	// byte-consistent (deposit quads must land on the same texels the area math snaps to). Clamp AFTER the multiply
+	// (DetailTextureSize clamps pre-multiply); force width even so downstream half-width math stays integer.
+	auto [iBaseX, iBaseY] = DetailTextureSize(fMultiplier);
+	int64_t iRefMult = std::lround(game::Camera::kfLightingEyeHeightMaxReference / game::Camera::kfCameraEyeHeightDefault);
+	int64_t iLimit = static_cast<int64_t>(gpInstanceManager->mVkPhysicalDeviceProperties.limits.maxImageDimension2D);
+	int64_t iX = std::min(iBaseX * iRefMult, iLimit);
+	iX &= ~1ll;
+	int64_t iY = std::min(iBaseY * iRefMult, iLimit);
 	return std::make_tuple(iX, iY);
 }
 

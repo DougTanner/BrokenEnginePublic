@@ -59,10 +59,11 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 	ASSERT(siRendered + rCurrent.iCount <= iVisibleLightsBufferCapacity);
 	ASSERT(siRendered + rCurrent.iCount <= iAreaLightsBufferCapacity);
 
-	// Minimum lighting size: clamp to 8 texels to prevent flickering from sub-texel lights. Texel
-	// size derives from the same visible-area lighting region as the f4LightingArea population in
-	// GlobalUniforms.cpp (continuous, non-LOD-stable sizing); the ceil here only inflates the floor
-	// by a sub-texel amount.
+	// Minimum lighting size: clamp to 8 texels to prevent flickering from sub-texel lights. The deposit
+	// texel world size is constant-density (visible width / base detail resolution) at any settled height,
+	// independent of the lighting-headroom pre-size (the headroom cancels in the f4LightingArea texel
+	// formula), so the un-bumped DetailTextureSize is the right basis here — NOT LightingDetailTextureSize,
+	// which would shrink the floor by the headroom factor. The ceil only inflates the floor sub-texel.
 	auto [iLightingTextureX, iLightingTextureY] = TextureManager::DetailTextureSize(gLightingDepositTextureMultiplier.Get());
 	float fTexelSizeX = std::ceil(game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / static_cast<float>(iLightingTextureX);
 	float fTexelSizeY = std::ceil(game::gpCamera->f4RenderVisibleArea.y - game::gpCamera->f4RenderVisibleArea.w) / static_cast<float>(iLightingTextureY);

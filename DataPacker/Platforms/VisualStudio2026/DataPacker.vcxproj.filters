@@ -36,6 +36,12 @@
     <ClCompile Include="..\..\Source\BakeIslandIntermediates.cpp">
       <Filter>DataPacker</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\BakeRoute.cpp">
+      <Filter>DataPacker</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ProcessBakedRegion.cpp">
+      <Filter>DataPacker</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\GaeaArchetype.cpp">
       <Filter>DataPacker</Filter>
     </ClCompile>
@@ -141,6 +147,9 @@
       <Filter>DataPacker</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\BakeIslandIntermediates.h">
+      <Filter>DataPacker</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\BakeIslandIntermediatesInternal.h">
       <Filter>DataPacker</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\GaeaArchetype.h">

@@ -51,6 +51,12 @@ struct RenderTargetTextures
 	// Sampled by Terrain/Water in the ambient path to replace three EWNS samples with one.
 	Texture mAmbientCombineTexture;
 
+	// Previous-frame combined lighting (3 directional + ambient), reprojected by LightingTemporal.comp to
+	// de-flicker the texel-ramp resample (mirror of mShadowHistoryTexture). Refreshed each frame by copying
+	// the temporal-blended combine outputs back into these.
+	Texture mpLightingHistoryTextures[3];
+	Texture mAmbientHistoryTexture;
+
 	// Debug texture array (channels A/B/C used by formats needing 3 textures per slot, e.g., spread direction combined)
 	int64_t miDebugTextureCount = 0;
 	Texture* mppDebugTextures[shaders::kiMaxDebugTextures] {};

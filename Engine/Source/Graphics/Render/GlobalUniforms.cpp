@@ -264,6 +264,13 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	// frame's copy seeds valid history. Once-per-frame latch (RenderFrameGlobal runs once per frame).
 	static bool sbPreviousShadowAreaInitialized = false;
 	static XMFLOAT4 sf4PreviousShadowArea {};
+	if (gbShadowTemporalReset)
+	{
+		// A Graphics recreate (device-lost / settings) rebuilt mShadowHistoryTexture with undefined contents while
+		// these statics survived. Re-arm the first-frame guard so this frame blends pure-current and re-seeds history.
+		gbShadowTemporalReset = false;
+		sbPreviousShadowAreaInitialized = false;
+	}
 	if (!sbPreviousShadowAreaInitialized)
 	{
 		sf4PreviousShadowArea = rGlobalLayout.f4ShadowArea;
@@ -331,6 +338,68 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	// Derived from the shared night-amount envelope so the sun/moon split and the shadow
 	// night-gate stay in lockstep.
 	rGlobalLayout.fShadowMoonMultiplier = std::lerp(1.0f, gSunMoonShadowNightMultiplier.Get(), ComputeNightAmount(fSunAngle));
+}
+
+static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout)
+{
+	// Lighting area: world-sized ramped texels in a pre-sized texture (mirror of the shadow-area path in
+	// PopulateShadowParameters). The deposit/spread/combine textures are pre-sized (RenderTargetTextures, via
+	// LightingDetailTextureSize) to cover the visible area at Camera::kfLightingEyeHeightMaxReference as headroom; the
+	// texel world size is the base-resolution texel scaled by the camera's rate-limited mfLightingTexelEyeHeight, so it
+	// is fixed at a settled eye height (the grid snaps cleanly under XY pan -> no shimmer) and only rescales while the
+	// ramp tracks a zoom. The reference height is purely a coverage/headroom anchor (it cancels in the texel-size
+	// formula); the explicit form is kept (read the actual, clamped texture extent) so coverage is device-clamp-
+	// invariant and the origin snaps deposit quads onto integer texels. f4LightingArea is the full camera-centered
+	// footprint snapped to the deposit texel grid; farther-than-window content crops via the CLAMP sampler. Snapping to
+	// the deposit grid (not combine) is load-bearing: deposit is where lights rasterize, so its grid must move in
+	// integer-texel steps under pan. Spread/combine/temporal resample the same world rectangle at their own resolutions.
+	float fLightingTextureWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.width);
+	float fLightingTextureHeight = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.height);
+
+	float fAspect = gpSwapchainManager->mfAspectRatio;
+	float fTanHalfFov = std::tan(0.5f * XMConvertToRadians(gFov.Get() / fAspect));
+	float fTexelScale = game::gpCamera->mfLightingTexelEyeHeight / game::Camera::kfCameraEyeHeightDefault;
+	float fWorldTexelX = ((2.0f * game::Camera::kfLightingEyeHeightMaxReference * fAspect * fTanHalfFov) / fLightingTextureWidth) * fTexelScale;
+	float fWorldTexelY = ((2.0f * game::Camera::kfLightingEyeHeightMaxReference * fTanHalfFov) / fLightingTextureHeight) * fTexelScale;
+	float fFullWidth = fLightingTextureWidth * fWorldTexelX;
+	float fFullHeight = fLightingTextureHeight * fWorldTexelY;
+	XMFLOAT4A f4CameraPosition {};
+	XMStoreFloat4A(&f4CameraPosition, game::gpCamera->mVecPosition);
+	int64_t iLeftTexel = static_cast<int64_t>(std::floor((f4CameraPosition.x - fFullWidth * 0.5f) / fWorldTexelX));
+	int64_t iTopTexel = static_cast<int64_t>(std::floor((f4CameraPosition.y + fFullHeight * 0.5f) / fWorldTexelY));
+	float fLeft = static_cast<float>(iLeftTexel) * fWorldTexelX;
+	float fTop = static_cast<float>(iTopTexel) * fWorldTexelY;
+	rGlobalLayout.f4LightingArea = {fLeft, fTop, fLeft + fFullWidth, fTop - fFullHeight};
+
+	// Temporal accumulation: feed the previous frame's lighting area so LightingTemporal.comp can reproject the
+	// history into the current grid (mirror of the shadow previous-area latch). First frame: previous == current and
+	// blend forced to 1.0 (pure current) so the uninitialized history textures are never shown; that frame's copy
+	// seeds valid history. Once-per-frame latch (RenderFrameGlobal runs once per frame).
+	static bool sbPreviousLightingAreaInitialized = false;
+	static XMFLOAT4 sf4PreviousLightingArea {};
+	if (gbLightingTemporalReset)
+	{
+		// A Graphics recreate (device-lost / settings) rebuilt the lighting history textures with undefined contents
+		// while these statics survived. Re-arm the first-frame guard so this frame blends pure-current and re-seeds history.
+		gbLightingTemporalReset = false;
+		sbPreviousLightingAreaInitialized = false;
+	}
+	if (!sbPreviousLightingAreaInitialized)
+	{
+		sf4PreviousLightingArea = rGlobalLayout.f4LightingArea;
+		sbPreviousLightingAreaInitialized = true;
+		rGlobalLayout.fLightingTemporalBlend = 1.0f;
+	}
+	else
+	{
+		rGlobalLayout.fLightingTemporalBlend = gLightingTemporalBlend.Get();
+	}
+	rGlobalLayout.f4LightingAreaPrevious = sf4PreviousLightingArea;
+	sf4PreviousLightingArea = rGlobalLayout.f4LightingArea;
+
+	// Light-occupancy tile grid, recomputed from the bumped deposit resolution.
+	rGlobalLayout.uiLightTilesX = std::max(1u, static_cast<uint32_t>(fLightingTextureWidth) / shaders::kiComputeTileSize);
+	rGlobalLayout.uiLightTilesY = std::max(1u, static_cast<uint32_t>(fLightingTextureHeight) / shaders::kiComputeTileSize);
 }
 
 static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, float fDayPercent, float fNoonPercent)
@@ -535,47 +604,10 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 	rGlobalLayout.f2CameraPosition.y = f4CameraPosGlobal.y;
 	rGlobalLayout.f4VisibleArea = game::gpCamera->f4RenderVisibleArea;
 
-	// Lighting area: continuous visible-area world size (differs from the shadow-area path above, which
-	// uses fixed-world-size texels in a pre-sized texture). f4RenderVisibleArea tracks
-	// the camera frustum footprint and its width/height is continuous across mesh-LOD boundaries
-	// (quad count halves but quad size doubles), so the lighting deposit/spread no longer pops 4x at
-	// the LOD transitions (kfMinEyeHeight * 4^L = 600/2400/9600m). Origin is still snapped to integer
-	// lighting-texel boundaries below, so XY pan stays shimmer-free (width is bit-stable within a
-	// zoom bucket -> texel size constant -> snap moves in integer-texel steps). Zoom re-latches the
-	// width once per integer-meter zoom bucket, a small accepted texel-scale step (vs. the old single
-	// large pop per LOD).
-	float fLightingWorldWidth = game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x;
-	float fLightingWorldHeight = game::gpCamera->f4RenderVisibleArea.y - game::gpCamera->f4RenderVisibleArea.w;
-	if (fLightingWorldWidth > 0.0f && fLightingWorldHeight > 0.0f)
-	{
-		auto [iLightingTextureX, iLightingTextureY] = TextureManager::DetailTextureSize(gLightingDepositTextureMultiplier.Get());
-		float fTexelsX = static_cast<float>(iLightingTextureX);
-		float fTexelsY = static_cast<float>(iLightingTextureY);
-
-		float fTexelSizeX = fLightingWorldWidth / fTexelsX;
-		float fTexelSizeY = fLightingWorldHeight / fTexelsY;
-
-		XMFLOAT4A f4CameraPos {};
-		XMStoreFloat4A(&f4CameraPos, game::gpCamera->mVecPosition);
-
-		int64_t iLeftTexel = static_cast<int64_t>(std::floor((f4CameraPos.x - fLightingWorldWidth * 0.5f) / fTexelSizeX));
-		int64_t iTopTexel = static_cast<int64_t>(std::floor((f4CameraPos.y + fLightingWorldHeight * 0.5f) / fTexelSizeY));
-		float fLeft = static_cast<float>(iLeftTexel) * fTexelSizeX;
-		float fTop = static_cast<float>(iTopTexel) * fTexelSizeY;
-
-		rGlobalLayout.f4LightingArea = {fLeft, fTop, fLeft + fLightingWorldWidth, fTop - fLightingWorldHeight};
-
-		rGlobalLayout.uiLightTilesX = std::max(1u, static_cast<uint32_t>(iLightingTextureX) / shaders::kiComputeTileSize);
-		rGlobalLayout.uiLightTilesY = std::max(1u, static_cast<uint32_t>(iLightingTextureY) / shaders::kiComputeTileSize);
-	}
-	else
-	{
-		rGlobalLayout.f4LightingArea = rGlobalLayout.f4VisibleArea;
-	}
-
 	float fDayPercent = 0.0f;
 	float fNoonPercent = 0.0f;
 	PopulateSunAndLighting(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent);
+	PopulateLightingParameters(rGlobalLayout);
 	PopulateShadowParameters(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent);
 	PopulateTerrainParameters(rGlobalLayout, fDayPercent, fNoonPercent);
 	PopulateWaterParameters(rGlobalLayout, fSunAngle, fDayPercent);
