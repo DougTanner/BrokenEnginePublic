@@ -3,18 +3,33 @@
 namespace common
 {
 
+// FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, ...) appends a trailing "\r\n" (often with a '.') and reports a
+// length that includes it; trimming keeps single-line log output clean. Also NUL-terminates at the trim point.
+static std::string_view TrimSystemMessage(char* pcBuffer, DWORD uiLength)
+{
+	while (uiLength > 0 && (pcBuffer[uiLength - 1] == '\r' || pcBuffer[uiLength - 1] == '\n' || pcBuffer[uiLength - 1] == '.' || pcBuffer[uiLength - 1] == ' '))
+	{
+		--uiLength;
+	}
+
+	pcBuffer[uiLength] = 0;
+	return std::string_view(pcBuffer, uiLength);
+}
+
 std::string_view LastErrorString()
 {
 	static char spcReturn[MAX_PATH] {};
 	spcReturn[0] = 0;
-	return std::string_view(spcReturn, FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), spcReturn, static_cast<DWORD>(std::size(spcReturn)) - 1, nullptr));
+	DWORD uiLength = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), spcReturn, static_cast<DWORD>(std::size(spcReturn)) - 1, nullptr);
+	return TrimSystemMessage(spcReturn, uiLength);
 }
 
 std::string_view HresultToString(HRESULT hresult)
 {
 	static char spcReturn[MAX_PATH] {};
 	spcReturn[0] = 0;
-	return std::string_view(spcReturn, FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, static_cast<DWORD>(hresult), 0, spcReturn, static_cast<DWORD>(std::size(spcReturn) - 1), nullptr));
+	DWORD uiLength = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, static_cast<DWORD>(hresult), 0, spcReturn, static_cast<DWORD>(std::size(spcReturn) - 1), nullptr);
+	return TrimSystemMessage(spcReturn, uiLength);
 }
 
 int64_t LogicalCoreCount()
@@ -93,8 +108,18 @@ int64_t HardwareCoreCount()
 
 std::tuple<std::string, std::string> FileTimeString(const std::filesystem::file_time_type& rFileTime)
 {
+	// file_time_type's clock has no standard layout/epoch relationship to FILETIME — aliasing one through the
+	// other is UB that only works by MSVC-STL coincidence. Convert through system_clock (leap-second-naive, like
+	// FileTimeToSystemTime) and rebuild the FILETIME from its 100ns tick count since the 1601 epoch.
+	const std::chrono::system_clock::time_point systemClockTime = std::chrono::clock_cast<std::chrono::system_clock>(rFileTime);
+	const uint64_t uiHundredNsSince1601 = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::duration<int64_t, std::ratio<1, 10'000'000>>>(systemClockTime.time_since_epoch()).count() + 116'444'736'000'000'000);
+	const FILETIME filetime
+	{
+		.dwLowDateTime = static_cast<DWORD>(uiHundredNsSince1601 & 0xFFFFFFFF),
+		.dwHighDateTime = static_cast<DWORD>(uiHundredNsSince1601 >> 32),
+	};
 	SYSTEMTIME systemtime {};
-	VERIFY_SUCCESS(FileTimeToSystemTime(reinterpret_cast<const FILETIME*>(&rFileTime), &systemtime));
+	VERIFY_SUCCESS(FileTimeToSystemTime(&filetime, &systemtime));
 	SYSTEMTIME localSystemtime {};
 	VERIFY_SUCCESS(SystemTimeToTzSpecificLocalTime(nullptr, &systemtime, &localSystemtime));
 
@@ -111,6 +136,10 @@ std::tuple<std::string, std::string> FileTimeString(const std::filesystem::file_
 
 ExecutableResult RunExecutable(const std::filesystem::path& rExecutableFile, std::wstring& rCommandLine)
 {
+	// RAII so any throwing VERIFY_SUCCESS below unwinds without leaking the handle / attribute list. Pipe and
+	// process handles use a nullptr sentinel, so unique_ptr<void> (which skips the deleter on nullptr) fits.
+	using ScopedHandle = std::unique_ptr<void, decltype(&CloseHandle)>;
+
 	SECURITY_ATTRIBUTES securityAttributes
 	{
 		.nLength = sizeof(SECURITY_ATTRIBUTES),
@@ -120,10 +149,16 @@ ExecutableResult RunExecutable(const std::filesystem::path& rExecutableFile, std
 
 	HANDLE hStdInPipeRead = nullptr;
 	HANDLE hStdInPipeWrite = nullptr;
+	VERIFY_SUCCESS(CreatePipe(&hStdInPipeRead, &hStdInPipeWrite, &securityAttributes, 0));
+	ScopedHandle pStdInPipeRead(hStdInPipeRead, &CloseHandle);
+	ScopedHandle pStdInPipeWrite(hStdInPipeWrite, &CloseHandle);
+
 	HANDLE hStdOutPipeRead = nullptr;
 	HANDLE hStdOutPipeWrite = nullptr;
-	VERIFY_SUCCESS(CreatePipe(&hStdInPipeRead, &hStdInPipeWrite, &securityAttributes, 0));
 	VERIFY_SUCCESS(CreatePipe(&hStdOutPipeRead, &hStdOutPipeWrite, &securityAttributes, 0));
+	ScopedHandle pStdOutPipeRead(hStdOutPipeRead, &CloseHandle);
+	ScopedHandle pStdOutPipeWrite(hStdOutPipeWrite, &CloseHandle);
+
 	// Strip inheritance from parent-side pipe ends; the attribute list below only applies to the child-side two.
 	VERIFY_SUCCESS(SetHandleInformation(hStdInPipeWrite, HANDLE_FLAG_INHERIT, 0));
 	VERIFY_SUCCESS(SetHandleInformation(hStdOutPipeRead, HANDLE_FLAG_INHERIT, 0));
@@ -138,6 +173,11 @@ ExecutableResult RunExecutable(const std::filesystem::path& rExecutableFile, std
 	LPPROC_THREAD_ATTRIBUTE_LIST pAttributeList = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attributeListBuffer.get());
 	_Analysis_assume_(pAttributeList != nullptr);
 	VERIFY_SUCCESS(InitializeProcThreadAttributeList(pAttributeList, 1, 0, &uiAttributeListSize));
+	// Tears down before attributeListBuffer frees (reverse declaration order) so the list outlives its backing.
+	ScopedLambda attributeListGuard([pAttributeList]()
+	{
+		DeleteProcThreadAttributeList(pAttributeList);
+	});
 	HANDLE inheritHandles[] = { hStdInPipeRead, hStdOutPipeWrite };
 	VERIFY_SUCCESS(UpdateProcThreadAttribute(pAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, inheritHandles, sizeof(inheritHandles), nullptr, nullptr));
 
@@ -151,10 +191,13 @@ ExecutableResult RunExecutable(const std::filesystem::path& rExecutableFile, std
 
 	PROCESS_INFORMATION processInformation {};
 	VERIFY_SUCCESS(CreateProcessW(rExecutableFile.native().c_str(), rCommandLine.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT, nullptr, nullptr, &startupinfoex.StartupInfo, &processInformation));
-	DeleteProcThreadAttributeList(pAttributeList);
+	ScopedHandle pProcess(processInformation.hProcess, &CloseHandle);
+	ScopedHandle pThread(processInformation.hThread, &CloseHandle);
 
-	CloseHandle(hStdOutPipeWrite);
-	CloseHandle(hStdInPipeRead);
+	// Close the parent's child-side pipe ends now (before the read loop, not at scope exit) so ReadFile sees
+	// EOF once the child exits; the child holds its own inherited duplicates.
+	pStdOutPipeWrite.reset();
+	pStdInPipeRead.reset();
 
 	std::string output;
 	char pcPipeOutput[1024] {};
@@ -168,11 +211,6 @@ ExecutableResult RunExecutable(const std::filesystem::path& rExecutableFile, std
 	WaitForSingleObject(processInformation.hProcess, INFINITE);
 	DWORD uiExitCode = 0;
 	GetExitCodeProcess(processInformation.hProcess, &uiExitCode);
-
-	CloseHandle(hStdOutPipeRead);
-	CloseHandle(hStdInPipeWrite);
-	CloseHandle(processInformation.hThread);
-	CloseHandle(processInformation.hProcess);
 
 	return {.mOutput = std::move(output), .miExitCode = static_cast<int64_t>(uiExitCode)};
 }

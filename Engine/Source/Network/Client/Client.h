@@ -213,7 +213,7 @@ private:
 	common::InTheLastSecond mFramesReceived;
 
 	// Interarrival jitter tracking
-	std::chrono::high_resolution_clock::time_point mLastUpdateArrival {};
+	std::chrono::steady_clock::time_point mLastUpdateArrival {};
 	bool mbHasLastUpdateArrival = false;
 	common::Smoothed<int64_t> mSmoothedJitterUs;
 

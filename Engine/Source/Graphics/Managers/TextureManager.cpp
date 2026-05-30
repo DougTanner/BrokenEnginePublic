@@ -33,17 +33,16 @@ std::tuple<int64_t, int64_t> TextureManager::DetailTextureSize(float fMultiplier
 
 std::tuple<int64_t, int64_t> TextureManager::LightingDetailTextureSize(float fMultiplier)
 {
-	// Pre-size every lighting deposit/spread/combine texture by the lighting headroom multiplier so a constant
-	// on-screen-density texel grid (see Camera::kfLightingEyeHeightMaxReference) has room to slide under pan and
-	// coarsen under zoom-out before it runs off the texture and crops. Centralized so all lighting consumers stay
-	// byte-consistent (deposit quads must land on the same texels the area math snaps to). Clamp AFTER the multiply
-	// (DetailTextureSize clamps pre-multiply); force width even so downstream half-width math stays integer.
+	// Pre-size every lighting deposit/spread/combine texture by Camera::kfLightingHeadroomMultiplier so the constant
+	// on-screen-pixel-size texel grid has transient room to grow under a fast zoom-out before it runs off the texture
+	// (where the CLAMP_TO_BORDER edge reads as no light). Centralized so all lighting consumers stay byte-consistent
+	// (deposit quads must land on the same texels the area math snaps to). Clamp AFTER the multiply (DetailTextureSize
+	// clamps pre-multiply); force width even so downstream half-width math stays integer.
 	auto [iBaseX, iBaseY] = DetailTextureSize(fMultiplier);
-	int64_t iRefMult = std::lround(game::Camera::kfLightingEyeHeightMaxReference / game::Camera::kfCameraEyeHeightDefault);
 	int64_t iLimit = static_cast<int64_t>(gpInstanceManager->mVkPhysicalDeviceProperties.limits.maxImageDimension2D);
-	int64_t iX = std::min(iBaseX * iRefMult, iLimit);
+	int64_t iX = std::min(static_cast<int64_t>(std::lround(static_cast<float>(iBaseX) * game::Camera::kfLightingHeadroomMultiplier)), iLimit);
 	iX &= ~1ll;
-	int64_t iY = std::min(iBaseY * iRefMult, iLimit);
+	int64_t iY = std::min(static_cast<int64_t>(std::lround(static_cast<float>(iBaseY) * game::Camera::kfLightingHeadroomMultiplier)), iLimit);
 	return std::make_tuple(iX, iY);
 }
 
@@ -410,6 +409,8 @@ void TextureManager::DestroySamplers()
 	mVkSamplerWindClamp = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerBorder, nullptr);
 	mVkSamplerBorder = VK_NULL_HANDLE;
+	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerBorderWhite, nullptr);
+	mVkSamplerBorderWhite = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerClamp, nullptr);
 	mVkSamplerClamp = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerElevation, nullptr);
@@ -530,6 +531,12 @@ void TextureManager::CreateSamplers()
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerBorder));
 	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerBorder, "Border");
+	// White border (opaque 1.0): the shadow texture is inverse (1.0 = fully lit / no shadow), so a sample beyond the
+	// huge texture's extent (a fast zoom-out that outruns the texel ramp) reads "no shadow" instead of smearing the edge.
+	vkSamplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerBorderWhite));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerBorderWhite, "BorderWhite");
+	vkSamplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -548,6 +555,7 @@ VkSampler TextureManager::GetSampler(DescriptorFlags_t flags)
 	const int64_t iSamplerFlagCount = (flags & DescriptorFlags::kSamplerClamp ? 1 : 0)
 		+ (flags & DescriptorFlags::kSamplerElevation ? 1 : 0)
 		+ (flags & DescriptorFlags::kSamplerBorder ? 1 : 0)
+		+ (flags & DescriptorFlags::kSamplerBorderWhite ? 1 : 0)
 		+ (flags & DescriptorFlags::kSamplerRepeat ? 1 : 0)
 		+ (flags & DescriptorFlags::kSamplerMirroredRepeat ? 1 : 0)
 		+ (flags & DescriptorFlags::kSamplerSmoke ? 1 : 0)
@@ -565,6 +573,10 @@ VkSampler TextureManager::GetSampler(DescriptorFlags_t flags)
 	else if (flags & DescriptorFlags::kSamplerBorder)
 	{
 		return mVkSamplerBorder;
+	}
+	else if (flags & DescriptorFlags::kSamplerBorderWhite)
+	{
+		return mVkSamplerBorderWhite;
 	}
 	else if (flags & DescriptorFlags::kSamplerRepeat)
 	{

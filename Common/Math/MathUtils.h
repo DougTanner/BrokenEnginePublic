@@ -82,9 +82,10 @@ inline XMVECTOR XM_CALLCONV RandomXYJitter(RandomEngine& rRandomEngine)
 }
 
 // Runtime jitter value (for dynamic values like rType.fParticlePositionJitter)
+// Operation order matches the compile-time RandomXYJitter<JITTER> form so identical magnitudes consume the RNG identically
 inline XMVECTOR XM_CALLCONV RandomXYJitter(float fJitter, RandomEngine& rRandomEngine)
 {
-	return XMVectorSet(-fJitter + Random<1.0f>(rRandomEngine) * 2.0f * fJitter, -fJitter + Random<1.0f>(rRandomEngine) * 2.0f * fJitter, 0.0f, 0.0f);
+	return XMVectorSet(-fJitter + Random(2.0f * fJitter, rRandomEngine), -fJitter + Random(2.0f * fJitter, rRandomEngine), 0.0f, 0.0f);
 }
 
 // Add random XY jitter to a position (no normalization)
@@ -119,10 +120,12 @@ XMVECTOR XM_CALLCONV DirectionTo(FXMVECTOR vecFrom, FXMVECTOR vecTo);
 // degenerate, etc.). Assumes the projectile does NOT inherit shooter velocity.
 XMVECTOR XM_CALLCONV ComputeLeadPosition(FXMVECTOR vecShooterPosition, FXMVECTOR vecTargetPosition, FXMVECTOR vecTargetVelocity, float fProjectileSpeed);
 
+// Computes on make_unsigned_t to avoid signed-overflow UB on large valid inputs; result is identical to the signed form for non-negative inputs
 template<std::integral T>
 constexpr inline T RoundUp(T iToRound, T iMultiple)
 {
-	return ((iToRound + iMultiple - 1) / iMultiple) * iMultiple;
+	using UnsignedT = std::make_unsigned_t<T>;
+	return static_cast<T>(((static_cast<UnsignedT>(iToRound) + static_cast<UnsignedT>(iMultiple) - 1) / static_cast<UnsignedT>(iMultiple)) * static_cast<UnsignedT>(iMultiple));
 }
 
 template<std::integral T, T MULTIPLE>
@@ -130,13 +133,14 @@ constexpr inline T RoundUp(T iToRound)
 {
 	static_assert(MULTIPLE > 0, "Multiple must be positive");
 
-	if constexpr (std::has_single_bit(static_cast<std::make_unsigned_t<T>>(MULTIPLE)))
+	using UnsignedT = std::make_unsigned_t<T>;
+	if constexpr (std::has_single_bit(static_cast<UnsignedT>(MULTIPLE)))
 	{
-		return (iToRound + MULTIPLE - 1) & ~(MULTIPLE - 1);
+		return static_cast<T>((static_cast<UnsignedT>(iToRound) + static_cast<UnsignedT>(MULTIPLE) - 1) & ~(static_cast<UnsignedT>(MULTIPLE) - 1));
 	}
 	else
 	{
-		return ((iToRound + MULTIPLE - 1) / MULTIPLE) * MULTIPLE;
+		return static_cast<T>(((static_cast<UnsignedT>(iToRound) + static_cast<UnsignedT>(MULTIPLE) - 1) / static_cast<UnsignedT>(MULTIPLE)) * static_cast<UnsignedT>(MULTIPLE));
 	}
 }
 
@@ -153,27 +157,43 @@ constexpr inline T RoundDown(T fToRound, T fMultiple)
 	return std::floor(fToRound * fInv) / fInv;
 }
 
-template <typename T>
+template <std::unsigned_integral T>
 inline T FloatToUnorm(float fValue)
 {
 	ASSERT(fValue >= 0.0f && fValue <= 1.0f);
-	return static_cast<T>(static_cast<float>(std::numeric_limits<T>::max()) * fValue);
+	if constexpr (sizeof(T) <= 2)
+	{
+		// float represents max() exactly for 8/16-bit; preserves existing baked output bit-for-bit
+		return static_cast<T>(static_cast<float>(std::numeric_limits<T>::max()) * fValue);
+	}
+	else
+	{
+		// 32/64-bit: static_cast<float>(max()) rounds up to 2^N and overflows the int cast at fValue == 1.0; scale in double
+		return static_cast<T>(static_cast<double>(std::numeric_limits<T>::max()) * static_cast<double>(fValue));
+	}
 }
 
-template <typename T>
+template <std::unsigned_integral T>
 inline float UnormToFloat(T uiValue)
 {
-	return static_cast<float>(uiValue) / static_cast<float>(std::numeric_limits<T>::max());
+	if constexpr (sizeof(T) <= 2)
+	{
+		return static_cast<float>(uiValue) / static_cast<float>(std::numeric_limits<T>::max());
+	}
+	else
+	{
+		return static_cast<float>(static_cast<double>(uiValue) / static_cast<double>(std::numeric_limits<T>::max()));
+	}
 }
 
 // Frame-rate independent exponential decay factor using Padé (1,1) approximation
 // Approximates exp(-fDecayRate * fDeltaTime) for consistent behavior at any timestep
-// Fast (no transcendentals), stable (never negative), accurate (~1% for x < 1.0)
+// Fast (no transcendentals), stable (clamped to never negative), accurate (~1% for x < 0.35, ~9% at x = 1.0)
 // Usage: velocity *= ExponentialDecay(3.0f, fDeltaTime);
 constexpr float ExponentialDecay(float fDecayRate, float fDeltaTime)
 {
 	float x = fDecayRate * fDeltaTime;
-	return (2.0f - x) / (2.0f + x);
+	return std::max(0.0f, (2.0f - x) / (2.0f + x));
 }
 
 // Frame-rate independent interpolation factor using Padé (1,1) approximation

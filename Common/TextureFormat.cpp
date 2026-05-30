@@ -37,7 +37,7 @@ int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight)
 			return 8 * iPixels;
 
 		default:
-			DEBUG_BREAK();
+			ASSERT(false);
 			return 4 * iPixels;
 	}
 }

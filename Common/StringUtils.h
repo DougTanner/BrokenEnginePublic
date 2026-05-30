@@ -50,7 +50,7 @@ std::vector<T> Split(const T& rString, const T& rDelimiter)
 	return splits;
 }
 
-// Converts string to lowercase using std::tolower
+// Converts ASCII 'A'-'Z' to lowercase (locale-independent; all other bytes unchanged)
 // Parameters: rIn - String to convert
 // Returns: Lowercase version of the input string
 std::string ToLower(std::string_view chars);

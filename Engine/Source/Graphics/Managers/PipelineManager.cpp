@@ -381,8 +381,8 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(std::size(gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures)), .ppTextures = gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
+			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = static_cast<int64_t>(std::size(gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures)), .ppTextures = gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures},
+			{.flags = {kCombinedSamplers, kSamplerBorderWhite}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
 			// Bindless per-island color / normal / AO arrays (was previously single composite RTTs).
@@ -401,7 +401,7 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC5RockNormal1jpgCrc},
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC5RockNormal2jpgCrc},
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC5RockNormal4jpgCrc},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mAmbientCombineTexture},
+			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mAmbientCombineTexture},
 			// AxisAlignedQuadLayout instance buffer used by Terrain.vert to transform island-local
 			// mesh vertices into world space (set=1 binding=19). Mirrors kPipelineShadowElevation's
 			// SSBO usage; gl_InstanceIndex is supplied per-island via firstInstance at draw time.
@@ -435,8 +435,8 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(std::size(gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures)), .ppTextures = gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
+			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = static_cast<int64_t>(std::size(gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures)), .ppTextures = gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures},
+			{.flags = {kCombinedSamplers, kSamplerBorderWhite}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = TextureManager::kPrefilteredWaterCrc},
@@ -444,7 +444,7 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = TextureManager::kiWaterNormalCount, .ppTextures = mppWaterNormalTextures},
 			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesWaterDepthLutpngCrc},
 			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mAmbientCombineTexture},
+			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mAmbientCombineTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterSkyboxOneResolveTexture},
 			// Compute-pre-computed Gerstner displacement + normal sampled in Water.vert via texelFetch.
 			// Explicit bindings 13/14: kPipelineWaterSkyboxOne (below) has no binding-12 descriptor
@@ -477,8 +477,8 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(std::size(gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures)), .ppTextures = gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
+			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = static_cast<int64_t>(std::size(gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures)), .ppTextures = gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures},
+			{.flags = {kCombinedSamplers, kSamplerBorderWhite}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = TextureManager::kPrefilteredWaterCrc},
@@ -486,7 +486,7 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = TextureManager::kiWaterNormalCount, .ppTextures = mppWaterNormalTextures},
 			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesWaterDepthLutpngCrc},
 			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mAmbientCombineTexture},
+			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mAmbientCombineTexture},
 			// Explicit bindings 13/14 — see matching comment on kPipelineWater above. Both pipelines
 			// share Water.vert; the shader-side binding numbers must agree across the two pipelines.
 			{.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = 13, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementTexture},

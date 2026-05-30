@@ -735,6 +735,17 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		XMVECTOR vecIslandDestination = rPrevious.pVecIslandDestinations[i];
 		XMVECTOR vecPosition = rPreviousInterpolate.pVecPositions[i];
 
+#if defined(BT_CLIENT)
+		if constexpr (kbDebugRender)
+		{
+			// Debug nav waypoint persists across the staggered pathfind throttle: ComputeNavigation
+			// overwrites it only on a recompute tick, so carry the previous tick's value forward here.
+			// Also covers the transfer-lock path, where ComputeNavigation is skipped. Without this the
+			// non-recompute ticks render stale buffer contents (line flashes to random positions).
+			rCurrent.pVecDebugNavWaypoints[i] = rPrevious.pVecDebugNavWaypoints[i];
+		}
+#endif // BT_CLIENT
+
 		// Decrement pending countdown ticks
 		if (uiPendingFleetWantedCoordTicks > 0)
 		{
@@ -764,7 +775,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		else
 		{
 			// AI block — see PlayersNavigation.cpp / PlayersCombat.cpp for the helpers
-			ComputeNavigation(rFrame, rPreviousFrame, rStaticData, i, vecPosition, vecFrameCenter, fleetWantedCoord, uiPendingFleetWantedCoordTicks, flags, fNavigationDelay, fDeltaTime, iNavDirection, iNavWaypointIndex, vecAiDirection, vecIslandDestination, fFrameChangeTimer);
+			ComputeNavigation(rFrame, rPreviousFrame, rStaticData, i, vecPosition, vecFrameCenter, fleetWantedCoord, uiPendingFleetWantedCoordTicks, flags, fDeltaTime, iNavDirection, iNavWaypointIndex, vecAiDirection, vecIslandDestination, fFrameChangeTimer);
 
 			bool bLookTargetFound = false;
 			XMVECTOR vecLookPosition = XMVectorZero();

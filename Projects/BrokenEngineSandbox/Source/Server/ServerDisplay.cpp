@@ -218,17 +218,17 @@ static void PaintGridMap(HDC hdcBuffer, char* pcLine, size_t iLineSize, int iMap
 
 				SetTextColor(hdcBuffer, RGB(220, 220, 220));
 
-				snprintf(pcLine, iLineSize, "(%d,%d)", gx, gy);
-				TextOutA(hdcBuffer, iCellLeft + 2, iCellTop + 2, pcLine, static_cast<int>(strlen(pcLine)));
+				int iLineLength = std::min(snprintf(pcLine, iLineSize, "(%d,%d)", gx, gy), static_cast<int>(iLineSize) - 1);
+				TextOutA(hdcBuffer, iCellLeft + 2, iCellTop + 2, pcLine, iLineLength);
 
-				snprintf(pcLine, iLineSize, "%lld", iEntityCount);
-				TextOutA(hdcBuffer, iCellLeft + 2, iCellTop + 28, pcLine, static_cast<int>(strlen(pcLine)));
+				iLineLength = std::min(snprintf(pcLine, iLineSize, "%lld", iEntityCount), static_cast<int>(iLineSize) - 1);
+				TextOutA(hdcBuffer, iCellLeft + 2, iCellTop + 28, pcLine, iLineLength);
 
 				if (iClientsInCell > 0)
 				{
 					SetTextColor(hdcBuffer, RGB(150, 200, 255));
-					snprintf(pcLine, iLineSize, "%lld", iClientsInCell);
-					TextOutA(hdcBuffer, iCellLeft + iCellSize - 20, iCellTop + 2, pcLine, static_cast<int>(strlen(pcLine)));
+					iLineLength = std::min(snprintf(pcLine, iLineSize, "%lld", iClientsInCell), static_cast<int>(iLineSize) - 1);
+					TextOutA(hdcBuffer, iCellLeft + iCellSize - 20, iCellTop + 2, pcLine, iLineLength);
 				}
 			}
 		}
@@ -329,21 +329,24 @@ static void PaintProfilePanel(HDC hdcBuffer, int iLeft, int iTop, [[maybe_unused
 
 	// FPS header
 	char pcLine[256] {};
-	snprintf(pcLine, sizeof(pcLine), "FPS: %lld  Potential: %lld",
+	int iLineLength = std::min(snprintf(pcLine, sizeof(pcLine), "FPS: %lld  Potential: %lld",
 		gpProfileManager->mFullUpdatesInTheLastSecond.Get(),
 		gpProfileManager->GetCpuTimer(game::kCpuTimerFrameUpdate).smoothedMicroseconds.Average() > 0
 			? 1'000'000 / gpProfileManager->GetCpuTimer(game::kCpuTimerFrameUpdate).smoothedMicroseconds.Average()
-			: static_cast<int64_t>(0));
+			: static_cast<int64_t>(0)), static_cast<int>(sizeof(pcLine)) - 1);
 	SetTextColor(hdcBuffer, RGB(100, 180, 255));
-	TextOutA(hdcBuffer, static_cast<int>(iTextX), static_cast<int>(iTextY), pcLine, static_cast<int>(strlen(pcLine)));
+	TextOutA(hdcBuffer, static_cast<int>(iTextX), static_cast<int>(iTextY), pcLine, iLineLength);
 	sProfileText += pcLine;
 	sProfileText += "\n";
 	iTextY += iLineHeight + 4;
 
+	// Re-evaluate row visibility on the shared 2s cadence (timers and counters together this paint).
+	bool bReevaluate = gpProfileManager->TickVisibilityCadence();
+
 	// CPU timers
 	{
 		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-		engine::FormatCpuTimersText(rWorkbuffer, *gpProfileManager);
+		engine::FormatCpuTimersText(rWorkbuffer, *gpProfileManager, bReevaluate);
 		std::string_view svTimers = rWorkbuffer.View();
 		SetTextColor(hdcBuffer, RGB(220, 220, 220));
 		PaintWorkbufferText(hdcBuffer, svTimers, iTextX, iTextY, iLineHeight);
@@ -355,7 +358,7 @@ static void PaintProfilePanel(HDC hdcBuffer, int iLeft, int iTop, [[maybe_unused
 	// CPU counters
 	{
 		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-		engine::FormatCpuCountersText(rWorkbuffer, *gpProfileManager);
+		engine::FormatCpuCountersText(rWorkbuffer, *gpProfileManager, bReevaluate);
 		std::string_view svCounters = rWorkbuffer.View();
 		SetTextColor(hdcBuffer, RGB(150, 220, 150));
 		PaintWorkbufferText(hdcBuffer, svCounters, iTextX, iTextY, iLineHeight);
@@ -369,8 +372,8 @@ static void PaintProfilePanel(HDC hdcBuffer, int iLeft, int iTop, [[maybe_unused
 
 	auto memLine = [&](const char* pcFormat, int64_t iValue)
 	{
-		snprintf(pcLine, sizeof(pcLine), pcFormat, iValue);
-		TextOutA(hdcBuffer, static_cast<int>(iTextX), static_cast<int>(iTextY), pcLine, static_cast<int>(strlen(pcLine)));
+		int iMemLineLength = std::min(snprintf(pcLine, sizeof(pcLine), pcFormat, iValue), static_cast<int>(sizeof(pcLine)) - 1);
+		TextOutA(hdcBuffer, static_cast<int>(iTextX), static_cast<int>(iTextY), pcLine, iMemLineLength);
 		sProfileText += pcLine;
 		sProfileText += "\n";
 		iTextY += iLineHeight;
@@ -491,8 +494,8 @@ void PaintServerDisplay(HWND hWnd)
 
 	auto textLine = [&](const char* pcFormat, auto... args)
 	{
-		snprintf(pcLine, sizeof(pcLine), pcFormat, args...);
-		TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
+		int iTextLength = std::min(snprintf(pcLine, sizeof(pcLine), pcFormat, args...), static_cast<int>(sizeof(pcLine)) - 1);
+		TextOutA(hdcBuffer, iTextX, iTextY, pcLine, iTextLength);
 		iTextY += iLineHeight;
 	};
 
@@ -509,8 +512,8 @@ void PaintServerDisplay(HWND hWnd)
 	textLine("Tick: %lld", iTick);
 	textLine("Time: %.2f s", static_cast<double>(fCurrentTime));
 	textLine("Active cells: %lld", iActiveCells);
-	snprintf(pcLine, sizeof(pcLine), "Clients: %lld", iClientCount);
-	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
+	int iTextLength = std::min(snprintf(pcLine, sizeof(pcLine), "Clients: %lld", iClientCount), static_cast<int>(sizeof(pcLine)) - 1);
+	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, iTextLength);
 	iTextY += iLineHeight;
 
 	// Entity counts
@@ -521,8 +524,8 @@ void PaintServerDisplay(HWND hWnd)
 	textLine("Blasters: %lld", gpProfileManager->GetCpuCounter(game::kCpuCounterBlasters).iCount);
 	textLine("Missiles: %lld", gpProfileManager->GetCpuCounter(game::kCpuCounterMissiles).iCount);
 	textLine("Targets: %lld", gpProfileManager->GetCpuCounter(game::kCpuCounterTargets).iCount);
-	snprintf(pcLine, sizeof(pcLine), "Explosions: %lld", gpProfileManager->GetCpuCounter(engine::kCpuCounterExplosions).iCount);
-	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
+	iTextLength = std::min(snprintf(pcLine, sizeof(pcLine), "Explosions: %lld", gpProfileManager->GetCpuCounter(engine::kCpuCounterExplosions).iCount), static_cast<int>(sizeof(pcLine)) - 1);
+	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, iTextLength);
 
 #if !defined(ENABLE_CRT_DEBUG_HEAP)
 	// Memory stats
@@ -532,8 +535,8 @@ void PaintServerDisplay(HWND hWnd)
 	textLine("Committed: %lld MiB", gpProfileManager->miMimallocCommittedMib);
 	textLine("Peak cmtd: %lld MiB", gpProfileManager->miMimallocPeakCommittedMib);
 	textLine("Heap used: %lld MiB", gpProfileManager->miMimallocHeapUsedMib);
-	snprintf(pcLine, sizeof(pcLine), "Peak heap: %lld MiB", gpProfileManager->miMimallocPeakHeapUsedMib);
-	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
+	iTextLength = std::min(snprintf(pcLine, sizeof(pcLine), "Peak heap: %lld MiB", gpProfileManager->miMimallocPeakHeapUsedMib), static_cast<int>(sizeof(pcLine)) - 1);
+	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, iTextLength);
 #endif
 
 	// Tab bar

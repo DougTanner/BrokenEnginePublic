@@ -17,9 +17,9 @@ constexpr float kfEyeHeightPerWheelTick = 0.1f;
 constexpr float kfEyeBlendDuration = 0.35f;
 constexpr float kfEyeHeightMin = 150.0f;
 #if defined(BT_RELEASE)
-constexpr float kfEyeHeightMax = Camera::kfEyeHeightMaxReference; // Shipping: clamp to the shadow-coverage reference height
+constexpr float kfEyeHeightMax = Camera::kfEyeHeightMaxRelease; // Shipping: gameplay zoom-out ceiling
 #else
-constexpr float kfEyeHeightMax = 2000.0f; // Dev: full zoom range (above the reference, shadow coverage crops on screen)
+constexpr float kfEyeHeightMax = 2000.0f; // Dev: full zoom range (texels just coarsen further, coverage preserved)
 #endif
 
 constexpr float kfCameraPositionBlend = 8.0f;
@@ -67,17 +67,11 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	// Update sun angle with varying speeds (only during gameplay)
 	if (!(rFrameInterpolate.gameFlags & GameFlags::kMainMenu))
 	{
-		static constexpr float kfNoonSpeedStart = XM_PIDIV2 - XM_PIDIV8;
-		static constexpr float kfNoonSpeedEnd = XM_PIDIV2 + XM_PIDIV8;
 		static constexpr float kfNightSpeedStart = XM_PI;
 		static constexpr float kfNightSpeedEnd = XM_2PI;
-		if (mfSunAngle >= kfNoonSpeedStart && mfSunAngle < kfNoonSpeedEnd)
+		if (mfSunAngle >= kfNightSpeedStart && mfSunAngle < kfNightSpeedEnd)
 		{
-			mfSunAngle = mfSunAngle + rFrameInterpolate.fDeltaTime * 0.025f;
-		}
-		else if (mfSunAngle >= kfNightSpeedStart && mfSunAngle < kfNightSpeedEnd)
-		{
-			mfSunAngle = mfSunAngle + rFrameInterpolate.fDeltaTime * 0.05f;
+			mfSunAngle = mfSunAngle + rFrameInterpolate.fDeltaTime * 0.075f;
 		}
 		else
 		{
@@ -268,9 +262,13 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	}
 
 	// Ramp the shadow texel grid's reference height toward the live eye height, rate-limited so the texel world
-	// size (linear in this height) rescales too slowly to perceive. Clamp the target to kfEyeHeightMaxReference:
-	// the grid stops coarsening there and the visible window crops on screen instead (dev builds zoom past it).
-	float fTexelTarget = std::min(mfCameraEyeHeight, kfEyeHeightMaxReference);
+	// size (linear in this height) rescales too slowly to perceive. The target tracks the live height at ALL heights
+	// (no clamp): the texels keep coarsening with zoom so the ray-marched window stays at its steady-state target
+	// (constant on-screen pixel size) at every settled height rather than growing toward the texture max.
+	// kfShadowHeadroomMultiplier sizes the texture; only a fast zoom-out that outruns this ramp transiently overflows
+	// the texture (window clamps to its extent), where the CLAMP_TO_BORDER white edge reads as no-shadow until the
+	// ramp settles and the window returns to the steady-state size.
+	float fTexelTarget = mfCameraEyeHeight;
 	if (mfShadowTexelEyeHeight == 0.0f) // Uninitialized: snap (no startup ramp)
 	{
 		mfShadowTexelEyeHeight = fTexelTarget;
@@ -281,9 +279,10 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		mfShadowTexelEyeHeight += std::clamp(fTexelTarget - mfShadowTexelEyeHeight, -fMaxStep, fMaxStep);
 	}
 
-	// Identical ramp for the lighting texel grid, independent of shadow's (its own meters-per-sec cap and its own
-	// coverage/headroom anchor kfLightingEyeHeightMaxReference, past which the lighting window crops on screen).
-	float fLightingTexelTarget = std::min(mfCameraEyeHeight, kfLightingEyeHeightMaxReference);
+	// Identical unclamped ramp for the lighting texel grid, independent of shadow's (its own meters-per-sec cap;
+	// kfLightingHeadroomMultiplier sizes its textures). The window stays at its steady-state target at every settled
+	// height; a fast zoom-out that overflows the texture reads black (no light) via CLAMP_TO_BORDER until the ramp settles.
+	float fLightingTexelTarget = mfCameraEyeHeight;
 	if (mfLightingTexelEyeHeight == 0.0f) // Uninitialized: snap (no startup ramp)
 	{
 		mfLightingTexelEyeHeight = fLightingTexelTarget;

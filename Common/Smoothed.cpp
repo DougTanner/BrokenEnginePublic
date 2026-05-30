@@ -5,7 +5,7 @@ namespace common
 
 void InTheLastSecond::Set(int64_t count)
 {
-	std::chrono::high_resolution_clock::time_point timePointCurrent = std::chrono::high_resolution_clock::now();
+	std::chrono::steady_clock::time_point timePointCurrent = std::chrono::steady_clock::now();
 	if (miCount == kiCapacity)
 	{
 		miHead = (miHead + 1) % kiCapacity;

@@ -104,6 +104,9 @@ public:
 	FileManager();
 	~FileManager();
 
+	FileManager(const FileManager&) = delete; // Owns a raw std::thread whose lambda captures `this`; deleting copy also suppresses the implicit move
+	FileManager& operator=(const FileManager&) = delete;
+
 	bool Exists(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 	std::fstream OpenFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 	void RemoveFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
@@ -164,7 +167,7 @@ private:
 	std::unordered_map<common::crc_t, EagerChunk> mEagerChunkMap;  // Font, Model, Shaders
 	std::unordered_map<common::crc_t, LazyChunk> mLazyChunkMap;  // Audio, Islands, Texture
 	
-	// Background loading thread
+	// Background loading thread, started in LoadPackFiles() from the ctor body. Its LoadingThread lambda captures `this` and reads the sync members below (mWakeCondition/mQueueMutex/mRequestQueue/mShutdown), so ~FileManager sets mShutdown + notifies + join()s the thread before those members destruct.
 	std::thread mLoadingThread;
 	std::condition_variable mWakeCondition;
 	std::condition_variable mCompletionCondition;

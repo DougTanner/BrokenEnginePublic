@@ -45,7 +45,7 @@ void MainThread(HINSTANCE hinstance)
 	LOG(kDefault, kInfo, "Compiled with Windows 10 SDK version: {}.{}", VER_PRODUCTBUILD, VER_PRODUCTBUILD_QFE);
 #if defined(BT_CLIENT)
 	LOG(kDefault, kInfo, "Compiled with Vulkan SDK version: {}\n", VK_HEADER_VERSION);
-	static_assert(VK_HEADER_VERSION >= 304, "Update the Vulkan SDK");
+	static_assert(VK_HEADER_VERSION >= 341, "Update the Vulkan SDK");
 #endif
 
 	if (!XMVerifyCPUSupport()) [[unlikely]]

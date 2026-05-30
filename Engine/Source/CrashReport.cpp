@@ -13,7 +13,9 @@ void HandleException(std::optional<const std::exception*> pException)
 
 	int iResult = MessageBox(nullptr, "Save crash report to desktop?", game::kGameName.data(), MB_YESNO | MB_SYSTEMMODAL);
 
-	std::wstring gameName(game::kGameName.begin(), game::kGameName.end());
+	// Fixed-buffer formatting (no heap allocation): reachable from the SIGABRT handler on heap corruption, so re-entering the allocator could re-fault.
+	wchar_t pcGameName[64] {};
+	swprintf_s(pcGameName, std::size(pcGameName), L"%hs", game::kGameName.data());
 
 	static wchar_t spcPath[MAX_PATH + 1] {};
 	if (iResult == IDYES)
@@ -28,16 +30,15 @@ void HandleException(std::optional<const std::exception*> pException)
 		CoTaskMemFree(pWideChar);
 
 		wcscat_s(spcPath, std::size(spcPath), L"\\");
-		wcscat_s(spcPath, std::size(spcPath), gameName.c_str());
+		wcscat_s(spcPath, std::size(spcPath), pcGameName);
 
 		std::filesystem::create_directories(spcPath);
 	}
 
-	std::wstring crashReportPath(L"\\");
-	crashReportPath.append(gameName);
-	std::replace(crashReportPath.begin(), crashReportPath.end(), ' ', '-');
-	crashReportPath.append(L"-Crash-Report.txt");
-	wcscat_s(spcPath, std::size(spcPath), crashReportPath.c_str());
+	wchar_t pcCrashReportFile[128] {};
+	swprintf_s(pcCrashReportFile, std::size(pcCrashReportFile), L"\\%s-Crash-Report.txt", pcGameName);
+	std::replace(std::begin(pcCrashReportFile), std::end(pcCrashReportFile), L' ', L'-');
+	wcscat_s(spcPath, std::size(spcPath), pcCrashReportFile);
 
 	std::ofstream ofstream(spcPath);
 

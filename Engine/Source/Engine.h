@@ -97,12 +97,12 @@
 
 // Formatters for engine types used by LogDifference
 template<>
-struct std::formatter<engine::alignment_t> : std::formatter<std::string_view>
+struct std::formatter<engine::alignment_t> : std::formatter<uint32_t>
 {
 	template<typename CONTEXT>
 	auto format(const engine::alignment_t alignment, CONTEXT& rContext) const
 	{
-		return std::format_to(rContext.out(), "{}", alignment.Value());
+		return std::formatter<uint32_t>::format(alignment.Value(), rContext);
 	}
 };
 
@@ -112,26 +112,34 @@ struct std::formatter<engine::Alignments> : std::formatter<std::string_view>
 	template<typename CONTEXT>
 	auto format(const engine::Alignments& rAlignments, CONTEXT& rContext) const
 	{
-		return std::format_to(rContext.out(), "Alignments({})", rAlignments.alignmentPairs.size());
+		char pcBuffer[48];
+		char* pWrite = pcBuffer;
+		for (char c : std::string_view("Alignments("))
+		{
+			*(pWrite++) = c;
+		}
+		pWrite = std::to_chars(pWrite, pcBuffer + sizeof(pcBuffer), rAlignments.alignmentPairs.size()).ptr;
+		*(pWrite++) = ')';
+		return std::formatter<std::string_view>::format(std::string_view(pcBuffer, pWrite - pcBuffer), rContext);
 	}
 };
 
 template<>
-struct std::formatter<engine::uuid_t> : std::formatter<std::string_view>
+struct std::formatter<engine::uuid_t> : std::formatter<int64_t>
 {
 	template<typename CONTEXT>
 	auto format(const engine::uuid_t id, CONTEXT& rContext) const
 	{
-		return std::format_to(rContext.out(), "{}", id.Value());
+		return std::formatter<int64_t>::format(id.Value(), rContext);
 	}
 };
 
 template<typename T>
-struct std::formatter<engine::id_t<T>> : std::formatter<std::string_view>
+struct std::formatter<engine::id_t<T>> : std::formatter<int64_t>
 {
 	template<typename CONTEXT>
 	auto format(const engine::id_t<T> id, CONTEXT& rContext) const
 	{
-		return std::format_to(rContext.out(), "{}", id.ToUuid().Value());
+		return std::formatter<int64_t>::format(id.ToUuid().Value(), rContext);
 	}
 };

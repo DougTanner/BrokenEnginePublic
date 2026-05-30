@@ -5,13 +5,14 @@
 #include "Memory/MemoryManager.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 
+#include "Game.h"
+
 namespace engine
 {
 
 // Helper: appends timer text into the caller's current workbuffer frame. Caller owns Push/Pop.
-void FormatCpuTimersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager)
+void FormatCpuTimersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate)
 {
-	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 	int64_t iCpuTimerCount = rProfileManager.GetCpuTimerCount();
 
 	rWorkbuffer.Append("\n\n");
@@ -21,16 +22,14 @@ void FormatCpuTimersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rP
 		CpuTimer& rCpuTimer = rProfileManager.GetCpuTimer(i);
 
 		int64_t iValue = rCpuTimer.smoothedMicroseconds.Get();
-		if (i > kCpuTimerAcquireToGlobal && iValue < 50)
+		if (bReevaluate)
 		{
-			if (now - rCpuTimer.lastVisibleTime > 1s)
-			{
-				continue;
-			}
+			rCpuTimer.bVisible = !(i > kCpuTimerAcquireToGlobal && iValue < 50);
 		}
-		else
+
+		if (!rCpuTimer.bVisible)
 		{
-			rCpuTimer.lastVisibleTime = now;
+			continue;
 		}
 
 		rWorkbuffer.Append(rCpuTimer.name);
@@ -59,24 +58,21 @@ void FormatCpuTimersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rP
 }
 
 // Helper: appends counter text into the caller's current workbuffer frame. Caller owns Push/Pop.
-void FormatCpuCountersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager)
+void FormatCpuCountersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate)
 {
-	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 	int64_t iCpuCounterCount = rProfileManager.GetCpuCounterCount();
 
 	for (int64_t i = 0; i < iCpuCounterCount; ++i)
 	{
 		CpuCounter& rCpuCounter = rProfileManager.GetCpuCounter(i);
-		if (rCpuCounter.iCount == 0)
+		if (bReevaluate)
 		{
-			if (now - rCpuCounter.lastVisibleTime > 1s)
-			{
-				continue;
-			}
+			rCpuCounter.bVisible = rCpuCounter.iCount != 0;
 		}
-		else
+
+		if (!rCpuCounter.bVisible)
 		{
-			rCpuCounter.lastVisibleTime = now;
+			continue;
 		}
 
 		rWorkbuffer.Append(rCpuCounter.name);
@@ -139,27 +135,30 @@ void FormatFpsHeader(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfi
 		rWorkbuffer.Append(" fps)");
 	}
 
-	rWorkbuffer.Append(" Frame updates: ");
+	rWorkbuffer.Append("   Frame updates: ");
 	rWorkbuffer.Append(static_cast<int64_t>(rProfileManager.mFullUpdatesInTheLastSecond.Get()));
 	rWorkbuffer.Append(" full ");
 	rWorkbuffer.Append(static_cast<int64_t>(rProfileManager.mInterpolateUpdatesInTheLastSecond.Get()));
 	rWorkbuffer.Append(" interpolate");
+	rWorkbuffer.Append("   Camera height: ");
+	rWorkbuffer.Append(static_cast<int64_t>(game::gpCamera->mfCameraEyeHeight));
+	rWorkbuffer.Append(" m");
 	gpTextManager->UpdateTextArea(kTextProfileFps, rWorkbuffer.View());
 }
 
-void FormatCpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager)
+void FormatCpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate)
 {
 	// Cpu timers
 	{
 		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-		FormatCpuTimersText(rWorkbuffer, rProfileManager);
+		FormatCpuTimersText(rWorkbuffer, rProfileManager, bReevaluate);
 		gpTextManager->UpdateTextArea(kTextProfileCpuTimers, rWorkbuffer.View());
 	}
 
 	// Counters text
 	{
 		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-		FormatCpuCountersText(rWorkbuffer, rProfileManager);
+		FormatCpuCountersText(rWorkbuffer, rProfileManager, bReevaluate);
 		gpTextManager->UpdateTextArea(kTextProfileCpuCounters, rWorkbuffer.View());
 	}
 
@@ -193,9 +192,8 @@ void FormatCpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfi
 	gpTextManager->UpdateTextArea(kTextProfileMemory, rWorkbuffer.View());
 }
 
-void FormatGpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager)
+void FormatGpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate)
 {
-	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 	GpuTimer* pGpuTimers = rProfileManager.GetGpuTimers();
 
 	// Graphics info
@@ -223,20 +221,25 @@ void FormatGpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfi
 		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 		rWorkbuffer.Append("\n\n");
 
+		// Active visible-area LOD vertex grid (quads + 1), shared by the water displacement compute pre-pass
+		// (writes the top-left rectangle) and the water mesh draw. Mirrors the LOD pick in RenderFrameMain.
+		int iWaterLod = std::clamp(game::gpCamera->miVisibleAreaLod, 0, BufferManager::kiVisibleAreaLodCount - 1);
+		const BufferManager::VisibleAreaMeshLod& rWaterLod = gpBufferManager->mWaterMeshLods[iWaterLod];
+		int64_t iWaterGridX = rWaterLod.iQuadCountX + 1;
+		int64_t iWaterGridY = rWaterLod.iQuadCountY + 1;
+
 		for (int64_t i = 0; i < kGpuTimerCount; ++i)
 		{
 			int64_t iValue = pGpuTimers[i].smoothedMicroseconds.Get();
 			int64_t iMax = pGpuTimers[i].smoothedMicroseconds.Max();
-			if (iValue < 10 || (iValue < 200 && !(iMax > 2 * iValue)))
+			if (bReevaluate)
 			{
-				if (now - pGpuTimers[i].lastVisibleTime > 1s)
-				{
-					continue;
-				}
+				pGpuTimers[i].bVisible = !(iValue < 10 || (iValue < 200 && !(iMax > 2 * iValue)));
 			}
-			else
+
+			if (!pGpuTimers[i].bVisible)
 			{
-				pGpuTimers[i].lastVisibleTime = now;
+				continue;
 			}
 
 			rWorkbuffer.Append(pGpuTimers[i].name);
@@ -249,6 +252,48 @@ void FormatGpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfi
 				rWorkbuffer.Append(iMax);
 				rWorkbuffer.Append(")");
 			}
+
+			// Resolution beside each dynamic-sized pass. Shadow shows its cropped ray-march window; Lighting Spread shows
+			// the three lighting resolutions (full deposit, then the cropped on-screen window in start-pass and end-pass
+			// texels); Terrain Elevation shows its snap-grid render-target extent; Water Displacement / Water show the
+			// active visible-area LOD vertex grid (the top-left rectangle the displacement compute writes / the water mesh draws).
+			if (i == kGpuTimerShadow)
+			{
+				rWorkbuffer.Append("  ");
+				rWorkbuffer.Append(giShadowActivePixelsX);
+				rWorkbuffer.Append("x");
+				rWorkbuffer.Append(giShadowActivePixelsY);
+			}
+			else if (i == kGpuTimerLightingSpread)
+			{
+				rWorkbuffer.Append("  dep ");
+				rWorkbuffer.Append(giLightingDepositPixelsX);
+				rWorkbuffer.Append("x");
+				rWorkbuffer.Append(giLightingDepositPixelsY);
+				rWorkbuffer.Append("  start ");
+				rWorkbuffer.Append(giLightingSpreadStartActivePixelsX);
+				rWorkbuffer.Append("x");
+				rWorkbuffer.Append(giLightingSpreadStartActivePixelsY);
+				rWorkbuffer.Append("  end ");
+				rWorkbuffer.Append(giLightingSpreadEndActivePixelsX);
+				rWorkbuffer.Append("x");
+				rWorkbuffer.Append(giLightingSpreadEndActivePixelsY);
+			}
+			else if (i == kGpuTimerTerrainElevation)
+			{
+				rWorkbuffer.Append("  ");
+				rWorkbuffer.Append(static_cast<int64_t>(gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture.mInfo.extent.width));
+				rWorkbuffer.Append("x");
+				rWorkbuffer.Append(static_cast<int64_t>(gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture.mInfo.extent.height));
+			}
+			else if (i == kGpuTimerWaterDisplacement || i == kGpuTimerWater)
+			{
+				rWorkbuffer.Append("  ");
+				rWorkbuffer.Append(iWaterGridX);
+				rWorkbuffer.Append("x");
+				rWorkbuffer.Append(iWaterGridY);
+			}
+
 			rWorkbuffer.Append("\n");
 		}
 

@@ -45,7 +45,7 @@ void Client::SendAck()
 	}
 
 	// Pipeline RTT: embed client timestamp for server to echo back
-	int64_t iTimestampNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+	int64_t iTimestampNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 	rWorkbuffer.PushBack<int64_t>(iTimestampNs);
 
 	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelUnreliable, rWorkbuffer, 0);
@@ -195,7 +195,7 @@ void Client::SendHello()
 	rWorkbuffer.PushBack<uint64_t>(mClientGuid.uiHigh);
 	rWorkbuffer.PushBack<uint64_t>(mClientGuid.uiLow);
 
-	miHelloSendTimeNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+	miHelloSendTimeNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
 	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }

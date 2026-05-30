@@ -19,12 +19,12 @@ struct CpuCounter
 {
 	std::string_view name;
 	int64_t iCount = 0;
-	std::chrono::steady_clock::time_point lastVisibleTime {};
+	bool bVisible = false;
 };
 
 struct CpuTimerThreadState
 {
-	std::chrono::high_resolution_clock::time_point startTimePoint;
+	std::chrono::steady_clock::time_point startTimePoint;
 	int64_t iStartAllocations = 0;
 };
 
@@ -40,7 +40,7 @@ struct CpuTimer
 	common::Smoothed<int64_t> smoothedMicroseconds {};
 	common::Smoothed<int64_t> smoothedAllocations {};
 
-	std::chrono::steady_clock::time_point lastVisibleTime {};
+	bool bVisible = false;
 };
 
 enum EngineCpuCounters : int64_t
@@ -131,7 +131,7 @@ struct GpuTimer
 {
 	std::string_view name;
 	common::Smoothed<int64_t> smoothedMicroseconds {};
-	std::chrono::steady_clock::time_point lastVisibleTime {};
+	bool bVisible = false;
 };
 
 enum BootTimers : int64_t
@@ -164,7 +164,7 @@ struct BootTimer
 {
 	std::string_view name;
 
-	std::chrono::high_resolution_clock::time_point startTimePoint {};
+	std::chrono::steady_clock::time_point startTimePoint {};
 	std::chrono::nanoseconds timeNs {};
 };
 
@@ -202,6 +202,9 @@ public:
 	void SmoothCpuTimers();
 	void LogTimers();
 	void UpdateProfileText();
+
+	// Advances the shared profile-text visibility clock; returns true on a re-evaluation boundary (>= kProfileVisibilityInterval since last).
+	bool TickVisibilityCadence();
 
 	virtual CpuCounter& GetCpuCounter(int64_t iIndex);
 	virtual CpuTimer& GetCpuTimer(int64_t iIndex);
@@ -329,6 +332,8 @@ protected:
 		{.name = "      Render present"},
 	};
 
+	std::chrono::steady_clock::time_point mLastVisibilityEvalTime {};
+
 	std::mutex mCpuTimerMutex;
 	std::unordered_map<std::thread::id, std::vector<CpuTimerThreadState>> mPerThreadTimerStates;
 
@@ -367,7 +372,7 @@ private:
 	int64_t miCpuTimer;
 };
 
-void FormatCpuTimersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager);
-void FormatCpuCountersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager);
+void FormatCpuTimersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate);
+void FormatCpuCountersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate);
 
 } // namespace engine

@@ -245,7 +245,7 @@ struct ClientStateSettings
 
 	game::FleetGuid fleetGuid {};
 	int64_t iFocusedShipId = 0;
-	float fCameraEyeHeightTarget = 198.0f; // matches Camera::kfCameraEyeHeightInitial
+	float fCameraEyeHeightTarget = game::Camera::kfCameraEyeHeightInitial;
 };
 static constexpr char kpcClientStatePath[] = "ClientState.bin";
 

@@ -1,3 +1,10 @@
+// Cross-CPU determinism: AVX/AVX2/AVX512 change scalar/SSE FP and std:: math codegen across the whole
+// translation unit and are banned (see Documents/FloatingPointDeterminism.txt). Catch /arch:AVX* on the
+// compiler command line up front, before any include can pull in intrinsics.
+#if defined(__AVX__) || defined(__AVX2__) || defined(__AVX512F__)
+	#error "AVX/AVX2/AVX512 detected - banned for cross-CPU determinism; remove /arch:AVX*"
+#endif
+
 // Disable all warnings while parsing external headers
 #include <codeanalysis/warnings.h>
 #pragma warning(push, 0)
@@ -114,11 +121,11 @@ using namespace std::chrono_literals;
 #include <wrl/client.h>
 #include <shellapi.h>
 
-static_assert(VER_PRODUCTBUILD >= 10011 && VER_PRODUCTBUILD_QFE >= 16384, "Update the Windows SDK");
+static_assert(VER_PRODUCTBUILD > 10011 || (VER_PRODUCTBUILD == 10011 && VER_PRODUCTBUILD_QFE >= 16384), "Update the Windows SDK");
 
 // Make sure this is the first DirectXMath include location (can be included from other windows headers automatically)
 #if defined(DIRECTX_MATH_VERSION)
-	#error
+	#error "DirectXMath included before ExternalHeaders.h - it must be the first include site so the SSE4-only determinism knob takes effect"
 #endif
 // DirectX Math, SSE only, no AVX because it's not deterministic (and SSE4 is actually slightly faster, for non-transcendentals anyway)
 #define _XM_SSE4_INTRINSICS_
@@ -126,7 +133,7 @@ static_assert(VER_PRODUCTBUILD >= 10011 && VER_PRODUCTBUILD_QFE >= 16384, "Updat
 #include <DirectXCollision.h>
 #include <DirectXPackedVector.h>
 #if defined(_XM_AVX_INTRINSICS_) || defined(_XM_AVX2_INTRINSICS_)
-	#error
+	#error "DirectXMath auto-promoted to AVX/AVX2 intrinsics - banned for cross-CPU determinism"
 #endif
 
 namespace DirectX
@@ -143,8 +150,19 @@ using namespace DirectX;
 
 inline constexpr float kfEpsilon = 1.192092896e-7f; // g_XMEpsilon
 
-#define XMISNAN(x)  ((*reinterpret_cast<const uint32_t*>(&(x)) & 0x7F800000) == 0x7F800000 && (*reinterpret_cast<const uint32_t*>(&(x)) & 0x7FFFFF) != 0)
-#define XMISINF(x)  ((*reinterpret_cast<const uint32_t*>(&(x)) & 0x7FFFFFFF) == 0x7F800000)
+// NaN/Inf bit tests. Free functions (not macros) for single-evaluation and no strict-aliasing UB: std::bit_cast
+// (constexpr, <bit>) replaces the type-punning reinterpret_cast. Named XmIsNan/XmIsInf to avoid colliding with
+// DirectXMath's own XMISNAN/XMISINF macros. Owned by ExternalHeaders.h by design (see Common/CLAUDE.md).
+inline constexpr bool XmIsNan(float fValue)
+{
+	const uint32_t uiBits = std::bit_cast<uint32_t>(fValue);
+	return (uiBits & 0x7F800000u) == 0x7F800000u && (uiBits & 0x007FFFFFu) != 0u;
+}
+
+inline constexpr bool XmIsInf(float fValue)
+{
+	return (std::bit_cast<uint32_t>(fValue) & 0x7FFFFFFFu) == 0x7F800000u;
+}
 
 // Deterministic bitwise operator== for XMVECTOR / XMFLOAT2/3/4 lives in Determinism.h (kept out of this
 // header so it can sit alongside the MXCSR + exception-handler setup). Included here, right after the
@@ -164,6 +182,7 @@ inline constexpr float kfEpsilon = 1.192092896e-7f; // g_XMEpsilon
 #if defined(BT_ENGINE)
 	#define VK_NO_PROTOTYPES
 	#define VK_USE_PLATFORM_WIN32_KHR
+	#define VK_USE_64_BIT_PTR_DEFINES 1 // Non-dispatchable handles as pointers so Vulkan defines VK_NULL_HANDLE = nullptr natively (no SDK-macro override)
 
 	#define IMGUI_DEFINE_MATH_OPERATORS
 	#define IMGUI_IMPL_VULKAN_USE_VOLK
@@ -207,10 +226,9 @@ inline constexpr float kfEpsilon = 1.192092896e-7f; // g_XMEpsilon
 // Vulkan - Using Volk meta-loader for direct driver access
 #define VK_NO_PROTOTYPES
 #define VK_USE_PLATFORM_WIN32_KHR
+#define VK_USE_64_BIT_PTR_DEFINES 1 // Non-dispatchable handles as pointers so Vulkan defines VK_NULL_HANDLE = nullptr natively (no SDK-macro override)
 #include <Volk/volk.h>
 #include <vma/vk_mem_alloc.h>
-#undef VK_NULL_HANDLE
-#define VK_NULL_HANDLE nullptr
 
 // LZ4
 #if defined(BT_ENGINE)
@@ -239,9 +257,9 @@ inline constexpr float kfEpsilon = 1.192092896e-7f; // g_XMEpsilon
 
 // Sanity check to make sure DEBUG/NDEBUG/_DEBUG/_NDEBUG are defined correctly
 #if defined(BT_DEBUG) && (!defined(DEBUG) || !defined(_DEBUG) || defined(NDEBUG) || defined(_NDEBUG))
-	#error
+	#error "BT_DEBUG vs DEBUG/_DEBUG/NDEBUG/_NDEBUG inconsistent"
 #elif !defined(BT_DEBUG) && (defined(DEBUG) || defined(_DEBUG) || !defined(NDEBUG) || !defined(_NDEBUG))
-	#error
+	#error "BT_DEBUG vs DEBUG/_DEBUG/NDEBUG/_NDEBUG inconsistent"
 #endif
 
 #undef ASSERT

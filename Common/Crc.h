@@ -44,6 +44,11 @@ constexpr std::string IntToString(int64_t i)
 	return string;
 }
 
+// Single definition of the hash core's magic constants, shared by the runtime constexpr Crc and the
+// consteval CrcConsteval wrapper so the two evaluation paths can never diverge.
+inline constexpr crc_t kCrcSeed = 0xabcdef123456789a;
+inline constexpr crc_t kCrcMultiplier = 0x123456789abcdef1;
+
 // Compile-time CRC hash function for string hashing
 // Used extensively for asset identification and lookup throughout the codebase
 // Note: Custom hash algorithm, not standard CRC32/64
@@ -51,10 +56,12 @@ constexpr std::string IntToString(int64_t i)
 // Returns: 64-bit hash value
 constexpr crc_t Crc(std::string_view pData)
 {
-	crc_t crc = 0xabcdef123456789a;
-	for (const char& rC : pData)
+	crc_t crc = kCrcSeed;
+	// Fold each byte as unsigned char so values >= 0x80 zero-extend deterministically regardless of
+	// char signedness (signed char sign-extends on the XOR, changing the hash cross-toolchain).
+	for (unsigned char uiByte : pData)
 	{
-		crc = (crc ^ rC) * 0x123456789abcdef1;
+		crc = (crc ^ uiByte) * kCrcMultiplier;
 	}
 	return crc;
 }
@@ -66,16 +73,16 @@ constexpr crc_t Crc(std::string_view pData)
 #pragma warning(suppress: 26497) // consteval is stricter than constexpr
 consteval crc_t CrcConsteval(std::string_view pData)
 {
-	crc_t crc = 0xabcdef123456789a;
-	for (const char& rC : pData)
-	{
-		crc = (crc ^ rC) * 0x123456789abcdef1;
-	}
-	return crc;
+	// Forward to the constexpr Crc: a single mixing-loop definition that consteval still forces to
+	// evaluate at compile time. Keeps the two paths byte-identical by construction.
+	return Crc(pData);
 }
 static_assert(Crc("test") == CrcConsteval("test"), "CRC functions must produce identical results");
 
 // Template overload for hashing arrays (pointer + count)
+// Determinism contract: hashes the raw object representation verbatim, including any padding and
+// float bit patterns. Equal values produce equal hashes only when the type is padding-free (or the
+// objects were value-initialized before fill); pass deterministically-zeroed, layout-stable data.
 // Parameters: pValues - Pointer to array to hash, iCount - Number of elements
 // Returns: 64-bit hash value
 template<typename T>
@@ -91,10 +98,14 @@ template<typename T>
 concept NotStringLike = !std::is_convertible_v<T, std::string_view>;
 
 // Generic hash function for trivially copyable types by reinterpreting bytes
-// Excludes string-like types to avoid ambiguous overload with Crc(std::string_view)
+// Excludes string-like types to avoid ambiguous overload with Crc(std::string_view), and XMVECTOR so
+// the dedicated Crc(FXMVECTOR) overload below always wins — removing that overload becomes a compile
+// error here rather than a silent raw-__m128 byte hash.
+// Determinism contract: hashes the raw object representation verbatim, including padding and float
+// bit patterns; pass a value-initialized, padding-free (or deterministically-zeroed) object.
 // Parameters: rIn - Trivially copyable object to hash
 // Returns: 64-bit hash value
-template<typename T> requires NotStringLike<T>
+template<typename T> requires NotStringLike<T> && (!std::is_same_v<std::remove_cvref_t<T>, XMVECTOR>)
 inline crc_t XM_CALLCONV Crc(const T& rIn)
 {
 	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable to hash by byte reinterpretation");

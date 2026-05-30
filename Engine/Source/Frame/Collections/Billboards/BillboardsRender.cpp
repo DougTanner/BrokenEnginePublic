@@ -86,13 +86,11 @@ void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		}
 
 		// Calculate rotation for offscreen rotate flag
+		// RotationFromPosition now returns the signed atan2 heading, so the prior manual hemisphere flip is folded
+		// into a single negation (3*pi/2 - theta), preserving the original orientation (mod 2*pi)
 		if (flags & kOffscreenRotate)
 		{
-			fRotation = XM_PI + XM_PIDIV2 + common::RotationFromPosition(XMVector3Normalize(XMLoadFloat4A(&f4Position)));
-			if (f4Position.y > 0.0f)
-			{
-				fRotation = XM_PI - fRotation;
-			}
+			fRotation = XM_PI + XM_PIDIV2 - common::RotationFromPosition(XMVector3Normalize(XMLoadFloat4A(&f4Position)));
 		}
 
 		// Populate GPU layout

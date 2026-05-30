@@ -14,7 +14,7 @@ public:
 
 private:
 
-	std::pair<std::chrono::high_resolution_clock::time_point, int64_t> mFramesInTheLastSecond[kiCapacity] {};
+	std::pair<std::chrono::steady_clock::time_point, int64_t> mFramesInTheLastSecond[kiCapacity] {};
 	int64_t miHead = 0;
 	int64_t miCount = 0;
 };
@@ -23,6 +23,8 @@ template <typename VALUE_TYPE, int64_t COUNT = 128>
 class Smoothed
 {
 public:
+
+	static constexpr int64_t kiCapacity = COUNT;
 
 	void operator=(VALUE_TYPE value)
 	{
@@ -47,9 +49,13 @@ public:
 			return {};
 		}
 
-		VALUE_TYPE max = {};
-
 		int64_t iCurrent = miNext - 1;
+		if (iCurrent < 0)
+		{
+			iCurrent = COUNT - 1;
+		}
+
+		VALUE_TYPE max = mpValues[iCurrent];
 		int64_t iCountLeft = miCount;
 		while (iCountLeft > 0)
 		{
@@ -118,6 +124,8 @@ public:
 
 	VALUE_TYPE Update()
 	{
+		static_assert(std::integral<VALUE_TYPE>, "Smoothed::Update() drift step is integer-only; instantiate with an integral VALUE_TYPE");
+
 		if (miCount == 0)
 		{
 			return {};

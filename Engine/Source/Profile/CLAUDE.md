@@ -26,11 +26,13 @@ Each CPU timer reports the heap allocations that occurred inside its scope by di
 
 `ToggleProfileText()` cycles through fixed screens (off / CPU / GPU / Frames / Network); each transition clears all profile text slots to prevent stale content. FPS header and memory screens render in CPU/GPU modes only; Frames/Network are game-owned via a `FormatGameScreens` override. Client-only ImPlot graphs render alongside the text overlay.
 
-Display hysteresis: CPU timers, CPU counters, and GPU timers hide themselves ~1s after dropping below threshold.
+Display visibility is synchronized and sticky: `TickVisibilityCadence()` is the shared driver, re-evaluating every row's cached `bVisible` together only on a ~2s boundary, so all rows (CPU timers, CPU counters, GPU timers) flip at once and every show/hide lasts at least ~2s. Displayed numbers stay live each frame; `ToggleProfileText()` resets the clock so a switched-to screen re-evaluates immediately.
 
 ## Cross-Layer Dependency
 
 The FPS header reads a game-specific CPU timer enum by name to report total frame time. The contiguous index space (game enums starting at `kEngineCpuCounterCount` / `kEngineCpuTimerCount`) and the required position of that timer are documented game-side.
+
+The same header also reads a `game::gp*` singleton directly (include of `Game.h`) for a live camera readout — a sanctioned pattern (see root `CLAUDE.md`), noted here only so both game couplings in the header are discoverable.
 
 ## Extension
 

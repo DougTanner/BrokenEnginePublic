@@ -15,6 +15,8 @@ struct FramePostRenderBase;
 template <typename T>
 constexpr int64_t CalculateBufferSize(int64_t iCapacity, [[maybe_unused]] const T& member)
 {
+	ASSERT(iCapacity >= 0);
+
 	if constexpr (std::is_array_v<T>)
 	{
 		// Array case: sum size for all array elements

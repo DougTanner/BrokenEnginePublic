@@ -287,14 +287,14 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 	if (bProcessRtt && iEchoedTimestampNs > 0 && iEchoedTimestampNs > miLastEchoedTimestampNs)
 	{
 		miLastEchoedTimestampNs = iEchoedTimestampNs;
-		int64_t iNowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+		int64_t iNowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 		int64_t iRttUs = (iNowNs - iEchoedTimestampNs) / 1000;
 		if (iRttUs >= 0)
 		{
 			mSmoothedPipelineRttUs = iRttUs;
 			mSmoothedPipelineRttUs.Update();
 
-			std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
+			std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 			if (mbHasLastUpdateArrival)
 			{
 				int64_t iIntervalUs = std::chrono::duration_cast<std::chrono::microseconds>(now - mLastUpdateArrival).count();
@@ -421,7 +421,7 @@ void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 		}
 
 		// Seed smoothed pipeline RTT from game-layer handshake measurement so the value flows through the network sim
-		int64_t iNowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+		int64_t iNowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 		int64_t iRttUs = (miHelloSendTimeNs > 0) ? (iNowNs - miHelloSendTimeNs) / 1000 : 0;
 		if (iRttUs > 0 && iRttUs < 60'000'000)
 		{

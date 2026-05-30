@@ -367,7 +367,7 @@ void GameBase::Render()
 				if (rFrame.interpolate.iTick < rSub.iLastRenderedTick ||
 					(rFrame.interpolate.iTick == rSub.iLastRenderedTick && rFrame.interpolate.fCurrentTime < rSub.fLastRenderedTime))
 				{
-					LOG(kNetwork, kError, "Render regressed to older frame Coord: ({},{}) Tick: {} LastTick: {} Time: {} LastTime: {}", rCoord.x, rCoord.y, rFrame.interpolate.iTick, rSub.iLastRenderedTick, rFrame.interpolate.fCurrentTime, rSub.fLastRenderedTime);
+					LOG(kNetwork, kError, "Render regressed to older frame Coord: ({},{}) Tick: {} LastTick: {} Time: {} LastTime: {}", rCoord.x, rCoord.y, rFrame.interpolate.iTick, rSub.iLastRenderedTick, common::Wb(rFrame.interpolate.fCurrentTime, 4), common::Wb(rSub.fLastRenderedTime, 4));
  					DEBUG_BREAK();
 				}
 				rSub.iLastRenderedTick = rFrame.interpolate.iTick;

@@ -154,16 +154,19 @@ struct hash<engine::id_t<T>>
 
 // Renders global_id_t in logs; prints "(none)" for the 0 sentinel (see global_id_t::IsValid).
 template <>
-struct formatter<engine::global_id_t> : formatter<int64_t>
+struct formatter<engine::global_id_t> : formatter<std::string_view>
 {
 	template <typename CONTEXT>
 	auto format(const engine::global_id_t id, CONTEXT& rContext) const
 	{
 		if (id.iValue == 0)
 		{
-			return std::format_to(rContext.out(), "(none)");
+			return formatter<std::string_view>::format("(none)", rContext);
 		}
-		return formatter<int64_t>::format(id.iValue, rContext);
+
+		char pcBuffer[24];
+		char* pWrite = std::to_chars(pcBuffer, pcBuffer + sizeof(pcBuffer), id.iValue).ptr;
+		return formatter<std::string_view>::format(std::string_view(pcBuffer, pWrite - pcBuffer), rContext);
 	}
 };
 

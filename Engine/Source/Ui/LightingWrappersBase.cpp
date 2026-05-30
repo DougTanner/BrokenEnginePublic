@@ -9,7 +9,7 @@ Wrapper gLightingBlurSampleCount(200.0f, 16.0f, 400.0f);
 Wrapper gLightingBlurEdgeFalloff(0.4f, 0.01f, 0.6f);
 
 // Write - Deposit
-Wrapper gLightingDepositTextureMultiplier(0.5f, 0.1f, 1.0f);
+Wrapper gLightingDepositTextureMultiplier(0.4f, 0.2f, 0.8f);
 Wrapper gLightingDepositThreshold(0.0f, 0.0f, 4.0f);
 Wrapper gLightingDepositCompress(4.0f, 0.0f, 16.0f);
 
@@ -19,7 +19,7 @@ Wrapper gSpreadDecay(1.0f, 0.0f, 1.0f);
 Wrapper gSpreadAccumulationDecay(0.35f, 0.0f, 1.0f);
 
 // Write - Spread Start
-Wrapper gSpreadTextureMultiplierStart(0.1f, 0.05f, 0.2f);
+Wrapper gSpreadTextureMultiplierStart(0.05f, 0.01f, 0.1f);
 Wrapper gSpreadDirectionality(0.1f, 0.0f, 1.0f);
 Wrapper gSpreadDirectionCount(4.0f, 4.0f, 32.0f);
 Wrapper gSpreadDistance(0.0f, 0.0f, 10.0f);
@@ -35,7 +35,7 @@ Wrapper gSpreadOutputThreshold(0.0f, 0.0f, 4.0f);
 Wrapper gSpreadOutputCompress(3.5f, 0.0f, 5.0f);
 
 // Write - Spread End
-Wrapper gSpreadTextureMultiplierEnd(0.01f, 0.01f, 0.1f);
+Wrapper gSpreadTextureMultiplierEnd(0.01f, 0.005f, 0.02f);
 Wrapper gSpreadDirectionalityEnd(0.8f, 0.0f, 1.0f);
 Wrapper gSpreadDirectionCountEnd(4.0f, 4.0f, 16.0f);
 HeightLerpWrapperQuartet gSpreadDistanceEnd

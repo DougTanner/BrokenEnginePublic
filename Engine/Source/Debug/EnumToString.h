@@ -396,7 +396,14 @@ struct std::formatter<VkResult> : std::formatter<std::string_view>
 	template <typename CONTEXT>
 	auto format(const VkResult vkResult, CONTEXT& rContext) const
 	{
-		common::ScopedWorkbufferAllocation<const char*> pcVkResult = engine::gEnumToString.Convert(vkResult, common::gpThreadLocal->mWorkbuffer);
-		return std::formatter<std::string_view>::format(static_cast<const char*>(pcVkResult), rContext);
+		if (common::gpThreadLocal != nullptr) [[likely]]
+		{
+			common::ScopedWorkbufferAllocation<const char*> pcVkResult = engine::gEnumToString.Convert(vkResult, common::gpThreadLocal->mWorkbuffer);
+			return std::formatter<std::string_view>::format(static_cast<const char*>(pcVkResult), rContext);
+		}
+
+		char pcBuffer[16] {};
+		std::to_chars_result result = std::to_chars(pcBuffer, pcBuffer + sizeof(pcBuffer), vkResult);
+		return std::formatter<std::string_view>::format(std::string_view(pcBuffer, result.ptr - pcBuffer), rContext);
 	}
 };

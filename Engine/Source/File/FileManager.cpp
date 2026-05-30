@@ -89,7 +89,7 @@ std::filesystem::path FileManager::GetFilePath(const FileFlags_t& rFlags, const 
 	}
 	else
 	{
-		DEBUG_BREAK();
+		ASSERT(false);
 		return "";
 	}
 

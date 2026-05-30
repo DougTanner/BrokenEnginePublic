@@ -24,8 +24,12 @@ inline constexpr float kfUnderwaterMaskThresholdMeters = -2.5f;
 inline void AlignOutputStream(std::fstream& rFileStream)
 {
 	static constexpr char kpcPadding[kiAlignmentBytes] {};
-	int64_t iBytesToAlign = kiAlignmentBytes - (rFileStream.tellp() % kiAlignmentBytes);
-	if (iBytesToAlign > 0 && iBytesToAlign < kiAlignmentBytes)
+	const std::streamoff iPos = rFileStream.tellp();
+	ASSERT(iPos >= 0);
+	// Double modulo yields the correct [0, kiAlignmentBytes) padding count and collapses the
+	// already-aligned case to 0 without relying on a < kiAlignmentBytes branch guard.
+	const int64_t iBytesToAlign = (kiAlignmentBytes - (static_cast<int64_t>(iPos) % kiAlignmentBytes)) % kiAlignmentBytes;
+	if (iBytesToAlign > 0)
 	{
 		rFileStream.write(&kpcPadding[0], iBytesToAlign);
 	}
@@ -33,7 +37,7 @@ inline void AlignOutputStream(std::fstream& rFileStream)
 
 struct ChunkLocation
 {
-	crc_t crc;
+	crc_t crc = 0;
 	uint64_t uiOffset = 0;
 	uint64_t uiSize = 0;
 };
@@ -73,6 +77,7 @@ struct FontHeader
 	int64_t iScaleW = 0;
 	int64_t iScaleH = 0;
 };
+static_assert(sizeof(FontHeader) == 48, "FontHeader layout changed — bump DataHeader::kiVersion");
 
 struct SceneHeader
 {
@@ -83,9 +88,12 @@ struct SceneHeader
 	uint32_t uiMaterialCount = 0;
 	bool bHasAnimation = false;
 	uint8_t uiPad[3] {};
+	uint8_t uiPad2[4] {};  // Explicit: fills the compiler gap that 8-byte-aligns modelCrc to offset 16
 	crc_t modelCrc = 0;  // CRC of the .MODEL vertex/index chunk
 	// Texture CRCs and index starts now in chunk data payload
 };
+static_assert(sizeof(SceneHeader) == 24, "SceneHeader layout changed — bump DataHeader::kiVersion");
+static_assert(offsetof(SceneHeader, modelCrc) == 16, "SceneHeader padding no longer aligns modelCrc to offset 16");
 
 // Compact animation keyframe for STEP/LINEAR interpolation
 struct AnimationKeyframe
@@ -133,6 +141,7 @@ struct ModelNode
 	XMFLOAT4 f4BindRotation {};    // Quaternion (x, y, z, w)
 	XMFLOAT4 f4BindScale {};
 };
+static_assert(sizeof(ModelNode) == 116, "ModelNode layout changed — bump DataHeader::kiVersion");
 
 // Node hierarchy with skin joint mapping
 struct Skeleton
@@ -155,6 +164,7 @@ struct MaterialInfo
 	uint8_t uiPad[3] {};
 	XMFLOAT4X4 f4x4RelativeTransform {};  // Identity for skinned meshes, meshWorldBind * inverse(ancestorWorldBind) for non-skinned
 };
+static_assert(sizeof(MaterialInfo) == 72, "MaterialInfo layout changed — bump DataHeader::kiVersion");
 
 // Per-mesh shader data (small struct without embedded joints)
 // Joint matrices are stored in a separate buffer for NVIDIA driver compatibility
@@ -166,6 +176,7 @@ struct MeshData
 	uint32_t uiJointCount = 0;               // 0 for non-skinned meshes
 	uint32_t uiJointMatrixOffset = 0;        // Index into joint matrix buffer
 };
+static_assert(MeshData::kiMaxMeshes >= 2 * SceneHeader::kiMaxMaterials, "MeshData::kiMaxMeshes must cover 2x SceneHeader::kiMaxMaterials");
 
 // Joint matrix: 3 vec4s (48 bytes) instead of full mat4 (64 bytes)
 // rows[i].xyz = rotation row i, rows[i].w = translation component (Tx, Ty, Tz)
@@ -224,6 +235,7 @@ struct Character
 	int16_t iYOffset = 0;
 	int16_t iXAdvance = 0;
 };
+static_assert(sizeof(Character) == 14, "Character layout changed — bump DataHeader::kiVersion");
 
 struct IslandHeader
 {
@@ -252,6 +264,7 @@ struct IslandHeader
 	int32_t iMeshIndexCount = 0;
 	int32_t iValidAreaVertexCount = 0;
 };
+static_assert(sizeof(IslandHeader) == 72, "IslandHeader layout changed — bump DataHeader::kiVersion");
 
 struct ModelHeader
 {
@@ -259,6 +272,7 @@ struct ModelHeader
 	int64_t iVertexCount = 0;
 	int64_t iStride = 0;
 };
+static_assert(sizeof(ModelHeader) == 24, "ModelHeader layout changed — bump DataHeader::kiVersion");
 
 struct ShaderHeader
 {
@@ -270,6 +284,7 @@ struct ShaderHeader
 	int64_t iVertexInputStride = 0;
 	// Descriptor bindings and vertex attributes now in chunk data payload
 };
+static_assert(sizeof(ShaderHeader) == 24, "ShaderHeader layout changed — bump DataHeader::kiVersion");
 
 struct TextureHeader
 {
@@ -278,6 +293,7 @@ struct TextureHeader
 	int64_t iMipLevels = 0;
 	VkFormat vkFormat = VK_FORMAT_UNDEFINED;
 };
+static_assert(sizeof(TextureHeader) == 32, "TextureHeader layout changed — bump DataHeader::kiVersion");
 
 // Audio format metadata for PCM WAV files
 struct AudioHeader
@@ -307,6 +323,11 @@ struct ChunkHeader
 		AudioHeader audioHeader;
 	};
 };
+// The engine read path reinterpret_casts mapped pack bytes to ChunkHeader* and copies it by value
+// (FileManager.cpp), so the byte representation must be trivially copyable. The per-union-member
+// sizeof asserts above lock the union footprint; a change to the largest member also shifts
+// sizeof(ChunkHeader) and so auto-bumps DataHeader::kiVersion.
+static_assert(std::is_trivially_copyable_v<ChunkHeader>, "ChunkHeader must be trivially copyable for the reinterpret_cast/memcpy read path");
 
 inline constexpr int64_t kiChunkDataOffset = RoundUp<int64_t, kiAlignmentBytes>(static_cast<int64_t>(sizeof(ChunkHeader)));
 
@@ -315,6 +336,10 @@ struct DataHeader
 	static constexpr int64_t kiMagic = 0xDA7AF11E;
 	int64_t iMagic = kiMagic;
 
+	// Auto-bumps when sizeof(ChunkHeader) changes (largest-union-member or outer-field edits). Layout
+	// edits that DON'T change sizeof — reordering/shrinking a non-largest union member, or changing a
+	// non-union payload struct — are instead caught by the per-struct sizeof/offsetof static_asserts
+	// beside each header; bump the manual 46 below when one of those fires.
 	static constexpr int64_t kiVersion = 46 + sizeof(ChunkHeader);
 	int64_t iVersion = kiVersion;
 
@@ -344,6 +369,10 @@ struct ModelVertex
 	XMFLOAT4 f4Joint0 {};
 	XMFLOAT4 f4Weight0 {};
 };
+// std::hash<ModelVertex> below byte-hashes the raw representation via Crc(rVertex) while operator==
+// compares fields; this lock proves the layout is padding-free so equal vertices can't hash apart and
+// break the mesh-dedup unordered_map.
+static_assert(sizeof(ModelVertex) == 100, "ModelVertex layout changed — keep it padding-free to match operator==");
 
 } // namespace common
 

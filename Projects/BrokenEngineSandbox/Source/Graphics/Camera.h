@@ -20,19 +20,19 @@ public:
 	static constexpr XMVECTOR kVecMenuCameraOffset {20.4f, -76.3f, 0.0f, 0.0f};
 
 	static constexpr float kfDefaultSunAngle = 1.8f;
-	static constexpr float kfCameraEyeHeightDefault = 150.0f;
-	// Shadow textures are pre-allocated to cover the visible area at this reference eye height; the shadow
-	// texel world size is then fixed across zoom (no resample -> no pop/shimmer). Above this height the
-	// fixed coverage crops on screen. Release pins kfEyeHeightMax to this value (see Camera.cpp).
-	static constexpr float kfEyeHeightMaxReference = 600.0f;
-	// Lighting deposit/spread/combine textures are pre-allocated to cover the visible area at this reference eye
-	// height (headroom M = round(450/150) = 3), independent of shadow's. NOT a density knob: the lighting texel
-	// world size targets a constant on-screen density at any height (the reference cancels in the texel formula),
-	// so this only sets the allocation/headroom and the ramp-target clamp. On-screen crop ceiling = M^2 * default =
-	// 1350 m, so the whole Release range (<= kfEyeHeightMaxReference) is covered with margin; dev zoom past 1350 m crops.
-	static constexpr float kfLightingEyeHeightMaxReference = 450.0f;
-	// Initial zoom-target on construction. WHEEL_DELTA (120) * kfEyeHeightPerWheelTick (0.1) = 12 units per click;
-	// 4 clicks above kfCameraEyeHeightDefault gives a comfortable starting frame with zoom range either way.
+	static constexpr float kfCameraEyeHeightDefault = 300.0f;
+	// Release zoom-out ceiling (dev builds zoom further; see Camera.cpp). NOT a texel reference: the shadow/lighting
+	// texel grids hold a constant on-screen pixel size at any height (the texels coarsen with zoom instead of cropping
+	// coverage), so this is purely the gameplay limit on how far the camera can pull back.
+	static constexpr float kfEyeHeightMaxRelease = 600.0f;
+	// Headroom multipliers: the shadow and lighting (deposit/spread/combine) textures are allocated this much larger
+	// than the wanted on-screen pixel size so the processed window can transiently grow during a fast zoom-out before
+	// it runs off the texture (where the CLAMP_TO_BORDER edge reads as no-shadow / no-light). The steady-state window
+	// equals the wanted pixel size at every settled height regardless of this value -- it only sets the transient room.
+	static constexpr float kfShadowHeadroomMultiplier = 1.5f;
+	static constexpr float kfLightingHeadroomMultiplier = 1.5f;
+	// Initial zoom-target on construction: a few wheel-clicks above the default for a comfortable opening frame with
+	// zoom range either way. WHEEL_DELTA (120) * kfEyeHeightPerWheelTick (0.1) = 12 units per click.
 	static constexpr float kfCameraEyeHeightInitial = kfCameraEyeHeightDefault + 48.0f;
 
 	Camera();

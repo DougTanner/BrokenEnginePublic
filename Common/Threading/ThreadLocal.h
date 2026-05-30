@@ -30,6 +30,7 @@ inline thread_local ThreadLocal* gpThreadLocal = nullptr;
 //       But some Vulkan validation messages can overflow that
 inline constexpr int64_t kiLogBufferSize = 32 * 1024;
 
+// Exactly one ThreadLocal per thread; it owns gpThreadLocal for its lifetime.
 class ThreadLocal
 {
 public:
@@ -38,12 +39,19 @@ public:
 	ThreadLocal(int64_t iWorkbufferSize = 0, std::optional<int64_t> iThreadId = std::nullopt, bool bSetupExceptionHandling = true);
 	~ThreadLocal();
 
+	// Non-copyable/non-movable: mpLogBuffer/mWorkbuffer alias this object's own backing vectors.
+	ThreadLocal(const ThreadLocal&) = delete;
+	ThreadLocal& operator=(const ThreadLocal&) = delete;
+	ThreadLocal(ThreadLocal&&) = delete;
+	ThreadLocal& operator=(ThreadLocal&&) = delete;
+
 	std::optional<int64_t> miThreadId;
 	int64_t miLogIndent = 0;
 	int64_t miLogTickCounter = -1;
 
 private:
 
+	// Must precede mpLogBuffer/mWorkbuffer below: those alias this storage (ctor member-init order depends on it).
 	std::vector<char> mLogBufferMemory;
 	std::vector<std::byte> mWorkbufferMemory;
 
@@ -59,6 +67,7 @@ public:
 
 	explicit LogTickScope(int64_t iTick)
 	{
+		ASSERT(gpThreadLocal != nullptr);
 		miPrior = gpThreadLocal->miLogTickCounter;
 		gpThreadLocal->miLogTickCounter = iTick;
 	}

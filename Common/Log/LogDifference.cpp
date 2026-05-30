@@ -11,7 +11,7 @@ bool XM_CALLCONV LogDifference_Vec(const char* pcName, FXMVECTOR rOne, FXMVECTOR
 	bool bEqual = std::memcmp(&f4One, &f4Two, sizeof(XMFLOAT4)) == 0;
 
 	if (!bEqual) [[unlikely]]
-		LOG(kNetwork, kError, "LogDifferences {} {} Client: {} Server: {}", gpLogDifferenceContext, pcName, f4One, f4Two);
+		LOG(kNetwork, kError, "LogDifferences {} {} Client: {} Server: {}", gpLogDifferenceContext, pcName, WbV4(rOne, kiLogDifferencePrecision), WbV4(rTwo, kiLogDifferencePrecision));
 
 	return bEqual;
 }
@@ -24,7 +24,7 @@ bool XM_CALLCONV LogDifference_Vec(const char* pcName, int64_t iIndex, FXMVECTOR
 	bool bEqual = std::memcmp(&f4One, &f4Two, sizeof(XMFLOAT4)) == 0;
 
 	if (!bEqual) [[unlikely]]
-		LOG(kNetwork, kError, "LogDifferences {} {}[{}] Client: {} Server: {}", gpLogDifferenceContext, pcName, iIndex, f4One, f4Two);
+		LOG(kNetwork, kError, "LogDifferences {} {}[{}] Client: {} Server: {}", gpLogDifferenceContext, pcName, iIndex, WbV4(rOne, kiLogDifferencePrecision), WbV4(rTwo, kiLogDifferencePrecision));
 
 	return bEqual;
 }

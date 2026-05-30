@@ -75,7 +75,7 @@ bool ExportScene::CheckDirty(const std::filesystem::path& rPackFile)
 			std::fstream fileStreamIn(preExportPath, std::ios::in | std::ios::binary);
 			int64_t iStoredVersion = 0;
 			fileStreamIn.read(reinterpret_cast<char*>(&iStoredVersion), sizeof(iStoredVersion));
-			if (iStoredVersion != GetVersion())
+			if (!fileStreamIn || iStoredVersion != GetVersion())
 			{
 				mbDirty = true;
 				bDirty = true;
@@ -105,7 +105,7 @@ VkFilter ToVkFilter(int iFilterMode)
 		case -1:
 			return VK_FILTER_LINEAR;
 		default:
-			DEBUG_BREAK();
+			ASSERT(false);
 			return VK_FILTER_LINEAR;
 	}
 }
@@ -123,7 +123,7 @@ VkSamplerAddressMode ToVkSamplerAddressMode(int iWrapMode)
 		case -1:
 			return VK_SAMPLER_ADDRESS_MODE_REPEAT;
 		default:
-			DEBUG_BREAK();
+			ASSERT(false);
 			return VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	}
 }
@@ -219,7 +219,7 @@ void ExportScene::Export()
 		std::fstream fileStreamIn(preExportPath, std::ios::in | std::ios::binary);
 		int64_t iStoredVersion = 0;
 		fileStreamIn.read(reinterpret_cast<char*>(&iStoredVersion), sizeof(iStoredVersion));
-		bNeedsPreExport = (iStoredVersion != GetVersion());
+		bNeedsPreExport = (!fileStreamIn || iStoredVersion != GetVersion());
 	}
 
 	if (bNeedsPreExport)

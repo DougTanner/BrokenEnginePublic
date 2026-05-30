@@ -10,26 +10,25 @@ XMVECTOR XM_CALLCONV ToBaseHeight(FXMVECTOR vecPosition, FXMVECTOR vecEyePositio
 
 float RotationFromPosition(FXMVECTOR vecPosition)
 {
-	XMFLOAT4A f4Position {};
-	XMStoreFloat4A(&f4Position, vecPosition);
-	return std::acos(f4Position.x / std::sqrt(f4Position.x * f4Position.x + f4Position.y * f4Position.y));
+	// atan2 is single-valued over [-pi, pi], finite at the origin, and distinguishes north (+y) from south (-y)
+	return std::atan2(XMVectorGetY(vecPosition), XMVectorGetX(vecPosition));
 }
 
 XMVECTOR XM_CALLCONV QuaternionFromDirection(FXMVECTOR vecDirection, FXMVECTOR vecOriginNormal, FXMVECTOR vecUp)
 {
-	if (XMVector4EqualInt(XMVectorEqual(vecOriginNormal, vecDirection), XMVectorTrueInt()))
+	XMVECTOR vecCross = XMVector3Cross(vecOriginNormal, vecDirection);
+	float fDot = XMVectorGetX(XMVector3Dot(vecDirection, vecOriginNormal));
+
+	// Tolerance test on the pre-normalized cross length: a nearly (anti-)parallel input yields a tiny cross whose
+	// normalization is a garbage axis. fDot disambiguates parallel (identity) from anti-parallel (180 deg about up).
+	static constexpr float kfParallelEpsilonSq = 1.0e-6f;
+	if (XMVectorGetX(XMVector3LengthSq(vecCross)) < kfParallelEpsilonSq)
 	{
-		return XMQuaternionIdentity();
+		return fDot < 0.0f ? XMQuaternionRotationNormal(vecUp, XM_PI) : XMQuaternionIdentity();
 	}
 
-	auto vec = XMVector3Normalize(XMVector3Cross(vecOriginNormal, vecDirection));
-	if (XMVector4EqualInt(XMVectorEqual(vec, XMVectorZero()), XMVectorTrueInt()))
-	{
-		return XMQuaternionRotationNormal(vecUp, XM_PI);
-	}
-
-	float fAngle = std::acos(std::clamp(XMVectorGetX(XMVector3Dot(vecDirection, vecOriginNormal)), -1.0f, 1.0f));
-	return XMQuaternionRotationNormal(vec, fAngle);
+	float fAngle = std::acos(std::clamp(fDot, -1.0f, 1.0f));
+	return XMQuaternionRotationNormal(XMVector3Normalize(vecCross), fAngle);
 }
 
 AreaVertices XM_CALLCONV CalculateArea(FXMVECTOR vecPosition, FXMVECTOR vecDirection, float fForward, float fBack, float fWidth)
@@ -74,7 +73,10 @@ float XM_CALLCONV Distance(FXMVECTOR vecOne, FXMVECTOR vecTwo)
 
 XMVECTOR XM_CALLCONV DirectionTo(FXMVECTOR vecFrom, FXMVECTOR vecTo)
 {
-	if (XMVectorGetX(XMVectorNearEqual(vecFrom, vecTo, g_XMEpsilon)) != 0.0f) [[unlikely]]
+	// 3D coincidence test: the prior single-lane XMVectorGetX(XMVectorNearEqual(...)) only compared lane X,
+	// so points equal in X but far apart in Y/Z were wrongly treated as coincident
+	static constexpr float kfCoincidentEpsilon = 1.0e-6f;
+	if (XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(vecTo, vecFrom))) < kfCoincidentEpsilon * kfCoincidentEpsilon) [[unlikely]]
 	{
 		return XMVectorZero();
 	}
@@ -90,10 +92,16 @@ XMVECTOR XM_CALLCONV ComputeLeadPosition(FXMVECTOR vecShooterPosition, FXMVECTOR
 	float fC = XMVectorGetX(XMVector3Dot(vecOffset, vecOffset));
 
 	float fT = -1.0f;
-	if (std::abs(fA) < 1.0e-6f)
+	// Relative epsilon scaled by the largest coefficient magnitude: the prior absolute 1e-6f was effectively
+	// "exactly zero" at kilometer-scale coordinates, mis-selecting the linear/quadratic branch. fRef > 0 whenever
+	// shooter != target or the target moves; the all-zero degenerate produces a NaN root that falls through to the
+	// vecTargetPosition return below.
+	float fRef = std::max(std::abs(fA), std::max(std::abs(fB), std::abs(fC)));
+	static constexpr float kfRelativeEpsilon = 1.0e-6f;
+	if (std::abs(fA) < kfRelativeEpsilon * fRef)
 	{
 		// Target speed approximately equals projectile speed: linear fallback
-		if (std::abs(fB) > 1.0e-6f)
+		if (std::abs(fB) > kfRelativeEpsilon * fRef)
 		{
 			fT = -fC / fB;
 		}
@@ -166,11 +174,13 @@ XMVECTOR XM_CALLCONV ColorToVector(uint32_t uiColor)
 
 uint32_t XM_CALLCONV ColorToUint(FXMVECTOR vecColor)
 {
+	// Saturate to [0,1] so out-of-range lanes can't overflow an 8-bit field and bleed into the adjacent channel,
+	// and round-to-nearest (+0.5f, lanes non-negative after saturate) so ColorToUint(ColorToVector(c)) == c
 	XMFLOAT4A f4Color {};
-	XMStoreFloat4A(&f4Color, vecColor);
+	XMStoreFloat4A(&f4Color, XMVectorSaturate(vecColor));
 
 	static constexpr float kfMultiplier = 255.0f;
-	return static_cast<uint32_t>(kfMultiplier * f4Color.x) << 24 | static_cast<uint32_t>(kfMultiplier * f4Color.y) << 16 | static_cast<uint32_t>(kfMultiplier * f4Color.z) << 8 | static_cast<uint32_t>(kfMultiplier * f4Color.w);
+	return static_cast<uint32_t>(kfMultiplier * f4Color.x + 0.5f) << 24 | static_cast<uint32_t>(kfMultiplier * f4Color.y + 0.5f) << 16 | static_cast<uint32_t>(kfMultiplier * f4Color.z + 0.5f) << 8 | static_cast<uint32_t>(kfMultiplier * f4Color.w + 0.5f);
 }
 
 uint32_t ColorLerp(uint32_t uiA, uint32_t uiB, float fPercent)

@@ -10,6 +10,9 @@ public:
 	TextureUploadManager();
 	~TextureUploadManager();
 
+	TextureUploadManager(const TextureUploadManager&) = delete; // Owns a raw std::thread whose lambda captures `this`; deleting copy also suppresses the implicit move
+	TextureUploadManager& operator=(const TextureUploadManager&) = delete;
+
 	void InitTransferResources();
 	void DestroyTransferResources();
 	void StartThread();

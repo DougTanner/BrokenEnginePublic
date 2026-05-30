@@ -70,9 +70,9 @@ extern LogRingBuffer gLogRingBuffers[kiLogCategoryCount];
 extern LogGlobalBuffer gLogGlobalBuffer;
 
 void LogIndent(int64_t iIndent);
-char* LogPrefix(char* pLogBuffer);
+char* LogPrefix(char* pLogBuffer, char* pEnd);
 void LogWrite(char* pLogBuffer);
-void LogWriteRingBuffers(const char* pLogBuffer, LogCategory eCategory);
+void LogWriteRingBuffers(const char* pLogBuffer, int64_t iLength, LogCategory eCategory);
 void LogDumpBuffers(std::ofstream& rOfstream);
 
 // Unfiltered log writer — called by LOG() macro after compile-time filtering
@@ -81,21 +81,24 @@ void Log(LogCategory eCategory, std::format_string<const TUV&...> format, const 
 {
 	static char spcLogBuffer[kiLogBufferSize] {};
 	char* pLogBuffer = gpThreadLocal != nullptr ? gpThreadLocal->mpLogBuffer : spcLogBuffer;
-	char* pWrite = LogPrefix(pLogBuffer);
+	char* pEnd = pLogBuffer + kiLogBufferSize - 2; // Reserve 2 bytes for the trailing '\n' and '\0'.
+	char* pWrite = LogPrefix(pLogBuffer, pEnd);
 
 	if (eCategory == LogCategory::kTemp)
 	{
 		constexpr const char kpcTempPrefix[] = "kTemp: ";
-		std::memcpy(pWrite, kpcTempPrefix, sizeof(kpcTempPrefix) - 1);
-		pWrite += sizeof(kpcTempPrefix) - 1;
+		int64_t iTempLength = std::min(static_cast<int64_t>(sizeof(kpcTempPrefix) - 1), pEnd - pWrite);
+		std::memcpy(pWrite, kpcTempPrefix, iTempLength);
+		pWrite += iTempLength;
 	}
 
-	pWrite = std::format_to(pWrite, format, parameters...);
+	std::format_to_n_result<char*> formatResult = std::format_to_n(pWrite, pEnd - pWrite, format, parameters...);
+	pWrite = formatResult.out;
 
 	*(pWrite++) = '\n';
 	*(pWrite++) = 0;
 
-	LogWriteRingBuffers(pLogBuffer, eCategory);
+	LogWriteRingBuffers(pLogBuffer, pWrite - pLogBuffer, eCategory);
 	LogWrite(pLogBuffer);
 }
 

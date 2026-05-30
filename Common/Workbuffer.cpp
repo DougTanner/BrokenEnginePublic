@@ -15,6 +15,22 @@ void Workbuffer::Append(std::string_view text)
 	miSize += static_cast<int64_t>(text.size());
 }
 
+void Workbuffer::Append(std::wstring_view text)
+{
+	if (text.empty())
+		return;
+
+	int iSize = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
+	int64_t iNeeded = miSize + iSize;
+	if (iNeeded > static_cast<int64_t>(mBuffer.size())) [[unlikely]]
+	{
+		Grow(iNeeded);
+	}
+
+	WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), reinterpret_cast<char*>(mBuffer.data()) + miSize, iSize, nullptr, nullptr);
+	miSize += iSize;
+}
+
 void Workbuffer::Append(int64_t iValue)
 {
 	char* pStart = reinterpret_cast<char*>(mBuffer.data()) + miSize;
@@ -49,11 +65,15 @@ void Workbuffer::AppendFloat(float fValue, int iPrecision)
 
 std::string_view Workbuffer::View() const
 {
+	ASSERT(miDepth > 0);
 	return std::string_view(reinterpret_cast<const char*>(mBuffer.data() + miBase), miSize - miBase);
 }
 
 void Workbuffer::Grow(int64_t iNeededCapacity)
 {
+	// The buffer is sized up front (see Common/CLAUDE.md): a grow means it was under-sized. DEBUG_BREAK alerts in
+	// debug; the resize still runs so gameplay never fails. Any View/Span/PushBuffer handle taken before this grow is
+	// invalidated by the reallocation of the ThreadLocal-owned backing vector — size the buffer correctly up front.
 	DEBUG_BREAK();
 	mBuffer.resize(iNeededCapacity * 2);
 }

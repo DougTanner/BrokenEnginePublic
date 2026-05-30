@@ -9,17 +9,15 @@
 namespace game
 {
 
-static constexpr int64_t kiSmoothedCapacity = 128;
-
 static ImPlotPoint SmoothedGetter(int iIndex, void* pData)
 {
 	common::Smoothed<int64_t>* pSmoothed = static_cast<common::Smoothed<int64_t>*>(pData);
 	int64_t iStart = pSmoothed->miNext - pSmoothed->miCount;
 	if (iStart < 0)
 	{
-		iStart += kiSmoothedCapacity;
+		iStart += common::Smoothed<int64_t>::kiCapacity;
 	}
-	int64_t iActual = (iStart + iIndex) % kiSmoothedCapacity;
+	int64_t iActual = (iStart + iIndex) % common::Smoothed<int64_t>::kiCapacity;
 	return ImPlotPoint(static_cast<double>(iIndex), static_cast<double>(pSmoothed->mpValues[iActual]));
 }
 

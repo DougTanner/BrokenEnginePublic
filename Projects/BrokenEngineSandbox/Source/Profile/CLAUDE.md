@@ -15,7 +15,7 @@ The client-only overlay's Frames and Network screens (and the ImPlot trend graph
 - **`kCpuTimerFrameUpdate` must remain the first game CPU timer** — the engine base's `FormatFpsHeader` reads this game enum by name.
 - Indented display-name strings encode overlay hierarchy; preserve the leading-space convention when adding entries.
 - Network metrics append `"!"` when network simulation is enabled and they exceed `engine::NetworkSimulationBounds`; suppressed under fast-forward (`miTimeMultiply > 1`).
-- `NetworkGraphs.cpp` is fully `#if defined(BT_CLIENT)`-wrapped, includes `Pch.h` itself, and must appear only in the client vcxproj. Its `SmoothedGetter` reaches into `common::Smoothed` internals — the hard-coded capacity must track `common::Smoothed<T>`.
+- `NetworkGraphs.cpp` is fully `#if defined(BT_CLIENT)`-wrapped, includes `Pch.h` itself, and must appear only in the client vcxproj. Its `SmoothedGetter` reaches into `common::Smoothed` internals — the ring capacity derives from `common::Smoothed<int64_t>::kiCapacity` rather than a hard-coded literal.
 
 ## See Also
 - Engine profiling base: [../../../../Engine/Source/Profile/CLAUDE.md](../../../../Engine/Source/Profile/CLAUDE.md)

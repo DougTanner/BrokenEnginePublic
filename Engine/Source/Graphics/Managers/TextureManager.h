@@ -117,6 +117,7 @@ public:
 	VkSampler mVkSamplerSmoke = VK_NULL_HANDLE;
 	VkSampler mVkSamplerWindClamp = VK_NULL_HANDLE;
 	VkSampler mVkSamplerBorder = VK_NULL_HANDLE;
+	VkSampler mVkSamplerBorderWhite = VK_NULL_HANDLE;
 	VkSampler mVkSamplerClamp = VK_NULL_HANDLE;
 	VkSampler mVkSamplerElevation = VK_NULL_HANDLE;
 	VkSampler mVkSamplerRepeat = VK_NULL_HANDLE;

@@ -7,10 +7,13 @@
 namespace engine
 {
 
+// All profile-text rows re-evaluate their show/hide state together on this cadence; a state therefore persists at least this long.
+constexpr std::chrono::seconds kProfileVisibilityInterval = 2s;
+
 #if defined(BT_CLIENT)
 void FormatFpsHeader(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, int64_t iTotalCpuTimeUs);
-void FormatCpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager);
-void FormatGpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager);
+void FormatCpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate);
+void FormatGpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate);
 #endif
 
 ProfileManagerBase::ProfileManagerBase()
@@ -77,11 +80,26 @@ void ProfileManagerBase::Destroy()
 	}
 }
 
+bool ProfileManagerBase::TickVisibilityCadence()
+{
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	bool bReevaluate = now - mLastVisibilityEvalTime >= kProfileVisibilityInterval;
+	if (bReevaluate)
+	{
+		mLastVisibilityEvalTime = now;
+	}
+
+	return bReevaluate;
+}
+
 void ProfileManagerBase::ToggleProfileText()
 {
 	if constexpr (kbProfiling)
 	{
 		meProfileScreen = static_cast<ProfileScreen>((static_cast<uint8_t>(meProfileScreen) + 1) % static_cast<uint8_t>(ProfileScreen::kCount));
+
+		// Re-evaluate visibility immediately on the switched-to screen instead of showing stale flags.
+		mLastVisibilityEvalTime = {};
 
 #if defined(BT_CLIENT)
 		for (int64_t i = kTextGraphics; i < kTextAreasCount; ++i)
@@ -96,7 +114,7 @@ void ProfileManagerBase::CpuStart(int64_t iCpuTimer, int64_t iThreads)
 {
 	if constexpr (kbProfiling)
 	{
-		std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
+		std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 		int64_t iAllocations = giAllocationsThisFrame.load(std::memory_order_relaxed);
 
 		std::lock_guard lock(mCpuTimerMutex);
@@ -111,7 +129,7 @@ void ProfileManagerBase::CpuStart(int64_t iCpuTimer, int64_t iThreads)
 		}
 
 		CpuTimerThreadState& rState = rThreadStates[static_cast<size_t>(iCpuTimer)];
-		ASSERT(rState.startTimePoint == std::chrono::high_resolution_clock::time_point());
+		ASSERT(rState.startTimePoint == std::chrono::steady_clock::time_point());
 		rState.startTimePoint = now;
 		rState.iStartAllocations = iAllocations;
 
@@ -123,7 +141,7 @@ void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCross
 {
 	if constexpr (kbProfiling)
 	{
-		std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
+		std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 		int64_t iAllocations = giAllocationsThisFrame.load(std::memory_order_relaxed);
 
 		std::lock_guard lock(mCpuTimerMutex);
@@ -135,7 +153,7 @@ void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCross
 			// Search all threads for the one that started this timer
 			for (auto& [rThreadId, rStates] : mPerThreadTimerStates)
 			{
-				if (rStates.size() > static_cast<size_t>(iCpuTimer) && rStates[static_cast<size_t>(iCpuTimer)].startTimePoint != std::chrono::high_resolution_clock::time_point())
+				if (rStates.size() > static_cast<size_t>(iCpuTimer) && rStates[static_cast<size_t>(iCpuTimer)].startTimePoint != std::chrono::steady_clock::time_point())
 				{
 					pState = &rStates[static_cast<size_t>(iCpuTimer)];
 					break;
@@ -153,7 +171,7 @@ void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCross
 				rThreadStates.resize(static_cast<size_t>(GetCpuTimerCount()));
 			}
 			pState = &rThreadStates[static_cast<size_t>(iCpuTimer)];
-			ASSERT(pState->startTimePoint != std::chrono::high_resolution_clock::time_point());
+			ASSERT(pState->startTimePoint != std::chrono::steady_clock::time_point());
 		}
 
 		CpuTimer& rCpuTimer = GetCpuTimer(iCpuTimer);
@@ -161,7 +179,7 @@ void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCross
 		if (pState != nullptr) [[likely]]
 		{
 			rCpuTimer.iTotalFrameTimeNs += std::chrono::duration_cast<std::chrono::nanoseconds>(now - pState->startTimePoint).count();
-			pState->startTimePoint = std::chrono::high_resolution_clock::time_point();
+			pState->startTimePoint = std::chrono::steady_clock::time_point();
 			rCpuTimer.iAllocationsThisFrame += std::max(static_cast<int64_t>(0), iAllocations - pState->iStartAllocations);
 		}
 
@@ -277,7 +295,7 @@ void ProfileManagerBase::BootStart(BootTimers eBootTimer)
 {
 	if constexpr (kbProfiling)
 	{
-		mBootTimers[eBootTimer].startTimePoint = std::chrono::high_resolution_clock::now();
+		mBootTimers[eBootTimer].startTimePoint = std::chrono::steady_clock::now();
 	}
 }
 
@@ -286,7 +304,7 @@ void ProfileManagerBase::BootStop(BootTimers eBootTimer)
 	if constexpr (kbProfiling)
 	{
 		BootTimer& rBootTimer = mBootTimers[eBootTimer];
-		rBootTimer.timeNs += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - rBootTimer.startTimePoint);
+		rBootTimer.timeNs += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - rBootTimer.startTimePoint);
 	}
 }
 
@@ -389,6 +407,8 @@ void ProfileManagerBase::UpdateProfileText()
 			return;
 		}
 
+		bool bReevaluate = TickVisibilityCadence();
+
 		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
 		if (meProfileScreen == ProfileScreen::kCpu || meProfileScreen == ProfileScreen::kGpu)
@@ -399,12 +419,12 @@ void ProfileManagerBase::UpdateProfileText()
 
 		if (meProfileScreen == ProfileScreen::kCpu)
 		{
-			FormatCpuScreen(rWorkbuffer, *this);
+			FormatCpuScreen(rWorkbuffer, *this, bReevaluate);
 		}
 
 		if (meProfileScreen == ProfileScreen::kGpu)
 		{
-			FormatGpuScreen(rWorkbuffer, *this);
+			FormatGpuScreen(rWorkbuffer, *this, bReevaluate);
 		}
 
 		FormatGameScreens(rWorkbuffer);

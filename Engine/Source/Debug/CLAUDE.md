@@ -10,6 +10,6 @@ Compile-time type dispatch via `std::is_same_v` selects the lookup map per Vulka
 
 **Non-logging builds**: with `kbLogging` false, lookup tables drop out and conversion falls back to `std::to_chars` returning the numeric enum. Call sites always receive a valid C-string regardless of build flavor.
 
-**`std::formatter<VkResult>`**: pulls scratch from `common::gpThreadLocal->mWorkbuffer` — only safe on threads with an initialized thread-local (see [Common/CLAUDE.md](../../../Common/CLAUDE.md)).
+**`std::formatter<VkResult>`**: pulls scratch from `common::gpThreadLocal->mWorkbuffer` when present, else falls back to a numeric `std::to_chars` rendering on a local stack buffer — safe on any thread regardless of thread-local state (see [Common/CLAUDE.md](../../../Common/CLAUDE.md)).
 
 Supported enum set is closed; any value absent from the map trips `DEBUG_BREAK()` (then returns `"UNKNOWN_VK_ENUM"`), flagging tables lagging the Vulkan SDK.

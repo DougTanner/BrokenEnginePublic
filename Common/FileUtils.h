@@ -27,7 +27,13 @@ inline std::pair<bool, std::string> GetFileOrStringContent(const T& rSource)
 		// Read file into string
 		std::fstream fileStream(rSource, std::ios::in | std::ios::binary);
 		fileStream.read(fileContents.data(), uiFileSize);
+		const bool bReadOk = static_cast<bool>(fileStream) && static_cast<size_t>(fileStream.gcount()) == uiFileSize;
 		fileStream.close();
+
+		if (!bReadOk)
+		{
+			return {false, {}};
+		}
 
 		return {true, std::move(fileContents)};
 	}

@@ -217,7 +217,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 private:
 	// Per-player Update helpers (called from PlayersPostRender::Update orchestrator)
 	// Defined in PlayersNavigation.cpp:
-	static void XM_CALLCONV ComputeNavigation(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData, int64_t i, FXMVECTOR vecPosition, FXMVECTOR vecFrameCenter, engine::GridCoord fleetWantedCoord, uint8_t uiPendingFleetWantedCoordTicks, PlayerFlags_t flags, float fNavigationDelay, float fDeltaTime, int8_t& riNavDirection, int8_t& riNavWaypointIndex, XMVECTOR& rVecAiDirection, XMVECTOR& rVecIslandDestination, float& rfFrameChangeTimer);
+	static void XM_CALLCONV ComputeNavigation(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData, int64_t i, FXMVECTOR vecPosition, FXMVECTOR vecFrameCenter, engine::GridCoord fleetWantedCoord, uint8_t uiPendingFleetWantedCoordTicks, PlayerFlags_t flags, float fDeltaTime, int8_t& riNavDirection, int8_t& riNavWaypointIndex, XMVECTOR& rVecAiDirection, XMVECTOR& rVecIslandDestination, float& rfFrameChangeTimer);
 	static void XM_CALLCONV ApplyMovement(int8_t iNavDirection, FXMVECTOR vecAiDirection, float fDeltaTime, float fAccelMul, float fDecayMul, XMVECTOR& rVecVelocity);
 	static void XM_CALLCONV ApplyTerrainPush(const engine::FrameStaticData& rStaticData, FXMVECTOR vecPosition, XMVECTOR& rVecVelocity);
 	static void XM_CALLCONV ApplyPusherPush(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, int64_t i, FXMVECTOR vecPosition, XMVECTOR& rVecVelocity);

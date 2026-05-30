@@ -15,8 +15,12 @@ int64_t VectorByteSize(const std::vector<T>& rVector)
 
 // Stream read helper for single objects
 // Used throughout the codebase for binary deserialization
+// Excludes XMVECTOR so the dedicated Read(std::istream&, XMVECTOR&) overload below always wins —
+// removing it becomes a compile error here, not a silent raw-__m128 read.
+// Determinism contract: reads the raw object representation verbatim (native sizeof/endianness,
+// x64-only); padding/float bytes round-trip as-is. Pass padding-free or zeroed POD types.
 // Parameters: rStream - Input stream to read from, rValue - Object to read into
-template<typename T>
+template<typename T> requires (!std::is_same_v<std::remove_cvref_t<T>, XMVECTOR>)
 inline void Read(std::istream& rStream, T& rValue)
 {
 	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
@@ -40,8 +44,12 @@ inline void Read(std::istream& rStream, std::vector<T>& rVector)
 
 // Stream write helper for single objects - eliminates reinterpret_cast boilerplate
 // Used throughout the codebase for binary serialization
+// Excludes XMVECTOR so the dedicated Write(std::ostream&, FXMVECTOR) overload below always wins —
+// removing it becomes a compile error here, not a silent raw-__m128 write.
+// Determinism contract: writes the raw object representation verbatim (native sizeof/endianness,
+// x64-only); padding/float bytes are persisted as-is. Pass padding-free or zeroed POD types.
 // Parameters: rStream - Output stream to write to, rValue - Object to write
-template<typename T>
+template<typename T> requires (!std::is_same_v<std::remove_cvref_t<T>, XMVECTOR>)
 inline void Write(std::ostream& rStream, const T& rValue)
 {
 	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");

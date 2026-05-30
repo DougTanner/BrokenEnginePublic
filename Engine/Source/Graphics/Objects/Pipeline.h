@@ -17,6 +17,7 @@ enum class DescriptorFlags : uint64_t
 		kSamplerRepeat              = 0x0040,
 		kSamplerMirroredRepeat      = 0x0080,
 		kSamplerSmoke               = 0x0100,
+		kSamplerBorderWhite         = 0x0200, // CLAMP_TO_BORDER + opaque white (1.0) — shadow's "no shadow" beyond coverage
 		kSamplerWindClamp           = 0x10000,
 		kSamplerElevation           = 0x20000,
 	kStorageImages                  = 0x0400,

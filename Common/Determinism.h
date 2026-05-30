@@ -1,9 +1,15 @@
 #pragma once
 
+// Determinism.h relies on DirectXMath types (XMVECTOR / XMFLOAT2-4 / XM_CALLCONV); it must be included after the
+// DirectXMath headers (ExternalHeaders.h does this). Enforce that ordering invariant at compile time.
+#if !defined(DIRECTX_MATH_VERSION)
+	#error "Include DirectXMath before Determinism.h"
+#endif
+
 // Deterministic, bitwise (non-epsilon) equality for DirectXMath types — central to CRC-based
 // client/server reconciliation. Included from ExternalHeaders.h immediately after the DirectXMath
 // includes so these operators are globally visible wherever the types are used. The SSE4-only build
-// knob, the PI subdivisions, kfEpsilon, and XMISNAN/XMISINF remain in ExternalHeaders.h.
+// knob, the PI subdivisions, kfEpsilon, and XmIsNan/XmIsInf remain in ExternalHeaders.h.
 inline bool XM_CALLCONV operator==(FXMVECTOR rOne, FXMVECTOR rTwo)
 {
 	return XMVector4Equal(rOne, rTwo);

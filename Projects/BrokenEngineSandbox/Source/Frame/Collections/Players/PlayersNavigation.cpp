@@ -144,7 +144,7 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	}
 }
 
-void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData, int64_t i, FXMVECTOR vecPosition, FXMVECTOR vecFrameCenter, engine::GridCoord fleetWantedCoord, uint8_t uiPendingFleetWantedCoordTicks, PlayerFlags_t flags, float fNavigationDelay, float fDeltaTime, int8_t& riNavDirection, int8_t& riNavWaypointIndex, XMVECTOR& rVecAiDirection, XMVECTOR& rVecIslandDestination, float& rfFrameChangeTimer)
+void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData, int64_t i, FXMVECTOR vecPosition, FXMVECTOR vecFrameCenter, engine::GridCoord fleetWantedCoord, uint8_t uiPendingFleetWantedCoordTicks, PlayerFlags_t flags, float fDeltaTime, int8_t& riNavDirection, int8_t& riNavWaypointIndex, XMVECTOR& rVecAiDirection, XMVECTOR& rVecIslandDestination, float& rfFrameChangeTimer)
 {
 	PlayersPostRender& __restrict rCurrent = *rFrame.postRender.pPlayers;
 	const PlayersPostRender& rPrevious = *rPreviousFrame.postRender.pPlayers;
@@ -323,7 +323,7 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 
 			// Snap to navigable area if inside an obstacle
 			rVecIslandDestination = engine::NavQuerySnapToNavigable(rVecIslandDestination, rStaticData.navData);
-			LOG(kNavData, kVerbose, "Player {} NavSwitch: island dest generated pos={} dest={}", i, vecPosition, rVecIslandDestination);
+			LOG(kNavData, kVerbose, "Player {} NavSwitch: island dest generated pos={} dest={}", i, common::WbV2(vecPosition, 1), common::WbV2(rVecIslandDestination, 1));
 			bRecompute = true; // new destination -> path immediately
 		}
 
@@ -351,13 +351,14 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 #endif // BT_CLIENT
 		}
 
-		// Arrival check (unconditional — independent of the pathfind throttle)
+		// Arrival check (unconditional — independent of the pathfind throttle). Zeroing the destination
+		// makes the next tick's mode-4 entry block immediately pick the next island in the
+		// largest -> smallest -> random sequence (no idle between islands). Staying in mode 4 keeps the
+		// tour progressing; the fleet still leaves the frame when the server frame-change timer fires.
 		float fDistanceSquared = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(vecPosition, rVecIslandDestination)));
 		if (fDistanceSquared < 100.0f)
 		{
-			LOG(kNavData, kVerbose, "Player {} NavSwitch: arrived at island dest pos={} dest={}", i, vecPosition, rVecIslandDestination);
-			riNavDirection = -1;
-			rfFrameChangeTimer = fNavigationDelay;
+			LOG(kNavData, kVerbose, "Player {} NavSwitch: arrived at island dest pos={} dest={}", i, common::WbV2(vecPosition, 1), common::WbV2(rVecIslandDestination, 1));
 			rVecIslandDestination = XMVectorZero();
 		}
 	}
@@ -400,7 +401,7 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 			else
 			{
 				rVecAiDirection = XMVector3Normalize(XMVectorSetZ(XMVectorSubtract(vecDestination, vecPosition), 0.0f));
-				LOG(kNavData, kWarning, "Player {} navQuery returned zero, fallback dir={}", i, rVecAiDirection);
+				LOG(kNavData, kWarning, "Player {} navQuery returned zero, fallback dir={}", i, common::WbV2(rVecAiDirection, 1));
 			}
 #if defined(BT_CLIENT)
 			if constexpr (kbDebugRender)

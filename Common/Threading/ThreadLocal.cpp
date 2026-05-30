@@ -10,6 +10,8 @@ ThreadLocal::ThreadLocal(int64_t iWorkbufferSize, std::optional<int64_t> iThread
 , mpLogBuffer(mLogBufferMemory.data())
 , mWorkbuffer(mWorkbufferMemory)
 {
+	ASSERT(gpThreadLocal == nullptr);
+
 	gpThreadLocal = this;
 
 	ConfigureThreadFloatingPoint();

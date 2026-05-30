@@ -13,65 +13,61 @@ void LogIndent(int64_t iIndent)
 {
 	if constexpr (kbLogging)
 	{
-		gpThreadLocal->miLogIndent += iIndent;
+		if (gpThreadLocal != nullptr)
+		{
+			gpThreadLocal->miLogIndent += iIndent;
+		}
 	}
 }
 
-char* LogPrefix(char* pLogBuffer)
+char* LogPrefix(char* pLogBuffer, char* pEnd)
 {
 	char* pWrite = pLogBuffer;
+
+	auto put = [&pWrite, pEnd](char c)
+	{
+		if (pWrite < pEnd)
+			*(pWrite++) = c;
+	};
 
 	if (gpThreadLocal != nullptr) [[likely]]
 	{
 		int64_t iLogIndent = gpThreadLocal->miLogIndent;
 		for (int64_t i = 0; i < iLogIndent; ++i)
 		{
-			*(pWrite++) = ' ';
-			*(pWrite++) = ' ';
+			put(' ');
+			put(' ');
 		}
 
 		if (gpThreadLocal->miThreadId.has_value())
 		{
-			if (gpThreadLocal->miThreadId.value() >= 100)
-			{
-				std::to_chars(&*pWrite, &*pWrite + 3, gpThreadLocal->miThreadId.value());
-				++pWrite; ++pWrite; ++pWrite;
-			}
-			else if (gpThreadLocal->miThreadId.value() >= 10)
-			{
-				std::to_chars(&*pWrite, &*pWrite + 2, gpThreadLocal->miThreadId.value());
-				++pWrite; ++pWrite;
-			}
-			else
-			{
-				std::to_chars(&*pWrite, &*pWrite + 1, gpThreadLocal->miThreadId.value());
-				++pWrite;
-			}
+			std::to_chars_result threadIdResult = std::to_chars(pWrite, pEnd, gpThreadLocal->miThreadId.value());
+			pWrite = threadIdResult.ptr;
 
-			*(pWrite++) = ':';
-			*(pWrite++) = ' ';
+			put(':');
+			put(' ');
 		}
 
 		if (gpThreadLocal->miLogTickCounter >= 0)
 		{
-			*(pWrite++) = '[';
-			*(pWrite++) = 'T';
-			*(pWrite++) = 'i';
-			*(pWrite++) = 'c';
-			*(pWrite++) = 'k';
-			*(pWrite++) = ':';
-			*(pWrite++) = ' ';
-			std::to_chars_result toCharsResult = std::to_chars(pWrite, pWrite + 20, gpThreadLocal->miLogTickCounter);
+			put('[');
+			put('T');
+			put('i');
+			put('c');
+			put('k');
+			put(':');
+			put(' ');
+			std::to_chars_result toCharsResult = std::to_chars(pWrite, pEnd, gpThreadLocal->miLogTickCounter);
 			pWrite = toCharsResult.ptr;
-			*(pWrite++) = ']';
-			*(pWrite++) = ' ';
+			put(']');
+			put(' ');
 		}
 	}
 	else
 	{
-		*(pWrite++) = '#';
-		*(pWrite++) = ':';
-		*(pWrite++) = ' ';
+		put('#');
+		put(':');
+		put(' ');
 	}
 
 	return pWrite;
@@ -89,14 +85,13 @@ void LogWrite(char* pLogBuffer)
 	}
 }
 
-void LogWriteRingBuffers(const char* pLogBuffer, LogCategory eCategory)
+void LogWriteRingBuffers(const char* pLogBuffer, int64_t iLength, LogCategory eCategory)
 {
-	auto copyToLine = [pLogBuffer](char* pLine)
+	auto copyToLine = [pLogBuffer, iLength](char* pLine)
 	{
 		if (pLine == nullptr)
 			return;
-		int64_t iLen = std::min(static_cast<int64_t>(strlen(pLogBuffer)), kiLogBufferSize - 2);
-		std::memcpy(pLine, pLogBuffer, iLen + 1);
+		std::memcpy(pLine, pLogBuffer, iLength);
 	};
 
 	copyToLine(gLogRingBuffers[static_cast<int64_t>(eCategory)].AcquireLine());

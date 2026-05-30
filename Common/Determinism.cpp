@@ -14,11 +14,7 @@ void ConfigureThreadFloatingPoint()
 
 void SetupExceptionHandling()
 {
-	_set_error_mode(_OUT_TO_DEFAULT);
-	SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
-	_CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_DEBUG);
-	_CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_DEBUG);
-	_CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_DEBUG);
+	// _set_se_translator and _set_invalid_parameter_handler are per-thread CRT handler slots — install on every thread.
 
 	// Combined with compiler flag /EHa, this allows us to trap (and re-throw as C++ exceptions) basic exceptions like nullptr dereferences
 	_set_se_translator([](unsigned int uiCode, [[maybe_unused]] EXCEPTION_POINTERS* pExceptionPointers)
@@ -53,24 +49,24 @@ void SetupExceptionHandling()
 
 		LOG(kDefault, kError, "In _set_invalid_parameter_handler");
 
-		std::wstring description(L"_set_invalid_parameter_handler \"");
-		description += pcExpression ? pcExpression : L"nullptr";
-		description += L"\" Function: ";
-		description += pcFunction ? pcFunction : L"nullptr";
-		description += L" File: ";
-		description += pcFile ? pcFile : L"nullptr";
-		description += L" Line: ";
-		description += std::to_wstring(uiLine);
+		// Fixed-buffer formatting (no heap allocation): the fault under diagnosis may be heap corruption, so re-entering the allocator could re-fault. Mirrors the SEH translator's spcCode idiom above.
+		static char spcDescription[1024] {};
+		sprintf_s(spcDescription, std::size(spcDescription) - 1, "_set_invalid_parameter_handler \"%ls\" Function: %ls File: %ls Line: %u", pcExpression ? pcExpression : L"nullptr", pcFunction ? pcFunction : L"nullptr", pcFile ? pcFile : L"nullptr", uiLine);
 
 		DEBUG_BREAK();
 
-		throw std::runtime_error(ToString(description).c_str());
+		throw std::runtime_error(spcDescription);
 	});
 
-	static bool sbDone = false;
-	if (!sbDone)
+	// Process-global handlers install exactly once per process — race-free across concurrent ThreadLocal ctors, and no longer redundantly re-applied on every per-thread ctor.
+	static std::once_flag sOnceFlag;
+	std::call_once(sOnceFlag, []()
 	{
-		sbDone = true;
+		_set_error_mode(_OUT_TO_DEFAULT);
+		SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
+		_CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_DEBUG);
+		_CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_DEBUG);
+		_CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_DEBUG);
 
 		AddVectoredExceptionHandler(1, [](PEXCEPTION_POINTERS pExceptionPointers) -> LONG
 		{
@@ -147,13 +143,13 @@ void SetupExceptionHandling()
 
 			return EXCEPTION_CONTINUE_SEARCH;
 		});
-	}
 
-	std::set_terminate([]()
-	{
-		LOG(kDefault, kError, "std::set_terminate");
-		DEBUG_BREAK();
-		std::abort();
+		std::set_terminate([]()
+		{
+			LOG(kDefault, kError, "std::set_terminate");
+			DEBUG_BREAK();
+			std::abort();
+		});
 	});
 }
 

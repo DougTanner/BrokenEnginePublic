@@ -14,8 +14,14 @@ public:
 	explicit Workbuffer(std::vector<std::byte>& rBuffer)
 	: mBuffer(rBuffer)
 	{
-		mSavedBase.resize(8);
+		mSavedBase.resize(64); // Pre-sized for the deepest arena nesting source structure ever reaches (see RawPush).
 	}
+
+	// Non-copyable/non-movable: mBuffer is a reference member, so a copy would bind into the source's storage.
+	Workbuffer(const Workbuffer&) = delete;
+	Workbuffer& operator=(const Workbuffer&) = delete;
+	Workbuffer(Workbuffer&&) = delete;
+	Workbuffer& operator=(Workbuffer&&) = delete;
 
 	// Scope marker. Returns an RAII handle that pops the frame on scope exit.
 	[[nodiscard]] ScopedWorkbufferArena Push();
@@ -25,8 +31,10 @@ public:
 	template<typename T>
 	[[nodiscard]] ScopedWorkbufferAllocation<T> PushBuffer(int64_t iSizeInBytes);
 
-	// String building
+	// String building. Append/View/Span are valid only within an open frame (Push()/PushBuffer()) — a read at
+	// depth 0 (no open frame) is asserted, since miBase/miSize are frame-relative.
 	void Append(std::string_view text);
+	void Append(std::wstring_view text);
 	void Append(int64_t iValue);
 	void AppendFloat(float fValue, int iPrecision);
 	std::string_view View() const;
@@ -48,6 +56,9 @@ public:
 	// Operates on the last PushBuffer call only — Push frames don't update the tracked size.
 	void ShrinkLastPushBuffer(int64_t iActualSize)
 	{
+		// The tracked PushBuffer size must belong to the current top frame; a bare Push() opening a deeper frame
+		// after the PushBuffer would otherwise corrupt the live frame's size accounting.
+		ASSERT(miDepth == miLastPushBufferDepth);
 		miSize -= (miLastPushBufferSize - iActualSize);
 		miLastPushBufferSize = iActualSize;
 	}
@@ -55,12 +66,14 @@ public:
 	template<typename T>
 	std::span<const T> Span() const
 	{
+		ASSERT(miDepth > 0);
 		return {reinterpret_cast<const T*>(mBuffer.data() + miBase), static_cast<size_t>(miSize - miBase) / sizeof(T)};
 	}
 
 	template<typename T>
 	std::span<T> Span()
 	{
+		ASSERT(miDepth > 0);
 		return {reinterpret_cast<T*>(mBuffer.data() + miBase), static_cast<size_t>(miSize - miBase) / sizeof(T)};
 	}
 
@@ -70,6 +83,9 @@ private:
 	{
 		if (miDepth == static_cast<int64_t>(mSavedBase.size())) [[unlikely]]
 		{
+			// mSavedBase is pre-sized for the deepest arena nesting source structure ever reaches; exceeding it is
+			// an under-sizing bug (DEBUG_BREAK alerts in debug). Growth still proceeds so gameplay never fails.
+			DEBUG_BREAK();
 			mSavedBase.resize(mSavedBase.size() * 2);
 		}
 		mSavedBase[miDepth] = miBase;
@@ -82,6 +98,8 @@ private:
 	{
 		if (miDepth == static_cast<int64_t>(mSavedBase.size())) [[unlikely]]
 		{
+			// See RawPush: pre-sized for max nesting; DEBUG_BREAK flags under-sizing, growth still succeeds.
+			DEBUG_BREAK();
 			mSavedBase.resize(mSavedBase.size() * 2);
 		}
 		mSavedBase[miDepth] = miBase;
@@ -94,6 +112,7 @@ private:
 		}
 		miSize = iNeeded;
 		miLastPushBufferSize = iSizeInBytes;
+		miLastPushBufferDepth = miDepth;
 		void* pData = mBuffer.data() + miBase;
 		return static_cast<T>(pData);
 	}
@@ -113,6 +132,7 @@ private:
 	int64_t miBase = 0;
 	int64_t miDepth = 0;
 	int64_t miLastPushBufferSize = 0;
+	int64_t miLastPushBufferDepth = 0;
 	std::vector<int64_t> mSavedBase;
 
 	friend class ScopedWorkbufferArena;
@@ -135,6 +155,7 @@ public:
 	ScopedWorkbufferArena& operator=(const ScopedWorkbufferArena&) = delete;
 
 	void Append(std::string_view text)              { mBuffer.Append(text); }
+	void Append(std::wstring_view text)             { mBuffer.Append(text); }
 	void Append(int64_t iValue)                     { mBuffer.Append(iValue); }
 	void AppendFloat(float fValue, int iPrecision)  { mBuffer.AppendFloat(fValue, iPrecision); }
 	template<typename T> void PushBack(const T& rValue) { mBuffer.PushBack(rValue); }
@@ -229,6 +250,26 @@ struct Wb
 struct WbV2
 {
 	WbV2(DirectX::XMVECTOR vec, int iPrecision)
+	: vec(vec), iPrecision(iPrecision) {}
+
+	DirectX::XMVECTOR vec;
+	int               iPrecision;
+};
+
+// 3D XMVECTOR formatted as "(x,y,z)" with shared precision.
+struct WbV3
+{
+	WbV3(DirectX::XMVECTOR vec, int iPrecision)
+	: vec(vec), iPrecision(iPrecision) {}
+
+	DirectX::XMVECTOR vec;
+	int               iPrecision;
+};
+
+// 4D XMVECTOR formatted as "(x,y,z,w)" with shared precision.
+struct WbV4
+{
+	WbV4(DirectX::XMVECTOR vec, int iPrecision)
 	: vec(vec), iPrecision(iPrecision) {}
 
 	DirectX::XMVECTOR vec;
