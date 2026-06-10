@@ -2,24 +2,24 @@
 name: external-design-interface
 description: >-
   Generate multiple radically different C++ interface designs for an engine system
-  using parallel sub-agents, then compare and synthesize. Use when user explicitly
-  requests it (e.g., "/external-design-interface", "design this API", "explore interface options",
-  "design it twice"). Also proactively suggest when detecting the user is designing a new
-  system — especially new Collections (game or engine), new manager classes, or new
-  subsystem APIs. When auto-detecting, ask the user "Would you like me to run
+  using parallel sub-agents, then compare and synthesize the best approach. When
+  auto-detecting (not explicitly requested), ask the user "Would you like me to run
   /external-design-interface to explore different API shapes?" before invoking.
-  Do NOT auto-suggest for bug fixes, single-function additions, or adding a member to
-  an existing collection — those route to `/add-collection-member`.
+when_to_use: >-
+  When the user explicitly requests it ("design this API", "explore interface
+  options", "design it twice"), or proactively when detecting the user is designing
+  a new system — especially new Collections (game or engine), new manager classes,
+  or new subsystem APIs. Do NOT auto-suggest for bug fixes, single-function
+  additions, or adding a member to an existing collection — those route to
+  `/add-collection-member`.
 allowed-tools: [Read, Grep, Glob, Agent, AskUserQuestion]
 ---
 
 # Design Interface
 
-Generate multiple radically different C++ interface designs for an engine system using parallel sub-agents, then compare and synthesize the best approach.
-
 ## Arguments
 
-The user provides a description of the system to design. If no description is given, use AskUserQuestion to ask what system they want to explore interface options for, and wait for a response before proceeding.
+The user provides a description of the system to design. If none is given, use AskUserQuestion to ask what system to explore interface options for, and wait for a response before proceeding.
 
 ## Instructions
 
@@ -44,7 +44,7 @@ Record these findings — they get passed to every design agent in the next step
 
 ### 3. Generate Designs (Parallel Sub-Agents)
 
-Spawn exactly 3 Plan agents (`subagent_type: "Plan"`, `model: "opus"`) in parallel using the Agent tool. The `Plan` and `Explore` subagent types are custom agents defined in this environment — if they are unavailable, fall back to `subagent_type: "general-purpose"` with the role ("plan designer" / "explorer") embedded at the top of the prompt. Each agent's prompt must include:
+Spawn exactly 3 Plan agents (`subagent_type: "Plan"`, `model: "fable"`) in parallel using the Agent tool. The `Plan` and `Explore` subagent types are custom agents defined in this environment — if they are unavailable, fall back to `subagent_type: "general-purpose"` with the role ("plan designer" / "explorer") embedded at the top of the prompt. Each agent's prompt must include:
 - The requirements gathered in step 1
 - The existing patterns and caller conventions found in step 2
 - One of the design constraints below

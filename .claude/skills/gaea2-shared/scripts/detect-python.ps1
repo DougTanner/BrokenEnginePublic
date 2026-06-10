@@ -2,11 +2,14 @@
 # Detects a usable python.exe (>= 3.10), skipping the Windows Store shim and the
 # `py` launcher (the launcher is on PATH but isn't a direct interpreter — skills
 # pass the detected exe path explicitly to avoid `python` resolving to nothing).
+# Usage (execute; capture the printed exe path for subsequent Python calls):
+#   powershell -ExecutionPolicy Bypass -File .claude/skills/gaea2-shared/scripts/detect-python.ps1
 # Exit codes:
 #   0 - found, prints "OK <python.exe-path> Python <major>.<minor>"
 #   1 - missing or version too old, prints reason
 #
-# Used as a bootstrap by the gaea2-load and gaea2-save skills.
+# Bootstrap for the gaea2-* family skills (and gaea1-load); they pass the
+# detected exe path explicitly to the Python scripts in this directory.
 
 $minMajor = 3
 $minMinor = 10

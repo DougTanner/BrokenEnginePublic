@@ -4,10 +4,10 @@ Holds design-time documentation and two parallel planning trees. No build artifa
 
 ## Reference Material
 
-- `C++StyleGuide.txt` — the 60 numbered style rules (Hungarian notation, Allman braces, `auto` restrictions, DirectXMath conventions). Source of truth for the `code-style-review` skill.
+- `C++StyleGuide.txt` — numbered style rules (Hungarian notation, Allman braces, `auto` restrictions, DirectXMath conventions). Source of truth for the `code-style-review` skill.
 - `FloatingPointDeterminism.txt` — the rollback-and-replay determinism contract: `/fp:strict`, FMA3 disabled, per-thread MXCSR, fixed 32 Hz timestep, deterministic RNG, dual CRC. Read before touching simulation math.
 - `azure-game-server-guide.docx` — server-hosting deployment notes.
-- `Architecture/` — Mermaid diagrams (`FrameUpdatePipeline.md`, `GameReconciliation.md`, `Network.md`). The `update-architecture-diagrams` skill keeps these current; CLAUDE.md docs link to them rather than duplicating their content.
+- `Architecture/` — per-subsystem source of truth: Mermaid diagrams (`FrameUpdatePipeline.md`, `GameReconciliation.md`) and a prose protocol spec with exact constant values (`Network.md`). The `update-architecture-diagrams` skill keeps these current; CLAUDE.md docs link to them rather than duplicating their content.
 
 ## Planning Trees
 

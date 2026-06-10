@@ -2,7 +2,6 @@
 name: next-plan
 description: First reconciles any orphaned plan files on disk that aren't referenced in `Documents/Plans/Order.md` by dispatching an Opus subagent to score them and inserting their rows. Then pulls the highest-priority plan, follows any unfinished prerequisites, validates it against the current codebase, refreshes stale details, scans the codebase for similar changes the plan may have missed, and presents a ready-to-execute plan for approval. Removes the Order.md row immediately on selection and auto-deletes the source plan file once the final actionable plan has been created. Use when the user invokes `/next-plan`.
 disable-model-invocation: true
-user-invocable: true
 argument-hint: "[plan-file-path]"
 allowed-tools: [Read, Grep, Glob, Agent, Edit, Bash, AskUserQuestion]
 ---
@@ -13,26 +12,27 @@ Reconciles orphaned plan files on disk into `Documents/Plans/Order.md`, then wal
 
 ## Preconditions
 
-- The skill assumes **bypass-permissions** mode and performs two mutations directly: it removes the target row from `Documents/Plans/Order.md` as soon as the candidate is selected, and it deletes the source plan file from disk once the final actionable plan has been generated. Both happen without further confirmation. User approval is requested only on the final synthesized plan, not on the mutations.
+- The skill assumes **bypass-permissions** mode and mutates without further confirmation: it inserts `Order.md` rows for orphaned plan files (Step 0), removes the target row from `Documents/Plans/Order.md` as soon as the candidate is selected (Step 2), and deletes the source plan file from disk once the final actionable plan has been generated (Step 8). User approval is requested only on the final synthesized plan, not on the mutations.
 - `Documents/Plans/Order.md` must exist. If it does not, report the missing file and stop.
-- The skill does **not** require — and does not use — plan mode. It mimics plan mode's "review-before-implement" UX by presenting the final plan and asking for approval via `AskUserQuestion` before the standard C++ Code Change Process begins.
+- The skill does **not** require — and does not use — plan mode. It mimics plan mode's "review-before-implement" UX by printing the final plan as a standalone turn-ending text message (so it is readable and scrollable in the session window), then asking for approval via `AskUserQuestion` before the standard C++ Code Change Process begins. See Step 9 for the exact two-turn presentation contract.
 
 ## Order.md structure reference
 
-Order.md has a single `## Plans` table at roughly line 21. Columns are: `# | Plan | Tier | Effort | Impact | Risks | Score | Notes`. Rows are sorted by Score ascending (lowest = highest priority). Every row in the table is executable; rows are deleted from the table when the plan is done. Plan cells should be markdown links (`[path](path)`) for clickable navigation.
+Order.md has a single `## Plans` table. Columns are: `# | Plan | Tier | Effort | Impact | Risks | Score | Notes`. Rows are sorted by Score ascending (lowest = highest priority). Every row in the table is executable; rows are deleted from the table when the plan is done. Plan cells should be markdown links (`[path](path)`) for clickable navigation.
 
 - **`### Reference / Index Documents` subsection**: a separate table below the main one, listing meta/overview docs that are never executed as plans. **Ignore this subsection entirely.**
-- **`## Dependencies` section**: prose bullets expressing ordering constraints between plans.
+- **`## Dependencies` section**: prose bullets expressing ordering constraints between plans. May contain a `### Cross-directory dependencies` subsection whose bullets cite plans under `Documents/Features/` — those live in a separate queue (`Documents/Features/Order.md`) and never appear in this table; see Step 1e for how to resolve them.
+- **`## File Groups` section**: plans that touch the same files and should land in one session. Coordination info only — never a prerequisite edge; treat like the Step 1d coordination notes.
 
 ## Workflow
 
-Execute these steps in order. Step 0 is the orphan-reconciliation pre-phase — any plan files on disk that aren't in `Order.md` are scored by an Opus subagent and inserted before the priority walk begins. Step 1 is pure research (Read / Grep / Glob / Agent) and resolves which plan to work on. Step 2 is the first mutation point in the main flow — the Order.md row is removed as soon as the target is selected. Steps 3 through 7 are research and synthesis against the surviving on-disk plan file. Step 8 is the second mutation — the plan file is deleted automatically once the final actionable plan has been produced. Step 9 presents the final plan to the user via `AskUserQuestion` for explicit approval.
+Execute these steps in order. Three unconditional mutation points (bypass-permissions assumed): Step 0 inserts rows for orphaned plan files, Step 2 removes the target's Order.md row the moment it is selected, and Step 8 deletes the plan file once the final actionable plan has been composed. Everything else is read-only research and synthesis; user approval happens only at Step 9, after both main-flow mutations.
 
 ### Step 0. Reconcile orphaned plan files into `Order.md`
 
-Before walking the priority queue, ensure every plan file on disk is represented in the `## Plans` table. Orphaned files — present on disk but missing from the table — would otherwise be invisible to the rest of the workflow.
+Ensure every plan file on disk is represented in the `## Plans` table — orphans (present on disk, missing from the table) are otherwise invisible to the priority walk.
 
-  a. **Enumerate plan files on disk.** Use `Glob` against `Documents/Plans/**/*.md` and `Documents/Plans/**/*.txt`. Normalize every hit to its repo-relative form (`<area>/<File>.<ext>`).
+  a. **Enumerate plan files on disk.** Use `Glob` against `Documents/Plans/**/*.md` and `Documents/Plans/**/*.txt`. Normalize every hit to the Order.md-relative form (`<area>/<File>.<ext>`).
 
   b. **Build the exclusion set.** Skip:
        - `Documents/Plans/Order.md` itself and any `CLAUDE.md` under `Documents/Plans/`.
@@ -64,7 +64,7 @@ Before walking the priority queue, ensure every plan file on disk is represented
 ### Step 1. Resolve dependencies
 
   a. Read `Documents/Plans/Order.md`.
-  b. If the user passed an argument (`$1` / `$ARGUMENTS` non-empty), normalize it to the repo-relative plan-file form (e.g., `Audio/GateVoiceLifecycleDuringReplay.txt` — strip any leading `./` or `Documents/Plans/`, trim backticks) and use that as the **candidate**. Otherwise, walk the `## Plans` table top-down and take the first row. Extract the plan-file path from its Plan cell (handles both `[path](path)` link form and bare-path form, for backwards compatibility during the normalization rollout).
+  b. If the user passed an argument (`$1` / `$ARGUMENTS` non-empty), normalize it to the Order.md-relative plan-file form (e.g., `Audio/GateVoiceLifecycleDuringReplay.txt` — strip any leading `./` or `Documents/Plans/`, trim backticks) and use that as the **candidate**. Otherwise, walk the `## Plans` table top-down and take the first row. Extract the plan-file path from its Plan cell (handles both `[path](path)` link form and bare-path form, for backwards compatibility during the normalization rollout).
   c. Reject ineligible candidates up front. A plan is ineligible if the `## Dependencies` section marks it as `is subsumed` or `is an index/meta document, not an executable plan`. If the user passed such a path, stop and tell them it isn't executable; if it turned up as the top row, skip it and continue walking down.
   d. Scan the `## Dependencies` section. Each bullet expresses a directional constraint between one or more plans. Normalize every relevant bullet to the canonical form "X depends on Y" (X cannot run until Y is done) using these patterns:
 
@@ -84,6 +84,7 @@ Before walking the priority queue, ensure every plan file on disk is represented
 
   e. Collect the prerequisite set for the current candidate (the Ys where the candidate is X in the normalized form). For each prerequisite:
        - If the prerequisite is still a row in the `## Plans` table → unfinished; recurse from Step 1 with the prerequisite as the new candidate. (Exception: if the row is present but its plan file is missing from disk, that's a bookkeeping anomaly — see the "plan file missing from disk" edge case; report it rather than recursing.)
+       - If the prerequisite path lives under `Documents/Features/` → it is tracked in `Documents/Features/Order.md`, outside this skill's queue. If it still has a row there, it is unfinished — do not recurse into it (this skill never executes Features plans); surface the blocker to the user and fall through to the next candidate (or stop and report, if the user passed the blocked plan as the argument). If it has no row there, treat as satisfied.
        - If the prerequisite is not present in the table → treat as satisfied; it was either already executed or hand-cleaned. Whether the file itself remains on disk doesn't matter at this point.
 
   f. When a candidate has no unmet prerequisites, it is the **target plan**. Record its path, all row fields (Tier / Effort / Impact / Risks / Score / Notes), and the row's line number in `Order.md`.
@@ -129,7 +130,7 @@ Relevance is necessary but not sufficient. A plan can still describe real code y
 
 If the plan no longer clears a "worth doing" bar, stop and ask the user. Note that the Order.md row is already gone (Step 2) — the choice is between "delete the plan file too and abandon" (proceed to Step 8 then stop) or "keep the plan file on disk and re-add the row to Order.md manually later" (stop without Step 8). Surface both options to the user.
 
-For Architectural-tier plans, dispatch an Opus subagent via the `Agent` tool to audit the plan independently against the current code — it gives a second opinion uncoloured by the plan's own framing. Inline the research for Quick Win and Medium tiers.
+For Architectural-tier plans, dispatch a Fable subagent via the `Agent` tool to audit the plan independently against the current code — it gives a second opinion uncoloured by the plan's own framing. Inline the research for all other tiers.
 
 ### Step 5. Refresh the plan for current code state
 
@@ -151,7 +152,7 @@ Brief the subagent with:
 
 - The full text of the target plan (refreshed in Step 5).
 - The transformation pattern the plan implements, extracted from its execution steps: what it changes, where, and why. State this explicitly — "find every other place that does X" — rather than handing the subagent the raw plan and hoping it infers the pattern.
-- Pointers into the codebase: `Documents/Overview.txt`, the relevant subsystem `CLAUDE.md` files (`Engine/Source/CLAUDE.md`, `Common/CLAUDE.md`, `Projects/BrokenEngineSandbox/Source/CLAUDE.md`, etc.), and `Pch.h` aggregation headers for the affected namespace.
+- Pointers into the codebase: the relevant subsystem `CLAUDE.md` files (`Engine/Source/CLAUDE.md`, `Common/CLAUDE.md`, `Projects/BrokenEngineSandbox/Source/CLAUDE.md`, etc.), the `Documents/Architecture/` Mermaid diagrams when the plan touches a diagrammed subsystem, and the aggregation headers (`Common/Common.h`, `Engine/Source/Engine.h`) for the affected namespace.
 - An instruction to search BOTH directions: (a) **oversights** — code that already existed when the plan was written but was missed, and (b) **drift** — code added since the plan was written that exhibits the same pattern. The plan's age (commit history of the plan file or Order.md row) is useful context for distinguishing the two.
 
 Ask the subagent to return:
@@ -169,7 +170,7 @@ If the subagent returns more than ~10 candidates, the plan likely describes a pa
 
 Assemble — **in memory**, do not write it to a file — a single markdown document matching the template below. This is the artifact the user will be asked to approve in Step 9.
 
-For the title, use the target plan file's top-level `# ` heading if one exists. Many plans are plain-text `.txt` files with no H1 — for those, fall back to the `Plan` cell stem from Order.md: strip the directory prefix and the extension but **preserve the original casing** (don't re-PascalCase kebab-case or vice-versa).
+For the title, use the target plan file's top-level `# ` heading if one exists. Some plans are plain-text `.txt` files with no H1 — for those, fall back to the `Plan` cell stem from Order.md: strip the directory prefix and the extension but **preserve the original casing** (don't re-PascalCase kebab-case or vice-versa).
 
 Examples:
 - `Audio/GateVoiceLifecycleDuringReplay.txt` (no H1) → `GateVoiceLifecycleDuringReplay`
@@ -215,7 +216,16 @@ Sequencing notes:
 
 ### Step 9. Present the final plan and request approval
 
-Output the Step 7 markdown to the user as a normal text response so they can read the plan in full, then call `AskUserQuestion` with a single question along the lines of:
+**The plan and its rationale MUST land in the session context window before approval is requested — the user must be able to scroll up and read the full plan text in the transcript while (and after) deciding.** Text sandwiched between tool calls, or emitted in the same assistant message as a tool call, is not reliably rendered to the user; an `AskUserQuestion` option `preview` pane is not scrollback and does not satisfy this requirement on its own.
+
+Concretely, present in two turns:
+
+  1. Output the Step 7 markdown as the **final text of the turn, with no tool calls in that message and none after it**, so it renders fully in the session window. End the turn there.
+  2. When the user responds (any acknowledgement — the content of their reply doesn't matter unless it raises questions), call `AskUserQuestion` for the approval. Optionally duplicate the plan in the `Approve` option's `preview` as a convenience copy, but never as the only copy.
+
+If the user's reply to (1) already contains an unambiguous decision ("approved", "reject", "skip the TextureCache one"), honor it directly and skip or trim the `AskUserQuestion` accordingly.
+
+The `AskUserQuestion` is a single question along the lines of:
 
 - **question**: "Approve this plan and proceed with implementation?"
 - **options**: `Approve` (proceed to the C++ Code Change Process), `Reject` (abandon — Order.md row and plan file are already gone, the user takes the markdown above as their record if they want to recover later)
@@ -246,5 +256,5 @@ If the user picks `Reject`, stop. Do not attempt to restore the Order.md row or 
 
 - Does not execute the plan — that happens after Step 9 approval, and follows the main `CLAUDE.md` C++ Code Change Process.
 - Does not re-prioritize the `## Plans` table. Changing priorities is a separate concern — if Step 4 surfaces that the score is stale, surface it to the user rather than silently re-ranking.
-- Does not preserve the source plan file or Order.md row on rejection. Cleanup is unconditional once Step 2 fires (row) and once Step 7 completes (file). This is the deliberate trade-off of running outside plan mode.
+- Does not preserve the source plan file or Order.md row on rejection. Cleanup is unconditional once Step 2 fires (row) and once Step 8 fires (file). This is the deliberate trade-off of running outside plan mode.
 - Does not silently expand plan scope from the Step 6 sweep. New candidate locations are surfaced for explicit user decision in Step 9; they are never folded into `## Execution steps` automatically.

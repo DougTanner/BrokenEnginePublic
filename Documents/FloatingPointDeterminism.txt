@@ -77,6 +77,12 @@ No direct calls to sinf/cosf/tanf exist in simulation code. These
 transcendental functions are known to differ across implementations;
 avoiding them eliminates this class of non-determinism entirely.
 
+Where simulation code does need sin/cos (e.g. island placement
+rotation), it routes through common::DeterministicSinCos (Common/Math/
+MathUtils.h), which wraps DirectXMath's header-inline XMScalarSinCos
+minimax polynomial (basic IEEE ops only, bit-identical under
+/fp:strict) rather than libm.
+
 
 6. Deterministic RNG
 ---------------------

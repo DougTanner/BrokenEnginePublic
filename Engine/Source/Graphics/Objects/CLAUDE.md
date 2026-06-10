@@ -13,18 +13,20 @@ Low-level Vulkan resource wrappers with automatic lifecycle management, move sem
 - Descriptor writer drops Set 0 (global handles them) and routes the rest by shader-reflected set indices, for both graphics and compute pipelines. CRC registrations for lazy/deferred updates occur only on framebuffer 0.
 - Compute pipelines opt in to the shared global Set 0 per-shader: `CreateComputePipeline` partitions reflected bindings by set index and uses a 2-set pipeline layout `[global Set 0, per-pipeline Set 1]` when the compute shader declares at least one binding at `layout(set = 1, ...)`. First-party compute shaders carry explicit `set = 0` (globalUniform / mainUniform) and `set = 1` (SSBOs, samplers, storage images) qualifiers on every binding; the legacy single-set path (no explicit `set =`, all bindings default to set 0, `mVkExternalDescriptorSetLayout` nulled after creation so binder + writer treat the pipeline as standalone) remains only for the two `Particles/Particles{Spawn,Update}.comp` shaders.
 - Bindless texture arrays exported with `UINT32_MAX` sentinel, rewritten to actual count at layout creation.
-- Bindless array consumers (descriptor entries flagged at pipeline-create as backed by an array whose slots are populated lazily by a data subsystem, e.g. IslandTerrain) skip the per-CRC `TextureBinding` snapshot — at create time every slot still points at the slot-0 placeholder, so a snapshot would clobber live per-slot bindings on any later sampler-recreate. They register on a separate per-array-pointer map that sampler-recreate reads through the LIVE array pointer instead. Any future array consumer that mutates its backing storage in place after pipeline-create MUST use this flag.
+- Bind-time set indexing: global Set 0 is always indexed by framebuffer; the per-pipeline set uses the framebuffer index only for per-command-buffer pipelines (host-visible indirect buffers force this mode), else slot 0. Compute bind logic is exported as a free function (`BindComputeDescriptorSets`) so external record sites apply the same rule.
+- Bindless array consumers (descriptor entries flagged at pipeline-create as backed by an array whose slots are populated lazily by a data subsystem, e.g. IslandTerrain) skip the per-CRC `TextureBinding` snapshot — at create time every slot still points at the slot-0 placeholder, so a snapshot would clobber live per-slot bindings on any later sampler-recreate. They register on a separate per-array-pointer map that sampler-recreate reads through the live array pointer instead. Any array consumer that mutates its backing storage in place after pipeline-create must use this flag.
 - Per-pipeline `UPDATE_AFTER_BIND` array bindings (`descriptorCount > 1`) on Set 1/Set 2 also get `VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT` in `ConfigureUpdateAfterBind`. Required for the island bindless terrain arrays whose evicted slots hold the slot-0 placeholder until re-mint; inert on fully-populated arrays since the flag only relaxes validity and never changes output. Mirrors the Set-0 global `pTextures[]` array, which carries the same flag pair. The flag relaxes *validity*, not *liveness*: a Set-1 element must still reference a live view, so island slot teardown rewrites the freed element to the placeholder rather than relying on the evicted quad being zero-width-culled — see the eviction symmetry invariant in [../Managers/CLAUDE.md](../Managers/CLAUDE.md).
 
 ## Buffer Staging Modes
 
-Three mutually-exclusive modes: persistent host-mapped (CPU-written each frame), device-local (one-shot staging copy at create), and copy-every-frame (both buffers retained, barriers bracket the copy). Indirect buffers force host-visible/coherent with no transfer fallback because the GPU reads them directly; indirect slot count is `max(framebufferCount, 3)` for resize robustness.
+Three mutually-exclusive modes: persistent host-mapped (CPU-written each frame), device-local (one-shot staging copy at create), and copy-every-frame (both buffers retained, barriers bracket the copy). VMA classifies host-visible requests by usage: readback (transfer-dst only, random host access), indirect, or upload (VMA may substitute device-local + staging). Indirect buffers force host-visible/coherent with no transfer fallback because the GPU reads them directly; indirect slot count is `max(framebufferCount, 3)` for resize robustness.
 
 ## Pipeline Creation
 
 - Viewport uses negative height (`VK_KHR_maintenance1`) to flip Y to DirectX convention; front face is therefore counter-clockwise.
 - Single-attachment pipelines using the lighting render pass auto-upgrade to 3 color attachments with replicated blend state.
-- Pipeline flags may force MSAA / sample-shading overrides independent of the global `gMultisampling` / `gSampleShading` settings; forced sample counts clamp to `framebufferColorSampleCounts` with a single-sample fallback when the device caps below the requested level.
+- Pipeline flags may force MSAA / sample-shading overrides independent of the global `gMultisampling` / `gSampleShading` settings; forced sample counts clamp to the device's max multisample count, with sample shading dropped when clamped to 1x.
+- Vertex input comes from shader reflection: stride is asserted equal to any bound vertex buffer's; reflected stride with no buffer at create makes a per-draw vertex-buffer pipeline (caller binds buffers and draws at record time — per-island terrain meshes); stride 0 means no vertex input (fullscreen passes).
 - See [../Managers/CLAUDE.md](../Managers/CLAUDE.md) for the pipeline recreation invariant affecting descriptor writes.
 
 ## Texture Lifecycle
@@ -32,11 +34,10 @@ Three mutually-exclusive modes: persistent host-mapped (CPU-written each frame),
 - Layout transitions driven by a single `kLayoutMappings` table mapping enum to `(layout, access, stage)` — the sole source of truth.
 - Lazy path borrows a placeholder view with null image; destroy early-returns in that state so the borrowed view is never freed. Real GPU image swapped in post-upload.
 - Transfer-queue to graphics-queue ownership transfer has a fast path when the device reports it optional.
-- Transparent material detection drives auto alpha-blend in `ModelPipeline` for non-shadow passes.
+- Transparent material detection drives auto alpha-blend in `ModelPipeline` for non-shadow passes; a record-time draw-pass filter lets opaque and transparent materials draw in separate passes. Push-constant `.w` is reserved as the material-index channel (asserted zero on entry, written per material).
 - Demand-loading: non-indirect pipelines request textures immediately at create; indirect pipelines defer until first non-empty indirect write (latched).
 - Generation counter: every handle swap (create, transfer-adopt) bumps a monotonic per-Texture generation; move-construct preserves it and destroy does NOT reset. Descriptor-binding sites snapshot the generation alongside the texture pointer so `PipelineManager` can assert at command-buffer record time that no cached binding still points at a recycled handle.
 
 ## See Also
 
 - [../Managers/CLAUDE.md](../Managers/CLAUDE.md) - Managers that own these objects
-- [Graphics Pipeline diagram](../../../../Documents/Architecture/GraphicsPipeline.md)

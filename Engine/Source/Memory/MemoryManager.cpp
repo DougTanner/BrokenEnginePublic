@@ -3,7 +3,6 @@
 #include "CrashReport.h"
 
 std::atomic<int64_t> giAllocationsThisFrame = 0;
-thread_local int64_t giAllocationTrackingSuppressed = 0;
 
 namespace
 {

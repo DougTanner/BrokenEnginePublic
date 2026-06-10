@@ -1,12 +1,12 @@
 ---
 name: add-collection
 description: Reference guide for adding new dynamically-allocated Structure-of-Arrays collections to the engine or game frame system. Use this skill when adding a new collection type, creating a new entity/object type for the frame system, or when the user asks to add something that needs SOA storage with interpolation and update phases (e.g., new projectile type, new light type, new effect system). ALSO use this skill proactively whenever your implementation plan requires creating a new struct that inherits from `Collection<T>`, even if the user didn't explicitly ask to "add a collection." Also use when the user references FrameBase.h, Frame.h collection registration, Collection base class, or ForEach helpers.
-allowed-tools: [Read, Edit]
+allowed-tools: [Read, Edit, Write, Glob, Grep]
 ---
 
 # Adding New Collections
 
-Reference guide for adding a new collection to the frame system. Collections use Structure-of-Arrays layout with dual-phase updates (Interpolate for rendering, PostRender for logic). Each collection has seven PostRender sub-phases: Update, PreCollision, PostCollision, AreaDamage, Transfer, Destroy, Spawn.
+Collections use Structure-of-Arrays layout with dual-phase updates (Interpolate for rendering, PostRender for logic) and seven PostRender sub-phases: Update, PreCollision, PostCollision, AreaDamage, Transfer, Destroy, Spawn.
 
 ## When to Use
 
@@ -15,7 +15,7 @@ Reference guide for adding a new collection to the frame system. Collections use
 
 ## Collection Header Pattern
 
-Both engine and game collections follow the same struct layout. The example below shows a game collection; engine collections differ only in namespace and base class qualification (see Key Differences table).
+Both engine and game collections follow the same struct layout. The example below shows a game collection; engine collections differ in namespace, base-class qualification, and have no `kiVersion` (see Key Differences table).
 
 ```cpp
 #pragma once
@@ -29,8 +29,11 @@ namespace game
 
 struct NewCollectionInterpolate : public engine::Collection<NewCollectionInterpolate>
 {
+	// GPU buffer/pipeline keys used in Render; omit if the collection has no own pipeline
 	static constexpr char kName[] = "NewCollection";
 	static constexpr common::crc_t kCrc = common::CrcConsteval(kName);
+	// Game collections only: summed into Frame::kiVersion (Frame.cpp); bump when shared layout changes
+	static constexpr int64_t kiVersion = 1;
 
 	// Register
 	static void Register();
@@ -73,6 +76,9 @@ struct NewCollectionInterpolate : public engine::Collection<NewCollectionInterpo
 
 struct NewCollectionPostRender : public engine::Collection<NewCollectionPostRender>
 {
+	// Game collections only: summed into Frame::kiVersion (Frame.cpp)
+	static constexpr int64_t kiVersion = 1;
+
 	// Allocate and copy
 	static void AllocateAndCopy(NewCollectionPostRender& rCurrent, const NewCollectionPostRender& rPrevious);
 
@@ -120,7 +126,7 @@ Collections always use the three-method pattern for client/server support:
 
 If a collection has no client-only fields, `ClientMembers()` returns an empty `std::tie()` — keep the method and the `std::tuple_cat` in `Members()` so the client/server pattern stays uniform across collections.
 
-**Discipline:** keep client-only pointers OUT of `SharedMembers()`. `ServerCollectionRead()` reads only `SharedMembers()` from the server stream — a client-only pointer leaked into `SharedMembers()` will read stream bytes as garbage into a client-owned object handle.
+**Discipline:** keep client-only pointers OUT of `SharedMembers()`. `SharedCollectionRead()` reads only `SharedMembers()` from the server stream — a client-only pointer leaked into `SharedMembers()` will read stream bytes as garbage into a client-owned object handle.
 
 ### `extern template` is required
 
@@ -151,7 +157,7 @@ The `.cpp` file needs:
 |----------|-------------|
 | Member declaration | `NewCollectionInterpolate newCollections {};` |
 | `Collections()` | Add `rSelf.newCollections` to the `std::tie()` return |
-| `kCollectionCount` | Increment by 1 (both `BT_CLIENT` and `BT_SERVER` counts) |
+| `kCollectionCount` | Increment the `BT_CLIENT` count; increment `BT_SERVER` too only if the collection is shared (client-only collections exist only in the client build) |
 
 **FramePostRenderBase** — same three changes:
 
@@ -159,28 +165,28 @@ The `.cpp` file needs:
 |----------|-------------|
 | Member declaration | `NewCollectionPostRender newCollections {};` |
 | `Collections()` | Add `rSelf.newCollections` to the `std::tie()` return |
-| `kCollectionCount` | Increment by 1 (both `BT_CLIENT` and `BT_SERVER` counts) |
+| `kCollectionCount` | Increment the `BT_CLIENT` count; increment `BT_SERVER` too only if the collection is shared (client-only collections exist only in the client build) |
 
 **ServerCollections()** — if the collection is relevant to server CRC validation, add it to `ServerCollections()` in both structs. Client-only collections (lights, sounds, billboards) skip this.
 
 **Client-only wrapping**: Most engine collections are client-only. Wrap the include, members, and `Collections()` entries in `#ifdef BT_CLIENT`. Only server-relevant collections (like Explosions, Pushers) are always compiled.
 
-### Step 3: Update FrameBase.cpp — LogDifferences (manual)
+### Step 3: Update FrameBase.cpp — LogDifferences (server-relevant collections only)
 
-Add `LogDifferences` calls for the new collection in both `FrameInterpolateBase::LogDifferences()` and `FramePostRenderBase::LogDifferences()`:
+`LogDifferences()` diagnoses shared-state desync, so FrameBase.cpp lists only server-relevant collections (the same set as `ServerCollections()`) — client-only collections are excluded. For a server-relevant collection, add to both `FrameInterpolateBase::LogDifferences()` and `FramePostRenderBase::LogDifferences()`:
 ```cpp
 bEqual &= newCollections.LogDifferences(rOther.newCollections);
 ```
 
-All other operations (phase dispatch, serialization, CRC, AllocateAndCopy) are automatic via `Collections()`.
+Everything else is automatic: Write/Read, AllocateAndCopy, and phase dispatch walk `Collections()`; Crcs and ServerRead walk `ServerCollections()`.
 
 ### Step 4: Add files to vcxproj
 
-Add the new `.h` and `.cpp` files to the engine `.vcxproj` and `.vcxproj.filters`. The filter path must mirror the on-disk directory (e.g., `Engine/Source/Frame/Collections/NewCollection/` -> filter `Engine\Frame\Collections\NewCollection`). Create a new `<Filter>` definition with a GUID if the filter doesn't exist yet.
+There is no engine vcxproj — engine sources compile directly into the game client/server projects. Add the new files to the same four project files listed in Game Step 6, under filter `Engine\Frame\Collections\NewCollection` (mirroring the on-disk path; create a `<Filter>` with a GUID if it doesn't exist). Files fully wrapped in `#if defined(BT_CLIENT)` go in the client project only.
 
-### Step 5: Bump `kiVersion` if the shared layout changed
+### Step 5: Bump `Frame::kiVersion` if the collection is server-relevant
 
-If the new collection adds fields to `SharedMembers()` that participate in CRC or server streams, bump the per-collection `static constexpr int64_t kiVersion` (if the collection has one) AND any parent-frame `kiVersion`. For pure client-only additions (`ClientMembers()` only), no bump is needed — server build does not see them.
+Engine collections have no per-collection `kiVersion`. If the new collection is server-relevant (the server's save path serializes it via `Collections()`), bump the base constant in the `Frame::kiVersion` definition (game Frame.cpp) to invalidate old saves. Pure client-only collections need no bump — the server build never sees them.
 
 ## Game Collection Steps
 
@@ -244,9 +250,9 @@ return std::tie(*rSelf.pBlasters, ..., *rSelf.pNewCollections);
 bEqual &= pNewCollections->LogDifferences(*rOther.pNewCollections);
 ```
 
-### Step 5: Increment Frame::kiVersion
+### Step 5: Add kiVersion terms to Frame::kiVersion (Frame.cpp)
 
-In `Frame.h`, increment `Frame::kiVersion` for save file compatibility.
+`Frame::kiVersion` is declared in `Frame.h` but defined in `Frame.cpp` as a sum: base constant + `engine::kiNavDataVersion` + every collection's `kiVersion`. Give both new structs `static constexpr int64_t kiVersion = 1;` (in the header) and append `+ NewCollectionInterpolate::kiVersion + NewCollectionPostRender::kiVersion` to the sum — the changed total invalidates old save files.
 
 ### Step 6: Add files to vcxproj (FOUR files for game collections)
 
@@ -268,6 +274,7 @@ Once the collection is in the `GameInterpolateCollections()`/`GamePostRenderColl
 **Not automatic** (requires manual additions in Frame.cpp):
 - LogDifferences — each collection listed by name
 - Constructor initialization — `std::make_unique<>()` calls
+- `Frame::kiVersion` — append the new structs' `kiVersion` terms to the sum
 
 ## Key Differences: Engine vs Game
 
@@ -280,7 +287,9 @@ Once the collection is in the `GameInterpolateCollections()`/`GamePostRenderColl
 | **Storage** | Direct members in FrameBase structs | `std::unique_ptr` with forward declarations |
 | **Collection tuple** | `Collections()` method on FrameBase structs | `GameInterpolateCollections()` / `GamePostRenderCollections()` free functions |
 | **kCollectionCount** | Must increment (has `static_assert`) | Not applicable |
-| **Frame.cpp changes** | LogDifferences (manual) | Constructors + LogDifferences |
+| **Manual .cpp changes** | FrameBase.cpp: LogDifferences (server-relevant only) | Frame.cpp: constructors + LogDifferences + `kiVersion` sum |
+| **kiVersion** | None per collection; bump `Frame::kiVersion` base constant for server-relevant additions | `static constexpr int64_t kiVersion` per struct, summed into `Frame::kiVersion` (Frame.cpp) |
+| **vcxproj filter** | `Engine\Frame\Collections\...` | `Game\Frame\Collections\...` (same four project files for both) |
 | **Update Parameters** | `game::FrameInterpolate&`, `game::Frame&` | `FrameInterpolate&`, `Frame&` |
 
 ## Optional Features
@@ -324,13 +333,13 @@ Collections with client-only owned objects (area lights, wind trails, sounds) pr
 ### Engine Collection
 - [ ] Create `NewCollection.h` and `NewCollection.cpp` in `/Engine/Source/Frame/Collections/NewCollection/`
 - [ ] Add include to `FrameBase.h` (wrap in `#ifdef BT_CLIENT` if client-only)
-- [ ] Add member + `Collections()` entry + increment `kCollectionCount` in `FrameInterpolateBase`
-- [ ] Add member + `Collections()` entry + increment `kCollectionCount` in `FramePostRenderBase`
+- [ ] Add member + `Collections()` entry + increment `kCollectionCount` in `FrameInterpolateBase` (client-only: `BT_CLIENT` count only)
+- [ ] Add member + `Collections()` entry + increment `kCollectionCount` in `FramePostRenderBase` (client-only: `BT_CLIENT` count only)
 - [ ] Add to `ServerCollections()` if server-relevant
-- [ ] Add `LogDifferences` calls in both `FrameInterpolateBase::LogDifferences()` and `FramePostRenderBase::LogDifferences()` in FrameBase.cpp
-- [ ] Add files to engine `.vcxproj`
+- [ ] If server-relevant: add `LogDifferences` calls in both `FrameInterpolateBase::LogDifferences()` and `FramePostRenderBase::LogDifferences()` in FrameBase.cpp, and bump the `Frame::kiVersion` base constant (Frame.cpp)
+- [ ] Add files to the game client/server `.vcxproj` + `.filters` (no engine vcxproj exists)
 
-**Automatic via Collections():** Crcs, Write, Read, ServerRead, AllocateAndCopy, all ForEach phase dispatch. **Manual:** LogDifferences (FrameBase.cpp).
+**Automatic:** Write/Read, AllocateAndCopy, all ForEach phase dispatch via `Collections()`; Crcs/ServerRead via `ServerCollections()`. **Manual:** LogDifferences (FrameBase.cpp, server-relevant only).
 
 **Note:** Engine collections always come in Interpolate/PostRender pairs — `static_assert` in FrameBase.h enforces matching `kCollectionCount` between the two.
 
@@ -341,8 +350,8 @@ Collections with client-only owned objects (area lights, wind trails, sounds) pr
 - [ ] Add include + tuple entries in `FrameCollections.h`
 - [ ] Add `std::make_unique` in both constructors in `Frame.cpp`
 - [ ] Add `LogDifferences()` calls in both `FrameInterpolate::LogDifferences()` and `FramePostRender::LogDifferences()` in `Frame.cpp`
-- [ ] Increment `Frame::kiVersion` in `Frame.h`
-- [ ] Add files to game `.vcxproj`
+- [ ] Add both structs' `kiVersion` terms to the `Frame::kiVersion` sum in `Frame.cpp`
+- [ ] Add files to all four game `.vcxproj`/`.filters` files
 
 **Automatic via tuple accessors:** Crcs, Write, Read, ServerRead, AllocateAndCopy, all ForEach phase dispatch (Register, GraphicsResources, Update, Render, etc.)
 

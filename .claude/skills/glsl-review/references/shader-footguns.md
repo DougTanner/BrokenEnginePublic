@@ -12,6 +12,7 @@ Detailed rationale for the scan items in `SKILL.md`. Read the item here when a r
 - [Algorithmic / Math Mistakes](#algorithmic--math-mistakes)
 - [Vulkan-GLSL-Specific](#vulkan-glsl-specific)
 - [Broken Engine Rationale](#broken-engine-rationale)
+- [Stages Not Yet Used in Repo](#stages-not-yet-used-in-repo)
 
 ---
 
@@ -110,11 +111,11 @@ Vulkan's conventions differ from legacy OpenGL. If you're porting a shader, thes
 ### `reflect(unit, unit)` is already unit
 GLSL `reflect(I, N) = I - 2*dot(N, I)*N` returns a unit vector when both `I` and `N` are unit. Magnitude-preserving sign tweaks include a leading `-` (`-reflect(...)`), a componentwise multiply by `vec3(±1, ±1, ±1)`, and a post-assignment single-axis flip on a named result (`vec3 r = reflect(...); r.y *= -1.0;`). All three forms keep magnitude at `1`. Wrapping the result in `normalize()` costs one `rsqrt + 3 muls` per fragment for nothing.
 
-**Flag** `normalize(reflect(a, b))` (and the wrappers `normalize(-reflect(a, b))`, `normalize(reflect(a, b) * vec3(±1, ±1, ±1))`) when both `a` and `b` are demonstrably unit at the call site — the wrapper is a no-op. Also flag a `normalize()` applied to a named `reflect(...)` result that has only been sign-flipped (`r.x *= -1.0;` / `r.y *= -1.0;` / `r.z *= -1.0;`) since those flips are magnitude-preserving — see `Model.frag:252-253` for the canonical pattern.
+**Flag** `normalize(reflect(a, b))` (and the wrappers `normalize(-reflect(a, b))`, `normalize(reflect(a, b) * vec3(±1, ±1, ±1))`) when both `a` and `b` are demonstrably unit at the call site — the wrapper is a no-op. Also flag a `normalize()` applied to a named `reflect(...)` result that has only been sign-flipped (`r.x *= -1.0;` / `r.y *= -1.0;` / `r.z *= -1.0;`) since those flips are magnitude-preserving. Canonical relied-upon patterns: `Model.frag:253` (`-reflect(v, n)` consumed directly, no normalize) and `Water.frag:218` / `WaterSkyboxOne.frag:151` (`vec3(-1, 1, -1) *` componentwise flip).
 
 **Also flag** *removal* of `normalize()` around `reflect(I, N)` when either input cannot be proven unit at the call site (sampled normals before renormalize, interpolated-then-not-renormalized varyings, sums of unit vectors that were never renormalized).
 
-See `Engine/Data/Shaders/CLAUDE.md` `## Architecture Notes` for the convention bullet and the current relied-upon call sites (`Water.frag`, `Objects/HexShield.frag`, `Model.frag`, `ShaderFunctions.h`).
+See `Engine/Data/Shaders/CLAUDE.md` `## Architecture Notes` for the convention bullet (*Unit-preserving identities*); family-specific call sites are documented in the child CLAUDE.md files (Water, Model, Objects).
 
 ### Matrix multiplication order
 GLSL matrices are column-major by default. Post-multiply vectors: `vec4 clip = projectionMatrix * viewMatrix * worldPos;`. Swapping the order (`worldPos * matrix`) silently transposes the multiply and produces wrong results. `layout(row_major) mat4 M` flips the convention — use consistently across sharing sides.
@@ -124,7 +125,7 @@ Phong: `pow(max(dot(reflect(-L, N), V), 0), shininess)`. Blinn-Phong: `pow(max(d
 
 **Flag**: any specular implementation that uses `reflect()` + `dot(V, R)` in a new or modified shader. Report the tradeoff so the reviewer can decide: keep Phong (legacy match, simpler), switch to Blinn-Phong (cheaper + better grazing behavior), or adopt a microfacet BRDF (physically correct, matches `Model.frag`).
 
-**Context for this repo**: `ShaderFunctions.h:62`'s `Specular` is Phong-shaped — `reflect(L, N)` then `dot(V, R)`, with an `exp2(power * log2(f))` fast-path summing three cos^N lobes. Only caller today is `Water.frag:141`, which passes a pre-reflected skybox direction rather than a surface normal, so the function is used as a multi-exponent cos^N lobe evaluator for skybox reflection. Active design docs (`Documents/Plans/Graphics/ocean-phase-1-pbr-foundation.md:13`, `ocean-phase-tweaks-screen.md:183`) plan to replace both with a Ward BRDF. Include these facts in the review finding so the reviewer can weigh "rewrite now to Blinn-Phong" vs "wait for the Ward migration" — don't make the call for them.
+**Context for this repo**: `ShaderFunctions.h:90`'s `Specular` is Phong-shaped — `reflect(L, N)` then `dot(V, R)`, with an `exp2(power * log2(f))` fast-path summing three cos^N lobes. No shader calls it directly today: `Water.frag:213` and `WaterSkyboxOne.frag:147` inline its lobe math, passing a pre-reflected skybox direction rather than a surface normal — a multi-exponent cos^N lobe evaluator for skybox reflection. Active design docs (`Documents/Features/Graphics/ocean-phase-1-pbr-foundation.md:13`, `ocean-phase-tweaks-screen.md:183`) plan to replace this with a Ward BRDF. Include these facts in the review finding so the reviewer can weigh "rewrite now to Blinn-Phong" vs "wait for the Ward migration" — don't make the call for them.
 
 ### BRDF energy conservation
 Diffuse + specular reflectance must sum to ≤ 1.0 at any direction. Naive Cook-Torrance can exceed this at grazing angles. Fix by weighting diffuse by `(1 - F)` where F is Fresnel. This repo's `Model.frag` implements Cook-Torrance with split-sum IBL — check that the Fresnel-driven diffuse weighting is still in place after any edit.
@@ -150,7 +151,7 @@ Apply tone map to *linear HDR*, then either (a) write to an sRGB-format attachme
 - `std430` — tighter: vec3 still aligned to 16, arrays of scalars are 4-byte stride.
 - `scalar` (`GL_EXT_scalar_block_layout`) — C-style tight packing, vec3 is 12 bytes, arrays of scalars are 4-byte stride.
 
-**Apply the rule that matches the block's declared layout qualifier.** Under `layout(scalar)` the vec3-padding and 16-byte-stride rules are language-incorrect; under `std140` they are correct. The repo's global default is `layout(scalar) uniform;` / `buffer;` at `ShaderLayoutsBase.h:83` — any block that omits an explicit qualifier inherits scalar. Flag any introduction of `std140`/`std430` because it contradicts the repo's shared-struct-layout contract (C++ DirectXMath types assume scalar packing). [Vulkan shader memory layout](https://docs.vulkan.org/guide/latest/shader_memory_layout.html).
+**Apply the rule that matches the block's declared layout qualifier.** Under `layout(scalar)` the vec3-padding and 16-byte-stride rules are language-incorrect; under `std140` they are correct. The repo's global *uniform* default is `layout(scalar) uniform;` at `ShaderLayoutsBase.h:83`; SSBO blocks declare `scalar` explicitly per block (e.g., `Model/ModelCommon.h:40`) or via a per-shader `layout(scalar) buffer;` (e.g., `Ui/UiDepthPrepass.vert:4`). An unqualified buffer block defaults to std430 — that is the silent mismatch to catch. Flag any introduction of `std140`/`std430` because it contradicts the repo's shared-struct-layout contract (C++ DirectXMath types assume scalar packing). [Vulkan shader memory layout](https://docs.vulkan.org/guide/latest/shader_memory_layout.html).
 
 ### Push constants
 Spec minimum 128 bytes, most drivers 256. Declare once per shader using `layout(push_constant) uniform PC { ... };`. If multiple stages need the same struct, share it. Over-sized pushes fail pipeline creation.
@@ -175,7 +176,7 @@ Prevents OOB reads from *crashing* — but the return value is unspecified (zero
 Discovered in production: NVIDIA's shader compiler hangs indefinitely during `vkCreateGraphicsPipelines` when a shader contains `inverse(mat3)` or `inverse(mat4)`. The hang is inside the driver, pre-dispatch — no timeout, no error. Workaround: precompute the inverse on the CPU and upload via a buffer. `Engine/Data/Shaders/Model/ModelCommon.h:50` shows the canonical pattern (normal matrix as `vec4[3]`). This is a hard flag, zero exceptions — even a dead code path with `inverse()` triggers the hang.
 
 ### Why scalar block layout
-The repo shares struct definitions between C++ (DirectXMath types) and GLSL (vec/mat types) via `#if defined(BT_ENGINE)` switching at `ShaderLayoutsBase.h:10` — the C++ build defines `BT_ENGINE`, the GLSL compile does not. Scalar layout matches C/C++'s natural packing rules, so the same struct declaration works on both sides with no explicit padding fields. std140 would force GLSL-side padding that the C++ side doesn't have, silently corrupting the CPU/GPU data pipeline. The DataPacker invokes `spirv-opt --scalar-block-layout` after `glslangValidator` — see `DataPacker/Source/ExportJobs/ExportShader.cpp:217`.
+The repo shares struct definitions between C++ (DirectXMath types) and GLSL (vec/mat types) via `#if defined(BT_ENGINE)` switching at `ShaderLayoutsBase.h:10` — the C++ build defines `BT_ENGINE`, the GLSL compile does not. Scalar layout matches C/C++'s natural packing rules, so the same struct declaration works on both sides with no explicit padding fields. std140 would force GLSL-side padding that the C++ side doesn't have, silently corrupting the CPU/GPU data pipeline. The DataPacker invokes `spirv-opt --scalar-block-layout` after `glslangValidator` — see `DataPacker/Source/ExportJobs/ExportShader.cpp:314`.
 
 ### Why the descriptor set convention
 - **Set 0** is bound rarely (once per frame) — globals that every pipeline reads.

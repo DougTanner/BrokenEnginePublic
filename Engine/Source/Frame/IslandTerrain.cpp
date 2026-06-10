@@ -296,8 +296,9 @@ void XM_CALLCONV IslandTerrain::BuildElevationGrid(GridCoord coord, const std::v
 		// Trig is constant per placement — hoist out of the per-texel loop (the old per-point
 		// GlobalElevation recomputed std::cos / std::sin on every call). Negated rotation
 		// matches the inverse-rotate world->local convention used by GlobalElevation.
-		float fCos = std::cos(-rPlacement.fRotation);
-		float fSin = std::sin(-rPlacement.fRotation);
+		common::SinCos rotation = common::DeterministicSinCos(-rPlacement.fRotation);
+		float fCos = rotation.fCos;
+		float fSin = rotation.fSin;
 
 		// World-AABB of the rotated quad: the 4 corners of the rotated footprint, projected onto X/Y.
 		float fAbsCos = std::abs(fCos);

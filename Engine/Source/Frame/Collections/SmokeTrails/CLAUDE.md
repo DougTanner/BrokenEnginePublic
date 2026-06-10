@@ -1,15 +1,15 @@
 # /Engine/Source/Frame/Collections/SmokeTrails/
 
-Client-only externally-managed smoke trails with frame-rate-independent exponential position smoothing.
+Client-only owner-driven smoke trail ribbons (Sync pattern): one quad per trail stretching from an exponentially smoothed tail position to the current head, deposited as density into the screen-space smoke simulation (`kDynamicPipelineSmoke`) rather than drawn as a textured sprite.
 
 ## Unique Aspects
 
-- Smoothed positions persist across frames (not render-only state), copied during `AllocateAndCopy`. W == 0 flags uninitialized and snaps instantly
-- Geometry is a 2D ribbon on the base plane — both endpoints projected via `ProjectToBaseHeight`, width axis is `cross(dir, +Z)`
-- Density normalized by segment length so opacity is frame-rate and speed independent
-- Short post-spawn gate (~50 ms) forces length to 0 until a real delta exists; the reuse path resets the spawn time so the reused slot renders immediately
-- Lifetime is strictly owner-driven (parent is `Explosions`: it calls `Add`/`Sync`/`Remove` and registers the type); all PostRender phase hooks are no-ops (no controller / auto-expire)
-- `Render()` is invoked separately from the standard render fan-out (alongside `WindTrails`), taking an extra frame-id argument
+- Two owners drive `Add`/`Sync`/`Remove` and register their own types: engine `Explosions` and game `Missiles`
+- Smoothed positions are persistent sim-frame state (copied in `AllocateAndCopy`, not the render-only-state pattern) so the tail survives frame copies and reconciliation — the game's `ClientDataReceiver` patches them from the previous ring frame into incoming full states to keep rendering continuous. W == 0 flags uninitialized and snaps instantly; smoothing rate is a hard-coded constant, not a `gSmokeTrails*` tweak wrapper
+- Geometry is a 2D ribbon on the base plane — both endpoints projected via `ProjectToBaseHeight`, width axis `cross(dir, +Z)`. Tail length scales with the per-frame segment length; per-corner width/length jitter comes from a local static unseeded `RandomEngine` (render-only, never sim state)
+- Density normalized by segment length so deposited opacity is frame-rate and speed independent
+- Post-spawn gate (~50 ms) forces length to 0 until a real movement delta exists; the id-reuse path (missile cross-cell transfer — the trail id rides in `TransferData`) zeroes the spawn time so the rebound trail renders immediately
+- `Render()` is invoked outside the standard render fan-out (alongside `WindTrails`); its frame-id parameter exists only for signature parity with `WindTrails` and is unused
 
 ## See Also
-- [../CLAUDE.md](../CLAUDE.md) - Collection framework, Sync pattern, file-splitting convention
+- [../CLAUDE.md](../CLAUDE.md) - Collection framework, Sync pattern, three-phase render convention

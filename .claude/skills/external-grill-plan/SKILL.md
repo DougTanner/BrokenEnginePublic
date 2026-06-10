@@ -1,18 +1,18 @@
 ---
 name: external-grill-plan
 description: >-
-  Interview the user about a loaded plan to resolve ambiguities and gather missing
-  information before implementation begins. Use this skill after a plan is loaded
-  and before implementation starts. Walks each branch of the decision tree, asking
-  engine-specific questions about determinism, client/server, memory, threading,
-  and frame phases. For each question, provides a recommended answer based on
-  codebase exploration.
-allowed-tools: [Read, Grep, Glob, Agent, AskUserQuestion]
+  Interviews the user about a loaded plan to resolve ambiguities and fill gaps
+  before implementation. Step 1 of the CLAUDE.md C++ Code Change Process —
+  invoke after a plan is loaded or created and before any code changes. Walks
+  each decision branch with engine-specific questions (determinism,
+  client/server, memory, threading, frame phases), recommending an answer for
+  each from codebase exploration.
+allowed-tools: [Read, Grep, Glob, Edit, Agent, AskUserQuestion, WebSearch]
 ---
 
 # Grill Plan
 
-Interview the user about every aspect of this plan until reaching shared understanding. Walk down each branch of the design tree, resolving dependencies between decisions one-by-one.
+Interview the user about every aspect of this plan until reaching shared understanding.
 
 ## Rules
 - For each question, provide your recommended answer based on codebase exploration
@@ -46,12 +46,12 @@ Steps:
    - "Use library X" (preferred if a mature commercial-friendly option exists and integration cost < hand-roll cost)
    - "Hand-roll because <specific reason>" (e.g., need deterministic cross-platform output, license incompatibility, dependency bloat, library missing critical feature)
    - "Wrap library X with thin adapter" (use upstream for the hard part, keep our API)
-6. If the user picks a library, **stop grilling the hand-rolled plan** and either close out (no further work needed) or pivot to a short integration plan covering: vendoring location, build wiring (`ThirdParty.vcxproj` + filters), namespace / header isolation, and which engine call sites swap over.
+6. If the user picks a library, **stop grilling the hand-rolled plan** and either return control to the calling context (nothing left to implement) or pivot to a short integration plan covering: vendoring location, build wiring (`ThirdParty.vcxproj` + filters), namespace / header isolation, and which engine call sites swap over.
 7. If the user confirms hand-roll, record the rejection reason in the plan file ("Considered <lib>, rejected because <reason>") and continue to the standard branches.
 
 ## Bug-Fix Pre-Step (Hypothesis Ranking)
 
-When the loaded plan is a bug fix or regression diagnosis (filename starts with `Bugfix_`, plan describes a broken behavior, or the user invoked the skill on a `diagnose` workflow), prepend the following to the workflow above — **before** walking the engine-specific branches:
+When the loaded plan is a bug fix or regression diagnosis (filename starts with `Bugfix_`, or the plan describes a broken behavior), prepend the following to the workflow above — **before** walking the engine-specific branches:
 
 1. From the plan's symptom description, generate **3–5 ranked falsifiable hypotheses** for the cause. Each hypothesis must state a prediction:
    > "If `<X>` is the cause, then changing `<Y>` will make the bug disappear / changing `<Z>` will make it worse."
@@ -59,7 +59,7 @@ When the loaded plan is a bug fix or regression diagnosis (filename starts with 
 3. **Present the ranked list to the user before grilling implementation details.** The user often has context that instantly re-ranks ("we just changed #3 yesterday") or rules out hypotheses already disproven. Cheap checkpoint, big time saver.
 4. Once the user confirms or re-ranks, proceed to the standard engine-specific interrogation branches with the leading hypothesis as the working assumption.
 
-Skip this pre-step for refactor / debt / capability plans — those have no "cause" to hypothesise about; the standard interrogation branches cover them directly.
+Skip this pre-step for refactor / debt / capability plans — those have no "cause" to hypothesize about; the standard interrogation branches cover them directly.
 
 ## Engine-Specific Interrogation Branches
 

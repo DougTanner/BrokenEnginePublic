@@ -2,7 +2,7 @@
 name: external-deep-analysis
 description: Runs a two-phase code analysis pipeline on a directory — architecture review (shape) then refactor-clean (in-function mechanics) — then scores, prioritizes, and verifies all plan files. Produces actionable plan files per phase and a tiered `Order.md` priority matrix. Only invoke when the user explicitly requests it (e.g., "/external-deep-analysis", "run a deep analysis", "full code analysis"). Never trigger autonomously from general code questions or during routine code changes.
 disable-model-invocation: true
-allowed-tools: [Read, Write, Edit, Grep, Glob, Agent, Bash, Skill]
+allowed-tools: [Read, Write, Edit, Grep, Glob, Agent, Bash]
 ---
 
 # Deep Analysis Pipeline
@@ -23,18 +23,18 @@ The user provides a target path (file or directory) to analyze. If no path is gi
 
 ### 0. Determine Output Path
 
-Derive a plan output directory from the target path by extracting the relative portion after `/Source/`. If the path contains no `/Source/`, use the directory name itself (e.g., top-level directories like `Common/`).
+Derive a plan output directory under `Documents/Plans/`, matching the existing area subfolders there (`Documents/Plans/CLAUDE.md` lists them). For `Engine/` and `Projects/` sources, use the relative portion after `/Source/`; for top-level trees (`Common/`, `DataPacker/`), use the top-level directory name.
 
 - Input: `Engine/Source/Frame` → Output: `Documents/Plans/Frame/`
 - Input: `Projects/BrokenEngineSandbox/Source/Frame/Collections` → Output: `Documents/Plans/Frame/Collections/`
-- Input: `Common/Source/Threading` → Output: `Documents/Plans/Threading/`
-- Input: `Common/` → Output: `Documents/Plans/Common/`
+- Input: `Common/Threading` → Output: `Documents/Plans/Common/`
+- Input: `DataPacker/Source/ExportJobs` → Output: `Documents/Plans/DataPacker/`
 
-Create the output directory if it doesn't exist.
+If existing plans for the same code already live in a different area folder, match them. Create the output directory if it doesn't exist.
 
 ### 1. Phase 1: Architecture Review
 
-Invoke the `/external-architecture-review` skill on the target directory, passing the recursion preference.
+Read `.claude/skills/external-architecture-review/SKILL.md` and execute its workflow on the target directory, passing the recursion preference. (Its `disable-model-invocation` flag blocks Skill-tool invocation — follow the file directly.)
 
 When the report completes, split findings into two groups:
 
@@ -47,20 +47,27 @@ When the report completes, split findings into two groups:
 
 #### Writing Plan Files
 
-Plan file format (matches what plan mode produces):
+Follow the plan-authoring rules in `Documents/Plans/CLAUDE.md` (read it before writing the first plan — it owns the required shape and the Order.md bookkeeping). Format:
 
 ```
 # Architecture: <Group Name>
 
-Source: /external-architecture-review on <target path>
+## Context
+Source: /external-architecture-review on <target path>. <Why this group matters.>
 
-## Changes
+## Design
 
 ### <File Path>
-- <Specific change to make with line numbers> [~Xm]
+- <Specific change, naming the symbol/interface plus line numbers> [~Xm]
+
+## Critical files
+- <files touched>
+
+## Out of scope
+- <adjacent things this plan deliberately does not address>
 ```
 
-Include a rough effort estimate per item: `[~5m]`, `[~15m]`, `[~30m]`, `[~1h]`. This helps with session planning.
+Name the interface being changed, not just `path:line` — symbol names survive line drift, and `/next-plan` relies on them to refresh citations at execution time. Include a rough effort estimate per item: `[~5m]`, `[~15m]`, `[~30m]`, `[~1h]`.
 
 Keep plans focused — one plan per logical group (e.g., `Architecture_IncludeGraph.md`, `Architecture_LayerViolations.md`, `Architecture_CollectionCohesion.md`, `Architecture_LibraryReplacement.md`). Only create a plan if there are concrete changes to make. If a plan would exceed 15 items, split it by subdirectory or file group.
 
@@ -68,56 +75,29 @@ ThirdParty library-replacement candidates from the architecture review get their
 
 ### 2. Phase 2: Refactor-Clean
 
-Invoke the `/external-refactor-clean` skill, passing the recursion preference. Target both:
+Read `.claude/skills/external-refactor-clean/SKILL.md` and execute its workflow, passing the recursion preference (same as Phase 1 — the flag blocks Skill-tool invocation, so follow the file directly). Target both:
 - The original target directory (for full coverage of in-function mechanics)
 - Any specific paths flagged as investigation items from Phase 1
 
 **Deduplication**: Before writing plan files, check existing Phase-1 plan files. If a finding is already covered by an existing plan (even under a different category), skip it.
 
-Write all new actionable findings as plan files: `Refactor_<GroupName>.md`.
-
-Plan file format:
-
-```
-# Refactor: <Group Name>
-
-Source: /external-refactor-clean on <target path>
-
-## Changes
-
-### <File Path>
-- <Specific change to make with line numbers> [~Xm]
-```
+Write all new actionable findings as plan files: `Refactor_<GroupName>.md`, using the same format as Phase 1 with title `# Refactor: <Group Name>` and `Source: /external-refactor-clean on <target path>`.
 
 ### 3. Phase 3: Scoring, Tiering & Debt Summary
 
-For each plan file produced in Phases 1–2, assign:
+Score each plan file from Phases 1–2 using the canonical anchors in `Documents/CLAUDE.md` §Scoring Anchors — read that section before scoring:
 
-**Tier** (inherited from the former `external-tech-debt` rubric):
-- **Quick Win** (< 15 min each) — Dead code removal, unused include cleanup, simple pattern fixes
-- **Medium Effort** (15 min – 2 hours) — Extract duplicated code, split oversized functions, fix layer violations
-- **Architectural** (> 2 hours) — Collection restructuring, manager decoupling, major refactors
+- **Effort** 1–5, **Impact** 1–5, **Risks** 0–4
+- **Priority Score** = Effort − Impact + Risks (lower = higher priority)
+- **Tier** — informal size descriptor mirroring the Effort anchor: **Quick Win / Small / Medium / Large / Architectural**
 
-**Axes** (1–10 scale):
-- **Effort** (1=trivial deletion, 10=massive cross-file rewrite)
-- **Impact** (1=cosmetic, 10=fixes critical bugs or prevents future breakage)
-- **Risks** (1=safe pure deletion, 10=high chance of introducing new bugs)
-
-**Priority Score** = Effort - Impact + Risks (lower = higher priority).
-
-**Rating guidance:**
-- Pure dead code removal: Effort 1-2, Impact 2-3, Risks 1
-- Thread-safety / correctness fixes: Effort 1-3, Impact 6-8, Risks 1-2
-- Deprecated API replacement: Effort 3-4, Impact 5-7, Risks 3-5
-- Mechanical refactors (dedup, extract helper): Effort 2-4, Impact 3-5, Risks 2
-- Cross-file moves / file splits: Effort 4-6, Impact 3-5, Risks 2-4
-- Architectural restructuring: Effort 5-7, Impact 3-5, Risks 3-5
+Calibrate against neighbouring rows in the existing `Documents/Plans/Order.md` rather than defaulting to the middle. The Risks axis keys on blast radius, not just likelihood: anything touching determinism / CRC / network protocol / cross-frame state scores 3+ even when the edit is mechanical.
 
 **Debt Score** for the target area as a whole (single label): **LOW / MODERATE / HIGH / CRITICAL**, with one-sentence justification. Use the distribution of tiers as the primary signal (all Quick Wins → LOW; several Architectural → HIGH/CRITICAL).
 
 ### 4. Phase 4: Verification Pass
 
-After scoring, launch a verification subagent with `subagent_type: "general-purpose"` and `model: "opus"`. The subagent prompt must explicitly grant `Read`, `Write`, `Edit`, `Grep`, `Glob` so it can delete or rewrite plan files — this skill's `allowed-tools` already includes `Write`/`Edit` so the subagent inherits them, but state the expected mutations up front in the prompt.
+After scoring, launch a verification subagent with `subagent_type: "general-purpose"` and `model: "fable"`. State the expected mutations up front in the prompt: the agent will rewrite plan files (`Read`, `Write`, `Edit`, `Grep`, `Glob`) and delete entirely-invalid ones (`Bash`).
 
 The verification agent reads every plan file created during this run and checks:
 
@@ -128,46 +108,26 @@ The verification agent reads every plan file created during this run and checks:
    - Contradicting engine patterns documented in CLAUDE.md files
    - Duplicating work already covered by another plan file
 3. **Completeness**: Are the change descriptions specific enough to act on without ambiguity?
+4. **Library-replacement claims** (`Architecture_LibraryReplacement.md` only): re-verify each proposed license against the allow list in `ThirdParty/CLAUDE.md` and confirm the library is not already in `/ThirdParty/`.
 
 For any plan file that fails verification:
 - If partially valid: rewrite it with only the valid items
 - If entirely invalid: delete it
 - Add a `## Verification Notes` section at the bottom of each surviving plan file with any caveats
 
-### 5. Phase 5: Write `Order.md`
+### 5. Phase 5: Update `Order.md`
 
-After verification, create or update `Documents/Plans/Order.md`. All plans across all target paths are intermingled in a single table sorted by priority score.
-
-```markdown
-# Plan Execution Order
-
-Score = Effort - Impact + Risks (lower = higher priority)
-
-## Debt Score (this run): [LOW / MODERATE / HIGH / CRITICAL]
-[One-sentence justification]
-
-| # | Plan | Tier | Effort | Impact | Risks | Score | Items | Notes |
-|---|------|------|--------|--------|-------|-------|-------|-------|
-| 1 | `Path/PlanName.md` | Quick Win | X | X | X | X | N | One-line summary |
-```
-
-After the table, add two sections:
+After verification, add every surviving plan file to `Documents/Plans/Order.md` — in the same session that created the plan files. `Documents/Plans/CLAUDE.md` owns the row format and bookkeeping rules; all plans across all target paths intermingle in the single score-sorted `## Plans` table:
 
 ```markdown
-## Dependencies
-
-Plans that must be executed in order due to shared files or stale line numbers:
-
-- `PlanA` → `PlanB` — reason
-
-## File Groups
-
-Plans that touch the same files and should be done in a single session:
-
-- **shared files**: `PlanA`, `PlanB`, ...
+| # | Plan | Tier | Effort | Impact | Risks | Score | Notes |
+|---|------|------|--------|--------|-------|-------|-------|
+| 1 | [Frame/Architecture_IncludeGraph.md](Frame/Architecture_IncludeGraph.md) | Quick Win | 1 | 2 | 1 | 0 | One-line summary |
 ```
 
-If `Order.md` already exists from a previous run, merge new entries into the existing table (add new rows, update changed rows, preserve unchanged rows). Re-sort the entire table by score after merging.
+- Insert each row at its score-correct position (lowest first), then renumber the `#` column so it stays a contiguous 1-based ordinal. Preserve existing rows.
+- Add a `## Debt Score (<area>, this run): <LOW / MODERATE / HIGH / CRITICAL>` section above the table with the one-sentence justification.
+- New plans that must execute in a fixed order (shared files, stale line numbers) get a bullet in the `## Dependencies` section (`PlanA` → `PlanB` — reason); plans touching the same files get an entry in `## File Groups` (**shared files**: `PlanA`, `PlanB`) so they land in one session.
 
 ### 6. Phase 6: Summary
 

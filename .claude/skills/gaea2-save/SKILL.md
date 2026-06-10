@@ -2,7 +2,7 @@
 name: gaea2-save
 description: Save edits from a Gaea 2 Markdown view back to a .terrain JSON file. Reconstitutes the Newtonsoft $id/$ref object graph; pairs with /gaea2-load and /gaea2-modify.
 argument-hint: <name-or-Temp/path.md> [--output <path.terrain>]
-allowed-tools: [Read, Write, Bash, PowerShell]
+allowed-tools: [Read, Bash, PowerShell]
 disable-model-invocation: true
 ---
 
@@ -20,7 +20,7 @@ Convert a `Temp/<name>.md` (plus its `.passthrough.json` sidecar) back to a Gaea
 
 2. **Verify Python 3.10+ is available.** Same bootstrap as `/gaea2-load` (see that skill for rationale):
    ```
-   powershell -ExecutionPolicy Bypass -File .claude/skills/gaea2-shared/scripts/detect-python.ps1
+   powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/detect-python.ps1"
    ```
    Capture the `<python-exe-path>` from the `OK` line for step 3. On `MISSING ...` or `STALE ...`, ask permission to install, then run:
    ```
@@ -30,7 +30,7 @@ Convert a `Temp/<name>.md` (plus its `.passthrough.json` sidecar) back to a Gaea
 
 3. **Run the saver using the detected Python path.**
    ```
-   "<python-exe-path>" .claude/skills/gaea2-shared/scripts/save_terrain.py "<Temp/name.md>" [--output "<path.terrain>"]
+   "<python-exe-path>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/save_terrain.py" "<Temp/name.md>" [--output "<path.terrain>"]
    ```
    The script:
    - Parses frontmatter, Mermaid topology, node sections, notes, and variables.
@@ -40,9 +40,9 @@ Convert a `Temp/<name>.md` (plus its `.passthrough.json` sidecar) back to a Gaea
    - Surfaces WARNINGs to stderr for: nodes without a passthrough entry, edges that didn't bind to any input port, synthesized type FQNs.
 
 4. **Sanity-check the output.** Read the produced `.terrain`, confirm:
-   - It's valid JSON (the Read tool will fail otherwise).
    - First key is `"$id": "1"` and the `$id` sequence is contiguous.
    - Asset/Terrain/Nodes structure looks like the original.
+   (JSON validity needs no separate check — the script writes via `json.dump`.)
    Surface any WARNINGs from step 3 to the user. Report node count, edge count, and output path back.
 
 5. **Optional diff vs original.** If the user asks "did anything change?" or you have low confidence in a tricky modification, diff the output against the original `.terrain` (path is in `.passthrough.json` → `original_file`). Strip the noise that always changes between saves before comparing — `$id` values, dates, viewport floats. The remaining diff should be exactly the user's edits.

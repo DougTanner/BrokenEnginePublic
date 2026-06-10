@@ -15,14 +15,13 @@ struct ConvexHull2D
 	XMFLOAT2 f2AabbMax {};
 };
 
-// Rotate a CCW island-local hull (centered at origin) by fRotation (CCW, matching GlobalElevation's
-// convention) and translate to f2WorldPos, writing the world-space verts into rOutVertices (caller
-// scratch, >= iLocalCount entries). Returns a ConvexHull2D over rOutVertices with its AABB filled.
-inline ConvexHull2D BuildWorldHull(const XMFLOAT2* pLocalVertices, int32_t iLocalCount, XMFLOAT2 f2WorldPos, float fRotation, XMFLOAT2* rOutVertices)
+// Rotate a CCW island-local hull (centered at origin) by the rotation whose precomputed (fCos, fSin)
+// pair is passed in (CCW, matching GlobalElevation's convention) and translate to f2WorldPos, writing
+// the world-space verts into rOutVertices (caller scratch, >= iLocalCount entries). Returns a
+// ConvexHull2D over rOutVertices with its AABB filled. Takes (fCos, fSin) rather than an angle so no
+// libm trig runs here — results feed CRC-verified placement; derive via common::DeterministicSinCos.
+inline ConvexHull2D BuildWorldHull(const XMFLOAT2* pLocalVertices, int32_t iLocalCount, XMFLOAT2 f2WorldPos, float fCos, float fSin, XMFLOAT2* rOutVertices)
 {
-	float fCos = std::cos(fRotation);
-	float fSin = std::sin(fRotation);
-
 	XMFLOAT2 f2Min {std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
 	XMFLOAT2 f2Max {std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
 	for (int32_t i = 0; i < iLocalCount; ++i)

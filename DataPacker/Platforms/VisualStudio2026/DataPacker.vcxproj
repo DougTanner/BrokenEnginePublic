@@ -72,6 +72,7 @@
     <ClInclude Include="..\..\..\Common\Threading\ThreadLocal.h" />
     <ClInclude Include="..\..\..\Common\Timer.h" />
     <ClInclude Include="..\..\..\Common\AlignedMemory.h" />
+    <ClInclude Include="..\..\..\Common\AllocationTracking.h" />
     <ClInclude Include="..\..\..\Common\Crc.h" />
     <ClInclude Include="..\..\..\Common\Determinism.h" />
     <ClInclude Include="..\..\..\Common\FileUtils.h" />

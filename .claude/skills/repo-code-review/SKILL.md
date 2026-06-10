@@ -1,12 +1,12 @@
 ---
-name: code-review
-description: Reviews C++ code changes for bugs, implementation correctness, and simplification opportunities. Use this skill after making C++ code changes to catch logic errors and correctness issues.
+name: repo-code-review
+description: Reviews C++ code changes made this session for bugs, correctness, and Broken Engine pattern violations — XMVECTOR W invariants, allocation-tracker / LOG formatting discipline, collection integrity, determinism, client/server guard scope, vcxproj inclusion. Use after any C++ code change (C++ Code Change Process step 4), when the user says "review my changes", "check my code", "code review", or before declaring an implementation complete. Flags oversized files for /reduce-file. Logic and correctness only — formatting/style belongs to code-style-review.
 allowed-tools: [Read, Grep, Glob, WebFetch]
 ---
 
 # Code Review
 
-Reviews C++ code changes for correctness, bugs, and adherence to Broken Engine patterns. This skill focuses on **logic and correctness**, not formatting or style.
+Reviews this session's C++ changes for **logic and correctness** — formatting/style is owned by `/code-style-review`.
 
 ## Instructions
 
@@ -20,14 +20,9 @@ Review the conversation history to find all files that were edited during this s
 
 ### 2. Review for General Bugs
 
-Check each modified section for common issues. Note: the project assumes parameters to functions are valid (no defensive null checks or validation needed), so only flag pointer/bounds issues where data comes from external sources (file I/O, network, user input).
+Check each modified section for: uninitialized variables (struct members especially), array/vector bounds, resource leaks (RAII everywhere — no manual `new`/`delete`/`malloc`/`free`), control-flow logic errors (loop conditions, early returns), narrowing conversions, and math errors (integer division, float precision, sign).
 
-- **Uninitialized variables** - Are all variables initialized before use? Check struct members especially.
-- **Array bounds** - Are all array/vector accesses within valid ranges?
-- **Resource leaks** - Are resources managed via RAII? No manual `new`/`delete` or `malloc`/`free`.
-- **Logic errors** - Does the control flow match the intended behavior? Check loop conditions and early returns.
-- **Type mismatches** - Are conversions between types correct? Watch for narrowing conversions.
-- **Math errors** - Are calculations correct? Watch for integer division, floating point precision, and sign issues.
+The project assumes parameters from within the codebase are valid — do not flag missing null checks or validation between our own functions. Only flag pointer/bounds issues on data from external sources (file I/O, network, user input).
 
 ### 2b. Memory & Allocation Discipline (Broken Engine specific)
 
@@ -35,27 +30,24 @@ The main loop runs under an allocation tracker that `DEBUG_BREAK()`s on heap all
 
 - **Local `std::vector` / `std::string` in hot paths** — must use `gpThreadLocal->mWorkbuffer` instead (see `Common/CLAUDE.md`).
 - **Heap allocation in main loop without `ScopedSuppressAllocationTracking`** — any unavoidable heap use needs the guard plus a `// Heap:` comment justifying it (see `Engine/Source/Memory/CLAUDE.md`).
-- **Allocating `LOG` format specs** — flag any `LOG(...)` containing a float format spec such as `{:.Nf}`, `{:e}`, `{:g}`, width/precision like `{:>10}`, `{:#x}`, or `std::format`/`std::format_to`/`std::to_string`/`std::ostringstream` anywhere. These go through heap-allocating `std::format` paths and trip the allocation tracker. Require pre-building via `common::ScopedWorkbufferBuilder` on `gpThreadLocal->mWorkbuffer` (`Append` / `AppendFloat`) and emitting with `LOG(cat, lvl, "{}", builder)`. Plain `{}` on integers and the named formatters in `Common/LogFormatters.h` (XMVECTOR, Flags, chrono durations, paths, etc.) are safe.
+- **Allocating `LOG` format specs** — flag any `LOG(...)` containing a float format spec such as `{:.Nf}`, `{:e}`, `{:g}`, width/precision like `{:>10}`, `{:#x}`, or `std::format`/`std::format_to`/`std::to_string`/`std::ostringstream` anywhere. These go through heap-allocating `std::format` paths and trip the allocation tracker. Correct forms:
+	- Wrap each float arg with `common::Wb(value, precision)` and each `XMVECTOR` arg with `common::WbV2`/`WbV3`/`WbV4` (logs 2/3/4 lanes — pick by needed fidelity); the placeholder stays `{}`.
+	- For loop/lambda-driven content, pre-build via `common::ScopedWorkbufferArena builder = rWorkbuffer.Push(); builder.Append(...)`/`AppendFloat(...)` and emit as `LOG(cat, lvl, "{}", builder)` — the arena has its own `std::formatter` (emits `View()`), so no call-site `.View()` is needed.
+	- Plain `{}` on integers and the named formatters in `Common/Log/LogFormatters.h` (XMVECTOR, Flags, chrono durations, paths, etc.) are safe.
 - **Standard-library header placement** — new `#include <std>` in a `.h`/`.cpp` should move to `Common/ExternalHeaders.h`.
 
 ### 3. Verify Broken Engine Patterns
 
 #### Collection Integrity
 
-If any collection structure was modified (adding/removing members), verify completeness:
+If a collection struct gained, lost, or changed an SOA member pointer, verify against the `add-collection-member` skill's checklist (authoritative). Spot-check the high-failure steps:
 
-**Engine collections** (e.g., `AreaLightsInterpolate`) require **2 steps**:
-1. Macro list updated (e.g., `AREA_LIGHTS_INTERPOLATE_LIST(a)`)
-2. Equality operator updated (`operator==` with `common::BreakOnNotEqual`)
-
-**Game collections** (e.g., `BlastersPostRender`, `SpaceshipsInterpolate`) require **5 steps**:
-1. Macro list updated
-2. Equality operator updated
-3. Load from previous frame in `Update()` loop
-4. Save to current frame in `Update()` loop
-5. Initialize in `Spawn()` function
-
-**Version constants**: If collection structure changed, increment the version constant for save file compatibility.
+1. Pointer in the correct tuple: `SharedMembers()` (cross-build), `ClientMembers()` (client-only, inside `#ifdef BT_CLIENT`), or `Members()` (unsplit collections). A member missing from the tuple corrupts memory — allocation, CRC, serialization, and swap-and-pop all iterate the tuple.
+2. `AllocateAndCopy()` memcpy added for members that persist across frames (those not handled by the Update load/save pattern).
+3. Update-loop load/save is unconditional — a save skipped by an early-exit branch leaves uninitialized memory and breaks determinism.
+4. Initialized in `Spawn()` / `Add()`; sync-pattern collections must zero-init all Interpolate fields in `Add()`.
+5. `LogDifferences()` updated for shared members; `Transfer()` data updated if the collection supports cross-cell transfer.
+6. `kiVersion` bumped if the serialization layout changed (the collection's own constant, plus `Frame::kiVersion` for game collections) — old save files fail to load otherwise.
 
 #### Manager Patterns
 
@@ -72,7 +64,6 @@ Engine code must access game functionality through `game::gpGame` (the game-deri
 
 - Flag file-wide `#if defined(BT_CLIENT)` / `BT_SERVER` wrappers where a single function or block guard would suffice. Narrow is better.
 - For collections with client-only fields, verify the `SharedMembers()` + `ClientMembers()` + `std::tuple_cat` pattern is used. Server build's `Members()` returns `SharedMembers()` only.
-- If a file becomes fully wrapped in a `BT_` guard that it wasn't before, it must be removed from the opposite vcxproj (see §4 below).
 
 #### Flags over Multiple Booleans
 
@@ -138,8 +129,8 @@ If the code affects game state that participates in replay:
 Verify that existing utilities are used instead of reimplementing:
 
 **String & Hash**:
-- `common::Crc(std::string_view)` - compile-time string hashing for asset IDs
-- `common::Crc<T>(const T&)` - hash trivially copyable types by bytes
+- `common::Crc(std::string_view)` - constexpr string hashing for asset IDs (`common::CrcConsteval` where compile-time evaluation must be guaranteed)
+- `common::Crc(const T*, count)` - hash trivially copyable arrays by bytes
 
 **Memory**:
 - `common::AlignedUniquePtr<T>` - 64-byte aligned RAII memory for SIMD
@@ -163,7 +154,7 @@ Verify that existing utilities are used instead of reimplementing:
 ### 7. File Size Check
 
 For each modified `.cpp` file, check its total line count:
-- **Over 1000 lines**: Always flag as **REQUIRED** — `/reduce-file` must be invoked on this file
+- **Over 1000 lines**: Always flag as **REQUIRED** — the file needs `/reduce-file`. Per the C++ Code Change Process, the caller routes flagged files to a step-10 follow-up plan in `Documents/Plans/`; the split is never run inline during a review
 - **500-1000 lines**: Only flag as **RECOMMEND** if you identified a natural split point during the review (e.g., distinct responsibility groups, client/server code that could separate, utility functions that belong in a `*Utils` file). Do not flag files in this range that are cohesive and have no obvious split
 - **Struct splitting**: Structs with static methods (e.g., SOA collections) can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). Classes must NOT be split this way — extract independent classes instead. See `/reduce-file` skill
 
@@ -186,7 +177,7 @@ Use these prefixes on findings so the author knows what blocks the change vs wha
 - **Nit:** — Minor, optional. Author may ignore — naming preferences, micro-style.
 - **Optional:** / **Consider:** — Suggestion worth considering but not required.
 
-Reconciliation with existing markers: the `✗` glyph in Engine Pattern Issues is equivalent to no-prefix (required). File-size `[REQUIRED]` is no-prefix; file-size `[RECOMMEND]` is **Optional:**. Pick one scheme per finding rather than layering both.
+Marker equivalence: `✗` in Engine Pattern Issues = no-prefix (required); file-size `[REQUIRED]` = no-prefix; file-size `[RECOMMEND]` = **Optional:**. Use one scheme per finding, not both.
 
 ### 10. Honesty (Anti-Sycophancy)
 

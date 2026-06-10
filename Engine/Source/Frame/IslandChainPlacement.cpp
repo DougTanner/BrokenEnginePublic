@@ -206,8 +206,9 @@ bool PlaceAnchor(CellContext& rContext, common::crc_t crc, float fTargetLocalX, 
 	int32_t iLocalCount = 0;
 	const XMFLOAT2* pLocalHull = LocalHull(rTemplate, rectHull, iLocalCount);
 
-	float fAbsCos = std::abs(std::cos(fRotation));
-	float fAbsSin = std::abs(std::sin(fRotation));
+	common::SinCos rotation = common::DeterministicSinCos(fRotation);
+	float fAbsCos = std::abs(rotation.fCos);
+	float fAbsSin = std::abs(rotation.fSin);
 	float fRotatedHalfW = 0.5f * (rTemplate.mfQuadFootprintX * fAbsCos + rTemplate.mfQuadFootprintY * fAbsSin);
 	float fRotatedHalfH = 0.5f * (rTemplate.mfQuadFootprintX * fAbsSin + rTemplate.mfQuadFootprintY * fAbsCos);
 	float fLimitX = rContext.fHalfW - fRotatedHalfW - kfCellEdgeMarginMeters;
@@ -222,7 +223,7 @@ bool PlaceAnchor(CellContext& rContext, common::crc_t crc, float fTargetLocalX, 
 	XMFLOAT2 f2World {rContext.fCenterWorldX + fLocalX, rContext.fCenterWorldY + fLocalY};
 
 	rContext.scratch.resize(static_cast<size_t>(iLocalCount));
-	common::ConvexHull2D candidate = common::BuildWorldHull(pLocalHull, iLocalCount, f2World, fRotation, rContext.scratch.data());
+	common::ConvexHull2D candidate = common::BuildWorldHull(pLocalHull, iLocalCount, f2World, rotation.fCos, rotation.fSin, rContext.scratch.data());
 	CommitPlacement(rContext, crc, f2World, fRotation, candidate);
 	rAcceptedLocalOut = {fLocalX, fLocalY};
 	return true;
@@ -239,12 +240,14 @@ bool TryTouchPlace(CellContext& rContext, common::crc_t crc, int64_t iHost, floa
 	int32_t iLocalCount = 0;
 	const XMFLOAT2* pLocalHull = LocalHull(rTemplate, rectHull, iLocalCount);
 
-	float fDirX = std::cos(fDir);
-	float fDirY = std::sin(fDir);
+	common::SinCos direction = common::DeterministicSinCos(fDir);
+	float fDirX = direction.fCos;
+	float fDirY = direction.fSin;
 
 	// Candidate's near-edge projection onto fDir, relative to its own center (rotation applied).
-	float fCos = std::cos(fRotation);
-	float fSin = std::sin(fRotation);
+	common::SinCos rotation = common::DeterministicSinCos(fRotation);
+	float fCos = rotation.fCos;
+	float fSin = rotation.fSin;
 	float fCandMin = std::numeric_limits<float>::max();
 	for (int32_t i = 0; i < iLocalCount; ++i)
 	{
@@ -268,7 +271,7 @@ bool TryTouchPlace(CellContext& rContext, common::crc_t crc, int64_t iHost, floa
 	XMFLOAT2 f2World {f2Host.x + fS * fDirX, f2Host.y + fS * fDirY};
 
 	rContext.scratch.resize(static_cast<size_t>(iLocalCount));
-	common::ConvexHull2D candidate = common::BuildWorldHull(pLocalHull, iLocalCount, f2World, fRotation, rContext.scratch.data());
+	common::ConvexHull2D candidate = common::BuildWorldHull(pLocalHull, iLocalCount, f2World, fCos, fSin, rContext.scratch.data());
 
 	// Keep the whole cluster inside the cell (the touch pose is not clamped — that would break contact).
 	float fLimitX = rContext.fHalfW - kfCellEdgeMarginMeters;

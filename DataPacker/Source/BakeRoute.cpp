@@ -108,14 +108,14 @@ bool IsGaeaRawDirty(const std::filesystem::path& rIntermediatesDir, const std::f
 	{
 		return true;
 	}
-	int32_t iFileVersion = 0;
 	{
 		std::ifstream versionStream(versionFile);
+		int32_t iFileVersion = 0;
 		versionStream >> iFileVersion;
-	}
-	if (iFileVersion != kiBakeVersion)
-	{
-		return true;
+		if (!versionStream || iFileVersion != kiBakeVersion)
+		{
+			return true;
+		}
 	}
 
 	std::filesystem::file_time_type inputNewest = std::max(std::filesystem::last_write_time(rIslandJsonFile), std::filesystem::last_write_time(rArchetypeFile));
@@ -140,14 +140,14 @@ bool AreLeavesDirty(const std::filesystem::path& rRouteDir, int64_t iLeafCount)
 	{
 		return true;
 	}
-	int32_t iFileVersion = 0;
 	{
 		std::ifstream versionStream(splitVersionFile);
+		int32_t iFileVersion = 0;
 		versionStream >> iFileVersion;
-	}
-	if (iFileVersion != kiSplitVersion)
-	{
-		return true;
+		if (!versionStream || iFileVersion != kiSplitVersion)
+		{
+			return true;
+		}
 	}
 
 	for (int64_t iLeaf = 0; iLeaf < iLeafCount; ++iLeaf)

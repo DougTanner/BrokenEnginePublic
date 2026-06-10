@@ -47,7 +47,6 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 		VkName(VK_OBJECT_TYPE_BUFFER, mUiPrepassIndirectVkBuffer, "UiPrepassIndirect");
 		mpUiPrepassIndirectMapped = static_cast<VkDrawIndirectCommand*>(vmaAllocationInfo.pMappedData);
 		ASSERT(mpUiPrepassIndirectMapped != nullptr);
-		__analysis_assume(mpUiPrepassIndirectMapped != nullptr);
 		for (int64_t i = 0; i < iFramebufferCount; ++i)
 		{
 			mpUiPrepassIndirectMapped[i] = {.vertexCount = 6, .instanceCount = 0, .firstVertex = 0, .firstInstance = 0};

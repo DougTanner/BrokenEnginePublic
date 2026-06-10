@@ -77,9 +77,9 @@ without first proving the packing matches.
 - The wind history-reset-on-recreate correctness item (`Graphics/WindHistoryResetOnRecreate.md`).
 - The disabled-pass gating perf audit (`Graphics/DisabledPassGatingPerfAudit.md`).
 - Any non-area-mapping shader cleanup (unrelated `normalize`/`pow` guards, descriptor-set audits, etc.).
-- The lighting deposit/spread rework (`Graphics/LightingDepositSpreadFullPort.md`) — it edits the same
-  `LightingSpread.frag` / `ShaderFunctions.h` area machinery and already reuses these helpers; this DRY pass only
-  touches the eight non-lighting consumer sites, so the two do not collide on the same lines.
+- The lighting deposit/spread rework (`Graphics/LightingDepositSpreadFullPort.md`) — landed and was removed; it
+  converted the lighting `LightingSpread.frag` site to the shared helper and left the eight non-lighting consumer
+  sites to this plan, so the two never collided on the same lines.
 
 ## Acceptance criteria
 

@@ -41,6 +41,7 @@ struct ChunkLocation
 	uint64_t uiOffset = 0;
 	uint64_t uiSize = 0;
 };
+static_assert(sizeof(ChunkLocation) == 24, "ChunkLocation layout changed — bump DataHeader::kiVersion");
 
 enum class ChunkFlags : uint64_t
 {
@@ -93,7 +94,7 @@ struct SceneHeader
 	// Texture CRCs and index starts now in chunk data payload
 };
 static_assert(sizeof(SceneHeader) == 24, "SceneHeader layout changed — bump DataHeader::kiVersion");
-static_assert(offsetof(SceneHeader, modelCrc) == 16, "SceneHeader padding no longer aligns modelCrc to offset 16");
+static_assert(BT_OFFSETOF(SceneHeader, modelCrc) == 16, "SceneHeader padding no longer aligns modelCrc to offset 16");
 
 // Compact animation keyframe for STEP/LINEAR interpolation
 struct AnimationKeyframe
@@ -101,6 +102,8 @@ struct AnimationKeyframe
 	float fTime = 0.0f;
 	XMFLOAT4 f4Value {};       // Translation (xyz,0), Rotation (quat), or Scale (xyz,1)
 };
+static_assert(sizeof(AnimationKeyframe) == 20, "AnimationKeyframe layout changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(AnimationKeyframe, f4Value) == 4, "AnimationKeyframe padding changed — keyframe stride no longer matches writer/reader");
 
 // Full animation keyframe with tangents for CUBICSPLINE interpolation
 struct AnimationKeyframeCubic
@@ -110,6 +113,7 @@ struct AnimationKeyframeCubic
 	XMFLOAT4 f4InTangent {};   // Incoming tangent
 	XMFLOAT4 f4OutTangent {};  // Outgoing tangent
 };
+static_assert(sizeof(AnimationKeyframeCubic) == 52, "AnimationKeyframeCubic layout changed — bump DataHeader::kiVersion");
 
 // Animation channel (one property of one node)
 struct AnimationChannel
@@ -120,6 +124,7 @@ struct AnimationChannel
 	uint32_t uiKeyframeStart = 0; // Index into keyframe array
 	uint32_t uiKeyframeCount = 0;
 };
+static_assert(sizeof(AnimationChannel) == 12, "AnimationChannel layout changed — bump DataHeader::kiVersion");
 
 // Animation clip
 struct AnimationClip
@@ -130,6 +135,7 @@ struct AnimationClip
 	uint32_t uiChannelStart = 0;
 	uint32_t uiChannelCount = 0;
 };
+static_assert(sizeof(AnimationClip) == 76, "AnimationClip layout changed — bump DataHeader::kiVersion");
 
 // Node in hierarchy (stores all nodes, not just skin joints)
 struct ModelNode
@@ -153,6 +159,7 @@ struct Skeleton
 	uint16_t uiSkinJointCount = 0;
 	// nodes, skinJointToNode, inverseBindMatrices now in data stream
 };
+static_assert(sizeof(Skeleton) == 4, "Skeleton layout changed — bump DataHeader::kiVersion");
 
 // Per-material skinning info for glTF models
 // Enables runtime mesh world matrix computation: meshWorld = relativeTransform * worldMatrices[iParentNodeIndex]
@@ -201,6 +208,8 @@ struct AnimationHeader
 	Skeleton skeleton {};
 	// animations, materialInfos, and trailing data now in data stream
 };
+static_assert(sizeof(AnimationHeader) == 24, "AnimationHeader layout changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(AnimationHeader, skeleton) == 20, "AnimationHeader padding changed — embedded Skeleton no longer at offset 20");
 
 struct MaterialShaderData
 {
@@ -224,6 +233,8 @@ struct MaterialShaderData
 	float fAlphaMask = 0.0f;
 	float fAlphaMaskCutoff = 1.0f;
 };
+static_assert(sizeof(MaterialShaderData) == 76, "MaterialShaderData layout changed — bump DataHeader::kiVersion and re-check PbrMaterialLayout");
+static_assert(BT_OFFSETOF(MaterialShaderData, f4BaseColorFactor) == 8, "MaterialShaderData padding changed — PBR factor block no longer at offset 8");
 
 struct Character
 {
@@ -300,6 +311,8 @@ struct AudioHeader
 {
 	WAVEFORMATEX waveFormat {};
 };
+// Lowest-severity lock — non-largest union member wrapping a platform struct, so assert against WAVEFORMATEX rather than a byte literal
+static_assert(sizeof(AudioHeader) == sizeof(WAVEFORMATEX), "AudioHeader must wrap WAVEFORMATEX with no padding");
 
 struct ChunkHeader
 {
@@ -345,6 +358,7 @@ struct DataHeader
 
 	int64_t iChunkCount = 0;
 };
+static_assert(sizeof(DataHeader) == 24, "DataHeader layout changed — bump DataHeader::kiVersion");
 
 struct ModelVertex
 {

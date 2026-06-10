@@ -1,30 +1,33 @@
 ---
 name: gaea2-diagnose
 description: Diagnose why Gaea 2 rejected a .terrain file or failed a build. Use when the user reports an error like "File is corrupt or missing additional data", "Swarm failed to load", a node loading as deactivated (dashed border), or unexpected behavior after a /gaea2-save round-trip. Finds the latest Gaea 2 session log (under %APPDATA%\QuadSpinner\Gaea\2.0\Logs — NOT Gaea 1's location), decodes its base64+gzip ERR payloads to extract the underlying Newtonsoft exception with JSON path, then cross-references the shipping Examples library to suggest the valid value or shape.
-argument-hint: [optional: --swarm | --blob <base64> | --log <path>]
-allowed-tools: [Read, Bash, PowerShell, Glob, Grep]
+argument-hint: [--latest-swarm | --blob <base64> | --log <path>]
+allowed-tools: [Read, Edit, Bash, PowerShell, Glob, Grep]
 disable-model-invocation: true
 ---
 
 # gaea2-diagnose
 
-Gaea 2 reports load and build failures in two places. The UI shows a vague modal ("File is corrupt or missing additional data"). The session log under `%APPDATA%\QuadSpinner\Gaea\2.0\Logs\` holds the real Newtonsoft exception — but compressed.
+The Gaea 2 UI reports failures with a vague modal ("File is corrupt or missing additional data"); the real Newtonsoft exception is in a log. Find the right log, decode the exception, cross-reference the shipping samples for the valid value, and tell the user what to change.
 
-This skill bridges that gap: find the latest log, decode the exception, cross-reference the shipping samples to find the valid value, and tell the user what to change.
+## Log streams
 
-## Two error-emission paths
+Pick by how Gaea was invoked:
 
-Errors flow through Gaea in two very different ways depending on how Gaea was invoked. Diagnose differently:
-
-| Invoked from | Log location | Log format |
+| Source of error | Log | How to read |
 |---|---|---|
-| Gaea 2 UI (Save / Open / Build) | `%APPDATA%\QuadSpinner\Gaea\2.0\Logs\*.txt` | Each `ERR` line is a base64 payload: `<4-byte LE uncompressed length><gzip stream>`. Use the bundled decoder. |
-| Gaea 2 UI build pipeline | `…\Logs\*-SWARM.txt` and `…\Logs\CRASH_SWARM_*.txt` | Same compressed format. Use `--latest-swarm`. |
-| **Headless Swarm via DataPacker** | `%LOCALAPPDATA%\Temp\DataPacker\<Project>\<island>.gaea.log` | **Plain text** — just stdout/stderr from `Gaea.Swarm.exe`. **No decoding needed.** Read directly. |
+| File-open / file-save failure (UI) | `%APPDATA%\QuadSpinner\Gaea\2.0\Logs\YYYY-MM-DD_HH-MM-SS.txt` | `decode_gaea_err.py --latest` |
+| Build / "Swarm" failure inside the UI | same dir: `*-SWARM.txt`, `CRASH_SWARM_*.txt` | `decode_gaea_err.py --latest-swarm` |
+| DataPacker invoking headless Swarm | `%LOCALAPPDATA%\Temp\DataPacker\<Project>\<island>.gaea.log` — plain stdout/stderr from `Gaea.Swarm.exe`; one file per island, overwritten each build | Plain text, exception already in the clear — read directly, no decoder |
+| Caller pasted a specific log path | that path | `decode_gaea_err.py --log <path>` |
+| Caller pasted a base64 `ERR` payload | inline | `decode_gaea_err.py --blob <text>` |
 
-The compressed format only exists in the UI logs — Gaea wraps `ERR` payloads so the session log stays compact. The gzip footer (CRC32/ISIZE) is occasionally truncated, so the bundled decoder uses raw deflate (negative wbits) and skips the trailing checksum. The bundled decoder handles all of this — never hand-roll a decoder inline.
+UI logs wrap each `ERR` line as base64: `<4-byte LE uncompressed length><gzip stream>`. The gzip footer (CRC32/ISIZE) is occasionally truncated, so the bundled decoder inflates with raw deflate (negative wbits) and skips the trailing checksum — never hand-roll a decoder inline.
 
-Headless invocations (`Gaea.Swarm.exe` driven by the DataPacker) write plain stdout captured straight to a `.gaea.log` file by the caller. These logs are short, human-readable, and **the exception text is already in the clear** — read the file directly. The compressed format is *not* used here.
+Confusable locations:
+- `%APPDATA%\QuadSpinner\Gaea\Logs\` (without `2.0\`) is **Gaea 1**'s log path. Different format, irrelevant to Gaea 2 errors.
+- DataPacker's per-island log is in `Local\Temp\`, not `Roaming\`. If you only look in the QuadSpinner directory you'll miss the headless-Swarm errors entirely.
+- If `2.0\Logs\` does not exist, Gaea 2 was never opened on this machine; if `DataPacker\<Project>\` does not exist, no build has been attempted via the DataPacker pipeline.
 
 ## Workflow
 
@@ -33,32 +36,22 @@ Headless invocations (`Gaea.Swarm.exe` driven by the DataPacker) write plain std
 Same probe as the other gaea2-* skills:
 
 ```
-powershell -ExecutionPolicy Bypass -File .claude/skills/gaea2-shared/scripts/detect-python.ps1
+powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/detect-python.ps1"
 ```
 
 Capture the `<python-exe-path>` for the next steps.
 
-### Step 2: Pick the right log and decode (or read) it
+### Step 2: Decode (or read) the log
 
-Three log streams exist; pick by how Gaea was invoked:
-
-| Source of error | Where to look | How to read |
-|---|---|---|
-| File-open / file-save failure (UI) | `%APPDATA%\QuadSpinner\Gaea\2.0\Logs\` non-SWARM | `decode_gaea_err.py --latest` |
-| Build / "Swarm" failure inside the UI | `…\Logs\*-SWARM.txt` / `CRASH_SWARM_*.txt` | `decode_gaea_err.py --latest-swarm` |
-| **DataPacker invoking headless Swarm** | `%LOCALAPPDATA%\Temp\DataPacker\<Project>\<island>.gaea.log` | Read the file directly — no decoder needed |
-| Caller pasted a specific log path | the path | `decode_gaea_err.py --log <path>` |
-| Caller pasted a base64 `ERR` payload | inline | `decode_gaea_err.py --blob <text>` |
-
-For the two compressed-format paths:
+For the two compressed-format streams:
 
 ```
-"<python-exe-path>" .claude/skills/gaea2-shared/scripts/decode_gaea_err.py --latest
+"<python-exe-path>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/decode_gaea_err.py" --latest
 ```
 
 The decoder prints each ERR with its timestamp, trimmed to the exception line by default. Pass `--full` only when the stack trace would actually help — Newtonsoft stack traces are noisy and the first two lines almost always name the problem. If `--latest` reports no ERR lines, the error may have come from an earlier session — list `*.txt` in the log dir by mtime and try the previous one.
 
-For the DataPacker plain-text path: the file is small (typically 5-20 lines). The pattern is:
+The DataPacker plain-text log is small (typically 5-20 lines):
 ```
 Preparing Gaea Build Swarm <version>...
 Loading devices...
@@ -94,23 +87,23 @@ Use `inspect_samples.py` to ask three kinds of questions:
 
 ```
 # What values does this enum actually accept?
-"<python>" .claude/skills/gaea2-shared/scripts/inspect_samples.py --enum SatMap.Library
+"<python>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/inspect_samples.py" --enum SatMap.Library
 
 # What does a working node of this type look like?
-"<python>" .claude/skills/gaea2-shared/scripts/inspect_samples.py --type Erosion2
+"<python>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/inspect_samples.py" --type Erosion2
 
 # What ports does this node have? (for wiring questions)
-"<python>" .claude/skills/gaea2-shared/scripts/inspect_samples.py --ports Combine
+"<python>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/inspect_samples.py" --ports Combine
 ```
 
 Other useful queries when the error is less specific:
 
 ```
 # Where does this property name appear and with what values?
-"<python>" .claude/skills/gaea2-shared/scripts/inspect_samples.py --field-grep Library
+"<python>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/inspect_samples.py" --field-grep Library
 
 # What node types exist at all?
-"<python>" .claude/skills/gaea2-shared/scripts/inspect_samples.py --list-types
+"<python>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/inspect_samples.py" --list-types
 ```
 
 ### Step 5: Apply the fix and re-save
@@ -144,33 +137,8 @@ Headless / DataPacker plain-text errors:
 | `Unhandled exception. <Type>: <message>` followed by obfuscated stack frames like `at .(...)` | Generic .NET unhandled exception. The obfuscated names (rendered as `.` or as Unicode glyphs in some terminals) are intentional QuadSpinner code obfuscation — they convey no diagnostic value. | Look only at the exception type + message on the first line. The frames after it are noise. |
 | Exit code `3762504530` (`0xE0434352`) | Standard CLR unhandled-exception SEH code — set by Windows whenever .NET propagates an unhandled exception, regardless of which exception. | Carries no diagnostic value beyond "the .NET process crashed." Use the captured log text, not the exit code. |
 
-## Where the logs live
+## Scope
 
-```
-%APPDATA%\QuadSpinner\Gaea\2.0\Logs\
-    YYYY-MM-DD_HH-MM-SS.txt           # general session log (load / save / UI errors)
-    YYYY-MM-DD_HH-MM-SS-SWARM.txt     # build pipeline log run from the UI
-    CRASH_SWARM_YYYY-MM-DD_HH-MM-SS.txt   # Swarm crash log (also from UI builds)
-
-%LOCALAPPDATA%\Temp\DataPacker\<Project>\<island>.gaea.log
-    Plain text. Captured stdout from Gaea.Swarm.exe when DataPacker
-    invokes it headlessly. One file per island, overwritten each build.
-```
-
-Watch out for two confusable locations:
-- `%APPDATA%\QuadSpinner\Gaea\Logs\` (without `2.0\`) is **Gaea 1**'s log path. Different format, irrelevant to Gaea 2 errors.
-- DataPacker's per-island log is in `Local\Temp\`, not `Roaming\`. If you only look in the QuadSpinner directory you'll miss the headless-Swarm errors entirely.
-
-If `2.0\Logs\` does not exist, Gaea 2 was never opened on this machine; if `DataPacker\<Project>\` does not exist, no build has been attempted via the DataPacker pipeline.
-
-## What is and isn't in scope
-
-In scope:
-- Decoding compressed ERR payloads from Gaea 2 logs
-- Mapping a Newtonsoft exception path to a concrete fix
-- Querying shipping samples for enum/port/property ground truth
-- Surfacing Gaea-version drift via the bundled `check_gaea_version.py` (auto-runs from `/gaea2-load`)
-
-Out of scope:
-- Modifying the .terrain file — chain to `/gaea2-modify` and `/gaea2-save` for that
-- Diagnosing runtime crashes in the Gaea binary — those go to QuadSpinner support
+- This skill diagnoses; it does not edit the .terrain. Apply fixes via `Temp/<basename>.md` + `/gaea2-save` (Step 5); structural graph changes chain to `/gaea2-modify`.
+- Suspected Gaea-version drift: run the bundled `check_gaea_version.py` (also auto-runs from `/gaea2-load`).
+- Runtime crashes in the Gaea binary itself go to QuadSpinner support, not this skill.

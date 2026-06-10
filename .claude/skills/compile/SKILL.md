@@ -1,8 +1,7 @@
 ---
 name: compile
-description: Builds Broken Engine projects using the MSBuild lock wrapper. Use this skill when you need to compile ThirdParty, DataPacker, or BrokenEngineSandbox.
+description: Builds Broken Engine projects via the MSBuild lock wrapper — exact commands for full and selective (--files) builds. Use whenever you need to build, rebuild, compile, or check for compile/link errors in ThirdParty, DataPacker, or BrokenEngineSandbox (client or server).
 allowed-tools: [Bash]
-user-invocable: true
 ---
 
 # Build
@@ -13,9 +12,9 @@ Builds Broken Engine projects via `.claude/msbuild.sh`, a lock wrapper that seri
 
 ### 1. Determine What to Build
 
-Check the conversation history or user request to determine which project(s) need building. If the user just says "build" without specifying, build **BrokenEngineSandbox client** (Debug).
+If the request doesn't specify a project, build **BrokenEngineSandbox client** (Debug).
 
-Use the repo root as an absolute path — the harness provides the cwd as an absolute path in the environment block, or fall back to `pwd`. All paths below use `$ROOT` as shorthand for this absolute path.
+All paths below use `$ROOT` for the absolute repo root (the cwd from the environment block, or `pwd`).
 
 ### 2. Build the Project
 
@@ -64,7 +63,7 @@ bash "$ROOT/.claude/msbuild.sh" --files <path1.cpp> <path2.cpp> -- \
   /p:Configuration=Debug /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 ```
 
-Use when verifying a single-file change rather than a full solution rebuild.
+Use when verifying a single-file change rather than a full solution rebuild. Constraints: target the `.vcxproj` (not the `.sln`); only `.cpp` paths are accepted — after a header change, pass the `.cpp` files that include it.
 
 ### 3. Report Results
 
@@ -72,3 +71,4 @@ Use when verifying a single-file change rather than a full solution rebuild.
 - If the build fails, show the error output and suggest fixes, with two exceptions:
   - **LNK errors (LNK1168, LNK2019 on the EXE)**: the client or server executable may be running and holding the `.exe` locked. `CLAUDE.md` says these can be ignored — do not chase them unless the user asks. Ask the user whether the exe is running first.
   - **`unsuccessfulbuild` marker leftover**: a prior killed build leaves this marker; the next successful build clears it automatically. Do not hand-delete tlog files — just re-run the build.
+  - **`Timed out waiting for lock`**: another build of the same solution is genuinely still running (stale locks are cleaned automatically via PID check). Re-run after it finishes; do not hand-delete `.claude/build-locks/` files — that can clobber a live build's lock.

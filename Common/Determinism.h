@@ -40,4 +40,9 @@ void ConfigureThreadFloatingPoint();
 // Promotes structured faults into C++ exceptions and logs a stack walk before DEBUG_BREAK(). Called by ThreadLocal ctor.
 void SetupExceptionHandling();
 
+// DbgHelp (dbghelp.dll) is documented single-threaded per process — every stack-walk driver must serialize on
+// this mutex. Acquired try_to_lock by FilteredStackWalker::ShowCallstack (StackWalker.h); recursive so a fault
+// inside DbgHelp during a walk re-enters instead of deadlocking.
+extern std::recursive_mutex gDbgHelpMutex;
+
 } // namespace common

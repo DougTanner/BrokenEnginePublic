@@ -6,14 +6,14 @@ Client-side ENet peer (`Client`, `gpClient`) plus engine-generic `ClientSessionB
 
 ## Receive Paths
 
-Four distinct server-update kinds land in separate buffers: per-tick coord delta updates (one buffer per slot), full state (placeholder-adopt + slot activate), static data (sent once per subscription; carries NavData), and debug frames (one-shot, captured for desync inspection). Channel/ACK/drain-per-poll conventions are the hub's — see parent.
+Server-update kinds land in separate buffers: per-tick coord delta updates (one buffer per slot), full state (placeholder-adopt + slot activate), static data (sent once per subscription; carries NavData), debug frames (one-shot, captured for desync inspection), and a one-shot load-notification flag the game layer drains. Channel/ACK/drain-per-poll conventions are the hub's — see parent.
 
 ## Subscription Receive Invariants
 
 Each receive handler classifies into a flag set (commit / clear-placeholder / heal-epoch / reject-as-ghost) before mutating slot state; the classify step is the choke point for the epoch and ghost logic below.
 
-- **Epoch check on every receive**: mismatches silently dropped — what makes slot reuse safe across rapid (un)subscribe cycles.
-- **Out-of-order tolerance**: full state can arrive before subscribe-accept (different ENet channels); handlers reconcile the placeholder slot either way.
+- **Epoch check** (drop rationale: hub's slot ACK model) applies only where the slot has a server-assigned epoch — a `kSubscribing` placeholder has none yet.
+- **Out-of-order full state** (before subscribe-accept) adopts the coord, clearing the `kSubscribing` placeholder at whichever slot holds it.
 - **Pre-full-state buffering**: a `kWaitingFullState` slot accepts delta updates but does NOT advance its ACK tick floor (only `kActive` slots track received ticks).
 - **Cancelled-subscription ghosts**: locally-dropped `kSubscribing` slots record the coord; a late accept/full-state triggers an unsubscribe. One epoch-heal case covers legitimate re-subscribe to an already-active slot.
 - **Gap beyond `kiNetworkBufferSize`** on a single slot forces disconnect.
@@ -25,16 +25,18 @@ Each receive handler classifies into a flag set (commit / clear-placeholder / he
 - **Update apply** moves drained per-tick updates into each active slot's `CoordFrames::serverUpdates` via `try_emplace` (first arrival wins, stale ticks skipped); buffer overflow asserts.
 - **Clock correction**: jitter-derived `targetBehind` (jitter + fixed safety margin, 2-tick hysteresis) sets how far behind `latestServerTick` the sim runs; gradual per-tick nudge, sustained error past threshold forces disconnect. No active slot resets `latestServerTick`. Full formulas in [Network.md](../../../../Documents/Architecture/Network.md).
 - **Metrics**: bytes in/out per second (host counters), interarrival jitter (deviation from expected tick interval), and packet-loss percent (received vs. expected for active slots) — jitter feeds clock correction.
+- **Implicit 16-coord-slot ceiling**: queue build uses a fixed 16-entry stack array, not asserted; the discovery address buffer is IPv4 dotted-quad only.
 
 ## Clock & Pipeline RTT
 
-Pipeline RTT seeded from the handshake wall-clock delta, then refined from a client timestamp echoed in each coord update (monotonic guard prevents duplicate processing during multi-frame ticks).
+Pipeline RTT seeded from the handshake wall-clock delta, then refined from a client timestamp echoed in each coord update (monotonic guard prevents duplicate processing during multi-frame ticks). Resends skip RTT/jitter processing — off-cadence arrivals would corrupt the interarrival jitter estimate.
 
 ## Other
 
 - **GUID**: versioned `ClientGuid.bin` under `FileFlags::kAppDataDirectory`; loaded on hello, written atomically on connection accept so a mid-write crash can't orphan server-side state.
 - **Disconnect**: resets all session state and calls `CoordFrames::ResetClientState` on every coord.
 - **LAN discovery**: scanner auto-restarts on timeout.
+- **Desync debug mode**: freezes the ACK floor (received-tick tracking becomes a no-op) so the server keeps resending while the captured debug frame is inspected.
 - **Network simulation**: fast-forward (time multiply > 1) bypasses the delay queue and flushes pending; slot reuse and unsubscribe-ack paths purge delayed packets on that slot's channels.
 
 ## See Also

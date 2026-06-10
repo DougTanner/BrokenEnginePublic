@@ -531,7 +531,7 @@ void ServerFleetManager::UpdateFleetNavigationDelay(const engine::ClientGuid& rG
 	}
 
 	fleetIt->second.at(static_cast<size_t>(iFleetIndex)).fNavigationDelay = fDelay;
-	LOG(kNetwork, kDebug, "ServerFleetManager::UpdateFleetNavigationDelay Guid: ({},{}) Fleet: {} Delay: {}", rGuid.uiHigh, rGuid.uiLow, iFleetIndex, fDelay);
+	LOG(kNetwork, kDebug, "ServerFleetManager::UpdateFleetNavigationDelay Guid: ({},{}) Fleet: {} Delay: {}", rGuid.uiHigh, rGuid.uiLow, iFleetIndex, common::Wb(fDelay, 3));
 
 	// Resync fleet to client so UI updates
 	int64_t iClientId = FindClientIdForGuid(rGuid);

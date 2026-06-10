@@ -60,8 +60,8 @@ Both files are NOT client/server-gated (no `#if defined(BT_CLIENT/SERVER)` wrap)
 - **Any behavior, algorithm, or numeric change** — no marching-squares tweak, no Clipper2 retune, no acceleration-grid change, no serialization-format change. Byte-for-byte identical `NavData`.
 - **`kiNavDataVersion` bump** — explicitly NOT bumped; the serialized layout is untouched. Bumping it here would be a bug.
 - **Renaming the shared types** (`ContourEdge`, `NavContour`, `NavData`) or any public function. Keep all public names identical so `NavQuery.cpp` and `PlayersNavigation.cpp` are unaffected.
-- **`Frame/NavBuildDebugCrossingCheckPerf.md`** (queued) — gates/accelerates the `BuildCellNavData` crossing loop and fixes the `NavBuild.cpp` LOG-float sites + a `ComputeNavigation` dead local. It edits the same functions this split relocates. Out of scope here; see File-Groups coordination below.
-- **`Frame/EvaluateRecastDetourNavmesh.md`** (queued, read-only eval) — evaluates the `BuildCellNavData`/`NavQuery*` interfaces. No edits land from it, so it never conflicts; if it ever returns "go", its integration follow-up supersedes both this split and the crossing-check plan since Detour would own the builder.
+- **Crossing-loop gating/acceleration in `BuildCellNavData`** — was owned by `Frame/NavBuildDebugCrossingCheckPerf.md`, which no longer exists (its `NavBuild.cpp` LOG-float fixes landed — `common::Wb` wrappers present; the gating/acceleration itself has no live plan — re-author if wanted). It edits the same functions this split relocates. Out of scope here; see the Coordination note below.
+- **Recast/Detour navmesh evaluation** — was covered by `Frame/EvaluateRecastDetourNavmesh.md` (read-only eval), which no longer exists; no live plan. If such an eval is ever re-authored and returns "go", its integration follow-up supersedes this split since Detour would own the builder.
 - **`NavQuery.cpp`** — not touched; it consumes `NavData`/`NavGridCell` from the unchanged public header.
 - **Splitting `NavQuery.cpp`** or any other Frame file.
 
@@ -77,4 +77,4 @@ Both files are NOT client/server-gated (no `#if defined(BT_CLIENT/SERVER)` wrap)
 
 ## Coordination note
 
-This plan and the two queued NavBuild plans (`NavBuildDebugCrossingCheckPerf.md`, `EvaluateRecastDetourNavmesh.md`) form the existing `Order.md` File-Group **"`Engine/Source/Frame/NavBuild.{h,cpp}` / `NavQuery.cpp` + `Projects/.../Players/PlayersNavigation.cpp`"**. Add this plan to that group. Because this split relocates `BuildCellNavData` (and its crossing-check block) into `NavCellData.cpp`, **landing this split FIRST changes which file the crossing-check plan must edit** — execute the split before `NavBuildDebugCrossingCheckPerf.md`, or have that plan re-target `NavCellData.cpp` at execution time. `EvaluateRecastDetourNavmesh.md` lands no edits and is order-independent.
+This plan once coordinated with two sibling NavBuild plans (`NavBuildDebugCrossingCheckPerf.md`, `EvaluateRecastDetourNavmesh.md`); both no longer exist on disk, and the `Order.md` NavBuild File-Group went with them. The relocation fact remains relevant: this split moves `BuildCellNavData` (and its crossing-check block) into `NavCellData.cpp`, so any re-authored crossing-check perf plan must target the post-split files.

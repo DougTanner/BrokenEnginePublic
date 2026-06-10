@@ -87,7 +87,7 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 	chunkFileStream.read(reinterpret_cast<char*>(piMagicAndVersion), sizeof(piMagicAndVersion));
 	chunkFileStream.close();
 
-	if (piMagicAndVersion[0] != kiMagic || piMagicAndVersion[1] != GetVersion())
+	if (!chunkFileStream || piMagicAndVersion[0] != kiMagic || piMagicAndVersion[1] != GetVersion())
 	{
 		LOG(kDefault, kWarning, "Chunk file \"{}\" has invalid magic {:#018x} or version {}", mChunkFile.string(), piMagicAndVersion[0], piMagicAndVersion[1]);
 		mbDirty = true;
@@ -107,7 +107,7 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 	int64_t iLoadedLastModifiedTime = 0;
 	std::fstream lastModifiedTimeFileStream(mLastModifiedTimeFile, std::ios::in | std::ios::binary);
 	lastModifiedTimeFileStream.read(reinterpret_cast<char*>(&iLoadedLastModifiedTime), sizeof(iLoadedLastModifiedTime));
-	if (iLastModifiedTime != iLoadedLastModifiedTime)
+	if (!lastModifiedTimeFileStream || iLastModifiedTime != iLoadedLastModifiedTime)
 	{
 		LOG(kDefault, kDebug, "Last modified time does not match {} != {}", iLastModifiedTime, iLoadedLastModifiedTime);
 		mbDirty = true;

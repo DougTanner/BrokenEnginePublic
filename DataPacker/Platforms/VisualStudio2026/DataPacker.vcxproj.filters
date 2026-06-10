@@ -203,6 +203,9 @@
     <ClInclude Include="..\..\..\Common\AlignedMemory.h">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\Common\AllocationTracking.h">
+      <Filter>Common</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\Common\Crc.h">
       <Filter>Common</Filter>
     </ClInclude>

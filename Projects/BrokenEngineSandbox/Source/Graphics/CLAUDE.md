@@ -1,30 +1,32 @@
 # Graphics - Game Camera
 
-Game-specific camera controller for BrokenEngineSandbox. Client-only (`BT_CLIENT`). Global: `gpCamera`.
+Game-specific camera controller for BrokenEngineSandbox. Client-only (whole-file `BT_CLIENT` wrap — client vcxproj only). Global: `gpCamera`.
 
 ## Overview
 
-Extends `engine::CameraBase` with smooth player tracking, static main menu positioning, damage-driven camera shake with controller vibration, and day/night cycle via sun angle modulation.
+Extends `engine::CameraBase`, which owns the matrices, snapped visible areas, LOD latching, and the texel-grid rendering mechanism — see [Engine Graphics](../../../../Engine/Source/Graphics/CLAUDE.md). This class owns where the camera points and how it moves: player tracking, jump easing, zoom, shake-to-vibration, and the day/night sun angle.
 
 ## Architecture Notes
 
+**Update Entry**: The engine calls `Update(const FrameInterpolate&)` once per render frame (`GameBase`, before `RenderGlobal`) plus once at boot; the `Frame&` overload is a thin forward with no current callers.
+
 **Hybrid Timing**: Position blend, shake decay, and internal timers advance on the wall-clock render delta the engine just measured for player interpolation (`gpGame->mfLastRenderFrameSeconds`), keeping the camera in sync with the interpolated player across vsync misses. Sun angle alone advances on the interpolate-frame's deterministic dt so day/night survives variable render rates.
 
-**Sun Angle**: Piecewise advance rate (distinct speeds for the noon band, the night band, and elsewhere); wraps at `2*PI`; paused in main menu. UI sliders and debug ImGui can override the live value.
+**Sun Angle**: Two-rate piecewise advance (faster through the night half of the cycle); wraps at `2*PI`; paused in main menu. UI sliders and debug ImGui can override the live value.
 
-**Long-Distance Jump Easing**: Fixed-duration smoothstep ease triggered by distance-to-target or mid-jump target-shift exceeding threshold; re-anchors from current position without cancelling; ends on proximity or duration force-snap.
-
-**Game/Frame Boundary**: Shake is driven by Game (armor damage on the flagship player), not Frame. Focus resolves via the client's grid cell and player index against `PlayersPostRender`, surviving spawns and cross-cell transfers. Resolution failures rate-limit diagnostic logs and fall through to extrapolation.
+**Game/Frame Boundary**: Shake is driven by Game (armor damage on the flagship player), not Frame; the camera only decays it and converts it to controller vibration. Focus resolves via the client's grid cell and player index against `PlayersPostRender`, surviving spawns and cross-cell transfers. Resolution failures rate-limit diagnostic logs and extrapolate the last-known position along derived velocity, clamped to a short window; no valid client player ID at all falls back to the canonical main-menu pose instead of stranding at a stale gameplay position.
 
 **Reconciliation Visual Smoothing**: Network corrections for the flagship player produce a decaying visual offset applied to the camera target only; simulation stays authoritative. See [Documents/Architecture/GameReconciliation.md](../../../../Documents/Architecture/GameReconciliation.md).
 
-**Velocity Extrapolation**: When the focused player is absent (cross-cell transfer, late snapshot), camera extrapolates last-known position along derived velocity, clamped to a short window.
+**Long-Distance Jump Easing**: Fixed-duration smoothstep ease triggered by distance-to-target or mid-jump target-shift exceeding threshold; re-anchors from current position without cancelling; ends on proximity or duration force-snap.
 
-**Mouse-Wheel Zoom**: Wheel input drives a clamped eye-height target (wheel-up = zoom in), with the per-tick delta scaled by `sqrt(height/default)` so high altitudes don't take oversized steps. Release pins the clamp ceiling to `kfEyeHeightMaxRelease` (600); dev builds allow a higher max. This ceiling is purely the gameplay zoom-out limit, not a texel anchor — coverage is preserved at every height (the shadow/lighting texels coarsen with zoom instead of cropping), so zooming further only drops world detail. A separate rate-limited shadow-texel height (zeroed by `Game::Reset` so each session re-snaps) ramps toward the live eye height once per frame at a tunable meters-per-second cap (no clamp — it tracks at all heights), scaling the shadow texel world size: fixed at a settled height (the grid snaps cleanly under pan), rescaling only while it tracks a zoom. The texture is allocated 1.5x the wanted on-screen pixel size via `kfShadowHeadroomMultiplier` as headroom; the ray-marched window stays at that constant on-screen size at every settled height, and only a fast zoom-out that outruns the ramp transiently grows the window toward the texture max (overflow reads as no-shadow via the CLAMP_TO_BORDER edge). The lighting deposit/spread/combine path carries an independent parallel texel height (its own meters-per-second ramp cap, also zeroed by `Game::Reset`, also unclamped) driving its world-sized-texel grid the same way over its own `kfLightingHeadroomMultiplier`-sized textures. Current eye height eases toward target on a cubic-Hermite curve that re-anchors position *and* velocity each tick the target moves, avoiding mid-flight stepping. Per-frame scroll delta is derived from the input accumulator — see [Input](../../../../Engine/Source/Input/CLAUDE.md). The eye sits straight down (+Z) above the target; the position chase rate scales linearly with eye height (loose close up, tight when zoomed out).
+**Mouse-Wheel Zoom**: Wheel input nudges a clamped eye-height target, the per-tick delta sqrt-scaled by altitude so high heights don't build oversized easing velocity. Current height eases toward the target on a cubic Hermite that re-anchors position *and* velocity each tick the target moves — no mid-flight stepping while the user keeps scrolling. The Release clamp ceiling is purely the gameplay zoom-out limit, not a texel anchor (texels coarsen with zoom; coverage never crops). Per-frame scroll delta is derived in the game input layer — see [Input](../Input/CLAUDE.md). The eye sits straight down (+Z) above the target; the position chase rate scales linearly with eye height (loose close up, tight zoomed out).
+
+**Texel Eye Heights**: The camera ramps two independent rate-limited heights (shadow, lighting) toward the live eye height — unclamped, tunable meters-per-second caps, with a zero-sentinel "snap on first frame" reset by `Game::Reset` so state never leaks across sessions. The renderer maps them to world-sized texel grids; mechanism documented in [Engine Graphics — CameraBase](../../../../Engine/Source/Graphics/CLAUDE.md).
+
+**Persistence**: Every `Update` ends with the diff-checked client session-state capture (`gpGame->CaptureClientStateAndSaveIfChanged()`) — the one hook guaranteed to run each render frame; the zoom target is restored from persisted client settings at boot.
 
 **Free Camera**: Debug-only (`kbFreeCamera`), main-menu-only — WASD bypasses target/blend to fly the camera directly.
-
-**Async Rendering**: Supports both standard Frame-based updates and direct `FrameInterpolate` updates.
 
 ## See Also
 

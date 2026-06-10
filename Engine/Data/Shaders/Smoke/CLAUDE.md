@@ -1,32 +1,33 @@
 # Engine/Data/Shaders/Smoke - Smoke Simulation Shaders
 
-Volumetric smoke simulation using ping-pong texture buffers with wind-driven displacement and hierarchical indirect dispatch.
+GPU-driven 2D smoke density field (single R channel) over a camera-following world rectangle. Objects deposit smoke via quads, two compute spread passes advect/diffuse/decay the field each frame, and the world passes (Water/Terrain/Model/Particles) sample the result through the smoke helpers in `ShaderFunctions.h`.
 
 ## Overview
 
-The smoke system maintains a single density field (R channel) that deposits, spreads, and decays over time. Objects deposit smoke trails, and the field propagates each frame via two alternating ping-pong spread passes (A then B) driven by **hierarchical indirect dispatch**: only tiles marked active in a bit-packed occupancy buffer are processed, eliminating GPU work on empty regions. The wind velocity field displaces smoke during spreading, with rescaled wind magnitude to control distortion.
+Smoke owns the dynamic world-area (`f4SmokeArea` / `f4PreviousSmokeArea`, populated CPU-side from the camera visible area before Wind reads them). The field ping-pongs between two render-target textures using the same hierarchical indirect dispatch pattern as [Wind](../Wind/CLAUDE.md): a bit-packed occupancy buffer (one bit per 8x8 tile) is dilated and compacted into an active-tile list driving `vkCmdDispatchIndirect`, so spread cost scales with smoke coverage rather than texture size — empty ocean costs nothing.
 
-The simulation shares wind's dynamic world-area (`f4SmokeArea` / `f4PreviousSmokeArea`) with non-square aspect, so smoke textures use independent X/Y tile counts.
+## Architecture: Recorded Frame Order
 
-## Architecture: Two Asymmetric Spread Passes
+Pass B records before pass A; each frame runs dilate → B → dilate-remap → A → deposit → consumers:
 
-Pass A imports from the *previous* frame: at each output tile it reconstructs world position from current `f4SmokeArea`, then remaps to the previous-frame texcoord via `f4PreviousSmokeArea` so sampling survives camera translation and zoom. Pass B refines pass A's output *within the current frame* — input texcoord equals output texcoord, no cross-frame remap.
+1. **Pass B** (`SmokeSpreadTwo.comp`, pipeline SmokeSpreadComputeB) reads TextureOne — the previous frame's pass A output plus deposits, still in previous-area coordinates — at the same UV (no remap) and writes TextureTwo.
+2. **Pass A** (`SmokeSpreadOne.comp`, pipeline SmokeSpreadComputeA) reads TextureTwo and performs the frame's single coordinate remap (previous area → current area), so the field survives camera translation and zoom; writes TextureOne.
+3. **Deposit** (`Smoke.frag`, Main command buffer, paired with the Quads vertex shaders) adds fresh smoke into TextureOne and seeds occupancy before the consumer passes, so consumers see same-frame deposits.
 
-This asymmetry forces **two distinct occupancy-dilate passes**, one before each spread:
+The one-sided remap forces two dilate variants, one before each spread:
 
-- **SmokeOccupancyDilateRemap.comp** runs before pass A. Because pass A samples a remapped (possibly zoomed) previous-frame location, the occupancy bit it must check lives at the remapped previous-area tile index, not the output tile. It computes that index per tile, then dilates by Manhattan distance 2. Without the remap, zoom drops smoke at edges where remap displacement exceeds the dilation radius.
-- **SmokeOccupancyDilate.comp** runs before pass B. Pass B's sample is a plain same-tile lookup, so this is a direct occupancy check at the output tile with Manhattan-2 dilation.
+- **SmokeOccupancyDilate.comp** (before B) - plain occupancy lookup at the output tile, 5x5 box dilation.
+- **SmokeOccupancyDilateRemap.comp** (before A) - remaps each output tile's center into the previous-area tile grid and checks occupancy there; without the remap, zoom drops smoke at edges where the displacement exceeds the dilation radius.
 
-Both compact the surviving active tile indices into the indirect dispatch buffer.
+Both compact surviving tile indices into the indirect dispatch buffer. The .comp header comments are the authoritative statement of this contract.
 
 ## Shaders
 
-- **Smoke.frag** - Deposits smoke density from per-object quads with rotation, intensity falloff (`pow`), and frame-rate-independent normalization (tuned against 60 Hz cadence). Seeds the occupancy buffer for deposited tiles.
-- **SmokeSpreadCommon.h** - Shared header for both spread passes. Wind influence uses two mechanisms: direct advection (shifts the base sampling coordinate in the wind direction for uniform fields) and noise-modulated displacement (scales displacement by wind noise amplitude for gradient fields). Adds swirl noise, then blends between wind-displaced and stationary smoke via a retention factor and applies a per-frame decay multiplier.
-- **SmokeSpreadOne.comp** - Pass A spread. Reads the tile index from the active tile list and does the previous-frame scale-aware remap described above. Per-workgroup shared-memory reduction marks the output tile in occupancy once per workgroup.
-- **SmokeSpreadTwo.comp** - Pass B spread (current-frame coords). Adds terrain-elevation-based decay, edge-of-area fade-out, and constant subtraction with threshold zeroing to eliminate lingering low-density smoke. Same shared-memory occupancy marking as pass A.
+- **Smoke.frag** - Deposits density from per-object quads with rotation, intensity falloff, and frame-rate-independent normalization (tuned against 60 Hz cadence). Clamps the falloff base to >= 0 before `pow` — interpolators can emit tiny negatives that would NaN.
+- **SmokeSpreadCommon.h** - Shared spread logic with input texcoord, output world position, and wind texcoord decoupled as separate parameters (what lets the area shift and zoom between frames). Wind influence is two-mechanism: direct advection (moves smoke even in uniform wind fields) plus noise-modulated displacement (variation in gradient fields), blended against stationary smoke by a retention factor, then decayed. The rescaled wind X is negated — additive UV sampling reverses direction while Y cancels against the inverted texcoord Y; easy to "fix" incorrectly.
+- **SmokeSpreadOne.comp / SmokeSpreadTwo.comp** - One workgroup per 8x8 tile from the active-tile list; a shared-memory reduction re-marks output-tile occupancy once per workgroup. The passes use distinct noise textures and scales. Pass B adds terrain-elevation decay (samples the shared elevation prepass), edge-of-area fade, and constant subtraction with threshold zeroing so faint smoke dies — load-bearing for the hierarchical culling, since lingering nonzero texels would keep tiles occupied forever.
 
 ## See Also
 
-- [../CLAUDE.md](../CLAUDE.md) - Parent shader directory overview
-- [../Wind/CLAUDE.md](../Wind/CLAUDE.md) - Wind velocity field that drives smoke displacement
+- [../CLAUDE.md](../CLAUDE.md) - Shared includes and shader-wide conventions
+- [../Wind/CLAUDE.md](../Wind/CLAUDE.md) - Wind velocity field that drives smoke displacement; reads smoke's world-area

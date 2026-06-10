@@ -2,11 +2,11 @@
 
 ## Overview
 
-Client-side networking: connection lifecycle, server data ingestion, rollback-and-replay reconciliation, and desync detection/recovery. Owned by `ClientSession` via `unique_ptr`. Client-only (`BT_CLIENT`).
+Client-side networking: connection lifecycle, server data ingestion, rollback-and-replay reconciliation, and desync detection/recovery. Three managers owned by `ClientSession` via `unique_ptr`; driven once per frame by `engine::GameBase::ClientUpdate()` through the `game::gpClientSession` global (Poll → UpdateSubscriptions → Reconcile). Client-only (`BT_CLIENT`).
 
 ## Key Classes
 
-- **ClientSession** - Top-level orchestrator inheriting `engine::ClientSessionBase`. Drives connection, server-load reset, clock correction/snap, queue-based subscriptions, and game-packet sends. Delegates to three owned managers below. Subscription bookkeeping lives in `ClientSessionSubscriptions.cpp`.
+- **ClientSession** - Top-level orchestrator inheriting `engine::ClientSessionBase`. Drives connection, server-load reset, clock correction/snap, queue-based subscriptions, game-packet sends, and decode of the server timescale broadcast. Delegates to three owned managers below. Subscription bookkeeping lives in `ClientSessionSubscriptions.cpp`.
 - **ClientDataReceiver** - Applies incoming static data, full states, and per-tick updates into `CoordFrames`. Static-data application also drives lazy island-texture acquisition: each placement triggers a per-CRC texture-slot mint so terrain GPU residency follows subscription arrivals.
 - **ClientReconciler** - Single-pass per `ClientUpdate()`. Per-coord work runs in parallel via `common::gpMultithreading` on `CoordFrames` entries directly (no marshaling layer); merge of profiling, first-wins desync, and visual-error offset runs on the main thread post-dispatch.
 - **ClientDesyncManager** - Desync detection, debug-frame capture, resync coordination, and frequency-based escalation to disconnect.
@@ -30,6 +30,7 @@ Client-side networking: connection lifecycle, server data ingestion, rollback-an
 
 - **No cross-coord writes during dispatch**: per-coord workers touch only their own `CoordFrames` entry; first-wins desync selection and flag aggregation run on the main thread post-dispatch. The lone cross-coord read (transfer migration matching the client player against a destination coord's result) runs single-threaded in `ReconcileReplayClientState.cpp` after the merge. Per-frame `mWorks` grows via `resize()` (never per-frame `clear()`) so each `CoordScratch::replayStack` retains allocated capacity across `Run()` calls.
 - **Validated ticks are frozen**: a tick at or below `iHighWaterValidatedTick` (client CRC matched the server) must never re-simulate; re-sim attempts trip `DEBUG_BREAK()`. Full replay also `DEBUG_BREAK()`s if it would repeat identical work (unchanged `iConfirmedTick` + `serverUpdates` count, no pending full state).
+- Transfer `StatusChange`s apply *after* each tick (matching server Destroy/Spawn ordering); when transfers occurred, the frame CRC is recomputed — required for fast-path matching.
 - **Stalled short-circuit**: while a debug frame is outstanding, poll/reconcile return early.
 - High-frequency logs (mismatch, throttle, clock error, visual error) use hysteresis / cooldown / periodic emission, plus per-coord stuck-state dedup.
 

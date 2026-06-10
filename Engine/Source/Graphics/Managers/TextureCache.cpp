@@ -221,7 +221,7 @@ bool TextureCache::TryLoadCachedTexture(const std::filesystem::path& rCachePath,
 	fileStream.read(reinterpret_cast<char*>(&header), sizeof(TextureFileCacheHeader));
 
 	// Validate header (including source CRC if provided)
-	if (header.iMagic != TextureFileCacheHeader::kiMagic || header.iVersion != TextureFileCacheHeader::kiVersion || header.vkFormat != vkFormat || header.iWidth != iWidth || header.iHeight != iHeight || header.iMipLevels != iMipLevels || header.iArrayLayers != iArrayLayers || (sourceCrc != 0 && header.sourceCrc != sourceCrc))
+	if (!fileStream || header.iMagic != TextureFileCacheHeader::kiMagic || header.iVersion != TextureFileCacheHeader::kiVersion || header.vkFormat != vkFormat || header.iWidth != iWidth || header.iHeight != iHeight || header.iMipLevels != iMipLevels || header.iArrayLayers != iArrayLayers || (sourceCrc != 0 && header.sourceCrc != sourceCrc))
 	{
 		fileStream.close();
 		LOG(kGraphics, kWarning, "Invalid cache file {} (sourceCrc mismatch: cached={:#x} expected={:#x}), regenerating", rCachePath.string(), header.sourceCrc, sourceCrc);

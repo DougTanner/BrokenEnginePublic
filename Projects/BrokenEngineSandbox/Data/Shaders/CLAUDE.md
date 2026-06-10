@@ -1,10 +1,10 @@
 # Projects/BrokenEngineSandbox/Data/Shaders - Game Shader Layout Wrapper
 
-Project-level extension point for the engine's shader layout system. The sole file, `ShaderLayouts.h`, is the per-project wrapper every shader includes; it currently just forwards to the engine's `ShaderLayoutsBase.h` and adds nothing game-specific yet. Game-only shader constants or dual-language struct additions would go here, between the include and any future definitions.
+Project-level extension point for the engine's shader layout system. The sole file, `ShaderLayouts.h`, is the per-project wrapper every shader includes; it currently just forwards to the engine's `ShaderLayoutsBase.h` and adds nothing game-specific yet. Game-only shader constants or dual-language struct additions go after the include, so engine definitions are in scope.
 
 ## Why this indirection exists
 
-Every shader (engine and game) writes `#include "ShaderLayouts.h"`. The DataPacker passes both the engine and game `Data/Shaders` dirs as include roots, but only the game dir contains a file named `ShaderLayouts.h` (the engine ships `ShaderLayoutsBase.h`), so the unqualified include always resolves here regardless of include-search order. This wrapper then pulls in the engine base via a relative path. The seam lets the game inject layout extensions without forking engine shaders.
+Every shader (engine and game) writes `#include "ShaderLayouts.h"`. The DataPacker passes both the engine and game `Data/Shaders` dirs as include roots, but only the game dir contains a file named `ShaderLayouts.h` (the engine ships `ShaderLayoutsBase.h`), so the unqualified include always resolves here regardless of include-search order. This wrapper then pulls in the engine base via a relative path. C++ resolves the same way: the game `Data` dir is on the vcxproj include paths and the game precompiled header includes this file, so anything added here is visible to both GLSL and C++ with no extra wiring. The seam lets the game inject layout extensions without forking engine shaders.
 
 ## Invariants
 

@@ -31,10 +31,6 @@ import zlib
 
 LOG_DIR_DEFAULT = os.path.expandvars(r'%APPDATA%\QuadSpinner\Gaea\2.0\Logs')
 
-# Newtonsoft stack traces are massive and the leading exception line carries
-# everything we usually need. Default to first-line-only with --full available.
-FIRST_LINE_BYTES = 4096
-
 
 def decode_blob(b64: str) -> str:
     raw = base64.b64decode(b64)

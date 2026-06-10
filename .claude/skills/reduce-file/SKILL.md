@@ -1,9 +1,8 @@
 ---
 name: reduce-file
-description: Analyzes a C++ file that exceeds size guidelines and produces a plan for refactoring or splitting it into smaller files. Use when a .h/.cpp file exceeds 500-1000 lines. Invoked via /reduce-file or chained from /code-review.
+description: Analyzes a C++ file that exceeds size guidelines (500-1000 lines) and produces a structured plan for refactoring or splitting it into smaller files. Invoke when executing a plan that calls for reducing an oversized file (e.g., one pulled by /next-plan), or when the user runs /reduce-file. Do not run inline during the C++ Code Change Process — review findings route to a step-10 follow-up plan instead.
+argument-hint: <file-path>
 allowed-tools: [Read, Grep, Glob, Bash]
-disable-model-invocation: true
-user-invocable: true
 ---
 
 # Reduce File
@@ -14,7 +13,7 @@ Analyzes a C++ source file that exceeds the project's size guidelines (500-1000 
 
 - **Free functions / helpers**: Extract to `*Utils.h`/`*Utils.cpp` files. This is the lightest-weight option and should be considered first.
 - **Classes** (instance methods, member data): Each class gets its own `.h` and `.cpp` pair. The goal is to identify groups of data + behavior that form a natural class, then move that data and its methods into a new class that the original class delegates to.
-- **Structs with static methods** (e.g., SOA collections): Can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). The struct definition stays in one header; each `.cpp` file implements a subset of the static methods. **Important:** This applies ONLY to structs with static methods. Classes (with instance methods and member data) must NEVER be split across multiple `.cpp` files — use Option B (Extract New Classes) instead.
+- **Structs with static methods** (e.g., SOA collections): Can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). Static-method structs only — never split a class (instance methods, member data) across `.cpp` files, since that scatters the implementation without fixing the oversized class; use Option B (Extract New Classes) instead.
 
 ## Arguments
 
@@ -35,16 +34,11 @@ Count total lines and determine severity:
 
 Report the line count upfront.
 
-### 1.5. Consider Alternatives
+### 2. Consider Alternatives
 
-Before analyzing the file structure, ask the user:
-- Have they considered other approaches to reducing this file?
-- Are there constraints that favor one splitting strategy over others?
-- Is there a preferred direction (e.g., "I want to keep the core logic here and extract helpers")?
+Before mapping the file, ask the user whether they have other approaches in mind, constraints that favor one splitting strategy, or a preferred direction (e.g., "keep the core logic here and extract helpers") — align the analysis with their intent rather than assuming a direction.
 
-This ensures the analysis aligns with the user's intent rather than assuming a direction.
-
-### 2. Map the File Structure
+### 3. Map the File Structure
 
 Build a complete map of the file's contents. For each function/method/struct, record:
 - **Name** and line range (start-end)
@@ -57,7 +51,7 @@ Also identify:
 - **Constants and global definitions**
 - **Include directives**
 
-### 3. Identify Responsibilities
+### 4. Identify Responsibilities
 
 Group the functions into logical responsibilities based on:
 - **Naming patterns**: Methods with shared prefixes (e.g., `Reconcile*`, `*Server`)
@@ -71,7 +65,7 @@ For each responsibility group, calculate:
 - Key data types it operates on
 - **Which member variables** the group reads/writes (critical for identifying what data moves to the new class)
 
-### 4. Identify Shared Symbols
+### 5. Identify Shared Symbols
 
 Find symbols (functions, constants, structs) defined in this file that are used across multiple responsibility groups. These are the "seams" that need special handling during a split:
 - **Free functions in anonymous namespaces** called from multiple groups
@@ -80,13 +74,13 @@ Find symbols (functions, constants, structs) defined in this file that are used 
 
 For each shared symbol, note which groups use it and propose where it should live after the split (stay in original file, move to header, move to a specific new file).
 
-### 5. Analyze Dependencies
+### 6. Analyze Dependencies
 
 For each responsibility group, determine what includes it needs:
 - Which headers are required by the functions in that group?
 - Are there any circular dependencies that would complicate a split?
 
-### 6. Propose Options
+### 7. Propose Options
 
 Present options in priority order. Not all options apply to every file — include only those that are relevant.
 
@@ -135,7 +129,7 @@ Also state:
 - What remains in the original `.cpp` and its reduced line count
 - The `.h` file does not change (all methods remain declared there)
 
-### 7. Highlight Risks
+### 8. Highlight Risks
 
 Flag any complications:
 - Functions that straddle responsibility boundaries
@@ -145,7 +139,7 @@ Flag any complications:
 - Virtual method overrides that must stay together
 - Data that is tightly coupled across groups (hard to separate into distinct classes)
 
-### 8. Decision Document
+### 9. Decision Document
 
 Summarize the key decisions in the chosen option. Reference modules and responsibilities, not specific file paths (which become outdated):
 - **Modules affected**: Which logical modules change
@@ -154,6 +148,8 @@ Summarize the key decisions in the chosen option. Reference modules and responsi
 - **Out of scope**: What was considered but explicitly excluded from this refactoring
 
 ## Output Format
+
+Default template — adapt as needed and omit option sections that don't apply.
 
 ## File Analysis: `<filename>`
 

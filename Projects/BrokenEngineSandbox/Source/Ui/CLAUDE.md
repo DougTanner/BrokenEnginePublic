@@ -1,12 +1,19 @@
 # `/Projects/BrokenEngineSandbox/Source/Ui/` - Game UI
 
-Game-side ImGui HUD, menus, localization, and `game::`-scoped `engine::Wrapper` globals. Client-only. Extends [engine UI](../../../../Engine/Source/Ui/CLAUDE.md) — Wrapper invariants and tweaks-layout-ordering coupling are documented there and not repeated.
+Game-side localization and `game::`-scoped `engine::Wrapper` globals; ImGui screens live in [Screens](Screens/CLAUDE.md). Wrapper class invariants and tab slider-ordering rules are documented at the [engine UI hub](../../../../Engine/Source/Ui/CLAUDE.md) and not repeated here.
 
-## Game-specific notes
+## Localization
 
-- **Localization**: UTF-32 table (`Localization.h`), six languages. Per-string buffer is a hard **256-char cap**. `TranslatedString()` falls back to English when the selected translation is empty — a genuine game-layer behavior not present in the engine. UTF-8 encoding for menu screens lives in the [Screens](Screens/CLAUDE.md) child.
-- **Wrapper grouping**: Game wrappers are split per Tweaks tab into `HexShieldWrappers`, `LightingWrappers`, `ParticleWrappers`, `SmokeWrappers`, `SoundWrappers`, `WindDepositsWrappers` pairs. Each pair's declaration order must mirror its matching `Screens/TweaksScreen/TweaksScreen*.cpp` tab. The wrappers whose pointers are read by server-compiled frame collection / type-registration code (`ParticleWrappers`, `HexShieldWrappers`, `WindDepositsWrappers`) are in **both** vcxprojs; the rest are client-only by file inclusion. So any frame code reading a game-side wrapper must either stay on a client-only path or have its wrapper file added to the server vcxproj.
+- `Localization.h` is header-only (`inline` table and functions): UTF-32 strings, six languages, hard 256-char cap per string. `TranslatedString()` falls back to English when the selected translation is empty. UTF-8 conversion for ImGui lives in [Screens](Screens/CLAUDE.md).
+- `InitializeLocalization()` runs in the `Game` constructor on both builds and uppercases the whole table in place — the mixed-case literals are authoring-only; everything renders uppercase.
+- The live language selection (`geLanguage`) is not persisted via `ClientSettings`; it resets to English every launch.
+
+## Wrappers
+
+- One pair per Tweaks tab: `HexShieldWrappers`, `LightingWrappers`, `ParticleWrappers`, `SmokeWrappers`, `SoundWrappers`, `WindDepositsWrappers`. Exception: `LightingWrappers` feeds two Lighting Effects tabs (Visible + Lighting); its `.cpp` is sectioned per tab while the header interleaves per effect.
+- `Pch.h` includes `HexShieldWrappers.h` and `WindDepositsWrappers.h` before `Frame.h`/`Engine.h`, so engine/frame code sees those externs without local includes; consumers of the other four pairs include them explicitly.
+- **Client/server linkage**: `ParticleWrappers` and `WindDepositsWrappers` are in both vcxprojs because unguarded server-compiled frame code references their symbols (explosion-type registration, blaster spawn info). `HexShieldWrappers` is also in both, though only client code reads it (per-frame shader uniforms in engine `MainUniforms.cpp`). `LightingWrappers`/`SmokeWrappers`/`SoundWrappers` are client-only by vcxproj inclusion — every frame-code read of them sits inside `#if defined(BT_CLIENT)`. Frame code reading a game wrapper must stay on a client-only path or have its wrapper file added to the server vcxproj.
 
 ## See Also
 
-- [Screens/CLAUDE.md](Screens/CLAUDE.md)
+- [Screens/CLAUDE.md](Screens/CLAUDE.md) - Menus, HUD, TweaksScreen tabs

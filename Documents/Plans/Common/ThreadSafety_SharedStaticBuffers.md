@@ -6,9 +6,9 @@ Three sites in `common` share the same anti-pattern: a function formats into (or
 
 The three sites:
 
-1. **Log** (`Log.h:82-83`) — when `gpThreadLocal == nullptr` the `LOG` path falls back to `static char spcLogBuffer[kiLogBufferSize] {}`. The `std::format_to` fill (`Log.h:93`) happens *before* any lock; the `gLogMutex` is taken only later inside `LogWrite` (`Log.cpp:82`), so it covers emission, not formatting. Two ThreadLocal-less threads (early startup, OS/driver/COM/gamepad threads) racing here produce interleaved/garbage log lines.
+1. **Log** (`Log.h:82-83`) — when `gpThreadLocal == nullptr` the `LOG` path falls back to `static char spcLogBuffer[kiLogBufferSize] {}`. The `std::format_to_n` fill (`Log.h:95`) happens *before* any lock; the `gLogMutex` is taken only later inside `LogWrite` (`Log.cpp:78`), so it covers emission, not formatting. Two ThreadLocal-less threads (early startup, OS/driver/COM/gamepad threads) racing here produce interleaved/garbage log lines.
 
-2. **StackWalker** (`StackWalker.h:28`) — `LogStackWalker::OnCallstackEntry` calls `LOG(...)` on the crash/fault path. The process-wide vectored exception handler fires on *any* faulting thread, including ThreadLocal-less foreign threads, so this drives the same shared `spcLogBuffer` while other live threads may be logging normally — racing/garbling the very crash log meant to diagnose the fault. This is the **fault path**, which must stay heap-allocation-free.
+2. **StackWalker** (`StackWalker.h` — `LogStackWalker::Emit`, LOG at line 97) — `LogStackWalker::Emit` calls `LOG(...)` on the crash/fault path (the per-frame text is formatted into a local stack buffer in `FilteredStackWalker::OnCallstackEntry` and handed to `Emit`). The process-wide vectored exception handler fires on *any* faulting thread, including ThreadLocal-less foreign threads, so this drives the same shared `spcLogBuffer` while other live threads may be logging normally — racing/garbling the very crash log meant to diagnose the fault. This is the **fault path**, which must stay heap-allocation-free.
 
 3. **WindowsUtils** (`WindowsUtils.cpp:10`, `:17`) — `LastErrorString()` and `HresultToString()` each return a `std::string_view` over a function-local `static char spcReturn[MAX_PATH]` (verified symbol name). Concurrent callers race the buffer, and a returned view is silently overwritten by the next call (even single-threaded re-entry). Each function has its *own* static, so cross-function aliasing is not an issue; the intra-function multithread/re-entry race is.
 
@@ -32,13 +32,13 @@ static thread_local char spcLogBuffer[kiLogBufferSize] {};
 **Effort:** 1 (one-line storage-class change).
 
 ### Site 2 — StackWalker fault-path emit (Small)
-**File/symbol:** `Common/StackWalker.h:28` — `LOG(kDefault, kError, "{} | {} | {}", rEntry.name, rEntry.lineNumber, rEntry.lineFileName);` in `LogStackWalker::OnCallstackEntry`.
+**File/symbol:** `Common/StackWalker.h` — the `LOG(kDefault, kError, "{}", pcText);` in `LogStackWalker::Emit` (line 97). The per-frame text is formatted into a local stack buffer (`pcLine`) by `FilteredStackWalker::OnCallstackEntry` and passed to `Emit`.
 
-**Change:** Once Site 1 makes the `LOG` fallback `thread_local`, the `OnCallstackEntry` `LOG` is automatically race-free on ThreadLocal-less faulting threads — it no longer touches a shared static. No code change is required in `StackWalker.h` for the race itself; Site 1 fixes the shared mechanism that this site exercises.
+**Change:** Once Site 1 makes the `LOG` fallback `thread_local`, the `Emit` `LOG` is automatically race-free on ThreadLocal-less faulting threads — it no longer touches a shared static. No code change is required in `StackWalker.h` for the race itself; Site 1 fixes the shared mechanism that this site exercises.
 
-**Buffer strategy:** inherits the `static thread_local` fixed buffer from Site 1 — fault-path-appropriate (no heap allocation: `thread_local` POD array is statically allocated, `std::format_to` writes in place). The `OfstreamStackWalker::OnCallstackEntry` path (`StackWalker.h:64`) writes directly to `*mpOfstream` and never used the shared static, so it is already race-free with respect to *this* theme (its own DbgHelp-serialization concern is out of scope — see below).
+**Buffer strategy:** inherits the `static thread_local` fixed buffer from Site 1 — fault-path-appropriate (no heap allocation: `thread_local` POD array is statically allocated, `std::format_to` writes in place). The `OfstreamStackWalker::Emit` path writes directly to `*mpOfstream` and never used the shared static, so it is already race-free with respect to *this* theme. (The DbgHelp-serialization concern that `OnCallstackEntry`/`ShowCallstack` once raised is now handled in `FilteredStackWalker::ShowCallstack` via `gDbgHelpMutex` — see below.)
 
-**Action item:** Add a one-line comment at `StackWalker.h:28` noting the fault-path emit relies on the `thread_local` Log fallback for race-freedom on foreign threads, so a future change to Site 1 does not silently reintroduce the race.
+**Action item:** Add a one-line comment at the `LogStackWalker::Emit` `LOG` noting the fault-path emit relies on the `thread_local` Log fallback for race-freedom on foreign threads, so a future change to Site 1 does not silently reintroduce the race.
 
 **Effort:** 1 (comment only; correctness delivered by Site 1).
 
@@ -64,22 +64,22 @@ std::string LastErrorString()
 
 ## Critical files
 - `Common/Log/Log.h` — Site 1 (`spcLogBuffer` at line 82). Primary fix; also the shared mechanism Site 2 depends on.
-- `Common/Log/Log.cpp` — read-only context (confirms `gLogMutex` covers emission only, `LogWrite` at line 80); no change expected.
-- `Common/StackWalker.h` — Site 2 (`OnCallstackEntry` LOG at line 28); comment-only change.
+- `Common/Log/Log.cpp` — read-only context (confirms `gLogMutex` covers emission only, `LogWrite` at line 76, lock at line 78); no change expected.
+- `Common/StackWalker.h` — Site 2 (`LogStackWalker::Emit` LOG, line 97; per-frame text formatted by `FilteredStackWalker::OnCallstackEntry`); comment-only change.
 - `Common/WindowsUtils.h` — Site 3 declarations + doc comments (lines 6-19).
 - `Common/WindowsUtils.cpp` — Site 3 implementations (`LastErrorString` 6-11, `HresultToString` 13-18).
 
 ## Out of scope
-- **Log's unbounded `std::format_to` overrun** into the fixed `kiLogBufferSize` buffer (Log.md C1) — separate bug owned by the per-file `Log.md` plan. This theme owns only the shared-static-buffer **race**, not the bounds problem. (Note: that overrun affects both the `thread_local` fallback and the per-thread `mpLogBuffer`; it is orthogonal to who owns the buffer.)
-- **Log ring-buffer write-vs-dump race**, `LogPrefix` thread-id digit overrun, `strlen` recompute, `LogIndent` null-deref (Log.md H2/H3/H4/M3) — per-file `Log.md` plan.
-- **StackWalker DbgHelp serialization** (CrashReport.cpp drives DbgHelp unlocked), `lineNumber > 0` frame filtering, `OnDbgHelpErr` silent swallow, `LogStackWalker`/`OfstreamStackWalker` DRY duplication, fault-path `malloc` / stack-overflow re-fault (StackWalker.md H2/M1/M2/M3/L4/L5) — per-file `StackWalker.md` plan and follow-ups; not shared-static-buffer concerns.
-- **WindowsUtils HANDLE/attribute-list leak on throw** (`RunExecutable`), **`FileTimeString` `FILETIME` reinterpret_cast**, ignored `CreateProcessW`/`WaitForSingleObject` returns, CRLF trailing trim, `HresultToString` naming/DRY (WindowsUtils.md H1/H2/M1/M2/M4/M5) — per-file `WindowsUtils.md` plan. This theme touches only the `static`-buffer race in `LastErrorString`/`HresultToString`.
+- **Log's `std::format_to` overrun** into the fixed `kiLogBufferSize` buffer (Log.md C1) — was owned by the per-file `Log.md` plan, which landed and was removed (the write is now bounded `std::format_to_n`, `Log.h:95`). This theme owns only the shared-static-buffer **race**, not the bounds problem.
+- **Log ring-buffer write-vs-dump race**, `LogPrefix` thread-id digit overrun, `strlen` recompute, `LogIndent` null-deref (Log.md H2/H3/H4/M3) — were owned by the per-file `Log.md` plan (landed and removed: the `LogIndent` null-deref is guarded and the `strlen` recompute is gone; any item that survived has no live plan — re-author if wanted).
+- **StackWalker DbgHelp serialization**, `lineNumber > 0` frame filtering, `OnDbgHelpErr` silent swallow, `LogStackWalker`/`OfstreamStackWalker` DRY duplication, fault-path `malloc` / stack-overflow re-fault (StackWalker.md H2/M1/M2/M3/L4/L5) — per-file `StackWalker.md` plan and follow-ups; not shared-static-buffer concerns. (Several have since landed: both walkers now share a `FilteredStackWalker` base whose `ShowCallstack` serializes on `gDbgHelpMutex`, `OnCallstackEntry` emits named frames in offset form instead of dropping non-`lineNumber > 0` entries, and `OnDbgHelpErr` filters line-lookup noise rather than being empty — see `Common/StackWalker.h`.)
+- **WindowsUtils HANDLE/attribute-list leak on throw** (`RunExecutable`), **`FileTimeString` `FILETIME` reinterpret_cast**, ignored `CreateProcessW`/`WaitForSingleObject` returns, CRLF trailing trim, `HresultToString` naming/DRY (WindowsUtils.md H1/H2/M1/M2/M4/M5) — were owned by the per-file `WindowsUtils.md` plan (landed and removed: `RunExecutable` now uses `ScopedHandle` RAII and `FileTimeString` rebuilds the `FILETIME` from its tick count; the minor M-items either landed or have no live plan). This theme touches only the `static`-buffer race in `LastErrorString`/`HresultToString`.
 
 ## Acceptance criteria
 - No shared mutable `static` char buffer remains on the Log fallback path, the StackWalker fault path, or the WindowsUtils error-string path.
 - Two ThreadLocal-less threads logging concurrently no longer interleave/garble into a shared array (each has private `thread_local` scratch).
 - `LastErrorString()` / `HresultToString()` return owned strings; no returned reference/view can be overwritten by a concurrent or subsequent call.
-- The crash/fault emit path remains **allocation-free**: StackWalker's `OnCallstackEntry` formats into a statically-allocated `thread_local` buffer, with no heap touch (safe under `STATUS_HEAP_CORRUPTION` / `EXCEPTION_STACK_OVERFLOW`).
+- The crash/fault emit path remains **allocation-free**: StackWalker's `OnCallstackEntry` formats into a local stack buffer (`pcLine`), and `Emit`'s LOG writes through the statically-allocated `thread_local` Log fallback, with no heap touch (safe under `STATUS_HEAP_CORRUPTION` / `EXCEPTION_STACK_OVERFLOW`).
 - All call sites of the changed WindowsUtils helpers compile against the new `std::string` return.
 
 ## Notes

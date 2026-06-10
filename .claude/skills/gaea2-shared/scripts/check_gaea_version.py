@@ -43,12 +43,12 @@ def version_from_latest_log():
     latest = max(logs, key=os.path.getmtime)
     try:
         with open(latest, 'r', encoding='utf-8', errors='replace') as f:
-            for line in f:
+            for line_number, line in enumerate(f):
                 # Both general logs and SWARM logs emit this line near the top.
                 m = re.search(r'\bINF Version\s+(\S+)', line)
                 if m:
                     return m.group(1)
-                if line.count('\n') > 50:  # stop scanning if it's not in the header
+                if line_number >= 50:  # version line lives in the header; give up past it
                     break
     except OSError:
         return None
@@ -66,6 +66,10 @@ def version_from_exe():
     except (subprocess.SubprocessError, OSError):
         return None
     out = (result.stdout or '').strip()
+    # ProductVersion carries "+<commit-hash>" build metadata (e.g. "2.3.0.1+7ce15a..."),
+    # the log-derived version does not. Strip it so the two sources agree and a
+    # fallback probe can't fake a version change against a log-seeded cache.
+    out = out.split('+', 1)[0]
     return out or None
 
 

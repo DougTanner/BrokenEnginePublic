@@ -1,29 +1,27 @@
 ---
 name: external-skill-creator
-description: Create new skills and improve existing skills following best practices. Use when users want to create a skill from scratch, edit or revise an existing skill, review a skill for quality, or need guidance on skill structure, frontmatter, descriptions, writing patterns, or progressive disclosure. Invoked via /external-skill-creator or chained from skills that need to author/audit a sibling skill.
+description: Create new skills and improve existing skills following best practices. Use when users want to create a skill from scratch, edit or revise an existing skill, review a skill for quality, or need guidance on skill structure, frontmatter, descriptions, writing patterns, or progressive disclosure. User-invoked via /external-skill-creator (the disable-model-invocation flag means Claude cannot invoke or chain to this skill).
 allowed-tools: [Read, Write, Edit, Glob, Grep, Agent]
 disable-model-invocation: true
 ---
 
 # Skill Creator
 
-A guide for creating and improving Claude Code skills following best practices.
-
-Your job is to help the user create or improve a skill. Understand what they want the skill to do, then draft or revise the SKILL.md following the best practices below. Be flexible — some users want to iterate collaboratively, others just want a quick draft.
+Help the user create or improve a skill: understand what it should do, then draft or revise SKILL.md following the practices below. Be flexible — some users iterate collaboratively, others want a quick draft.
 
 ## Repo Conventions (Broken Engine)
 
 Sibling skills in this repo follow these conventions — match them when creating a new skill:
 
-- **`external-` prefix** marks explicit-invocation-only skills (e.g., `external-grill-plan`, `external-design-interface`, `external-deep-analysis`). These **must** set `disable-model-invocation: true` in frontmatter — a description-level guard like "Only invoke when the user explicitly requests it" is *not* sufficient on its own (the description still loads into the auto-trigger listing and burns context budget). The same applies to user-only skills without the prefix (e.g., `gaea2-load`, `reduce-file`). Unprefixed proactive skills (e.g., `add-collection`, `code-review`, `compile`) auto-trigger on matching contexts.
+- **`external-` prefix** marks explicit-invocation skills (e.g., `external-grill-plan`, `external-design-interface`, `external-deep-analysis`). Most set `disable-model-invocation: true`, but the flag removes the skill from Claude's reach entirely (no auto-trigger, no Skill tool) — set it only when nothing, neither a documented workflow step nor Claude itself, needs programmatic invocation. Two intentional exceptions: `external-grill-plan` (the main agent invokes it as step 1 of the CLAUDE.md C++ Code Change Process) and `external-design-interface` (proactively suggests itself, which requires staying in the listing). User-only skills without the prefix (e.g., `gaea2-load`, `next-plan`) follow the same rule. Unprefixed proactive skills (e.g., `add-collection`, `repo-code-review`, `compile`) auto-trigger on matching contexts.
 - **Directory layout**: each skill lives at `.claude/skills/<name>/SKILL.md` with optional `references/`, `scripts/`, `assets/` sidecars.
-- **Frontmatter style**: `allowed-tools:` uses YAML array syntax `[Read, Edit, Write]` in this repo (the skill schema also accepts space-separated strings, but the repo is consistent on arrays).
+- **Frontmatter style**: `allowed-tools:` uses YAML array syntax `[Read, Edit, Write]` in this repo (the skill schema also accepts space- or comma-separated strings, but the repo is consistent on arrays).
 
 ## Creating a Skill
 
 ### Capture Intent
 
-Start by understanding the user's intent. The current conversation might already contain a workflow the user wants to capture (e.g., they say "turn this into a skill"). If so, extract answers from the conversation history first — the tools used, the sequence of steps, corrections the user made, input/output formats observed. The user may need to fill the gaps, and should confirm before proceeding to the next step.
+The current conversation might already contain the workflow to capture (e.g., the user says "turn this into a skill"). If so, extract answers from the history first — tools used, step sequence, corrections the user made, input/output formats — then have the user fill gaps and confirm. Either way, establish:
 
 1. What should this skill enable Claude to do?
 2. When should this skill trigger? (what user phrases/contexts)
@@ -41,7 +39,7 @@ Based on the user interview, fill in these components:
 
 - **name** *(optional)*: Skill identifier. Defaults to the directory name if omitted. Lowercase letters, digits, hyphens; max 64 characters
 - **description**: What the skill does and when to use it (see Description Best Practices below)
-- **Optional behavior fields**: `when_to_use`, `disable-model-invocation`, `user-invocable`, `allowed-tools`, `paths`, `argument-hint`, `context` + `agent`, `model`, `effort`, `hooks`, `shell` (see Frontmatter Reference below)
+- **Optional behavior fields**: `when_to_use`, `disable-model-invocation`, `user-invocable`, `allowed-tools`, `disallowed-tools`, `paths`, `argument-hint`, `arguments`, `context` + `agent`, `model`, `effort`, `hooks`, `shell` (see Frontmatter Reference below)
 - **the body**: The actual skill instructions
 
 ---
@@ -70,17 +68,17 @@ All fields are optional. Only `description` is recommended so Claude can decide 
 
 **Core fields**
 - `name`: Display name. Lowercase letters, digits, hyphens; max 64 chars. If omitted, the directory name is used.
-- `description`: What the skill does and when to use it. Combined with `when_to_use`, truncated at **1,536 characters** in the skill listing. Front-load the key use case.
+- `description`: What the skill does and when to use it. Max 1,024 chars (API validation); combined with `when_to_use`, truncated at **1,536 characters** in the skill listing. Front-load the key use case.
 - `when_to_use`: Additional trigger phrases or example requests. Appended to `description` in the listing; shares the 1,536-char cap.
 
 **Invocation control**
-- `disable-model-invocation: true` — Claude cannot auto-invoke; only the user can trigger with `/name` (chained programmatic invocation from another skill still works). Use for workflows with side effects (commits, deploys) or that must be user-initiated. When set, the description is **not loaded into context** — the budget cost is zero, so you can keep a long, human-readable description for `/help` and source-tree readers without competing for the per-session description budget.
+- `disable-model-invocation: true` — Claude cannot invoke the skill at all (no auto-trigger, no Skill tool, no chaining from another skill); only the user can trigger it with `/name`. Also prevents preloading into subagents. Use for workflows with side effects (commits, deploys) or that must be user-initiated. When set, the description is **not loaded into context** — zero budget cost, so a long, human-readable description for `/help` and source-tree readers is free.
 - `user-invocable: false` — hide from the `/` menu. Use for background-knowledge skills Claude should load automatically but users shouldn't type by hand. **Note**: this controls menu visibility only, not Skill-tool access — Claude can still invoke the skill programmatically. To block programmatic invocation, use `disable-model-invocation: true`.
 - `paths`: Comma-separated string or YAML list of glob patterns. When set, Claude auto-loads the skill only when working with matching files.
 - `argument-hint`: Autocomplete hint, e.g. `[issue-number]`.
 
 **Execution environment**
-- `allowed-tools`: **Space-separated string** or YAML list. Grants per-use approval for the listed tools while the skill is active. Supports fine-grained rules like `Bash(git add *)`.
+- `allowed-tools`: Space- or comma-separated string, or YAML list. Grants per-use approval for the listed tools while the skill is active (does not restrict other tools). Supports fine-grained rules like `Bash(git add *)`. `disallowed-tools` is the inverse.
 - `context: fork` — run the skill in a forked subagent. Pair with `agent: Explore | Plan | general-purpose | <custom>`.
 - `model`: Override the session model for this skill.
 - `effort`: `low | medium | high | xhigh | max` (available levels depend on model).
@@ -90,10 +88,12 @@ All fields are optional. Only `description` is recommended so Claude can decide 
 **String substitutions** (used inside the markdown body)
 - `$ARGUMENTS` — the full argument string as typed. If the body omits `$ARGUMENTS` but the skill is invoked with arguments, Claude Code appends `ARGUMENTS: <value>` to the end of the skill content automatically, so user input is never silently dropped.
 - `$ARGUMENTS[N]` or `$N` — positional argument by 0-based index (shell-quoted, so wrap multi-word values in quotes)
+- `$name` — named positional arguments, when declared via the `arguments:` frontmatter field
 - `${CLAUDE_SESSION_ID}` — current session ID
 - `${CLAUDE_SKILL_DIR}` — directory containing the skill's SKILL.md (for referencing bundled scripts)
+- `${CLAUDE_EFFORT}` — current effort level
 
-**Inline shell execution** — a backtick-bang-command-backtick span (backtick, `!`, command, backtick) runs before Claude sees the prompt; the output replaces the placeholder. Use for injecting live data (PR diffs, git status, environment info). A multi-line form also exists: open a fenced block whose info-string is just `!` (three backticks immediately followed by `!`), put commands inside, and close with three backticks. This behavior can be disabled at the policy level by setting `"disableSkillShellExecution": true` in settings — when set, each command is replaced with `[shell command execution disabled by policy]` instead of running. Most useful in managed settings where users can't override it.
+**Inline shell execution** — a backtick-bang-command-backtick span (backtick, `!`, command, backtick) runs before Claude sees the prompt; the output replaces the placeholder. Use for injecting live data (PR diffs, git status, environment info). A multi-line form also exists: a fenced block whose info-string is just `!` (three backticks immediately followed by `!`). The policy setting `"disableSkillShellExecution": true` (typically managed settings) replaces each command with a disabled-by-policy notice instead of running it.
 
 > Note: do **not** include a literal backtick-backtick-backtick-bang sequence inside a SKILL.md (even quoted inside a code span) — the harness's shell-injection parser will match it before markdown parsing runs, try to execute the rest of the file as a shell block, and abort the skill load. Describe the syntax in prose instead of pasting it.
 
@@ -103,12 +103,12 @@ All fields are optional. Only `description` is recommended so Claude can decide 
 
 Skills use a three-level loading system:
 1. **Metadata** (name + description) - Always in context (~100 words)
-2. **SKILL.md body** - In context whenever skill triggers (<500 lines ideal)
+2. **SKILL.md body** - Loads on invocation and **stays in context for the rest of the session** — every line is a recurring token cost (<500 lines ideal)
 3. **Bundled resources** - Loaded as needed (unlimited size; scripts can execute without being loaded into context)
 
 **Key patterns:**
-- Keep SKILL.md under 500 lines; if approaching this limit, move detail into reference files with clear pointers about when to read them
-- For large reference files (>300 lines), include a table of contents
+- If approaching the 500-line limit, move detail into reference files with clear pointers about when to read them
+- For reference files longer than 100 lines, include a table of contents
 
 **Domain organization**: When a skill supports multiple domains/frameworks, organize by variant:
 ```
@@ -125,7 +125,7 @@ Claude reads only the relevant reference file.
 
 ## Description Best Practices
 
-The description field is the primary mechanism that determines whether Claude invokes a skill. It appears in Claude's `available_skills` list, and Claude decides whether to consult a skill based solely on the name and description.
+Claude decides whether to consult a skill based solely on the name and description in its skill listing — the description is the entire discovery surface.
 
 **Key principles:**
 - Include both what the skill does AND specific contexts for when to use it
@@ -143,11 +143,7 @@ The description field is the primary mechanism that determines whether Claude in
 - Aim for 100-200 words — concise but comprehensive.
 - If trigger phrases are long or numerous, move them into `when_to_use` so the primary `description` stays scannable.
 
-**Prefer the frontmatter mechanism over prompt-level guards.** If a skill should only be invoked manually, set `disable-model-invocation: true` in frontmatter — this is a hard guarantee, not a prompt hedge. Description language like "Never trigger autonomously" is **not a substitute**: the description still loads, still consumes the per-session budget, and Claude can still match against it. Treat the two as decoupled: the flag controls invocation, the description is for human readers.
-
-A frequent misconfiguration in this repo's history was descriptions that self-declared manual-only ("Only invoke when the user explicitly requests it") without the flag set — wasting context budget and failing to guarantee non-invocation. When auditing or revising, treat that combination as a Critical finding.
-
-The natural-language-discovery loss is real but usually intentional: skills that genuinely need to be user-invoked (because they have side effects, are expensive, or must be explicit) shouldn't be auto-triggered by phrase-matching anyway. If you find yourself wanting both auto-trigger AND manual-only behavior, the requirement is contradictory — pick one.
+**Prefer the frontmatter flag over prompt-level guards.** For manual-only skills, set `disable-model-invocation: true` — a hard guarantee, not a prompt hedge. Description language like "Never trigger autonomously" is **not a substitute**: the description still loads, still consumes the per-session budget, and Claude can still match against it. A description that self-declares manual-only without the flag is a Critical finding when auditing (a frequent misconfiguration in this repo's history). Conversely, if anything needs Claude to invoke the skill — a documented process step, proactive self-suggestion, chaining — the flag cannot be set; wanting both auto-trigger and manual-only is contradictory, so pick one and make the description match.
 
 **Triggering behavior:** Claude only consults skills for tasks it can't easily handle on its own. Simple, one-step queries may not trigger a skill even if the description matches perfectly. Complex, multi-step, or specialized queries reliably trigger skills when the description matches.
 
@@ -192,9 +188,8 @@ If you notice the model would repeatedly need to write the same helper script wh
 When revising a skill:
 
 1. **Generalize, don't overfit.** Skills get used across many different prompts. Rather than adding fiddly constraints for specific cases, try different metaphors or patterns of working.
-2. **Keep the prompt lean.** Remove instructions that aren't pulling their weight or that cause unproductive work.
-3. **Explain the why.** Transmit understanding of *why* something matters into the instructions, rather than rigid rules.
-4. **Preserve the original name.** Keep the directory name and `name` frontmatter field unchanged when updating.
+2. **Re-apply the Style rules above** with fresh eyes — lean prompt, explained whys, imperative form.
+3. **Preserve the original name.** Keep the directory name and `name` frontmatter field unchanged when updating.
 
 ### Audit Checklist
 
@@ -206,12 +201,12 @@ When the user asks to review, audit, or evaluate an existing skill, walk this ch
 - Combined `description:` + `when_to_use:` ≤1,536 chars (truncation point in the skill listing)
 - `description:` includes both *what* the skill does AND *when* to trigger it, with the key use case front-loaded
 - Trigger phrases are present — either inline in `description:` or split into `when_to_use:`
-- `allowed-tools:` uses **space-separated** string (not commas) or YAML list; declared when the skill calls specific tools
+- `allowed-tools:` is a space- or comma-separated string or YAML list — this repo standardizes on YAML arrays (`[Read, Edit]`); declared when the skill calls specific tools, with no broad grants the body never uses
 - No stale fields: `compatibility`, `license`, `metadata` are not part of the current schema — remove if present
 
 **Invocation discipline**
 - If the skill must be manual-only, `disable-model-invocation: true` is set in frontmatter — this is the only hard guarantee
-- **Misalignment check (Critical)**: if `description:` self-declares manual-only ("Only invoke when the user explicitly requests it", "Never trigger autonomously", "/external-…"), `disable-model-invocation: true` **must** also be set. Description-only guards waste the per-session budget *and* fail to actually prevent auto-invocation. Search the listing for skills whose description claims manual-only but lack the flag — that is a bug, not a stylistic choice
+- **Misalignment check (Critical)**: a `description:` that self-declares manual-only ("Only invoke when the user explicitly requests it", "Never trigger autonomously") without the flag is a bug, not a stylistic choice — description-only guards waste the per-session budget *and* fail to prevent auto-invocation. Resolve in the right direction: set the flag if nothing needs Claude to invoke the skill; if something does (workflow step, proactive suggestion, chaining), rewrite the description instead — see Repo Conventions for the two exceptions
 - If the skill is proactive, description uses pushy language ("ALSO use proactively when…") with concrete detection cues
 - If the skill should scope to specific file types, `paths:` globs are set rather than relying on description matching
 - `user-invocable: false` is set only for background-knowledge skills the user shouldn't type directly (note: this controls `/` menu visibility, not Skill-tool access — use `disable-model-invocation: true` to actually block model invocation)
@@ -226,7 +221,7 @@ When the user asks to review, audit, or evaluate an existing skill, walk this ch
 **Progressive disclosure**
 - Metadata (name + description) conveys purpose without loading the body
 - Bundled resources (`scripts/`, `references/`, `assets/`) used when content is large, repetitive, or rarely needed
-- Reference files >300 lines include a table of contents
+- Reference files >100 lines include a table of contents
 
 **Project fit**
 - Matches conventions of sibling skills in the same repo (naming prefix, subagent model, tool usage)

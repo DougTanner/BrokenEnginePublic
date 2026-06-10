@@ -57,7 +57,7 @@ Counterpart: `Documents/Plans/Order.md` holds refactor/bugfix plans. See `Docume
 
 ### Cross-directory dependencies (plans in `Documents/Plans/`)
 
-- `Graphics/ocean-phase-{1,2,3,4,5,6,7}` touch `Water.frag`, which is also touched by the defensive-fix plan `Documents/Plans/Graphics/ShaderReview/02_Water.md`. Land `02_Water.md` first so ocean-phase diffs focus on new shading terms rather than rebasing onto defensive cleanups.
+- `Graphics/ocean-phase-{1,2,3,4,5,6,7}` touch `Water.frag`. The Water defensive-fix plan (`Documents/Plans/Graphics/ShaderReview/02_Water.md`) that previously gated them no longer exists, and its key guards (weighted-sum `normalize`, `pow`-skip, grazing-divide clamp) are already in `Water.frag` — no ordering constraint remains.
 - **Per-frame multi-island system (5 phases, chained):** all 5 phases **LANDED**. Phase 5 (LRU eviction + dynamic subscription-driven loading + neutral slot-0 placeholder) landed in this session; see `Engine/Source/Frame/CLAUDE.md` for the current architecture description.
 
 ## File Groups

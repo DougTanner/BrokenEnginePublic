@@ -1,13 +1,13 @@
 ---
 name: external-architecture-review
-description: Performs a multi-perspective architectural review of a codebase area, focusing on *shape* concerns — dependency structure, deep-modules (Ousterhout), coupling/cohesion, determinism, frame-phase and thread-model alignment, shader-CPU consistency, and ThirdParty library-replacement opportunities. Line-level concerns (complexity, hot-path allocations, bool→Flags, file size) belong to `/external-refactor-clean`, which this skill hands off to. Only invoke when the user explicitly requests it (e.g., "/external-architecture-review", "run an architecture review") or when another skill explicitly instructs it. Never trigger autonomously from general code questions or during routine code changes.
+description: Performs a multi-perspective architectural review of a codebase area, focusing on *shape* concerns — dependency structure, module depth (Ousterhout), coupling/cohesion, determinism, frame-phase and thread-model alignment, shader-CPU consistency, and ThirdParty library-replacement opportunities. Line-level concerns (complexity, hot-path allocations, bool→Flags, file size) belong to `/external-refactor-clean`, which this skill hands off to. Only invoke when the user explicitly requests it (e.g., "/external-architecture-review", "run an architecture review") or when another skill explicitly instructs it. Never trigger autonomously from general code questions or during routine code changes.
 disable-model-invocation: true
 allowed-tools: [Read, Grep, Glob, Agent]
 ---
 
 # Architecture Review
 
-Performs an architectural review of a specified codebase area using parallel analysis agents. Designed for a C++23 data-oriented Vulkan game engine with Common → Engine → Projects layering. Applies the "deep modules" lens (John Ousterhout): a well-designed module has a small interface hiding significant complexity. Shallow modules (large interface, thin implementation) are a code smell.
+Performs an architectural review of a specified codebase area using parallel analysis agents. Designed for a C++23 data-oriented Vulkan game engine with Common → Engine → Projects layering. Applies Ousterhout's deep-modules lens throughout: small interface hiding significant complexity is good; shallow modules are a smell.
 
 **Scope boundary:** This skill owns shape. It does NOT flag function length, nesting depth, hot-path heap allocations, bool-proliferation, or `#ifdef` width — those are line-level concerns owned by `/external-refactor-clean`. If the review surfaces line-level issues during exploration, note them briefly and recommend running `/external-refactor-clean` for depth.
 
@@ -21,13 +21,13 @@ The user provides a target path (file or directory) to review. If no path is giv
 
 ### 1. Launch Parallel Analysis Agents
 
-Use the Agent tool to launch three subagents in parallel (`subagent_type: "Explore"`, `model: "opus"`). Each agent receives the target path (and any recursion constraint) and produces a focused report.
+Use the Agent tool to launch three subagents in parallel (`subagent_type: "Explore"`, `model: "fable"`; if `Explore` is unavailable, fall back to `subagent_type: "general-purpose"` with the explorer role stated at the top of the prompt). Each agent receives the target path (and any recursion constraint) and produces a focused report.
 
 #### Agent A: Dependency Structure (subagent_type: Explore)
 
 Prompt the agent to:
 - Map `#include` dependencies for all `.h` and `.cpp` files in the target area
-- Identify headers included but not used (no symbols referenced) — note count; details go to `/external-refactor-clean`
+- Identify headers included but not used (no symbols referenced) — include the count and file list in this review's report
 - Flag transitive includes that should be made direct
 - Detect circular or near-circular include chains
 - Check that `Common/ExternalHeaders.h` is used for standard library headers (not individual files)
@@ -55,7 +55,7 @@ Prompt the agent to evaluate:
 
 Goal: identify cohesive in-house code that could be deleted in favor of a permissively-licensed library dropped into `/ThirdParty/` — benefits are codebase shrinkage and access to a battle-tested implementation.
 
-Before scanning, read `ThirdParty/CLAUDE.md` for the **License Policy** and list current `/ThirdParty/` subdirectories (skip suggesting anything already imported; do suggest extending coverage of an already-imported library when the in-house code overlaps it).
+Instruct the agent to first read `ThirdParty/CLAUDE.md` for the **License Policy** and list current `/ThirdParty/` subdirectories (skip suggesting anything already imported; do suggest extending coverage of an already-imported library when the in-house code overlaps it).
 
 Prompt the agent to:
 - Find cohesive code clusters (single file, file group, or small subsystem) that implement a well-known reusable problem with no engine-specific reason to be in-house. Typical candidates: data structures, parsers/serializers, compression, math primitives, container utilities, string/path helpers, hashing/CRC, file-format readers, image/audio decoding, geometry/mesh utilities.
@@ -75,11 +75,11 @@ Report per candidate:
 
 After all agents complete, read their reports and merge into a single architecture review. Deduplicate findings that appear in both agent reports. Cross-reference findings to identify systemic issues (e.g., a layer violation that also causes include-chain bloat).
 
-### 2.5. Synthesize Recommendation
+### 3. Synthesize Recommendation
 
 After deduplicating findings, provide an opinionated recommendation: what is the single most impactful architectural improvement? Be specific — name the modules, the proposed change, and why it matters most. The user wants a strong read, not just a list.
 
-### 3. Output Consolidated Report
+### 4. Output Consolidated Report
 
 ```
 ## Architecture Review: [target path]

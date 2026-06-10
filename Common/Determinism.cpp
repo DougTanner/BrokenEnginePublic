@@ -5,6 +5,8 @@ namespace common
 
 static std::mutex sMutex;
 
+std::recursive_mutex gDbgHelpMutex;
+
 void ConfigureThreadFloatingPoint()
 {
 	// Flush denormals for deterministic FP math across all threads

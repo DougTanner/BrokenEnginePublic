@@ -207,6 +207,22 @@ constexpr float ExponentialInterpolant(float fRate, float fDeltaTime)
 	return (2.0f * x) / (2.0f + x);
 }
 
+struct SinCos
+{
+	float fSin = 0.0f;
+	float fCos = 1.0f;
+};
+
+// Deterministic sin/cos for simulation / CRC-fed paths. libm std::sin/std::cos rounding differs
+// across toolchains, so it must never feed CRC'd or client/server-shared state; XMScalarSinCos is
+// a header-inline minimax polynomial (basic IEEE ops only), bit-identical under /fp:strict.
+inline SinCos DeterministicSinCos(float fRadians)
+{
+	SinCos result;
+	XMScalarSinCos(&result.fSin, &result.fCos, fRadians);
+	return result;
+}
+
 template<typename... Args>
 inline std::pair<XMVECTOR, XMVECTOR> XM_CALLCONV ComputeAabb(FXMVECTOR vecFirst, Args... vecRest)
 {

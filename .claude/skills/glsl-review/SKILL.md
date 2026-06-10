@@ -9,9 +9,9 @@ paths: ["**/*.vert", "**/*.frag", "**/*.comp", "**/*.geom", "**/*.tesc", "**/*.t
 
 Reviews GLSL shader changes for **correctness** (NaN/Inf, wrong math, wrong precision, coordinate/space confusion), **performance** (divergence, early-Z, dependent fetches, dynamic loops, hot-path `inverse()`), and **Broken Engine conventions** (scalar block layout, descriptor sets, bindless indexing, NVIDIA `inverse()` ban).
 
-Sibling to `/code-review` — that skill covers C++; this one covers shaders. Style/formatting is out of scope.
+Sibling to `/repo-code-review` — that skill covers C++; this one covers shaders. Style/formatting is out of scope.
 
-**Principle — no suppression rules.** This skill should *describe* invariants and *flag* deviations, not tell reviewers to ignore specific existing code. "Don't flag X because it's deliberate / legacy / slated for replacement" suppressions go stale the moment the underlying code changes or gains new callers, and they hide legitimate findings from reviewers who could act on them. When a current implementation is a known tradeoff, report the tradeoff (e.g., "Phong rather than Blinn-Phong — cheaper-to-rewrite vs. wait-for-migration-to-Ward") and let the reviewer decide. Parser-level carve-outs (e.g., ignoring `inverse(` inside comments) are fine because they prevent false positives that aren't real findings — they aren't suppressing real findings.
+**Principle — no suppression rules.** Describe invariants and flag deviations; never instruct reviewers to ignore specific existing code. "Don't flag X — it's deliberate / legacy / slated for replacement" goes stale the moment the code changes or gains callers, and hides legitimate findings. When an implementation is a known tradeoff, report the tradeoff (e.g., "Phong rather than Blinn-Phong — cheaper-to-rewrite vs. wait-for-Ward-migration") and let the reviewer decide. Parser-level carve-outs (e.g., ignoring `inverse(` inside comments) are fine — they prevent false positives, not real findings.
 
 ## Instructions
 
@@ -37,7 +37,7 @@ Flag any call site: `inverse(` followed by a variable or expression in shader co
 
 #### 2b. Scalar block layout only
 
-Every UBO/SSBO declaration in this repo uses `layout(scalar, ...)` backed by a global `layout(scalar) uniform;` / `layout(scalar) buffer;`. Flag any `std140` or `std430` qualifier added to shader code. The DataPacker passes `--scalar-block-layout` to `spirv-opt`; mismatched layout qualifiers silently break CPU/GPU struct alignment.
+Every UBO/SSBO in this repo uses scalar layout. `Engine/Data/Shaders/ShaderLayoutsBase.h:83` sets the global uniform default (`layout(scalar) uniform;`); SSBO blocks declare `scalar` explicitly per block (e.g., `Model/ModelCommon.h:40`) or via a per-shader `layout(scalar) buffer;`. Flag any `std140` or `std430` qualifier added to shader code, and any new SSBO block with no layout qualifier at all — unqualified buffer blocks default to std430, silently mismatching the scalar-packed C++ struct. The DataPacker passes `--scalar-block-layout` to `spirv-opt`; mismatched layout qualifiers silently break CPU/GPU struct alignment.
 
 Corollary: **plain `float[]` arrays are 4-byte stride**, not 16-byte. Flag shared C++/GLSL structs that add explicit 4×float-aligned padding after each float array element — that padding is dead under scalar layout and indicates the author expected std140 rules.
 
@@ -65,7 +65,7 @@ When `ShaderLayoutsBase.h`, `ShaderLayouts.h`, or any `*Common.h` struct is modi
 
 #### 2f. Prefer shared helpers in `ShaderFunctions.h`
 
-Before flagging a correctness issue, check whether `Engine/Data/Shaders/ShaderFunctions.h` already provides the utility being reinvented: `Rotate`, `Transform`, `WorldToVisibleArea`, `SunLighting`, `Specular`, `ReadLighting`, `IntensityLighting`, `DirectionalLighting`, `WaterLighting`, `AmbientLighting`, `SmokeShadow`, `AddSmoke`, `BlendSmoke`, `LightingDepositEdgeFade`. If a new shader re-implements one of these by hand, flag it and recommend the shared version.
+Before flagging a correctness issue, check whether `Engine/Data/Shaders/ShaderFunctions.h` already provides the utility being reinvented — transforms and projection (`Rotate`, `Transform`, `WorldToVisibleArea`, `VisibleAreaToWorld`), lighting (`SunLighting`, `Specular`, `ReadLighting`, `IntensityLighting`, `DirectionalLighting`, `WaterLighting`, `AmbientLighting`), smoke (`SmokeShadow`, `AddSmoke`, `BlendSmoke`), `LightingDepositEdgeFade`, and more. The header gains helpers over time; skim it for the full list. If a new shader re-implements one by hand, flag it and recommend the shared version.
 
 ---
 
@@ -141,7 +141,7 @@ Flag in fragment or inner compute loops:
 - Trig (`sin`/`cos`/`tan`/`asin`/`acos`/`atan`) inside per-fragment or inner-loop code where a polynomial approximation or LUT would do.
 - Per-fragment `length(v)` when `dot(v, v)` (squared) suffices for a comparison.
 - `normalize()` applied to a vector that's already normalized.
-- `normalize(reflect(I, N))` (and the wrappers `normalize(-reflect(I, N))`, `normalize(reflect(I, N) * vec3(±1, ±1, ±1))`) when both `I` and `N` are unit at the call site — `reflect(unit, unit)` is unit by identity. Conversely, flag *removal* of `normalize()` around `reflect(...)` when either input cannot be proven unit at the call site. See *Algorithmic / Math Mistakes → `reflect(unit, unit)` is already unit* in `references/shader-footguns.md`.
+- `normalize()` around `reflect(I, N)` when both `I` and `N` are unit at the call site — `reflect(unit, unit)` is unit by identity, and sign-flip wrappers (leading `-`, componentwise `vec3(±1, ±1, ±1)` multiply, single-axis flip) preserve magnitude. Conversely, flag *removal* of `normalize()` around `reflect(...)` when either input cannot be proven unit at the call site. Details and current call sites: *Algorithmic / Math Mistakes → `reflect(unit, unit)` is already unit* in `references/shader-footguns.md`.
 
 #### 4b. Divergence and early-Z
 
@@ -264,4 +264,4 @@ If no issues in any category: "PASS — no issues found." plus the Files Reviewe
 - `references/shader-footguns.md` — exhaustive catalog with rationale per item, sourced from Khronos GLSL spec, NVIDIA/AMD best-practice guides, and Arm Mali docs.
 - `Engine/Data/Shaders/CLAUDE.md` — repo-level shader architecture (scalar layout, bindless, descriptor sets, NVIDIA bug).
 - `Engine/Data/Shaders/ShaderFunctions.h` — shared utilities you should reach for before reimplementing.
-- `/code-review` — sibling skill for C++ changes.
+- `/repo-code-review` — sibling skill for C++ changes.

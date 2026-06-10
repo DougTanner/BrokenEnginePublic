@@ -70,7 +70,6 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, int64_t
 			stbi_image_free(pPixels);
 		});
 		ASSERT(iStbiWidth != 0 && iStbiHeight != 0 && pPixels != nullptr);
-		__assume(pPixels != nullptr);
 		miWidth = iStbiWidth;
 		miHeight = iStbiHeight;
 

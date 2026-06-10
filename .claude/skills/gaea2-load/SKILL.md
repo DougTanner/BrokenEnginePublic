@@ -2,7 +2,7 @@
 name: gaea2-load
 description: Load a Gaea 2 .terrain file into an editable Markdown view (Mermaid topology + per-node properties) under Temp/. Pairs with /gaea2-modify and /gaea2-save for round-trip editing.
 argument-hint: <path-to-.terrain>
-allowed-tools: [Read, Write, Bash, PowerShell]
+allowed-tools: [Read, Bash, PowerShell]
 disable-model-invocation: true
 ---
 
@@ -14,11 +14,11 @@ Convert a Gaea 2 `.terrain` JSON into:
 
 ## Workflow
 
-1. **Resolve the input path.** `$ARGUMENTS` holds the user-supplied path. If it's empty or doesn't end in `.terrain`, ask the user for the file path. If it's a bare filename (no directory), try `C:\Program Files\QuadSpinner\Gaea 2\Examples\<name>.terrain` — that's where Gaea ships its example library. The bundled `examples/` directory in this skill is intentionally empty (the example files are © QuadSpinner and aren't redistributed); see `examples/README.md` for the rationale and the 28-file working set.
+1. **Resolve the input path.** `$ARGUMENTS` holds the user-supplied path. If it's empty or doesn't end in `.terrain`, ask the user for the file path. If it's a bare filename (no directory), try `C:/Program Files/QuadSpinner/Gaea 2/Examples/<name>.terrain` — that's where Gaea ships its example library. The shared `.claude/skills/gaea2-shared/examples/` directory is intentionally empty (the example files are © QuadSpinner and aren't redistributed); see its `README.md` for the rationale and the 28-file working set.
 
 2. **Verify Python 3.10+ is available.** Python may be missing or stale on a fresh dev box, and `winget install` doesn't refresh PATH in the current shell — so the bootstrap probes well-known install dirs (winget, conda, scoop, chocolatey, active venv) directly:
    ```
-   powershell -ExecutionPolicy Bypass -File .claude/skills/gaea2-shared/scripts/detect-python.ps1
+   powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/detect-python.ps1"
    ```
    - Exit 0 with `OK <python-exe-path> Python X.Y` → **capture `<python-exe-path>` for step 3** (don't assume bare `python` is on PATH; the launcher `py.exe` is intentionally not used here).
    - Exit 1 with `MISSING ...` or `STALE ...` → tell the user Python is missing/too old and ask for permission to install. Only after explicit approval, run:
@@ -29,7 +29,7 @@ Convert a Gaea 2 `.terrain` JSON into:
 
 3. **Probe Gaea 2 version drift.** Gaea's accepted enum values, required fields, and port catalogues can shift between releases. Catch this before it bites by running:
    ```
-   "<python-exe-path>" .claude/skills/gaea2-shared/scripts/check_gaea_version.py
+   "<python-exe-path>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/check_gaea_version.py"
    ```
    The script reads the current Gaea version from the latest session log (or, as a fallback, from `Gaea.exe`'s `ProductVersion`) and compares it against a cached value at `.claude/skills/gaea2-shared/cache/gaea-version.txt`.
    - **Exit 0** — version unchanged, proceed silently.
@@ -37,9 +37,10 @@ Convert a Gaea 2 `.terrain` JSON into:
    - **Exit 2** — first run on this machine; baseline cached silently, proceed.
    - **Exit 3** — could not detect a Gaea install. Note it in the report but continue — this is just an information probe, not a gate.
    The cache also stores a sample-structure fingerprint so the diff includes *what* changed, not just the version string. Cache files are gitignored; first run on a fresh checkout is always exit 2.
+
 4. **Run the loader using the detected Python path.** Quote it (the path may contain spaces):
    ```
-   "<python-exe-path>" .claude/skills/gaea2-shared/scripts/load_terrain.py "<input.terrain>"
+   "<python-exe-path>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/load_terrain.py" "<input.terrain>"
    ```
    The script writes `Temp/<basename>.md` and `Temp/<basename>.passthrough.json`.
 

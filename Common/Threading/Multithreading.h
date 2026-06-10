@@ -47,25 +47,48 @@ public:
 			int64_t iEnd = iPos + iThreadItems;
 			mWorkers[i]->Wake([&processRange, iStart, iEnd, iLogTickCounter, iLogIndent]()
 			{
+				// Propagate the caller's tick/indent so worker logs tag under the dispatching scope
 				LogTickScope logTickScope(iLogTickCounter);
-				int64_t iPriorIndent = gpThreadLocal->miLogIndent;
-				gpThreadLocal->miLogIndent = iLogIndent;
+				LogIndentScope logIndentScope(iLogIndent);
 				processRange(iStart, iEnd);
-				gpThreadLocal->miLogIndent = iPriorIndent;
 			});
 			iPos += iThreadItems;
 		}
 
+		std::exception_ptr firstException = nullptr;
+
 		// Main thread processes the remaining items
 		if (iPos < iCount)
 		{
-			processRange(iPos, iCount);
+			try
+			{
+				processRange(iPos, iCount);
+			}
+			catch (...)
+			{
+				firstException = std::current_exception();
+			}
 		}
 
-		// Wait for all workers (Wait is a no-op if not dispatched)
+		// Drain every worker even on a throw (Wait is a no-op if not dispatched): a skipped Wait leaves that worker running against this unwound stack frame, and its unconsumed mDone token would early-join the next Dispatch
 		for (std::unique_ptr<PersistentWorker>& pWorker : mWorkers)
 		{
-			pWorker->Wait();
+			try
+			{
+				pWorker->Wait();
+			}
+			catch (...)
+			{
+				if (firstException == nullptr)
+				{
+					firstException = std::current_exception();
+				}
+			}
+		}
+
+		if (firstException != nullptr) [[unlikely]]
+		{
+			std::rethrow_exception(firstException);
 		}
 	}
 

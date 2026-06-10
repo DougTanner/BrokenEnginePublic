@@ -295,3 +295,14 @@ inline constexpr bool XmIsInf(float fValue)
 #pragma warning(disable : 26427) // Global initializer accesses extern object (i.22). (DT: TweaksScreen slider arrays bind to extern Wrapper globals by design)
 #pragma warning(disable : 26461) // Pointer argument can be marked as pointer to const (con.3). (DT: Vulkan handle typedefs are pointers to opaque types; const-qualifying handles is non-idiomatic)
 #pragma warning(disable : 26814) // The const variable can be computed at compile-time. Consider using constexpr (con.5). (DT: clang-cl rejects offsetof in constexpr contexts; extern-const definitions cannot be inline constexpr without header relocation)
+
+// Portable constexpr offsetof for layout-lock static_asserts. UCRT's offsetof macro expands to a
+// reinterpret_cast that MSVC's cl.exe tolerates inside a constant expression (non-conforming extension)
+// but clang's frontend (clang-tidy / clang-cl) rejects as a hard error. clang/GCC accept the
+// __builtin_offsetof intrinsic in a constant expression, so route through it there; fall back to the
+// standard offsetof under MSVC.
+#if defined(__clang__) || defined(__GNUC__)
+	#define BT_OFFSETOF(type, member) __builtin_offsetof(type, member)
+#else
+	#define BT_OFFSETOF(type, member) offsetof(type, member)
+#endif

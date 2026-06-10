@@ -1,27 +1,36 @@
 # Engine/Data/Shaders/Wind - Wind Simulation Shaders
 
-GPU-driven 2D wind field simulation using a hierarchical indirect compute dispatch architecture, sharing the smoke system's coordinate space.
+GPU-driven 2D wind velocity field (RG = world-space XY, ping-pong RG16F textures) using hierarchical indirect compute dispatch, sharing the smoke system's coordinate space.
 
 ## Overview
 
-The wind system maintains a 2D velocity field (stored as RG channels) that advects over time. Objects deposit wind via quads in two modes: directional trail-shaped quads for moving objects and radial axis-aligned quads for explosions. The field simulates once per frame via compute shaders dispatched only over active tiles. The resulting wind velocity feeds back into the smoke simulation and affects visual elements like vegetation.
+Objects deposit wind via additively-blended quads in two modes: directional trail quads from moving objects (WindTrails collection, CPU-computed direction) and radial axis-aligned quads from explosions (WindRadials, direction computed in-shader outward from quad center). The field spreads once per frame over active tiles only; its sole consumer is the smoke spread. Wind is purely visual and client-only — driven by wall-clock delta time, never part of deterministic frame state.
 
-Wind shares smoke's dynamic world-area (`f4SmokeArea` / `f4PreviousSmokeArea`) and non-square aspect, so wind textures use independent X/Y tile counts.
+Wind reads smoke's dynamic world-area uniforms (`f4SmokeArea` / `f4PreviousSmokeArea`); the render ordering contract has smoke write its globals before wind reads them.
 
 ## Architecture: Hierarchical Indirect Dispatch
 
-Wind simulation uses two buffer pairs (A/B) matching the ping-pong texture index. Each pair consists of an occupancy buffer (bit-packed, one bit per 8x8 tile) and an active tile list buffer (indirect dispatch args + packed tile indices). This enables record-once command buffers: both spread pipelines (A and B) are always dispatched indirectly, but each checks `fWindTextureIndex` at runtime and returns early if inactive.
+Two buffer pairs match the ping-pong texture index: occupancy (bit-packed, one bit per 8x8 tile — Occupancy[i] describes Texture i's content) and active-tile lists (indirect dispatch args + packed tile indices). The record-once command-buffer invariant means both A and B variants of dilate/spread/deposit record unconditionally every frame; per-frame variation flows only through the UBO texture index (the inactive spread early-outs at runtime), indirect buffers, and the GPU-written tile lists. Each dilate reads the *other* index's occupancy — its spread's input texture — and writes its own spread's active list; crossing this produces a one-frame-stale active set.
 
-Each frame the active-tile pipeline (`WindOccupancyDilate.comp`) reads the previous frame's occupancy and writes the new active tile list. Because the world-area can shift and scale between frames, it first remaps each tile's center world position into the previous-frame tile grid, then dilates over a 5x5 box (radius 2) around that cell to catch wind that advected into neighbors. The spread shaders then process only the listed tiles and re-mark occupancy for next frame.
+Because the world-area shifts and scales between frames, every cross-frame lookup goes world-position-first: the dilate remaps each tile center into the previous-frame grid before dilating a 5x5 box (radius 2) to catch advected wind, and both spread passes remap texcoords via the previous area (unlike smoke, where only pass A imports cross-frame state).
+
+## Simulation Kernel (WindSpreadCommon.h)
+
+`WindSpread()` runs semi-Lagrangian advection (displacement clamped to 3 texels), world-position-anchored swirl noise (pattern stays put under camera motion), simplified vorticity confinement, diffusion, and frame-rate-independent decay. Two cross-cutting designs:
+
+- **Magnitude regime**: behavior constants are Low/High pairs blended by field magnitude — weak wind stays laminar, strong wind turns turbulent; "momentum" tunables invert into less spread/swirl/diffusion.
+- **Exact-zero convergence**: a tanh soft clamp bounds the field and a constant decay floor returns exact zero below it. This self-extinguishes the active-tile set (occupancy clears each frame and only non-zero tiles re-mark), keeping dispatch cost proportional to actual wind — and it is also how enabling/disabling wind "clears" the field; there is no explicit clear pass.
+
+Velocities are stored world-oriented (+Y = north); every conversion to/from UV space flips Y (advection displacement, radial deposit direction).
 
 ## Shaders
 
-- **WindDeposit.frag** - Fragment shader writing wind velocity into the wind texture from per-object quads. Supports radial (explosions) and directional (motion trails) modes with falloff and magnitude scaling. Also writes to the occupancy buffer.
-- **WindSpreadCommon.h** - Shared GLSL header containing the full `WindSpread()` function with advection, swirl, vorticity confinement, diffusion, and decay logic. Included by both spread compute shaders.
-- **WindSpreadOne.comp** - Compute spread pass for ping-pong index 0 (writes TextureOne), 8x8 workgroups. Reconstructs world position from current `f4SmokeArea` and remaps to previous-frame texcoord via `f4PreviousSmokeArea` so sampling survives camera translation and zoom. A shared-memory reduction marks the output tile in occupancy once per workgroup when any texel produced non-zero wind. Returns early when index 1 is active.
-- **WindSpreadTwo.comp** - Compute spread pass for ping-pong index 1 (writes TextureTwo). Identical to pass one but mirrored ping-pong index; unlike smoke, both wind passes import previous-frame state from the other texture, so both use the scale-aware lookup. Returns early when index 0 is active.
-- **WindOccupancyDilate.comp** - Per-tile dilation + compaction into the active tile list for indirect dispatch (see Architecture above).
+- **WindDeposit.frag** - Writes wind velocity from per-object quads with falloff and magnitude scaling. Non-zero output atomicOrs the tile's occupancy bit, seeding the active set for newly windy tiles.
+- **WindSpreadOne.comp / WindSpreadTwo.comp** - Mirrored ping-pong spread passes (8x8 workgroup = one tile). A shared flag marks the output tile's occupancy once per workgroup when any texel produced non-zero wind. Each returns early when the other index is active.
+- **WindOccupancyDilate.comp** - Per-tile previous-grid remap + dilation + compaction into the active tile list (see Architecture above).
 
 ## See Also
 
 - [../CLAUDE.md](../CLAUDE.md) - Parent shader directory overview
+- [../Smoke/CLAUDE.md](../Smoke/CLAUDE.md) - Sole consumer of the wind field; owns the shared area uniforms
+- [WindTrails](../../../Source/Frame/Collections/WindTrails/CLAUDE.md) / [WindRadials](../../../Source/Frame/Collections/WindRadials/CLAUDE.md) - Deposit-producing collections

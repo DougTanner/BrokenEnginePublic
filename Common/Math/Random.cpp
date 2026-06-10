@@ -18,6 +18,7 @@ RandomEngine::RandomEngine(uint32_t uiSeed)
 
 void RandomEngine::TimeSeed()
 {
+	static_assert(std::chrono::high_resolution_clock::is_steady, "Non-steady clock can run backwards");
 	uiState = std::chrono::high_resolution_clock::now().time_since_epoch().count();
 	if (uiState == 0)
 	{
@@ -37,12 +38,14 @@ crc_t RandomEngine::Crc() const
 
 uint32_t Random(uint32_t uiMax, RandomEngine& rRandomEngine)
 {
-	return static_cast<uint32_t>(RandomNext(rRandomEngine)) % (uiMax + 1);
+	// Lemire multiply-shift — division-free, uses the strong high 32 bits; 64-bit range cannot wrap at UINT32_MAX
+	uint64_t uiRange = static_cast<uint64_t>(uiMax) + 1;
+	return static_cast<uint32_t>(((RandomNext(rRandomEngine) >> 32) * uiRange) >> 32);
 }
 
 float Random(float fMax, RandomEngine& rRandomEngine)
 {
-	return static_cast<float>(RandomNext(rRandomEngine)) * (fMax / static_cast<float>(std::numeric_limits<uint64_t>::max()));
+	return RandomUnitFloat(rRandomEngine) * fMax;
 }
 
 } // namespace common

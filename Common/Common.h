@@ -2,6 +2,7 @@
 
 #include "ErrorUtils.h"
 #include "AlignedMemory.h"
+#include "AllocationTracking.h"
 #include "Crc.h"
 #include "FileUtils.h"
 #include "Serialization.h"

@@ -2,7 +2,7 @@
 name: gaea1-load
 description: Load a Gaea 1 .tor file into a read-only Markdown view (Mermaid topology + per-node properties) under Temp/. Inspection-only — Gaea 1 files are legacy and we do not re-save them.
 argument-hint: <path-to-.tor>
-allowed-tools: [Read, Write, Bash, PowerShell]
+allowed-tools: [Read, Bash, PowerShell]
 disable-model-invocation: true
 ---
 
@@ -22,7 +22,7 @@ Convert a Gaea 1 `.tor` into `Temp/<basename>.md` — frontmatter + Mermaid topo
 
 2. **Verify Python 3.10+ is available** (the loader only needs stdlib — base64, gzip, xml.etree). Reuse the gaea2 family's detector:
    ```
-   powershell -ExecutionPolicy Bypass -File .claude/skills/gaea2-shared/scripts/detect-python.ps1
+   powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/detect-python.ps1"
    ```
    - Exit 0 with `OK <python-exe-path> Python X.Y` → capture `<python-exe-path>` for step 3.
    - Exit 1 with `MISSING ...` or `STALE ...` → tell the user Python is missing/too old and ask permission to install. Only after explicit approval:
@@ -31,11 +31,11 @@ Convert a Gaea 1 `.tor` into `Temp/<basename>.md` — frontmatter + Mermaid topo
      ```
      Then re-run the detector.
 
-3. **Run the loader using the detected Python path.** Quote it (path may contain spaces):
+3. **Execute the loader with the detected Python path.** Quote it (path may contain spaces). Run the script as-is — don't read or reimplement it; the wire-format section above covers what it does:
    ```
-   "<python-exe-path>" .claude/skills/gaea1-load/scripts/load_tor.py "<input.tor>"
+   "<python-exe-path>" "${CLAUDE_SKILL_DIR}/scripts/load_tor.py" "<input.tor>"
    ```
-   The script writes `Temp/<basename>.md`.
+   The script writes `Temp/<basename>.md` (pass `--output-dir` to change the destination).
 
 4. **Report what was loaded.** Read the resulting `.md` file's frontmatter and the Mermaid block, then show the user a brief summary: number of nodes, number of edges, resolution, and the Mermaid topology rendered inline.
 

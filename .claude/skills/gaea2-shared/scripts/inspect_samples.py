@@ -13,8 +13,12 @@ Subcommands:
   --ports TYPE            Port catalogue for a node type
   --list-types            Every node $type seen across samples (with counts)
   --field-grep KEY        Every JSON path where this key appears
-  --fingerprint           Write a structural fingerprint to the cache
+  --fingerprint           Write a structural fingerprint to ../cache/sample-fingerprint.json
   --fingerprint --diff    Write fingerprint AND diff against the cached one
+
+check_gaea_version.py runs `--fingerprint --diff` automatically when the Gaea
+version moves; if QuadSpinner adds/changes example files without a version bump,
+the cached fingerprint silently goes stale until this is rerun by hand.
 
 Examples:
   inspect_samples.py --enum SatMap.Library
@@ -26,6 +30,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import sys
 from collections import Counter, OrderedDict
 
@@ -41,7 +46,11 @@ def load_terrain(path):
         raw = f.read()
     if raw.startswith(b'\xef\xbb\xbf'):
         raw = raw[3:]
-    return json.loads(raw.decode('utf-8'))
+    text = raw.decode('utf-8')
+    # Newtonsoft sometimes emits trailing commas before } or ]; strict JSON rejects those
+    # (same fix as load_terrain.py — without it, files like Glacier - Complex Setup.terrain are skipped).
+    text = re.sub(r",(\s*[}\]])", r"\1", text)
+    return json.loads(text)
 
 
 def short_type(fqn):

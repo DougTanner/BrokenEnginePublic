@@ -85,4 +85,29 @@ private:
 	int64_t miPrior = -1;
 };
 
+// Sets miLogIndent to an absolute value and restores the prior on exit (cross-thread indent propagation); for relative +1/-1 indentation use ScopedLogIndent (Log.h)
+class LogIndentScope
+{
+public:
+
+	explicit LogIndentScope(int64_t iIndent)
+	{
+		ASSERT(gpThreadLocal != nullptr);
+		miPrior = gpThreadLocal->miLogIndent;
+		gpThreadLocal->miLogIndent = iIndent;
+	}
+
+	~LogIndentScope()
+	{
+		gpThreadLocal->miLogIndent = miPrior;
+	}
+
+	LogIndentScope(const LogIndentScope&) = delete;
+	LogIndentScope& operator=(const LogIndentScope&) = delete;
+
+private:
+
+	int64_t miPrior = 0;
+};
+
 } // namespace common

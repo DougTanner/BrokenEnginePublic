@@ -565,8 +565,9 @@ void BuildCellNavData(NavData& rNavData, const std::vector<IslandPlacement>& rPl
 
 		int32_t iVertexBase = static_cast<int32_t>(rNavData.vertices.size());
 
-		float fCos = std::cos(rPlacement.fRotation);
-		float fSin = std::sin(rPlacement.fRotation);
+		common::SinCos rotation = common::DeterministicSinCos(rPlacement.fRotation);
+		float fCos = rotation.fCos;
+		float fSin = rotation.fSin;
 		float fFootprintX = rTemplate.mfQuadFootprintX;
 		float fFootprintY = rTemplate.mfQuadFootprintY;
 

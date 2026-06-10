@@ -21,6 +21,8 @@ Declare the pointer with the collection's other members, then add it to the appr
 - **Client-only member** (visual/audio, guarded by `#ifdef BT_CLIENT`): Declare inside `#ifdef BT_CLIENT`, add to `ClientMembers()`
 - **Collections without client/server split** (e.g., purely client-only collections like AreaLights): Add to `Members()` directly
 
+Tuple entries may be a single pointer or a C-array of pointers (`T* pPointers[N]`) — every helper (sizing, CRC, serialize, swap) handles both forms.
+
 Example — adding a shared member:
 ```cpp
 float* __restrict pfSpeed = nullptr;  // New shared member
@@ -40,16 +42,16 @@ auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiSounds); }
 
 **`SharedCrcMembers()` — CRC subset:** Some collections (e.g., Players) have a `SharedCrcMembers()` that is a subset of `SharedMembers()`, excluding fields like server-side bookkeeping (`pClientGuids`, `pGlobalPlayerIds`) or client-only animation state. If the collection has `SharedCrcMembers()`, decide whether the new member should participate in CRC validation and add it there too (or explicitly exclude it).
 
-**`kiVersion` bump (important — do not skip):** If the collection has a `static constexpr int64_t kiVersion`, bump it when adding a new shared member that changes the serialization layout. Save files written with the old version will fail to load otherwise. Also bump the parent `Frame::kiVersion` in `Frame.h` for game collections, and the per-collection `kiVersion` for engine collections.
+**`kiVersion` bump (important — do not skip):** Adding a shared member changes the serialization layout — save files written with the old version will fail to load otherwise. Game collections each have a `static constexpr int64_t kiVersion`: bump it, and `Frame::kiVersion` (defined in `Frame.cpp` as a base constant plus the sum of all game collection versions) updates automatically. Engine collections have no per-collection version — bump the base constant in the `Frame::kiVersion` definition in `Frame.cpp` instead.
 
-**Indexable collections (`CollectionFlags::kIdToIndex`):** If the collection has this flag, the `idToIndexMap` is rebuilt by `engine::RemoveIndexableElement` (`CollectionMemory.h:382-396`) on every swap-and-pop. No extra work is needed for a new member — but if the member changes identity semantics (e.g., becomes part of a compound key), the map rebuild site needs updating.
+**Indexable collections (`CollectionFlags::kIdToIndex`):** If the collection has this flag, the `idToIndexMap` is updated by `engine::RemoveIndexableElement` (`CollectionMemory.h`) on every swap-and-pop. No extra work is needed for a new member — but if the member changes identity semantics (e.g., becomes part of a compound key), that update site needs changes.
 
-**Server-side zero-init warning:** `ServerCollectionRead()` (`Collection.h:666-667`) reads only `SharedMembers()`, then allocates the full `Members()` zero-initialized. A new shared member added without a corresponding server-side write path will arrive zero-initialized on clients — which may be undefined game state. When adding a shared member, confirm the server writes it.
+**Server-side zero-init warning:** `SharedCollectionRead()` (`Collection.h`) allocates the full `Members()` buffer zero-initialized (so client-only pointers are valid but empty), then reads only `SharedMembers()` from the server stream. A new shared member added without a corresponding server-side write path will arrive zero-initialized on clients — which may be undefined game state. When adding a shared member, confirm the server writes it.
 
 **Why this matters:** `Members()` (which combines `SharedMembers()` + `ClientMembers()` via `std::tuple_cat`) drives all automatic operations:
-- `CollectionCrc()` / `SharedCollectionCrc()` — deterministic CRC validation (Players overrides this with `SharedCrcMembers()` directly)
+- `CollectionCrc()` / `SharedCollectionCrc()` — deterministic CRC validation; `SharedCollectionCrc()` uses `SharedMembers()` when present, else `Members()` (Players overrides in `Frame.cpp`, calling `CollectionCrc()` with `SharedCrcMembers()`)
 - `CollectionWrite()` / `CollectionRead()` — save file serialization
-- `ServerCollectionRead()` — server stream deserialization (reads `SharedMembers()` only)
+- `SharedCollectionRead()` — server stream deserialization (reads `SharedMembers()` only)
 - `engine::Allocate()` / `engine::AllocateAndAssign()` — SOA buffer allocation
 - `engine::GrowPairedCollections()` — capacity growth during spawn
 - `engine::DestroyElement()` / `engine::SwapElement()` — swap-and-pop removal
@@ -182,8 +184,6 @@ void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 
 ## Important Notes
 
-- **`Members()` drives automatic operations**: CRC, serialization, allocation, grow, destroy, and swap are all handled by template functions that iterate the `Members()` tuple. A member missing from the tuple will cause memory corruption.
-- **`SharedMembers()` drives server CRC**: `SharedCollectionCrc()` uses `SharedMembers()` (when available) to exclude client-only fields. Players overrides this by calling `CollectionCrc()` directly with `SharedCrcMembers()` in Frame.cpp. `ServerCollectionRead()` reads only `SharedMembers()` from the server stream, then allocates full `Members()` zero-initialized so client-only pointers are valid but empty.
 - **`AllocateAndCopyIds` helper**: For engine PostRender collections whose only persistent member is `puiIds`, `engine::AllocateAndCopyIds<T>()` handles the entire AllocateAndCopy in one call.
 - **Destroy needs no changes**: `engine::DestroyElement()` and `engine::SwapElement()` operate on the `Members()` tuple automatically — swap-and-pop removal handles the new member as long as it's in the tuple (Step 1).
 - **`extern template`**: Collection headers declare `extern template struct Collection<T>` with explicit instantiation in the corresponding .cpp. No changes needed when adding members.

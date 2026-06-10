@@ -405,7 +405,7 @@ void ClientSession::SendUpdatePlayerRequest(int64_t iGlobalPlayerId, bool bUseMi
 		optionalTickScope.emplace(gpGame->TickCounter());
 	}
 
-	LOG(kNetwork, kVerbose, "ClientSession::SendUpdatePlayerRequest GlobalPlayer: {} Missiles: {} NavDelay: {}", iGlobalPlayerId, bUseMissiles, fNavigationDelay);
+	LOG(kNetwork, kVerbose, "ClientSession::SendUpdatePlayerRequest GlobalPlayer: {} Missiles: {} NavDelay: {}", iGlobalPlayerId, bUseMissiles, common::Wb(fNavigationDelay, 3));
 
 	mpClientNetwork->SendSimplePacket(GamePacketType::kClientUpdatePlayerRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iGlobalPlayerId, static_cast<uint8_t>(bUseMissiles ? 1 : 0), fNavigationDelay);
 }
@@ -495,7 +495,7 @@ void ClientSession::SendFleetNavigationDelayRequest(int64_t iFleetIndex, float f
 		optionalTickScope.emplace(gpGame->TickCounter());
 	}
 
-	LOG(kNetwork, kDebug, "ClientSession::SendFleetNavigationDelayRequest Fleet: {} Delay: {}", iFleetIndex, fDelay);
+	LOG(kNetwork, kDebug, "ClientSession::SendFleetNavigationDelayRequest Fleet: {} Delay: {}", iFleetIndex, common::Wb(fDelay, 3));
 
 	mpClientNetwork->SendSimplePacket(GamePacketType::kClientFleetNavigationDelay, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iFleetIndex, fDelay);
 }

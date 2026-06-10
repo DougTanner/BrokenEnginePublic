@@ -2,47 +2,43 @@
 
 ## Overview
 
-Contains Visual Studio 2026 solution and project files for building BrokenEngineSandbox as either a client or server application. Both projects compile the same source files but with different preprocessor defines, producing separate executables.
+MSBuild project layer for the game: client and server `.vcxproj`s compile the same source tree (`Common/`, `Engine/Source/`, game `Source/`, generated `Output/Data` headers) with different defines. Each project has its own single-project `.sln` — building one never builds the other. `Build/`, `Output/`, `Temp/` are build artifacts.
 
 ## Client and Server Projects
 
-- **BrokenEngineSandbox** (client): Defines `BT_CLIENT`. Builds the full game with graphics, audio, and input.
-- **BrokenEngineSandboxServer** (server): Defines `BT_SERVER`. Builds a headless server without client-specific systems.
+- **BrokenEngineSandbox** (client): defines `BT_ENGINE;BT_CLIENT` plus the config define (`BT_DEBUG`/`BT_PROFILE`/`BT_RELEASE`)
+- **BrokenEngineSandboxServer**: same but `BT_SERVER`
 
-Each project has its own `.sln`, `.vcxproj`, and `.vcxproj.filters`. Both use `$(ProjectName)` in `IntDir` so their intermediate build artifacts go to separate directories, allowing simultaneous builds without conflicts. The server vcxproj includes no engine `Graphics/` `.cpp` files at all (no Vulkan, audio, input, or render code); terrain/collision/navigation data for server-side physics comes from `Engine/Source/Frame/` files (`IslandTerrain`, `Collision`, `NavBuild`, `NavQuery`). The server still compiles the shared Frame collections and the Tweaks `*WrappersBase` layer, so it is not a pure-physics minimal build.
+Both use `$(ProjectName)` in `IntDir`, so client and server builds can run simultaneously without trampling each other's intermediates. The server vcxproj contains no engine `Graphics/`, `Audio/`, or input `.cpp` files; it still compiles the shared Frame collections, terrain/collision/nav (`IslandTerrain`, `Collision`, `NavBuild`, `NavQuery`), and the Tweaks `*WrappersBase` layer (tweak values participate in the deterministic sim) — it is not a minimal physics binary.
 
 ## Build Configuration
 
 - **Configurations**: Debug, Profile, Release (x64 only)
-- **Floating point**: `/fp:strict` for deterministic math; C++23; `Pch.h` force-included
-- **Preprocessor**: `BT_ENGINE` plus either `BT_CLIENT` or `BT_SERVER`, plus configuration define (`BT_DEBUG`, `BT_PROFILE`, or `BT_RELEASE`)
-- **PreBuildEvent**: builds the ThirdParty static lib and DataPacker.exe if missing. **CustomBuildStep**: runs DataPacker against `Engine/Data` + game `Data` to generate `Output/Data` (packed assets and their generated `.h` headers, which are listed as `ClInclude`). See [ThirdParty Prebuilts CLAUDE.md](../../../../ThirdParty/Prebuilts/Platforms/VisualStudio2026/CLAUDE.md).
-- **Clang-Tidy**: server enables it in all configs; client enables it only in Release.
+- **Compiler**: C++23, `Pch.h` force-included, `/fp:strict` in every config of both projects (cross-binary float determinism for client reconciliation/replay — see `Documents/FloatingPointDeterminism.txt`). Compile settings are mirrored between the two vcxprojs: when changing one, change the other.
+- **PreBuildEvent**: builds the ThirdParty static lib and `DataPacker.exe` only if missing — existence check, not freshness; stale artifacts need a manual rebuild. DataPacker is always built Release regardless of game config. See [ThirdParty Prebuilts CLAUDE.md](../../../../ThirdParty/Prebuilts/Platforms/VisualStudio2026/CLAUDE.md).
+- **CustomBuildStep**: runs DataPacker against `Engine/Data` + game `Data` into `Output/Data` (packed assets + generated headers, listed as `ClInclude`). Declared always out-of-date on purpose — DataPacker runs every build and does its own incremental checking.
+- **Clang-Tidy**: server enables it in all configs; client in Debug and Release (off in Profile).
 
 ## vcxproj File Inclusion Rules
 
-Each `.cpp` file belongs in the client vcxproj, server vcxproj, or both, based on its preprocessor guards:
+Each `.cpp` belongs in the client vcxproj, server vcxproj, or both, matching its preprocessor-guard scope (root rule). Shared files (no guards or partial guards) go in both; entirely one-sided files must be removed from the opposite vcxproj — guards alone leave empty translation units compiling there.
 
-- **Client-only**: Files fully wrapped in `#if defined(BT_CLIENT)` — include only in `BrokenEngineSandbox.vcxproj`
-- **Server-only**: Files fully wrapped in `#if defined(BT_SERVER)` — include only in `BrokenEngineSandboxServer.vcxproj`
-- **Shared**: Files with no guards or partial guards — include in both vcxproj files
-
-Do not rely on preprocessor guards alone to exclude code — if a `.cpp` is entirely one-sided, remove it from the opposite vcxproj to avoid compiling empty translation units.
-
-Headers (ClInclude) for client-only or server-only systems should also only appear in the matching vcxproj for IDE Solution Explorer cleanliness.
+Headers follow the same affinity (Solution Explorer cleanliness; `ClInclude` has no build effect). The server omits the client-only generated `Output\Data\Shader.h`.
 
 **Naming conventions that signal build affinity:**
 - `*Render.cpp` — client-only
 - `Network/Client/Client*.cpp` — client-only
 - Game-layer `Network/Server/Server*.cpp` — server-only
-- Engine `Server.cpp`/`ServerReceive.cpp`/`ServerSend.cpp` — shared (client hosts local server)
+- Engine `Server.cpp`/`ServerReceive.cpp`/`ServerSend.cpp` — shared (client hosts a local server)
 - Engine collection files — check guards; many are client-only
+
+**Shader sources** (`Engine/Data/Shaders/**`) are `<None>` items in the client project only — IDE visibility; DataPacker compiles them, not MSBuild. Adding a shader means adding a `<None>` entry to the client vcxproj and filters.
 
 ## vcxproj.filters Rules
 
-Filter paths in `.vcxproj.filters` must mirror the on-disk directory structure:
-- `Engine/Source/<path>/File.h` -> filter `Engine\<path>`
-- `Projects/BrokenEngineSandbox/Source/<path>/File.h` -> filter `Game\<path>`
-- `Common/File.h` -> filter `Common`; `Common/<subdir>/File.h` (e.g. `Log/`, `Math/`, `Threading/`) -> filter `Common\<subdir>`
+Filter paths mirror the on-disk directory structure under three roots:
+- `Engine/Source/<path>` → filter `Engine\<path>`; shader `<None>` items → `Engine\Data\Shaders\<sub>`
+- `Projects/BrokenEngineSandbox/Source/<path>` → filter `Game\<path>`
+- `Common[/<subdir>]` → filter `Common[\<subdir>]`
 
-When adding a file in a subdirectory that doesn't have a filter yet, create a new `<Filter Include="...">` entry with a unique GUID in the filter definitions `<ItemGroup>`. Every ancestor filter must also exist.
+Exception: generated `Output\Data\*.h` headers live in a flat `DataFiles` filter. New filters need a `<Filter Include>` entry with a unique GUID, and every ancestor filter must exist. The server filters file has a few empty leftover filters (`Engine\Graphics`, `Engine\Input`) — cruft, not a signal that such files belong in the server project.
