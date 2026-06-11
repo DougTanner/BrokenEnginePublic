@@ -9,7 +9,7 @@ Game-layer multiplayer orchestration. `ClientSession` and `ServerSession` extend
 - **Packet-type extension**: `GamePacketType` extends `engine::PacketType` starting at `kGamePacketStart`. Engine forwards these as opaque bytes. Enumerator order is the wire protocol — append only.
 - **Debug-control packets**: a block of one-way client→server requests (quicksave/quickload/reset, replay record + playback, pause, timescale) plus a server timescale broadcast; debug-only, decoded server-side (see [Server/CLAUDE.md](Server/CLAUDE.md)).
 - **Type-byte stripping**: drained game packets arrive as (type, payload) pairs with the type byte already removed; payload size checks are post-strip.
-- **Raw-packet ownership**: `ParsePlayerEvents` leaves `rRawPackets` untouched and appends into a workbuffer arena (no heap); `ParseFleetSync` **erases** consumed entries and heap-resizes the caller's fleet vector (last sync wins).
+- **Raw-packet ownership**: `ParsePlayerEvents` leaves `rRawPackets` untouched and appends into a workbuffer arena (no heap); `ParseFleetSync` erases consumed entries and heap-resizes the caller's fleet vector (last sync wins).
 - **Payload validation asymmetry**: player-event parsing skips short payloads (`continue`; unknown wire values `DEBUG_BREAK()` then skip); fleet-sync parsing trusts wire-supplied counts with no size validation.
 - **Wire-order contract**: enum-to-wire mappings (e.g., `PlayerStateWireType`) are send-order-sensitive; server send order and client decode order must move together. `PlayerEventType::kAssigned` exists only locally (synthesized from the assign packet), never on the wire.
 

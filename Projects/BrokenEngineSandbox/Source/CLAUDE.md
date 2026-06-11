@@ -2,11 +2,11 @@
 
 ## Overview
 
-Space combat game demonstrating the Broken Engine's client/server architecture. All game code lives in the `game` namespace; the vcxproj defines `BT_CLIENT` or `BT_SERVER` to produce separate executables from the same source.
+Space combat game demonstrating the Broken Engine's client/server architecture. All game code lives in the `game` namespace.
 
 ## Frame Purity Constraint
 
-Frame code is purely functional. Frame updates must only rely on explicit function parameters — Frame code never queries Game (`gpGame`) for anything. The Frame does not privilege any player index — all players are AI-driven; one is the **flagship** that others follow. Flagship-tracking responsibilities (camera shake, death transitions, respawn orchestration) are Game-level, not Frame.
+Frame update code is purely functional: it relies only on explicit function parameters and never queries Game (`gpGame`). Client-only render code under `Frame/` is exempt. The Frame does not privilege any player index — all players are AI-driven; one is the **flagship** that others follow. Flagship-tracking responsibilities (camera shake, death transitions, respawn orchestration) are Game-level, not Frame.
 
 ## Key Classes/Systems
 
@@ -23,8 +23,8 @@ Frame code is purely functional. Frame updates must only rely on explicit functi
 - **Cross-grid transfers**: Entity hand-off between grid cells is expressed as transfer `StatusChange`s carrying fully-serialized spawn state, dispatched per collection type and stripped from `FrameInput` before the normal Spawn phase.
 - **Alignments**: `playerAlignment` / `enemyAlignment` are owned by `Game` and copied onto each new `Frame::postRender`. Frame code reads them from `postRender`, never from `gpGame`.
 - **Versioned persisted settings**: Sound/graphics/tweaks settings plus per-client UI/session state (focused fleet identifier, focused ship global ID, camera zoom target) are client-only POD structs with an embedded `kiVersion`, round-tripped through `engine::{Write,Read}VersionedFile` into `kAppDataDirectory`. Bump the struct version on layout change. Session state is captured each frame and re-persisted only when the diff against the last-written copy changes.
-- **Save/load/replay** (`Save/GameSaveLoad`, server-only, driven by the engine server loop): grid saves are written atomically with coords sorted by key for deterministic output. Replay records per-coord `engine::DifferenceStream`s of FrameInput+Frame diffs and validates a checksum each tick against the resimulated frame — replay doubles as a determinism test harness. Nav data and elevation grids are never persisted or transmitted; they are derived data rebuilt lazily per cell on first tick. Fresh-game paths must reset the server fleet manager explicitly — only the load path repopulates it.
-- **Versioning**: the save/replay format is gated by `game::Frame::kiVersion` (sum of nav-data version and every collection's interpolate/postRender versions, computed in `Frame.cpp`) — collection version bumps propagate automatically. `Version.h`'s `kiGameVersion` is informational only (startup log, crash report, Vulkan application version); it gates nothing.
+- **Save/load/replay** (`Save/GameSaveLoad`, server-only, driven by the engine server loop): grid saves are written atomically with coords sorted by key for deterministic output. Replay records per-coord `engine::DifferenceStream`s of FrameInput+Frame diffs and validates a checksum each tick against the resimulated frame — replay doubles as a determinism test harness. Nav data and elevation grids are never persisted (saves exclude them); elevation grids are derived data rebuilt lazily per cell on first tick on both sides, while clients receive the server-built nav data over the wire. Fresh-game paths must reset the server fleet manager explicitly — only the load path repopulates it.
+- **Versioning**: the save/replay format is gated by `game::Frame::kiVersion` (composition documented in [Frame/CLAUDE.md](Frame/CLAUDE.md)) — collection version bumps propagate automatically. `Version.h`'s `kiGameVersion` is informational only (startup log, crash report, Vulkan application version); it gates nothing.
 - **Compile-time toggles**: `Pch.h` holds `inline constexpr` flags for frame dispatch parallelism, desync recovery, render thread, network simulation, and per-configuration debug/profile knobs. It also defines per-category log-level overrides before including `Common.h`.
 - Detailed networking flow: [Game Reconciliation](../../../Documents/Architecture/GameReconciliation.md), [Network Architecture](../../../Documents/Architecture/Network.md).
 

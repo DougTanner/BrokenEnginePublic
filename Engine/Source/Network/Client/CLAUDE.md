@@ -14,7 +14,7 @@ Each receive handler classifies into a flag set (commit / clear-placeholder / he
 
 - **Epoch check** (drop rationale: hub's slot ACK model) applies only where the slot has a server-assigned epoch — a `kSubscribing` placeholder has none yet.
 - **Out-of-order full state** (before subscribe-accept) adopts the coord, clearing the `kSubscribing` placeholder at whichever slot holds it.
-- **Pre-full-state buffering**: a `kWaitingFullState` slot accepts delta updates but does NOT advance its ACK tick floor (only `kActive` slots track received ticks).
+- **Pre-full-state buffering**: a `kWaitingFullState` slot accepts delta updates but does not advance its ACK tick floor (only `kActive` slots track received ticks).
 - **Cancelled-subscription ghosts**: locally-dropped `kSubscribing` slots record the coord; a late accept/full-state triggers an unsubscribe. One epoch-heal case covers legitimate re-subscribe to an already-active slot.
 - **Gap beyond `kiNetworkBufferSize`** on a single slot forces disconnect.
 

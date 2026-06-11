@@ -13,4 +13,4 @@ Shaders for the `DebugRender` system, rendering wireframe primitives (boxes, sph
 ## See Also
 
 - [../CLAUDE.md](../CLAUDE.md) - Parent shaders overview
-- [../../Source/Graphics/Debug/CLAUDE.md](../../Source/Graphics/Debug/CLAUDE.md) - C++ DebugRender system that drives these shaders
+- [../../../Source/Graphics/Debug/CLAUDE.md](../../../Source/Graphics/Debug/CLAUDE.md) - C++ DebugRender system that drives these shaders

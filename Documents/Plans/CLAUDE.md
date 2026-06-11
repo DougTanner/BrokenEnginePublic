@@ -1,6 +1,6 @@
 # Plans
 
-Refactor/bugfix plan queue — debt reduction that doesn't add a new engine capability. Counterpart: `Documents/Features/`; the deciding test and the scoring anchors live in [`../CLAUDE.md`](../CLAUDE.md). `/next-plan` executes the top-scored plan and refreshes its file/line citations against current source.
+Refactor/bugfix plan queue — debt reduction that doesn't add a new engine capability. Counterpart: `Documents/Features/`; the deciding test and the scoring anchors live in [`../CLAUDE.md`](../CLAUDE.md). `/next-plan` executes the top-priority (lowest-score) plan and refreshes its file/line citations against current source.
 
 ## Order.md
 
@@ -37,6 +37,6 @@ Shape: `# Title` → `## Context` → `## Design` → `## Critical files` → `#
 
 - **`## Out of scope` (required).** Explicit list of adjacent things the plan does *not* address — the single most effective check against gold-plating during execution; without it, scope creep surfaces only when the diff is already big.
 - **`## Acceptance criteria` (recommended when "done" is non-obvious).** Concrete, observable conditions. Skip for trivial mechanical refactors where the diff itself is the criterion.
-- **Name interfaces, not just paths.** Prefer "the `LogDifferences` member of `BlastersUpdate`" over a bare `file:line` — the symbol survives renames and line drift, and `/next-plan`'s citation-refresh pass relies on symbol identity. Keep the path/line for jump-to-source convenience; citing line numbers freely is fine since they get refreshed at execution.
+- **Name interfaces, not just paths.** Prefer "the `LogDifferences` member of `BlastersPostRender`" over a bare `file:line` — the symbol survives renames and line drift, and `/next-plan`'s citation-refresh pass relies on symbol identity. Keep the path/line for jump-to-source convenience; citing line numbers freely is fine since they get refreshed at execution.
 - **State invariant exposure.** Say explicitly whether the plan touches determinism/CRC sim paths, `kiVersion`/`.pack` layout, replays, client/server guard scope, or allocation-tracked paths — and pre-stage any single open decision for `/external-grill-plan` in `## Notes`.
 - Plans whose deliverable is an options writeup rather than code are tagged "Decision plan (present options)" in their `Notes` row.

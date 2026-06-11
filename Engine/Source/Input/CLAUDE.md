@@ -4,7 +4,7 @@ Hardware input polling. The manager is client-only, but the `RawInput` struct an
 
 ## Architecture
 
-`RawInputManager` aggregates a frame-coherent, state-only `RawInput` snapshot — no key bindings, no edge detection. The game layer (`game::Input`) drives `Update()` once per display frame (the engine main loop never calls it) and diffs consecutive snapshots for press/release; deterministic `FrameInput` construction happens there.
+`RawInputManager` aggregates a frame-coherent, state-only `RawInput` snapshot — no key bindings, no edge detection. The game layer (`game::Input`) drives `Update()` once per display frame (the engine main loop never calls it) and diffs consecutive snapshots for press/release; the deterministic `FrameInput` machinery is entirely game-side.
 
 Three device paths converge on the snapshot:
 - **Keyboard** — Win32 Raw Input (`RIDEV_NOLEGACY` suppresses WM_KEY*); `WM_INPUT` routes via WndProc to `HandleRawInput`, which writes a scratch array only.

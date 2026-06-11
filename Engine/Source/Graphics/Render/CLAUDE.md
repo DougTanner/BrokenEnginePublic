@@ -2,7 +2,7 @@
 
 ## Overview
 
-Per-subsystem files populate the host-visible `GlobalLayout` / `MainLayout` uniform buffers each frame before command-buffer submission (the per-frame state path the parent's CB re-record ban mandates). Each file owns a region of one layout. `RenderFrameGlobal` / `RenderFrameMain` are the two entry points the render loop calls. Client-only.
+Per-subsystem files populate the host-visible `GlobalLayout` / `MainLayout` uniform buffers each frame before command-buffer submission (the per-frame state path the parent's CB re-record ban mandates). Each file owns its region of each layout it writes. `RenderFrameGlobal` / `RenderFrameMain` are the two entry points the render loop calls. Client-only.
 
 Author-facing tunables read through `g*` wrapper `Get()` accessors; almost all population is a flat copy of slider values, with the non-trivial work being day-cycle derivation, camera-relative precision reduction, and per-LOD draw setup described below.
 
@@ -12,7 +12,6 @@ Ownership exception: a downstream pass may zero a count field already written by
 
 - Global pass before main pass: main reads `fElapsedTime` from the populated GlobalLayout (wave phase reduction).
 - Within global: Smoke before Wind. Wind reads (does not write) the smoke world-area / previous-area uniforms, so smoke must populate them first.
-- Main pass: camera coord rendered first so it lands at index 0; debug render gated by `if constexpr (kbDebugRender)`.
 
 ## Main Pass Phases
 
@@ -24,7 +23,7 @@ The global pass resolves a single sun angle into the full lighting/shadow/water 
 
 ## Debug Overlays
 
-`kbDebugRender`-gated line/circle overlays for coord-frame edges, island placement boundaries, island valid-area hulls (drawn at the underwater mask depth so terrain never occludes them), and navigation polygon/vertex data; positions come from the fully-interpolated frame.
+`kbDebugRender`-gated line/circle overlays for coord-frame edges, island placement boundaries, island valid-area hulls (drawn at the underwater mask depth that defines the hull; debug lines are a no-depth-test overlay, so nothing occludes them), and navigation polygon/vertex data — all positions from static coord-frame data. The separate game-specific per-collection debug pass reads the fully-interpolated frame.
 
 ## Camera-Relative Double Precision
 
@@ -39,7 +38,7 @@ The global pass writes the world-area extents the shaders sample against; the sn
 
 - `f4VisibleArea` — the camera's snapped render-visible rectangle; anchors the water vertex grid and the water displacement / Jacobian-normal textures.
 - `f4ShadowArea` — texel world size derives from the analytic straight-down frustum width (`gFov`/aspect), never the snapped render-area width; integer-texel snap via `int64_t` texel indices. The visible sub-window uses live eye height, `std::min`-clamped to the texture extent. `f4ShadowAreaExtra` extends a half-width on the sun side to cover the 1.5x-wider elevation texture.
-- `f4LightingArea` — snapped to the **deposit** texel grid specifically (deposit is where lights rasterize, so its grid must pan in integer texels); spread/combine/temporal resample the same world rectangle at their own resolutions.
+- `f4LightingArea` — snapped to the deposit texel grid specifically (deposit is where lights rasterize, so its grid must pan in integer texels); spread/combine/temporal resample the same world rectangle at their own resolutions.
 
 ## Camera-Height-Conditional Uniforms
 

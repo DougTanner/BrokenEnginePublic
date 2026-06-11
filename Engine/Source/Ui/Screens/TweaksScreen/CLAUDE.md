@@ -4,7 +4,7 @@ Multi-section ImGui runtime parameter adjustment screen base class, bound to Wra
 
 ## Architecture Notes
 
-Data-driven: a slider map plus a parallel function-pointer table drive section rendering, indexed by `TweakSection` and guarded by `static_assert`. Adding a section requires updating the enum and both arrays in identical order. Display names can lag enum names — `TweakSection::kModel` renders as the "Pbr" section.
+Data-driven: a section-name array plus a parallel function-pointer table drive section rendering, indexed by `TweakSection` and guarded by `static_assert`. Adding a section requires updating the enum and both arrays in identical order. Display names can lag enum names — `TweakSection::kModel` renders as the "Pbr" section.
 
 **Exclusive-render while dragging**: when a slider is active, only its owning section window renders; others fade to alpha 0 with layout preserved. A sentinel index denotes "slider owned by the toggle bar". Non-slider widgets vary: `ChevronIndexSelector` (discrete-index picker) and `WrapperSeparatorText` push alpha 0 while another slider drags so their layout slot is preserved; the wave-count radio row instead skips rendering entirely, collapsing its slot.
 

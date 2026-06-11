@@ -21,7 +21,7 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 - Client requires `RO_INIT_MULTITHREADED` for XAudio2 / gamepad.
 - Client boot order is load-bearing: `IslandTerrain` elevation maps complete before the `Graphics` ctor (the record-once terrain command buffer needs the CPU mesh pointers), priority textures are awaited, and every framebuffer is rendered/presented once before `ShowWindow`.
 - `TextureUploadManager` and `FileManager` are created in `wWinMain` before the exception-handled `MainThread` so they remain alive during crash handling and teardown.
-- Under debugger, exceptions propagate uncaught; release routes to `engine::HandleException`. `DeviceLostException` recreates `Graphics` in place.
+- Under debugger, exceptions propagate uncaught; otherwise they route to `engine::HandleException`. `DeviceLostException` recreates `Graphics` in place.
 - WndProc suppresses `SC_KEYMENU` and (server-only) `SC_MOVE`/`SC_SIZE`/`SC_MAXIMIZE`/`SC_RESTORE` to prevent modal message loops from stalling the main thread.
 
 ## CoordFrames Invariants
@@ -36,8 +36,8 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 ## Tick Flow
 
 - **Client**: single-pass poll / reconcile / advance. Clamps to `GetTargetSimTick()` via `AbsorbUnusedTicks()` so StatusChanges arrive before their tick simulates. Physics advances only inside reconcile — no separate client physics loop.
-- **Server**: pre-tick net → quickload (may early-return) → save/load replay → wait for tick → timespeed broadcast → per tick prepare/sync/dispatch/finalize → resends → autosave/quicksave. Full-tick count ≠ 1 logs a warning.
-- **Finalize**: cross-frame transfer harvest (skipped during replay for deterministic reproduction) → swap → broadcast → clear status changes.
+- **Server**: `ServerUpdate` orchestrates network pre-tick, save/load/replay, tick wait, per-tick simulation/broadcast, resends, and autosave; quickload may early-return the whole update. Full-tick count ≠ 1 logs a warning.
+- **Finalize**: cross-frame transfer harvest is skipped during replay for deterministic reproduction; per-tick status changes are cleared after broadcast.
 - **Dispatch**: `ActiveFrameRef` pre-resolved into workbuffer, fanned out across grid coordinates via `common::gpMultithreading->Dispatch()` when enabled, else sequential; `thread_local` globals enable safe parallel physics.
 - Network orchestration lives in `ClientSession`/`ServerSession` at the game layer, called from `ClientUpdate`/`ServerUpdate`.
 - Save/load/replay also lives in the game layer (`game::GameSaveLoad`, server-only — see the game [Source/CLAUDE.md](../../Projects/BrokenEngineSandbox/Source/CLAUDE.md)); the engine main loop only invokes it through the game object during the server tick.

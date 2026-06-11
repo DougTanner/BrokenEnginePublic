@@ -20,7 +20,7 @@ Conventions below are hub-owned; child CLAUDE.mds document only deviations.
 
 **Initialization**: Collections provide `Register()` for type registration at startup, and `GraphicsResources()` (client-only) for GPU buffer and pipeline creation — the interface is uniform, with empty stubs where a collection owns no GPU resources.
 
-**Client Object Hydration**: Collections with client-only owned objects (area lights, wind trails, sounds) provide `ClientInit()` and `ClientInitAll()` to create visual/audio objects after receiving server state, since server streams exclude client-only fields.
+**Client Object Hydration**: Collections with client-only owned objects (area lights, wind trails, sounds) provide `ClientInit()` and `ClientInitAll()` to create visual/audio objects after receiving server state, since server streams exclude client-only fields. Players is the exception — its Update loop lazily re-adds missing wind trails and hex shields, so it has no hydration hook.
 
 **Cross-Cell Transfer**: All collections use a two-phase approach: PostCollision flags out-of-bounds entities with `kTransfer`, then a dedicated Transfer phase generates `TransferRequest`s and destroys the entity. This separation ensures AreaDamage can skip transferring entities. Spawn and Transfer sites validate position/velocity XMVECTORs via `common::ValidateVector<IS_POSITION>()` to catch W-lane corruption at grid-boundary handoff.
 
@@ -41,8 +41,6 @@ Conventions below are hub-owned; child CLAUDE.mds document only deviations.
 **Navigation**: Entities moving to a destination must use `NavQueryDirection` (per-cell `NavData` from `FrameStaticData`), never straight-line steering.
 
 **Debug Render Data**: Debug primitives are computed at render time in a dedicated `DebugRender` phase (called per-coord after collection `EndRender`), not during Interpolate Update. Entity positions must be read from the fully-interpolated `FrameInterpolate`, never from PostRender — PostRender positions lag behind the rendered frame. Only flags, metadata, and static world positions (nav waypoints, island destinations) may come from PostRender.
-
-**Extern Templates**: All collection headers declare `extern template struct Collection<T>` with explicit instantiations in the corresponding `.cpp` files.
 
 ## See Also
 

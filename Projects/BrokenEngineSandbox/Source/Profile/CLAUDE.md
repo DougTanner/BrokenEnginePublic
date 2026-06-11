@@ -6,7 +6,7 @@ Game-specific profiling extending `engine::ProfileManagerBase` with game CPU cou
 
 ## Architecture
 
-Game enums begin at `engine::kEngineCpuCounterCount` / `engine::kEngineCpuTimerCount` so indices compose into one contiguous space; virtual dispatch routes by index. The CPU-timer hierarchy mirrors the frame phases (interpolate / post-render / render) and counters track per-collection populations and rendered subsets. The ProfileManager is the first system constructed in `Main.cpp`; its constructor starts the total boot timer.
+Game enums begin at `engine::kEngineCpuCounterCount` / `engine::kEngineCpuTimerCount` so indices compose into one contiguous space; virtual dispatch routes by index. The CPU-timer hierarchy mirrors the frame phases (interpolate / post-render / render) and counters track per-collection populations and rendered subsets. The ProfileManager is constructed in `Main.cpp` before the engine managers; its constructor starts the total boot timer.
 
 The client-only overlay's Frames and Network screens (and the ImPlot trend graphs beside them) live here rather than in the engine base because they read game session and grid state — active grid footprint, reconciliation tick rates, and smoothed clock/RTT/rollback series pushed in by the client session and reconciler. The Network screen writes its text into the FPS-header slot (the FPS header only renders on the CPU/GPU screens); Frames uses its own slot.
 

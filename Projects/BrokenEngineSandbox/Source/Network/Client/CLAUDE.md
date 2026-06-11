@@ -14,10 +14,9 @@ Client-side networking: connection lifecycle, server data ingestion, rollback-an
 
 ## Architecture Notes
 
-- **CRC fast path is primary**: each coord first walks its `serverUpdates` against the speculative ring; matching frames advance `iConfirmedTick` in place and the coord catches up forward without re-simulating. Full rollback-and-replay is the fallback, entered only when the walk finds an unresolved mismatch (or a pending full state) past confirmed.
-- **Render-behind retention**: the fast path keeps `kiRenderBehindTicks` frames *before* the confirmed match as the new ring head so the renderer always has prev-tails for interpolation; `iConfirmedInnerOffset` tracks head-to-confirmed delta.
+- **CRC fast path is primary**: each coord first walks its `serverUpdates` against the speculative ring; matching frames advance `iConfirmedTick` in place and the coord catches up forward without re-simulating. Full rollback-and-replay is the fallback, entered when the walk finds an unresolved mismatch or pending full state past confirmed, or pending updates with no ring frame to compare against.
+- **Render-behind retention**: the fast path keeps `kiRenderBehindTicks` frames *before* the confirmed match as the new ring head so the renderer always has prev-tails for interpolation; `iConfirmedOffset` tracks head-to-confirmed delta.
 - Rollback is **shrunk-by-default** (one tick before the lowest unresolved mismatch, only if that base frame was CRC-validated). Full rollback to `iConfirmedTick` is the fallback; cases enumerated in [Network.md](../../../../../Documents/Architecture/Network.md).
-- **Two-tier rollback fallback**: if shrunk rollback desyncs at its first replay tick, the speculative base was bad — desync state clears and a full-rollback retry runs in the same `Run()`.
 - **Jitter-adaptive replay throttle**: per-coord replay count is capped by measured network jitter (full / half / quarter of available); a gap-aware override lifts the cap toward a ring budget when backlog is large, preventing cascading failure.
 - **Server-load reset**: a load notification drains/clears all coord, clock, identity, fleet, and reconciler state so the client re-bootstraps from the post-load server tick.
 - Sticky subscriptions: unwanted coords remain active for `kStickySubscriptionDuration` to avoid flicker during transitions. The desired set (current cell + `mVisibleNeighbors`, or origin when unfocused) feeds a subscribe/unsubscribe queue throttled by the engine's slot budget; `SubscriptionChangeReason` tags each recompute for logging.

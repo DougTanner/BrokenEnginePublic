@@ -5,7 +5,7 @@ Client-only circular point lights with synced (parent-owned) and controlled (fir
 ## Unique Aspects
 
 - **Dual pipeline ownership**: owns both the axis-aligned lighting deposit pipeline and the visible-lights sprite pipeline. Two dynamic buffers sized in lockstep from a single capacity-accumulation pass; a single shared render cursor keeps them index-aligned, so a culled light skips both quads.
-- **Base-height projection**: deposit position projects onto the ocean plane; the visible sprite keeps the original world position.
+- **Base-height projection**: deposit position projects to base height via `ProjectToBaseHeight` (terrain elevation, ocean at minimum); the visible sprite keeps the original world position.
 - **Camera-aligned toggle**: a Type-level flag flips the visible sprite between world-axis-aligned (ground effects) and camera-facing billboard (volumetric sources). Deposit quad is always world-axis-aligned.
 - **Texture sampling split**: deposit uses the blurred texture index; visible sprite uses the unblurred index.
 - **Minimum lighting area clamp**: lighting area floored to 8 detail texels to prevent sub-texel flicker. Texel basis is the un-bumped `DetailTextureSize`, not `LightingDetailTextureSize` — the lighting-headroom pre-size cancels in the deposit texel formula (see the comment in `PointLightsRender.cpp`).

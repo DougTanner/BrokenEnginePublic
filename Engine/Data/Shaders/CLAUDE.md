@@ -6,7 +6,7 @@ GLSL shader source for the Vulkan 1.2 pipeline, compiled to SPIR-V by the DataPa
 
 ## Shared Includes
 
-Nearly every shader `#include "ShaderLayouts.h"` — the per-project wrapper (`Projects/*/Data/Shaders/`) that includes the engine's `ShaderLayoutsBase.h`, giving the game a layout-extension point (exception: the self-contained UI depth prepass below). The shared GLSL helper headers live here at top level:
+Nearly every shader `#include "ShaderLayouts.h"` — the per-project wrapper (`Projects/*/Data/Shaders/`) that includes the engine's `ShaderLayoutsBase.h`, giving the game a layout-extension point (exceptions: a few self-contained shaders that need no layouts, e.g. the UI depth prepass below, the debug wireframe frag, the BRDF LUT pair). The shared GLSL helper headers live here at top level:
 
 - **ShaderLayoutsBase.h** — dual-language struct definitions (UBO/SSBO/push-constant layouts), shader-wide scalar constants, and `ke*` `VkFormat` constants. `BT_ENGINE` selects DirectXMath types + `constexpr` (C++) vs. GLSL vec types + extension directives. Compile-time debug toggles (`debugPrintfEXT`, shader realtime clock) live at the top of this file so shader extension enablement and the matching C++ `kb*` constants flip with a single switch.
 - **ShaderFunctions.h** — shared fragment/vertex helpers: transforms, EWNS directional/ambient/water lighting, specular, smoke blending, visible-area projection, normal-map sampling.
@@ -16,7 +16,7 @@ Nearly every shader `#include "ShaderLayouts.h"` — the per-project wrapper (`P
 
 - **Clear.frag** — writes the push-constant pipeline color; VS-out interface declared-but-unused so it matches paired fullscreen vertex shaders and avoids validation warnings.
 - **Log.vert** — fullscreen vertex shader that emits per-frame `debugPrintfEXT` diagnostics (frame/render number).
-- **DebugTexture.frag** — render-target visualizer; branches on a format selector to decode each debug-view family (EWNS directional including combined-direction modes, linear, terrain elevation, plain RGB/grayscale), applying the same Uchimura tone map as the lighting combine pass to float16 directional views.
+- **DebugTexture.frag** — render-target visualizer; branches on a format selector to decode each debug-view family (EWNS directional including combined-direction modes, linear, terrain elevation, plain RGB/grayscale), applying the same Uchimura tone map as the lighting combine pass to the float16 lighting-directional view (combined-direction modes skip tone mapping).
 
 ## Ui Shaders
 
