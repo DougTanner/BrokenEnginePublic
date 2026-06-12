@@ -1,9 +1,6 @@
 #include "FileManager.h"
 
 #include "Attribution.h"
-#include "BakeIslandIntermediates.h"
-#include "MigrateLegacyIntermediates.h"
-#include "Texture.h"
 #include "ExportJobs/ExportAudio.h"
 #include "ExportJobs/ExportCubemapIbl.h"
 #include "ExportJobs/ExportFont.h"
@@ -13,6 +10,9 @@
 #include "ExportJobs/ExportRaw.h"
 #include "ExportJobs/ExportShader.h"
 #include "ExportJobs/ExportTexture.h"
+#include "ExportJobs/Island/BakeIslandIntermediates.h"
+#include "ExportJobs/Texture/MigrateLegacyIntermediates.h"
+#include "ExportJobs/Texture/Texture.h"
 
 #pragma warning(push, 0)
 #pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
@@ -302,7 +302,7 @@ static int RunRdoSweepValidate(const std::filesystem::path& rPath)
 		{1024u, 4.0f, 4},
 		{2048u, 4.0f, 4},
 		{4096u, 4.0f, 4},
-		{4096u, 0.5f, 2},   // current production knobs, for direct comparison
+		{4096u, 0.5f, 2},   // former production knobs, for direct comparison (current knobs: constants atop ExportJobs/Texture/Texture.cpp)
 	}};
 
 	for (const ConfigToTest& rConfig : kConfigs)
@@ -346,6 +346,15 @@ bool RunExportJobs()
 	manifestFile /= T::kName;
 	manifestFile += ".manifest";
 	bDirty |= !std::filesystem::exists(manifestFile);
+
+	if (!bDirty)
+	{
+		// A lone kiVersion bump must re-export everything — the engine ASSERTs on a stale-version manifest and there is no recovery CLI
+		common::DataHeader dataHeader {};
+		std::fstream manifestFileStream(manifestFile, std::ios::in | std::ios::binary);
+		manifestFileStream.read(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
+		bDirty |= !manifestFileStream || dataHeader.iMagic != common::DataHeader::kiMagic || dataHeader.iVersion != common::DataHeader::kiVersion;
+	}
 
 	std::filesystem::path packFile = gpFileManager->mOutputDirectory;
 	packFile /= T::kName;

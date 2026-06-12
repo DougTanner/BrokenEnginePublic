@@ -22,7 +22,8 @@ place the staleness verifier must look away.
   (`TextureManager.cpp:278-309`) — into one object (e.g. `BindlessSlotRegistry` inside `TextureDescriptors`)
   exposing `MintSlot` / `EvictSlot` / `RestoreSlot(channel)`. [~1h design + ~2h move]
 - Convert `IslandTerrain`'s sweeps to call those three methods instead of patching five parallel arrays and a
-  binding map (`Engine/Source/Frame/IslandTerrain.cpp:525-595, 819-829`). [~1h]
+  binding map (`Engine/Source/Frame/IslandTerrain.cpp` — mint in `AcquireTextureSlot` `:504-595`, eviction in
+  `EvictionSweep` `:679-777`, restoration in `RestorationSweep` `:779-829`). [~1h]
 - Enforce eviction symmetry inside the registry (one code path mints/evicts *all* channels of a slot
   together), turning the `Managers/CLAUDE.md:29` doc invariant into code. [~30m]
 - Narrow or remove the `VerifyAllDescriptorGenerations` carve-out (`PipelineManager.cpp:856-862`): with a
@@ -63,3 +64,23 @@ place the staleness verifier must look away.
   (b) whether `RestoreSlot` keeps the per-channel granularity the restoration sweep currently uses.
 - Builds on (and should land after) `Architecture_ThreadAndLifetimeGuards.md`'s `CrcToIndex` decision, which
   touches the same file.
+
+## Verification Notes
+
+Verified against source 2026-06-11 (verification pass for the /external-deep-analysis run). All claims
+confirmed:
+
+- `WriteArrayElementFromLive` at `TextureDescriptors.cpp:210` (decl `.h:79`), `UnregisterBindingsForKey` at
+  `:320-326`, `UpdateArrayBindingsForKey` at `:305-318`; `mBindlessArrayConsumers` registry exists in
+  `TextureDescriptors`.
+- Slot-0 placeholder arrays + pointer-stability rule at `TextureManager.cpp:278-309` exactly as cited
+  (the "do not re-resize, registry keys are `.data()` pointers" comment at `:278-281`).
+- Verifier carve-out at `PipelineManager.cpp:856-862` exactly as cited (per-island-slot bindings verify only
+  their owned element; comment explains the false-positive rationale).
+- Eviction-symmetry invariant documented at `Engine/Source/Graphics/Managers/CLAUDE.md:29` (Architecture
+  Notes), enforced nowhere in code — confirmed.
+- RenderGlobal fence-drain window at `Graphics.cpp:197-206` (gated all-fence drain at `:197-199`, EvictionSweep
+  `:201`, ProcessPendingTextures `:204`, RestorationSweep `:206`).
+- Citation corrected: the eviction sweep lives at `IslandTerrain.cpp:679-777`, outside the previously cited
+  `:525-595` (which is the mint path in `AcquireTextureSlot`; consumer registration at `:589`). Restoration
+  patch via `UpdateArrayBindingsForKey` at `:827`.

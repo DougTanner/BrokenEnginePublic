@@ -98,3 +98,31 @@ from `shaders::` and `RegisterTextureBinding` ASSERTs bindings against the refle
   the Set-0 binding constants.
 - Touches `PipelineManager.cpp` alongside `Architecture_LayerSeams.md` and `TextureManager.cpp`/`.h` alongside
   `Architecture_IncludeHygiene.md` — co-schedule (File Groups).
+
+## Verification Notes
+
+Verified against source 2026-06-11 (verification pass for the /external-deep-analysis run). All items
+confirmed; no removals:
+
+- **`TerrainPipelineBindings` comment-only**: constants defined at `PipelineManager.h:68-75` (header claim at
+  `:63-67`); repo-wide grep finds them ONLY in trailing comments at `PipelineManager.cpp:251, 392-394, 413,
+  533` — zero code uses. `IslandTerrain::AcquireTextureSlot` registers via `RegisterTextureBinding` with the
+  consumer registry's stored binding numbers (`IslandTerrain.cpp:589`), not these constants.
+- **LightCombine pun**: local `struct CombineData { uint32_t uiWidth, uiHeight; }` at
+  `CommandBufferRecordMain.cpp:402-406`, memcpy'd into `shaders::PushConstantsLayout` at `:412`
+  (`vec4 f4Pipeline` at `ShaderLayoutsBase.h:166-168`); shader block `uint uiWidth; uint uiHeight;` at
+  `LightCombine.comp:21-25`. Exactly as described.
+- **`kBlurSalt` duplicated**: `0x424C5552` at `TextureManager.cpp:907` and `TextureDescriptors.cpp:417`.
+- **Magic `17`**: `mppWaterNormalTextures[17]` at `PipelineManager.h:105` (workaround comment `:102-104`);
+  `TextureManager::kiWaterNormalCount = 17` at `TextureManager.h:45`. Include-order claim verified:
+  `Engine.h:48` (PipelineManager.h) precedes `:51` (TextureManager.h), and `TextureManager.h` IS visible from
+  `PipelineManager.cpp` via the PCH (the constant is already used there at `:365,444,486`), so both the
+  single-sourcing direction and the `static_assert` fallback are viable.
+- **Format literal**: `VK_FORMAT_R16G16B16A16_SFLOAT` at `RenderTargetTexturesLighting.cpp:206, 222`;
+  `shaders::keLightingFormat` (same value, `ShaderLayoutsBase.h:37`) used by the render pass at `:244`.
+- **Set-0 binding numbers**: bare 0/1/3/4/12 at `TextureDescriptors.cpp:25-31` (layout) and `:107-109, 125`
+  (writes), lockstep-by-comment with shader `layout(set = 0, binding = N)` declarations.
+- **Water tables**: duplicated positional entries at `PipelineManager.cpp:434-455` / `:476-494`; divergence
+  warning comment at `:463-467`.
+- Out-of-scope cross-reference verified: `Graphics/PipelineGraphicsGlobalSet0Indexing.md` is about bind-time
+  set *indexing* in `Pipeline.cpp` — genuinely distinct from the binding-number constants here.

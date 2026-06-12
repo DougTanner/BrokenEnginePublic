@@ -13,7 +13,7 @@
 #pragma warning(pop)
 
 #include "Scene/SceneAnimationLoader.h"
-#include "Texture.h"
+#include "Texture/Texture.h"
 
 #pragma warning(push, 0)
 #pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
@@ -790,8 +790,10 @@ void ExportScene::WriteAnimationSection(tinygltf::Model& rGltfModel, const std::
 		+ cubicKeyframes.size() * sizeof(common::AnimationKeyframeCubic);
 
 	int64_t iCurrentSize = static_cast<int64_t>(mHeaderAndData.size());
-	int64_t iExpectedOffset = common::kiChunkDataOffset + iSceneArraysSize + static_cast<int64_t>(rMaterialInfos.size()) * sizeof(common::MaterialShaderData);
+	// Mirrors the reader's math (FileManager.cpp): the MaterialShaderData block is 16-byte rounded by AllocateHeaderAndData
+	int64_t iExpectedOffset = common::kiChunkDataOffset + iSceneArraysSize + common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(rMaterialInfos.size()) * static_cast<int64_t>(sizeof(common::MaterialShaderData)));
 	LOG(kDefault, kVerbose, "  Animation data: writing at offset {} (buffer size {}), expected runtime offset {} (diff {})", iCurrentSize, mHeaderAndData.size(), iExpectedOffset, iCurrentSize - iExpectedOffset);
+	ASSERT(iCurrentSize == iExpectedOffset);
 	mHeaderAndData.resize(iCurrentSize + iAnimDataSize);
 	std::byte* pAnimData = mHeaderAndData.data() + iCurrentSize;
 

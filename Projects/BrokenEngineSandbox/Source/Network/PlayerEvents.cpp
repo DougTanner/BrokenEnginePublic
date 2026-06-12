@@ -61,6 +61,56 @@ void ParsePlayerEvents(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rR
 	}
 }
 
+// Network payload is a trust boundary: every read is bounded against the payload end and
+// wire-supplied counts are validated before driving any resize. Returns false on a malformed
+// payload; rOutFleets may be partially written on failure, so callers parse into a scratch
+// vector and commit only on success.
+static bool ParseFleetSyncPayload(const std::vector<uint8_t>& rPayload, std::vector<Fleet>& rOutFleets)
+{
+	engine::BoundedCursor cursor {rPayload.data(), rPayload.data() + rPayload.size()};
+
+	// 8B fleet count
+	if (!cursor.Has(8))
+	{
+		return false;
+	}
+	int64_t iFleetCount = engine::ReadInt64(cursor.pCursor);
+	// Each fleet is at least 36 bytes: 16B guid + 8B memberCount + 8B flagshipIndex + 4B navigationDelay
+	// (divide instead of multiply so a hostile count cannot overflow the bound check)
+	if (iFleetCount < 0 || iFleetCount > cursor.Remaining() / 36)
+	{
+		return false;
+	}
+	rOutFleets.resize(static_cast<size_t>(iFleetCount));
+	for (int64_t i = 0; i < iFleetCount; ++i)
+	{
+		// Members of earlier fleets consume payload, so the up-front bound is not sufficient per fleet
+		if (!cursor.Has(36))
+		{
+			return false;
+		}
+		Fleet& rFleet = rOutFleets.at(static_cast<size_t>(i));
+		rFleet.guid.uiHigh = engine::ReadUint64(cursor.pCursor);
+		rFleet.guid.uiLow = engine::ReadUint64(cursor.pCursor);
+		int64_t iMemberCount = engine::ReadInt64(cursor.pCursor);
+		rFleet.iFlagshipIndex = engine::ReadInt64(cursor.pCursor);
+		rFleet.fNavigationDelay = engine::ReadFloat(cursor.pCursor);
+		// Each member is 9 bytes: 8B globalPlayerId + 1B alive
+		if (iMemberCount < 0 || iMemberCount > cursor.Remaining() / 9)
+		{
+			return false;
+		}
+		rFleet.members.resize(static_cast<size_t>(iMemberCount));
+		for (int64_t j = 0; j < iMemberCount; ++j)
+		{
+			int64_t iGlobalPlayerId = engine::ReadInt64(cursor.pCursor);
+			uint8_t uiAlive = engine::ReadUint8(cursor.pCursor);
+			rFleet.members.at(static_cast<size_t>(j)) = FleetMember {engine::global_id_t {iGlobalPlayerId}, uiAlive != 0};
+		}
+	}
+	return true;
+}
+
 void ParseFleetSync(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets, std::vector<Fleet>& rOutFleets)
 {
 	for (auto it = rRawPackets.begin(); it != rRawPackets.end(); )
@@ -72,25 +122,16 @@ void ParseFleetSync(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawP
 			continue;
 		}
 
-		const std::vector<uint8_t>& rPayload = it->second;
-		const uint8_t* pCursor = rPayload.data();
-
-		int64_t iFleetCount = engine::ReadInt64(pCursor);
-		rOutFleets.resize(static_cast<size_t>(iFleetCount));
-		for (int64_t i = 0; i < iFleetCount; ++i)
+		// Parse into a local list and commit only on success so a malformed sync is never
+		// partially applied and cannot clobber a valid sync parsed earlier in this drain
+		std::vector<Fleet> parsedFleets;
+		if (ParseFleetSyncPayload(it->second, parsedFleets))
 		{
-			rOutFleets.at(static_cast<size_t>(i)).guid.uiHigh = engine::ReadUint64(pCursor);
-			rOutFleets.at(static_cast<size_t>(i)).guid.uiLow = engine::ReadUint64(pCursor);
-			int64_t iMemberCount = engine::ReadInt64(pCursor);
-			rOutFleets.at(static_cast<size_t>(i)).iFlagshipIndex = engine::ReadInt64(pCursor);
-			rOutFleets.at(static_cast<size_t>(i)).fNavigationDelay = engine::ReadFloat(pCursor);
-			rOutFleets.at(static_cast<size_t>(i)).members.resize(static_cast<size_t>(iMemberCount));
-			for (int64_t j = 0; j < iMemberCount; ++j)
-			{
-				int64_t iGlobalPlayerId = engine::ReadInt64(pCursor);
-				uint8_t uiAlive = engine::ReadUint8(pCursor);
-				rOutFleets.at(static_cast<size_t>(i)).members.at(static_cast<size_t>(j)) = FleetMember {engine::global_id_t {iGlobalPlayerId}, uiAlive != 0};
-			}
+			rOutFleets = std::move(parsedFleets);
+		}
+		else
+		{
+			LOG(kNetwork, kWarning, "ParseFleetSync MalformedPayload Size: {}", it->second.size());
 		}
 
 		it = rRawPackets.erase(it);

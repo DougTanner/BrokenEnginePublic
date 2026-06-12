@@ -31,6 +31,6 @@ Opaque models, terrain, water, hex shields, transparent models, particles (long 
 
 Three-stage GPU submission (Global -> Main -> ImGui) with semaphore chains. Binary semaphore for cross-command-buffer particle storage buffer synchronization between frames. Uniform buffer copies rely on RecordCopy()'s internal post-copy barriers and vkQueueSubmit's implicit host-write memory dependency. Multi-threaded submission via PersistentWorker at time-critical priority.
 
-## Selective Re-recording
+## Recorded Flag
 
-Per-framebuffer recorded flag enables runtime command buffer updates after buffer/descriptor changes.
+The per-framebuffer `kRecorded` flag is an idempotence guard, not a runtime re-record mechanism — set on first record and cleared only by destroy/recreate (resize, device loss, settings change), per the parent's CB re-record ban.

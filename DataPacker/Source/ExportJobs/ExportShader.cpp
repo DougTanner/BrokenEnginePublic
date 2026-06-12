@@ -145,6 +145,8 @@ struct BindingTable
 void WriteBinding(BindingTable& rTable, int64_t iBinding, uint32_t uiSet, VkDescriptorType vkDescriptorType, int64_t iDescriptorCount)
 {
 	ASSERT(iBinding < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
+	// Table is indexed by binding number alone — a second write means two sets reuse one binding number, which would silently overwrite the first entry
+	ASSERT(rTable.pBindings[iBinding].descriptorCount == 0);
 	VkDescriptorSetLayoutBinding& rVkDescriptorSetLayoutBinding = rTable.pBindings[iBinding];
 	rVkDescriptorSetLayoutBinding.binding = static_cast<uint32_t>(iBinding);
 	rVkDescriptorSetLayoutBinding.descriptorType = vkDescriptorType;
@@ -369,6 +371,9 @@ void ExportShader::ReflectAndWriteShader(const std::filesystem::path& rSpirvFile
 		LOG(kDefault, kVerbose,"   {} {} {} size {}", static_cast<uint32_t>(pResource->type_id), static_cast<uint32_t>(pResource->base_type_id), pResource->name, rSpirvType.vecsize);
 
 		ASSERT(iLocation < common::ShaderHeader::kiMaxVertexInputAttributeDescriptions);
+		// Format mapping below assumes 32-bit float inputs (SPIRV-Cross Half/Double are distinct basetypes) — an int attribute would be silently mis-typed.
+		// Vertex stage only: fragment interpolants are legitimately flat int/uint and never feed VkVertexInputAttributeDescription
+		ASSERT(rSpirvType.basetype == spirv_cross::SPIRType::Float || !(mChunkFlags & kVertex));
 		VkVertexInputAttributeDescription& rVkVertexInputAttributeDescription = tempAttrs[iLocation];
 		rVkVertexInputAttributeDescription.location = static_cast<uint32_t>(iLocation);
 		rVkVertexInputAttributeDescription.binding = 0;
@@ -423,7 +428,7 @@ void ExportShader::ReflectAndWriteShader(const std::filesystem::path& rSpirvFile
 	// Copy SPIR-V after arrays
 	std::memcpy(dataSpan.data() + iBindingsBytes + iSetIndicesBytes + iAttrsBytes, spirvData.data(), iSpirvFileBytes);
 
-	ASSERT(*reinterpret_cast<uint32_t*>(dataSpan.data() + iBindingsBytes + iSetIndicesBytes + iAttrsBytes) == 0x07230203u);
+	ASSERT(*reinterpret_cast<uint32_t*>(dataSpan.data() + iBindingsBytes + iSetIndicesBytes + iAttrsBytes) == common::ShaderHeader::kuiSpirvMagic);
 }
 
 void ExportShader::CleanupOnFailure()

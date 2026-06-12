@@ -1,7 +1,7 @@
 #include "ExportTexture.h"
 
 #include "FileManager.h"
-#include "Texture.h"
+#include "Texture/Texture.h"
 
 #pragma warning(push, 0)
 #pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)

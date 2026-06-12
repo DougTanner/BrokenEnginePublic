@@ -9,7 +9,6 @@
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb/stb_image_resize2.h"
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb/stb_image_write.h"
+// STB_IMAGE_WRITE_IMPLEMENTATION lives in Engine/Stb.cpp — same ThirdParty.lib, defining it here too triggers LNK4006
 
 #pragma warning(pop)

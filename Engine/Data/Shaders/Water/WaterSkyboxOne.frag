@@ -10,8 +10,8 @@
 //
 // Anything that affects screen-space alignment with the main water draw (vertex shader, geometry,
 // camera, wave amplitudes, normal composition) MUST match Water.frag byte-for-byte. The normal
-// composition block below is copy-pasted from Water.frag lines 78-159 for that reason. Any change
-// to either copy must be mirrored in the other.
+// composition block below is copy-pasted from Water.frag (f3ToEyeNormal through f3SampledNormal)
+// for that reason. Any change to either copy must be mirrored in the other.
 
 // Uniforms
 layout (set = 0, binding = 0) uniform globalUniform
@@ -57,11 +57,12 @@ void main()
 		return;
 	}
 
-	// Eye normal — must match Water.frag:78-79 exactly so the One-lobe lands on the same per-sample location.
+	// Eye normal — must match Water.frag's f3ToEyeNormal computation exactly so the One-lobe lands on the same per-sample location.
 	vec3 f3ToEyeNormal = normalize(vec3(-f2InInitialPosition, mainLayout.f4EyePosition.z));
 	f3ToEyeNormal = normalize(mix(f3ToEyeNormal, mainLayout.f4ToEyeNormal.xyz, mainLayout.fLightingWaterSkyboxNormalSoften));
 
-	// Sampled-normal composition — mirrors Water.frag:82-159. Derivatives taken from un-scaled local
+	// Sampled-normal composition — mirrors Water.frag's normal-map sampling block (fSizeOne through
+	// f3SampledNormal). Derivatives taken from un-scaled local
 	// position so mip selection stays stable across fract() wraps.
 	float fSizeOne = mainLayout.fLightingSampledNormalsOneSize;
 	float fSizeTwo = mainLayout.fLightingSampledNormalsTwoSize;
@@ -129,18 +130,18 @@ void main()
 	vec3 f3WeightedSum = fWeightOne * f3SampledNormalOne + fWeightTwo * f3SampledNormalTwo + fWeightThree * f3SampledNormalThree;
 	vec3 f3SampledNormal = f3WeightedSum / max(length(f3WeightedSum), kfEpsilon);
 
-	// Sun/moon combined sky-disk color — mirrors Water.frag:191-198.
+	// Sun/moon combined sky-disk color — mirrors Water.frag's f3WaterSun / f3WaterMoon max-combine.
 	vec3 f3WaterSun  = globalLayout.fSunIntensityWater  * globalLayout.f4SunColor.xyz;
 	vec3 f3WaterMoon = globalLayout.fMoonIntensityWater * globalLayout.f4MoonColor.xyz;
 	vec3 f3SunOrMoon = max(f3WaterSun, f3WaterMoon);
 
-	// Skybox sample at the same blended wave-vs-flat normal as Water.frag:202-205.
+	// Skybox sample at the same blended wave-vs-flat normal as Water.frag's f3SkyboxWaveNormal / f3SkyboxColor block.
 	const float fSkyboxNormalBlendWave = mainLayout.fLightingWaterSkyboxNormalBlendWave;
 	vec3 f3SkyboxWaveNormal = normalize((1.0f - fSkyboxNormalBlendWave) * f3SampledNormal + fSkyboxNormalBlendWave * f3InNormal);
 	vec3 f3SkyboxColor = textureLod(skyboxSampler, -reflect(f3ToEyeNormal, f3SkyboxWaveNormal), mainLayout.fLightingWaterSkyboxLod).xyz;
 	vec3 f3SkyboxColorSun = f3SkyboxColor * f3SunOrMoon;
 
-	// Terrain-depth feather and biased sun normal — mirrors Water.frag:207-208.
+	// Terrain-depth feather and biased sun normal — mirrors Water.frag's fReflectionTerrainMultiplier / f3BiasedSunNormal.
 	float fReflectionTerrainMultiplier = clamp(-fTerrainElevation / globalLayout.fWaterDepthReflectionFeather, 0.0f, 1.0f);
 	vec3 f3BiasedSunNormal = normalize(vec3(0.0f, 0.0f, mainLayout.fLightingWaterSkyboxSunBias) + globalLayout.f4SunMoonNormal.xyz);
 

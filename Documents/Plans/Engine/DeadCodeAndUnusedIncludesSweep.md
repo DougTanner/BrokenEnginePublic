@@ -40,6 +40,24 @@ independent, so the sweep can land any subset.
     grep confirms zero call sites (the only `== `/`FrameInput` co-occurrences are `mFrameInputs.end()` iterator
     comparisons, not value comparisons). Sibling of item 3 (`GetGamepadMode()` no-caller removal). Plain
     method removal — not a SOA member, no `kiVersion`/CRC exposure (the `statusChanges` field it reads stays).
+13. **`Collection.h:25-33` forward-declares 8 graphics types never referenced** — `Buffer`, `BufferManager`,
+    `CommandBufferManager`, `ModelPipeline`, `PipelineManager`, `SwapchainManager`, `TextureManager`, and
+    `enum class CommandBufferFlags`. None is referenced in `Collection.h` itself, nor in **any header** in either
+    Collections tree (engine or game — grep `*.h` hits only the declaration lines). The `*Render.cpp` TUs that do
+    name `Buffer`/`TextureManager` require complete types, provided by the PCH's `Engine.h` — the forward decls
+    are never load-bearing. Likely residue from when render hooks took manager parameters (current hooks take
+    `int64_t iCommandBuffer`). Remove the 8 declarations; **keep** the used decls around them: `game::` frame
+    types at `:3-11` (load-bearing for downstream collection headers, e.g. `FrameBase.h`/`Players.h`),
+    `FramePostRenderBase` `:19`, `GridCoord` `:20`, `Wrapper` `:21-23` (used by `ControllerType` at `:335-338`).
+    (Surfaced by the Collections `/external-deep-analysis` run; sibling of item 10, same header.)
+14. **`Collection.h:13` `using VkDeviceSize = uint64_t;`** — global-scope redeclaration of Vulkan's typedef,
+    which every TU already receives via `Common/ExternalHeaders.h:230` (`<Volk/volk.h>`, included
+    unconditionally — server build too). Identical redeclaration is legal but dead weight: `VkDeviceSize` is not
+    used in `Collection.h`/`CollectionMemory.h` or any Collections header; the nearby uses
+    (`PlayersRender.cpp:76`, `IslandTerrain.cpp:438`) are TUs where the real typedef is in scope. Remove the
+    alias. **MEDIUM confidence** — verify with full client + server builds (the alias may be masking a TU that
+    somehow predates volk in include order; none found by grep). (Surfaced by the Collections
+    `/external-deep-analysis` run.)
 
 ### Dead local variables / fields
 
@@ -128,7 +146,8 @@ directly-orphaned wiring) per the "don't touch unrelated code" directive.
   (location-6 varying).
 - The player/fleet spawn/update data structs declaring the unreferenced `SharedMembers` (grep
   `SpawnPlayerData`/`UpdatePlayerData`/`UpdateFleetData`).
-- `Engine/Source/Frame/Collections/Collection.h` (`:18` stale `struct FrameBase;` forward decl — item 10).
+- `Engine/Source/Frame/Collections/Collection.h` (`:18` stale `struct FrameBase;` forward decl — item 10;
+  `:25-33` dead graphics forward decls — item 13; `:13` redundant `VkDeviceSize` alias — item 14).
 - `Projects/BrokenEngineSandbox/Source/Input/Input.h` (`:60` unused `FrameInput::operator==` — item 11);
   read-only reference `Engine/Source/File/DifferenceStream.h` (`:56`, the `Crc()`-based identical-diff skip).
 

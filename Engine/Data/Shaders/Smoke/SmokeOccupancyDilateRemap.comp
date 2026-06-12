@@ -31,7 +31,7 @@ layout (set = 1, binding = 2) buffer activeTileBuffer
 // That sample lands at floor(prev_uv * tileCount) — possibly several tiles away from (X, Y)
 // when the world area zooms between frames. We need to check occupancy (= where ComputeB
 // just wrote) at that remapped index, not at (X, Y), or zoom drops smoke at edges where
-// the remap displacement exceeds the Manhattan-2 dilation radius.
+// the remap displacement exceeds the 5x5 box (Chebyshev-2) dilation radius.
 void main()
 {
 	uint uiTilesX = globalLayout.uiSmokeTilesX;

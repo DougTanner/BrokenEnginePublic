@@ -173,8 +173,8 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	// Per-frame visible-area LOD draw params for water. The water pipeline binds a single concat
 	// mesh buffer holding all LODs; per-frame we tell vkCmdDrawIndexedIndirect which LOD's index
 	// range and vertex base to draw. CameraBase computes miVisibleAreaLod from eye distance with 4×
-	// hysteresis bands; mesh density and snap-grid are in lockstep. Terrain no longer uses indirect
-	// draws — each active island contributes one vkCmdDrawIndexed in CommandBufferRecordMain.cpp.
+	// hysteresis bands; mesh density and snap-grid are in lockstep. Terrain draws via one
+	// vkCmdDrawIndexedIndirect per island template in CommandBufferRecordMain.cpp.
 	int iLod = std::clamp(game::gpCamera->miVisibleAreaLod, 0, BufferManager::kiVisibleAreaLodCount - 1);
 	const BufferManager::VisibleAreaMeshLod& rWaterLod = gpBufferManager->mWaterMeshLods[iLod];
 	gpPipelineManager->mpPipelines[kPipelineWater].WriteIndirectBuffer(iCommandBuffer, 1, rWaterLod.iIndexCount, rWaterLod.iIndexOffset, rWaterLod.iVertexOffset);

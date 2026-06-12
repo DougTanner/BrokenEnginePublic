@@ -6,13 +6,13 @@ Wireframe primitive rendering (boxes, spheres, circles, lines) for development v
 
 ## Architecture Notes
 
-- Entirely static — no instance, no `gp*` global. Submissions queue per-instance layouts into file-scope per-type staging structs (one each for box/sphere/circle/line), each owning a `std::vector` of shader layouts plus a live count and CRC key. Each vector starts empty, is pre-allocated to a large fixed reserve on first use (so nothing allocates until visualization is enabled), then silently doubles on overflow — no hard cap, no assert. Both grow paths wrap `ScopedSuppressAllocationTracking`; the growth path also logs.
+- Entirely static — no instance, no `gp*` global. Submissions queue per-instance layouts into file-scope per-type staging structs (one each for box/sphere/circle/line), each owning a `std::vector` of shader layouts plus a live count and CRC key. Each vector starts empty, is resized to a large initial element count on first use (so nothing allocates until visualization is enabled), then silently doubles on overflow — no hard cap, no assert. Both grow paths wrap `ScopedSuppressAllocationTracking`; the growth path also logs.
 - Not thread-safe: statics mutated without synchronization. Submit only from the render/main thread.
 - Primitives drawn via indirect pipeline calls with pre-built unit meshes (built in `BufferManager`, recorded in main command-buffer recording, pipelines created by `PipelineManager`); game layer submits game-specific primitives (targeting, nav indicators), engine submits engine-level overlays from `Render/` during main-pass uniform population.
 
 ## Per-Frame Flush
 
-Submission helpers may be called any time during the frame; `BeginRender`/`EndRender` then run back-to-back at the end of `RenderFrameMain` after all submissions — the host-visible flush that keeps debug draws legal under the parent's CB re-record ban, not a bracket around recording:
+Submission helpers may be called any time during the frame; `BeginRender`/`EndRender` then run back-to-back in `RenderFrameMain` after all debug submissions (further MainLayout population follows them) — the host-visible flush that keeps debug draws legal under the parent's CB re-record ban, not a bracket around recording:
 - `BeginRender` skips types with zero submissions; otherwise grows the CRC-keyed dynamic storage buffer if needed and copies queued layouts in. The pipeline's storage-buffer descriptor is rebound only on the resize path (legal via update-after-bind), so steady-state frames touch only mapped memory.
 - `EndRender` writes the indirect instance count for all four types unconditionally — the zero write is load-bearing, clearing the prior frame's count in the record-once command buffer — then resets the counters. Counters reset here only, never in `BeginRender`.
 

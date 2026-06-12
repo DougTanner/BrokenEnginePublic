@@ -28,6 +28,10 @@ std::pair<const T*, int> FindAttribute(const tinygltf::Primitive& rPrimitive, co
 	}
 
 	const tinygltf::Accessor& rAccessor = rModel.accessors[it->second];
+	if constexpr (std::is_same_v<T, float>)
+	{
+		ASSERT(rAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+	}
 	const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
 	const T* pData = reinterpret_cast<const T*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
 	int iStride = rAccessor.ByteStride(rBufferView) != 0 ? static_cast<int>(rAccessor.ByteStride(rBufferView) / sizeof(T)) : tinygltf::GetNumComponentsInType(rAccessor.type);

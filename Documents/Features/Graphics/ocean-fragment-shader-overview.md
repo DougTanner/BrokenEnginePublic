@@ -6,8 +6,6 @@ Rewrite `Water.frag` from a custom hacked-together solution to a physically-base
 
 ## Research
 
-Full research document: `C:\Users\dougt\.claude\plans\concurrent-exploring-ladybug.md`
-
 Primary reference: World of Warships (US Patent US10290142B2, Bruneton 2010)
 User favorite visual reference: Ubisoft "Making Waves" HPG 2024
 

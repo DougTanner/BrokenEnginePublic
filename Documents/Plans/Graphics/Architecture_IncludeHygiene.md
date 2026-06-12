@@ -60,7 +60,7 @@ use directly, and two stale forward declarations. Each is grep-verified against 
   `Common/AggregationAndScopeRuleQualifiers.md`.
 - `Screenshot.cpp:3`'s relative `../../../ThirdParty/stb/...` path style — cosmetic; the same relative form
   is used by `ThirdParty/Prebuilts/Source/Engine/Stb.cpp` (the engine's stb implementation TU);
-  `DataPacker/Source/Texture.cpp:50` uses the include-dir form `"stb/stb_image_write.h"` instead.
+  `DataPacker/Source/ExportJobs/Texture/Texture.cpp:50` uses the include-dir form `"stb/stb_image_write.h"` instead.
 - `Graphics.h`'s `game::FrameInterpolate` forward declaration — owned by
   `Graphics/Architecture_RenderInterpolatesOwnership.md`.
 

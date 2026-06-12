@@ -51,7 +51,7 @@ Flag:
 Flag:
 - **Heap allocation in per-frame code** — local `std::vector`/`std::string`/`new` where `gpThreadLocal->mWorkbuffer` should be used instead
 - **Unavoidable heap without `ScopedSuppressAllocationTracking`** + `// Heap:` comment (see `Engine/Source/Memory/CLAUDE.md`)
-- **Float format specs in `LOG(...)`** — `{:.Nf}`/`{:e}` heap-allocate and trip the allocation tracker; wrap with `common::Wb`/`WbV2/V3/V4` (repo-code-review skill §2b)
+- **Float format specs in `LOG(...)`** — allocation-tracked code only (Game and Engine; not the offline DataPacker): `{:.Nf}`/`{:e}` heap-allocate and trip the allocation tracker; wrap with `common::Wb`/`WbV2/V3/V4` (repo-code-review skill §2b)
 
 ### 5. Engine Micro-Patterns
 

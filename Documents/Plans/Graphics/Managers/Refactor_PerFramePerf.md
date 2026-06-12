@@ -50,3 +50,22 @@ scan and worker-thread serialization on culled particles.
 - The counter must be exact, not heuristic: a stuck-nonzero counter re-introduces the scan; a stuck-zero
   counter stalls adoption (visible as permanent placeholders). The device-lost and reset paths are the grill
   focus.
+
+## Verification Notes
+
+Verified against source 2026-06-11 (verification pass for the /external-deep-analysis run). Both items
+confirmed:
+
+- **Map scans**: `ProcessPendingTextures` iterates the full `mTextureMap` at `TextureManager.cpp:615` (function
+  `:603-708`); `AnyAdoptionPending` at `:718` (function `:710-727`); ctor populates the map unconditionally
+  from every `kTexture` chunk at `:241-269`; per-frame call sites `Graphics.cpp:197-199` (the gated pre-scan
+  calls `AnyAdoptionPending`) and `:204`. State-transition stores confirmed at `TextureUploadManager.cpp:179,
+  188, 404, 420`; adoption-side `kReady` stores at `TextureManager.cpp:662, 684`; boot spin at `:742-751`;
+  `FileManager::ResetTextureChunkStates` re-arms to `kNotLoaded`/`kDiskLoaded` (both must maintain the counter,
+  as the plan flags).
+- **Spawn culls inside the mutex**: `ParticleManager.cpp:29` lock precedes the visible-area cull (`:38`) and
+  intensity cull (`:43`); both read only the caller-owned `layout` and `game::gpCamera->f4RenderVisibleArea`.
+  Worker-thread contention is real: `ParticleManager::Spawn`'s sole caller is `ExplosionsSpawn.cpp:231`, which
+  runs in `ExplosionsPostRender::Spawn` — invoked from game PostRender phase code (`Missiles.cpp:285`,
+  `PlayersCombat.cpp:479`, `Spaceships.cpp:271`) inside the parallel-dispatched `RunFrameTick`. The capacity
+  check at `:31` reads the shared staging layout and stays under the lock as planned.

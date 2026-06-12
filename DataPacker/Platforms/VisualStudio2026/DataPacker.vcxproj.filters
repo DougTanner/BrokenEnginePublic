@@ -10,6 +10,12 @@
     <Filter Include="DataPacker\ExportJobs\Scene">
       <UniqueIdentifier>{7a3eb9d2-5c4f-4b1e-9d8a-e1f2b3c4d5e6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="DataPacker\ExportJobs\Island">
+      <UniqueIdentifier>{9e5483f5-bbca-4a1b-9c5b-9336d5deb525}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="DataPacker\ExportJobs\Texture">
+      <UniqueIdentifier>{eda49b86-ed60-4b7b-b056-9fe72d4329ea}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Common">
       <UniqueIdentifier>{1216d243-22f5-4761-9444-e281d11da6d7}</UniqueIdentifier>
     </Filter>
@@ -33,20 +39,20 @@
     <ClCompile Include="..\..\Source\Attribution.cpp">
       <Filter>DataPacker</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\BakeIslandIntermediates.cpp">
-      <Filter>DataPacker</Filter>
+    <ClCompile Include="..\..\Source\ExportJobs\Island\BakeIslandIntermediates.cpp">
+      <Filter>DataPacker\ExportJobs\Island</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\BakeRoute.cpp">
-      <Filter>DataPacker</Filter>
+    <ClCompile Include="..\..\Source\ExportJobs\Island\BakeRoute.cpp">
+      <Filter>DataPacker\ExportJobs\Island</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\ProcessBakedRegion.cpp">
-      <Filter>DataPacker</Filter>
+    <ClCompile Include="..\..\Source\ExportJobs\Island\ProcessBakedRegion.cpp">
+      <Filter>DataPacker\ExportJobs\Island</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\GaeaArchetype.cpp">
-      <Filter>DataPacker</Filter>
+    <ClCompile Include="..\..\Source\ExportJobs\Island\GaeaArchetype.cpp">
+      <Filter>DataPacker\ExportJobs\Island</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\SubdivideBeachBand.cpp">
-      <Filter>DataPacker</Filter>
+    <ClCompile Include="..\..\Source\ExportJobs\Island\SubdivideBeachBand.cpp">
+      <Filter>DataPacker\ExportJobs\Island</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Pch.cpp">
       <Filter>DataPacker</Filter>
@@ -69,8 +75,8 @@
     <ClCompile Include="..\..\Source\ExportJobs\ExportIsland.cpp">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Texture.cpp">
-      <Filter>DataPacker</Filter>
+    <ClCompile Include="..\..\Source\ExportJobs\Texture\Texture.cpp">
+      <Filter>DataPacker\ExportJobs\Texture</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\ExportJobs\ExportAudio.cpp">
       <Filter>DataPacker\ExportJobs</Filter>
@@ -78,8 +84,8 @@
     <ClCompile Include="..\..\Source\ExportJobs\ExportCubemapIbl.cpp">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\MigrateLegacyIntermediates.cpp">
-      <Filter>DataPacker</Filter>
+    <ClCompile Include="..\..\Source\ExportJobs\Texture\MigrateLegacyIntermediates.cpp">
+      <Filter>DataPacker\ExportJobs\Texture</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\ExportJobs\ExportScene.cpp">
       <Filter>DataPacker\ExportJobs</Filter>
@@ -146,17 +152,17 @@
     <ClInclude Include="..\..\Source\FileManager.h">
       <Filter>DataPacker</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\BakeIslandIntermediates.h">
-      <Filter>DataPacker</Filter>
+    <ClInclude Include="..\..\Source\ExportJobs\Island\BakeIslandIntermediates.h">
+      <Filter>DataPacker\ExportJobs\Island</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\BakeIslandIntermediatesInternal.h">
-      <Filter>DataPacker</Filter>
+    <ClInclude Include="..\..\Source\ExportJobs\Island\BakeIslandIntermediatesInternal.h">
+      <Filter>DataPacker\ExportJobs\Island</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\GaeaArchetype.h">
-      <Filter>DataPacker</Filter>
+    <ClInclude Include="..\..\Source\ExportJobs\Island\GaeaArchetype.h">
+      <Filter>DataPacker\ExportJobs\Island</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\SubdivideBeachBand.h">
-      <Filter>DataPacker</Filter>
+    <ClInclude Include="..\..\Source\ExportJobs\Island\SubdivideBeachBand.h">
+      <Filter>DataPacker\ExportJobs\Island</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Pch.h">
       <Filter>DataPacker</Filter>
@@ -248,8 +254,8 @@
     <ClInclude Include="..\..\Source\ExportJobs\ExportIsland.h">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Texture.h">
-      <Filter>DataPacker</Filter>
+    <ClInclude Include="..\..\Source\ExportJobs\Texture\Texture.h">
+      <Filter>DataPacker\ExportJobs\Texture</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\ExportJobs\ExportAudio.h">
       <Filter>DataPacker\ExportJobs</Filter>
@@ -257,8 +263,8 @@
     <ClInclude Include="..\..\Source\ExportJobs\ExportCubemapIbl.h">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\MigrateLegacyIntermediates.h">
-      <Filter>DataPacker</Filter>
+    <ClInclude Include="..\..\Source\ExportJobs\Texture\MigrateLegacyIntermediates.h">
+      <Filter>DataPacker\ExportJobs\Texture</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\ExportJobs\ExportScene.h">
       <Filter>DataPacker\ExportJobs</Filter>

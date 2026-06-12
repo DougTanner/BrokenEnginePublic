@@ -5,7 +5,7 @@
 Source: /external-architecture-review on `Engine/Source/Graphics/Managers` (non-recursive). The directory's
 thread model is sound overall (submission chain serialization verified end-to-end; upload-thread handshake
 release/acquire-correct), but three spots rest on implicit invariants that are undocumented or thinner than
-their siblings, and one record-time setting needs its destroy-tier coverage confirmed.
+their siblings.
 
 ## Design
 
@@ -50,20 +50,12 @@ their siblings, and one record-time setting needs its destroy-tier coverage conf
   it depends on (and that the same Wait prevents next-frame's Global submit racing `vkQueuePresentKHR` on a
   shared queue), so a future refactor of the frame tail doesn't silently break it. [~5m]
 
-### Destroy-tier coverage for `gDebugTexture` (verify)
-- Record-once command buffers bake mutable settings at record time; the escalation ladder in
-  `Graphics.cpp:356-520` must cover each baked wrapper. Verified covered: `gSpreadPassCount`
-  (`CommandBufferRecordMain.cpp:345`), `gMultisampling` (`:213`), `gWaterShapeDetail` (`:188`). Unconfirmed:
-  `gDebugTexture` (`CommandBufferRecordMain.cpp:230-236` — the per-record check only matters on re-record).
-  Confirm toggling `gDebugTexture` escalates at least the `kCommandBuffers` destroy tier; if it does not, add
-  it to the ladder (or document why stale-until-next-recreate is acceptable for a debug-only view). [~15m]
-
 ## Critical files
 - `Engine/Source/Graphics/Managers/TextureDescriptors.cpp` (+ `.h` if a mutex member lands)
 - `Engine/Source/Graphics/Managers/BufferManager.cpp`, `BufferManager.h`
 - `Engine/Source/Graphics/Managers/TextureUploadManager.cpp` (+ `.h` if the parked-flag member lands)
 - `Engine/Source/Graphics/Managers/SwapchainManager.cpp` (comment only)
-- `Engine/Source/Graphics/Graphics.cpp` (read-only context; destroy-tier ladder if `gDebugTexture` needs adding)
+- `Engine/Source/Graphics/Graphics.cpp` (read-only context)
 
 ## Out of scope
 - Restructuring the submission chain or present worker — verified correct; only the documentation gap is
@@ -77,10 +69,32 @@ their siblings, and one record-time setting needs its destroy-tier coverage conf
   documented + ASSERTed.
 - The `ResizeDynamicBuffer` protection chain is documented at the destruction site (or the per-framebuffer
   stash lands); the `WaitIdle` window is closed.
-- `gDebugTexture` destroy-tier coverage confirmed or fixed.
 
 ## Notes
 - No determinism/CRC exposure — all client render-side. Risk concentrates in adding a mutex on a path touched
   by parallel `Spawn` (keep the critical section to the map/counter mutation only) and in the upload-thread
   park handshake (keep `UploadThread`'s steady-state path lock-shape unchanged).
 - Two grill decisions staged: mutex-vs-ASSERT for `CrcToIndex`; comment-vs-stash for `ResizeDynamicBuffer`.
+
+## Verification Notes
+
+Verified against source 2026-06-11 (verification pass for the /external-deep-analysis run):
+
+- **Item removed**: the `gDebugTexture` destroy-tier verify item — already covered. `Graphics.cpp:434-438`
+  escalates `meDestroyType = std::max(DestroyType::kCommandBuffers, meDestroyType)` on
+  `gDebugTexture.Changed<bool>()`. Nothing to do; the verify question is answered "yes, covered".
+- **`CrcToIndex` confirmed**: unsynchronized mutation of `mImageInfosMap`/`miNextTextureIndex` at
+  `TextureDescriptors.cpp:397-413`; worker-thread path real — `ParticleManager::Spawn` (lock at `:29`, call at
+  `:48` → `:24`) is reached from `ExplosionsPostRender::Spawn` (`ExplosionsSpawn.cpp:231`), which game
+  PostRender phase code calls (`Missiles.cpp:285`, `PlayersCombat.cpp:479`, `Spaceships.cpp:271`) inside
+  `RunFrameTick` — fanned out across grid coords via `gpMultithreading->Dispatch()`. Un-mutexed main-thread
+  callers confirmed at `TextureDescriptors.cpp:302` (`UpdateDescriptorsForTexture`) and `TextureManager.cpp:909`
+  (`BlurLightingTexture`).
+- **`ResizeDynamicBuffer` confirmed**: single `mPreviousBuffer` stash at `BufferManager.cpp:423-440`; the
+  skinning path's per-framebuffer stash arrays exist at `BufferManager.h:139-140`.
+- **`WaitIdle` TOCTOU confirmed**: empty `unique_lock(mWorkMutex)` body at `TextureUploadManager.cpp:142-145`;
+  `UploadThread` acquires `mFrameSignal` at `:156` before taking `mWorkMutex` at `:159`; transfer-queue
+  `vkQueueSubmit` at `:397`. Window is structurally present exactly as described.
+- **SwapchainManager Wait confirmed**: present worker writes `gpGraphics->meDestroyType` at
+  `SwapchainManager.cpp:481` (also `:447` in `AcquireNextImage`); the sequencing `mPresent.Wait()` is at
+  `Graphics.cpp:254`.

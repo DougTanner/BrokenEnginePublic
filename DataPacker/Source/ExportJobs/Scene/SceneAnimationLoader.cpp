@@ -19,6 +19,7 @@ namespace
 const float* AccessorFloats(const tinygltf::Model& rModel, int iAccessor)
 {
 	const tinygltf::Accessor& rAccessor = rModel.accessors[iAccessor];
+	ASSERT(rAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 	const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
 	return reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
 }

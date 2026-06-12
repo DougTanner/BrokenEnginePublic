@@ -21,7 +21,21 @@ public:
 
 	virtual ~ExportScene() = default;
 
-	virtual int64_t GetVersion() const override { return Version(53); }
+	// Payload-struct sizes fold in so size-changing layout edits auto-dirty cached chunks and the .PreExport marker; same-size reorders need the raw version bumped
+	virtual int64_t GetVersion() const override
+	{
+		return Version(53
+			+ sizeof(common::MaterialShaderData)
+			+ sizeof(common::AnimationHeader)
+			+ sizeof(common::Skeleton)
+			+ sizeof(common::ModelNode)
+			+ sizeof(common::AnimationClip)
+			+ sizeof(common::MaterialInfo)
+			+ sizeof(common::AnimationChannel)
+			+ sizeof(common::AnimationKeyframe)
+			+ sizeof(common::AnimationKeyframeCubic)
+			+ sizeof(common::ModelVertex));
+	}
 
 	virtual bool CheckDirty(const std::filesystem::path& rPackFile) override;
 

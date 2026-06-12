@@ -30,8 +30,8 @@ class Texture
 public:
 
 	// Callers must hold this mutex around any Texture construction + MakeMipmaps + Save/Export
-	// chain that goes through RDO encoding. The encoder uses all hardware threads internally;
-	// the mutex bounds memory by ensuring only one texture's source pixels exist at a time.
+	// chain that goes through RDO encoding. The encoder spawns up to HardwareCoreCount() - 2 threads
+	// internally; the mutex bounds memory by ensuring only one texture's source pixels exist at a time.
 	static std::mutex sEncodeMutex;
 
 	static void StaticInit();

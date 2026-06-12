@@ -15,7 +15,7 @@ NavBuild is compiled into BOTH the client and the server executables (it is not 
 
 ## Design
 
-Mirror the recently-completed `DataPacker/Source/BakeIslandIntermediates.cpp` split (one TU keeps the public header + a domain; new TU(s) take the other domain(s); a private `*Internal.h` holds shared types/constants/forward-decls; file-static helpers move with the domain that calls them; the one cross-TU helper is promoted from the anonymous namespace to external linkage, forward-declared in the private header).
+Mirror the recently-completed `DataPacker/Source/ExportJobs/Island/BakeIslandIntermediates.cpp` split (one TU keeps the public header + a domain; new TU(s) take the other domain(s); a private `*Internal.h` holds shared types/constants/forward-decls; file-static helpers move with the domain that calls them; the one cross-TU helper is promoted from the anonymous namespace to external linkage, forward-declared in the private header).
 
 ### Translation units after the split
 

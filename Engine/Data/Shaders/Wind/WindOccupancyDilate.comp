@@ -50,7 +50,7 @@ void main()
 	int iPrevTileX = int(floor(f2PrevUV.x * float(uiTilesX)));
 	int iPrevTileY = int(floor(f2PrevUV.y * float(uiTilesY)));
 
-	// Check the corresponding previous-frame tile and its Manhattan-2 neighbors
+	// Check the corresponding previous-frame tile and its 5x5 box of neighbors (Chebyshev radius 2)
 	bool bActive = false;
 	for (int iDy = -2; iDy <= 2 && !bActive; ++iDy)
 	{

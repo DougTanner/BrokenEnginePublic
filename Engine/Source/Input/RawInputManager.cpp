@@ -39,7 +39,7 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 	{
 		pRawinputdevices[0].usUsagePage = 0x01;
 		pRawinputdevices[0].usUsage = 0x02;
-		pRawinputdevices[0].dwFlags = RIDEV_INPUTSINK; // adds HID mouse and also ignores legacy mouse messages
+		pRawinputdevices[0].dwFlags = RIDEV_INPUTSINK; // adds HID mouse; legacy mouse messages still arrive (they feed DirectXTK Mouse)
 		pRawinputdevices[0].hwndTarget = hwnd;
 
 		pRawinputdevices[1].usUsagePage = 0x01;

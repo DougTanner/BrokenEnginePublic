@@ -75,7 +75,7 @@ Rules:
 - **Engine reading `game::gp*` globals is by design** — not a layer violation; do not file plans to "inject" or "decouple". Details: [Engine/Source/CLAUDE.md](Engine/Source/CLAUDE.md)
 - **Workbuffer**: Use `gpThreadLocal->mWorkbuffer` for temp allocations instead of local `std::vector`/`std::string`. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Allocation tracking**: Heap allocations in the main loop trigger `DEBUG_BREAK()`. When unavoidable, wrap with `ScopedSuppressAllocationTracking` + `// Heap:` comment. See [Memory/CLAUDE.md](Engine/Source/Memory/CLAUDE.md)
-- **LOG formatting**: never use float format specs (`{:.Nf}`, `{:e}`, etc.) in `LOG(...)` — they heap-allocate and trip the allocation tracker. Wrap floats with `common::Wb(value, precision)`, `XMVECTOR`s with `common::WbV2/V3/V4`; placeholder stays `{}`. Full rules: repo-code-review skill §2b.
+- **LOG formatting**: in allocation-tracked builds only (Game and Engine are; offline DataPacker is not), never use float format specs (`{:.Nf}`, `{:e}`, etc.) in `LOG(...)` — they heap-allocate and trip the allocation tracker. Wrap floats with `common::Wb(value, precision)`, `XMVECTOR`s with `common::WbV2/V3/V4`; placeholder stays `{}`. Full rules: repo-code-review skill §2b.
 - **Standard library headers**: `#include <header>` additions go in `Common/ExternalHeaders.h`, not in individual source files
 - **Flags over booleans**: Use `common::Flags<EnumType>` instead of multiple `bool` variables. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/CLAUDE.md](Common/CLAUDE.md)

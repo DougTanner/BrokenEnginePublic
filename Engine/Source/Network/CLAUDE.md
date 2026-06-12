@@ -7,8 +7,8 @@ Client/server networking over ENet reliable UDP with slot-based coord subscripti
 ## Hub Conventions (children do not re-document these)
 
 - **Channel math**: channel 0 reliable control, channel 1 reserved unreliable, channels `2 + slot*2` (reliable) / `2 + slot*2 + 1` (unreliable) per coord slot. Always use `NetworkManager::CoordSlot*` / `ChannelToSlot` / `IsCoordChannel` / `IsUnreliableChannel` — never hardcode.
-- **Send path**: all sends (engine and game) go through `NetworkManager::SendPacket`; it wraps ENet's internal alloc with `ScopedSuppressAllocationTracking`. For simple fixed-payload packets (type byte + arithmetic / `GridCoord` args), use the `SendSimplePacket` member template on `Client` / `Server` (see children) rather than recreating the workbuffer-push boilerplate; its per-arg serializer is the `PushSimplePacketArg` dispatcher in `NetworkCursor.h` (arithmetic and `GridCoord` only — unwrap enums/ids/flags at the call site).
-- **Serialization helpers**: `NetworkCursor.h` holds the shared cursor read/write primitives used by every `Network*.cpp`; they do no bounds checking, so callers own buffer sizing. It is intentionally not aggregated into `Engine.h` — include it directly where needed.
+- **Send path**: all sends (engine and game) go through `NetworkManager::SendPacket`; it wraps ENet's internal alloc with `ScopedSuppressAllocationTracking`. For simple fixed-payload packets (type byte + arithmetic / `GridCoord` args), use the `SendSimplePacket` member template on `Client` / `Server` rather than recreating the workbuffer-push boilerplate; its per-arg serializer is the `PushSimplePacketArg` dispatcher in `NetworkCursor.h` (arithmetic and `GridCoord` only — unwrap enums/ids/flags at the call site).
+- **Serialization helpers**: `NetworkCursor.h` holds the shared cursor read/write primitives used by every `Network*.cpp`; the `Read*`/`Write*` primitives do no bounds checking, so callers own buffer sizing. For variable-length payloads it also provides `BoundedCursor`, a bounds-tracking wrapper callers check (`Has`/`Remaining`) before handing its cursor to the unchecked reads. It is intentionally not aggregated into `Engine.h` — include it directly where needed.
 - **Slot ACK model**: independent `AckState` per slot (int64 floor + 128-bit bitfield + uint16 epoch). Epoch mismatch silently drops stale packets; makes slot reuse across rapid (un)subscribe cycles safe.
 - **Game-layer opacity**: packet types `>= kGamePacketStart` are forwarded as raw bytes; engine never interprets them.
 - **ENet tuning** (both sides): peer throttle disabled so reconciliation stalls don't drop unreliable traffic; 1 MB socket send/recv buffers.
@@ -35,5 +35,3 @@ Client/server networking over ENet reliable UDP with slot-based coord subscripti
 - [Server/CLAUDE.md](Server/CLAUDE.md) - Server host and `ServerSessionBase`
 - [Network.md](../../../Documents/Architecture/Network.md) - Protocol flow, ACK/resend, clock correction
 - [Game Reconciliation](../../../Documents/Architecture/GameReconciliation.md)
-</content>
-</invoke>

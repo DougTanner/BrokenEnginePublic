@@ -73,3 +73,22 @@ boot/resize/device-loss/settings only); value is drift-resistance between duplic
 - Shares `SwapchainManager.cpp`/`BufferManager.cpp`/`CommandBufferRecordMain.cpp` with
   `Refactor_CorrectnessHardenings.md`, `Refactor_BufferGrowthAndBounds.md`, and `Refactor_MicroCleanups.md` —
   co-schedule (File Groups).
+
+## Verification Notes
+
+Verified against source 2026-06-11 (verification pass for the /external-deep-analysis run). All items
+confirmed:
+
+- SwapchainManager ctor `:9-391` with the four phases at the cited ranges; redundant `static_cast<uint32_t>`
+  of an already-`uint32_t` `uiMinImageCount` at `:235`. `ImGuiManager::CreateRenderPass` at
+  `ImGuiManager.cpp:157` and `CreateFramebuffers` at `:219` — the in-directory decomposition precedent is real.
+- `RenderTargetTexturesLighting.cpp`: debug-texture registry block `:404-435` (`kiTerrainDebugSlotCount = 1`
+  at `:407`, slot arithmetic `kiTerrainDebugSlotCount + 2 + i` at `:422-424`, braceless ifs `:429-431` /
+  `:434-435`). No-overflow recheck: max index = `kiTerrainDebugSlotCount + 2 + iPassCount` with
+  `kiMaxSpreadPasses = 40` → 43 < `kiMaxDebugTextures = 56` (`ShaderLayoutsBase.h:133-134`).
+- `RecordSmokeSpreadPipeline` `CommandBufferRecordGlobal.cpp:269-445` with the twice-written B-half
+  (`:276-357`) / A-half (`:359-442`); `Record` `:35-68` with the inline shadow chain and the ceil-div expression
+  on `:41,44,47,60` (X and Y per line → 8 occurrences).
+- `ImGuiManager` ctor `:22-136` with the anonymous-scope indirect-buffer block `:30-54`; `BufferManager` ctor
+  `:12-216` with the `kbDebugRender` block `:37-164` and 5 repeated create-lambda shapes (quad `:20-35` + 4
+  debug meshes); `CommandBufferRecordMain::Record` `:16-328` with deposit `:44-101` and main pass `:209-325`.

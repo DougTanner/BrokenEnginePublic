@@ -3,7 +3,7 @@
 ## Context
 
 Source: /external-architecture-review on `Engine/Source/Graphics/Managers` (non-recursive). The directory is
-fully ExternalHeaders.h-compliant (zero `#include <...>` lines), but 18 local includes are unused (verified by
+fully ExternalHeaders.h-compliant (zero `#include <...>` lines), but 17 local includes are unused (verified by
 whole-file symbol matching against each header's complete declared-symbol set, all preprocessor branches), and
 one file uses symbols it only receives transitively. All removals are compile-checked and PCH-safe (every cpp
 inherits `Engine.h` + `Common.h` via `Pch.h`).
@@ -23,8 +23,6 @@ These files use only `ScopedBootTimer`/`kBootTimer*`/`ScopedCpuProfile`, which l
 
 ### Other unused includes in cpps
 - `PipelineManager.cpp:6` — `Ui/LightingWrappersBase.h`: zero of its 85 wrapper globals referenced. [~5m]
-- `PipelineManager.cpp:9` — `Data/Texture.h`: zero `data::` texture tokens in the file (its `data::kShaders*`
-  come from `Data/Shader.h` at line 8). [~5m]
 - `TextManager.cpp:6` — `Data/Raw.h`: only `data::kFonts*` used (`TextManager.cpp:29,33`), which is
   `Data/Font.h` (line 5). [~5m]
 - `TextureManager.cpp:9` — `Data/Data.h`: zero `data::` tokens in the cpp (the `kIrradianceCrc` etc. at
@@ -81,3 +79,25 @@ header in the directory.
   symbol names were observed in the directory.
 - Shares `TextureManager.cpp`/`RenderTargetTextures.cpp` with `Architecture_LayerSeams.md` — co-schedule
   (File Groups).
+
+## Verification Notes
+
+Verified against source 2026-06-11 (verification pass for the /external-deep-analysis run):
+
+- **Item removed**: `PipelineManager.cpp:9` `Data/Texture.h` — the claim "zero `data::` texture tokens" is
+  false: `data::kTextures*` CRCs are used at `PipelineManager.cpp:100, 396-403, 443, 445, 485, 487, 605, 624,
+  673, 690` (terrain/water/smoke texture descriptor entries). The include is live; count drops 18 → 17.
+- **Confirmed (re-verified symbol-by-symbol)**: the six `Profile/ProfileManager.h` removals (all six cpps use
+  only `ScopedBootTimer`/`kBootTimer*` from the engine's `ProfileManagerBase.h`; no game `ProfileManager.h`
+  symbol); `PipelineManager.cpp:6` `Ui/LightingWrappersBase.h`; `TextManager.cpp:6` `Data/Raw.h` (only
+  `data::kFonts*` at `:29,33`, from `Data/Font.h`); `TextureManager.cpp:9` `Data/Data.h` (zero `data::` tokens;
+  `kIrradianceCrc` etc. are `TextureManager.h` statics); `CommandBufferRecordMain.cpp:9`
+  `Ui/ShadowWrappersBase.h` (its globals come from GraphicsSettings/Lighting/WrapperBase headers);
+  `RenderTargetTextures.cpp:8` `Ui/WaterWrappersBase.h` (`gWaterShapeDetail` is GraphicsSettingsWrappersBase);
+  `TextureCache.cpp:5` `TextureManager.h` (zero symbols; `data::kShaders*` at `:186` via its own `Data/Data.h`);
+  the two `Game.h` removals (`game::Camera` reachable via `GameBase.h:6` → `Graphics/Camera.h`, not via
+  `Game.h`'s closure; only game symbols are the two headroom constants at the cited lines); the three
+  sub-object-header `Data/Texture.h` removals (zero `data::` tokens in each header); the `DynamicPipelines.cpp`
+  transitive-include item (`data::kTextures*` at `:298,316,325,334,343,372`; includes only `Data/Model.h` +
+  `Data/Shader.h` at `:5-6`).
+- No citation drift found in the surviving items.

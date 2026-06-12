@@ -15,6 +15,11 @@ Reconciles orphaned plan files on disk into `Documents/Plans/Order.md`, then wal
 - The skill assumes **bypass-permissions** mode and mutates without further confirmation: it inserts `Order.md` rows for orphaned plan files (Step 0), removes the target row from `Documents/Plans/Order.md` as soon as the candidate is selected (Step 2), and deletes the source plan file from disk once the final actionable plan has been generated (Step 8). User approval is requested only on the final synthesized plan, not on the mutations.
 - `Documents/Plans/Order.md` must exist. If it does not, report the missing file and stop.
 - The skill does **not** require — and does not use — plan mode. It mimics plan mode's "review-before-implement" UX by printing the final plan as a standalone turn-ending text message (so it is readable and scrollable in the session window), then asking for approval via `AskUserQuestion` before the standard C++ Code Change Process begins. See Step 9 for the exact two-turn presentation contract.
+- **Order.md is shared mutable state — expect concurrent writers.** The user routinely runs several agent sessions at once, each executing plans, so `Order.md` rows and plan files appear, vanish, and renumber **while this skill is running**. Consequences:
+  - Re-read the relevant `Order.md` region immediately before *every* edit (Step 0f inserts, Step 2 removal, any annotation); a snapshot from earlier in the run is already stale. If an `Edit` fails with "file modified since read", that is the expected concurrency signal — re-read and re-apply, don't escalate.
+  - Key every row edit on the **plan path text**, never on the `#` ordinal or a remembered line number — parallel renumbers shift both constantly.
+  - After any insert/remove + renumber, verify the table is still a contiguous 1-based ordinal (count rows, check first/last) before moving on.
+  - A row (or plan file) that disappears mid-run with a *consistent* renumber is another session legitimately executing that plan — not corruption. Never "restore" it; see the edge case below.
 
 ## Order.md structure reference
 
@@ -98,8 +103,11 @@ As soon as Step 1 has settled on a target plan (no unmet prerequisites, no unres
 Important sequencing rules:
 
 - Step 1 must be fully resolved before this edit. Any cycle/ambiguity prompts to the user happen inside Step 1; Step 2 only runs once a single target has been selected.
+- Re-read the row immediately before deleting and match on the plan path, not the `#` ordinal — a parallel session may have renumbered the table since Step 1 read it (see Preconditions). This removal also acts as the concurrency claim on the target: once the row is gone, parallel `/next-plan` runs walking the table cannot select the same plan.
+- If the row is already gone AND the plan file is missing, a parallel session beat this run to the same target — go back to Step 1 and select the next candidate from a fresh read of the table.
 - Do **not** delete the plan file in this step. The file is still needed for Steps 3–7 (relevance / validity / refresh / similar-pattern search / synthesis).
-- If the row deletion fails (e.g., the row text is not unique or has changed), stop and report the failure. Do not proceed to deletion of the plan file.
+- If the row deletion fails for any other reason (e.g., the row text is not unique), stop and report the failure. Do not proceed to deletion of the plan file.
+- After the removal + renumber, verify the table is still contiguous before continuing.
 
 ### Step 3. Relevance check — does the code still exist?
 
@@ -246,7 +254,8 @@ If the user picks `Reject`, stop. Do not attempt to restore the Order.md row or 
 - **Orphan is itself a Reference / Index document** that wasn't added to the `### Reference / Index Documents` subsection: Step 0b only excludes paths already listed there, so a genuinely-meta doc would be misclassified as a plan. The Opus subagent should detect this from the document's content (no execution steps, no `## Critical files` section, narrative overview tone) and label it `stale` with a justification recommending the user move it to the reference subsection.
 - **Empty table** (`## Plans` table has no rows): report "Order.md has no plans" and stop. No mutations.
 - **Top row is marked subsumed or index/meta in Dependencies**: Step 1c filters it; fall through to the next row. No row removal happens for filtered rows — Step 2 only fires on the eventual selected target.
-- **Plan file missing from disk** but row still in `## Plans`: the plan was likely hand-deleted without cleaning up Order.md. Step 1 detects this before committing; report the bookkeeping anomaly, ask the user whether to remove the stale row, and fall through to the next candidate. Do not commit Step 2 against a candidate whose plan file is already missing — the row removal would silently succeed but Step 3 would have nothing to read.
+- **Plan file missing from disk** but row still in `## Plans`: most often a parallel session mid-execution of that plan (its Step 8 file deletion has fired but you read the table before its Step 2 removal landed, or vice versa) — re-read the table; if the row is gone on the fresh read, fall through to the next candidate silently. If the row persists across a fresh read, the plan was likely hand-deleted without cleaning up Order.md: report the bookkeeping anomaly, ask the user whether to remove the stale row, and fall through to the next candidate. Either way, do not commit Step 2 against a candidate whose plan file is already missing — the row removal would silently succeed but Step 3 would have nothing to read.
+- **Row and/or plan file disappears mid-run (concurrent execution)**: many plans are in flight at once across parallel agent sessions, so a row + file vanishing together with a consistent renumber is another session legitimately executing that plan — not corruption. Never restore the row or recreate the file. If it was this run's candidate, restart from Step 1 on a fresh read; if it was an unrelated row, just re-verify table contiguity and continue. Mention the observation in the final report so the user can correlate sessions.
 - **User provided a plan name as an argument**: Step 1b handles this — normalize and use as the candidate; the dependency walk still runs from it downward.
 - **Prerequisite missing from both the table and disk**: Step 1e already treats this as satisfied. No extra handling needed.
 - **User rejects in Step 9 approval**: per the contract, Order.md row and plan file are already gone. Do not attempt restoration. The synthesized plan markdown printed in Step 9 is the only remaining record.

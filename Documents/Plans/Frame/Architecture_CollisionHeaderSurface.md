@@ -20,7 +20,7 @@ Source: /external-architecture-review on `Engine/Source/Frame` (non-recursive), 
 ## Out of scope
 - Any change to the public 5-method interface or the zone-grid constants
 - `CollideLayerPair` restructuring (own plan: `Refactor_CollisionDecomposition.md`)
-- Overflow-path fixes (own plan: `Refactor_CollisionOverflowGuards.md`)
+- Overflow-path fixes (`Refactor_CollisionOverflowGuards.md` — landed and removed)
 
 ## Notes
 - No determinism/CRC/serialization exposure — type relocation only, both builds compile-checked.

@@ -33,7 +33,7 @@ emitted by `CreateClientMeshBuffers`). Then pick:
   radius (changes `FileManager` lifecycle).
 - **(c) Cap / tier the total template count** by trimming the route table in
   `Engine/Data/Islands/01/Island.json` and the bake pipeline in
-  `DataPacker/Source/BakeIslandIntermediates.cpp`. Lowest risk; doesn't fix scaling, only delays it.
+  `DataPacker/Source/ExportJobs/Island/BakeIslandIntermediates.cpp`. Lowest risk; doesn't fix scaling, only delays it.
 - **(d) Compress / share** resident data: quantize mesh positions to int16, pack indices to uint16
   where vertex count permits, share heightmaps across routes that crop the same source. Incremental,
   lower payoff.
@@ -56,7 +56,7 @@ win.
   `kDataTypeIslands`). Strategy (b) seam.
 - `Engine/Data/Shaders/ShaderLayoutsBase.h` — `kiMaxIslands` (currently 128). Re-evaluate as a
   residency budget after strategy lands.
-- `Engine/Data/Islands/01/Island.json` + `DataPacker/Source/BakeIslandIntermediates.cpp` — route
+- `Engine/Data/Islands/01/Island.json` + `DataPacker/Source/ExportJobs/Island/BakeIslandIntermediates.cpp` — route
   table (strategy (c) seam).
 - `Engine/Source/Frame/CLAUDE.md` — module-level residency-model paragraph; update if strategy
   (a2) or (b) changes mesh/heightmap lifetime.

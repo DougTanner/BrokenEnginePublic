@@ -80,3 +80,32 @@ re-verify zero references at execution before deleting (line numbers refresh via
 - No determinism/CRC/`kiVersion` exposure — all client-only render/UI code, no serialized state.
 - The `bFromTransferQueue` item is the only behavior-adjacent one (gated on its verification step); everything
   else is pure removal.
+
+## Verification Notes
+
+Verified against source 2026-06-11 (verification pass for the /external-deep-analysis run). All items
+confirmed; no removals:
+
+- **Zero-reference greps re-run**: `FindMemoryType` — declaration only (`DeviceManager.h:8`), no definition, no
+  callers repo-wide. `sVkMappedMemoryRange` — `TextManager.cpp:11` only. `MeasureQuads` — declaration only
+  (`TextManager.h:102`), zero callers. `CreateVisibleAreaMesh` — defined `BufferManager.cpp:645`, sole use at
+  `:711` inside `static BuildLodConcatMesh` (`:683`).
+- **`ModelPipelineSpec::name` write-only confirmed**: `CreateModelPipeline(const ModelPipelineSpec&)`
+  (`DynamicPipelines.cpp:19-28`) reads only `sceneCrc`/`pipelineInfo`/`bAddModelDescriptors`/`bIsPipelineShadow`
+  (`:22`); the two construction sites set `.name` at `:48` and `:92` (shadow path also passes `rShadowName` as
+  `pipelineInfo.name`, which is the one actually used).
+- **`bAddModelDescriptors`**: `true` at both construction sites (`:63, :109`); no other `ModelPipelineSpec`
+  construction repo-wide.
+- **`mHinstance`/`mHwnd`**: initialized in the ctor init list (`InstanceManager.cpp:112-113`), read only at
+  `:350-351` (Win32 surface create) — same function.
+- **`ReadLayerProperties`**: body-wide `if constexpr (kbVulkanDebugLayers)` at `:699` duplicating the call-site
+  guard at `:119-122`; `while (true)` VK_INCOMPLETE-retry loops at `:702-712` and `:742-752`, both on
+  count-queries (null pProperties) which per spec cannot return `VK_INCOMPLETE`.
+- **`WriteQuads` simplification**: sole caller `TextManager.cpp:84` passes a 1-element span built by the
+  workbuffer arena push of a single float at `:77-78`.
+- **`bFromTransferQueue` (verify-first framing stands)**: `:627` flag, `:669` use; only `kGpuUploadComplete`
+  writer is `UploadThread` (`TextureUploadManager.cpp:404`, requires non-null `pData`); device-lost path stores
+  `kDiskLoaded` (`:420`); `FileManager::ResetTextureChunkStates` stores only `kNotLoaded`/`kDiskLoaded`. The
+  execution-time audit step remains appropriate.
+- **TextureCache dead stores**: `currentLayout`/`restoreLayout` identical ternaries at `:14-15`;
+  `iMipWidth`/`iMipHeight` re-inits at `:67-68` dead (unconditionally reassigned at `:73-74`).

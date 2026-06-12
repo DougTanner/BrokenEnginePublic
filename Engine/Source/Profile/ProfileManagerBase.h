@@ -40,6 +40,7 @@ struct CpuTimer
 	common::Smoothed<int64_t> smoothedMicroseconds {};
 	common::Smoothed<int64_t> smoothedAllocations {};
 
+	bool bSmoothAtStop = false;
 	bool bVisible = false;
 };
 

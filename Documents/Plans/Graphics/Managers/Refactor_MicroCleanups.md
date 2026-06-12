@@ -73,3 +73,29 @@ sit next to hazards. None changes behavior.
 
 ## Notes
 - No determinism/CRC exposure. Pure consistency sweep; land any subset.
+
+## Verification Notes
+
+Verified against source 2026-06-11 (verification pass for the /external-deep-analysis run). All items
+confirmed at their cited lines; no removals:
+
+- `gp*` self-indirections: `DeviceManager.cpp:316` (ctor) and `:406` (dtor, adjacent `:408-411` use the member);
+  `CommandBufferManager.cpp:131` vs `:71`; `TextManager.cpp:45` (global assigned `:22`).
+- Clear-value count mirrors at `CommandBufferRecordMain.cpp:76/84` (`[3]`) and `:358/366` (`[6]`); stale phase
+  numbering Phase 1/3/4 at `:342,385,422` with no Phase 2 in the file.
+- `RenderTargetTexturesLighting.cpp:88-126` three written-out `VkAttachmentDescription` literals vs the loop
+  form at `:237-254`.
+- `kPipelineWaterDisplacement` created inside `CreatePipelineShadows` (`PipelineManager.cpp:273-286`);
+  `CreateTerrainDataPipelines` 1-element desc array + range-for (`:498-537`, array at `:512-517`).
+- `DeviceManager.cpp:250-267` queue-equality tested twice (fetch then logging).
+- `CreateDynamicBuffer` triple hash lookup (`BufferManager.cpp:400-405`: `contains` → `at` → `try_emplace`).
+- `smPriorityTextures` static inline vector at `TextureManager.h:79`; sole consumer
+  `gpFileManager->RequestChunkLoad(smPriorityTextures, kRealtime)` at `TextureManager.cpp:348` (span parameter
+  accepts a constexpr C array).
+- `CrcToIndex` returns `float` (`TextureDescriptors.cpp:397-413`); round-tripping consumers at
+  `TextureDescriptors.cpp:302` and `TextureManager.cpp:909` (also `ParticleManager.cpp:24` casts to `int32_t` —
+  include it in the cast-site sweep).
+- `CreateVisibleAreaMesh` external linkage at `BufferManager.cpp:645`, used only by `static BuildLodConcatMesh`
+  (`:683,711`); `XMFLOAT4X4 identity` at `:343-344`.
+- Braceless ifs: `TextureDescriptors.cpp:420-421`; `TextureUploadManager.cpp:157` (`if (mbShutdown) break;`),
+  `:167` (`if (mUploadQueue.empty()) continue;`), `:314` (`if (iChunksThatFit == 0) break;`).

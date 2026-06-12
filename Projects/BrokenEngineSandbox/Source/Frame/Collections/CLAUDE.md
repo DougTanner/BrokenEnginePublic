@@ -38,8 +38,6 @@ Conventions below are hub-owned; child CLAUDE.mds document only deviations.
 
 **Unconditional Store Rule**: In Update loops, every shared field must be loaded from `rPrevious` at the top and stored to `rCurrent` at the bottom, unconditionally — outside any early-exit branches (transfer lock, destroyed checks, etc.). Storing inside a conditional block leaves uninitialized memory in `rCurrent`, causing client/server desync. Exception: fields `memcpy`'d forward in `AllocateAndCopy` and mutated only at state transitions (see Missiles, Spaceships) need no per-tick re-store.
 
-**Navigation**: Entities moving to a destination must use `NavQueryDirection` (per-cell `NavData` from `FrameStaticData`), never straight-line steering.
-
 **Debug Render Data**: Debug primitives are computed at render time in a dedicated `DebugRender` phase (called per-coord after collection `EndRender`), not during Interpolate Update. Entity positions must be read from the fully-interpolated `FrameInterpolate`, never from PostRender — PostRender positions lag behind the rendered frame. Only flags, metadata, and static world positions (nav waypoints, island destinations) may come from PostRender.
 
 ## See Also

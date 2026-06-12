@@ -61,3 +61,19 @@ review explicitly cleared the big declarative pipeline tables (`PipelineManager`
 - No determinism/CRC exposure — boot/recreate paths only.
 - Shares `PipelineManager.cpp`/`DynamicPipelines.cpp` with `Architecture_LayerSeams.md`,
   `Architecture_ShaderCpuContractConstants.md`, and `Refactor_DeadCodeRemoval.md` — co-schedule (File Groups).
+
+## Verification Notes
+
+Verified against source 2026-06-11 (verification pass for the /external-deep-analysis run). All items
+confirmed:
+
+- `InstanceManager` ctor begins `:111`; `ReadLayerProperties` call at `:121`; the five copy-pasted
+  required-feature blocks land in the `:447-471` range (each a feature check + `MessageBox` using
+  `game::kGameName`).
+- `CreateDepositPipeline` at `DynamicPipelines.cpp:258` with 9 parameters; six thin wrappers at `:293-344`
+  (`CreatePipelineSmokeAxisAligned`/`Smoke`/`WindDepositA`/`WindDepositB`/`WindDepositAxisAlignedA`/
+  `WindDepositAxisAlignedB`). The allocate/register tail appears 7× — `push_back` + `Create` +
+  `insert_or_assign` pairs at `:129/150, :163/183, :199/220, :236/255, :271/290, :360/378, :391/410`. The
+  chunk-lookup + vertex-shader-select preamble duplication confirmed (`:39-44`-area vs `:79-84`).
+- `CreateSmokeWindPipelines` starts at `PipelineManager.cpp:539` (previous function ends `:537`), matching the
+  cited range.

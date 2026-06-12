@@ -185,6 +185,7 @@ void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCross
 
 		if (bSmoothNow) [[unlikely]]
 		{
+			rCpuTimer.bSmoothAtStop = true;
 			rCpuTimer.smoothedMicroseconds = rCpuTimer.iTotalFrameTimeNs / 1000;
 			rCpuTimer.iTotalFrameTimeNs = 0;
 			rCpuTimer.smoothedAllocations = rCpuTimer.iAllocationsThisFrame;
@@ -372,7 +373,7 @@ void ProfileManagerBase::SmoothCpuTimers()
 		for (int64_t i = 0; i < iCpuTimerCount; ++i)
 		{
 			CpuTimer& rCpuTimer = GetCpuTimer(i);
-			if (i > kCpuTimerAcquireToGlobal)
+			if (!rCpuTimer.bSmoothAtStop)
 			{
 				rCpuTimer.smoothedMicroseconds = rCpuTimer.iTotalFrameTimeNs / 1000;
 				rCpuTimer.iTotalFrameTimeNs = 0;

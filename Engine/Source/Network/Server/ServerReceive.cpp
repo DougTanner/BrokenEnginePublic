@@ -20,6 +20,12 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 		return;
 	}
 
+	// 1B type + 1B count must be present before the count byte is read
+	if (iSize < 2)
+	{
+		return;
+	}
+
 	// Read per-slot ACK state
 	uint8_t uiAckSlotCount = ReadUint8(pCursor);
 

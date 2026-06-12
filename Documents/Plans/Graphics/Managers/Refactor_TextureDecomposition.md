@@ -25,8 +25,9 @@ readability and drift-resistance.
   the sampler code is being touched anyway. [~1h, optional]
 
 ### Engine/Source/Graphics/Managers/TextureDescriptors.cpp / .h
-- `RegisterTextureBinding` (`TextureDescriptors.h:22`, impl `:248`): 8 parameters, three defaulted tails
-  encoding three mutually-exclusive binding shapes (single texture / array / single element). Replace with a
+- `RegisterTextureBinding` (`TextureDescriptors.h:22`, impl `:248`): 8 parameters, four defaulted tails
+  (`pTexture`/`ppTextures`/`iCount`/`iArrayIndex`) encoding three mutually-exclusive binding shapes
+  (single texture / array / single element). Replace with a
   `TextureBindingInfo` struct + designated initializers — call sites in PipelineDescriptorWriter /
   IslandTerrain become self-documenting. [~1h]
 - `RewriteSamplerDescriptors` (`:328-388`): nesting reaches 5; the three top-level phases (standalone
@@ -61,3 +62,20 @@ readability and drift-resistance.
 - No determinism/CRC exposure. If `Architecture_BindlessSlotLifecycle.md` executes, it reshapes
   `TextureDescriptors` — land this plan's `TextureDescriptors` items either before it (small, mechanical) or
   fold them into it; do not run both concurrently (Dependencies entry).
+
+## Verification Notes
+
+Verified against source 2026-06-11 (verification pass for the /external-deep-analysis run). All items
+confirmed:
+
+- TextureManager ctor `:71-349`; the five island-placeholder stanzas at `:132-238` (Elevation `:132-155`,
+  Color `:157-175`, Normals `:177-195`, AO `:197-215`, Masks `:220-238`). The acquire command-pool +
+  command-buffer block at `:313-333` is duplicated **verbatim** in `CreateScreenDependentResources`
+  (`:382-401`) — re-checked side by side, identical structs and calls.
+- `ProcessPendingTextures` `:603-708`, adoption body `:625-673`; sampler members `TextureManager.h:117-124`,
+  `GetSampler` `:565-600`, `DestroySamplers` `:404-422`.
+- `RegisterTextureBinding` signature confirmed (`TextureDescriptors.h:22`): 8 params, FOUR defaulted tails
+  (citation corrected from "three"); impl at `:248`. `RewriteSamplerDescriptors` `:328-388` with the three
+  commented phase seams.
+- `UploadThread` `:147-426` with the cited comment-separated seams (dequeue `:164-171`, early-outs `:175-192`,
+  first-chunk image create from `:208`).

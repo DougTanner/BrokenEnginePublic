@@ -309,7 +309,7 @@ void FileManager::LoadPackFiles()
 		mLazyPackFileHandles[i] = CreateFileW(mPackFilePaths[i].c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_NO_BUFFERING | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
 	}
 
-	// Allocate pre-faulted sector-aligned read buffer (one sub-read + sector padding)
+	// Allocate sector-aligned read buffer (one sub-read + sector padding)
 	miReadBufferSize = common::RoundUp(kiSubReadSize + miSectorSize, miSectorSize);
 	mpReadBuffer = static_cast<std::byte*>(_aligned_malloc(miReadBufferSize, static_cast<size_t>(miSectorSize)));
 

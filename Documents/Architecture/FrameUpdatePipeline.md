@@ -71,11 +71,13 @@ flowchart TD
         poll --> stall_check
 
         ts["TimeStep::TickRealtime()<br/>compute iFullTicks"]:::physics
+        subs["ClientSession::UpdateDesiredCoords()<br/>+ UpdateSubscriptions()<br/>unsubscribe stale, rebuild, subscribe"]:::network
         prepare_active["PrepareActiveSet()"]:::physics
+        clamp["Clamp iFullTicks to<br/>GetTargetSimTick() ceiling<br/>(AbsorbUnusedTicks)"]:::network
         advance["Advance miTickCounter +<br/>mfCurrentTime"]:::physics
         reconcile["ClientSession::Reconcile()<br/>single pass: drop validated,<br/>replay mismatches, forward sim<br/>to target tick"]:::network
 
-        stall_check -->|No| ts --> prepare_active --> advance --> reconcile
+        stall_check -->|No| ts --> subs --> prepare_active --> clamp --> advance --> reconcile
     end
 
     subgraph render_method ["GameBase::Render()"]
@@ -83,9 +85,7 @@ flowchart TD
         r_interp["FrameInterpolate::<br/>AllocateAndCopy + Update"]:::render
         r_render["BeginRender / Render / EndRender"]:::render
 
-        post_render["ClientSession::PostRender()"]:::network
-
-        r_global --> r_interp --> r_render --> post_render
+        r_global --> r_interp --> r_render
     end
 
     audio["AudioManager::Update()"]:::render
@@ -113,25 +113,37 @@ flowchart TD
     subgraph tick_frames ["GameBase::ServerUpdate()"]
         pre_tick["ServerSession::PreTickNetwork()"]:::network
 
+        quickload{"GameSaveLoad::Quickload()?"}:::server
+        save_load_replay["GameSaveLoad::SaveLoadReplay()"]:::server
+
         wait_tick["ServerSessionBase::WaitForTick()"]:::server
 
-        subgraph physics_loop ["Fixed Timestep Loop (64 Hz)"]
-            ts["TimeStep::TickRealtime()"]:::physics
+        ts["TimeStep::TickRealtime()<br/>compute iFullTicks"]:::physics
+        prepare_active["PrepareActiveSet()"]:::physics
+
+        subgraph physics_loop ["Fixed Timestep Loop (32 Hz)"]
             prepare_tick["ServerSession::PrepareTick()"]:::network
+            sync_replay["GameSaveLoad::SyncReplayTick()<br/>(recording/replaying only)"]:::server
             dispatch_s["Dispatch RunFrameTick()"]:::physics
             harvest["HarvestTransfers()"]:::physics
             frame_swap["SwapFrames()"]:::physics
             broadcast_tick["ServerSession::BroadcastTick()"]:::network
-            ts --> prepare_tick --> dispatch_s --> harvest --> frame_swap
+            prepare_tick --> sync_replay --> dispatch_s --> harvest --> frame_swap
             frame_swap --> broadcast_tick
         end
 
-        pre_tick --> wait_tick --> physics_loop
+        resends["ServerSession::SendResends()<br/>(skipped when iFullTicks == 0)"]:::network
+        autosave["GameSaveLoad::TickAutosave()<br/>+ Quicksave()"]:::server
+
+        pre_tick --> quickload
+        quickload -->|No| save_load_replay --> wait_tick --> ts --> prepare_active --> physics_loop
+        physics_loop --> resends --> autosave
     end
 
     display["ServerUpdateDisplayStats()"]:::server
 
     start --> msgs --> tick_frames --> display
+    quickload -->|"Yes: ComputeActiveSet(),<br/>early-return whole update"| display
     display -->|next iteration| start
 ```
 

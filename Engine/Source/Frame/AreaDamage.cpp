@@ -23,6 +23,8 @@ void AreaDamage::Add(const AreaDamageSource& rSource)
 	{
 		LOG(kDefault, kWarning, "AreaDamage: sAreaDamageSources overflow (count: {}, capacity: {}). Increase kiAreaDamageSourcePreallocate in AreaDamage.h", siAreaDamageSourceCount, sAreaDamageSources.size());
 		DEBUG_BREAK();
+		// Heap: rare growth when area-damage source count exceeds pre-allocation
+		ScopedSuppressAllocationTracking suppress;
 		sAreaDamageSources.resize(siAreaDamageSourceCount * 2);
 	}
 	sAreaDamageSources.at(static_cast<size_t>(iIndex)) = rSource;

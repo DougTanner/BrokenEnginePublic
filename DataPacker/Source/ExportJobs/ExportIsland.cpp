@@ -1,7 +1,7 @@
 #include "ExportIsland.h"
 
-#include "BakeIslandIntermediates.h"
-#include "Texture.h"
+#include "Island/BakeIslandIntermediates.h"
+#include "Texture/Texture.h"
 
 #include "stb/stb_image.h"
 
@@ -199,8 +199,8 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 	}
 
 	// Encode each intermediate as a BC-compressed mip chain in turn (MakeMipmaps walks down to the
-	// BC 4-divisibility floor). sEncodeMutex serializes the BC encoder across textures (it uses all
-	// hardware threads internally; mutex bounds memory). A JPEG sidecar is written next to each
+	// BC 4-divisibility floor). sEncodeMutex serializes the BC encoder across textures (it spawns up to
+	// HardwareCoreCount() - 2 threads internally; mutex bounds memory). A JPEG sidecar is written next to each
 	// output for visual diagnosis of the bake input (mip 0 only). MaskByHeightmap runs before
 	// MakeMipmaps on each so the flat-value underwater regions propagate down the mip chain via
 	// the box / linear downsample naturally — the BC encoder then sees long constant runs at every

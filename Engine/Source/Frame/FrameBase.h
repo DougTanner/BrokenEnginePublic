@@ -139,6 +139,10 @@ struct FrameInterpolateBase
 
 static_assert(std::tuple_size_v<decltype(std::declval<FrameInterpolateBase>().Collections())> == FrameInterpolateBase::kCollectionCount, "FrameInterpolateBase: Collections() tuple size does not match kCollectionCount. Did you add a new collection member without updating Collections()?");
 
+#if defined(BT_SERVER)
+static_assert(std::is_same_v<decltype(std::declval<FrameInterpolateBase>().Collections()), decltype(std::declval<FrameInterpolateBase>().ServerCollections())>, "Server build: FrameInterpolateBase::Collections() and ServerCollections() must be the same tuple — Write() walks Collections() while ServerRead()/Crcs() walk ServerCollections(); a divergence shears the wire format.");
+#endif
+
 struct FramePostRenderBase
 {
 	FramePostRenderBase() = default;
@@ -236,6 +240,10 @@ struct FramePostRenderBase
 static_assert(std::tuple_size_v<decltype(std::declval<FramePostRenderBase>().Collections())> == FramePostRenderBase::kCollectionCount, "FramePostRenderBase: Collections() tuple size does not match kCollectionCount. Did you add a new collection member without updating Collections()?");
 
 static_assert(std::tuple_size_v<decltype(std::declval<FrameInterpolateBase>().Collections())> == std::tuple_size_v<decltype(std::declval<FramePostRenderBase>().Collections())>, "FrameInterpolateBase and FramePostRenderBase must have the same number of collections");
+
+#if defined(BT_SERVER)
+static_assert(std::is_same_v<decltype(std::declval<FramePostRenderBase>().Collections()), decltype(std::declval<FramePostRenderBase>().ServerCollections())>, "Server build: FramePostRenderBase::Collections() and ServerCollections() must be the same tuple — Write() walks Collections() while ServerRead()/Crcs() walk ServerCollections(); a divergence shears the wire format.");
+#endif
 
 // Type aliases derived from Collections() - must be after class definitions are complete
 using InterpolateTypes = TupleToTypeList_t<decltype(std::declval<FrameInterpolateBase>().Collections())>;

@@ -44,11 +44,12 @@ size_t Collision::AddLayer(const CollisionLayer& rLayer)
 	}
 
 	size_t uiLayerIndex = static_cast<size_t>(siLayerCount);
+	// Growing past the pre-allocation would overrun the fixed sLayerBaseOffsets array; layer count is
+	// compile-time-determined by the registering collections, so overflow is a developer error — fail loud
 	if (siLayerCount >= static_cast<int64_t>(sLayers.size()))
 	{
-		LOG(kDefault, kWarning, "Collision: sLayers overflow (count: {}, capacity: {}). Increase kiCollisionLayerPreallocate in Collision.h", siLayerCount, sLayers.size());
-		DEBUG_BREAK();
-		sLayers.resize(siLayerCount * 2);
+		LOG(kDefault, kError, "Collision: sLayers overflow (count: {}, capacity: {}). Increase kiCollisionLayerPreallocate in Collision.h", siLayerCount, sLayers.size());
+		ASSERT(false);
 	}
 	sLayers.at(uiLayerIndex) = rLayer;
 	++siLayerCount;
@@ -111,6 +112,8 @@ void Collision::InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex
 				{
 					LOG(kDefault, kWarning, "Collision: ZonePair.indicesA overflow (count: {}, capacity: {}) pair A={}(cat={},total={}) B={}(cat={},total={}) zone=({},{}). Increase kiCollisionZonePreallocate in Collision.h", rZonePair.iCountA, rZonePair.indicesA.size(), rPairZones.uiLayerA, rLayerA.uiCategory, rLayerA.iCount, rPairZones.uiLayerB, rLayerB.uiCategory, rLayerB.iCount, x, y);
 					DEBUG_BREAK();
+					// Heap: rare growth when zone occupancy exceeds pre-allocation
+					ScopedSuppressAllocationTracking suppress;
 					rZonePair.indicesA.resize(rZonePair.iCountA * 2);
 				}
 				rZonePair.indicesA.at(static_cast<size_t>(rZonePair.iCountA)) = iIndex;
@@ -122,6 +125,8 @@ void Collision::InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex
 				{
 					LOG(kDefault, kWarning, "Collision: ZonePair.indicesB overflow (count: {}, capacity: {}) pair A={}(cat={},total={}) B={}(cat={},total={}) zone=({},{}). Increase kiCollisionZonePreallocate in Collision.h", rZonePair.iCountB, rZonePair.indicesB.size(), rPairZones.uiLayerA, rLayerA.uiCategory, rLayerA.iCount, rPairZones.uiLayerB, rLayerB.uiCategory, rLayerB.iCount, x, y);
 					DEBUG_BREAK();
+					// Heap: rare growth when zone occupancy exceeds pre-allocation
+					ScopedSuppressAllocationTracking suppress;
 					rZonePair.indicesB.resize(rZonePair.iCountB * 2);
 				}
 				rZonePair.indicesB.at(static_cast<size_t>(rZonePair.iCountB)) = iIndex;
@@ -235,6 +240,8 @@ void Collision::SetupZones(FXMVECTOR vecArea)
 			{
 				LOG(kDefault, kWarning, "Collision: sLayerPairZones overflow (index: {}, capacity: {}). Increase kiCollisionLayerPairPreallocate in Collision.h", uiPairIndex, sLayerPairZones.size());
 				DEBUG_BREAK();
+				// Heap: rare growth when layer-pair count exceeds pre-allocation (each new LayerPairZones pre-allocates its zone index vectors)
+				ScopedSuppressAllocationTracking suppress;
 				sLayerPairZones.resize(static_cast<int64_t>(uiPairIndex) * 2);
 			}
 			LayerPairZones& rPairZones = sLayerPairZones.at(uiPairIndex);

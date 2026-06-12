@@ -139,6 +139,9 @@ static void DeserializePlayerTransfer(const uint8_t*& pCursor, game::TransferDat
 	rData.uiPendingWeaponModeTicks = ReadUint8(pCursor);
 }
 
+// Upper bound on a single serialized StatusChange of any type; sizes the CompressStatusChangeBatch scratch and is enforced per item in SerializeGroup
+constexpr int64_t kiMaxBytesPerItem = 120;
+
 // Serialize a group of StatusChanges that share the same type
 static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, const game::StatusChange* pChanges, const int64_t* pIndices, int64_t iGroupCount)
 {
@@ -153,6 +156,7 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 	for (int64_t i = 0; i < iGroupCount; ++i)
 	{
 		const game::StatusChangeData& rData = pChanges[pIndices[i]].data;
+		const uint8_t* pItemStart = pCursor;
 
 		switch (eType)
 		{
@@ -201,6 +205,8 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 				break;
 			}
 		}
+
+		ASSERT(pCursor - pItemStart <= kiMaxBytesPerItem);
 	}
 }
 
@@ -351,9 +357,6 @@ int64_t CompressStatusChangeBatch(const game::StatusChange* pChanges, int64_t iC
 	}
 
 	// Serialize into workbuffer, then LZ4 compress into pDest
-	// Largest type is kTransferPlayer: 3 Vec4(16) + uint32(4) + 11 float(4) + uint8(1) + int64(8) + GridCoord(8) = 113 bytes
-	constexpr int64_t kiMaxBytesPerItem = 120;
-	static_assert(kiMaxBytesPerItem >= 113, "kiMaxBytesPerItem must cover the largest StatusChange serialization (currently kTransferPlayer at 113 bytes)");
 	constexpr int64_t kiMaxGroupHeaders = kiTypeCount * 3;
 	int64_t iMaxSerializedSize = kiMaxGroupHeaders + iCount * kiMaxBytesPerItem;
 

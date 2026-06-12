@@ -371,8 +371,8 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 	mpPipelines[kPipelineTerrain].Create(
 	{
 		.name = "Terrain",
-		// kIndirect* flag dropped: terrain now draws via per-island vkCmdDrawIndexed in
-		// CommandBufferRecordMain (instead of a single visible-area indirect draw).
+		// kIndirect* flag dropped: terrain records one vkCmdDrawIndexedIndirect per island template in
+		// CommandBufferRecordMain, from Islands' own indirect buffers (instead of a single visible-area indirect draw).
 		.flags = {kDepthTest, kDepthWrite, kCullBack, kUpdateAfterBind},
 		.ppShaders = {&mShaders.at(data::kShadersTerrainTerrainvertCrc), &mShaders.at(data::kShadersTerrainTerrainfragCrc)},
 		// pVertexBuffer is null: vertex buffer is per-island and bound at draw time. Vertex input

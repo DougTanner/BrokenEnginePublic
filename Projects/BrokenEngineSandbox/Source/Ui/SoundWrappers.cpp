@@ -3,7 +3,7 @@
 namespace game
 {
 
-// Default volumes are 0 so per-sound channels start silent; tweak each one up individually via the Sound Tweaks tab.
+// Volume defaults are the tuned per-channel mix; adjust each one via the Sound Tweaks tab.
 // Pitch defaults are real (pitch=0 would be silent-DC, not zero-volume).
 
 // Blasters - Player

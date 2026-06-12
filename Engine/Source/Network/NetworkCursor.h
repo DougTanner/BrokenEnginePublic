@@ -72,6 +72,24 @@ inline GridCoord ReadGridCoord(const uint8_t*& pCursor)
 	return coord;
 }
 
+// Bounds-tracking wrapper over the unchecked read helpers above for variable-length payloads:
+// callers verify Has()/Remaining() before passing pCursor to the Read* helpers
+struct BoundedCursor
+{
+	const uint8_t* pCursor {nullptr};
+	const uint8_t* pEnd {nullptr};
+
+	int64_t Remaining() const
+	{
+		return pEnd - pCursor;
+	}
+
+	bool Has(int64_t iBytes) const
+	{
+		return Remaining() >= iBytes;
+	}
+};
+
 // Cursor write helpers (shared across Network*.cpp files)
 inline void WriteBytes(uint8_t*& pCursor, const void* pData, int64_t iSize)
 {

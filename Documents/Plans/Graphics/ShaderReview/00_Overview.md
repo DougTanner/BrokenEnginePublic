@@ -34,7 +34,7 @@ All per-subsystem plan files below were executed-and-deleted or never authored �
 4. **Compute-shader implicit-LOD `texture()`** — undefined without quad derivatives. Affected: `Shadow.comp`, `ObjectShadowsBlurH.comp`, `WindSpreadOne.comp`, `WindSpreadTwo.comp` (via shared helper). Fix: replace with `textureLod(sampler, uv, 0.0)` throughout compute-stage sampling (no mip chain is in use anyway).
 5. **Missing `writeonly` on output `image2D`** — lost driver optimization. Affected: every `*Blur*.comp` (Lighting, Shadow, ObjectShadows) and `Shadow.comp`. One-line qualifier per binding.
 6. **`ParticlesUpdate.comp` non-atomic RMW on allocation bitmap** — 32 neighboring particles share a word; concurrent deallocations race. Fix: `atomicAnd(puiAllocated[i/32], ~(1u << (i%32)))`.
-7. **`Log.vert` hard bug — `gl_Position.w = 0.0`** produces NaN clip coords; vertex is culled/undefined. Fix: use `1.0f`.
+7. ~~**`Log.vert` hard bug — `gl_Position.w = 0.0`** produces NaN clip coords; vertex is culled/undefined. Fix: use `1.0f`.~~ **LANDED** — `Log.vert` now writes `w = 1.0f`.
 8. **`ParticlesSpawn.comp` dual-language type mismatch** — header declares `uint16_t pbAllocated[]`, shader writes `uint8_t`. Latent scalar-layout bug (path currently dead behind `ENABLE_32_BIT_BOOL`).
 9. **Shadow blur workgroup = 512** exceeds the 32-256 range; review against `ObjectShadowsBlur` siblings which use 64.
 10. **Descriptor-set discipline audit** — several compute shaders omit `set = N` and default to set 0, which per `Shaders/CLAUDE.md` is reserved for global. Most smoke/wind/blur compute shaders share this deviation. Decide subsystem-wide: either add explicit `set = 1` or document the convention.

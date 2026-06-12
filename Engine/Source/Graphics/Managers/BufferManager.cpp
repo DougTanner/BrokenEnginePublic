@@ -188,7 +188,7 @@ BufferManager::BufferManager()
 	}
 
 	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
-	ASSERT(iCommandBufferCount <= 4);
+	ASSERT(iCommandBufferCount <= kiMaxFramebuffers);
 
 	InitializePerCommandBufferBuffers(iCommandBufferCount);
 
@@ -254,7 +254,7 @@ void BufferManager::DestroySwapchainDependentBuffers()
 		rPrevious.reset();
 	}
 
-	for (int64_t i = 0; i < 4; ++i)
+	for (int64_t i = 0; i < kiMaxFramebuffers; ++i)
 	{
 		miMeshDataOffset[i] = 0;
 		miJointMatrixOffset[i] = 0;
@@ -266,7 +266,7 @@ void BufferManager::DestroySwapchainDependentBuffers()
 void BufferManager::CreateSwapchainDependentBuffers()
 {
 	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
-	ASSERT(iCommandBufferCount <= 4);
+	ASSERT(iCommandBufferCount <= kiMaxFramebuffers);
 
 	InitializePerCommandBufferBuffers(iCommandBufferCount);
 }
@@ -457,7 +457,7 @@ int64_t BufferManager::AllocateMeshData(int64_t iCommandBuffer, int64_t iCount)
 	miMeshDataOffset[iCommandBuffer] += iCount;
 	if (miMeshDataOffset[iCommandBuffer] > miMeshDataCapacity[iCommandBuffer])
 	{
-		GrowMeshDataBuffer(iCommandBuffer);
+		GrowMeshDataBuffer(iCommandBuffer, iOffset);
 	}
 	return iOffset;
 }
@@ -468,7 +468,7 @@ int64_t BufferManager::AllocateJointMatrices(int64_t iCommandBuffer, int64_t iCo
 	miJointMatrixOffset[iCommandBuffer] += iCount;
 	if (miJointMatrixOffset[iCommandBuffer] > miJointMatrixCapacity[iCommandBuffer])
 	{
-		GrowJointMatrixBuffer(iCommandBuffer);
+		GrowJointMatrixBuffer(iCommandBuffer, iOffset);
 	}
 	return iOffset;
 }
@@ -481,9 +481,12 @@ void BufferManager::ResetSkinningAllocations(int64_t iCommandBuffer)
 	mPreviousJointMatrixBuffer[iCommandBuffer].reset();
 }
 
-void BufferManager::GrowMeshDataBuffer(int64_t iCommandBuffer)
+void BufferManager::GrowMeshDataBuffer(int64_t iCommandBuffer, int64_t iValidCount)
 {
-	miMeshDataCapacity[iCommandBuffer] *= 2;
+	while (miMeshDataCapacity[iCommandBuffer] < miMeshDataOffset[iCommandBuffer])
+	{
+		miMeshDataCapacity[iCommandBuffer] *= 2;
+	}
 
 	void* pOldData = mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory;
 	mPreviousMeshDataBuffer[iCommandBuffer] = std::move(mMeshDataStorageBuffers.at(iCommandBuffer));
@@ -495,16 +498,20 @@ void BufferManager::GrowMeshDataBuffer(int64_t iCommandBuffer)
 		.dataVkDeviceSize = miMeshDataCapacity[iCommandBuffer] * sizeof(common::MeshData),
 	});
 
-	memcpy(mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory, pOldData, miMeshDataOffset[iCommandBuffer] * sizeof(common::MeshData));
+	// Copy only the iValidCount elements written before this allocation; the old buffer holds nothing past them
+	memcpy(mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory, pOldData, iValidCount * sizeof(common::MeshData));
 
 	// Update MeshData descriptor on all model pipelines
 	Buffer* pNewBuffer = &mMeshDataStorageBuffers.at(iCommandBuffer);
 	gpPipelineManager->mDynamicPipelines.UpdateAllModelPipelineDescriptors(iCommandBuffer, kModelPipelineBindingMeshData, pNewBuffer);
 }
 
-void BufferManager::GrowJointMatrixBuffer(int64_t iCommandBuffer)
+void BufferManager::GrowJointMatrixBuffer(int64_t iCommandBuffer, int64_t iValidCount)
 {
-	miJointMatrixCapacity[iCommandBuffer] *= 2;
+	while (miJointMatrixCapacity[iCommandBuffer] < miJointMatrixOffset[iCommandBuffer])
+	{
+		miJointMatrixCapacity[iCommandBuffer] *= 2;
+	}
 
 	void* pOldData = mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory;
 	mPreviousJointMatrixBuffer[iCommandBuffer] = std::move(mJointMatrixStorageBuffers.at(iCommandBuffer));
@@ -516,7 +523,8 @@ void BufferManager::GrowJointMatrixBuffer(int64_t iCommandBuffer)
 		.dataVkDeviceSize = miJointMatrixCapacity[iCommandBuffer] * sizeof(common::JointMatrix),
 	});
 
-	memcpy(mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory, pOldData, miJointMatrixOffset[iCommandBuffer] * sizeof(common::JointMatrix));
+	// Copy only the iValidCount elements written before this allocation; the old buffer holds nothing past them
+	memcpy(mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory, pOldData, iValidCount * sizeof(common::JointMatrix));
 
 	// Update JointMatrix descriptor on all model pipelines
 	Buffer* pNewBuffer = &mJointMatrixStorageBuffers.at(iCommandBuffer);

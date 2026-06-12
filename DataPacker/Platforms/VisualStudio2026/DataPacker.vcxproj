@@ -39,19 +39,19 @@
     <ClCompile Include="..\..\Source\ExportJobs\ExportShader.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportTexture.cpp" />
     <ClCompile Include="..\..\Source\Attribution.cpp" />
-    <ClCompile Include="..\..\Source\BakeIslandIntermediates.cpp" />
-    <ClCompile Include="..\..\Source\BakeRoute.cpp" />
-    <ClCompile Include="..\..\Source\ProcessBakedRegion.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\Island\BakeIslandIntermediates.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\Island\BakeRoute.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\Island\ProcessBakedRegion.cpp" />
     <ClCompile Include="..\..\Source\FileManager.cpp" />
-    <ClCompile Include="..\..\Source\GaeaArchetype.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\Island\GaeaArchetype.cpp" />
     <ClCompile Include="..\..\Source\Main.cpp" />
-    <ClCompile Include="..\..\Source\MigrateLegacyIntermediates.cpp" />
-    <ClCompile Include="..\..\Source\SubdivideBeachBand.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\Texture\MigrateLegacyIntermediates.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\Island\SubdivideBeachBand.cpp" />
     <ClCompile Include="..\..\Source\Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Texture.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\Texture\Texture.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\Common\Common.h" />
@@ -94,14 +94,14 @@
     <ClInclude Include="..\..\Source\ExportJobs\ExportShader.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportTexture.h" />
     <ClInclude Include="..\..\Source\Attribution.h" />
-    <ClInclude Include="..\..\Source\BakeIslandIntermediates.h" />
-    <ClInclude Include="..\..\Source\BakeIslandIntermediatesInternal.h" />
+    <ClInclude Include="..\..\Source\ExportJobs\Island\BakeIslandIntermediates.h" />
+    <ClInclude Include="..\..\Source\ExportJobs\Island\BakeIslandIntermediatesInternal.h" />
     <ClInclude Include="..\..\Source\FileManager.h" />
-    <ClInclude Include="..\..\Source\GaeaArchetype.h" />
-    <ClInclude Include="..\..\Source\MigrateLegacyIntermediates.h" />
+    <ClInclude Include="..\..\Source\ExportJobs\Island\GaeaArchetype.h" />
+    <ClInclude Include="..\..\Source\ExportJobs\Texture\MigrateLegacyIntermediates.h" />
     <ClInclude Include="..\..\Source\Pch.h" />
-    <ClInclude Include="..\..\Source\SubdivideBeachBand.h" />
-    <ClInclude Include="..\..\Source\Texture.h" />
+    <ClInclude Include="..\..\Source\ExportJobs\Island\SubdivideBeachBand.h" />
+    <ClInclude Include="..\..\Source\ExportJobs\Texture\Texture.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

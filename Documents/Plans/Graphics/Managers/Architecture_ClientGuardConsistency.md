@@ -52,3 +52,18 @@ TextureCache, TextureDescriptors, TextureManager.)
 - No determinism/CRC/network exposure — preprocessor-only, compile-checked.
 - Touches `TextManager.cpp`, `TextureManager.cpp`-adjacent files also edited by
   `Architecture_IncludeHygiene.md` — trivially mergeable, but co-scheduling avoids line-drift (File Groups).
+
+## Verification Notes
+
+Verified against source 2026-06-11 (verification pass for the /external-deep-analysis run). All claims
+confirmed; no changes:
+
+- The 9-wrapped / 10-unwrapped split verified by inspecting the first lines (and EOF guards) of all 19 cpps —
+  exactly the files listed: wrapped = ParticleManager, DynamicPipelines, PipelineManager,
+  RenderTargetTextures ×3, TextureCache, TextureDescriptors, TextureManager; unwrapped = the 10 in the Design
+  list. No intra-file `BT_CLIENT` guards exist in any of the 19 (grep-verified, whole-file wraps only).
+- `BrokenEngineSandboxServer.vcxproj` contains zero `Graphics\Managers` entries (grep-verified). Client vcxproj
+  lists the managers at `:371-387` (headers) and `:555-573` (sources) as cited.
+- `Engine.h:21-84` single `BT_CLIENT` span confirmed; manager headers at `:42-52` inside it.
+- `Engine/Source/Graphics/CLAUDE.md:19` documents the top-level Graphics mixed guard scope and indeed does not
+  cover the Managers split.

@@ -634,13 +634,46 @@ common::crc_t MultiElementCrc(int64_t iIndex, TTuple&& members)
 template <typename T>
 concept HasSharedMembers = requires(const T t) { t.SharedMembers(); };
 
+// Server-build wire/CRC parity: the server broadcasts collections by walking Members() while clients
+// deserialize SharedMembers() (SharedCollectionRead below), so a shared collection's server-build
+// Members() must be the identical tuple. There is no separate wire serializer — the broadcast streams
+// the save-format Write walk (CollectionWrite with cols.Members() in FrameBase.cpp / Frame.cpp).
+template <typename TStruct>
+inline constexpr bool kbServerMembersParity = std::is_same_v<
+	decltype(std::declval<const TStruct&>().Members()),
+	decltype(std::declval<const TStruct&>().SharedMembers())>;
+
+// True when every entry of rSubMembers refers to one of rFullMembers' member arrays. Compared by
+// address — element types repeat across members, so a type-level check cannot express containment.
+template <typename TSubTuple, typename TFullTuple>
+inline bool IsMemberTupleSubset(const TSubTuple& rSubMembers, const TFullTuple& rFullMembers)
+{
+	return std::apply([&](const auto&... subMemberPtrRefs)
+	{
+		return ([&](const auto& rSubMemberPtrRef)
+		{
+			return std::apply([&](const auto&... fullMemberPtrRefs)
+			{
+				return ((static_cast<const void*>(&rSubMemberPtrRef) == static_cast<const void*>(&fullMemberPtrRefs)) || ...);
+			}, rFullMembers);
+		}(subMemberPtrRefs) && ...);
+	}, rSubMembers);
+}
+
 template <typename TStruct>
 inline common::crc_t SharedCollectionCrc(const TStruct& rCurrent)
 {
 	if constexpr (HasSharedMembers<TStruct>)
+	{
+#if defined(BT_SERVER)
+		static_assert(kbServerMembersParity<TStruct>, "Server-build Members() must be identical to SharedMembers() — wire format / CRC parity");
+#endif
 		return CollectionCrc(rCurrent, rCurrent.SharedMembers());
+	}
 	else
+	{
 		return CollectionCrc(rCurrent, rCurrent.Members());
+	}
 }
 
 template <typename TStruct>
@@ -678,9 +711,18 @@ inline std::istream& SharedCollectionRead(std::istream& rStream, TStruct& rCurre
 	}
 
 	if constexpr (HasSharedMembers<TStruct>)
+	{
+#if defined(BT_SERVER)
+		static_assert(kbServerMembersParity<TStruct>, "Server-build Members() must be identical to SharedMembers() — wire format / CRC parity");
+#endif
+		// A shared member missing from Members() would have no allocated storage to read into
+		ASSERT(IsMemberTupleSubset(rCurrent.SharedMembers(), rCurrent.Members()));
 		MultiRead(rStream, rCurrent.iCount, rCurrent.SharedMembers());
+	}
 	else
+	{
 		MultiRead(rStream, rCurrent.iCount, rCurrent.Members());
+	}
 
 	return rStream;
 }

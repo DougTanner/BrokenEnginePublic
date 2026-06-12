@@ -57,8 +57,10 @@ void main()
 	vec4 f4Result = vec4(0.0f);
 	if (bInBounds)
 	{
-		// Pass-Two refines Pass-One's output in current-area coords (no cross-frame import),
-		// so input texcoord == output texcoord and world position uses current f4SmokeArea
+		// Pass-Two reads the previous frame's Pass-One output (plus deposits) at the same UV, still in
+		// previous-area coords — the frame's single previous→current remap is Pass-One's job (see
+		// Smoke/CLAUDE.md "Recorded Frame Order") — so input texcoord == output texcoord; the world
+		// position for the elevation lookup uses current f4SmokeArea
 		vec2 f2WorldPosition = SmokeWorldPosition(globalLayout.f4SmokeArea, f2Texcoord);
 		vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(vec3(f2WorldPosition, 0.0f), globalLayout.f4VisibleArea);
 		float fElevation = textureLod(elevationTextureSampler, f2VisibleAreaTexcoord, 0.0f).x;

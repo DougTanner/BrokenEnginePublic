@@ -538,6 +538,8 @@ common::crc_t FrameInterpolate::Crcs(const FrameInterpolate& rCurrent)
 	sharedCrc ^= common::Crc(rCurrent.gameFlags);
 	sharedCrc ^= common::Crc(rCurrent.fSpawnTimer);
 
+	// A SharedCrcMembers entry absent from SharedMembers would CRC client-local state — permanent false desync
+	ASSERT(engine::IsMemberTupleSubset(rCurrent.pPlayers->SharedCrcMembers(), rCurrent.pPlayers->SharedMembers()));
 	sharedCrc ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->SharedCrcMembers());
 
 	std::apply([&](const auto&... cols)
@@ -616,6 +618,8 @@ common::crc_t FramePostRender::Crcs(const FramePostRender& rCurrent)
 	sharedCrc ^= common::Crc(rCurrent.enemyAlignment);
 	sharedCrc ^= common::Crc(rCurrent.playerAlignment);
 
+	// A SharedCrcMembers entry absent from SharedMembers would CRC client-local state — permanent false desync
+	ASSERT(engine::IsMemberTupleSubset(rCurrent.pPlayers->SharedCrcMembers(), rCurrent.pPlayers->SharedMembers()));
 	sharedCrc ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->SharedCrcMembers());
 
 	std::apply([&](const auto&... cols)

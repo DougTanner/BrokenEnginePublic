@@ -177,8 +177,8 @@ void PlayersInterpolate::Register()
 	// Register hex shield type for player
 	engine::HexShieldsInterpolate::RegisterType(suiHexShieldTypeIndex,
 	{
-		.uiColor = 0x40FFFF00,        // Cyan with 25% alpha (RGBA)
-		.uiLightingColor = 0x40FFFF00, // Cyan (RGBA)
+		.uiColor = 0x40FFFF00,        // Cyan with 25% alpha (ABGR)
+		.uiLightingColor = 0x40FFFF00, // Cyan (ABGR)
 		.fMinimumIntensity = 0.0f,    // Shield invisible when idle
 	});
 #endif // BT_CLIENT

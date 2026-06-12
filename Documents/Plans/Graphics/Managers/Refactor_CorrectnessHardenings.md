@@ -96,3 +96,39 @@ hardenings. Each item is independent.
 - No determinism/CRC exposure — all client render/boot paths. The `DebugUtilsCallback` rewrite is worth doing
   regardless of whether the validation layer delivers printf on a tracked thread (uncertainty noted by the
   review).
+
+## Verification Notes
+
+Verified against source 2026-06-11 (verification pass for the /external-deep-analysis run). All items
+confirmed; no removals:
+
+- **Dangling `string_view`**: loop-local `std::string strName` at `PipelineManager.cpp:158` passed as `.name`
+  at `:161`; `PipelineInfo::name` is `std::string_view` (`Pipeline.h:87`); `Pipeline::Create` copies
+  `mInfo = rInfo` (`Pipeline.cpp:69`); dangling reads in the staleness LOGs at `PipelineManager.cpp:850,872`
+  (`rBinding.pPipeline->mInfo.name`). The `mShadowPipelineNames` interning precedent is at
+  `DynamicPipelines.cpp:87`.
+- **InstanceManager**: transfer family genuinely can stay `UINT32_MAX` (only set under `VK_QUEUE_TRANSFER_BIT`,
+  `InstanceManager.cpp:538-549`); ASSERT at `:568` covers graphics+present only; `.at()` throw site at `:571`.
+  Provisional-candidate ASSERT at `:425` inside the adoption branch (`:423-427`), final selection settles by
+  `:434-436`. `layerSettings[7]` at `:138`. Debug-Printf branch heap-allocates at `:63-64`
+  (`std::string` + `common::Split` → `std::vector<std::string>`).
+- **Screenshot readback**: `rOutData.resize(iTotalSize)` at `TextureCache.cpp:33` with no suppression anywhere
+  in the function; reachable via `CommandBufferManager.cpp:177-184` (`kbScreenshots`) → `Screenshot.cpp:19-20`;
+  the vector is `std::move`d into the `std::async` lambda (`Screenshot.cpp:30`), so workbuffer is unusable.
+- **SwapchainManager positional init**: `vkSubpassDescription` clauses at `:80-89` and `vkSubpassDependency`
+  at `:104-110` are exactly the `obj.field = value,` form; clause order matches the Vulkan member order in both
+  structs (correct today, fragile as described). Fence-cursor copy-paste confirmed: `:365` resets
+  `miImageAvailableIndex` after `mImageAvailableFences.resize` (`:364`); the fence ring cursor is
+  `miFenceAvailableIndex` (`SwapchainManager.h:35`, consumed `:57-68`); the other resets are `:309`
+  (`miFramebufferIndex`) and `:379` (`miImageAvailableIndex` after the semaphore resize — that one is the right
+  member). All three redundant on a fresh object (in-class initializers; SwapchainManager is reconstructed on
+  recreate).
+- **TextureManager / TextManager**: `kiLightingBlurSlots = 16` at `TextureManager.cpp:273-274`; generic ASSERT
+  at `TextureDescriptors.cpp:410`; `RegisterLightingTextureCrc` at `TextureManager.cpp:803-808`. `GetCharacter`
+  at `TextManager.cpp:53-56` (`mpCharactersEfigs[uiChar % 128]`, ctor fills only font-present IDs < 128 —
+  control-char slots stay nullptr); `WriteQuads` derefs `pCharacter` unchecked at `TextManager.h:152-158`.
+  `UpdateTextArea` at `TextManager.cpp:58`; `gpTextAreas` is a header-inline mutable global
+  (`TextManager.h:34`); `IsMainThread` exists at `Common/Threading/Multithreading.h:20`. ASSERT active in all
+  configs confirmed (`Common/ErrorUtils.h:12`).
+- Out-of-scope cross-references verified: `Graphics/TextureCacheValidatePayloadSize.md` covers
+  `TryLoadCachedTexture` (different function from `CopyImageToHostMemory` — no overlap).

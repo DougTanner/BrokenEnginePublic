@@ -39,7 +39,7 @@ void main()
 	float fDeltaTime = particles.fDeltaTime;
 
 	// Hoist read-only / read-write fields into individual locals — field-by-field, not whole-struct copy
-	// (Terrain.vert:62-64 documents that glslang has been observed to drop trailing fields on scalar-block-layout SSBO struct copies)
+	// (Terrain.vert's main() documents that glslang has been observed to drop trailing fields on scalar-block-layout SSBO struct copies)
 	const float fGravity = particles.pParticles[i].fGravity;
 	const float fVelocityDecay = particles.pParticles[i].fVelocityDecay;
 	const float fIntensityDecay = particles.pParticles[i].fIntensityDecay;

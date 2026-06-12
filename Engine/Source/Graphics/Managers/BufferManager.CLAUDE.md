@@ -24,8 +24,8 @@ Both smoke and wind use the same occupancy + active tile list pattern for hierar
 - **`mWindOccupancyVkBuffers[2]`** - Per-index bit-packed occupancy. Written by `WindDeposit.frag` and the spread compute shaders.
 - **`mWindActiveTileVkBuffers[2]`** - Per-index active tile list with indirect dispatch args prefix. Enables record-once command buffers: both spread pipelines are always dispatched, and each returns early if its index is inactive.
 
-**Lighting Spread** (per cascade level, up to `kiMaxCascadeLevels`):
-- **`mLightOccupancyVkBuffers[]`** - Per-level bit-packed occupancy at spread resolution, derived fresh each pass from the source texture. Created/destroyed alongside lighting texture recreation via `DestroyFlags::kLightingTextures`.
+**Lighting Spread**:
+- **`mLightOccupancyVkBuffers[]`** - Declared per cascade level (`kiMaxCascadeLevels`) but only index 0 is created. Bound to the two lighting deposit pipelines (area/point lights) as bit-packed tile occupancy, zeroed each frame in the Main record; nothing reads it back yet (write-only). Created/destroyed alongside lighting texture recreation via `DestroyFlags::kLightingTextures`.
 
 ## Swapchain Lifecycle
 

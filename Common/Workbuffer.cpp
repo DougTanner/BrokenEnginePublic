@@ -75,6 +75,8 @@ void Workbuffer::Grow(int64_t iNeededCapacity)
 	// debug; the resize still runs so gameplay never fails. Any View/Span/PushBuffer handle taken before this grow is
 	// invalidated by the reallocation of the ThreadLocal-owned backing vector — size the buffer correctly up front.
 	DEBUG_BREAK();
+	// Heap: under-sizing recovery growth, flagged by the DEBUG_BREAK above
+	ScopedSuppressAllocationTracking suppress;
 	mBuffer.resize(iNeededCapacity * 2);
 }
 

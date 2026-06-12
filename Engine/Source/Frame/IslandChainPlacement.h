@@ -12,11 +12,12 @@ struct IslandPlacement
 	float fRotation = 0.0f;
 };
 
-// Deterministic per-cell archipelago generator. Composes a believable island chain — a large anchor
-// in the SW third of the cell, a golden log-spiral sweep of medium islands toward the NE, low islands
-// on the outside of the curve, and small low islets scattered around the anchor — packing every island
-// by its rotated true valid-area hull so no two hulls overlap (bounding rectangles may overlap, hidden
-// underwater). Seeded only by the grid coord, so client and server produce identical layouts.
+// Deterministic per-cell archipelago generator. Builds a chain by contact growth — a Huge anchor
+// in the SW third of the cell, then a fixed sequence of Large/Medium links each placed just-touching
+// the chain tip along a hard-turning curve (truncated where the next link would leave the cell), then
+// Small islets ringing each big island — packing every island by its rotated true valid-area hull so
+// no two hulls overlap (bounding rectangles may overlap, hidden underwater). Seeded only by the grid
+// coord, so client and server produce identical layouts.
 class IslandChainPlacement
 {
 public:

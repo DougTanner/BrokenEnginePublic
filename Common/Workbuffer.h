@@ -86,6 +86,8 @@ private:
 			// mSavedBase is pre-sized for the deepest arena nesting source structure ever reaches; exceeding it is
 			// an under-sizing bug (DEBUG_BREAK alerts in debug). Growth still proceeds so gameplay never fails.
 			DEBUG_BREAK();
+			// Heap: under-sizing recovery growth, flagged by the DEBUG_BREAK above
+			ScopedSuppressAllocationTracking suppress;
 			mSavedBase.resize(mSavedBase.size() * 2);
 		}
 		mSavedBase[miDepth] = miBase;
@@ -100,6 +102,8 @@ private:
 		{
 			// See RawPush: pre-sized for max nesting; DEBUG_BREAK flags under-sizing, growth still succeeds.
 			DEBUG_BREAK();
+			// Heap: under-sizing recovery growth, flagged by the DEBUG_BREAK above
+			ScopedSuppressAllocationTracking suppress;
 			mSavedBase.resize(mSavedBase.size() * 2);
 		}
 		mSavedBase[miDepth] = miBase;

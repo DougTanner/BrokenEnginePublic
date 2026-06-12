@@ -99,7 +99,7 @@ vec3 SRGBtoLinear(vec3 srgb)
 	return pow(srgb, vec3(2.2));
 }
 
-// ACES filmic tone mapping (Stephen Hill fit)
+// ACES filmic tone mapping (Narkowicz fit)
 vec3 ACESFilm(vec3 x)
 {
 	const float a = 2.51;

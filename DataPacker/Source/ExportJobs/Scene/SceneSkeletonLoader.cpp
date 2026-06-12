@@ -54,6 +54,7 @@ SkeletonData LoadSkeletonData(const tinygltf::Model& rModel, std::unordered_map<
 		if (rSkin.inverseBindMatrices >= 0)
 		{
 			const tinygltf::Accessor& rAccessor = rModel.accessors[rSkin.inverseBindMatrices];
+			ASSERT(rAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
 			pfInverseBindMatrices = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
 		}

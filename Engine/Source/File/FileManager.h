@@ -178,12 +178,12 @@ private:
 	// Persistent pack file handles for lazy loading (opened with FILE_FLAG_NO_BUFFERING)
 	HANDLE mLazyPackFileHandles[data::kDataTypeCount] {};
 
-	// Pre-faulted sector-aligned read buffer (reused across all chunk reads)
+	// Sector-aligned read buffer (reused across all chunk reads)
 	std::byte* mpReadBuffer = nullptr;
 	int64_t miReadBufferSize = 0;
 	int64_t miSectorSize = 0;
 
-	// Pre-allocated memory pool for all lazy chunk data (VirtualAlloc, pre-faulted)
+	// Pre-allocated memory pool for all lazy chunk data (VirtualAlloc MEM_COMMIT — committed, not pre-faulted)
 	std::byte* mpLazyPool = nullptr;
 	int64_t miLazyPoolSize = 0;
 

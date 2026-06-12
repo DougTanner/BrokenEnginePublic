@@ -56,4 +56,4 @@ Settings-change detector escalates a destroy tier (`DestroyType`) monotonically 
 - [Managers/CLAUDE.md](Managers/CLAUDE.md) - Vulkan manager singletons and initialization order
 - [Objects/CLAUDE.md](Objects/CLAUDE.md) - RAII wrappers for Vulkan resources
 - [Render/CLAUDE.md](Render/CLAUDE.md) - Per-subsystem uniform buffer population
-- [Debug/CLAUDE.md](Debug/CLAUDE.md) - Wireframe debug visualization (BT_DEBUG only)
+- [Debug/CLAUDE.md](Debug/CLAUDE.md) - Wireframe debug visualization (`kbDebugRender`-gated)

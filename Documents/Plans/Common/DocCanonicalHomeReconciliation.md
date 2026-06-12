@@ -18,7 +18,7 @@ Five of the six are **documentation-only**. One (Decision 5 — Water.frag in-sh
 `DataPacker/Source/CLAUDE.md` (Architecture, para 1) says the full bake/split contract — "route table, two-stage
 version sentinels, auto-crop, mesh subdivision, leaf rejection" — "lives in `ExportJobs/CLAUDE.md`". But
 `ExportJobs/CLAUDE.md` ("Island Chunk Ingest") points back: "The Gaea bake, archetype patching, crop/downsample,
-route split, and two-stage `BakeVersion.txt` / `SplitVersion.txt` dirty sentinels all live in the parent's bake
+route split, and two-stage `BakeVersion.txt` / `SplitVersion.txt` dirty sentinels all live in the `Island/` bake
 TUs — see [../CLAUDE.md]." So the two docs form a **deferral loop**, and the actual two-stage sentinel mechanism
 (when `BakeVersion.txt` vs `SplitVersion.txt` is written/checked, the leaf-rejection rule) is documented in
 *neither* CLAUDE.md — it lives only in `BakeIslandIntermediates.cpp` / `BakeRoute.cpp` comments.

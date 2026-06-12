@@ -28,8 +28,8 @@ layout (set = 1, binding = 2) buffer activeTileBuffer
 //
 // SmokeSpreadComputeB samples TextureOne at the OUTPUT tile's UV directly (no cross-frame
 // remap), so ComputeB at current-frame tile (X, Y) produces nonzero iff prev-frame ComputeA
-// wrote nonzero at tile index (X, Y). That makes this a plain direct lookup with Manhattan-2
-// dilation — no f4PreviousSmokeArea / f4SmokeArea math is needed here.
+// wrote nonzero at tile index (X, Y). That makes this a plain direct lookup with 5x5 box
+// (Chebyshev-2) dilation — no f4PreviousSmokeArea / f4SmokeArea math is needed here.
 //
 // ComputeA's input (TextureTwo) DOES need a scale-aware lookup; that's done by the separate
 // SmokeOccupancyDilateRemap.comp run before SmokeSpreadComputeA.

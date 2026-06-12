@@ -3,6 +3,10 @@
 namespace engine
 {
 
+// Max swapchain framebuffer count. Sizes the per-command-buffer skinning arrays below and Islands'
+// triple-buffered SSBO/indirect arrays; guarded by ASSERTs where the live framebuffer count is read.
+inline constexpr int64_t kiMaxFramebuffers = 4;
+
 enum DynamicBufferType
 {
 	kBufferMain,
@@ -129,15 +133,15 @@ public:
 
 private:
 
-	void GrowMeshDataBuffer(int64_t iCommandBuffer);
-	void GrowJointMatrixBuffer(int64_t iCommandBuffer);
+	void GrowMeshDataBuffer(int64_t iCommandBuffer, int64_t iValidCount);
+	void GrowJointMatrixBuffer(int64_t iCommandBuffer, int64_t iValidCount);
 
-	int64_t miMeshDataOffset[4] {};
-	int64_t miJointMatrixOffset[4] {};
-	int64_t miMeshDataCapacity[4] {};
-	int64_t miJointMatrixCapacity[4] {};
-	std::optional<Buffer> mPreviousMeshDataBuffer[4];
-	std::optional<Buffer> mPreviousJointMatrixBuffer[4];
+	int64_t miMeshDataOffset[kiMaxFramebuffers] {};
+	int64_t miJointMatrixOffset[kiMaxFramebuffers] {};
+	int64_t miMeshDataCapacity[kiMaxFramebuffers] {};
+	int64_t miJointMatrixCapacity[kiMaxFramebuffers] {};
+	std::optional<Buffer> mPreviousMeshDataBuffer[kiMaxFramebuffers];
+	std::optional<Buffer> mPreviousJointMatrixBuffer[kiMaxFramebuffers];
 };
 
 inline BufferManager* gpBufferManager = nullptr;

@@ -32,7 +32,7 @@ Display visibility is synchronized and sticky: `TickVisibilityCadence()` is the 
 
 ## Cross-Layer Dependency
 
-The FPS header reads a game-specific CPU timer enum by name to report total frame time. The contiguous index space (game enums starting at `kEngineCpuCounterCount` / `kEngineCpuTimerCount`) and the required position of that timer are documented game-side.
+The FPS header reads a game-specific CPU timer enum by name to report total frame time. The contiguous index space (game enums starting at `kEngineCpuCounterCount` / `kEngineCpuTimerCount`) and the engine's by-name dependency on that timer enum (existence, not position) are documented game-side.
 
 The overlay also reads `game::gpCamera` directly (include of `Game.h`) — camera height in the FPS header, visible-area LOD for the GPU screen's water annotation. Sanctioned engine→game reads; noted here only so the game couplings are discoverable.
 

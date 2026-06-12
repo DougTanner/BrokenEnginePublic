@@ -78,7 +78,7 @@ struct FontHeader
 	int64_t iScaleW = 0;
 	int64_t iScaleH = 0;
 };
-static_assert(sizeof(FontHeader) == 48, "FontHeader layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(FontHeader) == 48, "FontHeader layout changed — bump DataHeader::kiVersion; unless sizeof(ChunkHeader) also changed, bump ExportFont::GetVersion's raw version too (cached chunk headers aren't otherwise re-exported)");
 
 struct SceneHeader
 {
@@ -93,7 +93,7 @@ struct SceneHeader
 	crc_t modelCrc = 0;  // CRC of the .MODEL vertex/index chunk
 	// Texture CRCs and index starts now in chunk data payload
 };
-static_assert(sizeof(SceneHeader) == 24, "SceneHeader layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(SceneHeader) == 24, "SceneHeader layout changed — bump DataHeader::kiVersion; unless sizeof(ChunkHeader) also changed, bump ExportScene::GetVersion's raw version too (cached chunk headers aren't otherwise re-exported)");
 static_assert(BT_OFFSETOF(SceneHeader, modelCrc) == 16, "SceneHeader padding no longer aligns modelCrc to offset 16");
 
 // Compact animation keyframe for STEP/LINEAR interpolation
@@ -102,7 +102,7 @@ struct AnimationKeyframe
 	float fTime = 0.0f;
 	XMFLOAT4 f4Value {};       // Translation (xyz,0), Rotation (quat), or Scale (xyz,1)
 };
-static_assert(sizeof(AnimationKeyframe) == 20, "AnimationKeyframe layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(AnimationKeyframe) == 20, "AnimationKeyframe layout changed — bump DataHeader::kiVersion; same-size reorder also bumps ExportScene::GetVersion's raw version (sizeof fold catches size changes only)");
 static_assert(BT_OFFSETOF(AnimationKeyframe, f4Value) == 4, "AnimationKeyframe padding changed — keyframe stride no longer matches writer/reader");
 
 // Full animation keyframe with tangents for CUBICSPLINE interpolation
@@ -113,7 +113,7 @@ struct AnimationKeyframeCubic
 	XMFLOAT4 f4InTangent {};   // Incoming tangent
 	XMFLOAT4 f4OutTangent {};  // Outgoing tangent
 };
-static_assert(sizeof(AnimationKeyframeCubic) == 52, "AnimationKeyframeCubic layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(AnimationKeyframeCubic) == 52, "AnimationKeyframeCubic layout changed — bump DataHeader::kiVersion; same-size reorder also bumps ExportScene::GetVersion's raw version (sizeof fold catches size changes only)");
 
 // Animation channel (one property of one node)
 struct AnimationChannel
@@ -124,7 +124,7 @@ struct AnimationChannel
 	uint32_t uiKeyframeStart = 0; // Index into keyframe array
 	uint32_t uiKeyframeCount = 0;
 };
-static_assert(sizeof(AnimationChannel) == 12, "AnimationChannel layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(AnimationChannel) == 12, "AnimationChannel layout changed — bump DataHeader::kiVersion; same-size reorder also bumps ExportScene::GetVersion's raw version (sizeof fold catches size changes only)");
 
 // Animation clip
 struct AnimationClip
@@ -135,7 +135,7 @@ struct AnimationClip
 	uint32_t uiChannelStart = 0;
 	uint32_t uiChannelCount = 0;
 };
-static_assert(sizeof(AnimationClip) == 76, "AnimationClip layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(AnimationClip) == 76, "AnimationClip layout changed — bump DataHeader::kiVersion; same-size reorder also bumps ExportScene::GetVersion's raw version (sizeof fold catches size changes only)");
 
 // Node in hierarchy (stores all nodes, not just skin joints)
 struct ModelNode
@@ -147,7 +147,7 @@ struct ModelNode
 	XMFLOAT4 f4BindRotation {};    // Quaternion (x, y, z, w)
 	XMFLOAT4 f4BindScale {};
 };
-static_assert(sizeof(ModelNode) == 116, "ModelNode layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(ModelNode) == 116, "ModelNode layout changed — bump DataHeader::kiVersion; same-size reorder also bumps ExportScene::GetVersion's raw version (sizeof fold catches size changes only)");
 
 // Node hierarchy with skin joint mapping
 struct Skeleton
@@ -159,7 +159,7 @@ struct Skeleton
 	uint16_t uiSkinJointCount = 0;
 	// nodes, skinJointToNode, inverseBindMatrices now in data stream
 };
-static_assert(sizeof(Skeleton) == 4, "Skeleton layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(Skeleton) == 4, "Skeleton layout changed — bump DataHeader::kiVersion; same-size reorder also bumps ExportScene::GetVersion's raw version (sizeof fold catches size changes only)");
 
 // Per-material skinning info for glTF models
 // Enables runtime mesh world matrix computation: meshWorld = relativeTransform * worldMatrices[iParentNodeIndex]
@@ -171,7 +171,7 @@ struct MaterialInfo
 	uint8_t uiPad[3] {};
 	XMFLOAT4X4 f4x4RelativeTransform {};  // Identity for skinned meshes, meshWorldBind * inverse(ancestorWorldBind) for non-skinned
 };
-static_assert(sizeof(MaterialInfo) == 72, "MaterialInfo layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(MaterialInfo) == 72, "MaterialInfo layout changed — bump DataHeader::kiVersion; same-size reorder also bumps ExportScene/ExportModel GetVersion raw versions (sizeof fold catches size changes only)");
 
 // Per-mesh shader data (small struct without embedded joints)
 // Joint matrices are stored in a separate buffer for NVIDIA driver compatibility
@@ -208,7 +208,7 @@ struct AnimationHeader
 	Skeleton skeleton {};
 	// animations, materialInfos, and trailing data now in data stream
 };
-static_assert(sizeof(AnimationHeader) == 24, "AnimationHeader layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(AnimationHeader) == 24, "AnimationHeader layout changed — bump DataHeader::kiVersion; same-size reorder also bumps ExportScene::GetVersion's raw version (sizeof fold catches size changes only)");
 static_assert(BT_OFFSETOF(AnimationHeader, skeleton) == 20, "AnimationHeader padding changed — embedded Skeleton no longer at offset 20");
 
 struct MaterialShaderData
@@ -233,7 +233,7 @@ struct MaterialShaderData
 	float fAlphaMask = 0.0f;
 	float fAlphaMaskCutoff = 1.0f;
 };
-static_assert(sizeof(MaterialShaderData) == 76, "MaterialShaderData layout changed — bump DataHeader::kiVersion and re-check PbrMaterialLayout");
+static_assert(sizeof(MaterialShaderData) == 76, "MaterialShaderData layout changed — bump DataHeader::kiVersion and re-check PbrMaterialLayout; same-size reorder also bumps ExportScene::GetVersion's raw version (sizeof fold catches size changes only)");
 static_assert(BT_OFFSETOF(MaterialShaderData, f4BaseColorFactor) == 8, "MaterialShaderData padding changed — PBR factor block no longer at offset 8");
 
 struct Character
@@ -246,7 +246,7 @@ struct Character
 	int16_t iYOffset = 0;
 	int16_t iXAdvance = 0;
 };
-static_assert(sizeof(Character) == 14, "Character layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(Character) == 14, "Character layout changed — bump DataHeader::kiVersion; same-size reorder also bumps ExportFont::GetVersion's raw version (sizeof fold catches size changes only)");
 
 struct IslandHeader
 {
@@ -275,7 +275,7 @@ struct IslandHeader
 	int32_t iMeshIndexCount = 0;
 	int32_t iValidAreaVertexCount = 0;
 };
-static_assert(sizeof(IslandHeader) == 72, "IslandHeader layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(IslandHeader) == 72, "IslandHeader layout changed — bump DataHeader::kiVersion; unless sizeof(ChunkHeader) also changed, bump ExportIsland::GetVersion's raw version too (cached chunk headers aren't otherwise re-exported)");
 
 struct ModelHeader
 {
@@ -283,19 +283,21 @@ struct ModelHeader
 	int64_t iVertexCount = 0;
 	int64_t iStride = 0;
 };
-static_assert(sizeof(ModelHeader) == 24, "ModelHeader layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(ModelHeader) == 24, "ModelHeader layout changed — bump DataHeader::kiVersion; unless sizeof(ChunkHeader) also changed, bump ExportModel::GetVersion's raw version too (cached chunk headers aren't otherwise re-exported)");
 
 struct ShaderHeader
 {
 	static constexpr int64_t kiMaxDescriptorSetLayoutBindings = 32;
 	static constexpr int64_t kiMaxVertexInputAttributeDescriptions = 12;
+	// First word of every SPIR-V module; asserted by the DataPacker writer and the engine reader
+	static constexpr uint32_t kuiSpirvMagic = 0x07230203;
 
 	int64_t iDescriptorSetLayoutBindings = 0;
 	int64_t iVertexInputAttributeDescriptions = 0;
 	int64_t iVertexInputStride = 0;
 	// Descriptor bindings and vertex attributes now in chunk data payload
 };
-static_assert(sizeof(ShaderHeader) == 24, "ShaderHeader layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(ShaderHeader) == 24, "ShaderHeader layout changed — bump DataHeader::kiVersion; unless sizeof(ChunkHeader) also changed, bump ExportShader::GetVersion's raw version too (cached chunk headers aren't otherwise re-exported)");
 
 struct TextureHeader
 {
@@ -304,7 +306,7 @@ struct TextureHeader
 	int64_t iMipLevels = 0;
 	VkFormat vkFormat = VK_FORMAT_UNDEFINED;
 };
-static_assert(sizeof(TextureHeader) == 32, "TextureHeader layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(TextureHeader) == 32, "TextureHeader layout changed — bump DataHeader::kiVersion; unless sizeof(ChunkHeader) also changed, bump ExportTexture::GetVersion's raw version too (cached chunk headers aren't otherwise re-exported)");
 
 // Audio format metadata for PCM WAV files
 struct AudioHeader
@@ -312,7 +314,7 @@ struct AudioHeader
 	WAVEFORMATEX waveFormat {};
 };
 // Lowest-severity lock — non-largest union member wrapping a platform struct, so assert against WAVEFORMATEX rather than a byte literal
-static_assert(sizeof(AudioHeader) == sizeof(WAVEFORMATEX), "AudioHeader must wrap WAVEFORMATEX with no padding");
+static_assert(sizeof(AudioHeader) == sizeof(WAVEFORMATEX), "AudioHeader must wrap WAVEFORMATEX with no padding — on layout change bump DataHeader::kiVersion; unless sizeof(ChunkHeader) also changed, bump ExportAudio::GetVersion's raw version too (cached chunk headers aren't otherwise re-exported)");
 
 struct ChunkHeader
 {
@@ -352,7 +354,12 @@ struct DataHeader
 	// Auto-bumps when sizeof(ChunkHeader) changes (largest-union-member or outer-field edits). Layout
 	// edits that DON'T change sizeof — reordering/shrinking a non-largest union member, or changing a
 	// non-union payload struct — are instead caught by the per-struct sizeof/offsetof static_asserts
-	// beside each header; bump the manual 46 below when one of those fires.
+	// beside each header; bump the manual 46 below when one of those fires. A kiVersion bump forces a
+	// full re-export: the DataPacker manifest check (Main.cpp RunExportJobs) re-runs everything on a
+	// version mismatch, and the engine ASSERTs on a stale-version manifest. Per-job chunk caches are
+	// separate — payload-struct SIZE changes auto-dirty them via the sizeof folds in each job's
+	// GetVersion (ExportScene/ExportModel/ExportFont); same-size reorders still need that raw version
+	// bumped by hand (the static_assert message beside each struct names the owning job).
 	static constexpr int64_t kiVersion = 46 + sizeof(ChunkHeader);
 	int64_t iVersion = kiVersion;
 
@@ -386,7 +393,7 @@ struct ModelVertex
 // std::hash<ModelVertex> below byte-hashes the raw representation via Crc(rVertex) while operator==
 // compares fields; this lock proves the layout is padding-free so equal vertices can't hash apart and
 // break the mesh-dedup unordered_map.
-static_assert(sizeof(ModelVertex) == 100, "ModelVertex layout changed — keep it padding-free to match operator==");
+static_assert(sizeof(ModelVertex) == 100, "ModelVertex layout changed — keep it padding-free to match operator==; bump DataHeader::kiVersion; same-size reorder also bumps ExportScene/ExportModel GetVersion raw versions (sizeof fold catches size changes only)");
 
 } // namespace common
 
