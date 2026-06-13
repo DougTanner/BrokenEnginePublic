@@ -1,4 +1,4 @@
-#include "MemoryManager.h"
+#include "GlobalAllocator.h"
 
 #include "CrashReport.h"
 
@@ -7,7 +7,7 @@ std::atomic<int64_t> giAllocationsThisFrame = 0;
 namespace
 {
 
-bool sbTrackingReady = false;
+std::atomic<bool> sbTrackingReady = false;
 
 void TrackAllocation()
 {
@@ -16,7 +16,7 @@ void TrackAllocation()
 		giAllocationsThisFrame.fetch_add(1, std::memory_order_relaxed);
 	}
 
-	if (!sbTrackingReady || common::gpThreadLocal == nullptr || giAllocationTrackingSuppressed > 0)
+	if (!sbTrackingReady.load(std::memory_order_relaxed) || common::gpThreadLocal == nullptr || giAllocationTrackingSuppressed > 0)
 	{
 		return;
 	}
@@ -29,7 +29,7 @@ void TrackAllocation()
 
 void EnableAllocationTracking(bool bEnable)
 {
-	sbTrackingReady = bEnable;
+	sbTrackingReady.store(bEnable, std::memory_order_relaxed);
 }
 
 #if defined(ENABLE_CRT_DEBUG_HEAP)
@@ -58,6 +58,8 @@ void operator delete[](void* p, std::align_val_t, const std::nothrow_t&) noexcep
 
 #else
 
+// Hand-maintained fork of ThirdParty/mimalloc/include/mimalloc-new-delete.h with TrackAllocation() injected
+// (the stock header has no hook point) - diff against the stock header on each mimalloc upgrade
 [[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new(std::size_t n) noexcept(false) { TrackAllocation(); return mi_new(n); }
 [[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new[](std::size_t n) noexcept(false) { TrackAllocation(); return mi_new(n); }
 [[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new  (std::size_t n, const std::nothrow_t&) noexcept { TrackAllocation(); return mi_new_nothrow(n); }
@@ -119,10 +121,9 @@ struct MemoryInitializer
 		stats.version = MI_STAT_VERSION;
 		mi_stats_get(&stats);
 
-		int64_t iPeakUsageMb = stats.page_committed.peak / (1024 * 1024);
 		int64_t iPeakCommittedMb = stats.committed.peak / (1024 * 1024);
 
-		LOG(kDefault, kInfo, "Mimalloc peak heap usage: {} MiB, peak committed: {} MiB (arena reserve: {} MiB)", iPeakUsageMb, iPeakCommittedMb, kiMimallocArenaReserveMb);
+		LOG(kDefault, kInfo, "Mimalloc peak heap usage: {} MiB, peak committed: {} MiB (arena reserve: {} MiB)", stats.page_committed.peak / (1024 * 1024), iPeakCommittedMb, kiMimallocArenaReserveMb);
 
 		if (iPeakCommittedMb > kiMimallocArenaReserveMb)
 		{

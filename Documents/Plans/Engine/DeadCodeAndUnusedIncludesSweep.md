@@ -9,21 +9,21 @@ independent, so the sweep can land any subset.
 
 ### Unused includes
 
-1. **~12 Engine TUs include `Memory/MemoryManager.h` without using its symbols** — leftover from
+1. **~12 Engine TUs include `Memory/GlobalAllocator.h` without using its symbols** — leftover from
    `ScopedSuppressAllocationTracking` moving to `Common/AllocationTracking.h`. For each, confirm via grep that
-   no `MemoryManager.h` symbol (the allocation-track API, operator overloads) is referenced in the TU, then
+   no `GlobalAllocator.h` symbol (the allocation-track API, operator overloads) is referenced in the TU, then
    drop the include. Per the project rule, only remove includes whose unused-ness *this work* establishes — but
-   here the move already orphaned them. (Identify the ~12 by grepping for `#include "Memory/MemoryManager.h"`
+   here the move already orphaned them. (Identify the ~12 by grepping for `#include "Memory/GlobalAllocator.h"`
    and cross-checking against actual symbol use.)
 
-12. **`Frame/Collections/CollectionMemory.h:3` includes `Memory/MemoryManager.h` (header-level leftover of the
+12. **`Frame/Collections/CollectionMemory.h:3` includes `Memory/GlobalAllocator.h` (header-level leftover of the
     same move as item 1)** — its only allocation symbol is `ScopedSuppressAllocationTracking`
     (`CollectionMemory.h:127/:186/:229/:282/:340/:358/:377`), which lives in `Common/AllocationTracking.h:6`.
-    Unlike item 1's TUs, this is a *header* and is the accidental channel distributing `MemoryManager.h` to
+    Unlike item 1's TUs, this is a *header* and is the accidental channel distributing `GlobalAllocator.h` to
     every TU in both projects (Pch.h:96 → game `Frame.h:3` → `FrameBase.h:8` → `Explosions.h:3` →
     `Collection.h:175` → `CollectionMemory.h:3`). **Ordering pair**: `Profile/ProfileManagerBase.cpp` uses
     `giAllocationsThisFrame` (`:118/:145/:397`) with **no** direct include — it survives only via this chain.
-    Add `#include "Memory/MemoryManager.h"` to `ProfileManagerBase.cpp` *first*, then drop the
+    Add `#include "Memory/GlobalAllocator.h"` to `ProfileManagerBase.cpp` *first*, then drop the
     `CollectionMemory.h:3` include. (Surfaced by the Input/Memory `/external-deep-analysis` run.)
 
 ### Dead declarations / unused methods
@@ -114,7 +114,7 @@ directly-orphaned wiring) per the "don't touch unrelated code" directive.
 - **Any CRC-participating / serialized field** (Explosions fields that turn out to be in `SharedMembers` /
   `Members`) — those require the `add-collection-member` removal checklist + `kiVersion` bump and a dedicated
   plan; do not delete them in this lightweight sweep.
-- `MemoryManager.h`/`AllocationTracking.h` themselves — only the *consumers'* stale includes are touched.
+- `GlobalAllocator.h`/`AllocationTracking.h` themselves — only the *consumers'* stale includes are touched.
 - The `RIDEV_INPUTSINK` removal if behavior-verification is inconclusive — defer rather than guess.
 - Stale code *comments* (the FileManager "pre-faulted" comments, the terrain indirect-draw comments, etc.) —
   those are a separate `StaleCodeCommentsCleanup` plan.
@@ -133,7 +133,7 @@ directly-orphaned wiring) per the "don't touch unrelated code" directive.
 
 ## Critical files
 
-- ~12 Engine TUs with stale `#include "Memory/MemoryManager.h"` (enumerate via grep at execution).
+- ~12 Engine TUs with stale `#include "Memory/GlobalAllocator.h"` (enumerate via grep at execution).
 - `Engine/Source/Frame/Collections/CollectionMemory.h` (`:3` stale include — item 12) paired with
   `Engine/Source/Profile/ProfileManagerBase.cpp` (gains the direct include — item 12).
 - `Engine/Source/Input/RawInputManager.cpp` — mouse `RIDEV_INPUTSINK` registration.

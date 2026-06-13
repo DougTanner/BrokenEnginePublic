@@ -11,19 +11,19 @@ Headers consumed by Common/Engine go through `Common/ExternalHeaders.h` (with `B
 ## Library Inventory
 
 **Engine / runtime**
-- **DirectXTK** (MIT) — client audio, GamePad/Mouse input (XINPUT, for Steam Deck compatibility), DataPacker WAV parsing. DirectXMath itself comes from the Windows SDK, not from here.
+- **DirectXTK** (MIT) — client audio, GamePad/Mouse input (XINPUT, for Steam Deck compatibility), DataPacker WAV parsing. DirectXMath itself comes from the Windows SDK, not from here. `Keyboard` is deliberately not compiled — evaluated and rejected; the in-house Raw Input path's `RIDEV_NOLEGACY` semantics are load-bearing (see `Engine/Source/Input/CLAUDE.md`).
 - **imgui** + **implot** (MIT) — debug UI and plots; implot compiles inside the imgui unity unit
 - **enet** (MIT) — UDP networking
 - **lz4** (BSD-2; see caveat) — network payload compression
-- **mimalloc** (MIT) — allocator behind the global `operator new`/`delete` overrides (and allocation tracking) in `Engine/Source/Memory/MemoryManager.cpp`
+- **mimalloc** (MIT) — allocator behind the global `operator new`/`delete` overrides (and allocation tracking) in `Engine/Source/Memory/GlobalAllocator.cpp`
 - **Clipper2** (Boost) — 2D polygon clipping for navmesh build; runs on the shared sim path — chosen for int64-quantized determinism
 - **StackWalker** (BSD-2) — crash stack capture; use via `common::FilteredStackWalker`, never directly (DbgHelp is process-single-threaded)
 - **zlib** (zlib) — runtime `.pack` chunk decompression in FileManager (client and server), DataPacker intermediate compression, deflate backend for openexr
-- **stb** (MIT / public domain) — image write (engine screenshots); image load/resize/write (DataPacker)
+- **stb** (MIT / public domain) — image write (engine screenshots); image load/resize/write (DataPacker). The shared write implementation defines `STBIW_WINDOWS_UTF8`, so every `stbi_write_*` caller passes filenames as UTF-8 (e.g. `std::filesystem::path::u8string()`), never ANSI
 - **PerlinNoise** (MIT) — header-only noise (client render path)
 - **RenderDoc** (`renderdoc_app.h`, MIT) — in-app capture API header
 
-> Vma (Vulkan Memory Allocator) and Volk (Vulkan loader) also have unity units in `Prebuilts/Source/Engine/`; their headers come from the Vulkan SDK (`VK_SDK_PATH`), not a folder here.
+> Vma (Vulkan Memory Allocator) and Volk (Vulkan loader) also have unity units in `Prebuilts/Source/Engine/`; their headers come from the Vulkan SDK (`VK_SDK_PATH`), not a folder here. Same precedent: `vulkan/vk_enum_string_helper.h` (Apache-2.0, generated enum-to-string helpers from Vulkan-Utility-Libraries, ships with the LunarG SDK) — header-only, consumed via `Common/ExternalHeaders.h` in all three builds.
 
 **DataPacker / offline tooling**
 - **bc7enc_rdo** (MIT / public domain; bc7e.ispc Apache-2.0, lodepng zlib) — BCn texture compression; the bundled bc7e.ispc path is deliberately disabled — the scalar C++ encoder keeps bakes reproducible

@@ -33,6 +33,7 @@ Exception: for one-line changes, make the edit and do only step 3.
 - Follow KISS, YAGNI, DRY
 - You may run ONLY read-only Git commands
 - **Error handling at trust boundaries only**: assume function parameters from within the codebase are valid — no defensive validation between our own functions. Do validate anything opaque to the current code unit: network input, file reads, OS/third-party API results.
+- **No useless ASSERTs**: an ASSERT that throws one line before the code would crash anyway adds false safety — remove it. In order of preference: (1) make the condition impossible in calling code, (2) recover/handle gracefully if possible, (3) plain not-null ASSERTs — delete and let the null dereference crash, (4) if the linter still complains, handle case-by-case. Details: repo-code-review skill §2c.
 - Do not add unit tests
 - **Don't touch unrelated code**: only modify files, functions, and lines directly tied to the current task. Do not refactor, rename, reformat, or restyle adjacent code. Surface incidental findings — mention trivial observations in chat; for bugs or other important issues, route through C++ Code Change Process step 10 (a follow-up plan in `Documents/Plans/`). Remove only imports/usings/variables that *your* edits made unused.
 - **Response style**: Stay concise — no pleasantries, hedging, or restating the request. But when the user (or output style) asks for explanation, provide the information fully. Concise ≠ omitting requested content. In code and commit messages: drop articles where natural, fragments fine, technical terms unchanged. Pattern: [thing] [action] [reason]
@@ -51,7 +52,7 @@ Linker errors (LNK errors) can be ignored — the executable may be running (loc
 
 ## Static Analysis
 - `.editorconfig` (repo root) — formatting (Allman, tabs, spacing, include sort). VS applies on save / Ctrl+K, Ctrl+D.
-- `.clang-tidy` (repo root) — 19 enforced checks mapped to `Documents/C++StyleGuide.txt`. Opt-in per project: *Properties → Code Analysis → Enable Clang-Tidy*. Deferred checks and details: comment block at the top of the file.
+- `.clang-tidy` (repo root) — enforced checks mapped to `Documents/C++StyleGuide.txt`; the `clang-analyzer-*` suite also runs (VS appends it after the config's Checks, so analyzer exclusions live in each vcxproj's `<ClangTidyChecks>`, not in `.clang-tidy`). Opt-in per project: *Properties → Code Analysis → Enable Clang-Tidy*. Deferred checks and details: comment block at the top of the file.
 
 ## Client/Server Builds
 

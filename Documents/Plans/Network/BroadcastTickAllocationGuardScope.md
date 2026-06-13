@@ -29,7 +29,7 @@ void ServerSession::BroadcastTick(int64_t iTick)
 
 `ScopedSuppressAllocationTracking` is a **thread-local counter** (`Common/AllocationTracking.h`:
 `++giAllocationTrackingSuppressed` / `--`), read by the engine allocator's main-loop tracking
-(`Engine/Source/Memory/MemoryManager.cpp`). Because the caller's guard is still in scope (counter > 0) for the
+(`Engine/Source/Memory/GlobalAllocator.cpp`). Because the caller's guard is still in scope (counter > 0) for the
 entire duration of the `BroadcastStatusChanges` call, the tracker is **suppressed** there — exactly the opposite
 of the documented "stays armed" intent. The invariant is silently nullified: a per-tick heap allocation
 introduced into `BroadcastStatusChanges` would *not* trip the tracker today.
@@ -67,7 +67,7 @@ no intervening scope decrements it back to zero before `BroadcastStatusChanges`.
 
 ## Out of scope
 
-- **The allocation-tracking mechanism itself** (`AllocationTracking.h` / `MemoryManager.cpp`) — unchanged; this
+- **The allocation-tracking mechanism itself** (`AllocationTracking.h` / `GlobalAllocator.cpp`) — unchanged; this
   is about *where* the guard is scoped, not how it works.
 - **Other `ScopedSuppressAllocationTracking` call sites** in `ServerSession` / `ServerBroadcaster`
   (`PreTickNetwork`, `ComputeActiveSet`, `BuildFrameInputs`, the resync/load paths) — only `BroadcastTick`'s
@@ -96,7 +96,7 @@ no intervening scope decrements it back to zero before `BroadcastStatusChanges`.
 - `Projects/BrokenEngineSandbox/Source/Network/Server/CLAUDE.md` — the "Allocation suppression" invariant
   (doc target for Option B; the claim to keep accurate under Option A).
 - Read-only reference: `Common/AllocationTracking.h` (the thread-local counter), `Engine/Source/Memory/
-  MemoryManager.cpp` (the allocator hook that reads it).
+  GlobalAllocator.cpp` (the allocator hook that reads it).
 
 ## Notes
 

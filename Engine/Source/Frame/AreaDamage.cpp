@@ -1,7 +1,6 @@
-#include "Pch.h"
-
 #include "AreaDamage.h"
-#include "Memory/MemoryManager.h"
+
+#include "Memory/GlobalAllocator.h"
 
 namespace engine
 {

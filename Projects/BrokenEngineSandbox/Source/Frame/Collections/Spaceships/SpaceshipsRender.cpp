@@ -31,6 +31,9 @@ void SpaceshipsInterpolate::GraphicsResources()
 }
 
 static int64_t siRendered = 0;
+// Non-concurrency tripwire: per-frame Render calls must run sequentially across active coords — siRendered
+// accumulates across them and offsets each call's slab writes. Parallelizing coord renders would race.
+static std::atomic<bool> sbRenderActive = false;
 
 void SpaceshipsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords)
 {
@@ -70,6 +73,8 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 	{
 		return;
 	}
+
+	ASSERT(!sbRenderActive.exchange(true));
 
 	static const XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
 
@@ -181,6 +186,7 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 	common::gpMultithreading->Dispatch(iVisibleCount, processRange);
 
 	siRendered += iVisibleCount;
+	sbRenderActive.store(false);
 }
 
 void SpaceshipsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)

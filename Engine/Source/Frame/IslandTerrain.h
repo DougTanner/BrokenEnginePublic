@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frame/GridCoord.h"
 #include "Frame/NavBuild.h"
 #if defined(BT_CLIENT)
 #include "Graphics/Objects/Buffer.h"

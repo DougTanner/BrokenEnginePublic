@@ -559,10 +559,7 @@ bool FrameInterpolate::LogDifferences(const FrameInterpolate& rOther) const
 	bEqual &= common::LogDifference<"fSpawnTimer">(fSpawnTimer, rOther.fSpawnTimer);
 	bEqual &= common::LogDifference<"gameFlags">(gameFlags, rOther.gameFlags);
 	bEqual &= pPlayers->LogDifferences(*rOther.pPlayers);
-	bEqual &= pBlasters->LogDifferences(*rOther.pBlasters);
-	bEqual &= pMissiles->LogDifferences(*rOther.pMissiles);
-	bEqual &= pSpaceships->LogDifferences(*rOther.pSpaceships);
-	bEqual &= pTargets->LogDifferences(*rOther.pTargets);
+	bEqual &= engine::LogDifferencesCollections(GameInterpolateCollections(*this), GameInterpolateCollections(rOther), std::make_index_sequence<std::tuple_size_v<decltype(GameInterpolateCollections(*this))>>{});
 	return bEqual;
 }
 
@@ -639,10 +636,7 @@ bool FramePostRender::LogDifferences(const FramePostRender& rOther) const
 	bEqual &= common::LogDifference<"enemyAlignment">(enemyAlignment, rOther.enemyAlignment);
 	bEqual &= common::LogDifference<"playerAlignment">(playerAlignment, rOther.playerAlignment);
 	bEqual &= pPlayers->LogDifferences(*rOther.pPlayers);
-	bEqual &= pBlasters->LogDifferences(*rOther.pBlasters);
-	bEqual &= pMissiles->LogDifferences(*rOther.pMissiles);
-	bEqual &= pSpaceships->LogDifferences(*rOther.pSpaceships);
-	bEqual &= pTargets->LogDifferences(*rOther.pTargets);
+	bEqual &= engine::LogDifferencesCollections(GamePostRenderCollections(*this), GamePostRenderCollections(rOther), std::make_index_sequence<std::tuple_size_v<decltype(GamePostRenderCollections(*this))>>{});
 	return bEqual;
 }
 

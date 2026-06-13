@@ -174,7 +174,7 @@ struct MaterialInfo
 static_assert(sizeof(MaterialInfo) == 72, "MaterialInfo layout changed — bump DataHeader::kiVersion; same-size reorder also bumps ExportScene/ExportModel GetVersion raw versions (sizeof fold catches size changes only)");
 
 // Per-mesh shader data (small struct without embedded joints)
-// Joint matrices are stored in a separate buffer for NVIDIA driver compatibility
+// Joint matrices are stored in a separate buffer so MeshData stays small and fixed-size
 struct MeshData
 {
 	static constexpr int64_t kiMaxMeshes = 512;  // Buffer capacity (must be >= 2 * SceneHeader::kiMaxMaterials)

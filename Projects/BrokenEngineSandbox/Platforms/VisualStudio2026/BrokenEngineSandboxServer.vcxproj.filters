@@ -381,7 +381,7 @@
     <ClInclude Include="..\..\Source\Frame\Collections\Blasters\Blasters.h">
       <Filter>Game\Frame\Collections\Blasters</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Memory\MemoryManager.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Memory\GlobalAllocator.h">
       <Filter>Engine\Memory</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\CrashReport.h">
@@ -647,7 +647,7 @@
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters\BlastersUpdate.cpp">
       <Filter>Game\Frame\Collections\Blasters</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Memory\MemoryManager.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Memory\GlobalAllocator.cpp">
       <Filter>Engine\Memory</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp">

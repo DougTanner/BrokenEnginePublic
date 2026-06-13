@@ -3,7 +3,7 @@
 #include "Network/Server/Server.h"
 
 #include "Game.h"
-#include "Memory/MemoryManager.h"
+#include "Memory/GlobalAllocator.h"
 
 namespace engine
 {

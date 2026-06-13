@@ -63,10 +63,13 @@
 #include <charconv>
 #include <chrono>
 using namespace std::chrono_literals;
+#include <cmath>
 #include <concepts>
 #include <csignal>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <ctime>
 #include <deque>
 #include <exception>
@@ -80,6 +83,7 @@ using namespace std::chrono_literals;
 #include <map>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <numeric>
 #include <optional>
 #include <ostream>
@@ -229,6 +233,7 @@ inline constexpr bool XmIsInf(float fValue)
 #define VK_USE_64_BIT_PTR_DEFINES 1 // Non-dispatchable handles as pointers so Vulkan defines VK_NULL_HANDLE = nullptr natively (no SDK-macro override)
 #include <Volk/volk.h>
 #include <vma/vk_mem_alloc.h>
+#include <vulkan/vk_enum_string_helper.h> // Generated enum-to-string helpers, ships with the LunarG SDK
 
 // LZ4
 #if defined(BT_ENGINE)

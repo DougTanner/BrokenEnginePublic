@@ -236,7 +236,8 @@ bool ClientSessionBase::ApplyReceivedUpdatesBase()
 			if (static_cast<int64_t>(rCoordFrames.serverUpdates.size()) >= kiMaxBufferedFrames)
 			{
 				LOG(kNetwork, kWarning, "ClientSessionBase::ApplyReceivedUpdatesBase Buffer full Coord: ({},{}) Size: {} Tick: {}", coord.x, coord.y, rCoordFrames.serverUpdates.size(), rUpdate.iTick);
-				ASSERT(false);
+				// Recoverable (slow client / server burst): drop the update and keep the session alive
+				DEBUG_BREAK();
 				bHasNewData = true;
 				continue;
 			}

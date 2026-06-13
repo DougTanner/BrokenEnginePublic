@@ -353,6 +353,7 @@ inline auto InterpolateKeyframes(const TControllerType& rController, float fElap
 	{
 		return rController.keyframes[0];
 	}
+	// NOLINTNEXTLINE(clang-analyzer-security.ArrayBound) — registered controllers always have uiKeyframeCount >= 2; the analyzer's count==0 path cannot occur
 	if (fElapsedTime >= rController.pfTimes[iKeyframeCount - 1])
 	{
 		return rController.keyframes[iKeyframeCount - 1];
@@ -654,7 +655,8 @@ inline bool IsMemberTupleSubset(const TSubTuple& rSubMembers, const TFullTuple& 
 		{
 			return std::apply([&](const auto&... fullMemberPtrRefs)
 			{
-				return ((static_cast<const void*>(&rSubMemberPtrRef) == static_cast<const void*>(&fullMemberPtrRefs)) || ...);
+				// Compare via uintptr_t: clang rejects static_cast<const void*> on &(T* __restrict) as casting away __restrict
+				return ((reinterpret_cast<uintptr_t>(&rSubMemberPtrRef) == reinterpret_cast<uintptr_t>(&fullMemberPtrRefs)) || ...);
 			}, rFullMembers);
 		}(subMemberPtrRefs) && ...);
 	}, rSubMembers);

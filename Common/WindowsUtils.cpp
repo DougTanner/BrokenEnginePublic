@@ -123,13 +123,20 @@ std::tuple<std::string, std::string> FileTimeString(const std::filesystem::file_
 	SYSTEMTIME localSystemtime {};
 	VERIFY_SUCCESS(SystemTimeToTzSpecificLocalTime(nullptr, &systemtime, &localSystemtime));
 
+	// OS trust boundary: format failures degrade to empty display strings instead of crashing
 	char pcDate[MAX_PATH] {};
 	int iWritten = GetDateFormat(LOCALE_USER_DEFAULT, 0, &localSystemtime, "yyyy-MM-dd", pcDate, static_cast<DWORD>(std::size(pcDate) - 1));
-	ASSERT(iWritten != 0);
+	if (iWritten == 0)
+	{
+		LOG(kDefault, kWarning, "GetDateFormat failed: {}", GetLastError());
+	}
 
 	char pcTime[MAX_PATH] {};
 	iWritten = GetTimeFormat(LOCALE_USER_DEFAULT, 0, &localSystemtime, "h:mm tt", pcTime, static_cast<DWORD>(std::size(pcTime) - 1));
-	ASSERT(iWritten != 0);
+	if (iWritten == 0)
+	{
+		LOG(kDefault, kWarning, "GetTimeFormat failed: {}", GetLastError());
+	}
 
 	return std::make_tuple(std::string(pcDate), std::string(pcTime));
 }

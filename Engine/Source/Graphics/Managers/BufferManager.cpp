@@ -356,7 +356,7 @@ void BufferManager::InitializePerCommandBufferBuffers(int64_t iCommandBufferCoun
 	}
 
 	// Joint matrix buffer for glTF skeletal animation (separate from MeshData)
-	// Separate buffer avoids NVIDIA driver hang when dynamically indexing large mat4 arrays
+	// Separate dynamically-sized buffer keeps MeshData small and fixed-size with no embedded joint cap
 	mJointMatrixStorageBuffers.resize(iCommandBufferCount);
 	for (int64_t i = 0; i < iCommandBufferCount; ++i)
 	{

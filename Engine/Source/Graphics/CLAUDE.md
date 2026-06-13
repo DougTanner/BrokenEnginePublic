@@ -35,11 +35,12 @@ Settings-change detector escalates a destroy tier (`DestroyType`) monotonically 
 - `CHECK_VK` macro forwards to `CheckVk`/`CheckVkFailed`, which breaks once (after logging) only on the fatal unexpected-result path; recoverable results (swapchain/surface-loss escalate to a destroy tier, device-lost throws `DeviceLostException`) do not break
 - Debug-name strings interned because Vulkan retains the `c_str()`; insertion wrapped in `ScopedSuppressAllocationTracking`
 - Shared collection-render helpers live here: visible-area point test, base-height projection (camera-relative terrain elevation), axis-aligned quad layout build (used by non-island quad consumers; islands write their own SSBO layout in Islands.cpp), and physical-device format-feature queries
-- `OneShotCommandBuffer` — RAII wrapper for init/transfer work on the graphics queue
+- `OneShotCommandBuffer` — RAII wrapper for init/transfer work on the graphics queue; instances share one pool/fence and must not overlap (assert-enforced)
 
 ## AnimationData
 
 - Zero-copy: node/channel/keyframe/material pointers index directly into eagerly-loaded pack memory
+- Map populated once in the `Graphics` ctor from FileManager's eager scene chunks; idempotent early-out so device-loss recreation skips it — the map and the FileManager-owned pack memory it points into outlive Graphics
 - Matrix convention: DirectXMath row-major storage reinterpreted by GLSL as column-major is already the transpose — never `XMMatrixTranspose` before upload
 - Topological node order invariant (`iParentIndex < i`) enables single-pass world-matrix build
 - CUBICSPLINE path uses glTF-spec Hermite tangents scaled by delta; STEP/LINEAR uses a compact keyframe

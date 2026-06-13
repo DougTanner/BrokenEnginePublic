@@ -64,8 +64,6 @@ void TextureCache::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, Vk
 	vkCmdPipelineBarrier(oneShotCommandBuffer.mVkCommandBuffer, srcStage, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &vkImageMemoryBarrier);
 
 	// Copy each mip level and array layer to staging buffer
-	iMipWidth = extent.width;
-	iMipHeight = extent.height;
 	size_t uiOffset = 0;
 
 	for (uint32_t iLayer = 0; iLayer < arrayLayers; ++iLayer)

@@ -37,10 +37,10 @@ remove" decision rather than a mechanical edit.
    project at all, per the VisualStudio2026 client/server rule; if it compiles in both but is server-unused, it
    is harmless dead weight). The grill resolves whether to remove it.
 6. **`RawInputManager.h` missing from the server vcxproj `ClInclude`** (Input/Memory deep-analysis run): the
-   header is partial-guard — the `RawInput` struct + button enums (`RawInputManager.h:6-48`) compile in both
+   header is partial-guard — the `RawInput` struct + button enums (`RawInputManager.h:6-47`) compile in both
    builds and game `Input.h:3` includes it in the server build — and `VisualStudio2026/CLAUDE.md` says headers
    follow the same affinity (partial-guard → both projects), but it is listed only in the client vcxproj
-   (`BrokenEngineSandbox.vcxproj:399`). The server filters' existing empty `Engine\Input` filter is *not*
+   (`BrokenEngineSandbox.vcxproj:405`). The server filters' existing empty `Engine\Input` filter is *not*
    supporting evidence — `VisualStudio2026/CLAUDE.md:44` documents it as leftover cruft; the justification is
    the affinity rule plus the header actually compiling into the server build. Add the `ClInclude` (+ matching
    `.filters` entry, which makes that filter non-empty — the CLAUDE.md:44 leftover-filters sentence then needs

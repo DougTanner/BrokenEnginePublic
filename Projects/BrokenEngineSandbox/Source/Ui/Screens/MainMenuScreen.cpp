@@ -60,8 +60,8 @@ void MainMenuScreen::Render()
 			sbServerLaunched = true;
 			// Heap: std::filesystem::path allocates; one-time server launch path
 			ScopedSuppressAllocationTracking suppress;
-			char pcPath[MAX_PATH] {};
-			GetModuleFileName(nullptr, pcPath, static_cast<DWORD>(std::size(pcPath) - 1));
+			wchar_t pcPath[MAX_PATH] {};
+			GetModuleFileNameW(nullptr, pcPath, static_cast<DWORD>(std::size(pcPath) - 1));
 			std::filesystem::path serverPath = pcPath;
 			serverPath.remove_filename();
 			if constexpr (std::string_view(kpcBuildConfigName) == "Release")

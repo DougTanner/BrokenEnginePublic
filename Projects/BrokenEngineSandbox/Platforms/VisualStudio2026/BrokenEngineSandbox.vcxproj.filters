@@ -7,9 +7,6 @@
     <Filter Include="Engine\Data">
       <UniqueIdentifier>{44ff7228-6a3b-47cc-8ddd-f5adb9571e29}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Debug">
-      <UniqueIdentifier>{575b8ebf-f5e7-4ab3-ae6d-a0e4301adeb2}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\File">
       <UniqueIdentifier>{3fe45fda-e682-4800-9af3-387e4a8937cc}</UniqueIdentifier>
     </Filter>
@@ -210,9 +207,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\Engine\Source\Debug\EnumToString.h">
-      <Filter>Engine\Debug</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Debug\DebugRender.h">
       <Filter>Engine\Graphics\Debug</Filter>
     </ClInclude>
@@ -564,7 +558,7 @@
     <ClInclude Include="..\..\Data\Shaders\ShaderLayouts.h">
       <Filter>Game\Data\Shaders</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Memory\MemoryManager.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Memory\GlobalAllocator.h">
       <Filter>Engine\Memory</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\CrashReport.h">
@@ -1046,7 +1040,7 @@
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters\BlastersRender.cpp">
       <Filter>Game\Frame\Collections\Blasters</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Memory\MemoryManager.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Memory\GlobalAllocator.cpp">
       <Filter>Engine\Memory</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp">

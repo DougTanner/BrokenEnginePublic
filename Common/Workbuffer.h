@@ -199,8 +199,7 @@ public:
 	}
 
 	// Reinterpret the pointer type while transferring frame ownership. Lets a function that
-	// allocated a typed buffer return an allocation typed against a different pointer (e.g.,
-	// `EnumToString::Convert` allocates a char* scratch but returns a const char* map pointer).
+	// allocated a typed buffer return an allocation typed against a different pointer.
 	template<typename U>
 	[[nodiscard]] ScopedWorkbufferAllocation<U> Adopt(U pData) && noexcept
 	{

@@ -10,7 +10,7 @@ Manages file operations and asset loading with platform directory access (AppDat
 
 ### Eager vs Lazy
 
-Split determined by `IsEagerChunk(DataTypes)`: Font/Scene/Model/Shader/Raw are eager (client-only, each pack read whole into memory at boot; chunk pointers alias that buffer, no per-chunk copies); Audio/Islands/Texture are lazy. Server skips eager types entirely and additionally restricts lazy opens to types matching `IsServerChunk(DataTypes)` (currently `kDataTypeIslands` only) — Audio/Texture packs are never opened server-side, so DataPacker can rewrite them while the server runs (an open `FILE_SHARE_READ` handle would block rewrites). Eager parse runs async; first consumer blocks on the future.
+Split determined by `IsEagerChunk(DataTypes)`: Font/Scene/Model/Shader/Raw are eager (client-only, each pack read whole into memory at boot; chunk pointers alias that buffer, no per-chunk copies); Audio/Islands/Texture are lazy. Server skips eager types entirely and additionally restricts lazy opens to types matching `IsServerChunk(DataTypes)` (currently `kDataTypeIslands` only) — Audio/Texture packs are never opened server-side, so DataPacker can rewrite them while the server runs (an open `FILE_SHARE_READ` handle would block rewrites). Eager load runs async and is format-agnostic (populates the chunk map only — consumers parse their own formats); first consumer blocks on the future.
 
 ### Lazy Loading
 
@@ -36,7 +36,7 @@ Resetting texture chunks clears GPU handles and transitions based on CPU residen
 
 ### Atomic Writes
 
-Writes are atomic by default — staged through a `.tmp` sibling then `std::filesystem::rename`-replaced — so readers never observe a torn file even on crash mid-write. Direct write opens via `OpenFile(kWrite, ...)` must opt out by also setting `kStreaming`; one-shot writers should use `WriteFileAtomically` instead. Backup mode timestamps and copies the existing file before opening for write, and asserts on copy failure.
+Writes are atomic by default — staged through a `.tmp` sibling then `std::filesystem::rename`-replaced — so readers never observe a torn file even on crash mid-write. Direct write opens via `OpenFile(kWrite, ...)` must opt out by also setting `kStreaming`; one-shot writers should use `WriteFileAtomically` instead. Backup mode timestamps and copies the existing file before opening for write; copy failure logs `kError` and continues without the backup (the atomic main-file write is unaffected).
 
 ## DifferenceStream
 

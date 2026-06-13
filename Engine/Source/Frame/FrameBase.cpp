@@ -1,5 +1,7 @@
 #include "FrameBase.h"
 
+#include "Frame/Frame.h"
+
 namespace engine
 {
 
@@ -26,8 +28,7 @@ bool FrameInterpolateBase::LogDifferences(const FrameInterpolateBase& rOther) co
 	bEqual &= common::LogDifference<"iTick">(iTick, rOther.iTick);
 	bEqual &= common::LogDifference<"fCurrentTime">(fCurrentTime, rOther.fCurrentTime);
 	bEqual &= common::LogDifference<"fDeltaTime">(fDeltaTime, rOther.fDeltaTime);
-	bEqual &= explosions.LogDifferences(rOther.explosions);
-	bEqual &= pushers.LogDifferences(rOther.pushers);
+	bEqual &= LogDifferencesCollections(ServerCollections(), rOther.ServerCollections(), std::make_index_sequence<std::tuple_size_v<decltype(ServerCollections())>>{});
 	return bEqual;
 }
 
@@ -97,11 +98,15 @@ bool FramePostRenderBase::LogDifferences(const FramePostRenderBase& rOther) cons
 		bEqual = false;
 		LOG(kNetwork, kError, "LogDifferences {} alignments differ", common::gpLogDifferenceContext);
 	}
-	bEqual &= explosions.LogDifferences(rOther.explosions);
-	bEqual &= pushers.LogDifferences(rOther.pushers);
+	bEqual &= LogDifferencesCollections(ServerCollections(), rOther.ServerCollections(), std::make_index_sequence<std::tuple_size_v<decltype(ServerCollections())>>{});
 	return bEqual;
 }
 
+// Write/Read serialize the client-only UUID counters under BT_CLIENT, so the two builds'
+// stream layouts differ structurally — a client-written stream is unreadable by a server
+// Read (and vice versa). Safe today only because save/load is server-only
+// (game::GameSaveLoad); the guard is convention, not structure. ServerRead handles the
+// cross-build (network) direction and documents the skip.
 void FramePostRenderBase::Write(std::ostream& rStream) const
 {
 	common::Write(rStream, randomEngine);

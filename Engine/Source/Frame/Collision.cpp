@@ -1,11 +1,58 @@
-#include "Pch.h"
-
 #include "Collision.h"
-#include "Memory/MemoryManager.h"
+
+#include "Memory/GlobalAllocator.h"
+
+#include "Frame/Frame.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
 {
+
+// Pending collision result written to workbuffer during CollideLayerPair
+struct PendingCollisionResult
+{
+	int64_t iLayerIndex = 0;
+	int64_t iObjectIndex = 0;
+	CollisionResult result;
+};
+
+// Zone range for spatial partitioning
+struct ZoneRange
+{
+	int32_t iStartX = 0;
+	int32_t iEndX = 0;
+	int32_t iStartY = 0;
+	int32_t iEndY = 0;
+};
+
+// Per-zone storage for a layer pair
+struct ZonePair
+{
+	std::vector<int64_t> indicesA;  // Object indices from layer A
+	std::vector<int64_t> indicesB;  // Object indices from layer B
+	int64_t iCountA = 0;
+	int64_t iCountB = 0;
+};
+
+// Grid of zones for one layer pair
+struct LayerPairZones
+{
+	size_t uiLayerA = 0;
+	size_t uiLayerB = 0;
+	ZonePair zones[kiCollisionZonesY][kiCollisionZonesX];
+
+	LayerPairZones()
+	{
+		for (ZonePair (&rRow)[kiCollisionZonesX] : zones)
+		{
+			for (ZonePair& rZonePair : rRow)
+			{
+				rZonePair.indicesA.resize(kiCollisionZonePreallocate);
+				rZonePair.indicesB.resize(kiCollisionZonePreallocate);
+			}
+		}
+	}
+};
 
 // thread_local definitions for Collision static members
 thread_local float Collision::sfAreaMinX = 0.0f;

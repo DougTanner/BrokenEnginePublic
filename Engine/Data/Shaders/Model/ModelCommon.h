@@ -43,7 +43,7 @@ layout (scalar, set = 1, binding = 2) buffer readonly modelsUniform
 };
 
 // Per-mesh shader data (small struct without embedded joints)
-// Joint matrices stored separately to avoid NVIDIA driver hang with large mat4 arrays
+// Joint matrices stored separately so MeshData stays small and fixed-size with no embedded joint cap
 struct MeshData
 {
 	mat4 matrix;              // Mesh world matrix

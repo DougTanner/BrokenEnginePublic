@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Memory/MemoryManager.h"
+#include "Memory/GlobalAllocator.h"
 
 namespace engine
 {

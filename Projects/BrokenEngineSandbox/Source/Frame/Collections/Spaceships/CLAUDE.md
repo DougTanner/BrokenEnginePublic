@@ -15,7 +15,7 @@ AI-controlled enemy spaceships with health, weapons, freeze time, and per-instan
 
 ## Render Pipeline (client)
 
-- **Cross-coord accumulator** `siRendered` is file-static (not `thread_local`): assumes per-frame `Render` calls run sequentially on the render thread across active coords; parallelizing coord renders would race.
+- **Cross-coord accumulator** `siRendered` is file-static (not `thread_local`): per-frame `Render` calls must run sequentially on the main thread across active coords (re-entry assert-enforced); parallelizing coord renders would race.
 - **Two-pass render**: Pass 1 (main thread) culls and packs a compacted visible-indices list into the workbuffer, then reserves mesh-data and joint-matrix slabs covering all visible ships. Pass 2 dispatches workers writing deterministic non-overlapping slabs (lock-free).
 - **Model swap site**: `kSpaceshipModel` in `SpaceshipsRender.cpp` is `#if 1`/`#if 0`-gated with a paired scale. `Spaceships.cpp` forward-declares it (client-only) for the animation-duration lookup.
 

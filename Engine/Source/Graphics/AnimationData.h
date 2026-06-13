@@ -37,7 +37,12 @@ private:
 	XMVECTOR InterpolateKeyframes(const common::AnimationChannel& rChannel, float fTime) const;
 };
 
-// Global registry by scene CRC
+// Global registry by scene CRC. mpAnimations[].fDuration feeds the per-entity animation clock in sim-phase
+// code (Players/Spaceships Update, inside BT_CLIENT guards). That clock is deliberately excluded from
+// SharedCrcMembers (see Players/CLAUDE.md "Shared-CRC exclusions") — promoting the animation-time field into
+// the shared CRC would couple determinism to client-only pack data.
 inline std::unordered_map<common::crc_t, AnimationData> gAnimationDataMap;
+
+void LoadAnimationDataFromEagerChunks();
 
 } // namespace engine

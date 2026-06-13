@@ -56,6 +56,7 @@ int64_t ReconcileFindReplayRangeCoord(CoordWork& rWork, int64_t iReplayStart)
 // transferred player IDs are captured) or counts-only (when only non-player transfers occurred).
 static void LogTransferSummary(const CoordWork& rWork, int64_t iTick, int64_t iTransferPlayerCount, int64_t iTransferBlasterCount, int64_t iTransferSpaceshipCount, int64_t iTransferMissileCount, const engine::global_id_t* pTransferPlayerIds, int64_t iTransferPlayerIdCount)
 {
+	// NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores) — read only by the kVerbose LOGs below, which compile out at default log levels
 	int64_t iTransferTotal = iTransferPlayerCount + iTransferBlasterCount + iTransferSpaceshipCount + iTransferMissileCount;
 	if (iTransferPlayerCount > 0)
 	{

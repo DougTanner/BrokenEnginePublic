@@ -250,8 +250,17 @@ public:
 				mFullFramesStream << fullFramesFile.rdbuf();
 				SAVED_TYPE firstFrame;
 				mFullFramesStream >> firstFrame;
-				ASSERT(firstFrame.Crc() == rSavedStart.Crc());
-				++miFullFramesIndex;
+				if (firstFrame.Crc() != rSavedStart.Crc())
+				{
+					// Stale/mismatched debug file: discard it so frame comparisons don't reference the wrong baseline
+					LOG(kDefault, kWarning, "Full frames file doesn't match saved start frame, discarding");
+					DEBUG_BREAK();
+					mFullFramesStream.str({});
+				}
+				else
+				{
+					++miFullFramesIndex;
+				}
 			}
 		}
 

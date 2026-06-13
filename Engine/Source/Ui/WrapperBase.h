@@ -1,12 +1,13 @@
 #pragma once
 
-#if defined(BT_CLIENT)
-#include "CurveData.h"
-#endif
-
 namespace engine
 {
 
+// Float-backed container for a UI-bound setting (float / bool / discrete-enum flavors).
+// Thread contract: no atomics. Single writer on the main thread during ImGuiManager::Prepare (Tweaks/menu screens,
+// ImGuiManager.cpp:242-286); readers run later in the same frame, also main-thread. A wrapper read inside a
+// gpMultithreading->Dispatch() region (e.g. gBaseHeight in NavQuery.cpp:503/583/603) must have NO runtime writer —
+// mfCurrent is unsynchronized, so a Tweaks/menu-bound wrapper read from a worker thread would race.
 class Wrapper
 {
 public:
@@ -63,6 +64,9 @@ public:
 		return values;
 	}
 
+	// Bool wrappers only: writes mfCurrent raw, bypassing Snap(), Set(float)'s clamp, and the discrete-enum
+	// allowed-set check (GetIndex()). Set(bool) below shares the same raw-write nature. Callers: gFullscreen,
+	// gDebugTexture (both bool).
 	void Toggle()
 	{
 		mfCurrent = mfCurrent == 0.0f ? 1.0f : 0.0f;
@@ -198,6 +202,11 @@ private:
 		return fStep > 0.0f ? std::round(fValue / fStep) * fStep : fValue;
 	}
 
+	// Every flavor (bool, discrete-enum, int64 index) round-trips through these floats. Exactness ceiling:
+	// integer-backed values must stay below 2^24 or Get<T>() loses precision. Live caution: gPresentMode's allowed
+	// set holds VK_PRESENT_MODE_FIFO_LATEST_READY_KHR (1000361000 -> 1000361024.0f) — safe only because
+	// SwapchainManager.cpp:160-175 normalizes to FIFO/Mailbox/Immediate and Resets before any Get<VkPresentModeKHR>()
+	// consumption (:245), and no UI nor the ClientSettings.cpp:125 load path selects it today.
 	float mfStep = 0.0f;
 	float mfDefault = 0.0f;
 	float mfMin = 0.0f;

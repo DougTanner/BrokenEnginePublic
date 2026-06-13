@@ -1,6 +1,6 @@
 ---
 name: repo-code-review
-description: Reviews C++ code changes made this session for bugs, correctness, and Broken Engine pattern violations — XMVECTOR W invariants, allocation-tracker / LOG formatting discipline, collection integrity, determinism, client/server guard scope, vcxproj inclusion. Use after any C++ code change (C++ Code Change Process step 4), when the user says "review my changes", "check my code", "code review", or before declaring an implementation complete. Flags oversized files for /reduce-file. Logic and correctness only — formatting/style belongs to code-style-review.
+description: Reviews C++ code changes made this session for bugs, correctness, and Broken Engine pattern violations — XMVECTOR W invariants, allocation-tracker / LOG formatting discipline, useless-ASSERT discipline, collection integrity, determinism, client/server guard scope, vcxproj inclusion. Use after any C++ code change (C++ Code Change Process step 4), when the user says "review my changes", "check my code", "code review", or before declaring an implementation complete. Flags oversized files for /reduce-file. Logic and correctness only — formatting/style belongs to code-style-review.
 allowed-tools: [Read, Grep, Glob, WebFetch]
 ---
 
@@ -35,6 +35,22 @@ The main loop runs under an allocation tracker that `DEBUG_BREAK()`s on heap all
 	- For loop/lambda-driven content, pre-build via `common::ScopedWorkbufferArena builder = rWorkbuffer.Push(); builder.Append(...)`/`AppendFloat(...)` and emit as `LOG(cat, lvl, "{}", builder)` — the arena has its own `std::formatter` (emits `View()`), so no call-site `.View()` is needed.
 	- Plain `{}` on integers and the named formatters in `Common/Log/LogFormatters.h` (XMVECTOR, Flags, chrono durations, paths, etc.) are safe.
 - **Standard-library header placement** — new `#include <std>` in a `.h`/`.cpp` should move to `Common/ExternalHeaders.h`.
+
+### 2c. ASSERT Discipline (Broken Engine specific)
+
+`ASSERT` is active in **all** build configs and throws `std::runtime_error` on failure (`common::Assert`, `Common/ErrorUtils.cpp`) — it is not a debug-only no-op. A failing ASSERT *is* a crash; on a bare `std::thread` (loading thread, upload thread) the throw is worse than the fault it replaces: uncaught → `std::terminate`, bypassing the `HandleException` crash-report path.
+
+**Flag any ASSERT added this session that merely throws one line before the code would crash anyway** (the classic agent anti-pattern). Test: if the ASSERT were deleted, what happens on the failing path?
+
+- **Immediate fault at the same spot** (null dereference, OOB fault) → the ASSERT is useless; it adds a false impression of safety. Require removal or replacement per the ladder below.
+- **Silent wrong behavior surfacing far away** (garbage texels, CRC desync, corrupted save, wrong-but-plausible value) → the ASSERT has real diagnostic value; keep it. Example: the zlib `uncompress` result check in `FileManager::LoadChunk` — without it a corrupt payload renders garbage with no fault.
+
+Resolution ladder for a flagged ASSERT, in order of preference:
+
+1. **Make the condition impossible in calling code.** Fix the caller or establish the invariant at the source — e.g., validate external data once at the trust boundary where it enters (file read, network receive), so downstream code needs no check at all.
+2. **Recover / handle gracefully** if the condition is genuinely reachable (external data): `LOG(kError)` naming the bad input, `DEBUG_BREAK()` (debugger-only, no release crash), then fail through the function's *existing* failure channel — return false, skip the item, mark-ready-with-zeroed-data, etc. Never throw, and never trade the crash for a hang: check for condition-variable waiters that need notifying and loops that stop progressing (e.g., a 0-byte `ReadFile` in a `while (copied < size)` loop).
+3. **Plain not-null ASSERTs** guarding an immediate dereference: delete them — the null-dereference crash is equally immediate and equally diagnosable in a debugger/crash dump.
+4. **Static analyzer fallout** is handled case-by-case: if the analyzer's path is genuinely reachable, add a real (analyzer-visible) guard per step 2; if it is provably impossible, suppress with `NOLINT(clang-analyzer-...)` plus a comment stating the invariant. Note `ASSERT` never silences clang-analyzer — its `_Analysis_assume_` is MSVC-only and `common::Assert` lives in another TU — so adding an ASSERT to appease the analyzer is doubly useless.
 
 ### 3. Verify Broken Engine Patterns
 

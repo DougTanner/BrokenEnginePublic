@@ -2,7 +2,7 @@
 
 #include "Network/Server/Server.h"
 #include "Frame/FrameStaticData.h"
-#include "Memory/MemoryManager.h"
+#include "Memory/GlobalAllocator.h"
 #include "Network/NetworkCursor.h"
 
 namespace engine

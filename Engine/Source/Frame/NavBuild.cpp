@@ -599,31 +599,6 @@ void BuildCellNavData(NavData& rNavData, const std::vector<IslandPlacement>& rPl
 		{
 			rNavData.visEdgeB.push_back(iVertexBase + iEdge);
 		}
-
-		// Log per-polygon vertex positions for density analysis
-		size_t iPolyBase = static_cast<size_t>(rNavData.polygonOffsets.size()) - rContour.polygonOffsets.size();
-		for (size_t iPoly = 0; iPoly < rContour.polygonOffsets.size(); ++iPoly)
-		{
-			int32_t iStart = rNavData.polygonOffsets.at(iPolyBase + iPoly);
-			int32_t iEnd = (iPoly + 1 < rContour.polygonOffsets.size()) ? rNavData.polygonOffsets.at(iPolyBase + iPoly + 1) : iVertexBase + iVertexCount;
-			int32_t iCount = iEnd - iStart;
-
-			float fMinX = std::numeric_limits<float>::max();
-			float fMaxX = std::numeric_limits<float>::lowest();
-			float fMinY = std::numeric_limits<float>::max();
-			float fMaxY = std::numeric_limits<float>::lowest();
-			for (int32_t i = iStart; i < iEnd; ++i)
-			{
-				fMinX = std::min(fMinX, rNavData.vertices.at(i).x);
-				fMaxX = std::max(fMaxX, rNavData.vertices.at(i).x);
-				fMinY = std::min(fMinY, rNavData.vertices.at(i).y);
-				fMaxY = std::max(fMaxY, rNavData.vertices.at(i).y);
-			}
-			float fBoundsWidth = fMaxX - fMinX;
-			float fBoundsHeight = fMaxY - fMinY;
-
-			LOG(kNavData, kVerbose, "NavCell: polygon {} verts={} bounds=({} {})..({} {}) size={}x{}", iPoly, iCount, common::Wb(fMinX, 4), common::Wb(fMinY, 4), common::Wb(fMaxX, 4), common::Wb(fMaxY, 4), common::Wb(fBoundsWidth, 4), common::Wb(fBoundsHeight, 4));
-		}
 	}
 
 	// Detect crossing polygon edges (the yellow debug lines). Two non-adjacent polygon
@@ -774,16 +749,16 @@ void BuildNavAcceleration(NavData& rNavData)
 		{
 			for (int32_t iCx = iCx0; iCx <= iCx1; ++iCx)
 			{
-				++gridCounts.at(static_cast<size_t>(iCy * kiNavZonesX + iCx));
+				++gridCounts.at(static_cast<size_t>(iCy) * kiNavZonesX + static_cast<size_t>(iCx));
 			}
 		}
 	}
 
-	rNavData.gridEdgeOffsets.resize(static_cast<size_t>(iCellCount + 1));
+	rNavData.gridEdgeOffsets.resize(static_cast<size_t>(iCellCount) + 1);
 	rNavData.gridEdgeOffsets.at(0) = 0;
 	for (int32_t iCell = 0; iCell < iCellCount; ++iCell)
 	{
-		rNavData.gridEdgeOffsets.at(static_cast<size_t>(iCell + 1)) = rNavData.gridEdgeOffsets.at(static_cast<size_t>(iCell)) + gridCounts.at(static_cast<size_t>(iCell));
+		rNavData.gridEdgeOffsets.at(static_cast<size_t>(iCell) + 1) = rNavData.gridEdgeOffsets.at(static_cast<size_t>(iCell)) + gridCounts.at(static_cast<size_t>(iCell));
 	}
 
 	rNavData.gridEdges.resize(static_cast<size_t>(rNavData.gridEdgeOffsets.at(static_cast<size_t>(iCellCount))));
@@ -799,7 +774,7 @@ void BuildNavAcceleration(NavData& rNavData)
 		{
 			for (int32_t iCx = iCx0; iCx <= iCx1; ++iCx)
 			{
-				rNavData.gridEdges.at(static_cast<size_t>(gridCursor.at(static_cast<size_t>(iCy * kiNavZonesX + iCx))++)) = iEdge;
+				rNavData.gridEdges.at(static_cast<size_t>(gridCursor.at(static_cast<size_t>(iCy) * kiNavZonesX + static_cast<size_t>(iCx))++)) = iEdge;
 			}
 		}
 	}
@@ -826,11 +801,11 @@ void BuildNavAcceleration(NavData& rNavData)
 		}
 	}
 
-	rNavData.adjOffsets.resize(static_cast<size_t>(iVertexCount + 1));
+	rNavData.adjOffsets.resize(static_cast<size_t>(iVertexCount) + 1);
 	rNavData.adjOffsets.at(0) = 0;
 	for (int32_t iVertex = 0; iVertex < iVertexCount; ++iVertex)
 	{
-		rNavData.adjOffsets.at(static_cast<size_t>(iVertex + 1)) = rNavData.adjOffsets.at(static_cast<size_t>(iVertex)) + adjCounts.at(static_cast<size_t>(iVertex));
+		rNavData.adjOffsets.at(static_cast<size_t>(iVertex) + 1) = rNavData.adjOffsets.at(static_cast<size_t>(iVertex)) + adjCounts.at(static_cast<size_t>(iVertex));
 	}
 	rNavData.adjNeighbors.resize(static_cast<size_t>(rNavData.adjOffsets.at(static_cast<size_t>(iVertexCount))));
 	std::vector<int32_t> adjCursor(rNavData.adjOffsets.begin(), rNavData.adjOffsets.end() - 1);
@@ -866,7 +841,7 @@ void BuildNavAcceleration(NavData& rNavData)
 	for (int32_t iVertex = 0; iVertex < iVertexCount; ++iVertex)
 	{
 		int32_t iBegin = rNavData.adjOffsets.at(static_cast<size_t>(iVertex));
-		int32_t iStop = rNavData.adjOffsets.at(static_cast<size_t>(iVertex + 1));
+		int32_t iStop = rNavData.adjOffsets.at(static_cast<size_t>(iVertex) + 1);
 		std::sort(rNavData.adjNeighbors.begin() + iBegin, rNavData.adjNeighbors.begin() + iStop);
 	}
 }

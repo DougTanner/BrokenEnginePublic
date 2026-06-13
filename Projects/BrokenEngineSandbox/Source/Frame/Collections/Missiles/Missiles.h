@@ -20,6 +20,8 @@ namespace game
 // Shared constants (used across Missiles*.cpp files)
 inline constexpr float kfMissileDestroyTime = 0.35f;
 inline constexpr float kfMissileDeltaRotationDelay = 0.5f;
+// Exhaust length MUST stay constexpr: re-randomized every PostRender tick from the shared frame random
+// engine into CRC'd pfExhaustLengths, so the draw must be deterministic across client/server.
 inline constexpr float kfMissileExhaustLength = 1.25f;
 inline constexpr float kfMissileExhaustLengthRandom = 1.0f;
 // Spawn-time pitch range MUST stay constexpr: pfPitches[i] feeds the shared looping-voice fPitch, so the random

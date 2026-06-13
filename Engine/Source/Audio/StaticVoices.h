@@ -80,6 +80,14 @@ private:
 	std::vector<StaticVoice> mVoices;
 	std::vector<PooledVoice> mPooledVoices;
 
+	// Listener/fade state below (through mfEffectiveFadeEnd) is written only by main-thread
+	// UpdateListenerPosition (audio step) and read LOCK-FREE by the one-shot path
+	// (PlayOneShot3d → ComputeAttenuatedVolume / Apply3dVolume's X3DAudioCalculate), which game
+	// sim code reaches from worker threads inside Dispatch() regions. Race-free purely by
+	// temporal exclusion: the main loop strictly sequences ClientUpdate (all dispatch workers
+	// join) → Render → AudioManager::Update (Main.cpp), so no worker is alive when the audio
+	// step writes. The same sequencing is why UpdateLifecycle / UpdateVolumes / Clear may
+	// touch mVoices / mPooledVoices without taking mOneShotRecursiveMutex.
 	XMVECTOR mVecListenerPosition {};
 	X3DAUDIO_LISTENER mX3dAudioListener
 	{

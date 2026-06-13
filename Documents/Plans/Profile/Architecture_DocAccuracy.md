@@ -8,7 +8,7 @@ Source: /external-architecture-review on `Engine/Source/Profile`. The subsystem 
 
 ### Engine/Source/Profile/CLAUDE.md
 - `:9` "All entry points are wrapped in `if constexpr (kbProfiling)`" — overstated: `TickVisibilityCadence()` (`ProfileManagerBase.cpp:83-93`), the free formatters (`ProfileScreens.cpp:14`, `:61`), and the virtual accessors (`ProfileManagerBase.cpp:435-453`) are deliberately unwrapped (the server Profile tab renders zeros when profiling is off, per `Server/CLAUDE.md`). Reword to "all recording/update entry points". [~3m]
-- `:21` "Map resize wraps in `ScopedSuppressAllocationTracking` so profiling never pollutes its own counts" — incorrect rationale: `giAllocationsThisFrame` increments *before* the suppression check (`MemoryManager.cpp:12-26`); suppression only silences the `DEBUG_BREAK` tripwire. The first-use map setup does land in the counter (the snapshot at `ProfileManagerBase.cpp:118` precedes the allocation). Reword to "…so profiling never trips the allocation tripwire". [~3m]
+- `:21` "Map resize wraps in `ScopedSuppressAllocationTracking` so profiling never pollutes its own counts" — incorrect rationale: `giAllocationsThisFrame` increments *before* the suppression check (`GlobalAllocator.cpp:12-26`); suppression only silences the `DEBUG_BREAK` tripwire. The first-use map setup does land in the counter (the snapshot at `ProfileManagerBase.cpp:118` precedes the allocation). Reword to "…so profiling never trips the allocation tripwire". [~3m]
 - `:23` "Each CPU timer reports the heap allocations that occurred inside its scope" — imprecise: it is process-wide allocations during the scope's wall-clock window (global atomic, all threads). Add the clarifying phrase. [~2m]
 
 ### Engine/Source/Profile/ProfileManagerBase.h
@@ -31,7 +31,7 @@ Source: /external-architecture-review on `Engine/Source/Profile`. The subsystem 
 ## Verification Notes
 All items verified against source (2026-06-10 pass):
 - CLAUDE.md line numbers exact (`:9`, `:21`, `:23`); the unwrapped entry points confirmed (`TickVisibilityCadence` `ProfileManagerBase.cpp:83-93`, formatters `ProfileScreens.cpp:14`/`:61`, virtual accessors `:435-453`), and the Server CLAUDE.md corroborates the renders-zeros-when-off intent.
-- The `:21` rationale fix is correct: `MemoryManager.cpp` increments `giAllocationsThisFrame` at `:16` *before* the suppression check at `:19` — suppression only silences the `DEBUG_BREAK` tripwire. The aside also holds: `CpuStart`'s counter snapshot (`:118`) precedes the suppressed map setup (`:125`), so those allocations land in that timer's diff.
+- The `:21` rationale fix is correct: `GlobalAllocator.cpp` increments `giAllocationsThisFrame` at `:16` *before* the suppression check at `:19` — suppression only silences the `DEBUG_BREAK` tripwire. The aside also holds: `CpuStart`'s counter snapshot (`:118`) precedes the suppressed map setup (`:125`), so those allocations land in that timer's diff.
 - The `:23` clarification is accurate — the counter is one process-wide atomic; `CpuStop` diffs wall-clock-window snapshots, so all threads' allocations during the window are attributed.
 - No duplication with `Common/StaleDocClaimsSweep.md`: its Profile item (#6) targets the different `:35` "required position" sentence in the same file — co-schedule if both land in one session, and keep it consistent with `Architecture_InvariantHardening.md`'s position-pinning `static_assert`.
 - Cross-references to the other three Profile plans verified consistent (each cited item is genuinely owned by the named plan).

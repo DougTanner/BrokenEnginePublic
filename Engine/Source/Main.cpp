@@ -1,4 +1,4 @@
-#include "Memory/MemoryManager.h"
+#include "Memory/GlobalAllocator.h"
 
 #include "CrashReport.h"
 #include "Frame/Collections/Players/Players.h"
@@ -150,9 +150,6 @@ void MainThread(HINSTANCE hinstance)
 	sHwnd = CreateWindow(game::kGameName.data(), game::kGameName.data(), sWindowStyle, sWindowRect.left, sWindowRect.top, sWindowRect.right - sWindowRect.left, sWindowRect.bottom - sWindowRect.top, nullptr, nullptr, hinstance, nullptr);
 #else
 	sHwnd = CreateWindow(game::kGameName.data(), game::kGameName.data(), iWindowStyle, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top, nullptr, nullptr, hinstance, nullptr);
-#endif
-#if defined(BT_CLIENT)
-	pRawInputManager->mHwnd = sHwnd;
 #endif
 	if (sHwnd == nullptr)
 	{
@@ -574,7 +571,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 #if defined(BT_CLIENT)
 			gpRawInputManager->HandleRawInput(lParam);
 #endif
-			return 0;
+			break; // WM_INPUT must reach DefWindowProc so the system can free the RAWINPUT handle
 		}
 
 		case WM_SIZE:

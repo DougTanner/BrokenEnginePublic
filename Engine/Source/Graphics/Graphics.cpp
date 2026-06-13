@@ -122,6 +122,8 @@ Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 
 	Create();
 
+	LoadAnimationDataFromEagerChunks();
+
 	gpSwapchainManager->AcquireNextImage();
 
 	// Find the monitor refresh rate
@@ -371,10 +373,7 @@ void Graphics::Refresh()
 	auto [ePresentMode, ePreviousPresentMode, bPresentModeChanged] = gPresentMode.Changed<VkPresentModeKHR>();
 	if (bPresentModeChanged) [[unlikely]]
 	{
-		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-		common::ScopedWorkbufferAllocation<const char*> pcPreviousPresentMode = gEnumToString.Convert(ePreviousPresentMode, rWorkbuffer);
-		common::ScopedWorkbufferAllocation<const char*> pcPresentMode = gEnumToString.Convert(ePresentMode, rWorkbuffer);
-		LOG(kGraphics, kDebug, "{} -> {}", pcPreviousPresentMode, pcPresentMode);
+		LOG(kGraphics, kDebug, "{} -> {}", string_VkPresentModeKHR(ePreviousPresentMode), string_VkPresentModeKHR(ePresentMode));
 		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
 	}
 

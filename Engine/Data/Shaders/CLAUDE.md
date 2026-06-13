@@ -34,12 +34,12 @@ The `Ui/` subdirectory has no CLAUDE.md of its own; documented here:
 - **Multi-set descriptors**: Set 0 = global (UBOs, samplers, bindless textures), Set 1 = per-pipeline (SSBOs, combined image samplers), Set 2 = per-material (models only).
 - **Push-constant render modes**: Vertex shaders select camera/visible-area/shadow projection without separate pipeline permutations.
 - **Four-channel EWNS directional lighting**: RGB stored as separate render targets with EWNS directional weights. Rationale: directional and ambient EWNS samples are summed first, then passed together through the normal-weighted path so both contributions are normal-weighted consistently.
-- **World-space directional deposit**: Deposit shaders compute EWNS direction weights from the fragment's world-space offset to the light's center using cos^2 lobe weighting, with an epsilon fallback to omnidirectional near the center.
+- **World-space directional deposit**: *Light-source* deposit shaders compute EWNS direction weights from the fragment's world-space offset to the light's center using cos^2 lobe weighting, with an epsilon fallback to omnidirectional near the center. *Surface-normal* deposit shaders (e.g. `HexShieldLighting.frag`) instead project the blended center-normal's XY, with a zero-deposit epsilon fallback — see [Objects/CLAUDE.md](Objects/CLAUDE.md).
 - **Unit-preserving identities (skip the redundant `normalize()`)**: `reflect(I, N)` is unit when both `I` and `N` are unit (and stays unit under a leading or single-axis sign flip); `cross(a, b)` is unit when `a`, `b` are unit and orthogonal. Callers that pre-normalize their inputs consume the result directly as a direction, saving one `rsqrt + 3 muls` per call site. The `Specular(...)` helper in `ShaderFunctions.h` relies on this (parameters typed as direction normals). Family-specific call sites are documented in the relevant child CLAUDE.md (Water, Model, Objects, Particles).
 
 ## Known Issues
 
-**NVIDIA driver bug**: never call `inverse()` on mat3/mat4 in shaders — NVIDIA's compiler hangs indefinitely during pipeline creation. Precompute inverse matrices on the CPU and pass via buffers.
+**NVIDIA driver bug**: never call `inverse()` on mat3/mat4 in shaders — NVIDIA's compiler hangs indefinitely during pipeline creation. Precompute inverse matrices on the CPU and pass via buffers. This is the sole confirmed trigger: an earlier attribution of the same hang to "large `mat4[]` arrays" (the joint-matrix buffer split) was a misdiagnosis — both changes landed in one fix commit, and the engine dynamically indexes the large runtime-sized `mat4 jointMatrices[]` SSBO hang-free. The joint split stays as a layout choice (no embedded per-mesh joint cap).
 
 ## See Also
 

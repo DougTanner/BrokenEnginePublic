@@ -2,7 +2,7 @@
 
 #include "GraphicsUtils.h"
 
-#include "Memory/MemoryManager.h"
+#include "Memory/GlobalAllocator.h"
 #include "Ui/WrapperBase.h"
 
 #include "Game.h"
@@ -13,12 +13,12 @@ namespace engine
 void CheckVkFailed(VkResult vkResult, std::string_view expression, std::source_location loc)
 {
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferAllocation<const char*> pcResult = gEnumToString.Convert(vkResult, rWorkbuffer);
+	const char* pcResult = string_VkResult(vkResult);
 	LOG(kDefault, kError, "CheckVk failed: {} - \"{}\" at {}:{} in {}", pcResult, expression, loc.file_name(), loc.line(), loc.function_name());
 
 	// Format exception message with call site information
 	auto pcException = rWorkbuffer.PushBuffer<char*>(1024);
-	snprintf(pcException, 1023, "CheckVk failed: \"%.*s\" at %s:%u in %s\nVkResult: %s", static_cast<int>(expression.size()), expression.data(), loc.file_name(), loc.line(), loc.function_name(), static_cast<const char*>(pcResult));
+	snprintf(pcException, 1023, "CheckVk failed: \"%.*s\" at %s:%u in %s\nVkResult: %s", static_cast<int>(expression.size()), expression.data(), loc.file_name(), loc.line(), loc.function_name(), pcResult);
 
 	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
 	{
@@ -48,8 +48,7 @@ void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t ha
 		if (vkSetDebugUtilsObjectNameEXT != nullptr)
 		{
 			common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-			common::ScopedWorkbufferAllocation<const char*> pcFullName = gEnumToString.Convert(type, rWorkbuffer);
-			const char* pcPrefix = static_cast<const char*>(pcFullName) + std::char_traits<char>::length("VK_OBJECT_TYPE_");
+			const char* pcPrefix = string_VkObjectType(type) + std::char_traits<char>::length("VK_OBJECT_TYPE_");
 			common::ScopedWorkbufferArena innerArena = rWorkbuffer.Push();
 			rWorkbuffer.Append(pcPrefix);
 			rWorkbuffer.Append(" ");

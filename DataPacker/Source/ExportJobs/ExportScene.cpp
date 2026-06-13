@@ -790,7 +790,7 @@ void ExportScene::WriteAnimationSection(tinygltf::Model& rGltfModel, const std::
 		+ cubicKeyframes.size() * sizeof(common::AnimationKeyframeCubic);
 
 	int64_t iCurrentSize = static_cast<int64_t>(mHeaderAndData.size());
-	// Mirrors the reader's math (FileManager.cpp): the MaterialShaderData block is 16-byte rounded by AllocateHeaderAndData
+	// Mirrors the reader's math (LoadAnimationDataFromEagerChunks, AnimationData.cpp): the MaterialShaderData block is 16-byte rounded by AllocateHeaderAndData
 	int64_t iExpectedOffset = common::kiChunkDataOffset + iSceneArraysSize + common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(rMaterialInfos.size()) * static_cast<int64_t>(sizeof(common::MaterialShaderData)));
 	LOG(kDefault, kVerbose, "  Animation data: writing at offset {} (buffer size {}), expected runtime offset {} (diff {})", iCurrentSize, mHeaderAndData.size(), iExpectedOffset, iCurrentSize - iExpectedOffset);
 	ASSERT(iCurrentSize == iExpectedOffset);

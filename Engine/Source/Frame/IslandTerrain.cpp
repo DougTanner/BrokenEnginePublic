@@ -4,13 +4,10 @@
 #include "Frame/IslandChainPlacement.h"
 
 #if defined(BT_CLIENT)
-#include "Graphics/Managers/PipelineManager.h"
 #include "Graphics/Managers/TextureManager.h"
 #endif
 
 #include "Game.h"
-
-#include "Data/Data.h"
 
 namespace engine
 {

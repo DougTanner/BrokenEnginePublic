@@ -160,6 +160,15 @@ static void DebugRenderNavData(const std::vector<GridCoord>& rActiveCoords)
 
 void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord)
 {
+	// Never-empty invariant: client mActiveCoords always contains mClientGridCoord (Game::ComputeActiveSet
+	// gameplay and main-menu branches, Game::Reset re-seed) and the boot prerender passes {kOriginCoord},
+	// so this return is unreachable. It exists only to keep rRenderInterpolates.at(cameraCoord) below from
+	// throwing. If the invariant ever breaks, this skips every per-frame indirect-count write
+	// (FrameInterpolate::BeginRender/EndRender, DebugRender::BeginRender/EndRender, water LOD
+	// WriteIndirectBuffer) while the record-once Main CB still submits unconditionally
+	// (Graphics::RenderMainPresentAcquire) — each skipped frame re-submits its command buffer's last-written
+	// instance counts (framebuffer-count frames stale) as ghost draws, for as long as the skip persists.
+	// An empty path added here must flush those counters before returning.
 	if (rActiveCoords.empty())
 	{
 		return;

@@ -2,7 +2,7 @@
 
 #if defined(BT_CLIENT)
 
-#include "Memory/MemoryManager.h"
+#include "Memory/GlobalAllocator.h"
 
 #include "Game.h"
 #include "Ui/SoundSettingsWrappersBase.h"

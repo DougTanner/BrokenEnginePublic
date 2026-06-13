@@ -7,10 +7,10 @@ Source: /external-refactor-clean on `Engine/Source/Input`. `RawInput` carries tw
 
 ### Engine/Source/Input/RawInputManager.h
 - Redefine `MouseButtons` (lines 8-17) and `GamepadButtons` (lines 19-33) as bitmask enums (`: uint32_t`, `common::Flags` requires an unsigned underlying type; values `1 << n`). Drop or repurpose the `kMouseButtonCount`/`kGamepadButtonCount` sentinels (no longer array sizes). [~10m]
-- In `RawInput` (lines 35-48), replace `bool pMouseButtons[kMouseButtonCount]` (line 39) and `bool pGamepadButtons[kGamepadButtonCount]` (line 43) with `common::Flags<MouseButtons>` / `common::Flags<GamepadButtons>` members. [~5m]
+- In `RawInput` (lines 35-47), replace `bool pMouseButtons[kMouseButtonCount]` (line 39) and `bool pGamepadButtons[kGamepadButtonCount]` (line 43) with `common::Flags<MouseButtons>` / `common::Flags<GamepadButtons>` members. [~5m]
 
 ### Engine/Source/Input/RawInputManager.cpp
-- `RawInputManager::Update`: convert the five mouse-button writes (lines 152-156) and the eight gamepad-button writes (lines 183-190) to `Flags::Set(flag, state)`; the disconnect clear block (lines 205-212) becomes a single `= {}` reset. [~10m]
+- `RawInputManager::Update`: convert the five mouse-button writes (lines 153-157) and the eight gamepad-button writes (lines 180-187) to `Flags::Set(flag, state)`; the eight button clears in the disconnect block (lines 205-212) become a single `= {}` reset of the new Flags member (the thumbstick/dpad float clears, lines 197-203, stay). [~10m]
 
 ### Projects/BrokenEngineSandbox/Source/Input/Input.h
 - Convert the edge-detect helpers `MousePressed`/`GamepadPressed` (lines 93-94) from array indexing to flag tests against `mPreviousRawInputMenu` (current set AND NOT previous). Signatures take the enum, not `int64_t`. [~10m]

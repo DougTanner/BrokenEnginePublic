@@ -338,7 +338,6 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 		update.statusChanges.resize(kiMaxStatusChangesPerCell);
 		int64_t iCount = DecompressStatusChangeBatch(pCursor, iCompressedSize, update.statusChanges.data(), kiMaxStatusChangesPerCell);
 		update.statusChanges.resize(iCount);
-		pCursor += iCompressedSize;
 	}
 
 	// Heap: received updates vector grows each tick

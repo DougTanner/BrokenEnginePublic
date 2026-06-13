@@ -143,4 +143,13 @@ void AllocateAndCopyCollections(TTupleCurrent&& current, TTuplePrevious&& previo
 		std::get<Is>(current), std::get<Is>(previous)), ...);
 }
 
+// LogDifferences helper using tuple and index sequence; left-to-right, never short-circuits (every collection logs)
+template<typename TTupleCurrent, typename TTupleOther, size_t... Is>
+bool LogDifferencesCollections(TTupleCurrent&& current, TTupleOther&& other, std::index_sequence<Is...>)
+{
+	bool bEqual = true;
+	((bEqual &= std::get<Is>(current).LogDifferences(std::get<Is>(other))), ...);
+	return bEqual;
+}
+
 } // namespace engine

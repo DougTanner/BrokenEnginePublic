@@ -2,7 +2,7 @@
 
 #include "ProfileManagerBase.h"
 
-#include "Memory/MemoryManager.h"
+#include "Memory/GlobalAllocator.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 
 #include "Game.h"

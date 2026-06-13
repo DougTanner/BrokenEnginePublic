@@ -293,6 +293,7 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 				if (rUpdate.bIsFlagship)
 				{
 					rCurrentPostRender.pFlags[iIndex].Set(kIsFlagship);
+					// NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores) — read only by the kVerbose LOG after the loop, which compiles out at default log levels
 					iUpdateFleetFlagshipGlobalId = rCurrentPostRender.pGlobalPlayerIds[iIndex].iValue;
 				}
 				else

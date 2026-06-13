@@ -6,7 +6,7 @@
 where two docs cover the *same* topic and either (a) point at each other in a loop, (b) duplicate the same fact,
 or (c) give *conflicting* rationales/rules for the same code. Each is resolved by a **canonical-home or
 pick-one-wording decision** — none is a planning-tree-rule question (that is `PlanDocGovernanceDecisions.md`) and
-none is a parent-rule-vs-leaf-exception qualifier (that is `ParentRuleFramingReconciliation.md`). Grouped because
+none is a parent-rule-vs-leaf-exception qualifier (that was `ParentRuleFramingReconciliation.md`, since **landed and removed**). Grouped because
 they are the same kind of judgment call ("which doc owns this, or which wording is right"). Each is independent;
 the plan can land any subset.
 
@@ -135,7 +135,7 @@ chosen.
 - **The planning-tree rule set** (`## Out of scope` backfill, Plans/Features framing) — that is
   `PlanDocGovernanceDecisions.md`.
 - **Parent-rule-vs-leaf-exception qualifiers** (EWNS deposit, layer-violation, singleton, ExternalHeaders,
-  BT_CLIENT, Engine.h) — those are `ParentRuleFramingReconciliation.md` and `AggregationAndScopeRuleQualifiers.md`.
+  BT_CLIENT, Engine.h) — those are `ParentRuleFramingReconciliation.md` (**landed and removed**) and `AggregationAndScopeRuleQualifiers.md`.
 - **The mechanical loop-break of the DataPacker bake/split delegation** — owned by `StaleDocClaimsSweep.md`
   item 9; Decision 1 here only rules on whether the sentinel contract additionally gets a CLAUDE.md home.
 - **Root `CLAUDE.md` edits** — Decision 4 trims only the `Common/CLAUDE.md` side; the root directory-index line

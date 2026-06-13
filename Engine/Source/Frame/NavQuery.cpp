@@ -144,7 +144,7 @@ bool SegmentBlockedByObstacle(XMFLOAT2 f2A, XMFLOAT2 f2B, const XMFLOAT2* pVerti
 	{
 		int32_t iCell = iY * kiNavZonesX + iX;
 		int32_t iBegin = rNavData.gridEdgeOffsets.at(static_cast<size_t>(iCell));
-		int32_t iStop = rNavData.gridEdgeOffsets.at(static_cast<size_t>(iCell + 1));
+		int32_t iStop = rNavData.gridEdgeOffsets.at(static_cast<size_t>(iCell) + 1);
 		for (int32_t k = iBegin; k < iStop; ++k)
 		{
 			int32_t iEdge = rNavData.gridEdges.at(static_cast<size_t>(k));
@@ -555,7 +555,7 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 		{
 			// Visibility-graph + polygon-perimeter neighbors, precomputed into one adjacency span.
 			int32_t iBegin = rNavData.adjOffsets.at(static_cast<size_t>(iCurrent));
-			int32_t iStop = rNavData.adjOffsets.at(static_cast<size_t>(iCurrent + 1));
+			int32_t iStop = rNavData.adjOffsets.at(static_cast<size_t>(iCurrent) + 1);
 			for (int32_t k = iBegin; k < iStop; ++k)
 			{
 				TryNeighbor(rNavData.adjNeighbors.at(static_cast<size_t>(k)));

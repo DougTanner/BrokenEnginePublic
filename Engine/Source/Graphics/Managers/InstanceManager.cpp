@@ -48,7 +48,8 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebu
 		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "VkDescriptorSetAllocateInfo-descriptorCount") != nullptr)
 		{
 			LOG(kDefault, kError, "Double the number of descriptor sets in DeviceManager::DeviceManager() {}", pCallbackData->pMessage);
-			ASSERT(false);
+			// DEBUG_BREAK, not ASSERT: throwing across the Vulkan C callback boundary would terminate without a crash report
+			DEBUG_BREAK();
 			return VK_FALSE;
 		}
 
@@ -305,10 +306,10 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 	if (vkResultCreateInstance != VK_SUCCESS)
 	{
-		common::ScopedWorkbufferAllocation<const char*> pcResult = gEnumToString.Convert(vkResultCreateInstance, common::gpThreadLocal->mWorkbuffer);
+		const char* pcResult = string_VkResult(vkResultCreateInstance);
 		LOG(kDefault, kError, "vkCreateInstance failed with {}, Vulkan 1.2 is required", pcResult);
 		std::string errorMessage = "Failed to create Vulkan instance.\n\nVulkan 1.2 or higher is required.\n\nError: ";
-		errorMessage += static_cast<const char*>(pcResult);
+		errorMessage += pcResult;
 
 		MessageBox(nullptr, errorMessage.c_str(), game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 
@@ -361,13 +362,12 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	// prepasses MAX/ADD-blend into (kMax/kAdd pipeline flags set blendEnable=VK_TRUE). Blending a color
 	// attachment requires VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT for the format; absent it is silent UB
 	// at pipeline creation. Near-universal on desktop GPUs, but the dependency is real and otherwise unguarded.
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	const VkFormat pBlendedRenderTargetVkFormats[] {shaders::keElevationFormat, shaders::keLightingFormat, shaders::keSmokeFormat, shaders::keWindFormat};
 	for (const VkFormat& rVkFormat : pBlendedRenderTargetVkFormats)
 	{
 		if (!SupportsColorAttachmentBlend(rVkFormat))
 		{
-			LOG(kGraphics, kError, "Device does not advertise VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT for blended render-target format {}", gEnumToString.Convert(rVkFormat, rWorkbuffer));
+			LOG(kGraphics, kError, "Device does not advertise VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT for blended render-target format {}", string_VkFormat(rVkFormat));
 			ASSERT(false);
 		}
 	}
@@ -580,13 +580,10 @@ void InstanceManager::SelectSurfaceFormat()
 	std::vector<VkSurfaceFormatKHR> physicalDeviceSurfaceFormats(uiFormatCount);
 	CHECK_VK(vkGetPhysicalDeviceSurfaceFormatsKHR(mVkPhysicalDevice, mVkSurfaceKHR, &uiFormatCount, physicalDeviceSurfaceFormats.data()));
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	LOG(kGraphics, kInfo, "Surface formats ({}):", physicalDeviceSurfaceFormats.size());
 	for ([[maybe_unused]] const VkSurfaceFormatKHR& rVkSurfaceFormatKHR : physicalDeviceSurfaceFormats)
 	{
-		common::ScopedWorkbufferAllocation<const char*> pcFormat = gEnumToString.Convert(rVkSurfaceFormatKHR.format, rWorkbuffer);
-		common::ScopedWorkbufferAllocation<const char*> pcColorSpace = gEnumToString.Convert(rVkSurfaceFormatKHR.colorSpace, rWorkbuffer);
-		LOG(kGraphics, kInfo, "  {} ({})", pcFormat, pcColorSpace);
+		LOG(kGraphics, kInfo, "  {} ({})", string_VkFormat(rVkSurfaceFormatKHR.format), string_VkColorSpaceKHR(rVkSurfaceFormatKHR.colorSpace));
 	}
 	LOG(kGraphics, kInfo, "");
 
@@ -594,11 +591,7 @@ void InstanceManager::SelectSurfaceFormat()
 	if (uiFormatCount == 1 && physicalDeviceSurfaceFormats.at(0).format == VK_FORMAT_UNDEFINED)
 	{
 		mFramebufferVkFormat = VK_FORMAT_B8G8R8A8_UNORM;
-		{
-			common::ScopedWorkbufferAllocation<const char*> pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
-			common::ScopedWorkbufferAllocation<const char*> pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
-			LOG(kGraphics, kInfo, "Selected framebuffer format: {} with color space: {} (no preferred format)\n", pcFormat, pcColorSpace);
-		}
+		LOG(kGraphics, kInfo, "Selected framebuffer format: {} with color space: {} (no preferred format)\n", string_VkFormat(mFramebufferVkFormat), string_VkColorSpaceKHR(mFramebufferVkColorSpace));
 	}
 	else
 	{
@@ -610,11 +603,7 @@ void InstanceManager::SelectSurfaceFormat()
 				mFramebufferVkFormat = rVkSurfaceFormatKHR.format;
 				mFramebufferVkColorSpace = rVkSurfaceFormatKHR.colorSpace;
 				bFoundPreferredFormat = true;
-				{
-					common::ScopedWorkbufferAllocation<const char*> pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
-					common::ScopedWorkbufferAllocation<const char*> pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
-					LOG(kGraphics, kInfo, "Selected framebuffer format: {} with color space: {}\n", pcFormat, pcColorSpace);
-				}
+				LOG(kGraphics, kInfo, "Selected framebuffer format: {} with color space: {}\n", string_VkFormat(mFramebufferVkFormat), string_VkColorSpaceKHR(mFramebufferVkColorSpace));
 				break;
 			}
 		}
@@ -624,19 +613,13 @@ void InstanceManager::SelectSurfaceFormat()
 		{
 			mFramebufferVkFormat = physicalDeviceSurfaceFormats.at(0).format;
 			mFramebufferVkColorSpace = physicalDeviceSurfaceFormats.at(0).colorSpace;
-			{
-				common::ScopedWorkbufferAllocation<const char*> pcFormat = gEnumToString.Convert(mFramebufferVkFormat, rWorkbuffer);
-				common::ScopedWorkbufferAllocation<const char*> pcColorSpace = gEnumToString.Convert(mFramebufferVkColorSpace, rWorkbuffer);
-				LOG(kGraphics, kInfo, "Using fallback surface format: {} with color space: {} (preferred formats not available)\n", pcFormat, pcColorSpace);
-			}
+			LOG(kGraphics, kInfo, "Using fallback surface format: {} with color space: {} (preferred formats not available)\n", string_VkFormat(mFramebufferVkFormat), string_VkColorSpaceKHR(mFramebufferVkColorSpace));
 		}
 	}
 }
 
 void InstanceManager::SelectDepthFormat()
 {
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-
 	// Prefer high precision depth formats
 	VkFormat pVkFormats[] {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM, VK_FORMAT_D16_UNORM_S8_UINT};
 
@@ -648,7 +631,7 @@ void InstanceManager::SelectDepthFormat()
 
 		if ((vkFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0)
 		{
-			LOG(kGraphics, kInfo, "Depth format selected: {} (optimal)\n", gEnumToString.Convert(rFormat, rWorkbuffer));
+			LOG(kGraphics, kInfo, "Depth format selected: {} (optimal)\n", string_VkFormat(rFormat));
 			mDepthVkFormat = rFormat;
 			break;
 		}
@@ -664,7 +647,7 @@ void InstanceManager::SelectDepthFormat()
 
 			if ((vkFormatProperties.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0)
 			{
-				LOG(kGraphics, kInfo, "Depth format selected: {} (linear)\n", gEnumToString.Convert(rFormat, rWorkbuffer));
+				LOG(kGraphics, kInfo, "Depth format selected: {} (linear)\n", string_VkFormat(rFormat));
 				mDepthVkFormat = rFormat;
 				break;
 			}
@@ -765,6 +748,7 @@ void InstanceManager::ReadLayerProperties()
 		}
 
 		LOG(kGraphics, kInfo, "");
+		// NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores) — pcLayer is read only by the LOG below, which compiles out below the kGraphics threshold
 		for (const char* pcLayer : mValidationLayers)
 		{
 			LOG(kGraphics, kInfo, "Found \"{}\"", pcLayer);

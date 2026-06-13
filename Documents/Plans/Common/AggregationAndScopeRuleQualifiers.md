@@ -90,7 +90,7 @@ recommendations so the grill can resolve them without re-discovery.
 - **Any code change** — these are all doc-rule wordings. No `#ifdef` added/removed, no header relocated (unless
   the user explicitly picks a "relocate" option, which would then be its own code plan).
 - The other doc-framing conflicts (deposit-shader EWNS, layer-violation framing, Managers-singleton convention)
-  — those are the separate `ParentRuleFramingReconciliation.md` decision plan.
+  — those were the separate `ParentRuleFramingReconciliation.md` decision plan (**landed and removed**).
 - The `## Out of scope` backfill and Plans/Features canonical-framing governance — separate plan.
 - The DataPacker LOG float-spec exception — separate small decision plan.
 - Re-architecting `Engine.h` aggregation or the client/server gating mechanism — these decisions only adjust

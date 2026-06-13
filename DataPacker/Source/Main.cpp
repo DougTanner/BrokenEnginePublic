@@ -606,26 +606,30 @@ int main(int argc, char* argv[])
 
 	auto runOnce = [&]() -> bool
 	{
-		if (argc >= 2 && std::string_view(argv[1]) == "--rdo-sweep")
+		if (argc >= 2 && std::string_view(argv[1]).starts_with("--rdo-sweep"))
 		{
-			ASSERT(argc == 3);
+			// CLI trust boundary: each sweep mode takes exactly one image/intermediate path
+			if (argc != 3)
+			{
+				printf("%s requires exactly one <image path> argument\n", argv[1]);
+				return false;
+			}
 			common::ThreadLocal threadLocal(1024, std::nullopt, false);
 			Texture::StaticInit();
-			return RunRdoSweep(argv[2]) == 0;
-		}
-		if (argc >= 2 && std::string_view(argv[1]) == "--rdo-sweep-full")
-		{
-			ASSERT(argc == 3);
-			common::ThreadLocal threadLocal(1024, std::nullopt, false);
-			Texture::StaticInit();
-			return RunRdoSweepFull(argv[2]) == 0;
-		}
-		if (argc >= 2 && std::string_view(argv[1]) == "--rdo-sweep-validate")
-		{
-			ASSERT(argc == 3);
-			common::ThreadLocal threadLocal(1024, std::nullopt, false);
-			Texture::StaticInit();
-			return RunRdoSweepValidate(argv[2]) == 0;
+			if (std::string_view(argv[1]) == "--rdo-sweep")
+			{
+				return RunRdoSweep(argv[2]) == 0;
+			}
+			if (std::string_view(argv[1]) == "--rdo-sweep-full")
+			{
+				return RunRdoSweepFull(argv[2]) == 0;
+			}
+			if (std::string_view(argv[1]) == "--rdo-sweep-validate")
+			{
+				return RunRdoSweepValidate(argv[2]) == 0;
+			}
+			printf("Unknown mode %s\n", argv[1]);
+			return false;
 		}
 		return MainThread(argc, argv);
 	};

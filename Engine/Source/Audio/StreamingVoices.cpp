@@ -3,7 +3,7 @@
 #if defined(BT_CLIENT)
 
 #include "File/FileManager.h"
-#include "Memory/MemoryManager.h"
+#include "Memory/GlobalAllocator.h"
 
 namespace engine
 {
@@ -43,6 +43,9 @@ void StreamingVoices::Play(common::crc_t uiAudioCrc)
 	CreateStream(uiAudioCrc);
 }
 
+// Deliberately skips mFillWorker.Wait() (the only mutating public method that does): it swaps
+// only mGetNextTrack, which the fill worker never reads — the sole reader is main-thread
+// CheckTrackTransition, under the same mutex.
 void StreamingVoices::SetNextTrackCallback(std::function<common::crc_t()> callback)
 {
 	std::lock_guard<std::mutex> lock(mMutex);
@@ -157,8 +160,13 @@ void StreamingVoices::Clear(bool bNullVoicesBeforeDestroy)
 	mStreamsToDestroy.clear();
 }
 
+// Deliberately off-contract: no mFillWorker.Wait(), no mMutex. Safe because the fill worker
+// never mutates the three stream containers (only stream internals, under mMutex) and every
+// container mutation happens on the main thread — the same thread all callers run on
+// (AudioManager::Update's stream counter and Suspend's teardown log).
 int64_t StreamingVoices::GetStreamCount() const
 {
+	ASSERT(common::gpMultithreading->IsMainThread());
 	return (mpCurrentStream != nullptr ? 1 : 0) + static_cast<int64_t>(mPreviousStreams.size()) + static_cast<int64_t>(mStreamsToDestroy.size());
 }
 

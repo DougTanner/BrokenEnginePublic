@@ -593,7 +593,7 @@ void Texture::SaveJpegSidecar(const std::filesystem::path& rPath, int iQuality, 
 		pfSrc += 4;
 		puiDst += 3;
 	}
-	int iResult = stbi_write_jpg(rPath.string().c_str(), static_cast<int>(miWidth), static_cast<int>(miHeight), 3, bytes.data(), iQuality);
+	int iResult = stbi_write_jpg(reinterpret_cast<const char*>(rPath.u8string().c_str()), static_cast<int>(miWidth), static_cast<int>(miHeight), 3, bytes.data(), iQuality);
 	ASSERT(iResult != 0);
 }
 

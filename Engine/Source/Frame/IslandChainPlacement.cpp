@@ -393,25 +393,6 @@ void IslandChainPlacement::Generate(GridCoord coord, std::vector<IslandPlacement
 	}
 
 	ASSERT(!rOut.empty());
-
-	// TEMP (kTemp): per-cell fill diagnostic — how much of the cell the chain covers. Sums each placed
-	// island's valid-area convex hull (its packing footprint) via the shoelace formula, divides by cell
-	// area. Remove once placement density / cell size are dialed in.
-	float fLandAreaMeters = 0.0f;
-	for (const common::ConvexHull2D& rHull : context.placedHullViews)
-	{
-		float fSignedDoubleArea = 0.0f;
-		for (int32_t i = 0; i < rHull.iVertexCount; ++i)
-		{
-			const XMFLOAT2& rA = rHull.pVertices[i];
-			const XMFLOAT2& rB = rHull.pVertices[(i + 1) % rHull.iVertexCount];
-			fSignedDoubleArea += rA.x * rB.y - rB.x * rA.y;
-		}
-		fLandAreaMeters += 0.5f * std::abs(fSignedDoubleArea);
-	}
-	float fCellAreaMeters = fCellW * fCellH;
-	float fFillPercent = 100.0f * fLandAreaMeters / fCellAreaMeters;
-	LOG(kTemp, kInfo, "IslandChain cell ({},{}): {} islands, land {} m^2 / cell {} m^2 = {}% filled", coord.x, coord.y, static_cast<int64_t>(rOut.size()), common::Wb(fLandAreaMeters, 0), common::Wb(fCellAreaMeters, 0), common::Wb(fFillPercent, 2));
 }
 
 } // namespace engine

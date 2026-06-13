@@ -123,6 +123,7 @@ static CrcValidateResult CrcValidateLoop(CoordWork& rWork, int64_t iTargetTick, 
 					++iAdditionalMismatchesWithStatusChanges;
 				}
 			}
+			// NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores) — read only by the kVerbose summary LOG below, which compiles out at default log levels
 			iLastMismatchTick = iTick;
 			if (iLowestUnresolved == std::numeric_limits<int64_t>::max())
 			{

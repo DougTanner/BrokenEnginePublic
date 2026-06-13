@@ -24,8 +24,6 @@ public:
 		{
 			mPoints.push_back(rPoint);
 		}
-		mPreviousSize = mPoints.size();
-		mfPreviousHash = ComputeHash();
 	}
 
 	~CurveData() = default;
@@ -35,17 +33,6 @@ public:
 	int GetPointCount() const { return static_cast<int>(mPoints.size()); }
 	const ImVec2& GetPoint(int iIndex) const { return mPoints[iIndex]; }
 	bool IsEndpoint(int iIndex) const { return iIndex == 0 || iIndex == static_cast<int>(mPoints.size()) - 1; }
-
-	// Returns true if the point list changed since the last call
-	bool Changed()
-	{
-		size_t iSize = mPoints.size();
-		float fHash = ComputeHash();
-		bool bChanged = iSize != mPreviousSize || fHash != mfPreviousHash;
-		mPreviousSize = iSize;
-		mfPreviousHash = fHash;
-		return bChanged;
-	}
 
 	// Add a new control point. Clamps X to (0, 1) (endpoints stay reserved at exactly 0 and 1).
 	// Returns index of the new point, or -1 if at cap.
@@ -198,21 +185,9 @@ private:
 		return (mPoints[iSegment + 1].y - mPoints[iSegment].y) / fDx;
 	}
 
-	float ComputeHash() const
-	{
-		float fAccumulator = 0.0f;
-		for (int i = 0; i < static_cast<int>(mPoints.size()); ++i)
-		{
-			fAccumulator += (mPoints[i].x + 17.0f) * (mPoints[i].y + 31.0f) * static_cast<float>(i + 1);
-		}
-		return fAccumulator;
-	}
-
 	std::vector<ImVec2> mPoints;
 	float mfYMin;
 	float mfYMax;
-	size_t mPreviousSize = 0;
-	float mfPreviousHash = 0.0f;
 };
 
 } // namespace engine

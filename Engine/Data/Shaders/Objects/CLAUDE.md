@@ -14,7 +14,7 @@ GLSL shaders for instanced hex-shield rendering. Per-instance data (transform, n
 
 - **Per-direction decoupling**: vertex intensities drive geometry displacement; fragment intensities drive alpha and lighting deposit. Keeps the hit-animation wave independent of the visible flash and emitted light. The color and lighting passes apply slightly different falloff curves to the same intensity sum — deliberate, not copy-paste drift.
 - **Center-normal blend**: `normalize(normalize(position) + meshNormal)` blends the geodesic-sphere-center direction with the mesh normal to soften facet edges for both the cubemap reflection and the EWNS lighting projection.
-- **Normal-projection deposit, not world-space-offset**: unlike the deposit convention in the parent CLAUDE.md (EWNS weights from world-space offset to the light center, omnidirectional epsilon fallback), the lighting pass projects the surface center-normal, and its epsilon fallback zeroes the deposit for fragments facing straight up.
+- **Normal-projection deposit, not world-space-offset**: unlike the *light-source* deposit family in the parent CLAUDE.md (EWNS weights from world-space offset to the light center, omnidirectional epsilon fallback), the lighting pass projects the surface center-normal, and its epsilon fallback zeroes the deposit for fragments facing straight up — the parent's *surface-normal* family.
 
 ## See Also
 

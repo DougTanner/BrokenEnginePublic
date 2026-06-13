@@ -3,8 +3,15 @@
 namespace engine
 {
 
+// Instances share gpDeviceManager->mOneShotVkCommandPool / mOneShotVkFence ("single-threaded, graphics queue
+// only" — DeviceManager.cpp), so lifetimes must never overlap. The contract is non-concurrency, not thread
+// identity: the screenshot path constructs one on the mSubmitMain worker while the main thread is parked.
+static std::atomic<bool> sbInUse = false;
+
 OneShotCommandBuffer::OneShotCommandBuffer()
 {
+	ASSERT(!sbInUse.exchange(true));
+
 	VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -30,6 +37,7 @@ OneShotCommandBuffer::OneShotCommandBuffer()
 OneShotCommandBuffer::~OneShotCommandBuffer()
 {
 	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, gpDeviceManager->mOneShotVkCommandPool, 1, &mVkCommandBuffer);
+	sbInUse.store(false);
 }
 
 void OneShotCommandBuffer::Execute(bool bWait)

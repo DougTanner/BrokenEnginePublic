@@ -37,9 +37,9 @@ constants whose natural home is the engine's `CameraBase`.
 - `Engine/Source/Graphics/Managers/TextureManager.cpp`, `RenderTargetTextures.cpp` (include drops)
 
 ## Out of scope
-- `ImGuiManager` owning eight `game::*Screen` members — already the subject of
-  `Graphics/ParentRuleFramingReconciliation.md` Decision 2 (doc-framing decision; code change de-recommended
-  there). Not re-filed.
+- `ImGuiManager` owning eight `game::*Screen` members — was the subject of
+  `Graphics/ParentRuleFramingReconciliation.md` Decision 2 (**landed** — sanctioned-exception carve-out in
+  `Engine/Source/CLAUDE.md` + `ImGuiManager.CLAUDE.md`; code change de-recommended there). Not re-filed.
 - `InstanceManager.cpp` reads of `game::kGameName`/`game::kiGameVersion` (`:128-129,313,449-469`) — constant
   reads in boot/error-dialog paths, same spirit as the sanctioned `game::gp*` reads; left as-is.
 - Engine reading `game::gp*` globals anywhere — by design per root CLAUDE.md.
@@ -75,6 +75,6 @@ Verified against source 2026-06-11 (verification pass for the /external-deep-ana
   (`Engine/Source/Graphics/CameraBase.h` exists; `game::Camera : public engine::CameraBase` confirmed).
 - `InstanceManager.cpp` `game::kGameName`/`kiGameVersion` reads confirmed at `:128-129, 313, 449-469` —
   correctly left out of scope.
-- Cross-references verified: `Graphics/ParentRuleFramingReconciliation.md` Decision 2 covers the ImGuiManager
+- Cross-references verified: `Graphics/ParentRuleFramingReconciliation.md` Decision 2 (since **landed**) covers the ImGuiManager
   screen ownership (no overlap); `Graphics/Architecture_SharedConstantDuplication.md` item 3 is the
   `kfMinEyeHeight` precedent as cited.

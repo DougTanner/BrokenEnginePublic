@@ -33,6 +33,7 @@ RawInputManager::~RawInputManager()
 void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 {
 	mbHasFocus = bHasFocus;
+	mHwnd = hwnd;
 
 	RAWINPUTDEVICE pRawinputdevices[2] {};
 	if (bHasFocus)
@@ -164,9 +165,8 @@ void RawInputManager::Update(bool bLostFocus)
 		{
 			if (!mbGamePadConnected)
 			{
-				GamePad::Capabilities gamepadCapabilities = mpGamePad->GetCapabilities(0);
 				mbGamePadConnected = true;
-				LOG(kInput, kInfo, "Game pad connected: {}", static_cast<int64_t>(gamepadCapabilities.gamepadType));
+				LOG(kInput, kInfo, "Game pad connected: {}", static_cast<int64_t>(mpGamePad->GetCapabilities(0).gamepadType));
 			}
 
 			mRawInput.f2LeftThumbstick.x = gamepadState.thumbSticks.leftX;
@@ -176,9 +176,6 @@ void RawInputManager::Update(bool bLostFocus)
 
 			mRawInput.f2Dpad.x = gamepadState.dpad.left ? -1.0f : (gamepadState.dpad.right ? 1.0f : 0.0f);
 			mRawInput.f2Dpad.y = gamepadState.dpad.up ? 1.0f : (gamepadState.dpad.down ? -1.0f : 0.0f);
-
-			mRawInput.f2Triggers.x = gamepadState.triggers.left;
-			mRawInput.f2Triggers.y = gamepadState.triggers.right;
 
 			mRawInput.pGamepadButtons[kGamepadButtonA] = gamepadState.IsAPressed();
 			mRawInput.pGamepadButtons[kGamepadButtonB] = gamepadState.IsBPressed();
@@ -202,6 +199,9 @@ void RawInputManager::Update(bool bLostFocus)
 			mRawInput.f2RightThumbstick.x = 0.0f;
 			mRawInput.f2RightThumbstick.y = 0.0f;
 
+			mRawInput.f2Dpad.x = 0.0f;
+			mRawInput.f2Dpad.y = 0.0f;
+
 			mRawInput.pGamepadButtons[kGamepadButtonA] = false;
 			mRawInput.pGamepadButtons[kGamepadButtonB] = false;
 			mRawInput.pGamepadButtons[kGamepadButtonX] = false;
@@ -218,23 +218,22 @@ void RawInputManager::HandleRawInput(LPARAM lparam)
 {
 	HRAWINPUT hrawinput = reinterpret_cast<HRAWINPUT>(lparam);
 
-	UINT uiRawInputBytes = 0;
-	GetRawInputData(hrawinput, RID_INPUT, nullptr, &uiRawInputBytes, sizeof(RAWINPUTHEADER));
-
-	auto pRawinput = common::gpThreadLocal->mWorkbuffer.PushBuffer<RAWINPUT*>(uiRawInputBytes);
-	if (GetRawInputData(hrawinput, RID_INPUT, pRawinput, &uiRawInputBytes, sizeof(RAWINPUTHEADER)) != uiRawInputBytes)
+	// Only fixed-size mouse/keyboard usages are registered (UpdateFocus), never variable-length RAWHID, so sizeof(RAWINPUT) bounds every packet
+	RAWINPUT rawinput {};
+	UINT uiRawInputBytes = sizeof(rawinput);
+	if (GetRawInputData(hrawinput, RID_INPUT, &rawinput, &uiRawInputBytes, sizeof(RAWINPUTHEADER)) == static_cast<UINT>(-1))
 	{
-		LOG(kInput, kWarning, "GetRawInputData did not return correct size!");
+		LOG(kInput, kWarning, "GetRawInputData failed: {}", common::LastErrorString().data());
 		DEBUG_BREAK();
 		return;
 	}
 
-	if (pRawinput->header.dwType == RIM_TYPEKEYBOARD)
+	if (rawinput.header.dwType == RIM_TYPEKEYBOARD)
 	{
-		USHORT key = pRawinput->data.keyboard.VKey;
-		if (key < kiKeyboardKeyCount)
+		USHORT uiKey = rawinput.data.keyboard.VKey;
+		if (uiKey < kiKeyboardKeyCount)
 		{
-			mpbKeyboardKeysDown[key] = (pRawinput->data.keyboard.Flags & RI_KEY_BREAK) == 0;
+			mpbKeyboardKeysDown[uiKey] = (rawinput.data.keyboard.Flags & RI_KEY_BREAK) == 0;
 		}
 	}
 }

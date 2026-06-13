@@ -1,8 +1,7 @@
 #include "TimeStep.h"
 
+#include "Frame/Frame.h"
 #include "Profile/ProfileManager.h"
-
-#include "Game.h"
 
 namespace engine
 {
@@ -57,11 +56,6 @@ int64_t TimeStep::TickRealtime()
 	mTickRemainderNs %= game::kTickNs;
 
 	return iTicks;
-}
-
-float TimeStep::GetInterpolationAlpha() const
-{
-	return static_cast<float>(mTickRemainderNs.count()) / static_cast<float>(game::kTickNs.count());
 }
 
 void TimeStep::ClearAccumulator()

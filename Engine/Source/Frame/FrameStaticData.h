@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frame/GridCoord.h"
 #include "Frame/IslandChainPlacement.h"
 #include "Frame/NavBuild.h"
 

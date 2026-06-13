@@ -155,13 +155,12 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 	std::vector<VkPresentModeKHR> physicalDevicePresentModes(uiPresentModeCount);
 	CHECK_VK(vkGetPhysicalDeviceSurfacePresentModesKHR(gpInstanceManager->mVkPhysicalDevice, gpInstanceManager->mVkSurfaceKHR, &uiPresentModeCount, physicalDevicePresentModes.data()));
 
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	LOG(kGraphics, kInfo, "Present modes ({}):", physicalDevicePresentModes.size());
 	// FIFO is guaranteed to be available
 	VkPresentModeKHR eVkPresentModeKHR = VK_PRESENT_MODE_FIFO_KHR;
 	for (const VkPresentModeKHR& reVkPresentModeKHR : physicalDevicePresentModes)
 	{
-		LOG(kGraphics, kInfo, "  {}", gEnumToString.Convert(reVkPresentModeKHR, rWorkbuffer));
+		LOG(kGraphics, kInfo, "  {}", string_VkPresentModeKHR(reVkPresentModeKHR));
 
 		if (reVkPresentModeKHR == VK_PRESENT_MODE_MAILBOX_KHR && gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_MAILBOX_KHR)
 		{
@@ -172,7 +171,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 			eVkPresentModeKHR = VK_PRESENT_MODE_IMMEDIATE_KHR;
 		}
 	}
-	LOG(kGraphics, kInfo, "Present mode selected: {}", gEnumToString.Convert(eVkPresentModeKHR, rWorkbuffer));
+	LOG(kGraphics, kInfo, "Present mode selected: {}", string_VkPresentModeKHR(eVkPresentModeKHR));
 	gPresentMode.Reset(eVkPresentModeKHR);
 
 	// The swap extent is the resolution of the swap chain images and it's almost always exactly equal to the resolution of the window that we're drawing to

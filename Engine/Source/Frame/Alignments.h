@@ -46,7 +46,6 @@ struct Alignments
 	std::vector<AlignmentPair> alignmentPairs;
 
 	void AddAlignment(alignment_t idA, alignment_t idB, uint8_t uiFlags);
-	void RemoveAlignment(alignment_t idA, alignment_t idB);
 	bool CanCollide(alignment_t idA, alignment_t idB) const;
 
 	void CopyFrom(const Alignments& rOther);

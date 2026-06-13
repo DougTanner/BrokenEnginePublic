@@ -1,6 +1,6 @@
 #include "TextureUploadManager.h"
 
-#include "Memory/MemoryManager.h"
+#include "Memory/GlobalAllocator.h"
 
 namespace engine
 {
@@ -328,7 +328,6 @@ void TextureUploadManager::UploadThread()
 					vkBufferImageCopy.imageExtent = {uiMipWidth, uiCopyHeight, 1};
 					vkCmdCopyBufferToImage(mTransferVkCommandBuffer, mStagingVkBuffer, rLazyChunk.vkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkBufferImageCopy);
 
-					vkStagingUsed += iCopyBytes;
 					mCurrentDataOffset += iCopyBytes;
 					muiCurrentMipY += uiCopyHeight;
 					break; // staging full

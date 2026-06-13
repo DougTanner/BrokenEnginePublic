@@ -23,9 +23,9 @@ Source: /external-refactor-clean on `Engine/Source/Frame` (non-recursive). `Coll
 ## Out of scope
 - `SweptSphereTest`'s 8 parameters — canonical `FXMVECTOR/GXMVECTOR/HXMVECTOR` register-convention idiom; do not struct-ify (reviewed, WONTFIX)
 - Overflow-path suppression and the `sLayerBaseOffsets` overrun (`Refactor_CollisionOverflowGuards.md` — landed and removed; `AddLayer` overflow is now fatal via `ASSERT(false)`, the other growth branches carry suppression)
-- Header surface narrowing (own plan: `Architecture_CollisionHeaderSurface.md`)
+- Header surface narrowing (`Architecture_CollisionHeaderSurface.md` — landed and removed; the implementation-detail structs now live at the top of `Collision.cpp`)
 - Any zone-grid, mask, or test-semantics change
 
 ## Notes
 - Determinism exposure: nominally none (move-only restructuring), but this is the hot lockstep collision path — verify a replay reproduces after landing.
-- Co-schedule with the other `Collision.cpp` plans (`Architecture_CollisionHeaderSurface.md`, the `Refactor_StyleMechanics.md` Collision items; `Refactor_CollisionOverflowGuards.md` has landed and been removed) in one session — shared file, stale-line risk.
+- Co-schedule with the other `Collision.cpp` plans (the `Refactor_StyleMechanics.md` Collision items; `Architecture_CollisionHeaderSurface.md` and `Refactor_CollisionOverflowGuards.md` have landed and been removed) in one session — shared file, stale-line risk.

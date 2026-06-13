@@ -8,7 +8,7 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 
 ## Hub Conventions (children do not re-document these)
 
-- **Engine→game access**: The sanctioned engine→game direction (root CLAUDE.md) is virtual hooks on `GameBase` plus direct `game::gp*` reads. Real violations are engine *types* naming game concepts (e.g., an `engine::PacketType` enumerator only the game uses, an engine class `friend`-ed to a game class) — those are worth fixing.
+- **Engine→game access**: The sanctioned engine→game direction (root CLAUDE.md) is virtual hooks on `GameBase` plus direct `game::gp*` reads. Real violations are engine *types* naming game concepts (e.g., an `engine::PacketType` enumerator only the game uses, an engine class `friend`-ed to a game class) — those are worth fixing. Deliberate engine ownership of game objects documented at the leaf (e.g. `ImGuiManager`'s `game::*Screen` members) is a sanctioned exception, not a violation.
 - **Aggregation header**: Every subsystem exposes itself through `Engine.h`; include order there is load-bearing and commented inline. Platform-gated includes go inside the existing single `BT_CLIENT`/`BT_SERVER` spans. `Engine.h` also hosts the `std::formatter` specializations for engine ID/alignment types (`uuid_t`, `id_t<T>`, `alignment_t`, `Alignments`) so `LogDifference` can print them. There is no `Engine/Source/Pch.h` — the game's `Pch.h` includes `Engine.h` and generates the PCH per project.
 - **Allocation discipline**: Tracking is enabled only around the main loop — startup/teardown allocate freely. Suppression rules: root CLAUDE.md; allocator/tracking mechanics: [Memory/CLAUDE.md](Memory/CLAUDE.md).
 
@@ -49,7 +49,6 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 ## Subsystems
 
 - [Audio/CLAUDE.md](Audio/CLAUDE.md) - XAudio2 3D spatial audio (client-only)
-- [Debug/CLAUDE.md](Debug/CLAUDE.md) - Vulkan debug utilities (client-only)
 - [File/CLAUDE.md](File/CLAUDE.md) - Asset loading, save files, DifferenceStream replay
 - [Frame/CLAUDE.md](Frame/CLAUDE.md) - Game state, collections, IslandTerrain, navigation
 - [Graphics/CLAUDE.md](Graphics/CLAUDE.md) - Vulkan multi-pass renderer (client-only)

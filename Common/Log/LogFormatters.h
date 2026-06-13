@@ -147,22 +147,32 @@ struct std::formatter<XMVECTOR> : std::formatter<std::string_view>
 };
 
 template<>
-struct std::formatter<VkFilter> : std::formatter<int>
+struct std::formatter<VkResult> : std::formatter<std::string_view>
 {
 	template<typename CONTEXT>
-	auto format(const VkFilter vkFilter, CONTEXT& rContext) const
+	auto format(const VkResult vkResult, CONTEXT& rContext) const
 	{
-		return std::formatter<int>::format(static_cast<int>(vkFilter), rContext);
+		return std::formatter<std::string_view>::format(string_VkResult(vkResult), rContext);
 	}
 };
 
 template<>
-struct std::formatter<VkSamplerAddressMode> : std::formatter<int>
+struct std::formatter<VkFilter> : std::formatter<std::string_view>
+{
+	template<typename CONTEXT>
+	auto format(const VkFilter vkFilter, CONTEXT& rContext) const
+	{
+		return std::formatter<std::string_view>::format(string_VkFilter(vkFilter), rContext);
+	}
+};
+
+template<>
+struct std::formatter<VkSamplerAddressMode> : std::formatter<std::string_view>
 {
 	template<typename CONTEXT>
 	auto format(const VkSamplerAddressMode vkSamplerAddressMode, CONTEXT& rContext) const
 	{
-		return std::formatter<int>::format(static_cast<int>(vkSamplerAddressMode), rContext);
+		return std::formatter<std::string_view>::format(string_VkSamplerAddressMode(vkSamplerAddressMode), rContext);
 	}
 };
 

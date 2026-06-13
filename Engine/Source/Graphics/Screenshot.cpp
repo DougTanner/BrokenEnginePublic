@@ -46,16 +46,15 @@ void SaveScreenshot(int64_t iFramebufferIndex)
 		}
 
 		// Save to .jpg
-		char pcDirectory[MAX_PATH] {};
-		GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
+		wchar_t pcDirectory[MAX_PATH] {};
+		GetTempPathW(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
 
-		std::string filename(pcDirectory);
-		filename += "Screenshots\\";
+		std::filesystem::path filename(pcDirectory);
+		filename /= "Screenshots";
 		std::filesystem::create_directories(filename);
-		filename += std::to_string(iScreenshot);
-		filename += ".jpg";
+		filename /= std::format("{}.jpg", iScreenshot);
 		LOG(kGraphics, kDebug, "  {}", filename);
-		stbi_write_jpg(filename.c_str(), vkExtent3D.width, vkExtent3D.height, 4, puiAbgr, 80);
+		stbi_write_jpg(reinterpret_cast<const char*>(filename.u8string().c_str()), vkExtent3D.width, vkExtent3D.height, 4, puiAbgr, 80);
 	});
 }
 

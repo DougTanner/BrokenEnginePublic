@@ -25,15 +25,15 @@ FileManager::FileManager()
 	LOG(kLoading, kDebug, "AppData directory: \"{}\"", mAppDataDirectory.string());
 
 	// Get Windows temp directory and append game name
-	char pcDirectory[MAX_PATH] {};
-	GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
+	wchar_t pcDirectory[MAX_PATH] {};
+	GetTempPathW(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
 	mTempDirectory = pcDirectory;
 	mTempDirectory.append(game::kGameName);
 	LOG(kLoading, kDebug, "Temp directory: \"{}\"", mTempDirectory.string());
 	std::filesystem::create_directory(mTempDirectory);
 
 	// Get the file path of the executable, the /Data/ folder will be beside it
-	GetModuleFileName(nullptr, pcDirectory, static_cast<DWORD>(std::size(pcDirectory) - 1));
+	GetModuleFileNameW(nullptr, pcDirectory, static_cast<DWORD>(std::size(pcDirectory) - 1));
 	mDataDirectory = pcDirectory;
 	mDataDirectory.remove_filename();
 	mDataDirectory /= "Data";
@@ -133,7 +133,12 @@ void FileManager::BackupExistingFile(const FileFlags_t& rFlags, const std::files
 
 	std::error_code copyEc;
 	std::filesystem::copy_file(file, backupFile, copyEc);
-	ASSERT(!copyEc);
+	if (copyEc)
+	{
+		// OS trust boundary (disk full, permissions, antivirus): the atomic write of the main file is unaffected, so continue without the backup
+		LOG(kLoading, kError, "Backup copy to \"{}\" failed: {}", backupFile, copyEc.value());
+		DEBUG_BREAK();
+	}
 }
 
 void FileManager::RemoveFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename)
@@ -200,6 +205,8 @@ constexpr data::DataTypes DataTypeFromFlags(const common::ChunkFlags_t& rFlags)
 	if (rFlags & common::ChunkFlags::kTexture) return data::kDataTypeTexture;
 	if (rFlags & common::ChunkFlags::kChunkAudio)   return data::kDataTypeAudio;
 	if (rFlags & common::ChunkFlags::kRaw)     return data::kDataTypeRaw;
+	// External-data trust boundary: flags come from .pack chunk headers; no type flag means a corrupt pack.
+	// kDataTypeCount is one past the last valid pack array index — callers must treat it as load failure.
 	return data::kDataTypeCount;
 }
 
@@ -349,30 +356,6 @@ void FileManager::LoadPackFiles()
 				}
 
 				LOG(kLoading, kDebug, "Eager chunk {} \"{}\" size {}", rChunkLocation.crc, std::string_view(pChunkHeader->pcPath), rChunkLocation.uiSize);
-
-				// Log GLTF chunk info for debugging animation loading
-				if (pChunkHeader->flags & common::ChunkFlags::kScene)
-				{
-					LOG(kLoading, kDebug, "GLTF chunk CRC {:#018x}: hasAnimation {}, materialCount {}, sizeof(MaterialShaderData) {}", rChunkLocation.crc, pChunkHeader->sceneHeader.bHasAnimation, pChunkHeader->sceneHeader.uiMaterialCount, sizeof(common::MaterialShaderData));
-				}
-
-				// Load animation data for GLTF chunks that have it
-				if (pChunkHeader->flags & common::ChunkFlags::kScene && pChunkHeader->sceneHeader.bHasAnimation)
-				{
-					// Animation data comes after scene arrays and material data (aligned to 16 bytes, matching export)
-					// Scene chunk data layout: [textureCrcs ALIGN16] [indexStarts ALIGN16] [MaterialShaderData ALIGN16] [AnimationData]
-					int64_t iSceneArraysSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiTextureCount * static_cast<int64_t>(sizeof(common::crc_t)))
-					                         + common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
-					int64_t iMaterialDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(common::MaterialShaderData)));
-					[[maybe_unused]] const std::byte* pAnimationData = &rPackBytes[uiDataOffset + iSceneArraysSize + iMaterialDataSize];
-					LOG(kLoading, kDebug, "  Animation data offset: dataOffset {} + sceneArraysSize {} + materialDataSize {} = {}", uiDataOffset, iSceneArraysSize, iMaterialDataSize, uiDataOffset + iSceneArraysSize + iMaterialDataSize);
-
-	#if defined(BT_CLIENT)
-				AnimationData& rAnimData = gAnimationDataMap.try_emplace(rChunkLocation.crc).first->second;
-					rAnimData.Load(pAnimationData, rChunkLocation.crc);
-					LOG(kLoading, kDebug, "Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations", rChunkLocation.crc, rAnimData.mHeader.skeleton.uiNodeCount, rAnimData.mHeader.skeleton.uiSkinJointCount, rAnimData.mHeader.uiAnimationCount);
-#endif
-				}
 			}
 		}
 #endif
@@ -509,8 +492,20 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	// Compressed chunks read into the scratch and decompress into pData; uncompressed chunks read directly into pData.
 	std::byte* pReadDst = bCompressed ? mpDecompressScratch : rLazyChunk.pData;
 
+	// Corrupt chunk header (no type flag): fail the load instead of indexing past the handle array.
+	// Mark ready (pool data stays zero-filled) so WaitForChunks callers don't block forever on the chunk.
+	data::DataTypes eDataType = DataTypeFromFlags(rLazyChunk.header.flags);
+	if (eDataType == data::kDataTypeCount) [[unlikely]]
+	{
+		LOG(kLoading, kError, "Corrupt chunk header flags for chunk {}", rRequest.crc);
+		DEBUG_BREAK();
+		rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
+		NotifyChunkCompletion();
+		return;
+	}
+
 	// Read in sub-chunks, yielding between each to reduce main-thread scheduling latency
-	HANDLE hFile = mLazyPackFileHandles[DataTypeFromFlags(rLazyChunk.header.flags)];
+	HANDLE hFile = mLazyPackFileHandles[eDataType];
 	int64_t iFilePos = iAlignedOffset;
 	int64_t iDataCopied = 0;
 
@@ -707,9 +702,18 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t uiOffset, std::span<
 			}
 		}
 		
+		// Corrupt chunk header (no type flag): fail the read instead of indexing past the path array
+		data::DataTypes eDataType = DataTypeFromFlags(rLazyChunk.header.flags);
+		if (eDataType == data::kDataTypeCount) [[unlikely]]
+		{
+			LOG(kLoading, kError, "Corrupt chunk header flags for chunk {}", crc);
+			DEBUG_BREAK();
+			return false;
+		}
+
 		// Chunk not loaded - read directly from pack file
 		// This path is used for streaming audio data without loading entire chunk
-		std::fstream packStream(mPackFilePaths[DataTypeFromFlags(rLazyChunk.header.flags)], std::ios::in | std::ios::binary);
+		std::fstream packStream(mPackFilePaths[eDataType], std::ios::in | std::ios::binary);
 		
 		if (!packStream.is_open())
 		{

@@ -16,10 +16,6 @@ public:
 	// Returns 0 if not enough time accumulated for a tick
 	int64_t TickRealtime();
 
-	// Get interpolation alpha for smooth rendering between steps
-	// Returns value in [0, 1] representing how far between last and next step
-	float GetInterpolationAlpha() const;
-
 	// Clear accumulator (used when falling too far behind)
 	void ClearAccumulator();
 
@@ -48,9 +44,6 @@ public:
 
 	// Set time scale (multiply/divide)
 	void SetTimeScale(int64_t iMultiply, int64_t iDivide);
-
-	// Get smoothed average delta for performance monitoring
-	float GetAverageDelta() const { return mAverageDelta.Average(); }
 
 	// Death spiral prevention constants
 	static constexpr int64_t kiMaxTicksPerFrame = 12;  // Threshold for auto-reduction

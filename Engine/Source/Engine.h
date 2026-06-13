@@ -25,9 +25,6 @@
 #include "Ui/Screens/TweaksScreen/TweaksSliderMap.h"
 #include "Ui/NetworkUiControl.h"
 
-// Debug (Vulkan enum stringification, client-only)
-#include "Debug/EnumToString.h"
-
 // Graphics objects
 #include "Graphics/Objects/Buffer.h"
 #include "Graphics/Objects/CommandBuffers.h"

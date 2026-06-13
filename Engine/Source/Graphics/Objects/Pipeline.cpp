@@ -105,7 +105,7 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 		mInfo.pDescriptorInfos[i + 4].iExplicitBinding = 15;
 		mInfo.pDescriptorInfos[i + 4].pBuffers = gpBufferManager->mMeshDataStorageBuffers.data();
 
-		// Binding 16: Joint matrices (separate buffer to avoid NVIDIA driver hang)
+		// Binding 16: Joint matrices (separate dynamically-sized buffer; MeshData stays fixed-size)
 		mInfo.pDescriptorInfos[i + 5].flags = kPerCommandBufferStorageBuffers;
 		mInfo.pDescriptorInfos[i + 5].iExplicitBinding = 16;
 		mInfo.pDescriptorInfos[i + 5].pBuffers = gpBufferManager->mJointMatrixStorageBuffers.data();

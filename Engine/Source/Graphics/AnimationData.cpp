@@ -378,4 +378,29 @@ void AnimationData::EvaluateMaterial(int64_t iMaterialIndex, const XMMATRIX* pWo
 	}
 }
 
+void LoadAnimationDataFromEagerChunks()
+{
+	// Device loss recreates Graphics in place — the map and the pack memory it points into outlive Graphics
+	if (!gAnimationDataMap.empty())
+	{
+		return;
+	}
+
+	for (const auto& [rCrc, rChunk] : gpFileManager->GetEagerChunkMap())
+	{
+		if (rChunk.pHeader->flags & common::ChunkFlags::kScene && rChunk.pHeader->sceneHeader.bHasAnimation)
+		{
+			// Animation data comes after scene arrays and material data (aligned to 16 bytes, matching export)
+			// Scene chunk data layout: [textureCrcs ALIGN16] [indexStarts ALIGN16] [MaterialShaderData ALIGN16] [AnimationData]
+			int64_t iSceneArraysSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rChunk.pHeader->sceneHeader.uiTextureCount * static_cast<int64_t>(sizeof(common::crc_t)))
+			                         + common::RoundUp<int64_t, common::kiAlignmentBytes>(rChunk.pHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
+			int64_t iMaterialDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rChunk.pHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(common::MaterialShaderData)));
+
+			AnimationData& rAnimationData = gAnimationDataMap.try_emplace(rCrc).first->second;
+			rAnimationData.Load(rChunk.pData + iSceneArraysSize + iMaterialDataSize, rCrc);
+			LOG(kLoading, kDebug, "Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations", rCrc, rAnimationData.mHeader.skeleton.uiNodeCount, rAnimationData.mHeader.skeleton.uiSkinJointCount, rAnimationData.mHeader.uiAnimationCount);
+		}
+	}
+}
+
 } // namespace engine

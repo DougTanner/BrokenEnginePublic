@@ -1,11 +1,6 @@
 #pragma once
 
-namespace game
-{
-
-struct Frame;
-
-}
+#include "Frame/Alignments.h"
 
 namespace engine
 {
@@ -65,51 +60,9 @@ struct CollisionResultSpan
 	int64_t iCount = 0;
 };
 
-// Pending collision result written to workbuffer during CollideLayerPair
-struct PendingCollisionResult
-{
-	int64_t iLayerIndex;
-	int64_t iObjectIndex;
-	CollisionResult result;
-};
-
-// Zone range for spatial partitioning
-struct ZoneRange
-{
-	int32_t iStartX;
-	int32_t iEndX;
-	int32_t iStartY;
-	int32_t iEndY;
-};
-
-// Per-zone storage for a layer pair
-struct ZonePair
-{
-	std::vector<int64_t> indicesA;  // Object indices from layer A
-	std::vector<int64_t> indicesB;  // Object indices from layer B
-	int64_t iCountA = 0;
-	int64_t iCountB = 0;
-};
-
-// Grid of zones for one layer pair
-struct LayerPairZones
-{
-	size_t uiLayerA = 0;
-	size_t uiLayerB = 0;
-	ZonePair zones[kiCollisionZonesY][kiCollisionZonesX];
-
-	LayerPairZones()
-	{
-		for (ZonePair (&rRow)[kiCollisionZonesX] : zones)
-		{
-			for (ZonePair& rZonePair : rRow)
-			{
-				rZonePair.indicesA.resize(kiCollisionZonePreallocate);
-				rZonePair.indicesB.resize(kiCollisionZonePreallocate);
-			}
-		}
-	}
-};
+// Implementation-detail types defined in Collision.cpp
+struct ZoneRange;
+struct LayerPairZones;
 
 class Collision
 {

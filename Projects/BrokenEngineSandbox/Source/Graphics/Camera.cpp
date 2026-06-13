@@ -138,7 +138,6 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		}
 		else
 		{
-			engine::global_id_t focusedId = gpGame->ClientPlayerId();
 			static float sfLastLogTime = -1.0f;
 			if (mfTime - sfLastLogTime >= 1.0f)
 			{
@@ -147,7 +146,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 				{
 					const PlayersPostRender& rPlayers = *gpGame->RenderFrame(gpGame->mClientGridCoord).postRender.pPlayers;
 					LOG(kGraphics, kVerbose, "Camera PlayerNotFound FocusedGlobalId: {} Coord: ({},{}) PostRenderCount: {} InterpolateCount: {}",
-						focusedId, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, rPlayers.iCount, rFrameInterpolate.pPlayers->iCount);
+						gpGame->ClientPlayerId(), gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y, rPlayers.iCount, rFrameInterpolate.pPlayers->iCount);
 					for (int64_t i = 0; i < rPlayers.iCount; ++i)
 					{
 						LOG(kGraphics, kVerbose, "  PostRender[{}] GlobalPlayerId: {}", i, rPlayers.pGlobalPlayerIds[i]);
@@ -155,7 +154,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 				}
 				else
 				{
-					LOG(kGraphics, kVerbose, "Camera CoordNotFound FocusedGlobalId: {} Coord: ({},{})", focusedId, gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
+					LOG(kGraphics, kVerbose, "Camera CoordNotFound FocusedGlobalId: {} Coord: ({},{})", gpGame->ClientPlayerId(), gpGame->mClientGridCoord.x, gpGame->mClientGridCoord.y);
 				}
 			}
 

@@ -1,7 +1,6 @@
-#include "Pch.h"
-
 #include "Alignments.h"
-#include "Memory/MemoryManager.h"
+
+#include "Memory/GlobalAllocator.h"
 
 namespace engine
 {
@@ -31,17 +30,6 @@ void Alignments::AddAlignment(alignment_t idA, alignment_t idB, uint8_t uiFlags)
 	else
 	{
 		alignmentPairs.insert(it, AlignmentPair {.uiKey = uiKey, .uiFlags = uiFlags,});
-	}
-}
-
-void Alignments::RemoveAlignment(alignment_t idA, alignment_t idB)
-{
-	uint64_t uiKey = MakeAlignmentKey(idA, idB);
-	auto it = std::lower_bound(alignmentPairs.begin(), alignmentPairs.end(), uiKey, AlignmentKeyLess);
-
-	if (it != alignmentPairs.end() && it->uiKey == uiKey)
-	{
-		alignmentPairs.erase(it);
 	}
 }
 

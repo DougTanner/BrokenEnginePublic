@@ -32,7 +32,7 @@ Source: /external-architecture-review on `Engine/Source/Audio`. The area has two
 
 ## Out of scope
 
-- The three stale `#include "Memory/MemoryManager.h"` lines (`AudioManager.cpp:5`, `StaticVoices.cpp:5`, `StreamingVoices.cpp:6`) — already covered by `Engine/DeadCodeAndUnusedIncludesSweep.md` ("~12 Engine TUs", enumerated at execution).
+- The three stale `#include "Memory/GlobalAllocator.h"` lines (`AudioManager.cpp:5`, `StaticVoices.cpp:5`, `StreamingVoices.cpp:6`) — already covered by `Engine/DeadCodeAndUnusedIncludesSweep.md` ("~12 Engine TUs", enumerated at execution).
 - `StaticVoices.cpp`'s `#include "Game.h"` — kept, no action. (Verification correction: `game::gpCamera` is declared in the game `Graphics/Camera.h` and the complete `game::Frame` comes from the game `Frame/Frame.h` — both resolve via the PCH, not via `Game.h`'s direct include list (`ClientSettings.h`/`Fleet.h`/session headers), so `Game.h` may itself be removable from this TU; that removal is out of scope here.)
 - Direct includes for `DestroyXAudio2SourceVoice` consumers — adding `AudioManager.h` to the voice .cpps would create a real header cycle; the structural fix is `Audio/Architecture_AudioHelperPlacement.md` (relocate the helper), after which those includes land there.
 - Engine-wide PCH reliance on the game `Frame/Frame.h` for `game::Frame` member access — by design (sanctioned engine→game read direction); not an Audio-local problem.
@@ -55,5 +55,5 @@ All five design items verified against source (2026-06-10):
 - `StreamingVoices.cpp` confirmed using complete `StreamingVoice` (`make_unique` at `:274`, `kfCrossfadeDuration` at `:63`, `SlotState`/`kiBufferCount` in `DrainConsumedAndSubmitReady`/`FillReadyBuffers`) with no `StreamingVoice.h` include.
 - `StaticVoice.cpp:20-44` (`gpFileManager`, `LoadPriority::kHigh`, complete `LazyChunk`) and `StreamingVoice.cpp:16-67` (`ReadChunkData`, `LazyChunk` members) confirmed without `File/FileManager.h`; precedent at `StreamingVoices.cpp:5` confirmed.
 - `sound_t` confirmed at `Engine/Source/Frame/Collections/Sounds/Sounds.h:69` (`SoundsInterpolate::id_t` alias); `Sounds.h` includes only `Collection.h` + `GridCoord.h` (no Audio dependency — no include cycle) and is `BT_CLIENT`-wrapped like `StaticVoice.h`. `Pch.h:96-97` ordering (game `Frame/Frame.h` before `Engine.h`) confirmed; nothing in `Engine.h`'s include list reaches `Sounds.h`.
-- MemoryManager.h exclusion accurate: all three cited includes exist (`AudioManager.cpp:5`, `StaticVoices.cpp:5`, `StreamingVoices.cpp:6`) and `Engine/DeadCodeAndUnusedIncludesSweep.md` item 1 owns them. No other queue overlap found.
+- GlobalAllocator.h exclusion accurate: all three cited includes exist (`AudioManager.cpp:5`, `StaticVoices.cpp:5`, `StreamingVoices.cpp:6`) and `Engine/DeadCodeAndUnusedIncludesSweep.md` item 1 owns them. No other queue overlap found.
 - Caveat: the Out-of-scope `Game.h` rationale was corrected during verification — `Game.h` in `StaticVoices.cpp` is likely also removable (symbols ride the PCH), left out of scope.

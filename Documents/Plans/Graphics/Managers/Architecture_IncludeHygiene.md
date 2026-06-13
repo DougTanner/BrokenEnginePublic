@@ -62,8 +62,8 @@ header in the directory.
   DynamicPipelines.cpp
 
 ## Out of scope
-- `TextureUploadManager.cpp:3` (`Memory/MemoryManager.h` unused) — already item 1 of
-  `Engine/DeadCodeAndUnusedIncludesSweep.md` (the ~12-TU MemoryManager include sweep); not duplicated here.
+- `TextureUploadManager.cpp:3` (`Memory/GlobalAllocator.h` unused) — already item 1 of
+  `Engine/DeadCodeAndUnusedIncludesSweep.md` (the ~12-TU GlobalAllocator include sweep); not duplicated here.
 - Moving `InstanceManager.h:3`'s `renderdoc_app.h` include into `Common/ExternalHeaders.h` — judgment call
   (lone quoted ThirdParty include, single consumer); left as-is.
 - Header self-sufficiency (managers' zero-include headers relying on `Engine.h` ordering) — sanctioned project

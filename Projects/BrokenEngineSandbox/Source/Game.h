@@ -13,13 +13,6 @@
 #include "Network/Client/ClientSession.h"
 #endif
 
-namespace engine
-{
-
-struct RawInput;
-
-}
-
 namespace game
 {
 

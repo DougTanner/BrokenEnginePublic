@@ -89,6 +89,8 @@ inline constexpr LogLevel keLogLevelNavData = keLogLevelDefault;
 inline constexpr LogLevel keLogLevelNetwork = keLogLevelDefault;
 inline constexpr LogLevel keLogLevelInput = keLogLevelDefault;
 
+// Include order is load-bearing: ExternalHeaders.h (top of this file) supplies the DirectXMath/Vulkan/std symbols ShaderLayouts.h uses (ShaderLayoutsBase.h
+// has no includes of its own), and Shaders/ShaderLayouts.h must precede Engine.h — this is the repo's sole C++ include site for shaders:: constants; engine TUs consume them only via this PCH
 #include "Common.h"
 #include "Shaders/ShaderLayouts.h"
 #include "Ui/HexShieldWrappers.h"

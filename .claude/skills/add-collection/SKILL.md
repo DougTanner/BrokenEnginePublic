@@ -171,14 +171,11 @@ The `.cpp` file needs:
 
 **Client-only wrapping**: Most engine collections are client-only. Wrap the include, members, and `Collections()` entries in `#ifdef BT_CLIENT`. Only server-relevant collections (like Explosions, Pushers) are always compiled.
 
-### Step 3: Update FrameBase.cpp — LogDifferences (server-relevant collections only)
+### Step 3: LogDifferences — automatic (no FrameBase.cpp edit)
 
-`LogDifferences()` diagnoses shared-state desync, so FrameBase.cpp lists only server-relevant collections (the same set as `ServerCollections()`) — client-only collections are excluded. For a server-relevant collection, add to both `FrameInterpolateBase::LogDifferences()` and `FramePostRenderBase::LogDifferences()`:
-```cpp
-bEqual &= newCollections.LogDifferences(rOther.newCollections);
-```
+`LogDifferences()` diagnoses shared-state desync. Both `FrameInterpolateBase::LogDifferences()` and `FramePostRenderBase::LogDifferences()` fold over `ServerCollections()` via `LogDifferencesCollections` (FrameUtils.h), so a server-relevant collection added to `ServerCollections()` in Step 2 is diagnosed automatically — no per-collection call to add. Client-only collections stay excluded by staying out of `ServerCollections()`.
 
-Everything else is automatic: Write/Read, AllocateAndCopy, and phase dispatch walk `Collections()`; Crcs and ServerRead walk `ServerCollections()`.
+Everything else is automatic too: Write/Read, AllocateAndCopy, and phase dispatch walk `Collections()`; Crcs and ServerRead walk `ServerCollections()`.
 
 ### Step 4: Add files to vcxproj
 
@@ -238,17 +235,14 @@ return std::tie(*rSelf.pBlasters, ..., *rSelf.pNewCollections);
 return std::tie(*rSelf.pBlasters, ..., *rSelf.pNewCollections);
 ```
 
-### Step 4: Update Frame.cpp (4 locations)
+### Step 4: Update Frame.cpp (2 locations)
 
 **Constructors** — add `std::make_unique` in both `FrameInterpolate` and `FramePostRender` constructors:
 ```cpp
 , pNewCollections(std::make_unique<NewCollectionInterpolate>())
 ```
 
-**LogDifferences** — add to both `FrameInterpolate::LogDifferences()` and `FramePostRender::LogDifferences()`:
-```cpp
-bEqual &= pNewCollections->LogDifferences(*rOther.pNewCollections);
-```
+`LogDifferences` is automatic: both game methods fold over `GameInterpolateCollections()`/`GamePostRenderCollections()` via `engine::LogDifferencesCollections`, so the Step 3 tuple registration covers it. The only manual exception is a collection deliberately kept outside the tuples (like `pPlayers`, which carries special `SharedCrcMembers` handling and is called explicitly).
 
 ### Step 5: Add kiVersion terms to Frame::kiVersion (Frame.cpp)
 
@@ -270,9 +264,9 @@ The filter path must mirror the on-disk directory (e.g., `Source/Frame/Collectio
 Once the collection is in the `GameInterpolateCollections()`/`GamePostRenderCollections()` tuples:
 - **Phase dispatch**: Register, GraphicsResources, AllocateAndCopy, Update, PreCollision, PostCollision, AreaDamage, Transfer, Destroy, Spawn, BeginRender, Render, EndRender
 - **Serialization**: Crcs, Write, Read, ServerRead
+- **LogDifferences**: folds the same tuples (only a tuple-excluded special case like `pPlayers` is called by name)
 
 **Not automatic** (requires manual additions in Frame.cpp):
-- LogDifferences — each collection listed by name
 - Constructor initialization — `std::make_unique<>()` calls
 - `Frame::kiVersion` — append the new structs' `kiVersion` terms to the sum
 
@@ -287,7 +281,7 @@ Once the collection is in the `GameInterpolateCollections()`/`GamePostRenderColl
 | **Storage** | Direct members in FrameBase structs | `std::unique_ptr` with forward declarations |
 | **Collection tuple** | `Collections()` method on FrameBase structs | `GameInterpolateCollections()` / `GamePostRenderCollections()` free functions |
 | **kCollectionCount** | Must increment (has `static_assert`) | Not applicable |
-| **Manual .cpp changes** | FrameBase.cpp: LogDifferences (server-relevant only) | Frame.cpp: constructors + LogDifferences + `kiVersion` sum |
+| **Manual .cpp changes** | None except the server-relevant `Frame::kiVersion` base bump (LogDifferences folds `ServerCollections()`) | Frame.cpp: constructors + `kiVersion` sum |
 | **kiVersion** | None per collection; bump `Frame::kiVersion` base constant for server-relevant additions | `static constexpr int64_t kiVersion` per struct, summed into `Frame::kiVersion` (Frame.cpp) |
 | **vcxproj filter** | `Engine\Frame\Collections\...` | `Game\Frame\Collections\...` (same four project files for both) |
 | **Update Parameters** | `game::FrameInterpolate&`, `game::Frame&` | `FrameInterpolate&`, `Frame&` |
@@ -336,10 +330,10 @@ Collections with client-only owned objects (area lights, wind trails, sounds) pr
 - [ ] Add member + `Collections()` entry + increment `kCollectionCount` in `FrameInterpolateBase` (client-only: `BT_CLIENT` count only)
 - [ ] Add member + `Collections()` entry + increment `kCollectionCount` in `FramePostRenderBase` (client-only: `BT_CLIENT` count only)
 - [ ] Add to `ServerCollections()` if server-relevant
-- [ ] If server-relevant: add `LogDifferences` calls in both `FrameInterpolateBase::LogDifferences()` and `FramePostRenderBase::LogDifferences()` in FrameBase.cpp, and bump the `Frame::kiVersion` base constant (Frame.cpp)
+- [ ] If server-relevant: bump the `Frame::kiVersion` base constant (Frame.cpp)
 - [ ] Add files to the game client/server `.vcxproj` + `.filters` (no engine vcxproj exists)
 
-**Automatic:** Write/Read, AllocateAndCopy, all ForEach phase dispatch via `Collections()`; Crcs/ServerRead via `ServerCollections()`. **Manual:** LogDifferences (FrameBase.cpp, server-relevant only).
+**Automatic:** Write/Read, AllocateAndCopy, all ForEach phase dispatch via `Collections()`; Crcs/ServerRead/LogDifferences via `ServerCollections()`.
 
 **Note:** Engine collections always come in Interpolate/PostRender pairs — `static_assert` in FrameBase.h enforces matching `kCollectionCount` between the two.
 
@@ -349,11 +343,10 @@ Collections with client-only owned objects (area lights, wind trails, sounds) pr
 - [ ] Add `std::unique_ptr` members in `FrameInterpolate` and `FramePostRender` (in `Frame.h`)
 - [ ] Add include + tuple entries in `FrameCollections.h`
 - [ ] Add `std::make_unique` in both constructors in `Frame.cpp`
-- [ ] Add `LogDifferences()` calls in both `FrameInterpolate::LogDifferences()` and `FramePostRender::LogDifferences()` in `Frame.cpp`
 - [ ] Add both structs' `kiVersion` terms to the `Frame::kiVersion` sum in `Frame.cpp`
 - [ ] Add files to all four game `.vcxproj`/`.filters` files
 
-**Automatic via tuple accessors:** Crcs, Write, Read, ServerRead, AllocateAndCopy, all ForEach phase dispatch (Register, GraphicsResources, Update, Render, etc.)
+**Automatic via tuple accessors:** Crcs, Write, Read, ServerRead, LogDifferences, AllocateAndCopy, all ForEach phase dispatch (Register, GraphicsResources, Update, Render, etc.)
 
 ## See Also
 

@@ -49,7 +49,7 @@ Changes
    - Emit GPU zones in GpuStart()/GpuStop() paths alongside existing timestamp queries
    - Call TracyVkCollect() once per frame to flush GPU results
 
-8. Engine/Source/Memory/MemoryManager.cpp
+8. Engine/Source/Memory/GlobalAllocator.cpp
    - In global operator new/delete, emit BT_TRACY_ALLOC/BT_TRACY_FREE
    - Wrap Tracy's own allocations with ScopedSuppressAllocationTracking to prevent recursion
    - Guard all memory hooks behind #ifdef TRACY_ENABLE

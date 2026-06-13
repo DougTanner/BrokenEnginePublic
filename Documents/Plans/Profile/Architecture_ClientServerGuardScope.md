@@ -40,7 +40,7 @@ Source: /external-architecture-review on `Engine/Source/Profile`. Three guard-pl
 
 ## Notes
 - No determinism/CRC/network/`kiVersion` exposure — profiling/display state only; the header layout change is not serialized.
-- `giAllocationsThisFrame` is declared in `Memory/MemoryManager.h`; `ProfileManagerBase.cpp` currently reaches it via a fragile transitive chain — land `Architecture_IncludeHygiene.md`'s direct-include item before or with this plan.
+- `giAllocationsThisFrame` is declared in `Memory/GlobalAllocator.h`; `ProfileManagerBase.cpp` currently reaches it via a fragile transitive chain — land `Architecture_IncludeHygiene.md`'s direct-include item before or with this plan.
 - Grill decision (pre-staged): server adoption shape — swap `ServerDisplay.cpp:80` to `UpdateProfileText()` (recommended; deletes the prose contract) vs hoist-only and keep the direct `SmoothCpuTimers()` call (server then keeps the monotonic `giAllocationsThisFrame`).
 
 ## Verification Notes

@@ -44,7 +44,6 @@ struct RawInput
 	XMFLOAT2 f2LeftThumbstick {};
 	XMFLOAT2 f2RightThumbstick {};
 	XMFLOAT2 f2Dpad {};
-	XMFLOAT2 f2Triggers {};
 };
 
 #if defined(BT_CLIENT)
@@ -58,18 +57,19 @@ public:
 	void HandleRawInput(LPARAM lparam);
 	void UpdateFocus(bool bHasFocus, HWND hwnd);
 	bool SetVibration(int64_t iPlayer, float fLeftMotor, float fRightMotor, float fLeftTrigger = 0.0f, float fRightTrigger = 0.0f);
-	void TrapCursor(bool bTrap);
 
 	void Update(bool bLostFocus);
+
+	RawInput mRawInput {};
+
+private:
+
+	void TrapCursor(bool bTrap);
 
 	HWND mHwnd = nullptr;
 
 	bool mpbKeyboardKeysDown[kiKeyboardKeyCount] {};
 	Mouse mMouse;
-
-	RawInput mRawInput {};
-
-private:
 
 	std::unique_ptr<GamePad> mpGamePad;
 	bool mbGamePadConnected = false;

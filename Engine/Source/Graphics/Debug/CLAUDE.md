@@ -6,6 +6,7 @@ Wireframe primitive rendering (boxes, spheres, circles, lines) for development v
 
 ## Architecture Notes
 
+- The full primitive set (box/sphere/circle/line) is kept regardless of in-tree callers: debug submissions are added ad-hoc while testing and removed afterward, so a primitive with zero current call sites (e.g. `Box`/`Sphere`) is intentional toolkit completeness, not dead code — do not file dead-code plans against it or its pipelines/meshes/buffers.
 - Entirely static — no instance, no `gp*` global. Submissions queue per-instance layouts into file-scope per-type staging structs (one each for box/sphere/circle/line), each owning a `std::vector` of shader layouts plus a live count and CRC key. Each vector starts empty, is resized to a large initial element count on first use (so nothing allocates until visualization is enabled), then silently doubles on overflow — no hard cap, no assert. Both grow paths wrap `ScopedSuppressAllocationTracking`; the growth path also logs.
 - Not thread-safe: statics mutated without synchronization. Submit only from the render/main thread.
 - Primitives drawn via indirect pipeline calls with pre-built unit meshes (built in `BufferManager`, recorded in main command-buffer recording, pipelines created by `PipelineManager`); game layer submits game-specific primitives (targeting, nav indicators), engine submits engine-level overlays from `Render/` during main-pass uniform population.

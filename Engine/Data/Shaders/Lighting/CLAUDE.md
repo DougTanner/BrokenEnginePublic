@@ -4,7 +4,7 @@
 
 Fragment and vertex shaders for rendering dynamic lights, plus compute shaders for the spreading pipeline. Two rendering paths: deposit shaders write lights into MRT EWNS directional-lighting textures, which the spreading pipeline processes into the scene-lighting textures sampled by Terrain/Water/Model shaders; visible lights render directly to the main framebuffer as additive billboards.
 
-(The hub `../CLAUDE.md` owns the shared deposit conventions — scalar block layout, bindless textures, multi-set descriptors, four-channel EWNS, and the world-space cos^2 directional-deposit weighting with epsilon omnidirectional fallback. Not repeated here.)
+(The hub `../CLAUDE.md` owns the shared deposit conventions — scalar block layout, bindless textures, multi-set descriptors, four-channel EWNS, and the *light-source* directional-deposit family (world-space cos^2 weighting, epsilon omnidirectional fallback) that this directory's depositors use. Not repeated here.)
 
 ## Shaders
 

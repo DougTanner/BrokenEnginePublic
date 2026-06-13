@@ -53,7 +53,7 @@ use directly, and two stale forward declarations. Each is grep-verified against 
 - `Engine/Source/Graphics/Islands.h`
 
 ## Out of scope
-- `GraphicsUtils.cpp:5` `Memory/MemoryManager.h` removal — already item 1 of
+- `GraphicsUtils.cpp:5` `Memory/GlobalAllocator.h` removal — already item 1 of
   `Engine/DeadCodeAndUnusedIncludesSweep.md` (the ~12-TU stale-include sweep).
 - `BT_CLIENT` guard normalization across the unwrapped files — documented policy
   (`Graphics/CLAUDE.md` guard-scope note) and subject of the open decision plan
@@ -93,7 +93,7 @@ Verified: all cited paths/lines/symbols re-checked against source.
 - `Islands.h` — `game::Frame` fwd decl `:5-10`, `engine::Texture` `:15`; neither type named anywhere else in
   `Islands.h` or `Islands.cpp`.
 - Out-of-scope cross-references confirmed to exist: `Engine/DeadCodeAndUnusedIncludesSweep.md` item 1 covers
-  the stale `Memory/MemoryManager.h` includes (GraphicsUtils.cpp's `:5` include is unused — its
+  the stale `Memory/GlobalAllocator.h` includes (GraphicsUtils.cpp's `:5` include is unused — its
   `ScopedSuppressAllocationTracking` `:60` comes from `Common/AllocationTracking.h` via `Common.h`);
   `Common/AggregationAndScopeRuleQualifiers.md` exists. Corrected the stb-path out-of-scope bullet: the
   "same form" consumer is `ThirdParty/Prebuilts/Source/Engine/Stb.cpp`, not DataPacker's `Texture.cpp`.
