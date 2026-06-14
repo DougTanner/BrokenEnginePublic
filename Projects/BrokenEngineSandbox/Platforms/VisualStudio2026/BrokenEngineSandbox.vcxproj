@@ -410,8 +410,6 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkProtocol.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSerialization.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSimulation.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\Server.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\ServerTypes.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.h" />
     <ClInclude Include="..\..\Source\Profile\ProfileManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenBase.h" />
@@ -603,9 +601,6 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkDiscoveryScanner.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkManager.cpp" />
     <ClCompile Include="..\..\Source\Network\NetworkSerialization.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\Server.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerReceive.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSend.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileScreens.cpp" />
     <ClCompile Include="..\..\Source\Profile\ProfileManager.cpp" />

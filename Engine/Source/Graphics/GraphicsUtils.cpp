@@ -5,7 +5,7 @@
 #include "Memory/GlobalAllocator.h"
 #include "Ui/WrapperBase.h"
 
-#include "Game.h"
+#include "Graphics/Camera.h"
 
 namespace engine
 {

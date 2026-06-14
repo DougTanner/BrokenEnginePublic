@@ -10,18 +10,8 @@ class ServerSessionBase
 {
 public:
 
-	ServerSessionBase()
-	{
-		mpDiscoveryResponder = std::make_unique<NetworkDiscoveryResponder>();
-		timeBeginPeriod(1);
-		mTimerHandle = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
-	}
-
-	virtual ~ServerSessionBase()
-	{
-		CloseHandle(mTimerHandle);
-		timeEndPeriod(1);
-	}
+	ServerSessionBase();
+	virtual ~ServerSessionBase();
 
 	// Tick timing
 	void WaitForTick(TimeStep& rTimeStep, std::chrono::nanoseconds tickNs);
@@ -30,7 +20,7 @@ public:
 	void PollNetworkBase();
 
 	// Subscription management
-	void SendNewSubscriptionFullStates(int64_t iTick);
+	void SendNewSubscriptionFullStates();
 
 	std::unique_ptr<NetworkDiscoveryResponder> mpDiscoveryResponder;
 	HANDLE mTimerHandle = nullptr;

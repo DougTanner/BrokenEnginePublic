@@ -2,9 +2,9 @@
 
 #include "Network/Client/ClientSessionBase.h"
 
-#include "Game.h"
-
 #if defined(BT_CLIENT)
+
+#include "Game.h"
 
 namespace engine
 {
@@ -16,7 +16,8 @@ void ClientSessionBase::ConnectToServer(std::string_view serverAddress, uint16_t
 	// Heap: ClientNetwork allocates ENet host and peer
 	ScopedSuppressAllocationTracking suppress;
 	miCoordSlots = iCoordSlots;
-	mpClientNetwork = std::make_unique<Client>(serverAddress.data(), uiPort, iCoordSlots);
+	std::string serverAddressString(serverAddress); // null-terminate: serverAddress (string_view) is not guaranteed terminated for enet_address_set_host
+	mpClientNetwork = std::make_unique<Client>(serverAddressString.c_str(), uiPort, iCoordSlots);
 }
 
 void ClientSessionBase::DisconnectFromServerBase()
@@ -168,7 +169,7 @@ void ClientSessionBase::BuildSubscriptionQueue(std::span<const GridCoord> desire
 	const std::vector<ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
 
 	mSubscriptionQueue.clear();
-	GridCoord activeCoords[16];
+	GridCoord activeCoords[NetworkManager::kiMaxEnetCoordSlots];
 	int64_t iActiveCount = 0;
 	for (const ClientCoordSlot& rSlot : rSlots)
 	{

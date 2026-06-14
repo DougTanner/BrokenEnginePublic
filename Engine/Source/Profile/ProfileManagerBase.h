@@ -1,9 +1,11 @@
 #pragma once
 
+// This header is Engine.h's first include (Engine.h:4) and must stay engine-include-free — its
+// upstream closure is Common + ExternalHeaders only. Any engine include added here becomes an
+// aggregation-order landmine.
+
 namespace engine
 {
-
-class DeviceManager;
 
 enum class ProfileScreen : uint8_t
 {
@@ -15,11 +17,17 @@ enum class ProfileScreen : uint8_t
 	kCount,
 };
 
+enum class ProfileRowFlags : uint8_t
+{
+	kVisible      = 1 << 0,
+	kSmoothAtStop = 1 << 1,
+};
+
 struct CpuCounter
 {
 	std::string_view name;
 	int64_t iCount = 0;
-	bool bVisible = false;
+	common::Flags<ProfileRowFlags> flags {};
 };
 
 struct CpuTimerThreadState
@@ -40,8 +48,7 @@ struct CpuTimer
 	common::Smoothed<int64_t> smoothedMicroseconds {};
 	common::Smoothed<int64_t> smoothedAllocations {};
 
-	bool bSmoothAtStop = false;
-	bool bVisible = false;
+	common::Flags<ProfileRowFlags> flags {};
 };
 
 enum EngineCpuCounters : int64_t
@@ -88,6 +95,7 @@ enum EngineCpuTimers : int64_t
 	kEngineCpuTimerCount
 };
 
+#if defined(BT_CLIENT)
 enum GpuTimers : int64_t
 {
 	kGpuTimerGlobal,
@@ -132,8 +140,9 @@ struct GpuTimer
 {
 	std::string_view name;
 	common::Smoothed<int64_t> smoothedMicroseconds {};
-	bool bVisible = false;
+	common::Flags<ProfileRowFlags> flags {};
 };
+#endif // BT_CLIENT
 
 enum BootTimers : int64_t
 {
@@ -169,12 +178,19 @@ struct BootTimer
 	std::chrono::nanoseconds timeNs {};
 };
 
+enum class CpuStopFlags : uint32_t
+{
+	kSmoothNow   = 0x01,
+	kCrossThread = 0x02,
+};
+using CpuStopFlags_t = common::Flags<CpuStopFlags>;
+
 class ProfileManagerBase
 {
 public:
 
-	ProfileManagerBase();
-	virtual ~ProfileManagerBase();
+	ProfileManagerBase() = default;
+	virtual ~ProfileManagerBase() = default;
 
 	void Create();
 	void Destroy();
@@ -182,7 +198,7 @@ public:
 	void ToggleProfileText();
 
 	void CpuStart(int64_t iCpuTimer, int64_t iThreads = 1);
-	void CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCrossThread = false);
+	void CpuStop(int64_t iCpuTimer, CpuStopFlags_t flags = {});
 
 	void SetCount(int64_t iCounter, int64_t iCount);
 
@@ -214,15 +230,20 @@ public:
 
 	virtual void FormatGameScreens(common::Workbuffer&) {}
 
+#if defined(BT_CLIENT)
 	GpuTimer* GetGpuTimers() { return mGpuTimers; }
+#endif // BT_CLIENT
 	common::Smoothed<int64_t>& GetSmoothedAllocations() { return mSmoothedAllocations; }
+
+	// One global mutex serializing all CPU timers: guards the CPU-timer arrays / per-thread timer states against concurrent writes from dispatch, submit (CommandBufferManager), and network threads. Designed for coarse phase scopes, not per-entity timers — finer granularity would distort the measurements it takes. Public so the engine::FormatCpuTimersText free function can lock the identical reads, matching the already-locked LogTimers.
+	std::mutex mCpuTimerMutex;
 
 	common::InTheLastSecond mFullUpdatesInTheLastSecond;
 	common::InTheLastSecond mInterpolateUpdatesInTheLastSecond;
 
 	ProfileScreen meProfileScreen = kbShowProfileTextByDefault ? ProfileScreen::kCpu : ProfileScreen::kOff;
 
-#if !defined(ENABLE_CRT_DEBUG_HEAP)
+#if defined(BT_SERVER) && !defined(ENABLE_CRT_DEBUG_HEAP)
 	int64_t miMimallocCommittedMib = 0;
 	int64_t miMimallocPeakCommittedMib = 0;
 	int64_t miMimallocHeapUsedMib = 0;
@@ -271,6 +292,7 @@ protected:
 		{.name = "Network send"},
 	};
 
+#if defined(BT_CLIENT)
 	GpuTimer mGpuTimers[kGpuTimerCount]
 	{
 		{.name = "Global render"},
@@ -308,6 +330,7 @@ protected:
 		{.name = "    Billboards"},
 		{.name = "Ui Render"},
 	};
+#endif // BT_CLIENT
 
 	BootTimer mBootTimers[kBootTimerCount]
 	{
@@ -335,7 +358,6 @@ protected:
 
 	std::chrono::steady_clock::time_point mLastVisibilityEvalTime {};
 
-	std::mutex mCpuTimerMutex;
 	std::unordered_map<std::thread::id, std::vector<CpuTimerThreadState>> mPerThreadTimerStates;
 
 	common::Smoothed<int64_t> mSmoothedAllocations;
@@ -375,5 +397,11 @@ private:
 
 void FormatCpuTimersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate);
 void FormatCpuCountersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate);
+
+#if defined(BT_CLIENT)
+void FormatFpsHeader(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, int64_t iTotalCpuTimeUs);
+void FormatCpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate);
+void FormatGpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate);
+#endif
 
 } // namespace engine

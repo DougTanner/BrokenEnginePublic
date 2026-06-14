@@ -67,7 +67,7 @@ Wrapper gWaterHeightDarkenSource(0.2f, 0.0f, 1.0f);
 Wrapper gWaterHeightDarkenLighting(0.1f, 0.0f, 1.0f);
 
 // Low frequency waves
-Wrapper gWaterLowCount(31i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
+Wrapper gWaterLowCount(int64_t {31}, std::vector<int64_t> {15, 31, 63, 127, 255});
 Wrapper gWaterLowMax(255.0f, 0.0f, 255.0f);
 Wrapper gWaterLowAngle(4.8f, 0.0f, XM_2PI);
 Wrapper gWaterLowWavelength(4.0f, 1.0f, 20.0f);
@@ -85,7 +85,7 @@ Wrapper gWaterLowAmplitudeFadeStart(300.0f, 0.0f, 1000.0f);
 Wrapper gWaterLowAmplitudeFadeEnd(500.0f, 0.0f, 1000.0f);
 
 // Medium frequency waves
-Wrapper gWaterMediumCount(255i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
+Wrapper gWaterMediumCount(int64_t {255}, std::vector<int64_t> {15, 31, 63, 127, 255});
 Wrapper gWaterMediumWavelength(2.0f, 0.01f, 10.0f);
 Wrapper gWaterMediumAmplitude(0.0f, 0.0f, 0.01f); // 0.002f when active
 Wrapper gWaterMediumSpeed(0.1f, 0.001f, 0.5f);

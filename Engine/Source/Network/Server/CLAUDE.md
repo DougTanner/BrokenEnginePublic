@@ -11,7 +11,7 @@ Server side of engine networking: the listening ENet host, per-client `ClientCon
 
 ## Build Configs
 
-Only `ServerSessionBase.*` is `BT_SERVER`-wrapped and server-vcxproj-only. `Server.h/.cpp`, `ServerTypes.h`, `ServerReceive.cpp`, and `ServerSend.cpp` compile in both client and server builds (shared headers reference `ClientConnection`); only the server build constructs `Server`. This is why the lone `game::gpServerSession` call in `ClientHello` sits in a `#if defined(BT_SERVER)` island — do not wrap these files or remove them from the client vcxproj.
+Every file here is `BT_SERVER`-wrapped and server-vcxproj-only: `ServerSessionBase.*` plus `Server.{h,cpp}`, `ServerTypes.h`, `ServerReceive.cpp`, and `ServerSend.cpp`. Only the server build constructs `Server` (`Main.cpp`, inside the `#else` of the `BT_CLIENT` split); no client TU references `Server`/`ClientConnection`/`gpServer` — `Server.h` is reached only by the three Server TUs, the server-only `ServerDisplay.cpp`, and `Engine.h`'s `BT_SERVER` span, and `ServerTypes.h` is reached only through `Server.h`. Each `.cpp`/`.h` carries a whole-file `#if defined(BT_SERVER)` guard **and** is excluded from the client vcxproj (guards alone would leave empty translation units compiling in the client). The `game::gpServerSession->SendTimespeedToNewClient` call in `ClientHello` is therefore plain code, not a `#if defined(BT_SERVER)` island.
 
 ## Invariants
 

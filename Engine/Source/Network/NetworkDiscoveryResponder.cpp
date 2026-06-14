@@ -28,6 +28,8 @@ NetworkDiscoveryResponder::~NetworkDiscoveryResponder()
 
 void NetworkDiscoveryResponder::Poll()
 {
+	ASSERT(common::gpMultithreading->IsMainThread());
+
 	sockaddr_in senderAddr {};
 	int iSenderLen = sizeof(senderAddr);
 	uint32_t uiMagic = 0;

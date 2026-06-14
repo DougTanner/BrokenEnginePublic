@@ -2,6 +2,8 @@
 
 #if defined(BT_CLIENT)
 
+#include "Frame/GridCoord.h"
+
 namespace engine
 {
 

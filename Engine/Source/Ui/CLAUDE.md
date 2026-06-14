@@ -17,6 +17,8 @@ Wrapper headers are deliberately not aggregated into `Engine.h` (only `NetworkUi
 
 Some wrapper min/max bounds encode shader-safety invariants (divide-by-zero and `pow`-base guards), marked by inline comments citing the exact shader file:line — changing such a bound is a shader-correctness change, not tuning.
 
+The Lighting tab carries a deliberate A/B curve-tuning apparatus — `gCombineCurveOld`/`gCombineCurveNew` plus the `gbUseCombineCurveNew` toggle (`LightingWrappersBase`, `BT_CLIENT`-guarded) — for comparing a candidate combine curve against the shipping baseline; `LightingUniforms.cpp` bakes whichever the toggle selects into `pfCombineCurvePoints`. Kept as two curves on purpose until tuning settles; collapse to one when done.
+
 **Cross-system coupling**: Wrappers that drive baked render-target dimensions (not just per-frame uniforms) must register a change-detector and destroy flag in `Graphics::Refresh` — see the Destroy / Refresh Pipeline in [Graphics/CLAUDE.md](../Graphics/CLAUDE.md). Prefer routing settings through per-frame uniforms whenever feasible.
 
 ## See Also

@@ -26,7 +26,7 @@ public:
 	void QueueSpawnForClient(int64_t iClientId, engine::GridCoord spawnCoord, int64_t iFleetIndex = -1, int64_t iMemberIndex = -1);
 	void ProcessSpawnRequests();
 	void NewClients();
-	void FinalizeNewClients(int64_t iTick);
+	void FinalizeNewClients();
 	void Disconnects();
 	void DetectPlayerDeaths();
 	void RefreshPreSpawnSnapshot();

@@ -276,7 +276,7 @@ void MainThread(HINSTANCE hinstance)
 		}
 #endif
 
-		gpProfileManager->CpuStop(kCpuTimerMessagesAndInput, false);
+		gpProfileManager->CpuStop(kCpuTimerMessagesAndInput);
 
 #if defined(BT_CLIENT)
 		pGame->ClientUpdate();

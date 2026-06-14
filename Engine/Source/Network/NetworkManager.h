@@ -11,7 +11,7 @@ public:
 	~NetworkManager();
 
 	// Channel 0: Control Reliable (handshake, subscribe/unsubscribe, spawn, assign, desync)
-	// Channel 1: Control Unreliable (reserved)
+	// Channel 1: Control Unreliable (carries the client->server ACK stream)
 	// Channel 2+: Coord slots (pairs of reliable/unreliable per slot)
 	static constexpr uint8_t kuiChannelReliable = 0;
 	static constexpr uint8_t kuiChannelUnreliable = 1;

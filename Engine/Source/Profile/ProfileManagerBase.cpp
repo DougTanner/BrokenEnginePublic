@@ -2,33 +2,25 @@
 
 #include "ProfileManagerBase.h"
 
+#include "Memory/GlobalAllocator.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
 {
 
+// The engine consumes game CPU timers/counters by name (GetCpuTimer(game::kCpuTimerFrameUpdate) below; GameBase phase brackets), and the game's GetCpuTimer/GetCpuCounter dispatch on a contiguous index space where the first game enumerator must start at the engine count. Pin that contract here so an omitted game-enum initializer is a compile error, not a silent misroute of every game index into the engine arrays.
+static_assert(game::kCpuTimerFrameUpdate == kEngineCpuTimerCount, "First game CPU timer must start at kEngineCpuTimerCount (contiguous engine->game index space).");
+static_assert(game::kCpuCounterPlayers == kEngineCpuCounterCount, "First game CPU counter must start at kEngineCpuCounterCount (contiguous engine->game index space).");
+
 // All profile-text rows re-evaluate their show/hide state together on this cadence; a state therefore persists at least this long.
 constexpr std::chrono::seconds kProfileVisibilityInterval = 2s;
-
-#if defined(BT_CLIENT)
-void FormatFpsHeader(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, int64_t iTotalCpuTimeUs);
-void FormatCpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate);
-void FormatGpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate);
-#endif
-
-ProfileManagerBase::ProfileManagerBase()
-{
-}
-
-ProfileManagerBase::~ProfileManagerBase()
-{
-}
 
 void ProfileManagerBase::Create()
 {
 	if constexpr (kbProfiling)
 	{
 #if defined(BT_CLIENT)
+		// Precondition: managers are created in strict order Instance -> Device -> Swapchain, then this runs (Graphics::Create calls it after swapchain creation), so gpInstanceManager/gpDeviceManager/gpSwapchainManager and OneShotCommandBuffer are all live below. Server body is empty (managers client-only).
 		if (mVkQueryPool != VK_NULL_HANDLE)
 		{
 			return;
@@ -137,7 +129,7 @@ void ProfileManagerBase::CpuStart(int64_t iCpuTimer, int64_t iThreads)
 	}
 }
 
-void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCrossThread)
+void ProfileManagerBase::CpuStop(int64_t iCpuTimer, CpuStopFlags_t flags)
 {
 	if constexpr (kbProfiling)
 	{
@@ -148,7 +140,7 @@ void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCross
 
 		CpuTimerThreadState* pState = nullptr;
 
-		if (bCrossThread)
+		if (flags & CpuStopFlags::kCrossThread)
 		{
 			// Search all threads for the one that started this timer
 			for (auto& [rThreadId, rStates] : mPerThreadTimerStates)
@@ -183,9 +175,9 @@ void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCross
 			rCpuTimer.iAllocationsThisFrame += std::max(static_cast<int64_t>(0), iAllocations - pState->iStartAllocations);
 		}
 
-		if (bSmoothNow) [[unlikely]]
+		if (flags & CpuStopFlags::kSmoothNow) [[unlikely]]
 		{
-			rCpuTimer.bSmoothAtStop = true;
+			rCpuTimer.flags.Set(ProfileRowFlags::kSmoothAtStop);
 			rCpuTimer.smoothedMicroseconds = rCpuTimer.iTotalFrameTimeNs / 1000;
 			rCpuTimer.iTotalFrameTimeNs = 0;
 			rCpuTimer.smoothedAllocations = rCpuTimer.iAllocationsThisFrame;
@@ -373,7 +365,7 @@ void ProfileManagerBase::SmoothCpuTimers()
 		for (int64_t i = 0; i < iCpuTimerCount; ++i)
 		{
 			CpuTimer& rCpuTimer = GetCpuTimer(i);
-			if (!rCpuTimer.bSmoothAtStop)
+			if (!(rCpuTimer.flags & ProfileRowFlags::kSmoothAtStop))
 			{
 				rCpuTimer.smoothedMicroseconds = rCpuTimer.iTotalFrameTimeNs / 1000;
 				rCpuTimer.iTotalFrameTimeNs = 0;
@@ -390,7 +382,6 @@ void ProfileManagerBase::UpdateProfileText()
 {
 	if constexpr (kbProfiling)
 	{
-#if defined(BT_CLIENT)
 		ScopedCpuProfile scopedCpuProfile(kCpuTimerUpdateProfileText);
 
 		SmoothCpuTimers();
@@ -398,6 +389,7 @@ void ProfileManagerBase::UpdateProfileText()
 		mSmoothedAllocations = giAllocationsThisFrame.exchange(0, std::memory_order_relaxed);
 		mSmoothedAllocations.Update();
 
+#if defined(BT_CLIENT)
 		for (GpuTimer& rGpuTimer : mGpuTimers)
 		{
 			rGpuTimer.smoothedMicroseconds.Update();
@@ -472,7 +464,7 @@ ScopedCpuProfile::ScopedCpuProfile(int64_t iCpuTimer, int64_t iThreads)
 
 ScopedCpuProfile::~ScopedCpuProfile()
 {
-	if constexpr (kbProfiling) { gpProfileManager->CpuStop(miCpuTimer, false); }
+	if constexpr (kbProfiling) { gpProfileManager->CpuStop(miCpuTimer); }
 }
 
 } // namespace engine

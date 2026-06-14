@@ -5,7 +5,6 @@
 #if defined(BT_CLIENT)
 
 #include "Game.h"
-#include "Network/NetworkCursor.h"
 
 namespace engine
 {
@@ -72,6 +71,8 @@ Client::~Client()
 
 void Client::Poll()
 {
+	ASSERT(common::gpMultithreading->IsMainThread());
+
 	if (mpHost == nullptr)
 	{
 		return;

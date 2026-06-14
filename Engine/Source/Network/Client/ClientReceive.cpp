@@ -5,7 +5,6 @@
 #if defined(BT_CLIENT)
 
 #include "Frame/FrameStaticData.h"
-#include "Game.h"
 #include "Network/NetworkCursor.h"
 
 namespace engine
@@ -151,6 +150,11 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	int64_t iTick = ReadInt64(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
 
+	if (uiSlotIndex >= std::ssize(mCoordSlots))
+	{
+		return;
+	}
+
 	LOG(kNetwork, kVerbose, "Client::ServerCoordFullState Frame: {} Slot: {} Coord: ({},{})", iTick, uiSlotIndex, coord.x, coord.y);
 	ScopedLogIndent scopedLogIndent;
 
@@ -160,11 +164,6 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	if (pFrame == nullptr)
 	{
 		LOG(kNetwork, kWarning, "Client::ServerCoordFullState LZ4 decompression failed Coord: ({},{}) Frame: {}", coord.x, coord.y, iTick);
-		return;
-	}
-
-	if (uiSlotIndex >= std::ssize(mCoordSlots))
-	{
 		return;
 	}
 

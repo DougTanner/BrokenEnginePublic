@@ -1,5 +1,16 @@
 #pragma once
 
+#if defined(BT_SERVER)
+
+#include "Frame/GridCoord.h"
+
+namespace game
+{
+
+struct StatusChange;
+
+} // namespace game
+
 namespace engine
 {
 
@@ -36,3 +47,5 @@ struct GridUpdateData
 };
 
 } // namespace engine
+
+#endif // BT_SERVER

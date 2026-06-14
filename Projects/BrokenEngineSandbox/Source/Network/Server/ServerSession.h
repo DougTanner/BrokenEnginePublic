@@ -39,8 +39,8 @@ public:
 	void SendPlayerState(int64_t iClientId, PlayerStateWireType eWireType, int64_t iGlobalPlayerId, engine::GridCoord coord);
 	void BroadcastTimespeedIfChanged();
 	void SendTimespeedToNewClient(ENetPeer* pPeer);
-	void SubscriptionUpdates(int64_t iTick);
-	void HandleResyncRequests(int64_t iTick);
+	void SubscriptionUpdates();
+	void HandleResyncRequests();
 	void ResetClientsForLoad();
 	void WriteFleetData(std::fstream& rFileStream) const;
 	void ReadFleetData(std::fstream& rFileStream);

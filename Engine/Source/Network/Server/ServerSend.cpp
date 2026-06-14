@@ -1,6 +1,9 @@
 #include "Pch.h"
 
+#if defined(BT_SERVER)
+
 #include "Network/Server/Server.h"
+
 #include "Frame/FrameStaticData.h"
 #include "Memory/GlobalAllocator.h"
 #include "Network/NetworkCursor.h"
@@ -274,3 +277,5 @@ void Server::BroadcastLoadNotification()
 }
 
 } // namespace engine
+
+#endif // BT_SERVER

@@ -102,11 +102,11 @@ void CommandBufferManager::SubmitGlobalToQueue(int64_t iFramebufferIndex)
 		.pSignalSemaphores = &rCommandBuffers.mGlobalFinishedVkSemaphore,
 	};
 
-	gpProfileManager->CpuStop(kCpuTimerAcquireToGlobal, true, true);
+	gpProfileManager->CpuStop(kCpuTimerAcquireToGlobal, {CpuStopFlags::kSmoothNow, CpuStopFlags::kCrossThread});
 
 	gpProfileManager->CpuStart(kCpuTimerSubmitGlobal);
 	CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
-	gpProfileManager->CpuStop(kCpuTimerSubmitGlobal, false);
+	gpProfileManager->CpuStop(kCpuTimerSubmitGlobal);
 
 	rCommandBuffers.mFlags.Set(CommandBufferFlags::kExecuted);
 }
@@ -167,7 +167,7 @@ void CommandBufferManager::SubmitMainToQueue(int64_t iFramebufferIndex, bool bSi
 	// that pairing intact — Main resets the fence here, the following UI submit signals it.
 	CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
 	CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
-	gpProfileManager->CpuStop(kCpuTimerSubmitImage, false);
+	gpProfileManager->CpuStop(kCpuTimerSubmitImage);
 
 	// mParticleSyncVkSemaphore (signaled above via vkSignalSemaphores) is waited by the NEXT frame's
 	// SubmitGlobalToQueue, gated on mbParticleSemaphoreSignaled — a cross-frame, cross-method pairing that

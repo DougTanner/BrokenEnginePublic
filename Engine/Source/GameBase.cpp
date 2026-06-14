@@ -81,7 +81,7 @@ void GameBase::ClientUpdate()
 
 	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
 	game::gpClientSession->Reconcile();
-	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
+	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate);
 
 	if constexpr (kbProfiling)
 	{
@@ -146,7 +146,7 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 	{
 		game::gpServerSession->SendResends(miTickCounter);
 	}
-	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, true);
+	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, CpuStopFlags::kSmoothNow);
 
 	if constexpr (kbProfiling)
 	{
@@ -204,8 +204,8 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 		processRange(0, iFrameRefCount);
 	}
 
-	gpProfileManager->CpuStop(game::kCpuTimerFramePostRender, false);
-	gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
+	gpProfileManager->CpuStop(game::kCpuTimerFramePostRender);
+	gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate);
 }
 
 void GameBase::FinalizeFrameTick(const std::vector<GridCoord>& rActiveCoords)
@@ -385,8 +385,8 @@ void GameBase::Render()
 				}
 			}
 		}
-		gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
-		gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
+		gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate);
+		gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate);
 
 		if constexpr (kbProfiling)
 		{

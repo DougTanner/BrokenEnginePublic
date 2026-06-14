@@ -17,6 +17,7 @@ Each receive handler classifies into a flag set (commit / clear-placeholder / he
 - **Pre-full-state buffering**: a `kWaitingFullState` slot accepts delta updates but does not advance its ACK tick floor (only `kActive` slots track received ticks).
 - **Cancelled-subscription ghosts**: locally-dropped `kSubscribing` slots record the coord; a late accept/full-state triggers an unsubscribe. One epoch-heal case covers legitimate re-subscribe to an already-active slot.
 - **Gap beyond `kiNetworkBufferSize`** on a single slot forces disconnect.
+- **Activation and adoption are same-frame**: a full state mutates slot ACK/epoch/state immediately at receive time (`ClientReceive.cpp` `ServerCoordFullState`), but its frame payload is adopted later by the game-layer drain. Because `Poll()` clears all receive buffers at entry (drain-per-poll), a game layer that skips a drain loses the frame yet keeps the activated slot — so activation and adoption must both happen in the same frame.
 
 ## Session Policy (`ClientSessionBase`)
 
@@ -25,7 +26,7 @@ Each receive handler classifies into a flag set (commit / clear-placeholder / he
 - **Update apply** moves drained per-tick updates into each active slot's `CoordFrames::serverUpdates` via `try_emplace` (first arrival wins, stale ticks skipped); buffer overflow drops the update with a `kWarning` log.
 - **Clock correction**: jitter-derived `targetBehind` (jitter + fixed safety margin, 2-tick hysteresis) sets how far behind `latestServerTick` the sim runs; gradual per-tick nudge, sustained error past threshold forces disconnect. No active slot resets `latestServerTick`. Full formulas in [Network.md](../../../../Documents/Architecture/Network.md).
 - **Metrics**: bytes in/out per second (host counters), interarrival jitter (deviation from expected tick interval), and packet-loss percent (received vs. expected for active slots) — jitter feeds clock correction.
-- **Implicit 16-coord-slot ceiling**: queue build uses a fixed 16-entry stack array, not asserted; the discovery address buffer is IPv4 dotted-quad only.
+- **Queue-build scratch sizing**: the queue-build stack array is sized to the engine ceiling `NetworkManager::kiMaxEnetCoordSlots`, so raising the client's desired-slot count cannot overflow it; the discovery address buffer is IPv4 dotted-quad only.
 
 ## Clock & Pipeline RTT
 

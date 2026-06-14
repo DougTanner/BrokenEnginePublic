@@ -60,7 +60,7 @@ public:
 	void OnPlayerSpawned(int64_t iClientId, const ClientSpawnInfo& rSpawnInfo, engine::global_id_t globalPlayerId);
 	void OnPlayerTransferred(const engine::ClientGuid& rGuid, engine::global_id_t globalPlayerId, engine::GridCoord destination);
 	void OnClientConnected(int64_t iClientId, const engine::ClientGuid& rClientGuid);
-	void OnClientDisconnected(int64_t iClientId, const engine::ClientGuid& rClientGuid);
+	void OnClientDisconnected(const engine::ClientGuid& rClientGuid);
 	void OnResetForLoad(int64_t iClientId, const engine::ClientGuid& rClientGuid);
 
 	struct FleetLookupResult

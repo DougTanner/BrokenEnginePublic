@@ -472,7 +472,7 @@ void SwapchainManager::PresentToQueue(int64_t iFramebufferIndex)
 
 	gpProfileManager->CpuStart(kCpuTimerPresent);
 	VkResult vkResult = vkQueuePresentKHR(gpDeviceManager->mPresentVkQueue, &vkPresentInfoKHR);
-	gpProfileManager->CpuStop(kCpuTimerPresent, false);
+	gpProfileManager->CpuStop(kCpuTimerPresent);
 
 	// Handle stale swapchain by requesting deferred recreation
 	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)

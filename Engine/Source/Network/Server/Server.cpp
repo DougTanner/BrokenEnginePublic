@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#if defined(BT_SERVER)
+
 #include "Network/Server/Server.h"
 
 #include "Game.h"
@@ -54,6 +56,8 @@ void Server::Flush()
 
 void Server::Poll()
 {
+	ASSERT(common::gpMultithreading->IsMainThread());
+
 	if (mpHost == nullptr)
 	{
 		return;
@@ -206,7 +210,7 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 			ClientUnsubscribe(pData, iSize, iClientId);
 			break;
 		case PacketType::kClientResyncRequest:
-			ClientResyncRequest(pData, iClientId);
+			ClientResyncRequest(iClientId);
 			break;
 		default:
 			if (static_cast<uint8_t>(eType) >= static_cast<uint8_t>(PacketType::kGamePacketStart))
@@ -375,3 +379,5 @@ ClientConnection* Server::FindHandshakenClient(int64_t iClientId)
 }
 
 } // namespace engine
+
+#endif // BT_SERVER

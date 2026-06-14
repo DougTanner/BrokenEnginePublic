@@ -165,7 +165,7 @@ bool ServerClientManager::TryRelinkNewClient(engine::ClientConnection& rClient, 
 	return !rNewClientOwnedIds.empty();
 }
 
-void ServerClientManager::FinalizeNewClients([[maybe_unused]] int64_t iTick)
+void ServerClientManager::FinalizeNewClients()
 {
 	if (mClientsWaitingForSpawn.empty())
 	{
@@ -239,7 +239,7 @@ void ServerClientManager::Disconnects()
 		mDeadClientIds.erase(rDisconnect.iClientId);
 		mProcessedClientIds.erase(rDisconnect.iClientId);
 
-		gpServerSession->mpFleetManager->OnClientDisconnected(rDisconnect.iClientId, rDisconnect.clientGuid);
+		gpServerSession->mpFleetManager->OnClientDisconnected(rDisconnect.clientGuid);
 
 		// Remove from spawn queue if waiting
 		std::erase_if(mClientsWaitingForSpawn, [&](const ClientSpawnInfo& rInfo)

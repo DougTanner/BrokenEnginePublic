@@ -1,5 +1,8 @@
 #pragma once
 
+#if defined(BT_SERVER)
+
+#include "Frame/GridCoord.h"
 #include "Network/NetworkCursor.h"
 #include "Network/Server/ServerTypes.h"
 
@@ -176,7 +179,7 @@ private:
 	void ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId);
 	void ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId);
-	void ClientResyncRequest(const uint8_t* pData, int64_t iClientId);
+	void ClientResyncRequest(int64_t iClientId);
 	void SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage, const ClientGuid* pGuid);
 	void SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord);
 
@@ -215,3 +218,5 @@ private:
 inline Server* gpServer = nullptr;
 
 } // namespace engine
+
+#endif // BT_SERVER

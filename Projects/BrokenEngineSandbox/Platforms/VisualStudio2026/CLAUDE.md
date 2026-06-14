@@ -29,7 +29,7 @@ Headers follow the same affinity (Solution Explorer cleanliness; `ClInclude` has
 - `*Render.cpp` — client-only
 - `Network/Client/Client*.cpp` — client-only
 - Game-layer `Network/Server/Server*.cpp` — server-only
-- Engine `Server.cpp`/`ServerReceive.cpp`/`ServerSend.cpp` — shared (client hosts a local server)
+- Engine `Server.cpp`/`ServerReceive.cpp`/`ServerSend.cpp` — server-only (`BT_SERVER`-wrapped; only the server build constructs `engine::Server`)
 - Engine collection files — check guards; many are client-only
 
 **Shader sources** (`Engine/Data/Shaders/**`) are `<None>` items in the client project only — IDE visibility; DataPacker compiles them, not MSBuild. Adding a shader means adding a `<None>` entry to the client vcxproj and filters.

@@ -6,9 +6,9 @@ CPU/GPU performance profiling, boot-time measurement, and in-game overlay. Engin
 
 Base holds engine-level counter/timer arrays; game derived adds project-specific arrays. Virtual dispatch routes by index, with game enums encoding the engine offset so call sites need no arithmetic.
 
-All entry points are wrapped in `if constexpr (kbProfiling)` for zero overhead when disabled.
+All recording and update entry points are wrapped in `if constexpr (kbProfiling)` for zero overhead when disabled. The visibility-cadence tick (`TickVisibilityCadence`), the CPU text formatters (`FormatCpuTimersText`/`FormatCpuCountersText`), and the virtual timer/counter accessors are deliberately left unwrapped so the server's GDI display still renders them (showing zeros when profiling is off).
 
-GPU timing, the `VkQueryPool`, and the overlay renderer are client-only; CPU timers, counters, boot timers, and the CPU text-formatting free functions compile in both builds — the server's GDI display reuses them, and must call `SmoothCpuTimers()` itself since the client-only overlay update (which calls it on the client) never runs there. The base also carries mimalloc memory stats written and read only by that server display.
+GPU timing, the `VkQueryPool`, and the overlay renderer are client-only; CPU timers, counters, boot timers, and the CPU text-formatting free functions compile in both builds — the server's GDI display reuses them by calling `UpdateProfileText()`, which runs the shared prefix (`SmoothCpuTimers()` + the per-frame allocation latch/reset) and skips its `BT_CLIENT`-gated GPU-timer and overlay-formatting work. The base also carries mimalloc memory stats (gated `BT_SERVER`) written and read only by that server display.
 
 ## GPU Queries
 
@@ -18,23 +18,23 @@ Both start and stop timestamps use `VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT` so eac
 
 ## Thread Safety
 
-CPU timer state is a mutex-protected map keyed by `std::thread::id` so dispatch workers can contribute. Timestamps are captured before acquiring the lock. Map resize wraps in `ScopedSuppressAllocationTracking` so profiling never pollutes its own counts. Cross-thread Start/Stop is supported via an explicit flag that scans the per-thread map.
+CPU timer state is a mutex-protected map keyed by `std::thread::id` so dispatch workers can contribute. Timestamps and the allocation-counter snapshot are captured before acquiring the lock. The CPU-timer-reading text formatters take the same lock for their reads, since dispatch, submit, and network threads write timer fields concurrently. Map resize wraps in `ScopedSuppressAllocationTracking` so profiling never trips the allocation tripwire. Cross-thread Start/Stop is supported via an explicit flag that scans the per-thread map.
 
-Each CPU timer reports the heap allocations that occurred inside its scope by diffing `giAllocationsThisFrame`.
+Each CPU timer reports the heap allocations that occurred during its scope's wall-clock window by diffing `giAllocationsThisFrame` — a single process-wide atomic, so the count includes every thread's allocations during the window, not just the timer's own thread.
 
-CPU timers latch into their smoothing rings once per render frame via `SmoothCpuTimers()`; timers whose scope completes out of phase with the render frame (cross-thread acquire, network ops, server full ticks) instead pass `bSmoothNow` to latch at stop.
+CPU timers latch into their smoothing rings once per render frame via `SmoothCpuTimers()`; timers whose scope completes out of phase with the render frame (cross-thread acquire, network ops, server full ticks) instead request a latch-at-stop via a `CpuStop` flag.
 
 ## Overlay
 
 `ToggleProfileText()` cycles through fixed screens (off / CPU / GPU / Frames / Network); each transition clears all profile text slots to prevent stale content. The FPS header renders in CPU and GPU modes; the CPU screen adds asset-chunk memory stats, the GPU screen adds per-pass dynamic-resolution annotations (shadow window, lighting spread, terrain elevation, water LOD grid) and VMA memory stats. Frames/Network are game-owned via a `FormatGameScreens` override. Client-only ImPlot graphs render alongside the text overlay.
 
-Display visibility is synchronized and sticky: `TickVisibilityCadence()` is the shared driver, re-evaluating every row's cached `bVisible` together only on a ~2s boundary, so all rows (CPU timers, CPU counters, GPU timers) flip at once and every show/hide lasts at least ~2s. Displayed numbers stay live each frame; `ToggleProfileText()` resets the clock so a switched-to screen re-evaluates immediately.
+Display visibility is synchronized and sticky: `TickVisibilityCadence()` is the shared driver, re-evaluating every row's cached visibility flag (`ProfileRowFlags::kVisible`) together only on a ~2s boundary, so all rows (CPU timers, CPU counters, GPU timers) flip at once and every show/hide lasts at least ~2s. Displayed numbers stay live each frame; `ToggleProfileText()` resets the clock so a switched-to screen re-evaluates immediately.
 
 ## Cross-Layer Dependency
 
-The FPS header reads a game-specific CPU timer enum by name to report total frame time. The contiguous index space (game enums starting at `kEngineCpuCounterCount` / `kEngineCpuTimerCount`) and the engine's by-name dependency on that timer enum (existence, not position) are documented game-side.
+The FPS header reads a game-specific CPU timer enum by name to report total frame time. The contiguous index space (game enums starting at `kEngineCpuCounterCount` / `kEngineCpuTimerCount`) is documented game-side; the position contract (first game enumerator == engine count) is compile-enforced engine-side by `static_assert` so an omitted game-enum initializer fails the build instead of misrouting game indices into the engine arrays.
 
-The overlay also reads `game::gpCamera` directly (include of `Game.h`) — camera height in the FPS header, visible-area LOD for the GPU screen's water annotation. Sanctioned engine→game reads; noted here only so the game couplings are discoverable.
+The overlay also reads `game::gpCamera` directly (via the game `Graphics/Camera.h` include) — camera height in the FPS header, visible-area LOD for the GPU screen's water annotation. Sanctioned engine→game reads; noted here only so the game couplings are discoverable.
 
 ## Extension
 

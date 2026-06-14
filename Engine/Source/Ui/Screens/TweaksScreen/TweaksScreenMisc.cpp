@@ -13,9 +13,6 @@ namespace
 {
 const TweaksSliderMapRegistrar gMiscRegistrar
 {
-	// Test
-	{"Test One", &gMiscTestOne},
-	{"Test Two", &gMiscTestTwo},
 	{"Debug Texture Range", &gMiscDebugTextureLinearRange},
 };
 }
@@ -24,12 +21,8 @@ void TweaksScreenBase::RenderMiscSection()
 {
 	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kMisc);
 
-	WrapperSeparatorText("Test");
-	WrapperSlider("Test One", kiSection);
-	WrapperSlider("Test Two", kiSection);
-	WrapperSlider("Debug Texture Range", kiSection);
-
 	WrapperSeparatorText("Misc");
+	WrapperSlider("Debug Texture Range", kiSection);
 }
 
 } // namespace engine

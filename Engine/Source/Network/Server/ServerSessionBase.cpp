@@ -1,10 +1,27 @@
 #include "Pch.h"
-#include "Game.h"
 
 #if defined(BT_SERVER)
 
+#include "Network/Server/ServerSessionBase.h"
+
+#include "Game.h"
+#include "Network/NetworkDiscoveryResponder.h"
+
 namespace engine
 {
+
+ServerSessionBase::ServerSessionBase()
+{
+	mpDiscoveryResponder = std::make_unique<NetworkDiscoveryResponder>();
+	timeBeginPeriod(1);
+	mTimerHandle = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+}
+
+ServerSessionBase::~ServerSessionBase()
+{
+	CloseHandle(mTimerHandle);
+	timeEndPeriod(1);
+}
 
 void ServerSessionBase::WaitForTick(TimeStep& rTimeStep, std::chrono::nanoseconds tickNs)
 {
@@ -46,7 +63,7 @@ void ServerSessionBase::PollNetworkBase()
 	mpDiscoveryResponder->Poll();
 }
 
-void ServerSessionBase::SendNewSubscriptionFullStates([[maybe_unused]] int64_t iTick)
+void ServerSessionBase::SendNewSubscriptionFullStates()
 {
 	std::vector<PendingNewSubscription>& rNewSubs = gpServer->DrainPendingNewSubscriptions();
 	for (const PendingNewSubscription& rSub : rNewSubs)

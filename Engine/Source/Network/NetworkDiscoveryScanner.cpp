@@ -47,6 +47,8 @@ void NetworkDiscoveryScanner::StartScan()
 
 void NetworkDiscoveryScanner::Poll()
 {
+	ASSERT(common::gpMultithreading->IsMainThread());
+
 	sockaddr_in senderAddr {};
 	int iSenderLen = sizeof(senderAddr);
 	uint32_t uiMagic = 0;
@@ -67,7 +69,7 @@ bool NetworkDiscoveryScanner::IsScanning()
 		return false;
 	}
 
-	return mTimer.GetDeltaNs() < std::chrono::milliseconds(kiDiscoveryScanMs);
+	return mTimer.GetDeltaNs() < kDiscoveryScanDuration;
 }
 
 } // namespace engine

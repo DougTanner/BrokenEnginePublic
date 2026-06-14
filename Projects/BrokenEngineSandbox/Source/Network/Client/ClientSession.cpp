@@ -96,8 +96,7 @@ void ClientSession::PollNetwork()
 
 	// Parse fleet sync from remaining game packets
 	std::vector<Fleet> receivedFleets;
-	ParseFleetSync(mpClientNetwork->DrainReceivedGamePackets(), receivedFleets);
-	if (!receivedFleets.empty())
+	if (ParseFleetSync(mpClientNetwork->DrainReceivedGamePackets(), receivedFleets))
 	{
 		engine::GridCoord preFleetCoord = gpGame->mClientGridCoord;
 		gpGame->SyncFleets(std::move(receivedFleets));
@@ -162,6 +161,8 @@ void ClientSession::UpdatePlayerCoord(engine::global_id_t globalPlayerId, engine
 
 void ClientSession::Poll()
 {
+	ASSERT(common::gpMultithreading->IsMainThread());
+
 	// Poll network and send ACK before reconciliation so server gets acknowledgement ASAP
 	{
 		// Heap: ENet polling
@@ -179,7 +180,7 @@ void ClientSession::Poll()
 			mpClientNetwork->Flush();
 		}
 	}
-	gpProfileManager->CpuStop(engine::kCpuTimerNetworkSend, true);
+	gpProfileManager->CpuStop(engine::kCpuTimerNetworkSend, engine::CpuStopFlags::kSmoothNow);
 }
 
 void ClientSession::Reconcile()
@@ -225,7 +226,7 @@ void ClientSession::Reconcile()
 			gpGame->mTimeStep.mTickRemainderNs += clockCorrectionNs;
 		}
 	}
-	gpProfileManager->CpuStop(engine::kCpuTimerNetworkPollReconcile, true);
+	gpProfileManager->CpuStop(engine::kCpuTimerNetworkPollReconcile, engine::CpuStopFlags::kSmoothNow);
 }
 
 void ClientSession::ConnectToServer(std::string_view serverAddress)

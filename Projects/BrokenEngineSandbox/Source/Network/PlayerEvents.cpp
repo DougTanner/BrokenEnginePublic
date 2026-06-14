@@ -111,8 +111,11 @@ static bool ParseFleetSyncPayload(const std::vector<uint8_t>& rPayload, std::vec
 	return true;
 }
 
-void ParseFleetSync(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets, std::vector<Fleet>& rOutFleets)
+bool ParseFleetSync(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets, std::vector<Fleet>& rOutFleets)
 {
+	// A valid sync (including a valid zero-fleet sync) commits into rOutFleets but leaves it empty when
+	// fleetCount == 0, so emptiness cannot tell the caller "applied" from "nothing arrived" — report it explicitly
+	bool bApplied = false;
 	for (auto it = rRawPackets.begin(); it != rRawPackets.end(); )
 	{
 		GamePacketType eType = static_cast<GamePacketType>(it->first);
@@ -128,6 +131,7 @@ void ParseFleetSync(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawP
 		if (ParseFleetSyncPayload(it->second, parsedFleets))
 		{
 			rOutFleets = std::move(parsedFleets);
+			bApplied = true;
 		}
 		else
 		{
@@ -136,6 +140,8 @@ void ParseFleetSync(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawP
 
 		it = rRawPackets.erase(it);
 	}
+
+	return bApplied;
 }
 
 } // namespace game

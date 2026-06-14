@@ -135,7 +135,6 @@ private:
 	// Fritsch-Carlson tangents at segment endpoints i (left) and i+1 (right).
 	void ComputeTangents(int iSegment, float& rfMLeft, float& rfMRight) const
 	{
-		int iCount = static_cast<int>(mPoints.size());
 		rfMLeft = SecantTangent(iSegment);
 		rfMRight = SecantTangent(iSegment + 1);
 		// Preserve monotonicity on the current segment.
@@ -155,7 +154,6 @@ private:
 			rfMLeft = fScale * fAlpha * fDelta;
 			rfMRight = fScale * fBeta * fDelta;
 		}
-		std::ignore = iCount;
 	}
 
 	// Average of adjacent secant slopes (or the single adjacent secant at boundaries).

@@ -4,8 +4,6 @@
 
 #if defined(BT_CLIENT)
 
-#include "Network/NetworkCursor.h"
-
 namespace engine
 {
 

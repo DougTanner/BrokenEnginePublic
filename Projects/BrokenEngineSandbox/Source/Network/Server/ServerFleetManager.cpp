@@ -361,7 +361,7 @@ void ServerFleetManager::OnClientConnected(int64_t iClientId, const engine::Clie
 	SendFleetSyncToClient(iClientId);
 }
 
-void ServerFleetManager::OnClientDisconnected([[maybe_unused]] int64_t iClientId, const engine::ClientGuid& rClientGuid)
+void ServerFleetManager::OnClientDisconnected(const engine::ClientGuid& rClientGuid)
 {
 	// Mark as disconnected — fleet data stays in mFleets
 	auto it = mGuidToClientId.find(rClientGuid);

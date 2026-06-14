@@ -64,16 +64,18 @@ void ServerSession::PrepareTick()
 
 void ServerSession::BroadcastTick(int64_t iTick)
 {
+	ASSERT(common::gpMultithreading->IsMainThread());
+
 	// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
 	ScopedSuppressAllocationTracking suppress;
 
-	HandleResyncRequests(iTick);
-	mpClientManager->FinalizeNewClients(iTick);
+	HandleResyncRequests();
+	mpClientManager->FinalizeNewClients();
 	mpClientManager->DetectPlayerDeaths();
 	mpFleetManager->DetectDisconnectedPlayerDeaths();
 	mpBroadcaster->BroadcastStatusChanges(iTick);
 	mpBroadcaster->ClearSpawns();
-	SubscriptionUpdates(iTick);
+	SubscriptionUpdates();
 	engine::gpServer->Flush();
 }
 
@@ -406,9 +408,9 @@ void ServerSession::SendTimespeedToNewClient(ENetPeer* pPeer)
 	engine::gpServer->SendSimplePacket(pPeer, GamePacketType::kServerTimespeedUpdate, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, gpGame->mTimeStep.miTimeMultiply, gpGame->mTimeStep.miTimeDivide);
 }
 
-void ServerSession::SubscriptionUpdates([[maybe_unused]] int64_t iTick)
+void ServerSession::SubscriptionUpdates()
 {
-	SendNewSubscriptionFullStates(iTick);
+	SendNewSubscriptionFullStates();
 
 	std::vector<SubscriptionUpdate>& rPendingUpdates = mpTransferManager->mPendingSubscriptionUpdates;
 	if (rPendingUpdates.empty())
@@ -426,7 +428,7 @@ void ServerSession::SubscriptionUpdates([[maybe_unused]] int64_t iTick)
 	rPendingUpdates.clear();
 }
 
-void ServerSession::HandleResyncRequests([[maybe_unused]] int64_t iTick)
+void ServerSession::HandleResyncRequests()
 {
 	std::vector<int64_t>& rResyncClientIds = engine::gpServer->DrainPendingResyncClientIds();
 	if (rResyncClientIds.empty())

@@ -3,6 +3,7 @@
 #if defined(BT_CLIENT)
 
 #include "Frame/FrameStaticData.h"
+#include "Frame/GridCoord.h"
 #include "Network/NetworkCursor.h"
 
 namespace game

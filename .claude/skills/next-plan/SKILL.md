@@ -167,10 +167,16 @@ Ask the subagent to return:
 
 - A list of candidate locations, each with `path:line`, the matching pattern, and a one-line justification for why the same change applies.
 - For each candidate, a label: **Oversight** (was probably present when the plan was written) or **Drift** (likely added since).
+- For each candidate, a **sameness** classification: **Identical** (the exact same mechanical transformation as the plan, differing only in file/location — e.g. the same unused-include removal, the same `Game.h` → `Graphics/Camera.h` swap, the same `vec + vec` → `XMVectorAdd` rewrite, the same field added to a sibling collection) or **Related** (same intent but a different edit — needs judgement about how to apply, touches different symbols, or carries invariant exposure the plan didn't declare).
 - A confidence rating per candidate (high / medium / low) so the user can triage quickly.
 - An explicit "no additional candidates" answer if the sweep finds nothing — the absence is informative and should still be recorded in Step 7's synthesized plan.
 
-Inline the subagent's findings into the Step 7 synthesized plan under a new `## Additional candidate locations` section. Do **not** silently expand the plan's `## Execution steps` to include them — surface each candidate separately and let the user decide in Step 9 whether to fold them in, defer them to a follow-up plan, or ignore them.
+Handle the findings by sameness — record all of them in the Step 7 `## Additional candidate locations` section either way, but route them differently:
+
+- **Auto-fold** (no user ask) every candidate that is **Identical** *and* **high-confidence** *and* introduces no invariant exposure the plan didn't already declare (no new determinism/CRC, `kiVersion`/`.pack` layout, replay, client/server guard, or protocol surface). Add these directly to the plan's `## Execution steps` as additional steps tagged `[auto-folded sibling]`, and mark them **Folded** in `## Additional candidate locations` so the expansion stays visible. These are the "essentially the same, just in a different location" changes — applying them is mechanical and asking would be noise.
+- **Surface for decision** every candidate that is **Related**, or **Identical** but only medium/low confidence, or that carries new invariant exposure. List these in `## Additional candidate locations` only — do **not** add them to `## Execution steps` — and let the user decide in Step 9 whether to fold them in, defer them to a follow-up plan, or ignore them.
+
+When in doubt about whether a candidate is truly identical and exposure-free, treat it as **Related** and surface it — auto-fold is reserved for the unambiguous mechanical case.
 
 If the subagent returns more than ~10 candidates, the plan likely describes a pattern broad enough to warrant a dedicated systematic sweep rather than a one-off fix. Note that observation in the synthesized plan and surface it to the user in Step 9 — do not bury dozens of candidates under an unrelated plan.
 
@@ -206,12 +212,12 @@ Examples:
 2. ...
 
 ## Additional candidate locations
-<Findings from the Step 6 codebase sweep — sibling instances of the same pattern the plan may have missed. One bullet per candidate, with `path:line`, label (**Oversight** | **Drift**), confidence (high/medium/low), and a one-line justification. If the sweep returned nothing, write "No additional candidates found." If it returned more than ~10 candidates, note that the pattern likely warrants a dedicated systematic sweep rather than expanding this plan.>
+<Findings from the Step 6 codebase sweep — sibling instances of the same pattern the plan may have missed. One bullet per candidate, with `path:line`, label (**Oversight** | **Drift**), sameness (**Identical** | **Related**), confidence (high/medium/low), routing (**Folded** — auto-folded into `## Execution steps`; or **Surfaced** — awaiting the user's Step 9 decision), and a one-line justification. If the sweep returned nothing, write "No additional candidates found." If it returned more than ~10 candidates, note that the pattern likely warrants a dedicated systematic sweep rather than expanding this plan.>
 ```
 
 Authoring the **Summary** section is mandatory and must come from synthesis, not boilerplate. Source the **What** from the plan's body (its goal statement, top-level description, or the union of its execution steps if no narrative exists) and the **Why** from a combination of the plan file's stated rationale and the Order.md row's `Impact` / `Notes` cells. If the plan file contains no rationale at all, infer the Why from the code drift uncovered during Steps 3-5 and prefix the sentence with "Inferred:" so the user knows it isn't author-supplied. Never write a generic Why like "improves quality" or "cleans up the codebase" — if you cannot name a concrete benefit, surface that gap to the user in Step 9 instead of papering over it.
 
-Keep the execution steps in the order the plan originally specified, with citations pointing at current code. Do not add scope the plan did not originally include — anything new the codebase sweep surfaced lives in `## Additional candidate locations`, not `## Execution steps`. Order.md row removal and plan file deletion are not in the execution list because they have already happened (Step 2) or are about to happen automatically (Step 8).
+Keep the execution steps in the order the plan originally specified, with citations pointing at current code. Do not add **Related** or uncertain scope the plan did not originally include — that lives in `## Additional candidate locations`, not `## Execution steps`. The one exception is the **auto-folded Identical siblings** from Step 6 (same mechanical change, different location, high-confidence, exposure-free): append those to `## Execution steps` tagged `[auto-folded sibling]`. Order.md row removal and plan file deletion are not in the execution list because they have already happened (Step 2) or are about to happen automatically (Step 8).
 
 ### Step 8. Delete the plan file from disk
 
@@ -238,7 +244,7 @@ The `AskUserQuestion` is a single question along the lines of:
 - **question**: "Approve this plan and proceed with implementation?"
 - **options**: `Approve` (proceed to the C++ Code Change Process), `Reject` (abandon — Order.md row and plan file are already gone, the user takes the markdown above as their record if they want to recover later)
 
-If the `## Additional candidate locations` section contains entries, also ask the user whether to fold any of them into the execution scope, defer them to a follow-up plan, or ignore them. Use a separate `AskUserQuestion` call (or a multi-select question) so the approval decision and the scope-expansion decision are tracked independently.
+If the `## Additional candidate locations` section contains any **Surfaced** entries (Related, medium/low-confidence, or exposure-carrying — everything that was *not* auto-folded in Step 6), ask the user whether to fold them into the execution scope, defer them to a follow-up plan, or ignore them. Use a separate `AskUserQuestion` call (or a multi-select question) so the approval decision and the scope-expansion decision are tracked independently. Do **not** ask about auto-folded **Identical** candidates — those are already in `## Execution steps` by design (the same mechanical change in a different location); just mention them in the presentation so the user can veto if they disagree, but don't gate on it. If every candidate was auto-folded (or there were none), skip the scope-expansion question entirely.
 
 If the user picks `Approve`, follow the standard C++ Code Change Process defined in the top-level `CLAUDE.md` (grill → implement → subagent searches → code review → style review → docs → vcxproj updates → build → final audit). The grill (`/external-grill-plan`) is the next concrete action. Carry the user's decisions on additional candidates into the grill so the implementation reflects the agreed scope.
 
@@ -266,4 +272,4 @@ If the user picks `Reject`, stop. Do not attempt to restore the Order.md row or 
 - Does not execute the plan — that happens after Step 9 approval, and follows the main `CLAUDE.md` C++ Code Change Process.
 - Does not re-prioritize the `## Plans` table. Changing priorities is a separate concern — if Step 4 surfaces that the score is stale, surface it to the user rather than silently re-ranking.
 - Does not preserve the source plan file or Order.md row on rejection. Cleanup is unconditional once Step 2 fires (row) and once Step 8 fires (file). This is the deliberate trade-off of running outside plan mode.
-- Does not silently expand plan scope from the Step 6 sweep. New candidate locations are surfaced for explicit user decision in Step 9; they are never folded into `## Execution steps` automatically.
+- Does not silently expand plan scope with **Related** or uncertain candidates from the Step 6 sweep — those are surfaced for explicit user decision in Step 9. It *does* auto-fold **Identical, high-confidence, exposure-free** siblings (the same mechanical change in a different location) directly into `## Execution steps`, tagged `[auto-folded sibling]` and still listed under `## Additional candidate locations` — applying them is mechanical and asking would be noise.

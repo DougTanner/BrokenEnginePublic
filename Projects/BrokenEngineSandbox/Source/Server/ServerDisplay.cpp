@@ -77,7 +77,7 @@ void ServerUpdateDisplayStats()
 	gpProfileManager->miMimallocPeakHeapUsedMib = miStats.page_committed.peak / (1024 * 1024);
 #endif
 
-	gpProfileManager->SmoothCpuTimers();
+	gpProfileManager->UpdateProfileText();
 }
 
 static void PaintGridMap(HDC hdcBuffer, char* pcLine, size_t iLineSize, int iMapLeft, int iMapTop, int iMapWidth, int iMapHeight, const std::vector<engine::ClientConnection>& rClients)

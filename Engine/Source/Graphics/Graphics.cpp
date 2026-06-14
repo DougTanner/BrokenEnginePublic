@@ -223,7 +223,7 @@ void Graphics::RenderGlobal(float fCurrentTime)
 	gpProfileManager->CpuStart(kCpuTimerRenderGlobal);
 	RenderFrameGlobal(iCommandBuffer, fCurrentTime);
 	gpParticleManager->RenderGlobal(iCommandBuffer);
-	gpProfileManager->CpuStop(kCpuTimerRenderGlobal, false);
+	gpProfileManager->CpuStop(kCpuTimerRenderGlobal);
 
 	gpCommandBufferManager->SubmitGlobalCommandBuffer(iCommandBuffer);
 }
@@ -232,7 +232,7 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unord
 {
 	gpProfileManager->CpuStart(kCpuTimerRenderMain);
 	RenderFrameMain(iCommandBuffer, rRenderInterpolates, rActiveCoords, cameraCoord);
-	gpProfileManager->CpuStop(kCpuTimerRenderMain, false);
+	gpProfileManager->CpuStop(kCpuTimerRenderMain);
 
 	gpImGuiManager->Prepare(iCommandBuffer);
 
@@ -254,7 +254,7 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unord
 	{
 		gpProfileManager->CpuStart(kCpuTimerWaitPresentFuture);
 		gpSwapchainManager->mPresent.Wait();
-		gpProfileManager->CpuStop(kCpuTimerWaitPresentFuture, false);
+		gpProfileManager->CpuStop(kCpuTimerWaitPresentFuture);
 	}
 
 	Create();

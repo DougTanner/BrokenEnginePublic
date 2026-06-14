@@ -22,9 +22,6 @@
     <Filter Include="Engine\Network\Client">
       <UniqueIdentifier>{4ef67997-d209-4313-b217-4937d1357772}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Network\Server">
-      <UniqueIdentifier>{0dd195ea-fe72-4468-ae3a-79ace798eb3b}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\Data\Shaders">
       <UniqueIdentifier>{4c249a6c-c550-4fa7-b6ac-0423c9b76a55}</UniqueIdentifier>
     </Filter>
@@ -311,12 +308,6 @@
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSimulation.h">
       <Filter>Engine\Network</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\Server.h">
-      <Filter>Engine\Network\Server</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\ServerTypes.h">
-      <Filter>Engine\Network\Server</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.h">
       <Filter>Engine\Profile</Filter>
@@ -874,15 +865,6 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\Network\NetworkSerialization.cpp">
       <Filter>Game\Network</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\Server.cpp">
-      <Filter>Engine\Network\Server</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerReceive.cpp">
-      <Filter>Engine\Network\Server</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSend.cpp">
-      <Filter>Engine\Network\Server</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\CrashReport.cpp">
       <Filter>Engine</Filter>

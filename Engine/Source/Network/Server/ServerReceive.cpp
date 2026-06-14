@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#if defined(BT_SERVER)
+
 #include "Network/Server/Server.h"
 
 #include "Memory/GlobalAllocator.h"
@@ -311,9 +313,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	LOG(kNetwork, kInfo, "Server::ClientHello Accepted Client: {} Config: {} GUID: {} {}", iClientId, pcClientConfig, clientGuid.uiHigh, clientGuid.uiLow);
 	SendConnectionResponse(pPeer, true, nullptr, &clientGuid);
 
-#if defined(BT_SERVER)
 	game::gpServerSession->SendTimespeedToNewClient(pPeer);
-#endif
 }
 
 void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId)
@@ -413,7 +413,7 @@ void Server::ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClie
 	SendSimplePacket(pClient->pPeer, PacketType::kServerUnsubscribeAck, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex);
 }
 
-void Server::ClientResyncRequest([[maybe_unused]] const uint8_t* pData, int64_t iClientId)
+void Server::ClientResyncRequest(int64_t iClientId)
 {
 	ClientConnection* pClient = FindHandshakenClient(iClientId);
 	if (pClient == nullptr)
@@ -429,3 +429,5 @@ void Server::ClientResyncRequest([[maybe_unused]] const uint8_t* pData, int64_t 
 }
 
 } // namespace engine
+
+#endif // BT_SERVER
