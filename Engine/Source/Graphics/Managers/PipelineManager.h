@@ -60,20 +60,6 @@ enum Pipelines
 	kPipelineCount
 };
 
-// GLSL set=1 binding indices for the terrain pipeline group (kPipelineShadowElevation,
-// kPipelineTerrainElevation, kPipelineTerrain). The bindings are split across three sites:
-// the GLSL `layout(set = 1, binding = N)` declarations in Terrain*.frag, the implicit-by-position
-// DescriptorInfo tables in PipelineManager.cpp, and the bare-integer RegisterTextureBinding calls
-// in IslandTerrain::AcquireTextureSlot. Naming the indices keeps the three sites in lockstep.
-namespace TerrainPipelineBindings
-{
-	constexpr int64_t kiElevation = 2;
-	constexpr int64_t kiColor = 6;
-	constexpr int64_t kiNormals = 7;
-	constexpr int64_t kiAmbientOcclusion = 8;
-	constexpr int64_t kiMasks = 20;
-} // namespace TerrainPipelineBindings
-
 class PipelineManager
 {
 public:
@@ -92,6 +78,12 @@ public:
 	void CreateParticlePipelines();
 	void CreateDebugRenderPipelines();
 
+	// Fills the bindings 0-11 descriptor prefix shared verbatim by kPipelineWater and kPipelineWaterSkyboxOne
+	// (both bind Water.vert, which reads terrain elevation at set=1 binding=5 — divergence silently flattens the
+	// water). Single-sourced so the invariant is structural, not comment-enforced. Caller appends the
+	// pipeline-specific tail (Water adds binding 12 + explicit 13/14; WaterSkyboxOne adds only explicit 13/14).
+	void FillWaterSharedDescriptors(DescriptorInfo* pDescriptorInfos);
+
 	// Walks every TextureBinding entry and breaks if any cached snapshot generation diverges
 	// from the live Texture's muiGeneration. Catches descriptor staleness the Vulkan validation
 	// layer cannot detect (handles stay valid; only the semantic binding becomes wrong).
@@ -101,11 +93,13 @@ public:
 
 	// Texture* array for the kPipelineWater normal map atlas binding (sized sampler array).
 	// Populated at the top of CreateLightingShadowDependentPipelines() before kPipelineWater is built.
-	// Size must match TextureManager::kiWaterNormalCount (literal here because TextureManager.h is included after PipelineManager.h via Engine.h).
-	Texture* mppWaterNormalTextures[17] {};
+	Texture* mppWaterNormalTextures[shaders::kiWaterNormalCount] {};
 
 	// Spread pipelines [pass]: radial directional spread, fragment shader with MRT
 	Pipeline mSpreadPipelines[shaders::kiMaxSpreadPasses];
+	// Owns the spread pipeline name strings (PipelineInfo::name is a string_view that must outlive the Create call;
+	// mirrors mShadowPipelineNames in DynamicPipelines)
+	std::string mSpreadPipelineNames[shaders::kiMaxSpreadPasses];
 
 	// Combine pipeline (tone map accumulate → UNORM, all 3 colors in one dispatch)
 	Pipeline mCombinePipeline;

@@ -2,6 +2,8 @@
 
 #if defined(BT_CLIENT)
 
+#include "Frame/Collections/Sounds/Sounds.h"
+
 namespace engine
 {
 

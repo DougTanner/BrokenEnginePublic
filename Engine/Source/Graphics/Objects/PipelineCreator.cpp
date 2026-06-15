@@ -1,8 +1,11 @@
+#if defined(BT_CLIENT)
+
 #include "PipelineCreator.h"
 
 #include "Pipeline.h"
 
 #include "Ui/GraphicsSettingsWrappersBase.h"
+#include "Ui/WrapperBase.h"
 
 namespace engine
 {
@@ -135,6 +138,7 @@ static void CreateDescriptorSetLayouts(Pipeline& rPipeline, const PipelineInfo& 
 			continue;
 		}
 
+		ASSERT(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 		pVkDescriptorSetLayoutBindings[iDescriptorCount].binding = rVertexBinding.binding | rFragmentBinding.binding;
 		if (rVertexBinding.descriptorCount > 0 && rFragmentBinding.descriptorCount > 0)
 		{
@@ -642,6 +646,7 @@ void PipelineCreator::CreateComputePipeline(Pipeline& rPipeline, const PipelineI
 		{
 			continue;
 		}
+		ASSERT(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 		pVkDescriptorSetLayoutBindings[iDescriptorCount++] = rBinding;
 	}
 
@@ -720,3 +725,5 @@ void PipelineCreator::CreateComputePipeline(Pipeline& rPipeline, const PipelineI
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

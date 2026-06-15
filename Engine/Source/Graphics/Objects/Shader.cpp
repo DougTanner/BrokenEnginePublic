@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "Shader.h"
 
 namespace engine
@@ -47,3 +49,5 @@ void Shader::Destroy() noexcept
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

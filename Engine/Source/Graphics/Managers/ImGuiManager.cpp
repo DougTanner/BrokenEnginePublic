@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "ImGuiManager.h"
 
 #include "Ui/GraphicsSettingsWrappersBase.h"
@@ -377,3 +379,5 @@ void ImGuiManager::Submit(int64_t iFramebuffer)
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

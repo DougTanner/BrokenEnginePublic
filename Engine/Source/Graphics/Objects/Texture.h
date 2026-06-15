@@ -101,7 +101,6 @@ public:
 	void AdoptTransferredImage(VkImage& rVkImage, VmaAllocation& rVmaAllocation, VkDeviceMemory& rVkDeviceMemory);
 	void RecordAcquireBarrier(VkCommandBuffer vkCommandBuffer);
 	void UpdateData(const std::function<void(void*, int64_t, int64_t)>& rDataFunction);
-	void ReCreate();
 	void Destroy() noexcept;
 	void FreeGpuResources() noexcept;
 

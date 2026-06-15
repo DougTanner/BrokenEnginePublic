@@ -1,6 +1,6 @@
-#include "DeviceManager.h"
+#if defined(BT_CLIENT)
 
-#include "Profile/ProfileManager.h"
+#include "DeviceManager.h"
 
 namespace engine
 {
@@ -203,7 +203,6 @@ DeviceManager::DeviceManager()
 	if constexpr (kbGpuAssistedValidation || kbDebugPrintf)
 	{
 		vkPhysicalDeviceFeatures.vertexPipelineStoresAndAtomics = VK_TRUE;
-		vkPhysicalDeviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
 		vkPhysicalDeviceFeatures.shaderInt64 = VK_TRUE;
 	}
 	vkDeviceCreateInfo.pEnabledFeatures = &vkPhysicalDeviceFeatures;
@@ -250,19 +249,12 @@ DeviceManager::DeviceManager()
 	if (gpInstanceManager->miTransferQueueFamilyIndex == gpInstanceManager->miGraphicsQueueFamilyIndex)
 	{
 		mTransferVkQueue = mGraphicsVkQueue;
+		LOG(kGraphics, kInfo, "Transfer queue: shared with graphics queue (family {}), background GPU uploads disabled", gpInstanceManager->miGraphicsQueueFamilyIndex);
 	}
 	else
 	{
 		vkGetDeviceQueue(mVkDevice, static_cast<uint32_t>(gpInstanceManager->miTransferQueueFamilyIndex), 0, &mTransferVkQueue);
 		VkName(VK_OBJECT_TYPE_QUEUE, mTransferVkQueue, "Transfer");
-	}
-
-	if (gpInstanceManager->miTransferQueueFamilyIndex == gpInstanceManager->miGraphicsQueueFamilyIndex)
-	{
-		LOG(kGraphics, kInfo, "Transfer queue: shared with graphics queue (family {}), background GPU uploads disabled", gpInstanceManager->miGraphicsQueueFamilyIndex);
-	}
-	else
-	{
 		LOG(kGraphics, kInfo, "Transfer queue: dedicated (family {}), background GPU uploads enabled", gpInstanceManager->miTransferQueueFamilyIndex);
 	}
 
@@ -281,6 +273,10 @@ DeviceManager::DeviceManager()
 
 		uint32_t uiTransferFamily = static_cast<uint32_t>(gpInstanceManager->miTransferQueueFamilyIndex);
 		uint32_t uiGraphicsFamily = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex);
+		// Trust boundary: both indices must be valid queue families. InstanceManager falls the transfer index back to the
+		// graphics family when no family advertises VK_QUEUE_TRANSFER_BIT, so it can never be UINT32_MAX here (otherwise the
+		// != graphics guard above would be true and this would silently index [UINT32_MAX]).
+		ASSERT(uiTransferFamily < uiQueueFamilyCount && uiGraphicsFamily < uiQueueFamilyCount);
 		uint32_t uiOptimalMask = queueFamilyOwnershipTransferProperties[uiTransferFamily].optimalImageTransferToQueueFamilies;
 		mbTransferQueueFamilyOwnershipTransferOptional = (uiOptimalMask & (1u << uiGraphicsFamily)) != 0;
 		LOG(kGraphics, kDebug, "Transfer->Graphics QFOT optional: {} (transfer family {} optimal mask {:#010b}, graphics family {})", mbTransferQueueFamilyOwnershipTransferOptional, uiTransferFamily, uiOptimalMask, uiGraphicsFamily);
@@ -313,7 +309,7 @@ DeviceManager::DeviceManager()
 	{
 		vkDescriptorPoolCreateInfo.maxSets += rVkDescriptorPoolSize.descriptorCount;
 	}
-	CHECK_VK(vkCreateDescriptorPool(gpDeviceManager->mVkDevice, &vkDescriptorPoolCreateInfo, nullptr, &mVkDescriptorPool));
+	CHECK_VK(vkCreateDescriptorPool(mVkDevice, &vkDescriptorPoolCreateInfo, nullptr, &mVkDescriptorPool));
 	VkName(VK_OBJECT_TYPE_DESCRIPTOR_POOL, mVkDescriptorPool, "Global");
 
 	// Initialize VMA
@@ -403,7 +399,7 @@ DeviceManager::~DeviceManager()
 	mpAllocator = nullptr;
 
 	// All descriptor sets freed explicitly in Pipeline::Destroy() before reaching here
-	vkDestroyDescriptorPool(gpDeviceManager->mVkDevice, mVkDescriptorPool, nullptr);
+	vkDestroyDescriptorPool(mVkDevice, mVkDescriptorPool, nullptr);
 
 	vkDestroyFence(mVkDevice, mOneShotVkFence, nullptr);
 	vkDestroyCommandPool(mVkDevice, mOneShotVkCommandPool, nullptr);
@@ -414,3 +410,5 @@ DeviceManager::~DeviceManager()
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

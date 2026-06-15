@@ -2,8 +2,6 @@
 
 #include "TextureCache.h"
 
-#include "TextureManager.h"
-
 #include "Data/Data.h"
 
 namespace engine
@@ -11,8 +9,12 @@ namespace engine
 
 void TextureCache::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, VkFormat format, uint32_t mipLevels, uint32_t arrayLayers, bool bFromSwapchain, std::vector<std::byte>& rOutData)
 {
+	// Heap: rOutData.resize + staging-buffer creation. Main-loop-reachable per frame via the kbScreenshots trigger
+	// (CommandBufferManager -> Screenshot::SaveScreenshot -> here) inside the submission path with tracking live; rOutData
+	// is std::move'd into the async save lambda so it cannot use the workbuffer.
+	ScopedSuppressAllocationTracking suppress;
+
 	VkImageLayout currentLayout = bFromSwapchain ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	VkImageLayout restoreLayout = bFromSwapchain ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	VkPipelineStageFlags srcStage = bFromSwapchain ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 	VkPipelineStageFlags dstStage = bFromSwapchain ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 	VkAccessFlags srcAccess = bFromSwapchain ? 0 : VK_ACCESS_SHADER_READ_BIT;
@@ -100,7 +102,7 @@ void TextureCache::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, Vk
 
 	// Transition image back to original layout
 	vkImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-	vkImageMemoryBarrier.newLayout = restoreLayout;
+	vkImageMemoryBarrier.newLayout = currentLayout;
 	vkImageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 	vkImageMemoryBarrier.dstAccessMask = dstAccess;
 	vkCmdPipelineBarrier(oneShotCommandBuffer.mVkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, dstStage, 0, 0, nullptr, 0, nullptr, 1, &vkImageMemoryBarrier);

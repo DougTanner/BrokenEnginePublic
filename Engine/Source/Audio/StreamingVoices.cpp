@@ -2,6 +2,8 @@
 
 #if defined(BT_CLIENT)
 
+#include "StreamingVoice.h"
+
 #include "File/FileManager.h"
 #include "Memory/GlobalAllocator.h"
 

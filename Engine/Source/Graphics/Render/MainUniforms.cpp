@@ -4,10 +4,8 @@
 
 #include "Game.h"
 #include "Graphics/Debug/DebugRender.h"
-#include "Ui/LightingWrappersBase.h"
-#include "Ui/PbrWrappersBase.h"
-#include "Ui/SunMoonWrappersBase.h"
 #include "Ui/WaterWrappersBase.h"
+#include "Ui/WrapperBase.h"
 
 namespace engine
 {
@@ -260,10 +258,11 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	static constexpr float kfMaxRoll = 0.005f;
 	static constexpr float kfMaxPitch = 0.005f;
 	static constexpr float kfMaxYaw = 0.01f;
-	siv::BasicPerlinNoise<float> perlinRoll(0);
-	siv::BasicPerlinNoise<float> perlinPitch(1);
-	siv::BasicPerlinNoise<float> perlinYaw(2);
-	auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll * fCameraShake * (-1.0f + 2.0f * perlinRoll.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)), kfMaxPitch * fCameraShake * (-1.0f + 2.0f * perlinPitch.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)), kfMaxYaw * fCameraShake * (-1.0f + 2.0f * perlinYaw.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)));
+	// Fixed-seed permutation tables are identical every frame — construct once (each ctor reshuffles a 256-entry table).
+	static const siv::BasicPerlinNoise<float> sPerlinRoll(0);
+	static const siv::BasicPerlinNoise<float> sPerlinPitch(1);
+	static const siv::BasicPerlinNoise<float> sPerlinYaw(2);
+	auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll * fCameraShake * (-1.0f + 2.0f * sPerlinRoll.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)), kfMaxPitch * fCameraShake * (-1.0f + 2.0f * sPerlinPitch.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)), kfMaxYaw * fCameraShake * (-1.0f + 2.0f * sPerlinYaw.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)));
 
 	XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(&rMainLayout.f4x4ViewProjection[0]), XMMatrixTranspose(XMMatrixMultiply(game::gpCamera->mMatView, XMMatrixMultiply(matCameraShake, game::gpCamera->mMatPerspective))));
 
@@ -350,7 +349,10 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 				rMainLayout.pf4LowWavesTwo[i].w = static_cast<float>(std::fmod((dDirX * dWaveCameraX + dDirY * dWaveCameraY) * dOmega + dPhi * (dWaveTime + static_cast<double>(i)), kdTwoPi));
 			}
 
-			if (i < 64 && (i % 3) == 0)
+			// Thin the low-frequency band: zero every kiWaveCullModulo-th wave's amplitude below kiWaveCullLimit (tuning to reduce low-wave repetition).
+			static constexpr int64_t kiWaveCullLimit = 64;
+			static constexpr int64_t kiWaveCullModulo = 3;
+			if (i < kiWaveCullLimit && (i % kiWaveCullModulo) == 0)
 			{
 				rMainLayout.pf4LowWavesTwo[i].y = 0.0f;
 			}
@@ -408,4 +410,4 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 
 } // namespace engine
 
-#endif // BT_CLIENT
+#endif // defined(BT_CLIENT)

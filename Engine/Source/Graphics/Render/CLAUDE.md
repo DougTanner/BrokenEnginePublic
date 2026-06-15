@@ -11,7 +11,8 @@ Ownership exception: a downstream pass may zero a count field already written by
 ## Ordering Contract
 
 - Global pass before main pass: main reads `fElapsedTime` from the populated GlobalLayout (wave phase reduction).
-- Within global: Smoke before Wind. Wind reads (does not write) the smoke world-area / previous-area uniforms, so smoke must populate them first.
+- Global pass before main pass (ping-pong): `RenderWindGlobal` flips `giWindTextureIndex` each frame (`WindUniforms.cpp`, `giWindTextureIndex = 1 - giWindTextureIndex`); the main pass reads that index to route wind deposits to the matching A/B pipeline (`WindTrails/WindTrailsRender.cpp` `EndRender`, `WindRadials/WindRadialsRender.cpp` `EndRender` — indirect counts gated on index parity). Unlike `fElapsedTime`, running main before global deposits into the texture the wind sim is about to overwrite — the most consequential global-before-main dependency.
+- Within global: Smoke before Wind — GPU-side dependency. The wind *shaders* read (do not write) the smoke world-area / previous-area uniforms (`Wind/WindSpreadOne.comp`, `WindSpreadTwo.comp`, `WindOccupancyDilate.comp` sample `f4SmokeArea` / `f4PreviousSmokeArea`); `RenderWindGlobal` performs no CPU-side read. Both populates land in the same mapped GlobalLayout buffer before the single Global submit, so the CPU-side smoke-before-wind population order is convention/documentation-only.
 
 ## Main Pass Phases
 
@@ -42,7 +43,7 @@ The global pass writes the world-area extents the shaders sample against; the sn
 
 ## Camera-Height-Conditional Uniforms
 
-When a uniform varies with camera eye height, lerp CPU-side and upload the single resolved float — never pass endpoint heights and low/high targets to the shader. Author-facing controls use a `HeightLerpWrapperQuartet` (`Engine/Source/Ui/HeightLerpWrapperQuartet.h`) in the matching `<Tab>WrappersBase` pair; the consumer calls `Resolve(fEyeHeight)`. Hard-coded-endpoint variants without author controls call free `engine::LerpAtHeight` directly — the `kfWaveFadeEnd` factor appears identically in `RenderLightingMain` and the water population and must stay matched.
+When a uniform varies with camera eye height, lerp CPU-side and upload the single resolved float — never pass endpoint heights and low/high targets to the shader. Author-facing controls use a `HeightLerpWrapperQuartet` (`Engine/Source/Ui/HeightLerpWrapperQuartet.h`) in the matching `<Tab>WrappersBase` pair; the consumer calls `Resolve(fEyeHeight)`. Hard-coded-endpoint variants without author controls call free `engine::LerpAtHeight` directly — the fade endpoint is single-sourced as `game::Camera::kfWaveFadeEndHeight`, referenced by both `RenderLightingMain` (lighting) and the water population (`GlobalUniforms.cpp`).
 
 ## Buffer & Dispatch Patterns
 

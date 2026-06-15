@@ -2,6 +2,7 @@
 
 #if defined(BT_CLIENT)
 
+#include "File/FileManager.h"
 #include "Ui/SoundSettingsWrappersBase.h"
 
 namespace engine

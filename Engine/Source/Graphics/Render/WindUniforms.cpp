@@ -2,7 +2,6 @@
 
 #include "Render.h"
 
-#include "Game.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/SmokeWrappersBase.h"
 #include "Ui/WindWrappersBase.h"
@@ -46,7 +45,9 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fWindThresholdLow = gWindThresholdLow.Get();
 	rGlobalLayout.fWindThresholdHigh = gWindThresholdHigh.Get();
 	rGlobalLayout.fWindToSmokeStrength = gWindToSmokeStrength.Get();
-	rGlobalLayout.fWindTimeScale = fDeltaTime * 60.0f * gWindTimeScale.Get();
+	// Wind shader params are tuned against a 60 fps step — normalize the per-frame delta to that reference rate.
+	static constexpr float kfWindReferenceFps = 60.0f;
+	rGlobalLayout.fWindTimeScale = fDeltaTime * kfWindReferenceFps * gWindTimeScale.Get();
 	rGlobalLayout.fWindTexelSize = 1.0f / static_cast<float>(gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.width);
 	rGlobalLayout.fWindTime = sfWindTime;
 	rGlobalLayout.fWindSmokeRetention = gWindSmokeRetention.Get();

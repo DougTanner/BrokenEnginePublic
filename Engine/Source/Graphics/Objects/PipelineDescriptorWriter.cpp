@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "PipelineDescriptorWriter.h"
 
 #include "Pipeline.h"
@@ -167,11 +169,11 @@ void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo
 			for (int64_t j = 0; j < rSceneHeader.uiMaterialCount; ++j)
 			{
 				memcpy(pCurrent, &pMaterialShaderData[j].f4BaseColorFactor, kiOldMaterialSize);
-				pCurrent->fColorTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiColorTextureIndex]);
-				pCurrent->fPhysicalDescriptorTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiPhysicalDescriptorTextureIndex]);
-				pCurrent->fNormalTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiNormalTextureIndex]);
-				pCurrent->fOcclusionTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiOcclusionTextureIndex]);
-				pCurrent->fEmissiveTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiEmissiveTextureIndex]);
+				pCurrent->fColorTextureIndex = static_cast<float>(gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiColorTextureIndex]));
+				pCurrent->fPhysicalDescriptorTextureIndex = static_cast<float>(gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiPhysicalDescriptorTextureIndex]));
+				pCurrent->fNormalTextureIndex = static_cast<float>(gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiNormalTextureIndex]));
+				pCurrent->fOcclusionTextureIndex = static_cast<float>(gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiOcclusionTextureIndex]));
+				pCurrent->fEmissiveTextureIndex = static_cast<float>(gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiEmissiveTextureIndex]));
 				pCurrent++;
 			}
 		});
@@ -466,7 +468,12 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline, const PipelineInfo& rP
 					rVkDescriptorImageInfo.imageLayout = rDescriptorInfo.flags & kCombinedSamplers ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL;
 				}
 
-				// Register combined image sampler bindings for deferred texture and sampler descriptor updates
+				// Register combined image sampler bindings for deferred texture and sampler descriptor updates.
+				// These plant raw Pipeline* back-references into gpTextureManager->mTextureDescriptors that are
+				// cleared ONLY by ClearTextureBindings() at whole-PipelineManager rebuild (PipelineManager.cpp) —
+				// Pipeline::Destroy does not unregister. This is why pipelines may only be (re)created during a full
+				// PipelineManager reconstruction: any out-of-rebuild create would duplicate registrations / leave
+				// dangling ones. See Objects/CLAUDE.md (rebuild-only lifecycle).
 				if (iFramebuffer == 0 && rDescriptorInfo.flags & kCombinedSamplers && PipelineDescriptorWriter::BindingExistsInShaderLayout(rPipeline, uiBinding) && !BindingIsInSet0(rPipeline, rPipelineInfo, uiBinding))
 				{
 					if (rDescriptorInfo.textureCrc != 0)
@@ -669,3 +676,5 @@ void PipelineDescriptorWriter::UpdateStorageImage(Pipeline& rPipeline, int64_t i
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

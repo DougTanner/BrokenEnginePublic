@@ -8,7 +8,7 @@
 #include "Frame/Collision.h"
 #include "Frame/TimeStep.h"
 
-// File (FileManager before DifferenceStream: DifferenceStream uses FileFlags_t)
+// File
 #include "File/FileManager.h"
 #include "File/DifferenceStream.h"
 

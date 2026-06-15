@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "Pipeline.h"
 
 #include "PipelineCreator.h"
@@ -361,3 +363,5 @@ void Pipeline::UpdateStorageImageDescriptor(int64_t iBinding, VkImageView vkImag
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

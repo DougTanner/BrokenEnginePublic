@@ -54,7 +54,9 @@ owner, and `ModelPipeline` configures inner pipelines by poking public members b
 
 ## Out of scope
 - Deleting the dead `Recreate`/`ReCreate` APIs — `Graphics/Architecture_ObjectsDeadRecreateApis.md`
-  (land it first; it removes the only would-be violators).
+  (**landed and removed** — the dead APIs and their snapshot members are gone, and the rebuild-only
+  lifecycle invariant is now documented in `Objects/CLAUDE.md` + the `PipelineDescriptorWriter.cpp`
+  registration block; this plan now makes that documented invariant structurally enforced).
 - `WriteModelDescriptor`'s copy-paste decomposition — `Graphics/Refactor_WriteDescriptorDecomposition.md`.
 - The set-index resolution quadruplication — `Graphics/Architecture_DescriptorSetIndexDedup.md`.
 - The bindings-15/16 constant unification — `Graphics/Architecture_ObjectsShaderCpuConsistency.md`.
@@ -71,8 +73,8 @@ owner, and `ModelPipeline` configures inner pipelines by poking public members b
   Cold path (boot / settings recreate / device loss), but needs a settings-recreate smoke test.
 - Grill decisions pre-staged: (1) destination layer for the `kModel` append, (2) registration option (a)
   vs (b).
-- Land after `Architecture_ObjectsDeadRecreateApis.md` and before/with the two Refactor decomposition
-  plans (they restructure the same functions; co-schedule or refresh citations).
+- `Architecture_ObjectsDeadRecreateApis.md` has already landed (dead APIs gone); land this before/with the
+  two Refactor decomposition plans (they restructure the same functions; co-schedule or refresh citations).
 - Cross-queue sequencing: `Graphics/Managers/Architecture_BindlessSlotLifecycle.md` (Large) consolidates
   the same `TextureDescriptors.{h,cpp}` registration surface — sequence the two plans, never run them
   concurrently; whichever lands second re-targets the reshaped registry API.
@@ -94,7 +96,7 @@ Verified: all cited paths/lines/symbols re-checked against source.
   unconditional re-assign in `Pipeline::Create` `Pipeline.cpp:72-75`), `:78` (Set 1 external — load-bearing,
   consumed at `PipelineCreator.cpp:193,220` and `PipelineDescriptorWriter.cpp:274`); `Pipeline::Destroy`
   clears owned layouts but never the `mVkExternal*` pointers, confirming the skip-clearing contract.
-- Scoring nuance for the orchestrator: once `Architecture_ObjectsDeadRecreateApis.md` lands (dead APIs gone
-  + invariant documented), no live code path violates the lifecycle — the asymmetry is a latent hazard for
-  future out-of-rebuild creates, not an active bug. Impact 3 assumes valuing that future-proofing; Impact 2
-  is defensible.
+- Scoring nuance for the orchestrator: `Architecture_ObjectsDeadRecreateApis.md` has landed (dead APIs gone
+  + invariant documented), so no live code path violates the lifecycle — the asymmetry is now a latent hazard
+  for future out-of-rebuild creates, not an active bug. Impact 3 assumes valuing that future-proofing;
+  Impact 2 is defensible.

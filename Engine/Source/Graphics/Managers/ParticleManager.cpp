@@ -2,8 +2,6 @@
 
 #include "ParticleManager.h"
 
-#include "Profile/ProfileManager.h"
-
 namespace engine
 {
 

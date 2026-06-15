@@ -5,8 +5,6 @@ namespace engine
 
 inline constexpr std::chrono::nanoseconds kFenceTimeoutNanoseconds = 4'000'000'000ns;
 
-int64_t FindMemoryType(int64_t iTypeFilter, VkMemoryPropertyFlags vkMemoryPropertyFlags);
-
 class DeviceManager
 {
 public:

@@ -94,7 +94,7 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		XMStoreFloat4A(&f4Position, ProjectToBaseHeight(vecPosition));
 
 		// Build AxisAlignedQuadLayout for lighting pass (uses base height projected position)
-		float fTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc);
+		float fTextureIndex = static_cast<float>(gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc));
 		float fBlurredTextureIndex = gpTextureManager->mTextureDescriptors.CrcToBlurredIndex(rType.crc);
 		XMFLOAT4A f4Params {};
 		f4Params.x = fBlurredTextureIndex;

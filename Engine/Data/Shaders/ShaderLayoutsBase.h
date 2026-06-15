@@ -121,6 +121,11 @@ CONSTEXPR float kfEpsilon = 1e-6f;
 CONSTEXPR int kiLightingTextures = 11;
 CONSTEXPR int kiBillboardTexturesCount = 3;
 
+// Water normal map atlas size. Shared by C++ (PipelineManager mppWaterNormalTextures array,
+// TextureManager kpWaterNormalCrcs/kpWaterNormalNames tables) and the water shaders
+// (Water.frag / WaterSkyboxOne.frag pWaterNormalSamplers[] sampler array).
+CONSTEXPR int kiWaterNormalCount = 17;
+
 // Island bindless-slot ceiling: shared by C++ and the terrain shaders, it sizes the bindless
 // sampler arrays (Terrain.frag / TerrainElevation.frag), their descriptor counts (PipelineManager),
 // and the TextureManager render-target pointer vectors. Raised 64 -> 128 so island 01's 10 routes
@@ -167,6 +172,14 @@ struct PushConstantsLayout
 {
 	vec4 f4Pipeline INIT;
 	vec4 f4Material INIT; // x: Material index
+};
+
+// LightCombine.comp push constants — the combine dispatch's output dimensions. Dual-language so the
+// C++ push (CommandBufferRecordMain) and the shader block stay structurally in sync (no uint->vec4 pun).
+struct CombinePushConstantsLayout
+{
+	uint32_t uiWidth INIT;
+	uint32_t uiHeight INIT;
 };
 
 struct GlobalLayout

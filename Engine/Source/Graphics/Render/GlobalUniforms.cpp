@@ -2,15 +2,15 @@
 
 #include "Render.h"
 
-#include "Game.h"
+#include "Graphics/Camera.h"
+#include "Ui/HeightLerpWrapperQuartet.h"
 #include "Ui/LightingWrappersBase.h"
 #include "Ui/MiscWrappersBase.h"
 #include "Ui/ShadowWrappersBase.h"
-#include "Ui/SmokeWrappersBase.h"
 #include "Ui/SunMoonWrappersBase.h"
 #include "Ui/TerrainWrappersBase.h"
 #include "Ui/WaterWrappersBase.h"
-#include "Ui/WindWrappersBase.h"
+#include "Ui/WrapperBase.h"
 
 namespace engine
 {
@@ -172,7 +172,9 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	// Shadow texture
 	float fShadowTextureSizeWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.width);
 	float fShadowTextureSizeHeight = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.height);
-	float fShadowElevationTextureSizeWidth = fShadowTextureSizeWidth + 0.5f * fShadowTextureSizeWidth;
+	// 1.5x-wide elevation texture: read the created extent so the headroom factor has a single owner at the
+	// allocation site (RenderTargetTextures::CreateShadowTextures), like the shadow extent read just above.
+	float fShadowElevationTextureSizeWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowElevationTexture.mInfo.extent.width);
 
 	float fShadowNoon = std::pow(fDayPercent, gShadowFeatherPower.Get());
 	float fShadowEvening = 1.0f - fShadowNoon;
@@ -208,6 +210,7 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	}
 	else if (fSunAngle >= kfSunriseStretchEnd && fSunAngle < kfSunsetStretchBegin)
 	{
+		// Midday: no horizon stretch — this explicit window documents the angle coverage between the sunrise and sunset stretch ramps.
 	}
 	else if (fSunAngle >= kfSunsetStretchBegin && fSunAngle < kfSunsetStretchEnd)
 	{
@@ -334,7 +337,7 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 
 		rGlobalLayout.iShadowElevationSize = 0; // !=
 		rGlobalLayout.iShadowIncrement = -1; // ++
-		rGlobalLayout.iShadowStartOffset = static_cast<int>(fShadowTextureSizeWidth / 2.0f); // Start offset
+		rGlobalLayout.iShadowStartOffset = static_cast<int>(fShadowElevationTextureSizeWidth - fShadowTextureSizeWidth); // Start offset (elevation extension half-width, from real extents)
 	}
 
 	// Shadow multiplier: 1.0 during day, gSunMoonShadowNightMultiplier at night.
@@ -542,9 +545,8 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	double dSizeBaseOne = static_cast<double>(gLightingSampledNormalsOneSize.Get());
 	double dSizeBaseTwo = static_cast<double>(gLightingSampledNormalsTwoSize.Get());
 	double dSizeBaseThree = static_cast<double>(gLightingSampledNormalsThreeSize.Get());
-	// Camera-height-driven speed lerp — same factor as LightingUniforms.cpp.
-	static constexpr float kfWaveFadeEnd = 2.0f * game::Camera::kfCameraEyeHeightDefault;
-	float fCameraHeightZoomFactor = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, kfWaveFadeEnd, 0.0f, 1.0f);
+	// Camera-height-driven speed lerp — single-sourced fade endpoint shared with LightingUniforms.cpp.
+	float fCameraHeightZoomFactor = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, 0.0f, 1.0f);
 	double dSpeed = static_cast<double>(std::lerp(gLightingSampledNormalsSpeedMin.Get(), gLightingSampledNormalsSpeedMax.Get(), fCameraHeightZoomFactor));
 	// Per-sample reduced-time accumulators: integrate (size * speed * dt) per frame and fmod 10.0
 	// rather than recomputing fmod(size * speed * t, 10.0). Per-frame integration keeps the UV

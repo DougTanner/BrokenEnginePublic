@@ -42,7 +42,7 @@ public:
 	void WaitForTextures(std::span<Texture* const> textures);
 
 	// Water normal map atlas: ordered alphabetically by stripped display name; index used by Wrapper indices and shader.
-	static inline constexpr int64_t kiWaterNormalCount = 17;
+	static inline constexpr int64_t kiWaterNormalCount = shaders::kiWaterNormalCount;
 	static inline constexpr common::crc_t kpWaterNormalCrcs[kiWaterNormalCount]
 	{
 		data::kTexturesWaterBC50pngCrc,                  // 0
@@ -76,30 +76,16 @@ public:
 	static inline constexpr common::crc_t kPrefilteredCrc      = data::kTexturesCKloofendalPuresky_PrefilteredR16G16B16A16_SFLOATCrc;
 	static inline constexpr common::crc_t kPrefilteredWaterCrc = data::kTexturesCRyfjallet_PrefilteredR16G16B16A16_SFLOATCrc;
 
-	static inline std::vector<common::crc_t> smPriorityTextures
+	// Non-water priority textures preloaded at boot, surrounding the water-normal block below.
+	static inline constexpr common::crc_t kpPriorityHead[]
 	{
 		data::kTexturesUiBC4NotoSansRegularpngCrc,
 		data::kTexturesUiBC4NotoSansSCLightpngCrc,
 		data::kTexturesWaterDepthLutpngCrc,
 		data::kTexturesWaterBC4NoisepngCrc,
-		// All 17 BC5 water normals (mirror of kpWaterNormalCrcs) so chevron switches never show a placeholder frame.
-		data::kTexturesWaterBC50pngCrc,
-		data::kTexturesWaterBC53jpgCrc,
-		data::kTexturesWaterBC5FoamjpgCrc,
-		data::kTexturesWaterBC5FoamBjpgCrc,
-		data::kTexturesWaterBC5GreenCalmjpgCrc,
-		data::kTexturesWaterBC5GreenSeajpgCrc,
-		data::kTexturesWaterBC5GreenSeaBjpgCrc,
-		data::kTexturesWaterBC5LakejpgCrc,
-		data::kTexturesWaterBC5PondSedimentjpgCrc,
-		data::kTexturesWaterBC5PooljpgCrc,
-		data::kTexturesWaterBC5SeaDistantjpgCrc,
-		data::kTexturesWaterBC5SeaWavesjpgCrc,
-		data::kTexturesWaterBC5SeaWavesBjpgCrc,
-		data::kTexturesWaterBC5SlimyWaterjpgCrc,
-		data::kTexturesWaterBC5SlimyWaterBjpgCrc,
-		data::kTexturesWaterBC5StonesAndRipplesjpgCrc,
-		data::kTexturesWaterBC5WaterFalljpgCrc,
+	};
+	static inline constexpr common::crc_t kpPriorityTail[]
+	{
 		data::kTexturesTerrainBC7Rock0jpgCrc,
 		data::kTexturesTerrainBC5RockNormal1jpgCrc,
 		data::kTexturesTerrainBC5RockNormal2jpgCrc,
@@ -109,6 +95,32 @@ public:
 		data::kTexturesTerrainBC5SandNormal1pngCrc,
 		data::kTexturesTerrainBC5SandNormal2pngCrc,
 	};
+
+	// Priority textures preloaded at boot so chevron switches and the first terrain frame never show a
+	// placeholder. The water-normal block is single-sourced from kpWaterNormalCrcs — do not re-list it here.
+	static inline constexpr int64_t kiPriorityTextureCount = std::size(kpPriorityHead) + kiWaterNormalCount + std::size(kpPriorityTail);
+	struct PriorityTextures
+	{
+		common::crc_t pCrcs[kiPriorityTextureCount] {};
+	};
+	static inline constexpr PriorityTextures kpPriorityTextures = []() consteval
+	{
+		PriorityTextures priorityTextures {};
+		int64_t i = 0;
+		for (common::crc_t crc : kpPriorityHead)
+		{
+			priorityTextures.pCrcs[i++] = crc;
+		}
+		for (common::crc_t crc : kpWaterNormalCrcs)
+		{
+			priorityTextures.pCrcs[i++] = crc;
+		}
+		for (common::crc_t crc : kpPriorityTail)
+		{
+			priorityTextures.pCrcs[i++] = crc;
+		}
+		return priorityTextures;
+	}();
 
 	RenderTargetTextures mRenderTargetTextures;
 	TextureCache mTextureCache;

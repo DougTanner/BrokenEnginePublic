@@ -18,7 +18,7 @@ Two static compute pipelines (`kPipelineLightingBlurH`, `kPipelineLightingBlurV`
 
 Delegated to the `DynamicPipelines` sub-object (`DynamicPipelines.h/.cpp`), owned as a member of PipelineManager. Collections register pipelines during CreatePipelines() phase via `gpPipelineManager->mDynamicPipelines.Create*()`. Two indexing systems: `DynamicPipelineType` for non-model pipelines (lighting, visible lights, billboards, smoke, wind deposit, hex shields) and `DynamicModelPipelineType` for model pipelines (regular and shadow). Both stored as CRC-keyed maps accessed via `mDynamicPipelines.mPipelineMaps` and `mDynamicPipelines.mModelPipelineMaps`.
 
-`ModelPipelineSpec` configures model pipeline creation with scene CRC, pipeline info, and flags for model descriptors and shadow mode. DynamicPipelines holds a reference to PipelineManager's shader map for shader lookups during pipeline creation. All Create* implementations are client-only (`#ifdef BT_CLIENT`).
+`ModelPipelineSpec` configures model pipeline creation with scene CRC, pipeline info, and a shadow-mode flag. DynamicPipelines holds a reference to PipelineManager's shader map for shader lookups during pipeline creation.
 
 ## Recreation
 

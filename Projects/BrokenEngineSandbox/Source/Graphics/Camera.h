@@ -21,6 +21,9 @@ public:
 
 	static constexpr float kfDefaultSunAngle = 1.8f;
 	static constexpr float kfCameraEyeHeightDefault = 300.0f;
+	// Camera-height zoom-factor fade endpoint (2x default eye height = fully zoomed out). Single-sources the water
+	// (GlobalUniforms) and lighting (LightingUniforms) LerpAtHeight calls -- both reference this constant.
+	static constexpr float kfWaveFadeEndHeight = 2.0f * kfCameraEyeHeightDefault;
 	// Release zoom-out ceiling (dev builds zoom further; see Camera.cpp). NOT a texel reference: the shadow/lighting
 	// texel grids hold a constant on-screen pixel size at any height (the texels coarsen with zoom instead of cropping
 	// coverage), so this is purely the gameplay limit on how far the camera can pull back.

@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "ModelPipeline.h"
 
 namespace engine
@@ -5,13 +7,6 @@ namespace engine
 
 void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipelineInfo, bool bAddModelDescriptors, bool bIsShadow)
 {
-	// Snapshot inputs so Recreate() can reproduce them. Must capture before any mutation (the kModel
-	// flag is appended into the local copy below — storing the post-mutation copy would trip the
-	// kEmpty ASSERT in Pipeline::Create on the second pass).
-	mInfoTemplate = rPipelineInfo;
-	mbAddModelDescriptors = bAddModelDescriptors;
-	mbIsShadow = bIsShadow;
-
 	PipelineInfo pipelineInfo = rPipelineInfo;
 
 	// Add Model flag to descriptors
@@ -86,11 +81,6 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 	}
 }
 
-void ModelPipeline::Recreate()
-{
-	Create(mSceneCrc, mInfoTemplate, mbAddModelDescriptors, mbIsShadow);
-}
-
 void ModelPipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& rf4PushConstants, ModelDrawPass ePass)
 {
 	ASSERT(rf4PushConstants.w == 0.0f);
@@ -162,3 +152,5 @@ void ModelPipeline::UpdateStorageBufferDescriptors(int64_t iFramebuffer, int64_t
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

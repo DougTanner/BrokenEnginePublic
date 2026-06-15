@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Data/Texture.h"
-
 namespace engine
 {
 
@@ -35,8 +33,12 @@ public:
 	void RewriteSamplerDescriptors();
 	void ClearTextureBindings();
 
-	float CrcToIndex(common::crc_t crc);
+	int64_t CrcToIndex(common::crc_t crc);
 	float CrcToBlurredIndex(common::crc_t crc);
+
+	// Salt XOR'd into a texture CRC to key its pre-blurred bindless-array variant. Single-sourced here;
+	// referenced by both the blur-write site (TextureManager) and CrcToBlurredIndex (TextureDescriptors).
+	static constexpr common::crc_t kBlurSalt = 0x424C5552; // "BLUR"
 
 	// Global descriptor Set 0 shared by all graphics pipelines
 	VkDescriptorSetLayout mGlobalDescriptorSetLayout = VK_NULL_HANDLE;

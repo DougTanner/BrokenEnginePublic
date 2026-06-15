@@ -98,41 +98,13 @@ public:
 	void UpdateTextArea(TextAreas eTextArea, std::string_view characters);
 	void RenderMain(int64_t iCommandBuffer);
 
-	template<typename T>
-	[[nodiscard]] std::vector<float> MeasureQuads(float fSize, std::basic_string_view<T> text)
-	{
-		float fInverseLineHeight = 1.0f / mfLineHeightEfigs;
-		float fInverseAspectRatio = 1.0f / gpSwapchainManager->mfAspectRatio;
-
-		std::vector<float> widths;
-		float fCurrentX = 0.0f;
-		for (size_t iInPos = 0; iInPos < text.size(); ++iInPos)
-		{
-			if (text[iInPos] == '\n')
-			{
-				widths.push_back(fCurrentX);
-				fCurrentX = 0.0f;
-				continue;
-			}
-
-			common::Character* pCharacter = GetCharacter(text[iInPos]);
-			float fAdvance = fInverseAspectRatio * fSize * fInverseLineHeight * static_cast<float>(pCharacter->iXAdvance);
-
-			fCurrentX += fAdvance;
-		}
-		widths.push_back(fCurrentX);
-
-		return widths;
-	}
-
 	template<typename T, typename U>
-	void WriteQuads(std::span<const float> xOffsets, float fY, float fSize, std::basic_string_view<T> text, uint32_t uiColor, float fXScreenOffset, float fYScreenOffset, U* pQuads, int64_t& riPos, int64_t iMaxPos)
+	void WriteQuads(float fX, float fY, float fSize, std::basic_string_view<T> text, uint32_t uiColor, float fXScreenOffset, float fYScreenOffset, U* pQuads, int64_t& riPos, int64_t iMaxPos)
 	{
 		float fInverseAspectRatio = 1.0f / gpSwapchainManager->mfAspectRatio;
 		float fInverseLineHeight = 1.0f / mfLineHeightEfigs;
 
-		int64_t iCurrentX = 0;
-		float fCurrentX = xOffsets[iCurrentX++];
+		float fCurrentX = fX;
 		float fCurrentY = fY;
 		for (size_t iInPos = 0; iInPos < text.size(); ++iInPos)
 		{
@@ -144,7 +116,7 @@ public:
 
 			if (text[iInPos] == '\n')
 			{
-				fCurrentX = xOffsets.size() == 1 ? xOffsets[0] : xOffsets[std::min(iCurrentX++, static_cast<int64_t>(xOffsets.size() - 1))];
+				fCurrentX = fX;
 				fCurrentY += fSize;
 				continue;
 			}

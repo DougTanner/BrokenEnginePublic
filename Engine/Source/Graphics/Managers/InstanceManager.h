@@ -69,9 +69,6 @@ private:
 	void SelectQueueFamilies();
 	void SelectSurfaceFormat();
 	void SelectDepthFormat();
-
-	HINSTANCE mHinstance = nullptr;
-	HWND mHwnd = nullptr;
 };
 
 inline InstanceManager* gpInstanceManager = nullptr;

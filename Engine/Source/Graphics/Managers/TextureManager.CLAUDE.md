@@ -14,7 +14,7 @@ Comprehensive texture and sampler management with lazy loading and deferred desc
 
 ## Pre-Blur Lighting Textures
 
-When a light type texture (AreaLights, PointLights) finishes loading, `BlurLightingTexture()` runs a separable Gaussian blur via the `kPipelineLightingBlurH`/`kPipelineLightingBlurV` compute pipelines into a 2x-size RGBA8 result texture. The blurred result is registered in the bindless array under a salted CRC (`originalCrc ^ "BLUR"`) so deposit shaders can look it up via `CrcToBlurredIndex()`. `ReblurAllLightingTextures()` re-runs all blurs when sigma changes at runtime. CRCs to blur are tracked in `mLightingTextureCrcs`, populated at startup via `RegisterLightingTextureCrc()` called from `TypeRegistry::RegisterType()`.
+When a light type texture (AreaLights, PointLights) finishes loading, `BlurLightingTexture()` runs a separable Gaussian blur via the `kPipelineLightingBlurH`/`kPipelineLightingBlurV` compute pipelines into a 2x-size RGBA8 result texture. The blurred result is registered in the bindless array under a salted CRC (`originalCrc ^ "BLUR"`) so deposit shaders can look it up via `CrcToBlurredIndex()`. `ReblurAllLightingTextures()` re-runs all blurs when sigma changes at runtime. CRCs to blur are tracked in `mLightingTextureCrcs`, populated at startup via `RegisterLightingTextureCrc()` called from `TypeRegistry::RegisterType()`. The bindless array reserves a fixed block of blur slots appended past the loaded-texture count; the count of registered light type textures is bounded by that reservation (asserted at registration). Exceeding it requires growing the reserved block.
 
 ## Lazy Loading
 

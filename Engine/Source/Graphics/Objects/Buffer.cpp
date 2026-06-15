@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "Buffer.h"
 
 namespace engine
@@ -328,3 +330,5 @@ void Buffer::RecordCopy(VkCommandBuffer vkCommandBuffer, VkPipelineStageFlags st
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

@@ -20,7 +20,7 @@ layout (set = 1, binding = 4) uniform sampler2D objectShadowsTextureSampler;
 layout (set = 1, binding = 5) uniform sampler2D elevationTextureSampler;
 layout (set = 1, binding = 6) uniform samplerCube skyboxSampler;
 layout (set = 1, binding = 7) uniform sampler2D noiseTextureSampler;
-layout (set = 1, binding = 8) uniform sampler2D pWaterNormalSamplers[17];
+layout (set = 1, binding = 8) uniform sampler2D pWaterNormalSamplers[kiWaterNormalCount];
 layout (set = 1, binding = 9) uniform sampler2D depthLutSampler;
 layout (set = 1, binding = 10) uniform sampler2D smokeSampler;
 layout (set = 1, binding = 11) uniform sampler2D ambientLightingSampler;

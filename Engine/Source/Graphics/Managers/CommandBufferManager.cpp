@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "CommandBufferManager.h"
 
 #include "CommandBufferRecordGlobal.h"
@@ -128,7 +130,7 @@ void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 
 void CommandBufferManager::SubmitMainToQueue(int64_t iFramebufferIndex, bool bSignalFence)
 {
-	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
+	CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
 	VkSemaphore vkSemaphores[]
 	{
@@ -208,3 +210,5 @@ void CommandBufferManager::SubmitUiCommandBuffer(int64_t iFramebufferIndex)
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

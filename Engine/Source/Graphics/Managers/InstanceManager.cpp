@@ -1,6 +1,7 @@
+#if defined(BT_CLIENT)
+
 #include "InstanceManager.h"
 
-#include "Profile/ProfileManager.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 
 #include "Game.h"
@@ -61,9 +62,12 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebu
 
 		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "DEBUG-PRINTF") != nullptr)
 		{
-			std::string message = std::string(pCallbackData->pMessage);
-			std::vector<std::string> splits = common::Split(message, std::string("\n"));
-			LOG(kGraphics, kInfo, "[debugPrintfEXT] {}", splits.back());
+			// Zero-alloc: log the last line of the message (the printf output) without splitting into heap strings — this
+			// callback is reachable at per-draw frequency in kbDebugPrintf builds with allocation tracking live.
+			// find_last_of returns npos when there is no newline; npos + 1 == 0 yields the whole message via substr.
+			std::string_view message(pCallbackData->pMessage);
+			std::string_view lastLine = message.substr(message.find_last_of('\n') + 1);
+			LOG(kGraphics, kInfo, "[debugPrintfEXT] {}", lastLine);
 			return VK_FALSE;
 		}
 
@@ -110,8 +114,6 @@ static VkSampleCountFlagBits SelectSampleCount(VkSampleCountFlags eVkSampleCount
 }
 
 InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
-: mHinstance(hinstance)
-, mHwnd(hwnd)
 {
 	gpInstanceManager = this;
 
@@ -203,6 +205,8 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 			.pValues = &vkTrue,
 		};
 	}
+
+	ASSERT(uiLayerSettingCount <= std::size(layerSettings));
 
 	VkLayerSettingsCreateInfoEXT vkLayerSettingsCreateInfoEXT =
 	{
@@ -348,8 +352,8 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
 		.pNext = nullptr,
 		.flags = 0,
-		.hinstance = mHinstance,
-		.hwnd = mHwnd,
+		.hinstance = hinstance,
+		.hwnd = hwnd,
 	};
 	CHECK_VK(vkCreateWin32SurfaceKHR(mVkInstance, &vkWin32SurfaceCreateInfoKHR, nullptr, &mVkSurfaceKHR));
 
@@ -422,7 +426,6 @@ void InstanceManager::SelectPhysicalDevice()
 
 		if (mVkPhysicalDevice == VK_NULL_HANDLE || vkPhysicalDeviceProperties.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 		{
-			ASSERT(vkPhysicalDeviceProperties.limits.maxPerStageResources > 200);
 			mVkPhysicalDevice = rVkPhysicalDevice;
 		}
 
@@ -438,6 +441,8 @@ void InstanceManager::SelectPhysicalDevice()
 	LOG(kGraphics, kInfo, "  maxImageDimension2D: {}", mVkPhysicalDeviceProperties.limits.maxImageDimension2D);
 	LOG(kGraphics, kInfo, "  maxImageDimensionCube: {}", mVkPhysicalDeviceProperties.limits.maxImageDimensionCube);
 	LOG(kGraphics, kInfo, "  maxPerStageResources: {}", mVkPhysicalDeviceProperties.limits.maxPerStageResources);
+	// Validated on the finally-selected device, not on provisional candidates (a weak iGPU enumerated before the winning dGPU would trip it spuriously)
+	ASSERT(mVkPhysicalDeviceProperties.limits.maxPerStageResources > 200);
 	ASSERT(mVkPhysicalDeviceProperties.limits.maxUniformBufferRange >= 65536);
 	vkGetPhysicalDeviceMemoryProperties(mVkPhysicalDevice, &mVkPhysicalDeviceMemoryProperties);
 
@@ -565,7 +570,15 @@ void InstanceManager::SelectQueueFamilies()
 		}
 	}
 
-	ASSERT(miGraphicsQueueFamilyIndex != UINT32_MAX && miPresentQueueFamilyIndex != UINT32_MAX);
+	// Vulkan spec allows graphics/compute families to support transfer without advertising VK_QUEUE_TRANSFER_BIT, so the
+	// transfer index can legally stay UINT32_MAX. Fall back to the graphics family (always transfer-capable) so the .at()
+	// below cannot throw — trust boundary on the queue-family enumeration result.
+	if (miTransferQueueFamilyIndex == UINT32_MAX)
+	{
+		miTransferQueueFamilyIndex = miGraphicsQueueFamilyIndex;
+	}
+
+	ASSERT(miGraphicsQueueFamilyIndex != UINT32_MAX && miPresentQueueFamilyIndex != UINT32_MAX && miTransferQueueFamilyIndex != UINT32_MAX);
 	LOG(kGraphics, kInfo, "Selected queue families: graphics {}, present {}, transfer {}", miGraphicsQueueFamilyIndex, miPresentQueueFamilyIndex, miTransferQueueFamilyIndex);
 
 	mTransferImageGranularity = mVkQueueFamilyProperties.at(miTransferQueueFamilyIndex).minImageTransferGranularity;
@@ -679,82 +692,61 @@ InstanceManager::~InstanceManager()
 
 void InstanceManager::ReadLayerProperties()
 {
-	if constexpr (kbVulkanDebugLayers)
+	uint32_t uiLayerCount = 0;
+	CHECK_VK(vkEnumerateInstanceLayerProperties(&uiLayerCount, nullptr));
+
+	LOG(kGraphics, kInfo, "\nFound {} Vulkan validation layers:", uiLayerCount);
+
+	if (uiLayerCount == 0)
 	{
-		uint32_t uiLayerCount = 0;
-		while (true)
-		{
-			VkResult vkResultEnumerateInstanceLayerProperties = vkEnumerateInstanceLayerProperties(&uiLayerCount, nullptr);
-			if (vkResultEnumerateInstanceLayerProperties == VK_INCOMPLETE)
-			{
-				continue;
-			}
-
-			CHECK_VK(vkResultEnumerateInstanceLayerProperties);
-			break;
-		}
-
-		LOG(kGraphics, kInfo, "\nFound {} Vulkan validation layers:", uiLayerCount);
-
-		if (uiLayerCount == 0)
-		{
-			return;
-		}
-
-		std::vector<VkLayerProperties> instanceLayerProperties(uiLayerCount);
-		CHECK_VK(vkEnumerateInstanceLayerProperties(&uiLayerCount, instanceLayerProperties.data()));
-
-		for (const VkLayerProperties& rVkLayerProperties : instanceLayerProperties)
-		{
-			LOG(kGraphics, kInfo, "  {} {}.{}", rVkLayerProperties.layerName, VK_VERSION_PATCH(rVkLayerProperties.specVersion), rVkLayerProperties.implementationVersion);
-
-			if (strcmp(rVkLayerProperties.layerName, kpcKhronosValidation) == 0)
-			{
-				mbFoundKhronosValidation = true;
-			}
-
-			for (size_t i = 0; i < std::size(kppcValidationLayers); ++i)
-			{
-				if (strcmp(rVkLayerProperties.layerName, kppcValidationLayers[i]) == 0)
-				{
-					mValidationLayers.push_back(kppcValidationLayers[i]);
-				}
-			}
-
-			uint32_t uiExtensionPropertiesCount = 0;
-			while (true)
-			{
-				VkResult vkResultEnumerateInstanceExtensionProperties = vkEnumerateInstanceExtensionProperties(rVkLayerProperties.layerName, &uiExtensionPropertiesCount, nullptr);
-				if (vkResultEnumerateInstanceExtensionProperties == VK_INCOMPLETE)
-				{
-					continue;
-				}
-
-				CHECK_VK(vkResultEnumerateInstanceExtensionProperties);
-				break;
-			}
-
-			if (uiExtensionPropertiesCount == 0)
-			{
-				continue;
-			}
-
-			std::vector<VkExtensionProperties> extensionProperties(uiExtensionPropertiesCount);
-			CHECK_VK(vkEnumerateInstanceExtensionProperties(rVkLayerProperties.layerName, &uiExtensionPropertiesCount, extensionProperties.data()));
-			for (const VkExtensionProperties& rVkExtensionProperties : extensionProperties)
-			{
-				LOG(kGraphics, kInfo, "    Extension: {} {}", rVkExtensionProperties.extensionName, VK_VERSION_PATCH(rVkExtensionProperties.specVersion));
-			}
-		}
-
-		LOG(kGraphics, kInfo, "");
-		// NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores) — pcLayer is read only by the LOG below, which compiles out below the kGraphics threshold
-		for (const char* pcLayer : mValidationLayers)
-		{
-			LOG(kGraphics, kInfo, "Found \"{}\"", pcLayer);
-		}
-		LOG(kGraphics, kInfo, "");
+		return;
 	}
+
+	std::vector<VkLayerProperties> instanceLayerProperties(uiLayerCount);
+	CHECK_VK(vkEnumerateInstanceLayerProperties(&uiLayerCount, instanceLayerProperties.data()));
+
+	for (const VkLayerProperties& rVkLayerProperties : instanceLayerProperties)
+	{
+		LOG(kGraphics, kInfo, "  {} {}.{}", rVkLayerProperties.layerName, VK_VERSION_PATCH(rVkLayerProperties.specVersion), rVkLayerProperties.implementationVersion);
+
+		if (strcmp(rVkLayerProperties.layerName, kpcKhronosValidation) == 0)
+		{
+			mbFoundKhronosValidation = true;
+		}
+
+		for (size_t i = 0; i < std::size(kppcValidationLayers); ++i)
+		{
+			if (strcmp(rVkLayerProperties.layerName, kppcValidationLayers[i]) == 0)
+			{
+				mValidationLayers.push_back(kppcValidationLayers[i]);
+			}
+		}
+
+		uint32_t uiExtensionPropertiesCount = 0;
+		CHECK_VK(vkEnumerateInstanceExtensionProperties(rVkLayerProperties.layerName, &uiExtensionPropertiesCount, nullptr));
+
+		if (uiExtensionPropertiesCount == 0)
+		{
+			continue;
+		}
+
+		std::vector<VkExtensionProperties> extensionProperties(uiExtensionPropertiesCount);
+		CHECK_VK(vkEnumerateInstanceExtensionProperties(rVkLayerProperties.layerName, &uiExtensionPropertiesCount, extensionProperties.data()));
+		for (const VkExtensionProperties& rVkExtensionProperties : extensionProperties)
+		{
+			LOG(kGraphics, kInfo, "    Extension: {} {}", rVkExtensionProperties.extensionName, VK_VERSION_PATCH(rVkExtensionProperties.specVersion));
+		}
+	}
+
+	LOG(kGraphics, kInfo, "");
+	// NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores) — pcLayer is read only by the LOG below, which compiles out below the kGraphics threshold
+	for (const char* pcLayer : mValidationLayers)
+	{
+		LOG(kGraphics, kInfo, "Found \"{}\"", pcLayer);
+	}
+	LOG(kGraphics, kInfo, "");
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

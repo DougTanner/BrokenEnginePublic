@@ -2,6 +2,8 @@
 
 #if defined(BT_CLIENT)
 
+#include "StaticVoice.h"
+
 namespace DirectX
 {
 class AudioEngine;

@@ -4,7 +4,6 @@
 
 #include "Memory/GlobalAllocator.h"
 
-#include "Game.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine

@@ -5,10 +5,8 @@ namespace engine
 
 struct ModelPipelineSpec
 {
-	std::string_view name;
 	common::crc_t sceneCrc = 0;
 	PipelineInfo pipelineInfo {};
-	bool bAddModelDescriptors = true;
 	bool bIsPipelineShadow = false;
 };
 

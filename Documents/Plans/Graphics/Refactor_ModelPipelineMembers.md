@@ -11,11 +11,12 @@ cluster, and a by-value inner-pipeline array sized to a 128-material maximum nev
 ### Engine/Source/Graphics/Objects/ModelPipeline.h / ModelPipeline.cpp
 - Convert the scalar bools to `common::Flags<ModelPipelineFlags>`, absorbing `Create`'s two bool parameters
   (`bool bAddModelDescriptors, bool bIsShadow`, `ModelPipeline.h:20`). Members today: `mbTexturesRequested`
-  (`:34`), `mbHasTransparentMaterials` (`:36`), plus the Recreate-snapshot pair `mbAddModelDescriptors` /
-  `mbIsShadow` (`:42-43`) — the snapshot pair is deleted outright by
-  `Graphics/Architecture_ObjectsDeadRecreateApis.md` (their sole reader is the dead `Recreate()`), so if
-  that plan lands first this item converts only the two survivors; if this lands first, convert all four
-  and let the other plan delete two flags instead of two bools. `mpbTransparentMaterials` stays a C array —
+  (`:34`) and `mbHasTransparentMaterials` (`:36`) — convert these two survivors. (The former Recreate-snapshot
+  pair `mbAddModelDescriptors` / `mbIsShadow` has **already been deleted** by
+  `Graphics/Architecture_ObjectsDeadRecreateApis.md` — landed and removed — since their sole reader was the
+  dead `Recreate()`. NB: `Create`'s `bAddModelDescriptors` / `bIsShadow` *parameters* survive the deletion
+  — they still drive the kModel-append and alpha-blend logic in `Create`'s body — so they remain to absorb
+  into the `Flags` parameter.) `mpbTransparentMaterials` stays a C array —
   `Flags` wraps a named-enumerator bitmask over one integer (128 dynamic slots don't fit) and `std::bitset`
   is banned (style rule 21). Call-site surface: the single `ModelPipeline::Create` call at
   `DynamicPipelines.cpp:22`, fed by the `ModelPipelineSpec` bool fields `bAddModelDescriptors` /
@@ -57,8 +58,9 @@ cluster, and a by-value inner-pipeline array sized to a 128-material maximum nev
 - Client-only; no determinism/CRC, `kiVersion`, replay, or network exposure (`mpbTransparentMaterials` and
   friends are render-side only; `kiMaxMaterials` untouched).
 - Grill decision pre-staged: dynamic sizing vs documented-accept for `mpPipelines` (measure first).
-- Sequencing: coordinate with `Graphics/Architecture_ObjectsDeadRecreateApis.md` on the snapshot-bool pair
-  (whichever lands second refreshes the member list).
+- Sequencing: `Graphics/Architecture_ObjectsDeadRecreateApis.md` has **landed and been removed** — the
+  snapshot-bool pair is already deleted, so this item converts only `mbTexturesRequested` /
+  `mbHasTransparentMaterials`.
 
 ## Verification Notes
 Verified: all cited paths/lines/symbols re-checked against source.
@@ -70,10 +72,10 @@ Verified: all cited paths/lines/symbols re-checked against source.
   not redundant (model textures ride the bindless array and never enter the inner pipelines'
   `mTextureCrcs`), and neither "delegating to the Pipeline latch" nor a shared helper fits without
   parameterizing away more than the duplication saves — extracting it is over-abstraction (KISS).
-- Bool cluster citations exact (`ModelPipeline.h:20,34,36,42-43`); corrected the original "four bools +
-  update DynamicPipelines call sites" to the precise surface: one call site (`DynamicPipelines.cpp:22`) via
-  `ModelPipelineSpec` (`DynamicPipelines.h:11-12`), and the snapshot pair's overlap with the dead-Recreate
-  deletion.
+- Bool cluster citations exact (`ModelPipeline.h:20,34,36`; the snapshot pair at the former `:42-43` is now
+  deleted); corrected the original "four bools + update DynamicPipelines call sites" to the precise surface:
+  two surviving bools, one call site (`DynamicPipelines.cpp:22`) via `ModelPipelineSpec`
+  (`DynamicPipelines.h:11-12`).
 - `mpPipelines` footprint claims grounded: `DescriptorInfo` is nine 8-byte members (72 B,
   `Pipeline.h:41-53`); `kiMaxDescriptorSetLayoutBindings = 32` (`DataFile.h:290`);
   `kiMaxMaterials = 128` (`DataFile.h:86`); per-instance inline storage ≈ 128 × ~2.5–3 KB. Instance

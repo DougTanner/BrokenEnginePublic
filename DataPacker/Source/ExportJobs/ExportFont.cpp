@@ -1,7 +1,5 @@
 #include "ExportFont.h"
 
-using enum common::ChunkFlags;
-
 #pragma pack(push)
 #pragma pack(1)
 

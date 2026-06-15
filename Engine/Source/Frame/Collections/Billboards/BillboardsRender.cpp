@@ -97,7 +97,7 @@ void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		shaders::BillboardLayout& rBillboardLayout = pLayouts[siRendered];
 		rBillboardLayout.f4Position = f4Position;
 		rBillboardLayout.fSize = fSize;
-		rBillboardLayout.fTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc);
+		rBillboardLayout.fTextureIndex = static_cast<float>(gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc));
 		rBillboardLayout.fRotation = fRotation;
 		rBillboardLayout.fAlpha = rType.fAlpha;
 

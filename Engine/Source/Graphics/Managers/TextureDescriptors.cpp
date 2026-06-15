@@ -299,7 +299,7 @@ void TextureDescriptors::UpdateDescriptorsForTexture(common::crc_t crc)
 	}
 
 	// Ensure CRC has an assigned index and store updated imageView
-	mImageInfos.at(static_cast<int64_t>(CrcToIndex(crc))).imageView = vkImageView;
+	mImageInfos.at(CrcToIndex(crc)).imageView = vkImageView;
 }
 
 void TextureDescriptors::UpdateArrayBindingsForKey(common::crc_t bindingKey)
@@ -394,12 +394,12 @@ void TextureDescriptors::ClearTextureBindings()
 	mStandaloneSamplerBindings.clear();
 }
 
-float TextureDescriptors::CrcToIndex(common::crc_t crc)
+int64_t TextureDescriptors::CrcToIndex(common::crc_t crc)
 {
 	auto it = mImageInfosMap.find(crc);
 	if (it != mImageInfosMap.end())
 	{
-		return static_cast<float>(it->second);
+		return it->second;
 	}
 
 	// Heap: unordered_map emplace may allocate. Entries map CRC->index permanently for the texture array,
@@ -409,17 +409,18 @@ float TextureDescriptors::CrcToIndex(common::crc_t crc)
 	int64_t iIndex = miNextTextureIndex++;
 	ASSERT(iIndex < static_cast<int64_t>(mImageInfos.size()));
 	mImageInfosMap.emplace(crc, iIndex);
-	return static_cast<float>(iIndex);
+	return iIndex;
 }
 
 float TextureDescriptors::CrcToBlurredIndex(common::crc_t crc)
 {
-	static constexpr common::crc_t kBlurSalt = 0x424C5552; // "BLUR"
 	common::crc_t blurredCrc = crc ^ kBlurSalt;
 	auto it = mImageInfosMap.find(blurredCrc);
 	if (it != mImageInfosMap.end())
+	{
 		return static_cast<float>(it->second);
-	return CrcToIndex(crc);
+	}
+	return static_cast<float>(CrcToIndex(crc));
 }
 
 } // namespace engine

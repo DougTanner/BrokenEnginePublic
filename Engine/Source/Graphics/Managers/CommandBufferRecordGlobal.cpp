@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "CommandBufferRecordGlobal.h"
 
 #include "CommandBufferManager.h"
@@ -477,3 +479,5 @@ void CommandBufferRecordGlobal::RecordParticleUpdatePasses(VkCommandBuffer vkCom
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

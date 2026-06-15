@@ -4,6 +4,7 @@
 
 #include "Data/Model.h"
 #include "Data/Shader.h"
+#include "Data/Texture.h"
 
 namespace engine
 {
@@ -19,7 +20,7 @@ DynamicPipelines::DynamicPipelines(std::unordered_map<common::crc_t, Shader>& rS
 ModelPipeline* DynamicPipelines::CreateModelPipeline(const ModelPipelineSpec& rModelPipelineSpec)
 {
 	std::unique_ptr<ModelPipeline> pModelPipeline = std::make_unique<ModelPipeline>();
-	pModelPipeline->Create(rModelPipelineSpec.sceneCrc, rModelPipelineSpec.pipelineInfo, rModelPipelineSpec.bAddModelDescriptors, rModelPipelineSpec.bIsPipelineShadow);
+	pModelPipeline->Create(rModelPipelineSpec.sceneCrc, rModelPipelineSpec.pipelineInfo, true, rModelPipelineSpec.bIsPipelineShadow);
 
 	ModelPipeline* pResult = pModelPipeline.get();
 	mModelPipelines.push_back(std::move(pModelPipeline));
@@ -45,7 +46,6 @@ void DynamicPipelines::CreateModelPipeline(common::crc_t crc, std::string_view n
 
 	ModelPipeline* pPipeline = CreateModelPipeline(
 	{
-		.name = name,
 		.sceneCrc = sceneCrc,
 		.pipelineInfo =
 		{
@@ -60,7 +60,6 @@ void DynamicPipelines::CreateModelPipeline(common::crc_t crc, std::string_view n
 				{.flags = kPerCommandBufferStorageBuffers, .pBuffers = pStorageBuffers},
 			},
 		},
-		.bAddModelDescriptors = true,
 		.bIsPipelineShadow = false,
 	});
 
@@ -89,7 +88,6 @@ void DynamicPipelines::CreateModelPipelineShadow(common::crc_t crc, std::string_
 	// Create shadow pipeline with minimal descriptor sets
 	ModelPipeline* pPipelineShadow = CreateModelPipeline(
 	{
-		.name = rShadowName,
 		.sceneCrc = sceneCrc,
 		.pipelineInfo =
 		{
@@ -106,7 +104,6 @@ void DynamicPipelines::CreateModelPipelineShadow(common::crc_t crc, std::string_
 				{.flags = kPerCommandBufferStorageBuffers, .pBuffers = pStorageBuffers},
 			},
 		},
-		.bAddModelDescriptors = true,
 		.bIsPipelineShadow = true,
 	});
 

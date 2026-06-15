@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "SwapchainManager.h"
 
 #include "Profile/ProfileManager.h"
@@ -77,16 +79,16 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 	};
 	VkSubpassDescription vkSubpassDescription
 	{
-		vkSubpassDescription.flags = 0,
-		vkSubpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-		vkSubpassDescription.inputAttachmentCount = 0,
-		vkSubpassDescription.pInputAttachments = nullptr,
-		vkSubpassDescription.colorAttachmentCount = 1,
-		vkSubpassDescription.pColorAttachments = gMultisampling.Get<bool>() ? &multisamplingVkAttachmentReference : &presentVkAttachmentReference,
-		vkSubpassDescription.pResolveAttachments = gMultisampling.Get<bool>() ? &presentVkAttachmentReference : nullptr,
-		vkSubpassDescription.pDepthStencilAttachment = &depthVkAttachmentReference,
-		vkSubpassDescription.preserveAttachmentCount = 0,
-		vkSubpassDescription.pPreserveAttachments = nullptr,
+		.flags = 0,
+		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+		.inputAttachmentCount = 0,
+		.pInputAttachments = nullptr,
+		.colorAttachmentCount = 1,
+		.pColorAttachments = gMultisampling.Get<bool>() ? &multisamplingVkAttachmentReference : &presentVkAttachmentReference,
+		.pResolveAttachments = gMultisampling.Get<bool>() ? &presentVkAttachmentReference : nullptr,
+		.pDepthStencilAttachment = &depthVkAttachmentReference,
+		.preserveAttachmentCount = 0,
+		.pPreserveAttachments = nullptr,
 	};
 
 	// There are two built-in dependencies that take care of the transition at the start of the render pass and at the end of the render pass, but the former does not occur at the right time
@@ -101,13 +103,13 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 	// Second external dependency is implied by having a different finalLayout and subpass layout.
 	VkSubpassDependency vkSubpassDependency
 	{
-		vkSubpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL,
-		vkSubpassDependency.dstSubpass = 0,
-		vkSubpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		vkSubpassDependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		vkSubpassDependency.srcAccessMask = 0,
-		vkSubpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-		vkSubpassDependency.dependencyFlags = 0,
+		.srcSubpass = VK_SUBPASS_EXTERNAL,
+		.dstSubpass = 0,
+		.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.srcAccessMask = 0,
+		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+		.dependencyFlags = 0,
 	};
 
 	// Create the render pass from the attachments description and subpasses
@@ -361,7 +363,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 	}
 
 	mImageAvailableFences.resize(uiImageCount);
-	miImageAvailableIndex = 0;
+	miFenceAvailableIndex = 0;
 	for ([[maybe_unused]] int64_t i = 0; VkFence& rFence : mImageAvailableFences)
 	{
 		VkFenceCreateInfo vkFenceCreateInfo
@@ -500,3 +502,5 @@ void SwapchainManager::Present(int64_t iFramebufferIndex)
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

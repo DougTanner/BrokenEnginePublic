@@ -375,6 +375,8 @@ inline auto InterpolateKeyframes(const TControllerType& rController, float fElap
 // Mixin providing static controller type registry for collections with keyframe animation.
 // TControllerType defaults to ControllerType for standard keyframe animation (PointLights).
 // Collections with custom keyframes (Puffs) can specify their own controller type.
+// Threading contract: registration is startup-only (single-threaded, before Dispatch() workers fan out);
+// sControllerTypes is immutable afterward, so parallel frame-tick .at() reads need no synchronization.
 template <typename TCollection, typename TControllerType = ControllerType>
 struct ControllerTypeRegistry
 {
@@ -383,6 +385,7 @@ struct ControllerTypeRegistry
 	static void RegisterControllerType(uint8_t& ruiIndex, const TControllerType& rType)
 	{
 		ASSERT(ruiIndex == 0xFF);
+		ASSERT(sControllerTypes.size() < kuiInvalidControllerType);
 		ruiIndex = static_cast<uint8_t>(sControllerTypes.size());
 		sControllerTypes.push_back(rType);
 	}
@@ -403,6 +406,8 @@ void RegisterLightingTextureCrc(common::crc_t crc);
 
 // Mixin providing static type registry for collections with type-based configuration sharing.
 // Type is passed as template parameter (must be defined before collection).
+// Threading contract: registration is startup-only (single-threaded, before Dispatch() workers fan out);
+// sTypes is immutable afterward, so parallel frame-tick .at() reads need no synchronization.
 template <typename TType>
 struct TypeRegistry
 {
@@ -412,6 +417,7 @@ struct TypeRegistry
 	static void RegisterType(uint8_t& ruiIndex, const TType& rType)
 	{
 		ASSERT(ruiIndex == 0xFF);
+		ASSERT(sTypes.size() < 0xFF);
 		ruiIndex = static_cast<uint8_t>(sTypes.size());
 		sTypes.push_back(rType);
 

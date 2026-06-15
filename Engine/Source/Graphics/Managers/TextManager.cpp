@@ -1,21 +1,11 @@
+#if defined(BT_CLIENT)
+
 #include "TextManager.h"
 
-#include "Profile/ProfileManager.h"
-
 #include "Data/Font.h"
-#include "Data/Raw.h"
 
 namespace engine
 {
-
-static VkMappedMemoryRange sVkMappedMemoryRange
-{
-	.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-	.pNext = nullptr,
-	// .memory
-	.offset = 0,
-	// .size
-};
 
 TextManager::TextManager()
 {
@@ -42,7 +32,7 @@ TextManager::TextManager()
 		}
 	}
 
-	gpTextManager->UpdateTextArea(kTextDebug, "");
+	UpdateTextArea(kTextDebug, "");
 }
 
 TextManager::~TextManager()
@@ -52,11 +42,15 @@ TextManager::~TextManager()
 
 common::Character* TextManager::GetCharacter(uint32_t uiChar)
 {
-	return mpCharactersEfigs[uiChar % 128];
+	// unsigned-char semantics: signed-char callers sign-extend high UTF-8 bytes, so mask to a byte before the modulo.
+	// Fall back to '?' (always font-present) when the slot is null — the ctor leaves control-char slots nullptr.
+	common::Character* pCharacter = mpCharactersEfigs[static_cast<unsigned char>(uiChar) % 128];
+	return pCharacter != nullptr ? pCharacter : mpCharactersEfigs['?'];
 }
 
 void TextManager::UpdateTextArea(TextAreas eTextArea, std::string_view characters)
 {
+	ASSERT(common::gpMultithreading->IsMainThread());
 	ASSERT(characters.size() < TextArea::kiMaxChars);
 
 	TextArea& rTextArea = gpTextAreas[eTextArea];
@@ -74,14 +68,11 @@ void TextManager::RenderMain(int64_t iCommandBuffer)
 
 	for (const TextArea& rTextArea : gpTextAreas)
 	{
-		common::ScopedWorkbufferArena scopedWorkbufferArena = common::gpThreadLocal->mWorkbuffer.Push();
-		common::gpThreadLocal->mWorkbuffer.PushBack(rTextArea.fX);
-
 		int64_t iStartPos = iPos;
 
 		// Compute quads once (main pass: white, no offset), limit to half remaining capacity for shadow duplication
 		int64_t iHalfMax = iStartPos + (kiMaxTextQuads - iStartPos) / 2;
-		WriteQuads(common::gpThreadLocal->mWorkbuffer.Span<float>(), rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFFFFFFFF, 0.0f, 0.0f, pQuads, iPos, iHalfMax);
+		WriteQuads(rTextArea.fX, rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFFFFFFFF, 0.0f, 0.0f, pQuads, iPos, iHalfMax);
 
 		int64_t iCount = iPos - iStartPos;
 
@@ -104,3 +95,5 @@ void TextManager::RenderMain(int64_t iCommandBuffer)
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

@@ -1,7 +1,5 @@
 #include "ExportModel.h"
 
-using enum common::ChunkFlags;
-
 std::optional<common::ChunkFlags_t> ExportModel::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 {
 	return rDirectoryEntry.path().extension() == ".MODEL" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kModel) : std::nullopt;

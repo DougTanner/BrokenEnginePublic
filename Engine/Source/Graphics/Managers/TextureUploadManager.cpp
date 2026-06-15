@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "TextureUploadManager.h"
 
 #include "Memory/GlobalAllocator.h"
@@ -154,7 +156,10 @@ void TextureUploadManager::UploadThread()
 	{
 		// Wait for the main thread to signal one chunk this frame
 		mFrameSignal.acquire();
-		if (mbShutdown) break;
+		if (mbShutdown)
+		{
+			break;
+		}
 
 		std::unique_lock workLock(mWorkMutex);
 
@@ -164,7 +169,10 @@ void TextureUploadManager::UploadThread()
 			if (mCurrentCrc == 0)
 			{
 				std::unique_lock lock(mUploadMutex);
-				if (mUploadQueue.empty()) continue;
+				if (mUploadQueue.empty())
+				{
+					continue;
+				}
 
 				mCurrentCrc = mUploadQueue.top().crc;
 				mUploadQueue.pop();
@@ -311,7 +319,10 @@ void TextureUploadManager::UploadThread()
 					uint32_t uiChunkHeight = std::max(1u, gpInstanceManager->mTransferImageGranularity.height) * uiBlockHeight;
 					int64_t iBytesPerChunk = common::SizeInBytes(vkFormat, uiMipWidth, uiChunkHeight);
 					int64_t iChunksThatFit = static_cast<int64_t>(vkRemainingStaging) / iBytesPerChunk;
-					if (iChunksThatFit == 0) break;
+					if (iChunksThatFit == 0)
+					{
+						break;
+					}
 
 					uint32_t uiCopyHeight = static_cast<uint32_t>(iChunksThatFit * uiChunkHeight);
 					int64_t iCopyBytes = common::SizeInBytes(vkFormat, uiMipWidth, uiCopyHeight);
@@ -425,3 +436,5 @@ void TextureUploadManager::UploadThread()
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

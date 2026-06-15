@@ -19,6 +19,10 @@ public:
 	~CommandBuffers();
 
 	int64_t miFramebuffer = 0;
+	// mFlags / mVkFence are non-atomic by design — three writers (kExecuted set on the mSubmitGlobal worker
+	// in CommandBufferManager::SubmitGlobalToQueue, mVkFence reset on mSubmitMain in SubmitMainToQueue, read
+	// back on the main thread in Graphics) are sequenced only by the PersistentWorker Wake/Wait chain. Not
+	// thread-safe for new callers outside that chain.
 	CommandBufferFlags_t mFlags;
 	VkCommandPool mVkCommandPool = VK_NULL_HANDLE;
 	VkCommandBuffer mGlobalVkCommandBuffer = VK_NULL_HANDLE;

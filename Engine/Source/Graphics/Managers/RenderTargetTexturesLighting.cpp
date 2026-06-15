@@ -85,9 +85,10 @@ void RenderTargetTextures::CreateLightingTextures()
 	mpLightingTextures[2].Create(lightingTextureInfo);
 
 	// Create MRT render pass with 3 color attachments
-	VkAttachmentDescription pVkAttachmentDescriptions[3]
+	VkAttachmentDescription pVkAttachmentDescriptions[3] {};
+	for (int64_t i = 0; i < 3; ++i)
 	{
-		VkAttachmentDescription
+		pVkAttachmentDescriptions[i] = VkAttachmentDescription
 		{
 			.flags = 0,
 			.format = shaders::keLightingFormat,
@@ -98,32 +99,8 @@ void RenderTargetTextures::CreateLightingTextures()
 			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
 			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 			.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		},
-		VkAttachmentDescription
-		{
-			.flags = 0,
-			.format = shaders::keLightingFormat,
-			.samples = VK_SAMPLE_COUNT_1_BIT,
-			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-			.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		},
-		VkAttachmentDescription
-		{
-			.flags = 0,
-			.format = shaders::keLightingFormat,
-			.samples = VK_SAMPLE_COUNT_1_BIT,
-			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-			.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		},
-	};
+		};
+	}
 	VkAttachmentReference pVkAttachmentReferences[3]
 	{
 		{.attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
@@ -158,7 +135,7 @@ void RenderTargetTextures::CreateLightingTextures()
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		.attachmentCount = 3,
+		.attachmentCount = static_cast<uint32_t>(std::size(pVkAttachmentDescriptions)),
 		.pAttachments = pVkAttachmentDescriptions,
 		.subpassCount = 1,
 		.pSubpasses = &vkSubpassDescription,
@@ -176,7 +153,7 @@ void RenderTargetTextures::CreateLightingTextures()
 		.pNext = nullptr,
 		.flags = 0,
 		.renderPass = mLightingVkRenderPass,
-		.attachmentCount = 3,
+		.attachmentCount = static_cast<uint32_t>(std::size(pVkImageViews)),
 		.pAttachments = pVkImageViews,
 		.width = static_cast<uint32_t>(iLightingTextureX),
 		.height = static_cast<uint32_t>(iLightingTextureY),
@@ -203,7 +180,7 @@ void RenderTargetTextures::CreateLightingTextures()
 				.textureFlags = {},
 				.name = strSpreadName,
 				.flags = 0,
-				.format = VK_FORMAT_R16G16B16A16_SFLOAT,
+				.format = shaders::keLightingFormat,
 				.extent = VkExtent3D {static_cast<uint32_t>(iPassX), static_cast<uint32_t>(iPassY), 1},
 				.mipLevels = 1,
 				.arrayLayers = 1,
@@ -219,7 +196,7 @@ void RenderTargetTextures::CreateLightingTextures()
 				.textureFlags = {},
 				.name = strSpreadOnlyName,
 				.flags = 0,
-				.format = VK_FORMAT_R16G16B16A16_SFLOAT,
+				.format = shaders::keLightingFormat,
 				.extent = VkExtent3D {static_cast<uint32_t>(iPassX), static_cast<uint32_t>(iPassY), 1},
 				.mipLevels = 1,
 				.arrayLayers = 1,
@@ -280,7 +257,7 @@ void RenderTargetTextures::CreateLightingTextures()
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		.attachmentCount = 6,
+		.attachmentCount = static_cast<uint32_t>(std::size(pSpreadAttachmentDescriptions)),
 		.pAttachments = pSpreadAttachmentDescriptions,
 		.subpassCount = 1,
 		.pSubpasses = &vkSpreadSubpassDescription,
@@ -308,7 +285,7 @@ void RenderTargetTextures::CreateLightingTextures()
 			.pNext = nullptr,
 			.flags = 0,
 			.renderPass = mSpreadVkRenderPass,
-			.attachmentCount = 6,
+			.attachmentCount = static_cast<uint32_t>(std::size(pSpreadImageViews)),
 			.pAttachments = pSpreadImageViews,
 			.width = mpSpreadTextures[iPass][0].mInfo.extent.width,
 			.height = mpSpreadTextures[iPass][0].mInfo.extent.height,
@@ -426,13 +403,24 @@ void RenderTargetTextures::CreateLightingTextures()
 	// Fill unused B/C slots with primary texture so descriptor writes remain valid
 	for (int64_t i = 0; i < shaders::kiMaxDebugTextures; ++i)
 	{
-		if (mppDebugTexturesB[i] == nullptr) mppDebugTexturesB[i] = mppDebugTextures[i] != nullptr ? mppDebugTextures[i] : &mpLightingTextures[0];
-		if (mppDebugTexturesC[i] == nullptr) mppDebugTexturesC[i] = mppDebugTextures[i] != nullptr ? mppDebugTextures[i] : &mpLightingTextures[0];
-		if (mppDebugTextures[i] == nullptr) mppDebugTextures[i] = &mpLightingTextures[0];
+		if (mppDebugTexturesB[i] == nullptr)
+		{
+			mppDebugTexturesB[i] = mppDebugTextures[i] != nullptr ? mppDebugTextures[i] : &mpLightingTextures[0];
+		}
+		if (mppDebugTexturesC[i] == nullptr)
+		{
+			mppDebugTexturesC[i] = mppDebugTextures[i] != nullptr ? mppDebugTextures[i] : &mpLightingTextures[0];
+		}
+		if (mppDebugTextures[i] == nullptr)
+		{
+			mppDebugTextures[i] = &mpLightingTextures[0];
+		}
 	}
 
 	if (gDebugTextureIndex.Get() >= static_cast<float>(miDebugTextureCount))
+	{
 		gDebugTextureIndex.Set(static_cast<float>(miDebugTextureCount - 1));
+	}
 }
 
 } // namespace engine

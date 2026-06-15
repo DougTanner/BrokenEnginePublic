@@ -5,16 +5,12 @@
 namespace game
 {
 
-struct Frame;
-struct FrameInput;
 struct FrameInterpolate;
 
 }
 
 namespace engine
 {
-
-enum CpuCounters;
 
 void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime);
 void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord);

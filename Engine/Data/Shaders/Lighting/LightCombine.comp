@@ -20,8 +20,7 @@ layout (set = 1, binding = 7, rgba8) uniform writeonly image2D combineImageAmbie
 
 layout (push_constant) uniform PushConstants
 {
-	uint uiWidth;
-	uint uiHeight;
+	CombinePushConstantsLayout pushConstants;
 };
 
 // Uchimura tone curve (Gran Turismo Sport)
@@ -69,10 +68,10 @@ void main()
 {
 	uint uiX = gl_GlobalInvocationID.x;
 	uint uiY = gl_GlobalInvocationID.y;
-	if (uiX >= uiWidth || uiY >= uiHeight)
+	if (uiX >= pushConstants.uiWidth || uiY >= pushConstants.uiHeight)
 		return;
 
-	vec2 f2Uv = (vec2(uiX, uiY) + vec2(0.5f)) / vec2(uiWidth, uiHeight);
+	vec2 f2Uv = (vec2(uiX, uiY) + vec2(0.5f)) / vec2(pushConstants.uiWidth, pushConstants.uiHeight);
 	ivec2 i2Coord = ivec2(uiX, uiY);
 
 	// Window: combine textures are pre-sized to cover the visible area at the lighting headroom reference, but only
@@ -80,8 +79,8 @@ void main()
 	// margin so edge consumers never sample a zeroed texel). Mirror of the spread-window early-out.
 	vec2 f2WorldPos = VisibleAreaToWorld(f2Uv, globalLayout.f4LightingArea);
 	vec2 f2VisibleUv = WorldToVisibleArea(vec3(f2WorldPos, 0.0f), globalLayout.f4VisibleArea);
-	float fMarginX = 2.0f * ((globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x) / float(uiWidth)) / (globalLayout.f4VisibleArea.z - globalLayout.f4VisibleArea.x);
-	float fMarginY = 2.0f * ((globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w) / float(uiHeight)) / (globalLayout.f4VisibleArea.y - globalLayout.f4VisibleArea.w);
+	float fMarginX = 2.0f * ((globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x) / float(pushConstants.uiWidth)) / (globalLayout.f4VisibleArea.z - globalLayout.f4VisibleArea.x);
+	float fMarginY = 2.0f * ((globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w) / float(pushConstants.uiHeight)) / (globalLayout.f4VisibleArea.y - globalLayout.f4VisibleArea.w);
 	if (f2VisibleUv.x < -fMarginX || f2VisibleUv.x > 1.0f + fMarginX || f2VisibleUv.y < -fMarginY || f2VisibleUv.y > 1.0f + fMarginY)
 	{
 		imageStore(combineImageR, i2Coord, vec4(0.0f));

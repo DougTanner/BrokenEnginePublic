@@ -13,6 +13,7 @@
 #pragma warning(pop)
 
 #include "Scene/SceneAnimationLoader.h"
+#include "Scene/SceneSkeletonLoader.h"
 #include "Texture/Texture.h"
 
 #pragma warning(push, 0)
@@ -26,8 +27,6 @@
 	#pragma clang diagnostic pop
 #endif
 #pragma warning(pop)
-
-using enum common::ChunkFlags;
 
 std::optional<common::ChunkFlags_t> ExportScene::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 {

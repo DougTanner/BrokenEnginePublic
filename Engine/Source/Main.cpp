@@ -203,7 +203,7 @@ void MainThread(HINSTANCE hinstance)
 
 	// Ensure priority textures are ready
 	gpProfileManager->BootStart(kBootTimerWaitForPriorityTextures);
-	gpTextureManager->WaitForTextures(TextureManager::smPriorityTextures);
+	gpTextureManager->WaitForTextures(TextureManager::kpPriorityTextures.pCrcs);
 	gpProfileManager->BootStop(kBootTimerWaitForPriorityTextures);
 
 	// Populate boot-time render interpolate for the single origin frame

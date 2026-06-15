@@ -3,7 +3,6 @@
 namespace tinygltf { class Model; }
 
 #include "ExportJob.h"
-#include "Scene/SceneSkeletonLoader.h"
 #include "Scene/SceneVerticesLoader.h"
 
 class ExportScene : public ExportJob

@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "CommandBuffers.h"
 
 namespace engine
@@ -72,3 +74,5 @@ CommandBuffers::~CommandBuffers()
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

@@ -1,9 +1,5 @@
 #include "ExportRaw.h"
 
-#include "FileManager.h"
-
-using enum common::ChunkFlags;
-
 std::optional<common::ChunkFlags_t> ExportRaw::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 {
 	if (!rDirectoryEntry.is_regular_file())

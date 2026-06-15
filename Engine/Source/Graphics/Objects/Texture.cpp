@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "Texture.h"
 
 #include "Ui/GraphicsSettingsWrappersBase.h"
@@ -155,14 +157,6 @@ void Texture::RecordAcquireBarrier(VkCommandBuffer vkCommandBuffer)
 		.subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = mInfo.mipLevels, .baseArrayLayer = 0, .layerCount = mInfo.arrayLayers},
 	};
 	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &vkImageMemoryBarrier);
-}
-
-void Texture::ReCreate()
-{
-	ASSERT(mInfo.extent.width > 0 && mInfo.extent.height > 0);
-
-	Destroy();
-	Create(mInfo, nullptr);
 }
 
 void Texture::Create(const TextureInfo& rInfo, const std::function<void(void*, int64_t, int64_t)>& rDataFunction)
@@ -524,3 +518,5 @@ void Texture::RecordBeginRenderPass(VkCommandBuffer vkCommandBuffer)
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

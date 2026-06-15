@@ -6,14 +6,14 @@
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/LightingWrappersBase.h"
 
-#include "Data/Data.h"
-#include "Game.h"
-
 namespace engine
 {
 
 using enum TextureFlags;
 using enum TextureLayout;
+
+// Extra texture-descriptor slots reserved for pre-blurred lighting texture copies (one per registered lighting texture CRC)
+static constexpr int64_t kiLightingBlurSlots = 16;
 
 std::tuple<int64_t, int64_t> TextureManager::DetailTextureSize(float fMultiplier)
 {
@@ -270,7 +270,6 @@ TextureManager::TextureManager()
 
 	// Pre-fill texture arrays with white placeholders for lazy index assignment
 	// Extra slots reserved for pre-blurred lighting texture copies
-	static constexpr int64_t kiLightingBlurSlots = 16;
 	mTextureDescriptors.mImageInfos.resize(mTextureMap.size() + kiLightingBlurSlots, {nullptr, mWhiteTexture.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
 
 	mTextureDescriptors.Create();
@@ -345,7 +344,7 @@ TextureManager::TextureManager()
 	gpProfileManager->BootStop(kModelTexturesGeneration);
 
 	// Request priority textures
-	gpFileManager->RequestChunkLoad(smPriorityTextures, LoadPriority::kRealtime);
+	gpFileManager->RequestChunkLoad(kpPriorityTextures.pCrcs, LoadPriority::kRealtime);
 }
 
 TextureManager::~TextureManager()
@@ -624,13 +623,11 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 
 		if (eState == ChunkState::kGpuUploadComplete)
 		{
-			bool bFromTransferQueue = rLazyChunk.pData != nullptr;
-
 			// Adopt the GPU-uploaded image (sets mVkImage and creates VkImageView)
 			rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
 
 			bool bIsLightingTexture = mLightingTextureCrcs.contains(rCrc);
-			bool bNeedsAcquire = bNeedAcquireBarrier && bFromTransferQueue;
+			bool bNeedsAcquire = bNeedAcquireBarrier;
 
 			// Lighting textures handle their own acquire barrier inside BlurLightingTexture's OneShotCommandBuffer
 			if (bNeedsAcquire && !bIsLightingTexture)
@@ -666,7 +663,7 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 				BlurLightingTexture(rCrc, bNeedsAcquire);
 			}
 
-			if (bFromTransferQueue && ++iAdoptedCount >= kiMaxAdoptionsPerFrame)
+			if (++iAdoptedCount >= kiMaxAdoptionsPerFrame)
 			{
 				break;
 			}
@@ -805,6 +802,9 @@ void TextureManager::RegisterLightingTextureCrc(common::crc_t crc)
 	// Heap: unordered_set insert during startup registration
 	ScopedSuppressAllocationTracking suppress;
 	mLightingTextureCrcs.insert(crc);
+	// A 17th lighting texture would overflow the reserved blur slots (TextureDescriptors.cpp's generic index ASSERT fires
+	// later and elsewhere); fail at the cause, naming the constant
+	ASSERT(static_cast<int64_t>(mLightingTextureCrcs.size()) <= kiLightingBlurSlots);
 }
 
 void TextureManager::BlurLightingTexture(common::crc_t crc, bool bNeedAcquireBarrier)
@@ -904,9 +904,8 @@ void TextureManager::BlurLightingTexture(common::crc_t crc, bool bNeedAcquireBar
 	oneShotCommandBuffer.Execute(true);
 
 	// Register blurred texture in bindless array
-	static constexpr common::crc_t kBlurSalt = 0x424C5552; // "BLUR"
-	common::crc_t blurredCrc = crc ^ kBlurSalt;
-	int64_t iBlurredIndex = static_cast<int64_t>(mTextureDescriptors.CrcToIndex(blurredCrc));
+	common::crc_t blurredCrc = crc ^ TextureDescriptors::kBlurSalt;
+	int64_t iBlurredIndex = mTextureDescriptors.CrcToIndex(blurredCrc);
 	mTextureDescriptors.mImageInfos.at(iBlurredIndex).imageView = rResult.mVkImageView;
 	mTextureDescriptors.UpdateTextureArrayDescriptors();
 }

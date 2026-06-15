@@ -2,7 +2,8 @@
 
 #include "Render.h"
 
-#include "Game.h"
+#include "Graphics/Camera.h"
+#include "Ui/HeightLerpWrapperQuartet.h"
 #include "Ui/LightingWrappersBase.h"
 #include "Ui/PbrWrappersBase.h"
 #include "Ui/ShadowWrappersBase.h"
@@ -113,9 +114,8 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fWaterNormalRotationOne = gWaterNormalRotationOne.Get();
 	rMainLayout.fWaterNormalRotationTwo = gWaterNormalRotationTwo.Get();
 	rMainLayout.fWaterNormalRotationThree = gWaterNormalRotationThree.Get();
-	// Camera zoom factor: 0 = closest (default eye height), 1 = farthest (2x default).
-	static constexpr float kfWaveFadeEnd = 2.0f * game::Camera::kfCameraEyeHeightDefault;
-	rMainLayout.fCameraHeightZoomFactor = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, kfWaveFadeEnd, 0.0f, 1.0f);
+	// Camera zoom factor: 0 = closest (default eye height), 1 = farthest (2x default). Endpoint single-sourced on game::Camera.
+	rMainLayout.fCameraHeightZoomFactor = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, 0.0f, 1.0f);
 	rMainLayout.fWaterHeightDarkenTop = gWaterHeightDarkenTop.Get();
 	rMainLayout.fWaterHeightDarkenBottom = gWaterHeightDarkenBottom.Get();
 	rMainLayout.fWaterHeightDarkenTarget = gWaterHeightDarkenTarget.Get();

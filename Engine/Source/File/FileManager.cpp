@@ -4,7 +4,9 @@
 
 #include "Game.h"
 
-#include "Data/Data.h"
+#if defined(BT_CLIENT)
+#include "Graphics/Managers/TextureUploadManager.h"
+#endif
 
 namespace engine
 {

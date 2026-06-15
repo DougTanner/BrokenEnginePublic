@@ -2,7 +2,7 @@
 
 #include "Render.h"
 
-#include "Game.h"
+#include "Graphics/Camera.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/SmokeWrappersBase.h"
 

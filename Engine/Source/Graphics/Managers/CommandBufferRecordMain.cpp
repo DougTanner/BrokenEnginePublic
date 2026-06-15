@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "CommandBufferRecordMain.h"
 
 #include "CommandBufferManager.h"
@@ -6,7 +8,6 @@
 #include "Profile/ProfileManager.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/LightingWrappersBase.h"
-#include "Ui/ShadowWrappersBase.h"
 
 namespace engine
 {
@@ -81,7 +82,7 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 		.renderPass = gpTextureManager->mRenderTargetTextures.mLightingVkRenderPass,
 		.framebuffer = gpTextureManager->mRenderTargetTextures.mLightingVkFramebuffer,
 		.renderArea = {.offset = {0, 0}, .extent = {static_cast<uint32_t>(gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.width), static_cast<uint32_t>(gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.height)}},
-		.clearValueCount = 3,
+		.clearValueCount = static_cast<uint32_t>(std::size(pClearValues)),
 		.pClearValues = pClearValues,
 	};
 	vkCmdBeginRenderPass(vkCommandBuffer, &vkRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -363,7 +364,7 @@ void CommandBufferRecordMain::RecordLightingSpreadPipeline(VkCommandBuffer vkCom
 				.renderPass = rRenderTargetTextures.mSpreadVkRenderPass,
 				.framebuffer = rRenderTargetTextures.mpSpreadVkFramebuffers[iPass],
 				.renderArea = {.offset = {0, 0}, .extent = {uiPassWidth, uiPassHeight}},
-				.clearValueCount = 6,
+				.clearValueCount = static_cast<uint32_t>(std::size(pSpreadClearValues)),
 				.pClearValues = pSpreadClearValues,
 			};
 			vkCmdBeginRenderPass(vkCommandBuffer, &vkSpreadRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -382,7 +383,7 @@ void CommandBufferRecordMain::RecordLightingSpreadPipeline(VkCommandBuffer vkCom
 	}
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingSpread);
 
-	// Phase 3: Combine (tone map accumulate float16 → UNORM)
+	// Phase 2: Combine (tone map accumulate float16 → UNORM)
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
 	for (int64_t iColor = 0; iColor < 3; ++iColor)
 	{
@@ -398,28 +399,21 @@ void CommandBufferRecordMain::RecordLightingSpreadPipeline(VkCommandBuffer vkCom
 
 		uint32_t uiCombineWidth = rRenderTargetTextures.mpCombineTextures[0].mInfo.extent.width;
 		uint32_t uiCombineHeight = rRenderTargetTextures.mpCombineTextures[0].mInfo.extent.height;
-		shaders::PushConstantsLayout combinePushConstants {};
-		struct CombineData
-		{
-			uint32_t uiWidth;
-			uint32_t uiHeight;
-		};
-		CombineData combineData
+		shaders::CombinePushConstantsLayout combinePushConstants
 		{
 			.uiWidth = uiCombineWidth,
 			.uiHeight = uiCombineHeight,
 		};
-		std::memcpy(&combinePushConstants, &combineData, std::min(sizeof(combineData), sizeof(combinePushConstants)));
 
 		uint32_t uiCombineGroupsX = (uiCombineWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
 		uint32_t uiCombineGroupsY = (uiCombineHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-		vkCmdPushConstants(vkCommandBuffer, rCombinePipeline.mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(shaders::PushConstantsLayout), &combinePushConstants);
+		vkCmdPushConstants(vkCommandBuffer, rCombinePipeline.mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(shaders::CombinePushConstantsLayout), &combinePushConstants);
 		vkCmdDispatch(vkCommandBuffer, uiCombineGroupsX, uiCombineGroupsY, 1);
 	}
 
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
 
-	// Phase 4: Temporal accumulation — reproject + EMA-blend the previous frame's combine into the 4 combine outputs
+	// Phase 3: Temporal accumulation — reproject + EMA-blend the previous frame's combine into the 4 combine outputs
 	// in place, then copy the blended result into the 4 history textures for next frame. De-flickers the texel-ramp
 	// resample (mirror of the shadow temporal pass). Runs unconditionally every frame even when gLightingTemporalBlend
 	// == 1.0 (disabled): the mix() is then a no-op but the dispatch + copies still execute (a recorded copy can't be
@@ -464,3 +458,5 @@ void CommandBufferRecordMain::RecordLightingSpreadPipeline(VkCommandBuffer vkCom
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

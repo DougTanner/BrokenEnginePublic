@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Buffer.h"
+
 namespace engine
 {
 

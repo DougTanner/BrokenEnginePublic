@@ -1,6 +1,7 @@
+#if defined(BT_CLIENT)
+
 #include "BufferManager.h"
 
-#include "Profile/ProfileManager.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/LightingWrappersBase.h"
 
@@ -340,8 +341,8 @@ void BufferManager::InitializePerCommandBufferBuffers(int64_t iCommandBufferCoun
 		{
 			common::MeshData* pMeshData = static_cast<common::MeshData*>(pData);
 
-			XMFLOAT4X4 identity {};
-			XMStoreFloat4x4(&identity, XMMatrixIdentity());
+			XMFLOAT4X4A identity {};
+			XMStoreFloat4x4A(&identity, XMMatrixIdentity());
 
 			for (int64_t iMesh = 0; iMesh < common::MeshData::kiMaxMeshes; ++iMesh)
 			{
@@ -397,12 +398,12 @@ void BufferManager::InitializePerCommandBufferBuffers(int64_t iCommandBufferCoun
 Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, DynamicBufferType eType, std::string_view name, VkDeviceSize elementSize)
 {
 	std::unordered_map<common::crc_t, std::vector<Buffer>>& rMap = mDynamicStorageBuffers[eType];
-	if (rMap.contains(crc))
+	auto [it, bInserted] = rMap.try_emplace(crc);
+	std::vector<Buffer>& rBuffers = it->second;
+	if (!bInserted)
 	{
-		return rMap.at(crc).data();
+		return rBuffers.data();
 	}
-
-	std::vector<Buffer>& rBuffers = rMap.try_emplace(crc).first->second;
 
 	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
 	rBuffers.resize(iCommandBufferCount);
@@ -650,7 +651,7 @@ void BufferManager::DestroyLightingSpreadBuffers()
 	}
 }
 
-void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<uint32_t>& rIndices, std::vector<std::byte>& rVertices)
+static void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<uint32_t>& rIndices, std::vector<std::byte>& rVertices)
 {
 	uint32_t* puiIndices = rIndices.data();
 	for (int64_t j = 0; j < iMeshY - 1; ++j)
@@ -763,3 +764,5 @@ void BufferManager::CreateWaterMesh()
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

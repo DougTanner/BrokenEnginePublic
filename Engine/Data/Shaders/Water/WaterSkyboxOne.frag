@@ -28,7 +28,7 @@ layout (set = 0, binding = 1) uniform mainUniform
 // vertex shader samples elevation at binding 5. See PipelineManager.cpp's kPipelineWaterSkyboxOne block.
 layout (set = 1, binding = 5) uniform sampler2D elevationTextureSampler;
 layout (set = 1, binding = 6) uniform samplerCube skyboxSampler;
-layout (set = 1, binding = 8) uniform sampler2D pWaterNormalSamplers[17];
+layout (set = 1, binding = 8) uniform sampler2D pWaterNormalSamplers[kiWaterNormalCount];
 
 // Input
 layout (location = 0) in vec2 f2InInitialPosition;
