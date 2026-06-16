@@ -212,6 +212,23 @@ constexpr data::DataTypes DataTypeFromFlags(const common::ChunkFlags_t& rFlags)
 	return data::kDataTypeCount;
 }
 
+// External-data trust boundary: a wholly missing or corrupt required .manifest/.pack is unrecoverable —
+// limping with an empty/garbage chunk set defers the failure to every later consumer and ships a broken game.
+// LoadPackFiles runs in the FileManager ctor (Main.cpp), constructed before MainThread's try/catch, so a thrown
+// ASSERT here std::terminates with no crash report. Fail loud (user-facing) and exit cleanly instead.
+[[noreturn]] static void FailMissingRequiredAsset(const std::filesystem::path& rAssetPath, std::string_view reason)
+{
+	LOG(kLoading, kError, "Required asset \"{}\" is missing or corrupt: {}", rAssetPath.string(), reason);
+	DEBUG_BREAK();
+	std::string message = "A required game data file is missing or corrupt:\n\n";
+	message += rAssetPath.string();
+	message += "\n\n";
+	message += reason;
+	message += "\n\nPlease reinstall or verify your game files.";
+	MessageBox(nullptr, message.c_str(), game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+	ExitProcess(0);
+}
+
 void FileManager::LoadPackFiles()
 {
 	for (int64_t i = 0; i < data::kDataTypeCount; ++i)
@@ -232,11 +249,31 @@ void FileManager::LoadPackFiles()
 		std::fstream manifestStream(manifestPath, std::ios::in | std::ios::binary);
 		common::DataHeader dataHeader {};
 		manifestStream.read(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
-		ASSERT(dataHeader.iMagic == common::DataHeader::kiMagic && dataHeader.iVersion == common::DataHeader::kiVersion);
+		// Trust boundary: a missing manifest leaves manifestStream failed and dataHeader zero-filled; a corrupt one
+		// mismatches magic/version. Either way the asset type is unusable — fail loud rather than ASSERT-terminate.
+		if (!manifestStream || dataHeader.iMagic != common::DataHeader::kiMagic || dataHeader.iVersion != common::DataHeader::kiVersion)
+		{
+			FailMissingRequiredAsset(manifestPath, "manifest header missing or version mismatch");
+		}
 
-		manifestStream.seekg(common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::DataHeader))));
+		// Trust boundary: iChunkCount comes from the manifest header; a garbage count would drive an unbounded resize
+		// (bad_alloc terminate) or a torn read. Bound it by what the file can actually hold before allocating.
+		int64_t iChunkTableOffset = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::DataHeader)));
+		manifestStream.seekg(0, std::ios::end);
+		int64_t iManifestSize = static_cast<int64_t>(manifestStream.tellg());
+		int64_t iMaxChunks = (iManifestSize - iChunkTableOffset) / static_cast<int64_t>(sizeof(common::ChunkLocation));
+		if (!manifestStream || dataHeader.iChunkCount < 0 || dataHeader.iChunkCount > iMaxChunks)
+		{
+			FailMissingRequiredAsset(manifestPath, "manifest chunk-count out of range");
+		}
+
+		manifestStream.seekg(iChunkTableOffset);
 		mpChunkLocations[i].resize(dataHeader.iChunkCount);
 		manifestStream.read(reinterpret_cast<char*>(mpChunkLocations[i].data()), dataHeader.iChunkCount * sizeof(common::ChunkLocation));
+		if (!manifestStream)
+		{
+			FailMissingRequiredAsset(manifestPath, "manifest chunk table truncated");
+		}
 		manifestStream.close();
 
 		if (IsEagerChunk(static_cast<data::DataTypes>(i)))
@@ -245,6 +282,12 @@ void FileManager::LoadPackFiles()
 		}
 
 		std::fstream packStream(mPackFilePaths[i], std::ios::in | std::ios::binary);
+		// Trust boundary: a missing/locked lazy .pack leaves packStream closed; reading headers from it would build
+		// the lazy map (and pool layout) from garbage. A required pack is as fatal as a missing manifest.
+		if (!packStream)
+		{
+			FailMissingRequiredAsset(mPackFilePaths[i], "pack file missing or unreadable");
+		}
 		for (const common::ChunkLocation& rChunkLocation : mpChunkLocations[i])
 		{
 			// Read the header
@@ -270,6 +313,12 @@ void FileManager::LoadPackFiles()
 			{
 				miDecompressScratchSize = iOnDiskSize;
 			}
+		}
+		// Trust boundary: a truncated pack lets a per-chunk header seek/read run past EOF (failbit) — the headers
+		// already emplaced would be garbage. Treat the whole pack as corrupt rather than building a bad pool.
+		if (!packStream)
+		{
+			FailMissingRequiredAsset(mPackFilePaths[i], "pack header table truncated");
 		}
 	}
 
@@ -316,6 +365,12 @@ void FileManager::LoadPackFiles()
 #endif
 
 		mLazyPackFileHandles[i] = CreateFileW(mPackFilePaths[i].c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_NO_BUFFERING | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+		// Trust boundary: a missing required .pack yields INVALID_HANDLE_VALUE; storing it unchecked would later
+		// spin LoadChunk's sub-read loop forever on 0-byte reads. Same severity as a missing manifest.
+		if (mLazyPackFileHandles[i] == INVALID_HANDLE_VALUE)
+		{
+			FailMissingRequiredAsset(mPackFilePaths[i], "pack file could not be opened for loading");
+		}
 	}
 
 	// Allocate sector-aligned read buffer (one sub-read + sector padding)
@@ -523,6 +578,16 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 		static_cast<void>(ReadFile(hFile, mpReadBuffer, uiReadSize, &uiBytesRead, nullptr));
 
 		int64_t iCopySize = std::min(static_cast<int64_t>(uiBytesRead) - iSrcOffset, iOnDiskSize - iDataCopied);
+		// Trust boundary: a truncated/locked .pack can return a 0-byte read (non-positive copy) that never advances
+		// iDataCopied — an infinite loop on the loading thread. Fail the chunk soft (ready, pool stays zero-filled).
+		if (iCopySize <= 0) [[unlikely]]
+		{
+			LOG(kLoading, kError, "Truncated read for chunk {}; marking ready zero-filled", rRequest.crc);
+			DEBUG_BREAK();
+			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
+			NotifyChunkCompletion();
+			return;
+		}
 		std::byte* pSrc = mpReadBuffer + iSrcOffset;
 		std::byte* pDst = pReadDst + iDataCopied;
 
@@ -530,7 +595,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 		{
 			// Compressed reads land in scratch; the decompress pass below will pull them back through cache anyway,
 			// so use a regular memcpy (not _mm_stream_si128) so the bytes stay hot for inflate().
-			memcpy(pDst, pSrc, iCopySize);
+			std::memcpy(pDst, pSrc, iCopySize);
 		}
 		else
 		{
@@ -545,12 +610,12 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 				}
 				if (iCopySize > iStreamBytes)
 				{
-					memcpy(pDst + iStreamBytes, pSrc + iStreamBytes, iCopySize - iStreamBytes);
+					std::memcpy(pDst + iStreamBytes, pSrc + iStreamBytes, iCopySize - iStreamBytes);
 				}
 			}
 			else
 			{
-				memcpy(pDst, pSrc, iCopySize);
+				std::memcpy(pDst, pSrc, iCopySize);
 			}
 			_mm_sfence();
 		}
@@ -563,10 +628,17 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	{
 		uLongf uiUncompressedSize = static_cast<uLongf>(rLazyChunk.iDataSize);
 		int iZlibResult = uncompress(reinterpret_cast<Bytef*>(rLazyChunk.pData), &uiUncompressedSize, reinterpret_cast<const Bytef*>(mpDecompressScratch), static_cast<uLong>(iOnDiskSize));
-		// External-data trust boundary: a corrupted .pack or producer/runtime contract drift
-		// (e.g. raw payload tagged kZlibCompressed) will silently produce garbage texels
-		// without this check. Catch it deterministically at chunk-load instead of via visual inspection.
-		ASSERT(iZlibResult == Z_OK && static_cast<int64_t>(uiUncompressedSize) == rLazyChunk.iDataSize);
+		// External-data trust boundary: a corrupted .pack or producer/runtime contract drift (e.g. raw payload
+		// tagged kZlibCompressed) makes uncompress fail or under-fill. Fail the chunk soft (ready, pool stays
+		// zero-filled) instead of throwing on the loading thread, where there is no try/catch to catch it.
+		if (iZlibResult != Z_OK || static_cast<int64_t>(uiUncompressedSize) != rLazyChunk.iDataSize) [[unlikely]]
+		{
+			LOG(kLoading, kError, "Zlib decompress failed for chunk {} (result {})", rRequest.crc, iZlibResult);
+			DEBUG_BREAK();
+			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
+			NotifyChunkCompletion();
+			return;
+		}
 	}
 
 	LOG(kLoading, kDebug, "Lazy chunk {} \"{}\" size {}", rRequest.crc, std::string_view(rLazyChunk.header.pcPath), rLazyChunk.location.uiSize);
@@ -677,7 +749,7 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t uiOffset, std::span<
 		}
 
 		// Copy data from eager chunk
-		memcpy(buffer.data(), rEagerChunk.pData + uiOffset, buffer.size());
+		std::memcpy(buffer.data(), rEagerChunk.pData + uiOffset, buffer.size());
 		return true;
 	}
 	
@@ -699,7 +771,7 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t uiOffset, std::span<
 				}
 
 				// Copy data from lazy chunk
-				memcpy(buffer.data(), rLazyChunk.pData + uiOffset, buffer.size());
+				std::memcpy(buffer.data(), rLazyChunk.pData + uiOffset, buffer.size());
 				return true;
 			}
 		}

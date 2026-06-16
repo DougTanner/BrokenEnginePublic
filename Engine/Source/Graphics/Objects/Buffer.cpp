@@ -83,7 +83,8 @@ void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, const BarrierInfo* 
 				break;
 
 			default:
-				throw std::runtime_error("Unhandled case in Buffer::RecordBarriers()");
+				ASSERT(false);
+				break;
 		}
 
 		VkAccessFlags dstAccessMask = VK_ACCESS_NONE_KHR;
@@ -111,7 +112,8 @@ void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, const BarrierInfo* 
 				break;
 
 			default:
-				throw std::runtime_error("Unhandled case in Buffer::RecordBarriers()");
+				ASSERT(false);
+				break;
 		}
 
 		combinedSrcStage |= srcStageMask;

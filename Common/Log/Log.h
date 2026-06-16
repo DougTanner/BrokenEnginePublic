@@ -75,12 +75,21 @@ void LogWrite(char* pLogBuffer);
 void LogWriteRingBuffers(const char* pLogBuffer, int64_t iLength, LogCategory eCategory);
 void LogDumpBuffers(std::ofstream& rOfstream);
 
+// Single per-thread fallback buffer for threads without a ThreadLocal (early startup; OS / driver / COM / gamepad
+// threads). Hoisted out of the Log() template so there is exactly one kiLogBufferSize thread_local per thread rather
+// than one per template instantiation. thread_local makes it race-free across threads, and a zero-init POD array is
+// safe at the earliest startup (no dynamic init).
+inline char* GetLogFallbackBuffer()
+{
+	static thread_local char spcLogBuffer[kiLogBufferSize] {};
+	return spcLogBuffer;
+}
+
 // Unfiltered log writer — called by LOG() macro after compile-time filtering
 template <typename... TUV>
 void Log(LogCategory eCategory, std::format_string<const TUV&...> format, const TUV&... parameters)
 {
-	static char spcLogBuffer[kiLogBufferSize] {};
-	char* pLogBuffer = gpThreadLocal != nullptr ? gpThreadLocal->mpLogBuffer : spcLogBuffer;
+	char* pLogBuffer = gpThreadLocal != nullptr ? gpThreadLocal->mpLogBuffer : GetLogFallbackBuffer();
 	char* pEnd = pLogBuffer + kiLogBufferSize - 2; // Reserve 2 bytes for the trailing '\n' and '\0'.
 	char* pWrite = LogPrefix(pLogBuffer, pEnd);
 

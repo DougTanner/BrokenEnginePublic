@@ -673,7 +673,7 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 			// Fallback: upload thread didn't GPU upload (same queue family)
 			rTexture.Create(rTexture.mInfo, [&](void* pData, int64_t iPosition, int64_t iSize)
 			{
-				memcpy(pData, &rLazyChunk.pData[iPosition], iSize);
+				std::memcpy(pData, &rLazyChunk.pData[iPosition], iSize);
 			});
 			mTextureDescriptors.UpdateDescriptorsForTexture(rCrc);
 			bAdoptedTextures = true;

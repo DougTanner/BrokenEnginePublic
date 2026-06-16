@@ -71,7 +71,7 @@ static void LogTransferSummary(const CoordWork& rWork, int64_t iTick, int64_t iT
 				acPlayerIds[iPos++] = ',';
 				acPlayerIds[iPos++] = ' ';
 			}
-			int iWritten = snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", pTransferPlayerIds[i].iValue);
+			int iWritten = std::snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", pTransferPlayerIds[i].iValue);
 			if (iWritten <= 0) break;
 			iPos += static_cast<size_t>(iWritten);
 		}

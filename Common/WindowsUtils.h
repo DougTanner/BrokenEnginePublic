@@ -5,18 +5,16 @@ namespace common
 
 // Converts the last Windows API error code to a human-readable string
 // Uses GetLastError() to retrieve the error code and FormatMessage() to convert it
-// Returns: std::string_view containing the formatted error message
-// Thread-safety: NOT THREAD-SAFE - uses static buffer that is shared across all calls
-// Subsequent calls will overwrite the buffer, so copy the string if needed
-std::string_view LastErrorString();
+// Returns: std::string containing the formatted error message
+// Thread-safety: Thread-safe - returns an owned string (no shared buffer)
+std::string LastErrorString();
 
 // Converts an HRESULT error code to a human-readable string
 // Parameters:
 //   hresult - The HRESULT error code to convert (e.g., from DirectX, COM, or Windows APIs)
-// Returns: std::string_view containing the formatted error message
-// Thread-safety: NOT THREAD-SAFE - uses static buffer that is shared across all calls
-// Subsequent calls will overwrite the buffer, so copy the string if needed
-std::string_view HresultToString(HRESULT hresult);
+// Returns: std::string containing the formatted error message
+// Thread-safety: Thread-safe - returns an owned string (no shared buffer)
+std::string HresultToString(HRESULT hresult);
 
 // Converts a filesystem file time to formatted date and time strings in user's locale
 // Parameters:

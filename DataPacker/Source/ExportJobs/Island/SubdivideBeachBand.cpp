@@ -10,16 +10,23 @@ namespace
 // worklist; everything else is a helper. TU-local in an anonymous namespace.
 struct BeachSubdivider
 {
-	BeachSubdivider(std::vector<float>& rMeshPositions, std::vector<uint32_t>& rMeshIndices, float fBandMinMeters, float fBandMaxMeters, float fMaxEdgeMeters, int32_t iMaxDepth, int64_t& riDepthCapHits)
+	BeachSubdivider(std::vector<float>& rMeshPositions, std::vector<uint32_t>& rMeshIndices, const SubdivisionConfig& rConfig, int64_t& riDepthCapHits)
 		: meshPositions(rMeshPositions)
 		, meshIndices(rMeshIndices)
-		, fBandMinZ(fBandMinMeters)
-		, fBandMaxZ(fBandMaxMeters)
-		, fMaxEdge(fMaxEdgeMeters)
-		, iMaxDepth(iMaxDepth)
+		, fBandMinZ(rConfig.fBandMinMeters)
+		, fBandMaxZ(rConfig.fBandMaxMeters)
+		, fMaxEdge(rConfig.fMaxEdgeMeters)
+		, iMaxDepth(rConfig.iMaxDepth)
 		, riDepthCapHits(riDepthCapHits)
 	{
 	}
+
+	// Edge -> the (up to) two triangles sharing it. -1 marks an empty slot.
+	struct EdgeSlots
+	{
+		int32_t iSlot0 = -1;
+		int32_t iSlot1 = -1;
+	};
 
 	void Run();
 
@@ -45,16 +52,15 @@ struct BeachSubdivider
 
 	void EdgeAdd(uint64_t iKey, int32_t iTriangle)
 	{
-		auto it = edgeTriangles.try_emplace(iKey, std::array<int32_t, 2> {-1, -1}).first;
-		std::array<int32_t, 2>& rSlots = it->second;
-		if (rSlots[0] < 0)
+		EdgeSlots& rSlots = edgeTriangles.try_emplace(iKey, EdgeSlots {}).first->second;
+		if (rSlots.iSlot0 < 0)
 		{
-			rSlots[0] = iTriangle;
+			rSlots.iSlot0 = iTriangle;
 			return;
 		}
-		if (rSlots[1] < 0)
+		if (rSlots.iSlot1 < 0)
 		{
-			rSlots[1] = iTriangle;
+			rSlots.iSlot1 = iTriangle;
 			return;
 		}
 		ASSERT(false);  // 3+ triangles share a single edge -- malformed mesh input.
@@ -67,16 +73,16 @@ struct BeachSubdivider
 		{
 			return;
 		}
-		std::array<int32_t, 2>& rSlots = it->second;
-		if (rSlots[0] == iTriangle)
+		EdgeSlots& rSlots = it->second;
+		if (rSlots.iSlot0 == iTriangle)
 		{
-			rSlots[0] = -1;
+			rSlots.iSlot0 = -1;
 		}
-		if (rSlots[1] == iTriangle)
+		if (rSlots.iSlot1 == iTriangle)
 		{
-			rSlots[1] = -1;
+			rSlots.iSlot1 = -1;
 		}
-		if (rSlots[0] < 0 && rSlots[1] < 0)
+		if (rSlots.iSlot0 < 0 && rSlots.iSlot1 < 0)
 		{
 			edgeTriangles.erase(it);
 		}
@@ -89,14 +95,14 @@ struct BeachSubdivider
 		{
 			return -1;
 		}
-		const std::array<int32_t, 2>& rSlots = it->second;
-		if (rSlots[0] == iTriangle)
+		const EdgeSlots& rSlots = it->second;
+		if (rSlots.iSlot0 == iTriangle)
 		{
-			return rSlots[1];
+			return rSlots.iSlot1;
 		}
-		if (rSlots[1] == iTriangle)
+		if (rSlots.iSlot1 == iTriangle)
 		{
-			return rSlots[0];
+			return rSlots.iSlot0;
 		}
 		return -1;
 	}
@@ -188,7 +194,7 @@ struct BeachSubdivider
 	int64_t& riDepthCapHits;
 
 	std::unordered_map<uint64_t, uint32_t> edgeMidpoints;
-	std::unordered_map<uint64_t, std::array<int32_t, 2>> edgeTriangles;
+	std::unordered_map<uint64_t, EdgeSlots> edgeTriangles;
 	std::deque<uint32_t> worklist;
 	std::vector<uint8_t> triangleAlive;
 	std::vector<uint8_t> triangleDepth;
@@ -383,6 +389,6 @@ void BeachSubdivider::Run()
 
 void SubdivideBeachBand(std::vector<float>& rMeshPositions, std::vector<uint32_t>& rMeshIndices, const SubdivisionConfig& rConfig, int64_t& riDepthCapHits)
 {
-	BeachSubdivider subdivider(rMeshPositions, rMeshIndices, rConfig.fBandMinMeters, rConfig.fBandMaxMeters, rConfig.fMaxEdgeMeters, rConfig.iMaxDepth, riDepthCapHits);
+	BeachSubdivider subdivider(rMeshPositions, rMeshIndices, rConfig, riDepthCapHits);
 	subdivider.Run();
 }

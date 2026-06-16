@@ -5,7 +5,7 @@
 namespace engine
 {
 
-Shader::Shader(const ShaderInfo& rInfo, std::byte* pData)
+Shader::Shader(const ShaderInfo& rInfo, const std::byte* pData)
 {
 	Create(rInfo, pData);
 }
@@ -15,10 +15,7 @@ Shader::~Shader()
 	Destroy();
 }
 
-#pragma warning(push, 0)
-#pragma warning(disable : 26461)
-
-void Shader::Create(const ShaderInfo& rInfo, std::byte* pData)
+void Shader::Create(const ShaderInfo& rInfo, const std::byte* pData)
 {
 	mInfo = rInfo;
 
@@ -28,16 +25,14 @@ void Shader::Create(const ShaderInfo& rInfo, std::byte* pData)
 		.pNext = nullptr,
 		.flags = 0,
 		.codeSize = static_cast<size_t>(mInfo.iSpirvSize),
-		.pCode = reinterpret_cast<uint32_t*>(pData),
+		.pCode = reinterpret_cast<const uint32_t*>(pData),
 	};
 
-	ASSERT(*reinterpret_cast<uint32_t*>(pData) == common::ShaderHeader::kuiSpirvMagic);
+	ASSERT(*reinterpret_cast<const uint32_t*>(pData) == common::ShaderHeader::kuiSpirvMagic);
 
 	CHECK_VK(vkCreateShaderModule(gpDeviceManager->mVkDevice, &vkShaderModuleCreateInfo, nullptr, &mVkShaderModule));
 	VkName(VK_OBJECT_TYPE_SHADER_MODULE, mVkShaderModule, mInfo.pChunkHeader->pcPath);
 }
-
-#pragma warning(pop)
 
 void Shader::Destroy() noexcept
 {

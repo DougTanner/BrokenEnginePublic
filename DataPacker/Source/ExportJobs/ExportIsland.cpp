@@ -9,6 +9,9 @@
 // Single-resolution island ingest
 // ---------------------------------------------------------------------------
 
+namespace
+{
+
 struct ExportedIsland
 {
 	std::vector<float> cpuHeightmapData;
@@ -25,6 +28,8 @@ struct ExportedIsland
 	float fWorldElevationMeters = 0.0f;
 	float fMaxHeightMeters = 0.0f;
 };
+
+} // namespace
 
 // Convex hull (Andrew's monotone chain) of the island's valid area — the pixels at or above
 // common::kfUnderwaterMaskThresholdMeters, the same cut line the texture masking uses. Per heightmap
@@ -266,7 +271,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 			int iWidth = 0;
 			int iHeight = 0;
 			int iChannelsInFile = 0;
-			ppMaskPixels[i] = stbi_load((textureSourceDir / pcMaskNames[i]).string().c_str(), &iWidth, &iHeight, &iChannelsInFile, STBI_grey);
+			ppMaskPixels[i] = stbi_load(reinterpret_cast<const char*>((textureSourceDir / pcMaskNames[i]).u8string().c_str()), &iWidth, &iHeight, &iChannelsInFile, STBI_grey);
 			ASSERT(ppMaskPixels[i] != nullptr);
 			if (i == 0)
 			{
@@ -346,20 +351,15 @@ std::optional<common::ChunkFlags_t> ExportIsland::Handles(const std::filesystem:
 		return std::nullopt;
 	}
 
+	// Ancestors only (parent_path) — a leaf directory itself named "Islands" must not match.
 	bool bUnderIslands = false;
-	for (std::filesystem::path ancestor = rDirectoryEntry.path().parent_path(); !ancestor.empty(); )
+	for (const std::filesystem::path& rPart : rDirectoryEntry.path().parent_path())
 	{
-		if (ancestor.filename() == "Islands")
+		if (rPart == "Islands")
 		{
 			bUnderIslands = true;
 			break;
 		}
-		std::filesystem::path parent = ancestor.parent_path();
-		if (parent == ancestor)
-		{
-			break;
-		}
-		ancestor = parent;
 	}
 	return bUnderIslands ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kIsland) : std::nullopt;
 }
@@ -441,7 +441,7 @@ void ExportIsland::Export()
 
 	// Chunk payload: [heightmap floats][mesh positions][mesh indices][valid-area hull verts]. Runtime
 	// IslandTerrain slices these contiguously using IslandHeader's count fields.
-	std::byte* pData = reinterpret_cast<std::byte*>(dataSpan.data());
+	std::byte* pData = dataSpan.data();
 	std::memcpy(pData, exported.cpuHeightmapData.data(), iHeightmapDataSize);
 	std::memcpy(pData + iHeightmapDataSize, exported.cpuMeshPositions.data(), iMeshPositionBytes);
 	std::memcpy(pData + iHeightmapDataSize + iMeshPositionBytes, exported.cpuMeshIndices.data(), iMeshIndexBytes);

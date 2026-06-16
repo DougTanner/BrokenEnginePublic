@@ -173,6 +173,46 @@ bool AreLeavesDirty(const std::filesystem::path& rRouteDir, int64_t iLeafCount)
 	return false;
 }
 
+// Delete numeric leaf folders left over from a previous, larger split. The split loop and AreLeavesDirty
+// only ever visit indices 0 .. iLeafCount-1, so when a route's kRouteSubdivisions columns/rows shrink the
+// higher-index folders are never revisited: they persist carrying Intermediates/BakedDimensions.json and
+// ExportIsland::Handles ingests them as stale kIsland chunks (a kiSplitVersion bump does not help — the
+// re-split only rewrites the lower-count leaves). Mirror BakeOne's whole-route prune one level up: collect
+// first, then remove_all (mutating the directory mid-iteration is unspecified for directory_iterator). Runs
+// unconditionally before the dirty early-return, so the leaf-set invariant holds regardless of whether the
+// developer bumped kiSplitVersion. The route's Intermediates/ folder is non-numeric, so the all-digits test
+// leaves it untouched; kept leaves (index < iLeafCount) are never removed.
+void RemoveOrphanedLeafFolders(const std::filesystem::path& rRouteDir, int64_t iLeafCount)
+{
+	if (!std::filesystem::exists(rRouteDir))
+	{
+		return;
+	}
+
+	std::vector<std::filesystem::path> orphanedLeafFolders;
+	for (const std::filesystem::directory_entry& rEntry : std::filesystem::directory_iterator(rRouteDir))
+	{
+		if (!rEntry.is_directory())
+		{
+			continue;
+		}
+		std::string name = rEntry.path().filename().string();
+		if (name.empty() || !std::ranges::all_of(name, [](char cChar) { return cChar >= '0' && cChar <= '9'; }))
+		{
+			continue;
+		}
+		if (std::stoll(name) >= iLeafCount)
+		{
+			orphanedLeafFolders.push_back(rEntry.path());
+		}
+	}
+	for (const std::filesystem::path& rOrphanedLeafFolder : orphanedLeafFolders)
+	{
+		std::filesystem::remove_all(rOrphanedLeafFolder);
+		LOG(kDefault, kDebug, "Removed orphaned island leaf folder: \"{}\"", rOrphanedLeafFolder.string());
+	}
+}
+
 } // namespace
 
 // Bakes one route of one island in two stages. STAGE 1 (Gaea raw, slow — only when IsGaeaRawDirty):
@@ -197,6 +237,10 @@ void BakeRoute(const IslandBakeContext& rContext, const RouteSubdivision& rRoute
 	std::filesystem::path routeDir = rIslandFolder / rRoute.pcLabel;
 	std::filesystem::path intermediatesDir = routeDir / kpcIslandIntermediatesDir;
 	int64_t iLeafCount = rRoute.iColumns * rRoute.iRows;
+
+	// Sweep leaf folders orphaned by a route leaf-count shrink before anything else: this must run even
+	// on the otherwise-clean early-return path, since a kRouteSubdivisions edit need not bump kiSplitVersion.
+	RemoveOrphanedLeafFolders(routeDir, iLeafCount);
 
 	bool bGaeaDirty = IsGaeaRawDirty(intermediatesDir, rIslandJsonFile, rArchetypeFile);
 	bool bLeavesDirty = AreLeavesDirty(routeDir, iLeafCount);
@@ -242,6 +286,7 @@ void BakeRoute(const IslandBakeContext& rContext, const RouteSubdivision& rRoute
 			std::ofstream varsStream(varsFile);
 			varsStream << varsJson.dump();
 			varsStream.close();
+			VERIFY_SUCCESS(varsStream.good());
 		}
 
 		// Copy the source archetype into this route's Intermediates/ and patch the copy — the on-disk
@@ -286,6 +331,8 @@ void BakeRoute(const IslandBakeContext& rContext, const RouteSubdivision& rRoute
 		// (stale leaves / kiSplitVersion bump) reuses them without re-running Gaea.
 		std::ofstream gaeaVersionStream(intermediatesDir / kpcBakeVersionFile);
 		gaeaVersionStream << kiBakeVersion;
+		gaeaVersionStream.close();
+		VERIFY_SUCCESS(gaeaVersionStream.good());
 	}
 	else
 	{
@@ -515,6 +562,8 @@ void BakeRoute(const IslandBakeContext& rContext, const RouteSubdivision& rRoute
 	{
 		std::ofstream splitVersionStream(intermediatesDir / kpcSplitVersionFile);
 		splitVersionStream << kiSplitVersion;
+		splitVersionStream.close();
+		VERIFY_SUCCESS(splitVersionStream.good());
 	}
 
 	LOG(kDefault, kDebug, "Island route \"{}\" ready ({} of {} chunk(s) written, {} rejected as too low{})", routeDir.string(), iWrittenLeaves, iLeafCount, iLeafCount - iWrittenLeaves, bGaeaDirty ? ", Gaea re-baked" : ", split-only reuse");

@@ -3,6 +3,8 @@
 #pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
 
 // stb
+// Filenames passed to stbi_load* are interpreted as UTF-8 and opened via _wfopen
+#define STBI_WINDOWS_UTF8
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 

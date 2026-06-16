@@ -157,6 +157,7 @@ public:
 	VkDeviceMemory mIndirectVkDeviceMemory = VK_NULL_HANDLE;
 	VmaAllocation mIndirectVmaAllocation = VK_NULL_HANDLE;
 	VkDrawIndexedIndirectCommand* mpIndirectMappedMemory = nullptr;
+	int64_t miIndirectSlotCount = 0; // Indirect buffer slot capacity (= max(framebufferCount, 3)); bounds the Record*Indirect command-buffer index
 
 	Buffer mModelMaterialsStorageBuffer;
 

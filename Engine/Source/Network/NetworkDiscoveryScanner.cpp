@@ -57,7 +57,7 @@ void NetworkDiscoveryScanner::Poll()
 	if (iReceived == sizeof(uiMagic) && uiMagic == kuiDiscoveryMagic)
 	{
 		uint8_t* pBytes = reinterpret_cast<uint8_t*>(&senderAddr.sin_addr);
-		snprintf(mpcFoundAddress, sizeof(mpcFoundAddress), "%u.%u.%u.%u", pBytes[0], pBytes[1], pBytes[2], pBytes[3]);
+		std::snprintf(mpcFoundAddress, sizeof(mpcFoundAddress), "%u.%u.%u.%u", pBytes[0], pBytes[1], pBytes[2], pBytes[3]);
 		mbFound = true;
 	}
 }

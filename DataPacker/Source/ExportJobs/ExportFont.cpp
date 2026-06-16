@@ -82,9 +82,11 @@ void ExportFont::Export()
 			}
 			case 4:
 			{
-				std::span<CharInfo> pCharInfos(reinterpret_cast<CharInfo*>(&fntData.at(iPos)), iBlockSize / sizeof(CharInfo));
-				for (const CharInfo& rCharInfo : pCharInfos)
+				const CharInfo* pCharInfos = reinterpret_cast<CharInfo*>(&fntData.at(iPos));
+				int64_t iCharInfoCount = iBlockSize / static_cast<int64_t>(sizeof(CharInfo));
+				for (int64_t iCharInfo = 0; iCharInfo < iCharInfoCount; ++iCharInfo)
 				{
+					const CharInfo& rCharInfo = pCharInfos[iCharInfo];
 					// LOG(kDefault, kDebug, "  CharInfo {} {} {} {} {} {} {} {}", rCharInfo.id, rCharInfo.x, rCharInfo.y, rCharInfo.width, rCharInfo.height, rCharInfo.xoffset, rCharInfo.yoffset, rCharInfo.xadvance);
 					ids.emplace_back(rCharInfo.id);
 					characters.emplace_back(common::Character {rCharInfo.x, rCharInfo.y, rCharInfo.width, rCharInfo.height, rCharInfo.xoffset, rCharInfo.yoffset, rCharInfo.xadvance});

@@ -29,7 +29,7 @@ public:
 
 	virtual ~ExportShader() = default;
 
-	virtual int64_t GetVersion() const override { return Version(14 + VK_HEADER_VERSION); }
+	virtual int64_t GetVersion() const override { return Version(15 + VK_HEADER_VERSION); }
 
 	bool CheckDirty(const std::filesystem::path& rPackFile) override;
 
@@ -38,14 +38,12 @@ protected:
 	void Export() override;
 	void CleanupOnFailure() override;
 
+	std::vector<std::filesystem::path> mIntermediateFiles;
+
 private:
 
 	std::filesystem::path PreprocessShader();
 	std::filesystem::path CompileShader(const std::filesystem::path& rPreProcessedFile);
 	std::filesystem::path OptimizeShader(const std::filesystem::path& rSpirvFile);
 	void ReflectAndWriteShader(const std::filesystem::path& rSpirvFile);
-
-protected:
-
-	std::vector<std::filesystem::path> mIntermediateFiles;
 };

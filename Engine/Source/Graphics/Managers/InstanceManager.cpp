@@ -709,14 +709,14 @@ void InstanceManager::ReadLayerProperties()
 	{
 		LOG(kGraphics, kInfo, "  {} {}.{}", rVkLayerProperties.layerName, VK_VERSION_PATCH(rVkLayerProperties.specVersion), rVkLayerProperties.implementationVersion);
 
-		if (strcmp(rVkLayerProperties.layerName, kpcKhronosValidation) == 0)
+		if (std::strcmp(rVkLayerProperties.layerName, kpcKhronosValidation) == 0)
 		{
 			mbFoundKhronosValidation = true;
 		}
 
 		for (size_t i = 0; i < std::size(kppcValidationLayers); ++i)
 		{
-			if (strcmp(rVkLayerProperties.layerName, kppcValidationLayers[i]) == 0)
+			if (std::strcmp(rVkLayerProperties.layerName, kppcValidationLayers[i]) == 0)
 			{
 				mValidationLayers.push_back(kppcValidationLayers[i]);
 			}

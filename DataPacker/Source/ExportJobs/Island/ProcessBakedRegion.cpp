@@ -138,6 +138,8 @@ bool ProcessBakedRegion(const IslandBakeContext& rContext, const BakeOutput& rBa
 	{
 		std::ofstream writeStream(leafIntermediatesDir / "Elevation.r32", std::ios::binary | std::ios::trunc);
 		writeStream.write(reinterpret_cast<const char*>(downsampledPixels.data()), downsampledPixels.size() * sizeof(float));
+		writeStream.close();
+		VERIFY_SUCCESS(writeStream.good());
 	}
 
 	// Crop AmbientOcclusion to the same bbox and write the leaf AmbientOcclusion.r16. Color.png and
@@ -153,6 +155,8 @@ bool ProcessBakedRegion(const IslandBakeContext& rContext, const BakeOutput& rBa
 		}
 		std::ofstream writeStream(leafIntermediatesDir / "AmbientOcclusion.r16", std::ios::binary | std::ios::trunc);
 		writeStream.write(reinterpret_cast<const char*>(aoCropped.data()), aoCropped.size() * sizeof(uint16_t));
+		writeStream.close();
+		VERIFY_SUCCESS(writeStream.good());
 	}
 
 	// Crop the (already beach-subdivided) mesh to this chunk's bbox and re-center its local origin
@@ -243,6 +247,8 @@ bool ProcessBakedRegion(const IslandBakeContext& rContext, const BakeOutput& rBa
 		meshOut.write(reinterpret_cast<const char*>(&iIndexCount32), sizeof(int32_t));
 		meshOut.write(reinterpret_cast<const char*>(meshPositions.data()), static_cast<std::streamsize>(meshPositions.size() * sizeof(float)));
 		meshOut.write(reinterpret_cast<const char*>(meshIndices.data()), static_cast<std::streamsize>(meshIndices.size() * sizeof(uint32_t)));
+		meshOut.close();
+		VERIFY_SUCCESS(meshOut.good());
 	}
 
 	// BakedDimensions.json, written LAST in the leaf — its presence is the leaf-complete marker
@@ -262,6 +268,8 @@ bool ProcessBakedRegion(const IslandBakeContext& rContext, const BakeOutput& rBa
 		bakedJson["textureSourceDir"] = rTextureSourceDirRelative;
 		std::ofstream bakedStream(leafIntermediatesDir / kpcBakedDimensionsFile);
 		bakedStream << bakedJson.dump(4);
+		bakedStream.close();
+		VERIFY_SUCCESS(bakedStream.good());
 	}
 
 	return true;

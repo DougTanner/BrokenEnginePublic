@@ -31,8 +31,8 @@ BufferManager::BufferManager()
 	},
 	[&](void* pData)
 	{
-		memcpy(pData, puiQuads, sizeof(puiQuads));
-		memcpy(static_cast<char*>(pData) + sizeof(puiQuads), pfQuads, sizeof(pfQuads));
+		std::memcpy(pData, puiQuads, sizeof(puiQuads));
+		std::memcpy(static_cast<char*>(pData) + sizeof(puiQuads), pfQuads, sizeof(pfQuads));
 	});
 
 	if constexpr (kbDebugRender)
@@ -62,8 +62,8 @@ BufferManager::BufferManager()
 			},
 			[&](void* pData)
 			{
-				memcpy(pData, puiIndices, sizeof(puiIndices));
-				memcpy(static_cast<char*>(pData) + sizeof(puiIndices), pfVertices, sizeof(pfVertices));
+				std::memcpy(pData, puiIndices, sizeof(puiIndices));
+				std::memcpy(static_cast<char*>(pData) + sizeof(puiIndices), pfVertices, sizeof(pfVertices));
 			});
 		}
 
@@ -79,8 +79,8 @@ BufferManager::BufferManager()
 				for (int64_t s = 0; s < kiSegments; ++s)
 				{
 					float fAngle = XM_2PI * static_cast<float>(s) / static_cast<float>(kiSegments);
-					float fCos = cosf(fAngle);
-					float fSin = sinf(fAngle);
+					float fCos = std::cosf(fAngle);
+					float fSin = std::sinf(fAngle);
 					int64_t iVertex = (c * kiSegments + s) * 3;
 					switch (c)
 					{
@@ -105,8 +105,8 @@ BufferManager::BufferManager()
 			},
 			[&](void* pData)
 			{
-				memcpy(pData, puiIndices, sizeof(puiIndices));
-				memcpy(static_cast<char*>(pData) + sizeof(puiIndices), pfVertices, sizeof(pfVertices));
+				std::memcpy(pData, puiIndices, sizeof(puiIndices));
+				std::memcpy(static_cast<char*>(pData) + sizeof(puiIndices), pfVertices, sizeof(pfVertices));
 			});
 		}
 
@@ -120,8 +120,8 @@ BufferManager::BufferManager()
 			{
 				float fAngle = XM_2PI * static_cast<float>(s) / static_cast<float>(kiSegments);
 				int64_t iVertex = s * 3;
-				pfVertices[iVertex] = cosf(fAngle);
-				pfVertices[iVertex + 1] = sinf(fAngle);
+				pfVertices[iVertex] = std::cosf(fAngle);
+				pfVertices[iVertex + 1] = std::sinf(fAngle);
 				pfVertices[iVertex + 2] = 0.0f;
 				int64_t iIndex = s * 2;
 				puiIndices[iIndex] = static_cast<uint16_t>(s);
@@ -138,8 +138,8 @@ BufferManager::BufferManager()
 			},
 			[&](void* pData)
 			{
-				memcpy(pData, puiIndices, sizeof(puiIndices));
-				memcpy(static_cast<char*>(pData) + sizeof(puiIndices), pfVertices, sizeof(pfVertices));
+				std::memcpy(pData, puiIndices, sizeof(puiIndices));
+				std::memcpy(static_cast<char*>(pData) + sizeof(puiIndices), pfVertices, sizeof(pfVertices));
 			});
 		}
 
@@ -158,8 +158,8 @@ BufferManager::BufferManager()
 			},
 			[&](void* pData)
 			{
-				memcpy(pData, puiIndices, sizeof(puiIndices));
-				memcpy(static_cast<char*>(pData) + sizeof(puiIndices), pfVertices, sizeof(pfVertices));
+				std::memcpy(pData, puiIndices, sizeof(puiIndices));
+				std::memcpy(static_cast<char*>(pData) + sizeof(puiIndices), pfVertices, sizeof(pfVertices));
 			});
 		}
 	}
@@ -183,7 +183,7 @@ BufferManager::BufferManager()
 		},
 		[&](void* pData)
 		{
-			memcpy(pData, rChunk.pData, rChunk.pHeader->iSize);
+			std::memcpy(pData, rChunk.pData, rChunk.pHeader->iSize);
 		});
 		ASSERT(bInserted);
 	}
@@ -201,7 +201,7 @@ BufferManager::BufferManager()
 	},
 	[&](void* pData)
 	{
-		memset(pData, 0, sizeof(shaders::ParticlesLayout));
+		std::memset(pData, 0, sizeof(shaders::ParticlesLayout));
 	});
 
 	mSquareParticlesStorageBuffer.Create(
@@ -212,7 +212,7 @@ BufferManager::BufferManager()
 	},
 	[&](void* pData)
 	{
-		memset(pData, 0, sizeof(shaders::ParticlesLayout));
+		std::memset(pData, 0, sizeof(shaders::ParticlesLayout));
 	});
 }
 
@@ -500,7 +500,7 @@ void BufferManager::GrowMeshDataBuffer(int64_t iCommandBuffer, int64_t iValidCou
 	});
 
 	// Copy only the iValidCount elements written before this allocation; the old buffer holds nothing past them
-	memcpy(mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory, pOldData, iValidCount * sizeof(common::MeshData));
+	std::memcpy(mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory, pOldData, iValidCount * sizeof(common::MeshData));
 
 	// Update MeshData descriptor on all model pipelines
 	Buffer* pNewBuffer = &mMeshDataStorageBuffers.at(iCommandBuffer);
@@ -525,7 +525,7 @@ void BufferManager::GrowJointMatrixBuffer(int64_t iCommandBuffer, int64_t iValid
 	});
 
 	// Copy only the iValidCount elements written before this allocation; the old buffer holds nothing past them
-	memcpy(mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory, pOldData, iValidCount * sizeof(common::JointMatrix));
+	std::memcpy(mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory, pOldData, iValidCount * sizeof(common::JointMatrix));
 
 	// Update JointMatrix descriptor on all model pipelines
 	Buffer* pNewBuffer = &mJointMatrixStorageBuffers.at(iCommandBuffer);
@@ -758,8 +758,8 @@ void BufferManager::CreateWaterMesh()
 	},
 	[&](void* pData)
 	{
-		memcpy(pData, indices.data(), sizeof(uint32_t) * indices.size());
-		memcpy(static_cast<char*>(pData) + sizeof(uint32_t) * indices.size(), vertices.data(), vertices.size());
+		std::memcpy(pData, indices.data(), sizeof(uint32_t) * indices.size());
+		std::memcpy(static_cast<char*>(pData) + sizeof(uint32_t) * indices.size(), vertices.data(), vertices.size());
 	});
 }
 

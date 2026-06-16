@@ -32,19 +32,19 @@ DeviceManager::DeviceManager()
 	bool bLineRasterizationAvailable = false;
 	for (const VkExtensionProperties& rExtension : availableExtensions)
 	{
-		if (strcmp(rExtension.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0)
+		if (std::strcmp(rExtension.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0)
 		{
 			deviceExtensions.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
 			mbMemoryBudgetAvailable = true;
 			LOG(kGraphics, kInfo, "VK_EXT_memory_budget extension available");
 		}
-		else if (strcmp(rExtension.extensionName, VK_KHR_MAINTENANCE_9_EXTENSION_NAME) == 0)
+		else if (std::strcmp(rExtension.extensionName, VK_KHR_MAINTENANCE_9_EXTENSION_NAME) == 0)
 		{
 			deviceExtensions.push_back(VK_KHR_MAINTENANCE_9_EXTENSION_NAME);
 			bMaintenance9Available = true;
 			LOG(kGraphics, kInfo, "VK_KHR_maintenance9 extension available");
 		}
-		else if (strcmp(rExtension.extensionName, VK_EXT_LINE_RASTERIZATION_EXTENSION_NAME) == 0)
+		else if (std::strcmp(rExtension.extensionName, VK_EXT_LINE_RASTERIZATION_EXTENSION_NAME) == 0)
 		{
 			bLineRasterizationAvailable = true;
 			LOG(kGraphics, kInfo, "VK_EXT_line_rasterization extension available");

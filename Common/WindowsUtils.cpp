@@ -16,20 +16,18 @@ static std::string_view TrimSystemMessage(char* pcBuffer, DWORD uiLength)
 	return std::string_view(pcBuffer, uiLength);
 }
 
-std::string_view LastErrorString()
+std::string LastErrorString()
 {
-	static char spcReturn[MAX_PATH] {};
-	spcReturn[0] = 0;
-	DWORD uiLength = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), spcReturn, static_cast<DWORD>(std::size(spcReturn)) - 1, nullptr);
-	return TrimSystemMessage(spcReturn, uiLength);
+	char acReturn[MAX_PATH] {};
+	DWORD uiLength = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), acReturn, static_cast<DWORD>(std::size(acReturn)) - 1, nullptr);
+	return std::string(TrimSystemMessage(acReturn, uiLength));
 }
 
-std::string_view HresultToString(HRESULT hresult)
+std::string HresultToString(HRESULT hresult)
 {
-	static char spcReturn[MAX_PATH] {};
-	spcReturn[0] = 0;
-	DWORD uiLength = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, static_cast<DWORD>(hresult), 0, spcReturn, static_cast<DWORD>(std::size(spcReturn) - 1), nullptr);
-	return TrimSystemMessage(spcReturn, uiLength);
+	char acReturn[MAX_PATH] {};
+	DWORD uiLength = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, static_cast<DWORD>(hresult), 0, acReturn, static_cast<DWORD>(std::size(acReturn) - 1), nullptr);
+	return std::string(TrimSystemMessage(acReturn, uiLength));
 }
 
 int64_t LogicalCoreCount()

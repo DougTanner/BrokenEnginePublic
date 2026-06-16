@@ -67,7 +67,7 @@ protected:
 	void OnDbgHelpErr(LPCSTR funcName, DWORD lastError, DWORD64 addr) override
 	{
 		// Per-frame line-lookup failures are expected with line-stripped PDBs and already visible as offset-form frames
-		if (strcmp(funcName, "SymGetLineFromAddr64") == 0 || strcmp(funcName, "SymGetLineFromInlineContext") == 0)
+		if (std::strcmp(funcName, "SymGetLineFromAddr64") == 0 || std::strcmp(funcName, "SymGetLineFromInlineContext") == 0)
 		{
 			return;
 		}
@@ -94,6 +94,8 @@ protected:
 
 	void Emit(const char* pcText) override
 	{
+		// Fault-path emit: relies on Log()'s thread_local fallback buffer (GetLogFallbackBuffer) for race-freedom on
+		// ThreadLocal-less faulting threads, and stays allocation-free. Do not reintroduce a shared static there.
 		LOG(kDefault, kError, "{}", pcText);
 	}
 };

@@ -58,8 +58,29 @@ CommandBuffers::CommandBuffers(int64_t iFramebuffer)
 	VkName(VK_OBJECT_TYPE_SEMAPHORE, mImGuiFinishedVkSemaphore, std::format("ImGuiFinished_{}", iFramebuffer).c_str());
 }
 
+CommandBuffers::CommandBuffers(CommandBuffers&& rOther) noexcept
+	: miFramebuffer(rOther.miFramebuffer)
+	, mFlags(rOther.mFlags)
+	, mVkCommandPool(std::exchange(rOther.mVkCommandPool, VK_NULL_HANDLE))
+	, mGlobalVkCommandBuffer(std::exchange(rOther.mGlobalVkCommandBuffer, VK_NULL_HANDLE))
+	, mMainVkCommandBuffer(std::exchange(rOther.mMainVkCommandBuffer, VK_NULL_HANDLE))
+	, mGlobalFinishedVkSemaphore(std::exchange(rOther.mGlobalFinishedVkSemaphore, VK_NULL_HANDLE))
+	, mMainFinishedVkSemaphore(std::exchange(rOther.mMainFinishedVkSemaphore, VK_NULL_HANDLE))
+	, mImGuiVkCommandBuffer(std::exchange(rOther.mImGuiVkCommandBuffer, VK_NULL_HANDLE))
+	, mImGuiFinishedVkSemaphore(std::exchange(rOther.mImGuiFinishedVkSemaphore, VK_NULL_HANDLE))
+	, mVkFence(std::exchange(rOther.mVkFence, VK_NULL_HANDLE))
+{
+}
+
 CommandBuffers::~CommandBuffers()
 {
+	// Moved-from object: all handles stolen and nulled together. vkFreeCommandBuffers requires a valid pool,
+	// so skip the whole teardown when the pool is gone (the other handles are null too).
+	if (mVkCommandPool == VK_NULL_HANDLE)
+	{
+		return;
+	}
+
 	vkDestroySemaphore(gpDeviceManager->mVkDevice, mImGuiFinishedVkSemaphore, nullptr);
 
 	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mVkCommandPool, 1, &mGlobalVkCommandBuffer);

@@ -168,7 +168,7 @@ void WriteModelDescriptor(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo
 			const int64_t kiOldMaterialSize = offsetof(shaders::PbrMaterialLayout, fColorTextureIndex);
 			for (int64_t j = 0; j < rSceneHeader.uiMaterialCount; ++j)
 			{
-				memcpy(pCurrent, &pMaterialShaderData[j].f4BaseColorFactor, kiOldMaterialSize);
+				std::memcpy(pCurrent, &pMaterialShaderData[j].f4BaseColorFactor, kiOldMaterialSize);
 				pCurrent->fColorTextureIndex = static_cast<float>(gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiColorTextureIndex]));
 				pCurrent->fPhysicalDescriptorTextureIndex = static_cast<float>(gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiPhysicalDescriptorTextureIndex]));
 				pCurrent->fNormalTextureIndex = static_cast<float>(gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiNormalTextureIndex]));

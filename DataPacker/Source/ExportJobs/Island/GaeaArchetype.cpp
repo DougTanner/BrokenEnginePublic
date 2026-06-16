@@ -37,6 +37,8 @@ void WriteFileBytes(const std::filesystem::path& rFile, const std::string& rByte
 	{
 		std::ofstream stream(tempFile, std::ios::binary);
 		stream.write(rBytes.data(), rBytes.size());
+		stream.close();
+		VERIFY_SUCCESS(stream.good());
 	}
 	std::filesystem::rename(tempFile, rFile);
 }
@@ -136,7 +138,7 @@ std::filesystem::path ResolveGaeaExecutable()
 	if (pcEnvValue != nullptr)
 	{
 		std::filesystem::path envPath(pcEnvValue);
-		free(pcEnvValue);
+		std::free(pcEnvValue);
 		if (std::filesystem::exists(envPath))
 		{
 			return envPath;

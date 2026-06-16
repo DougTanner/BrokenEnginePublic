@@ -60,11 +60,11 @@ void ParticleManager::RenderGlobal(int64_t iCommandBuffer)
 
 	// Spawn
 	rLongParticlesSpawnLayout.iCount = mLongParticlesSpawnLayout.iCount;
-	memcpy(&rLongParticlesSpawnLayout.pParticles[0], &mLongParticlesSpawnLayout.pParticles[0], rLongParticlesSpawnLayout.iCount * sizeof(shaders::ParticleLayout));
+	std::memcpy(&rLongParticlesSpawnLayout.pParticles[0], &mLongParticlesSpawnLayout.pParticles[0], rLongParticlesSpawnLayout.iCount * sizeof(shaders::ParticleLayout));
 	mLongParticlesSpawnLayout.iCount = 0;
 
 	rSquareParticlesSpawnLayout.iCount = mSquareParticlesSpawnLayout.iCount;
-	memcpy(&rSquareParticlesSpawnLayout.pParticles[0], &mSquareParticlesSpawnLayout.pParticles[0], rSquareParticlesSpawnLayout.iCount * sizeof(shaders::ParticleLayout));
+	std::memcpy(&rSquareParticlesSpawnLayout.pParticles[0], &mSquareParticlesSpawnLayout.pParticles[0], rSquareParticlesSpawnLayout.iCount * sizeof(shaders::ParticleLayout));
 	mSquareParticlesSpawnLayout.iCount = 0;
 
 	// Reset?

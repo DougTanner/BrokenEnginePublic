@@ -313,7 +313,7 @@ void ImGuiManager::UpdateUiRectBuffers(int64_t iFramebuffer)
 	{
 		Buffer& rStorageBuffer = gpBufferManager->mUiRectStorageBuffers.at(iFramebuffer);
 		XMFLOAT4* pRects = reinterpret_cast<XMFLOAT4*>(rStorageBuffer.mpMappedMemory);
-		memcpy(pRects, mOpaqueRects, static_cast<size_t>(miOpaqueRectCount) * sizeof(XMFLOAT4));
+		std::memcpy(pRects, mOpaqueRects, static_cast<size_t>(miOpaqueRectCount) * sizeof(XMFLOAT4));
 	}
 
 	mpUiPrepassIndirectMapped[iFramebuffer] = {.vertexCount = 6, .instanceCount = static_cast<uint32_t>(miOpaqueRectCount), .firstVertex = 0, .firstInstance = 0};

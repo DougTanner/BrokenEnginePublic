@@ -19,7 +19,7 @@ Headers consumed by Common/Engine go through `Common/ExternalHeaders.h` (with `B
 - **Clipper2** (Boost) — 2D polygon clipping for navmesh build; runs on the shared sim path — chosen for int64-quantized determinism
 - **StackWalker** (BSD-2) — crash stack capture; use via `common::FilteredStackWalker`, never directly (DbgHelp is process-single-threaded)
 - **zlib** (zlib) — runtime `.pack` chunk decompression in FileManager (client and server), DataPacker intermediate compression, deflate backend for openexr
-- **stb** (MIT / public domain) — image write (engine screenshots); image load/resize/write (DataPacker). The shared write implementation defines `STBIW_WINDOWS_UTF8`, so every `stbi_write_*` caller passes filenames as UTF-8 (e.g. `std::filesystem::path::u8string()`), never ANSI
+- **stb** (MIT / public domain) — image write (engine screenshots); image load/resize/write (DataPacker). The shared write implementation defines `STBIW_WINDOWS_UTF8`, so every `stbi_write_*` caller passes filenames as UTF-8 (e.g. `std::filesystem::path::u8string()`), never ANSI. The DataPacker stb load implementation likewise defines `STBI_WINDOWS_UTF8`, so first-party `stbi_load` callers pass filenames as UTF-8 (`reinterpret_cast<const char*>(path.u8string().c_str())`), never ANSI
 - **PerlinNoise** (MIT) — header-only noise (client render path)
 - **RenderDoc** (`renderdoc_app.h`, MIT) — in-app capture API header
 

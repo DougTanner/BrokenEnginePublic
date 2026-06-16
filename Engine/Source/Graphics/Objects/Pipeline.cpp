@@ -252,12 +252,12 @@ void Pipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkComm
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipeline);
 	BindGraphicsDescriptorSets(vkCommandBuffer, mVkPipelineLayout, mVkExternalDescriptorSetLayout, iCommandBuffer, mVkDescriptorSets);
 	mInfo.pVertexBuffer->RecordBindVertexBuffer(vkCommandBuffer);
-	VkDeviceSize vkIndirectOffset = mInfo.flags & kIndirectDeviceLocal ? 0 : iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
+	// Device-local reads slot 0; host-visible indexes per-framebuffer
+	int64_t iIndirectSlot = mInfo.flags & kIndirectDeviceLocal ? 0 : iCommandBuffer;
+	VkDeviceSize vkIndirectOffset = iIndirectSlot * sizeof(VkDrawIndexedIndirectCommand);
 
-	// Verify buffer is large enough for this command buffer index
-	VmaAllocationInfo vmaAllocationInfo {};
-	vmaGetAllocationInfo(gpDeviceManager->mpAllocator, mIndirectVmaAllocation, &vmaAllocationInfo);
-	ASSERT(vkIndirectOffset + sizeof(VkDrawIndexedIndirectCommand) <= vmaAllocationInfo.size);
+	// Verify the indexed slot is within the indirect buffer's slot capacity
+	ASSERT(iIndirectSlot < miIndirectSlotCount);
 
 	vkCmdDrawIndexedIndirect(vkCommandBuffer, mIndirectVkBuffer, vkIndirectOffset, 1, sizeof(VkDrawIndexedIndirectCommand));
 }
@@ -306,12 +306,12 @@ void Pipeline::RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkC
 	int64_t iDescriptorSetIndex = mbPerCommandBuffer ? iCommandBuffer : 0;
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mVkPipeline);
 	BindComputeDescriptorSets(vkCommandBuffer, mVkPipelineLayout, mVkExternalDescriptorSetLayout, iCommandBuffer, iDescriptorSetIndex, mVkDescriptorSets);
-	VkDeviceSize vkDispatchOffset = mInfo.flags & kIndirectHostVisible ? iCommandBuffer * sizeof(VkDispatchIndirectCommand) : 0;
+	// Host-visible indexes per-framebuffer; device-local reads slot 0
+	int64_t iIndirectSlot = mInfo.flags & kIndirectHostVisible ? iCommandBuffer : 0;
+	VkDeviceSize vkDispatchOffset = iIndirectSlot * sizeof(VkDispatchIndirectCommand);
 
-	// Verify buffer is large enough for this command buffer index
-	VmaAllocationInfo vmaAllocationInfo {};
-	vmaGetAllocationInfo(gpDeviceManager->mpAllocator, mIndirectVmaAllocation, &vmaAllocationInfo);
-	ASSERT(vkDispatchOffset + sizeof(VkDispatchIndirectCommand) <= vmaAllocationInfo.size);
+	// Verify the indexed slot is within the indirect buffer's slot capacity
+	ASSERT(iIndirectSlot < miIndirectSlotCount);
 
 	vkCmdDispatchIndirect(vkCommandBuffer, mIndirectVkBuffer, vkDispatchOffset);
 }
@@ -327,11 +327,7 @@ void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCoun
 		gpFileManager->RequestChunkLoad(mTextureCrcs);
 	}
 
-	if (mpIndirectMappedMemory == nullptr)
-	{
-		ASSERT(false);
-		return;
-	}
+	ASSERT(mpIndirectMappedMemory != nullptr);
 
 	VkDrawIndexedIndirectCommand& rCommand = mpIndirectMappedMemory[iCommandBuffer];
 

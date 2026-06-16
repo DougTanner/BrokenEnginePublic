@@ -111,7 +111,7 @@ void TextureCache::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, Vk
 
 	// Use VMA's pre-mapped pointer to copy data to output (VMA guarantees pMappedData valid for mapped allocations)
 #pragma warning(suppress: 6387)
-	memcpy(rOutData.data(), stagingVmaAllocationInfo.pMappedData, iTotalSize);
+	std::memcpy(rOutData.data(), stagingVmaAllocationInfo.pMappedData, iTotalSize);
 
 	// Cleanup staging buffer
 	vmaDestroyBuffer(gpDeviceManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
@@ -236,7 +236,7 @@ bool TextureCache::TryLoadCachedTexture(const std::filesystem::path& rCachePath,
 	// Update texture with cached data
 	rTexture.UpdateData([&data](void* pData, [[maybe_unused]] int64_t iPosition, int64_t iSize)
 	{
-		memcpy(pData, data.data(), iSize);
+		std::memcpy(pData, data.data(), iSize);
 	});
 
 	LOG(kLoading, kDebug, "Loaded cached texture from {}", rCachePath.string());

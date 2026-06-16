@@ -85,6 +85,7 @@ static void CreateSingleSetPipelineLayout(VkDescriptorSetLayoutCreateInfo& rLayo
 static void SetupIndirectBuffer(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo, int64_t iCommandBufferCount)
 {
 	VkDeviceSize vkDeviceSize = iCommandBufferCount * sizeof(VkDrawIndexedIndirectCommand);
+	rPipeline.miIndirectSlotCount = iCommandBufferCount;
 
 	if (rPipeline.mInfo.flags & kIndirectHostVisible)
 	{
@@ -581,7 +582,9 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 	{
 		iColorAttachmentCount = 3;
 	}
-	VkPipelineColorBlendAttachmentState pMrtBlendStates[6] {};
+	static constexpr int64_t kiMaxColorAttachments {6};
+	ASSERT(iColorAttachmentCount <= kiMaxColorAttachments);
+	VkPipelineColorBlendAttachmentState pMrtBlendStates[kiMaxColorAttachments] {};
 	if (iColorAttachmentCount > 1)
 	{
 		for (int64_t i = 0; i < iColorAttachmentCount; ++i)
@@ -628,6 +631,8 @@ void PipelineCreator::CreateComputePipeline(Pipeline& rPipeline, const PipelineI
 	}
 	else if (rPipeline.mInfo.flags & kIndirectDeviceLocal)
 	{
+		// Single-slot dispatch buffer (always read at offset 0); bounds the RecordComputeIndirect index assert
+		rPipeline.miIndirectSlotCount = 1;
 		Buffer::CreateBuffer(rPipelineInfo.name, sizeof(VkDispatchIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation);
 	}
 

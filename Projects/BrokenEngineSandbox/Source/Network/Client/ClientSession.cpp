@@ -260,7 +260,7 @@ bool ClientSession::PollConnectionStatus()
 		const char* pRejection = mpClientNetwork->GetRejectionReason();
 		if (pRejection != nullptr)
 		{
-			snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "%s", pRejection);
+			std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "%s", pRejection);
 			DisconnectFromServer();
 			gpGame->meUiState = UiState::kModal;
 			return false;
@@ -268,7 +268,7 @@ bool ClientSession::PollConnectionStatus()
 
 		if (mpClientNetwork->WasDisconnected())
 		{
-			snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Connection failed");
+			std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Connection failed");
 			DisconnectFromServer();
 			gpGame->meUiState = UiState::kModal;
 			return false;

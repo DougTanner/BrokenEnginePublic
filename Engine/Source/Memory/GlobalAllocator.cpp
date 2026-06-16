@@ -34,21 +34,21 @@ void EnableAllocationTracking(bool bEnable)
 
 #if defined(ENABLE_CRT_DEBUG_HEAP)
 
-[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new(std::size_t n) noexcept(false) { TrackAllocation(); void* p = malloc(n); __assume(p); return p; }
-[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new[](std::size_t n) noexcept(false) { TrackAllocation(); void* p = malloc(n); __assume(p); return p; }
-[[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new  (std::size_t n, const std::nothrow_t&) noexcept { TrackAllocation(); return malloc(n); }
-[[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new[](std::size_t n, const std::nothrow_t&) noexcept { TrackAllocation(); return malloc(n); }
+[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new(std::size_t n) noexcept(false) { TrackAllocation(); void* p = std::malloc(n); __assume(p); return p; }
+[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new[](std::size_t n) noexcept(false) { TrackAllocation(); void* p = std::malloc(n); __assume(p); return p; }
+[[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new  (std::size_t n, const std::nothrow_t&) noexcept { TrackAllocation(); return std::malloc(n); }
+[[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new[](std::size_t n, const std::nothrow_t&) noexcept { TrackAllocation(); return std::malloc(n); }
 [[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new  (std::size_t n, std::align_val_t al) noexcept(false) { TrackAllocation(); void* p = _aligned_malloc(n, static_cast<size_t>(al)); __assume(p); return p; }
 [[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new[](std::size_t n, std::align_val_t al) noexcept(false) { TrackAllocation(); void* p = _aligned_malloc(n, static_cast<size_t>(al)); __assume(p); return p; }
 [[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new  (std::size_t n, std::align_val_t al, const std::nothrow_t&) noexcept { TrackAllocation(); return _aligned_malloc(n, static_cast<size_t>(al)); }
 [[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new[](std::size_t n, std::align_val_t al, const std::nothrow_t&) noexcept { TrackAllocation(); return _aligned_malloc(n, static_cast<size_t>(al)); }
 
-void operator delete(void* p) noexcept { free(p); }
-void operator delete[](void* p) noexcept { free(p); }
-void operator delete  (void* p, const std::nothrow_t&) noexcept { free(p); }
-void operator delete[](void* p, const std::nothrow_t&) noexcept { free(p); }
-void operator delete  (void* p, std::size_t) noexcept { free(p); }
-void operator delete[](void* p, std::size_t) noexcept { free(p); }
+void operator delete(void* p) noexcept { std::free(p); }
+void operator delete[](void* p) noexcept { std::free(p); }
+void operator delete  (void* p, const std::nothrow_t&) noexcept { std::free(p); }
+void operator delete[](void* p, const std::nothrow_t&) noexcept { std::free(p); }
+void operator delete  (void* p, std::size_t) noexcept { std::free(p); }
+void operator delete[](void* p, std::size_t) noexcept { std::free(p); }
 void operator delete  (void* p, std::align_val_t) noexcept { _aligned_free(p); }
 void operator delete[](void* p, std::align_val_t) noexcept { _aligned_free(p); }
 void operator delete  (void* p, std::size_t, std::align_val_t) noexcept { _aligned_free(p); }

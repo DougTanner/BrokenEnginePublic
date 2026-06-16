@@ -48,7 +48,7 @@ public:
 		{
 			Grow(iNeeded);
 		}
-		memcpy(mBuffer.data() + miSize, &rValue, sizeof(T));
+		std::memcpy(mBuffer.data() + miSize, &rValue, sizeof(T));
 		miSize += static_cast<int64_t>(sizeof(T));
 	}
 

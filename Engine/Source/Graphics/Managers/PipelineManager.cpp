@@ -29,7 +29,7 @@ PipelineManager::PipelineManager()
 
 		if constexpr (!kbDebugPrintf)
 		{
-			if (strcmp(rChunk.pHeader->pcPath, "Shaders\\Log.vert") == 0)
+			if (std::strcmp(rChunk.pHeader->pcPath, "Shaders\\Log.vert") == 0)
 			{
 				continue;
 			}

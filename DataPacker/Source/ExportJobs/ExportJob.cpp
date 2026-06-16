@@ -9,7 +9,7 @@ ExportJob::ExportJob(common::ChunkFlags_t rChunkFlags, const std::filesystem::pa
 , mChunkFlags(rChunkFlags)
 , mInputPath(rFile)
 {
-	if (mInputPath.native().find(gpFileManager->mpInputDirectories[0].native()) != std::string::npos)
+	if (mInputPath.native().starts_with(gpFileManager->mpInputDirectories[0].native()))
 	{
 		mRelativeDirectory = mInputPath.native().substr(gpFileManager->mpInputDirectories[0].native().size() + 1);
 	}
@@ -131,7 +131,8 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 std::vector<std::byte>& ExportJob::RunExport()
 {
 	common::ThreadLocal threadLocal(4 * 1024, miId, false);
-	LogIndent(2);
+	ScopedLogIndent scopedLogIndentOuter;
+	ScopedLogIndent scopedLogIndentInner;
 
 	// Load cached chunk file
 	if (!mbDirty)
@@ -173,10 +174,14 @@ std::vector<std::byte>& ExportJob::RunExport()
 	int64_t piMagicAndVersion[2] = { kiMagic, GetVersion() };
 	fileStream.write(reinterpret_cast<char*>(piMagicAndVersion), sizeof(piMagicAndVersion));
 	fileStream.write(reinterpret_cast<char*>(mHeaderAndData.data()), mHeaderAndData.size());
+	fileStream.close();
+	VERIFY_SUCCESS(fileStream.good());
 
 	int64_t iLastModifiedTime = std::filesystem::last_write_time(mInputPath).time_since_epoch().count();
 	std::fstream lastModifiedTimeFileStream(mLastModifiedTimeFile, std::ios::out | std::ios::binary);
 	lastModifiedTimeFileStream.write(reinterpret_cast<char*>(&iLastModifiedTime), sizeof(iLastModifiedTime));
+	lastModifiedTimeFileStream.close();
+	VERIFY_SUCCESS(lastModifiedTimeFileStream.good());
 
 	return mHeaderAndData;
 }

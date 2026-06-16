@@ -5,6 +5,15 @@ namespace engine
 
 struct Framebuffer
 {
+	Framebuffer() = default;
+	Framebuffer(const Framebuffer&) = delete;
+	Framebuffer& operator=(const Framebuffer&) = delete;
+	// Movable (not copyable): std::vector<Framebuffer>::resize instantiates the relocation path at compile
+	// time. Handles are freed by ~SwapchainManager's loop, not this struct, so a defaulted move (which only
+	// copies the handle values) is safe — the moved-from element's destruction frees nothing.
+	Framebuffer(Framebuffer&&) = default;
+	Framebuffer& operator=(Framebuffer&&) = default;
+
 	VkImage presentVkImage = VK_NULL_HANDLE;
 	VkImageView presentVkImageView = VK_NULL_HANDLE;
 	VkFramebuffer presentVkFramebuffer = VK_NULL_HANDLE;

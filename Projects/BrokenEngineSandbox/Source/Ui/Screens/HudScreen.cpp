@@ -301,7 +301,7 @@ void HudScreen::RenderFleetPanel(float fTarget)
 			if (rMember.bAlive)
 			{
 				char pcLabel[64];
-				snprintf(pcLabel, sizeof(pcLabel), "Ship %lld (%d,%d) #%lld", i + 1, memberCoord.x, memberCoord.y, rMember.globalPlayerId.iValue);
+				std::snprintf(pcLabel, sizeof(pcLabel), "Ship %lld (%d,%d) #%lld", i + 1, memberCoord.x, memberCoord.y, rMember.globalPlayerId.iValue);
 				if (ImGui::Selectable(pcLabel, bSelected))
 				{
 					gpGame->SelectPlayerInFleet(i);
@@ -311,7 +311,7 @@ void HudScreen::RenderFleetPanel(float fTarget)
 			else
 			{
 				char pcLabel[64];
-				snprintf(pcLabel, sizeof(pcLabel), "Ship %lld [DEAD] #%lld", i + 1, rMember.globalPlayerId.iValue);
+				std::snprintf(pcLabel, sizeof(pcLabel), "Ship %lld [DEAD] #%lld", i + 1, rMember.globalPlayerId.iValue);
 				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
 				if (ImGui::Selectable(pcLabel, false))
 				{

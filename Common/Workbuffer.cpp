@@ -11,7 +11,7 @@ void Workbuffer::Append(std::string_view text)
 		Grow(iNeeded);
 	}
 
-	memcpy(reinterpret_cast<char*>(mBuffer.data()) + miSize, text.data(), text.size());
+	std::memcpy(reinterpret_cast<char*>(mBuffer.data()) + miSize, text.data(), text.size());
 	miSize += static_cast<int64_t>(text.size());
 }
 

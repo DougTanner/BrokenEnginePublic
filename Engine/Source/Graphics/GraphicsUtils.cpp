@@ -18,7 +18,7 @@ void CheckVkFailed(VkResult vkResult, std::string_view expression, std::source_l
 
 	// Format exception message with call site information
 	auto pcException = rWorkbuffer.PushBuffer<char*>(1024);
-	snprintf(pcException, 1023, "CheckVk failed: \"%.*s\" at %s:%u in %s\nVkResult: %s", static_cast<int>(expression.size()), expression.data(), loc.file_name(), loc.line(), loc.function_name(), pcResult);
+	std::snprintf(pcException, 1023, "CheckVk failed: \"%.*s\" at %s:%u in %s\nVkResult: %s", static_cast<int>(expression.size()), expression.data(), loc.file_name(), loc.line(), loc.function_name(), pcResult);
 
 	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
 	{

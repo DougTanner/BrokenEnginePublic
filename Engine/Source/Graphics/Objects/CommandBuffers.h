@@ -16,6 +16,9 @@ public:
 
 	CommandBuffers() = delete;
 	CommandBuffers(int64_t iFramebuffer);
+	CommandBuffers(const CommandBuffers&) = delete;
+	CommandBuffers& operator=(const CommandBuffers&) = delete;
+	CommandBuffers(CommandBuffers&& rOther) noexcept;
 	~CommandBuffers();
 
 	int64_t miFramebuffer = 0;

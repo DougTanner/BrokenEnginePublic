@@ -21,7 +21,7 @@ Low-level Vulkan resource wrappers with automatic lifecycle management, move sem
 
 ## Buffer Staging Modes
 
-Three mutually-exclusive modes: persistent host-mapped (CPU-written each frame), device-local (one-shot staging copy at create), and copy-every-frame (both buffers retained, barriers bracket the copy). VMA classifies host-visible requests by usage: readback (transfer-dst only, random host access), indirect, or upload (VMA may substitute device-local + staging). Indirect buffers force host-visible/coherent with no transfer fallback because the GPU reads them directly; indirect slot count is `max(framebufferCount, 3)` for resize robustness.
+Three mutually-exclusive modes: persistent host-mapped (CPU-written each frame), device-local (one-shot staging copy at create), and copy-every-frame (both buffers retained, barriers bracket the copy). VMA classifies host-visible requests by usage: readback (transfer-dst only, random host access), indirect, or upload (VMA may substitute device-local + staging). Graphics draw-indirect buffers force host-visible/coherent with no transfer fallback because the GPU reads them directly, with a slot count of `max(framebufferCount, 3)` for resize robustness (CPU rewrites per-template `instanceCount` each frame). Compute dispatch-indirect buffers instead are device-local single-slot (always read at offset 0, written by the GPU). The slot count bounds the indexed `Record*Indirect` slot at record time.
 
 ## Pipeline Creation
 

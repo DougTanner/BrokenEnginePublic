@@ -218,16 +218,16 @@ static void PaintGridMap(HDC hdcBuffer, char* pcLine, size_t iLineSize, int iMap
 
 				SetTextColor(hdcBuffer, RGB(220, 220, 220));
 
-				int iLineLength = std::min(snprintf(pcLine, iLineSize, "(%d,%d)", gx, gy), static_cast<int>(iLineSize) - 1);
+				int iLineLength = std::min(std::snprintf(pcLine, iLineSize, "(%d,%d)", gx, gy), static_cast<int>(iLineSize) - 1);
 				TextOutA(hdcBuffer, iCellLeft + 2, iCellTop + 2, pcLine, iLineLength);
 
-				iLineLength = std::min(snprintf(pcLine, iLineSize, "%lld", iEntityCount), static_cast<int>(iLineSize) - 1);
+				iLineLength = std::min(std::snprintf(pcLine, iLineSize, "%lld", iEntityCount), static_cast<int>(iLineSize) - 1);
 				TextOutA(hdcBuffer, iCellLeft + 2, iCellTop + 28, pcLine, iLineLength);
 
 				if (iClientsInCell > 0)
 				{
 					SetTextColor(hdcBuffer, RGB(150, 200, 255));
-					iLineLength = std::min(snprintf(pcLine, iLineSize, "%lld", iClientsInCell), static_cast<int>(iLineSize) - 1);
+					iLineLength = std::min(std::snprintf(pcLine, iLineSize, "%lld", iClientsInCell), static_cast<int>(iLineSize) - 1);
 					TextOutA(hdcBuffer, iCellLeft + iCellSize - 20, iCellTop + 2, pcLine, iLineLength);
 				}
 			}
@@ -275,7 +275,7 @@ static void CopyProfileToClipboard(HWND hWnd)
 		char* pDest = static_cast<char*>(GlobalLock(hMem));
 		if (pDest != nullptr)
 		{
-			memcpy(pDest, sProfileText.data(), sProfileText.size());
+			std::memcpy(pDest, sProfileText.data(), sProfileText.size());
 			pDest[sProfileText.size()] = '\0';
 			GlobalUnlock(hMem);
 			SetClipboardData(CF_TEXT, hMem);
@@ -329,7 +329,7 @@ static void PaintProfilePanel(HDC hdcBuffer, int iLeft, int iTop, [[maybe_unused
 
 	// FPS header
 	char pcLine[256] {};
-	int iLineLength = std::min(snprintf(pcLine, sizeof(pcLine), "FPS: %lld  Potential: %lld",
+	int iLineLength = std::min(std::snprintf(pcLine, sizeof(pcLine), "FPS: %lld  Potential: %lld",
 		gpProfileManager->mFullUpdatesInTheLastSecond.Get(),
 		gpProfileManager->GetCpuTimer(game::kCpuTimerFrameUpdate).smoothedMicroseconds.Average() > 0
 			? 1'000'000 / gpProfileManager->GetCpuTimer(game::kCpuTimerFrameUpdate).smoothedMicroseconds.Average()
@@ -372,7 +372,7 @@ static void PaintProfilePanel(HDC hdcBuffer, int iLeft, int iTop, [[maybe_unused
 
 	auto memLine = [&](const char* pcFormat, int64_t iValue)
 	{
-		int iMemLineLength = std::min(snprintf(pcLine, sizeof(pcLine), pcFormat, iValue), static_cast<int>(sizeof(pcLine)) - 1);
+		int iMemLineLength = std::min(std::snprintf(pcLine, sizeof(pcLine), pcFormat, iValue), static_cast<int>(sizeof(pcLine)) - 1);
 		TextOutA(hdcBuffer, static_cast<int>(iTextX), static_cast<int>(iTextY), pcLine, iMemLineLength);
 		sProfileText += pcLine;
 		sProfileText += "\n";
@@ -494,7 +494,7 @@ void PaintServerDisplay(HWND hWnd)
 
 	auto textLine = [&](const char* pcFormat, auto... args)
 	{
-		int iTextLength = std::min(snprintf(pcLine, sizeof(pcLine), pcFormat, args...), static_cast<int>(sizeof(pcLine)) - 1);
+		int iTextLength = std::min(std::snprintf(pcLine, sizeof(pcLine), pcFormat, args...), static_cast<int>(sizeof(pcLine)) - 1);
 		TextOutA(hdcBuffer, iTextX, iTextY, pcLine, iTextLength);
 		iTextY += iLineHeight;
 	};
@@ -512,7 +512,7 @@ void PaintServerDisplay(HWND hWnd)
 	textLine("Tick: %lld", iTick);
 	textLine("Time: %.2f s", static_cast<double>(fCurrentTime));
 	textLine("Active cells: %lld", iActiveCells);
-	int iTextLength = std::min(snprintf(pcLine, sizeof(pcLine), "Clients: %lld", iClientCount), static_cast<int>(sizeof(pcLine)) - 1);
+	int iTextLength = std::min(std::snprintf(pcLine, sizeof(pcLine), "Clients: %lld", iClientCount), static_cast<int>(sizeof(pcLine)) - 1);
 	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, iTextLength);
 	iTextY += iLineHeight;
 
@@ -524,7 +524,7 @@ void PaintServerDisplay(HWND hWnd)
 	textLine("Blasters: %lld", gpProfileManager->GetCpuCounter(game::kCpuCounterBlasters).iCount);
 	textLine("Missiles: %lld", gpProfileManager->GetCpuCounter(game::kCpuCounterMissiles).iCount);
 	textLine("Targets: %lld", gpProfileManager->GetCpuCounter(game::kCpuCounterTargets).iCount);
-	iTextLength = std::min(snprintf(pcLine, sizeof(pcLine), "Explosions: %lld", gpProfileManager->GetCpuCounter(engine::kCpuCounterExplosions).iCount), static_cast<int>(sizeof(pcLine)) - 1);
+	iTextLength = std::min(std::snprintf(pcLine, sizeof(pcLine), "Explosions: %lld", gpProfileManager->GetCpuCounter(engine::kCpuCounterExplosions).iCount), static_cast<int>(sizeof(pcLine)) - 1);
 	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, iTextLength);
 
 #if !defined(ENABLE_CRT_DEBUG_HEAP)
@@ -535,7 +535,7 @@ void PaintServerDisplay(HWND hWnd)
 	textLine("Committed: %lld MiB", gpProfileManager->miMimallocCommittedMib);
 	textLine("Peak cmtd: %lld MiB", gpProfileManager->miMimallocPeakCommittedMib);
 	textLine("Heap used: %lld MiB", gpProfileManager->miMimallocHeapUsedMib);
-	iTextLength = std::min(snprintf(pcLine, sizeof(pcLine), "Peak heap: %lld MiB", gpProfileManager->miMimallocPeakHeapUsedMib), static_cast<int>(sizeof(pcLine)) - 1);
+	iTextLength = std::min(std::snprintf(pcLine, sizeof(pcLine), "Peak heap: %lld MiB", gpProfileManager->miMimallocPeakHeapUsedMib), static_cast<int>(sizeof(pcLine)) - 1);
 	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, iTextLength);
 #endif
 

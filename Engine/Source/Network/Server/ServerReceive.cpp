@@ -242,7 +242,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	if (uiClientProtocolVersion != kuiProtocolVersion)
 	{
 		char pcMessage[256] {};
-		snprintf(pcMessage, sizeof(pcMessage), "Protocol version mismatch: server is %u, client is %u", kuiProtocolVersion, uiClientProtocolVersion);
+		std::snprintf(pcMessage, sizeof(pcMessage), "Protocol version mismatch: server is %u, client is %u", kuiProtocolVersion, uiClientProtocolVersion);
 		LOG(kNetwork, kWarning, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
 
 		SendConnectionResponse(pPeer, false, pcMessage, nullptr);
@@ -255,7 +255,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	if (iClientFrameVersion != game::Frame::kiVersion)
 	{
 		char pcMessage[256] {};
-		snprintf(pcMessage, sizeof(pcMessage), "Frame version mismatch: server is %lld, client is %lld", game::Frame::kiVersion, iClientFrameVersion);
+		std::snprintf(pcMessage, sizeof(pcMessage), "Frame version mismatch: server is %lld, client is %lld", game::Frame::kiVersion, iClientFrameVersion);
 		LOG(kNetwork, kWarning, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
 
 		SendConnectionResponse(pPeer, false, pcMessage, nullptr);
@@ -280,7 +280,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	std::memcpy(pcClientConfig, pCursor, iCopyLength);
 	pCursor += iConfigMaxLength;
 
-	if (strcmp(pcClientConfig, kpcBuildConfigName) != 0)
+	if (std::strcmp(pcClientConfig, kpcBuildConfigName) != 0)
 	{
 		LOG(kNetwork, kWarning, "Server::ClientHello Client {} build config mismatch: server is {}, client is {}", iClientId, kpcBuildConfigName, pcClientConfig);
 	}

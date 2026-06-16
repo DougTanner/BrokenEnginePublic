@@ -55,7 +55,7 @@ void TextManager::UpdateTextArea(TextAreas eTextArea, std::string_view character
 
 	TextArea& rTextArea = gpTextAreas[eTextArea];
 	rTextArea.iCharacterCount = std::min(static_cast<int64_t>(characters.size()), TextArea::kiMaxChars);
-	memcpy(rTextArea.text, characters.data(), rTextArea.iCharacterCount);
+	std::memcpy(rTextArea.text, characters.data(), rTextArea.iCharacterCount);
 }
 
 void TextManager::RenderMain(int64_t iCommandBuffer)
@@ -77,11 +77,11 @@ void TextManager::RenderMain(int64_t iCommandBuffer)
 		int64_t iCount = iPos - iStartPos;
 
 		// Make room: move main quads forward by iCount
-		memmove(&pQuads[iStartPos + iCount], &pQuads[iStartPos], iCount * sizeof(pQuads[0]));
+		std::memmove(&pQuads[iStartPos + iCount], &pQuads[iStartPos], iCount * sizeof(pQuads[0]));
 		iPos += iCount;
 
 		// Fill shadow quads at [iStartPos, iStartPos + iCount) as copies with shadow color + offset
-		memcpy(&pQuads[iStartPos], &pQuads[iStartPos + iCount], iCount * sizeof(pQuads[0]));
+		std::memcpy(&pQuads[iStartPos], &pQuads[iStartPos + iCount], iCount * sizeof(pQuads[0]));
 		for (int64_t i = 0; i < iCount; ++i)
 		{
 			pQuads[iStartPos + i].f4VertexRect.x += 2.0f * kfShadowOffsetX;

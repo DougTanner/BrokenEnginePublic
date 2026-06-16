@@ -22,6 +22,13 @@ A random-access read API serves an arbitrary offset+span within a chunk: it copi
 
 Texture chunks flagged zlib-compressed read into a dedicated decompress scratch (sized at boot to the largest compressed chunk on disk) using regular `memcpy` instead of the streaming-store path — keeps bytes hot for `uncompress`, which writes into the lazy-pool slot. Non-texture and uncompressed chunks retain the cache-bypass fast path.
 
+### Corrupt / Missing Asset Policy
+
+External pack/manifest data is a trust boundary, so loads degrade rather than assert. Two tiers, split by whether a try/catch exists yet:
+
+- **Boot-time required assets** (manifest/pack header, chunk-count range, chunk table, pack open) fail hard: log `kError`, `DEBUG_BREAK`, user-facing MessageBox, then `ExitProcess(0)`. The FileManager ctor runs in `wWinMain` before `MainThread`'s try/catch, so a thrown ASSERT there would `std::terminate` with no crash report.
+- **Loading-thread per-chunk corruption** (bad header flags, failed zlib decompress, zero-progress/truncated read that would otherwise spin) fails soft: log `kError`, `DEBUG_BREAK`, mark the chunk `kReady` (pool slot stays zero-filled), notify completion, return — the thread survives and `WaitForChunks` waiters unblock.
+
 ### Lazy Memory Pool Invariant
 
 Single `VirtualAlloc` (`MEM_RESERVE | MEM_COMMIT`), sized by cumulative `RoundUp` over the full lazy chunk map. Per-chunk `pData` is assigned by walking the same map in the same order. Any reset routine must iterate the entire map (not a subset) to preserve the cumulative offset contract — hashmap iteration order *is* the layout. Compressed chunks contribute their uncompressed size to the cumulative offset; `LazyChunk.iDataSize` is the consumer-visible (post-decompression) byte count, not the on-disk size.

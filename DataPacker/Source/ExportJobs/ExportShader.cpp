@@ -31,8 +31,8 @@ const std::filesystem::path& GetVulkanSdkBinariesDirectory()
 {
 	static const std::filesystem::path sPath = []()
 	{
-		char pcDirectory[MAX_PATH] {};
-		DWORD uiResult = GetEnvironmentVariable("VK_SDK_PATH", pcDirectory, static_cast<DWORD>(std::size(pcDirectory) - 1));
+		wchar_t pcDirectory[MAX_PATH] {};
+		DWORD uiResult = GetEnvironmentVariableW(L"VK_SDK_PATH", pcDirectory, static_cast<DWORD>(std::size(pcDirectory) - 1));
 		if (uiResult == 0)
 		{
 			throw std::runtime_error("VK_SDK_PATH environment variable not found");
@@ -93,7 +93,8 @@ static std::vector<std::filesystem::path> ParseDependencyFile(const std::filesys
 
 std::optional<common::ChunkFlags_t> ExportShader::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 {
-	return rDirectoryEntry.path().extension() == ".comp" || rDirectoryEntry.path().extension() == ".frag" || rDirectoryEntry.path().extension() == ".vert" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kShader) : std::nullopt;
+	std::filesystem::path extension = rDirectoryEntry.path().extension();
+	return extension == ".comp" || extension == ".frag" || extension == ".vert" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kShader) : std::nullopt;
 }
 
 bool ExportShader::CheckDirty(const std::filesystem::path& rPackFile)
@@ -131,6 +132,9 @@ bool ExportShader::CheckDirty(const std::filesystem::path& rPackFile)
 
 	return mbDirty;
 }
+
+namespace
+{
 
 // In-progress binding-table state shared by every CollectBindings call for one shader.
 // All four members refer to caller-owned storage; riBindingCount is mutated as bindings land.
@@ -183,6 +187,8 @@ void CollectBindings(const spirv_cross::SmallVector<spirv_cross::Resource>& rRes
 		rTable.riBindingCount = std::max(iBinding + 1, rTable.riBindingCount);
 	}
 }
+
+} // namespace
 
 void ExportShader::Export()
 {
@@ -377,7 +383,7 @@ void ExportShader::ReflectAndWriteShader(const std::filesystem::path& rSpirvFile
 		VkVertexInputAttributeDescription& rVkVertexInputAttributeDescription = tempAttrs[iLocation];
 		rVkVertexInputAttributeDescription.location = static_cast<uint32_t>(iLocation);
 		rVkVertexInputAttributeDescription.binding = 0;
-		rVkVertexInputAttributeDescription.format = rSpirvType.vecsize == 2 ? VK_FORMAT_R32G32_SFLOAT : (rSpirvType.vecsize == 3 ? VK_FORMAT_R32G32B32_SFLOAT : VK_FORMAT_R32G32B32A32_SFLOAT);
+		rVkVertexInputAttributeDescription.format = rSpirvType.vecsize == 1 ? VK_FORMAT_R32_SFLOAT : (rSpirvType.vecsize == 2 ? VK_FORMAT_R32G32_SFLOAT : (rSpirvType.vecsize == 3 ? VK_FORMAT_R32G32B32_SFLOAT : VK_FORMAT_R32G32B32A32_SFLOAT));
 		rVkVertexInputAttributeDescription.offset = static_cast<uint32_t>(iVertexInputStride);
 		++iAttrCount;
 
@@ -398,7 +404,8 @@ void ExportShader::ReflectAndWriteShader(const std::filesystem::path& rSpirvFile
 	}
 
 	auto constantOne = [](const spirv_cross::SPIRType&) -> int64_t { return 1; };
-	auto arrayCount = [](const spirv_cross::SPIRType& rType) -> int64_t { return rType.array.empty() ? 1 : rType.array[0]; };
+	// Unsized arrays report array[0] == 0 in these categories; a 0 descriptorCount disarms the WriteBinding double-write guard, so fail loud (no current shader hits this)
+	auto arrayCount = [](const spirv_cross::SPIRType& rType) -> int64_t { ASSERT(rType.array.empty() || rType.array[0] != 0); return rType.array.empty() ? 1 : rType.array[0]; };
 	// Runtime-sized arrays (unsized) report array[0] == 0; use UINT32_MAX sentinel for pipeline to resolve
 	auto runtimeArrayCount = [](const spirv_cross::SPIRType& rType) -> int64_t { return rType.array.empty() ? 1 : (rType.array[0] == 0 ? std::numeric_limits<uint32_t>::max() : rType.array[0]); };
 

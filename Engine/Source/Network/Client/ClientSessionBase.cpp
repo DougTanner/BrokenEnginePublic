@@ -64,7 +64,7 @@ void ClientSessionBase::PollLANDiscovery()
 
 	if (mpDiscoveryScanner->IsFound())
 	{
-		snprintf(mcDiscoveredAddress, sizeof(mcDiscoveredAddress), "%s", mpDiscoveryScanner->GetFoundAddress());
+		std::snprintf(mcDiscoveredAddress, sizeof(mcDiscoveredAddress), "%s", mpDiscoveryScanner->GetFoundAddress());
 		mpDiscoveryScanner.reset();
 		mbServerDiscovered = true;
 		return;

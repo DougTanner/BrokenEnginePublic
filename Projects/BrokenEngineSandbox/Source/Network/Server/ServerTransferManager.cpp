@@ -266,7 +266,7 @@ void ServerTransferManager::HarvestTransfers()
 				acPlayerIds[iPos++] = ',';
 				acPlayerIds[iPos++] = ' ';
 			}
-			int iWritten = snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", std::get<TransferData>(rTransfer.data).globalPlayerId.iValue);
+			int iWritten = std::snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", std::get<TransferData>(rTransfer.data).globalPlayerId.iValue);
 			if (iWritten <= 0)
 			{
 				break;

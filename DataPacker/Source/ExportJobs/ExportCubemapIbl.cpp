@@ -21,11 +21,16 @@
 #endif
 #pragma warning(pop)
 
+namespace
+{
+
 struct KtxCubemapData
 {
 	std::vector<float> floatData;
 	uint32_t uiFaceSize = 0;
 };
+
+} // namespace
 
 static KtxCubemapData LoadKtxCubemapAsFloat(const std::filesystem::path& rPath)
 {
@@ -41,13 +46,7 @@ static KtxCubemapData LoadKtxCubemapAsFloat(const std::filesystem::path& rPath)
 	{
 		const uint16_t* pSrcHalf = static_cast<const uint16_t*>(textureCube[iFace].data());
 		float* pDstFloat = result.floatData.data() + iFace * uiPixelsPerFace * 4;
-		for (uint32_t uiPixel = 0; uiPixel < uiPixelsPerFace; ++uiPixel)
-		{
-			for (uint32_t uiChannel = 0; uiChannel < 4; ++uiChannel)
-			{
-				pDstFloat[uiPixel * 4 + uiChannel] = DirectX::PackedVector::XMConvertHalfToFloat(pSrcHalf[uiPixel * 4 + uiChannel]);
-			}
-		}
+		DirectX::PackedVector::XMConvertHalfToFloatStream(pDstFloat, sizeof(float), pSrcHalf, sizeof(uint16_t), uiPixelsPerFace * 4);
 	}
 	return result;
 }
@@ -101,10 +100,7 @@ void GenerateIrradianceCubemaps()
 			std::vector<uint16_t> halfData(uiIrradianceTotalPixels * 4);
 
 			const float* pSrcFloat = static_cast<const float*>(dstImage.m_data);
-			for (uint32_t i = 0; i < uiIrradianceTotalPixels * 4; ++i)
-			{
-				halfData.at(i) = DirectX::PackedVector::XMConvertFloatToHalf(pSrcFloat[i]);
-			}
+			DirectX::PackedVector::XMConvertFloatToHalfStream(halfData.data(), sizeof(uint16_t), pSrcFloat, sizeof(float), uiIrradianceTotalPixels * 4);
 
 			// Write intermediate file: [width][height][mipcount][pixel data for 6 faces]
 			int64_t iWidth = kuiIrradianceFaceSize;
@@ -118,6 +114,7 @@ void GenerateIrradianceCubemaps()
 			fileStream.write(reinterpret_cast<const char*>(halfData.data()), halfData.size() * sizeof(uint16_t));
 			fileStream.flush();
 			fileStream.close();
+			VERIFY_SUCCESS(fileStream.good());
 
 			// Clean up CMFT images
 			cmft::imageUnload(srcImage);
@@ -164,10 +161,8 @@ void GeneratePreFilteredCubemaps()
 			{
 				uint32_t uiMipPixels = uiMipSize * uiMipSize;
 				const float* pSrcFloat = reinterpret_cast<const float*>(static_cast<uint8_t*>(dstImage.m_data) + offsets[iFace][uiMip]);
-				for (uint32_t i = 0; i < uiMipPixels * 4; ++i)
-				{
-					halfData.at(uiHalfOffset++) = DirectX::PackedVector::XMConvertFloatToHalf(pSrcFloat[i]);
-				}
+				DirectX::PackedVector::XMConvertFloatToHalfStream(halfData.data() + uiHalfOffset, sizeof(uint16_t), pSrcFloat, sizeof(float), uiMipPixels * 4);
+				uiHalfOffset += uiMipPixels * 4;
 			}
 		}
 
@@ -183,6 +178,7 @@ void GeneratePreFilteredCubemaps()
 		fileStream.write(reinterpret_cast<const char*>(halfData.data()), halfData.size() * sizeof(uint16_t));
 		fileStream.flush();
 		fileStream.close();
+		VERIFY_SUCCESS(fileStream.good());
 	};
 
 	// Phase 1: KTX cubemaps
@@ -257,17 +253,17 @@ void GeneratePreFilteredCubemaps()
 			outputPath += "_Prefiltered.R16G16B16A16_SFLOAT";
 
 			// Timestamp dirty check against all 6 face files
-			std::vector<std::string> faceNames = bHasJpgFaces
-				? std::vector<std::string>{"posx.jpg", "negx.jpg", "posy.jpg", "negy.jpg", "posz.jpg", "negz.jpg"}
-				: std::vector<std::string>{"px.png", "nx.png", "py.png", "ny.png", "pz.png", "nz.png"};
+			static constexpr const char* kpcJpgFaceNames[6] = {"posx.jpg", "negx.jpg", "posy.jpg", "negy.jpg", "posz.jpg", "negz.jpg"};
+			static constexpr const char* kpcPngFaceNames[6] = {"px.png", "nx.png", "py.png", "ny.png", "pz.png", "nz.png"};
+			const char* const* pFaceNames = bHasJpgFaces ? kpcJpgFaceNames : kpcPngFaceNames;
 
 			if (std::filesystem::exists(outputPath))
 			{
 				std::filesystem::file_time_type outputTime = std::filesystem::last_write_time(outputPath);
 				bool bDirty = false;
-				for (const std::string& rFaceName : faceNames)
+				for (int64_t iFace = 0; iFace < 6; ++iFace)
 				{
-					if (std::filesystem::last_write_time(rDirectoryEntry.path() / rFaceName) > outputTime)
+					if (std::filesystem::last_write_time(rDirectoryEntry.path() / pFaceNames[iFace]) > outputTime)
 					{
 						bDirty = true;
 						break;
@@ -284,7 +280,7 @@ void GeneratePreFilteredCubemaps()
 			cmft::Image faceImages[6];
 			for (int64_t i = 0; i < 6; ++i)
 			{
-				std::string facePath = (rDirectoryEntry.path() / faceNames.at(i)).string();
+				std::string facePath = (rDirectoryEntry.path() / pFaceNames[i]).string();
 				cmft::imageLoadStb(faceImages[i], facePath.c_str(), cmft::TextureFormat::RGBA32F);
 			}
 

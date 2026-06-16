@@ -6,7 +6,6 @@
 inline constexpr bool kbAlsoLogToPrintf = true;
 inline constexpr bool kbDebugBreak = true;
 inline constexpr bool kbLogging = true;
-inline constexpr bool kbIsDataPacker = true;
 
 #include "Log/LogTypes.h"
 

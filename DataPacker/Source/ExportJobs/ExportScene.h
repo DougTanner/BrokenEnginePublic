@@ -46,6 +46,7 @@ private:
 
 	tinygltf::Model LoadGltfModel();
 	std::filesystem::path GetPreExportMarkerPath() const;
+	std::optional<int64_t> ReadPreExportMarkerVersion() const;
 	std::filesystem::path GetTextureIntermediatePath(int64_t iTextureIndex, VkFormat vkFormat) const;
 
 	void PreExport(tinygltf::Model& rGltfModel);
@@ -64,4 +65,5 @@ private:
 	void CleanupOnFailure() override;
 
 	std::vector<std::filesystem::path> mIntermediateFiles;
+	bool mbNeedsPreExport = false;
 };

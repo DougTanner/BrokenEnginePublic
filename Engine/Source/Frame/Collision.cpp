@@ -446,7 +446,7 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 		// Heap: one-time per-thread growth (thread_local vectors start empty to avoid allocating during mi_process_init)
 		ScopedSuppressAllocationTracking suppress;
 		sTestedBGeneration.resize(static_cast<size_t>(rLayerB.iCount));
-		memset(sTestedBGeneration.data(), 0, sTestedBGeneration.size() * sizeof(uint32_t));
+		std::memset(sTestedBGeneration.data(), 0, sTestedBGeneration.size() * sizeof(uint32_t));
 	}
 
 	for (int64_t i = 0; i < rLayerA.iCount; ++i)
@@ -468,7 +468,7 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 		++suiTestedBCurrentGeneration;
 		if (suiTestedBCurrentGeneration == 0)
 		{
-			memset(sTestedBGeneration.data(), 0, sTestedBGeneration.size() * sizeof(uint32_t));
+			std::memset(sTestedBGeneration.data(), 0, sTestedBGeneration.size() * sizeof(uint32_t));
 			suiTestedBCurrentGeneration = 1;
 		}
 

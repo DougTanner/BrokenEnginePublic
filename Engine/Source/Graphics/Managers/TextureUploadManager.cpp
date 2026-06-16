@@ -285,7 +285,7 @@ void TextureUploadManager::UploadThread()
 				if (iRemainingMipBytes <= static_cast<int64_t>(vkRemainingStaging))
 				{
 					// Whole remaining mip fits
-					memcpy(static_cast<std::byte*>(mStagingMappedData) + vkStagingUsed, pData + mCurrentDataOffset, iRemainingMipBytes);
+					std::memcpy(static_cast<std::byte*>(mStagingMappedData) + vkStagingUsed, pData + mCurrentDataOffset, iRemainingMipBytes);
 
 					VkBufferImageCopy vkBufferImageCopy {};
 					vkBufferImageCopy.bufferOffset = vkStagingUsed;
@@ -327,7 +327,7 @@ void TextureUploadManager::UploadThread()
 					uint32_t uiCopyHeight = static_cast<uint32_t>(iChunksThatFit * uiChunkHeight);
 					int64_t iCopyBytes = common::SizeInBytes(vkFormat, uiMipWidth, uiCopyHeight);
 
-					memcpy(static_cast<std::byte*>(mStagingMappedData) + vkStagingUsed, pData + mCurrentDataOffset, iCopyBytes);
+					std::memcpy(static_cast<std::byte*>(mStagingMappedData) + vkStagingUsed, pData + mCurrentDataOffset, iCopyBytes);
 
 					VkBufferImageCopy vkBufferImageCopy {};
 					vkBufferImageCopy.bufferOffset = vkStagingUsed;

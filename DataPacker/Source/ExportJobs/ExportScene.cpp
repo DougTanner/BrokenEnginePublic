@@ -52,54 +52,43 @@ bool ExportScene::CheckDirty(const std::filesystem::path& rPackFile)
 
 	if (bDirty)
 	{
-		// If the main file is dirty, invalidate pre-export cache
-		std::filesystem::path preExportPath = GetPreExportMarkerPath();
-		if (std::filesystem::exists(preExportPath))
-		{
-			LOG(kDefault, kDebug, "Removing pre-export marker due to dirty main file");
-			std::filesystem::remove(preExportPath);
-		}
+		// Main file is dirty: force a fresh pre-export. Recorded as a flag (consulted by Export) rather than
+		// deleting the marker here, so the dirty check stays a side-effect-free predicate.
+		LOG(kDefault, kDebug, "Main file dirty, forcing pre-export");
+		mbNeedsPreExport = true;
 	}
 	else
 	{
-		// Check if pre-export marker is missing or has wrong version
-		std::filesystem::path preExportPath = GetPreExportMarkerPath();
-		if (!std::filesystem::exists(preExportPath))
+		// Main file is clean, but a missing or stale-version pre-export marker still dirties the chunk.
+		std::optional<int64_t> optionalStoredVersion = ReadPreExportMarkerVersion();
+		if (!optionalStoredVersion.has_value() || optionalStoredVersion.value() != GetVersion())
 		{
 			mbDirty = true;
 			bDirty = true;
-		}
-		else
-		{
-			std::fstream fileStreamIn(preExportPath, std::ios::in | std::ios::binary);
-			int64_t iStoredVersion = 0;
-			fileStreamIn.read(reinterpret_cast<char*>(&iStoredVersion), sizeof(iStoredVersion));
-			if (!fileStreamIn || iStoredVersion != GetVersion())
-			{
-				mbDirty = true;
-				bDirty = true;
-			}
 		}
 	}
 
 	return bDirty;
 }
 
+namespace
+{
+
 VkFilter ToVkFilter(int iFilterMode)
 {
 	switch (iFilterMode)
 	{
-		case 9728:
+		case TINYGLTF_TEXTURE_FILTER_NEAREST:
 			return VK_FILTER_NEAREST;
-		case 9729:
+		case TINYGLTF_TEXTURE_FILTER_LINEAR:
 			return VK_FILTER_LINEAR;
-		case 9984:
+		case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
 			return VK_FILTER_NEAREST;
-		case 9985:
+		case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST:
 			return VK_FILTER_NEAREST;
-		case 9986:
+		case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:
 			return VK_FILTER_LINEAR;
-		case 9987:
+		case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
 			return VK_FILTER_LINEAR;
 		case -1:
 			return VK_FILTER_LINEAR;
@@ -113,11 +102,11 @@ VkSamplerAddressMode ToVkSamplerAddressMode(int iWrapMode)
 {
 	switch (iWrapMode)
 	{
-		case 10497:
+		case TINYGLTF_TEXTURE_WRAP_REPEAT:
 			return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		case 33071:
+		case TINYGLTF_TEXTURE_WRAP_CLAMP_TO_EDGE:
 			return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		case 33648:
+		case TINYGLTF_TEXTURE_WRAP_MIRRORED_REPEAT:
 			return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 		case -1:
 			return VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -152,11 +141,26 @@ std::vector<VkFormat> ComputeTextureFormats(const tinygltf::Model& rModel)
 	return textureFormats;
 }
 
+} // namespace
+
 std::filesystem::path ExportScene::GetPreExportMarkerPath() const
 {
 	std::filesystem::path path(mInputPath);
 	path += ".PreExport";
 	return path;
+}
+
+std::optional<int64_t> ExportScene::ReadPreExportMarkerVersion() const
+{
+	std::filesystem::path preExportPath = GetPreExportMarkerPath();
+	std::fstream fileStreamIn(preExportPath, std::ios::in | std::ios::binary);
+	int64_t iStoredVersion = 0;
+	fileStreamIn.read(reinterpret_cast<char*>(&iStoredVersion), sizeof(iStoredVersion));
+	if (!fileStreamIn)
+	{
+		return std::nullopt;
+	}
+	return iStoredVersion;
 }
 
 std::filesystem::path ExportScene::GetTextureIntermediatePath(int64_t iTextureIndex, VkFormat vkFormat) const
@@ -187,12 +191,7 @@ tinygltf::Model ExportScene::LoadGltfModel()
 	tinygltf::Model gltfModel;
 
 	std::string filename = mInputPath.string();
-	size_t uiExtensionPosition = filename.rfind('.', filename.length());
-	bool bBinary = false;
-	if (uiExtensionPosition != std::string::npos)
-	{
-		bBinary = (filename.substr(uiExtensionPosition + 1, filename.length() - uiExtensionPosition) == "glb");
-	}
+	bool bBinary = mInputPath.extension() == ".glb";
 
 	std::string error;
 	std::string warning;
@@ -211,15 +210,8 @@ void ExportScene::Export()
 {
 	tinygltf::Model gltfModel = LoadGltfModel();
 
-	std::filesystem::path preExportPath = GetPreExportMarkerPath();
-	bool bNeedsPreExport = true;
-	if (std::filesystem::exists(preExportPath))
-	{
-		std::fstream fileStreamIn(preExportPath, std::ios::in | std::ios::binary);
-		int64_t iStoredVersion = 0;
-		fileStreamIn.read(reinterpret_cast<char*>(&iStoredVersion), sizeof(iStoredVersion));
-		bNeedsPreExport = (!fileStreamIn || iStoredVersion != GetVersion());
-	}
+	std::optional<int64_t> optionalStoredVersion = ReadPreExportMarkerVersion();
+	bool bNeedsPreExport = mbNeedsPreExport || !optionalStoredVersion.has_value() || optionalStoredVersion.value() != GetVersion();
 
 	if (bNeedsPreExport)
 	{
@@ -291,6 +283,38 @@ void ExportScene::ProcessTextures(tinygltf::Model& rGltfModel)
 		std::filesystem::path path = GetTextureIntermediatePath(rGltfModel.textures.at(i).source, textureFormats.at(i));
 		mIntermediateFiles.push_back(path);
 		LOG(kDefault, kVerbose, "  {}: Texture {} -> {}", iTextureIndex++, rImage.uri, path.filename().native());
+	}
+
+	// Sweep texture intermediates orphaned by a texture being removed, renumbered, or re-formatted in the
+	// source glTF. Each is a "<scene>.Texture<imageIndex>.<BCn>" sibling of the source file; the recursive
+	// ExportTexture scan (Main.cpp) claims any .BCn_UNORM_BLOCK file, so a stale leftover would ship as a
+	// live texture chunk that no longer matches the scene. mIntermediateFiles is exactly the current write
+	// set (same directory, full filename incl. format), so any matching sibling not in it is orphaned. Runs
+	// whenever PreExport runs, which a source texture edit reliably triggers via the glTF mtime (CheckDirty).
+	std::unordered_set<std::string> currentIntermediateNames;
+	for (const std::filesystem::path& rIntermediate : mIntermediateFiles)
+	{
+		currentIntermediateNames.insert(rIntermediate.filename().string());
+	}
+
+	std::string intermediatePrefix = mInputPath.filename().string() + ".Texture";
+	std::vector<std::filesystem::path> orphanedIntermediates;
+	for (const std::filesystem::directory_entry& rEntry : std::filesystem::directory_iterator(mInputPath.parent_path()))
+	{
+		if (!rEntry.is_regular_file())
+		{
+			continue;
+		}
+		std::string name = rEntry.path().filename().string();
+		if (name.starts_with(intermediatePrefix) && !currentIntermediateNames.contains(name))
+		{
+			orphanedIntermediates.push_back(rEntry.path());
+		}
+	}
+	for (const std::filesystem::path& rOrphanedIntermediate : orphanedIntermediates)
+	{
+		std::filesystem::remove(rOrphanedIntermediate);
+		LOG(kDefault, kDebug, "Removed orphaned scene texture intermediate: \"{}\"", rOrphanedIntermediate.filename().native());
 	}
 }
 
@@ -505,6 +529,7 @@ void ExportScene::WriteModelFile(const std::vector<Material>& rMaterials, const 
 	fileStreamOut.write(reinterpret_cast<const char*>(rVertices.data()), common::VectorByteSize(rVertices));
 	fileStreamOut.flush();
 	fileStreamOut.close();
+	VERIFY_SUCCESS(fileStreamOut.good());
 	mIntermediateFiles.push_back(path);
 
 	std::filesystem::path preExportMarkerPath = GetPreExportMarkerPath();
@@ -513,6 +538,7 @@ void ExportScene::WriteModelFile(const std::vector<Material>& rMaterials, const 
 	fileStreamOutMarker.write(reinterpret_cast<const char*>(&iVersion), sizeof(iVersion));
 	fileStreamOutMarker.flush();
 	fileStreamOutMarker.close();
+	VERIFY_SUCCESS(fileStreamOutMarker.good());
 	mIntermediateFiles.push_back(preExportMarkerPath);
 }
 

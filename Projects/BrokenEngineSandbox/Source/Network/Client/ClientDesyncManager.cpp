@@ -44,7 +44,7 @@ void ClientDesyncManager::PollDebugFrameResponse()
 		else
 		{
 			ASSERT(false);
-			snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
+			std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
 			gpClientSession->mpClientNetwork->Disconnect();
 		}
 	}
@@ -67,7 +67,7 @@ bool ClientDesyncManager::PollDesyncTimeout()
 	{
 		LOG(kNetwork, kError, "ClientDesyncManager::PollDesyncTimeout Desync debug mode timed out, disconnecting");
 		ASSERT(false);
-		snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server (debug frame timeout)");
+		std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server (debug frame timeout)");
 		gpClientSession->mpClientNetwork->Disconnect();
 	}
 	return true;
@@ -93,7 +93,7 @@ void ClientDesyncManager::RecoverFromDesync()
 	if (miDesyncCount >= kiMaxDesyncsBeforeDisconnect)
 	{
 		LOG(kNetwork, kError, "ClientDesyncManager::RecoverFromDesync Escalating to disconnect");
-		snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
+		std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
 		gpClientSession->mpClientNetwork->Disconnect();
 		return;
 	}

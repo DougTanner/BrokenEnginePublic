@@ -25,7 +25,7 @@ protected:
 
 private:
 
-	void ProcessKtxCubemap(VkFormat vkFormat);
+	void ProcessKtxCubemap();
 	void ProcessRawTexture(VkFormat vkFormat);
 	void ProcessLiveCubemap(VkFormat vkFormat);
 	void ProcessRegularTexture(VkFormat vkFormat);

@@ -63,7 +63,7 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, int64_t
 		int iStbiWidth = 0;
 		int iStbiHeight = 0;
 		int iChannelsInFile = 0;
-		stbi_uc* pPixels = stbi_load(rPath.string().c_str(), &iStbiWidth, &iStbiHeight, &iChannelsInFile, STBI_rgb_alpha);
+		stbi_uc* pPixels = stbi_load(reinterpret_cast<const char*>(rPath.u8string().c_str()), &iStbiWidth, &iStbiHeight, &iChannelsInFile, STBI_rgb_alpha);
 		common::ScopedLambda freeStbiPixels([=]()
 		{
 			stbi_image_free(pPixels);
@@ -617,4 +617,5 @@ void Texture::Save(const std::filesystem::path& rPath, VkFormat vkFormat, Textur
 	fileStreamOut.write(reinterpret_cast<const char*>(compressed.data()), static_cast<std::streamsize>(uiCompressedSize));
 	fileStreamOut.flush();
 	fileStreamOut.close();
+	VERIFY_SUCCESS(fileStreamOut.good());
 }

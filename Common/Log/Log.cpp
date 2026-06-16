@@ -81,7 +81,7 @@ void LogWrite(char* pLogBuffer)
 	--giMyOutputDebugString;
 	if constexpr (kbAlsoLogToPrintf)
 	{
-		printf("%s", pLogBuffer);
+		std::printf("%s", pLogBuffer);
 	}
 }
 

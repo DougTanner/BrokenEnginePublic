@@ -1,11 +1,13 @@
 #include "Attribution.h"
 
+#include "FileManager.h"
+
 namespace attribution
 {
 
 void CopyThirdPartyLicenses(const std::filesystem::path& rOutputDirectory)
 {
-	std::filesystem::path thirdPartyDirectory = rOutputDirectory / "../../../../../../ThirdParty";
+	std::filesystem::path thirdPartyDirectory = gpFileManager->mThirdPartyDirectory;
 	std::filesystem::path attributionDirectory = rOutputDirectory / "../Attribution";
 	std::filesystem::create_directories(attributionDirectory);
 	bool bAnyCopied = false;

@@ -350,12 +350,23 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 	}
 }
 
+namespace
+{
+
+bool UsesTexture(const tinygltf::ParameterMap& rParameters, const char* pcTextureName, int64_t iIndex)
+{
+	tinygltf::ParameterMap::const_iterator iterator = rParameters.find(pcTextureName);
+	return iterator != rParameters.end() && iterator->second.TextureIndex() == iIndex;
+}
+
+} // namespace
+
 bool IsOcclusion(int64_t iIndex, const tinygltf::Material& rMaterial)
 {
-	bool bOcclusion = rMaterial.additionalValues.find("occlusionTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("occlusionTexture").TextureIndex() == iIndex;
+	bool bOcclusion = UsesTexture(rMaterial.additionalValues, "occlusionTexture", iIndex);
 
 	// Check if occlusion texture is shared with another texture type (if so, treat as non-occlusion)
-	if (bOcclusion && ((rMaterial.values.find("baseColorTexture") != rMaterial.values.end() && rMaterial.values.at("baseColorTexture").TextureIndex() == iIndex) || (rMaterial.additionalValues.find("normalTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("normalTexture").TextureIndex() == iIndex) || (rMaterial.values.find("metallicRoughnessTexture") != rMaterial.values.end() && rMaterial.values.at("metallicRoughnessTexture").TextureIndex() == iIndex) || (rMaterial.additionalValues.find("emissiveTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("emissiveTexture").TextureIndex() == iIndex)))
+	if (bOcclusion && (UsesTexture(rMaterial.values, "baseColorTexture", iIndex) || UsesTexture(rMaterial.additionalValues, "normalTexture", iIndex) || UsesTexture(rMaterial.values, "metallicRoughnessTexture", iIndex) || UsesTexture(rMaterial.additionalValues, "emissiveTexture", iIndex)))
 	{
 		bOcclusion = false;
 	}
@@ -365,5 +376,5 @@ bool IsOcclusion(int64_t iIndex, const tinygltf::Material& rMaterial)
 
 bool IsNormal(int64_t iIndex, const tinygltf::Material& rMaterial)
 {
-	return rMaterial.additionalValues.find("normalTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("normalTexture").TextureIndex() == iIndex;
+	return UsesTexture(rMaterial.additionalValues, "normalTexture", iIndex);
 }
