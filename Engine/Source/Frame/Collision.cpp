@@ -1,7 +1,5 @@
 #include "Collision.h"
 
-#include "Memory/GlobalAllocator.h"
-
 #include "Frame/Frame.h"
 #include "Profile/ProfileManager.h"
 

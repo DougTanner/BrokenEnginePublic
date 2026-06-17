@@ -3,37 +3,42 @@
 namespace game
 {
 
-const char* AppendUtf8(common::Workbuffer& rWorkbuffer, std::u32string_view u32str)
+common::ScopedWorkbufferAllocation<char*> AppendUtf8(common::Workbuffer& rWorkbuffer, std::u32string_view u32String)
 {
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-	for (char32_t c : u32str)
+	// Reserve the worst case (4 UTF-8 bytes per code point + the null terminator), encode in a single pass, then
+	// shrink to the actual length. The returned move-only handle owns the frame, so the bytes stay valid through
+	// the caller's full-expression (the implicit const char* hands straight to the consuming ImGui call).
+	common::ScopedWorkbufferAllocation<char*> scopedAllocation = rWorkbuffer.PushBuffer<char*>(static_cast<int64_t>(u32String.size()) * 4 + 1);
+	char* const pcBase = scopedAllocation;
+	char* pcWrite = pcBase;
+	for (char32_t cCodePoint : u32String)
 	{
-		if (c < 0x80)
+		if (cCodePoint < 0x80)
 		{
-			rWorkbuffer.PushBack<char>(static_cast<char>(c));
+			*pcWrite++ = static_cast<char>(cCodePoint);
 		}
-		else if (c < 0x800)
+		else if (cCodePoint < 0x800)
 		{
-			rWorkbuffer.PushBack<char>(static_cast<char>(0xC0 | (c >> 6)));
-			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | (c & 0x3F)));
+			*pcWrite++ = static_cast<char>(0xC0 | (cCodePoint >> 6));
+			*pcWrite++ = static_cast<char>(0x80 | (cCodePoint & 0x3F));
 		}
-		else if (c < 0x10000)
+		else if (cCodePoint < 0x10000)
 		{
-			rWorkbuffer.PushBack<char>(static_cast<char>(0xE0 | (c >> 12)));
-			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | ((c >> 6) & 0x3F)));
-			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | (c & 0x3F)));
+			*pcWrite++ = static_cast<char>(0xE0 | (cCodePoint >> 12));
+			*pcWrite++ = static_cast<char>(0x80 | ((cCodePoint >> 6) & 0x3F));
+			*pcWrite++ = static_cast<char>(0x80 | (cCodePoint & 0x3F));
 		}
 		else
 		{
-			rWorkbuffer.PushBack<char>(static_cast<char>(0xF0 | (c >> 18)));
-			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | ((c >> 12) & 0x3F)));
-			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | ((c >> 6) & 0x3F)));
-			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | (c & 0x3F)));
+			*pcWrite++ = static_cast<char>(0xF0 | (cCodePoint >> 18));
+			*pcWrite++ = static_cast<char>(0x80 | ((cCodePoint >> 12) & 0x3F));
+			*pcWrite++ = static_cast<char>(0x80 | ((cCodePoint >> 6) & 0x3F));
+			*pcWrite++ = static_cast<char>(0x80 | (cCodePoint & 0x3F));
 		}
 	}
-	rWorkbuffer.PushBack<char>('\0');
-	const char* pcResult = rWorkbuffer.View().data();
-	return pcResult;
+	*pcWrite++ = '\0';
+	rWorkbuffer.ShrinkLastPushBuffer(static_cast<int64_t>(pcWrite - pcBase));
+	return scopedAllocation;
 }
 
 bool WrapperToggle(std::string_view label, engine::Wrapper* pWrapper)

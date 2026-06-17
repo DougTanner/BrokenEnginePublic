@@ -2,8 +2,6 @@
 
 #if defined(BT_CLIENT)
 
-#include "Memory/GlobalAllocator.h"
-
 #include "Game.h"
 #include "Ui/SoundSettingsWrappersBase.h"
 

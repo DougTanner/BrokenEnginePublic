@@ -10,27 +10,14 @@ struct FramePostRender;
 
 }
 
-using VkDeviceSize = uint64_t;
-
 namespace engine
 {
 
-struct FrameBase;
 struct FramePostRenderBase;
 struct GridCoord;
 #if defined(BT_CLIENT)
 class Wrapper;
 #endif
-
-class Buffer;
-class BufferManager;
-class CommandBufferManager;
-class ModelPipeline;
-class PipelineManager;
-class SwapchainManager;
-class TextureManager;
-
-enum class CommandBufferFlags : uint8_t;
 
 // Stable entity identity across transfers and reconnects
 // Assigned by server at first spawn, carried in TransferData

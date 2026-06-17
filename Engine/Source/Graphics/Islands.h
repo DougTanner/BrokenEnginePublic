@@ -12,7 +12,6 @@ struct Frame;
 namespace engine
 {
 
-class Texture;
 struct CoordFrames;
 struct GridCoord;
 

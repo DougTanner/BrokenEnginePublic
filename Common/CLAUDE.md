@@ -2,7 +2,7 @@
 
 ## Overview
 
-Foundation layer (`namespace common`) with no dependencies outside the codebase. Provides utilities, data formats, threading, logging, and math helpers consumed by DataPacker, Engine, and Projects. Broadly-used singletons and small headers sit at the `Common/` root; focused groups live in subdirectories: `Log/` (logging, formatters, diagnostic/difference logs), `Threading/` (multithreading, persistent worker, thread-local), `Math/` (math helpers, convex-hull placement, random). All headers are aggregated through `Common.h` (pulled in by `Pch.h`); new headers are added only there.
+Foundation layer (`namespace common`) with no dependencies outside the codebase. Provides utilities, data formats, threading, logging, and math helpers consumed by DataPacker, Engine, and Projects. Broadly-used singletons and small headers sit at the `Common/` root; focused groups live in subdirectories: `Log/` (logging, formatters, diagnostic/difference logs), `Threading/` (multithreading, persistent worker, thread-local), `Math/` (math helpers, convex-hull placement, random). New headers are added only to `Common.h` (the aggregation header included by `Pch.h`).
 
 ## Key Systems
 

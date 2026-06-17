@@ -62,7 +62,6 @@ void main()
 	f3OutPosition += f3OutNormal * mainLayout.fHexShieldGrow;
 
 	// Direction wave
-	float fDirection = 0.0f;
 	for (int32_t j = 0; j < kiHexShieldDirections; ++j)
 	{
 		if (pHexShields[i].pfVertIntensities[j] <= 0.0f)

@@ -76,7 +76,7 @@ public:
 		return (std::to_underlying(meFlags) & iFlag) != 0;
 	}
 
-	constexpr underlying_t operator&(const Flags& rOther) const
+	constexpr underlying_t Mask(const Flags& rOther) const
 	{
 		return std::to_underlying(meFlags) & std::to_underlying(rOther.meFlags);
 	}
@@ -84,24 +84,7 @@ public:
 	constexpr bool Toggle(ENUM_TYPE eFlag)
 	{
 		underlying_t iFlag = std::to_underlying(eFlag);
-		underlying_t iCurrent = std::to_underlying(meFlags);
-
-		if ((iCurrent & iFlag) == iFlag)
-		{
-			iCurrent &= ~iFlag;
-		}
-		else if ((iCurrent & iFlag) == 0)
-		{
-			iCurrent |= iFlag;
-		}
-		else
-		{
-			if (!std::is_constant_evaluated())
-			{
-				DEBUG_BREAK();
-			}
-		}
-
+		underlying_t iCurrent = std::to_underlying(meFlags) ^ iFlag;
 		meFlags = static_cast<ENUM_TYPE>(iCurrent);
 		return (iCurrent & iFlag) != 0;
 	}

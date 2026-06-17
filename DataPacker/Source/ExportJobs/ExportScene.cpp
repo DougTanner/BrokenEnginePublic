@@ -180,7 +180,7 @@ std::filesystem::path ExportScene::GetTextureIntermediatePath(int64_t iTextureIn
 			path += ".BC7_UNORM_BLOCK";
 			break;
 		default:
-			DEBUG_BREAK();
+			ASSERT(false);
 			break;
 	}
 	return path;
@@ -583,7 +583,7 @@ void ExportScene::MainExport(tinygltf::Model& rGltfModel)
 				relativeFile += ".BC7_UNORM_BLOCK";
 				break;
 			default:
-				DEBUG_BREAK();
+				ASSERT(false);
 				break;
 		}
 		pTextureCrcs[pHeader->sceneHeader.uiTextureCount++] = common::Crc(relativeFile.string());

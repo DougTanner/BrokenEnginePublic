@@ -141,13 +141,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	XMVECTOR* __restrict pVecDirections = nullptr;
 
 	// Per-instance scaling percentages
-#if defined(BT_CLIENT)
-	float* __restrict pfLightPercents = nullptr;
-#endif
 	float* __restrict pfSizePercents = nullptr;
-#if defined(BT_CLIENT)
-	float* __restrict pfSmokePercents = nullptr;
-#endif
 	float* __restrict pfTimePercents = nullptr;
 
 	// Trail state (8 separate arrays - pTrails[j] is array of all explosions' j-th trail)
@@ -174,7 +168,6 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	auto ClientMembers(this auto&& rSelf)
 	{
 		return std::tie(
-		    rSelf.pfLightPercents, rSelf.pfSmokePercents,
 		    rSelf.pTrails,
 		    rSelf.pfTrailIntensities, rSelf.pVecTrailStartPositions,
 		    rSelf.pVecTrailEndPositions);
@@ -225,7 +218,6 @@ struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
 		float fTrailAngle = XM_2PI;
 		uint32_t uiParticleCount = 0;
 		float fParticleAngle = XM_2PI;
-		float fLightPercent = 1.0f;
 		float fSizePercent = 1.0f;
 		float fSmokePercent = 1.0f;
 		float fTimePercent = 1.0f;

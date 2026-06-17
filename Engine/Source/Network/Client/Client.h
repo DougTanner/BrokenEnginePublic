@@ -9,9 +9,6 @@
 namespace game
 {
 
-struct PlayersInterpolate;
-using player_t = engine::id_t<PlayersInterpolate>;
-
 struct Frame;
 struct StatusChange;
 

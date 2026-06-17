@@ -186,6 +186,11 @@ public:
 			++iIndex;
 		}
 
+		// Intentional soft-fall: an off-grid value is legitimately reachable — a corrupt/hand-edited persisted
+		// setting (ClientSettings load) or a device-capability clamp (gSampleCount/gPresentMode) — so this never
+		// throws. Returns index 0; the sole return-consuming caller clamps it (TweaksScreenBase.cpp), and the
+		// graphics path re-clamps sample-count/present-mode against device support. DEBUG_BREAK is a debug-only
+		// hint for genuine internal misuse (no-op in release).
 		DEBUG_BREAK();
 		return 0;
 	}

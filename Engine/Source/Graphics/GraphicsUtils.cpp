@@ -2,7 +2,6 @@
 
 #include "GraphicsUtils.h"
 
-#include "Memory/GlobalAllocator.h"
 #include "Ui/WrapperBase.h"
 
 #include "Graphics/Camera.h"

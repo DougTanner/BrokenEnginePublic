@@ -5,7 +5,6 @@
 #include "StreamingVoice.h"
 
 #include "File/FileManager.h"
-#include "Memory/GlobalAllocator.h"
 
 namespace engine
 {

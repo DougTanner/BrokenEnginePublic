@@ -7,7 +7,6 @@ namespace game
 
 struct CoordWork;
 struct ReconcileInputs;
-struct ReconcileProfiling;
 struct ConfirmedClientState;
 struct StatusChange;
 

@@ -2,8 +2,6 @@
 
 #include "TextureUploadManager.h"
 
-#include "Memory/GlobalAllocator.h"
-
 namespace engine
 {
 

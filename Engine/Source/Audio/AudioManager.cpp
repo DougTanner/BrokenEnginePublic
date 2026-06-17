@@ -2,8 +2,6 @@
 
 #if defined(BT_CLIENT)
 
-#include "Memory/GlobalAllocator.h"
-
 #include "Profile/ProfileManager.h"
 
 namespace engine

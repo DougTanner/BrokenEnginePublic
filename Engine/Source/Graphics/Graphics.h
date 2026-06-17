@@ -22,8 +22,6 @@ class SwapchainManager;
 class TextManager;
 class TextureManager;
 
-struct RenderFrame;
-
 enum DestroyType
 {
 	kNone,

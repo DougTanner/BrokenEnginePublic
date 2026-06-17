@@ -292,7 +292,6 @@ static void SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, XMVE
 				.fTrailAngle = flags & kDirectional ? XM_PI : XM_2PI,
 				.uiParticleCount = static_cast<uint32_t>(2.0f * fScaledPercent * kfExplosionParticleCount),
 				.fParticleAngle = flags & kDirectional ? XM_PI : XM_2PI,
-				.fLightPercent = fScaledPercent,
 				.fSizePercent = 0.5f + 2.0f * fScaledPercent,
 				.fSmokePercent = flags & kDirectional ? fScaledPercent : 0.5f * fScaledPercent,
 				.fTimePercent = fScaledPercent,

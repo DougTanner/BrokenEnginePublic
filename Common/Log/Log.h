@@ -9,6 +9,7 @@ namespace common
 
 // Category names for crash dump labels
 inline constexpr const char* kpcLogCategoryNames[] = {"Default", "Temp", "Audio", "Graphics", "Loading", "NavData", "Network", "Input"};
+static_assert(std::size(kpcLogCategoryNames) == kiLogCategoryCount, "kpcLogCategoryNames out of sync with LogCategory");
 
 // Mutable globals (defined in Log.cpp)
 extern std::atomic<int64_t> giMyOutputDebugString;
@@ -147,6 +148,7 @@ inline constexpr LogLevel keLogLevels[]
 	keLogLevelDefault, keLogLevelTemp,
 	keLogLevelAudio, keLogLevelGraphics, keLogLevelLoading, keLogLevelNavData, keLogLevelNetwork, keLogLevelInput,
 };
+static_assert(std::size(keLogLevels) == common::kiLogCategoryCount, "keLogLevels out of sync with LogCategory");
 
 // Compile-time log filtering: if constexpr eliminates filtered-out calls entirely
 #define LOG(category, level, format, ...) \

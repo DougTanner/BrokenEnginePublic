@@ -13,7 +13,8 @@ enum class LogLevel : int8_t
 	kError   = 4,
 };
 
-// Log categories
+// Log categories — dense 0-based indices used directly as array subscripts (gLogRingBuffers, kpcLogCategoryNames,
+// keLogLevels). Append new categories immediately before kCount; never reorder or leave gaps.
 enum class LogCategory : int8_t
 {
 	kDefault  = 0,
@@ -25,8 +26,10 @@ enum class LogCategory : int8_t
 	kNavData  = 5,
 	kNetwork  = 6,
 	kInput    = 7,
+
+	kCount, // index-only sentinel — no call-site alias, no name/level table entry
 };
-inline constexpr int64_t kiLogCategoryCount = 8;
+inline constexpr int64_t kiLogCategoryCount = static_cast<int64_t>(LogCategory::kCount);
 
 } // namespace common
 

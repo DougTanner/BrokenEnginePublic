@@ -48,11 +48,6 @@ struct SpawnPlayerData
 	engine::GridCoord fleetWantedCoord {};
 	uint8_t uiPendingFleetWantedCoordTicks = 0;
 	bool operator==(const SpawnPlayerData&) const = default;
-
-	auto SharedMembers(this auto&& rSelf)
-	{
-		return std::tie(rSelf.iGlobalId, rSelf.bIsFlagship, rSelf.fleetWantedCoord, rSelf.uiPendingFleetWantedCoordTicks);
-	}
 };
 
 struct DestroyPlayerData
@@ -68,11 +63,6 @@ struct UpdatePlayerData
 	float fNavigationDelay = 60.0f;
 	uint8_t uiPendingWeaponModeTicks = 0;
 	bool operator==(const UpdatePlayerData&) const = default;
-
-	auto SharedMembers(this auto&& rSelf)
-	{
-		return std::tie(rSelf.iPlayerUuid, rSelf.bUseMissiles, rSelf.fNavigationDelay, rSelf.uiPendingWeaponModeTicks);
-	}
 };
 
 struct UpdateFleetData
@@ -82,11 +72,6 @@ struct UpdateFleetData
 	engine::GridCoord fleetWantedCoord {};
 	uint8_t uiPendingFleetWantedCoordTicks = 0;
 	bool operator==(const UpdateFleetData&) const = default;
-
-	auto SharedMembers(this auto&& rSelf)
-	{
-		return std::tie(rSelf.iPlayerUuid, rSelf.bIsFlagship, rSelf.fleetWantedCoord, rSelf.uiPendingFleetWantedCoordTicks);
-	}
 };
 
 struct TransferData

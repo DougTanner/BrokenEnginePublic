@@ -30,13 +30,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
 		XMVECTOR vecDirection = rPrevious.pVecDirections[i];
 
-#if defined(BT_CLIENT)
-		float fLightPercent = rPrevious.pfLightPercents[i];
-#endif
 		float fSizePercent = rPrevious.pfSizePercents[i];
-#if defined(BT_CLIENT)
-		float fSmokePercent = rPrevious.pfSmokePercents[i];
-#endif
 		float fTimePercent = rPrevious.pfTimePercents[i];
 
 		int32_t iTrailCount = rPrevious.piTrailCounts[i];
@@ -48,13 +42,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.pVecDirections[i] = vecDirection;
 
-#if defined(BT_CLIENT)
-		rCurrent.pfLightPercents[i] = fLightPercent;
-#endif
 		rCurrent.pfSizePercents[i] = fSizePercent;
-#if defined(BT_CLIENT)
-		rCurrent.pfSmokePercents[i] = fSmokePercent;
-#endif
 		rCurrent.pfTimePercents[i] = fTimePercent;
 
 		rCurrent.piTrailCounts[i] = iTrailCount;

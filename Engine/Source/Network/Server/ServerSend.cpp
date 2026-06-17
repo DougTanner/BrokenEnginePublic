@@ -5,7 +5,6 @@
 #include "Network/Server/Server.h"
 
 #include "Frame/FrameStaticData.h"
-#include "Memory/GlobalAllocator.h"
 #include "Network/NetworkCursor.h"
 
 namespace engine
@@ -203,7 +202,6 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 			? std::max(static_cast<int64_t>(std::bit_width(rAckState.uiReceivedBitfieldLow)), 64 + static_cast<int64_t>(std::bit_width(rAckState.uiReceivedBitfieldHigh)))
 			: static_cast<int64_t>(std::bit_width(rAckState.uiReceivedBitfieldLow));
 
-		int64_t aiResendTicks[kiMaxResendFrames] {};
 		int64_t iSlotResendCount = 0;
 		for (int64_t iBit = 0; iBit < iScanLimit && iSlotResendCount < kiMaxResendFrames; ++iBit)
 		{
@@ -233,7 +231,6 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 
 			NetworkManager::SendPacket(rClient.pPeer, NetworkManager::CoordSlotUnreliable(iSlot), rWorkbuffer, 0);
 
-			aiResendTicks[iSlotResendCount] = iMissingFrame;
 			++iSlotResendCount;
 		}
 

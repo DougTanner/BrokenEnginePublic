@@ -57,8 +57,6 @@ struct FrameInput
 {
 	static constexpr int64_t kiVersion = 10;
 
-	bool operator==(const FrameInput& rOther) const { return statusChanges == rOther.statusChanges; }
-
 	std::vector<StatusChange> statusChanges;
 
 	common::crc_t Crc() const;
@@ -74,8 +72,6 @@ public:
 
 	void UpdateMenuInput(bool bLostFocus, MenuInput& rMenuInput);
 	void UpdateCameraInput();
-
-	bool GetGamepadMode() const { return mbGamepadMode; }
 
 	CameraInput mCameraInput {};
 

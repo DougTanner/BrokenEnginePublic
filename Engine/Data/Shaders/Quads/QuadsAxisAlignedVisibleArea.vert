@@ -29,7 +29,6 @@ layout (location = 1) out vec4 f4OutParams;
 layout (location = 2) out vec2 f2OutTexcoord;
 layout (location = 4) out vec2 f2OutWorldPosition;
 layout (location = 5) out flat vec2 f2OutWorldCenter;
-layout (location = 6) out flat vec2 f2OutRotationCosSin;
 layout (location = 7) out flat uint uiOutTextureSlot;
 
 void main()
@@ -77,5 +76,4 @@ void main()
 
 	f2OutWorldPosition = vec2(fWorldX, fWorldY);
 	f2OutWorldCenter = vec2(fCenterX, fCenterY);
-	f2OutRotationCosSin = vec2(fCos, fSin);
 }

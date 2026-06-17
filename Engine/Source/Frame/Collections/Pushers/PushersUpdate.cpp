@@ -143,13 +143,13 @@ XMVECTOR XM_CALLCONV PushersInterpolate::ApplyPush(const game::FrameInterpolate&
 		PusherFlags_t flags = rCurrent.pFlags[i];
 
 		// Skip if flags match exclude mask
-		if ((flags & excludeFlags) != 0u) [[unlikely]]
+		if (flags.Mask(excludeFlags) != 0u) [[unlikely]]
 		{
 			continue;
 		}
 
 		// Skip if flags don't match include mask
-		if ((flags & includeFlags) == 0u) [[unlikely]]
+		if (flags.Mask(includeFlags) == 0u) [[unlikely]]
 		{
 			continue;
 		}

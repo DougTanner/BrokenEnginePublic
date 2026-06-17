@@ -4,7 +4,7 @@ External libraries, kept upstream-pristine — never edit library source; all ad
 
 ## Build Organization
 
-Everything compiles into a single `ThirdParty.<Config>.lib` linked by client, server, and DataPacker. Most compiled libraries are wrapped by a unity-build `.cpp` in `Prebuilts/Source/Engine/` (runtime consumers) or `Prebuilts/Source/DataPacker/` (offline asset tooling) that `#include`s the upstream sources; bc7enc_rdo and zlib compile directly from their upstream trees. See [Prebuilts/Platforms/VisualStudio2026/CLAUDE.md](Prebuilts/Platforms/VisualStudio2026/CLAUDE.md) for build config and how to register a new unit. Header-only with no compilation unit: glm, gli, PerlinNoise, RenderDoc.
+Compiled third-party source links into one shared static library used by client, server, and DataPacker — its per-config output name and flag set are owned by [Prebuilts/Platforms/VisualStudio2026/CLAUDE.md](Prebuilts/Platforms/VisualStudio2026/CLAUDE.md) (which also covers how to register a new unit). Most compiled libraries are wrapped by a unity-build `.cpp` in `Prebuilts/Source/Engine/` (runtime consumers) or `Prebuilts/Source/DataPacker/` (offline asset tooling) that `#include`s the upstream sources; bc7enc_rdo and zlib compile directly from their upstream trees. Header-only with no compilation unit: glm, gli, PerlinNoise, RenderDoc.
 
 Headers consumed by Common/Engine go through `Common/ExternalHeaders.h` (with `BT_CLIENT`/`BT_ENGINE` gating); DataPacker-only headers are instead included locally in the relevant DataPacker `.cpp` with their own warning-suppression pushes — a sanctioned exception keeping offline-only headers out of the engine PCH.
 

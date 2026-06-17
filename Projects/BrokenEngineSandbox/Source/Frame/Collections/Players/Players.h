@@ -44,13 +44,11 @@ inline constexpr float kfPlayerMaxPusherPushVelocity = kfPlayerMaxSpeed * 0.5f;
 struct HexShieldDirections
 {
 	XMFLOAT4A data[shaders::kiHexShieldDirections] {};
-	bool operator==(const HexShieldDirections& rOther) const { return std::memcmp(data, rOther.data, sizeof(data)) == 0; }
 };
 
 struct HexShieldIntensities
 {
 	float data[shaders::kiHexShieldDirections] {};
-	bool operator==(const HexShieldIntensities& rOther) const { return std::memcmp(data, rOther.data, sizeof(data)) == 0; }
 };
 #endif // BT_CLIENT
 

@@ -33,7 +33,6 @@ namespace game
 using enum SpaceshipFlags;
 
 // Explosion
-constexpr float kfSpaceshipExplosionIntensity = 1.5f;
 constexpr float kfSpaceshipExplosionParticleCount = 8.0f;
 constexpr float kfSpaceshipExplosionSizeStart = kfSpaceshipRadius * 0.625f;
 constexpr float kfSpaceshipExplosionSizeEnd = kfSpaceshipRadius * 0.25f;
@@ -278,11 +277,6 @@ void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPosition, XMV
 		.fTrailAngle = fPercent * XM_PI,
 		.uiParticleCount = static_cast<uint32_t>(fPercent * kfSpaceshipExplosionParticleCount),
 		.fParticleAngle = fPercent * XM_PIDIV2,
-		#if defined(BT_CLIENT)
-			.fLightPercent = fPercent * gSpaceshipExplosionLightingIntensity.Get(),
-#else
-			.fLightPercent = fPercent * kfSpaceshipExplosionIntensity,
-#endif
 		.fSizePercent = fPercent * kfSpaceshipExplosionSizeStart + (1.0f - fPercent) * kfSpaceshipExplosionSizeEnd,
 		.fSmokePercent = fPercent * kfSpaceshipExplosionSmoke,
 		.fTimePercent = fPercent,

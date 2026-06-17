@@ -30,8 +30,6 @@ struct AreaVertices
 	XMVECTOR vecTopRight {};
 	XMVECTOR vecBottomLeft {};
 	XMVECTOR vecBottomRight {};
-
-	bool operator==(const AreaVertices& rOther) const = default;
 };
 
 // Validate an XMVECTOR at a spawn / transfer invariant boundary: all 4 lanes finite, and

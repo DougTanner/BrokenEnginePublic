@@ -1,7 +1,5 @@
 #include "AreaDamage.h"
 
-#include "Memory/GlobalAllocator.h"
-
 namespace engine
 {
 

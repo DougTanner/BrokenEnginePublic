@@ -24,8 +24,10 @@ public:
 	}
 };
 
-// Append UTF-32 string as null-terminated UTF-8 into Workbuffer (Push first, returns const char*)
-const char* AppendUtf8(common::Workbuffer& rWorkbuffer, std::u32string_view u32str);
+// Append UTF-32 string as null-terminated UTF-8 into the Workbuffer. Returns a move-only RAII handle that
+// owns the workbuffer frame; the const char* it yields (via implicit conversion) is valid only for the
+// handle's lifetime — pass it inline to the consuming ImGui call, never store it past the full-expression.
+common::ScopedWorkbufferAllocation<char*> AppendUtf8(common::Workbuffer& rWorkbuffer, std::u32string_view u32String);
 
 bool WrapperToggle(std::string_view label, engine::Wrapper* pWrapper);
 bool WrapperSlider(std::string_view label, engine::Wrapper* pWrapper);

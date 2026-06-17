@@ -45,7 +45,6 @@ constexpr float kfMissileAngleJitter = XM_PIDIV16;
 
 // Death explosion spawn
 constexpr float kfExplosionsRadius = kfPlayerRadius * 20.0f;
-constexpr float kfExplosionIntensity = 1.5f;
 constexpr float kfExplosionParticleCount = 16.0f;
 constexpr float kfExplosionSizeStart = kfPlayerRadius * 1.3333f;
 constexpr float kfExplosionSizeEnd = kfPlayerRadius * 0.3333f;
@@ -486,7 +485,6 @@ void PlayersPostRender::SpawnDeathExplosions([[maybe_unused]] Frame& __restrict 
 			.fTrailAngle = fPercent * XM_PIDIV2,
 			.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
 			.fParticleAngle = fPercent * XM_PIDIV2,
-			.fLightPercent = fPercent * kfExplosionIntensity,
 			.fSizePercent = fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
 			.fSmokePercent = fPercent * kfExplosionSmoke,
 			.fTimePercent = fPercent,

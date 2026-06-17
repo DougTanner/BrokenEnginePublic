@@ -27,4 +27,4 @@ Children do not re-document these:
 
 ## MenuUtils
 
-Shared helpers: `kfMenuUiScale` constant, `ScopedMenuScale`, UTF-32 to UTF-8 conversion, and ImGui-to-`engine::Wrapper` control bindings (distinct from `engine::TweaksScreenBase::WrapperSlider` despite the shared name). The UTF-8 conversion returns a pointer into a popped workbuffer arena — valid only until the next workbuffer write; pass it inline to the consuming ImGui call (which copies), never store it.
+Shared helpers: `kfMenuUiScale` constant, `ScopedMenuScale`, UTF-32 to UTF-8 conversion, and ImGui-to-`engine::Wrapper` control bindings (distinct from `engine::TweaksScreenBase::WrapperSlider` despite the shared name). The UTF-8 conversion returns a move-only `common::ScopedWorkbufferAllocation` handle that owns the workbuffer frame, so the bytes stay valid for the handle's lifetime — i.e. through the caller's full-expression when used inline via the implicit `const char*` conversion to the consuming ImGui call; don't store the handle past that full-expression.
