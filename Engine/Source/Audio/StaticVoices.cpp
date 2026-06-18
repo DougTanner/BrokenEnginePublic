@@ -2,6 +2,7 @@
 
 #if defined(BT_CLIENT)
 
+#include "AudioUtility.h"
 #include "Game.h"
 #include "Ui/SoundSettingsWrappersBase.h"
 
@@ -16,29 +17,33 @@ void StaticVoices::Init(AudioEngine* pAudioEngine, const int64_t* piMasteringVoi
 	mVoices.reserve(kiMaxStaticVoices + kiMaxFadeOutPool);
 }
 
-IXAudio2SourceVoice* StaticVoices::PlayOneShot([[maybe_unused]] const game::Frame& rFrame, common::crc_t uiAudioCrc, bool b3d, float fVolume, float fPitch, float fPitchRange)
+void StaticVoices::PlayOneShot([[maybe_unused]] const game::Frame& rFrame, common::crc_t uiAudioCrc, bool b3d, float fVolume, float fPitch, float fPitchRange)
 {
 	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
 
 	if (rFrame.interpolate.frameFlags & FrameFlags::kRecalculated)
 	{
-		return nullptr;
+		return;
 	}
 
 	if (mbSuspended.load(std::memory_order_acquire))
 	{
-		return nullptr;
+		return;
 	}
 
 	// Silent one-shots cull at the door so they never burn a 128-cap voice slot,
-	// load a buffer, or take the recursive lock.
+	// load a buffer, or take the lock.
 	if (fVolume <= 0.0f)
 	{
-		return nullptr;
+		return;
 	}
 
-	std::lock_guard<std::recursive_mutex> lock(mOneShotRecursiveMutex);
+	std::lock_guard<std::mutex> lock(mOneShotMutex);
+	PlayOneShotLocked(uiAudioCrc, b3d, fVolume, fPitch, fPitchRange);
+}
 
+IXAudio2SourceVoice* StaticVoices::PlayOneShotLocked(common::crc_t uiAudioCrc, bool b3d, float fVolume, float& rfPitch, float fPitchRange)
+{
 	// Heap: AllocateVoice creates an XAudio2 source voice that persists until playback ends.
 	// XAudio2 owns the allocation internally, so workbuffer and pre-allocation are not possible.
 	ScopedSuppressAllocationTracking suppress;
@@ -49,21 +54,23 @@ IXAudio2SourceVoice* StaticVoices::PlayOneShot([[maybe_unused]] const game::Fram
 	}
 
 	IXAudio2SourceVoice* pIXAudio2SourceVoice = nullptr;
-	if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pIXAudio2SourceVoice, uiAudioCrc, true, b3d))
+	LoadVoiceFlags_t loadFlags(LoadVoiceFlags::kOneShot);
+	loadFlags.Set(LoadVoiceFlags::k3d, b3d);
+	if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pIXAudio2SourceVoice, uiAudioCrc, loadFlags))
 	{
 		return nullptr;
 	}
 
 	if (fPitchRange > 0.0f)
 	{
-		fPitch += common::Random(fPitchRange, mRandomEngine);
+		rfPitch += common::Random(fPitchRange, mRandomEngine);
 	}
 
 	if (!b3d)
 	{
 		CHECK_HRESULT(pIXAudio2SourceVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fVolume)));
 	}
-	CHECK_HRESULT(pIXAudio2SourceVoice->SetFrequencyRatio(fPitch));
+	CHECK_HRESULT(pIXAudio2SourceVoice->SetFrequencyRatio(rfPitch));
 	CHECK_HRESULT(pIXAudio2SourceVoice->Start(0, XAUDIO2_COMMIT_NOW));
 	return pIXAudio2SourceVoice;
 }
@@ -72,13 +79,25 @@ void XM_CALLCONV StaticVoices::PlayOneShot3d([[maybe_unused]] const game::Frame&
 {
 	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
 
+	// Hoisted above the RNG advance and the lock so replay ticks never mutate audio state
+	// (the documented replay invariant) and a suspended client does no extra work.
+	if (rFrame.interpolate.frameFlags & FrameFlags::kRecalculated)
+	{
+		return;
+	}
+
+	if (mbSuspended.load(std::memory_order_acquire))
+	{
+		return;
+	}
+
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
 		return;
 	}
 
 	// Silent one-shots cull at the door — short-circuits before the Distance() call
-	// and the recursive-lock acquisitions on this path and the inner PlayOneShot path.
+	// and the lock acquisition.
 	if (fVolume <= 0.0f)
 	{
 		return;
@@ -92,14 +111,11 @@ void XM_CALLCONV StaticVoices::PlayOneShot3d([[maybe_unused]] const game::Frame&
 		return;
 	}
 
-	std::lock_guard<std::recursive_mutex> lock(mOneShotRecursiveMutex);
+	std::lock_guard<std::mutex> lock(mOneShotMutex);
 
-	if (fPitchRange > 0.0f)
-	{
-		fPitch += common::Random(fPitchRange, mRandomEngine);
-	}
-
-	IXAudio2SourceVoice* pIXAudio2SourceVoice = PlayOneShot(rFrame, uiAudioCrc, true, fVolume, fPitch);
+	// PlayOneShotLocked randomizes fPitch in place so Apply3dVolume's SetFrequencyRatio
+	// uses the same randomized ratio rather than overwriting it with the base pitch.
+	IXAudio2SourceVoice* pIXAudio2SourceVoice = PlayOneShotLocked(uiAudioCrc, true, fVolume, fPitch, fPitchRange);
 	if (pIXAudio2SourceVoice != nullptr)
 	{
 		Apply3dVolume(pIXAudio2SourceVoice, vecPosition, XMVectorZero(), fVolume, fPitch);
@@ -134,7 +150,7 @@ void StaticVoices::ClearPool()
 {
 	for (PooledVoice& rPooled : mPooledVoices)
 	{
-		DestroyXAudio2SourceVoice(rPooled.mpVoice);
+		DestroyXAudio2SourceVoice(mpAudioEngine, rPooled.mpVoice);
 	}
 	mPooledVoices.clear();
 }
@@ -321,7 +337,7 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 					IXAudio2SourceVoice* pVoice = AcquireVoiceFromPool(uiCrc);
 					if (pVoice == nullptr)
 					{
-						if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, false, true))
+						if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, LoadVoiceFlags::k3d))
 						{
 							continue;
 						}
@@ -375,13 +391,17 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 			IXAudio2SourceVoice* pVoice = AcquireVoiceFromPool(uiCrc);
 			if (pVoice == nullptr)
 			{
-				if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, false, true))
+				if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, LoadVoiceFlags::k3d))
 				{
 					continue;
 				}
 			}
 			float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
 			mVoices.push_back(StaticVoice(pVoice, id, fSoundVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity, uiCrc));
+			// Establish the attenuated 3D mix this same pass — the ctor now starts the voice silent
+			// (SetVolume(0)), so without this the first quantum would be inaudible until the next
+			// UpdateVolumes. Matches what UpdateVolumes computes (mfFadeOutVolume initializes to 1.0).
+			Apply3dVolume(pVoice, vecPosition, vecVelocity, fSoundVolume, fPitch);
 			pActivatedIds[iActivatedCount++] = id;
 		}
 	}
@@ -528,7 +548,7 @@ void StaticVoices::Clear(bool bNullVoicesBeforeDestroy)
 	{
 		for (StaticVoice& rVoice : mVoices)
 		{
-			DestroyXAudio2SourceVoice(rVoice.mpVoice);
+			DestroyXAudio2SourceVoice(mpAudioEngine, rVoice.mpVoice);
 			rVoice.mpVoice = nullptr;
 		}
 	}

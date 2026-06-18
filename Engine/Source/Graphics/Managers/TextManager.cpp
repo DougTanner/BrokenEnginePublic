@@ -9,6 +9,8 @@ namespace engine
 
 TextManager::TextManager()
 {
+	ASSERT(gpTextManager == nullptr);
+
 	gpTextManager = this;
 
 	ScopedBootTimer scopedBootTimer(kBootTimerTextManager);
@@ -37,7 +39,10 @@ TextManager::TextManager()
 
 TextManager::~TextManager()
 {
-	gpTextManager = nullptr;
+	if (gpTextManager == this)
+	{
+		gpTextManager = nullptr;
+	}
 }
 
 common::Character* TextManager::GetCharacter(uint32_t uiChar)

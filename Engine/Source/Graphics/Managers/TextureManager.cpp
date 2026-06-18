@@ -71,6 +71,8 @@ float TextureManager::DetailTextureAspectRatio()
 TextureManager::TextureManager()
 : mTextureDescriptors(*this)
 {
+	ASSERT(gpTextureManager == nullptr);
+
 	gpTextureManager = this;
 
 	ScopedBootTimer scopedBootTimer(kBootTimerTextureManager);
@@ -357,7 +359,10 @@ TextureManager::~TextureManager()
 	mRenderTargetTextures.DestroyLightingTextures();
 	mRenderTargetTextures.DestroyWaterSkyboxOneTextures();
 
-	gpTextureManager = nullptr;
+	if (gpTextureManager == this)
+	{
+		gpTextureManager = nullptr;
+	}
 }
 
 void TextureManager::DestroyScreenDependentResources()

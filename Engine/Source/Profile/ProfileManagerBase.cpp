@@ -228,7 +228,7 @@ void ProfileManagerBase::GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkComm
 			VkDebugUtilsLabelEXT vkDebugUtilsLabelEXT =
 			{
 				.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
-				.pLabelName = mGpuTimers[eGpuTimer].name.data(),
+				.pLabelName = kGpuTimerNames[eGpuTimer].data(),
 				.color = {fColor, fColor, fColor, fColor},
 			};
 			vkCmdBeginDebugUtilsLabelEXT(vkCommandBuffer, &vkDebugUtilsLabelEXT);
@@ -307,12 +307,12 @@ void ProfileManagerBase::BootLog()
 	{
 		BootStop(kBootTimerTotal);
 
-		for (BootTimer& rBootTimer : mBootTimers)
+		for (int64_t i = 0; i < kBootTimerCount; ++i)
 		{
-			std::chrono::milliseconds durationMilliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(rBootTimer.timeNs);
+			std::chrono::milliseconds durationMilliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(mBootTimers[i].timeNs);
 			if (durationMilliseconds.count() > 10)
 			{
-				LOG(kDefault, kDebug, "{}: {} ms", rBootTimer.name, durationMilliseconds.count());
+				LOG(kDefault, kDebug, "{}: {} ms", kBootTimerNames[i], durationMilliseconds.count());
 			}
 		}
 		LOG(kDefault, kDebug, "\n");
@@ -332,7 +332,7 @@ void ProfileManagerBase::LogTimers()
 			for (int64_t i = 0; i < iCpuTimerCount; ++i)
 			{
 				CpuTimer& rCpuTimer = GetCpuTimer(i);
-				LOG(kDefault, kDebug, "{}: {} ({}, {}) [{}]", rCpuTimer.name, rCpuTimer.smoothedMicroseconds.Current(), rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max(), rCpuTimer.smoothedAllocations.Get());
+				LOG(kDefault, kDebug, "{}: {} ({}, {}) [{}]", GetCpuTimerName(i), rCpuTimer.smoothedMicroseconds.Current(), rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max(), rCpuTimer.smoothedAllocations.Get());
 			}
 		}
 
@@ -348,7 +348,7 @@ void ProfileManagerBase::LogTimers()
 		for (int64_t i = 0; i < kGpuTimerCount; ++i)
 		{
 			GpuTimer& rGpuTimer = mGpuTimers[i];
-			LOG(kDefault, kDebug, "{}: {} ({}, {})", rGpuTimer.name, rGpuTimer.smoothedMicroseconds.Current(), rGpuTimer.smoothedMicroseconds.Average(), rGpuTimer.smoothedMicroseconds.Max());
+			LOG(kDefault, kDebug, "{}: {} ({}, {})", kGpuTimerNames[i], rGpuTimer.smoothedMicroseconds.Current(), rGpuTimer.smoothedMicroseconds.Average(), rGpuTimer.smoothedMicroseconds.Max());
 		}
 
 		LOG(kDefault, kDebug, "");
@@ -433,6 +433,16 @@ CpuCounter& ProfileManagerBase::GetCpuCounter(int64_t iIndex)
 CpuTimer& ProfileManagerBase::GetCpuTimer(int64_t iIndex)
 {
 	return mEngineCpuTimers[iIndex];
+}
+
+std::string_view ProfileManagerBase::GetCpuCounterName(int64_t iIndex)
+{
+	return kEngineCpuCounterNames[iIndex];
+}
+
+std::string_view ProfileManagerBase::GetCpuTimerName(int64_t iIndex)
+{
+	return kEngineCpuTimerNames[iIndex];
 }
 
 int64_t ProfileManagerBase::GetCpuCounterCount() const

@@ -7,6 +7,8 @@ namespace engine
 
 NetworkManager::NetworkManager()
 {
+	ASSERT(gpNetworkManager == nullptr);
+
 	gpNetworkManager = this;
 
 	enet_initialize();
@@ -16,7 +18,10 @@ NetworkManager::~NetworkManager()
 {
 	enet_deinitialize();
 
-	gpNetworkManager = nullptr;
+	if (gpNetworkManager == this)
+	{
+		gpNetworkManager = nullptr;
+	}
 }
 
 } // namespace engine

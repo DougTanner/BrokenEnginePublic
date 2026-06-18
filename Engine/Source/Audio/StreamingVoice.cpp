@@ -2,6 +2,7 @@
 
 #if defined(BT_CLIENT)
 
+#include "AudioUtility.h"
 #include "File/FileManager.h"
 #include "Ui/SoundSettingsWrappersBase.h"
 
@@ -10,9 +11,10 @@ namespace engine
 
 using enum StreamingVoiceFlags;
 
-StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLazyChunk)
+StreamingVoice::StreamingVoice(AudioEngine* pAudioEngine, IXAudio2SourceVoice* pVoice, const LazyChunk* pLazyChunk)
 : mpLazyChunk(pLazyChunk)
 , mpVoice(pVoice)
+, mpAudioEngine(pAudioEngine)
 {
 	LOG(kAudio, kDebug, "Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, buffer size: {} bytes", mpLazyChunk->location.crc, mpLazyChunk->header.iSize, kiBufferSize);
 
@@ -21,7 +23,7 @@ StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLa
 
 StreamingVoice::~StreamingVoice()
 {
-	DestroyXAudio2SourceVoice(mpVoice);
+	DestroyXAudio2SourceVoice(mpAudioEngine, mpVoice);
 }
 
 float StreamingVoice::GetRemainingTime() const

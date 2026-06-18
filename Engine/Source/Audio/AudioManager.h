@@ -24,7 +24,7 @@ public:
 
 	void Update(const game::Frame* pFrame);
 
-	IXAudio2SourceVoice* PlayOneShot(const game::Frame& rFrame, common::crc_t uiAudioCrc, bool b3d, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f);
+	void PlayOneShot(const game::Frame& rFrame, common::crc_t uiAudioCrc, bool b3d, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f);
 	void XM_CALLCONV PlayOneShot3d(const game::Frame& rFrame, common::crc_t uiAudioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f);
 
 	void PlayMusic(common::crc_t uiAudioCrc);
@@ -63,26 +63,6 @@ private:
 };
 
 inline AudioManager* gpAudioManager = nullptr;
-
-inline void DestroyXAudio2SourceVoice(IXAudio2SourceVoice*& rpVoice)
-{
-	if (rpVoice != nullptr)
-	{
-		rpVoice->Stop(0, XAUDIO2_COMMIT_NOW);
-		rpVoice->FlushSourceBuffers();
-		if (gpAudioManager->mpAudioEngine != nullptr)
-		{
-			std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-			gpAudioManager->mpAudioEngine->DestroyVoice(rpVoice);
-			std::chrono::steady_clock::duration elapsed = std::chrono::steady_clock::now() - start;
-			if (elapsed > std::chrono::milliseconds(100))
-			{
-				LOG(kAudio, kWarning, "DestroyXAudio2SourceVoice took {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
-			}
-		}
-		rpVoice = nullptr;
-	}
-}
 
 } // namespace engine
 

@@ -31,6 +31,8 @@ const char* ToString(SubscriptionChangeReason eReason)
 
 ClientSession::ClientSession()
 {
+	ASSERT(gpClientSession == nullptr);
+
 	gpClientSession = this;
 	miCoordSlots = kiDesiredCoordSlots;
 	mpDataReceiver = std::make_unique<ClientDataReceiver>();
@@ -40,7 +42,10 @@ ClientSession::ClientSession()
 
 ClientSession::~ClientSession()
 {
-	gpClientSession = nullptr;
+	if (gpClientSession == this)
+	{
+		gpClientSession = nullptr;
+	}
 }
 
 std::chrono::nanoseconds ClientSession::ComputeClockCorrectionNs(int64_t iPreReconcileTick)

@@ -1,18 +1,5 @@
 #include "GaeaArchetype.h"
 
-#pragma warning(push, 0)
-#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
-#pragma warning(disable: 5311) // nlohmann::json 3.10.4 uses the pre-C++20 literal-operator-id form 'operator "" _json'
-#if defined(__clang__)
-	#pragma clang diagnostic push
-	#pragma clang diagnostic ignored "-Weverything"
-#endif
-#include "tinygltf/json.hpp"
-#if defined(__clang__)
-	#pragma clang diagnostic pop
-#endif
-#pragma warning(pop)
-
 namespace
 {
 

@@ -3,19 +3,6 @@
 #include "FileManager.h"
 #include "Texture/Texture.h"
 
-#pragma warning(push, 0)
-#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
-#ifdef __clang__
-	#pragma clang diagnostic push
-	#pragma clang diagnostic ignored "-Weverything"
-#endif
-#define GLM_STATIC_ASSERT static_assert
-#include "gli/gli/gli.hpp"
-#ifdef __clang__
-	#pragma clang diagnostic pop
-#endif
-#pragma warning(pop)
-
 using enum common::ChunkFlags;
 
 std::optional<common::ChunkFlags_t> ExportTexture::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
@@ -42,16 +29,7 @@ static std::vector<std::byte> ZlibCompress(const std::byte* puiSource, int64_t i
 
 static int64_t ComputeUncompressedTextureSize(VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels)
 {
-	int64_t iUncompressedSize = 0;
-	int64_t iMipWidth = iWidth;
-	int64_t iMipHeight = iHeight;
-	for (int64_t i = 0; i < iMipLevels; ++i)
-	{
-		iUncompressedSize += common::SizeInBytes(vkFormat, iMipWidth, iMipHeight);
-		iMipWidth /= 2;
-		iMipHeight /= 2;
-	}
-	return iUncompressedSize;
+	return common::ComputeImageByteSize(vkFormat, iWidth, iHeight, iMipLevels, 1, 1);
 }
 
 void ExportTexture::Export()

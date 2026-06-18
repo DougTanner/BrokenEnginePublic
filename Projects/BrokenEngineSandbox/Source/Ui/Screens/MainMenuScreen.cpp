@@ -146,6 +146,7 @@ void MainMenuScreen::Render()
 	ImGui::SetCursorPosX((rIo.DisplaySize.x - fTotalLangWidth) / 2.0f);
 
 	static constexpr const char* kpcLanguageNames[] = {"ENGLISH", "中文", "ESPANOL", "PORTUGUES", "FRANCAIS", "DEUTSCH"};
+	static_assert(std::size(kpcLanguageNames) == static_cast<size_t>(kLanguageCount)); // One label per Language enumerator, in order.
 	for (int64_t i = 0; i < kLanguageCount; ++i)
 	{
 		if (i > 0)

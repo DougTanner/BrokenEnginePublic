@@ -23,6 +23,8 @@ namespace engine
 
 ImGuiManager::ImGuiManager(HWND hwnd)
 {
+	ASSERT(gpImGuiManager == nullptr);
+
 	gpImGuiManager = this;
 
 	CreateRenderPass();
@@ -153,7 +155,10 @@ ImGuiManager::~ImGuiManager()
 
 	vkDestroyRenderPass(gpDeviceManager->mVkDevice, mImGuiRenderPass, nullptr);
 
-	gpImGuiManager = nullptr;
+	if (gpImGuiManager == this)
+	{
+		gpImGuiManager = nullptr;
+	}
 }
 
 void ImGuiManager::CreateRenderPass()

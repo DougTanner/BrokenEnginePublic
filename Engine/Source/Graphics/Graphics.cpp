@@ -114,6 +114,8 @@ Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 : mHinstance(hinstance)
 , mHwnd(hwnd)
 {
+	ASSERT(gpGraphics == nullptr);
+
 	gpGraphics = this;
 
 	CHECK_VK(volkInitialize());
@@ -145,7 +147,10 @@ Graphics::~Graphics()
 	meDestroyType = DestroyType::kSurface;
 	Destroy();
 
-	gpGraphics = nullptr;
+	if (gpGraphics == this)
+	{
+		gpGraphics = nullptr;
+	}
 }
 
 void Graphics::WaitAllFramebufferFencesIdle()

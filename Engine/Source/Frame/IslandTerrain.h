@@ -204,6 +204,7 @@ public:
 	float mfSeaFloorElevation = 0.0f;
 
 #if defined(BT_CLIENT)
+private:
 	// Starts at 1: slot 0 is reserved as a permanent neutral placeholder anchor, never adopted
 	// by any real island. See TextureManager::mIslandPlaceholder* members.
 	int64_t miNextTextureSlot = 1;

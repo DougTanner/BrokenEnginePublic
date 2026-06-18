@@ -139,9 +139,6 @@ public:
 	MemoryStats GetLazyStats() const;
 	MemoryStats GetMemoryStats(data::DataTypes eDataType) const;
 
-	std::vector<common::ChunkLocation> mpChunkLocations[data::kDataTypeCount];
-	std::future<void> mLoadingFuture;
-
 private:
 
 	std::filesystem::path GetFilePath(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
@@ -162,7 +159,10 @@ private:
 
 	// Only available for eager pack files
 	std::vector<std::byte> mPackFileData[data::kDataTypeCount];
-	
+
+	// Per-data-type chunk-location tables (offset/size/crc), read from each manifest in LoadPackFiles
+	std::vector<common::ChunkLocation> mpChunkLocations[data::kDataTypeCount];
+
 	// Split chunk maps for eager and lazy loading
 	std::unordered_map<common::crc_t, EagerChunk> mEagerChunkMap;  // Font, Model, Shaders
 	std::unordered_map<common::crc_t, LazyChunk> mLazyChunkMap;  // Audio, Islands, Texture
@@ -174,6 +174,10 @@ private:
 	mutable std::mutex mQueueMutex;
 	std::priority_queue<LoadRequest> mRequestQueue;
 	std::atomic<bool> mShutdown {false};
+
+	// Eager-load completion, assigned in LoadPackFiles. mutable: the first GetEagerChunkMap() drains it
+	// (a lazy completion behind the const accessor).
+	mutable std::future<void> mLoadingFuture;
 
 	// Persistent pack file handles for lazy loading (opened with FILE_FLAG_NO_BUFFERING)
 	HANDLE mLazyPackFileHandles[data::kDataTypeCount] {};

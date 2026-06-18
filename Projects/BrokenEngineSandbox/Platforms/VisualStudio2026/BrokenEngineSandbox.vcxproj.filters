@@ -636,6 +636,9 @@
     <ClInclude Include="Output\Data\Data.h">
       <Filter>DataFiles</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Audio\AudioUtility.h">
+      <Filter>Engine\Audio</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Audio\StaticVoice.h">
       <Filter>Engine\Audio</Filter>
     </ClInclude>

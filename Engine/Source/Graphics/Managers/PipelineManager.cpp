@@ -14,6 +14,8 @@ using enum PipelineFlags;
 PipelineManager::PipelineManager()
 : mDynamicPipelines(mShaders)
 {
+	ASSERT(gpPipelineManager == nullptr);
+
 	gpPipelineManager = this;
 
 	ScopedBootTimer scopedBootTimer(kBootTimerPipelineManager);
@@ -140,7 +142,10 @@ PipelineManager::PipelineManager()
 
 PipelineManager::~PipelineManager()
 {
-	gpPipelineManager = nullptr;
+	if (gpPipelineManager == this)
+	{
+		gpPipelineManager = nullptr;
+	}
 }
 
 void PipelineManager::CreateLightingPipelines()

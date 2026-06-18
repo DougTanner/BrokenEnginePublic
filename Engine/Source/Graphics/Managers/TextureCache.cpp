@@ -21,15 +21,7 @@ void TextureCache::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, Vk
 	VkAccessFlags dstAccess = bFromSwapchain ? 0 : VK_ACCESS_SHADER_READ_BIT;
 
 	// Calculate total data size
-	int64_t iMipWidth = extent.width;
-	int64_t iMipHeight = extent.height;
-	int64_t iTotalSize = 0;
-	for (uint32_t i = 0; i < mipLevels; ++i)
-	{
-		iTotalSize += common::SizeInBytes(format, iMipWidth, iMipHeight) * arrayLayers;
-		iMipWidth = std::max(iMipWidth / 2, 1ll);
-		iMipHeight = std::max(iMipHeight / 2, 1ll);
-	}
+	int64_t iTotalSize = common::ComputeImageByteSize(format, extent.width, extent.height, mipLevels, arrayLayers, 1);
 
 	// Allocate output data
 	rOutData.resize(iTotalSize);
@@ -70,8 +62,8 @@ void TextureCache::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, Vk
 
 	for (uint32_t iLayer = 0; iLayer < arrayLayers; ++iLayer)
 	{
-		iMipWidth = extent.width;
-		iMipHeight = extent.height;
+		int64_t iMipWidth = extent.width;
+		int64_t iMipHeight = extent.height;
 		for (uint32_t iMip = 0; iMip < mipLevels; ++iMip)
 		{
 			VkBufferImageCopy vkBufferImageCopy
@@ -206,6 +198,9 @@ void TextureCache::GeneratePbrLutBrdf()
 
 bool TextureCache::TryLoadCachedTexture(const std::filesystem::path& rCachePath, Texture& rTexture, VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels, int64_t iArrayLayers, common::crc_t sourceCrc)
 {
+	// Heap: the cached-payload vector below runs from GeneratePbrLutBrdf in the PipelineManager ctor, which also fires on pipeline-tier recreate (settings change / device loss) with the main-loop tracker armed. Mirrors SaveTextureToCache's CopyImageToHostMemory suppression.
+	ScopedSuppressAllocationTracking suppress;
+
 	if (!gpFileManager->Exists({FileFlags::kAppDataDirectory}, rCachePath))
 	{
 		return false;
@@ -224,19 +219,34 @@ bool TextureCache::TryLoadCachedTexture(const std::filesystem::path& rCachePath,
 	if (!fileStream || header.iMagic != TextureFileCacheHeader::kiMagic || header.iVersion != TextureFileCacheHeader::kiVersion || header.vkFormat != vkFormat || header.iWidth != iWidth || header.iHeight != iHeight || header.iMipLevels != iMipLevels || header.iArrayLayers != iArrayLayers || (sourceCrc != 0 && header.sourceCrc != sourceCrc))
 	{
 		fileStream.close();
-		LOG(kGraphics, kWarning, "Invalid cache file {} (sourceCrc mismatch: cached={:#x} expected={:#x}), regenerating", rCachePath.string(), header.sourceCrc, sourceCrc);
+		LOG(kGraphics, kWarning, "Invalid cache file {} (header validation failed), regenerating", rCachePath.string());
+		return false;
+	}
+
+	// The on-disk iDataSize is opaque (cache file is a trust boundary); validate it against the size computed from the already-validated dims/format before trusting it. A too-small value would overread in the upload memcpy below; a negative value would blow up the std::vector ctor.
+	const int64_t iExpectedDataSize = common::ComputeImageByteSize(vkFormat, iWidth, iHeight, iMipLevels, iArrayLayers, 1);
+	if (header.iDataSize != iExpectedDataSize)
+	{
+		fileStream.close();
+		LOG(kGraphics, kWarning, "Invalid cache file {} (iDataSize {} != expected {}), regenerating", rCachePath.string(), header.iDataSize, iExpectedDataSize);
 		return false;
 	}
 
 	// Read texture data
 	std::vector<std::byte> data(header.iDataSize);
 	fileStream.read(reinterpret_cast<char*>(data.data()), header.iDataSize);
+	if (!fileStream)
+	{
+		fileStream.close();
+		LOG(kGraphics, kWarning, "Invalid cache file {} (truncated payload), regenerating", rCachePath.string());
+		return false;
+	}
 	fileStream.close();
 
-	// Update texture with cached data
-	rTexture.UpdateData([&data](void* pData, [[maybe_unused]] int64_t iPosition, int64_t iSize)
+	// Update texture with cached data. Copy data.size() (== the validated iDataSize) rather than the staging size iSize so the read can never exceed the buffer we own (the two are equal for the depth-1 textures the cache holds).
+	rTexture.UpdateData([&data](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
 	{
-		std::memcpy(pData, data.data(), iSize);
+		std::memcpy(pData, data.data(), data.size());
 	});
 
 	LOG(kLoading, kDebug, "Loaded cached texture from {}", rCachePath.string());

@@ -3,19 +3,6 @@
 #include "FileManager.h"
 #include "Texture.h"
 
-#pragma warning(push, 0)
-#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
-#ifdef __clang__
-	#pragma clang diagnostic push
-	#pragma clang diagnostic ignored "-Weverything"
-#endif
-#include "bc7enc_rdo/bc7decomp.h"
-#include "bc7enc_rdo/rgbcx.h"
-#ifdef __clang__
-	#pragma clang diagnostic pop
-#endif
-#pragma warning(pop)
-
 static VkFormat IntermediateFormatFromExtension(const std::filesystem::path& rPath)
 {
 	const std::string sExtension = rPath.extension().string();
@@ -150,15 +137,7 @@ static void MigrateLegacyIntermediate(const std::filesystem::path& rPath)
 		return;
 	}
 
-	int64_t iExpectedRawSize = 0;
-	int64_t iMipWidth = iWidth;
-	int64_t iMipHeight = iHeight;
-	for (int64_t i = 0; i < iMipMaps; ++i)
-	{
-		iExpectedRawSize += common::SizeInBytes(vkFormat, iMipWidth, iMipHeight);
-		iMipWidth /= 2;
-		iMipHeight /= 2;
-	}
+	int64_t iExpectedRawSize = common::ComputeImageByteSize(vkFormat, iWidth, iHeight, iMipMaps, 1, 1);
 
 	int64_t iPayloadSize = iFileSize - iLegacyHeaderSize;
 	std::vector<std::byte> payload(iPayloadSize);

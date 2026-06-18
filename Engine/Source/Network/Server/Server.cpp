@@ -11,6 +11,8 @@ namespace engine
 
 Server::Server(uint16_t uiPort)
 {
+	ASSERT(gpServer == nullptr);
+
 	gpServer = this;
 
 	ENetAddress address {};
@@ -41,7 +43,10 @@ Server::~Server()
 		enet_host_destroy(mpHost);
 	}
 
-	gpServer = nullptr;
+	if (gpServer == this)
+	{
+		gpServer = nullptr;
+	}
 }
 
 void Server::Flush()

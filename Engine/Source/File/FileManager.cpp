@@ -15,6 +15,8 @@ using enum FileFlags;
 
 FileManager::FileManager()
 {
+	ASSERT(gpFileManager == nullptr);
+
 	gpFileManager = this;
 
 	// Get Windows AppData directory and append game name
@@ -70,7 +72,10 @@ FileManager::~FileManager()
 		VirtualFree(mpDecompressScratch, 0, MEM_RELEASE);
 	}
 
-	gpFileManager = nullptr;
+	if (gpFileManager == this)
+	{
+		gpFileManager = nullptr;
+	}
 }
 
 bool FileManager::Exists(const FileFlags_t& rFlags, const std::filesystem::path& rFilename)
@@ -424,10 +429,10 @@ void FileManager::LoadPackFiles()
 
 const std::unordered_map<common::crc_t, EagerChunk>& FileManager::GetEagerChunkMap() const
 {
-	if (gpFileManager->mLoadingFuture.valid()) [[unlikely]]
+	if (mLoadingFuture.valid()) [[unlikely]]
 	{
 		gpProfileManager->BootStart(kBootTimerWaitForDataFile);
-		gpFileManager->mLoadingFuture.get();
+		mLoadingFuture.get();
 		gpProfileManager->BootStop(kBootTimerWaitForDataFile);
 	}
 

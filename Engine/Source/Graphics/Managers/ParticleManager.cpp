@@ -7,6 +7,8 @@ namespace engine
 
 ParticleManager::ParticleManager()
 {
+	ASSERT(gpParticleManager == nullptr);
+
 	gpParticleManager = this;
 
 	ScopedBootTimer scopedBootTimer(kBootTimerParticleManager);
@@ -14,7 +16,10 @@ ParticleManager::ParticleManager()
 
 ParticleManager::~ParticleManager()
 {
-	gpParticleManager = nullptr;
+	if (gpParticleManager == this)
+	{
+		gpParticleManager = nullptr;
+	}
 }
 
 int32_t ParticleManager::GetOrAssignTextureIndex(common::crc_t textureCrc)

@@ -42,4 +42,18 @@ int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight)
 	}
 }
 
+int64_t ComputeImageByteSize(VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels, int64_t iArrayLayers, int64_t iDepth)
+{
+	int64_t iTotalSize = 0;
+	int64_t iMipWidth = iWidth;
+	int64_t iMipHeight = iHeight;
+	for (int64_t i = 0; i < iMipLevels; ++i)
+	{
+		iTotalSize += iArrayLayers * iDepth * SizeInBytes(vkFormat, iMipWidth, iMipHeight);
+		iMipWidth = std::max(iMipWidth / 2, static_cast<int64_t>(1));
+		iMipHeight = std::max(iMipHeight / 2, static_cast<int64_t>(1));
+	}
+	return iTotalSize;
+}
+
 } // namespace common

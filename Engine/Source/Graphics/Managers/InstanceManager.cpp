@@ -115,6 +115,8 @@ static VkSampleCountFlagBits SelectSampleCount(VkSampleCountFlags eVkSampleCount
 
 InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 {
+	ASSERT(gpInstanceManager == nullptr);
+
 	gpInstanceManager = this;
 
 	ScopedBootTimer scopedBootTimer(kBootTimerInstanceManager);
@@ -687,7 +689,10 @@ InstanceManager::~InstanceManager()
 
 	vkDestroyInstance(mVkInstance, nullptr);
 
-	gpInstanceManager = nullptr;
+	if (gpInstanceManager == this)
+	{
+		gpInstanceManager = nullptr;
+	}
 }
 
 void InstanceManager::ReadLayerProperties()

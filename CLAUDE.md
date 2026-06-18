@@ -41,7 +41,7 @@ Exception: for one-line changes, make the edit and do only step 3.
 ## Directory Structure
 - `/Common/` - Shared utilities (`common::` namespace); `Common.h` is the single aggregation header (included by `Pch.h`) - [CLAUDE.md](Common/CLAUDE.md)
 - `/DataPacker/` - Asset preprocessor producing `.pack`/`.manifest` files - [CLAUDE.md](DataPacker/Source/CLAUDE.md)
-- `/Engine/` - Runtime: graphics, audio, input, frame state (`engine::` namespace); `Engine.h` is the single aggregation header (included by `Pch.h`) with `#ifdef BT_CLIENT`/`BT_SERVER` guards - [CLAUDE.md](Engine/Source/CLAUDE.md)
+- `/Engine/` - Runtime: graphics, audio, input, frame state (`engine::` namespace); `Engine.h` is the single aggregation header (included by `Pch.h`) with `#ifdef BT_CLIENT`/`BT_SERVER` guards, save the few deliberate exceptions noted at the subsystem hubs - [CLAUDE.md](Engine/Source/CLAUDE.md)
 - `/Projects/` - Game implementations (`game::` namespace) - [CLAUDE.md](Projects/BrokenEngineSandbox/Source/CLAUDE.md)
 - `/ThirdParty/` - External libraries (do not modify) - [CLAUDE.md](ThirdParty/CLAUDE.md)
 - `/Documents/` - Style guide (`C++StyleGuide.txt`), Mermaid architecture diagrams (`Architecture/`), and the plan queues (`Plans/`, `Features/`) - [CLAUDE.md](Documents/CLAUDE.md)
@@ -61,7 +61,7 @@ Same source, two executables:
 - **server** (headless physics) — vcxproj defines `BT_SERVER`
 
 Rules:
-- Gate client-only code with `#ifdef BT_CLIENT` at the narrowest practical scope.
+- Gate client-only code with `#ifdef BT_CLIENT` at the narrowest practical scope — or, for whole files/headers, via client-vcxproj membership plus the `Engine.h` `BT_CLIENT` aggregation span (the established complementary mechanism; e.g. `AnimationData.*`, `OneShotCommandBuffer.*`, `Screenshot.*`, `Graphics.h`, `GraphicsUtils.h` carry no `#if` wrap).
 - Files fully wrapped in `#if defined(BT_CLIENT)` must only appear in the client vcxproj; same for `BT_SERVER`. See [VisualStudio2026/CLAUDE.md](Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/CLAUDE.md).
 - Collections with client-only fields use the `SharedMembers()`/`ClientMembers()` pattern — see [Collections/CLAUDE.md](Engine/Source/Frame/Collections/CLAUDE.md)
 
@@ -73,11 +73,11 @@ Rules:
 	- **XMVECTOR W invariant**: Positions W=1.0; directions / velocities / normals / offsets W=0.0; color alpha defaults 1.0 (opaque)
 	- **Function form, not operators**: `XMVectorAdd`/`Subtract`/`Multiply`/`Divide`/`Scale`/`Negate` — never `vec + vec`, `f * vec`, `-vec`.
 - **Base classes**: Include/use game versions, not Base versions — `Camera.h` not `CameraBase.h`, `game::gpGame` not `GameBase` directly
-- **Engine reading `game::gp*` globals is by design** — not a layer violation; do not file plans to "inject" or "decouple". Details: [Engine/Source/CLAUDE.md](Engine/Source/CLAUDE.md)
+- **Engine reading game-layer state is by design** — both `game::gp*` runtime globals and game-layer compile-time symbols (e.g. `keNetworkSimulation` in game `Pch.h`; the game CPU-timer enum the Profile FPS overlay reads by name) — not a layer violation; do not file plans to "inject" or "decouple". The reverse direction — engine *types* that name game concepts (e.g. an `engine::PacketType` enumerator only the game uses) — remains a real violation. Details: [Engine/Source/CLAUDE.md](Engine/Source/CLAUDE.md)
 - **Workbuffer**: Use `gpThreadLocal->mWorkbuffer` for temp allocations instead of local `std::vector`/`std::string`. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Allocation tracking**: Heap allocations in the main loop trigger `DEBUG_BREAK()`. When unavoidable, wrap with `ScopedSuppressAllocationTracking` + `// Heap:` comment. See [Memory/CLAUDE.md](Engine/Source/Memory/CLAUDE.md)
 - **LOG formatting**: in allocation-tracked builds only (Game and Engine are; offline DataPacker is not), never use float format specs (`{:.Nf}`, `{:e}`, etc.) in `LOG(...)` — they heap-allocate and trip the allocation tracker. Wrap floats with `common::Wb(value, precision)`, `XMVECTOR`s with `common::WbV2/V3/V4`; placeholder stays `{}`. Full rules: repo-code-review skill §2b.
-- **Standard library headers**: `#include <header>` additions go in `Common/ExternalHeaders.h`, not in individual source files
+- **Standard library / external headers**: `#include` additions for standard-library and third-party *consumption* headers go in `Common/ExternalHeaders.h` (gated by `BT_CLIENT`/`BT_ENGINE`/`BT_SERVER`/`BT_DATA_PACKER` as appropriate), not in individual source files. The exception is library *implementation* units — the single-TU `*_IMPLEMENTATION` includes in the `ThirdParty/Prebuilts/Source/` unity `.cpp`s — which stay local by necessity
 - **Flags over booleans**: Use `common::Flags<EnumType>` instead of multiple `bool` variables. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/CLAUDE.md](Common/CLAUDE.md)
 

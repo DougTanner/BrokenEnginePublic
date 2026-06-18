@@ -11,6 +11,8 @@ constexpr AUDIO_ENGINE_FLAGS kAudioEngineFlags = AudioEngine_UseMasteringLimiter
 
 AudioManager::AudioManager()
 {
+	ASSERT(gpAudioManager == nullptr);
+
 	gpAudioManager = this;
 
 	LOG(kAudio, kInfo, "\nAudioManager");
@@ -22,60 +24,72 @@ AudioManager::AudioManager()
 		CHECK_HRESULT(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(pMMDeviceEnumerator.GetAddressOf())));
 		LOG(kAudio, kInfo, "  Got MMDeviceEnumerator");
 
+		// Best-effort: look up the OS default endpoint id, but never abandon construction on failure — the
+		// first-active-device fallback below covers a missing/failed default so a machine with active devices still gets audio
 		Microsoft::WRL::ComPtr<IMMDevice> pDefaultAudioEndpoint;
-		HRESULT hresult = pMMDeviceEnumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, &pDefaultAudioEndpoint);
-		if (hresult != S_OK)
+		std::wstring defaultAudioEndpointId;
+		if (pMMDeviceEnumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, &pDefaultAudioEndpoint) == S_OK)
 		{
-			return;
-		}
-		LOG(kAudio, kInfo, "  Got DefaultAudioEndpoint");
+			LOG(kAudio, kInfo, "  Got DefaultAudioEndpoint");
 
-		LPWSTR pcDefaultDeviceId = nullptr;
-		CHECK_HRESULT(pDefaultAudioEndpoint->GetId(&pcDefaultDeviceId));
-		if (pcDefaultDeviceId == nullptr)
-		{
-			LOG(kAudio, kDebug, "  GetId returned nullptr");
-			return;
+			LPWSTR pcDefaultDeviceId = nullptr;
+			CHECK_HRESULT(pDefaultAudioEndpoint->GetId(&pcDefaultDeviceId));
+			common::ScopedLambda freeDefaultDeviceId([=]()
+			{
+				CoTaskMemFree(pcDefaultDeviceId);
+			});
+			if (pcDefaultDeviceId != nullptr)
+			{
+				defaultAudioEndpointId = pcDefaultDeviceId;
+				LOG(kAudio, kInfo, "    pcDeviceId: \"{}\"", defaultAudioEndpointId);
+			}
+			else
+			{
+				LOG(kAudio, kWarning, "  GetId returned nullptr; falling back to first active device");
+			}
 		}
-		std::wstring defaultAudioEndpointId(pcDefaultDeviceId);
-		LOG(kAudio, kInfo, "    pcDeviceId: \"{}\"", defaultAudioEndpointId);
-		common::ScopedLambda freeDefaultDeviceId([=]()
+		else
 		{
-			CoTaskMemFree(pcDefaultDeviceId);
-		});
+			LOG(kAudio, kWarning, "  GetDefaultAudioEndpoint failed; falling back to first active device");
+		}
 
 		Microsoft::WRL::ComPtr<IMMDeviceCollection> pMMDeviceCollection;
 		CHECK_HRESULT(pMMDeviceEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pMMDeviceCollection));
 		if (pMMDeviceCollection == nullptr)
 		{
-			LOG(kAudio, kDebug, "  EnumAudioEndpoints returned nullptr");
+			LOG(kAudio, kWarning, "  EnumAudioEndpoints returned nullptr; constructed without an audio device");
 			return;
 		}
 
-		LOG(kAudio, kInfo, "  Searching for default audio endpoint: {}", defaultAudioEndpointId);
 		UINT uiCount = 0;
 		CHECK_HRESULT(pMMDeviceCollection->GetCount(&uiCount));
 		LOG(kAudio, kInfo, "  uiCount: {}", uiCount);
-		for (UINT i = 0; i < uiCount; ++i)
+
+		// Match the OS default endpoint when its id is known; otherwise drop straight through to the first-active fallback
+		if (!defaultAudioEndpointId.empty())
 		{
-			Microsoft::WRL::ComPtr<IMMDevice> pMMDevice;
-			CHECK_HRESULT(pMMDeviceCollection->Item(i, pMMDevice.GetAddressOf()));
-			LPWSTR pcDeviceId = nullptr;
-			CHECK_HRESULT(pMMDevice->GetId(&pcDeviceId));
-			std::wstring audioEndpointId(pcDeviceId);
-			common::ScopedLambda freeDeviceId([=]()
+			LOG(kAudio, kInfo, "  Searching for default audio endpoint: {}", defaultAudioEndpointId);
+			for (UINT i = 0; i < uiCount; ++i)
 			{
-				CoTaskMemFree(pcDeviceId);
-			});
+				Microsoft::WRL::ComPtr<IMMDevice> pMMDevice;
+				CHECK_HRESULT(pMMDeviceCollection->Item(i, pMMDevice.GetAddressOf()));
+				LPWSTR pcDeviceId = nullptr;
+				CHECK_HRESULT(pMMDevice->GetId(&pcDeviceId));
+				std::wstring audioEndpointId(pcDeviceId);
+				common::ScopedLambda freeDeviceId([=]()
+				{
+					CoTaskMemFree(pcDeviceId);
+				});
 
-			if (audioEndpointId.find(defaultAudioEndpointId) == std::wstring::npos)
-			{
-				continue;
+				if (audioEndpointId.find(defaultAudioEndpointId) == std::wstring::npos)
+				{
+					continue;
+				}
+
+				mpAudioEngine = std::make_unique<AudioEngine>(kAudioEngineFlags, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
+				LOG(kAudio, kInfo, "    Found: {}", audioEndpointId);
+				break;
 			}
-
-			mpAudioEngine = std::make_unique<AudioEngine>(kAudioEngineFlags, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
-			LOG(kAudio, kInfo, "    Found: {}", audioEndpointId);
-			break;
 		}
 
 		if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent())
@@ -159,7 +173,10 @@ AudioManager::~AudioManager()
 		mpAudioEngine->Update();
 	}
 
-	gpAudioManager = nullptr;
+	if (gpAudioManager == this)
+	{
+		gpAudioManager = nullptr;
+	}
 }
 
 void AudioManager::SetNextMusicTrackCallback(std::function<common::crc_t()> callback)
@@ -209,9 +226,9 @@ void AudioManager::PlayMusic(common::crc_t uiAudioCrc)
 	mStreamingVoices.Play(uiAudioCrc);
 }
 
-IXAudio2SourceVoice* AudioManager::PlayOneShot(const game::Frame& rFrame, common::crc_t uiAudioCrc, bool b3d, float fVolume, float fPitch, float fPitchRange)
+void AudioManager::PlayOneShot(const game::Frame& rFrame, common::crc_t uiAudioCrc, bool b3d, float fVolume, float fPitch, float fPitchRange)
 {
-	return mStaticVoices.PlayOneShot(rFrame, uiAudioCrc, b3d, fVolume, fPitch, fPitchRange);
+	mStaticVoices.PlayOneShot(rFrame, uiAudioCrc, b3d, fVolume, fPitch, fPitchRange);
 }
 
 void XM_CALLCONV AudioManager::PlayOneShot3d(const game::Frame& rFrame, common::crc_t uiAudioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch, float fPitchRange)

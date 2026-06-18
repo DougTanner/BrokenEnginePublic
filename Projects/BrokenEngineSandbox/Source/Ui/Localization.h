@@ -41,7 +41,9 @@ enum Strings
 	kStringsCount = kBaseStringsCount,
 };
 
-inline char32_t gppTranslatedStrings[kStringsCount + 1][kLanguageCount][256]
+// Outer extent is deduced ([]) on purpose: a dropped/extra string row then changes std::size and trips the
+// static_assert below. Pinning it to [kStringsCount + 1] would make that guard a tautology that catches nothing.
+inline char32_t gppTranslatedStrings[][kLanguageCount][256]
 {
 	// kStringComplete
 	{
@@ -207,6 +209,10 @@ inline char32_t gppTranslatedStrings[kStringsCount + 1][kLanguageCount][256]
 		U"", // German
 	},
 };
+// One outer row per Strings enumerator plus the trailing all-empty sentinel row; static_assert catches a dropped row,
+// which would otherwise silently shift every later string's translations. (Inner [kLanguageCount][256] extents are
+// fixed by the array type, so per-language drift within a row stays a positional authoring contract.)
+static_assert(std::size(gppTranslatedStrings) == static_cast<size_t>(kStringsCount) + 1);
 
 inline std::u32string_view TranslatedString(Strings eString)
 {

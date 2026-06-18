@@ -22,6 +22,8 @@ inline constexpr float kfMediumIslandAreaMeters = 16000.0f;  // mid tiles; 4x4 (
 
 IslandTerrain::IslandTerrain()
 {
+	ASSERT(gpIslandTerrain == nullptr);
+
 	gpIslandTerrain = this;
 
 	// Build a template entry for every kIsland chunk in the manifest. Header fields are
@@ -148,7 +150,10 @@ IslandTerrain::IslandTerrain()
 
 IslandTerrain::~IslandTerrain()
 {
-	gpIslandTerrain = nullptr;
+	if (gpIslandTerrain == this)
+	{
+		gpIslandTerrain = nullptr;
+	}
 }
 
 void IslandTerrain::WaitForElevationMaps([[maybe_unused]] float fNavThreshold)
@@ -203,6 +208,11 @@ void IslandTerrain::WaitForElevationMaps([[maybe_unused]] float fNavThreshold)
 
 float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 {
+	// Frame Purity Constraint (IslandTerrain.h): GlobalElevation/GlobalNormal walk mCoordFrames with
+	// libm trig and must never run from frame-tick code — the sim hot path uses FrameElevation/FrameNormal.
+	// GlobalNormal routes every finite-difference tap through this function, so guarding here covers both.
+	ASSERT(common::gpThreadLocal == nullptr || !common::gpThreadLocal->mbInFrameTick);
+
 	XMFLOAT4A f4Position {};
 	XMStoreFloat4A(&f4Position, vecPosition);
 

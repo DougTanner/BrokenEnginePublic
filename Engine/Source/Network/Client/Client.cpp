@@ -11,6 +11,8 @@ namespace engine
 
 Client::Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots)
 {
+	ASSERT(gpClient == nullptr);
+
 	gpClient = this;
 
 	ScopedSuppressAllocationTracking suppress;
@@ -66,7 +68,10 @@ Client::~Client()
 		enet_host_destroy(mpHost);
 	}
 
-	gpClient = nullptr;
+	if (gpClient == this)
+	{
+		gpClient = nullptr;
+	}
 }
 
 void Client::Poll()

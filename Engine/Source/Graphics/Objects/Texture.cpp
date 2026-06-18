@@ -239,15 +239,7 @@ void Texture::UpdateData(const std::function<void(void*, int64_t, int64_t)>& rDa
 void Texture::UploadImageData(const std::function<void(void*, int64_t, int64_t)>& rDataFunction, TextureLayout eOldLayout, TextureLayout eFinalLayout)
 {
 	// Calculate total buffer size for all mip levels
-	VkDeviceSize vkDeviceSize = 0;
-	uint32_t uiWidth = mInfo.extent.width;
-	uint32_t uiHeight = mInfo.extent.height;
-	for (uint32_t i = 0; i < mInfo.mipLevels; ++i)
-	{
-		vkDeviceSize += mInfo.arrayLayers * mInfo.extent.depth * common::SizeInBytes(mInfo.format, uiWidth, uiHeight);
-		uiWidth = std::max(1u, uiWidth / 2);
-		uiHeight = std::max(1u, uiHeight / 2);
-	}
+	VkDeviceSize vkDeviceSize = common::ComputeImageByteSize(mInfo.format, mInfo.extent.width, mInfo.extent.height, mInfo.mipLevels, mInfo.arrayLayers, mInfo.extent.depth);
 
 	// Create staging buffer and fill with data
 	VkBuffer stagingVkBuffer = VK_NULL_HANDLE;
@@ -269,8 +261,8 @@ void Texture::UploadImageData(const std::function<void(void*, int64_t, int64_t)>
 	size_t uiOffset = 0;
 	for (uint32_t i = 0; i < mInfo.arrayLayers; ++i)
 	{
-		uiWidth = mInfo.extent.width;
-		uiHeight = mInfo.extent.height;
+		uint32_t uiWidth = mInfo.extent.width;
+		uint32_t uiHeight = mInfo.extent.height;
 		for (uint32_t uiLevel = 0; uiLevel < mInfo.mipLevels; ++uiLevel)
 		{
 			VkBufferImageCopy vkBufferImageCopy {};

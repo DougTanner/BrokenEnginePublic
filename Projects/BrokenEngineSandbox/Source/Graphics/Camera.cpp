@@ -35,6 +35,8 @@ constexpr float Smoothstep(float t)
 
 Camera::Camera()
 {
+	ASSERT(gpCamera == nullptr);
+
 	gpCamera = this;
 
 	mVecPosition = XMVectorAdd(XMVectorAdd(kVecMenuIslandCenter, kVecMenuCameraOffset), XMVectorSet(0.0f, 0.0f, engine::gBaseHeight.Get(), 0.0f));
@@ -42,7 +44,10 @@ Camera::Camera()
 
 Camera::~Camera()
 {
-	gpCamera = nullptr;
+	if (gpCamera == this)
+	{
+		gpCamera = nullptr;
+	}
 }
 
 void Camera::Update(const Frame& rFrame)

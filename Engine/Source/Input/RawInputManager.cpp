@@ -9,6 +9,8 @@ namespace engine
 
 RawInputManager::RawInputManager()
 {
+	ASSERT(gpRawInputManager == nullptr);
+
 	gpRawInputManager = this;
 
 	try
@@ -27,7 +29,10 @@ RawInputManager::RawInputManager()
 
 RawInputManager::~RawInputManager()
 {
-	gpRawInputManager = nullptr;
+	if (gpRawInputManager == this)
+	{
+		gpRawInputManager = nullptr;
+	}
 }
 
 void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)

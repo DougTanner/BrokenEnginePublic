@@ -11,6 +11,8 @@ namespace engine
 SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 : mPresent(common::kThreadPresent)
 {
+	ASSERT(gpSwapchainManager == nullptr);
+
 	gpSwapchainManager = this;
 
 	ScopedBootTimer scopedBootTimer(kBootTimerSwapchainManager);
@@ -416,7 +418,10 @@ SwapchainManager::~SwapchainManager()
 	}
 	vkDestroyRenderPass(gpDeviceManager->mVkDevice, mVkRenderPass, nullptr);
 
-	gpSwapchainManager = nullptr;
+	if (gpSwapchainManager == this)
+	{
+		gpSwapchainManager = nullptr;
+	}
 }
 
 void SwapchainManager::AcquireNextImage()

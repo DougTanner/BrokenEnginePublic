@@ -1,17 +1,5 @@
 #include "Texture.h"
 
-#pragma warning(push, 0)
-#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
-#ifdef __clang__
-	#pragma clang diagnostic push
-	#pragma clang diagnostic ignored "-Weverything"
-#endif
-#include "bc7enc_rdo/rdo_bc_encoder.h"
-#ifdef __clang__
-	#pragma clang diagnostic pop
-#endif
-#pragma warning(pop)
-
 // Aggressive lambda — well above bc7enc_rdo author's typical 0.5–1.0 examples. Full-grid
 // sweeps on 2K (Ship_baseColor) + 8K (island Color) showed lambda=4.0 strictly dominates
 // lower lambdas on BOTH speed and compression: the per-block RDO search converges sooner at
@@ -37,16 +25,6 @@ std::mutex Texture::sEncodeMutex;
 // Tracks how many threads are inside EncodeWithRdo at once. The caller-held sEncodeMutex must
 // keep this at 0 or 1 — anything higher means a call site forgot to take the lock.
 static std::atomic<int> sActiveEncodeCount {0};
-
-#pragma warning(push, 0)
-#pragma warning(disable : 4201)
-#define OPENEXR_EXPORT
-#include "openexr/src/lib/OpenEXRCore/openexr.h"
-#pragma warning(pop)
-
-#include "stb/stb_image.h"
-#include "stb/stb_image_resize2.h"
-#include "stb/stb_image_write.h"
 
 void Texture::StaticInit()
 {
@@ -490,19 +468,11 @@ void Texture::ToR32Sfloat(std::byte* puiOut, const std::vector<float>& rIn, int6
 
 void Texture::Export(std::vector<std::byte>& rData, VkFormat vkFormat, TextureOptions_t options)
 {
-	int64_t iMipWidth = miWidth;
-	int64_t iMipHeight = miHeight;
-	int64_t iSize = 0;
-	for (int64_t i = 0; i < static_cast<int64_t>(mData.size()); ++i)
-	{
-		iSize += common::SizeInBytes(vkFormat, iMipWidth, iMipHeight);
-		iMipWidth /= 2;
-		iMipHeight /= 2;
-	}
+	int64_t iSize = common::ComputeImageByteSize(vkFormat, miWidth, miHeight, static_cast<int64_t>(mData.size()), 1, 1);
 	std::vector<std::byte> data(iSize);
 
-	iMipWidth = miWidth;
-	iMipHeight = miHeight;
+	int64_t iMipWidth = miWidth;
+	int64_t iMipHeight = miHeight;
 	std::byte* puiCurrentPosition = data.data();
 	for (const std::vector<float>& rMipLevel : mData)
 	{
@@ -538,8 +508,8 @@ void Texture::Export(std::vector<std::byte>& rData, VkFormat vkFormat, TextureOp
 		}
 
 		puiCurrentPosition += common::SizeInBytes(vkFormat, iMipWidth, iMipHeight);
-		iMipWidth /= 2;
-		iMipHeight /= 2;
+		iMipWidth = std::max(iMipWidth / 2, 1ll);
+		iMipHeight = std::max(iMipHeight / 2, 1ll);
 	}
 
 	rData.insert(rData.end(), data.begin(), data.end());

@@ -3,18 +3,20 @@
 #if defined(BT_CLIENT)
 
 #include "File/FileManager.h"
-#include "Ui/SoundSettingsWrappersBase.h"
 
 namespace engine
 {
 
 using enum StaticVoiceFlags;
 
-bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool b3d)
+bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, LoadVoiceFlags_t flags)
 {
+	bool bOneShot = flags & LoadVoiceFlags::kOneShot;
+	bool b3d = flags & LoadVoiceFlags::k3d;
+
 	if (pAudioEngine == nullptr || !pAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
-		LOG(kAudio, kDebug, "StaticVoice::LoadXAudio2SourceVoice Audio device not present");
+		LOG(kAudio, kWarning, "StaticVoice::LoadXAudio2SourceVoice Audio device not present");
 		return false;
 	}
 
@@ -32,7 +34,8 @@ bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2Sour
 	pAudioEngine->AllocateVoice(&rLazyChunk.header.audioHeader.waveFormat, SoundEffectInstance_Default, bOneShot, &rpVoice);
 	if (rpVoice == nullptr)
 	{
-		LOG(kAudio, kDebug, "StaticVoice::LoadXAudio2SourceVoice AllocateVoice failed for CRC {:#018x}", audioCrc);
+		char pcHex[20] {};
+		LOG(kAudio, kWarning, "StaticVoice::LoadXAudio2SourceVoice AllocateVoice failed for CRC {}", common::ToHex(std::span(pcHex), audioCrc));
 		return false;
 	}
 
@@ -68,7 +71,10 @@ StaticVoice::StaticVoice(IXAudio2SourceVoice* pVoice, sound_t id, float fVolume,
 {
 	ASSERT(mfFadeOutTime > 0.0f);
 
-	CHECK_HRESULT(mpVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), mfVolume)));
+	// Start silent and let the same-frame Apply3dVolume (at the creation site / UpdateVolumes)
+	// establish the attenuated 3D mix — matches the reactivation path's SetVolume(0) before Start,
+	// so the voice's first rendered quantum is never audible at the un-attenuated 2D volume.
+	CHECK_HRESULT(mpVoice->SetVolume(0.0f));
 	CHECK_HRESULT(mpVoice->Start());
 }
 

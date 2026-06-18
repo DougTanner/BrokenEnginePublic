@@ -209,6 +209,13 @@ void ChainEdgesIntoPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons, const
 	{
 		vertexToEdge.insert({rEdges.at(i).uiKeyA, {i, false}});
 		vertexToEdge.insert({rEdges.at(i).uiKeyB, {i, true}});
+
+		// Determinism guard: each cell-edge key is shared by at most two cells (one entry per side), so
+		// the chain walk's unused-candidate pick is unique regardless of bucket order. A future
+		// ExtractContourEdges change emitting a duplicate key would make NavData hash-bucket-order-
+		// dependent (divergent across builds). At-most-two, not exactly-two: boundary cell-edges have one.
+		ASSERT(vertexToEdge.count(rEdges.at(i).uiKeyA) <= 2);
+		ASSERT(vertexToEdge.count(rEdges.at(i).uiKeyB) <= 2);
 	}
 
 	std::vector<bool> used(rEdges.size(), false);

@@ -11,6 +11,8 @@ enum class PlayerStateWireType : uint8_t
 	kSpawned,
 	kChangedFrame,
 	kDied,
+
+	kCount, // Sentinel only — never serialized; bounds the kpStateNames table (append wire values above it).
 };
 
 enum class PlayerEventType : uint8_t

@@ -2,6 +2,11 @@
 
 #if defined(BT_CLIENT)
 
+namespace DirectX
+{
+class AudioEngine;
+}
+
 namespace engine
 {
 
@@ -39,7 +44,7 @@ class StreamingVoice : public IVoiceNotify
 public:
 
 	StreamingVoice() = delete;
-	StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLazyChunk);
+	StreamingVoice(AudioEngine* pAudioEngine, IXAudio2SourceVoice* pVoice, const LazyChunk* pLazyChunk);
 
 	~StreamingVoice();
 
@@ -77,6 +82,7 @@ public:
 	bool mbSlotLastBuffer[kiBufferCount] {};
 	uint8_t mBuffers[kiBufferCount][kiBufferSize] {};
 	IXAudio2SourceVoice* mpVoice = nullptr;
+	AudioEngine* mpAudioEngine = nullptr;
 };
 
 } // namespace engine

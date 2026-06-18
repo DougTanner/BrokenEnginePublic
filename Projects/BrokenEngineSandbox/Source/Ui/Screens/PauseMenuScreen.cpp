@@ -31,6 +31,14 @@ void PauseMenuScreen::Render()
 
 	// Calculate max button width
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+
+	// Use Chinese font for translated menu text when language is Chinese (measure under the same font that renders)
+	bool bChineseMode = (geLanguage == kChinese);
+	if (bChineseMode)
+	{
+		ImGui::PushFont(engine::gpImGuiManager->mpChineseFont);
+	}
+
 	float fButtonWidth = ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringResume))).x;
 	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringGraphics))).x);
 	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound))).x);
@@ -62,6 +70,11 @@ void PauseMenuScreen::Render()
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringQuit)), ImVec2(fButtonWidth, 0.0f)))
 	{
 		gpGame->mGameFlags.Set(engine::GameFlags::kQuit);
+	}
+
+	if (bChineseMode)
+	{
+		ImGui::PopFont();
 	}
 
 	ImGui::End();

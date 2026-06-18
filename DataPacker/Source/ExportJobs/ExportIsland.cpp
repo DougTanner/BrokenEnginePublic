@@ -3,8 +3,6 @@
 #include "Island/BakeIslandIntermediates.h"
 #include "Texture/Texture.h"
 
-#include "stb/stb_image.h"
-
 // ---------------------------------------------------------------------------
 // Single-resolution island ingest
 // ---------------------------------------------------------------------------

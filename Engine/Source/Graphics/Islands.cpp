@@ -10,6 +10,8 @@ namespace engine
 
 Islands::Islands()
 {
+	ASSERT(gpIslands == nullptr);
+
 	gpIslands = this;
 
 	// Create per-template mesh buffers before any other render setup. CB record happens later in
@@ -82,7 +84,10 @@ Islands::~Islands()
 			mppIslandsIndirectMapped.at(iFramebuffer) = nullptr;
 		}
 	}
-	gpIslands = nullptr;
+	if (gpIslands == this)
+	{
+		gpIslands = nullptr;
+	}
 }
 
 void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrames>& rFrames, const std::vector<GridCoord>& rActiveCoords)

@@ -12,6 +12,8 @@ using enum BufferFlags;
 
 BufferManager::BufferManager()
 {
+	ASSERT(gpBufferManager == nullptr);
+
 	gpBufferManager = this;
 
 	ScopedBootTimer scopedBootTimer(kBootTimerBufferManager);
@@ -222,7 +224,10 @@ BufferManager::~BufferManager()
 	DestroyWindHierarchicalBuffers();
 	DestroySmokeHierarchicalBuffers();
 
-	gpBufferManager = nullptr;
+	if (gpBufferManager == this)
+	{
+		gpBufferManager = nullptr;
+	}
 }
 
 void BufferManager::DestroySwapchainDependentBuffers()

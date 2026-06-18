@@ -2,25 +2,6 @@
 
 #include "FileManager.h"
 
-#pragma warning(push, 0)
-#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
-#ifdef __clang__
-	#pragma clang diagnostic push
-	#pragma clang diagnostic ignored "-Weverything"
-#endif
-#define GLM_STATIC_ASSERT static_assert
-#include "gli/gli/gli.hpp"
-#undef malloc
-#undef realloc
-#undef free
-#include <cmft/clcontext.h>
-#include <cmft/image.h>
-#include <cmft/cubemapfilter.h>
-#ifdef __clang__
-	#pragma clang diagnostic pop
-#endif
-#pragma warning(pop)
-
 namespace
 {
 

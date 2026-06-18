@@ -34,6 +34,8 @@ Display visibility is synchronized and sticky: `TickVisibilityCadence()` is the 
 
 The FPS header reads a game-specific CPU timer enum by name to report total frame time. The contiguous index space (game enums starting at `kEngineCpuCounterCount` / `kEngineCpuTimerCount`) is documented game-side; the position contract (first game enumerator == engine count) is compile-enforced engine-side by `static_assert` so an omitted game-enum initializer fails the build instead of misrouting game indices into the engine arrays.
 
+Display names live in deduced-extent namespace name tables (one per counter/timer enum), each guarded by a `static_assert` that its extent equals the enum count — a dropped or extra name is a compile error instead of a silently misaligned overlay row. The structs carry only runtime state; names are read through virtual accessors that route engine/game indices the same way the counter/timer accessors do (GPU/boot names read their engine tables directly). The game project mirrors the convention with its own guarded tables.
+
 The overlay also reads `game::gpCamera` directly (via the game `Graphics/Camera.h` include) — camera height in the FPS header, visible-area LOD for the GPU screen's water annotation. Sanctioned engine→game reads; noted here only so the game couplings are discoverable.
 
 ## Extension

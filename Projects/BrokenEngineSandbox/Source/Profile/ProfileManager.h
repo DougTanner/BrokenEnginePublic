@@ -45,6 +45,47 @@ enum GameCpuTimers : int64_t
 	kGameCpuTimerCount
 };
 
+// One entry per game enumerator, in order; static_assert guards a dropped/extra name (which would otherwise
+// silently misalign the overlay rows). Mirrors the engine kXxx*Names tables — see engine ProfileManagerBase.h.
+inline constexpr std::string_view kGameCpuCounterNames[]
+{
+	"Players",
+	"Blasters",
+	"    Rendered",
+	"Missiles",
+	"    Rendered",
+	"Spaceships",
+	"    Rendered",
+	"Targets",
+};
+static_assert(std::size(kGameCpuCounterNames) == static_cast<size_t>(kGameCpuCounterCount - engine::kEngineCpuCounterCount));
+
+inline constexpr std::string_view kGameCpuTimerNames[]
+{
+	"Frame update",
+	"    Interpolate",
+	"        AllocateAndCopy",
+	"            Spaceships",
+	"        Update",
+	"            Spaceships",
+	"    PostRender",
+	"        AllocateAndCopy",
+	"        Update",
+	"            NavQuery",
+	"            Spaceships",
+	"        PreCollision",
+	"        Collide",
+	"        PostCollision",
+	"        AreaDamage",
+	"        Destroy",
+	"        Spawn",
+	"Render",
+	"    Player",
+	"    Spaceships",
+	"        Animate",
+};
+static_assert(std::size(kGameCpuTimerNames) == static_cast<size_t>(kGameCpuTimerCount - engine::kEngineCpuTimerCount));
+
 class ProfileManager : public engine::ProfileManagerBase
 {
 public:
@@ -54,6 +95,8 @@ public:
 
 	engine::CpuCounter& GetCpuCounter(int64_t iIndex) override;
 	engine::CpuTimer& GetCpuTimer(int64_t iIndex) override;
+	std::string_view GetCpuCounterName(int64_t iIndex) override;
+	std::string_view GetCpuTimerName(int64_t iIndex) override;
 	int64_t GetCpuCounterCount() const override;
 	int64_t GetCpuTimerCount() const override;
 
@@ -67,42 +110,10 @@ public:
 
 private:
 
-	engine::CpuCounter mGameCpuCounters[static_cast<int64_t>(kGameCpuCounterCount) - static_cast<int64_t>(engine::kEngineCpuCounterCount)]
-	{
-		{.name = "Players"},
-		{.name = "Blasters"},
-		{.name = "    Rendered"},
-		{.name = "Missiles"},
-		{.name = "    Rendered"},
-		{.name = "Spaceships"},
-		{.name = "    Rendered"},
-		{.name = "Targets"},
-	};
+	// Names live in the kGameCpu*Names tables above (static_assert-guarded); these arrays carry only per-row runtime state.
+	engine::CpuCounter mGameCpuCounters[static_cast<int64_t>(kGameCpuCounterCount) - static_cast<int64_t>(engine::kEngineCpuCounterCount)];
 
-	engine::CpuTimer mGameCpuTimers[static_cast<int64_t>(kGameCpuTimerCount) - static_cast<int64_t>(engine::kEngineCpuTimerCount)]
-	{
-		{.name = "Frame update"},
-		{.name = "    Interpolate"},
-		{.name = "        AllocateAndCopy"},
-		{.name = "            Spaceships"},
-		{.name = "        Update"},
-		{.name = "            Spaceships"},
-		{.name = "    PostRender"},
-		{.name = "        AllocateAndCopy"},
-		{.name = "        Update"},
-		{.name = "            NavQuery"},
-		{.name = "            Spaceships"},
-		{.name = "        PreCollision"},
-		{.name = "        Collide"},
-		{.name = "        PostCollision"},
-		{.name = "        AreaDamage"},
-		{.name = "        Destroy"},
-		{.name = "        Spawn"},
-		{.name = "Render"},
-		{.name = "    Player"},
-		{.name = "    Spaceships"},
-		{.name = "        Animate"},
-	};
+	engine::CpuTimer mGameCpuTimers[static_cast<int64_t>(kGameCpuTimerCount) - static_cast<int64_t>(engine::kEngineCpuTimerCount)];
 
 #if defined(BT_CLIENT)
 	common::Smoothed<int64_t> mSmoothedRtt;

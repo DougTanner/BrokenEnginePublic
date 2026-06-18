@@ -6,6 +6,8 @@ namespace common
 Multithreading::Multithreading(int64_t iWorkerCount)
 : mMainThreadId(std::this_thread::get_id())
 {
+	ASSERT(gpMultithreading == nullptr);
+
 	gpMultithreading = this;
 	mWorkers.reserve(static_cast<size_t>(iWorkerCount));
 	for (int64_t i = 0; i < iWorkerCount; ++i)

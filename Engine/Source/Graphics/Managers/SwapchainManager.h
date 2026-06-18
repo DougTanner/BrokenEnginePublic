@@ -37,11 +37,7 @@ public:
 	std::vector<Framebuffer> mFramebuffers;
 	int64_t miFramebufferIndex = 0;
 
-	std::vector<VkSemaphore> mImageAvailableSemaphores;
 	VkSemaphore mImageAvailableVkSemaphore = VK_NULL_HANDLE;
-	int64_t miImageAvailableIndex = 0;
-	std::vector<VkFence> mImageAvailableFences;
-	int64_t miFenceAvailableIndex = 0;
 
 	VkRenderPass mVkRenderPass = VK_NULL_HANDLE;
 	VkSwapchainKHR mVkSwapchainKHR = VK_NULL_HANDLE;
@@ -49,6 +45,12 @@ public:
 	common::PersistentWorker mPresent;
 
 private:
+
+	// Round-robin acquire sync objects, advanced by the GetNext* accessors below.
+	std::vector<VkSemaphore> mImageAvailableSemaphores;
+	int64_t miImageAvailableIndex = 0;
+	std::vector<VkFence> mImageAvailableFences;
+	int64_t miFenceAvailableIndex = 0;
 
 	inline VkSemaphore GetNextImageAvailableSemaphore()
 	{

@@ -68,8 +68,10 @@ layout (location = 3) out flat vec2 f2OutRotationCosSin;
 void main()
 {
 	// Direct SSBO field reads (no local struct copy): mirrors QuadsAxisAlignedVisibleArea.vert.
-	// glslang's struct-copy from a scalar-block-layout SSBO has been observed to drop trailing
-	// fields on some drivers (rotation read as 0); reading each field through pQuads[...] avoids it.
+	// Stylistic, not a workaround: an earlier note claimed glslang drops trailing fields on
+	// scalar-block-layout SSBO struct copies, but that was never substantiated (no upstream glslang
+	// issue; SPIR-V disasm at VulkanSDK 1.4.341.1 emits a complete whole-struct copy). A whole-struct
+	// read would be equally valid here.
 	vec4 f4VertexRect = pQuads[gl_InstanceIndex].f4VertexRect;
 	float fRotation = pQuads[gl_InstanceIndex].fRotation;
 	uiOutTextureSlot = pQuads[gl_InstanceIndex].uiTextureSlot;

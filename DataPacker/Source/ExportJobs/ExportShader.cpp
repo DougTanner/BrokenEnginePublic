@@ -1,23 +1,5 @@
 #include "ExportShader.h"
 
-#if defined(_CRTDBG_MAP_ALLOC)
-	#undef free
-#endif
-#pragma warning(push, 0)
-#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
-#ifdef __clang__
-	#pragma clang diagnostic push
-	#pragma clang diagnostic ignored "-Weverything"
-#endif
-#include "SPIRV-Cross/spirv_cross.hpp"
-#ifdef __clang__
-	#pragma clang diagnostic pop
-#endif
-#pragma warning(pop)
-#if defined(_CRTDBG_MAP_ALLOC)
-	#define free(p) _free_dbg(p, _NORMAL_BLOCK)
-#endif
-
 #include "FileManager.h"
 
 constexpr bool kbOptimizeShaders = true;

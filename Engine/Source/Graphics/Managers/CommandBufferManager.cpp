@@ -13,6 +13,8 @@ CommandBufferManager::CommandBufferManager()
 : mSubmitGlobal(common::kThreadSubmitGlobal)
 , mSubmitMain(common::kThreadSubmitMain)
 {
+	ASSERT(gpCommandBufferManager == nullptr);
+
 	gpCommandBufferManager = this;
 
 	ScopedBootTimer scopedBootTimer(kBootTimerCommandBufferManager);
@@ -37,7 +39,10 @@ CommandBufferManager::~CommandBufferManager()
 {
 	vkDestroySemaphore(gpDeviceManager->mVkDevice, mParticleSyncVkSemaphore, nullptr);
 
-	gpCommandBufferManager = nullptr;
+	if (gpCommandBufferManager == this)
+	{
+		gpCommandBufferManager = nullptr;
+	}
 }
 
 void CommandBufferManager::RecordCommandBuffers()

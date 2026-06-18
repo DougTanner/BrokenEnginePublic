@@ -15,18 +15,6 @@
 #include "ExportJobs/Texture/MigrateLegacyIntermediates.h"
 #include "ExportJobs/Texture/Texture.h"
 
-#pragma warning(push, 0)
-#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
-#ifdef __clang__
-	#pragma clang diagnostic push
-	#pragma clang diagnostic ignored "-Weverything"
-#endif
-#include "bc7enc_rdo/bc7decomp.h"
-#ifdef __clang__
-	#pragma clang diagnostic pop
-#endif
-#pragma warning(pop)
-
 void Quit(const char* message, const char* title);
 
 struct DataTypeEntry

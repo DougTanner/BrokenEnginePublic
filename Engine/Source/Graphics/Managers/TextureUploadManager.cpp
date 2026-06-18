@@ -7,12 +7,17 @@ namespace engine
 
 TextureUploadManager::TextureUploadManager()
 {
+	ASSERT(gpTextureUploadManager == nullptr);
+
 	gpTextureUploadManager = this;
 }
 
 TextureUploadManager::~TextureUploadManager()
 {
-	gpTextureUploadManager = nullptr;
+	if (gpTextureUploadManager == this)
+	{
+		gpTextureUploadManager = nullptr;
+	}
 }
 
 void TextureUploadManager::InitTransferResources()

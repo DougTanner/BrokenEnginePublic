@@ -7,13 +7,6 @@
 namespace engine
 {
 
-inline constexpr float VolumeToPower(float fMasterVolume, float fSoundVolume, float fLocalVolume = 1.0f)
-{
-	// More natural-feeling volume controls
-	float fVolume = fMasterVolume * fSoundVolume * fLocalVolume;
-	return fVolume * fVolume;
-}
-
 enum class StaticVoiceFlags : uint8_t
 {
 	kFadingOut = 0x01,
@@ -21,11 +14,18 @@ enum class StaticVoiceFlags : uint8_t
 };
 using StaticVoiceFlags_t = common::Flags<StaticVoiceFlags>;
 
+enum class LoadVoiceFlags : uint8_t
+{
+	kOneShot = 0x01,
+	k3d      = 0x02,
+};
+using LoadVoiceFlags_t = common::Flags<LoadVoiceFlags>;
+
 class StaticVoice
 {
 public:
 
-	static bool LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool b3d);
+	static bool LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, LoadVoiceFlags_t flags);
 
 	StaticVoice() = delete;
 	StaticVoice(IXAudio2SourceVoice* pVoice, sound_t id, float fVolume, float fPitch, float fFadeOutTime, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, common::crc_t audioCrc);

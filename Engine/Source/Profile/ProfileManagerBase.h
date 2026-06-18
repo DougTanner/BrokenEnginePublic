@@ -25,7 +25,6 @@ enum class ProfileRowFlags : uint8_t
 
 struct CpuCounter
 {
-	std::string_view name;
 	int64_t iCount = 0;
 	common::Flags<ProfileRowFlags> flags {};
 };
@@ -38,8 +37,6 @@ struct CpuTimerThreadState
 
 struct CpuTimer
 {
-	std::string_view name;
-
 	int64_t iThreads = 0;
 	int64_t iTotalFrameTimeNs = 0;
 
@@ -73,6 +70,30 @@ enum EngineCpuCounters : int64_t
 	kEngineCpuCounterCount
 };
 
+// One entry per EngineCpuCounters enumerator, in order. The static_assert catches a dropped/extra name — a missing
+// initializer would otherwise silently misalign every later overlay row (member arrays can't deduce extent, so the
+// names live here as a deduced-extent table; see Profile/CLAUDE.md).
+inline constexpr std::string_view kEngineCpuCounterNames[]
+{
+	"Billboards",
+	"    Rendered",
+	"HexShields",
+	"    Rendered",
+	"AreaLights",
+	"    Rendered",
+	"PointLights",
+	"    Rendered",
+	"Puffs",
+	"    Rendered",
+	"SmokeTrails",
+	"    Rendered",
+	"Explosions",
+	"Pushers",
+	"Sounds",
+	"Streams",
+};
+static_assert(std::size(kEngineCpuCounterNames) == static_cast<size_t>(kEngineCpuCounterCount));
+
 enum EngineCpuTimers : int64_t
 {
 	kCpuTimerAcquireToGlobal,
@@ -94,6 +115,28 @@ enum EngineCpuTimers : int64_t
 
 	kEngineCpuTimerCount
 };
+
+// One entry per EngineCpuTimers enumerator, in order; static_assert guards against drift (see kEngineCpuCounterNames).
+inline constexpr std::string_view kEngineCpuTimerNames[]
+{
+	"Acquire to global",
+	"Render global",
+	"Reduce input lag fence",
+	"Audio",
+	"Messages and input",
+	"Wait fence",
+	"Render main",
+	"Profile text",
+	"Wait present future",
+	"    Submit global",
+	"    Submit image",
+	"    Present",
+	"Acquire image",
+	"    Fence",
+	"Network poll+reconcile",
+	"Network send",
+};
+static_assert(std::size(kEngineCpuTimerNames) == static_cast<size_t>(kEngineCpuTimerCount));
 
 #if defined(BT_CLIENT)
 enum GpuTimers : int64_t
@@ -136,9 +179,48 @@ enum GpuTimers : int64_t
 	kGpuTimerCount
 };
 
+// One entry per GpuTimers enumerator, in order; static_assert guards against drift (see kEngineCpuCounterNames).
+inline constexpr std::string_view kGpuTimerNames[]
+{
+	"Global render",
+	"    Shadow",
+	"    Terrain Gen",
+	"        Terrain Elevation",
+	"    Spread",
+	"        Wind Spread",
+	"        Smoke Spread",
+	"    Particles",
+	"        Particles Spawn",
+	"        Long Particles Update",
+	"        Square Particles Update",
+	"Main render",
+	"    Smoke Emit",
+	"    Wind Deposit",
+	"    Lighting Deposit",
+	"    Lighting Spread",
+	"    Lighting Combine",
+	"    Lighting Temporal",
+	"    Object Shadows",
+	"    Object Shadows blur",
+	"    Water Displacement",
+	"    Water Skybox One",
+	"Image render",
+	"    Objects",
+	"    Transparent Objects",
+	"    Terrain",
+	"    Water",
+	"    Hex Shields",
+	"    Text",
+	"    Long Particles Render",
+	"    Square Particles Render",
+	"    VisibleLights",
+	"    Billboards",
+	"Ui Render",
+};
+static_assert(std::size(kGpuTimerNames) == static_cast<size_t>(kGpuTimerCount));
+
 struct GpuTimer
 {
-	std::string_view name;
 	common::Smoothed<int64_t> smoothedMicroseconds {};
 	common::Flags<ProfileRowFlags> flags {};
 };
@@ -170,10 +252,34 @@ enum BootTimers : int64_t
 	kBootTimerCount
 };
 
+// One entry per BootTimers enumerator, in order; static_assert guards against drift (see kEngineCpuCounterNames).
+inline constexpr std::string_view kBootTimerNames[]
+{
+	"Total",
+	"    Wait for data file",
+	"    Wait for textures file",
+	"    Wait for priority textures",
+	"    Wait for priority islands",
+	"    Vulkan",
+	"      InstanceManager",
+	"      DeviceManager",
+	"      SwapchainManager",
+	"      ParticleManager",
+	"      PipelineManager",
+	"      CommandBufferManager",
+	"      BufferManager",
+	"      Islands",
+	"      TextureManager",
+	"          TextureUpload",
+	"          Pbr textures",
+	"      TextManager",
+	"      Record command buffers",
+	"      Render present",
+};
+static_assert(std::size(kBootTimerNames) == static_cast<size_t>(kBootTimerCount));
+
 struct BootTimer
 {
-	std::string_view name;
-
 	std::chrono::steady_clock::time_point startTimePoint {};
 	std::chrono::nanoseconds timeNs {};
 };
@@ -225,6 +331,8 @@ public:
 
 	virtual CpuCounter& GetCpuCounter(int64_t iIndex);
 	virtual CpuTimer& GetCpuTimer(int64_t iIndex);
+	virtual std::string_view GetCpuCounterName(int64_t iIndex);
+	virtual std::string_view GetCpuTimerName(int64_t iIndex);
 	virtual int64_t GetCpuCounterCount() const;
 	virtual int64_t GetCpuTimerCount() const;
 
@@ -252,109 +360,17 @@ public:
 
 protected:
 
-	CpuCounter mEngineCpuCounters[kEngineCpuCounterCount]
-	{
-		{.name = "Billboards"},
-		{.name = "    Rendered"},
-		{.name = "HexShields"},
-		{.name = "    Rendered"},
-		{.name = "AreaLights"},
-		{.name = "    Rendered"},
-		{.name = "PointLights"},
-		{.name = "    Rendered"},
-		{.name = "Puffs"},
-		{.name = "    Rendered"},
-		{.name = "SmokeTrails"},
-		{.name = "    Rendered"},
-		{.name = "Explosions"},
-		{.name = "Pushers"},
-		{.name = "Sounds"},
-		{.name = "Streams"},
-	};
+	// Names live in the deduced-extent kXxx*Names tables above (static_assert-guarded); these arrays carry only the
+	// per-row runtime state and are indexed by the same enums.
+	CpuCounter mEngineCpuCounters[kEngineCpuCounterCount];
 
-	CpuTimer mEngineCpuTimers[kEngineCpuTimerCount]
-	{
-		{.name = "Acquire to global"},
-		{.name = "Render global"},
-		{.name = "Reduce input lag fence"},
-		{.name = "Audio"},
-		{.name = "Messages and input"},
-		{.name = "Wait fence"},
-		{.name = "Render main"},
-		{.name = "Profile text"},
-		{.name = "Wait present future"},
-		{.name = "    Submit global"},
-		{.name = "    Submit image"},
-		{.name = "    Present"},
-		{.name = "Acquire image"},
-		{.name = "    Fence"},
-		{.name = "Network poll+reconcile"},
-		{.name = "Network send"},
-	};
+	CpuTimer mEngineCpuTimers[kEngineCpuTimerCount];
 
 #if defined(BT_CLIENT)
-	GpuTimer mGpuTimers[kGpuTimerCount]
-	{
-		{.name = "Global render"},
-		{.name = "    Shadow"},
-		{.name = "    Terrain Gen"},
-		{.name = "        Terrain Elevation"},
-		{.name = "    Spread"},
-		{.name = "        Wind Spread"},
-		{.name = "        Smoke Spread"},
-		{.name = "    Particles"},
-		{.name = "        Particles Spawn"},
-		{.name = "        Long Particles Update"},
-		{.name = "        Square Particles Update"},
-		{.name = "Main render"},
-		{.name = "    Smoke Emit"},
-		{.name = "    Wind Deposit"},
-		{.name = "    Lighting Deposit"},
-		{.name = "    Lighting Spread"},
-		{.name = "    Lighting Combine"},
-		{.name = "    Lighting Temporal"},
-		{.name = "    Object Shadows"},
-		{.name = "    Object Shadows blur"},
-		{.name = "    Water Displacement"},
-		{.name = "    Water Skybox One"},
-		{.name = "Image render"},
-		{.name = "    Objects"},
-		{.name = "    Transparent Objects"},
-		{.name = "    Terrain"},
-		{.name = "    Water"},
-		{.name = "    Hex Shields"},
-		{.name = "    Text"},
-		{.name = "    Long Particles Render"},
-		{.name = "    Square Particles Render"},
-		{.name = "    VisibleLights"},
-		{.name = "    Billboards"},
-		{.name = "Ui Render"},
-	};
+	GpuTimer mGpuTimers[kGpuTimerCount];
 #endif // BT_CLIENT
 
-	BootTimer mBootTimers[kBootTimerCount]
-	{
-		{.name = "Total"},
-		{.name = "    Wait for data file"},
-		{.name = "    Wait for textures file"},
-		{.name = "    Wait for priority textures"},
-		{.name = "    Wait for priority islands"},
-		{.name = "    Vulkan"},
-		{.name = "      InstanceManager"},
-		{.name = "      DeviceManager"},
-		{.name = "      SwapchainManager"},
-		{.name = "      ParticleManager"},
-		{.name = "      PipelineManager"},
-		{.name = "      CommandBufferManager"},
-		{.name = "      BufferManager"},
-		{.name = "      Islands"},
-		{.name = "      TextureManager"},
-		{.name = "          TextureUpload"},
-		{.name = "          Pbr textures"},
-		{.name = "      TextManager"},
-		{.name = "      Record command buffers"},
-		{.name = "      Render present"},
-	};
+	BootTimer mBootTimers[kBootTimerCount];
 
 	std::chrono::steady_clock::time_point mLastVisibilityEvalTime {};
 

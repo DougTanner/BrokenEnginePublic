@@ -34,6 +34,8 @@ ProfileManager* gpProfileManager = nullptr;
 ProfileManager::ProfileManager()
 : ProfileManagerBase()
 {
+	ASSERT(gpProfileManager == nullptr);
+
 	gpProfileManager = this;
 
 	if constexpr (kbProfiling)
@@ -44,7 +46,10 @@ ProfileManager::ProfileManager()
 
 ProfileManager::~ProfileManager()
 {
-	gpProfileManager = nullptr;
+	if (gpProfileManager == this)
+	{
+		gpProfileManager = nullptr;
+	}
 }
 
 engine::CpuCounter& ProfileManager::GetCpuCounter(int64_t iIndex)
@@ -55,6 +60,16 @@ engine::CpuCounter& ProfileManager::GetCpuCounter(int64_t iIndex)
 engine::CpuTimer& ProfileManager::GetCpuTimer(int64_t iIndex)
 {
 	return iIndex < engine::kEngineCpuTimerCount ? mEngineCpuTimers[iIndex] : mGameCpuTimers[iIndex - engine::kEngineCpuTimerCount];
+}
+
+std::string_view ProfileManager::GetCpuCounterName(int64_t iIndex)
+{
+	return iIndex < engine::kEngineCpuCounterCount ? engine::kEngineCpuCounterNames[iIndex] : kGameCpuCounterNames[iIndex - engine::kEngineCpuCounterCount];
+}
+
+std::string_view ProfileManager::GetCpuTimerName(int64_t iIndex)
+{
+	return iIndex < engine::kEngineCpuTimerCount ? engine::kEngineCpuTimerNames[iIndex] : kGameCpuTimerNames[iIndex - engine::kEngineCpuTimerCount];
 }
 
 int64_t ProfileManager::GetCpuCounterCount() const

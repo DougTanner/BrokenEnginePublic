@@ -34,7 +34,7 @@ void FormatCpuTimersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rP
 			continue;
 		}
 
-		rWorkbuffer.Append(rCpuTimer.name);
+		rWorkbuffer.Append(rProfileManager.GetCpuTimerName(i));
 		rWorkbuffer.Append(": ");
 		rWorkbuffer.Append(iValue);
 		rWorkbuffer.Append(" us");
@@ -77,7 +77,7 @@ void FormatCpuCountersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& 
 			continue;
 		}
 
-		rWorkbuffer.Append(rCpuCounter.name);
+		rWorkbuffer.Append(rProfileManager.GetCpuCounterName(i));
 		rWorkbuffer.Append(": ");
 		rWorkbuffer.Append(rCpuCounter.iCount);
 		rWorkbuffer.Append("\n");
@@ -154,7 +154,7 @@ void FormatGpuTimerRows(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rPr
 			continue;
 		}
 
-		rWorkbuffer.Append(pGpuTimers[i].name);
+		rWorkbuffer.Append(kGpuTimerNames[i]);
 		rWorkbuffer.Append(": ");
 		rWorkbuffer.Append(iValue);
 		rWorkbuffer.Append(" us");

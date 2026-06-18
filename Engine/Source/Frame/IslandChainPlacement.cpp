@@ -188,6 +188,10 @@ const XMFLOAT2* LocalHull(const IslandTemplate& rTemplate, XMFLOAT2 (&rRectStora
 // matching view and the IslandPlacement, and return the new placed index.
 int64_t CommitPlacement(CellContext& rContext, common::crc_t crc, XMFLOAT2 f2World, float fRotation, const common::ConvexHull2D& rCandidate)
 {
+	// placedHullStorage MUST NOT reallocate — placedHullViews hold raw pointers into it (below). It is
+	// reserved to kiMaxIslandsPerCell; a future constant change that lets placement exceed the reserve
+	// would dangle every view and corrupt the SAT overlap test → non-deterministic packing → CRC desync.
+	ASSERT(rContext.placedHullStorage.size() < rContext.placedHullStorage.capacity());
 	rContext.placedHullStorage.emplace_back(rContext.scratch.begin(), rContext.scratch.end());
 	common::ConvexHull2D view = rCandidate;
 	view.pVertices = rContext.placedHullStorage.back().data();

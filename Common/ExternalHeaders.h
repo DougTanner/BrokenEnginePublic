@@ -255,6 +255,71 @@ inline constexpr bool XmIsInf(float fValue)
 	#include "clipper2/clipper.offset.h"
 #endif
 
+// DataPacker-only third-party consumption headers (offline asset tooling). Centralized here, gated by
+// BT_DATA_PACKER, so the consumption includes live in one place rather than scattered across the DataPacker
+// .cpp/.h files. The library *implementation* units stay in the Prebuilts/Source/DataPacker unity .cpp's by
+// necessity. Config defines/pragmas not covered by the global warning span above travel with their header.
+// See ThirdParty/CLAUDE.md.
+#if defined(BT_DATA_PACKER)
+	// bc7enc_rdo - BCn encode/decode (consumption only; RGBCX/implementation defined in the Prebuilts unity .cpp)
+	#include "bc7enc_rdo/bc7decomp.h"
+	#include "bc7enc_rdo/rdo_bc_encoder.h"
+	#include "bc7enc_rdo/rgbcx.h"
+
+	// gli - texture image library (vendors glm)
+	#define GLM_STATIC_ASSERT static_assert
+	#include "gli/gli/gli.hpp"
+
+	// cmft - cubemap filtering. Its headers don't parse with the CRT debug-heap malloc/realloc/free macros
+	// (from ENABLE_CRT_DEBUG_HEAP); neutralize across the cmft includes, then restore so the rest of the tool
+	// keeps leak tracking.
+	#undef malloc
+	#undef realloc
+	#undef free
+	#include <cmft/clcontext.h>
+	#include <cmft/image.h>
+	#include <cmft/cubemapfilter.h>
+	#if defined(_CRTDBG_MAP_ALLOC)
+		#define malloc(s) _malloc_dbg(s, _NORMAL_BLOCK, __FILE__, __LINE__)
+		#define realloc(p, s) _realloc_dbg(p, s, _NORMAL_BLOCK, __FILE__, __LINE__)
+		#define free(p) _free_dbg(p, _NORMAL_BLOCK)
+	#endif
+
+	// openexr - HDR .exr reads (OpenEXRCore C API)
+	#pragma warning(push)
+	#pragma warning(disable : 4201) // nonstandard extension: nameless struct/union
+	#define OPENEXR_EXPORT
+	#include "openexr/src/lib/OpenEXRCore/openexr.h"
+	#pragma warning(pop)
+
+	// stb - image load / resize / write (consumption only; implementation in the Prebuilts unity .cpp)
+	#include "stb/stb_image.h"
+	#include "stb/stb_image_resize2.h"
+	#include "stb/stb_image_write.h"
+
+	// nlohmann::json (vendored under tinygltf) - island bake archetype/route loaders
+	#pragma warning(push)
+	#pragma warning(disable : 5311) // nlohmann::json 3.10.4 uses the pre-C++20 literal-operator-id form 'operator "" _json'
+	#include "tinygltf/json.hpp"
+	#pragma warning(pop)
+
+	// tinygltf - glTF scene loader (consumption only; implementation in the Prebuilts unity .cpp)
+	#include "tinygltf/tiny_gltf.h"
+
+	// meshoptimizer - vertex remap / cache optimization
+	#include "meshoptimizer.h"
+
+	// SPIRV-Cross - shader reflection. The CRT debug-heap free macro breaks its parse; undef around the
+	// include and restore after.
+	#if defined(_CRTDBG_MAP_ALLOC)
+		#undef free
+	#endif
+	#include "SPIRV-Cross/spirv_cross.hpp"
+	#if defined(_CRTDBG_MAP_ALLOC)
+		#define free(p) _free_dbg(p, _NORMAL_BLOCK)
+	#endif
+#endif
+
 // Re-enable warnings after external headers
 #ifdef __clang__
 	#pragma clang diagnostic pop

@@ -20,6 +20,8 @@ namespace game
 
 ServerSession::ServerSession()
 {
+	ASSERT(gpServerSession == nullptr);
+
 	gpServerSession = this;
 	mpFleetManager = std::make_unique<ServerFleetManager>();
 	mpTransferManager = std::make_unique<ServerTransferManager>();
@@ -33,7 +35,10 @@ ServerSession::~ServerSession()
 	mpBroadcaster.reset();
 	mpTransferManager.reset();
 	mpFleetManager.reset();
-	gpServerSession = nullptr;
+	if (gpServerSession == this)
+	{
+		gpServerSession = nullptr;
+	}
 }
 
 void ServerSession::PrepareTick()
@@ -73,7 +78,13 @@ void ServerSession::BroadcastTick(int64_t iTick)
 	mpClientManager->FinalizeNewClients();
 	mpClientManager->DetectPlayerDeaths();
 	mpFleetManager->DetectDisconnectedPlayerDeaths();
-	mpBroadcaster->BroadcastStatusChanges(iTick);
+	{
+		// BroadcastStatusChanges migrated its per-tick scratch to the workbuffer and is armed by design
+		// (Server/CLAUDE.md "Allocation suppression"): re-arm the tracker across it so a stray heap
+		// allocation introduced there still trips, despite this function's blanket suppress.
+		ScopedResumeAllocationTracking resume;
+		mpBroadcaster->BroadcastStatusChanges(iTick);
+	}
 	mpBroadcaster->ClearSpawns();
 	SubscriptionUpdates();
 	engine::gpServer->Flush();
@@ -369,6 +380,7 @@ void ServerSession::SendPlayerState(int64_t iClientId, PlayerStateWireType eWire
 		"ChangedFrame",
 		"Died",
 	};
+	static_assert(std::size(kpStateNames) == static_cast<size_t>(PlayerStateWireType::kCount)); // One label per wire state, in order.
 	LOG(kNetwork, kInfo, "ServerSession::SendPlayerState State: {} Client: {} GlobalPlayer: {} Grid: ({},{})", kpStateNames[static_cast<size_t>(eWireType)], iClientId, iGlobalPlayerId, coord.x, coord.y);
 
 	// [1B type][1B state][8B global player ID][4B coord.x][4B coord.y]

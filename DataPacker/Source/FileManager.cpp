@@ -2,6 +2,8 @@
 
 FileManager::FileManager(std::span<char*> argvSpan)
 {
+	ASSERT(gpFileManager == nullptr);
+
 	gpFileManager = this;
 
 	if (argvSpan.size() == 1)
@@ -54,5 +56,8 @@ FileManager::FileManager(std::span<char*> argvSpan)
 
 FileManager::~FileManager()
 {
-	gpFileManager = nullptr;
+	if (gpFileManager == this)
+	{
+		gpFileManager = nullptr;
+	}
 }

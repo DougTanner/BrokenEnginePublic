@@ -40,7 +40,7 @@ public:
 
 	void Init(AudioEngine* pAudioEngine, const int64_t* piMasteringVoiceChannels);
 
-	IXAudio2SourceVoice* PlayOneShot(const game::Frame& rFrame, common::crc_t uiAudioCrc, bool b3d, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f);
+	void PlayOneShot(const game::Frame& rFrame, common::crc_t uiAudioCrc, bool b3d, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f);
 	void XM_CALLCONV PlayOneShot3d(const game::Frame& rFrame, common::crc_t uiAudioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f);
 
 	void UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime);
@@ -56,6 +56,11 @@ public:
 	void SkipNextInvalidation() { mbSkipNextInvalidation = true; }
 
 private:
+
+	// Unlocked one-shot body shared by both public paths; callers hold mOneShotMutex.
+	// rfPitch is in/out: the pitch-randomization result flows back so the 3D path can
+	// pass the randomized ratio on to Apply3dVolume.
+	IXAudio2SourceVoice* PlayOneShotLocked(common::crc_t uiAudioCrc, bool b3d, float fVolume, float& rfPitch, float fPitchRange);
 
 	void XM_CALLCONV Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch);
 
@@ -74,7 +79,7 @@ private:
 	AudioEngine* mpAudioEngine = nullptr;
 	const int64_t* mpiMasteringVoiceChannels = nullptr;
 
-	std::recursive_mutex mOneShotRecursiveMutex; // PlayOneShot3d() re-enters via PlayOneShot()
+	std::mutex mOneShotMutex; // 3D path locks once and calls the unlocked PlayOneShotLocked helper (no re-entry)
 	common::RandomEngine mRandomEngine;
 	std::atomic<bool> mbSuspended = false;
 
@@ -89,7 +94,7 @@ private:
 	// temporal exclusion: the main loop strictly sequences ClientUpdate (all dispatch workers
 	// join) → Render → AudioManager::Update (Main.cpp), so no worker is alive when the audio
 	// step writes. The same sequencing is why UpdateLifecycle / UpdateVolumes / Clear may
-	// touch mVoices / mPooledVoices without taking mOneShotRecursiveMutex.
+	// touch mVoices / mPooledVoices without taking mOneShotMutex.
 	XMVECTOR mVecListenerPosition {};
 	X3DAUDIO_LISTENER mX3dAudioListener
 	{

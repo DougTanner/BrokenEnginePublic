@@ -35,9 +35,22 @@ void SoundMenuScreen::Render()
 
 	// Defaults button
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+
+	// Use Chinese font for translated text when language is Chinese
+	bool bChineseMode = (geLanguage == kChinese);
+	if (bChineseMode)
+	{
+		ImGui::PushFont(engine::gpImGuiManager->mpChineseFont);
+	}
+
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringDefaults))))
 	{
 		ResetSoundSettings();
+	}
+
+	if (bChineseMode)
+	{
+		ImGui::PopFont();
 	}
 
 	ImGui::SameLine();

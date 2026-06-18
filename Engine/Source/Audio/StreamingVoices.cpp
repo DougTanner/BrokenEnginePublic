@@ -280,11 +280,12 @@ void StreamingVoices::CreateStream(common::crc_t uiAudioCrc)
 	mpAudioEngine->AllocateVoice(&rLazyChunk.header.audioHeader.waveFormat, SoundEffectInstance_Default, false, &pVoice);
 	if (pVoice != nullptr)
 	{
-		mpCurrentStream = std::make_unique<StreamingVoice>(pVoice, &rLazyChunk);
+		mpCurrentStream = std::make_unique<StreamingVoice>(mpAudioEngine, pVoice, &rLazyChunk);
 	}
 	else
 	{
-		LOG(kAudio, kDebug, "CreateStream AllocateVoice failed for CRC {:#018x}", uiAudioCrc);
+		char pcHex[20] {};
+		LOG(kAudio, kWarning, "CreateStream AllocateVoice failed for CRC {}", common::ToHex(std::span(pcHex), uiAudioCrc));
 	}
 }
 

@@ -60,7 +60,8 @@
 // Graphics debug
 #include "Graphics/Debug/DebugRender.h"
 
-// Audio (voices before managers: AudioManager uses StaticVoices and StreamingVoices)
+// Audio (shared helpers first, then voices before managers: AudioManager uses StaticVoices and StreamingVoices)
+#include "Audio/AudioUtility.h"
 #include "Audio/StaticVoice.h"
 #include "Audio/StreamingVoice.h"
 #include "Audio/StaticVoices.h"

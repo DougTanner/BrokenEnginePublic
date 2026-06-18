@@ -35,6 +35,8 @@ Game::Game()
 	: mGameSaveLoad(*this)
 #endif // BT_SERVER
 {
+	ASSERT(gpGame == nullptr);
+
 	gpGame = this;
 
 	InitializeLocalization();
@@ -416,7 +418,10 @@ Game::~Game()
 		ShowCursor(TRUE);
 	}
 
-	gpGame = nullptr;
+	if (gpGame == this)
+	{
+		gpGame = nullptr;
+	}
 }
 
 void Game::Reset()

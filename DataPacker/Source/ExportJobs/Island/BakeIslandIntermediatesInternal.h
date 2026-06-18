@@ -10,19 +10,6 @@
 #include "BakeIslandIntermediates.h"
 #include "ExportJobs/ExportIsland.h"
 
-#pragma warning(push, 0)
-#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
-#pragma warning(disable: 5311) // nlohmann::json 3.10.4 uses the pre-C++20 literal-operator-id form 'operator "" _json'
-#if defined(__clang__)
-	#pragma clang diagnostic push
-	#pragma clang diagnostic ignored "-Weverything"
-#endif
-#include "tinygltf/json.hpp"
-#if defined(__clang__)
-	#pragma clang diagnostic pop
-#endif
-#pragma warning(pop)
-
 // Auto-crop epsilon, measured in meters ABOVE THE SEA FLOOR (NOT above the beach line). A pixel
 // is retained in the bbox when its elevation is strictly greater than `seaFloor + epsilon` —
 // i.e., we trim only the deepest `kfCropEpsilonAboveSeaFloorMeters` of the water column. Sea

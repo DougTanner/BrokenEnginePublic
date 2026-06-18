@@ -6,7 +6,7 @@ External libraries, kept upstream-pristine — never edit library source; all ad
 
 Compiled third-party source links into one shared static library used by client, server, and DataPacker — its per-config output name and flag set are owned by [Prebuilts/Platforms/VisualStudio2026/CLAUDE.md](Prebuilts/Platforms/VisualStudio2026/CLAUDE.md) (which also covers how to register a new unit). Most compiled libraries are wrapped by a unity-build `.cpp` in `Prebuilts/Source/Engine/` (runtime consumers) or `Prebuilts/Source/DataPacker/` (offline asset tooling) that `#include`s the upstream sources; bc7enc_rdo and zlib compile directly from their upstream trees. Header-only with no compilation unit: glm, gli, PerlinNoise, RenderDoc.
 
-Headers consumed by Common/Engine go through `Common/ExternalHeaders.h` (with `BT_CLIENT`/`BT_ENGINE` gating); DataPacker-only headers are instead included locally in the relevant DataPacker `.cpp` with their own warning-suppression pushes — a sanctioned exception keeping offline-only headers out of the engine PCH.
+Third-party *consumption* headers go through `Common/ExternalHeaders.h`, gated by `BT_CLIENT`/`BT_ENGINE`/`BT_SERVER`/`BT_DATA_PACKER`. The DataPacker-only headers (tinygltf, gli, cmft, SPIRV-Cross, openexr, bc7enc_rdo, stb, meshoptimizer) live in the `BT_DATA_PACKER` block — so the engine PCH never sees them while the DataPacker PCH gets them in one place (config defines / per-header warning suppressions that aren't covered by the global span travel with their include). The only local includes are the library *implementation* units — the `*_IMPLEMENTATION` unity `.cpp`s under `Prebuilts/Source/`.
 
 ## Library Inventory
 

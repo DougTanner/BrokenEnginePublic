@@ -11,6 +11,10 @@ namespace game
 
 void RunFrameTick(const ActiveFrameRef& rRef, int64_t iTickCounter, float fCurrentTime)
 {
+	// Mark this thread as inside a deterministic tick so a stray render-path GlobalElevation/GlobalNormal
+	// call (which walks mCoordFrames with libm trig) fails fast instead of silently desyncing across CPUs.
+	common::FrameTickScope frameTickScope;
+
 	// Verify MXCSR has not been corrupted by external calls (audio, Vulkan, etc.)
 	unsigned int uiControlWord = 0;
 	_controlfp_s(&uiControlWord, 0, 0);

@@ -7,6 +7,8 @@ namespace engine
 
 DeviceManager::DeviceManager()
 {
+	ASSERT(gpDeviceManager == nullptr);
+
 	gpDeviceManager = this;
 
 	ScopedBootTimer scopedBootTimer(kBootTimerDeviceManager);
@@ -406,7 +408,10 @@ DeviceManager::~DeviceManager()
 
 	vkDestroyDevice(mVkDevice, nullptr);
 
-	gpDeviceManager = nullptr;
+	if (gpDeviceManager == this)
+	{
+		gpDeviceManager = nullptr;
+	}
 }
 
 } // namespace engine

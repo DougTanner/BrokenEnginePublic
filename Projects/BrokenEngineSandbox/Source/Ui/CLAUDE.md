@@ -4,7 +4,7 @@ Game-side localization and `game::`-scoped `engine::Wrapper` globals; ImGui scre
 
 ## Localization
 
-- `Localization.h` is header-only (`inline` table and functions): UTF-32 strings, six languages, hard 256-char cap per string. `TranslatedString()` falls back to English when the selected translation is empty. UTF-8 conversion for ImGui lives in [Screens](Screens/CLAUDE.md).
+- `Localization.h` is header-only (`inline` table and functions): UTF-32 strings, six languages, hard 256-char cap per string. The table carries a trailing all-empty sentinel row past the last string; a `static_assert` ties its outer extent to the string count so a dropped row is a compile error rather than a silent shift of every later string's translations. `TranslatedString()` falls back to English when the selected translation is empty. UTF-8 conversion for ImGui lives in [Screens](Screens/CLAUDE.md).
 - `InitializeLocalization()` runs in the `Game` constructor on both builds and uppercases the whole table in place — the mixed-case literals are authoring-only; everything renders uppercase.
 - The live language selection (`geLanguage`) is not persisted via `ClientSettings`; it resets to English every launch.
 
