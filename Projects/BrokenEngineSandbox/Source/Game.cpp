@@ -371,7 +371,7 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	XMVECTOR vecBaseArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
 	rStaticData.vecArea = ComputeFrameArea(vecBaseArea, coord);
 	rStaticData.coord = coord;
-	engine::IslandChainPlacement::Generate(coord, rStaticData.islands);
+	engine::GenerateIslandChain(coord, rStaticData.islands);
 	// navData stays empty; RunFrameTick builds it lazily on the per-coord dispatch thread.
 }
 
@@ -502,7 +502,7 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	}
 	else
 	{
-		engine::IslandChainPlacement::Generate(engine::kOriginCoord, rStaticData.islands);
+		engine::GenerateIslandChain(engine::kOriginCoord, rStaticData.islands);
 	}
 	// navData stays empty; RunFrameTick builds it lazily on the per-coord dispatch thread.
 

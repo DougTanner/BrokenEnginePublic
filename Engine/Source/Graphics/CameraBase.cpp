@@ -1,9 +1,6 @@
-#include "Pch.h"
-
 #if defined(BT_CLIENT)
 
-#include "Graphics/Camera.h"
-#include "Ui/GraphicsSettingsWrappersBase.h"
+#include "Ui/WrapperBase.h"
 
 namespace engine
 {

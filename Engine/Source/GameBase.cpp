@@ -350,7 +350,7 @@ void GameBase::Render()
 
 			// Heap: std::erase_if may rehash, operator[] may insert — suppressed like the old MergeFramesForRender
 			// Remove render interpolates for deactivated coords
-			std::erase_if(gpGraphics->mRenderInterpolates, [&](const std::pair<const GridCoord, game::FrameInterpolate>& rPair)
+			std::erase_if(mRenderInterpolates, [&](const std::pair<const GridCoord, game::FrameInterpolate>& rPair)
 			{
 				return !std::ranges::contains(rActiveCoords, rPair.first);
 			});
@@ -373,8 +373,8 @@ void GameBase::Render()
 				rSub.iLastRenderedTick = rFrame.interpolate.iTick;
 				rSub.fLastRenderedTime = rFrame.interpolate.fCurrentTime;
 				float fCoordDeltaTime = (rSub.iSnapshotCount >= kiRenderBehindTicks + 1) ? fDeltaTime : 0.0f;
-				game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates.try_emplace(rCoord).first->second, rFrame.interpolate);
-				game::FrameInterpolate::Update(gpGraphics->mRenderInterpolates.at(rCoord), rFrame, fCoordDeltaTime);
+				game::FrameInterpolate::AllocateAndCopy(mRenderInterpolates.try_emplace(rCoord).first->second, rFrame.interpolate);
+				game::FrameInterpolate::Update(mRenderInterpolates.at(rCoord), rFrame, fCoordDeltaTime);
 			};
 			interpolateFrame(cameraCoord);
 			for (const GridCoord& rCoord : rActiveCoords)
@@ -394,7 +394,7 @@ void GameBase::Render()
 		}
 
 		// Update camera before RenderGlobal
-		game::gpCamera->Update(gpGraphics->mRenderInterpolates.at(cameraCoord));
+		game::gpCamera->Update(mRenderInterpolates.at(cameraCoord));
 
 		// Decay visual error offset for smooth reconciliation corrections
 		{
@@ -415,7 +415,7 @@ void GameBase::Render()
 	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
 	gpTextManager->RenderMain(iCommandBuffer);
 
-	gpGraphics->RenderMainPresentAcquire(iCommandBuffer, gpGraphics->mRenderInterpolates, rActiveCoords, cameraCoord);
+	gpGraphics->RenderMainPresentAcquire(iCommandBuffer, mRenderInterpolates, rActiveCoords, cameraCoord);
 
 }
 #endif // BT_CLIENT

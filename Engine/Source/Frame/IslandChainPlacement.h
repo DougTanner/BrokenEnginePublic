@@ -5,7 +5,7 @@
 namespace engine
 {
 
-// One placed island instance inside a cell. Emitted by IslandChainPlacement::Generate; index 0 is
+// One placed island instance inside a cell. Emitted by GenerateIslandChain; index 0 is
 // always the dominant anchor island (consumers index islands.at(0) / islands.at(i % size)).
 struct IslandPlacement
 {
@@ -20,11 +20,6 @@ struct IslandPlacement
 // Small islets ringing each big island — packing every island by its rotated true valid-area hull so
 // no two hulls overlap (bounding rectangles may overlap, hidden underwater). Seeded only by the grid
 // coord, so client and server produce identical layouts.
-class IslandChainPlacement
-{
-public:
-
-	static void Generate(GridCoord coord, std::vector<IslandPlacement>& rOut);
-};
+void GenerateIslandChain(GridCoord coord, std::vector<IslandPlacement>& rOut);
 
 } // namespace engine

@@ -3,6 +3,7 @@
 #include "Frame/FrameStaticData.h"
 
 #if defined(BT_CLIENT)
+#include "Frame/Frame.h"
 #include "Graphics/Camera.h"
 #endif
 
@@ -210,6 +211,13 @@ public:
 	double mfLastRenderFrameSeconds = 0.0;
 #endif // BT_CLIENT
 	std::unordered_map<GridCoord, CoordFrames> mCoordFrames;
+
+#if defined(BT_CLIENT)
+	// Per-coord render interpolation. Render() and the Main.cpp boot path own its lifecycle and forward
+	// it by const ref into Graphics::RenderMainPresentAcquire (Graphics never touches it). Kept here so
+	// storage and lifecycle share one object; the Frame/Frame.h include above supplies the complete type.
+	std::unordered_map<GridCoord, game::FrameInterpolate> mRenderInterpolates;
+#endif // BT_CLIENT
 
 protected:
 

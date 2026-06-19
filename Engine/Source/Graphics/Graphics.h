@@ -98,8 +98,6 @@ public:
 
 	common::InTheLastSecond mRendersInTheLastSecond;
 
-	std::unordered_map<GridCoord, game::FrameInterpolate> mRenderInterpolates;
-
 	std::unordered_set<std::string> mDebugNames;
 };
 

@@ -300,7 +300,7 @@ bool TryTouchPlace(CellContext& rContext, common::crc_t crc, int64_t iHost, floa
 
 } // anonymous namespace
 
-void IslandChainPlacement::Generate(GridCoord coord, std::vector<IslandPlacement>& rOut)
+void GenerateIslandChain(GridCoord coord, std::vector<IslandPlacement>& rOut)
 {
 	rOut.clear();
 

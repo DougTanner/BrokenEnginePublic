@@ -613,7 +613,7 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 	}
 
 	XMVECTOR vecDelta = XMVectorSubtract(vecDestination, vecPosition);
-	if (XMVector3LengthSq(vecDelta).m128_f32[0] < 1e-8f)
+	if (XMVectorGetX(XMVector3LengthSq(vecDelta)) < 1e-8f)
 	{
 		return XMVectorZero();
 	}
@@ -650,7 +650,7 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 	{
 		XMFLOAT2 f2SnapPoint = SnapOutsidePolygon(f2Position, pVertices, rNavData);
 		XMVECTOR vecEscape = XMVectorSet(f2SnapPoint.x - f4Position.x, f2SnapPoint.y - f4Position.y, 0.0f, 0.0f);
-		if (XMVector3LengthSq(vecEscape).m128_f32[0] > 1e-8f)
+		if (XMVectorGetX(XMVector3LengthSq(vecEscape)) > 1e-8f)
 		{
 			if (pOutNextWaypoint != nullptr)
 			{

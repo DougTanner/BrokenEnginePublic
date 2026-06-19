@@ -44,17 +44,17 @@ struct TypeList {};
 
 // Convert std::tuple<T1&, T2&, ...> to TypeList<T1, T2, ...>
 // Strips references from tuple element types
-template<typename Tuple>
+template<typename TUPLE>
 struct TupleToTypeList;
 
-template<typename... Ts>
-struct TupleToTypeList<std::tuple<Ts...>>
+template<typename... TS>
+struct TupleToTypeList<std::tuple<TS...>>
 {
-	using type = TypeList<std::remove_reference_t<Ts>...>;
+	using type = TypeList<std::remove_reference_t<TS>...>;
 };
 
-template<typename Tuple>
-using TupleToTypeList_t = typename TupleToTypeList<Tuple>::type;
+template<typename TUPLE>
+using TupleToTypeList_t = typename TupleToTypeList<TUPLE>::type;
 
 // ForEach helpers for collection iteration via fold expressions
 template<typename... TS>
@@ -136,19 +136,19 @@ void ForEachPostRenderSpawn(TypeList<TS...>, game::Frame& __restrict rFrame, con
 }
 
 // AllocateAndCopy helper using tuple and index sequence
-template<typename TTupleCurrent, typename TTuplePrevious, size_t... Is>
-void AllocateAndCopyCollections(TTupleCurrent&& current, TTuplePrevious&& previous, std::index_sequence<Is...>)
+template<typename TUPLE_CURRENT, typename TUPLE_PREVIOUS, size_t... INDICES>
+void AllocateAndCopyCollections(TUPLE_CURRENT&& current, TUPLE_PREVIOUS&& previous, std::index_sequence<INDICES...>)
 {
-	(std::remove_reference_t<std::tuple_element_t<Is, std::remove_cvref_t<TTupleCurrent>>>::AllocateAndCopy(
-		std::get<Is>(current), std::get<Is>(previous)), ...);
+	(std::remove_reference_t<std::tuple_element_t<INDICES, std::remove_cvref_t<TUPLE_CURRENT>>>::AllocateAndCopy(
+		std::get<INDICES>(current), std::get<INDICES>(previous)), ...);
 }
 
 // LogDifferences helper using tuple and index sequence; left-to-right, never short-circuits (every collection logs)
-template<typename TTupleCurrent, typename TTupleOther, size_t... Is>
-bool LogDifferencesCollections(TTupleCurrent&& current, TTupleOther&& other, std::index_sequence<Is...>)
+template<typename TUPLE_CURRENT, typename TUPLE_OTHER, size_t... INDICES>
+bool LogDifferencesCollections(TUPLE_CURRENT&& current, TUPLE_OTHER&& other, std::index_sequence<INDICES...>)
 {
 	bool bEqual = true;
-	((bEqual &= std::get<Is>(current).LogDifferences(std::get<Is>(other))), ...);
+	((bEqual &= std::get<INDICES>(current).LogDifferences(std::get<INDICES>(other))), ...);
 	return bEqual;
 }
 

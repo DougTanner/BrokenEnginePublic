@@ -13,9 +13,9 @@ common::crc_t FrameInterpolateBase::Crcs() const
 	sharedCrc ^= common::Crc(fCurrentTime);
 	sharedCrc ^= common::Crc(fDeltaTime);
 
-	std::apply([&](const auto&... cols)
+	std::apply([&](const auto&... collections)
 	{
-		((sharedCrc ^= SharedCollectionCrc(cols)), ...);
+		((sharedCrc ^= SharedCollectionCrc(collections)), ...);
 	}, ServerCollections());
 
 	return sharedCrc;
@@ -38,9 +38,9 @@ void FrameInterpolateBase::Write(std::ostream& rStream) const
 	common::Write(rStream, fCurrentTime);
 	common::Write(rStream, fDeltaTime);
 
-	std::apply([&](const auto&... cols)
+	std::apply([&](const auto&... collections)
 	{
-		(CollectionWrite(rStream, cols, cols.Members()), ...);
+		(CollectionWrite(rStream, collections, collections.Members()), ...);
 	}, Collections());
 }
 
@@ -50,9 +50,9 @@ void FrameInterpolateBase::Read(std::istream& rStream)
 	common::Read(rStream, fCurrentTime);
 	common::Read(rStream, fDeltaTime);
 
-	std::apply([&](auto&... cols)
+	std::apply([&](auto&... collections)
 	{
-		(CollectionRead(rStream, cols, cols.Members()), ...);
+		(CollectionRead(rStream, collections, collections.Members()), ...);
 	}, Collections());
 }
 
@@ -62,9 +62,9 @@ void FrameInterpolateBase::ServerRead(std::istream& rStream)
 	common::Read(rStream, fCurrentTime);
 	common::Read(rStream, fDeltaTime);
 
-	std::apply([&](auto&... cols)
+	std::apply([&](auto&... collections)
 	{
-		(SharedCollectionRead(rStream, cols), ...);
+		(SharedCollectionRead(rStream, collections), ...);
 	}, ServerCollections());
 }
 
@@ -77,9 +77,9 @@ common::crc_t FramePostRenderBase::Crcs() const
 	crc ^= common::Crc(uiFrameId);
 	crc ^= alignments.Crc();
 
-	std::apply([&](const auto&... cols)
+	std::apply([&](const auto&... collections)
 	{
-		((crc ^= SharedCollectionCrc(cols)), ...);
+		((crc ^= SharedCollectionCrc(collections)), ...);
 	}, ServerCollections());
 
 	return crc;
@@ -118,9 +118,9 @@ void FramePostRenderBase::Write(std::ostream& rStream) const
 	common::Write(rStream, uiFrameId);
 	alignments.Write(rStream);
 
-	std::apply([&](const auto&... cols)
+	std::apply([&](const auto&... collections)
 	{
-		(CollectionWrite(rStream, cols, cols.Members()), ...);
+		(CollectionWrite(rStream, collections, collections.Members()), ...);
 	}, Collections());
 }
 
@@ -135,9 +135,9 @@ void FramePostRenderBase::Read(std::istream& rStream)
 	common::Read(rStream, uiFrameId);
 	alignments.Read(rStream);
 
-	std::apply([&](auto&... cols)
+	std::apply([&](auto&... collections)
 	{
-		(CollectionRead(rStream, cols, cols.Members()), ...);
+		(CollectionRead(rStream, collections, collections.Members()), ...);
 	}, Collections());
 }
 
@@ -149,9 +149,9 @@ void FramePostRenderBase::ServerRead(std::istream& rStream)
 	common::Read(rStream, uiFrameId);
 	alignments.Read(rStream);
 
-	std::apply([&](auto&... cols)
+	std::apply([&](auto&... collections)
 	{
-		(SharedCollectionRead(rStream, cols), ...);
+		(SharedCollectionRead(rStream, collections), ...);
 	}, ServerCollections());
 }
 

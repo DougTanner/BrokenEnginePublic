@@ -424,7 +424,7 @@ void Collision::AllocateResultStorage()
 	// Reset all active spans
 	for (int64_t i = 0; i < iTotal; ++i)
 	{
-		sResultSpans.at(static_cast<size_t>(i)) = {-1, 0};
+		sResultSpans.at(static_cast<size_t>(i)) = {.iOffset = -1, .iCount = 0};
 	}
 }
 
@@ -486,11 +486,11 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 				{
 					int64_t j = rZonePair.indicesB.at(static_cast<size_t>(k));
 					// Skip if already tested this B object
-					if (sTestedBGeneration[j] == suiTestedBCurrentGeneration)
+					if (sTestedBGeneration.at(static_cast<size_t>(j)) == suiTestedBCurrentGeneration)
 					{
 						continue;
 					}
-					sTestedBGeneration[j] = suiTestedBCurrentGeneration;
+					sTestedBGeneration.at(static_cast<size_t>(j)) = suiTestedBCurrentGeneration;
 
 					// Skip if alignments don't allow collision
 					if (!rAlignments.CanCollide(rLayerA.pAlignments[i], rLayerB.pAlignments[j]))

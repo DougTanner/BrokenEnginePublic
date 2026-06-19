@@ -8,6 +8,7 @@
 #include "Ui/LightingWrappersBase.h"
 #include "Ui/ShadowWrappersBase.h"
 #include "Ui/WaterWrappersBase.h"
+#include "Ui/WrapperBase.h"
 
 namespace engine
 {

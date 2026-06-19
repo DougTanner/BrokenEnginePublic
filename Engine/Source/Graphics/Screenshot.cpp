@@ -1,5 +1,7 @@
 #include "Screenshot.h"
 
+#include "Graphics/Managers/TextureCache.h"
+
 #include "../../../ThirdParty/stb/stb_image_write.h"
 
 namespace engine

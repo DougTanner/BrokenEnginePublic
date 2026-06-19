@@ -2,13 +2,6 @@
 
 #if defined(BT_CLIENT)
 
-namespace game
-{
-
-struct Frame;
-
-} // namespace game
-
 namespace engine
 {
 

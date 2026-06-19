@@ -3,7 +3,7 @@
 namespace engine
 {
 
-static auto AlignmentKeyLess = [](const AlignmentPair& rPair, uint64_t uiKey) { return rPair.uiKey < uiKey; };
+static constexpr auto AlignmentKeyLess = [](const AlignmentPair& rPair, uint64_t uiKey) { return rPair.uiKey < uiKey; };
 
 uint64_t Alignments::MakeAlignmentKey(alignment_t idA, alignment_t idB)
 {

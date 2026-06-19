@@ -21,18 +21,18 @@ struct GridCoord
 		return {static_cast<int32_t>(uiKey >> 32), static_cast<int32_t>(uiKey)};
 	}
 
-	inline common::crc_t Crc() const
+	common::crc_t Crc() const
 	{
 		return common::Crc(ToKey());
 	}
 
-	inline void Write(std::ostream& rStream) const
+	void Write(std::ostream& rStream) const
 	{
 		common::Write(rStream, x);
 		common::Write(rStream, y);
 	}
 
-	inline void Read(std::istream& rStream)
+	void Read(std::istream& rStream)
 	{
 		common::Read(rStream, x);
 		common::Read(rStream, y);

@@ -210,9 +210,9 @@ void MainThread(HINSTANCE hinstance)
 	{
 		// Heap: operator[] may insert default element
 		ScopedSuppressAllocationTracking suppress;
-		game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates.try_emplace(kOriginCoord).first->second, pGame->RenderFrame(pGame->mClientGridCoord).interpolate);
+		game::FrameInterpolate::AllocateAndCopy(pGame->mRenderInterpolates.try_emplace(kOriginCoord).first->second, pGame->RenderFrame(pGame->mClientGridCoord).interpolate);
 	}
-	game::gpCamera->Update(gpGraphics->mRenderInterpolates.at(kOriginCoord));
+	game::gpCamera->Update(pGame->mRenderInterpolates.at(kOriginCoord));
 
 	// Render and present all framebuffers, then show window
 	gpProfileManager->BootStart(kBootTimerRenderPresent);
@@ -220,7 +220,7 @@ void MainThread(HINSTANCE hinstance)
 	for (int64_t i = 0; i < static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size()); ++i)
 	{
 		gpGraphics->RenderGlobal(pGame->RenderFrame(pGame->mClientGridCoord).interpolate.fCurrentTime);
-		gpGraphics->RenderMainPresentAcquire(gpSwapchainManager->miFramebufferIndex, gpGraphics->mRenderInterpolates, bootActiveCoords, kOriginCoord);
+		gpGraphics->RenderMainPresentAcquire(gpSwapchainManager->miFramebufferIndex, pGame->mRenderInterpolates, bootActiveCoords, kOriginCoord);
 	}
 	gpProfileManager->BootStop(kBootTimerRenderPresent);
 

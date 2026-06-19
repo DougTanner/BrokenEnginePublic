@@ -75,11 +75,16 @@ AudioManager::AudioManager()
 				CHECK_HRESULT(pMMDeviceCollection->Item(i, pMMDevice.GetAddressOf()));
 				LPWSTR pcDeviceId = nullptr;
 				CHECK_HRESULT(pMMDevice->GetId(&pcDeviceId));
-				std::wstring audioEndpointId(pcDeviceId);
 				common::ScopedLambda freeDeviceId([=]()
 				{
 					CoTaskMemFree(pcDeviceId);
 				});
+				if (pcDeviceId == nullptr)
+				{
+					LOG(kAudio, kWarning, "  GetId returned nullptr; skipping device");
+					continue;
+				}
+				std::wstring audioEndpointId(pcDeviceId);
 
 				if (audioEndpointId.find(defaultAudioEndpointId) == std::wstring::npos)
 				{
@@ -106,9 +111,16 @@ AudioManager::AudioManager()
 				{
 					CoTaskMemFree(pcDeviceId);
 				});
-				std::wstring audioEndpointId(pcDeviceId);
-				LOG(kAudio, kInfo, "    Using first in the list: {}", audioEndpointId);
-				mpAudioEngine = std::make_unique<AudioEngine>(kAudioEngineFlags, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
+				if (pcDeviceId != nullptr)
+				{
+					std::wstring audioEndpointId(pcDeviceId);
+					LOG(kAudio, kInfo, "    Using first in the list: {}", audioEndpointId);
+					mpAudioEngine = std::make_unique<AudioEngine>(kAudioEngineFlags, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
+				}
+				else
+				{
+					LOG(kAudio, kWarning, "  GetId returned nullptr; no first-active device available");
+				}
 			}
 		}
 
