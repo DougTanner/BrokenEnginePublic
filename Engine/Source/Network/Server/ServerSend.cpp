@@ -128,7 +128,7 @@ void Server::SendUpdate(ClientConnection& rClient, int64_t iTick)
 	// Send one packet per active subscription slot
 	for (int64_t iSlot = 0; iSlot < std::ssize(rClient.coordSubscriptions); ++iSlot)
 	{
-		if (!rClient.coordSubscriptions.at(iSlot).bActive)
+		if (!(rClient.coordSubscriptions.at(iSlot).flags & SubscriptionFlags::kActive))
 		{
 			continue;
 		}
@@ -147,10 +147,10 @@ void Server::SendUpdate(ClientConnection& rClient, int64_t iTick)
 		WriteBufferedFramePacket(rWorkbuffer, PacketType::kServerCoordUpdate, iSlot, rClient.coordAckStates.at(iSlot).uiEpoch, *pBuffered, rClient.iClientTimestampNs);
 
 		NetworkManager::SendPacket(rClient.pPeer, NetworkManager::CoordSlotUnreliable(iSlot), rWorkbuffer, 0);
-		if (!rClient.coordSubscriptions.at(iSlot).bFirstUpdateLogged)
+		if (!(rClient.coordSubscriptions.at(iSlot).flags & SubscriptionFlags::kFirstUpdateLogged))
 		{
 			LOG(kNetwork, kVerbose, "Server::SendUpdate Client: {} Slot: {} Coord: ({},{}) Tick: {}", rClient.iClientId, iSlot, coord.x, coord.y, iTick);
-			rClient.coordSubscriptions.at(iSlot).bFirstUpdateLogged = true;
+			rClient.coordSubscriptions.at(iSlot).flags.Set(SubscriptionFlags::kFirstUpdateLogged);
 		}
 	}
 }
@@ -163,7 +163,7 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 	// Iterate per-slot: each active subscription has its own ACK state and coord ring buffer
 	for (int64_t iSlot = 0; iSlot < std::ssize(rClient.coordSubscriptions); ++iSlot)
 	{
-		if (!rClient.coordSubscriptions.at(iSlot).bActive)
+		if (!(rClient.coordSubscriptions.at(iSlot).flags & SubscriptionFlags::kActive))
 		{
 			if (rClient.prevResendCounts.at(iSlot) != 0)
 			{

@@ -69,7 +69,6 @@ public:
 		"PondSediment", "Pool", "SeaDistant", "SeaWaves", "SeaWavesB", "SlimyWater",
 		"SlimyWaterB", "StonesAndRipples", "WaterFall",
 	};
-	static inline constexpr int64_t kiWaterNormalSeaWavesIndex = 11;
 
 	// IBL cubemap CRCs (loaded eagerly in ctor; referenced by Model and Water pipelines).
 	static inline constexpr common::crc_t kIrradianceCrc       = data::kTexturesCKloofendalPuresky_IrradianceR16G16B16A16_SFLOATCrc;

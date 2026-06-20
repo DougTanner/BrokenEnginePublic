@@ -34,7 +34,7 @@ public:
 	Islands();
 	~Islands();
 
-	void UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrames>& rFrames, const std::vector<GridCoord>& rActiveCoords);
+	void UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrames>& rFrames, std::span<const GridCoord> rActiveCoords);
 
 	// One SSBO per framebuffer index. Each is indexed by [T_array_index * kiMaxPlacementsPerTemplate + n]
 	// where T_array_index is the template's index in gpIslandTerrain->mIslandCrcsSorted (fixed at boot).

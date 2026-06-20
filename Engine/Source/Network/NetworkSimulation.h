@@ -79,21 +79,30 @@ struct DelayedPacket
 	uint8_t uiChannelId = 0;
 };
 
+// Owned per-peer (one Client or Server per process) so simulated latency/loss is reproducible across runs.
+struct NetworkSimulationState
+{
+	static constexpr uint32_t kuiSeed = 0x9E3779B9u; // Constant seed (was wall-clock) so sim runs reproduce.
+	uint32_t uiRandomState = kuiSeed;
+	int64_t iConsecutiveDrops[NetworkManager::kuiChannelCount] {};
+	int64_t iCoordDropCounts[NetworkManager::kiMaxEnetCoordSlots] {};
+	int64_t iControlDropCount = 0;
+};
+
 namespace NetworkSimulation
 {
 
-inline float Random01()
+inline float Random01(NetworkSimulationState& rState)
 {
-	static uint32_t suiState = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
-	suiState = suiState * 1103515245 + 12345;
-	return static_cast<float>(suiState >> 16) / 65536.0f;
+	rState.uiRandomState = rState.uiRandomState * 1103515245 + 12345;
+	return static_cast<float>(rState.uiRandomState >> 16) / 65536.0f;
 }
 
-inline std::chrono::steady_clock::duration RandomOneWayDelay(const NetworkSimulationConfig& rConfig)
+inline std::chrono::steady_clock::duration RandomOneWayDelay(NetworkSimulationState& rState, const NetworkSimulationConfig& rConfig)
 {
 	int64_t iHalfMin = rConfig.iPingMinMs / 2;
 	int64_t iHalfMax = rConfig.iPingMaxMs / 2;
-	int64_t iDelayMs = iHalfMin + static_cast<int64_t>(Random01() * static_cast<float>(iHalfMax - iHalfMin));
+	int64_t iDelayMs = iHalfMin + static_cast<int64_t>(Random01(rState) * static_cast<float>(iHalfMax - iHalfMin));
 	return std::chrono::milliseconds(iDelayMs);
 }
 
@@ -103,20 +112,19 @@ struct DropResult
 	int64_t iConsecutive = 0;
 };
 
-inline DropResult ShouldDrop(const NetworkSimulationConfig& rConfig, uint8_t uiChannel)
+inline DropResult ShouldDrop(NetworkSimulationState& rState, const NetworkSimulationConfig& rConfig, uint8_t uiChannel)
 {
-	static int64_t siConsecutiveDrops[NetworkManager::kuiChannelCount] {};
 	static constexpr int64_t kiMaxConsecutiveDrops = kiNetworkBufferSize / 2;
 
-	int64_t& riDrops = siConsecutiveDrops[uiChannel];
+	int64_t& riDrops = rState.iConsecutiveDrops[uiChannel];
 	bool bDrop = false;
 	if (riDrops > 0)
 	{
-		bDrop = riDrops < kiMaxConsecutiveDrops && Random01() < 0.5f;
+		bDrop = riDrops < kiMaxConsecutiveDrops && Random01(rState) < 0.5f;
 	}
 	else
 	{
-		bDrop = Random01() * 100.0f < rConfig.fPacketLossPercent;
+		bDrop = Random01(rState) * 100.0f < rConfig.fPacketLossPercent;
 	}
 
 	riDrops = bDrop ? riDrops + 1 : 0;
@@ -126,17 +134,16 @@ inline DropResult ShouldDrop(const NetworkSimulationConfig& rConfig, uint8_t uiC
 // Enqueue a received unreliable packet into the delay queue, or drop it.
 // Reliable packets are passed through immediately via handleReliable.
 template <typename FnHandleReliable>
-inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const NetworkSimulationConfig& rSimConfig, ENetEvent& rEvent, FnHandleReliable handleReliable)
+inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, NetworkSimulationState& rState, const NetworkSimulationConfig& rSimConfig, ENetEvent& rEvent, FnHandleReliable handleReliable)
 {
 	bool bUnreliable = NetworkManager::IsUnreliableChannel(rEvent.channelID);
 	if (bUnreliable)
 	{
-		DropResult dropResult = ShouldDrop(rSimConfig, rEvent.channelID);
+		DropResult dropResult = ShouldDrop(rState, rSimConfig, rEvent.channelID);
 		if (dropResult.bDrop)
 		{
 			if (NetworkManager::IsCoordChannel(rEvent.channelID))
 			{
-				static int64_t siCoordDropCounts[NetworkManager::kiMaxEnetCoordSlots] {};
 				int64_t iSlot = NetworkManager::ChannelToSlot(rEvent.channelID);
 				int64_t iTick = 0;
 				uint8_t uiPacketType = (rEvent.packet->dataLength > 0) ? rEvent.packet->data[0] : 0;
@@ -144,14 +151,13 @@ inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const Netw
 				{
 					std::memcpy(&iTick, rEvent.packet->data + 4, sizeof(iTick));
 				}
-				++siCoordDropCounts[iSlot];
-				LOG(kNetwork, kVerbose, "NetworkSimulation::Dropped Coord Slot: {} Tick: {} Type: {} Size: {} TotalDrops: {} Consecutive: {}", iSlot, iTick, PacketTypeName(static_cast<PacketType>(uiPacketType)), rEvent.packet->dataLength, siCoordDropCounts[iSlot], dropResult.iConsecutive);
+				++rState.iCoordDropCounts[iSlot];
+				LOG(kNetwork, kVerbose, "NetworkSimulation::Dropped Coord Slot: {} Tick: {} Type: {} Size: {} TotalDrops: {} Consecutive: {}", iSlot, iTick, PacketTypeName(static_cast<PacketType>(uiPacketType)), rEvent.packet->dataLength, rState.iCoordDropCounts[iSlot], dropResult.iConsecutive);
 			}
 			else
 			{
-				static int64_t siControlDropCount = 0;
-				++siControlDropCount;
-				LOG(kNetwork, kVerbose, "NetworkSimulation::Dropped Control Channel: {} Size: {} TotalDrops: {} Consecutive: {}", rEvent.channelID, rEvent.packet->dataLength, siControlDropCount, dropResult.iConsecutive);
+				++rState.iControlDropCount;
+				LOG(kNetwork, kVerbose, "NetworkSimulation::Dropped Control Channel: {} Size: {} TotalDrops: {} Consecutive: {}", rEvent.channelID, rEvent.packet->dataLength, rState.iControlDropCount, dropResult.iConsecutive);
 			}
 			enet_packet_destroy(rEvent.packet);
 			return;
@@ -159,7 +165,7 @@ inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const Netw
 		ScopedSuppressAllocationTracking suppress;
 		// Heap: delay queue copies packet data for deferred processing
 		DelayedPacket delayed {};
-		delayed.releaseTime = std::chrono::steady_clock::now() + RandomOneWayDelay(rSimConfig);
+		delayed.releaseTime = std::chrono::steady_clock::now() + RandomOneWayDelay(rState, rSimConfig);
 		delayed.data.assign(rEvent.packet->data, rEvent.packet->data + rEvent.packet->dataLength);
 		delayed.pPeer = rEvent.peer;
 		delayed.uiChannelId = rEvent.channelID;
@@ -172,6 +178,21 @@ inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, const Netw
 	{
 		handleReliable(rEvent);
 		enet_packet_destroy(rEvent.packet);
+	}
+}
+
+// Fast-forward (time multiply > 1) bypasses the delay queue; otherwise enqueue-or-drop per the sim config.
+template <typename FnReceive>
+inline void DispatchOrEnqueue(std::deque<DelayedPacket>& rDelayedPackets, NetworkSimulationState& rState, const NetworkSimulationConfig& rSimConfig, bool bFastForward, ENetEvent& rEvent, FnReceive fnReceive)
+{
+	if (bFastForward)
+	{
+		fnReceive(rEvent);
+		enet_packet_destroy(rEvent.packet);
+	}
+	else
+	{
+		EnqueueOrDrop(rDelayedPackets, rState, rSimConfig, rEvent, fnReceive);
 	}
 }
 
@@ -196,6 +217,29 @@ inline void FlushDelayed(std::deque<DelayedPacket>& rDelayedPackets, FnHandlePac
 		handlePacket(rDelayedPackets.front());
 		rDelayedPackets.pop_front();
 	}
+}
+
+// Fast-forward flushes the whole delay queue immediately; otherwise releases packets whose time has passed.
+template <typename FnHandlePacket>
+inline void ProcessOrFlush(std::deque<DelayedPacket>& rDelayedPackets, bool bFastForward, FnHandlePacket handlePacket)
+{
+	if (bFastForward)
+	{
+		FlushDelayed(rDelayedPackets, handlePacket);
+	}
+	else
+	{
+		ProcessDelayed(rDelayedPackets, handlePacket);
+	}
+}
+
+// Drop delayed packets queued on a coord slot's channels (called on slot reuse / unsubscribe-ack).
+inline void PurgeDelayedForSlot(std::deque<DelayedPacket>& rDelayedPackets, int64_t iSlot)
+{
+	std::erase_if(rDelayedPackets, [iSlot](const DelayedPacket& rPacket)
+	{
+		return NetworkManager::IsCoordChannel(rPacket.uiChannelId) && NetworkManager::ChannelToSlot(rPacket.uiChannelId) == iSlot;
+	});
 }
 
 } // namespace NetworkSimulation

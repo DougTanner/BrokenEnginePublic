@@ -42,7 +42,7 @@ void NetworkDiscoveryScanner::StartScan()
 	sendto(mSocket, reinterpret_cast<const char*>(&uiMagic), sizeof(uiMagic), 0, reinterpret_cast<sockaddr*>(&broadcastAddr), sizeof(broadcastAddr));
 
 	mTimer.Reset();
-	mbStarted = true;
+	mFlags.Set(DiscoveryScannerFlags::kStarted);
 }
 
 void NetworkDiscoveryScanner::Poll()
@@ -58,13 +58,13 @@ void NetworkDiscoveryScanner::Poll()
 	{
 		uint8_t* pBytes = reinterpret_cast<uint8_t*>(&senderAddr.sin_addr);
 		std::snprintf(mpcFoundAddress, sizeof(mpcFoundAddress), "%u.%u.%u.%u", pBytes[0], pBytes[1], pBytes[2], pBytes[3]);
-		mbFound = true;
+		mFlags.Set(DiscoveryScannerFlags::kFound);
 	}
 }
 
 bool NetworkDiscoveryScanner::IsScanning()
 {
-	if (!mbStarted || mbFound)
+	if (!(mFlags & DiscoveryScannerFlags::kStarted) || (mFlags & DiscoveryScannerFlags::kFound))
 	{
 		return false;
 	}

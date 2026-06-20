@@ -211,7 +211,7 @@ void ClientSession::Reconcile()
 		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iCurrentTick);
 
 		static constexpr int64_t kiClockSnapThreshold = 28;
-		if (miLatestServerTick >= 0 && (mbClockErrorDisconnect || std::abs(miClockError) >= kiClockSnapThreshold))
+		if (miLatestServerTick >= 0 && ((mSessionFlags & engine::SessionStateFlags::kClockErrorDisconnect) || std::abs(miClockError) >= kiClockSnapThreshold))
 		{
 			// Snap tick counter to recover from extreme clock error. Sim runs BEHIND latestServerTick.
 			// Clamp at 0 so a fresh post-load server (latestServerTick < currentTargetBehind)
@@ -221,7 +221,7 @@ void ClientSession::Reconcile()
 			gpGame->SetTickCounter(iSnapTick);
 			gpGame->mTimeStep.ClearAccumulator();
 			gpGame->ResetRenderClock();
-			mbClockErrorDisconnect = false;
+			mSessionFlags.Clear(engine::SessionStateFlags::kClockErrorDisconnect);
 			miConsecutiveClockErrorFrames = 0;
 			miClockError = 0;
 			miLatestServerTick = -1;
@@ -242,7 +242,7 @@ void ClientSession::ConnectToServer(std::string_view serverAddress)
 
 void ClientSession::ConnectToDiscoveredServer()
 {
-	mbServerDiscovered = false;
+	mSessionFlags.Clear(engine::SessionStateFlags::kServerDiscovered);
 	ConnectToServer(mcDiscoveredAddress);
 }
 
@@ -347,7 +347,7 @@ void ClientSession::ResetForServerLoad()
 	miLatestServerTick = -1;
 	miClockError = 0;
 	miCurrentTargetBehind = 0;
-	mbClockErrorDisconnect = false;
+	mSessionFlags.Clear(engine::SessionStateFlags::kClockErrorDisconnect);
 	miConsecutiveClockErrorFrames = 0;
 
 	// Clear player identity — server will reassign
@@ -363,12 +363,7 @@ void ClientSession::ResetForServerLoad()
 	gpGame->mFleetSelection.Clear();
 
 	// Force-reset all client coord slots
-	std::vector<engine::ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
-	for (int64_t i = 0; i < std::ssize(rSlots); ++i)
-	{
-		rSlots.at(i) = {};
-	}
-	mpClientNetwork->GetCancelledSubscriptions().clear();
+	mpClientNetwork->ResetAllSlots();
 
 	// Clear local coord frames (stale pre-load data). Reset render-progress fields first
 	// so that any entry re-emplaced by a racing packet in the same frame starts clean.

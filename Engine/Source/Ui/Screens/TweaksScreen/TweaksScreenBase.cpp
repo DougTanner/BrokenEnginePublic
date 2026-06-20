@@ -223,7 +223,7 @@ void TweaksScreenBase::Render()
 					RenderSectionWindow(static_cast<TweakSection>(i));
 				}
 			}
-			else if (mSectionVisible[i])
+			else if (mSectionVisible & SectionFlag(i))
 			{
 				RenderSectionWindow(static_cast<TweakSection>(i));
 			}
@@ -270,9 +270,9 @@ void TweaksScreenBase::RenderToggleBar()
 		{
 			ImGui::SameLine();
 		}
-		if (ImGui::Selectable(kpcSectionNames[i], mSectionVisible[i], 0, ImVec2(fButtonWidth, 0.0f)))
+		if (ImGui::Selectable(kpcSectionNames[i], mSectionVisible & SectionFlag(i), 0, ImVec2(fButtonWidth, 0.0f)))
 		{
-			mSectionVisible[i] = !mSectionVisible[i];
+			mSectionVisible.Toggle(SectionFlag(i));
 		}
 	}
 	ImGui::PopStyleVar();
@@ -317,21 +317,21 @@ void TweaksScreenBase::WrapperSeparatorText(std::string_view label)
 	}
 }
 
-void TweaksScreenBase::SaveState(bool* pSectionVisible, ImVec2* pWindowPositions, int8_t* pActiveSubtab, bool* pSectionCollapsed) const
+void TweaksScreenBase::SaveState(common::Flags<TweakSectionFlags>& rSectionVisible, ImVec2* pWindowPositions, int8_t* pActiveSubtab, common::Flags<TweakSectionFlags>& rSectionCollapsed) const
 {
-	std::memcpy(pSectionVisible, mSectionVisible, sizeof(mSectionVisible));
+	rSectionVisible = mSectionVisible;
 	std::memcpy(pWindowPositions, mWindowPositions, sizeof(mWindowPositions));
 	std::memcpy(pActiveSubtab, mActiveSubtab, sizeof(mActiveSubtab));
-	std::memcpy(pSectionCollapsed, mSectionCollapsed, sizeof(mSectionCollapsed));
+	rSectionCollapsed = mSectionCollapsed;
 }
 
-void TweaksScreenBase::LoadState(const bool* pSectionVisible, const ImVec2* pWindowPositions, const int8_t* pActiveSubtab, const bool* pSectionCollapsed)
+void TweaksScreenBase::LoadState(common::Flags<TweakSectionFlags> sectionVisible, const ImVec2* pWindowPositions, const int8_t* pActiveSubtab, common::Flags<TweakSectionFlags> sectionCollapsed)
 {
-	std::memcpy(mSectionVisible, pSectionVisible, sizeof(mSectionVisible));
+	mSectionVisible = sectionVisible;
 	std::memcpy(mWindowPositions, pWindowPositions, sizeof(mWindowPositions));
 	std::memcpy(mActiveSubtab, pActiveSubtab, sizeof(mActiveSubtab));
-	std::memcpy(mSectionCollapsed, pSectionCollapsed, sizeof(mSectionCollapsed));
-	std::fill(std::begin(mApplySubtab), std::end(mApplySubtab), true);
+	mSectionCollapsed = sectionCollapsed;
+	mApplySubtab = kAllSectionFlags;
 }
 
 void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)
@@ -351,11 +351,16 @@ void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)
 	constexpr float kfStartX = 10.0f;
 	ImVec2 f2InitialPosition = (mWindowPositions[iSection].y > 0.0f) ? mWindowPositions[iSection] : ImVec2 {kfStartX, mfToggleBarBottom};
 	ImGui::SetNextWindowPos(f2InitialPosition, ImGuiCond_FirstUseEver);
-	ImGui::SetNextWindowCollapsed(mSectionCollapsed[iSection], ImGuiCond_FirstUseEver);
-	ImGui::Begin(kpcSectionNames[iSection], bHasActiveSlider ? nullptr : &mSectionVisible[iSection], ImGuiWindowFlags_AlwaysAutoResize);
+	ImGui::SetNextWindowCollapsed(mSectionCollapsed & SectionFlag(iSection), ImGuiCond_FirstUseEver);
+	bool bSectionVisible = (mSectionVisible & SectionFlag(iSection)); // ImGui::Begin writes the close-button [x] state back through this bool*
+	ImGui::Begin(kpcSectionNames[iSection], bHasActiveSlider ? nullptr : &bSectionVisible, ImGuiWindowFlags_AlwaysAutoResize);
 	ImGui::SetWindowFontScale(kfUiScale);
 	mWindowPositions[iSection] = ImGui::GetWindowPos();
-	mSectionCollapsed[iSection] = ImGui::IsWindowCollapsed();
+	mSectionCollapsed.Set(SectionFlag(iSection), ImGui::IsWindowCollapsed());
+	if (!bHasActiveSlider)
+	{
+		mSectionVisible.Set(SectionFlag(iSection), bSectionVisible);
+	}
 
 	(this->*kRenderSectionFunctions[iSection])();
 
@@ -387,7 +392,7 @@ void TweaksScreenBase::RunSliderAuditFrame()
 		for (size_t i = 0; i < static_cast<size_t>(TweakSection::kCount); ++i)
 		{
 			mActiveSubtab[i] = miAuditFrame;
-			mApplySubtab[i] = true;
+			mApplySubtab.Set(SectionFlag(i));
 		}
 
 		mbAuditMode = true;
@@ -411,7 +416,7 @@ void TweaksScreenBase::RunSliderAuditFrame()
 
 		// Restore EVERY frame (not just on completion): the actual UI render later in the same Render() call must draw the user's saved tab, not the audit-cycled one.
 		std::memcpy(mActiveSubtab, mPreAuditSubtab, sizeof(mActiveSubtab));
-		std::fill(std::begin(mApplySubtab), std::end(mApplySubtab), true);
+		mApplySubtab = kAllSectionFlags;
 
 		++miAuditFrame;
 		if (miAuditFrame >= kiAuditFrameCount)

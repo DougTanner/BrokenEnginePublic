@@ -70,7 +70,9 @@ class Client
 {
 public:
 
-	Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots);
+	using GuidAssignedCallback = void (*)(const ClientGuid&);
+
+	Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots, const ClientGuid& rGuid, GuidAssignedCallback pfnGuidAssigned);
 	~Client();
 
 	void Poll();
@@ -103,26 +105,26 @@ public:
 	void SendResyncRequest();
 	void Flush();
 	void Disconnect();
-	void SetDesyncDebugMode(bool bEnabled) { mbDesyncDebugMode = bEnabled; }
+	void SetDesyncDebugMode(bool bEnabled) { mStateFlags.Set(ClientStateFlags::kDesyncDebugMode, bEnabled); }
 
 	std::vector<std::vector<ReceivedCoordUpdate>>& DrainReceivedCoordUpdates() { return mReceivedCoordUpdates; }
 	std::vector<ReceivedCoordFullState>& DrainReceivedFullStates() { return mReceivedFullStates; }
 	std::vector<ReceivedStaticData>& DrainReceivedStaticData() { return mReceivedStaticData; }
 	std::unique_ptr<ReceivedDebugFrame> DrainReceivedDebugFrame() { return std::move(mpReceivedDebugFrame); }
 
-	bool IsConnected() const { return mbConnected; }
-	bool CanSend() const { return mbConnected && mpServerPeer != nullptr; }
-	bool IsConnectionAccepted() const { return mbConnectionAccepted; }
+	bool IsConnected() const { return mStateFlags & ClientStateFlags::kConnected; }
+	bool CanSend() const { return (mStateFlags & ClientStateFlags::kConnected) && mpServerPeer != nullptr; }
+	bool IsConnectionAccepted() const { return mStateFlags & ClientStateFlags::kConnectionAccepted; }
 	const char* GetRejectionReason() const { return mpcRejectionReason[0] != '\0' ? mpcRejectionReason : nullptr; }
-	bool WasDisconnected() const { return mbDisconnectedEvent; }
+	bool WasDisconnected() const { return mStateFlags & ClientStateFlags::kDisconnectedEvent; }
 	// Heap: raw game packet buffer grows on assign/player-state packets
 	std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& DrainReceivedGamePackets() { return mReceivedGamePackets; }
 
 	const ClientGuid& GetClientGuid() const { return mClientGuid; }
-	bool DrainLoadNotification() { bool b = mbLoadNotificationReceived; mbLoadNotificationReceived = false; return b; }
+	bool DrainLoadNotification() { bool b = mStateFlags & ClientStateFlags::kLoadNotificationReceived; mStateFlags.Clear(ClientStateFlags::kLoadNotificationReceived); return b; }
 	const std::vector<ClientCoordSlot>& GetCoordSlots() const { return mCoordSlots; }
-	std::vector<ClientCoordSlot>& GetCoordSlots() { return mCoordSlots; }
-	std::vector<GridCoord>& GetCancelledSubscriptions() { return mCancelledSubscriptions; }
+	void CancelSubscription(int64_t iSlot);
+	void ResetAllSlots();
 	ENetPeer* GetServerPeer() const { return mpServerPeer; }
 	int64_t GetBytesInPerSecond() { return mBytesInPerSecond.Get(); }
 	int64_t GetBytesOutPerSecond() { return mBytesOutPerSecond.Get(); }
@@ -175,11 +177,19 @@ private:
 	void ClearSubscribingPlaceholder(GridCoord coord);
 	void TrackReceivedTick(int64_t iSlot, int64_t iTick);
 
+	enum class ClientStateFlags : uint8_t
+	{
+		kConnected                = 1 << 0,
+		kConnectionAccepted       = 1 << 1,
+		kDisconnectedEvent        = 1 << 2,
+		kHasLastUpdateArrival     = 1 << 3,
+		kDesyncDebugMode          = 1 << 4,
+		kLoadNotificationReceived = 1 << 5,
+	};
+
 	ENetHost* mpHost = nullptr;
 	ENetPeer* mpServerPeer = nullptr;
-	bool mbConnected = false;
-	bool mbConnectionAccepted = false;
-	bool mbDisconnectedEvent = false;
+	common::Flags<ClientStateFlags> mStateFlags;
 	char mpcRejectionReason[256] = {};
 
 	// Heap: raw game packets (type byte + payload) for game-layer parsing
@@ -187,6 +197,9 @@ private:
 
 	// Per-slot receive buffers
 	std::vector<std::vector<ReceivedCoordUpdate>> mReceivedCoordUpdates;
+	// Reused status-change decode scratch (same reused-buffer + exact-size-assign pattern as Server::mCompressionBuffer):
+	// decompress into this 1024-cap buffer, then assign() the exact count into each ReceivedCoordUpdate so buffered updates carry no slack
+	std::vector<game::StatusChange> mStatusChangeScratch;
 	std::vector<ReceivedCoordFullState> mReceivedFullStates;
 	// Heap: static data received once per subscription
 	std::vector<ReceivedStaticData> mReceivedStaticData;
@@ -212,15 +225,14 @@ private:
 
 	// Interarrival jitter tracking
 	std::chrono::steady_clock::time_point mLastUpdateArrival {};
-	bool mbHasLastUpdateArrival = false;
 	common::Smoothed<int64_t> mSmoothedJitterUs;
 
-	bool mbDesyncDebugMode = false;
-	bool mbLoadNotificationReceived = false;
 	ClientGuid mClientGuid {};
+	GuidAssignedCallback mpfnGuidAssigned = nullptr;
 
 	// Network simulation delay queue
 	std::deque<DelayedPacket> mDelayedPackets;
+	NetworkSimulationState mNetworkSimState;
 
 	// Coords whose kSubscribing slot was cancelled before the server responded
 	std::vector<GridCoord> mCancelledSubscriptions;

@@ -5,6 +5,14 @@ namespace engine
 
 inline constexpr std::chrono::nanoseconds kFenceTimeoutNanoseconds = 4'000'000'000ns;
 
+enum class DeviceCapabilityFlags : uint8_t
+{
+	kMemoryBudgetAvailable                       = 1 << 0,
+	kTransferQueueFamilyOwnershipTransferOptional = 1 << 1,
+	kSmoothLinesEnabled                          = 1 << 2,
+	kWideLinesEnabled                            = 1 << 3,
+};
+
 class DeviceManager
 {
 public:
@@ -21,10 +29,7 @@ public:
 	VkDescriptorPool mVkDescriptorPool = VK_NULL_HANDLE;
 	VkPipelineCache mVkPipelineCache = VK_NULL_HANDLE;
 
-	bool mbMemoryBudgetAvailable = false;
-	bool mbTransferQueueFamilyOwnershipTransferOptional = false;
-	bool mbSmoothLinesEnabled = false;
-	bool mbWideLinesEnabled = false;
+	common::Flags<DeviceCapabilityFlags> mCapabilities;
 
 	VkCommandPool mOneShotVkCommandPool = VK_NULL_HANDLE;
 	VkFence mOneShotVkFence = VK_NULL_HANDLE;

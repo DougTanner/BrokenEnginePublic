@@ -41,6 +41,11 @@ extern Wrapper gLightingWaterSkyboxThreePower;
 extern Wrapper gLightingWaterSkyboxLod;
 extern Wrapper gWaterSkyboxOneRenderMultiplier;
 
+// High frequency waves (pure-internal, not slider-mapped)
+extern Wrapper gWaterHighMultiplier;
+extern Wrapper gWaterHighScaleOne;
+extern Wrapper gWaterHighScaleTwo;
+
 // Specular - Height Darken
 extern Wrapper gWaterHeightDarkenTop;
 extern Wrapper gWaterHeightDarkenBottom;
@@ -49,6 +54,7 @@ extern Wrapper gWaterHeightDarkenSource;
 extern Wrapper gWaterHeightDarkenLighting;
 
 // Low frequency waves
+extern Wrapper gWaterLowCount; // wave-count radio selector, not slider-mapped
 extern Wrapper gWaterLowMax;
 extern Wrapper gWaterLowAngle;
 extern Wrapper gWaterLowWavelength;
@@ -65,6 +71,7 @@ extern Wrapper gWaterLowAmplitudeFadeStart;
 extern Wrapper gWaterLowAmplitudeFadeEnd;
 
 // Medium frequency waves
+extern Wrapper gWaterMediumCount; // wave-count radio selector, not slider-mapped
 extern Wrapper gWaterMediumWavelength;
 extern Wrapper gWaterMediumAmplitude;
 extern Wrapper gWaterMediumSpeed;
@@ -100,12 +107,5 @@ extern Wrapper gWaterColorNoiseWeightOne;
 extern Wrapper gWaterColorNoiseMultiplierOne;
 extern Wrapper gWaterColorNoiseWeightTwo;
 extern Wrapper gWaterColorNoiseMultiplierTwo;
-
-// Water - Low/Medium count + High frequency waves (radio-button-bound but not via slider map; pure-internal High*)
-extern Wrapper gWaterLowCount;
-extern Wrapper gWaterMediumCount;
-extern Wrapper gWaterHighMultiplier;
-extern Wrapper gWaterHighScaleOne;
-extern Wrapper gWaterHighScaleTwo;
 
 } // namespace engine

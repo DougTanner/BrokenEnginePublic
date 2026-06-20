@@ -246,7 +246,7 @@ void Buffer::Create(const BufferInfo& rInfo, const std::function<void(void*)>& r
 			.size = mInfo.dataVkDeviceSize,
 		};
 		vkCmdCopyBuffer(oneShotCommandBuffer.mVkCommandBuffer, vkBuffer, mDeviceLocalVkBuffer, 1, &vkBufferCopy);
-		oneShotCommandBuffer.Execute(true);
+		oneShotCommandBuffer.Execute();
 
 		// Clean up
 		vmaDestroyBuffer(gpDeviceManager->mpAllocator, vkBuffer, vmaAllocation);

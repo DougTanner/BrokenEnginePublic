@@ -424,6 +424,13 @@ SwapchainManager::~SwapchainManager()
 	}
 }
 
+VkSwapchainKHR SwapchainManager::ReleaseHandleForRecreation()
+{
+	VkSwapchainKHR vkSwapchainKHR = mVkSwapchainKHR;
+	mVkSwapchainKHR = VK_NULL_HANDLE;
+	return vkSwapchainKHR;
+}
+
 void SwapchainManager::AcquireNextImage()
 {
 	ScopedCpuProfile scopedCpuProfile(kCpuTimerAcquireImage);

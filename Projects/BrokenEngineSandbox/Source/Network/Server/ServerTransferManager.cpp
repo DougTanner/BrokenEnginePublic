@@ -38,7 +38,7 @@ static bool IsDestinationLive(engine::GridCoord destination)
 	{
 		for (const engine::ClientCoordSubscription& rSubscription : rClient.coordSubscriptions)
 		{
-			if (rSubscription.bActive && rSubscription.coord == destination)
+			if ((rSubscription.flags & engine::SubscriptionFlags::kActive) && rSubscription.coord == destination)
 			{
 				return true;
 			}

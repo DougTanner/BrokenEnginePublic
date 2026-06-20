@@ -126,7 +126,7 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 	uint32_t uiKeyframeCount = rChannel.uiKeyframeCount;
 
 	// CUBICSPLINE path: uses AnimationKeyframeCubic with tangent fields
-	if (rChannel.uiInterpolation == 2)
+	if (rChannel.uiInterpolation == common::AnimationChannel::kInterpolationCubicSpline)
 	{
 		const common::AnimationKeyframeCubic* pKeyframes = &mpCubicKeyframes[rChannel.uiKeyframeStart];
 
@@ -182,7 +182,7 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 		XMVECTOR vecResult = XMVectorAdd(XMVectorAdd(XMVectorScale(vecP0, fH00), XMVectorScale(vecM0, fH10)), XMVectorAdd(XMVectorScale(vecP1, fH01), XMVectorScale(vecM1, fH11)));
 
 		// Normalize quaternion results
-		if (rChannel.uiTargetPath == 1)
+		if (rChannel.uiTargetPath == common::AnimationChannel::kTargetPathRotation)
 		{
 			vecResult = XMQuaternionNormalize(vecResult);
 		}
@@ -220,7 +220,7 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 	const common::AnimationKeyframe& rKey1 = pKeyframes[uiKeyframe1];
 
 	// STEP interpolation
-	if (rChannel.uiInterpolation == 0 || uiKeyframe0 == uiKeyframe1)
+	if (rChannel.uiInterpolation == common::AnimationChannel::kInterpolationStep || uiKeyframe0 == uiKeyframe1)
 	{
 		return XMLoadFloat4(&rKey0.f4Value);
 	}
@@ -233,7 +233,7 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 	XMVECTOR vec1 = XMLoadFloat4(&rKey1.f4Value);
 
 	// Use slerp for rotations (quaternions)
-	if (rChannel.uiTargetPath == 1)
+	if (rChannel.uiTargetPath == common::AnimationChannel::kTargetPathRotation)
 	{
 		return XMQuaternionSlerp(vec0, vec1, fT);
 	}
@@ -283,13 +283,13 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 
 		switch (rChannel.uiTargetPath)
 		{
-			case 0: // Translation
+			case common::AnimationChannel::kTargetPathTranslation:
 				pTranslations[rChannel.uiNodeIndex] = vecValue;
 				break;
-			case 1: // Rotation
+			case common::AnimationChannel::kTargetPathRotation:
 				pRotations[rChannel.uiNodeIndex] = vecValue;
 				break;
-			case 2: // Scale
+			case common::AnimationChannel::kTargetPathScale:
 				pScales[rChannel.uiNodeIndex] = vecValue;
 				break;
 			default:

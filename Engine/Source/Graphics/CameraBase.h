@@ -5,6 +5,10 @@
 namespace engine
 {
 
+// Minimum eye height (LOD pivot floor). Single source for both the engine LOD-bucket math in
+// CameraBase::CalculateMatricesAndVisibleArea and the game's zoom-clamp floor (game::kfEyeHeightMin).
+inline constexpr float kfMinEyeHeight = 150.0f;
+
 class CameraBase
 {
 public:
@@ -52,11 +56,6 @@ public:
 		return InVisibleArea(f4VisibleArea, f4Position, fAdjustLeft, fAdjustRight, fAdjustTop, fAdjustBottom);
 	}
 
-	inline bool XM_CALLCONV AabbIntersectsVisibleArea(XMFLOAT4 f4VisibleArea, FXMVECTOR vecMin, FXMVECTOR vecMax)
-	{
-		return common::AabbIntersectsArea(f4VisibleArea, vecMin, vecMax);
-	}
-
 protected:
 
 	float mfSunAngle = 1.4f;
@@ -66,7 +65,7 @@ protected:
 private:
 
 	XMFLOAT2 mf2LatchedQuadSize {};
-	// 0 is unreachable as a real bucket (eye distance always >= kfEyeHeightMin = 150), so the
+	// 0 is unreachable as a real bucket (eye distance always >= kfMinEyeHeight = 150), so the
 	// first-frame change-detect always fires. Using INT_MIN here would cause signed-integer
 	// overflow when the hysteresis check evaluates `miVisibleAreaZoomBucket - 1`.
 	int miVisibleAreaZoomBucket = 0;

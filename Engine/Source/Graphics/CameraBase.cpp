@@ -49,53 +49,33 @@ void CameraBase::CalculateMatricesAndVisibleArea()
 	// Calculate visible area corners by unprojecting screen corners to world space at Z=0
 	XMFLOAT3 f3ScreenPos { 0.0f, 0.0f, 0.0f };
 
-	// Top left
-	f3ScreenPos.x = 0.0f;
-	f3ScreenPos.y = 0.0f;
+	struct VisibleCorner
+	{
+		float fScreenX;
+		float fScreenY;
+		XMFLOAT4* pTarget;
+	};
+	const VisibleCorner corners[] =
+	{
+		{ 0.0f, 0.0f, &f4VisibleTopLeft },
+		{ fViewportWidth, 0.0f, &f4VisibleTopRight },
+		{ 0.0f, fViewportHeight, &f4VisibleBottomLeft },
+		{ fViewportWidth, fViewportHeight, &f4VisibleBottomRight },
+	};
 
-	f3ScreenPos.z = 0.0f;
-	vecRayStart = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, mMatPerspective, mMatView, matIdentity);
-	f3ScreenPos.z = 1.0f;
-	vecRayEnd = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, mMatPerspective, mMatView, matIdentity);
+	for (const VisibleCorner& rCorner : corners)
+	{
+		f3ScreenPos.x = rCorner.fScreenX;
+		f3ScreenPos.y = rCorner.fScreenY;
 
-	vecIntersectPlane = XMPlaneIntersectLine(vecPlane, vecRayStart, vecRayEnd);
-	XMStoreFloat4(&f4VisibleTopLeft, vecIntersectPlane);
+		f3ScreenPos.z = 0.0f;
+		vecRayStart = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, mMatPerspective, mMatView, matIdentity);
+		f3ScreenPos.z = 1.0f;
+		vecRayEnd = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, mMatPerspective, mMatView, matIdentity);
 
-	// Top right
-	f3ScreenPos.x = fViewportWidth;
-	f3ScreenPos.y = 0.0f;
-
-	f3ScreenPos.z = 0.0f;
-	vecRayStart = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, mMatPerspective, mMatView, matIdentity);
-	f3ScreenPos.z = 1.0f;
-	vecRayEnd = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, mMatPerspective, mMatView, matIdentity);
-
-	vecIntersectPlane = XMPlaneIntersectLine(vecPlane, vecRayStart, vecRayEnd);
-	XMStoreFloat4(&f4VisibleTopRight, vecIntersectPlane);
-
-	// Bottom left
-	f3ScreenPos.x = 0.0f;
-	f3ScreenPos.y = fViewportHeight;
-
-	f3ScreenPos.z = 0.0f;
-	vecRayStart = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, mMatPerspective, mMatView, matIdentity);
-	f3ScreenPos.z = 1.0f;
-	vecRayEnd = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, mMatPerspective, mMatView, matIdentity);
-
-	vecIntersectPlane = XMPlaneIntersectLine(vecPlane, vecRayStart, vecRayEnd);
-	XMStoreFloat4(&f4VisibleBottomLeft, vecIntersectPlane);
-
-	// Bottom right
-	f3ScreenPos.x = fViewportWidth;
-	f3ScreenPos.y = fViewportHeight;
-
-	f3ScreenPos.z = 0.0f;
-	vecRayStart = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, mMatPerspective, mMatView, matIdentity);
-	f3ScreenPos.z = 1.0f;
-	vecRayEnd = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, mMatPerspective, mMatView, matIdentity);
-
-	vecIntersectPlane = XMPlaneIntersectLine(vecPlane, vecRayStart, vecRayEnd);
-	XMStoreFloat4(&f4VisibleBottomRight, vecIntersectPlane);
+		vecIntersectPlane = XMPlaneIntersectLine(vecPlane, vecRayStart, vecRayEnd);
+		XMStoreFloat4(rCorner.pTarget, vecIntersectPlane);
+	}
 
 	f4LargeVisibleArea = XMFLOAT4 {f4VisibleTopLeft.x, f4VisibleTopLeft.y, f4VisibleTopRight.x, f4VisibleBottomRight.y};
 
@@ -122,7 +102,6 @@ void CameraBase::CalculateMatricesAndVisibleArea()
 	// ~area/quadSize, so quadSize must be bit-stable across consecutive frames).
 	XMFLOAT4 f4RawAreaIn = f4RenderVisibleArea;
 
-	constexpr float kfMinEyeHeight = 150.0f;
 	int iLod = std::clamp(static_cast<int>(std::floor(std::log2(std::max(fEyeDistance, kfMinEyeHeight) / kfMinEyeHeight) * 0.5f)),
 	                      0, BufferManager::kiVisibleAreaLodCount - 1);
 	// LOD hysteresis: refuse to flip back across the shared boundary if eye distance is still

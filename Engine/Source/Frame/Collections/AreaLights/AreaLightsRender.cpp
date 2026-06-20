@@ -100,7 +100,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 		// Frustum culling: compute AABB of all 8 vertices and test intersection
 		auto [vecMin, vecMax] = common::ComputeAabb(vecVisiblePos0, vecVisiblePos1, vecVisiblePos2, vecVisiblePos3, vecLightingPos0, vecLightingPos1, vecLightingPos2, vecLightingPos3);
-		if (!game::gpCamera->AabbIntersectsVisibleArea(game::gpCamera->f4RenderVisibleArea, vecMin, vecMax))
+		if (!common::AabbIntersectsArea(game::gpCamera->f4RenderVisibleArea, vecMin, vecMax))
 		{
 			continue;
 		}

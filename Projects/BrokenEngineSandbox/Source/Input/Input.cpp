@@ -16,28 +16,28 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 	const engine::RawInput& rRawInput = engine::gpRawInputManager->mRawInput;
 
 	// Check all keyboard and mouse buttons to detect keyboard/mouse mode
-	bool bKeyboardMouse = rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonLeft] || rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonRight] || rRawInput.pKeyboardKeys['A'] || rRawInput.pKeyboardKeys['D'] || rRawInput.pKeyboardKeys['W'] || rRawInput.pKeyboardKeys['S'] || rRawInput.pKeyboardKeys[VK_LEFT] || rRawInput.pKeyboardKeys[VK_RIGHT] || rRawInput.pKeyboardKeys[VK_UP] || rRawInput.pKeyboardKeys[VK_DOWN] || rRawInput.pKeyboardKeys[VK_NUMPAD1] || rRawInput.pKeyboardKeys[VK_NUMPAD3] || rRawInput.pKeyboardKeys[VK_NUMPAD5] || rRawInput.pKeyboardKeys[VK_NUMPAD2];
+	bool bKeyboardMouse = (rRawInput.mouseButtons & engine::MouseButtons::kMouseButtonLeft) || (rRawInput.mouseButtons & engine::MouseButtons::kMouseButtonRight) || rRawInput.pKeyboardKeys['A'] || rRawInput.pKeyboardKeys['D'] || rRawInput.pKeyboardKeys['W'] || rRawInput.pKeyboardKeys['S'] || rRawInput.pKeyboardKeys[VK_LEFT] || rRawInput.pKeyboardKeys[VK_RIGHT] || rRawInput.pKeyboardKeys[VK_UP] || rRawInput.pKeyboardKeys[VK_DOWN] || rRawInput.pKeyboardKeys[VK_NUMPAD1] || rRawInput.pKeyboardKeys[VK_NUMPAD3] || rRawInput.pKeyboardKeys[VK_NUMPAD5] || rRawInput.pKeyboardKeys[VK_NUMPAD2];
 
 	if (bKeyboardMouse)
 	{
-		mbGamepadMode = false;
+		mStateFlags.Clear(InputStateFlags::kGamepadMode);
 	}
 	else if (std::abs(rRawInput.f2LeftThumbstick.x) + std::abs(rRawInput.f2LeftThumbstick.y) > kfGamepadThreshold || std::abs(rRawInput.f2RightThumbstick.x) + std::abs(rRawInput.f2RightThumbstick.y) > kfGamepadThreshold)
 	{
-		mbGamepadMode = true;
+		mStateFlags.Set(InputStateFlags::kGamepadMode);
 	}
 	else if (!::operator==(rRawInput.f2MousePosition, mPreviousRawInputMenu.f2MousePosition))
 	{
-		mbGamepadMode = false;
+		mStateFlags.Clear(InputStateFlags::kGamepadMode);
 	}
 
-	rMenuInput.bGamepad = mbGamepadMode;
+	rMenuInput.bGamepad = mStateFlags & InputStateFlags::kGamepadMode;
 
 	// Menu
 	rMenuInput.flags.Set(kQuit, rRawInput.pKeyboardKeys[VK_MENU] && KeyboardPressed(VK_F4, rRawInput));
 	rMenuInput.flags.Set(kToggleFullscreen, KeyboardPressed(VK_F1, rRawInput));
 	rMenuInput.flags.Set(kWeaponModeToggle, KeyboardPressed('Q', rRawInput));
-	rMenuInput.flags.Set(kMouseIsDown, rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonLeft]);
+	rMenuInput.flags.Set(kMouseIsDown, rRawInput.mouseButtons & engine::MouseButtons::kMouseButtonLeft);
 	rMenuInput.flags.Set(kMouseClick, MousePressed(engine::MouseButtons::kMouseButtonLeft, rRawInput));
 	rMenuInput.flags.Set(kGamepadButton, GamepadPressed(engine::GamepadButtons::kGamepadButtonA, rRawInput));
 	if constexpr (kbProfiling)
@@ -91,9 +91,9 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 		rIo.BackendFlags |= ImGuiBackendFlags_HasGamepad;
 
 		// Map gamepad buttons to ImGui keys
-		rIo.AddKeyEvent(ImGuiKey_GamepadFaceDown, rRawInput.pGamepadButtons[engine::kGamepadButtonA]);
-		rIo.AddKeyEvent(ImGuiKey_GamepadFaceRight, rRawInput.pGamepadButtons[engine::kGamepadButtonB]);
-		rIo.AddKeyEvent(ImGuiKey_GamepadStart, rRawInput.pGamepadButtons[engine::kGamepadMenu]);
+		rIo.AddKeyEvent(ImGuiKey_GamepadFaceDown, rRawInput.gamepadButtons & engine::kGamepadButtonA);
+		rIo.AddKeyEvent(ImGuiKey_GamepadFaceRight, rRawInput.gamepadButtons & engine::kGamepadButtonB);
+		rIo.AddKeyEvent(ImGuiKey_GamepadStart, rRawInput.gamepadButtons & engine::kGamepadMenu);
 
 		// D-pad stored as analog values in f2Dpad
 		rIo.AddKeyEvent(ImGuiKey_GamepadDpadUp, rRawInput.f2Dpad.y > 0.5f);
@@ -127,10 +127,10 @@ void Input::UpdateCameraInput()
 	mCameraInput.f2Move = f2Move;
 
 	int iScrollNow = rRawInput.iScrollWheelValue;
-	if (!mbScrollWheelInitialized)
+	if (!(mStateFlags & InputStateFlags::kScrollWheelInitialized))
 	{
 		miPreviousScrollWheelValue = iScrollNow;
-		mbScrollWheelInitialized = true;
+		mStateFlags.Set(InputStateFlags::kScrollWheelInitialized);
 	}
 	mCameraInput.iScrollDelta = iScrollNow - miPreviousScrollWheelValue;
 	miPreviousScrollWheelValue = iScrollNow;

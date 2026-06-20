@@ -44,13 +44,13 @@ void TweaksScreenBase::RenderSoundSection()
 
 	if (ImGui::BeginTabBar("SoundTabs"))
 	{
-		if (ImGui::BeginTabItem("Volumes", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 0) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Volumes", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 0)
+			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0)
 			{
-				mApplySubtab[kiSection] = false;
+				mApplySubtab.Clear(SectionFlag(kiSection));
 			}
-			if (!mApplySubtab[kiSection])
+			if (!(mApplySubtab & SectionFlag(kiSection)))
 			{
 				mActiveSubtab[kiSection] = 0;
 			}
@@ -65,13 +65,13 @@ void TweaksScreenBase::RenderSoundSection()
 
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Tweaks", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Tweaks", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 1)
+			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1)
 			{
-				mApplySubtab[kiSection] = false;
+				mApplySubtab.Clear(SectionFlag(kiSection));
 			}
-			if (!mApplySubtab[kiSection])
+			if (!(mApplySubtab & SectionFlag(kiSection)))
 			{
 				mActiveSubtab[kiSection] = 1;
 			}

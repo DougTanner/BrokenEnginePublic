@@ -65,13 +65,13 @@ void TweaksScreen::RenderParticlesSection()
 
 	if (ImGui::BeginTabBar("ParticlesTabs"))
 	{
-		if (ImGui::BeginTabItem("Missile", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 0) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Missile", nullptr, ((mApplySubtab & engine::SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 0)
+			if ((mApplySubtab & engine::SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0)
 			{
-				mApplySubtab[kiSection] = false;
+				mApplySubtab.Clear(engine::SectionFlag(kiSection));
 			}
-			if (!mApplySubtab[kiSection])
+			if (!(mApplySubtab & engine::SectionFlag(kiSection)))
 			{
 				mActiveSubtab[kiSection] = 0;
 			}
@@ -99,13 +99,13 @@ void TweaksScreen::RenderParticlesSection()
 			ImGui::EndTabItem();
 		}
 
-		if (ImGui::BeginTabItem("Player", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Player", nullptr, ((mApplySubtab & engine::SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 1)
+			if ((mApplySubtab & engine::SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1)
 			{
-				mApplySubtab[kiSection] = false;
+				mApplySubtab.Clear(engine::SectionFlag(kiSection));
 			}
-			if (!mApplySubtab[kiSection])
+			if (!(mApplySubtab & engine::SectionFlag(kiSection)))
 			{
 				mActiveSubtab[kiSection] = 1;
 			}
@@ -133,13 +133,13 @@ void TweaksScreen::RenderParticlesSection()
 			ImGui::EndTabItem();
 		}
 
-		if (ImGui::BeginTabItem("Spaceship", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 2) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Spaceship", nullptr, ((mApplySubtab & engine::SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 2) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 2)
+			if ((mApplySubtab & engine::SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 2)
 			{
-				mApplySubtab[kiSection] = false;
+				mApplySubtab.Clear(engine::SectionFlag(kiSection));
 			}
-			if (!mApplySubtab[kiSection])
+			if (!(mApplySubtab & engine::SectionFlag(kiSection)))
 			{
 				mActiveSubtab[kiSection] = 2;
 			}

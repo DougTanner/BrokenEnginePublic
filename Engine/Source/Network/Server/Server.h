@@ -61,7 +61,7 @@ struct ClientConnection
 	{
 		for (int64_t i = 0; i < std::ssize(coordSubscriptions); ++i)
 		{
-			if (coordSubscriptions.at(i).bActive && coordSubscriptions.at(i).coord == coord)
+			if ((coordSubscriptions.at(i).flags & SubscriptionFlags::kActive) && coordSubscriptions.at(i).coord == coord)
 			{
 				return i;
 			}
@@ -73,7 +73,7 @@ struct ClientConnection
 	{
 		for (int64_t i = 0; i < std::ssize(coordSubscriptions); ++i)
 		{
-			if (!coordSubscriptions.at(i).bActive)
+			if (!(coordSubscriptions.at(i).flags & SubscriptionFlags::kActive))
 			{
 				return i;
 			}
@@ -213,6 +213,7 @@ private:
 
 	// Network simulation delay queue
 	std::deque<DelayedPacket> mDelayedPackets;
+	NetworkSimulationState mNetworkSimState;
 };
 
 inline Server* gpServer = nullptr;

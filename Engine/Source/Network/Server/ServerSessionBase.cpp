@@ -71,7 +71,7 @@ void ServerSessionBase::SendNewSubscriptionFullStates()
 		const ClientConnection* pClient = gpServer->FindClient(rSub.iClientId);
 		bool bSlotStillValid = (pClient != nullptr
 			&& rSub.iSlot < std::ssize(pClient->coordSubscriptions)
-			&& pClient->coordSubscriptions.at(rSub.iSlot).bActive
+			&& (pClient->coordSubscriptions.at(rSub.iSlot).flags & SubscriptionFlags::kActive)
 			&& pClient->coordSubscriptions.at(rSub.iSlot).coord == rSub.coord);
 		if (!bSlotStillValid)
 		{
@@ -85,6 +85,11 @@ void ServerSessionBase::SendNewSubscriptionFullStates()
 			gpServer->SendCoordFullState(rSub.iClientId, rSub.iSlot, game::gpGame->TickCounter(), rSub.coord, frameIt->second.pCurrent.get());
 		}
 	}
+
+	// Persist-until-served: Server::Poll no longer clears this queue, so clear it here once serviced. A
+	// subscribe accepted while the server is paused (iFullTicks == 0) stays queued across polls until this
+	// post-tick consumer runs and sends its full state.
+	rNewSubs.clear();
 }
 
 } // namespace engine

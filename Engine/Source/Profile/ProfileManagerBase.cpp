@@ -52,7 +52,7 @@ void ProfileManagerBase::Create()
 		// Initial reset of all queries before command buffer recording
 		OneShotCommandBuffer oneShotCommandBuffer;
 		vkCmdResetQueryPool(oneShotCommandBuffer.mVkCommandBuffer, mVkQueryPool, 0, static_cast<uint32_t>(iQueryCount));
-		oneShotCommandBuffer.Execute(true);
+		oneShotCommandBuffer.Execute();
 #endif // BT_CLIENT
 	}
 }

@@ -14,11 +14,16 @@ struct StatusChange;
 namespace engine
 {
 
+enum class SubscriptionFlags : uint8_t
+{
+	kActive            = 1 << 0,
+	kFirstUpdateLogged = 1 << 1,
+};
+
 struct ClientCoordSubscription
 {
 	GridCoord coord {};
-	bool bActive = false;
-	bool bFirstUpdateLogged = false;
+	common::Flags<SubscriptionFlags> flags;
 };
 
 struct PendingSpawnRequest

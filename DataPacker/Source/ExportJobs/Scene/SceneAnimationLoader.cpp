@@ -78,15 +78,15 @@ void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int,
 			// Target path
 			if (rGltfChannel.target_path == "translation")
 			{
-				channel.uiTargetPath = 0;
+				channel.uiTargetPath = common::AnimationChannel::kTargetPathTranslation;
 			}
 			else if (rGltfChannel.target_path == "rotation")
 			{
-				channel.uiTargetPath = 1;
+				channel.uiTargetPath = common::AnimationChannel::kTargetPathRotation;
 			}
 			else if (rGltfChannel.target_path == "scale")
 			{
-				channel.uiTargetPath = 2;
+				channel.uiTargetPath = common::AnimationChannel::kTargetPathScale;
 			}
 			else
 			{
@@ -96,15 +96,15 @@ void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int,
 			// Interpolation
 			if (rSampler.interpolation == "STEP")
 			{
-				channel.uiInterpolation = 0;
+				channel.uiInterpolation = common::AnimationChannel::kInterpolationStep;
 			}
 			else if (rSampler.interpolation == "CUBICSPLINE")
 			{
-				channel.uiInterpolation = 2;
+				channel.uiInterpolation = common::AnimationChannel::kInterpolationCubicSpline;
 			}
 			else
 			{
-				channel.uiInterpolation = 1; // LINEAR
+				channel.uiInterpolation = common::AnimationChannel::kInterpolationLinear;
 			}
 
 			// Keyframe times come from the input accessor (which also supplies the keyframe count); values from the output accessor
@@ -114,9 +114,9 @@ void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int,
 
 			channel.uiKeyframeCount = static_cast<uint32_t>(rInputAccessor.count);
 
-			int iValueStride = (channel.uiTargetPath == 1) ? 4 : 3; // Rotation is vec4, others vec3
+			int iValueStride = (channel.uiTargetPath == common::AnimationChannel::kTargetPathRotation) ? 4 : 3; // Rotation is vec4, others vec3
 
-			if (channel.uiInterpolation == 2) // CUBICSPLINE
+			if (channel.uiInterpolation == common::AnimationChannel::kInterpolationCubicSpline) // CUBICSPLINE
 			{
 				channel.uiKeyframeStart = static_cast<uint32_t>(rCubicKeyframes.size());
 
@@ -128,7 +128,7 @@ void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int,
 					// CUBICSPLINE has 3 values per keyframe: in-tangent, value, out-tangent
 					int64_t iBaseIdx = j * 3 * iValueStride;
 
-					if (channel.uiTargetPath == 1) // Rotation (vec4)
+					if (channel.uiTargetPath == common::AnimationChannel::kTargetPathRotation) // Rotation (vec4)
 					{
 						keyframe.f4InTangent = XMFLOAT4(pfValues[iBaseIdx + 0], pfValues[iBaseIdx + 1], pfValues[iBaseIdx + 2], pfValues[iBaseIdx + 3]);
 						keyframe.f4Value = XMFLOAT4(pfValues[iBaseIdx + iValueStride + 0], pfValues[iBaseIdx + iValueStride + 1], pfValues[iBaseIdx + iValueStride + 2], pfValues[iBaseIdx + iValueStride + 3]);
@@ -154,12 +154,12 @@ void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int,
 					common::AnimationKeyframe keyframe {};
 					keyframe.fTime = pfTimes[j];
 
-					if (channel.uiTargetPath == 1)
+					if (channel.uiTargetPath == common::AnimationChannel::kTargetPathRotation)
 					{
 						// Rotation (quaternion)
 						keyframe.f4Value = XMFLOAT4(pfValues[j * iValueStride + 0], pfValues[j * iValueStride + 1], pfValues[j * iValueStride + 2], pfValues[j * iValueStride + 3]);
 					}
-					else if (channel.uiTargetPath == 0)
+					else if (channel.uiTargetPath == common::AnimationChannel::kTargetPathTranslation)
 					{
 						// Translation
 						keyframe.f4Value = XMFLOAT4(pfValues[j * iValueStride + 0], pfValues[j * iValueStride + 1], pfValues[j * iValueStride + 2], 0.0f);

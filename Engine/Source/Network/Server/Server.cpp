@@ -69,8 +69,10 @@ void Server::Poll()
 
 	mPendingSpawnRequests.clear();
 	mPendingDisconnects.clear();
-	mPendingNewSubscriptions.clear();
-	mPendingResyncClientIds.clear();
+	// mPendingNewSubscriptions / mPendingResyncClientIds are intentionally NOT cleared here. Their consumers
+	// (ServerSessionBase::SendNewSubscriptionFullStates / game ServerSession::HandleResyncRequests) run only
+	// post-tick, so a per-poll clear would drop a subscribe/resync accepted while the server is paused
+	// (iFullTicks == 0) before any full state is sent. They persist until those consumers service and clear them.
 	mReceivedGamePackets.clear();
 
 	ENetEvent event {};
@@ -95,18 +97,9 @@ void Server::Poll()
 	// Process delayed packets whose release time has passed (or flush all when bypassing simulation)
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
-		auto handleDelayed = [this](const DelayedPacket& rPacket)
-		{
-			Receive(rPacket.data.data(), rPacket.data.size(), rPacket.pPeer);
-		};
-		if (game::gpGame->mTimeStep.miTimeMultiply > 1)
-		{
-			NetworkSimulation::FlushDelayed(mDelayedPackets, handleDelayed);
-		}
-		else
-		{
-			NetworkSimulation::ProcessDelayed(mDelayedPackets, handleDelayed);
-		}
+		bool bFastForward = game::gpGame->mTimeStep.miTimeMultiply > 1;
+		NetworkSimulation::ProcessOrFlush(mDelayedPackets, bFastForward,
+			[this](const DelayedPacket& rPacket) { Receive(rPacket.data.data(), rPacket.data.size(), rPacket.pPeer); });
 	}
 }
 
@@ -114,17 +107,10 @@ void Server::DispatchIncoming(ENetEvent& rEvent)
 {
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
-		if (game::gpGame->mTimeStep.miTimeMultiply > 1)
-		{
-			Receive(rEvent);
-			enet_packet_destroy(rEvent.packet);
-		}
-		else
-		{
-			constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
-			NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, rEvent,
-				[this](ENetEvent& rInner) { Receive(rInner); });
-		}
+		constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
+		bool bFastForward = game::gpGame->mTimeStep.miTimeMultiply > 1;
+		NetworkSimulation::DispatchOrEnqueue(mDelayedPackets, mNetworkSimState, kSimConfig, bFastForward, rEvent,
+			[this](ENetEvent& rInner) { Receive(rInner); });
 	}
 	else
 	{

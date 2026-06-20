@@ -906,7 +906,7 @@ void TextureManager::BlurLightingTexture(common::crc_t crc, bool bNeedAcquireBar
 	// Transition result back to shader read for bindless sampling
 	rResult.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 
-	oneShotCommandBuffer.Execute(true);
+	oneShotCommandBuffer.Execute();
 
 	// Register blurred texture in bindless array
 	common::crc_t blurredCrc = crc ^ TextureDescriptors::kBlurSalt;

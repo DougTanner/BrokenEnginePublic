@@ -141,7 +141,7 @@ void Texture::AdoptTransferredImage(VkImage& rVkImage, VmaAllocation& rVmaAlloca
 
 void Texture::RecordAcquireBarrier(VkCommandBuffer vkCommandBuffer)
 {
-	bool bQueueFamilyOwnershipTransferOptional = gpDeviceManager->mbTransferQueueFamilyOwnershipTransferOptional;
+	bool bQueueFamilyOwnershipTransferOptional = gpDeviceManager->mCapabilities & DeviceCapabilityFlags::kTransferQueueFamilyOwnershipTransferOptional;
 
 	VkImageMemoryBarrier vkImageMemoryBarrier
 	{
@@ -226,7 +226,7 @@ void Texture::Create(const TextureInfo& rInfo, const std::function<void(void*, i
 	{
 		OneShotCommandBuffer oneShotCommandBuffer;
 		TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kUndefined, mInfo.eTextureLayout);
-		oneShotCommandBuffer.Execute(true);
+		oneShotCommandBuffer.Execute();
 	}
 }
 
@@ -289,7 +289,7 @@ void Texture::UploadImageData(const std::function<void(void*, int64_t, int64_t)>
 		TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, eFinalLayout);
 	}
 
-	oneShotCommandBuffer.Execute(true);
+	oneShotCommandBuffer.Execute();
 
 	// Cleanup staging buffer
 	vmaDestroyBuffer(gpDeviceManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);

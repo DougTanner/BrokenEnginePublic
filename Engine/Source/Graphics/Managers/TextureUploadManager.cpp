@@ -356,7 +356,7 @@ void TextureUploadManager::UploadThread()
 				bool bSeparateTransferFamily = gpInstanceManager->miTransferQueueFamilyIndex != gpInstanceManager->miGraphicsQueueFamilyIndex;
 				if (bSeparateTransferFamily)
 				{
-					if (gpDeviceManager->mbTransferQueueFamilyOwnershipTransferOptional)
+					if (gpDeviceManager->mCapabilities & DeviceCapabilityFlags::kTransferQueueFamilyOwnershipTransferOptional)
 					{
 						// QFOT optional (VK_KHR_maintenance9): no ownership transfer needed, transition layout directly
 						vkImageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;

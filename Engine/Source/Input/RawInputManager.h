@@ -5,42 +5,38 @@ namespace engine
 
 inline constexpr int64_t kiKeyboardKeyCount = 0xFF;
 
-enum MouseButtons
+enum MouseButtons : uint32_t
 {
-	kMouseButtonLeft,
-	kMouseButtonMiddle,
-	kMouseButtonRight,
-	kMouseButtonExtraOne,
-	kMouseButtonExtraTwo,
-
-	kMouseButtonCount
+	kMouseButtonLeft     = 1u << 0,
+	kMouseButtonMiddle   = 1u << 1,
+	kMouseButtonRight    = 1u << 2,
+	kMouseButtonExtraOne = 1u << 3,
+	kMouseButtonExtraTwo = 1u << 4,
 };
 
-enum GamepadButtons
+enum GamepadButtons : uint32_t
 {
-	kGamepadButtonA,
-	kGamepadButtonB,
-	kGamepadButtonX,
-	kGamepadButtonY,
+	kGamepadButtonA       = 1u << 0,
+	kGamepadButtonB       = 1u << 1,
+	kGamepadButtonX       = 1u << 2,
+	kGamepadButtonY       = 1u << 3,
 
-	kGamepadLeftShoulder,
-	kGamepadRightShoulder,
+	kGamepadLeftShoulder  = 1u << 4,
+	kGamepadRightShoulder = 1u << 5,
 
-	kGamepadStart,
-	kGamepadMenu,
-
-	kGamepadButtonCount
+	kGamepadStart         = 1u << 6,
+	kGamepadMenu          = 1u << 7,
 };
 
 struct RawInput
 {
 	bool pKeyboardKeys[kiKeyboardKeyCount] {};
 
-	bool pMouseButtons[kMouseButtonCount] {};
+	common::Flags<MouseButtons> mouseButtons {};
 	XMFLOAT2 f2MousePosition {};
 	int iScrollWheelValue = 0;
 
-	bool pGamepadButtons[kGamepadButtonCount] {};
+	common::Flags<GamepadButtons> gamepadButtons {};
 	XMFLOAT2 f2LeftThumbstick {};
 	XMFLOAT2 f2RightThumbstick {};
 	XMFLOAT2 f2Dpad {};
@@ -64,6 +60,12 @@ public:
 
 private:
 
+	enum class RawInputStateFlags : uint8_t
+	{
+		kGamePadConnected = 1 << 0,
+		kHasFocus         = 1 << 1,
+	};
+
 	void TrapCursor(bool bTrap);
 
 	HWND mHwnd = nullptr;
@@ -72,8 +74,7 @@ private:
 	Mouse mMouse;
 
 	std::unique_ptr<GamePad> mpGamePad;
-	bool mbGamePadConnected = false;
-	bool mbHasFocus = false;
+	common::Flags<RawInputStateFlags> mStateFlags;
 };
 
 inline RawInputManager* gpRawInputManager = nullptr;

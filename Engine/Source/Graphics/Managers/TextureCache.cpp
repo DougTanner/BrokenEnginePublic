@@ -99,7 +99,7 @@ void TextureCache::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, Vk
 	vkImageMemoryBarrier.dstAccessMask = dstAccess;
 	vkCmdPipelineBarrier(oneShotCommandBuffer.mVkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, dstStage, 0, 0, nullptr, 0, nullptr, 1, &vkImageMemoryBarrier);
 
-	oneShotCommandBuffer.Execute(true);
+	oneShotCommandBuffer.Execute();
 
 	// Use VMA's pre-mapped pointer to copy data to output (VMA guarantees pMappedData valid for mapped allocations)
 #pragma warning(suppress: 6387)
@@ -190,7 +190,7 @@ void TextureCache::GeneratePbrLutBrdf()
 	pipeline.RecordDraw(0, oneShotCommandBuffer.mVkCommandBuffer, 1, 0);
 	mPbrLutBrdfTexture.RecordEndRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
 
-	oneShotCommandBuffer.Execute(true);
+	oneShotCommandBuffer.Execute();
 
 	// Save generated texture to cache
 	SaveTextureToCache("BrdfLut.cache", mPbrLutBrdfTexture, vkFormat);

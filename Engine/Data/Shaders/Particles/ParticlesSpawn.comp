@@ -121,8 +121,8 @@ void main()
 	particles.iLastCount = iCount;
 
 	// Fill in the dispatch command that will control the ParticlesUpdate compute shader
-	// ParticlesUpdate uses workgroup size of 32, so dispatch ceil(particle_count / 32) workgroups
-	vkDispatchIndirectCommand.x = (particles.iLastCount + 31) / 32;
+	// ParticlesUpdate's local_size_x is kiParticleUpdateGroupSize, so dispatch ceil(particle_count / group size)
+	vkDispatchIndirectCommand.x = (particles.iLastCount + (kiParticleUpdateGroupSize - 1)) / kiParticleUpdateGroupSize;
 	vkDispatchIndirectCommand.y = 1;
 	vkDispatchIndirectCommand.z = 1;
 

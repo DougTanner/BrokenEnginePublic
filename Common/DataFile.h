@@ -118,9 +118,18 @@ static_assert(sizeof(AnimationKeyframeCubic) == 52, "AnimationKeyframeCubic layo
 // Animation channel (one property of one node)
 struct AnimationChannel
 {
+	// glTF channel enums shared by the runtime reader (AnimationData) and the DataPacker writer
+	// (SceneAnimationLoader). static constexpr members do not affect sizeof, so the layout static_assert holds.
+	static constexpr uint8_t kTargetPathTranslation = 0;
+	static constexpr uint8_t kTargetPathRotation    = 1;
+	static constexpr uint8_t kTargetPathScale       = 2;
+	static constexpr uint8_t kInterpolationStep        = 0;
+	static constexpr uint8_t kInterpolationLinear      = 1;
+	static constexpr uint8_t kInterpolationCubicSpline = 2;
+
 	uint16_t uiNodeIndex = 0;     // Node index in skeleton.nodes[]
-	uint8_t uiTargetPath = 0;     // 0=translation, 1=rotation, 2=scale
-	uint8_t uiInterpolation = 0;  // 0=STEP, 1=LINEAR, 2=CUBICSPLINE
+	uint8_t uiTargetPath = 0;     // kTargetPath* (translation/rotation/scale)
+	uint8_t uiInterpolation = 0;  // kInterpolation* (STEP/LINEAR/CUBICSPLINE)
 	uint32_t uiKeyframeStart = 0; // Index into keyframe array
 	uint32_t uiKeyframeCount = 0;
 };

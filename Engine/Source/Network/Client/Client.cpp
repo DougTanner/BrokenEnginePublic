@@ -9,16 +9,20 @@
 namespace engine
 {
 
-Client::Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots)
+Client::Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots, const ClientGuid& rGuid, GuidAssignedCallback pfnGuidAssigned)
 {
 	ASSERT(gpClient == nullptr);
 
 	gpClient = this;
 
+	mClientGuid = rGuid;
+	mpfnGuidAssigned = pfnGuidAssigned;
+
 	ScopedSuppressAllocationTracking suppress;
 
 	mReceivedCoordUpdates.resize(iCoordSlots);
 	mCoordSlots.resize(iCoordSlots);
+	mStatusChangeScratch.resize(kiMaxStatusChangesPerCell);
 	// Heap: ENet allocates host data internally
 	mpHost = enet_host_create(nullptr, 1, NetworkManager::kuiChannelCount, 0, 0);
 	if (mpHost == nullptr)
@@ -40,7 +44,7 @@ Client::Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots)
 
 Client::~Client()
 {
-	if (mpServerPeer != nullptr && mbConnected)
+	if (mpServerPeer != nullptr && (mStateFlags & ClientStateFlags::kConnected))
 	{
 		enet_peer_disconnect(mpServerPeer, 0);
 
@@ -74,6 +78,23 @@ Client::~Client()
 	}
 }
 
+void Client::CancelSubscription(int64_t iSlot)
+{
+	GridCoord cancelledCoord = mCoordSlots.at(iSlot).coord;
+	mCoordSlots.at(iSlot) = {};
+	mCancelledSubscriptions.push_back(cancelledCoord);
+	LOG(kNetwork, kVerbose, "Client::CancelSubscription Slot: {} Coord: ({},{}) CancelledCount: {}", iSlot, cancelledCoord.x, cancelledCoord.y, mCancelledSubscriptions.size());
+}
+
+void Client::ResetAllSlots()
+{
+	for (ClientCoordSlot& rSlot : mCoordSlots)
+	{
+		rSlot = {};
+	}
+	mCancelledSubscriptions.clear();
+}
+
 void Client::Poll()
 {
 	ASSERT(common::gpMultithreading->IsMainThread());
@@ -99,15 +120,15 @@ void Client::Poll()
 			case ENET_EVENT_TYPE_CONNECT:
 			{
 				LOG(kNetwork, kInfo, "Client::Poll ENET_EVENT_TYPE_CONNECT");
-				mbConnected = true;
+				mStateFlags.Set(ClientStateFlags::kConnected);
 				// Disable ENet peer throttle to prevent unreliable packet drops during reconciliation stalls
 				enet_peer_throttle_configure(mpServerPeer, UINT32_MAX, 0, 0);
 				SendHello();
 				break;
 			}
 			case ENET_EVENT_TYPE_DISCONNECT:
-				mbConnected = false;
-				mbDisconnectedEvent = true;
+				mStateFlags.Clear(ClientStateFlags::kConnected);
+				mStateFlags.Set(ClientStateFlags::kDisconnectedEvent);
 				mpServerPeer = nullptr;
 				LOG(kNetwork, kInfo, "ENET_EVENT_TYPE_DISCONNECT");
 				break;
@@ -122,18 +143,9 @@ void Client::Poll()
 	// Process delayed packets whose release time has passed (or flush all when bypassing simulation)
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
-		auto handleDelayed = [this](const DelayedPacket& rPacket)
-		{
-			Receive(rPacket.data.data(), rPacket.data.size());
-		};
-		if (game::gpGame->mTimeStep.miTimeMultiply > 1)
-		{
-			NetworkSimulation::FlushDelayed(mDelayedPackets, handleDelayed);
-		}
-		else
-		{
-			NetworkSimulation::ProcessDelayed(mDelayedPackets, handleDelayed);
-		}
+		bool bFastForward = game::gpGame->mTimeStep.miTimeMultiply > 1;
+		NetworkSimulation::ProcessOrFlush(mDelayedPackets, bFastForward,
+			[this](const DelayedPacket& rPacket) { Receive(rPacket.data.data(), rPacket.data.size()); });
 	}
 
 	// Track bandwidth deltas from host-level cumulative counters
@@ -149,17 +161,10 @@ void Client::DispatchIncoming(ENetEvent& rEvent)
 {
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
-		if (game::gpGame->mTimeStep.miTimeMultiply > 1)
-		{
-			Receive(rEvent);
-			enet_packet_destroy(rEvent.packet);
-		}
-		else
-		{
-			constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
-			NetworkSimulation::EnqueueOrDrop(mDelayedPackets, kSimConfig, rEvent,
-				[this](ENetEvent& rInner) { Receive(rInner); });
-		}
+		constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
+		bool bFastForward = game::gpGame->mTimeStep.miTimeMultiply > 1;
+		NetworkSimulation::DispatchOrEnqueue(mDelayedPackets, mNetworkSimState, kSimConfig, bFastForward, rEvent,
+			[this](ENetEvent& rInner) { Receive(rInner); });
 	}
 	else
 	{
@@ -209,7 +214,7 @@ void Client::Receive(const uint8_t* pData, size_t iSize)
 			ServerUnsubscribeAck(pData, iSize);
 			break;
 		case PacketType::kServerLoadNotification:
-			mbLoadNotificationReceived = true;
+			mStateFlags.Set(ClientStateFlags::kLoadNotificationReceived);
 			break;
 		default:
 			if (static_cast<uint8_t>(eType) >= static_cast<uint8_t>(PacketType::kGamePacketStart))
@@ -228,7 +233,7 @@ void Client::Receive(const uint8_t* pData, size_t iSize)
 
 void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 {
-	if (mbDesyncDebugMode)
+	if (mStateFlags & ClientStateFlags::kDesyncDebugMode)
 	{
 		return;
 	}
@@ -253,7 +258,7 @@ void Client::TrackReceivedTick(int64_t iSlot, int64_t iTick)
 	if (iBitIndex >= kiNetworkBufferSize)
 	{
 		LOG(kNetwork, kWarning, "Client::TrackReceivedTick Too many missing frames, disconnecting Slot: {} Gap: {}", iSlot, iBitIndex + 1);
-		mbDisconnectedEvent = true;
+		mStateFlags.Set(ClientStateFlags::kDisconnectedEvent);
 		return;
 	}
 
@@ -296,12 +301,12 @@ void Client::Flush()
 
 void Client::Disconnect()
 {
-	if (mpServerPeer != nullptr && mbConnected)
+	if (mpServerPeer != nullptr && (mStateFlags & ClientStateFlags::kConnected))
 	{
 		// Heap: ENet may queue a peer disconnect packet
 		ScopedSuppressAllocationTracking suppress;
 		enet_peer_disconnect(mpServerPeer, 0);
-		mbConnected = false;
+		mStateFlags.Clear(ClientStateFlags::kConnected);
 	}
 }
 
@@ -315,7 +320,9 @@ float Client::GetPacketLossPercent()
 			++iActiveSlots;
 		}
 	}
-	int64_t iExpected = kiTickRate * iActiveSlots;
+	// Received-frame count is a wall-clock window; the server's per-second broadcast rate scales with the debug timescale
+	const TimeStep& rTimeStep = game::gpGame->mTimeStep;
+	int64_t iExpected = kiTickRate * iActiveSlots * rTimeStep.miTimeMultiply / rTimeStep.miTimeDivide;
 	if (iExpected <= 0)
 	{
 		return 0.0f;

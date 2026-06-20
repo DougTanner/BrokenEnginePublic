@@ -10,7 +10,7 @@ public:
 	OneShotCommandBuffer();
 	~OneShotCommandBuffer();
 
-	void Execute(bool bWait);
+	void Execute();
 
 	VkCommandBuffer mVkCommandBuffer = VK_NULL_HANDLE;
 };

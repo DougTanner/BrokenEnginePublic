@@ -266,18 +266,19 @@ void Game::ComputeActiveSet()
 		return rPair.second.iConfirmedTick < 0;
 	}) <= 9);
 
-	// Update island rendering only for subscribed frames (confirmed server data)
-	std::vector<engine::GridCoord> subscribedCoords;
-	subscribedCoords.reserve(mActiveCoords.size());
+	// Update island rendering only for subscribed frames (confirmed server data). Build the filtered
+	// coord list in the workbuffer (per-frame, no heap) and pass it as a span; UpdateActiveIslands' own
+	// nested PushBuffer is LIFO and pops before this arena does.
+	common::ScopedWorkbufferArena subscribedArena = common::gpThreadLocal->mWorkbuffer.Push();
 	for (const engine::GridCoord& rCoord : mActiveCoords)
 	{
 		auto it = mCoordFrames.find(rCoord);
 		if (it != mCoordFrames.end() && (it->second.iConfirmedTick >= 0 || rCoord == mClientGridCoord))
 		{
-			subscribedCoords.push_back(rCoord);
+			subscribedArena.PushBack<engine::GridCoord>(rCoord);
 		}
 	}
-	engine::gpIslands->UpdateActiveIslands(mCoordFrames, subscribedCoords);
+	engine::gpIslands->UpdateActiveIslands(mCoordFrames, subscribedArena.Span<const engine::GridCoord>());
 #endif // BT_SERVER
 }
 
@@ -864,7 +865,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 #if defined(BT_CLIENT)
 		if (rMenuInput.flags & MenuInputFlags::kConnectLocal && InMainMenu())
 		{
-			if (gpClientSession->mbServerDiscovered)
+			if (gpClientSession->mSessionFlags & engine::SessionStateFlags::kServerDiscovered)
 			{
 				gpClientSession->ConnectToDiscoveredServer();
 			}

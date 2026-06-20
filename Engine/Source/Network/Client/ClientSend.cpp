@@ -109,12 +109,7 @@ bool Client::SendSubscribe(GridCoord coord)
 			{
 				if (mCoordSlots.at(i).eState == CoordSubscriptionState::kUnsubscribing)
 				{
-					uint8_t uiReliable = NetworkManager::CoordSlotReliable(i);
-					uint8_t uiUnreliable = NetworkManager::CoordSlotUnreliable(i);
-					std::erase_if(mDelayedPackets, [uiReliable, uiUnreliable](const DelayedPacket& rPacket)
-					{
-						return rPacket.uiChannelId == uiReliable || rPacket.uiChannelId == uiUnreliable;
-					});
+					NetworkSimulation::PurgeDelayedForSlot(mDelayedPackets, i);
 				}
 			}
 
@@ -158,30 +153,6 @@ void Client::SendResyncRequest()
 
 void Client::SendHello()
 {
-	// Heap: std::fstream and std::filesystem::path allocate for GUID file I/O
-	ScopedSuppressAllocationTracking suppress;
-
-	// Load GUID from disk if we don't have one yet
-	if (mClientGuid.IsEmpty())
-	{
-		ClientGuid loadedGuid {};
-		int64_t iGuidVersion = 0;
-		std::fstream guidStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("ClientGuid.bin"));
-		if (guidStream.good())
-		{
-			common::Read(guidStream, iGuidVersion);
-			int64_t iSize = 0;
-			common::Read(guidStream, iSize);
-			common::Read(guidStream, loadedGuid.uiHigh);
-			common::Read(guidStream, loadedGuid.uiLow);
-		}
-		if (iGuidVersion >= 1 && !loadedGuid.IsEmpty())
-		{
-			mClientGuid = loadedGuid;
-			LOG(kNetwork, kInfo, "Client::SendHello Loaded GUID from disk: {} {}", mClientGuid.uiHigh, mClientGuid.uiLow);
-		}
-	}
-
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 

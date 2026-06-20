@@ -11,13 +11,64 @@ namespace engine
 
 // Connection lifecycle
 
+namespace
+{
+
+ClientGuid LoadClientGuidFromDisk()
+{
+	// Heap: std::fstream and std::filesystem::path allocate for GUID file I/O
+	ScopedSuppressAllocationTracking suppress;
+
+	ClientGuid loadedGuid {};
+	int64_t iGuidVersion = 0;
+	std::fstream guidStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("ClientGuid.bin"));
+	if (guidStream.good())
+	{
+		common::Read(guidStream, iGuidVersion);
+		int64_t iSize = 0;
+		common::Read(guidStream, iSize);
+		common::Read(guidStream, loadedGuid.uiHigh);
+		common::Read(guidStream, loadedGuid.uiLow);
+	}
+	if (iGuidVersion >= 1 && !loadedGuid.IsEmpty())
+	{
+		LOG(kNetwork, kInfo, "ClientSessionBase loaded GUID from disk: {} {}", loadedGuid.uiHigh, loadedGuid.uiLow);
+		return loadedGuid;
+	}
+	return {};
+}
+
+void PersistClientGuidToDisk(const ClientGuid& rGuid)
+{
+	// Persist to disk atomically (a mid-write crash here would otherwise empty the file and orphan all server-side fleets/players for this client on next connect).
+	// Heap: filesystem path and fstream operations for GUID persistence
+	ScopedSuppressAllocationTracking suppress;
+
+	bool bWritten = gpFileManager->WriteFileAtomically({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("ClientGuid.bin"), [&](std::fstream& guidStream)
+	{
+		int64_t iGuidVersion = 1;
+		common::Write(guidStream, iGuidVersion);
+		int64_t iGuidSize = 0;
+		common::Write(guidStream, iGuidSize);
+		common::Write(guidStream, rGuid.uiHigh);
+		common::Write(guidStream, rGuid.uiLow);
+	});
+	if (!bWritten)
+	{
+		LOG(kNetwork, kError, "Failed to persist ClientGuid.bin (next session will re-handshake as a new client)");
+	}
+}
+
+} // namespace
+
 void ClientSessionBase::ConnectToServer(std::string_view serverAddress, uint16_t uiPort, int64_t iCoordSlots)
 {
 	// Heap: ClientNetwork allocates ENet host and peer
 	ScopedSuppressAllocationTracking suppress;
 	miCoordSlots = iCoordSlots;
 	std::string serverAddressString(serverAddress); // null-terminate: serverAddress (string_view) is not guaranteed terminated for enet_address_set_host
-	mpClientNetwork = std::make_unique<Client>(serverAddressString.c_str(), uiPort, iCoordSlots);
+	ClientGuid clientGuid = LoadClientGuidFromDisk();
+	mpClientNetwork = std::make_unique<Client>(serverAddressString.c_str(), uiPort, iCoordSlots, clientGuid, &PersistClientGuidToDisk);
 }
 
 void ClientSessionBase::DisconnectFromServerBase()
@@ -33,16 +84,16 @@ void ClientSessionBase::DisconnectFromServerBase()
 		rCoordFrames.ResetClientState();
 	}
 	mSubscriptionQueue.clear();
-	mbServerDiscovered = false;
-	mbDiscoveryScanTimedOut = false;
+	mSessionFlags.Clear(SessionStateFlags::kServerDiscovered);
+	mSessionFlags.Clear(SessionStateFlags::kDiscoveryScanTimedOut);
 	miClockError = 0;
 	miCurrentTargetBehind = 0;
 	miLastLoggedClockTargetBehind = -1;
 	miLastPeriodicClockLogTick = -1;
-	mbClockErrorDisconnect = false;
+	mSessionFlags.Clear(SessionStateFlags::kClockErrorDisconnect);
 	miConsecutiveClockErrorFrames = 0;
 	miLastClockErrorLogTick = -1;
-	mbNoFreeSlotLogged = false;
+	mSessionFlags.Clear(SessionStateFlags::kNoFreeSlotLogged);
 }
 
 void ClientSessionBase::StartServerDiscovery()
@@ -66,13 +117,13 @@ void ClientSessionBase::PollLANDiscovery()
 	{
 		std::snprintf(mcDiscoveredAddress, sizeof(mcDiscoveredAddress), "%s", mpDiscoveryScanner->GetFoundAddress());
 		mpDiscoveryScanner.reset();
-		mbServerDiscovered = true;
+		mSessionFlags.Set(SessionStateFlags::kServerDiscovered);
 		return;
 	}
 	else if (!mpDiscoveryScanner->IsScanning())
 	{
 		// Timeout — restart scan
-		mbDiscoveryScanTimedOut = true;
+		mSessionFlags.Set(SessionStateFlags::kDiscoveryScanTimedOut);
 		mpDiscoveryScanner.reset();
 		StartServerDiscovery();
 	}
@@ -107,18 +158,18 @@ void ClientSessionBase::TrySubscribeNext()
 		}
 		if (!bAnyFree)
 		{
-			if (!mbNoFreeSlotLogged)
+			if (!(mSessionFlags & SessionStateFlags::kNoFreeSlotLogged))
 			{
-				mbNoFreeSlotLogged = true;
+				mSessionFlags.Set(SessionStateFlags::kNoFreeSlotLogged);
 				LOG(kNetwork, kWarning, "TrySubscribeNext NoFreeSlot (suppressing until slot frees) Pending: {} First: ({},{})", mSubscriptionQueue.size(), mSubscriptionQueue.front().x, mSubscriptionQueue.front().y);
 			}
 			return;
 		}
-		if (mbNoFreeSlotLogged)
+		if (mSessionFlags & SessionStateFlags::kNoFreeSlotLogged)
 		{
 			LOG(kNetwork, kDebug, "TrySubscribeNext NoFreeSlot resolved");
 		}
-		mbNoFreeSlotLogged = false;
+		mSessionFlags.Clear(SessionStateFlags::kNoFreeSlotLogged);
 	}
 
 	while (!mSubscriptionQueue.empty())
@@ -133,7 +184,7 @@ void ClientSessionBase::TrySubscribeNext()
 
 void ClientSessionBase::UnsubscribeStaleCoords(std::span<const GridCoord> desiredCoords)
 {
-	std::vector<ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
+	const std::vector<ClientCoordSlot>& rSlots = mpClientNetwork->GetCoordSlots();
 
 	for (int64_t i = 0; i < std::ssize(rSlots); ++i)
 	{
@@ -147,9 +198,7 @@ void ClientSessionBase::UnsubscribeStaleCoords(std::span<const GridCoord> desire
 			GridCoord unsubCoord = rSlots.at(i).coord;
 			if (rSlots.at(i).eState == CoordSubscriptionState::kSubscribing)
 			{
-				rSlots.at(i) = {};
-				mpClientNetwork->GetCancelledSubscriptions().push_back(unsubCoord);
-				LOG(kNetwork, kVerbose, "UnsubscribeStaleCoords Cancel kSubscribing Slot: {} Coord: ({},{}) CancelledCount: {}", i, unsubCoord.x, unsubCoord.y, mpClientNetwork->GetCancelledSubscriptions().size());
+				mpClientNetwork->CancelSubscription(i);
 				game::gpGame->mCoordFrames.erase(unsubCoord);
 			}
 			else
@@ -339,7 +388,7 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 		LOG(kNetwork, kWarning, "ClientSessionBase::ComputeClockCorrectionNs Clock error accumulating ConsecutiveFrames: {} Error: {} Offset: {} TargetBehind: {} JitterUs: {} LatestServerTick: {} PreReconcileTick: {}", miConsecutiveClockErrorFrames, iError, iOffset, miCurrentTargetBehind, iJitterUs, miLatestServerTick, iPreReconcileTick);
 		if (miConsecutiveClockErrorFrames >= kiClockErrorDisconnectConsecutiveFrames)
 		{
-			mbClockErrorDisconnect = true;
+			mSessionFlags.Set(SessionStateFlags::kClockErrorDisconnect);
 		}
 	}
 	else

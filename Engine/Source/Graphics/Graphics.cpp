@@ -13,10 +13,19 @@
 namespace engine
 {
 
+// Shadow-execution-aligned snap block size. FullDetail and WaterFullDetail both snap their render extents
+// to this multiple; single-sourced here so the two snap loops cannot drift apart.
+constexpr int64_t kiDetailBlockSize = 8 * static_cast<int64_t>(shaders::kiShadowTextureExecutionSize);
+
+// Reference render width. WaterFullDetail anchors the resolution-independent Gerstner water grid to it, and
+// SmokeSimulationPixels scales the smoke-sim resolution relative to it.
+constexpr int64_t kiReferenceWidth = 3840;
+// Smoke-sim pixel budget at the reference width (smoke resolution scales by actual/reference width).
+constexpr float kfSmokeReferencePixels = 8192.0f;
+
 std::tuple<int64_t, int64_t> FullDetail()
 {
-	// Block size multiplier must match max iShadowTextureY divisor
-	int64_t iBlockSize = 8 * static_cast<int64_t>(shaders::kiShadowTextureExecutionSize);
+	int64_t iBlockSize = kiDetailBlockSize;
 
 	int64_t iX = iBlockSize;
 	while ((10 * iX) / 9 < static_cast<int64_t>(gpGraphics->mFramebufferExtent2D.width))
@@ -47,9 +56,8 @@ std::tuple<int64_t, int64_t> WaterFullDetail()
 	// Gerstner frequencies are fixed, so the water vertex grid must be fixed too — anchor to a
 	// reference 4K resolution instead of the live framebuffer extent. Block-snap matches FullDetail()
 	// so the snapped result is deterministic and divides cleanly for shadow-execution-aligned consumers.
-	constexpr int64_t kiReferenceWidth  = 3840;
 	constexpr int64_t kiReferenceHeight = 2160;
-	int64_t iBlockSize = 8 * static_cast<int64_t>(shaders::kiShadowTextureExecutionSize);
+	int64_t iBlockSize = kiDetailBlockSize;
 
 	int64_t iX = iBlockSize;
 	while ((10 * iX) / 9 < kiReferenceWidth)
@@ -68,9 +76,8 @@ std::tuple<int64_t, int64_t> WaterFullDetail()
 
 float SmokeSimulationPixels()
 {
-	static constexpr float kfReferencePixels = 3840.0f;
 	float fPixels = static_cast<float>(gpGraphics->mFramebufferExtent2D.width);
-	return (fPixels / kfReferencePixels) * 8192.0f * gSmokeSimulationPixels.Get();
+	return (fPixels / static_cast<float>(kiReferenceWidth)) * kfSmokeReferencePixels * gSmokeSimulationPixels.Get();
 }
 
 float SmokeSimulationPixelsY()
@@ -215,7 +222,7 @@ void Graphics::RenderGlobal(float fCurrentTime)
 
 	// Update VMA frame index for memory budget tracking. muiFrameCounter must advance every frame
 	// (independent of the budget extension) because Phase 5 LRU grace uses it as a monotonic clock.
-	if (gpDeviceManager->mbMemoryBudgetAvailable)
+	if (gpDeviceManager->mCapabilities & DeviceCapabilityFlags::kMemoryBudgetAvailable)
 	{
 		vmaSetCurrentFrameIndex(gpDeviceManager->mpAllocator, static_cast<uint32_t>(muiFrameCounter));
 	}
@@ -355,26 +362,47 @@ void Graphics::Create()
 
 }
 
+template <typename T>
+void Graphics::PollSetting(Wrapper& rWrapper, const char* pcLabel, DestroyType eTier, std::optional<DestroyFlags> oeFlag, bool bGate)
+{
+	auto [vCurrent, vPrevious, bChanged] = rWrapper.Changed<T>();
+	if (bChanged && bGate) [[unlikely]]
+	{
+		if (pcLabel != nullptr)
+		{
+			if constexpr (std::is_floating_point_v<T>)
+			{
+				LOG(kGraphics, kDebug, "{}: {} -> {}", pcLabel, common::Wb(vPrevious, 3), common::Wb(vCurrent, 3));
+			}
+			else if constexpr (std::is_enum_v<T>)
+			{
+				LOG(kGraphics, kDebug, "{}: {} -> {}", pcLabel, static_cast<int64_t>(vPrevious), static_cast<int64_t>(vCurrent));
+			}
+			else
+			{
+				LOG(kGraphics, kDebug, "{}: {} -> {}", pcLabel, vPrevious, vCurrent);
+			}
+		}
+
+		if (oeFlag.has_value())
+		{
+			mDestroyFlags.Set(oeFlag.value());
+		}
+
+		meDestroyType = std::max(eTier, meDestroyType);
+	}
+}
+
 void Graphics::Refresh()
 {
-	auto [bMultisampling, bPreviousMultisampling, bMultisamplingChanged] = gMultisampling.Changed<bool>();
-	if (bMultisamplingChanged) [[unlikely]]
-	{
-		LOG(kGraphics, kDebug, "Multisampling: {} -> {}", bPreviousMultisampling, bMultisampling);
-		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
-	}
+	PollSetting<bool>(gMultisampling, "Multisampling", DestroyType::kSwapchain);
 
 	if (gpInstanceManager != nullptr && gSampleCount.Get<VkSampleCountFlagBits>() > gpInstanceManager->meMaxMultisampleCount)
 	{
 		gSampleCount.Set<VkSampleCountFlagBits>(gpInstanceManager->meMaxMultisampleCount);
 	}
 
-	auto [eSampleCount, ePreviousSampleCount, bSampleCountChanged] = gSampleCount.Changed<VkSampleCountFlagBits>();
-	if (bSampleCountChanged) [[unlikely]]
-	{
-		LOG(kGraphics, kDebug, "Sample count: {} -> {}", static_cast<int64_t>(ePreviousSampleCount), static_cast<int64_t>(eSampleCount));
-		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
-	}
+	PollSetting<VkSampleCountFlagBits>(gSampleCount, "Sample count", DestroyType::kSwapchain);
 
 	auto [ePresentMode, ePreviousPresentMode, bPresentModeChanged] = gPresentMode.Changed<VkPresentModeKHR>();
 	if (bPresentModeChanged) [[unlikely]]
@@ -394,73 +422,17 @@ void Graphics::Refresh()
 		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
 	}
 
-	auto [bAnisotropy, bPreviousAnisotropy, bAnisotropyChanged] = gAnisotropy.Changed<bool>();
-	if (bAnisotropyChanged) [[unlikely]]
-	{
-		LOG(kGraphics, kDebug, "Anisotropy: {} -> {}", bPreviousAnisotropy, bAnisotropy);
-		meDestroyType = std::max(DestroyType::kSamplers, meDestroyType);
-	}
+	PollSetting<bool>(gAnisotropy, "Anisotropy", DestroyType::kSamplers);
+	PollSetting<float>(gMaxAnisotropy, "Max anisotropy", DestroyType::kSamplers);
+	PollSetting<bool>(gSampleShading, "Sample shading", DestroyType::kPipelines);
+	PollSetting<float>(gMinSampleShading, "Min sample shading", DestroyType::kPipelines);
+	PollSetting<float>(gMipLodBias, "Mip lod bias", DestroyType::kSamplers);
+	PollSetting<bool>(gWireframe, "Wireframe", DestroyType::kPipelines);
+	PollSetting<bool>(gDebugTexture, nullptr, DestroyType::kCommandBuffers);
 
-	auto [fMaxAnisotropy, fPreviousMaxAnisotropy, bMaxAnisotropyChanged] = gMaxAnisotropy.Changed<float>();
-	if (bMaxAnisotropyChanged) [[unlikely]]
-	{
-		LOG(kGraphics, kDebug, "Max anisotropy: {} -> {}", common::Wb(fPreviousMaxAnisotropy, 3), common::Wb(fMaxAnisotropy, 3));
-		meDestroyType = std::max(DestroyType::kSamplers, meDestroyType);
-	}
+	PollSetting<float>(gWaterShapeDetail, "Water shape detail", DestroyType::kPipelines, DestroyFlags::kWaterMesh, gpBufferManager != nullptr);
 
-	auto [bSampleShading, bPreviousSampleShading, bSampleShadingChanged] = gSampleShading.Changed<bool>();
-	if (bSampleShadingChanged) [[unlikely]]
-	{
-		LOG(kGraphics, kDebug, "Sample shading: {} -> {}", bPreviousSampleShading, bSampleShading);
-		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
-	}
-
-	auto [fMinSampleShading, fPreviousMinSampleShading, bMinSampleShadingChanged] = gMinSampleShading.Changed<float>();
-	if (bMinSampleShadingChanged) [[unlikely]]
-	{
-		LOG(kGraphics, kDebug, "Min sample shading: {} -> {}", common::Wb(fPreviousMinSampleShading, 3), common::Wb(fMinSampleShading, 3));
-		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
-	}
-
-	auto [fMipLodBias, fPreviousMipLodBias, bMipLodBiasChanged] = gMipLodBias.Changed<float>();
-	if (bMipLodBiasChanged) [[unlikely]]
-	{
-		LOG(kGraphics, kDebug, "Mip lod bias: {} -> {}", common::Wb(fPreviousMipLodBias, 3), common::Wb(fMipLodBias, 3));
-		meDestroyType = std::max(DestroyType::kSamplers, meDestroyType);
-	}
-
-	auto [bWireframe, bPreviousWireframe, bWireframeChanged] = gWireframe.Changed<bool>();
-	if (bWireframeChanged) [[unlikely]]
-	{
-		LOG(kGraphics, kDebug, "Wireframe: {} -> {}", bPreviousWireframe, bWireframe);
-		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
-	}
-
-	auto [bDebugTexture, bPreviousDebugTexture, bDebugTextureChanged] = gDebugTexture.Changed<bool>();
-	if (bDebugTextureChanged) [[unlikely]]
-	{
-		meDestroyType = std::max(DestroyType::kCommandBuffers, meDestroyType);
-	}
-
-	auto [fWaterShapeDetail, fPreviousWaterShapeDetail, bWaterShapeDetailChanged] = gWaterShapeDetail.Changed<float>();
-	if (bWaterShapeDetailChanged && gpBufferManager != nullptr) [[unlikely]]
-	{
-		LOG(kGraphics, kDebug, "Water shape detail: {} -> {}", common::Wb(fPreviousWaterShapeDetail, 3), common::Wb(fWaterShapeDetail, 3));
-
-		mDestroyFlags.Set(DestroyFlags::kWaterMesh);
-
-		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
-	}
-
-	auto [fShadowRenderMultiplier, fShadowRenderMultiplierPrevious, bShadowRenderMultiplierChanged] = gShadowRenderMultiplier.Changed<float>();
-	if (bShadowRenderMultiplierChanged && gpTextureManager != nullptr) [[unlikely]]
-	{
-		LOG(kGraphics, kDebug, "Shadow render multiplier: {} -> {}", common::Wb(fShadowRenderMultiplierPrevious, 3), common::Wb(fShadowRenderMultiplier, 3));
-
-		mDestroyFlags.Set(DestroyFlags::kShadowTextures);
-
-		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
-	}
+	PollSetting<float>(gShadowRenderMultiplier, "Shadow render multiplier", DestroyType::kPipelines, DestroyFlags::kShadowTextures, gpTextureManager != nullptr);
 
 	auto [fLightingMultiplier, fLightingMultiplierPrevious, bLightingMultiplierChanged] = gLightingDepositTextureMultiplier.Changed<float>();
 	auto [fSpreadTextureMultiplierStart, fSpreadTextureMultiplierStartPrevious, bSpreadTextureMultiplierStartChanged] = gSpreadTextureMultiplierStart.Changed<float>();
@@ -490,27 +462,11 @@ void Graphics::Refresh()
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
 
-	auto [fWaterSkyboxOneRenderMultiplier, fWaterSkyboxOneRenderMultiplierPrevious, bWaterSkyboxOneRenderMultiplierChanged] = gWaterSkyboxOneRenderMultiplier.Changed<float>();
-	if (bWaterSkyboxOneRenderMultiplierChanged && gpTextureManager != nullptr) [[unlikely]]
-	{
-		LOG(kGraphics, kDebug, "WaterSkyboxOne render multiplier: {} -> {}", common::Wb(fWaterSkyboxOneRenderMultiplierPrevious, 3), common::Wb(fWaterSkyboxOneRenderMultiplier, 3));
-
-		mDestroyFlags.Set(DestroyFlags::kWaterSkyboxOne);
-
-		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
-	}
+	PollSetting<float>(gWaterSkyboxOneRenderMultiplier, "WaterSkyboxOne render multiplier", DestroyType::kPipelines, DestroyFlags::kWaterSkyboxOne, gpTextureManager != nullptr);
 
 	if (gpInstanceManager != nullptr) [[likely]]
 	{
-		auto [fTerrainElevationTextureMultiplier, fPreviousTerrainElevationTextureMultiplier, bTerrainElevationTextureMultiplierChanged] = gTerrainElevationTextureMultiplier.Changed<float>();
-		if (bTerrainElevationTextureMultiplierChanged) [[unlikely]]
-		{
-			LOG(kGraphics, kDebug, "TerrainElevationTexture multiplier: {} -> {}", common::Wb(fPreviousTerrainElevationTextureMultiplier, 3), common::Wb(fTerrainElevationTextureMultiplier, 3));
-
-			mDestroyFlags.Set(DestroyFlags::kTerrainElevation);
-
-			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
-		}
+		PollSetting<float>(gTerrainElevationTextureMultiplier, "TerrainElevationTexture multiplier", DestroyType::kPipelines, DestroyFlags::kTerrainElevation);
 
 		auto [fSmokeTrailPower, fSmokeTrailPowerPrevious, bSmokeTrailPowerChanged] = gSmokeTrailPower.Changed<float>();
 		auto [fSmokeTrailAlpha, fSmokeTrailAlphaPrevious, bSmokeTrailAlphaChanged] = gSmokeTrailAlpha.Changed<float>();
@@ -688,8 +644,7 @@ bool Graphics::Destroy()
 		// Save old swapchain handle for seamless transition (only during recreation, not final shutdown)
 		if (mpSwapchainManager != nullptr && meDestroyType < DestroyType::kSurface)
 		{
-			mOldVkSwapchainKHR = mpSwapchainManager->mVkSwapchainKHR;
-			mpSwapchainManager->mVkSwapchainKHR = VK_NULL_HANDLE;
+			mOldVkSwapchainKHR = mpSwapchainManager->ReleaseHandleForRecreation();
 		}
 		mpSwapchainManager.reset();
 		if constexpr (kbDebugInput)

@@ -171,15 +171,15 @@ void ResetGraphicsSettings()
 
 struct TweaksSettings
 {
-	static constexpr int64_t kiVersion = 12;
+	static constexpr int64_t kiVersion = 13;
 
 	bool bShowImGui = false;
-	bool bSectionVisible[static_cast<size_t>(engine::TweakSection::kCount)] {};
+	common::Flags<engine::TweakSectionFlags> sectionVisible {};
 	float fWindowPositionX[static_cast<size_t>(engine::TweakSection::kCount)] {};
 	float fWindowPositionY[static_cast<size_t>(engine::TweakSection::kCount)] {};
 	int8_t iActiveSubtab[static_cast<size_t>(engine::TweakSection::kCount)] {};
 	float fSunAngle = 1.15f;
-	bool bSectionCollapsed[static_cast<size_t>(engine::TweakSection::kCount)] {};
+	common::Flags<engine::TweakSectionFlags> sectionCollapsed {};
 };
 static constexpr char kpcTweaksSettingsPath[] = "TweaksSettings.bin";
 
@@ -190,21 +190,21 @@ void SaveTweaksSettings()
 		return;
 	}
 
-	bool bSectionVisible[static_cast<size_t>(engine::TweakSection::kCount)] {};
+	common::Flags<engine::TweakSectionFlags> sectionVisible {};
 	ImVec2 f2WindowPositions[static_cast<size_t>(engine::TweakSection::kCount)] {};
 	int8_t iActiveSubtab[static_cast<size_t>(engine::TweakSection::kCount)] {};
-	bool bSectionCollapsed[static_cast<size_t>(engine::TweakSection::kCount)] {};
-	engine::gpImGuiManager->mpTweaksScreen->SaveState(bSectionVisible, f2WindowPositions, iActiveSubtab, bSectionCollapsed);
+	common::Flags<engine::TweakSectionFlags> sectionCollapsed {};
+	engine::gpImGuiManager->mpTweaksScreen->SaveState(sectionVisible, f2WindowPositions, iActiveSubtab, sectionCollapsed);
 
 	TweaksSettings settings {};
 	settings.bShowImGui = gpGame->mbShowImGui;
+	settings.sectionVisible = sectionVisible;
+	settings.sectionCollapsed = sectionCollapsed;
 	for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
 	{
-		settings.bSectionVisible[i] = bSectionVisible[i];
 		settings.fWindowPositionX[i] = f2WindowPositions[i].x;
 		settings.fWindowPositionY[i] = f2WindowPositions[i].y;
 		settings.iActiveSubtab[i] = iActiveSubtab[i];
-		settings.bSectionCollapsed[i] = bSectionCollapsed[i];
 	}
 	settings.fSunAngle = engine::gSunAngleOverride.Get();
 
@@ -229,7 +229,7 @@ void LoadTweaksSettings()
 			f2WindowPositions[i] = {settings.fWindowPositionX[i], settings.fWindowPositionY[i]};
 		}
 
-		engine::gpImGuiManager->mpTweaksScreen->LoadState(settings.bSectionVisible, f2WindowPositions, settings.iActiveSubtab, settings.bSectionCollapsed);
+		engine::gpImGuiManager->mpTweaksScreen->LoadState(settings.sectionVisible, f2WindowPositions, settings.iActiveSubtab, settings.sectionCollapsed);
 
 		engine::gSunAngleOverride.Set(settings.fSunAngle);
 	}

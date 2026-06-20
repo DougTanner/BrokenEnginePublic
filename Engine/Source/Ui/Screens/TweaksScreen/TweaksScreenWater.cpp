@@ -114,13 +114,13 @@ void TweaksScreenBase::RenderWaterSection()
 
 	if (ImGui::BeginTabBar("WaterTabs"))
 	{
-		if (ImGui::BeginTabItem("Specular", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 0) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Specular", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 0)
+			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0)
 			{
-				mApplySubtab[kiSection] = false;
+				mApplySubtab.Clear(SectionFlag(kiSection));
 			}
-			if (!mApplySubtab[kiSection])
+			if (!(mApplySubtab & SectionFlag(kiSection)))
 			{
 				mActiveSubtab[kiSection] = 0;
 			}
@@ -182,13 +182,13 @@ void TweaksScreenBase::RenderWaterSection()
 			}
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Low", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Low", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 1)
+			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1)
 			{
-				mApplySubtab[kiSection] = false;
+				mApplySubtab.Clear(SectionFlag(kiSection));
 			}
-			if (!mApplySubtab[kiSection])
+			if (!(mApplySubtab & SectionFlag(kiSection)))
 			{
 				mActiveSubtab[kiSection] = 1;
 			}
@@ -218,13 +218,13 @@ void TweaksScreenBase::RenderWaterSection()
 
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Medium", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 2) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Medium", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 2) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 2)
+			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 2)
 			{
-				mApplySubtab[kiSection] = false;
+				mApplySubtab.Clear(SectionFlag(kiSection));
 			}
-			if (!mApplySubtab[kiSection])
+			if (!(mApplySubtab & SectionFlag(kiSection)))
 			{
 				mActiveSubtab[kiSection] = 2;
 			}
@@ -248,13 +248,13 @@ void TweaksScreenBase::RenderWaterSection()
 
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Depth", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 3) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Depth", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 3) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 3)
+			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 3)
 			{
-				mApplySubtab[kiSection] = false;
+				mApplySubtab.Clear(SectionFlag(kiSection));
 			}
-			if (!mApplySubtab[kiSection])
+			if (!(mApplySubtab & SectionFlag(kiSection)))
 			{
 				mActiveSubtab[kiSection] = 3;
 			}

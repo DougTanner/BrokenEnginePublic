@@ -35,6 +35,4 @@ public:
 	}
 };
 
-inline NetworkManager* gpNetworkManager = nullptr;
-
 } // namespace engine

@@ -4,6 +4,7 @@
 
 #if defined(BT_CLIENT)
 
+#include "Game.h"
 #include "Frame/FrameStaticData.h"
 #include "Network/NetworkCursor.h"
 
@@ -294,16 +295,17 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 			mSmoothedPipelineRttUs.Update();
 
 			std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-			if (mbHasLastUpdateArrival)
+			if (mStateFlags & ClientStateFlags::kHasLastUpdateArrival)
 			{
 				int64_t iIntervalUs = std::chrono::duration_cast<std::chrono::microseconds>(now - mLastUpdateArrival).count();
-				int64_t iExpectedUs = 1'000'000 / kiTickRate;
+				// Server broadcast cadence is wall-scaled by the debug timescale; expect the scaled wall interval, not the fixed sim tick period
+				int64_t iExpectedUs = std::chrono::duration_cast<std::chrono::microseconds>(game::gpGame->mTimeStep.SimToWall(game::kTickNs)).count();
 				int64_t iDeviation = std::abs(iIntervalUs - iExpectedUs);
 				mSmoothedJitterUs = iDeviation;
 				mSmoothedJitterUs.Update();
 			}
 			mLastUpdateArrival = now;
-			mbHasLastUpdateArrival = true;
+			mStateFlags.Set(ClientStateFlags::kHasLastUpdateArrival);
 		}
 	}
 
@@ -333,10 +335,9 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 
 	if (iCompressedSize > 0)
 	{
-		// Heap: status changes vector
-		update.statusChanges.resize(kiMaxStatusChangesPerCell);
-		int64_t iCount = DecompressStatusChangeBatch(pCursor, iCompressedSize, update.statusChanges.data(), kiMaxStatusChangesPerCell);
-		update.statusChanges.resize(iCount);
+		int64_t iCount = DecompressStatusChangeBatch(pCursor, iCompressedSize, mStatusChangeScratch.data(), kiMaxStatusChangesPerCell);
+		// Heap: exact-size copy out of the reused 1024-cap decode scratch, so the buffered update carries no capacity slack
+		update.statusChanges.assign(mStatusChangeScratch.begin(), mStatusChangeScratch.begin() + iCount);
 	}
 
 	// Heap: received updates vector grows each tick
@@ -391,7 +392,7 @@ void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 
 	if (bAccepted)
 	{
-		mbConnectionAccepted = true;
+		mStateFlags.Set(ClientStateFlags::kConnectionAccepted);
 
 		// Read assigned GUID (1B type + 1B accepted + 8B high + 8B low = 18 bytes)
 		if (iSize >= 18)
@@ -400,21 +401,10 @@ void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 			mClientGuid.uiLow = ReadUint64(pCursor);
 			LOG(kNetwork, kInfo, "Client GUID assigned: {} {}", mClientGuid.uiHigh, mClientGuid.uiLow);
 
-			// Persist to disk atomically — a mid-write crash here would otherwise empty the file and orphan all server-side fleets/players for this client on next connect.
-			// Heap: filesystem path and fstream operations for GUID persistence
-			ScopedSuppressAllocationTracking suppress;
-			bool bWritten = gpFileManager->WriteFileAtomically({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("ClientGuid.bin"), [&](std::fstream& guidStream)
+			// Persist via the session-provided callback (keeps GUID disk I/O out of the transport layer)
+			if (mpfnGuidAssigned != nullptr)
 			{
-				int64_t iGuidVersion = 1;
-				common::Write(guidStream, iGuidVersion);
-				int64_t iGuidSize = 0;
-				common::Write(guidStream, iGuidSize);
-				common::Write(guidStream, mClientGuid.uiHigh);
-				common::Write(guidStream, mClientGuid.uiLow);
-			});
-			if (!bWritten)
-			{
-				LOG(kNetwork, kError, "Failed to persist ClientGuid.bin — next session will re-handshake as a new client");
+				mpfnGuidAssigned(mClientGuid);
 			}
 		}
 
@@ -533,11 +523,7 @@ void Client::ServerUnsubscribeAck(const uint8_t* pData, size_t iSize)
 
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
-		uint8_t uiSlot = uiSlotIndex;
-		std::erase_if(mDelayedPackets, [uiSlot](const DelayedPacket& rPacket)
-		{
-			return NetworkManager::IsCoordChannel(rPacket.uiChannelId) && NetworkManager::ChannelToSlot(rPacket.uiChannelId) == uiSlot;
-		});
+		NetworkSimulation::PurgeDelayedForSlot(mDelayedPackets, uiSlotIndex);
 	}
 
 	rSlot = {};

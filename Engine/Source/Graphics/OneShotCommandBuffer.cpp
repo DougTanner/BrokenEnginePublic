@@ -40,14 +40,11 @@ OneShotCommandBuffer::~OneShotCommandBuffer()
 	sbInUse.store(false);
 }
 
-void OneShotCommandBuffer::Execute(bool bWait)
+void OneShotCommandBuffer::Execute()
 {
 	CHECK_VK(vkEndCommandBuffer(mVkCommandBuffer));
 
-	if (bWait)
-	{
-		CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &gpDeviceManager->mOneShotVkFence));
-	}
+	CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &gpDeviceManager->mOneShotVkFence));
 
 	VkSubmitInfo vkSubmitInfo
 	{
@@ -61,12 +58,9 @@ void OneShotCommandBuffer::Execute(bool bWait)
 		.signalSemaphoreCount = 0,
 		.pSignalSemaphores = nullptr,
 	};
-	CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bWait ? gpDeviceManager->mOneShotVkFence : VK_NULL_HANDLE));
+	CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, gpDeviceManager->mOneShotVkFence));
 
-	if (bWait)
-	{
-		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &gpDeviceManager->mOneShotVkFence, VK_TRUE, kFenceTimeoutNanoseconds.count()));
-	}
+	CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &gpDeviceManager->mOneShotVkFence, VK_TRUE, kFenceTimeoutNanoseconds.count()));
 }
 
 } // namespace engine

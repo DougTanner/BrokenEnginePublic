@@ -5,7 +5,6 @@ namespace engine
 
 // Specular - Normals
 // Water normal map atlas: 3 weighted samples each indexed into TextureManager::kpWaterNormalCrcs.
-// Index defaults: One=0 (texture "0"), Two=1 (texture "3"), Three=11 (SeaWaves) — must match TextureManager::kiWaterNormalSeaWavesIndex.
 // 11 Sea Waves 0.25
 // 3 FoamB 0.25
 // 6 GeenSeaB 0.15
@@ -54,7 +53,7 @@ Wrapper gLightingWaterSkyboxLod(7.5f, 0.0f, 10.0f);
 // Resolution multiplier for the WaterSkyboxOne MSAA pre-pass (default 1.0 = framebuffer size).
 Wrapper gWaterSkyboxOneRenderMultiplier(1.0f, 0.25f, 2.0f);
 
-// Water - Low/Medium count + High frequency waves
+// High frequency waves (pure-internal, not slider-mapped)
 Wrapper gWaterHighMultiplier(0.204f, 0.0f, 0.5f);
 Wrapper gWaterHighScaleOne(0.85f, 0.0f, 2.0f);
 Wrapper gWaterHighScaleTwo(1.2f, 0.0f, 2.0f);

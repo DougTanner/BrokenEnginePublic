@@ -117,13 +117,13 @@ void TweaksScreenBase::RenderLightingSection()
 
 	if (ImGui::BeginTabBar("LightingTabs"))
 	{
-		if (ImGui::BeginTabItem("Write", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 0) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Write", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 0)
+			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0)
 			{
-				mApplySubtab[kiSection] = false;
+				mApplySubtab.Clear(SectionFlag(kiSection));
 			}
-			if (!mApplySubtab[kiSection])
+			if (!(mApplySubtab & SectionFlag(kiSection)))
 			{
 				mActiveSubtab[kiSection] = 0;
 			}
@@ -192,13 +192,13 @@ void TweaksScreenBase::RenderLightingSection()
 			}
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Combine", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Combine", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 1)
+			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1)
 			{
-				mApplySubtab[kiSection] = false;
+				mApplySubtab.Clear(SectionFlag(kiSection));
 			}
-			if (!mApplySubtab[kiSection])
+			if (!(mApplySubtab & SectionFlag(kiSection)))
 			{
 				mActiveSubtab[kiSection] = 1;
 			}
@@ -251,13 +251,13 @@ void TweaksScreenBase::RenderLightingSection()
 
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Read", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 2) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Read", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 2) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 2)
+			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 2)
 			{
-				mApplySubtab[kiSection] = false;
+				mApplySubtab.Clear(SectionFlag(kiSection));
 			}
-			if (!mApplySubtab[kiSection])
+			if (!(mApplySubtab & SectionFlag(kiSection)))
 			{
 				mActiveSubtab[kiSection] = 2;
 			}
@@ -315,26 +315,26 @@ void TweaksScreenBase::RenderLightingSection()
 
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Visible", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 3) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Visible", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 3) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 3)
+			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 3)
 			{
-				mApplySubtab[kiSection] = false;
+				mApplySubtab.Clear(SectionFlag(kiSection));
 			}
-			if (!mApplySubtab[kiSection])
+			if (!(mApplySubtab & SectionFlag(kiSection)))
 			{
 				mActiveSubtab[kiSection] = 3;
 			}
 			RenderLightingEffectsVisibleTab();
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Lighting", nullptr, (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 4) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (ImGui::BeginTabItem("Lighting", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 4) ? ImGuiTabItemFlags_SetSelected : 0))
 		{
-			if (mApplySubtab[kiSection] && mActiveSubtab[kiSection] == 4)
+			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 4)
 			{
-				mApplySubtab[kiSection] = false;
+				mApplySubtab.Clear(SectionFlag(kiSection));
 			}
-			if (!mApplySubtab[kiSection])
+			if (!(mApplySubtab & SectionFlag(kiSection)))
 			{
 				mActiveSubtab[kiSection] = 4;
 			}

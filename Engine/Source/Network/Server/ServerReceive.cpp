@@ -46,7 +46,7 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 		uint64_t uiSlotBitfieldHigh = ReadUint64(pCursor);
 
 		if (uiSlotIndex < std::ssize(pClient->coordSubscriptions) &&
-			pClient->coordSubscriptions.at(uiSlotIndex).bActive &&
+			(pClient->coordSubscriptions.at(uiSlotIndex).flags & SubscriptionFlags::kActive) &&
 			uiSlotEpoch == pClient->coordAckStates.at(uiSlotIndex).uiEpoch &&
 			iSlotAckFloor >= pClient->coordAckStates.at(uiSlotIndex).iAckFloor)
 		{
@@ -67,7 +67,7 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 			}
 		}
 		else if (uiSlotIndex < std::ssize(pClient->coordSubscriptions) &&
-			pClient->coordSubscriptions.at(uiSlotIndex).bActive &&
+			(pClient->coordSubscriptions.at(uiSlotIndex).flags & SubscriptionFlags::kActive) &&
 			uiSlotEpoch != pClient->coordAckStates.at(uiSlotIndex).uiEpoch)
 		{
 			LOG(kNetwork, kVerbose, "Server::ClientAckStream EpochMismatch Client: {} Slot: {} ClientEpoch: {} ServerEpoch: {}", iClientId, uiSlotIndex, uiSlotEpoch, pClient->coordAckStates.at(uiSlotIndex).uiEpoch);
@@ -369,7 +369,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	}
 
 	pClient->coordSubscriptions.at(iSlot).coord = coord;
-	pClient->coordSubscriptions.at(iSlot).bActive = true;
+	pClient->coordSubscriptions.at(iSlot).flags.Set(SubscriptionFlags::kActive);
 	++pClient->coordAckStates.at(iSlot).uiEpoch;
 
 	LOG(kNetwork, kDebug, "Server::ClientSubscribe Client: {} Coord: ({},{}) Slot: {}", iClientId, coord.x, coord.y, iSlot);
@@ -399,7 +399,7 @@ void Server::ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClie
 		return;
 	}
 
-	if (uiSlotIndex >= std::ssize(pClient->coordSubscriptions) || !pClient->coordSubscriptions.at(uiSlotIndex).bActive)
+	if (uiSlotIndex >= std::ssize(pClient->coordSubscriptions) || !(pClient->coordSubscriptions.at(uiSlotIndex).flags & SubscriptionFlags::kActive))
 	{
 		return;
 	}

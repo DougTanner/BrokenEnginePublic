@@ -281,7 +281,7 @@ void ServerSession::AddSubscribedCoords()
 	{
 		for (int64_t i = 0; i < std::ssize(rClient.coordSubscriptions); ++i)
 		{
-			if (rClient.coordSubscriptions.at(i).bActive)
+			if (rClient.coordSubscriptions.at(i).flags & engine::SubscriptionFlags::kActive)
 			{
 				engine::GridCoord coord = rClient.coordSubscriptions.at(i).coord;
 				if (!std::ranges::contains(gpGame->mActiveCoords, coord))
@@ -463,7 +463,7 @@ void ServerSession::HandleResyncRequests()
 
 		for (int64_t iSlot = 0; iSlot < std::ssize(pClient->coordSubscriptions); ++iSlot)
 		{
-			if (!pClient->coordSubscriptions.at(iSlot).bActive)
+			if (!(pClient->coordSubscriptions.at(iSlot).flags & engine::SubscriptionFlags::kActive))
 			{
 				continue;
 			}
@@ -478,6 +478,10 @@ void ServerSession::HandleResyncRequests()
 			engine::gpServer->SendCoordFullState(iClientId, iSlot, gpGame->TickCounter(), coord, frameIt->second.pCurrent.get());
 		}
 	}
+
+	// Persist-until-served: Server::Poll no longer clears this queue. Clear it here once the resync requests
+	// are serviced so a request received while the server is paused survives across polls until the next tick.
+	rResyncClientIds.clear();
 }
 
 void ServerSession::ResetClientsForLoad()
@@ -497,7 +501,7 @@ void ServerSession::ResetClientsForLoad()
 		// Free all subscription slots
 		for (int64_t i = 0; i < std::ssize(rClient.coordSubscriptions); ++i)
 		{
-			if (rClient.coordSubscriptions.at(i).bActive)
+			if (rClient.coordSubscriptions.at(i).flags & engine::SubscriptionFlags::kActive)
 			{
 				rClient.FreeSlot(i);
 			}

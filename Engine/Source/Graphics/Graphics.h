@@ -21,6 +21,7 @@ class PipelineManager;
 class SwapchainManager;
 class TextManager;
 class TextureManager;
+class Wrapper;
 
 enum DestroyType
 {
@@ -99,6 +100,11 @@ public:
 	common::InTheLastSecond mRendersInTheLastSecond;
 
 	std::unordered_set<std::string> mDebugNames;
+
+private:
+
+	template <typename T>
+	void PollSetting(Wrapper& rWrapper, const char* pcLabel, DestroyType eTier, std::optional<DestroyFlags> oeFlag = std::nullopt, bool bGate = true);
 };
 
 inline Graphics* gpGraphics = nullptr;

@@ -77,17 +77,21 @@ public:
 
 private:
 
+	enum class InputStateFlags : uint8_t
+	{
+		kScrollWheelInitialized = 1 << 0,
+		kGamepadMode            = 1 << 1,
+	};
+
 	engine::RawInput mPreviousRawInputMenu {};
 
 	int miPreviousScrollWheelValue = 0;
-	bool mbScrollWheelInitialized = false;
-
-	bool mbGamepadMode = false;
+	common::Flags<InputStateFlags> mStateFlags;
 
 	// Was pressed helpers (use mPreviousRawInputMenu)
 	bool KeyboardPressed(int64_t iKey, const engine::RawInput& rRawInput) { return rRawInput.pKeyboardKeys[iKey] && !mPreviousRawInputMenu.pKeyboardKeys[iKey]; }
-	bool MousePressed(int64_t iButton, const engine::RawInput& rRawInput) { return rRawInput.pMouseButtons[iButton] && !mPreviousRawInputMenu.pMouseButtons[iButton]; }
-	bool GamepadPressed(int64_t iButton, const engine::RawInput& rRawInput) { return rRawInput.pGamepadButtons[iButton] && !mPreviousRawInputMenu.pGamepadButtons[iButton]; }
+	bool MousePressed(engine::MouseButtons eButton, const engine::RawInput& rRawInput) { return (rRawInput.mouseButtons & eButton) && !(mPreviousRawInputMenu.mouseButtons & eButton); }
+	bool GamepadPressed(engine::GamepadButtons eButton, const engine::RawInput& rRawInput) { return (rRawInput.gamepadButtons & eButton) && !(mPreviousRawInputMenu.gamepadButtons & eButton); }
 };
 
 inline Input* gpInput = nullptr;

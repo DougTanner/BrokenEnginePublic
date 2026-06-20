@@ -231,7 +231,7 @@ void FormatGpuMemoryStats(common::Workbuffer& rWorkbuffer)
 	rWorkbuffer.Append("  Blocks: ");
 	rWorkbuffer.Append(static_cast<int64_t>(stats.total.statistics.blockCount));
 
-	if (gpDeviceManager->mbMemoryBudgetAvailable)
+	if (gpDeviceManager->mCapabilities & DeviceCapabilityFlags::kMemoryBudgetAvailable)
 	{
 		uint32_t uiHeapCount = gpInstanceManager->mVkPhysicalDeviceMemoryProperties.memoryHeapCount;
 		VmaBudget budgets[VK_MAX_MEMORY_HEAPS] {};

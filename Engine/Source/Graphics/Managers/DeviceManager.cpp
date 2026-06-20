@@ -37,7 +37,7 @@ DeviceManager::DeviceManager()
 		if (std::strcmp(rExtension.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0)
 		{
 			deviceExtensions.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
-			mbMemoryBudgetAvailable = true;
+			mCapabilities.Set(DeviceCapabilityFlags::kMemoryBudgetAvailable);
 			LOG(kGraphics, kInfo, "VK_EXT_memory_budget extension available");
 		}
 		else if (std::strcmp(rExtension.extensionName, VK_KHR_MAINTENANCE_9_EXTENSION_NAME) == 0)
@@ -68,26 +68,26 @@ DeviceManager::DeviceManager()
 		};
 		vkGetPhysicalDeviceFeatures2(gpInstanceManager->mVkPhysicalDevice, &vkPhysicalDeviceFeatures2Probe);
 
-		mbSmoothLinesEnabled = (vkPhysicalDeviceLineRasterizationFeaturesEXT.smoothLines == VK_TRUE)
-		                    && (vkPhysicalDeviceLineRasterizationFeaturesEXT.rectangularLines == VK_TRUE);
+		mCapabilities.Set(DeviceCapabilityFlags::kSmoothLinesEnabled, (vkPhysicalDeviceLineRasterizationFeaturesEXT.smoothLines == VK_TRUE)
+		                    && (vkPhysicalDeviceLineRasterizationFeaturesEXT.rectangularLines == VK_TRUE));
 
 		// Strip the smoothLines feature struct of probe-only flags; only the bits we want enabled remain
 		vkPhysicalDeviceLineRasterizationFeaturesEXT = VkPhysicalDeviceLineRasterizationFeaturesEXT
 		{
 			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LINE_RASTERIZATION_FEATURES_EXT,
 			.pNext = nullptr,
-			.rectangularLines = mbSmoothLinesEnabled ? VK_TRUE : VK_FALSE,
-			.smoothLines = mbSmoothLinesEnabled ? VK_TRUE : VK_FALSE,
+			.rectangularLines = (mCapabilities & DeviceCapabilityFlags::kSmoothLinesEnabled) ? VK_TRUE : VK_FALSE,
+			.smoothLines = (mCapabilities & DeviceCapabilityFlags::kSmoothLinesEnabled) ? VK_TRUE : VK_FALSE,
 		};
 
-		if (mbSmoothLinesEnabled)
+		if (mCapabilities & DeviceCapabilityFlags::kSmoothLinesEnabled)
 		{
 			deviceExtensions.push_back(VK_EXT_LINE_RASTERIZATION_EXTENSION_NAME);
 			LOG(kGraphics, kInfo, "VK_EXT_line_rasterization smooth lines enabled");
 		}
 	}
 
-	mbWideLinesEnabled = gpInstanceManager->mVkPhysicalDeviceFeatures2.features.wideLines == VK_TRUE;
+	mCapabilities.Set(DeviceCapabilityFlags::kWideLinesEnabled, gpInstanceManager->mVkPhysicalDeviceFeatures2.features.wideLines == VK_TRUE);
 
 	VkPhysicalDeviceMaintenance9FeaturesKHR vkPhysicalDeviceMaintenance9FeaturesKHR =
 	{
@@ -114,7 +114,7 @@ DeviceManager::DeviceManager()
 		vkPhysicalDeviceMaintenance9FeaturesKHR.pNext = pFeatureChainTail;
 		pFeatureChainTail = &vkPhysicalDeviceMaintenance9FeaturesKHR;
 	}
-	if (mbSmoothLinesEnabled)
+	if (mCapabilities & DeviceCapabilityFlags::kSmoothLinesEnabled)
 	{
 		vkPhysicalDeviceLineRasterizationFeaturesEXT.pNext = pFeatureChainTail;
 		pFeatureChainTail = &vkPhysicalDeviceLineRasterizationFeaturesEXT;
@@ -194,7 +194,7 @@ DeviceManager::DeviceManager()
 	#endif
 	};
 	vkPhysicalDeviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
-	if (mbWideLinesEnabled)
+	if (mCapabilities & DeviceCapabilityFlags::kWideLinesEnabled)
 	{
 		vkPhysicalDeviceFeatures.wideLines = VK_TRUE;
 	}
@@ -280,8 +280,8 @@ DeviceManager::DeviceManager()
 		// != graphics guard above would be true and this would silently index [UINT32_MAX]).
 		ASSERT(uiTransferFamily < uiQueueFamilyCount && uiGraphicsFamily < uiQueueFamilyCount);
 		uint32_t uiOptimalMask = queueFamilyOwnershipTransferProperties[uiTransferFamily].optimalImageTransferToQueueFamilies;
-		mbTransferQueueFamilyOwnershipTransferOptional = (uiOptimalMask & (1u << uiGraphicsFamily)) != 0;
-		LOG(kGraphics, kDebug, "Transfer->Graphics QFOT optional: {} (transfer family {} optimal mask {:#010b}, graphics family {})", mbTransferQueueFamilyOwnershipTransferOptional, uiTransferFamily, uiOptimalMask, uiGraphicsFamily);
+		mCapabilities.Set(DeviceCapabilityFlags::kTransferQueueFamilyOwnershipTransferOptional, (uiOptimalMask & (1u << uiGraphicsFamily)) != 0);
+		LOG(kGraphics, kDebug, "Transfer->Graphics QFOT optional: {} (transfer family {} optimal mask {:#010b}, graphics family {})", static_cast<bool>(mCapabilities & DeviceCapabilityFlags::kTransferQueueFamilyOwnershipTransferOptional), uiTransferFamily, uiOptimalMask, uiGraphicsFamily);
 	}
 
 	// Descriptor pool
@@ -320,7 +320,7 @@ DeviceManager::DeviceManager()
 
 	VmaAllocatorCreateInfo allocatorCreateInfo =
 	{
-		.flags = mbMemoryBudgetAvailable ? VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT : static_cast<VmaAllocatorCreateFlags>(0),
+		.flags = (mCapabilities & DeviceCapabilityFlags::kMemoryBudgetAvailable) ? VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT : static_cast<VmaAllocatorCreateFlags>(0),
 		.physicalDevice = gpInstanceManager->mVkPhysicalDevice,
 		.device = mVkDevice,
 		.pVulkanFunctions = &mVmaFunctions,

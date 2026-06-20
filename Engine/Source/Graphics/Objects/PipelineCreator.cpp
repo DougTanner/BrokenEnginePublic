@@ -350,8 +350,8 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 		.lineStipplePattern = 0,
 	};
 
-	const bool bSmoothLines = (rPipelineInfo.flags & PipelineFlags::kLineList) && gpDeviceManager->mbSmoothLinesEnabled;
-	const bool bWideLines = (rPipelineInfo.flags & PipelineFlags::kLineList) && gpDeviceManager->mbWideLinesEnabled;
+	const bool bSmoothLines = (rPipelineInfo.flags & PipelineFlags::kLineList) && (gpDeviceManager->mCapabilities & DeviceCapabilityFlags::kSmoothLinesEnabled);
+	const bool bWideLines = (rPipelineInfo.flags & PipelineFlags::kLineList) && (gpDeviceManager->mCapabilities & DeviceCapabilityFlags::kWideLinesEnabled);
 
 	VkPipelineRasterizationStateCreateInfo vkPipelineRasterizationStateCreateInfo
 	{

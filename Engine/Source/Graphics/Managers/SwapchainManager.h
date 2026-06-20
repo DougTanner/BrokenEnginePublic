@@ -29,6 +29,10 @@ public:
 	void AcquireNextImage();
 	void Present(int64_t iFramebufferIndex);
 
+	// Hands the live swapchain handle to the caller (returns it, nulls the member) so the old swapchain
+	// survives across recreation — single named home for the ownership transfer in Graphics::Destroy.
+	VkSwapchainKHR ReleaseHandleForRecreation();
+
 	float mfAspectRatio = 1.0f;
 
 	Texture mDepthTexture;

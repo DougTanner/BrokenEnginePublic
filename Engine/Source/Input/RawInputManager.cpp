@@ -37,7 +37,7 @@ RawInputManager::~RawInputManager()
 
 void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 {
-	mbHasFocus = bHasFocus;
+	mStateFlags.Set(RawInputStateFlags::kHasFocus, bHasFocus);
 	mHwnd = hwnd;
 
 	RAWINPUTDEVICE pRawinputdevices[2] {};
@@ -140,7 +140,7 @@ void RawInputManager::Update(bool bLostFocus)
 		TrapCursor(game::gpGame->ShouldTrapCursor());
 	}
 
-	if (!mbHasFocus)
+	if (!(mStateFlags & RawInputStateFlags::kHasFocus))
 	{
 		return;
 	}
@@ -155,11 +155,11 @@ void RawInputManager::Update(bool bLostFocus)
 	Mouse::State mouseState = mMouse.GetState();
 	mRawInput.f2MousePosition.x = static_cast<float>(mouseState.x) / static_cast<float>(gpGraphics->mFramebufferExtent2D.width);
 	mRawInput.f2MousePosition.y = static_cast<float>(mouseState.y) / static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
-	mRawInput.pMouseButtons[MouseButtons::kMouseButtonLeft] = mouseState.leftButton;
-	mRawInput.pMouseButtons[MouseButtons::kMouseButtonMiddle] = mouseState.middleButton;
-	mRawInput.pMouseButtons[MouseButtons::kMouseButtonRight] = mouseState.rightButton;
-	mRawInput.pMouseButtons[MouseButtons::kMouseButtonExtraOne] = mouseState.xButton1;
-	mRawInput.pMouseButtons[MouseButtons::kMouseButtonExtraTwo] = mouseState.xButton2;
+	mRawInput.mouseButtons.Set(MouseButtons::kMouseButtonLeft, mouseState.leftButton);
+	mRawInput.mouseButtons.Set(MouseButtons::kMouseButtonMiddle, mouseState.middleButton);
+	mRawInput.mouseButtons.Set(MouseButtons::kMouseButtonRight, mouseState.rightButton);
+	mRawInput.mouseButtons.Set(MouseButtons::kMouseButtonExtraOne, mouseState.xButton1);
+	mRawInput.mouseButtons.Set(MouseButtons::kMouseButtonExtraTwo, mouseState.xButton2);
 	mRawInput.iScrollWheelValue = mouseState.scrollWheelValue;
 
 	// Game pad (only first game pad supported)
@@ -168,9 +168,9 @@ void RawInputManager::Update(bool bLostFocus)
 		GamePad::State gamepadState = mpGamePad->GetState(0);
 		if (gamepadState.IsConnected())
 		{
-			if (!mbGamePadConnected)
+			if (!(mStateFlags & RawInputStateFlags::kGamePadConnected))
 			{
-				mbGamePadConnected = true;
+				mStateFlags.Set(RawInputStateFlags::kGamePadConnected);
 				LOG(kInput, kInfo, "Game pad connected: {}", static_cast<int64_t>(mpGamePad->GetCapabilities(0).gamepadType));
 			}
 
@@ -182,20 +182,20 @@ void RawInputManager::Update(bool bLostFocus)
 			mRawInput.f2Dpad.x = gamepadState.dpad.left ? -1.0f : (gamepadState.dpad.right ? 1.0f : 0.0f);
 			mRawInput.f2Dpad.y = gamepadState.dpad.up ? 1.0f : (gamepadState.dpad.down ? -1.0f : 0.0f);
 
-			mRawInput.pGamepadButtons[kGamepadButtonA] = gamepadState.IsAPressed();
-			mRawInput.pGamepadButtons[kGamepadButtonB] = gamepadState.IsBPressed();
-			mRawInput.pGamepadButtons[kGamepadButtonX] = gamepadState.IsXPressed();
-			mRawInput.pGamepadButtons[kGamepadButtonY] = gamepadState.IsYPressed();
-			mRawInput.pGamepadButtons[kGamepadLeftShoulder] = gamepadState.IsLeftShoulderPressed();
-			mRawInput.pGamepadButtons[kGamepadRightShoulder] = gamepadState.IsRightShoulderPressed();
-			mRawInput.pGamepadButtons[kGamepadStart] = gamepadState.IsStartPressed();
-			mRawInput.pGamepadButtons[kGamepadMenu] = gamepadState.IsMenuPressed();
+			mRawInput.gamepadButtons.Set(kGamepadButtonA, gamepadState.IsAPressed());
+			mRawInput.gamepadButtons.Set(kGamepadButtonB, gamepadState.IsBPressed());
+			mRawInput.gamepadButtons.Set(kGamepadButtonX, gamepadState.IsXPressed());
+			mRawInput.gamepadButtons.Set(kGamepadButtonY, gamepadState.IsYPressed());
+			mRawInput.gamepadButtons.Set(kGamepadLeftShoulder, gamepadState.IsLeftShoulderPressed());
+			mRawInput.gamepadButtons.Set(kGamepadRightShoulder, gamepadState.IsRightShoulderPressed());
+			mRawInput.gamepadButtons.Set(kGamepadStart, gamepadState.IsStartPressed());
+			mRawInput.gamepadButtons.Set(kGamepadMenu, gamepadState.IsMenuPressed());
 		}
 		else
 		{
-			if (mbGamePadConnected)
+			if (mStateFlags & RawInputStateFlags::kGamePadConnected)
 			{
-				mbGamePadConnected = false;
+				mStateFlags.Clear(RawInputStateFlags::kGamePadConnected);
 				LOG(kInput, kInfo, "Game pad disconnected");
 			}
 
@@ -207,14 +207,7 @@ void RawInputManager::Update(bool bLostFocus)
 			mRawInput.f2Dpad.x = 0.0f;
 			mRawInput.f2Dpad.y = 0.0f;
 
-			mRawInput.pGamepadButtons[kGamepadButtonA] = false;
-			mRawInput.pGamepadButtons[kGamepadButtonB] = false;
-			mRawInput.pGamepadButtons[kGamepadButtonX] = false;
-			mRawInput.pGamepadButtons[kGamepadButtonY] = false;
-			mRawInput.pGamepadButtons[kGamepadLeftShoulder] = false;
-			mRawInput.pGamepadButtons[kGamepadRightShoulder] = false;
-			mRawInput.pGamepadButtons[kGamepadStart] = false;
-			mRawInput.pGamepadButtons[kGamepadMenu] = false;
+			mRawInput.gamepadButtons = {};
 		}
 	}
 }

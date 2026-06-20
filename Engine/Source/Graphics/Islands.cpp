@@ -90,7 +90,7 @@ Islands::~Islands()
 	}
 }
 
-void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrames>& rFrames, const std::vector<GridCoord>& rActiveCoords)
+void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrames>& rFrames, std::span<const GridCoord> rActiveCoords)
 {
 	// Write only the framebuffer instance the current frame will consume. miFramebufferIndex was set by the
 	// trailing AcquireNextImage of the prior render (Graphics.cpp); it is the index RenderGlobal reads

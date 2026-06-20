@@ -46,7 +46,7 @@ void MainMenuScreen::Render()
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
 	// Auto-start discovery when main menu is shown
-	if (gpClientSession->mpDiscoveryScanner == nullptr && !gpClientSession->mbServerDiscovered)
+	if (gpClientSession->mpDiscoveryScanner == nullptr && !(gpClientSession->mSessionFlags & engine::SessionStateFlags::kServerDiscovered))
 	{
 		gpClientSession->StartServerDiscovery();
 	}
@@ -55,7 +55,7 @@ void MainMenuScreen::Render()
 	if constexpr (kbAutoRunServer)
 	{
 		static bool sbServerLaunched = false;
-		if (!sbServerLaunched && gpClientSession->mbDiscoveryScanTimedOut)
+		if (!sbServerLaunched && (gpClientSession->mSessionFlags & engine::SessionStateFlags::kDiscoveryScanTimedOut))
 		{
 			sbServerLaunched = true;
 			// Heap: std::filesystem::path allocates; one-time server launch path
@@ -80,7 +80,7 @@ void MainMenuScreen::Render()
 	if constexpr (kbAutoConnect)
 	{
 		static bool sbConnected = false;
-		if (!sbConnected && gpClientSession->mbServerDiscovered)
+		if (!sbConnected && (gpClientSession->mSessionFlags & engine::SessionStateFlags::kServerDiscovered))
 		{
 			sbConnected = true;
 			gpClientSession->ConnectToDiscoveredServer();
@@ -88,7 +88,7 @@ void MainMenuScreen::Render()
 	}
 
 	// Local Server button (discovers localhost + LAN)
-	if (gpClientSession->mbServerDiscovered)
+	if (gpClientSession->mSessionFlags & engine::SessionStateFlags::kServerDiscovered)
 	{
 		if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, fButtonHeight)))
 		{

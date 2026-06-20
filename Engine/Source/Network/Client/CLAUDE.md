@@ -25,7 +25,7 @@ Each receive handler classifies into a flag set (commit / clear-placeholder / he
 - **Stale-coord unsubscribe**: active slots whose coord left the desired set are cancelled (if still `kSubscribing`) or sent an unsubscribe; the matching `CoordFrames` entry is erased.
 - **Update apply** moves drained per-tick updates into each active slot's `CoordFrames::serverUpdates` via `try_emplace` (first arrival wins, stale ticks skipped); buffer overflow drops the update with a `kWarning` log.
 - **Clock correction**: jitter-derived `targetBehind` (jitter + fixed safety margin, 2-tick hysteresis) sets how far behind `latestServerTick` the sim runs; gradual per-tick nudge, sustained error past threshold forces disconnect. No active slot resets `latestServerTick`. Full formulas in [Network.md](../../../../Documents/Architecture/Network.md).
-- **Metrics**: bytes in/out per second (host counters), interarrival jitter (deviation from expected tick interval), and packet-loss percent (received vs. expected for active slots) — jitter feeds clock correction.
+- **Metrics**: bytes in/out per second (host counters), interarrival jitter (deviation from expected tick interval), and packet-loss percent (received vs. expected for active slots) — jitter feeds clock correction. Both jitter expectation and packet-loss expected-frame count scale with the debug timescale (`mTimeStep.SimToWall` / `miTimeMultiply`/`miTimeDivide`), so both metrics stay meaningful under non-1× server speed; the fixed `kiJitterSafetyUs` safety margin is unaffected.
 - **Queue-build scratch sizing**: the queue-build stack array is sized to the engine ceiling `NetworkManager::kiMaxEnetCoordSlots`, so raising the client's desired-slot count cannot overflow it; the discovery address buffer is IPv4 dotted-quad only.
 
 ## Clock & Pipeline RTT
@@ -34,7 +34,7 @@ Pipeline RTT seeded from the handshake wall-clock delta, then refined from a cli
 
 ## Other
 
-- **GUID**: versioned `ClientGuid.bin` under `FileFlags::kAppDataDirectory`; loaded on hello, written atomically on connection accept so a mid-write crash can't orphan server-side state.
+- **GUID**: versioned `ClientGuid.bin` under `FileFlags::kAppDataDirectory`. Load and store live in `ClientSessionBase` (not the `Client` transport peer): the session loads the GUID before connect and hands it to the `Client` ctor with a persist callback; the peer holds only the in-memory GUID and invokes that callback on connection accept, which writes atomically so a mid-write crash can't orphan server-side state.
 - **Disconnect**: resets all session state and calls `CoordFrames::ResetClientState` on every coord.
 - **LAN discovery**: scanner auto-restarts on timeout.
 - **Desync debug mode**: freezes the ACK floor (received-tick tracking becomes a no-op) so the server keeps resending while the captured debug frame is inspected.
