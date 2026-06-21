@@ -68,8 +68,7 @@ DeviceManager::DeviceManager()
 		};
 		vkGetPhysicalDeviceFeatures2(gpInstanceManager->mVkPhysicalDevice, &vkPhysicalDeviceFeatures2Probe);
 
-		mCapabilities.Set(DeviceCapabilityFlags::kSmoothLinesEnabled, (vkPhysicalDeviceLineRasterizationFeaturesEXT.smoothLines == VK_TRUE)
-		                    && (vkPhysicalDeviceLineRasterizationFeaturesEXT.rectangularLines == VK_TRUE));
+		mCapabilities.Set(DeviceCapabilityFlags::kSmoothLinesEnabled, (vkPhysicalDeviceLineRasterizationFeaturesEXT.smoothLines == VK_TRUE) && (vkPhysicalDeviceLineRasterizationFeaturesEXT.rectangularLines == VK_TRUE));
 
 		// Strip the smoothLines feature struct of probe-only flags; only the bits we want enabled remain
 		vkPhysicalDeviceLineRasterizationFeaturesEXT = VkPhysicalDeviceLineRasterizationFeaturesEXT

@@ -7,10 +7,10 @@ inline constexpr std::chrono::nanoseconds kFenceTimeoutNanoseconds = 4'000'000'0
 
 enum class DeviceCapabilityFlags : uint8_t
 {
-	kMemoryBudgetAvailable                       = 1 << 0,
+	kMemoryBudgetAvailable                        = 1 << 0,
 	kTransferQueueFamilyOwnershipTransferOptional = 1 << 1,
-	kSmoothLinesEnabled                          = 1 << 2,
-	kWideLinesEnabled                            = 1 << 3,
+	kSmoothLinesEnabled                           = 1 << 2,
+	kWideLinesEnabled                             = 1 << 3,
 };
 
 class DeviceManager
