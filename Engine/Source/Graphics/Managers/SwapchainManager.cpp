@@ -17,6 +17,14 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 
 	ScopedBootTimer scopedBootTimer(kBootTimerSwapchainManager);
 
+	CreateRenderPass();
+	CreateSwapchain(oldSwapchain);
+	CreateFramebuffers();
+	CreateSyncObjects();
+}
+
+void SwapchainManager::CreateRenderPass()
+{
 	// Based on https://github.com/Overv/VulkanTutorial
 	// The render pass attachment description will specify how many color and depth buffers there will be, how many samples to use for each of them and how their contents should be handled throughout the rendering operations
 	VkAttachmentDescription pVkAttachmentDescriptions[]
@@ -129,7 +137,10 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 	};
 	CHECK_VK(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkRenderPassCreateInfo, nullptr, &mVkRenderPass));
 	VkName(VK_OBJECT_TYPE_RENDER_PASS, mVkRenderPass, "SwapchainManager");
+}
 
+void SwapchainManager::CreateSwapchain(VkSwapchainKHR oldSwapchain)
+{
 	// The swapchain is essentially a queue of images that are waiting to be presented to the screen
 	// Our application will acquire such an image to draw to it, and then return it to the queue
 	// How exactly the queue works and the conditions for presenting an image from the queue depend on how the swapchain is set up
@@ -235,7 +246,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 		.pNext = nullptr,
 		.flags = 0,
 		.surface = gpInstanceManager->mVkSurfaceKHR,
-		.minImageCount = static_cast<uint32_t>(uiMinImageCount),
+		.minImageCount = uiMinImageCount,
 		.imageFormat = gpInstanceManager->mFramebufferVkFormat,
 		.imageColorSpace = gpInstanceManager->mFramebufferVkColorSpace,
 		.imageExtent = gpGraphics->mFramebufferExtent2D,
@@ -258,7 +269,10 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 		vkDestroySwapchainKHR(gpDeviceManager->mVkDevice, oldSwapchain, nullptr);
 	}
 	VkName(VK_OBJECT_TYPE_SWAPCHAIN_KHR, mVkSwapchainKHR, "");
+}
 
+void SwapchainManager::CreateFramebuffers()
+{
 	// Get the swapchain images
 	uint32_t uiImageCount = 0;
 	CHECK_VK(vkGetSwapchainImagesKHR(gpDeviceManager->mVkDevice, mVkSwapchainKHR, &uiImageCount, nullptr));
@@ -363,8 +377,11 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 		CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &rFrameBuffer.presentVkFramebuffer));
 		VkName(VK_OBJECT_TYPE_FRAMEBUFFER, rFrameBuffer.presentVkFramebuffer, std::format("Present {}", i - 1).c_str());
 	}
+}
 
-	mImageAvailableFences.resize(uiImageCount);
+void SwapchainManager::CreateSyncObjects()
+{
+	mImageAvailableFences.resize(mFramebuffers.size());
 	miFenceAvailableIndex = 0;
 	for ([[maybe_unused]] int64_t i = 0; VkFence& rFence : mImageAvailableFences)
 	{
@@ -378,7 +395,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 		VkName(VK_OBJECT_TYPE_FENCE, rFence, std::format("ImageAvailable {}", i++).c_str());
 	}
 
-	mImageAvailableSemaphores.resize(uiImageCount + 1);
+	mImageAvailableSemaphores.resize(mFramebuffers.size() + 1);
 	miImageAvailableIndex = 0;
 	for ([[maybe_unused]] int64_t i = 0; VkSemaphore& rSemaphore : mImageAvailableSemaphores)
 	{
@@ -491,6 +508,12 @@ void SwapchainManager::PresentToQueue(int64_t iFramebufferIndex)
 	// Handle stale swapchain by requesting deferred recreation
 	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
 	{
+		// This present-worker write is ordered before the main thread's Refresh() read-modify-write only by
+		//   gpSwapchainManager->mPresent.Wait() in the kbRenderThread frame-tail block (Graphics::RenderMainPresentAcquire,
+		//   before the next Create()). That same Wait also keeps the next frame's Global submit from racing this
+		//   vkQueuePresentKHR on the shared queue. Preserve that Wait when refactoring the frame tail. Same "plain member
+		//   published across a PersistentWorker Wake/Wait edge" family as CommandBufferManager's mbParticleSemaphoreSignaled
+		//   and CommandBuffers.h (mFlags/mVkFence).
 		gpGraphics->meDestroyType = DestroyType::kSwapchain;
 		return;
 	}

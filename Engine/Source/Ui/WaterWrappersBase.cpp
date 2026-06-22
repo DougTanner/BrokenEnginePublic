@@ -53,11 +53,6 @@ Wrapper gLightingWaterSkyboxLod(7.5f, 0.0f, 10.0f);
 // Resolution multiplier for the WaterSkyboxOne MSAA pre-pass (default 1.0 = framebuffer size).
 Wrapper gWaterSkyboxOneRenderMultiplier(1.0f, 0.25f, 2.0f);
 
-// High frequency waves (pure-internal, not slider-mapped)
-Wrapper gWaterHighMultiplier(0.204f, 0.0f, 0.5f);
-Wrapper gWaterHighScaleOne(0.85f, 0.0f, 2.0f);
-Wrapper gWaterHighScaleTwo(1.2f, 0.0f, 2.0f);
-
 // Specular - Height Darken
 Wrapper gWaterHeightDarkenTop(0.05f, -0.1f, 0.05f);
 Wrapper gWaterHeightDarkenBottom(-0.1f, -0.5f, 0.0f);
@@ -113,8 +108,6 @@ Wrapper gWaterUnderseaCompression(0.8f, 0.1f, 1.0f);
 Wrapper gWaterColorBottom(0.134f, -2.0f, 2.0f);
 Wrapper gWaterColorHeight(1.86f, 0.0f, 4.0f);
 Wrapper gWaterFresnel(0.07f, 0.0f, 0.2f); // DT: TEMP
-Wrapper gWaterNoiseFrequency(0.007f, 0.0f, 0.02f); // DT: TEMP
-Wrapper gWaterNoiseAmount(1.4f, 0.0f, 2.0f); // DT: TEMP
 Wrapper gWaterColorNoiseFrequency(0.0013f, 0.0f, 0.01f);
 Wrapper gWaterColorNoiseAmount(0.1f, 0.0f, 0.2f);
 Wrapper gWaterColorNoiseWeightOne(-1.5f, -2.0f, 2.0f);

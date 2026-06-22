@@ -36,6 +36,11 @@ public:
 
 	VmaAllocator mpAllocator = nullptr;
 	VmaVulkanFunctions mVmaFunctions = {};
+
+private:
+
+	void LoadPipelineCache();
+	void ProbeTransferQueueOwnershipTransfer(bool bMaintenance9Available);
 };
 
 inline DeviceManager* gpDeviceManager = nullptr;

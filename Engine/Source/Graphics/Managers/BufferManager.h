@@ -133,6 +133,8 @@ public:
 
 private:
 
+	void CreateDebugMeshBuffers();
+
 	void GrowMeshDataBuffer(int64_t iCommandBuffer, int64_t iValidCount);
 	void GrowJointMatrixBuffer(int64_t iCommandBuffer, int64_t iValidCount);
 

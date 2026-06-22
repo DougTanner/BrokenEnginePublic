@@ -374,17 +374,12 @@ struct GlobalLayout
 	float fWaterTerrainHeight INIT;
 	float fWaterTerrainFade INIT;
 	float fWaterTerrainFadeClamp INIT;
-	float fWaterNoiseFrequency INIT;
-	float fWaterNoiseAmount INIT;
 	float fWaterDepthLutFeather INIT;
 	float fWaterDepthColorFeather INIT;
 	float fWaterDepthColorFloor INIT;
 	float fWaterUnderseaCompression INIT;
 	float fWaterDepthReflectionFeather INIT;
 	float fWaterColorNoiseFrequency INIT;
-	float fWaterHighMultiplier INIT;
-	float fWaterHighScaleOne INIT;
-	float fWaterHighScaleTwo INIT;
 	float fWaterDepthLutSunsetFade INIT;
 	float fWaterFresnel INIT;
 	float fWaterColorBottom INIT;
@@ -431,7 +426,6 @@ struct GlobalLayout
 	float fTerrainRockNormalsSizeThree INIT;
 	float fTerrainRockNormalsBlend INIT;
 
-	float fTerrainBeachHeight INIT;
 	float fTerrainBeachSandSize INIT;
 	float fTerrainBeachSandBlend INIT;
 	float fTerrainBeachNormalsSizeOne INIT;

@@ -32,6 +32,19 @@ public:
 	// Process newly loaded textures from lazy loading system
 	void ProcessPendingTextures(int64_t iFramebufferIndex);
 
+	// Allocate the per-framebuffer acquire-barrier command pool + buffers (mAcquireVkCommandPool /
+	// mAcquireVkCommandBuffers). Shared by the ctor and CreateScreenDependentResources.
+	void CreateAcquireCommandBuffers();
+
+	// Create a 1x1 programmatic placeholder Texture. Shared by the seven ctor placeholders (white / white
+	// cube / the five island bindless-array anchors); only name/flags/format/layers/view-type/pixel differ.
+	void CreatePlaceholderTexture(Texture& rTexture, std::string_view name, VkImageCreateFlags vkImageCreateFlags, VkFormat vkFormat, uint32_t uiArrayLayers, VkImageViewType vkImageViewType, const std::function<void(void*, int64_t, int64_t)>& rPixelWriter);
+
+	// ProcessPendingTextures seam helpers: adopt one transfer-queue-uploaded chunk (descriptor write +
+	// optional acquire barrier + lighting blur), and lazily begin the acquire command buffer on first use.
+	void AdoptUploadedChunk(common::crc_t crc, Texture& rTexture, bool bNeedAcquireBarrier, VkCommandBuffer vkAcquireCommandBuffer, bool& brRecordedBarriers);
+	void EnsureAcquireCommandBufferBegun(VkCommandBuffer vkAcquireCommandBuffer, bool& brRecordedBarriers);
+
 	// True when ProcessPendingTextures will adopt a chunk this frame (and thus write descriptor
 	// elements). Drives the RenderGlobal all-framebuffer-fence drain so those writes don't race an
 	// in-flight frame still sampling the slot.
@@ -125,14 +138,22 @@ public:
 	TextureCache mTextureCache;
 	TextureDescriptors mTextureDescriptors;
 
-	VkSampler mVkSamplerSmoke = VK_NULL_HANDLE;
-	VkSampler mVkSamplerWindClamp = VK_NULL_HANDLE;
-	VkSampler mVkSamplerBorder = VK_NULL_HANDLE;
-	VkSampler mVkSamplerBorderWhite = VK_NULL_HANDLE;
-	VkSampler mVkSamplerClamp = VK_NULL_HANDLE;
-	VkSampler mVkSamplerElevation = VK_NULL_HANDLE;
-	VkSampler mVkSamplerRepeat = VK_NULL_HANDLE;
-	VkSampler mVkSamplerMirroredRepeat = VK_NULL_HANDLE;
+	// Sampler storage indexed by SamplerSlot. CreateSamplers builds each slot with its bespoke
+	// VkSamplerCreateInfo; GetSampler maps a DescriptorFlags sampler bit to one of these.
+	enum SamplerSlot : int64_t
+	{
+		kSamplerSlotSmoke,
+		kSamplerSlotWindClamp,
+		kSamplerSlotBorder,
+		kSamplerSlotBorderWhite,
+		kSamplerSlotClamp,
+		kSamplerSlotElevation,
+		kSamplerSlotRepeat,
+		kSamplerSlotMirroredRepeat,
+		kSamplerSlotCount,
+	};
+	VkSampler mpSamplers[kSamplerSlotCount] {};
+
 	Texture mWhiteTexture;
 	Texture mWhiteCubeTexture;
 

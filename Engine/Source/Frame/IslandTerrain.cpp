@@ -593,7 +593,7 @@ int64_t IslandTerrain::AcquireTextureSlot(common::crc_t islandCrc)
 				ASSERT(it != rTextureDescriptors.mBindlessArrayConsumers.end());
 				for (const TextureDescriptors::BindlessArrayConsumer& rConsumer : it->second)
 				{
-					rTextureDescriptors.RegisterTextureBinding(bindingKey, rConsumer.pPipeline, rConsumer.iBinding, rConsumer.samplerFlags, nullptr, ppArray, rConsumer.iCount, iSlot);
+					rTextureDescriptors.RegisterTextureBinding({.crc = bindingKey, .pPipeline = rConsumer.pPipeline, .iBinding = rConsumer.iBinding, .samplerFlags = rConsumer.samplerFlags, .ppTextures = ppArray, .iCount = rConsumer.iCount, .iArrayIndex = iSlot});
 				}
 			};
 			Register(islandCrc,      gpTextureManager->mRenderTargetTextures.mElevationTextures.data());

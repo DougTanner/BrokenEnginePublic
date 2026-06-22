@@ -25,7 +25,9 @@ public:
 	// mFlags / mVkFence are non-atomic by design — three writers (kExecuted set on the mSubmitGlobal worker
 	// in CommandBufferManager::SubmitGlobalToQueue, mVkFence reset on mSubmitMain in SubmitMainToQueue, read
 	// back on the main thread in Graphics) are sequenced only by the PersistentWorker Wake/Wait chain. Not
-	// thread-safe for new callers outside that chain.
+	// thread-safe for new callers outside that chain. Same "plain member published across a PersistentWorker
+	// Wake/Wait edge" family as CommandBufferManager's mbParticleSemaphoreSignaled, SwapchainManager::PresentToQueue
+	// (meDestroyType), and TextureManager's mbHasPendingAcquireBarriers.
 	CommandBufferFlags_t mFlags;
 	VkCommandPool mVkCommandPool = VK_NULL_HANDLE;
 	VkCommandBuffer mGlobalVkCommandBuffer = VK_NULL_HANDLE;

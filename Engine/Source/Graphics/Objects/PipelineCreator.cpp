@@ -173,15 +173,7 @@ static void CreateDescriptorSetLayouts(Pipeline& rPipeline, const PipelineInfo& 
 		for (int64_t i = 0; i < iDescriptorCount; ++i)
 		{
 			uint32_t uiBinding = pVkDescriptorSetLayoutBindings[i].binding;
-			uint32_t uiSet = 0;
-			if (uiBinding < static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings) && pVertexShader->mInfo.pDescriptorBindings[uiBinding].descriptorCount > 0)
-			{
-				uiSet = pVertexShader->mInfo.pDescriptorSetIndices[uiBinding];
-			}
-			else if (uiBinding < static_cast<uint32_t>(pFragmentShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings) && pFragmentShader->mInfo.pDescriptorBindings[uiBinding].descriptorCount > 0)
-			{
-				uiSet = pFragmentShader->mInfo.pDescriptorSetIndices[uiBinding];
-			}
+			uint32_t uiSet = Pipeline::ResolveBindingSetIndex(rPipelineInfo, uiBinding);
 
 			if (uiSet == 1)
 			{
@@ -666,11 +658,7 @@ void PipelineCreator::CreateComputePipeline(Pipeline& rPipeline, const PipelineI
 	for (int64_t i = 0; i < iDescriptorCount; ++i)
 	{
 		uint32_t uiBinding = pVkDescriptorSetLayoutBindings[i].binding;
-		uint32_t uiSet = 0;
-		if (uiBinding < static_cast<uint32_t>(pComputeShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings) && pComputeShader->mInfo.pDescriptorBindings[uiBinding].descriptorCount > 0)
-		{
-			uiSet = pComputeShader->mInfo.pDescriptorSetIndices[uiBinding];
-		}
+		uint32_t uiSet = Pipeline::ResolveBindingSetIndex(rPipelineInfo, uiBinding);
 		if (uiSet == 1)
 		{
 			pVkSet1Bindings[iSet1Count++] = pVkDescriptorSetLayoutBindings[i];

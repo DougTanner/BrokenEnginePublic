@@ -109,6 +109,11 @@ public:
 	// Fallback for out-of-bounds binding lookups when vertex/fragment shaders have different binding counts
 	static constexpr VkDescriptorSetLayoutBinding kEmptyBinding {};
 
+	// Resolve which descriptor set a binding belongs to from shader reflection (pDescriptorSetIndices),
+	// defaulting to set 0 when neither shader declares it. Single source for the four set-partition /
+	// set-routing sites in PipelineCreator / PipelineDescriptorWriter.
+	static uint32_t ResolveBindingSetIndex(const PipelineInfo& rPipelineInfo, uint32_t uiBinding);
+
 	Pipeline() = default;
 	Pipeline(const Pipeline&) = delete;
 	Pipeline(const PipelineInfo& rInfo);

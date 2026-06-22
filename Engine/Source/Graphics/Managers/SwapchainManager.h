@@ -50,6 +50,12 @@ public:
 
 private:
 
+	// Construction phases (called once from the ctor, in order).
+	void CreateRenderPass();
+	void CreateSwapchain(VkSwapchainKHR oldSwapchain);
+	void CreateFramebuffers();
+	void CreateSyncObjects();
+
 	// Round-robin acquire sync objects, advanced by the GetNext* accessors below.
 	std::vector<VkSemaphore> mImageAvailableSemaphores;
 	int64_t miImageAvailableIndex = 0;

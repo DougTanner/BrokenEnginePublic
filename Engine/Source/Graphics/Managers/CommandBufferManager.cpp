@@ -77,7 +77,10 @@ void CommandBufferManager::SubmitGlobalToQueue(int64_t iFramebufferIndex)
 {
 	CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
-	// Prepend acquire barrier command buffer for QFOT when textures were adopted this frame
+	// Prepend acquire barrier command buffer for QFOT when textures were adopted this frame. mbHasPendingAcquireBarriers
+	// and miAcquireFramebufferIndex are written on the main thread in TextureManager::ProcessPendingTextures; under
+	// kbRenderThread this read runs on the mSubmitGlobal worker, safe only because SubmitGlobalCommandBuffer's
+	// mSubmitGlobal.Wake() edge published those writes first. Same family as CommandBuffers.h (mFlags/mVkFence).
 	VkCommandBuffer pCommandBuffers[2] {};
 	uint32_t uiCommandBufferCount = 0;
 	if (gpTextureManager->mbHasPendingAcquireBarriers)
@@ -178,7 +181,9 @@ void CommandBufferManager::SubmitMainToQueue(int64_t iFramebufferIndex, bool bSi
 
 	// mParticleSyncVkSemaphore (signaled above via vkSignalSemaphores) is waited by the NEXT frame's
 	// SubmitGlobalToQueue, gated on mbParticleSemaphoreSignaled — a cross-frame, cross-method pairing that
-	// holds only because a Main submit always precedes the next Global submit.
+	// holds only because a Main submit always precedes the next Global submit. Same "plain member published across
+	// a PersistentWorker Wake/Wait edge" family as SwapchainManager::PresentToQueue (meDestroyType) and CommandBuffers.h
+	// (mFlags/mVkFence).
 	mbParticleSemaphoreSignaled = true;
 
 	if constexpr (kbScreenshots)

@@ -9,6 +9,7 @@ struct RenderTargetTextures
 
 	void DestroyLightingTextures();
 	void CreateLightingTextures();
+	void RegisterDebugTextures(int64_t iPassCount);
 	void CreateShadowTextures();
 	void CreateSmokeTextures();
 	void CreateWindTextures();

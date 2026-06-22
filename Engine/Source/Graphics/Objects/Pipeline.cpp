@@ -51,6 +51,26 @@ void BindComputeDescriptorSets(VkCommandBuffer vkCommandBuffer, VkPipelineLayout
 	}
 }
 
+uint32_t Pipeline::ResolveBindingSetIndex(const PipelineInfo& rPipelineInfo, uint32_t uiBinding)
+{
+	int64_t iBind = static_cast<int64_t>(uiBinding);
+	const Shader* pFirstShader = rPipelineInfo.ppShaders[0];
+	if (iBind < pFirstShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings && pFirstShader->mInfo.pDescriptorBindings[uiBinding].descriptorCount > 0)
+	{
+		return pFirstShader->mInfo.pDescriptorSetIndices[uiBinding];
+	}
+	if (rPipelineInfo.flags & kCompute)
+	{
+		return 0;
+	}
+	const Shader* pSecondShader = rPipelineInfo.ppShaders[1];
+	if (iBind < pSecondShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings && pSecondShader->mInfo.pDescriptorBindings[uiBinding].descriptorCount > 0)
+	{
+		return pSecondShader->mInfo.pDescriptorSetIndices[uiBinding];
+	}
+	return 0;
+}
+
 Pipeline::Pipeline(const PipelineInfo& rInfo)
 {
 	Create(rInfo);
@@ -97,7 +117,7 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 		mInfo.pDescriptorInfos[i + 2].iCount = 1;
 		mInfo.pDescriptorInfos[i + 2].pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture;
 
-		// mVkSamplerSmoke is the format-aware sampler for R32_SFLOAT smoke ping-pong textures (LINEAR/NEAREST per device capability — see TextureManager::CreateSamplers). Same CLAMP_TO_BORDER + INT_TRANSPARENT_BLACK as mVkSamplerBorder; aniso/lodbias are no-ops at mipLevels = 1.
+		// The smoke sampler (kSamplerSmoke) is the format-aware sampler for R32_SFLOAT smoke ping-pong textures (LINEAR/NEAREST per device capability — see TextureManager::CreateSamplers). Same CLAMP_TO_BORDER + INT_TRANSPARENT_BLACK as the border sampler; aniso/lodbias are no-ops at mipLevels = 1.
 		mInfo.pDescriptorInfos[i + 3].flags = {kCombinedSamplers, kSamplerSmoke};
 		mInfo.pDescriptorInfos[i + 3].iCount = 1;
 		mInfo.pDescriptorInfos[i + 3].pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne;

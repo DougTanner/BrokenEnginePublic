@@ -156,6 +156,146 @@ static void DebugRenderNavData(const std::vector<GridCoord>& rActiveCoords)
 	}
 }
 
+// Wave phase reduction: read elapsed time from already-populated global layout.
+// Non-const: when a per-stack camera-eye-height fade clamps amplitude to zero, we also zero the
+// matching iWater*Count below so the WaterDisplacement.comp Gerstner loop short-circuits to no work.
+static void PopulateGerstnerWaves(shaders::MainLayout& rMainLayout, shaders::GlobalLayout& rGlobalLayout)
+{
+	double dWaveTime = static_cast<double>(rGlobalLayout.fElapsedTime);
+	XMFLOAT4A f4WaveCameraPos {};
+	XMStoreFloat4A(&f4WaveCameraPos, game::gpCamera->mVecPosition);
+	double dWaveCameraX = static_cast<double>(f4WaveCameraPos.x);
+	double dWaveCameraY = static_cast<double>(f4WaveCameraPos.y);
+	constexpr double kdTwoPi = 2.0 * 3.14159265358979323846;
+
+	// Fade geometric wave amplitudes by camera eye height — per-stack Start/End sliders (1.0 at ≤ Start, 0.0 at ≥ End, linear between).
+	float fCameraEyeHeight = game::gpCamera->mfCameraEyeHeight;
+	float fLowFadeStart = gWaterLowAmplitudeFadeStart.Get();
+	float fLowFadeEnd = gWaterLowAmplitudeFadeEnd.Get();
+	float fLowAmplitudeScale = std::clamp((fLowFadeEnd - fCameraEyeHeight) / std::max(fLowFadeEnd - fLowFadeStart, 1e-3f), 0.0f, 1.0f);
+	float fMediumFadeStart = gWaterMediumAmplitudeFadeStart.Get();
+	float fMediumFadeEnd = gWaterMediumAmplitudeFadeEnd.Get();
+	float fMediumAmplitudeScale = std::clamp((fMediumFadeEnd - fCameraEyeHeight) / std::max(fMediumFadeEnd - fMediumFadeStart, 1e-3f), 0.0f, 1.0f);
+
+	// Water low frequency
+	if (fLowAmplitudeScale <= 0.0f)
+	{
+		rGlobalLayout.iWaterLowCount = 0;
+	}
+	else
+	{
+		int64_t iCount = std::min(gWaterLowCount.Get<int64_t>(), static_cast<int64_t>(gWaterLowMax.Get()));
+
+		auto vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(gWaterLowAngle.Get()));
+		rMainLayout.pf4LowWavesOne[0].x = XMVectorGetX(vecDirection);
+		rMainLayout.pf4LowWavesOne[0].y = XMVectorGetY(vecDirection);
+
+		vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(0.0f));
+		rMainLayout.pf4LowWavesOne[0].z = XMVectorGetX(vecDirection);
+		rMainLayout.pf4LowWavesOne[0].w = XMVectorGetY(vecDirection);
+
+		rMainLayout.pf4LowWavesTwo[0].x = (2.0f * XM_PI) / (gWaterLowWavelength.Get()); // Omega
+		rMainLayout.pf4LowWavesTwo[0].y = gWaterLowAmplitude.Get() * fLowAmplitudeScale;
+		rMainLayout.pf4LowWavesTwo[0].z = gWaterLowSpeed.Get() * rMainLayout.pf4LowWavesTwo[0].x; // Phi
+		{
+			double dDirX = static_cast<double>(rMainLayout.pf4LowWavesOne[0].x);
+			double dDirY = static_cast<double>(rMainLayout.pf4LowWavesOne[0].y);
+			double dOmega = static_cast<double>(rMainLayout.pf4LowWavesTwo[0].x);
+			double dPhi = static_cast<double>(rMainLayout.pf4LowWavesTwo[0].z);
+			rMainLayout.pf4LowWavesTwo[0].w = static_cast<float>(std::fmod((dDirX * dWaveCameraX + dDirY * dWaveCameraY) * dOmega + dPhi * dWaveTime, kdTwoPi));
+		}
+
+		common::RandomEngine randomEngine {};
+		for (int64_t i = 1; i < iCount; ++i)
+		{
+			float fAngleAdjust = ((i % 2) == 0 ? 1.0f : -1.0f) * gWaterLowAngleAdjust.Get() * common::Random(randomEngine);
+			vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(gWaterLowAngle.Get() + fAngleAdjust));
+			rMainLayout.pf4LowWavesOne[i].x = XMVectorGetX(vecDirection);
+			rMainLayout.pf4LowWavesOne[i].y = XMVectorGetY(vecDirection);
+
+			vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(XM_2PI * static_cast<float>(i) / static_cast<float>(iCount)));
+			rMainLayout.pf4LowWavesOne[i].z = XMVectorGetX(vecDirection);
+			rMainLayout.pf4LowWavesOne[i].w = XMVectorGetY(vecDirection);
+
+			float fAdjust = common::Random(randomEngine);
+			float fWavelengthAdjust = fAdjust * gWaterLowWavelengthAdjust.Get();
+			float fAmplitudeAdjust = (1.0f - fAdjust) * std::abs(gWaterLowAmplitudeAdjust.Get()) * common::Random(randomEngine);
+			float fSpeedAdjust = fAdjust * gWaterLowSpeedAdjust.Get();
+			rMainLayout.pf4LowWavesTwo[i].x = std::abs((2.0f * XM_PI) / (gWaterLowWavelength.Get() + fWavelengthAdjust * gWaterLowWavelength.Get())); // Omega
+			rMainLayout.pf4LowWavesTwo[i].y = std::abs(gWaterLowAmplitude.Get() - fAmplitudeAdjust * gWaterLowAmplitude.Get());
+			rMainLayout.pf4LowWavesTwo[i].y = std::min(rMainLayout.pf4LowWavesTwo[i].y, 0.1f * (1.0f / rMainLayout.pf4LowWavesTwo[i].x));
+			rMainLayout.pf4LowWavesTwo[i].y *= fLowAmplitudeScale;
+			rMainLayout.pf4LowWavesTwo[i].z = (gWaterLowSpeed.Get() + gWaterLowSpeed.Get() * fSpeedAdjust * common::Random(randomEngine)) * rMainLayout.pf4LowWavesTwo[i].x; // Phi
+			{
+				double dDirX = static_cast<double>(rMainLayout.pf4LowWavesOne[i].x);
+				double dDirY = static_cast<double>(rMainLayout.pf4LowWavesOne[i].y);
+				double dOmega = static_cast<double>(rMainLayout.pf4LowWavesTwo[i].x);
+				double dPhi = static_cast<double>(rMainLayout.pf4LowWavesTwo[i].z);
+				rMainLayout.pf4LowWavesTwo[i].w = static_cast<float>(std::fmod((dDirX * dWaveCameraX + dDirY * dWaveCameraY) * dOmega + dPhi * (dWaveTime + static_cast<double>(i)), kdTwoPi));
+			}
+
+			// Thin the low-frequency band: zero every kiWaveCullModulo-th wave's amplitude below kiWaveCullLimit (tuning to reduce low-wave repetition).
+			static constexpr int64_t kiWaveCullLimit = 64;
+			static constexpr int64_t kiWaveCullModulo = 3;
+			if (i < kiWaveCullLimit && (i % kiWaveCullModulo) == 0)
+			{
+				rMainLayout.pf4LowWavesTwo[i].y = 0.0f;
+			}
+		}
+	}
+
+	// Water medium frequency
+	if (fMediumAmplitudeScale <= 0.0f)
+	{
+		rGlobalLayout.iWaterMediumCount = 0;
+	}
+	else
+	{
+		int64_t iCount = gWaterMediumCount.Get<int64_t>();
+
+		common::RandomEngine randomEngine {};
+		for (int64_t i = 0; i < iCount; ++i)
+		{
+			float fAngleAdjust = gWaterMediumAngleAdjust.Get() * common::Random(randomEngine);
+			auto vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngleAdjust));
+			rMainLayout.pf4MediumWavesOne[i].x = XMVectorGetX(vecDirection);
+			rMainLayout.pf4MediumWavesOne[i].y = XMVectorGetY(vecDirection);
+
+			float fWavelengthAdjust = -gWaterMediumWavelengthAdjust.Get() + 2.0f * gWaterMediumWavelengthAdjust.Get() * common::Random(randomEngine);
+			float fAmplitudeAdjust = -gWaterMediumAmplitudeAdjust.Get() + 2.0f * gWaterMediumAmplitudeAdjust.Get() * common::Random(randomEngine);
+			float fSpeedAdjust = -gWaterMediumSpeedAdjust.Get() + 2.0f * gWaterMediumSpeedAdjust.Get() * common::Random(randomEngine);
+			rMainLayout.pf4MediumWavesTwo[i].x = std::abs((2.0f * XM_PI) / (gWaterMediumWavelength.Get() + fWavelengthAdjust * gWaterMediumWavelength.Get())); // Omega
+			rMainLayout.pf4MediumWavesTwo[i].y = std::abs(gWaterMediumAmplitude.Get() + fAmplitudeAdjust * gWaterMediumAmplitude.Get());
+			rMainLayout.pf4MediumWavesTwo[i].y = std::min(rMainLayout.pf4MediumWavesTwo[i].y, 0.1f * (1.0f / rMainLayout.pf4MediumWavesTwo[i].x));
+			rMainLayout.pf4MediumWavesTwo[i].y *= fMediumAmplitudeScale;
+			rMainLayout.pf4MediumWavesTwo[i].z = (gWaterMediumSpeed.Get() + fSpeedAdjust * gWaterMediumSpeed.Get()) * rMainLayout.pf4MediumWavesTwo[i].x; // Phi
+			double dDirX = static_cast<double>(rMainLayout.pf4MediumWavesOne[i].x);
+			double dDirY = static_cast<double>(rMainLayout.pf4MediumWavesOne[i].y);
+			double dOmega = static_cast<double>(rMainLayout.pf4MediumWavesTwo[i].x);
+			double dPhi = static_cast<double>(rMainLayout.pf4MediumWavesTwo[i].z);
+			rMainLayout.pf4MediumWavesTwo[i].w = static_cast<float>(std::fmod((dDirX * dWaveCameraX + dDirY * dWaveCameraY) * dOmega + dPhi * dWaveTime, kdTwoPi));
+		}
+	}
+}
+
+// Hex shield
+static void PopulateHexShield(shaders::MainLayout& rMainLayout)
+{
+	rMainLayout.fHexShieldGrow = game::gHexShieldGrow.Get();
+	rMainLayout.fHexShieldEdgeDistance = game::gHexShieldEdgeDistance.Get();
+	rMainLayout.fHexShieldEdgePower = game::gHexShieldEdgePower.Get();
+	rMainLayout.fHexShieldEdgeMultiplier = game::gHexShieldEdgeMultiplier.Get();
+
+	rMainLayout.fHexShieldWaveMultiplier = game::gHexShieldWaveMultiplier.Get();
+	rMainLayout.fHexShieldWaveDotMultiplier = game::gHexShieldWaveDotMultiplier.Get();
+	rMainLayout.fHexShieldWaveIntensityMultiplier = game::gHexShieldWaveIntensityMultiplier.Get();
+	rMainLayout.fHexShieldWaveIntensityPower = game::gHexShieldWaveIntensityPower.Get();
+	rMainLayout.fHexShieldWaveFalloffPower = game::gHexShieldWaveFalloffPower.Get();
+
+	rMainLayout.fHexShieldDirectionFalloffPower = game::gHexShieldDirectionFalloffPower.Get();
+	rMainLayout.fHexShieldDirectionMultiplier = game::gHexShieldDirectionMultiplier.Get();
+}
+
 void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord)
 {
 	// Never-empty invariant: client mActiveCoords always contains mClientGridCoord (Game::ComputeActiveSet
@@ -272,140 +412,10 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	rMainLayout.f2InvFramebufferSize.x = 1.0f / static_cast<float>(gpGraphics->mFramebufferExtent2D.width);
 	rMainLayout.f2InvFramebufferSize.y = 1.0f / static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
 
-	// Wave phase reduction: read elapsed time from already-populated global layout.
-	// Non-const: when a per-stack camera-eye-height fade clamps amplitude to zero, we also zero the
-	// matching iWater*Count below so the WaterDisplacement.comp Gerstner loop short-circuits to no work.
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
-	double dWaveTime = static_cast<double>(rGlobalLayout.fElapsedTime);
-	XMFLOAT4A f4WaveCameraPos {};
-	XMStoreFloat4A(&f4WaveCameraPos, game::gpCamera->mVecPosition);
-	double dWaveCameraX = static_cast<double>(f4WaveCameraPos.x);
-	double dWaveCameraY = static_cast<double>(f4WaveCameraPos.y);
-	constexpr double kdTwoPi = 2.0 * 3.14159265358979323846;
+	PopulateGerstnerWaves(rMainLayout, rGlobalLayout);
 
-	// Fade geometric wave amplitudes by camera eye height — per-stack Start/End sliders (1.0 at ≤ Start, 0.0 at ≥ End, linear between).
-	float fCameraEyeHeight = game::gpCamera->mfCameraEyeHeight;
-	float fLowFadeStart = gWaterLowAmplitudeFadeStart.Get();
-	float fLowFadeEnd = gWaterLowAmplitudeFadeEnd.Get();
-	float fLowAmplitudeScale = std::clamp((fLowFadeEnd - fCameraEyeHeight) / std::max(fLowFadeEnd - fLowFadeStart, 1e-3f), 0.0f, 1.0f);
-	float fMediumFadeStart = gWaterMediumAmplitudeFadeStart.Get();
-	float fMediumFadeEnd = gWaterMediumAmplitudeFadeEnd.Get();
-	float fMediumAmplitudeScale = std::clamp((fMediumFadeEnd - fCameraEyeHeight) / std::max(fMediumFadeEnd - fMediumFadeStart, 1e-3f), 0.0f, 1.0f);
-
-	// Water low frequency
-	if (fLowAmplitudeScale <= 0.0f)
-	{
-		rGlobalLayout.iWaterLowCount = 0;
-	}
-	else
-	{
-		int64_t iCount = gWaterLowCount.Get<int64_t>();
-
-		auto vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(gWaterLowAngle.Get()));
-		rMainLayout.pf4LowWavesOne[0].x = XMVectorGetX(vecDirection);
-		rMainLayout.pf4LowWavesOne[0].y = XMVectorGetY(vecDirection);
-
-		vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(0.0f));
-		rMainLayout.pf4LowWavesOne[0].z = XMVectorGetX(vecDirection);
-		rMainLayout.pf4LowWavesOne[0].w = XMVectorGetY(vecDirection);
-
-		rMainLayout.pf4LowWavesTwo[0].x = (2.0f * XM_PI) / (gWaterLowWavelength.Get()); // Omega
-		rMainLayout.pf4LowWavesTwo[0].y = gWaterLowAmplitude.Get() * fLowAmplitudeScale;
-		rMainLayout.pf4LowWavesTwo[0].z = gWaterLowSpeed.Get() * rMainLayout.pf4LowWavesTwo[0].x; // Phi
-		{
-			double dDirX = static_cast<double>(rMainLayout.pf4LowWavesOne[0].x);
-			double dDirY = static_cast<double>(rMainLayout.pf4LowWavesOne[0].y);
-			double dOmega = static_cast<double>(rMainLayout.pf4LowWavesTwo[0].x);
-			double dPhi = static_cast<double>(rMainLayout.pf4LowWavesTwo[0].z);
-			rMainLayout.pf4LowWavesTwo[0].w = static_cast<float>(std::fmod((dDirX * dWaveCameraX + dDirY * dWaveCameraY) * dOmega + dPhi * dWaveTime, kdTwoPi));
-		}
-
-		common::RandomEngine randomEngine {};
-		for (int64_t i = 1; i < iCount; ++i)
-		{
-			float fAngleAdjust = ((i % 2) == 0 ? 1.0f : -1.0f) * gWaterLowAngleAdjust.Get() * common::Random(randomEngine);
-			vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(gWaterLowAngle.Get() + fAngleAdjust));
-			rMainLayout.pf4LowWavesOne[i].x = XMVectorGetX(vecDirection);
-			rMainLayout.pf4LowWavesOne[i].y = XMVectorGetY(vecDirection);
-
-			vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(XM_2PI * static_cast<float>(i) / static_cast<float>(iCount)));
-			rMainLayout.pf4LowWavesOne[i].z = XMVectorGetX(vecDirection);
-			rMainLayout.pf4LowWavesOne[i].w = XMVectorGetY(vecDirection);
-
-			float fAdjust = common::Random(randomEngine);
-			float fWavelengthAdjust = fAdjust * gWaterLowWavelengthAdjust.Get();
-			float fAmplitudeAdjust = (1.0f - fAdjust) * std::abs(gWaterLowAmplitudeAdjust.Get()) * common::Random(randomEngine);
-			float fSpeedAdjust = fAdjust * gWaterLowSpeedAdjust.Get();
-			rMainLayout.pf4LowWavesTwo[i].x = std::abs((2.0f * XM_PI) / (gWaterLowWavelength.Get() + fWavelengthAdjust * gWaterLowWavelength.Get())); // Omega
-			rMainLayout.pf4LowWavesTwo[i].y = std::abs(gWaterLowAmplitude.Get() - fAmplitudeAdjust * gWaterLowAmplitude.Get());
-			rMainLayout.pf4LowWavesTwo[i].y = std::min(rMainLayout.pf4LowWavesTwo[i].y, 0.1f * (1.0f / rMainLayout.pf4LowWavesTwo[i].x));
-			rMainLayout.pf4LowWavesTwo[i].y *= fLowAmplitudeScale;
-			rMainLayout.pf4LowWavesTwo[i].z = (gWaterLowSpeed.Get() + gWaterLowSpeed.Get() * fSpeedAdjust * common::Random(randomEngine)) * rMainLayout.pf4LowWavesTwo[i].x; // Phi
-			{
-				double dDirX = static_cast<double>(rMainLayout.pf4LowWavesOne[i].x);
-				double dDirY = static_cast<double>(rMainLayout.pf4LowWavesOne[i].y);
-				double dOmega = static_cast<double>(rMainLayout.pf4LowWavesTwo[i].x);
-				double dPhi = static_cast<double>(rMainLayout.pf4LowWavesTwo[i].z);
-				rMainLayout.pf4LowWavesTwo[i].w = static_cast<float>(std::fmod((dDirX * dWaveCameraX + dDirY * dWaveCameraY) * dOmega + dPhi * (dWaveTime + static_cast<double>(i)), kdTwoPi));
-			}
-
-			// Thin the low-frequency band: zero every kiWaveCullModulo-th wave's amplitude below kiWaveCullLimit (tuning to reduce low-wave repetition).
-			static constexpr int64_t kiWaveCullLimit = 64;
-			static constexpr int64_t kiWaveCullModulo = 3;
-			if (i < kiWaveCullLimit && (i % kiWaveCullModulo) == 0)
-			{
-				rMainLayout.pf4LowWavesTwo[i].y = 0.0f;
-			}
-		}
-	}
-
-	// Water medium frequency
-	if (fMediumAmplitudeScale <= 0.0f)
-	{
-		rGlobalLayout.iWaterMediumCount = 0;
-	}
-	else
-	{
-		int64_t iCount = gWaterMediumCount.Get<int64_t>();
-
-		common::RandomEngine randomEngine {};
-		for (int64_t i = 0; i < iCount; ++i)
-		{
-			float fAngleAdjust = gWaterMediumAngleAdjust.Get() * common::Random(randomEngine);
-			auto vecDirection = XMVector3Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngleAdjust));
-			rMainLayout.pf4MediumWavesOne[i].x = XMVectorGetX(vecDirection);
-			rMainLayout.pf4MediumWavesOne[i].y = XMVectorGetY(vecDirection);
-
-			float fWavelengthAdjust = -gWaterMediumWavelengthAdjust.Get() + 2.0f * gWaterMediumWavelengthAdjust.Get() * common::Random(randomEngine);
-			float fAmplitudeAdjust = -gWaterMediumAmplitudeAdjust.Get() + 2.0f * gWaterMediumAmplitudeAdjust.Get() * common::Random(randomEngine);
-			float fSpeedAdjust = -gWaterMediumSpeedAdjust.Get() + 2.0f * gWaterMediumSpeedAdjust.Get() * common::Random(randomEngine);
-			rMainLayout.pf4MediumWavesTwo[i].x = std::abs((2.0f * XM_PI) / (gWaterMediumWavelength.Get() + fWavelengthAdjust * gWaterMediumWavelength.Get())); // Omega
-			rMainLayout.pf4MediumWavesTwo[i].y = std::abs(gWaterMediumAmplitude.Get() + fAmplitudeAdjust * gWaterMediumAmplitude.Get());
-			rMainLayout.pf4MediumWavesTwo[i].y = std::min(rMainLayout.pf4MediumWavesTwo[i].y, 0.1f * (1.0f / rMainLayout.pf4MediumWavesTwo[i].x));
-			rMainLayout.pf4MediumWavesTwo[i].y *= fMediumAmplitudeScale;
-			rMainLayout.pf4MediumWavesTwo[i].z = (gWaterMediumSpeed.Get() + fSpeedAdjust * gWaterMediumSpeed.Get()) * rMainLayout.pf4MediumWavesTwo[i].x; // Phi
-			double dDirX = static_cast<double>(rMainLayout.pf4MediumWavesOne[i].x);
-			double dDirY = static_cast<double>(rMainLayout.pf4MediumWavesOne[i].y);
-			double dOmega = static_cast<double>(rMainLayout.pf4MediumWavesTwo[i].x);
-			double dPhi = static_cast<double>(rMainLayout.pf4MediumWavesTwo[i].z);
-			rMainLayout.pf4MediumWavesTwo[i].w = static_cast<float>(std::fmod((dDirX * dWaveCameraX + dDirY * dWaveCameraY) * dOmega + dPhi * dWaveTime, kdTwoPi));
-		}
-	}
-
-	// Hex shield
-	rMainLayout.fHexShieldGrow = game::gHexShieldGrow.Get();
-	rMainLayout.fHexShieldEdgeDistance = game::gHexShieldEdgeDistance.Get();
-	rMainLayout.fHexShieldEdgePower = game::gHexShieldEdgePower.Get();
-	rMainLayout.fHexShieldEdgeMultiplier = game::gHexShieldEdgeMultiplier.Get();
-
-	rMainLayout.fHexShieldWaveMultiplier = game::gHexShieldWaveMultiplier.Get();
-	rMainLayout.fHexShieldWaveDotMultiplier = game::gHexShieldWaveDotMultiplier.Get();
-	rMainLayout.fHexShieldWaveIntensityMultiplier = game::gHexShieldWaveIntensityMultiplier.Get();
-	rMainLayout.fHexShieldWaveIntensityPower = game::gHexShieldWaveIntensityPower.Get();
-	rMainLayout.fHexShieldWaveFalloffPower = game::gHexShieldWaveFalloffPower.Get();
-
-	rMainLayout.fHexShieldDirectionFalloffPower = game::gHexShieldDirectionFalloffPower.Get();
-	rMainLayout.fHexShieldDirectionMultiplier = game::gHexShieldDirectionMultiplier.Get();
+	PopulateHexShield(rMainLayout);
 }
 
 } // namespace engine

@@ -29,15 +29,8 @@ int32_t ParticleManager::GetOrAssignTextureIndex(common::crc_t textureCrc)
 
 void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout, shaders::ParticleLayout layout, common::crc_t textureCrc)
 {
-	std::lock_guard<std::mutex> lock(gpParticleManager->mSpawnMutex);
-
-	if (rParticlesSpawnLayout.iCount == shaders::kiMaxParticlesSpawn)
-	{
-		// Too many particles spawn on the same frame, decrease spawn count or increase kiMaxParticlesSpawn
-		DEBUG_BREAK();
-		return;
-	}
-
+	// Cull before taking the lock: both checks read only the by-value layout copy and the immutable camera rect,
+	// so culled spawns no longer serialize workers on mSpawnMutex during parallel tick dispatch.
 	if (layout.f4Position.x < game::gpCamera->f4RenderVisibleArea.x || layout.f4Position.x > game::gpCamera->f4RenderVisibleArea.z || layout.f4Position.y > game::gpCamera->f4RenderVisibleArea.y || layout.f4Position.y < game::gpCamera->f4RenderVisibleArea.w)
 	{
 		return;
@@ -45,6 +38,15 @@ void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout
 
 	if (layout.fVisibleIntensity <= 0.0f)
 	{
+		return;
+	}
+
+	std::lock_guard<std::mutex> lock(gpParticleManager->mSpawnMutex);
+
+	if (rParticlesSpawnLayout.iCount == shaders::kiMaxParticlesSpawn)
+	{
+		// Too many particles spawn on the same frame, decrease spawn count or increase kiMaxParticlesSpawn
+		DEBUG_BREAK();
 		return;
 	}
 

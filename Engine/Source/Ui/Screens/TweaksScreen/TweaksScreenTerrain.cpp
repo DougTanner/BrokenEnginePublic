@@ -17,7 +17,6 @@ const TweaksSliderMapRegistrar gTerrainRegistrar
 	// Beach
 	{"Snow Blend", &gTerrainSnowBlend},
 	{"Snow AO Exclusion", &gTerrainSnowAmbientOcclusionExclusion},
-	{"Beach Height", &gTerrainBeachHeight},
 	{"Beach Sand Size", &gTerrainBeachSandSize},
 	{"Beach Sand Blend", &gTerrainBeachSandBlend},
 	{"Beach Normals Size 1", &gTerrainBeachNormalsSizeOne},
@@ -44,7 +43,6 @@ void TweaksScreenBase::RenderTerrainSection()
 	WrapperSeparatorText("Beach");
 	WrapperSlider("Snow Blend", kiSection);
 	WrapperSlider("Snow AO Exclusion", kiSection);
-	WrapperSlider("Beach Height", kiSection);
 	WrapperSlider("Beach Sand Size", kiSection);
 	WrapperSlider("Beach Sand Blend", kiSection);
 	WrapperSlider("Beach Normals Size 1", kiSection);

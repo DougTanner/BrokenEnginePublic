@@ -37,6 +37,62 @@ BufferManager::BufferManager()
 		std::memcpy(static_cast<char*>(pData) + sizeof(puiQuads), pfQuads, sizeof(pfQuads));
 	});
 
+	CreateDebugMeshBuffers();
+
+	const std::unordered_map<common::crc_t, EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
+	for (auto& [rCrc, rChunk] : rChunkMap)
+	{
+		if (!(rChunk.pHeader->flags & common::ChunkFlags::kModel))
+		{
+			continue;
+		}
+
+		auto [it, bInserted] = mModelMap.try_emplace(rCrc, BufferInfo
+		{
+			.name = rChunk.pHeader->pcPath,
+			.flags = {kIndexVertex, kDeviceLocal},
+			.iCount = rChunk.pHeader->modelHeader.iIndexCount,
+			.vkIndexType = rChunk.pHeader->modelHeader.iVertexCount < std::numeric_limits<uint16_t>::max() ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32,
+			.iVertexStride = rChunk.pHeader->modelHeader.iStride,
+			.dataVkDeviceSize = static_cast<uint32_t>(rChunk.pHeader->iSize),
+		},
+		[&](void* pData)
+		{
+			std::memcpy(pData, rChunk.pData, rChunk.pHeader->iSize);
+		});
+		ASSERT(bInserted);
+	}
+
+	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
+	ASSERT(iCommandBufferCount <= kiMaxFramebuffers);
+
+	InitializePerCommandBufferBuffers(iCommandBufferCount);
+
+	mLongParticlesStorageBuffer.Create(
+	{
+		.name = "LongParticles",
+		.flags = {kStorage, kDeviceLocal},
+		.dataVkDeviceSize = sizeof(shaders::ParticlesLayout),
+	},
+	[&](void* pData)
+	{
+		std::memset(pData, 0, sizeof(shaders::ParticlesLayout));
+	});
+
+	mSquareParticlesStorageBuffer.Create(
+	{
+		.name = "SquareParticles",
+		.flags = {kStorage, kDeviceLocal},
+		.dataVkDeviceSize = sizeof(shaders::ParticlesLayout),
+	},
+	[&](void* pData)
+	{
+		std::memset(pData, 0, sizeof(shaders::ParticlesLayout));
+	});
+}
+
+void BufferManager::CreateDebugMeshBuffers()
+{
 	if constexpr (kbDebugRender)
 	{
 		// Box: 8 vertices (unit cube -0.5..+0.5), 12 edges = 24 indices
@@ -165,57 +221,6 @@ BufferManager::BufferManager()
 			});
 		}
 	}
-
-	const std::unordered_map<common::crc_t, EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
-	for (auto& [rCrc, rChunk] : rChunkMap)
-	{
-		if (!(rChunk.pHeader->flags & common::ChunkFlags::kModel))
-		{
-			continue;
-		}
-
-		auto [it, bInserted] = mModelMap.try_emplace(rCrc, BufferInfo
-		{
-			.name = rChunk.pHeader->pcPath,
-			.flags = {kIndexVertex, kDeviceLocal},
-			.iCount = rChunk.pHeader->modelHeader.iIndexCount,
-			.vkIndexType = rChunk.pHeader->modelHeader.iVertexCount < std::numeric_limits<uint16_t>::max() ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32,
-			.iVertexStride = rChunk.pHeader->modelHeader.iStride,
-			.dataVkDeviceSize = static_cast<uint32_t>(rChunk.pHeader->iSize),
-		},
-		[&](void* pData)
-		{
-			std::memcpy(pData, rChunk.pData, rChunk.pHeader->iSize);
-		});
-		ASSERT(bInserted);
-	}
-
-	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
-	ASSERT(iCommandBufferCount <= kiMaxFramebuffers);
-
-	InitializePerCommandBufferBuffers(iCommandBufferCount);
-
-	mLongParticlesStorageBuffer.Create(
-	{
-		.name = "LongParticles",
-		.flags = {kStorage, kDeviceLocal},
-		.dataVkDeviceSize = sizeof(shaders::ParticlesLayout),
-	},
-	[&](void* pData)
-	{
-		std::memset(pData, 0, sizeof(shaders::ParticlesLayout));
-	});
-
-	mSquareParticlesStorageBuffer.Create(
-	{
-		.name = "SquareParticles",
-		.flags = {kStorage, kDeviceLocal},
-		.dataVkDeviceSize = sizeof(shaders::ParticlesLayout),
-	},
-	[&](void* pData)
-	{
-		std::memset(pData, 0, sizeof(shaders::ParticlesLayout));
-	});
 }
 
 BufferManager::~BufferManager()
@@ -428,6 +433,13 @@ Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, DynamicBufferType 
 
 void BufferManager::ResizeDynamicBuffer(common::crc_t crc, DynamicBufferType eType, std::string_view name, VkDeviceSize newSize, int64_t iFramebuffer)
 {
+	// Single-slot stash, safe even though a second same-frame resize would destroy this old buffer
+	//   immediately, via a three-point chain: (1) every dynamic buffer is a per-framebuffer instance
+	//   (CreateDynamicBuffer), so only framebuffer i's command buffer ever referenced the (crc, i) buffer;
+	//   (2) all resize callers run after Graphics::RenderGlobal's top-of-frame fence wait for framebuffer i,
+	//   so the prior submission completed; (3) callers immediately rewrite the per-framebuffer descriptor set
+	//   (e.g. BillboardsRender / PlayersRender) and record-once command buffers reference buffers only through
+	//   descriptor sets. (The skinning path uses per-framebuffer stash arrays -- mPreviousMeshDataBuffer -- instead.)
 	mPreviousBuffer.reset();
 
 	std::unordered_map<common::crc_t, std::vector<Buffer>>& rMap = mDynamicStorageBuffers[eType];

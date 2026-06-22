@@ -17,6 +17,23 @@ DynamicPipelines::DynamicPipelines(std::unordered_map<common::crc_t, Shader>& rS
 {
 }
 
+// Resolves a model scene CRC to its mesh CRC + animation-aware vertex shader CRC (shared by the model + model-shadow pipeline creators).
+static void ResolveModelChunkShaders(common::crc_t sceneCrc, common::crc_t& rModelCrc, common::crc_t& rVertexShaderCrc)
+{
+	const EagerChunk& rChunk = gpFileManager->GetEagerChunkMap().at(sceneCrc);
+	rModelCrc = rChunk.pHeader->sceneHeader.modelCrc;
+	rVertexShaderCrc = rChunk.pHeader->sceneHeader.bHasAnimation ? data::kShadersModelModelSkinnedvertCrc : data::kShadersModelModelStaticvertCrc;
+}
+
+// Allocates a Pipeline, runs Create with the supplied info, and registers it under eType/crc — the boilerplate tail shared by every CreatePipeline* below.
+void DynamicPipelines::AddPipeline(DynamicPipelineType eType, common::crc_t crc, const PipelineInfo& rPipelineInfo)
+{
+	mPipelines.push_back(std::make_unique<Pipeline>());
+	Pipeline* pPipeline = mPipelines.back().get();
+	pPipeline->Create(rPipelineInfo);
+	mPipelineMaps[eType].insert_or_assign(crc, pPipeline);
+}
+
 ModelPipeline* DynamicPipelines::CreateModelPipeline(const ModelPipelineSpec& rModelPipelineSpec)
 {
 	std::unique_ptr<ModelPipeline> pModelPipeline = std::make_unique<ModelPipeline>();
@@ -36,13 +53,10 @@ void DynamicPipelines::CreateModelPipeline(common::crc_t crc, std::string_view n
 		return;
 	}
 
-	// Look up the model CRC and animation flag from the glTF header
-	const EagerChunk& rChunk = gpFileManager->GetEagerChunkMap().at(sceneCrc);
-	common::crc_t modelCrc = rChunk.pHeader->sceneHeader.modelCrc;
-	bool bHasAnimation = rChunk.pHeader->sceneHeader.bHasAnimation;
-
-	// Select vertex shader based on animation flag
-	common::crc_t vertexShaderCrc = bHasAnimation ? data::kShadersModelModelSkinnedvertCrc : data::kShadersModelModelStaticvertCrc;
+	// Look up the model CRC and animation-aware vertex shader from the glTF header
+	common::crc_t modelCrc = 0;
+	common::crc_t vertexShaderCrc = 0;
+	ResolveModelChunkShaders(sceneCrc, modelCrc, vertexShaderCrc);
 
 	ModelPipeline* pPipeline = CreateModelPipeline(
 	{
@@ -74,13 +88,10 @@ void DynamicPipelines::CreateModelPipelineShadow(common::crc_t crc, std::string_
 		return;
 	}
 
-	// Look up the model CRC and animation flag from the glTF header
-	const EagerChunk& rChunk = gpFileManager->GetEagerChunkMap().at(sceneCrc);
-	common::crc_t modelCrc = rChunk.pHeader->sceneHeader.modelCrc;
-	bool bHasAnimation = rChunk.pHeader->sceneHeader.bHasAnimation;
-
-	// Select vertex shader based on animation flag
-	common::crc_t vertexShaderCrc = bHasAnimation ? data::kShadersModelModelSkinnedvertCrc : data::kShadersModelModelStaticvertCrc;
+	// Look up the model CRC and animation-aware vertex shader from the glTF header
+	common::crc_t modelCrc = 0;
+	common::crc_t vertexShaderCrc = 0;
+	ResolveModelChunkShaders(sceneCrc, modelCrc, vertexShaderCrc);
 
 	// Create shadow variant of pipeline name (stored in map to outlive this function)
 	std::string& rShadowName = mShadowPipelineNames.insert_or_assign(crc, std::string(name) + "Shadow").first->second;
@@ -122,9 +133,7 @@ void DynamicPipelines::CreatePipelineLighting(common::crc_t crc, std::string_vie
 	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
 
 	// Allocate pipeline and configure for area light rendering
-	size_t iPipelineIndex = mPipelines.size();
-	mPipelines.push_back(std::make_unique<Pipeline>());
-	mPipelines[iPipelineIndex]->Create(
+	AddPipeline(kDynamicPipelineLighting, crc,
 	{
 		.name = name,
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kMax, kUpdateAfterBind},
@@ -141,10 +150,6 @@ void DynamicPipelines::CreatePipelineLighting(common::crc_t crc, std::string_vie
 			{.flags = kTextures},
 		},
 	});
-
-	// Register pipeline in lighting map for iteration during rendering
-	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineLighting].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineVisibleLights(common::crc_t crc, std::string_view name, Buffer* pStorageBuffers)
@@ -156,9 +161,7 @@ void DynamicPipelines::CreatePipelineVisibleLights(common::crc_t crc, std::strin
 	}
 
 	// Allocate pipeline for visible lights rendering in main pass
-	size_t iPipelineIndex = mPipelines.size();
-	mPipelines.push_back(std::make_unique<Pipeline>());
-	mPipelines[iPipelineIndex]->Create(
+	AddPipeline(kDynamicPipelineVisibleLights, crc,
 	{
 		.name = name,
 		.flags = {kIndirectHostVisible, kAddAlpha, kSampleShading, kUpdateAfterBind},
@@ -174,10 +177,6 @@ void DynamicPipelines::CreatePipelineVisibleLights(common::crc_t crc, std::strin
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
 		},
 	});
-
-	// Register pipeline in visible lights map for iteration during rendering
-	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineVisibleLights].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineAxisAlignedLighting(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -192,9 +191,7 @@ void DynamicPipelines::CreatePipelineAxisAlignedLighting(common::crc_t crc, std:
 	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
 
 	// Allocate pipeline and configure for point light rendering
-	size_t iPipelineIndex = mPipelines.size();
-	mPipelines.push_back(std::make_unique<Pipeline>());
-	mPipelines[iPipelineIndex]->Create(
+	AddPipeline(kDynamicPipelineAxisAlignedLighting, crc,
 	{
 		.name = name,
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kMax, kUpdateAfterBind},
@@ -211,10 +208,6 @@ void DynamicPipelines::CreatePipelineAxisAlignedLighting(common::crc_t crc, std:
 			{.flags = kTextures},
 		},
 	});
-
-	// Register pipeline in axis-aligned lighting map for iteration during rendering
-	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineAxisAlignedLighting].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineBillboards(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -229,9 +222,7 @@ void DynamicPipelines::CreatePipelineBillboards(common::crc_t crc, std::string_v
 	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
 
 	// Allocate pipeline and configure for billboard rendering
-	size_t iPipelineIndex = mPipelines.size();
-	mPipelines.push_back(std::make_unique<Pipeline>());
-	mPipelines[iPipelineIndex]->Create(
+	AddPipeline(kDynamicPipelineBillboards, crc,
 	{
 		.name = name,
 		.flags = {kIndirectHostVisible, kSampleShading, kAlphaBlend, kUpdateAfterBind},
@@ -246,10 +237,6 @@ void DynamicPipelines::CreatePipelineBillboards(common::crc_t crc, std::string_v
 			{.flags = kTextures},
 		},
 	});
-
-	// Register pipeline in billboards map for iteration during rendering
-	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineBillboards].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreateDepositPipeline(DynamicPipelineType eType, common::crc_t crc, std::string_view name, common::crc_t vertexShaderCrc, common::crc_t fragmentShaderCrc, Texture& rTargetTexture, DescriptorInfo textureDescriptor, VkBuffer* pOccupancyBuffer, int64_t iBufferSize)
@@ -264,9 +251,7 @@ void DynamicPipelines::CreateDepositPipeline(DynamicPipelineType eType, common::
 		gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
 	}
 
-	size_t iPipelineIndex = mPipelines.size();
-	mPipelines.push_back(std::make_unique<Pipeline>());
-	mPipelines[iPipelineIndex]->Create(
+	AddPipeline(eType, crc,
 	{
 		.name = name,
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
@@ -282,9 +267,6 @@ void DynamicPipelines::CreateDepositPipeline(DynamicPipelineType eType, common::
 			{.flags = kStorageBuffer, .pVkBuffers = pOccupancyBuffer},
 		},
 	});
-
-	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[eType].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineSmokeAxisAligned(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -353,9 +335,7 @@ void DynamicPipelines::CreatePipelineHexShields(common::crc_t crc, std::string_v
 	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
 
 	// Allocate pipeline and configure for HexShields rendering (uses DualGeodesicIcosahedron mesh)
-	size_t iPipelineIndex = mPipelines.size();
-	mPipelines.push_back(std::make_unique<Pipeline>());
-	mPipelines[iPipelineIndex]->Create(
+	AddPipeline(kDynamicPipelineHexShields, crc,
 	{
 		.name = name,
 		.flags = {kIndirectHostVisible, kPushConstants, kAlphaBlend, kDepthTest, kCullBack, kUpdateAfterBind},
@@ -369,10 +349,6 @@ void DynamicPipelines::CreatePipelineHexShields(common::crc_t crc, std::string_v
 			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCSkyboxCrc},
 		},
 	});
-
-	// Register pipeline in HexShields map for iteration during rendering
-	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineHexShields].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::CreatePipelineHexShieldsLighting(common::crc_t crc, std::string_view name)
@@ -384,9 +360,7 @@ void DynamicPipelines::CreatePipelineHexShieldsLighting(common::crc_t crc, std::
 	}
 
 	// Allocate pipeline and configure for HexShields lighting pass (shares buffer with main HexShields pipeline)
-	size_t iPipelineIndex = mPipelines.size();
-	mPipelines.push_back(std::make_unique<Pipeline>());
-	mPipelines[iPipelineIndex]->Create(
+	AddPipeline(kDynamicPipelineHexShieldsLighting, crc,
 	{
 		.name = name,
 		.flags = {kRenderTarget, kPushConstants, kMax, kIndirectHostVisible, kUpdateAfterBind},
@@ -401,10 +375,6 @@ void DynamicPipelines::CreatePipelineHexShieldsLighting(common::crc_t crc, std::
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 		},
 	});
-
-	// Register pipeline in HexShields lighting map for iteration during rendering
-	Pipeline* pPipeline = mPipelines[iPipelineIndex].get();
-	mPipelineMaps[kDynamicPipelineHexShieldsLighting].insert_or_assign(crc, pPipeline);
 }
 
 void DynamicPipelines::UpdateAllModelPipelineDescriptors(int64_t iCommandBuffer, int64_t iBinding, Buffer* pBuffer)

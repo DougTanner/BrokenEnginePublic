@@ -113,123 +113,87 @@ static VkSampleCountFlagBits SelectSampleCount(VkSampleCountFlags eVkSampleCount
 	return VK_SAMPLE_COUNT_1_BIT;
 }
 
-InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
+// Stable storage for the VkLayerSettingEXT pValues pointers — Vulkan reads them at vkCreateInstance, after BuildValidationLayerSettings has returned, so they must outlive the helper's stack frame.
+[[maybe_unused]] static constexpr VkBool32 kbLayerSettingTrue = VK_TRUE;
+[[maybe_unused]] static constexpr VkBool32 kbLayerSettingFalse = VK_FALSE;
+
+// Fills the caller-owned settings array (which must outlive vkCreateInstance) and returns the populated count.
+static uint32_t BuildValidationLayerSettings(VkLayerSettingEXT (&rLayerSettings)[7])
 {
-	ASSERT(gpInstanceManager == nullptr);
-
-	gpInstanceManager = this;
-
-	ScopedBootTimer scopedBootTimer(kBootTimerInstanceManager);
-
-	if constexpr (kbVulkanDebugLayers)
+	rLayerSettings[0] =
 	{
-		ReadLayerProperties();
-	}
-
-	VkApplicationInfo vkApplicationInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-		.pNext = nullptr,
-		.pApplicationName = game::kGameName.data(),
-		.applicationVersion = game::kiGameVersion,
-		.pEngineName = nullptr,
-		.engineVersion = 0,
-		.apiVersion = VK_API_VERSION_1_2, // Also update "--target-env vulkan1.2" in DataPacker
+		.pLayerName = kpcKhronosValidation,
+		.pSettingName = "validate_best_practices",
+		.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+		.valueCount = 1,
+		.pValues = &kbLayerSettingTrue,
 	};
-	// Configure validation layer settings using VK_EXT_layer_settings
-	[[maybe_unused]] VkBool32 vkTrue = VK_TRUE;
-	[[maybe_unused]] VkBool32 vkFalse = VK_FALSE;
-
-	VkLayerSettingEXT layerSettings[7]
+	rLayerSettings[1] =
 	{
-		{
-			.pLayerName = kpcKhronosValidation,
-			.pSettingName = "validate_best_practices",
-			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
-			.valueCount = 1,
-			.pValues = &vkTrue,
-		},
-		{
-			.pLayerName = kpcKhronosValidation,
-			.pSettingName = "validate_sync",
-			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
-			.valueCount = 1,
-			.pValues = &vkTrue,
-		},
+		.pLayerName = kpcKhronosValidation,
+		.pSettingName = "validate_sync",
+		.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+		.valueCount = 1,
+		.pValues = &kbLayerSettingTrue,
 	};
 	uint32_t uiLayerSettingCount = 2;
 	if constexpr (kbGpuAssistedValidation)
 	{
-		layerSettings[uiLayerSettingCount++] = {
+		rLayerSettings[uiLayerSettingCount++] = {
 			.pLayerName = kpcKhronosValidation,
 			.pSettingName = "gpuav_enable",
 			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
 			.valueCount = 1,
-			.pValues = &vkTrue,
+			.pValues = &kbLayerSettingTrue,
 		};
-		layerSettings[uiLayerSettingCount++] = {
+		rLayerSettings[uiLayerSettingCount++] = {
 			.pLayerName = kpcKhronosValidation,
 			.pSettingName = "gpuav_shader_instrumentation",
 			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
 			.valueCount = 1,
-			.pValues = &vkTrue,
+			.pValues = &kbLayerSettingTrue,
 		};
-		layerSettings[uiLayerSettingCount++] = {
+		rLayerSettings[uiLayerSettingCount++] = {
 			.pLayerName = kpcKhronosValidation,
 			.pSettingName = "gpuav_validate_ray_query",
 			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
 			.valueCount = 1,
-			.pValues = &vkFalse,
+			.pValues = &kbLayerSettingFalse,
 		};
 		// Disable GPU-AV sub-checks whose device features this hardware lacks (rayTracingInvocationReorder / meshShader). Otherwise GPU-AV defaults them on and the layer logs a WARNING-Setting-Limit-Adjusted at vkCreateDevice while auto-disabling them. gpuav_validate_ray_hit_object is a valid internal key (the layer prints it) but is absent from the JSON manifest.
-		layerSettings[uiLayerSettingCount++] = {
+		rLayerSettings[uiLayerSettingCount++] = {
 			.pLayerName = kpcKhronosValidation,
 			.pSettingName = "gpuav_validate_ray_hit_object",
 			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
 			.valueCount = 1,
-			.pValues = &vkFalse,
+			.pValues = &kbLayerSettingFalse,
 		};
-		layerSettings[uiLayerSettingCount++] = {
+		rLayerSettings[uiLayerSettingCount++] = {
 			.pLayerName = kpcKhronosValidation,
 			.pSettingName = "gpuav_mesh_shading",
 			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
 			.valueCount = 1,
-			.pValues = &vkFalse,
+			.pValues = &kbLayerSettingFalse,
 		};
 	}
 	else if constexpr (kbDebugPrintf)
 	{
-		layerSettings[uiLayerSettingCount++] = {
+		rLayerSettings[uiLayerSettingCount++] = {
 			.pLayerName = kpcKhronosValidation,
 			.pSettingName = "printf_enable",
 			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
 			.valueCount = 1,
-			.pValues = &vkTrue,
+			.pValues = &kbLayerSettingTrue,
 		};
 	}
 
-	ASSERT(uiLayerSettingCount <= std::size(layerSettings));
+	ASSERT(uiLayerSettingCount <= std::size(rLayerSettings));
+	return uiLayerSettingCount;
+}
 
-	VkLayerSettingsCreateInfoEXT vkLayerSettingsCreateInfoEXT =
-	{
-		.sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
-		.pNext = nullptr,
-		.settingCount = uiLayerSettingCount,
-		.pSettings = layerSettings,
-	};
-	VkInstanceCreateInfo vkInstanceCreateInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-		.pNext = kbVulkanDebugLayers ? &vkLayerSettingsCreateInfoEXT : nullptr,
-		.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR,
-		.pApplicationInfo = &vkApplicationInfo,
-		.enabledLayerCount = kbVulkanDebugLayers ? static_cast<uint32_t>(mValidationLayers.size()) : 0,
-		.ppEnabledLayerNames = kbVulkanDebugLayers ? mValidationLayers.data() : nullptr,
-		.enabledExtensionCount = kbVulkanDebugLayers ? kiDebugExtensionCount : kiBaseExtensionCount,
-		.ppEnabledExtensionNames = kppcInstanceExtensionNames,
-	};
-
-	// Opt-in force-load: lets RenderDoc's "Attach to running instance" find us without launching through RenderDoc. Triggers the layer-disable branch below, so it's guarded by kbRenderDocAttach to avoid sacrificing validation in normal debug runs.
+// Opt-in force-load: lets RenderDoc's "Attach to running instance" find us without launching through RenderDoc. Triggers the layer-disable branch in the ctor, so it's guarded by kbRenderDocAttach to avoid sacrificing validation in normal debug runs.
+static void TryLoadRenderDocDll()
+{
 	if constexpr (kbRenderDocAttach)
 	{
 		if (GetModuleHandle("renderdoc.dll") == nullptr)
@@ -272,6 +236,55 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 			}
 		}
 	}
+}
+
+InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
+{
+	ASSERT(gpInstanceManager == nullptr);
+
+	gpInstanceManager = this;
+
+	ScopedBootTimer scopedBootTimer(kBootTimerInstanceManager);
+
+	if constexpr (kbVulkanDebugLayers)
+	{
+		ReadLayerProperties();
+	}
+
+	VkApplicationInfo vkApplicationInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+		.pNext = nullptr,
+		.pApplicationName = game::kGameName.data(),
+		.applicationVersion = game::kiGameVersion,
+		.pEngineName = nullptr,
+		.engineVersion = 0,
+		.apiVersion = VK_API_VERSION_1_2, // Also update "--target-env vulkan1.2" in DataPacker
+	};
+	// Configure validation layer settings using VK_EXT_layer_settings
+	VkLayerSettingEXT layerSettings[7] {};
+	uint32_t uiLayerSettingCount = BuildValidationLayerSettings(layerSettings);
+
+	VkLayerSettingsCreateInfoEXT vkLayerSettingsCreateInfoEXT =
+	{
+		.sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
+		.pNext = nullptr,
+		.settingCount = uiLayerSettingCount,
+		.pSettings = layerSettings,
+	};
+	VkInstanceCreateInfo vkInstanceCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+		.pNext = kbVulkanDebugLayers ? &vkLayerSettingsCreateInfoEXT : nullptr,
+		.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR,
+		.pApplicationInfo = &vkApplicationInfo,
+		.enabledLayerCount = kbVulkanDebugLayers ? static_cast<uint32_t>(mValidationLayers.size()) : 0,
+		.ppEnabledLayerNames = kbVulkanDebugLayers ? mValidationLayers.data() : nullptr,
+		.enabledExtensionCount = kbVulkanDebugLayers ? kiDebugExtensionCount : kiBaseExtensionCount,
+		.ppEnabledExtensionNames = kppcInstanceExtensionNames,
+	};
+
+	TryLoadRenderDocDll();
 
 	HMODULE renderDocHmodule = GetModuleHandle("renderdoc.dll");
 	if (renderDocHmodule != nullptr)
@@ -381,6 +394,12 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 void InstanceManager::SelectPhysicalDevice()
 {
+	SelectBestPhysicalDevice();
+	ValidatePhysicalDeviceCapabilities();
+}
+
+void InstanceManager::SelectBestPhysicalDevice()
+{
 	uint32_t uiPhysicalDeviceCount = 0;
 	LOG(kGraphics, kInfo, "\nEnumerate physical devices");
 	CHECK_VK(vkEnumeratePhysicalDevices(mVkInstance, &uiPhysicalDeviceCount, nullptr));
@@ -437,7 +456,10 @@ void InstanceManager::SelectPhysicalDevice()
 		}
 	}
 	ASSERT(mVkPhysicalDevice != VK_NULL_HANDLE);
+}
 
+void InstanceManager::ValidatePhysicalDeviceCapabilities()
+{
 	vkGetPhysicalDeviceProperties(mVkPhysicalDevice, &mVkPhysicalDeviceProperties);
 	LOG(kGraphics, kInfo, "  Selected device API version: {}.{}.{}", VK_VERSION_MAJOR(mVkPhysicalDeviceProperties.apiVersion), VK_VERSION_MINOR(mVkPhysicalDeviceProperties.apiVersion), VK_VERSION_PATCH(mVkPhysicalDeviceProperties.apiVersion));
 	LOG(kGraphics, kInfo, "  maxImageDimension2D: {}", mVkPhysicalDeviceProperties.limits.maxImageDimension2D);
@@ -451,30 +473,35 @@ void InstanceManager::SelectPhysicalDevice()
 	vkGetPhysicalDeviceFeatures2(mVkPhysicalDevice, &mVkPhysicalDeviceFeatures2);
 
 	// Check required Vulkan 1.2 features
-	if (mVkPhysicalDeviceVulkan12Features.descriptorBindingStorageBufferUpdateAfterBind != VK_TRUE)
+	struct RequiredVulkan12Feature
 	{
-		MessageBox(nullptr, "Required Vulkan feature not supported.\n\ndescriptorBindingStorageBufferUpdateAfterBind is required for VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
-		throw std::runtime_error("descriptorBindingStorageBufferUpdateAfterBind not supported");
-	}
-	if (mVkPhysicalDeviceVulkan12Features.shaderSampledImageArrayNonUniformIndexing != VK_TRUE)
+		const VkBool32* pFeature = nullptr;
+		const char* pcName = nullptr;
+		const char* pcReason = nullptr;
+	};
+	const RequiredVulkan12Feature pRequiredFeatures[]
 	{
-		MessageBox(nullptr, "Required Vulkan feature not supported.\n\nshaderSampledImageArrayNonUniformIndexing is required for non-uniform descriptor indexing.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
-		throw std::runtime_error("shaderSampledImageArrayNonUniformIndexing not supported");
-	}
-	if (mVkPhysicalDeviceVulkan12Features.descriptorBindingSampledImageUpdateAfterBind != VK_TRUE)
+		{&mVkPhysicalDeviceVulkan12Features.descriptorBindingStorageBufferUpdateAfterBind, "descriptorBindingStorageBufferUpdateAfterBind", "VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT"},
+		{&mVkPhysicalDeviceVulkan12Features.shaderSampledImageArrayNonUniformIndexing, "shaderSampledImageArrayNonUniformIndexing", "non-uniform descriptor indexing"},
+		{&mVkPhysicalDeviceVulkan12Features.descriptorBindingSampledImageUpdateAfterBind, "descriptorBindingSampledImageUpdateAfterBind", "texture streaming"},
+		{&mVkPhysicalDeviceVulkan12Features.descriptorBindingPartiallyBound, "descriptorBindingPartiallyBound", "bindless texture arrays"},
+		{&mVkPhysicalDeviceVulkan12Features.runtimeDescriptorArray, "runtimeDescriptorArray", "bindless texture arrays"},
+	};
+	for (const RequiredVulkan12Feature& rRequiredFeature : pRequiredFeatures)
 	{
-		MessageBox(nullptr, "Required Vulkan feature not supported.\n\ndescriptorBindingSampledImageUpdateAfterBind is required for texture streaming.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
-		throw std::runtime_error("descriptorBindingSampledImageUpdateAfterBind not supported");
-	}
-	if (mVkPhysicalDeviceVulkan12Features.descriptorBindingPartiallyBound != VK_TRUE)
-	{
-		MessageBox(nullptr, "Required Vulkan feature not supported.\n\ndescriptorBindingPartiallyBound is required for bindless texture arrays.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
-		throw std::runtime_error("descriptorBindingPartiallyBound not supported");
-	}
-	if (mVkPhysicalDeviceVulkan12Features.runtimeDescriptorArray != VK_TRUE)
-	{
-		MessageBox(nullptr, "Required Vulkan feature not supported.\n\nruntimeDescriptorArray is required for bindless texture arrays.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
-		throw std::runtime_error("runtimeDescriptorArray not supported");
+		if (*rRequiredFeature.pFeature != VK_TRUE)
+		{
+			std::string errorMessage = "Required Vulkan feature not supported.\n\n";
+			errorMessage += rRequiredFeature.pcName;
+			errorMessage += " is required for ";
+			errorMessage += rRequiredFeature.pcReason;
+			errorMessage += ".";
+			MessageBox(nullptr, errorMessage.c_str(), game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+
+			std::string throwMessage = rRequiredFeature.pcName;
+			throwMessage += " not supported";
+			throw std::runtime_error(throwMessage);
+		}
 	}
 
 	ASSERT(mVkPhysicalDeviceFeatures2.features.sampleRateShading == VK_TRUE);

@@ -66,6 +66,8 @@ private:
 
 	void ReadLayerProperties();
 	void SelectPhysicalDevice();
+	void SelectBestPhysicalDevice();
+	void ValidatePhysicalDeviceCapabilities();
 	void SelectQueueFamilies();
 	void SelectSurfaceFormat();
 	void SelectDepthFormat();

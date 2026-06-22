@@ -65,6 +65,7 @@
 using namespace std::chrono_literals;
 #include <cmath>
 #include <concepts>
+#include <condition_variable>
 #include <csignal>
 #include <cstddef>
 #include <cstdint>

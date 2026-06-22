@@ -11,7 +11,6 @@ extern Wrapper gIslandAmbientOcclusion;
 // Beach
 extern Wrapper gTerrainSnowBlend;
 extern Wrapper gTerrainSnowAmbientOcclusionExclusion;
-extern Wrapper gTerrainBeachHeight;
 extern Wrapper gTerrainBeachSandSize;
 extern Wrapper gTerrainBeachSandBlend;
 extern Wrapper gTerrainBeachNormalsSizeOne;

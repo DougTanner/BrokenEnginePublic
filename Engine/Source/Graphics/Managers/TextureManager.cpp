@@ -68,6 +68,25 @@ float TextureManager::DetailTextureAspectRatio()
 	return static_cast<float>(iWorldDetailX) / static_cast<float>(iWorldDetailY);
 }
 
+void TextureManager::CreatePlaceholderTexture(Texture& rTexture, std::string_view name, VkImageCreateFlags vkImageCreateFlags, VkFormat vkFormat, uint32_t uiArrayLayers, VkImageViewType vkImageViewType, const std::function<void(void*, int64_t, int64_t)>& rPixelWriter)
+{
+	rTexture.Create(
+	{
+		.textureFlags = {},
+		.name = name,
+		.flags = vkImageCreateFlags,
+		.format = vkFormat,
+		.extent = VkExtent3D {1, 1, 1},
+		.mipLevels = 1,
+		.arrayLayers = uiArrayLayers,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		.viewType = vkImageViewType,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	}, rPixelWriter);
+}
+
 TextureManager::TextureManager()
 : mTextureDescriptors(*this)
 {
@@ -84,41 +103,13 @@ TextureManager::TextureManager()
 	gpProfileManager->BootStart(kBootTimerTextureUpload);
 
 	// Create 1x1 white placeholder textures for deferred texture loading
-	mWhiteTexture.Create(
-	{
-		.textureFlags = {},
-		.name = "WhitePlaceholder",
-		.flags = 0,
-		.format = VK_FORMAT_R8G8B8A8_UNORM,
-		.extent = VkExtent3D {1, 1, 1},
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.eTextureLayout = kShaderReadOnly,
-	},
+	CreatePlaceholderTexture(mWhiteTexture, "WhitePlaceholder", 0, VK_FORMAT_R8G8B8A8_UNORM, 1, VK_IMAGE_VIEW_TYPE_2D,
 	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
 	{
 		*static_cast<uint32_t*>(pData) = 0xFFFFFFFF;
 	});
 
-	mWhiteCubeTexture.Create(
-	{
-		.textureFlags = {},
-		.name = "WhiteCubePlaceholder",
-		.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
-		.format = VK_FORMAT_R8G8B8A8_UNORM,
-		.extent = VkExtent3D {1, 1, 1},
-		.mipLevels = 1,
-		.arrayLayers = 6,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-		.viewType = VK_IMAGE_VIEW_TYPE_CUBE,
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.eTextureLayout = kShaderReadOnly,
-	},
+	CreatePlaceholderTexture(mWhiteCubeTexture, "WhiteCubePlaceholder", VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_FORMAT_R8G8B8A8_UNORM, 6, VK_IMAGE_VIEW_TYPE_CUBE,
 	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
 	{
 		uint32_t* pPixels = static_cast<uint32_t*>(pData);
@@ -131,21 +122,7 @@ TextureManager::TextureManager()
 	// Slot-0 island placeholders. Format-matched to the bindless arrays; values chosen so
 	// sampling slot 0 has no visible effect (ocean-bottom elevation submerged below the water,
 	// mid-gray color, up-vector normals, full-bright AO).
-	mIslandPlaceholderElevation.Create(
-	{
-		.textureFlags = {},
-		.name = "IslandPlaceholderElevation",
-		.flags = 0,
-		.format = VK_FORMAT_R32_SFLOAT,
-		.extent = VkExtent3D {1, 1, 1},
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.eTextureLayout = kShaderReadOnly,
-	},
+	CreatePlaceholderTexture(mIslandPlaceholderElevation, "IslandPlaceholderElevation", 0, VK_FORMAT_R32_SFLOAT, 1, VK_IMAGE_VIEW_TYPE_2D,
 	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
 	{
 		// Ocean-bottom, matching the elevation RTT clear (RenderTargetTextures.cpp) and the
@@ -156,61 +133,19 @@ TextureManager::TextureManager()
 		*static_cast<float*>(pData) = gpIslandTerrain->mfSeaFloorElevation;
 	});
 
-	mIslandPlaceholderColor.Create(
-	{
-		.textureFlags = {},
-		.name = "IslandPlaceholderColor",
-		.flags = 0,
-		.format = VK_FORMAT_R8G8B8A8_UNORM,
-		.extent = VkExtent3D {1, 1, 1},
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.eTextureLayout = kShaderReadOnly,
-	},
+	CreatePlaceholderTexture(mIslandPlaceholderColor, "IslandPlaceholderColor", 0, VK_FORMAT_R8G8B8A8_UNORM, 1, VK_IMAGE_VIEW_TYPE_2D,
 	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
 	{
 		*static_cast<uint32_t*>(pData) = 0xFF808080u;
 	});
 
-	mIslandPlaceholderNormals.Create(
-	{
-		.textureFlags = {},
-		.name = "IslandPlaceholderNormals",
-		.flags = 0,
-		.format = VK_FORMAT_R8G8_UNORM,
-		.extent = VkExtent3D {1, 1, 1},
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.eTextureLayout = kShaderReadOnly,
-	},
+	CreatePlaceholderTexture(mIslandPlaceholderNormals, "IslandPlaceholderNormals", 0, VK_FORMAT_R8G8_UNORM, 1, VK_IMAGE_VIEW_TYPE_2D,
 	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
 	{
 		*static_cast<uint16_t*>(pData) = 0x8080u;
 	});
 
-	mIslandPlaceholderAmbientOcclusion.Create(
-	{
-		.textureFlags = {},
-		.name = "IslandPlaceholderAmbientOcclusion",
-		.flags = 0,
-		.format = VK_FORMAT_R8_UNORM,
-		.extent = VkExtent3D {1, 1, 1},
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.eTextureLayout = kShaderReadOnly,
-	},
+	CreatePlaceholderTexture(mIslandPlaceholderAmbientOcclusion, "IslandPlaceholderAmbientOcclusion", 0, VK_FORMAT_R8_UNORM, 1, VK_IMAGE_VIEW_TYPE_2D,
 	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
 	{
 		*static_cast<uint8_t*>(pData) = 0xFFu;
@@ -219,21 +154,7 @@ TextureManager::TextureManager()
 	// All-zero RGBA: no rock/sand/snow/flow until the real BC7 mask chunk adopts. Bindless arrays
 	// don't require uniform format across slots, so R8G8B8A8 here while real masks are BC7 is OK
 	// (same precedent as mIslandPlaceholderColor above vs BC7 islands).
-	mIslandPlaceholderMasks.Create(
-	{
-		.textureFlags = {},
-		.name = "IslandPlaceholderMasks",
-		.flags = 0,
-		.format = VK_FORMAT_R8G8B8A8_UNORM,
-		.extent = VkExtent3D {1, 1, 1},
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.eTextureLayout = kShaderReadOnly,
-	},
+	CreatePlaceholderTexture(mIslandPlaceholderMasks, "IslandPlaceholderMasks", 0, VK_FORMAT_R8G8B8A8_UNORM, 1, VK_IMAGE_VIEW_TYPE_2D,
 	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
 	{
 		*static_cast<uint32_t*>(pData) = 0x00000000u;
@@ -312,26 +233,7 @@ TextureManager::TextureManager()
 	gpProfileManager->BootStop(kBootTimerTextureUpload);
 
 	// Create per-framebuffer command buffers for batched QFOT acquire barriers (before StartThread/WaitForTextures -> ProcessPendingTextures)
-	VkCommandPoolCreateInfo vkCommandPoolCreateInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-		.pNext = nullptr,
-		.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-		.queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex),
-	};
-	CHECK_VK(vkCreateCommandPool(gpDeviceManager->mVkDevice, &vkCommandPoolCreateInfo, nullptr, &mAcquireVkCommandPool));
-
-	uint32_t uiFramebufferCount = static_cast<uint32_t>(gpSwapchainManager->mFramebuffers.size());
-	mAcquireVkCommandBuffers.resize(uiFramebufferCount);
-	VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.pNext = nullptr,
-		.commandPool = mAcquireVkCommandPool,
-		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = uiFramebufferCount,
-	};
-	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, mAcquireVkCommandBuffers.data()));
+	CreateAcquireCommandBuffers();
 
 	gpProfileManager->BootStart(kModelTexturesGeneration);
 
@@ -383,6 +285,11 @@ void TextureManager::CreateScreenDependentResources()
 
 	mTextureDescriptors.Create();
 
+	CreateAcquireCommandBuffers();
+}
+
+void TextureManager::CreateAcquireCommandBuffers()
+{
 	VkCommandPoolCreateInfo vkCommandPoolCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -407,22 +314,11 @@ void TextureManager::CreateScreenDependentResources()
 
 void TextureManager::DestroySamplers()
 {
-	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerSmoke, nullptr);
-	mVkSamplerSmoke = VK_NULL_HANDLE;
-	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerWindClamp, nullptr);
-	mVkSamplerWindClamp = VK_NULL_HANDLE;
-	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerBorder, nullptr);
-	mVkSamplerBorder = VK_NULL_HANDLE;
-	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerBorderWhite, nullptr);
-	mVkSamplerBorderWhite = VK_NULL_HANDLE;
-	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerClamp, nullptr);
-	mVkSamplerClamp = VK_NULL_HANDLE;
-	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerElevation, nullptr);
-	mVkSamplerElevation = VK_NULL_HANDLE;
-	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerRepeat, nullptr);
-	mVkSamplerRepeat = VK_NULL_HANDLE;
-	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerMirroredRepeat, nullptr);
-	mVkSamplerMirroredRepeat = VK_NULL_HANDLE;
+	for (VkSampler& rVkSampler : mpSamplers)
+	{
+		vkDestroySampler(gpDeviceManager->mVkDevice, rVkSampler, nullptr);
+		rVkSampler = VK_NULL_HANDLE;
+	}
 }
 
 void TextureManager::CreateSamplers()
@@ -478,8 +374,8 @@ void TextureManager::CreateSamplers()
 		.borderColor = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK,
 		.unnormalizedCoordinates = VK_FALSE,
 	};
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &smokeVkSamplerCreateInfo, nullptr, &mVkSamplerSmoke));
-	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerSmoke, "Smoke");
+	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &smokeVkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotSmoke]));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotSmoke], "Smoke");
 
 	// Wind sampler: linear filtering for smooth advection + clamp-to-edge preserves energy at boundaries
 	smokeVkSamplerCreateInfo.magFilter = VK_FILTER_LINEAR;
@@ -488,8 +384,8 @@ void TextureManager::CreateSamplers()
 	smokeVkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	smokeVkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	smokeVkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &smokeVkSamplerCreateInfo, nullptr, &mVkSamplerWindClamp));
-	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerWindClamp, "WindClamp");
+	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &smokeVkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotWindClamp]));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotWindClamp], "WindClamp");
 
 	VkSamplerCreateInfo vkSamplerCreateInfo
 	{
@@ -512,20 +408,20 @@ void TextureManager::CreateSamplers()
 		.borderColor = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK,
 		.unnormalizedCoordinates = VK_FALSE,
 	};
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerClamp));
-	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerClamp, "Clamp");
+	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotClamp]));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotClamp], "Clamp");
 
 	// Dedicated sampler for the per-island R32_SFLOAT heightmap (IslandTerrain bindless elevation array).
-	// Mirrors mVkSamplerClamp settings but downgrades the filter to NEAREST when the device does not
-	// advertise SAMPLED_IMAGE_FILTER_LINEAR_BIT for R32_SFLOAT. mVkSamplerClamp stays LINEAR so the
+	// Mirrors mpSamplers[kSamplerSlotClamp] settings but downgrades the filter to NEAREST when the device does not
+	// advertise SAMPLED_IMAGE_FILTER_LINEAR_BIT for R32_SFLOAT. mpSamplers[kSamplerSlotClamp] stays LINEAR so the
 	// spec-mandated formats it also serves (BC7 color, BC5 normals, R8 AO) keep bilinear filtering.
 	if (!bR32SFloatLinearSupported)
 	{
 		vkSamplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 		vkSamplerCreateInfo.minFilter = VK_FILTER_NEAREST;
 	}
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerElevation));
-	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerElevation, "Elevation");
+	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotElevation]));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotElevation], "Elevation");
 	// Restore filters for subsequent Border/Repeat/MirroredRepeat samplers (they serve spec-mandated formats).
 	vkSamplerCreateInfo.magFilter = VK_FILTER_LINEAR;
 	vkSamplerCreateInfo.minFilter = VK_FILTER_LINEAR;
@@ -533,80 +429,74 @@ void TextureManager::CreateSamplers()
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerBorder));
-	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerBorder, "Border");
+	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotBorder]));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotBorder], "Border");
 	// White border (opaque 1.0): the shadow texture is inverse (1.0 = fully lit / no shadow), so a sample beyond the
 	// huge texture's extent (a fast zoom-out that outruns the texel ramp) reads "no shadow" instead of smearing the edge.
 	vkSamplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerBorderWhite));
-	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerBorderWhite, "BorderWhite");
+	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotBorderWhite]));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotBorderWhite], "BorderWhite");
 	vkSamplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerRepeat));
-	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerRepeat, "Repeat");
+	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotRepeat]));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotRepeat], "Repeat");
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerMirroredRepeat));
-	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerMirroredRepeat, "MirroredRepeat");
+	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotMirroredRepeat]));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotMirroredRepeat], "MirroredRepeat");
 }
 
 VkSampler TextureManager::GetSampler(DescriptorFlags_t flags)
 {
-	// Sampler flags are mutually exclusive — if a caller accidentally sets two, GetSampler's first-match order silently picks one and masks the bug.
-	const int64_t iSamplerFlagCount = (flags & DescriptorFlags::kSamplerClamp ? 1 : 0)
-		+ (flags & DescriptorFlags::kSamplerElevation ? 1 : 0)
-		+ (flags & DescriptorFlags::kSamplerBorder ? 1 : 0)
-		+ (flags & DescriptorFlags::kSamplerBorderWhite ? 1 : 0)
-		+ (flags & DescriptorFlags::kSamplerRepeat ? 1 : 0)
-		+ (flags & DescriptorFlags::kSamplerMirroredRepeat ? 1 : 0)
-		+ (flags & DescriptorFlags::kSamplerSmoke ? 1 : 0)
-		+ (flags & DescriptorFlags::kSamplerWindClamp ? 1 : 0);
+	// Maps each sampler flag to its slot. Order matches the prior first-match if/else chain (Elevation
+	// first); flags are mutually exclusive, so order only matters if a caller violates that (asserted below).
+	static constexpr struct { DescriptorFlags flag; SamplerSlot slot; } kFlagToSlot[]
+	{
+		{DescriptorFlags::kSamplerElevation, kSamplerSlotElevation},
+		{DescriptorFlags::kSamplerClamp, kSamplerSlotClamp},
+		{DescriptorFlags::kSamplerBorder, kSamplerSlotBorder},
+		{DescriptorFlags::kSamplerBorderWhite, kSamplerSlotBorderWhite},
+		{DescriptorFlags::kSamplerRepeat, kSamplerSlotRepeat},
+		{DescriptorFlags::kSamplerMirroredRepeat, kSamplerSlotMirroredRepeat},
+		{DescriptorFlags::kSamplerSmoke, kSamplerSlotSmoke},
+		{DescriptorFlags::kSamplerWindClamp, kSamplerSlotWindClamp},
+	};
+
+	// Sampler flags are mutually exclusive — if a caller accidentally sets two, the first table match silently picks one and masks the bug.
+	int64_t iSamplerFlagCount = 0;
+	for (const auto& rEntry : kFlagToSlot)
+	{
+		iSamplerFlagCount += (flags & rEntry.flag ? 1 : 0);
+	}
 	ASSERT(iSamplerFlagCount <= 1);
 
-	if (flags & DescriptorFlags::kSamplerElevation)
+	for (const auto& rEntry : kFlagToSlot)
 	{
-		return mVkSamplerElevation;
+		if (flags & rEntry.flag)
+		{
+			return mpSamplers[rEntry.slot];
+		}
 	}
-	else if (flags & DescriptorFlags::kSamplerClamp)
-	{
-		return mVkSamplerClamp;
-	}
-	else if (flags & DescriptorFlags::kSamplerBorder)
-	{
-		return mVkSamplerBorder;
-	}
-	else if (flags & DescriptorFlags::kSamplerBorderWhite)
-	{
-		return mVkSamplerBorderWhite;
-	}
-	else if (flags & DescriptorFlags::kSamplerRepeat)
-	{
-		return mVkSamplerRepeat;
-	}
-	else if (flags & DescriptorFlags::kSamplerMirroredRepeat)
-	{
-		return mVkSamplerMirroredRepeat;
-	}
-	else if (flags & DescriptorFlags::kSamplerSmoke)
-	{
-		return mVkSamplerSmoke;
-	}
-	else if (flags & DescriptorFlags::kSamplerWindClamp)
-	{
-		return mVkSamplerWindClamp;
-	}
-	else
-	{
-		return mVkSamplerClamp;
-	}
+
+	// No sampler flag set — default to clamp (matches the prior else branch).
+	return mpSamplers[kSamplerSlotClamp];
 }
 
 void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 {
 	mbHasPendingAcquireBarriers = false;
+
+	// Idle-frame fast path: skip the full mTextureMap scan when nothing is in an adoptable state. The
+	// TextureUploadManager pending-adoption counter is armed when a chunk reaches kDiskLoaded/kGpuUploadComplete
+	// and disarmed below at adoption, so a zero count means no chunk can be adopted this frame.
+	if (!gpTextureUploadManager->HasPendingAdoptions())
+	{
+		return;
+	}
+
 	miAcquireFramebufferIndex = iFramebufferIndex;
 	bool bNeedAcquireBarrier = gpInstanceManager->miTransferQueueFamilyIndex != gpInstanceManager->miGraphicsQueueFamilyIndex;
 	bool bRecordedBarriers = false;
@@ -628,45 +518,8 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 
 		if (eState == ChunkState::kGpuUploadComplete)
 		{
-			// Adopt the GPU-uploaded image (sets mVkImage and creates VkImageView)
-			rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
-
-			bool bIsLightingTexture = mLightingTextureCrcs.contains(rCrc);
-			bool bNeedsAcquire = bNeedAcquireBarrier;
-
-			// Lighting textures handle their own acquire barrier inside BlurLightingTexture's OneShotCommandBuffer
-			if (bNeedsAcquire && !bIsLightingTexture)
-			{
-				if (!bRecordedBarriers)
-				{
-					VkCommandBufferBeginInfo vkCommandBufferBeginInfo
-					{
-						.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-						.pNext = nullptr,
-						.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-						.pInheritanceInfo = nullptr,
-					};
-					vkBeginCommandBuffer(vkAcquireCommandBuffer, &vkCommandBufferBeginInfo);
-					bRecordedBarriers = true;
-				}
-				rTexture.RecordAcquireBarrier(vkAcquireCommandBuffer);
-			}
-
-			// Race-free null of worker-thread-shared CPU-pool state: reaching kGpuUploadComplete means
-			// the transfer thread (UploadThread) finished this chunk and released ownership, so nulling
-			// pData here (on the main thread) cannot race the transfer thread — the same ordering
-			// invariant FileManager::ResetTextureChunkStates documents.
-			rLazyChunk.pData = nullptr;
-			rLazyChunk.iDataSize = 0;
-			mTextureDescriptors.UpdateDescriptorsForTexture(rCrc);
+			AdoptUploadedChunk(rCrc, rTexture, bNeedAcquireBarrier, vkAcquireCommandBuffer, bRecordedBarriers);
 			bAdoptedTextures = true;
-
-			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
-
-			if (bIsLightingTexture)
-			{
-				BlurLightingTexture(rCrc, bNeedsAcquire);
-			}
 
 			if (++iAdoptedCount >= kiMaxAdoptionsPerFrame)
 			{
@@ -684,6 +537,7 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 			bAdoptedTextures = true;
 
 			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
+			gpTextureUploadManager->NotifyChunkAdopted(); // adoptable -> kReady: disarm the pending-adoption counter
 
 			if (mLightingTextureCrcs.contains(rCrc))
 			{
@@ -701,7 +555,11 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 		mTextureDescriptors.UpdateTextureArrayDescriptors();
 	}
 
-	// Finalize acquire barrier command buffer for CommandBufferManager to prepend
+	// Finalize acquire barrier command buffer for CommandBufferManager to prepend. mbHasPendingAcquireBarriers and
+	// miAcquireFramebufferIndex (set earlier in this function) are plain non-atomic members written here on the main
+	// thread (ProcessPendingTextures runs from Graphics::RenderGlobal) and read on the mSubmitGlobal worker in
+	// CommandBufferManager::SubmitGlobalToQueue — the publish is ordered only by that worker's Wake/Wait edge. Same
+	// "plain member published across a PersistentWorker Wake/Wait edge" family as CommandBuffers.h (mFlags/mVkFence).
 	if (bRecordedBarriers)
 	{
 		vkEndCommandBuffer(vkAcquireCommandBuffer);
@@ -709,23 +567,67 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 	}
 }
 
+void TextureManager::AdoptUploadedChunk(common::crc_t crc, Texture& rTexture, bool bNeedAcquireBarrier, VkCommandBuffer vkAcquireCommandBuffer, bool& brRecordedBarriers)
+{
+	LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(crc);
+
+	// Adopt the GPU-uploaded image (sets mVkImage and creates VkImageView)
+	rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
+
+	bool bIsLightingTexture = mLightingTextureCrcs.contains(crc);
+	bool bNeedsAcquire = bNeedAcquireBarrier;
+
+	// Lighting textures handle their own acquire barrier inside BlurLightingTexture's OneShotCommandBuffer
+	if (bNeedsAcquire && !bIsLightingTexture)
+	{
+		EnsureAcquireCommandBufferBegun(vkAcquireCommandBuffer, brRecordedBarriers);
+		rTexture.RecordAcquireBarrier(vkAcquireCommandBuffer);
+	}
+
+	// Race-free null of worker-thread-shared CPU-pool state: reaching kGpuUploadComplete means
+	// the transfer thread (UploadThread) finished this chunk and released ownership, so nulling
+	// pData here (on the main thread) cannot race the transfer thread — the same ordering
+	// invariant FileManager::ResetTextureChunkStates documents.
+	rLazyChunk.pData = nullptr;
+	rLazyChunk.iDataSize = 0;
+	mTextureDescriptors.UpdateDescriptorsForTexture(crc);
+
+	rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
+	gpTextureUploadManager->NotifyChunkAdopted(); // adoptable -> kReady: disarm the pending-adoption counter
+
+	if (bIsLightingTexture)
+	{
+		BlurLightingTexture(crc, bNeedsAcquire);
+	}
+}
+
+void TextureManager::EnsureAcquireCommandBufferBegun(VkCommandBuffer vkAcquireCommandBuffer, bool& brRecordedBarriers)
+{
+	if (brRecordedBarriers)
+	{
+		return;
+	}
+
+	VkCommandBufferBeginInfo vkCommandBufferBeginInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.pNext = nullptr,
+		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+		.pInheritanceInfo = nullptr,
+	};
+	vkBeginCommandBuffer(vkAcquireCommandBuffer, &vkCommandBufferBeginInfo);
+	brRecordedBarriers = true;
+}
+
 bool TextureManager::AnyAdoptionPending() const
 {
-	// Mirrors ProcessPendingTextures' two adoption conditions exactly: a chunk at kGpuUploadComplete
-	// (transfer-queue uploaded, awaiting adopt) or kDiskLoaded (same-queue-family fallback, adopted via
-	// Create). On such a frame ProcessPendingTextures writes descriptor elements (UpdateDescriptorsForTexture
-	// per-slot, the UpdateTextureArrayDescriptors flush, and the lighting-blur array write), so RenderGlobal's
-	// all-framebuffer-fence drain must fire first. kUploading (between the two states) is not adopted this
-	// frame, so this is an exact two-value test, not a >= range. Early-outs on the first pending chunk.
-	for (const auto& [rCrc, rTexture] : mTextureMap)
-	{
-		ChunkState eState = gpFileManager->GetLazyChunk(rCrc).eState.load(std::memory_order_acquire);
-		if (eState == ChunkState::kGpuUploadComplete || eState == ChunkState::kDiskLoaded)
-		{
-			return true;
-		}
-	}
-	return false;
+	// True when any chunk sits in an adoptable state (kGpuUploadComplete: transfer-queue uploaded, awaiting adopt;
+	// or kDiskLoaded: same-queue-family / re-armed fallback, adopted via Create). On such a frame
+	// ProcessPendingTextures writes descriptor elements (UpdateDescriptorsForTexture per-slot, the
+	// UpdateTextureArrayDescriptors flush, and the lighting-blur array write), so RenderGlobal's all-framebuffer-fence
+	// drain must fire first. The TextureUploadManager pending-adoption counter tracks exactly those two states
+	// (kUploading, between them, is excluded), replacing a full per-frame mTextureMap scan with an O(1) read.
+	return gpTextureUploadManager->HasPendingAdoptions();
 }
 
 void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
@@ -872,9 +774,9 @@ void TextureManager::BlurLightingTexture(common::crc_t crc, bool bNeedAcquireBar
 	Pipeline& rBlurH = gpPipelineManager->mpPipelines[kPipelineLightingBlurH];
 	Pipeline& rBlurV = gpPipelineManager->mpPipelines[kPipelineLightingBlurV];
 
-	rBlurH.UpdateCombinedImageSamplerDescriptor(0, rSource.mVkImageView, mVkSamplerClamp);
+	rBlurH.UpdateCombinedImageSamplerDescriptor(0, rSource.mVkImageView, mpSamplers[kSamplerSlotClamp]);
 	rBlurH.UpdateStorageImageDescriptor(1, rIntermediate.mVkImageView);
-	rBlurV.UpdateCombinedImageSamplerDescriptor(0, rIntermediate.mVkImageView, mVkSamplerClamp);
+	rBlurV.UpdateCombinedImageSamplerDescriptor(0, rIntermediate.mVkImageView, mpSamplers[kSamplerSlotClamp]);
 	rBlurV.UpdateStorageImageDescriptor(1, rResult.mVkImageView);
 
 	// Execute blur via one-shot command buffer
@@ -908,7 +810,9 @@ void TextureManager::BlurLightingTexture(common::crc_t crc, bool bNeedAcquireBar
 
 	oneShotCommandBuffer.Execute();
 
-	// Register blurred texture in bindless array
+	// Register blurred texture in bindless array. Render-phase caller: CrcToIndex is lock-free, safe only
+	//   because no worker Spawn runs concurrently (see TextureDescriptors::CrcToIndex).
+	ASSERT(common::gpThreadLocal == nullptr || !common::gpThreadLocal->mbInFrameTick);
 	common::crc_t blurredCrc = crc ^ TextureDescriptors::kBlurSalt;
 	int64_t iBlurredIndex = mTextureDescriptors.CrcToIndex(blurredCrc);
 	mTextureDescriptors.mImageInfos.at(iBlurredIndex).imageView = rResult.mVkImageView;

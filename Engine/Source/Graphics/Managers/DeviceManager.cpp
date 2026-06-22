@@ -260,28 +260,7 @@ DeviceManager::DeviceManager()
 	}
 
 	// Query whether QFOT is optional for transfer -> graphics
-	if (bMaintenance9Available && gpInstanceManager->miTransferQueueFamilyIndex != gpInstanceManager->miGraphicsQueueFamilyIndex)
-	{
-		uint32_t uiQueueFamilyCount = 0;
-		vkGetPhysicalDeviceQueueFamilyProperties2(gpInstanceManager->mVkPhysicalDevice, &uiQueueFamilyCount, nullptr);
-		std::vector<VkQueueFamilyOwnershipTransferPropertiesKHR> queueFamilyOwnershipTransferProperties(uiQueueFamilyCount, {.sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_OWNERSHIP_TRANSFER_PROPERTIES_KHR, .pNext = nullptr});
-		std::vector<VkQueueFamilyProperties2> queueFamilyProperties2(uiQueueFamilyCount, {.sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2, .pNext = nullptr});
-		for (uint32_t i = 0; i < uiQueueFamilyCount; ++i)
-		{
-			queueFamilyProperties2[i].pNext = &queueFamilyOwnershipTransferProperties[i];
-		}
-		vkGetPhysicalDeviceQueueFamilyProperties2(gpInstanceManager->mVkPhysicalDevice, &uiQueueFamilyCount, queueFamilyProperties2.data());
-
-		uint32_t uiTransferFamily = static_cast<uint32_t>(gpInstanceManager->miTransferQueueFamilyIndex);
-		uint32_t uiGraphicsFamily = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex);
-		// Trust boundary: both indices must be valid queue families. InstanceManager falls the transfer index back to the
-		// graphics family when no family advertises VK_QUEUE_TRANSFER_BIT, so it can never be UINT32_MAX here (otherwise the
-		// != graphics guard above would be true and this would silently index [UINT32_MAX]).
-		ASSERT(uiTransferFamily < uiQueueFamilyCount && uiGraphicsFamily < uiQueueFamilyCount);
-		uint32_t uiOptimalMask = queueFamilyOwnershipTransferProperties[uiTransferFamily].optimalImageTransferToQueueFamilies;
-		mCapabilities.Set(DeviceCapabilityFlags::kTransferQueueFamilyOwnershipTransferOptional, (uiOptimalMask & (1u << uiGraphicsFamily)) != 0);
-		LOG(kGraphics, kDebug, "Transfer->Graphics QFOT optional: {} (transfer family {} optimal mask {:#010b}, graphics family {})", static_cast<bool>(mCapabilities & DeviceCapabilityFlags::kTransferQueueFamilyOwnershipTransferOptional), uiTransferFamily, uiOptimalMask, uiGraphicsFamily);
-	}
+	ProbeTransferQueueOwnershipTransfer(bMaintenance9Available);
 
 	// Descriptor pool
 	VkDescriptorPoolSize pVkDescriptorPoolSizes[]
@@ -330,6 +309,45 @@ DeviceManager::DeviceManager()
 	CHECK_VK(vmaCreateAllocator(&allocatorCreateInfo, &mpAllocator));
 
 	// Pipeline cache
+	LoadPipelineCache();
+}
+
+DeviceManager::~DeviceManager()
+{
+	// Save pipeline cache to disk
+	if constexpr (kbVulkanPipelineCache)
+	{
+		size_t uiDataSize = 0;
+		vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &uiDataSize, nullptr);
+		std::vector<uint8_t> cacheData(uiDataSize);
+		vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &uiDataSize, cacheData.data());
+		static_cast<void>(gpFileManager->WriteFileAtomically({FileFlags::kAppDataDirectory, FileFlags::kWrite}, "pipeline.cache", [&](std::fstream& rStream)
+		{
+			rStream.write(reinterpret_cast<const char*>(cacheData.data()), static_cast<std::streamsize>(uiDataSize));
+		}));
+		LOG(kGraphics, kDebug, "Saved pipeline cache ({} bytes)", uiDataSize);
+		vkDestroyPipelineCache(mVkDevice, mVkPipelineCache, nullptr);
+	}
+
+	vmaDestroyAllocator(mpAllocator);
+	mpAllocator = nullptr;
+
+	// All descriptor sets freed explicitly in Pipeline::Destroy() before reaching here
+	vkDestroyDescriptorPool(mVkDevice, mVkDescriptorPool, nullptr);
+
+	vkDestroyFence(mVkDevice, mOneShotVkFence, nullptr);
+	vkDestroyCommandPool(mVkDevice, mOneShotVkCommandPool, nullptr);
+
+	vkDestroyDevice(mVkDevice, nullptr);
+
+	if (gpDeviceManager == this)
+	{
+		gpDeviceManager = nullptr;
+	}
+}
+
+void DeviceManager::LoadPipelineCache()
+{
 	if constexpr (kbVulkanPipelineCache)
 	{
 		VkPipelineCacheCreateInfo vkPipelineCacheCreateInfo
@@ -379,37 +397,29 @@ DeviceManager::DeviceManager()
 	}
 }
 
-DeviceManager::~DeviceManager()
+void DeviceManager::ProbeTransferQueueOwnershipTransfer(bool bMaintenance9Available)
 {
-	// Save pipeline cache to disk
-	if constexpr (kbVulkanPipelineCache)
+	if (bMaintenance9Available && gpInstanceManager->miTransferQueueFamilyIndex != gpInstanceManager->miGraphicsQueueFamilyIndex)
 	{
-		size_t uiDataSize = 0;
-		vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &uiDataSize, nullptr);
-		std::vector<uint8_t> cacheData(uiDataSize);
-		vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &uiDataSize, cacheData.data());
-		static_cast<void>(gpFileManager->WriteFileAtomically({FileFlags::kAppDataDirectory, FileFlags::kWrite}, "pipeline.cache", [&](std::fstream& rStream)
+		uint32_t uiQueueFamilyCount = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties2(gpInstanceManager->mVkPhysicalDevice, &uiQueueFamilyCount, nullptr);
+		std::vector<VkQueueFamilyOwnershipTransferPropertiesKHR> queueFamilyOwnershipTransferProperties(uiQueueFamilyCount, {.sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_OWNERSHIP_TRANSFER_PROPERTIES_KHR, .pNext = nullptr});
+		std::vector<VkQueueFamilyProperties2> queueFamilyProperties2(uiQueueFamilyCount, {.sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2, .pNext = nullptr});
+		for (uint32_t i = 0; i < uiQueueFamilyCount; ++i)
 		{
-			rStream.write(reinterpret_cast<const char*>(cacheData.data()), static_cast<std::streamsize>(uiDataSize));
-		}));
-		LOG(kGraphics, kDebug, "Saved pipeline cache ({} bytes)", uiDataSize);
-		vkDestroyPipelineCache(mVkDevice, mVkPipelineCache, nullptr);
-	}
+			queueFamilyProperties2[i].pNext = &queueFamilyOwnershipTransferProperties[i];
+		}
+		vkGetPhysicalDeviceQueueFamilyProperties2(gpInstanceManager->mVkPhysicalDevice, &uiQueueFamilyCount, queueFamilyProperties2.data());
 
-	vmaDestroyAllocator(mpAllocator);
-	mpAllocator = nullptr;
-
-	// All descriptor sets freed explicitly in Pipeline::Destroy() before reaching here
-	vkDestroyDescriptorPool(mVkDevice, mVkDescriptorPool, nullptr);
-
-	vkDestroyFence(mVkDevice, mOneShotVkFence, nullptr);
-	vkDestroyCommandPool(mVkDevice, mOneShotVkCommandPool, nullptr);
-
-	vkDestroyDevice(mVkDevice, nullptr);
-
-	if (gpDeviceManager == this)
-	{
-		gpDeviceManager = nullptr;
+		uint32_t uiTransferFamily = static_cast<uint32_t>(gpInstanceManager->miTransferQueueFamilyIndex);
+		uint32_t uiGraphicsFamily = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex);
+		// Trust boundary: both indices must be valid queue families. InstanceManager falls the transfer index back to the
+		// graphics family when no family advertises VK_QUEUE_TRANSFER_BIT, so it can never be UINT32_MAX here (otherwise the
+		// != graphics guard above would be true and this would silently index [UINT32_MAX]).
+		ASSERT(uiTransferFamily < uiQueueFamilyCount && uiGraphicsFamily < uiQueueFamilyCount);
+		uint32_t uiOptimalMask = queueFamilyOwnershipTransferProperties[uiTransferFamily].optimalImageTransferToQueueFamilies;
+		mCapabilities.Set(DeviceCapabilityFlags::kTransferQueueFamilyOwnershipTransferOptional, (uiOptimalMask & (1u << uiGraphicsFamily)) != 0);
+		LOG(kGraphics, kDebug, "Transfer->Graphics QFOT optional: {} (transfer family {} optimal mask {:#010b}, graphics family {})", static_cast<bool>(mCapabilities & DeviceCapabilityFlags::kTransferQueueFamilyOwnershipTransferOptional), uiTransferFamily, uiOptimalMask, uiGraphicsFamily);
 	}
 }
 

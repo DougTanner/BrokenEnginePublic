@@ -17,7 +17,20 @@ public:
 	void WriteGlobalDescriptorSets();
 	void UpdateTextureArrayDescriptors();
 
-	void RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags, Texture* pTexture = nullptr, Texture** ppTextures = nullptr, int64_t iCount = 0, int64_t iArrayIndex = -1);
+	// Parameter bundle for RegisterTextureBinding. Encodes three mutually-exclusive binding shapes:
+	// single texture (pTexture), full array (ppTextures + iCount), or single array element (also iArrayIndex >= 0).
+	struct TextureBindingInfo
+	{
+		common::crc_t crc = 0;
+		Pipeline* pPipeline = nullptr;
+		int64_t iBinding = -1;
+		DescriptorFlags_t samplerFlags;
+		Texture* pTexture = nullptr;
+		Texture** ppTextures = nullptr;
+		int64_t iCount = 0;
+		int64_t iArrayIndex = -1;
+	};
+	void RegisterTextureBinding(const TextureBindingInfo& rInfo);
 	void RegisterStandaloneSamplerBinding(Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags);
 	void UpdateDescriptorsForTexture(common::crc_t crc);
 	// Array-binding-only descriptor refresh keyed on a binding map slot that has no mTextureMap entry
@@ -73,6 +86,9 @@ public:
 	};
 
 	void WriteArrayBindingDescriptors(TextureBinding& rBinding, VkSampler vkSampler);
+	// Write the single (non-array) combined-image-sampler descriptor for a binding, resolving the view from
+	// rBinding.pTexture or, if null, the CRC's mTextureMap entry. Extracted from RewriteSamplerDescriptors.
+	void WriteSingleTextureBinding(common::crc_t crc, TextureBinding& rBinding, VkSampler vkSampler);
 	void WriteFullArrayDescriptors(Pipeline& rPipeline, int64_t iBinding, Texture* const* ppArray, int64_t iCount, VkSampler vkSampler);
 	// Rewrite the single per-pipeline descriptor element at iIndex for every consumer of a bindless
 	// array, reading the Texture* currently in the live array (ppArray[iIndex]). Used by

@@ -378,6 +378,11 @@ void RenderTargetTextures::CreateLightingTextures()
 		mppLightingDepositTextures[i] = &mpLightingTextures[i];
 	}
 
+	RegisterDebugTextures(iPassCount);
+}
+
+void RenderTargetTextures::RegisterDebugTextures(int64_t iPassCount)
+{
 	// Debug textures: terrain G-buffer (elevation only — color/normal/AO composite RTTs were deleted
 	// when Terrain.frag switched to direct bindless per-island sampling), then deposit RGB (visible
 	// area), deposit combined direction, spread pass 0..N combined direction, combine red.

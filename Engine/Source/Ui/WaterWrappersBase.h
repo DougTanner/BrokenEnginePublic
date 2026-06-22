@@ -41,11 +41,6 @@ extern Wrapper gLightingWaterSkyboxThreePower;
 extern Wrapper gLightingWaterSkyboxLod;
 extern Wrapper gWaterSkyboxOneRenderMultiplier;
 
-// High frequency waves (pure-internal, not slider-mapped)
-extern Wrapper gWaterHighMultiplier;
-extern Wrapper gWaterHighScaleOne;
-extern Wrapper gWaterHighScaleTwo;
-
 // Specular - Height Darken
 extern Wrapper gWaterHeightDarkenTop;
 extern Wrapper gWaterHeightDarkenBottom;
@@ -99,8 +94,6 @@ extern Wrapper gWaterUnderseaCompression;
 extern Wrapper gWaterColorBottom;
 extern Wrapper gWaterColorHeight;
 extern Wrapper gWaterFresnel;
-extern Wrapper gWaterNoiseFrequency;
-extern Wrapper gWaterNoiseAmount;
 extern Wrapper gWaterColorNoiseFrequency;
 extern Wrapper gWaterColorNoiseAmount;
 extern Wrapper gWaterColorNoiseWeightOne;

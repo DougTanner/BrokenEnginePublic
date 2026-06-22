@@ -20,11 +20,39 @@ public:
 	void RequestUpload(common::crc_t crc, LoadPriority ePriority);
 	void WaitIdle();
 
+	// Pending-adoption counter: tracks chunks in an adoptable state (kDiskLoaded / kGpuUploadComplete) awaiting
+	// TextureManager::ProcessPendingTextures. Lives here (not on TextureManager) because this manager outlives the
+	// device-loss Graphics recreate that destroys TextureManager — so the upload thread never touches a freed owner
+	// and the count survives the recreate (FileManager::ResetTextureChunkStates re-arms it through device loss).
+	// Relaxed ordering: the count is decoupled from chunk-data visibility (eState's own acquire/release carries that);
+	// the worst case is one frame of adoption latency, harmless under lazy texture loading.
+	void NotifyChunkAdoptable() noexcept { miPendingAdoptions.fetch_add(1, std::memory_order_relaxed); }
+	void NotifyChunkAdopted() noexcept { miPendingAdoptions.fetch_sub(1, std::memory_order_relaxed); }
+	bool HasPendingAdoptions() const noexcept { return miPendingAdoptions.load(std::memory_order_relaxed) != 0; }
+
 	std::binary_semaphore mFrameSignal {0};
 
 private:
 
 	void UploadThread();
+
+	// UploadThread seam helpers. Per-chunk dimensions are derived once from the chunk header and passed to
+	// the image-create and staging-copy steps.
+	struct ChunkDimensions
+	{
+		bool bCubemap;
+		VkFormat vkFormat;
+		uint32_t uiBlockHeight;
+		uint32_t uiArrayLayers;
+		uint32_t uiMipLevels;
+		uint32_t uiBaseWidth;
+		uint32_t uiBaseHeight;
+	};
+	bool DequeueNextUpload();
+	bool HandleUploadEarlyOut(LazyChunk& rLazyChunk);
+	void CreateTransferImage(LazyChunk& rLazyChunk, const ChunkDimensions& rDimensions);
+	void RecordStagingCopies(LazyChunk& rLazyChunk, const ChunkDimensions& rDimensions);
+	void SubmitChunkUpload(LazyChunk& rLazyChunk, VkImageMemoryBarrier& rVkImageMemoryBarrier, bool bDone);
 
 	static constexpr int64_t kiByteBudgetPerFrame = 4 * 1024 * 1024;
 
@@ -37,9 +65,13 @@ private:
 
 	std::thread mUploadThread;
 	std::mutex mWorkMutex;
+	std::condition_variable mIdleConditionVariable; // WaitIdle() waits on this; UploadThread notifies when it acks a drain probe (guarded by mWorkMutex)
+	bool mbDrainRequested = false; // WaitIdle() sets this; UploadThread acks instead of submitting (guarded by mWorkMutex)
+	bool mbDrained = false; // UploadThread sets this to confirm it reached a quiescent point (guarded by mWorkMutex)
 	std::mutex mUploadMutex;
 	std::priority_queue<LoadRequest> mUploadQueue;
 	std::atomic<bool> mbShutdown {false};
+	std::atomic<int64_t> miPendingAdoptions {0};
 
 	VkCommandPool mTransferVkCommandPool = VK_NULL_HANDLE;
 	VkCommandBuffer mTransferVkCommandBuffer = VK_NULL_HANDLE;

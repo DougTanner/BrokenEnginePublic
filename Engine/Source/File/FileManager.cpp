@@ -734,6 +734,16 @@ void FileManager::ResetTextureChunkStates(std::span<const common::crc_t> targetC
 		{
 			// CPU data still valid, just needs re-upload
 			rLazyChunk.eState.store(ChunkState::kDiskLoaded, std::memory_order_release);
+#if defined(BT_CLIENT)
+			// Maintain the pending-adoption counter: kUploading (uncounted) -> kDiskLoaded (counted) arms it;
+			// kGpuUploadComplete -> kDiskLoaded stays adoptable (already counted), so leave it unchanged. Both reset
+			// callers run with the upload thread idle (whole-pool: after the join; per-island: in the drained window),
+			// and gpTextureUploadManager outlives the device-loss Graphics recreate, so it is always valid here.
+			if (eState == ChunkState::kUploading)
+			{
+				gpTextureUploadManager->NotifyChunkAdoptable();
+			}
+#endif // BT_CLIENT
 		}
 	}
 }

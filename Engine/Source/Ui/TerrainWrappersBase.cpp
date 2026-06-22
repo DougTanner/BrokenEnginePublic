@@ -9,7 +9,6 @@ Wrapper gIslandAmbientOcclusion(0.65f, 0.0f, 1.0f);
 // Beach
 Wrapper gTerrainSnowBlend(2.0f, 0.0f, 2.0f);
 Wrapper gTerrainSnowAmbientOcclusionExclusion(1.0f, 0.0f, 1.0f);
-Wrapper gTerrainBeachHeight(0.05f, 0.0f, 0.2f);
 Wrapper gTerrainBeachSandSize(0.1f, 0.01f, 0.4f);
 Wrapper gTerrainBeachSandBlend(0.8f, 0.0f, 1.0f);
 Wrapper gTerrainBeachNormalsSizeOne(0.06f, 0.001f, 0.2f);

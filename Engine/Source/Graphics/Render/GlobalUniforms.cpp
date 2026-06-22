@@ -60,7 +60,6 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	XMMATRIX matSunTilt = XMMatrixRotationX(gSunMoonNormalTilt.Get());
 	vecSunMoonNormal = XMVector4Normalize(XMVector4Transform(vecSunMoonNormal, matSunTilt));
 	XMStoreFloat4(&rGlobalLayout.f4SunMoonNormal, vecSunMoonNormal);
-	rGlobalLayout.f4SunMoonNormal.w = fSunAngle;
 
 	// Sun/Moon color
 	float fAmbientNight = gSunMoonMinimumAmbient.Get();
@@ -165,33 +164,14 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	{
 		rfDayPercent = 1.0f - (fSunAngle - XM_PIDIV2) / XM_PIDIV2;
 	}
+
+	// Time of day — resolved alongside the day-cycle derivation, where every other day-cycle product is computed (Lighting region owns these fields).
+	rGlobalLayout.fLightingTimeOfDayMultiplier = rfDayPercent * gLightingDayFinalMultiplier.Get() + (1.0f - rfDayPercent) * gLightingNightFinalMultiplier.Get();
+	rGlobalLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - rfDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
 }
 
-static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fDayPercent, float fNoonPercent)
+static void PopulateShadowStretch(shaders::GlobalLayout& rGlobalLayout, float fSunAngle)
 {
-	// Shadow texture
-	float fShadowTextureSizeWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.width);
-	float fShadowTextureSizeHeight = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.height);
-	// 1.5x-wide elevation texture: read the created extent so the headroom factor has a single owner at the
-	// allocation site (RenderTargetTextures::CreateShadowTextures), like the shadow extent read just above.
-	float fShadowElevationTextureSizeWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowElevationTexture.mInfo.extent.width);
-
-	float fShadowNoon = std::pow(fDayPercent, gShadowFeatherPower.Get());
-	float fShadowEvening = 1.0f - fShadowNoon;
-	float fOffsetNoon = std::pow(fNoonPercent, 2.0f);
-
-	rGlobalLayout.fShadowFeather = 1.0f / (fShadowNoon * gShadowFeatherNoon.Get() + fShadowEvening * gShadowFeatherSunset.Get());
-	rGlobalLayout.fShadowNoonOffset = fOffsetNoon * gShadowFeatherNoonOffset.Get();
-	rGlobalLayout.fShadowDistanceFalloff = gShadowDistanceFalloff.Get();
-	rGlobalLayout.fShadowBlurSigma = gShadowBlurSigma.Get();
-
-	rGlobalLayout.fObjectShadowsBlurSigma = gObjectShadowsBlurSigma.Get();
-	rGlobalLayout.iObjectShadowsBlurRadius = static_cast<int32_t>(gObjectShadowsBlurRadius.Get());
-	rGlobalLayout.fObjectShadowsGrow = gObjectShadowsGrow.Get();
-	rGlobalLayout.fObjectShadowsIntensity = fDayPercent * gObjectShadowsNoon.Get() + (1.0f - fDayPercent) * gObjectShadowsSunset.Get();
-	rGlobalLayout.fObjectShadowsIntensity *= std::pow(fDayPercent, 0.1f);
-	rGlobalLayout.fShadowSunsetOffset = fShadowEvening * gShadowFeatherSunsetOffset.Get();
-
 	static constexpr float kfSunriseStretchBegin = XM_2PI - XM_PIDIV4;
 	static constexpr float kfSunriseStretchEnd = XM_PIDIV2 - XM_PIDIV16;
 	static constexpr float kfSunriseStretchTotal = (XM_2PI - kfSunriseStretchBegin) + kfSunriseStretchEnd;
@@ -224,19 +204,10 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 
 	rGlobalLayout.fShadowSunriseStretch = fSunriseStretch * gObjectShadowsSunsetStretch.Get();
 	rGlobalLayout.fShadowSunsetStretch = fSunsetStretch * gObjectShadowsSunsetStretch.Get();
-	rGlobalLayout.fShadowAffectAmbient = std::pow(fDayPercent, 0.25f) * gShadowAffectAmbient.Get();
-	rGlobalLayout.fWaterReducedNoiseOriginX = 0.0f;
+}
 
-	rGlobalLayout.fShadowTextureSizeWidth = fShadowTextureSizeWidth;
-	rGlobalLayout.fShadowTextureSizeHeight = fShadowTextureSizeHeight;
-	rGlobalLayout.fShadowElevationTextureSizeWidth = fShadowElevationTextureSizeWidth;
-	rGlobalLayout.fShadowElevationTextureSizeHeight = fShadowTextureSizeHeight;
-	rGlobalLayout.fShadowHeightFadeTop = gShadowHeightFadeTop.Get();
-	rGlobalLayout.fShadowHeightFadeBottom = gShadowHeightFadeBottom.Get();
-
-	rGlobalLayout.iShadowTextureWidth = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.width; // X pixels
-	rGlobalLayout.iShadowTextureHeight = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.height; // Y pixels
-
+static void PopulateShadowArea(shaders::GlobalLayout& rGlobalLayout, float fShadowTextureSizeWidth, float fShadowTextureSizeHeight, float& rfWorldTexelX, float& rfFullWidth)
+{
 	// Shadow area: ramped-world-size texels. The texel world size is sized so a constant on-screen pixel count
 	// (textureWidth / kfShadowHeadroomMultiplier) spans the live straight-down frustum width at the camera's
 	// rate-limited mfShadowTexelEyeHeight -- so it is fixed at a settled height (the grid snaps cleanly under XY pan
@@ -303,6 +274,12 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	giShadowActivePixelsX = iShadowSubWidth;
 	giShadowActivePixelsY = iShadowSubHeight;
 
+	rfWorldTexelX = fWorldTexelX;
+	rfFullWidth = fFullWidth;
+}
+
+static void PopulateShadowSunExtension(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fWorldTexelX, float fFullWidth, float fShadowElevationTextureSizeWidth, float fShadowTextureSizeWidth)
+{
 	// Sun-direction extension: extend by half the shadow-area width on the sun side. The elevation
 	// texture is 1.5x wider than the shadow texture and rasterizes f4ShadowAreaExtra; the extension
 	// fills exactly the extra half.
@@ -339,91 +316,56 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 		rGlobalLayout.iShadowIncrement = -1; // ++
 		rGlobalLayout.iShadowStartOffset = static_cast<int>(fShadowElevationTextureSizeWidth - fShadowTextureSizeWidth); // Start offset (elevation extension half-width, from real extents)
 	}
+}
+
+static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fDayPercent, float fNoonPercent)
+{
+	// Shadow texture
+	float fShadowTextureSizeWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.width);
+	float fShadowTextureSizeHeight = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.height);
+	// 1.5x-wide elevation texture: read the created extent so the headroom factor has a single owner at the
+	// allocation site (RenderTargetTextures::CreateShadowTextures), like the shadow extent read just above.
+	float fShadowElevationTextureSizeWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowElevationTexture.mInfo.extent.width);
+
+	float fShadowNoon = std::pow(fDayPercent, gShadowFeatherPower.Get());
+	float fShadowEvening = 1.0f - fShadowNoon;
+	float fOffsetNoon = std::pow(fNoonPercent, 2.0f);
+
+	rGlobalLayout.fShadowFeather = 1.0f / (fShadowNoon * gShadowFeatherNoon.Get() + fShadowEvening * gShadowFeatherSunset.Get());
+	rGlobalLayout.fShadowNoonOffset = fOffsetNoon * gShadowFeatherNoonOffset.Get();
+	rGlobalLayout.fShadowDistanceFalloff = gShadowDistanceFalloff.Get();
+	rGlobalLayout.fShadowBlurSigma = gShadowBlurSigma.Get();
+
+	rGlobalLayout.fObjectShadowsBlurSigma = gObjectShadowsBlurSigma.Get();
+	rGlobalLayout.iObjectShadowsBlurRadius = static_cast<int32_t>(gObjectShadowsBlurRadius.Get());
+	rGlobalLayout.fObjectShadowsGrow = gObjectShadowsGrow.Get();
+	rGlobalLayout.fObjectShadowsIntensity = fDayPercent * gObjectShadowsNoon.Get() + (1.0f - fDayPercent) * gObjectShadowsSunset.Get();
+	rGlobalLayout.fObjectShadowsIntensity *= std::pow(fDayPercent, 0.1f);
+	rGlobalLayout.fShadowSunsetOffset = fShadowEvening * gShadowFeatherSunsetOffset.Get();
+
+	PopulateShadowStretch(rGlobalLayout, fSunAngle);
+	rGlobalLayout.fShadowAffectAmbient = std::pow(fDayPercent, 0.25f) * gShadowAffectAmbient.Get();
+
+	rGlobalLayout.fShadowTextureSizeWidth = fShadowTextureSizeWidth;
+	rGlobalLayout.fShadowTextureSizeHeight = fShadowTextureSizeHeight;
+	rGlobalLayout.fShadowElevationTextureSizeWidth = fShadowElevationTextureSizeWidth;
+	rGlobalLayout.fShadowElevationTextureSizeHeight = fShadowTextureSizeHeight;
+	rGlobalLayout.fShadowHeightFadeTop = gShadowHeightFadeTop.Get();
+	rGlobalLayout.fShadowHeightFadeBottom = gShadowHeightFadeBottom.Get();
+
+	rGlobalLayout.iShadowTextureWidth = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.width; // X pixels
+	rGlobalLayout.iShadowTextureHeight = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.height; // Y pixels
+
+	float fWorldTexelX = 0.0f;
+	float fFullWidth = 0.0f;
+	PopulateShadowArea(rGlobalLayout, fShadowTextureSizeWidth, fShadowTextureSizeHeight, fWorldTexelX, fFullWidth);
+
+	PopulateShadowSunExtension(rGlobalLayout, fSunAngle, fWorldTexelX, fFullWidth, fShadowElevationTextureSizeWidth, fShadowTextureSizeWidth);
 
 	// Shadow multiplier: 1.0 during day, gSunMoonShadowNightMultiplier at night.
 	// Derived from the shared night-amount envelope so the sun/moon split and the shadow
 	// night-gate stay in lockstep.
 	rGlobalLayout.fShadowMoonMultiplier = std::lerp(1.0f, gSunMoonShadowNightMultiplier.Get(), ComputeNightAmount(fSunAngle));
-}
-
-static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout)
-{
-	// Lighting area: world-sized ramped texels in a pre-sized texture (mirror of the shadow-area path in
-	// PopulateShadowParameters). The deposit/spread/combine textures are pre-sized (RenderTargetTextures, via
-	// LightingDetailTextureSize) by kfLightingHeadroomMultiplier; the texel world size is sized so a constant
-	// on-screen pixel count (textureWidth / kfLightingHeadroomMultiplier) spans the live frustum width at the camera's
-	// rate-limited mfLightingTexelEyeHeight, so it is fixed at a settled eye height (the grid snaps cleanly under XY pan
-	// -> no shimmer) and only rescales while the ramp tracks a zoom. Reading the actual (clamped) extent keeps coverage
-	// device-clamp-invariant and snaps deposit quads onto integer texels; the headroom multiplier cancels out of the
-	// window count. f4LightingArea is the full camera-centered footprint snapped to the deposit texel grid. Snapping to
-	// the deposit grid (not combine) is load-bearing: deposit is where lights rasterize, so its grid must move in
-	// integer-texel steps under pan. Spread/combine/temporal resample the same world rectangle at their own resolutions.
-	float fLightingTextureWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.width);
-	float fLightingTextureHeight = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.height);
-
-	float fAspect = gpSwapchainManager->mfAspectRatio;
-	float fTanHalfFov = std::tan(0.5f * XMConvertToRadians(gFov.Get() / fAspect));
-	float fWorldTexelX = (2.0f * game::Camera::kfLightingHeadroomMultiplier * fAspect * fTanHalfFov / fLightingTextureWidth) * game::gpCamera->mfLightingTexelEyeHeight;
-	float fWorldTexelY = (2.0f * game::Camera::kfLightingHeadroomMultiplier * fTanHalfFov / fLightingTextureHeight) * game::gpCamera->mfLightingTexelEyeHeight;
-	float fFullWidth = fLightingTextureWidth * fWorldTexelX;
-	float fFullHeight = fLightingTextureHeight * fWorldTexelY;
-	XMFLOAT4A f4CameraPosition {};
-	XMStoreFloat4A(&f4CameraPosition, game::gpCamera->mVecPosition);
-	int64_t iLeftTexel = static_cast<int64_t>(std::floor((f4CameraPosition.x - fFullWidth * 0.5f) / fWorldTexelX));
-	int64_t iTopTexel = static_cast<int64_t>(std::floor((f4CameraPosition.y + fFullHeight * 0.5f) / fWorldTexelY));
-	float fLeft = static_cast<float>(iLeftTexel) * fWorldTexelX;
-	float fTop = static_cast<float>(iTopTexel) * fWorldTexelY;
-	rGlobalLayout.f4LightingArea = {fLeft, fTop, fLeft + fFullWidth, fTop - fFullHeight};
-
-	// Temporal accumulation: feed the previous frame's lighting area so LightingTemporal.comp can reproject the
-	// history into the current grid (mirror of the shadow previous-area latch). First frame: previous == current and
-	// blend forced to 1.0 (pure current) so the uninitialized history textures are never shown; that frame's copy
-	// seeds valid history. Once-per-frame latch (RenderFrameGlobal runs once per frame).
-	static bool sbPreviousLightingAreaInitialized = false;
-	static XMFLOAT4 sf4PreviousLightingArea {};
-	if (gbLightingTemporalReset)
-	{
-		// A Graphics recreate (device-lost / settings) rebuilt the lighting history textures with undefined contents
-		// while these statics survived. Re-arm the first-frame guard so this frame blends pure-current and re-seeds history.
-		gbLightingTemporalReset = false;
-		sbPreviousLightingAreaInitialized = false;
-	}
-	if (!sbPreviousLightingAreaInitialized)
-	{
-		sf4PreviousLightingArea = rGlobalLayout.f4LightingArea;
-		sbPreviousLightingAreaInitialized = true;
-		rGlobalLayout.fLightingTemporalBlend = 1.0f;
-	}
-	else
-	{
-		rGlobalLayout.fLightingTemporalBlend = gLightingTemporalBlend.Get();
-	}
-	rGlobalLayout.f4LightingAreaPrevious = sf4PreviousLightingArea;
-	sf4PreviousLightingArea = rGlobalLayout.f4LightingArea;
-
-	// Light-occupancy tile grid, recomputed from the bumped deposit resolution.
-	rGlobalLayout.uiLightTilesX = std::max(1u, static_cast<uint32_t>(fLightingTextureWidth) / shaders::kiComputeTileSize);
-	rGlobalLayout.uiLightTilesY = std::max(1u, static_cast<uint32_t>(fLightingTextureHeight) / shaders::kiComputeTileSize);
-
-	// Profile GPU-screen readouts (active pixel dimensions). Deposit rasterizes/clears its whole footprint (not windowed),
-	// so report the full deposit extent. Spread processes only the live on-screen visible window in its own texels (mirror
-	// of the shadow ray-march sub-window), clamped to the texture extent for the fast-zoom-out transient. The spread
-	// textures ramp resolution per pass (gSpreadTextureMultiplierStart at pass 0 -> gSpreadTextureMultiplierEnd at the last
-	// active pass), so report both the start-pass and end-pass windows.
-	giLightingDepositPixelsX = static_cast<int64_t>(fLightingTextureWidth);
-	giLightingDepositPixelsY = static_cast<int64_t>(fLightingTextureHeight);
-	float fVisibleWidthNow = 2.0f * game::gpCamera->mfCameraEyeHeight * fAspect * fTanHalfFov;
-	float fVisibleHeightNow = 2.0f * game::gpCamera->mfCameraEyeHeight * fTanHalfFov;
-	auto SpreadActivePixels = [&](int64_t iPass, int64_t& riActivePixelsX, int64_t& riActivePixelsY)
-	{
-		float fSpreadTextureWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpSpreadTextures[iPass][0].mInfo.extent.width);
-		float fSpreadTextureHeight = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpSpreadTextures[iPass][0].mInfo.extent.height);
-		riActivePixelsX = std::min(static_cast<int64_t>(std::lround(fVisibleWidthNow * fSpreadTextureWidth / fFullWidth)), static_cast<int64_t>(fSpreadTextureWidth));
-		riActivePixelsY = std::min(static_cast<int64_t>(std::lround(fVisibleHeightNow * fSpreadTextureHeight / fFullHeight)), static_cast<int64_t>(fSpreadTextureHeight));
-	};
-	int64_t iLastSpreadPass = static_cast<int64_t>(gSpreadPassCount.Get()) - 1; // Wrapper range [1, kiMaxSpreadPasses] -> index in [0, kiMaxSpreadPasses - 1]
-	SpreadActivePixels(0, giLightingSpreadStartActivePixelsX, giLightingSpreadStartActivePixelsY);
-	SpreadActivePixels(iLastSpreadPass, giLightingSpreadEndActivePixelsX, giLightingSpreadEndActivePixelsY);
 }
 
 static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, float fDayPercent, float fNoonPercent)
@@ -432,12 +374,6 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 	// pixel values now carry absolute meters directly, so the shader no longer multiplies them.
 	rGlobalLayout.fIslandAmbientOcclusion = fNoonPercent * gIslandAmbientOcclusion.Get();
 	rGlobalLayout.fTerrainEarlyOut = gTerrainEarlyOut.Get();
-	rGlobalLayout.fWaterEarlyOut = gWaterEarlyOut.Get();
-
-	rGlobalLayout.fWaterReducedNormalOriginX = 0.0f;
-	rGlobalLayout.fWaterReducedNormalOriginY = 0.0f;
-	rGlobalLayout.fWaterReducedNormalOriginTwoX = 0.0f;
-	rGlobalLayout.fWaterReducedNormalOriginTwoY = 0.0f;
 
 	rGlobalLayout.fTerrainSnowBlend = gTerrainSnowBlend.Get();
 	rGlobalLayout.fTerrainSnowAmbientOcclusionExclusion = gTerrainSnowAmbientOcclusionExclusion.Get();
@@ -449,28 +385,22 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 	rGlobalLayout.fTerrainRockNormalsSizeThree = gTerrainRockNormalsSizeThree.Get();
 	rGlobalLayout.fTerrainRockNormalsBlend = gTerrainRockNormalsBlend.Get();
 
-	rGlobalLayout.fTerrainBeachHeight = gTerrainBeachHeight.Get();
 	rGlobalLayout.fTerrainBeachSandSize = gTerrainBeachSandSize.Get();
 	rGlobalLayout.fTerrainBeachSandBlend = gTerrainBeachSandBlend.Get();
 	rGlobalLayout.fTerrainBeachNormalsSizeOne = gTerrainBeachNormalsSizeOne.Get();
 	rGlobalLayout.fTerrainBeachNormalsSizeTwo = gTerrainBeachNormalsSizeTwo.Get();
 	rGlobalLayout.fTerrainBeachNormalsSizeThree = gTerrainBeachNormalsSizeThree.Get();
 	rGlobalLayout.fTerrainBeachNormalsBlend = std::max(fDayPercent * fDayPercent, 0.25f) * gTerrainBeachNormalsBlend.Get();
-
-	// Time of day
-	rGlobalLayout.fLightingTimeOfDayMultiplier = fDayPercent * gLightingDayFinalMultiplier.Get() + (1.0f - fDayPercent) * gLightingNightFinalMultiplier.Get();
-	rGlobalLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - fDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
 }
 
 static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fDayPercent)
 {
 	// Water global
+	rGlobalLayout.fWaterEarlyOut = gWaterEarlyOut.Get();
 	rGlobalLayout.fWaterHeight = gWaterHeight.Get();
 	rGlobalLayout.fWaterTerrainHeight = gWaterTerrainHeight.Get();
 	rGlobalLayout.fWaterTerrainFade = gWaterTerrainFade.Get();
 	rGlobalLayout.fWaterTerrainFadeClamp = gWaterTerrainFadeClamp.Get();
-	rGlobalLayout.fWaterNoiseFrequency = gWaterNoiseFrequency.Get();
-	rGlobalLayout.fWaterNoiseAmount = gWaterNoiseAmount.Get();
 
 	rGlobalLayout.fWaterDepthLutFeather = gWaterDepthLutFeather.Get();
 	rGlobalLayout.fWaterDepthColorFeather = gWaterDepthColorFeather.Get();
@@ -478,10 +408,6 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	rGlobalLayout.fWaterUnderseaCompression = gWaterUnderseaCompression.Get();
 	rGlobalLayout.fWaterDepthReflectionFeather = fDayPercent * gWaterDepthReflectionFeather.Get();
 	rGlobalLayout.fWaterColorNoiseFrequency = gWaterColorNoiseFrequency.Get();
-
-	rGlobalLayout.fWaterHighMultiplier = gWaterHighMultiplier.Get();
-	rGlobalLayout.fWaterHighScaleOne = gWaterHighScaleOne.Get();
-	rGlobalLayout.fWaterHighScaleTwo = gWaterHighScaleTwo.Get();
 
 	if (fSunAngle >= XM_PIDIV16 && fSunAngle < XM_PIDIV2)
 	{
@@ -630,7 +556,6 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 	float fDayPercent = 0.0f;
 	float fNoonPercent = 0.0f;
 	PopulateSunAndLighting(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent);
-	PopulateLightingParameters(rGlobalLayout);
 	PopulateShadowParameters(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent);
 	PopulateTerrainParameters(rGlobalLayout, fDayPercent, fNoonPercent);
 	PopulateWaterParameters(rGlobalLayout, fSunAngle, fDayPercent);

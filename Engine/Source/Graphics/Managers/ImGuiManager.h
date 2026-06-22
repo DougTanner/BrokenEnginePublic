@@ -37,6 +37,7 @@ private:
 
 	void CreateRenderPass();
 	void CreateFramebuffers();
+	void CreateUiPrepassIndirectBuffer();
 	void UpdateUiRectBuffers(int64_t iFramebuffer);
 
 	VkRenderPass mImGuiRenderPass = VK_NULL_HANDLE;

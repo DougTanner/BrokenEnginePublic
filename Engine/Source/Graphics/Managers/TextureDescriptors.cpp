@@ -96,8 +96,8 @@ void TextureDescriptors::WriteGlobalDescriptorSets()
 	{
 		VkDescriptorBufferInfo globalBufferInfo {.buffer = gpBufferManager->mGlobalLayoutUniformBuffers[i].GetBuffer(), .offset = 0, .range = VK_WHOLE_SIZE};
 		VkDescriptorBufferInfo mainBufferInfo {.buffer = gpBufferManager->mMainLayoutUniformBuffers[i].GetBuffer(), .offset = 0, .range = VK_WHOLE_SIZE};
-		VkDescriptorImageInfo samplerRepeatInfo {.sampler = mrTextureManager.mVkSamplerRepeat};
-		VkDescriptorImageInfo samplerClampInfo {.sampler = mrTextureManager.mVkSamplerClamp};
+		VkDescriptorImageInfo samplerRepeatInfo {.sampler = mrTextureManager.mpSamplers[TextureManager::kSamplerSlotRepeat]};
+		VkDescriptorImageInfo samplerClampInfo {.sampler = mrTextureManager.mpSamplers[TextureManager::kSamplerSlotClamp]};
 
 		VkWriteDescriptorSet pWrites[]
 		{
@@ -245,26 +245,26 @@ void TextureDescriptors::WriteArrayElementFromLive(Texture** ppArray, int64_t iI
 	}
 }
 
-void TextureDescriptors::RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags, Texture* pTexture, Texture** ppTextures, int64_t iCount, int64_t iArrayIndex)
+void TextureDescriptors::RegisterTextureBinding(const TextureBindingInfo& rInfo)
 {
 	// Validates at pipeline-create that iBinding actually exists in pPipeline's shader layout.
 	// Catches the iDescriptorCount/uiBinding confusion (VUID-00316 source) on frame 0 rather
 	// than on the first sampler-recreate.
-	ASSERT(PipelineDescriptorWriter::BindingExistsInShaderLayout(*pPipeline, static_cast<uint32_t>(iBinding)));
+	ASSERT(PipelineDescriptorWriter::BindingExistsInShaderLayout(*rInfo.pPipeline, static_cast<uint32_t>(rInfo.iBinding)));
 
 	std::vector<Texture*> textures;
 	std::vector<uint64_t> uiTextureGenerations;
-	if (ppTextures != nullptr)
+	if (rInfo.ppTextures != nullptr)
 	{
-		textures.assign(ppTextures, ppTextures + iCount);
-		uiTextureGenerations.resize(iCount);
-		for (int64_t i = 0; i < iCount; ++i)
+		textures.assign(rInfo.ppTextures, rInfo.ppTextures + rInfo.iCount);
+		uiTextureGenerations.resize(rInfo.iCount);
+		for (int64_t i = 0; i < rInfo.iCount; ++i)
 		{
-			uiTextureGenerations.at(i) = ppTextures[i] != nullptr ? ppTextures[i]->muiGeneration : 0;
+			uiTextureGenerations.at(i) = rInfo.ppTextures[i] != nullptr ? rInfo.ppTextures[i]->muiGeneration : 0;
 		}
 	}
-	uint64_t uiTextureGeneration = pTexture != nullptr ? pTexture->muiGeneration : 0;
-	mTextureBindings.try_emplace(crc).first->second.push_back({pPipeline, iBinding, samplerFlags, pTexture, std::move(textures), uiTextureGeneration, std::move(uiTextureGenerations), iArrayIndex});
+	uint64_t uiTextureGeneration = rInfo.pTexture != nullptr ? rInfo.pTexture->muiGeneration : 0;
+	mTextureBindings.try_emplace(rInfo.crc).first->second.push_back({rInfo.pPipeline, rInfo.iBinding, rInfo.samplerFlags, rInfo.pTexture, std::move(textures), uiTextureGeneration, std::move(uiTextureGenerations), rInfo.iArrayIndex});
 }
 
 void TextureDescriptors::RegisterStandaloneSamplerBinding(Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags)
@@ -298,7 +298,9 @@ void TextureDescriptors::UpdateDescriptorsForTexture(common::crc_t crc)
 		}
 	}
 
-	// Ensure CRC has an assigned index and store updated imageView
+	// Ensure CRC has an assigned index and store updated imageView. Render-phase caller: CrcToIndex is
+	//   lock-free, safe only because no worker Spawn runs concurrently (see CrcToIndex).
+	ASSERT(common::gpThreadLocal == nullptr || !common::gpThreadLocal->mbInFrameTick);
 	mImageInfos.at(CrcToIndex(crc)).imageView = vkImageView;
 }
 
@@ -325,6 +327,31 @@ void TextureDescriptors::UnregisterBindingsForKey(common::crc_t bindingKey)
 	mTextureBindings.erase(bindingKey);
 }
 
+void TextureDescriptors::WriteSingleTextureBinding(common::crc_t crc, TextureBinding& rBinding, VkSampler vkSampler)
+{
+	VkImageView vkImageView = VK_NULL_HANDLE;
+	uint64_t uiGeneration = 0;
+	if (rBinding.pTexture != nullptr)
+	{
+		vkImageView = rBinding.pTexture->mVkImageView;
+		uiGeneration = rBinding.pTexture->muiGeneration;
+	}
+	else
+	{
+		auto it = mrTextureManager.mTextureMap.find(crc);
+		if (it != mrTextureManager.mTextureMap.end())
+		{
+			vkImageView = it->second.mVkImageView;
+			uiGeneration = it->second.muiGeneration;
+		}
+	}
+	if (vkImageView != VK_NULL_HANDLE)
+	{
+		rBinding.pPipeline->UpdateCombinedImageSamplerDescriptor(rBinding.iBinding, vkImageView, vkSampler);
+		rBinding.uiTextureGeneration = uiGeneration;
+	}
+}
+
 void TextureDescriptors::RewriteSamplerDescriptors()
 {
 	// Update standalone sampler descriptors in per-pipeline sets
@@ -347,27 +374,7 @@ void TextureDescriptors::RewriteSamplerDescriptors()
 			}
 			else
 			{
-				VkImageView vkImageView = VK_NULL_HANDLE;
-				uint64_t uiGeneration = 0;
-				if (rBinding.pTexture != nullptr)
-				{
-					vkImageView = rBinding.pTexture->mVkImageView;
-					uiGeneration = rBinding.pTexture->muiGeneration;
-				}
-				else
-				{
-					auto it = mrTextureManager.mTextureMap.find(rCrc);
-					if (it != mrTextureManager.mTextureMap.end())
-					{
-						vkImageView = it->second.mVkImageView;
-						uiGeneration = it->second.muiGeneration;
-					}
-				}
-				if (vkImageView != VK_NULL_HANDLE)
-				{
-					rBinding.pPipeline->UpdateCombinedImageSamplerDescriptor(rBinding.iBinding, vkImageView, vkSampler);
-					rBinding.uiTextureGeneration = uiGeneration;
-				}
+				WriteSingleTextureBinding(rCrc, rBinding, vkSampler);
 			}
 		}
 	}
@@ -396,6 +403,11 @@ void TextureDescriptors::ClearTextureBindings()
 
 int64_t TextureDescriptors::CrcToIndex(common::crc_t crc)
 {
+	// Lock-free by phase exclusion, not by mutex. Two writer phases touch mImageInfosMap / miNextTextureIndex
+	//   and never overlap: worker threads reach this only through ParticleManager::Spawn (serialized by
+	//   mSpawnMutex) during RunFrameTick's gpMultithreading->Dispatch() fan-out, which fully joins before the
+	//   main thread runs the render-path callers (UpdateDescriptorsForTexture / BlurLightingTexture). Those
+	//   callers ASSERT(!mbInFrameTick) so the invariant fails loud if a future caller moves into frame-tick code.
 	auto it = mImageInfosMap.find(crc);
 	if (it != mImageInfosMap.end())
 	{
