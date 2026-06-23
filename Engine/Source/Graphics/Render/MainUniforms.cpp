@@ -156,28 +156,10 @@ static void DebugRenderNavData(const std::vector<GridCoord>& rActiveCoords)
 	}
 }
 
-// Wave phase reduction: read elapsed time from already-populated global layout.
-// Non-const: when a per-stack camera-eye-height fade clamps amplitude to zero, we also zero the
-// matching iWater*Count below so the WaterDisplacement.comp Gerstner loop short-circuits to no work.
-static void PopulateGerstnerWaves(shaders::MainLayout& rMainLayout, shaders::GlobalLayout& rGlobalLayout)
+// Geometric "low" wave band: writes the pf4LowWaves* Gerstner terms, or zeroes the count when faded out.
+static void PopulateGerstnerLowWaves(shaders::MainLayout& rMainLayout, shaders::GlobalLayout& rGlobalLayout, double dWaveTime, double dWaveCameraX, double dWaveCameraY, float fLowAmplitudeScale)
 {
-	double dWaveTime = static_cast<double>(rGlobalLayout.fElapsedTime);
-	XMFLOAT4A f4WaveCameraPos {};
-	XMStoreFloat4A(&f4WaveCameraPos, game::gpCamera->mVecPosition);
-	double dWaveCameraX = static_cast<double>(f4WaveCameraPos.x);
-	double dWaveCameraY = static_cast<double>(f4WaveCameraPos.y);
 	constexpr double kdTwoPi = 2.0 * 3.14159265358979323846;
-
-	// Fade geometric wave amplitudes by camera eye height — per-stack Start/End sliders (1.0 at ≤ Start, 0.0 at ≥ End, linear between).
-	float fCameraEyeHeight = game::gpCamera->mfCameraEyeHeight;
-	float fLowFadeStart = gWaterLowAmplitudeFadeStart.Get();
-	float fLowFadeEnd = gWaterLowAmplitudeFadeEnd.Get();
-	float fLowAmplitudeScale = std::clamp((fLowFadeEnd - fCameraEyeHeight) / std::max(fLowFadeEnd - fLowFadeStart, 1e-3f), 0.0f, 1.0f);
-	float fMediumFadeStart = gWaterMediumAmplitudeFadeStart.Get();
-	float fMediumFadeEnd = gWaterMediumAmplitudeFadeEnd.Get();
-	float fMediumAmplitudeScale = std::clamp((fMediumFadeEnd - fCameraEyeHeight) / std::max(fMediumFadeEnd - fMediumFadeStart, 1e-3f), 0.0f, 1.0f);
-
-	// Water low frequency
 	if (fLowAmplitudeScale <= 0.0f)
 	{
 		rGlobalLayout.iWaterLowCount = 0;
@@ -243,8 +225,12 @@ static void PopulateGerstnerWaves(shaders::MainLayout& rMainLayout, shaders::Glo
 			}
 		}
 	}
+}
 
-	// Water medium frequency
+// Geometric "medium" wave band: writes the pf4MediumWaves* Gerstner terms, or zeroes the count when faded out.
+static void PopulateGerstnerMediumWaves(shaders::MainLayout& rMainLayout, shaders::GlobalLayout& rGlobalLayout, double dWaveTime, double dWaveCameraX, double dWaveCameraY, float fMediumAmplitudeScale)
+{
+	constexpr double kdTwoPi = 2.0 * 3.14159265358979323846;
 	if (fMediumAmplitudeScale <= 0.0f)
 	{
 		rGlobalLayout.iWaterMediumCount = 0;
@@ -276,6 +262,31 @@ static void PopulateGerstnerWaves(shaders::MainLayout& rMainLayout, shaders::Glo
 			rMainLayout.pf4MediumWavesTwo[i].w = static_cast<float>(std::fmod((dDirX * dWaveCameraX + dDirY * dWaveCameraY) * dOmega + dPhi * dWaveTime, kdTwoPi));
 		}
 	}
+}
+
+// Wave phase reduction: read elapsed time from already-populated global layout.
+// Non-const: when a per-stack camera-eye-height fade clamps amplitude to zero, the band helpers zero
+// the matching iWater*Count so the WaterDisplacement.comp Gerstner loop short-circuits to no work.
+static void PopulateGerstnerWaves(shaders::MainLayout& rMainLayout, shaders::GlobalLayout& rGlobalLayout)
+{
+	double dWaveTime = static_cast<double>(rGlobalLayout.fElapsedTime);
+	XMFLOAT4A f4WaveCameraPos {};
+	XMStoreFloat4A(&f4WaveCameraPos, game::gpCamera->mVecPosition);
+	double dWaveCameraX = static_cast<double>(f4WaveCameraPos.x);
+	double dWaveCameraY = static_cast<double>(f4WaveCameraPos.y);
+
+	// Fade geometric wave amplitudes by camera eye height — per-stack Start/End sliders (1.0 at ≤ Start, 0.0 at ≥ End, linear between).
+	float fCameraEyeHeight = game::gpCamera->mfCameraEyeHeight;
+	float fLowFadeStart = gWaterLowAmplitudeFadeStart.Get();
+	float fLowFadeEnd = gWaterLowAmplitudeFadeEnd.Get();
+	float fLowAmplitudeScale = std::clamp((fLowFadeEnd - fCameraEyeHeight) / std::max(fLowFadeEnd - fLowFadeStart, 1e-3f), 0.0f, 1.0f);
+	float fMediumFadeStart = gWaterMediumAmplitudeFadeStart.Get();
+	float fMediumFadeEnd = gWaterMediumAmplitudeFadeEnd.Get();
+	float fMediumAmplitudeScale = std::clamp((fMediumFadeEnd - fCameraEyeHeight) / std::max(fMediumFadeEnd - fMediumFadeStart, 1e-3f), 0.0f, 1.0f);
+
+	PopulateGerstnerLowWaves(rMainLayout, rGlobalLayout, dWaveTime, dWaveCameraX, dWaveCameraY, fLowAmplitudeScale);
+
+	PopulateGerstnerMediumWaves(rMainLayout, rGlobalLayout, dWaveTime, dWaveCameraX, dWaveCameraY, fMediumAmplitudeScale);
 }
 
 // Hex shield

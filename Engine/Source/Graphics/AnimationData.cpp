@@ -11,6 +11,25 @@ void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
 	std::memcpy(&mHeader, pAnimationData, sizeof(mHeader));
 	pAnimationData += sizeof(mHeader);
 
+	// Trust boundary: these counts come from on-disk pack bytes and drive reinterpret_cast pointer advances
+	// over the chunk plus writes into the fixed-size member arrays (mBindPoseLocalMatrices[kiMaxNodes] etc.).
+	// A corrupt/tampered count would overrun those arrays or walk the alias pointers off the eager pack buffer,
+	// so reject implausible counts against the structural maxima before any of them is used. Channels/keyframes
+	// have no fixed array of their own (they only advance alias pointers); bound them by a generous absolute ceiling
+	// — the glTF-driven producer has no clean structural max, and the ceiling caps the pointer arithmetic to a sane
+	// range. This validates the header *counts* only; secondary indices stored inside the channel/clip/joint records
+	// (uiNodeIndex into the fixed node arrays, uiChannelStart/Count, skin joint->node) are not bounded here.
+	if (mHeader.skeleton.uiNodeCount > common::Skeleton::kiMaxNodes
+		|| mHeader.skeleton.uiSkinJointCount > common::Skeleton::kiMaxSkinJoints
+		|| mHeader.uiAnimationCount > common::AnimationHeader::kiMaxAnimations
+		|| mHeader.uiMaterialCount > common::SceneHeader::kiMaxMaterials
+		|| mHeader.uiChannelCount > common::kiMaxDeserializedCapacity
+		|| mHeader.uiKeyframeCount > common::kiMaxDeserializedCapacity
+		|| mHeader.uiCubicKeyframeCount > common::kiMaxDeserializedCapacity)
+	{
+		throw common::CorruptStreamException("AnimationData::Load");
+	}
+
 	LOG(kLoading, kDebug, "AnimationData::Load: animations {}, channels {}, keyframes {}, cubicKeyframes {}, nodes {}, skinJoints {}", mHeader.uiAnimationCount, mHeader.uiChannelCount, mHeader.uiKeyframeCount, mHeader.uiCubicKeyframeCount, mHeader.skeleton.uiNodeCount, mHeader.skeleton.uiSkinJointCount);
 
 	// Point into pack memory - no copying
@@ -397,7 +416,18 @@ void LoadAnimationDataFromEagerChunks()
 			int64_t iMaterialDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rChunk.pHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(common::MaterialShaderData)));
 
 			AnimationData& rAnimationData = gAnimationDataMap.try_emplace(rCrc).first->second;
-			rAnimationData.Load(rChunk.pData + iSceneArraysSize + iMaterialDataSize, rCrc);
+			// Trust boundary: eager scene chunks are on-disk pack bytes parsed at boot. A corrupt animation
+			// header count throws from Load; boot-required asset, so log kError and let it propagate to
+			// MainThread's try/catch (HandleException — crash report + exit), matching the boot hard-fail tier.
+			try
+			{
+				rAnimationData.Load(rChunk.pData + iSceneArraysSize + iMaterialDataSize, rCrc);
+			}
+			catch (const common::CorruptStreamException& rException)
+			{
+				LOG(kLoading, kError, "Corrupt animation data for GLTF CRC {:#018x}: {}", rCrc, rException.what());
+				throw;
+			}
 			LOG(kLoading, kDebug, "Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations", rCrc, rAnimationData.mHeader.skeleton.uiNodeCount, rAnimationData.mHeader.skeleton.uiSkinJointCount, rAnimationData.mHeader.uiAnimationCount);
 		}
 	}

@@ -87,6 +87,9 @@
     <ClCompile Include="..\..\Source\ExportJobs\Texture\MigrateLegacyIntermediates.cpp">
       <Filter>DataPacker\ExportJobs\Texture</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\ExportJobs\Texture\RdoSweep.cpp">
+      <Filter>DataPacker\ExportJobs\Texture</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\ExportJobs\ExportScene.cpp">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClCompile>
@@ -253,6 +256,9 @@
     </ClInclude>
     <ClInclude Include="..\..\Source\ExportJobs\ExportIsland.h">
       <Filter>DataPacker\ExportJobs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\ExportJobs\Texture\RdoSweep.h">
+      <Filter>DataPacker\ExportJobs\Texture</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\ExportJobs\Texture\Texture.h">
       <Filter>DataPacker\ExportJobs\Texture</Filter>

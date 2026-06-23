@@ -24,6 +24,8 @@ void FrameStaticData::Read(std::istream& rStream, bool bIncludeNavData)
 	common::Read(rStream, vecArea);
 	int32_t iCount = 0;
 	common::Read(rStream, iCount);
+	// Trust boundary (save / network full-state): bound the count against the stream before resize.
+	common::ValidateDeserializedCount(iCount, sizeof(IslandPlacement::islandCrc) + sizeof(IslandPlacement::f2WorldPos) + sizeof(IslandPlacement::fRotation), rStream, "FrameStaticData::Read");
 	islands.resize(iCount);
 	for (int32_t i = 0; i < iCount; ++i)
 	{

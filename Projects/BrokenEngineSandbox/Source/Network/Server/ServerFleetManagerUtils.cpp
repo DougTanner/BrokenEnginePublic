@@ -79,6 +79,8 @@ static void ReadFleet(std::fstream& rFileStream, Fleet& rFleet, std::unordered_m
 	common::Read(rFileStream, rFleet.uiPendingFleetWantedCoordTicks);
 	common::Read(rFileStream, rFleet.fNavigationDelay);
 	common::Read(rFileStream, rFleet.fFrameChangeTimer);
+	// Trust boundary (save / replay file): bound the member count against the stream before resize.
+	common::ValidateDeserializedCount(iMemberCount, sizeof(int64_t) + sizeof(uint8_t) + 2 * sizeof(int32_t), rFileStream, "ReadFleet members");
 	rFleet.members.resize(static_cast<size_t>(iMemberCount));
 	for (int64_t k = 0; k < iMemberCount; ++k)
 	{
@@ -128,6 +130,9 @@ void ReadFleetData(std::fstream& rFileStream, std::unordered_map<engine::ClientG
 
 	int64_t iFleetOwnerCount = 0;
 	common::Read(rFileStream, iFleetOwnerCount);
+	// Trust boundary (save / replay file): bound the owner count against the stream (each owner
+	// serializes at least its 16-byte GUID plus an int64 fleet count).
+	common::ValidateDeserializedCount(iFleetOwnerCount, 2 * sizeof(uint64_t) + sizeof(int64_t), rFileStream, "ReadFleetData owners");
 	for (int64_t i = 0; i < iFleetOwnerCount; ++i)
 	{
 		uint64_t uiGuidHigh = 0;
@@ -137,6 +142,9 @@ void ReadFleetData(std::fstream& rFileStream, std::unordered_map<engine::ClientG
 		engine::ClientGuid guid {uiGuidHigh, uiGuidLow};
 		int64_t iFleetCount = 0;
 		common::Read(rFileStream, iFleetCount);
+		// Trust boundary (save / replay file): bound the fleet count before constructing the vector
+		// (each fleet serializes at least its 16-byte GUID).
+		common::ValidateDeserializedCount(iFleetCount, 2 * sizeof(uint64_t), rFileStream, "ReadFleetData fleets");
 		std::vector<Fleet> fleets(static_cast<size_t>(iFleetCount));
 		for (int64_t j = 0; j < iFleetCount; ++j)
 		{

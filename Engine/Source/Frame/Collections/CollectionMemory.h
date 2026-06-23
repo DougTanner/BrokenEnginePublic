@@ -174,10 +174,11 @@ struct HasIdToIndex<T, std::void_t<decltype(std::declval<T>().idToIndexMap)>> : 
 template <typename T>
 inline constexpr bool HasIdToIndex_v = HasIdToIndex<T>::value;
 
-// Synchronizes current frame storage with previous frame capacity. Automatically copies indexable state.
-// Returns false if previous data was null (signals early return from Update()), true otherwise.
+// Shared core for Allocate: copies metadata from the previous frame and
+// reallocates the SOA buffer (positioning member pointers) when capacity changed. Returns false when
+// previous-frame data was null, true otherwise — callers expose or discard that signal per their contract.
 template <typename TStruct, typename TTuple>
-bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
+bool AllocateCore(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 {
 	// Heap: MakeAligned for the SOA buffer and unordered_map copy for idToIndexMap. Both persist across frames
 	// with sizes that vary at runtime based on entity count, so neither workbuffer nor static arrays work.
@@ -197,6 +198,9 @@ bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TT
 	}
 
 	const int64_t iCapacity = rPrevious.iCapacity;
+
+	// Capacity-only guard: a null pData always implies zero capacity (ResetDataToNull zeroes both together,
+	// and every allocating path sets both together), so a matching nonzero capacity guarantees pData is non-null.
 	if (rCurrent.iCapacity != iCapacity)
 	{
 		std::apply([&](auto&... memberPtrRefs)
@@ -222,40 +226,7 @@ bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TT
 template <typename TStruct, typename TTuple>
 void Allocate(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 {
-	// Heap: MakeAligned for the SOA buffer and unordered_map copy for idToIndexMap. Both persist across frames
-	// with sizes that vary at runtime based on entity count, so neither workbuffer nor static arrays work.
-	ScopedSuppressAllocationTracking suppress;
-	rCurrent.iCount = rPrevious.iCount;
-
-	// Copy indexable state if applicable
-	if constexpr (HasIdToIndex_v<TStruct>)
-	{
-		rCurrent.idToIndexMap = rPrevious.idToIndexMap;
-	}
-
-	if (rPrevious.pData == nullptr)
-	{
-		ResetDataToNull(rCurrent, std::forward<TTuple>(members));
-		return;
-	}
-
-	int64_t iCapacity = rPrevious.iCapacity;
-	if (rCurrent.iCapacity != iCapacity || rCurrent.pData == nullptr)
-	{
-		std::apply([&](auto&... memberPtrRefs)
-		{
-			int64_t iBufferSize = 0;
-			((iBufferSize += CalculateBufferSize(iCapacity, memberPtrRefs)), ...);
-
-			rCurrent.iCapacity = iCapacity;
-			rCurrent.pData = common::MakeAligned<std::byte>(iBufferSize);
-
-			std::byte* pCurrent = rCurrent.pData.get();
-			(AssignAligned(memberPtrRefs, iCapacity, pCurrent), ...);
-
-			ASSERT(rCurrent.iCount <= rCurrent.iCapacity);
-		}, std::forward<TTuple>(members));
-	}
+	AllocateCore(rCurrent, rPrevious, std::forward<TTuple>(members));
 }
 
 // Allocates and copies the ID array from previous frame. Used by PostRender collections

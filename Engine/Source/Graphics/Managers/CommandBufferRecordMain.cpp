@@ -280,7 +280,7 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 		// Transparent model pass (after all opaque geometry and water for correct blending)
 		for (const auto& [rCrc, pPipeline] : gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[kDynamicModelPipelineModel])
 		{
-			if (pPipeline->mbHasTransparentMaterials)
+			if (pPipeline->mFlags & ModelPipelineFlags::kHasTransparentMaterials)
 			{
 				pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {}, ModelDrawPass::kTransparent);
 			}

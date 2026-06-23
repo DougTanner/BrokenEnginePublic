@@ -174,84 +174,95 @@ void GameSaveLoad::SaveLoadReplay()
 
 			mrGameBase.mGameFlags.Clear(engine::GameFlags::kLoadReplay);
 
-			if (!mReplayReaders.empty())
+			try
 			{
-				mReplayReaders.clear();
-				return;
-			}
-
-			game::ReplayMeta meta {};
-			if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, std::filesystem::path("F7.replay.meta"), meta))
-			{
-				LOG(kDefault, kError, "Failed to read replay metadata");
-				return;
-			}
-
-			// Read manifest to get recorded coord list
-			std::fstream manifestStream = engine::gpFileManager->OpenFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, std::filesystem::path("F7.replay.manifest"));
-			if (!manifestStream)
-			{
-				LOG(kDefault, kError, "Failed to read replay manifest");
-				return;
-			}
-			int64_t iCoordCount = 0;
-			common::Read(manifestStream, iCoordCount);
-			std::vector<engine::GridCoord> recordedCoords;
-			recordedCoords.reserve(iCoordCount);
-			for (int64_t i = 0; i < iCoordCount; ++i)
-			{
-				engine::GridCoord coord;
-				coord.Read(manifestStream);
-				recordedCoords.push_back(coord);
-			}
-
-			// Load initial grid state
-			engine::GridCoord loadedClientGridCoord {};
-			if (!ReadGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, std::filesystem::path("F7.replay.grid"), loadedClientGridCoord))
-			{
-				LOG(kDefault, kError, "Failed to read replay grid");
-				return;
-			}
-
-			mrGameBase.Reset();
-
-			// Create one DifferenceStreamReader per recorded coord
-			for (const engine::GridCoord& rCoord : recordedCoords)
-			{
-				engine::CoordFrames& rSub = mrGameBase.mCoordFrames.try_emplace(rCoord).first->second;
-				if (rSub.pCurrent == nullptr)
+				if (!mReplayReaders.empty())
 				{
-					rSub.pCurrent = std::make_unique<game::Frame>();
-				}
-				if (rSub.pNext == nullptr)
-				{
-					rSub.pNext = std::make_unique<game::Frame>();
-				}
-
-				std::filesystem::path coordReplayPath = std::filesystem::path("F7.replay." + std::to_string(rCoord.ToKey()));
-				game::FrameInput initialFrameInput {};
-				std::unique_ptr<engine::DifferenceStreamReader<game::Frame, game::FrameInput>> pReader = std::make_unique<engine::DifferenceStreamReader<game::Frame, game::FrameInput>>(engine::FileFlags_t {engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, coordReplayPath, *rSub.pCurrent, initialFrameInput);
-
-				if (!pReader->Loaded())
-				{
-					LOG(kDefault, kError, "Failed to load replay for coord ({},{})", rCoord.x, rCoord.y);
 					mReplayReaders.clear();
 					return;
 				}
 
-				mReplayReaders.emplace(rCoord, std::move(pReader));
-			}
+				game::ReplayMeta meta {};
+				if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, std::filesystem::path("F7.replay.meta"), meta))
+				{
+					LOG(kDefault, kError, "Failed to read replay metadata");
+					return;
+				}
 
-			if (!recordedCoords.empty())
+				// Read manifest to get recorded coord list
+				std::fstream manifestStream = engine::gpFileManager->OpenFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, std::filesystem::path("F7.replay.manifest"));
+				if (!manifestStream)
+				{
+					LOG(kDefault, kError, "Failed to read replay manifest");
+					return;
+				}
+				int64_t iCoordCount = 0;
+				common::Read(manifestStream, iCoordCount);
+				// Trust boundary (replay manifest file): bound the coord count against the stream before reserve.
+				common::ValidateDeserializedCount(iCoordCount, sizeof(engine::GridCoord), manifestStream, "ReplayManifest coords");
+				std::vector<engine::GridCoord> recordedCoords;
+				recordedCoords.reserve(iCoordCount);
+				for (int64_t i = 0; i < iCoordCount; ++i)
+				{
+					engine::GridCoord coord;
+					coord.Read(manifestStream);
+					recordedCoords.push_back(coord);
+				}
+
+				// Load initial grid state
+				engine::GridCoord loadedClientGridCoord {};
+				if (!ReadGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, std::filesystem::path("F7.replay.grid"), loadedClientGridCoord))
+				{
+					LOG(kDefault, kError, "Failed to read replay grid");
+					return;
+				}
+
+				mrGameBase.Reset();
+
+				// Create one DifferenceStreamReader per recorded coord
+				for (const engine::GridCoord& rCoord : recordedCoords)
+				{
+					engine::CoordFrames& rSub = mrGameBase.mCoordFrames.try_emplace(rCoord).first->second;
+					if (rSub.pCurrent == nullptr)
+					{
+						rSub.pCurrent = std::make_unique<game::Frame>();
+					}
+					if (rSub.pNext == nullptr)
+					{
+						rSub.pNext = std::make_unique<game::Frame>();
+					}
+
+					std::filesystem::path coordReplayPath = std::filesystem::path("F7.replay." + std::to_string(rCoord.ToKey()));
+					game::FrameInput initialFrameInput {};
+					std::unique_ptr<engine::DifferenceStreamReader<game::Frame, game::FrameInput>> pReader = std::make_unique<engine::DifferenceStreamReader<game::Frame, game::FrameInput>>(engine::FileFlags_t {engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, coordReplayPath, *rSub.pCurrent, initialFrameInput);
+
+					if (!pReader->Loaded())
+					{
+						LOG(kDefault, kError, "Failed to load replay for coord ({},{})", rCoord.x, rCoord.y);
+						mReplayReaders.clear();
+						return;
+					}
+
+					mReplayReaders.emplace(rCoord, std::move(pReader));
+				}
+
+				if (!recordedCoords.empty())
+				{
+					const engine::GridCoord& rFirstCoord = recordedCoords.front();
+					mrGameBase.SetTickCounter(mrGameBase.CurrentFrame(rFirstCoord).interpolate.iTick);
+					mrGameBase.SetCurrentTime(mrGameBase.CurrentFrame(rFirstCoord).interpolate.fCurrentTime);
+				}
+
+				game::gpGame->RestoreReplayMeta(meta);
+				game::gpServerSession->ResetClientsForLoad();
+				game::gpServerSession->ComputeActiveSet();
+			}
+			catch (const std::exception& rException)
 			{
-				const engine::GridCoord& rFirstCoord = recordedCoords.front();
-				mrGameBase.SetTickCounter(mrGameBase.CurrentFrame(rFirstCoord).interpolate.iTick);
-				mrGameBase.SetCurrentTime(mrGameBase.CurrentFrame(rFirstCoord).interpolate.fCurrentTime);
+				LOG(kDefault, kError, "SaveLoadReplay aborted: corrupt replay data: {}", rException.what());
+				mReplayReaders.clear();
+				return;
 			}
-
-			game::gpGame->RestoreReplayMeta(meta);
-			game::gpServerSession->ResetClientsForLoad();
-			game::gpServerSession->ComputeActiveSet();
 		}
 	}
 }
@@ -415,32 +426,51 @@ bool GameSaveLoad::ReadGrid(const engine::FileFlags_t& rFlags, const std::filesy
 
 	int64_t iFrameCount = 0;
 	common::Read(fileStream, iFrameCount);
-	rClientGridCoord.Read(fileStream);
-	int64_t iNextGlobalId = 0;
-	common::Read(fileStream, iNextGlobalId);
-	mrGameBase.SetNextGlobalId(iNextGlobalId);
-
-	game::gpServerSession->ReadFleetData(fileStream);
-
-	mrGameBase.mCoordFrames.clear();
-
-	for (int64_t i = 0; i < iFrameCount; ++i)
+	// Trust boundary (save file): a corrupt count/capacity anywhere in the grid / fleet / frame
+	// deserialization throws CorruptStreamException (or .at()/bad_alloc) — abort the load gracefully
+	// (return false) so a hand-crafted or truncated save file can't overrun a buffer or crash the server.
+	try
 	{
-		engine::GridCoord coord;
-		coord.Read(fileStream);
-		engine::CoordFrames& rSub = mrGameBase.mCoordFrames.try_emplace(coord).first->second;
-		rSub.staticData.Read(fileStream, /*bIncludeNavData=*/false);
-		rSub.staticData.coord = coord;
-		auto pFrame = std::make_unique<game::Frame>();
-		fileStream >> *pFrame;
-		rSub.pCurrent = std::move(pFrame);
-		rSub.pNext = std::make_unique<game::Frame>();
+		// Bound the frame count against the stream (each coord frame serializes at least its GridCoord).
+		common::ValidateDeserializedCount(iFrameCount, sizeof(engine::GridCoord), fileStream, "ReadGrid frames");
+		rClientGridCoord.Read(fileStream);
+		int64_t iNextGlobalId = 0;
+		common::Read(fileStream, iNextGlobalId);
+		mrGameBase.SetNextGlobalId(iNextGlobalId);
+
+		game::gpServerSession->ReadFleetData(fileStream);
+
+		mrGameBase.mCoordFrames.clear();
+
+		for (int64_t i = 0; i < iFrameCount; ++i)
+		{
+			engine::GridCoord coord;
+			coord.Read(fileStream);
+			engine::CoordFrames& rSub = mrGameBase.mCoordFrames.try_emplace(coord).first->second;
+			rSub.staticData.Read(fileStream, /*bIncludeNavData=*/false);
+			rSub.staticData.coord = coord;
+			auto pFrame = std::make_unique<game::Frame>();
+			fileStream >> *pFrame;
+			rSub.pCurrent = std::move(pFrame);
+			rSub.pNext = std::make_unique<game::Frame>();
+		}
+
+		if (!mrGameBase.mCoordFrames.empty())
+		{
+			mrGameBase.SetTickCounter(mrGameBase.mCoordFrames.begin()->second.pCurrent->interpolate.iTick);
+			mrGameBase.SetCurrentTime(mrGameBase.mCoordFrames.begin()->second.pCurrent->interpolate.fCurrentTime);
+		}
 	}
-
-	if (!mrGameBase.mCoordFrames.empty())
+	catch (const std::exception& rException)
 	{
-		mrGameBase.SetTickCounter(mrGameBase.mCoordFrames.begin()->second.pCurrent->interpolate.iTick);
-		mrGameBase.SetCurrentTime(mrGameBase.mCoordFrames.begin()->second.pCurrent->interpolate.fCurrentTime);
+		// Leave a clean empty grid AND fleet manager rather than the partially-filled state a mid-loop throw
+		// produced: ReadFleetData (called above, in the try) clears then repopulates its maps, so a throw can
+		// leave them torn, and ServerLoad's caller continues on a false return. Callers treat false as "state
+		// invalid" (Quickload recreates a fresh frame; Autoload's caller rebuilds via CreateNewFrame).
+		mrGameBase.mCoordFrames.clear();
+		game::gpServerSession->mpFleetManager->ResetState();
+		LOG(kDefault, kError, "ReadGrid {} aborted: corrupt data: {}", rFilename, rException.what());
+		return false;
 	}
 
 	LOG(kDefault, kDebug, "ReadGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);

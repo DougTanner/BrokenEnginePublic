@@ -37,7 +37,7 @@ void DynamicPipelines::AddPipeline(DynamicPipelineType eType, common::crc_t crc,
 ModelPipeline* DynamicPipelines::CreateModelPipeline(const ModelPipelineSpec& rModelPipelineSpec)
 {
 	std::unique_ptr<ModelPipeline> pModelPipeline = std::make_unique<ModelPipeline>();
-	pModelPipeline->Create(rModelPipelineSpec.sceneCrc, rModelPipelineSpec.pipelineInfo, true, rModelPipelineSpec.bIsPipelineShadow);
+	pModelPipeline->Create(rModelPipelineSpec.sceneCrc, rModelPipelineSpec.pipelineInfo, rModelPipelineSpec.bIsPipelineShadow);
 
 	ModelPipeline* pResult = pModelPipeline.get();
 	mModelPipelines.push_back(std::move(pModelPipeline));
@@ -58,24 +58,36 @@ void DynamicPipelines::CreateModelPipeline(common::crc_t crc, std::string_view n
 	common::crc_t vertexShaderCrc = 0;
 	ResolveModelChunkShaders(sceneCrc, modelCrc, vertexShaderCrc);
 
-	ModelPipeline* pPipeline = CreateModelPipeline(
+	// Trust boundary: ModelPipeline::Create parses on-disk scene-header counts. A corrupt count throws;
+	// boot-required model pipeline, so log kError and let it propagate to MainThread's try/catch
+	// (HandleException — crash report + exit), matching the boot hard-fail tier.
+	ModelPipeline* pPipeline = nullptr;
+	try
 	{
-		.sceneCrc = sceneCrc,
-		.pipelineInfo =
+		pPipeline = CreateModelPipeline(
 		{
-			.name = name,
-			.flags = {kIndirectHostVisible, kPushConstants, kDepthTest, kDepthWrite, kCullBack, kSampleShading, kUpdateAfterBind, kMultiSet},
-			.ppShaders = {&mrShaders.at(vertexShaderCrc), &mrShaders.at(data::kShadersModelModelfragCrc)},
-			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelCrc),
-			.pDescriptorInfos =
+			.sceneCrc = sceneCrc,
+			.pipelineInfo =
 			{
-				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-				{.flags = kPerCommandBufferStorageBuffers, .pBuffers = pStorageBuffers},
+				.name = name,
+				.flags = {kIndirectHostVisible, kPushConstants, kDepthTest, kDepthWrite, kCullBack, kSampleShading, kUpdateAfterBind, kMultiSet},
+				.ppShaders = {&mrShaders.at(vertexShaderCrc), &mrShaders.at(data::kShadersModelModelfragCrc)},
+				.pVertexBuffer = &gpBufferManager->mModelMap.at(modelCrc),
+				.pDescriptorInfos =
+				{
+					{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+					{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+					{.flags = kPerCommandBufferStorageBuffers, .pBuffers = pStorageBuffers},
+				},
 			},
-		},
-		.bIsPipelineShadow = false,
-	});
+			.bIsPipelineShadow = false,
+		});
+	}
+	catch (const common::CorruptStreamException& rException)
+	{
+		LOG(kLoading, kError, "Corrupt scene chunk for model pipeline \"{}\" (scene CRC {:#018x}): {}", name, sceneCrc, rException.what());
+		throw;
+	}
 
 	mModelPipelineMaps[kDynamicModelPipelineModel].insert_or_assign(crc, pPipeline);
 }
@@ -96,27 +108,39 @@ void DynamicPipelines::CreateModelPipelineShadow(common::crc_t crc, std::string_
 	// Create shadow variant of pipeline name (stored in map to outlive this function)
 	std::string& rShadowName = mShadowPipelineNames.insert_or_assign(crc, std::string(name) + "Shadow").first->second;
 
-	// Create shadow pipeline with minimal descriptor sets
-	ModelPipeline* pPipelineShadow = CreateModelPipeline(
+	// Trust boundary: ModelPipeline::Create parses on-disk scene-header counts. A corrupt count throws;
+	// boot-required model pipeline, so log kError and let it propagate to MainThread's try/catch
+	// (HandleException — crash report + exit), matching the boot hard-fail tier.
+	ModelPipeline* pPipelineShadow = nullptr;
+	try
 	{
-		.sceneCrc = sceneCrc,
-		.pipelineInfo =
+		// Create shadow pipeline with minimal descriptor sets
+		pPipelineShadow = CreateModelPipeline(
 		{
-			.name = rShadowName,
-			.flags = {kRenderTarget, kIndirectHostVisible, kPushConstants, kUpdateAfterBind},
-			.ppShaders = {&mrShaders.at(vertexShaderCrc), &mrShaders.at(data::kShadersModelModelShadowfragCrc)},
-			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelCrc),
-			.vkRenderPass = gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mVkRenderPass,
-			.vkExtent3D = gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mInfo.extent,
-			.pDescriptorInfos =
+			.sceneCrc = sceneCrc,
+			.pipelineInfo =
 			{
-				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-				{.flags = kPerCommandBufferStorageBuffers, .pBuffers = pStorageBuffers},
+				.name = rShadowName,
+				.flags = {kRenderTarget, kIndirectHostVisible, kPushConstants, kUpdateAfterBind},
+				.ppShaders = {&mrShaders.at(vertexShaderCrc), &mrShaders.at(data::kShadersModelModelShadowfragCrc)},
+				.pVertexBuffer = &gpBufferManager->mModelMap.at(modelCrc),
+				.vkRenderPass = gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mVkRenderPass,
+				.vkExtent3D = gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mInfo.extent,
+				.pDescriptorInfos =
+				{
+					{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+					{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+					{.flags = kPerCommandBufferStorageBuffers, .pBuffers = pStorageBuffers},
+				},
 			},
-		},
-		.bIsPipelineShadow = true,
-	});
+			.bIsPipelineShadow = true,
+		});
+	}
+	catch (const common::CorruptStreamException& rException)
+	{
+		LOG(kLoading, kError, "Corrupt scene chunk for shadow model pipeline \"{}\" (scene CRC {:#018x}): {}", rShadowName, sceneCrc, rException.what());
+		throw;
+	}
 
 	mModelPipelineMaps[kDynamicModelPipelineModelShadow].insert_or_assign(crc, pPipelineShadow);
 }

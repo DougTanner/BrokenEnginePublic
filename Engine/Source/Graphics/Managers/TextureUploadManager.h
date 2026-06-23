@@ -50,6 +50,8 @@ private:
 	};
 	bool DequeueNextUpload();
 	bool HandleUploadEarlyOut(LazyChunk& rLazyChunk);
+	// Trust boundary: throws common::CorruptStreamException if the on-disk TextureHeader dims/mips are implausible.
+	static void ValidateTextureDimensions(const LazyChunk& rLazyChunk, const ChunkDimensions& rDimensions);
 	void CreateTransferImage(LazyChunk& rLazyChunk, const ChunkDimensions& rDimensions);
 	void RecordStagingCopies(LazyChunk& rLazyChunk, const ChunkDimensions& rDimensions);
 	void SubmitChunkUpload(LazyChunk& rLazyChunk, VkImageMemoryBarrier& rVkImageMemoryBarrier, bool bDone);

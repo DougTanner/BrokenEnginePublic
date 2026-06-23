@@ -882,6 +882,9 @@ void NavData::Read(std::istream& rStream)
 {
 	int32_t iVertexCount = 0;
 	common::Read(rStream, iVertexCount);
+	// Trust boundary (client static-data message; NavData rides there, not full-state): bound each count
+	// against the stream before resize.
+	common::ValidateDeserializedCount(iVertexCount, sizeof(XMFLOAT2), rStream, "NavData::Read vertices");
 	vertices.resize(iVertexCount);
 	for (int32_t i = 0; i < iVertexCount; ++i)
 	{
@@ -890,6 +893,7 @@ void NavData::Read(std::istream& rStream)
 
 	int32_t iPolygonCount = 0;
 	common::Read(rStream, iPolygonCount);
+	common::ValidateDeserializedCount(iPolygonCount, sizeof(int32_t), rStream, "NavData::Read polygons");
 	polygonOffsets.resize(iPolygonCount);
 	for (int32_t i = 0; i < iPolygonCount; ++i)
 	{
@@ -898,6 +902,7 @@ void NavData::Read(std::istream& rStream)
 
 	int32_t iEdgeCount = 0;
 	common::Read(rStream, iEdgeCount);
+	common::ValidateDeserializedCount(iEdgeCount, sizeof(int32_t) + sizeof(int32_t), rStream, "NavData::Read edges");
 	visEdgeA.resize(iEdgeCount);
 	visEdgeB.resize(iEdgeCount);
 	for (int32_t i = 0; i < iEdgeCount; ++i)

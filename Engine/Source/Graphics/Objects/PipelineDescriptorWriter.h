@@ -5,7 +5,6 @@ namespace engine
 
 class Pipeline;
 class Buffer;
-struct PipelineInfo;
 
 struct PipelineDescriptorWriter
 {
@@ -13,7 +12,7 @@ struct PipelineDescriptorWriter
 	// Exposed so deferred-update callers (TextureDescriptors::Register*) can validate at register time.
 	static bool BindingExistsInShaderLayout(const Pipeline& rPipeline, uint32_t uiBinding);
 
-	static void Write(Pipeline& rPipeline, const PipelineInfo& rInfo);
+	static void Write(Pipeline& rPipeline);
 	static void UpdateStorageBuffer(Pipeline& rPipeline, int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer);
 	static void UpdateCombinedImageSampler(Pipeline& rPipeline, int64_t iBinding, VkImageView vkImageView, VkSampler vkSampler);
 	static void UpdateSampler(Pipeline& rPipeline, int64_t iBinding, VkSampler vkSampler);

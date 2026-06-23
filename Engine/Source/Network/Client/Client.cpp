@@ -187,47 +187,58 @@ void Client::Receive(const uint8_t* pData, size_t iSize)
 
 	PacketType eType = static_cast<PacketType>(pData[0]);
 
-	switch (eType)
+	try
 	{
-		case PacketType::kServerCoordFullState:
-			ServerCoordFullState(pData, iSize);
-			break;
-		case PacketType::kServerCoordStaticData:
-			ServerCoordStaticData(pData, iSize);
-			break;
-		case PacketType::kServerCoordUpdate:
-			ServerCoordUpdateOrResend(pData, iSize, true);
-			break;
-		case PacketType::kServerCoordResend:
-			ServerCoordUpdateOrResend(pData, iSize, false);
-			break;
-		case PacketType::kServerDebugFrame:
-			ServerDebugFrame(pData, iSize);
-			break;
-		case PacketType::kServerConnectionResponse:
-			ServerConnectionResponse(pData, iSize);
-			break;
-		case PacketType::kServerSubscribeAccept:
-			ServerSubscribeAccept(pData, iSize);
-			break;
-		case PacketType::kServerUnsubscribeAck:
-			ServerUnsubscribeAck(pData, iSize);
-			break;
-		case PacketType::kServerLoadNotification:
-			mStateFlags.Set(ClientStateFlags::kLoadNotificationReceived);
-			break;
-		default:
-			if (static_cast<uint8_t>(eType) >= static_cast<uint8_t>(PacketType::kGamePacketStart))
-			{
-				ScopedSuppressAllocationTracking suppress;
-				// Heap: raw game packet buffer grows on game-specific packets
-				mReceivedGamePackets.emplace_back(pData[0], std::vector<uint8_t>(pData + 1, pData + iSize));
-			}
-			else
-			{
-				LOG(kNetwork, kWarning, "Client::Receive unknown packet type {}", static_cast<uint8_t>(eType));
-			}
-			break;
+		switch (eType)
+		{
+			case PacketType::kServerCoordFullState:
+				ServerCoordFullState(pData, iSize);
+				break;
+			case PacketType::kServerCoordStaticData:
+				ServerCoordStaticData(pData, iSize);
+				break;
+			case PacketType::kServerCoordUpdate:
+				ServerCoordUpdateOrResend(pData, iSize, true);
+				break;
+			case PacketType::kServerCoordResend:
+				ServerCoordUpdateOrResend(pData, iSize, false);
+				break;
+			case PacketType::kServerDebugFrame:
+				ServerDebugFrame(pData, iSize);
+				break;
+			case PacketType::kServerConnectionResponse:
+				ServerConnectionResponse(pData, iSize);
+				break;
+			case PacketType::kServerSubscribeAccept:
+				ServerSubscribeAccept(pData, iSize);
+				break;
+			case PacketType::kServerUnsubscribeAck:
+				ServerUnsubscribeAck(pData, iSize);
+				break;
+			case PacketType::kServerLoadNotification:
+				mStateFlags.Set(ClientStateFlags::kLoadNotificationReceived);
+				break;
+			default:
+				if (static_cast<uint8_t>(eType) >= static_cast<uint8_t>(PacketType::kGamePacketStart))
+				{
+					ScopedSuppressAllocationTracking suppress;
+					// Heap: raw game packet buffer grows on game-specific packets
+					mReceivedGamePackets.emplace_back(pData[0], std::vector<uint8_t>(pData + 1, pData + iSize));
+				}
+				else
+				{
+					LOG(kNetwork, kWarning, "Client::Receive unknown packet type {}", static_cast<uint8_t>(eType));
+				}
+				break;
+		}
+	}
+	catch (const std::exception& rException)
+	{
+		// Trust boundary: a corrupt count/size in a received payload throws CorruptStreamException
+		// (or .at()/bad_alloc) from the reader before any slot state is mutated (full-state/static
+		// reads land in locals first). Drop the single packet and let the server resend, rather than
+		// tearing down the client.
+		LOG(kNetwork, kWarning, "Client::Receive dropped corrupt packet (type {}): {}", static_cast<uint8_t>(eType), rException.what());
 	}
 }
 

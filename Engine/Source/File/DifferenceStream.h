@@ -200,6 +200,9 @@ public:
 		if (mDifferenceCount > 0)
 		{
 			std::fstream fileStream = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".frames"));
+			// Trust boundary (replay .frames file): bound the difference count against the stream before
+			// allocating; each record serializes at least an int64 tick plus one byte of difference.
+			common::ValidateDeserializedCount(mDifferenceCount, sizeof(int64_t) + 1, fileStream, "DifferenceStreamReader differences");
 			if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
 			{
 				mDifferences.resize(mDifferenceCount);
@@ -232,6 +235,8 @@ public:
 		if (iChecksumCount > 0)
 		{
 			std::fstream checksumStream = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".checksums"));
+			// Trust boundary (replay .checksums file): bound the checksum count against the stream before resize.
+			common::ValidateDeserializedCount(iChecksumCount, sizeof(common::crc_t), checksumStream, "DifferenceStreamReader checksums");
 			mChecksums.resize(iChecksumCount);
 			common::Read(checksumStream, mChecksums);
 			int64_t iBytesRead = checksumStream.gcount();

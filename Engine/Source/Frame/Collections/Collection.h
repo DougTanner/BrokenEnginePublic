@@ -480,6 +480,9 @@ struct OptionalIdToIndex<T, FLAGS>
 		ScopedSuppressAllocationTracking suppress;
 		int64_t iSize = 0;
 		common::Read(rStream, iSize);
+		// Trust boundary: a hostile map size would make reserve() an unbounded allocation. Each entry
+		// serializes at least an int64 value, so bound the count against the stream's remaining length.
+		common::ValidateDeserializedCount(iSize, sizeof(int64_t), rStream, "OptionalIdToIndex::Read");
 		idToIndexMap.clear();
 		idToIndexMap.reserve(iSize);
 		for (int64_t i = 0; i < iSize; ++i)
@@ -562,9 +565,20 @@ struct Collection : public OptionalIdToIndex<T, FLAGS>
 	{
 		common::Read(rStream, iCount);
 		common::Read(rStream, iCapacity);
+		// Trust boundary (save / replay / network full-state): reject an inverted or oversized
+		// count/capacity before MultiRead writes iCount elements into the iCapacity-sized buffer or
+		// MakeAligned allocates iCapacity. Member stride is unknown here, so bound iCount with the
+		// minimal stride of 1; the buffer-overrun and unbounded-alloc cases are covered by
+		// iCount <= iCapacity <= kiMaxDeserializedCapacity.
+		common::ValidateDeserializedCountCapacity(iCount, iCapacity, 1, rStream, "Collection::Read");
 		if constexpr (FLAGS & CollectionFlags::kIdToIndex)
 		{
 			static_cast<OptionalIdToIndex<T, FLAGS>&>(*this).Read(rStream);
+			// Indexable collections keep exactly one map entry per live element (Add/Remove helpers).
+			if (static_cast<int64_t>(this->idToIndexMap.size()) != iCount)
+			{
+				throw common::CorruptStreamException("Collection::Read idToIndexMap size != iCount");
+			}
 		}
 	}
 

@@ -20,6 +20,22 @@ TextManager::TextManager()
 	{
 		const EagerChunk& rChunk = rChunkMap.at(data::kFontsNotoSansNotoSansRegularfntCrc);
 		int64_t iCharacters = rChunk.pHeader->fontHeader.iCharacters;
+
+		// Trust boundary: iCharacters comes from on-disk pack bytes and drives a reinterpret_cast pointer offset
+		// plus an indexed loop aliasing the eager chunk. Font glyph count has no structural maximum, so bound it
+		// against the chunk's actual data bytes (ChunkHeader::iSize, the uncompressed eager payload size): the exact
+		// reader layout is [uint32 ids, ALIGN16][Character array], so the Character array's end offset must fit iSize.
+		// The leading divide cap keeps the subsequent multiply overflow-safe. A corrupt count throws; boot-required
+		// font, so let it propagate to MainThread's try/catch (HandleException — crash report + exit) — boot hard-fail.
+		if (iCharacters < 0
+			|| iCharacters > rChunk.pHeader->iSize / static_cast<int64_t>(sizeof(uint32_t))
+			|| common::RoundUp<int64_t, common::kiAlignmentBytes>(iCharacters * static_cast<int64_t>(sizeof(uint32_t)))
+				+ iCharacters * static_cast<int64_t>(sizeof(common::Character)) > rChunk.pHeader->iSize)
+		{
+			LOG(kLoading, kError, "Corrupt font chunk {:#018x}: implausible character count {}", data::kFontsNotoSansNotoSansRegularfntCrc, iCharacters);
+			throw common::CorruptStreamException("TextManager font");
+		}
+
 		auto pCharacterIds = reinterpret_cast<uint32_t*>(rChunk.pData);
 		auto pCharacters = reinterpret_cast<common::Character*>(rChunk.pData + common::RoundUp<int64_t, common::kiAlignmentBytes>(iCharacters * static_cast<int64_t>(sizeof(pCharacterIds[0]))));
 		LOG(kLoading, kDebug, "Loading font {:#018x} with {} characters", data::kFontsNotoSansNotoSansRegularfntCrc, iCharacters);

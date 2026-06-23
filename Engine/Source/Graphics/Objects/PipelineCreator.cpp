@@ -15,6 +15,7 @@ using enum PipelineFlags;
 
 static constexpr float kfDepthBiasConstantFactor = -3.0f;
 static constexpr float kfDepthBiasSlopeFactor = -3.0f;
+static constexpr int64_t kiMaxColorAttachments = 6;
 
 // Configures update-after-bind for storage buffer bindings in dynamic pipelines
 static void ConfigureUpdateAfterBind(VkDescriptorSetLayoutCreateInfo& rLayoutCreateInfo, const VkDescriptorSetLayoutBinding* pBindings, int64_t iDescriptorCount, VkDescriptorBindingFlags* pBindingFlags, VkDescriptorSetLayoutBindingFlagsCreateInfo& rBindingFlagsCreateInfo, bool bUpdateAfterBind)
@@ -82,7 +83,7 @@ static void CreateSingleSetPipelineLayout(VkDescriptorSetLayoutCreateInfo& rLayo
 	VkName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, rPipeline.mVkPipelineLayout, rPipeline.mInfo.name.data());
 }
 
-static void SetupIndirectBuffer(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo, int64_t iCommandBufferCount)
+static void SetupIndirectBuffer(Pipeline& rPipeline, int64_t iCommandBufferCount)
 {
 	VkDeviceSize vkDeviceSize = iCommandBufferCount * sizeof(VkDrawIndexedIndirectCommand);
 	rPipeline.miIndirectSlotCount = iCommandBufferCount;
@@ -90,7 +91,7 @@ static void SetupIndirectBuffer(Pipeline& rPipeline, const PipelineInfo& rPipeli
 	if (rPipeline.mInfo.flags & kIndirectHostVisible)
 	{
 		VmaAllocationInfo vmaAllocationInfo {};
-		Buffer::CreateBuffer(rPipelineInfo.name, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation, &vmaAllocationInfo);
+		Buffer::CreateBuffer(rPipeline.mInfo.name, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation, &vmaAllocationInfo);
 
 		// Verify VMA gave us the memory properties we requested
 		VkMemoryPropertyFlags vkMemoryPropertyFlags = 0;
@@ -114,24 +115,20 @@ static void SetupIndirectBuffer(Pipeline& rPipeline, const PipelineInfo& rPipeli
 	}
 	else if (rPipeline.mInfo.flags & kIndirectDeviceLocal)
 	{
-		Buffer::CreateBuffer(rPipelineInfo.name, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation);
+		Buffer::CreateBuffer(rPipeline.mInfo.name, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation);
 	}
 }
 
-static void CreateDescriptorSetLayouts(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo, VkDescriptorSetLayoutCreateInfo& rLayoutCreateInfo, VkPipelineLayoutCreateInfo& rPipelineLayoutCreateInfo)
+// CreateDescriptorSetLayouts stage 1: merge the vertex + fragment shaders' reflected bindings into one
+// array, filtering the zero-initialized gap entries (which would all collide at binding 0). Returns count.
+static int64_t MergeReflectedBindings(const Shader& rVertexShader, const Shader& rFragmentShader, VkDescriptorSetLayoutBinding* pVkDescriptorSetLayoutBindings)
 {
-	Shader* pVertexShader = rPipelineInfo.ppShaders[0];
-	Shader* pFragmentShader = rPipelineInfo.ppShaders[1];
-
-	// Combine the descriptor set layouts from the vertex and fragment shaders
-	// Filter out empty entries to avoid duplicate binding 0 errors from zero-initialized gaps
-	VkDescriptorSetLayoutBinding pVkDescriptorSetLayoutBindings[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
-	int64_t iSourceCount = std::max(pVertexShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings, pFragmentShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings);
+	int64_t iSourceCount = std::max(rVertexShader.mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings, rFragmentShader.mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings);
 	int64_t iDescriptorCount = 0;
 	for (int64_t i = 0; i < iSourceCount; ++i)
 	{
-		const VkDescriptorSetLayoutBinding& rVertexBinding = i < pVertexShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings ? pVertexShader->mInfo.pDescriptorBindings[i] : Pipeline::kEmptyBinding;
-		const VkDescriptorSetLayoutBinding& rFragmentBinding = i < pFragmentShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings ? pFragmentShader->mInfo.pDescriptorBindings[i] : Pipeline::kEmptyBinding;
+		const VkDescriptorSetLayoutBinding& rVertexBinding = i < rVertexShader.mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings ? rVertexShader.mInfo.pDescriptorBindings[i] : Pipeline::kEmptyBinding;
+		const VkDescriptorSetLayoutBinding& rFragmentBinding = i < rFragmentShader.mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings ? rFragmentShader.mInfo.pDescriptorBindings[i] : Pipeline::kEmptyBinding;
 
 		// Skip empty gap entries - they would all have binding=0 causing duplicates
 		if (rVertexBinding.descriptorCount == 0 && rFragmentBinding.descriptorCount == 0)
@@ -157,6 +154,81 @@ static void CreateDescriptorSetLayouts(Pipeline& rPipeline, const PipelineInfo& 
 		pVkDescriptorSetLayoutBindings[iDescriptorCount].pImmutableSamplers = rVertexBinding.pImmutableSamplers != nullptr ? rVertexBinding.pImmutableSamplers : rFragmentBinding.pImmutableSamplers;
 		++iDescriptorCount;
 	}
+	return iDescriptorCount;
+}
+
+// CreateDescriptorSetLayouts stage 2: partition the merged bindings into the per-pipeline Set 1 / Set 2
+// arrays by shader-reflected set index. Set 0 bindings are handled by the global descriptor set and dropped.
+static void SplitBindingsBySet(const Pipeline& rPipeline, const VkDescriptorSetLayoutBinding* pVkDescriptorSetLayoutBindings, int64_t iDescriptorCount, VkDescriptorSetLayoutBinding* pVkSet1Bindings, int64_t& riSet1Count, VkDescriptorSetLayoutBinding* pVkSet2Bindings, int64_t& riSet2Count)
+{
+	riSet1Count = 0;
+	riSet2Count = 0;
+	for (int64_t i = 0; i < iDescriptorCount; ++i)
+	{
+		uint32_t uiBinding = pVkDescriptorSetLayoutBindings[i].binding;
+		uint32_t uiSet = Pipeline::ResolveBindingSetIndex(rPipeline.mInfo, uiBinding);
+
+		if (uiSet == 1)
+		{
+			pVkSet1Bindings[riSet1Count++] = pVkDescriptorSetLayoutBindings[i];
+		}
+		else if (uiSet == 2)
+		{
+			pVkSet2Bindings[riSet2Count++] = pVkDescriptorSetLayoutBindings[i];
+		}
+		// Set 0 bindings are handled by global descriptor set
+	}
+}
+
+// CreateDescriptorSetLayouts stage 3: create the per-pipeline Set 1 (+ optional Set 2) descriptor set
+// layouts and assemble the [global Set 0, Set 1, optional Set 2] pipeline layout.
+static void CreateMultiSetPipelineLayout(Pipeline& rPipeline, VkDescriptorSetLayoutCreateInfo& rLayoutCreateInfo, VkPipelineLayoutCreateInfo& rPipelineLayoutCreateInfo, const VkPushConstantRange& rVkPushConstantRange, const VkDescriptorSetLayoutBinding* pVkSet1Bindings, int64_t iSet1Count, const VkDescriptorSetLayoutBinding* pVkSet2Bindings, int64_t iSet2Count)
+{
+	// Create Set 1 layout (unless using external layout from first ModelPipeline material)
+	if (rPipeline.mVkExternalDescriptorSetLayoutSet1 == VK_NULL_HANDLE)
+	{
+		rLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iSet1Count);
+		rLayoutCreateInfo.pBindings = pVkSet1Bindings;
+		VkDescriptorBindingFlags pBindingFlagsSet1[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
+		VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfoSet1 {};
+		ConfigureUpdateAfterBind(rLayoutCreateInfo, pVkSet1Bindings, iSet1Count, pBindingFlagsSet1, bindingFlagsCreateInfoSet1, rPipeline.mInfo.flags & kUpdateAfterBind);
+		CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &rLayoutCreateInfo, nullptr, &rPipeline.mVkDescriptorSetLayout));
+		VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, rPipeline.mVkDescriptorSetLayout, rPipeline.mInfo.name.data());
+	}
+
+	// Create Set 2 layout (kMultiSet models only)
+	if (rPipeline.mInfo.flags & kMultiSet)
+	{
+		rLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iSet2Count);
+		rLayoutCreateInfo.pBindings = pVkSet2Bindings;
+		VkDescriptorBindingFlags pBindingFlagsSet2[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
+		VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfoSet2 {};
+		ConfigureUpdateAfterBind(rLayoutCreateInfo, pVkSet2Bindings, iSet2Count, pBindingFlagsSet2, bindingFlagsCreateInfoSet2, rPipeline.mInfo.flags & kUpdateAfterBind);
+		CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &rLayoutCreateInfo, nullptr, &rPipeline.mVkDescriptorSetLayoutSet2));
+		VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, rPipeline.mVkDescriptorSetLayoutSet2, rPipeline.mInfo.name.data());
+	}
+
+	// Pipeline layout: [global Set 0, Set 1, optional Set 2]
+	VkDescriptorSetLayout pSetLayouts[3] =
+	{
+		rPipeline.mVkExternalDescriptorSetLayout,
+		rPipeline.mVkExternalDescriptorSetLayoutSet1 != VK_NULL_HANDLE ? rPipeline.mVkExternalDescriptorSetLayoutSet1 : rPipeline.mVkDescriptorSetLayout,
+		rPipeline.mVkDescriptorSetLayoutSet2,
+	};
+	uint32_t uiSetCount = (rPipeline.mInfo.flags & kMultiSet) ? 3 : 2;
+	rPipelineLayoutCreateInfo.setLayoutCount = uiSetCount;
+	rPipelineLayoutCreateInfo.pSetLayouts = pSetLayouts;
+	rPipelineLayoutCreateInfo.pushConstantRangeCount = rPipeline.mInfo.flags & kPushConstants ? 1 : 0;
+	rPipelineLayoutCreateInfo.pPushConstantRanges = rPipeline.mInfo.flags & kPushConstants ? &rVkPushConstantRange : nullptr;
+	CHECK_VK(vkCreatePipelineLayout(gpDeviceManager->mVkDevice, &rPipelineLayoutCreateInfo, nullptr, &rPipeline.mVkPipelineLayout));
+	VkName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, rPipeline.mVkPipelineLayout, rPipeline.mInfo.name.data());
+}
+
+static void CreateDescriptorSetLayouts(Pipeline& rPipeline, VkDescriptorSetLayoutCreateInfo& rLayoutCreateInfo, VkPipelineLayoutCreateInfo& rPipelineLayoutCreateInfo)
+{
+	VkDescriptorSetLayoutBinding pVkDescriptorSetLayoutBindings[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
+	int64_t iDescriptorCount = MergeReflectedBindings(*rPipeline.mInfo.ppShaders[0], *rPipeline.mInfo.ppShaders[1], pVkDescriptorSetLayoutBindings);
+
 	VkPushConstantRange vkPushConstantRange {};
 	vkPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 	vkPushConstantRange.offset = 0;
@@ -169,61 +241,8 @@ static void CreateDescriptorSetLayouts(Pipeline& rPipeline, const PipelineInfo& 
 		VkDescriptorSetLayoutBinding pVkSet2Bindings[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
 		int64_t iSet1Count = 0;
 		int64_t iSet2Count = 0;
-
-		for (int64_t i = 0; i < iDescriptorCount; ++i)
-		{
-			uint32_t uiBinding = pVkDescriptorSetLayoutBindings[i].binding;
-			uint32_t uiSet = Pipeline::ResolveBindingSetIndex(rPipelineInfo, uiBinding);
-
-			if (uiSet == 1)
-			{
-				pVkSet1Bindings[iSet1Count++] = pVkDescriptorSetLayoutBindings[i];
-			}
-			else if (uiSet == 2)
-			{
-				pVkSet2Bindings[iSet2Count++] = pVkDescriptorSetLayoutBindings[i];
-			}
-			// Set 0 bindings are handled by global descriptor set
-		}
-
-		// Create Set 1 layout (unless using external layout from first ModelPipeline material)
-		if (rPipeline.mVkExternalDescriptorSetLayoutSet1 == VK_NULL_HANDLE)
-		{
-			rLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iSet1Count);
-			rLayoutCreateInfo.pBindings = pVkSet1Bindings;
-			VkDescriptorBindingFlags pBindingFlagsSet1[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
-			VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfoSet1 {};
-			ConfigureUpdateAfterBind(rLayoutCreateInfo, pVkSet1Bindings, iSet1Count, pBindingFlagsSet1, bindingFlagsCreateInfoSet1, rPipeline.mInfo.flags & kUpdateAfterBind);
-			CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &rLayoutCreateInfo, nullptr, &rPipeline.mVkDescriptorSetLayout));
-			VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, rPipeline.mVkDescriptorSetLayout, rPipeline.mInfo.name.data());
-		}
-
-		// Create Set 2 layout (kMultiSet models only)
-		if (rPipeline.mInfo.flags & kMultiSet)
-		{
-			rLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iSet2Count);
-			rLayoutCreateInfo.pBindings = pVkSet2Bindings;
-			VkDescriptorBindingFlags pBindingFlagsSet2[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
-			VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfoSet2 {};
-			ConfigureUpdateAfterBind(rLayoutCreateInfo, pVkSet2Bindings, iSet2Count, pBindingFlagsSet2, bindingFlagsCreateInfoSet2, rPipeline.mInfo.flags & kUpdateAfterBind);
-			CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &rLayoutCreateInfo, nullptr, &rPipeline.mVkDescriptorSetLayoutSet2));
-			VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, rPipeline.mVkDescriptorSetLayoutSet2, rPipeline.mInfo.name.data());
-		}
-
-		// Pipeline layout: [global Set 0, Set 1, optional Set 2]
-		VkDescriptorSetLayout pSetLayouts[3] =
-		{
-			rPipeline.mVkExternalDescriptorSetLayout,
-			rPipeline.mVkExternalDescriptorSetLayoutSet1 != VK_NULL_HANDLE ? rPipeline.mVkExternalDescriptorSetLayoutSet1 : rPipeline.mVkDescriptorSetLayout,
-			rPipeline.mVkDescriptorSetLayoutSet2,
-		};
-		uint32_t uiSetCount = (rPipeline.mInfo.flags & kMultiSet) ? 3 : 2;
-		rPipelineLayoutCreateInfo.setLayoutCount = uiSetCount;
-		rPipelineLayoutCreateInfo.pSetLayouts = pSetLayouts;
-		rPipelineLayoutCreateInfo.pushConstantRangeCount = rPipeline.mInfo.flags & kPushConstants ? 1 : 0;
-		rPipelineLayoutCreateInfo.pPushConstantRanges = rPipeline.mInfo.flags & kPushConstants ? &vkPushConstantRange : nullptr;
-		CHECK_VK(vkCreatePipelineLayout(gpDeviceManager->mVkDevice, &rPipelineLayoutCreateInfo, nullptr, &rPipeline.mVkPipelineLayout));
-		VkName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, rPipeline.mVkPipelineLayout, rPipeline.mInfo.name.data());
+		SplitBindingsBySet(rPipeline, pVkDescriptorSetLayoutBindings, iDescriptorCount, pVkSet1Bindings, iSet1Count, pVkSet2Bindings, iSet2Count);
+		CreateMultiSetPipelineLayout(rPipeline, rLayoutCreateInfo, rPipelineLayoutCreateInfo, vkPushConstantRange, pVkSet1Bindings, iSet1Count, pVkSet2Bindings, iSet2Count);
 	}
 	else
 	{
@@ -231,11 +250,303 @@ static void CreateDescriptorSetLayouts(Pipeline& rPipeline, const PipelineInfo& 
 	}
 }
 
-void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo)
+// Owns the Vk*StateCreateInfo structs (and the sub-structs / arrays they point at) for one graphics
+// pipeline so they outlive the vkCreateGraphicsPipelines call; the Configure* stages populate it in place.
+struct GraphicsPipelineState
+{
+	VkVertexInputBindingDescription vkVertexInputBindingDescription;
+	VkPipelineVertexInputStateCreateInfo vkPipelineVertexInputStateCreateInfo;
+	VkPipelineInputAssemblyStateCreateInfo vkPipelineInputAssemblyStateCreateInfo;
+	VkViewport vkViewport;
+	VkRect2D scissorVkRect2D;
+	VkPipelineViewportStateCreateInfo vkPipelineViewportStateCreateInfo;
+	VkPipelineRasterizationLineStateCreateInfoEXT vkPipelineRasterizationLineStateCreateInfoEXT;
+	VkPipelineRasterizationStateCreateInfo vkPipelineRasterizationStateCreateInfo;
+	VkPipelineMultisampleStateCreateInfo vkPipelineMultisampleStateCreateInfo;
+	VkPipelineDepthStencilStateCreateInfo vkPipelineDepthStencilStateCreateInfo;
+	VkPipelineColorBlendAttachmentState vkPipelineColorBlendAttachmentState;
+	VkPipelineColorBlendStateCreateInfo vkPipelineColorBlendStateCreateInfo;
+	VkPipelineColorBlendAttachmentState pMrtBlendStates[kiMaxColorAttachments];
+};
+
+// Builds the vertex-input state: stride + attribute descriptions come from shader reflection (or are
+// zeroed for stride-0 fullscreen passes); a bound vertex buffer asserts a matching reflected stride.
+static void ConfigureVertexInput(GraphicsPipelineState& rState, const Pipeline& rPipeline)
+{
+	rState.vkVertexInputBindingDescription = VkVertexInputBindingDescription
+	{
+		.binding = 0,
+		// .stride
+		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+	};
+
+	rState.vkPipelineVertexInputStateCreateInfo = VkPipelineVertexInputStateCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.vertexBindingDescriptionCount = 1,
+		.pVertexBindingDescriptions = &rState.vkVertexInputBindingDescription,
+		// .vertexAttributeDescriptionCount
+		// .pVertexAttributeDescriptions
+	};
+
+	Shader* pVertexShader = rPipeline.mInfo.ppShaders[0];
+	if (rPipeline.mInfo.pVertexBuffer != nullptr)
+	{
+		ASSERT(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride == rPipeline.mInfo.pVertexBuffer->mInfo.iVertexStride);
+		rState.vkVertexInputBindingDescription.stride = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride);
+		rState.vkPipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputAttributeDescriptions);
+		rState.vkPipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = pVertexShader->mInfo.pVertexAttributes;
+	}
+	else if (pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride > 0)
+	{
+		// Per-draw vertex buffer binding (e.g., per-island terrain meshes): no single canonical
+		// vertex buffer is owned by the pipeline. Stride and attributes come from shader reflection;
+		// the caller binds the actual buffer via vkCmdBindVertexBuffers at draw time.
+		rState.vkVertexInputBindingDescription.stride = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride);
+		rState.vkPipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputAttributeDescriptions);
+		rState.vkPipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = pVertexShader->mInfo.pVertexAttributes;
+	}
+	else
+	{
+		rState.vkPipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
+		rState.vkPipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
+		rState.vkPipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+		rState.vkPipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
+	}
+}
+
+// Builds the viewport/scissor state sized to the render-target extent (or the framebuffer extent for
+// swapchain passes); the viewport uses negative height to flip Vulkan's Y axis to the DirectX convention.
+static void ConfigureViewportScissor(GraphicsPipelineState& rState, const Pipeline& rPipeline)
+{
+	rState.vkViewport = VkViewport
+	{
+		.x = 0.0f,
+		.y = 0.0f,
+		// .width
+		// .height
+		.minDepth = kfMinDepth,
+		.maxDepth = kfMaxDepth,
+	};
+
+	rState.scissorVkRect2D = VkRect2D
+	{
+		.offset = VkOffset2D {.x = 0, .y = 0},
+		// .extent
+	};
+
+	rState.vkPipelineViewportStateCreateInfo = VkPipelineViewportStateCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.viewportCount = 1,
+		.pViewports = &rState.vkViewport,
+		.scissorCount = 1,
+		.pScissors = &rState.scissorVkRect2D,
+	};
+
+	VkExtent2D vkExtent2D
+	{
+		.width = rPipeline.mInfo.flags & kRenderTarget ? rPipeline.mInfo.vkExtent3D.width : gpGraphics->mFramebufferExtent2D.width,
+		.height = rPipeline.mInfo.flags & kRenderTarget ? rPipeline.mInfo.vkExtent3D.height : gpGraphics->mFramebufferExtent2D.height,
+	};
+
+	// Negative viewport height (VK_KHR_maintenance1) flips the Vulkan Y axis to match DirectX convention
+	rState.vkViewport.x = 0.0f;
+	rState.vkViewport.y = static_cast<float>(vkExtent2D.height);
+	rState.vkViewport.width = static_cast<float>(vkExtent2D.width);
+	rState.vkViewport.height = -static_cast<float>(vkExtent2D.height);
+
+	rState.scissorVkRect2D.extent = vkExtent2D;
+}
+
+// Builds the rasterization state: smooth/wide line settings (when supported), wireframe (debug builds),
+// cull mode, and depth bias.
+static void ConfigureRasterization(GraphicsPipelineState& rState, const Pipeline& rPipeline)
+{
+	rState.vkPipelineRasterizationLineStateCreateInfoEXT = VkPipelineRasterizationLineStateCreateInfoEXT
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_LINE_STATE_CREATE_INFO_EXT,
+		.pNext = nullptr,
+		.lineRasterizationMode = VK_LINE_RASTERIZATION_MODE_RECTANGULAR_SMOOTH_EXT,
+		.stippledLineEnable = VK_FALSE,
+		.lineStippleFactor = 0,
+		.lineStipplePattern = 0,
+	};
+
+	const bool bSmoothLines = (rPipeline.mInfo.flags & PipelineFlags::kLineList) && (gpDeviceManager->mCapabilities & DeviceCapabilityFlags::kSmoothLinesEnabled);
+	const bool bWideLines = (rPipeline.mInfo.flags & PipelineFlags::kLineList) && (gpDeviceManager->mCapabilities & DeviceCapabilityFlags::kWideLinesEnabled);
+
+	rState.vkPipelineRasterizationStateCreateInfo = VkPipelineRasterizationStateCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+		.pNext = bSmoothLines ? &rState.vkPipelineRasterizationLineStateCreateInfoEXT : nullptr,
+		.flags = 0,
+		.depthClampEnable = VK_FALSE,
+		.rasterizerDiscardEnable = VK_FALSE,
+		// .polygonMode
+		// .cullMode
+		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE, // Note: this is different than the usual because we flip the Y co-ordinate in the perspective matrix
+		// .depthBiasEnable
+		// .depthBiasConstantFactor
+		// .depthBiasClamp
+		// .depthBiasSlopeFactor
+		.lineWidth = bWideLines ? 2.0f : 1.0f,
+	};
+
+	if constexpr (kbVulkanWireframe)
+	{
+		bool bWireframe = gWireframe.Get<bool>();
+		if (rPipeline.mInfo.flags & kRenderTarget || rPipeline.mInfo.flags & kNoWireframe)
+		{
+			bWireframe = false;
+		}
+		rState.vkPipelineRasterizationStateCreateInfo.polygonMode = bWireframe ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
+	}
+	else
+	{
+		rState.vkPipelineRasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+	}
+	rState.vkPipelineRasterizationStateCreateInfo.cullMode = rPipeline.mInfo.flags & kCullBack ? VK_CULL_MODE_BACK_BIT : (rPipeline.mInfo.flags & kCullFront ? VK_CULL_MODE_FRONT_BIT : VK_CULL_MODE_NONE);
+	if (rPipeline.mInfo.flags & kDepthBias)
+	{
+		rState.vkPipelineRasterizationStateCreateInfo.depthBiasEnable = VK_TRUE;
+		rState.vkPipelineRasterizationStateCreateInfo.depthBiasConstantFactor = kfDepthBiasConstantFactor;
+		rState.vkPipelineRasterizationStateCreateInfo.depthBiasClamp = 0.0f;
+		rState.vkPipelineRasterizationStateCreateInfo.depthBiasSlopeFactor = kfDepthBiasSlopeFactor;
+	}
+	else
+	{
+		rState.vkPipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
+		rState.vkPipelineRasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
+		rState.vkPipelineRasterizationStateCreateInfo.depthBiasClamp = 0.0f;
+		rState.vkPipelineRasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
+	}
+}
+
+// Builds the multisample state: forced 4x sample-shading pipelines clamp to the device max; others follow
+// the global multisampling / sample-shading settings (render targets are always single-sample).
+static void ConfigureMultisampling(GraphicsPipelineState& rState, const Pipeline& rPipeline)
+{
+	rState.vkPipelineMultisampleStateCreateInfo = VkPipelineMultisampleStateCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		// .rasterizationSamples
+		// .sampleShadingEnable
+		// .minSampleShading
+		.pSampleMask = nullptr,
+		.alphaToCoverageEnable = VK_FALSE,
+		.alphaToOneEnable = VK_FALSE,
+	};
+
+	if (rPipeline.mInfo.flags & kForceFullSampleShading4x)
+	{
+		// Clamp 4x to device max so clients with hardware capped at 2x still produce a valid pipeline
+		// (the matching attachment in CreateWaterSkyboxOne applies the same clamp).
+		VkSampleCountFlagBits eClampedSamples = std::min(VK_SAMPLE_COUNT_4_BIT, gpInstanceManager->meMaxMultisampleCount);
+		rState.vkPipelineMultisampleStateCreateInfo.rasterizationSamples = eClampedSamples;
+		rState.vkPipelineMultisampleStateCreateInfo.sampleShadingEnable = eClampedSamples > VK_SAMPLE_COUNT_1_BIT ? VK_TRUE : VK_FALSE;
+		rState.vkPipelineMultisampleStateCreateInfo.minSampleShading = 1.0f;
+	}
+	else
+	{
+		rState.vkPipelineMultisampleStateCreateInfo.rasterizationSamples = rPipeline.mInfo.flags & kRenderTarget ? VK_SAMPLE_COUNT_1_BIT : (gMultisampling.Get<bool>() ? gSampleCount.Get<VkSampleCountFlagBits>() : VK_SAMPLE_COUNT_1_BIT);
+		rState.vkPipelineMultisampleStateCreateInfo.sampleShadingEnable = (rPipeline.mInfo.flags & kSampleShading && gSampleShading.Get<bool>()) ? VK_TRUE : VK_FALSE;
+		rState.vkPipelineMultisampleStateCreateInfo.minSampleShading = gMinSampleShading.Get();
+	}
+}
+
+// Builds the color-blend state: per-attachment blend factors from the blend-mode flags, then replicates
+// the attachment across all MRT targets (the lighting pass auto-upgrades a single attachment to 3).
+static void ConfigureBlendState(GraphicsPipelineState& rState, const Pipeline& rPipeline)
+{
+	rState.vkPipelineColorBlendAttachmentState = VkPipelineColorBlendAttachmentState
+	{
+		// .blendEnable
+		// .srcColorBlendFactor
+		// .dstColorBlendFactor
+		// .colorBlendOp
+		// .srcAlphaBlendFactor
+		// .dstAlphaBlendFactor
+		// .alphaBlendOp
+		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+	};
+	if (rPipeline.mInfo.flags & kNoColorWrite)
+	{
+		rState.vkPipelineColorBlendAttachmentState.colorWriteMask = 0;
+	}
+
+	rState.vkPipelineColorBlendStateCreateInfo = VkPipelineColorBlendStateCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.logicOpEnable = VK_FALSE,
+		.logicOp = VK_LOGIC_OP_COPY,
+		.attachmentCount = 1,
+		.pAttachments = &rState.vkPipelineColorBlendAttachmentState,
+		.blendConstants = {0.0f, 0.0f, 0.0f, 0.0f},
+	};
+
+	rState.vkPipelineColorBlendAttachmentState.blendEnable = (rPipeline.mInfo.flags & kAlphaBlend || rPipeline.mInfo.flags & kAdd || rPipeline.mInfo.flags & kAddAlpha || rPipeline.mInfo.flags & kMax) ? VK_TRUE : VK_FALSE;
+	rState.vkPipelineColorBlendAttachmentState.colorBlendOp = rPipeline.mInfo.flags & kMax ? VK_BLEND_OP_MAX : VK_BLEND_OP_ADD;
+	rState.vkPipelineColorBlendAttachmentState.alphaBlendOp = rPipeline.mInfo.flags & kMax ? VK_BLEND_OP_MAX : VK_BLEND_OP_ADD;
+	if (rPipeline.mInfo.flags & kAlphaBlend)
+	{
+		rState.vkPipelineColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+		rState.vkPipelineColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		rState.vkPipelineColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+		rState.vkPipelineColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	}
+	else if (rPipeline.mInfo.flags & kAddAlpha)
+	{
+		rState.vkPipelineColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+		rState.vkPipelineColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+		rState.vkPipelineColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		rState.vkPipelineColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	}
+	else
+	{
+		rState.vkPipelineColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+		rState.vkPipelineColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+		rState.vkPipelineColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+		rState.vkPipelineColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	}
+
+	// Configure MRT blend states
+	int32_t iColorAttachmentCount = rPipeline.mInfo.iColorAttachmentCount;
+	if (iColorAttachmentCount == 1 && rPipeline.mInfo.vkRenderPass == gpTextureManager->mRenderTargetTextures.mLightingVkRenderPass)
+	{
+		iColorAttachmentCount = 3;
+	}
+	ASSERT(iColorAttachmentCount <= kiMaxColorAttachments);
+	if (iColorAttachmentCount > 1)
+	{
+		for (int64_t i = 0; i < iColorAttachmentCount; ++i)
+		{
+			rState.pMrtBlendStates[i] = rState.vkPipelineColorBlendAttachmentState;
+		}
+		rState.vkPipelineColorBlendStateCreateInfo.attachmentCount = iColorAttachmentCount;
+		rState.vkPipelineColorBlendStateCreateInfo.pAttachments = rState.pMrtBlendStates;
+	}
+	else
+	{
+		rState.vkPipelineColorBlendStateCreateInfo.attachmentCount = 1;
+		rState.vkPipelineColorBlendStateCreateInfo.pAttachments = &rState.vkPipelineColorBlendAttachmentState;
+	}
+}
+
+void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline)
 {
 	ASSERT(rPipeline.mInfo.name.size() > 0);
 
-	// Pipeline state structs (initialized with defaults, modified per-pipeline below)
+	// Layout-creation scratch + shader stages stay orchestrator-local; the per-pipeline state structs the
+	// create info points at live in the GraphicsPipelineState aggregate below.
 	VkDescriptorSetLayoutCreateInfo uniformTextureVkDescriptorSetLayoutCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -278,104 +589,17 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 		},
 	};
 
-	VkVertexInputBindingDescription vkVertexInputBindingDescription
-	{
-		.binding = 0,
-		// .stride
-		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-	};
-
-	VkPipelineVertexInputStateCreateInfo vkPipelineVertexInputStateCreateInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-		.pNext = nullptr,
-		.flags = 0,
-		.vertexBindingDescriptionCount = 1,
-		.pVertexBindingDescriptions = &vkVertexInputBindingDescription,
-		// .vertexAttributeDescriptionCount
-		// .pVertexAttributeDescriptions
-	};
-
-	VkPipelineInputAssemblyStateCreateInfo vkPipelineInputAssemblyStateCreateInfo
+	// Default-initialized so unmentioned fields are zero; the Configure* stages overwrite their structs.
+	GraphicsPipelineState state {};
+	state.vkPipelineInputAssemblyStateCreateInfo = VkPipelineInputAssemblyStateCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		.topology = rPipelineInfo.flags & PipelineFlags::kLineList ? VK_PRIMITIVE_TOPOLOGY_LINE_LIST : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+		.topology = rPipeline.mInfo.flags & PipelineFlags::kLineList ? VK_PRIMITIVE_TOPOLOGY_LINE_LIST : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
 		.primitiveRestartEnable = VK_FALSE,
 	};
-
-	VkViewport vkViewport
-	{
-		.x = 0.0f,
-		.y = 0.0f,
-		// .width
-		// .height
-		.minDepth = kfMinDepth,
-		.maxDepth = kfMaxDepth,
-	};
-
-	VkRect2D scissorVkRect2D
-	{
-		.offset = VkOffset2D {.x = 0, .y = 0},
-		// .extent
-	};
-
-	VkPipelineViewportStateCreateInfo vkPipelineViewportStateCreateInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-		.pNext = nullptr,
-		.flags = 0,
-		.viewportCount = 1,
-		.pViewports = &vkViewport,
-		.scissorCount = 1,
-		.pScissors = &scissorVkRect2D,
-	};
-
-	VkPipelineRasterizationLineStateCreateInfoEXT vkPipelineRasterizationLineStateCreateInfoEXT
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_LINE_STATE_CREATE_INFO_EXT,
-		.pNext = nullptr,
-		.lineRasterizationMode = VK_LINE_RASTERIZATION_MODE_RECTANGULAR_SMOOTH_EXT,
-		.stippledLineEnable = VK_FALSE,
-		.lineStippleFactor = 0,
-		.lineStipplePattern = 0,
-	};
-
-	const bool bSmoothLines = (rPipelineInfo.flags & PipelineFlags::kLineList) && (gpDeviceManager->mCapabilities & DeviceCapabilityFlags::kSmoothLinesEnabled);
-	const bool bWideLines = (rPipelineInfo.flags & PipelineFlags::kLineList) && (gpDeviceManager->mCapabilities & DeviceCapabilityFlags::kWideLinesEnabled);
-
-	VkPipelineRasterizationStateCreateInfo vkPipelineRasterizationStateCreateInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-		.pNext = bSmoothLines ? &vkPipelineRasterizationLineStateCreateInfoEXT : nullptr,
-		.flags = 0,
-		.depthClampEnable = VK_FALSE,
-		.rasterizerDiscardEnable = VK_FALSE,
-		// .polygonMode
-		// .cullMode
-		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE, // Note: this is different than the usual because we flip the Y co-ordinate in the perspective matrix
-		// .depthBiasEnable
-		// .depthBiasConstantFactor
-		// .depthBiasClamp
-		// .depthBiasSlopeFactor
-		.lineWidth = bWideLines ? 2.0f : 1.0f,
-	};
-
-	VkPipelineMultisampleStateCreateInfo vkPipelineMultisampleStateCreateInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-		.pNext = nullptr,
-		.flags = 0,
-		// .rasterizationSamples
-		// .sampleShadingEnable
-		// .minSampleShading
-		.pSampleMask = nullptr,
-		.alphaToCoverageEnable = VK_FALSE,
-		.alphaToOneEnable = VK_FALSE,
-	};
-
-	VkPipelineDepthStencilStateCreateInfo vkPipelineDepthStencilStateCreateInfo
+	state.vkPipelineDepthStencilStateCreateInfo = VkPipelineDepthStencilStateCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
 		.pNext = nullptr,
@@ -391,33 +615,14 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 		.maxDepthBounds = 0.0f,
 	};
 
-	VkPipelineColorBlendAttachmentState vkPipelineColorBlendAttachmentState
-	{
-		// .blendEnable
-		// .srcColorBlendFactor
-		// .dstColorBlendFactor
-		// .colorBlendOp
-		// .srcAlphaBlendFactor
-		// .dstAlphaBlendFactor
-		// .alphaBlendOp
-		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-	};
-	if (rPipelineInfo.flags & kNoColorWrite)
-	{
-		vkPipelineColorBlendAttachmentState.colorWriteMask = 0;
-	}
+	ConfigureVertexInput(state, rPipeline);
+	ConfigureViewportScissor(state, rPipeline);
+	ConfigureRasterization(state, rPipeline);
+	ConfigureMultisampling(state, rPipeline);
+	ConfigureBlendState(state, rPipeline);
 
-	VkPipelineColorBlendStateCreateInfo vkPipelineColorBlendStateCreateInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-		.pNext = nullptr,
-		.flags = 0,
-		.logicOpEnable = VK_FALSE,
-		.logicOp = VK_LOGIC_OP_COPY,
-		.attachmentCount = 1,
-		.pAttachments = &vkPipelineColorBlendAttachmentState,
-		.blendConstants = {0.0f, 0.0f, 0.0f, 0.0f},
-	};
+	state.vkPipelineDepthStencilStateCreateInfo.depthTestEnable = rPipeline.mInfo.flags & kDepthTest ? VK_TRUE : VK_FALSE;
+	state.vkPipelineDepthStencilStateCreateInfo.depthWriteEnable = rPipeline.mInfo.flags & kDepthWrite ? VK_TRUE : VK_FALSE;
 
 	VkGraphicsPipelineCreateInfo vkGraphicsPipelineCreateInfo
 	{
@@ -426,13 +631,13 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 		.flags = 0,
 		.stageCount = 2,
 		.pStages = pVkPipelineShaderStageCreateInfos,
-		.pVertexInputState = &vkPipelineVertexInputStateCreateInfo,
-		.pInputAssemblyState = &vkPipelineInputAssemblyStateCreateInfo,
-		.pViewportState = &vkPipelineViewportStateCreateInfo,
-		.pRasterizationState = &vkPipelineRasterizationStateCreateInfo,
-		.pMultisampleState = &vkPipelineMultisampleStateCreateInfo,
-		.pDepthStencilState = &vkPipelineDepthStencilStateCreateInfo,
-		.pColorBlendState = &vkPipelineColorBlendStateCreateInfo,
+		.pVertexInputState = &state.vkPipelineVertexInputStateCreateInfo,
+		.pInputAssemblyState = &state.vkPipelineInputAssemblyStateCreateInfo,
+		.pViewportState = &state.vkPipelineViewportStateCreateInfo,
+		.pRasterizationState = &state.vkPipelineRasterizationStateCreateInfo,
+		.pMultisampleState = &state.vkPipelineMultisampleStateCreateInfo,
+		.pDepthStencilState = &state.vkPipelineDepthStencilStateCreateInfo,
+		.pColorBlendState = &state.vkPipelineColorBlendStateCreateInfo,
 		.pDynamicState = nullptr,
 		// .layout
 		// .renderPass
@@ -443,160 +648,22 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline, const Pipeline
 	// Use max of actual count and 3 to handle swapchain recreation scenarios
 	size_t uiFramebufferCount = gpSwapchainManager->mFramebuffers.size();
 	int64_t iCommandBufferCount = std::max(uiFramebufferCount, static_cast<size_t>(3));
-	SetupIndirectBuffer(rPipeline, rPipelineInfo, iCommandBufferCount);
+	SetupIndirectBuffer(rPipeline, iCommandBufferCount);
 
-	CreateDescriptorSetLayouts(rPipeline, rPipelineInfo, uniformTextureVkDescriptorSetLayoutCreateInfo, vkPipelineLayoutCreateInfo);
+	CreateDescriptorSetLayouts(rPipeline, uniformTextureVkDescriptorSetLayoutCreateInfo, vkPipelineLayoutCreateInfo);
 
-	Shader* pVertexShader = rPipelineInfo.ppShaders[0];
-	Shader* pFragmentShader = rPipelineInfo.ppShaders[1];
-
-	// Setup pipeline
-	pVkPipelineShaderStageCreateInfos[0].module = pVertexShader->mVkShaderModule;
-	pVkPipelineShaderStageCreateInfos[1].module = pFragmentShader->mVkShaderModule;
-
-	if (rPipelineInfo.pVertexBuffer != nullptr)
-	{
-		ASSERT(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride == rPipelineInfo.pVertexBuffer->mInfo.iVertexStride);
-		vkVertexInputBindingDescription.stride = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride);
-		vkPipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputAttributeDescriptions);
-		vkPipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = pVertexShader->mInfo.pVertexAttributes;
-	}
-	else if (pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride > 0)
-	{
-		// Per-draw vertex buffer binding (e.g., per-island terrain meshes): no single canonical
-		// vertex buffer is owned by the pipeline. Stride and attributes come from shader reflection;
-		// the caller binds the actual buffer via vkCmdBindVertexBuffers at draw time.
-		vkVertexInputBindingDescription.stride = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride);
-		vkPipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputAttributeDescriptions);
-		vkPipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = pVertexShader->mInfo.pVertexAttributes;
-	}
-	else
-	{
-		vkPipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
-		vkPipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
-		vkPipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
-		vkPipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
-	}
-
-	VkExtent2D vkExtent2D
-	{
-		.width = rPipeline.mInfo.flags & kRenderTarget ? rPipeline.mInfo.vkExtent3D.width : gpGraphics->mFramebufferExtent2D.width,
-		.height = rPipeline.mInfo.flags & kRenderTarget ? rPipeline.mInfo.vkExtent3D.height : gpGraphics->mFramebufferExtent2D.height,
-	};
-
-	// Negative viewport height (VK_KHR_maintenance1) flips the Vulkan Y axis to match DirectX convention
-	vkViewport.x = 0.0f;
-	vkViewport.y = static_cast<float>(vkExtent2D.height);
-	vkViewport.width = static_cast<float>(vkExtent2D.width);
-	vkViewport.height = -static_cast<float>(vkExtent2D.height);
-
-	scissorVkRect2D.extent = vkExtent2D;
-
-	vkPipelineColorBlendAttachmentState.blendEnable = (rPipelineInfo.flags & kAlphaBlend || rPipelineInfo.flags & kAdd || rPipelineInfo.flags & kAddAlpha || rPipelineInfo.flags & kMax) ? VK_TRUE : VK_FALSE;
-	vkPipelineColorBlendAttachmentState.colorBlendOp = rPipelineInfo.flags & kMax ? VK_BLEND_OP_MAX : VK_BLEND_OP_ADD;
-	vkPipelineColorBlendAttachmentState.alphaBlendOp = rPipelineInfo.flags & kMax ? VK_BLEND_OP_MAX : VK_BLEND_OP_ADD;
-	if (rPipelineInfo.flags & kAlphaBlend)
-	{
-		vkPipelineColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-		vkPipelineColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-		vkPipelineColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		vkPipelineColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	}
-	else if (rPipelineInfo.flags & kAddAlpha)
-	{
-		vkPipelineColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-		vkPipelineColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		vkPipelineColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-		vkPipelineColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	}
-	else
-	{
-		vkPipelineColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		vkPipelineColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		vkPipelineColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		vkPipelineColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	}
-
-	if constexpr (kbVulkanWireframe)
-	{
-		bool bWireframe = gWireframe.Get<bool>();
-		if (rPipeline.mInfo.flags & kRenderTarget || rPipeline.mInfo.flags & kNoWireframe)
-		{
-			bWireframe = false;
-		}
-		vkPipelineRasterizationStateCreateInfo.polygonMode = bWireframe ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
-	}
-	else
-	{
-		vkPipelineRasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
-	}
-	vkPipelineRasterizationStateCreateInfo.cullMode = rPipelineInfo.flags & kCullBack ? VK_CULL_MODE_BACK_BIT : (rPipelineInfo.flags & kCullFront ? VK_CULL_MODE_FRONT_BIT : VK_CULL_MODE_NONE);
-	if (rPipelineInfo.flags & kDepthBias)
-	{
-		vkPipelineRasterizationStateCreateInfo.depthBiasEnable = VK_TRUE;
-		vkPipelineRasterizationStateCreateInfo.depthBiasConstantFactor = kfDepthBiasConstantFactor;
-		vkPipelineRasterizationStateCreateInfo.depthBiasClamp = 0.0f;
-		vkPipelineRasterizationStateCreateInfo.depthBiasSlopeFactor = kfDepthBiasSlopeFactor;
-	}
-	else
-	{
-		vkPipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
-		vkPipelineRasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
-		vkPipelineRasterizationStateCreateInfo.depthBiasClamp = 0.0f;
-		vkPipelineRasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
-	}
-
-	vkPipelineDepthStencilStateCreateInfo.depthTestEnable = rPipelineInfo.flags & kDepthTest ? VK_TRUE : VK_FALSE;
-	vkPipelineDepthStencilStateCreateInfo.depthWriteEnable = rPipelineInfo.flags & kDepthWrite ? VK_TRUE : VK_FALSE;
-
-	if (rPipelineInfo.flags & kForceFullSampleShading4x)
-	{
-		// Clamp 4x to device max so clients with hardware capped at 2x still produce a valid pipeline
-		// (the matching attachment in CreateWaterSkyboxOne applies the same clamp).
-		VkSampleCountFlagBits eClampedSamples = std::min(VK_SAMPLE_COUNT_4_BIT, gpInstanceManager->meMaxMultisampleCount);
-		vkPipelineMultisampleStateCreateInfo.rasterizationSamples = eClampedSamples;
-		vkPipelineMultisampleStateCreateInfo.sampleShadingEnable = eClampedSamples > VK_SAMPLE_COUNT_1_BIT ? VK_TRUE : VK_FALSE;
-		vkPipelineMultisampleStateCreateInfo.minSampleShading = 1.0f;
-	}
-	else
-	{
-		vkPipelineMultisampleStateCreateInfo.rasterizationSamples = rPipeline.mInfo.flags & kRenderTarget ? VK_SAMPLE_COUNT_1_BIT : (gMultisampling.Get<bool>() ? gSampleCount.Get<VkSampleCountFlagBits>() : VK_SAMPLE_COUNT_1_BIT);
-		vkPipelineMultisampleStateCreateInfo.sampleShadingEnable = (rPipelineInfo.flags & kSampleShading && gSampleShading.Get<bool>()) ? VK_TRUE : VK_FALSE;
-		vkPipelineMultisampleStateCreateInfo.minSampleShading = gMinSampleShading.Get();
-	}
+	// Setup pipeline (modules + layout/renderPass resolved after CreateDescriptorSetLayouts)
+	pVkPipelineShaderStageCreateInfos[0].module = rPipeline.mInfo.ppShaders[0]->mVkShaderModule;
+	pVkPipelineShaderStageCreateInfos[1].module = rPipeline.mInfo.ppShaders[1]->mVkShaderModule;
 
 	vkGraphicsPipelineCreateInfo.layout = rPipeline.mVkPipelineLayout;
-	vkGraphicsPipelineCreateInfo.renderPass = rPipeline.mInfo.flags & kRenderTarget ? rPipelineInfo.vkRenderPass : gpSwapchainManager->mVkRenderPass;
-
-	// Configure MRT blend states
-	int32_t iColorAttachmentCount = rPipelineInfo.iColorAttachmentCount;
-	if (iColorAttachmentCount == 1 && rPipelineInfo.vkRenderPass == gpTextureManager->mRenderTargetTextures.mLightingVkRenderPass)
-	{
-		iColorAttachmentCount = 3;
-	}
-	static constexpr int64_t kiMaxColorAttachments {6};
-	ASSERT(iColorAttachmentCount <= kiMaxColorAttachments);
-	VkPipelineColorBlendAttachmentState pMrtBlendStates[kiMaxColorAttachments] {};
-	if (iColorAttachmentCount > 1)
-	{
-		for (int64_t i = 0; i < iColorAttachmentCount; ++i)
-		{
-			pMrtBlendStates[i] = vkPipelineColorBlendAttachmentState;
-		}
-		vkPipelineColorBlendStateCreateInfo.attachmentCount = iColorAttachmentCount;
-		vkPipelineColorBlendStateCreateInfo.pAttachments = pMrtBlendStates;
-	}
-	else
-	{
-		vkPipelineColorBlendStateCreateInfo.attachmentCount = 1;
-		vkPipelineColorBlendStateCreateInfo.pAttachments = &vkPipelineColorBlendAttachmentState;
-	}
+	vkGraphicsPipelineCreateInfo.renderPass = rPipeline.mInfo.flags & kRenderTarget ? rPipeline.mInfo.vkRenderPass : gpSwapchainManager->mVkRenderPass;
 
 	CHECK_VK(vkCreateGraphicsPipelines(gpDeviceManager->mVkDevice, gpDeviceManager->mVkPipelineCache, 1, &vkGraphicsPipelineCreateInfo, nullptr, &rPipeline.mVkPipeline));
 	VkName(VK_OBJECT_TYPE_PIPELINE, rPipeline.mVkPipeline, rPipeline.mInfo.name.data());
 }
 
-void PipelineCreator::CreateComputePipeline(Pipeline& rPipeline, const PipelineInfo& rPipelineInfo)
+void PipelineCreator::CreateComputePipeline(Pipeline& rPipeline)
 {
 	VkDescriptorSetLayoutCreateInfo uniformTextureVkDescriptorSetLayoutCreateInfo
 	{
@@ -625,12 +692,12 @@ void PipelineCreator::CreateComputePipeline(Pipeline& rPipeline, const PipelineI
 	{
 		// Single-slot dispatch buffer (always read at offset 0); bounds the RecordComputeIndirect index assert
 		rPipeline.miIndirectSlotCount = 1;
-		Buffer::CreateBuffer(rPipelineInfo.name, sizeof(VkDispatchIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation);
+		Buffer::CreateBuffer(rPipeline.mInfo.name, sizeof(VkDispatchIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation);
 	}
 
 	ASSERT(!(rPipeline.mInfo.flags & kMultiSet)); // Set 2 / multi-material is graphics-only
 
-	Shader* pComputeShader = rPipelineInfo.ppShaders[0];
+	Shader* pComputeShader = rPipeline.mInfo.ppShaders[0];
 
 	// Filter out empty entries to avoid duplicate binding 0 errors from zero-initialized gaps
 	VkDescriptorSetLayoutBinding pVkDescriptorSetLayoutBindings[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
@@ -658,7 +725,7 @@ void PipelineCreator::CreateComputePipeline(Pipeline& rPipeline, const PipelineI
 	for (int64_t i = 0; i < iDescriptorCount; ++i)
 	{
 		uint32_t uiBinding = pVkDescriptorSetLayoutBindings[i].binding;
-		uint32_t uiSet = Pipeline::ResolveBindingSetIndex(rPipelineInfo, uiBinding);
+		uint32_t uiSet = Pipeline::ResolveBindingSetIndex(rPipeline.mInfo, uiBinding);
 		if (uiSet == 1)
 		{
 			pVkSet1Bindings[iSet1Count++] = pVkDescriptorSetLayoutBindings[i];

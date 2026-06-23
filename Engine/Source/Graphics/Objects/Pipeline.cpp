@@ -156,14 +156,14 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 
 	if (mInfo.flags & kCompute)
 	{
-		PipelineCreator::CreateComputePipeline(*this, mInfo);
+		PipelineCreator::CreateComputePipeline(*this);
 	}
 	else
 	{
-		PipelineCreator::CreateGraphicsPipeline(*this, mInfo);
+		PipelineCreator::CreateGraphicsPipeline(*this);
 	}
 
-	PipelineDescriptorWriter::Write(*this, mInfo);
+	PipelineDescriptorWriter::Write(*this);
 
 	// Non-indirect pipelines (e.g. terrain, water) use RecordDraw and never call
 	// WriteIndirectBuffer, so request their textures immediately

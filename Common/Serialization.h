@@ -3,6 +3,62 @@
 namespace common
 {
 
+// Thrown by deserialization readers when a count/size/capacity field from a trust boundary
+// (save file, replay stream, network payload, .pack chunk) is implausible — negative, inverted
+// (count > capacity), or larger than the stream/chunk could possibly back. Caught at each
+// load/receive boundary (logged + payload skipped or load aborted) so malformed input degrades
+// gracefully instead of overrunning a buffer or driving an unbounded allocation. The message is a
+// static reader-name literal (no std::format on the throw path; std::runtime_error's own string copy is
+// benign — every thrower runs under a load-path allocation-suppress scope).
+class CorruptStreamException : public std::runtime_error
+{
+public:
+	explicit CorruptStreamException(const char* pcReader)
+		: std::runtime_error(pcReader)
+	{
+	}
+};
+
+// Generous absolute ceiling on a deserialized SOA capacity. Far above any plausible per-collection
+// element count, far below an allocation that would exhaust memory — converts a hostile capacity into
+// a clean reject-and-log instead of a bad_alloc.
+inline constexpr int64_t kiMaxDeserializedCapacity = 1 << 24; // 16,777,216 elements
+
+// Bytes between the stream's current get position and its end. Requires a seekable stream — every
+// save/replay file stream and the network istringstream are. Restores the get position.
+inline int64_t StreamBytesRemaining(std::istream& rStream)
+{
+	const std::streampos posCurrent = rStream.tellg();
+	rStream.seekg(0, std::ios::end);
+	const std::streampos posEnd = rStream.tellg();
+	rStream.seekg(posCurrent);
+	return static_cast<int64_t>(posEnd - posCurrent);
+}
+
+// Trust-boundary guard for a deserialized element count whose elements are read sequentially.
+// iElementBytes is the minimum bytes one element consumes in the stream (>= 1); the count is bounded
+// against the stream's remaining length so a hostile value cannot drive a large vector resize or loop.
+// Divides (never multiplies) against the remaining length so the bound itself cannot overflow.
+inline void ValidateDeserializedCount(int64_t iCount, int64_t iElementBytes, std::istream& rStream, const char* pcReader)
+{
+	if (iCount < 0 || iElementBytes <= 0 || iCount > StreamBytesRemaining(rStream) / iElementBytes)
+	{
+		throw CorruptStreamException(pcReader);
+	}
+}
+
+// As ValidateDeserializedCount, plus an SOA capacity (allocation size) and the count <= capacity
+// invariant. iCount elements are read from the stream (so it is stream-length bounded); iCapacity
+// sizes the buffer, so it is bounded by the absolute ceiling rather than the stream length.
+inline void ValidateDeserializedCountCapacity(int64_t iCount, int64_t iCapacity, int64_t iElementBytes, std::istream& rStream, const char* pcReader)
+{
+	if (iCount < 0 || iCapacity < 0 || iCount > iCapacity || iCapacity > kiMaxDeserializedCapacity)
+	{
+		throw CorruptStreamException(pcReader);
+	}
+	ValidateDeserializedCount(iCount, iElementBytes, rStream, pcReader);
+}
+
 // Returns the total size in bytes of a vector's contents (size * sizeof(T))
 // Used for calculating buffer sizes and memory usage
 // Parameters: rVector - Vector to calculate size for

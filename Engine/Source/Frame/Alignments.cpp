@@ -92,6 +92,8 @@ void Alignments::Read(std::istream& rStream)
 {
 	int64_t iCount = 0;
 	common::Read(rStream, iCount);
+	// Trust boundary (save / network full-state): bound the count against the stream before resize.
+	common::ValidateDeserializedCount(iCount, sizeof(AlignmentPair::uiKey) + sizeof(AlignmentPair::uiFlags), rStream, "Alignments::Read");
 
 	alignmentPairs.resize(iCount);
 	for (int64_t i = 0; i < iCount; ++i)

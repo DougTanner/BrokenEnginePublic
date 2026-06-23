@@ -49,7 +49,8 @@ static float ComputeMoonAmount(float fSunAngle)
 	return ComputeNightEnvelope(fSunAngle, gSunMoonMoonriseStart.Get(), gSunMoonMoonriseEnd.Get(), gSunMoonMoonsetStart.Get(), gSunMoonMoonsetEnd.Get());
 }
 
-static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float& rfDayPercent, float& rfNoonPercent)
+// Sun/Moon direction + tilt: stores the normalized sky direction in f4SunMoonNormal.
+static void PopulateSunMoonDirection(shaders::GlobalLayout& rGlobalLayout, float fSunAngle)
 {
 	// Sun/Moon direction: night reverses across the sky from sunset back to sunrise
 	float fDirectionAngle = fSunAngle < XM_PI ? fSunAngle : XM_2PI - fSunAngle;
@@ -60,7 +61,11 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	XMMATRIX matSunTilt = XMMatrixRotationX(gSunMoonNormalTilt.Get());
 	vecSunMoonNormal = XMVector4Normalize(XMVector4Transform(vecSunMoonNormal, matSunTilt));
 	XMStoreFloat4(&rGlobalLayout.f4SunMoonNormal, vecSunMoonNormal);
+}
 
+// Piecewise day-cycle sun/moon color + ambient ramp, plus the sun/moon intensity stores.
+static void PopulateDayCycleColors(shaders::GlobalLayout& rGlobalLayout, float fSunAngle)
+{
 	// Sun/Moon color
 	float fAmbientNight = gSunMoonMinimumAmbient.Get();
 	float fAmbientMorning = std::max(0.075f, gSunMoonMinimumAmbient.Get());
@@ -143,7 +148,11 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 
 	vecAmbient = XMVectorSetW(XMVectorScale(vecAmbient, gSunMoonAmbientMultiplier.Get()), 1.0f);
 	XMStoreFloat4(&rGlobalLayout.f4AmbientColor, vecAmbient);
+}
 
+// Noon/day feather windows: resolve the day-cycle blend percents from the sun angle.
+static void PopulateDayCycleFeatherWindows(float fSunAngle, float& rfDayPercent, float& rfNoonPercent)
+{
 	static constexpr float kfNoonFeatherEnd = XM_PIDIV8;
 	rfNoonPercent = 0.0f;
 	if (fSunAngle >= kfNoonFeatherEnd && fSunAngle <= XM_PIDIV2)
@@ -164,6 +173,13 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	{
 		rfDayPercent = 1.0f - (fSunAngle - XM_PIDIV2) / XM_PIDIV2;
 	}
+}
+
+static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float& rfDayPercent, float& rfNoonPercent)
+{
+	PopulateSunMoonDirection(rGlobalLayout, fSunAngle);
+	PopulateDayCycleColors(rGlobalLayout, fSunAngle);
+	PopulateDayCycleFeatherWindows(fSunAngle, rfDayPercent, rfNoonPercent);
 
 	// Time of day — resolved alongside the day-cycle derivation, where every other day-cycle product is computed (Lighting region owns these fields).
 	rGlobalLayout.fLightingTimeOfDayMultiplier = rfDayPercent * gLightingDayFinalMultiplier.Get() + (1.0f - rfDayPercent) * gLightingNightFinalMultiplier.Get();
@@ -393,22 +409,9 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 	rGlobalLayout.fTerrainBeachNormalsBlend = std::max(fDayPercent * fDayPercent, 0.25f) * gTerrainBeachNormalsBlend.Get();
 }
 
-static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fDayPercent)
+// Water depth-LUT sunset fade: piecewise over the sun angle, then intensity/power shaping.
+static void PopulateWaterSunsetFade(shaders::GlobalLayout& rGlobalLayout, float fSunAngle)
 {
-	// Water global
-	rGlobalLayout.fWaterEarlyOut = gWaterEarlyOut.Get();
-	rGlobalLayout.fWaterHeight = gWaterHeight.Get();
-	rGlobalLayout.fWaterTerrainHeight = gWaterTerrainHeight.Get();
-	rGlobalLayout.fWaterTerrainFade = gWaterTerrainFade.Get();
-	rGlobalLayout.fWaterTerrainFadeClamp = gWaterTerrainFadeClamp.Get();
-
-	rGlobalLayout.fWaterDepthLutFeather = gWaterDepthLutFeather.Get();
-	rGlobalLayout.fWaterDepthColorFeather = gWaterDepthColorFeather.Get();
-	rGlobalLayout.fWaterDepthColorFloor = gWaterDepthColorFloor.Get();
-	rGlobalLayout.fWaterUnderseaCompression = gWaterUnderseaCompression.Get();
-	rGlobalLayout.fWaterDepthReflectionFeather = fDayPercent * gWaterDepthReflectionFeather.Get();
-	rGlobalLayout.fWaterColorNoiseFrequency = gWaterColorNoiseFrequency.Get();
-
 	if (fSunAngle >= XM_PIDIV16 && fSunAngle < XM_PIDIV2)
 	{
 		rGlobalLayout.fWaterDepthLutSunsetFade = 1.0f - (fSunAngle - XM_PIDIV16) / (XM_PIDIV2 - XM_PIDIV16);
@@ -422,16 +425,11 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 		rGlobalLayout.fWaterDepthLutSunsetFade = 1.0f;
 	}
 	rGlobalLayout.fWaterDepthLutSunsetFade = gWaterDepthLutSunsetFadeIntensity.Get() * std::pow(rGlobalLayout.fWaterDepthLutSunsetFade, gWaterDepthLutSunsetFadePower.Get());
+}
 
-	rGlobalLayout.fWaterFresnel = std::pow(fDayPercent, 0.5f) * gWaterFresnel.Get();
-	rGlobalLayout.fWaterColorBottom = gWaterColorBottom.Get();
-	rGlobalLayout.fWaterColorHeightInv = 1.0f / gWaterColorHeight.Get();
-	rGlobalLayout.fWaterColorNoiseAmount = gWaterColorNoiseAmount.Get();
-	rGlobalLayout.fWaterColorNoiseWeightOne = gWaterColorNoiseWeightOne.Get();
-	rGlobalLayout.fWaterColorNoiseWeightTwo = gWaterColorNoiseWeightTwo.Get();
-	rGlobalLayout.fWaterColorNoiseMultiplierOne = gWaterColorNoiseMultiplierOne.Get();
-	rGlobalLayout.fWaterColorNoiseMultiplierTwo = gWaterColorNoiseMultiplierTwo.Get();
-
+// Water directional term: piecewise over the sun angle, squared.
+static void PopulateWaterDirectional(shaders::GlobalLayout& rGlobalLayout, float fSunAngle)
+{
 	if (fSunAngle >= 0.0f && fSunAngle < XM_PIDIV2)
 	{
 		rGlobalLayout.fWaterDirectional = 1.0f - (fSunAngle) / XM_PIDIV2;
@@ -445,20 +443,12 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 		rGlobalLayout.fWaterDirectional = 1.0f;
 	}
 	rGlobalLayout.fWaterDirectional = std::pow(rGlobalLayout.fWaterDirectional, 2.0f);
+}
 
-	rGlobalLayout.fBeachFadeTop = gWaterBeachFadeTop.Get();
-	rGlobalLayout.fBeachFadeInvRange = 1.0f / (gWaterBeachFadeBottom.Get() - gWaterBeachFadeTop.Get());
-	rGlobalLayout.fWaterLowSteepness = gWaterLowSteepness.Get();
-
-	rGlobalLayout.fWaterMediumSteepness = gWaterMediumSteepness.Get();
-	rGlobalLayout.fWaterWaveNormalBlend = gWaterWaveNormalBlend.Get();
-	rGlobalLayout.fWaterLowAmplitude = gWaterLowAmplitude.Get();
-	rGlobalLayout.fWaterMediumAmplitude = gWaterMediumAmplitude.Get();
-	rGlobalLayout.fWaterZOffsetTemp = gWaterZOffsetTemp.Get(); // DT: TEMP
-
-	rGlobalLayout.iWaterLowCount = static_cast<int>(std::min(gWaterLowCount.Get<int64_t>(), static_cast<int64_t>(gWaterLowMax.Get())));
-	rGlobalLayout.iWaterMediumCount = static_cast<int>(gWaterMediumCount.Get<int64_t>());
-
+// Camera-relative UV reduction — owns the per-frame reduced-time accumulator latches, so it must be
+// called exactly once per frame (preserved by the single PopulateWaterParameters call site).
+static void PopulateWaterReducedUv(shaders::GlobalLayout& rGlobalLayout)
+{
 	// Water precision: camera-relative UV reduction (double precision on CPU)
 	// Normal map mod uses 10.0 (not 1.0) because the shader multiplies reducedOrigin by non-integer
 	// sizeMult values (0.2, 1.1, 2.5, etc.). With mod 1.0, wraps produce non-integer UV jumps that
@@ -530,6 +520,51 @@ static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float 
 	double dNoiseFreq = static_cast<double>(gWaterColorNoiseFrequency.Get());
 	rGlobalLayout.fWaterReducedNoiseOriginX = static_cast<float>(std::fmod(dNoiseFreq * dCameraX, 10.0));
 	rGlobalLayout.fWaterReducedNoiseOriginY = static_cast<float>(std::fmod(dNoiseFreq * dCameraY, 10.0));
+}
+
+static void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fDayPercent)
+{
+	// Water global
+	rGlobalLayout.fWaterEarlyOut = gWaterEarlyOut.Get();
+	rGlobalLayout.fWaterHeight = gWaterHeight.Get();
+	rGlobalLayout.fWaterTerrainHeight = gWaterTerrainHeight.Get();
+	rGlobalLayout.fWaterTerrainFade = gWaterTerrainFade.Get();
+	rGlobalLayout.fWaterTerrainFadeClamp = gWaterTerrainFadeClamp.Get();
+
+	rGlobalLayout.fWaterDepthLutFeather = gWaterDepthLutFeather.Get();
+	rGlobalLayout.fWaterDepthColorFeather = gWaterDepthColorFeather.Get();
+	rGlobalLayout.fWaterDepthColorFloor = gWaterDepthColorFloor.Get();
+	rGlobalLayout.fWaterUnderseaCompression = gWaterUnderseaCompression.Get();
+	rGlobalLayout.fWaterDepthReflectionFeather = fDayPercent * gWaterDepthReflectionFeather.Get();
+	rGlobalLayout.fWaterColorNoiseFrequency = gWaterColorNoiseFrequency.Get();
+
+	PopulateWaterSunsetFade(rGlobalLayout, fSunAngle);
+
+	rGlobalLayout.fWaterFresnel = std::pow(fDayPercent, 0.5f) * gWaterFresnel.Get();
+	rGlobalLayout.fWaterColorBottom = gWaterColorBottom.Get();
+	rGlobalLayout.fWaterColorHeightInv = 1.0f / gWaterColorHeight.Get();
+	rGlobalLayout.fWaterColorNoiseAmount = gWaterColorNoiseAmount.Get();
+	rGlobalLayout.fWaterColorNoiseWeightOne = gWaterColorNoiseWeightOne.Get();
+	rGlobalLayout.fWaterColorNoiseWeightTwo = gWaterColorNoiseWeightTwo.Get();
+	rGlobalLayout.fWaterColorNoiseMultiplierOne = gWaterColorNoiseMultiplierOne.Get();
+	rGlobalLayout.fWaterColorNoiseMultiplierTwo = gWaterColorNoiseMultiplierTwo.Get();
+
+	PopulateWaterDirectional(rGlobalLayout, fSunAngle);
+
+	rGlobalLayout.fBeachFadeTop = gWaterBeachFadeTop.Get();
+	rGlobalLayout.fBeachFadeInvRange = 1.0f / (gWaterBeachFadeBottom.Get() - gWaterBeachFadeTop.Get());
+	rGlobalLayout.fWaterLowSteepness = gWaterLowSteepness.Get();
+
+	rGlobalLayout.fWaterMediumSteepness = gWaterMediumSteepness.Get();
+	rGlobalLayout.fWaterWaveNormalBlend = gWaterWaveNormalBlend.Get();
+	rGlobalLayout.fWaterLowAmplitude = gWaterLowAmplitude.Get();
+	rGlobalLayout.fWaterMediumAmplitude = gWaterMediumAmplitude.Get();
+	rGlobalLayout.fWaterZOffsetTemp = gWaterZOffsetTemp.Get(); // DT: TEMP
+
+	rGlobalLayout.iWaterLowCount = static_cast<int>(std::min(gWaterLowCount.Get<int64_t>(), static_cast<int64_t>(gWaterLowMax.Get())));
+	rGlobalLayout.iWaterMediumCount = static_cast<int>(gWaterMediumCount.Get<int64_t>());
+
+	PopulateWaterReducedUv(rGlobalLayout);
 }
 
 void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)

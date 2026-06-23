@@ -51,6 +51,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="..\..\Source\ExportJobs\Texture\RdoSweep.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\Texture\Texture.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -101,6 +102,7 @@
     <ClInclude Include="..\..\Source\ExportJobs\Texture\MigrateLegacyIntermediates.h" />
     <ClInclude Include="..\..\Source\Pch.h" />
     <ClInclude Include="..\..\Source\ExportJobs\Island\SubdivideBeachBand.h" />
+    <ClInclude Include="..\..\Source\ExportJobs\Texture\RdoSweep.h" />
     <ClInclude Include="..\..\Source\ExportJobs\Texture\Texture.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

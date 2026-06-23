@@ -139,7 +139,11 @@ public:
 	float* __restrict pfNextBlasterSpawnTimes = nullptr;
 	engine::alignment_t* __restrict pAlignments = nullptr;
 	float* __restrict pfArrivalGracePeriods = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecDamageDirections, rSelf.pfHealths, rSelf.pfDestroyedExplosionTimes, rSelf.pfNextBlasterSpawnTimes, rSelf.pAlignments, rSelf.pfArrivalGracePeriods); }
+	// No client-only fields today. Defined via SharedMembers() (== full set; Members() forwards) so CRC/server-read walk the explicit
+	// shared subset — a future #if BT_CLIENT field then belongs in a ClientMembers() split (Collections hub rule) and stays out of the
+	// CRC, instead of silently entering it via a Members()-only walk; the server-build kbServerMembersParity static_assert backstops Members()==SharedMembers().
+	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecDamageDirections, rSelf.pfHealths, rSelf.pfDestroyedExplosionTimes, rSelf.pfNextBlasterSpawnTimes, rSelf.pAlignments, rSelf.pfArrivalGracePeriods); }
+	auto Members(this auto&& rSelf) { return rSelf.SharedMembers(); }
 
 	// Utility
 	bool LogDifferences(const SpaceshipsPostRender& rOther) const;
