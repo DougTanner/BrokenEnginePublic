@@ -10,7 +10,7 @@ Collections register storage buffers during CreatePipelines() via CRC-keyed dyna
 
 ## Skinning
 
-Per-frame bump allocation for mesh data and joint matrices with per-command-buffer offset tracking. Auto-grows by doubling capacity and propagates descriptor updates to model pipelines. Joint matrices use a compact 3-row format (48 bytes) since the fourth row is always identity.
+Per-frame bump allocation for mesh data and joint matrices with per-command-buffer offset tracking. Auto-grows by doubling capacity and propagates descriptor updates to model pipelines. Joint matrices use a compact 3-row format (48 bytes) since the fourth row is always identity. Multiple grows within the same frame are safe: buffers are per-framebuffer instances, the top-of-frame per-framebuffer fence wait drains any prior submission before a grow runs, and record-once command buffers read skinning data only through descriptor sets (which the grow repoints at the new buffer).
 
 ## Hierarchical Dispatch Buffers
 

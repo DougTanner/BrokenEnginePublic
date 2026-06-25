@@ -50,9 +50,6 @@ engine::Wrapper gHexShieldLightingIntensity(4.0f, 0.0f, 8.0f);
 engine::Wrapper gMissileExhaustLightingArea(2.0f, 1.0f, 4.0f);
 engine::Wrapper gMissileExhaustLightingIntensity(3.5f, 0.0f, 5.0f);
 
-// Spaceships - Explosion
-engine::Wrapper gSpaceshipExplosionLightingIntensity(0.0f, 0.0f, 2.0f);
-
 // Spaceships - Enemy blaster
 engine::Wrapper gEnemyBlasterLightingArea(1.0f, 0.5f, 2.0f);
 engine::Wrapper gEnemyBlasterLightingIntensity(0.2f, 0.0f, 1.0f);

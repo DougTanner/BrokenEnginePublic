@@ -26,11 +26,11 @@ public:
 	const common::AnimationKeyframe* mpKeyframes = nullptr;
 	const common::AnimationKeyframeCubic* mpCubicKeyframes = nullptr;
 
-	// Pre-computed at load time (fixed upper-bound sizing)
-	XMMATRIX mBindPoseLocalMatrices[common::Skeleton::kiMaxNodes] {};
-	bool mbAnimatedNodes[common::AnimationHeader::kiMaxAnimations][common::Skeleton::kiMaxNodes] {};
-	XMMATRIX mAlignedInverseBindMatrices[common::Skeleton::kiMaxSkinJoints] {};
-	XMMATRIX mAlignedRelativeTransforms[common::SceneHeader::kiMaxMaterials] {};
+	// Pre-computed at load time, runtime-sized to the header counts (see Load)
+	common::AlignedUniquePtr<XMMATRIX> mpBindPoseLocalMatrices;       // uiNodeCount entries
+	std::vector<uint8_t> mbAnimatedNodes;                             // uiAnimationCount * uiNodeCount, row stride uiNodeCount
+	common::AlignedUniquePtr<XMMATRIX> mpAlignedInverseBindMatrices;  // uiSkinJointCount entries
+	common::AlignedUniquePtr<XMMATRIX> mpAlignedRelativeTransforms;   // uiMaterialCount entries
 
 private:
 

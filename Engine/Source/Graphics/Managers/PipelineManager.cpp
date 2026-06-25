@@ -38,9 +38,32 @@ PipelineManager::PipelineManager()
 		}
 
 		const common::ShaderHeader& rShaderHeader = rChunk.pHeader->shaderHeader;
+
+		// Trust boundary: the descriptor-binding / vertex-attribute counts come from on-disk pack bytes and drive
+		// reinterpret_cast offsets + indexed walks aliasing the eager shader chunk. A negative or oversized count
+		// would walk the alias pointers off the chunk, so reject against the structural maxima before the sizes are
+		// computed. Boot-required shader; a throw propagates to MainThread's try/catch (HandleException — crash
+		// report + exit) — boot hard-fail.
+		if (rShaderHeader.iDescriptorSetLayoutBindings < 0
+			|| rShaderHeader.iDescriptorSetLayoutBindings > common::ShaderHeader::kiMaxDescriptorSetLayoutBindings
+			|| rShaderHeader.iVertexInputAttributeDescriptions < 0
+			|| rShaderHeader.iVertexInputAttributeDescriptions > common::ShaderHeader::kiMaxVertexInputAttributeDescriptions)
+		{
+			LOG(kLoading, kError, "Corrupt shader chunk {:#018x}: implausible binding/attribute counts {} / {}", rCrc, rShaderHeader.iDescriptorSetLayoutBindings, rShaderHeader.iVertexInputAttributeDescriptions);
+			throw common::CorruptStreamException("PipelineManager shader");
+		}
+
 		int64_t iBindingsSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rShaderHeader.iDescriptorSetLayoutBindings * static_cast<int64_t>(sizeof(VkDescriptorSetLayoutBinding)));
 		int64_t iSetIndicesSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rShaderHeader.iDescriptorSetLayoutBindings * static_cast<int64_t>(sizeof(uint32_t)));
 		int64_t iAttrsSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rShaderHeader.iVertexInputAttributeDescriptions * static_cast<int64_t>(sizeof(VkVertexInputAttributeDescription)));
+
+		// Trust boundary (chunk bytes): the three aliased sections plus the SPIR-V tail (>= the 4-byte magic the
+		// Shader ctor reads) must fit the chunk's actual bytes, else the alias walks / iSpirvSize run off the buffer.
+		if (iBindingsSize + iSetIndicesSize + iAttrsSize + static_cast<int64_t>(sizeof(uint32_t)) > rChunk.pHeader->iSize)
+		{
+			LOG(kLoading, kError, "Corrupt shader chunk {:#018x}: section extent exceeds chunk bytes", rCrc);
+			throw common::CorruptStreamException("PipelineManager shader");
+		}
 
 		ShaderInfo info
 		{

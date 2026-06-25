@@ -15,4 +15,4 @@ struct AnimationOutput
 	std::vector<common::AnimationKeyframeCubic>& rCubicKeyframes;
 };
 
-void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeToNodeIndexMap, AnimationOutput& rOut);
+void LoadAnimations(const tinygltf::Model& rModel, AnimationOutput& rOut);

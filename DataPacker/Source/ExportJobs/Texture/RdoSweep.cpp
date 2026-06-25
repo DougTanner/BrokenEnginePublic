@@ -23,11 +23,7 @@ static RdoSweepResult RunRdoSweepOne(const std::vector<float>& rPixels, int64_t 
 	auto tEnd = std::chrono::steady_clock::now();
 	double fEncodeSeconds = std::chrono::duration<double>(tEnd - tStart).count();
 
-	uLongf uiCompressedBound = compressBound(static_cast<uLong>(iBc7Size));
-	std::vector<std::byte> deflated(uiCompressedBound);
-	uLongf uiDeflatedSize = uiCompressedBound;
-	int iZlibResult = compress2(reinterpret_cast<Bytef*>(deflated.data()), &uiDeflatedSize, reinterpret_cast<const Bytef*>(bc7Output.data()), static_cast<uLong>(iBc7Size), Z_BEST_COMPRESSION);
-	ASSERT(iZlibResult == Z_OK);
+	int64_t iDeflatedSize = static_cast<int64_t>(ZlibCompress(bc7Output.data(), iBc7Size).size());
 
 	return RdoSweepResult{
 		.uiLookback = uiLookback,
@@ -35,8 +31,8 @@ static RdoSweepResult RunRdoSweepOne(const std::vector<float>& rPixels, int64_t 
 		.iUberLevel = iUberLevel,
 		.fEncodeSeconds = fEncodeSeconds,
 		.iRawBc7Bytes = iBc7Size,
-		.iDeflatedBytes = static_cast<int64_t>(uiDeflatedSize),
-		.fDeflatePercentSaved = 100.0 * (1.0 - static_cast<double>(uiDeflatedSize) / static_cast<double>(iBc7Size)),
+		.iDeflatedBytes = iDeflatedSize,
+		.fDeflatePercentSaved = 100.0 * (1.0 - static_cast<double>(iDeflatedSize) / static_cast<double>(iBc7Size)),
 	};
 }
 

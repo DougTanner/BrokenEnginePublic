@@ -120,15 +120,6 @@ inline crc_t XM_CALLCONV Crc(FXMVECTOR vecIn)
 	return Crc(f4Temp);
 }
 
-// XORs a value's CRC into two checksums at once (used by Crcs() methods)
-template<typename T> requires NotStringLike<T>
-void Crc(const T& rValue, crc_t& rCrc, crc_t& rSharedCrc)
-{
-	crc_t c = Crc(rValue);
-	rCrc ^= c;
-	rSharedCrc ^= c;
-}
-
 // Compile-time generation of CRC hash arrays with sequential numbering
 // Generates array of CRCs for strings like "prefix0suffix", "prefix1suffix", etc.
 // Used for creating lookup tables of related asset names

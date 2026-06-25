@@ -105,7 +105,6 @@ void TweaksScreen::RenderSmokeDepositsTab()
 		WrapperSlider("Smoke Trails Length Jitter", kiSection, 1.0f);
 		WrapperSlider("Smoke Trails Side Jitter", kiSection, 1.0f);
 		WrapperSlider("Smoke Intensity Falloff", kiSection, 1.0f);
-		WrapperSlider("Smoke Trails Follow", kiSection, 1.0f);
 
 		ImGui::EndTable();
 	}

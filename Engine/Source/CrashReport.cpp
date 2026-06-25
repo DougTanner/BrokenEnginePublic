@@ -25,8 +25,17 @@ void HandleException(std::optional<const std::exception*> pException)
 	else
 	{
 		PWSTR pWideChar = nullptr;
-		SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_CREATE, nullptr, &pWideChar);
-		wcscpy_s(spcPath, std::size(spcPath), pWideChar);
+		HRESULT hresult = SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_CREATE, nullptr, &pWideChar);
+		if (SUCCEEDED(hresult) && pWideChar != nullptr)
+		{
+			wcscpy_s(spcPath, std::size(spcPath), pWideChar);
+		}
+		else
+		{
+			// OS failure on the SIGABRT-reachable crash path (allocator-free): never copy from null. Fall back to the Desktop (fixed-buffer, like the IDYES branch) so the report still lands somewhere writable; if that also fails spcPath stays zero-initialized.
+			LOG(kDefault, kError, "SHGetKnownFolderPath(FOLDERID_RoamingAppData) failed (hresult {}); writing crash report to Desktop", static_cast<int32_t>(hresult));
+			SHGetSpecialFolderPathW(HWND_DESKTOP, spcPath, CSIDL_DESKTOP, FALSE);
+		}
 		CoTaskMemFree(pWideChar);
 
 		wcscat_s(spcPath, std::size(spcPath), L"\\");
@@ -122,7 +131,7 @@ void ReadDxDiag()
 
 				VARIANT variant {};
 				pChild->GetProp(pcPropName, &variant);
-				if (variant.vt == VT_BSTR)
+				if (variant.vt == VT_BSTR && variant.bstrVal != nullptr)
 				{
 					sDxDiag += common::ToString(pcPropName);
 					sDxDiag += ": ";

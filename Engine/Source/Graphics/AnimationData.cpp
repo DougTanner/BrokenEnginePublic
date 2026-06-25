@@ -11,17 +11,19 @@ void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
 	std::memcpy(&mHeader, pAnimationData, sizeof(mHeader));
 	pAnimationData += sizeof(mHeader);
 
-	// Trust boundary: these counts come from on-disk pack bytes and drive reinterpret_cast pointer advances
-	// over the chunk plus writes into the fixed-size member arrays (mBindPoseLocalMatrices[kiMaxNodes] etc.).
-	// A corrupt/tampered count would overrun those arrays or walk the alias pointers off the eager pack buffer,
-	// so reject implausible counts against the structural maxima before any of them is used. Channels/keyframes
-	// have no fixed array of their own (they only advance alias pointers); bound them by a generous absolute ceiling
+	// Trust boundary (counts): these counts come from on-disk pack bytes and drive reinterpret_cast pointer advances
+	// over the chunk plus the runtime sizing of the pre-computed member containers (mpBindPoseLocalMatrices etc.).
+	// A corrupt/tampered count would request an absurd allocation or walk the alias pointers off the eager pack
+	// buffer, so reject implausible counts against the structural maxima before any of them is used. Channels/keyframes
+	// have no container of their own (they only advance alias pointers); bound them by a generous absolute ceiling
 	// — the glTF-driven producer has no clean structural max, and the ceiling caps the pointer arithmetic to a sane
-	// range. This validates the header *counts* only; secondary indices stored inside the channel/clip/joint records
-	// (uiNodeIndex into the fixed node arrays, uiChannelStart/Count, skin joint->node) are not bounded here.
+	// range. (A <=-max-but-oversized count vs the chunk's actual bytes is a separate Pattern-B gap deferred to a
+	// follow-up plan: the scene chunk's ChunkHeader::iSize excludes the appended animation section, so the region's
+	// true byte extent is not available here without a producer/data-model change.)
 	if (mHeader.skeleton.uiNodeCount > common::Skeleton::kiMaxNodes
 		|| mHeader.skeleton.uiSkinJointCount > common::Skeleton::kiMaxSkinJoints
 		|| mHeader.uiAnimationCount > common::AnimationHeader::kiMaxAnimations
+		|| mHeader.uiAnimationCount == 0  // chunk loaded only when bHasAnimation, so 0 is corrupt; EvaluateWorldMatrices indexes [0, uiAnimationCount)
 		|| mHeader.uiMaterialCount > common::SceneHeader::kiMaxMaterials
 		|| mHeader.uiChannelCount > common::kiMaxDeserializedCapacity
 		|| mHeader.uiKeyframeCount > common::kiMaxDeserializedCapacity
@@ -57,6 +59,47 @@ void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
 
 	mpCubicKeyframes = reinterpret_cast<const common::AnimationKeyframeCubic*>(pAnimationData);
 
+	// Trust boundary (secondary indices): indices stored inside the now count-bounded records still index the
+	// fixed-size node arrays / alias pointers. A corrupt chunk with in-range counts can point these out of bounds
+	// — e.g. a channel's uiNodeIndex OOB-*writes* mbAnimatedNodes below, and a skin joint->node entry OOB-reads
+	// pWorldMatrices in EvaluateMaterial. Validate every on-disk index once here so the per-frame evaluate path
+	// stays unchecked. (Node parent indices are covered by the topological-order ASSERT below.)
+	for (uint32_t i = 0; i < mHeader.skeleton.uiSkinJointCount; ++i)
+	{
+		if (mpSkinJointToNode[i] >= mHeader.skeleton.uiNodeCount)
+		{
+			throw common::CorruptStreamException("AnimationData::Load");
+		}
+	}
+	for (uint32_t i = 0; i < mHeader.uiMaterialCount; ++i)
+	{
+		if (static_cast<int32_t>(mpMaterialInfos[i].iParentNodeIndex) >= static_cast<int32_t>(mHeader.skeleton.uiNodeCount))
+		{
+			throw common::CorruptStreamException("AnimationData::Load");
+		}
+	}
+	for (uint32_t i = 0; i < mHeader.uiChannelCount; ++i)
+	{
+		const common::AnimationChannel& rChannel = mpChannels[i];
+		uint32_t uiKeyframeTotal = rChannel.uiInterpolation == common::AnimationChannel::kInterpolationCubicSpline ? mHeader.uiCubicKeyframeCount : mHeader.uiKeyframeCount;
+		if (rChannel.uiNodeIndex >= mHeader.skeleton.uiNodeCount
+			|| rChannel.uiKeyframeCount == 0
+			|| rChannel.uiKeyframeStart > uiKeyframeTotal
+			|| rChannel.uiKeyframeCount > uiKeyframeTotal - rChannel.uiKeyframeStart)
+		{
+			throw common::CorruptStreamException("AnimationData::Load");
+		}
+	}
+	for (uint32_t i = 0; i < mHeader.uiAnimationCount; ++i)
+	{
+		const common::AnimationClip& rClip = mpAnimations[i];
+		if (rClip.uiChannelStart > mHeader.uiChannelCount
+			|| rClip.uiChannelCount > mHeader.uiChannelCount - rClip.uiChannelStart)
+		{
+			throw common::CorruptStreamException("AnimationData::Load");
+		}
+	}
+
 	// Verify topological order: every parent index must be less than the child index
 	for (uint32_t i = 0; i < mHeader.skeleton.uiNodeCount; ++i)
 	{
@@ -64,6 +107,7 @@ void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
 	}
 
 	// Pre-compute bind-pose local matrices
+	mpBindPoseLocalMatrices = common::MakeAligned<XMMATRIX>(mHeader.skeleton.uiNodeCount);
 	for (uint32_t i = 0; i < mHeader.skeleton.uiNodeCount; ++i)
 	{
 		const common::ModelNode& rNode = mpNodes[i];
@@ -71,29 +115,32 @@ void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
 		XMMATRIX matS = XMMatrixScalingFromVector(XMLoadFloat4(&rNode.f4BindScale));
 		XMMATRIX matR = XMMatrixRotationQuaternion(XMLoadFloat4(&rNode.f4BindRotation));
 		XMMATRIX matT = XMMatrixTranslationFromVector(XMLoadFloat4(&rNode.f4BindTranslation));
-		mBindPoseLocalMatrices[i] = matBind * matS * matR * matT;
+		mpBindPoseLocalMatrices[i] = matBind * matS * matR * matT;
 	}
 
-	// Build per-animation animated node masks
+	// Build per-animation animated node masks (1D, row stride = uiNodeCount; uiNodeIndex bounded above)
+	mbAnimatedNodes.assign(static_cast<size_t>(mHeader.uiAnimationCount) * mHeader.skeleton.uiNodeCount, 0);
 	for (uint32_t iAnim = 0; iAnim < mHeader.uiAnimationCount; ++iAnim)
 	{
 		const common::AnimationClip& rClip = mpAnimations[iAnim];
 		for (uint32_t iCh = rClip.uiChannelStart; iCh < rClip.uiChannelStart + rClip.uiChannelCount; ++iCh)
 		{
-			mbAnimatedNodes[iAnim][mpChannels[iCh].uiNodeIndex] = true;
+			mbAnimatedNodes[iAnim * mHeader.skeleton.uiNodeCount + mpChannels[iCh].uiNodeIndex] = 1;
 		}
 	}
 
 	// Pre-load aligned inverse bind matrices
+	mpAlignedInverseBindMatrices = common::MakeAligned<XMMATRIX>(mHeader.skeleton.uiSkinJointCount);
 	for (uint32_t i = 0; i < mHeader.skeleton.uiSkinJointCount; ++i)
 	{
-		mAlignedInverseBindMatrices[i] = XMLoadFloat4x4(&pInverseBindMatrices[i]);
+		mpAlignedInverseBindMatrices[i] = XMLoadFloat4x4(&pInverseBindMatrices[i]);
 	}
 
 	// Pre-load aligned relative transforms
+	mpAlignedRelativeTransforms = common::MakeAligned<XMMATRIX>(mHeader.uiMaterialCount);
 	for (uint32_t i = 0; i < mHeader.uiMaterialCount; ++i)
 	{
-		mAlignedRelativeTransforms[i] = XMLoadFloat4x4(&mpMaterialInfos[i].f4x4RelativeTransform);
+		mpAlignedRelativeTransforms[i] = XMLoadFloat4x4(&mpMaterialInfos[i].f4x4RelativeTransform);
 	}
 }
 
@@ -266,8 +313,8 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 // which converts row-vector convention (v*M) to column-vector convention (M*v)
 void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMMATRIX* pWorldMatrices) const
 {
-	ASSERT(iAnimationIndex >= 0 && iAnimationIndex < mHeader.uiAnimationCount && iAnimationIndex < common::AnimationHeader::kiMaxAnimations);
-	iAnimationIndex = std::clamp(iAnimationIndex, int64_t {0}, common::AnimationHeader::kiMaxAnimations - 1);
+	ASSERT(iAnimationIndex >= 0 && iAnimationIndex < mHeader.uiAnimationCount);
+	iAnimationIndex = std::clamp(iAnimationIndex, int64_t {0}, static_cast<int64_t>(mHeader.uiAnimationCount) - 1);
 	const common::AnimationClip& rAnimation = mpAnimations[iAnimationIndex];
 
 	// Allocate temporary TRS arrays from the thread-local workbuffer
@@ -282,7 +329,7 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 	XMVECTOR* pScales       = reinterpret_cast<XMVECTOR*>(pBuffer + 2 * kiVecSize);
 
 	// Initialize node transforms from bind pose (only for animated nodes)
-	const bool* pbAnimated = mbAnimatedNodes[iAnimationIndex];
+	const uint8_t* pbAnimated = mbAnimatedNodes.data() + iAnimationIndex * mHeader.skeleton.uiNodeCount;
 	for (int64_t i = 0; i < mHeader.skeleton.uiNodeCount; ++i)
 	{
 		if (pbAnimated[i])
@@ -334,7 +381,7 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 		}
 		else
 		{
-			matLocal = mBindPoseLocalMatrices[i];
+			matLocal = mpBindPoseLocalMatrices[i];
 		}
 
 		int16_t iParent = mpNodes[i].iParentIndex;
@@ -355,7 +402,7 @@ void AnimationData::EvaluateMaterial(int64_t iMaterialIndex, const XMMATRIX* pWo
 	if (rMaterialInfo.iParentNodeIndex >= 0)
 	{
 		// meshWorld = relativeTransform * nodeWorldAnimated
-		XMMATRIX matRelative = mAlignedRelativeTransforms[iMaterialIndex];
+		XMMATRIX matRelative = mpAlignedRelativeTransforms[iMaterialIndex];
 		matMeshWorld = matRelative * pWorldMatrices[rMaterialInfo.iParentNodeIndex];
 	}
 
@@ -381,7 +428,7 @@ void AnimationData::EvaluateMaterial(int64_t iMaterialIndex, const XMMATRIX* pWo
 		for (int64_t i = 0; i < mHeader.skeleton.uiSkinJointCount && i < common::kiMaxJointsPerMesh; ++i)
 		{
 			uint16_t uiNodeIndex = mpSkinJointToNode[i];
-			XMMATRIX matInverseBind = mAlignedInverseBindMatrices[i];
+			XMMATRIX matInverseBind = mpAlignedInverseBindMatrices[i];
 			XMMATRIX matJoint = matInverseBind * pWorldMatrices[uiNodeIndex] * matMeshWorldInverse;
 			// Store 3 rows with translation packed into .w components:
 			// r[0].w=0 -> Tx, r[1].w=0 -> Ty, r[2].w=0 -> Tz

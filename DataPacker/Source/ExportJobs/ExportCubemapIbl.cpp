@@ -1,6 +1,7 @@
 #include "ExportCubemapIbl.h"
 
 #include "FileManager.h"
+#include "Texture/Texture.h"
 
 namespace
 {
@@ -43,7 +44,7 @@ void GenerateIrradianceCubemaps()
 				continue;
 			}
 
-			if (rDirectoryEntry.path().filename().native().find(L"[C]") == std::wstring::npos)
+			if (!HasCubemapTag(rDirectoryEntry.path()))
 			{
 				continue;
 			}
@@ -70,7 +71,10 @@ void GenerateIrradianceCubemaps()
 			cmft::imageCreate(srcImage, uiFaceSize, uiFaceSize, 0x000000ff, 1, 6, cmft::TextureFormat::RGBA32F);
 			std::memcpy(srcImage.m_data, cubemapData.floatData.data(), uiTotalPixels * 4 * sizeof(float));
 
-			// Generate 128x128 irradiance cubemap using spherical harmonics
+			// Generate 128x128 irradiance cubemap using spherical harmonics.
+			// Cross-machine note: unlike the radiance filter, this SH path is serial CPU (no OpenCL, no
+			// thread-count input), so it carries only generic FP-environment exposure (FMA contraction in
+			// the double-precision SH reduction; DataPacker is not /fp:strict) - low cross-host variance risk.
 			static constexpr uint32_t kuiIrradianceFaceSize = 128;
 			cmft::Image dstImage;
 			cmft::imageIrradianceFilterSh(dstImage, kuiIrradianceFaceSize, srcImage);
@@ -104,65 +108,61 @@ void GenerateIrradianceCubemaps()
 	}
 }
 
-void GeneratePreFilteredCubemaps()
-{
-	static constexpr uint32_t kuiFaceSize = 1024;
-	static constexpr uint8_t kuiMipCount = 11; // log2(1024) + 1
-	static const uint8_t kuiCpuThreads = static_cast<uint8_t>(std::max(1u, std::thread::hardware_concurrency()));
+static constexpr uint32_t kuiPreFilteredFaceSize = 1024;
+static constexpr uint8_t kuiPreFilteredMipCount = 11; // log2(1024) + 1
 
-	cmft::ClContext* pClContext = nullptr;
-	if (cmft::clLoad() != 0)
+// Packs a CMFT radiance-filtered cubemap into face-major / mip-minor half-floats (matching the engine's
+// TextureUploadManager iteration order) and writes the [width][height][mipcount][pixels] intermediate.
+static void WriteFilteredCubemap(cmft::Image& rDstImage, const std::filesystem::path& rOutputPath)
+{
+	// Get per-face/per-mip byte offsets in CMFT output
+	uint32_t offsets[CUBE_FACE_NUM][MAX_MIP_NUM] {};
+	cmft::imageGetMipOffsets(offsets, rDstImage);
+
+	// Calculate total half-float pixel count across all faces and mips
+	uint32_t uiTotalHalfFloats = 0;
+	uint32_t uiMipSize = kuiPreFilteredFaceSize;
+	for (uint8_t uiMip = 0; uiMip < kuiPreFilteredMipCount; ++uiMip, uiMipSize /= 2)
 	{
-		pClContext = cmft::clInit(CMFT_CL_VENDOR_ANY_GPU, CMFT_CL_DEVICE_TYPE_GPU);
+		uiTotalHalfFloats += uiMipSize * uiMipSize * 4;
+	}
+	uiTotalHalfFloats *= 6; // 6 faces
+
+	std::vector<uint16_t> halfData(uiTotalHalfFloats);
+	uint32_t uiHalfOffset = 0;
+
+	// Write in face-major/mip-minor order to match engine's TextureUploadManager iteration order
+	for (int64_t iFace = 0; iFace < 6; ++iFace)
+	{
+		uiMipSize = kuiPreFilteredFaceSize;
+		for (uint8_t uiMip = 0; uiMip < kuiPreFilteredMipCount; ++uiMip, uiMipSize /= 2)
+		{
+			uint32_t uiMipPixels = uiMipSize * uiMipSize;
+			const float* pSrcFloat = reinterpret_cast<const float*>(static_cast<uint8_t*>(rDstImage.m_data) + offsets[iFace][uiMip]);
+			DirectX::PackedVector::XMConvertFloatToHalfStream(halfData.data() + uiHalfOffset, sizeof(uint16_t), pSrcFloat, sizeof(float), uiMipPixels * 4);
+			uiHalfOffset += uiMipPixels * 4;
+		}
 	}
 
-	auto convertAndWrite = [](cmft::Image& dstImage, const std::filesystem::path& outputPath)
-	{
-		// Get per-face/per-mip byte offsets in CMFT output
-		uint32_t offsets[CUBE_FACE_NUM][MAX_MIP_NUM] {};
-		cmft::imageGetMipOffsets(offsets, dstImage);
+	// Write intermediate file: [width][height][mipcount][pixel data]
+	int64_t iWidth = kuiPreFilteredFaceSize;
+	int64_t iHeight = kuiPreFilteredFaceSize;
+	int64_t iMipCount = kuiPreFilteredMipCount;
 
-		// Calculate total half-float pixel count across all faces and mips
-		uint32_t uiTotalHalfFloats = 0;
-		uint32_t uiMipSize = kuiFaceSize;
-		for (uint8_t uiMip = 0; uiMip < kuiMipCount; ++uiMip, uiMipSize /= 2)
-		{
-			uiTotalHalfFloats += uiMipSize * uiMipSize * 4;
-		}
-		uiTotalHalfFloats *= 6; // 6 faces
+	std::fstream fileStream(rOutputPath, std::ios::out | std::ios::binary);
+	fileStream.write(reinterpret_cast<const char*>(&iWidth), sizeof(iWidth));
+	fileStream.write(reinterpret_cast<const char*>(&iHeight), sizeof(iHeight));
+	fileStream.write(reinterpret_cast<const char*>(&iMipCount), sizeof(iMipCount));
+	fileStream.write(reinterpret_cast<const char*>(halfData.data()), halfData.size() * sizeof(uint16_t));
+	fileStream.flush();
+	fileStream.close();
+	VERIFY_SUCCESS(fileStream.good());
+}
 
-		std::vector<uint16_t> halfData(uiTotalHalfFloats);
-		uint32_t uiHalfOffset = 0;
-
-		// Write in face-major/mip-minor order to match engine's TextureUploadManager iteration order
-		for (int64_t iFace = 0; iFace < 6; ++iFace)
-		{
-			uiMipSize = kuiFaceSize;
-			for (uint8_t uiMip = 0; uiMip < kuiMipCount; ++uiMip, uiMipSize /= 2)
-			{
-				uint32_t uiMipPixels = uiMipSize * uiMipSize;
-				const float* pSrcFloat = reinterpret_cast<const float*>(static_cast<uint8_t*>(dstImage.m_data) + offsets[iFace][uiMip]);
-				DirectX::PackedVector::XMConvertFloatToHalfStream(halfData.data() + uiHalfOffset, sizeof(uint16_t), pSrcFloat, sizeof(float), uiMipPixels * 4);
-				uiHalfOffset += uiMipPixels * 4;
-			}
-		}
-
-		// Write intermediate file: [width][height][mipcount][pixel data]
-		int64_t iWidth = kuiFaceSize;
-		int64_t iHeight = kuiFaceSize;
-		int64_t iMipCount = kuiMipCount;
-
-		std::fstream fileStream(outputPath, std::ios::out | std::ios::binary);
-		fileStream.write(reinterpret_cast<const char*>(&iWidth), sizeof(iWidth));
-		fileStream.write(reinterpret_cast<const char*>(&iHeight), sizeof(iHeight));
-		fileStream.write(reinterpret_cast<const char*>(&iMipCount), sizeof(iMipCount));
-		fileStream.write(reinterpret_cast<const char*>(halfData.data()), halfData.size() * sizeof(uint16_t));
-		fileStream.flush();
-		fileStream.close();
-		VERIFY_SUCCESS(fileStream.good());
-	};
-
-	// Phase 1: KTX cubemaps
+// Radiance-filters every [C]-tagged .ktx cubemap that is out of date and writes the pre-filtered
+// intermediate beside the source.
+static void ProcessKtxCubemaps(uint8_t uiCpuThreads, cmft::ClContext* pClContext)
+{
 	for (const std::filesystem::path& rBaseDirectory : gpFileManager->mpInputDirectories)
 	{
 		for (const std::filesystem::directory_entry& rDirectoryEntry : std::filesystem::recursive_directory_iterator(rBaseDirectory))
@@ -172,7 +172,7 @@ void GeneratePreFilteredCubemaps()
 				continue;
 			}
 
-			if (rDirectoryEntry.path().filename().native().find(L"[C]") == std::wstring::npos)
+			if (!HasCubemapTag(rDirectoryEntry.path()))
 			{
 				continue;
 			}
@@ -197,16 +197,20 @@ void GeneratePreFilteredCubemaps()
 			std::memcpy(srcImage.m_data, cubemapData.floatData.data(), uiTotalPixels * 4 * sizeof(float));
 
 			cmft::Image dstImage;
-			cmft::imageRadianceFilter(dstImage, kuiFaceSize, cmft::LightingModel::BlinnBrdf, false, kuiMipCount, 14, 4, srcImage, cmft::EdgeFixup::None, kuiCpuThreads, pClContext);
+			cmft::imageRadianceFilter(dstImage, kuiPreFilteredFaceSize, cmft::LightingModel::BlinnBrdf, false, kuiPreFilteredMipCount, 14, 4, srcImage, cmft::EdgeFixup::None, uiCpuThreads, pClContext);
 
-			convertAndWrite(dstImage, outputPath);
+			WriteFilteredCubemap(dstImage, outputPath);
 
 			cmft::imageUnload(srcImage);
 			cmft::imageUnload(dstImage);
 		}
 	}
+}
 
-	// Phase 2: Face-image cubemaps (directory with [C] in name)
+// Radiance-filters every [C]-tagged directory of six cube-face images (posx/negx/... .jpg or px/nx/... .png)
+// that is out of date and writes the pre-filtered intermediate beside the directory.
+static void ProcessFaceImageCubemaps(uint8_t uiCpuThreads, cmft::ClContext* pClContext)
+{
 	for (const std::filesystem::path& rBaseDirectory : gpFileManager->mpInputDirectories)
 	{
 		for (const std::filesystem::directory_entry& rDirectoryEntry : std::filesystem::recursive_directory_iterator(rBaseDirectory))
@@ -216,7 +220,7 @@ void GeneratePreFilteredCubemaps()
 				continue;
 			}
 
-			if (rDirectoryEntry.path().filename().native().find(L"[C]") == std::wstring::npos)
+			if (!HasCubemapTag(rDirectoryEntry.path()))
 			{
 				continue;
 			}
@@ -269,9 +273,9 @@ void GeneratePreFilteredCubemaps()
 			cmft::imageCubemapFromFaceList(srcImage, faceImages);
 
 			cmft::Image dstImage;
-			cmft::imageRadianceFilter(dstImage, kuiFaceSize, cmft::LightingModel::BlinnBrdf, false, kuiMipCount, 14, 4, srcImage, cmft::EdgeFixup::None, kuiCpuThreads, pClContext);
+			cmft::imageRadianceFilter(dstImage, kuiPreFilteredFaceSize, cmft::LightingModel::BlinnBrdf, false, kuiPreFilteredMipCount, 14, 4, srcImage, cmft::EdgeFixup::None, uiCpuThreads, pClContext);
 
-			convertAndWrite(dstImage, outputPath);
+			WriteFilteredCubemap(dstImage, outputPath);
 
 			for (int64_t i = 0; i < 6; ++i)
 			{
@@ -281,6 +285,26 @@ void GeneratePreFilteredCubemaps()
 			cmft::imageUnload(dstImage);
 		}
 	}
+}
+
+void GeneratePreFilteredCubemaps()
+{
+	static const uint8_t kuiCpuThreads = static_cast<uint8_t>(std::max(1u, std::thread::hardware_concurrency()));
+
+	// Cross-machine note: radiance convolution runs on whatever OpenCL GPU is present (below), so the
+	// pre-filtered half-float output is GPU/driver-dependent; the CPU fallback (kuiCpuThreads above) is
+	// thread-count-dependent. Either way the .R16G16B16A16_SFLOAT radiance intermediates are reproducible
+	// only per bake host. Acceptable under the single-canonical-bake-machine assumption (see Cross-Machine
+	// Reproducibility in DataPacker/Source/CLAUDE.md); force a pinned-thread CPU path if CI / multi-machine
+	// bakes are introduced.
+	cmft::ClContext* pClContext = nullptr;
+	if (cmft::clLoad() != 0)
+	{
+		pClContext = cmft::clInit(CMFT_CL_VENDOR_ANY_GPU, CMFT_CL_DEVICE_TYPE_GPU);
+	}
+
+	ProcessKtxCubemaps(kuiCpuThreads, pClContext);
+	ProcessFaceImageCubemaps(kuiCpuThreads, pClContext);
 
 	cmft::clDestroy(pClContext);
 	cmft::clUnload();

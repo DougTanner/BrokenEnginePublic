@@ -13,7 +13,7 @@ std::unordered_map<int, int> BuildNodeParentMap(const tinygltf::Model& rModel)
 	return parentMap;
 }
 
-SkeletonData LoadSkeletonData(const tinygltf::Model& rModel, std::unordered_map<int, int>& rNodeToJointMap)
+SkeletonData LoadSkeletonData(const tinygltf::Model& rModel)
 {
 	LOG(kDefault, kDebug, "LoadSkeletonData: Loading all nodes...");
 
@@ -67,13 +67,6 @@ SkeletonData LoadSkeletonData(const tinygltf::Model& rModel, std::unordered_map<
 	else
 	{
 		skeletonData.skeleton.uiSkinJointCount = 0;
-	}
-
-	// Build nodeToJointMap (identity mapping for node-based animation)
-	rNodeToJointMap.clear();
-	for (int64_t i = 0; i < static_cast<int64_t>(rModel.nodes.size()); ++i)
-	{
-		rNodeToJointMap.insert_or_assign(static_cast<int>(i), static_cast<int>(i));
 	}
 
 	LOG(kDefault, kDebug, "  Total nodes: {}", skeletonData.skeleton.uiNodeCount);

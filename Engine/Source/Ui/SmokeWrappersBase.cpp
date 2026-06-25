@@ -39,6 +39,5 @@ Wrapper gSmokeTrailsLength(3.5f, 0.0f, 10.0f);
 Wrapper gSmokeTrailsLengthJitter(0.0f, 0.0f, 10.0f);
 Wrapper gSmokeTrailsSideJitter(3.0f, 0.0f, 6.0f);
 Wrapper gSmokeIntensityFalloff(3.0f, 0.1f, 10.0f);
-Wrapper gSmokeTrailsFollow(0.55f, 0.0f, 1.0f);
 
 } // namespace engine

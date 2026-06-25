@@ -42,7 +42,7 @@ struct LoadVerticesContext
 	std::vector<Material>& rMaterials;
 	std::vector<MaterialNodeInfo>& rMaterialNodeInfos;
 	std::unordered_map<std::pair<int, int>, int, PairHash>& rMaterialNodeMap;
-	const std::unordered_map<int, int>& rNodeToJointMap;
+	bool bHasSkeleton;
 };
 
 void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, LoadVerticesContext& rContext);

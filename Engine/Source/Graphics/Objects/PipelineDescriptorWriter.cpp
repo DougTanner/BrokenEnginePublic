@@ -143,6 +143,18 @@ void WriteModelDescriptor(Pipeline& rPipeline, const DescriptorInfo& rDescriptor
 			const int64_t kiOldMaterialSize = offsetof(shaders::PbrMaterialLayout, fColorTextureIndex);
 			for (int64_t j = 0; j < rSceneHeader.uiMaterialCount; ++j)
 			{
+				// Trust boundary: the five texture-index fields are on-disk uint8s that index the texture-CRC array
+				// aliased over the scene chunk (pTextureCrcs[uiTextureCount]); an out-of-range index OOB-reads the
+				// chunk. ModelPipeline::Create already bounded uiTextureCount/uiMaterialCount for this sceneCrc.
+				const common::MaterialShaderData& rMaterial = pMaterialShaderData[j];
+				if (rMaterial.uiColorTextureIndex >= rSceneHeader.uiTextureCount
+					|| rMaterial.uiPhysicalDescriptorTextureIndex >= rSceneHeader.uiTextureCount
+					|| rMaterial.uiNormalTextureIndex >= rSceneHeader.uiTextureCount
+					|| rMaterial.uiOcclusionTextureIndex >= rSceneHeader.uiTextureCount
+					|| rMaterial.uiEmissiveTextureIndex >= rSceneHeader.uiTextureCount)
+				{
+					throw common::CorruptStreamException("PipelineDescriptorWriter material");
+				}
 				std::memcpy(pCurrent, &pMaterialShaderData[j].f4BaseColorFactor, kiOldMaterialSize);
 				pCurrent->fColorTextureIndex = static_cast<float>(gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiColorTextureIndex]));
 				pCurrent->fPhysicalDescriptorTextureIndex = static_cast<float>(gpTextureManager->mTextureDescriptors.CrcToIndex(pTextureCrcs[pMaterialShaderData[j].uiPhysicalDescriptorTextureIndex]));

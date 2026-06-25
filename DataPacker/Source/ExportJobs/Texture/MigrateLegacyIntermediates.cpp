@@ -168,12 +168,7 @@ static void MigrateLegacyIntermediate(const std::filesystem::path& rPath)
 	if (vkFormat == VK_FORMAT_R16_UNORM)
 	{
 		// R16 has no encoding step. Compress the raw bytes and rewrite with magic.
-		uLongf uiCompressedBound = compressBound(static_cast<uLong>(iExpectedRawSize));
-		std::vector<std::byte> compressed(uiCompressedBound);
-		uLongf uiCompressedSize = uiCompressedBound;
-		int iZlibResult = compress2(reinterpret_cast<Bytef*>(compressed.data()), &uiCompressedSize, reinterpret_cast<const Bytef*>(rawBytes.data()), static_cast<uLong>(iExpectedRawSize), Z_BEST_COMPRESSION);
-		ASSERT(iZlibResult == Z_OK);
-		compressed.resize(uiCompressedSize);
+		std::vector<std::byte> compressed = ZlibCompress(rawBytes.data(), iExpectedRawSize);
 
 		std::filesystem::remove(rPath);
 		std::fstream fileStreamOut(rPath, std::ios::out | std::ios::binary);
@@ -190,7 +185,7 @@ static void MigrateLegacyIntermediate(const std::filesystem::path& rPath)
 		auto tMigrateEnd = std::chrono::steady_clock::now();
 		double fMigrateSeconds = std::chrono::duration<double>(tMigrateEnd - tMigrateStart).count();
 		int64_t iSizeAfter = std::filesystem::file_size(rPath);
-		LOG(kDefault, kInfo, "Migrated R16 (zlib + magic): \"{}\" ({} -> {} bytes raw; {} -> {} bytes on-disk; {:.2f}s)", rPath.string(), iExpectedRawSize, static_cast<int64_t>(uiCompressedSize), iSizeBefore, iSizeAfter, fMigrateSeconds);
+		LOG(kDefault, kInfo, "Migrated R16 (zlib + magic): \"{}\" ({} -> {} bytes raw; {} -> {} bytes on-disk; {:.2f}s)", rPath.string(), iExpectedRawSize, static_cast<int64_t>(compressed.size()), iSizeBefore, iSizeAfter, fMigrateSeconds);
 		return;
 	}
 

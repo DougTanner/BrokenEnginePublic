@@ -21,8 +21,16 @@ FileManager::FileManager()
 
 	// Get Windows AppData directory and append game name
 	PWSTR pWideChar = nullptr;
-	SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_CREATE, nullptr, &pWideChar);
-	mAppDataDirectory = pWideChar;
+	HRESULT hresult = SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_CREATE, nullptr, &pWideChar);
+	if (SUCCEEDED(hresult) && pWideChar != nullptr)
+	{
+		mAppDataDirectory = pWideChar;
+	}
+	else
+	{
+		// OS failure (trust boundary): leave mAppDataDirectory empty so the append below yields a working-directory-relative path instead of constructing a std::filesystem::path from null.
+		LOG(kLoading, kError, "SHGetKnownFolderPath(FOLDERID_RoamingAppData) failed (hresult {}); falling back to a working-directory-relative AppData path", static_cast<int32_t>(hresult));
+	}
 	CoTaskMemFree(pWideChar);
 	mAppDataDirectory.append(game::kGameName);
 	std::filesystem::create_directory(mAppDataDirectory);

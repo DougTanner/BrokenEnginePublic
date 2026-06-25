@@ -43,7 +43,6 @@ const TweaksSliderMapRegistrar gSmokeRegistrar
 	{"Smoke Trails Length Jitter", &gSmokeTrailsLengthJitter},
 	{"Smoke Trails Side Jitter", &gSmokeTrailsSideJitter},
 	{"Smoke Intensity Falloff", &gSmokeIntensityFalloff},
-	{"Smoke Trails Follow", &gSmokeTrailsFollow},
 };
 }
 

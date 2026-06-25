@@ -183,6 +183,43 @@ void ExportShader::Export()
 	ReflectAndWriteShader(spirvFile);
 }
 
+std::filesystem::path ExportShader::RunVulkanTool(const std::filesystem::path& rExecutable, std::wstring& rParameters, const std::filesystem::path& rOutputFile, bool bThrowOnAnyOutput)
+{
+	LOG(kDefault, kVerbose, "{}: {}{}", common::gpThreadLocal->miThreadId.value_or(0), rExecutable, rParameters);
+
+	common::ExecutableResult result = common::RunExecutable(rExecutable, rParameters);
+
+	std::string toolName = rExecutable.filename().string();
+
+	// glslc fails silently on compile errors (empty stdout + success exit code), so the preprocess caller treats any
+	// stdout as fatal; glslangValidator / spirv-opt key on the exit code and only warn on non-empty stdout.
+	if (bThrowOnAnyOutput)
+	{
+		if (!result.mOutput.empty())
+		{
+			throw std::runtime_error(std::format("{} error: {}", toolName, result.mOutput));
+		}
+	}
+	else if (result.miExitCode != 0)
+	{
+		throw std::runtime_error(std::format("{} error: {}", toolName, result.mOutput));
+	}
+
+	if (!std::filesystem::exists(rOutputFile))
+	{
+		throw std::runtime_error(std::format("{} did not produce \"{}\"", toolName, rOutputFile.string()));
+	}
+
+	if (!bThrowOnAnyOutput && !result.mOutput.empty())
+	{
+		LOG(kDefault, kWarning, "{} output: {}", toolName, result.mOutput);
+	}
+
+	mIntermediateFiles.push_back(rOutputFile);
+
+	return rOutputFile;
+}
+
 std::filesystem::path ExportShader::PreprocessShader()
 {
 	// glslc.exe is glslangValidator.exe but with support for #include
@@ -216,28 +253,7 @@ std::filesystem::path ExportShader::PreprocessShader()
 	commandLineParameters += L" -o \"" + preProcessedFile.native() + L"\"";
 	commandLineParameters += L" \"" + mInputPath.native() + L"\"";
 
-	std::wstring log = std::to_wstring(common::gpThreadLocal->miThreadId.value_or(0));
-	log += L": ";
-	log += glslcExecutable.native();
-	log += commandLineParameters;
-	log += L"\n";
-	OutputDebugStringW(log.c_str());
-
-	common::ExecutableResult result = common::RunExecutable(glslcExecutable, commandLineParameters);
-	if (!result.mOutput.empty())
-	{
-		throw std::runtime_error(std::format("glslc.exe error: {}", result.mOutput));
-	}
-
-	if (!std::filesystem::exists(preProcessedFile))
-	{
-		throw std::runtime_error(std::format("Shader '{}' failed to pre-process", mInputPath.string()));
-	}
-
-	mIntermediateFiles.push_back(preProcessedFile);
-	VERIFY_SUCCESS(std::filesystem::exists(preProcessedFile));
-
-	return preProcessedFile;
+	return RunVulkanTool(glslcExecutable, commandLineParameters, preProcessedFile, /*bThrowOnAnyOutput*/ true);
 }
 
 std::filesystem::path ExportShader::CompileShader(const std::filesystem::path& rPreProcessedFile)
@@ -266,26 +282,7 @@ std::filesystem::path ExportShader::CompileShader(const std::filesystem::path& r
 	commandLineParameters += L" -o \"" + spirvFile.native() + L"\"";
 	commandLineParameters += L" \"" + rPreProcessedFile.native() + L"\"";
 
-	std::wstring log = std::to_wstring(common::gpThreadLocal->miThreadId.value_or(0));
-	log += L": ";
-	log += glslangValidatorExecutable.native();
-	log += commandLineParameters;
-	log += L"\n";
-	OutputDebugStringW(log.c_str());
-
-	common::ExecutableResult result = common::RunExecutable(glslangValidatorExecutable, commandLineParameters);
-	if (result.miExitCode != 0 || !std::filesystem::exists(spirvFile))
-	{
-		throw std::runtime_error(std::format("glslangValidator.exe error: {}", result.mOutput));
-	}
-	if (!result.mOutput.empty())
-	{
-		LOG(kDefault, kWarning, "glslangValidator.exe output: {}", result.mOutput);
-	}
-
-	mIntermediateFiles.push_back(spirvFile);
-
-	return spirvFile;
+	return RunVulkanTool(glslangValidatorExecutable, commandLineParameters, spirvFile, /*bThrowOnAnyOutput*/ false);
 }
 
 std::filesystem::path ExportShader::OptimizeShader(const std::filesystem::path& rSpirvFile)
@@ -305,26 +302,7 @@ std::filesystem::path ExportShader::OptimizeShader(const std::filesystem::path& 
 	spirvOptCommandLineParameters += L" -o \"" + optimizedSpirvFile.native() + L"\"";
 	spirvOptCommandLineParameters += L" \"" + rSpirvFile.native() + L"\"";
 
-	std::wstring log = std::to_wstring(common::gpThreadLocal->miThreadId.value_or(0));
-	log += L": ";
-	log += spirvOptExecutable.native();
-	log += spirvOptCommandLineParameters;
-	log += L"\n";
-	OutputDebugStringW(log.c_str());
-
-	common::ExecutableResult result = common::RunExecutable(spirvOptExecutable, spirvOptCommandLineParameters);
-	if (result.miExitCode != 0 || !std::filesystem::exists(optimizedSpirvFile))
-	{
-		throw std::runtime_error(std::format("spirv-opt.exe error: {}", result.mOutput));
-	}
-	if (!result.mOutput.empty())
-	{
-		LOG(kDefault, kWarning, "spirv-opt.exe output: {}", result.mOutput);
-	}
-
-	mIntermediateFiles.push_back(optimizedSpirvFile);
-
-	return optimizedSpirvFile;
+	return RunVulkanTool(spirvOptExecutable, spirvOptCommandLineParameters, optimizedSpirvFile, /*bThrowOnAnyOutput*/ false);
 }
 
 void ExportShader::ReflectAndWriteShader(const std::filesystem::path& rSpirvFile)

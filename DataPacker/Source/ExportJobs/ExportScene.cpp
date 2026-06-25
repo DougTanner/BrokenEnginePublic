@@ -117,6 +117,50 @@ std::vector<VkFormat> ComputeTextureFormats(const tinygltf::Model& rModel)
 	return textureFormats;
 }
 
+// Maps a block-compressed VkFormat to its texture-intermediate filename suffix. Single source for the
+// scene-chunk texture CRC path (GetTextureIntermediatePath + the MainExport relative-path build) -- the
+// two must emit identical strings or the chunk's texture CRC dangles against the emitted intermediate.
+const char* TextureIntermediateSuffix(VkFormat vkFormat)
+{
+	switch (vkFormat)
+	{
+		case VK_FORMAT_BC4_UNORM_BLOCK:
+			return ".BC4_UNORM_BLOCK";
+		case VK_FORMAT_BC5_UNORM_BLOCK:
+			return ".BC5_UNORM_BLOCK";
+		case VK_FORMAT_BC7_UNORM_BLOCK:
+			return ".BC7_UNORM_BLOCK";
+		default:
+			ASSERT(false);
+			return "";
+	}
+}
+
+// Diagnostic dump (warning level) for the case where every animation channel was filtered out: logs the
+// node count and the first ten source channel targets so a mis-targeted glTF animation can be debugged.
+void LogFilteredChannelDiagnostics(const tinygltf::Model& rGltfModel)
+{
+	LOG(kDefault, kWarning, "WARNING: All animation channels were filtered out!");
+	LOG(kDefault, kWarning, "  Node count: {}", rGltfModel.nodes.size());
+	// Log first few animation channel targets
+	int iCount = 0;
+	for (const tinygltf::Animation& rAnim : rGltfModel.animations)
+	{
+		for (const tinygltf::AnimationChannel& rChannel : rAnim.channels)
+		{
+			LOG(kDefault, kWarning, "    Animation channel targets node {} (\"{}\")", rChannel.target_node, rChannel.target_node >= 0 ? rGltfModel.nodes.at(rChannel.target_node).name : "invalid");
+			if (++iCount >= 10)
+			{
+				break;
+			}
+		}
+		if (iCount >= 10)
+		{
+			break;
+		}
+	}
+}
+
 } // namespace
 
 std::filesystem::path ExportScene::GetPreExportMarkerPath() const
@@ -144,21 +188,7 @@ std::filesystem::path ExportScene::GetTextureIntermediatePath(int64_t iTextureIn
 	std::filesystem::path path(mInputPath);
 	path += ".Texture";
 	path += std::to_string(iTextureIndex);
-	switch (vkFormat)
-	{
-		case VK_FORMAT_BC4_UNORM_BLOCK:
-			path += ".BC4_UNORM_BLOCK";
-			break;
-		case VK_FORMAT_BC5_UNORM_BLOCK:
-			path += ".BC5_UNORM_BLOCK";
-			break;
-		case VK_FORMAT_BC7_UNORM_BLOCK:
-			path += ".BC7_UNORM_BLOCK";
-			break;
-		default:
-			ASSERT(false);
-			break;
-	}
+	path += TextureIntermediateSuffix(vkFormat);
 	return path;
 }
 
@@ -206,14 +236,13 @@ void ExportScene::PreExport(tinygltf::Model& rGltfModel)
 	LOG(kDefault, kDebug, "Loading {} materials", rGltfModel.materials.size());
 	std::vector<Material> materials(rGltfModel.materials.size());
 	std::vector<MaterialNodeInfo> materialNodeInfos(rGltfModel.materials.size());
-	std::unordered_map<int, int> nodeToJointMap;
-	SetupSkeletonAndMaterials(rGltfModel, nodeToJointMap);
+	bool bHasSkeleton = SetupSkeletonAndMaterials(rGltfModel);
 
 	std::vector<common::ModelVertex> vertices;
-	LoadVerticesAndOptimizeMeshes(rGltfModel, nodeToJointMap, materials, materialNodeInfos, vertices);
+	LoadVerticesAndOptimizeMeshes(rGltfModel, bHasSkeleton, materials, materialNodeInfos, vertices);
 
 	std::vector<common::MaterialInfo> materialInfos(materials.size());
-	BuildMaterialInfos(rGltfModel, nodeToJointMap, materials, materialNodeInfos, materialInfos);
+	BuildMaterialInfos(rGltfModel, bHasSkeleton, materials, materialNodeInfos, materialInfos);
 
 	WriteModelFile(materials, materialInfos, vertices);
 
@@ -294,27 +323,32 @@ void ExportScene::ProcessTextures(tinygltf::Model& rGltfModel)
 	}
 }
 
-void ExportScene::SetupSkeletonAndMaterials(tinygltf::Model& rGltfModel, std::unordered_map<int, int>& rNodeToJointMap)
+bool ExportScene::SetupSkeletonAndMaterials(tinygltf::Model& rGltfModel)
 {
-	bool bUseSkeletalAnimation = DetermineAnimationPath(rGltfModel);
-
-	if (bUseSkeletalAnimation)
+	// Skeleton data loads whenever a skin exists (skeletal) or any animation exists (node-based); when
+	// neither holds the model is static and bHasSkeleton stays false (load-bearing for the static-model
+	// vertex transform in LoadVertices). DetermineAnimationPath now only selects the log label.
+	bool bHasSkeleton = !rGltfModel.skins.empty() || !rGltfModel.animations.empty();
+	if (bHasSkeleton)
 	{
-		LoadSkeletonData(rGltfModel, rNodeToJointMap);
-		LOG(kDefault, kDebug, "  Skeletal animation detected: {} skin joints, {} total nodes", rGltfModel.skins.at(0).joints.size(), rGltfModel.nodes.size());
+		SkeletonData skeletonData = LoadSkeletonData(rGltfModel);
+		if (DetermineAnimationPath(rGltfModel))
+		{
+			LOG(kDefault, kDebug, "  Skeletal animation detected: {} skin joints, {} total nodes", rGltfModel.skins.at(0).joints.size(), rGltfModel.nodes.size());
+		}
+		else
+		{
+			LOG(kDefault, kDebug, "  Node-based animation detected: {} nodes in skeleton", skeletonData.skeleton.uiNodeCount);
+		}
 	}
-	else if (rGltfModel.animations.size() > 0)
-	{
-		SkeletonData tempSkeletonData = LoadSkeletonData(rGltfModel, rNodeToJointMap);
-		LOG(kDefault, kDebug, "  Node-based animation detected: {} nodes in skeleton", tempSkeletonData.skeleton.uiNodeCount);
-	}
+	return bHasSkeleton;
 }
 
-void ExportScene::LoadVerticesAndOptimizeMeshes(tinygltf::Model& rGltfModel, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<Material>& rMaterials, std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::vector<common::ModelVertex>& rVertices)
+void ExportScene::LoadVerticesAndOptimizeMeshes(tinygltf::Model& rGltfModel, bool bHasSkeleton, std::vector<Material>& rMaterials, std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::vector<common::ModelVertex>& rVertices)
 {
 	const tinygltf::Scene& rScene = rGltfModel.scenes.at(rGltfModel.defaultScene > -1 ? rGltfModel.defaultScene : 0);
 	std::unordered_map<std::pair<int, int>, int, PairHash> materialNodeMap;
-	LoadVerticesContext loadContext {.rVertices = rVertices, .rMaterials = rMaterials, .rMaterialNodeInfos = rMaterialNodeInfos, .rMaterialNodeMap = materialNodeMap, .rNodeToJointMap = rNodeToJointMap};
+	LoadVerticesContext loadContext {.rVertices = rVertices, .rMaterials = rMaterials, .rMaterialNodeInfos = rMaterialNodeInfos, .rMaterialNodeMap = materialNodeMap, .bHasSkeleton = bHasSkeleton};
 	for (size_t i = 0; i < rScene.nodes.size(); ++i)
 	{
 		int iNodeIndex = rScene.nodes.at(i);
@@ -341,7 +375,7 @@ void ExportScene::LoadVerticesAndOptimizeMeshes(tinygltf::Model& rGltfModel, con
 	}
 }
 
-void ExportScene::BuildMaterialInfos(tinygltf::Model& rGltfModel, const std::unordered_map<int, int>& rNodeToJointMap, const std::vector<Material>& rMaterials, const std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::vector<common::MaterialInfo>& rMaterialInfos)
+void ExportScene::BuildMaterialInfos(tinygltf::Model& rGltfModel, bool bHasSkeleton, const std::vector<Material>& rMaterials, const std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::vector<common::MaterialInfo>& rMaterialInfos)
 {
 	// Build parent map for node hierarchy traversal (used for both skeletal and node-based)
 	std::unordered_map<int, int> nodeParentMap = BuildNodeParentMap(rGltfModel);
@@ -384,41 +418,19 @@ void ExportScene::BuildMaterialInfos(tinygltf::Model& rGltfModel, const std::uno
 			XMStoreFloat4x4(&rMaterialInfos.at(i).f4x4RelativeTransform, XMMatrixIdentity());
 			LOG(kDefault, kVerbose, "  Material {}: skinned, mesh node {}", i, rMaterialInfos.at(i).iParentNodeIndex);
 		}
-		else if (rInfo.iNodeIndex >= 0)
+		else if (rInfo.iNodeIndex >= 0 && bHasSkeleton && rInfo.iNodeIndex < static_cast<int>(rGltfModel.nodes.size()))
 		{
-			// Find nearest ancestor joint for this non-skinned material
-			// Need to traverse node hierarchy to find joint ancestor
-			int iCurrentNode = rInfo.iNodeIndex;
-			int iAncestorJoint = -1;
-			int iAncestorNodeIndex = -1;
-			XMMATRIX matAncestorWorld = XMMatrixIdentity();
+			// Every node is its own joint (the skeleton used an identity node->joint mapping), so the
+			// nearest skeleton ancestor of a non-skinned material is its own mesh node.
+			int iAncestorNodeIndex = rInfo.iNodeIndex;
+			XMMATRIX matAncestorWorld = ComputeNodeWorldTransform(iAncestorNodeIndex, rGltfModel, nodeParentMap);
 
-			// Traverse up to find ancestor joint
-			while (iCurrentNode >= 0)
-			{
-				auto jointIt = rNodeToJointMap.find(iCurrentNode);
-				if (jointIt != rNodeToJointMap.end())
-				{
-					// Found an ancestor that is part of the skeleton
-					// nodeToJointMap uses identity mapping, so iCurrentNode is the node index we need
-					iAncestorJoint = jointIt->second;
-					iAncestorNodeIndex = iCurrentNode;
-					matAncestorWorld = ComputeNodeWorldTransform(iCurrentNode, rGltfModel, nodeParentMap);
-					break;
-				}
-				auto parentIt = nodeParentMap.find(iCurrentNode);
-				iCurrentNode = (parentIt != nodeParentMap.end()) ? parentIt->second : -1;
-			}
-
-			if (iAncestorJoint >= 0)
-			{
-				rMaterialInfos.at(i).iParentNodeIndex = static_cast<int16_t>(iAncestorNodeIndex);
-				// Compute relative transform: meshBindWorld * inverse(nodeBindWorld)
-				// In row-major: v * relativeTransform * nodeAnimated = v_animated
-				XMMATRIX matRelative = rInfo.matMeshWorld * XMMatrixInverse(nullptr, matAncestorWorld);
-				XMStoreFloat4x4(&rMaterialInfos.at(i).f4x4RelativeTransform, matRelative);
-				LOG(kDefault, kVerbose, "  Material {}: non-skinned, parent node {}, mesh node {}", i, iAncestorNodeIndex, rInfo.iNodeIndex);
-			}
+			rMaterialInfos.at(i).iParentNodeIndex = static_cast<int16_t>(iAncestorNodeIndex);
+			// Compute relative transform: meshBindWorld * inverse(nodeBindWorld)
+			// In row-major: v * relativeTransform * nodeAnimated = v_animated
+			XMMATRIX matRelative = rInfo.matMeshWorld * XMMatrixInverse(nullptr, matAncestorWorld);
+			XMStoreFloat4x4(&rMaterialInfos.at(i).f4x4RelativeTransform, matRelative);
+			LOG(kDefault, kVerbose, "  Material {}: non-skinned, parent node {}, mesh node {}", i, iAncestorNodeIndex, rInfo.iNodeIndex);
 		}
 	}
 
@@ -547,21 +559,7 @@ void ExportScene::MainExport(tinygltf::Model& rGltfModel)
 		relativeFile /= mInputPath.filename();
 		relativeFile += ".Texture";
 		relativeFile += std::to_string(rTexture.source);
-		switch (textureFormats.at(i))
-		{
-			case VK_FORMAT_BC4_UNORM_BLOCK:
-				relativeFile += ".BC4_UNORM_BLOCK";
-				break;
-			case VK_FORMAT_BC5_UNORM_BLOCK:
-				relativeFile += ".BC5_UNORM_BLOCK";
-				break;
-			case VK_FORMAT_BC7_UNORM_BLOCK:
-				relativeFile += ".BC7_UNORM_BLOCK";
-				break;
-			default:
-				ASSERT(false);
-				break;
-		}
+		relativeFile += TextureIntermediateSuffix(textureFormats.at(i));
 		pTextureCrcs[pHeader->sceneHeader.uiTextureCount++] = common::Crc(relativeFile.string());
 	}
 
@@ -701,14 +699,12 @@ void ExportScene::WriteAnimationSection(tinygltf::Model& rGltfModel, const std::
 	LOG(kDefault, kDebug, "  Total animation channels in glTF: {}", iTotalChannels);
 
 	pHeader->sceneHeader.bHasAnimation = true;
-	SkeletonData skeletonData;
-	std::unordered_map<int, int> nodeToJointMap;
 
 	bool bUseSkeletalAnimation = DetermineAnimationPath(rGltfModel);
 
 	LOG(kDefault, kDebug, "  Using {} animation path", bUseSkeletalAnimation ? "SKELETAL" : "NODE-BASED");
 
-	skeletonData = LoadSkeletonData(rGltfModel, nodeToJointMap);
+	SkeletonData skeletonData = LoadSkeletonData(rGltfModel);
 
 	LOG(kDefault, kDebug, "  {} nodes in skeleton, {} skin joints", skeletonData.skeleton.uiNodeCount, skeletonData.skeleton.uiSkinJointCount);
 
@@ -718,41 +714,13 @@ void ExportScene::WriteAnimationSection(tinygltf::Model& rGltfModel, const std::
 	std::vector<common::AnimationKeyframe> keyframes;
 	std::vector<common::AnimationKeyframeCubic> cubicKeyframes;
 	AnimationOutput animationOut {.rAnimations = animations, .rChannels = channels, .rKeyframes = keyframes, .rCubicKeyframes = cubicKeyframes};
-	LoadAnimations(rGltfModel, nodeToJointMap, animationOut);
+	LoadAnimations(rGltfModel, animationOut);
 	LOG(kDefault, kDebug, "  {} animations, {} channels, {} keyframes, {} cubic keyframes", animations.size(), channels.size(), keyframes.size(), cubicKeyframes.size());
 
 	// Warn if all animation channels were filtered out
 	if (animations.empty() && rGltfModel.animations.size() > 0)
 	{
-		LOG(kDefault, kWarning, "WARNING: All animation channels were filtered out!");
-		LOG(kDefault, kWarning, "  nodeToJointMap size: {}", nodeToJointMap.size());
-		// Log first few entries of nodeToJointMap
-		int iCount = 0;
-		for (const auto& [iNode, iJoint] : nodeToJointMap)
-		{
-			LOG(kDefault, kWarning, "    nodeToJointMap[{}] (\"{}\") = {}", iNode, rGltfModel.nodes.at(iNode).name, iJoint);
-			if (++iCount >= 10)
-			{
-				break;
-			}
-		}
-		// Log first few animation channel targets
-		iCount = 0;
-		for (const tinygltf::Animation& rAnim : rGltfModel.animations)
-		{
-			for (const tinygltf::AnimationChannel& rChannel : rAnim.channels)
-			{
-				LOG(kDefault, kWarning, "    Animation channel targets node {} (\"{}\")", rChannel.target_node, rChannel.target_node >= 0 ? rGltfModel.nodes.at(rChannel.target_node).name : "invalid");
-				if (++iCount >= 10)
-				{
-					break;
-				}
-			}
-			if (iCount >= 10)
-			{
-				break;
-			}
-		}
+		LogFilteredChannelDiagnostics(rGltfModel);
 	}
 
 	for (const common::AnimationClip& rAnim : animations)

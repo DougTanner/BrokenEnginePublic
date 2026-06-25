@@ -21,7 +21,7 @@ Source: /external-architecture-review on `Engine/Source/Frame` (non-recursive); 
 - `Projects/BrokenEngineSandbox/Source/Frame/Frame.cpp`
 
 ## Out of scope
-- Changing any collection's own CRC computation (including the two-target XOR helper `common::Crc(value, rCrc, rSharedCrc)` at `Crc.h:123-130` that collection `Crcs()` methods feed — collection-internal mixing is a separate, larger pass if ever wanted)
+- Changing any collection's own CRC computation — collection-internal mixing is a separate, larger pass (`Architecture_CollectionCrcMixing.md`) if ever wanted (the two-target XOR helper formerly at `Crc.h:123-130` has since been deleted as dead by `Refactor_DeadElementCrcChain`)
 - The hash function itself (`common::Crc` internals — already hardened in the landed Common determinism session)
 - `LogDifferences` (own plan: `Architecture_LogDifferencesServerCollections.md`, same file — co-schedule)
 

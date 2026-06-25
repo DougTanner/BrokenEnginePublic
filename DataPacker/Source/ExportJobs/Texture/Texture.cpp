@@ -18,7 +18,6 @@ inline constexpr uint32_t kuiRdoLookbackWindowSize = 1024;
 // output and timing to 6 in the OAT sweep at moderate lambdas; pinned explicitly so future
 // bc7enc upstream tuning changes don't silently shift our encoder behavior.
 inline constexpr int kiBc7UberLevel = 4;
-inline constexpr int kiZlibLevel = Z_BEST_COMPRESSION;
 
 std::mutex Texture::sEncodeMutex;
 
@@ -38,157 +37,177 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, int64_t
 {
 	if (eFileType == FileType::kImage)
 	{
-		int iStbiWidth = 0;
-		int iStbiHeight = 0;
-		int iChannelsInFile = 0;
-		stbi_uc* pPixels = stbi_load(reinterpret_cast<const char*>(rPath.u8string().c_str()), &iStbiWidth, &iStbiHeight, &iChannelsInFile, STBI_rgb_alpha);
-		common::ScopedLambda freeStbiPixels([=]()
-		{
-			stbi_image_free(pPixels);
-		});
-		ASSERT(iStbiWidth != 0 && iStbiHeight != 0 && pPixels != nullptr);
-		miWidth = iStbiWidth;
-		miHeight = iStbiHeight;
-
-		stbi_uc* puiSrc = pPixels;
-		std::vector<float>& rPixels = mData.emplace_back(4 * iStbiWidth * iStbiHeight);
-		float* pfDest = rPixels.data();
-		for (int64_t j = 0; j < miHeight; ++j)
-		{
-			for (int64_t i = 0; i < miWidth; ++i)
-			{
-				pfDest[0] = puiSrc[0];
-				pfDest[1] = puiSrc[1];
-				pfDest[2] = puiSrc[2];
-				pfDest[3] = puiSrc[3];
-
-				puiSrc += 4;
-				pfDest += 4;
-			}
-		}
+		LoadImage(rPath);
 	}
 	else if (eFileType == FileType::kFloat32)
 	{
-		ASSERT(miWidth > 0 && miHeight > 0);
-
-		std::vector<std::byte> data = common::ReadEntireFile(rPath);
-
-		float* pfSrcR = reinterpret_cast<float*>(data.data());
-		std::vector<float>& rPixels = mData.emplace_back(4 * miWidth * miHeight);
-		float* pfDest = rPixels.data();
-		for (int64_t j = 0; j < miHeight; ++j)
-		{
-			for (int64_t i = 0; i < miWidth; ++i)
-			{
-				pfDest[0] = 255.0f * pfSrcR[0];
-				pfDest[1] = 0.0f;
-				pfDest[2] = 0.0f;
-				pfDest[3] = 0.0f;
-
-				++pfSrcR;
-				pfDest += 4;
-			}
-		}
+		LoadFloat32(rPath);
 	}
 	else if (eFileType == FileType::kUint16Raw)
 	{
-		// Headerless linear unorm-16. Gaea's UshortRaw16 format. No gamma applies — source is
-		// already linear. Single-channel; R is populated, GBA left at 0 (matches kFloat32).
-		ASSERT(miWidth > 0 && miHeight > 0);
-
-		std::vector<std::byte> data = common::ReadEntireFile(rPath);
-
-		const uint16_t* puiSrc = reinterpret_cast<const uint16_t*>(data.data());
-		std::vector<float>& rPixels = mData.emplace_back(4 * miWidth * miHeight);
-		float* pfDest = rPixels.data();
-		for (int64_t j = 0; j < miHeight; ++j)
-		{
-			for (int64_t i = 0; i < miWidth; ++i)
-			{
-				pfDest[0] = 255.0f * common::UnormToFloat<uint16_t>(puiSrc[0]);
-				pfDest[1] = 0.0f;
-				pfDest[2] = 0.0f;
-				pfDest[3] = 0.0f;
-
-				++puiSrc;
-				pfDest += 4;
-			}
-		}
+		LoadUint16Raw(rPath);
 	}
 	else
 	{
-		exr_context_initializer_t exrContextInitializer = EXR_DEFAULT_CONTEXT_INITIALIZER;
-		exr_context_t exrContext {};
-		exr_result_t exrResult = exr_start_read(&exrContext, rPath.string().c_str(), &exrContextInitializer);
-		ASSERT(exrResult == EXR_ERR_SUCCESS);
-		common::ScopedLambda releaseExrContext([=]()
+		LoadExr(rPath);
+	}
+}
+
+void Texture::LoadImage(const std::filesystem::path& rPath)
+{
+	int iStbiWidth = 0;
+	int iStbiHeight = 0;
+	int iChannelsInFile = 0;
+	stbi_uc* pPixels = stbi_load(reinterpret_cast<const char*>(rPath.u8string().c_str()), &iStbiWidth, &iStbiHeight, &iChannelsInFile, STBI_rgb_alpha);
+	common::ScopedLambda freeStbiPixels([=]()
+	{
+		stbi_image_free(pPixels);
+	});
+	ASSERT(iStbiWidth != 0 && iStbiHeight != 0 && pPixels != nullptr);
+	miWidth = iStbiWidth;
+	miHeight = iStbiHeight;
+
+	stbi_uc* puiSrc = pPixels;
+	std::vector<float>& rPixels = mData.emplace_back(4 * iStbiWidth * iStbiHeight);
+	float* pfDest = rPixels.data();
+	for (int64_t j = 0; j < miHeight; ++j)
+	{
+		for (int64_t i = 0; i < miWidth; ++i)
 		{
-			exr_context_t exrContextCopy = exrContext;
-			exr_finish(&exrContextCopy);
-		});
+			pfDest[0] = puiSrc[0];
+			pfDest[1] = puiSrc[1];
+			pfDest[2] = puiSrc[2];
+			pfDest[3] = puiSrc[3];
 
-		exr_attr_box2i_t dataWindow {};
-		exr_get_data_window(exrContext, 0, &dataWindow);
-		int32_t iScansPerChunk = 0;
-		exr_get_scanlines_per_chunk(exrContext, 0, &iScansPerChunk);
-		ASSERT(iScansPerChunk == 1);
-
-		miWidth = dataWindow.max.x + 1;
-		miHeight = dataWindow.max.y + 1;
-		std::vector<float> pixelsR(miWidth * miHeight);
-		std::vector<float> pixelsG(miWidth * miHeight);
-		std::vector<float> pixelsB(miWidth * miHeight);
-
-		for (int y = dataWindow.min.y; y <= dataWindow.max.y; y += iScansPerChunk)
-		{
-			exr_chunk_info_t exrChunkInfo {};
-			exr_read_scanline_chunk_info(exrContext, 0, y, &exrChunkInfo);
-
-			exr_decode_pipeline_t decoder {};
-			exr_decoding_initialize(exrContext, 0, &exrChunkInfo, &decoder);
-
-			decoder.channels[0].user_data_type = EXR_PIXEL_FLOAT;
-			decoder.channels[0].decode_to_ptr = reinterpret_cast<uint8_t*>(pixelsB.data() + y * miWidth);
-			decoder.channels[0].user_pixel_stride = 4;
-			decoder.channels[0].user_line_stride = static_cast<int32_t>(4 * miWidth);
-			decoder.channels[0].user_bytes_per_element = 4;
-
-			decoder.channels[1].user_data_type = EXR_PIXEL_FLOAT;
-			decoder.channels[1].decode_to_ptr = reinterpret_cast<uint8_t*>(pixelsG.data() + y * miWidth);
-			decoder.channels[1].user_pixel_stride = 4;
-			decoder.channels[1].user_line_stride = static_cast<int32_t>(4 * miWidth);
-			decoder.channels[1].user_bytes_per_element = 4;
-
-			decoder.channels[2].user_data_type = EXR_PIXEL_FLOAT;
-			decoder.channels[2].decode_to_ptr = reinterpret_cast<uint8_t*>(pixelsR.data() + y * miWidth);
-			decoder.channels[2].user_pixel_stride = 4;
-			decoder.channels[2].user_line_stride = static_cast<int32_t>(4 * miWidth);
-			decoder.channels[2].user_bytes_per_element = 4;
-
-			exr_decoding_choose_default_routines(exrContext, 0, &decoder);
-			exr_decoding_run(exrContext, 0, &decoder);
-			exr_decoding_destroy(exrContext, &decoder);
+			puiSrc += 4;
+			pfDest += 4;
 		}
+	}
+}
 
-		float* pfSrcR = pixelsR.data();
-		float* pfSrcG = pixelsG.data();
-		float* pfSrcB = pixelsB.data();
-		std::vector<float>& rPixels = mData.emplace_back(4 * miWidth * miHeight);
-		float* pfDest = rPixels.data();
-		for (int64_t j = 0; j < miHeight; ++j)
+void Texture::LoadFloat32(const std::filesystem::path& rPath)
+{
+	ASSERT(miWidth > 0 && miHeight > 0);
+
+	std::vector<std::byte> data = common::ReadEntireFile(rPath);
+
+	float* pfSrcR = reinterpret_cast<float*>(data.data());
+	std::vector<float>& rPixels = mData.emplace_back(4 * miWidth * miHeight);
+	float* pfDest = rPixels.data();
+	for (int64_t j = 0; j < miHeight; ++j)
+	{
+		for (int64_t i = 0; i < miWidth; ++i)
 		{
-			for (int64_t i = 0; i < miWidth; ++i)
-			{
-				pfDest[0] = 255.0f * pfSrcR[0];
-				pfDest[1] = 255.0f * pfSrcG[0];
-				pfDest[2] = 255.0f * pfSrcB[0];
-				pfDest[3] = 255.0f;
+			pfDest[0] = 255.0f * pfSrcR[0];
+			pfDest[1] = 0.0f;
+			pfDest[2] = 0.0f;
+			pfDest[3] = 0.0f;
 
-				++pfSrcR;
-				++pfSrcG;
-				++pfSrcB;
-				pfDest += 4;
-			}
+			++pfSrcR;
+			pfDest += 4;
+		}
+	}
+}
+
+void Texture::LoadUint16Raw(const std::filesystem::path& rPath)
+{
+	// Headerless linear unorm-16. Gaea's UshortRaw16 format. No gamma applies — source is
+	// already linear. Single-channel; R is populated, GBA left at 0 (matches kFloat32).
+	ASSERT(miWidth > 0 && miHeight > 0);
+
+	std::vector<std::byte> data = common::ReadEntireFile(rPath);
+
+	const uint16_t* puiSrc = reinterpret_cast<const uint16_t*>(data.data());
+	std::vector<float>& rPixels = mData.emplace_back(4 * miWidth * miHeight);
+	float* pfDest = rPixels.data();
+	for (int64_t j = 0; j < miHeight; ++j)
+	{
+		for (int64_t i = 0; i < miWidth; ++i)
+		{
+			pfDest[0] = 255.0f * common::UnormToFloat<uint16_t>(puiSrc[0]);
+			pfDest[1] = 0.0f;
+			pfDest[2] = 0.0f;
+			pfDest[3] = 0.0f;
+
+			++puiSrc;
+			pfDest += 4;
+		}
+	}
+}
+
+void Texture::LoadExr(const std::filesystem::path& rPath)
+{
+	exr_context_initializer_t exrContextInitializer = EXR_DEFAULT_CONTEXT_INITIALIZER;
+	exr_context_t exrContext {};
+	exr_result_t exrResult = exr_start_read(&exrContext, rPath.string().c_str(), &exrContextInitializer);
+	ASSERT(exrResult == EXR_ERR_SUCCESS);
+	common::ScopedLambda releaseExrContext([=]()
+	{
+		exr_context_t exrContextCopy = exrContext;
+		exr_finish(&exrContextCopy);
+	});
+
+	exr_attr_box2i_t dataWindow {};
+	exr_get_data_window(exrContext, 0, &dataWindow);
+	int32_t iScansPerChunk = 0;
+	exr_get_scanlines_per_chunk(exrContext, 0, &iScansPerChunk);
+	ASSERT(iScansPerChunk == 1);
+
+	miWidth = dataWindow.max.x + 1;
+	miHeight = dataWindow.max.y + 1;
+	std::vector<float> pixelsR(miWidth * miHeight);
+	std::vector<float> pixelsG(miWidth * miHeight);
+	std::vector<float> pixelsB(miWidth * miHeight);
+
+	for (int y = dataWindow.min.y; y <= dataWindow.max.y; y += iScansPerChunk)
+	{
+		exr_chunk_info_t exrChunkInfo {};
+		exr_read_scanline_chunk_info(exrContext, 0, y, &exrChunkInfo);
+
+		exr_decode_pipeline_t decoder {};
+		exr_decoding_initialize(exrContext, 0, &exrChunkInfo, &decoder);
+
+		decoder.channels[0].user_data_type = EXR_PIXEL_FLOAT;
+		decoder.channels[0].decode_to_ptr = reinterpret_cast<uint8_t*>(pixelsB.data() + y * miWidth);
+		decoder.channels[0].user_pixel_stride = 4;
+		decoder.channels[0].user_line_stride = static_cast<int32_t>(4 * miWidth);
+		decoder.channels[0].user_bytes_per_element = 4;
+
+		decoder.channels[1].user_data_type = EXR_PIXEL_FLOAT;
+		decoder.channels[1].decode_to_ptr = reinterpret_cast<uint8_t*>(pixelsG.data() + y * miWidth);
+		decoder.channels[1].user_pixel_stride = 4;
+		decoder.channels[1].user_line_stride = static_cast<int32_t>(4 * miWidth);
+		decoder.channels[1].user_bytes_per_element = 4;
+
+		decoder.channels[2].user_data_type = EXR_PIXEL_FLOAT;
+		decoder.channels[2].decode_to_ptr = reinterpret_cast<uint8_t*>(pixelsR.data() + y * miWidth);
+		decoder.channels[2].user_pixel_stride = 4;
+		decoder.channels[2].user_line_stride = static_cast<int32_t>(4 * miWidth);
+		decoder.channels[2].user_bytes_per_element = 4;
+
+		exr_decoding_choose_default_routines(exrContext, 0, &decoder);
+		exr_decoding_run(exrContext, 0, &decoder);
+		exr_decoding_destroy(exrContext, &decoder);
+	}
+
+	float* pfSrcR = pixelsR.data();
+	float* pfSrcG = pixelsG.data();
+	float* pfSrcB = pixelsB.data();
+	std::vector<float>& rPixels = mData.emplace_back(4 * miWidth * miHeight);
+	float* pfDest = rPixels.data();
+	for (int64_t j = 0; j < miHeight; ++j)
+	{
+		for (int64_t i = 0; i < miWidth; ++i)
+		{
+			pfDest[0] = 255.0f * pfSrcR[0];
+			pfDest[1] = 255.0f * pfSrcG[0];
+			pfDest[2] = 255.0f * pfSrcB[0];
+			pfDest[3] = 255.0f;
+
+			++pfSrcR;
+			++pfSrcG;
+			++pfSrcB;
+			pfDest += 4;
 		}
 	}
 }
@@ -357,7 +376,12 @@ void Texture::EncodeWithRdo(std::byte* puiOut, const std::vector<float>& rIn, in
 	rdo_bc::rdo_bc_params params;
 	params.m_rdo_lambda = fLambda;
 	params.m_rdo_multithreading = true;
-	// Use physical-core-count - 2: leaves two physical cores idle (thermal headroom + OS responsiveness)
+	// Use physical-core-count - 2: leaves two physical cores idle (thermal headroom + OS responsiveness).
+	// Cross-machine note: bc7enc_rdo's ERT partitions the block stream into m_rdo_max_threads contiguous
+	// per-thread ranges and matches cannot cross partition boundaries, so encoded BCn bytes vary with core
+	// count (stable per host, different across hosts). Acceptable under the single-canonical-bake-machine
+	// assumption (see Cross-Machine Reproducibility in DataPacker/Source/CLAUDE.md); pin this to a fixed
+	// constant if CI / multi-machine bakes are introduced.
 	params.m_rdo_max_threads = static_cast<int>(std::max<int64_t>(1, common::HardwareCoreCount() - 2));
 	params.m_status_output = false;
 	params.m_use_bc7e = false;
@@ -566,15 +590,22 @@ void Texture::SaveJpegSidecar(const std::filesystem::path& rPath, int iQuality, 
 	ASSERT(iResult != 0);
 }
 
+std::vector<std::byte> ZlibCompress(const std::byte* puiSource, int64_t iSourceSize)
+{
+	uLongf uiBound = compressBound(static_cast<uLong>(iSourceSize));
+	std::vector<std::byte> compressed(uiBound);
+	uLongf uiCompressedSize = uiBound;
+	int iZlibResult = compress2(reinterpret_cast<Bytef*>(compressed.data()), &uiCompressedSize, reinterpret_cast<const Bytef*>(puiSource), static_cast<uLong>(iSourceSize), Z_BEST_COMPRESSION);
+	ASSERT(iZlibResult == Z_OK);
+	compressed.resize(uiCompressedSize);
+	return compressed;
+}
+
 void Texture::Save(const std::filesystem::path& rPath, VkFormat vkFormat, TextureOptions_t options)
 {
 	std::vector<std::byte> data = Export(vkFormat, options);
 
-	uLongf uiBound = compressBound(static_cast<uLong>(data.size()));
-	std::vector<std::byte> compressed(uiBound);
-	uLongf uiCompressedSize = uiBound;
-	int iZlibResult = compress2(reinterpret_cast<Bytef*>(compressed.data()), &uiCompressedSize, reinterpret_cast<const Bytef*>(data.data()), static_cast<uLong>(data.size()), kiZlibLevel);
-	ASSERT(iZlibResult == Z_OK);
+	std::vector<std::byte> compressed = ZlibCompress(data.data(), static_cast<int64_t>(data.size()));
 
 	std::filesystem::remove(rPath);
 	std::fstream fileStreamOut(rPath, std::ios::out | std::ios::binary);
@@ -584,7 +615,7 @@ void Texture::Save(const std::filesystem::path& rPath, VkFormat vkFormat, Textur
 	fileStreamOut.write(reinterpret_cast<const char*>(&miHeight), sizeof(miHeight));
 	int64_t iMipMaps = static_cast<int64_t>(mData.size());
 	fileStreamOut.write(reinterpret_cast<const char*>(&iMipMaps), sizeof(iMipMaps));
-	fileStreamOut.write(reinterpret_cast<const char*>(compressed.data()), static_cast<std::streamsize>(uiCompressedSize));
+	fileStreamOut.write(reinterpret_cast<const char*>(compressed.data()), static_cast<std::streamsize>(compressed.size()));
 	fileStreamOut.flush();
 	fileStreamOut.close();
 	VERIFY_SUCCESS(fileStreamOut.good());

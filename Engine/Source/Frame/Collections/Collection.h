@@ -613,32 +613,6 @@ inline common::crc_t CollectionCrc(const TStruct& rCurrent, TTuple&& members)
 	return checksum;
 }
 
-// Computes XOR'd CRC of a single element across all member arrays for per-element desync diagnosis.
-template <typename TTuple>
-common::crc_t MultiElementCrc(int64_t iIndex, TTuple&& members)
-{
-	common::crc_t checksum = 0;
-	std::apply([&](auto&... memberPtrRefs)
-	{
-		([&]()
-		{
-			if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
-			{
-				static constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
-				for (size_t i = 0; i < N; ++i)
-				{
-					checksum ^= common::Crc(memberPtrRefs[i][iIndex]);
-				}
-			}
-			else
-			{
-				checksum ^= common::Crc(memberPtrRefs[iIndex]);
-			}
-		}(), ...);
-	}, std::forward<TTuple>(members));
-	return checksum;
-}
-
 template <typename T>
 concept HasSharedMembers = requires(const T t) { t.SharedMembers(); };
 
@@ -683,15 +657,6 @@ inline common::crc_t SharedCollectionCrc(const TStruct& rCurrent)
 	{
 		return CollectionCrc(rCurrent, rCurrent.Members());
 	}
-}
-
-template <typename TStruct>
-inline common::crc_t SharedCollectionElementCrc(const TStruct& rCurrent, int64_t iIndex)
-{
-	if constexpr (HasSharedMembers<TStruct>)
-		return engine::MultiElementCrc(iIndex, rCurrent.SharedMembers());
-	else
-		return engine::MultiElementCrc(iIndex, rCurrent.Members());
 }
 
 // Reads collection from a server-format stream. Allocates full Members() (zero-initialized) so client-only

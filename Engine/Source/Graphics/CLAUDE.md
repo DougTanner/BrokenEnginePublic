@@ -45,6 +45,7 @@ Settings-change detector escalates a destroy tier (`DestroyType`) monotonically 
 - Topological node order invariant (`iParentIndex < i`) enables single-pass world-matrix build
 - CUBICSPLINE path uses glTF-spec Hermite tangents scaled by delta; STEP/LINEAR uses a compact keyframe
 - Temp TRS/world-matrix arrays come from `gpThreadLocal->mWorkbuffer`, never heap
+- **Trust-boundary validation**: `Load` validates on-disk secondary indices (skin joint→node, `MaterialInfo::iParentNodeIndex`, channel `uiNodeIndex` + keyframe range, clip channel range) against their target-array bounds; out-of-range throws `common::CorruptStreamException` (routed to the boot-time crash handler). Chunk byte-extent is intentionally not bounded here — the scene chunk's `ChunkHeader::iSize` excludes the appended animation section, so the true byte extent requires a data-model change (deferred).
 
 ## Islands / Screenshot / Resolution Helpers
 

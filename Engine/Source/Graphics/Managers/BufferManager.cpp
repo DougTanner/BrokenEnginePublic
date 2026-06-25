@@ -439,7 +439,9 @@ void BufferManager::ResizeDynamicBuffer(common::crc_t crc, DynamicBufferType eTy
 	//   (2) all resize callers run after Graphics::RenderGlobal's top-of-frame fence wait for framebuffer i,
 	//   so the prior submission completed; (3) callers immediately rewrite the per-framebuffer descriptor set
 	//   (e.g. BillboardsRender / PlayersRender) and record-once command buffers reference buffers only through
-	//   descriptor sets. (The skinning path uses per-framebuffer stash arrays -- mPreviousMeshDataBuffer -- instead.)
+	//   descriptor sets. (GrowMeshDataBuffer / GrowJointMatrixBuffer apply this same three-point chain to their
+	//   per-framebuffer mPreviousMeshDataBuffer / mPreviousJointMatrixBuffer stash arrays, where a second same-frame
+	//   grow -- not a resize -- is the overwrite case.)
 	mPreviousBuffer.reset();
 
 	std::unordered_map<common::crc_t, std::vector<Buffer>>& rMap = mDynamicStorageBuffers[eType];
@@ -507,6 +509,16 @@ void BufferManager::GrowMeshDataBuffer(int64_t iCommandBuffer, int64_t iValidCou
 	}
 
 	void* pOldData = mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory;
+
+	// Per-framebuffer single-slot stash, safe even when a SECOND same-frame grow on this iCommandBuffer
+	//   overwrites the slot and frees the buffer the previous same-frame grow stashed, via the same three-point
+	//   chain as ResizeDynamicBuffer: (1) mMeshDataStorageBuffers is a per-framebuffer instance, so only framebuffer
+	//   iCommandBuffer's command buffer ever referenced this buffer; (2) all grow callers run from RenderFrameMain,
+	//   after Graphics::RenderGlobal's top-of-frame fence wait for framebuffer iCommandBuffer drained the prior
+	//   submission; (3) the repoint below points framebuffer iCommandBuffer's model descriptors at the NEW buffer,
+	//   and record-once command buffers reference buffers only through descriptor sets, so this frame's
+	//   not-yet-submitted CB reads the latest buffer, never the freed one. ResetSkinningAllocations releases only
+	//   the final grow's buffer, once per frame.
 	mPreviousMeshDataBuffer[iCommandBuffer] = std::move(mMeshDataStorageBuffers.at(iCommandBuffer));
 
 	mMeshDataStorageBuffers.at(iCommandBuffer).Create(
@@ -532,6 +544,8 @@ void BufferManager::GrowJointMatrixBuffer(int64_t iCommandBuffer, int64_t iValid
 	}
 
 	void* pOldData = mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory;
+
+	// Per-framebuffer stash overwrite, safe by the same three-point chain as GrowMeshDataBuffer above.
 	mPreviousJointMatrixBuffer[iCommandBuffer] = std::move(mJointMatrixStorageBuffers.at(iCommandBuffer));
 
 	mJointMatrixStorageBuffers.at(iCommandBuffer).Create(

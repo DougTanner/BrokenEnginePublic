@@ -53,9 +53,9 @@ private:
 	void MainExport(tinygltf::Model& rGltfModel);
 
 	void ProcessTextures(tinygltf::Model& rGltfModel);
-	void SetupSkeletonAndMaterials(tinygltf::Model& rGltfModel, std::unordered_map<int, int>& rNodeToJointMap);
-	void LoadVerticesAndOptimizeMeshes(tinygltf::Model& rGltfModel, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<Material>& rMaterials, std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::vector<common::ModelVertex>& rVertices);
-	void BuildMaterialInfos(tinygltf::Model& rGltfModel, const std::unordered_map<int, int>& rNodeToJointMap, const std::vector<Material>& rMaterials, const std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::vector<common::MaterialInfo>& rMaterialInfos);
+	bool SetupSkeletonAndMaterials(tinygltf::Model& rGltfModel);
+	void LoadVerticesAndOptimizeMeshes(tinygltf::Model& rGltfModel, bool bHasSkeleton, std::vector<Material>& rMaterials, std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::vector<common::ModelVertex>& rVertices);
+	void BuildMaterialInfos(tinygltf::Model& rGltfModel, bool bHasSkeleton, const std::vector<Material>& rMaterials, const std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::vector<common::MaterialInfo>& rMaterialInfos);
 	void WriteModelFile(const std::vector<Material>& rMaterials, const std::vector<common::MaterialInfo>& rMaterialInfos, std::vector<common::ModelVertex>& rVertices);
 
 	void ReadMaterialInfosFromModel(const std::filesystem::path& rModelPath, size_t uiMaterialCount, uint32_t* puiIndexStarts, std::vector<common::MaterialInfo>& rMaterialInfos);

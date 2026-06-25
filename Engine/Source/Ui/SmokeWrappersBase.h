@@ -41,6 +41,5 @@ extern Wrapper gSmokeTrailsLength;
 extern Wrapper gSmokeTrailsLengthJitter;
 extern Wrapper gSmokeTrailsSideJitter;
 extern Wrapper gSmokeIntensityFalloff;
-extern Wrapper gSmokeTrailsFollow;
 
 } // namespace engine

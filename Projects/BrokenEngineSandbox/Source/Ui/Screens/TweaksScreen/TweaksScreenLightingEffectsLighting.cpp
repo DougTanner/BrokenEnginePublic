@@ -47,7 +47,6 @@ const engine::TweaksSliderMapRegistrar gLightingEffectsLightingRegistrar
 	{"Missile Exhaust Lighting Area", &gMissileExhaustLightingArea},
 	{"Missile Exhaust Lighting Intensity", &gMissileExhaustLightingIntensity},
 	// Spaceships
-	{"Spaceship Explosion Intensity", &gSpaceshipExplosionLightingIntensity},
 	{"Enemy Blaster Lighting Area", &gEnemyBlasterLightingArea},
 	{"Enemy Blaster Lighting Intensity", &gEnemyBlasterLightingIntensity},
 	{"Hit Flash Lighting Area One", &gHitFlashLightingAreaOne},
@@ -109,9 +108,6 @@ void TweaksScreen::RenderLightingEffectsLightingTab()
 		WrapperSeparatorText("Missiles - Exhaust");
 		WrapperSlider("Lighting Area", kiSection, 1.0f, "Missile Exhaust Lighting Area");
 		WrapperSlider("Lighting Intensity", kiSection, 1.0f, "Missile Exhaust Lighting Intensity");
-
-		WrapperSeparatorText("Spaceships - Explosion");
-		WrapperSlider("Intensity", kiSection, 1.0f, "Spaceship Explosion Intensity");
 
 		WrapperSeparatorText("Spaceships - Enemy Blaster");
 		WrapperSlider("Lighting Area", kiSection, 1.0f, "Enemy Blaster Lighting Area");

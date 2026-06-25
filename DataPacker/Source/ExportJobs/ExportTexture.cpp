@@ -7,24 +7,14 @@ using enum common::ChunkFlags;
 
 std::optional<common::ChunkFlags_t> ExportTexture::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 {
-	if (rDirectoryEntry.path().filename().native().find(L"[C]") != std::wstring::npos)
+	if (HasCubemapTag(rDirectoryEntry.path()))
 	{
 		return common::ChunkFlags_t({common::ChunkFlags::kTexture, common::ChunkFlags::kCubemap});
 	}
 
-	std::unordered_set<std::string> extensionSet = {".png", ".tga", ".jpg", ".ktx", ".BC4_UNORM_BLOCK", ".BC5_UNORM_BLOCK", ".BC7_UNORM_BLOCK", ".R16_UNORM", ".R16G16B16A16_SFLOAT"};
-	return extensionSet.contains(rDirectoryEntry.path().extension().string()) ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kTexture) : std::nullopt;
-}
-
-static std::vector<std::byte> ZlibCompress(const std::byte* puiSource, int64_t iSourceSize)
-{
-	uLongf uiBound = compressBound(static_cast<uLong>(iSourceSize));
-	std::vector<std::byte> compressed(uiBound);
-	uLongf uiCompressedSize = uiBound;
-	int iZlibResult = compress2(reinterpret_cast<Bytef*>(compressed.data()), &uiCompressedSize, reinterpret_cast<const Bytef*>(puiSource), static_cast<uLong>(iSourceSize), Z_BEST_COMPRESSION);
-	ASSERT(iZlibResult == Z_OK);
-	compressed.resize(uiCompressedSize);
-	return compressed;
+	static constexpr std::string_view kExtensions[] = {".png", ".tga", ".jpg", ".ktx", ".BC4_UNORM_BLOCK", ".BC5_UNORM_BLOCK", ".BC7_UNORM_BLOCK", ".R16_UNORM", ".R16G16B16A16_SFLOAT"};
+	std::string extension = rDirectoryEntry.path().extension().string();
+	return std::find(std::begin(kExtensions), std::end(kExtensions), extension) != std::end(kExtensions) ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kTexture) : std::nullopt;
 }
 
 static int64_t ComputeUncompressedTextureSize(VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels)
@@ -34,31 +24,43 @@ static int64_t ComputeUncompressedTextureSize(VkFormat vkFormat, int64_t iWidth,
 
 void ExportTexture::Export()
 {
+	// Format tokens live in either the file extension (explicit raw-intermediate formats) or the
+	// filename (the [BC4]/[BC5]/[BC7] encode tags). Matching against extension()/filename() — not
+	// the full path — keeps a parent directory whose name happens to contain a token (e.g. a folder
+	// named "Foo.ktx") from misrouting every file beneath it.
+	const std::wstring extension = mInputPath.extension().native();
+	const std::wstring filename = mInputPath.filename().native();
+
+	// bRawTexture covers only the explicit-extension formats (the already-encoded intermediates that
+	// pass straight through). A [BC4]-tagged source resolves the BC4 format below but must still take
+	// the encode path, so it is deliberately excluded here.
+	const bool bRawTexture = extension == L".R16_UNORM" || extension == L".BC4_UNORM_BLOCK" || extension == L".BC5_UNORM_BLOCK" || extension == L".BC7_UNORM_BLOCK" || extension == L".R16G16B16A16_SFLOAT";
+
 	VkFormat vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
-	if (mInputPath.native().find(L".R16_UNORM") != std::wstring::npos)
+	if (extension == L".R16_UNORM")
 	{
 		vkFormat = VK_FORMAT_R16_UNORM;
 	}
-	else if (mInputPath.native().find(L"[BC4]") != std::wstring::npos || mInputPath.native().find(L".BC4_UNORM_BLOCK") != std::wstring::npos)
+	else if (extension == L".BC4_UNORM_BLOCK" || filename.find(L"[BC4]") != std::wstring::npos)
 	{
 		vkFormat = VK_FORMAT_BC4_UNORM_BLOCK;
 	}
-	else if (mInputPath.native().find(L"[BC5]") != std::wstring::npos || mInputPath.native().find(L".BC5_UNORM_BLOCK") != std::wstring::npos)
+	else if (extension == L".BC5_UNORM_BLOCK" || filename.find(L"[BC5]") != std::wstring::npos)
 	{
 		vkFormat = VK_FORMAT_BC5_UNORM_BLOCK;
 	}
-	else if (mInputPath.native().find(L".R16G16B16A16_SFLOAT") != std::wstring::npos)
+	else if (extension == L".R16G16B16A16_SFLOAT")
 	{
 		vkFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 	}
-	else if (mChunkFlags & kCubemap || mInputPath.native().find(L"[BC7]") != std::wstring::npos || mInputPath.native().find(L".BC7_UNORM_BLOCK") != std::wstring::npos)
+	else if (mChunkFlags & kCubemap || extension == L".BC7_UNORM_BLOCK" || filename.find(L"[BC7]") != std::wstring::npos)
 	{
 		vkFormat = VK_FORMAT_BC7_UNORM_BLOCK;
 	}
 
-	bool bRawTexture = mInputPath.native().find(L".R16_UNORM") != std::wstring::npos || mInputPath.native().find(L".BC4_UNORM_BLOCK") != std::wstring::npos || mInputPath.native().find(L".BC5_UNORM_BLOCK") != std::wstring::npos || mInputPath.native().find(L".BC7_UNORM_BLOCK") != std::wstring::npos || mInputPath.native().find(L".R16G16B16A16_SFLOAT") != std::wstring::npos;
-
-	if (mInputPath.native().find(L".ktx") != std::wstring::npos)
+	// Dispatch order is load-bearing: .ktx and raw passthrough win over the cubemap flag, so a
+	// [C]-tagged raw intermediate (e.g. the IBL .R16G16B16A16_SFLOAT outputs) stays on the raw path.
+	if (extension == L".ktx")
 	{
 		ProcessKtxCubemap();
 	}
@@ -158,14 +160,14 @@ void ExportTexture::ProcessLiveCubemap(VkFormat vkFormat)
 	int64_t iHeight = 0;
 	std::vector<std::byte> data;
 
-	std::vector<std::string> facesOne = {"\\px.png", "\\nx.png", "\\py.png", "\\ny.png", "\\pz.png", "\\nz.png"};
-	std::vector<std::string> facesTwo = {"\\posx.jpg", "\\negx.jpg", "\\posy.jpg", "\\negy.jpg", "\\posz.jpg", "\\negz.jpg"};
-	std::vector<std::string>* pFaces = std::filesystem::exists(mInputPath.string().append(facesOne[0]).c_str()) ? &facesOne : &facesTwo;
+	static constexpr const char* kpcPngFaceNames[6] = {"px.png", "nx.png", "py.png", "ny.png", "pz.png", "nz.png"};
+	static constexpr const char* kpcJpgFaceNames[6] = {"posx.jpg", "negx.jpg", "posy.jpg", "negy.jpg", "posz.jpg", "negz.jpg"};
+	const char* const* pFaceNames = std::filesystem::exists(mInputPath / kpcPngFaceNames[0]) ? kpcPngFaceNames : kpcJpgFaceNames;
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 		for (int64_t i = 0; i < 6; ++i)
 		{
-			Texture texture(mInputPath.string().append((*pFaces)[i]).c_str(), FileType::kImage);
+			Texture texture(mInputPath / pFaceNames[i], FileType::kImage);
 			iWidth = texture.miWidth;
 			iHeight = texture.miHeight;
 			texture.Export(data, vkFormat, TextureOptions::kVerifyNoAlpha);
@@ -187,32 +189,37 @@ void ExportTexture::ProcessLiveCubemap(VkFormat vkFormat)
 
 void ExportTexture::ProcessRegularTexture(VkFormat vkFormat)
 {
-	bool bFontAtlas = false;
-	std::wstring stem = mInputPath.stem().native();
-	if (auto pos = stem.rfind(L']'); pos != std::wstring::npos)
+	// The font-atlas stem set is fixed for the whole run (input dirs resolve at startup), so collect
+	// every Fonts/**/*.fnt stem once instead of re-walking the Fonts tree on every texture job. The
+	// function-local static initializes thread-safely on first use even though jobs run concurrently
+	// on std::async threads (see RunExportJobs in Main.cpp).
+	static const std::unordered_set<std::wstring> fontStems = []
 	{
-		stem = stem.substr(pos + 1);
-	}
-	for (const std::filesystem::path& rBaseDirectory : gpFileManager->mpInputDirectories)
-	{
-		std::filesystem::path fontsDir = rBaseDirectory / "Fonts";
-		if (!std::filesystem::exists(fontsDir))
+		std::unordered_set<std::wstring> stems;
+		for (const std::filesystem::path& rBaseDirectory : gpFileManager->mpInputDirectories)
 		{
-			continue;
-		}
-		for (const std::filesystem::directory_entry& rEntry : std::filesystem::recursive_directory_iterator(fontsDir))
-		{
-			if (rEntry.path().extension() == ".fnt" && rEntry.path().stem().native() == stem)
+			std::filesystem::path fontsDir = rBaseDirectory / "Fonts";
+			if (!std::filesystem::exists(fontsDir))
 			{
-				bFontAtlas = true;
-				break;
+				continue;
+			}
+			for (const std::filesystem::directory_entry& rEntry : std::filesystem::recursive_directory_iterator(fontsDir))
+			{
+				if (rEntry.path().extension() == ".fnt")
+				{
+					stems.insert(rEntry.path().stem().native());
+				}
 			}
 		}
-		if (bFontAtlas)
-		{
-			break;
-		}
+		return stems;
+	}();
+
+	std::wstring stem = mInputPath.stem().native();
+	if (size_t uiBracket = stem.rfind(L']'); uiBracket != std::wstring::npos)
+	{
+		stem = stem.substr(uiBracket + 1);
 	}
+	const bool bFontAtlas = fontStems.contains(stem);
 
 	std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 	Texture texture(mInputPath, FileType::kImage);

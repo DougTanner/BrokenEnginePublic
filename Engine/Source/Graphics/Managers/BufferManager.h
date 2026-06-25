@@ -142,6 +142,8 @@ private:
 	int64_t miJointMatrixOffset[kiMaxFramebuffers] {};
 	int64_t miMeshDataCapacity[kiMaxFramebuffers] {};
 	int64_t miJointMatrixCapacity[kiMaxFramebuffers] {};
+	// One-frame buffer parking for the two skinning bump allocators; a same-frame second grow may overwrite a
+	//   slot -- safe by the three-point chain documented in GrowMeshDataBuffer. Drained by ResetSkinningAllocations.
 	std::optional<Buffer> mPreviousMeshDataBuffer[kiMaxFramebuffers];
 	std::optional<Buffer> mPreviousJointMatrixBuffer[kiMaxFramebuffers];
 };

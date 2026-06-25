@@ -25,6 +25,19 @@ using TextureOptions_t = common::Flags<TextureOptions>;
 // MigrateLegacyIntermediates() before any reader touches it.
 inline constexpr int64_t kiTextureIntermediateMagic = 0x00000000BC7EDA7A;
 
+// zlib-DEFLATE a byte buffer at Z_BEST_COMPRESSION; returns a size-trimmed vector. Shared by the
+// texture-intermediate writers (ExportTexture / Texture::Save / MigrateLegacyIntermediates) and
+// the RDO sweep so the compression level and Z_OK handling can't drift between them.
+std::vector<std::byte> ZlibCompress(const std::byte* puiSource, int64_t iSourceSize);
+
+// True when the filename carries the `[C]` cubemap tag — the convention marking a .ktx or
+// face-image-directory cubemap input. Shared by ExportTexture routing and the IBL pre-pass
+// (ExportCubemapIbl) so the tag test stays scoped to filename() at every site.
+inline bool HasCubemapTag(const std::filesystem::path& rPath)
+{
+	return rPath.filename().native().find(L"[C]") != std::wstring::npos;
+}
+
 class Texture
 {
 public:
@@ -98,4 +111,14 @@ public:
 	int64_t miHeight = 0;
 
 	std::vector<std::vector<float>> mData;
+
+private:
+
+	// The file-loading constructor dispatches to one loader per FileType; each fills mData and (for the
+	// image / EXR paths that don't receive dimensions) miWidth / miHeight. kFloat32 / kUint16Raw require
+	// caller-supplied miWidth / miHeight.
+	void LoadImage(const std::filesystem::path& rPath);
+	void LoadFloat32(const std::filesystem::path& rPath);
+	void LoadUint16Raw(const std::filesystem::path& rPath);
+	void LoadExr(const std::filesystem::path& rPath);
 };

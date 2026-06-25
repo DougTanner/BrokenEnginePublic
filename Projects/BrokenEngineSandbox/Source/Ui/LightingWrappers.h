@@ -75,9 +75,6 @@ extern engine::Wrapper gMissileExhaustVisibleIntensity;
 extern engine::Wrapper gMissileExhaustLightingArea;
 extern engine::Wrapper gMissileExhaustLightingIntensity;
 
-// Spaceships - Explosion
-extern engine::Wrapper gSpaceshipExplosionLightingIntensity;
-
 // Spaceships - Enemy blaster
 extern engine::Wrapper gEnemyBlasterVisibleIntensity;
 extern engine::Wrapper gEnemyBlasterLightingArea;

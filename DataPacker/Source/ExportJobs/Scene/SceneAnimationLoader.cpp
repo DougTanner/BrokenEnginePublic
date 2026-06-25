@@ -37,14 +37,14 @@ bool DetermineAnimationPath(const tinygltf::Model& rGltfModel)
 	return true;
 }
 
-void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeToNodeIndexMap, AnimationOutput& rOut)
+void LoadAnimations(const tinygltf::Model& rModel, AnimationOutput& rOut)
 {
 	std::vector<common::AnimationClip>& rAnimations = rOut.rAnimations;
 	std::vector<common::AnimationChannel>& rChannels = rOut.rChannels;
 	std::vector<common::AnimationKeyframe>& rKeyframes = rOut.rKeyframes;
 	std::vector<common::AnimationKeyframeCubic>& rCubicKeyframes = rOut.rCubicKeyframes;
 
-	LOG(kDefault, kDebug, "LoadAnimations: nodeToNodeIndexMap has {} entries", rNodeToNodeIndexMap.size());
+	LOG(kDefault, kDebug, "LoadAnimations: {} nodes", rModel.nodes.size());
 
 	for (const tinygltf::Animation& rAnim : rModel.animations)
 	{
@@ -61,19 +61,18 @@ void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int,
 
 		for (const tinygltf::AnimationChannel& rGltfChannel : rAnim.channels)
 		{
-			// Skip channels for nodes not in the node map
-			auto it = rNodeToNodeIndexMap.find(rGltfChannel.target_node);
-			if (it == rNodeToNodeIndexMap.end())
+			// Skip channels targeting an invalid / out-of-range node
+			if (rGltfChannel.target_node < 0 || rGltfChannel.target_node >= static_cast<int>(rModel.nodes.size()))
 			{
-				LOG(kDefault, kVerbose, "  FILTERED: channel targeting node {} (\"{}\") not in map", rGltfChannel.target_node, rGltfChannel.target_node >= 0 ? rModel.nodes[rGltfChannel.target_node].name : "invalid");
+				LOG(kDefault, kVerbose, "  FILTERED: channel targeting node {} out of range (node count {})", rGltfChannel.target_node, rModel.nodes.size());
 				continue;
 			}
-			LOG(kDefault, kVerbose, "  KEPT: channel targeting node {} (\"{}\") -> node index {}", rGltfChannel.target_node, rModel.nodes[rGltfChannel.target_node].name, it->second);
+			LOG(kDefault, kVerbose, "  KEPT: channel targeting node {} (\"{}\") -> node index {}", rGltfChannel.target_node, rModel.nodes.at(rGltfChannel.target_node).name, rGltfChannel.target_node);
 
 			const tinygltf::AnimationSampler& rSampler = rAnim.samplers[rGltfChannel.sampler];
 
 			common::AnimationChannel channel {};
-			channel.uiNodeIndex = static_cast<uint16_t>(it->second);
+			channel.uiNodeIndex = static_cast<uint16_t>(rGltfChannel.target_node);
 
 			// Target path
 			if (rGltfChannel.target_path == "translation")

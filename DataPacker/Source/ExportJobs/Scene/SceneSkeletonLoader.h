@@ -13,5 +13,4 @@ struct SkeletonData
 std::unordered_map<int, int> BuildNodeParentMap(const tinygltf::Model& rModel);
 
 // Load skeleton from all nodes, conditionally loading skin data if skins exist
-// Builds identity nodeToJointMap (node index → node index) for animation channel mapping
-SkeletonData LoadSkeletonData(const tinygltf::Model& rModel, std::unordered_map<int, int>& rNodeToJointMap);
+SkeletonData LoadSkeletonData(const tinygltf::Model& rModel);

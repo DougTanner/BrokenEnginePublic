@@ -42,6 +42,8 @@ protected:
 
 private:
 
+	std::filesystem::path RunVulkanTool(const std::filesystem::path& rExecutable, std::wstring& rParameters, const std::filesystem::path& rOutputFile, bool bThrowOnAnyOutput);
+
 	std::filesystem::path PreprocessShader();
 	std::filesystem::path CompileShader(const std::filesystem::path& rPreProcessedFile);
 	std::filesystem::path OptimizeShader(const std::filesystem::path& rSpirvFile);

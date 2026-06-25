@@ -29,6 +29,8 @@ struct BeachSubdivider
 	};
 
 	void Run();
+	void SplitInBand(uint32_t iTriangle, uint32_t iA, uint32_t iB, uint32_t iC, uint32_t iMidpointAB, uint32_t iMidpointBC, uint32_t iMidpointCA, uint8_t iChildDepth);
+	void AbsorbMidpoints(uint32_t iTriangle, uint32_t iA, uint32_t iB, uint32_t iC, uint32_t iMidpointAB, uint32_t iMidpointBC, uint32_t iMidpointCA, int32_t iExistingMidpoints, uint8_t iChildDepth);
 
 	uint64_t EdgeKey(uint32_t iA, uint32_t iB) const
 	{
@@ -262,111 +264,11 @@ void BeachSubdivider::Run()
 
 		if (bBandTrigger)
 		{
-			// In-band 1->4 split. Capture neighbors BEFORE mutating edge tables so we know
-			// who to notify on each parent edge. Create midpoints for any edges that don't
-			// already have one; those new midpoints are what neighbors will absorb.
-			int32_t iNeighborAB = EdgeOther(EdgeKey(iA, iB), static_cast<int32_t>(iTriangle));
-			int32_t iNeighborBC = EdgeOther(EdgeKey(iB, iC), static_cast<int32_t>(iTriangle));
-			int32_t iNeighborCA = EdgeOther(EdgeKey(iC, iA), static_cast<int32_t>(iTriangle));
-
-			if (iMidpointAB == UINT32_MAX)
-			{
-				iMidpointAB = GetOrCreateMidpoint(iA, iB);
-			}
-			if (iMidpointBC == UINT32_MAX)
-			{
-				iMidpointBC = GetOrCreateMidpoint(iB, iC);
-			}
-			if (iMidpointCA == UINT32_MAX)
-			{
-				iMidpointCA = GetOrCreateMidpoint(iC, iA);
-			}
-
-			KillTriangle(iTriangle);
-
-			uint32_t iChild0 = AppendTriangle(iA, iMidpointAB, iMidpointCA, iChildDepth);
-			uint32_t iChild1 = AppendTriangle(iMidpointAB, iB, iMidpointBC, iChildDepth);
-			uint32_t iChild2 = AppendTriangle(iMidpointCA, iMidpointBC, iC, iChildDepth);
-			uint32_t iChild3 = AppendTriangle(iMidpointAB, iMidpointBC, iMidpointCA, iChildDepth);
-
-			worklist.push_back(iChild0);
-			worklist.push_back(iChild1);
-			worklist.push_back(iChild2);
-			worklist.push_back(iChild3);
-
-			if (iNeighborAB >= 0 && triangleAlive[static_cast<size_t>(iNeighborAB)] != 0)
-			{
-				worklist.push_back(static_cast<uint32_t>(iNeighborAB));
-			}
-			if (iNeighborBC >= 0 && triangleAlive[static_cast<size_t>(iNeighborBC)] != 0)
-			{
-				worklist.push_back(static_cast<uint32_t>(iNeighborBC));
-			}
-			if (iNeighborCA >= 0 && triangleAlive[static_cast<size_t>(iNeighborCA)] != 0)
-			{
-				worklist.push_back(static_cast<uint32_t>(iNeighborCA));
-			}
+			SplitInBand(iTriangle, iA, iB, iC, iMidpointAB, iMidpointBC, iMidpointCA, iChildDepth);
 			continue;
 		}
 
-		// Absorption split: 1->2, 1->3, or 1->4 depending on midpoint count. No new midpoints
-		// are created, so neighbors of this triangle gain no new T-junctions -- cascade firewall.
-		KillTriangle(iTriangle);
-
-		if (iExistingMidpoints == 1)
-		{
-			if (iMidpointAB != UINT32_MAX)
-			{
-				AppendTriangle(iA, iMidpointAB, iC, iChildDepth);
-				AppendTriangle(iMidpointAB, iB, iC, iChildDepth);
-			}
-			else if (iMidpointBC != UINT32_MAX)
-			{
-				AppendTriangle(iA, iB, iMidpointBC, iChildDepth);
-				AppendTriangle(iA, iMidpointBC, iC, iChildDepth);
-			}
-			else
-			{
-				AppendTriangle(iA, iB, iMidpointCA, iChildDepth);
-				AppendTriangle(iB, iC, iMidpointCA, iChildDepth);
-			}
-		}
-		else if (iExistingMidpoints == 2)
-		{
-			if (iMidpointAB != UINT32_MAX && iMidpointBC != UINT32_MAX)
-			{
-				// Midpoints on A-B and B-C. Corner B is between them.
-				AppendTriangle(iMidpointAB, iB, iMidpointBC, iChildDepth);
-				AppendTriangle(iA, iMidpointAB, iMidpointBC, iChildDepth);
-				AppendTriangle(iA, iMidpointBC, iC, iChildDepth);
-			}
-			else if (iMidpointBC != UINT32_MAX && iMidpointCA != UINT32_MAX)
-			{
-				// Midpoints on B-C and C-A. Corner C is between them.
-				AppendTriangle(iMidpointBC, iC, iMidpointCA, iChildDepth);
-				AppendTriangle(iB, iMidpointBC, iMidpointCA, iChildDepth);
-				AppendTriangle(iA, iB, iMidpointCA, iChildDepth);
-			}
-			else
-			{
-				// Midpoints on A-B and C-A. Corner A is between them.
-				AppendTriangle(iA, iMidpointAB, iMidpointCA, iChildDepth);
-				AppendTriangle(iMidpointAB, iB, iMidpointCA, iChildDepth);
-				AppendTriangle(iMidpointCA, iB, iC, iChildDepth);
-			}
-		}
-		else
-		{
-			// All three edges have midpoints. True 1->4 using the existing midpoints.
-			AppendTriangle(iA, iMidpointAB, iMidpointCA, iChildDepth);
-			AppendTriangle(iMidpointAB, iB, iMidpointBC, iChildDepth);
-			AppendTriangle(iMidpointCA, iMidpointBC, iC, iChildDepth);
-			AppendTriangle(iMidpointAB, iMidpointBC, iMidpointCA, iChildDepth);
-		}
-		// Absorption children inherit the parent's out-of-band Z-range (Z-range of children
-		// is a subset of the parent's), so they cannot trigger a band split themselves --
-		// no need to push them. They will be re-pushed automatically if a future in-band
-		// split creates a new midpoint on one of their edges (via the iNeighbor* lookups).
+		AbsorbMidpoints(iTriangle, iA, iB, iC, iMidpointAB, iMidpointBC, iMidpointCA, iExistingMidpoints, iChildDepth);
 	}
 
 	// Compact: drop dead triangles (UINT32_MAX sentinel indices).
@@ -383,6 +285,116 @@ void BeachSubdivider::Run()
 		compactedIndices.push_back(meshIndices[i + 2]);
 	}
 	meshIndices = std::move(compactedIndices);
+}
+
+void BeachSubdivider::SplitInBand(uint32_t iTriangle, uint32_t iA, uint32_t iB, uint32_t iC, uint32_t iMidpointAB, uint32_t iMidpointBC, uint32_t iMidpointCA, uint8_t iChildDepth)
+{
+	// In-band 1->4 split. Capture neighbors BEFORE mutating edge tables so we know
+	// who to notify on each parent edge. Create midpoints for any edges that don't
+	// already have one; those new midpoints are what neighbors will absorb.
+	int32_t iNeighborAB = EdgeOther(EdgeKey(iA, iB), static_cast<int32_t>(iTriangle));
+	int32_t iNeighborBC = EdgeOther(EdgeKey(iB, iC), static_cast<int32_t>(iTriangle));
+	int32_t iNeighborCA = EdgeOther(EdgeKey(iC, iA), static_cast<int32_t>(iTriangle));
+
+	if (iMidpointAB == UINT32_MAX)
+	{
+		iMidpointAB = GetOrCreateMidpoint(iA, iB);
+	}
+	if (iMidpointBC == UINT32_MAX)
+	{
+		iMidpointBC = GetOrCreateMidpoint(iB, iC);
+	}
+	if (iMidpointCA == UINT32_MAX)
+	{
+		iMidpointCA = GetOrCreateMidpoint(iC, iA);
+	}
+
+	KillTriangle(iTriangle);
+
+	uint32_t iChild0 = AppendTriangle(iA, iMidpointAB, iMidpointCA, iChildDepth);
+	uint32_t iChild1 = AppendTriangle(iMidpointAB, iB, iMidpointBC, iChildDepth);
+	uint32_t iChild2 = AppendTriangle(iMidpointCA, iMidpointBC, iC, iChildDepth);
+	uint32_t iChild3 = AppendTriangle(iMidpointAB, iMidpointBC, iMidpointCA, iChildDepth);
+
+	worklist.push_back(iChild0);
+	worklist.push_back(iChild1);
+	worklist.push_back(iChild2);
+	worklist.push_back(iChild3);
+
+	if (iNeighborAB >= 0 && triangleAlive[static_cast<size_t>(iNeighborAB)] != 0)
+	{
+		worklist.push_back(static_cast<uint32_t>(iNeighborAB));
+	}
+	if (iNeighborBC >= 0 && triangleAlive[static_cast<size_t>(iNeighborBC)] != 0)
+	{
+		worklist.push_back(static_cast<uint32_t>(iNeighborBC));
+	}
+	if (iNeighborCA >= 0 && triangleAlive[static_cast<size_t>(iNeighborCA)] != 0)
+	{
+		worklist.push_back(static_cast<uint32_t>(iNeighborCA));
+	}
+}
+
+void BeachSubdivider::AbsorbMidpoints(uint32_t iTriangle, uint32_t iA, uint32_t iB, uint32_t iC, uint32_t iMidpointAB, uint32_t iMidpointBC, uint32_t iMidpointCA, int32_t iExistingMidpoints, uint8_t iChildDepth)
+{
+	// Absorption split: 1->2, 1->3, or 1->4 depending on midpoint count. No new midpoints
+	// are created, so neighbors of this triangle gain no new T-junctions -- cascade firewall.
+	KillTriangle(iTriangle);
+
+	if (iExistingMidpoints == 1)
+	{
+		if (iMidpointAB != UINT32_MAX)
+		{
+			AppendTriangle(iA, iMidpointAB, iC, iChildDepth);
+			AppendTriangle(iMidpointAB, iB, iC, iChildDepth);
+		}
+		else if (iMidpointBC != UINT32_MAX)
+		{
+			AppendTriangle(iA, iB, iMidpointBC, iChildDepth);
+			AppendTriangle(iA, iMidpointBC, iC, iChildDepth);
+		}
+		else
+		{
+			AppendTriangle(iA, iB, iMidpointCA, iChildDepth);
+			AppendTriangle(iB, iC, iMidpointCA, iChildDepth);
+		}
+	}
+	else if (iExistingMidpoints == 2)
+	{
+		if (iMidpointAB != UINT32_MAX && iMidpointBC != UINT32_MAX)
+		{
+			// Midpoints on A-B and B-C. Corner B is between them.
+			AppendTriangle(iMidpointAB, iB, iMidpointBC, iChildDepth);
+			AppendTriangle(iA, iMidpointAB, iMidpointBC, iChildDepth);
+			AppendTriangle(iA, iMidpointBC, iC, iChildDepth);
+		}
+		else if (iMidpointBC != UINT32_MAX && iMidpointCA != UINT32_MAX)
+		{
+			// Midpoints on B-C and C-A. Corner C is between them.
+			AppendTriangle(iMidpointBC, iC, iMidpointCA, iChildDepth);
+			AppendTriangle(iB, iMidpointBC, iMidpointCA, iChildDepth);
+			AppendTriangle(iA, iB, iMidpointCA, iChildDepth);
+		}
+		else
+		{
+			// Midpoints on A-B and C-A. Corner A is between them.
+			AppendTriangle(iA, iMidpointAB, iMidpointCA, iChildDepth);
+			AppendTriangle(iMidpointAB, iB, iMidpointCA, iChildDepth);
+			AppendTriangle(iMidpointCA, iB, iC, iChildDepth);
+		}
+	}
+	else
+	{
+		// All three edges have midpoints. True 1->4 using the existing midpoints.
+		AppendTriangle(iA, iMidpointAB, iMidpointCA, iChildDepth);
+		AppendTriangle(iMidpointAB, iB, iMidpointBC, iChildDepth);
+		AppendTriangle(iMidpointCA, iMidpointBC, iC, iChildDepth);
+		AppendTriangle(iMidpointAB, iMidpointBC, iMidpointCA, iChildDepth);
+	}
+	// Absorption children inherit the parent's out-of-band Z-range (Z-range of children
+	// is a subset of the parent's), so they cannot trigger a band split themselves --
+	// no need to push them. They will be re-pushed automatically if a future in-band
+	// split creates a new midpoint on one of their edges (via the iNeighbor* lookups).
 }
 
 } // namespace

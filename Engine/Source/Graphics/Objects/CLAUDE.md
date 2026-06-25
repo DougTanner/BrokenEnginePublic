@@ -29,6 +29,7 @@ Three mutually-exclusive modes: persistent host-mapped (CPU-written each frame),
 - Single-attachment pipelines using the lighting render pass auto-upgrade to 3 color attachments with replicated blend state.
 - Pipeline flags may force MSAA / sample-shading overrides independent of the global `gMultisampling` / `gSampleShading` settings; forced sample counts clamp to the device's max multisample count, with sample shading dropped when clamped to 1x.
 - Vertex input comes from shader reflection: stride is asserted equal to any bound vertex buffer's; reflected stride with no buffer at create makes a per-draw vertex-buffer pipeline (caller binds buffers and draws at record time — per-island terrain meshes); stride 0 means no vertex input (fullscreen passes).
+- **Trust-boundary validation**: `ModelPipeline::Create` bounds the index/material alias-walk extent against `ChunkHeader::iSize`; `PipelineDescriptorWriter` bounds per-material texture-index fields against `uiTextureCount` before indexing the texture-CRC array. Out-of-range throws `common::CorruptStreamException`.
 - See [../Managers/CLAUDE.md](../Managers/CLAUDE.md) for the pipeline recreation invariant affecting descriptor writes.
 
 ## Texture Lifecycle

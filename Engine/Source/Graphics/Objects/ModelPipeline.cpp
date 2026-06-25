@@ -51,6 +51,16 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 	int64_t iTextureArraySize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rSceneHeader.uiTextureCount * static_cast<int64_t>(sizeof(common::crc_t)));
 	int64_t iIndexStartsSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rSceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
 	int64_t iSceneArraysSize = iTextureArraySize + iIndexStartsSize;
+
+	// Trust boundary (chunk bytes): the index-start and material arrays are aliased over the scene chunk and walked
+	// by the per-material loop below. A <=-max-but-oversized count would walk them off the chunk, so reject before
+	// the first deref — their summed extent must fit the chunk's actual bytes (ChunkHeader::iSize). Counts already
+	// bounded against the structural maxima above, so the multiply cannot overflow int64.
+	if (iSceneArraysSize + rSceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(common::MaterialShaderData)) > rChunk.pHeader->iSize)
+	{
+		throw common::CorruptStreamException("ModelPipeline::Create");
+	}
+
 	const uint32_t* puiIndexStarts = reinterpret_cast<const uint32_t*>(rChunk.pData + iTextureArraySize);
 	const common::MaterialShaderData* pMaterials = reinterpret_cast<const common::MaterialShaderData*>(rChunk.pData + iSceneArraysSize);
 	PipelineFlags_t originalFlags = pipelineInfo.flags;
