@@ -1,10 +1,10 @@
 # /Projects/BrokenEngineSandbox/Source/Frame/Collections/Spaceships/
 
-AI-controlled enemy spaceships with health, weapons, freeze time, and per-instance skeletal animation. `Register()` registers four types: spaceship explosion, missile-homing target, enemy blaster (with camera-aligned point light on client), and a client-only hit-flash point-light controller. The target, blaster, and hit-flash registrations are idempotent via `0xFF` sentinel guards; the explosion registration is unguarded (engine `RegisterType` asserts on re-registration).
+AI-controlled enemy spaceships with health, weapons, freeze time, and per-instance skeletal animation. `Register()` registers three types: spaceship explosion, enemy blaster (with camera-aligned point light on client), and a client-only hit-flash point-light controller. The blaster and hit-flash registrations are idempotent via `0xFF` sentinel guards; the explosion registration is unguarded (engine `RegisterType` asserts on re-registration).
 
 ## Game-Specific Behavior
 
-- **Sizing**: `kfSpaceshipRadius` is the single source of truth for body size; pusher, explosions, blaster, target, terrain displacement, and model scale all derive from it.
+- **Sizing**: `kfSpaceshipRadius` is the single source of truth for body size; pusher, explosions, blaster, terrain displacement, and model scale all derive from it.
 - **AI targeting hierarchy**: Return-to-island-center > flee-from-player > chase nearest alive player; both flee and return toggle on distance hysteresis. Island center is the *nearest* per-cell island placement, not a fixed point. Steering uses two-stage exponential decay, clamped to max turn rate after terrain bounce and terrain avoidance.
 - **Cross-phase field ownership**: Delta rotation and freeze time live in the Interpolate struct (Interpolate Update and Render read them) but are decayed and written by PostRender Update.
 - **Spawn phase misnomer**: The PostRender Spawn phase fires enemy blasters (target player must be on-screen via `FrameInterpolate::IsVisible`, within a narrow facing cone, on cooldown) and emits staggered death explosions — it never creates spaceships. Creation is the `SpawnInfo` overload of `Spawn`, called externally from `Frame.cpp` (chevron-group spawner) and `SpawnTransfer.cpp`.

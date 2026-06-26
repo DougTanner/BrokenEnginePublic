@@ -46,7 +46,6 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	rInterpolate.pVecPositions[iSpawnIndex] = rInfo.vecPosition;
 	rInterpolate.pVecDirections[iSpawnIndex] = rInfo.vecDirection;
 
-	rInterpolate.pfSizePercents[iSpawnIndex] = rInfo.fSizePercent;
 	rInterpolate.pfTimePercents[iSpawnIndex] = rInfo.fTimePercent;
 
 	rInterpolate.piTrailCounts[iSpawnIndex] = static_cast<int32_t>(std::min(rInfo.uiTrailCount, static_cast<uint32_t>(kiMaxExplosionTrails)));

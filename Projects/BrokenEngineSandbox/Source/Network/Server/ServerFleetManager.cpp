@@ -42,7 +42,7 @@ int64_t ServerFleetManager::FindClientIdForGuid(const engine::ClientGuid& rGuid)
 
 void ServerFleetManager::ProcessCreateFleetRequests()
 {
-	// Heap: mFleets map and fleet-list grow on create; SendFleetSyncToClient allocates packet
+	// Heap: mFleets map and fleet-list grow on create
 	ScopedSuppressAllocationTracking suppress;
 
 	for (const PendingCreateFleetRequest& rRequest : mPendingCreateFleetRequests)
@@ -65,9 +65,6 @@ void ServerFleetManager::ProcessCreateFleetRequests()
 
 void ServerFleetManager::ProcessDeleteFleetRequests()
 {
-	// Heap: SendFleetSyncToClient allocates packet on fleet delete
-	ScopedSuppressAllocationTracking suppress;
-
 	for (const PendingDeleteFleetRequest& rRequest : mPendingDeleteFleetRequests)
 	{
 		const engine::ClientConnection* pClient = engine::gpServer->FindClient(rRequest.iClientId);
@@ -326,7 +323,7 @@ void ServerFleetManager::OnPlayerTransferred(const engine::ClientGuid& rGuid, en
 
 void ServerFleetManager::OnClientConnected(int64_t iClientId, const engine::ClientGuid& rClientGuid)
 {
-	// Heap: insert_or_assign mGuidToClientId, try_emplace owned-id vector, SendFleetSync packet
+	// Heap: insert_or_assign mGuidToClientId, try_emplace owned-id vector
 	ScopedSuppressAllocationTracking suppress;
 
 	mGuidToClientId.insert_or_assign(rClientGuid, iClientId);

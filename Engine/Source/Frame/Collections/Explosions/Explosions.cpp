@@ -329,7 +329,6 @@ bool ExplosionsInterpolate::LogDifferences(const ExplosionsInterpolate& rOther) 
 		bEqual &= common::LogDifference<"pfStartTimes">(i, pfStartTimes[i], rOther.pfStartTimes[i]);
 		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::LogDifference_Vec("pVecDirections", i, pVecDirections[i], rOther.pVecDirections[i]);
-		bEqual &= common::LogDifference<"pfSizePercents">(i, pfSizePercents[i], rOther.pfSizePercents[i]);
 		bEqual &= common::LogDifference<"pfTimePercents">(i, pfTimePercents[i], rOther.pfTimePercents[i]);
 		bEqual &= common::LogDifference<"piTrailCounts">(i, piTrailCounts[i], rOther.piTrailCounts[i]);
 

@@ -4,12 +4,12 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (set = 0, binding = 0) uniform globalUniform
+layout (set = 0, binding = kiGlobalBindingGlobalUniform) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
 
-layout (set = 0, binding = 1) uniform mainUniform
+layout (set = 0, binding = kiGlobalBindingMainUniform) uniform mainUniform
 {
 	MainLayout mainLayout;
 };
@@ -152,11 +152,11 @@ void main()
 
 	#undef SAMPLE_NORMAL_PRECISE
 
-	// Per-sample weights interpolated by camera zoom (0 = closest, 1 = farthest), then weighted-sum-then-normalize.
+	// Per-sample weights resolved CPU-side by camera eye height (LightingUniforms.cpp), then weighted-sum-then-normalize.
 	// normalize() is scale-invariant so absolute weight magnitudes don't matter; only ratios do. Weight 0 disables a sample.
-	float fWeightOne = mix(mainLayout.fWaterNormalWeightOneMin, mainLayout.fWaterNormalWeightOneMax, mainLayout.fCameraHeightZoomFactor);
-	float fWeightTwo = mix(mainLayout.fWaterNormalWeightTwoMin, mainLayout.fWaterNormalWeightTwoMax, mainLayout.fCameraHeightZoomFactor);
-	float fWeightThree = mix(mainLayout.fWaterNormalWeightThreeMin, mainLayout.fWaterNormalWeightThreeMax, mainLayout.fCameraHeightZoomFactor);
+	float fWeightOne = mainLayout.fWaterNormalWeightOne;
+	float fWeightTwo = mainLayout.fWaterNormalWeightTwo;
+	float fWeightThree = mainLayout.fWaterNormalWeightThree;
 	// Guard against NaN: if all three weight sliders resolve to 0 the sum is the zero vector and normalize() returns NaN.
 	vec3 f3WeightedSum = fWeightOne * f3SampledNormalOne + fWeightTwo * f3SampledNormalTwo + fWeightThree * f3SampledNormalThree;
 	vec3 f3SampledNormal = f3WeightedSum / max(length(f3WeightedSum), kfEpsilon);

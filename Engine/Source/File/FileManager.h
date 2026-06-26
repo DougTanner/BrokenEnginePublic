@@ -22,6 +22,7 @@ struct EagerChunk
 {
 	common::ChunkHeader* pHeader = nullptr;
 	std::byte* pData = nullptr;
+	int64_t iDataSize = 0; // True in-memory data extent (ChunkLocation::uiSize - kiChunkDataOffset); unlike pHeader->iSize this includes a scene chunk's appended animation section
 };
 
 // Lazy chunk (loaded on demand)

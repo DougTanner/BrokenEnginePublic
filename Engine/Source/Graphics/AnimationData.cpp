@@ -3,9 +3,18 @@
 namespace engine
 {
 
-void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
+void AnimationData::Load(const std::byte* pAnimationData, int64_t iAnimationBytes, common::crc_t crc)
 {
 	mCrc = crc;
+
+	// Trust boundary (byte extent): bound the header read and every alias-pointer advance below against the region's
+	// true byte extent. iAnimationBytes comes from the authoritative chunk table (EagerChunk::iDataSize =
+	// ChunkLocation::uiSize - kiChunkDataOffset, minus the scene-array prefix), so a count that is <= its structural
+	// max but larger than the chunk's actual animation bytes is rejected instead of walking off the eager pack buffer.
+	if (iAnimationBytes < static_cast<int64_t>(sizeof(mHeader)))
+	{
+		throw common::CorruptStreamException("AnimationData::Load");
+	}
 
 	// Copy header (now small - just counts + Skeleton counts)
 	std::memcpy(&mHeader, pAnimationData, sizeof(mHeader));
@@ -17,9 +26,9 @@ void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
 	// buffer, so reject implausible counts against the structural maxima before any of them is used. Channels/keyframes
 	// have no container of their own (they only advance alias pointers); bound them by a generous absolute ceiling
 	// — the glTF-driven producer has no clean structural max, and the ceiling caps the pointer arithmetic to a sane
-	// range. (A <=-max-but-oversized count vs the chunk's actual bytes is a separate Pattern-B gap deferred to a
-	// follow-up plan: the scene chunk's ChunkHeader::iSize excludes the appended animation section, so the region's
-	// true byte extent is not available here without a producer/data-model change.)
+	// range. (A <=-max-but-oversized count vs the chunk's actual bytes is caught by the iAnimationBytes byte-extent
+	// bound applied to each advance below — the region's true extent is sourced from the chunk table, not from the
+	// scene chunk's ChunkHeader::iSize, which excludes the appended animation section.)
 	if (mHeader.skeleton.uiNodeCount > common::Skeleton::kiMaxNodes
 		|| mHeader.skeleton.uiSkinJointCount > common::Skeleton::kiMaxSkinJoints
 		|| mHeader.uiAnimationCount > common::AnimationHeader::kiMaxAnimations
@@ -34,30 +43,45 @@ void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
 
 	LOG(kLoading, kDebug, "AnimationData::Load: animations {}, channels {}, keyframes {}, cubicKeyframes {}, nodes {}, skinJoints {}", mHeader.uiAnimationCount, mHeader.uiChannelCount, mHeader.uiKeyframeCount, mHeader.uiCubicKeyframeCount, mHeader.skeleton.uiNodeCount, mHeader.skeleton.uiSkinJointCount);
 
+	// Byte-extent bound: iAnimationBytes (validated >= sizeof(mHeader) above) is the region's true size. Each section
+	// is aliased at the current cursor, then BoundAdvance steps both the cursor and the running offset by the section
+	// size after checking it fits — so a corrupt-but-in-range count cannot walk these reads off the eager pack buffer.
+	int64_t iOffset = static_cast<int64_t>(sizeof(mHeader));
+	auto BoundAdvance = [&](int64_t iSectionBytes)
+	{
+		if (iOffset > iAnimationBytes - iSectionBytes) // overflow-safe form of iOffset + iSectionBytes > iAnimationBytes
+		{
+			throw common::CorruptStreamException("AnimationData::Load");
+		}
+		iOffset += iSectionBytes;
+		pAnimationData += iSectionBytes;
+	};
+
 	// Point into pack memory - no copying
 	mpNodes = reinterpret_cast<const common::ModelNode*>(pAnimationData);
-	pAnimationData += mHeader.skeleton.uiNodeCount * sizeof(common::ModelNode);
+	BoundAdvance(mHeader.skeleton.uiNodeCount * static_cast<int64_t>(sizeof(common::ModelNode)));
 
 	mpSkinJointToNode = reinterpret_cast<const uint16_t*>(pAnimationData);
-	pAnimationData += common::RoundUp<int64_t, 4>(mHeader.skeleton.uiSkinJointCount * static_cast<int64_t>(sizeof(uint16_t)));
+	BoundAdvance(common::RoundUp<int64_t, 4>(mHeader.skeleton.uiSkinJointCount * static_cast<int64_t>(sizeof(uint16_t))));
 
 	// Inverse bind matrices: read via pointer, pre-compute into aligned array
 	const XMFLOAT4X4* pInverseBindMatrices = reinterpret_cast<const XMFLOAT4X4*>(pAnimationData);
-	pAnimationData += mHeader.skeleton.uiSkinJointCount * sizeof(XMFLOAT4X4);
+	BoundAdvance(mHeader.skeleton.uiSkinJointCount * static_cast<int64_t>(sizeof(XMFLOAT4X4)));
 
 	mpAnimations = reinterpret_cast<const common::AnimationClip*>(pAnimationData);
-	pAnimationData += mHeader.uiAnimationCount * sizeof(common::AnimationClip);
+	BoundAdvance(mHeader.uiAnimationCount * static_cast<int64_t>(sizeof(common::AnimationClip)));
 
 	mpMaterialInfos = reinterpret_cast<const common::MaterialInfo*>(pAnimationData);
-	pAnimationData += mHeader.uiMaterialCount * sizeof(common::MaterialInfo);
+	BoundAdvance(mHeader.uiMaterialCount * static_cast<int64_t>(sizeof(common::MaterialInfo)));
 
 	mpChannels = reinterpret_cast<const common::AnimationChannel*>(pAnimationData);
-	pAnimationData += mHeader.uiChannelCount * sizeof(common::AnimationChannel);
+	BoundAdvance(mHeader.uiChannelCount * static_cast<int64_t>(sizeof(common::AnimationChannel)));
 
 	mpKeyframes = reinterpret_cast<const common::AnimationKeyframe*>(pAnimationData);
-	pAnimationData += mHeader.uiKeyframeCount * sizeof(common::AnimationKeyframe);
+	BoundAdvance(mHeader.uiKeyframeCount * static_cast<int64_t>(sizeof(common::AnimationKeyframe)));
 
 	mpCubicKeyframes = reinterpret_cast<const common::AnimationKeyframeCubic*>(pAnimationData);
+	BoundAdvance(mHeader.uiCubicKeyframeCount * static_cast<int64_t>(sizeof(common::AnimationKeyframeCubic)));
 
 	// Trust boundary (secondary indices): indices stored inside the now count-bounded records still index the
 	// fixed-size node arrays / alias pointers. A corrupt chunk with in-range counts can point these out of bounds
@@ -468,7 +492,7 @@ void LoadAnimationDataFromEagerChunks()
 			// MainThread's try/catch (HandleException — crash report + exit), matching the boot hard-fail tier.
 			try
 			{
-				rAnimationData.Load(rChunk.pData + iSceneArraysSize + iMaterialDataSize, rCrc);
+				rAnimationData.Load(rChunk.pData + iSceneArraysSize + iMaterialDataSize, rChunk.iDataSize - iSceneArraysSize - iMaterialDataSize, rCrc);
 			}
 			catch (const common::CorruptStreamException& rException)
 			{

@@ -12,7 +12,7 @@ layout(push_constant) uniform pushConstants
 };
 
 // Uniforms
-layout (set = 0, binding = 0) uniform globalUniform
+layout (set = 0, binding = kiGlobalBindingGlobalUniform) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
@@ -27,8 +27,8 @@ layout (scalar, set = 1, binding = 2) buffer lightOccupancyBuffer
 	uint occupancy[];
 };
 
-layout (set = 0, binding = 3) uniform sampler texturesSampler;
-layout (set = 0, binding = 4) uniform texture2D pTextures[];
+layout (set = 0, binding = kiGlobalBindingSamplerRepeat) uniform sampler texturesSampler;
+layout (set = 0, binding = kiGlobalBindingBindlessTextures) uniform texture2D pTextures[];
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;

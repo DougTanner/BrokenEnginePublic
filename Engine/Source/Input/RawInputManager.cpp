@@ -40,21 +40,16 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 	mStateFlags.Set(RawInputStateFlags::kHasFocus, bHasFocus);
 	mHwnd = hwnd;
 
-	RAWINPUTDEVICE pRawinputdevices[2] {};
+	RAWINPUTDEVICE pRawinputdevices[1] {};
 	if (bHasFocus)
 	{
 		pRawinputdevices[0].usUsagePage = 0x01;
-		pRawinputdevices[0].usUsage = 0x02;
-		pRawinputdevices[0].dwFlags = RIDEV_INPUTSINK; // adds HID mouse; legacy mouse messages still arrive (they feed DirectXTK Mouse)
-		pRawinputdevices[0].hwndTarget = hwnd;
-
-		pRawinputdevices[1].usUsagePage = 0x01;
-		pRawinputdevices[1].usUsage = 0x06;
-		pRawinputdevices[1].dwFlags = RIDEV_NOLEGACY; // adds HID keyboard and also ignores legacy keyboard messages
-		pRawinputdevices[1].hwndTarget = nullptr;
+		pRawinputdevices[0].usUsage = 0x06;
+		pRawinputdevices[0].dwFlags = RIDEV_NOLEGACY; // adds HID keyboard and also ignores legacy keyboard messages
+		pRawinputdevices[0].hwndTarget = nullptr;
 
 		LOG(kInput, kInfo, "RegisterRawInputDevices");
-		if (RegisterRawInputDevices(pRawinputdevices, 2, sizeof(RAWINPUTDEVICE)) == FALSE)
+		if (RegisterRawInputDevices(pRawinputdevices, 1, sizeof(RAWINPUTDEVICE)) == FALSE)
 		{
 			LOG(kInput, kError, "Failed to register raw input: {}", common::LastErrorString().data());
 		}
@@ -71,17 +66,12 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 		TrapCursor(false);
 
 		pRawinputdevices[0].usUsagePage = 0x01;
-		pRawinputdevices[0].usUsage = 0x02;
+		pRawinputdevices[0].usUsage = 0x06;
 		pRawinputdevices[0].dwFlags = RIDEV_REMOVE;
 		pRawinputdevices[0].hwndTarget = nullptr;
 
-		pRawinputdevices[1].usUsagePage = 0x01;
-		pRawinputdevices[1].usUsage = 0x06;
-		pRawinputdevices[1].dwFlags = RIDEV_REMOVE;
-		pRawinputdevices[1].hwndTarget = nullptr;
-
 		LOG(kInput, kInfo, "UnregisterRawInputDevices");
-		if (RegisterRawInputDevices(pRawinputdevices, 2, sizeof(RAWINPUTDEVICE)) == FALSE)
+		if (RegisterRawInputDevices(pRawinputdevices, 1, sizeof(RAWINPUTDEVICE)) == FALSE)
 		{
 			LOG(kInput, kError, "Failed to unregister raw input: {}", common::LastErrorString().data());
 		}
@@ -216,7 +206,7 @@ void RawInputManager::HandleRawInput(LPARAM lparam)
 {
 	HRAWINPUT hrawinput = reinterpret_cast<HRAWINPUT>(lparam);
 
-	// Only fixed-size mouse/keyboard usages are registered (UpdateFocus), never variable-length RAWHID, so sizeof(RAWINPUT) bounds every packet
+	// Only the fixed-size keyboard usage is registered (UpdateFocus), never variable-length RAWHID, so sizeof(RAWINPUT) bounds every packet
 	RAWINPUT rawinput {};
 	UINT uiRawInputBytes = sizeof(rawinput);
 	if (GetRawInputData(hrawinput, RID_INPUT, &rawinput, &uiRawInputBytes, sizeof(RAWINPUTHEADER)) == static_cast<UINT>(-1))

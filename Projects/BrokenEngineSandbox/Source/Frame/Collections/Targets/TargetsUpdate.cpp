@@ -13,12 +13,11 @@ void TargetsInterpolate::Sync(FrameInterpolate& rFrameInterpolate, id_t id, cons
 	int64_t iIndex = rTargets.IdToIndex(id);
 
 	rTargets.pVecPositions[iIndex] = XMVectorSetW(rData.vecPosition, 1.0f);
-	rTargets.puiTypeIndices[iIndex] = rData.uiTypeIndex;
 }
 
 void TargetsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	// Owner (Spaceships) writes position and type index via IdToIndex pattern.
+	// Owner (Spaceships) writes position via IdToIndex pattern.
 }
 
 void TargetsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
@@ -37,7 +36,7 @@ void TargetsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[
 {
 }
 
-void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiTargetTypeIndex, engine::alignment_t alignment)
+void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId, engine::alignment_t alignment)
 {
 	TargetsInterpolate& rInterpolate = *rFrame.interpolate.pTargets;
 	TargetsPostRender& rPostRender = *rFrame.postRender.pTargets;
@@ -48,7 +47,6 @@ void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiT
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
 	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorSetW(XMVectorZero(), 1.0f);
-	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTargetTypeIndex;
 	rPostRender.pFlags[uiSpawnIndex] = {};
 	rPostRender.puiSubscribers[uiSpawnIndex] = 0;
 	rPostRender.pAlignments[uiSpawnIndex] = alignment;

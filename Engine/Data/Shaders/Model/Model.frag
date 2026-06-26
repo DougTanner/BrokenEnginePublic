@@ -27,12 +27,12 @@ layout(push_constant) uniform pushConstants
 };
 
 // Uniforms
-layout (set = 0, binding = 0) uniform globalUniform
+layout (set = 0, binding = kiGlobalBindingGlobalUniform) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
 
-layout (set = 0, binding = 1) uniform mainUniform
+layout (set = 0, binding = kiGlobalBindingMainUniform) uniform mainUniform
 {
 	MainLayout mainLayout;
 };
@@ -43,8 +43,8 @@ layout (scalar, set = 1, binding = 2) buffer readonly modelsUniform
 };
 
 // Bindless texture array
-layout (set = 0, binding = 3) uniform sampler samplerRepeat;
-layout (set = 0, binding = 4) uniform texture2D pTextures[];
+layout (set = 0, binding = kiGlobalBindingSamplerRepeat) uniform sampler samplerRepeat;
+layout (set = 0, binding = kiGlobalBindingBindlessTextures) uniform texture2D pTextures[];
 
 // IBL textures
 layout (set = 1, binding = 5) uniform samplerCube samplerIrradiance;

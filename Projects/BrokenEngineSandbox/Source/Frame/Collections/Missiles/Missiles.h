@@ -97,7 +97,7 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 
 struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 {
-	static constexpr int64_t kiVersion = 5;
+	static constexpr int64_t kiVersion = 6;
 
 	// Allocate and copy
 	static void AllocateAndCopy(MissilesPostRender& rCurrent, const MissilesPostRender& rPrevious);
@@ -117,7 +117,6 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	XMVECTOR* __restrict pVecExplosionDirections = nullptr;
 	XMVECTOR* __restrict pVecStoredDirections = nullptr;
 	target_t* __restrict puiTargets = nullptr;
-	float* __restrict pfExplosionRadii = nullptr;
 	float* __restrict pfTimes = nullptr;
 	float* __restrict pfDeltaRotationDelays = nullptr;
 	float* __restrict pfDeltaRotations = nullptr;
@@ -131,7 +130,7 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	engine::sound_t* __restrict puiSounds = nullptr;
 #endif
 	engine::alignment_t* __restrict pAlignments = nullptr;
-	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.pVecStoredDirections, rSelf.puiTargets, rSelf.pfExplosionRadii, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.pfExhaustLengths, rSelf.pAlignments); }
+	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.pVecStoredDirections, rSelf.puiTargets, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.pfExhaustLengths, rSelf.pAlignments); }
 #if defined(BT_CLIENT)
 	auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiSounds); }
 #endif

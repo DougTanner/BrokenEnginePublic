@@ -11,8 +11,8 @@ layout (scalar, set = 1, binding = 2) buffer readonly billboardsUniform
 	BillboardLayout pBillboards[];
 };
 
-layout (set = 0, binding = 12) uniform sampler texturesSampler;
-layout (set = 0, binding = 4) uniform texture2D pTextures[];
+layout (set = 0, binding = kiGlobalBindingSamplerClamp) uniform sampler texturesSampler;
+layout (set = 0, binding = kiGlobalBindingBindlessTextures) uniform texture2D pTextures[];
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;

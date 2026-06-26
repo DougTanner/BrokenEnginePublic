@@ -14,12 +14,12 @@
 // for that reason. Any change to either copy must be mirrored in the other.
 
 // Uniforms
-layout (set = 0, binding = 0) uniform globalUniform
+layout (set = 0, binding = kiGlobalBindingGlobalUniform) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
 
-layout (set = 0, binding = 1) uniform mainUniform
+layout (set = 0, binding = kiGlobalBindingMainUniform) uniform mainUniform
 {
 	MainLayout mainLayout;
 };
@@ -124,9 +124,9 @@ void main()
 
 	#undef SAMPLE_NORMAL_PRECISE
 
-	float fWeightOne = mix(mainLayout.fWaterNormalWeightOneMin, mainLayout.fWaterNormalWeightOneMax, mainLayout.fCameraHeightZoomFactor);
-	float fWeightTwo = mix(mainLayout.fWaterNormalWeightTwoMin, mainLayout.fWaterNormalWeightTwoMax, mainLayout.fCameraHeightZoomFactor);
-	float fWeightThree = mix(mainLayout.fWaterNormalWeightThreeMin, mainLayout.fWaterNormalWeightThreeMax, mainLayout.fCameraHeightZoomFactor);
+	float fWeightOne = mainLayout.fWaterNormalWeightOne;
+	float fWeightTwo = mainLayout.fWaterNormalWeightTwo;
+	float fWeightThree = mainLayout.fWaterNormalWeightThree;
 	vec3 f3WeightedSum = fWeightOne * f3SampledNormalOne + fWeightTwo * f3SampledNormalTwo + fWeightThree * f3SampledNormalThree;
 	vec3 f3SampledNormal = f3WeightedSum / max(length(f3WeightedSum), kfEpsilon);
 

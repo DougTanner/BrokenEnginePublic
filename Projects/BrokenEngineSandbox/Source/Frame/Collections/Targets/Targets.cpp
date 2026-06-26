@@ -22,7 +22,6 @@ void TargetsInterpolate::AllocateAndCopy(TargetsInterpolate& rCurrent, const Tar
 	if (rCurrent.iCount > 0)
 	{
 		std::memcpy(rCurrent.pVecPositions, rPrevious.pVecPositions, rCurrent.iCount * sizeof(rCurrent.pVecPositions[0]));
-		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
 	}
 }
 
@@ -51,13 +50,6 @@ void TargetsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 {
 }
 
-void TargetsPostRender::RegisterType(uint8_t& ruiIndex, const TargetsType& rType)
-{
-	ASSERT(ruiIndex == 0xFF);
-	ruiIndex = static_cast<uint8_t>(TargetsInterpolate::sTypes.size());
-	TargetsInterpolate::sTypes.push_back(rType);
-}
-
 bool TargetsInterpolate::LogDifferences(const TargetsInterpolate& rOther) const
 {
 	common::ScopedLogDifferenceContext context("TargetsInterpolate");
@@ -67,7 +59,6 @@ bool TargetsInterpolate::LogDifferences(const TargetsInterpolate& rOther) const
 	for (int64_t i = 0; i < iCount; ++i)
 	{
 		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::LogDifference<"puiTypeIndices">(i, puiTypeIndices[i], rOther.puiTypeIndices[i]);
 	}
 
 	return bEqual;

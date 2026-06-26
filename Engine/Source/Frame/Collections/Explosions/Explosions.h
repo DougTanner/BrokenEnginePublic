@@ -104,6 +104,8 @@ struct ExplosionType
 struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
                                public TypeRegistry<ExplosionType>
 {
+	static constexpr int64_t kiVersion = 1;
+
 	// Register default explosion effect types (called from FrameInterpolateBase::Register)
 	static void Register();
 
@@ -140,8 +142,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
 
-	// Per-instance scaling percentages
-	float* __restrict pfSizePercents = nullptr;
+	// Per-instance time-scaling percentage
 	float* __restrict pfTimePercents = nullptr;
 
 	// Trail state (8 separate arrays - pTrails[j] is array of all explosions' j-th trail)
@@ -161,7 +162,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 		return std::tie(
 		    rSelf.puiTypeIndices, rSelf.pFlags, rSelf.pfStartTimes,
 		    rSelf.pVecPositions, rSelf.pVecDirections,
-		    rSelf.pfSizePercents, rSelf.pfTimePercents,
+		    rSelf.pfTimePercents,
 		    rSelf.piTrailCounts, rSelf.pfTrailTimes);
 	}
 #if defined(BT_CLIENT)

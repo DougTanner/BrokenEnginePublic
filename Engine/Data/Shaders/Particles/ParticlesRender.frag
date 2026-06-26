@@ -6,7 +6,7 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (set = 0, binding = 0) uniform globalUniform
+layout (set = 0, binding = kiGlobalBindingGlobalUniform) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
@@ -18,8 +18,8 @@ layout (scalar, set = 1, binding = 2) buffer readonly renderUniform
 
 layout (set = 1, binding = 3) uniform sampler2D smokeSampler;
 
-layout (set = 0, binding = 12) uniform sampler particleSampler;
-layout (set = 0, binding = 4) uniform texture2D pTextures[];
+layout (set = 0, binding = kiGlobalBindingSamplerClamp) uniform sampler particleSampler;
+layout (set = 0, binding = kiGlobalBindingBindlessTextures) uniform texture2D pTextures[];
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;

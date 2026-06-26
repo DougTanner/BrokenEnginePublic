@@ -19,20 +19,9 @@ enum class TargetFlags : uint8_t
 };
 using TargetFlags_t = common::Flags<TargetFlags>;
 
-// Type configuration for targets
-struct TargetsType
+struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine::CollectionFlags::kIdToIndex>
 {
-	common::crc_t crc = 0;
-	float fSize = 0.055f;
-	float fAlpha = 2.0f;
-
-	bool operator==(const TargetsType& rOther) const = default;
-};
-
-struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine::CollectionFlags::kIdToIndex>,
-                            public engine::TypeRegistry<TargetsType>
-{
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
 
 	// Register
 	static void Register();
@@ -47,7 +36,6 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 	struct SyncData
 	{
 		XMVECTOR vecPosition;
-		uint8_t uiTypeIndex;
 	};
 
 	// Sync owned target with parent-provided data
@@ -62,8 +50,7 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 	static void EndRender(int64_t) {}
 
 	XMVECTOR* __restrict pVecPositions = nullptr;
-	uint8_t* __restrict puiTypeIndices = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.puiTypeIndices); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions); }
 
 	// Utility
 	bool LogDifferences(const TargetsInterpolate& rOther) const;
@@ -86,12 +73,9 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 	static void Spawn(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 
 	// Add/Remove API
-	static void Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiTargetTypeIndex, engine::alignment_t alignment);
+	static void Add(Frame& __restrict rFrame, target_t& rId, engine::alignment_t alignment);
 	static void Remove(Frame& __restrict rFrame, target_t& rId, TargetFlags_t flags);
 	static void AddSubscriber(Frame& __restrict rFrame, target_t id);
-
-	// Type registration (custom)
-	static void RegisterType(uint8_t& ruiIndex, const TargetsType& rType);
 
 	target_t* __restrict puiIds = nullptr;
 	TargetFlags_t* __restrict pFlags = nullptr;

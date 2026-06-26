@@ -546,7 +546,14 @@ bool ServerSession::TryRelinkClientForLoad(engine::ClientConnection& rClient, st
 		return false;
 	}
 
-	bool bRelinked = false;
+	// Collect GUID matches, then sort by global ID to preserve creation order (mirrors ServerClientManager::TryRelinkNewClient)
+	struct RelinkEntry
+	{
+		engine::global_id_t globalId {};
+		engine::GridCoord coord {};
+	};
+	std::vector<RelinkEntry> relinkEntries;
+
 	for (const auto& [rCoord, rFrames] : gpGame->mCoordFrames)
 	{
 		const PlayersPostRender& rPlayers = *rFrames.pCurrent->postRender.pPlayers;
@@ -554,18 +561,28 @@ bool ServerSession::TryRelinkClientForLoad(engine::ClientConnection& rClient, st
 		{
 			if (rPlayers.pClientGuids[i] == rClient.clientGuid)
 			{
-				engine::global_id_t globalId = rPlayers.pGlobalPlayerIds[i];
-				rLoadOwnedIds.push_back(globalId);
-				rClient.authorizedCoords.push_back(rCoord);
-
-				SendAssignPlayer(rClient.iClientId, globalId, rCoord);
-				SendPlayerState(rClient.iClientId, PlayerStateWireType::kSpawned, globalId.iValue, rCoord);
-				LOG(kDefault, kDebug, "ServerSession::ResetClientsForLoad Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, globalId, rCoord.x, rCoord.y);
-				bRelinked = true;
+				relinkEntries.push_back({rPlayers.pGlobalPlayerIds[i], rCoord});
 			}
 		}
 	}
-	return bRelinked;
+
+	std::ranges::sort(relinkEntries, [](const RelinkEntry& rLeft, const RelinkEntry& rRight)
+	{
+		return rLeft.globalId.iValue < rRight.globalId.iValue;
+	});
+
+	rLoadOwnedIds.reserve(relinkEntries.size());
+	rClient.authorizedCoords.reserve(relinkEntries.size());
+	for (const RelinkEntry& rEntry : relinkEntries)
+	{
+		rLoadOwnedIds.push_back(rEntry.globalId);
+		rClient.authorizedCoords.push_back(rEntry.coord);
+		SendAssignPlayer(rClient.iClientId, rEntry.globalId, rEntry.coord);
+		SendPlayerState(rClient.iClientId, PlayerStateWireType::kSpawned, rEntry.globalId.iValue, rEntry.coord);
+		LOG(kDefault, kDebug, "ServerSession::ResetClientsForLoad Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, rEntry.globalId, rEntry.coord.x, rEntry.coord.y);
+	}
+
+	return !rLoadOwnedIds.empty();
 }
 
 void ServerSession::WriteFleetData(std::fstream& rFileStream) const

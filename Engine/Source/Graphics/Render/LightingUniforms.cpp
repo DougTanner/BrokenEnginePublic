@@ -188,17 +188,15 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.uiWaterNormalIndexOne = static_cast<uint32_t>(gWaterNormalIndexOne.Get<int64_t>());
 	rMainLayout.uiWaterNormalIndexTwo = static_cast<uint32_t>(gWaterNormalIndexTwo.Get<int64_t>());
 	rMainLayout.uiWaterNormalIndexThree = static_cast<uint32_t>(gWaterNormalIndexThree.Get<int64_t>());
-	rMainLayout.fWaterNormalWeightOneMin = gLightingSampledNormalsWeightOneMin.Get();
-	rMainLayout.fWaterNormalWeightOneMax = gLightingSampledNormalsWeightOneMax.Get();
-	rMainLayout.fWaterNormalWeightTwoMin = gLightingSampledNormalsWeightTwoMin.Get();
-	rMainLayout.fWaterNormalWeightTwoMax = gLightingSampledNormalsWeightTwoMax.Get();
-	rMainLayout.fWaterNormalWeightThreeMin = gLightingSampledNormalsWeightThreeMin.Get();
-	rMainLayout.fWaterNormalWeightThreeMax = gLightingSampledNormalsWeightThreeMax.Get();
+	// Resolve the 3 normal-weight samples CPU-side by camera eye height and upload one float each (Render/CLAUDE.md
+	// Camera-Height-Conditional Uniforms rule). Hard-coded fade band (default..2x default eye height) with no author
+	// control over the band -> free LerpAtHeight, not a HeightLerpWrapperQuartet; fade endpoint single-sourced on game::Camera.
+	rMainLayout.fWaterNormalWeightOne = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightOneMin.Get(), gLightingSampledNormalsWeightOneMax.Get());
+	rMainLayout.fWaterNormalWeightTwo = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightTwoMin.Get(), gLightingSampledNormalsWeightTwoMax.Get());
+	rMainLayout.fWaterNormalWeightThree = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightThreeMin.Get(), gLightingSampledNormalsWeightThreeMax.Get());
 	rMainLayout.fWaterNormalRotationOne = gWaterNormalRotationOne.Get();
 	rMainLayout.fWaterNormalRotationTwo = gWaterNormalRotationTwo.Get();
 	rMainLayout.fWaterNormalRotationThree = gWaterNormalRotationThree.Get();
-	// Camera zoom factor: 0 = closest (default eye height), 1 = farthest (2x default). Endpoint single-sourced on game::Camera.
-	rMainLayout.fCameraHeightZoomFactor = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, 0.0f, 1.0f);
 	rMainLayout.fWaterHeightDarkenTop = gWaterHeightDarkenTop.Get();
 	rMainLayout.fWaterHeightDarkenBottom = gWaterHeightDarkenBottom.Get();
 	rMainLayout.fWaterHeightDarkenTarget = gWaterHeightDarkenTarget.Get();

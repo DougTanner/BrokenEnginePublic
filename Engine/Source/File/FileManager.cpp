@@ -418,7 +418,7 @@ void FileManager::LoadPackFiles()
 				ASSERT(pChunkHeader->iMagic == common::ChunkHeader::kiMagic && pChunkHeader->crc == rChunkLocation.crc);
 				uint64_t uiDataOffset = rChunkLocation.uiOffset + common::kiChunkDataOffset;
 
-				auto [it, bInserted] = mEagerChunkMap.try_emplace(rChunkLocation.crc, EagerChunk { .pHeader = pChunkHeader, .pData = &rPackBytes[uiDataOffset], });
+				auto [it, bInserted] = mEagerChunkMap.try_emplace(rChunkLocation.crc, EagerChunk { .pHeader = pChunkHeader, .pData = &rPackBytes[uiDataOffset], .iDataSize = static_cast<int64_t>(rChunkLocation.uiSize - common::kiChunkDataOffset), });
 				if (!bInserted)
 				{
 					LOG(kLoading, kDebug, "Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
@@ -763,7 +763,8 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t uiOffset, std::span<
 	if (eagerIt != mEagerChunkMap.end())
 	{
 		const EagerChunk& rEagerChunk = eagerIt->second;
-		int64_t iDataSize = rEagerChunk.pHeader->iSize - common::kiChunkDataOffset;
+		// Use the chunk-table data extent, not pHeader->iSize: a scene chunk's iSize excludes its appended animation section
+		int64_t iDataSize = rEagerChunk.iDataSize;
 
 		// Validate read bounds
 		if (uiOffset + buffer.size() > static_cast<uint64_t>(iDataSize))

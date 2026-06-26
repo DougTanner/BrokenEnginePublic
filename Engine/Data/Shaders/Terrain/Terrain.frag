@@ -6,12 +6,12 @@
 #include "ShaderFunctions.h"
 
 // Uniform buffers
-layout (set = 0, binding = 0) uniform globalUniform
+layout (set = 0, binding = kiGlobalBindingGlobalUniform) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
 
-layout (set = 0, binding = 1) uniform mainUniform
+layout (set = 0, binding = kiGlobalBindingMainUniform) uniform mainUniform
 {
 	MainLayout mainLayout;
 };

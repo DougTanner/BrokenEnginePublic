@@ -4,7 +4,7 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (set = 0, binding = 1) uniform mainUniform
+layout (set = 0, binding = kiGlobalBindingMainUniform) uniform mainUniform
 {
 	MainLayout mainLayout;
 };

@@ -43,11 +43,9 @@ constexpr uint32_t kuiSpaceshipExplosionTrailCount = 5;
 
 // Forward declarations for registration functions (called from Register())
 static void RegisterEnemyBlasterType();
-static void RegisterSpaceshipTargetType();
 
 // Shared type indices (accessible from SpaceshipsCombat.cpp via extern)
 uint8_t gSpaceshipExplosionTypeIndex = 0xFF;
-uint8_t gSpaceshipTargetTypeIndex = 0xFF;
 #if defined(BT_CLIENT)
 static uint8_t suiSpaceshipHitFlashTypeIndex = 0xFF;
 uint8_t gSpaceshipHitFlashControllerTypeIndex = 0xFF;
@@ -72,10 +70,6 @@ constexpr float kfBlastersSpawnCooldown = 1.0f;
 
 constexpr float kfEnemyBlasterSize = kfSpaceshipRadius * 0.15f;
 // Enemy blaster lighting now in LightingWrappers (gEnemyBlaster*)
-
-// Spaceship target
-constexpr float kfTargetSize = kfSpaceshipRadius * 0.03f;
-constexpr float kfTargetAlpha = 1.5f;
 
 #if defined(BT_CLIENT)
 // Hit flash effect timing
@@ -150,7 +144,6 @@ void SpaceshipsInterpolate::Register()
 		.pParticleIntensityPowerScale = &gSpaceshipExplosionParticleIntensityPower,
 	});
 
-	RegisterSpaceshipTargetType();
 	RegisterEnemyBlasterType();
 #if defined(BT_CLIENT)
 	RegisterSpaceshipHitFlashEffect();
@@ -209,24 +202,8 @@ void XM_CALLCONV SyncSpaceship(FrameInterpolate& rFrameInterpolate, engine::push
 		TargetsInterpolate::Sync(rFrameInterpolate, uiTarget,
 		{
 			.vecPosition = vecPosition,
-			.uiTypeIndex = gSpaceshipTargetTypeIndex,
 		});
 	}
-}
-
-static void RegisterSpaceshipTargetType()
-{
-	if (gSpaceshipTargetTypeIndex != 0xFF)
-	{
-		return;
-	}
-
-	TargetsPostRender::RegisterType(gSpaceshipTargetTypeIndex,
-	{
-		.crc = data::kTexturesBC4TargetpngCrc,
-		.fSize = kfTargetSize,
-		.fAlpha = kfTargetAlpha,
-	});
 }
 
 #if defined(BT_CLIENT)
@@ -637,7 +614,7 @@ void SpaceshipsPostRender::Spawn(Frame& __restrict rFrame, const SpawnInfo& rInf
 
 	// Create owned target for missile tracking
 	rCurrentInterpolate.puiTargets[iIndex] = {};
-	TargetsPostRender::Add(rFrame, rCurrentInterpolate.puiTargets[iIndex], gSpaceshipTargetTypeIndex, rInfo.alignment);
+	TargetsPostRender::Add(rFrame, rCurrentInterpolate.puiTargets[iIndex], rInfo.alignment);
 
 	// Set target flags (PostRender field, not part of Sync)
 	// Defer kDestination during arrival grace period so missiles don't target this spaceship

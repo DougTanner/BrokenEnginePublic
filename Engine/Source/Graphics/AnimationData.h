@@ -7,7 +7,7 @@ class AnimationData
 {
 public:
 
-	void Load(const std::byte* pAnimationData, common::crc_t crc);
+	void Load(const std::byte* pAnimationData, int64_t iAnimationBytes, common::crc_t crc);
 	void EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMMATRIX* pWorldMatrices) const;
 	void EvaluateMaterial(int64_t iMaterialIndex, const XMMATRIX* pWorldMatrices, common::MeshData* pMeshData, common::JointMatrix* pJointMatrices, int64_t iJointMatrixOffset) const;
 	void EvaluateAnimation(int64_t iAnimationIndex, float fTime, uint32_t uiMaterialCount, common::MeshData* pMeshData, common::JointMatrix* pJointMatrices, int64_t iJointMatrixOffset) const;

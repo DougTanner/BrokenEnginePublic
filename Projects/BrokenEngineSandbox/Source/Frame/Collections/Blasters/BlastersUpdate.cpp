@@ -290,11 +290,18 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		{
 			rCurrentPostRender.pFlags[i].Set(kDestroy);
 
+			// Reconstruct the previous (pre-integration) position so the back-march has a real
+			// second endpoint. Velocity is constant (memcpy'd forward in AllocateAndCopy), so
+			// vecPosition - vecVelocity*fDeltaTime is the exact inverse of the integration in
+			// BlastersInterpolate::Update and lands on the previous interpolate position.
 			XMVECTOR vecVelocity = rCurrentPostRender.pVecVelocities[i];
-			XMVECTOR vecInitialPosition = vecPosition;
+			float fDeltaTime = rFrame.interpolate.fDeltaTime;
+			XMVECTOR vecInitialPosition = XMVectorMultiplyAdd(XMVectorReplicate(-fDeltaTime), vecVelocity, vecPosition);
+			vecInitialPosition = XMVectorSetW(vecInitialPosition, 1.0f);
 			XMVECTOR vecFinalPosition = vecPosition;
 
-			// Binary search to find exact terrain intersection
+			// Linear back-march from the over-shot post-integration point toward the previous
+			// position; the first sub-step at or above terrain is the surface crossing
 			float fPercent = 0.0f;
 			XMVECTOR vecCollisionPosition = vecFinalPosition;
 

@@ -121,6 +121,16 @@ CONSTEXPR float kfEpsilon = 1e-6f;
 CONSTEXPR int kiLightingTextures = 11;
 CONSTEXPR int kiBillboardTexturesCount = 3;
 
+// Global Set-0 descriptor binding numbers. Single-sourced here (dual-language) so the C++ descriptor
+// layout/writes (TextureDescriptors) and every shader's layout(set = 0, binding = N) qualifier stay in
+// lockstep — a binding-number change in one place no longer silently mismatches the other. Binding 2 is
+// intentionally unused.
+CONSTEXPR int kiGlobalBindingGlobalUniform = 0;
+CONSTEXPR int kiGlobalBindingMainUniform = 1;
+CONSTEXPR int kiGlobalBindingSamplerRepeat = 3;
+CONSTEXPR int kiGlobalBindingBindlessTextures = 4;
+CONSTEXPR int kiGlobalBindingSamplerClamp = 12;
+
 // Water normal map atlas size. Shared by C++ (PipelineManager mppWaterNormalTextures array,
 // TextureManager kpWaterNormalCrcs/kpWaterNormalNames tables) and the water shaders
 // (Water.frag / WaterSkyboxOne.frag pWaterNormalSamplers[] sampler array).
@@ -473,16 +483,12 @@ struct MainLayout
 	uint32_t uiWaterNormalIndexOne INIT;
 	uint32_t uiWaterNormalIndexTwo INIT;
 	uint32_t uiWaterNormalIndexThree INIT;
-	float fWaterNormalWeightOneMin INIT;
-	float fWaterNormalWeightOneMax INIT;
-	float fWaterNormalWeightTwoMin INIT;
-	float fWaterNormalWeightTwoMax INIT;
-	float fWaterNormalWeightThreeMin INIT;
-	float fWaterNormalWeightThreeMax INIT;
+	float fWaterNormalWeightOne INIT;
+	float fWaterNormalWeightTwo INIT;
+	float fWaterNormalWeightThree INIT;
 	float fWaterNormalRotationOne INIT;
 	float fWaterNormalRotationTwo INIT;
 	float fWaterNormalRotationThree INIT;
-	float fCameraHeightZoomFactor INIT;
 	float fWaterHeightDarkenTop INIT;
 	float fWaterHeightDarkenBottom INIT;
 	float fWaterHeightDarkenTarget INIT;

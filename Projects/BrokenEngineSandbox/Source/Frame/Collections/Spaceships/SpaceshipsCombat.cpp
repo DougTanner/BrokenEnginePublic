@@ -29,7 +29,6 @@ static thread_local std::vector<float> sCollisionDamages;
 
 // Shared type indices (defined in Spaceships.cpp, set during Register())
 extern uint8_t gSpaceshipExplosionTypeIndex;
-extern uint8_t gSpaceshipTargetTypeIndex;
 #if defined(BT_CLIENT)
 extern uint8_t gSpaceshipHitFlashControllerTypeIndex;
 #endif

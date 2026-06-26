@@ -30,7 +30,6 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
 		XMVECTOR vecDirection = rPrevious.pVecDirections[i];
 
-		float fSizePercent = rPrevious.pfSizePercents[i];
 		float fTimePercent = rPrevious.pfTimePercents[i];
 
 		int32_t iTrailCount = rPrevious.piTrailCounts[i];
@@ -42,7 +41,6 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.pVecDirections[i] = vecDirection;
 
-		rCurrent.pfSizePercents[i] = fSizePercent;
 		rCurrent.pfTimePercents[i] = fTimePercent;
 
 		rCurrent.piTrailCounts[i] = iTrailCount;

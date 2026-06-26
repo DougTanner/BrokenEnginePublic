@@ -283,6 +283,7 @@ Changes (12 files)
              if (fScreenX < -0.2f || fScreenX > 1.2f || fScreenY < -0.2f || fScreenY > 1.2f) continue;
 
              auto& rSrc = pDistortionSources[iDistortionCount];
+             // NOTE: ExplosionsInterpolate::pfSizePercents was removed as dead SOA state — re-add it (add-collection-member checklist + kiVersion bump) before implementing this feature.
              rSrc.f4ScreenPosition = {fScreenX, fScreenY, fAge, rExplosions.pfSizePercents[i]};
              // Heat distortion for first half of life, shockwave at spawn
              float fType = fAge < 0.15f * rExplosions.pfTimePercents[i] ? 1.0f : 0.0f;

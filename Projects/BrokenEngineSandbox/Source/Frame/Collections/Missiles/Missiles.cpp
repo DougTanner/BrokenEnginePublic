@@ -308,7 +308,6 @@ void MissilesPostRender::AllocateAndCopy(MissilesPostRender& rCurrent, const Mis
 	{
 		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, rCurrent.iCount * sizeof(rCurrent.pFlags[0]));
 		std::memcpy(rCurrent.pVecExplosionDirections, rPrevious.pVecExplosionDirections, rCurrent.iCount * sizeof(rCurrent.pVecExplosionDirections[0]));
-		std::memcpy(rCurrent.pfExplosionRadii, rPrevious.pfExplosionRadii, rCurrent.iCount * sizeof(rCurrent.pfExplosionRadii[0]));
 		std::memcpy(rCurrent.pfDeltaRotationMax, rPrevious.pfDeltaRotationMax, rCurrent.iCount * sizeof(rCurrent.pfDeltaRotationMax[0]));
 		std::memcpy(rCurrent.pfAccelerations, rPrevious.pfAccelerations, rCurrent.iCount * sizeof(rCurrent.pfAccelerations[0]));
 		std::memcpy(rCurrent.pfPitches, rPrevious.pfPitches, rCurrent.iCount * sizeof(rCurrent.pfPitches[0]));
@@ -456,7 +455,6 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentPostRender.pVecExplosionDirections[iIndex] = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
 	rCurrentPostRender.pVecStoredDirections[iIndex] = rInfo.vecStoredDirection;
 	rCurrentPostRender.puiTargets[iIndex] = rInfo.uiTarget;
-	rCurrentPostRender.pfExplosionRadii[iIndex] = 0.0f;
 	rCurrentPostRender.pfTimes[iIndex] = rInfo.fTime;
 	rCurrentPostRender.pfDeltaRotationDelays[iIndex] = rInfo.fDeltaRotationDelay > 0.0f
 		? rInfo.fDeltaRotationDelay
@@ -563,7 +561,6 @@ bool MissilesPostRender::LogDifferences(const MissilesPostRender& rOther) const
 		bEqual &= common::LogDifference_Vec("pVecExplosionDirections", i, pVecExplosionDirections[i], rOther.pVecExplosionDirections[i]);
 		bEqual &= common::LogDifference_Vec("pVecStoredDirections", i, pVecStoredDirections[i], rOther.pVecStoredDirections[i]);
 		bEqual &= common::LogDifference<"puiTargets">(i, puiTargets[i], rOther.puiTargets[i]);
-		bEqual &= common::LogDifference<"pfExplosionRadii">(i, pfExplosionRadii[i], rOther.pfExplosionRadii[i]);
 		bEqual &= common::LogDifference<"pfTimes">(i, pfTimes[i], rOther.pfTimes[i]);
 		bEqual &= common::LogDifference<"pfDeltaRotationDelays">(i, pfDeltaRotationDelays[i], rOther.pfDeltaRotationDelays[i]);
 		bEqual &= common::LogDifference<"pfDeltaRotations">(i, pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
