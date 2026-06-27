@@ -41,4 +41,4 @@ Filter paths mirror the on-disk directory structure under three roots:
 - `Projects/BrokenEngineSandbox/Source/<path>` → filter `Game\<path>`
 - `Common[/<subdir>]` → filter `Common[\<subdir>]`
 
-Exception: generated `Output\Data\*.h` headers live in a flat `DataFiles` filter. New filters need a `<Filter Include>` entry with a unique GUID, and every ancestor filter must exist. The server filters file has a few empty leftover filters (`Engine\Graphics`, `Engine\Input`) — cruft, not a signal that such files belong in the server project.
+Exception: generated `Output\Data\*.h` headers live in a flat `DataFiles` filter. New filters need a `<Filter Include>` entry with a unique GUID, and every ancestor filter must exist. The server filters file has an empty leftover filter (`Engine\Graphics`) — cruft, not a signal that such files belong in the server project.

@@ -73,10 +73,8 @@ public:
 		static_cast<void>(gpFileManager->WriteFileAtomically(fileFlags, rFilename, [&](std::fstream& rHeaderStream)
 		{
 			// Write version headers (matches WriteVersionedFile pattern)
-			common::Write(rHeaderStream, static_cast<int64_t>(SAVED_TYPE::kiVersion));
-			common::Write(rHeaderStream, std::is_trivially_copyable_v<SAVED_TYPE> ? static_cast<int64_t>(sizeof(SAVED_TYPE)) : int64_t{0});
-			common::Write(rHeaderStream, static_cast<int64_t>(DIFFERENCE_TYPE::kiVersion));
-			common::Write(rHeaderStream, std::is_trivially_copyable_v<DIFFERENCE_TYPE> ? static_cast<int64_t>(sizeof(DIFFERENCE_TYPE)) : int64_t{0});
+			WriteVersionHeader<SAVED_TYPE>(rHeaderStream);
+			WriteVersionHeader<DIFFERENCE_TYPE>(rHeaderStream);
 
 			rHeaderStream << mSavedStart;
 			if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
@@ -162,23 +160,16 @@ public:
 
 		// Read and validate version headers (matches ReadVersionedFile pattern)
 		int64_t iSavedVersion = 0;
-		common::Read(headerStream, iSavedVersion);
 		int64_t iSavedSize = 0;
-		common::Read(headerStream, iSavedSize);
-		int64_t iDifferenceVersion = 0;
-		common::Read(headerStream, iDifferenceVersion);
-		int64_t iDifferenceSize = 0;
-		common::Read(headerStream, iDifferenceSize);
-
-		bool bSavedSizeValid = std::is_trivially_copyable_v<SAVED_TYPE> ? (iSavedSize == static_cast<int64_t>(sizeof(SAVED_TYPE))) : true;
-		if (iSavedVersion != SAVED_TYPE::kiVersion || !bSavedSizeValid)
+		if (!ReadAndValidateVersionHeader<SAVED_TYPE>(headerStream, iSavedVersion, iSavedSize))
 		{
 			LOG(kDefault, kWarning, "DifferenceStreamReader SAVED_TYPE version mismatch: file {} {}, expected {} {}", iSavedVersion, iSavedSize, SAVED_TYPE::kiVersion, sizeof(SAVED_TYPE));
 			return;
 		}
 
-		bool bDifferenceSizeValid = std::is_trivially_copyable_v<DIFFERENCE_TYPE> ? (iDifferenceSize == static_cast<int64_t>(sizeof(DIFFERENCE_TYPE))) : true;
-		if (iDifferenceVersion != DIFFERENCE_TYPE::kiVersion || !bDifferenceSizeValid)
+		int64_t iDifferenceVersion = 0;
+		int64_t iDifferenceSize = 0;
+		if (!ReadAndValidateVersionHeader<DIFFERENCE_TYPE>(headerStream, iDifferenceVersion, iDifferenceSize))
 		{
 			LOG(kDefault, kWarning, "DifferenceStreamReader DIFFERENCE_TYPE version mismatch: file {} {}, expected {} {}", iDifferenceVersion, iDifferenceSize, DIFFERENCE_TYPE::kiVersion, sizeof(DIFFERENCE_TYPE));
 			return;

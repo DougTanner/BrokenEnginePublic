@@ -1,8 +1,3 @@
-vec2 SmokeWorldPosition(vec4 f4SmokeArea, vec2 f2Texcoord)
-{
-	return vec2((1.0f - f2Texcoord.x) * f4SmokeArea.x + f2Texcoord.x * f4SmokeArea.z, (1.0f - f2Texcoord.y) * f4SmokeArea.y + f2Texcoord.y * f4SmokeArea.w);
-}
-
 // Spread smoke using noise displacement and wind-driven advection.
 // f2InputTexcoord:  UV in the previous-frame smoke texture's coord system (= previous-area UV).
 // f2WorldPosition:  world position of this output texel (computed from current area + output UV).

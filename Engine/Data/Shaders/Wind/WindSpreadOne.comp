@@ -52,9 +52,7 @@ void main()
 	// Output texcoord (current-area UV) -> world position -> input texcoord (previous-area UV).
 	// Wind ping-pongs every frame, so the input texture lives in the previous frame's coord system.
 	vec2 f2OutputTexcoord = (vec2(uiX, uiY) + vec2(0.5f)) / vec2(i2Size);
-	vec2 f2WorldPosition  = vec2(
-		(1.0f - f2OutputTexcoord.x) * globalLayout.f4SmokeArea.x + f2OutputTexcoord.x * globalLayout.f4SmokeArea.z,
-		(1.0f - f2OutputTexcoord.y) * globalLayout.f4SmokeArea.y + f2OutputTexcoord.y * globalLayout.f4SmokeArea.w);
+	vec2 f2WorldPosition  = VisibleAreaToWorld(f2OutputTexcoord, globalLayout.f4SmokeArea);
 	vec2 f2InputTexcoord  = WorldToSmokeTexcoord(globalLayout.f4PreviousSmokeArea, f2WorldPosition);
 
 	if (gl_LocalInvocationIndex == 0)

@@ -36,11 +36,7 @@ layout (location = 3) out vec3 f3OutNormal;
 
 void main()
 {
-	vec2 f2WorldPosition = vec2
-	(
-		(1.0f - f2InTexcoord.x) * globalLayout.f4VisibleArea.x + f2InTexcoord.x * globalLayout.f4VisibleArea.z,
-		(1.0f - f2InTexcoord.y) * globalLayout.f4VisibleArea.y + f2InTexcoord.y * globalLayout.f4VisibleArea.w
-	);
+	vec2 f2WorldPosition = VisibleAreaToWorld(f2InTexcoord, globalLayout.f4VisibleArea);
 
 	// Camera-relative position for precision in fragment shader UV computation
 	f2OutInitialPosition = f2WorldPosition - vec2(globalLayout.fWaterOriginX, globalLayout.fWaterOriginY);

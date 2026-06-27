@@ -1,6 +1,7 @@
 #version 460
 
 #include "ShaderLayouts.h"
+#include "ShaderFunctions.h"
 
 layout (local_size_x = kiOccupancyDilateGroupSize) in;
 
@@ -40,9 +41,7 @@ void main()
 	// AND scale between frames. Remap this tile's center world position into the previous-frame
 	// tile grid so the dilation finds the cells where wind actually was last frame.
 	vec2 f2OutputUV = (vec2(uiTileX, uiTileY) + vec2(0.5f)) / vec2(uiTilesX, uiTilesY);
-	vec2 f2WorldPosition = vec2(
-		(1.0f - f2OutputUV.x) * globalLayout.f4SmokeArea.x + f2OutputUV.x * globalLayout.f4SmokeArea.z,
-		(1.0f - f2OutputUV.y) * globalLayout.f4SmokeArea.y + f2OutputUV.y * globalLayout.f4SmokeArea.w);
+	vec2 f2WorldPosition = VisibleAreaToWorld(f2OutputUV, globalLayout.f4SmokeArea);
 	vec4 f4Prev = globalLayout.f4PreviousSmokeArea;
 	vec2 f2PrevUV = vec2(
 		(f2WorldPosition.x - f4Prev.x) / (f4Prev.z - f4Prev.x),

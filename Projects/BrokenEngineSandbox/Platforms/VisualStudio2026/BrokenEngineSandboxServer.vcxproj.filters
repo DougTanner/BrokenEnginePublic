@@ -360,8 +360,8 @@
     <ClInclude Include="..\..\Source\Ui\ParticleWrappers.h">
       <Filter>Game\Ui</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Ui\HexShieldWrappers.h">
-      <Filter>Game\Ui</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h">
+      <Filter>Engine\Input</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Ui\WindDepositsWrappers.h">
       <Filter>Game\Ui</Filter>
@@ -415,6 +415,9 @@
       <Filter>Engine\Frame</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\NavBuild.h">
+      <Filter>Engine\Frame</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\NavBuildInternal.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\NavQuery.h">
@@ -671,6 +674,9 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\NavBuild.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\NavCellData.cpp">
+      <Filter>Engine\Frame</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\NavQuery.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
@@ -754,9 +760,6 @@
       <Filter>Game\Ui\Screens</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Ui\ParticleWrappers.cpp">
-      <Filter>Game\Ui</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Source\Ui\HexShieldWrappers.cpp">
       <Filter>Game\Ui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Ui\WindDepositsWrappers.cpp">

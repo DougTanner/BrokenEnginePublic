@@ -10,10 +10,11 @@ Server-update kinds land in separate buffers: per-tick coord delta updates (one 
 
 ## Subscription Receive Invariants
 
-Each receive handler classifies into a flag set (commit / clear-placeholder / heal-epoch / reject-as-ghost) before mutating slot state; the classify step is the choke point for the epoch and ghost logic below.
+Most receive handlers (full-state, coord-update, subscribe-accept) classify into a flag set (commit / clear-placeholder / heal-epoch / reject-as-ghost) before mutating slot state, the choke point for the epoch and ghost logic below; static data applies the same logic inline.
 
 - **Epoch check** (drop rationale: hub's slot ACK model) applies only where the slot has a server-assigned epoch — a `kSubscribing` placeholder has none yet.
 - **Out-of-order full state** (before subscribe-accept) adopts the coord, clearing the `kSubscribing` placeholder at whichever slot holds it.
+- **Static data** applies the same coord-identity check as full state on `kWaitingFullState`/`kSubscribing` slots (silent drop on coord mismatch — the full-state path owns the ghost unsubscribe), with the epoch guard only on `kWaitingFullState`; `kUnsubscribed` accepts (out-of-order; buffers only, no slot mutation).
 - **Pre-full-state buffering**: a `kWaitingFullState` slot accepts delta updates but does not advance its ACK tick floor (only `kActive` slots track received ticks).
 - **Cancelled-subscription ghosts**: locally-dropped `kSubscribing` slots record the coord; a late accept/full-state triggers an unsubscribe. One epoch-heal case covers legitimate re-subscribe to an already-active slot.
 - **Gap beyond `kiNetworkBufferSize`** on a single slot forces disconnect.

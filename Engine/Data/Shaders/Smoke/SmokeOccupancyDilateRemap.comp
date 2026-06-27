@@ -1,6 +1,7 @@
 #version 460
 
 #include "ShaderLayouts.h"
+#include "ShaderFunctions.h"
 
 layout (local_size_x = kiOccupancyDilateGroupSize) in;
 
@@ -27,7 +28,7 @@ layout (set = 1, binding = 2) buffer activeTileBuffer
 // Second-pass dilate (used before SmokeSpreadComputeA).
 //
 // SmokeSpreadComputeA does a scale-aware sample: at output current-frame tile (X, Y),
-// it samples TextureTwo at WorldToSmokeTexcoord(prev, SmokeWorldPosition(curr, output_uv)).
+// it samples TextureTwo at WorldToSmokeTexcoord(prev, VisibleAreaToWorld(output_uv, curr)).
 // That sample lands at floor(prev_uv * tileCount) — possibly several tiles away from (X, Y)
 // when the world area zooms between frames. We need to check occupancy (= where ComputeB
 // just wrote) at that remapped index, not at (X, Y), or zoom drops smoke at edges where
@@ -46,9 +47,7 @@ void main()
 
 	// Output tile center -> current-area world position -> previous-area UV -> previous-area tile
 	vec2 f2OutputUV = (vec2(uiTileX, uiTileY) + vec2(0.5f)) / vec2(uiTilesX, uiTilesY);
-	vec2 f2WorldPosition = vec2(
-		(1.0f - f2OutputUV.x) * globalLayout.f4SmokeArea.x + f2OutputUV.x * globalLayout.f4SmokeArea.z,
-		(1.0f - f2OutputUV.y) * globalLayout.f4SmokeArea.y + f2OutputUV.y * globalLayout.f4SmokeArea.w);
+	vec2 f2WorldPosition = VisibleAreaToWorld(f2OutputUV, globalLayout.f4SmokeArea);
 	vec4 f4Prev = globalLayout.f4PreviousSmokeArea;
 	vec2 f2PrevUV = vec2(
 		(f2WorldPosition.x - f4Prev.x) / (f4Prev.z - f4Prev.x),

@@ -71,7 +71,8 @@ void RenderTargetTextures::CreateShadowTextures()
 	// width even (below) so the 1.5x elevation width stays integer; dispatch ceil-divides so no block multiple.
 
 	// Re-arm the temporal first-frame guard: mShadowHistoryTexture below is (re)created with undefined contents,
-	// so PopulateShadowParameters must blend pure-current for one frame before reusing history. Mirrors gbSmokeClear / gbWindClear.
+	// so PopulateShadowParameters must blend pure-current for one frame before reusing history. Mirrors gbSmokeClear
+	// (and CreateWindTextures' creation-time hard clear).
 	gbShadowTemporalReset = true;
 
 	auto [iBaseX, iBaseY] = TextureManager::DetailTextureSize(gShadowRenderMultiplier.Get());
@@ -229,8 +230,6 @@ void RenderTargetTextures::CreateSmokeTextures()
 
 void RenderTargetTextures::CreateWindTextures()
 {
-	gbWindClear = true;
-
 	TextureInfo windTextureInfo
 	{
 		.textureFlags = {kRenderPass},
@@ -269,6 +268,22 @@ void RenderTargetTextures::CreateWindTextures()
 		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		.eTextureLayout = kShaderReadOnly,
 	});
+
+	// Wind ping-pong textures are (re)created with undefined contents. On a device-lost / settings recreate the wind
+	// spread only touches active tiles (occupancy-driven), so it never decays garbage in inactive tiles, and smoke
+	// samples that garbage for several frames. Hard-clear both to zero once here (the device is idle on the
+	// recreate/boot path). Smoke clears every frame in RecordSmokeSpreadHalf; wind's alternating ping-pong makes a
+	// per-frame clear unsafe (it would wipe the idle half's field), so the recreate edge is closed at creation.
+	OneShotCommandBuffer oneShotCommandBuffer;
+	VkClearColorValue vkWindClearColor {{0.0f, 0.0f, 0.0f, 0.0f}};
+	VkImageSubresourceRange vkWindSubresource {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1};
+	for (Texture* pWindTexture : {&mWindTextureOne, &mWindTextureTwo})
+	{
+		pWindTexture->TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
+		vkCmdClearColorImage(oneShotCommandBuffer.mVkCommandBuffer, pWindTexture->mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &vkWindClearColor, 1, &vkWindSubresource);
+		pWindTexture->TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
+	}
+	oneShotCommandBuffer.Execute();
 }
 
 void RenderTargetTextures::CreateObjectShadowsTextures()

@@ -2,7 +2,6 @@
 
 #include "Render.h"
 
-#include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/SmokeWrappersBase.h"
 #include "Ui/WindWrappersBase.h"
 
@@ -16,14 +15,6 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	static float sfWindTime = 0.0f;
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(sWindTimer.GetDeltaNs(true));
 	sfWindTime += fDeltaTime * gWindTimeScale.Get();
-
-	// Handle wind enable/disable toggle
-	static bool sbWind = false;
-	if (sbWind != gWindEnabled.Get<bool>())
-	{
-		sbWind = gWindEnabled.Get<bool>();
-		gbWindClear = true;
-	}
 
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
@@ -68,15 +59,8 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 
 	rGlobalLayout.fWindTextureIndex = static_cast<float>(giWindTextureIndex);
 
-	// Wind shares smoke's f4SmokeArea / f4PreviousSmokeArea (already populated by
-	// RenderSmokeGlobal earlier in the frame per the global-pass ordering contract).
-	// Wind clear relies on the decay/soft-clamp path inside WindSpread() to zero
-	// stale content over a few frames — same behavior as before the WriteSpreadQuad
-	// removal (the previous out-of-bounds sampler trick was equally weak).
-	if (gbWindClear)
-	{
-		gbWindClear = false;
-	}
+	// Wind shares smoke's f4SmokeArea / f4PreviousSmokeArea (already populated by RenderSmokeGlobal earlier in
+	// the frame per the global-pass ordering contract); RenderWindGlobal does not write them.
 }
 
 } // namespace engine

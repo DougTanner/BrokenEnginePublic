@@ -168,7 +168,7 @@ private:
 	std::unordered_map<common::crc_t, EagerChunk> mEagerChunkMap;  // Font, Model, Shaders
 	std::unordered_map<common::crc_t, LazyChunk> mLazyChunkMap;  // Audio, Islands, Texture
 	
-	// Background loading thread, started in LoadPackFiles() from the ctor body. Its LoadingThread lambda captures `this` and reads the sync members below (mWakeCondition/mQueueMutex/mRequestQueue/mShutdown), so ~FileManager sets mShutdown + notifies + join()s the thread before those members destruct.
+	// Background loading thread, assigned inside the async eager-load task (mLoadingFuture), not the ctor body. Its LoadingThread reads the sync members below (mWakeCondition/mQueueMutex/mRequestQueue/mShutdown), so ~FileManager first drains mLoadingFuture (ensuring this assignment has happened), then sets mShutdown + notifies + join()s the thread before those members destruct.
 	std::thread mLoadingThread;
 	std::condition_variable mWakeCondition;
 	std::condition_variable mCompletionCondition;
@@ -179,6 +179,11 @@ private:
 	// Eager-load completion, assigned in LoadPackFiles. mutable: the first GetEagerChunkMap() drains it
 	// (a lazy completion behind the const accessor).
 	mutable std::future<void> mLoadingFuture;
+
+	// Published (release) at the end of the async eager-load task; eager-map readers (ReadChunkData,
+	// IsChunkReady, the memory-stats getters) acquire it before touching mEagerChunkMap / mPackFileData,
+	// which the task populates. Gates the boot window only — always true once the first frame runs.
+	std::atomic<bool> mbEagerLoadComplete {false};
 
 	// Persistent pack file handles for lazy loading (opened with FILE_FLAG_NO_BUFFERING)
 	HANDLE mLazyPackFileHandles[data::kDataTypeCount] {};
@@ -259,15 +264,35 @@ bool FileManager::WriteFileAtomically(const FileFlags_t& rFlags, const std::file
 	return CommitAtomicWrite(rFlags, rFilename, bGood);
 }
 
+// Shared version+size on-disk header convention. Writes int64 version then int64 size (sizeof for
+// trivially-copyable types, 0 otherwise — non-trivial types validate version only). Single source for
+// WriteVersionedFile/ReadVersionedFile, DifferenceStream save/load, and GameSaveLoad grid saves.
+template <typename STRUCT_TYPE>
+void WriteVersionHeader(std::fstream& rFileStream)
+{
+	common::Write(rFileStream, static_cast<int64_t>(STRUCT_TYPE::kiVersion));
+	common::Write(rFileStream, std::is_trivially_copyable_v<STRUCT_TYPE> ? static_cast<int64_t>(sizeof(STRUCT_TYPE)) : int64_t{0});
+}
+
+// Reads the version+size header into the out-params and applies the validity rule. Out-params are
+// load-bearing: callers print the read values on mismatch and re-test for the size-mismatch DEBUG_BREAK.
+template <typename STRUCT_TYPE>
+bool ReadAndValidateVersionHeader(std::fstream& rFileStream, int64_t& riVersion, int64_t& riSize)
+{
+	common::Read(rFileStream, riVersion);
+	common::Read(rFileStream, riSize);
+	bool bSizeValid = std::is_trivially_copyable_v<STRUCT_TYPE> ? (riSize == static_cast<int64_t>(sizeof(STRUCT_TYPE))) : true;
+	return riVersion == STRUCT_TYPE::kiVersion && bSizeValid;
+}
+
 template <typename STRUCT_TYPE>
 bool WriteVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, STRUCT_TYPE& rStructure)
 {
 	return gpFileManager->WriteFileAtomically(rFlags, rFilename, [&](std::fstream& rFileStream)
 	{
 		int64_t iVersion = STRUCT_TYPE::kiVersion;
-		common::Write(rFileStream, iVersion);
 		int64_t iSize = std::is_trivially_copyable_v<STRUCT_TYPE> ? sizeof(STRUCT_TYPE) : 0;
-		common::Write(rFileStream, iSize);
+		WriteVersionHeader<STRUCT_TYPE>(rFileStream);
 		LOG(kLoading, kDebug, "WriteVersionedFile {} iVersion: {} iSize: {}", rFilename, iVersion, iSize);
 
 		if constexpr (has_binary_stream_operators_v<STRUCT_TYPE>)
@@ -288,12 +313,10 @@ bool ReadVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& r
 
 	LOG(kLoading, kDebug, "ReadVersionedFile {} iVersion: {} iSize: {}", rFilename, STRUCT_TYPE::kiVersion, sizeof(STRUCT_TYPE));
 	int64_t iVersion = 0;
-	common::Read(fileStream, iVersion);
 	int64_t iSize = 0;
-	common::Read(fileStream, iSize);
+	bool bHeaderValid = ReadAndValidateVersionHeader<STRUCT_TYPE>(fileStream, iVersion, iSize);
 	LOG(kLoading, kDebug, "    iVersion: {} == {} iSize: {} == {}", iVersion, STRUCT_TYPE::kiVersion, iSize, sizeof(STRUCT_TYPE));
-	bool bSizeValid = std::is_trivially_copyable_v<STRUCT_TYPE> ? (iSize == sizeof(STRUCT_TYPE)) : true;
-	if (iVersion == STRUCT_TYPE::kiVersion && bSizeValid)
+	if (bHeaderValid)
 	{
 		if constexpr (has_binary_stream_operators_v<STRUCT_TYPE>)
 		{

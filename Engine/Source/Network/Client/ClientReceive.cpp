@@ -248,8 +248,14 @@ void Client::ServerCoordStaticData(const uint8_t* pData, size_t iSize)
 		return;
 	}
 
+	// Stale static data from a previous subscription to a different coord (recycled slot) — silently drop (the full-state path owns ghost unsubscribe)
 	if ((rSlot.eState == CoordSubscriptionState::kWaitingFullState || rSlot.eState == CoordSubscriptionState::kSubscribing)
-		&& uiEpoch != rSlot.ackState.uiEpoch)
+		&& rSlot.coord != coord)
+	{
+		return;
+	}
+	// Epoch guard: SubscribeAccept set the epoch; a kSubscribing placeholder has none yet, so this applies only to kWaitingFullState
+	if (rSlot.eState == CoordSubscriptionState::kWaitingFullState && uiEpoch != rSlot.ackState.uiEpoch)
 	{
 		return;
 	}

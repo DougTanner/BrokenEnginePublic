@@ -377,9 +377,7 @@ void GameSaveLoad::WriteGrid(const engine::FileFlags_t& rFlags, const std::files
 
 	bool bWritten = engine::gpFileManager->WriteFileAtomically(rFlags, rFilename, [&](std::fstream& fileStream)
 	{
-		common::Write(fileStream, iVersion);
-		int64_t iSize = 0;
-		common::Write(fileStream, iSize);
+		engine::WriteVersionHeader<game::Frame>(fileStream);
 
 		common::Write(fileStream, iFrameCount);
 		clientGridCoord.Write(fileStream);
@@ -414,11 +412,8 @@ bool GameSaveLoad::ReadGrid(const engine::FileFlags_t& rFlags, const std::filesy
 	std::fstream fileStream = engine::gpFileManager->OpenFile(rFlags, rFilename);
 
 	int64_t iVersion = 0;
-	common::Read(fileStream, iVersion);
 	int64_t iSize = 0;
-	common::Read(fileStream, iSize);
-
-	if (iVersion != game::Frame::kiVersion)
+	if (!engine::ReadAndValidateVersionHeader<game::Frame>(fileStream, iVersion, iSize))
 	{
 		LOG(kDefault, kError, "ReadGrid {} failed: version {} != {}", rFilename, iVersion, game::Frame::kiVersion);
 		return false;

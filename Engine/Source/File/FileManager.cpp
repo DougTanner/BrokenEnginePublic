@@ -56,13 +56,35 @@ FileManager::FileManager()
 
 FileManager::~FileManager()
 {
+	// Drain the eager-load task first: mLoadingThread is assigned inside it (see LoadPackFiles), so a join
+	// before the task runs would hit a not-yet-joinable thread. On the client GetEagerChunkMap() already
+	// drained it during boot (valid() is then false); on the server nothing else ever drains it. get()
+	// rethrows if the task threw (corrupt-pack ASSERT, OOM, thread-create failure); swallow it so a
+	// destructor never terminates the process, and let the joinable() guard below skip the never-started thread.
+	if (mLoadingFuture.valid())
+	{
+		try
+		{
+			mLoadingFuture.get();
+		}
+		catch (...)
+		{
+			LOG(kLoading, kError, "Eager-load task threw during FileManager shutdown");
+			DEBUG_BREAK();
+		}
+	}
+
 	// Shutdown background loading thread
 	{
 		std::unique_lock lock(mQueueMutex);
 		mShutdown = true;
 	}
 	mWakeCondition.notify_one();
-	mLoadingThread.join();
+	// joinable() is false only if the eager-load task threw before assigning mLoadingThread (catch above).
+	if (mLoadingThread.joinable())
+	{
+		mLoadingThread.join();
+	}
 
 	// Close persistent pack file handles and free read buffer
 	for (HANDLE& rHandle : mLazyPackFileHandles)
@@ -430,6 +452,9 @@ void FileManager::LoadPackFiles()
 		}
 #endif
 
+		// Eager map + pack buffers are now fully populated; publish to acquiring readers.
+		mbEagerLoadComplete.store(true, std::memory_order_release);
+
 		// Start background loading thread
 		mLoadingThread = std::thread(&FileManager::LoadingThread, this);
 	});
@@ -454,7 +479,11 @@ const std::unordered_map<common::crc_t, LazyChunk>& FileManager::GetLazyChunkMap
 
 bool FileManager::IsChunkReady(common::crc_t crc) const
 {
-	ASSERT(mEagerChunkMap.find(crc) == mEagerChunkMap.end());
+	// Eager map is async-populated; only assert the not-an-eager-chunk invariant once it is published.
+	if (mbEagerLoadComplete.load(std::memory_order_acquire))
+	{
+		ASSERT(mEagerChunkMap.find(crc) == mEagerChunkMap.end());
+	}
 	auto it = mLazyChunkMap.find(crc);
 	return it != mLazyChunkMap.end() ? it->second.eState.load(std::memory_order_acquire) >= ChunkState::kReady : false;
 }
@@ -656,6 +685,9 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 
 	LOG(kLoading, kDebug, "Lazy chunk {} \"{}\" size {}", rRequest.crc, std::string_view(rLazyChunk.header.pcPath), rLazyChunk.location.uiSize);
 
+	// The disk-read bytes in pData are published to ReadChunkData's resident-copy path and the stats
+	// readers by the eState release-stores below; that release / acquire pairing — not mQueueMutex — is
+	// the memory-visibility contract for lazy chunk data.
 #if defined(BT_CLIENT)
 	if (rLazyChunk.header.flags & common::ChunkFlags::kTexture)
 	{
@@ -697,10 +729,15 @@ void FileManager::ResetTextureChunkStates(std::span<const common::crc_t> targetC
 	// restoration is idempotent for chunks already pointing at the correct offset, so it is safe to apply
 	// to everything. This per-chunk path is used by Phase 5 LRU eviction.
 	//
-	// Thread-safety precondition (relied upon, NOT enforced here): the transfer thread
-	// (TextureUploadManager::UploadThread) must not be concurrently uploading any chunk this nulls,
-	// because it writes rLazyChunk.vkImage during a kUploading chunk's vmaCreateImage. Both callers
-	// guarantee this by ordering, not by an in-code guard:
+	// Thread-safety precondition (relied upon, NOT enforced here): no other thread may concurrently access a
+	// chunk this rewrites. Two classes of concurrent access exist, excluded by ordering, not an in-code guard:
+	//   * The transfer thread (TextureUploadManager::UploadThread) writing rLazyChunk.vkImage during a
+	//     kUploading chunk's vmaCreateImage — must not be uploading any chunk this nulls.
+	//   * The audio fill worker (kThreadStreamingVoiceFill, via StreamingVoice::FillSlot -> ReadChunkData)
+	//     reading pData/iDataSize lock-free. The pool-pointer restoration below rewrites those for EVERY
+	//     lazy chunk (cumulative offsets), but to identical values for any chunk not being evicted, so a
+	//     racing audio read of a non-evicted chunk is benign.
+	// Both callers guarantee the transfer-thread exclusion:
 	//   * Whole-pool variant (device-loss): runs at Graphics::Destroy after DestroyTransferResources()
 	//     has set mbShutdown and joined the transfer thread.
 	//   * Scoped per-island variant (LRU eviction): runs inside RenderGlobal's drained descriptor-patch
@@ -758,23 +795,27 @@ void FileManager::ResetTextureChunkStates(std::span<const common::crc_t> targetC
 
 bool FileManager::ReadChunkData(common::crc_t crc, uint64_t uiOffset, std::span<std::byte> buffer)
 {
-	// Check eager chunks first (no locking needed as they're read-only after initialization)
-	auto eagerIt = mEagerChunkMap.find(crc);
-	if (eagerIt != mEagerChunkMap.end())
+	// Check eager chunks first. No locking needed: they are read-only once the async eager load publishes
+	// mbEagerLoadComplete — skip the lookup until then so a boot-window read can't race the populating task.
+	if (mbEagerLoadComplete.load(std::memory_order_acquire))
 	{
-		const EagerChunk& rEagerChunk = eagerIt->second;
-		// Use the chunk-table data extent, not pHeader->iSize: a scene chunk's iSize excludes its appended animation section
-		int64_t iDataSize = rEagerChunk.iDataSize;
-
-		// Validate read bounds
-		if (uiOffset + buffer.size() > static_cast<uint64_t>(iDataSize))
+		auto eagerIt = mEagerChunkMap.find(crc);
+		if (eagerIt != mEagerChunkMap.end())
 		{
-			return false;
-		}
+			const EagerChunk& rEagerChunk = eagerIt->second;
+			// Use the chunk-table data extent, not pHeader->iSize: a scene chunk's iSize excludes its appended animation section
+			int64_t iDataSize = rEagerChunk.iDataSize;
 
-		// Copy data from eager chunk
-		std::memcpy(buffer.data(), rEagerChunk.pData + uiOffset, buffer.size());
-		return true;
+			// Validate read bounds
+			if (uiOffset + buffer.size() > static_cast<uint64_t>(iDataSize))
+			{
+				return false;
+			}
+
+			// Copy data from eager chunk
+			std::memcpy(buffer.data(), rEagerChunk.pData + uiOffset, buffer.size());
+			return true;
+		}
 	}
 	
 	// Check lazy chunks
@@ -783,21 +824,21 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t uiOffset, std::span<
 	{
 		LazyChunk& rLazyChunk = lazyIt->second;
 		
-		// If chunk is loaded, read from memory
+		// If chunk is loaded, read from memory. No lock: pData visibility comes from the eState release
+		// (LoadChunk) / acquire (here) pair, not mQueueMutex — the lockless writers never take it.
+		// pData/iDataSize are stable once kDiskLoaded except under ResetTextureChunkStates, whose
+		// drained-window precondition excludes concurrent readers.
+		if (rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kDiskLoaded)
 		{
-			std::unique_lock lock(mQueueMutex);
-			if (rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kDiskLoaded)
+			// Validate read bounds
+			if (uiOffset + buffer.size() > static_cast<uint64_t>(rLazyChunk.iDataSize))
 			{
-				// Validate read bounds
-				if (uiOffset + buffer.size() > static_cast<uint64_t>(rLazyChunk.iDataSize))
-				{
-					return false;
-				}
-
-				// Copy data from lazy chunk
-				std::memcpy(buffer.data(), rLazyChunk.pData + uiOffset, buffer.size());
-				return true;
+				return false;
 			}
+
+			// Copy data from lazy chunk
+			std::memcpy(buffer.data(), rLazyChunk.pData + uiOffset, buffer.size());
+			return true;
 		}
 		
 		// Corrupt chunk header (no type flag): fail the read instead of indexing past the path array
@@ -845,6 +886,11 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t uiOffset, std::span<
 MemoryStats FileManager::GetEagerStats() const
 {
 	MemoryStats stats;
+	// mPackFileData / mEagerChunkMap are async-populated; report nothing until the eager load publishes.
+	if (!mbEagerLoadComplete.load(std::memory_order_acquire))
+	{
+		return stats;
+	}
 	for (uint32_t i = 0; i < data::kDataTypeCount; ++i)
 	{
 		if (IsEagerChunk(static_cast<data::DataTypes>(i)))
@@ -859,7 +905,9 @@ MemoryStats FileManager::GetEagerStats() const
 MemoryStats FileManager::GetLazyStats() const
 {
 	MemoryStats stats;
-	std::unique_lock lock(mQueueMutex);
+	// No lock: mLazyChunkMap structure is frozen after boot, eState is atomic (acquire), and iDataSize is
+	// stable except under ResetTextureChunkStates' drained-window precondition. mQueueMutex never guarded
+	// these value reads — the lockless writers never take it.
 	for (const auto& [crc, rLazyChunk] : mLazyChunkMap)
 	{
 		if (rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kDiskLoaded)
@@ -877,12 +925,14 @@ MemoryStats FileManager::GetMemoryStats(data::DataTypes eDataType) const
 
 	if (IsEagerChunk(eDataType))
 	{
-		stats.iBytes = static_cast<int64_t>(mPackFileData[eDataType].size());
+		// mPackFileData is async-populated; report 0 resident bytes until published. mpChunkLocations is set
+		// synchronously in LoadPackFiles, so the chunk count is always safe to read.
+		stats.iBytes = mbEagerLoadComplete.load(std::memory_order_acquire) ? static_cast<int64_t>(mPackFileData[eDataType].size()) : 0;
 		stats.iCount = static_cast<int64_t>(mpChunkLocations[eDataType].size());
 	}
 	else
 	{
-		std::unique_lock lock(mQueueMutex);
+		// No lock: see GetLazyStats — mQueueMutex never guarded these value reads.
 		for (const auto& [crc, rLazyChunk] : mLazyChunkMap)
 		{
 			if (DataTypeFromFlags(rLazyChunk.header.flags) == eDataType && rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kDiskLoaded)

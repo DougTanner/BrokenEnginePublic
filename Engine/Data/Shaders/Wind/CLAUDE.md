@@ -19,7 +19,7 @@ Because the world-area shifts and scales between frames, every cross-frame looku
 `WindSpread()` runs semi-Lagrangian advection (displacement clamped to 3 texels), world-position-anchored swirl noise (pattern stays put under camera motion), simplified vorticity confinement, diffusion, and frame-rate-independent decay. Two cross-cutting designs:
 
 - **Magnitude regime**: behavior constants are Low/High pairs blended by field magnitude — weak wind stays laminar, strong wind turns turbulent; "momentum" tunables invert into less spread/swirl/diffusion.
-- **Exact-zero convergence**: a tanh soft clamp bounds the field and a constant decay floor returns exact zero below it. This self-extinguishes the active-tile set (occupancy clears each frame and only non-zero tiles re-mark), keeping dispatch cost proportional to actual wind — and it is also how enabling/disabling wind "clears" the field; there is no explicit clear pass.
+- **Exact-zero convergence**: a tanh soft clamp bounds the field and a constant decay floor returns exact zero below it. This self-extinguishes the active-tile set (occupancy clears each frame and only non-zero tiles re-mark), keeping dispatch cost proportional to actual wind — and it is also how enabling/disabling wind "clears" the field; there is no explicit per-frame clear pass (textures are hard-cleared once at creation/recreate time C++-side).
 
 Velocities are stored world-oriented (+Y = north); every conversion to/from UV space flips Y (advection displacement, radial deposit direction).
 

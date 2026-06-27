@@ -176,243 +176,247 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 	bool bSkipInvalidation = mbSkipNextInvalidation;
 	mbSkipNextInvalidation = false;
 
-	// Invalidation pass: an mVoices entry whose ID is no longer in the frame state
-	// transitions to fade-out (or erases outright if it's already silent / inactive).
-	// Fade advance and the kFadingOut → kInactive transition live in pass 4 so all
-	// three sources of fade (invalidation, range-deactivation, budget-eviction)
-	// share one ramp-and-cleanup path.
-	auto FadeOutCount = [this]() -> int64_t
-	{
-		int64_t iCount = 0;
-		for (const StaticVoice& rOther : mVoices)
-		{
-			if (rOther.mFlags & StaticVoiceFlags::kFadingOut)
-			{
-				++iCount;
-			}
-		}
-		return iCount;
-	};
-
 	if (!bSkipInvalidation)
 	{
-		for (int64_t i = 0; i < static_cast<int64_t>(mVoices.size());)
-		{
-			StaticVoice& rVoice = mVoices.at(i);
-
-			bool bValid = rSoundsInterpolate.idToIndexMap.contains(rVoice.mId);
-			if (bValid)
-			{
-				++i;
-				continue;
-			}
-
-			bool bDestroy = false;
-			if (rVoice.mFlags & StaticVoiceFlags::kInactive)
-			{
-				// Inactive voices have mpVoice == nullptr. Drop the entry directly.
-				bDestroy = true;
-			}
-			else if (rVoice.mFlags & StaticVoiceFlags::kFadingOut)
-			{
-				// Pass 4 advances the fade; next-frame invalidation erases once it transitions to kInactive.
-			}
-			else if (rVoice.mfVolume <= 0.0f)
-			{
-				// Already silent; skip the fade and erase directly.
-				if (rVoice.mpVoice != nullptr)
-				{
-					ReturnVoiceToPool(rVoice.mAudioCrc, rVoice.mpVoice);
-					rVoice.mpVoice = nullptr;
-				}
-				bDestroy = true;
-			}
-			else if (FadeOutCount() >= kiMaxFadeOutPool)
-			{
-				// FadeOutPool saturated. Skip; next-frame invalidation retries once a slot frees.
-				DEBUG_BREAK();
-			}
-			else
-			{
-				rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
-				rVoice.mfFadeOutVolume = 1.0f;
-			}
-
-			if (bDestroy)
-			{
-				if (i < static_cast<int64_t>(mVoices.size()) - 1)
-				{
-					mVoices.at(i) = std::move(mVoices.back());
-				}
-				mVoices.pop_back();
-			}
-			else
-			{
-				++i;
-			}
-		}
+		InvalidationPass(rSoundsInterpolate);
 	}
+	PriorityPass(rSoundsInterpolate, rSoundsPostRender);
+	DeactivationPass();
+	AdvanceFadeOut(fDeltaTime);
+	AdvanceFadeIn(fDeltaTime);
+}
 
-	// Priority + cull pass: rank candidates by attenuated volume so the closest /
-	// loudest sounds win the kiMaxStaticVoices slots. Out-of-range candidates (below
-	// the hysteresis floor) are skipped entirely; matching active voices get
-	// deactivated below.
-	const int64_t iSoundCount = rSoundsPostRender.iCount;
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	// pActivatedIds is allocated unconditionally so the deactivation pass can run
-	// every frame even when iSoundCount==0 (drains stale active voices).
-	auto pActivatedIdsScratch = rWorkbuffer.PushBuffer<sound_t*>(kiMaxStaticVoices * static_cast<int64_t>(sizeof(sound_t)));
-	sound_t* pActivatedIds = pActivatedIdsScratch;
-	int64_t iActivatedCount = 0;
-	static constexpr float kfDeactivateFloor = 0.8f * kfCullVolume;
-
-	if (iSoundCount > 0)
+void StaticVoices::InvalidationPass(const SoundsInterpolate& rSoundsInterpolate)
+{
+	// An mVoices entry whose ID is no longer in the frame state transitions to fade-out
+	// (or erases outright if it's already silent / inactive). Fade advance and the
+	// kFadingOut → kInactive transition live in AdvanceFadeOut so all three sources of fade
+	// (invalidation, range-deactivation, budget-eviction) share one ramp-and-cleanup path.
+	for (int64_t i = 0; i < static_cast<int64_t>(mVoices.size());)
 	{
-		struct PriorityEntry { float fAttenuated; int64_t iSoundIndex; };
-		// RAII handle keeps the workbuffer frame alive; raw pointer below avoids
-		// std::sort deducing _RanIt from the ScopedWorkbufferAllocation type.
-		auto pPriorityScratch = rWorkbuffer.PushBuffer<PriorityEntry*>(iSoundCount * static_cast<int64_t>(sizeof(PriorityEntry)));
-		PriorityEntry* pPriority = pPriorityScratch;
+		StaticVoice& rVoice = mVoices.at(i);
 
-		// Hysteresis floor: candidates below 0.8 * cull never enter the priority list,
-		// so a sound oscillating around the boundary doesn't toggle slots each frame.
-		int64_t iCandidateCount = 0;
-		for (int64_t i = 0; i < iSoundCount; ++i)
+		bool bValid = rSoundsInterpolate.idToIndexMap.contains(rVoice.mId);
+		if (bValid)
 		{
-			sound_t id = rSoundsPostRender.puiIds[i];
-			int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
-			float fSoundVolume = rSoundsInterpolate.pfVolumes[iIndex];
-			float fDistance = common::Distance(rSoundsInterpolate.pVecPositions[iIndex], mVecListenerPosition);
-			float fAttenuated = ComputeAttenuatedVolume(fDistance, fSoundVolume);
-			if (fAttenuated < kfDeactivateFloor)
-			{
-				continue;
-			}
-			pPriority[iCandidateCount++] = {fAttenuated, i};
+			++i;
+			continue;
 		}
 
-		std::sort(pPriority, pPriority + iCandidateCount, [](const PriorityEntry& rEntryA, const PriorityEntry& rEntryB)
+		bool bDestroy = false;
+		if (rVoice.mFlags & StaticVoiceFlags::kInactive)
 		{
-			return rEntryA.fAttenuated > rEntryB.fAttenuated;
-		});
-
-		// Walk in priority order; allocate or sync up to kiMaxStaticVoices slots.
-		const int64_t iSlotCap = std::min(iCandidateCount, kiMaxStaticVoices);
-		for (int64_t iSlot = 0; iSlot < iSlotCap; ++iSlot)
+			// Inactive voices have mpVoice == nullptr. Drop the entry directly.
+			bDestroy = true;
+		}
+		else if (rVoice.mFlags & StaticVoiceFlags::kFadingOut)
 		{
-			float fAttenuated = pPriority[iSlot].fAttenuated;
-			int64_t i = pPriority[iSlot].iSoundIndex;
-			sound_t id = rSoundsPostRender.puiIds[i];
-			int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
-			float fSoundVolume = rSoundsInterpolate.pfVolumes[iIndex];
-			float fPitch = rSoundsInterpolate.pfPitches[iIndex];
-			XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[iIndex];
-			XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
-
-			StaticVoice* pExistingVoice = nullptr;
-			for (StaticVoice& rExisting : mVoices)
+			// AdvanceFadeOut advances the fade; next-frame invalidation erases once it transitions to kInactive.
+		}
+		else if (rVoice.mfVolume <= 0.0f)
+		{
+			// Already silent; skip the fade and erase directly.
+			if (rVoice.mpVoice != nullptr)
 			{
-				if (rExisting.mId == id)
-				{
-					pExistingVoice = &rExisting;
-					break;
-				}
+				ReturnVoiceToPool(rVoice.mAudioCrc, rVoice.mpVoice);
+				rVoice.mpVoice = nullptr;
 			}
+			bDestroy = true;
+		}
+		else if (miFadeOutCount >= kiMaxFadeOutPool)
+		{
+			// FadeOutPool saturated. Skip; next-frame invalidation retries once a slot frees.
+			DEBUG_BREAK();
+		}
+		else
+		{
+			rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
+			rVoice.mfFadeOutVolume = 1.0f;
+			++miFadeOutCount;
+		}
 
-			if (pExistingVoice != nullptr)
+		if (bDestroy)
+		{
+			if (i < static_cast<int64_t>(mVoices.size()) - 1)
 			{
-				// Sync data first — covers both the active-sync case and the pre-Start
-				// sync needed before reactivating, since SOA values may have drifted
-				// while the voice was inactive.
-				pExistingVoice->mfVolume = fSoundVolume;
-				pExistingVoice->mfPitch = fPitch;
-				pExistingVoice->mVecPosition = vecPosition;
-				pExistingVoice->mVecVelocity = vecVelocity;
-
-				if ((pExistingVoice->mFlags & StaticVoiceFlags::kInactive) && fAttenuated >= kfCullVolume)
-				{
-					// Reactivate: re-acquire from the per-crc pool, restart the source voice,
-					// and ramp volume in via mfFadeOutVolume to mask the click.
-					common::crc_t uiCrc = pExistingVoice->mAudioCrc;
-					IXAudio2SourceVoice* pVoice = AcquireVoiceFromPool(uiCrc);
-					if (pVoice == nullptr)
-					{
-						if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, LoadVoiceFlags::k3d))
-						{
-							continue;
-						}
-					}
-					pExistingVoice->mpVoice = pVoice;
-					pExistingVoice->mfFadeOutVolume = 0.0f;
-					pExistingVoice->mFlags.Clear(StaticVoiceFlags::kInactive);
-					// SetVolume(0) before Start() prevents an audible click — pooled voices
-					// retain whatever volume Apply3dVolume last set on them, which may be
-					// loud. Apply3dVolume in the next UpdateVolumes will re-establish the
-					// ramped volume.
-					CHECK_HRESULT(pVoice->SetVolume(0.0f));
-					CHECK_HRESULT(pVoice->Start(0, XAUDIO2_COMMIT_NOW));
-					LOG(kAudio, kDebug, "voice REACTIVATED id={} dist={} atten={}", id, common::Wb(common::Distance(vecPosition, mVecListenerPosition), 2), common::Wb(fAttenuated, 4));
-				}
-				else if ((pExistingVoice->mFlags & StaticVoiceFlags::kFadingOut) && fAttenuated >= kfCullVolume)
-				{
-					// Cancel fade-out: voice is still playing. Clearing the flag lets the
-					// fade-in ramp below pick mfFadeOutVolume up from wherever it had reached
-					// and ramp it back to 1.0. No Start() / SetVolume(0) / click.
-					pExistingVoice->mFlags.Clear(StaticVoiceFlags::kFadingOut);
-					LOG(kAudio, kDebug, "voice FADE CANCELLED id={} fadeVol={}", id, common::Wb(pExistingVoice->mfFadeOutVolume, 2));
-				}
-
-				// Mark as activated only when the voice is genuinely audible this frame.
-				// An existing-active voice in the hysteresis band [kfDeactivateFloor, kfCullVolume)
-				// is intentionally NOT marked, so the deactivation pass picks it up.
-				if (fAttenuated >= kfCullVolume)
-				{
-					pActivatedIds[iActivatedCount++] = id;
-				}
-				continue;
+				mVoices.at(i) = std::move(mVoices.back());
 			}
-
-			// New voice: only spawn if attenuated volume is above the activate threshold.
-			// Anything in [kfDeactivateFloor, kfCullVolume) waits for an existing voice
-			// to drop it before allocating a slot.
-			if (fAttenuated < kfCullVolume)
-			{
-				continue;
-			}
-			// Active + kInactive entries count toward kiMaxStaticVoices; kFadingOut entries
-			// live in the FadeOutPool overflow capacity above the primary cap.
-			if (static_cast<int64_t>(mVoices.size()) - FadeOutCount() >= kiMaxStaticVoices)
-			{
-				LOG(kAudio, kDebug, "Max static voices reached ({}), deferring add", kiMaxStaticVoices);
-				continue;
-			}
-
-			common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[iIndex];
-			IXAudio2SourceVoice* pVoice = AcquireVoiceFromPool(uiCrc);
-			if (pVoice == nullptr)
-			{
-				if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, LoadVoiceFlags::k3d))
-				{
-					continue;
-				}
-			}
-			float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
-			mVoices.push_back(StaticVoice(pVoice, id, fSoundVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity, uiCrc));
-			// Establish the attenuated 3D mix this same pass — the ctor now starts the voice silent
-			// (SetVolume(0)), so without this the first quantum would be inaudible until the next
-			// UpdateVolumes. Matches what UpdateVolumes computes (mfFadeOutVolume initializes to 1.0).
-			Apply3dVolume(pVoice, vecPosition, vecVelocity, fSoundVolume, fPitch);
-			pActivatedIds[iActivatedCount++] = id;
+			mVoices.pop_back();
+		}
+		else
+		{
+			++i;
 		}
 	}
+}
 
-	// Deactivation pass: any active voice not given a slot this frame (past cap or
-	// below the activate threshold) enters fade-out. The XAudio2 voice keeps playing
-	// while mfFadeOutVolume ramps to zero (pass 4 below advances and finalizes), so
-	// the cut is graceful instead of a mid-sample Stop() click. Runs unconditionally
-	// so iSoundCount==0 also drains stale active voices.
+void StaticVoices::PriorityPass(const SoundsInterpolate& rSoundsInterpolate, const SoundsPostRender& rSoundsPostRender)
+{
+	// Rank candidates by attenuated volume so the closest / loudest sounds win the
+	// kiMaxStaticVoices slots. Out-of-range candidates (below the hysteresis floor) are
+	// skipped entirely; matching active voices get deactivated in DeactivationPass.
+	const int64_t iSoundCount = rSoundsPostRender.iCount;
+	if (iSoundCount <= 0)
+	{
+		return;
+	}
+
+	static constexpr float kfDeactivateFloor = 0.8f * kfCullVolume;
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	struct PriorityEntry { float fAttenuated; int64_t iSoundIndex; };
+	// RAII handle keeps the workbuffer frame alive; raw pointer below avoids
+	// std::sort deducing _RanIt from the ScopedWorkbufferAllocation type.
+	auto pPriorityScratch = rWorkbuffer.PushBuffer<PriorityEntry*>(iSoundCount * static_cast<int64_t>(sizeof(PriorityEntry)));
+	PriorityEntry* pPriority = pPriorityScratch;
+
+	// Hysteresis floor: candidates below 0.8 * cull never enter the priority list,
+	// so a sound oscillating around the boundary doesn't toggle slots each frame.
+	int64_t iCandidateCount = 0;
+	for (int64_t i = 0; i < iSoundCount; ++i)
+	{
+		sound_t id = rSoundsPostRender.puiIds[i];
+		int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
+		float fSoundVolume = rSoundsInterpolate.pfVolumes[iIndex];
+		float fDistance = common::Distance(rSoundsInterpolate.pVecPositions[iIndex], mVecListenerPosition);
+		float fAttenuated = ComputeAttenuatedVolume(fDistance, fSoundVolume);
+		if (fAttenuated < kfDeactivateFloor)
+		{
+			continue;
+		}
+		pPriority[iCandidateCount++] = {fAttenuated, i};
+	}
+
+	std::sort(pPriority, pPriority + iCandidateCount, [](const PriorityEntry& rEntryA, const PriorityEntry& rEntryB)
+	{
+		return rEntryA.fAttenuated > rEntryB.fAttenuated;
+	});
+
+	// Walk in priority order; allocate or sync up to kiMaxStaticVoices slots.
+	const int64_t iSlotCap = std::min(iCandidateCount, kiMaxStaticVoices);
+	for (int64_t iSlot = 0; iSlot < iSlotCap; ++iSlot)
+	{
+		float fAttenuated = pPriority[iSlot].fAttenuated;
+		int64_t i = pPriority[iSlot].iSoundIndex;
+		sound_t id = rSoundsPostRender.puiIds[i];
+		int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
+		float fSoundVolume = rSoundsInterpolate.pfVolumes[iIndex];
+		float fPitch = rSoundsInterpolate.pfPitches[iIndex];
+		XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[iIndex];
+		XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
+
+		StaticVoice* pExistingVoice = nullptr;
+		for (StaticVoice& rExisting : mVoices)
+		{
+			if (rExisting.mId == id)
+			{
+				pExistingVoice = &rExisting;
+				break;
+			}
+		}
+
+		if (pExistingVoice != nullptr)
+		{
+			// Sync data first — covers both the active-sync case and the pre-Start
+			// sync needed before reactivating, since SOA values may have drifted
+			// while the voice was inactive.
+			pExistingVoice->mfVolume = fSoundVolume;
+			pExistingVoice->mfPitch = fPitch;
+			pExistingVoice->mVecPosition = vecPosition;
+			pExistingVoice->mVecVelocity = vecVelocity;
+
+			if ((pExistingVoice->mFlags & StaticVoiceFlags::kInactive) && fAttenuated >= kfCullVolume)
+			{
+				// Reactivate: re-acquire from the per-crc pool, restart the source voice,
+				// and ramp volume in via mfFadeOutVolume to mask the click.
+				common::crc_t uiCrc = pExistingVoice->mAudioCrc;
+				IXAudio2SourceVoice* pVoice = AcquireVoiceFromPool(uiCrc);
+				if (pVoice == nullptr)
+				{
+					if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, LoadVoiceFlags::k3d))
+					{
+						continue;
+					}
+				}
+				pExistingVoice->mpVoice = pVoice;
+				pExistingVoice->mfFadeOutVolume = 0.0f;
+				pExistingVoice->mFlags.Clear(StaticVoiceFlags::kInactive);
+				// SetVolume(0) before Start() prevents an audible click — pooled voices
+				// retain whatever volume Apply3dVolume last set on them, which may be
+				// loud. Apply3dVolume in the next UpdateVolumes will re-establish the
+				// ramped volume.
+				CHECK_HRESULT(pVoice->SetVolume(0.0f));
+				CHECK_HRESULT(pVoice->Start(0, XAUDIO2_COMMIT_NOW));
+				LOG(kAudio, kDebug, "voice REACTIVATED id={} dist={} atten={}", id, common::Wb(common::Distance(vecPosition, mVecListenerPosition), 2), common::Wb(fAttenuated, 4));
+			}
+			else if ((pExistingVoice->mFlags & StaticVoiceFlags::kFadingOut) && fAttenuated >= kfCullVolume)
+			{
+				// Cancel fade-out: voice is still playing. Clearing the flag lets the
+				// fade-in ramp pick mfFadeOutVolume up from wherever it had reached
+				// and ramp it back to 1.0. No Start() / SetVolume(0) / click.
+				pExistingVoice->mFlags.Clear(StaticVoiceFlags::kFadingOut);
+				--miFadeOutCount;
+				LOG(kAudio, kDebug, "voice FADE CANCELLED id={} fadeVol={}", id, common::Wb(pExistingVoice->mfFadeOutVolume, 2));
+			}
+
+			// Mark as activated only when the voice is genuinely audible this frame.
+			// An existing-active voice in the hysteresis band [kfDeactivateFloor, kfCullVolume)
+			// is intentionally NOT marked, so the deactivation pass picks it up.
+			if (fAttenuated >= kfCullVolume)
+			{
+				pExistingVoice->mFlags.Set(StaticVoiceFlags::kActivatedThisFrame);
+			}
+			continue;
+		}
+
+		// New voice: only spawn if attenuated volume is above the activate threshold.
+		// Anything in [kfDeactivateFloor, kfCullVolume) waits for an existing voice
+		// to drop it before allocating a slot.
+		if (fAttenuated < kfCullVolume)
+		{
+			continue;
+		}
+		// Active + kInactive entries count toward kiMaxStaticVoices; kFadingOut entries
+		// live in the FadeOutPool overflow capacity above the primary cap.
+		if (static_cast<int64_t>(mVoices.size()) - miFadeOutCount >= kiMaxStaticVoices)
+		{
+			LOG(kAudio, kDebug, "Max static voices reached ({}), deferring add", kiMaxStaticVoices);
+			continue;
+		}
+
+		common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[iIndex];
+		IXAudio2SourceVoice* pVoice = AcquireVoiceFromPool(uiCrc);
+		if (pVoice == nullptr)
+		{
+			if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, LoadVoiceFlags::k3d))
+			{
+				continue;
+			}
+		}
+		float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
+		mVoices.push_back(StaticVoice(pVoice, id, fSoundVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity, uiCrc));
+		// Establish the attenuated 3D mix this same pass — the ctor now starts the voice silent
+		// (SetVolume(0)), so without this the first quantum would be inaudible until the next
+		// UpdateVolumes. Matches what UpdateVolumes computes (mfFadeOutVolume initializes to 1.0).
+		Apply3dVolume(pVoice, vecPosition, vecVelocity, fSoundVolume, fPitch);
+		mVoices.back().mFlags.Set(StaticVoiceFlags::kActivatedThisFrame);
+	}
+}
+
+void StaticVoices::DeactivationPass()
+{
+	// Any active voice not given a slot this frame (past cap or below the activate
+	// threshold) enters fade-out. The XAudio2 voice keeps playing while mfFadeOutVolume
+	// ramps to zero (AdvanceFadeOut advances and finalizes), so the cut is graceful
+	// instead of a mid-sample Stop() click. Runs unconditionally so iSoundCount==0 also
+	// drains stale active voices.
 	for (StaticVoice& rVoice : mVoices)
 	{
+		// kActivatedThisFrame is transient — clear it unconditionally before the state
+		// guards so it never persists to the next frame even if PriorityPass's marking
+		// conditions change.
+		bool bActivated = (rVoice.mFlags & StaticVoiceFlags::kActivatedThisFrame);
+		rVoice.mFlags.Clear(StaticVoiceFlags::kActivatedThisFrame);
+
 		if (rVoice.mFlags & StaticVoiceFlags::kInactive)
 		{
 			continue;
@@ -421,18 +425,9 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 		{
 			continue;
 		}
-		bool bActivated = false;
-		for (int64_t i = 0; i < iActivatedCount; ++i)
-		{
-			if (pActivatedIds[i] == rVoice.mId)
-			{
-				bActivated = true;
-				break;
-			}
-		}
 		if (!bActivated)
 		{
-			if (FadeOutCount() >= kiMaxFadeOutPool)
+			if (miFadeOutCount >= kiMaxFadeOutPool)
 			{
 				// Pool saturated. Voice stays active; deactivation pass retries next
 				// frame once a slot frees. One extra frame of intended-gone audio,
@@ -442,14 +437,18 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 			}
 			rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
 			rVoice.mfFadeOutVolume = 1.0f;
+			++miFadeOutCount;
 			LOG(kAudio, kDebug, "voice FADING id={} dist={}", rVoice.mId, common::Wb(common::Distance(rVoice.mVecPosition, mVecListenerPosition), 2));
 		}
 	}
+}
 
-	// Pass 4: advance kFadingOut entries' mfFadeOutVolume. On completion, return the
-	// XAudio2 voice to the per-crc pool and transition to kInactive — the entry stays
-	// in mVoices so a re-entering sound can reactivate via the existing kInactive
-	// path. The invalidation pass erases owner-removed kInactive entries next frame.
+void StaticVoices::AdvanceFadeOut(float fDeltaTime)
+{
+	// Advance kFadingOut entries' mfFadeOutVolume. On completion, return the XAudio2 voice
+	// to the per-crc pool and transition to kInactive — the entry stays in mVoices so a
+	// re-entering sound can reactivate via the existing kInactive path. InvalidationPass
+	// erases owner-removed kInactive entries next frame.
 	for (StaticVoice& rVoice : mVoices)
 	{
 		if (!(rVoice.mFlags & StaticVoiceFlags::kFadingOut))
@@ -467,9 +466,13 @@ void StaticVoices::UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime)
 			rVoice.mFlags.Clear(StaticVoiceFlags::kFadingOut);
 			rVoice.mFlags.Set(StaticVoiceFlags::kInactive);
 			rVoice.mfFadeOutVolume = 0.0f;
+			--miFadeOutCount;
 		}
 	}
+}
 
+void StaticVoices::AdvanceFadeIn(float fDeltaTime)
+{
 	// Fade-in ramp for voices whose mfFadeOutVolume is below 1.0 — used after
 	// reactivation to mask the Start() click. 150ms full ramp.
 	static constexpr float kfFadeInTime = 0.15f;
@@ -553,6 +556,7 @@ void StaticVoices::Clear(bool bNullVoicesBeforeDestroy)
 		}
 	}
 	mVoices.clear();
+	miFadeOutCount = 0;
 
 	if (bNullVoicesBeforeDestroy)
 	{

@@ -66,6 +66,13 @@ private:
 
 	float ComputeAttenuatedVolume(float fDistance, float fSoundVolume) const;
 
+	// UpdateLifecycle passes, run in fixed order each frame (see Audio/CLAUDE.md "Voice Prioritization").
+	void InvalidationPass(const SoundsInterpolate& rSoundsInterpolate);
+	void PriorityPass(const SoundsInterpolate& rSoundsInterpolate, const SoundsPostRender& rSoundsPostRender);
+	void DeactivationPass();
+	void AdvanceFadeOut(float fDeltaTime);
+	void AdvanceFadeIn(float fDeltaTime);
+
 	struct PooledVoice
 	{
 		common::crc_t mAudioCrc;
@@ -86,6 +93,7 @@ private:
 	bool mbSkipNextInvalidation = false;
 	std::vector<StaticVoice> mVoices;
 	std::vector<PooledVoice> mPooledVoices;
+	int64_t miFadeOutCount = 0; // Maintained count of mVoices entries flagged kFadingOut; kept in sync at every Set/Clear so the budget checks stay O(1). Reset in Clear().
 
 	// Listener/fade state below (through mfEffectiveFadeEnd) is written only by main-thread
 	// UpdateListenerPosition (audio step) and read LOCK-FREE by the one-shot path

@@ -103,7 +103,7 @@
       <Optimization>Disabled</Optimization>
       <ConformanceMode>false</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\ThirdParty\enet\include;$(ProjectDir)\..\..\..\..\ThirdParty\Clipper2\CPP\Clipper2Lib\include;$(ProjectDir)\..\..\..\..\ThirdParty\mimalloc\include;$(ProjectDir)\..\..\..\..\ThirdParty\imgui;$(ProjectDir)\..\..\..\..\ThirdParty\implot;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Common\ClangTidyShims;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\ThirdParty\enet\include;$(ProjectDir)\..\..\..\..\ThirdParty\Clipper2\CPP\Clipper2Lib\include;$(ProjectDir)\..\..\..\..\ThirdParty\mimalloc\include;$(ProjectDir)\..\..\..\..\ThirdParty\imgui;$(ProjectDir)\..\..\..\..\ThirdParty\implot;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Common\ClangTidyShims;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>false</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <PreprocessorDefinitions>BT_ENGINE;BT_SERVER;BT_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -341,6 +341,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\IslandChainPlacement.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\IslandTerrain.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\NavBuild.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\NavBuildInternal.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\NavQuery.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\GridCoord.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\TerrainUtils.h" />
@@ -363,6 +364,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\Source\Profile\ProfileManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\NetworkUiControl.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\WrapperBase.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\PbrWrappersBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\TerrainWrappersBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\WaterWrappersBase.h" />
@@ -404,7 +406,6 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\Source\Ui\Screens\DeathMenuScreen.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\MenuUtils.h" />
     <ClInclude Include="..\..\Source\Ui\ParticleWrappers.h" />
-    <ClInclude Include="..\..\Source\Ui\HexShieldWrappers.h" />
     <ClInclude Include="..\..\Source\Ui\WindDepositsWrappers.h" />
     <ClInclude Include="Output\Data\Audio.h" />
     <ClInclude Include="Output\Data\Data.h" />
@@ -444,6 +445,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\IslandChainPlacement.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\IslandTerrain.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\NavBuild.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\NavCellData.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\NavQuery.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\TimeStep.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp" />
@@ -481,7 +483,6 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\HeightLerpWrapperQuartet.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\SoundSettingsWrappersBase.cpp" />
     <ClCompile Include="..\..\Source\Ui\ParticleWrappers.cpp" />
-    <ClCompile Include="..\..\Source\Ui\HexShieldWrappers.cpp" />
     <ClCompile Include="..\..\Source\Ui\WindDepositsWrappers.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters\Blasters.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters\BlastersUpdate.cpp" />

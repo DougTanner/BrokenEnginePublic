@@ -41,11 +41,7 @@ void main()
 	}
 
 	vec2 f2Texcoord = vec2(i2Coord) / vec2(iActiveX, iActiveY);
-	vec2 f2WorldPosition = vec2
-	(
-		(1.0f - f2Texcoord.x) * globalLayout.f4VisibleArea.x + f2Texcoord.x * globalLayout.f4VisibleArea.z,
-		(1.0f - f2Texcoord.y) * globalLayout.f4VisibleArea.y + f2Texcoord.y * globalLayout.f4VisibleArea.w
-	);
+	vec2 f2WorldPosition = VisibleAreaToWorld(f2Texcoord, globalLayout.f4VisibleArea);
 	vec2 f2LocalPosition = f2WorldPosition - vec2(globalLayout.fWaterOriginX, globalLayout.fWaterOriginY);
 
 	float fTerrainElevation = textureLod(elevationTextureSampler, WorldToVisibleArea(vec3(f2WorldPosition, 0.0f), globalLayout.f4VisibleArea), 0.0f).x - globalLayout.fWaterHeight;

@@ -54,8 +54,7 @@ void main()
 {
 	vec3 f3InPosition = vec3
 	(
-		(1.0f - f2InVisibleAreaTexcoord.x) * globalLayout.f4VisibleArea.x + f2InVisibleAreaTexcoord.x * globalLayout.f4VisibleArea.z,
-		(1.0f - f2InVisibleAreaTexcoord.y) * globalLayout.f4VisibleArea.y + f2InVisibleAreaTexcoord.y * globalLayout.f4VisibleArea.w,
+		VisibleAreaToWorld(f2InVisibleAreaTexcoord, globalLayout.f4VisibleArea),
 		texture(elevationTextureSampler, f2InVisibleAreaTexcoord).x
 	);
 

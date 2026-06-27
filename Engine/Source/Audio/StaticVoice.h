@@ -9,8 +9,9 @@ namespace engine
 
 enum class StaticVoiceFlags : uint8_t
 {
-	kFadingOut = 0x01,
-	kInactive  = 0x02,
+	kFadingOut          = 0x01,
+	kInactive           = 0x02,
+	kActivatedThisFrame = 0x04, // Transient: set by the priority pass, consumed+cleared by the deactivation pass; never persists across passes.
 };
 using StaticVoiceFlags_t = common::Flags<StaticVoiceFlags>;
 
