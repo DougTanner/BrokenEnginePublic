@@ -25,7 +25,7 @@ Source: /external-refactor-clean on `Engine/Source/Frame` (non-recursive). Four 
 ## Out of scope
 - Any behavior, algorithm, or numeric change — every extraction must produce identical results (nav results steer CRC'd sim positions)
 - `BuildNavContour` (121 lines), `IslandTerrain::IslandTerrain()` (125 lines), `IslandChainPlacement::Generate` (98 lines, after the TEMP fill-diagnostic deletion) — reviewed and deliberately left intact (linear, well-sectioned; KISS)
-- The lazy `pEndVisible` A* optimization (own plan: `Refactor_AStarEndVisibleLazy.md`)
+- The lazy end-visibility A* optimization (**landed** via `Refactor_AStarEndVisibleLazy.md`, now removed) — `AStarPath`'s eager `pEndVisible` precompute is now an inline lazy per-expanded-vertex `SegmentBlockedByObstacle` call and the `pEndVisible` scratch array was dropped, so this plan's heap-struct extraction no longer touches it (refresh the `AStarPath`/heap-lambda line cites below against the post-landing source at execution)
 - File splits (owned by `Frame/NavBuildSplit.md` / `Frame/IslandTerrainSplit.md`)
 
 ## Notes

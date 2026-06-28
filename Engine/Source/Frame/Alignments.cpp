@@ -69,8 +69,8 @@ common::crc_t Alignments::Crc() const
 
 	for (const AlignmentPair& rPair : alignmentPairs)
 	{
-		checksum ^= common::Crc(rPair.uiKey);
-		checksum ^= common::Crc(rPair.uiFlags);
+		checksum = (checksum ^ common::Crc(rPair.uiKey)) * common::kCrcMultiplier;
+		checksum = (checksum ^ common::Crc(rPair.uiFlags)) * common::kCrcMultiplier;
 	}
 
 	return checksum;

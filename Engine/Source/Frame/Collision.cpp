@@ -149,34 +149,21 @@ void Collision::InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex
 		for (int32_t x = rRange.iStartX; x <= rRange.iEndX; ++x)
 		{
 			ZonePair& rZonePair = rPairZones.zones[y][x];
-			const CollisionLayer& rLayerA = sLayers.at(rPairZones.uiLayerA);
-			const CollisionLayer& rLayerB = sLayers.at(rPairZones.uiLayerB);
-			if (bIsLayerA)
+			std::vector<int64_t>& rIndices = bIsLayerA ? rZonePair.indicesA : rZonePair.indicesB;
+			int64_t& riCount = bIsLayerA ? rZonePair.iCountA : rZonePair.iCountB;
+			if (riCount >= static_cast<int64_t>(rIndices.size()))
 			{
-				if (rZonePair.iCountA >= static_cast<int64_t>(rZonePair.indicesA.size()))
-				{
-					LOG(kDefault, kWarning, "Collision: ZonePair.indicesA overflow (count: {}, capacity: {}) pair A={}(cat={},total={}) B={}(cat={},total={}) zone=({},{}). Increase kiCollisionZonePreallocate in Collision.h", rZonePair.iCountA, rZonePair.indicesA.size(), rPairZones.uiLayerA, rLayerA.uiCategory, rLayerA.iCount, rPairZones.uiLayerB, rLayerB.uiCategory, rLayerB.iCount, x, y);
-					DEBUG_BREAK();
-					// Heap: rare growth when zone occupancy exceeds pre-allocation
-					ScopedSuppressAllocationTracking suppress;
-					rZonePair.indicesA.resize(rZonePair.iCountA * 2);
-				}
-				rZonePair.indicesA.at(static_cast<size_t>(rZonePair.iCountA)) = iIndex;
-				++rZonePair.iCountA;
+				// sLayers lookups feed only this rare overflow LOG, so fetch them here, not every zone iteration
+				const CollisionLayer& rLayerA = sLayers.at(rPairZones.uiLayerA);
+				const CollisionLayer& rLayerB = sLayers.at(rPairZones.uiLayerB);
+				LOG(kDefault, kWarning, "Collision: ZonePair.indices{} overflow (count: {}, capacity: {}) pair A={}(cat={},total={}) B={}(cat={},total={}) zone=({},{}). Increase kiCollisionZonePreallocate in Collision.h", bIsLayerA ? 'A' : 'B', riCount, rIndices.size(), rPairZones.uiLayerA, rLayerA.uiCategory, rLayerA.iCount, rPairZones.uiLayerB, rLayerB.uiCategory, rLayerB.iCount, x, y);
+				DEBUG_BREAK();
+				// Heap: rare growth when zone occupancy exceeds pre-allocation
+				ScopedSuppressAllocationTracking suppress;
+				rIndices.resize(riCount * 2);
 			}
-			else
-			{
-				if (rZonePair.iCountB >= static_cast<int64_t>(rZonePair.indicesB.size()))
-				{
-					LOG(kDefault, kWarning, "Collision: ZonePair.indicesB overflow (count: {}, capacity: {}) pair A={}(cat={},total={}) B={}(cat={},total={}) zone=({},{}). Increase kiCollisionZonePreallocate in Collision.h", rZonePair.iCountB, rZonePair.indicesB.size(), rPairZones.uiLayerA, rLayerA.uiCategory, rLayerA.iCount, rPairZones.uiLayerB, rLayerB.uiCategory, rLayerB.iCount, x, y);
-					DEBUG_BREAK();
-					// Heap: rare growth when zone occupancy exceeds pre-allocation
-					ScopedSuppressAllocationTracking suppress;
-					rZonePair.indicesB.resize(rZonePair.iCountB * 2);
-				}
-				rZonePair.indicesB.at(static_cast<size_t>(rZonePair.iCountB)) = iIndex;
-				++rZonePair.iCountB;
-			}
+			rIndices.at(static_cast<size_t>(riCount)) = iIndex;
+			++riCount;
 		}
 	}
 }
@@ -296,29 +283,22 @@ void Collision::SetupZones(FXMVECTOR vecArea)
 			const CollisionLayer& rLayerA = sLayers.at(static_cast<size_t>(iLayerA));
 			const CollisionLayer& rLayerB = sLayers.at(static_cast<size_t>(iLayerB));
 
-			// Insert layer A objects
-			for (int64_t i = 0; i < rLayerA.iCount; ++i)
+			// Insert both layers' objects into the zone grid (skip already-collided destroy-on-collide objects)
+			auto insertLayerObjects = [&rPairZones](const CollisionLayer& rLayer, bool bIsLayerA)
 			{
-				if (rLayerA.pFlags[i] & kAlreadyCollided)
+				for (int64_t i = 0; i < rLayer.iCount; ++i)
 				{
-					continue;
+					if (rLayer.pFlags[i] & kAlreadyCollided)
+					{
+						continue;
+					}
+
+					ZoneRange range = CalculateObjectZoneRange(rLayer, i);
+					InsertObjectIntoZones(rPairZones, i, range, bIsLayerA);
 				}
-
-				ZoneRange range = CalculateObjectZoneRange(rLayerA, i);
-				InsertObjectIntoZones(rPairZones, i, range, true);
-			}
-
-			// Insert layer B objects
-			for (int64_t i = 0; i < rLayerB.iCount; ++i)
-			{
-				if (rLayerB.pFlags[i] & kAlreadyCollided)
-				{
-					continue;
-				}
-
-				ZoneRange range = CalculateObjectZoneRange(rLayerB, i);
-				InsertObjectIntoZones(rPairZones, i, range, false);
-			}
+			};
+			insertLayerObjects(rLayerA, true);
+			insertLayerObjects(rLayerB, false);
 
 			++uiPairIndex;
 		}
@@ -428,6 +408,102 @@ void Collision::AllocateResultStorage()
 	}
 }
 
+// Record one side of a bidirectional collision: self receives other's damage/velocity, then self
+// is marked already-collided if it is destroy-on-collide. Called twice per pair with A/B swapped.
+static void XM_CALLCONV RecordCollision(FXMVECTOR vecContactPoint, CollisionLayer& rSelfLayer, int64_t iSelf, size_t uiSelfLayer, CollisionLayer& rOtherLayer, int64_t iOther, size_t uiOtherLayer)
+{
+	common::gpThreadLocal->mWorkbuffer.PushBack<PendingCollisionResult>(
+	{
+		.iLayerIndex = static_cast<int64_t>(uiSelfLayer),
+		.iObjectIndex = iSelf,
+		.result =
+		{
+			.iOtherIndex = iOther,
+			.uiOtherLayerIndex = uiOtherLayer,
+			.uiOtherCategory = rOtherLayer.uiCategory,
+			.fDamageReceived = rOtherLayer.pfDamages[iOther],
+			.vecContactPoint = vecContactPoint,
+			.vecOtherVelocity = rOtherLayer.pVecVelocities != nullptr ? rOtherLayer.pVecVelocities[iOther] : XMVectorZero(),
+		},
+	});
+
+	// Mark self as already collided if it's destroy-on-collide
+	if (rSelfLayer.pFlags[iSelf] & kDestroyOnCollide)
+	{
+		rSelfLayer.pFlags[iSelf].Set(kAlreadyCollided);
+	}
+}
+
+// Test one A object against one B object (swept then discrete) and record the bidirectional
+// collision if they overlap. The caller handles the per-B tested-this-A-object dedup.
+static void XM_CALLCONV TestAndRecordPair(FXMVECTOR vecPositionA, const Alignments& rAlignments, CollisionLayer& rLayerA, CollisionLayer& rLayerB, size_t uiLayerA, size_t uiLayerB, int64_t i, int64_t j, float fRadiusA, bool bSweptPair)
+{
+	// Skip if alignments don't allow collision
+	if (!rAlignments.CanCollide(rLayerA.pAlignments[i], rLayerB.pAlignments[j]))
+	{
+		return;
+	}
+
+	// Skip if already collided this frame (for destroy-on-collide objects)
+	if (rLayerB.pFlags[j] & kAlreadyCollided)
+	{
+		return;
+	}
+
+	// Get position and radius for B
+	XMVECTOR vecPositionB = rLayerB.pVecPositions[j];
+	float fRadiusB = rLayerB.pfRadii[j];
+
+	XMVECTOR vecContactPoint = vecPositionA;
+	bool bCollided = false;
+
+	// Swept sphere test (for fast-moving projectiles)
+	if (bSweptPair)
+	{
+		XMVECTOR vecVelA = rLayerA.pVecVelocities != nullptr ? rLayerA.pVecVelocities[i] : XMVectorZero();
+		XMVECTOR vecVelB = rLayerB.pVecVelocities != nullptr ? rLayerB.pVecVelocities[j] : XMVectorZero();
+		float fContactTime = 0.0f;
+		if (SweptSphereTest(vecPositionA, vecVelA, fRadiusA, vecPositionB, vecVelB, fRadiusB, fContactTime))
+		{
+			XMVECTOR vecImpactA = XMVectorAdd(vecPositionA, XMVectorScale(vecVelA, fContactTime));
+			XMVECTOR vecImpactB = XMVectorAdd(vecPositionB, XMVectorScale(vecVelB, fContactTime));
+			XMVECTOR vecDiff = XMVectorSubtract(vecImpactA, vecImpactB);
+			float fDistance = XMVectorGetX(XMVector3Length(vecDiff));
+			vecContactPoint = vecImpactA;
+			if (fDistance > 0.0f)
+			{
+				vecContactPoint = XMVectorSubtract(vecImpactA, XMVectorScale(vecDiff, fRadiusA / fDistance));
+			}
+			bCollided = true;
+		}
+		// Fall through to discrete check (handles already-overlapping case)
+	}
+
+	// Discrete distance check
+	if (!bCollided)
+	{
+		XMVECTOR vecDiff = XMVectorSubtract(vecPositionA, vecPositionB);
+		float fDistanceSquared = XMVectorGetX(XMVector3LengthSq(vecDiff));
+		float fCombinedRadius = fRadiusA + fRadiusB;
+
+		if (fDistanceSquared > fCombinedRadius * fCombinedRadius)
+		{
+			return;
+		}
+
+		float fDistance = std::sqrt(fDistanceSquared);
+		if (fDistance > 0.0f)
+		{
+			XMVECTOR vecDirection = XMVectorScale(vecDiff, 1.0f / fDistance);
+			vecContactPoint = XMVectorSubtract(vecPositionA, XMVectorScale(vecDirection, fRadiusA));
+		}
+	}
+
+	// Record both sides (always bidirectional per assert in SetupZones)
+	RecordCollision(vecContactPoint, rLayerA, i, uiLayerA, rLayerB, j, uiLayerB);
+	RecordCollision(vecContactPoint, rLayerB, j, uiLayerB, rLayerA, i, uiLayerA);
+}
+
 void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& rPairZones)
 {
 	size_t uiLayerA = rPairZones.uiLayerA;
@@ -492,114 +568,7 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 					}
 					sTestedBGeneration.at(static_cast<size_t>(j)) = suiTestedBCurrentGeneration;
 
-					// Skip if alignments don't allow collision
-					if (!rAlignments.CanCollide(rLayerA.pAlignments[i], rLayerB.pAlignments[j]))
-					{
-						continue;
-					}
-
-					// Skip if already collided this frame (for destroy-on-collide objects)
-					if (rLayerB.pFlags[j] & kAlreadyCollided)
-					{
-						continue;
-					}
-
-					// Get position and radius for B
-					XMVECTOR vecPositionB = rLayerB.pVecPositions[j];
-					float fRadiusB = rLayerB.pfRadii[j];
-
-					XMVECTOR vecContactPoint = vecPositionA;
-					bool bCollided = false;
-
-					// Swept sphere test (for fast-moving projectiles)
-					if (bSweptPair)
-					{
-						XMVECTOR vecVelA = rLayerA.pVecVelocities != nullptr ? rLayerA.pVecVelocities[i] : XMVectorZero();
-						XMVECTOR vecVelB = rLayerB.pVecVelocities != nullptr ? rLayerB.pVecVelocities[j] : XMVectorZero();
-						float fContactTime = 0.0f;
-						if (SweptSphereTest(vecPositionA, vecVelA, fRadiusA, vecPositionB, vecVelB, fRadiusB, fContactTime))
-						{
-							XMVECTOR vecImpactA = XMVectorAdd(vecPositionA, XMVectorScale(vecVelA, fContactTime));
-							XMVECTOR vecImpactB = XMVectorAdd(vecPositionB, XMVectorScale(vecVelB, fContactTime));
-							XMVECTOR vecDiff = XMVectorSubtract(vecImpactA, vecImpactB);
-							float fDistance = XMVectorGetX(XMVector3Length(vecDiff));
-							vecContactPoint = vecImpactA;
-							if (fDistance > 0.0f)
-							{
-								vecContactPoint = XMVectorSubtract(vecImpactA, XMVectorScale(vecDiff, fRadiusA / fDistance));
-							}
-							bCollided = true;
-						}
-						// Fall through to discrete check (handles already-overlapping case)
-					}
-
-					// Discrete distance check
-					if (!bCollided)
-					{
-						XMVECTOR vecDiff = XMVectorSubtract(vecPositionA, vecPositionB);
-						float fDistanceSquared = XMVectorGetX(XMVector3LengthSq(vecDiff));
-						float fCombinedRadius = fRadiusA + fRadiusB;
-
-						if (fDistanceSquared > fCombinedRadius * fCombinedRadius)
-						{
-							continue;
-						}
-
-						float fDistance = std::sqrt(fDistanceSquared);
-						if (fDistance > 0.0f)
-						{
-							XMVECTOR vecDirection = XMVectorScale(vecDiff, 1.0f / fDistance);
-							vecContactPoint = XMVectorSubtract(vecPositionA, XMVectorScale(vecDirection, fRadiusA));
-						}
-					}
-
-					// Record collision for A (always bidirectional per assert in SetupZones)
-					float fDamageB = rLayerB.pfDamages[j];
-
-					common::gpThreadLocal->mWorkbuffer.PushBack<PendingCollisionResult>(
-					{
-						.iLayerIndex = static_cast<int64_t>(uiLayerA),
-						.iObjectIndex = i,
-						.result =
-						{
-							.iOtherIndex = j,
-							.uiOtherLayerIndex = uiLayerB,
-							.uiOtherCategory = rLayerB.uiCategory,
-							.fDamageReceived = fDamageB,
-							.vecContactPoint = vecContactPoint,
-							.vecOtherVelocity = rLayerB.pVecVelocities != nullptr ? rLayerB.pVecVelocities[j] : XMVectorZero(),
-						},
-					});
-
-					// Mark A as already collided if it's destroy-on-collide
-					if (rLayerA.pFlags[i] & kDestroyOnCollide)
-					{
-						rLayerA.pFlags[i].Set(kAlreadyCollided);
-					}
-
-					// Record collision for B (always bidirectional per assert in SetupZones)
-					float fDamageA = rLayerA.pfDamages[i];
-
-					common::gpThreadLocal->mWorkbuffer.PushBack<PendingCollisionResult>(
-					{
-						.iLayerIndex = static_cast<int64_t>(uiLayerB),
-						.iObjectIndex = j,
-						.result =
-						{
-							.iOtherIndex = i,
-							.uiOtherLayerIndex = uiLayerA,
-							.uiOtherCategory = rLayerA.uiCategory,
-							.fDamageReceived = fDamageA,
-							.vecContactPoint = vecContactPoint,
-							.vecOtherVelocity = rLayerA.pVecVelocities != nullptr ? rLayerA.pVecVelocities[i] : XMVectorZero(),
-						},
-					});
-
-					// Mark B as already collided if it's destroy-on-collide
-					if (rLayerB.pFlags[j] & kDestroyOnCollide)
-					{
-						rLayerB.pFlags[j].Set(kAlreadyCollided);
-					}
+					TestAndRecordPair(vecPositionA, rAlignments, rLayerA, rLayerB, uiLayerA, uiLayerB, i, j, fRadiusA, bSweptPair);
 				}
 			}
 		}

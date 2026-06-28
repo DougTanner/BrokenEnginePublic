@@ -253,6 +253,20 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unord
 
 	gpCommandBufferManager->SubmitUiCommandBuffer(iCommandBuffer);
 
+	// Capture between the UI submit and Present: SubmitUiCommandBuffer has enqueued the UI submit
+	// (ImGuiManager::Submit) that signals the per-framebuffer fence, so SaveScreenshot's wait blocks on an
+	// already-pending signal rather than a fresh reset whose signal depends on this thread returning (that was the
+	// deadlock), and the present image is still application-owned. Costs a full GPU sync on screenshot frames;
+	// dev-only toggle.
+	if constexpr (kbScreenshots)
+	{
+		if (gpCommandBufferManager->mbSaveScreenshot)
+		{
+			gpCommandBufferManager->mbSaveScreenshot = false;
+			SaveScreenshot(iCommandBuffer);
+		}
+	}
+
 	gpSwapchainManager->Present(iCommandBuffer);
 
 	// Signal upload thread to process one upload iteration

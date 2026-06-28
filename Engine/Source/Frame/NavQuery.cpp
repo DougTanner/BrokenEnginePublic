@@ -1,6 +1,7 @@
 #include "NavQuery.h"
 
 #include "NavBuild.h"
+#include "NavBuildInternal.h"
 #include "Ui/WrapperBase.h"
 
 namespace engine
@@ -8,30 +9,6 @@ namespace engine
 
 namespace
 {
-
-// Segment-segment intersection test (proper intersection, excluding endpoints)
-bool SegmentsIntersect(XMFLOAT2 f2A1, XMFLOAT2 f2A2, XMFLOAT2 f2B1, XMFLOAT2 f2B2)
-{
-	float fD1x = f2A2.x - f2A1.x;
-	float fD1y = f2A2.y - f2A1.y;
-	float fD2x = f2B2.x - f2B1.x;
-	float fD2y = f2B2.y - f2B1.y;
-
-	float fDenom = fD1x * fD2y - fD1y * fD2x;
-	if (std::abs(fDenom) < 1e-10f)
-	{
-		return false;
-	}
-
-	float fDiffX = f2B1.x - f2A1.x;
-	float fDiffY = f2B1.y - f2A1.y;
-
-	float fT = (fDiffX * fD2y - fDiffY * fD2x) / fDenom;
-	float fU = (fDiffX * fD1y - fDiffY * fD1x) / fDenom;
-
-	static constexpr float kfSegmentEpsilon = 1e-6f;
-	return fT > kfSegmentEpsilon && fT < (1.0f - kfSegmentEpsilon) && fU > kfSegmentEpsilon && fU < (1.0f - kfSegmentEpsilon);
-}
 
 // Test if a segment intersects any obstacle edge, using the NavData edge grid as a broad phase. The
 // result is an order-independent boolean OR, so grid-traversal order never changes it -> deterministic.
@@ -178,7 +155,8 @@ bool SegmentBlockedByObstacle(XMFLOAT2 f2A, XMFLOAT2 f2B, const XMFLOAT2* pVerti
 	return false;
 }
 
-// Point-in-polygon test using winding number
+// Is the point inside any obstacle polygon? AABB broad phase per polygon, then the shared winding-
+// number PointInPolygon core (single-sourced with the builder via NavBuildInternal.h).
 bool PointInAnyPolygon(XMFLOAT2 f2Point, const XMFLOAT2* pVertices, const NavData& rNavData)
 {
 	for (size_t iPoly = 0; iPoly < rNavData.polygonOffsets.size(); ++iPoly)
@@ -195,37 +173,7 @@ bool PointInAnyPolygon(XMFLOAT2 f2Point, const XMFLOAT2* pVertices, const NavDat
 		int32_t iEnd = (iPoly + 1 < rNavData.polygonOffsets.size()) ? rNavData.polygonOffsets.at(iPoly + 1) : static_cast<int32_t>(rNavData.vertices.size());
 		int32_t iCount = iEnd - iStart;
 
-		int32_t iWinding = 0;
-		for (int32_t i = 0; i < iCount; ++i)
-		{
-			int32_t iNext = (i + 1) % iCount;
-			XMFLOAT2 f2A = pVertices[iStart + i];
-			XMFLOAT2 f2B = pVertices[iStart + iNext];
-
-			if (f2A.y <= f2Point.y)
-			{
-				if (f2B.y > f2Point.y)
-				{
-					float fCross = (f2B.x - f2A.x) * (f2Point.y - f2A.y) - (f2Point.x - f2A.x) * (f2B.y - f2A.y);
-					if (fCross > 0.0f)
-					{
-						++iWinding;
-					}
-				}
-			}
-			else
-			{
-				if (f2B.y <= f2Point.y)
-				{
-					float fCross = (f2B.x - f2A.x) * (f2Point.y - f2A.y) - (f2Point.x - f2A.x) * (f2B.y - f2A.y);
-					if (fCross < 0.0f)
-					{
-						--iWinding;
-					}
-				}
-			}
-		}
-		if (iWinding != 0)
+		if (PointInPolygon(f2Point, &pVertices[iStart], iCount))
 		{
 			return true;
 		}
@@ -319,7 +267,6 @@ struct AStarMemory
 	int32_t* pParent = nullptr;
 	bool* pClosed = nullptr;
 	bool* pStartVisible = nullptr;
-	bool* pEndVisible = nullptr;
 	int32_t* pOpenSet = nullptr;  // binary min-heap of node indices
 	int32_t* pHeapPos = nullptr;  // per-node position in pOpenSet (-1 = not in heap)
 };
@@ -335,11 +282,10 @@ constexpr int64_t ComputeAStarMemorySize(int32_t iTotalNodes, int32_t iVertexCou
 	iSize += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(int32_t));   // pHeapPos
 	iSize += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(bool));      // pClosed
 	iSize += static_cast<int64_t>(iVertexCount) * static_cast<int64_t>(sizeof(bool));     // pStartVisible
-	iSize += static_cast<int64_t>(iVertexCount) * static_cast<int64_t>(sizeof(bool));     // pEndVisible
 	return iSize;
 }
 
-AStarMemory PartitionAStarMemory(std::byte* pMemory, int32_t iTotalNodes, int32_t iVertexCount)
+AStarMemory PartitionAStarMemory(std::byte* pMemory, int32_t iTotalNodes)
 {
 	// Layout: all 4-byte types first, then bool arrays last to avoid alignment issues
 	AStarMemory memory {};
@@ -356,8 +302,6 @@ AStarMemory PartitionAStarMemory(std::byte* pMemory, int32_t iTotalNodes, int32_
 	memory.pClosed = reinterpret_cast<bool*>(pMemory);
 	pMemory += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(bool));
 	memory.pStartVisible = reinterpret_cast<bool*>(pMemory);
-	pMemory += static_cast<int64_t>(iVertexCount) * static_cast<int64_t>(sizeof(bool));
-	memory.pEndVisible = reinterpret_cast<bool*>(pMemory);
 	return memory;
 }
 
@@ -379,11 +323,12 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 		rMemory.pHeapPos[i] = -1;
 	}
 
-	// Find visibility from start and end to all obstacle vertices
+	// Eagerly compute start visibility to all obstacle vertices (fully consumed when the start node pops).
+	// End visibility is computed lazily per expanded vertex at the consumption site below: A* usually
+	// terminates after a small frontier, and the closed-set guarantees each vertex expands at most once.
 	for (int32_t i = 0; i < iVertexCount; ++i)
 	{
 		rMemory.pStartVisible[i] = !SegmentBlockedByObstacle(f2Start, pVertices[i], pVertices, rNavData);
-		rMemory.pEndVisible[i] = !SegmentBlockedByObstacle(f2End, pVertices[i], pVertices, rNavData);
 	}
 
 	// Vertex position lookup (including temporary nodes)
@@ -561,7 +506,8 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 				TryNeighbor(rNavData.adjNeighbors.at(static_cast<size_t>(k)));
 			}
 
-			if (rMemory.pEndVisible[iCurrent])
+			// Lazy end-visibility: computed only for the vertices A* actually expands (each expands at most once).
+			if (!SegmentBlockedByObstacle(f2End, pVertices[iCurrent], pVertices, rNavData))
 			{
 				TryNeighbor(iEndNode);
 			}
@@ -631,7 +577,7 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	auto pMemory = rWorkbuffer.PushBuffer<std::byte*>(iAStarBytes);
-	AStarMemory aStarMemory = PartitionAStarMemory(pMemory, iTotalNodes, iVertexCount);
+	AStarMemory aStarMemory = PartitionAStarMemory(pMemory, iTotalNodes);
 
 	const XMFLOAT2* pVertices = rNavData.vertices.data();
 

@@ -535,16 +535,16 @@ common::crc_t FrameInterpolate::Crcs(const FrameInterpolate& rCurrent)
 {
 	common::crc_t sharedCrc = static_cast<const engine::FrameInterpolateBase&>(rCurrent).Crcs();
 
-	sharedCrc ^= common::Crc(rCurrent.gameFlags);
-	sharedCrc ^= common::Crc(rCurrent.fSpawnTimer);
+	sharedCrc = (sharedCrc ^ common::Crc(rCurrent.gameFlags)) * common::kCrcMultiplier;
+	sharedCrc = (sharedCrc ^ common::Crc(rCurrent.fSpawnTimer)) * common::kCrcMultiplier;
 
 	// A SharedCrcMembers entry absent from SharedMembers would CRC client-local state — permanent false desync
 	ASSERT(engine::IsMemberTupleSubset(rCurrent.pPlayers->SharedCrcMembers(), rCurrent.pPlayers->SharedMembers()));
-	sharedCrc ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->SharedCrcMembers());
+	sharedCrc = (sharedCrc ^ engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->SharedCrcMembers())) * common::kCrcMultiplier;
 
 	std::apply([&](const auto&... cols)
 	{
-		((sharedCrc ^= engine::SharedCollectionCrc(cols)), ...);
+		((sharedCrc = (sharedCrc ^ engine::SharedCollectionCrc(cols)) * common::kCrcMultiplier), ...);
 	}, GameInterpolateCollections(rCurrent));
 
 	return sharedCrc;
@@ -612,16 +612,16 @@ common::crc_t FramePostRender::Crcs(const FramePostRender& rCurrent)
 {
 	common::crc_t sharedCrc = static_cast<const engine::FramePostRenderBase&>(rCurrent).Crcs();
 
-	sharedCrc ^= common::Crc(rCurrent.enemyAlignment);
-	sharedCrc ^= common::Crc(rCurrent.playerAlignment);
+	sharedCrc = (sharedCrc ^ common::Crc(rCurrent.enemyAlignment)) * common::kCrcMultiplier;
+	sharedCrc = (sharedCrc ^ common::Crc(rCurrent.playerAlignment)) * common::kCrcMultiplier;
 
 	// A SharedCrcMembers entry absent from SharedMembers would CRC client-local state — permanent false desync
 	ASSERT(engine::IsMemberTupleSubset(rCurrent.pPlayers->SharedCrcMembers(), rCurrent.pPlayers->SharedMembers()));
-	sharedCrc ^= engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->SharedCrcMembers());
+	sharedCrc = (sharedCrc ^ engine::CollectionCrc(*rCurrent.pPlayers, rCurrent.pPlayers->SharedCrcMembers())) * common::kCrcMultiplier;
 
 	std::apply([&](const auto&... cols)
 	{
-		((sharedCrc ^= engine::SharedCollectionCrc(cols)), ...);
+		((sharedCrc = (sharedCrc ^ engine::SharedCollectionCrc(cols)) * common::kCrcMultiplier), ...);
 	}, GamePostRenderCollections(rCurrent));
 
 	return sharedCrc;
@@ -687,7 +687,9 @@ void FramePostRender::ServerRead(std::istream& rStream)
 
 common::crc_t Frame::Crcs() const
 {
-	return FrameInterpolate::Crcs(interpolate) ^ FramePostRender::Crcs(postRender);
+	common::crc_t crc = FrameInterpolate::Crcs(interpolate);
+	crc = (crc ^ FramePostRender::Crcs(postRender)) * common::kCrcMultiplier;
+	return crc;
 }
 
 common::crc_t Frame::Crc() const

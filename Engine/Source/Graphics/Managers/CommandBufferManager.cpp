@@ -185,15 +185,6 @@ void CommandBufferManager::SubmitMainToQueue(int64_t iFramebufferIndex, bool bSi
 	// a PersistentWorker Wake/Wait edge" family as SwapchainManager::PresentToQueue (meDestroyType) and CommandBuffers.h
 	// (mFlags/mVkFence).
 	mbParticleSemaphoreSignaled = true;
-
-	if constexpr (kbScreenshots)
-	{
-		if (mbSaveScreenshot)
-		{
-			mbSaveScreenshot = false;
-			SaveScreenshot(iFramebufferIndex);
-		}
-	}
 }
 
 void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bool bSignalFence)

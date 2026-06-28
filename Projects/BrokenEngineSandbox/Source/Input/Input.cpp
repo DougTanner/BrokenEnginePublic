@@ -142,8 +142,8 @@ common::crc_t FrameInput::Crc() const
 	common::crc_t checksum = 0;
 	for (const StatusChange& rStatusChange : statusChanges)
 	{
-		checksum ^= common::Crc(rStatusChange.eType);
-		std::visit([&](const auto& payload) { checksum ^= common::Crc(payload); }, rStatusChange.data);
+		checksum = (checksum ^ common::Crc(rStatusChange.eType)) * common::kCrcMultiplier;
+		std::visit([&](const auto& payload) { checksum = (checksum ^ common::Crc(payload)) * common::kCrcMultiplier; }, rStatusChange.data);
 	}
 	return checksum;
 }

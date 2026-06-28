@@ -11,7 +11,11 @@ void SaveScreenshot(int64_t iFramebufferIndex)
 {
 	LOG(kGraphics, kDebug, "SaveScreenshot()");
 
-	// Wait on the fence for the specific framebuffer's Image command buffer
+	// Wait on the fence for the specific framebuffer's Image command buffer.
+	// Precondition: the fence must already have a pending or completed signal for the content being captured —
+	// never a fresh reset whose signal depends on this caller returning (that was the screenshot deadlock). The
+	// caller (Graphics::RenderMainPresentAcquire) guarantees this by running after SubmitUiCommandBuffer has
+	// enqueued the UI submit that signals mVkFence (ImGuiManager::Submit) and before Present.
 	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 	CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNanoseconds.count()));
 
@@ -25,6 +29,13 @@ void SaveScreenshot(int64_t iFramebufferIndex)
 	static int64_t siScreenshot = 1;
 	int64_t iScreenshot = siScreenshot++;
 	static std::future<void> sSaveScreenshot;
+
+	// Heap: the std::async shared-state + worker thread (and the previous future's teardown) escape into the
+	// screenshot save thread, so the workbuffer cannot hold them. Suppression is thread-local and covers the rest
+	// of this (synchronous) function; the lambda body runs on the screenshot thread (own ThreadLocal, untracked).
+	// Main-loop-reachable per frame via the kbScreenshots trigger (Graphics::RenderMainPresentAcquire -> here);
+	// dev-only toggle. (CopyImageToHostMemory's data.resize + staging buffer are already suppressed in TextureCache.)
+	ScopedSuppressAllocationTracking suppress;
 	if (sSaveScreenshot.valid())
 	{
 		sSaveScreenshot.get();

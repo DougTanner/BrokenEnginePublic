@@ -9,13 +9,13 @@ common::crc_t FrameInterpolateBase::Crcs() const
 {
 	common::crc_t sharedCrc = 0;
 
-	sharedCrc ^= common::Crc(iTick);
-	sharedCrc ^= common::Crc(fCurrentTime);
-	sharedCrc ^= common::Crc(fDeltaTime);
+	sharedCrc = (sharedCrc ^ common::Crc(iTick)) * common::kCrcMultiplier;
+	sharedCrc = (sharedCrc ^ common::Crc(fCurrentTime)) * common::kCrcMultiplier;
+	sharedCrc = (sharedCrc ^ common::Crc(fDeltaTime)) * common::kCrcMultiplier;
 
 	std::apply([&](const auto&... collections)
 	{
-		((sharedCrc ^= SharedCollectionCrc(collections)), ...);
+		((sharedCrc = (sharedCrc ^ SharedCollectionCrc(collections)) * common::kCrcMultiplier), ...);
 	}, ServerCollections());
 
 	return sharedCrc;
@@ -72,14 +72,14 @@ common::crc_t FramePostRenderBase::Crcs() const
 {
 	common::crc_t crc = 0;
 
-	crc ^= randomEngine.Crc();
-	crc ^= common::Crc(uiNextUuid);
-	crc ^= common::Crc(uiFrameId);
-	crc ^= alignments.Crc();
+	crc = (crc ^ randomEngine.Crc()) * common::kCrcMultiplier;
+	crc = (crc ^ common::Crc(uiNextUuid)) * common::kCrcMultiplier;
+	crc = (crc ^ common::Crc(uiFrameId)) * common::kCrcMultiplier;
+	crc = (crc ^ alignments.Crc()) * common::kCrcMultiplier;
 
 	std::apply([&](const auto&... collections)
 	{
-		((crc ^= SharedCollectionCrc(collections)), ...);
+		((crc = (crc ^ SharedCollectionCrc(collections)) * common::kCrcMultiplier), ...);
 	}, ServerCollections());
 
 	return crc;

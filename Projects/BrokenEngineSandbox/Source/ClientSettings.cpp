@@ -60,26 +60,31 @@ void ResetSoundSettings()
 	SaveSoundSettings();
 }
 
+enum class GraphicsSettingsFlags : uint8_t
+{
+	kFullscreen    = 1 << 0,
+	kMultisampling = 1 << 1,
+	kAnisotropy    = 1 << 2,
+	kSampleShading = 1 << 3,
+	kSmoke         = 1 << 4,
+	kWind          = 1 << 5,
+	kOpaqueUi      = 1 << 6,
+};
+
 struct GraphicsSettings
 {
-	static constexpr int64_t kiVersion = 6;
+	static constexpr int64_t kiVersion = 7;
 
-	bool bFullscreen = false;
+	common::Flags<GraphicsSettingsFlags> flags {};
 	VkPresentModeKHR ePresentMode = VK_PRESENT_MODE_FIFO_KHR;
-	bool bMultisampling = false;
 	VkSampleCountFlagBits eSampleCount = VK_SAMPLE_COUNT_4_BIT;
-	bool bAnisotropy = false;
 	float fMaxAnisotropy = 0.0f;
-	bool bSampleShading = false;
 	float fMinSampleShading = 0.0f;
 	float fMipLodBias = 0.0f;
 	float fWaterShapeDetail = 0.0f;
-	bool bSmoke = false;
 	float fSmokeSimulationPixels = 0.0f;
 	float fSmokeSimulationArea = 0.0f;
 	float fMinimumAmbient = 0.0f;
-	bool bWind = false;
-	bool bOpaqueUi = false;
 	float fUiOpacity = 0.9f;
 	float fUiFontScale = 1.0f;
 };
@@ -92,25 +97,26 @@ void SaveGraphicsSettings()
 
 	GraphicsSettings graphicsSettings
 	{
-		.bFullscreen = engine::gFullscreen.Get<bool>(),
 		.ePresentMode = engine::gPresentMode.Get<VkPresentModeKHR>(),
-		.bMultisampling = engine::gMultisampling.Get<bool>(),
 		.eSampleCount = engine::gSampleCount.Get<VkSampleCountFlagBits>(),
-		.bAnisotropy = engine::gAnisotropy.Get<bool>(),
 		.fMaxAnisotropy = engine::gMaxAnisotropy.Get(),
-		.bSampleShading = engine::gSampleShading.Get<bool>(),
 		.fMinSampleShading = engine::gMinSampleShading.Get(),
 		.fMipLodBias = engine::gMipLodBias.Get(),
 		.fWaterShapeDetail = engine::gWaterShapeDetail.Get(),
-		.bSmoke = engine::gSmokeEnabled.Get<bool>(),
 		.fSmokeSimulationPixels = engine::gSmokeSimulationPixels.Get(),
 		.fSmokeSimulationArea = engine::gSmokeSimulationArea.Get(),
 		.fMinimumAmbient = engine::gSunMoonMinimumAmbient.Get(),
-		.bWind = engine::gWindEnabled.Get<bool>(),
-		.bOpaqueUi = engine::gOpaqueUi.Get<bool>(),
 		.fUiOpacity = engine::gUiOpacity.Get(),
 		.fUiFontScale = engine::gUiFontScale.Get(),
 	};
+
+	graphicsSettings.flags.Set(GraphicsSettingsFlags::kFullscreen, engine::gFullscreen.Get<bool>());
+	graphicsSettings.flags.Set(GraphicsSettingsFlags::kMultisampling, engine::gMultisampling.Get<bool>());
+	graphicsSettings.flags.Set(GraphicsSettingsFlags::kAnisotropy, engine::gAnisotropy.Get<bool>());
+	graphicsSettings.flags.Set(GraphicsSettingsFlags::kSampleShading, engine::gSampleShading.Get<bool>());
+	graphicsSettings.flags.Set(GraphicsSettingsFlags::kSmoke, engine::gSmokeEnabled.Get<bool>());
+	graphicsSettings.flags.Set(GraphicsSettingsFlags::kWind, engine::gWindEnabled.Get<bool>());
+	graphicsSettings.flags.Set(GraphicsSettingsFlags::kOpaqueUi, engine::gOpaqueUi.Get<bool>());
 
 	engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, kpcGraphicsSettingsPath, graphicsSettings);
 }
@@ -121,22 +127,22 @@ bool LoadGraphicsSettings()
 
 	if (engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, kpcGraphicsSettingsPath, graphicsSettings))
 	{
-		engine::gFullscreen.Set(graphicsSettings.bFullscreen);
+		engine::gFullscreen.Set(graphicsSettings.flags & GraphicsSettingsFlags::kFullscreen);
 		engine::gPresentMode.Set<VkPresentModeKHR>(graphicsSettings.ePresentMode);
-		engine::gMultisampling.Set(graphicsSettings.bMultisampling);
+		engine::gMultisampling.Set(graphicsSettings.flags & GraphicsSettingsFlags::kMultisampling);
 		engine::gSampleCount.Set<VkSampleCountFlagBits>(graphicsSettings.eSampleCount);
-		engine::gAnisotropy.Set(graphicsSettings.bAnisotropy);
+		engine::gAnisotropy.Set(graphicsSettings.flags & GraphicsSettingsFlags::kAnisotropy);
 		engine::gMaxAnisotropy.Set(graphicsSettings.fMaxAnisotropy);
-		engine::gSampleShading.Set(graphicsSettings.bSampleShading);
+		engine::gSampleShading.Set(graphicsSettings.flags & GraphicsSettingsFlags::kSampleShading);
 		engine::gMinSampleShading.Set(graphicsSettings.fMinSampleShading);
 		engine::gMipLodBias.Set(graphicsSettings.fMipLodBias);
 		engine::gWaterShapeDetail.Set(graphicsSettings.fWaterShapeDetail);
-		engine::gSmokeEnabled.Set(graphicsSettings.bSmoke);
+		engine::gSmokeEnabled.Set(graphicsSettings.flags & GraphicsSettingsFlags::kSmoke);
 		engine::gSmokeSimulationPixels.Set(graphicsSettings.fSmokeSimulationPixels);
 		engine::gSmokeSimulationArea.Set(graphicsSettings.fSmokeSimulationArea);
 		engine::gSunMoonMinimumAmbient.Set(graphicsSettings.fMinimumAmbient);
-		engine::gWindEnabled.Set(graphicsSettings.bWind);
-		engine::gOpaqueUi.Set(graphicsSettings.bOpaqueUi);
+		engine::gWindEnabled.Set(graphicsSettings.flags & GraphicsSettingsFlags::kWind);
+		engine::gOpaqueUi.Set(graphicsSettings.flags & GraphicsSettingsFlags::kOpaqueUi);
 		engine::gUiOpacity.Set(graphicsSettings.fUiOpacity);
 		engine::gUiFontScale.Set(graphicsSettings.fUiFontScale);
 		return true;

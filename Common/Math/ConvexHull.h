@@ -98,4 +98,21 @@ inline bool ConvexHullsOverlap(const ConvexHull2D& rA, const ConvexHull2D& rB)
 	return true;
 }
 
+// Returns true if the polygon's vertices wind counter-clockwise (positive signed area, i.e. shoelace
+// sum > 0, in the y-up world frame). ConvexHullsOverlap (SAT) and the nav winding-number point-in-
+// polygon test both require CCW input; their producers assert against this. Single-sourced so the
+// runtime predicate and the offline (DataPacker) bake-time verification can't drift. Degenerate
+// (< 3 vertices) polygons are the caller's responsibility to exclude.
+inline bool IsPolygonCcw(const XMFLOAT2* pVertices, int32_t iVertexCount)
+{
+	float fSignedArea = 0.0f;
+	for (int32_t i = 0; i < iVertexCount; ++i)
+	{
+		const XMFLOAT2& rA = pVertices[i];
+		const XMFLOAT2& rB = pVertices[(i + 1) % iVertexCount];
+		fSignedArea += rA.x * rB.y - rB.x * rA.y;
+	}
+	return fSignedArea > 0.0f;
+}
+
 } // namespace common

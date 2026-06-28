@@ -138,17 +138,9 @@ static void VerifyHullCcwConvex(const ExportedIsland& rOut)
 {
 	if (rOut.iValidAreaVertexCount >= 3)
 	{
-		float fSignedArea = 0.0f;
-		for (int32_t i = 0; i < rOut.iValidAreaVertexCount; ++i)
-		{
-			int32_t iNext = (i + 1) % rOut.iValidAreaVertexCount;
-			float fAx = rOut.cpuValidAreaVertices.at(static_cast<size_t>(i) * 2);
-			float fAy = rOut.cpuValidAreaVertices.at(static_cast<size_t>(i) * 2 + 1);
-			float fBx = rOut.cpuValidAreaVertices.at(static_cast<size_t>(iNext) * 2);
-			float fBy = rOut.cpuValidAreaVertices.at(static_cast<size_t>(iNext) * 2 + 1);
-			fSignedArea += fAx * fBy - fBx * fAy;
-		}
-		ASSERT(fSignedArea > 0.0f);
+		// cpuValidAreaVertices is interleaved x,y floats; XMFLOAT2 is a padding-free {float,float}, so
+		// it aliases the same bytes as the hull vertices for the shared CCW predicate.
+		ASSERT(common::IsPolygonCcw(reinterpret_cast<const XMFLOAT2*>(rOut.cpuValidAreaVertices.data()), rOut.iValidAreaVertexCount));
 		for (int32_t i = 0; i < rOut.iValidAreaVertexCount; ++i)
 		{
 			int32_t iPrev = (i + rOut.iValidAreaVertexCount - 1) % rOut.iValidAreaVertexCount;

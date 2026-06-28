@@ -272,42 +272,6 @@ void ChainEdgesIntoPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons, const
 	}
 }
 
-// Point-in-polygon test using winding number
-bool PointInPolygon(XMFLOAT2 f2Point, const XMFLOAT2* pVertices, int32_t iVertexCount)
-{
-	int32_t iWinding = 0;
-	for (int32_t i = 0; i < iVertexCount; ++i)
-	{
-		int32_t iNext = (i + 1) % iVertexCount;
-		XMFLOAT2 f2A = pVertices[i];
-		XMFLOAT2 f2B = pVertices[iNext];
-
-		if (f2A.y <= f2Point.y)
-		{
-			if (f2B.y > f2Point.y)
-			{
-				float fCross = (f2B.x - f2A.x) * (f2Point.y - f2A.y) - (f2Point.x - f2A.x) * (f2B.y - f2A.y);
-				if (fCross > 0.0f)
-				{
-					++iWinding;
-				}
-			}
-		}
-		else
-		{
-			if (f2B.y <= f2Point.y)
-			{
-				float fCross = (f2B.x - f2A.x) * (f2Point.y - f2A.y) - (f2Point.x - f2A.x) * (f2B.y - f2A.y);
-				if (fCross < 0.0f)
-				{
-					--iWinding;
-				}
-			}
-		}
-	}
-	return iWinding != 0;
-}
-
 // Check if a segment intersects any polygon edge in the NavData
 bool SegmentIntersectsAnyEdge(XMFLOAT2 f2A, XMFLOAT2 f2B, const std::vector<XMFLOAT2>& rVertices, const std::vector<int32_t>& rPolygonOffsets)
 {
@@ -429,6 +393,45 @@ bool SegmentsIntersect(XMFLOAT2 f2A1, XMFLOAT2 f2A2, XMFLOAT2 f2B1, XMFLOAT2 f2B
 	return fT > kfSegmentEpsilon && fT < (1.0f - kfSegmentEpsilon) && fU > kfSegmentEpsilon && fU < (1.0f - kfSegmentEpsilon);
 }
 
+// Winding-number point-in-polygon test. Promoted from the anonymous namespace to external linkage
+// (engine::, declared in NavBuildInternal.h) so NavQuery.cpp's PointInAnyPolygon shares one winding
+// core with the builder — a tuned boundary rule can't drift between build and query. Pointer + count
+// so callers can pass a sub-range of a larger vertex buffer (MidpointInsideObstacle, PointInAnyPolygon).
+bool PointInPolygon(XMFLOAT2 f2Point, const XMFLOAT2* pVertices, int32_t iVertexCount)
+{
+	int32_t iWinding = 0;
+	for (int32_t i = 0; i < iVertexCount; ++i)
+	{
+		int32_t iNext = (i + 1) % iVertexCount;
+		XMFLOAT2 f2A = pVertices[i];
+		XMFLOAT2 f2B = pVertices[iNext];
+
+		if (f2A.y <= f2Point.y)
+		{
+			if (f2B.y > f2Point.y)
+			{
+				float fCross = (f2B.x - f2A.x) * (f2Point.y - f2A.y) - (f2Point.x - f2A.x) * (f2B.y - f2A.y);
+				if (fCross > 0.0f)
+				{
+					++iWinding;
+				}
+			}
+		}
+		else
+		{
+			if (f2B.y <= f2Point.y)
+			{
+				float fCross = (f2B.x - f2A.x) * (f2Point.y - f2A.y) - (f2Point.x - f2A.x) * (f2B.y - f2A.y);
+				if (fCross < 0.0f)
+				{
+					--iWinding;
+				}
+			}
+		}
+	}
+	return iWinding != 0;
+}
+
 void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapWidth, int32_t iHeightmapHeight, float fWorldThreshold)
 {
 	LOG(kNavData, kDebug, "NavBuild: heightmap {}x{} worldThreshold={}", iHeightmapWidth, iHeightmapHeight, common::Wb(fWorldThreshold, 4));
@@ -535,14 +538,7 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 		{
 			continue;
 		}
-		float fSignedArea = 0.0f;
-		for (int32_t i = 0; i < iCount; ++i)
-		{
-			XMFLOAT2 f2A = rContour.vertices.at(iStart + i);
-			XMFLOAT2 f2B = rContour.vertices.at(iStart + (i + 1) % iCount);
-			fSignedArea += f2A.x * f2B.y - f2B.x * f2A.y;
-		}
-		ASSERT(fSignedArea > 0.0f);
+		ASSERT(common::IsPolygonCcw(&rContour.vertices.at(iStart), iCount));
 	}
 
 	// Step 5: Build visibility graph
