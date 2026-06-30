@@ -117,25 +117,6 @@ std::vector<VkFormat> ComputeTextureFormats(const tinygltf::Model& rModel)
 	return textureFormats;
 }
 
-// Maps a block-compressed VkFormat to its texture-intermediate filename suffix. Single source for the
-// scene-chunk texture CRC path (GetTextureIntermediatePath + the MainExport relative-path build) -- the
-// two must emit identical strings or the chunk's texture CRC dangles against the emitted intermediate.
-const char* TextureIntermediateSuffix(VkFormat vkFormat)
-{
-	switch (vkFormat)
-	{
-		case VK_FORMAT_BC4_UNORM_BLOCK:
-			return ".BC4_UNORM_BLOCK";
-		case VK_FORMAT_BC5_UNORM_BLOCK:
-			return ".BC5_UNORM_BLOCK";
-		case VK_FORMAT_BC7_UNORM_BLOCK:
-			return ".BC7_UNORM_BLOCK";
-		default:
-			ASSERT(false);
-			return "";
-	}
-}
-
 // Diagnostic dump (warning level) for the case where every animation channel was filtered out: logs the
 // node count and the first ten source channel targets so a mis-targeted glTF animation can be debugged.
 void LogFilteredChannelDiagnostics(const tinygltf::Model& rGltfModel)
@@ -487,7 +468,7 @@ void ExportScene::WriteModelFile(const std::vector<Material>& rMaterials, const 
 	LOG(kDefault, kDebug, "Mesh optimized: {} vertices, {} indices ({} materials)", rVertices.size(), indices32.size(), rMaterials.size());
 
 	std::vector<uint16_t> indices16;
-	if (rVertices.size() < std::numeric_limits<uint16_t>::max())
+	if (common::ModelHeader::UsesU16Indices(static_cast<int64_t>(rVertices.size())))
 	{
 		indices16.reserve(indices32.size());
 		for (uint32_t uiIndex : indices32)
@@ -540,13 +521,11 @@ void ExportScene::MainExport(tinygltf::Model& rGltfModel)
 	materialCountFileStream.read(reinterpret_cast<char*>(&uiMaterialCount), sizeof(uiMaterialCount));
 	materialCountFileStream.close();
 
-	// Scene chunk data layout: [textureCrcs ALIGN16] [indexStarts ALIGN16] [MaterialShaderData]
-	int64_t iTextureArraySize = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(rGltfModel.textures.size()) * static_cast<int64_t>(sizeof(common::crc_t)));
-	int64_t iIndexStartsSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(uiMaterialCount) * static_cast<int64_t>(sizeof(uint32_t)));
-	int64_t iSceneArraysSize = iTextureArraySize + iIndexStartsSize;
+	int64_t iTextureCount = static_cast<int64_t>(rGltfModel.textures.size());
+	int64_t iSceneArraysSize = common::SceneHeader::MaterialDataOffset(iTextureCount, static_cast<int64_t>(uiMaterialCount));
 	auto [pHeader, dataSpan] = AllocateHeaderAndData(iSceneArraysSize + uiMaterialCount * sizeof(common::MaterialShaderData));
 	common::crc_t* pTextureCrcs = reinterpret_cast<common::crc_t*>(dataSpan.data());
-	uint32_t* puiIndexStarts = reinterpret_cast<uint32_t*>(dataSpan.data() + iTextureArraySize);
+	uint32_t* puiIndexStarts = reinterpret_cast<uint32_t*>(dataSpan.data() + common::SceneHeader::IndexStartsOffset(iTextureCount));
 	common::MaterialShaderData* pMaterialShaderDatas = reinterpret_cast<common::MaterialShaderData*>(dataSpan.data() + iSceneArraysSize);
 
 	LOG(kDefault, kDebug, "Textures: {}", rGltfModel.textures.size());
@@ -578,7 +557,7 @@ void ExportScene::MainExport(tinygltf::Model& rGltfModel)
 	// Check if model has animations (skeletal or node-based)
 	if (rGltfModel.animations.size() > 0)
 	{
-		WriteAnimationSection(rGltfModel, materialInfos, pHeader, iSceneArraysSize);
+		WriteAnimationSection(rGltfModel, materialInfos, pHeader);
 	}
 }
 
@@ -683,7 +662,7 @@ void ExportScene::FillMaterialShaderDatas(tinygltf::Model& rGltfModel, const std
 	}
 }
 
-void ExportScene::WriteAnimationSection(tinygltf::Model& rGltfModel, const std::vector<common::MaterialInfo>& rMaterialInfos, common::ChunkHeader* pHeader, int64_t iSceneArraysSize)
+void ExportScene::WriteAnimationSection(tinygltf::Model& rGltfModel, const std::vector<common::MaterialInfo>& rMaterialInfos, common::ChunkHeader* pHeader)
 {
 	// Log animation overview
 	LOG(kDefault, kDebug, "Animation export: {} skins, {} animations", rGltfModel.skins.size(), rGltfModel.animations.size());
@@ -747,7 +726,7 @@ void ExportScene::WriteAnimationSection(tinygltf::Model& rGltfModel, const std::
 	}
 
 	// Compute animation data size with variable-length arrays
-	int64_t iSkinJointToNodeSize = common::RoundUp<int64_t, 4>(static_cast<int64_t>(skeletonData.skinJointToNode.size()) * static_cast<int64_t>(sizeof(uint16_t)));
+	int64_t iSkinJointToNodeSize = common::RoundUp<int64_t, common::kiAnimationSectionAlignment>(static_cast<int64_t>(skeletonData.skinJointToNode.size()) * static_cast<int64_t>(sizeof(uint16_t)));
 	int64_t iAnimDataSize = sizeof(common::AnimationHeader)
 		+ skeletonData.nodes.size() * sizeof(common::ModelNode)
 		+ iSkinJointToNodeSize
@@ -760,7 +739,7 @@ void ExportScene::WriteAnimationSection(tinygltf::Model& rGltfModel, const std::
 
 	int64_t iCurrentSize = static_cast<int64_t>(mHeaderAndData.size());
 	// Mirrors the reader's math (LoadAnimationDataFromEagerChunks, AnimationData.cpp): the MaterialShaderData block is 16-byte rounded by AllocateHeaderAndData
-	int64_t iExpectedOffset = common::kiChunkDataOffset + iSceneArraysSize + common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(rMaterialInfos.size()) * static_cast<int64_t>(sizeof(common::MaterialShaderData)));
+	int64_t iExpectedOffset = common::kiChunkDataOffset + common::SceneHeader::AnimationSectionOffset(static_cast<int64_t>(rGltfModel.textures.size()), static_cast<int64_t>(rMaterialInfos.size()));
 	LOG(kDefault, kVerbose, "  Animation data: writing at offset {} (buffer size {}), expected runtime offset {} (diff {})", iCurrentSize, mHeaderAndData.size(), iExpectedOffset, iCurrentSize - iExpectedOffset);
 	ASSERT(iCurrentSize == iExpectedOffset);
 	mHeaderAndData.resize(iCurrentSize + iAnimDataSize);

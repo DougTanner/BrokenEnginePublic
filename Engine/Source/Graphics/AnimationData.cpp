@@ -62,7 +62,7 @@ void AnimationData::Load(const std::byte* pAnimationData, int64_t iAnimationByte
 	BoundAdvance(mHeader.skeleton.uiNodeCount * static_cast<int64_t>(sizeof(common::ModelNode)));
 
 	mpSkinJointToNode = reinterpret_cast<const uint16_t*>(pAnimationData);
-	BoundAdvance(common::RoundUp<int64_t, 4>(mHeader.skeleton.uiSkinJointCount * static_cast<int64_t>(sizeof(uint16_t))));
+	BoundAdvance(common::RoundUp<int64_t, common::kiAnimationSectionAlignment>(mHeader.skeleton.uiSkinJointCount * static_cast<int64_t>(sizeof(uint16_t))));
 
 	// Inverse bind matrices: read via pointer, pre-compute into aligned array
 	const XMFLOAT4X4* pInverseBindMatrices = reinterpret_cast<const XMFLOAT4X4*>(pAnimationData);
@@ -481,10 +481,7 @@ void LoadAnimationDataFromEagerChunks()
 		if (rChunk.pHeader->flags & common::ChunkFlags::kScene && rChunk.pHeader->sceneHeader.bHasAnimation)
 		{
 			// Animation data comes after scene arrays and material data (aligned to 16 bytes, matching export)
-			// Scene chunk data layout: [textureCrcs ALIGN16] [indexStarts ALIGN16] [MaterialShaderData ALIGN16] [AnimationData]
-			int64_t iSceneArraysSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rChunk.pHeader->sceneHeader.uiTextureCount * static_cast<int64_t>(sizeof(common::crc_t)))
-			                         + common::RoundUp<int64_t, common::kiAlignmentBytes>(rChunk.pHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
-			int64_t iMaterialDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rChunk.pHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(common::MaterialShaderData)));
+			const int64_t iAnimationSectionOffset = common::SceneHeader::AnimationSectionOffset(rChunk.pHeader->sceneHeader.uiTextureCount, rChunk.pHeader->sceneHeader.uiMaterialCount);
 
 			AnimationData& rAnimationData = gAnimationDataMap.try_emplace(rCrc).first->second;
 			// Trust boundary: eager scene chunks are on-disk pack bytes parsed at boot. A corrupt animation
@@ -492,7 +489,7 @@ void LoadAnimationDataFromEagerChunks()
 			// MainThread's try/catch (HandleException — crash report + exit), matching the boot hard-fail tier.
 			try
 			{
-				rAnimationData.Load(rChunk.pData + iSceneArraysSize + iMaterialDataSize, rChunk.iDataSize - iSceneArraysSize - iMaterialDataSize, rCrc);
+				rAnimationData.Load(rChunk.pData + iAnimationSectionOffset, rChunk.iDataSize - iAnimationSectionOffset, rCrc);
 			}
 			catch (const common::CorruptStreamException& rException)
 			{

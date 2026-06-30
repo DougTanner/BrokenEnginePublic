@@ -18,7 +18,7 @@ public:
 	virtual ~ExportModel() = default;
 
 	// Payload-struct sizes fold in so size-changing layout edits auto-dirty cached chunks; same-size reorders need the raw version bumped
-	virtual int64_t GetVersion() const override { return Version(1 + sizeof(common::ModelVertex) + sizeof(common::MaterialInfo)); }
+	virtual int64_t GetVersion() const override { return Version(2 + sizeof(common::ModelVertex) + sizeof(common::MaterialInfo)); }
 
 protected:
 

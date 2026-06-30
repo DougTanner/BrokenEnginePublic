@@ -130,13 +130,13 @@ void BuildVertices(std::vector<common::ModelVertex>& rVertices, std::vector<uint
 
 	uint32_t uiVertexStart = static_cast<uint32_t>(rVertices.size());
 
-	// De-duplicate vertices using hash map for O(1) lookups
-	std::unordered_map<common::ModelVertex, uint32_t> vertexToIndex;
-	rIndexRemap.resize(rPositionAccessor.count);
-	rVertices.reserve(rVertices.size() + rPositionAccessor.count);
+	// Build raw per-primitive vertices into a temp buffer, then dedup via meshoptimizer's byte-identity
+	// remap (replaces the hand-rolled unordered_map<ModelVertex> dedup). ModelVertex is static_assert
+	// padding-free (sizeof == 100), so the raw-byte compare has no uninitialized-padding hazard.
+	std::vector<common::ModelVertex> rawVertices(rPositionAccessor.count);
 	for (int64_t j = 0; j < static_cast<int64_t>(rPositionAccessor.count); ++j)
 	{
-		common::ModelVertex vertex;
+		common::ModelVertex& rVertex = rawVertices.at(j);
 
 		auto vecPosition = XMVectorSet(pfPositions[j * iPositionStride + 0], pfPositions[j * iPositionStride + 1], pfPositions[j * iPositionStride + 2], 1.0f);
 		auto vecNormal = pfNormals != nullptr ? XMVectorSet(pfNormals[j * iNormalStride], pfNormals[j * iNormalStride + 1], pfNormals[j * iNormalStride + 2], 0.0f) : XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
@@ -150,26 +150,26 @@ void BuildVertices(std::vector<common::ModelVertex>& rVertices, std::vector<uint
 		}
 		// Non-skinned vertices on animated models: keep in mesh-local space for runtime mesh matrix
 
-		XMStoreFloat3(&vertex.f3Pos, vecPosition);
-		XMStoreFloat3(&vertex.f3Normal, XMVector3Normalize(vecNormal));
+		XMStoreFloat3(&rVertex.f3Pos, vecPosition);
+		XMStoreFloat3(&rVertex.f3Normal, XMVector3Normalize(vecNormal));
 
-		vertex.f2Uv = pfTexcoords0 != nullptr ? XMFLOAT2(&pfTexcoords0[j * iTexcoordStride0]) : XMFLOAT2(0.0f, 0.0f);
-		vertex.f2Uv1 = pfTexcoords1 != nullptr ? XMFLOAT2(&pfTexcoords1[j * iTexcoordStride1]) : vertex.f2Uv;
-		vertex.f2Uv2 = pfTexcoords2 != nullptr ? XMFLOAT2(&pfTexcoords2[j * iTexcoordStride2]) : vertex.f2Uv;
-		vertex.f2Uv3 = pfTexcoords3 != nullptr ? XMFLOAT2(&pfTexcoords3[j * iTexcoordStride3]) : vertex.f2Uv;
-		vertex.f2Uv4 = pfTexcoords4 != nullptr ? XMFLOAT2(&pfTexcoords4[j * iTexcoordStride4]) : vertex.f2Uv;
+		rVertex.f2Uv = pfTexcoords0 != nullptr ? XMFLOAT2(&pfTexcoords0[j * iTexcoordStride0]) : XMFLOAT2(0.0f, 0.0f);
+		rVertex.f2Uv1 = pfTexcoords1 != nullptr ? XMFLOAT2(&pfTexcoords1[j * iTexcoordStride1]) : rVertex.f2Uv;
+		rVertex.f2Uv2 = pfTexcoords2 != nullptr ? XMFLOAT2(&pfTexcoords2[j * iTexcoordStride2]) : rVertex.f2Uv;
+		rVertex.f2Uv3 = pfTexcoords3 != nullptr ? XMFLOAT2(&pfTexcoords3[j * iTexcoordStride3]) : rVertex.f2Uv;
+		rVertex.f2Uv4 = pfTexcoords4 != nullptr ? XMFLOAT2(&pfTexcoords4[j * iTexcoordStride4]) : rVertex.f2Uv;
 
 		if (puiJoints != nullptr)
 		{
-			vertex.fJoint = static_cast<float>(puiJoints[j * iJointsStride]);
-			vertex.f4Joint0 = XMFLOAT4(
+			rVertex.fJoint = static_cast<float>(puiJoints[j * iJointsStride]);
+			rVertex.f4Joint0 = XMFLOAT4(
 				static_cast<float>(puiJoints[j * iJointsStride + 0]),
 				static_cast<float>(puiJoints[j * iJointsStride + 1]),
 				static_cast<float>(puiJoints[j * iJointsStride + 2]),
 				static_cast<float>(puiJoints[j * iJointsStride + 3]));
 			if (pfWeights != nullptr)
 			{
-				vertex.f4Weight0 = XMFLOAT4(
+				rVertex.f4Weight0 = XMFLOAT4(
 					pfWeights[j * iWeightsStride + 0],
 					pfWeights[j * iWeightsStride + 1],
 					pfWeights[j * iWeightsStride + 2],
@@ -180,21 +180,29 @@ void BuildVertices(std::vector<common::ModelVertex>& rVertices, std::vector<uint
 		{
 			// Non-skinned vertex: store dummy joint data
 			// The shader will use mesh matrix from slot 64+materialIndex instead of skinning
-			vertex.fJoint = 0.0f;
-			vertex.f4Joint0 = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
-			vertex.f4Weight0 = XMFLOAT4(1.0f, 0.0f, 0.0f, 0.0f);
+			rVertex.fJoint = 0.0f;
+			rVertex.f4Joint0 = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+			rVertex.f4Weight0 = XMFLOAT4(1.0f, 0.0f, 0.0f, 0.0f);
 		}
 
-		auto [jt, bInserted] = vertexToIndex.emplace(vertex, static_cast<uint32_t>(rVertices.size()));
-		if (bInserted)
-		{
-			rVertices.push_back(vertex);
-		}
-		rIndexRemap.at(j) = jt->second;
 	}
 
-	uint32_t uiNewVertexCount = static_cast<uint32_t>(rVertices.size()) - uiVertexStart;
-	LOG(kDefault, kVerbose, "  Vertices: {} -> {} (deduplicated {})", rPositionAccessor.count, uiNewVertexCount, rPositionAccessor.count - uiNewVertexCount);
+	// Generate a byte-identity dedup remap over the raw vertices (NULL indices => identity 0..count-1
+	// sequence), append the unique vertices to the shared scene-wide buffer at uiVertexStart, then
+	// translate each original-vertex slot to its final scene index for AppendIndices.
+	std::vector<uint32_t> remap(rPositionAccessor.count);
+	size_t uiUniqueCount = meshopt_generateVertexRemap(remap.data(), nullptr, rPositionAccessor.count, rawVertices.data(), rPositionAccessor.count, sizeof(common::ModelVertex));
+
+	rVertices.resize(uiVertexStart + uiUniqueCount);
+	meshopt_remapVertexBuffer(rVertices.data() + uiVertexStart, rawVertices.data(), rPositionAccessor.count, sizeof(common::ModelVertex), remap.data());
+
+	rIndexRemap.resize(rPositionAccessor.count);
+	for (int64_t j = 0; j < static_cast<int64_t>(rPositionAccessor.count); ++j)
+	{
+		rIndexRemap.at(j) = uiVertexStart + remap.at(j);
+	}
+
+	LOG(kDefault, kVerbose, "  Vertices: {} -> {} (deduplicated {})", rPositionAccessor.count, uiUniqueCount, rPositionAccessor.count - uiUniqueCount);
 }
 
 // Appends a primitive's indices (remapped through rIndexRemap to deduped vertex indices) onto rIndexBuffer,

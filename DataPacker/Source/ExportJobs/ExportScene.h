@@ -23,7 +23,7 @@ public:
 	// Payload-struct sizes fold in so size-changing layout edits auto-dirty cached chunks and the .PreExport marker; same-size reorders need the raw version bumped
 	virtual int64_t GetVersion() const override
 	{
-		return Version(53
+		return Version(54
 			+ sizeof(common::MaterialShaderData)
 			+ sizeof(common::AnimationHeader)
 			+ sizeof(common::Skeleton)
@@ -60,7 +60,7 @@ private:
 
 	void ReadMaterialInfosFromModel(const std::filesystem::path& rModelPath, size_t uiMaterialCount, uint32_t* puiIndexStarts, std::vector<common::MaterialInfo>& rMaterialInfos);
 	void FillMaterialShaderDatas(tinygltf::Model& rGltfModel, const std::vector<common::MaterialInfo>& rMaterialInfos, common::MaterialShaderData* pMaterialShaderDatas);
-	void WriteAnimationSection(tinygltf::Model& rGltfModel, const std::vector<common::MaterialInfo>& rMaterialInfos, common::ChunkHeader* pHeader, int64_t iSceneArraysSize);
+	void WriteAnimationSection(tinygltf::Model& rGltfModel, const std::vector<common::MaterialInfo>& rMaterialInfos, common::ChunkHeader* pHeader);
 
 	void CleanupOnFailure() override;
 

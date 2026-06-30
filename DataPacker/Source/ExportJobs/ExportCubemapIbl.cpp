@@ -49,9 +49,10 @@ void GenerateIrradianceCubemaps()
 				continue;
 			}
 
-			// Build output path: [C]<name>_Irradiance.R16G16B16A16_SFLOAT
+			// Build output path: [C]<name>_Irradiance<R16G16B16A16_SFLOAT suffix>
 			std::filesystem::path outputPath = rDirectoryEntry.path().parent_path() / rDirectoryEntry.path().stem();
-			outputPath += "_Irradiance.R16G16B16A16_SFLOAT";
+			outputPath += "_Irradiance";
+			outputPath += TextureIntermediateSuffix(VK_FORMAT_R16G16B16A16_SFLOAT);
 
 			// Skip if intermediate output already exists and is newer than the source
 			if (std::filesystem::exists(outputPath) && std::filesystem::last_write_time(outputPath) >= std::filesystem::last_write_time(rDirectoryEntry.path()))
@@ -178,7 +179,8 @@ static void ProcessKtxCubemaps(uint8_t uiCpuThreads, cmft::ClContext* pClContext
 			}
 
 			std::filesystem::path outputPath = rDirectoryEntry.path().parent_path() / rDirectoryEntry.path().stem();
-			outputPath += "_Prefiltered.R16G16B16A16_SFLOAT";
+			outputPath += "_Prefiltered";
+			outputPath += TextureIntermediateSuffix(VK_FORMAT_R16G16B16A16_SFLOAT);
 
 			if (std::filesystem::exists(outputPath) && std::filesystem::last_write_time(outputPath) >= std::filesystem::last_write_time(rDirectoryEntry.path()))
 			{
@@ -235,7 +237,8 @@ static void ProcessFaceImageCubemaps(uint8_t uiCpuThreads, cmft::ClContext* pClC
 
 			// Output path is placed alongside the directory
 			std::filesystem::path outputPath = rDirectoryEntry.path().parent_path() / rDirectoryEntry.path().filename();
-			outputPath += "_Prefiltered.R16G16B16A16_SFLOAT";
+			outputPath += "_Prefiltered";
+			outputPath += TextureIntermediateSuffix(VK_FORMAT_R16G16B16A16_SFLOAT);
 
 			// Timestamp dirty check against all 6 face files
 			static constexpr const char* kpcJpgFaceNames[6] = {"posx.jpg", "negx.jpg", "posy.jpg", "negy.jpg", "posz.jpg", "negz.jpg"};

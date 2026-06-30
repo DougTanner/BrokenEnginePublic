@@ -3,13 +3,17 @@
 #include "FileManager.h"
 #include "Texture.h"
 
+// Inverse of TextureIntermediateSuffix, deliberately scoped to the migration-eligible formats. The
+// IBL .R16G16B16A16_SFLOAT intermediates are excluded on purpose -- they are legacy-shaped by design
+// and must never be picked up by the migration pass. The suffix strings come from the canonical
+// TextureIntermediateSuffix helper so the inverse can't drift from the forward map.
 static VkFormat IntermediateFormatFromExtension(const std::filesystem::path& rPath)
 {
 	const std::string sExtension = rPath.extension().string();
-	if (sExtension == ".BC4_UNORM_BLOCK") return VK_FORMAT_BC4_UNORM_BLOCK;
-	if (sExtension == ".BC5_UNORM_BLOCK") return VK_FORMAT_BC5_UNORM_BLOCK;
-	if (sExtension == ".BC7_UNORM_BLOCK") return VK_FORMAT_BC7_UNORM_BLOCK;
-	if (sExtension == ".R16_UNORM") return VK_FORMAT_R16_UNORM;
+	if (sExtension == TextureIntermediateSuffix(VK_FORMAT_BC4_UNORM_BLOCK)) return VK_FORMAT_BC4_UNORM_BLOCK;
+	if (sExtension == TextureIntermediateSuffix(VK_FORMAT_BC5_UNORM_BLOCK)) return VK_FORMAT_BC5_UNORM_BLOCK;
+	if (sExtension == TextureIntermediateSuffix(VK_FORMAT_BC7_UNORM_BLOCK)) return VK_FORMAT_BC7_UNORM_BLOCK;
+	if (sExtension == TextureIntermediateSuffix(VK_FORMAT_R16_UNORM)) return VK_FORMAT_R16_UNORM;
 	return VK_FORMAT_UNDEFINED;
 }
 
@@ -115,10 +119,12 @@ static void MigrateLegacyIntermediate(const std::filesystem::path& rPath)
 		return;
 	}
 
+	// Peek the header region (>= the 4-qword magic shape, guaranteed in-bounds by the size check above).
 	std::fstream fileStream(rPath, std::ios::in | std::ios::binary);
-	int64_t iFirstQword = 0;
-	fileStream.read(reinterpret_cast<char*>(&iFirstQword), sizeof(iFirstQword));
-	if (iFirstQword == kiTextureIntermediateMagic)
+	std::byte headerBytes[4 * sizeof(int64_t)] = {};
+	fileStream.read(reinterpret_cast<char*>(headerBytes), sizeof(headerBytes));
+	TextureIntermediateHeader header = ReadTextureIntermediateHeader(headerBytes, static_cast<int64_t>(sizeof(headerBytes)));
+	if (header.bHadMagic)
 	{
 		return;
 	}
@@ -126,11 +132,9 @@ static void MigrateLegacyIntermediate(const std::filesystem::path& rPath)
 	auto tMigrateStart = std::chrono::steady_clock::now();
 	int64_t iSizeBefore = iFileSize;
 
-	int64_t iWidth = iFirstQword;
-	int64_t iHeight = 0;
-	int64_t iMipMaps = 0;
-	fileStream.read(reinterpret_cast<char*>(&iHeight), sizeof(iHeight));
-	fileStream.read(reinterpret_cast<char*>(&iMipMaps), sizeof(iMipMaps));
+	int64_t iWidth = header.iWidth;
+	int64_t iHeight = header.iHeight;
+	int64_t iMipMaps = header.iMipCount;
 
 	if (iWidth <= 0 || iHeight <= 0 || iMipMaps <= 0 || iWidth > 32768 || iHeight > 32768 || iMipMaps > 32)
 	{
@@ -141,6 +145,7 @@ static void MigrateLegacyIntermediate(const std::filesystem::path& rPath)
 
 	int64_t iPayloadSize = iFileSize - iLegacyHeaderSize;
 	std::vector<std::byte> payload(iPayloadSize);
+	fileStream.seekg(header.iPayloadOffset);
 	fileStream.read(reinterpret_cast<char*>(payload.data()), iPayloadSize);
 	fileStream.close();
 

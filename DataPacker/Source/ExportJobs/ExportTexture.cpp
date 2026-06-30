@@ -12,7 +12,7 @@ std::optional<common::ChunkFlags_t> ExportTexture::Handles(const std::filesystem
 		return common::ChunkFlags_t({common::ChunkFlags::kTexture, common::ChunkFlags::kCubemap});
 	}
 
-	static constexpr std::string_view kExtensions[] = {".png", ".tga", ".jpg", ".ktx", ".BC4_UNORM_BLOCK", ".BC5_UNORM_BLOCK", ".BC7_UNORM_BLOCK", ".R16_UNORM", ".R16G16B16A16_SFLOAT"};
+	static constexpr std::string_view kExtensions[] = {".png", ".tga", ".jpg", ".ktx", TextureIntermediateSuffix(VK_FORMAT_BC4_UNORM_BLOCK), TextureIntermediateSuffix(VK_FORMAT_BC5_UNORM_BLOCK), TextureIntermediateSuffix(VK_FORMAT_BC7_UNORM_BLOCK), TextureIntermediateSuffix(VK_FORMAT_R16_UNORM), TextureIntermediateSuffix(VK_FORMAT_R16G16B16A16_SFLOAT)};
 	std::string extension = rDirectoryEntry.path().extension().string();
 	return std::find(std::begin(kExtensions), std::end(kExtensions), extension) != std::end(kExtensions) ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kTexture) : std::nullopt;
 }
@@ -31,29 +31,35 @@ void ExportTexture::Export()
 	const std::wstring extension = mInputPath.extension().native();
 	const std::wstring filename = mInputPath.filename().native();
 
+	// Narrow copy of the extension for matching the canonical texture-intermediate suffixes
+	// (TextureIntermediateSuffix returns narrow const char*) so this consumer can't drift from the
+	// producers; the [BC4]/[BC5]/[BC7] encode-tag checks and the .ktx test below stay on the wide
+	// strings. The suffixes are ASCII, so the narrow comparison is exact.
+	const std::string narrowExtension = mInputPath.extension().string();
+
 	// bRawTexture covers only the explicit-extension formats (the already-encoded intermediates that
 	// pass straight through). A [BC4]-tagged source resolves the BC4 format below but must still take
 	// the encode path, so it is deliberately excluded here.
-	const bool bRawTexture = extension == L".R16_UNORM" || extension == L".BC4_UNORM_BLOCK" || extension == L".BC5_UNORM_BLOCK" || extension == L".BC7_UNORM_BLOCK" || extension == L".R16G16B16A16_SFLOAT";
+	const bool bRawTexture = narrowExtension == TextureIntermediateSuffix(VK_FORMAT_R16_UNORM) || narrowExtension == TextureIntermediateSuffix(VK_FORMAT_BC4_UNORM_BLOCK) || narrowExtension == TextureIntermediateSuffix(VK_FORMAT_BC5_UNORM_BLOCK) || narrowExtension == TextureIntermediateSuffix(VK_FORMAT_BC7_UNORM_BLOCK) || narrowExtension == TextureIntermediateSuffix(VK_FORMAT_R16G16B16A16_SFLOAT);
 
 	VkFormat vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
-	if (extension == L".R16_UNORM")
+	if (narrowExtension == TextureIntermediateSuffix(VK_FORMAT_R16_UNORM))
 	{
 		vkFormat = VK_FORMAT_R16_UNORM;
 	}
-	else if (extension == L".BC4_UNORM_BLOCK" || filename.find(L"[BC4]") != std::wstring::npos)
+	else if (narrowExtension == TextureIntermediateSuffix(VK_FORMAT_BC4_UNORM_BLOCK) || filename.find(L"[BC4]") != std::wstring::npos)
 	{
 		vkFormat = VK_FORMAT_BC4_UNORM_BLOCK;
 	}
-	else if (extension == L".BC5_UNORM_BLOCK" || filename.find(L"[BC5]") != std::wstring::npos)
+	else if (narrowExtension == TextureIntermediateSuffix(VK_FORMAT_BC5_UNORM_BLOCK) || filename.find(L"[BC5]") != std::wstring::npos)
 	{
 		vkFormat = VK_FORMAT_BC5_UNORM_BLOCK;
 	}
-	else if (extension == L".R16G16B16A16_SFLOAT")
+	else if (narrowExtension == TextureIntermediateSuffix(VK_FORMAT_R16G16B16A16_SFLOAT))
 	{
 		vkFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 	}
-	else if (mChunkFlags & kCubemap || extension == L".BC7_UNORM_BLOCK" || filename.find(L"[BC7]") != std::wstring::npos)
+	else if (mChunkFlags & kCubemap || narrowExtension == TextureIntermediateSuffix(VK_FORMAT_BC7_UNORM_BLOCK) || filename.find(L"[BC7]") != std::wstring::npos)
 	{
 		vkFormat = VK_FORMAT_BC7_UNORM_BLOCK;
 	}
@@ -101,29 +107,12 @@ void ExportTexture::ProcessKtxCubemap()
 
 void ExportTexture::ProcessRawTexture(VkFormat vkFormat)
 {
-	decltype(Texture::miWidth) iWidth = 0;
-	decltype(Texture::miHeight) iHeight = 0;
-	int64_t iMipMaps = 1;
-	int64_t iFirstQword = 0;
-
-	std::fstream fileStream(mInputPath, std::ios::in | std::ios::binary);
-	fileStream.read(reinterpret_cast<char*>(&iFirstQword), sizeof(iFirstQword));
-	int64_t iHeaderSize = 0;
-	if (iFirstQword == kiTextureIntermediateMagic)
-	{
-		fileStream.read(reinterpret_cast<char*>(&iWidth), sizeof(iWidth));
-		iHeaderSize = 4 * static_cast<int64_t>(sizeof(int64_t));
-	}
-	else
-	{
-		iWidth = static_cast<decltype(iWidth)>(iFirstQword);
-		iHeaderSize = 3 * static_cast<int64_t>(sizeof(int64_t));
-	}
-	fileStream.read(reinterpret_cast<char*>(&iHeight), sizeof(iHeight));
-	fileStream.read(reinterpret_cast<char*>(&iMipMaps), sizeof(iMipMaps));
-	std::vector<std::byte> data(std::filesystem::file_size(mInputPath) - iHeaderSize);
-	fileStream.read(reinterpret_cast<char*>(data.data()), data.size());
-	fileStream.close();
+	std::vector<std::byte> fileBytes = common::ReadEntireFile(mInputPath);
+	TextureIntermediateHeader header = ReadTextureIntermediateHeader(fileBytes.data(), static_cast<int64_t>(fileBytes.size()));
+	int64_t iWidth = header.iWidth;
+	int64_t iHeight = header.iHeight;
+	int64_t iMipMaps = header.iMipCount;
+	std::vector<std::byte> data(fileBytes.begin() + header.iPayloadOffset, fileBytes.end());
 
 	// BCn / R16 intermediates from Texture::Save are already zlib-streams — pass through.
 	// .R16G16B16A16_SFLOAT cubemap intermediates from Generate{Irradiance,PreFiltered}Cubemaps

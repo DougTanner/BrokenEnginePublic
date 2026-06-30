@@ -25,10 +25,56 @@ using TextureOptions_t = common::Flags<TextureOptions>;
 // MigrateLegacyIntermediates() before any reader touches it.
 inline constexpr int64_t kiTextureIntermediateMagic = 0x00000000BC7EDA7A;
 
+// Maps a texture-intermediate VkFormat to its filename suffix -- the extension carried by the emitted
+// intermediate and re-matched by ExportTexture's raw-passthrough routing. Single source for every
+// producer (scene texture paths, island texture constants, the IBL writers), the consumer routing,
+// and the inverse migration map, so the suffix can't drift between the site that builds a chunk's
+// texture-CRC path and the site that emits the file (drift silently dangles the CRC against a missing
+// intermediate). constexpr so callers can static_assert the embedded-suffix island filename constants.
+constexpr const char* TextureIntermediateSuffix(VkFormat vkFormat)
+{
+	switch (vkFormat)
+	{
+		case VK_FORMAT_BC4_UNORM_BLOCK:
+			return ".BC4_UNORM_BLOCK";
+		case VK_FORMAT_BC5_UNORM_BLOCK:
+			return ".BC5_UNORM_BLOCK";
+		case VK_FORMAT_BC7_UNORM_BLOCK:
+			return ".BC7_UNORM_BLOCK";
+		case VK_FORMAT_R16_UNORM:
+			return ".R16_UNORM";
+		case VK_FORMAT_R16G16B16A16_SFLOAT:
+			return ".R16G16B16A16_SFLOAT";
+		default:
+			ASSERT(false);
+			return "";
+	}
+}
+
 // zlib-DEFLATE a byte buffer at Z_BEST_COMPRESSION; returns a size-trimmed vector. Shared by the
 // texture-intermediate writers (ExportTexture / Texture::Save / MigrateLegacyIntermediates) and
 // the RDO sweep so the compression level and Z_OK handling can't drift between them.
 std::vector<std::byte> ZlibCompress(const std::byte* puiSource, int64_t iSourceSize);
+
+// Parsed header of a Texture::Save'd texture intermediate plus the offset where its payload begins.
+// Texture::Save writes [magic][width][height][mipCount][payload]; legacy files omit the magic (a
+// 3-qword header). bHadMagic distinguishes the two; the payload occupies [iPayloadOffset, buffer end).
+struct TextureIntermediateHeader
+{
+	int64_t iWidth = 0;
+	int64_t iHeight = 0;
+	int64_t iMipCount = 0;
+	int64_t iPayloadOffset = 0;
+	bool bHadMagic = false;
+};
+
+// Parse the magic-vs-legacy header from the front of a texture-intermediate byte buffer and locate
+// the payload. PARSE/locate only -- imposes no validation policy, so each reader keeps its own
+// (ExportTexture trusts, RdoSweep asserts, MigrateLegacyIntermediates branches on bHadMagic to skip
+// already-migrated files then plausibility-checks the legacy header). For a magic-prefixed buffer
+// `iDataSize` must cover >= 4 qwords; legacy needs >= 3 (callers that can't guarantee that gate the
+// call with their own size check). Out-of-range qwords read as 0 rather than overrunning the buffer.
+TextureIntermediateHeader ReadTextureIntermediateHeader(const std::byte* puiData, int64_t iDataSize);
 
 // True when the filename carries the `[C]` cubemap tag — the convention marking a .ktx or
 // face-image-directory cubemap input. Shared by ExportTexture routing and the IBL pre-pass

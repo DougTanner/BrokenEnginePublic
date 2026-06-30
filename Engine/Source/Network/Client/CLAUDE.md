@@ -17,6 +17,7 @@ Most receive handlers (full-state, coord-update, subscribe-accept) classify into
 - **Static data** applies the same coord-identity check as full state on `kWaitingFullState`/`kSubscribing` slots (silent drop on coord mismatch — the full-state path owns the ghost unsubscribe), with the epoch guard only on `kWaitingFullState`; `kUnsubscribed` accepts (out-of-order; buffers only, no slot mutation).
 - **Pre-full-state buffering**: a `kWaitingFullState` slot accepts delta updates but does not advance its ACK tick floor (only `kActive` slots track received ticks).
 - **Cancelled-subscription ghosts**: locally-dropped `kSubscribing` slots record the coord; a late accept/full-state triggers an unsubscribe. One epoch-heal case covers legitimate re-subscribe to an already-active slot.
+- **Out-of-range accept guard**: a subscribe-accept with a non-`kuiSubscribeRejectSlot` index beyond the client slot pool is a trust-boundary violation — the client immediately unsubscribes to prevent a server-side slot from leaking.
 - **Gap beyond `kiNetworkBufferSize`** on a single slot forces disconnect.
 - **Activation and adoption are same-frame**: a full state mutates slot ACK/epoch/state immediately at receive time (`ClientReceive.cpp` `ServerCoordFullState`), but its frame payload is adopted later by the game-layer drain. Because `Poll()` clears all receive buffers at entry (drain-per-poll), a game layer that skips a drain loses the frame yet keeps the activated slot — so activation and adoption must both happen in the same frame.
 

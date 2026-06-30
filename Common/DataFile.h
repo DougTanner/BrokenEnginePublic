@@ -8,6 +8,10 @@ namespace common
 
 inline constexpr int64_t kiAlignmentBytes = 16;
 
+// Per-array alignment of the appended animation chunk section (distinct from kiAlignmentBytes).
+// Single-sourced across the ExportScene animation writer and the AnimationData reader walk.
+inline constexpr int64_t kiAnimationSectionAlignment = 4;
+
 // Unified Sea-Bottom elevation in meters. Drives both the elevation render-target clear
 // (Engine/Source/Graphics/Managers/RenderTargetTextures.cpp main + shadow elevation RTTs)
 // and the CPU `GlobalElevation()` open-ocean fallback for cells with no island placement.
@@ -77,6 +81,13 @@ struct FontHeader
 	int64_t iBase = 0;
 	int64_t iScaleW = 0;
 	int64_t iScaleH = 0;
+
+	// Chunk payload layout: [ids ALIGN16] [characters]; the id count equals the character count.
+	// Single source for the writer (ExportFont.cpp) and reader (TextManager.cpp) offset math.
+	static constexpr int64_t CharactersOffset(int64_t iIdCount)
+	{
+		return RoundUp<int64_t, kiAlignmentBytes>(iIdCount * static_cast<int64_t>(sizeof(uint32_t)));
+	}
 };
 static_assert(sizeof(FontHeader) == 48, "FontHeader layout changed — bump DataHeader::kiVersion; unless sizeof(ChunkHeader) also changed, bump ExportFont::GetVersion's raw version too (cached chunk headers aren't otherwise re-exported)");
 
@@ -92,6 +103,22 @@ struct SceneHeader
 	uint8_t uiPad2[4] {};  // Explicit: fills the compiler gap that 8-byte-aligns modelCrc to offset 16
 	crc_t modelCrc = 0;  // CRC of the .MODEL vertex/index chunk
 	// Texture CRCs and index starts now in chunk data payload
+
+	// Chunk payload layout: [textureCrcs ALIGN16] [indexStarts ALIGN16] [MaterialShaderData ALIGN16] [AnimationData].
+	// Single source for the writer (ExportScene.cpp) and readers (ModelPipeline.cpp,
+	// PipelineDescriptorWriter.cpp, AnimationData.cpp) offset math.
+	static constexpr int64_t IndexStartsOffset(int64_t iTextureCount)
+	{
+		return RoundUp<int64_t, kiAlignmentBytes>(iTextureCount * static_cast<int64_t>(sizeof(crc_t)));
+	}
+	// Offset where the MaterialShaderData array begins (end of the texture+indexStarts scene-arrays prefix).
+	static constexpr int64_t MaterialDataOffset(int64_t iTextureCount, int64_t iMaterialCount)
+	{
+		return IndexStartsOffset(iTextureCount) + RoundUp<int64_t, kiAlignmentBytes>(iMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
+	}
+	// Offset where the appended animation section begins. Defined out-of-line below — references the
+	// MaterialShaderData size, whose struct is declared later in this header.
+	static constexpr int64_t AnimationSectionOffset(int64_t iTextureCount, int64_t iMaterialCount);
 };
 static_assert(sizeof(SceneHeader) == 24, "SceneHeader layout changed — bump DataHeader::kiVersion; unless sizeof(ChunkHeader) also changed, bump ExportScene::GetVersion's raw version too (cached chunk headers aren't otherwise re-exported)");
 static_assert(BT_OFFSETOF(SceneHeader, modelCrc) == 16, "SceneHeader padding no longer aligns modelCrc to offset 16");
@@ -245,6 +272,11 @@ struct MaterialShaderData
 static_assert(sizeof(MaterialShaderData) == 76, "MaterialShaderData layout changed — bump DataHeader::kiVersion and re-check PbrMaterialLayout; same-size reorder also bumps ExportScene::GetVersion's raw version (sizeof fold catches size changes only)");
 static_assert(BT_OFFSETOF(MaterialShaderData, f4BaseColorFactor) == 8, "MaterialShaderData padding changed — PBR factor block no longer at offset 8");
 
+constexpr int64_t SceneHeader::AnimationSectionOffset(int64_t iTextureCount, int64_t iMaterialCount)
+{
+	return MaterialDataOffset(iTextureCount, iMaterialCount) + RoundUp<int64_t, kiAlignmentBytes>(iMaterialCount * static_cast<int64_t>(sizeof(MaterialShaderData)));
+}
+
 struct Character
 {
 	uint16_t uiX = 0;
@@ -291,6 +323,21 @@ struct ModelHeader
 	int64_t iIndexCount = 0;
 	int64_t iVertexCount = 0;
 	int64_t iStride = 0;
+
+	// Runtime model chunk layout: [indices ALIGN4] [vertices]. Single source for the writer
+	// (ExportModel.cpp) and the generic index+vertex bind reader (Buffer::RecordBindVertexBuffer).
+	static constexpr int64_t VerticesOffset(int64_t iIndexCount, int64_t iIndexElementSize)
+	{
+		return RoundUp<int64_t, 4>(iIndexCount * iIndexElementSize);
+	}
+
+	// A model mesh stores 16-bit indices when its vertex count fits a uint16, else 32-bit. Single
+	// source for the `.MODEL` writer/reader (ExportScene/ExportModel) and the runtime index-type
+	// recovery (BufferManager) — all three must agree on the same threshold.
+	static constexpr bool UsesU16Indices(int64_t iVertexCount)
+	{
+		return iVertexCount < UINT16_MAX;
+	}
 };
 static_assert(sizeof(ModelHeader) == 24, "ModelHeader layout changed — bump DataHeader::kiVersion; unless sizeof(ChunkHeader) also changed, bump ExportModel::GetVersion's raw version too (cached chunk headers aren't otherwise re-exported)");
 
@@ -305,6 +352,22 @@ struct ShaderHeader
 	int64_t iVertexInputAttributeDescriptions = 0;
 	int64_t iVertexInputStride = 0;
 	// Descriptor bindings and vertex attributes now in chunk data payload
+
+	// Chunk payload layout: [bindings ALIGN16] [setIndices ALIGN16] [attrs ALIGN16] [SPIR-V].
+	// Single source for the writer (ExportShader.cpp) and reader (PipelineManager.cpp) offset math.
+	static constexpr int64_t BindingsOffset() { return 0; }
+	static constexpr int64_t SetIndicesOffset(int64_t iBindingCount)
+	{
+		return BindingsOffset() + RoundUp<int64_t, kiAlignmentBytes>(iBindingCount * static_cast<int64_t>(sizeof(VkDescriptorSetLayoutBinding)));
+	}
+	static constexpr int64_t AttributesOffset(int64_t iBindingCount)
+	{
+		return SetIndicesOffset(iBindingCount) + RoundUp<int64_t, kiAlignmentBytes>(iBindingCount * static_cast<int64_t>(sizeof(uint32_t)));
+	}
+	static constexpr int64_t SpirvOffset(int64_t iBindingCount, int64_t iAttributeCount)
+	{
+		return AttributesOffset(iBindingCount) + RoundUp<int64_t, kiAlignmentBytes>(iAttributeCount * static_cast<int64_t>(sizeof(VkVertexInputAttributeDescription)));
+	}
 };
 static_assert(sizeof(ShaderHeader) == 24, "ShaderHeader layout changed — bump DataHeader::kiVersion; unless sizeof(ChunkHeader) also changed, bump ExportShader::GetVersion's raw version too (cached chunk headers aren't otherwise re-exported)");
 
@@ -378,16 +441,6 @@ static_assert(sizeof(DataHeader) == 24, "DataHeader layout changed — bump Data
 
 struct ModelVertex
 {
-	bool operator==(const ModelVertex& rOther) const
-	{
-		bool bEqual = f3Pos == rOther.f3Pos && f3Normal == rOther.f3Normal;
-		bEqual = bEqual && ::operator==(f2Uv, rOther.f2Uv) && ::operator==(f2Uv1, rOther.f2Uv1);
-		bEqual = bEqual && ::operator==(f2Uv2, rOther.f2Uv2) && ::operator==(f2Uv3, rOther.f2Uv3) && ::operator==(f2Uv4, rOther.f2Uv4);
-		bEqual = bEqual && fJoint == rOther.fJoint;
-		bEqual = bEqual && ::operator==(f4Joint0, rOther.f4Joint0) && ::operator==(f4Weight0, rOther.f4Weight0);
-		return bEqual;
-	}
-
 	XMFLOAT3 f3Pos {};
 	XMFLOAT3 f3Normal {};
 	XMFLOAT2 f2Uv {};
@@ -399,18 +452,9 @@ struct ModelVertex
 	XMFLOAT4 f4Joint0 {};
 	XMFLOAT4 f4Weight0 {};
 };
-// std::hash<ModelVertex> below byte-hashes the raw representation via Crc(rVertex) while operator==
-// compares fields; this lock proves the layout is padding-free so equal vertices can't hash apart and
-// break the mesh-dedup unordered_map.
-static_assert(sizeof(ModelVertex) == 100, "ModelVertex layout changed — keep it padding-free to match operator==; bump DataHeader::kiVersion; same-size reorder also bumps ExportScene/ExportModel GetVersion raw versions (sizeof fold catches size changes only)");
+// The DataPacker scene loader dedups vertices via meshoptimizer's raw-byte compare
+// (meshopt_generateVertexRemap), so this lock proves the layout is padding-free — uninitialized
+// padding would otherwise make byte-equal vertices compare unequal and defeat the dedup.
+static_assert(sizeof(ModelVertex) == 100, "ModelVertex layout changed — keep it padding-free for the meshoptimizer raw-byte vertex dedup; bump DataHeader::kiVersion; same-size reorder also bumps ExportScene/ExportModel GetVersion raw versions (sizeof fold catches size changes only)");
 
 } // namespace common
-
-template<>
-struct std::hash<common::ModelVertex>
-{
-	size_t operator()(const common::ModelVertex& rVertex) const
-	{
-		return common::Crc(rVertex);
-	}
-};

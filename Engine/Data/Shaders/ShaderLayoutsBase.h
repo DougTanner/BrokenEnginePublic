@@ -131,6 +131,15 @@ CONSTEXPR int kiGlobalBindingSamplerRepeat = 3;
 CONSTEXPR int kiGlobalBindingBindlessTextures = 4;
 CONSTEXPR int kiGlobalBindingSamplerClamp = 12;
 
+// Set-1 per-pipeline descriptor binding numbers. Single-sourced here (dual-language) like the Set-0
+// block above, so the C++ pipeline setup (Pipeline kModel auto-append, BufferManager mesh/joint
+// storage-buffer updates, PipelineManager water displacement descriptors) and the GLSL
+// layout(set = 1, binding = N) qualifiers (ModelCommon.h, Water.vert) stay in lockstep.
+CONSTEXPR int kiWaterBindingDisplacement = 13;
+CONSTEXPR int kiWaterBindingDisplacementNormal = 14;
+CONSTEXPR int kiModelBindingMeshData = 15;
+CONSTEXPR int kiModelBindingJointMatrix = 16;
+
 // Water normal map atlas size. Shared by C++ (PipelineManager mppWaterNormalTextures array,
 // TextureManager kpWaterNormalCrcs/kpWaterNormalNames tables) and the water shaders
 // (Water.frag / WaterSkyboxOne.frag pWaterNormalSamplers[] sampler array).
@@ -180,8 +189,7 @@ CONSTEXPR vec4 kf4MudColor = {99.0f / 255.0f, 75.0f / 255.0f, 53.0f / 255.0f, 0.
 
 struct PushConstantsLayout
 {
-	vec4 f4Pipeline INIT;
-	vec4 f4Material INIT; // x: Material index
+	vec4 f4Pipeline INIT; // Per-pipeline push payload; .w carries the model material index (read by Model.frag / ModelSkinned.vert)
 };
 
 // LightCombine.comp push constants — the combine dispatch's output dimensions. Dual-language so the

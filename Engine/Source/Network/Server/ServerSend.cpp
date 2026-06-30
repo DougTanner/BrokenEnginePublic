@@ -20,15 +20,15 @@ void Server::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick,
 
 	LOG(kNetwork, kDebug, "Server::SendCoordFullState Client: {} Frame: {} Slot: {} Coord: ({},{})", iClientId, iTick, iSlot, coord.x, coord.y);
 
-	// Serialize frame to a temporary stringstream
+	// Serialize frame into the reusable scratch (server main thread only - single-writer contract)
 	ScopedSuppressAllocationTracking suppress;
-	// Heap: stringstream allocates for frame serialization
-	std::ostringstream frameStream(std::ios::binary);
-	frameStream << *pFrame;
-	std::string frameData = frameStream.str();
+	// Heap: scratch grows until steady state
+	mSendScratch.clear();
+	mFrameStreamBuf.mpTarget = &mSendScratch;
+	mFrameStream << *pFrame;
 
 	// LZ4 compress
-	int iCompressedSize = CompressToBuffer(frameData.data(), static_cast<int>(frameData.size()));
+	int iCompressedSize = CompressToBuffer(mSendScratch.data(), static_cast<int>(mSendScratch.size()));
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
@@ -39,7 +39,7 @@ void Server::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick,
 	rWorkbuffer.PushBack<uint16_t>(pClient->coordAckStates.at(iSlot).uiEpoch);
 	rWorkbuffer.PushBack<int64_t>(iTick);
 	WriteGridCoord(rWorkbuffer, coord);
-	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(frameData.size()));
+	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(mSendScratch.size()));
 	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(iCompressedSize));
 	rWorkbuffer.Append(std::string_view(reinterpret_cast<const char*>(mCompressionBuffer.data()), iCompressedSize));
 
@@ -56,11 +56,12 @@ void Server::SendCoordStaticData(int64_t iClientId, int64_t iSlot, GridCoord coo
 
 	LOG(kNetwork, kDebug, "Server::SendCoordStaticData Client: {} Slot: {} Coord: ({},{})", iClientId, iSlot, coord.x, coord.y);
 
-	// Heap: stringstream allocates for static data serialization
+	// Serialize static data into the reusable scratch (server main thread only - single-writer contract)
 	ScopedSuppressAllocationTracking suppress;
-	std::ostringstream staticStream(std::ios::binary);
-	rStaticData.Write(staticStream, /*bIncludeNavData=*/true);
-	std::string staticData = staticStream.str();
+	// Heap: scratch grows until steady state
+	mSendScratch.clear();
+	mFrameStreamBuf.mpTarget = &mSendScratch;
+	rStaticData.Write(mFrameStream, /*bIncludeNavData=*/true);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
@@ -70,8 +71,8 @@ void Server::SendCoordStaticData(int64_t iClientId, int64_t iSlot, GridCoord coo
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
 	rWorkbuffer.PushBack<uint16_t>(pClient->coordAckStates.at(iSlot).uiEpoch);
 	WriteGridCoord(rWorkbuffer, coord);
-	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(staticData.size()));
-	rWorkbuffer.Append(std::string_view(staticData));
+	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(mSendScratch.size()));
+	rWorkbuffer.Append(std::string_view(mSendScratch));
 
 	NetworkManager::SendPacket(pClient->pPeer, NetworkManager::CoordSlotReliable(iSlot), rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }

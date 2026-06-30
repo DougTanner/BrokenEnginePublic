@@ -29,7 +29,7 @@ TextManager::TextManager()
 		// font, so let it propagate to MainThread's try/catch (HandleException — crash report + exit) — boot hard-fail.
 		if (iCharacters < 0
 			|| iCharacters > rChunk.pHeader->iSize / static_cast<int64_t>(sizeof(uint32_t))
-			|| common::RoundUp<int64_t, common::kiAlignmentBytes>(iCharacters * static_cast<int64_t>(sizeof(uint32_t)))
+			|| common::FontHeader::CharactersOffset(iCharacters)
 				+ iCharacters * static_cast<int64_t>(sizeof(common::Character)) > rChunk.pHeader->iSize)
 		{
 			LOG(kLoading, kError, "Corrupt font chunk {:#018x}: implausible character count {}", data::kFontsNotoSansNotoSansRegularfntCrc, iCharacters);
@@ -37,7 +37,7 @@ TextManager::TextManager()
 		}
 
 		auto pCharacterIds = reinterpret_cast<uint32_t*>(rChunk.pData);
-		auto pCharacters = reinterpret_cast<common::Character*>(rChunk.pData + common::RoundUp<int64_t, common::kiAlignmentBytes>(iCharacters * static_cast<int64_t>(sizeof(pCharacterIds[0]))));
+		auto pCharacters = reinterpret_cast<common::Character*>(rChunk.pData + common::FontHeader::CharactersOffset(iCharacters));
 		LOG(kLoading, kDebug, "Loading font {:#018x} with {} characters", data::kFontsNotoSansNotoSansRegularfntCrc, iCharacters);
 		mfLineHeightEfigs = static_cast<float>(rChunk.pHeader->fontHeader.iLineHeight);
 

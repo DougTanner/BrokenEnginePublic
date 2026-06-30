@@ -399,6 +399,12 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Collection.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\CollectionController.h">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\CollectionId.h">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\CollectionMemory.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>

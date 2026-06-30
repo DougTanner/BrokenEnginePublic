@@ -69,9 +69,10 @@ struct ClientConnection
 		return -1;
 	}
 
-	int64_t AllocateSlot()
+	int64_t AllocateSlot(int64_t iMaxSlots)
 	{
-		for (int64_t i = 0; i < std::ssize(coordSubscriptions); ++i)
+		int64_t iLimit = std::min(iMaxSlots, std::ssize(coordSubscriptions));
+		for (int64_t i = 0; i < iLimit; ++i)
 		{
 			if (!(coordSubscriptions.at(i).flags & SubscriptionFlags::kActive))
 			{
@@ -118,6 +119,34 @@ struct BufferedFullFrame
 	int64_t iTick = 0;
 	// Heap: serialized frame data per grid coordinate for debug frame requests
 	std::unordered_map<GridCoord, std::string> serializedFrames;
+};
+
+// Reusable std::streambuf that appends written bytes to the std::string mpTarget points at, reusing
+// that string's capacity across serializations. Server main thread only (single-writer contract);
+// point mpTarget at the destination before each use. Lets frame serialization write directly into
+// recycled ring storage or a transient send scratch instead of a fresh ostringstream + .str() copy.
+class StringAppendStreamBuf : public std::streambuf
+{
+public:
+
+	std::string* mpTarget = nullptr;
+
+protected:
+
+	int_type overflow(int_type iChar) override
+	{
+		if (iChar != traits_type::eof())
+		{
+			mpTarget->push_back(static_cast<char>(iChar));
+		}
+		return traits_type::not_eof(iChar);
+	}
+
+	std::streamsize xsputn(const char_type* pData, std::streamsize iCount) override
+	{
+		mpTarget->append(pData, static_cast<size_t>(iCount));
+		return iCount;
+	}
 };
 
 class Server
@@ -210,6 +239,15 @@ private:
 
 	// Compression scratch buffer (reused across BufferFrame calls)
 	std::vector<uint8_t> mCompressionBuffer;
+
+	// Reusable frame-serialization scratch (server main thread only - single-writer contract).
+	// mFrameStream writes through mFrameStreamBuf into whatever string SetTarget points at: recycled
+	// pool entries for the full-frame ring, or mSendScratch for the transient SendCoord* sends.
+	StringAppendStreamBuf mFrameStreamBuf;
+	std::ostream mFrameStream { &mFrameStreamBuf };
+	std::string mSendScratch;
+	// Heap: recycled per-coord buffers for the full-frame ring, reused across BufferFullFrame calls
+	std::vector<std::string> mFullFramePool;
 
 	// Network simulation delay queue
 	std::deque<DelayedPacket> mDelayedPackets;

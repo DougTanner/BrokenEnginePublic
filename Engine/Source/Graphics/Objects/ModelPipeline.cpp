@@ -47,22 +47,20 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 	mpiFirstIndices.resize(miMaterialCount);
 	mpbTransparentMaterials.resize(miMaterialCount);
 
-	// Scene chunk data layout: [textureCrcs ALIGN16] [indexStarts ALIGN16] [MaterialShaderData]
-	int64_t iTextureArraySize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rSceneHeader.uiTextureCount * static_cast<int64_t>(sizeof(common::crc_t)));
-	int64_t iIndexStartsSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rSceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
-	int64_t iSceneArraysSize = iTextureArraySize + iIndexStartsSize;
+	const int64_t iIndexStartsOffset = common::SceneHeader::IndexStartsOffset(rSceneHeader.uiTextureCount);
+	const int64_t iMaterialDataOffset = common::SceneHeader::MaterialDataOffset(rSceneHeader.uiTextureCount, rSceneHeader.uiMaterialCount);
 
 	// Trust boundary (chunk bytes): the index-start and material arrays are aliased over the scene chunk and walked
 	// by the per-material loop below. A <=-max-but-oversized count would walk them off the chunk, so reject before
 	// the first deref — their summed extent must fit the chunk's actual bytes (ChunkHeader::iSize). Counts already
 	// bounded against the structural maxima above, so the multiply cannot overflow int64.
-	if (iSceneArraysSize + rSceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(common::MaterialShaderData)) > rChunk.pHeader->iSize)
+	if (iMaterialDataOffset + rSceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(common::MaterialShaderData)) > rChunk.pHeader->iSize)
 	{
 		throw common::CorruptStreamException("ModelPipeline::Create");
 	}
 
-	const uint32_t* puiIndexStarts = reinterpret_cast<const uint32_t*>(rChunk.pData + iTextureArraySize);
-	const common::MaterialShaderData* pMaterials = reinterpret_cast<const common::MaterialShaderData*>(rChunk.pData + iSceneArraysSize);
+	const uint32_t* puiIndexStarts = reinterpret_cast<const uint32_t*>(rChunk.pData + iIndexStartsOffset);
+	const common::MaterialShaderData* pMaterials = reinterpret_cast<const common::MaterialShaderData*>(rChunk.pData + iMaterialDataOffset);
 	PipelineFlags_t originalFlags = pipelineInfo.flags;
 
 	bool bMultiSet = pipelineInfo.flags & PipelineFlags::kMultiSet;
@@ -100,7 +98,6 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 			mpPipelines.at(i).mVkExternalDescriptorSetLayoutSet1 = mpPipelines.at(0).mVkDescriptorSetLayout;
 		}
 
-		pipelineInfo.uiMaterialIndex = static_cast<uint32_t>(i);
 		mpPipelines.at(i).Create(pipelineInfo, true);
 
 		mpiFirstIndices.at(i) = puiIndexStarts[i];
@@ -166,7 +163,7 @@ void ModelPipeline::UpdateStorageBufferDescriptors(int64_t iFramebuffer, int64_t
 {
 	if (mpPipelines.at(0).mInfo.flags & PipelineFlags::kMultiSet)
 	{
-		// Set 0 bindings (15, 16) are shared — only update the first pipeline's descriptor sets
+		// Set 1 bindings (15, 16) are shared — only update the first pipeline's descriptor sets
 		mpPipelines.at(0).UpdateStorageBufferDescriptor(iFramebuffer, iBinding, pBuffer);
 	}
 	else

@@ -49,7 +49,7 @@ constexpr const char* kpcIntermediateFiles[] =
 // split (incl. kRouteSubdivisions columns/rows) changes. AreLeavesDirty re-splits from the existing
 // raw on mismatch — no Gaea re-export.
 constexpr int32_t kiBakeVersion = 28;
-constexpr int32_t kiSplitVersion = 4;
+constexpr int32_t kiSplitVersion = 5;
 
 // Beach-band adaptive subdivision constants. After the Gaea Mesher mesh is parsed, every triangle
 // whose Z-range overlaps the beach band gets recursively split (1->4 midpoint) until its longest XY

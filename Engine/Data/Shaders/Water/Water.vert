@@ -22,8 +22,8 @@ layout (set = 1, binding = 7) uniform sampler2D noiseTextureSampler;
 // the wave sum twice. Texel grid is in 1:1 alignment with the active LOD's vertex grid — see
 // MainUniforms.cpp where iWaterActiveQuadX/Y populates next to the LOD draw setup, and
 // RenderTargetTextures.h for the texture creation comment.
-layout (set = 1, binding = 13) uniform sampler2D displacementTextureSampler;
-layout (set = 1, binding = 14) uniform sampler2D displacementNormalTextureSampler;
+layout (set = 1, binding = kiWaterBindingDisplacement) uniform sampler2D displacementTextureSampler;
+layout (set = 1, binding = kiWaterBindingDisplacementNormal) uniform sampler2D displacementNormalTextureSampler;
 
 // Input
 layout (location = 0) in vec2 f2InTexcoord;

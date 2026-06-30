@@ -266,23 +266,38 @@ void Server::BufferFullFrame(int64_t iTick, std::span<const std::pair<GridCoord,
 {
 	ScopedSuppressAllocationTracking suppress;
 
-	// Heap: ring buffer grows until steady state
+	// Evict oldest entries first, recycling their per-coord string storage into the pool so the build
+	// loop below serializes into reused capacity (no large allocation once at steady state).
+	// Heap: ring/pool grow until steady state
+	while (static_cast<int64_t>(mBufferedFullFrames.size()) >= kiMaxBufferedFrames)
+	{
+		for (auto& [rCoord, rSerialized] : mBufferedFullFrames.front().serializedFrames)
+		{
+			mFullFramePool.push_back(std::move(rSerialized));
+		}
+		mBufferedFullFrames.pop_front();
+	}
+
 	BufferedFullFrame buffered {};
 	buffered.iTick = iTick;
 
 	for (const std::pair<GridCoord, const game::Frame*>& rFrame : frames)
 	{
-		// Heap: stringstream allocates for frame serialization
-		std::ostringstream frameStream(std::ios::binary);
-		frameStream << *rFrame.second;
-		buffered.serializedFrames.insert_or_assign(rFrame.first, frameStream.str());
+		std::string serialized;
+		if (!mFullFramePool.empty())
+		{
+			serialized = std::move(mFullFramePool.back());
+			mFullFramePool.pop_back();
+		}
+		serialized.clear();
+
+		mFrameStreamBuf.mpTarget = &serialized;
+		mFrameStream << *rFrame.second;
+
+		buffered.serializedFrames.insert_or_assign(rFrame.first, std::move(serialized));
 	}
 
 	mBufferedFullFrames.push_back(std::move(buffered));
-	while (static_cast<int64_t>(mBufferedFullFrames.size()) > kiMaxBufferedFrames)
-	{
-		mBufferedFullFrames.pop_front();
-	}
 }
 
 void Server::ClearBufferedFrames()

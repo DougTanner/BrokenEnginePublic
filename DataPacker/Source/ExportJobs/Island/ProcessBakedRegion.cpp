@@ -212,23 +212,13 @@ void CropAndRepackMesh(std::vector<float>& rMeshPositions, std::vector<uint32_t>
 		throw std::runtime_error(std::format("Island chunk \"{}\" region [{}..{}, {}..{}] has zero surviving triangles after mesh crop ({} discarded): the Route subdivision produced no mesh inside this chunk's bbox. Check the archetype's Mesher resolution or Route shape.", rLeafDir.string(), rRegion.iStartX, rRegion.iEndX - 1, rRegion.iStartY, rRegion.iEndY - 1, iDiscardedTriangles));
 	}
 
-	// Repack vertex buffer: walk indices to mark used vertices, then compact and remap.
-	const int64_t iOldVertexCount = static_cast<int64_t>(rMeshPositions.size() / 3);
-	std::vector<uint32_t> oldToNew(static_cast<size_t>(iOldVertexCount), UINT32_MAX);
-	std::vector<float> packedPositions;
-	packedPositions.reserve(rMeshPositions.size());
-	for (uint32_t& riIndex : rMeshIndices)
-	{
-		uint32_t& riRemap = oldToNew[riIndex];
-		if (riRemap == UINT32_MAX)
-		{
-			riRemap = static_cast<uint32_t>(packedPositions.size() / 3);
-			packedPositions.push_back(rMeshPositions[static_cast<size_t>(riIndex) * 3 + 0]);
-			packedPositions.push_back(rMeshPositions[static_cast<size_t>(riIndex) * 3 + 1]);
-			packedPositions.push_back(rMeshPositions[static_cast<size_t>(riIndex) * 3 + 2]);
-		}
-		riIndex = riRemap;
-	}
+	// Compact + cache-optimize the vertex buffer: meshopt_optimizeVertexFetch reorders surviving
+	// vertices into index-access order (GPU fetch efficiency) and drops orphans left by the crop,
+	// rewriting rMeshIndices in place. Positions are bare float XYZ triples (12-byte stride).
+	const size_t uiOldVertexCount = rMeshPositions.size() / 3;
+	std::vector<float> packedPositions(rMeshPositions.size());
+	size_t uiNewVertexCount = meshopt_optimizeVertexFetch(packedPositions.data(), rMeshIndices.data(), rMeshIndices.size(), rMeshPositions.data(), uiOldVertexCount, sizeof(float) * 3);
+	packedPositions.resize(uiNewVertexCount * 3);
 	rMeshPositions = std::move(packedPositions);
 
 	// Re-center XY of every surviving vertex on the post-crop center. Z is unchanged
@@ -238,7 +228,7 @@ void CropAndRepackMesh(std::vector<float>& rMeshPositions, std::vector<uint32_t>
 		rMeshPositions[iV * 3 + 0] -= fCropCenterXMeters;
 		rMeshPositions[iV * 3 + 1] -= fCropCenterYMeters;
 	}
-	LOG(kDefault, kDebug, "Mesh chunk \"{}\": cropped {} triangles outside bbox, re-centered XY by ({:.2f}, {:.2f})m, {} -> {} vertices", rLeafDir.string(), iDiscardedTriangles, fCropCenterXMeters, fCropCenterYMeters, iOldVertexCount, static_cast<int64_t>(rMeshPositions.size() / 3));
+	LOG(kDefault, kDebug, "Mesh chunk \"{}\": cropped {} triangles outside bbox, re-centered XY by ({:.2f}, {:.2f})m, {} -> {} vertices", rLeafDir.string(), iDiscardedTriangles, fCropCenterXMeters, fCropCenterYMeters, uiOldVertexCount, static_cast<int64_t>(rMeshPositions.size() / 3));
 }
 
 // Write the cropped / repacked / re-centered mesh to the leaf MeshProcessed.bin.

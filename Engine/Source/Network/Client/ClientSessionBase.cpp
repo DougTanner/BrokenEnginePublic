@@ -16,21 +16,11 @@ namespace
 
 ClientGuid LoadClientGuidFromDisk()
 {
-	// Heap: std::fstream and std::filesystem::path allocate for GUID file I/O
+	// Heap: ReadVersionedFile opens an fstream and a filesystem path for GUID file I/O
 	ScopedSuppressAllocationTracking suppress;
 
 	ClientGuid loadedGuid {};
-	int64_t iGuidVersion = 0;
-	std::fstream guidStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("ClientGuid.bin"));
-	if (guidStream.good())
-	{
-		common::Read(guidStream, iGuidVersion);
-		int64_t iSize = 0;
-		common::Read(guidStream, iSize);
-		common::Read(guidStream, loadedGuid.uiHigh);
-		common::Read(guidStream, loadedGuid.uiLow);
-	}
-	if (iGuidVersion >= 1 && !loadedGuid.IsEmpty())
+	if (ReadVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("ClientGuid.bin"), loadedGuid) && !loadedGuid.IsEmpty())
 	{
 		LOG(kNetwork, kInfo, "ClientSessionBase loaded GUID from disk: {} {}", loadedGuid.uiHigh, loadedGuid.uiLow);
 		return loadedGuid;
@@ -40,20 +30,12 @@ ClientGuid LoadClientGuidFromDisk()
 
 void PersistClientGuidToDisk(const ClientGuid& rGuid)
 {
-	// Persist to disk atomically (a mid-write crash here would otherwise empty the file and orphan all server-side fleets/players for this client on next connect).
+	// WriteVersionedFile persists atomically (a mid-write crash would otherwise empty the file and orphan all server-side fleets/players for this client on next connect).
 	// Heap: filesystem path and fstream operations for GUID persistence
 	ScopedSuppressAllocationTracking suppress;
 
-	bool bWritten = gpFileManager->WriteFileAtomically({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("ClientGuid.bin"), [&](std::fstream& guidStream)
-	{
-		int64_t iGuidVersion = 1;
-		common::Write(guidStream, iGuidVersion);
-		int64_t iGuidSize = 0;
-		common::Write(guidStream, iGuidSize);
-		common::Write(guidStream, rGuid.uiHigh);
-		common::Write(guidStream, rGuid.uiLow);
-	});
-	if (!bWritten)
+	ClientGuid guid = rGuid; // WriteVersionedFile takes a non-const reference
+	if (!WriteVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("ClientGuid.bin"), guid))
 	{
 		LOG(kNetwork, kError, "Failed to persist ClientGuid.bin (next session will re-handshake as a new client)");
 	}

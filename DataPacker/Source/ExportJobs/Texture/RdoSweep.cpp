@@ -149,32 +149,16 @@ int RunRdoSweepFull(const std::filesystem::path& rPath)
 // the user migrated first or not).
 static std::vector<float> LoadBc7AsFloatPixelsMip0(const std::filesystem::path& rPath, int64_t& riWidth, int64_t& riHeight)
 {
-	std::fstream fileStream(rPath, std::ios::in | std::ios::binary);
-	int64_t iFileSize = std::filesystem::file_size(rPath);
-	int64_t iMipMaps = 0;
-	int64_t iFirstQword = 0;
-	fileStream.read(reinterpret_cast<char*>(&iFirstQword), sizeof(iFirstQword));
-	int64_t iHeaderSize = 0;
-	if (iFirstQword == kiTextureIntermediateMagic)
-	{
-		fileStream.read(reinterpret_cast<char*>(&riWidth), sizeof(riWidth));
-		iHeaderSize = 4 * static_cast<int64_t>(sizeof(int64_t));
-	}
-	else
-	{
-		riWidth = iFirstQword;
-		iHeaderSize = 3 * static_cast<int64_t>(sizeof(int64_t));
-	}
-	fileStream.read(reinterpret_cast<char*>(&riHeight), sizeof(riHeight));
-	fileStream.read(reinterpret_cast<char*>(&iMipMaps), sizeof(iMipMaps));
-	ASSERT(fileStream.good());
+	std::vector<std::byte> fileBytes = common::ReadEntireFile(rPath);
+	TextureIntermediateHeader header = ReadTextureIntermediateHeader(fileBytes.data(), static_cast<int64_t>(fileBytes.size()));
+	riWidth = header.iWidth;
+	riHeight = header.iHeight;
+	int64_t iMipMaps = header.iMipCount;
 	ASSERT(riWidth > 0 && riHeight > 0 && iMipMaps > 0);
 
-	int64_t iCompressedSize = iFileSize - iHeaderSize;
+	int64_t iCompressedSize = static_cast<int64_t>(fileBytes.size()) - header.iPayloadOffset;
 	ASSERT(iCompressedSize > 0);
-	std::vector<std::byte> compressed(iCompressedSize);
-	fileStream.read(reinterpret_cast<char*>(compressed.data()), iCompressedSize);
-	fileStream.close();
+	std::vector<std::byte> compressed(fileBytes.begin() + header.iPayloadOffset, fileBytes.end());
 
 	int64_t iAllMipsSize = 0;
 	int64_t iMipWidth = riWidth;

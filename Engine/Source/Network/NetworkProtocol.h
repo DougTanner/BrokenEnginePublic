@@ -62,6 +62,7 @@ inline constexpr const char* PacketTypeName(PacketType eType)
 
 // Protocol constants
 inline constexpr uint32_t kuiProtocolVersion = 5;
+inline constexpr uint8_t kuiSubscribeRejectSlot = 0xFF; // Sentinel slot in kServerSubscribeAccept: server rejected the subscribe (not adjacent / no free slot)
 inline constexpr uint16_t kuiDefaultPort = 27015;
 inline constexpr int64_t kiMaxResendFrames = 8;
 inline constexpr int64_t kiFloorStallLogThreshold = 15;
@@ -85,6 +86,10 @@ inline constexpr int64_t kiNetworkBufferSize = 128;
 // 128-bit client GUID for persistent identity across save/load
 struct ClientGuid
 {
+	// On-disk ClientGuid.bin header version (persist/load route through WriteVersionedFile/ReadVersionedFile).
+	// v2 migrated off the legacy hand-rolled v1/size-0 header to the shared version+size convention; v1 files reset once.
+	static constexpr int64_t kiVersion = 2;
+
 	uint64_t uiHigh = 0;
 	uint64_t uiLow = 0;
 

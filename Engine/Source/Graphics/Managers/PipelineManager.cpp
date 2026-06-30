@@ -53,13 +53,13 @@ PipelineManager::PipelineManager()
 			throw common::CorruptStreamException("PipelineManager shader");
 		}
 
-		int64_t iBindingsSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rShaderHeader.iDescriptorSetLayoutBindings * static_cast<int64_t>(sizeof(VkDescriptorSetLayoutBinding)));
-		int64_t iSetIndicesSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rShaderHeader.iDescriptorSetLayoutBindings * static_cast<int64_t>(sizeof(uint32_t)));
-		int64_t iAttrsSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rShaderHeader.iVertexInputAttributeDescriptions * static_cast<int64_t>(sizeof(VkVertexInputAttributeDescription)));
+		const int64_t iSetIndicesOffset = common::ShaderHeader::SetIndicesOffset(rShaderHeader.iDescriptorSetLayoutBindings);
+		const int64_t iAttributesOffset = common::ShaderHeader::AttributesOffset(rShaderHeader.iDescriptorSetLayoutBindings);
+		const int64_t iSpirvOffset = common::ShaderHeader::SpirvOffset(rShaderHeader.iDescriptorSetLayoutBindings, rShaderHeader.iVertexInputAttributeDescriptions);
 
 		// Trust boundary (chunk bytes): the three aliased sections plus the SPIR-V tail (>= the 4-byte magic the
 		// Shader ctor reads) must fit the chunk's actual bytes, else the alias walks / iSpirvSize run off the buffer.
-		if (iBindingsSize + iSetIndicesSize + iAttrsSize + static_cast<int64_t>(sizeof(uint32_t)) > rChunk.pHeader->iSize)
+		if (iSpirvOffset + static_cast<int64_t>(sizeof(uint32_t)) > rChunk.pHeader->iSize)
 		{
 			LOG(kLoading, kError, "Corrupt shader chunk {:#018x}: section extent exceeds chunk bytes", rCrc);
 			throw common::CorruptStreamException("PipelineManager shader");
@@ -69,11 +69,11 @@ PipelineManager::PipelineManager()
 		{
 			.pChunkHeader = rChunk.pHeader,
 			.pDescriptorBindings = reinterpret_cast<const VkDescriptorSetLayoutBinding*>(rChunk.pData),
-			.pDescriptorSetIndices = reinterpret_cast<const uint32_t*>(rChunk.pData + iBindingsSize),
-			.pVertexAttributes = reinterpret_cast<const VkVertexInputAttributeDescription*>(rChunk.pData + iBindingsSize + iSetIndicesSize),
-			.iSpirvSize = rChunk.pHeader->iSize - iBindingsSize - iSetIndicesSize - iAttrsSize,
+			.pDescriptorSetIndices = reinterpret_cast<const uint32_t*>(rChunk.pData + iSetIndicesOffset),
+			.pVertexAttributes = reinterpret_cast<const VkVertexInputAttributeDescription*>(rChunk.pData + iAttributesOffset),
+			.iSpirvSize = rChunk.pHeader->iSize - iSpirvOffset,
 		};
-		auto [it, bInserted] = mShaders.try_emplace(rCrc, info, rChunk.pData + iBindingsSize + iSetIndicesSize + iAttrsSize);
+		auto [it, bInserted] = mShaders.try_emplace(rCrc, info, rChunk.pData + iSpirvOffset);
 		ASSERT(bInserted);
 	}
 
@@ -464,8 +464,8 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 	// Explicit bindings 13/14: kPipelineWaterSkyboxOne has no binding-12 descriptor (its frag shader doesn't
 	// sample the resolve target — it's the OUTPUT). Explicit binding keeps the shader-side binding numbers
 	// identical across both pipelines.
-	waterInfo.pDescriptorInfos[13] = {.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = 13, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementTexture};
-	waterInfo.pDescriptorInfos[14] = {.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = 14, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementNormalTexture};
+	waterInfo.pDescriptorInfos[13] = {.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = shaders::kiWaterBindingDisplacement, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementTexture};
+	waterInfo.pDescriptorInfos[14] = {.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = shaders::kiWaterBindingDisplacementNormal, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementNormalTexture};
 	mpPipelines[kPipelineWater].Create(waterInfo);
 
 	// WaterSkyboxOne: pre-pass at hardcoded 4x MSAA + full sample shading rendering only the One-lobe
@@ -490,8 +490,8 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 	FillWaterSharedDescriptors(skyboxInfo.pDescriptorInfos);
 	// Explicit bindings 13/14 occupy indices 12/13 — this pipeline has no binding-12 descriptor (it OUTPUTs the
 	// resolve target). Both pipelines share Water.vert, so the shader-side binding numbers must agree.
-	skyboxInfo.pDescriptorInfos[12] = {.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = 13, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementTexture};
-	skyboxInfo.pDescriptorInfos[13] = {.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = 14, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementNormalTexture};
+	skyboxInfo.pDescriptorInfos[12] = {.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = shaders::kiWaterBindingDisplacement, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementTexture};
+	skyboxInfo.pDescriptorInfos[13] = {.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = shaders::kiWaterBindingDisplacementNormal, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementNormalTexture};
 	mpPipelines[kPipelineWaterSkyboxOne].Create(skyboxInfo);
 }
 

@@ -3,6 +3,14 @@
 #include "Island/BakeIslandIntermediates.h"
 #include "Texture/Texture.h"
 
+// Compile-time guard: each island texture-intermediate filename constant (ExportIsland.h) must end
+// with the canonical suffix for the VkFormat its Save call / CRC build pairs it with, so the constant
+// and the format can't silently drift (a mismatch would dangle the island-header texture CRC).
+static_assert(std::string_view(kpcIslandAmbientOcclusion).ends_with(TextureIntermediateSuffix(VK_FORMAT_BC4_UNORM_BLOCK)));
+static_assert(std::string_view(kpcIslandColor).ends_with(TextureIntermediateSuffix(VK_FORMAT_BC7_UNORM_BLOCK)));
+static_assert(std::string_view(kpcIslandMasks).ends_with(TextureIntermediateSuffix(VK_FORMAT_BC7_UNORM_BLOCK)));
+static_assert(std::string_view(kpcIslandNormals).ends_with(TextureIntermediateSuffix(VK_FORMAT_BC5_UNORM_BLOCK)));
+
 // ---------------------------------------------------------------------------
 // Single-resolution island ingest
 // ---------------------------------------------------------------------------

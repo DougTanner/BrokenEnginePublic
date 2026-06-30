@@ -378,10 +378,7 @@ void ExportShader::ReflectAndWriteShader(const std::filesystem::path& rSpirvFile
 	CollectBindings(shaderResources.separate_samplers, "Separate samplers:", VK_DESCRIPTOR_TYPE_SAMPLER, spirvCrossCompiler, bindingTable, constantOne);
 
 	// Allocate data span: [bindings ALIGN16] [setIndices ALIGN16] [attrs ALIGN16] [SPIR-V]
-	int64_t iBindingsBytes = common::RoundUp<int64_t, common::kiAlignmentBytes>(iBindingCount * static_cast<int64_t>(sizeof(VkDescriptorSetLayoutBinding)));
-	int64_t iSetIndicesBytes = common::RoundUp<int64_t, common::kiAlignmentBytes>(iBindingCount * static_cast<int64_t>(sizeof(uint32_t)));
-	int64_t iAttrsBytes = common::RoundUp<int64_t, common::kiAlignmentBytes>(iAttrCount * static_cast<int64_t>(sizeof(VkVertexInputAttributeDescription)));
-	auto [pHeader, dataSpan] = AllocateHeaderAndData(iBindingsBytes + iSetIndicesBytes + iAttrsBytes + iSpirvFileBytes);
+	auto [pHeader, dataSpan] = AllocateHeaderAndData(common::ShaderHeader::SpirvOffset(iBindingCount, iAttrCount) + iSpirvFileBytes);
 	pHeader->shaderHeader = common::ShaderHeader {};
 	pHeader->shaderHeader.iDescriptorSetLayoutBindings = iBindingCount;
 	pHeader->shaderHeader.iVertexInputAttributeDescriptions = iAttrCount;
@@ -389,13 +386,13 @@ void ExportShader::ReflectAndWriteShader(const std::filesystem::path& rSpirvFile
 
 	// Copy arrays to data span
 	std::memcpy(dataSpan.data(), tempBindings, iBindingCount * sizeof(VkDescriptorSetLayoutBinding));
-	std::memcpy(dataSpan.data() + iBindingsBytes, tempSetIndices, iBindingCount * sizeof(uint32_t));
-	std::memcpy(dataSpan.data() + iBindingsBytes + iSetIndicesBytes, tempAttrs, iAttrCount * sizeof(VkVertexInputAttributeDescription));
+	std::memcpy(dataSpan.data() + common::ShaderHeader::SetIndicesOffset(iBindingCount), tempSetIndices, iBindingCount * sizeof(uint32_t));
+	std::memcpy(dataSpan.data() + common::ShaderHeader::AttributesOffset(iBindingCount), tempAttrs, iAttrCount * sizeof(VkVertexInputAttributeDescription));
 
 	// Copy SPIR-V after arrays
-	std::memcpy(dataSpan.data() + iBindingsBytes + iSetIndicesBytes + iAttrsBytes, spirvData.data(), iSpirvFileBytes);
+	std::memcpy(dataSpan.data() + common::ShaderHeader::SpirvOffset(iBindingCount, iAttrCount), spirvData.data(), iSpirvFileBytes);
 
-	ASSERT(*reinterpret_cast<uint32_t*>(dataSpan.data() + iBindingsBytes + iSetIndicesBytes + iAttrsBytes) == common::ShaderHeader::kuiSpirvMagic);
+	ASSERT(*reinterpret_cast<uint32_t*>(dataSpan.data() + common::ShaderHeader::SpirvOffset(iBindingCount, iAttrCount)) == common::ShaderHeader::kuiSpirvMagic);
 }
 
 void ExportShader::CleanupOnFailure()

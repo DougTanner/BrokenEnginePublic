@@ -52,7 +52,7 @@ BufferManager::BufferManager()
 			.name = rChunk.pHeader->pcPath,
 			.flags = {kIndexVertex, kDeviceLocal},
 			.iCount = rChunk.pHeader->modelHeader.iIndexCount,
-			.vkIndexType = rChunk.pHeader->modelHeader.iVertexCount < std::numeric_limits<uint16_t>::max() ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32,
+			.vkIndexType = common::ModelHeader::UsesU16Indices(rChunk.pHeader->modelHeader.iVertexCount) ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32,
 			.iVertexStride = rChunk.pHeader->modelHeader.iStride,
 			.dataVkDeviceSize = static_cast<uint32_t>(rChunk.pHeader->iSize),
 		},
@@ -533,7 +533,7 @@ void BufferManager::GrowMeshDataBuffer(int64_t iCommandBuffer, int64_t iValidCou
 
 	// Update MeshData descriptor on all model pipelines
 	Buffer* pNewBuffer = &mMeshDataStorageBuffers.at(iCommandBuffer);
-	gpPipelineManager->mDynamicPipelines.UpdateAllModelPipelineDescriptors(iCommandBuffer, kModelPipelineBindingMeshData, pNewBuffer);
+	gpPipelineManager->mDynamicPipelines.UpdateAllModelPipelineDescriptors(iCommandBuffer, shaders::kiModelBindingMeshData, pNewBuffer);
 }
 
 void BufferManager::GrowJointMatrixBuffer(int64_t iCommandBuffer, int64_t iValidCount)
@@ -560,7 +560,7 @@ void BufferManager::GrowJointMatrixBuffer(int64_t iCommandBuffer, int64_t iValid
 
 	// Update JointMatrix descriptor on all model pipelines
 	Buffer* pNewBuffer = &mJointMatrixStorageBuffers.at(iCommandBuffer);
-	gpPipelineManager->mDynamicPipelines.UpdateAllModelPipelineDescriptors(iCommandBuffer, kModelPipelineBindingJointMatrix, pNewBuffer);
+	gpPipelineManager->mDynamicPipelines.UpdateAllModelPipelineDescriptors(iCommandBuffer, shaders::kiModelBindingJointMatrix, pNewBuffer);
 }
 
 void BufferManager::CreateSmokeHierarchicalBuffers()

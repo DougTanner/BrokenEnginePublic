@@ -77,7 +77,7 @@ static void CreateSingleSetPipelineLayout(VkDescriptorSetLayoutCreateInfo& rLayo
 	VkPushConstantRange vkPushConstantRange {};
 	vkPushConstantRange.stageFlags = vkPushConstantStageFlags;
 	vkPushConstantRange.offset = 0;
-	vkPushConstantRange.size = rPipeline.mInfo.uiPushConstantSize;
+	vkPushConstantRange.size = sizeof(shaders::PushConstantsLayout);
 	rPipelineLayoutCreateInfo.pPushConstantRanges = rPipeline.mInfo.flags & kPushConstants ? &vkPushConstantRange : nullptr;
 	CHECK_VK(vkCreatePipelineLayout(gpDeviceManager->mVkDevice, &rPipelineLayoutCreateInfo, nullptr, &rPipeline.mVkPipelineLayout));
 	VkName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, rPipeline.mVkPipelineLayout, rPipeline.mInfo.name.data());
@@ -232,7 +232,7 @@ static void CreateDescriptorSetLayouts(Pipeline& rPipeline, VkDescriptorSetLayou
 	VkPushConstantRange vkPushConstantRange {};
 	vkPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 	vkPushConstantRange.offset = 0;
-	vkPushConstantRange.size = rPipeline.mInfo.uiPushConstantSize;
+	vkPushConstantRange.size = sizeof(shaders::PushConstantsLayout);
 
 	if (rPipeline.mVkExternalDescriptorSetLayout != VK_NULL_HANDLE)
 	{
@@ -751,7 +751,7 @@ void PipelineCreator::CreateComputePipeline(Pipeline& rPipeline)
 		VkPushConstantRange vkPushConstantRange {};
 		vkPushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 		vkPushConstantRange.offset = 0;
-		vkPushConstantRange.size = rPipeline.mInfo.uiPushConstantSize;
+		vkPushConstantRange.size = sizeof(shaders::PushConstantsLayout);
 		vkPipelineLayoutCreateInfo.setLayoutCount = 2;
 		vkPipelineLayoutCreateInfo.pSetLayouts = pSetLayouts;
 		vkPipelineLayoutCreateInfo.pushConstantRangeCount = rPipeline.mInfo.flags & kPushConstants ? 1 : 0;

@@ -447,11 +447,20 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	uint16_t uiEpoch = ReadUint16(pCursor);
 	GridCoord coord = ReadGridCoord(pCursor);
 
-	if (uiSlotIndex >= std::ssize(mCoordSlots))
+	if (uiSlotIndex == kuiSubscribeRejectSlot)
 	{
-		// Server rejected subscription (no free slot) — clear the kSubscribing placeholder
+		// Server rejected subscription (not adjacent / no free slot) — clear the kSubscribing placeholder
 		ClearSubscribingPlaceholder(coord);
 		LOG(kNetwork, kWarning, "Client::ServerSubscribeAccept Rejected Coord: ({},{})", coord.x, coord.y);
+		return;
+	}
+
+	// Defensive (trust boundary: network input): a non-sentinel slot the client cannot host would
+	// throw at mCoordSlots.at() below. Unsubscribe so a server-side slot cannot leak, then drop.
+	if (uiSlotIndex >= std::ssize(mCoordSlots))
+	{
+		LOG(kNetwork, kWarning, "Client::ServerSubscribeAccept Out-of-range, unsubscribing Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
+		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex);
 		return;
 	}
 

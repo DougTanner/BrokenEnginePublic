@@ -25,7 +25,7 @@ void ExportModel::Export()
 	fileStream.seekg(uiMaterialCount * sizeof(common::MaterialInfo), std::ios::cur);
 	fileStream.read(reinterpret_cast<char*>(&uiIndexCount), sizeof(uiIndexCount));
 	fileStream.read(reinterpret_cast<char*>(&uiVertexCount), sizeof(uiVertexCount));
-	if (uiVertexCount < std::numeric_limits<uint16_t>::max())
+	if (common::ModelHeader::UsesU16Indices(static_cast<int64_t>(uiVertexCount)))
 	{
 		indices16.resize(uiIndexCount);
 		fileStream.read(reinterpret_cast<char*>(indices16.data()), common::VectorByteSize(indices16));
@@ -39,7 +39,9 @@ void ExportModel::Export()
 	fileStream.read(reinterpret_cast<char*>(vertices.data()), common::VectorByteSize(vertices));
 	fileStream.close();
 
-	int64_t iIndicesSize = common::RoundUp<int64_t, 4>(indices16.size() > 0 ? common::VectorByteSize(indices16) : common::VectorByteSize(indices32));
+	int64_t iIndicesSize = indices16.size() > 0
+		? common::ModelHeader::VerticesOffset(static_cast<int64_t>(indices16.size()), sizeof(uint16_t))
+		: common::ModelHeader::VerticesOffset(static_cast<int64_t>(indices32.size()), sizeof(uint32_t));
 	auto [pHeader, dataSpan] = AllocateHeaderAndData(iIndicesSize + vertices.size());
 	pHeader->modelHeader.iIndexCount = indices16.size() > 0 ? indices16.size() : indices32.size();
 	pHeader->modelHeader.iVertexCount = vertices.size() / iStride;

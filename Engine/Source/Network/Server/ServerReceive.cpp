@@ -356,15 +356,15 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	if (!bAdjacent)
 	{
 		LOG(kNetwork, kWarning, "Server::ClientSubscribe Rejected (not adjacent) Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
-		SendSubscribeAccept(*pClient, 0xFF, coord);
+		SendSubscribeAccept(*pClient, kuiSubscribeRejectSlot, coord);
 		return;
 	}
 
-	int64_t iSlot = pClient->AllocateSlot();
+	int64_t iSlot = pClient->AllocateSlot(game::kiDesiredCoordSlots);
 	if (iSlot < 0)
 	{
 		LOG(kNetwork, kWarning, "Server::ClientSubscribe No free slot Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
-		SendSubscribeAccept(*pClient, 0xFF, coord);
+		SendSubscribeAccept(*pClient, kuiSubscribeRejectSlot, coord);
 		return;
 	}
 

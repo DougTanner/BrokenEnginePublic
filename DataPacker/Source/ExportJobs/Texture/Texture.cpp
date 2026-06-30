@@ -601,6 +601,45 @@ std::vector<std::byte> ZlibCompress(const std::byte* puiSource, int64_t iSourceS
 	return compressed;
 }
 
+TextureIntermediateHeader ReadTextureIntermediateHeader(const std::byte* puiData, int64_t iDataSize)
+{
+	static constexpr int64_t kiQwordBytes = static_cast<int64_t>(sizeof(int64_t));
+	auto ReadQword = [=](int64_t iOffset) -> int64_t
+	{
+		int64_t iValue = 0;
+		if (iOffset >= 0 && iOffset + kiQwordBytes <= iDataSize)
+		{
+			std::memcpy(&iValue, puiData + iOffset, sizeof(iValue));
+		}
+		return iValue;
+	};
+
+	TextureIntermediateHeader header;
+	int64_t iFirstQword = ReadQword(0);
+
+	// Magic-prefixed files carry a 4-qword header (magic, then width/height/mipCount); legacy files
+	// omit the magic, so the first qword is width and the header is 3 qwords. Width sits one qword past
+	// the magic in the former, at qword 0 in the latter.
+	int64_t iWidthOffset = 0;
+	if (iFirstQword == kiTextureIntermediateMagic)
+	{
+		header.bHadMagic = true;
+		iWidthOffset = kiQwordBytes;
+		header.iPayloadOffset = 4 * kiQwordBytes;
+	}
+	else
+	{
+		header.bHadMagic = false;
+		iWidthOffset = 0;
+		header.iPayloadOffset = 3 * kiQwordBytes;
+	}
+
+	header.iWidth = ReadQword(iWidthOffset);
+	header.iHeight = ReadQword(iWidthOffset + kiQwordBytes);
+	header.iMipCount = ReadQword(iWidthOffset + 2 * kiQwordBytes);
+	return header;
+}
+
 void Texture::Save(const std::filesystem::path& rPath, VkFormat vkFormat, TextureOptions_t options)
 {
 	std::vector<std::byte> data = Export(vkFormat, options);
