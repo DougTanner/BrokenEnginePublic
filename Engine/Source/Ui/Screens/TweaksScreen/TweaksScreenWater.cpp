@@ -32,7 +32,8 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Wave Normal Blend (Global)", &gWaterWaveNormalBlend},
 	// Specular - Skybox
 	{"Sun Bias", &gLightingWaterSkyboxSunBias},
-	{"Normal Soften", &gLightingWaterSkyboxNormalSoften},
+	{"Normal Soften Sunrise", &gLightingWaterSkyboxNormalSoftenSunrise},
+	{"Normal Soften Noon", &gLightingWaterSkyboxNormalSoftenNoon},
 	{"Normal Blend Wave", &gLightingWaterSkyboxNormalBlendWave},
 	{"Intensity", &gLightingWaterSkyboxIntensity},
 	{"Add", &gLightingWaterSkyboxAdd},
@@ -152,7 +153,8 @@ void TweaksScreenBase::RenderWaterSection()
 
 				WrapperSeparatorText("Skybox");
 				WrapperSlider("Sun Bias", kiSection, 1.0f);
-				WrapperSlider("Normal Soften", kiSection, 1.0f);
+				WrapperSlider("Normal Soften Sunrise", kiSection, 1.0f);
+				WrapperSlider("Normal Soften Noon", kiSection, 1.0f);
 				WrapperSlider("Normal Blend Wave", kiSection, 1.0f);
 				WrapperSlider("Intensity", kiSection, 1.0f);
 				WrapperSlider("Add", kiSection, 1.0f);

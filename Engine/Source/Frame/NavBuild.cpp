@@ -317,27 +317,39 @@ void BuildVisibilityGraph(NavContour& rContour)
 {
 	int32_t iVertexCount = static_cast<int32_t>(rContour.vertices.size());
 
+	// Per-vertex polygon membership, precomputed once (O(V)): which polygon each vertex belongs to,
+	// its local index within that polygon, and the polygon's vertex count. Lets the adjacency test in
+	// the O(V^2) pair loop below run in O(1) instead of re-scanning polygonOffsets for every (i, j).
+	std::vector<int32_t> vertexPolygon(static_cast<size_t>(iVertexCount), 0);
+	std::vector<int32_t> vertexLocal(static_cast<size_t>(iVertexCount), 0);
+	std::vector<int32_t> vertexPolygonCount(static_cast<size_t>(iVertexCount), 0);
+	for (size_t iPoly = 0; iPoly < rContour.polygonOffsets.size(); ++iPoly)
+	{
+		int32_t iStart = rContour.polygonOffsets.at(iPoly);
+		int32_t iEnd = (iPoly + 1 < rContour.polygonOffsets.size()) ? rContour.polygonOffsets.at(iPoly + 1) : iVertexCount;
+		int32_t iCount = iEnd - iStart;
+		for (int32_t iVertex = iStart; iVertex < iEnd; ++iVertex)
+		{
+			vertexPolygon.at(static_cast<size_t>(iVertex)) = static_cast<int32_t>(iPoly);
+			vertexLocal.at(static_cast<size_t>(iVertex)) = iVertex - iStart;
+			vertexPolygonCount.at(static_cast<size_t>(iVertex)) = iCount;
+		}
+	}
+
 	for (int32_t i = 0; i < iVertexCount; ++i)
 	{
 		for (int32_t j = i + 1; j < iVertexCount; ++j)
 		{
 			// Skip edges between adjacent vertices on the same polygon (they're polygon edges, not visibility edges)
 			bool bAdjacent = false;
-			for (size_t iPoly = 0; iPoly < rContour.polygonOffsets.size(); ++iPoly)
+			if (vertexPolygon.at(static_cast<size_t>(i)) == vertexPolygon.at(static_cast<size_t>(j)))
 			{
-				int32_t iStart = rContour.polygonOffsets.at(iPoly);
-				int32_t iEnd = (iPoly + 1 < rContour.polygonOffsets.size()) ? rContour.polygonOffsets.at(iPoly + 1) : iVertexCount;
-				int32_t iCount = iEnd - iStart;
-
-				if (i >= iStart && i < iEnd && j >= iStart && j < iEnd)
+				int32_t iLocalI = vertexLocal.at(static_cast<size_t>(i));
+				int32_t iLocalJ = vertexLocal.at(static_cast<size_t>(j));
+				int32_t iCount = vertexPolygonCount.at(static_cast<size_t>(i));
+				if (iLocalJ - iLocalI == 1 || (iLocalI == 0 && iLocalJ == iCount - 1))
 				{
-					int32_t iLocalI = i - iStart;
-					int32_t iLocalJ = j - iStart;
-					if (iLocalJ - iLocalI == 1 || (iLocalI == 0 && iLocalJ == iCount - 1))
-					{
-						bAdjacent = true;
-						break;
-					}
+					bAdjacent = true;
 				}
 			}
 

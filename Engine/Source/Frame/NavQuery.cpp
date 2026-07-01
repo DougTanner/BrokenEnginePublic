@@ -305,6 +305,98 @@ AStarMemory PartitionAStarMemory(std::byte* pMemory, int32_t iTotalNodes)
 	return memory;
 }
 
+// Indexed binary min-heap over A* open-set node indices, keyed by (fCost, node index). The index
+// tie-break makes pop order a total order, so the search is deterministic across builds. pHeapPos
+// enables O(log n) decrease-key. Operates in place on the AStarMemory scratch arrays.
+struct AStarHeap
+{
+	int32_t* pOpenSet = nullptr;
+	int32_t* pHeapPos = nullptr;
+	const float* pFCost = nullptr;
+	int32_t iHeapCount = 0;
+
+	bool Less(int32_t iNodeA, int32_t iNodeB) const
+	{
+		float fA = pFCost[iNodeA];
+		float fB = pFCost[iNodeB];
+		if (fA != fB)
+		{
+			return fA < fB;
+		}
+		return iNodeA < iNodeB;
+	}
+
+	void Swap(int32_t iIndexA, int32_t iIndexB)
+	{
+		int32_t iNodeA = pOpenSet[iIndexA];
+		int32_t iNodeB = pOpenSet[iIndexB];
+		pOpenSet[iIndexA] = iNodeB;
+		pOpenSet[iIndexB] = iNodeA;
+		pHeapPos[iNodeA] = iIndexB;
+		pHeapPos[iNodeB] = iIndexA;
+	}
+
+	void SiftUp(int32_t iIndex)
+	{
+		while (iIndex > 0)
+		{
+			int32_t iParent = (iIndex - 1) / 2;
+			if (!Less(pOpenSet[iIndex], pOpenSet[iParent]))
+			{
+				break;
+			}
+			Swap(iIndex, iParent);
+			iIndex = iParent;
+		}
+	}
+
+	void SiftDown(int32_t iIndex)
+	{
+		while (true)
+		{
+			int32_t iSmallest = iIndex;
+			int32_t iLeft = 2 * iIndex + 1;
+			int32_t iRight = 2 * iIndex + 2;
+			if (iLeft < iHeapCount && Less(pOpenSet[iLeft], pOpenSet[iSmallest]))
+			{
+				iSmallest = iLeft;
+			}
+			if (iRight < iHeapCount && Less(pOpenSet[iRight], pOpenSet[iSmallest]))
+			{
+				iSmallest = iRight;
+			}
+			if (iSmallest == iIndex)
+			{
+				break;
+			}
+			Swap(iIndex, iSmallest);
+			iIndex = iSmallest;
+		}
+	}
+
+	void Push(int32_t iNode)
+	{
+		pOpenSet[iHeapCount] = iNode;
+		pHeapPos[iNode] = iHeapCount;
+		++iHeapCount;
+		SiftUp(iHeapCount - 1);
+	}
+
+	int32_t Pop()
+	{
+		int32_t iTop = pOpenSet[0];
+		pHeapPos[iTop] = -1;
+		--iHeapCount;
+		if (iHeapCount > 0)
+		{
+			pOpenSet[0] = pOpenSet[iHeapCount];
+			pHeapPos[pOpenSet[0]] = 0;
+			SiftDown(0);
+		}
+		return iTop;
+	}
+};
+
 // A* pathfinding on the visibility graph with temporary start/end nodes
 // Returns the direction toward the first waypoint, or zero vector if no path found
 XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, const NavData& rNavData, const AStarMemory& rMemory, XMVECTOR* pOutNextWaypoint)
@@ -339,99 +431,18 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 		return pVertices[iNode];
 	};
 
-	// Binary min-heap open set keyed by (fCost, node index). The index tie-break makes pop order a
-	// total order, so the search is deterministic across builds. pHeapPos enables O(log n) decrease-key.
-	int32_t iHeapCount = 0;
-
-	auto HeapLess = [&](int32_t iNodeA, int32_t iNodeB) -> bool
-	{
-		float fA = rMemory.pFCost[iNodeA];
-		float fB = rMemory.pFCost[iNodeB];
-		if (fA != fB)
-		{
-			return fA < fB;
-		}
-		return iNodeA < iNodeB;
-	};
-
-	auto HeapSwap = [&](int32_t iIndexA, int32_t iIndexB)
-	{
-		int32_t iNodeA = rMemory.pOpenSet[iIndexA];
-		int32_t iNodeB = rMemory.pOpenSet[iIndexB];
-		rMemory.pOpenSet[iIndexA] = iNodeB;
-		rMemory.pOpenSet[iIndexB] = iNodeA;
-		rMemory.pHeapPos[iNodeA] = iIndexB;
-		rMemory.pHeapPos[iNodeB] = iIndexA;
-	};
-
-	auto SiftUp = [&](int32_t iIndex)
-	{
-		while (iIndex > 0)
-		{
-			int32_t iParent = (iIndex - 1) / 2;
-			if (!HeapLess(rMemory.pOpenSet[iIndex], rMemory.pOpenSet[iParent]))
-			{
-				break;
-			}
-			HeapSwap(iIndex, iParent);
-			iIndex = iParent;
-		}
-	};
-
-	auto SiftDown = [&](int32_t iIndex)
-	{
-		while (true)
-		{
-			int32_t iSmallest = iIndex;
-			int32_t iLeft = 2 * iIndex + 1;
-			int32_t iRight = 2 * iIndex + 2;
-			if (iLeft < iHeapCount && HeapLess(rMemory.pOpenSet[iLeft], rMemory.pOpenSet[iSmallest]))
-			{
-				iSmallest = iLeft;
-			}
-			if (iRight < iHeapCount && HeapLess(rMemory.pOpenSet[iRight], rMemory.pOpenSet[iSmallest]))
-			{
-				iSmallest = iRight;
-			}
-			if (iSmallest == iIndex)
-			{
-				break;
-			}
-			HeapSwap(iIndex, iSmallest);
-			iIndex = iSmallest;
-		}
-	};
-
-	auto HeapPush = [&](int32_t iNode)
-	{
-		rMemory.pOpenSet[iHeapCount] = iNode;
-		rMemory.pHeapPos[iNode] = iHeapCount;
-		++iHeapCount;
-		SiftUp(iHeapCount - 1);
-	};
-
-	auto HeapPop = [&]() -> int32_t
-	{
-		int32_t iTop = rMemory.pOpenSet[0];
-		rMemory.pHeapPos[iTop] = -1;
-		--iHeapCount;
-		if (iHeapCount > 0)
-		{
-			rMemory.pOpenSet[0] = rMemory.pOpenSet[iHeapCount];
-			rMemory.pHeapPos[rMemory.pOpenSet[0]] = 0;
-			SiftDown(0);
-		}
-		return iTop;
-	};
+	// Binary min-heap open set (see AStarHeap above): keyed by (fCost, node index) with an index
+	// tie-break for deterministic pop order; pHeapPos enables O(log n) decrease-key.
+	AStarHeap heap {.pOpenSet = rMemory.pOpenSet, .pHeapPos = rMemory.pHeapPos, .pFCost = rMemory.pFCost, .iHeapCount = 0};
 
 	// Initialize start node
 	rMemory.pGCost[iStartNode] = 0.0f;
 	rMemory.pFCost[iStartNode] = Distance(f2Start, f2End);
-	HeapPush(iStartNode);
+	heap.Push(iStartNode);
 
-	while (iHeapCount > 0)
+	while (heap.iHeapCount > 0)
 	{
-		int32_t iCurrent = HeapPop();
+		int32_t iCurrent = heap.Pop();
 
 		if (iCurrent == iEndNode)
 		{
@@ -473,11 +484,11 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 
 				if (rMemory.pHeapPos[iNeighbor] >= 0)
 				{
-					SiftUp(rMemory.pHeapPos[iNeighbor]); // fCost decreased -> may move up
+					heap.SiftUp(rMemory.pHeapPos[iNeighbor]); // fCost decreased -> may move up
 				}
 				else
 				{
-					HeapPush(iNeighbor);
+					heap.Push(iNeighbor);
 				}
 			}
 		};
@@ -520,6 +531,40 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 	}
 
 	return XMVectorZero();
+}
+
+// A*-miss fallback: when A* finds no path, steer toward the nearest start-visible obstacle vertex.
+// Writes the refined waypoint when one is found; returns the steering direction (zero if none).
+XMVECTOR NavMissFallbackDirection(XMFLOAT2 f2Position, const XMFLOAT2* pVertices, const NavData& rNavData, int32_t iVertexCount, float fBaseHeight, XMVECTOR* pOutNextWaypoint)
+{
+	float fBestDist = std::numeric_limits<float>::max();
+	XMFLOAT2 f2BestVertex = f2Position;
+	bool bFound = false;
+
+	for (int32_t i = 0; i < iVertexCount; ++i)
+	{
+		if (!SegmentBlockedByObstacle(f2Position, pVertices[i], pVertices, rNavData))
+		{
+			float fDist = Distance(f2Position, pVertices[i]);
+			if (fDist < fBestDist)
+			{
+				fBestDist = fDist;
+				f2BestVertex = pVertices[i];
+				bFound = true;
+			}
+		}
+	}
+
+	if (!bFound)
+	{
+		return XMVectorZero();
+	}
+
+	if (pOutNextWaypoint != nullptr)
+	{
+		*pOutNextWaypoint = XMVectorSet(f2BestVertex.x, f2BestVertex.y, fBaseHeight, 1.0f);
+	}
+	return XMVector3Normalize(XMVectorSet(f2BestVertex.x - f2Position.x, f2BestVertex.y - f2Position.y, 0.0f, 0.0f));
 }
 
 } // anonymous namespace
@@ -630,32 +675,7 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 		// Fallback: if A* found no path, move toward nearest visible obstacle vertex
 		if (XMVectorGetX(XMVector3LengthSq(vecResult)) < 1e-8f)
 		{
-			float fBestDist = std::numeric_limits<float>::max();
-			XMFLOAT2 f2BestVertex = f2Position;
-			bool bFound = false;
-
-			for (int32_t i = 0; i < iVertexCount; ++i)
-			{
-				if (!SegmentBlockedByObstacle(f2Position, pVertices[i], pVertices, rNavData))
-				{
-					float fDist = Distance(f2Position, pVertices[i]);
-					if (fDist < fBestDist)
-					{
-						fBestDist = fDist;
-						f2BestVertex = pVertices[i];
-						bFound = true;
-					}
-				}
-			}
-
-			if (bFound)
-			{
-				if (pOutNextWaypoint != nullptr)
-				{
-					*pOutNextWaypoint = XMVectorSet(f2BestVertex.x, f2BestVertex.y, fBaseHeight, 1.0f);
-				}
-				vecResult = XMVector3Normalize(XMVectorSet(f2BestVertex.x - f2Position.x, f2BestVertex.y - f2Position.y, 0.0f, 0.0f));
-			}
+			vecResult = NavMissFallbackDirection(f2Position, pVertices, rNavData, iVertexCount, fBaseHeight, pOutNextWaypoint);
 		}
 	}
 

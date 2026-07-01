@@ -184,13 +184,17 @@ void TextureCache::GeneratePbrLutBrdf()
 		},
 	});
 
-	OneShotCommandBuffer oneShotCommandBuffer;
+	// Scoped so the render OneShotCommandBuffer is destroyed (releasing sbInUse) before SaveTextureToCache's
+	// CopyImageToHostMemory constructs its own — overlapping lifetimes trip the shared-pool assert.
+	{
+		OneShotCommandBuffer oneShotCommandBuffer;
 
-	mPbrLutBrdfTexture.RecordBeginRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
-	pipeline.RecordDraw(0, oneShotCommandBuffer.mVkCommandBuffer, 1, 0);
-	mPbrLutBrdfTexture.RecordEndRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
+		mPbrLutBrdfTexture.RecordBeginRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
+		pipeline.RecordDraw(0, oneShotCommandBuffer.mVkCommandBuffer, 1, 0);
+		mPbrLutBrdfTexture.RecordEndRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
 
-	oneShotCommandBuffer.Execute();
+		oneShotCommandBuffer.Execute();
+	}
 
 	// Save generated texture to cache
 	SaveTextureToCache("BrdfLut.cache", mPbrLutBrdfTexture, vkFormat);

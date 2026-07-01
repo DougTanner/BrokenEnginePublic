@@ -14,6 +14,8 @@ using enum PipelineFlags;
 namespace
 {
 
+// Always pushes the default 16-byte PushConstantsLayout range; callers guard that the pipeline uses the default range
+// (iPushConstantBytes == 0), since a sub-16-byte override would overflow the layout's reserved push-constant range.
 void RecordPushConstants(VkCommandBuffer vkCommandBuffer, VkPipelineLayout vkPipelineLayout, VkShaderStageFlags stageFlags, const XMFLOAT4& f4PushConstants)
 {
 	shaders::PushConstantsLayout pushConstantsLayout {};
@@ -221,6 +223,7 @@ void Pipeline::Destroy() noexcept
 		if (mInfo.flags & kIndirectHostVisible)
 		{
 			mpIndirectMappedMemory = nullptr;
+			mpIndirectComputeMappedMemory = nullptr;
 		}
 
 		vmaDestroyBuffer(gpDeviceManager->mpAllocator, mIndirectVkBuffer, mIndirectVmaAllocation);
@@ -236,6 +239,7 @@ void Pipeline::RecordDraw(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffe
 
 	if (mInfo.flags & kPushConstants)
 	{
+		ASSERT(mInfo.iPushConstantBytes == 0);
 		RecordPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, f4PushConstants);
 	}
 
@@ -251,6 +255,7 @@ void Pipeline::RecordBindPipelineAndDescriptors(int64_t iCommandBuffer, VkComman
 {
 	if (mInfo.flags & kPushConstants)
 	{
+		ASSERT(mInfo.iPushConstantBytes == 0);
 		RecordPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, f4PushConstants);
 	}
 
@@ -265,6 +270,7 @@ void Pipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkComm
 
 	if (mInfo.flags & kPushConstants)
 	{
+		ASSERT(mInfo.iPushConstantBytes == 0);
 		RecordPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, f4PushConstants);
 	}
 
@@ -288,6 +294,7 @@ void Pipeline::RecordDrawIndirectSet2(int64_t iCommandBuffer, VkCommandBuffer vk
 
 	if (mInfo.flags & kPushConstants)
 	{
+		ASSERT(mInfo.iPushConstantBytes == 0);
 		RecordPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, f4PushConstants);
 	}
 
@@ -304,6 +311,7 @@ void Pipeline::RecordCompute(int64_t iCommandBuffer, VkCommandBuffer vkCommandBu
 
 	if (mInfo.flags & kPushConstants)
 	{
+		ASSERT(mInfo.iPushConstantBytes == 0);
 		RecordPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, f4PushConstants);
 	}
 
@@ -319,6 +327,7 @@ void Pipeline::RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkC
 
 	if (mInfo.flags & kPushConstants)
 	{
+		ASSERT(mInfo.iPushConstantBytes == 0);
 		RecordPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, f4PushConstants);
 	}
 
@@ -355,6 +364,20 @@ void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCoun
 	rCommand.firstIndex = static_cast<uint32_t>(iFirstIndex);
 	rCommand.vertexOffset = static_cast<int32_t>(iVertexOffset);
 	rCommand.firstInstance = 0;
+}
+
+void Pipeline::WriteIndirectComputeBuffer(int64_t iCommandBuffer, int64_t iGroupCountX, int64_t iGroupCountY, int64_t iGroupCountZ)
+{
+	// Unlike WriteIndirectBuffer, this does not service the indirect demand-load deferral (Pipeline::Create
+	// defers texture requests for indirect pipelines): a host-visible compute-indirect pipeline must bind
+	// render-target textures only, never lazily disk-loaded ones.
+	ASSERT((mInfo.flags & kIndirectHostVisible) && (mInfo.flags & kCompute));
+	ASSERT(mpIndirectComputeMappedMemory != nullptr);
+
+	VkDispatchIndirectCommand& rCommand = mpIndirectComputeMappedMemory[iCommandBuffer];
+	rCommand.x = static_cast<uint32_t>(iGroupCountX);
+	rCommand.y = static_cast<uint32_t>(iGroupCountY);
+	rCommand.z = static_cast<uint32_t>(iGroupCountZ);
 }
 
 void Pipeline::UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer)

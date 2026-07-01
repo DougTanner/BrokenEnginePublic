@@ -86,7 +86,7 @@ static void DebugRenderIslandValidArea(const std::vector<GridCoord>& rActiveCoor
 	// Drawn at the underwater mask threshold depth (the depth that defines the hull boundary), below
 	// the magenta boundary rectangle / cyan frame edges at gBaseHeight. Debug lines are an overlay
 	// (no depth test), so the underwater Z is never occluded by terrain or water.
-	float fZ = common::kfUnderwaterMaskThresholdMeters * kfMetersToUnits;
+	float fZ = common::kfUnderwaterMaskThresholdMeters;
 	constexpr XMFLOAT4A kf4ValidAreaColor = {0.0f, 1.0f, 0.0f, 1.0f};
 
 	for (const GridCoord& rCoord : rActiveCoords)
@@ -314,7 +314,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	// so this return is unreachable. It exists only to keep rRenderInterpolates.at(cameraCoord) below from
 	// throwing. If the invariant ever breaks, this skips every per-frame indirect-count write
 	// (FrameInterpolate::BeginRender/EndRender, DebugRender::BeginRender/EndRender, water LOD
-	// WriteIndirectBuffer) while the record-once Main CB still submits unconditionally
+	// WriteIndirectBuffer + WaterDisplacement WriteIndirectComputeBuffer) while the record-once Main CB still submits unconditionally
 	// (Graphics::RenderMainPresentAcquire) — each skipped frame re-submits its command buffer's last-written
 	// instance counts (framebuffer-count frames stale) as ghost draws, for as long as the skip persists.
 	// An empty path added here must flush those counters before returning.
@@ -348,6 +348,11 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 		rGlobalLayoutForLod.iWaterActiveQuadX = static_cast<int32_t>(rWaterLod.iQuadCountX);
 		rGlobalLayoutForLod.iWaterActiveQuadY = static_cast<int32_t>(rWaterLod.iQuadCountY);
 	}
+
+	// Indirect dispatch dims for kPipelineWaterDisplacement: one workgroup per kiComputeTileSize block over the
+	// (iQuadCount + 1) active-LOD texel rectangle the compute shader writes — the live sub-region only, not the
+	// full LOD0 grid. Written per framebuffer to match RecordComputeIndirect's slot indexing.
+	gpPipelineManager->mpPipelines[kPipelineWaterDisplacement].WriteIndirectComputeBuffer(iCommandBuffer, (rWaterLod.iQuadCountX + 1 + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, (rWaterLod.iQuadCountY + 1 + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, 1);
 
 	// Phase 1: BeginRender — compute total capacities, resize GPU buffers, reset counters
 	game::FrameInterpolate::BeginRender(iCommandBuffer, rRenderInterpolates, rActiveCoords);

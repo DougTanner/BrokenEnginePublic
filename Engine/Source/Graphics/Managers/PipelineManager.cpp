@@ -218,6 +218,7 @@ void PipelineManager::CreateLightingPipelines()
 		.name = "LightCombine",
 		.flags = {kCompute, kPushConstants},
 		.ppShaders = {&mShaders.at(data::kShadersLightingLightCombinecompCrc)},
+		.iPushConstantBytes = sizeof(shaders::CombinePushConstantsLayout),
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
@@ -393,7 +394,7 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 			// Bindless per-island color / normal / AO arrays (was previously single composite RTTs).
 			// Compositing fragment shader indexes these with the per-instance `uiTextureSlot` forwarded
 			// from Terrain.vert; `kSamplerClamp` matches the per-slot RegisterTextureBinding flag in
-			// IslandTerrain.cpp so descriptor writes line up with the sampler descriptor layout.
+			// IslandTerrainResidency.cpp so descriptor writes line up with the sampler descriptor layout.
 			{.flags = {kCombinedSamplers, kSamplerClamp, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mColorTextures.data()}, // set=1 binding 6 (color)
 			{.flags = {kCombinedSamplers, kSamplerClamp, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mNormalsTextures.data()}, // set=1 binding 7 (normals)
 			{.flags = {kCombinedSamplers, kSamplerClamp, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.data()}, // set=1 binding 8 (ambient occlusion)
@@ -428,12 +429,13 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 	// Pre-computes Gerstner wave displacement + Jacobian normal once per frame into two RGBA16F
 	// textures sampled by Water.vert (kPipelineWater + kPipelineWaterSkyboxOne) — eliminates the
 	// duplicate wave sum the two passes used to evaluate via the now-removed GerstnerLow/Medium
-	// helpers. Dispatch is sized to the LOD0 vertex grid at CB-record time; the shader's
-	// iWaterActiveQuad* uniform bounds-checks each thread so smaller LODs early-return.
+	// helpers. Dispatch dims are written per frame by MainUniforms (WriteIndirectComputeBuffer) to cover
+	// only the active LOD sub-region; the shader's iWaterActiveQuad* uniform still bounds-checks each thread
+	// as a defensive guard.
 	mpPipelines[kPipelineWaterDisplacement].Create(
 	{
 		.name = "WaterDisplacement",
-		.flags = {kCompute},
+		.flags = {kCompute, kIndirectHostVisible},
 		.ppShaders = {&mShaders.at(data::kShadersWaterWaterDisplacementcompCrc)},
 		.pDescriptorInfos =
 		{

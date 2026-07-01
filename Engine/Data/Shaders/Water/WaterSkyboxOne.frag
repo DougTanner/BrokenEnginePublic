@@ -59,7 +59,7 @@ void main()
 
 	// Eye normal — must match Water.frag's f3ToEyeNormal computation exactly so the One-lobe lands on the same per-sample location.
 	vec3 f3ToEyeNormal = normalize(vec3(-f2InInitialPosition, mainLayout.f4EyePosition.z));
-	f3ToEyeNormal = normalize(mix(f3ToEyeNormal, mainLayout.f4ToEyeNormal.xyz, mainLayout.fLightingWaterSkyboxNormalSoften));
+	f3ToEyeNormal = normalize(mix(f3ToEyeNormal, mainLayout.f4ToEyeNormal.xyz, globalLayout.fLightingWaterSkyboxNormalSoften));
 
 	// Sampled-normal composition — mirrors Water.frag's normal-map sampling block (fSizeOne through
 	// f3SampledNormal). Derivatives taken from un-scaled local

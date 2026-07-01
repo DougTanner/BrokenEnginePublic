@@ -184,6 +184,8 @@ static void PopulateSunAndLighting(shaders::GlobalLayout& rGlobalLayout, float f
 	// Time of day — resolved alongside the day-cycle derivation, where every other day-cycle product is computed (Lighting region owns these fields).
 	rGlobalLayout.fLightingTimeOfDayMultiplier = rfDayPercent * gLightingDayFinalMultiplier.Get() + (1.0f - rfDayPercent) * gLightingNightFinalMultiplier.Get();
 	rGlobalLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - rfDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
+	// Skybox normal soften blends a sunrise/sunset (low-sun) value toward a noon value by the noon feather (1 at solar noon, 0 toward both horizons / night).
+	rGlobalLayout.fLightingWaterSkyboxNormalSoften = (1.0f - rfNoonPercent) * gLightingWaterSkyboxNormalSoftenSunrise.Get() + rfNoonPercent * gLightingWaterSkyboxNormalSoftenNoon.Get();
 }
 
 static void PopulateShadowStretch(shaders::GlobalLayout& rGlobalLayout, float fSunAngle)
@@ -603,7 +605,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 	rGlobalLayout.fSeaFloorElevation = gpIslandTerrain->mfSeaFloorElevation;
 	// Zero-out line Terrain.vert uses to sink each island's submerged verts to the sea floor. Single source
 	// of truth = the same constant DataPacker bakes the valid-area hull / texture masking from.
-	rGlobalLayout.fUnderwaterMaskThreshold = common::kfUnderwaterMaskThresholdMeters * kfMetersToUnits;
+	rGlobalLayout.fUnderwaterMaskThreshold = common::kfUnderwaterMaskThresholdMeters;
 	float fHigh = 0.0f;
 	for (const auto& [rCrc, rIsland] : gpIslandTerrain->mIslands)
 	{

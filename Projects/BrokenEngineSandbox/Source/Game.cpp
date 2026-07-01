@@ -201,7 +201,7 @@ void Game::ComputeActiveSet()
 		if (ClientPlayerId().IsValid())
 		{
 			// Camera-zoom-dependent VisibleArea: f4LargeVisibleArea packs (minX, maxY, maxX, minY).
-			const XMFLOAT4& f4Visible = mCamera.f4LargeVisibleArea;
+			const XMFLOAT4& f4Visible = gpCamera->f4LargeVisibleArea;
 			XMVECTOR vecArea = mCoordFrames.at(mClientGridCoord).staticData.vecArea;
 			float fCellMinX = XMVectorGetX(vecArea);
 			float fCellMaxY = XMVectorGetY(vecArea);
@@ -338,7 +338,7 @@ void Game::BuildFrameInputs()
 			float fCurrentArmor = rPlayersPostRender.pfArmors[*oIdx];
 			if (fCurrentArmor < mfPreviousClientArmor)
 			{
-				mCamera.mfShake = std::min(mCamera.mfShake + kfCameraShakeAdd, kfCameraShakeMax);
+				gpCamera->mfShake = std::min(gpCamera->mfShake + kfCameraShakeAdd, kfCameraShakeMax);
 			}
 			mfPreviousClientArmor = fCurrentArmor;
 		}

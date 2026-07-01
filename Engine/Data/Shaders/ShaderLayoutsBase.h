@@ -454,6 +454,7 @@ struct GlobalLayout
 	// Time of day
 	float fLightingTimeOfDayMultiplier INIT;
 	float fLightingWaterSkyboxOne INIT;
+	float fLightingWaterSkyboxNormalSoften INIT;
 
 	// Debug
 	float fDebugTextureIndex INIT;
@@ -504,7 +505,6 @@ struct MainLayout
 	float fWaterHeightDarkenLighting INIT;
 
 	float fLightingWaterSkyboxSunBias INIT;
-	float fLightingWaterSkyboxNormalSoften INIT;
 	float fLightingWaterSkyboxNormalBlendWave INIT;
 	float fLightingWaterSkyboxIntensity INIT;
 	float fLightingWaterSkyboxAdd INIT;

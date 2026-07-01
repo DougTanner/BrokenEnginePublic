@@ -39,15 +39,16 @@ Wrapper gWaterWaveNormalBlend(0.8f, 0.0f, 1.0f);
 
 // Specular - Skybox
 Wrapper gLightingWaterSkyboxSunBias(3.3f, 0.0f, 4.0f);
-Wrapper gLightingWaterSkyboxNormalSoften(0.75f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxNormalSoftenSunrise(0.89f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxNormalSoftenNoon(0.7f, 0.0f, 1.0f);
 Wrapper gLightingWaterSkyboxNormalBlendWave(0.13f, 0.0f, 0.4f);
-Wrapper gLightingWaterSkyboxIntensity(0.0004f, 0.0001f, 0.002f);
+Wrapper gLightingWaterSkyboxIntensity(0.00039f, 0.0001f, 0.002f);
 Wrapper gLightingWaterSkyboxAdd(2.0f, 0.0f, 4.0f);
-Wrapper gLightingWaterSkyboxOne(2400.0f, 0.0f, 5000.0f);
-Wrapper gLightingWaterSkyboxOnePower(250.0f, 50.0f, 400.0f);
-Wrapper gLightingWaterSkyboxTwo(150.0f, 0.0f, 400.0f);
-Wrapper gLightingWaterSkyboxTwoPower(6.0f, 1.0f, 20.0f);
-Wrapper gLightingWaterSkyboxThree(200.0f, 1.0f, 800.0f);
+Wrapper gLightingWaterSkyboxOne(2500.0f, 0.0f, 5000.0f);
+Wrapper gLightingWaterSkyboxOnePower(200.0f, 50.0f, 400.0f);
+Wrapper gLightingWaterSkyboxTwo(350.0f, 0.0f, 1500.0f);
+Wrapper gLightingWaterSkyboxTwoPower(30.0f, 1.0f, 200.0f);
+Wrapper gLightingWaterSkyboxThree(190.0f, 1.0f, 800.0f);
 Wrapper gLightingWaterSkyboxThreePower(0.001f, 0.001f, 1.0f);
 Wrapper gLightingWaterSkyboxLod(7.5f, 0.0f, 10.0f);
 // Resolution multiplier for the WaterSkyboxOne MSAA pre-pass (default 1.0 = framebuffer size).
@@ -69,7 +70,7 @@ Wrapper gWaterLowAmplitude(0.05f, 0.0f, 0.1f);
 Wrapper gWaterLowSpeed(0.25f, 0.0f, 1.0f);
 Wrapper gWaterLowSteepness(0.5f, 0.0f, 2.0f);
 Wrapper gWaterLowAngleAdjust(0.2f, 0.0f, 0.5f);
-Wrapper gWaterLowWavelengthAdjust(-0.8f, -2.0f, 0.0f);
+Wrapper gWaterLowWavelengthAdjust(-0.75f, -2.0f, 0.0f);
 Wrapper gWaterLowAmplitudeAdjust(1.0f, 0.0f, 4.0f);
 Wrapper gWaterLowSpeedAdjust(0.288f, 0.0f, 4.0f);
 Wrapper gWaterBeachFadeTop(-0.06f, -0.1f, 0.0f);

@@ -180,16 +180,15 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 
 	// Pre-compute Gerstner wave displacement + Jacobian normal into two RGBA16F textures so the two
 	// Water.vert passes below (WaterSkyboxOne + main Water) can texelFetch a single value per vertex
-	// instead of summing iWaterLowCount + iWaterMediumCount waves twice. Dispatch is fixed at LOD0
-	// vertex-grid size; the shader bounds-checks each thread against iWaterActiveQuad* and early-returns
-	// for inactive cells. Elevation texture was rendered earlier in the Global command buffer
-	// (CommandBufferRecordGlobal.cpp ~line 96), which submits before Main per the acquire-Global-Main-ImGui
-	// semaphore chain — no extra elevation barrier required.
+	// instead of summing iWaterLowCount + iWaterMediumCount waves twice. Dispatch dims are written per frame
+	// by MainUniforms (WriteIndirectComputeBuffer) to cover only the active LOD sub-region; the shader still
+	// bounds-checks each thread against iWaterActiveQuad* as a defensive guard. Elevation texture was rendered
+	// earlier in the Global command buffer (CommandBufferRecordGlobal.cpp ~line 96), which submits before Main
+	// per the acquire-Global-Main-ImGui semaphore chain — no extra elevation barrier required.
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWaterDisplacement);
-	auto [iWaterDisplacementX, iWaterDisplacementY] = TextureManager::WaterDetailTextureSize(gWaterShapeDetail.Get());
 	gpTextureManager->mRenderTargetTextures.mWaterDisplacementTexture.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
 	gpTextureManager->mRenderTargetTextures.mWaterDisplacementNormalTexture.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
-	pPipelines[kPipelineWaterDisplacement].RecordCompute(iCommandBuffer, vkCommandBuffer, (iWaterDisplacementX + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, (iWaterDisplacementY + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize);
+	pPipelines[kPipelineWaterDisplacement].RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
 	gpTextureManager->mRenderTargetTextures.mWaterDisplacementTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 	gpTextureManager->mRenderTargetTextures.mWaterDisplacementNormalTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWaterDisplacement);

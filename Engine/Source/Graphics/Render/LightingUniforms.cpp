@@ -204,7 +204,6 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fWaterHeightDarkenLighting = gWaterHeightDarkenLighting.Get();
 
 	rMainLayout.fLightingWaterSkyboxSunBias = gLightingWaterSkyboxSunBias.Get();
-	rMainLayout.fLightingWaterSkyboxNormalSoften = gLightingWaterSkyboxNormalSoften.Get();
 	rMainLayout.fLightingWaterSkyboxNormalBlendWave = gLightingWaterSkyboxNormalBlendWave.Get();
 	rMainLayout.fLightingWaterSkyboxIntensity = gLightingWaterSkyboxIntensity.Get();
 	rMainLayout.fLightingWaterSkyboxAdd = gLightingWaterSkyboxAdd.Get();

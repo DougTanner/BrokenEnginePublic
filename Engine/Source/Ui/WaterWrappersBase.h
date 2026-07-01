@@ -28,7 +28,8 @@ extern Wrapper gWaterWaveNormalBlend;
 
 // Specular - Skybox
 extern Wrapper gLightingWaterSkyboxSunBias;
-extern Wrapper gLightingWaterSkyboxNormalSoften;
+extern Wrapper gLightingWaterSkyboxNormalSoftenSunrise;
+extern Wrapper gLightingWaterSkyboxNormalSoftenNoon;
 extern Wrapper gLightingWaterSkyboxNormalBlendWave;
 extern Wrapper gLightingWaterSkyboxIntensity;
 extern Wrapper gLightingWaterSkyboxAdd;

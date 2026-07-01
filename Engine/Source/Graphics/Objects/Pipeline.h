@@ -96,6 +96,10 @@ struct PipelineInfo
 	VkExtent3D vkExtent3D {};
 	int32_t iColorAttachmentCount = 1;
 
+	// Push-constant range size in bytes; 0 => default sizeof(shaders::PushConstantsLayout). Override only
+	// for pipelines whose shader declares a smaller push-constant block (e.g. LightCombine).
+	int64_t iPushConstantBytes = 0;
+
 	DescriptorInfo pDescriptorInfos[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings];
 };
 
@@ -131,6 +135,7 @@ public:
 	void RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants = {});
 
 	void WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCount, int64_t iIndexCount = 0, int64_t iFirstIndex = 0, int64_t iVertexOffset = 0);
+	void WriteIndirectComputeBuffer(int64_t iCommandBuffer, int64_t iGroupCountX, int64_t iGroupCountY, int64_t iGroupCountZ);
 
 	void UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer);
 	void UpdateCombinedImageSamplerDescriptor(int64_t iBinding, VkImageView vkImageView, VkSampler vkSampler);
@@ -159,6 +164,7 @@ public:
 	VkDeviceMemory mIndirectVkDeviceMemory = VK_NULL_HANDLE;
 	VmaAllocation mIndirectVmaAllocation = VK_NULL_HANDLE;
 	VkDrawIndexedIndirectCommand* mpIndirectMappedMemory = nullptr;
+	VkDispatchIndirectCommand* mpIndirectComputeMappedMemory = nullptr; // Host-visible dispatch map (kIndirectHostVisible | kCompute); mutually exclusive with the draw map above
 	int64_t miIndirectSlotCount = 0; // Indirect buffer slot capacity (= max(framebufferCount, 3)); bounds the Record*Indirect command-buffer index
 
 	Buffer mModelMaterialsStorageBuffer;

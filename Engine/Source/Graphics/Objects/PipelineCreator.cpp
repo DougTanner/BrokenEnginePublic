@@ -17,6 +17,14 @@ static constexpr float kfDepthBiasConstantFactor = -3.0f;
 static constexpr float kfDepthBiasSlopeFactor = -3.0f;
 static constexpr int64_t kiMaxColorAttachments = 6;
 
+// Push-constant range size for a pipeline's layout: the per-pipeline override when set, else the default
+// 16-byte PushConstantsLayout. Must equal the shader's declared push-constant block (LightCombine uses the
+// 8-byte CombinePushConstantsLayout) so the layout doesn't reserve bytes the dispatch never sets.
+static uint32_t ResolvePushConstantBytes(const Pipeline& rPipeline)
+{
+	return rPipeline.mInfo.iPushConstantBytes > 0 ? static_cast<uint32_t>(rPipeline.mInfo.iPushConstantBytes) : static_cast<uint32_t>(sizeof(shaders::PushConstantsLayout));
+}
+
 // Configures update-after-bind for storage buffer bindings in dynamic pipelines
 static void ConfigureUpdateAfterBind(VkDescriptorSetLayoutCreateInfo& rLayoutCreateInfo, const VkDescriptorSetLayoutBinding* pBindings, int64_t iDescriptorCount, VkDescriptorBindingFlags* pBindingFlags, VkDescriptorSetLayoutBindingFlagsCreateInfo& rBindingFlagsCreateInfo, bool bUpdateAfterBind)
 {
@@ -77,7 +85,7 @@ static void CreateSingleSetPipelineLayout(VkDescriptorSetLayoutCreateInfo& rLayo
 	VkPushConstantRange vkPushConstantRange {};
 	vkPushConstantRange.stageFlags = vkPushConstantStageFlags;
 	vkPushConstantRange.offset = 0;
-	vkPushConstantRange.size = sizeof(shaders::PushConstantsLayout);
+	vkPushConstantRange.size = ResolvePushConstantBytes(rPipeline);
 	rPipelineLayoutCreateInfo.pPushConstantRanges = rPipeline.mInfo.flags & kPushConstants ? &vkPushConstantRange : nullptr;
 	CHECK_VK(vkCreatePipelineLayout(gpDeviceManager->mVkDevice, &rPipelineLayoutCreateInfo, nullptr, &rPipeline.mVkPipelineLayout));
 	VkName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, rPipeline.mVkPipelineLayout, rPipeline.mInfo.name.data());
@@ -232,7 +240,7 @@ static void CreateDescriptorSetLayouts(Pipeline& rPipeline, VkDescriptorSetLayou
 	VkPushConstantRange vkPushConstantRange {};
 	vkPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 	vkPushConstantRange.offset = 0;
-	vkPushConstantRange.size = sizeof(shaders::PushConstantsLayout);
+	vkPushConstantRange.size = ResolvePushConstantBytes(rPipeline);
 
 	if (rPipeline.mVkExternalDescriptorSetLayout != VK_NULL_HANDLE)
 	{
@@ -686,7 +694,30 @@ void PipelineCreator::CreateComputePipeline(Pipeline& rPipeline)
 
 	if (rPipeline.mInfo.flags & kIndirectHostVisible)
 	{
-		ASSERT(false);
+		// Per-framebuffer host-visible dispatch buffer: the CPU writes the active-region workgroup dims each
+		// frame (WriteIndirectComputeBuffer), and RecordComputeIndirect reads slot iCommandBuffer — so size it
+		// like the graphics indirect path (SetupIndirectBuffer), not the single-slot device-local branch below.
+		size_t uiFramebufferCount = gpSwapchainManager->mFramebuffers.size();
+		int64_t iCommandBufferCount = std::max(uiFramebufferCount, static_cast<size_t>(3));
+		rPipeline.miIndirectSlotCount = iCommandBufferCount;
+
+		VmaAllocationInfo vmaAllocationInfo {};
+		Buffer::CreateBuffer(rPipeline.mInfo.name, iCommandBufferCount * sizeof(VkDispatchIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation, &vmaAllocationInfo);
+
+		// Verify VMA gave us the memory properties we requested
+		VkMemoryPropertyFlags vkMemoryPropertyFlags = 0;
+		vmaGetAllocationMemoryProperties(gpDeviceManager->mpAllocator, rPipeline.mIndirectVmaAllocation, &vkMemoryPropertyFlags);
+		ASSERT((vkMemoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0);
+		ASSERT((vkMemoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0);
+
+		rPipeline.mpIndirectComputeMappedMemory = static_cast<VkDispatchIndirectCommand*>(vmaAllocationInfo.pMappedData);
+		ASSERT(rPipeline.mpIndirectComputeMappedMemory != nullptr);
+
+		// Zero all dispatch slots — no work runs until the CPU writes real dims
+		for (int64_t i = 0; i < iCommandBufferCount; ++i)
+		{
+			rPipeline.mpIndirectComputeMappedMemory[i] = {.x = 0, .y = 0, .z = 0};
+		}
 	}
 	else if (rPipeline.mInfo.flags & kIndirectDeviceLocal)
 	{
@@ -751,7 +782,7 @@ void PipelineCreator::CreateComputePipeline(Pipeline& rPipeline)
 		VkPushConstantRange vkPushConstantRange {};
 		vkPushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 		vkPushConstantRange.offset = 0;
-		vkPushConstantRange.size = sizeof(shaders::PushConstantsLayout);
+		vkPushConstantRange.size = ResolvePushConstantBytes(rPipeline);
 		vkPipelineLayoutCreateInfo.setLayoutCount = 2;
 		vkPipelineLayoutCreateInfo.pSetLayouts = pSetLayouts;
 		vkPipelineLayoutCreateInfo.pushConstantRangeCount = rPipeline.mInfo.flags & kPushConstants ? 1 : 0;

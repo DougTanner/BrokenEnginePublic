@@ -79,7 +79,7 @@ void main()
 	// intermediate fLightingWaterSkyboxNormalSoften. Top-down camera: f4EyePosition.xy == fWaterOrigin
 	// by construction (Camera.cpp sets eye directly above target), so eye - waterWorld = -f2InInitial.
 	vec3 f3ToEyeNormal = normalize(vec3(-f2InInitialPosition, mainLayout.f4EyePosition.z));
-	f3ToEyeNormal = normalize(mix(f3ToEyeNormal, mainLayout.f4ToEyeNormal.xyz, mainLayout.fLightingWaterSkyboxNormalSoften));
+	f3ToEyeNormal = normalize(mix(f3ToEyeNormal, mainLayout.f4ToEyeNormal.xyz, globalLayout.fLightingWaterSkyboxNormalSoften));
 
 	// Normal map sampling with precision-safe UV computation
 	float fSizeOne = mainLayout.fLightingSampledNormalsOneSize;

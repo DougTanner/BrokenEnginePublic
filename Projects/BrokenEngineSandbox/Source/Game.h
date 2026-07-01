@@ -124,7 +124,6 @@ public:
 #endif
 
 #if defined(BT_CLIENT)
-	Camera mCamera {};
 	XMVECTOR mVecVisualErrorOffset {};
 	engine::NetworkUiControl<bool> mWeaponModeToggle {};
 	engine::NetworkUiControl<float> mNavigationDelayControl {};

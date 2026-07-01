@@ -58,7 +58,7 @@ inline constexpr std::string_view kGameCpuCounterNames[]
 	"    Rendered",
 	"Targets",
 };
-static_assert(std::size(kGameCpuCounterNames) == static_cast<size_t>(kGameCpuCounterCount - engine::kEngineCpuCounterCount));
+static_assert(std::size(kGameCpuCounterNames) == static_cast<size_t>(kGameCpuCounterCount) - static_cast<size_t>(engine::kEngineCpuCounterCount));
 
 inline constexpr std::string_view kGameCpuTimerNames[]
 {
@@ -84,7 +84,7 @@ inline constexpr std::string_view kGameCpuTimerNames[]
 	"    Spaceships",
 	"        Animate",
 };
-static_assert(std::size(kGameCpuTimerNames) == static_cast<size_t>(kGameCpuTimerCount - engine::kEngineCpuTimerCount));
+static_assert(std::size(kGameCpuTimerNames) == static_cast<size_t>(kGameCpuTimerCount) - static_cast<size_t>(engine::kEngineCpuTimerCount));
 
 class ProfileManager : public engine::ProfileManagerBase
 {

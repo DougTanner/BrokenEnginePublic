@@ -48,6 +48,15 @@ void main()
 	// Shore amp fade: 1 deep, 0 at/above the top. Same formula as Water.vert previously.
 	float fShoreAmplitude = clamp((fTerrainElevation - globalLayout.fBeachFadeTop) * globalLayout.fBeachFadeInvRange, 0.0f, 1.0f);
 
+	// Over land (terrain at/above water height): Water.vert skips the displacement fetch for these texels,
+	// so skip the medium-band Gerstner loop + Jacobian normal — the stored value is never sampled.
+	if (fTerrainElevation >= 0.0f)
+	{
+		imageStore(displacementImage, i2Coord, vec4(0.0f));
+		imageStore(normalImage,       i2Coord, vec4(0.0f, 0.0f, 1.0f, 0.0f));
+		return;
+	}
+
 	vec3 f3Displacement = vec3(0.0f);
 	// Jacobian accumulators (cross-product form — preserves N into high-steepness regime; see Water/CLAUDE.md).
 	float fA = 0.0f;

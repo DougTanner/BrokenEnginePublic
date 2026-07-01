@@ -12,11 +12,6 @@ namespace engine
 
 struct FrameStaticData;
 
-// Islands adopt 1 m = 1 engine unit. The rest of the engine (player radius, base
-// flying height, cell-derived camera ranges, etc.) still runs in unit-less units;
-// a future pass converts the whole engine to meters and drops this constant.
-inline constexpr float kfMetersToUnits = 1.0f;
-
 #if defined(BT_CLIENT)
 // Phase 5 LRU grace: a template's GPU resources stay resident this many render frames after its
 // last placement reference drops. ~5s @60Hz, ~2.5s @120Hz. Chosen to cover transient absences
@@ -50,8 +45,8 @@ struct IslandTemplate
 	// the configured elevation range). Manifest metadata, populated in IslandTerrain ctor.
 	float mfMaxHeightMeters = 0.0f;
 
-	// Anisotropic quad footprint in engine units; derived in ctor as
-	// mfWorldFootprint{X,Y}Meters * kfMetersToUnits.
+	// Anisotropic quad footprint in engine units (islands use 1 m = 1 engine unit), so a
+	// direct copy of mfWorldFootprint{X,Y}Meters; set in ctor.
 	float mfQuadFootprintX = 0.0f;
 	float mfQuadFootprintY = 0.0f;
 
@@ -205,6 +200,17 @@ public:
 
 #if defined(BT_CLIENT)
 private:
+	// First-mint half of AcquireTextureSlot (extracted for readability): pick or reuse a slot,
+	// create the elevation texture from the in-memory heightmap, wire the 5 bindless array pointers,
+	// and register each per-pipeline binding. Returns the assigned slot.
+	int64_t FirstMintTextureSlot(common::crc_t islandCrc, IslandTemplate& rTemplate, const common::crc_t (&textureCrcs)[4], std::string_view name);
+
+	// Evict one template's GPU residency if it qualifies (real slot, resident, unreferenced, grace
+	// window elapsed): free the 4 chunk channels + elevation, redirect the slot pointers/descriptors
+	// to the placeholders, and reclaim the slot. Returns true iff it evicted (EvictionSweep batches
+	// the descriptor-array update when any template evicts).
+	bool EvictTemplate(common::crc_t islandCrc, IslandTemplate& rTemplate);
+
 	// Starts at 1: slot 0 is reserved as a permanent neutral placeholder anchor, never adopted
 	// by any real island. See TextureManager::mIslandPlaceholder* members.
 	int64_t miNextTextureSlot = 1;
